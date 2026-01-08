@@ -23,6 +23,11 @@ type SSEDebugEvent = {
   lastEventId?: string;
 };
 
+type SessionDebugSnapshot = {
+  session: Record<string, unknown>;
+  tasks: Record<string, unknown>;
+};
+
 const EVENT_TYPES: Array<WorkflowEventType | "connected"> = [
   "connected",
   "workflow.lifecycle.updated",
@@ -47,6 +52,7 @@ const EVENT_TYPES: Array<WorkflowEventType | "connected"> = [
 ];
 
 const MAX_EVENTS = 500;
+const SESSION_REFRESH_MS = 3000;
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -168,6 +174,11 @@ export default function ConversationDebugPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionSnapshot, setSessionSnapshot] = useState<SessionDebugSnapshot | null>(null);
+  const [sessionSnapshotError, setSessionSnapshotError] = useState<string | null>(null);
+  const [sessionSnapshotLoading, setSessionSnapshotLoading] = useState(false);
+  const [sessionSnapshotUpdatedAt, setSessionSnapshotUpdatedAt] = useState<string | null>(null);
+  const [sessionAutoRefresh, setSessionAutoRefresh] = useState(true);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const listEndRef = useRef<HTMLDivElement | null>(null);
@@ -251,6 +262,38 @@ export default function ConversationDebugPage() {
     eventSourceRef.current = source;
   }, [disconnect, handleIncomingEvent, replayMode, sessionId]);
 
+  const loadSessionSnapshot = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!sessionId) {
+        setSessionSnapshot(null);
+        setSessionSnapshotError(null);
+        setSessionSnapshotUpdatedAt(null);
+        setSessionSnapshotLoading(false);
+        return;
+      }
+
+      if (!options?.silent) {
+        setSessionSnapshotLoading(true);
+      }
+      setSessionSnapshotError(null);
+
+      try {
+        const snapshot = await apiClient.getSessionRaw(sessionId);
+        setSessionSnapshot(snapshot);
+        setSessionSnapshotUpdatedAt(new Date().toISOString());
+      } catch (err) {
+        setSessionSnapshotError(
+          err instanceof Error ? err.message : "Failed to load session data.",
+        );
+      } finally {
+        if (!options?.silent) {
+          setSessionSnapshotLoading(false);
+        }
+      }
+    },
+    [sessionId],
+  );
+
   useEffect(() => {
     return () => {
       disconnect();
@@ -269,6 +312,27 @@ export default function ConversationDebugPage() {
       setSelectedId(events.length > 0 ? events[events.length - 1].id : null);
     }
   }, [events, selectedId]);
+
+  useEffect(() => {
+    if (!sessionId) {
+      setSessionSnapshot(null);
+      setSessionSnapshotError(null);
+      setSessionSnapshotUpdatedAt(null);
+      setSessionSnapshotLoading(false);
+      return;
+    }
+    void loadSessionSnapshot();
+  }, [loadSessionSnapshot, sessionId]);
+
+  useEffect(() => {
+    if (!sessionId || !sessionAutoRefresh) {
+      return;
+    }
+    const handle = setInterval(() => {
+      void loadSessionSnapshot({ silent: true });
+    }, SESSION_REFRESH_MS);
+    return () => clearInterval(handle);
+  }, [loadSessionSnapshot, sessionAutoRefresh, sessionId]);
 
   const filteredEvents = useMemo(() => {
     if (!filter.trim()) {
@@ -299,6 +363,22 @@ export default function ConversationDebugPage() {
     }
     return <Badge variant="outline">Disconnected</Badge>;
   }, [error, isConnected, isConnecting]);
+
+  const sessionStatusBadge = useMemo(() => {
+    if (sessionSnapshotError) {
+      return <Badge variant="destructive">Session error</Badge>;
+    }
+    if (!sessionId) {
+      return <Badge variant="outline">No session</Badge>;
+    }
+    if (sessionSnapshotLoading) {
+      return <Badge variant="warning">Loading</Badge>;
+    }
+    if (sessionSnapshotUpdatedAt) {
+      return <Badge variant="success">Fresh</Badge>;
+    }
+    return <Badge variant="outline">Idle</Badge>;
+  }, [sessionId, sessionSnapshotError, sessionSnapshotLoading, sessionSnapshotUpdatedAt]);
 
   return (
     <RequireAuth>
@@ -461,56 +541,131 @@ export default function ConversationDebugPage() {
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm">
-              <CardHeader>
-                <CardTitle className="text-base">Payload inspector</CardTitle>
-                <CardDescription>
-                  Parsed JSON and raw payload for the selected SSE event.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {selectedEvent ? (
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                      <Badge variant="secondary">{selectedEvent.eventType}</Badge>
-                      {selectedEvent.lastEventId && (
-                        <Badge variant="outline">ID: {selectedEvent.lastEventId}</Badge>
-                      )}
-                      <Badge variant="outline">
-                        Received: {formatTimestamp(selectedEvent.receivedAt)}
-                      </Badge>
-                    </div>
-                    {selectedEvent.parseError && (
-                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        JSON parse error: {selectedEvent.parseError}
+            <div className="space-y-4">
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Payload inspector</CardTitle>
+                  <CardDescription>
+                    Parsed JSON and raw payload for the selected SSE event.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {selectedEvent ? (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge variant="secondary">{selectedEvent.eventType}</Badge>
+                        {selectedEvent.lastEventId && (
+                          <Badge variant="outline">ID: {selectedEvent.lastEventId}</Badge>
+                        )}
+                        <Badge variant="outline">
+                          Received: {formatTimestamp(selectedEvent.receivedAt)}
+                        </Badge>
                       </div>
+                      {selectedEvent.parseError && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          JSON parse error: {selectedEvent.parseError}
+                        </div>
+                      )}
+                      <Tabs defaultValue="json">
+                        <TabsList>
+                          <TabsTrigger value="json">Parsed JSON</TabsTrigger>
+                          <TabsTrigger value="raw">Raw payload</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="json">
+                          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                            <JsonViewer data={selectedEvent.parsed} />
+                          </div>
+                        </TabsContent>
+                        <TabsContent value="raw">
+                          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                            <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+                              {selectedEvent.raw || "—"}
+                            </pre>
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                      Select an event to inspect its payload.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Session snapshot</CardTitle>
+                  <CardDescription>
+                    Raw session and task list payloads pulled from the API for the same session ID.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {sessionStatusBadge}
+                    {sessionSnapshotUpdatedAt && (
+                      <Badge variant="outline">
+                        Updated: {formatTimestamp(sessionSnapshotUpdatedAt)}
+                      </Badge>
                     )}
-                    <Tabs defaultValue="json">
+                    <Badge variant="outline">
+                      Auto-refresh {sessionAutoRefresh ? "on" : "off"}
+                    </Badge>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => loadSessionSnapshot()}
+                      disabled={!sessionId || sessionSnapshotLoading}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Refresh
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant={sessionAutoRefresh ? "default" : "outline"}
+                      onClick={() => setSessionAutoRefresh((value) => !value)}
+                      disabled={!sessionId}
+                    >
+                      Auto-refresh {sessionAutoRefresh ? "on" : "off"}
+                    </Button>
+                    {sessionSnapshotLoading && (
+                      <Badge variant="warning">Loading</Badge>
+                    )}
+                  </div>
+                  {sessionSnapshotError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {sessionSnapshotError}
+                    </div>
+                  )}
+                  {sessionSnapshot ? (
+                    <Tabs defaultValue="parsed">
                       <TabsList>
-                        <TabsTrigger value="json">Parsed JSON</TabsTrigger>
-                        <TabsTrigger value="raw">Raw payload</TabsTrigger>
+                        <TabsTrigger value="parsed">Parsed JSON</TabsTrigger>
+                        <TabsTrigger value="raw">Raw JSON</TabsTrigger>
                       </TabsList>
-                      <TabsContent value="json">
+                      <TabsContent value="parsed">
                         <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
-                          <JsonViewer data={selectedEvent.parsed} />
+                          <JsonViewer data={sessionSnapshot} />
                         </div>
                       </TabsContent>
                       <TabsContent value="raw">
                         <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
                           <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                            {selectedEvent.raw || "—"}
+                            {JSON.stringify(sessionSnapshot, null, 2)}
                           </pre>
                         </div>
                       </TabsContent>
                     </Tabs>
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
-                    Select an event to inspect its payload.
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                      Enter a session ID to load the server snapshot.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>

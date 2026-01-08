@@ -294,6 +294,24 @@ export async function getSessionDetails(
   };
 }
 
+export async function getSessionRaw(sessionId: string): Promise<{
+  session: Record<string, unknown>;
+  tasks: Record<string, unknown>;
+}> {
+  const session = await fetchAPI<Record<string, unknown>>(
+    `/api/sessions/${sessionId}`,
+  );
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    limit: "100",
+    offset: "0",
+  });
+  const tasks = await fetchAPI<Record<string, unknown>>(
+    `/api/tasks?${params.toString()}`,
+  );
+  return { session, tasks };
+}
+
 export async function getSessionTitle(
   sessionId: string,
 ): Promise<string | null> {
@@ -413,6 +431,7 @@ export const apiClient = {
   createSession,
   listSessions,
   getSessionDetails,
+  getSessionRaw,
   getSessionTitle,
   deleteSession,
   getContextWindowPreview,
