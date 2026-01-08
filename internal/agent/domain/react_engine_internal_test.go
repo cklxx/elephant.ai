@@ -794,6 +794,52 @@ func TestNormalizeMessageHistoryAttachmentsMigratesInlinePayloads(t *testing.T) 
 	}
 }
 
+func TestCompactToolCallHistoryReplacesLargeArguments(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	largeContent := strings.Repeat("a", toolArgHistoryInlineLimit+8)
+
+	state := &TaskState{
+		Messages: []Message{{
+			Role: "assistant",
+			ToolCalls: []ToolCall{{
+				ID:   "call-1",
+				Name: "file_write",
+				Arguments: map[string]any{
+					"path":    "note.txt",
+					"content": largeContent,
+				},
+			}},
+		}},
+	}
+
+	results := []ToolResult{{
+		CallID: "call-1",
+		Metadata: map[string]any{
+			"path": "/workspace/note.txt",
+		},
+	}}
+
+	engine.compactToolCallHistory(state, results)
+
+	args := state.Messages[0].ToolCalls[0].Arguments
+	contentRef, ok := args["content"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected content argument to be compacted, got %#v", args["content"])
+	}
+	if args["path"] != "note.txt" {
+		t.Fatalf("expected path argument to remain, got %#v", args["path"])
+	}
+	if contentRef["content_ref"] != "/workspace/note.txt" {
+		t.Fatalf("expected content_ref to point to resolved path, got %#v", contentRef["content_ref"])
+	}
+	if contentRef["content_len"] != len(largeContent) {
+		t.Fatalf("expected content_len %d, got %#v", len(largeContent), contentRef["content_len"])
+	}
+	if hash, ok := contentRef["content_sha256"].(string); !ok || hash == "" {
+		t.Fatalf("expected content_sha256 to be populated, got %#v", contentRef["content_sha256"])
+	}
+}
+
 type captureMigrator struct {
 	requests []materialports.MigrationRequest
 }

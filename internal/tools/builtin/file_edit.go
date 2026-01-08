@@ -3,6 +3,7 @@ package builtin
 import (
 	"alex/internal/agent/ports"
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,18 +72,21 @@ func (t *fileEdit) createNewFile(callID, filePath, resolvedPath, content string)
 
 	// Generate diff for new file
 	diff := generateUnifiedDiff("", content, filePath)
+	sum := sha256.Sum256([]byte(content))
 
 	return &ports.ToolResult{
 		CallID:  callID,
 		Content: fmt.Sprintf("Created %s (%d lines)", filePath, lineCount),
 		Metadata: map[string]any{
-			"file_path":     filePath,
-			"resolved_path": resolvedPath,
-			"operation":     "created",
-			"bytes_written": len(content),
-			"lines_total":   lineCount,
-			"modified":      fileInfo.ModTime().Unix(),
-			"diff":          diff,
+			"file_path":      filePath,
+			"resolved_path":  resolvedPath,
+			"operation":      "created",
+			"bytes_written":  len(content),
+			"lines_total":    lineCount,
+			"modified":       fileInfo.ModTime().Unix(),
+			"diff":           diff,
+			"content_len":    len(content),
+			"content_sha256": fmt.Sprintf("%x", sum),
 		},
 	}, nil
 }
@@ -126,18 +130,20 @@ func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, n
 	// Get file info after writing
 	fileInfo, _ := os.Stat(resolvedPath)
 	newLineCount := len(strings.Split(newContent, "\n"))
+	sum := sha256.Sum256([]byte(newContent))
 
 	return &ports.ToolResult{
 		CallID:  callID,
 		Content: fmt.Sprintf("Updated %s (%d lines)", filePath, newLineCount),
 		Metadata: map[string]any{
-			"file_path":     filePath,
-			"resolved_path": resolvedPath,
-			"operation":     "edited",
-			"lines_total":   newLineCount,
-			"modified":      fileInfo.ModTime().Unix(),
-			"diff":          diff,
-			"content":       newContent,
+			"file_path":      filePath,
+			"resolved_path":  resolvedPath,
+			"operation":      "edited",
+			"lines_total":    newLineCount,
+			"modified":       fileInfo.ModTime().Unix(),
+			"diff":           diff,
+			"content_len":    len(newContent),
+			"content_sha256": fmt.Sprintf("%x", sum),
 		},
 	}, nil
 }

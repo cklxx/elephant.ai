@@ -301,20 +301,19 @@ For each user request—especially non-trivial ones—try to include:
 
 ## Error Experience Log
 
-Keep this log trimmed over time by rolling older entries into the Summary below, retaining only recent or unique incidents.
+Keep this log trimmed over time by rolling older entries into the Summary below, retaining only recent or unique incidents. When the log grows past 6 entries, summarize older items and delete them.
 
+* 2026-01-09: `make fmt` (golangci-lint) produced no output for an extended period and was interrupted.
+* 2026-01-09: `make test` produced no output for an extended period and was interrupted.
 * 2026-01-08: `make fmt` failed due to sum.golang.org returning 502 when verifying `honnef.co/go/tools`, and then hit a golangci-lint timeout until rerun with `GONOSUMDB=honnef.co/go/tools` and a longer timeout.
 * 2026-01-08: `npm run build` in `web` failed because `flushHandleRef` used `number` while `setTimeout` returned `Timeout` in `hooks/useSSE.ts`, causing a Next.js build type error.
-* 2026-01-08: `make fmt` failed with `context deadline exceeded` while loading packages; golangci-lint suggested increasing `--timeout`.
-* 2026-01-08: `make fmt` again hit `context deadline exceeded` while loading packages; rerunning lint with a larger timeout resolved it.
-* 2026-01-08: Running `./alex --help` failed with `/bin/bash: line 1: ./alex: No such file or directory` before the binary was built.
-* 2026-01-08: Integration step `echo "exit" | ./alex -i` failed when the local LLM endpoint at `http://127.0.0.1:11437/v1/chat/completions` was unavailable, resulting in a context-canceled streaming request after ~36s.
-* 2026-01-08: `git checkout -- models/functiongemma/functiongemma-270m-it-BF16.gguf` triggered a git-lfs smudge error (`batch request: missing protocol`); rerunning with `GIT_LFS_SKIP_SMUDGE=1` succeeded.
-* 2026-01-08: `make fmt` failed because sum.golang.org returned 502 while verifying `github.com/tommy-muehle/go-mnd/v2@v2.5.1`; rerunning with `GONOSUMDB=github.com/tommy-muehle/go-mnd/v2` succeeded.
-* 2026-01-08: `GONOSUMDB=github.com/tommy-muehle/go-mnd/v2 make fmt` was interrupted after hanging with no output during golangci-lint execution.
-* 2026-01-08: `./.bin/golangci-lint run --fix --timeout=10m ./...` produced no output for an extended period and was interrupted.
 ## Error Experience Summary
 
 * Go linting can fail if `sum.golang.org` returns 502; mitigate by setting `GONOSUMDB=honnef.co/go/tools` and rerunning lint with a longer timeout.
 * Golangci-lint may time out during package loading; rerun with `--timeout` (e.g., 10m) when you see `context deadline exceeded`.
+* Golangci-lint (via `make fmt`) can hang without output; consider rerunning with a longer timeout or investigating stalled lint runs.
 * Next.js builds can fail on timeout-handle type mismatches; align `setTimeout` handle types to the runtime (`Timeout`) in `web` hooks.
+* `make test` can hang without output; rerun or narrow to specific packages when needed.
+* The `./alex` binary may be missing before build; run `make build` before invoking it.
+* Local LLM integrations can fail if the endpoint is unavailable; verify the local LLM endpoint before integration runs.
+* Git LFS assets may need `GIT_LFS_SKIP_SMUDGE=1` to bypass smudge errors.
