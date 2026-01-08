@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODEL_PATH="${ROOT_DIR}/models/functiongemma/functiongemma-270m-it-BF16.gguf"
 TEMPLATE_PATH="${ROOT_DIR}/models/functiongemma/chat_template.jinja"
+MODEL_ALIAS="functiongemma-270m-it"
 LLAMA_SERVER_BIN="${LLAMA_SERVER_BIN:-llama-server}"
 
 if ! command -v "${LLAMA_SERVER_BIN}" >/dev/null 2>&1; then
@@ -38,6 +39,7 @@ fi
 exec "${LLAMA_SERVER_BIN}" \
   --host 127.0.0.1 \
   --port 11437 \
+  --alias "${MODEL_ALIAS}" \
   -m "${MODEL_PATH}" \
   -c 8192 \
   --jinja \

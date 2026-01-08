@@ -115,6 +115,7 @@ func (m *ServerManager) start(ctx context.Context, logger logging.Logger, baseUR
 	args := []string{
 		"--host", host,
 		"--port", port,
+		"--alias", ModelID,
 		"-m", modelPath,
 		"-c", fmt.Sprintf("%d", DefaultContextSize),
 		"--jinja",
@@ -189,7 +190,7 @@ func ensureLlamaServer(ctx context.Context, logger logging.Logger, root string) 
 		return "", fmt.Errorf("create llama.cpp toolchain dir: %w", err)
 	}
 	targetPath := filepath.Join(baseDir, LlamaServerBinaryName)
-	if info, err := os.Stat(targetPath); err == nil && info.Mode().Perm()&0o111 != 0 {
+	if info, err := os.Stat(targetPath); err == nil && info.Mode().Perm()&0o111 != 0 && hasLlamaServerDeps(baseDir) {
 		return targetPath, nil
 	}
 
@@ -228,6 +229,22 @@ func llamaAssetName() (string, error) {
 	return "", fmt.Errorf("no prebuilt llama-server for %s/%s; install llama.cpp manually", runtime.GOOS, runtime.GOARCH)
 }
 
+func hasLlamaServerDeps(baseDir string) bool {
+	switch runtime.GOOS {
+	case "darwin":
+		return fileExists(filepath.Join(baseDir, "libmtmd.0.dylib"))
+	case "linux":
+		return fileExists(filepath.Join(baseDir, "libmtmd.so.0")) || fileExists(filepath.Join(baseDir, "libmtmd.so"))
+	default:
+		return true
+	}
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
 func extractLlamaServer(archivePath, targetPath string) error {
 	file, err := os.Open(archivePath)
 	if err != nil {
@@ -242,6 +259,8 @@ func extractLlamaServer(archivePath, targetPath string) error {
 	defer gz.Close()
 
 	tr := tar.NewReader(gz)
+	baseDir := filepath.Dir(targetPath)
+	found := false
 	for {
 		hdr, err := tr.Next()
 		if err == io.EOF {
@@ -250,26 +269,47 @@ func extractLlamaServer(archivePath, targetPath string) error {
 		if err != nil {
 			return fmt.Errorf("read archive: %w", err)
 		}
-		if hdr.Typeflag != tar.TypeReg {
+		name := strings.TrimPrefix(hdr.Name, "./")
+		parts := strings.SplitN(name, "/", 2)
+		if len(parts) == 2 {
+			name = parts[1]
+		}
+		if name == "" || strings.HasPrefix(name, "..") {
 			continue
 		}
-		if !strings.HasSuffix(hdr.Name, "/bin/llama-server") && !strings.HasSuffix(hdr.Name, "\\bin\\llama-server") {
+		outPath := filepath.Join(baseDir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+			return fmt.Errorf("create llama.cpp dir: %w", err)
+		}
+		switch hdr.Typeflag {
+		case tar.TypeReg:
+			out, err := os.Create(outPath)
+			if err != nil {
+				return fmt.Errorf("create llama.cpp file: %w", err)
+			}
+			if _, err := io.Copy(out, tr); err != nil {
+				_ = out.Close()
+				return fmt.Errorf("write llama.cpp file: %w", err)
+			}
+			if err := out.Close(); err != nil {
+				return fmt.Errorf("close llama.cpp file: %w", err)
+			}
+			if filepath.Base(outPath) == LlamaServerBinaryName {
+				found = true
+			}
+		case tar.TypeSymlink:
+			_ = os.Remove(outPath)
+			if err := os.Symlink(hdr.Linkname, outPath); err != nil {
+				return fmt.Errorf("create llama.cpp symlink: %w", err)
+			}
+		default:
 			continue
 		}
-		out, err := os.Create(targetPath)
-		if err != nil {
-			return fmt.Errorf("create llama-server: %w", err)
-		}
-		if _, err := io.Copy(out, tr); err != nil {
-			_ = out.Close()
-			return fmt.Errorf("write llama-server: %w", err)
-		}
-		if err := out.Close(); err != nil {
-			return fmt.Errorf("close llama-server: %w", err)
-		}
-		return nil
 	}
-	return errors.New("llama-server not found in archive")
+	if !found {
+		return errors.New("llama-server not found in archive")
+	}
+	return nil
 }
 
 func downloadFile(ctx context.Context, url, dest string) error {
