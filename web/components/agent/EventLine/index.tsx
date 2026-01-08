@@ -14,7 +14,7 @@ import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
 import { ToolOutputCard } from "../ToolOutputCard";
 import { TaskCompleteCard } from "../TaskCompleteCard";
-import { cn } from "@/lib/utils";
+import { cn, isOrchestratorRetryMessage } from "@/lib/utils";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
@@ -170,6 +170,9 @@ export const EventLine = React.memo(function EventLine({
         : pairedToolStartEvent?.arguments;
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
     if (toolName === "plan") {
+      if (isOrchestratorRetryMessage(completeEvent.result)) {
+        return null;
+      }
       return wrapWithSubagentContext(
         <PlanGoalCard
           goal={completeEvent.result}
@@ -178,6 +181,9 @@ export const EventLine = React.memo(function EventLine({
       );
     }
     if (toolName === "clearify") {
+      if (isOrchestratorRetryMessage(completeEvent.result)) {
+        return null;
+      }
       return wrapWithSubagentContext(
         <ClearifyTaskCard
           result={completeEvent.result}

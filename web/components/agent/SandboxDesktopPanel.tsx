@@ -185,7 +185,7 @@ export function SandboxDesktopPanel({
             </div>
 
             <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
-              <div className="space-y-3">
+              <div className="flex min-h-full flex-col gap-3">
                 {status === "loading" && (
                   <div className="rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
                     {t("console.sandbox.loading")}
@@ -199,25 +199,25 @@ export function SandboxDesktopPanel({
                 )}
 
                 {vncUrl ? (
-                  <div className="overflow-hidden rounded-2xl border border-border/60 bg-black">
+                  <div className="flex min-h-[360px] flex-1 overflow-hidden rounded-2xl border border-border/60 bg-black">
                     <iframe
                       title="Sandbox desktop"
                       src={vncUrl}
-                      className="h-[65vh] w-full"
+                      className="h-full w-full"
                     />
                   </div>
                 ) : (
-                  <div className="rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+                  <div className="flex min-h-[240px] flex-1 items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
                     {t("console.sandbox.noVnc")}
                   </div>
                 )}
 
                 {snapshotUrl && (
-                  <div className="overflow-hidden rounded-2xl border border-border/60 bg-background">
+                  <div className="h-[240px] shrink-0 overflow-hidden rounded-2xl border border-border/60 bg-muted/20">
                     <img
                       src={snapshotUrl}
                       alt={t("console.sandbox.snapshotAlt")}
-                      className="h-[280px] w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   </div>
                 )}

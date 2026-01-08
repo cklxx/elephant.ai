@@ -210,3 +210,11 @@ export function humanizeToolName(name: string): string {
     return part.charAt(0).toUpperCase() + part.slice(1);
   }).join(' ');
 }
+
+const ORCHESTRATOR_RETRY_PREFIX =
+  'Request does not match the active task. Please retry';
+
+export function isOrchestratorRetryMessage(message?: string | null): boolean {
+  if (!message) return false;
+  return message.trim().startsWith(ORCHESTRATOR_RETRY_PREFIX);
+}
