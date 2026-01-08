@@ -127,9 +127,9 @@ func TestStreamingOutputHandlerPrintsTaskStart(t *testing.T) {
 
 	output := out.String()
 	require.Contains(t, output, "Start")
-	require.Contains(t, output, "session-123")
-	require.Contains(t, output, "task-456")
-	require.Contains(t, output, "demo task")
+	require.NotContains(t, output, "session-123")
+	require.NotContains(t, output, "task-456")
+	require.NotContains(t, output, "demo task")
 }
 
 func TestStreamingOutputHandlerPrintCancellation(t *testing.T) {
