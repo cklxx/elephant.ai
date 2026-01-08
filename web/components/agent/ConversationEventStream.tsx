@@ -659,11 +659,9 @@ function mergeSubagentContext(
   existing: SubagentContext,
   incoming: SubagentContext,
 ): SubagentContext {
-  const resolvedTitle = incoming.title ?? existing.title;
   return {
     ...existing,
     ...incoming,
-    title: resolvedTitle,
     preview: incoming.preview ?? existing.preview,
     concurrency: incoming.concurrency ?? existing.concurrency,
     progress: incoming.progress ?? existing.progress,

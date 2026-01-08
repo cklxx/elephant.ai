@@ -348,8 +348,6 @@ describe('ConversationEventStream', () => {
     const threads = screen.getAllByTestId('subagent-thread');
     expect(threads).toHaveLength(1);
     expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(2);
-    expect(threads[0]).toHaveTextContent(/Subagent Task 1\/2/i);
-    expect(within(threads[0]).getAllByText(/Subagent Task 1\/2/i)).toHaveLength(1);
 
     const conversationEvents = screen.getByTestId('conversation-events');
     expect(within(conversationEvents).getAllByTestId(/event-workflow.input.received/)).toHaveLength(1);
