@@ -293,3 +293,9 @@ For each user request—especially non-trivial ones—try to include:
   * Correctness and robustness.
   * Maintainability and evolution strategies.
 * When nonessential information is missing, minimize unnecessary back-and-forth and questioning; provide well-thought-out conclusions and implementation suggestions directly.
+
+---
+
+## Error Experience Summary
+
+- sandbox request failed: Get "/v1/browser/info": unsupported protocol scheme "" -> sandbox base URL was empty or missing scheme; normalize base URL with default and auto-prefix http://.

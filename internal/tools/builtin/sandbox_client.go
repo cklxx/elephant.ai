@@ -15,6 +15,7 @@ import (
 )
 
 const sandboxSessionTTL = 10 * time.Minute
+const defaultSandboxBaseURL = "http://localhost:18086"
 
 type sandboxSession struct {
 	id       string
@@ -34,13 +35,24 @@ type sandboxClient struct {
 }
 
 func newSandboxClient(cfg SandboxConfig) *sandboxClient {
-	baseURL := strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
+	baseURL := normalizeSandboxBaseURL(cfg.BaseURL)
 
 	return &sandboxClient{
 		baseURL:    baseURL,
 		httpClient: httpclient.New(30*time.Second, nil),
 		sessions:   make(map[string]*sandboxSession),
 	}
+}
+
+func normalizeSandboxBaseURL(raw string) string {
+	baseURL := strings.TrimSpace(raw)
+	if baseURL == "" {
+		baseURL = defaultSandboxBaseURL
+	}
+	if !strings.Contains(baseURL, "://") {
+		baseURL = "http://" + baseURL
+	}
+	return strings.TrimRight(baseURL, "/")
 }
 
 func (c *sandboxClient) doJSON(ctx context.Context, method, path string, payload any, sessionID string, out any) error {
