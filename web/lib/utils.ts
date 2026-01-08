@@ -137,12 +137,12 @@ const TOOL_NAME_MAP: Record<string, string> = {
   'find_by_name': 'Find File',
   'search_in_file': 'Search File',
   'grep_search': 'Search',
-  'sandbox_file_read': 'Agent reads a file',
-  'sandbox_file_write': 'Agent writes a file',
-  'sandbox_file_list': 'Agent lists files',
-  'sandbox_file_search': 'Agent searches files',
-  'sandbox_file_replace': 'Agent edits a file',
-  'sandbox_write_attachment': 'Agent saves your file',
+  'sandbox_file_read': 'Reading file',
+  'sandbox_file_write': 'Writing file',
+  'sandbox_file_list': 'Listing files',
+  'sandbox_file_search': 'Searching files',
+  'sandbox_file_replace': 'Editing file',
+  'sandbox_write_attachment': 'Saving file',
 
   // Code Execution
   'bash': 'Run Shell',
@@ -151,7 +151,7 @@ const TOOL_NAME_MAP: Record<string, string> = {
   'python_execute': 'Run Code',
   'read_terminal': 'Read Terminal',
   'send_command_input': 'Send Input',
-  'sandbox_shell_exec': 'Agent runs a command',
+  'sandbox_shell_exec': 'Running command',
 
   // Web
   'web_search': '正在查找',
@@ -164,9 +164,9 @@ const TOOL_NAME_MAP: Record<string, string> = {
   'click_browser_element': 'Click Element',
   'type_browser_element': 'Type Text',
   'scroll_browser_page': 'Scroll Page',
-  'sandbox_browser': 'Agent uses the browser',
-  'sandbox_browser_info': 'Agent checks the browser',
-  'sandbox_browser_screenshot': 'Agent takes a snapshot',
+  'sandbox_browser': 'Using browser',
+  'sandbox_browser_info': 'Checking browser',
+  'sandbox_browser_screenshot': 'Capturing snapshot',
   'request_user': 'Request User',
 
   // Agent/Task
