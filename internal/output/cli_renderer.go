@@ -86,6 +86,9 @@ func (r *CLIRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 	if ctx.Level == types.LevelSubagent || ctx.Level == types.LevelParallel {
 		return ""
 	}
+	if isConversationalTool(toolName) {
+		return ""
+	}
 
 	// Core agent: always show tool calls (concise or verbose format)
 	// Determine indentation based on hierarchy
@@ -94,22 +97,23 @@ func (r *CLIRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 		indent = "  "
 	}
 
-	dotStyle := lipgloss.NewStyle().
+	spinnerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#00ff00")).
 		Bold(true)
 	toolNameStyle := lipgloss.NewStyle().Bold(true)
 
 	presentation := r.formatter.PrepareArgs(toolName, args)
+	spinner := nextSpinnerFrame()
 
 	if presentation.ShouldDisplay && presentation.InlinePreview != "" {
 		preview := presentation.InlinePreview
 		if !r.verbose {
 			preview = truncateInlinePreview(preview, nonVerbosePreviewLimit)
 		}
-		return fmt.Sprintf("%s%s %s(%s)\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName), preview)
+		return fmt.Sprintf("%s%s %s(%s)\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName), preview)
 	}
 
-	return fmt.Sprintf("%s%s %s\n", indent, dotStyle.Render("●"), toolNameStyle.Render(toolName))
+	return fmt.Sprintf("%s%s %s\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName))
 }
 
 func truncateInlinePreview(preview string, limit int) string {
@@ -131,6 +135,21 @@ func truncateInlinePreview(preview string, limit int) string {
 	}
 
 	return string(runes[:limit-1]) + "…"
+}
+
+func nextSpinnerFrame() string {
+	frames := []string{"|", "/", "-", "\\"}
+	idx := time.Now().UnixNano() % int64(len(frames))
+	return frames[idx]
+}
+
+func isConversationalTool(toolName string) bool {
+	switch strings.ToLower(strings.TrimSpace(toolName)) {
+	case "plan", "clearify", "claify":
+		return true
+	default:
+		return false
+	}
 }
 
 func truncateWithEllipsis(preview string, limit int) string {
@@ -165,6 +184,18 @@ func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 		indent = "  "
 	}
 
+	if isConversationalTool(toolName) {
+		if err != nil {
+			errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+			return fmt.Sprintf("%s\n", errStyle.Render(fmt.Sprintf("✗ %v", err)))
+		}
+		content := strings.TrimSpace(result)
+		if content == "" {
+			return ""
+		}
+		return r.renderMarkdown(content)
+	}
+
 	if err != nil {
 		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
 		return fmt.Sprintf("%s  %s\n", indent, errStyle.Render(fmt.Sprintf("✗ %s failed: %v", toolName, err)))
@@ -179,9 +210,6 @@ func (r *CLIRenderer) RenderTaskStart(ctx *types.OutputContext, task string) str
 	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#5EA3FF")).Bold(true).Render("▶ Start")
 
 	var metaParts []string
-	if ctx.SessionID != "" {
-		metaParts = append(metaParts, fmt.Sprintf("session %s", ctx.SessionID))
-	}
 	if ctx.TaskID != "" {
 		metaParts = append(metaParts, fmt.Sprintf("task %s", ctx.TaskID))
 	}
