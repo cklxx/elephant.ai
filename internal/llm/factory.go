@@ -122,8 +122,6 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	switch provider {
 	case "openai", "openrouter", "deepseek":
 		client, err = NewOpenAIClient(model, config)
-	case "local":
-		client, err = NewLocalClient(model, config)
 	case "ollama":
 		client, err = NewOllamaClient(model, config)
 	case "mock":

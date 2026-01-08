@@ -128,7 +128,6 @@ func GetModelPricing(model string) ModelPricing {
 		"anthropic/claude-3-5-sonnet":       {InputPer1K: 0.003, OutputPer1K: 0.015},
 		"anthropic/claude-3-opus":           {InputPer1K: 0.015, OutputPer1K: 0.075},
 		"meta-llama/llama-3.1-70b-instruct": {InputPer1K: 0.0005, OutputPer1K: 0.0008},
-		"functiongemma-270m-it":             {InputPer1K: 0, OutputPer1K: 0},
 	}
 
 	if pricing, ok := pricingMap[model]; ok {

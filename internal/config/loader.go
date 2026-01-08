@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"alex/internal/localmodel"
 )
 
 // ValueSource describes where a configuration value originated from.
@@ -29,6 +27,13 @@ const (
 	DefaultSeedreamImageModel  = "doubao-seedream-4-5-251128"
 	DefaultSeedreamVisionModel = "doubao-seed-1-6-vision-250815"
 	DefaultSeedreamVideoModel  = "doubao-seedance-1-0-pro-fast-251015"
+)
+
+const (
+	DefaultLLMProvider = "openai"
+	DefaultLLMModel    = "gpt-4o-mini"
+	DefaultLLMBaseURL  = "https://api.openai.com/v1"
+	DefaultMaxTokens   = 8192
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -206,11 +211,11 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	meta := Metadata{sources: map[string]ValueSource{}, loadedAt: time.Now()}
 
 	cfg := RuntimeConfig{
-		LLMProvider:         localmodel.Provider,
-		LLMModel:            localmodel.ModelID,
-		LLMSmallProvider:    localmodel.Provider,
-		LLMSmallModel:       localmodel.ModelID,
-		BaseURL:             localmodel.BaseURL,
+		LLMProvider:         DefaultLLMProvider,
+		LLMModel:            DefaultLLMModel,
+		LLMSmallProvider:    DefaultLLMProvider,
+		LLMSmallModel:       DefaultLLMModel,
+		BaseURL:             DefaultLLMBaseURL,
 		SandboxBaseURL:      "http://localhost:18086",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
@@ -220,7 +225,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		FollowTranscript:    true,
 		FollowStream:        true,
 		MaxIterations:       150,
-		MaxTokens:           localmodel.DefaultContextSize,
+		MaxTokens:           DefaultMaxTokens,
 		UserRateLimitRPS:    1.0,
 		UserRateLimitBurst:  3,
 		Temperature:         0.7,
@@ -248,8 +253,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	applyOverrides(&cfg, &meta, options.overrides)
 
 	normalizeRuntimeConfig(&cfg)
-  // If API key remains unset, default to mock provider (unless local/ollama).
-	if cfg.APIKey == "" && cfg.LLMProvider != "mock" && cfg.LLMProvider != "ollama" && cfg.LLMProvider != "local" {
+	// If API key remains unset, default to mock provider (unless ollama).
+	if cfg.APIKey == "" && cfg.LLMProvider != "mock" && cfg.LLMProvider != "ollama" {
 		cfg.LLMProvider = "mock"
 		if cfg.LLMSmallProvider != "mock" {
 			cfg.LLMSmallProvider = "mock"

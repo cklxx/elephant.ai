@@ -110,11 +110,11 @@ go test ./internal/server/http/ -v
 ## Configuration
 
 Environment variables:
-- `OPENAI_API_KEY` - Required for remote providers (skip for `local`/`mock`/`ollama`)
-- `LLM_PROVIDER` - Default: local
-- `LLM_MODEL` - Default: functiongemma-270m-it
+- `OPENAI_API_KEY` - Required for remote providers (skip for `mock`/`ollama`)
+- `LLM_PROVIDER` - Default: openai
+- `LLM_MODEL` - Default: gpt-4o-mini
 - `LLM_VISION_MODEL` - Optional (used when images are attached)
-- `LLM_BASE_URL` - Default: http://127.0.0.1:11437/v1
+- `LLM_BASE_URL` - Default: https://api.openai.com/v1
 - `PORT` - Default: 8080
 
 ## Future Enhancements

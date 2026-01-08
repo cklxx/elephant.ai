@@ -301,16 +301,11 @@ For each user request—especially non-trivial ones—try to include:
 
 ## Error Experience Log
 
-Keep this log trimmed over time by rolling older entries into the Summary below, retaining only recent or unique incidents. When the log grows past 6 entries, summarize older items and delete them.
+Only record actionable, reusable errors (recurring, high-impact, or with clear remediation). Skip transient, low-signal, or user-specific failures. Keep this log trimmed over time by rolling older entries into the Summary below; when the log grows past 6 entries, summarize older items and delete them.
 
-* 2026-01-08: Local llama.cpp returned 400 "request exceeds context size (8192)" when `./alex` used provider=local; reduce prompt/tool preset or increase context.
-* 2026-01-08: Local LLM endpoint `http://127.0.0.1:11437/v1` was unavailable; streaming requests were canceled. Start the local server or switch provider.
 * 2026-01-08: `make fmt` failed when sum.golang.org returned 502; rerun with `GONOSUMDB=...` and a larger golangci-lint timeout.
-* 2026-01-08: `git checkout -- models/functiongemma/functiongemma-270m-it-BF16.gguf` hit a git-lfs smudge error; rerun with `GIT_LFS_SKIP_SMUDGE=1`.
 * 2026-01-08: Git failed to create `.git/index.lock`; remove the stale lock after confirming no git process is running.
 ## Error Experience Summary
 
 * Go linting can fail if `sum.golang.org` returns 502 or golangci-lint times out; use `GONOSUMDB=...` and increase `--timeout`.
-* Local LLM issues: server unavailable or context size too small; start the server or reduce prompt/increase context.
-* Git LFS smudge errors can be bypassed with `GIT_LFS_SKIP_SMUDGE=1`.
 * Git operations can fail due to a stale `.git/index.lock`; remove after ensuring no git process is running.
