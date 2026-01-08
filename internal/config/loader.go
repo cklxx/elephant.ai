@@ -245,6 +245,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	// Apply caller overrides last.
 	applyOverrides(&cfg, &meta, options.overrides)
 
+	normalizeRuntimeConfig(&cfg)
+
 	// If API key remains unset, default to mock provider.
 	if cfg.APIKey == "" && cfg.LLMProvider != "mock" {
 		cfg.LLMProvider = "mock"
@@ -260,6 +262,47 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	}
 
 	return cfg, meta, nil
+}
+
+func normalizeRuntimeConfig(cfg *RuntimeConfig) {
+	cfg.LLMProvider = strings.TrimSpace(cfg.LLMProvider)
+	cfg.LLMModel = strings.TrimSpace(cfg.LLMModel)
+	cfg.LLMSmallProvider = strings.TrimSpace(cfg.LLMSmallProvider)
+	cfg.LLMSmallModel = strings.TrimSpace(cfg.LLMSmallModel)
+	cfg.LLMVisionModel = strings.TrimSpace(cfg.LLMVisionModel)
+	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
+	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)
+	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
+	cfg.SandboxBaseURL = strings.TrimSpace(cfg.SandboxBaseURL)
+	cfg.TavilyAPIKey = strings.TrimSpace(cfg.TavilyAPIKey)
+	cfg.SeedreamTextEndpointID = strings.TrimSpace(cfg.SeedreamTextEndpointID)
+	cfg.SeedreamImageEndpointID = strings.TrimSpace(cfg.SeedreamImageEndpointID)
+	cfg.SeedreamTextModel = strings.TrimSpace(cfg.SeedreamTextModel)
+	cfg.SeedreamImageModel = strings.TrimSpace(cfg.SeedreamImageModel)
+	cfg.SeedreamVisionModel = strings.TrimSpace(cfg.SeedreamVisionModel)
+	cfg.SeedreamVideoModel = strings.TrimSpace(cfg.SeedreamVideoModel)
+	cfg.Environment = strings.TrimSpace(cfg.Environment)
+	cfg.SessionDir = strings.TrimSpace(cfg.SessionDir)
+	cfg.CostDir = strings.TrimSpace(cfg.CostDir)
+	cfg.AgentPreset = strings.TrimSpace(cfg.AgentPreset)
+	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
+
+	if len(cfg.StopSequences) > 0 {
+		filtered := cfg.StopSequences[:0]
+		seen := make(map[string]struct{}, len(cfg.StopSequences))
+		for _, seq := range cfg.StopSequences {
+			trimmed := strings.TrimSpace(seq)
+			if trimmed == "" {
+				continue
+			}
+			if _, exists := seen[trimmed]; exists {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			filtered = append(filtered, trimmed)
+		}
+		cfg.StopSequences = filtered
+	}
 }
 
 type fileConfig struct {

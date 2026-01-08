@@ -75,7 +75,7 @@ type Config struct {
 	UserRateLimitRPS        float64
 	UserRateLimitBurst      int
 	Temperature             float64
-	TemperatureSet          bool
+	TemperatureProvided     bool
 	TopP                    float64
 	StopSequences           []string
 	AgentPreset             string
@@ -340,7 +340,7 @@ func BuildContainer(config Config) (*Container, error) {
 		UserRateLimitRPS:        config.UserRateLimitRPS,
 		UserRateLimitBurst:      config.UserRateLimitBurst,
 		Temperature:             config.Temperature,
-		TemperatureProvided:     config.TemperatureSet,
+		TemperatureProvided:     config.TemperatureProvided,
 		TopP:                    config.TopP,
 		StopSequences:           append([]string(nil), config.StopSequences...),
 		SessionDir:              config.SessionDir,
@@ -371,7 +371,7 @@ func BuildContainer(config Config) (*Container, error) {
 			MaxTokens:           config.MaxTokens,
 			MaxIterations:       config.MaxIterations,
 			Temperature:         config.Temperature,
-			TemperatureProvided: config.TemperatureSet,
+			TemperatureProvided: config.TemperatureProvided,
 			TopP:                config.TopP,
 			StopSequences:       append([]string(nil), config.StopSequences...),
 			AgentPreset:         config.AgentPreset,
