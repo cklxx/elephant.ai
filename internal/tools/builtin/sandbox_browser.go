@@ -8,18 +8,19 @@ import (
 	"fmt"
 
 	"alex/internal/agent/ports"
+	"alex/internal/sandbox"
 )
 
 type sandboxBrowserTool struct {
-	client *sandboxClient
+	client *sandbox.Client
 }
 
 type sandboxBrowserInfoTool struct {
-	client *sandboxClient
+	client *sandbox.Client
 }
 
 type sandboxBrowserScreenshotTool struct {
-	client *sandboxClient
+	client *sandbox.Client
 }
 
 type sandboxResponse struct {
@@ -108,7 +109,7 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 	var responses []map[string]any
 	for _, action := range actions {
 		var response map[string]any
-		if err := t.client.doJSON(ctx, httpMethodPost, "/v1/browser/actions", action, call.SessionID, &response); err != nil {
+		if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/browser/actions", action, call.SessionID, &response); err != nil {
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
 		responses = append(responses, response)
@@ -121,7 +122,7 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 		if name == "" {
 			name = "sandbox_browser.png"
 		}
-		imageBytes, err := t.client.getBytes(ctx, "/v1/browser/screenshot", call.SessionID)
+		imageBytes, err := t.client.GetBytes(ctx, "/v1/browser/screenshot", call.SessionID)
 		if err != nil {
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
@@ -188,7 +189,7 @@ func (t *sandboxBrowserInfoTool) Definition() ports.ToolDefinition {
 
 func (t *sandboxBrowserInfoTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	var response sandboxResponse
-	if err := t.client.doJSON(ctx, httpMethodGet, "/v1/browser/info", nil, call.SessionID, &response); err != nil {
+	if err := t.client.DoJSON(ctx, httpMethodGet, "/v1/browser/info", nil, call.SessionID, &response); err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 	if !response.Success {
@@ -245,7 +246,7 @@ func (t *sandboxBrowserScreenshotTool) Execute(ctx context.Context, call ports.T
 		name = "sandbox_browser.png"
 	}
 
-	imageBytes, err := t.client.getBytes(ctx, "/v1/browser/screenshot", call.SessionID)
+	imageBytes, err := t.client.GetBytes(ctx, "/v1/browser/screenshot", call.SessionID)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}

@@ -1,4 +1,4 @@
-package builtin
+package sandbox
 
 import (
 	"bytes"
@@ -14,48 +14,48 @@ import (
 	"alex/internal/httpclient"
 )
 
-const sandboxSessionTTL = 10 * time.Minute
 const defaultSandboxBaseURL = "http://localhost:18086"
+const sandboxSessionTTL = 10 * time.Minute
+
+type Config struct {
+	BaseURL string
+	Timeout time.Duration
+}
+
+type Client struct {
+	baseURL    string
+	httpClient *http.Client
+	cache      *sessionCache
+}
+
+type sessionCache struct {
+	mu       sync.Mutex
+	sessions map[string]*sandboxSession
+	counter  uint64
+}
 
 type sandboxSession struct {
 	id       string
 	lastUsed time.Time
 }
 
-type SandboxConfig struct {
-	BaseURL string
-}
+var sandboxSessionCaches sync.Map
 
-type sandboxClient struct {
-	baseURL    string
-	httpClient *http.Client
-	mu         sync.Mutex
-	sessions   map[string]*sandboxSession
-	counter    uint64
-}
+func NewClient(cfg Config) *Client {
+	baseURL := normalizeBaseURL(cfg.BaseURL)
+	timeout := cfg.Timeout
+	if timeout <= 0 {
+		timeout = 30 * time.Second
+	}
 
-func newSandboxClient(cfg SandboxConfig) *sandboxClient {
-	baseURL := normalizeSandboxBaseURL(cfg.BaseURL)
-
-	return &sandboxClient{
+	return &Client{
 		baseURL:    baseURL,
-		httpClient: httpclient.New(30*time.Second, nil),
-		sessions:   make(map[string]*sandboxSession),
+		httpClient: httpclient.New(timeout, nil),
+		cache:      sessionCacheFor(baseURL),
 	}
 }
 
-func normalizeSandboxBaseURL(raw string) string {
-	baseURL := strings.TrimSpace(raw)
-	if baseURL == "" {
-		baseURL = defaultSandboxBaseURL
-	}
-	if !strings.Contains(baseURL, "://") {
-		baseURL = "http://" + baseURL
-	}
-	return strings.TrimRight(baseURL, "/")
-}
-
-func (c *sandboxClient) doJSON(ctx context.Context, method, path string, payload any, sessionID string, out any) error {
+func (c *Client) DoJSON(ctx context.Context, method, path string, payload any, sessionID string, out any) error {
 	var body io.Reader
 	if payload != nil {
 		encoded, err := json.Marshal(payload)
@@ -93,7 +93,7 @@ func (c *sandboxClient) doJSON(ctx context.Context, method, path string, payload
 	return nil
 }
 
-func (c *sandboxClient) getBytes(ctx context.Context, path string, sessionID string) ([]byte, error) {
+func (c *Client) GetBytes(ctx context.Context, path string, sessionID string) ([]byte, error) {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("build sandbox request: %w", err)
@@ -117,8 +117,14 @@ func (c *sandboxClient) getBytes(ctx context.Context, path string, sessionID str
 	return payload, nil
 }
 
-func (c *sandboxClient) newRequest(ctx context.Context, method, path string, body io.Reader, sessionID string) (*http.Request, error) {
-	req, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, body)
+func (c *Client) newRequest(ctx context.Context, method, path string, body io.Reader, sessionID string) (*http.Request, error) {
+	url := c.baseURL
+	if strings.HasPrefix(path, "/") {
+		url += path
+	} else {
+		url += "/" + path
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return nil, err
 	}
@@ -128,37 +134,57 @@ func (c *sandboxClient) newRequest(ctx context.Context, method, path string, bod
 	return req, nil
 }
 
-func (c *sandboxClient) resolveSessionID(sessionID string) string {
+func (c *Client) resolveSessionID(sessionID string) string {
 	if sessionID == "" {
 		return ""
 	}
 
 	now := time.Now()
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.cache.mu.Lock()
+	defer c.cache.mu.Unlock()
 
-	if current, ok := c.sessions[sessionID]; ok {
+	if current, ok := c.cache.sessions[sessionID]; ok {
 		if now.Sub(current.lastUsed) <= sandboxSessionTTL {
 			current.lastUsed = now
 			return current.id
 		}
 	}
 
-	c.counter++
+	c.cache.counter++
 	entry := &sandboxSession{
-		id:       fmt.Sprintf("%s-sandbox-%d", sessionID, c.counter),
+		id:       fmt.Sprintf("%s-sandbox-%d", sessionID, c.cache.counter),
 		lastUsed: now,
 	}
-	c.sessions[sessionID] = entry
+	c.cache.sessions[sessionID] = entry
 	c.pruneExpiredSessions(now)
 	return entry.id
 }
 
-func (c *sandboxClient) pruneExpiredSessions(now time.Time) {
-	for key, entry := range c.sessions {
+func (c *Client) pruneExpiredSessions(now time.Time) {
+	for key, entry := range c.cache.sessions {
 		if now.Sub(entry.lastUsed) > sandboxSessionTTL {
-			delete(c.sessions, key)
+			delete(c.cache.sessions, key)
 		}
 	}
+}
+
+func sessionCacheFor(baseURL string) *sessionCache {
+	if cached, ok := sandboxSessionCaches.Load(baseURL); ok {
+		return cached.(*sessionCache)
+	}
+	cache := &sessionCache{sessions: make(map[string]*sandboxSession)}
+	actual, _ := sandboxSessionCaches.LoadOrStore(baseURL, cache)
+	return actual.(*sessionCache)
+}
+
+func normalizeBaseURL(raw string) string {
+	baseURL := strings.TrimSpace(raw)
+	if baseURL == "" {
+		baseURL = defaultSandboxBaseURL
+	}
+	if !strings.Contains(baseURL, "://") {
+		baseURL = "http://" + baseURL
+	}
+	return strings.TrimRight(baseURL, "/")
 }

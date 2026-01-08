@@ -17,6 +17,7 @@ import {
   ContextWindowPreviewResponse,
   ContextConfigSnapshot,
   ContextConfigUpdatePayload,
+  SandboxBrowserInfo,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -179,6 +180,13 @@ export async function cancelTask(taskId: string): Promise<void> {
 
 export async function getRuntimeConfigSnapshot(): Promise<RuntimeConfigSnapshot> {
   return fetchAPI<RuntimeConfigSnapshot>("/api/internal/config/runtime");
+}
+
+export async function getSandboxBrowserInfo(
+  sessionId?: string | null,
+): Promise<SandboxBrowserInfo> {
+  const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+  return fetchAPI<SandboxBrowserInfo>(`/api/sandbox/browser-info${query}`);
 }
 
 export async function updateRuntimeConfig(

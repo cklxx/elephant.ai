@@ -299,3 +299,5 @@ For each user request—especially non-trivial ones—try to include:
 ## Error Experience Summary
 
 - sandbox request failed: Get "/v1/browser/info": unsupported protocol scheme "" -> sandbox base URL was empty or missing scheme; normalize base URL with default and auto-prefix http://.
+- curl to https://raw.githubusercontent.com/agent-infra/sandbox/main/openapi.json returned 404 -> locate OpenAPI at website/docs/public/v1/openapi.json via GitHub API tree.
+- python3 urllib SSL certificate verify failed when querying GitHub API -> switch to node https client for repo tree lookup.

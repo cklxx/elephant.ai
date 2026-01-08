@@ -11,7 +11,7 @@ import (
 )
 
 func TestRouterRegistersAuthEndpointsWhenDisabled(t *testing.T) {
-	router := NewRouter(nil, serverapp.NewEventBroadcaster(), serverapp.NewHealthChecker(), nil, nil, "development", nil, nil, nil, nil, attachments.StoreConfig{Dir: t.TempDir()})
+	router := NewRouter(nil, serverapp.NewEventBroadcaster(), serverapp.NewHealthChecker(), nil, nil, "development", nil, "", nil, nil, nil, attachments.StoreConfig{Dir: t.TempDir()})
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(`{"email":"a"}`))
 	w := httptest.NewRecorder()

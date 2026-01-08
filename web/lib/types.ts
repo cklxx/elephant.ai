@@ -354,6 +354,16 @@ export interface RuntimeConfigSnapshot {
   updated_at?: string;
 }
 
+export interface SandboxBrowserInfo {
+  user_agent: string;
+  cdp_url: string;
+  vnc_url: string;
+  viewport: {
+    width: number;
+    height: number;
+  };
+}
+
 export interface ContextConfigFile {
   path: string;
   section: string;
