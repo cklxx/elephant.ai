@@ -34,20 +34,19 @@
 - 默认：`$HOME/.alex-config.json`
 - 可覆盖：`ALEX_CONFIG_PATH=/path/to/alex-config.json`
 
-### 推荐最小示例
+### 推荐最小示例（本地零配置）
 
-见 `examples/config/core-config-example.json`（与 quickstart 同步）。
+默认即可运行；如需显式固定本地推理，可用：
 
 ```json
 {
-  "llm_provider": "openrouter",
-  "llm_model": "deepseek/deepseek-chat",
-  "llm_vision_model": "openai/gpt-4o-mini",
-  "api_key": "your-openrouter-key-here",
-  "base_url": "https://openrouter.ai/api/v1",
-  "tool_preset": "safe"
+  "llm_provider": "local",
+  "llm_model": "functiongemma-270m-it",
+  "base_url": "http://127.0.0.1:11437/v1"
 }
 ```
+
+远程 provider 示例见 `examples/config/core-config-example.json`。
 
 ---
 
@@ -89,10 +88,10 @@ alex config path
 说明：为减少歧义与维护成本，runtime loader **只识别一套 canonical 环境变量名**（不再支持历史别名）。
 
 - `OPENAI_API_KEY`：OpenAI-compatible API key
-- `LLM_PROVIDER`：`openrouter` / `openai` / `deepseek` / `ollama` / `mock`
+- `LLM_PROVIDER`：`local` / `openrouter` / `openai` / `deepseek` / `ollama` / `mock`
 - `LLM_MODEL`：默认模型
 - `LLM_VISION_MODEL`：有图片附件时使用的 vision 模型（可选）
-- `LLM_BASE_URL`：OpenAI-compatible base URL（如 `https://api.openai.com/v1`、`https://openrouter.ai/api/v1`、Ollama 地址等）
+- `LLM_BASE_URL`：OpenAI-compatible base URL（如 `http://127.0.0.1:11437/v1`、`https://api.openai.com/v1`、`https://openrouter.ai/api/v1`、Ollama 地址等）
 - `SANDBOX_BASE_URL`：AIO Sandbox API 根地址（**不含 `/v1`**，默认 `http://localhost:18086`）
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
@@ -116,7 +115,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### LLM 相关
 
-- `llm_provider`：provider 选择；默认 `openrouter`（当 `api_key` 为空时会自动降级为 `mock` 供本地跑通）。
+- `llm_provider`：provider 选择；默认 `local`（当 `api_key` 为空时会自动降级为 `mock`，但 `local/ollama` 不需要密钥）。
 - `llm_model`：默认模型。
 - `llm_vision_model`：vision 模型；当检测到图片附件时优先使用（见下节）。
 - `api_key`：API key（生产建议用 env 注入，不要提交到 git）。
@@ -169,7 +168,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - **谨慎使用 managed overrides**：它会覆盖 env；在容器/多环境切换时，常见的坑是忘记清掉 overrides。
 - **修改主配置文件需要重启 `alex-server`**：server 启动时会构建 DI container；主配置文件 `~/.alex-config.json` 的改动不会自动热更新（managed overrides 可通过 UI/CLI 更新）。
 - **Vision 模型必须真支持图片**：很多文本模型不支持 image；建议明确配置 `llm_vision_model`，并用 provider 对应的 vision model 名称。
-- **OpenAI-compatible base_url 通常需要带 `/v1`**：例如 OpenAI `https://api.openai.com/v1`、OpenRouter `https://openrouter.ai/api/v1`；少了 `/v1` 常见报错是 404/路径不匹配。
+- **OpenAI-compatible base_url 通常需要带 `/v1`**：例如本地 `http://127.0.0.1:11437/v1`、OpenAI `https://api.openai.com/v1`、OpenRouter `https://openrouter.ai/api/v1`；少了 `/v1` 常见报错是 404/路径不匹配。
 - **控制图片体积**：base64 会显著膨胀 payload，且不同 provider 有请求大小上限；优先使用可访问的远程 URL 或在入库/上传阶段做压缩/缩放。
 - **Ollama 仅接受 inline base64 图片**：如果你给 attachment 只填了远程 `uri`，需要确保同时提供 `data`（或 data URI）才能走 `messages[].images`。
 - **避免把大体积 data URI 打进日志**：图片常以 `data:image/...;base64,...` 出现；项目已在 LLM request log 里做脱敏，但仍建议避免在业务日志中打印原始附件。
