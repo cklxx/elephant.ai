@@ -303,3 +303,5 @@ For each user request—especially non-trivial ones—try to include:
 - curl to https://raw.githubusercontent.com/agent-infra/sandbox/main/openapi.json returned 404 -> locate OpenAPI at website/docs/public/v1/openapi.json via GitHub API tree.
 - python3 urllib SSL certificate verify failed when querying GitHub API -> switch to node https client for repo tree lookup.
 - apply_patch failed to find expected lines in internal/output/cli_renderer.go -> re-opened file and applied smaller, anchored patch.
+- gofmt failed on sandbox_browser_dom.go due to JS template literal backticks inside a Go raw string -> replaced template literal with string concatenation.
+- go test failed because chromedp.Hover was undefined -> replaced hover with JS mouseover dispatch.

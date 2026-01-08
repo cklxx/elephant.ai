@@ -359,11 +359,14 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
 	}
 	sandboxConfig := builtin.SandboxConfig{
-		BaseURL: config.SandboxBaseURL,
+		BaseURL:      config.SandboxBaseURL,
+		VisionTool:   visionTool,
+		VisionPrompt: "",
 	}
 	r.static["sandbox_browser"] = builtin.NewSandboxBrowser(sandboxConfig)
 	r.static["sandbox_browser_info"] = builtin.NewSandboxBrowserInfo(sandboxConfig)
 	r.static["sandbox_browser_screenshot"] = builtin.NewSandboxBrowserScreenshot(sandboxConfig)
+	r.static["sandbox_browser_dom"] = builtin.NewSandboxBrowserDOM(sandboxConfig)
 	r.static["sandbox_file_read"] = builtin.NewSandboxFileRead(sandboxConfig)
 	r.static["sandbox_file_write"] = builtin.NewSandboxFileWrite(sandboxConfig)
 	r.static["sandbox_file_list"] = builtin.NewSandboxFileList(sandboxConfig)

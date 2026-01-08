@@ -165,6 +165,7 @@ const TOOL_NAME_MAP: Record<string, string> = {
   'type_browser_element': 'Type Text',
   'scroll_browser_page': 'Scroll Page',
   'sandbox_browser': 'Using browser',
+  'sandbox_browser_dom': 'Using browser',
   'sandbox_browser_info': 'Checking browser',
   'sandbox_browser_screenshot': 'Capturing snapshot',
   'request_user': 'Request User',

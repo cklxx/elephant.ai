@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"alex/internal/agent/ports"
 	"alex/internal/sandbox"
@@ -13,6 +14,8 @@ import (
 
 type sandboxBrowserTool struct {
 	client *sandbox.Client
+	vision ports.ToolExecutor
+	prompt string
 }
 
 type sandboxBrowserInfoTool struct {
@@ -21,6 +24,8 @@ type sandboxBrowserInfoTool struct {
 
 type sandboxBrowserScreenshotTool struct {
 	client *sandbox.Client
+	vision ports.ToolExecutor
+	prompt string
 }
 
 type sandboxResponse struct {
@@ -30,7 +35,7 @@ type sandboxResponse struct {
 }
 
 func NewSandboxBrowser(cfg SandboxConfig) ports.ToolExecutor {
-	return &sandboxBrowserTool{client: newSandboxClient(cfg)}
+	return &sandboxBrowserTool{client: newSandboxClient(cfg), vision: cfg.VisionTool, prompt: cfg.VisionPrompt}
 }
 
 func NewSandboxBrowserInfo(cfg SandboxConfig) ports.ToolExecutor {
@@ -38,7 +43,7 @@ func NewSandboxBrowserInfo(cfg SandboxConfig) ports.ToolExecutor {
 }
 
 func NewSandboxBrowserScreenshot(cfg SandboxConfig) ports.ToolExecutor {
-	return &sandboxBrowserScreenshotTool{client: newSandboxClient(cfg)}
+	return &sandboxBrowserScreenshotTool{client: newSandboxClient(cfg), vision: cfg.VisionTool, prompt: cfg.VisionPrompt}
 }
 
 func (t *sandboxBrowserTool) Metadata() ports.ToolMetadata {
@@ -63,7 +68,7 @@ Provide a list of action objects that match the sandbox browser API:
 - action_type: MOVE_TO, CLICK, MOUSE_DOWN, MOUSE_UP, RIGHT_CLICK, DOUBLE_CLICK, DRAG_TO, SCROLL, TYPING, PRESS, KEY_DOWN, KEY_UP, HOTKEY
 - additional fields vary per action (see sandbox OpenAPI).
 
-Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed.`,
+Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use sandbox_browser_dom.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
@@ -117,6 +122,8 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 
 	attachments := map[string]ports.Attachment{}
 	capture, _ := call.Arguments["capture_screenshot"].(bool)
+	var visionSummary string
+	var visionMeta map[string]any
 	if capture {
 		name, _ := call.Arguments["screenshot_name"].(string)
 		if name == "" {
@@ -126,12 +133,16 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 		if err != nil {
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
+
+		encoded := base64.StdEncoding.EncodeToString(imageBytes)
 		attachments[name] = ports.Attachment{
 			Name:      name,
 			MediaType: "image/png",
-			Data:      base64.StdEncoding.EncodeToString(imageBytes),
+			Data:      encoded,
 			Source:    "sandbox_browser",
 		}
+
+		visionSummary, visionMeta = analyzeSandboxScreenshot(ctx, t.vision, t.prompt, call, encoded)
 	}
 
 	content := fmt.Sprintf("Executed %d sandbox browser action(s).", len(responses))
@@ -151,6 +162,13 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 
 	if capture {
 		metadata["screenshot"] = true
+	}
+	if visionMeta != nil {
+		metadata["vision"] = visionMeta
+	}
+
+	if visionSummary != "" {
+		content = fmt.Sprintf("%s Vision summary: %s", content, visionSummary)
 	}
 
 	return &ports.ToolResult{
@@ -251,16 +269,28 @@ func (t *sandboxBrowserScreenshotTool) Execute(ctx context.Context, call ports.T
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	encoded := base64.StdEncoding.EncodeToString(imageBytes)
 	attachment := ports.Attachment{
 		Name:      name,
 		MediaType: "image/png",
-		Data:      base64.StdEncoding.EncodeToString(imageBytes),
+		Data:      encoded,
 		Source:    "sandbox_browser_screenshot",
+	}
+
+	content := fmt.Sprintf("Captured screenshot [%s].", name)
+	metadata := map[string]any{}
+	visionSummary, visionMeta := analyzeSandboxScreenshot(ctx, t.vision, t.prompt, call, encoded)
+	if visionSummary != "" {
+		content = fmt.Sprintf("%s Vision summary: %s", content, visionSummary)
+	}
+	if visionMeta != nil {
+		metadata["vision"] = visionMeta
 	}
 
 	return &ports.ToolResult{
 		CallID:      call.ID,
-		Content:     fmt.Sprintf("Captured screenshot [%s].", name),
+		Content:     content,
+		Metadata:    metadata,
 		Attachments: map[string]ports.Attachment{name: attachment},
 	}, nil
 }
@@ -269,6 +299,78 @@ const (
 	httpMethodGet  = "GET"
 	httpMethodPost = "POST"
 )
+
+const defaultSandboxVisionPrompt = "Describe the visible browser page. List key text, buttons, inputs, and any obvious next actions."
+
+func analyzeSandboxScreenshot(ctx context.Context, vision ports.ToolExecutor, prompt string, call ports.ToolCall, encoded string) (string, map[string]any) {
+	trimmed := strings.TrimSpace(encoded)
+	if trimmed == "" {
+		return "", nil
+	}
+
+	if vision == nil {
+		summary := "Vision analysis unavailable (vision_analyze not configured)."
+		return summary, map[string]any{"summary": summary, "error": "vision_analyze not configured"}
+	}
+
+	if strings.TrimSpace(prompt) == "" {
+		prompt = defaultSandboxVisionPrompt
+	}
+
+	dataURI := "data:image/png;base64," + trimmed
+	visionCall := ports.ToolCall{
+		ID:           call.ID + ":vision",
+		Name:         "vision_analyze",
+		Arguments:    map[string]any{"images": []string{dataURI}, "prompt": prompt},
+		SessionID:    call.SessionID,
+		TaskID:       call.TaskID,
+		ParentTaskID: call.ParentTaskID,
+	}
+
+	result, err := vision.Execute(ctx, visionCall)
+	if err != nil {
+		summary := summarizeVisionMessage(fmt.Sprintf("Vision analysis failed: %v", err))
+		return summary, map[string]any{"summary": summary, "error": err.Error()}
+	}
+	if result == nil {
+		summary := "Vision analysis returned no result."
+		return summary, map[string]any{"summary": summary, "error": "empty result"}
+	}
+
+	if result.Error != nil {
+		summary := summarizeVisionMessage(fmt.Sprintf("Vision analysis failed: %v", result.Error))
+		metadata := map[string]any{"summary": summary, "error": result.Error.Error()}
+		if result.Metadata != nil {
+			metadata["metadata"] = result.Metadata
+		}
+		return summary, metadata
+	}
+
+	summary := summarizeVisionMessage(result.Content)
+	if summary == "" {
+		summary = "Vision analysis returned no text."
+	}
+
+	metadata := map[string]any{"summary": summary}
+	if result.Metadata != nil {
+		metadata["metadata"] = result.Metadata
+	}
+	return summary, metadata
+}
+
+func summarizeVisionMessage(message string) string {
+	trimmed := strings.TrimSpace(message)
+	if trimmed == "" {
+		return ""
+	}
+	if idx := strings.Index(trimmed, "\n"); idx != -1 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
+	if len(trimmed) > 240 {
+		return trimmed[:240] + "..."
+	}
+	return trimmed
+}
 
 func lastActionPerformed(responses []map[string]any) string {
 	if len(responses) == 0 {

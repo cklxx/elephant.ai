@@ -200,6 +200,72 @@ function formatSandboxAction(action: Record<string, any>): string | undefined {
   }
 }
 
+function formatSandboxDOMStep(step: Record<string, any>): string | undefined {
+  const rawAction =
+    typeof step.action === "string"
+      ? step.action
+      : typeof step.action_type === "string"
+        ? step.action_type
+        : "";
+  const action = rawAction.trim().toLowerCase();
+  if (!action) return undefined;
+
+  const selector = formatHintValue(step.selector);
+  const url = formatHintValue(step.url);
+  const text = formatHintValue(step.text ?? step.value);
+  const key = formatHintValue(step.key);
+  const attribute = formatHintValue(step.attribute);
+
+  switch (action) {
+    case "goto":
+    case "navigate":
+      return url ? `Open ${url}` : "Open page";
+    case "click":
+      return selector ? `Click ${selector}` : "Click";
+    case "hover":
+      return selector ? `Hover ${selector}` : "Hover";
+    case "focus":
+      return selector ? `Focus ${selector}` : "Focus";
+    case "fill":
+      if (selector && text) return `Fill ${selector}`;
+      return selector ? `Fill ${selector}` : "Fill";
+    case "type":
+      return selector ? `Type ${selector}` : "Type";
+    case "press":
+      return key ? `Press ${key}` : "Press key";
+    case "select":
+      return selector ? `Select ${selector}` : "Select";
+    case "wait_for":
+      return selector ? `Wait for ${selector}` : "Wait";
+    case "get_text":
+      return selector ? `Read ${selector}` : "Read text";
+    case "get_html":
+      return selector ? `Read HTML ${selector}` : "Read HTML";
+    case "get_attribute":
+      if (selector && attribute) return `Read ${attribute} ${selector}`;
+      return selector ? `Read ${selector}` : "Read attribute";
+    case "evaluate":
+      return "Evaluate script";
+    default:
+      return action.replace(/_/g, " ");
+  }
+}
+
+function summarizeSandboxDOMSteps(steps: any): string | undefined {
+  if (!Array.isArray(steps) || steps.length === 0) return undefined;
+  const labels = steps
+    .map((step) =>
+      step && typeof step === "object"
+        ? formatSandboxDOMStep(step as Record<string, any>)
+        : undefined,
+    )
+    .filter((label): label is string => Boolean(label));
+
+  if (labels.length === 0) return undefined;
+  if (labels.length <= 3) return labels.join(" · ");
+  return `${labels[0]} · ${labels[1]} 等 ${labels.length} 步`;
+}
+
 function summarizeSandboxActions(actions: any): string | undefined {
   if (!Array.isArray(actions) || actions.length === 0) return undefined;
   const labels = actions
@@ -257,6 +323,15 @@ export function userFacingToolTitle(input: {
       input.metadata?.sandbox_browser?.actions ??
       null;
     const summary = summarizeSandboxActions(actions);
+    return summary ? `${base}：${summary}` : base;
+  }
+
+  if (tool === "sandbox_browser_dom") {
+    const steps =
+      input.arguments?.steps ??
+      input.metadata?.sandbox_browser_dom?.steps ??
+      null;
+    const summary = summarizeSandboxDOMSteps(steps);
     return summary ? `${base}：${summary}` : base;
   }
 
