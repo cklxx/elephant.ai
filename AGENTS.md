@@ -316,6 +316,9 @@ Keep this log trimmed over time by rolling older entries into the Summary below,
 * 2026-01-08: Git failed to create `.git/index.lock` because the lock file already existed; confirm no other git process is running and remove the stale lock.
 * 2026-01-08: `git pull` appeared to hang after updating commits, likely while fetching large binaries/LFS objects; check active transfer progress or LFS status and retry if needed.
 * 2026-01-08: `go test -race -covermode=atomic -coverprofile=coverage.out ./...` failed because `TestStreamingOutputHandlerPrintsTaskStart` expected the session ID in task start output.
+* 2026-01-08: Markdown output rendered extra blank lines for single `\n`; adjust paragraph spacing to avoid double line breaks.
+* 2026-01-08: `npm --prefix web run lint` failed due to `react-hooks/set-state-in-effect` in `web/components/agent/SandboxDesktopPanel.tsx` and `@next/next/no-img-element` warning.
+* 2026-01-08: `npm --prefix web run test` failed because `DialogClose` was missing in the `@/components/ui/dialog` mock, breaking `conversation-stale-session` tests.
 ## Error Experience Summary
 
 * Go linting can fail if `sum.golang.org` returns 502; mitigate by setting `GONOSUMDB=honnef.co/go/tools` and rerunning lint with a longer timeout.
@@ -324,3 +327,6 @@ Keep this log trimmed over time by rolling older entries into the Summary below,
 * Git operations can fail due to a stale `.git/index.lock`; ensure no git process is active before removing the lock file.
 * Git pulls may appear stuck while transferring large binaries/LFS objects; check for active fetch progress and LFS downloads.
 * Task start CLI output tests expect session IDs; keep `RenderTaskStart` in sync with test expectations.
+* Markdown rendering can show extra blank lines between lines; keep paragraph spacing tight when rendering newline-separated content.
+* Web lint can fail on `react-hooks/set-state-in-effect` or `@next/next/no-img-element`; resolve or adjust the lint rules/mocks as needed.
+* Web tests can fail if dialog mocks omit `DialogClose`; keep dialog mocks in sync with exports.

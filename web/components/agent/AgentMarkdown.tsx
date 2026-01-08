@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
-import type { ComponentType } from "react";
+import { Children, useMemo } from "react";
+import type { ComponentType, ReactNode } from "react";
 
 import type { AttachmentPayload } from "@/lib/types";
 import { StreamingMarkdownRenderer } from "./StreamingMarkdownRenderer";
@@ -16,6 +16,27 @@ export type AgentMarkdownProps = {
   components?: Record<string, ComponentType<any>>;
   showLineNumbers?: boolean;
 };
+
+function renderLineBreaks(children: ReactNode) {
+  const nodes = Children.toArray(children);
+  const output: ReactNode[] = [];
+  nodes.forEach((child, childIndex) => {
+    if (typeof child !== "string") {
+      output.push(child);
+      return;
+    }
+    const parts = child.split("\n");
+    parts.forEach((part, partIndex) => {
+      if (partIndex > 0) {
+        output.push(<br key={`br-${childIndex}-${partIndex}`} />);
+      }
+      if (part !== "") {
+        output.push(part);
+      }
+    });
+  });
+  return output;
+}
 
 const baseComponents: Record<string, ComponentType<any>> = {
   code: ({ inline, children, ...props }: any) => {
@@ -45,28 +66,16 @@ const baseComponents: Record<string, ComponentType<any>> = {
   ),
   p: ({ children }: any) => (
     <div className="whitespace-pre-wrap leading-snug text-foreground">
-      {children}
+      {renderLineBreaks(children)}
     </div>
   ),
-  ul: ({ children }: any) => (
-    <div className="mb-2 space-y-1 leading-snug text-foreground">
-      {children}
-    </div>
-  ),
-  ol: ({ children }: any) => (
-    <div className="mb-2 space-y-1 leading-snug text-foreground">
-      {children}
-    </div>
-  ),
-  li: ({ children }: any) => (
-    <div className="whitespace-pre-wrap leading-snug text-foreground">
-      {children}
-    </div>
-  ),
+  ul: ({ children }: any) => children,
+  ol: ({ children }: any) => children,
+  li: ({ children }: any) => renderLineBreaks(children),
   strong: ({ children }: any) => (
     <strong className="font-medium text-foreground">{children}</strong>
   ),
-  br: () => "\n",
+  br: () => null,
 };
 
 export function AgentMarkdown({

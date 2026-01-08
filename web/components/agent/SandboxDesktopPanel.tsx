@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -91,11 +92,19 @@ export function SandboxDesktopPanel({
     }
   }, [sessionId]);
 
-  useEffect(() => {
-    if (isOpen && sessionId) {
-      void loadInfo();
-    }
-  }, [isOpen, loadInfo, sessionId]);
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean) => {
+      setIsOpen(nextOpen);
+      if (nextOpen && sessionId) {
+        void loadInfo();
+      }
+    },
+    [loadInfo, sessionId],
+  );
+
+  const handleToggleOpen = useCallback(() => {
+    handleOpenChange(!isOpen);
+  }, [handleOpenChange, isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -147,7 +156,7 @@ export function SandboxDesktopPanel({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setIsOpen((prev) => !prev)}
+            onClick={handleToggleOpen}
             disabled={!canLoad}
           >
             {isOpen ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -179,7 +188,7 @@ export function SandboxDesktopPanel({
           {t("console.sandbox.noSession")}
         </div>
       )}
-      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogContent
           unstyled
           showCloseButton={false}
