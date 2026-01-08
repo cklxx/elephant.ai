@@ -8,7 +8,7 @@ const (
 	RelativeTemplatePath  = "models/functiongemma/chat_template.jinja"
 	BaseURL               = "http://127.0.0.1:11437/v1"
 	DownloadURL           = "https://huggingface.co/unsloth/functiongemma-270m-it-GGUF/resolve/main/" + GGUFFileName
-	DefaultContextSize    = 8192
+	DefaultContextSize    = 131072
 	MinModelSizeBytes     = 50 * 1024 * 1024
 	DefaultLlamaRelease   = "b7658"
 	DefaultServerHost     = "127.0.0.1"
