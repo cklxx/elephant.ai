@@ -7,6 +7,13 @@ import { useI18n } from "@/lib/i18n";
 import { SandboxBrowserInfo } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { buildApiUrl } from "@/lib/api-base";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface SandboxDesktopPanelProps {
   sessionId?: string | null;
@@ -133,46 +140,92 @@ export function SandboxDesktopPanel({
           {t("console.sandbox.noSession")}
         </div>
       )}
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent
+          unstyled
+          showCloseButton={false}
+          className="h-screen w-screen max-w-none max-h-none bg-background p-0"
+        >
+          <div className="flex h-full flex-col">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
+              <div className="flex flex-col gap-1">
+                <DialogTitle className="text-base font-semibold">
+                  {t("console.sandbox.title")}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  {t("console.sandbox.subtitle")}
+                </DialogDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRefresh}
+                  disabled={!canLoad || status === "loading"}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  {t("console.sandbox.refresh")}
+                </Button>
+                {vncUrl && (
+                  <Button type="button" variant="ghost" size="sm" asChild>
+                    <a href={vncUrl} target="_blank" rel="noreferrer">
+                      <ExternalLink className="h-4 w-4" />
+                      {t("console.sandbox.external")}
+                    </a>
+                  </Button>
+                )}
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" size="sm">
+                    <EyeOff className="h-4 w-4" />
+                    {t("console.sandbox.hide")}
+                  </Button>
+                </DialogClose>
+              </div>
+            </div>
 
-      {canLoad && isOpen && (
-        <div className="mt-4 space-y-3">
-          {status === "loading" && (
-            <div className="rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
-              {t("console.sandbox.loading")}
-            </div>
-          )}
+            <div className="flex-1 overflow-auto px-6 py-4">
+              <div className="space-y-3">
+                {status === "loading" && (
+                  <div className="rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+                    {t("console.sandbox.loading")}
+                  </div>
+                )}
 
-          {status === "error" && (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
-              {t("console.sandbox.error")} {error ? `(${error})` : ""}
-            </div>
-          )}
+                {status === "error" && (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-xs text-rose-700">
+                    {t("console.sandbox.error")} {error ? `(${error})` : ""}
+                  </div>
+                )}
 
-          {vncUrl ? (
-            <div className="overflow-hidden rounded-2xl border border-border/60 bg-black">
-              <iframe
-                title="Sandbox desktop"
-                src={vncUrl}
-                className="h-[360px] w-full"
-              />
-            </div>
-          ) : (
-            <div className="rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
-              {t("console.sandbox.noVnc")}
-            </div>
-          )}
+                {vncUrl ? (
+                  <div className="overflow-hidden rounded-2xl border border-border/60 bg-black">
+                    <iframe
+                      title="Sandbox desktop"
+                      src={vncUrl}
+                      className="h-[65vh] w-full"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
+                    {t("console.sandbox.noVnc")}
+                  </div>
+                )}
 
-          {snapshotUrl && (
-            <div className="overflow-hidden rounded-2xl border border-border/60 bg-background">
-              <img
-                src={snapshotUrl}
-                alt={t("console.sandbox.snapshotAlt")}
-                className="h-[220px] w-full object-cover"
-              />
+                {snapshotUrl && (
+                  <div className="overflow-hidden rounded-2xl border border-border/60 bg-background">
+                    <img
+                      src={snapshotUrl}
+                      alt={t("console.sandbox.snapshotAlt")}
+                      className="h-[280px] w-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
