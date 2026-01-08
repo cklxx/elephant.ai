@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -221,6 +222,138 @@ func truncateStringForLog(value string, limit int) string {
 		runeCount++
 	}
 	return value
+}
+
+func compactToolCallArguments(call ToolCall, result ToolResult) (map[string]any, bool) {
+	if len(call.Arguments) == 0 {
+		return nil, false
+	}
+	ref := toolArgumentContentRef(call, result)
+	compacted := make(map[string]any, len(call.Arguments))
+	changed := false
+	for key, value := range call.Arguments {
+		next, replaced := compactToolArgumentValue(ref, value)
+		if replaced {
+			changed = true
+		}
+		compacted[key] = next
+	}
+	if !changed {
+		return nil, false
+	}
+	return compacted, true
+}
+
+func compactToolArgumentValue(ref string, value any) (any, bool) {
+	switch v := value.(type) {
+	case map[string]any:
+		if isContentReferenceMap(v) {
+			return value, false
+		}
+		compacted := make(map[string]any, len(v))
+		changed := false
+		for key, entry := range v {
+			next, replaced := compactToolArgumentValue(ref, entry)
+			if replaced {
+				changed = true
+			}
+			compacted[key] = next
+		}
+		if !changed {
+			return value, false
+		}
+		return compacted, true
+	case []any:
+		compacted := make([]any, len(v))
+		changed := false
+		for i, entry := range v {
+			next, replaced := compactToolArgumentValue(ref, entry)
+			if replaced {
+				changed = true
+			}
+			compacted[i] = next
+		}
+		if !changed {
+			return value, false
+		}
+		return compacted, true
+	case string:
+		if !shouldCompactToolArgString(v) {
+			return value, false
+		}
+		sum := sha256.Sum256([]byte(v))
+		replacement := map[string]any{
+			"content_len":    len(v),
+			"content_sha256": fmt.Sprintf("%x", sum),
+		}
+		if ref != "" {
+			replacement["content_ref"] = ref
+		}
+		return replacement, true
+	default:
+		return value, false
+	}
+}
+
+func shouldCompactToolArgString(value string) bool {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return false
+	}
+	if strings.HasPrefix(trimmed, "data:") {
+		return true
+	}
+	if looksLikeBinaryString(trimmed) {
+		return true
+	}
+	return len(trimmed) > toolArgHistoryInlineLimit
+}
+
+func isContentReferenceMap(value map[string]any) bool {
+	if value == nil {
+		return false
+	}
+	_, hasLen := value["content_len"]
+	_, hasHash := value["content_sha256"]
+	return hasLen && hasHash
+}
+
+func toolArgumentContentRef(call ToolCall, result ToolResult) string {
+	toolName := strings.ToLower(strings.TrimSpace(call.Name))
+	switch toolName {
+	case "file_write":
+		if ref := stringFromMap(result.Metadata, "path", "resolved_path", "file_path"); ref != "" {
+			return ref
+		}
+		return stringFromMap(call.Arguments, "path")
+	case "file_edit":
+		if ref := stringFromMap(result.Metadata, "resolved_path", "file_path"); ref != "" {
+			return ref
+		}
+		return stringFromMap(call.Arguments, "file_path")
+	case "artifacts_write":
+		return stringFromMap(call.Arguments, "name")
+	default:
+		return ""
+	}
+}
+
+func stringFromMap(values map[string]any, keys ...string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	for _, key := range keys {
+		raw, ok := values[key]
+		if !ok {
+			continue
+		}
+		if text, ok := raw.(string); ok {
+			if trimmed := strings.TrimSpace(text); trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return ""
 }
 
 // ensureToolAttachmentReferences injects attachment placeholders into the
