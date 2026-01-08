@@ -298,5 +298,5 @@ For each user request—especially non-trivial ones—try to include:
 
 ## Error Experience Log
 
-- golangci-lint initial run timed out with a context deadline exceeded error; reran successfully with `--timeout=10m`.
-- `make test` reported skipped tests due to missing `ALEX_TEST_DATABASE_URL`/`OPENAI_API_KEY` and logged an expected missing `test_data.json` message in `TestCLIManager`.
+* 2026-01-08: `make fmt` failed due to sum.golang.org returning 502 when verifying `honnef.co/go/tools`, and then hit a golangci-lint timeout until rerun with `GONOSUMDB=honnef.co/go/tools` and a longer timeout.
+* 2026-01-08: `npm run build` in `web` failed because `flushHandleRef` used `number` while `setTimeout` returned `Timeout` in `hooks/useSSE.ts`, causing a Next.js build type error.
