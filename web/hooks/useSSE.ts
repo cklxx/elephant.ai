@@ -92,7 +92,7 @@ export function useSSE(
   });
   const previousSessionIdRef = useRef<string | null>(sessionId);
   const pendingEventsRef = useRef<AnyAgentEvent[]>([]);
-  const flushHandleRef = useRef<number | null>(null);
+  const flushHandleRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
   const flushModeRef = useRef<"raf" | "timeout" | null>(null);
 
   const resetDedupe = useCallback(() => {
@@ -125,11 +125,11 @@ export function useSSE(
     flushModeRef.current = null;
 
     if (mode === "raf" && typeof window !== "undefined" && "cancelAnimationFrame" in window) {
-      window.cancelAnimationFrame(handle);
+      window.cancelAnimationFrame(handle as number);
       return;
     }
 
-    clearTimeout(handle);
+    clearTimeout(handle as ReturnType<typeof setTimeout>);
   }, []);
 
   const onEventRef = useRef(onEvent);
@@ -595,7 +595,7 @@ export function useSSE(
       unsubscribe();
       pipelineRef.current = null;
     };
-  }, [applyAssistantAnswerFallback]);
+  }, [enqueueEvent]);
 
   useEffect(() => {
     const previousSessionId = previousSessionIdRef.current;
