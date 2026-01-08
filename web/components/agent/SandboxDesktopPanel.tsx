@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { getSandboxBrowserInfo } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -39,6 +39,8 @@ export function SandboxDesktopPanel({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<SandboxBrowserInfo | null>(null);
   const [snapshotTick, setSnapshotTick] = useState(0);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
 
   const canLoad = Boolean(sessionId);
 
@@ -54,6 +56,23 @@ export function SandboxDesktopPanel({
     if (!info?.vnc_url) return "";
     return ensureAutoconnect(info.vnc_url);
   }, [info]);
+  const viewportWidth = info?.viewport?.width ?? 1280;
+  const viewportHeight = info?.viewport?.height ?? 720;
+  const frameScale = useMemo(() => {
+    if (!containerSize.width || !containerSize.height) {
+      return 1;
+    }
+    if (!viewportWidth || !viewportHeight) {
+      return 1;
+    }
+    const scaleX = containerSize.width / viewportWidth;
+    const scaleY = containerSize.height / viewportHeight;
+    const scale = Math.min(scaleX, scaleY);
+    if (!Number.isFinite(scale) || scale <= 0) {
+      return 1;
+    }
+    return scale;
+  }, [containerSize.height, containerSize.width, viewportHeight, viewportWidth]);
 
   const loadInfo = useCallback(async () => {
     if (!sessionId) {
@@ -77,6 +96,26 @@ export function SandboxDesktopPanel({
       void loadInfo();
     }
   }, [isOpen, loadInfo, sessionId]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    const element = containerRef.current;
+    if (!element) {
+      return;
+    }
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) {
+        return;
+      }
+      const { width, height } = entry.contentRect;
+      setContainerSize({ width, height });
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [isOpen]);
 
   const handleRefresh = useCallback(() => {
     if (!sessionId) {
@@ -199,12 +238,24 @@ export function SandboxDesktopPanel({
                 )}
 
                 {vncUrl ? (
-                  <div className="flex min-h-[360px] flex-1 overflow-hidden rounded-2xl border border-border/60 bg-black">
-                    <iframe
-                      title="Sandbox desktop"
-                      src={vncUrl}
-                      className="h-full w-full"
-                    />
+                  <div
+                    ref={containerRef}
+                    className="relative flex min-h-[360px] flex-1 items-center justify-center overflow-hidden rounded-2xl border border-border/60 bg-black"
+                  >
+                    <div
+                      className="absolute left-1/2 top-1/2 origin-top-left"
+                      style={{
+                        width: viewportWidth,
+                        height: viewportHeight,
+                        transform: `translate(-50%, -50%) scale(${frameScale})`,
+                      }}
+                    >
+                      <iframe
+                        title="Sandbox desktop"
+                        src={vncUrl}
+                        className="h-full w-full"
+                      />
+                    </div>
                   </div>
                 ) : (
                   <div className="flex min-h-[240px] flex-1 items-center justify-center rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">
