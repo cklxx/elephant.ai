@@ -22,7 +22,7 @@ const (
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
 	historySummaryIntent       = "user_history_summary"
-	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → (Clearify if needed) → ReAct → Finalize. Always call plan() before any action tool call. If plan(complexity=\"complex\"), call clearify() before each task's first action tool call. If plan(complexity=\"simple\"), skip clearify unless you need user input. Avoid emojis in responses unless the user explicitly requests them."
+	defaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → (Clearify if needed) → ReAct → Finalize. Always call plan() before any action tool call. If plan(complexity=\"complex\"), call clearify() before each task's first action tool call. If plan(complexity=\"simple\"), skip clearify unless you need user input. If you hit login/2FA/CAPTCHA or any auth gate, call request_user with clear steps for the user to log in, then wait before continuing. Avoid emojis in responses unless the user explicitly requests them."
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.

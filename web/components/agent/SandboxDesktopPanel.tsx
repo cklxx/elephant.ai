@@ -144,7 +144,7 @@ export function SandboxDesktopPanel({
         <DialogContent
           unstyled
           showCloseButton={false}
-          className="h-screen w-screen max-w-none max-h-none bg-background p-0"
+          className="h-[92vh] w-[96vw] max-w-[1400px] overflow-hidden rounded-3xl border border-border/70 bg-background p-0 shadow-2xl"
         >
           <div className="flex h-full flex-col">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-6 py-4">
@@ -184,7 +184,7 @@ export function SandboxDesktopPanel({
               </div>
             </div>
 
-            <div className="flex-1 overflow-auto px-6 py-4">
+            <div className="flex-1 min-h-0 overflow-auto px-6 py-4">
               <div className="space-y-3">
                 {status === "loading" && (
                   <div className="rounded-xl border border-dashed border-border/60 bg-background/60 px-4 py-3 text-xs text-muted-foreground">

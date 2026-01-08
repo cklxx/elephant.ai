@@ -167,6 +167,7 @@ const TOOL_NAME_MAP: Record<string, string> = {
   'sandbox_browser': 'Sandbox Browser',
   'sandbox_browser_info': 'Sandbox Browser Info',
   'sandbox_browser_screenshot': 'Sandbox Browser Screenshot',
+  'request_user': 'Request User',
 
   // Agent/Task
   'task_boundary': 'Task',

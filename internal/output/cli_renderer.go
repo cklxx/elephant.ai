@@ -145,7 +145,7 @@ func nextSpinnerFrame() string {
 
 func isConversationalTool(toolName string) bool {
 	switch strings.ToLower(strings.TrimSpace(toolName)) {
-	case "plan", "clearify", "claify":
+	case "plan", "clearify", "claify", "request_user":
 		return true
 	default:
 		return false

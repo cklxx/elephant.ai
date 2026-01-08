@@ -91,6 +91,7 @@ func CategorizeToolName(toolName string) types.ToolCategory {
 		"final":        types.CategoryReasoning,
 		"todo_read":    types.CategoryTask,
 		"todo_update":  types.CategoryTask,
+		"request_user": types.CategoryTask,
 	}
 	if cat, ok := categories[toolName]; ok {
 		return cat

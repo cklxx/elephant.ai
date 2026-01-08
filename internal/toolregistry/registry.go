@@ -268,6 +268,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["memory_recall"] = builtin.NewMemoryRecall(config.MemoryService)
 	r.static["memory_write"] = builtin.NewMemoryWrite(config.MemoryService)
 	r.static["attention"] = builtin.NewAttention()
+	r.static["request_user"] = builtin.NewRequestUser()
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
