@@ -29,8 +29,12 @@ readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
 readonly WEB_PID_FILE="${PID_DIR}/web.pid"
+readonly LOCAL_LLM_PID_FILE="${PID_DIR}/local-llm.pid"
 readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
+readonly LOCAL_LLM_LOG="${LOG_DIR}/local-llm.log"
+readonly LOCAL_LLM_BASE_URL_DEFAULT="http://127.0.0.1:11437"
+readonly LOCAL_LLM_MODEL_DEFAULT="functiongemma-270m-it"
 
 readonly DEFAULT_SERVER_PORT=8080
 readonly DEFAULT_WEB_PORT=3000
@@ -80,6 +84,42 @@ die() {
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+local_llm_base_url() {
+  echo "${LLM_BASE_URL:-${LOCAL_LLM_BASE_URL_DEFAULT}}"
+}
+
+local_llm_health_url() {
+  local base
+  base="$(local_llm_base_url)"
+  base="${base%/}"
+  base="${base%/v1}"
+  echo "${base}/health"
+}
+
+local_llm_enabled() {
+  [[ -z "${OPENAI_API_KEY:-}" && ( -z "${LLM_PROVIDER:-}" || "${LLM_PROVIDER}" == "local" ) ]]
+}
+
+start_local_llm() {
+  if ! local_llm_enabled; then
+    return 0
+  fi
+
+  export LLM_PROVIDER="local"
+  export LLM_MODEL="${LLM_MODEL:-${LOCAL_LLM_MODEL_DEFAULT}}"
+  export LLM_BASE_URL="${LLM_BASE_URL:-${LOCAL_LLM_BASE_URL_DEFAULT}}"
+
+  if command_exists curl && curl -sf --noproxy '*' "$(local_llm_health_url)" >/dev/null 2>&1; then
+    log_success "Local LLM already running at ${LLM_BASE_URL}"
+    return 0
+  fi
+
+  log_info "Starting local LLM (${LLM_MODEL})..."
+  "${SCRIPT_DIR}/scripts/run-local-llm.sh" >"${LOCAL_LLM_LOG}" 2>&1 &
+  echo $! >"${LOCAL_LLM_PID_FILE}"
+  wait_for_health "$(local_llm_health_url)" "local-llm" || true
 }
 
 ensure_playwright_browsers() {
@@ -515,6 +555,7 @@ start_web() {
 
 cmd_up() {
   start_sandbox
+  start_local_llm
   start_server
   start_web
   log_success "Dev services are running: backend=http://localhost:${SERVER_PORT} web=http://localhost:${WEB_PORT} sandbox=${SANDBOX_BASE_URL}"
@@ -528,6 +569,7 @@ cmd_down() {
   fi
   stop_service "Backend" "${SERVER_PID_FILE}"
   stop_alex_server_listeners "$SERVER_PORT"
+  stop_service "Local LLM" "${LOCAL_LLM_PID_FILE}"
   stop_sandbox
 }
 
@@ -564,6 +606,12 @@ cmd_status() {
     log_success "Sandbox: ready ${SANDBOX_BASE_URL}"
   else
     log_warn "Sandbox: unavailable ${SANDBOX_BASE_URL}"
+  fi
+
+  if command_exists curl && curl -sf --noproxy '*' "$(local_llm_health_url)" >/dev/null 2>&1; then
+    log_success "Local LLM: ready ${LLM_BASE_URL:-${LOCAL_LLM_BASE_URL_DEFAULT}}"
+  elif local_llm_enabled; then
+    log_warn "Local LLM: unavailable"
   fi
 }
 

@@ -26,8 +26,12 @@ readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
 readonly WEB_PID_FILE="${PID_DIR}/web.pid"
+readonly LOCAL_LLM_PID_FILE="${PID_DIR}/local-llm.pid"
 readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
+readonly LOCAL_LLM_LOG="${LOG_DIR}/local-llm.log"
+readonly LOCAL_LLM_BASE_URL_DEFAULT="http://127.0.0.1:11437"
+readonly LOCAL_LLM_MODEL_DEFAULT="functiongemma-270m-it"
 readonly BIN_DIR="${SCRIPT_DIR}/.bin"
 readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
 readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex-config.json}"
@@ -102,6 +106,22 @@ die() {
 
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+local_llm_base_url() {
+    echo "${LLM_BASE_URL:-${LOCAL_LLM_BASE_URL_DEFAULT}}"
+}
+
+local_llm_health_url() {
+    local base
+    base="$(local_llm_base_url)"
+    base="${base%/}"
+    base="${base%/v1}"
+    echo "${base}/health"
+}
+
+local_llm_enabled() {
+    [[ -z "${OPENAI_API_KEY:-}" && ( -z "${LLM_PROVIDER:-}" || "${LLM_PROVIDER}" == "local" ) ]]
 }
 
 ###############################################################################
@@ -557,6 +577,38 @@ apply_auth_migrations() {
     fi
 }
 
+ensure_local_llm_env() {
+    if ! local_llm_enabled; then
+        return
+    fi
+
+    export LLM_PROVIDER="local"
+    export LLM_MODEL="${LLM_MODEL:-${LOCAL_LLM_MODEL_DEFAULT}}"
+    export LLM_BASE_URL="${LLM_BASE_URL:-${LOCAL_LLM_BASE_URL_DEFAULT}}"
+}
+
+start_local_llm() {
+    ensure_local_llm_env
+
+    if ! local_llm_enabled; then
+        return 0
+    fi
+
+    if command_exists curl && curl -sf --noproxy '*' "$(local_llm_health_url)" >/dev/null 2>&1; then
+        log_success "Local LLM already running at ${LLM_BASE_URL}"
+        return 0
+    fi
+
+    log_info "Starting local LLM (${LLM_MODEL})..."
+    "${SCRIPT_DIR}/scripts/run-local-llm.sh" > "${LOCAL_LLM_LOG}" 2>&1 &
+    echo $! > "${LOCAL_LLM_PID_FILE}"
+    wait_for_health "$(local_llm_health_url)" "Local LLM" || true
+}
+
+stop_local_llm() {
+    stop_service "Local LLM" "$LOCAL_LLM_PID_FILE"
+}
+
 setup_environment() {
     # Create directories
     mkdir -p "$PID_DIR" "$LOG_DIR"
@@ -600,6 +652,7 @@ EOF
     set +a
 
     hydrate_env_from_config
+    ensure_local_llm_env
     ensure_api_url_default "http://localhost:${SERVER_PORT}" "local"
     ensure_web_env_file
 
@@ -898,6 +951,7 @@ cmd_start() {
     build_backend || die "Backend build failed"
     install_frontend_deps || die "Frontend dependency installation failed"
     start_sandbox || die "Sandbox failed to start"
+    start_local_llm
     start_backend || die "Backend failed to start"
     start_frontend || die "Frontend failed to start"
 
@@ -938,6 +992,7 @@ cmd_stop() {
 
     stop_service "Backend" "$SERVER_PID_FILE"
     stop_service "Frontend" "$WEB_PID_FILE"
+    stop_local_llm
     stop_sandbox
 
     # Clean up port bindings
@@ -989,6 +1044,12 @@ cmd_status() {
         echo -e "${C_GREEN}✓${C_RESET} Sandbox:   Ready (${SANDBOX_BASE_URL})"
     else
         echo -e "${C_YELLOW}⚠${C_RESET} Sandbox:   Unavailable (${SANDBOX_BASE_URL})"
+    fi
+
+    if command_exists curl && curl -sf --noproxy '*' "$(local_llm_health_url)" >/dev/null 2>&1; then
+        echo -e "${C_GREEN}✓${C_RESET} Local LLM: Ready (${LLM_BASE_URL:-${LOCAL_LLM_BASE_URL_DEFAULT}})"
+    elif local_llm_enabled; then
+        echo -e "${C_YELLOW}⚠${C_RESET} Local LLM: Unavailable"
     fi
 
     echo ""
@@ -1217,6 +1278,10 @@ ${C_YELLOW}Usage:${C_RESET}
   ./deploy.sh [command]
 
 ${C_YELLOW}Commands:${C_RESET}
+  ${C_GREEN}local|dev${C_RESET}          Run local Go + Next.js stack
+  ${C_GREEN}down|stop${C_RESET}          Stop local services
+  ${C_GREEN}status${C_RESET}             Show local service status
+  ${C_GREEN}test${C_RESET}               Run local tests (Go + web)
   ${C_GREEN}pro [command]${C_RESET}      Run production stack on :80 via nginx (default)
   ${C_GREEN}docker [command]${C_RESET}   Manage docker-compose deployment
   ${C_GREEN}cn [command]${C_RESET}       Deploy using China mirrors (docker/npm/pip/go)
@@ -1225,6 +1290,9 @@ ${C_YELLOW}Commands:${C_RESET}
 
 ${C_YELLOW}Examples:${C_RESET}
   ./deploy.sh              # Production on :80 via nginx (same-origin frontend/API)
+  ./deploy.sh local        # Local dev stack (backend + web)
+  ./deploy.sh down         # Stop local services
+  ./deploy.sh status       # Local status
   ./deploy.sh pro status   # Inspect running services
   ./deploy.sh cn deploy    # Production deploy with China mirrors
   ./deploy.sh pro logs web # Tail frontend logs via docker-compose
@@ -1250,6 +1318,18 @@ main() {
     fi
 
     case $cmd in
+        local|dev|up|start)
+            cmd_start
+            ;;
+        down|stop)
+            cmd_stop
+            ;;
+        status)
+            cmd_status
+            ;;
+        test)
+            cmd_test
+            ;;
         docker)
             cmd_docker "$@"
             ;;
