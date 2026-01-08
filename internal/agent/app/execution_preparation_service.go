@@ -240,6 +240,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 ## Artifacts & Attachments
 - When producing long-form deliverables (reports, articles, specs), write them to a Markdown artifact via artifacts_write.
 - Provide a short summary in the final answer and point the user to the generated file instead of pasting the full content.
+- Keep attachment placeholders out of the main body; list them at the end of the final answer.
 - If you want clients to render an attachment card, reference the file with a placeholder like [report.md].`)
 	}
 	if runID := strings.TrimSpace(ids.TaskID); runID != "" {

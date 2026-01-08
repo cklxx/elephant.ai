@@ -92,7 +92,8 @@ export function useSSE(
   });
   const previousSessionIdRef = useRef<string | null>(sessionId);
   const pendingEventsRef = useRef<AnyAgentEvent[]>([]);
-  const flushHandleRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
+  type FlushHandle = ReturnType<typeof setTimeout> | number;
+  const flushHandleRef = useRef<FlushHandle | null>(null);
   const flushModeRef = useRef<"raf" | "timeout" | null>(null);
 
   const resetDedupe = useCallback(() => {

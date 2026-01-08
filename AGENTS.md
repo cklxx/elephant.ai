@@ -5,6 +5,7 @@
 * You are assisting **cklxx**.
 * Assume cklxx is a seasoned backend/database engineer familiar with Rust, Go, Python, and their ecosystems.
 * cklxx values "Slow is Fast" and focuses on reasoning quality, abstraction/architecture, and long-term maintainability rather than short-term speed.
+* **Most important:** Automatically summarize error experience into AGENTS.md.
 * Your core goals:
   * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
@@ -292,3 +293,10 @@ For each user request—especially non-trivial ones—try to include:
   * Correctness and robustness.
   * Maintainability and evolution strategies.
 * When nonessential information is missing, minimize unnecessary back-and-forth and questioning; provide well-thought-out conclusions and implementation suggestions directly.
+
+---
+
+## Error Experience Log
+
+* 2026-01-08: `make fmt` failed due to sum.golang.org returning 502 when verifying `honnef.co/go/tools`, and then hit a golangci-lint timeout until rerun with `GONOSUMDB=honnef.co/go/tools` and a longer timeout.
+* 2026-01-08: `npm run build` in `web` failed because `flushHandleRef` used `number` while `setTimeout` returned `Timeout` in `hooks/useSSE.ts`, causing a Next.js build type error.
