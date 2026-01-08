@@ -307,6 +307,42 @@ func TestEnvOverridesFile(t *testing.T) {
 	}
 }
 
+func TestLoadNormalizesRuntimeConfig(t *testing.T) {
+	overrides := Overrides{
+		LLMProvider:   ptrString(" openai "),
+		LLMModel:      ptrString(" gpt-4o "),
+		APIKey:        ptrString(" sk-test "),
+		StopSequences: ptrStringSlice([]string{" STOP ", "STOP", " ", "", "\nDONE\n", "DONE"}),
+		AgentPreset:   ptrString(" coder "),
+		ToolPreset:    ptrString(" safe "),
+	}
+
+	cfg, _, err := Load(
+		WithEnv(envMap{}.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return nil, os.ErrNotExist }),
+		WithOverrides(overrides),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+
+	if cfg.LLMProvider != "openai" {
+		t.Fatalf("expected trimmed provider, got %q", cfg.LLMProvider)
+	}
+	if cfg.LLMModel != "gpt-4o" {
+		t.Fatalf("expected trimmed model, got %q", cfg.LLMModel)
+	}
+	if cfg.APIKey != "sk-test" {
+		t.Fatalf("expected trimmed API key, got %q", cfg.APIKey)
+	}
+	if cfg.AgentPreset != "coder" || cfg.ToolPreset != "safe" {
+		t.Fatalf("expected trimmed presets, got agent=%q tool=%q", cfg.AgentPreset, cfg.ToolPreset)
+	}
+	if len(cfg.StopSequences) != 2 || cfg.StopSequences[0] != "STOP" || cfg.StopSequences[1] != "DONE" {
+		t.Fatalf("expected cleaned stop sequences, got %#v", cfg.StopSequences)
+	}
+}
+
 func TestOverridesTakePriority(t *testing.T) {
 	overrideTemp := 1.0
 	overrideModel := "override-model"
@@ -416,6 +452,14 @@ func TestOverridesTakePriority(t *testing.T) {
 	if meta.Source("agent_preset") != SourceOverride || meta.Source("tool_preset") != SourceOverride {
 		t.Fatalf("expected override source for presets")
 	}
+}
+
+func ptrString(value string) *string {
+	return &value
+}
+
+func ptrStringSlice(value []string) *[]string {
+	return &value
 }
 
 func TestLoadFromFileSupportsSnakeCaseArkKey(t *testing.T) {

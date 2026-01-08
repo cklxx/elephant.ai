@@ -293,3 +293,10 @@ For each user request—especially non-trivial ones—try to include:
   * Correctness and robustness.
   * Maintainability and evolution strategies.
 * When nonessential information is missing, minimize unnecessary back-and-forth and questioning; provide well-thought-out conclusions and implementation suggestions directly.
+
+---
+
+## Error Experience Log
+
+- golangci-lint initial run timed out with a context deadline exceeded error; reran successfully with `--timeout=10m`.
+- `make test` reported skipped tests due to missing `ALEX_TEST_DATABASE_URL`/`OPENAI_API_KEY` and logged an expected missing `test_data.json` message in `TestCLIManager`.
