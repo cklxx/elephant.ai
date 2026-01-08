@@ -8,7 +8,7 @@ ALEX (Agile Light Easy Xpert Code Agent) is a terminal-native AI programming ass
 
 ## Project Overview
 
-- Purpose: A locally-operated AI coding assistant that runs on a developer's machine without relying on external inference services. It supports local LLM backends, multiple model providers, and an extensible MCP (Model Context Protocol) tool ecosystem.
+- Purpose: A locally-operated AI coding assistant that runs on a developer's machine and connects to configurable OpenAI-compatible LLM providers (plus optional Ollama). It supports multiple model providers and an extensible MCP (Model Context Protocol) tool ecosystem.
 - Core capabilities:
   - Think-Act-Observe cycle for structured reasoning and tool invocation
   - Multimodel LLM integration with caching, selection, and streaming outputs
@@ -264,7 +264,6 @@ go test -coverprofile=coverage.out ./...
   - examples/   usage examples
 
 - Important external references:
-  - Local inference via llama.cpp (default, no API keys required)
   - OpenRouter (optional remote provider, API keys in configuration)
   - SWE-Bench documentation in evaluation/swe_bench/
 

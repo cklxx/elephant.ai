@@ -47,6 +47,7 @@ vi.mock('@/components/ui/dialog', () => {
     DialogFooter: DialogStub,
     DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
     DialogDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+    DialogClose: DialogStub,
     useConfirmDialog: () => ({
       confirm: vi.fn().mockResolvedValue(true),
       ConfirmDialog: () => <div data-testid="confirm-dialog" />,

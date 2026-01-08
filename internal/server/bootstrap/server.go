@@ -160,6 +160,7 @@ func RunServer(observabilityConfigPath string) error {
 		authService,
 		config.Runtime.Environment,
 		config.AllowedOrigins,
+		config.Runtime.SandboxBaseURL,
 		configHandler,
 		evaluationService,
 		obs,

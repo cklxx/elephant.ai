@@ -19,6 +19,7 @@ import (
 	"alex/internal/agent/types"
 	"alex/internal/logging"
 	"alex/internal/observability"
+	"alex/internal/sandbox"
 	"alex/internal/server/app"
 	serverPorts "alex/internal/server/ports"
 	id "alex/internal/utils/id"
@@ -36,6 +37,7 @@ type APIHandler struct {
 	obs                   *observability.Observability
 	evaluationSvc         *app.EvaluationService
 	attachmentStore       *AttachmentStore
+	sandboxClient         *sandbox.Client
 	maxCreateTaskBodySize int64
 }
 
@@ -61,6 +63,13 @@ func WithEvaluationService(service *app.EvaluationService) APIHandlerOption {
 func WithAttachmentStore(store *AttachmentStore) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.attachmentStore = store
+	}
+}
+
+// WithSandboxClient wires a sandbox client for sandbox-related endpoints.
+func WithSandboxClient(client *sandbox.Client) APIHandlerOption {
+	return func(handler *APIHandler) {
+		handler.sandboxClient = client
 	}
 }
 
@@ -388,6 +397,59 @@ func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordWebVital(r.Context(), payload.Name, payload.Label, page, payload.Value, payload.Delta)
 	}
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// HandleSandboxBrowserInfo proxies sandbox browser info for the web console.
+func (h *APIHandler) HandleSandboxBrowserInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.sandboxClient == nil {
+		h.writeJSONError(w, http.StatusServiceUnavailable, "Sandbox not configured", nil)
+		return
+	}
+
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	var response sandbox.Response[sandbox.BrowserInfo]
+	if err := h.sandboxClient.DoJSON(r.Context(), http.MethodGet, "/v1/browser/info", nil, sessionID, &response); err != nil {
+		h.writeJSONError(w, http.StatusBadGateway, "Sandbox request failed", err)
+		return
+	}
+	if !response.Success {
+		h.writeJSONError(w, http.StatusBadGateway, "Sandbox browser info failed", errors.New(response.Message))
+		return
+	}
+	if response.Data == nil {
+		h.writeJSONError(w, http.StatusBadGateway, "Sandbox browser info empty", nil)
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, response.Data)
+}
+
+// HandleSandboxBrowserScreenshot proxies sandbox browser screenshots for the web console.
+func (h *APIHandler) HandleSandboxBrowserScreenshot(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if h.sandboxClient == nil {
+		h.writeJSONError(w, http.StatusServiceUnavailable, "Sandbox not configured", nil)
+		return
+	}
+
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	payload, err := h.sandboxClient.GetBytes(r.Context(), "/v1/browser/screenshot", sessionID)
+	if err != nil {
+		h.writeJSONError(w, http.StatusBadGateway, "Sandbox screenshot failed", err)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "image/png")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(payload)
 }
 
 func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentports.Attachment, error) {

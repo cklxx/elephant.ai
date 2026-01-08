@@ -73,6 +73,31 @@ func TestRenderToolCallStartKeepsFullArgsInVerboseMode(t *testing.T) {
 	}
 }
 
+func TestRenderToolCallStartSkipsConversationalTools(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+
+	rendered := renderer.RenderToolCallStart(ctx, "plan", map[string]any{"run_id": "task-1"})
+
+	if rendered != "" {
+		t.Fatalf("expected conversational tool start to be skipped, got %q", rendered)
+	}
+}
+
+func TestRenderToolCallCompleteRendersConversationalContent(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+
+	rendered := renderer.RenderToolCallComplete(ctx, "clearify", "Need input", nil, 0)
+
+	if strings.Contains(rendered, "clearify") {
+		t.Fatalf("expected conversational tool name to be hidden, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "Need input") {
+		t.Fatalf("expected conversational content to be shown, got %q", rendered)
+	}
+}
+
 func TestRenderTaskCompleteRendersMarkdown(t *testing.T) {
 	renderer := newTestRenderer(false)
 	ctx := &types.OutputContext{Level: types.LevelCore}

@@ -51,6 +51,7 @@ import {
 } from "@/components/agent/AttachmentPanel";
 import { SkillsPanel } from "@/components/agent/SkillsPanel";
 import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
+import { SandboxDesktopPanel } from "@/components/agent/SandboxDesktopPanel";
 
 const LazyConversationEventStream = dynamic(
   () =>
@@ -855,22 +856,28 @@ export function ConversationPageContent() {
               </ContentArea>
 
               <div className="border-t px-3 py-4 sm:px-6 sm:py-6">
-                <TaskInput
-                  onSubmit={handleTaskSubmit}
-                  placeholder={
-                    resolvedSessionId
-                      ? t("console.input.placeholder.active")
-                      : t("console.input.placeholder.idle")
-                  }
-                  disabled={inputDisabled}
-                  loading={creationPending}
-                  prefill={prefillTask}
-                  onPrefillApplied={() => setPrefillTask(null)}
-                  onStop={handleStop}
-                  isRunning={isTaskRunning}
-                  stopPending={stopPending}
-                  stopDisabled={isCancelPending}
-                />
+                <div className="space-y-4">
+                  <SandboxDesktopPanel
+                    sessionId={streamSessionId}
+                    isRunning={streamIsRunning}
+                  />
+                  <TaskInput
+                    onSubmit={handleTaskSubmit}
+                    placeholder={
+                      resolvedSessionId
+                        ? t("console.input.placeholder.active")
+                        : t("console.input.placeholder.idle")
+                    }
+                    disabled={inputDisabled}
+                    loading={creationPending}
+                    prefill={prefillTask}
+                    onPrefillApplied={() => setPrefillTask(null)}
+                    onStop={handleStop}
+                    isRunning={isTaskRunning}
+                    stopPending={stopPending}
+                    stopDisabled={isCancelPending}
+                  />
+                </div>
               </div>
             </div>
             <div

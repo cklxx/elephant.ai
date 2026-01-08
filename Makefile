@@ -109,9 +109,6 @@ server-run: server-build ## Run alex-server
 	@echo "Starting alex-server on port 8080..."
 	@./alex-server
 
-local-llm: ## Run local FunctionGemma inference server (OpenAI-compatible)
-	@./scripts/run-local-llm.sh
-
 server-test: ## Run server tests
 	@echo "Running server tests..."
 	@$(GO) test ./internal/server/... -v

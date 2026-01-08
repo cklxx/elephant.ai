@@ -17,6 +17,7 @@ import {
   ContextWindowPreviewResponse,
   ContextConfigSnapshot,
   ContextConfigUpdatePayload,
+  SandboxBrowserInfo,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -181,6 +182,13 @@ export async function getRuntimeConfigSnapshot(): Promise<RuntimeConfigSnapshot>
   return fetchAPI<RuntimeConfigSnapshot>("/api/internal/config/runtime");
 }
 
+export async function getSandboxBrowserInfo(
+  sessionId?: string | null,
+): Promise<SandboxBrowserInfo> {
+  const query = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : "";
+  return fetchAPI<SandboxBrowserInfo>(`/api/sandbox/browser-info${query}`);
+}
+
 export async function updateRuntimeConfig(
   request: RuntimeConfigOverridesPayload,
 ): Promise<RuntimeConfigSnapshot> {
@@ -284,6 +292,24 @@ export async function getSessionDetails(
     },
     tasks: taskSummaries,
   };
+}
+
+export async function getSessionRaw(sessionId: string): Promise<{
+  session: Record<string, unknown>;
+  tasks: Record<string, unknown>;
+}> {
+  const session = await fetchAPI<Record<string, unknown>>(
+    `/api/sessions/${sessionId}`,
+  );
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    limit: "100",
+    offset: "0",
+  });
+  const tasks = await fetchAPI<Record<string, unknown>>(
+    `/api/tasks?${params.toString()}`,
+  );
+  return { session, tasks };
 }
 
 export async function getSessionTitle(
@@ -405,6 +431,7 @@ export const apiClient = {
   createSession,
   listSessions,
   getSessionDetails,
+  getSessionRaw,
   getSessionTitle,
   deleteSession,
   getContextWindowPreview,

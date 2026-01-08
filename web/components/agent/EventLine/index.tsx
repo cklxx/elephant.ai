@@ -14,7 +14,7 @@ import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
 import { ToolOutputCard } from "../ToolOutputCard";
 import { TaskCompleteCard } from "../TaskCompleteCard";
-import { cn } from "@/lib/utils";
+import { cn, isOrchestratorRetryMessage } from "@/lib/utils";
 import { parseContentSegments, buildAttachmentUri } from "@/lib/attachments";
 import { ImagePreview } from "@/components/ui/image-preview";
 import { VideoPreview } from "@/components/ui/video-preview";
@@ -170,6 +170,9 @@ export const EventLine = React.memo(function EventLine({
         : pairedToolStartEvent?.arguments;
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
     if (toolName === "plan") {
+      if (isOrchestratorRetryMessage(completeEvent.result)) {
+        return null;
+      }
       return wrapWithSubagentContext(
         <PlanGoalCard
           goal={completeEvent.result}
@@ -178,6 +181,9 @@ export const EventLine = React.memo(function EventLine({
       );
     }
     if (toolName === "clearify") {
+      if (isOrchestratorRetryMessage(completeEvent.result)) {
+        return null;
+      }
       return wrapWithSubagentContext(
         <ClearifyTaskCard
           result={completeEvent.result}
@@ -416,7 +422,6 @@ function AssistantLogCard({
 }
 
 export interface SubagentContext {
-  title: string;
   preview?: string;
   concurrency?: string;
   progress?: string;
@@ -426,24 +431,6 @@ export interface SubagentContext {
 }
 
 export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
-  const index =
-    "subtask_index" in event && typeof event.subtask_index === "number"
-      ? event.subtask_index + 1
-      : undefined;
-  const total =
-    "total_subtasks" in event &&
-    typeof event.total_subtasks === "number" &&
-    event.total_subtasks > 0
-      ? event.total_subtasks
-      : undefined;
-
-  let title = "Subagent Task";
-  if (index !== undefined && total !== undefined) {
-    title = `Subagent Task ${index}/${total}`;
-  } else if (index !== undefined) {
-    title = `Subagent Task ${index}`;
-  }
-
   const preview =
     "subtask_preview" in event ? event.subtask_preview?.trim() : undefined;
   const concurrency =
@@ -493,7 +480,6 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   }
 
   return {
-    title,
     preview,
     concurrency,
     progress: progressParts.join(" · ") || undefined,
@@ -551,39 +537,34 @@ interface SubagentHeaderProps {
 
 export function SubagentHeader({ context }: SubagentHeaderProps) {
   return (
-    <div className="flex items-center gap-3">
-      <p className="text-[10px] font-bold tracking-wider text-primary">
-        {context.title}
-      </p>
-      <div className="flex items-center gap-2">
-        {context.preview && (
-          <span className="text-xs text-foreground/70 truncate max-w-[200px]">
-            {context.preview}
-          </span>
-        )}
-        {context.concurrency && (
-          <Badge
-            variant="secondary"
-            className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
-          >
-            {context.concurrency}
-          </Badge>
-        )}
-        {context.status && (
-          <span
-            className={cn(
-              "text-[10px] px-1.5 py-0.5 rounded font-medium",
-              context.statusTone === "success"
-                ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                : context.statusTone === "danger"
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
-                  : "bg-muted text-muted-foreground",
-            )}
-          >
-            {context.status}
-          </span>
-        )}
-      </div>
+    <div className="flex flex-wrap items-center gap-2">
+      {context.preview && (
+        <span className="text-xs text-foreground/70 truncate max-w-[200px]">
+          {context.preview}
+        </span>
+      )}
+      {context.concurrency && (
+        <Badge
+          variant="secondary"
+          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground"
+        >
+          {context.concurrency}
+        </Badge>
+      )}
+      {context.status && (
+        <span
+          className={cn(
+            "text-[10px] px-1.5 py-0.5 rounded font-medium",
+            context.statusTone === "success"
+              ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+              : context.statusTone === "danger"
+                ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                : "bg-muted text-muted-foreground",
+          )}
+        >
+          {context.status}
+        </span>
+      )}
     </div>
   );
 }

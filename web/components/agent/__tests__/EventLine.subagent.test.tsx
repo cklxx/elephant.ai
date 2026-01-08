@@ -35,7 +35,6 @@ describe('SubagentEventLine', () => {
 
     renderWithI18n(event);
 
-    expect(screen.getByText('Subagent Task 1/3')).toBeInTheDocument();
     expect(
       screen.getByText('List project files for review'),
     ).toBeInTheDocument();
@@ -63,7 +62,6 @@ describe('SubagentEventLine', () => {
 
     renderWithI18n(event);
 
-    expect(screen.getByText('Subagent Task 2/2')).toBeInTheDocument();
     expect(screen.getByText('Run project unit tests')).toBeInTheDocument();
     await user.click(screen.getByTestId('tool-output-header'));
     expect(await screen.findByText(/Execution successful/i)).toBeInTheDocument();

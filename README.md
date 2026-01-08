@@ -19,7 +19,7 @@ elephant.ai is a shared Go runtime (with a Next.js dashboard) that powers the `a
 ## Highlights
 
 * One runtime, three entrypoints (CLI/TUI, server, dashboard) backed by the same DI container.
-* Local-first by default: FunctionGemma weights are bundled and served via llama.cpp with no API keys required.
+* Configurable OpenAI-compatible LLM providers with shared runtime config across CLI/server/web.
 * Typed, artifact-aware events that render identically in terminals and the web UI.
 * Built-in observability: structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost accounting.
 * Retrieval layers for memory, skills, docs, and external context plus approvals for risky actions.
@@ -36,6 +36,12 @@ Prerequisites: Go 1.24+, Node.js 20+ (web UI), Docker (optional).
 make build            # alex
 make server-build     # alex-server
 
+# Configure your LLM provider (example: OpenAI)
+export OPENAI_API_KEY="sk-..."
+export LLM_PROVIDER="openai"
+export LLM_BASE_URL="https://api.openai.com/v1"
+export LLM_MODEL="gpt-4o-mini"
+
 # Run the CLI/TUI
 ./alex
 ./alex "print the repo layout"
@@ -48,25 +54,7 @@ make server-run
 (cd web && npm run dev)
 ```
 
-Configuration is shared across every surface. Defaults run locally; for remote providers start from `examples/config/core-config-example.json` and see `docs/reference/CONFIG.md` for the canonical schema.
-
----
-
-## Local inference API
-
-Bring up the OpenAI-compatible llama.cpp server directly:
-
-```bash
-make local-llm
-```
-
-Example request:
-
-```bash
-curl http://127.0.0.1:11437/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{"model":"functiongemma-270m-it","messages":[{"role":"user","content":"Hello!"}]}'
-```
+Configuration is shared across every surface. Use `examples/config/core-config-example.json` and `docs/reference/CONFIG.md` for the canonical schema.
 
 ---
 
@@ -89,7 +77,6 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 * `internal/context/` + `internal/rag/`: layered retrieval and summarization.
 * `internal/observability/`: logs, traces, metrics, and cost accounting.
 * `internal/tools/` + `internal/toolregistry/`: typed tools and safety policies.
-* `models/`: bundled local weights and templates (FunctionGemma).
 * `evaluation/`: SWE-Bench and regression harnesses.
 * `deploy/`: Docker Compose entrypoints for local and production stacks.
 * `web/`: Next.js dashboard that consumes the same event stream.

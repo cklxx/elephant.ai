@@ -198,6 +198,7 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 
 	hasPlan := false
 	hasClearify := false
+	hasRequestUser := false
 	for _, call := range calls {
 		name := strings.ToLower(strings.TrimSpace(call.Name))
 		switch name {
@@ -205,6 +206,8 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 			hasPlan = true
 		case "clearify":
 			hasClearify = true
+		case "request_user":
+			hasRequestUser = true
 		}
 	}
 
@@ -218,6 +221,16 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	if hasClearify {
 		if len(calls) > 1 {
 			return true, "clearify() 必须单独调用。请移除同轮其它工具调用并重试。"
+		}
+		if !r.planEmitted {
+			return true, r.planGatePrompt()
+		}
+		return false, ""
+	}
+
+	if hasRequestUser {
+		if len(calls) > 1 {
+			return true, "request_user() 必须单独调用。请移除同轮其它工具调用并重试。"
 		}
 		if !r.planEmitted {
 			return true, r.planGatePrompt()
@@ -343,6 +356,8 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 			if needs, ok := result.Metadata["needs_user_input"].(bool); ok && needs {
 				r.pauseRequested = true
 			}
+		case "request_user":
+			r.pauseRequested = true
 		}
 	}
 }

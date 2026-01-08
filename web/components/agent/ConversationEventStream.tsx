@@ -17,6 +17,7 @@ import {
   isSubagentLike,
 } from "./EventLine";
 import { ClearifyTimeline, type ClearifyTaskGroup } from "./ClearifyTimeline";
+import { isOrchestratorRetryMessage } from "@/lib/utils";
 
 interface ConversationEventStreamProps {
   events: AnyAgentEvent[];
@@ -577,7 +578,17 @@ function isClearifyToolEvent(event: AnyAgentEvent): boolean {
     return false;
   }
 
-  return getToolName(event) === "clearify";
+  if (getToolName(event) !== "clearify") {
+    return false;
+  }
+
+  const result =
+    "result" in event && typeof event.result === "string" ? event.result : "";
+  if (isOrchestratorRetryMessage(result)) {
+    return false;
+  }
+
+  return true;
 }
 
 function buildDisplayEntriesWithClearifyTimeline(
@@ -648,11 +659,9 @@ function mergeSubagentContext(
   existing: SubagentContext,
   incoming: SubagentContext,
 ): SubagentContext {
-  const resolvedTitle = incoming.title ?? existing.title;
   return {
     ...existing,
     ...incoming,
-    title: resolvedTitle,
     preview: incoming.preview ?? existing.preview,
     concurrency: incoming.concurrency ?? existing.concurrency,
     progress: incoming.progress ?? existing.progress,

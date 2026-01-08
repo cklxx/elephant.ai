@@ -272,6 +272,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["memory_recall"] = builtin.NewMemoryRecall(config.MemoryService)
 	r.static["memory_write"] = builtin.NewMemoryWrite(config.MemoryService)
 	r.static["attention"] = builtin.NewAttention()
+	r.static["request_user"] = builtin.NewRequestUser()
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
@@ -362,11 +363,21 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
 	}
 	sandboxConfig := builtin.SandboxConfig{
-		BaseURL: config.SandboxBaseURL,
+		BaseURL:      config.SandboxBaseURL,
+		VisionTool:   visionTool,
+		VisionPrompt: "",
 	}
 	r.static["sandbox_browser"] = builtin.NewSandboxBrowser(sandboxConfig)
 	r.static["sandbox_browser_info"] = builtin.NewSandboxBrowserInfo(sandboxConfig)
 	r.static["sandbox_browser_screenshot"] = builtin.NewSandboxBrowserScreenshot(sandboxConfig)
+	r.static["sandbox_browser_dom"] = builtin.NewSandboxBrowserDOM(sandboxConfig)
+	r.static["sandbox_file_read"] = builtin.NewSandboxFileRead(sandboxConfig)
+	r.static["sandbox_file_write"] = builtin.NewSandboxFileWrite(sandboxConfig)
+	r.static["sandbox_file_list"] = builtin.NewSandboxFileList(sandboxConfig)
+	r.static["sandbox_file_search"] = builtin.NewSandboxFileSearch(sandboxConfig)
+	r.static["sandbox_file_replace"] = builtin.NewSandboxFileReplace(sandboxConfig)
+	r.static["sandbox_shell_exec"] = builtin.NewSandboxShellExec(sandboxConfig)
+	r.static["sandbox_write_attachment"] = builtin.NewSandboxWriteAttachment(sandboxConfig)
 
 	return nil
 }

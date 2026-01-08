@@ -30,7 +30,7 @@ This playbook assigns concrete actions for the workflow-first event stream migra
    - Update `eventPipeline` to drop `subagentDeriver` and consume backend `workflow.subflow.*`.
 3. Aggregation/UI:
    - Update `web/lib/eventAggregation.ts`, `useAgentStreamStore`, and components (`VirtualizedEventList`, `EventLine`, tool/iteration/step views) to use workflow/node/subflow events.
-   - Refresh mocks and dev previews (`web/lib/mocks`, `web/app/dev/console-preview`) to new event names.
+   - Refresh mocks (`web/lib/mocks`) to new event names.
 
 ## QA/Analytics (validation + tracking)
 

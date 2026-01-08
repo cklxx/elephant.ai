@@ -148,9 +148,6 @@ func inferProvider(model string) string {
 	if strings.Contains(lower, "deepseek/") || strings.HasPrefix(lower, "deepseek") {
 		return "deepseek"
 	}
-	if strings.Contains(lower, "functiongemma") || strings.HasPrefix(lower, "local") {
-		return "local"
-	}
 
 	// Check for model name patterns
 	if strings.HasPrefix(lower, "gpt-") {

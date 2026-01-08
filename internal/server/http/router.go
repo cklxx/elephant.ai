@@ -11,6 +11,7 @@ import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"alex/internal/observability"
+	"alex/internal/sandbox"
 	"alex/internal/server/app"
 )
 
@@ -33,7 +34,7 @@ func createTaskBodyLimit(env runtimeconfig.EnvLookup) int64 {
 }
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, attachmentCfg attachments.StoreConfig) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, attachmentCfg attachments.StoreConfig) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
 	envLookup := runtimeconfig.DefaultEnvLookup
@@ -51,6 +52,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore))
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
+	sandboxClient := sandbox.NewClient(sandbox.Config{BaseURL: sandboxBaseURL})
 	apiHandler := NewAPIHandler(
 		coordinator,
 		healthChecker,
@@ -58,6 +60,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		WithAPIObservability(obs),
 		WithEvaluationService(evaluationService),
 		WithAttachmentStore(attachmentStore),
+		WithSandboxClient(sandboxClient),
 		WithDevMode(devMode),
 		WithMaxCreateTaskBodySize(taskBodyLimit),
 	)
@@ -116,6 +119,8 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.Handle("/api/attachments/", routeHandler("/api/attachments", attachmentStore.Handler()))
 	}
 	mux.Handle("/api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
+	mux.Handle("/api/sandbox/browser-info", routeHandler("/api/sandbox/browser-info", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserInfo))))
+	mux.Handle("/api/sandbox/browser-screenshot", routeHandler("/api/sandbox/browser-screenshot", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserScreenshot))))
 
 	if authHandler != nil {
 		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(authHandler.HandleRegister)))

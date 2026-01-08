@@ -301,19 +301,11 @@ For each user request—especially non-trivial ones—try to include:
 
 ## Error Experience Log
 
-Keep this log trimmed over time by rolling older entries into the Summary below, retaining only recent or unique incidents. When the log grows past 6 entries, summarize older items and delete them.
+Only record actionable, reusable errors (recurring, high-impact, or with clear remediation). Skip transient, low-signal, or user-specific failures. Keep this log trimmed over time by rolling older entries into the Summary below; when the log grows past 6 entries, summarize older items and delete them.
 
-* 2026-01-09: `make fmt` (golangci-lint) produced no output for an extended period and was interrupted.
-* 2026-01-09: `make test` produced no output for an extended period and was interrupted.
-* 2026-01-08: `make fmt` failed due to sum.golang.org returning 502 when verifying `honnef.co/go/tools`, and then hit a golangci-lint timeout until rerun with `GONOSUMDB=honnef.co/go/tools` and a longer timeout.
-* 2026-01-08: `npm run build` in `web` failed because `flushHandleRef` used `number` while `setTimeout` returned `Timeout` in `hooks/useSSE.ts`, causing a Next.js build type error.
+* 2026-01-08: `make fmt` failed when sum.golang.org returned 502; rerun with `GONOSUMDB=...` and a larger golangci-lint timeout.
+* 2026-01-08: Git failed to create `.git/index.lock`; remove the stale lock after confirming no git process is running.
 ## Error Experience Summary
 
-* Go linting can fail if `sum.golang.org` returns 502; mitigate by setting `GONOSUMDB=honnef.co/go/tools` and rerunning lint with a longer timeout.
-* Golangci-lint may time out during package loading; rerun with `--timeout` (e.g., 10m) when you see `context deadline exceeded`.
-* Golangci-lint (via `make fmt`) can hang without output; consider rerunning with a longer timeout or investigating stalled lint runs.
-* Next.js builds can fail on timeout-handle type mismatches; align `setTimeout` handle types to the runtime (`Timeout`) in `web` hooks.
-* `make test` can hang without output; rerun or narrow to specific packages when needed.
-* The `./alex` binary may be missing before build; run `make build` before invoking it.
-* Local LLM integrations can fail if the endpoint is unavailable; verify the local LLM endpoint before integration runs.
-* Git LFS assets may need `GIT_LFS_SKIP_SMUDGE=1` to bypass smudge errors.
+* Go linting can fail if `sum.golang.org` returns 502 or golangci-lint times out; use `GONOSUMDB=...` and increase `--timeout`.
+* Git operations can fail due to a stale `.git/index.lock`; remove after ensuring no git process is running.

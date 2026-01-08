@@ -185,6 +185,12 @@ export function MarkdownRenderer({
         {...props}
       />
     ),
+    p: ({ className: paragraphClass, ...props }: any) => (
+      <p
+        className={cn("my-0 whitespace-pre-wrap", paragraphClass)}
+        {...props}
+      />
+    ),
     hr: (props: any) => (
       <hr className={cn("my-6", props.className)} {...props} />
     ),
@@ -250,6 +256,7 @@ export function MarkdownRenderer({
     li: ({ className: liClass, ...props }: any) => (
       <li className={cn("flex flex-col", liClass)} {...props} />
     ),
+    br: () => null,
     img: ({ src, alt, ...imgProps }: any) => {
       if (src) {
         const matchedAttachment = inlineAttachmentMap.get(src);

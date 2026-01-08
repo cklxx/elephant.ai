@@ -1,7 +1,7 @@
 # elephant.ai Quickstart
 > Last updated: 2025-12-14
 
-This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and web UI. Defaults now run on the local FunctionGemma model; remote providers stay optional via the same runtime config system (`docs/reference/CONFIG.md`).
+This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and web UI. Configure an OpenAI-compatible LLM provider via the shared runtime config system (`docs/reference/CONFIG.md`).
 
 ---
 
@@ -22,17 +22,14 @@ make server-build  # builds ./alex-server
 
 ---
 
-## Configure (optional)
-
-### Zero-config local inference (default)
-
-No API keys required. The first run will auto-start a local llama.cpp server and use the bundled FunctionGemma weights.
-
-### Remote providers (optional)
+## Configure
 
 ```bash
 cp examples/config/core-config-example.json ~/.alex-config.json
 export OPENAI_API_KEY="sk-..."
+export LLM_PROVIDER="openai"
+export LLM_BASE_URL="https://api.openai.com/v1"
+export LLM_MODEL="gpt-4o-mini"
 ```
 
 Optional managed overrides (persistent):

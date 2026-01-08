@@ -123,6 +123,9 @@ export SANDBOX_BASE_URL="http://localhost:18086"
 3. **`sandbox_browser_screenshot`**  
    仅截图，不执行动作。
 
+4. **`sandbox_browser_dom`**  
+   基于 CDP 的 DOM 级别操作（选择器点击/输入/查询），类似 Playwright。
+
 ---
 
 ### 4.2 `sandbox_browser` 参数结构
@@ -180,6 +183,8 @@ export SANDBOX_BASE_URL="http://localhost:18086"
 - `metadata.sandbox_browser.responses`：每个动作的执行结果
 - 附件：截图 PNG（若 capture_screenshot=true）
 
+> 截图会自动触发视觉模型解析，并把识别结果写回 tool content/metadata。
+
 > ALEX 会在请求头注入 `X-Session-ID`（来自工具调用的 session），以便 Sandbox 侧做会话级隔离与复用。
 > 若需强绑定（例如多租户隔离），请确保上游调用总是传递一致的 session ID。
 
@@ -233,11 +238,39 @@ export SANDBOX_BASE_URL="http://localhost:18086"
 { "name": "current.png" }
 ```
 
+截图返回会包含视觉模型解析结果（tool content/metadata）。
+
 ---
 
-## 7. 排障清单
+## 7. `sandbox_browser_dom` 使用说明
 
-### 7.1 典型错误与处理
+适用于 DOM/选择器级别的浏览器操作，减少坐标点击与截图依赖。示例：
+
+```json
+{
+  "steps": [
+    { "action": "goto", "url": "https://example.com" },
+    { "action": "click", "selector": "a.login" },
+    { "action": "fill", "selector": "input[name=email]", "text": "user@example.com" },
+    { "action": "press", "key": "Enter" },
+    { "action": "get_text", "selector": "h1", "name": "headline" }
+  ],
+  "inspect": { "include_interactive": true, "max_elements": 20 }
+}
+```
+
+返回结果会包含：
+
+- `content`：步骤摘要 + 当前页面信息 + 关键可交互元素
+- `metadata.sandbox_browser_dom.results`：每步执行结果
+- `metadata.sandbox_browser_dom.page`：页面标题/URL
+- `metadata.sandbox_browser_dom.elements`：可交互元素列表
+
+---
+
+## 8. 排障清单
+
+### 8.1 典型错误与处理
 
 | 错误现象 | 可能原因 | 解决方式 |
 | --- | --- | --- |
@@ -245,7 +278,7 @@ export SANDBOX_BASE_URL="http://localhost:18086"
 | `/v1/browser/actions` 404 | `SANDBOX_BASE_URL` 配置错误（含 `/v1`） | 确保 base_url 不含 `/v1` |
 | 行为执行成功但页面未变化 | 坐标不正确或元素未聚焦 | 先 `sandbox_browser_info` 获取 viewport，再发 `MOVE_TO`/`CLICK` |
 
-### 7.2 日志定位
+### 8.2 日志定位
 
 若在 `alex-server` 内运行，可查看：
 
