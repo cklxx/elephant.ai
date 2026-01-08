@@ -128,6 +128,8 @@ export function ToolResultPanel({
   attachments?: Record<string, AttachmentPayload>;
   metadata?: Record<string, any> | null;
 }) {
+  const normalizedTool = (toolName ?? "").toLowerCase().trim();
+  const hideAttachments = normalizedTool === "sandbox_browser";
   if (error) {
     return (
       <SimplePanel>
@@ -150,7 +152,8 @@ export function ToolResultPanel({
     attachments: attachments ?? null,
   });
 
-  const attachmentsAvailable = attachments && Object.keys(attachments).length > 0;
+  const attachmentsAvailable =
+    !hideAttachments && attachments && Object.keys(attachments).length > 0;
   const segments = attachmentsAvailable
     ? parseContentSegments(formatted || '', attachments)
     : null;

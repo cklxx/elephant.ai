@@ -156,6 +156,65 @@ function pickMetadataUrl(metadata: Record<string, any> | null | undefined): stri
   return formatHintValue(urlValue);
 }
 
+function formatSandboxAction(action: Record<string, any>): string | undefined {
+  const rawType =
+    typeof action.action_type === "string" ? action.action_type : "";
+  const type = rawType.trim().toUpperCase();
+  if (!type) return undefined;
+
+  switch (type) {
+    case "CLICK":
+      return "Click";
+    case "DOUBLE_CLICK":
+      return "Double click";
+    case "RIGHT_CLICK":
+      return "Right click";
+    case "MOVE_TO":
+      return "Move";
+    case "SCROLL": {
+      const dy =
+        typeof action.dy === "number" && Number.isFinite(action.dy)
+          ? action.dy
+          : null;
+      if (dy === null) return "Scroll";
+      return dy < 0 ? "Scroll up" : "Scroll down";
+    }
+    case "TYPING": {
+      const text = formatHintValue(action.text);
+      return text ? `Type "${text}"` : "Type";
+    }
+    case "PRESS": {
+      const key = formatHintValue(action.key);
+      return key ? `Press ${key}` : "Press key";
+    }
+    case "HOTKEY": {
+      const keys = Array.isArray(action.keys)
+        ? action.keys.filter((item) => typeof item === "string")
+        : [];
+      return keys.length > 0 ? `Hotkey ${keys.join("+")}` : "Hotkey";
+    }
+    case "WAIT":
+      return "Wait";
+    default:
+      return type.replace(/_/g, " ").toLowerCase();
+  }
+}
+
+function summarizeSandboxActions(actions: any): string | undefined {
+  if (!Array.isArray(actions) || actions.length === 0) return undefined;
+  const labels = actions
+    .map((action) =>
+      action && typeof action === "object"
+        ? formatSandboxAction(action as Record<string, any>)
+        : undefined,
+    )
+    .filter((label): label is string => Boolean(label));
+
+  if (labels.length === 0) return undefined;
+  if (labels.length <= 3) return labels.join(" · ");
+  return `${labels[0]} · ${labels[1]} 等 ${labels.length} 步`;
+}
+
 const FALLBACK_HINT_KEYS = [
   "url",
   "path",
@@ -190,6 +249,15 @@ export function userFacingToolTitle(input: {
   if (tool === "web_search" || tool === "search_web" || tool === "websearch") {
     const query = pickFirstHint(input.arguments, ["query", "q"]);
     return query ? `${base}：${query}` : base;
+  }
+
+  if (tool === "sandbox_browser") {
+    const actions =
+      input.arguments?.actions ??
+      input.metadata?.sandbox_browser?.actions ??
+      null;
+    const summary = summarizeSandboxActions(actions);
+    return summary ? `${base}：${summary}` : base;
   }
 
   if (tool === "web_fetch" || tool === "read_url_content" || tool === "open_browser_url" || tool === "read_browser_page") {
@@ -336,6 +404,15 @@ export function userFacingToolSummary(input: {
     return "内部处理";
   }
 
+  if (tool === "sandbox_browser") {
+    const actions =
+      input.metadata?.sandbox_browser?.actions ?? input.metadata?.actions ?? null;
+    const summary = summarizeSandboxActions(actions);
+    if (summary) {
+      return summary;
+    }
+  }
+
   if (tool === "todo_update") {
     const counts = getTodoCounts(input.metadata);
     if (counts) {
@@ -369,6 +446,12 @@ export function userFacingToolSummary(input: {
 
   const sanitized = stripSystemReminders(input.result ?? "");
   if (!sanitized) return undefined;
+  if (tool === "sandbox_browser") {
+    return sanitized
+      .replace(/screenshot captured\./i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
   return sanitized.length > 100 ? `${sanitized.slice(0, 100)}…` : sanitized;
 }
 
@@ -399,6 +482,13 @@ export function userFacingToolResultText(input: {
   if (tool === "todo_update") {
     // Keep the task list, but strip internal reminders.
     return sanitized;
+  }
+
+  if (tool === "sandbox_browser") {
+    return sanitized
+      .replace(/screenshot captured\./i, "")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
   return sanitized;

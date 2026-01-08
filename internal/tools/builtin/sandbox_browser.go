@@ -63,7 +63,7 @@ Provide a list of action objects that match the sandbox browser API:
 - action_type: MOVE_TO, CLICK, MOUSE_DOWN, MOUSE_UP, RIGHT_CLICK, DOUBLE_CLICK, DRAG_TO, SCROLL, TYPING, PRESS, KEY_DOWN, KEY_UP, HOTKEY
 - additional fields vary per action (see sandbox OpenAPI).
 
-Optional screenshot capture returns a PNG attachment.`,
+Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
