@@ -25,11 +25,11 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if cfg.LLMProvider != "mock" {
-		t.Fatalf("expected mock provider when API key missing, got %q", cfg.LLMProvider)
+	if cfg.LLMProvider != "local" {
+		t.Fatalf("expected local provider by default, got %q", cfg.LLMProvider)
 	}
-	if cfg.LLMSmallProvider != "mock" {
-		t.Fatalf("expected small model provider to default to mock, got %q", cfg.LLMSmallProvider)
+	if cfg.LLMSmallProvider != "local" {
+		t.Fatalf("expected small model provider to default to local, got %q", cfg.LLMSmallProvider)
 	}
 	if cfg.TemperatureProvided {
 		t.Fatalf("expected temperature to be marked as not provided")

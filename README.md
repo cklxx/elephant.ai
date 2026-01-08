@@ -19,6 +19,7 @@ elephant.ai is a shared Go runtime (with a Next.js dashboard) that powers the `a
 ## Highlights
 
 * One runtime, three entrypoints (CLI/TUI, server, dashboard) backed by the same DI container.
+* Local-first by default: FunctionGemma weights are bundled and served via llama.cpp with no API keys required.
 * Typed, artifact-aware events that render identically in terminals and the web UI.
 * Built-in observability: structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost accounting.
 * Retrieval layers for memory, skills, docs, and external context plus approvals for risky actions.
@@ -47,7 +48,25 @@ make server-run
 (cd web && npm run dev)
 ```
 
-Configuration is shared across every surface. Start from `examples/config/core-config-example.json` and see `docs/reference/CONFIG.md` for the canonical schema.
+Configuration is shared across every surface. Defaults run locally; for remote providers start from `examples/config/core-config-example.json` and see `docs/reference/CONFIG.md` for the canonical schema.
+
+---
+
+## Local inference API
+
+Bring up the OpenAI-compatible llama.cpp server directly:
+
+```bash
+make local-llm
+```
+
+Example request:
+
+```bash
+curl http://127.0.0.1:11437/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{"model":"functiongemma-270m-it","messages":[{"role":"user","content":"Hello!"}]}'
+```
 
 ---
 
@@ -70,9 +89,19 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 * `internal/context/` + `internal/rag/`: layered retrieval and summarization.
 * `internal/observability/`: logs, traces, metrics, and cost accounting.
 * `internal/tools/` + `internal/toolregistry/`: typed tools and safety policies.
+* `models/`: bundled local weights and templates (FunctionGemma).
 * `evaluation/`: SWE-Bench and regression harnesses.
 * `deploy/`: Docker Compose entrypoints for local and production stacks.
 * `web/`: Next.js dashboard that consumes the same event stream.
+
+---
+
+## Project governance
+
+* [`LICENSE`](LICENSE): MIT license.
+* [`CONTRIBUTING.md`](CONTRIBUTING.md): contribution workflow and code standards.
+* [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md): expected community behavior.
+* [`SECURITY.md`](SECURITY.md): vulnerability reporting process.
 
 ---
 

@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"alex/internal/localmodel"
 )
 
 // ValueSource describes where a configuration value originated from.
@@ -204,11 +206,11 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	meta := Metadata{sources: map[string]ValueSource{}, loadedAt: time.Now()}
 
 	cfg := RuntimeConfig{
-		LLMProvider:         "openrouter",
-		LLMModel:            "deepseek/deepseek-chat",
-		LLMSmallProvider:    "openrouter",
-		LLMSmallModel:       "gpt-4o-mini",
-		BaseURL:             "https://openrouter.ai/api/v1",
+		LLMProvider:         localmodel.Provider,
+		LLMModel:            localmodel.ModelID,
+		LLMSmallProvider:    localmodel.Provider,
+		LLMSmallModel:       localmodel.ModelID,
+		BaseURL:             localmodel.BaseURL,
 		SandboxBaseURL:      "http://localhost:18086",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
@@ -218,7 +220,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		FollowTranscript:    true,
 		FollowStream:        true,
 		MaxIterations:       150,
-		MaxTokens:           100000,
+		MaxTokens:           localmodel.DefaultContextSize,
 		UserRateLimitRPS:    1.0,
 		UserRateLimitBurst:  3,
 		Temperature:         0.7,
@@ -246,9 +248,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	applyOverrides(&cfg, &meta, options.overrides)
 
 	normalizeRuntimeConfig(&cfg)
-
-	// If API key remains unset, default to mock provider.
-	if cfg.APIKey == "" && cfg.LLMProvider != "mock" {
+  // If API key remains unset, default to mock provider (unless local/ollama).
+	if cfg.APIKey == "" && cfg.LLMProvider != "mock" && cfg.LLMProvider != "ollama" && cfg.LLMProvider != "local" {
 		cfg.LLMProvider = "mock"
 		if cfg.LLMSmallProvider != "mock" {
 			cfg.LLMSmallProvider = "mock"

@@ -1,7 +1,7 @@
 # elephant.ai Quickstart
 > Last updated: 2025-12-14
 
-This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and web UI with the **single runtime config system** described in `docs/reference/CONFIG.md`.
+This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and web UI. Defaults now run on the local FunctionGemma model; remote providers stay optional via the same runtime config system (`docs/reference/CONFIG.md`).
 
 ---
 
@@ -22,28 +22,20 @@ make server-build  # builds ./alex-server
 
 ---
 
-## Configure (single source of truth)
+## Configure (optional)
 
-### 1) Main config file
+### Zero-config local inference (default)
 
-Default location: `~/.alex-config.json` (override via `ALEX_CONFIG_PATH`).
+No API keys required. The first run will auto-start a local llama.cpp server and use the bundled FunctionGemma weights.
+
+### Remote providers (optional)
 
 ```bash
 cp examples/config/core-config-example.json ~/.alex-config.json
-```
-
-### 2) Secrets via environment variables (recommended)
-
-```bash
 export OPENAI_API_KEY="sk-..."
-# Optional tool keys
-export TAVILY_API_KEY="..."
-export ARK_API_KEY="..."
 ```
 
-### 3) Optional managed overrides (persistent)
-
-Managed overrides are stored in `~/.alex/runtime-overrides.json` by default (see `alex config path`).
+Optional managed overrides (persistent):
 
 ```bash
 ./alex config

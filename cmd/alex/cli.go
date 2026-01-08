@@ -107,7 +107,7 @@ Configuration:
   Config file: ~/.alex-config.json (or $ALEX_CONFIG_PATH)
   Environment variables:
     OPENAI_API_KEY              API key for OpenAI/OpenRouter
-    LLM_PROVIDER                 LLM provider (openrouter, openai, deepseek, ollama, mock)
+    LLM_PROVIDER                 LLM provider (local, openrouter, openai, deepseek, ollama, mock)
     LLM_MODEL                    Model name
     LLM_VISION_MODEL             Vision model name (used when images are attached)
     LLM_BASE_URL                 OpenAI-compatible base URL
