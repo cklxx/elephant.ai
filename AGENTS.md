@@ -313,8 +313,14 @@ Keep this log trimmed over time by rolling older entries into the Summary below,
 * 2026-01-08: `make fmt` failed because sum.golang.org returned 502 while verifying `github.com/tommy-muehle/go-mnd/v2@v2.5.1`; rerunning with `GONOSUMDB=github.com/tommy-muehle/go-mnd/v2` succeeded.
 * 2026-01-08: `GONOSUMDB=github.com/tommy-muehle/go-mnd/v2 make fmt` was interrupted after hanging with no output during golangci-lint execution.
 * 2026-01-08: `./.bin/golangci-lint run --fix --timeout=10m ./...` produced no output for an extended period and was interrupted.
+* 2026-01-08: Git failed to create `.git/index.lock` because the lock file already existed; confirm no other git process is running and remove the stale lock.
+* 2026-01-08: `git pull` appeared to hang after updating commits, likely while fetching large binaries/LFS objects; check active transfer progress or LFS status and retry if needed.
+* 2026-01-08: `go test -race -covermode=atomic -coverprofile=coverage.out ./...` failed because `TestStreamingOutputHandlerPrintsTaskStart` expected the session ID in task start output.
 ## Error Experience Summary
 
 * Go linting can fail if `sum.golang.org` returns 502; mitigate by setting `GONOSUMDB=honnef.co/go/tools` and rerunning lint with a longer timeout.
 * Golangci-lint may time out during package loading; rerun with `--timeout` (e.g., 10m) when you see `context deadline exceeded`.
 * Next.js builds can fail on timeout-handle type mismatches; align `setTimeout` handle types to the runtime (`Timeout`) in `web` hooks.
+* Git operations can fail due to a stale `.git/index.lock`; ensure no git process is active before removing the lock file.
+* Git pulls may appear stuck while transferring large binaries/LFS objects; check for active fetch progress and LFS downloads.
+* Task start CLI output tests expect session IDs; keep `RenderTaskStart` in sync with test expectations.

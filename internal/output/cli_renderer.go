@@ -210,6 +210,9 @@ func (r *CLIRenderer) RenderTaskStart(ctx *types.OutputContext, task string) str
 	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#5EA3FF")).Bold(true).Render("▶ Start")
 
 	var metaParts []string
+	if ctx.SessionID != "" {
+		metaParts = append(metaParts, fmt.Sprintf("session %s", ctx.SessionID))
+	}
 	if ctx.TaskID != "" {
 		metaParts = append(metaParts, fmt.Sprintf("task %s", ctx.TaskID))
 	}
