@@ -9,6 +9,9 @@
 * Your core goals:
   * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
+  * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
+  * Run full lint and test validation after changes.
+  * Avoid unnecessary defensive code.
 
 ---
 
@@ -298,5 +301,15 @@ For each user request—especially non-trivial ones—try to include:
 
 ## Error Experience Log
 
+Keep this log trimmed over time by rolling older entries into the Summary below, retaining only recent or unique incidents.
+
 * 2026-01-08: `make fmt` failed due to sum.golang.org returning 502 when verifying `honnef.co/go/tools`, and then hit a golangci-lint timeout until rerun with `GONOSUMDB=honnef.co/go/tools` and a longer timeout.
 * 2026-01-08: `npm run build` in `web` failed because `flushHandleRef` used `number` while `setTimeout` returned `Timeout` in `hooks/useSSE.ts`, causing a Next.js build type error.
+* 2026-01-08: `make fmt` failed with `context deadline exceeded` while loading packages; golangci-lint suggested increasing `--timeout`.
+* 2026-01-08: `make fmt` again hit `context deadline exceeded` while loading packages; rerunning lint with a larger timeout resolved it.
+
+## Error Experience Summary
+
+* Go linting can fail if `sum.golang.org` returns 502; mitigate by setting `GONOSUMDB=honnef.co/go/tools` and rerunning lint with a longer timeout.
+* Golangci-lint may time out during package loading; rerun with `--timeout` (e.g., 10m) when you see `context deadline exceeded`.
+* Next.js builds can fail on timeout-handle type mismatches; align `setTimeout` handle types to the runtime (`Timeout`) in `web` hooks.
