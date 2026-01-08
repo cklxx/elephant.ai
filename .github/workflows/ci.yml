@@ -155,6 +155,8 @@ jobs:
         run: chmod +x alex
 
       - name: 🧭 Test CLI commands
+        env:
+          LLM_PROVIDER: mock
         run: |
           ./alex --help
           ./alex config show

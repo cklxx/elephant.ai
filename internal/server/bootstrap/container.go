@@ -18,11 +18,12 @@ func BuildContainer(config Config) (*di.Container, error) {
 	if sessionDBURL == "" {
 		sessionDBURL = strings.TrimSpace(config.Auth.DatabaseURL)
 	}
-	if sessionDBURL == "" {
-		return nil, fmt.Errorf("web mode requires session database (set ALEX_SESSION_DATABASE_URL or AUTH_DATABASE_URL)")
+	requireSessionDB := strings.EqualFold(config.Runtime.Environment, "production")
+	if sessionDBURL == "" && requireSessionDB {
+		return nil, fmt.Errorf("session database required in production (set ALEX_SESSION_DATABASE_URL or AUTH_DATABASE_URL)")
 	}
 	diConfig.SessionDatabaseURL = sessionDBURL
-	diConfig.RequireSessionDatabase = true
+	diConfig.RequireSessionDatabase = requireSessionDB
 	diConfig.ToolMode = string(presets.ToolModeWeb)
 	return di.BuildContainer(diConfig)
 }

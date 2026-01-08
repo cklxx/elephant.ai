@@ -2,10 +2,12 @@ package toolregistry
 
 import (
 	"testing"
+
+	"alex/internal/memory"
 )
 
 func TestRegistry_FindToolRegistered(t *testing.T) {
-	registry, err := NewRegistry(Config{})
+	registry, err := NewRegistry(Config{MemoryService: memory.NewService(memory.NewInMemoryStore())})
 	if err != nil {
 		t.Fatalf("failed to build registry: %v", err)
 	}

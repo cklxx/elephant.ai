@@ -307,7 +307,12 @@ Keep this log trimmed over time by rolling older entries into the Summary below,
 * 2026-01-08: `npm run build` in `web` failed because `flushHandleRef` used `number` while `setTimeout` returned `Timeout` in `hooks/useSSE.ts`, causing a Next.js build type error.
 * 2026-01-08: `make fmt` failed with `context deadline exceeded` while loading packages; golangci-lint suggested increasing `--timeout`.
 * 2026-01-08: `make fmt` again hit `context deadline exceeded` while loading packages; rerunning lint with a larger timeout resolved it.
-
+* 2026-01-08: Running `./alex --help` failed with `/bin/bash: line 1: ./alex: No such file or directory` before the binary was built.
+* 2026-01-08: Integration step `echo "exit" | ./alex -i` failed when the local LLM endpoint at `http://127.0.0.1:11437/v1/chat/completions` was unavailable, resulting in a context-canceled streaming request after ~36s.
+* 2026-01-08: `git checkout -- models/functiongemma/functiongemma-270m-it-BF16.gguf` triggered a git-lfs smudge error (`batch request: missing protocol`); rerunning with `GIT_LFS_SKIP_SMUDGE=1` succeeded.
+* 2026-01-08: `make fmt` failed because sum.golang.org returned 502 while verifying `github.com/tommy-muehle/go-mnd/v2@v2.5.1`; rerunning with `GONOSUMDB=github.com/tommy-muehle/go-mnd/v2` succeeded.
+* 2026-01-08: `GONOSUMDB=github.com/tommy-muehle/go-mnd/v2 make fmt` was interrupted after hanging with no output during golangci-lint execution.
+* 2026-01-08: `./.bin/golangci-lint run --fix --timeout=10m ./...` produced no output for an extended period and was interrupted.
 ## Error Experience Summary
 
 * Go linting can fail if `sum.golang.org` returns 502; mitigate by setting `GONOSUMDB=honnef.co/go/tools` and rerunning lint with a longer timeout.

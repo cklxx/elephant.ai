@@ -227,8 +227,8 @@ kubectl rollout undo deployment/alex-server -n alex-system
 | 变量 | 必需 | 默认值 | 说明 |
 |------|------|--------|------|
 | `OPENAI_API_KEY` | ✅ | - | OpenAI API Key |
-| `LLM_PROVIDER` | ❌ | `openrouter` | LLM provider |
-| `LLM_BASE_URL` | ❌ | `https://openrouter.ai/api/v1` | API Base URL |
+| `LLM_PROVIDER` | ❌ | `local` | LLM provider |
+| `LLM_BASE_URL` | ❌ | `http://127.0.0.1:11437/v1` | API Base URL |
 | `LLM_MODEL` | ❌ | `deepseek/deepseek-chat` | LLM 模型 |
 | `LLM_VISION_MODEL` | ❌ | - | 图片附件存在时使用的 vision 模型 |
 | `ALEX_VERBOSE` | ❌ | `false` | 详细日志 |
