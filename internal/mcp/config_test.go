@@ -4,8 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	runtimeconfig "alex/internal/config"
 )
 
 func TestConfig_AddServer(t *testing.T) {
@@ -218,27 +216,11 @@ func TestConfigLoader_LoadWithCustomEnvLookup(t *testing.T) {
 		t.Fatalf("write config: %v", err)
 	}
 
-	lookup := runtimeconfig.RuntimeEnvLookup(runtimeconfig.RuntimeConfig{
-		APIKey:        "runtime-key",
-		LLMProvider:   "provider",
-		LLMModel:      "model",
-		SessionDir:    "/tmp/sessions",
-		CostDir:       "/tmp/costs",
-		StopSequences: []string{"stop"},
-	}, func(key string) (string, bool) {
-		switch key {
-		case "CUSTOM_CMD":
-			return "run.sh", true
-		case "CUSTOM_ARG":
-			return "--flag", true
-		case "RUNTIME_TOKEN":
-			return "runtime-key", true
-		default:
-			return "", false
-		}
-	})
+	t.Setenv("CUSTOM_CMD", "run.sh")
+	t.Setenv("CUSTOM_ARG", "--flag")
+	t.Setenv("RUNTIME_TOKEN", "runtime-key")
 
-	loader := NewConfigLoader(WithLoaderEnvLookup(lookup))
+	loader := NewConfigLoader()
 	config, err := loader.LoadFromPath(configPath)
 	if err != nil {
 		t.Fatalf("load config: %v", err)

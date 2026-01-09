@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 )
 
@@ -53,13 +52,6 @@ func WithConfigLoader(loader *ConfigLoader) RegistryOption {
 		if loader != nil {
 			r.configLoader = loader
 		}
-	}
-}
-
-// WithEnvLookup injects a custom environment lookup used when expanding MCP configurations.
-func WithEnvLookup(lookup runtimeconfig.EnvLookup) RegistryOption {
-	return func(r *Registry) {
-		r.configLoader = NewConfigLoader(WithLoaderEnvLookup(lookup))
 	}
 }
 

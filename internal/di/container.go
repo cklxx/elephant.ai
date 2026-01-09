@@ -13,7 +13,6 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
-	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/llm"
 	"alex/internal/logging"
@@ -329,48 +328,8 @@ func BuildContainer(config Config) (*Container, error) {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
 	}
 
-	runtimeSnapshot := runtimeconfig.RuntimeConfig{
-		LLMProvider:             config.LLMProvider,
-		LLMModel:                config.LLMModel,
-		LLMVisionModel:          config.LLMVisionModel,
-		MobileLLMProvider:       config.MobileLLMProvider,
-		MobileLLMModel:          config.MobileLLMModel,
-		MobileLLMAPIKey:         config.MobileLLMAPIKey,
-		MobileLLMBaseURL:        config.MobileLLMBaseURL,
-		MobileADBAddress:        config.MobileADBAddress,
-		MobileADBSerial:         config.MobileADBSerial,
-		MobileMaxSteps:          config.MobileMaxSteps,
-		APIKey:                  config.APIKey,
-		ArkAPIKey:               config.ArkAPIKey,
-		BaseURL:                 config.BaseURL,
-		SandboxBaseURL:          config.SandboxBaseURL,
-		TavilyAPIKey:            config.TavilyAPIKey,
-		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
-		SeedreamTextModel:       config.SeedreamTextModel,
-		SeedreamImageModel:      config.SeedreamImageModel,
-		SeedreamVisionModel:     config.SeedreamVisionModel,
-		SeedreamVideoModel:      config.SeedreamVideoModel,
-		Environment:             config.Environment,
-		Verbose:                 config.Verbose,
-		DisableTUI:              config.DisableTUI,
-		FollowTranscript:        config.FollowTranscript,
-		FollowStream:            config.FollowStream,
-		MaxIterations:           config.MaxIterations,
-		MaxTokens:               config.MaxTokens,
-		UserRateLimitRPS:        config.UserRateLimitRPS,
-		UserRateLimitBurst:      config.UserRateLimitBurst,
-		Temperature:             config.Temperature,
-		TemperatureProvided:     config.TemperatureProvided,
-		TopP:                    config.TopP,
-		StopSequences:           append([]string(nil), config.StopSequences...),
-		SessionDir:              config.SessionDir,
-		CostDir:                 config.CostDir,
-	}
-
 	// MCP Registry - Create but don't initialize yet
-	envLookup := runtimeconfig.RuntimeEnvLookup(runtimeSnapshot, runtimeconfig.DefaultEnvLookup)
-	mcpRegistry := mcp.NewRegistry(mcp.WithEnvLookup(envLookup))
+	mcpRegistry := mcp.NewRegistry()
 	tracker := newMCPInitializationTracker()
 
 	coordinator := agentApp.NewAgentCoordinator(
