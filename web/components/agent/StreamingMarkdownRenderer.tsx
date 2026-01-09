@@ -1,11 +1,37 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType } from "react";
 
 import type { MarkdownRendererProps } from "@/components/ui/markdown";
 import { cn } from "@/lib/utils";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
+
+const isTest =
+  process.env.NODE_ENV === "test" || process.env.VITEST_WORKER !== undefined;
+const STREAM_MARKDOWN_BUFFER = 64;
+const STREAM_FLUSH_MIN_CHARS = 24;
+const TYPEWRITER_CHARS_PER_SECOND = 120;
+const TYPEWRITER_MAX_STEP = 12;
+
+function findSafeRenderLength(text: string) {
+  if (text.length <= STREAM_MARKDOWN_BUFFER) {
+    return text.length;
+  }
+
+  const maxIndex = text.length - STREAM_MARKDOWN_BUFFER;
+  const newlineIndex = text.lastIndexOf("\n", maxIndex);
+  if (newlineIndex >= STREAM_FLUSH_MIN_CHARS) {
+    return newlineIndex + 1;
+  }
+
+  const spaceIndex = text.lastIndexOf(" ", maxIndex);
+  if (spaceIndex >= STREAM_FLUSH_MIN_CHARS) {
+    return spaceIndex + 1;
+  }
+
+  return maxIndex;
+}
 
 type StreamingMarkdownRendererProps = MarkdownRendererProps & {
   /**
@@ -37,27 +63,96 @@ export function StreamingMarkdownRenderer({
   showLineNumbers,
 }: StreamingMarkdownRendererProps) {
   const normalizedContent = useMemo(() => content ?? "", [content]);
+  const shouldAnimate = isStreaming && !streamFinished && !isTest;
+  const initialLength = shouldAnimate
+    ? findSafeRenderLength(normalizedContent)
+    : normalizedContent.length;
+  const [displayedLength, setDisplayedLength] = useState(initialLength);
+  const [targetLength, setTargetLength] = useState(initialLength);
+  const displayedLengthRef = useRef(displayedLength);
+  const lastContentRef = useRef(normalizedContent);
+
+  useEffect(() => {
+    displayedLengthRef.current = displayedLength;
+  }, [displayedLength]);
+
+  useEffect(() => {
+    if (!shouldAnimate) {
+      const fullLength = normalizedContent.length;
+      lastContentRef.current = normalizedContent;
+      displayedLengthRef.current = fullLength;
+      setDisplayedLength(fullLength);
+      setTargetLength(fullLength);
+      return;
+    }
+
+    const previous = lastContentRef.current;
+    const resetStream = !normalizedContent.startsWith(previous);
+    lastContentRef.current = normalizedContent;
+    const safeLength = findSafeRenderLength(normalizedContent);
+
+    if (resetStream) {
+      displayedLengthRef.current = 0;
+      setDisplayedLength(0);
+      setTargetLength(safeLength);
+      return;
+    }
+
+    setTargetLength((prev) => Math.max(prev, safeLength));
+  }, [normalizedContent, shouldAnimate]);
+
+  useEffect(() => {
+    if (!shouldAnimate) {
+      return;
+    }
+    if (displayedLengthRef.current >= targetLength) {
+      return;
+    }
+
+    let rafId = 0;
+    let lastTick = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - lastTick;
+      lastTick = now;
+      const step = Math.max(
+        1,
+        Math.min(
+          TYPEWRITER_MAX_STEP,
+          Math.floor((elapsed * TYPEWRITER_CHARS_PER_SECOND) / 1000),
+        ),
+      );
+      const next = Math.min(
+        displayedLengthRef.current + step,
+        targetLength,
+      );
+      if (next !== displayedLengthRef.current) {
+        displayedLengthRef.current = next;
+        setDisplayedLength(next);
+      }
+      if (next < targetLength) {
+        rafId = requestAnimationFrame(tick);
+      }
+    };
+
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [shouldAnimate, targetLength]);
+
+  const contentToRender = shouldAnimate
+    ? normalizedContent.slice(0, displayedLength)
+    : normalizedContent;
   const showStreamingIndicator = isStreaming && !streamFinished;
-  const renderPlainText = isStreaming && !streamFinished;
 
   return (
     <div className="space-y-2" aria-live="polite">
-      {renderPlainText ? (
-        <div className={cn(containerClassName)}>
-          <div className={cn("whitespace-pre-wrap", className)}>
-            {normalizedContent}
-          </div>
-        </div>
-      ) : (
-        <LazyMarkdownRenderer
-          content={normalizedContent}
-          className={className}
-          containerClassName={containerClassName}
-          components={components}
-          attachments={attachments}
-          showLineNumbers={showLineNumbers}
-        />
-      )}
+      <LazyMarkdownRenderer
+        content={contentToRender}
+        className={className}
+        containerClassName={containerClassName}
+        components={components}
+        attachments={attachments}
+        showLineNumbers={showLineNumbers}
+      />
       {showStreamingIndicator && (
         <div
           className={cn(

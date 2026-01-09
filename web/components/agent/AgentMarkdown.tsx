@@ -1,9 +1,10 @@
 "use client";
 
-import { Children, useMemo } from "react";
+import { Children, isValidElement, useMemo } from "react";
 import type { ComponentType, ReactNode } from "react";
 
 import type { AttachmentPayload } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { StreamingMarkdownRenderer } from "./StreamingMarkdownRenderer";
 
 export type AgentMarkdownProps = {
@@ -38,6 +39,22 @@ function renderLineBreaks(children: ReactNode) {
   return output;
 }
 
+function splitTaskListChildren(children: ReactNode) {
+  const nodes = Children.toArray(children);
+  const checkboxIndex = nodes.findIndex(
+    (child) =>
+      isValidElement(child) &&
+      child.type === "input" &&
+      child.props?.type === "checkbox",
+  );
+  if (checkboxIndex === -1) {
+    return null;
+  }
+  const checkbox = nodes[checkboxIndex];
+  const rest = nodes.filter((_, index) => index !== checkboxIndex);
+  return { checkbox, rest };
+}
+
 const baseComponents: Record<string, ComponentType<any>> = {
   code: ({ inline, children, ...props }: any) => {
     if (inline) {
@@ -69,13 +86,68 @@ const baseComponents: Record<string, ComponentType<any>> = {
       {renderLineBreaks(children)}
     </div>
   ),
-  ul: ({ children }: any) => children,
-  ol: ({ children }: any) => children,
-  li: ({ children }: any) => renderLineBreaks(children),
+  ul: ({ className, ...props }: any) => {
+    const isTaskList =
+      typeof className === "string" && className.includes("contains-task-list");
+    return (
+      <ul
+        className={cn(
+          "my-2 !pl-0 flex flex-col gap-1",
+          isTaskList ? "list-none" : "list-disc list-inside",
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+  ol: ({ className, ...props }: any) => {
+    const isTaskList =
+      typeof className === "string" && className.includes("contains-task-list");
+    return (
+      <ol
+        className={cn(
+          "my-2 !pl-0 flex flex-col gap-1",
+          isTaskList ? "list-none" : "list-decimal list-inside",
+          className,
+        )}
+        {...props}
+      />
+    );
+  },
+  li: ({ className, children, ...props }: any) => {
+    const taskChildren = splitTaskListChildren(children);
+    if (taskChildren) {
+      return (
+        <li className={cn("flex items-start gap-2", className)} {...props}>
+          {taskChildren.checkbox}
+          <div className="min-w-0 flex-1">
+            {renderLineBreaks(taskChildren.rest)}
+          </div>
+        </li>
+      );
+    }
+    return (
+      <li className={cn("flex flex-col", className)} {...props}>
+        {renderLineBreaks(children)}
+      </li>
+    );
+  },
   strong: ({ children }: any) => (
     <strong className="font-medium text-foreground">{children}</strong>
   ),
   br: () => null,
+  input: ({ className, type, ...props }: any) => {
+    if (type === "checkbox") {
+      return (
+        <input
+          type="checkbox"
+          className={cn("mt-1 h-4 w-4 shrink-0 accent-foreground", className)}
+          {...props}
+        />
+      );
+    }
+    return <input type={type} className={className} {...props} />;
+  },
 };
 
 export function AgentMarkdown({
