@@ -109,13 +109,14 @@ go test ./internal/server/http/ -v
 
 ## Configuration
 
-Environment variables:
-- `OPENAI_API_KEY` - Required for remote providers (skip for `mock`/`ollama`)
-- `LLM_PROVIDER` - Default: openai
-- `LLM_MODEL` - Default: gpt-4o-mini
-- `LLM_VISION_MODEL` - Optional (used when images are attached)
-- `LLM_BASE_URL` - Default: https://api.openai.com/v1
-- `PORT` - Default: 8080
+Runtime configuration:
+- Config file: `~/.alex/config.yaml` (or `ALEX_CONFIG_PATH`)
+- `runtime.api_key` - Required for remote providers (skip for `mock`/`ollama`); supports `${OPENAI_API_KEY}` interpolation
+- `runtime.llm_provider` - Default: openai
+- `runtime.llm_model` - Default: gpt-4o-mini
+- `runtime.llm_vision_model` - Optional (used when images are attached)
+- `runtime.base_url` - Default: https://api.openai.com/v1
+- `server.port` - Default: 8080
 
 ## Future Enhancements
 

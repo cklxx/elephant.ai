@@ -30,6 +30,10 @@ require_command() {
     fi
 }
 
+psql_available() {
+    command -v psql >/dev/null 2>&1
+}
+
 ensure_env_file() {
     mkdir -p "$LOG_DIR"
 
@@ -170,7 +174,7 @@ run_migrations() {
     fi
 
     log_info "Running auth DB migrations"
-    psql "$AUTH_DATABASE_URL" -f "$MIGRATION_FILE" >/dev/null
+    run_psql < "$MIGRATION_FILE" >/dev/null
     log_success "Schema initialized"
 }
 
@@ -191,7 +195,7 @@ seed_admin_user() {
     fi
 
     log_info "Seeding auth user ${email}"
-    psql "$AUTH_DATABASE_URL" <<SQL
+    run_psql <<SQL
 INSERT INTO auth_users (
     id,
     email,
@@ -228,14 +232,29 @@ SQL
     log_success "Admin user ensured (${email})"
 }
 
+run_psql() {
+    if psql_available; then
+        psql "$AUTH_DATABASE_URL" "$@"
+        return
+    fi
+
+    docker exec -i \
+        -e "PGPASSWORD=${AUTH_DB_PASSWORD}" \
+        "$AUTH_DB_CONTAINER" \
+        psql -U "$AUTH_DB_USER" -d "$AUTH_DB_NAME" "$@"
+}
+
 main() {
     require_command docker
-    require_command psql
     ensure_docker_daemon
 
     ensure_env_file
     ensure_required_envs
     load_env
+
+    if ! psql_available; then
+        log_warn "psql not found; using docker exec for migrations and seeding"
+    fi
 
     start_auth_db
     wait_for_auth_db

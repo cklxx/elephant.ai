@@ -1,13 +1,19 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	serverBootstrap "alex/internal/server/bootstrap"
 )
 
 func TestLoadConfigWithMockProvider(t *testing.T) {
-	t.Setenv("LLM_PROVIDER", "mock")
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("runtime:\n  llm_provider: \"mock\"\n"), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", path)
 
 	cfg, _, _, err := serverBootstrap.LoadConfig()
 	if err != nil {

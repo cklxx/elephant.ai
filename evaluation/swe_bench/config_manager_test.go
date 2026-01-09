@@ -3,8 +3,6 @@ package swe_bench
 import "testing"
 
 func TestConfigManagerEnvOverrides(t *testing.T) {
-	t.Setenv("OPENAI_API_KEY", "key")
-	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("NUM_WORKERS", "7")
 	t.Setenv("OUTPUT_PATH", "/tmp/results")
 	t.Setenv("DATASET_TYPE", "swe_bench")
@@ -35,8 +33,6 @@ func TestConfigManagerEnvOverrides(t *testing.T) {
 }
 
 func TestConfigManagerEnvOverrideParsingErrors(t *testing.T) {
-	t.Setenv("OPENAI_API_KEY", "key")
-	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("NUM_WORKERS", "not-a-number")
 
 	cm := NewConfigManager()

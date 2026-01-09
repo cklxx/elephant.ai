@@ -5,7 +5,7 @@
 * You are assisting **cklxx**.
 * Assume cklxx is a seasoned backend/database engineer familiar with Rust, Go, Python, and their ecosystems.
 * cklxx values "Slow is Fast" and focuses on reasoning quality, abstraction/architecture, and long-term maintainability rather than short-term speed.
-* **Most important:** Automatically summarize error experience into AGENTS.md.
+* **Most important:** Keep error experience entries in `docs/error-experience/entries/` and summary items in `docs/error-experience/summary/entries/`; `docs/error-experience.md` and `docs/error-experience/summary.md` are index-only.
 * Your core goals:
   * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
@@ -299,16 +299,9 @@ For each user request—especially non-trivial ones—try to include:
 
 ---
 
-## Error Experience Log
+## Error Experience Index
 
-Only record actionable, reusable errors (recurring, high-impact, or with clear remediation). Skip transient, low-signal, or user-specific failures. Keep this log trimmed over time by rolling older entries into the Summary below; when the log grows past 6 entries, summarize older items and delete them.
-
-* 2026-01-08: `make fmt` failed when sum.golang.org returned 502; rerun with `GONOSUMDB=...` and a larger golangci-lint timeout.
-* 2026-01-08: Git failed to create `.git/index.lock`; remove the stale lock after confirming no git process is running.
-* 2026-01-09: Next.js build failed when `useCallback` was called without a dependency array; add the missing deps argument to satisfy type checking.
-* 2026-01-09: `make fmt` failed with `context deadline exceeded` in golangci-lint; rerun with a higher `--timeout`.
-* 2026-01-09: Next.js static export build failed for a dynamic route (`/share/[sessionId]`); switch to a query-based route or add `generateStaticParams`.
-## Error Experience Summary
-
-* Go linting can fail if `sum.golang.org` returns 502 or golangci-lint times out; use `GONOSUMDB=...` and increase `--timeout`.
-* Git operations can fail due to a stale `.git/index.lock`; remove after ensuring no git process is running.
+- Index: `docs/error-experience.md`
+- Summary index: `docs/error-experience/summary.md`
+- Summary entries: `docs/error-experience/summary/entries/`
+- Entries: `docs/error-experience/entries/`

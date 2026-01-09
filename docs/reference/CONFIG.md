@@ -1,17 +1,20 @@
 # ALEX 配置参考
 > Last updated: 2025-12-14
 
-本文档是 **ALEX 核心运行时配置（LLM / presets / runtime 行为）** 的唯一说明。无论是 `alex` CLI 还是 `alex-server`，都通过同一套配置加载逻辑（`internal/config`）构建运行时配置。
+本文档是 **ALEX 主配置文件（`~/.alex/config.yaml`）** 的说明，覆盖 runtime 以及 server/auth/session/analytics/attachments 等段。`alex` CLI 与 `alex-server` 共享 runtime 配置；`alex-server` 额外读取其他段完成服务侧配置。
 
-> 说明：部分子系统（例如 MCP servers 的 `.mcp.json`、observability 示例 YAML 等）有独立的配置文件；本文聚焦于 `~/.alex-config.json` + managed overrides 这条“核心运行时配置链路”。
+> 说明：主配置文件与 managed overrides 统一放在 `~/.alex/config.yaml`。MCP servers 仍使用各自的 `.mcp.json`（多 scope）。
 
 ---
 
 ## 目标与原则（只有一个 config）
 
-- **唯一 schema**：`internal/config.RuntimeConfig`（运行时配置快照）。
-- **唯一加载入口**：`internal/config.Load`（defaults → file → env → overrides）。
-- **唯一“可持久化覆盖层”**：`internal/config/admin`（managed overrides；CLI `alex config set/clear` 与 server 共用）。
+- **唯一主配置文件**：`~/.alex/config.yaml`（或 `ALEX_CONFIG_PATH`）。
+- **运行时 schema**：`internal/config.RuntimeConfig`（runtime 快照）。
+- **加载入口**：
+  - runtime：`internal/config.Load`（defaults → file(runtime) → overrides）。
+  - server 侧：`internal/config.LoadFileConfig`（读取 server/auth/session/analytics/attachments 等段）。
+- **唯一“可持久化覆盖层”**：`internal/config/admin`（managed overrides；CLI `alex config set/clear` 与 server 共用，写入同一 YAML）。
 - 工程侧通过测试 `internal/config/env_usage_guard_test.go` 限制新增 `os.Getenv` 的散落使用，避免出现“第二套配置系统”。
 
 ---
@@ -19,53 +22,40 @@
 ## 配置来源与优先级（从低到高）
 
 1. **Defaults**：内置默认值（用于开箱即用/本地开发兜底）。
-2. **Main config file**：`~/.alex-config.json`（或 `ALEX_CONFIG_PATH` 指定的路径）。
-3. **Environment variables**：例如 `LLM_PROVIDER` / `LLM_MODEL` 等。
-4. **Managed overrides**：`alex config set` 写入的 overrides 文件（位置见 `alex config path`）。
-
-> 重要坑位：**managed overrides 会覆盖环境变量**。如果你在容器里设置了 env 但效果不生效，优先检查 overrides 文件是否有同字段。
+2. **Main config file**：`~/.alex/config.yaml`（或 `ALEX_CONFIG_PATH` 指定的路径）。
+3. **Managed overrides**：`alex config set` 写入 `config.yaml` 的 `overrides` 段（位置见 `alex config path`）。
 
 ---
 
-## 文件：主配置 `~/.alex-config.json`
+## 文件：主配置 `~/.alex/config.yaml`
 
 ### 路径解析
 
-- 默认：`$HOME/.alex-config.json`
-- 可覆盖：`ALEX_CONFIG_PATH=/path/to/alex-config.json`
+- 默认：`$HOME/.alex/config.yaml`
+- 可覆盖：`ALEX_CONFIG_PATH=/path/to/config.yaml`
 
 ### 推荐最小示例（远程 provider）
 
-```json
-{
-  "llm_provider": "openai",
-  "llm_model": "gpt-4o-mini",
-  "base_url": "https://api.openai.com/v1"
-}
+```yaml
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o-mini"
+  base_url: "https://api.openai.com/v1"
 ```
-完整示例见 `examples/config/core-config-example.json`。
+完整示例见 `examples/config/runtime-config.yaml`。
 
 ---
 
-## 文件：Managed Overrides（可选）
+## 段：Managed Overrides（可选）
 
 Managed overrides 是“**可持久化的最后一层覆盖**”，用于快速切模型/切 base_url/临时调参，不需要改主配置文件。
 
-### 路径解析
-
-- 执行 `alex config path` 查看实际路径
-- 默认：`$HOME/.alex/runtime-overrides.json`
-- 可覆盖：`CONFIG_ADMIN_STORE_PATH=/path/to/runtime-overrides.json`
-
 ### 示例
 
-见 `examples/config/runtime-overrides-example.json`：
-
-```json
-{
-  "llm_model": "deepseek/deepseek-chat",
-  "llm_vision_model": "openai/gpt-4o-mini"
-}
+```yaml
+overrides:
+  llm_model: "deepseek/deepseek-chat"
+  llm_vision_model: "openai/gpt-4o-mini"
 ```
 
 ### CLI 操作
@@ -80,18 +70,75 @@ alex config path
 
 ---
 
-## 环境变量
+## 其他配置段（server / auth / session / analytics / attachments）
 
-说明：为减少歧义与维护成本，runtime loader **只识别一套 canonical 环境变量名**（不再支持历史别名）。
+这些段由 `alex-server` 在启动时读取，用于 Web/服务端配置；CLI 侧忽略。
+
+### server
+
+- `port`：HTTP 端口（默认 `8080`）。
+- `enable_mcp`：是否启用 MCP 探针（默认 `true`）。
+- `max_task_body_bytes`：`/api/tasks` POST 请求体上限（字节，默认 20 MiB）。
+- `allowed_origins`：CORS 允许来源列表。
+
+### auth
+
+- `jwt_secret`
+- `access_token_ttl_minutes`
+- `refresh_token_ttl_days`
+- `state_ttl_minutes`
+- `redirect_base_url`
+- `database_url`
+- `bootstrap_email` / `bootstrap_password` / `bootstrap_display_name`
+- `google_client_id` / `google_client_secret` / `google_auth_url` / `google_token_url` / `google_userinfo_url`
+- `wechat_app_id` / `wechat_auth_url`
+
+### session
+
+- `database_url`
+- `dir`
+
+### analytics
+
+- `posthog_api_key`
+- `posthog_host`
+
+### attachments
+
+- `provider`：`local` / `cloudflare`
+- `dir`：本地存储目录（provider=local 时必填）
+- `cloudflare_account_id` / `cloudflare_access_key_id` / `cloudflare_secret_access_key`
+- `cloudflare_bucket` / `cloudflare_public_base_url` / `cloudflare_key_prefix`
+- `presign_ttl`：预签名 TTL（例如 `15m`）
+
+### web
+
+- `api_url`：仅供部署脚本读取（用于 `NEXT_PUBLIC_API_URL`）。
+
+### observability
+
+- 仍由 `internal/observability` 读取 `observability` 段（日志/metrics/tracing）。
+
+---
+
+## 环境变量（用于路径与插值）
+
+说明：runtime loader **不再把环境变量作为覆盖层**。环境变量只用于：
+
+- **定位配置文件**：`ALEX_CONFIG_PATH=/path/to/config.yaml`
+- **在 YAML 中插值**：使用 `${ENV}`（例如 `runtime.api_key: ${OPENAI_API_KEY}`）
+
+推荐使用 env 承载 secrets，然后在 `config.yaml` 里引用（示例）：
 
 - `OPENAI_API_KEY`：OpenAI-compatible API key
-- `LLM_PROVIDER`：`openrouter` / `openai` / `deepseek` / `ollama` / `mock`
-- `LLM_MODEL`：默认模型
-- `LLM_VISION_MODEL`：有图片附件时使用的 vision 模型（可选）
-- `LLM_BASE_URL`：OpenAI-compatible base URL（如 `https://api.openai.com/v1`、`https://openrouter.ai/api/v1`、Ollama 地址等）
-- `SANDBOX_BASE_URL`：AIO Sandbox API 根地址（**不含 `/v1`**，默认 `http://localhost:18086`）
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
+- `AUTH_JWT_SECRET` / `AUTH_DATABASE_URL`
+- `ALEX_SESSION_DATABASE_URL`
+- `GOOGLE_CLIENT_SECRET`
+- `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_ACCESS_KEY_ID` / `CLOUDFLARE_SECRET_ACCESS_KEY`
+
+> 插值规则：`${VAR}` 会被替换为环境变量值；如需字面量 `$`，可写成 `$$`。
 
 ### 网络与代理（非 RuntimeConfig 字段）
 
@@ -106,9 +153,9 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ---
 
-## 字段参考（JSON keys）
+## 字段参考（runtime/overrides keys）
 
-> 说明：主配置与 managed overrides 使用同一套字段名（snake_case），只识别这一套 schema。
+> 说明：`runtime` 与 `overrides` 使用同一套字段名（snake_case），只识别这一套 schema。
 
 ### LLM 相关
 
@@ -159,11 +206,11 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ## 最佳实践与常见坑位（业界经验）
 
-- **分离 secrets 与非 secrets**：生产环境建议用 env（K8s Secret / Docker secret）注入 `OPENAI_API_KEY`、`TAVILY_API_KEY`、`ARK_API_KEY`；主配置文件存放非敏感参数（model/base_url/preset）。
+- **分离 secrets 与非 secrets**：生产环境建议用 env（K8s Secret / Docker secret）注入 `OPENAI_API_KEY`、`TAVILY_API_KEY`、`ARK_API_KEY`、`AUTH_JWT_SECRET`、`AUTH_DATABASE_URL`、`CLOUDFLARE_*` 等敏感字段，并在 `config.yaml` 中用 `${ENV}` 引用；主配置文件存放非敏感参数（model/base_url/preset/ports）。
 - **明确优先级**：遇到“配置没生效”，按顺序排查：
-  1) `alex config` 看当前快照；2) `alex config path` 看 overrides；3) 环境变量；4) 主配置文件。
-- **谨慎使用 managed overrides**：它会覆盖 env；在容器/多环境切换时，常见的坑是忘记清掉 overrides。
-- **修改主配置文件需要重启 `alex-server`**：server 启动时会构建 DI container；主配置文件 `~/.alex-config.json` 的改动不会自动热更新（managed overrides 可通过 UI/CLI 更新）。
+  1) `alex config` 看当前快照；2) `alex config path` 打开 `config.yaml`；3) 检查 `overrides` 是否覆盖了 `runtime`。
+- **谨慎使用 managed overrides**：`overrides` 会覆盖同名 `runtime` 字段；在容器/多环境切换时，常见的坑是忘记清掉 overrides。
+- **修改主配置文件需要重启 `alex-server`**：server 启动时会构建 DI container；主配置文件 `~/.alex/config.yaml` 的改动不会自动热更新（managed overrides 可通过 UI/CLI 更新）。
 - **Vision 模型必须真支持图片**：很多文本模型不支持 image；建议明确配置 `llm_vision_model`，并用 provider 对应的 vision model 名称。
 - **OpenAI-compatible base_url 通常需要带 `/v1`**：例如 OpenAI `https://api.openai.com/v1`、OpenRouter `https://openrouter.ai/api/v1`；少了 `/v1` 常见报错是 404/路径不匹配。
 - **控制图片体积**：base64 会显著膨胀 payload，且不同 provider 有请求大小上限；优先使用可访问的远程 URL 或在入库/上传阶段做压缩/缩放。

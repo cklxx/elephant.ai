@@ -153,6 +153,20 @@ func logFileName(category LogCategory) string {
 	}
 }
 
+// OpenLogFile opens (or creates) the log file for the given category.
+func OpenLogFile(category LogCategory) (*os.File, error) {
+	logDir, err := resolveLogDirectory()
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return nil, err
+	}
+
+	logPath := filepath.Join(logDir, logFileName(category))
+	return os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+}
+
 // SetLevel sets the minimum log level
 func (l *Logger) SetLevel(level LogLevel) {
 	l.mu.Lock()

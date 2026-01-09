@@ -44,13 +44,11 @@ export BASE_URL=http://your-server:port
 
 ### 2. Environment Variables
 
-Ensure LLM provider credentials are configured in `.env`:
+Ensure runtime configuration exists at `~/.alex/config.yaml` (see `examples/config/runtime-config.yaml`).
+If you reference `${OPENAI_API_KEY}`, export it:
 
 ```bash
-OPENAI_API_KEY=your-key
-LLM_PROVIDER=your-provider
-LLM_BASE_URL=your-base-url
-LLM_MODEL=your-model
+export OPENAI_API_KEY=your-key
 ```
 
 ### 3. Dependencies

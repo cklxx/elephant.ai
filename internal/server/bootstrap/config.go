@@ -18,43 +18,12 @@ type Config struct {
 	Port               string
 	EnableMCP          bool
 	EnvironmentSummary string
-	Auth               AuthConfig
-	Session            SessionConfig
-	Analytics          AnalyticsConfig
+	Auth               runtimeconfig.AuthConfig
+	Session            runtimeconfig.SessionConfig
+	Analytics          runtimeconfig.AnalyticsConfig
 	AllowedOrigins     []string
+	MaxTaskBodyBytes   int64
 	Attachment         attachments.StoreConfig
-}
-
-// AuthConfig captures authentication-related environment configuration.
-type AuthConfig struct {
-	JWTSecret             string
-	AccessTokenTTLMinutes string
-	RefreshTokenTTLDays   string
-	StateTTLMinutes       string
-	RedirectBaseURL       string
-	GoogleClientID        string
-	GoogleClientSecret    string
-	GoogleAuthURL         string
-	GoogleTokenURL        string
-	GoogleUserInfoURL     string
-	WeChatAppID           string
-	WeChatAuthURL         string
-	DatabaseURL           string
-	BootstrapEmail        string
-	BootstrapPassword     string
-	BootstrapDisplayName  string
-}
-
-// SessionConfig captures session persistence configuration for the server (web mode).
-type SessionConfig struct {
-	DatabaseURL string
-	Dir         string
-}
-
-// AnalyticsConfig holds analytics configuration values.
-type AnalyticsConfig struct {
-	PostHogAPIKey string
-	PostHogHost   string
 }
 
 var defaultAllowedOrigins = []string{
@@ -95,127 +64,23 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		Port:           "8080",
 		EnableMCP:      true, // Default: enabled
 		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
+		Session: runtimeconfig.SessionConfig{
+			Dir: "~/.alex-web-sessions",
+		},
 		Attachment: attachments.StoreConfig{
 			Provider: attachments.ProviderLocal,
 			Dir:      "~/.alex-web-attachments",
 		},
 	}
 
-	if port, ok := envLookup("PORT"); ok && port != "" {
-		cfg.Port = port
+	fileCfg, _, err := runtimeconfig.LoadFileConfig(runtimeconfig.WithEnv(envLookup))
+	if err != nil {
+		return Config{}, nil, nil, err
 	}
-
-	if enableMCP, ok := envLookup("ENABLE_MCP"); ok {
-		cfg.EnableMCP = enableMCP == "true" || enableMCP == "1"
-	}
-
-	if origins, ok := envLookup("CORS_ALLOWED_ORIGINS"); ok {
-		cfg.AllowedOrigins = parseAllowedOrigins(origins)
-	}
+	applyServerFileConfig(&cfg, fileCfg)
 
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
 		return Config{}, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
-	}
-
-	authCfg := AuthConfig{}
-	if secret, ok := envLookup("AUTH_JWT_SECRET"); ok {
-		authCfg.JWTSecret = strings.TrimSpace(secret)
-	}
-	if ttl, ok := envLookup("AUTH_ACCESS_TOKEN_TTL_MINUTES"); ok {
-		authCfg.AccessTokenTTLMinutes = strings.TrimSpace(ttl)
-	}
-	if ttl, ok := envLookup("AUTH_REFRESH_TOKEN_TTL_DAYS"); ok {
-		authCfg.RefreshTokenTTLDays = strings.TrimSpace(ttl)
-	}
-	if ttl, ok := envLookup("AUTH_STATE_TTL_MINUTES"); ok {
-		authCfg.StateTTLMinutes = strings.TrimSpace(ttl)
-	}
-	if redirect, ok := envLookup("AUTH_REDIRECT_BASE_URL"); ok {
-		authCfg.RedirectBaseURL = strings.TrimSpace(redirect)
-	}
-	if clientID, ok := envLookup("GOOGLE_CLIENT_ID"); ok {
-		authCfg.GoogleClientID = strings.TrimSpace(clientID)
-	}
-	if clientSecret, ok := envLookup("GOOGLE_CLIENT_SECRET"); ok {
-		authCfg.GoogleClientSecret = strings.TrimSpace(clientSecret)
-	}
-	if authURL, ok := envLookup("GOOGLE_AUTH_URL"); ok {
-		authCfg.GoogleAuthURL = strings.TrimSpace(authURL)
-	}
-	if tokenURL, ok := envLookup("GOOGLE_TOKEN_URL"); ok {
-		authCfg.GoogleTokenURL = strings.TrimSpace(tokenURL)
-	}
-	if userInfoURL, ok := envLookup("GOOGLE_USERINFO_URL"); ok {
-		authCfg.GoogleUserInfoURL = strings.TrimSpace(userInfoURL)
-	}
-	if appID, ok := envLookup("WECHAT_APP_ID"); ok {
-		authCfg.WeChatAppID = strings.TrimSpace(appID)
-	}
-	if authURL, ok := envLookup("WECHAT_AUTH_URL"); ok {
-		authCfg.WeChatAuthURL = strings.TrimSpace(authURL)
-	}
-	if dbURL, ok := envLookup("AUTH_DATABASE_URL"); ok {
-		authCfg.DatabaseURL = strings.TrimSpace(dbURL)
-	}
-	if email, ok := envLookup("AUTH_BOOTSTRAP_EMAIL"); ok {
-		authCfg.BootstrapEmail = strings.TrimSpace(email)
-	}
-	if password, ok := envLookup("AUTH_BOOTSTRAP_PASSWORD"); ok {
-		authCfg.BootstrapPassword = password
-	}
-	if name, ok := envLookup("AUTH_BOOTSTRAP_DISPLAY_NAME"); ok {
-		authCfg.BootstrapDisplayName = strings.TrimSpace(name)
-	}
-	cfg.Auth = authCfg
-
-	sessionCfg := SessionConfig{Dir: "~/.alex-web-sessions"}
-	if dbURL, ok := envLookup("ALEX_SESSION_DATABASE_URL"); ok {
-		sessionCfg.DatabaseURL = strings.TrimSpace(dbURL)
-	}
-	if dir, ok := envLookup("ALEX_WEB_SESSION_DIR"); ok && strings.TrimSpace(dir) != "" {
-		sessionCfg.Dir = strings.TrimSpace(dir)
-	} else if dir, ok := envLookup("SESSION_STORE_PATH"); ok && strings.TrimSpace(dir) != "" {
-		sessionCfg.Dir = strings.TrimSpace(dir)
-	}
-	cfg.Session = sessionCfg
-
-	analyticsCfg := AnalyticsConfig{}
-	if apiKey, ok := envLookup("POSTHOG_API_KEY"); ok {
-		analyticsCfg.PostHogAPIKey = strings.TrimSpace(apiKey)
-	}
-	if host, ok := envLookup("POSTHOG_HOST"); ok {
-		analyticsCfg.PostHogHost = strings.TrimSpace(host)
-	}
-	cfg.Analytics = analyticsCfg
-
-	if provider, ok := envLookup("ALEX_ATTACHMENT_PROVIDER"); ok {
-		cfg.Attachment.Provider = strings.TrimSpace(provider)
-	}
-	if dir, ok := envLookup("ALEX_WEB_ATTACHMENT_DIR"); ok && strings.TrimSpace(dir) != "" {
-		cfg.Attachment.Dir = strings.TrimSpace(dir)
-	}
-	if accountID, ok := envLookup("CLOUDFLARE_ACCOUNT_ID"); ok {
-		cfg.Attachment.CloudflareAccountID = strings.TrimSpace(accountID)
-	}
-	if accessKey, ok := envLookup("CLOUDFLARE_ACCESS_KEY_ID"); ok {
-		cfg.Attachment.CloudflareAccessKeyID = strings.TrimSpace(accessKey)
-	}
-	if secret, ok := envLookup("CLOUDFLARE_SECRET_ACCESS_KEY"); ok {
-		cfg.Attachment.CloudflareSecretAccessKey = strings.TrimSpace(secret)
-	}
-	if bucket, ok := envLookup("CLOUDFLARE_BUCKET"); ok {
-		cfg.Attachment.CloudflareBucket = strings.TrimSpace(bucket)
-	}
-	if base, ok := envLookup("CLOUDFLARE_PUBLIC_BASE_URL"); ok {
-		cfg.Attachment.CloudflarePublicBaseURL = strings.TrimSpace(base)
-	}
-	if prefix, ok := envLookup("CLOUDFLARE_ATTACHMENT_KEY_PREFIX"); ok {
-		cfg.Attachment.CloudflareKeyPrefix = strings.TrimSpace(prefix)
-	}
-	if ttlRaw, ok := envLookup("ALEX_ATTACHMENT_PRESIGN_TTL"); ok && strings.TrimSpace(ttlRaw) != "" {
-		if parsed, err := time.ParseDuration(strings.TrimSpace(ttlRaw)); err == nil && parsed > 0 {
-			cfg.Attachment.PresignTTL = parsed
-		}
 	}
 
 	resolver := func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
@@ -235,23 +100,104 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	return cfg, manager, resolver, nil
 }
 
-func parseAllowedOrigins(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return []string{}
+func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if cfg == nil {
+		return
 	}
-	fields := strings.FieldsFunc(raw, func(r rune) bool {
-		switch r {
-		case ',', ';', '\n', '\r', '\t':
-			return true
-		default:
-			return false
+
+	if file.Server != nil {
+		if port := strings.TrimSpace(file.Server.Port); port != "" {
+			cfg.Port = port
 		}
-	})
-	origins := make([]string, 0, len(fields))
-	seen := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		origin := strings.TrimSpace(field)
+		if file.Server.EnableMCP != nil {
+			cfg.EnableMCP = *file.Server.EnableMCP
+		}
+		if file.Server.MaxTaskBodyBytes != nil && *file.Server.MaxTaskBodyBytes > 0 {
+			cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
+		}
+		if file.Server.AllowedOrigins != nil {
+			cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
+		}
+	}
+
+	if file.Auth != nil {
+		cfg.Auth = runtimeconfig.AuthConfig{
+			JWTSecret:             strings.TrimSpace(file.Auth.JWTSecret),
+			AccessTokenTTLMinutes: strings.TrimSpace(file.Auth.AccessTokenTTLMinutes),
+			RefreshTokenTTLDays:   strings.TrimSpace(file.Auth.RefreshTokenTTLDays),
+			StateTTLMinutes:       strings.TrimSpace(file.Auth.StateTTLMinutes),
+			RedirectBaseURL:       strings.TrimSpace(file.Auth.RedirectBaseURL),
+			GoogleClientID:        strings.TrimSpace(file.Auth.GoogleClientID),
+			GoogleClientSecret:    strings.TrimSpace(file.Auth.GoogleClientSecret),
+			GoogleAuthURL:         strings.TrimSpace(file.Auth.GoogleAuthURL),
+			GoogleTokenURL:        strings.TrimSpace(file.Auth.GoogleTokenURL),
+			GoogleUserInfoURL:     strings.TrimSpace(file.Auth.GoogleUserInfoURL),
+			WeChatAppID:           strings.TrimSpace(file.Auth.WeChatAppID),
+			WeChatAuthURL:         strings.TrimSpace(file.Auth.WeChatAuthURL),
+			DatabaseURL:           strings.TrimSpace(file.Auth.DatabaseURL),
+			BootstrapEmail:        strings.TrimSpace(file.Auth.BootstrapEmail),
+			BootstrapPassword:     file.Auth.BootstrapPassword,
+			BootstrapDisplayName:  strings.TrimSpace(file.Auth.BootstrapDisplayName),
+		}
+	}
+
+	if file.Session != nil {
+		if dbURL := strings.TrimSpace(file.Session.DatabaseURL); dbURL != "" {
+			cfg.Session.DatabaseURL = dbURL
+		}
+		if dir := strings.TrimSpace(file.Session.Dir); dir != "" {
+			cfg.Session.Dir = dir
+		}
+	}
+
+	if file.Analytics != nil {
+		cfg.Analytics = runtimeconfig.AnalyticsConfig{
+			PostHogAPIKey: strings.TrimSpace(file.Analytics.PostHogAPIKey),
+			PostHogHost:   strings.TrimSpace(file.Analytics.PostHogHost),
+		}
+	}
+
+	if file.Attachments != nil {
+		if provider := strings.TrimSpace(file.Attachments.Provider); provider != "" {
+			cfg.Attachment.Provider = provider
+		}
+		if dir := strings.TrimSpace(file.Attachments.Dir); dir != "" {
+			cfg.Attachment.Dir = dir
+		}
+		if accountID := strings.TrimSpace(file.Attachments.CloudflareAccountID); accountID != "" {
+			cfg.Attachment.CloudflareAccountID = accountID
+		}
+		if accessKey := strings.TrimSpace(file.Attachments.CloudflareAccessKeyID); accessKey != "" {
+			cfg.Attachment.CloudflareAccessKeyID = accessKey
+		}
+		if secret := strings.TrimSpace(file.Attachments.CloudflareSecretAccessKey); secret != "" {
+			cfg.Attachment.CloudflareSecretAccessKey = secret
+		}
+		if bucket := strings.TrimSpace(file.Attachments.CloudflareBucket); bucket != "" {
+			cfg.Attachment.CloudflareBucket = bucket
+		}
+		if base := strings.TrimSpace(file.Attachments.CloudflarePublicBaseURL); base != "" {
+			cfg.Attachment.CloudflarePublicBaseURL = base
+		}
+		if prefix := strings.TrimSpace(file.Attachments.CloudflareKeyPrefix); prefix != "" {
+			cfg.Attachment.CloudflareKeyPrefix = prefix
+		}
+		if ttlRaw := strings.TrimSpace(file.Attachments.PresignTTL); ttlRaw != "" {
+			if parsed, err := time.ParseDuration(ttlRaw); err == nil && parsed > 0 {
+				cfg.Attachment.PresignTTL = parsed
+			}
+		}
+	}
+}
+
+func normalizeAllowedOrigins(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	origins := make([]string, 0, len(values))
+	seen := make(map[string]struct{}, len(values))
+	for _, value := range values {
+		origin := strings.TrimSpace(value)
 		if origin == "" {
 			continue
 		}

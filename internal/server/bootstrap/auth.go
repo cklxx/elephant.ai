@@ -12,6 +12,7 @@ import (
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
 	authports "alex/internal/auth/ports"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,7 +24,7 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 
 	secret := strings.TrimSpace(authCfg.JWTSecret)
 	if secret == "" {
-		return nil, nil, fmt.Errorf("AUTH_JWT_SECRET not configured")
+		return nil, nil, fmt.Errorf("auth.jwt_secret not configured")
 	}
 
 	accessTTL := 15 * time.Minute
@@ -31,7 +32,7 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 		if v, err := strconv.Atoi(minutes); err == nil && v > 0 {
 			accessTTL = time.Duration(v) * time.Minute
 		} else if err != nil {
-			logger.Warn("Invalid AUTH_ACCESS_TOKEN_TTL_MINUTES value: %v", err)
+			logger.Warn("Invalid auth.access_token_ttl_minutes value: %v", err)
 		}
 	}
 
@@ -40,7 +41,7 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 		if v, err := strconv.Atoi(days); err == nil && v > 0 {
 			refreshTTL = time.Duration(v) * 24 * time.Hour
 		} else if err != nil {
-			logger.Warn("Invalid AUTH_REFRESH_TOKEN_TTL_DAYS value: %v", err)
+			logger.Warn("Invalid auth.refresh_token_ttl_days value: %v", err)
 		}
 	}
 
@@ -49,7 +50,7 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 		if v, err := strconv.Atoi(minutes); err == nil && v > 0 {
 			stateTTL = time.Duration(v) * time.Minute
 		} else if err != nil {
-			logger.Warn("Invalid AUTH_STATE_TTL_MINUTES value: %v", err)
+			logger.Warn("Invalid auth.state_ttl_minutes value: %v", err)
 		}
 	}
 
@@ -207,7 +208,7 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 	return service, cleanup, nil
 }
 
-func bootstrapAuthUser(service *authapp.Service, cfg AuthConfig, logger logging.Logger) error {
+func bootstrapAuthUser(service *authapp.Service, cfg runtimeconfig.AuthConfig, logger logging.Logger) error {
 	logger = logging.OrNop(logger)
 	email := strings.TrimSpace(cfg.BootstrapEmail)
 	password := strings.TrimSpace(cfg.BootstrapPassword)

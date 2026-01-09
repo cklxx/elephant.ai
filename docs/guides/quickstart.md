@@ -25,11 +25,8 @@ make server-build  # builds ./alex-server
 ## Configure
 
 ```bash
-cp examples/config/core-config-example.json ~/.alex-config.json
 export OPENAI_API_KEY="sk-..."
-export LLM_PROVIDER="openai"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4o-mini"
+cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 ```
 
 Optional managed overrides (persistent):
