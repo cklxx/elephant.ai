@@ -1,211 +1,35 @@
 import Link from "next/link";
-import { Suspense } from "react";
-import { BookOpenText, Layers, PlayCircle, ShieldCheck, Sparkles } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import { PlayCircle } from "lucide-react";
 
-import { Header } from "@/components/layout";
 import { PageContainer } from "@/components/layout/page-shell";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
 import type { HomeLang } from "./types";
 
-type HomeCopy = {
-  badge: string;
+type DialogCopy = {
   title: string;
-  subtitle: string;
-  actions: {
-    primary: string;
-  };
+  placeholder: string;
+  action: string;
+  showcaseTitle: string;
+  showcaseNote: string;
 };
 
-const copy: Record<HomeLang, HomeCopy> = {
+const dialogCopy: Record<HomeLang, DialogCopy> = {
   zh: {
-    badge: "elephant.ai · proactive agent",
-    title: "一只猛虎，不在纸上",
-    subtitle: "首页与 Console 同框：主动 Agent 先探路、先澄清、再执行。",
-    actions: {
-      primary: "进入控制台",
-    },
+    title: "对话框",
+    placeholder: "描述你要完成的目标，或粘贴需求上下文。",
+    action: "进入控制台",
+    showcaseTitle: "Show case 展示",
+    showcaseNote: "留白占位：分享回放功能完善后再补充。",
   },
   en: {
-    badge: "elephant.ai · proactive agent",
-    title: "A tiger is not on paper",
-    subtitle: "Proactive agents share the console frame—scouting, clarifying, then executing.",
-    actions: {
-      primary: "Open console",
-    },
-  },
-};
-
-type HighlightCopy = {
-  title: string;
-  body: string;
-  accent: string;
-  icon: LucideIcon;
-};
-
-const highlightCopy: Record<HomeLang, HighlightCopy[]> = {
-  zh: [
-    {
-      title: "先规划再执行",
-      body: "目标、约束与依赖先对齐，动作才开始。",
-      accent: "from-indigo-500/20 via-sky-500/20 to-emerald-500/20",
-      icon: Sparkles,
-    },
-    {
-      title: "证据优先",
-      body: "行动和结果并排呈现，交付即复盘。",
-      accent: "from-amber-500/20 via-orange-500/20 to-rose-500/20",
-      icon: ShieldCheck,
-    },
-    {
-      title: "全过程可追踪",
-      body: "节奏、步骤与工具调用清晰可见。",
-      accent: "from-emerald-500/20 via-teal-500/20 to-cyan-500/20",
-      icon: Layers,
-    },
-  ],
-  en: [
-    {
-      title: "Plan before action",
-      body: "Align goals, guardrails, and dependencies up front.",
-      accent: "from-indigo-500/20 via-sky-500/20 to-emerald-500/20",
-      icon: Sparkles,
-    },
-    {
-      title: "Evidence-first delivery",
-      body: "Actions and outcomes stay side by side for review.",
-      accent: "from-amber-500/20 via-orange-500/20 to-rose-500/20",
-      icon: ShieldCheck,
-    },
-    {
-      title: "Traceable execution",
-      body: "Timelines, tools, and handoffs remain visible.",
-      accent: "from-emerald-500/20 via-teal-500/20 to-cyan-500/20",
-      icon: Layers,
-    },
-  ],
-};
-
-type ManifestoCopy = {
-  badge: string;
-  title: string;
-  lede: string;
-  points: { title: string; body: string; accent: string }[];
-  closing: string;
-};
-
-const manifestoCopy: Record<HomeLang, ManifestoCopy> = {
-  zh: {
-    badge: "纯文本 · 理念",
-    title: "主动式 Agent 的纯净宣言",
-    lede: "首页与控制台同框：主动 Agent 持续感知、提前协同，编排先于回答。",
-    points: [
-      {
-        title: "主动觉察，先于指令规划",
-        body: "Session 保持有状态，主动 Agent 按目标和约束预判路径，标注不可踩的线。",
-        accent: "from-indigo-500 via-sky-500 to-emerald-500",
-      },
-      {
-        title: "少催促，多澄清",
-        body: "行动前主动提问和暴露依赖，再把任务拆成可调用的工具，风险在执行前就被看见。",
-        accent: "from-amber-500 via-orange-500 to-rose-500",
-      },
-      {
-        title: "行动自证可追责",
-        body: "每一步像控制台一样可停、可重放，连同证据输出，方便交接与复盘。",
-        accent: "from-emerald-500 via-teal-500 to-cyan-500",
-      },
-    ],
-    closing: "慢即快：主动 Agent 少一次往返催促，多一次真实状态与证据。",
-  },
-  en: {
-    badge: "Plain text · why elephant.ai",
-    title: "A clean manifesto for proactive agents",
-    lede: "Homepage shares the console frame: proactive agents keep sensing, coordinating, and orchestrating before answering.",
-    points: [
-      {
-        title: "Sense early, plan ahead",
-        body: "Sessions stay stateful; proactive agents read goals and guardrails to anticipate paths and mark the lines they cannot cross.",
-        accent: "from-indigo-500 via-sky-500 to-emerald-500",
-      },
-      {
-        title: "Clarify before moving",
-        body: "They ask first, surface dependencies, and slice work into callable tools so risks show up before execution.",
-        accent: "from-amber-500 via-orange-500 to-rose-500",
-      },
-      {
-        title: "Act with built-in evidence",
-        body: "Every action mirrors the console view—pausable, replayable, and delivered with inline artifacts for handoffs and reviews.",
-        accent: "from-emerald-500 via-teal-500 to-cyan-500",
-      },
-    ],
-    closing: "Slow is fast: proactive agents cut nagging loops and keep real state with proof.",
-  },
-};
-
-type SlogCopy = {
-  badge: string;
-  title: string;
-  points: { title: string; body: string }[];
-};
-
-const slogCopy: Record<HomeLang, SlogCopy> = {
-  zh: {
-    badge: "slog · 可观测性",
-    title: "成本、token、节省时间一眼看清",
-    points: [
-      {
-        title: "成本可视化",
-        body: "每次运行的成本分解直达日志，避免隐性消耗。",
-      },
-      {
-        title: "token 账本",
-        body: "请求与响应的 token 统计清晰列示，便于优化策略。",
-      },
-      {
-        title: "节省时间",
-        body: "对比人工与自动化用时，让效率收益可衡量。",
-      },
-    ],
-  },
-  en: {
-    badge: "slog · observability",
-    title: "Cost, tokens, time saved—measured in slog",
-    points: [
-      {
-        title: "Cost clarity",
-        body: "Per-run cost breakdowns land in the logs with no blind spots.",
-      },
-      {
-        title: "Token ledger",
-        body: "Prompt/response token counts stay visible for tuning.",
-      },
-      {
-        title: "Time saved",
-        body: "Compare manual vs. automated runtime to quantify gains.",
-      },
-    ],
-  },
-};
-
-type VideoCopy = {
-  title: string;
-  body: string;
-  note: string;
-};
-
-const videoCopy: Record<HomeLang, VideoCopy> = {
-  zh: {
-    title: "主动 Agent 演示视频稍后放在这里",
-    body: "这一块预留给真实录屏：主动 Agent 如何先探路、澄清依赖，再行动并交付证据。",
-    note: "无模拟对话框：留白给真实上下文与产出，方便直接替换成录屏。",
-  },
-  en: {
-    title: "Proactive agent demo video will live here soon",
-    body: "Reserved for a real recording: how a proactive agent scouts, clarifies dependencies, then acts with evidence.",
-    note: "No simulated chat—a clean space to drop in real context and artifacts.",
+    title: "Dialogue",
+    placeholder: "Describe your goal or paste the context you want handled.",
+    action: "Open console",
+    showcaseTitle: "Showcase",
+    showcaseNote: "Placeholder for shareable replays once they are ready.",
   },
 };
 
@@ -213,7 +37,7 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-2 py-1 text-xs font-semibold text-muted-foreground shadow-sm",
+        "inline-flex items-center gap-2 rounded-full border border-border/60 bg-background px-2 py-1 text-xs font-semibold text-muted-foreground",
         className,
       )}
     >
@@ -244,190 +68,53 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
   );
 }
 
-function Hero({ lang }: { lang: HomeLang }) {
-  const t = copy[lang];
+function DialogPanel({ lang }: { lang: HomeLang }) {
+  const copy = dialogCopy[lang];
+
   return (
-    <div className="space-y-5 rounded-3xl border border-border/60 bg-card/80 p-6 shadow-[0_16px_60px_-40px_rgba(15,23,42,0.5)]">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Sparkles className="h-3.5 w-3.5" aria-hidden />
-        {t.badge}
+    <section className="rounded-3xl border border-border/60 bg-card/60 p-6 shadow-sm sm:p-8">
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-semibold text-foreground sm:text-xl">{copy.title}</h1>
+        <LanguageToggle lang={lang} className="hidden sm:inline-flex" />
       </div>
-
-      <div className="space-y-3">
-        <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
-          {t.title}
-        </h1>
-        <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-          {t.subtitle}
-        </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/conversation">
-          <Button className="rounded-full shadow-sm">
-            <PlayCircle className="mr-2 h-5 w-5" aria-hidden />
-            {t.actions.primary}
-          </Button>
-        </Link>
-        <LanguageToggle lang={lang} className="sm:hidden" />
-      </div>
-    </div>
-  );
-}
-
-function Highlights({ lang }: { lang: HomeLang }) {
-  const highlights = highlightCopy[lang];
-  return (
-    <div className="grid gap-3 sm:grid-cols-3">
-      {highlights.map((item) => {
-        const Icon = item.icon;
-        return (
-          <div
-            key={item.title}
-            className="relative overflow-hidden rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm"
-          >
-            <div className={cn("absolute inset-0 bg-gradient-to-br", item.accent)} aria-hidden />
-            <div className="relative space-y-3">
-              <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/90 text-foreground shadow-sm">
-                <Icon className="h-4 w-4" aria-hidden />
-              </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">{item.body}</p>
-              </div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function ManifestoArticle({ lang }: { lang: HomeLang }) {
-  const manifesto = manifestoCopy[lang];
-  return (
-    <article className="space-y-4 rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <BookOpenText className="h-3.5 w-3.5" aria-hidden />
-        {manifesto.badge}
-      </div>
-
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          {manifesto.title}
-        </h2>
-        <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
-          {manifesto.lede}
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {manifesto.points.map((point) => (
-          <div
-            key={point.title}
-            className="rounded-2xl border border-border/60 bg-card/60 px-4 py-3 shadow-sm"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className={cn("h-2.5 w-2.5 rounded-full bg-gradient-to-r", point.accent)}
-                aria-hidden
-              />
-              <p className="text-sm font-semibold text-foreground">{point.title}</p>
-            </div>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{point.body}</p>
-          </div>
-        ))}
-      </div>
-
-      <p className="text-sm font-semibold text-foreground sm:text-base">{manifesto.closing}</p>
-    </article>
-  );
-}
-
-function SlogPanel({ lang }: { lang: HomeLang }) {
-  const slog = slogCopy[lang];
-  return (
-    <section className="space-y-4 rounded-3xl border border-border/60 bg-card/70 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Layers className="h-3.5 w-3.5" aria-hidden />
-        {slog.badge}
-      </div>
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          {slog.title}
-        </h2>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {slog.points.map((point) => (
-          <div
-            key={point.title}
-            className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm"
-          >
-            <p className="text-sm font-semibold text-foreground">{point.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{point.body}</p>
-          </div>
-        ))}
+      <div className="mt-4 space-y-4">
+        <Textarea
+          placeholder={copy.placeholder}
+          className="min-h-[140px] resize-none rounded-2xl border-border/60 bg-background/70"
+        />
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/conversation">
+            <Button className="rounded-full shadow-sm">
+              <PlayCircle className="mr-2 h-5 w-5" aria-hidden />
+              {copy.action}
+            </Button>
+          </Link>
+          <LanguageToggle lang={lang} className="sm:hidden" />
+        </div>
       </div>
     </section>
   );
 }
 
-function VideoPlaceholder({ lang }: { lang: HomeLang }) {
-  const copy = videoCopy[lang];
+function ShowcasePlaceholder({ lang }: { lang: HomeLang }) {
+  const copy = dialogCopy[lang];
 
   return (
-    <div className="rounded-3xl border border-dashed border-border/80 bg-card/70 p-6 shadow-sm">
-      <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <PlayCircle className="h-6 w-6" aria-hidden />
-        </div>
-        <div className="space-y-2">
-          <p className="text-lg font-semibold text-foreground">{copy.title}</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
-            {copy.note}
-          </p>
-        </div>
-      </div>
-    </div>
+    <section className="rounded-3xl border border-dashed border-border/70 bg-muted/20 p-6 text-sm text-muted-foreground sm:p-8">
+      <p className="text-base font-semibold text-foreground">{copy.showcaseTitle}</p>
+      <p className="mt-2">{copy.showcaseNote}</p>
+      <div className="mt-4 h-28 rounded-2xl border border-dashed border-border/60 bg-background/60" />
+    </section>
   );
 }
 
 function HomePage({ lang = "en" }: { lang?: HomeLang }) {
-  const heroCopy = copy[lang];
-
   return (
-    <div className="relative min-h-screen bg-muted/10 text-foreground">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_12%_20%,rgba(99,102,241,0.08),transparent_55%),radial-gradient(900px_circle_at_88%_10%,rgba(34,211,238,0.08),transparent_55%),radial-gradient(900px_circle_at_40%_92%,rgba(16,185,129,0.06),transparent_55%)]" />
-      <PageContainer className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 px-4 pb-12 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
-        <Suspense fallback={<div className="h-[60px]" />}>
-          <Header
-            title={heroCopy.title}
-            subtitle={heroCopy.subtitle}
-            actionsSlot={
-              <div className="flex items-center gap-2">
-                <LanguageToggle lang={lang} className="hidden sm:inline-flex" />
-                <Link href="/conversation">
-                  <Button size="sm" className="rounded-full shadow-sm">
-                    <PlayCircle className="mr-2 h-4 w-4" aria-hidden />
-                    {heroCopy.actions.primary}
-                  </Button>
-                </Link>
-              </div>
-            }
-          />
-        </Suspense>
-
-        <div className="grid min-h-0 gap-6 lg:grid-cols-[0.95fr,1.05fr]">
-          <div className="flex flex-col gap-4">
-            <Hero lang={lang} />
-            <Highlights lang={lang} />
-            <VideoPlaceholder lang={lang} />
-          </div>
-          <div className="flex flex-col gap-4">
-            <SlogPanel lang={lang} />
-            <ManifestoArticle lang={lang} />
-          </div>
+    <div className="min-h-screen bg-background text-foreground">
+      <PageContainer className="mx-auto w-full px-4 pb-12 pt-6 sm:px-6 lg:px-10 lg:pb-16">
+        <div className="flex flex-col gap-6">
+          <DialogPanel lang={lang} />
+          <ShowcasePlaceholder lang={lang} />
         </div>
       </PageContainer>
     </div>
