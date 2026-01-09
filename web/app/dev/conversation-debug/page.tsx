@@ -98,7 +98,7 @@ function renderScalar(value: unknown) {
     return <span className="text-rose-600">null</span>;
   }
   if (typeof value === "string") {
-    return <span className="text-emerald-700 break-all">"{value}"</span>;
+    return <span className="text-emerald-700 break-all">&quot;{value}&quot;</span>;
   }
   if (typeof value === "number") {
     return <span className="text-sky-700">{value}</span>;
@@ -226,6 +226,7 @@ export default function ConversationDebugPage() {
 
       setSelectedId((current) => current ?? nextId);
     },
+    [],
   );
 
   const connect = useCallback(() => {
