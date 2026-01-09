@@ -465,10 +465,6 @@ maybe_setup_auth_db() {
     log_warn "docker not found; skipping local auth DB auto-setup"
     return 0
   fi
-  if ! command_exists psql; then
-    log_warn "psql not found; skipping local auth DB auto-setup"
-    return 0
-  fi
 
   ensure_dirs
   log_info "Setting up local auth DB via scripts/setup_local_auth_db.sh..."
