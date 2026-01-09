@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 )
 
@@ -35,15 +34,13 @@ const (
 
 // ConfigLoader loads and merges MCP configurations from different scopes
 type ConfigLoader struct {
-	logger    logging.Logger
-	envLookup runtimeconfig.EnvLookup
+	logger logging.Logger
 }
 
 // NewConfigLoader creates a new configuration loader
 func NewConfigLoader(opts ...ConfigLoaderOption) *ConfigLoader {
 	loader := &ConfigLoader{
-		logger:    logging.NewComponentLogger("ConfigLoader"),
-		envLookup: runtimeconfig.DefaultEnvLookup,
+		logger: logging.NewComponentLogger("ConfigLoader"),
 	}
 	for _, opt := range opts {
 		opt(loader)
@@ -53,17 +50,6 @@ func NewConfigLoader(opts ...ConfigLoaderOption) *ConfigLoader {
 
 // ConfigLoaderOption customises the MCP configuration loader behaviour.
 type ConfigLoaderOption func(*ConfigLoader)
-
-// WithLoaderEnvLookup overrides the environment lookup used when expanding MCP configuration values.
-func WithLoaderEnvLookup(lookup runtimeconfig.EnvLookup) ConfigLoaderOption {
-	return func(loader *ConfigLoader) {
-		if lookup == nil {
-			loader.envLookup = runtimeconfig.DefaultEnvLookup
-			return
-		}
-		loader.envLookup = lookup
-	}
-}
 
 // Load loads and merges configurations from all scopes
 // Priority: local > project > user (local overrides project, project overrides user)
@@ -236,13 +222,8 @@ func (l *ConfigLoader) expandEnvVars(config ServerConfig) ServerConfig {
 
 // expandString expands ${VAR} and $VAR environment variables
 func (l *ConfigLoader) expandString(s string) string {
-	lookup := l.envLookup
-	if lookup == nil {
-		lookup = runtimeconfig.DefaultEnvLookup
-	}
-
 	return os.Expand(s, func(key string) string {
-		value, ok := lookup(key)
+		value, ok := os.LookupEnv(key)
 		if !ok || value == "" {
 			l.logger.Warn("Environment variable not found: %s", key)
 			return ""
