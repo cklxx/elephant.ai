@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 
 	"alex/internal/di"
 	"alex/internal/environment"
+	"alex/internal/utils"
 )
 
 // Container wraps the DI container for CLI use
@@ -21,7 +23,14 @@ func configureDefaultLogger(verbose bool) {
 		level = slog.LevelInfo
 	}
 
-	handler := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+	var output io.Writer = os.Stderr
+	if file, err := utils.OpenLogFile(utils.LogCategoryService); err == nil {
+		output = io.MultiWriter(os.Stderr, file)
+	} else {
+		fmt.Fprintf(os.Stderr, "Warning: failed to open log file: %v\n", err)
+	}
+
+	handler := slog.NewTextHandler(output, &slog.HandlerOptions{
 		Level:     level,
 		AddSource: false,
 	})
