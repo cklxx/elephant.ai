@@ -8,6 +8,8 @@ import {
   TaskStatusResponse,
   SessionListResponse,
   SessionDetailsResponse,
+  ShareTokenResponse,
+  SharedSessionResponse,
   RuntimeConfigSnapshot,
   RuntimeConfigOverridesPayload,
   EvaluationListResponse,
@@ -335,6 +337,25 @@ export async function deleteSession(sessionId: string): Promise<void> {
   });
 }
 
+export async function createSessionShare(
+  sessionId: string,
+): Promise<ShareTokenResponse> {
+  return fetchAPI<ShareTokenResponse>(`/api/sessions/${sessionId}/share`, {
+    method: "POST",
+  });
+}
+
+export async function getSharedSession(
+  sessionId: string,
+  token: string,
+): Promise<SharedSessionResponse> {
+  const params = new URLSearchParams({ token });
+  return fetchAPI<SharedSessionResponse>(
+    `/api/share/sessions/${sessionId}?${params.toString()}`,
+    { skipAuth: true },
+  );
+}
+
 export async function getContextWindowPreview(
   sessionId: string,
 ): Promise<ContextWindowPreviewResponse> {
@@ -434,6 +455,8 @@ export const apiClient = {
   getSessionRaw,
   getSessionTitle,
   deleteSession,
+  createSessionShare,
+  getSharedSession,
   getContextWindowPreview,
   getContextConfig,
   updateContextConfig,

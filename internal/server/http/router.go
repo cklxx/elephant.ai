@@ -50,6 +50,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 	// Create handlers
 	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore))
+	shareHandler := NewShareHandler(coordinator, sseHandler)
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
 	sandboxClient := sandbox.NewClient(sandbox.Config{BaseURL: sandboxBaseURL})
@@ -115,6 +116,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 	// SSE endpoint
 	mux.Handle("/api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
+	mux.Handle("/api/share/sessions/", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))
 	if attachmentStore != nil {
 		mux.Handle("/api/attachments/", routeHandler("/api/attachments", attachmentStore.Handler()))
 	}
@@ -282,6 +284,11 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		if strings.HasSuffix(path, "/replay") {
 			annotateRequestRoute(r, "/api/sessions/:session_id/replay")
 			apiHandler.HandleReplaySession(w, r)
+			return
+		}
+		if strings.HasSuffix(path, "/share") {
+			annotateRequestRoute(r, "/api/sessions/:session_id/share")
+			apiHandler.HandleCreateSessionShare(w, r)
 			return
 		}
 		if strings.HasSuffix(path, "/fork") {
