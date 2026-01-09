@@ -2,10 +2,18 @@ package swe_bench
 
 import (
 	"math"
+	"path/filepath"
 	"testing"
 )
 
+func setTestConfigPath(t *testing.T) {
+	t.Helper()
+	t.Setenv("ALEX_CONFIG_PATH", filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv("LLM_BASE_URL", "")
+}
+
 func TestNewAlexAgentUsesRuntimeConfigOverrides(t *testing.T) {
+	setTestConfigPath(t)
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("LLM_MODEL", "mock-eval-model")
@@ -65,6 +73,7 @@ func TestNewAlexAgentUsesRuntimeConfigOverrides(t *testing.T) {
 }
 
 func TestNewAlexAgentAdjustsBaseURLForOpenAIModels(t *testing.T) {
+	setTestConfigPath(t)
 	t.Setenv("OPENAI_API_KEY", "test-key")
 	t.Setenv("LLM_PROVIDER", "openai")
 	t.Setenv("LLM_MODEL", "gpt-4.1-mini")

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -31,6 +32,21 @@ func stubSeedreamNonce(t *testing.T, value string) {
 	})
 }
 
+func disableSeedreamUploader(t *testing.T) {
+	t.Helper()
+	t.Setenv("ALEX_ATTACHMENT_PROVIDER", "")
+	t.Setenv("CLOUDFLARE_ACCOUNT_ID", "")
+	t.Setenv("CLOUDFLARE_ACCESS_KEY_ID", "")
+	t.Setenv("CLOUDFLARE_SECRET_ACCESS_KEY", "")
+	t.Setenv("CLOUDFLARE_BUCKET", "")
+	t.Setenv("CLOUDFLARE_PUBLIC_BASE_URL", "")
+	t.Setenv("CLOUDFLARE_ATTACHMENT_KEY_PREFIX", "")
+
+	seedreamUploaderOnce = sync.Once{}
+	seedreamUploader = nil
+	seedreamUploaderErr = nil
+}
+
 func assertContains(t *testing.T, content, needle, label string) {
 	t.Helper()
 	if !strings.Contains(content, needle) {
@@ -39,6 +55,7 @@ func assertContains(t *testing.T, content, needle, label string) {
 }
 
 func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
+	disableSeedreamUploader(t)
 	stubSeedreamNonce(t, "nonce")
 
 	resp := &arkm.ImagesResponse{
@@ -83,6 +100,7 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 }
 
 func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
+	disableSeedreamUploader(t)
 	stubSeedreamNonce(t, "nonce")
 
 	resp := &arkm.ImagesResponse{
@@ -119,6 +137,7 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 }
 
 func TestFormatSeedreamResponsePopulatesAttachmentURIFromBase64(t *testing.T) {
+	disableSeedreamUploader(t)
 	stubSeedreamNonce(t, "nonce")
 
 	resp := &arkm.ImagesResponse{

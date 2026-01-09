@@ -305,8 +305,13 @@ Only record actionable, reusable errors (recurring, high-impact, or with clear r
 
 * 2026-01-08: `make fmt` failed when sum.golang.org returned 502; rerun with `GONOSUMDB=...` and a larger golangci-lint timeout.
 * 2026-01-08: Git failed to create `.git/index.lock`; remove the stale lock after confirming no git process is running.
-* 2026-01-09: Next.js build failed when `useCallback` was called without a dependency array; add the missing deps argument to satisfy type checking.
+* 2026-01-09: `zsh -ic` commands can hang under Oh My Zsh; prefer non-interactive shells or set `DISABLE_AUTO_UPDATE=true` for scripted checks.
+* 2026-01-09: `make test` failed in `alex/evaluation/swe_bench` and `alex/internal/tools/builtin` with base URL mismatch and Seedream attachment expectations; review test fixtures or env defaults before rerunning.
+* 2026-01-09: `gopls` install failed because GUI tools could not find `go`; set PATH/GOROOT/GOPATH for launchd or editor tool envs.
 ## Error Experience Summary
 
 * Go linting can fail if `sum.golang.org` returns 502 or golangci-lint times out; use `GONOSUMDB=...` and increase `--timeout`.
 * Git operations can fail due to a stale `.git/index.lock`; remove after ensuring no git process is running.
+* Oh My Zsh interactive startup can hang scripted `zsh -ic` checks; disable auto-update or avoid interactive shells.
+* `make test` can fail on config-sensitive tests (OpenAI base URL expectations) and Seedream attachment fixtures.
+* GUI editors may fail to install `gopls` if `go` is not on their PATH; set launchd env vars or editor tool envs.
