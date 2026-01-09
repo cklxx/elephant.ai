@@ -97,7 +97,8 @@ if [ ! -f "./alex" ]; then
 fi
 
 # Configuration file path
-CONFIG_FILE="$HOME/.alex-config.json"
+CONFIG_FILE="$HOME/.alex/config.yaml"
+mkdir -p "$(dirname "$CONFIG_FILE")"
 
 # Backup existing configuration
 echo "📦 Backing up existing configuration..."
@@ -105,45 +106,70 @@ if [ -f "$CONFIG_FILE" ]; then
     cp "$CONFIG_FILE" "$CONFIG_FILE.backup-$(date +%Y%m%d-%H%M%S)"
 fi
 
-# Update configuration using jq (JSON processor)
+# Update configuration using yq (YAML processor)
 echo "🔧 Updating configuration file..."
-if command -v jq >/dev/null 2>&1; then
+if command -v yq >/dev/null 2>&1; then
+    export API_KEY BASE_URL MODEL
     if [ -f "$CONFIG_FILE" ]; then
-        jq --arg api_key "$API_KEY" \
-           --arg base_url "$BASE_URL" \
-           --arg model "$MODEL" \
-           '.api_key = $api_key |
-            .base_url = $base_url |
-            .llm_provider = "openai" |
-            .llm_model = $model' \
-            "$CONFIG_FILE" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+        yq -i \
+          '.runtime.api_key = strenv(API_KEY) |
+           .runtime.base_url = strenv(BASE_URL) |
+           .runtime.llm_provider = "openai" |
+           .runtime.llm_model = strenv(MODEL)' \
+          "$CONFIG_FILE"
     else
-        jq -n --arg api_key "$API_KEY" \
-           --arg base_url "$BASE_URL" \
-           --arg model "$MODEL" \
-           '{
-             api_key: $api_key,
-             base_url: $base_url,
-             llm_provider: "openai",
-             llm_model: $model,
-             max_tokens: 12000,
-             temperature: 0.7,
-             max_iterations: 25
-           }' > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+        cat > "$CONFIG_FILE" << EOF
+runtime:
+  llm_provider: "openai"
+  llm_model: "$MODEL"
+  api_key: "$API_KEY"
+  base_url: "$BASE_URL"
+  max_tokens: 12000
+  temperature: 0.7
+  max_iterations: 25
+EOF
     fi
+elif command -v python3 >/dev/null 2>&1 && python3 - << 'PY' >/dev/null 2>&1
+import yaml  # noqa: F401
+PY
+then
+    python3 - "$CONFIG_FILE" "$API_KEY" "$BASE_URL" "$MODEL" << 'PY'
+import os
+import sys
+import yaml
+
+path, api_key, base_url, model = sys.argv[1:5]
+data = {}
+if os.path.exists(path):
+    with open(path, "r", encoding="utf-8") as fh:
+        data = yaml.safe_load(fh) or {}
+runtime = data.get("runtime") or {}
+runtime["api_key"] = api_key
+runtime["base_url"] = base_url
+runtime["llm_provider"] = "openai"
+runtime["llm_model"] = model
+data["runtime"] = runtime
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, "w", encoding="utf-8") as fh:
+    yaml.safe_dump(data, fh, sort_keys=False)
+PY
 else
-    echo "⚠️  jq not found. Creating simple configuration..."
+    if [ -f "$CONFIG_FILE" ]; then
+        echo "⚠️  yq/python3+pyyaml not found; refusing to overwrite $CONFIG_FILE."
+        echo "Install yq or python3 with pyyaml and retry."
+        exit 1
+    fi
+    echo "⚠️  yq/python3+pyyaml not found. Creating simple configuration..."
     # Create a simple configuration file
     cat > "$CONFIG_FILE" << EOF
-{
-    "llm_provider": "openai",
-    "llm_model": "$MODEL",
-    "api_key": "$API_KEY",
-    "base_url": "$BASE_URL",
-    "max_tokens": 12000,
-    "temperature": 0.7,
-    "max_iterations": 25
-}
+runtime:
+  llm_provider: "openai"
+  llm_model: "$MODEL"
+  api_key: "$API_KEY"
+  base_url: "$BASE_URL"
+  max_tokens: 12000
+  temperature: 0.7
+  max_iterations: 25
 EOF
 fi
 
@@ -151,16 +177,16 @@ echo "✅ Configuration updated successfully!"
 echo ""
 echo "📋 Current configuration:"
 if [ -f "$CONFIG_FILE" ]; then
-    if command -v jq >/dev/null 2>&1; then
-        echo "  🔑 API Key: $(jq -r '.api_key | .[0:10] + "..."' "$CONFIG_FILE")"
-        echo "  🌐 Base URL: $(jq -r '.base_url' "$CONFIG_FILE")"
-        echo "  🤖 Provider: $(jq -r '.llm_provider' "$CONFIG_FILE")"
-        echo "  🤖 Model: $(jq -r '.llm_model' "$CONFIG_FILE")"
-        echo "  🎯 Max Tokens: $(jq -r '.max_tokens' "$CONFIG_FILE")"
-        echo "  🌡️  Temperature: $(jq -r '.temperature' "$CONFIG_FILE")"
+    if command -v yq >/dev/null 2>&1; then
+        echo "  🔑 API Key: $(yq -r '.runtime.api_key | .[0:10] + "..."' "$CONFIG_FILE")"
+        echo "  🌐 Base URL: $(yq -r '.runtime.base_url' "$CONFIG_FILE")"
+        echo "  🤖 Provider: $(yq -r '.runtime.llm_provider' "$CONFIG_FILE")"
+        echo "  🤖 Model: $(yq -r '.runtime.llm_model' "$CONFIG_FILE")"
+        echo "  🎯 Max Tokens: $(yq -r '.runtime.max_tokens' "$CONFIG_FILE")"
+        echo "  🌡️  Temperature: $(yq -r '.runtime.temperature' "$CONFIG_FILE")"
     else
         echo "  Configuration file: $CONFIG_FILE"
-        echo "  Install 'jq' to see detailed configuration display"
+        echo "  Install 'yq' to see detailed configuration display"
     fi
 else
     echo "  ❌ Configuration file not found"

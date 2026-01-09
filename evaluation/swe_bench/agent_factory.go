@@ -60,9 +60,9 @@ func (af *AlexAgentFactory) ValidateConfig(config *BatchConfig) error {
 	if err != nil {
 		return fmt.Errorf("load runtime configuration: %w", err)
 	}
-		if runtimeCfg.APIKey == "" {
-			log.Println("[AGENT-FACTORY] Warning: No API key configured; set OPENAI_API_KEY or add api_key to ~/.alex-config.json")
-		}
+	if runtimeCfg.APIKey == "" {
+		log.Println("[AGENT-FACTORY] Warning: No API key configured; set runtime.api_key in ~/.alex/config.yaml or reference ${OPENAI_API_KEY}")
+	}
 
 	// Validate model-specific settings for reasoning models
 	modelLower := strings.ToLower(config.Agent.Model.Name)

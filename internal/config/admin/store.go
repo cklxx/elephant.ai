@@ -3,7 +3,6 @@ package admin
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +10,7 @@ import (
 	"strings"
 
 	runtimeconfig "alex/internal/config"
+	"gopkg.in/yaml.v3"
 )
 
 // Store persists managed runtime configuration overrides.
@@ -44,11 +44,13 @@ func (s *FileStore) LoadOverrides(ctx context.Context) (runtimeconfig.Overrides,
 	if len(bytes.TrimSpace(data)) == 0 {
 		return runtimeconfig.Overrides{}, nil
 	}
-	var overrides runtimeconfig.Overrides
-	if err := json.Unmarshal(data, &overrides); err != nil {
+	var doc struct {
+		Overrides runtimeconfig.Overrides `yaml:"overrides"`
+	}
+	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return runtimeconfig.Overrides{}, fmt.Errorf("parse managed config: %w", err)
 	}
-	return overrides, nil
+	return doc.Overrides, nil
 }
 
 // SaveOverrides writes overrides to disk, creating parent directories as required.
@@ -56,14 +58,32 @@ func (s *FileStore) SaveOverrides(ctx context.Context, overrides runtimeconfig.O
 	if s == nil || strings.TrimSpace(s.path) == "" {
 		return fmt.Errorf("store path not configured")
 	}
-	encoded, err := json.MarshalIndent(overrides, "", "  ")
+	doc := map[string]any{}
+	if data, err := os.ReadFile(s.path); err == nil {
+		if len(bytes.TrimSpace(data)) > 0 {
+			if err := yaml.Unmarshal(data, &doc); err != nil {
+				return fmt.Errorf("parse managed config: %w", err)
+			}
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("read managed config: %w", err)
+	}
+
+	if overrides == (runtimeconfig.Overrides{}) {
+		delete(doc, "overrides")
+	} else {
+		doc["overrides"] = overrides
+	}
+
+	encoded, err := yaml.Marshal(doc)
 	if err != nil {
 		return fmt.Errorf("encode managed config: %w", err)
 	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil {
 		return fmt.Errorf("ensure managed config directory: %w", err)
 	}
-	if err := os.WriteFile(s.path, append(encoded, '\n'), 0o600); err != nil {
+	encoded = append(encoded, '\n')
+	if err := os.WriteFile(s.path, encoded, 0o600); err != nil {
 		return fmt.Errorf("write managed config: %w", err)
 	}
 	return nil

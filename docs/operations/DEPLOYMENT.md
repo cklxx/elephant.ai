@@ -30,6 +30,7 @@
 ```bash
 # 1. 启动后端服务
 export OPENAI_API_KEY="sk-..."
+cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 make server-run
 
 # 2. 启动前端 (新终端)
@@ -45,6 +46,7 @@ npm run dev
 ```bash
 # 启动所有服务
 export OPENAI_API_KEY="sk-..."
+cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 docker compose -f deploy/docker/docker-compose.dev.yml up
 
 # 访问: http://localhost:3000
@@ -55,22 +57,41 @@ docker compose -f deploy/docker/docker-compose.dev.yml up
 
 ## Docker Compose 生产部署
 
-### 1. 准备环境变量
+### 1. 准备配置
 
-创建 `.env` 文件：
+准备 `.env`（承载 secrets，用于 YAML 插值）：
 
 ```bash
 # .env
 OPENAI_API_KEY=sk-xxxxx
-LLM_PROVIDER=openai
-LLM_BASE_URL=https://api.openai.com/v1
-LLM_MODEL=gpt-4o-mini
-# Optional: enable vision routing when images are attached
-# LLM_VISION_MODEL=gpt-4o-mini
-ALEX_VERBOSE=false
 AUTH_JWT_SECRET=change-me-in-prod
 AUTH_DATABASE_URL=postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable
-AUTH_REDIRECT_BASE_URL=https://alex.yourdomain.com
+ALEX_SESSION_DATABASE_URL=postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable
+CLOUDFLARE_ACCOUNT_ID=xxx
+CLOUDFLARE_ACCESS_KEY_ID=xxx
+CLOUDFLARE_SECRET_ACCESS_KEY=xxx
+CLOUDFLARE_BUCKET=elephant
+CLOUDFLARE_PUBLIC_BASE_URL=https://obj.yourdomain.com
+```
+
+准备 `~/.alex/config.yaml`（主配置文件）：
+
+```yaml
+runtime:
+  llm_provider: "openai"
+  api_key: "${OPENAI_API_KEY}"
+auth:
+  jwt_secret: "${AUTH_JWT_SECRET}"
+  database_url: "${AUTH_DATABASE_URL}"
+session:
+  database_url: "${ALEX_SESSION_DATABASE_URL}"
+attachments:
+  provider: "cloudflare"
+  cloudflare_account_id: "${CLOUDFLARE_ACCOUNT_ID}"
+  cloudflare_access_key_id: "${CLOUDFLARE_ACCESS_KEY_ID}"
+  cloudflare_secret_access_key: "${CLOUDFLARE_SECRET_ACCESS_KEY}"
+  cloudflare_bucket: "${CLOUDFLARE_BUCKET}"
+  cloudflare_public_base_url: "${CLOUDFLARE_PUBLIC_BASE_URL}"
 ```
 
 > 登录服务在生产模式下默认开启。启动栈之前，请先通过 `psql "$AUTH_DATABASE_URL" -f migrations/auth/001_init.sql` 初始化认证表，并确保证书/Secret 能够持久化保存刷新令牌。
@@ -148,6 +169,8 @@ kubectl create secret generic alex-secrets \
   -n alex-system
 ```
 
+同时准备 `config.yaml`（`runtime.api_key` 可引用 `${OPENAI_API_KEY}`），通过 ConfigMap 挂载到容器内 `/root/.alex/config.yaml` 或设置 `ALEX_CONFIG_PATH` 指向挂载路径。
+
 ### 3. 部署到集群
 
 使用自行维护的 Kubernetes 清单应用 Deployment/Service/Ingress 等资源，并检查部署状态：
@@ -224,20 +247,31 @@ kubectl rollout undo deployment/alex-server -n alex-system
 
 #### ALEX Server (Go)
 
+主配置统一在 `~/.alex/config.yaml`（runtime/server/auth/session/analytics/attachments）。环境变量仅用于 **配置路径** 与 **YAML 插值**：
+
 | 变量 | 必需 | 默认值 | 说明 |
 |------|------|--------|------|
-| `OPENAI_API_KEY` | ✅ | - | OpenAI API Key |
-| `LLM_PROVIDER` | ❌ | `openai` | LLM provider |
-| `LLM_BASE_URL` | ❌ | `https://api.openai.com/v1` | API Base URL |
-| `LLM_MODEL` | ❌ | `deepseek/deepseek-chat` | LLM 模型 |
-| `LLM_VISION_MODEL` | ❌ | - | 图片附件存在时使用的 vision 模型 |
-| `ALEX_VERBOSE` | ❌ | `false` | 详细日志 |
-| `ALEX_SESSION_DATABASE_URL` | ✅ | - | Web 模式 Session 持久化 Postgres 连接串（可与 `AUTH_DATABASE_URL` 共用） |
-| `ALEX_WEB_SESSION_DIR` | ❌ | `~/.alex-web-sessions` | Web 模式会话侧文件产物（journals、migration marker）路径 |
-| `SESSION_STORE_PATH` | ❌ | `/data/sessions` | 兼容旧配置：同 `ALEX_WEB_SESSION_DIR` |
-| `ALEX_WEB_MAX_TASK_BODY_BYTES` | ❌ | `20971520` | `/api/tasks` POST 请求体上限（字节），需要更大附件时调高 |
+| `ALEX_CONFIG_PATH` | ❌ | `~/.alex/config.yaml` | 主配置文件路径 |
+| `OPENAI_API_KEY` | ❌ | - | `runtime.api_key` 插值 |
+| `TAVILY_API_KEY` | ❌ | - | `runtime.tavily_api_key` 插值 |
+| `ARK_API_KEY` | ❌ | - | `runtime.ark_api_key` 插值 |
+| `AUTH_JWT_SECRET` | ❌ | - | `auth.jwt_secret` 插值 |
+| `AUTH_DATABASE_URL` | ❌ | - | `auth.database_url` 插值 |
+| `ALEX_SESSION_DATABASE_URL` | ❌ | - | `session.database_url` 插值 |
+| `ALEX_WEB_SESSION_DIR` | ❌ | - | `session.dir` 插值 |
+| `ALEX_WEB_ATTACHMENT_DIR` | ❌ | - | `attachments.dir` 插值 |
+| `GOOGLE_CLIENT_SECRET` | ❌ | - | `auth.google_client_secret` 插值 |
+| `CLOUDFLARE_ACCOUNT_ID` | ❌ | - | `attachments.cloudflare_account_id` 插值 |
+| `CLOUDFLARE_ACCESS_KEY_ID` | ❌ | - | `attachments.cloudflare_access_key_id` 插值 |
+| `CLOUDFLARE_SECRET_ACCESS_KEY` | ❌ | - | `attachments.cloudflare_secret_access_key` 插值 |
+| `CLOUDFLARE_BUCKET` | ❌ | - | `attachments.cloudflare_bucket` 插值 |
+| `CLOUDFLARE_PUBLIC_BASE_URL` | ❌ | - | `attachments.cloudflare_public_base_url` 插值 |
+| `CLOUDFLARE_ATTACHMENT_KEY_PREFIX` | ❌ | - | `attachments.cloudflare_key_prefix` 插值 |
 | `REDIS_URL` | ❌ | - | Redis 连接地址（可选） |
-| `PORT` | ❌ | `8080` | HTTP 监听端口 |
+
+端口与请求体上限等 server 参数请写入 `config.yaml`：`server.port`、`server.max_task_body_bytes`。
+
+LLM provider/model/base_url 等运行时参数统一配置在 `~/.alex/config.yaml` 的 `runtime` 段。
 
 #### Web Frontend (Next.js)
 
@@ -338,7 +372,7 @@ curl -N -H "Accept: text/event-stream" \
 **症状**: 任务执行无响应
 
 **解决方案**:
-1. 检查 `OPENAI_API_KEY` 是否有效
+1. 检查 `config.yaml` 的 `runtime.api_key` 是否有效（或引用的 `OPENAI_API_KEY` 是否已注入）
 2. 验证网络连接到 OpenAI
 3. 检查速率限制
 

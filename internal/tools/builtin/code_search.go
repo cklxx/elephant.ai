@@ -92,7 +92,7 @@ func (t *codeSearch) getOrCreateRetriever(ctx context.Context, repoPath string) 
 	}
 	apiKey := cfg.APIKey
 	if apiKey == "" {
-		return nil, fmt.Errorf("no API key configured; set OPENAI_API_KEY or add api_key to ~/.alex-config.json")
+		return nil, fmt.Errorf("no API key configured; set runtime.api_key in ~/.alex/config.yaml or reference ${OPENAI_API_KEY}")
 	}
 
 	// Create embedder

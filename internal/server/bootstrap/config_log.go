@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,18 +17,18 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 
 	logger.Info("=== Server Configuration ===")
 
-	configPath, configPathSource := resolveRuntimeConfigPath(runtimeconfig.DefaultEnvLookup)
+	configPath, configPathSource := runtimeconfig.ResolveConfigPath(runtimeconfig.DefaultEnvLookup, nil)
 	if configPath != "" {
-		logger.Info("Runtime config file: %s (%s)", configPath, configPathSource)
+		logger.Info("Config file: %s (%s)", configPath, configPathSource)
 		if info, err := os.Stat(configPath); err == nil {
-			logger.Info("Runtime config mtime: %s", info.ModTime().UTC().Format(time.RFC3339))
+			logger.Info("Config mtime: %s", info.ModTime().UTC().Format(time.RFC3339))
 		} else if errors.Is(err, os.ErrNotExist) {
-			logger.Warn("Runtime config file missing: %s", configPath)
+			logger.Warn("Config file missing: %s", configPath)
 		} else {
-			logger.Warn("Runtime config file stat failed: %v", err)
+			logger.Warn("Config file stat failed: %v", err)
 		}
 	} else {
-		logger.Warn("Runtime config file path unavailable (source=%s)", configPathSource)
+		logger.Warn("Config file path unavailable (source=%s)", configPathSource)
 	}
 
 	logger.Info("LLM Provider: %s (source=%s)", runtimeCfg.LLMProvider, config.RuntimeMeta.Source("llm_provider"))
@@ -47,9 +46,9 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	authDBURL := strings.TrimSpace(config.Auth.DatabaseURL)
 	switch {
 	case sessionDBURL != "":
-		logger.Info("Session DB: (set; source=ALEX_SESSION_DATABASE_URL)")
+		logger.Info("Session DB: (set; source=session.database_url)")
 	case authDBURL != "":
-		logger.Info("Session DB: (fallback to AUTH_DATABASE_URL)")
+		logger.Info("Session DB: (fallback to auth.database_url)")
 	default:
 		logger.Info("Session DB: (not set)")
 	}
@@ -60,25 +59,4 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("Environment: %s (source=%s)", runtimeCfg.Environment, config.RuntimeMeta.Source("environment"))
 	logger.Info("Port: %s", config.Port)
 	logger.Info("===========================")
-}
-
-func resolveRuntimeConfigPath(lookup runtimeconfig.EnvLookup) (path string, source string) {
-	if lookup == nil {
-		lookup = runtimeconfig.DefaultEnvLookup
-	}
-	if value, ok := lookup("ALEX_CONFIG_PATH"); ok {
-		if trimmed := strings.TrimSpace(value); trimmed != "" {
-			return trimmed, "ALEX_CONFIG_PATH"
-		}
-	}
-
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", "unavailable"
-	}
-	home = strings.TrimSpace(home)
-	if home == "" {
-		return "", "unavailable"
-	}
-	return filepath.Join(home, ".alex-config.json"), "default"
 }

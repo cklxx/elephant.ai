@@ -104,14 +104,7 @@ Usage:
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
 
 Configuration:
-  Config file: ~/.alex-config.json (or $ALEX_CONFIG_PATH)
-  Environment variables:
-    OPENAI_API_KEY              API key for OpenAI/OpenRouter
-    LLM_PROVIDER                 LLM provider (openrouter, openai, deepseek, ollama, mock)
-    LLM_MODEL                    Model name
-    LLM_VISION_MODEL             Vision model name (used when images are attached)
-    LLM_BASE_URL                 OpenAI-compatible base URL
-    ALEX_VERBOSE                 Show full tool output (set to 1 or true)
+  Config file: ~/.alex/config.yaml (or $ALEX_CONFIG_PATH)
 
 Sessions cleanup options:
   --older-than 30d               Delete sessions not updated in the last 30 days
@@ -476,7 +469,7 @@ func executeConfigCommand(args []string, out io.Writer) error {
 		if err := mutateOverrides(envLookup, key, value, setOverrideField); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(out, "已更新 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath); err != nil {
+		if _, err := fmt.Fprintf(out, "已更新 %s (写入 %s#overrides)\n\n", normalizeOverrideKey(key), overridesPath); err != nil {
 			return fmt.Errorf("write update message: %w", err)
 		}
 		return printConfigSummary(out, overridesPath)
@@ -491,7 +484,7 @@ func executeConfigCommand(args []string, out io.Writer) error {
 		if err := mutateOverrides(envLookup, key, "", clearOverrideField); err != nil {
 			return err
 		}
-		if _, err := fmt.Fprintf(out, "已清除 %s (写入 %s)\n\n", normalizeOverrideKey(key), overridesPath); err != nil {
+		if _, err := fmt.Fprintf(out, "已清除 %s (写入 %s#overrides)\n\n", normalizeOverrideKey(key), overridesPath); err != nil {
 			return fmt.Errorf("write clear message: %w", err)
 		}
 		return printConfigSummary(out, overridesPath)
@@ -596,8 +589,8 @@ func printConfigSummary(out io.Writer, overridesPath string) error {
 	if _, err := fmt.Fprintf(out, "  Loaded At:      %s\n", meta.LoadedAt().Format(time.RFC3339)); err != nil {
 		return fmt.Errorf("write loaded at: %w", err)
 	}
-	if _, err := fmt.Fprintf(out, "\nManaged overrides file: %s\n", overridesPath); err != nil {
-		return fmt.Errorf("write overrides file path: %w", err)
+	if _, err := fmt.Fprintf(out, "\nConfig file: %s\n", overridesPath); err != nil {
+		return fmt.Errorf("write config file path: %w", err)
 	}
 	if _, err := fmt.Fprintln(out, "就绪检查:"); err != nil {
 		return fmt.Errorf("write readiness heading: %w", err)
@@ -615,7 +608,7 @@ func printConfigUsage(out io.Writer) {
 		"  alex config set <field> <value>   Persist a managed override (e.g. llm_model gpt-4o-mini)",
 		"  alex config set field=value       Alternate set syntax",
 		"  alex config clear <field>         Remove an override",
-		"  alex config path                  Print the overrides file location",
+		"  alex config path                  Print the runtime config file location",
 		"",
 		"Supported fields: llm_provider, llm_model, llm_small_provider, llm_small_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
 	}

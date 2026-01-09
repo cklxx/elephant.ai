@@ -1,12 +1,14 @@
 package config
 
 import (
-	"encoding/json"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 // SaveFollowPreferences persists the default follow behaviour to the runtime configuration file.
@@ -23,27 +25,17 @@ func SaveFollowPreferences(followTranscript, followStream bool, opts ...Option) 
 
 	configPath := strings.TrimSpace(options.configPath)
 	if configPath == "" {
-		lookup := options.envLookup
-		if lookup == nil {
-			lookup = DefaultEnvLookup
-		}
-		if value, ok := lookup("ALEX_CONFIG_PATH"); ok {
-			configPath = strings.TrimSpace(value)
-		}
+		configPath, _ = ResolveConfigPath(options.envLookup, options.homeDir)
 	}
 	if configPath == "" {
-		home, err := options.homeDir()
-		if err != nil {
-			return "", fmt.Errorf("resolve home directory: %w", err)
-		}
-		configPath = filepath.Join(home, ".alex-config.json")
+		return "", fmt.Errorf("resolve config path: %w", os.ErrNotExist)
 	}
 
 	var existing map[string]any
 	if options.readFile != nil {
 		if data, err := options.readFile(configPath); err == nil {
-			if len(data) > 0 {
-				if err := json.Unmarshal(data, &existing); err != nil {
+			if len(bytes.TrimSpace(data)) > 0 {
+				if err := yaml.Unmarshal(data, &existing); err != nil {
 					return "", fmt.Errorf("parse config file: %w", err)
 				}
 			}
@@ -55,10 +47,15 @@ func SaveFollowPreferences(followTranscript, followStream bool, opts ...Option) 
 		existing = map[string]any{}
 	}
 
-	existing["follow_transcript"] = followTranscript
-	existing["follow_stream"] = followStream
+	runtimeSection, ok := existing["runtime"].(map[string]any)
+	if !ok || runtimeSection == nil {
+		runtimeSection = map[string]any{}
+		existing["runtime"] = runtimeSection
+	}
+	runtimeSection["follow_transcript"] = followTranscript
+	runtimeSection["follow_stream"] = followStream
 
-	encoded, err := json.MarshalIndent(existing, "", "  ")
+	encoded, err := yaml.Marshal(existing)
 	if err != nil {
 		return "", fmt.Errorf("encode config: %w", err)
 	}
