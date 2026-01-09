@@ -5,7 +5,7 @@
 * You are assisting **cklxx**.
 * Assume cklxx is a seasoned backend/database engineer familiar with Rust, Go, Python, and their ecosystems.
 * cklxx values "Slow is Fast" and focuses on reasoning quality, abstraction/architecture, and long-term maintainability rather than short-term speed.
-* **Most important:** Automatically summarize error experience into AGENTS.md.
+* **Most important:** Keep error experience entries in `docs/error-experience/entries/` and the summary in `docs/error-experience/summary.md`; `docs/error-experience.md` is index-only.
 * Your core goals:
   * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
@@ -299,19 +299,8 @@ For each user request—especially non-trivial ones—try to include:
 
 ---
 
-## Error Experience Log
+## Error Experience Index
 
-Only record actionable, reusable errors (recurring, high-impact, or with clear remediation). Skip transient, low-signal, or user-specific failures. Keep this log trimmed over time by rolling older entries into the Summary below; when the log grows past 6 entries, summarize older items and delete them.
-
-* 2026-01-08: `make fmt` failed when sum.golang.org returned 502; rerun with `GONOSUMDB=...` and a larger golangci-lint timeout.
-* 2026-01-08: Git failed to create `.git/index.lock`; remove the stale lock after confirming no git process is running.
-* 2026-01-09: `zsh -ic` commands can hang under Oh My Zsh; prefer non-interactive shells or set `DISABLE_AUTO_UPDATE=true` for scripted checks.
-* 2026-01-09: `make test` failed in `alex/evaluation/swe_bench` and `alex/internal/tools/builtin` with base URL mismatch and Seedream attachment expectations; review test fixtures or env defaults before rerunning.
-* 2026-01-09: `gopls` install failed because GUI tools could not find `go`; set PATH/GOROOT/GOPATH for launchd or editor tool envs.
-## Error Experience Summary
-
-* Go linting can fail if `sum.golang.org` returns 502 or golangci-lint times out; use `GONOSUMDB=...` and increase `--timeout`.
-* Git operations can fail due to a stale `.git/index.lock`; remove after ensuring no git process is running.
-* Oh My Zsh interactive startup can hang scripted `zsh -ic` checks; disable auto-update or avoid interactive shells.
-* `make test` can fail on config-sensitive tests (OpenAI base URL expectations) and Seedream attachment fixtures.
-* GUI editors may fail to install `gopls` if `go` is not on their PATH; set launchd env vars or editor tool envs.
+- Index: `docs/error-experience.md`
+- Summary: `docs/error-experience/summary.md`
+- Entries: `docs/error-experience/entries/`
