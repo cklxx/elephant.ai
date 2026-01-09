@@ -4,10 +4,11 @@ import (
 	"strings"
 
 	"alex/internal/analytics"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 )
 
-func BuildAnalyticsClient(cfg AnalyticsConfig, logger logging.Logger) (analytics.Client, func()) {
+func BuildAnalyticsClient(cfg runtimeconfig.AnalyticsConfig, logger logging.Logger) (analytics.Client, func()) {
 	logger = logging.OrNop(logger)
 	client := analytics.NewNoopClient()
 
@@ -20,7 +21,7 @@ func BuildAnalyticsClient(cfg AnalyticsConfig, logger logging.Logger) (analytics
 			logger.Info("Analytics client initialized (PostHog)")
 		}
 	} else {
-		logger.Info("Analytics client disabled: POSTHOG_API_KEY not provided")
+		logger.Info("Analytics client disabled: analytics.posthog_api_key not configured")
 	}
 
 	cleanup := func() {

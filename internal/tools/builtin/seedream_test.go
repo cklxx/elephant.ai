@@ -34,13 +34,11 @@ func stubSeedreamNonce(t *testing.T, value string) {
 
 func disableSeedreamUploader(t *testing.T) {
 	t.Helper()
-	t.Setenv("ALEX_ATTACHMENT_PROVIDER", "")
-	t.Setenv("CLOUDFLARE_ACCOUNT_ID", "")
-	t.Setenv("CLOUDFLARE_ACCESS_KEY_ID", "")
-	t.Setenv("CLOUDFLARE_SECRET_ACCESS_KEY", "")
-	t.Setenv("CLOUDFLARE_BUCKET", "")
-	t.Setenv("CLOUDFLARE_PUBLIC_BASE_URL", "")
-	t.Setenv("CLOUDFLARE_ATTACHMENT_KEY_PREFIX", "")
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, nil, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
 
 	seedreamUploaderOnce = sync.Once{}
 	seedreamUploader = nil

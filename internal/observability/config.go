@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -130,20 +131,26 @@ func SaveConfig(config Config, configPath string) error {
 		configPath = filepath.Join(homeDir, ".alex", "config.yaml")
 	}
 
+	existing := map[string]any{}
+	if data, err := os.ReadFile(configPath); err == nil {
+		if len(bytes.TrimSpace(data)) > 0 {
+			if err := yaml.Unmarshal(data, &existing); err != nil {
+				return fmt.Errorf("failed to parse config file: %w", err)
+			}
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	existing["observability"] = config
+
 	// Create directory if needed
 	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	// Marshal to YAML
-	data := struct {
-		Observability Config `yaml:"observability"`
-	}{
-		Observability: config,
-	}
-
-	yamlData, err := yaml.Marshal(data)
+	yamlData, err := yaml.Marshal(existing)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}

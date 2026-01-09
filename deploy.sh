@@ -30,7 +30,7 @@ readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
 readonly BIN_DIR="${SCRIPT_DIR}/.bin"
 readonly DOCKER_COMPOSE_BIN="${BIN_DIR}/docker-compose"
-readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex-config.json}"
+readonly ALEX_CONFIG_PATH="${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}"
 SANDBOX_PORT="${SANDBOX_PORT:-${DEFAULT_SANDBOX_PORT}}"
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
 SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
@@ -339,14 +339,10 @@ append_env_var_if_missing() {
 }
 
 hydrate_env_from_config() {
-    deploy_config::resolve_var OPENAI_API_KEY '.api_key' >/dev/null || true
-    deploy_config::resolve_var LLM_PROVIDER '.llm_provider' >/dev/null || true
-    deploy_config::resolve_var LLM_MODEL '.llm_model' >/dev/null || true
-    deploy_config::resolve_var LLM_VISION_MODEL '.llm_vision_model' >/dev/null || true
-    deploy_config::resolve_var LLM_BASE_URL '.base_url' >/dev/null || true
-    deploy_config::resolve_var AUTH_JWT_SECRET '.auth.jwtSecret' >/dev/null || true
-    deploy_config::resolve_var AUTH_DATABASE_URL '.auth.databaseUrl' >/dev/null || true
-    deploy_config::resolve_var NEXT_PUBLIC_API_URL '.web.apiUrl' >/dev/null || true
+    deploy_config::resolve_var OPENAI_API_KEY '.runtime.api_key' >/dev/null || true
+    deploy_config::resolve_var AUTH_JWT_SECRET '.auth.jwt_secret' >/dev/null || true
+    deploy_config::resolve_var AUTH_DATABASE_URL '.auth.database_url' >/dev/null || true
+    deploy_config::resolve_var NEXT_PUBLIC_API_URL '.web.api_url' >/dev/null || true
 }
 
 ensure_api_url_default() {
@@ -355,7 +351,7 @@ ensure_api_url_default() {
 
     local source="default"
     local resolved_source
-    if resolved_source=$(deploy_config::resolve_var NEXT_PUBLIC_API_URL '.web.apiUrl' "$default_value" 2>/dev/null); then
+    if resolved_source=$(deploy_config::resolve_var NEXT_PUBLIC_API_URL '.web.api_url' "$default_value" 2>/dev/null); then
         source="$resolved_source"
     else
         export NEXT_PUBLIC_API_URL="$default_value"
@@ -377,17 +373,11 @@ ensure_api_url_default() {
 }
 
 ensure_auth_env_defaults() {
-    local default_redirect="http://localhost:${SERVER_PORT}"
-
     if ! grep -q '^AUTH_JWT_SECRET=' .env 2>/dev/null; then
         local secret
         secret=$(generate_auth_secret)
         append_env_var_if_missing "AUTH_JWT_SECRET" "$secret"
     fi
-
-    append_env_var_if_missing "AUTH_ACCESS_TOKEN_TTL_MINUTES" "15"
-    append_env_var_if_missing "AUTH_REFRESH_TOKEN_TTL_DAYS" "30"
-    append_env_var_if_missing "AUTH_REDIRECT_BASE_URL" "$default_redirect"
 }
 
 ensure_web_env_file() {
@@ -467,15 +457,13 @@ compose_validate_core_vars() {
 
     log_error "Missing required variables: ${COMPOSE_MISSING_VARS[*]}"
     cat <<'EOF'
-Core secrets must be provided either via environment variables or ~/.alex-config.json
+Core secrets must be provided either via environment variables or ~/.alex/config.yaml
 with structure similar to:
-{
-  "api_key": "sk-...",
-  "auth": {
-    "jwtSecret": "super-secret",
-    "databaseUrl": "postgres://user:pass@host:5432/alex?sslmode=disable"
-  }
-}
+runtime:
+  api_key: "sk-..."
+auth:
+  jwt_secret: "super-secret"
+  database_url: "postgres://user:pass@host:5432/alex?sslmode=disable"
 EOF
     exit 1
 }
@@ -490,25 +478,16 @@ compose_show_summary() {
         IFS='=' read -r name source <<<"$entry"
         printf "  - %s (%s)\n" "$name" "$source"
     done
-    [[ -n "${LLM_PROVIDER:-}" ]] && printf "  - LLM_PROVIDER\n"
-    [[ -n "${LLM_BASE_URL:-}" ]] && printf "  - LLM_BASE_URL\n"
-    [[ -n "${LLM_MODEL:-}" ]] && printf "  - LLM_MODEL\n"
-    [[ -n "${LLM_VISION_MODEL:-}" ]] && printf "  - LLM_VISION_MODEL\n"
 }
 
 prepare_compose_environment() {
     compose_reset_var_tracking
     source_root_env_if_present
 
-    compose_resolve_required_var OPENAI_API_KEY '.api_key' || true
-    compose_resolve_optional_var AUTH_JWT_SECRET '.auth.jwtSecret'
-    compose_resolve_optional_var AUTH_DATABASE_URL '.auth.databaseUrl'
-    compose_resolve_optional_var NEXT_PUBLIC_API_URL '.web.apiUrl' auto
-
-    compose_resolve_optional_var LLM_PROVIDER '.llm_provider'
-    compose_resolve_optional_var LLM_BASE_URL '.base_url'
-    compose_resolve_optional_var LLM_MODEL '.llm_model'
-    compose_resolve_optional_var LLM_VISION_MODEL '.llm_vision_model'
+    compose_resolve_required_var OPENAI_API_KEY '.runtime.api_key' || true
+    compose_resolve_optional_var AUTH_JWT_SECRET '.auth.jwt_secret'
+    compose_resolve_optional_var AUTH_DATABASE_URL '.auth.database_url'
+    compose_resolve_optional_var NEXT_PUBLIC_API_URL '.web.api_url' auto
 
     if [[ -z "${NEXT_PUBLIC_API_URL:-}" ]]; then
         export NEXT_PUBLIC_API_URL=auto
@@ -574,18 +553,12 @@ setup_environment() {
         default_auth_secret=$(generate_auth_secret)
         cat > .env << EOF
 OPENAI_API_KEY=
-LLM_PROVIDER=openrouter
-LLM_BASE_URL=https://openrouter.ai/api/v1
-LLM_MODEL=anthropic/claude-3.5-sonnet
-# LLM_VISION_MODEL=openai/gpt-4o-mini
-ALEX_VERBOSE=false
 NEXT_PUBLIC_API_URL=http://localhost:${SERVER_PORT}
 
 # Authentication defaults for local development
 AUTH_JWT_SECRET=${default_auth_secret}
-AUTH_ACCESS_TOKEN_TTL_MINUTES=15
-AUTH_REFRESH_TOKEN_TTL_DAYS=30
-AUTH_REDIRECT_BASE_URL=http://localhost:${SERVER_PORT}
+AUTH_DATABASE_URL=postgres://alex:alex@localhost:5432/alex_auth?sslmode=disable
+ALEX_SESSION_DATABASE_URL=postgres://alex:alex@localhost:5432/alex_auth?sslmode=disable
 
 # China Mirror Configuration (uncomment to enable)
 # NPM_REGISTRY=https://registry.npmmirror.com/

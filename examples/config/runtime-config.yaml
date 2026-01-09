@@ -1,0 +1,36 @@
+# Unified configuration for Alex.
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o-mini"
+  llm_vision_model: "gpt-4o-mini"
+  api_key: "${OPENAI_API_KEY}"
+  base_url: "https://api.openai.com/v1"
+  sandbox_base_url: "http://localhost:18086"
+  tool_preset: "safe"
+
+# Optional: server + auth + attachments sections (uncomment to use).
+# server:
+#   port: "8080"
+#   enable_mcp: true
+#   max_task_body_bytes: 20971520
+#   allowed_origins:
+#     - "http://localhost:3000"
+# auth:
+#   jwt_secret: "${AUTH_JWT_SECRET}"
+#   access_token_ttl_minutes: "15"
+#   refresh_token_ttl_days: "30"
+#   redirect_base_url: "http://localhost:8080"
+#   database_url: "${AUTH_DATABASE_URL}"
+# session:
+#   database_url: "${ALEX_SESSION_DATABASE_URL}"
+# attachments:
+#   provider: "cloudflare"
+#   cloudflare_account_id: "${CLOUDFLARE_ACCOUNT_ID}"
+#   cloudflare_access_key_id: "${CLOUDFLARE_ACCESS_KEY_ID}"
+#   cloudflare_secret_access_key: "${CLOUDFLARE_SECRET_ACCESS_KEY}"
+#   cloudflare_bucket: "${CLOUDFLARE_BUCKET}"
+#   cloudflare_public_base_url: "${CLOUDFLARE_PUBLIC_BASE_URL}"
+
+# Optional: managed overrides (written by `alex config set/clear`).
+# overrides:
+#   llm_model: "deepseek/deepseek-chat"

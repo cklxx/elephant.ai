@@ -12,22 +12,24 @@ services:
       - "8080:8080"
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - LLM_PROVIDER=${LLM_PROVIDER:-}
-      - LLM_MODEL=${LLM_MODEL:-}
-      - LLM_VISION_MODEL=${LLM_VISION_MODEL:-}
-      - LLM_BASE_URL=${LLM_BASE_URL:-}
-      - ALEX_VERBOSE=true
-      - SESSION_STORE_PATH=/data/sessions
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - ARK_API_KEY=${ARK_API_KEY:-}
       - ALEX_SESSION_DATABASE_URL=${ALEX_SESSION_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
+      - ALEX_WEB_SESSION_DIR=/data/sessions
       - AUTH_JWT_SECRET=${AUTH_JWT_SECRET:-dev-secret-change-me}
-      - AUTH_ACCESS_TOKEN_TTL_MINUTES=${AUTH_ACCESS_TOKEN_TTL_MINUTES:-15}
-      - AUTH_REFRESH_TOKEN_TTL_DAYS=${AUTH_REFRESH_TOKEN_TTL_DAYS:-30}
-      - AUTH_REDIRECT_BASE_URL=${AUTH_REDIRECT_BASE_URL:-http://localhost:8080}
       - AUTH_DATABASE_URL=${AUTH_DATABASE_URL:-postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable}
+      - AUTH_BOOTSTRAP_PASSWORD=${AUTH_BOOTSTRAP_PASSWORD:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - CLOUDFLARE_ACCOUNT_ID=${CLOUDFLARE_ACCOUNT_ID:-}
+      - CLOUDFLARE_ACCESS_KEY_ID=${CLOUDFLARE_ACCESS_KEY_ID:-}
+      - CLOUDFLARE_SECRET_ACCESS_KEY=${CLOUDFLARE_SECRET_ACCESS_KEY:-}
+      - CLOUDFLARE_BUCKET=${CLOUDFLARE_BUCKET:-}
+      - CLOUDFLARE_PUBLIC_BASE_URL=${CLOUDFLARE_PUBLIC_BASE_URL:-}
+      - CLOUDFLARE_ATTACHMENT_KEY_PREFIX=${CLOUDFLARE_ATTACHMENT_KEY_PREFIX:-}
     volumes:
       - ../../:/app:cached
       - alex-sessions-dev:/data/sessions
-      - ~/.alex-config.json:/root/.alex-config.json:ro
+      - ~/.alex/config.yaml:/root/.alex/config.yaml:ro
     working_dir: /app
     command: go run ./cmd/alex-server
     restart: unless-stopped

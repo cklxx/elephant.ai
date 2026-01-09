@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,8 +14,6 @@ import (
 
 func TestLoadConfigDefaultTemperatureUsesPresetButNotMarkedSet(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("LLM_TEMPERATURE", "")
-	t.Setenv("OPENAI_API_KEY", "")
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -29,10 +28,18 @@ func TestLoadConfigDefaultTemperatureUsesPresetButNotMarkedSet(t *testing.T) {
 	}
 }
 
-func TestLoadConfigHonorsZeroTemperatureFromEnv(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("LLM_TEMPERATURE", "0")
-	t.Setenv("OPENAI_API_KEY", "")
+func TestLoadConfigHonorsZeroTemperatureFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	t.Setenv("ALEX_CONFIG_PATH", path)
+	t.Setenv("HOME", dir)
+	content := `
+runtime:
+  temperature: 0
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -43,15 +50,23 @@ func TestLoadConfigHonorsZeroTemperatureFromEnv(t *testing.T) {
 		t.Fatalf("expected temperature to be 0, got %.2f", cfg.Temperature)
 	}
 	if !cfg.TemperatureProvided {
-		t.Fatalf("expected temperature to be marked as explicitly set when provided via env")
+		t.Fatalf("expected temperature to be marked as explicitly set when provided via file")
 	}
 }
 
-func TestLoadConfigVerboseAndEnvironmentFromEnv(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("ALEX_VERBOSE", "yes")
-	t.Setenv("ALEX_ENV", "staging")
-	t.Setenv("OPENAI_API_KEY", "")
+func TestLoadConfigVerboseAndEnvironmentFromFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	t.Setenv("ALEX_CONFIG_PATH", path)
+	t.Setenv("HOME", dir)
+	content := `
+runtime:
+  verbose: true
+  environment: "staging"
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -68,7 +83,7 @@ func TestLoadConfigVerboseAndEnvironmentFromEnv(t *testing.T) {
 
 func TestLoadConfigAppliesManagedOverrides(t *testing.T) {
 	root := t.TempDir()
-	overridesPath := filepath.Join(root, "overrides.json")
+	overridesPath := filepath.Join(root, "config.yaml")
 	store := configadmin.NewFileStore(overridesPath)
 	model := "cli-managed"
 	maxTokens := 321
@@ -81,8 +96,7 @@ func TestLoadConfigAppliesManagedOverrides(t *testing.T) {
 	}
 
 	t.Setenv("HOME", root)
-	t.Setenv("CONFIG_ADMIN_STORE_PATH", overridesPath)
-	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("ALEX_CONFIG_PATH", overridesPath)
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -130,7 +144,6 @@ func assertExecuteConfigCommandSetAndClearStringField(
 	t.Helper()
 
 	t.Setenv("HOME", t.TempDir())
-	t.Setenv("OPENAI_API_KEY", "")
 
 	overridesPath := managedOverridesPath(runtimeEnvLookup())
 	if err := executeConfigCommand([]string{"set", field, value}, io.Discard); err != nil {

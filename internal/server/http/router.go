@@ -2,42 +2,21 @@ package http
 
 import (
 	"net/http"
-	"strconv"
 	"strings"
 
 	"alex/internal/attachments"
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
-	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/sandbox"
 	"alex/internal/server/app"
 )
 
-func createTaskBodyLimit(env runtimeconfig.EnvLookup) int64 {
-	if env == nil {
-		return defaultMaxCreateTaskBodySize
-	}
-
-	raw, ok := env("ALEX_WEB_MAX_TASK_BODY_BYTES")
-	if !ok {
-		return defaultMaxCreateTaskBodySize
-	}
-
-	value, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
-	if err != nil || value <= 0 {
-		return defaultMaxCreateTaskBodySize
-	}
-
-	return value
-}
-
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, attachmentCfg attachments.StoreConfig) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, attachmentCfg attachments.StoreConfig) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
-	envLookup := runtimeconfig.DefaultEnvLookup
 	attachmentStore := (*AttachmentStore)(nil)
 	attachmentCfg = attachments.NormalizeConfig(attachmentCfg)
 	if store, err := NewAttachmentStore(attachmentCfg); err != nil {
@@ -45,7 +24,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	} else {
 		attachmentStore = store
 	}
-	taskBodyLimit := createTaskBodyLimit(envLookup)
+	taskBodyLimit := maxTaskBodyBytes
+	if taskBodyLimit <= 0 {
+		taskBodyLimit = defaultMaxCreateTaskBodySize
+	}
 	normalizedEnv := strings.TrimSpace(environment)
 
 	// Create handlers

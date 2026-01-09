@@ -13,7 +13,7 @@ func TestFileStoreLoadMissingFileReturnsEmpty(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	store := NewFileStore(filepath.Join(dir, "missing.json"))
+	store := NewFileStore(filepath.Join(dir, "missing.yaml"))
 
 	overrides, err := store.LoadOverrides(context.Background())
 	if err != nil {
@@ -24,12 +24,12 @@ func TestFileStoreLoadMissingFileReturnsEmpty(t *testing.T) {
 	}
 }
 
-func TestFileStoreLoadInvalidJSONReturnsError(t *testing.T) {
+func TestFileStoreLoadInvalidYAMLReturnsError(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "overrides.json")
-	if err := os.WriteFile(path, []byte("not-json"), 0o600); err != nil {
+	path := filepath.Join(dir, "overrides.yaml")
+	if err := os.WriteFile(path, []byte("invalid: ["), 0o600); err != nil {
 		t.Fatalf("failed to seed file: %v", err)
 	}
 
@@ -43,7 +43,7 @@ func TestFileStoreSaveAndLoadRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, "runtime.json")
+	path := filepath.Join(dir, "runtime.yaml")
 	store := NewFileStore(path)
 
 	provider := "anthropic"
