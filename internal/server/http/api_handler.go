@@ -592,6 +592,15 @@ type CreateSessionResponse struct {
 	SessionID string `json:"session_id"`
 }
 
+type ShareSessionResponse struct {
+	SessionID  string                   `json:"session_id"`
+	ShareToken string                   `json:"share_token"`
+	Events     []map[string]interface{} `json:"events,omitempty"`
+	Title      string                   `json:"title,omitempty"`
+	CreatedAt  string                   `json:"created_at,omitempty"`
+	UpdatedAt  string                   `json:"updated_at,omitempty"`
+}
+
 // HandleCreateSession handles POST /api/sessions
 func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -608,6 +617,40 @@ func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(CreateSessionResponse{SessionID: session.ID}); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
+// HandleCreateSessionShare handles POST /api/sessions/:id/share
+func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+		return
+	}
+
+	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/share")
+	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
+		return
+	}
+
+	shareToken, err := h.coordinator.EnsureSessionShareToken(r.Context(), sessionID, false)
+	if err != nil {
+		if strings.Contains(err.Error(), "session not found") {
+			h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
+			return
+		}
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create share token", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(ShareSessionResponse{
+		SessionID:  sessionID,
+		ShareToken: shareToken,
+	}); err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }

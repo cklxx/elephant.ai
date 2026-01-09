@@ -214,49 +214,8 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
 	}
 
-	contextSnapshotEventType := (&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType()
-	shouldStream := func(event ports.AgentEvent) bool {
-		if event == nil {
-			return false
-		}
-		base := app.BaseAgentEvent(event)
-		if base == nil {
-			return false
-		}
-
-		// Context snapshots are stored for debugging and analytics but contain
-		// sensitive/internal details that don't need to be pushed to clients in
-		// real time.
-		if base.EventType() == contextSnapshotEventType {
-			return false
-		}
-
-		// Only stream events that are meaningful to the frontend experience.
-		if !sseAllowlist[base.EventType()] {
-			return false
-		}
-
-		// Only stream workflow envelopes and explicit user task submissions.
-		switch base.(type) {
-		case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent:
-			if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
-				if blockedNodeIDs[env.NodeID] {
-					return false
-				}
-				for _, prefix := range blockedNodePrefixes {
-					if strings.HasPrefix(env.NodeID, prefix) {
-						return false
-					}
-				}
-			}
-			return true
-		default:
-			return false
-		}
-	}
-
 	sendEvent := func(event ports.AgentEvent) bool {
-		if !shouldStream(event) {
+		if !h.shouldStreamEvent(event) {
 			return true
 		}
 
@@ -367,7 +326,7 @@ drainComplete:
 
 // serializeEvent converts domain event to JSON
 func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[string]string, finalAnswerCache map[string]string) (string, error) {
-	data, err := h.buildEventData(event, sentAttachments, finalAnswerCache)
+	data, err := h.buildEventData(event, sentAttachments, finalAnswerCache, true)
 	if err != nil {
 		return "", err
 	}
@@ -383,7 +342,7 @@ func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[
 // buildEventData is the single source of truth for the SSE event envelope the
 // backend emits. It assumes all events have already been translated into
 // workflow.* envelopes.
-func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[string]string, finalAnswerCache map[string]string) (map[string]interface{}, error) {
+func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[string]string, finalAnswerCache map[string]string, streamDeltas bool) (map[string]interface{}, error) {
 	data := map[string]interface{}{
 		"event_type":     event.EventType(),
 		"timestamp":      event.Timestamp().Format(time.RFC3339Nano),
@@ -396,7 +355,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 	// Subtask envelopes are flattened into the base envelope while retaining
 	// metadata.
 	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
-		base, err := h.buildEventData(subtaskEvent.OriginalEvent, sentAttachments, finalAnswerCache)
+		base, err := h.buildEventData(subtaskEvent.OriginalEvent, sentAttachments, finalAnswerCache, streamDeltas)
 		if err != nil {
 			return nil, err
 		}
@@ -470,7 +429,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 	}
 
 	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache, h.attachmentStore)
-	if envelope.Event == "workflow.result.final" {
+	if streamDeltas && envelope.Event == "workflow.result.final" {
 		if val, ok := payload["final_answer"].(string); ok {
 			key := envelope.GetTaskID()
 			delta := val
@@ -493,6 +452,47 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 	}
 
 	return data, nil
+}
+
+func (h *SSEHandler) shouldStreamEvent(event ports.AgentEvent) bool {
+	if event == nil {
+		return false
+	}
+	base := app.BaseAgentEvent(event)
+	if base == nil {
+		return false
+	}
+
+	// Context snapshots are stored for debugging and analytics but contain
+	// sensitive/internal details that don't need to be pushed to clients in
+	// real time.
+	contextSnapshotEventType := (&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType()
+	if base.EventType() == contextSnapshotEventType {
+		return false
+	}
+
+	// Only stream events that are meaningful to the frontend experience.
+	if !sseAllowlist[base.EventType()] {
+		return false
+	}
+
+	// Only stream workflow envelopes and explicit user task submissions.
+	switch base.(type) {
+	case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent:
+		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+			if blockedNodeIDs[env.NodeID] {
+				return false
+			}
+			for _, prefix := range blockedNodePrefixes {
+				if strings.HasPrefix(env.NodeID, prefix) {
+					return false
+				}
+			}
+		}
+		return true
+	default:
+		return false
+	}
 }
 
 func sanitizeWorkflowNode(node workflow.NodeSnapshot) map[string]interface{} {

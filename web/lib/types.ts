@@ -147,6 +147,19 @@ export interface SessionDetailsResponse {
   tasks: SessionTaskSummary[];
 }
 
+export interface ShareTokenResponse {
+  session_id: string;
+  share_token: string;
+}
+
+export interface SharedSessionResponse {
+  session_id: string;
+  title?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  events: AnyAgentEvent[];
+}
+
 // Evaluation API types
 export interface StartEvaluationRequest {
   dataset_path?: string;

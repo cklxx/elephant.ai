@@ -8,10 +8,12 @@ import {
   Film,
   FileText,
   Image,
+  Copy,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Share2,
 } from "lucide-react";
 import { useTaskExecution, useCancelTask } from "@/hooks/useTaskExecution";
 import { useAgentEventStream } from "@/hooks/useAgentEventStream";
@@ -44,6 +46,7 @@ import { captureEvent } from "@/lib/analytics/posthog";
 import { AnalyticsEvent } from "@/lib/analytics/events";
 import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
   AttachmentPanel,
@@ -78,6 +81,9 @@ export function ConversationPageContent() {
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [shareInProgress, setShareInProgress] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -573,6 +579,50 @@ export function ConversationPageContent() {
     }
   };
 
+  const handleShareRequest = async () => {
+    if (!resolvedSessionId || shareInProgress) return;
+    setShareInProgress(true);
+    try {
+      const { share_token } = await apiClient.createSessionShare(
+        resolvedSessionId,
+      );
+      const url = new URL("/share", window.location.origin);
+      url.searchParams.set("session_id", resolvedSessionId);
+      url.searchParams.set("token", share_token);
+      setShareLink(url.toString());
+      setShareDialogOpen(true);
+    } catch (err) {
+      const parsed = parseError(err, t("common.error.unknown"));
+      toast.error(
+        t("share.toast.createError.title"),
+        t("share.toast.createError.description", {
+          message: formatParsedError(parsed),
+        }),
+      );
+    } finally {
+      setShareInProgress(false);
+    }
+  };
+
+  const handleCopyShareLink = async () => {
+    if (!shareLink) return;
+    try {
+      await navigator.clipboard.writeText(shareLink);
+      toast.success(
+        t("share.toast.copied.title"),
+        t("share.toast.copied.description"),
+      );
+    } catch (err) {
+      const parsed = parseError(err, t("common.error.unknown"));
+      toast.error(
+        t("share.toast.copyError.title"),
+        t("share.toast.copyError.description", {
+          message: formatParsedError(parsed),
+        }),
+      );
+    }
+  };
+
   const creationPending = useMockStream ? false : isCreatePending;
   const isTaskRunning = Boolean(activeTaskId);
   const stopPending = cancelRequested || isCancelPending;
@@ -706,8 +756,69 @@ export function ConversationPageContent() {
     </Button>
   );
 
+  const shareButton = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      onClick={handleShareRequest}
+      disabled={!resolvedSessionId || shareInProgress}
+      className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
+      aria-label={t("header.actions.share")}
+    >
+      {shareInProgress ? (
+        <Loader2 className="h-4 w-4 animate-spin" />
+      ) : (
+        <Share2 className="h-4 w-4" />
+      )}
+    </Button>
+  );
+
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
+      {shareDialogOpen ? (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setShareDialogOpen(false);
+            }
+          }}
+        >
+          <DialogContent className="max-w-md rounded-3xl">
+            <DialogHeader className="space-y-2">
+              <DialogTitle className="text-lg font-semibold">
+                {t("share.dialog.title")}
+              </DialogTitle>
+              <DialogDescription className="text-sm text-muted-foreground">
+                {t("share.dialog.description")}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Input readOnly value={shareLink ?? ""} />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleCopyShareLink}
+                disabled={!shareLink}
+                className="w-full"
+              >
+                <Copy className="h-4 w-4" />
+                {t("share.dialog.copy")}
+              </Button>
+            </div>
+            <DialogFooter className="sm:justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShareDialogOpen(false)}
+              >
+                {t("share.dialog.close")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      ) : null}
       <Dialog
         open={Boolean(deleteTargetId)}
         onOpenChange={(open) => {
@@ -792,7 +903,12 @@ export function ConversationPageContent() {
               </span>
             </Button>
           }
-          actionsSlot={<div className="flex items-center gap-2">{rightPanelToggle}</div>}
+          actionsSlot={
+            <div className="flex items-center gap-2">
+              {shareButton}
+              {rightPanelToggle}
+            </div>
+          }
         />
 
         <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
