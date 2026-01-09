@@ -8,3 +8,4 @@
 * GUI editors may fail to install `gopls` if `go` is not on their PATH; set launchd env vars or editor tool envs.
 * Auth module can be disabled when `AUTH_DATABASE_URL` points to localhost without a running Postgres; start `auth-db` via Docker or clear auth DB envs for in-memory auth.
 * Local auth DB setup can skip migrations if `psql` is missing; use Docker exec inside `alex-auth-db` or install `psql`.
+* Auth DB migrations can fail when running `psql` inside Docker with a host file path; pipe the SQL via stdin or copy it into the container.

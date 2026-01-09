@@ -174,7 +174,7 @@ run_migrations() {
     fi
 
     log_info "Running auth DB migrations"
-    run_psql -f "$MIGRATION_FILE" >/dev/null
+    run_psql < "$MIGRATION_FILE" >/dev/null
     log_success "Schema initialized"
 }
 
