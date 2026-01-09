@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -34,6 +35,10 @@ const (
 	DefaultLLMModel    = "gpt-4o-mini"
 	DefaultLLMBaseURL  = "https://api.openai.com/v1"
 	DefaultMaxTokens   = 8192
+	DefaultMobileModel = "autoglm-phone-9b"
+	DefaultMobileURL   = "http://localhost:8000/v1"
+	DefaultMobileKey   = "EMPTY"
+	DefaultMobileSteps = 100
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -43,6 +48,13 @@ type RuntimeConfig struct {
 	LLMSmallProvider        string   `json:"llm_small_provider" yaml:"llm_small_provider"`
 	LLMSmallModel           string   `json:"llm_small_model" yaml:"llm_small_model"`
 	LLMVisionModel          string   `json:"llm_vision_model" yaml:"llm_vision_model"`
+	MobileLLMProvider       string   `json:"mobile_llm_provider" yaml:"mobile_llm_provider"`
+	MobileLLMModel          string   `json:"mobile_llm_model" yaml:"mobile_llm_model"`
+	MobileLLMAPIKey         string   `json:"mobile_llm_api_key" yaml:"mobile_llm_api_key"`
+	MobileLLMBaseURL        string   `json:"mobile_llm_base_url" yaml:"mobile_llm_base_url"`
+	MobileADBAddress        string   `json:"mobile_adb_address" yaml:"mobile_adb_address"`
+	MobileADBSerial         string   `json:"mobile_adb_serial" yaml:"mobile_adb_serial"`
+	MobileMaxSteps          int      `json:"mobile_max_steps" yaml:"mobile_max_steps"`
 	APIKey                  string   `json:"api_key" yaml:"api_key"`
 	ArkAPIKey               string   `json:"ark_api_key" yaml:"ark_api_key"`
 	BaseURL                 string   `json:"base_url" yaml:"base_url"`
@@ -114,6 +126,13 @@ type Overrides struct {
 	LLMSmallProvider        *string   `json:"llm_small_provider,omitempty" yaml:"llm_small_provider,omitempty"`
 	LLMSmallModel           *string   `json:"llm_small_model,omitempty" yaml:"llm_small_model,omitempty"`
 	LLMVisionModel          *string   `json:"llm_vision_model,omitempty" yaml:"llm_vision_model,omitempty"`
+	MobileLLMProvider       *string   `json:"mobile_llm_provider,omitempty" yaml:"mobile_llm_provider,omitempty"`
+	MobileLLMModel          *string   `json:"mobile_llm_model,omitempty" yaml:"mobile_llm_model,omitempty"`
+	MobileLLMAPIKey         *string   `json:"mobile_llm_api_key,omitempty" yaml:"mobile_llm_api_key,omitempty"`
+	MobileLLMBaseURL        *string   `json:"mobile_llm_base_url,omitempty" yaml:"mobile_llm_base_url,omitempty"`
+	MobileADBAddress        *string   `json:"mobile_adb_address,omitempty" yaml:"mobile_adb_address,omitempty"`
+	MobileADBSerial         *string   `json:"mobile_adb_serial,omitempty" yaml:"mobile_adb_serial,omitempty"`
+	MobileMaxSteps          *int      `json:"mobile_max_steps,omitempty" yaml:"mobile_max_steps,omitempty"`
 	APIKey                  *string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
 	ArkAPIKey               *string   `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
 	BaseURL                 *string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
@@ -197,7 +216,7 @@ func DefaultEnvLookup(key string) (string, bool) {
 	return os.LookupEnv(key)
 }
 
-// Load constructs the runtime configuration by merging defaults, file, and overrides.
+// Load constructs the runtime configuration by merging defaults, file, env, and overrides.
 func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	options := loadOptions{
 		envLookup: DefaultEnvLookup,
@@ -216,6 +235,11 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMSmallProvider:    DefaultLLMProvider,
 		LLMSmallModel:       DefaultLLMModel,
 		BaseURL:             DefaultLLMBaseURL,
+		MobileLLMProvider:   DefaultLLMProvider,
+		MobileLLMModel:      DefaultMobileModel,
+		MobileLLMAPIKey:     DefaultMobileKey,
+		MobileLLMBaseURL:    DefaultMobileURL,
+		MobileMaxSteps:      DefaultMobileSteps,
 		SandboxBaseURL:      "http://localhost:18086",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
@@ -244,6 +268,11 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		return RuntimeConfig{}, Metadata{}, err
 	}
 
+	// Apply environment overrides next.
+	if err := applyEnv(&cfg, &meta, options); err != nil {
+		return RuntimeConfig{}, Metadata{}, err
+	}
+
 	// Apply caller overrides last.
 	applyOverrides(&cfg, &meta, options.overrides)
 
@@ -262,6 +291,19 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		setSource("llm_provider", SourceDefault)
 	}
 
+	if cfg.MobileLLMProvider == "" {
+		cfg.MobileLLMProvider = cfg.LLMProvider
+	}
+	if cfg.MobileLLMModel == "" {
+		cfg.MobileLLMModel = cfg.LLMModel
+	}
+	if cfg.MobileLLMAPIKey == "" {
+		cfg.MobileLLMAPIKey = cfg.APIKey
+	}
+	if cfg.MobileLLMBaseURL == "" {
+		cfg.MobileLLMBaseURL = cfg.BaseURL
+	}
+
 	return cfg, meta, nil
 }
 
@@ -271,6 +313,12 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.LLMSmallProvider = strings.TrimSpace(cfg.LLMSmallProvider)
 	cfg.LLMSmallModel = strings.TrimSpace(cfg.LLMSmallModel)
 	cfg.LLMVisionModel = strings.TrimSpace(cfg.LLMVisionModel)
+	cfg.MobileLLMProvider = strings.TrimSpace(cfg.MobileLLMProvider)
+	cfg.MobileLLMModel = strings.TrimSpace(cfg.MobileLLMModel)
+	cfg.MobileLLMAPIKey = strings.TrimSpace(cfg.MobileLLMAPIKey)
+	cfg.MobileLLMBaseURL = strings.TrimSpace(cfg.MobileLLMBaseURL)
+	cfg.MobileADBAddress = strings.TrimSpace(cfg.MobileADBAddress)
+	cfg.MobileADBSerial = strings.TrimSpace(cfg.MobileADBSerial)
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)
 	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
@@ -305,7 +353,6 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 		cfg.StopSequences = filtered
 	}
 }
-
 func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	configPath := strings.TrimSpace(opts.configPath)
 	if configPath == "" {
@@ -364,6 +411,34 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.LLMVisionModel != "" {
 		cfg.LLMVisionModel = parsed.LLMVisionModel
 		meta.sources["llm_vision_model"] = SourceFile
+	}
+	if parsed.MobileLLMProvider != "" {
+		cfg.MobileLLMProvider = parsed.MobileLLMProvider
+		meta.sources["mobile_llm_provider"] = SourceFile
+	}
+	if parsed.MobileLLMModel != "" {
+		cfg.MobileLLMModel = parsed.MobileLLMModel
+		meta.sources["mobile_llm_model"] = SourceFile
+	}
+	if parsed.MobileLLMAPIKey != "" {
+		cfg.MobileLLMAPIKey = parsed.MobileLLMAPIKey
+		meta.sources["mobile_llm_api_key"] = SourceFile
+	}
+	if parsed.MobileLLMBaseURL != "" {
+		cfg.MobileLLMBaseURL = parsed.MobileLLMBaseURL
+		meta.sources["mobile_llm_base_url"] = SourceFile
+	}
+	if parsed.MobileADBAddress != "" {
+		cfg.MobileADBAddress = parsed.MobileADBAddress
+		meta.sources["mobile_adb_address"] = SourceFile
+	}
+	if parsed.MobileADBSerial != "" {
+		cfg.MobileADBSerial = parsed.MobileADBSerial
+		meta.sources["mobile_adb_serial"] = SourceFile
+	}
+	if parsed.MobileMaxSteps != nil {
+		cfg.MobileMaxSteps = *parsed.MobileMaxSteps
+		meta.sources["mobile_max_steps"] = SourceFile
 	}
 	if parsed.BaseURL != "" {
 		cfg.BaseURL = parsed.BaseURL
@@ -470,6 +545,232 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	return nil
 }
 
+func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
+	lookup := opts.envLookup
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+
+	if value, ok := lookup("OPENAI_API_KEY"); ok && value != "" {
+		cfg.APIKey = value
+		meta.sources["api_key"] = SourceEnv
+	}
+	if value, ok := lookup("ARK_API_KEY"); ok && value != "" {
+		cfg.ArkAPIKey = value
+		meta.sources["ark_api_key"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_PROVIDER"); ok && value != "" {
+		cfg.LLMProvider = value
+		meta.sources["llm_provider"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_MODEL"); ok && value != "" {
+		cfg.LLMModel = value
+		meta.sources["llm_model"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_SMALL_PROVIDER"); ok && value != "" {
+		cfg.LLMSmallProvider = value
+		meta.sources["llm_small_provider"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_SMALL_MODEL"); ok && value != "" {
+		cfg.LLMSmallModel = value
+		meta.sources["llm_small_model"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_VISION_MODEL"); ok && value != "" {
+		cfg.LLMVisionModel = value
+		meta.sources["llm_vision_model"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_PROVIDER"); ok && value != "" {
+		cfg.MobileLLMProvider = value
+		meta.sources["mobile_llm_provider"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_MODEL"); ok && value != "" {
+		cfg.MobileLLMModel = value
+		meta.sources["mobile_llm_model"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_API_KEY"); ok && value != "" {
+		cfg.MobileLLMAPIKey = value
+		meta.sources["mobile_llm_api_key"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_BASE_URL"); ok && value != "" {
+		cfg.MobileLLMBaseURL = value
+		meta.sources["mobile_llm_base_url"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_ADB_ADDRESS"); ok && value != "" {
+		cfg.MobileADBAddress = value
+		meta.sources["mobile_adb_address"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_ADB_SERIAL"); ok && value != "" {
+		cfg.MobileADBSerial = value
+		meta.sources["mobile_adb_serial"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_MAX_STEPS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse MOBILE_MAX_STEPS: %w", err)
+		}
+		cfg.MobileMaxSteps = parsed
+		meta.sources["mobile_max_steps"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_BASE_URL"); ok && value != "" {
+		cfg.BaseURL = value
+		meta.sources["base_url"] = SourceEnv
+	}
+	if value, ok := lookup("SANDBOX_BASE_URL"); ok && value != "" {
+		cfg.SandboxBaseURL = value
+		meta.sources["sandbox_base_url"] = SourceEnv
+	}
+	if value, ok := lookup("TAVILY_API_KEY"); ok && value != "" {
+		cfg.TavilyAPIKey = value
+		meta.sources["tavily_api_key"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_TEXT_ENDPOINT_ID"); ok && value != "" {
+		cfg.SeedreamTextEndpointID = value
+		meta.sources["seedream_text_endpoint_id"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_IMAGE_ENDPOINT_ID"); ok && value != "" {
+		cfg.SeedreamImageEndpointID = value
+		meta.sources["seedream_image_endpoint_id"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_TEXT_MODEL"); ok && value != "" {
+		cfg.SeedreamTextModel = value
+		meta.sources["seedream_text_model"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_IMAGE_MODEL"); ok && value != "" {
+		cfg.SeedreamImageModel = value
+		meta.sources["seedream_image_model"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_VISION_MODEL"); ok && value != "" {
+		cfg.SeedreamVisionModel = value
+		meta.sources["seedream_vision_model"] = SourceEnv
+	}
+	if value, ok := lookup("SEEDREAM_VIDEO_MODEL"); ok && value != "" {
+		cfg.SeedreamVideoModel = value
+		meta.sources["seedream_video_model"] = SourceEnv
+	}
+	if value, ok := lookup("AGENT_PRESET"); ok && value != "" {
+		cfg.AgentPreset = value
+		meta.sources["agent_preset"] = SourceEnv
+	}
+	if value, ok := lookup("TOOL_PRESET"); ok && value != "" {
+		cfg.ToolPreset = value
+		meta.sources["tool_preset"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_ENV"); ok && value != "" {
+		cfg.Environment = value
+		meta.sources["environment"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_VERBOSE"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_VERBOSE: %w", err)
+		}
+		cfg.Verbose = parsed
+		meta.sources["verbose"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_NO_TUI"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_NO_TUI: %w", err)
+		}
+		cfg.DisableTUI = parsed
+		meta.sources["disable_tui"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_TUI_FOLLOW_TRANSCRIPT"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_TUI_FOLLOW_TRANSCRIPT: %w", err)
+		}
+		cfg.FollowTranscript = parsed
+		meta.sources["follow_transcript"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_TUI_FOLLOW_STREAM"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_TUI_FOLLOW_STREAM: %w", err)
+		}
+		cfg.FollowStream = parsed
+		meta.sources["follow_stream"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_MAX_ITERATIONS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse LLM_MAX_ITERATIONS: %w", err)
+		}
+		cfg.MaxIterations = parsed
+		meta.sources["max_iterations"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_MAX_TOKENS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse LLM_MAX_TOKENS: %w", err)
+		}
+		cfg.MaxTokens = parsed
+		meta.sources["max_tokens"] = SourceEnv
+	}
+	if value, ok := lookup("USER_LLM_RPS"); ok && value != "" {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("parse USER_LLM_RPS: %w", err)
+		}
+		cfg.UserRateLimitRPS = parsed
+		meta.sources["user_rate_limit_rps"] = SourceEnv
+	}
+	if value, ok := lookup("USER_LLM_BURST"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse USER_LLM_BURST: %w", err)
+		}
+		cfg.UserRateLimitBurst = parsed
+		meta.sources["user_rate_limit_burst"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_TEMPERATURE"); ok && value != "" {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("parse LLM_TEMPERATURE: %w", err)
+		}
+		cfg.Temperature = parsed
+		cfg.TemperatureProvided = true
+		meta.sources["temperature"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_TOP_P"); ok && value != "" {
+		parsed, err := strconv.ParseFloat(value, 64)
+		if err != nil {
+			return fmt.Errorf("parse LLM_TOP_P: %w", err)
+		}
+		cfg.TopP = parsed
+		meta.sources["top_p"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_STOP"); ok && value != "" {
+		parts := strings.FieldsFunc(value, func(r rune) bool {
+			switch r {
+			case ',', ';', ' ', '\n', '\t':
+				return true
+			default:
+				return false
+			}
+		})
+		filtered := parts[:0]
+		for _, token := range parts {
+			trimmed := strings.TrimSpace(token)
+			if trimmed != "" {
+				filtered = append(filtered, trimmed)
+			}
+		}
+		cfg.StopSequences = append([]string(nil), filtered...)
+		meta.sources["stop_sequences"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_SESSION_DIR"); ok && value != "" {
+		cfg.SessionDir = value
+		meta.sources["session_dir"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_COST_DIR"); ok && value != "" {
+		cfg.CostDir = value
+		meta.sources["cost_dir"] = SourceEnv
+	}
+
+	return nil
+}
+
 func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.LLMProvider != nil {
 		cfg.LLMProvider = *overrides.LLMProvider
@@ -490,6 +791,34 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.LLMVisionModel != nil {
 		cfg.LLMVisionModel = *overrides.LLMVisionModel
 		meta.sources["llm_vision_model"] = SourceOverride
+	}
+	if overrides.MobileLLMProvider != nil {
+		cfg.MobileLLMProvider = *overrides.MobileLLMProvider
+		meta.sources["mobile_llm_provider"] = SourceOverride
+	}
+	if overrides.MobileLLMModel != nil {
+		cfg.MobileLLMModel = *overrides.MobileLLMModel
+		meta.sources["mobile_llm_model"] = SourceOverride
+	}
+	if overrides.MobileLLMAPIKey != nil {
+		cfg.MobileLLMAPIKey = *overrides.MobileLLMAPIKey
+		meta.sources["mobile_llm_api_key"] = SourceOverride
+	}
+	if overrides.MobileLLMBaseURL != nil {
+		cfg.MobileLLMBaseURL = *overrides.MobileLLMBaseURL
+		meta.sources["mobile_llm_base_url"] = SourceOverride
+	}
+	if overrides.MobileADBAddress != nil {
+		cfg.MobileADBAddress = *overrides.MobileADBAddress
+		meta.sources["mobile_adb_address"] = SourceOverride
+	}
+	if overrides.MobileADBSerial != nil {
+		cfg.MobileADBSerial = *overrides.MobileADBSerial
+		meta.sources["mobile_adb_serial"] = SourceOverride
+	}
+	if overrides.MobileMaxSteps != nil {
+		cfg.MobileMaxSteps = *overrides.MobileMaxSteps
+		meta.sources["mobile_max_steps"] = SourceOverride
 	}
 	if overrides.APIKey != nil {
 		cfg.APIKey = *overrides.APIKey
@@ -602,6 +931,19 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	}
 }
 
+func parseBoolEnv(value string) (bool, error) {
+	trimmed := strings.TrimSpace(value)
+	lower := strings.ToLower(trimmed)
+	switch lower {
+	case "1", "true", "t", "yes", "y", "on":
+		return true, nil
+	case "0", "false", "f", "no", "n", "off":
+		return false, nil
+	default:
+		return false, fmt.Errorf("invalid boolean value %q", value)
+	}
+}
+
 type runtimeFile struct {
 	Runtime *RuntimeFileConfig `yaml:"runtime"`
 }
@@ -628,6 +970,12 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.LLMSmallProvider = expandEnvValue(lookup, parsed.LLMSmallProvider)
 	parsed.LLMSmallModel = expandEnvValue(lookup, parsed.LLMSmallModel)
 	parsed.LLMVisionModel = expandEnvValue(lookup, parsed.LLMVisionModel)
+	parsed.MobileLLMProvider = expandEnvValue(lookup, parsed.MobileLLMProvider)
+	parsed.MobileLLMModel = expandEnvValue(lookup, parsed.MobileLLMModel)
+	parsed.MobileLLMAPIKey = expandEnvValue(lookup, parsed.MobileLLMAPIKey)
+	parsed.MobileLLMBaseURL = expandEnvValue(lookup, parsed.MobileLLMBaseURL)
+	parsed.MobileADBAddress = expandEnvValue(lookup, parsed.MobileADBAddress)
+	parsed.MobileADBSerial = expandEnvValue(lookup, parsed.MobileADBSerial)
 	parsed.APIKey = expandEnvValue(lookup, parsed.APIKey)
 	parsed.ArkAPIKey = expandEnvValue(lookup, parsed.ArkAPIKey)
 	parsed.BaseURL = expandEnvValue(lookup, parsed.BaseURL)
