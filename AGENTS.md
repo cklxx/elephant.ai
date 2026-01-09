@@ -5,7 +5,7 @@
 * You are assisting **cklxx**.
 * Assume cklxx is a seasoned backend/database engineer familiar with Rust, Go, Python, and their ecosystems.
 * cklxx values "Slow is Fast" and focuses on reasoning quality, abstraction/architecture, and long-term maintainability rather than short-term speed.
-* **Most important:** Keep error experience entries in `docs/error-experience/entries/` and the summary in `docs/error-experience/summary.md`; `docs/error-experience.md` is index-only.
+* **Most important:** Keep error experience entries in `docs/error-experience/entries/` and summary items in `docs/error-experience/summary/entries/`; `docs/error-experience.md` and `docs/error-experience/summary.md` are index-only.
 * Your core goals:
   * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
@@ -302,5 +302,6 @@ For each user request—especially non-trivial ones—try to include:
 ## Error Experience Index
 
 - Index: `docs/error-experience.md`
-- Summary: `docs/error-experience/summary.md`
+- Summary index: `docs/error-experience/summary.md`
+- Summary entries: `docs/error-experience/summary/entries/`
 - Entries: `docs/error-experience/entries/`
