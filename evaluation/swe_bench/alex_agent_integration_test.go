@@ -2,15 +2,29 @@ package swe_bench
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
+func setTestConfigPath(t *testing.T, content string) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", path)
+}
+
 func TestNewAlexAgentUsesRuntimeConfigOverrides(t *testing.T) {
-	t.Setenv("OPENAI_API_KEY", "test-key")
-	t.Setenv("LLM_PROVIDER", "mock")
-	t.Setenv("LLM_MODEL", "mock-eval-model")
-	t.Setenv("LLM_TEMPERATURE", "0.5")
-	t.Setenv("LLM_MAX_TOKENS", "777")
+	setTestConfigPath(t, `
+runtime:
+  api_key: "test-key"
+  llm_provider: "mock"
+  llm_model: "mock-eval-model"
+  temperature: 0.5
+  max_tokens: 777
+`)
 
 	cfg := DefaultBatchConfig()
 	cfg.Agent.Model.Name = ""
@@ -65,9 +79,12 @@ func TestNewAlexAgentUsesRuntimeConfigOverrides(t *testing.T) {
 }
 
 func TestNewAlexAgentAdjustsBaseURLForOpenAIModels(t *testing.T) {
-	t.Setenv("OPENAI_API_KEY", "test-key")
-	t.Setenv("LLM_PROVIDER", "openai")
-	t.Setenv("LLM_MODEL", "gpt-4.1-mini")
+	setTestConfigPath(t, `
+runtime:
+  api_key: "test-key"
+  llm_provider: "openai"
+  llm_model: "gpt-4.1-mini"
+`)
 
 	cfg := DefaultBatchConfig()
 	cfg.Agent.Model.Name = ""

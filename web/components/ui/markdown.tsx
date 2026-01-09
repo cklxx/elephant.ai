@@ -5,7 +5,7 @@ import MarkdownPreview from "@uiw/react-markdown-preview";
 import remarkGfm from "remark-gfm";
 import { Highlight, Language, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
-import { ComponentType, useMemo, useState } from "react";
+import { Children, ComponentType, ReactNode, isValidElement, useMemo, useState } from "react";
 import { VideoPreview } from "@/components/ui/video-preview";
 import {
   buildAttachmentUri,
@@ -124,6 +124,22 @@ export function MarkdownRenderer({
     );
   };
 
+  const splitTaskListChildren = (children: ReactNode) => {
+    const nodes = Children.toArray(children);
+    const checkboxIndex = nodes.findIndex(
+      (child) =>
+        isValidElement(child) &&
+        child.type === "input" &&
+        child.props?.type === "checkbox",
+    );
+    if (checkboxIndex === -1) {
+      return null;
+    }
+    const checkbox = nodes[checkboxIndex];
+    const rest = nodes.filter((_, index) => index !== checkboxIndex);
+    return { checkbox, rest };
+  };
+
   const defaultComponents: Record<string, ComponentType<any>> = {
     h1: ({ className: headingClass, ...props }: any) => (
       <h2
@@ -235,27 +251,65 @@ export function MarkdownRenderer({
     td: ({ className: tdClass, ...props }: any) => (
       <td className={cn("px-4 py-2 align-top", tdClass)} {...props} />
     ),
-    ul: ({ className: ulClass, ...props }: any) => (
-      <ul
-        className={cn(
-          "my-4 list-disc list-inside !pl-0 flex flex-col",
-          ulClass,
-        )}
-        {...props}
-      />
-    ),
-    ol: ({ className: olClass, ...props }: any) => (
-      <ol
-        className={cn(
-          "my-4 list-decimal list-inside !pl-0 flex flex-col",
-          olClass,
-        )}
-        {...props}
-      />
-    ),
-    li: ({ className: liClass, ...props }: any) => (
-      <li className={cn("flex flex-col", liClass)} {...props} />
-    ),
+    ul: ({ className: ulClass, ...props }: any) => {
+      const isTaskList =
+        typeof ulClass === "string" && ulClass.includes("contains-task-list");
+      return (
+        <ul
+          className={cn(
+            "my-4 !pl-0 flex flex-col gap-2",
+            isTaskList ? "list-none" : "list-disc list-inside",
+            ulClass,
+          )}
+          {...props}
+        />
+      );
+    },
+    ol: ({ className: olClass, ...props }: any) => {
+      const isTaskList =
+        typeof olClass === "string" && olClass.includes("contains-task-list");
+      return (
+        <ol
+          className={cn(
+            "my-4 !pl-0 flex flex-col gap-2",
+            isTaskList ? "list-none" : "list-decimal list-inside",
+            olClass,
+          )}
+          {...props}
+        />
+      );
+    },
+    li: ({ className: liClass, children, ...props }: any) => {
+      const taskChildren = splitTaskListChildren(children);
+      if (taskChildren) {
+        return (
+          <li
+            className={cn("flex items-start gap-2", liClass)}
+            {...props}
+          >
+            {taskChildren.checkbox}
+            <div className="min-w-0 flex-1">{taskChildren.rest}</div>
+          </li>
+        );
+      }
+      return (
+        <li className={cn("flex flex-col", liClass)} {...props}>
+          {children}
+        </li>
+      );
+    },
+    input: ({ className: inputClass, type, ...props }: any) => {
+      if (type === "checkbox") {
+        return (
+          <input
+            type="checkbox"
+            className={cn("mt-1 h-4 w-4 shrink-0 accent-foreground", inputClass)}
+            {...props}
+          />
+        );
+      }
+      return <input type={type} className={cn(inputClass)} {...props} />;
+    },
     br: () => null,
     img: ({ src, alt, ...imgProps }: any) => {
       if (src) {

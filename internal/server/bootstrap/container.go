@@ -20,7 +20,7 @@ func BuildContainer(config Config) (*di.Container, error) {
 	}
 	requireSessionDB := strings.EqualFold(config.Runtime.Environment, "production")
 	if sessionDBURL == "" && requireSessionDB {
-		return nil, fmt.Errorf("session database required in production (set ALEX_SESSION_DATABASE_URL or AUTH_DATABASE_URL)")
+		return nil, fmt.Errorf("session database required in production (set session.database_url or auth.database_url in config.yaml)")
 	}
 	diConfig.SessionDatabaseURL = sessionDBURL
 	diConfig.RequireSessionDatabase = requireSessionDB

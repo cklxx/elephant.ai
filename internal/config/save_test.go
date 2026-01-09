@@ -1,16 +1,17 @@
 package config
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestSaveFollowPreferencesCreatesFile(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.json")
+	path := filepath.Join(dir, "config.yaml")
 
 	saved, err := SaveFollowPreferences(true, false, WithConfigPath(path))
 	if err != nil {
@@ -26,27 +27,33 @@ func TestSaveFollowPreferencesCreatesFile(t *testing.T) {
 	}
 
 	var raw map[string]any
-	if err := json.Unmarshal(data, &raw); err != nil {
+	if err := yaml.Unmarshal(data, &raw); err != nil {
 		t.Fatalf("failed to decode config: %v", err)
 	}
 
-	if v, ok := raw["follow_transcript"].(bool); !ok || !v {
-		t.Fatalf("expected follow_transcript true, got %v", raw["follow_transcript"])
+	runtimeSection, ok := raw["runtime"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected runtime section, got %v", raw["runtime"])
 	}
-	if v, ok := raw["follow_stream"].(bool); !ok || v {
-		t.Fatalf("expected follow_stream false, got %v", raw["follow_stream"])
+	if v, ok := runtimeSection["follow_transcript"].(bool); !ok || !v {
+		t.Fatalf("expected follow_transcript true, got %v", runtimeSection["follow_transcript"])
+	}
+	if v, ok := runtimeSection["follow_stream"].(bool); !ok || v {
+		t.Fatalf("expected follow_stream false, got %v", runtimeSection["follow_stream"])
 	}
 }
 
 func TestSaveFollowPreferencesPreservesExistingValues(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.json")
+	path := filepath.Join(dir, "config.yaml")
 
 	existing := map[string]any{
-		"api_key": "secret",
+		"runtime": map[string]any{
+			"api_key": "secret",
+		},
 		"nested":  map[string]any{"value": 42.0},
 	}
-	data, err := json.MarshalIndent(existing, "", "  ")
+	data, err := yaml.Marshal(existing)
 	if err != nil {
 		t.Fatalf("marshal existing: %v", err)
 	}
@@ -65,29 +72,49 @@ func TestSaveFollowPreferencesPreservesExistingValues(t *testing.T) {
 	}
 
 	var raw map[string]any
-	if err := json.Unmarshal(updated, &raw); err != nil {
+	if err := yaml.Unmarshal(updated, &raw); err != nil {
 		t.Fatalf("decode updated: %v", err)
 	}
 
-	if raw["api_key"] != "secret" {
-		t.Fatalf("expected api_key preserved, got %v", raw["api_key"])
+	runtimeSection, ok := raw["runtime"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected runtime section, got %v", raw["runtime"])
+	}
+	if runtimeSection["api_key"] != "secret" {
+		t.Fatalf("expected api_key preserved, got %v", runtimeSection["api_key"])
 	}
 	nested, ok := raw["nested"].(map[string]any)
-	if !ok || nested["value"].(float64) != 42 {
+	if !ok {
 		t.Fatalf("expected nested map preserved, got %v", raw["nested"])
 	}
-	if v, ok := raw["follow_transcript"].(bool); !ok || v {
-		t.Fatalf("expected follow_transcript false, got %v", raw["follow_transcript"])
+	switch value := nested["value"].(type) {
+	case int:
+		if value != 42 {
+			t.Fatalf("expected nested value 42, got %v", value)
+		}
+	case int64:
+		if value != 42 {
+			t.Fatalf("expected nested value 42, got %v", value)
+		}
+	case float64:
+		if value != 42 {
+			t.Fatalf("expected nested value 42, got %v", value)
+		}
+	default:
+		t.Fatalf("expected numeric nested value, got %T", nested["value"])
 	}
-	if v, ok := raw["follow_stream"].(bool); !ok || !v {
-		t.Fatalf("expected follow_stream true, got %v", raw["follow_stream"])
+	if v, ok := runtimeSection["follow_transcript"].(bool); !ok || v {
+		t.Fatalf("expected follow_transcript false, got %v", runtimeSection["follow_transcript"])
+	}
+	if v, ok := runtimeSection["follow_stream"].(bool); !ok || !v {
+		t.Fatalf("expected follow_stream true, got %v", runtimeSection["follow_stream"])
 	}
 }
 
 func TestSaveFollowPreferencesInvalidJSON(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.json")
-	if err := os.WriteFile(path, []byte("{invalid"), 0o600); err != nil {
+	path := filepath.Join(dir, "config.yaml")
+	if err := os.WriteFile(path, []byte("invalid: ["), 0o600); err != nil {
 		t.Fatalf("write invalid: %v", err)
 	}
 
@@ -98,7 +125,7 @@ func TestSaveFollowPreferencesInvalidJSON(t *testing.T) {
 
 func TestSaveFollowPreferencesHonorsEnvConfigPath(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "config.json")
+	path := filepath.Join(dir, "config.yaml")
 
 	saved, err := SaveFollowPreferences(
 		true,

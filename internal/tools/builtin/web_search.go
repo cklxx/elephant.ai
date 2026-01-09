@@ -56,8 +56,7 @@ Returns relevant search results with summaries and URLs.
 
 Setup:
 1. Get API key from https://app.tavily.com/
-2. Set environment: export TAVILY_API_KEY="your-key"
-   OR add to ~/.alex-config.json: "tavily_api_key": "your-key"`,
+2. Set runtime.tavily_api_key in ~/.alex/config.yaml (you can reference ${TAVILY_API_KEY})`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{

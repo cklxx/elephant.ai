@@ -20,6 +20,7 @@
 #   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
 #   AUTH_JWT_SECRET=...         # Auth secret (default: dev-secret-change-me)
+#   SKIP_LOCAL_AUTH_DB=1        # Skip local auth DB auto-setup (default 0)
 ###############################################################################
 
 set -euo pipefail
@@ -412,6 +413,69 @@ sandbox_ready() {
   curl -sf --noproxy '*' "${SANDBOX_BASE_URL}/v1/docs" >/dev/null 2>&1
 }
 
+auth_db_host() {
+  local db_url="$1"
+  local rest hostport host
+
+  rest="${db_url#*://}"
+  rest="${rest##*@}"
+  hostport="${rest%%/*}"
+  hostport="${hostport%%\?*}"
+
+  if [[ "$hostport" == \[* ]]; then
+    host="${hostport#\[}"
+    host="${host%%]*}"
+  else
+    host="${hostport%%:*}"
+  fi
+
+  printf '%s' "$host"
+}
+
+is_local_auth_db_host() {
+  case "$1" in
+    localhost|127.0.0.1|::1)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+maybe_setup_auth_db() {
+  local db_url host
+
+  if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
+    log_info "Skipping local auth DB auto-setup (SKIP_LOCAL_AUTH_DB=1)"
+    return 0
+  fi
+
+  db_url="${AUTH_DATABASE_URL:-}"
+  if [[ -z "$db_url" ]]; then
+    return 0
+  fi
+
+  host="$(auth_db_host "$db_url")"
+  if [[ -z "$host" ]] || ! is_local_auth_db_host "$host"; then
+    return 0
+  fi
+
+  if ! command_exists docker; then
+    log_warn "docker not found; skipping local auth DB auto-setup"
+    return 0
+  fi
+
+  ensure_dirs
+  log_info "Setting up local auth DB via scripts/setup_local_auth_db.sh..."
+  if "${SCRIPT_DIR}/scripts/setup_local_auth_db.sh"; then
+    log_success "Local auth DB ready"
+  else
+    log_warn "Local auth DB setup failed; auth may be disabled"
+    log_warn "See ${LOG_DIR}/setup_auth_db.log for details"
+  fi
+}
+
 cleanup_next_dev_lock() {
   local lock_file="${SCRIPT_DIR}/web/.next/dev/lock"
   if [[ -f "$lock_file" ]]; then
@@ -515,6 +579,7 @@ start_web() {
 
 cmd_up() {
   start_sandbox
+  maybe_setup_auth_db
   start_server
   start_web
   log_success "Dev services are running: backend=http://localhost:${SERVER_PORT} web=http://localhost:${WEB_PORT} sandbox=${SANDBOX_BASE_URL}"

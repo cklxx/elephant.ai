@@ -164,6 +164,7 @@ func RunServer(observabilityConfigPath string) error {
 		configHandler,
 		evaluationService,
 		obs,
+		config.MaxTaskBodyBytes,
 		config.Attachment,
 	)
 

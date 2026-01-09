@@ -49,32 +49,35 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadFromFile(t *testing.T) {
-	fileData := []byte(`{
-                "llm_provider": "openai",
-                "llm_model": "gpt-4o",
-                "llm_small_provider": "openai",
-                "llm_small_model": "gpt-4o-mini",
-                "llm_vision_model": "gpt-4o-mini",
-                "api_key": "sk-test",
-                "tavily_api_key": "file-tavily",
-                "ark_api_key": "file-ark",
-                "seedream_text_endpoint_id": "file-text-id",
-                "seedream_image_endpoint_id": "file-image-id",
-                "seedream_text_model": "file-text-model",
-                "seedream_image_model": "file-image-model",
-                "seedream_vision_model": "file-vision-model",
-                "seedream_video_model": "file-video-model",
-                "environment": "staging",
-                "verbose": true,
-                "follow_transcript": false,
-                "follow_stream": false,
-                "temperature": 0,
-                "max_iterations": 200,
-                "stop_sequences": ["DONE"],
-                "session_dir": "~/sessions",
-                "agent_preset": "designer",
-                "tool_preset": "safe"
-        }`)
+	fileData := []byte(`
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o"
+  llm_small_provider: "openai"
+  llm_small_model: "gpt-4o-mini"
+  llm_vision_model: "gpt-4o-mini"
+  api_key: "sk-test"
+  tavily_api_key: "file-tavily"
+  ark_api_key: "file-ark"
+  seedream_text_endpoint_id: "file-text-id"
+  seedream_image_endpoint_id: "file-image-id"
+  seedream_text_model: "file-text-model"
+  seedream_image_model: "file-image-model"
+  seedream_vision_model: "file-vision-model"
+  seedream_video_model: "file-video-model"
+  environment: "staging"
+  verbose: true
+  disable_tui: true
+  follow_transcript: false
+  follow_stream: false
+  temperature: 0
+  max_iterations: 200
+  stop_sequences:
+    - "DONE"
+  session_dir: "~/sessions"
+  agent_preset: "designer"
+  tool_preset: "safe"
+`)
 	cfg, meta, err := Load(
 		WithEnv(envMap{}.Lookup),
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
@@ -122,6 +125,9 @@ func TestLoadFromFile(t *testing.T) {
 	if !cfg.Verbose {
 		t.Fatal("expected verbose true from file")
 	}
+	if !cfg.DisableTUI {
+		t.Fatal("expected disable_tui true from file")
+	}
 	if cfg.FollowTranscript || cfg.FollowStream {
 		t.Fatalf("expected follow defaults overridden to false, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
 	}
@@ -161,8 +167,13 @@ func TestLoadFromFile(t *testing.T) {
 }
 
 func TestLoadHonorsEnvConfigPath(t *testing.T) {
-	expectedPath := "/tmp/alex-config-test.json"
-	fileData := []byte(`{"llm_provider": "openai", "llm_model": "gpt-4o", "api_key": "sk-test"}`)
+	expectedPath := "/tmp/alex-config-test.yaml"
+	fileData := []byte(`
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o"
+  api_key: "sk-test"
+`)
 
 	cfg, _, err := Load(
 		WithEnv(envMap{"ALEX_CONFIG_PATH": expectedPath}.Lookup),
@@ -186,8 +197,13 @@ func TestLoadHonorsEnvConfigPath(t *testing.T) {
 }
 
 func TestLoadConfigPathOverrideWinsOverEnv(t *testing.T) {
-	explicitPath := "/tmp/alex-explicit-config.json"
-	fileData := []byte(`{"llm_provider": "openai", "llm_model": "gpt-4o", "api_key": "sk-test"}`)
+	explicitPath := "/tmp/alex-explicit-config.yaml"
+	fileData := []byte(`
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o"
+  api_key: "sk-test"
+`)
 
 	_, _, err := Load(
 		WithEnv(envMap{"ALEX_CONFIG_PATH": "/tmp/ignored.json"}.Lookup),
@@ -204,106 +220,43 @@ func TestLoadConfigPathOverrideWinsOverEnv(t *testing.T) {
 	}
 }
 
-func TestEnvOverridesFile(t *testing.T) {
-	fileData := []byte(`{"temperature": 0.1, "tavily_api_key": "file-key"}`)
+func TestEnvInterpolation(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  api_key: "${OPENAI_API_KEY}"
+  tavily_api_key: "${TAVILY_API_KEY}"
+  llm_model: "${LLM_MODEL}"
+  llm_vision_model: "vision-${VISION_SUFFIX}"
+`)
 	cfg, meta, err := Load(
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
 		WithEnv(envMap{
-			"LLM_TEMPERATURE":            "0",
-			"LLM_MODEL":                  "env-model",
-			"LLM_VISION_MODEL":           "env-vision-model",
-			"TAVILY_API_KEY":             "env-tavily",
-			"ARK_API_KEY":                "env-ark",
-			"SEEDREAM_TEXT_ENDPOINT_ID":  "env-text",
-			"SEEDREAM_IMAGE_ENDPOINT_ID": "env-image",
-			"SEEDREAM_TEXT_MODEL":        "env-text-model",
-			"SEEDREAM_IMAGE_MODEL":       "env-image-model",
-			"SEEDREAM_VISION_MODEL":      "env-vision-model",
-			"SEEDREAM_VIDEO_MODEL":       "env-video-model",
-			"ALEX_ENV":                   "production",
-			"ALEX_VERBOSE":               "yes",
-			"ALEX_NO_TUI":                "true",
-			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
-			"ALEX_TUI_FOLLOW_STREAM":     "false",
-			"ALEX_REASONING_STREAM":      "true",
-			"AGENT_PRESET":               "designer",
-			"TOOL_PRESET":                "full",
+			"OPENAI_API_KEY": "env-api-key",
+			"TAVILY_API_KEY": "env-tavily",
+			"LLM_MODEL":      "env-model",
+			"VISION_SUFFIX":  "v1",
 		}.Lookup),
 	)
 	if err != nil {
 		t.Fatalf("Load returned error: %v", err)
 	}
-	if cfg.LLMModel != "env-model" {
-		t.Fatalf("expected env model override, got %s", cfg.LLMModel)
-	}
-	if cfg.LLMVisionModel != "env-vision-model" {
-		t.Fatalf("expected env vision model override, got %s", cfg.LLMVisionModel)
-	}
-	if cfg.Temperature != 0 || !cfg.TemperatureProvided {
-		t.Fatalf("expected env zero temperature override, got %+v", cfg)
+	if cfg.APIKey != "env-api-key" {
+		t.Fatalf("expected api key interpolation, got %q", cfg.APIKey)
 	}
 	if cfg.TavilyAPIKey != "env-tavily" {
-		t.Fatalf("expected tavily key from env, got %q", cfg.TavilyAPIKey)
+		t.Fatalf("expected tavily key interpolation, got %q", cfg.TavilyAPIKey)
 	}
-	if cfg.SeedreamTextEndpointID != "env-text" || cfg.SeedreamImageEndpointID != "env-image" {
-		t.Fatalf("expected seedream endpoints from env, got %q/%q", cfg.SeedreamTextEndpointID, cfg.SeedreamImageEndpointID)
+	if cfg.LLMModel != "env-model" {
+		t.Fatalf("expected llm_model interpolation, got %q", cfg.LLMModel)
 	}
-	if cfg.ArkAPIKey != "env-ark" {
-		t.Fatalf("expected ark api key from env, got %q", cfg.ArkAPIKey)
+	if cfg.LLMVisionModel != "vision-v1" {
+		t.Fatalf("expected llm_vision_model interpolation, got %q", cfg.LLMVisionModel)
 	}
-	if cfg.SeedreamTextModel != "env-text-model" || cfg.SeedreamImageModel != "env-image-model" || cfg.SeedreamVisionModel != "env-vision-model" || cfg.SeedreamVideoModel != "env-video-model" {
-		t.Fatalf("expected seedream models from env, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
+	if meta.Source("api_key") != SourceFile {
+		t.Fatalf("expected file source for api_key, got %s", meta.Source("api_key"))
 	}
-	if cfg.Environment != "production" {
-		t.Fatalf("expected environment from env, got %q", cfg.Environment)
-	}
-	if !cfg.Verbose {
-		t.Fatal("expected verbose true from env override")
-	}
-	if !cfg.DisableTUI {
-		t.Fatal("expected disable TUI true from env override")
-	}
-	if cfg.FollowTranscript || cfg.FollowStream {
-		t.Fatalf("expected follow toggles false from env override, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
-	}
-	if cfg.AgentPreset != "designer" || cfg.ToolPreset != "full" {
-		t.Fatalf("expected presets from env, got %q/%q", cfg.AgentPreset, cfg.ToolPreset)
-	}
-	if meta.Source("tavily_api_key") != SourceEnv {
-		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
-	}
-	if meta.Source("llm_vision_model") != SourceEnv {
-		t.Fatalf("expected env source for vision model, got %s", meta.Source("llm_vision_model"))
-	}
-	if meta.Source("ark_api_key") != SourceEnv {
-		t.Fatalf("expected env source for ark api key")
-	}
-	if meta.Source("seedream_text_endpoint_id") != SourceEnv || meta.Source("seedream_image_endpoint_id") != SourceEnv {
-		t.Fatalf("expected env source for seedream endpoints")
-	}
-	if meta.Source("seedream_text_model") != SourceEnv || meta.Source("seedream_image_model") != SourceEnv || meta.Source("seedream_vision_model") != SourceEnv || meta.Source("seedream_video_model") != SourceEnv {
-		t.Fatalf("expected env source for seedream models")
-	}
-	if meta.Source("temperature") != SourceEnv {
-		t.Fatalf("expected env source for temperature, got %s", meta.Source("temperature"))
-	}
-	if meta.Source("environment") != SourceEnv {
-		t.Fatalf("expected env source for environment, got %s", meta.Source("environment"))
-	}
-	if meta.Source("verbose") != SourceEnv {
-		t.Fatalf("expected env source for verbose, got %s", meta.Source("verbose"))
-	}
-	if meta.Source("disable_tui") != SourceEnv {
-		t.Fatalf("expected env source for disable_tui, got %s", meta.Source("disable_tui"))
-	}
-	if meta.Source("follow_transcript") != SourceEnv {
-		t.Fatalf("expected env source for follow_transcript, got %s", meta.Source("follow_transcript"))
-	}
-	if meta.Source("follow_stream") != SourceEnv {
-		t.Fatalf("expected env source for follow_stream, got %s", meta.Source("follow_stream"))
-	}
-	if meta.Source("agent_preset") != SourceEnv || meta.Source("tool_preset") != SourceEnv {
-		t.Fatalf("expected env source for presets")
+	if meta.Source("tavily_api_key") != SourceFile {
+		t.Fatalf("expected file source for tavily_api_key, got %s", meta.Source("tavily_api_key"))
 	}
 }
 
@@ -362,7 +315,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideAgentPreset := "designer"
 	overrideToolPreset := "read-only"
 	cfg, meta, err := Load(
-		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
 			LLMModel:                &overrideModel,
 			LLMVisionModel:          &overrideVisionModel,
@@ -463,7 +415,10 @@ func ptrStringSlice(value []string) *[]string {
 }
 
 func TestLoadFromFileSupportsSnakeCaseArkKey(t *testing.T) {
-	fileData := []byte(`{"ark_api_key": "snake-ark"}`)
+	fileData := []byte(`
+runtime:
+  ark_api_key: "snake-ark"
+`)
 	cfg, meta, err := Load(
 		WithEnv(envMap{}.Lookup),
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
@@ -479,80 +434,15 @@ func TestLoadFromFileSupportsSnakeCaseArkKey(t *testing.T) {
 	}
 }
 
-func TestInvalidEnvReturnsError(t *testing.T) {
+func TestInvalidYAMLReturnsError(t *testing.T) {
+	fileData := []byte("invalid: [")
 	_, _, err := Load(
-		WithEnv(envMap{"LLM_TEMPERATURE": "abc"}.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
 	)
 	if err == nil {
-		t.Fatal("expected error when temperature env is invalid")
+		t.Fatal("expected error when config YAML is invalid")
 	}
-	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "LLM_TEMPERATURE") {
-		t.Fatalf("expected error mentioning LLM_TEMPERATURE, got %v", err)
-	}
-}
-
-func TestInvalidVerboseReturnsError(t *testing.T) {
-	_, _, err := Load(
-		WithEnv(envMap{"ALEX_VERBOSE": "sometimes"}.Lookup),
-	)
-	if err == nil {
-		t.Fatal("expected error when verbose env is invalid")
-	}
-	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_VERBOSE") {
-		t.Fatalf("expected error mentioning ALEX_VERBOSE, got %v", err)
-	}
-}
-
-func TestInvalidDisableTUIReturnsError(t *testing.T) {
-	_, _, err := Load(
-		WithEnv(envMap{"ALEX_NO_TUI": "sometimes"}.Lookup),
-	)
-	if err == nil {
-		t.Fatal("expected error when disable TUI env is invalid")
-	}
-	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_NO_TUI") {
-		t.Fatalf("expected error mentioning ALEX_NO_TUI, got %v", err)
-	}
-}
-
-func TestInvalidFollowTranscriptReturnsError(t *testing.T) {
-	_, _, err := Load(
-		WithEnv(envMap{"ALEX_TUI_FOLLOW_TRANSCRIPT": "maybe"}.Lookup),
-	)
-	if err == nil {
-		t.Fatal("expected error when follow transcript env is invalid")
-	}
-	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_TUI_FOLLOW_TRANSCRIPT") {
-		t.Fatalf("expected error mentioning ALEX_TUI_FOLLOW_TRANSCRIPT, got %v", err)
-	}
-}
-
-func TestInvalidFollowStreamReturnsError(t *testing.T) {
-	_, _, err := Load(
-		WithEnv(envMap{"ALEX_TUI_FOLLOW_STREAM": "sometimes"}.Lookup),
-	)
-	if err == nil {
-		t.Fatal("expected error when follow stream env is invalid")
-	}
-	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "ALEX_TUI_FOLLOW_STREAM") {
-		t.Fatalf("expected error mentioning ALEX_TUI_FOLLOW_STREAM, got %v", err)
-	}
-}
-
-func TestFollowEnvironmentOverrides(t *testing.T) {
-	cfg, _, err := Load(
-		WithEnv(envMap{
-			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
-			"ALEX_TUI_FOLLOW_STREAM":     "true",
-		}.Lookup),
-	)
-	if err != nil {
-		t.Fatalf("Load returned error: %v", err)
-	}
-	if cfg.FollowTranscript {
-		t.Fatal("expected env to disable transcript follow")
-	}
-	if !cfg.FollowStream {
-		t.Fatal("expected env to enable stream follow")
+	if got := fmt.Sprintf("%v", err); !strings.Contains(got, "parse config file") {
+		t.Fatalf("expected parse error, got %v", err)
 	}
 }

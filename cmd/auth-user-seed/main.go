@@ -6,13 +6,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"time"
 
 	authadapters "alex/internal/auth/adapters"
 	authcrypto "alex/internal/auth/crypto"
 	authdomain "alex/internal/auth/domain"
+	"alex/internal/config"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -37,7 +37,10 @@ func main() {
 }
 
 func parseFlags() userSeedOptions {
-	defaultDB := os.Getenv("AUTH_DATABASE_URL")
+	defaultDB := ""
+	if fileCfg, _, err := config.LoadFileConfig(); err == nil && fileCfg.Auth != nil {
+		defaultDB = strings.TrimSpace(fileCfg.Auth.DatabaseURL)
+	}
 	email := flag.String("email", "admin@example.com", "Email for the test account")
 	password := flag.String("password", "P@ssw0rd!", "Password for the test account")
 	displayName := flag.String("name", "Admin", "Display name for the account")
@@ -45,11 +48,11 @@ func parseFlags() userSeedOptions {
 	status := flag.String("status", string(authdomain.UserStatusActive), "Account status (active|disabled)")
 	tier := flag.String("tier", string(authdomain.SubscriptionTierFree), "Subscription tier (free|supporter|professional)")
 	expiresAt := flag.String("expires-at", "", "Optional RFC3339 timestamp when the subscription expires")
-	dbURL := flag.String("db", defaultDB, "Postgres connection string (defaults to AUTH_DATABASE_URL)")
+	dbURL := flag.String("db", defaultDB, "Postgres connection string (defaults to auth.database_url in config.yaml)")
 	flag.Parse()
 
 	if *dbURL == "" {
-		log.Fatal("database connection string is required (set AUTH_DATABASE_URL or pass -db)")
+		log.Fatal("database connection string is required (set auth.database_url in config.yaml or pass -db)")
 	}
 
 	statusValue := authdomain.UserStatus(strings.ToLower(*status))

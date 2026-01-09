@@ -57,7 +57,7 @@ func NewAlexAgent(batchConfig *BatchConfig) (*AlexAgent, error) {
 		return nil, fmt.Errorf("load runtime configuration: %w", err)
 	}
 	if runtimeCfg.APIKey == "" {
-		return nil, fmt.Errorf("API key is required (set OPENAI_API_KEY or add api_key to ~/.alex-config.json)")
+		return nil, fmt.Errorf("API key is required (set runtime.api_key in ~/.alex/config.yaml or reference ${OPENAI_API_KEY})")
 	}
 
 	baseURL := runtimeCfg.BaseURL

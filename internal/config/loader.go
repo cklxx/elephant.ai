@@ -1,14 +1,14 @@
 package config
 
 import (
-	"encoding/json"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // ValueSource describes where a configuration value originated from.
@@ -38,39 +38,39 @@ const (
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
-	LLMProvider             string   `json:"llm_provider"`
-	LLMModel                string   `json:"llm_model"`
-	LLMSmallProvider        string   `json:"llm_small_provider"`
-	LLMSmallModel           string   `json:"llm_small_model"`
-	LLMVisionModel          string   `json:"llm_vision_model"`
-	APIKey                  string   `json:"api_key"`
-	ArkAPIKey               string   `json:"ark_api_key"`
-	BaseURL                 string   `json:"base_url"`
-	SandboxBaseURL          string   `json:"sandbox_base_url"`
-	TavilyAPIKey            string   `json:"tavily_api_key"`
-	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id"`
-	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id"`
-	SeedreamTextModel       string   `json:"seedream_text_model"`
-	SeedreamImageModel      string   `json:"seedream_image_model"`
-	SeedreamVisionModel     string   `json:"seedream_vision_model"`
-	SeedreamVideoModel      string   `json:"seedream_video_model"`
-	Environment             string   `json:"environment"`
-	Verbose                 bool     `json:"verbose"`
-	DisableTUI              bool     `json:"disable_tui"`
-	FollowTranscript        bool     `json:"follow_transcript"`
-	FollowStream            bool     `json:"follow_stream"`
-	MaxIterations           int      `json:"max_iterations"`
-	MaxTokens               int      `json:"max_tokens"`
-	UserRateLimitRPS        float64  `json:"user_rate_limit_rps"`
-	UserRateLimitBurst      int      `json:"user_rate_limit_burst"`
-	Temperature             float64  `json:"temperature"`
-	TemperatureProvided     bool     `json:"temperature_provided"`
-	TopP                    float64  `json:"top_p"`
-	StopSequences           []string `json:"stop_sequences"`
-	SessionDir              string   `json:"session_dir"`
-	CostDir                 string   `json:"cost_dir"`
-	AgentPreset             string   `json:"agent_preset"`
-	ToolPreset              string   `json:"tool_preset"`
+	LLMProvider             string   `json:"llm_provider" yaml:"llm_provider"`
+	LLMModel                string   `json:"llm_model" yaml:"llm_model"`
+	LLMSmallProvider        string   `json:"llm_small_provider" yaml:"llm_small_provider"`
+	LLMSmallModel           string   `json:"llm_small_model" yaml:"llm_small_model"`
+	LLMVisionModel          string   `json:"llm_vision_model" yaml:"llm_vision_model"`
+	APIKey                  string   `json:"api_key" yaml:"api_key"`
+	ArkAPIKey               string   `json:"ark_api_key" yaml:"ark_api_key"`
+	BaseURL                 string   `json:"base_url" yaml:"base_url"`
+	SandboxBaseURL          string   `json:"sandbox_base_url" yaml:"sandbox_base_url"`
+	TavilyAPIKey            string   `json:"tavily_api_key" yaml:"tavily_api_key"`
+	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id" yaml:"seedream_text_endpoint_id"`
+	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id" yaml:"seedream_image_endpoint_id"`
+	SeedreamTextModel       string   `json:"seedream_text_model" yaml:"seedream_text_model"`
+	SeedreamImageModel      string   `json:"seedream_image_model" yaml:"seedream_image_model"`
+	SeedreamVisionModel     string   `json:"seedream_vision_model" yaml:"seedream_vision_model"`
+	SeedreamVideoModel      string   `json:"seedream_video_model" yaml:"seedream_video_model"`
+	Environment             string   `json:"environment" yaml:"environment"`
+	Verbose                 bool     `json:"verbose" yaml:"verbose"`
+	DisableTUI              bool     `json:"disable_tui" yaml:"disable_tui"`
+	FollowTranscript        bool     `json:"follow_transcript" yaml:"follow_transcript"`
+	FollowStream            bool     `json:"follow_stream" yaml:"follow_stream"`
+	MaxIterations           int      `json:"max_iterations" yaml:"max_iterations"`
+	MaxTokens               int      `json:"max_tokens" yaml:"max_tokens"`
+	UserRateLimitRPS        float64  `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
+	UserRateLimitBurst      int      `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
+	Temperature             float64  `json:"temperature" yaml:"temperature"`
+	TemperatureProvided     bool     `json:"temperature_provided" yaml:"temperature_provided"`
+	TopP                    float64  `json:"top_p" yaml:"top_p"`
+	StopSequences           []string `json:"stop_sequences" yaml:"stop_sequences"`
+	SessionDir              string   `json:"session_dir" yaml:"session_dir"`
+	CostDir                 string   `json:"cost_dir" yaml:"cost_dir"`
+	AgentPreset             string   `json:"agent_preset" yaml:"agent_preset"`
+	ToolPreset              string   `json:"tool_preset" yaml:"tool_preset"`
 }
 
 // Metadata contains provenance details for loaded configuration.
@@ -109,38 +109,38 @@ func (m Metadata) LoadedAt() time.Time {
 
 // Overrides conveys caller-specified values that should win over env/file sources.
 type Overrides struct {
-	LLMProvider             *string   `json:"llm_provider,omitempty"`
-	LLMModel                *string   `json:"llm_model,omitempty"`
-	LLMSmallProvider        *string   `json:"llm_small_provider,omitempty"`
-	LLMSmallModel           *string   `json:"llm_small_model,omitempty"`
-	LLMVisionModel          *string   `json:"llm_vision_model,omitempty"`
-	APIKey                  *string   `json:"api_key,omitempty"`
-	ArkAPIKey               *string   `json:"ark_api_key,omitempty"`
-	BaseURL                 *string   `json:"base_url,omitempty"`
-	SandboxBaseURL          *string   `json:"sandbox_base_url,omitempty"`
-	TavilyAPIKey            *string   `json:"tavily_api_key,omitempty"`
-	SeedreamTextEndpointID  *string   `json:"seedream_text_endpoint_id,omitempty"`
-	SeedreamImageEndpointID *string   `json:"seedream_image_endpoint_id,omitempty"`
-	SeedreamTextModel       *string   `json:"seedream_text_model,omitempty"`
-	SeedreamImageModel      *string   `json:"seedream_image_model,omitempty"`
-	SeedreamVisionModel     *string   `json:"seedream_vision_model,omitempty"`
-	SeedreamVideoModel      *string   `json:"seedream_video_model,omitempty"`
-	Environment             *string   `json:"environment,omitempty"`
-	Verbose                 *bool     `json:"verbose,omitempty"`
-	DisableTUI              *bool     `json:"disable_tui,omitempty"`
-	FollowTranscript        *bool     `json:"follow_transcript,omitempty"`
-	FollowStream            *bool     `json:"follow_stream,omitempty"`
-	MaxIterations           *int      `json:"max_iterations,omitempty"`
-	MaxTokens               *int      `json:"max_tokens,omitempty"`
-	UserRateLimitRPS        *float64  `json:"user_rate_limit_rps,omitempty"`
-	UserRateLimitBurst      *int      `json:"user_rate_limit_burst,omitempty"`
-	Temperature             *float64  `json:"temperature,omitempty"`
-	TopP                    *float64  `json:"top_p,omitempty"`
-	StopSequences           *[]string `json:"stop_sequences,omitempty"`
-	SessionDir              *string   `json:"session_dir,omitempty"`
-	CostDir                 *string   `json:"cost_dir,omitempty"`
-	AgentPreset             *string   `json:"agent_preset,omitempty"`
-	ToolPreset              *string   `json:"tool_preset,omitempty"`
+	LLMProvider             *string   `json:"llm_provider,omitempty" yaml:"llm_provider,omitempty"`
+	LLMModel                *string   `json:"llm_model,omitempty" yaml:"llm_model,omitempty"`
+	LLMSmallProvider        *string   `json:"llm_small_provider,omitempty" yaml:"llm_small_provider,omitempty"`
+	LLMSmallModel           *string   `json:"llm_small_model,omitempty" yaml:"llm_small_model,omitempty"`
+	LLMVisionModel          *string   `json:"llm_vision_model,omitempty" yaml:"llm_vision_model,omitempty"`
+	APIKey                  *string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	ArkAPIKey               *string   `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
+	BaseURL                 *string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
+	SandboxBaseURL          *string   `json:"sandbox_base_url,omitempty" yaml:"sandbox_base_url,omitempty"`
+	TavilyAPIKey            *string   `json:"tavily_api_key,omitempty" yaml:"tavily_api_key,omitempty"`
+	SeedreamTextEndpointID  *string   `json:"seedream_text_endpoint_id,omitempty" yaml:"seedream_text_endpoint_id,omitempty"`
+	SeedreamImageEndpointID *string   `json:"seedream_image_endpoint_id,omitempty" yaml:"seedream_image_endpoint_id,omitempty"`
+	SeedreamTextModel       *string   `json:"seedream_text_model,omitempty" yaml:"seedream_text_model,omitempty"`
+	SeedreamImageModel      *string   `json:"seedream_image_model,omitempty" yaml:"seedream_image_model,omitempty"`
+	SeedreamVisionModel     *string   `json:"seedream_vision_model,omitempty" yaml:"seedream_vision_model,omitempty"`
+	SeedreamVideoModel      *string   `json:"seedream_video_model,omitempty" yaml:"seedream_video_model,omitempty"`
+	Environment             *string   `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Verbose                 *bool     `json:"verbose,omitempty" yaml:"verbose,omitempty"`
+	DisableTUI              *bool     `json:"disable_tui,omitempty" yaml:"disable_tui,omitempty"`
+	FollowTranscript        *bool     `json:"follow_transcript,omitempty" yaml:"follow_transcript,omitempty"`
+	FollowStream            *bool     `json:"follow_stream,omitempty" yaml:"follow_stream,omitempty"`
+	MaxIterations           *int      `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
+	MaxTokens               *int      `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
+	UserRateLimitRPS        *float64  `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
+	UserRateLimitBurst      *int      `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
+	Temperature             *float64  `json:"temperature,omitempty" yaml:"temperature,omitempty"`
+	TopP                    *float64  `json:"top_p,omitempty" yaml:"top_p,omitempty"`
+	StopSequences           *[]string `json:"stop_sequences,omitempty" yaml:"stop_sequences,omitempty"`
+	SessionDir              *string   `json:"session_dir,omitempty" yaml:"session_dir,omitempty"`
+	CostDir                 *string   `json:"cost_dir,omitempty" yaml:"cost_dir,omitempty"`
+	AgentPreset             *string   `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
+	ToolPreset              *string   `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
 }
 
 // EnvLookup resolves the value for an environment variable.
@@ -197,7 +197,7 @@ func DefaultEnvLookup(key string) (string, bool) {
 	return os.LookupEnv(key)
 }
 
-// Load constructs the runtime configuration by merging defaults, file, env and overrides.
+// Load constructs the runtime configuration by merging defaults, file, and overrides.
 func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	options := loadOptions{
 		envLookup: DefaultEnvLookup,
@@ -241,11 +241,6 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 
 	// Load from config file if present.
 	if err := applyFile(&cfg, &meta, options); err != nil {
-		return RuntimeConfig{}, Metadata{}, err
-	}
-
-	// Apply environment overrides.
-	if err := applyEnv(&cfg, &meta, options); err != nil {
 		return RuntimeConfig{}, Metadata{}, err
 	}
 
@@ -311,57 +306,13 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	}
 }
 
-type fileConfig struct {
-	LLMProvider             string   `json:"llm_provider"`
-	LLMModel                string   `json:"llm_model"`
-	LLMSmallProvider        string   `json:"llm_small_provider"`
-	LLMSmallModel           string   `json:"llm_small_model"`
-	LLMVisionModel          string   `json:"llm_vision_model"`
-	APIKey                  string   `json:"api_key"`
-	ArkAPIKey               string   `json:"ark_api_key"`
-	BaseURL                 string   `json:"base_url"`
-	SandboxBaseURL          string   `json:"sandbox_base_url"`
-	TavilyAPIKey            string   `json:"tavily_api_key"`
-	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id"`
-	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id"`
-	SeedreamTextModel       string   `json:"seedream_text_model"`
-	SeedreamImageModel      string   `json:"seedream_image_model"`
-	SeedreamVisionModel     string   `json:"seedream_vision_model"`
-	SeedreamVideoModel      string   `json:"seedream_video_model"`
-	Environment             string   `json:"environment"`
-	Verbose                 *bool    `json:"verbose"`
-	FollowTranscript        *bool    `json:"follow_transcript"`
-	FollowStream            *bool    `json:"follow_stream"`
-	MaxIterations           *int     `json:"max_iterations"`
-	MaxTokens               *int     `json:"max_tokens"`
-	UserRateLimitRPS        *float64 `json:"user_rate_limit_rps"`
-	UserRateLimitBurst      *int     `json:"user_rate_limit_burst"`
-	Temperature             *float64 `json:"temperature"`
-	TopP                    *float64 `json:"top_p"`
-	StopSequences           []string `json:"stop_sequences"`
-	SessionDir              string   `json:"session_dir"`
-	CostDir                 string   `json:"cost_dir"`
-	AgentPreset             string   `json:"agent_preset"`
-	ToolPreset              string   `json:"tool_preset"`
-}
-
 func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	configPath := strings.TrimSpace(opts.configPath)
 	if configPath == "" {
-		lookup := opts.envLookup
-		if lookup == nil {
-			lookup = DefaultEnvLookup
-		}
-		if value, ok := lookup("ALEX_CONFIG_PATH"); ok {
-			configPath = strings.TrimSpace(value)
-		}
+		configPath, _ = ResolveConfigPath(opts.envLookup, opts.homeDir)
 	}
 	if configPath == "" {
-		home, err := opts.homeDir()
-		if err != nil {
-			return nil
-		}
-		configPath = filepath.Join(home, ".alex-config.json")
+		return nil
 	}
 
 	data, err := opts.readFile(configPath)
@@ -372,10 +323,19 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		return fmt.Errorf("read config file: %w", err)
 	}
 
-	var parsed fileConfig
-	if err := json.Unmarshal(data, &parsed); err != nil {
+	if len(bytes.TrimSpace(data)) == 0 {
+		return nil
+	}
+
+	parsed, err := parseRuntimeConfigYAML(data)
+	if err != nil {
 		return fmt.Errorf("parse config file: %w", err)
 	}
+	lookup := opts.envLookup
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+	parsed = expandRuntimeFileConfigEnv(lookup, parsed)
 
 	if parsed.APIKey != "" {
 		cfg.APIKey = parsed.APIKey
@@ -449,6 +409,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.Verbose = *parsed.Verbose
 		meta.sources["verbose"] = SourceFile
 	}
+	if parsed.DisableTUI != nil {
+		cfg.DisableTUI = *parsed.DisableTUI
+		meta.sources["disable_tui"] = SourceFile
+	}
 	if parsed.FollowTranscript != nil {
 		cfg.FollowTranscript = *parsed.FollowTranscript
 		meta.sources["follow_transcript"] = SourceFile
@@ -501,201 +465,6 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.ToolPreset != "" {
 		cfg.ToolPreset = parsed.ToolPreset
 		meta.sources["tool_preset"] = SourceFile
-	}
-
-	return nil
-}
-
-func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
-	lookup := opts.envLookup
-	if lookup == nil {
-		lookup = DefaultEnvLookup
-	}
-
-	if value, ok := lookup("OPENAI_API_KEY"); ok && value != "" {
-		cfg.APIKey = value
-		meta.sources["api_key"] = SourceEnv
-	}
-	if value, ok := lookup("ARK_API_KEY"); ok && value != "" {
-		cfg.ArkAPIKey = value
-		meta.sources["ark_api_key"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_PROVIDER"); ok && value != "" {
-		cfg.LLMProvider = value
-		meta.sources["llm_provider"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_MODEL"); ok && value != "" {
-		cfg.LLMModel = value
-		meta.sources["llm_model"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_SMALL_PROVIDER"); ok && value != "" {
-		cfg.LLMSmallProvider = value
-		meta.sources["llm_small_provider"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_SMALL_MODEL"); ok && value != "" {
-		cfg.LLMSmallModel = value
-		meta.sources["llm_small_model"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_VISION_MODEL"); ok && value != "" {
-		cfg.LLMVisionModel = value
-		meta.sources["llm_vision_model"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_BASE_URL"); ok && value != "" {
-		cfg.BaseURL = value
-		meta.sources["base_url"] = SourceEnv
-	}
-	if value, ok := lookup("SANDBOX_BASE_URL"); ok && value != "" {
-		cfg.SandboxBaseURL = value
-		meta.sources["sandbox_base_url"] = SourceEnv
-	}
-	if value, ok := lookup("TAVILY_API_KEY"); ok && value != "" {
-		cfg.TavilyAPIKey = value
-		meta.sources["tavily_api_key"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_TEXT_ENDPOINT_ID"); ok && value != "" {
-		cfg.SeedreamTextEndpointID = value
-		meta.sources["seedream_text_endpoint_id"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_IMAGE_ENDPOINT_ID"); ok && value != "" {
-		cfg.SeedreamImageEndpointID = value
-		meta.sources["seedream_image_endpoint_id"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_TEXT_MODEL"); ok && value != "" {
-		cfg.SeedreamTextModel = value
-		meta.sources["seedream_text_model"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_IMAGE_MODEL"); ok && value != "" {
-		cfg.SeedreamImageModel = value
-		meta.sources["seedream_image_model"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_VISION_MODEL"); ok && value != "" {
-		cfg.SeedreamVisionModel = value
-		meta.sources["seedream_vision_model"] = SourceEnv
-	}
-	if value, ok := lookup("SEEDREAM_VIDEO_MODEL"); ok && value != "" {
-		cfg.SeedreamVideoModel = value
-		meta.sources["seedream_video_model"] = SourceEnv
-	}
-	if value, ok := lookup("AGENT_PRESET"); ok && value != "" {
-		cfg.AgentPreset = value
-		meta.sources["agent_preset"] = SourceEnv
-	}
-	if value, ok := lookup("TOOL_PRESET"); ok && value != "" {
-		cfg.ToolPreset = value
-		meta.sources["tool_preset"] = SourceEnv
-	}
-	if value, ok := lookup("ALEX_ENV"); ok && value != "" {
-		cfg.Environment = value
-		meta.sources["environment"] = SourceEnv
-	}
-	if value, ok := lookup("ALEX_VERBOSE"); ok && value != "" {
-		parsed, err := parseBoolEnv(value)
-		if err != nil {
-			return fmt.Errorf("parse ALEX_VERBOSE: %w", err)
-		}
-		cfg.Verbose = parsed
-		meta.sources["verbose"] = SourceEnv
-	}
-	if value, ok := lookup("ALEX_NO_TUI"); ok && value != "" {
-		parsed, err := parseBoolEnv(value)
-		if err != nil {
-			return fmt.Errorf("parse ALEX_NO_TUI: %w", err)
-		}
-		cfg.DisableTUI = parsed
-		meta.sources["disable_tui"] = SourceEnv
-	}
-	if value, ok := lookup("ALEX_TUI_FOLLOW_TRANSCRIPT"); ok && value != "" {
-		parsed, err := parseBoolEnv(value)
-		if err != nil {
-			return fmt.Errorf("parse ALEX_TUI_FOLLOW_TRANSCRIPT: %w", err)
-		}
-		cfg.FollowTranscript = parsed
-		meta.sources["follow_transcript"] = SourceEnv
-	}
-
-	if value, ok := lookup("ALEX_TUI_FOLLOW_STREAM"); ok && value != "" {
-		parsed, err := parseBoolEnv(value)
-		if err != nil {
-			return fmt.Errorf("parse ALEX_TUI_FOLLOW_STREAM: %w", err)
-		}
-		cfg.FollowStream = parsed
-		meta.sources["follow_stream"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_MAX_ITERATIONS"); ok && value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("parse LLM_MAX_ITERATIONS: %w", err)
-		}
-		cfg.MaxIterations = parsed
-		meta.sources["max_iterations"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_MAX_TOKENS"); ok && value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("parse LLM_MAX_TOKENS: %w", err)
-		}
-		cfg.MaxTokens = parsed
-		meta.sources["max_tokens"] = SourceEnv
-	}
-	if value, ok := lookup("USER_LLM_RPS"); ok && value != "" {
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("parse USER_LLM_RPS: %w", err)
-		}
-		cfg.UserRateLimitRPS = parsed
-		meta.sources["user_rate_limit_rps"] = SourceEnv
-	}
-	if value, ok := lookup("USER_LLM_BURST"); ok && value != "" {
-		parsed, err := strconv.Atoi(value)
-		if err != nil {
-			return fmt.Errorf("parse USER_LLM_BURST: %w", err)
-		}
-		cfg.UserRateLimitBurst = parsed
-		meta.sources["user_rate_limit_burst"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_TEMPERATURE"); ok && value != "" {
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("parse LLM_TEMPERATURE: %w", err)
-		}
-		cfg.Temperature = parsed
-		cfg.TemperatureProvided = true
-		meta.sources["temperature"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_TOP_P"); ok && value != "" {
-		parsed, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return fmt.Errorf("parse LLM_TOP_P: %w", err)
-		}
-		cfg.TopP = parsed
-		meta.sources["top_p"] = SourceEnv
-	}
-	if value, ok := lookup("LLM_STOP"); ok && value != "" {
-		parts := strings.FieldsFunc(value, func(r rune) bool {
-			switch r {
-			case ',', ';', ' ', '\n', '\t':
-				return true
-			default:
-				return false
-			}
-		})
-		filtered := parts[:0]
-		for _, token := range parts {
-			trimmed := strings.TrimSpace(token)
-			if trimmed != "" {
-				filtered = append(filtered, trimmed)
-			}
-		}
-		cfg.StopSequences = append([]string(nil), filtered...)
-		meta.sources["stop_sequences"] = SourceEnv
-	}
-	if value, ok := lookup("ALEX_SESSION_DIR"); ok && value != "" {
-		cfg.SessionDir = value
-		meta.sources["session_dir"] = SourceEnv
-	}
-	if value, ok := lookup("ALEX_COST_DIR"); ok && value != "" {
-		cfg.CostDir = value
-		meta.sources["cost_dir"] = SourceEnv
 	}
 
 	return nil
@@ -833,15 +602,56 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	}
 }
 
-func parseBoolEnv(value string) (bool, error) {
-	trimmed := strings.TrimSpace(value)
-	lower := strings.ToLower(trimmed)
-	switch lower {
-	case "1", "true", "t", "yes", "y", "on":
-		return true, nil
-	case "0", "false", "f", "no", "n", "off":
-		return false, nil
-	default:
-		return false, fmt.Errorf("invalid boolean value %q", value)
+type runtimeFile struct {
+	Runtime *RuntimeFileConfig `yaml:"runtime"`
+}
+
+func parseRuntimeConfigYAML(data []byte) (RuntimeFileConfig, error) {
+	var wrapped runtimeFile
+	if err := yaml.Unmarshal(data, &wrapped); err != nil {
+		return RuntimeFileConfig{}, err
 	}
+	if wrapped.Runtime != nil {
+		return *wrapped.Runtime, nil
+	}
+
+	var parsed RuntimeFileConfig
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		return RuntimeFileConfig{}, err
+	}
+	return parsed, nil
+}
+
+func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) RuntimeFileConfig {
+	parsed.LLMProvider = expandEnvValue(lookup, parsed.LLMProvider)
+	parsed.LLMModel = expandEnvValue(lookup, parsed.LLMModel)
+	parsed.LLMSmallProvider = expandEnvValue(lookup, parsed.LLMSmallProvider)
+	parsed.LLMSmallModel = expandEnvValue(lookup, parsed.LLMSmallModel)
+	parsed.LLMVisionModel = expandEnvValue(lookup, parsed.LLMVisionModel)
+	parsed.APIKey = expandEnvValue(lookup, parsed.APIKey)
+	parsed.ArkAPIKey = expandEnvValue(lookup, parsed.ArkAPIKey)
+	parsed.BaseURL = expandEnvValue(lookup, parsed.BaseURL)
+	parsed.SandboxBaseURL = expandEnvValue(lookup, parsed.SandboxBaseURL)
+	parsed.TavilyAPIKey = expandEnvValue(lookup, parsed.TavilyAPIKey)
+	parsed.SeedreamTextEndpointID = expandEnvValue(lookup, parsed.SeedreamTextEndpointID)
+	parsed.SeedreamImageEndpointID = expandEnvValue(lookup, parsed.SeedreamImageEndpointID)
+	parsed.SeedreamTextModel = expandEnvValue(lookup, parsed.SeedreamTextModel)
+	parsed.SeedreamImageModel = expandEnvValue(lookup, parsed.SeedreamImageModel)
+	parsed.SeedreamVisionModel = expandEnvValue(lookup, parsed.SeedreamVisionModel)
+	parsed.SeedreamVideoModel = expandEnvValue(lookup, parsed.SeedreamVideoModel)
+	parsed.Environment = expandEnvValue(lookup, parsed.Environment)
+	parsed.SessionDir = expandEnvValue(lookup, parsed.SessionDir)
+	parsed.CostDir = expandEnvValue(lookup, parsed.CostDir)
+	parsed.AgentPreset = expandEnvValue(lookup, parsed.AgentPreset)
+	parsed.ToolPreset = expandEnvValue(lookup, parsed.ToolPreset)
+
+	if len(parsed.StopSequences) > 0 {
+		expanded := make([]string, 0, len(parsed.StopSequences))
+		for _, seq := range parsed.StopSequences {
+			expanded = append(expanded, expandEnvValue(lookup, seq))
+		}
+		parsed.StopSequences = expanded
+	}
+
+	return parsed
 }

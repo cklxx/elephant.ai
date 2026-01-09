@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import { RequireAuth } from "@/components/auth/RequireAuth";
+import { useSessionStore } from "@/hooks/useSessionStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,9 +181,12 @@ export default function ConversationDebugPage() {
   const [sessionSnapshotUpdatedAt, setSessionSnapshotUpdatedAt] = useState<string | null>(null);
   const [sessionAutoRefresh, setSessionAutoRefresh] = useState(true);
 
+  const { currentSessionId, sessionHistory } = useSessionStore();
+
   const eventSourceRef = useRef<EventSource | null>(null);
   const listEndRef = useRef<HTMLDivElement | null>(null);
   const idRef = useRef(0);
+  const autoSeededRef = useRef(false);
 
   const sessionId = sessionIdInput.trim();
 
@@ -300,6 +304,22 @@ export default function ConversationDebugPage() {
       disconnect();
     };
   }, [disconnect]);
+
+  useEffect(() => {
+    if (autoSeededRef.current) {
+      return;
+    }
+    if (sessionIdInput.trim()) {
+      autoSeededRef.current = true;
+      return;
+    }
+    const candidate = currentSessionId ?? sessionHistory[0];
+    if (!candidate) {
+      return;
+    }
+    setSessionIdInput(candidate);
+    autoSeededRef.current = true;
+  }, [currentSessionId, sessionHistory, sessionIdInput]);
 
   useEffect(() => {
     if (!autoScroll || events.length === 0) {

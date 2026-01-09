@@ -4,10 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"os"
+
+	runtimeconfig "alex/internal/config"
 )
 
 func main() {
 	args := os.Args[1:]
+
+	if err := runtimeconfig.LoadDotEnv(); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load .env: %v\n", err)
+	}
 
 	if handled, exitCode := handleStandaloneArgs(args); handled {
 		if exitCode != 0 {

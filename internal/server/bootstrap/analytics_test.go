@@ -1,9 +1,13 @@
 package bootstrap
 
-import "testing"
+import (
+	"testing"
+
+	runtimeconfig "alex/internal/config"
+)
 
 func TestBuildAnalyticsClient_NoKeyUsesNoop(t *testing.T) {
-	client, cleanup := BuildAnalyticsClient(AnalyticsConfig{}, nil)
+	client, cleanup := BuildAnalyticsClient(runtimeconfig.AnalyticsConfig{}, nil)
 	if client == nil {
 		t.Fatalf("expected client, got nil")
 	}

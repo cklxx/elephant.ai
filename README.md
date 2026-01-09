@@ -38,9 +38,7 @@ make server-build     # alex-server
 
 # Configure your LLM provider (example: OpenAI)
 export OPENAI_API_KEY="sk-..."
-export LLM_PROVIDER="openai"
-export LLM_BASE_URL="https://api.openai.com/v1"
-export LLM_MODEL="gpt-4o-mini"
+cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
 # Run the CLI/TUI
 ./alex
@@ -54,7 +52,7 @@ make server-run
 (cd web && npm run dev)
 ```
 
-Configuration is shared across every surface. Use `examples/config/core-config-example.json` and `docs/reference/CONFIG.md` for the canonical schema.
+Configuration is shared across every surface. Use `examples/config/runtime-config.yaml` and `docs/reference/CONFIG.md` for the canonical schema.
 
 ---
 

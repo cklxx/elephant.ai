@@ -75,28 +75,20 @@ Sandbox 启动后，确认以下入口可访问：
 
 | 配置来源 | Key | 说明 |
 | --- | --- | --- |
-| 环境变量 | `SANDBOX_BASE_URL` | Sandbox API 根地址（**不含 `/v1`**） |
-| JSON 配置 | `sandbox_base_url` | 同上，写入 `~/.alex-config.json` |
+| YAML 配置 | `runtime.sandbox_base_url` | Sandbox API 根地址（**不含 `/v1`**） |
 
 默认值为 `http://localhost:18086`。
 
-### 3.2 环境变量方式
+### 3.2 YAML 配置方式
 
-```bash
-export SANDBOX_BASE_URL="http://localhost:18086"
+`~/.alex/config.yaml` 示例：
+
+```yaml
+runtime:
+  sandbox_base_url: "http://localhost:18086"
 ```
 
-### 3.3 JSON 配置方式
-
-`~/.alex-config.json` 示例：
-
-```json
-{
-  "sandbox_base_url": "http://localhost:18086"
-}
-```
-
-> 如果同时设置 env + config file，遵循常规优先级规则（overrides > env > file > default）。
+> 如需从环境变量注入，可写为 `runtime.sandbox_base_url: ${SANDBOX_BASE_URL}`。
 
 ### 3.4 dev/deploy 脚本自动启动
 

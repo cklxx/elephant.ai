@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -31,6 +32,19 @@ func stubSeedreamNonce(t *testing.T, value string) {
 	})
 }
 
+func disableSeedreamUploader(t *testing.T) {
+	t.Helper()
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(configPath, nil, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+
+	seedreamUploaderOnce = sync.Once{}
+	seedreamUploader = nil
+	seedreamUploaderErr = nil
+}
+
 func assertContains(t *testing.T, content, needle, label string) {
 	t.Helper()
 	if !strings.Contains(content, needle) {
@@ -39,6 +53,7 @@ func assertContains(t *testing.T, content, needle, label string) {
 }
 
 func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
+	disableSeedreamUploader(t)
 	stubSeedreamNonce(t, "nonce")
 
 	resp := &arkm.ImagesResponse{
@@ -83,6 +98,7 @@ func TestFormatSeedreamResponsePrefersPromptForDescriptions(t *testing.T) {
 }
 
 func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
+	disableSeedreamUploader(t)
 	stubSeedreamNonce(t, "nonce")
 
 	resp := &arkm.ImagesResponse{
@@ -119,6 +135,7 @@ func TestFormatSeedreamResponseFallsBackToDescriptor(t *testing.T) {
 }
 
 func TestFormatSeedreamResponsePopulatesAttachmentURIFromBase64(t *testing.T) {
+	disableSeedreamUploader(t)
 	stubSeedreamNonce(t, "nonce")
 
 	resp := &arkm.ImagesResponse{

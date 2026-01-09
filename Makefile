@@ -1,4 +1,9 @@
-.PHONY: help build test clean dev fmt vet demo
+.PHONY: \
+	help build clean fmt vet dev demo run install test test-domain test-app \
+	check-deps bench docs npm-copy-binaries npm-publish npm-test-install \
+	build-all release-npm server-build server-run server-test \
+	server-test-integration deploy deploy-docker deploy-test deploy-status \
+	deploy-down
 
 GO ?= scripts/go-with-toolchain.sh
 
@@ -117,20 +122,15 @@ server-test-integration: server-build ## Run integration tests with test script
 	@echo "Running SSE server integration tests..."
 	@./scripts/test-sse-server.sh
 
-# ========================================
-# Deployment Targets
-# ========================================
+## ========================================
+## Deployment Targets
+## ========================================
 
-.PHONY: deploy-local deploy-docker deploy-dev deploy-test deploy-status deploy-down
-
-deploy-local: ## Deploy locally (Go + Next.js)
+deploy: ## Deploy locally (Go + Next.js)
 	@./deploy.sh local
 
 deploy-docker: ## Deploy with Docker Compose (production)
 	@./deploy.sh docker
-
-deploy-dev: ## Deploy with Docker Compose (development)
-	@./deploy.sh dev
 
 deploy-test: ## Run all deployment tests
 	@./deploy.sh test
@@ -140,6 +140,3 @@ deploy-status: ## Show deployment status
 
 deploy-down: ## Stop all deployments
 	@./deploy.sh down
-
-# Quick deploy (default: local)
-deploy: deploy-local ## Quick deploy (local mode)
