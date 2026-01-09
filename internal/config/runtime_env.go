@@ -47,6 +47,16 @@ func runtimeEnvValues(cfg RuntimeConfig) map[string]string {
 
 	set("LLM_VISION_MODEL", cfg.LLMVisionModel)
 
+	set("MOBILE_LLM_PROVIDER", cfg.MobileLLMProvider)
+	set("MOBILE_LLM_MODEL", cfg.MobileLLMModel)
+	set("MOBILE_LLM_API_KEY", cfg.MobileLLMAPIKey)
+	set("MOBILE_LLM_BASE_URL", cfg.MobileLLMBaseURL)
+	set("MOBILE_ADB_ADDRESS", cfg.MobileADBAddress)
+	set("MOBILE_ADB_SERIAL", cfg.MobileADBSerial)
+	if cfg.MobileMaxSteps > 0 {
+		set("MOBILE_MAX_STEPS", strconv.Itoa(cfg.MobileMaxSteps))
+	}
+
 	set("LLM_BASE_URL", cfg.BaseURL)
 	set("SANDBOX_BASE_URL", cfg.SandboxBaseURL)
 

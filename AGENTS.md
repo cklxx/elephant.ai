@@ -305,6 +305,7 @@ Only record actionable, reusable errors (recurring, high-impact, or with clear r
 
 * 2026-01-08: `make fmt` failed when sum.golang.org returned 502; rerun with `GONOSUMDB=...` and a larger golangci-lint timeout.
 * 2026-01-08: Git failed to create `.git/index.lock`; remove the stale lock after confirming no git process is running.
+* 2026-01-09: golangci-lint timed out during `make fmt`; rerun with a higher `--timeout` (e.g., `./scripts/run-golangci-lint.sh run --timeout=5m ./...`).
 ## Error Experience Summary
 
 * Go linting can fail if `sum.golang.org` returns 502 or golangci-lint times out; use `GONOSUMDB=...` and increase `--timeout`.

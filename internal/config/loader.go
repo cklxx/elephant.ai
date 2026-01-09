@@ -34,6 +34,10 @@ const (
 	DefaultLLMModel    = "gpt-4o-mini"
 	DefaultLLMBaseURL  = "https://api.openai.com/v1"
 	DefaultMaxTokens   = 8192
+	DefaultMobileModel = "autoglm-phone-9b"
+	DefaultMobileURL   = "http://localhost:8000/v1"
+	DefaultMobileKey   = "EMPTY"
+	DefaultMobileSteps = 100
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -43,6 +47,13 @@ type RuntimeConfig struct {
 	LLMSmallProvider        string   `json:"llm_small_provider"`
 	LLMSmallModel           string   `json:"llm_small_model"`
 	LLMVisionModel          string   `json:"llm_vision_model"`
+	MobileLLMProvider       string   `json:"mobile_llm_provider"`
+	MobileLLMModel          string   `json:"mobile_llm_model"`
+	MobileLLMAPIKey         string   `json:"mobile_llm_api_key"`
+	MobileLLMBaseURL        string   `json:"mobile_llm_base_url"`
+	MobileADBAddress        string   `json:"mobile_adb_address"`
+	MobileADBSerial         string   `json:"mobile_adb_serial"`
+	MobileMaxSteps          int      `json:"mobile_max_steps"`
 	APIKey                  string   `json:"api_key"`
 	ArkAPIKey               string   `json:"ark_api_key"`
 	BaseURL                 string   `json:"base_url"`
@@ -114,6 +125,13 @@ type Overrides struct {
 	LLMSmallProvider        *string   `json:"llm_small_provider,omitempty"`
 	LLMSmallModel           *string   `json:"llm_small_model,omitempty"`
 	LLMVisionModel          *string   `json:"llm_vision_model,omitempty"`
+	MobileLLMProvider       *string   `json:"mobile_llm_provider,omitempty"`
+	MobileLLMModel          *string   `json:"mobile_llm_model,omitempty"`
+	MobileLLMAPIKey         *string   `json:"mobile_llm_api_key,omitempty"`
+	MobileLLMBaseURL        *string   `json:"mobile_llm_base_url,omitempty"`
+	MobileADBAddress        *string   `json:"mobile_adb_address,omitempty"`
+	MobileADBSerial         *string   `json:"mobile_adb_serial,omitempty"`
+	MobileMaxSteps          *int      `json:"mobile_max_steps,omitempty"`
 	APIKey                  *string   `json:"api_key,omitempty"`
 	ArkAPIKey               *string   `json:"ark_api_key,omitempty"`
 	BaseURL                 *string   `json:"base_url,omitempty"`
@@ -216,6 +234,11 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMSmallProvider:    DefaultLLMProvider,
 		LLMSmallModel:       DefaultLLMModel,
 		BaseURL:             DefaultLLMBaseURL,
+		MobileLLMProvider:   DefaultLLMProvider,
+		MobileLLMModel:      DefaultMobileModel,
+		MobileLLMAPIKey:     DefaultMobileKey,
+		MobileLLMBaseURL:    DefaultMobileURL,
+		MobileMaxSteps:      DefaultMobileSteps,
 		SandboxBaseURL:      "http://localhost:18086",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
 		SeedreamImageModel:  DefaultSeedreamImageModel,
@@ -267,6 +290,19 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		setSource("llm_provider", SourceDefault)
 	}
 
+	if cfg.MobileLLMProvider == "" {
+		cfg.MobileLLMProvider = cfg.LLMProvider
+	}
+	if cfg.MobileLLMModel == "" {
+		cfg.MobileLLMModel = cfg.LLMModel
+	}
+	if cfg.MobileLLMAPIKey == "" {
+		cfg.MobileLLMAPIKey = cfg.APIKey
+	}
+	if cfg.MobileLLMBaseURL == "" {
+		cfg.MobileLLMBaseURL = cfg.BaseURL
+	}
+
 	return cfg, meta, nil
 }
 
@@ -276,6 +312,12 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.LLMSmallProvider = strings.TrimSpace(cfg.LLMSmallProvider)
 	cfg.LLMSmallModel = strings.TrimSpace(cfg.LLMSmallModel)
 	cfg.LLMVisionModel = strings.TrimSpace(cfg.LLMVisionModel)
+	cfg.MobileLLMProvider = strings.TrimSpace(cfg.MobileLLMProvider)
+	cfg.MobileLLMModel = strings.TrimSpace(cfg.MobileLLMModel)
+	cfg.MobileLLMAPIKey = strings.TrimSpace(cfg.MobileLLMAPIKey)
+	cfg.MobileLLMBaseURL = strings.TrimSpace(cfg.MobileLLMBaseURL)
+	cfg.MobileADBAddress = strings.TrimSpace(cfg.MobileADBAddress)
+	cfg.MobileADBSerial = strings.TrimSpace(cfg.MobileADBSerial)
 	cfg.APIKey = strings.TrimSpace(cfg.APIKey)
 	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)
 	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
@@ -317,6 +359,13 @@ type fileConfig struct {
 	LLMSmallProvider        string   `json:"llm_small_provider"`
 	LLMSmallModel           string   `json:"llm_small_model"`
 	LLMVisionModel          string   `json:"llm_vision_model"`
+	MobileLLMProvider       string   `json:"mobile_llm_provider"`
+	MobileLLMModel          string   `json:"mobile_llm_model"`
+	MobileLLMAPIKey         string   `json:"mobile_llm_api_key"`
+	MobileLLMBaseURL        string   `json:"mobile_llm_base_url"`
+	MobileADBAddress        string   `json:"mobile_adb_address"`
+	MobileADBSerial         string   `json:"mobile_adb_serial"`
+	MobileMaxSteps          *int     `json:"mobile_max_steps"`
 	APIKey                  string   `json:"api_key"`
 	ArkAPIKey               string   `json:"ark_api_key"`
 	BaseURL                 string   `json:"base_url"`
@@ -404,6 +453,34 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.LLMVisionModel != "" {
 		cfg.LLMVisionModel = parsed.LLMVisionModel
 		meta.sources["llm_vision_model"] = SourceFile
+	}
+	if parsed.MobileLLMProvider != "" {
+		cfg.MobileLLMProvider = parsed.MobileLLMProvider
+		meta.sources["mobile_llm_provider"] = SourceFile
+	}
+	if parsed.MobileLLMModel != "" {
+		cfg.MobileLLMModel = parsed.MobileLLMModel
+		meta.sources["mobile_llm_model"] = SourceFile
+	}
+	if parsed.MobileLLMAPIKey != "" {
+		cfg.MobileLLMAPIKey = parsed.MobileLLMAPIKey
+		meta.sources["mobile_llm_api_key"] = SourceFile
+	}
+	if parsed.MobileLLMBaseURL != "" {
+		cfg.MobileLLMBaseURL = parsed.MobileLLMBaseURL
+		meta.sources["mobile_llm_base_url"] = SourceFile
+	}
+	if parsed.MobileADBAddress != "" {
+		cfg.MobileADBAddress = parsed.MobileADBAddress
+		meta.sources["mobile_adb_address"] = SourceFile
+	}
+	if parsed.MobileADBSerial != "" {
+		cfg.MobileADBSerial = parsed.MobileADBSerial
+		meta.sources["mobile_adb_serial"] = SourceFile
+	}
+	if parsed.MobileMaxSteps != nil {
+		cfg.MobileMaxSteps = *parsed.MobileMaxSteps
+		meta.sources["mobile_max_steps"] = SourceFile
 	}
 	if parsed.BaseURL != "" {
 		cfg.BaseURL = parsed.BaseURL
@@ -539,6 +616,38 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("LLM_VISION_MODEL"); ok && value != "" {
 		cfg.LLMVisionModel = value
 		meta.sources["llm_vision_model"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_PROVIDER"); ok && value != "" {
+		cfg.MobileLLMProvider = value
+		meta.sources["mobile_llm_provider"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_MODEL"); ok && value != "" {
+		cfg.MobileLLMModel = value
+		meta.sources["mobile_llm_model"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_API_KEY"); ok && value != "" {
+		cfg.MobileLLMAPIKey = value
+		meta.sources["mobile_llm_api_key"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_LLM_BASE_URL"); ok && value != "" {
+		cfg.MobileLLMBaseURL = value
+		meta.sources["mobile_llm_base_url"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_ADB_ADDRESS"); ok && value != "" {
+		cfg.MobileADBAddress = value
+		meta.sources["mobile_adb_address"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_ADB_SERIAL"); ok && value != "" {
+		cfg.MobileADBSerial = value
+		meta.sources["mobile_adb_serial"] = SourceEnv
+	}
+	if value, ok := lookup("MOBILE_MAX_STEPS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse MOBILE_MAX_STEPS: %w", err)
+		}
+		cfg.MobileMaxSteps = parsed
+		meta.sources["mobile_max_steps"] = SourceEnv
 	}
 	if value, ok := lookup("LLM_BASE_URL"); ok && value != "" {
 		cfg.BaseURL = value
@@ -721,6 +830,34 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.LLMVisionModel != nil {
 		cfg.LLMVisionModel = *overrides.LLMVisionModel
 		meta.sources["llm_vision_model"] = SourceOverride
+	}
+	if overrides.MobileLLMProvider != nil {
+		cfg.MobileLLMProvider = *overrides.MobileLLMProvider
+		meta.sources["mobile_llm_provider"] = SourceOverride
+	}
+	if overrides.MobileLLMModel != nil {
+		cfg.MobileLLMModel = *overrides.MobileLLMModel
+		meta.sources["mobile_llm_model"] = SourceOverride
+	}
+	if overrides.MobileLLMAPIKey != nil {
+		cfg.MobileLLMAPIKey = *overrides.MobileLLMAPIKey
+		meta.sources["mobile_llm_api_key"] = SourceOverride
+	}
+	if overrides.MobileLLMBaseURL != nil {
+		cfg.MobileLLMBaseURL = *overrides.MobileLLMBaseURL
+		meta.sources["mobile_llm_base_url"] = SourceOverride
+	}
+	if overrides.MobileADBAddress != nil {
+		cfg.MobileADBAddress = *overrides.MobileADBAddress
+		meta.sources["mobile_adb_address"] = SourceOverride
+	}
+	if overrides.MobileADBSerial != nil {
+		cfg.MobileADBSerial = *overrides.MobileADBSerial
+		meta.sources["mobile_adb_serial"] = SourceOverride
+	}
+	if overrides.MobileMaxSteps != nil {
+		cfg.MobileMaxSteps = *overrides.MobileMaxSteps
+		meta.sources["mobile_max_steps"] = SourceOverride
 	}
 	if overrides.APIKey != nil {
 		cfg.APIKey = *overrides.APIKey

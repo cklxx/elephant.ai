@@ -40,6 +40,13 @@ type Config struct {
 	SeedreamVideoModel      string
 	LLMVisionModel          string
 	SandboxBaseURL          string
+	MobileLLMProvider       string
+	MobileLLMModel          string
+	MobileLLMAPIKey         string
+	MobileLLMBaseURL        string
+	MobileADBAddress        string
+	MobileADBSerial         string
+	MobileMaxSteps          int
 
 	LLMFactory    ports.LLMClientFactory
 	LLMProvider   string
@@ -75,6 +82,13 @@ func NewRegistry(config Config) (*Registry, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
+		MobileLLMProvider:       config.MobileLLMProvider,
+		MobileLLMModel:          config.MobileLLMModel,
+		MobileLLMAPIKey:         config.MobileLLMAPIKey,
+		MobileLLMBaseURL:        config.MobileLLMBaseURL,
+		MobileADBAddress:        config.MobileADBAddress,
+		MobileADBSerial:         config.MobileADBSerial,
+		MobileMaxSteps:          config.MobileMaxSteps,
 		MemoryService:           config.MemoryService,
 	}); err != nil {
 		return nil, err
@@ -318,6 +332,46 @@ func (r *Registry) registerBuiltins(config Config) error {
 		miniappLLM = client
 	}
 	r.static["miniapp_html"] = builtin.NewMiniAppHTMLWithLLM(miniappLLM)
+
+	mobileProvider := strings.TrimSpace(config.MobileLLMProvider)
+	mobileModel := strings.TrimSpace(config.MobileLLMModel)
+	mobileAPIKey := strings.TrimSpace(config.MobileLLMAPIKey)
+	mobileBaseURL := strings.TrimSpace(config.MobileLLMBaseURL)
+	if mobileProvider == "" {
+		mobileProvider = provider
+	}
+	if mobileModel == "" {
+		mobileModel = model
+	}
+	if mobileAPIKey == "" {
+		mobileAPIKey = config.APIKey
+	}
+	if mobileBaseURL == "" {
+		mobileBaseURL = config.BaseURL
+	}
+	mobileLLM := llm.NewMockClient()
+	if mobileProvider != "" && mobileProvider != "mock" {
+		if config.LLMFactory == nil {
+			return fmt.Errorf("mobile_task: LLMFactory is required when provider is %q", mobileProvider)
+		}
+		if mobileModel == "" {
+			return fmt.Errorf("mobile_task: model is required when provider is %q", mobileProvider)
+		}
+		client, err := config.LLMFactory.GetClient(mobileProvider, mobileModel, ports.LLMConfig{
+			APIKey:  mobileAPIKey,
+			BaseURL: mobileBaseURL,
+		})
+		if err != nil {
+			return fmt.Errorf("mobile_task: failed to create LLM client: %w", err)
+		}
+		mobileLLM = client
+	}
+	r.static["mobile_task"] = builtin.NewMobileTask(builtin.MobileTaskConfig{
+		LLM:        mobileLLM,
+		ADBAddress: config.MobileADBAddress,
+		ADBSerial:  config.MobileADBSerial,
+		MaxSteps:   config.MobileMaxSteps,
+	})
 
 	// Document generation
 	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
