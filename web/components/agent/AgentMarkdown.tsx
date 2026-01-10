@@ -127,7 +127,7 @@ const baseComponents: Record<string, ComponentType<any>> = {
       );
     }
     return (
-      <li className={cn("flex flex-col", className)} {...props}>
+      <li className={cn("", className)} {...props}>
         {renderLineBreaks(children)}
       </li>
     );
