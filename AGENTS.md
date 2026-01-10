@@ -13,6 +13,7 @@
   * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
   * Run full lint and test validation after changes.
   * Avoid unnecessary defensive code.
+  * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.
 
 ---
 
