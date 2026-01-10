@@ -5,7 +5,14 @@ import MarkdownPreview from "@uiw/react-markdown-preview";
 import remarkGfm from "remark-gfm";
 import { Highlight, Language, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
-import { Children, ComponentType, ReactNode, isValidElement, useMemo, useState } from "react";
+import {
+  Children,
+  ComponentType,
+  ReactNode,
+  isValidElement,
+  useMemo,
+  useState,
+} from "react";
 import { VideoPreview } from "@/components/ui/video-preview";
 import {
   buildAttachmentUri,
@@ -283,17 +290,14 @@ export function MarkdownRenderer({
       const taskChildren = splitTaskListChildren(children);
       if (taskChildren) {
         return (
-          <li
-            className={cn("flex items-start gap-2", liClass)}
-            {...props}
-          >
+          <li className={cn("flex items-start gap-2", liClass)} {...props}>
             {taskChildren.checkbox}
             <div className="min-w-0 flex-1">{taskChildren.rest}</div>
           </li>
         );
       }
       return (
-        <li className={cn("flex flex-col", liClass)} {...props}>
+        <li className={cn("", liClass)} {...props}>
           {children}
         </li>
       );
@@ -303,7 +307,10 @@ export function MarkdownRenderer({
         return (
           <input
             type="checkbox"
-            className={cn("mt-1 h-4 w-4 shrink-0 accent-foreground", inputClass)}
+            className={cn(
+              "mt-1 h-4 w-4 shrink-0 accent-foreground",
+              inputClass,
+            )}
             {...props}
           />
         );
