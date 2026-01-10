@@ -32,24 +32,25 @@ elephant.ai is a shared Go runtime (with a Next.js dashboard) that powers the `a
 Prerequisites: Go 1.24+, Node.js 20+ (web UI), Docker (optional).
 
 ```bash
-# Build CLI and server
-make build            # alex
-make server-build     # alex-server
-
 # Configure your LLM provider (example: OpenAI)
 export OPENAI_API_KEY="sk-..."
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
-# Run the CLI/TUI
+# Run backend + web together
+./dev.sh
+
+# Check status/logs
+./dev.sh status
+./dev.sh logs server
+./dev.sh logs web
+
+# Stop services
+./dev.sh down
+
+# Optional: build and run the CLI/TUI
+make build
 ./alex
 ./alex "print the repo layout"
-
-# Run the server (SSE + API)
-make server-run
-
-# Run the dashboard (development)
-(cd web && npm install)
-(cd web && npm run dev)
 ```
 
 Configuration is shared across every surface. Use `examples/config/runtime-config.yaml` and `docs/reference/CONFIG.md` for the canonical schema.
