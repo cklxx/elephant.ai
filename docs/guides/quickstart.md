@@ -13,15 +13,6 @@ This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and 
 
 ---
 
-## Build
-
-```bash
-make build         # builds ./alex
-make server-build  # builds ./alex-server
-```
-
----
-
 ## Configure
 
 ```bash
@@ -42,31 +33,34 @@ Reference: `docs/reference/CONFIG.md`
 
 ---
 
-## Run
+## Run (recommended)
 
-### CLI / TUI
+`dev.sh` builds and runs the backend + web UI together.
 
 ```bash
+./dev.sh
+```
+
+Check status or logs:
+
+```bash
+./dev.sh status
+./dev.sh logs server
+./dev.sh logs web
+```
+
+Stop services:
+
+```bash
+./dev.sh down
+```
+
+### CLI / TUI (optional)
+
+```bash
+make build
 ./alex
-```
-
-### One-shot task
-
-```bash
 ./alex "analyze the authentication flow and list risks"
-```
-
-### Server
-
-```bash
-make server-run
-```
-
-### Web UI (development)
-
-```bash
-(cd web && npm install)
-(cd web && npm run dev)
 ```
 
 ---
@@ -96,9 +90,8 @@ Use `tool_preset` to control which tools the CLI agent can call (web mode ignore
 ## Validate
 
 ```bash
-make fmt
-make vet
-make test
+./dev.sh lint
+./dev.sh test
 ```
 
 ---
