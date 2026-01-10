@@ -22,16 +22,17 @@ type HomeCopy = {
 const copy: Record<HomeLang, HomeCopy> = {
   zh: {
     badge: "elephant.ai · proactive agent",
-    title: "一只猛虎，不在纸上",
-    subtitle: "首页与 Console 同框：主动 Agent 先探路、先澄清、再执行。",
+    title: "把任务当成项目来交付",
+    subtitle: "首页与 Console 同框：主动 Agent 先对齐目标、澄清边界，再把执行与证据并排交付。",
     actions: {
       primary: "进入控制台",
     },
   },
   en: {
     badge: "elephant.ai · proactive agent",
-    title: "A tiger is not on paper",
-    subtitle: "Proactive agents share the console frame—scouting, clarifying, then executing.",
+    title: "Deliver tasks like real projects",
+    subtitle:
+      "Homepage meets the Console: proactive agents align goals, clarify guardrails, and ship evidence alongside execution.",
     actions: {
       primary: "Open console",
     },
@@ -48,41 +49,41 @@ type HighlightCopy = {
 const highlightCopy: Record<HomeLang, HighlightCopy[]> = {
   zh: [
     {
-      title: "先规划再执行",
-      body: "目标、约束与依赖先对齐，动作才开始。",
-      accent: "from-indigo-500/20 via-sky-500/20 to-emerald-500/20",
+      title: "先对齐，再行动",
+      body: "目标、依赖与风险先明示，执行才高效。",
+      accent: "from-amber-200/70 via-orange-200/50 to-rose-200/40",
       icon: Sparkles,
     },
     {
-      title: "证据优先",
-      body: "行动和结果并排呈现，交付即复盘。",
-      accent: "from-amber-500/20 via-orange-500/20 to-rose-500/20",
+      title: "结果可验证",
+      body: "每一步附带证据与摘要，交付可追溯。",
+      accent: "from-emerald-200/60 via-lime-200/40 to-amber-200/40",
       icon: ShieldCheck,
     },
     {
-      title: "全过程可追踪",
-      body: "节奏、步骤与工具调用清晰可见。",
-      accent: "from-emerald-500/20 via-teal-500/20 to-cyan-500/20",
+      title: "全过程透明",
+      body: "时间线、工具调用与阶段成果一目了然。",
+      accent: "from-sky-200/70 via-teal-200/50 to-emerald-200/40",
       icon: Layers,
     },
   ],
   en: [
     {
-      title: "Plan before action",
-      body: "Align goals, guardrails, and dependencies up front.",
-      accent: "from-indigo-500/20 via-sky-500/20 to-emerald-500/20",
+      title: "Align, then act",
+      body: "Make goals, dependencies, and risks explicit before execution.",
+      accent: "from-amber-200/70 via-orange-200/50 to-rose-200/40",
       icon: Sparkles,
     },
     {
-      title: "Evidence-first delivery",
-      body: "Actions and outcomes stay side by side for review.",
-      accent: "from-amber-500/20 via-orange-500/20 to-rose-500/20",
+      title: "Evidence-ready output",
+      body: "Every step ships with proof and a crisp summary.",
+      accent: "from-emerald-200/60 via-lime-200/40 to-amber-200/40",
       icon: ShieldCheck,
     },
     {
-      title: "Traceable execution",
-      body: "Timelines, tools, and handoffs remain visible.",
-      accent: "from-emerald-500/20 via-teal-500/20 to-cyan-500/20",
+      title: "Full traceability",
+      body: "Timelines, tool calls, and milestones stay visible end-to-end.",
+      accent: "from-sky-200/70 via-teal-200/50 to-emerald-200/40",
       icon: Layers,
     },
   ],
@@ -98,50 +99,50 @@ type ManifestoCopy = {
 
 const manifestoCopy: Record<HomeLang, ManifestoCopy> = {
   zh: {
-    badge: "纯文本 · 理念",
-    title: "主动式 Agent 的纯净宣言",
-    lede: "首页与控制台同框：主动 Agent 持续感知、提前协同，编排先于回答。",
+    badge: "纯文本 · 方法论",
+    title: "主动式 Agent 的交付宣言",
+    lede: "不是对话，而是交付：主动 Agent 先构建任务模型，再把执行过程和证据整合呈现。",
     points: [
       {
-        title: "主动觉察，先于指令规划",
-        body: "Session 保持有状态，主动 Agent 按目标和约束预判路径，标注不可踩的线。",
-        accent: "from-indigo-500 via-sky-500 to-emerald-500",
+        title: "把意图翻译成计划",
+        body: "先拆解目标、约束与依赖，形成可执行的路径图。",
+        accent: "from-emerald-400 via-lime-400 to-amber-400",
       },
       {
-        title: "少催促，多澄清",
-        body: "行动前主动提问和暴露依赖，再把任务拆成可调用的工具，风险在执行前就被看见。",
-        accent: "from-amber-500 via-orange-500 to-rose-500",
+        title: "用澄清降低返工",
+        body: "主动提出关键问题，提前暴露风险和阻塞点。",
+        accent: "from-amber-400 via-orange-400 to-rose-400",
       },
       {
-        title: "行动自证可追责",
-        body: "每一步像控制台一样可停、可重放，连同证据输出，方便交接与复盘。",
-        accent: "from-emerald-500 via-teal-500 to-cyan-500",
+        title: "用证据证明完成",
+        body: "每个步骤都留下可检索的产出，便于验收与复盘。",
+        accent: "from-sky-400 via-teal-400 to-emerald-400",
       },
     ],
-    closing: "慢即快：主动 Agent 少一次往返催促，多一次真实状态与证据。",
+    closing: "慢即快：少一次来回确认，多一次真实结果与证据。",
   },
   en: {
-    badge: "Plain text · why elephant.ai",
-    title: "A clean manifesto for proactive agents",
-    lede: "Homepage shares the console frame: proactive agents keep sensing, coordinating, and orchestrating before answering.",
+    badge: "Plain text · methodology",
+    title: "A delivery manifesto for proactive agents",
+    lede: "Not just chat—delivery. Proactive agents model the task first, then surface execution and evidence together.",
     points: [
       {
-        title: "Sense early, plan ahead",
-        body: "Sessions stay stateful; proactive agents read goals and guardrails to anticipate paths and mark the lines they cannot cross.",
-        accent: "from-indigo-500 via-sky-500 to-emerald-500",
+        title: "Translate intent into a plan",
+        body: "Unpack goals, constraints, and dependencies into an executable path.",
+        accent: "from-emerald-400 via-lime-400 to-amber-400",
       },
       {
-        title: "Clarify before moving",
-        body: "They ask first, surface dependencies, and slice work into callable tools so risks show up before execution.",
-        accent: "from-amber-500 via-orange-500 to-rose-500",
+        title: "Clarify to cut rework",
+        body: "Ask the hard questions early and surface risks before they land.",
+        accent: "from-amber-400 via-orange-400 to-rose-400",
       },
       {
-        title: "Act with built-in evidence",
-        body: "Every action mirrors the console view—pausable, replayable, and delivered with inline artifacts for handoffs and reviews.",
-        accent: "from-emerald-500 via-teal-500 to-cyan-500",
+        title: "Prove completion with evidence",
+        body: "Leave inspectable outputs at every step for validation and handoff.",
+        accent: "from-sky-400 via-teal-400 to-emerald-400",
       },
     ],
-    closing: "Slow is fast: proactive agents cut nagging loops and keep real state with proof.",
+    closing: "Slow is fast: fewer loops, more real outcomes with proof.",
   },
 };
 
@@ -158,15 +159,15 @@ const slogCopy: Record<HomeLang, SlogCopy> = {
     points: [
       {
         title: "成本可视化",
-        body: "每次运行的成本分解直达日志，避免隐性消耗。",
+        body: "每次运行的成本拆解直达日志，避免隐性消耗。",
       },
       {
         title: "token 账本",
         body: "请求与响应的 token 统计清晰列示，便于优化策略。",
       },
       {
-        title: "节省时间",
-        body: "对比人工与自动化用时，让效率收益可衡量。",
+        title: "效率收益",
+        body: "对比人工与自动化用时，让节省时间可衡量。",
       },
     ],
   },
@@ -183,8 +184,8 @@ const slogCopy: Record<HomeLang, SlogCopy> = {
         body: "Prompt/response token counts stay visible for tuning.",
       },
       {
-        title: "Time saved",
-        body: "Compare manual vs. automated runtime to quantify gains.",
+        title: "Efficiency gains",
+        body: "Compare manual vs. automated runtime to quantify savings.",
       },
     ],
   },
@@ -198,14 +199,14 @@ type VideoCopy = {
 
 const videoCopy: Record<HomeLang, VideoCopy> = {
   zh: {
-    title: "主动 Agent 演示视频稍后放在这里",
-    body: "这一块预留给真实录屏：主动 Agent 如何先探路、澄清依赖，再行动并交付证据。",
-    note: "无模拟对话框：留白给真实上下文与产出，方便直接替换成录屏。",
+    title: "主动 Agent 演示视频将放在这里",
+    body: "这块预留给真实录屏：从澄清依赖到执行交付，全流程可见。",
+    note: "不做模拟对话，留白给真实上下文与产出。",
   },
   en: {
-    title: "Proactive agent demo video will live here soon",
-    body: "Reserved for a real recording: how a proactive agent scouts, clarifies dependencies, then acts with evidence.",
-    note: "No simulated chat—a clean space to drop in real context and artifacts.",
+    title: "Proactive agent demo video will live here",
+    body: "Reserved for a real recording: clarify dependencies, execute, and ship evidence.",
+    note: "No simulated chat—save the space for real context and outputs.",
   },
 };
 
@@ -213,7 +214,7 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border border-border/60 bg-background/60 px-2 py-1 text-xs font-semibold text-muted-foreground shadow-sm",
+        "inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-white/70 px-2 py-1 text-xs font-semibold text-foreground/70 shadow-sm",
         className,
       )}
     >
@@ -223,7 +224,7 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
           "rounded-full px-3 py-1 transition",
           lang === "zh"
             ? "bg-foreground text-background"
-            : "text-muted-foreground hover:text-foreground",
+            : "text-foreground/70 hover:text-foreground",
         )}
       >
         中文
@@ -235,7 +236,7 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
           "rounded-full px-3 py-1 transition",
           lang === "en"
             ? "bg-foreground text-background"
-            : "text-muted-foreground hover:text-foreground",
+            : "text-foreground/70 hover:text-foreground",
         )}
       >
         EN
@@ -247,29 +248,33 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
 function Hero({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
   return (
-    <div className="space-y-5 rounded-3xl border border-border/60 bg-card/80 p-6 shadow-[0_16px_60px_-40px_rgba(15,23,42,0.5)]">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Sparkles className="h-3.5 w-3.5" aria-hidden />
-        {t.badge}
-      </div>
+    <div className="relative overflow-hidden rounded-[32px] border border-foreground/10 bg-[#fff8e6] p-6 shadow-[0_20px_80px_-60px_rgba(15,23,42,0.45)]">
+      <div className="pointer-events-none absolute -right-24 top-6 h-44 w-44 rounded-full bg-emerald-200/60 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -left-16 bottom-6 h-36 w-36 rounded-full bg-amber-200/70 blur-3xl" aria-hidden />
+      <div className="relative space-y-5">
+        <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
+          <Sparkles className="h-3.5 w-3.5" aria-hidden />
+          {t.badge}
+        </div>
 
-      <div className="space-y-3">
-        <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
-          {t.title}
-        </h1>
-        <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-          {t.subtitle}
-        </p>
-      </div>
+        <div className="space-y-3">
+          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
+            {t.title}
+          </h1>
+          <p className="max-w-2xl text-base leading-relaxed text-foreground/70 sm:text-lg">
+            {t.subtitle}
+          </p>
+        </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/conversation">
-          <Button className="rounded-full shadow-sm">
-            <PlayCircle className="mr-2 h-5 w-5" aria-hidden />
-            {t.actions.primary}
-          </Button>
-        </Link>
-        <LanguageToggle lang={lang} className="sm:hidden" />
+        <div className="flex flex-wrap items-center gap-3">
+          <Link href="/conversation">
+            <Button className="rounded-full bg-foreground text-background shadow-sm hover:bg-foreground/90">
+              <PlayCircle className="mr-2 h-5 w-5" aria-hidden />
+              {t.actions.primary}
+            </Button>
+          </Link>
+          <LanguageToggle lang={lang} className="sm:hidden" />
+        </div>
       </div>
     </div>
   );
@@ -284,16 +289,16 @@ function Highlights({ lang }: { lang: HomeLang }) {
         return (
           <div
             key={item.title}
-            className="relative overflow-hidden rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm"
+            className="relative overflow-hidden rounded-2xl border border-foreground/10 bg-white/80 p-4 shadow-sm"
           >
             <div className={cn("absolute inset-0 bg-gradient-to-br", item.accent)} aria-hidden />
             <div className="relative space-y-3">
-              <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/90 text-foreground shadow-sm">
+              <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-foreground/15 bg-white/90 text-foreground shadow-sm">
                 <Icon className="h-4 w-4" aria-hidden />
               </div>
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">{item.body}</p>
+                <p className="text-xs leading-relaxed text-foreground/70">{item.body}</p>
               </div>
             </div>
           </div>
@@ -306,8 +311,8 @@ function Highlights({ lang }: { lang: HomeLang }) {
 function ManifestoArticle({ lang }: { lang: HomeLang }) {
   const manifesto = manifestoCopy[lang];
   return (
-    <article className="space-y-4 rounded-3xl border border-border/60 bg-background/80 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-card/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <article className="space-y-4 rounded-3xl border border-foreground/10 bg-white/80 p-6 shadow-sm">
+      <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
         <BookOpenText className="h-3.5 w-3.5" aria-hidden />
         {manifesto.badge}
       </div>
@@ -316,7 +321,7 @@ function ManifestoArticle({ lang }: { lang: HomeLang }) {
         <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
           {manifesto.title}
         </h2>
-        <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
+        <p className="text-sm leading-relaxed text-foreground/70 sm:text-base">
           {manifesto.lede}
         </p>
       </div>
@@ -325,7 +330,7 @@ function ManifestoArticle({ lang }: { lang: HomeLang }) {
         {manifesto.points.map((point) => (
           <div
             key={point.title}
-            className="rounded-2xl border border-border/60 bg-card/60 px-4 py-3 shadow-sm"
+            className="rounded-2xl border border-foreground/10 bg-white/80 px-4 py-3 shadow-sm"
           >
             <div className="flex items-center gap-2">
               <span
@@ -334,7 +339,7 @@ function ManifestoArticle({ lang }: { lang: HomeLang }) {
               />
               <p className="text-sm font-semibold text-foreground">{point.title}</p>
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{point.body}</p>
+            <p className="mt-2 text-sm leading-relaxed text-foreground/70">{point.body}</p>
           </div>
         ))}
       </div>
@@ -347,8 +352,8 @@ function ManifestoArticle({ lang }: { lang: HomeLang }) {
 function SlogPanel({ lang }: { lang: HomeLang }) {
   const slog = slogCopy[lang];
   return (
-    <section className="space-y-4 rounded-3xl border border-border/60 bg-card/70 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <section className="space-y-4 rounded-3xl border border-foreground/10 bg-white/80 p-6 shadow-sm">
+      <div className="inline-flex items-center gap-2 rounded-full border border-foreground/15 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground/70">
         <Layers className="h-3.5 w-3.5" aria-hidden />
         {slog.badge}
       </div>
@@ -361,10 +366,10 @@ function SlogPanel({ lang }: { lang: HomeLang }) {
         {slog.points.map((point) => (
           <div
             key={point.title}
-            className="rounded-2xl border border-border/60 bg-background/80 px-4 py-3 shadow-sm"
+            className="rounded-2xl border border-foreground/10 bg-white/80 px-4 py-3 shadow-sm"
           >
             <p className="text-sm font-semibold text-foreground">{point.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{point.body}</p>
+            <p className="mt-1 text-xs leading-relaxed text-foreground/70">{point.body}</p>
           </div>
         ))}
       </div>
@@ -376,15 +381,15 @@ function VideoPlaceholder({ lang }: { lang: HomeLang }) {
   const copy = videoCopy[lang];
 
   return (
-    <div className="rounded-3xl border border-dashed border-border/80 bg-card/70 p-6 shadow-sm">
+    <div className="rounded-3xl border border-dashed border-foreground/20 bg-white/70 p-6 shadow-sm">
       <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-foreground/10 text-foreground">
           <PlayCircle className="h-6 w-6" aria-hidden />
         </div>
         <div className="space-y-2">
           <p className="text-lg font-semibold text-foreground">{copy.title}</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+          <p className="text-sm leading-relaxed text-foreground/70">{copy.body}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-foreground/60">
             {copy.note}
           </p>
         </div>
@@ -397,8 +402,9 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
   const heroCopy = copy[lang];
 
   return (
-    <div className="relative min-h-screen bg-muted/10 text-foreground">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_12%_20%,rgba(99,102,241,0.08),transparent_55%),radial-gradient(900px_circle_at_88%_10%,rgba(34,211,238,0.08),transparent_55%),radial-gradient(900px_circle_at_40%_92%,rgba(16,185,129,0.06),transparent_55%)]" />
+    <div className="relative min-h-screen bg-[#f3f0d6] text-foreground">
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(900px_circle_at_15%_12%,rgba(250,230,180,0.8),transparent_55%),radial-gradient(900px_circle_at_85%_10%,rgba(190,240,210,0.6),transparent_55%),radial-gradient(900px_circle_at_50%_90%,rgba(255,210,180,0.45),transparent_55%)]" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-32 bg-gradient-to-b from-white/80 to-transparent" />
       <PageContainer className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 px-4 pb-12 pt-6 sm:px-6 lg:px-10 lg:pb-16 lg:pt-10">
         <Suspense fallback={<div className="h-[60px]" />}>
           <Header
@@ -408,7 +414,7 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
               <div className="flex items-center gap-2">
                 <LanguageToggle lang={lang} className="hidden sm:inline-flex" />
                 <Link href="/conversation">
-                  <Button size="sm" className="rounded-full shadow-sm">
+                  <Button size="sm" className="rounded-full bg-foreground text-background shadow-sm">
                     <PlayCircle className="mr-2 h-4 w-4" aria-hidden />
                     {heroCopy.actions.primary}
                   </Button>
