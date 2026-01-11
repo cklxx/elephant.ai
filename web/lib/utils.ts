@@ -79,6 +79,7 @@ export function getToolIcon(toolName: string): string {
     notify_user: '🔔',
     text_to_image: '🎨',
     video_generate: '🎥',
+    video_concat: '🎬',
     vision_analyze: '👁️',
   };
   return iconMap[toolName] || '🪄';
@@ -185,6 +186,7 @@ const TOOL_NAME_MAP: Record<string, string> = {
   // AI Generation
   'text_to_image': 'Generate Image',
   'video_generate': 'Generate Video',
+  'video_concat': 'Concatenate Video',
   'vision_analyze': 'Analyze Image',
 };
 
