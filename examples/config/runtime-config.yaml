@@ -7,6 +7,13 @@ runtime:
   base_url: "https://api.openai.com/v1"
   sandbox_base_url: "http://localhost:18086"
   tool_preset: "safe"
+  # mobile_llm_provider: "openai"
+  # mobile_llm_model: "gpt-4o-mini"
+  # mobile_llm_api_key: "${OPENAI_API_KEY}"
+  # mobile_llm_base_url: "https://api.openai.com/v1"
+  mobile_adb_address: "${MOBILE_ADB_ADDRESS}"
+  # mobile_adb_serial: ""
+  # mobile_max_steps: 100
 
 # Optional: server + auth + attachments sections (uncomment to use).
 # server:

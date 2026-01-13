@@ -27,8 +27,8 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o alex-server ./cmd
 # Final stage - minimal runtime image
 FROM ${BASE_RUNTIME_IMAGE}
 
-# Install ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates
+# Install ca-certificates and adb client for mobile automation
+RUN apk --no-cache add ca-certificates android-tools
 
 WORKDIR /root/
 
