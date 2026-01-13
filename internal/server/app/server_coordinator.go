@@ -644,6 +644,22 @@ func (s *ServerCoordinator) GetSession(ctx context.Context, id string) (*ports.S
 	return s.sessionStore.Get(ctx, id)
 }
 
+// UpdateSessionPersona updates the user persona profile for a session.
+func (s *ServerCoordinator) UpdateSessionPersona(ctx context.Context, id string, persona *ports.UserPersonaProfile) (*ports.Session, error) {
+	if persona == nil {
+		return nil, fmt.Errorf("user persona is required")
+	}
+	session, err := s.sessionStore.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	session.UserPersona = persona
+	if err := s.sessionStore.Save(ctx, session); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
 // ListSessions returns all session IDs
 func (s *ServerCoordinator) ListSessions(ctx context.Context) ([]string, error) {
 	return s.sessionStore.List(ctx)

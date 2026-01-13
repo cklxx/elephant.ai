@@ -45,7 +45,7 @@ function splitTaskListChildren(children: ReactNode) {
     (child) =>
       isValidElement(child) &&
       child.type === "input" &&
-      child.props?.type === "checkbox",
+      (child.props as { type?: string }).type === "checkbox",
   );
   if (checkboxIndex === -1) {
     return null;

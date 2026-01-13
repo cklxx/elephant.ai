@@ -183,6 +183,15 @@ type SessionSnapshotsResponse struct {
 	NextCursor string                `json:"next_cursor,omitempty"`
 }
 
+type SessionPersonaRequest struct {
+	UserPersona *agentports.UserPersonaProfile `json:"user_persona"`
+}
+
+type SessionPersonaResponse struct {
+	SessionID   string                         `json:"session_id"`
+	UserPersona *agentports.UserPersonaProfile `json:"user_persona,omitempty"`
+}
+
 type TurnSnapshotResponse struct {
 	SessionID  string                      `json:"session_id"`
 	TurnID     int                         `json:"turn_id"`
@@ -568,6 +577,67 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(session); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
+// HandleGetSessionPersona handles GET /api/sessions/:id/persona
+func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Request) {
+	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/persona")
+	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid session ID", err)
+		return
+	}
+
+	session, err := h.coordinator.GetSession(r.Context(), sessionID)
+	if err != nil {
+		h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(SessionPersonaResponse{
+		SessionID:   session.ID,
+		UserPersona: session.UserPersona,
+	}); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
+// HandleUpdateSessionPersona handles PUT /api/sessions/:id/persona
+func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.Request) {
+	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/persona")
+	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	if err := validateSessionID(sessionID); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid session ID", err)
+		return
+	}
+
+	var req SessionPersonaRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid request payload", err)
+		return
+	}
+	if req.UserPersona == nil {
+		h.writeJSONError(w, http.StatusBadRequest, "user_persona is required", fmt.Errorf("user_persona is required"))
+		return
+	}
+	if req.UserPersona.UpdatedAt.IsZero() {
+		req.UserPersona.UpdatedAt = time.Now()
+	}
+
+	session, err := h.coordinator.UpdateSessionPersona(r.Context(), sessionID, req.UserPersona)
+	if err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to update persona", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(SessionPersonaResponse{
+		SessionID:   session.ID,
+		UserPersona: session.UserPersona,
+	}); err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }

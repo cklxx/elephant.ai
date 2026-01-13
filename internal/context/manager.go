@@ -337,6 +337,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 			Knowledge:          knowledge,
 			Tools:              buildToolHints(cfg.ToolMode, cfg.ToolPreset),
 			World:              world,
+			UserPersona:        session.UserPersona,
 			EnvironmentSummary: cfg.EnvironmentSummary,
 			Version:            staticSnapshot.Version,
 		},
@@ -553,6 +554,7 @@ func normalizeHistoryLabel(msg ports.Message) string {
 
 func composeSystemPrompt(logger logging.Logger, static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext, omitEnvironment bool) string {
 	sections := []string{
+		buildUserPersonaSection(static.UserPersona),
 		buildIdentitySection(static.Persona),
 		buildGoalsSection(static.Goal),
 		buildPoliciesSection(static.Policies),
@@ -570,6 +572,96 @@ func composeSystemPrompt(logger logging.Logger, static ports.StaticContext, dyna
 		}
 	}
 	return strings.Join(compact, "\n\n")
+}
+
+func buildUserPersonaSection(profile *ports.UserPersonaProfile) string {
+	if profile == nil {
+		return ""
+	}
+
+	var lines []string
+	lines = append(lines, "This section defines the user's core persona and is the highest-priority reference for proactive behavior.")
+
+	if profile.Summary != "" {
+		lines = append(lines, fmt.Sprintf("Persona summary: %s", strings.TrimSpace(profile.Summary)))
+	}
+	if len(profile.TopDrives) > 0 {
+		lines = append(lines, fmt.Sprintf("Primary drives: %s", strings.Join(profile.TopDrives, ", ")))
+	}
+	if len(profile.InitiativeSources) > 0 {
+		lines = append(lines, fmt.Sprintf("Initiative sources: %s", strings.Join(profile.InitiativeSources, ", ")))
+	}
+	if len(profile.Values) > 0 {
+		lines = append(lines, fmt.Sprintf("Core values: %s", strings.Join(profile.Values, ", ")))
+	}
+	if profile.DecisionStyle != "" {
+		lines = append(lines, fmt.Sprintf("Decision style: %s", profile.DecisionStyle))
+	}
+	if profile.RiskProfile != "" {
+		lines = append(lines, fmt.Sprintf("Risk profile: %s", profile.RiskProfile))
+	}
+	if profile.ConflictStyle != "" {
+		lines = append(lines, fmt.Sprintf("Conflict style: %s", profile.ConflictStyle))
+	}
+	if profile.NonNegotiables != "" {
+		lines = append(lines, fmt.Sprintf("Non-negotiables: %s", strings.TrimSpace(profile.NonNegotiables)))
+	}
+
+	if len(profile.CoreDrives) > 0 {
+		var drives []string
+		for _, drive := range profile.CoreDrives {
+			if strings.TrimSpace(drive.Label) == "" {
+				continue
+			}
+			drives = append(drives, fmt.Sprintf("%s (%d/5)", drive.Label, drive.Score))
+		}
+		if len(drives) > 0 {
+			lines = append(lines, "Drive intensity:")
+			lines = append(lines, prependBullet(drives, 1)...)
+		}
+	}
+
+	goalLines := []string{}
+	if strings.TrimSpace(profile.Goals.CurrentFocus) != "" {
+		goalLines = append(goalLines, fmt.Sprintf("Current focus: %s", strings.TrimSpace(profile.Goals.CurrentFocus)))
+	}
+	if strings.TrimSpace(profile.Goals.OneYear) != "" {
+		goalLines = append(goalLines, fmt.Sprintf("1-year goal: %s", strings.TrimSpace(profile.Goals.OneYear)))
+	}
+	if strings.TrimSpace(profile.Goals.ThreeYear) != "" {
+		goalLines = append(goalLines, fmt.Sprintf("3-year goal: %s", strings.TrimSpace(profile.Goals.ThreeYear)))
+	}
+	if len(goalLines) > 0 {
+		lines = append(lines, "Goals:")
+		lines = append(lines, prependBullet(goalLines, 1)...)
+	}
+
+	if len(profile.Traits) > 0 {
+		var traitLines []string
+		for key, score := range profile.Traits {
+			if strings.TrimSpace(key) == "" || score <= 0 {
+				continue
+			}
+			traitLines = append(traitLines, fmt.Sprintf("%s: %d/7", key, score))
+		}
+		sort.Strings(traitLines)
+		if len(traitLines) > 0 {
+			lines = append(lines, "Traits (Big Five):")
+			lines = append(lines, prependBullet(traitLines, 1)...)
+		}
+	}
+
+	if len(profile.KeyChoices) > 0 {
+		lines = append(lines, "Key choice defaults:")
+		lines = append(lines, prependBullet(profile.KeyChoices, 1)...)
+	}
+
+	if len(profile.ConstructionRules) > 0 {
+		lines = append(lines, "Construction rules:")
+		lines = append(lines, prependBullet(profile.ConstructionRules, 1)...)
+	}
+
+	return formatSection("# User Persona Core (Highest Priority)", lines)
 }
 
 func buildSkillsSection(logger logging.Logger) string {

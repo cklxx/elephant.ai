@@ -79,6 +79,7 @@ type StaticContext struct {
 	Knowledge          []KnowledgeReference `json:"knowledge"`
 	Tools              []string             `json:"tools"`
 	World              WorldProfile         `json:"world"`
+	UserPersona        *UserPersonaProfile  `json:"user_persona,omitempty"`
 	EnvironmentSummary string               `json:"environment_summary,omitempty"`
 	Version            string               `json:"version,omitempty"`
 }

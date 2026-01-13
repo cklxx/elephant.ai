@@ -253,6 +253,18 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 
 		path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
+		if strings.HasSuffix(path, "/persona") {
+			annotateRequestRoute(r, "/api/sessions/:session_id/persona")
+			switch r.Method {
+			case http.MethodGet:
+				apiHandler.HandleGetSessionPersona(w, r)
+			case http.MethodPut:
+				apiHandler.HandleUpdateSessionPersona(w, r)
+			default:
+				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			}
+			return
+		}
 		if strings.HasSuffix(path, "/snapshots") {
 			annotateRequestRoute(r, "/api/sessions/:session_id/snapshots")
 			apiHandler.HandleListSnapshots(w, r)
