@@ -40,6 +40,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.MobileLLMAPIKey != "EMPTY" || cfg.MobileLLMBaseURL != "http://localhost:8000/v1" {
 		t.Fatalf("expected mobile api/base defaults, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
 	}
+	if cfg.MobileADBAddress != "android-emulator:5555" {
+		t.Fatalf("expected mobile adb address default android-emulator:5555, got %q", cfg.MobileADBAddress)
+	}
 	if cfg.MobileMaxSteps != 100 {
 		t.Fatalf("expected mobile max steps default 100, got %d", cfg.MobileMaxSteps)
 	}
