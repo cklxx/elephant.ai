@@ -14,6 +14,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Share2,
+  Sparkles,
 } from "lucide-react";
 import { useTaskExecution, useCancelTask } from "@/hooks/useTaskExecution";
 import { useAgentEventStream } from "@/hooks/useAgentEventStream";
@@ -55,6 +56,7 @@ import {
 import { SkillsPanel } from "@/components/agent/SkillsPanel";
 import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
 import { SandboxDesktopPanel } from "@/components/agent/SandboxDesktopPanel";
+import { UserPersonaDialog } from "@/components/agent/UserPersonaDialog";
 
 const LazyConversationEventStream = dynamic(
   () =>
@@ -84,6 +86,7 @@ export function ConversationPageContent() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareInProgress, setShareInProgress] = useState(false);
+  const [personaDialogOpen, setPersonaDialogOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const cancelIntentRef = useRef(false);
   const activeTaskIdRef = useRef<string | null>(null);
@@ -819,6 +822,13 @@ export function ConversationPageContent() {
           </DialogContent>
         </Dialog>
       ) : null}
+      {personaDialogOpen ? (
+        <UserPersonaDialog
+          open={personaDialogOpen}
+          onOpenChange={setPersonaDialogOpen}
+          sessionId={streamSessionId}
+        />
+      ) : null}
       <Dialog
         open={Boolean(deleteTargetId)}
         onOpenChange={(open) => {
@@ -872,36 +882,49 @@ export function ConversationPageContent() {
           title={headerTitle}
           showEnvironmentStrip
           leadingSlot={
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              data-testid="session-list-toggle"
-              onClick={() =>
-                setIsSidebarOpen((prev) => {
-                  const next = !prev;
-                  captureEvent(AnalyticsEvent.SidebarToggled, {
-                    next_state: next ? "open" : "closed",
-                    previous_state: prev ? "open" : "closed",
-                  });
-                  return next;
-                })
-              }
-              className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
-              aria-expanded={isSidebarOpen}
-              aria-controls="conversation-sidebar"
-            >
-              {isSidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
-              <span className="sr-only">
-                {isSidebarOpen
-                  ? t("sidebar.toggle.close")
-                  : t("sidebar.toggle.open")}
-              </span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                data-testid="session-list-toggle"
+                onClick={() =>
+                  setIsSidebarOpen((prev) => {
+                    const next = !prev;
+                    captureEvent(AnalyticsEvent.SidebarToggled, {
+                      next_state: next ? "open" : "closed",
+                      previous_state: prev ? "open" : "closed",
+                    });
+                    return next;
+                  })
+                }
+                className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
+                aria-expanded={isSidebarOpen}
+                aria-controls="conversation-sidebar"
+              >
+                {isSidebarOpen ? (
+                  <PanelLeftClose className="h-4 w-4" />
+                ) : (
+                  <PanelLeftOpen className="h-4 w-4" />
+                )}
+                <span className="sr-only">
+                  {isSidebarOpen
+                    ? t("sidebar.toggle.close")
+                    : t("sidebar.toggle.open")}
+                </span>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPersonaDialogOpen(true)}
+                className="h-10 rounded-full border border-border/60 bg-background/50 px-3 text-xs font-semibold shadow-sm hover:bg-background/70"
+                disabled={!streamSessionId}
+              >
+                <Sparkles className="h-4 w-4" aria-hidden />
+                主动询问
+              </Button>
+            </div>
           }
           actionsSlot={
             <div className="flex items-center gap-2">

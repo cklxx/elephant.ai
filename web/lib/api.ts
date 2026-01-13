@@ -20,6 +20,7 @@ import {
   ContextConfigSnapshot,
   ContextConfigUpdatePayload,
   SandboxBrowserInfo,
+  UserPersonaProfile,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -329,6 +330,39 @@ export async function getSessionTitle(
   }
   const trimmed = title.trim();
   return trimmed ? trimmed : null;
+}
+
+export async function getSessionPersona(
+  sessionId: string,
+): Promise<UserPersonaProfile | null> {
+  type SessionPersonaResponse = {
+    session_id: string;
+    user_persona?: UserPersonaProfile | null;
+  };
+  const sanitized = encodeURIComponent(sessionId);
+  const response = await fetchAPI<SessionPersonaResponse>(
+    `/api/sessions/${sanitized}/persona`,
+  );
+  return response.user_persona ?? null;
+}
+
+export async function updateSessionPersona(
+  sessionId: string,
+  persona: UserPersonaProfile,
+): Promise<UserPersonaProfile> {
+  type SessionPersonaResponse = {
+    session_id: string;
+    user_persona: UserPersonaProfile;
+  };
+  const sanitized = encodeURIComponent(sessionId);
+  const response = await fetchAPI<SessionPersonaResponse>(
+    `/api/sessions/${sanitized}/persona`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ user_persona: persona }),
+    },
+  );
+  return response.user_persona;
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {

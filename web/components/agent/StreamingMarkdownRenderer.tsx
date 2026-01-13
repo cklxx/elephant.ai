@@ -81,8 +81,11 @@ export function StreamingMarkdownRenderer({
       const fullLength = normalizedContent.length;
       lastContentRef.current = normalizedContent;
       displayedLengthRef.current = fullLength;
-      setDisplayedLength(fullLength);
-      setTargetLength(fullLength);
+      const syncLengths = () => {
+        setDisplayedLength(fullLength);
+        setTargetLength(fullLength);
+      };
+      syncLengths();
       return;
     }
 
@@ -93,12 +96,18 @@ export function StreamingMarkdownRenderer({
 
     if (resetStream) {
       displayedLengthRef.current = 0;
-      setDisplayedLength(0);
-      setTargetLength(safeLength);
+      const resetLengths = () => {
+        setDisplayedLength(0);
+        setTargetLength(safeLength);
+      };
+      resetLengths();
       return;
     }
 
-    setTargetLength((prev) => Math.max(prev, safeLength));
+    const updateTarget = () => {
+      setTargetLength((prev) => Math.max(prev, safeLength));
+    };
+    updateTarget();
   }, [normalizedContent, shouldAnimate]);
 
   useEffect(() => {

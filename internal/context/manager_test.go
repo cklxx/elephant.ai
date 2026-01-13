@@ -80,6 +80,34 @@ func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 	}
 }
 
+func TestBuildWindowIncludesUserPersonaCore(t *testing.T) {
+	root := buildStaticContextTree(t)
+	mgr := NewManager(WithConfigRoot(root))
+	session := &ports.Session{
+		ID:       "sess-persona",
+		Messages: []ports.Message{{Role: "user", Content: "hi"}},
+		UserPersona: &ports.UserPersonaProfile{
+			Version:           "persona-v1",
+			UpdatedAt:         time.Now(),
+			InitiativeSources: []string{"curiosity", "impact"},
+			TopDrives:         []string{"autonomy", "mastery"},
+			DecisionStyle:     "deliberate with evidence-first bias",
+		},
+	}
+	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	if err != nil {
+		t.Fatalf("BuildWindow returned error: %v", err)
+	}
+	if !strings.Contains(window.SystemPrompt, "# User Persona Core (Highest Priority)") {
+		t.Fatalf("expected user persona section, got %q", window.SystemPrompt)
+	}
+	personaIndex := strings.Index(window.SystemPrompt, "# User Persona Core (Highest Priority)")
+	identityIndex := strings.Index(window.SystemPrompt, "# Identity & Persona")
+	if personaIndex == -1 || identityIndex == -1 || personaIndex > identityIndex {
+		t.Fatalf("expected user persona section before identity, got %q", window.SystemPrompt)
+	}
+}
+
 func TestBuildWindowSkipsEnvironmentSectionInWebMode(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))

@@ -52,10 +52,12 @@ func (s *Store) EnsureSchema(ctx context.Context) error {
     metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
     attachments JSONB,
     important JSONB,
+    user_persona JSONB,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );`, sessionTable),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS important JSONB;`, sessionTable),
+		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS user_persona JSONB;`, sessionTable),
 		fmt.Sprintf(`CREATE INDEX IF NOT EXISTS idx_agent_sessions_updated_at ON %s (updated_at DESC);`, sessionTable),
 	}
 
@@ -120,7 +122,7 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*ports.Session, erro
 	}
 
 	query := fmt.Sprintf(`
-SELECT id, messages, todos, metadata, attachments, important, created_at, updated_at
+SELECT id, messages, todos, metadata, attachments, important, user_persona, created_at, updated_at
 FROM %s
 WHERE id = $1
 `, sessionTable)
@@ -131,6 +133,7 @@ WHERE id = $1
 		metadataJSON    []byte
 		attachmentsJSON []byte
 		importantJSON   []byte
+		personaJSON     []byte
 		session         ports.Session
 	)
 
@@ -141,6 +144,7 @@ WHERE id = $1
 		&metadataJSON,
 		&attachmentsJSON,
 		&importantJSON,
+		&personaJSON,
 		&session.CreatedAt,
 		&session.UpdatedAt,
 	)
@@ -177,6 +181,13 @@ WHERE id = $1
 		if err := json.Unmarshal(importantJSON, &session.Important); err != nil {
 			return nil, fmt.Errorf("decode important: %w", err)
 		}
+	}
+	if len(personaJSON) > 0 {
+		var persona ports.UserPersonaProfile
+		if err := json.Unmarshal(personaJSON, &persona); err != nil {
+			return nil, fmt.Errorf("decode user persona: %w", err)
+		}
+		session.UserPersona = &persona
 	}
 
 	return &session, nil
@@ -291,6 +302,14 @@ func (s *Store) insert(ctx context.Context, session *ports.Session, upsert bool)
 	if err != nil {
 		return fmt.Errorf("encode important: %w", err)
 	}
+	var personaParam any
+	if session.UserPersona != nil {
+		personaJSON, err := toJSONBytes(session.UserPersona)
+		if err != nil {
+			return fmt.Errorf("encode user persona: %w", err)
+		}
+		personaParam = personaJSON
+	}
 	attachments := sanitizeAttachmentMap(session.Attachments)
 	var attachmentsParam any
 	if len(attachments) > 0 {
@@ -302,11 +321,11 @@ func (s *Store) insert(ctx context.Context, session *ports.Session, upsert bool)
 	}
 
 	query := fmt.Sprintf(`
-INSERT INTO %s (id, messages, todos, metadata, attachments, important, created_at, updated_at)
-VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8)
+INSERT INTO %s (id, messages, todos, metadata, attachments, important, user_persona, created_at, updated_at)
+VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8, $9)
 `, sessionTable)
 	if upsert {
-		query += "ON CONFLICT (id) DO UPDATE SET messages = EXCLUDED.messages, todos = EXCLUDED.todos, metadata = EXCLUDED.metadata, attachments = EXCLUDED.attachments, important = EXCLUDED.important, updated_at = EXCLUDED.updated_at"
+		query += "ON CONFLICT (id) DO UPDATE SET messages = EXCLUDED.messages, todos = EXCLUDED.todos, metadata = EXCLUDED.metadata, attachments = EXCLUDED.attachments, important = EXCLUDED.important, user_persona = EXCLUDED.user_persona, updated_at = EXCLUDED.updated_at"
 	}
 
 	_, err = s.pool.Exec(ctx, query,
@@ -316,6 +335,7 @@ VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7, $8)
 		metadata,
 		attachmentsParam,
 		important,
+		personaParam,
 		session.CreatedAt,
 		session.UpdatedAt,
 	)

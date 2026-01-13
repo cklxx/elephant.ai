@@ -31,6 +31,7 @@ type Session struct {
 	Metadata    map[string]string        `json:"metadata"`
 	Attachments map[string]Attachment    `json:"attachments,omitempty"`
 	Important   map[string]ImportantNote `json:"important,omitempty"`
+	UserPersona *UserPersonaProfile      `json:"user_persona,omitempty"`
 	CreatedAt   time.Time                `json:"created_at"`
 	UpdatedAt   time.Time                `json:"updated_at"`
 }

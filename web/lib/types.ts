@@ -129,6 +129,37 @@ export interface Session {
   last_task?: string | null;
 }
 
+export interface UserPersonaDrive {
+  id: string;
+  label: string;
+  score: number;
+}
+
+export interface UserPersonaGoals {
+  current_focus?: string;
+  one_year?: string;
+  three_year?: string;
+}
+
+export interface UserPersonaProfile {
+  version: string;
+  updated_at: string;
+  initiative_sources?: string[];
+  core_drives?: UserPersonaDrive[];
+  top_drives?: string[];
+  values?: string[];
+  goals?: UserPersonaGoals;
+  traits?: Record<string, number>;
+  decision_style?: string;
+  risk_profile?: string;
+  conflict_style?: string;
+  key_choices?: string[];
+  non_negotiables?: string;
+  summary?: string;
+  construction_rules?: string[];
+  raw_answers?: Record<string, unknown>;
+}
+
 export interface SessionTaskSummary {
   task_id: string;
   parent_task_id?: string | null;
@@ -509,6 +540,7 @@ export interface StaticContext {
   knowledge?: KnowledgeReference[];
   tools?: string[];
   world?: WorldProfile;
+  user_persona?: UserPersonaProfile;
   environment_summary?: string;
   version?: string;
 }
