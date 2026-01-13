@@ -125,6 +125,9 @@ func (t *mobileTaskTool) Execute(ctx context.Context, call ports.ToolCall) (*por
 		err := errors.New("task is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
+	if err := ensureADBAvailable(); err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
 
 	maxSteps := t.maxSteps
 	if maxSteps <= 0 {
@@ -194,6 +197,13 @@ func (t *mobileTaskTool) Execute(ctx context.Context, call ports.ToolCall) (*por
 	}
 
 	return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, false)
+}
+
+func ensureADBAvailable() error {
+	if _, err := exec.LookPath("adb"); err != nil {
+		return errors.New("adb not found in PATH; install android-tools or ensure adb is available")
+	}
+	return nil
 }
 
 func (t *mobileTaskTool) buildResult(
