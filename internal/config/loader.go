@@ -35,9 +35,9 @@ const (
 	DefaultLLMModel    = "gpt-4o-mini"
 	DefaultLLMBaseURL  = "https://api.openai.com/v1"
 	DefaultMaxTokens   = 8192
-	DefaultMobileModel = "autoglm-phone-9b"
-	DefaultMobileURL   = "http://localhost:8000/v1"
-	DefaultMobileKey   = "EMPTY"
+	DefaultMobileModel = ""
+	DefaultMobileURL   = ""
+	DefaultMobileKey   = ""
 	DefaultMobileSteps = 100
 	DefaultMobileADBAddress = "android-emulator:5555"
 )
@@ -236,7 +236,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMSmallProvider:    DefaultLLMProvider,
 		LLMSmallModel:       DefaultLLMModel,
 		BaseURL:             DefaultLLMBaseURL,
-		MobileLLMProvider:   DefaultLLMProvider,
+		MobileLLMProvider:   "",
 		MobileLLMModel:      DefaultMobileModel,
 		MobileLLMAPIKey:     DefaultMobileKey,
 		MobileLLMBaseURL:    DefaultMobileURL,
