@@ -26,6 +26,8 @@ readonly DEFAULT_ANDROID_EMULATOR_IMAGE="budtmo/docker-android:emulator_14.0"
 readonly DEFAULT_ANDROID_EMULATOR_DEVICE="Samsung Galaxy S10"
 readonly DEFAULT_ANDROID_EMULATOR_CONTAINER_NAME="alex-android-emulator"
 readonly DEFAULT_ANDROID_EMULATOR_ADB_ADDRESS="localhost:5555"
+readonly DEFAULT_ANDROID_EMULATOR_CONSOLE_PORT=5554
+readonly HOST_OS="$(uname -s)"
 readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
 readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
@@ -44,6 +46,8 @@ ANDROID_EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE:-${DEFAULT_ANDROID_EMULATOR_D
 ANDROID_EMULATOR_CONTAINER_NAME="${ANDROID_EMULATOR_CONTAINER_NAME:-${DEFAULT_ANDROID_EMULATOR_CONTAINER_NAME}}"
 ANDROID_EMULATOR_ADB_ADDRESS="${ANDROID_EMULATOR_ADB_ADDRESS:-${DEFAULT_ANDROID_EMULATOR_ADB_ADDRESS}}"
 ANDROID_EMULATOR_ADB_PORT="${ANDROID_EMULATOR_ADB_PORT:-${ANDROID_EMULATOR_ADB_ADDRESS##*:}}"
+ANDROID_EMULATOR_CONSOLE_PORT="${ANDROID_EMULATOR_CONSOLE_PORT:-${DEFAULT_ANDROID_EMULATOR_CONSOLE_PORT}}"
+ANDROID_EMULATOR_MODE="${ANDROID_EMULATOR_MODE:-auto}"
 source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
 
 COMPOSE_CORE_VARS=()
@@ -111,6 +115,27 @@ die() {
 
 command_exists() {
     command -v "$1" >/dev/null 2>&1
+}
+
+is_macos() {
+    [[ "$HOST_OS" == "Darwin" ]]
+}
+
+use_docker_android_emulator() {
+    case "${ANDROID_EMULATOR_MODE}" in
+        docker)
+            return 0
+            ;;
+        host)
+            return 1
+            ;;
+        auto|*)
+            if is_macos; then
+                return 1
+            fi
+            return 0
+            ;;
+    esac
 }
 
 ###############################################################################
@@ -258,9 +283,25 @@ stop_sandbox() {
 }
 
 start_android_emulator() {
+    if ! use_docker_android_emulator; then
+        if is_macos; then
+            log_warn "macOS detected; skipping Docker Android emulator (use a local emulator on the host)"
+        else
+            log_info "ANDROID_EMULATOR_MODE=host; skipping Docker Android emulator"
+        fi
+        return 0
+    fi
+
     if ! command_exists docker; then
         log_error "docker not found; cannot start Android emulator"
         return 1
+    fi
+
+    local kvm_args=()
+    if [[ -e /dev/kvm ]]; then
+        kvm_args=(--device /dev/kvm)
+    else
+        log_warn "/dev/kvm not found; emulator may boot slowly or stay offline"
     fi
 
     if docker ps --format '{{.Names}}' | grep -qx "${ANDROID_EMULATOR_CONTAINER_NAME}"; then
@@ -278,10 +319,12 @@ start_android_emulator() {
         log_info "Starting Android emulator container ${ANDROID_EMULATOR_CONTAINER_NAME}..."
         docker run -d \
             --name "${ANDROID_EMULATOR_CONTAINER_NAME}" \
+            -p "${ANDROID_EMULATOR_CONSOLE_PORT}:5554" \
             -p "${ANDROID_EMULATOR_ADB_PORT}:5555" \
             -p 6080:6080 \
             -e WEB_VNC=true \
             -e EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE}" \
+            "${kvm_args[@]}" \
             --privileged \
             "${ANDROID_EMULATOR_IMAGE}" >/dev/null
     fi
@@ -557,6 +600,11 @@ prepare_compose_environment() {
 
     if [[ -z "${AUTH_JWT_SECRET:-}" || -z "${AUTH_DATABASE_URL:-}" ]]; then
         log_warn "Auth DB/secret not set; login flows stay disabled (set AUTH_JWT_SECRET and AUTH_DATABASE_URL to enable)."
+    fi
+
+    if [[ -z "${MOBILE_ADB_ADDRESS:-}" ]] && is_macos && ! use_docker_android_emulator; then
+        export MOBILE_ADB_ADDRESS="host.docker.internal:5555"
+        log_warn "macOS detected; MOBILE_ADB_ADDRESS defaults to host.docker.internal:5555"
     fi
 
     compose_validate_core_vars

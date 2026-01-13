@@ -68,6 +68,11 @@ type mobileTaskStep struct {
 	Action mobileTaskAction
 }
 
+type adbDevice struct {
+	Serial string
+	State  string
+}
+
 func NewMobileTask(cfg MobileTaskConfig) ports.ToolExecutor {
 	client := cfg.LLM
 	if client == nil {
@@ -420,8 +425,30 @@ func normalizeKeyCode(key string) string {
 
 func resolveADBSerial(ctx context.Context, address, serial string) (string, error) {
 	if address != "" {
-		if _, err := runADBOutput(ctx, "", "connect", address); err != nil {
-			return "", fmt.Errorf("adb connect %s failed: %w", address, err)
+		if err := connectADB(ctx, address); err != nil {
+			return "", err
+		}
+		state, ok, err := lookupADBDeviceState(ctx, address)
+		if err != nil {
+			return "", err
+		}
+		if ok && state == "offline" {
+			if _, err := runADBOutput(ctx, "", "disconnect", address); err != nil {
+				return "", fmt.Errorf("adb disconnect %s failed: %w", address, err)
+			}
+			if err := connectADB(ctx, address); err != nil {
+				return "", err
+			}
+			state, ok, err = lookupADBDeviceState(ctx, address)
+			if err != nil {
+				return "", err
+			}
+		}
+		if !ok {
+			return "", fmt.Errorf("adb device %s not found after connect", address)
+		}
+		if state != "device" {
+			return "", fmt.Errorf("adb device %s is %s", address, state)
 		}
 		return address, nil
 	}
@@ -440,17 +467,55 @@ func resolveADBSerial(ctx context.Context, address, serial string) (string, erro
 }
 
 func parseADBDevices(output string) []string {
-	var devices []string
-	for _, line := range strings.Split(output, "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 2 {
-			continue
-		}
-		if fields[1] == "device" {
-			devices = append(devices, fields[0])
+	states := parseADBDeviceStates(output)
+	devices := make([]string, 0, len(states))
+	for _, device := range states {
+		if device.State == "device" {
+			devices = append(devices, device.Serial)
 		}
 	}
 	return devices
+}
+
+func parseADBDeviceStates(output string) []adbDevice {
+	var devices []adbDevice
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "List of devices attached") {
+			continue
+		}
+		fields := strings.Fields(trimmed)
+		if len(fields) < 2 {
+			continue
+		}
+		devices = append(devices, adbDevice{Serial: fields[0], State: fields[1]})
+	}
+	return devices
+}
+
+func findADBDeviceState(devices []adbDevice, serial string) (string, bool) {
+	for _, device := range devices {
+		if device.Serial == serial {
+			return device.State, true
+		}
+	}
+	return "", false
+}
+
+func lookupADBDeviceState(ctx context.Context, serial string) (string, bool, error) {
+	output, err := runADBOutput(ctx, "", "devices", "-l")
+	if err != nil {
+		return "", false, err
+	}
+	state, ok := findADBDeviceState(parseADBDeviceStates(output), serial)
+	return state, ok, nil
+}
+
+func connectADB(ctx context.Context, address string) error {
+	if _, err := runADBOutput(ctx, "", "connect", address); err != nil {
+		return fmt.Errorf("adb connect %s failed: %w", address, err)
+	}
+	return nil
 }
 
 func fetchScreenSize(ctx context.Context, serial string) (int, int, error) {

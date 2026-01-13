@@ -133,6 +133,7 @@ services:
     image: ${ANDROID_EMULATOR_IMAGE:-budtmo/docker-android:emulator_14.0}
     container_name: alex-android-emulator
     ports:
+      - "${ANDROID_EMULATOR_CONSOLE_PORT:-5554}:5554"
       - "5555:5555"
       - "6080:6080"
     environment:

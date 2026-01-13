@@ -52,8 +52,21 @@ func TestParseScreenSize(t *testing.T) {
 }
 
 func TestParseADBDevices(t *testing.T) {
-	devices := parseADBDevices("List of devices attached\nabc123\tdevice usb:1-1\n")
+	devices := parseADBDevices("List of devices attached\nabc123\tdevice usb:1-1\nlocalhost:5555\toffline\n")
 	if len(devices) != 1 || devices[0] != "abc123" {
 		t.Fatalf("unexpected devices: %#v", devices)
+	}
+}
+
+func TestParseADBDeviceStates(t *testing.T) {
+	devices := parseADBDeviceStates("List of devices attached\nlocalhost:5555\toffline\nemulator-5554\tdevice\n")
+	if len(devices) != 2 {
+		t.Fatalf("unexpected device count: %#v", devices)
+	}
+	if devices[0].Serial != "localhost:5555" || devices[0].State != "offline" {
+		t.Fatalf("unexpected device: %#v", devices[0])
+	}
+	if devices[1].Serial != "emulator-5554" || devices[1].State != "device" {
+		t.Fatalf("unexpected device: %#v", devices[1])
 	}
 }

@@ -180,6 +180,12 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 Docker Compose 启动模拟器时，建议在 `config.yaml` 中写入 `mobile_adb_address: "${MOBILE_ADB_ADDRESS}"`，并由 Compose 提供 `MOBILE_ADB_ADDRESS=android-emulator:5555` 以便 `mobile_task` 自动连接（不设置时仍会回退到默认值）。
 
+Docker 模拟器提示：
+- `budtmo/docker-android` 需要同时暴露 5554/5555（console/adb），仅暴露 5555 可能导致 `adb devices` 显示 `offline`。
+- Linux 上建议挂载 `/dev/kvm` 提供硬件加速，否则启动很慢且容易长期处于 `offline`。
+- 可用 `docker exec -it alex-android-emulator cat device_status` 查看启动状态，`device` 表示就绪。
+- macOS 上 Docker 通常没有 KVM 支持，建议在宿主机启动模拟器，并在容器环境设置 `MOBILE_ADB_ADDRESS=host.docker.internal:5555`（`ANDROID_EMULATOR_MODE=host` 可让脚本自动切换）。
+
 ### 工具与运行体验
 
 - `tool_preset`：工具权限预设（仅 CLI）：`safe` / `read-only` / `full`。Web 模式下忽略该字段并默认启用全部非本地工具。
