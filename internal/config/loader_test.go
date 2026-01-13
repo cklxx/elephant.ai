@@ -31,14 +31,14 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LLMSmallProvider != "mock" {
 		t.Fatalf("expected small model provider to fall back to mock without api key, got %q", cfg.LLMSmallProvider)
 	}
-	if cfg.MobileLLMProvider != "openai" {
-		t.Fatalf("expected mobile provider to default to openai, got %q", cfg.MobileLLMProvider)
+	if cfg.MobileLLMProvider != cfg.LLMProvider {
+		t.Fatalf("expected mobile provider to fall back to LLM provider, got %q", cfg.MobileLLMProvider)
 	}
-	if cfg.MobileLLMModel != "autoglm-phone-9b" {
-		t.Fatalf("expected mobile model to default to autoglm-phone-9b, got %q", cfg.MobileLLMModel)
+	if cfg.MobileLLMModel != cfg.LLMModel {
+		t.Fatalf("expected mobile model to fall back to LLM model, got %q", cfg.MobileLLMModel)
 	}
-	if cfg.MobileLLMAPIKey != "EMPTY" || cfg.MobileLLMBaseURL != "http://localhost:8000/v1" {
-		t.Fatalf("expected mobile api/base defaults, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
+	if cfg.MobileLLMAPIKey != cfg.APIKey || cfg.MobileLLMBaseURL != cfg.BaseURL {
+		t.Fatalf("expected mobile api/base to fall back to LLM config, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
 	}
 	if cfg.MobileADBAddress != "android-emulator:5555" {
 		t.Fatalf("expected mobile adb address default android-emulator:5555, got %q", cfg.MobileADBAddress)

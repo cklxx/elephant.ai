@@ -21,6 +21,8 @@
 #   ANDROID_EMULATOR_CONTAINER_NAME=... # Android emulator container name override
 #   ANDROID_EMULATOR_ADB_ADDRESS=... # Android emulator adb address override (default localhost:5555)
 #   ANDROID_EMULATOR_ADB_PORT=... # Android emulator adb host port override
+#   ANDROID_EMULATOR_CONSOLE_PORT=... # Android emulator console host port override (default 5554)
+#   ANDROID_EMULATOR_MODE=auto  # auto|docker|host (mac defaults to host)
 #   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
 #   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
@@ -46,6 +48,9 @@ readonly DEFAULT_ANDROID_EMULATOR_IMAGE="budtmo/docker-android:emulator_14.0"
 readonly DEFAULT_ANDROID_EMULATOR_DEVICE="Samsung Galaxy S10"
 readonly DEFAULT_ANDROID_EMULATOR_CONTAINER_NAME="alex-android-emulator"
 readonly DEFAULT_ANDROID_EMULATOR_ADB_ADDRESS="localhost:5555"
+readonly DEFAULT_ANDROID_EMULATOR_CONSOLE_PORT=5554
+
+readonly HOST_OS="$(uname -s)"
 
 SERVER_PORT="${SERVER_PORT:-${DEFAULT_SERVER_PORT}}"
 WEB_PORT="${WEB_PORT:-${DEFAULT_WEB_PORT}}"
@@ -58,6 +63,8 @@ ANDROID_EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE:-${DEFAULT_ANDROID_EMULATOR_D
 ANDROID_EMULATOR_CONTAINER_NAME="${ANDROID_EMULATOR_CONTAINER_NAME:-${DEFAULT_ANDROID_EMULATOR_CONTAINER_NAME}}"
 ANDROID_EMULATOR_ADB_ADDRESS="${ANDROID_EMULATOR_ADB_ADDRESS:-${DEFAULT_ANDROID_EMULATOR_ADB_ADDRESS}}"
 ANDROID_EMULATOR_ADB_PORT="${ANDROID_EMULATOR_ADB_PORT:-${ANDROID_EMULATOR_ADB_ADDRESS##*:}}"
+ANDROID_EMULATOR_CONSOLE_PORT="${ANDROID_EMULATOR_CONSOLE_PORT:-${DEFAULT_ANDROID_EMULATOR_CONSOLE_PORT}}"
+ANDROID_EMULATOR_MODE="${ANDROID_EMULATOR_MODE:-auto}"
 START_WITH_WATCH="${START_WITH_WATCH:-1}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
 
@@ -95,6 +102,27 @@ die() {
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+is_macos() {
+  [[ "$HOST_OS" == "Darwin" ]]
+}
+
+use_docker_android_emulator() {
+  case "${ANDROID_EMULATOR_MODE}" in
+    docker)
+      return 0
+      ;;
+    host)
+      return 1
+      ;;
+    auto|*)
+      if is_macos; then
+        return 1
+      fi
+      return 0
+      ;;
+  esac
 }
 
 ensure_playwright_browsers() {
@@ -408,9 +436,25 @@ start_sandbox() {
 }
 
 start_android_emulator() {
+  if ! use_docker_android_emulator; then
+    if is_macos; then
+      log_warn "macOS detected; skipping Docker Android emulator (use a local emulator on the host)"
+    else
+      log_info "ANDROID_EMULATOR_MODE=host; skipping Docker Android emulator"
+    fi
+    return 0
+  fi
+
   if ! command_exists docker; then
     log_error "docker not found; cannot start Android emulator"
     return 1
+  fi
+
+  local kvm_args=()
+  if [[ -e /dev/kvm ]]; then
+    kvm_args=(--device /dev/kvm)
+  else
+    log_warn "/dev/kvm not found; emulator may boot slowly or stay offline"
   fi
 
   if docker ps --format '{{.Names}}' | grep -qx "${ANDROID_EMULATOR_CONTAINER_NAME}"; then
@@ -428,10 +472,12 @@ start_android_emulator() {
     log_info "Starting Android emulator container ${ANDROID_EMULATOR_CONTAINER_NAME}..."
     docker run -d \
       --name "${ANDROID_EMULATOR_CONTAINER_NAME}" \
+      -p "${ANDROID_EMULATOR_CONSOLE_PORT}:5554" \
       -p "${ANDROID_EMULATOR_ADB_PORT}:5555" \
       -p 6080:6080 \
       -e WEB_VNC=true \
       -e EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE}" \
+      "${kvm_args[@]}" \
       --privileged \
       "${ANDROID_EMULATOR_IMAGE}" >/dev/null
   fi
