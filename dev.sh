@@ -16,6 +16,10 @@
 #   WEB_PORT=3000               # Web port override (default 3000)
 #   SANDBOX_PORT=18086          # Sandbox port override (default 18086)
 #   SANDBOX_IMAGE=...           # Sandbox image override
+#   ANDROID_EMULATOR_IMAGE=...  # Android emulator image override
+#   ANDROID_EMULATOR_DEVICE=... # Android emulator device override
+#   ANDROID_EMULATOR_CONTAINER_NAME=... # Android emulator container name override
+#   ANDROID_EMULATOR_ADB_ADDRESS=... # Android emulator adb address override (default localhost:5555)
 #   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
 #   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
@@ -37,6 +41,10 @@ readonly DEFAULT_SERVER_PORT=8080
 readonly DEFAULT_WEB_PORT=3000
 readonly DEFAULT_SANDBOX_PORT=18086
 readonly DEFAULT_SANDBOX_IMAGE="ghcr.io/agent-infra/sandbox:latest"
+readonly DEFAULT_ANDROID_EMULATOR_IMAGE="budtmo/docker-android:emulator_11.0"
+readonly DEFAULT_ANDROID_EMULATOR_DEVICE="Samsung Galaxy S10"
+readonly DEFAULT_ANDROID_EMULATOR_CONTAINER_NAME="alex-android-emulator"
+readonly DEFAULT_ANDROID_EMULATOR_ADB_ADDRESS="localhost:5555"
 
 SERVER_PORT="${SERVER_PORT:-${DEFAULT_SERVER_PORT}}"
 WEB_PORT="${WEB_PORT:-${DEFAULT_WEB_PORT}}"
@@ -44,6 +52,10 @@ SANDBOX_PORT="${SANDBOX_PORT:-${DEFAULT_SANDBOX_PORT}}"
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
 SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
 SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
+ANDROID_EMULATOR_IMAGE="${ANDROID_EMULATOR_IMAGE:-${DEFAULT_ANDROID_EMULATOR_IMAGE}}"
+ANDROID_EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE:-${DEFAULT_ANDROID_EMULATOR_DEVICE}}"
+ANDROID_EMULATOR_CONTAINER_NAME="${ANDROID_EMULATOR_CONTAINER_NAME:-${DEFAULT_ANDROID_EMULATOR_CONTAINER_NAME}}"
+ANDROID_EMULATOR_ADB_ADDRESS="${ANDROID_EMULATOR_ADB_ADDRESS:-${DEFAULT_ANDROID_EMULATOR_ADB_ADDRESS}}"
 START_WITH_WATCH="${START_WITH_WATCH:-1}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
 
@@ -393,6 +405,43 @@ start_sandbox() {
   wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
 }
 
+start_android_emulator() {
+  if ! command_exists docker; then
+    log_error "docker not found; cannot start Android emulator"
+    return 1
+  fi
+
+  if docker ps --format '{{.Names}}' | grep -qx "${ANDROID_EMULATOR_CONTAINER_NAME}"; then
+    log_info "Android emulator already running (container ${ANDROID_EMULATOR_CONTAINER_NAME})"
+    return 0
+  fi
+
+  log_info "Pulling Android emulator image ${ANDROID_EMULATOR_IMAGE}..."
+  docker pull "${ANDROID_EMULATOR_IMAGE}" >/dev/null
+
+  if docker ps -a --format '{{.Names}}' | grep -qx "${ANDROID_EMULATOR_CONTAINER_NAME}"; then
+    log_info "Starting Android emulator container ${ANDROID_EMULATOR_CONTAINER_NAME}..."
+    docker start "${ANDROID_EMULATOR_CONTAINER_NAME}" >/dev/null
+  else
+    log_info "Starting Android emulator container ${ANDROID_EMULATOR_CONTAINER_NAME}..."
+    docker run -d \
+      --name "${ANDROID_EMULATOR_CONTAINER_NAME}" \
+      -p 5555:5555 \
+      -p 6080:6080 \
+      -e WEB_VNC=true \
+      -e EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE}" \
+      --privileged \
+      "${ANDROID_EMULATOR_IMAGE}" >/dev/null
+  fi
+}
+
+ensure_mobile_adb_address() {
+  if [[ -z "${MOBILE_ADB_ADDRESS:-}" ]]; then
+    export MOBILE_ADB_ADDRESS="${ANDROID_EMULATOR_ADB_ADDRESS}"
+    log_success "MOBILE_ADB_ADDRESS=${MOBILE_ADB_ADDRESS}"
+  fi
+}
+
 stop_sandbox() {
   if ! is_local_sandbox_url; then
     return 0
@@ -403,6 +452,16 @@ stop_sandbox() {
   if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
     log_info "Stopping sandbox container ${SANDBOX_CONTAINER_NAME}..."
     docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
+  fi
+}
+
+stop_android_emulator() {
+  if ! command_exists docker; then
+    return 0
+  fi
+  if docker ps --format '{{.Names}}' | grep -qx "${ANDROID_EMULATOR_CONTAINER_NAME}"; then
+    log_info "Stopping Android emulator container ${ANDROID_EMULATOR_CONTAINER_NAME}..."
+    docker stop "${ANDROID_EMULATOR_CONTAINER_NAME}" >/dev/null
   fi
 }
 
@@ -578,6 +637,8 @@ start_web() {
 }
 
 cmd_up() {
+  start_android_emulator
+  ensure_mobile_adb_address
   start_sandbox
   maybe_setup_auth_db
   start_server
@@ -594,6 +655,7 @@ cmd_down() {
   stop_service "Backend" "${SERVER_PID_FILE}"
   stop_alex_server_listeners "$SERVER_PORT"
   stop_sandbox
+  stop_android_emulator
 }
 
 cmd_status() {
@@ -629,6 +691,12 @@ cmd_status() {
     log_success "Sandbox: ready ${SANDBOX_BASE_URL}"
   else
     log_warn "Sandbox: unavailable ${SANDBOX_BASE_URL}"
+  fi
+
+  if command_exists docker && docker ps --format '{{.Names}}' | grep -qx "${ANDROID_EMULATOR_CONTAINER_NAME}"; then
+    log_success "Android emulator: running (${ANDROID_EMULATOR_CONTAINER_NAME})"
+  else
+    log_warn "Android emulator: stopped (${ANDROID_EMULATOR_CONTAINER_NAME})"
   fi
 
 }
