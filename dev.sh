@@ -20,6 +20,7 @@
 #   ANDROID_EMULATOR_DEVICE=... # Android emulator device override
 #   ANDROID_EMULATOR_CONTAINER_NAME=... # Android emulator container name override
 #   ANDROID_EMULATOR_ADB_ADDRESS=... # Android emulator adb address override (default localhost:5555)
+#   ANDROID_EMULATOR_ADB_PORT=... # Android emulator adb host port override
 #   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
 #   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
@@ -56,6 +57,7 @@ ANDROID_EMULATOR_IMAGE="${ANDROID_EMULATOR_IMAGE:-${DEFAULT_ANDROID_EMULATOR_IMA
 ANDROID_EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE:-${DEFAULT_ANDROID_EMULATOR_DEVICE}}"
 ANDROID_EMULATOR_CONTAINER_NAME="${ANDROID_EMULATOR_CONTAINER_NAME:-${DEFAULT_ANDROID_EMULATOR_CONTAINER_NAME}}"
 ANDROID_EMULATOR_ADB_ADDRESS="${ANDROID_EMULATOR_ADB_ADDRESS:-${DEFAULT_ANDROID_EMULATOR_ADB_ADDRESS}}"
+ANDROID_EMULATOR_ADB_PORT="${ANDROID_EMULATOR_ADB_PORT:-${ANDROID_EMULATOR_ADB_ADDRESS##*:}}"
 START_WITH_WATCH="${START_WITH_WATCH:-1}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
 
@@ -426,7 +428,7 @@ start_android_emulator() {
     log_info "Starting Android emulator container ${ANDROID_EMULATOR_CONTAINER_NAME}..."
     docker run -d \
       --name "${ANDROID_EMULATOR_CONTAINER_NAME}" \
-      -p 5555:5555 \
+      -p "${ANDROID_EMULATOR_ADB_PORT}:5555" \
       -p 6080:6080 \
       -e WEB_VNC=true \
       -e EMULATOR_DEVICE="${ANDROID_EMULATOR_DEVICE}" \
