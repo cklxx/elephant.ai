@@ -39,6 +39,7 @@ const (
 	DefaultMobileURL   = "http://localhost:8000/v1"
 	DefaultMobileKey   = "EMPTY"
 	DefaultMobileSteps = 100
+	DefaultMobileADBAddress = "android-emulator:5555"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -239,6 +240,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		MobileLLMModel:      DefaultMobileModel,
 		MobileLLMAPIKey:     DefaultMobileKey,
 		MobileLLMBaseURL:    DefaultMobileURL,
+		MobileADBAddress:    DefaultMobileADBAddress,
 		MobileMaxSteps:      DefaultMobileSteps,
 		SandboxBaseURL:      "http://localhost:18086",
 		SeedreamTextModel:   DefaultSeedreamTextModel,
