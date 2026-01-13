@@ -178,6 +178,23 @@ export function UserPersonaDialog({
   const [peoplePreference, setPeoplePreference] = useState("collaborative");
   const [nonNegotiables, setNonNegotiables] = useState("");
 
+  const resetFormState = () => {
+    setInitiativeSources([]);
+    setDriveScores(defaultDriveScores);
+    setValues(Array.from({ length: 5 }, () => ""));
+    setGoals({
+      currentFocus: "",
+      oneYear: "",
+      threeYear: "",
+    });
+    setTraits(defaultTraits);
+    setSpeedQuality("balanced");
+    setEvidenceStyle("balanced");
+    setRiskPreference("balanced");
+    setPeoplePreference("collaborative");
+    setNonNegotiables("");
+  };
+
   const personaProfile = useMemo<UserPersonaProfile>(() => {
     const coreDrives = toDriveEntries(driveScores);
     const sortedDrives = [...coreDrives].sort((a, b) => b.score - a.score);
@@ -240,9 +257,12 @@ export function UserPersonaDialog({
     if (!open || !sessionId) return;
 
     setLoading(true);
+    resetFormState();
     getSessionPersona(sessionId)
       .then((persona) => {
-        if (!persona) return;
+        if (!persona) {
+          return;
+        }
         if (persona.initiative_sources) {
           setInitiativeSources(persona.initiative_sources);
         }
