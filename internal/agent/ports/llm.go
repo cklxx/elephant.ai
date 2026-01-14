@@ -160,6 +160,9 @@ type Attachment struct {
 	PreviewAssets []AttachmentPreviewAsset `json:"preview_assets,omitempty"`
 	// RetentionTTLSeconds allows callers to override default cleanup windows.
 	RetentionTTLSeconds uint64 `json:"retention_ttl_seconds,omitempty"`
+	// ShowToLLM controls whether the attachment should be embedded into model inputs.
+	// Nil implies the default behavior (show).
+	ShowToLLM *bool `json:"show_to_llm,omitempty"`
 }
 
 // AttachmentPreviewAsset describes a derived preview asset for an attachment.

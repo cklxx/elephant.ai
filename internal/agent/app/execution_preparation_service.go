@@ -829,11 +829,11 @@ func taskNeedsVision(task string, attachments map[string]ports.Attachment, userA
 
 	matches := visionPlaceholderPattern.FindAllStringSubmatch(task, -1)
 	for _, match := range matches {
-		if len(match) < 2 {
+		if len(match) < 1 {
 			continue
 		}
-		placeholder := strings.TrimSpace(match[1])
-		if placeholder == "" {
+		placeholder, ok := ports.AttachmentPlaceholderName(match[0])
+		if !ok {
 			continue
 		}
 		att, ok := lookupAttachmentByName(attachments, placeholder)

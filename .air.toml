@@ -1,12 +1,12 @@
-# Air configuration for hot reload during alex development
+# Air configuration for hot reload during alex-server development
 root = "."
 testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
   args_bin = []
-  bin = "./tmp/alex"
-  cmd = "go build -o ./tmp/alex ./cmd/alex"
+  bin = "./alex-server"
+  cmd = "./scripts/go-with-toolchain.sh build -o ./alex-server ./cmd/alex-server"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", "build", "release"]
   exclude_file = []

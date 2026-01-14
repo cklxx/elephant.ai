@@ -385,6 +385,40 @@ func TestConvertMessagesEmbedsUserImageAttachmentsWithPlaceholders(t *testing.T)
 	}
 }
 
+func TestConvertMessagesSkipsHiddenImageAttachments(t *testing.T) {
+	t.Parallel()
+
+	client := &openaiClient{}
+	hide := false
+	msgs := []ports.Message{
+		{
+			Role:    "user",
+			Content: "Describe [cat.png].",
+			Attachments: map[string]ports.Attachment{
+				"cat.png": {
+					Name:      "cat.png",
+					MediaType: "image/png",
+					URI:       "https://example.com/cat.png",
+					ShowToLLM: &hide,
+				},
+			},
+		},
+	}
+
+	converted := client.convertMessages(msgs)
+	if len(converted) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(converted))
+	}
+
+	content, ok := converted[0]["content"].(string)
+	if !ok {
+		t.Fatalf("expected string content, got %T", converted[0]["content"])
+	}
+	if content != msgs[0].Content {
+		t.Fatalf("expected content %q, got %q", msgs[0].Content, content)
+	}
+}
+
 func TestConvertMessagesAppendsUnreferencedUserImages(t *testing.T) {
 	t.Parallel()
 

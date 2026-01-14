@@ -368,8 +368,8 @@ func ensureToolAttachmentReferences(content string, attachments map[string]ports
 
 	keys := sortedAttachmentKeys(attachments)
 	for _, name := range keys {
-		placeholder := fmt.Sprintf("[%s]", name)
-		if strings.Contains(normalized, placeholder) {
+		placeholder := ports.AttachmentPlaceholder(name)
+		if placeholder != "" && strings.Contains(normalized, placeholder) {
 			mentioned[name] = true
 		}
 	}
@@ -381,7 +381,11 @@ func ensureToolAttachmentReferences(content string, attachments map[string]ports
 	}
 	builder.WriteString("Attachments available for follow-up steps:\n")
 	for _, name := range keys {
-		fmt.Fprintf(&builder, "- [%s]%s\n", name, boolToStar(mentioned[name]))
+		placeholder := ports.AttachmentPlaceholder(name)
+		if placeholder == "" {
+			continue
+		}
+		fmt.Fprintf(&builder, "- %s%s\n", placeholder, boolToStar(mentioned[name]))
 	}
 
 	return strings.TrimSpace(builder.String())
@@ -852,6 +856,9 @@ func attachmentsEqual(a, b ports.Attachment) bool {
 		a.PreviewProfile != b.PreviewProfile {
 		return false
 	}
+	if ports.AttachmentVisibleToLLM(a) != ports.AttachmentVisibleToLLM(b) {
+		return false
+	}
 	return previewAssetsEqual(a.PreviewAssets, b.PreviewAssets)
 }
 
@@ -891,7 +898,7 @@ func buildAttachmentCatalogContent(state *TaskState) string {
 		if placeholder == "" {
 			continue
 		}
-		builder.WriteString(fmt.Sprintf("%d. [%s]", i+1, placeholder))
+		builder.WriteString(fmt.Sprintf("%d. %s", i+1, ports.AttachmentPlaceholder(placeholder)))
 		var meta []string
 		description := strings.TrimSpace(att.Description)
 		if description != "" {
@@ -1081,23 +1088,8 @@ func collectImageAttachmentCandidates(state *TaskState) []attachmentCandidate {
 	return candidates
 }
 
-func extractPlaceholderName(value string) (string, bool) {
-	trimmed := strings.TrimSpace(value)
-	if len(trimmed) < 3 {
-		return "", false
-	}
-	if !strings.HasPrefix(trimmed, "[") || !strings.HasSuffix(trimmed, "]") {
-		return "", false
-	}
-	name := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
-	if name == "" {
-		return "", false
-	}
-	return name, true
-}
-
 func matchAttachmentReference(raw string, state *TaskState) (string, ports.Attachment, string, bool) {
-	if name, ok := extractPlaceholderName(raw); ok {
+	if name, ok := ports.AttachmentPlaceholderName(raw); ok {
 		att, canonical, _, resolved := lookupAttachmentByNameInternal(name, state)
 		if !resolved {
 			return "", ports.Attachment{}, "", false
@@ -1146,11 +1138,11 @@ func resolveContentAttachments(content string, state *TaskState) map[string]port
 	}
 	resolved := make(map[string]ports.Attachment)
 	for _, match := range matches {
-		if len(match) < 2 {
+		if len(match) < 1 {
 			continue
 		}
-		name := strings.TrimSpace(match[1])
-		if name == "" {
+		name, ok := ports.AttachmentPlaceholderName(match[0])
+		if !ok {
 			continue
 		}
 		att, _, _, ok := lookupAttachmentByNameInternal(name, state)
@@ -1604,8 +1596,8 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 	used := make(map[string]bool, len(attachments))
 	ordered := make([]string, 0, len(attachments))
 	replaced := contentPlaceholderPattern.ReplaceAllStringFunc(normalized, func(match string) string {
-		name := strings.TrimSpace(match[1 : len(match)-1])
-		if name == "" {
+		name, ok := ports.AttachmentPlaceholderName(match)
+		if !ok {
 			return ""
 		}
 		if _, ok := attachments[name]; !ok {
@@ -1651,7 +1643,11 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 			fmt.Fprintf(&builder, "请查阅附件 `%s` 获取详细内容。\n\n", name)
 		}
 		for _, placeholder := range append(ordered, missing...) {
-			fmt.Fprintf(&builder, "[%s]\n", placeholder)
+			token := ports.AttachmentPlaceholder(placeholder)
+			if token == "" {
+				continue
+			}
+			fmt.Fprintf(&builder, "%s\n", token)
 		}
 		return strings.TrimSpace(builder.String())
 	}
@@ -1660,7 +1656,11 @@ func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.At
 		builder.WriteString("请查阅以下附件获取详细内容：\n\n")
 	}
 	for _, name := range append(ordered, missing...) {
-		fmt.Fprintf(&builder, "[%s]\n", name)
+		token := ports.AttachmentPlaceholder(name)
+		if token == "" {
+			continue
+		}
+		fmt.Fprintf(&builder, "%s\n", token)
 	}
 	return strings.TrimSpace(builder.String())
 }

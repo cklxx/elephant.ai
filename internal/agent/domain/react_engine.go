@@ -1365,7 +1365,7 @@ func (e *ReactEngine) expandToolArgsSkippingKeys(args map[string]any, state *Tas
 func unwrapAttachmentPlaceholderValue(value any) any {
 	switch v := value.(type) {
 	case string:
-		if name, ok := extractPlaceholderName(v); ok {
+		if name, ok := ports.AttachmentPlaceholderName(v); ok {
 			return name
 		}
 		return v
@@ -1379,7 +1379,7 @@ func unwrapAttachmentPlaceholderValue(value any) any {
 		out := make([]string, len(v))
 		for i := range v {
 			out[i] = v[i]
-			if name, ok := extractPlaceholderName(v[i]); ok {
+			if name, ok := ports.AttachmentPlaceholderName(v[i]); ok {
 				out[i] = name
 			}
 		}

@@ -277,7 +277,7 @@ func (t *sandboxBrowserScreenshotTool) Execute(ctx context.Context, call ports.T
 		Source:    "sandbox_browser_screenshot",
 	}
 
-	content := fmt.Sprintf("Captured screenshot [%s].", name)
+	content := fmt.Sprintf("Captured screenshot %s.", ports.AttachmentPlaceholder(name))
 	metadata := map[string]any{}
 	visionSummary, visionMeta := analyzeSandboxScreenshot(ctx, t.vision, t.prompt, call, encoded)
 	if visionSummary != "" {

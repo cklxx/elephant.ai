@@ -27,11 +27,11 @@ func orderedImageAttachments(content string, attachments map[string]ports.Attach
 	ordered := make([]attachmentDescriptor, 0, len(attachments))
 
 	for _, match := range attachmentPlaceholderPattern.FindAllStringSubmatch(content, -1) {
-		if len(match) < 2 {
+		if len(match) < 1 {
 			continue
 		}
-		placeholder := strings.TrimSpace(match[1])
-		if placeholder == "" {
+		placeholder, ok := ports.AttachmentPlaceholderName(match[0])
+		if !ok {
 			continue
 		}
 		att, canonical, ok := index.resolve(placeholder)
@@ -80,17 +80,25 @@ type attachmentIndex struct {
 }
 
 func buildAttachmentIndex(attachments map[string]ports.Attachment) attachmentIndex {
+	visible := make(map[string]ports.Attachment, len(attachments))
+	for key, att := range attachments {
+		if !ports.AttachmentVisibleToLLM(att) {
+			continue
+		}
+		visible[key] = att
+	}
+
 	index := attachmentIndex{
-		attachments: attachments,
-		byLower:     make(map[string]string, len(attachments)*2),
+		attachments: visible,
+		byLower:     make(map[string]string, len(visible)*2),
 	}
 
 	type sortableKey struct {
 		key     string
 		sortKey string
 	}
-	keys := make([]sortableKey, 0, len(attachments))
-	for key, att := range attachments {
+	keys := make([]sortableKey, 0, len(visible))
+	for key, att := range visible {
 		canonical := strings.TrimSpace(key)
 		if canonical == "" {
 			continue

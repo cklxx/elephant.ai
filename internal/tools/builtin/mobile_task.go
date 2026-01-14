@@ -35,10 +35,10 @@ Rules:
 const defaultMobileMaxSteps = 100
 
 type MobileTaskConfig struct {
-	LLM         ports.LLMClient
-	ADBAddress  string
-	ADBSerial   string
-	MaxSteps    int
+	LLM        ports.LLMClient
+	ADBAddress string
+	ADBSerial  string
+	MaxSteps   int
 }
 
 type mobileTaskTool struct {
@@ -170,13 +170,16 @@ func (t *mobileTaskTool) Execute(ctx context.Context, call ports.ToolCall) (*por
 		lastAttachmentName = name
 
 		prompt := buildMobileTaskPrompt(task, width, height, i+1, maxSteps, history)
+		messages := []ports.Message{
+			{Role: "system", Content: mobileTaskSystemPrompt},
+			{Role: "user", Content: prompt, Attachments: map[string]ports.Attachment{name: attachment}},
+		}
+		limitAttachmentsToLastMessage(messages)
+
 		resp, err := t.llm.Complete(ctx, ports.CompletionRequest{
-			Messages: []ports.Message{
-				{Role: "system", Content: mobileTaskSystemPrompt},
-				{Role: "user", Content: prompt, Attachments: map[string]ports.Attachment{name: attachment}},
-			},
+			Messages:    messages,
 			Temperature: 0.2,
-			MaxTokens:   600,
+			MaxTokens:   6000,
 		})
 		if err != nil {
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -242,10 +245,10 @@ func (t *mobileTaskTool) buildResult(
 	}
 
 	metadata := map[string]any{
-		"task":         task,
-		"status":       status,
-		"adb_serial":   serial,
-		"screen_width": width,
+		"task":          task,
+		"status":        status,
+		"adb_serial":    serial,
+		"screen_width":  width,
 		"screen_height": height,
 	}
 
@@ -277,6 +280,28 @@ func buildMobileTaskPrompt(task string, width, height, step, maxSteps int, histo
 	}
 	builder.WriteString("\nReturn JSON only.")
 	return builder.String()
+}
+
+func limitAttachmentsToLastMessage(messages []ports.Message) {
+	if len(messages) == 0 {
+		return
+	}
+
+	last := len(messages) - 1
+	for i := range messages {
+		if len(messages[i].Attachments) == 0 {
+			continue
+		}
+		show := i == last
+		for key, att := range messages[i].Attachments {
+			att.ShowToLLM = boolPtr(show)
+			messages[i].Attachments[key] = att
+		}
+	}
+}
+
+func boolPtr(value bool) *bool {
+	return &value
 }
 
 func appendHistory(history []string, entry string) []string {

@@ -24,7 +24,6 @@
 #   ANDROID_EMULATOR_CONSOLE_PORT=... # Android emulator console host port override (default 5554)
 #   ANDROID_EMULATOR_MODE=auto  # auto|docker|host (mac defaults to host)
 #   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
-#   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
 #   AUTH_JWT_SECRET=...         # Auth secret (default: dev-secret-change-me)
 #   SKIP_LOCAL_AUTH_DB=1        # Skip local auth DB auto-setup (default 0)
@@ -65,7 +64,6 @@ ANDROID_EMULATOR_ADB_ADDRESS="${ANDROID_EMULATOR_ADB_ADDRESS:-${DEFAULT_ANDROID_
 ANDROID_EMULATOR_ADB_PORT="${ANDROID_EMULATOR_ADB_PORT:-${ANDROID_EMULATOR_ADB_ADDRESS##*:}}"
 ANDROID_EMULATOR_CONSOLE_PORT="${ANDROID_EMULATOR_CONSOLE_PORT:-${DEFAULT_ANDROID_EMULATOR_CONSOLE_PORT}}"
 ANDROID_EMULATOR_MODE="${ANDROID_EMULATOR_MODE:-auto}"
-START_WITH_WATCH="${START_WITH_WATCH:-1}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
 
 load_dotenv() {
@@ -627,25 +625,13 @@ start_server() {
 
   assert_port_available "$SERVER_PORT" "server"
   build_server
-
   log_info "Starting backend on :${SERVER_PORT}..."
-  if [[ "${START_WITH_WATCH}" == "1" ]] && command_exists air; then
-    PORT="${SERVER_PORT}" \
-      ALEX_SERVER_PORT="${SERVER_PORT}" \
-      ALEX_SERVER_MODE="deploy" \
-      ALEX_LOG_DIR="${LOG_DIR}" \
-      air \
-      --build.cmd "${SCRIPT_DIR}/scripts/go-with-toolchain.sh build -o ${SCRIPT_DIR}/alex-server ./cmd/alex-server" \
-      --build.bin "${SCRIPT_DIR}/alex-server" \
-      >"${SERVER_LOG}" 2>&1 &
-  else
-    PORT="${SERVER_PORT}" \
-      ALEX_SERVER_PORT="${SERVER_PORT}" \
-      ALEX_SERVER_MODE="deploy" \
-      ALEX_LOG_DIR="${LOG_DIR}" \
-      "${SCRIPT_DIR}/alex-server" \
-      >"${SERVER_LOG}" 2>&1 &
-  fi
+  PORT="${SERVER_PORT}" \
+    ALEX_SERVER_PORT="${SERVER_PORT}" \
+    ALEX_SERVER_MODE="deploy" \
+    ALEX_LOG_DIR="${LOG_DIR}" \
+    "${SCRIPT_DIR}/alex-server" \
+    >"${SERVER_LOG}" 2>&1 &
 
   echo $! >"${SERVER_PID_FILE}"
   wait_for_health "http://localhost:${SERVER_PORT}/health" "backend" || true

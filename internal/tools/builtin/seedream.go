@@ -393,10 +393,10 @@ func (t *seedreamImageTool) Execute(ctx context.Context, call ports.ToolCall) (*
 	rawImageValue, _ := call.Arguments["init_image"].(string)
 	imageValue := strings.TrimSpace(rawImageValue)
 	if resolved, placeholder, ok := resolveSeedreamInitImagePlaceholder(ctx, imageValue); ok {
-		logging.OrNop(t.logger).Debug("Resolved init_image placeholder [%s] via attachment context", placeholder)
+		logging.OrNop(t.logger).Debug("Resolved init_image placeholder %s via attachment context", ports.AttachmentPlaceholder(placeholder))
 		imageValue = resolved
-	} else if name, isPlaceholder := extractPlaceholderIdentifier(imageValue); isPlaceholder {
-		err := fmt.Errorf("init_image placeholder [%s] could not be resolved via attachment context", name)
+	} else if name, isPlaceholder := ports.AttachmentPlaceholderName(imageValue); isPlaceholder {
+		err := fmt.Errorf("init_image placeholder %s could not be resolved via attachment context", ports.AttachmentPlaceholder(name))
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 	normalizedImage, kind, err := normalizeSeedreamInitImage(imageValue)
@@ -1101,7 +1101,11 @@ func formatSeedreamResponseWithContext(ctx context.Context, resp *arkm.ImagesRes
 	if len(placeholders) > 0 {
 		builder.WriteString("Attachments:\n")
 		for idx, name := range placeholders {
-			fmt.Fprintf(&builder, "%d. [%s]\n", idx+1, name)
+			placeholder := ports.AttachmentPlaceholder(name)
+			if placeholder == "" {
+				continue
+			}
+			fmt.Fprintf(&builder, "%d. %s\n", idx+1, placeholder)
 		}
 	}
 
@@ -1583,7 +1587,7 @@ func resolveSeedreamInitImagePlaceholder(ctx context.Context, raw string) (strin
 	if placeholder == "" {
 		return "", "", false
 	}
-	name, ok := extractPlaceholderIdentifier(placeholder)
+	name, ok := ports.AttachmentPlaceholderName(placeholder)
 	if !ok {
 		return "", "", false
 	}
@@ -1632,10 +1636,10 @@ func resolveSeedreamVisionImages(ctx context.Context, rawImages []string) ([]str
 			continue
 		}
 
-		if name, ok := extractPlaceholderIdentifier(trimmed); ok {
+		if name, ok := ports.AttachmentPlaceholderName(trimmed); ok {
 			value, canonical, source, ok := resolveSeedreamAttachmentByName(ctx, name)
 			if !ok {
-				return nil, "", fmt.Errorf("image placeholder [%s] could not be resolved via attachment context", name)
+				return nil, "", fmt.Errorf("image placeholder %s could not be resolved via attachment context", ports.AttachmentPlaceholder(name))
 			}
 			resolved = append(resolved, value)
 			sources = appendSeedreamVisionSourceEntry(sources, seen, canonical, source)
@@ -1719,21 +1723,6 @@ func buildSeedreamVisionImageSourceNote(entries []seedreamVisionImageSourceEntry
 		}
 	}
 	return builder.String()
-}
-
-func extractPlaceholderIdentifier(value string) (string, bool) {
-	trimmed := strings.TrimSpace(value)
-	if len(trimmed) < 3 {
-		return "", false
-	}
-	if trimmed[0] != '[' || trimmed[len(trimmed)-1] != ']' {
-		return "", false
-	}
-	name := strings.TrimSpace(trimmed[1 : len(trimmed)-1])
-	if name == "" {
-		return "", false
-	}
-	return name, true
 }
 
 func attachmentReferenceValueForTool(att ports.Attachment) string {
@@ -1878,13 +1867,13 @@ func formatSeedreamVideoResponse(resp *arkm.GetContentGenerationTaskResponse, de
 	fmt.Fprintf(builder, "Task: %s\n", strings.TrimSpace(resp.ID))
 	fmt.Fprintf(builder, "Duration: %d seconds at %s.\n", duration, strings.TrimSpace(resolution))
 	if placeholder, ok := metadata["video_placeholder"].(string); ok && strings.TrimSpace(placeholder) != "" {
-		fmt.Fprintf(builder, "Video: [%s]\n", strings.TrimSpace(placeholder))
+		fmt.Fprintf(builder, "Video: %s\n", ports.AttachmentPlaceholder(placeholder))
 	}
 	if placeholder, ok := metadata["last_frame_placeholder"].(string); ok && strings.TrimSpace(placeholder) != "" {
-		fmt.Fprintf(builder, "Last frame preview: [%s]\n", strings.TrimSpace(placeholder))
+		fmt.Fprintf(builder, "Last frame preview: %s\n", ports.AttachmentPlaceholder(placeholder))
 	}
 	if placeholder, ok := metadata["file_placeholder"].(string); ok && strings.TrimSpace(placeholder) != "" {
-		fmt.Fprintf(builder, "Download bundle: [%s]\n", strings.TrimSpace(placeholder))
+		fmt.Fprintf(builder, "Download bundle: %s\n", ports.AttachmentPlaceholder(placeholder))
 	}
 	builder.WriteString("Plan follow-up edits for stitching or compositing as needed.")
 

@@ -662,8 +662,8 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 		placeholderToken := content[match[0]:match[1]]
 		appendText(placeholderToken)
 
-		name := strings.TrimSpace(content[match[2]:match[3]])
-		if name == "" {
+		name, ok := ports.AttachmentPlaceholderName(placeholderToken)
+		if !ok {
 			cursor = match[1]
 			continue
 		}
@@ -685,7 +685,9 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 			continue
 		}
 		if url := ports.AttachmentReferenceValue(desc.Attachment); url != "" {
-			appendText("[" + key + "]")
+			if placeholder := ports.AttachmentPlaceholder(key); placeholder != "" {
+				appendText(placeholder)
+			}
 			appendImage(url)
 			used[key] = true
 		}
