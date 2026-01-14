@@ -339,10 +339,13 @@ func parseMobileTaskAction(raw string) (mobileTaskAction, error) {
 	if trimmed == "" {
 		return mobileTaskAction{}, errors.New("empty action output")
 	}
-	payload := extractJSONObject(trimmed)
+	payload, ok := extractJSONObject(trimmed)
+	if !ok {
+		return mobileTaskAction{}, fmt.Errorf("response did not contain JSON action (check mobile_llm_model for vision support): %s", truncateForError(trimmed, 200))
+	}
 	var action mobileTaskAction
 	if err := json.Unmarshal([]byte(payload), &action); err != nil {
-		return mobileTaskAction{}, err
+		return mobileTaskAction{}, fmt.Errorf("invalid JSON action: %w (response: %s)", err, truncateForError(payload, 200))
 	}
 	action.Action = strings.ToLower(strings.TrimSpace(action.Action))
 	action.Key = strings.TrimSpace(action.Key)
@@ -376,13 +379,28 @@ func parseMobileTaskAction(raw string) (mobileTaskAction, error) {
 	}
 }
 
-func extractJSONObject(input string) string {
+func extractJSONObject(input string) (string, bool) {
 	start := strings.Index(input, "{")
 	end := strings.LastIndex(input, "}")
 	if start >= 0 && end > start {
-		return input[start : end+1]
+		return input[start : end+1], true
 	}
-	return input
+	return "", false
+}
+
+func truncateForError(value string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= max {
+		return trimmed
+	}
+	return string(runes[:max]) + "..."
 }
 
 func executeMobileAction(ctx context.Context, serial string, action mobileTaskAction) error {

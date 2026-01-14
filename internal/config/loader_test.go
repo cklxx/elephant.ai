@@ -63,6 +63,23 @@ func TestLoadDefaults(t *testing.T) {
 	}
 }
 
+func TestMobileModelDefaultsToVisionModel(t *testing.T) {
+	cfg, _, err := Load(
+		WithEnv(envMap{
+			"API_KEY":          "sk-test",
+			"LLM_MODEL":        "text-model",
+			"LLM_VISION_MODEL": "vision-model",
+		}.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return nil, os.ErrNotExist }),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.MobileLLMModel != "vision-model" {
+		t.Fatalf("expected mobile model to default to vision model, got %q", cfg.MobileLLMModel)
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	fileData := []byte(`
 runtime:

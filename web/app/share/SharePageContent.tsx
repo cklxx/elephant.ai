@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import { apiClient } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import type { AnyAgentEvent } from "@/lib/types";
+import { safeValidateEvent } from "@/lib/schemas";
 import { Header, ContentArea } from "@/components/layout";
 import { ConversationEventStream } from "@/components/agent/ConversationEventStream";
 import {
@@ -52,7 +53,7 @@ export function SharePageContent() {
       .getSharedSession(sessionId, token)
       .then((response) => {
         if (cancelled) return;
-        setEvents(response.events ?? []);
+        setEvents(normalizeShareEvents(response.events));
         setTitle(response.title?.trim() || null);
       })
       .catch((err) => {
@@ -148,4 +149,21 @@ export function SharePageContent() {
       </div>
     </div>
   );
+}
+
+function normalizeShareEvents(raw: unknown): AnyAgentEvent[] {
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+
+  const normalized: AnyAgentEvent[] = [];
+  raw.forEach((event) => {
+    const validated = safeValidateEvent(event);
+    if (validated.success) {
+      normalized.push(validated.data);
+      return;
+    }
+    console.warn("[share] Dropping invalid event payload", validated.error);
+  });
+  return normalized;
 }

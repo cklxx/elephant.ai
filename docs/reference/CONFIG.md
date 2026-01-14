@@ -172,13 +172,13 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### 移动端自动化（ADB）
 
-- `mobile_llm_provider` / `mobile_llm_model`：移动端任务使用的 LLM 配置（未设置时回退到主 LLM）。
+- `mobile_llm_provider` / `mobile_llm_model`：移动端任务使用的 LLM 配置（未设置时优先回退到 `llm_vision_model`，否则回退到 `llm_model`）。
 - `mobile_llm_api_key` / `mobile_llm_base_url`：移动端 LLM 专用密钥与 base URL（未设置时回退到主配置）。
 - `mobile_adb_address`：ADB TCP 地址（默认 `android-emulator:5555`，例如 Docker 内启动模拟器时）。
 - `mobile_adb_serial`：ADB 设备序列号（用于本机或 USB 连接场景）。
 - `mobile_max_steps`：移动端任务最大步数上限。
 
-未显式设置 `mobile_llm_*` 时不会使用内置移动模型默认值；如需专用移动模型，请手动配置对应字段。
+未显式设置 `mobile_llm_*` 时不会使用内置移动模型默认值；如需专用移动模型，请手动配置对应字段（移动端任务建议使用支持图片输入的模型）。
 
 Docker Compose 启动模拟器时，建议在 `config.yaml` 中写入 `mobile_adb_address: "${MOBILE_ADB_ADDRESS}"`，并由 Compose 提供 `MOBILE_ADB_ADDRESS=android-emulator:5555` 以便 `mobile_task` 自动连接（不设置时仍会回退到默认值）。
 

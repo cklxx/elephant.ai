@@ -297,7 +297,11 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		cfg.MobileLLMProvider = cfg.LLMProvider
 	}
 	if cfg.MobileLLMModel == "" {
-		cfg.MobileLLMModel = cfg.LLMModel
+		if cfg.LLMVisionModel != "" {
+			cfg.MobileLLMModel = cfg.LLMVisionModel
+		} else {
+			cfg.MobileLLMModel = cfg.LLMModel
+		}
 	}
 	if cfg.MobileLLMAPIKey == "" {
 		cfg.MobileLLMAPIKey = cfg.APIKey
