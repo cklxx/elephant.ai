@@ -16,21 +16,24 @@ import (
 )
 
 const mobileTaskSystemPrompt = `You are a mobile automation planner operating an Android device via adb.
-Analyze the screenshot and the task, then return the next action as JSON only.
+Analyze the screenshot and the task, then return the next decision as JSON only.
+
+Follow a ReAct loop: observe the current screen, choose one action, and wait for the next screenshot.
 
 Rules:
 - Use absolute pixel coordinates with origin at top-left.
 - Keep actions minimal and deterministic.
-- If the task is complete, return {"action":"done","summary":"..."}.
+- If the task is complete, return a done action with a summary.
 - Allowed actions: tap, swipe, text, key, wait, done.
-- JSON schema:
-  {"action":"tap","x":123,"y":456,"reason":"..."}
-  {"action":"swipe","x1":123,"y1":456,"x2":123,"y2":456,"duration_ms":300,"reason":"..."}
-  {"action":"text","text":"...","reason":"..."}
-  {"action":"key","key":"HOME|BACK|ENTER|APP_SWITCH|KEYCODE_...","reason":"..."}
-  {"action":"wait","duration_ms":1000,"reason":"..."}
-  {"action":"done","summary":"..."}
-`
+- Return JSON only with this schema:
+  {"observation":"...","action":{"action":"tap","x":123,"y":456,"reason":"..."}}
+  {"observation":"...","action":{"action":"swipe","x1":123,"y1":456,"x2":123,"y2":456,"duration_ms":300,"reason":"..."}}
+  {"observation":"...","action":{"action":"text","text":"...","reason":"..."}}
+  {"observation":"...","action":{"action":"key","key":"HOME|BACK|ENTER|APP_SWITCH|KEYCODE_...","reason":"..."}}
+  {"observation":"...","action":{"action":"wait","duration_ms":1000,"reason":"..."}}
+  {"observation":"...","action":{"action":"done","summary":"..."}}
+
+Do not include markdown, code fences, or extra text.`
 
 const defaultMobileMaxSteps = 100
 
@@ -64,8 +67,31 @@ type mobileTaskAction struct {
 }
 
 type mobileTaskStep struct {
-	Index  int
-	Action mobileTaskAction
+	Index          int
+	Observation    string
+	Action         mobileTaskAction
+	ScreenshotName string
+}
+
+type mobileTaskDecision struct {
+	Observation string           `json:"observation,omitempty"`
+	Action      mobileTaskAction `json:"action"`
+}
+
+type mobileTaskParseError struct {
+	Kind string
+	Raw  string
+	Err  error
+}
+
+func (e *mobileTaskParseError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.Err == nil {
+		return e.Kind
+	}
+	return fmt.Sprintf("%s: %v", e.Kind, e.Err)
 }
 
 type adbDevice struct {
@@ -182,29 +208,43 @@ func (t *mobileTaskTool) Execute(ctx context.Context, call ports.ToolCall) (*por
 			MaxTokens:   6000,
 		})
 		if err != nil {
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, false, err, "", "")
 		}
 
-		action, err := parseMobileTaskAction(resp.Content)
+		decision, err := parseMobileTaskDecision(resp.Content)
 		if err != nil {
-			wrapped := fmt.Errorf("parse action: %w", err)
-			return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
+			wrapped := fmt.Errorf("parse decision: %w", err)
+			rawResponse, responseKind := extractParseErrorDetails(err)
+			if rawResponse == "" {
+				rawResponse = resp.Content
+			}
+			return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, false, wrapped, rawResponse, responseKind)
 		}
 
-		steps = append(steps, mobileTaskStep{Index: i + 1, Action: action})
+		step := mobileTaskStep{
+			Index:          i + 1,
+			Observation:    decision.Observation,
+			Action:         decision.Action,
+			ScreenshotName: name,
+		}
+		steps = append(steps, step)
 
-		if action.Action == "done" {
-			return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, true)
+		if decisionSummary := summarizeDecision(decision); decisionSummary != "" {
+			ports.EmitToolProgress(ctx, fmt.Sprintf("mobile_task step %d/%d: decision %s", i+1, maxSteps, decisionSummary), false)
+		}
+
+		if decision.Action.Action == "done" {
+			return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, true, nil, "", "")
 		}
 
 		ports.EmitToolProgress(ctx, fmt.Sprintf("mobile_task step %d/%d: executing action", i+1, maxSteps), false)
-		if err := executeMobileAction(ctx, serial, action); err != nil {
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		if err := executeMobileAction(ctx, serial, decision.Action); err != nil {
+			return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, false, err, "", "")
 		}
-		history = appendHistory(history, summarizeAction(action))
+		history = appendHistory(history, summarizeDecision(decision))
 	}
 
-	return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, false)
+	return t.buildResult(ctx, call, task, serial, width, height, steps, lastAttachmentName, lastAttachment, false, nil, "", "")
 }
 
 func ensureADBAvailable() error {
@@ -225,17 +265,26 @@ func (t *mobileTaskTool) buildResult(
 	attachmentName string,
 	attachment ports.Attachment,
 	completed bool,
+	execErr error,
+	rawResponse string,
+	responseKind string,
 ) (*ports.ToolResult, error) {
 	status := "incomplete"
 	if completed {
 		status = "completed"
 	}
+	if execErr != nil {
+		status = "failed"
+	}
 
 	content := fmt.Sprintf("Mobile task %s after %d step(s).", status, len(steps))
-	if len(steps) > 0 {
-		last := steps[len(steps)-1].Action
-		if summary := strings.TrimSpace(last.Summary); summary != "" {
-			content = fmt.Sprintf("%s Summary: %s", content, summary)
+	if summary := strings.TrimSpace(buildFinalSummary(steps)); summary != "" {
+		content = fmt.Sprintf("%s Summary: %s", content, summary)
+	}
+	if execErr != nil {
+		content = fmt.Sprintf("%s Error: %s", content, execErr.Error())
+		if trimmed := strings.TrimSpace(rawResponse); trimmed != "" {
+			content = fmt.Sprintf("%s Model response: %s", content, truncateForLog(trimmed, 240))
 		}
 	}
 
@@ -250,12 +299,20 @@ func (t *mobileTaskTool) buildResult(
 		"adb_serial":    serial,
 		"screen_width":  width,
 		"screen_height": height,
+		"steps":         buildStepMetadata(steps),
+	}
+	if trimmed := strings.TrimSpace(rawResponse); trimmed != "" {
+		metadata["model_response"] = trimmed
+	}
+	if responseKind != "" {
+		metadata["model_response_kind"] = responseKind
 	}
 
 	ports.EmitToolProgress(ctx, content, true)
 	return &ports.ToolResult{
 		CallID:      call.ID,
 		Content:     content,
+		Error:       execErr,
 		Metadata:    metadata,
 		Attachments: attachments,
 	}, nil
@@ -268,7 +325,7 @@ func buildMobileTaskPrompt(task string, width, height, step, maxSteps int, histo
 	builder.WriteString("\n\n")
 	builder.WriteString(fmt.Sprintf("Screen size: %dx%d\n", width, height))
 	builder.WriteString(fmt.Sprintf("Step: %d/%d\n", step, maxSteps))
-	builder.WriteString("Recent actions:\n")
+	builder.WriteString("Recent steps (observation -> action):\n")
 	if len(history) == 0 {
 		builder.WriteString("- None\n")
 	} else {
@@ -334,19 +391,112 @@ func summarizeAction(action mobileTaskAction) string {
 	}
 }
 
-func parseMobileTaskAction(raw string) (mobileTaskAction, error) {
+func summarizeDecision(decision mobileTaskDecision) string {
+	actionSummary := summarizeAction(decision.Action)
+	observation := strings.TrimSpace(decision.Observation)
+	if observation == "" {
+		return actionSummary
+	}
+	return fmt.Sprintf("%s -> %s", truncateForLog(observation, 120), actionSummary)
+}
+
+func buildFinalSummary(steps []mobileTaskStep) string {
+	if len(steps) == 0 {
+		return ""
+	}
+	last := steps[len(steps)-1]
+	if summary := strings.TrimSpace(last.Action.Summary); summary != "" {
+		return summary
+	}
+	if observation := strings.TrimSpace(last.Observation); observation != "" {
+		return observation
+	}
+	return summarizeAction(last.Action)
+}
+
+func buildStepMetadata(steps []mobileTaskStep) []map[string]any {
+	if len(steps) == 0 {
+		return nil
+	}
+	result := make([]map[string]any, 0, len(steps))
+	for _, step := range steps {
+		entry := map[string]any{
+			"index":  step.Index,
+			"action": step.Action,
+		}
+		if observation := strings.TrimSpace(step.Observation); observation != "" {
+			entry["observation"] = observation
+		}
+		if step.ScreenshotName != "" {
+			entry["screenshot"] = step.ScreenshotName
+		}
+		result = append(result, entry)
+	}
+	return result
+}
+
+func parseMobileTaskDecision(raw string) (mobileTaskDecision, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return mobileTaskAction{}, errors.New("empty action output")
+		return mobileTaskDecision{}, &mobileTaskParseError{Kind: "empty_response", Raw: "", Err: errors.New("empty decision output")}
 	}
 	payload, ok := extractJSONObject(trimmed)
 	if !ok {
-		return mobileTaskAction{}, fmt.Errorf("response did not contain JSON action (check mobile_llm_model for vision support): %s", truncateForError(trimmed, 200))
+		return mobileTaskDecision{}, &mobileTaskParseError{
+			Kind: "non_json_response",
+			Raw:  trimmed,
+			Err:  fmt.Errorf("response did not contain JSON decision (check mobile_llm_model for vision support)"),
+		}
 	}
+
+	var decision mobileTaskDecision
+	if err := json.Unmarshal([]byte(payload), &decision); err == nil {
+		decision.Observation = strings.TrimSpace(decision.Observation)
+		if decision.Action.Action != "" {
+			action, err := normalizeMobileTaskAction(decision.Action)
+			if err != nil {
+				return mobileTaskDecision{}, &mobileTaskParseError{
+					Kind: "invalid_action",
+					Raw:  payload,
+					Err:  err,
+				}
+			}
+			decision.Action = action
+			return decision, nil
+		}
+	}
+
 	var action mobileTaskAction
 	if err := json.Unmarshal([]byte(payload), &action); err != nil {
-		return mobileTaskAction{}, fmt.Errorf("invalid JSON action: %w (response: %s)", err, truncateForError(payload, 200))
+		return mobileTaskDecision{}, &mobileTaskParseError{
+			Kind: "invalid_json_response",
+			Raw:  payload,
+			Err:  err,
+		}
 	}
+	normalized, err := normalizeMobileTaskAction(action)
+	if err != nil {
+		return mobileTaskDecision{}, &mobileTaskParseError{
+			Kind: "invalid_action",
+			Raw:  payload,
+			Err:  err,
+		}
+	}
+	return mobileTaskDecision{Action: normalized}, nil
+}
+
+func extractParseErrorDetails(err error) (string, string) {
+	if err == nil {
+		return "", ""
+	}
+	var parseErr *mobileTaskParseError
+	if errors.As(err, &parseErr) && parseErr != nil {
+		return parseErr.Raw, parseErr.Kind
+	}
+	return "", ""
+}
+
+func normalizeMobileTaskAction(action mobileTaskAction) (mobileTaskAction, error) {
 	action.Action = strings.ToLower(strings.TrimSpace(action.Action))
 	action.Key = strings.TrimSpace(action.Key)
 	action.Text = strings.TrimSpace(action.Text)
@@ -388,7 +538,7 @@ func extractJSONObject(input string) (string, bool) {
 	return "", false
 }
 
-func truncateForError(value string, max int) string {
+func truncateForLog(value string, max int) string {
 	if max <= 0 {
 		return ""
 	}
