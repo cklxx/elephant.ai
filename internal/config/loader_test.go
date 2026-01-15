@@ -31,21 +31,6 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LLMSmallProvider != "mock" {
 		t.Fatalf("expected small model provider to fall back to mock without api key, got %q", cfg.LLMSmallProvider)
 	}
-	if cfg.MobileLLMProvider != cfg.LLMProvider {
-		t.Fatalf("expected mobile provider to fall back to LLM provider, got %q", cfg.MobileLLMProvider)
-	}
-	if cfg.MobileLLMModel != cfg.LLMModel {
-		t.Fatalf("expected mobile model to fall back to LLM model, got %q", cfg.MobileLLMModel)
-	}
-	if cfg.MobileLLMAPIKey != cfg.APIKey || cfg.MobileLLMBaseURL != cfg.BaseURL {
-		t.Fatalf("expected mobile api/base to fall back to LLM config, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
-	}
-	if cfg.MobileADBAddress != "android-emulator:5555" {
-		t.Fatalf("expected mobile adb address default android-emulator:5555, got %q", cfg.MobileADBAddress)
-	}
-	if cfg.MobileMaxSteps != 100 {
-		t.Fatalf("expected mobile max steps default 100, got %d", cfg.MobileMaxSteps)
-	}
 	if cfg.TemperatureProvided {
 		t.Fatalf("expected temperature to be marked as not provided")
 	}
@@ -71,13 +56,6 @@ runtime:
   llm_small_provider: "openai"
   llm_small_model: "gpt-4o-mini"
   llm_vision_model: "gpt-4o-mini"
-  mobile_llm_provider: "openai"
-  mobile_llm_model: "gpt-4o-mini"
-  mobile_llm_api_key: "mobile-key"
-  mobile_llm_base_url: "https://mobile.example.com"
-  mobile_adb_address: "10.0.0.2:5555"
-  mobile_adb_serial: "usb-serial"
-  mobile_max_steps: 120
   api_key: "sk-test"
   tavily_api_key: "file-tavily"
   ark_api_key: "file-ark"
@@ -116,18 +94,6 @@ runtime:
 	}
 	if cfg.LLMVisionModel != "gpt-4o-mini" {
 		t.Fatalf("expected llm_vision_model from file, got %q", cfg.LLMVisionModel)
-	}
-	if cfg.MobileLLMProvider != "openai" || cfg.MobileLLMModel != "gpt-4o-mini" {
-		t.Fatalf("expected mobile llm config from file, got %q/%q", cfg.MobileLLMProvider, cfg.MobileLLMModel)
-	}
-	if cfg.MobileLLMAPIKey != "mobile-key" || cfg.MobileLLMBaseURL != "https://mobile.example.com" {
-		t.Fatalf("expected mobile llm api key/base url from file, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
-	}
-	if cfg.MobileADBAddress != "10.0.0.2:5555" || cfg.MobileADBSerial != "usb-serial" {
-		t.Fatalf("expected mobile adb config from file, got %q/%q", cfg.MobileADBAddress, cfg.MobileADBSerial)
-	}
-	if cfg.MobileMaxSteps != 120 {
-		t.Fatalf("expected mobile max steps from file, got %d", cfg.MobileMaxSteps)
 	}
 	if !cfg.TemperatureProvided || cfg.Temperature != 0 {
 		t.Fatalf("expected explicit zero temperature to be preserved: %+v", cfg)
@@ -176,9 +142,6 @@ runtime:
 	}
 	if meta.Source("llm_vision_model") != SourceFile {
 		t.Fatalf("expected vision model source from file, got %s", meta.Source("llm_vision_model"))
-	}
-	if meta.Source("mobile_llm_provider") != SourceFile || meta.Source("mobile_llm_model") != SourceFile {
-		t.Fatalf("expected mobile llm source from file")
 	}
 	if meta.Source("llm_small_provider") != SourceFile || meta.Source("llm_small_model") != SourceFile {
 		t.Fatalf("expected small model source from file")
@@ -309,13 +272,6 @@ runtime:
 			"LLM_TEMPERATURE":            "0",
 			"LLM_MODEL":                  "env-model",
 			"LLM_VISION_MODEL":           "env-vision-model",
-			"MOBILE_LLM_PROVIDER":        "env-mobile-provider",
-			"MOBILE_LLM_MODEL":           "env-mobile-model",
-			"MOBILE_LLM_API_KEY":         "env-mobile-key",
-			"MOBILE_LLM_BASE_URL":        "https://env-mobile.example.com",
-			"MOBILE_ADB_ADDRESS":         "10.0.0.3:5555",
-			"MOBILE_ADB_SERIAL":          "env-usb-serial",
-			"MOBILE_MAX_STEPS":           "140",
 			"TAVILY_API_KEY":             "env-tavily",
 			"ARK_API_KEY":                "env-ark",
 			"SEEDREAM_TEXT_ENDPOINT_ID":  "env-text",
@@ -342,18 +298,6 @@ runtime:
 	}
 	if cfg.LLMVisionModel != "env-vision-model" {
 		t.Fatalf("expected env vision model override, got %s", cfg.LLMVisionModel)
-	}
-	if cfg.MobileLLMProvider != "env-mobile-provider" || cfg.MobileLLMModel != "env-mobile-model" {
-		t.Fatalf("expected env mobile llm override, got %q/%q", cfg.MobileLLMProvider, cfg.MobileLLMModel)
-	}
-	if cfg.MobileLLMAPIKey != "env-mobile-key" || cfg.MobileLLMBaseURL != "https://env-mobile.example.com" {
-		t.Fatalf("expected env mobile llm api/base override, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
-	}
-	if cfg.MobileADBAddress != "10.0.0.3:5555" || cfg.MobileADBSerial != "env-usb-serial" {
-		t.Fatalf("expected env mobile adb override, got %q/%q", cfg.MobileADBAddress, cfg.MobileADBSerial)
-	}
-	if cfg.MobileMaxSteps != 140 {
-		t.Fatalf("expected env mobile max steps override, got %d", cfg.MobileMaxSteps)
 	}
 	if cfg.Temperature != 0 || !cfg.TemperatureProvided {
 		t.Fatalf("expected env zero temperature override, got %+v", cfg)
@@ -391,9 +335,6 @@ runtime:
 	if meta.Source("llm_vision_model") != SourceEnv {
 		t.Fatalf("expected env source for vision model, got %s", meta.Source("llm_vision_model"))
 	}
-	if meta.Source("mobile_llm_provider") != SourceEnv || meta.Source("mobile_llm_model") != SourceEnv {
-		t.Fatalf("expected env source for mobile llm config")
-	}
 	if meta.Source("ark_api_key") != SourceEnv {
 		t.Fatalf("expected env source for ark api key")
 	}
@@ -428,19 +369,12 @@ runtime:
 
 func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 	overrides := Overrides{
-		LLMProvider:       ptrString(" openai "),
-		LLMModel:          ptrString(" gpt-4o "),
-		MobileLLMProvider: ptrString(" openai "),
-		MobileLLMModel:    ptrString(" gpt-4o-mini "),
-		MobileLLMAPIKey:   ptrString(" mobile-key "),
-		MobileLLMBaseURL:  ptrString(" https://mobile.example.com "),
-		MobileADBAddress:  ptrString(" 10.0.0.2:5555 "),
-		MobileADBSerial:   ptrString(" usb-serial "),
-		MobileMaxSteps:    ptrInt(200),
-		APIKey:            ptrString(" sk-test "),
-		StopSequences:     ptrStringSlice([]string{" STOP ", "STOP", " ", "", "\nDONE\n", "DONE"}),
-		AgentPreset:       ptrString(" coder "),
-		ToolPreset:        ptrString(" safe "),
+		LLMProvider:   ptrString(" openai "),
+		LLMModel:      ptrString(" gpt-4o "),
+		APIKey:        ptrString(" sk-test "),
+		StopSequences: ptrStringSlice([]string{" STOP ", "STOP", " ", "", "\nDONE\n", "DONE"}),
+		AgentPreset:   ptrString(" coder "),
+		ToolPreset:    ptrString(" safe "),
 	}
 
 	cfg, _, err := Load(
@@ -461,18 +395,6 @@ func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 	if cfg.APIKey != "sk-test" {
 		t.Fatalf("expected trimmed API key, got %q", cfg.APIKey)
 	}
-	if cfg.MobileLLMProvider != "openai" || cfg.MobileLLMModel != "gpt-4o-mini" {
-		t.Fatalf("expected trimmed mobile llm config, got %q/%q", cfg.MobileLLMProvider, cfg.MobileLLMModel)
-	}
-	if cfg.MobileLLMAPIKey != "mobile-key" || cfg.MobileLLMBaseURL != "https://mobile.example.com" {
-		t.Fatalf("expected trimmed mobile api/base, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
-	}
-	if cfg.MobileADBAddress != "10.0.0.2:5555" || cfg.MobileADBSerial != "usb-serial" {
-		t.Fatalf("expected trimmed mobile adb config, got %q/%q", cfg.MobileADBAddress, cfg.MobileADBSerial)
-	}
-	if cfg.MobileMaxSteps != 200 {
-		t.Fatalf("expected trimmed mobile max steps, got %d", cfg.MobileMaxSteps)
-	}
 	if cfg.AgentPreset != "coder" || cfg.ToolPreset != "safe" {
 		t.Fatalf("expected trimmed presets, got agent=%q tool=%q", cfg.AgentPreset, cfg.ToolPreset)
 	}
@@ -485,13 +407,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideTemp := 1.0
 	overrideModel := "override-model"
 	overrideVisionModel := "override-vision-model"
-	overrideMobileProvider := "override-mobile-provider"
-	overrideMobileModel := "override-mobile-model"
-	overrideMobileAPIKey := "override-mobile-key"
-	overrideMobileBaseURL := "https://override-mobile.example.com"
-	overrideMobileADBAddress := "10.0.0.4:5555"
-	overrideMobileADBSerial := "override-serial"
-	overrideMobileMaxSteps := 160
 	overrideTavily := "override-tavily"
 	overrideArk := "override-ark"
 	overrideSeedreamText := "override-text"
@@ -511,13 +426,6 @@ func TestOverridesTakePriority(t *testing.T) {
 		WithOverrides(Overrides{
 			LLMModel:                &overrideModel,
 			LLMVisionModel:          &overrideVisionModel,
-			MobileLLMProvider:       &overrideMobileProvider,
-			MobileLLMModel:          &overrideMobileModel,
-			MobileLLMAPIKey:         &overrideMobileAPIKey,
-			MobileLLMBaseURL:        &overrideMobileBaseURL,
-			MobileADBAddress:        &overrideMobileADBAddress,
-			MobileADBSerial:         &overrideMobileADBSerial,
-			MobileMaxSteps:          &overrideMobileMaxSteps,
 			Temperature:             &overrideTemp,
 			TavilyAPIKey:            &overrideTavily,
 			ArkAPIKey:               &overrideArk,
@@ -543,18 +451,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if cfg.LLMVisionModel != overrideVisionModel {
 		t.Fatalf("expected override vision model, got %s", cfg.LLMVisionModel)
-	}
-	if cfg.MobileLLMProvider != overrideMobileProvider || cfg.MobileLLMModel != overrideMobileModel {
-		t.Fatalf("expected override mobile llm config, got %q/%q", cfg.MobileLLMProvider, cfg.MobileLLMModel)
-	}
-	if cfg.MobileLLMAPIKey != overrideMobileAPIKey || cfg.MobileLLMBaseURL != overrideMobileBaseURL {
-		t.Fatalf("expected override mobile api/base, got %q/%q", cfg.MobileLLMAPIKey, cfg.MobileLLMBaseURL)
-	}
-	if cfg.MobileADBAddress != overrideMobileADBAddress || cfg.MobileADBSerial != overrideMobileADBSerial {
-		t.Fatalf("expected override mobile adb, got %q/%q", cfg.MobileADBAddress, cfg.MobileADBSerial)
-	}
-	if cfg.MobileMaxSteps != overrideMobileMaxSteps {
-		t.Fatalf("expected override mobile max steps, got %d", cfg.MobileMaxSteps)
 	}
 	if cfg.Temperature != 1.0 || !cfg.TemperatureProvided {
 		t.Fatalf("expected override temperature 1.0, got %+v", cfg)
@@ -592,9 +488,6 @@ func TestOverridesTakePriority(t *testing.T) {
 	if meta.Source("llm_vision_model") != SourceOverride {
 		t.Fatalf("expected override source for vision model, got %s", meta.Source("llm_vision_model"))
 	}
-	if meta.Source("mobile_llm_provider") != SourceOverride || meta.Source("mobile_llm_model") != SourceOverride {
-		t.Fatalf("expected override source for mobile llm config")
-	}
 	if meta.Source("environment") != SourceOverride {
 		t.Fatalf("expected override source for environment, got %s", meta.Source("environment"))
 	}
@@ -626,10 +519,6 @@ func ptrString(value string) *string {
 }
 
 func ptrStringSlice(value []string) *[]string {
-	return &value
-}
-
-func ptrInt(value int) *int {
 	return &value
 }
 

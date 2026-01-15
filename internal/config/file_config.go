@@ -19,13 +19,6 @@ type RuntimeFileConfig struct {
 	LLMSmallProvider        string   `yaml:"llm_small_provider"`
 	LLMSmallModel           string   `yaml:"llm_small_model"`
 	LLMVisionModel          string   `yaml:"llm_vision_model"`
-	MobileLLMProvider       string   `yaml:"mobile_llm_provider"`
-	MobileLLMModel          string   `yaml:"mobile_llm_model"`
-	MobileLLMAPIKey         string   `yaml:"mobile_llm_api_key"`
-	MobileLLMBaseURL        string   `yaml:"mobile_llm_base_url"`
-	MobileADBAddress        string   `yaml:"mobile_adb_address"`
-	MobileADBSerial         string   `yaml:"mobile_adb_serial"`
-	MobileMaxSteps          *int     `yaml:"mobile_max_steps"`
 	APIKey                  string   `yaml:"api_key"`
 	ArkAPIKey               string   `yaml:"ark_api_key"`
 	BaseURL                 string   `yaml:"base_url"`
@@ -57,10 +50,10 @@ type RuntimeFileConfig struct {
 
 // ServerConfig captures server-specific YAML configuration.
 type ServerConfig struct {
-	Port              string  `yaml:"port"`
-	EnableMCP         *bool   `yaml:"enable_mcp"`
-	MaxTaskBodyBytes  *int64  `yaml:"max_task_body_bytes"`
-	AllowedOrigins    []string `yaml:"allowed_origins"`
+	Port             string   `yaml:"port"`
+	EnableMCP        *bool    `yaml:"enable_mcp"`
+	MaxTaskBodyBytes *int64   `yaml:"max_task_body_bytes"`
+	AllowedOrigins   []string `yaml:"allowed_origins"`
 }
 
 // AuthConfig captures authentication configuration stored in YAML.
