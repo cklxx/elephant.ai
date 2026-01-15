@@ -58,13 +58,6 @@ type Config struct {
 	LLMSmallProvider        string
 	LLMSmallModel           string
 	LLMVisionModel          string
-	MobileLLMProvider       string
-	MobileLLMModel          string
-	MobileLLMAPIKey         string
-	MobileLLMBaseURL        string
-	MobileADBAddress        string
-	MobileADBSerial         string
-	MobileMaxSteps          int
 	APIKey                  string
 	ArkAPIKey               string
 	BaseURL                 string
@@ -315,13 +308,6 @@ func BuildContainer(config Config) (*Container, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
-		MobileLLMProvider:       config.MobileLLMProvider,
-		MobileLLMModel:          config.MobileLLMModel,
-		MobileLLMAPIKey:         config.MobileLLMAPIKey,
-		MobileLLMBaseURL:        config.MobileLLMBaseURL,
-		MobileADBAddress:        config.MobileADBAddress,
-		MobileADBSerial:         config.MobileADBSerial,
-		MobileMaxSteps:          config.MobileMaxSteps,
 		MemoryService:           memoryService,
 	})
 	if err != nil {

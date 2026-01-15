@@ -31,7 +31,6 @@ services:
       - CLOUDFLARE_PUBLIC_BASE_URL=${CLOUDFLARE_PUBLIC_BASE_URL:-}
       - CLOUDFLARE_ATTACHMENT_KEY_PREFIX=${CLOUDFLARE_ATTACHMENT_KEY_PREFIX:-}
       - REDIS_URL=${REDIS_URL:-}
-      - MOBILE_ADB_ADDRESS=${MOBILE_ADB_ADDRESS:-android-emulator:5555}
     volumes:
       - alex-sessions:/data/sessions
       - ../../:/workspace:cached  # Mount workspace for development
@@ -125,21 +124,6 @@ services:
     depends_on:
       - alex-server
       - web
-    restart: unless-stopped
-    networks:
-      - alex-network
-
-  android-emulator:
-    image: ${ANDROID_EMULATOR_IMAGE:-budtmo/docker-android:emulator_14.0}
-    container_name: alex-android-emulator
-    ports:
-      - "${ANDROID_EMULATOR_CONSOLE_PORT:-5554}:5554"
-      - "5555:5555"
-      - "6080:6080"
-    environment:
-      - WEB_VNC=true
-      - EMULATOR_DEVICE=${ANDROID_EMULATOR_DEVICE:-Samsung Galaxy S10}
-    privileged: true
     restart: unless-stopped
     networks:
       - alex-network
