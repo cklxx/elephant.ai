@@ -257,6 +257,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["todo_update"] = builtin.NewTodoUpdate()
 	r.static["skills"] = builtin.NewSkills()
 	r.static["apps"] = builtin.NewApps()
+	r.static["music_play"] = builtin.NewMusicPlay()
 
 	// Attachment and artifact operations
 	r.static["artifacts_write"] = builtin.NewArtifactsWrite()

@@ -87,6 +87,7 @@ func CategorizeToolName(toolName string) types.ToolCategory {
 		"code_execute": types.CategoryExecution,
 		"web_search":   types.CategoryWeb,
 		"web_fetch":    types.CategoryWeb,
+		"music_play":   types.CategoryWeb,
 		"think":        types.CategoryReasoning,
 		"final":        types.CategoryReasoning,
 		"todo_read":    types.CategoryTask,
