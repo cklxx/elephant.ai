@@ -6,6 +6,7 @@ import {
   WorkflowToolCompletedEvent,
 } from '@/lib/types';
 import { ToolArgumentsPanel, ToolResultPanel, ToolStreamPanel, SimplePanel, PanelHeader } from './ToolPanels';
+import { MusicPlayerPanel } from './MusicPlayerPanel';
 
 export interface RendererContext {
   startEvent: WorkflowToolStartedEvent | null;
@@ -143,11 +144,26 @@ const fileRenderer: ToolRenderer = (ctx) => {
   return { panels };
 };
 
+const musicPlayRenderer: ToolRenderer = (ctx) => {
+  const panels: ReactNode[] = [];
+  const metadata = ctx.completeEvent?.metadata ?? null;
+  const tracks = Array.isArray(metadata?.tracks) ? metadata.tracks : [];
+  const query = typeof metadata?.query === 'string' ? metadata.query : '';
+
+  if (tracks.length > 0) {
+    panels.push(<MusicPlayerPanel key="music-player" query={query} tracks={tracks} />);
+  }
+
+  panels.push(...defaultRenderer(ctx).panels);
+  return { panels };
+};
+
 export const resolveToolRenderer = (toolName: string): ToolRenderer => {
   const lower = toolName.toLowerCase();
   if (lower.includes('browser')) return browserRenderer;
   if (lower.includes('shell') || lower.includes('bash') || lower.includes('terminal')) return shellRenderer;
   if (lower.includes('code_execute')) return codeExecuteRenderer;
+  if (lower === 'music_play') return musicPlayRenderer;
   if (lower.includes('file') || lower.includes('fs')) return fileRenderer;
   return defaultRenderer;
 };
