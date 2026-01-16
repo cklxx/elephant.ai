@@ -7,6 +7,7 @@ import (
 	"alex/internal/attachments"
 	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
+	"alex/internal/config"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/sandbox"
@@ -94,6 +95,12 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		})
 		mux.Handle("/api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(runtimeHandler)))
 		mux.Handle("/api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(configHandler.HandleRuntimeStream))))
+	}
+	if internalMode {
+		appsConfigHandler := NewAppsConfigHandler(config.LoadAppsConfig, config.SaveAppsConfig)
+		if appsConfigHandler != nil {
+			mux.Handle("/api/internal/config/apps", routeHandler("/api/internal/config/apps", wrap(http.HandlerFunc(appsConfigHandler.HandleAppsConfig))))
+		}
 	}
 
 	// SSE endpoint

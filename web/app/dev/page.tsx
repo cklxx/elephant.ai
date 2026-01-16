@@ -13,6 +13,12 @@ const DEV_PAGES = [
     tag: "Config",
   },
   {
+    href: "/dev/apps-config",
+    title: "Apps config",
+    description: "Manage custom app connector definitions.",
+    tag: "Config",
+  },
+  {
     href: "/dev/context-config",
     title: "Context config",
     description: "Inspect and tweak persona + goal context config.",

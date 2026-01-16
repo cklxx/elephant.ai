@@ -55,6 +55,10 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 		expanded := expandRuntimeFileConfigEnv(lookup, *parsed.Runtime)
 		parsed.Runtime = &expanded
 	}
+	if parsed.Apps != nil {
+		expanded := expandAppsConfigEnv(lookup, *parsed.Apps)
+		parsed.Apps = &expanded
+	}
 	if parsed.Server != nil {
 		parsed.Server.Port = expandEnvValue(lookup, parsed.Server.Port)
 		if len(parsed.Server.AllowedOrigins) > 0 {
@@ -106,5 +110,35 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 		parsed.Web.APIURL = expandEnvValue(lookup, parsed.Web.APIURL)
 	}
 
+	return parsed
+}
+
+func expandAppsConfigEnv(lookup EnvLookup, parsed AppsConfig) AppsConfig {
+	if len(parsed.Plugins) == 0 {
+		return parsed
+	}
+	plugins := make([]AppPluginConfig, 0, len(parsed.Plugins))
+	for _, plugin := range parsed.Plugins {
+		plugin.ID = expandEnvValue(lookup, plugin.ID)
+		plugin.Name = expandEnvValue(lookup, plugin.Name)
+		plugin.Description = expandEnvValue(lookup, plugin.Description)
+		plugin.IntegrationNote = expandEnvValue(lookup, plugin.IntegrationNote)
+		if len(plugin.Capabilities) > 0 {
+			caps := make([]string, 0, len(plugin.Capabilities))
+			for _, cap := range plugin.Capabilities {
+				caps = append(caps, expandEnvValue(lookup, cap))
+			}
+			plugin.Capabilities = caps
+		}
+		if len(plugin.Sources) > 0 {
+			sources := make([]string, 0, len(plugin.Sources))
+			for _, src := range plugin.Sources {
+				sources = append(sources, expandEnvValue(lookup, src))
+			}
+			plugin.Sources = sources
+		}
+		plugins = append(plugins, plugin)
+	}
+	parsed.Plugins = plugins
 	return parsed
 }

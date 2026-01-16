@@ -70,9 +70,40 @@ alex config path
 
 ---
 
-## 其他配置段（server / auth / session / analytics / attachments）
+## 其他配置段（apps / server / auth / session / analytics / attachments）
 
-这些段由 `alex-server` 在启动时读取，用于 Web/服务端配置；CLI 侧忽略。
+这些段由不同组件读取：`apps` 由内置 `apps` 工具读取（CLI/Server 共用）；其余段由
+`alex-server` 在启动时读取，用于 Web/服务端配置；CLI 侧忽略。
+
+### apps
+
+用于扩展内置 app 插件列表（`apps` 工具会合并内置与自定义条目；`id` 相同则自定义覆盖）。
+
+字段：
+
+- `plugins`：自定义 app 插件列表
+  - `id`：唯一标识（小写推荐）
+  - `name`：展示名称
+  - `description`：简短描述
+  - `capabilities`：能力点列表
+  - `integration_note`：接入/权限说明
+  - `sources`：开源实现来源（GitHub 链接）
+
+示例：
+
+```yaml
+apps:
+  plugins:
+    - id: "internal-chat"
+      name: "Internal Chat"
+      description: "Internal chat connector."
+      capabilities:
+        - "send"
+        - "receive"
+      integration_note: "Requires internal auth."
+      sources:
+        - "https://github.com/example/internal-chat"
+```
 
 ### server
 

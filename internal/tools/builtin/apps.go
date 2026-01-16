@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	"alex/internal/config"
 )
 
 type appPlugin struct {
@@ -19,10 +20,16 @@ type appPlugin struct {
 	Sources         []string
 }
 
-type appsTool struct{}
+type appsTool struct {
+	loadFileConfig func(...config.Option) (config.FileConfig, string, error)
+}
 
 func NewApps() ports.ToolExecutor {
-	return &appsTool{}
+	return newAppsWithLoader(config.LoadFileConfig)
+}
+
+func newAppsWithLoader(loader func(...config.Option) (config.FileConfig, string, error)) ports.ToolExecutor {
+	return &appsTool{loadFileConfig: loader}
 }
 
 func (t *appsTool) Metadata() ports.ToolMetadata {
@@ -39,93 +46,149 @@ func (t *appsTool) Definition() ports.ToolDefinition {
 		Name: "apps",
 		Description: `Manage built-in app plugins powered by open-source connectors.
 
-Use this tool to list available app plugins, inspect a specific app connector, search by keyword,
-or generate a usage plan for a target app.`,
+Call with no parameters to list app plugins. Use app to inspect a connector, query to search by
+keyword, or app + intent to generate a usage plan. Custom plugins can be added via apps.plugins
+in ~/.alex/config.yaml.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"action": {
-					Type:        "string",
-					Description: "list|show|search|use",
-					Enum:        []any{"list", "show", "search", "use"},
-				},
 				"app": {
 					Type:        "string",
-					Description: "App plugin id for action=show or action=use.",
+					Description: "App plugin id for details or usage planning.",
 				},
 				"query": {
 					Type:        "string",
-					Description: "Search query for action=search.",
+					Description: "Search query for matching app plugins.",
 				},
-				"task": {
+				"intent": {
 					Type:        "string",
-					Description: "Usage intent for action=use.",
+					Description: "Usage intent for a target app plugin.",
 				},
 			},
-			Required: []string{"action"},
 		},
 	}
 }
 
 func (t *appsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	_ = ctx
-	action, _ := call.Arguments["action"].(string)
-	action = strings.ToLower(strings.TrimSpace(action))
-	plugins := appPluginCatalog()
+	plugins, err := t.loadPlugins()
+	if err != nil {
+		wrapped := fmt.Errorf("load app plugins: %w", err)
+		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil
+	}
 
-	switch action {
-	case "list":
-		content := renderAppList(plugins)
-		return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: map[string]any{"count": len(plugins)}}, nil
-	case "show":
-		app, _ := call.Arguments["app"].(string)
-		app = strings.ToLower(strings.TrimSpace(app))
-		if app == "" {
-			err := errors.New("app is required for action=show")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-		}
-		plugin, ok := findPlugin(plugins, app)
-		if !ok {
-			content := renderAppNotFound(app, plugins)
-			err := fmt.Errorf("app plugin not found: %s", app)
-			return &ports.ToolResult{CallID: call.ID, Content: content, Error: err}, nil
-		}
-		return &ports.ToolResult{CallID: call.ID, Content: renderAppDetail(plugin), Metadata: map[string]any{"app": plugin.ID}}, nil
-	case "search":
-		query, _ := call.Arguments["query"].(string)
-		query = strings.ToLower(strings.TrimSpace(query))
-		if query == "" {
-			err := errors.New("query is required for action=search")
+	app, _ := call.Arguments["app"].(string)
+	app = strings.ToLower(strings.TrimSpace(app))
+	query, _ := call.Arguments["query"].(string)
+	query = strings.ToLower(strings.TrimSpace(query))
+	intent, _ := call.Arguments["intent"].(string)
+	intent = strings.TrimSpace(intent)
+
+	if query != "" {
+		if app != "" || intent != "" {
+			err := errors.New("query cannot be combined with app or intent")
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
 		matches := searchPlugins(plugins, query)
 		content := renderSearchResults(query, matches)
 		return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: map[string]any{"query": query, "count": len(matches)}}, nil
-	case "use":
-		app, _ := call.Arguments["app"].(string)
-		app = strings.ToLower(strings.TrimSpace(app))
-		task, _ := call.Arguments["task"].(string)
-		task = strings.TrimSpace(task)
-		if app == "" {
-			err := errors.New("app is required for action=use")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-		}
-		if task == "" {
-			err := errors.New("task is required for action=use")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-		}
-		plugin, ok := findPlugin(plugins, app)
-		if !ok {
-			content := renderAppNotFound(app, plugins)
-			err := fmt.Errorf("app plugin not found: %s", app)
-			return &ports.ToolResult{CallID: call.ID, Content: content, Error: err}, nil
-		}
-		content := renderUsagePlan(plugin, task)
-		return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: map[string]any{"app": plugin.ID, "task": task}}, nil
-	default:
-		err := fmt.Errorf("unsupported action %q (expected list|show|search|use)", action)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
+
+	if app == "" {
+		if intent != "" {
+			err := errors.New("intent requires app")
+			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		}
+		content := renderAppList(plugins)
+		return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: map[string]any{"count": len(plugins)}}, nil
+	}
+
+	plugin, ok := findPlugin(plugins, app)
+	if !ok {
+		content := renderAppNotFound(app, plugins)
+		err := fmt.Errorf("app plugin not found: %s", app)
+		return &ports.ToolResult{CallID: call.ID, Content: content, Error: err}, nil
+	}
+
+	if intent == "" {
+		return &ports.ToolResult{CallID: call.ID, Content: renderAppDetail(plugin), Metadata: map[string]any{"app": plugin.ID}}, nil
+	}
+	content := renderUsagePlan(plugin, intent)
+	return &ports.ToolResult{CallID: call.ID, Content: content, Metadata: map[string]any{"app": plugin.ID, "intent": intent}}, nil
+}
+
+func (t *appsTool) loadPlugins() ([]appPlugin, error) {
+	plugins := appPluginCatalog()
+	if t.loadFileConfig == nil {
+		return plugins, nil
+	}
+	cfg, _, err := t.loadFileConfig()
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Apps == nil || len(cfg.Apps.Plugins) == 0 {
+		return plugins, nil
+	}
+	custom := make([]appPlugin, 0, len(cfg.Apps.Plugins))
+	for _, plugin := range cfg.Apps.Plugins {
+		custom = append(custom, appPluginFromConfig(plugin))
+	}
+	return mergePlugins(plugins, custom), nil
+}
+
+func appPluginFromConfig(cfg config.AppPluginConfig) appPlugin {
+	return appPlugin{
+		ID:              strings.ToLower(strings.TrimSpace(cfg.ID)),
+		Name:            strings.TrimSpace(cfg.Name),
+		Description:     strings.TrimSpace(cfg.Description),
+		Capabilities:    trimStringList(cfg.Capabilities),
+		IntegrationNote: strings.TrimSpace(cfg.IntegrationNote),
+		Sources:         trimStringList(cfg.Sources),
+	}
+}
+
+func mergePlugins(base []appPlugin, extras []appPlugin) []appPlugin {
+	if len(extras) == 0 {
+		return base
+	}
+	merged := make(map[string]appPlugin, len(base)+len(extras))
+	for _, plugin := range base {
+		merged[plugin.ID] = plugin
+	}
+	for _, plugin := range extras {
+		id := strings.ToLower(strings.TrimSpace(plugin.ID))
+		if id == "" {
+			continue
+		}
+		plugin.ID = id
+		if strings.TrimSpace(plugin.Name) == "" {
+			plugin.Name = id
+		}
+		merged[id] = plugin
+	}
+	out := make([]appPlugin, 0, len(merged))
+	for _, plugin := range merged {
+		out = append(out, plugin)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ID < out[j].ID
+	})
+	return out
+}
+
+func trimStringList(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	trimmed := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		trimmed = append(trimmed, value)
+	}
+	return trimmed
 }
 
 func appPluginCatalog() []appPlugin {
@@ -137,22 +200,28 @@ func appPluginCatalog() []appPlugin {
 			Capabilities: []string{
 				"话题/笔记搜索",
 				"热榜与趋势观察",
-				"笔记内容抽取",
+				"笔记详情抽取",
 			},
 			IntegrationNote: "内置开源插件连接器，适合做内容洞察与素材整理。",
-			Sources:         []string{"open-source plugin"},
+			Sources: []string{
+				"https://github.com/NanmiCoder/MediaCrawler",
+				"https://github.com/xisuo67/XHS-Spider",
+			},
 		},
 		{
 			ID:          "wechat",
 			Name:        "微信 (WeChat)",
-			Description: "公众号内容抓取与文章结构化。",
+			Description: "聊天会话收发与消息列表管理。",
 			Capabilities: []string{
-				"公众号搜索",
-				"文章抓取",
-				"内容摘要",
+				"接收消息",
+				"回复消息",
+				"消息列表/会话拉取",
 			},
-			IntegrationNote: "内置开源插件连接器，聚焦公众号文章与运营素材。",
-			Sources:         []string{"open-source plugin"},
+			IntegrationNote: "内置开源插件连接器，面向聊天场景，需登录授权。",
+			Sources: []string{
+				"https://github.com/wechaty/wechaty",
+				"https://github.com/eatmoreapple/openwechat",
+			},
 		},
 		{
 			ID:          "douyin",
@@ -164,7 +233,10 @@ func appPluginCatalog() []appPlugin {
 				"视频元数据解析",
 			},
 			IntegrationNote: "内置开源插件连接器，结合 hot 榜单与趋势观察。",
-			Sources:         []string{"open-source plugin"},
+			Sources: []string{
+				"https://github.com/Evil0ctal/Douyin_TikTok_Download_API",
+				"https://github.com/loadchange/amemv-crawler",
+			},
 		},
 		{
 			ID:          "weibo",
@@ -176,7 +248,10 @@ func appPluginCatalog() []appPlugin {
 				"舆情摘要",
 			},
 			IntegrationNote: "内置开源插件连接器，适合实时话题跟踪。",
-			Sources:         []string{"open-source plugin"},
+			Sources: []string{
+				"https://github.com/SpiderClub/weibospider",
+				"https://github.com/dataabc/weibo-crawler",
+			},
 		},
 		{
 			ID:          "zhihu",
@@ -188,7 +263,9 @@ func appPluginCatalog() []appPlugin {
 				"观点聚合",
 			},
 			IntegrationNote: "内置开源插件连接器，面向知识型内容。",
-			Sources:         []string{"open-source plugin"},
+			Sources: []string{
+				"https://github.com/7sDream/zhihu-oauth",
+			},
 		},
 		{
 			ID:          "news",
@@ -200,7 +277,10 @@ func appPluginCatalog() []appPlugin {
 				"正文结构化",
 			},
 			IntegrationNote: "内置开源插件连接器，支持多站点统一采集。",
-			Sources:         []string{"open-source plugin"},
+			Sources: []string{
+				"https://github.com/fhamborg/news-please",
+				"https://github.com/codelucas/newspaper",
+			},
 		},
 	}
 
@@ -235,7 +315,7 @@ func renderAppList(plugins []appPlugin) string {
 	for _, plugin := range plugins {
 		builder.WriteString(fmt.Sprintf("- `%s` — %s\n", plugin.ID, plugin.Description))
 	}
-	builder.WriteString("\nUse action=show to view plugin details or action=use to generate a usage plan.")
+	builder.WriteString("\nUse app to view details, query to search, or app + intent to generate a usage plan.")
 	return builder.String()
 }
 
@@ -275,20 +355,20 @@ func renderSearchResults(query string, matches []appPlugin) string {
 	for _, plugin := range matches {
 		builder.WriteString(fmt.Sprintf("- `%s` — %s\n", plugin.ID, plugin.Description))
 	}
-	builder.WriteString("\nUse action=show to inspect a plugin.")
+	builder.WriteString("\nUse app to inspect a plugin.")
 	return strings.TrimSpace(builder.String())
 }
 
-func renderUsagePlan(plugin appPlugin, task string) string {
+func renderUsagePlan(plugin appPlugin, intent string) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("Usage plan for %s\n\n", plugin.Name))
 	builder.WriteString("Goal:\n")
-	builder.WriteString(fmt.Sprintf("- %s\n\n", task))
+	builder.WriteString(fmt.Sprintf("- %s\n\n", intent))
 	builder.WriteString("Recommended plugin flow:\n")
 	builder.WriteString("1) Validate scope and required keywords.\n")
 	builder.WriteString("2) Use the app connector to fetch primary content streams.\n")
 	builder.WriteString("3) Normalize fields (title, author, publish time, URL).\n")
-	builder.WriteString("4) Summarize or classify based on the task intent.\n\n")
+	builder.WriteString("4) Summarize or classify based on the usage intent.\n\n")
 	builder.WriteString("Plugin capabilities:\n")
 	for _, cap := range plugin.Capabilities {
 		builder.WriteString(fmt.Sprintf("- %s\n", cap))

@@ -6,16 +6,17 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	"alex/internal/config"
 )
 
 func TestAppsToolListAndShow(t *testing.T) {
-	tool := NewApps()
+	tool := newAppsWithLoader(func(...config.Option) (config.FileConfig, string, error) {
+		return config.FileConfig{}, "", nil
+	})
 
 	listResult, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "call-1",
-		Arguments: map[string]any{
-			"action": "list",
-		},
+		Arguments: map[string]any{},
 	})
 	if err != nil {
 		t.Fatalf("execute list: %v", err)
@@ -30,8 +31,7 @@ func TestAppsToolListAndShow(t *testing.T) {
 	showResult, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "call-2",
 		Arguments: map[string]any{
-			"action": "show",
-			"app":    "xiaohongshu",
+			"app": "xiaohongshu",
 		},
 	})
 	if err != nil {
@@ -46,13 +46,14 @@ func TestAppsToolListAndShow(t *testing.T) {
 }
 
 func TestAppsToolSearchAndUse(t *testing.T) {
-	tool := NewApps()
+	tool := newAppsWithLoader(func(...config.Option) (config.FileConfig, string, error) {
+		return config.FileConfig{}, "", nil
+	})
 
 	searchResult, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "call-3",
 		Arguments: map[string]any{
-			"action": "search",
-			"query":  "news",
+			"query": "news",
 		},
 	})
 	if err != nil {
@@ -68,9 +69,8 @@ func TestAppsToolSearchAndUse(t *testing.T) {
 	useResult, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "call-4",
 		Arguments: map[string]any{
-			"action": "use",
 			"app":    "weibo",
-			"task":   "track trending topics for consumer electronics",
+			"intent": "track trending topics for consumer electronics",
 		},
 	})
 	if err != nil {
@@ -81,5 +81,40 @@ func TestAppsToolSearchAndUse(t *testing.T) {
 	}
 	if !strings.Contains(useResult.Content, "Usage plan") {
 		t.Fatalf("expected use to return usage plan, got %q", useResult.Content)
+	}
+}
+
+func TestAppsToolCustomPlugins(t *testing.T) {
+	tool := newAppsWithLoader(func(...config.Option) (config.FileConfig, string, error) {
+		return config.FileConfig{
+			Apps: &config.AppsConfig{
+				Plugins: []config.AppPluginConfig{
+					{
+						ID:              "internal-chat",
+						Name:            "Internal Chat",
+						Description:     "Internal chat connector.",
+						Capabilities:    []string{"send", "receive"},
+						IntegrationNote: "Requires internal auth.",
+						Sources:         []string{"https://github.com/example/internal-chat"},
+					},
+				},
+			},
+		}, "", nil
+	})
+
+	result, err := tool.Execute(context.Background(), ports.ToolCall{
+		ID: "call-5",
+		Arguments: map[string]any{
+			"app": "internal-chat",
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute show custom: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("show custom returned error: %v", result.Error)
+	}
+	if !strings.Contains(result.Content, "Internal Chat") {
+		t.Fatalf("expected custom plugin to be rendered, got %q", result.Content)
 	}
 }
