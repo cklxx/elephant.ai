@@ -8,6 +8,11 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
+
+	runtimeconfig "alex/internal/config"
+	"alex/internal/httpclient"
+	"alex/internal/logging"
 )
 
 func parseModelList(raw []byte) ([]string, error) {
@@ -55,6 +60,18 @@ func extractModelIDs(value any, out map[string]struct{}) {
 			}
 		}
 	}
+}
+
+type runtimeModelProvider struct {
+	Provider string   `json:"provider"`
+	Source   string   `json:"source"`
+	BaseURL  string   `json:"base_url,omitempty"`
+	Models   []string `json:"models,omitempty"`
+	Error    string   `json:"error,omitempty"`
+}
+
+type runtimeModelsResponse struct {
+	Providers []runtimeModelProvider `json:"providers"`
 }
 
 type modelFetchTarget struct {
@@ -106,4 +123,70 @@ func isAnthropicOAuthToken(token string) bool {
 		return false
 	}
 	return !strings.HasPrefix(strings.ToLower(token), "sk-")
+}
+
+func defaultRuntimeModelLister(ctx context.Context) []runtimeModelProvider {
+	creds := runtimeconfig.LoadCLICredentials()
+	logger := logging.NewComponentLogger("RuntimeModels")
+	client := httpclient.New(20*time.Second, logger)
+	return listRuntimeModels(ctx, creds, client)
+}
+
+func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client) []runtimeModelProvider {
+	var targets []runtimeModelProvider
+
+	if creds.Codex.APIKey != "" {
+		targets = append(targets, runtimeModelProvider{
+			Provider: creds.Codex.Provider,
+			Source:   string(creds.Codex.Source),
+			BaseURL:  creds.Codex.BaseURL,
+		})
+	}
+	if creds.Antigravity.APIKey != "" {
+		targets = append(targets, runtimeModelProvider{
+			Provider: creds.Antigravity.Provider,
+			Source:   string(creds.Antigravity.Source),
+			BaseURL:  creds.Antigravity.BaseURL,
+		})
+	}
+	if creds.Claude.APIKey != "" {
+		baseURL := creds.Claude.BaseURL
+		if strings.TrimSpace(baseURL) == "" {
+			baseURL = "https://api.anthropic.com/v1"
+		}
+		targets = append(targets, runtimeModelProvider{
+			Provider: creds.Claude.Provider,
+			Source:   string(creds.Claude.Source),
+			BaseURL:  baseURL,
+		})
+	}
+
+	for i := range targets {
+		target := &targets[i]
+		models, err := fetchProviderModels(ctx, client, modelFetchTarget{
+			Provider: target.Provider,
+			BaseURL:  target.BaseURL,
+			APIKey:   pickAPIKey(creds, target.Provider),
+		})
+		if err != nil {
+			target.Error = err.Error()
+			continue
+		}
+		target.Models = models
+	}
+
+	return targets
+}
+
+func pickAPIKey(creds runtimeconfig.CLICredentials, provider string) string {
+	switch provider {
+	case creds.Codex.Provider:
+		return creds.Codex.APIKey
+	case creds.Antigravity.Provider:
+		return creds.Antigravity.APIKey
+	case creds.Claude.Provider:
+		return creds.Claude.APIKey
+	default:
+		return ""
+	}
 }

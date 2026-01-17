@@ -148,6 +148,39 @@ func TestConfigHandlerHandleRuntimeStreamSendsSnapshots(t *testing.T) {
 	}
 }
 
+func TestConfigHandlerHandleGetRuntimeModels(t *testing.T) {
+	t.Parallel()
+
+	manager := configadmin.NewManager(&memoryStore{}, runtimeconfig.Overrides{})
+	resolver := func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
+		return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, nil
+	}
+
+	handler := NewConfigHandler(manager, resolver)
+	handler.modelLister = func(context.Context) []runtimeModelProvider {
+		return []runtimeModelProvider{
+			{Provider: "codex", Source: "codex_cli", Models: []string{"m1"}},
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/internal/config/runtime/models", nil)
+	rr := httptest.NewRecorder()
+
+	handler.HandleGetRuntimeModels(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rr.Code)
+	}
+
+	var payload runtimeModelsResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(payload.Providers) != 1 || payload.Providers[0].Provider != "codex" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
 type runtimeConfigOverridesPayload struct {
 	Overrides runtimeconfig.Overrides `json:"overrides"`
 }

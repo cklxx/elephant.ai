@@ -15,8 +15,9 @@ type RuntimeConfigResolver func(context.Context) (runtimeconfig.RuntimeConfig, r
 
 // ConfigHandler serves internal runtime configuration APIs.
 type ConfigHandler struct {
-	manager  *configadmin.Manager
-	resolver RuntimeConfigResolver
+	manager     *configadmin.Manager
+	resolver    RuntimeConfigResolver
+	modelLister RuntimeModelLister
 }
 
 // NewConfigHandler constructs a handler when a manager is available.
@@ -24,7 +25,11 @@ func NewConfigHandler(manager *configadmin.Manager, resolver RuntimeConfigResolv
 	if manager == nil || resolver == nil {
 		return nil
 	}
-	return &ConfigHandler{manager: manager, resolver: resolver}
+	return &ConfigHandler{
+		manager:     manager,
+		resolver:    resolver,
+		modelLister: defaultRuntimeModelLister,
+	}
 }
 
 // runtimeConfigResponse represents payloads exchanged with the UI.
@@ -35,6 +40,9 @@ type runtimeConfigResponse struct {
 	UpdatedAt time.Time                            `json:"updated_at"`
 	Tasks     []configadmin.ReadinessTask          `json:"tasks"`
 }
+
+// RuntimeModelLister resolves the current model catalog from CLI subscriptions.
+type RuntimeModelLister func(context.Context) []runtimeModelProvider
 
 func (h *ConfigHandler) snapshot(ctx context.Context) (runtimeConfigResponse, error) {
 	cfg, meta, err := h.resolver(ctx)
@@ -139,6 +147,20 @@ func (h *ConfigHandler) HandleRuntimeStream(w http.ResponseWriter, r *http.Reque
 			}
 		}
 	}
+}
+
+// HandleGetRuntimeModels returns CLI-discovered model catalogs.
+func (h *ConfigHandler) HandleGetRuntimeModels(w http.ResponseWriter, r *http.Request) {
+	if h == nil {
+		http.NotFound(w, r)
+		return
+	}
+	lister := h.modelLister
+	if lister == nil {
+		lister = defaultRuntimeModelLister
+	}
+	payload := runtimeModelsResponse{Providers: lister(r.Context())}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func writeSSEPayload(w http.ResponseWriter, payload any) error {
