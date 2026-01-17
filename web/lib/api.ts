@@ -21,6 +21,7 @@ import {
   ContextConfigUpdatePayload,
   SandboxBrowserInfo,
   UserPersonaProfile,
+  RuntimeModelCatalog,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -199,6 +200,10 @@ export async function updateRuntimeConfig(
     method: "PUT",
     body: JSON.stringify(request),
   });
+}
+
+export async function getRuntimeModelCatalog(): Promise<RuntimeModelCatalog> {
+  return fetchAPI<RuntimeModelCatalog>("/api/internal/config/runtime/models");
 }
 
 // Dev context config APIs

@@ -398,6 +398,18 @@ export interface RuntimeConfigSnapshot {
   updated_at?: string;
 }
 
+export interface RuntimeModelProvider {
+  provider: string;
+  source: string;
+  base_url?: string;
+  models?: string[];
+  error?: string;
+}
+
+export interface RuntimeModelCatalog {
+  providers: RuntimeModelProvider[];
+}
+
 export interface SandboxBrowserInfo {
   user_agent: string;
   cdp_url: string;
