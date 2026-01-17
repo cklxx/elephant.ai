@@ -81,7 +81,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 	}
 
-	if internalMode && configHandler != nil {
+	if (internalMode || devMode) && configHandler != nil {
 		runtimeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet:
