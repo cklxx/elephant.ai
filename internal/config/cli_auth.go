@@ -11,7 +11,7 @@ import (
 
 const codexCLIBaseURL = "https://chatgpt.com/backend-api/codex"
 
-type cliCredential struct {
+type CLICredential struct {
 	Provider string
 	APIKey   string
 	BaseURL  string
@@ -19,13 +19,25 @@ type cliCredential struct {
 	Source   ValueSource
 }
 
-type cliCredentials struct {
-	Codex       cliCredential
-	Claude      cliCredential
-	Antigravity cliCredential
+type CLICredentials struct {
+	Codex       CLICredential
+	Claude      CLICredential
+	Antigravity CLICredential
 }
 
-func loadCLICredentials(opts loadOptions) cliCredentials {
+func LoadCLICredentials(opts ...Option) CLICredentials {
+	options := loadOptions{
+		envLookup: DefaultEnvLookup,
+		readFile:  os.ReadFile,
+		homeDir:   os.UserHomeDir,
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+	return loadCLICredentials(options)
+}
+
+func loadCLICredentials(opts loadOptions) CLICredentials {
 	readFile := opts.readFile
 	if readFile == nil {
 		readFile = os.ReadFile
@@ -36,7 +48,7 @@ func loadCLICredentials(opts loadOptions) cliCredentials {
 	}
 	home := resolveHomeDir(opts.homeDir)
 
-	return cliCredentials{
+	return CLICredentials{
 		Codex:       loadCodexCLIAuth(readFile, home),
 		Claude:      loadClaudeCLIAuth(envLookup, readFile, home),
 		Antigravity: loadAntigravityCLIAuth(envLookup, readFile, home),
@@ -64,27 +76,27 @@ type codexAuthFile struct {
 	} `json:"tokens"`
 }
 
-func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) cliCredential {
+func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) CLICredential {
 	if readFile == nil || home == "" {
-		return cliCredential{}
+		return CLICredential{}
 	}
 	data, err := readFile(filepath.Join(home, ".codex", "auth.json"))
 	if err != nil {
-		return cliCredential{}
+		return CLICredential{}
 	}
 
 	var payload codexAuthFile
 	if err := json.Unmarshal(data, &payload); err != nil {
-		return cliCredential{}
+		return CLICredential{}
 	}
 	token := strings.TrimSpace(payload.Tokens.AccessToken)
 	if token == "" {
-		return cliCredential{}
+		return CLICredential{}
 	}
 
 	model := strings.TrimSpace(loadCodexCLIModel(readFile, home))
 
-	return cliCredential{
+	return CLICredential{
 		Provider: "codex",
 		APIKey:   token,
 		BaseURL:  codexCLIBaseURL,
@@ -134,16 +146,16 @@ func parseTomlStringValue(data []byte, key string) string {
 	return ""
 }
 
-func loadClaudeCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error), home string) cliCredential {
+func loadClaudeCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error), home string) CLICredential {
 	if token := lookupClaudeOAuthToken(envLookup); token != "" {
-		return cliCredential{
+		return CLICredential{
 			Provider: "anthropic",
 			APIKey:   token,
 			Source:   SourceClaudeCLI,
 		}
 	}
 	if readFile == nil || home == "" {
-		return cliCredential{}
+		return CLICredential{}
 	}
 	for _, path := range claudeAuthPaths(home) {
 		data, err := readFile(path)
@@ -154,13 +166,13 @@ func loadClaudeCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error
 		if token == "" {
 			continue
 		}
-		return cliCredential{
+		return CLICredential{
 			Provider: "anthropic",
 			APIKey:   token,
 			Source:   SourceClaudeCLI,
 		}
 	}
-	return cliCredential{}
+	return CLICredential{}
 }
 
 func lookupClaudeOAuthToken(envLookup EnvLookup) string {
@@ -189,9 +201,9 @@ func claudeAuthPaths(home string) []string {
 	}
 }
 
-func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error), home string) cliCredential {
+func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error), home string) CLICredential {
 	if readFile == nil {
-		return cliCredential{}
+		return CLICredential{}
 	}
 	for _, path := range antigravityCLIAuthPaths(envLookup, home) {
 		data, err := readFile(path)
@@ -202,7 +214,7 @@ func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, 
 		if token == "" {
 			continue
 		}
-		return cliCredential{
+		return CLICredential{
 			Provider: "antigravity",
 			APIKey:   token,
 			BaseURL:  strings.TrimSpace(baseURL),
@@ -210,7 +222,7 @@ func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, 
 			Source:   SourceAntigravityCLI,
 		}
 	}
-	return cliCredential{}
+	return CLICredential{}
 }
 
 func antigravityCLIAuthPaths(envLookup EnvLookup, home string) []string {

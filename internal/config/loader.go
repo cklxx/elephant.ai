@@ -257,9 +257,13 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	applyOverrides(&cfg, &meta, options.overrides)
 
 	normalizeRuntimeConfig(&cfg)
-	cliCreds := cliCredentials{}
+	cliCreds := CLICredentials{}
 	if shouldLoadCLICredentials(cfg) {
-		cliCreds = loadCLICredentials(options)
+		cliCreds = LoadCLICredentials(
+			WithEnv(options.envLookup),
+			WithFileReader(options.readFile),
+			WithHomeDir(options.homeDir),
+		)
 	}
 	resolveAutoProvider(&cfg, &meta, options.envLookup, cliCreds)
 	resolveProviderCredentials(&cfg, &meta, options.envLookup, cliCreds)
@@ -731,7 +735,7 @@ func applyAutoProviderCandidate(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 	return true
 }
 
-func applyCLICandidates(cfg *RuntimeConfig, meta *Metadata, candidates ...cliCredential) bool {
+func applyCLICandidates(cfg *RuntimeConfig, meta *Metadata, candidates ...CLICredential) bool {
 	for _, cand := range candidates {
 		if strings.TrimSpace(cand.APIKey) == "" {
 			continue
@@ -759,7 +763,7 @@ func applyCLICandidates(cfg *RuntimeConfig, meta *Metadata, candidates ...cliCre
 	return false
 }
 
-func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, cli cliCredentials) {
+func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, cli CLICredentials) {
 	if cfg == nil {
 		return
 	}
@@ -841,7 +845,7 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 	_ = applyCLI()
 }
 
-func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, cli cliCredentials) {
+func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, cli CLICredentials) {
 	if cfg == nil {
 		return
 	}
