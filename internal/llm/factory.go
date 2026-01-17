@@ -120,8 +120,12 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	var err error
 
 	switch provider {
-	case "openai", "openrouter", "deepseek":
+	case "openai", "openrouter", "deepseek", "antigravity":
 		client, err = NewOpenAIClient(model, config)
+	case "openai-responses", "responses", "codex":
+		client, err = NewOpenAIResponsesClient(model, config)
+	case "anthropic", "claude":
+		client, err = NewAnthropicClient(model, config)
 	case "ollama":
 		client, err = NewOllamaClient(model, config)
 	case "mock":

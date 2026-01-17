@@ -16,10 +16,13 @@ import (
 type ValueSource string
 
 const (
-	SourceDefault  ValueSource = "default"
-	SourceFile     ValueSource = "file"
-	SourceEnv      ValueSource = "environment"
-	SourceOverride ValueSource = "override"
+	SourceDefault        ValueSource = "default"
+	SourceFile           ValueSource = "file"
+	SourceEnv            ValueSource = "environment"
+	SourceOverride       ValueSource = "override"
+	SourceCodexCLI       ValueSource = "codex_cli"
+	SourceClaudeCLI      ValueSource = "claude_cli"
+	SourceAntigravityCLI ValueSource = "antigravity_cli"
 )
 
 // Seedream defaults target the public Volcano Engine Ark deployment in mainland China.
@@ -254,6 +257,12 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	applyOverrides(&cfg, &meta, options.overrides)
 
 	normalizeRuntimeConfig(&cfg)
+	cliCreds := cliCredentials{}
+	if shouldLoadCLICredentials(cfg) {
+		cliCreds = loadCLICredentials(options)
+	}
+	resolveAutoProvider(&cfg, &meta, options.envLookup, cliCreds)
+	resolveProviderCredentials(&cfg, &meta, options.envLookup, cliCreds)
 	// If API key remains unset, default to mock provider (unless ollama).
 	if cfg.APIKey == "" && cfg.LLMProvider != "mock" && cfg.LLMProvider != "ollama" {
 		cfg.LLMProvider = "mock"
@@ -309,6 +318,25 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 			filtered = append(filtered, trimmed)
 		}
 		cfg.StopSequences = filtered
+	}
+}
+
+func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
+	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	switch provider {
+	case "auto", "cli":
+		return true
+	}
+
+	if strings.TrimSpace(cfg.APIKey) != "" {
+		return false
+	}
+
+	switch provider {
+	case "codex", "openai-responses", "responses", "anthropic", "claude", "antigravity":
+		return true
+	default:
+		return false
 	}
 }
 func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
@@ -481,10 +509,6 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		lookup = DefaultEnvLookup
 	}
 
-	if value, ok := lookup("OPENAI_API_KEY"); ok && value != "" {
-		cfg.APIKey = value
-		meta.sources["api_key"] = SourceEnv
-	}
 	if value, ok := lookup("ARK_API_KEY"); ok && value != "" {
 		cfg.ArkAPIKey = value
 		meta.sources["ark_api_key"] = SourceEnv
@@ -667,6 +691,271 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	}
 
 	return nil
+}
+
+type autoProviderCandidate struct {
+	Provider    string
+	APIKeyEnv   string
+	BaseURLEnv  string
+	DefaultBase string
+	Source      ValueSource
+}
+
+func applyAutoProviderCandidate(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, cand autoProviderCandidate) bool {
+	key, ok := lookup(cand.APIKeyEnv)
+	key = strings.TrimSpace(key)
+	if !ok || key == "" {
+		return false
+	}
+
+	cfg.LLMProvider = cand.Provider
+	meta.sources["llm_provider"] = cand.Source
+	if cfg.APIKey == "" {
+		cfg.APIKey = key
+		meta.sources["api_key"] = cand.Source
+	}
+
+	if cfg.LLMSmallProvider == "" || strings.EqualFold(cfg.LLMSmallProvider, "auto") || strings.EqualFold(cfg.LLMSmallProvider, "cli") {
+		cfg.LLMSmallProvider = cand.Provider
+		meta.sources["llm_small_provider"] = cand.Source
+	}
+
+	if base, ok := lookup(cand.BaseURLEnv); ok && strings.TrimSpace(base) != "" {
+		cfg.BaseURL = strings.TrimSpace(base)
+		meta.sources["base_url"] = SourceEnv
+	} else if cand.DefaultBase != "" && meta.Source("base_url") == SourceDefault {
+		cfg.BaseURL = cand.DefaultBase
+		meta.sources["base_url"] = cand.Source
+	}
+
+	return true
+}
+
+func applyCLICandidates(cfg *RuntimeConfig, meta *Metadata, candidates ...cliCredential) bool {
+	for _, cand := range candidates {
+		if strings.TrimSpace(cand.APIKey) == "" {
+			continue
+		}
+		cfg.LLMProvider = cand.Provider
+		meta.sources["llm_provider"] = cand.Source
+		if cfg.APIKey == "" {
+			cfg.APIKey = cand.APIKey
+			meta.sources["api_key"] = cand.Source
+		}
+		if cfg.LLMSmallProvider == "" || strings.EqualFold(cfg.LLMSmallProvider, "auto") || strings.EqualFold(cfg.LLMSmallProvider, "cli") {
+			cfg.LLMSmallProvider = cand.Provider
+			meta.sources["llm_small_provider"] = cand.Source
+		}
+		if cand.BaseURL != "" && meta.Source("base_url") == SourceDefault {
+			cfg.BaseURL = cand.BaseURL
+			meta.sources["base_url"] = cand.Source
+		}
+		if cand.Model != "" && meta.Source("llm_model") == SourceDefault {
+			cfg.LLMModel = cand.Model
+			meta.sources["llm_model"] = cand.Source
+		}
+		return true
+	}
+	return false
+}
+
+func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, cli cliCredentials) {
+	if cfg == nil {
+		return
+	}
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+
+	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	if provider != "auto" && provider != "cli" {
+		return
+	}
+
+	candidates := []autoProviderCandidate{
+		{
+			Provider:    "anthropic",
+			APIKeyEnv:   "CLAUDE_CODE_OAUTH_TOKEN",
+			BaseURLEnv:  "ANTHROPIC_BASE_URL",
+			DefaultBase: "https://api.anthropic.com/v1",
+			Source:      SourceClaudeCLI,
+		},
+		{
+			Provider:    "anthropic",
+			APIKeyEnv:   "ANTHROPIC_AUTH_TOKEN",
+			BaseURLEnv:  "ANTHROPIC_BASE_URL",
+			DefaultBase: "https://api.anthropic.com/v1",
+			Source:      SourceClaudeCLI,
+		},
+		{
+			Provider:    "anthropic",
+			APIKeyEnv:   "ANTHROPIC_API_KEY",
+			BaseURLEnv:  "ANTHROPIC_BASE_URL",
+			DefaultBase: "https://api.anthropic.com/v1",
+			Source:      SourceEnv,
+		},
+		{
+			Provider:    "codex",
+			APIKeyEnv:   "CODEX_API_KEY",
+			BaseURLEnv:  "CODEX_BASE_URL",
+			DefaultBase: codexCLIBaseURL,
+			Source:      SourceEnv,
+		},
+		{
+			Provider:   "antigravity",
+			APIKeyEnv:  "ANTIGRAVITY_API_KEY",
+			BaseURLEnv: "ANTIGRAVITY_BASE_URL",
+			Source:     SourceEnv,
+		},
+		{
+			Provider:   "openai",
+			APIKeyEnv:  "OPENAI_API_KEY",
+			BaseURLEnv: "OPENAI_BASE_URL",
+			Source:     SourceEnv,
+		},
+	}
+
+	applyEnv := func() bool {
+		for _, cand := range candidates {
+			if applyAutoProviderCandidate(cfg, meta, lookup, cand) {
+				return true
+			}
+		}
+		return false
+	}
+	applyCLI := func() bool {
+		return applyCLICandidates(cfg, meta, cli.Codex, cli.Antigravity, cli.Claude)
+	}
+
+	if provider == "cli" {
+		if applyCLI() {
+			return
+		}
+		_ = applyEnv()
+		return
+	}
+
+	if applyEnv() {
+		return
+	}
+	_ = applyCLI()
+}
+
+func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, cli cliCredentials) {
+	if cfg == nil {
+		return
+	}
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+
+	provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	if provider == "" {
+		return
+	}
+
+	if cfg.APIKey == "" {
+		switch provider {
+		case "anthropic", "claude":
+			if cli.Claude.APIKey != "" {
+				cfg.APIKey = strings.TrimSpace(cli.Claude.APIKey)
+				meta.sources["api_key"] = cli.Claude.Source
+				break
+			}
+			if key, ok := lookup("ANTHROPIC_API_KEY"); ok && strings.TrimSpace(key) != "" {
+				cfg.APIKey = strings.TrimSpace(key)
+				meta.sources["api_key"] = SourceEnv
+			}
+		case "openai-responses", "responses", "codex":
+			if cli.Codex.APIKey != "" {
+				cfg.APIKey = strings.TrimSpace(cli.Codex.APIKey)
+				meta.sources["api_key"] = cli.Codex.Source
+				break
+			}
+			if key, ok := lookup("CODEX_API_KEY"); ok && strings.TrimSpace(key) != "" {
+				cfg.APIKey = strings.TrimSpace(key)
+				meta.sources["api_key"] = SourceEnv
+				break
+			}
+			if key, ok := lookup("OPENAI_API_KEY"); ok && strings.TrimSpace(key) != "" {
+				cfg.APIKey = strings.TrimSpace(key)
+				meta.sources["api_key"] = SourceEnv
+			}
+		case "antigravity":
+			if cli.Antigravity.APIKey != "" {
+				cfg.APIKey = strings.TrimSpace(cli.Antigravity.APIKey)
+				meta.sources["api_key"] = cli.Antigravity.Source
+				break
+			}
+			if key, ok := lookup("ANTIGRAVITY_API_KEY"); ok && strings.TrimSpace(key) != "" {
+				cfg.APIKey = strings.TrimSpace(key)
+				meta.sources["api_key"] = SourceEnv
+			}
+		case "openai", "openrouter", "deepseek":
+			if key, ok := lookup("OPENAI_API_KEY"); ok && strings.TrimSpace(key) != "" {
+				cfg.APIKey = strings.TrimSpace(key)
+				meta.sources["api_key"] = SourceEnv
+			}
+		}
+	}
+
+	if meta.Source("llm_model") == SourceDefault {
+		switch provider {
+		case "codex":
+			if cli.Codex.Model != "" {
+				cfg.LLMModel = cli.Codex.Model
+				meta.sources["llm_model"] = cli.Codex.Source
+			}
+		case "antigravity":
+			if cli.Antigravity.Model != "" {
+				cfg.LLMModel = cli.Antigravity.Model
+				meta.sources["llm_model"] = cli.Antigravity.Source
+			}
+		}
+	}
+
+	if meta.Source("base_url") == SourceDefault {
+		switch provider {
+		case "anthropic", "claude":
+			if base, ok := lookup("ANTHROPIC_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+				cfg.BaseURL = strings.TrimSpace(base)
+				meta.sources["base_url"] = SourceEnv
+			} else {
+				cfg.BaseURL = "https://api.anthropic.com/v1"
+				meta.sources["base_url"] = SourceEnv
+			}
+		case "openai-responses", "responses", "codex":
+			if cli.Codex.BaseURL != "" {
+				cfg.BaseURL = cli.Codex.BaseURL
+				meta.sources["base_url"] = cli.Codex.Source
+				break
+			}
+			if base, ok := lookup("CODEX_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+				cfg.BaseURL = strings.TrimSpace(base)
+				meta.sources["base_url"] = SourceEnv
+				break
+			}
+			if provider == "codex" {
+				cfg.BaseURL = codexCLIBaseURL
+				meta.sources["base_url"] = SourceEnv
+			}
+		case "antigravity":
+			if cli.Antigravity.BaseURL != "" {
+				cfg.BaseURL = cli.Antigravity.BaseURL
+				meta.sources["base_url"] = cli.Antigravity.Source
+				break
+			}
+			if base, ok := lookup("ANTIGRAVITY_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+				cfg.BaseURL = strings.TrimSpace(base)
+				meta.sources["base_url"] = SourceEnv
+			}
+		case "openai", "openrouter", "deepseek":
+			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+				cfg.BaseURL = strings.TrimSpace(base)
+				meta.sources["base_url"] = SourceEnv
+			}
+		}
+	}
 }
 
 func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
