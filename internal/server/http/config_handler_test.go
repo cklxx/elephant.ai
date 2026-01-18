@@ -12,6 +12,7 @@ import (
 
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
+	"alex/internal/subscription"
 )
 
 type memoryStore struct {
@@ -157,10 +158,12 @@ func TestConfigHandlerHandleGetRuntimeModels(t *testing.T) {
 	}
 
 	handler := NewConfigHandler(manager, resolver)
-	handler.modelLister = func(context.Context) []runtimeModelProvider {
-		return []runtimeModelProvider{
-			{Provider: "codex", Source: "codex_cli", Models: []string{"m1"}},
-		}
+	handler.catalogService = &stubCatalogService{
+		catalog: subscription.Catalog{
+			Providers: []subscription.CatalogProvider{
+				{Provider: "codex", Source: "codex_cli", Models: []string{"m1"}},
+			},
+		},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/internal/config/runtime/models", nil)
@@ -172,7 +175,7 @@ func TestConfigHandlerHandleGetRuntimeModels(t *testing.T) {
 		t.Fatalf("expected status 200, got %d", rr.Code)
 	}
 
-	var payload runtimeModelsResponse
+	var payload subscription.Catalog
 	if err := json.Unmarshal(rr.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}

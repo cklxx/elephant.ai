@@ -8,6 +8,9 @@ import (
 
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
+	"alex/internal/httpclient"
+	"alex/internal/logging"
+	"alex/internal/subscription"
 )
 
 // RuntimeConfigResolver resolves the latest runtime configuration snapshot.
@@ -15,9 +18,9 @@ type RuntimeConfigResolver func(context.Context) (runtimeconfig.RuntimeConfig, r
 
 // ConfigHandler serves internal runtime configuration APIs.
 type ConfigHandler struct {
-	manager     *configadmin.Manager
-	resolver    RuntimeConfigResolver
-	modelLister RuntimeModelLister
+	manager        *configadmin.Manager
+	resolver       RuntimeConfigResolver
+	catalogService SubscriptionCatalogService
 }
 
 // NewConfigHandler constructs a handler when a manager is available.
@@ -26,9 +29,9 @@ func NewConfigHandler(manager *configadmin.Manager, resolver RuntimeConfigResolv
 		return nil
 	}
 	return &ConfigHandler{
-		manager:     manager,
-		resolver:    resolver,
-		modelLister: defaultRuntimeModelLister,
+		manager:        manager,
+		resolver:       resolver,
+		catalogService: nil,
 	}
 }
 
@@ -41,8 +44,10 @@ type runtimeConfigResponse struct {
 	Tasks     []configadmin.ReadinessTask          `json:"tasks"`
 }
 
-// RuntimeModelLister resolves the current model catalog from CLI subscriptions.
-type RuntimeModelLister func(context.Context) []runtimeModelProvider
+// SubscriptionCatalogService resolves the current model catalog from CLI subscriptions.
+type SubscriptionCatalogService interface {
+	Catalog(context.Context) subscription.Catalog
+}
 
 func (h *ConfigHandler) snapshot(ctx context.Context) (runtimeConfigResponse, error) {
 	cfg, meta, err := h.resolver(ctx)
@@ -151,16 +156,28 @@ func (h *ConfigHandler) HandleRuntimeStream(w http.ResponseWriter, r *http.Reque
 
 // HandleGetRuntimeModels returns CLI-discovered model catalogs.
 func (h *ConfigHandler) HandleGetRuntimeModels(w http.ResponseWriter, r *http.Request) {
+	h.HandleGetSubscriptionCatalog(w, r)
+}
+
+// HandleGetSubscriptionCatalog returns CLI-discovered model catalogs.
+func (h *ConfigHandler) HandleGetSubscriptionCatalog(w http.ResponseWriter, r *http.Request) {
 	if h == nil {
 		http.NotFound(w, r)
 		return
 	}
-	lister := h.modelLister
-	if lister == nil {
-		lister = defaultRuntimeModelLister
+	service := h.catalogService
+	if service == nil {
+		service = defaultCatalogService()
 	}
-	payload := runtimeModelsResponse{Providers: lister(r.Context())}
-	writeJSON(w, http.StatusOK, payload)
+	writeJSON(w, http.StatusOK, service.Catalog(r.Context()))
+}
+
+func defaultCatalogService() SubscriptionCatalogService {
+	logger := logging.NewComponentLogger("SubscriptionCatalog")
+	client := httpclient.New(20*time.Second, logger)
+	return subscription.NewCatalogService(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.LoadCLICredentials()
+	}, client, 15*time.Second)
 }
 
 func writeSSEPayload(w http.ResponseWriter, payload any) error {
