@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -217,5 +218,133 @@ func TestOpenAIResponsesClientSetsStoreFalse(t *testing.T) {
 
 	if gotStore != false {
 		t.Fatalf("expected store false, got %#v", gotStore)
+	}
+}
+
+func TestOpenAIResponsesClientOmitsMaxOutputTokensForCodex(t *testing.T) {
+	t.Parallel()
+
+	var hasMaxOutputTokens bool
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Path; got != "/backend-api/codex/responses" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		_, hasMaxOutputTokens = payload["max_output_tokens"]
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 64,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if hasMaxOutputTokens {
+		t.Fatalf("expected max_output_tokens to be omitted for codex")
+	}
+}
+
+func TestOpenAIResponsesClientCompleteStreamsForCodex(t *testing.T) {
+	t.Parallel()
+
+	var gotStream bool
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if stream, ok := payload["stream"].(bool); ok {
+			gotStream = stream
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.created","response":{"id":"resp-1","created_at":1,"model":"gpt-5.2-codex"}}`,
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"hello "}`,
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"world"}`,
+			`{"type":"response.output_item.done","output_index":0,"item":{"type":"function_call","id":"call-1","call_id":"call-1","name":"toolName","arguments":"{\"foo\":\"bar\"}","status":"completed"}}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	resp, err := client.Complete(context.Background(), ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 64,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if !gotStream {
+		t.Fatalf("expected stream true for codex")
+	}
+	if resp.Content != "hello world" {
+		t.Fatalf("unexpected content: %q", resp.Content)
+	}
+	if resp.Usage.TotalTokens != 3 {
+		t.Fatalf("unexpected usage: %+v", resp.Usage)
+	}
+	if len(resp.ToolCalls) != 1 {
+		t.Fatalf("expected 1 tool call, got %d", len(resp.ToolCalls))
+	}
+	if resp.ToolCalls[0].Name != "toolName" {
+		t.Fatalf("unexpected tool call name: %s", resp.ToolCalls[0].Name)
+	}
+	if resp.ToolCalls[0].Arguments["foo"] != "bar" {
+		t.Fatalf("unexpected tool call args: %+v", resp.ToolCalls[0].Arguments)
 	}
 }

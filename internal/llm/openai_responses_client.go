@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -55,6 +56,10 @@ func NewOpenAIResponsesClient(model string, config Config) (ports.LLMClient, err
 }
 
 func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	if c.isCodexEndpoint() {
+		return c.StreamComplete(ctx, req, ports.CompletionStreamCallbacks{})
+	}
+
 	requestID := extractRequestID(req.Metadata)
 	if requestID == "" {
 		requestID = id.NewRequestID()
@@ -63,11 +68,13 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 
 	input, instructions := c.convertMessages(req.Messages)
 	payload := map[string]any{
-		"model":             c.model,
-		"input":             input,
-		"temperature":       req.Temperature,
-		"max_output_tokens": req.MaxTokens,
-		"stream":            false,
+		"model":       c.model,
+		"input":       input,
+		"temperature": req.Temperature,
+		"stream":      false,
+	}
+	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
+		payload["max_output_tokens"] = req.MaxTokens
 	}
 	if instructions != "" {
 		payload["instructions"] = instructions
@@ -214,8 +221,250 @@ func (c *openAIResponsesClient) Model() string {
 	return c.model
 }
 
+func (c *openAIResponsesClient) isCodexEndpoint() bool {
+	return strings.Contains(c.baseURL, "/backend-api/codex")
+}
+
 func (c *openAIResponsesClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
 	c.usageCallback = callback
+}
+
+func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
+	requestID := extractRequestID(req.Metadata)
+	if requestID == "" {
+		requestID = id.NewRequestID()
+	}
+	prefix := fmt.Sprintf("[req:%s] ", requestID)
+
+	input, instructions := c.convertMessages(req.Messages)
+	payload := map[string]any{
+		"model":       c.model,
+		"input":       input,
+		"temperature": req.Temperature,
+		"stream":      true,
+		"store":       false,
+	}
+	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
+		payload["max_output_tokens"] = req.MaxTokens
+	}
+	if instructions != "" {
+		payload["instructions"] = instructions
+	}
+	if len(req.Tools) > 0 {
+		payload["tools"] = convertTools(req.Tools)
+		payload["tool_choice"] = "auto"
+	}
+	if len(req.StopSequences) > 0 {
+		payload["stop"] = append([]string(nil), req.StopSequences...)
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	logBody := redactDataURIs(body)
+
+	c.logger.Debug("%s=== LLM Request ===", prefix)
+	c.logger.Debug("%sURL: POST %s/responses", prefix, c.baseURL)
+	c.logger.Debug("%sModel: %s", prefix, c.model)
+
+	endpoint := c.baseURL + "/responses"
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	if c.apiKey != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
+	}
+	if c.maxRetries > 0 {
+		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
+	}
+	for k, v := range c.headers {
+		httpReq.Header.Set(k, v)
+	}
+
+	c.logger.Debug("%sRequest Headers:", prefix)
+	for k, v := range httpReq.Header {
+		if k == "Authorization" {
+			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
+		} else {
+			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+		}
+	}
+
+	var prettyJSON bytes.Buffer
+	if err := json.Indent(&prettyJSON, logBody, "", "  "); err == nil {
+		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
+	} else {
+		c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
+	}
+	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
+		return nil, wrapRequestError(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	c.logger.Debug("%s=== LLM Streaming Response ===", prefix)
+	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
+	c.logger.Debug("%sResponse Headers:", prefix)
+	for k, v := range resp.Header {
+		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+	}
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		respBody, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			c.logger.Debug("%sFailed to read error response: %v", prefix, readErr)
+			return nil, fmt.Errorf("read response: %w", readErr)
+		}
+		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
+		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
+	}
+
+	type responsesStreamEvent struct {
+		Type     string `json:"type"`
+		Delta    string `json:"delta"`
+		Message  string `json:"message"`
+		Code     string `json:"code"`
+		Response *struct {
+			ID    string `json:"id"`
+			Usage *struct {
+				InputTokens  int `json:"input_tokens"`
+				OutputTokens int `json:"output_tokens"`
+				TotalTokens  int `json:"total_tokens"`
+			} `json:"usage"`
+			IncompleteDetails *struct {
+				Reason string `json:"reason"`
+			} `json:"incomplete_details"`
+		} `json:"response"`
+		Item *struct {
+			Type      string `json:"type"`
+			ID        string `json:"id"`
+			CallID    string `json:"call_id"`
+			Name      string `json:"name"`
+			Arguments string `json:"arguments"`
+		} `json:"item"`
+	}
+
+	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+
+	var contentBuilder strings.Builder
+	var toolCalls []ports.ToolCall
+	usage := ports.TokenUsage{}
+	stopReason := ""
+	responseID := ""
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "" {
+			continue
+		}
+		if data == "[DONE]" {
+			break
+		}
+
+		var evt responsesStreamEvent
+		if err := json.Unmarshal([]byte(data), &evt); err != nil {
+			c.logger.Debug("%sFailed to decode stream event: %v", prefix, err)
+			continue
+		}
+
+		switch evt.Type {
+		case "response.created":
+			if evt.Response != nil && evt.Response.ID != "" {
+				responseID = evt.Response.ID
+			}
+		case "response.output_text.delta":
+			if evt.Delta != "" {
+				contentBuilder.WriteString(evt.Delta)
+				if callbacks.OnContentDelta != nil {
+					callbacks.OnContentDelta(ports.ContentDelta{Delta: evt.Delta})
+				}
+			}
+		case "response.output_item.done":
+			if evt.Item != nil && evt.Item.Type == "function_call" {
+				args := parseToolArguments([]byte(evt.Item.Arguments))
+				toolID := evt.Item.CallID
+				if strings.TrimSpace(toolID) == "" {
+					toolID = evt.Item.ID
+				}
+				toolCalls = append(toolCalls, ports.ToolCall{
+					ID:        toolID,
+					Name:      evt.Item.Name,
+					Arguments: args,
+				})
+			}
+		case "response.completed", "response.incomplete":
+			stopReason = evt.Type
+			if evt.Response != nil && evt.Response.Usage != nil {
+				usage = ports.TokenUsage{
+					PromptTokens:     evt.Response.Usage.InputTokens,
+					CompletionTokens: evt.Response.Usage.OutputTokens,
+					TotalTokens:      evt.Response.Usage.TotalTokens,
+				}
+			}
+		case "error":
+			if evt.Message != "" {
+				return nil, fmt.Errorf("llm error: %s", evt.Message)
+			}
+			return nil, fmt.Errorf("llm error: %s", string(data))
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read stream: %w", err)
+	}
+
+	if callbacks.OnContentDelta != nil {
+		callbacks.OnContentDelta(ports.ContentDelta{Final: true})
+	}
+
+	content := contentBuilder.String()
+	result := &ports.CompletionResponse{
+		Content:    content,
+		StopReason: stopReason,
+		Usage:      usage,
+		ToolCalls:  toolCalls,
+		Metadata: map[string]any{
+			"request_id":  requestID,
+			"response_id": strings.TrimSpace(responseID),
+		},
+	}
+
+	if result.StopReason == "" {
+		result.StopReason = "completed"
+	}
+
+	if c.usageCallback != nil {
+		c.usageCallback(result.Usage, c.model, "openai")
+	}
+
+	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
+	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
+	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
+	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
+	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
+		prefix,
+		result.Usage.PromptTokens,
+		result.Usage.CompletionTokens,
+		result.Usage.TotalTokens,
+	)
+	c.logger.Debug("%s==================", prefix)
+
+	return result, nil
 }
 
 func (c *openAIResponsesClient) convertMessages(msgs []ports.Message) ([]map[string]any, string) {
