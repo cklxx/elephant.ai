@@ -35,7 +35,9 @@ type ModelsState = "idle" | "loading" | "error";
 
 export function LLMIndicator() {
   const [snapshot, setSnapshot] = useState<RuntimeConfigSnapshot | null>(null);
-  const [selection, setSelection] = useState<LLMSelection | null>(null);
+  const [selection, setSelection] = useState<LLMSelection | null>(() =>
+    loadLLMSelection(),
+  );
   const [menuOpen, setMenuOpen] = useState(false);
   const [modelsState, setModelsState] = useState<ModelsState>("idle");
   const [modelProviders, setModelProviders] = useState<RuntimeModelProvider[]>([]);
@@ -58,10 +60,6 @@ export function LLMIndicator() {
     return () => {
       active = false;
     };
-  }, []);
-
-  useEffect(() => {
-    setSelection(loadLLMSelection());
   }, []);
 
   const loadModels = useCallback(async () => {
