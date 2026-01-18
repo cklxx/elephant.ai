@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	runtimeconfig "alex/internal/config"
 )
 
 func TestParseModelListHandlesDataObjects(t *testing.T) {
@@ -75,5 +77,44 @@ func TestFetchProviderModelsUsesAnthropicOAuthHeaders(t *testing.T) {
 	}
 	if !strings.Contains(gotBeta, "oauth-2025-04-20") {
 		t.Fatalf("expected oauth beta header, got %q", gotBeta)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func TestCatalogServiceUsesCodexFallbackWithoutNetwork(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatalf("unexpected network request")
+			return nil, nil
+		}),
+	}
+
+	svc := NewCatalogService(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{
+			Codex: runtimeconfig.CLICredential{
+				Provider: "codex",
+				APIKey:   "tok-abc",
+				Model:    "gpt-5.2-codex",
+				BaseURL:  "https://chatgpt.com/backend-api/codex",
+				Source:   runtimeconfig.SourceCodexCLI,
+			},
+		}
+	}, client, 0)
+
+	catalog := svc.Catalog(context.Background())
+	if len(catalog.Providers) != 1 {
+		t.Fatalf("expected one provider, got %d", len(catalog.Providers))
+	}
+	got := catalog.Providers[0]
+	if got.Error != "" {
+		t.Fatalf("expected no error, got %q", got.Error)
+	}
+	if len(got.Models) == 0 || got.Models[0] == "" {
+		t.Fatalf("expected fallback models, got %#v", got.Models)
 	}
 }

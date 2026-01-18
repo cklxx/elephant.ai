@@ -8,6 +8,10 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
+	"time"
+
+	runtimeconfig "alex/internal/config"
 )
 
 func parseModelList(raw []byte) ([]string, error) {
@@ -55,6 +59,153 @@ func extractModelIDs(value any, out map[string]struct{}) {
 			}
 		}
 	}
+}
+
+type CatalogProvider struct {
+	Provider string   `json:"provider"`
+	Source   string   `json:"source"`
+	BaseURL  string   `json:"base_url,omitempty"`
+	Models   []string `json:"models,omitempty"`
+	Error    string   `json:"error,omitempty"`
+}
+
+type Catalog struct {
+	Providers []CatalogProvider `json:"providers"`
+}
+
+type CatalogService struct {
+	loadCreds func() runtimeconfig.CLICredentials
+	client    *http.Client
+	ttl       time.Duration
+	mu        sync.Mutex
+	cached    Catalog
+	cachedAt  time.Time
+}
+
+func NewCatalogService(loadCreds func() runtimeconfig.CLICredentials, client *http.Client, ttl time.Duration) *CatalogService {
+	if loadCreds == nil {
+		loadCreds = func() runtimeconfig.CLICredentials {
+			return runtimeconfig.LoadCLICredentials()
+		}
+	}
+	return &CatalogService{
+		loadCreds: loadCreds,
+		client:    client,
+		ttl:       ttl,
+	}
+}
+
+func (s *CatalogService) Catalog(ctx context.Context) Catalog {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.ttl > 0 && time.Since(s.cachedAt) < s.ttl {
+		return s.cached
+	}
+
+	creds := s.loadCreds()
+	providers := listProviders(ctx, creds, s.client)
+	catalog := Catalog{Providers: providers}
+
+	s.cached = catalog
+	s.cachedAt = time.Now()
+	return catalog
+}
+
+func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client) []CatalogProvider {
+	var targets []CatalogProvider
+
+	if creds.Codex.APIKey != "" {
+		targets = append(targets, CatalogProvider{
+			Provider: creds.Codex.Provider,
+			Source:   string(creds.Codex.Source),
+			BaseURL:  creds.Codex.BaseURL,
+		})
+	}
+	if creds.Antigravity.APIKey != "" {
+		targets = append(targets, CatalogProvider{
+			Provider: creds.Antigravity.Provider,
+			Source:   string(creds.Antigravity.Source),
+			BaseURL:  creds.Antigravity.BaseURL,
+		})
+	}
+	if creds.Claude.APIKey != "" {
+		baseURL := strings.TrimSpace(creds.Claude.BaseURL)
+		if baseURL == "" {
+			baseURL = "https://api.anthropic.com/v1"
+		}
+		targets = append(targets, CatalogProvider{
+			Provider: creds.Claude.Provider,
+			Source:   string(creds.Claude.Source),
+			BaseURL:  baseURL,
+		})
+	}
+
+	for i := range targets {
+		target := &targets[i]
+		if target.Provider == "codex" && target.Source == string(runtimeconfig.SourceCodexCLI) {
+			target.Models = codexFallbackModels(creds.Codex.Model)
+			continue
+		}
+		models, err := fetchProviderModels(ctx, client, fetchTarget{
+			provider:  target.Provider,
+			baseURL:   target.BaseURL,
+			apiKey:    pickAPIKey(creds, target.Provider),
+			accountID: pickAccountID(creds, target.Provider),
+		})
+		if err != nil {
+			target.Error = err.Error()
+			continue
+		}
+		target.Models = models
+	}
+
+	return targets
+}
+
+func pickAPIKey(creds runtimeconfig.CLICredentials, provider string) string {
+	switch provider {
+	case creds.Codex.Provider:
+		return creds.Codex.APIKey
+	case creds.Antigravity.Provider:
+		return creds.Antigravity.APIKey
+	case creds.Claude.Provider:
+		return creds.Claude.APIKey
+	default:
+		return ""
+	}
+}
+
+func pickAccountID(creds runtimeconfig.CLICredentials, provider string) string {
+	switch provider {
+	case creds.Codex.Provider:
+		return creds.Codex.AccountID
+	default:
+		return ""
+	}
+}
+
+func codexFallbackModels(cliModel string) []string {
+	models := []string{
+		"gpt-5.1-codex-max",
+		"gpt-5.1-codex-mini",
+		"gpt-5.2",
+		"gpt-5.2-codex",
+	}
+	if cliModel != "" && !containsModel(models, cliModel) {
+		models = append(models, cliModel)
+	}
+	sort.Strings(models)
+	return models
+}
+
+func containsModel(models []string, value string) bool {
+	for _, model := range models {
+		if model == value {
+			return true
+		}
+	}
+	return false
 }
 
 type fetchTarget struct {
