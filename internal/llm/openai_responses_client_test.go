@@ -170,3 +170,52 @@ func TestOpenAIResponsesClientIncludesInstructionsFromSystem(t *testing.T) {
 		t.Fatalf("unexpected input role: %#v", entry["role"])
 	}
 }
+
+func TestOpenAIResponsesClientSetsStoreFalse(t *testing.T) {
+	t.Parallel()
+
+	var gotStore any
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		gotStore = payload["store"]
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"id":     "resp-1",
+			"status": "completed",
+			"output": []any{},
+			"usage": map[string]any{
+				"input_tokens":  1,
+				"output_tokens": 1,
+				"total_tokens":  2,
+			},
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 16,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if gotStore != false {
+		t.Fatalf("expected store false, got %#v", gotStore)
+	}
+}

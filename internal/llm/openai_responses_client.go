@@ -72,6 +72,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	if instructions != "" {
 		payload["instructions"] = instructions
 	}
+	payload["store"] = false
 
 	if len(req.Tools) > 0 {
 		payload["tools"] = convertTools(req.Tools)
