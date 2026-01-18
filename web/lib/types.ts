@@ -93,12 +93,20 @@ export interface AttachmentUpload {
   retention_ttl_seconds?: number;
 }
 
+export interface LLMSelection {
+  mode: "yaml" | "cli";
+  provider: string;
+  model: string;
+  source: string;
+}
+
 // Task & session API types
 export interface CreateTaskRequest {
   task: string;
   session_id?: string;
   parent_task_id?: string;
   attachments?: AttachmentUpload[];
+  llm_selection?: LLMSelection;
 }
 
 export interface CreateTaskResponse {

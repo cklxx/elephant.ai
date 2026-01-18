@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getRuntimeConfigSnapshot, getSubscriptionCatalog } from "@/lib/api";
 import {
-  getRuntimeConfigSnapshot,
-  getRuntimeModelCatalog,
-  updateRuntimeConfig,
-} from "@/lib/api";
+  clearLLMSelection,
+  loadLLMSelection,
+  saveLLMSelection,
+} from "@/lib/llmSelection";
 import type {
-  RuntimeConfigOverrides,
+  LLMSelection,
   RuntimeConfigSnapshot,
   RuntimeModelProvider,
 } from "@/lib/types";
@@ -34,6 +35,7 @@ type ModelsState = "idle" | "loading" | "error";
 
 export function LLMIndicator() {
   const [snapshot, setSnapshot] = useState<RuntimeConfigSnapshot | null>(null);
+  const [selection, setSelection] = useState<LLMSelection | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [modelsState, setModelsState] = useState<ModelsState>("idle");
   const [modelProviders, setModelProviders] = useState<RuntimeModelProvider[]>([]);
@@ -58,10 +60,14 @@ export function LLMIndicator() {
     };
   }, []);
 
+  useEffect(() => {
+    setSelection(loadLLMSelection());
+  }, []);
+
   const loadModels = useCallback(async () => {
     setModelsState("loading");
     try {
-      const data = await getRuntimeModelCatalog();
+      const data = await getSubscriptionCatalog();
       setModelProviders(data.providers ?? []);
       setModelsState("idle");
     } catch (error) {
@@ -79,39 +85,23 @@ export function LLMIndicator() {
     [loadModels],
   );
 
-  const handleSelectYaml = useCallback(async () => {
-    if (!snapshot) return;
-    const overrides: RuntimeConfigOverrides = { ...(snapshot.overrides ?? {}) };
-    delete overrides.llm_provider;
-    delete overrides.llm_model;
-    delete overrides.base_url;
-    try {
-      const payload = await updateRuntimeConfig({ overrides });
-      setSnapshot(payload);
-    } catch (error) {
-      console.error("Failed to reset runtime model overrides", error);
-    }
-  }, [snapshot]);
+  const handleSelectYaml = useCallback(() => {
+    clearLLMSelection();
+    setSelection(null);
+  }, []);
 
   const handleSelectModel = useCallback(
-    async (provider: RuntimeModelProvider, modelId: string) => {
-      if (!snapshot) return;
-      const overrides: RuntimeConfigOverrides = {
-        ...(snapshot.overrides ?? {}),
-        llm_provider: provider.provider,
-        llm_model: modelId,
+    (provider: RuntimeModelProvider, modelId: string) => {
+      const next: LLMSelection = {
+        mode: "cli",
+        provider: provider.provider,
+        model: modelId,
+        source: provider.source,
       };
-      if (provider.base_url) {
-        overrides.base_url = provider.base_url;
-      }
-      try {
-        const payload = await updateRuntimeConfig({ overrides });
-        setSnapshot(payload);
-      } catch (error) {
-        console.error("Failed to update runtime model overrides", error);
-      }
+      saveLLMSelection(next);
+      setSelection(next);
     },
-    [snapshot],
+    [],
   );
 
   const { provider, model, authSource, modelSource } = useMemo(() => {
@@ -119,19 +109,19 @@ export function LLMIndicator() {
     const sources = snapshot?.sources ?? {};
     const rawAuthSource = sources.api_key ?? "default";
     const rawModelSource = sources.llm_model ?? "default";
+    const selectionSource =
+      selection?.source && (SOURCE_LABELS[selection.source] ?? selection.source);
     return {
-      provider: effective?.llm_provider ?? "unknown",
-      model: effective?.llm_model ?? "unknown",
-      authSource: SOURCE_LABELS[rawAuthSource] ?? rawAuthSource,
-      modelSource: SOURCE_LABELS[rawModelSource] ?? rawModelSource,
+      provider: selection?.provider ?? effective?.llm_provider ?? "unknown",
+      model: selection?.model ?? effective?.llm_model ?? "unknown",
+      authSource: selectionSource ?? SOURCE_LABELS[rawAuthSource] ?? rawAuthSource,
+      modelSource: selectionSource ?? SOURCE_LABELS[rawModelSource] ?? rawModelSource,
     };
-  }, [snapshot]);
+  }, [selection, snapshot]);
 
   const yamlActive = useMemo(() => {
-    if (!snapshot?.sources) return true;
-    const source = snapshot.sources.llm_model ?? "default";
-    return source === "file" || source === "environment" || source === "default";
-  }, [snapshot]);
+    return !selection;
+  }, [selection]);
 
   return (
     <DropdownMenu open={menuOpen} onOpenChange={handleOpenChange}>
@@ -139,7 +129,7 @@ export function LLMIndicator() {
         <button
           type="button"
           aria-label="LLM indicator"
-          className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full border border-border/60 bg-background/80 px-3 py-2 text-xs text-muted-foreground shadow-sm backdrop-blur transition hover:text-foreground"
+          className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full border border-border/80 bg-background px-3 py-2 text-xs text-muted-foreground shadow-md transition hover:text-foreground"
         >
           <span className="font-semibold text-foreground">{provider}</span>
           <span aria-hidden>·</span>
@@ -205,7 +195,9 @@ export function LLMIndicator() {
                 className="flex items-center justify-between gap-2"
               >
                 <span className="text-sm">{modelId}</span>
-                {provider === providerEntry.provider && model === modelId ? (
+                {selection &&
+                selection.provider === providerEntry.provider &&
+                selection.model === modelId ? (
                   <span className="text-xs text-emerald-600">Active</span>
                 ) : null}
               </DropdownMenuItem>

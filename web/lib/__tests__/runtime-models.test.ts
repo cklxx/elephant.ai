@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { getRuntimeModelCatalog } from "@/lib/api";
+import { getRuntimeModelCatalog, getSubscriptionCatalog } from "@/lib/api";
 
 vi.mock("@/lib/api-base", () => ({ buildApiUrl: (path: string) => path }));
 
@@ -16,6 +16,17 @@ describe("getRuntimeModelCatalog", () => {
     expect(result.providers).toEqual([]);
     expect(fetch).toHaveBeenCalledWith(
       "/api/internal/config/runtime/models",
+      expect.objectContaining({ credentials: "include" }),
+    );
+  });
+});
+
+describe("getSubscriptionCatalog", () => {
+  it("fetches the subscription catalog", async () => {
+    const result = await getSubscriptionCatalog();
+    expect(result.providers).toEqual([]);
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/internal/subscription/catalog",
       expect.objectContaining({ credentials: "include" }),
     );
   });
