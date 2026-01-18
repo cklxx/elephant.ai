@@ -61,12 +61,16 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 
+	input, instructions := c.convertMessages(req.Messages)
 	payload := map[string]any{
 		"model":             c.model,
-		"input":             c.convertMessages(req.Messages),
+		"input":             input,
 		"temperature":       req.Temperature,
 		"max_output_tokens": req.MaxTokens,
 		"stream":            false,
+	}
+	if instructions != "" {
+		payload["instructions"] = instructions
 	}
 
 	if len(req.Tools) > 0 {
@@ -213,10 +217,18 @@ func (c *openAIResponsesClient) SetUsageCallback(callback func(usage ports.Token
 	c.usageCallback = callback
 }
 
-func (c *openAIResponsesClient) convertMessages(msgs []ports.Message) []map[string]any {
+func (c *openAIResponsesClient) convertMessages(msgs []ports.Message) ([]map[string]any, string) {
 	result := make([]map[string]any, 0, len(msgs))
+	var instructionsParts []string
 	for _, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
+			continue
+		}
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		if role == "system" {
+			if strings.TrimSpace(msg.Content) != "" {
+				instructionsParts = append(instructionsParts, msg.Content)
+			}
 			continue
 		}
 		entry := map[string]any{"role": msg.Role}
@@ -229,7 +241,7 @@ func (c *openAIResponsesClient) convertMessages(msgs []ports.Message) []map[stri
 		}
 		result = append(result, entry)
 	}
-	return result
+	return result, strings.Join(instructionsParts, "\n\n")
 }
 
 func buildResponsesMessageContent(msg ports.Message, embedAttachments bool) any {

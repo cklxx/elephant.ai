@@ -96,3 +96,77 @@ func TestOpenAIResponsesClientCompleteSuccess(t *testing.T) {
 		t.Fatalf("unexpected tool call args: %+v", resp.ToolCalls[0].Arguments)
 	}
 }
+
+func TestOpenAIResponsesClientIncludesInstructionsFromSystem(t *testing.T) {
+	t.Parallel()
+
+	var gotInstructions string
+	var gotInput []any
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+
+		instructions, ok := payload["instructions"].(string)
+		if !ok {
+			t.Fatalf("expected instructions string, got %#v", payload["instructions"])
+		}
+		gotInstructions = instructions
+
+		input, ok := payload["input"].([]any)
+		if !ok {
+			t.Fatalf("expected input list, got %#v", payload["input"])
+		}
+		gotInput = input
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"id":     "resp-1",
+			"status": "completed",
+			"output": []any{},
+			"usage": map[string]any{
+				"input_tokens":  1,
+				"output_tokens": 1,
+				"total_tokens":  2,
+			},
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "system", Content: "system instructions"},
+			{Role: "user", Content: "hi"},
+		},
+		MaxTokens: 64,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if gotInstructions != "system instructions" {
+		t.Fatalf("unexpected instructions: %q", gotInstructions)
+	}
+	if len(gotInput) != 1 {
+		t.Fatalf("expected 1 input entry, got %d", len(gotInput))
+	}
+	entry, ok := gotInput[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected input entry map, got %#v", gotInput[0])
+	}
+	if entry["role"] != "user" {
+		t.Fatalf("unexpected input role: %#v", entry["role"])
+	}
+}
