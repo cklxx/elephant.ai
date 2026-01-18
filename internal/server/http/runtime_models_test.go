@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	runtimeconfig "alex/internal/config"
 )
 
 func TestParseModelListHandlesDataObjects(t *testing.T) {
@@ -75,5 +77,106 @@ func TestFetchProviderModelsUsesAnthropicOAuthHeaders(t *testing.T) {
 	}
 	if !strings.Contains(gotBeta, "oauth-2025-04-20") {
 		t.Fatalf("expected oauth beta header, got %q", gotBeta)
+	}
+}
+
+func TestFetchProviderModelsUsesCodexModelsPath(t *testing.T) {
+	var gotPath string
+	var gotClientVersion string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotClientVersion = r.URL.Query().Get("client_version")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[{"id":"codex-model"}]}`))
+	}))
+	defer srv.Close()
+
+	client := srv.Client()
+	_, err := fetchProviderModels(context.Background(), client, modelFetchTarget{
+		Provider:      "codex",
+		BaseURL:       srv.URL + "/codex",
+		APIKey:        "tok-abc",
+		ClientVersion: "0.86.0",
+	})
+	if err != nil {
+		t.Fatalf("fetch error: %v", err)
+	}
+	if gotPath != "/codex/models" {
+		t.Fatalf("expected /codex/models path, got %q", gotPath)
+	}
+	if gotClientVersion != "0.86.0" {
+		t.Fatalf("expected client_version query param, got %q", gotClientVersion)
+	}
+}
+
+func TestFetchProviderModelsSetsChatGPTAccountIDHeader(t *testing.T) {
+	var gotAccount string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccount = r.Header.Get("ChatGPT-Account-Id")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[{"id":"codex-model"}]}`))
+	}))
+	defer srv.Close()
+
+	client := srv.Client()
+	_, err := fetchProviderModels(context.Background(), client, modelFetchTarget{
+		Provider:  "codex",
+		BaseURL:   srv.URL,
+		APIKey:    "tok-abc",
+		AccountID: "acct-123",
+	})
+	if err != nil {
+		t.Fatalf("fetch error: %v", err)
+	}
+	if gotAccount != "acct-123" {
+		t.Fatalf("expected ChatGPT-Account-Id header, got %q", gotAccount)
+	}
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+	return fn(req)
+}
+
+func TestListRuntimeModelsUsesCodexCLIFallback(t *testing.T) {
+	client := &http.Client{
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatalf("unexpected network request")
+			return nil, nil
+		}),
+	}
+
+	creds := runtimeconfig.CLICredentials{
+		Codex: runtimeconfig.CLICredential{
+			Provider: "codex",
+			APIKey:   "tok-abc",
+			Model:    "gpt-5.2-codex",
+			BaseURL:  "https://chatgpt.com/backend-api/codex",
+			Source:   runtimeconfig.SourceCodexCLI,
+		},
+	}
+
+	providers := listRuntimeModels(context.Background(), creds, client)
+	if len(providers) != 1 {
+		t.Fatalf("expected one provider, got %d", len(providers))
+	}
+	got := providers[0]
+	if got.Error != "" {
+		t.Fatalf("expected no error, got %q", got.Error)
+	}
+	expected := []string{
+		"gpt-5.1-codex-max",
+		"gpt-5.1-codex-mini",
+		"gpt-5.2",
+		"gpt-5.2-codex",
+	}
+	if len(got.Models) != len(expected) {
+		t.Fatalf("expected %d models, got %d: %#v", len(expected), len(got.Models), got.Models)
+	}
+	for i, model := range expected {
+		if got.Models[i] != model {
+			t.Fatalf("expected model %q at index %d, got %q", model, i, got.Models[i])
+		}
 	}
 }

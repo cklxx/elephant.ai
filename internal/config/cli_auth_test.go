@@ -30,6 +30,9 @@ func TestLoadCLICredentialsReadsCodexAuth(t *testing.T) {
 	if creds.Codex.APIKey != "tok-123" {
 		t.Fatalf("expected codex api key, got %q", creds.Codex.APIKey)
 	}
+	if creds.Codex.AccountID != "acct" {
+		t.Fatalf("expected codex account id, got %q", creds.Codex.AccountID)
+	}
 	if creds.Codex.Model != "gpt-5-codex" {
 		t.Fatalf("expected codex model, got %q", creds.Codex.Model)
 	}

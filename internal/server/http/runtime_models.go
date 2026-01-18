@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -75,18 +78,31 @@ type runtimeModelsResponse struct {
 }
 
 type modelFetchTarget struct {
-	Provider string
-	BaseURL  string
-	APIKey   string
+	Provider      string
+	BaseURL       string
+	APIKey        string
+	AccountID     string
+	ClientVersion string
+	Source        string
 }
 
 func fetchProviderModels(ctx context.Context, client *http.Client, target modelFetchTarget) ([]string, error) {
 	endpoint := strings.TrimRight(target.BaseURL, "/") + "/models"
+	if target.Provider == "codex" && strings.TrimSpace(target.ClientVersion) != "" {
+		separator := "?"
+		if strings.Contains(endpoint, "?") {
+			separator = "&"
+		}
+		endpoint = endpoint + separator + "client_version=" + url.QueryEscape(target.ClientVersion)
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, err
 	}
 
+	if target.AccountID != "" {
+		req.Header.Set("ChatGPT-Account-Id", target.AccountID)
+	}
 	if target.Provider == "anthropic" || target.Provider == "claude" {
 		if isAnthropicOAuthToken(target.APIKey) {
 			req.Header.Set("Authorization", "Bearer "+target.APIKey)
@@ -163,10 +179,17 @@ func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, 
 
 	for i := range targets {
 		target := &targets[i]
+		if target.Provider == "codex" && target.Source == string(runtimeconfig.SourceCodexCLI) {
+			target.Models = codexCLIFallbackModels(creds.Codex.Model)
+			continue
+		}
 		models, err := fetchProviderModels(ctx, client, modelFetchTarget{
-			Provider: target.Provider,
-			BaseURL:  target.BaseURL,
-			APIKey:   pickAPIKey(creds, target.Provider),
+			Provider:      target.Provider,
+			BaseURL:       target.BaseURL,
+			APIKey:        pickAPIKey(creds, target.Provider),
+			AccountID:     pickAccountID(creds, target.Provider),
+			ClientVersion: cliClientVersion(target.Source),
+			Source:        target.Source,
 		})
 		if err != nil {
 			target.Error = err.Error()
@@ -189,4 +212,57 @@ func pickAPIKey(creds runtimeconfig.CLICredentials, provider string) string {
 	default:
 		return ""
 	}
+}
+
+func pickAccountID(creds runtimeconfig.CLICredentials, provider string) string {
+	switch provider {
+	case creds.Codex.Provider:
+		return creds.Codex.AccountID
+	default:
+		return ""
+	}
+}
+
+func cliClientVersion(source string) string {
+	if source != string(runtimeconfig.SourceCodexCLI) {
+		return ""
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ""
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".codex", "version.json"))
+	if err != nil {
+		return ""
+	}
+	var payload struct {
+		LatestVersion string `json:"latest_version"`
+	}
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.LatestVersion)
+}
+
+func codexCLIFallbackModels(cliModel string) []string {
+	models := []string{
+		"gpt-5.1-codex-max",
+		"gpt-5.1-codex-mini",
+		"gpt-5.2",
+		"gpt-5.2-codex",
+	}
+	if cliModel != "" && !containsModel(models, cliModel) {
+		models = append(models, cliModel)
+	}
+	sort.Strings(models)
+	return models
+}
+
+func containsModel(models []string, model string) bool {
+	for _, candidate := range models {
+		if candidate == model {
+			return true
+		}
+	}
+	return false
 }

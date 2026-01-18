@@ -14,6 +14,7 @@ const codexCLIBaseURL = "https://chatgpt.com/backend-api/codex"
 type CLICredential struct {
 	Provider string
 	APIKey   string
+	AccountID string
 	BaseURL  string
 	Model    string
 	Source   ValueSource
@@ -93,12 +94,14 @@ func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) CLICre
 	if token == "" {
 		return CLICredential{}
 	}
+	accountID := strings.TrimSpace(payload.Tokens.AccountID)
 
 	model := strings.TrimSpace(loadCodexCLIModel(readFile, home))
 
 	return CLICredential{
 		Provider: "codex",
 		APIKey:   token,
+		AccountID: accountID,
 		BaseURL:  codexCLIBaseURL,
 		Model:    model,
 		Source:   SourceCodexCLI,
