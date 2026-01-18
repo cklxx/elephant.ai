@@ -148,3 +148,32 @@ func TestMiniAppHTMLUsesConfiguredLLM(t *testing.T) {
 		t.Fatalf("expected factory to be called with provider/model, got %q/%q", factory.provider, factory.model)
 	}
 }
+
+func TestNewRegistryRequiresLLMFactoryWhenProviderSet(t *testing.T) {
+	_, err := NewRegistry(Config{
+		MemoryService: newTestMemoryService(),
+		LLMProvider:   "openai",
+		LLMModel:      "gpt-4o",
+	})
+	if err == nil {
+		t.Fatalf("expected error when LLMFactory is missing")
+	}
+	if !strings.Contains(err.Error(), "LLMFactory is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestNewRegistryRequiresLLMModelWhenProviderSet(t *testing.T) {
+	factory := &stubLLMFactory{client: &countingLLM{}}
+	_, err := NewRegistry(Config{
+		MemoryService: newTestMemoryService(),
+		LLMFactory:    factory,
+		LLMProvider:   "openai",
+	})
+	if err == nil {
+		t.Fatalf("expected error when LLMModel is missing")
+	}
+	if !strings.Contains(err.Error(), "model is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

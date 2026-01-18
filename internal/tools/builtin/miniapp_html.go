@@ -18,14 +18,12 @@ type miniAppHTML struct {
 // The HTML body is synthesized with the configured LLM so the experience remains varied and
 // prompt-driven, then wrapped in a resilient shell for static hosting.
 func NewMiniAppHTML() ports.ToolExecutor {
-	return NewMiniAppHTMLWithLLM(nil)
+	return NewMiniAppHTMLWithLLM(llm.NewMockClient())
 }
 
 // NewMiniAppHTMLWithLLM allows injecting a specific LLM client (useful for tests).
+// The caller must provide a non-nil client.
 func NewMiniAppHTMLWithLLM(client ports.LLMClient) ports.ToolExecutor {
-	if client == nil {
-		client = llm.NewMockClient()
-	}
 	return &miniAppHTML{llm: client}
 }
 

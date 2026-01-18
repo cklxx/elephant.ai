@@ -7,10 +7,11 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	"alex/internal/llm"
 )
 
 func TestHTMLEditValidateOnlyInline(t *testing.T) {
-	tool := NewHTMLEdit(nil)
+	tool := NewHTMLEdit(llm.NewMockClient())
 	html := "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Test</title></head><body><h1>Hello</h1></body></html>"
 
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
@@ -50,7 +51,7 @@ func TestHTMLEditValidateOnlyInline(t *testing.T) {
 }
 
 func TestHTMLEditViewFromAttachment(t *testing.T) {
-	tool := NewHTMLEdit(nil)
+	tool := NewHTMLEdit(llm.NewMockClient())
 	html := "<!DOCTYPE html><html><head><title>Demo</title></head><body>OK</body></html>"
 	encoded := base64.StdEncoding.EncodeToString([]byte(html))
 	attachments := map[string]ports.Attachment{

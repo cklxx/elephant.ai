@@ -11,17 +11,14 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/llm"
 )
 
 type htmlEdit struct {
 	llm ports.LLMClient
 }
 
+// NewHTMLEdit requires a non-nil LLM client.
 func NewHTMLEdit(client ports.LLMClient) ports.ToolExecutor {
-	if client == nil {
-		client = llm.NewMockClient()
-	}
 	return &htmlEdit{llm: client}
 }
 
