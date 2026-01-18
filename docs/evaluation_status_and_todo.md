@@ -1,5 +1,7 @@
 # Evaluation system status and TODO
 
+This is the single source of truth for evaluation status and backlog items.
+
 ## Current state
 - Local and server evaluations capture auto-scores, task-level snapshots, and derived agent profiles while persisting artifacts to the evaluation results directory for reuse across restarts.
 - Stored evaluations and profiles can be listed, queried, shown, and deleted through the shared datastore, manager, HTTP API, and CLI subcommands (agents/history/list/show/delete) with filtering by agent, time window, score floor, dataset path/type, and tags.

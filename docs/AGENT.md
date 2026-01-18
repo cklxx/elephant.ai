@@ -1,6 +1,5 @@
 # ALEX Agent Runtime
-> Last updated: 2025-11-18
-
+> Last updated: 2026-01-16
 
 This document explains how the ALEX agent executes work across the backend. It describes the reasoning loop, delivery surfaces, dependency injection container, and how infrastructure adapters plug into the domain ports.
 
@@ -118,4 +117,4 @@ CLI / Server / Web
         └─► internal/observability + internal/storage
 ```
 
-Use this diagram alongside the architecture docs in `docs/architecture/` for deeper component-level details.
+Use this diagram alongside `docs/reference/ALEX.md` for deeper component-level details.

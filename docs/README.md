@@ -1,5 +1,5 @@
 # ALEX Documentation Portal
-> Last updated: 2025-12-26
+> Last updated: 2026-01-16
 
 This landing page highlights the docs you are most likely to open in a typical week. Start with the agent overview, then use quickstart or deployment for hands-on work.
 
@@ -25,6 +25,7 @@ If you add new material, keep this list short and focused on docs that people re
 
 ## 🧹 Maintenance Log
 
+- **2026-01-16** – Consolidated evaluation backlog documentation and refreshed the agent runtime reference link.
 - **2025-12-26** – Refreshed the homepage descriptions and navigation pointers to reflect the current core doc set.
 - **2025-11-29** – Archived most historical analysis, design, and research docs to keep the portal concise; retained only the core reference, quickstart, and deployment guides.
 - **2025-11-18** – Added `Last updated` stamps to every doc and refreshed TUI design notes.

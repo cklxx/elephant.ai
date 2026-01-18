@@ -92,7 +92,7 @@ func (r *Registry) Register(tool ports.ToolExecutor) error {
 	}
 
 	// Check if this is an MCP tool (tools with mcp__ prefix go to mcp map)
-	if len(name) > 5 && name[:5] == "mcp__" {
+	if strings.HasPrefix(name, "mcp__") {
 		r.mcp[name] = tool
 	} else {
 		r.dynamic[name] = tool
@@ -117,13 +117,31 @@ func (r *Registry) Get(name string) (ports.ToolExecutor, error) {
 
 // wrapWithIDPropagation ensures that tool results always include the originating call's lineage identifiers.
 func wrapWithIDPropagation(tool ports.ToolExecutor) ports.ToolExecutor {
-	if tool == nil {
-		return nil
-	}
 	if _, ok := tool.(*idAwareExecutor); ok {
 		return tool
 	}
 	return &idAwareExecutor{delegate: tool}
+}
+
+func llmClientForTools(toolNames []string, config Config, provider string, model string) (ports.LLMClient, error) {
+	toolLabel := strings.Join(toolNames, ", ")
+	if provider == "" || provider == "mock" {
+		return llm.NewMockClient(), nil
+	}
+	if config.LLMFactory == nil {
+		return nil, fmt.Errorf("%s: LLMFactory is required when provider is %q", toolLabel, provider)
+	}
+	if model == "" {
+		return nil, fmt.Errorf("%s: model is required when provider is %q", toolLabel, provider)
+	}
+	client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
+		APIKey:  config.APIKey,
+		BaseURL: config.BaseURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%s: failed to create LLM client: %w", toolLabel, err)
+	}
+	return client, nil
 }
 
 type idAwareExecutor struct {
@@ -207,7 +225,7 @@ func (f *filteredRegistry) Unregister(name string) error {
 func (r *Registry) List() []ports.ToolDefinition {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	var defs []ports.ToolDefinition
+	defs := make([]ports.ToolDefinition, 0, len(r.static)+len(r.dynamic)+len(r.mcp))
 	for _, tool := range r.static {
 		defs = append(defs, tool.Definition())
 	}
@@ -278,48 +296,18 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// Web tools
 	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
-	writeLLM := llm.NewMockClient()
 	provider := strings.TrimSpace(config.LLMProvider)
 	model := strings.TrimSpace(config.LLMModel)
-	if provider != "" && provider != "mock" {
-		if config.LLMFactory == nil {
-			return fmt.Errorf("html_edit: LLMFactory is required when provider is %q", provider)
-		}
-		if model == "" {
-			return fmt.Errorf("html_edit: model is required when provider is %q", provider)
-		}
-		client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
-			APIKey:  config.APIKey,
-			BaseURL: config.BaseURL,
-		})
-		if err != nil {
-			return fmt.Errorf("html_edit: failed to create LLM client: %w", err)
-		}
-		writeLLM = client
+	writeLLM, err := llmClientForTools([]string{"html_edit", "miniapp_html"}, config, provider, model)
+	if err != nil {
+		return err
 	}
 	r.static["html_edit"] = builtin.NewHTMLEdit(writeLLM)
 	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{
 		// Reserved for future config.
 	})
 	r.static["douyin_hot"] = builtin.NewDouyinHot()
-	miniappLLM := writeLLM
-	if provider != "" && provider != "mock" {
-		if config.LLMFactory == nil {
-			return fmt.Errorf("miniapp_html: LLMFactory is required when provider is %q", provider)
-		}
-		if model == "" {
-			return fmt.Errorf("miniapp_html: model is required when provider is %q", provider)
-		}
-		client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
-			APIKey:  config.APIKey,
-			BaseURL: config.BaseURL,
-		})
-		if err != nil {
-			return fmt.Errorf("miniapp_html: failed to create LLM client: %w", err)
-		}
-		miniappLLM = client
-	}
-	r.static["miniapp_html"] = builtin.NewMiniAppHTMLWithLLM(miniappLLM)
+	r.static["miniapp_html"] = builtin.NewMiniAppHTMLWithLLM(writeLLM)
 
 	// Document generation
 	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
