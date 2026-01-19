@@ -572,7 +572,11 @@ func (m *bubbleChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaE
 				continue
 			}
 			rendered := m.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
-			m.appendAgentRaw(rendered)
+			if chunk.completeLine {
+				m.appendAgentRaw(rendered)
+			} else {
+				emitTypewriter(rendered, m.appendAgentRaw)
+			}
 			m.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
 		}
 	}
