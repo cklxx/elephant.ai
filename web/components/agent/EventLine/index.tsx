@@ -237,10 +237,7 @@ export const EventLine = React.memo(function EventLine({
     const isStreaming = !streamFinished;
     return wrapWithSubagentContext(
       <div
-        className={cn(
-          "py-2",
-          !isNested && "pl-4 border-l-2 border-primary/10",
-        )}
+        className={cn("py-2", !isNested && "pl-4 border-l-2 border-primary/10")}
         data-testid="event-workflow.node.output.delta"
       >
         <AgentMarkdown
@@ -338,7 +335,7 @@ function PlanGoalCard({
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
-        <AlexWordmark className="ml-0.5 text-muted-foreground/60" />
+        <AlexWordmark className="ml-1 text-muted-foreground/60" />
       </div>
       <AgentMarkdown
         content={goal}
