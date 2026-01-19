@@ -39,6 +39,12 @@ export default defineConfig({
         statements: 80,
       },
     },
+    // Ignore happy-dom AbortError noise emitted during teardown.
+    onUnhandledError(error) {
+      if (error?.name === 'AbortError' || String(error?.message).includes('AbortError')) {
+        return false;
+      }
+    },
   },
   resolve: {
     alias: {
