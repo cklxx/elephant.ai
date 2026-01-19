@@ -1102,36 +1102,6 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 	normalized := normalizeAttachmentMap(attachments)
 	mutations := normalizeAttachmentMutations(metadata)
 
-	if normalized != nil {
-		normalized = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: normalized,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-	}
-
-	if mutations != nil {
-		mutations.replace = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: mutations.replace,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-		mutations.add = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: mutations.add,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-		mutations.update = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: mutations.update,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-	}
-
 	var existing map[string]ports.Attachment
 	if state != nil {
 		if attachmentsMu != nil {
@@ -1246,24 +1216,10 @@ func parseImportantNoteMap(raw map[string]any, clock ports.Clock) ports.Importan
 }
 
 func (e *ReactEngine) normalizeMessageHistoryAttachments(ctx context.Context, state *TaskState) {
-	if state == nil {
-		return
-	}
-	for idx := range state.Messages {
-		msg := state.Messages[idx]
-		if len(msg.Attachments) == 0 {
-			continue
-		}
-		normalized := e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, msg.ToolCallID),
-			Attachments: msg.Attachments,
-			Status:      messageMaterialStatus(msg),
-			Origin:      messageMaterialOrigin(msg),
-		})
-		if normalized != nil {
-			state.Messages[idx].Attachments = normalized
-		}
-	}
+	_ = ctx
+	_ = state
+	// Intentionally no-op: internal attachments remain inline for agent/tool/LLM flow.
+	// Externalization happens at HTTP/SSE boundaries only.
 }
 
 func (e *ReactEngine) materialRequestContext(state *TaskState, toolCallID string) *materialapi.RequestContext {
