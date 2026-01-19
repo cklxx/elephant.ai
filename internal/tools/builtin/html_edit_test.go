@@ -3,7 +3,10 @@ package builtin
 import (
 	"context"
 	"encoding/base64"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -77,6 +80,49 @@ func TestHTMLEditViewFromAttachment(t *testing.T) {
 	}
 	if strings.TrimSpace(result.Content) != html {
 		t.Fatalf("expected raw HTML content")
+	}
+}
+
+func TestHTMLEditPrefersInlineHTMLOverURI(t *testing.T) {
+	var hits int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<!DOCTYPE html><html><body>REMOTE</body></html>"))
+	}))
+	defer server.Close()
+
+	tool := NewHTMLEdit(nil)
+	html := "<!DOCTYPE html><html><head><title>Demo</title></head><body>INLINE</body></html>"
+	encoded := base64.StdEncoding.EncodeToString([]byte(html))
+	attachments := map[string]ports.Attachment{
+		"demo.html": {
+			Name:      "demo.html",
+			MediaType: "text/html",
+			Data:      encoded,
+			URI:       server.URL,
+		},
+	}
+	ctx := ports.WithAttachmentContext(context.Background(), attachments, nil)
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-3",
+		Arguments: map[string]any{
+			"action": "view",
+			"name":   "demo.html",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+	if strings.TrimSpace(result.Content) != html {
+		t.Fatalf("expected inline HTML content")
+	}
+	if atomic.LoadInt32(&hits) != 0 {
+		t.Fatalf("expected inline payload to avoid HTTP fetch")
 	}
 }
 
