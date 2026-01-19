@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Keep attachments inline for LLM/agent/tool flows and only externalize to CDN at the HTTP/SSE boundary, fixing miniapp_html → html_edit using CDN.
+**Goal:** Keep attachments inline for LLM/agent/tool flows and only externalize to CDN at the HTTP/SSE boundary, avoiding unnecessary CDN fetches for HTML artifacts.
 
 **Architecture:** Remove attachment migrator usage from the agent domain so internal attachment state remains inline. Preserve SSE boundary normalization (attachment store + CDN URLs) for client delivery. Ensure attachment placeholder replacement and LLM-facing catalog remain unchanged.
 
