@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -534,6 +535,87 @@ func TestOpenAIResponsesClientUsesFlatToolsForResponses(t *testing.T) {
 	}
 	if _, ok := gotTool["function"]; ok {
 		t.Fatalf("expected responses tool to omit function wrapper")
+	}
+}
+
+func TestOpenAIResponsesClientSetsInstructionsForCodex(t *testing.T) {
+	t.Parallel()
+
+	var gotInstructions string
+	var sawSystemRole bool
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Path; got != "/backend-api/codex/responses" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+
+		instructions, ok := payload["instructions"].(string)
+		if !ok {
+			t.Fatalf("expected instructions string, got %#v", payload["instructions"])
+		}
+		gotInstructions = instructions
+
+		input, ok := payload["input"].([]any)
+		if !ok {
+			t.Fatalf("expected input list, got %#v", payload["input"])
+		}
+		for _, item := range input {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if entry["role"] == "system" || entry["role"] == "developer" {
+				sawSystemRole = true
+			}
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "system", Content: "system instructions"},
+			{Role: "user", Content: "hi"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if strings.TrimSpace(gotInstructions) != "system instructions" {
+		t.Fatalf("unexpected instructions: %q", gotInstructions)
+	}
+	if sawSystemRole {
+		t.Fatalf("expected system/developer roles to be omitted from codex input")
 	}
 }
 

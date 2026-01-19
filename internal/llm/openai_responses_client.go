@@ -66,7 +66,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 
-	input := c.buildResponsesInput(req.Messages)
+	input, instructions := c.buildResponsesInputAndInstructions(req.Messages)
 	payload := map[string]any{
 		"model":       c.model,
 		"input":       input,
@@ -75,6 +75,13 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
 		payload["max_output_tokens"] = req.MaxTokens
+	}
+	// Codex responses require instructions; opencode sets SystemPrompt.instructions() for codex.
+	// Sources:
+	// - packages/opencode/src/session/llm.ts (isCodex -> options.instructions)
+	// - packages/opencode/src/session/system.ts (SystemPrompt.instructions)
+	if c.isCodexEndpoint() {
+		payload["instructions"] = instructions
 	}
 	payload["store"] = false
 
@@ -233,7 +240,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 
-	input := c.buildResponsesInput(req.Messages)
+	input, instructions := c.buildResponsesInputAndInstructions(req.Messages)
 	payload := map[string]any{
 		"model":  c.model,
 		"input":  input,
@@ -245,6 +252,13 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
 		payload["max_output_tokens"] = req.MaxTokens
+	}
+	// Codex responses require instructions; opencode sets SystemPrompt.instructions() for codex.
+	// Sources:
+	// - packages/opencode/src/session/llm.ts (isCodex -> options.instructions)
+	// - packages/opencode/src/session/system.ts (SystemPrompt.instructions)
+	if c.isCodexEndpoint() {
+		payload["instructions"] = instructions
 	}
 	if len(req.Tools) > 0 {
 		payload["tools"] = convertCodexTools(req.Tools)
@@ -467,8 +481,10 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 // Source: opencode dev branch
 // - packages/opencode/src/provider/sdk/openai-compatible/src/responses/openai-responses-api-types.ts
 // - packages/opencode/src/provider/sdk/openai-compatible/src/responses/convert-to-openai-responses-input.ts
-func (c *openAIResponsesClient) buildResponsesInput(msgs []ports.Message) []map[string]any {
+func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.Message) ([]map[string]any, string) {
 	items := make([]map[string]any, 0, len(msgs))
+	var instructionsParts []string
+	collectInstructions := c.isCodexEndpoint()
 	for _, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
@@ -477,6 +493,10 @@ func (c *openAIResponsesClient) buildResponsesInput(msgs []ports.Message) []map[
 		switch role {
 		case "system", "developer":
 			if strings.TrimSpace(msg.Content) == "" {
+				continue
+			}
+			if collectInstructions {
+				instructionsParts = append(instructionsParts, msg.Content)
 				continue
 			}
 			items = append(items, map[string]any{
@@ -534,7 +554,7 @@ func (c *openAIResponsesClient) buildResponsesInput(msgs []ports.Message) []map[
 			})
 		}
 	}
-	return items
+	return items, strings.Join(instructionsParts, "\n\n")
 }
 
 func buildResponsesUserContent(msg ports.Message, embedAttachments bool) []map[string]any {
