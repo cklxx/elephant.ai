@@ -4,23 +4,32 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 const (
 	codexCLIBaseURL        = "https://chatgpt.com/backend-api/codex"
 	antigravityDefaultBase = "https://cloudcode-pa.googleapis.com"
+	// From proxycast antigravity.rs (Antigravity CLI OAuth client) + Google OAuth token endpoint.
+	antigravityOAuthTokenURL     = "https://oauth2.googleapis.com/token"
+	antigravityOAuthClientID     = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
+	antigravityOAuthClientSecret = "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"
+	antigravityOAuthRefreshSkew  = 5 * time.Minute
 )
 
 type CLICredential struct {
-	Provider string
-	APIKey   string
+	Provider  string
+	APIKey    string
 	AccountID string
-	BaseURL  string
-	Model    string
-	Source   ValueSource
+	BaseURL   string
+	Model     string
+	Source    ValueSource
 }
 
 type CLICredentials struct {
@@ -84,6 +93,12 @@ type geminiOAuthFile struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiryDate   int64  `json:"expiry_date"`
+	ExpiresIn    int64  `json:"expires_in"`
+	Timestamp    int64  `json:"timestamp"`
+	Expire       string `json:"expire"`
+	TokenURI     string `json:"token_uri"`
+	ClientID     string `json:"client_id"`
+	ClientSecret string `json:"client_secret"`
 	TokenType    string `json:"token_type"`
 	Scope        string `json:"scope"`
 }
@@ -110,12 +125,12 @@ func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) CLICre
 	model := strings.TrimSpace(loadCodexCLIModel(readFile, home))
 
 	return CLICredential{
-		Provider: "codex",
-		APIKey:   token,
+		Provider:  "codex",
+		APIKey:    token,
 		AccountID: accountID,
-		BaseURL:  codexCLIBaseURL,
-		Model:    model,
-		Source:   SourceCodexCLI,
+		BaseURL:   codexCLIBaseURL,
+		Model:     model,
+		Source:    SourceCodexCLI,
 	}
 }
 
@@ -246,26 +261,193 @@ func loadAntigravityGeminiOAuth(readFile func(string) ([]byte, error), home stri
 	if readFile == nil || home == "" {
 		return CLICredential{}
 	}
-	data, err := readFile(filepath.Join(home, ".gemini", "oauth_creds.json"))
-	if err != nil {
-		return CLICredential{}
-	}
+	now := time.Now()
+	for _, path := range antigravityOAuthPaths(home) {
+		data, err := readFile(path)
+		if err != nil {
+			continue
+		}
+		payload, ok := parseAntigravityOAuthFile(data)
+		if !ok {
+			continue
+		}
 
+		token := strings.TrimSpace(payload.AccessToken)
+		needsRefresh, expired := antigravityOAuthNeedsRefresh(payload, now)
+		if needsRefresh && strings.TrimSpace(payload.RefreshToken) != "" {
+			refreshed, err := refreshAntigravityOAuth(payload)
+			if err == nil {
+				payload = refreshed
+				token = strings.TrimSpace(payload.AccessToken)
+				_ = writeAntigravityOAuthFile(path, payload)
+			} else if expired {
+				continue
+			}
+		} else if expired {
+			continue
+		}
+
+		if token == "" {
+			continue
+		}
+
+		return CLICredential{
+			Provider: "antigravity",
+			APIKey:   token,
+			BaseURL:  antigravityDefaultBase,
+			Source:   SourceAntigravityCLI,
+		}
+	}
+	return CLICredential{}
+}
+
+func antigravityOAuthPaths(home string) []string {
+	if home == "" {
+		return nil
+	}
+	return []string{
+		filepath.Join(home, ".antigravity", "oauth_creds.json"),
+		filepath.Join(home, ".gemini", "oauth_creds.json"),
+	}
+}
+
+func parseAntigravityOAuthFile(data []byte) (geminiOAuthFile, bool) {
 	var payload geminiOAuthFile
-	if err := json.Unmarshal(data, &payload); err != nil {
-		return CLICredential{}
+	if err := json.Unmarshal(data, &payload); err == nil {
+		if strings.TrimSpace(payload.AccessToken) != "" || strings.TrimSpace(payload.RefreshToken) != "" {
+			return payload, true
+		}
 	}
-	token := strings.TrimSpace(payload.AccessToken)
-	if token == "" {
-		return CLICredential{}
+	var list []geminiOAuthFile
+	if err := json.Unmarshal(data, &list); err != nil {
+		return geminiOAuthFile{}, false
+	}
+	for _, item := range list {
+		if strings.TrimSpace(item.AccessToken) != "" || strings.TrimSpace(item.RefreshToken) != "" {
+			return item, true
+		}
+	}
+	return geminiOAuthFile{}, false
+}
+
+func antigravityOAuthNeedsRefresh(payload geminiOAuthFile, now time.Time) (bool, bool) {
+	expiry, ok := antigravityOAuthExpiry(payload)
+	if !ok {
+		return false, false
+	}
+	if expiry.Before(now) {
+		return true, true
+	}
+	if expiry.Before(now.Add(antigravityOAuthRefreshSkew)) {
+		return true, false
+	}
+	return false, false
+}
+
+func antigravityOAuthExpiry(payload geminiOAuthFile) (time.Time, bool) {
+	if strings.TrimSpace(payload.Expire) != "" {
+		if parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(payload.Expire)); err == nil {
+			return parsed, true
+		}
+	}
+	if payload.ExpiryDate > 0 {
+		return time.UnixMilli(payload.ExpiryDate), true
+	}
+	if payload.Timestamp > 0 && payload.ExpiresIn > 0 {
+		return time.UnixMilli(payload.Timestamp).Add(time.Duration(payload.ExpiresIn) * time.Second), true
+	}
+	return time.Time{}, false
+}
+
+func refreshAntigravityOAuth(payload geminiOAuthFile) (geminiOAuthFile, error) {
+	refreshToken := strings.TrimSpace(payload.RefreshToken)
+	if refreshToken == "" {
+		return geminiOAuthFile{}, io.ErrUnexpectedEOF
 	}
 
-	return CLICredential{
-		Provider: "antigravity",
-		APIKey:   token,
-		BaseURL:  antigravityDefaultBase,
-		Source:   SourceAntigravityCLI,
+	tokenURL := strings.TrimSpace(payload.TokenURI)
+	if tokenURL == "" {
+		tokenURL = antigravityOAuthTokenURL
 	}
+
+	clientID := strings.TrimSpace(payload.ClientID)
+	if clientID == "" {
+		clientID = antigravityOAuthClientID
+	}
+
+	clientSecret := strings.TrimSpace(payload.ClientSecret)
+	if clientSecret == "" {
+		clientSecret = antigravityOAuthClientSecret
+	}
+
+	form := url.Values{}
+	form.Set("client_id", clientID)
+	form.Set("client_secret", clientSecret)
+	form.Set("refresh_token", refreshToken)
+	form.Set("grant_type", "refresh_token")
+
+	req, err := http.NewRequest(http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return geminiOAuthFile{}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return geminiOAuthFile{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return geminiOAuthFile{}, io.ErrUnexpectedEOF
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return geminiOAuthFile{}, err
+	}
+	var refreshed struct {
+		AccessToken  string `json:"access_token"`
+		ExpiresIn    int64  `json:"expires_in"`
+		RefreshToken string `json:"refresh_token"`
+		TokenType    string `json:"token_type"`
+	}
+	if err := json.Unmarshal(body, &refreshed); err != nil {
+		return geminiOAuthFile{}, err
+	}
+	if strings.TrimSpace(refreshed.AccessToken) == "" {
+		return geminiOAuthFile{}, io.ErrUnexpectedEOF
+	}
+
+	updated := payload
+	updated.AccessToken = strings.TrimSpace(refreshed.AccessToken)
+	if strings.TrimSpace(refreshed.RefreshToken) != "" {
+		updated.RefreshToken = strings.TrimSpace(refreshed.RefreshToken)
+	}
+	if refreshed.ExpiresIn > 0 {
+		now := time.Now()
+		updated.ExpiresIn = refreshed.ExpiresIn
+		updated.Timestamp = now.UnixMilli()
+		updated.ExpiryDate = now.Add(time.Duration(refreshed.ExpiresIn) * time.Second).UnixMilli()
+		updated.Expire = now.Add(time.Duration(refreshed.ExpiresIn) * time.Second).Format(time.RFC3339)
+	}
+	if strings.TrimSpace(refreshed.TokenType) != "" {
+		updated.TokenType = strings.TrimSpace(refreshed.TokenType)
+	}
+
+	return updated, nil
+}
+
+func writeAntigravityOAuthFile(path string, payload geminiOAuthFile) error {
+	if path == "" {
+		return io.ErrUnexpectedEOF
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
 }
 
 func antigravityCLIAuthPaths(envLookup EnvLookup, home string) []string {
