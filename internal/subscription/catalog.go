@@ -216,6 +216,9 @@ type fetchTarget struct {
 }
 
 func fetchProviderModels(ctx context.Context, client *http.Client, target fetchTarget) ([]string, error) {
+	if target.provider == "antigravity" {
+		return fetchAntigravityModels(ctx, client, target)
+	}
 	endpoint := strings.TrimRight(target.baseURL, "/") + "/models"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -253,6 +256,70 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target fetchT
 	}
 
 	return parseModelList(body)
+}
+
+func fetchAntigravityModels(ctx context.Context, client *http.Client, target fetchTarget) ([]string, error) {
+	endpoint := strings.TrimRight(target.baseURL, "/") + "/v1internal:fetchAvailableModels"
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(`{}`))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	if target.apiKey != "" {
+		req.Header.Set("Authorization", "Bearer "+target.apiKey)
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("model list request failed: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseAntigravityModels(body)
+}
+
+func parseAntigravityModels(raw []byte) ([]string, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+
+	models := map[string]struct{}{}
+	if obj, ok := payload["models"].(map[string]any); ok {
+		for name := range obj {
+			if strings.TrimSpace(name) != "" {
+				models[name] = struct{}{}
+			}
+		}
+	}
+	if len(models) == 0 {
+		if resp, ok := payload["response"].(map[string]any); ok {
+			if obj, ok := resp["models"].(map[string]any); ok {
+				for name := range obj {
+					if strings.TrimSpace(name) != "" {
+						models[name] = struct{}{}
+					}
+				}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(models))
+	for name := range models {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 func isAnthropicOAuthToken(token string) bool {

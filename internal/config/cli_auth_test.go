@@ -37,3 +37,28 @@ func TestLoadCLICredentialsReadsCodexAuth(t *testing.T) {
 		t.Fatalf("expected codex model, got %q", creds.Codex.Model)
 	}
 }
+
+func TestLoadCLICredentialsReadsGeminiOAuthForAntigravity(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	geminiDir := filepath.Join(tmp, ".gemini")
+	if err := os.MkdirAll(geminiDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	oauth := `{"access_token":"ag-access","refresh_token":"ag-refresh","expiry_date":123}`
+	if err := os.WriteFile(filepath.Join(geminiDir, "oauth_creds.json"), []byte(oauth), 0o600); err != nil {
+		t.Fatalf("write oauth: %v", err)
+	}
+
+	creds := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	if creds.Antigravity.APIKey != "ag-access" {
+		t.Fatalf("expected antigravity api key, got %q", creds.Antigravity.APIKey)
+	}
+	if creds.Antigravity.BaseURL != "https://cloudcode-pa.googleapis.com" {
+		t.Fatalf("expected antigravity base url, got %q", creds.Antigravity.BaseURL)
+	}
+}

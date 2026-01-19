@@ -75,6 +75,7 @@ Optional screenshot capture returns a PNG attachment. Prefer action logs and the
 				"actions": {
 					Type:        "array",
 					Description: "Ordered list of sandbox browser actions to execute.",
+					Items:       &ports.Property{Type: "object"},
 				},
 				"capture_screenshot": {
 					Type:        "boolean",

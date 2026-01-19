@@ -80,6 +80,39 @@ func TestFetchProviderModelsUsesAnthropicOAuthHeaders(t *testing.T) {
 	}
 }
 
+func TestFetchProviderModelsUsesAntigravityEndpoint(t *testing.T) {
+	var gotMethod, gotPath, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"models":{"gemini-3-pro-high":{},"nanobanana-pro":{}}}`))
+	}))
+	defer srv.Close()
+
+	models, err := fetchProviderModels(context.Background(), srv.Client(), fetchTarget{
+		provider: "antigravity",
+		baseURL:  srv.URL,
+		apiKey:   "tok-abc",
+	})
+	if err != nil {
+		t.Fatalf("fetch error: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Fatalf("expected POST, got %q", gotMethod)
+	}
+	if gotPath != "/v1internal:fetchAvailableModels" {
+		t.Fatalf("expected antigravity endpoint, got %q", gotPath)
+	}
+	if gotAuth != "Bearer tok-abc" {
+		t.Fatalf("expected bearer auth, got %q", gotAuth)
+	}
+	if len(models) != 2 {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

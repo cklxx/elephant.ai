@@ -58,3 +58,20 @@ func convertTools(tools []ports.ToolDefinition) []map[string]any {
 	}
 	return result
 }
+
+func convertCodexTools(tools []ports.ToolDefinition) []map[string]any {
+	result := make([]map[string]any, 0, len(tools))
+	for _, tool := range tools {
+		if !isValidToolName(tool.Name) {
+			continue
+		}
+		entry := map[string]any{
+			"type":        "function",
+			"name":        tool.Name,
+			"description": tool.Description,
+			"parameters":  tool.Parameters,
+		}
+		result = append(result, entry)
+	}
+	return result
+}

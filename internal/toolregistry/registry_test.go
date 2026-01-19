@@ -148,3 +148,88 @@ func TestMiniAppHTMLUsesConfiguredLLM(t *testing.T) {
 		t.Fatalf("expected factory to be called with provider/model, got %q/%q", factory.provider, factory.model)
 	}
 }
+
+func TestToolDefinitionsArrayItems(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	defs := registry.List()
+	for _, def := range defs {
+		for name, prop := range def.Parameters.Properties {
+			if prop.Type != "array" {
+				continue
+			}
+			if prop.Items == nil {
+				t.Fatalf("tool %s property %s missing items schema", def.Name, name)
+			}
+		}
+	}
+}
+
+func TestToolDefinitionsArrayItemsIncludesOptionalTools(t *testing.T) {
+	registry, err := NewRegistry(Config{
+		MemoryService:       newTestMemoryService(),
+		SeedreamVisionModel: "seedream-vision",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	registry.RegisterSubAgent(stubCoordinator{})
+
+	defs := registry.List()
+	for _, def := range defs {
+		for name, prop := range def.Parameters.Properties {
+			if prop.Type != "array" {
+				continue
+			}
+			if prop.Items == nil {
+				t.Fatalf("tool %s property %s missing items schema", def.Name, name)
+			}
+		}
+	}
+}
+
+type stubCoordinator struct{}
+
+func (stubCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+	return nil
+}
+
+func (stubCoordinator) ListSessions(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) GetConfig() ports.AgentConfig {
+	return ports.AgentConfig{}
+}
+
+func (stubCoordinator) GetLLMClient() (ports.LLMClient, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
+	return nil
+}
+
+func (stubCoordinator) GetParser() ports.FunctionCallParser {
+	return nil
+}
+
+func (stubCoordinator) GetContextManager() ports.ContextManager {
+	return nil
+}
+
+func (stubCoordinator) GetSystemPrompt() string {
+	return ""
+}

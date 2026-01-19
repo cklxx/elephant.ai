@@ -66,7 +66,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 
-	input, instructions := c.convertMessages(req.Messages)
+	input := c.buildResponsesInput(req.Messages)
 	payload := map[string]any{
 		"model":       c.model,
 		"input":       input,
@@ -76,13 +76,10 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
 		payload["max_output_tokens"] = req.MaxTokens
 	}
-	if instructions != "" {
-		payload["instructions"] = instructions
-	}
 	payload["store"] = false
 
 	if len(req.Tools) > 0 {
-		payload["tools"] = convertTools(req.Tools)
+		payload["tools"] = convertCodexTools(req.Tools)
 		payload["tool_choice"] = "auto"
 	}
 
@@ -236,22 +233,21 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 
-	input, instructions := c.convertMessages(req.Messages)
+	input := c.buildResponsesInput(req.Messages)
 	payload := map[string]any{
-		"model":       c.model,
-		"input":       input,
-		"temperature": req.Temperature,
-		"stream":      true,
-		"store":       false,
+		"model":  c.model,
+		"input":  input,
+		"stream": true,
+		"store":  false,
+	}
+	if !c.isCodexEndpoint() {
+		payload["temperature"] = req.Temperature
 	}
 	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
 		payload["max_output_tokens"] = req.MaxTokens
 	}
-	if instructions != "" {
-		payload["instructions"] = instructions
-	}
 	if len(req.Tools) > 0 {
-		payload["tools"] = convertTools(req.Tools)
+		payload["tools"] = convertCodexTools(req.Tools)
 		payload["tool_choice"] = "auto"
 	}
 	if len(req.StopSequences) > 0 {
@@ -467,43 +463,94 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	return result, nil
 }
 
-func (c *openAIResponsesClient) convertMessages(msgs []ports.Message) ([]map[string]any, string) {
-	result := make([]map[string]any, 0, len(msgs))
-	var instructionsParts []string
+// Responses input item shapes follow OpenAI Responses API.
+// Source: opencode dev branch
+// - packages/opencode/src/provider/sdk/openai-compatible/src/responses/openai-responses-api-types.ts
+// - packages/opencode/src/provider/sdk/openai-compatible/src/responses/convert-to-openai-responses-input.ts
+func (c *openAIResponsesClient) buildResponsesInput(msgs []ports.Message) []map[string]any {
+	items := make([]map[string]any, 0, len(msgs))
 	for _, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
 		}
 		role := strings.ToLower(strings.TrimSpace(msg.Role))
-		if role == "system" {
-			if strings.TrimSpace(msg.Content) != "" {
-				instructionsParts = append(instructionsParts, msg.Content)
+		switch role {
+		case "system", "developer":
+			if strings.TrimSpace(msg.Content) == "" {
+				continue
 			}
-			continue
+			items = append(items, map[string]any{
+				"role":    role,
+				"content": msg.Content,
+			})
+		case "user":
+			parts := buildResponsesUserContent(msg, shouldEmbedAttachmentsInContent(msg))
+			if len(parts) == 0 {
+				continue
+			}
+			items = append(items, map[string]any{
+				"role":    "user",
+				"content": parts,
+			})
+		case "assistant":
+			if strings.TrimSpace(msg.Content) != "" {
+				items = append(items, map[string]any{
+					"role": "assistant",
+					"content": []map[string]any{
+						{"type": "output_text", "text": msg.Content},
+					},
+				})
+			}
+			for _, call := range msg.ToolCalls {
+				if !isValidToolName(call.Name) {
+					continue
+				}
+				callID := strings.TrimSpace(call.ID)
+				if callID == "" {
+					continue
+				}
+				args := "{}"
+				if len(call.Arguments) > 0 {
+					if data, err := json.Marshal(call.Arguments); err == nil {
+						args = string(data)
+					}
+				}
+				items = append(items, map[string]any{
+					"type":      "function_call",
+					"call_id":   callID,
+					"name":      call.Name,
+					"arguments": args,
+				})
+			}
+		case "tool":
+			callID := strings.TrimSpace(msg.ToolCallID)
+			if callID == "" {
+				continue
+			}
+			items = append(items, map[string]any{
+				"type":    "function_call_output",
+				"call_id": callID,
+				"output":  msg.Content,
+			})
 		}
-		entry := map[string]any{"role": msg.Role}
-		entry["content"] = buildResponsesMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
-		if msg.ToolCallID != "" {
-			entry["tool_call_id"] = msg.ToolCallID
-		}
-		if len(msg.ToolCalls) > 0 {
-			entry["tool_calls"] = buildToolCallHistory(msg.ToolCalls)
-		}
-		result = append(result, entry)
 	}
-	return result, strings.Join(instructionsParts, "\n\n")
+	return items
 }
 
-func buildResponsesMessageContent(msg ports.Message, embedAttachments bool) any {
+func buildResponsesUserContent(msg ports.Message, embedAttachments bool) []map[string]any {
 	if len(msg.Attachments) == 0 || !embedAttachments {
-		return msg.Content
+		if msg.Content == "" {
+			return nil
+		}
+		return []map[string]any{
+			{"type": "input_text", "text": msg.Content},
+		}
 	}
 
 	index := buildAttachmentIndex(msg.Attachments)
 
 	var parts []map[string]any
 	used := make(map[string]bool)
-	hasImage := false
 
 	appendText := func(text string) {
 		if text == "" {
@@ -519,12 +566,9 @@ func buildResponsesMessageContent(msg ports.Message, embedAttachments bool) any 
 		if url == "" {
 			return
 		}
-		hasImage = true
 		parts = append(parts, map[string]any{
 			"type": "input_image",
-			"image_url": map[string]any{
-				"url": url,
-			},
+			"image_url": url,
 		})
 	}
 
@@ -568,10 +612,6 @@ func buildResponsesMessageContent(msg ports.Message, embedAttachments bool) any 
 			appendImage(url)
 			used[key] = true
 		}
-	}
-
-	if !hasImage {
-		return msg.Content
 	}
 
 	return parts

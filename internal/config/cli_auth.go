@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-const codexCLIBaseURL = "https://chatgpt.com/backend-api/codex"
+const (
+	codexCLIBaseURL        = "https://chatgpt.com/backend-api/codex"
+	antigravityDefaultBase = "https://cloudcode-pa.googleapis.com"
+)
 
 type CLICredential struct {
 	Provider string
@@ -75,6 +78,14 @@ type codexAuthFile struct {
 		AccessToken string `json:"access_token"`
 		AccountID   string `json:"account_id"`
 	} `json:"tokens"`
+}
+
+type geminiOAuthFile struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiryDate   int64  `json:"expiry_date"`
+	TokenType    string `json:"token_type"`
+	Scope        string `json:"scope"`
 }
 
 func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) CLICredential {
@@ -208,6 +219,9 @@ func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, 
 	if readFile == nil {
 		return CLICredential{}
 	}
+	if cred := loadAntigravityGeminiOAuth(readFile, home); cred.APIKey != "" {
+		return cred
+	}
 	for _, path := range antigravityCLIAuthPaths(envLookup, home) {
 		data, err := readFile(path)
 		if err != nil {
@@ -226,6 +240,32 @@ func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, 
 		}
 	}
 	return CLICredential{}
+}
+
+func loadAntigravityGeminiOAuth(readFile func(string) ([]byte, error), home string) CLICredential {
+	if readFile == nil || home == "" {
+		return CLICredential{}
+	}
+	data, err := readFile(filepath.Join(home, ".gemini", "oauth_creds.json"))
+	if err != nil {
+		return CLICredential{}
+	}
+
+	var payload geminiOAuthFile
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return CLICredential{}
+	}
+	token := strings.TrimSpace(payload.AccessToken)
+	if token == "" {
+		return CLICredential{}
+	}
+
+	return CLICredential{
+		Provider: "antigravity",
+		APIKey:   token,
+		BaseURL:  antigravityDefaultBase,
+		Source:   SourceAntigravityCLI,
+	}
 }
 
 func antigravityCLIAuthPaths(envLookup EnvLookup, home string) []string {

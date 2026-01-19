@@ -70,6 +70,7 @@ func (t *pptxFromImages) Definition() ports.ToolDefinition {
 				"images": {
 					Type:        "array",
 					Description: "Ordered list of images (data URI, HTTPS URL, base64 string, or prior attachment placeholder such as `[slide.png]`).",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"output_name": {
 					Type:        "string",

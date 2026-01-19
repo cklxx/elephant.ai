@@ -98,11 +98,10 @@ func TestOpenAIResponsesClientCompleteSuccess(t *testing.T) {
 	}
 }
 
-func TestOpenAIResponsesClientIncludesInstructionsFromSystem(t *testing.T) {
+func TestOpenAIResponsesClientOmitsInstructionsField(t *testing.T) {
 	t.Parallel()
 
-	var gotInstructions string
-	var gotInput []any
+	var hasInstructions bool
 
 	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]any
@@ -110,11 +109,60 @@ func TestOpenAIResponsesClientIncludesInstructionsFromSystem(t *testing.T) {
 			t.Fatalf("decode request: %v", err)
 		}
 
-		instructions, ok := payload["instructions"].(string)
-		if !ok {
-			t.Fatalf("expected instructions string, got %#v", payload["instructions"])
+		if _, ok := payload["instructions"]; ok {
+			hasInstructions = true
 		}
-		gotInstructions = instructions
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"id":     "resp-1",
+			"status": "completed",
+			"output": []any{},
+			"usage": map[string]any{
+				"input_tokens":  1,
+				"output_tokens": 1,
+				"total_tokens":  2,
+			},
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "system", Content: "system instructions"},
+			{Role: "user", Content: "hi"},
+		},
+		MaxTokens: 64,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if hasInstructions {
+		t.Fatalf("expected instructions field to be omitted")
+	}
+}
+
+func TestOpenAIResponsesClientKeepsSystemMessageInInput(t *testing.T) {
+	t.Parallel()
+
+	var gotInput []any
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
 
 		input, ok := payload["input"].([]any)
 		if !ok {
@@ -157,18 +205,15 @@ func TestOpenAIResponsesClientIncludesInstructionsFromSystem(t *testing.T) {
 		t.Fatalf("Complete: %v", err)
 	}
 
-	if gotInstructions != "system instructions" {
-		t.Fatalf("unexpected instructions: %q", gotInstructions)
+	if len(gotInput) != 2 {
+		t.Fatalf("expected 2 input entries, got %d", len(gotInput))
 	}
-	if len(gotInput) != 1 {
-		t.Fatalf("expected 1 input entry, got %d", len(gotInput))
-	}
-	entry, ok := gotInput[0].(map[string]any)
+	first, ok := gotInput[0].(map[string]any)
 	if !ok {
 		t.Fatalf("expected input entry map, got %#v", gotInput[0])
 	}
-	if entry["role"] != "user" {
-		t.Fatalf("unexpected input role: %#v", entry["role"])
+	if first["role"] != "system" {
+		t.Fatalf("expected system role, got %#v", first["role"])
 	}
 }
 
@@ -274,6 +319,396 @@ func TestOpenAIResponsesClientOmitsMaxOutputTokensForCodex(t *testing.T) {
 
 	if hasMaxOutputTokens {
 		t.Fatalf("expected max_output_tokens to be omitted for codex")
+	}
+}
+
+func TestOpenAIResponsesClientOmitsTemperatureForCodex(t *testing.T) {
+	t.Parallel()
+
+	var hasTemperature bool
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Path; got != "/backend-api/codex/responses" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		_, hasTemperature = payload["temperature"]
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 16,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if hasTemperature {
+		t.Fatalf("expected temperature to be omitted for codex")
+	}
+}
+
+func TestOpenAIResponsesClientUsesFlatToolsForCodex(t *testing.T) {
+	t.Parallel()
+
+	var gotTool map[string]any
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Path; got != "/backend-api/codex/responses" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+
+		tools, ok := payload["tools"].([]any)
+		if !ok || len(tools) == 0 {
+			t.Fatalf("expected tools in payload")
+		}
+
+		tool, ok := tools[0].(map[string]any)
+		if !ok {
+			t.Fatalf("expected tool to be object")
+		}
+		gotTool = tool
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{{Role: "user", Content: "hi"}},
+		Tools: []ports.ToolDefinition{
+			{
+				Name:        "ping",
+				Description: "return pong",
+				Parameters: ports.ParameterSchema{
+					Type:       "object",
+					Properties: map[string]ports.Property{},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if _, ok := gotTool["name"]; !ok {
+		t.Fatalf("expected codex tool name at top-level")
+	}
+	if gotTool["type"] != "function" {
+		t.Fatalf("expected codex tool type function, got %v", gotTool["type"])
+	}
+	if _, ok := gotTool["function"]; ok {
+		t.Fatalf("expected codex tool to omit function wrapper")
+	}
+}
+
+func TestOpenAIResponsesClientUsesFlatToolsForResponses(t *testing.T) {
+	t.Parallel()
+
+	var gotTool map[string]any
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Path; got != "/responses" {
+			t.Fatalf("unexpected path: %s", got)
+		}
+
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+
+		tools, ok := payload["tools"].([]any)
+		if !ok || len(tools) == 0 {
+			t.Fatalf("expected tools in payload")
+		}
+
+		tool, ok := tools[0].(map[string]any)
+		if !ok {
+			t.Fatalf("expected tool to be object")
+		}
+		gotTool = tool
+
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"id":     "resp-1",
+			"status": "completed",
+			"output": []any{},
+			"usage": map[string]any{
+				"input_tokens":  1,
+				"output_tokens": 1,
+				"total_tokens":  2,
+			},
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{{Role: "user", Content: "hi"}},
+		Tools: []ports.ToolDefinition{
+			{
+				Name:        "ping",
+				Description: "return pong",
+				Parameters: ports.ParameterSchema{
+					Type:       "object",
+					Properties: map[string]ports.Property{},
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if _, ok := gotTool["name"]; !ok {
+		t.Fatalf("expected responses tool name at top-level")
+	}
+	if gotTool["type"] != "function" {
+		t.Fatalf("expected responses tool type function, got %v", gotTool["type"])
+	}
+	if _, ok := gotTool["function"]; ok {
+		t.Fatalf("expected responses tool to omit function wrapper")
+	}
+}
+
+func TestOpenAIResponsesClientOmitsToolCallsForCodex(t *testing.T) {
+	t.Parallel()
+
+	var sawToolCalls bool
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		input, ok := payload["input"].([]any)
+		if !ok {
+			t.Fatalf("expected input list, got %#v", payload["input"])
+		}
+		for _, item := range input {
+			entry, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			if _, ok := entry["tool_calls"]; ok {
+				sawToolCalls = true
+			}
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "user", Content: "hi"},
+			{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ports.ToolCall{
+					{
+						ID:   "call-1",
+						Name: "plan",
+						Arguments: map[string]any{
+							"foo": "bar",
+						},
+					},
+				},
+			},
+			{Role: "tool", Content: "ok", ToolCallID: "call-1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	if sawToolCalls {
+		t.Fatalf("expected tool_calls to be omitted for codex input messages")
+	}
+}
+
+func TestOpenAIResponsesClientConvertsToolMessagesToFunctionCallOutput(t *testing.T) {
+	t.Parallel()
+
+	var input []any
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		raw, ok := payload["input"].([]any)
+		if !ok {
+			t.Fatalf("expected input list, got %#v", payload["input"])
+		}
+		input = raw
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "user", Content: "hi"},
+			{
+				Role:    "assistant",
+				Content: "",
+				ToolCalls: []ports.ToolCall{
+					{
+						ID:   "call-1",
+						Name: "plan",
+						Arguments: map[string]any{
+							"foo": "bar",
+						},
+					},
+				},
+			},
+			{Role: "tool", Content: "ok", ToolCallID: "call-1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	var sawFunctionCall bool
+	var sawFunctionOutput bool
+	var sawToolRole bool
+	for _, item := range input {
+		entry, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if entry["role"] == "tool" {
+			sawToolRole = true
+		}
+		if entry["type"] == "function_call" {
+			sawFunctionCall = true
+		}
+		if entry["type"] == "function_call_output" {
+			sawFunctionOutput = true
+		}
+	}
+
+	if sawToolRole {
+		t.Fatalf("expected tool role to be omitted for responses input")
+	}
+	if !sawFunctionCall {
+		t.Fatalf("expected function_call input item")
+	}
+	if !sawFunctionOutput {
+		t.Fatalf("expected function_call_output input item")
 	}
 }
 
