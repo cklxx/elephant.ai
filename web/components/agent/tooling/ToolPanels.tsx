@@ -194,7 +194,10 @@ export function ToolResultPanel({
             </div>
           )}
           {mediaSegments.length > 0 && (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div
+              className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4"
+              data-testid="tool-result-media"
+            >
               {mediaSegments.map((segment, index) => {
                 if (!segment.attachment) {
                   return null;

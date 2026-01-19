@@ -105,7 +105,10 @@ export const EventLine = React.memo(function EventLine({
           )}
 
           {mediaSegments.length > 0 && (
-            <div className="w-full grid grid-cols-2 gap-2">
+            <div
+              className="w-full grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2"
+              data-testid="event-input-media"
+            >
               {mediaSegments.map((segment, index) => {
                 if (!segment.attachment) return null;
                 const uri = buildAttachmentUri(segment.attachment);

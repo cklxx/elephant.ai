@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
@@ -1069,21 +1068,6 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 	e.logger.Debug("Inserted system prompt into message history")
 }
 
-func (e *ReactEngine) normalizeAttachmentsWithMigrator(ctx context.Context, state *TaskState, req materialports.MigrationRequest) map[string]ports.Attachment {
-	if len(req.Attachments) == 0 || e.attachmentMigrator == nil {
-		return req.Attachments
-	}
-	if req.Context == nil {
-		req.Context = e.materialRequestContext(state, "")
-	}
-	normalized, err := e.attachmentMigrator.Normalize(ctx, req)
-	if err != nil {
-		e.logger.Warn("attachment migration failed: %v", err)
-		return req.Attachments
-	}
-	return normalized
-}
-
 type attachmentMutations struct {
 	replace map[string]ports.Attachment
 	add     map[string]ports.Attachment
@@ -1220,20 +1204,6 @@ func (e *ReactEngine) normalizeMessageHistoryAttachments(ctx context.Context, st
 	_ = state
 	// Intentionally no-op: internal attachments remain inline for agent/tool/LLM flow.
 	// Externalization happens at HTTP/SSE boundaries only.
-}
-
-func (e *ReactEngine) materialRequestContext(state *TaskState, toolCallID string) *materialapi.RequestContext {
-	if state == nil {
-		return nil
-	}
-	return &materialapi.RequestContext{
-		RequestID:      state.TaskID,
-		TaskID:         state.TaskID,
-		AgentIteration: uint32(state.Iterations),
-		ToolCallID:     toolCallID,
-		ConversationID: state.SessionID,
-		UserID:         state.SessionID,
-	}
 }
 
 const attachmentCatalogMetadataKey = "attachment_catalog"

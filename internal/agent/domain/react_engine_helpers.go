@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
 )
 
 // NewReactEngine creates a new ReAct engine with injected infrastructure dependencies.
@@ -761,42 +760,6 @@ func normalizeAttachmentMap(input map[string]ports.Attachment) map[string]ports.
 		return nil
 	}
 	return normalized
-}
-
-func messageMaterialStatus(msg Message) materialapi.MaterialStatus {
-	role := strings.ToLower(strings.TrimSpace(msg.Role))
-	switch role {
-	case "user":
-		return materialapi.MaterialStatusInput
-	case "assistant":
-		return materialapi.MaterialStatusFinal
-	case "tool":
-		return materialapi.MaterialStatusIntermediate
-	}
-	switch msg.Source {
-	case ports.MessageSourceUserInput, ports.MessageSourceUserHistory:
-		return materialapi.MaterialStatusInput
-	case ports.MessageSourceAssistantReply:
-		return materialapi.MaterialStatusFinal
-	case ports.MessageSourceToolResult:
-		return materialapi.MaterialStatusIntermediate
-	default:
-		return materialapi.MaterialStatusIntermediate
-	}
-}
-
-func messageMaterialOrigin(msg Message) string {
-	if msg.Source != "" {
-		return string(msg.Source)
-	}
-	if msg.ToolCallID != "" {
-		return msg.ToolCallID
-	}
-	role := strings.TrimSpace(msg.Role)
-	if role != "" {
-		return role
-	}
-	return "message_history"
 }
 
 // ensureAttachmentStore initializes the attachment map on the task state.

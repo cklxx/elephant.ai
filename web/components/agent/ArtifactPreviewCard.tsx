@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 
 const AUTO_PREFETCH_MARKDOWN_MAX_BYTES = 512 * 1024;
+const AUTO_PREFETCH_HTML_MAX_BYTES = 512 * 1024;
 const MARKDOWN_SNIPPET_MAX_CHARS = 1400;
 const HTML_EDITOR_MIN_HEIGHT = "min-h-[360px]";
 
@@ -104,9 +105,47 @@ function ensureViewportMeta(html: string): string {
   return `<!doctype html><html><head>${viewportTag}</head><body>${trimmed}</body></html>`;
 }
 
-function buildHtmlDataUri(html: string): string {
-  const normalized = ensureViewportMeta(html);
-  return `data:text/html;charset=utf-8,${encodeURIComponent(normalized)}`;
+function ensureBaseHref(html: string, baseHref: string | null): string {
+  if (!baseHref) return html;
+  const trimmed = html.trim();
+  if (!trimmed) return html;
+  if (/<base\b[^>]*>/i.test(trimmed)) {
+    return html;
+  }
+  const baseTag = `<base href="${baseHref}">`;
+  if (/<head\b[^>]*>/i.test(trimmed)) {
+    return trimmed.replace(
+      /<head\b[^>]*>/i,
+      (match) => `${match}\n  ${baseTag}`,
+    );
+  }
+  if (/<html\b[^>]*>/i.test(trimmed)) {
+    return trimmed.replace(
+      /<html\b[^>]*>/i,
+      (match) => `${match}\n<head>\n  ${baseTag}\n</head>`,
+    );
+  }
+  return `<head>${baseTag}</head>${trimmed}`;
+}
+
+function buildHtmlPreviewHtml(html: string, baseHref: string | null): string {
+  const withViewport = ensureViewportMeta(html);
+  return ensureBaseHref(withViewport, baseHref);
+}
+
+function buildHtmlPreviewUrl(
+  html: string,
+  baseHref: string | null,
+): { url: string; shouldRevoke: boolean } {
+  const normalized = buildHtmlPreviewHtml(html, baseHref);
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    return {
+      url: `data:text/html;charset=utf-8,${encodeURIComponent(normalized)}`,
+      shouldRevoke: false,
+    };
+  }
+  const blob = new Blob([normalized], { type: "text/html" });
+  return { url: URL.createObjectURL(blob), shouldRevoke: true };
 }
 
 function validateHtmlSource(html: string): HtmlValidationIssue[] {
@@ -229,6 +268,7 @@ export function ArtifactPreviewCard({
   const [htmlLoading, setHtmlLoading] = useState(false);
   const [htmlError, setHtmlError] = useState<string | null>(null);
   const [htmlView, setHtmlView] = useState<"preview" | "source">("preview");
+  const [htmlPreviewUrl, setHtmlPreviewUrl] = useState<string | null>(null);
 
   const {
     preferredUri: downloadUri,
@@ -277,6 +317,14 @@ export function ArtifactPreviewCard({
         }
       : undefined);
   const htmlSourceUri = htmlAsset?.cdn_url || downloadUri || originalUri;
+  const htmlPreviewBaseHref = useMemo(() => {
+    if (!htmlSourceUri) return null;
+    const trimmed = htmlSourceUri.trim();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+    return null;
+  }, [htmlSourceUri]);
   const previewImageUrl =
     imageAssets.find(
       (asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim(),
@@ -339,6 +387,26 @@ export function ArtifactPreviewCard({
 
     setPrefetchRequested(true);
   }, [attachment.size, isMarkdown, prefetchRequested]);
+
+  useEffect(() => {
+    if (!isHTML) return;
+    if (!showInlinePreview) return;
+    if (htmlPrefetchRequested) return;
+    if (!htmlSourceUri) return;
+
+    const size = typeof attachment.size === "number" ? attachment.size : null;
+    if (size && size > AUTO_PREFETCH_HTML_MAX_BYTES) {
+      return;
+    }
+
+    setHtmlPrefetchRequested(true);
+  }, [
+    attachment.size,
+    htmlPrefetchRequested,
+    htmlSourceUri,
+    isHTML,
+    showInlinePreview,
+  ]);
 
   // Effect to load markdown (for snippet + modal).
   useEffect(() => {
@@ -428,13 +496,24 @@ export function ArtifactPreviewCard({
       : htmlWarnings.length > 0
         ? "warning"
         : "ok";
-  const htmlPreviewUri = useMemo(() => {
-    if (htmlContent.trim().length > 0) {
-      return buildHtmlDataUri(htmlContent);
-    }
-    return htmlAsset?.cdn_url ?? null;
-  }, [htmlContent, htmlAsset?.cdn_url]);
   const isHtmlDirty = htmlDraft !== null && htmlDraft !== htmlBaseline;
+
+  useEffect(() => {
+    if (htmlContent.trim().length === 0) {
+      setHtmlPreviewUrl(null);
+      return;
+    }
+    const { url, shouldRevoke } = buildHtmlPreviewUrl(
+      htmlContent,
+      htmlPreviewBaseHref,
+    );
+    setHtmlPreviewUrl(url);
+    return () => {
+      if (shouldRevoke) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [htmlContent, htmlPreviewBaseHref]);
 
   return (
     <>
@@ -585,6 +664,57 @@ export function ArtifactPreviewCard({
                   <div
                     className={cn(
                       "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-card via-card/80 to-transparent",
+                      compact ? "h-10" : "h-12",
+                    )}
+                  />
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  Click to preview
+                </div>
+              )
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                Click to preview
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {isHTML ? (
+          <div
+            className={cn(
+              "border-t border-border/40",
+              compact && "flex-1 min-h-0",
+              compact ? "px-3 py-2" : "px-4 py-2",
+            )}
+          >
+            {showInlinePreview ? (
+              htmlLoading && !htmlSource ? (
+                <div
+                  className={cn(
+                    "w-full animate-pulse rounded-lg border border-border/40 bg-muted/20",
+                    compact ? "h-full min-h-[6rem]" : "h-32",
+                  )}
+                />
+              ) : htmlError ? (
+                <div className="text-xs text-destructive">{htmlError}</div>
+              ) : htmlPreviewUrl ? (
+                <div
+                  className={cn(
+                    "relative overflow-hidden rounded-lg border border-border/40 bg-white",
+                    compact ? "h-full min-h-[6rem]" : "h-32",
+                  )}
+                >
+                  <iframe
+                    src={htmlPreviewUrl}
+                    className="h-full w-full border-0 pointer-events-none"
+                    title="HTML preview"
+                    loading="lazy"
+                  />
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-card via-card/40 to-transparent",
                       compact ? "h-10" : "h-12",
                     )}
                   />
@@ -762,11 +892,20 @@ export function ArtifactPreviewCard({
                     </div>
 
                     {htmlView === "preview" ? (
-                      htmlPreviewUri ? (
+                      htmlLoading && !htmlPreviewUrl ? (
+                        <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading preview...
+                        </div>
+                      ) : htmlError ? (
+                        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                          {htmlError}
+                        </div>
+                      ) : htmlPreviewUrl ? (
                         <div className="w-full">
                           <div className="mx-auto w-full max-w-[1100px]">
                             <iframe
-                              src={htmlPreviewUri}
+                              src={htmlPreviewUrl}
                               className="h-[80vh] w-full rounded-xl border border-border/60 bg-white"
                               title="Preview"
                             />

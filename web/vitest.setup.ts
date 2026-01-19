@@ -110,12 +110,11 @@ global.ResizeObserver = class ResizeObserver {
   unobserve() {}
 } as any;
 
-// Mock console methods to reduce noise in tests
-global.console = {
-  ...console,
+// Mutate the existing console so happy-dom keeps the mocked methods.
+Object.assign(console, {
   log: vi.fn(),
   debug: vi.fn(),
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
-};
+});

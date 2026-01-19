@@ -11,11 +11,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	runtimeconfig "alex/internal/config"
-	"alex/internal/httpclient"
-	"alex/internal/logging"
 )
 
 func parseModelList(raw []byte) ([]string, error) {
@@ -71,10 +68,6 @@ type runtimeModelProvider struct {
 	BaseURL  string   `json:"base_url,omitempty"`
 	Models   []string `json:"models,omitempty"`
 	Error    string   `json:"error,omitempty"`
-}
-
-type runtimeModelsResponse struct {
-	Providers []runtimeModelProvider `json:"providers"`
 }
 
 type modelFetchTarget struct {
@@ -139,13 +132,6 @@ func isAnthropicOAuthToken(token string) bool {
 		return false
 	}
 	return !strings.HasPrefix(strings.ToLower(token), "sk-")
-}
-
-func defaultRuntimeModelLister(ctx context.Context) []runtimeModelProvider {
-	creds := runtimeconfig.LoadCLICredentials()
-	logger := logging.NewComponentLogger("RuntimeModels")
-	client := httpclient.New(20*time.Second, logger)
-	return listRuntimeModels(ctx, creds, client)
 }
 
 func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client) []runtimeModelProvider {
