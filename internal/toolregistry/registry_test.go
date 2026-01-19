@@ -1,10 +1,12 @@
 package toolregistry
 
 import (
+	"context"
 	"slices"
 	"strings"
 	"testing"
 
+	"alex/internal/agent/ports"
 	"alex/internal/memory"
 )
 
