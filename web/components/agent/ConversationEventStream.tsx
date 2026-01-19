@@ -199,7 +199,7 @@ export function ConversationEventStream({
           }
 
           const event = entry.event;
-          const key = `${event.event_type}-${event.timestamp}-${index}`;
+          const key = getStableEventKey(event, index);
 
           return (
             <div
@@ -756,4 +756,38 @@ function sortSubagentEvents(
 
 function isDelegationToolEvent(event: AnyAgentEvent): boolean {
   return getToolName(event) === "subagent";
+}
+
+function getStableEventKey(event: AnyAgentEvent, index: number): string {
+  if (eventMatches(event, "workflow.node.output.delta")) {
+    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+    const taskId = typeof event.task_id === "string" ? event.task_id : "";
+    const parentTaskId =
+      "parent_task_id" in event && typeof event.parent_task_id === "string"
+        ? event.parent_task_id
+        : "";
+    const agentLevel = typeof event.agent_level === "string" ? event.agent_level : "";
+    const iteration =
+      "iteration" in event && typeof event.iteration === "number"
+        ? String(event.iteration)
+        : "";
+    const nodeId =
+      "node_id" in event && typeof (event as any).node_id === "string"
+        ? (event as any).node_id
+        : "";
+    return `delta:${sessionId}:${taskId}:${parentTaskId}:${agentLevel}:${iteration}:${nodeId}`;
+  }
+
+  if (eventMatches(event, "workflow.result.final")) {
+    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+    const taskId = typeof event.task_id === "string" ? event.task_id : "";
+    const parentTaskId =
+      "parent_task_id" in event && typeof event.parent_task_id === "string"
+        ? event.parent_task_id
+        : "";
+    const agentLevel = typeof event.agent_level === "string" ? event.agent_level : "";
+    return `final:${sessionId}:${taskId}:${parentTaskId}:${agentLevel}`;
+  }
+
+  return `${event.event_type}-${event.timestamp}-${index}`;
 }

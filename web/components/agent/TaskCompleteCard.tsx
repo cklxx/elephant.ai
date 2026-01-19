@@ -245,6 +245,19 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     }),
     [],
   );
+  const shouldSoftenSummary = useMemo(() => {
+    const text = markdownAnswer.trim();
+    if (!text) {
+      return true;
+    }
+    const headingMatches = text.match(/^#{1,6}\s+/gm) ?? [];
+    const listMatches = text.match(/^\s*(?:[-*+]|\d+\.)\s+/gm) ?? [];
+    const headingCount = headingMatches.length;
+    const listCount = listMatches.length;
+    const isDocumentLike =
+      headingCount >= 3 || listCount >= 6 || text.length >= 800;
+    return !isDocumentLike;
+  }, [markdownAnswer]);
 
   const InlineMarkdownImage = ({
     src,
@@ -297,7 +310,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             isStreaming={streamInProgress}
             streamFinished={streamFinished}
             components={{
-              ...summaryComponents,
+              ...(shouldSoftenSummary ? summaryComponents : {}),
               img: ({ src, alt }: { src?: string; alt?: string }) => {
                 const recoveredSrc =
                   (src && src.trim()) ||

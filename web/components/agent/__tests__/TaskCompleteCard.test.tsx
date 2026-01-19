@@ -82,6 +82,34 @@ describe("TaskCompleteCard", () => {
     expect(container.querySelector("strong")).toBeInTheDocument();
   });
 
+  it("preserves headings and lists for document-like answers", () => {
+    const docAnswer = [
+      "# Project Plan",
+      "",
+      "## Goals",
+      "- Goal 1",
+      "- Goal 2",
+      "- Goal 3",
+      "",
+      "## Scope",
+      "- Item A",
+      "- Item B",
+      "- Item C",
+      "",
+      "### Details",
+      "This section contains additional context for the document.",
+    ].join("\n");
+
+    const { container } = renderWithProvider({
+      ...baseEvent,
+      final_answer: docAnswer,
+      stop_reason: "final_answer",
+    });
+
+    expect(container.querySelector("h2")).toBeInTheDocument();
+    expect(container.querySelector("ul")).toBeInTheDocument();
+  });
+
   it("renders inline images from attachment placeholders", () => {
     const imageAnswer = "Here is the preview: [draft.png] with caption.";
     renderWithProvider({
