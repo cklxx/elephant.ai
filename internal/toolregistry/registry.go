@@ -302,25 +302,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 		// Reserved for future config.
 	})
 	r.static["douyin_hot"] = builtin.NewDouyinHot()
-	miniappLLM := writeLLM
-	if provider != "" && provider != "mock" {
-		if config.LLMFactory == nil {
-			return fmt.Errorf("miniapp_html: LLMFactory is required when provider is %q", provider)
-		}
-		if model == "" {
-			return fmt.Errorf("miniapp_html: model is required when provider is %q", provider)
-		}
-		client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
-			APIKey:  config.APIKey,
-			BaseURL: config.BaseURL,
-		})
-		if err != nil {
-			return fmt.Errorf("miniapp_html: failed to create LLM client: %w", err)
-		}
-		miniappLLM = client
-	}
-	r.static["miniapp_html"] = builtin.NewMiniAppHTMLWithLLM(miniappLLM)
-
 	// Document generation
 	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
 
