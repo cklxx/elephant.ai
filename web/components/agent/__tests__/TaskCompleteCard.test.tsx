@@ -66,6 +66,22 @@ describe("TaskCompleteCard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("softens headings and lists in the final answer", () => {
+    const { container } = renderWithProvider({
+      ...baseEvent,
+      final_answer: "# Summary\n\n- First\n- Second\n\n**Key:** Detail.",
+      stop_reason: "final_answer",
+    });
+
+    expect(screen.getByText(/Summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/First/i)).toBeInTheDocument();
+    expect(
+      container.querySelector("h1, h2, h3, h4, h5, h6"),
+    ).toBeNull();
+    expect(container.querySelector("ul, ol")).toBeNull();
+    expect(container.querySelector("strong")).toBeInTheDocument();
+  });
+
   it("renders inline images from attachment placeholders", () => {
     const imageAnswer = "Here is the preview: [draft.png] with caption.";
     renderWithProvider({

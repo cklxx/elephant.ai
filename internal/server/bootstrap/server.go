@@ -59,9 +59,11 @@ func RunServer(observabilityConfigPath string) error {
 	}
 
 	config.Attachment = attachments.NormalizeConfig(config.Attachment)
+	var attachmentStore *attachments.Store
 	if store, err := attachments.NewStore(config.Attachment); err != nil {
 		logger.Warn("Attachment migrator disabled: %v", err)
 	} else {
+		attachmentStore = store
 		migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
 		container.AgentCoordinator.SetAttachmentMigrator(migrator)
 	}
@@ -71,7 +73,11 @@ func RunServer(observabilityConfigPath string) error {
 	if container.SessionDB != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB)
+		historyOpts := []serverApp.PostgresEventHistoryStoreOption{}
+		if attachmentStore != nil {
+			historyOpts = append(historyOpts, serverApp.WithHistoryAttachmentStore(attachmentStore))
+		}
+		pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB, historyOpts...)
 		if err := pgHistory.EnsureSchema(ctx); err != nil {
 			logger.Warn("Failed to initialize event history schema: %v", err)
 		} else {

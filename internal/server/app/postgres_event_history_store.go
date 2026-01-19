@@ -11,6 +11,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	"alex/internal/attachments"
 	"alex/internal/logging"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,20 +43,43 @@ type eventRecord struct {
 	payload       []byte
 }
 
+// AttachmentStorer persists attachment payloads and returns a stable URI.
+type AttachmentStorer interface {
+	StoreBytes(name, mediaType string, data []byte) (string, error)
+}
+
 // PostgresEventHistoryStore persists event history in Postgres.
 type PostgresEventHistoryStore struct {
-	pool      *pgxpool.Pool
-	batchSize int
-	logger    logging.Logger
+	pool            *pgxpool.Pool
+	batchSize       int
+	logger          logging.Logger
+	attachmentStore AttachmentStorer
+}
+
+// PostgresEventHistoryStoreOption configures a PostgresEventHistoryStore.
+type PostgresEventHistoryStoreOption func(*PostgresEventHistoryStore)
+
+// WithHistoryAttachmentStore wires an attachment store so inline payloads
+// can be persisted during event history writes.
+func WithHistoryAttachmentStore(store AttachmentStorer) PostgresEventHistoryStoreOption {
+	return func(s *PostgresEventHistoryStore) {
+		s.attachmentStore = store
+	}
 }
 
 // NewPostgresEventHistoryStore constructs a Postgres-backed history store.
-func NewPostgresEventHistoryStore(pool *pgxpool.Pool) *PostgresEventHistoryStore {
-	return &PostgresEventHistoryStore{
+func NewPostgresEventHistoryStore(pool *pgxpool.Pool, opts ...PostgresEventHistoryStoreOption) *PostgresEventHistoryStore {
+	store := &PostgresEventHistoryStore{
 		pool:      pool,
 		batchSize: defaultHistoryBatchSize,
 		logger:    logging.NewComponentLogger("EventHistoryStore"),
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(store)
+		}
+	}
+	return store
 }
 
 // EnsureSchema creates the event history table if needed.
@@ -107,7 +131,7 @@ func (s *PostgresEventHistoryStore) Append(ctx context.Context, event ports.Agen
 		return nil
 	}
 
-	record, err := recordFromEvent(BaseAgentEvent(event))
+	record, err := recordFromEventWithStore(BaseAgentEvent(event), s.attachmentStore)
 	if err != nil {
 		return err
 	}
@@ -160,7 +184,7 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []po
 		if event == nil {
 			continue
 		}
-		record, err := recordFromEvent(BaseAgentEvent(event))
+		record, err := recordFromEventWithStore(BaseAgentEvent(event), s.attachmentStore)
 		if err != nil {
 			return err
 		}
@@ -350,6 +374,10 @@ WHERE session_id = $1 AND id > $2`
 }
 
 func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
+	return recordFromEventWithStore(event, nil)
+}
+
+func recordFromEventWithStore(event ports.AgentEvent, store AttachmentStorer) (eventRecord, error) {
 	if event == nil {
 		return eventRecord{}, fmt.Errorf("event is nil")
 	}
@@ -406,11 +434,11 @@ func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
 			record.subtaskPrev = e.SubtaskPreview
 			record.maxParallel = e.MaxParallel
 		}
-		payload = stripBinaryPayloads(e.Payload)
+		payload = stripBinaryPayloadsWithStore(e.Payload, store)
 	case *domain.WorkflowInputReceivedEvent:
 		payload = map[string]any{
 			"task":        e.Task,
-			"attachments": stripBinaryPayloads(e.Attachments),
+			"attachments": stripBinaryPayloadsWithStore(e.Attachments, store),
 		}
 	case *domain.WorkflowDiagnosticContextSnapshotEvent:
 		payload = map[string]any{
@@ -433,40 +461,40 @@ func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
 	return record, nil
 }
 
-func stripBinaryPayloads(value any) any {
+func stripBinaryPayloadsWithStore(value any, store AttachmentStorer) any {
 	switch v := value.(type) {
 	case nil:
 		return nil
 	case ports.Attachment:
-		return sanitizeAttachmentForHistory(v)
+		return sanitizeAttachmentForHistoryWithStore(v, store)
 	case *ports.Attachment:
 		if v == nil {
 			return nil
 		}
-		cleaned := sanitizeAttachmentForHistory(*v)
+		cleaned := sanitizeAttachmentForHistoryWithStore(*v, store)
 		return &cleaned
 	case map[string]ports.Attachment:
 		cleaned := make(map[string]ports.Attachment, len(v))
 		for key, att := range v {
-			cleaned[key] = sanitizeAttachmentForHistory(att)
+			cleaned[key] = sanitizeAttachmentForHistoryWithStore(att, store)
 		}
 		return cleaned
 	case []ports.Attachment:
 		cleaned := make([]ports.Attachment, len(v))
 		for i, att := range v {
-			cleaned[i] = sanitizeAttachmentForHistory(att)
+			cleaned[i] = sanitizeAttachmentForHistoryWithStore(att, store)
 		}
 		return cleaned
 	case map[string]any:
 		cleaned := make(map[string]any, len(v))
 		for key, val := range v {
-			cleaned[key] = stripBinaryPayloads(val)
+			cleaned[key] = stripBinaryPayloadsWithStore(val, store)
 		}
 		return cleaned
 	case []any:
 		cleaned := make([]any, len(v))
 		for i, val := range v {
-			cleaned[i] = stripBinaryPayloads(val)
+			cleaned[i] = stripBinaryPayloadsWithStore(val, store)
 		}
 		return cleaned
 	}
@@ -480,11 +508,16 @@ func stripBinaryPayloads(value any) any {
 	return value
 }
 
-func sanitizeAttachmentForHistory(att ports.Attachment) ports.Attachment {
+func sanitizeAttachmentForHistoryWithStore(att ports.Attachment, store AttachmentStorer) ports.Attachment {
 	mediaType := strings.TrimSpace(att.MediaType)
 	if mediaType == "" {
 		mediaType = "application/octet-stream"
 		att.MediaType = mediaType
+	}
+
+	trimmedURI := strings.TrimSpace(att.URI)
+	if att.Data == "" && trimmedURI != "" && !strings.HasPrefix(strings.ToLower(trimmedURI), "data:") {
+		return att
 	}
 
 	inline := strings.TrimSpace(ports.AttachmentInlineBase64(att))
@@ -497,6 +530,14 @@ func sanitizeAttachmentForHistory(att ports.Attachment) ports.Attachment {
 				att.URI = ""
 			}
 			return att
+		}
+		if store != nil {
+			if decoded, err := attachments.DecodeBase64(inline); err == nil && len(decoded) > 0 {
+				uri, err := store.StoreBytes(att.Name, mediaType, decoded)
+				if err == nil && strings.TrimSpace(uri) != "" {
+					att.URI = uri
+				}
+			}
 		}
 	}
 
