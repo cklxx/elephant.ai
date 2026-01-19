@@ -123,13 +123,13 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 func (t *artifactsWrite) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "artifacts_write",
-		Description: "Create or update an artifact attachment",
+		Description: "Create or update an artifact attachment (use for HTML by setting media_type to text/html and format to html)",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"name":                  {Type: "string", Description: "Filename for the artifact (e.g., note.md)"},
-				"content":               {Type: "string", Description: "Raw text content to store"},
-				"media_type":            {Type: "string", Description: "MIME type (default: text/markdown)"},
+				"name":                  {Type: "string", Description: "Filename for the artifact (e.g., note.md or page.html)"},
+				"content":               {Type: "string", Description: "Raw text content to store (HTML is supported)"},
+				"media_type":            {Type: "string", Description: "MIME type (default: text/markdown); use text/html for HTML"},
 				"description":           {Type: "string", Description: "Optional description for context"},
 				"format":                {Type: "string", Description: "Normalized format such as markdown or html"},
 				"kind":                  {Type: "string", Description: "Attachment kind (attachment or artifact)"},
