@@ -87,6 +87,7 @@ Provide ordered steps using CSS selectors. Useful for click/fill/wait/query/eval
 				"steps": {
 					Type:        "array",
 					Description: "Ordered list of DOM actions (goto, click, fill, type, press, wait_for, get_text, get_html, get_attribute, evaluate).",
+					Items:       &ports.Property{Type: "object"},
 				},
 				"continue_on_error": {
 					Type:        "boolean",

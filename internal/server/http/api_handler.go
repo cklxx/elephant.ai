@@ -17,11 +17,13 @@ import (
 	agentapp "alex/internal/agent/app"
 	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/sandbox"
 	"alex/internal/server/app"
 	serverPorts "alex/internal/server/ports"
+	"alex/internal/subscription"
 	id "alex/internal/utils/id"
 )
 
@@ -39,6 +41,7 @@ type APIHandler struct {
 	attachmentStore       *AttachmentStore
 	sandboxClient         *sandbox.Client
 	maxCreateTaskBodySize int64
+	selectionResolver     *subscription.SelectionResolver
 }
 
 // APIHandlerOption configures API handler behavior.
@@ -70,6 +73,13 @@ func WithAttachmentStore(store *AttachmentStore) APIHandlerOption {
 func WithSandboxClient(client *sandbox.Client) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.sandboxClient = client
+	}
+}
+
+// WithSelectionResolver wires a subscription selection resolver for per-request overrides.
+func WithSelectionResolver(resolver *subscription.SelectionResolver) APIHandlerOption {
+	return func(handler *APIHandler) {
+		handler.selectionResolver = resolver
 	}
 }
 
@@ -107,16 +117,22 @@ func NewAPIHandler(coordinator *app.ServerCoordinator, healthChecker *app.Health
 	if handler.maxCreateTaskBodySize <= 0 {
 		handler.maxCreateTaskBodySize = defaultMaxCreateTaskBodySize
 	}
+	if handler.selectionResolver == nil {
+		handler.selectionResolver = subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
+			return runtimeconfig.LoadCLICredentials()
+		})
+	}
 	return handler
 }
 
 // CreateTaskRequest matches TypeScript CreateTaskRequest interface
 type CreateTaskRequest struct {
-	Task        string              `json:"task"`
-	SessionID   string              `json:"session_id,omitempty"`
-	AgentPreset string              `json:"agent_preset,omitempty"` // Agent persona preset
-	ToolPreset  string              `json:"tool_preset,omitempty"`  // Tool access preset
-	Attachments []AttachmentPayload `json:"attachments,omitempty"`
+	Task         string                  `json:"task"`
+	SessionID    string                  `json:"session_id,omitempty"`
+	AgentPreset  string                  `json:"agent_preset,omitempty"` // Agent persona preset
+	ToolPreset   string                  `json:"tool_preset,omitempty"`  // Tool access preset
+	Attachments  []AttachmentPayload     `json:"attachments,omitempty"`
+	LLMSelection *subscription.Selection `json:"llm_selection,omitempty"`
 }
 
 // CreateTaskResponse matches TypeScript CreateTaskResponse interface
@@ -353,6 +369,11 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(attachments) > 0 {
 		ctx = agentapp.WithUserAttachments(ctx, attachments)
+	}
+	if req.LLMSelection != nil && h.selectionResolver != nil {
+		if resolved, ok := h.selectionResolver.Resolve(*req.LLMSelection); ok {
+			ctx = agentapp.WithLLMSelection(ctx, resolved)
+		}
 	}
 
 	// Execute task asynchronously - coordinator returns immediately after creating task record

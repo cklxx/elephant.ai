@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 export function AlexWordmark({
   className,
-  title = "Alex",
+  title = "Eli",
 }: {
   className?: string;
   title?: string;

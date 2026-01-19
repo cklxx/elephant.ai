@@ -3,6 +3,7 @@ package builtin
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -115,5 +116,31 @@ func TestA2UIEmitSerializesMessages(t *testing.T) {
 	}
 	if !strings.Contains(decodedStr, "\n") {
 		t.Fatalf("expected JSONL output with newline, got: %s", decodedStr)
+	}
+}
+
+func TestA2UIEmitDefinitionMessagesHasItems(t *testing.T) {
+	def := NewA2UIEmit().Definition()
+
+	raw, err := json.Marshal(def.Parameters)
+	if err != nil {
+		t.Fatalf("marshal schema: %v", err)
+	}
+
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("unmarshal schema: %v", err)
+	}
+
+	properties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected properties object in schema")
+	}
+	messages, ok := properties["messages"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected messages schema object")
+	}
+	if _, ok := messages["items"]; !ok {
+		t.Fatalf("expected messages array schema to include items")
 	}
 }

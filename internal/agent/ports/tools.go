@@ -322,7 +322,8 @@ type ParameterSchema struct {
 
 // Property defines a single parameter
 type Property struct {
-	Type        string `json:"type"`
-	Description string `json:"description"`
-	Enum        []any  `json:"enum,omitempty"`
+	Type        string    `json:"type"`
+	Description string    `json:"description"`
+	Enum        []any     `json:"enum,omitempty"`
+	Items       *Property `json:"items,omitempty"`
 }

@@ -515,6 +515,7 @@ func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
 				"images": {
 					Type:        "array",
 					Description: "List of image URLs or data URIs to analyze.",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"prompt": {
 					Type:        "string",

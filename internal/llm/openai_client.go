@@ -8,9 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -134,7 +132,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
-		return nil, c.wrapRequestError(err)
+		return nil, wrapRequestError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -156,7 +154,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
-		return nil, c.mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
 	}
 
 	var oaiResp struct {
@@ -205,7 +203,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		if oaiResp.Error.Type != "" {
 			errMsg = fmt.Sprintf("%s: %s", oaiResp.Error.Type, oaiResp.Error.Message)
 		}
-		return nil, c.mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+		return nil, mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
 	}
 
 	if len(oaiResp.Choices) == 0 {
@@ -229,10 +227,13 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	// Trigger usage callback if set
 	if c.usageCallback != nil {
 		provider := "openrouter"
-		if strings.Contains(c.baseURL, "api.openai.com") {
+		switch {
+		case strings.Contains(c.baseURL, "api.openai.com"):
 			provider = "openai"
-		} else if strings.Contains(c.baseURL, "api.deepseek.com") {
+		case strings.Contains(c.baseURL, "api.deepseek.com"):
 			provider = "deepseek"
+		case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
+			provider = "antigravity"
 		}
 		c.usageCallback(result.Usage, c.model, provider)
 	}
@@ -275,10 +276,13 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 	provider := "openrouter"
-	if strings.Contains(c.baseURL, "api.openai.com") {
+	switch {
+	case strings.Contains(c.baseURL, "api.openai.com"):
 		provider = "openai"
-	} else if strings.Contains(c.baseURL, "api.deepseek.com") {
+	case strings.Contains(c.baseURL, "api.deepseek.com"):
 		provider = "deepseek"
+	case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
+		provider = "antigravity"
 	}
 
 	oaiReq := map[string]any{
@@ -349,7 +353,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
-		return nil, c.wrapRequestError(err)
+		return nil, wrapRequestError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -367,7 +371,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 			return nil, fmt.Errorf("read response: %w", readErr)
 		}
 		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
-		return nil, c.mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
 	}
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -698,151 +702,14 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 	return parts
 }
 
-func shouldEmbedAttachmentsInContent(msg ports.Message) bool {
-	if len(msg.Attachments) == 0 {
-		return false
-	}
-
-	if !strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
-		return false
-	}
-
-	if msg.Source == ports.MessageSourceToolResult {
-		return false
-	}
-	return true
-}
-
-func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
-	result := make([]map[string]any, 0, len(calls))
-	for _, call := range calls {
-		if !isValidToolName(call.Name) {
-			continue
-		}
-		args := "{}"
-		if len(call.Arguments) > 0 {
-			if data, err := json.Marshal(call.Arguments); err == nil {
-				args = string(data)
+func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {
+	converted := convertTools(tools)
+	if len(converted) != len(tools) {
+		for _, tool := range tools {
+			if !isValidToolName(tool.Name) {
+				c.logger.Warn("Skipping tool with invalid function name for OpenAI: %s", tool.Name)
 			}
 		}
-
-		result = append(result, map[string]any{
-			"id":   call.ID,
-			"type": "function",
-			"function": map[string]any{
-				"name":      call.Name,
-				"arguments": args,
-			},
-		})
 	}
-	return result
-}
-
-func (c *openaiClient) convertTools(tools []ports.ToolDefinition) []map[string]any {
-	result := make([]map[string]any, 0, len(tools))
-	for _, tool := range tools {
-		if !isValidToolName(tool.Name) {
-			c.logger.Warn("Skipping tool with invalid function name for OpenAI: %s", tool.Name)
-			continue
-		}
-		// 注意：ToolDefinition 中的 alex_material_capabilities 仅供前端和
-		// middleware 判断素材上传、产物生成等能力，并不是 OpenAI 工具参数
-		// 支持的字段。这里不要把它透传给 LLM，以避免发送无效字段导致请求失败
-		// 或额外泄露实现细节。
-		entry := map[string]any{
-			"type": "function",
-			"function": map[string]any{
-				"name":        tool.Name,
-				"description": tool.Description,
-				"parameters":  tool.Parameters,
-			},
-		}
-		result = append(result, entry)
-	}
-	return result
-}
-
-var validToolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
-
-func isValidToolName(name string) bool {
-	return validToolNamePattern.MatchString(strings.TrimSpace(name))
-}
-
-func (c *openaiClient) wrapRequestError(err error) error {
-	if errors.Is(err, context.Canceled) {
-		return err
-	}
-
-	if errors.Is(err, context.DeadlineExceeded) {
-		return alexerrors.NewTransientError(err, "Request to LLM provider timed out. Please retry.")
-	}
-
-	var netErr net.Error
-	if errors.As(err, &netErr) && netErr.Timeout() {
-		return alexerrors.NewTransientError(err, "Request to LLM provider timed out. Please retry.")
-	}
-
-	return alexerrors.NewTransientError(err, "Failed to reach LLM provider. Please retry shortly.")
-}
-
-func (c *openaiClient) mapHTTPError(status int, body []byte, headers http.Header) error {
-	message := strings.TrimSpace(string(body))
-	if message == "" {
-		message = http.StatusText(status)
-	}
-
-	baseErr := fmt.Errorf("status %d: %s", status, message)
-
-	switch {
-	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		perr := alexerrors.NewPermanentError(baseErr, "Authentication failed. Please verify your API key.")
-		perr.StatusCode = status
-		return perr
-	case status == http.StatusTooManyRequests:
-		terr := alexerrors.NewTransientError(baseErr, "Rate limit reached. The system will retry automatically.")
-		terr.StatusCode = status
-		if retryAfter := parseRetryAfter(headers.Get("Retry-After")); retryAfter > 0 {
-			terr.RetryAfter = retryAfter
-		}
-		return terr
-	case status == http.StatusRequestTimeout || status == http.StatusGatewayTimeout:
-		terr := alexerrors.NewTransientError(baseErr, "Upstream service timed out. Please retry.")
-		terr.StatusCode = status
-		return terr
-	case status >= 500:
-		terr := alexerrors.NewTransientError(baseErr, "Upstream service temporarily unavailable. Please retry.")
-		terr.StatusCode = status
-		return terr
-	case status >= 400:
-		perr := alexerrors.NewPermanentError(baseErr, "Request was rejected by the upstream service.")
-		perr.StatusCode = status
-		return perr
-	default:
-		terr := alexerrors.NewTransientError(baseErr, "Unexpected response from upstream service. Please retry.")
-		terr.StatusCode = status
-		return terr
-	}
-}
-
-func parseRetryAfter(value string) int {
-	if value == "" {
-		return 0
-	}
-
-	if seconds, err := strconv.Atoi(value); err == nil {
-		if seconds < 0 {
-			return 0
-		}
-		return seconds
-	}
-
-	if t, err := http.ParseTime(value); err == nil {
-		delta := int(time.Until(t).Seconds())
-		if delta < 0 {
-			return 0
-		}
-		return delta
-	}
-
-	return 0
+	return converted
 }

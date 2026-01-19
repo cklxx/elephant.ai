@@ -31,14 +31,17 @@ func (e *explore) Definition() ports.ToolDefinition {
 				"local_scope": {
 					Type:        "array",
 					Description: "Specific local/codebase areas to inspect.",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"web_scope": {
 					Type:        "array",
 					Description: "Web research focus areas.",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"custom_tasks": {
 					Type:        "array",
 					Description: "Additional custom subtasks to run.",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"notes": {
 					Type:        "string",

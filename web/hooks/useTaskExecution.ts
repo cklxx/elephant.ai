@@ -19,6 +19,7 @@
 import { useMutation, useQuery, UseMutationOptions, UseQueryOptions } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { getErrorLogPayload, isAPIError } from '@/lib/errors';
+import { loadLLMSelection } from '@/lib/llmSelection';
 import { CreateTaskRequest, CreateTaskResponse, TaskStatusResponse } from '@/lib/types';
 
 /**
@@ -60,7 +61,11 @@ export function useTaskExecution(options: UseTaskExecutionOptions = {}) {
         sessionId: request.session_id,
       });
 
-      const response = await apiClient.createTask(request);
+      const selection = request.llm_selection ?? loadLLMSelection();
+      const response = await apiClient.createTask({
+        ...request,
+        ...(selection ? { llm_selection: selection } : {}),
+      });
 
       console.log('[useTaskExecution] Task created successfully:', {
         taskId: response.task_id,

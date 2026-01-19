@@ -109,7 +109,7 @@ func (t *a2uiEmit) Definition() ports.ToolDefinition {
 			Type: "object",
 			Properties: map[string]ports.Property{
 				"content":               {Type: "string", Description: "A2UI payload as JSON or JSONL string"},
-				"messages":              {Type: "array", Description: "Optional array of JSON messages to serialize as JSONL when content is omitted"},
+				"messages":              {Type: "array", Description: "Optional array of JSON messages to serialize as JSONL when content is omitted", Items: &ports.Property{Type: "object"}},
 				"name":                  {Type: "string", Description: "Optional attachment filename (defaults to a2ui-<call_id>.jsonl)"},
 				"media_type":            {Type: "string", Description: "MIME type (default: application/a2ui+json)"},
 				"description":           {Type: "string", Description: "Optional description for the attachment"},

@@ -40,6 +40,7 @@ function createWrapper() {
 describe('useTaskExecution', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.removeItem('alex-llm-selection');
   });
 
   describe('Task Creation', () => {
@@ -118,6 +119,43 @@ describe('useTaskExecution', () => {
       expect(apiClient.createTask).toHaveBeenCalledWith({
         task: 'Continue previous work',
         session_id: 'existing-session',
+      });
+    });
+
+    it('includes llm_selection from localStorage', async () => {
+      const mockResponse = {
+        task_id: 'task-123',
+        session_id: 'session-456',
+        status: 'pending' as const,
+      };
+
+      localStorage.setItem('alex-llm-selection', JSON.stringify({
+        mode: 'cli',
+        provider: 'codex',
+        model: 'gpt-5.2-codex',
+        source: 'codex_cli',
+      }));
+
+      vi.mocked(apiClient.createTask).mockResolvedValue(mockResponse);
+
+      const { result } = renderHook(() => useTaskExecution(), {
+        wrapper: createWrapper(),
+      });
+
+      result.current.mutate({ task: 'hello' });
+
+      await waitFor(() => {
+        expect(result.current.isSuccess).toBe(true);
+      });
+
+      expect(apiClient.createTask).toHaveBeenCalledWith({
+        task: 'hello',
+        llm_selection: {
+          mode: 'cli',
+          provider: 'codex',
+          model: 'gpt-5.2-codex',
+          source: 'codex_cli',
+        },
       });
     });
   });

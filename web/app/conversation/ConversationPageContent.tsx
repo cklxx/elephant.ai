@@ -57,6 +57,7 @@ import { SkillsPanel } from "@/components/agent/SkillsPanel";
 import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
 import { SandboxDesktopPanel } from "@/components/agent/SandboxDesktopPanel";
 import { UserPersonaDialog } from "@/components/agent/UserPersonaDialog";
+import { LLMIndicator } from "@/components/agent/LLMIndicator";
 
 const LazyConversationEventStream = dynamic(
   () =>
@@ -779,6 +780,7 @@ export function ConversationPageContent() {
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
+      <LLMIndicator />
       {shareDialogOpen ? (
         <Dialog
           open

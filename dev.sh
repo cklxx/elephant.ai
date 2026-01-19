@@ -661,7 +661,7 @@ cmd_test() {
   ensure_playwright_browsers
 
   log_info "Running web tests..."
-  npm --prefix "${SCRIPT_DIR}/web" test
+  NEXT_DISABLE_GOOGLE_FONTS=1 npm --prefix "${SCRIPT_DIR}/web" test
   log_success "Web tests passed"
 }
 

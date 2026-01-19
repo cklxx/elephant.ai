@@ -40,6 +40,7 @@ func (t *attention) Definition() ports.ToolDefinition {
 				"tags": {
 					Type:        "array",
 					Description: "Optional tags describing the note (e.g., preference, identity, constraint).",
+					Items:       &ports.Property{Type: "string"},
 				},
 			},
 			Required: []string{"content"},

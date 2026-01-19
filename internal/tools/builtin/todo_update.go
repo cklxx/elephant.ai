@@ -68,6 +68,7 @@ Parameters:
 				"todos": {
 					Type:        "array",
 					Description: "Array of todo items",
+					Items:       &ports.Property{Type: "object"},
 				},
 			},
 			Required: []string{"todos"},

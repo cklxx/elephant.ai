@@ -11,12 +11,15 @@ import (
 	"testing"
 	"time"
 
+	agentapp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	agentPorts "alex/internal/agent/ports"
 	"alex/internal/analytics/journal"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/server/app"
 	"alex/internal/session/filestore"
 	sessionstate "alex/internal/session/state_store"
+	"alex/internal/subscription"
 )
 
 type failingAgentCoordinator struct {
@@ -153,6 +156,34 @@ func (previewAgentCoordinator) PreviewContextWindow(ctx context.Context, session
 		ToolMode:      "cli",
 		ToolPreset:    "full",
 	}, nil
+}
+
+type selectionAwareCoordinator struct {
+	selection subscription.ResolvedSelection
+	got       chan struct{}
+}
+
+func (c *selectionAwareCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+	if id == "" {
+		id = "stub-session"
+	}
+	return &agentPorts.Session{ID: id, Metadata: map[string]string{}}, nil
+}
+
+func (c *selectionAwareCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+	if sel, ok := agentapp.GetLLMSelection(ctx); ok {
+		c.selection = sel
+	}
+	close(c.got)
+	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+}
+
+func (c *selectionAwareCoordinator) GetConfig() agentPorts.AgentConfig {
+	return agentPorts.AgentConfig{}
+}
+
+func (c *selectionAwareCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
+	return agentPorts.ContextWindowPreview{}, nil
 }
 
 func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
@@ -500,6 +531,40 @@ func TestHandleWebVitalsRejectsBadMethod(t *testing.T) {
 	handler.HandleWebVitals(resp, req)
 	if resp.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", resp.Code)
+	}
+}
+
+func TestHandleCreateTaskInjectsSelection(t *testing.T) {
+	coord := &selectionAwareCoordinator{got: make(chan struct{})}
+	server := app.NewServerCoordinator(coord, app.NewEventBroadcaster(), nil, app.NewInMemoryTaskStore(), nil)
+	handler := NewAPIHandler(server, app.NewHealthChecker(), false, WithSelectionResolver(subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{
+			Codex: runtimeconfig.CLICredential{
+				Provider: "codex",
+				APIKey:   "tok",
+				BaseURL:  "https://chatgpt.com/backend-api/codex",
+				Source:   runtimeconfig.SourceCodexCLI,
+			},
+		}
+	})))
+
+	body := `{"task":"hi","llm_selection":{"mode":"cli","provider":"codex","model":"gpt-5.2-codex","source":"codex_cli"}}`
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks", strings.NewReader(body))
+	rr := httptest.NewRecorder()
+
+	handler.HandleCreateTask(rr, req)
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d: %s", http.StatusCreated, rr.Code, rr.Body.String())
+	}
+
+	select {
+	case <-coord.got:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for selection injection")
+	}
+
+	if coord.selection.Provider != "codex" || coord.selection.Model != "gpt-5.2-codex" {
+		t.Fatalf("selection not injected: %#v", coord.selection)
 	}
 }
 

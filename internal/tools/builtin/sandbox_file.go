@@ -232,7 +232,7 @@ func (t *sandboxFileListTool) Definition() ports.ToolDefinition {
 				"path":                {Type: "string", Description: "Absolute directory path in the sandbox"},
 				"recursive":           {Type: "boolean", Description: "List recursively"},
 				"show_hidden":         {Type: "boolean", Description: "Include hidden files"},
-				"file_types":          {Type: "array", Description: "Filter by file extensions"},
+				"file_types":          {Type: "array", Description: "Filter by file extensions", Items: &ports.Property{Type: "string"}},
 				"max_depth":           {Type: "integer", Description: "Maximum depth for recursive listing"},
 				"include_size":        {Type: "boolean", Description: "Include file size"},
 				"include_permissions": {Type: "boolean", Description: "Include permissions"},

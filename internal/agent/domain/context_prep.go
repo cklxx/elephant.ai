@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
-	materialports "alex/internal/materials/ports"
 )
 
 // prepareUserTaskContext mutates the provided task state so it is ready for a new
@@ -39,12 +37,6 @@ func (e *ReactEngine) prepareUserTaskContext(ctx context.Context, task string, s
 			attachments[key] = att
 		}
 		userMessage.Attachments = attachments
-		userMessage.Attachments = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, ""),
-			Attachments: userMessage.Attachments,
-			Status:      materialapi.MaterialStatusInput,
-			Origin:      string(userMessage.Source),
-		})
 		state.PendingUserAttachments = nil
 	}
 

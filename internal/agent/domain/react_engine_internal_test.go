@@ -2,14 +2,15 @@ package domain
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
 	materialports "alex/internal/materials/ports"
 )
 
@@ -559,6 +560,43 @@ func TestRegisterMessageAttachmentsDetectsChanges(t *testing.T) {
 	}
 }
 
+type rewriteMigrator struct {
+	called int32
+}
+
+func (m *rewriteMigrator) Normalize(ctx context.Context, req materialports.MigrationRequest) (map[string]ports.Attachment, error) {
+	atomic.AddInt32(&m.called, 1)
+	rewritten := make(map[string]ports.Attachment, len(req.Attachments))
+	for key, att := range req.Attachments {
+		att.Data = ""
+		att.URI = "https://cdn.example.com/" + att.Name
+		rewritten[key] = att
+	}
+	return rewritten, nil
+}
+
+func TestAttachmentMutationsKeepInlinePayloads(t *testing.T) {
+	migrator := &rewriteMigrator{}
+	engine := NewReactEngine(ReactEngineConfig{AttachmentMigrator: migrator})
+	state := &TaskState{SessionID: "s1", TaskID: "t1"}
+	call := ToolCall{Name: "html_edit", ID: "call-1"}
+	inline := ports.Attachment{
+		Name:      "demo.html",
+		MediaType: "text/html",
+		Data:      base64.StdEncoding.EncodeToString([]byte("<html></html>")),
+	}
+	attachments := map[string]ports.Attachment{inline.Name: inline}
+
+	merged := engine.applyToolAttachmentMutations(context.Background(), state, call, attachments, nil, nil)
+	got := merged[inline.Name]
+	if got.Data == "" {
+		t.Fatalf("expected inline payload to remain in agent state")
+	}
+	if atomic.LoadInt32(&migrator.called) != 0 {
+		t.Fatalf("expected migrator to be skipped for agent state")
+	}
+}
+
 func TestApplyToolAttachmentMutationsUpdatesState(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{
@@ -745,7 +783,7 @@ func TestReactRuntimeAttachesReferencedTaskAttachmentsToUserMessage(t *testing.T
 	}
 }
 
-func TestNormalizeMessageHistoryAttachmentsMigratesInlinePayloads(t *testing.T) {
+func TestNormalizeMessageHistoryAttachmentsKeepsInlinePayloads(t *testing.T) {
 	migrator := &captureMigrator{}
 	engine := NewReactEngine(ReactEngineConfig{AttachmentMigrator: migrator})
 	state := &TaskState{
@@ -772,23 +810,17 @@ func TestNormalizeMessageHistoryAttachmentsMigratesInlinePayloads(t *testing.T) 
 
 	engine.normalizeMessageHistoryAttachments(context.Background(), state)
 
-	if len(migrator.requests) != 2 {
-		t.Fatalf("expected two migration requests, got %d", len(migrator.requests))
-	}
-	if got := migrator.requests[0].Status; got != materialapi.MaterialStatusInput {
-		t.Fatalf("expected user message to use input status, got %v", got)
-	}
-	if got := migrator.requests[1].Context.ToolCallID; got != "call-123" {
-		t.Fatalf("expected tool message to preserve tool call id, got %q", got)
+	if len(migrator.requests) != 0 {
+		t.Fatalf("expected migrator to be skipped, got %d requests", len(migrator.requests))
 	}
 
 	for idx, msg := range state.Messages {
 		for key, att := range msg.Attachments {
-			if att.Data != "" {
-				t.Fatalf("message %d attachment %s still has inline data", idx, key)
+			if att.Data == "" {
+				t.Fatalf("message %d attachment %s missing inline data", idx, key)
 			}
-			if att.URI == "" {
-				t.Fatalf("message %d attachment %s missing CDN URI", idx, key)
+			if att.URI != "" {
+				t.Fatalf("message %d attachment %s should not be externalized", idx, key)
 			}
 		}
 	}

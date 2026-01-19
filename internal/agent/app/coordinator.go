@@ -599,7 +599,8 @@ func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
 	}
 }
 
-// SetAttachmentMigrator wires a CDN migrator used to rewrite inline attachments.
+// SetAttachmentMigrator wires an attachment migrator for boundary externalization.
+// Agent state keeps inline payloads; CDN rewriting happens at HTTP/SSE boundaries.
 func (c *AgentCoordinator) SetAttachmentMigrator(migrator materialports.Migrator) {
 	c.attachmentMigrator = migrator
 }

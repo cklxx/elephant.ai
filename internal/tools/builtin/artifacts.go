@@ -315,7 +315,7 @@ func (t *artifactsDelete) Definition() ports.ToolDefinition {
 			Type: "object",
 			Properties: map[string]ports.Property{
 				"name":  {Type: "string", Description: "Single attachment name to remove"},
-				"names": {Type: "array", Description: "List of attachment names to remove"},
+				"names": {Type: "array", Description: "List of attachment names to remove", Items: &ports.Property{Type: "string"}},
 			},
 		},
 	}

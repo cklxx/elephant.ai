@@ -627,6 +627,33 @@ func TestSanitizeAttachmentsForStreamPersistsHTMLToStore(t *testing.T) {
 	}
 }
 
+func TestNormalizeAttachmentPayloadExternalizesHTML(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("failed to create attachment store: %v", err)
+	}
+	att := ports.Attachment{
+		Name:      "demo.html",
+		MediaType: "text/html",
+		Data:      base64.StdEncoding.EncodeToString([]byte("<html><body>ok</body></html>")),
+	}
+
+	out := normalizeAttachmentPayload(att, cache, store)
+	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
+		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", out.URI)
+	}
+	if out.Data != "" {
+		t.Fatalf("expected data to be cleared after persistence")
+	}
+	if out.PreviewProfile != "document.html" {
+		t.Fatalf("expected HTML preview profile, got %q", out.PreviewProfile)
+	}
+	if len(out.PreviewAssets) == 0 || out.PreviewAssets[0].CDNURL != out.URI {
+		t.Fatalf("expected preview asset pointing to stored URI, got %#v", out.PreviewAssets)
+	}
+}
+
 func TestSanitizeEnvelopePayloadRetainsInlineMarkdown(t *testing.T) {
 	cache := NewDataCache(4, time.Minute)
 	raw := map[string]any{

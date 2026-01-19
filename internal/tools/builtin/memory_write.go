@@ -43,6 +43,7 @@ func (t *memoryWrite) Definition() ports.ToolDefinition {
 				"keywords": {
 					Type:        "array",
 					Description: "Keywords describing the memory.",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"slots": {
 					Type:        "object",

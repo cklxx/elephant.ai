@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f8fafc"/>
+      <stop offset="100%" stop-color="#e2e8f0"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="640" fill="url(#bg)"/>
+  <rect x="70" y="70" width="340" height="200" rx="18" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="790" y="70" width="340" height="200" rx="18" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="420" y="260" width="360" height="220" rx="20" fill="url(#core)"/>
+  <rect x="70" y="360" width="340" height="200" rx="18" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+  <rect x="790" y="360" width="340" height="200" rx="18" fill="#ffffff" stroke="#94a3b8" stroke-width="2"/>
+
+  <text x="100" y="115" font-family="Georgia, serif" font-size="24" fill="#0f172a">CLI / TUI</text>
+  <text x="100" y="150" font-family="Menlo, monospace" font-size="14" fill="#334155">$ ./alex "map runtime"</text>
+  <text x="100" y="178" font-family="Menlo, monospace" font-size="14" fill="#334155">events: plan, tool, output</text>
+  <text x="100" y="206" font-family="Menlo, monospace" font-size="14" fill="#334155">artifacts: diagram.svg</text>
+
+  <text x="815" y="115" font-family="Georgia, serif" font-size="24" fill="#0f172a">Web UI</text>
+  <text x="815" y="150" font-family="Menlo, monospace" font-size="14" fill="#334155">SSE stream</text>
+  <text x="815" y="178" font-family="Menlo, monospace" font-size="14" fill="#334155">typed events + artifacts</text>
+  <text x="815" y="206" font-family="Menlo, monospace" font-size="14" fill="#334155">cost + trace timeline</text>
+
+  <text x="460" y="315" font-family="Georgia, serif" font-size="26" fill="#e2e8f0">Unified Runtime Core</text>
+  <text x="460" y="350" font-family="Menlo, monospace" font-size="16" fill="#cbd5f5">Think -> Act -> Observe</text>
+  <text x="460" y="380" font-family="Menlo, monospace" font-size="14" fill="#94a3b8">shared DI + typed events</text>
+  <text x="460" y="408" font-family="Menlo, monospace" font-size="14" fill="#94a3b8">tool policy + approvals</text>
+  <text x="460" y="436" font-family="Menlo, monospace" font-size="14" fill="#94a3b8">cost + eval hooks</text>
+
+  <text x="100" y="405" font-family="Georgia, serif" font-size="24" fill="#0f172a">Typed Events</text>
+  <text x="100" y="440" font-family="Menlo, monospace" font-size="14" fill="#334155">same stream everywhere</text>
+  <text x="100" y="468" font-family="Menlo, monospace" font-size="14" fill="#334155">CLI = Web parity</text>
+
+  <text x="815" y="405" font-family="Georgia, serif" font-size="24" fill="#0f172a">Observability</text>
+  <text x="815" y="440" font-family="Menlo, monospace" font-size="14" fill="#334155">logs + traces + metrics</text>
+  <text x="815" y="468" font-family="Menlo, monospace" font-size="14" fill="#334155">per-session cost</text>
+
+  <line x1="410" y1="170" x2="420" y2="300" stroke="#64748b" stroke-width="2"/>
+  <line x1="780" y1="170" x2="780" y2="300" stroke="#64748b" stroke-width="2"/>
+  <line x1="410" y1="440" x2="420" y2="380" stroke="#64748b" stroke-width="2"/>
+  <line x1="780" y1="440" x2="780" y2="380" stroke="#64748b" stroke-width="2"/>
+</svg>

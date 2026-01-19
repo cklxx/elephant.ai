@@ -339,7 +339,11 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 				h.firstTokenLogged = true
 			}
 			rendered := h.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
-			h.write(rendered)
+			if chunk.completeLine {
+				h.write(rendered)
+			} else {
+				emitTypewriter(rendered, h.write)
+			}
 			h.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
 		}
 	}
