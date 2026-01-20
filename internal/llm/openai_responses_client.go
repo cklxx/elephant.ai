@@ -297,9 +297,10 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
 	}
 	for k, v := range c.headers {
-		httpReq.Header.Set(k, v)
-	}
-
+		switch strings.ToLower(k) {
+		case "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "x-api_key", "x-amz-security-token":
+			c.logger.Debug("%s  %s: (hidden)", prefix, k)
+		default:
 	c.logger.Debug("%sRequest Headers:", prefix)
 	for k, v := range httpReq.Header {
 		if k == "Authorization" {
