@@ -70,6 +70,44 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 
 ---
 
+## Context-first multi-agent system
+
+elephant.ai ships a **context-first** multi-agent system. The main service plays the role of the **architect** that manages shared context, priorities, and compression. Each executor runs inside its own VM (or container sandbox), acting as the **doer** with deterministic tool access. The system is designed to keep shared context consistent across all CLIs, including Codex, Claude Code, Gemini CLI, and other compatible clients.
+
+Key ideas:
+
+* **Context sharing with explicit priority:** system > task > session > tool > scratch. Higher-priority context is preserved across agents and delivery surfaces.
+* **Automatic compression:** low-priority context is summarized and compacted before overflow, so the architect can always route the right context to executors.
+* **Architect ↔ executor separation:** the architect focuses on planning, delegation, and consolidation; executors focus on deterministic tool runs inside VMs.
+* **Client-neutral transport:** any CLI that speaks the runtime protocol can connect without losing context fidelity.
+
+```mermaid
+flowchart LR
+  subgraph Delivery
+    CLI1[Codex CLI] --> Gateway
+    CLI2[Claude Code] --> Gateway
+    CLI3[Gemini CLI] --> Gateway
+    CLI4[Other CLIs] --> Gateway
+  end
+
+  Gateway[Shared Runtime Gateway] --> Architect[Main Service Architect]
+
+  Architect -->|prioritized context| ContextStore[(Shared Context Store)]
+  ContextStore -->|context slices| Architect
+  Architect -->|task plan| Executor1[VM Executor A]
+  Architect -->|task plan| Executor2[VM Executor B]
+
+  subgraph Executors
+    Executor1 --> Tools1[Deterministic Tools]
+    Executor2 --> Tools2[Deterministic Tools]
+  end
+
+  ContextStore -->|auto compression| Compressor[Auto Compressor]
+  Compressor -->|summaries + pruning| ContextStore
+```
+
+---
+
 ## Key paths
 
 * `internal/agent/`: ReAct loop, approvals, and event model.
