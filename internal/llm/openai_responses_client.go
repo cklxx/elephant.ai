@@ -297,17 +297,21 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
 	}
 	for k, v := range c.headers {
-		switch strings.ToLower(k) {
-		case "authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key", "x-api_key", "x-amz-security-token":
-			c.logger.Debug("%s  %s: (hidden)", prefix, k)
-		default:
+		httpReq.Header.Set(k, v)
+	}
+
 	c.logger.Debug("%sRequest Headers:", prefix)
 	for k, v := range httpReq.Header {
-		if k == "Authorization" {
-			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
-		} else {
-			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+		var loggedValue string
+		switch strings.ToLower(k) {
+		case "authorization":
+			loggedValue = "Bearer (hidden)"
+		case "proxy-authorization", "cookie", "set-cookie", "x-api-key", "x-api_key", "x-auth-token", "x-amz-security-token", "x-amz-security-token-expires":
+			loggedValue = "(hidden)"
+		default:
+			loggedValue = strings.Join(v, ", ")
 		}
+		c.logger.Debug("%s  %s: %s", prefix, k, loggedValue)
 	}
 
 	var prettyJSON bytes.Buffer
