@@ -70,6 +70,8 @@ func (c *CLI) Run(args []string) error {
 
 	case "eval", "evaluation":
 		return c.handleEval(cmdArgs)
+	case "acp":
+		return c.handleACP(cmdArgs)
 
 	default:
 		// Default: treat as task and run with stream output
@@ -102,6 +104,8 @@ Usage:
   alex search "query"            Search indexed code
   alex mcp                       MCP (Model Context Protocol) management
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
+  alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
+  alex acp serve [--port N]           Run ACP over TCP (default 127.0.0.1:9000)
 
 Configuration:
   Config file: ~/.alex/config.yaml (or $ALEX_CONFIG_PATH)

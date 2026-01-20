@@ -9,6 +9,9 @@ type ApprovalRequest struct {
 	Diff        string
 	Summary     string
 	AutoApprove bool
+	ToolCallID  string
+	ToolName    string
+	Arguments   map[string]any
 }
 
 // ApprovalResponse contains the user's approval decision

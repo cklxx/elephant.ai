@@ -120,6 +120,7 @@ func wrapWithIDPropagation(tool ports.ToolExecutor) ports.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
+	tool = ensureApprovalWrapper(tool)
 	if _, ok := tool.(*idAwareExecutor); ok {
 		return tool
 	}
@@ -155,6 +156,81 @@ func (w *idAwareExecutor) Definition() ports.ToolDefinition {
 
 func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
+}
+
+func ensureApprovalWrapper(tool ports.ToolExecutor) ports.ToolExecutor {
+	if tool == nil {
+		return nil
+	}
+	switch typed := tool.(type) {
+	case *approvalExecutor:
+		return tool
+	case *idAwareExecutor:
+		if _, ok := typed.delegate.(*approvalExecutor); ok {
+			return tool
+		}
+		typed.delegate = &approvalExecutor{delegate: typed.delegate}
+		return tool
+	default:
+		return &approvalExecutor{delegate: tool}
+	}
+}
+
+type approvalExecutor struct {
+	delegate ports.ToolExecutor
+}
+
+func (a *approvalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	if a.delegate == nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil
+	}
+	meta := a.delegate.Metadata()
+	if !meta.Dangerous {
+		return a.delegate.Execute(ctx, call)
+	}
+	approver := builtin.GetApproverFromContext(ctx)
+	if approver == nil || builtin.GetAutoApproveFromContext(ctx) {
+		return a.delegate.Execute(ctx, call)
+	}
+
+	req := &ports.ApprovalRequest{
+		Operation:   meta.Name,
+		FilePath:    extractFilePath(call.Arguments),
+		Summary:     fmt.Sprintf("Approval required for %s", meta.Name),
+		AutoApprove: builtin.GetAutoApproveFromContext(ctx),
+		ToolCallID:  call.ID,
+		ToolName:    call.Name,
+		Arguments:   call.Arguments,
+	}
+	resp, err := approver.RequestApproval(ctx, req)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+	if resp == nil || !resp.Approved {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("operation rejected")}, nil
+	}
+
+	return a.delegate.Execute(ctx, call)
+}
+
+func (a *approvalExecutor) Definition() ports.ToolDefinition {
+	return a.delegate.Definition()
+}
+
+func (a *approvalExecutor) Metadata() ports.ToolMetadata {
+	return a.delegate.Metadata()
+}
+
+func extractFilePath(args map[string]any) string {
+	if args == nil {
+		return ""
+	}
+	for _, key := range []string{"file_path", "path", "resolved_path"} {
+		if val, ok := args[key].(string); ok {
+			return strings.TrimSpace(val)
+		}
+	}
+	return ""
 }
 
 // WithoutSubagent returns a filtered registry that excludes the subagent tool

@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -104,6 +105,34 @@ func (r *Registry) Initialize() error {
 	go r.monitorHealth()
 
 	return nil
+}
+
+// StartServerWithConfig starts a single MCP server using an explicit config.
+// It returns the tool adapters loaded for the server (if any).
+func (r *Registry) StartServerWithConfig(name string, config ServerConfig) ([]*ToolAdapter, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, fmt.Errorf("server name is required")
+	}
+
+	r.mu.RLock()
+	if instance, exists := r.servers[name]; exists {
+		r.mu.RUnlock()
+		if instance.Status == StatusRunning {
+			return r.toolsForServer(name), nil
+		}
+	} else {
+		r.mu.RUnlock()
+	}
+
+	if config.Disabled {
+		return nil, fmt.Errorf("server %s is disabled", name)
+	}
+
+	if err := r.startServer(name, config); err != nil {
+		return nil, err
+	}
+
+	return r.toolsForServer(name), nil
 }
 
 // Shutdown stops all MCP servers gracefully
@@ -274,6 +303,19 @@ func (r *Registry) ListTools() []*ToolAdapter {
 		adapters = append(adapters, adapter)
 	}
 
+	return adapters
+}
+
+func (r *Registry) toolsForServer(serverName string) []*ToolAdapter {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	adapters := make([]*ToolAdapter, 0)
+	for _, adapter := range r.toolAdapters {
+		if adapter.serverName == serverName {
+			adapters = append(adapters, adapter)
+		}
+	}
 	return adapters
 }
 
