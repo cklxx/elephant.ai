@@ -149,7 +149,9 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		if strings.EqualFold(k, anthropicRequestHeaderKey) || strings.EqualFold(k, "Authorization") {
 			c.logger.Debug("%s  %s: (hidden)", prefix, k)
 		} else {
-			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+			// Avoid logging potentially sensitive header values; only indicate presence.
+			_ = v
+			c.logger.Debug("%s  %s: (present)", prefix, k)
 		}
 	}
 
