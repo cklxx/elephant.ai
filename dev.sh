@@ -167,6 +167,30 @@ ensure_acp_port() {
   echo "$port"
 }
 
+load_acp_port() {
+  local pid="${1:-}"
+  local port=""
+
+  if [[ -f "$ACP_PORT_FILE" ]]; then
+    port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "$port" && -n "$pid" ]]; then
+    if command_exists lsof; then
+      local addr
+      addr="$(lsof -nP -a -p "$pid" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9; exit}')"
+      port="${addr##*:}"
+    fi
+  fi
+
+  if [[ -n "$port" ]]; then
+    ACP_PORT="$port"
+    return 0
+  fi
+
+  return 1
+}
+
 resolve_acp_binary() {
   if [[ -n "${ACP_BIN:-}" && -x "${ACP_BIN}" ]]; then
     echo "${ACP_BIN}"
@@ -202,6 +226,7 @@ start_acp_daemon() {
   local pid
   pid="$(read_pid "$ACP_PID_FILE" || true)"
   if is_process_running "$pid"; then
+    load_acp_port "$pid" || log_warn "ACP running but port unknown; set ACP_PORT or remove ${ACP_PORT_FILE}"
     log_info "ACP already running (PID: ${pid})"
     return 0
   fi
