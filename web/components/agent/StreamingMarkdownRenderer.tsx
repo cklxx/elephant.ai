@@ -9,37 +9,12 @@ import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
 
 const isTest =
   process.env.NODE_ENV === "test" || process.env.VITEST_WORKER !== undefined;
-const STREAM_MARKDOWN_BUFFER = 64;
-const STREAM_FLUSH_MIN_CHARS = 24;
 const TYPEWRITER_CHARS_PER_SECOND = 120;
 const TYPEWRITER_MAX_STEP = 1;
 
-function findSafeRenderLength(text: string) {
-  if (text.length <= STREAM_MARKDOWN_BUFFER) {
-    return text.length;
-  }
-
-  const maxIndex = text.length - STREAM_MARKDOWN_BUFFER;
-  const newlineIndex = text.lastIndexOf("\n", maxIndex);
-  if (newlineIndex >= STREAM_FLUSH_MIN_CHARS) {
-    return newlineIndex + 1;
-  }
-
-  const spaceIndex = text.lastIndexOf(" ", maxIndex);
-  if (spaceIndex >= STREAM_FLUSH_MIN_CHARS) {
-    return spaceIndex + 1;
-  }
-
-  return maxIndex;
-}
-
-export function splitStreamingContent(content: string, visibleLength: number) {
-  const visible = content.slice(0, Math.max(0, visibleLength));
-  const safeLength = findSafeRenderLength(visible);
-  return {
-    stable: visible.slice(0, safeLength),
-    tail: visible.slice(safeLength),
-  };
+export function sliceStreamingContent(content: string, visibleLength: number) {
+  const clamped = Math.max(0, Math.min(content.length, visibleLength));
+  return content.slice(0, clamped);
 }
 
 type StreamingMarkdownRendererProps = MarkdownRendererProps & {
@@ -155,15 +130,15 @@ export function StreamingMarkdownRenderer({
   }, [shouldAnimate, targetLength]);
 
   const contentToRender = shouldAnimate
-    ? splitStreamingContent(normalizedContent, displayedLength)
-    : { stable: normalizedContent, tail: "" };
+    ? sliceStreamingContent(normalizedContent, displayedLength)
+    : normalizedContent;
   const showStreamingIndicator = isStreaming && !streamFinished;
 
   return (
     <div className="space-y-2" aria-live="polite">
-      {contentToRender.stable !== "" && (
+      {contentToRender !== "" && (
         <LazyMarkdownRenderer
-          content={contentToRender.stable}
+          content={contentToRender}
           className={className}
           containerClassName={containerClassName}
           components={components}
@@ -171,16 +146,6 @@ export function StreamingMarkdownRenderer({
           showLineNumbers={showLineNumbers}
           mode={shouldAnimate ? "streaming" : "static"}
         />
-      )}
-      {shouldAnimate && contentToRender.tail !== "" && (
-        <div
-          className={cn(
-            "whitespace-pre-wrap break-words text-foreground",
-            className,
-          )}
-        >
-          {contentToRender.tail}
-        </div>
       )}
       {showStreamingIndicator && (
         <div

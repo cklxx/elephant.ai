@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { splitStreamingContent } from "@/components/agent/StreamingMarkdownRenderer";
+import { sliceStreamingContent } from "@/components/agent/StreamingMarkdownRenderer";
 
-describe("splitStreamingContent", () => {
-  it("keeps a raw tail for long streamed content", () => {
-    const longText = "a".repeat(200);
-    const result = splitStreamingContent(longText, longText.length);
-
-    expect(result.stable.length).toBeLessThan(longText.length);
-    expect(result.tail.length).toBeGreaterThan(0);
-    expect(result.stable + result.tail).toBe(longText);
+describe("sliceStreamingContent", () => {
+  it("clamps visible length to bounds", () => {
+    const content = "hello";
+    expect(sliceStreamingContent(content, -1)).toBe("");
+    expect(sliceStreamingContent(content, 0)).toBe("");
+    expect(sliceStreamingContent(content, 2)).toBe("he");
+    expect(sliceStreamingContent(content, 99)).toBe("hello");
   });
 });
