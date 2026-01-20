@@ -123,11 +123,16 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 
 	c.logger.Debug("%sRequest Headers:", prefix)
 	for k, v := range httpReq.Header {
-		if k == "Authorization" {
-			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
-		} else {
-			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+		var loggedValue string
+		switch strings.ToLower(k) {
+		case "authorization":
+			loggedValue = "Bearer (hidden)"
+		case "cookie", "set-cookie", "x-api-key", "x-auth-token", "x-amz-security-token", "x-amz-security-token-expires":
+			loggedValue = "(hidden)"
+		default:
+			loggedValue = strings.Join(v, ", ")
 		}
+		c.logger.Debug("%s  %s: %s", prefix, k, loggedValue)
 	}
 
 	var prettyJSON bytes.Buffer
