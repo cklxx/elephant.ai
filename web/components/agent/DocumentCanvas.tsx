@@ -170,7 +170,11 @@ export function DocumentCanvas({
               maxHeight={viewMaxHeight}
             />
           ) : viewMode === "reading" ? (
-            <ReadingView document={document} className={viewHeightClass} />
+            <ReadingView
+              document={document}
+              className={viewHeightClass}
+              expanded={isExpanded}
+            />
           ) : (
             <DefaultView document={document} className={viewHeightClass} />
           )}
@@ -197,9 +201,11 @@ function DefaultView({
 function ReadingView({
   document,
   className,
+  expanded = false,
 }: {
   document: DocumentContent;
   className?: string;
+  expanded?: boolean;
 }) {
   return (
     <div
@@ -208,7 +214,13 @@ function ReadingView({
         className,
       )}
     >
-      <div className="max-w-4xl mx-auto p-8">
+      <div
+        className={cn(
+          "mx-auto w-full p-8",
+          expanded ? "max-w-6xl" : "max-w-4xl",
+        )}
+        data-testid="document-reading-content"
+      >
         <DocumentRenderer document={document} cleanMode />
       </div>
     </div>
