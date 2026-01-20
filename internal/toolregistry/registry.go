@@ -40,6 +40,12 @@ type Config struct {
 	SeedreamVideoModel      string
 	LLMVisionModel          string
 	SandboxBaseURL          string
+	ACPExecutorAddr         string
+	ACPExecutorCWD          string
+	ACPExecutorAutoApprove  bool
+	ACPExecutorMaxCLICalls  int
+	ACPExecutorMaxDuration  int
+	ACPExecutorRequireManifest bool
 
 	LLMFactory    ports.LLMClientFactory
 	LLMProvider   string
@@ -75,6 +81,12 @@ func NewRegistry(config Config) (*Registry, error) {
 		SeedreamImageModel:      config.SeedreamImageModel,
 		SeedreamVisionModel:     config.SeedreamVisionModel,
 		SeedreamVideoModel:      config.SeedreamVideoModel,
+		ACPExecutorAddr:         config.ACPExecutorAddr,
+		ACPExecutorCWD:          config.ACPExecutorCWD,
+		ACPExecutorAutoApprove:  config.ACPExecutorAutoApprove,
+		ACPExecutorMaxCLICalls:  config.ACPExecutorMaxCLICalls,
+		ACPExecutorMaxDuration:  config.ACPExecutorMaxDuration,
+		ACPExecutorRequireManifest: config.ACPExecutorRequireManifest,
 		MemoryService:           config.MemoryService,
 	}); err != nil {
 		return nil, err
@@ -340,9 +352,18 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["artifacts_list"] = builtin.NewArtifactsList()
 	r.static["artifacts_delete"] = builtin.NewArtifactsDelete()
 	r.static["a2ui_emit"] = builtin.NewA2UIEmit()
+	r.static["artifact_manifest"] = builtin.NewArtifactManifest()
 
 	// Execution & reasoning
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
+	r.static["acp_executor"] = builtin.NewACPExecutor(builtin.ACPExecutorConfig{
+		Addr:                   config.ACPExecutorAddr,
+		CWD:                    config.ACPExecutorCWD,
+		AutoApprove:            config.ACPExecutorAutoApprove,
+		MaxCLICalls:            config.ACPExecutorMaxCLICalls,
+		MaxDurationSeconds:     config.ACPExecutorMaxDuration,
+		RequireArtifactManifest: config.ACPExecutorRequireManifest,
+	})
 
 	// UI orchestration
 	r.static["plan"] = builtin.NewPlan(config.MemoryService)

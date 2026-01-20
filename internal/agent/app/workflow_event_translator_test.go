@@ -395,3 +395,39 @@ func TestWorkflowEventTranslatorForwardsContextSnapshotEvents(t *testing.T) {
 		t.Fatalf("unexpected event type %q", events[0].EventType())
 	}
 }
+
+func TestWorkflowEventTranslatorEmitsArtifactManifestEvent(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	ts := time.Unix(1710000300, 0)
+	translator.OnEvent(&domain.WorkflowToolCompletedEvent{
+		BaseEvent:  domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", ts),
+		CallID:     "call-1",
+		ToolName:   "artifact_manifest",
+		Result:     "Recorded 1 artifact(s).",
+		Metadata:   map[string]any{"artifact_manifest": map[string]any{"items": []any{"artifact"}}},
+		Attachments: map[string]ports.Attachment{
+			"manifest.json": {Name: "manifest.json", MediaType: "application/json", Format: "manifest"},
+		},
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 2 {
+		t.Fatalf("expected tool completed + artifact manifest events, got %d", got)
+	}
+
+	env, ok := events[1].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[1])
+	}
+	if env.Event != "workflow.artifact.manifest" {
+		t.Fatalf("expected artifact manifest event, got %q", env.Event)
+	}
+	if _, ok := env.Payload["manifest"]; !ok {
+		t.Fatalf("expected manifest payload, got %#v", env.Payload)
+	}
+	if env.NodeKind != "artifact" {
+		t.Fatalf("expected artifact node kind, got %q", env.NodeKind)
+	}
+}

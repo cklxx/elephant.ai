@@ -296,8 +296,12 @@ export function ArtifactPreviewCard({
   const displayName = primaryTitle || "Artifact";
   const formatLabel =
     attachment.format?.toUpperCase() || attachment.media_type || "FILE";
+  const normalizedFormat = attachment.format?.toLowerCase() ?? "";
   const isMarkdown =
     formatLabel.includes("MARKDOWN") ||
+    normalizedFormat === "md" ||
+    normalizedFormat === "mkd" ||
+    normalizedFormat === "mdown" ||
     attachment.media_type?.includes("markdown");
   const normalizedTitle = normalizeTitle(primaryTitle ?? null);
 

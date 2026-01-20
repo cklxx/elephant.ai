@@ -98,9 +98,6 @@ func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *ht
 		toolMode = "web"
 	}
 	toolPreset := strings.TrimSpace(query.Get("tool_preset"))
-	if strings.EqualFold(toolMode, "web") {
-		toolPreset = ""
-	}
 
 	cfg := agentports.ContextWindowConfig{
 		PersonaKey: strings.TrimSpace(query.Get("persona_key")),

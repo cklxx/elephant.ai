@@ -107,7 +107,7 @@ func TestPresetResolver_AllValidToolPresets(t *testing.T) {
 		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}, {Name: "think"}},
 	}
 
-	validPresets := []string{"full", "read-only", "safe"}
+	validPresets := []string{"full", "read-only", "safe", "architect"}
 	for _, preset := range validPresets {
 		t.Run(preset, func(t *testing.T) {
 			registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeCLI, preset)
@@ -119,6 +119,21 @@ func TestPresetResolver_AllValidToolPresets(t *testing.T) {
 				t.Fatalf("expected filtered tools for preset %s", preset)
 			}
 		})
+	}
+}
+
+func TestPresetResolver_WebModeUsesPresetWhenProvided(t *testing.T) {
+	resolver := NewPresetResolver(&testLogger{})
+	baseRegistry := &mockToolRegistry{
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "web_search"}, {Name: "plan"}, {Name: "bash"}},
+	}
+
+	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeWeb, "architect")
+	tools := registry.List()
+	for _, tool := range tools {
+		if tool.Name == "bash" || tool.Name == "file_read" {
+			t.Fatalf("expected web architect preset to block %s", tool.Name)
+		}
 	}
 }
 

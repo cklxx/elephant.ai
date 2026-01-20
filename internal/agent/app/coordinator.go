@@ -57,7 +57,7 @@ type Config struct {
 	TopP                float64
 	StopSequences       []string
 	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
-	ToolPreset          string // Tool access preset (CLI-only: full, read-only, safe)
+	ToolPreset          string // Tool access preset (full, read-only, safe, architect)
 	ToolMode            string // Tool access mode (web or cli)
 	EnvironmentSummary  string
 }
@@ -744,9 +744,6 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 	if toolMode == presets.ToolModeCLI && toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
-	if toolMode == presets.ToolModeWeb {
-		toolPreset = ""
-	}
 
 	window, err := c.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
 		TokenLimit:         c.config.MaxTokens,
@@ -788,9 +785,6 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		}
 	} else if toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
-	}
-	if strings.EqualFold(strings.TrimSpace(toolMode), string(presets.ToolModeWeb)) {
-		toolPreset = ""
 	}
 	session := &ports.Session{ID: "", Messages: nil}
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{

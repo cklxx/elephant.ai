@@ -39,4 +39,43 @@ describe('ArtifactPreviewCard', () => {
     const headings = within(dialog).getAllByRole('heading', { name: 'Example Title' });
     expect(headings.some((node) => !node.classList.contains('sr-only'))).toBe(true);
   });
+
+  it('renders markdown tables for mkd attachments', async () => {
+    const user = userEvent.setup();
+    const mkdAttachment: AttachmentPayload = {
+      name: 'table.mkd',
+      description: 'Table Preview',
+      uri: 'https://example.com/table.mkd',
+      media_type: 'text/plain',
+      format: 'mkd',
+      kind: 'artifact',
+    };
+
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockResolvedValueOnce({
+      text: vi.fn().mockResolvedValue(
+        [
+          '# Table Preview',
+          '',
+          '| Name | Count |',
+          '| --- | --- |',
+          '| Alpha | 1 |',
+          '| Beta | 2 |',
+        ].join('\n'),
+      ),
+    } as unknown as Response);
+
+    render(<ArtifactPreviewCard attachment={mkdAttachment} />);
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(mkdAttachment.uri);
+    });
+
+    await user.click(screen.getByRole('button', { name: /preview table preview/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    const table = within(dialog).getByRole('table');
+    expect(table).toBeTruthy();
+    expect(within(table).getByText('Alpha')).toBeTruthy();
+  });
 });

@@ -3,9 +3,10 @@
 
 import { Streamdown } from "streamdown";
 import rehypeRaw from "rehype-raw";
-import rehypeSanitize from "rehype-sanitize";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import rehypeKatex from "rehype-katex";
 import { harden } from "rehype-harden";
+import remarkGfm from "remark-gfm";
 import { Highlight, Language, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import {
@@ -24,9 +25,31 @@ import {
 import { AttachmentPayload } from "@/lib/types";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
+const SANITIZE_SCHEMA = {
+  ...defaultSchema,
+  tagNames: [
+    ...(defaultSchema.tagNames ?? []),
+    "table",
+    "thead",
+    "tbody",
+    "tr",
+    "th",
+    "td",
+    "caption",
+    "colgroup",
+    "col",
+  ],
+  attributes: {
+    ...defaultSchema.attributes,
+    table: [...(defaultSchema.attributes?.table ?? []), "className"],
+    th: [...(defaultSchema.attributes?.th ?? []), "align"],
+    td: [...(defaultSchema.attributes?.td ?? []), "align"],
+  },
+};
+
 const REHYPE_PLUGINS = [
   rehypeRaw,
-  [rehypeSanitize, {}],
+  [rehypeSanitize, SANITIZE_SCHEMA],
   [rehypeKatex, { errorColor: "var(--color-muted-foreground)" }],
   [
     harden,
@@ -38,6 +61,8 @@ const REHYPE_PLUGINS = [
     },
   ],
 ];
+
+const REMARK_PLUGINS = [remarkGfm];
 
 export type MarkdownRendererProps = {
   content: string;
@@ -272,14 +297,32 @@ export function MarkdownRenderer({
     ),
     table: ({ className: tableClass, ...props }: any) => (
       <div className="my-4 overflow-x-auto">
-        <table className={cn("w-full", tableClass)} {...props} />
+        <table
+          className={cn("w-full border-collapse border border-border", tableClass)}
+          {...props}
+        />
       </div>
     ),
+    thead: ({ className: theadClass, ...props }: any) => (
+      <thead className={cn("bg-muted/80", theadClass)} {...props} />
+    ),
+    tbody: ({ className: tbodyClass, ...props }: any) => (
+      <tbody className={cn("divide-y divide-border bg-muted/40", tbodyClass)} {...props} />
+    ),
+    tr: ({ className: trClass, ...props }: any) => (
+      <tr className={cn("border-border border-b", trClass)} {...props} />
+    ),
     th: ({ className: thClass, ...props }: any) => (
-      <th className={cn("px-4 py-2 text-left", thClass)} {...props} />
+      <th
+        className={cn(
+          "whitespace-nowrap px-4 py-2 text-left text-sm font-semibold",
+          thClass,
+        )}
+        {...props}
+      />
     ),
     td: ({ className: tdClass, ...props }: any) => (
-      <td className={cn("px-4 py-2 align-top", tdClass)} {...props} />
+      <td className={cn("px-4 py-2 align-top text-sm", tdClass)} {...props} />
     ),
     ul: ({ className: ulClass, ...props }: any) => {
       const isTaskList =
@@ -380,6 +423,7 @@ export function MarkdownRenderer({
           className,
         )}
         components={mergedComponents as any}
+        remarkPlugins={REMARK_PLUGINS as any}
         rehypePlugins={REHYPE_PLUGINS as any}
       >
         {content}

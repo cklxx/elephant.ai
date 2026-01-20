@@ -22,6 +22,11 @@ Principles (hard invariants):
 4) Artifacts are mandatory and structured; text-only outputs are insufficient.
 5) Convergence is enforced by protocol and scheduler limits, not operator discipline.
 
+Repository defaults (alex-server):
+- `alex-server` boots with the **architect** agent preset by default.
+- Tool access is restricted to the **architect** tool preset in web mode unless overridden.
+- The executor is invoked via `acp_executor`; local shell/file tools remain disabled in web mode.
+
 ---
 
 ## Roles and responsibilities
@@ -97,6 +102,20 @@ Sandbox configuration (project wiring):
 ```yaml
 runtime:
   sandbox_base_url: "http://localhost:18086"
+```
+
+ACP executor config (project wiring):
+- Use runtime keys to locate the ACP executor and enforce convergence limits.
+- These are shared by `alex` and `alex-server` but primarily consumed by the server-side architect.
+
+```yaml
+runtime:
+  acp_executor_addr: "127.0.0.1:18088"
+  acp_executor_cwd: "/workspace/project"
+  acp_executor_auto_approve: false
+  acp_executor_max_cli_calls: 12
+  acp_executor_max_duration_seconds: 900
+  acp_executor_require_manifest: true
 ```
 
 ---
@@ -351,8 +370,8 @@ Acceptance criteria:
 These references ground the protocol framing, event-ledger model, SSE stream, and sandbox portability choices:
 
 - JSON-RPC 2.0 specification (ACP transport baseline): https://www.jsonrpc.org/specification
-- LSP message framing (Content-Length headers over stdio/TCP): https://microsoft.github.io/language-server-protocol/specifications/specification-3-17/
-- Server-Sent Events specification (HTTP event stream semantics): https://html.spec.whatwg.org/multipage/server-sent-events.html
+- LSP base protocol framing (Content-Length headers): https://microsoft.github.io/language-server-protocol/specifications/lsp/3.17/specification/
+- Server-Sent Events spec (EventSource + `text/event-stream`): https://html.spec.whatwg.org/dev/server-sent-events.html
 - Event sourcing pattern (append-only event log + replay): https://martinfowler.com/eaaDev/EventSourcing.html
-- OCI runtime specifications (portable sandbox runtime contract): https://github.com/opencontainers/runtime-spec
-- gVisor sandbox runtime (OCI-compatible isolation model): https://gvisor.dev/docs/
+- OCI runtime spec (portable sandbox runtime contract): https://specs.opencontainers.org/runtime-spec/
+- gVisor docs (OCI-compatible sandbox runtime `runsc`): https://gvisor.dev/docs/

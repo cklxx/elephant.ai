@@ -36,6 +36,11 @@ func TestGetPromptConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "architect preset",
+			preset:  PresetArchitect,
+			wantErr: false,
+		},
+		{
 			name:    "invalid preset",
 			preset:  AgentPreset("invalid"),
 			wantErr: true,
@@ -91,9 +96,21 @@ func TestGetToolConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "web mode ignores preset",
+			name:    "architect preset",
+			mode:    ToolModeCLI,
+			preset:  ToolPresetArchitect,
+			wantErr: false,
+		},
+		{
+			name:    "web mode default",
 			mode:    ToolModeWeb,
 			preset:  ToolPreset(""),
+			wantErr: false,
+		},
+		{
+			name:    "web mode architect preset",
+			mode:    ToolModeWeb,
+			preset:  ToolPresetArchitect,
 			wantErr: false,
 		},
 		{
@@ -135,6 +152,7 @@ func TestIsValidPreset(t *testing.T) {
 		{"researcher", "researcher", true},
 		{"devops", "devops", true},
 		{"security-analyst", "security-analyst", true},
+		{"architect", "architect", true},
 		{"invalid", "invalid", false},
 		{"empty", "", false},
 	}
@@ -157,6 +175,7 @@ func TestIsValidToolPreset(t *testing.T) {
 		{"full", "full", true},
 		{"read-only", "read-only", true},
 		{"safe", "safe", true},
+		{"architect", "architect", true},
 		{"invalid", "invalid", false},
 		{"empty", "", false},
 	}
@@ -290,6 +309,34 @@ func TestToolPresetBlocking(t *testing.T) {
 			toolName:  "skills",
 			wantAllow: false,
 		},
+		{
+			name:      "architect allows web_search",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetArchitect,
+			toolName:  "web_search",
+			wantAllow: true,
+		},
+		{
+			name:      "architect allows acp_executor",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetArchitect,
+			toolName:  "acp_executor",
+			wantAllow: true,
+		},
+		{
+			name:      "architect blocks bash",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetArchitect,
+			toolName:  "bash",
+			wantAllow: false,
+		},
+		{
+			name:      "web mode architect blocks file_read",
+			mode:      ToolModeWeb,
+			preset:    ToolPresetArchitect,
+			toolName:  "file_read",
+			wantAllow: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -320,8 +367,8 @@ func TestToolPresetBlocking(t *testing.T) {
 
 func TestGetAllPresets(t *testing.T) {
 	presets := GetAllPresets()
-	if len(presets) != 6 {
-		t.Errorf("GetAllPresets() returned %d presets, want 6", len(presets))
+	if len(presets) != 7 {
+		t.Errorf("GetAllPresets() returned %d presets, want 7", len(presets))
 	}
 
 	// Check all expected presets are present
@@ -332,6 +379,7 @@ func TestGetAllPresets(t *testing.T) {
 		PresetDevOps:          false,
 		PresetSecurityAnalyst: false,
 		PresetDesigner:        false,
+		PresetArchitect:       false,
 	}
 
 	for _, preset := range presets {
@@ -351,8 +399,8 @@ func TestGetAllPresets(t *testing.T) {
 
 func TestGetAllToolPresets(t *testing.T) {
 	presets := GetAllToolPresets()
-	if len(presets) != 3 {
-		t.Errorf("GetAllToolPresets() returned %d presets, want 3", len(presets))
+	if len(presets) != 4 {
+		t.Errorf("GetAllToolPresets() returned %d presets, want 4", len(presets))
 	}
 
 	// Check all expected presets are present
@@ -360,6 +408,7 @@ func TestGetAllToolPresets(t *testing.T) {
 		ToolPresetFull:     false,
 		ToolPresetReadOnly: false,
 		ToolPresetSafe:     false,
+		ToolPresetArchitect: false,
 	}
 
 	for _, preset := range presets {

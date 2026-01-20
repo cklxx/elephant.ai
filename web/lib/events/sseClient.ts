@@ -21,6 +21,7 @@ const WORKFLOW_EVENTS: WorkflowEventType[] = [
   'workflow.tool.started',
   'workflow.tool.progress',
   'workflow.tool.completed',
+  'workflow.artifact.manifest',
   'workflow.input.received',
   'workflow.subflow.progress',
   'workflow.subflow.completed',

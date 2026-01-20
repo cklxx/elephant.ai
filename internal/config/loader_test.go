@@ -57,6 +57,12 @@ runtime:
   llm_small_model: "gpt-4o-mini"
   llm_vision_model: "gpt-4o-mini"
   api_key: "sk-test"
+  acp_executor_addr: "127.0.0.1:18088"
+  acp_executor_cwd: "/workspace/project"
+  acp_executor_auto_approve: true
+  acp_executor_max_cli_calls: 9
+  acp_executor_max_duration_seconds: 120
+  acp_executor_require_manifest: false
   tavily_api_key: "file-tavily"
   ark_api_key: "file-ark"
   seedream_text_endpoint_id: "file-text-id"
@@ -118,6 +124,12 @@ runtime:
 	}
 	if cfg.SeedreamTextModel != "file-text-model" || cfg.SeedreamImageModel != "file-image-model" || cfg.SeedreamVisionModel != "file-vision-model" || cfg.SeedreamVideoModel != "file-video-model" {
 		t.Fatalf("expected seedream models from file, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
+	}
+	if cfg.ACPExecutorAddr != "127.0.0.1:18088" || cfg.ACPExecutorCWD != "/workspace/project" {
+		t.Fatalf("expected acp executor config from file, got %q/%q", cfg.ACPExecutorAddr, cfg.ACPExecutorCWD)
+	}
+	if !cfg.ACPExecutorAutoApprove || cfg.ACPExecutorMaxCLICalls != 9 || cfg.ACPExecutorMaxDuration != 120 || cfg.ACPExecutorRequireManifest {
+		t.Fatalf("unexpected acp executor config values: %+v", cfg)
 	}
 	if cfg.Environment != "staging" {
 		t.Fatalf("expected environment from file, got %q", cfg.Environment)
@@ -532,25 +544,31 @@ runtime:
 	cfg, meta, err := Load(
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
 		WithEnv(envMap{
-			"LLM_TEMPERATURE":            "0",
-			"LLM_MODEL":                  "env-model",
-			"LLM_VISION_MODEL":           "env-vision-model",
-			"TAVILY_API_KEY":             "env-tavily",
-			"ARK_API_KEY":                "env-ark",
-			"SEEDREAM_TEXT_ENDPOINT_ID":  "env-text",
-			"SEEDREAM_IMAGE_ENDPOINT_ID": "env-image",
-			"SEEDREAM_TEXT_MODEL":        "env-text-model",
-			"SEEDREAM_IMAGE_MODEL":       "env-image-model",
-			"SEEDREAM_VISION_MODEL":      "env-vision-model",
-			"SEEDREAM_VIDEO_MODEL":       "env-video-model",
-			"ALEX_ENV":                   "production",
-			"ALEX_VERBOSE":               "yes",
-			"ALEX_NO_TUI":                "true",
-			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
-			"ALEX_TUI_FOLLOW_STREAM":     "false",
-			"ALEX_REASONING_STREAM":      "true",
-			"AGENT_PRESET":               "designer",
-			"TOOL_PRESET":                "full",
+			"LLM_TEMPERATURE":                   "0",
+			"LLM_MODEL":                         "env-model",
+			"LLM_VISION_MODEL":                  "env-vision-model",
+			"TAVILY_API_KEY":                    "env-tavily",
+			"ARK_API_KEY":                       "env-ark",
+			"ACP_EXECUTOR_ADDR":                 "10.0.0.2:19000",
+			"ACP_EXECUTOR_CWD":                  "/srv/workspace",
+			"ACP_EXECUTOR_AUTO_APPROVE":         "true",
+			"ACP_EXECUTOR_MAX_CLI_CALLS":        "5",
+			"ACP_EXECUTOR_MAX_DURATION_SECONDS": "600",
+			"ACP_EXECUTOR_REQUIRE_MANIFEST":     "false",
+			"SEEDREAM_TEXT_ENDPOINT_ID":         "env-text",
+			"SEEDREAM_IMAGE_ENDPOINT_ID":        "env-image",
+			"SEEDREAM_TEXT_MODEL":               "env-text-model",
+			"SEEDREAM_IMAGE_MODEL":              "env-image-model",
+			"SEEDREAM_VISION_MODEL":             "env-vision-model",
+			"SEEDREAM_VIDEO_MODEL":              "env-video-model",
+			"ALEX_ENV":                          "production",
+			"ALEX_VERBOSE":                      "yes",
+			"ALEX_NO_TUI":                       "true",
+			"ALEX_TUI_FOLLOW_TRANSCRIPT":        "false",
+			"ALEX_TUI_FOLLOW_STREAM":            "false",
+			"ALEX_REASONING_STREAM":             "true",
+			"AGENT_PRESET":                      "designer",
+			"TOOL_PRESET":                       "full",
 		}.Lookup),
 	)
 	if err != nil {
@@ -573,6 +591,12 @@ runtime:
 	}
 	if cfg.ArkAPIKey != "env-ark" {
 		t.Fatalf("expected ark api key from env, got %q", cfg.ArkAPIKey)
+	}
+	if cfg.ACPExecutorAddr != "10.0.0.2:19000" || cfg.ACPExecutorCWD != "/srv/workspace" {
+		t.Fatalf("expected acp executor config from env, got %q/%q", cfg.ACPExecutorAddr, cfg.ACPExecutorCWD)
+	}
+	if !cfg.ACPExecutorAutoApprove || cfg.ACPExecutorMaxCLICalls != 5 || cfg.ACPExecutorMaxDuration != 600 || cfg.ACPExecutorRequireManifest {
+		t.Fatalf("unexpected acp executor config from env: %+v", cfg)
 	}
 	if cfg.SeedreamTextModel != "env-text-model" || cfg.SeedreamImageModel != "env-image-model" || cfg.SeedreamVisionModel != "env-vision-model" || cfg.SeedreamVideoModel != "env-video-model" {
 		t.Fatalf("expected seedream models from env, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
@@ -606,6 +630,9 @@ runtime:
 	}
 	if meta.Source("seedream_text_model") != SourceEnv || meta.Source("seedream_image_model") != SourceEnv || meta.Source("seedream_vision_model") != SourceEnv || meta.Source("seedream_video_model") != SourceEnv {
 		t.Fatalf("expected env source for seedream models")
+	}
+	if meta.Source("acp_executor_addr") != SourceEnv || meta.Source("acp_executor_cwd") != SourceEnv || meta.Source("acp_executor_auto_approve") != SourceEnv || meta.Source("acp_executor_max_cli_calls") != SourceEnv || meta.Source("acp_executor_max_duration_seconds") != SourceEnv || meta.Source("acp_executor_require_manifest") != SourceEnv {
+		t.Fatalf("expected env source for acp executor config")
 	}
 	if meta.Source("temperature") != SourceEnv {
 		t.Fatalf("expected env source for temperature, got %s", meta.Source("temperature"))

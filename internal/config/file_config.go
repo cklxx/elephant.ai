@@ -23,6 +23,12 @@ type RuntimeFileConfig struct {
 	ArkAPIKey               string   `yaml:"ark_api_key"`
 	BaseURL                 string   `yaml:"base_url"`
 	SandboxBaseURL          string   `yaml:"sandbox_base_url"`
+	ACPExecutorAddr         string   `yaml:"acp_executor_addr"`
+	ACPExecutorCWD          string   `yaml:"acp_executor_cwd"`
+	ACPExecutorAutoApprove  *bool    `yaml:"acp_executor_auto_approve"`
+	ACPExecutorMaxCLICalls  *int     `yaml:"acp_executor_max_cli_calls"`
+	ACPExecutorMaxDuration  *int     `yaml:"acp_executor_max_duration_seconds"`
+	ACPExecutorRequireManifest *bool `yaml:"acp_executor_require_manifest"`
 	TavilyAPIKey            string   `yaml:"tavily_api_key"`
 	SeedreamTextEndpointID  string   `yaml:"seedream_text_endpoint_id"`
 	SeedreamImageEndpointID string   `yaml:"seedream_image_endpoint_id"`

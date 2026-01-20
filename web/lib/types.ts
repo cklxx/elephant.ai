@@ -16,6 +16,7 @@ export type WorkflowEventType =
   | 'workflow.tool.started'
   | 'workflow.tool.progress'
   | 'workflow.tool.completed'
+  | 'workflow.artifact.manifest'
   | 'workflow.input.received'
   | 'workflow.subflow.progress'
   | 'workflow.subflow.completed'
@@ -711,6 +712,13 @@ export interface WorkflowToolCompletedPayload {
   attachments?: Record<string, AttachmentPayload> | null;
 }
 
+export interface WorkflowArtifactManifestPayload {
+  manifest?: any;
+  attachments?: Record<string, AttachmentPayload> | null;
+  source_tool?: string;
+  result?: string;
+}
+
 export interface WorkflowResultFinalPayload {
   final_answer: string;
   total_iterations: number;
@@ -810,6 +818,10 @@ export type WorkflowToolCompletedEvent = WorkflowEvent<
   WorkflowToolCompletedPayload,
   'workflow.tool.completed'
 >;
+export type WorkflowArtifactManifestEvent = WorkflowEvent<
+  WorkflowArtifactManifestPayload,
+  'workflow.artifact.manifest'
+>;
 export type WorkflowResultFinalEvent = WorkflowEvent<
   WorkflowResultFinalPayload,
   'workflow.result.final'
@@ -871,6 +883,7 @@ export type AnyAgentEvent =
   | WorkflowToolStartedEvent
   | WorkflowToolProgressEvent
   | WorkflowToolCompletedEvent
+  | WorkflowArtifactManifestEvent
   | WorkflowResultFinalEvent
   | WorkflowResultCancelledEvent
   | WorkflowSubflowProgressEvent

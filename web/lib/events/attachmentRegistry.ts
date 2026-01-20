@@ -1,6 +1,7 @@
 import {
   AnyAgentEvent,
   AttachmentPayload,
+  WorkflowArtifactManifestEvent,
   WorkflowResultFinalEvent,
   WorkflowToolCompletedEvent,
   WorkflowInputReceivedEvent,
@@ -412,6 +413,31 @@ class AttachmentRegistry {
             markDisplayed: true,
             timestamp: eventTimestamp,
           });
+        }
+        break;
+      }
+      case eventMatches(event, 'workflow.artifact.manifest', 'workflow.artifact.manifest'): {
+        const manifestEvent = event as WorkflowArtifactManifestEvent;
+        const payload =
+          manifestEvent.payload &&
+          typeof manifestEvent.payload === 'object' &&
+          !Array.isArray(manifestEvent.payload)
+            ? (manifestEvent.payload as Record<string, any>)
+            : null;
+        const manifest =
+          manifestEvent.manifest ??
+          (payload?.manifest as Record<string, any> | undefined) ??
+          payload;
+        const attachments = normalizeAttachmentMap(
+          (manifestEvent.attachments as AttachmentMap | undefined) ??
+            (payload?.attachments as AttachmentMap | undefined) ??
+            (manifest && typeof manifest === 'object'
+              ? (manifest as Record<string, any>).attachments
+              : undefined),
+        );
+        if (attachments) {
+          this.recordToolAttachments(attachments, eventTimestamp);
+          this.upsertMany(attachments, eventTimestamp);
         }
         break;
       }

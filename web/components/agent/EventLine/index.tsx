@@ -4,6 +4,7 @@
 import React from "react";
 import {
   AnyAgentEvent,
+  WorkflowArtifactManifestEvent,
   WorkflowToolCompletedEvent,
   WorkflowToolStartedEvent,
   WorkflowNodeOutputSummaryEvent,
@@ -161,6 +162,53 @@ export const EventLine = React.memo(function EventLine({
   }
 
   // Tool call complete - use ToolOutputCard
+  if (event.event_type === "workflow.artifact.manifest") {
+    const manifestEvent = event as WorkflowArtifactManifestEvent;
+    const payload =
+      manifestEvent.payload &&
+      typeof manifestEvent.payload === "object" &&
+      !Array.isArray(manifestEvent.payload)
+        ? (manifestEvent.payload as Record<string, any>)
+        : null;
+    const manifest =
+      manifestEvent.manifest ??
+      (payload?.manifest as Record<string, any> | undefined) ??
+      payload;
+    const rawAttachments =
+      manifestEvent.attachments ??
+      (payload?.attachments as Record<string, any> | undefined) ??
+      (manifest && typeof manifest === "object"
+        ? (manifest as Record<string, any>).attachments
+        : undefined);
+    const attachments =
+      rawAttachments && typeof rawAttachments === "object"
+        ? (rawAttachments as Record<string, any>)
+        : undefined;
+    const summary =
+      (typeof manifestEvent.result === "string" &&
+        manifestEvent.result.trim().length > 0
+        ? manifestEvent.result
+        : undefined) ??
+      (manifest &&
+      typeof manifest === "object" &&
+      typeof (manifest as Record<string, any>).summary === "string"
+        ? (manifest as Record<string, any>).summary
+        : undefined) ??
+      "Artifact manifest received.";
+
+    return wrapWithSubagentContext(
+      <div data-testid="event-workflow.artifact.manifest" className="py-1">
+        <ToolOutputCard
+          toolName="artifact_manifest"
+          result={summary}
+          metadata={manifest ? { manifest } : undefined}
+          attachments={attachments as Record<string, any> | undefined}
+          timestamp={manifestEvent.timestamp}
+        />
+      </div>,
+    );
+  }
+
   if (event.event_type === "workflow.tool.completed") {
     const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;

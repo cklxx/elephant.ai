@@ -127,6 +127,34 @@ func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset
 	}
 }
 
+func TestSelectToolRegistryUsesArchitectPresetInWebMode(t *testing.T) {
+	deps := ExecutionPreparationDeps{
+		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "plan"}, {Name: "clearify"}, {Name: "web_search"}, {Name: "web_fetch"}, {Name: "request_user"}, {Name: "acp_executor"}, {Name: "file_read"}, {Name: "bash"}}},
+		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "core", Metadata: map[string]string{}}},
+		ContextMgr:    stubContextManager{},
+		Parser:        stubParser{},
+		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1, ToolPreset: string(presets.ToolPresetArchitect)},
+		Logger:        ports.NoopLogger{},
+		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
+		EventEmitter:  ports.NoopEventListener{},
+	}
+
+	service := NewExecutionPreparationService(deps)
+	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeWeb, string(presets.ToolPresetArchitect))
+	names := sortedToolNames(filtered.List())
+
+	if containsString(names, "bash") || containsString(names, "file_read") {
+		t.Fatalf("web architect preset should block local tools, got: %v", names)
+	}
+	for _, allowed := range []string{"plan", "clearify", "web_search", "web_fetch", "request_user", "acp_executor"} {
+		if !containsString(names, allowed) {
+			t.Fatalf("expected tool %s in web architect preset, got: %v", allowed, names)
+		}
+	}
+}
+
 func sortedToolNames(defs []ports.ToolDefinition) []string {
 	names := make([]string, len(defs))
 	for i, def := range defs {

@@ -38,6 +38,7 @@ var sseAllowlist = map[string]bool{
 	"workflow.tool.started":                    true,
 	"workflow.tool.progress":                   true,
 	"workflow.tool.completed":                  true,
+	"workflow.artifact.manifest":               true,
 	"workflow.input.received":                  true,
 	"workflow.subflow.progress":                true,
 	"workflow.subflow.completed":               true,

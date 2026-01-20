@@ -192,6 +192,14 @@ const WorkflowToolCompletedEventSchema = BaseAgentEventSchema.extend({
   attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
 });
 
+const WorkflowArtifactManifestEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.artifact.manifest'),
+  manifest: z.unknown().optional(),
+  attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
+  source_tool: z.string().optional(),
+  result: z.string().optional(),
+});
+
 const WorkflowResultFinalEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('workflow.result.final'),
   final_answer: z.string().default(''),
@@ -293,6 +301,7 @@ const EventSchemas = [
   WorkflowToolStartedEventSchema,
   WorkflowToolProgressEventSchema,
   WorkflowToolCompletedEventSchema,
+  WorkflowArtifactManifestEventSchema,
   WorkflowResultFinalEventSchema,
   WorkflowResultCancelledEventSchema,
   WorkflowSubflowProgressEventSchema,

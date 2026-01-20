@@ -14,6 +14,12 @@ func BuildContainer(config Config) (*di.Container, error) {
 	diConfig.EnableMCP = config.EnableMCP
 	diConfig.EnvironmentSummary = config.EnvironmentSummary
 	diConfig.SessionDir = strings.TrimSpace(config.Session.Dir)
+	if strings.TrimSpace(diConfig.AgentPreset) == "" {
+		diConfig.AgentPreset = string(presets.PresetArchitect)
+	}
+	if strings.TrimSpace(diConfig.ToolPreset) == "" {
+		diConfig.ToolPreset = string(presets.ToolPresetArchitect)
+	}
 	sessionDBURL := strings.TrimSpace(config.Session.DatabaseURL)
 	if sessionDBURL == "" {
 		sessionDBURL = strings.TrimSpace(config.Auth.DatabaseURL)

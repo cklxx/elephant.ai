@@ -624,7 +624,17 @@ function extractPlaceholderSegments(
   return segments;
 }
 
-const DOCUMENT_FORMATS = new Set(['ppt', 'pptx', 'pdf', 'markdown', 'md', 'doc', 'docx']);
+const DOCUMENT_FORMATS = new Set([
+  'ppt',
+  'pptx',
+  'pdf',
+  'markdown',
+  'md',
+  'mkd',
+  'mdown',
+  'doc',
+  'docx',
+]);
 
 function extractAttachmentExtension(value: string | undefined | null): string | null {
   if (!value) return null;
@@ -689,7 +699,11 @@ export function getAttachmentSegmentType(
 
   const documentProfile = previewProfile.startsWith('document.');
   const markdownFormat =
-    normalizedFormat === 'markdown' || normalizedFormat === 'md' || normalizedFormat === 'x-markdown';
+    normalizedFormat === 'markdown' ||
+    normalizedFormat === 'md' ||
+    normalizedFormat === 'mkd' ||
+    normalizedFormat === 'mdown' ||
+    normalizedFormat === 'x-markdown';
   const documentFormat =
     inferredDocument ||
     (normalizedFormat && DOCUMENT_FORMATS.has(normalizedFormat)) ||

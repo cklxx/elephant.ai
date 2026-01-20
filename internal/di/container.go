@@ -62,6 +62,12 @@ type Config struct {
 	ArkAPIKey               string
 	BaseURL                 string
 	SandboxBaseURL          string
+	ACPExecutorAddr         string
+	ACPExecutorCWD          string
+	ACPExecutorAutoApprove  bool
+	ACPExecutorMaxCLICalls  int
+	ACPExecutorMaxDuration  int
+	ACPExecutorRequireManifest bool
 	TavilyAPIKey            string
 	SeedreamTextEndpointID  string
 	SeedreamImageEndpointID string
@@ -302,6 +308,12 @@ func BuildContainer(config Config) (*Container, error) {
 		APIKey:                  config.APIKey,
 		BaseURL:                 config.BaseURL,
 		SandboxBaseURL:          config.SandboxBaseURL,
+		ACPExecutorAddr:         config.ACPExecutorAddr,
+		ACPExecutorCWD:          config.ACPExecutorCWD,
+		ACPExecutorAutoApprove:  config.ACPExecutorAutoApprove,
+		ACPExecutorMaxCLICalls:  config.ACPExecutorMaxCLICalls,
+		ACPExecutorMaxDuration:  config.ACPExecutorMaxDuration,
+		ACPExecutorRequireManifest: config.ACPExecutorRequireManifest,
 		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
 		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
 		SeedreamTextModel:       config.SeedreamTextModel,
