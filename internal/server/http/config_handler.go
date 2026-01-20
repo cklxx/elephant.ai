@@ -8,6 +8,9 @@ import (
 
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
+	"alex/internal/httpclient"
+	"alex/internal/logging"
+	"alex/internal/subscription"
 )
 
 // RuntimeConfigResolver resolves the latest runtime configuration snapshot.
@@ -15,8 +18,9 @@ type RuntimeConfigResolver func(context.Context) (runtimeconfig.RuntimeConfig, r
 
 // ConfigHandler serves internal runtime configuration APIs.
 type ConfigHandler struct {
-	manager  *configadmin.Manager
-	resolver RuntimeConfigResolver
+	manager        *configadmin.Manager
+	resolver       RuntimeConfigResolver
+	catalogService SubscriptionCatalogService
 }
 
 // NewConfigHandler constructs a handler when a manager is available.
@@ -24,7 +28,11 @@ func NewConfigHandler(manager *configadmin.Manager, resolver RuntimeConfigResolv
 	if manager == nil || resolver == nil {
 		return nil
 	}
-	return &ConfigHandler{manager: manager, resolver: resolver}
+	return &ConfigHandler{
+		manager:        manager,
+		resolver:       resolver,
+		catalogService: nil,
+	}
 }
 
 // runtimeConfigResponse represents payloads exchanged with the UI.
@@ -34,6 +42,11 @@ type runtimeConfigResponse struct {
 	Sources   map[string]runtimeconfig.ValueSource `json:"sources,omitempty"`
 	UpdatedAt time.Time                            `json:"updated_at"`
 	Tasks     []configadmin.ReadinessTask          `json:"tasks"`
+}
+
+// SubscriptionCatalogService resolves the current model catalog from CLI subscriptions.
+type SubscriptionCatalogService interface {
+	Catalog(context.Context) subscription.Catalog
 }
 
 func (h *ConfigHandler) snapshot(ctx context.Context) (runtimeConfigResponse, error) {
@@ -139,6 +152,32 @@ func (h *ConfigHandler) HandleRuntimeStream(w http.ResponseWriter, r *http.Reque
 			}
 		}
 	}
+}
+
+// HandleGetRuntimeModels returns CLI-discovered model catalogs.
+func (h *ConfigHandler) HandleGetRuntimeModels(w http.ResponseWriter, r *http.Request) {
+	h.HandleGetSubscriptionCatalog(w, r)
+}
+
+// HandleGetSubscriptionCatalog returns CLI-discovered model catalogs.
+func (h *ConfigHandler) HandleGetSubscriptionCatalog(w http.ResponseWriter, r *http.Request) {
+	if h == nil {
+		http.NotFound(w, r)
+		return
+	}
+	service := h.catalogService
+	if service == nil {
+		service = defaultCatalogService()
+	}
+	writeJSON(w, http.StatusOK, service.Catalog(r.Context()))
+}
+
+func defaultCatalogService() SubscriptionCatalogService {
+	logger := logging.NewComponentLogger("SubscriptionCatalog")
+	client := httpclient.New(20*time.Second, logger)
+	return subscription.NewCatalogService(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.LoadCLICredentials()
+	}, client, 15*time.Second)
 }
 
 func writeSSEPayload(w http.ResponseWriter, payload any) error {

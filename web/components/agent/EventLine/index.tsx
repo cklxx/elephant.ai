@@ -105,7 +105,10 @@ export const EventLine = React.memo(function EventLine({
           )}
 
           {mediaSegments.length > 0 && (
-            <div className="w-full grid grid-cols-2 gap-2">
+            <div
+              className="w-full grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2"
+              data-testid="event-input-media"
+            >
               {mediaSegments.map((segment, index) => {
                 if (!segment.attachment) return null;
                 const uri = buildAttachmentUri(segment.attachment);
@@ -237,10 +240,7 @@ export const EventLine = React.memo(function EventLine({
     const isStreaming = !streamFinished;
     return wrapWithSubagentContext(
       <div
-        className={cn(
-          "py-2",
-          !isNested && "pl-4 border-l-2 border-primary/10",
-        )}
+        className={cn("py-2", !isNested && "pl-4 border-l-2 border-primary/10")}
         data-testid="event-workflow.node.output.delta"
       >
         <AgentMarkdown
@@ -338,7 +338,7 @@ function PlanGoalCard({
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
-        <AlexWordmark className="ml-0.5 text-muted-foreground/60" />
+        <AlexWordmark className="ml-1 text-muted-foreground/60" />
       </div>
       <AgentMarkdown
         content={goal}

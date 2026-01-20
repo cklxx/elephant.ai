@@ -506,7 +506,10 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
       ) : (
         <>
           {imageAttachments.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div
+              className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4"
+              data-testid="document-attachment-images"
+            >
               {imageAttachments.map(({ key, attachment }) => {
                 const uri = buildAttachmentUri(attachment);
                 if (!uri) {
@@ -526,7 +529,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
             </div>
           )}
           {videoAttachments.length > 0 && (
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-4">
               {videoAttachments.map(({ key, attachment }) => {
                 const uri = buildAttachmentUri(attachment);
                 if (!uri) {

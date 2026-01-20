@@ -62,6 +62,7 @@ Rules:
 				"memory_keywords": {
 					Type:        "array",
 					Description: "Keywords to recall user memories before planning.",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"memory_slots": {
 					Type:        "object",

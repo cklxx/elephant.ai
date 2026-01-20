@@ -131,6 +131,16 @@ alex config path
 推荐使用 env 承载 secrets，然后在 `config.yaml` 里引用（示例）：
 
 - `OPENAI_API_KEY`：OpenAI-compatible API key
+- `ANTHROPIC_API_KEY`：Claude (Anthropic) API key
+- `CLAUDE_CODE_OAUTH_TOKEN`：Claude Code OAuth token
+- `ANTHROPIC_AUTH_TOKEN`：Claude OAuth token (备用)
+- `CODEX_API_KEY`：OpenAI Responses / Codex API key
+- `ANTIGRAVITY_API_KEY`：Antigravity API key
+- `OPENAI_BASE_URL`：OpenAI base URL override
+- `ANTHROPIC_BASE_URL`：Anthropic base URL override
+- `CODEX_BASE_URL`：Responses / Codex base URL override
+- `ANTIGRAVITY_BASE_URL`：Antigravity base URL override
+- `ALEX_CLI_AUTH_PATH`：CLI auth.json 路径覆盖
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
 - `AUTH_JWT_SECRET` / `AUTH_DATABASE_URL`
@@ -159,7 +169,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### LLM 相关
 
-- `llm_provider`：provider 选择；默认 `openai`（当 `api_key` 为空时会自动降级为 `mock`，但 `ollama` 不需要密钥）。
+- `llm_provider`：provider 选择；默认 `openai`（当 `api_key` 为空时会自动降级为 `mock`，但 `ollama` 不需要密钥）。支持 `openai` / `openai-responses` / `codex` / `openrouter` / `deepseek` / `anthropic` / `antigravity` / `ollama` / `mock` / `auto` / `cli`。
 - `llm_model`：默认模型。
 - `llm_vision_model`：vision 模型；当检测到图片附件时优先使用（见下节）。
 - `api_key`：API key（生产建议用 env 注入，不要提交到 git）。
@@ -169,6 +179,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `temperature`：采样温度；显式写入 `0` 会被保留。
 - `top_p`：Top-P 采样。
 - `stop_sequences`：stop 序列列表。
+
+`llm_provider: auto` 会优先读取 env key（含 Claude OAuth），若缺失再回退到 CLI 登录。`llm_provider: cli` 则优先读取 CLI 登录，再回退到 env key。CLI 订阅优先级：Codex → Antigravity → Claude → OpenAI。`*_BASE_URL` 可覆盖基座地址。
 
 ### 工具与运行体验
 
@@ -213,6 +225,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - **修改主配置文件需要重启 `alex-server`**：server 启动时会构建 DI container；主配置文件 `~/.alex/config.yaml` 的改动不会自动热更新（managed overrides 可通过 UI/CLI 更新）。
 - **Vision 模型必须真支持图片**：很多文本模型不支持 image；建议明确配置 `llm_vision_model`，并用 provider 对应的 vision model 名称。
 - **OpenAI-compatible base_url 通常需要带 `/v1`**：例如 OpenAI `https://api.openai.com/v1`、OpenRouter `https://openrouter.ai/api/v1`；少了 `/v1` 常见报错是 404/路径不匹配。
+- **Responses API 仍使用 `/v1` base_url**：不要把 `/responses` 写进 `base_url`，只需要在 `llm_provider` 里选择 `openai-responses` / `codex`。
 - **控制图片体积**：base64 会显著膨胀 payload，且不同 provider 有请求大小上限；优先使用可访问的远程 URL 或在入库/上传阶段做压缩/缩放。
 - **Ollama 仅接受 inline base64 图片**：如果你给 attachment 只填了远程 `uri`，需要确保同时提供 `data`（或 data URI）才能走 `messages[].images`。
 - **避免把大体积 data URI 打进日志**：图片常以 `data:image/...;base64,...` 出现；项目已在 LLM request log 里做脱敏，但仍建议避免在业务日志中打印原始附件。

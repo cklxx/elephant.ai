@@ -12,7 +12,7 @@ const isTest =
 const STREAM_MARKDOWN_BUFFER = 64;
 const STREAM_FLUSH_MIN_CHARS = 24;
 const TYPEWRITER_CHARS_PER_SECOND = 120;
-const TYPEWRITER_MAX_STEP = 12;
+const TYPEWRITER_MAX_STEP = 1;
 
 function findSafeRenderLength(text: string) {
   if (text.length <= STREAM_MARKDOWN_BUFFER) {
@@ -31,6 +31,15 @@ function findSafeRenderLength(text: string) {
   }
 
   return maxIndex;
+}
+
+export function splitStreamingContent(content: string, visibleLength: number) {
+  const visible = content.slice(0, Math.max(0, visibleLength));
+  const safeLength = findSafeRenderLength(visible);
+  return {
+    stable: visible.slice(0, safeLength),
+    tail: visible.slice(safeLength),
+  };
 }
 
 type StreamingMarkdownRendererProps = MarkdownRendererProps & {
@@ -64,9 +73,7 @@ export function StreamingMarkdownRenderer({
 }: StreamingMarkdownRendererProps) {
   const normalizedContent = useMemo(() => content ?? "", [content]);
   const shouldAnimate = isStreaming && !streamFinished && !isTest;
-  const initialLength = shouldAnimate
-    ? findSafeRenderLength(normalizedContent)
-    : normalizedContent.length;
+  const initialLength = shouldAnimate ? 0 : normalizedContent.length;
   const [displayedLength, setDisplayedLength] = useState(initialLength);
   const [targetLength, setTargetLength] = useState(initialLength);
   const displayedLengthRef = useRef(displayedLength);
@@ -92,20 +99,20 @@ export function StreamingMarkdownRenderer({
     const previous = lastContentRef.current;
     const resetStream = !normalizedContent.startsWith(previous);
     lastContentRef.current = normalizedContent;
-    const safeLength = findSafeRenderLength(normalizedContent);
+    const nextTarget = normalizedContent.length;
 
     if (resetStream) {
       displayedLengthRef.current = 0;
       const resetLengths = () => {
         setDisplayedLength(0);
-        setTargetLength(safeLength);
+        setTargetLength(nextTarget);
       };
       resetLengths();
       return;
     }
 
     const updateTarget = () => {
-      setTargetLength((prev) => Math.max(prev, safeLength));
+      setTargetLength((prev) => Math.max(prev, nextTarget));
     };
     updateTarget();
   }, [normalizedContent, shouldAnimate]);
@@ -148,20 +155,32 @@ export function StreamingMarkdownRenderer({
   }, [shouldAnimate, targetLength]);
 
   const contentToRender = shouldAnimate
-    ? normalizedContent.slice(0, displayedLength)
-    : normalizedContent;
+    ? splitStreamingContent(normalizedContent, displayedLength)
+    : { stable: normalizedContent, tail: "" };
   const showStreamingIndicator = isStreaming && !streamFinished;
 
   return (
     <div className="space-y-2" aria-live="polite">
-      <LazyMarkdownRenderer
-        content={contentToRender}
-        className={className}
-        containerClassName={containerClassName}
-        components={components}
-        attachments={attachments}
-        showLineNumbers={showLineNumbers}
-      />
+      {contentToRender.stable !== "" && (
+        <LazyMarkdownRenderer
+          content={contentToRender.stable}
+          className={className}
+          containerClassName={containerClassName}
+          components={components}
+          attachments={attachments}
+          showLineNumbers={showLineNumbers}
+        />
+      )}
+      {shouldAnimate && contentToRender.tail !== "" && (
+        <div
+          className={cn(
+            "whitespace-pre-wrap text-foreground",
+            className,
+          )}
+        >
+          {contentToRender.tail}
+        </div>
+      )}
       {showStreamingIndicator && (
         <div
           className={cn(

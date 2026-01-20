@@ -8,7 +8,9 @@
 
 # elephant.ai
 
-elephant.ai is a shared Go runtime (with a Next.js dashboard) that powers the `alex` CLI/TUI, `alex-server`, and the web UI. All entrypoints run the same Think → Act → Observe loop, share a single dependency injection container, and emit typed events for consistent rendering across terminals and the browser.
+elephant.ai is a unified runtime for production-grade AI agents: the `alex` CLI/TUI, `alex-server`, and web UI share one execution core, typed event stream, and observability pipeline. Build once, run everywhere, and render the same session in terminals and the browser.
+
+**One-line pitch:** A single runtime that ships agentic workflows across CLI, server, and web with typed events, evals, and cost/trace accountability.
 
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
@@ -19,11 +21,36 @@ elephant.ai is a shared Go runtime (with a Next.js dashboard) that powers the `a
 ## Highlights
 
 * One runtime, three entrypoints (CLI/TUI, server, dashboard) backed by the same DI container.
-* Configurable OpenAI-compatible LLM providers with shared runtime config across CLI/server/web.
+* OpenAI chat + Responses API, Anthropic Claude API, and OpenAI-compatible gateways (OpenRouter/DeepSeek/Antigravity).
+* `llm_provider: auto` (or `cli`) picks the best available subscription from CLI auth + env keys (Codex/Antigravity/Claude/OpenAI).
 * Typed, artifact-aware events that render identically in terminals and the web UI.
 * Built-in observability: structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost accounting.
 * Retrieval layers for memory, skills, docs, and external context plus approvals for risky actions.
 * Evaluation harnesses (including SWE-Bench) live in-repo for parity between manual and automated runs.
+
+---
+
+## Demo (10 minutes)
+
+![Demo preview](docs/assets/demo.svg)
+
+```bash
+# Configure runtime once
+export OPENAI_API_KEY="sk-..."
+cp examples/config/runtime-config.yaml ~/.alex/config.yaml
+
+# Run backend + web
+./dev.sh
+
+# Run a demo task from the CLI
+make build
+./alex "Map the runtime layers, explain the event stream, and produce a short summary."
+```
+
+Expected:
+- CLI shows a typed event stream (plan/tool/output).
+- Web UI at `http://localhost:3000` renders the same events and artifacts.
+- Cost + trace metadata update as the run progresses.
 
 ---
 
@@ -32,8 +59,12 @@ elephant.ai is a shared Go runtime (with a Next.js dashboard) that powers the `a
 Prerequisites: Go 1.24+, Node.js 20+ (web UI), Docker (optional).
 
 ```bash
-# Configure your LLM provider (example: OpenAI)
+# Configure your LLM provider (examples)
 export OPENAI_API_KEY="sk-..."
+# export ANTHROPIC_API_KEY="sk-ant-..."  # Claude
+# export CLAUDE_CODE_OAUTH_TOKEN="..."   # Claude Code OAuth
+# export CODEX_API_KEY="sk-..."          # OpenAI Responses / Codex
+# export ANTIGRAVITY_API_KEY="..."       # Antigravity (OpenAI-compatible)
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
 # Run backend + web together
@@ -54,6 +85,20 @@ make build
 ```
 
 Configuration is shared across every surface. Use `examples/config/runtime-config.yaml` and `docs/reference/CONFIG.md` for the canonical schema.
+
+---
+
+## Proof points
+
+* Evaluation harnesses + reproducible results: `evaluation/` and `evaluation_results/`.
+* Quality gates (Go + web): `./dev.sh lint`, `./dev.sh test`, and `npm --prefix web run e2e`.
+* Typed events and cost tracking live in `internal/agent/` and `internal/observability/`.
+
+---
+
+## Roadmap + contribution entrypoints
+
+`ROADMAP.md` is the guided map of the codebase and the public contribution queue. It calls out MVP-sized slices and recommended areas for external contributions.
 
 ---
 

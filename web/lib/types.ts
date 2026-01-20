@@ -93,12 +93,20 @@ export interface AttachmentUpload {
   retention_ttl_seconds?: number;
 }
 
+export interface LLMSelection {
+  mode: "yaml" | "cli";
+  provider: string;
+  model: string;
+  source: string;
+}
+
 // Task & session API types
 export interface CreateTaskRequest {
   task: string;
   session_id?: string;
   parent_task_id?: string;
   attachments?: AttachmentUpload[];
+  llm_selection?: LLMSelection;
 }
 
 export interface CreateTaskResponse {
@@ -396,6 +404,18 @@ export interface RuntimeConfigSnapshot {
   sources?: Record<string, string>;
   tasks?: ConfigReadinessTask[];
   updated_at?: string;
+}
+
+export interface RuntimeModelProvider {
+  provider: string;
+  source: string;
+  base_url?: string;
+  models?: string[];
+  error?: string;
+}
+
+export interface RuntimeModelCatalog {
+  providers: RuntimeModelProvider[];
 }
 
 export interface SandboxBrowserInfo {

@@ -187,6 +187,77 @@ describe('ConversationEventStream', () => {
     ).toBeInTheDocument();
   });
 
+  it('keeps delta stream nodes stable across updates', () => {
+    const firstTimestamp = new Date().toISOString();
+    const secondTimestamp = new Date(Date.now() + 1000).toISOString();
+
+    const initialEvents: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.node.output.delta',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        iteration: 1,
+        delta: 'Here is the summary',
+        final: false,
+        timestamp: firstTimestamp,
+        created_at: firstTimestamp,
+      },
+    ];
+
+    const { rerender } = render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={initialEvents}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+          isRunning
+        />
+      </LanguageProvider>,
+    );
+
+    const deltaNode = screen.getByTestId('event-workflow.node.output.delta');
+    expect(deltaNode).toBeInTheDocument();
+
+    const updatedEvents: AnyAgentEvent[] = [
+      ...initialEvents,
+      {
+        event_type: 'workflow.node.output.delta',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: undefined,
+        iteration: 1,
+        delta: ' with more',
+        final: false,
+        timestamp: secondTimestamp,
+        created_at: secondTimestamp,
+      },
+    ];
+
+    rerender(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={updatedEvents}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+          isRunning
+        />
+      </LanguageProvider>,
+    );
+
+    const updatedNode = screen.getByTestId('event-workflow.node.output.delta');
+    expect(updatedNode).toBe(deltaNode);
+  });
+
   it('renders the latest workflow.result.final event inline without duplication', () => {
     const firstTimestamp = new Date().toISOString();
     const completionTimestamp = new Date(Date.now() + 1500).toISOString();

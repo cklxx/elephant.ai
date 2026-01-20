@@ -77,74 +77,87 @@ func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
 	}
 }
 
-type stubLLMFactory struct {
-	provider string
-	model    string
-	client   ports.LLMClient
+func TestToolDefinitionsArrayItems(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	defs := registry.List()
+	for _, def := range defs {
+		for name, prop := range def.Parameters.Properties {
+			if prop.Type != "array" {
+				continue
+			}
+			if prop.Items == nil {
+				t.Fatalf("tool %s property %s missing items schema", def.Name, name)
+			}
+		}
+	}
 }
 
-func (s *stubLLMFactory) GetClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
-	s.provider = provider
-	s.model = model
-	return s.client, nil
-}
-
-func (s *stubLLMFactory) GetIsolatedClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
-	return s.GetClient(provider, model, config)
-}
-
-func (*stubLLMFactory) DisableRetry() {}
-
-type countingLLM struct {
-	calls int
-}
-
-func (c *countingLLM) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	c.calls++
-	return &ports.CompletionResponse{
-		Content: "<html><body>llm output</body></html>",
-	}, nil
-}
-
-func (*countingLLM) Model() string { return "stub-model" }
-
-func TestMiniAppHTMLUsesConfiguredLLM(t *testing.T) {
-	llm := &countingLLM{}
-	factory := &stubLLMFactory{client: llm}
-
+func TestToolDefinitionsArrayItemsIncludesOptionalTools(t *testing.T) {
 	registry, err := NewRegistry(Config{
-		MemoryService: newTestMemoryService(),
-		LLMFactory:    factory,
-		LLMProvider:   "openai",
-		LLMModel:      "gpt-4o",
+		MemoryService:       newTestMemoryService(),
+		SeedreamVisionModel: "seedream-vision",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	if factory.provider != "openai" || factory.model != "gpt-4o" {
-		t.Fatalf("expected factory to be called with provider/model, got %q/%q", factory.provider, factory.model)
-	}
+	registry.RegisterSubAgent(stubCoordinator{})
 
-	tool, err := registry.Get("miniapp_html")
-	if err != nil {
-		t.Fatalf("expected miniapp_html to be registered: %v", err)
+	defs := registry.List()
+	for _, def := range defs {
+		for name, prop := range def.Parameters.Properties {
+			if prop.Type != "array" {
+				continue
+			}
+			if prop.Items == nil {
+				t.Fatalf("tool %s property %s missing items schema", def.Name, name)
+			}
+		}
 	}
+}
 
-	if _, err := tool.Execute(context.Background(), ports.ToolCall{
-		ID: "miniapp-1",
-		Arguments: map[string]any{
-			"prompt": "meme tapping game",
-			"title":  "Meme Tap",
-		},
-	}); err != nil {
-		t.Fatalf("expected tool execution to succeed: %v", err)
-	}
+type stubCoordinator struct{}
 
-	if llm.calls == 0 {
-		t.Fatalf("expected configured LLM to be invoked")
-	}
-	if factory.provider != "openai" || factory.model != "gpt-4o" {
-		t.Fatalf("expected factory to be called with provider/model, got %q/%q", factory.provider, factory.model)
-	}
+func (stubCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+	return nil
+}
+
+func (stubCoordinator) ListSessions(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) GetConfig() ports.AgentConfig {
+	return ports.AgentConfig{}
+}
+
+func (stubCoordinator) GetLLMClient() (ports.LLMClient, error) {
+	return nil, nil
+}
+
+func (stubCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
+	return nil
+}
+
+func (stubCoordinator) GetParser() ports.FunctionCallParser {
+	return nil
+}
+
+func (stubCoordinator) GetContextManager() ports.ContextManager {
+	return nil
+}
+
+func (stubCoordinator) GetSystemPrompt() string {
+	return ""
 }

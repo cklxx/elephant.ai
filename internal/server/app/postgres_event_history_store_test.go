@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -56,6 +57,88 @@ func TestRecordFromEventStripsAttachmentData(t *testing.T) {
 		t.Fatalf("expected attachment entry, got %T", attachments["video.mp4"])
 	}
 
+	if data, ok := att["data"].(string); ok && data != "" {
+		t.Fatalf("expected attachment data to be stripped, got %q", data)
+	}
+}
+
+type stubHistoryAttachmentCall struct {
+	name      string
+	mediaType string
+	data      []byte
+}
+
+type stubHistoryAttachmentStore struct {
+	calls []stubHistoryAttachmentCall
+	uri   string
+}
+
+func (s *stubHistoryAttachmentStore) StoreBytes(name, mediaType string, data []byte) (string, error) {
+	s.calls = append(s.calls, stubHistoryAttachmentCall{
+		name:      name,
+		mediaType: mediaType,
+		data:      data,
+	})
+	if s.uri != "" {
+		return s.uri, nil
+	}
+	return "/api/attachments/test.bin", nil
+}
+
+func TestRecordFromEventStoresInlineBinaryAttachment(t *testing.T) {
+	payload := map[string]any{
+		"attachments": map[string]ports.Attachment{
+			"clip.mp4": {
+				Name:      "clip.mp4",
+				MediaType: "video/mp4",
+				Data:      base64.StdEncoding.EncodeToString([]byte{0x01, 0x02, 0x03}),
+			},
+		},
+	}
+
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now()),
+		Version:   1,
+		Payload:   payload,
+	}
+
+	store := &stubHistoryAttachmentStore{uri: "/api/attachments/clip.mp4"}
+	record, err := recordFromEventWithStore(envelope, store)
+	if err != nil {
+		t.Fatalf("recordFromEventWithStore returned error: %v", err)
+	}
+
+	if len(store.calls) != 1 {
+		t.Fatalf("expected 1 store call, got %d", len(store.calls))
+	}
+	if store.calls[0].name != "clip.mp4" {
+		t.Fatalf("expected stored name clip.mp4, got %q", store.calls[0].name)
+	}
+	if store.calls[0].mediaType != "video/mp4" {
+		t.Fatalf("expected stored media type video/mp4, got %q", store.calls[0].mediaType)
+	}
+	if !bytes.Equal(store.calls[0].data, []byte{0x01, 0x02, 0x03}) {
+		t.Fatalf("expected stored data to match inline payload")
+	}
+
+	var stored map[string]any
+	if err := json.Unmarshal(record.payload, &stored); err != nil {
+		t.Fatalf("failed to decode payload: %v", err)
+	}
+
+	attachments, ok := stored["attachments"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected attachments map, got %T", stored["attachments"])
+	}
+
+	att, ok := attachments["clip.mp4"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected attachment entry, got %T", attachments["clip.mp4"])
+	}
+
+	if uri, ok := att["uri"].(string); !ok || uri != store.uri {
+		t.Fatalf("expected uri %q, got %#v", store.uri, att["uri"])
+	}
 	if data, ok := att["data"].(string); ok && data != "" {
 		t.Fatalf("expected attachment data to be stripped, got %q", data)
 	}

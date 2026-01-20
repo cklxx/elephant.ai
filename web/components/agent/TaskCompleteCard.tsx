@@ -207,6 +207,57 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     hasAttachments &&
     !hasA2UIAttachments;
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
+  const summaryComponents = useMemo(
+    () => ({
+      h1: (props: any) => (
+        <div className="mt-2 font-medium text-foreground" {...props} />
+      ),
+      h2: (props: any) => (
+        <div className="mt-2 font-medium text-foreground" {...props} />
+      ),
+      h3: (props: any) => (
+        <div className="mt-2 font-medium text-foreground" {...props} />
+      ),
+      h4: (props: any) => (
+        <div className="mt-2 font-medium text-foreground/90" {...props} />
+      ),
+      h5: (props: any) => (
+        <div className="mt-2 font-medium text-foreground/80" {...props} />
+      ),
+      h6: (props: any) => (
+        <div className="mt-2 font-medium text-foreground/70" {...props} />
+      ),
+      ul: (props: any) => <div className="my-2 space-y-1" {...props} />,
+      ol: (props: any) => <div className="my-2 space-y-1" {...props} />,
+      li: (props: any) => (
+        <div className="whitespace-pre-wrap text-foreground" {...props} />
+      ),
+      blockquote: (props: any) => (
+        <div
+          className="my-2 border-l-2 border-border/40 pl-3 text-foreground/80"
+          {...props}
+        />
+      ),
+      hr: () => <div className="my-2 h-px w-full bg-border/40" />,
+      strong: (props: any) => (
+        <strong className="font-semibold text-foreground" {...props} />
+      ),
+    }),
+    [],
+  );
+  const shouldSoftenSummary = useMemo(() => {
+    const text = markdownAnswer.trim();
+    if (!text) {
+      return true;
+    }
+    const headingMatches = text.match(/^#{1,6}\s+/gm) ?? [];
+    const listMatches = text.match(/^\s*(?:[-*+]|\d+\.)\s+/gm) ?? [];
+    const headingCount = headingMatches.length;
+    const listCount = listMatches.length;
+    const isDocumentLike =
+      headingCount >= 3 || listCount >= 6 || text.length >= 800;
+    return !isDocumentLike;
+  }, [markdownAnswer]);
 
   const InlineMarkdownImage = ({
     src,
@@ -259,6 +310,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
             isStreaming={streamInProgress}
             streamFinished={streamFinished}
             components={{
+              ...(shouldSoftenSummary ? summaryComponents : {}),
               img: ({ src, alt }: { src?: string; alt?: string }) => {
                 const recoveredSrc =
                   (src && src.trim()) ||

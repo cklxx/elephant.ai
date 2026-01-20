@@ -260,6 +260,269 @@ runtime:
 	}
 }
 
+func TestAutoProviderResolvesFromEnv(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+  llm_model: "claude-3-5-sonnet"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"ANTHROPIC_API_KEY": "anthropic-key",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected auto provider to resolve to anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "anthropic-key" {
+		t.Fatalf("expected api key to resolve from env, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != "https://api.anthropic.com/v1" {
+		t.Fatalf("expected anthropic base url default, got %q", cfg.BaseURL)
+	}
+}
+
+func TestCLIProviderResolvesFromCodexCLI(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "cli"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/home/test/.codex/auth.json":
+			return []byte(`{"tokens":{"access_token":"codex-token"}}`), nil
+		case "/home/test/.codex/config.toml":
+			return []byte(`model = "gpt-5.2-codex"`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithHomeDir(func() (string, error) { return "/home/test", nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "codex" {
+		t.Fatalf("expected provider codex, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "codex-token" {
+		t.Fatalf("expected codex token from CLI, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != codexCLIBaseURL {
+		t.Fatalf("expected codex base url, got %q", cfg.BaseURL)
+	}
+	if cfg.LLMModel != "gpt-5.2-codex" {
+		t.Fatalf("expected codex model from CLI, got %q", cfg.LLMModel)
+	}
+	if meta.Source("api_key") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAutoProviderUsesCodexCLIWhenAvailable(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/home/test/.codex/auth.json":
+			return []byte(`{"tokens":{"access_token":"codex-token"}}`), nil
+		case "/home/test/.codex/config.toml":
+			return []byte(`model = "gpt-5.2-codex"`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithHomeDir(func() (string, error) { return "/home/test", nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "codex" {
+		t.Fatalf("expected provider codex, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "codex-token" {
+		t.Fatalf("expected codex token from CLI, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != codexCLIBaseURL {
+		t.Fatalf("expected codex base url, got %q", cfg.BaseURL)
+	}
+	if cfg.LLMModel != "gpt-5.2-codex" {
+		t.Fatalf("expected codex model from CLI, got %q", cfg.LLMModel)
+	}
+	if meta.Source("api_key") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAutoProviderUsesAntigravityCLIWhenCodexMissing(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/tmp/antigravity-auth.json":
+			return []byte(`{"provider":"antigravity","api_key":"ag-token","base_url":"https://api.antigravity.ai/v1","model":"ag-1"}`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithEnv(envMap{
+			"ALEX_CLI_AUTH_PATH": "/tmp/antigravity-auth.json",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "antigravity" {
+		t.Fatalf("expected provider antigravity, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "ag-token" {
+		t.Fatalf("expected antigravity token from CLI, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != "https://api.antigravity.ai/v1" {
+		t.Fatalf("expected antigravity base url, got %q", cfg.BaseURL)
+	}
+	if cfg.LLMModel != "ag-1" {
+		t.Fatalf("expected antigravity model from CLI, got %q", cfg.LLMModel)
+	}
+	if meta.Source("api_key") != SourceAntigravityCLI {
+		t.Fatalf("expected antigravity cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceAntigravityCLI {
+		t.Fatalf("expected antigravity cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAutoProviderUsesClaudeCLIWhenOnlyClaudeAvailable(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/home/test/.claude/.credentials.json":
+			return []byte(`{"access_token":"claude-cli-token"}`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithHomeDir(func() (string, error) { return "/home/test", nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected provider anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "claude-cli-token" {
+		t.Fatalf("expected claude token from CLI, got %q", cfg.APIKey)
+	}
+	if meta.Source("api_key") != SourceClaudeCLI {
+		t.Fatalf("expected claude cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceClaudeCLI {
+		t.Fatalf("expected claude cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAnthropicOAuthTokenPreferred(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	cfg, meta, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"CLAUDE_CODE_OAUTH_TOKEN": "oauth-token",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected auto provider to resolve to anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "oauth-token" {
+		t.Fatalf("expected oauth token to resolve from env, got %q", cfg.APIKey)
+	}
+	if meta.Source("api_key") != SourceClaudeCLI {
+		t.Fatalf("expected claude cli source for api_key, got %s", meta.Source("api_key"))
+	}
+}
+
+func TestAnthropicProviderUsesEnvKey(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "anthropic"
+  llm_model: "claude-3-5-sonnet"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"ANTHROPIC_API_KEY": "anthropic-key",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected provider to stay anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "anthropic-key" {
+		t.Fatalf("expected api key to resolve from env, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != "https://api.anthropic.com/v1" {
+		t.Fatalf("expected anthropic base url default, got %q", cfg.BaseURL)
+	}
+}
+
 func TestEnvOverridesFile(t *testing.T) {
 	fileData := []byte(`
 runtime:

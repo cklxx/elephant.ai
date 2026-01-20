@@ -166,3 +166,10 @@ func TestArtifactsDeleteBuildsRemovalMutation(t *testing.T) {
 		t.Fatalf("expected placeholder to unwrap to old.md, got %q", removed[0])
 	}
 }
+
+func TestArtifactsWriteDefinitionMentionsHTML(t *testing.T) {
+	def := NewArtifactsWrite().Definition()
+	if !strings.Contains(strings.ToLower(def.Description), "html") {
+		t.Fatalf("expected artifacts_write description to mention html")
+	}
+}
