@@ -1,7 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { buildApiUrl } from "../api-base";
-import { buildAttachmentUri, parseContentSegments, resolveAttachmentDownloadUris } from "../attachments";
+import {
+  buildAttachmentUri,
+  getAttachmentSegmentType,
+  parseContentSegments,
+  replacePlaceholdersWithMarkdown,
+  resolveAttachmentDownloadUris,
+} from "../attachments";
 import { AttachmentPayload } from "@/lib/types";
 
 describe("parseContentSegments", () => {
@@ -99,6 +105,36 @@ describe("parseContentSegments", () => {
   });
 });
 
+describe("replacePlaceholdersWithMarkdown", () => {
+  it("renders document placeholders as links instead of images", () => {
+    const content = "Attachment: [notes.md]";
+    const attachments: Record<string, AttachmentPayload> = {
+      "notes.md": {
+        name: "notes.md",
+        media_type: "text/markdown",
+        uri: "https://example.com/notes.md",
+        description: "Meeting notes",
+        format: "md",
+      },
+    };
+
+    const rendered = replacePlaceholdersWithMarkdown(content, attachments);
+    expect(rendered).toContain("[Meeting notes](https://example.com/notes.md)");
+    expect(rendered).not.toContain("![Meeting notes]");
+  });
+});
+
+describe("getAttachmentSegmentType", () => {
+  it("infers document type from filename when media type is missing", () => {
+    const attachment: AttachmentPayload = {
+      name: "plan.md",
+      media_type: "",
+    };
+
+    expect(getAttachmentSegmentType(attachment)).toBe("document");
+  });
+});
+
 
 describe("buildAttachmentUri", () => {
   it("returns direct uri when provided", () => {
@@ -114,23 +150,29 @@ describe("buildAttachmentUri", () => {
 
   it("preserves data URIs without double prefixing", () => {
     const dataUri = "data:image/png;base64,aGVsbG8=";
-    expect(
-      buildAttachmentUri({
-        name: "inline.png",
-        media_type: "image/png",
-        data: dataUri,
-      }),
-    ).toBe(dataUri);
+    const uri = buildAttachmentUri({
+      name: "inline.png",
+      media_type: "image/png",
+      data: dataUri,
+    });
+    if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function" && typeof Blob !== "undefined") {
+      expect(uri?.startsWith("blob:")).toBe(true);
+    } else {
+      expect(uri).toBe(dataUri);
+    }
   });
 
   it("wraps bare base64 payloads in a data URI", () => {
-    expect(
-      buildAttachmentUri({
-        name: "inline.png",
-        media_type: "image/png",
-        data: "aGVsbG8=",
-      }),
-    ).toBe("data:image/png;base64,aGVsbG8=");
+    const uri = buildAttachmentUri({
+      name: "inline.png",
+      media_type: "image/png",
+      data: "aGVsbG8=",
+    });
+    if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function" && typeof Blob !== "undefined") {
+      expect(uri?.startsWith("blob:")).toBe(true);
+    } else {
+      expect(uri).toBe("data:image/png;base64,aGVsbG8=");
+    }
   });
 
   it("ignores non-string URIs and falls back to preview assets", () => {

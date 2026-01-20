@@ -2,6 +2,10 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { Streamdown } from "streamdown";
+import rehypeRaw from "rehype-raw";
+import rehypeSanitize from "rehype-sanitize";
+import rehypeKatex from "rehype-katex";
+import { harden } from "rehype-harden";
 import { Highlight, Language, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import {
@@ -19,6 +23,21 @@ import {
 } from "@/lib/attachments";
 import { AttachmentPayload } from "@/lib/types";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+
+const REHYPE_PLUGINS = [
+  rehypeRaw,
+  [rehypeSanitize, {}],
+  [rehypeKatex, { errorColor: "var(--color-muted-foreground)" }],
+  [
+    harden,
+    {
+      allowedImagePrefixes: ["*"],
+      allowedLinkPrefixes: ["*"],
+      allowedProtocols: ["*"],
+      allowDataImages: true,
+    },
+  ],
+];
 
 export type MarkdownRendererProps = {
   content: string;
@@ -82,6 +101,7 @@ export function MarkdownRenderer({
       >(),
     );
   }, [attachments]);
+  console.log({ inlineAttachmentMap });
 
   const defaultCodeRenderer = ({ className, children, ...props }: any) => {
     const match = /language-(\w+)/.exec(className || "");
@@ -362,6 +382,7 @@ export function MarkdownRenderer({
           className,
         )}
         components={mergedComponents as any}
+        rehypePlugins={REHYPE_PLUGINS as any}
       >
         {content}
       </Streamdown>

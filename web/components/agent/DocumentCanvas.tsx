@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -89,7 +90,9 @@ export function DocumentCanvas({
                 <FileText className="h-5 w-5 text-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">{document.title}</h3>
+                <h3 className="font-semibold text-foreground">
+                  {document.title}
+                </h3>
                 {document.timestamp && (
                   <p className="text-xs text-muted-foreground">
                     {new Date(document.timestamp).toLocaleString()}
@@ -238,9 +241,7 @@ function CompareView({
   className?: string;
   maxHeight?: string;
 }) {
-  const heightStyle = maxHeight
-    ? { maxHeight, height: maxHeight }
-    : undefined;
+  const heightStyle = maxHeight ? { maxHeight, height: maxHeight } : undefined;
 
   return (
     <div
@@ -253,7 +254,9 @@ function CompareView({
       {/* Left pane */}
       <div className="flex min-h-0 flex-col overflow-auto">
         <div className="sticky top-0 bg-destructive/10 border-b border-destructive/30 px-4 py-2 z-10">
-          <p className="text-sm font-semibold text-destructive">{document.title}</p>
+          <p className="text-sm font-semibold text-destructive">
+            {document.title}
+          </p>
         </div>
         <div className="p-4">
           <DocumentRenderer document={document} />
@@ -263,7 +266,9 @@ function CompareView({
       {/* Right pane */}
       <div className="flex min-h-0 flex-col overflow-auto">
         <div className="sticky top-0 bg-emerald-50 border-b border-emerald-200 px-4 py-2 z-10">
-          <p className="text-sm font-semibold text-emerald-700">{compareDocument.title}</p>
+          <p className="text-sm font-semibold text-emerald-700">
+            {compareDocument.title}
+          </p>
         </div>
         <div className="p-4">
           <DocumentRenderer document={compareDocument} />
@@ -289,6 +294,117 @@ function DocumentRenderer({
 
   const containerClass = cn(!cleanMode && "px-4 py-3");
 
+  const attachmentLinkMap = useMemo(() => {
+    if (!document.attachments) {
+      return new Map<
+        string,
+        {
+          key: string;
+          type: string;
+          description?: string;
+          mime?: string;
+          attachment: AttachmentPayload;
+        }
+      >();
+    }
+
+    return Object.entries(document.attachments).reduce(
+      (acc, [key, attachment]) => {
+        const uri = buildAttachmentUri(attachment);
+        if (!uri) {
+          return acc;
+        }
+        acc.set(uri, {
+          key,
+          type: getAttachmentSegmentType(attachment),
+          description: attachment.description,
+          mime: attachment.media_type,
+          attachment,
+        });
+        return acc;
+      },
+      new Map<
+        string,
+        {
+          key: string;
+          type: string;
+          description?: string;
+          mime?: string;
+          attachment: AttachmentPayload;
+        }
+      >(),
+    );
+  }, [document.attachments]);
+
+  const AttachmentLink = ({
+    href,
+    children,
+    ...props
+  }: {
+    href?: string;
+    children?: ReactNode;
+  }) => {
+    const resolvedHref = href?.trim() ?? "";
+    if (!resolvedHref) {
+      return <span {...props}>{children}</span>;
+    }
+    const matchedAttachment = attachmentLinkMap.get(resolvedHref);
+    if (
+      matchedAttachment &&
+      (matchedAttachment.type === "document" ||
+        matchedAttachment.type === "embed")
+    ) {
+      return (
+        <div className="my-2">
+          <ArtifactPreviewCard
+            attachment={matchedAttachment.attachment}
+            compact
+          />
+        </div>
+      );
+    }
+    if (matchedAttachment?.type === "image") {
+      const altText =
+        matchedAttachment.description ||
+        (typeof children === "string" ? children : undefined) ||
+        matchedAttachment.key;
+      return (
+        <ImagePreview
+          src={resolvedHref}
+          alt={altText}
+          className="my-2"
+          minHeight="8rem"
+          maxHeight="16rem"
+          sizes="(min-width: 1280px) 360px, (min-width: 768px) 50vw, 100vw"
+        />
+      );
+    }
+    if (matchedAttachment?.type === "video") {
+      return (
+        <VideoPreview
+          src={resolvedHref}
+          mimeType={matchedAttachment.mime || "video/mp4"}
+          description={
+            matchedAttachment.description ||
+            (typeof children === "string" ? children : undefined) ||
+            matchedAttachment.key
+          }
+          className="my-2 w-full"
+          maxHeight="20rem"
+        />
+      );
+    }
+    return (
+      <a
+        className="break-words whitespace-normal"
+        href={resolvedHref}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  };
+
   if (document.type === "markdown") {
     const renderedContent = document.attachments
       ? replacePlaceholdersWithMarkdown(document.content, document.attachments)
@@ -301,10 +417,12 @@ function DocumentRenderer({
           className={typographyClass}
           attachments={document.attachments}
           showLineNumbers={showLineNumbers}
+          components={{ a: AttachmentLink }}
         />
-        {document.attachments && Object.keys(document.attachments).length > 0 && (
-          <AttachmentGallery attachments={document.attachments} />
-        )}
+        {document.attachments &&
+          Object.keys(document.attachments).length > 0 && (
+            <AttachmentGallery attachments={document.attachments} />
+          )}
       </div>
     );
   }
@@ -392,7 +510,10 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
       }
       seen.set(formatValue, formatLabel ?? formatValue.toUpperCase());
     });
-    return Array.from(seen.entries()).map(([value, label]) => ({ value, label }));
+    return Array.from(seen.entries()).map(([value, label]) => ({
+      value,
+      label,
+    }));
   }, [normalized]);
 
   const filtered = useMemo(() => {
@@ -406,7 +527,8 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
       }
 
       const matchesFormat =
-        formatFilter === "all" || (formatValue ? formatValue === formatFilter : false);
+        formatFilter === "all" ||
+        (formatValue ? formatValue === formatFilter : false);
       if (!matchesFormat) {
         return false;
       }
@@ -429,17 +551,23 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
     });
   }, [normalized, kindFilter, formatFilter, searchQuery]);
 
-  const grouped = filtered.reduce<Record<string, NormalizedAttachment[]>>((acc, item) => {
-    if (!acc[item.type]) {
-      acc[item.type] = [];
-    }
-    acc[item.type].push(item);
-    return acc;
-  }, {});
+  const grouped = filtered.reduce<Record<string, NormalizedAttachment[]>>(
+    (acc, item) => {
+      if (!acc[item.type]) {
+        acc[item.type] = [];
+      }
+      acc[item.type].push(item);
+      return acc;
+    },
+    {},
+  );
 
   const imageAttachments = grouped.image ?? [];
   const videoAttachments = grouped.video ?? [];
-  const artifactAttachments = [...(grouped.document ?? []), ...(grouped.embed ?? [])];
+  const artifactAttachments = [
+    ...(grouped.document ?? []),
+    ...(grouped.embed ?? []),
+  ];
   const hasMultipleArtifacts = artifactAttachments.length > 1;
 
   const kindOptions: { value: AttachmentKindFilter; label: string }[] = [
@@ -505,7 +633,9 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder={t("document.attachments.filters.search.placeholder")}
+                placeholder={t(
+                  "document.attachments.filters.search.placeholder",
+                )}
                 className="mt-1 flex h-10 w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:border-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
               />
             </label>

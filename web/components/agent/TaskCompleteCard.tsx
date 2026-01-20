@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import type { ReactNode } from "react";
 
 import { WorkflowResultFinalEvent, AttachmentPayload } from "@/lib/types";
 import { useTranslation } from "@/lib/i18n";
@@ -261,6 +262,58 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     return !isDocumentLike;
   }, [markdownAnswer]);
 
+  const inlineRenderBlocks = useMemo(() => {
+    const segments = parseContentSegments(markdownAnswer, standardAttachments);
+    const blocks: Array<
+      | { kind: "markdown"; content: string }
+      | { kind: "attachment"; segment: ContentSegment }
+    > = [];
+    let buffer = "";
+
+    segments.forEach((segment) => {
+      if (segment.type === "text") {
+        if (segment.text) {
+          buffer += segment.text;
+        }
+        return;
+      }
+
+      if (segment.implicit) {
+        return;
+      }
+
+      const placeholder = segment.placeholder?.trim() ?? "";
+      if (!placeholder.startsWith("[")) {
+        if (placeholder) {
+          buffer += placeholder;
+        }
+        return;
+      }
+
+      if (buffer.trim().length > 0) {
+        blocks.push({ kind: "markdown", content: buffer });
+        buffer = "";
+      } else if (buffer.length > 0) {
+        blocks.push({ kind: "markdown", content: buffer });
+        buffer = "";
+      }
+
+      if (segment.attachment) {
+        blocks.push({ kind: "attachment", segment });
+      }
+    });
+
+    if (buffer.length > 0) {
+      blocks.push({ kind: "markdown", content: buffer });
+    }
+
+    if (blocks.length === 0) {
+      blocks.push({ kind: "markdown", content: markdownAnswer });
+    }
+
+    return blocks;
+  }, [markdownAnswer, standardAttachments]);
+
   const InlineMarkdownImage = ({
     src,
     alt,
@@ -285,6 +338,106 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     );
   };
 
+  const renderInlineAttachment = (segment: ContentSegment, index: number) => {
+    if (!segment.attachment) {
+      return null;
+    }
+    const uri = buildAttachmentUri(segment.attachment);
+    if (!uri) {
+      return null;
+    }
+    const altText =
+      segment.attachment.description ||
+      segment.attachment.name ||
+      `attachment-${index + 1}`;
+    if (segment.type === "video") {
+      return (
+        <VideoPreview
+          key={`task-complete-inline-video-${segment.placeholder ?? index}`}
+          src={uri}
+          mimeType={segment.attachment.media_type || "video/mp4"}
+          description={segment.attachment.description}
+          className="w-full"
+          maxHeight="20rem"
+        />
+      );
+    }
+    if (segment.type === "document" || segment.type === "embed") {
+      return (
+        <div
+          key={`task-complete-inline-doc-${segment.placeholder ?? index}`}
+          className="my-2"
+        >
+          <ArtifactPreviewCard attachment={segment.attachment} compact />
+        </div>
+      );
+    }
+    return (
+      <InlineMarkdownImage
+        key={`task-complete-inline-image-${segment.placeholder ?? index}`}
+        src={uri}
+        alt={altText}
+      />
+    );
+  };
+
+  const InlineMarkdownLink = ({
+    href,
+    children,
+    ...props
+  }: {
+    href?: string;
+    children?: ReactNode;
+  }) => {
+    const resolvedHref = href?.trim() ?? "";
+    if (!resolvedHref) {
+      return <span {...props}>{children}</span>;
+    }
+    const matchedAttachment = inlineAttachmentMap.get(resolvedHref);
+    if (
+      matchedAttachment &&
+      (matchedAttachment.type === "document" ||
+        matchedAttachment.type === "embed")
+    ) {
+      return (
+        <div className="my-2">
+          <ArtifactPreviewCard attachment={matchedAttachment.attachment} compact />
+        </div>
+      );
+    }
+    if (matchedAttachment?.type === "image") {
+      const altText =
+        matchedAttachment.description ||
+        (typeof children === "string" ? children : undefined) ||
+        matchedAttachment.key;
+      return <InlineMarkdownImage src={resolvedHref} alt={altText} />;
+    }
+    if (matchedAttachment?.type === "video") {
+      return (
+        <VideoPreview
+          src={resolvedHref}
+          mimeType={matchedAttachment.mime || "video/mp4"}
+          description={
+            matchedAttachment.description ||
+            (typeof children === "string" ? children : undefined) ||
+            matchedAttachment.key
+          }
+          className="my-2 w-full"
+          maxHeight="20rem"
+        />
+      );
+    }
+    return (
+      <a
+        className="break-words whitespace-normal"
+        href={resolvedHref}
+        {...props}
+      >
+        {children}
+      </a>
+    );
+  };
+
   return (
     <Card
       data-testid="task-complete-event"
@@ -305,59 +458,81 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
         </div>
       ) : shouldRenderMarkdown ? (
         <>
-          <AgentMarkdown
-            content={contentWithInlineMedia}
-            className="prose max-w-none text-base leading-snug text-foreground"
-            attachments={inlineAttachments}
-            isStreaming={streamInProgress}
-            streamFinished={streamFinished}
-            components={{
-              ...(shouldSoftenSummary ? summaryComponents : {}),
-              img: ({ src, alt }: { src?: string; alt?: string }) => {
-                const recoveredSrc =
-                  (src && src.trim()) ||
-                  inlineImageMap.get((alt || "").trim()) ||
-                  undefined;
-                if (!recoveredSrc) {
-                  return null;
-                }
-                const matchedAttachment = inlineAttachmentMap.get(recoveredSrc);
-                if (matchedAttachment?.type === "video") {
-                  return (
-                    <VideoPreview
-                      key={`task-complete-inline-video-${matchedAttachment.key}`}
-                      src={recoveredSrc}
-                      mimeType={matchedAttachment.mime || "video/mp4"}
-                      description={
-                        matchedAttachment.description ||
-                        alt ||
-                        matchedAttachment.key
-                      }
-                      className="w-full"
-                      maxHeight="20rem"
-                    />
-                  );
-                }
-
-                if (
-                  matchedAttachment &&
-                  (matchedAttachment.type === "document" ||
-                    matchedAttachment.type === "embed")
-                ) {
-                  return (
-                    <div className="my-2">
-                      <ArtifactPreviewCard
-                        attachment={matchedAttachment.attachment}
-                        compact
+          {streamInProgress ? (
+            <AgentMarkdown
+              content={contentWithInlineMedia}
+              className="prose max-w-none text-base leading-snug text-foreground"
+              attachments={inlineAttachments}
+              isStreaming={streamInProgress}
+              streamFinished={streamFinished}
+              components={{
+                ...(shouldSoftenSummary ? summaryComponents : {}),
+                a: InlineMarkdownLink,
+                img: ({ src, alt }: { src?: string; alt?: string }) => {
+                  const recoveredSrc =
+                    (src && src.trim()) ||
+                    inlineImageMap.get((alt || "").trim()) ||
+                    undefined;
+                  if (!recoveredSrc) {
+                    return null;
+                  }
+                  const matchedAttachment =
+                    inlineAttachmentMap.get(recoveredSrc);
+                  if (matchedAttachment?.type === "video") {
+                    return (
+                      <VideoPreview
+                        key={`task-complete-inline-video-${matchedAttachment.key}`}
+                        src={recoveredSrc}
+                        mimeType={matchedAttachment.mime || "video/mp4"}
+                        description={
+                          matchedAttachment.description ||
+                          alt ||
+                          matchedAttachment.key
+                        }
+                        className="w-full"
+                        maxHeight="20rem"
                       />
-                    </div>
-                  );
-                }
+                    );
+                  }
 
-                return <InlineMarkdownImage src={recoveredSrc} alt={alt} />;
-              },
-            }}
-          />
+                  if (
+                    matchedAttachment &&
+                    (matchedAttachment.type === "document" ||
+                      matchedAttachment.type === "embed")
+                  ) {
+                    return (
+                      <div className="my-2">
+                        <ArtifactPreviewCard
+                          attachment={matchedAttachment.attachment}
+                          compact
+                        />
+                      </div>
+                    );
+                  }
+
+                  return <InlineMarkdownImage src={recoveredSrc} alt={alt} />;
+                },
+              }}
+            />
+          ) : (
+            <div className="space-y-2">
+              {inlineRenderBlocks.map((block, index) => {
+                if (block.kind === "attachment") {
+                  return renderInlineAttachment(block.segment, index);
+                }
+                return (
+                  <AgentMarkdown
+                    key={`task-complete-inline-text-${index}`}
+                    content={block.content}
+                    className="prose max-w-none text-base leading-snug text-foreground"
+                    isStreaming={false}
+                    streamFinished
+                    components={shouldSoftenSummary ? summaryComponents : {}}
+                  />
+                );
+              })}
+            </div>
+          )}
         </>
       ) : shouldShowFallback ? (
         <div
