@@ -12,6 +12,7 @@
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
   * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
   * Run full lint and test validation after changes.
+  * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
   * Avoid unnecessary defensive code.
   * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.
 
