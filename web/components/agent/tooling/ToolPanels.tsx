@@ -174,6 +174,7 @@ export function ToolResultPanel({
           segment.attachment,
       )
     : [];
+  const hasMultipleArtifacts = artifactSegments.length > 1;
 
   if (!formatted && !attachmentsAvailable) {
     return null;
@@ -232,7 +233,13 @@ export function ToolResultPanel({
             </div>
           )}
           {artifactSegments.length > 0 && (
-            <div className="mt-4 space-y-3">
+            <div
+              className={
+                hasMultipleArtifacts
+                  ? "mt-4 grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3"
+                  : "mt-4 space-y-3"
+              }
+            >
               {artifactSegments.map((segment, index) => {
                 if (!segment.attachment) {
                   return null;
@@ -242,6 +249,7 @@ export function ToolResultPanel({
                   <ArtifactPreviewCard
                     key={`tool-panel-artifact-${key}`}
                     attachment={segment.attachment}
+                    displayMode={hasMultipleArtifacts ? "title" : undefined}
                   />
                 );
               })}

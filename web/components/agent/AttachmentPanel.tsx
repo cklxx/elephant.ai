@@ -30,6 +30,11 @@ export interface AttachmentListItem {
 export function AttachmentPanel({ events }: AttachmentPanelProps) {
   const attachments = useMemo(() => collectAttachmentItems(events), [events]);
   const hasAttachments = attachments.length > 0;
+  const hasMultipleAttachments = attachments.length > 1;
+  const hasMultipleArtifacts =
+    attachments.filter(
+      (item) => item.type === "document" || item.type === "embed",
+    ).length > 1;
 
   if (!hasAttachments) {
     return null;
@@ -50,9 +55,19 @@ export function AttachmentPanel({ events }: AttachmentPanelProps) {
       </CardHeader>
       <CardContent className="pt-0">
         <ScrollArea className="max-h-[70vh]">
-          <div className="flex flex-col gap-3 pr-1">
+          <div
+            className={
+              hasMultipleAttachments
+                ? "grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3 pr-1"
+                : "flex flex-col gap-3 pr-1"
+            }
+          >
             {attachments.map((item) => (
-              <AttachmentPreview key={item.key} item={item} />
+              <AttachmentPreview
+                key={item.key}
+                item={item}
+                compactDocuments={hasMultipleArtifacts}
+              />
             ))}
           </div>
         </ScrollArea>
@@ -61,7 +76,13 @@ export function AttachmentPanel({ events }: AttachmentPanelProps) {
   );
 }
 
-function AttachmentPreview({ item }: { item: AttachmentListItem }) {
+function AttachmentPreview({
+  item,
+  compactDocuments,
+}: {
+  item: AttachmentListItem;
+  compactDocuments: boolean;
+}) {
   const uri = buildAttachmentUri(item.attachment);
   const title = item.attachment.description || item.attachment.name || item.key;
   const badgeLabel = formatTypeLabel(item.type, item.attachment);
@@ -79,7 +100,12 @@ function AttachmentPreview({ item }: { item: AttachmentListItem }) {
           {badgeLabel}
         </Badge>
       </div>
-      <AttachmentBody type={item.type} attachment={item.attachment} uri={uri} />
+      <AttachmentBody
+        type={item.type}
+        attachment={item.attachment}
+        uri={uri}
+        compactDocuments={compactDocuments}
+      />
     </div>
   );
 }
@@ -88,10 +114,12 @@ function AttachmentBody({
   type,
   attachment,
   uri,
+  compactDocuments,
 }: {
   type: AttachmentSegmentType;
   attachment: AttachmentPayload;
   uri: string | null;
+  compactDocuments: boolean;
 }) {
   if (type === "image") {
     if (!uri) {
@@ -125,7 +153,12 @@ function AttachmentBody({
   }
 
   if (type === "document" || type === "embed") {
-    return <ArtifactPreviewCard attachment={attachment} />;
+    return (
+      <ArtifactPreviewCard
+        attachment={attachment}
+        displayMode={compactDocuments ? "title" : undefined}
+      />
+    );
   }
 
   return (

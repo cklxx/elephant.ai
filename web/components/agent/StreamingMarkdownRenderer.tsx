@@ -169,12 +169,13 @@ export function StreamingMarkdownRenderer({
           components={components}
           attachments={attachments}
           showLineNumbers={showLineNumbers}
+          mode={shouldAnimate ? "streaming" : "static"}
         />
       )}
       {shouldAnimate && contentToRender.tail !== "" && (
         <div
           className={cn(
-            "whitespace-pre-wrap text-foreground",
+            "whitespace-pre-wrap break-words text-foreground",
             className,
           )}
         >

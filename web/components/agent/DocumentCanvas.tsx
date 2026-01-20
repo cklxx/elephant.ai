@@ -428,6 +428,7 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
   const imageAttachments = grouped.image ?? [];
   const videoAttachments = grouped.video ?? [];
   const artifactAttachments = [...(grouped.document ?? []), ...(grouped.embed ?? [])];
+  const hasMultipleArtifacts = artifactAttachments.length > 1;
 
   const kindOptions: { value: AttachmentKindFilter; label: string }[] = [
     {
@@ -548,9 +549,19 @@ function AttachmentGallery({ attachments }: AttachmentGalleryProps) {
             </div>
           )}
           {artifactAttachments.length > 0 && (
-            <div className="space-y-3">
+            <div
+              className={
+                hasMultipleArtifacts
+                  ? "grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3"
+                  : "space-y-3"
+              }
+            >
               {artifactAttachments.map(({ key, attachment }) => (
-                <ArtifactPreviewCard key={`doc-artifact-${key}`} attachment={attachment} />
+                <ArtifactPreviewCard
+                  key={`doc-artifact-${key}`}
+                  attachment={attachment}
+                  displayMode={hasMultipleArtifacts ? "title" : undefined}
+                />
               ))}
             </div>
           )}

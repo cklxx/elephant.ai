@@ -1,8 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import MarkdownPreview from "@uiw/react-markdown-preview";
-import remarkGfm from "remark-gfm";
+import { Streamdown } from "streamdown";
 import { Highlight, Language, themes } from "prism-react-renderer";
 import { cn } from "@/lib/utils";
 import {
@@ -34,6 +33,7 @@ export type MarkdownRendererProps = {
    */
   className?: string;
   showLineNumbers?: boolean;
+  mode?: "static" | "streaming";
   components?: Record<string, ComponentType<any>>;
   attachments?: Record<string, AttachmentPayload>;
 };
@@ -43,6 +43,7 @@ export function MarkdownRenderer({
   containerClassName,
   className,
   showLineNumbers = false,
+  mode = "static",
   components,
   attachments,
 }: MarkdownRendererProps) {
@@ -239,7 +240,11 @@ export function MarkdownRenderer({
       }
 
       return (
-        <a className={cn(linkClassName)} href={href} {...props}>
+        <a
+          className={cn("break-words whitespace-normal", linkClassName)}
+          href={href}
+          {...props}
+        >
           {children}
         </a>
       );
@@ -350,16 +355,16 @@ export function MarkdownRenderer({
 
   return (
     <div className={cn("markdown-body", containerClassName)}>
-      <MarkdownPreview
+      <Streamdown
+        mode={mode}
         className={cn(
-          "markdown-body__content prose prose-sm max-w-none text-foreground",
+          "wmde-markdown markdown-body__content prose prose-sm max-w-none text-foreground prose-a:break-words prose-a:whitespace-normal",
           className,
         )}
-        source={content}
-        remarkPlugins={[remarkGfm]}
-        wrapperElement={{ "data-color-mode": "light" }}
         components={mergedComponents as any}
-      />
+      >
+        {content}
+      </Streamdown>
     </div>
   );
 }

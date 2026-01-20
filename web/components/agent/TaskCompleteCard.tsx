@@ -19,6 +19,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AgentMarkdown } from "./AgentMarkdown";
 import { LoadingDots } from "@/components/ui/loading-states";
 import { A2UIAttachmentPreview } from "@/components/agent/A2UIAttachmentPreview";
+import { cn } from "@/lib/utils";
 
 interface StopReasonCopy {
   title: string;
@@ -206,6 +207,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     !hasUnrenderedAttachments &&
     hasAttachments &&
     !hasA2UIAttachments;
+  const hasMultipleArtifacts = artifactSegments.length > 1;
   const stopReasonCopy = getStopReasonCopy(event.stop_reason, t);
   const summaryComponents = useMemo(
     () => ({
@@ -440,7 +442,14 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
       )}
 
       {!streamInProgress && artifactSegments.length > 0 && (
-        <div className="mt-4 space-y-3">
+        <div
+          className={cn(
+            "mt-4",
+            hasMultipleArtifacts
+              ? "grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-3"
+              : "space-y-3",
+          )}
+        >
           {artifactSegments.map((segment, index) => {
             if (!segment.attachment) {
               return null;
@@ -450,6 +459,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
               <ArtifactPreviewCard
                 key={`task-complete-artifact-${key}`}
                 attachment={segment.attachment}
+                displayMode={hasMultipleArtifacts ? "title" : undefined}
               />
             );
           })}
