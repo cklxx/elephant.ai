@@ -132,3 +132,5 @@ pet_podcast_basic.png
 .bin/
 logs/*.png
 .pids/acp.port
+web/playwright-report/*
+web/test-results/*
