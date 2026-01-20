@@ -101,8 +101,6 @@ export function MarkdownRenderer({
       >(),
     );
   }, [attachments]);
-  console.log({ inlineAttachmentMap });
-
   const defaultCodeRenderer = ({ className, children, ...props }: any) => {
     const match = /language-(\w+)/.exec(className || "");
     const language = (match?.[1] as Language | undefined) ?? "text";
