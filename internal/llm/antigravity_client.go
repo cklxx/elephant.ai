@@ -94,11 +94,11 @@ func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRe
 	}
 
 	c.logger.Debug("%sRequest Headers:", prefix)
-	for k, v := range httpReq.Header {
+	for k := range httpReq.Header {
 		if k == "Authorization" {
 			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
 		} else {
-			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
+			c.logger.Debug("%s  %s: <redacted>", prefix, k)
 		}
 	}
 
