@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"net"
+	"net/http"
 	"os"
 	"strings"
 )
@@ -42,24 +42,17 @@ func (c *CLI) handleACPServe(args []string) error {
 	}
 
 	addr := fmt.Sprintf("%s:%d", strings.TrimSpace(*host), *port)
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return err
+	server := newACPServer(c.container, strings.TrimSpace(*initialMessage))
+	handler := newACPHTTPServer(server)
+	if handler == nil {
+		return fmt.Errorf("failed to create ACP HTTP server")
 	}
-	defer listener.Close()
 
-	fmt.Fprintf(os.Stderr, "ACP server listening on %s\n", addr)
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			return err
-		}
-
-		server := newACPServer(c.container, strings.TrimSpace(*initialMessage))
-		go func() {
-			_ = server.Serve(context.Background(), conn, conn)
-			_ = conn.Close()
-		}()
+	httpServer := &http.Server{
+		Addr:    addr,
+		Handler: handler.Handler(),
 	}
+
+	fmt.Fprintf(os.Stderr, "ACP SSE server listening on http://%s\n", addr)
+	return httpServer.ListenAndServe()
 }
-

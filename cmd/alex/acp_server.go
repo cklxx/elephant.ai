@@ -21,18 +21,21 @@ import (
 type acpServer struct {
 	container      *Container
 	initialMessage string
-	rpc            *rpcConn
 
 	sessionsMu sync.Mutex
 	sessions   map[string]*acpSession
+
+	transportsMu sync.Mutex
+	transports   map[string]rpcTransport
 
 	cwdMu sync.Mutex
 }
 
 type acpSession struct {
-	id     string
-	cwd    string
-	modeID string
+	id       string
+	cwd      string
+	modeID   string
+	clientID string
 
 	cancelMu sync.Mutex
 	cancel   context.CancelFunc
@@ -58,6 +61,7 @@ func newACPServer(container *Container, initialMessage string) *acpServer {
 		container:      container,
 		initialMessage: strings.TrimSpace(initialMessage),
 		sessions:       make(map[string]*acpSession),
+		transports:     make(map[string]rpcTransport),
 	}
 }
 
@@ -65,10 +69,13 @@ func (s *acpServer) Serve(ctx context.Context, in io.Reader, out io.Writer) erro
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	s.rpc = newRPCConn(in, out)
+	rpc := newRPCConn(in, out)
+	clientID := "stdio"
+	s.registerTransport(clientID, rpc)
+	defer s.removeTransport(clientID)
 
 	for {
-		payload, err := s.rpc.readMessage()
+		payload, err := rpc.readMessage()
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -86,7 +93,7 @@ func (s *acpServer) Serve(ctx context.Context, in io.Reader, out io.Writer) erro
 		}
 
 		if resp != nil {
-			s.rpc.deliverResponse(resp)
+			rpc.DeliverResponse(resp)
 			continue
 		}
 		if req == nil {
@@ -94,25 +101,29 @@ func (s *acpServer) Serve(ctx context.Context, in io.Reader, out io.Writer) erro
 		}
 
 		if req.IsNotification() {
-			go s.handleNotification(ctx, req)
+			go s.handleNotification(ctx, req, clientID)
 			continue
 		}
-		go s.handleRequest(ctx, req)
+		go s.handleRequest(ctx, req, clientID)
 	}
 }
 
-func (s *acpServer) handleRequest(ctx context.Context, req *mcp.Request) {
+func (s *acpServer) handleRequest(ctx context.Context, req *mcp.Request, clientID string) {
 	if req == nil {
 		return
 	}
-	resp := s.dispatch(ctx, req)
+	transport := s.getTransport(clientID)
+	if transport == nil {
+		return
+	}
+	resp := s.dispatch(ctx, req, clientID)
 	if resp == nil {
 		return
 	}
-	_ = s.rpc.send(resp)
+	_ = transport.SendResponse(resp)
 }
 
-func (s *acpServer) handleNotification(ctx context.Context, req *mcp.Request) {
+func (s *acpServer) handleNotification(ctx context.Context, req *mcp.Request, clientID string) {
 	if req == nil {
 		return
 	}
@@ -122,16 +133,16 @@ func (s *acpServer) handleNotification(ctx context.Context, req *mcp.Request) {
 	}
 }
 
-func (s *acpServer) dispatch(ctx context.Context, req *mcp.Request) *mcp.Response {
+func (s *acpServer) dispatch(ctx context.Context, req *mcp.Request, clientID string) *mcp.Response {
 	switch req.Method {
 	case "initialize":
 		return s.handleInitialize(req)
 	case "authenticate":
 		return mcp.NewResponse(req.ID, map[string]any{})
 	case "session/new":
-		return s.handleSessionNew(ctx, req)
+		return s.handleSessionNew(ctx, req, clientID)
 	case "session/load":
-		return s.handleSessionLoad(ctx, req)
+		return s.handleSessionLoad(ctx, req, clientID)
 	case "session/prompt":
 		return s.handleSessionPrompt(ctx, req)
 	case "session/set_mode":
@@ -172,7 +183,7 @@ func (s *acpServer) handleInitialize(req *mcp.Request) *mcp.Response {
 	return mcp.NewResponse(req.ID, resp)
 }
 
-func (s *acpServer) handleSessionNew(ctx context.Context, req *mcp.Request) *mcp.Response {
+func (s *acpServer) handleSessionNew(ctx context.Context, req *mcp.Request, clientID string) *mcp.Response {
 	params := req.Params
 	cwd := strings.TrimSpace(stringParam(params, "cwd"))
 	if cwd == "" {
@@ -204,9 +215,10 @@ func (s *acpServer) handleSessionNew(ctx context.Context, req *mcp.Request) *mcp
 	}
 
 	acpSession := &acpSession{
-		id:     session.ID,
-		cwd:    cwd,
-		modeID: string(presets.ToolPresetFull),
+		id:       session.ID,
+		cwd:      cwd,
+		modeID:   string(presets.ToolPresetFull),
+		clientID: clientID,
 	}
 	s.registerSession(acpSession)
 
@@ -221,7 +233,7 @@ func (s *acpServer) handleSessionNew(ctx context.Context, req *mcp.Request) *mcp
 	return mcp.NewResponse(req.ID, resp)
 }
 
-func (s *acpServer) handleSessionLoad(ctx context.Context, req *mcp.Request) *mcp.Response {
+func (s *acpServer) handleSessionLoad(ctx context.Context, req *mcp.Request, clientID string) *mcp.Response {
 	params := req.Params
 	sessionID := strings.TrimSpace(stringParam(params, "sessionId"))
 	if sessionID == "" {
@@ -245,6 +257,7 @@ func (s *acpServer) handleSessionLoad(ctx context.Context, req *mcp.Request) *mc
 	}
 
 	acpSession := s.ensureSession(sessionID, cwd)
+	acpSession.clientID = clientID
 	if err := s.configureMCPServers(ctx, acpSession, mcpServers); err != nil {
 		return mcp.NewErrorResponse(req.ID, mcp.InternalError, "failed to configure MCP servers", err.Error())
 	}
@@ -413,11 +426,53 @@ func (s *acpServer) getSession(id string) *acpSession {
 	return s.sessions[id]
 }
 
-func (s *acpServer) sendSessionUpdate(sessionID string, update map[string]any) {
-	if s.rpc == nil || sessionID == "" || update == nil {
+func (s *acpServer) registerTransport(clientID string, transport rpcTransport) {
+	if clientID == "" || transport == nil {
 		return
 	}
-	_ = s.rpc.Notify("session/update", map[string]any{
+	s.transportsMu.Lock()
+	defer s.transportsMu.Unlock()
+	s.transports[clientID] = transport
+}
+
+func (s *acpServer) removeTransport(clientID string) {
+	if clientID == "" {
+		return
+	}
+	s.transportsMu.Lock()
+	defer s.transportsMu.Unlock()
+	delete(s.transports, clientID)
+}
+
+func (s *acpServer) getTransport(clientID string) rpcTransport {
+	if clientID == "" {
+		return nil
+	}
+	s.transportsMu.Lock()
+	defer s.transportsMu.Unlock()
+	return s.transports[clientID]
+}
+
+func (s *acpServer) transportForSession(sessionID string) rpcTransport {
+	if sessionID == "" {
+		return nil
+	}
+	session := s.getSession(sessionID)
+	if session == nil {
+		return nil
+	}
+	return s.getTransport(session.clientID)
+}
+
+func (s *acpServer) sendSessionUpdate(sessionID string, update map[string]any) {
+	if sessionID == "" || update == nil {
+		return
+	}
+	transport := s.transportForSession(sessionID)
+	if transport == nil {
+		return
+	}
+	_ = transport.Notify("session/update", map[string]any{
 		"sessionId": sessionID,
 		"update":    update,
 	})

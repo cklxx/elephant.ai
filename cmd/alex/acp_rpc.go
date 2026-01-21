@@ -26,6 +26,13 @@ type rpcConn struct {
 	idGen     atomic.Int64
 }
 
+type rpcTransport interface {
+	Call(ctx context.Context, method string, params map[string]any) (*jsonrpc.Response, error)
+	Notify(method string, params map[string]any) error
+	SendResponse(resp *jsonrpc.Response) error
+	DeliverResponse(resp *jsonrpc.Response) bool
+}
+
 func newRPCConn(in io.Reader, out io.Writer) *rpcConn {
 	return &rpcConn{
 		r:       bufio.NewReader(in),
@@ -73,7 +80,7 @@ func (c *rpcConn) Notify(method string, params map[string]any) error {
 	return c.send(jsonrpc.NewNotification(method, params))
 }
 
-func (c *rpcConn) deliverResponse(resp *jsonrpc.Response) bool {
+func (c *rpcConn) DeliverResponse(resp *jsonrpc.Response) bool {
 	if resp == nil {
 		return false
 	}
@@ -89,6 +96,10 @@ func (c *rpcConn) deliverResponse(resp *jsonrpc.Response) bool {
 	}
 	ch <- resp
 	return true
+}
+
+func (c *rpcConn) SendResponse(resp *jsonrpc.Response) error {
+	return c.send(resp)
 }
 
 func (c *rpcConn) send(v any) error {

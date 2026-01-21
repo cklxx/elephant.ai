@@ -1,23 +1,24 @@
 # ACP (Agent Client Protocol)
 
 This document defines the ACP surface **as implemented by elephant.ai**. It is a precise, unambiguous contract for
-clients that connect to `alex acp` (stdio) or `alex acp serve` (TCP).
+clients that connect to `alex acp` (stdio) or `alex acp serve` (HTTP/SSE).
 
 ## 1. Transport & Framing
 
-ACP uses JSON-RPC 2.0. Two framing modes are accepted:
+ACP uses JSON-RPC 2.0 over two transports:
 
-1. **Line-delimited JSON**: each JSON-RPC message is a single line ending with `\n`.
-2. **Content-Length framing**: `Content-Length: <bytes>\r\n\r\n<json>` (LSP/MCP style).
+1. **stdio transport** (`alex acp`): JSON-RPC messages are framed using either:
+   - **Line-delimited JSON**: each JSON-RPC message is a single line ending with `\n`.
+   - **Content-Length framing**: `Content-Length: <bytes>\r\n\r\n<json>` (LSP/MCP style).
 
-If the **first** client message uses `Content-Length`, the server will respond using `Content-Length` framing. Otherwise
-the server uses line-delimited JSON.
+   If the **first** client message uses `Content-Length`, the server will respond using `Content-Length` framing.
+   Otherwise the server uses line-delimited JSON.
 
-### TCP server
+2. **HTTP/SSE transport** (`alex acp serve --host <host> --port <port>`):
+   - Client → server: `POST /acp/rpc?client_id=<id>` with a JSON-RPC payload.
+   - Server → client: `GET /acp/sse?client_id=<id>` streams JSON-RPC payloads as SSE `data:` lines.
 
-`alex acp serve --host <host> --port <port>`
-
-The TCP server speaks the **same JSON-RPC framing** (no HTTP).
+   Responses to client requests are delivered over SSE (the HTTP POST returns only a status code).
 
 ## 2. JSON-RPC Basics
 
@@ -420,4 +421,3 @@ The server maps internal results to ACP stop reasons:
 ```json
 {"jsonrpc":"2.0","method":"session/cancel","params":{"sessionId":"session-..."}}
 ```
-

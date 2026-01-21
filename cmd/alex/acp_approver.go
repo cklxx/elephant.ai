@@ -28,7 +28,11 @@ func (a *acpApprover) RequestApproval(ctx context.Context, request *ports.Approv
 	if request.AutoApprove {
 		return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
 	}
-	if a == nil || a.server == nil || a.server.rpc == nil {
+	if a == nil || a.server == nil {
+		return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
+	}
+	transport := a.server.transportForSession(a.sessionID)
+	if transport == nil {
 		return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
 	}
 
@@ -72,7 +76,7 @@ func (a *acpApprover) RequestApproval(ctx context.Context, request *ports.Approv
 		},
 	}
 
-	resp, err := a.server.rpc.Call(ctx, "session/request_permission", map[string]any{
+	resp, err := transport.Call(ctx, "session/request_permission", map[string]any{
 		"sessionId": a.sessionID,
 		"toolCall":  toolCall,
 		"options":   options,

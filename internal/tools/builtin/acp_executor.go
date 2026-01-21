@@ -20,18 +20,18 @@ import (
 
 // ACPExecutorConfig configures the ACP executor adapter.
 type ACPExecutorConfig struct {
-	Addr                 string
-	CWD                  string
-	AutoApprove          bool
-	MaxCLICalls          int
-	MaxDurationSeconds   int
+	Addr                    string
+	CWD                     string
+	AutoApprove             bool
+	MaxCLICalls             int
+	MaxDurationSeconds      int
 	RequireArtifactManifest bool
 }
 
 type acpExecutorTool struct {
-	cfg     ACPExecutorConfig
-	logger  logging.Logger
-	mu      sync.Mutex
+	cfg      ACPExecutorConfig
+	logger   logging.Logger
+	mu       sync.Mutex
 	sessions map[string]string
 }
 
@@ -82,7 +82,7 @@ func (t *acpExecutorTool) Definition() ports.ToolDefinition {
 				},
 				"addr": {
 					Type:        "string",
-					Description: "ACP executor TCP address (host:port).",
+					Description: "ACP executor HTTP base URL (http://host:port).",
 				},
 				"max_cli_calls": {
 					Type:        "integer",
@@ -236,11 +236,11 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		summary = "ACP executor completed."
 	}
 	metadata := map[string]any{
-		"executor_addr":      addr,
-		"executor_session":   remoteID,
-		"tool_call_count":    handler.toolCallCount(),
-		"artifact_manifest":  handler.manifestPayload(),
-		"stop_reason":        extractStopReason(resp.Result),
+		"executor_addr":     addr,
+		"executor_session":  remoteID,
+		"tool_call_count":   handler.toolCallCount(),
+		"artifact_manifest": handler.manifestPayload(),
+		"stop_reason":       extractStopReason(resp.Result),
 	}
 
 	return &ports.ToolResult{
@@ -324,27 +324,27 @@ func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client,
 }
 
 type executorToolState struct {
-	name     string
-	started  time.Time
+	name    string
+	started time.Time
 }
 
 type acpExecutorHandler struct {
-	call             ports.ToolCall
-	listener         ports.EventListener
-	logger           logging.Logger
-	client           *acp.Client
-	autoApprove      bool
+	call        ports.ToolCall
+	listener    ports.EventListener
+	logger      logging.Logger
+	client      *acp.Client
+	autoApprove bool
 
-	mu               sync.Mutex
-	toolStates       map[string]*executorToolState
-	textBuffer       strings.Builder
-	manifest         map[string]any
-	attachments      map[string]ports.Attachment
-	toolCalls        int
-	limitExceeded    bool
-	requireManifest  bool
-	maxCLICalls      int
-	remoteSessionID  string
+	mu              sync.Mutex
+	toolStates      map[string]*executorToolState
+	textBuffer      strings.Builder
+	manifest        map[string]any
+	attachments     map[string]ports.Attachment
+	toolCalls       int
+	limitExceeded   bool
+	requireManifest bool
+	maxCLICalls     int
+	remoteSessionID string
 }
 
 func newACPExecutorHandler(ctx context.Context, call ports.ToolCall, maxCLICalls int, requireManifest bool, autoApprove bool, client *acp.Client, logger logging.Logger) *acpExecutorHandler {
