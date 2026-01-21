@@ -35,6 +35,8 @@
 - 2026-01-21: Updated `dev.sh` to run ACP daemon inside the sandbox container by default, build a Linux `alex` binary for the container when needed, and reuse ACP ports via `.pids/acp.port`/container port mapping to keep ports stable.
 - 2026-01-21: Tests run: `./dev.sh test` (Go + web) passed; `./dev.sh lint` failed due to existing lint issues in `internal/acp/client.go`, `internal/acp/errors.go`, and `internal/server/app/event_broadcaster.go`.
 - 2026-01-21: ACP SSE smoke test: `python3 scripts/acp_test.py --addr http://127.0.0.1:$(cat .pids/acp.port) --cwd /workspace --prompt "ping"` succeeded.
+- 2026-01-21: ACP executor now auto-generates a fallback artifact manifest when missing (flags `artifact_manifest_missing`), plus manual smoke test with the provided web page instruction succeeded (no missing-manifest error).
+- 2026-01-21: Tests run: `./dev.sh test` passed; `./dev.sh lint` still fails on existing lint issues in `internal/acp/client.go`, `internal/acp/errors.go`, and `internal/server/app/event_broadcaster.go`.
 
 ## Notes / Risks
 - If ACP executor still targets host cwd, the CLI agent may reject file ops (seen with `/Users/...` paths).
