@@ -144,15 +144,21 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor requires session id")}, nil
 	}
 
-	remoteID, err := t.ensureSession(execCtx, client, sessionID, cwd)
+	remoteID, availableModes, err := t.ensureSession(execCtx, client, sessionID, cwd)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 	handler.setRemoteSession(remoteID)
 
 	if mode != "" {
-		if err := callSetMode(execCtx, client, remoteID, mode); err != nil {
-			return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+		if !modeSupported(availableModes, mode) {
+			t.logger.Warn("ACP executor mode %q unsupported; skipping set_mode", mode)
+		} else if err := callSetMode(execCtx, client, remoteID, mode); err != nil {
+			if isUnsupportedModeError(err) {
+				t.logger.Warn("ACP executor mode %q rejected; continuing without set_mode", mode)
+			} else {
+				return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+			}
 		}
 	}
 
@@ -221,7 +227,7 @@ func callSetMode(ctx context.Context, client *acp.Client, sessionID, mode string
 	return nil
 }
 
-func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client, sessionID, cwd string) (string, error) {
+func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client, sessionID, cwd string) (string, map[string]bool, error) {
 	t.mu.Lock()
 	remoteID := t.sessions[sessionID]
 	t.mu.Unlock()
@@ -235,7 +241,7 @@ func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client,
 			"mcpServers": mcpServers,
 		})
 		if err == nil && resp != nil && resp.Error == nil {
-			return remoteID, nil
+			return remoteID, parseAvailableModes(resp.Result), nil
 		}
 	}
 
@@ -244,10 +250,10 @@ func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client,
 		"mcpServers": mcpServers,
 	})
 	if err != nil {
-		return "", fmt.Errorf("acp_executor session/new failed: %w", err)
+		return "", nil, fmt.Errorf("acp_executor session/new failed: %w", err)
 	}
 	if resp.Error != nil {
-		return "", fmt.Errorf("acp_executor session/new error: %s", resp.Error.Message)
+		return "", nil, fmt.Errorf("acp_executor session/new error: %s", resp.Error.Message)
 	}
 
 	newID := ""
@@ -259,12 +265,66 @@ func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client,
 		}
 	}
 	if newID == "" {
-		return "", fmt.Errorf("acp_executor session/new missing sessionId")
+		return "", nil, fmt.Errorf("acp_executor session/new missing sessionId")
 	}
 	t.mu.Lock()
 	t.sessions[sessionID] = newID
 	t.mu.Unlock()
-	return newID, nil
+	return newID, parseAvailableModes(resp.Result), nil
+}
+
+func parseAvailableModes(result any) map[string]bool {
+	raw, ok := result.(map[string]any)
+	if !ok {
+		return nil
+	}
+	rawModes, ok := raw["modes"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	rawList, ok := rawModes["availableModes"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make(map[string]bool, len(rawList))
+	for _, entry := range rawList {
+		mode, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		id, ok := mode["id"].(string)
+		if !ok {
+			continue
+		}
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		out[id] = true
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func modeSupported(available map[string]bool, mode string) bool {
+	mode = strings.TrimSpace(mode)
+	if mode == "" {
+		return false
+	}
+	if available == nil {
+		return true
+	}
+	return available[mode]
+}
+
+func isUnsupportedModeError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unsupported mode") || strings.Contains(msg, "invalid params")
 }
 
 func callWithRetry(ctx context.Context, client *acp.Client, method string, params map[string]any) (*jsonrpc.Response, error) {

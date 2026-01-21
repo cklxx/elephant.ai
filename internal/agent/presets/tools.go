@@ -18,9 +18,10 @@ const (
 type ToolPreset string
 
 const (
-	ToolPresetFull     ToolPreset = "full"
-	ToolPresetReadOnly ToolPreset = "read-only"
-	ToolPresetSafe     ToolPreset = "safe"
+	ToolPresetFull      ToolPreset = "full"
+	ToolPresetReadOnly  ToolPreset = "read-only"
+	ToolPresetSafe      ToolPreset = "safe"
+	ToolPresetSandbox   ToolPreset = "sandbox"
 	ToolPresetArchitect ToolPreset = "architect"
 )
 
@@ -63,13 +64,27 @@ var (
 		"bash":         true,
 		"code_execute": true,
 	}
+	sandboxDeniedTools = map[string]bool{
+		"file_read":    true,
+		"file_write":   true,
+		"file_edit":    true,
+		"list_files":   true,
+		"grep":         true,
+		"ripgrep":      true,
+		"find":         true,
+		"bash":         true,
+		"code_execute": true,
+		"skills":       true,
+		"todo_read":    true,
+		"todo_update":  true,
+	}
 	architectAllowedTools = map[string]bool{
-		"plan":          true,
-		"clearify":      true,
-		"web_search":    true,
-		"web_fetch":     true,
-		"request_user":  true,
-		"acp_executor":  true,
+		"plan":         true,
+		"clearify":     true,
+		"web_search":   true,
+		"web_fetch":    true,
+		"request_user": true,
+		"acp_executor": true,
 	}
 )
 
@@ -111,7 +126,7 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				AllowedTools: cloneToolSet(architectAllowedTools),
 				DeniedTools:  cloneToolSet(webDeniedTools),
 			}, nil
-		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe:
+		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox:
 			return &ToolConfig{
 				Name:         "Web Mode",
 				Description:  "All non-local tools (file/shell/code exec disabled)",
@@ -146,6 +161,13 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				Description:  "Excludes potentially dangerous tools (bash, code execution)",
 				AllowedTools: nil,
 				DeniedTools:  mergeToolSets(cloneToolSet(safeDeniedTools), cliDeniedTools),
+			}, nil
+		case ToolPresetSandbox:
+			return &ToolConfig{
+				Name:         "Sandbox Access",
+				Description:  "No local file/shell tools; use sandbox_* tools instead",
+				AllowedTools: nil,
+				DeniedTools:  mergeToolSets(cloneToolSet(sandboxDeniedTools), cliDeniedTools),
 			}, nil
 		case ToolPresetArchitect:
 			return &ToolConfig{
@@ -243,6 +265,7 @@ func GetAllToolPresets() []ToolPreset {
 		ToolPresetFull,
 		ToolPresetReadOnly,
 		ToolPresetSafe,
+		ToolPresetSandbox,
 		ToolPresetArchitect,
 	}
 }
@@ -250,7 +273,7 @@ func GetAllToolPresets() []ToolPreset {
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {
-	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetArchitect:
+	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox, ToolPresetArchitect:
 		return true
 	default:
 		return false

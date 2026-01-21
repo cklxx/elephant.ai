@@ -175,6 +175,7 @@ func TestIsValidToolPreset(t *testing.T) {
 		{"full", "full", true},
 		{"read-only", "read-only", true},
 		{"safe", "safe", true},
+		{"sandbox", "sandbox", true},
 		{"architect", "architect", true},
 		{"invalid", "invalid", false},
 		{"empty", "", false},
@@ -289,6 +290,27 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
+			name:      "sandbox blocks file_read",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetSandbox,
+			toolName:  "file_read",
+			wantAllow: false,
+		},
+		{
+			name:      "sandbox blocks bash",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetSandbox,
+			toolName:  "bash",
+			wantAllow: false,
+		},
+		{
+			name:      "sandbox allows sandbox_shell_exec",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetSandbox,
+			toolName:  "sandbox_shell_exec",
+			wantAllow: true,
+		},
+		{
 			name:      "web mode blocks file_read",
 			mode:      ToolModeWeb,
 			preset:    ToolPresetFull,
@@ -399,15 +421,16 @@ func TestGetAllPresets(t *testing.T) {
 
 func TestGetAllToolPresets(t *testing.T) {
 	presets := GetAllToolPresets()
-	if len(presets) != 4 {
-		t.Errorf("GetAllToolPresets() returned %d presets, want 4", len(presets))
+	if len(presets) != 5 {
+		t.Errorf("GetAllToolPresets() returned %d presets, want 5", len(presets))
 	}
 
 	// Check all expected presets are present
 	expected := map[ToolPreset]bool{
-		ToolPresetFull:     false,
-		ToolPresetReadOnly: false,
-		ToolPresetSafe:     false,
+		ToolPresetFull:      false,
+		ToolPresetReadOnly:  false,
+		ToolPresetSafe:      false,
+		ToolPresetSandbox:   false,
 		ToolPresetArchitect: false,
 	}
 

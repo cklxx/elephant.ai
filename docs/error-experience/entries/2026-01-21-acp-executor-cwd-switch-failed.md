@@ -1,4 +1,4 @@
 # 2026-01-21 - acp executor cwd switch failed
 
 - Error: ACP executor prompt failed with "failed to switch working directory" when `/workspace` did not exist on the host-running ACP server.
-- Remediation: default `acp_executor_cwd` to `/workspace` only when the path exists; otherwise fall back to the current working directory.
+- Remediation: keep `acp_executor_cwd` at `/workspace` for executor prompts, but skip `chdir` when the directory is missing on the host-running ACP server.

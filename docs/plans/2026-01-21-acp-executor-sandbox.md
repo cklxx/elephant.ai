@@ -30,6 +30,7 @@
 - 2026-01-21: Added error-experience entry/summary for host-path rejection.
 - 2026-01-21: Tests run: `./scripts/go-with-toolchain.sh test ./...`, `npm --prefix web run lint`, `npm --prefix web test`.
 - 2026-01-21: Align ACP executor cwd default with runtime (fallback to current working dir when `/workspace` missing) and ensure executor events carry stable parent_task_id for UI aggregation.
+- 2026-01-21: Restored `/workspace` default CWD with ACP server skipping missing cwd, added `sandbox` tool preset and ACP mode negotiation fallback.
 
 ## Notes / Risks
 - If ACP executor still targets host cwd, the CLI agent may reject file ops (seen with `/Users/...` paths).

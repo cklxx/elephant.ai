@@ -54,6 +54,7 @@ var acpModes = []acpMode{
 	{ID: string(presets.ToolPresetFull), Name: "Full Access", Description: "All tools available"},
 	{ID: string(presets.ToolPresetReadOnly), Name: "Read-Only", Description: "No local writes or execution"},
 	{ID: string(presets.ToolPresetSafe), Name: "Safe Mode", Description: "Excludes potentially dangerous tools"},
+	{ID: string(presets.ToolPresetSandbox), Name: "Sandbox Mode", Description: "Disable local file/shell tools; use sandbox_* tools instead"},
 }
 
 func newACPServer(container *Container, initialMessage string) *acpServer {
@@ -363,6 +364,12 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 	}
 
 	var oldCwd string
+	if session.cwd != "" {
+		info, err := os.Stat(session.cwd)
+		if err != nil || !info.IsDir() {
+			session.cwd = ""
+		}
+	}
 	if session.cwd != "" {
 		s.cwdMu.Lock()
 		current, err := os.Getwd()

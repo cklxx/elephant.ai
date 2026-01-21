@@ -184,7 +184,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### 工具与运行体验
 
-- `tool_preset`：工具权限预设：`safe` / `read-only` / `full` / `architect`。Web 模式下如显式配置会生效（默认不配置则保持 Web 模式默认允许集）。
+- `tool_preset`：工具权限预设：`sandbox` / `safe` / `read-only` / `full` / `architect`。Web 模式下如显式配置会生效（默认不配置则保持 Web 模式默认允许集）。
 - 运行时工具模式由入口决定：`alex` 为 CLI 模式、`alex-server` 为 Web 模式（默认禁用本地文件/命令）。
 - `agent_preset`：agent 预设（按项目内 presets 定义）。
 - `verbose`：verbose 模式（CLI/Server 的输出更详细）。
@@ -194,8 +194,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 ### ACP 执行器配置（executor 适配层）
 
 - `acp_executor_addr`：ACP executor 地址（`http://host:port`）。默认先读 `ACP_PORT` / `.pids/acp.port`（配合 `ACP_HOST`），否则回退 `http://127.0.0.1:9000`。
-- `acp_executor_cwd`：executor 工作目录（绝对路径）。默认 `/workspace`（存在时），否则使用当前工作目录。
-- `acp_executor_mode`：executor 工具模式（`safe` / `read-only` / `full`）。默认 `full`。
+- `acp_executor_cwd`：executor 工作目录（绝对路径）。默认 `/workspace`；若 host 侧目录不存在会跳过 `chdir`。
+- `acp_executor_mode`：executor 工具模式（`sandbox` / `safe` / `read-only` / `full`）。默认 `sandbox`。
 - `acp_executor_auto_approve`：自动批准 executor 的权限请求（布尔）。默认 `true`。
 - `acp_executor_max_cli_calls`：单次任务最大 CLI 调用次数。
 - `acp_executor_max_duration_seconds`：单次任务最大执行时长（秒）。

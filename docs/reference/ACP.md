@@ -169,7 +169,7 @@ Switches the session tool mode.
 | field | type | required | meaning |
 |---|---|---|---|
 | sessionId | string | yes | Session id |
-| modeId | string | yes | `full` \| `read-only` \| `safe` |
+| modeId | string | yes | `full` \| `read-only` \| `safe` \| `sandbox` |
 
 **Response**: empty object.
 
@@ -340,7 +340,8 @@ Each entry:
   "availableModes": [
     {"id":"full","name":"Full Access","description":"All tools available"},
     {"id":"read-only","name":"Read-Only","description":"No local writes or execution"},
-    {"id":"safe","name":"Safe Mode","description":"Excludes potentially dangerous tools"}
+    {"id":"safe","name":"Safe Mode","description":"Excludes potentially dangerous tools"},
+    {"id":"sandbox","name":"Sandbox Mode","description":"Disable local file/shell tools; use sandbox_* tools instead"}
   ]
 }
 ```
@@ -352,6 +353,7 @@ Mode mapping:
 | full | full |
 | read-only | read-only |
 | safe | safe |
+| sandbox | sandbox |
 
 ## 10. MCP Servers
 
