@@ -45,6 +45,7 @@ readonly DEFAULT_WEB_PORT=3000
 readonly DEFAULT_SANDBOX_PORT=18086
 readonly DEFAULT_SANDBOX_IMAGE="ghcr.io/agent-infra/sandbox:latest"
 readonly DEFAULT_ACP_HOST="127.0.0.1"
+readonly DEFAULT_SANDBOX_CONFIG_PATH="/root/.alex/config.yaml"
 
 SERVER_PORT="${SERVER_PORT:-${DEFAULT_SERVER_PORT}}"
 WEB_PORT="${WEB_PORT:-${DEFAULT_WEB_PORT}}"
@@ -107,6 +108,14 @@ ensure_playwright_browsers() {
 
 ensure_dirs() {
   mkdir -p "${PID_DIR}" "${LOG_DIR}"
+}
+
+sandbox_host_config_path() {
+  if [[ -n "${ALEX_CONFIG_PATH:-}" ]]; then
+    echo "${ALEX_CONFIG_PATH}"
+    return 0
+  fi
+  echo "${HOME}/.alex/config.yaml"
 }
 
 pick_random_port() {
@@ -284,6 +293,74 @@ detect_sandbox_acp_port() {
   '
 }
 
+collect_sandbox_env_flags() {
+  SANDBOX_ENV_FLAGS=()
+  SANDBOX_HAS_LLM_ENV=0
+  local keys=(
+    LLM_PROVIDER
+    LLM_MODEL
+    LLM_SMALL_PROVIDER
+    LLM_SMALL_MODEL
+    LLM_VISION_MODEL
+    LLM_BASE_URL
+    OPENAI_API_KEY
+    OPENAI_BASE_URL
+    ANTHROPIC_API_KEY
+    ANTHROPIC_BASE_URL
+    CODEX_API_KEY
+    CODEX_BASE_URL
+    ANTIGRAVITY_API_KEY
+    ANTIGRAVITY_BASE_URL
+    ARK_API_KEY
+    SEEDREAM_TEXT_ENDPOINT_ID
+    SEEDREAM_IMAGE_ENDPOINT_ID
+    SEEDREAM_TEXT_MODEL
+    SEEDREAM_IMAGE_MODEL
+    SEEDREAM_VISION_MODEL
+    SEEDREAM_VIDEO_MODEL
+  )
+  local key val
+  for key in "${keys[@]}"; do
+    val="${!key-}"
+    if [[ -n "$val" ]]; then
+      SANDBOX_ENV_FLAGS+=("-e" "${key}=${val}")
+      SANDBOX_HAS_LLM_ENV=1
+    fi
+  done
+}
+
+ensure_sandbox_acp_config() {
+  SANDBOX_CONFIG_UPDATED=0
+  SANDBOX_CONFIG_FOUND=0
+  local host_config
+  host_config="$(sandbox_host_config_path)"
+  if [[ -z "$host_config" || ! -f "$host_config" ]]; then
+    return 0
+  fi
+  SANDBOX_CONFIG_FOUND=1
+  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'mkdir -p /root/.alex'
+  docker cp "${host_config}" "${SANDBOX_CONTAINER_NAME}:/tmp/alex-config.yaml"
+  local result
+  result="$(
+    docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc '
+      if command -v cmp >/dev/null 2>&1 && [ -f '"${DEFAULT_SANDBOX_CONFIG_PATH}"' ]; then
+        if cmp -s '"${DEFAULT_SANDBOX_CONFIG_PATH}"' /tmp/alex-config.yaml; then
+          rm -f /tmp/alex-config.yaml
+          echo same
+          exit 0
+        fi
+      fi
+      mv /tmp/alex-config.yaml '"${DEFAULT_SANDBOX_CONFIG_PATH}"'
+      chmod 600 '"${DEFAULT_SANDBOX_CONFIG_PATH}"'
+      echo updated
+    '
+  )"
+  if [[ "$result" == "updated" ]]; then
+    log_info "Updated sandbox alex config from host."
+    SANDBOX_CONFIG_UPDATED=1
+  fi
+}
+
 ensure_sandbox_acp_binary() {
   local arch
   arch="$(docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'uname -m' 2>/dev/null || true)"
@@ -325,6 +402,7 @@ start_acp_daemon_in_sandbox() {
   fi
 
   ensure_dirs
+  collect_sandbox_env_flags
 
   if [[ -z "${ACP_PORT}" || "${ACP_PORT}" == "0" ]]; then
     local port
@@ -333,11 +411,21 @@ start_acp_daemon_in_sandbox() {
   fi
 
   ensure_sandbox_acp_binary
+  ensure_sandbox_acp_config
+  local force_restart=0
+  if [[ "${SANDBOX_CONFIG_UPDATED}" == "1" ]]; then
+    force_restart=1
+  fi
 
   log_info "Starting ACP daemon inside sandbox on 0.0.0.0:${ACP_PORT}..."
-  docker exec -e ACP_PORT="${ACP_PORT}" "${SANDBOX_CONTAINER_NAME}" sh -lc '
+  docker exec "${SANDBOX_ENV_FLAGS[@]}" -e ACP_PORT="${ACP_PORT}" -e ACP_FORCE_RESTART="${force_restart}" "${SANDBOX_CONTAINER_NAME}" sh -lc '
     if [ -f /tmp/acp.pid ] && kill -0 $(cat /tmp/acp.pid) 2>/dev/null; then
-      exit 0
+      if [ "${ACP_FORCE_RESTART}" = "1" ]; then
+        kill "$(cat /tmp/acp.pid)" 2>/dev/null || true
+        rm -f /tmp/acp.pid
+      else
+        exit 0
+      fi
     fi
     nohup /usr/local/bin/alex acp serve --host 0.0.0.0 --port "${ACP_PORT}" >/tmp/acp.log 2>&1 &
     echo $! >/tmp/acp.pid
