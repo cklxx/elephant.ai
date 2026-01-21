@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -38,6 +39,9 @@ const (
 	DefaultLLMModel    = "gpt-4o-mini"
 	DefaultLLMBaseURL  = "https://api.openai.com/v1"
 	DefaultMaxTokens   = 8192
+	DefaultACPHost     = "127.0.0.1"
+	DefaultACPPort     = 9000
+	DefaultACPPortFile = ".pids/acp.port"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -235,8 +239,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		LLMSmallModel:              DefaultLLMModel,
 		BaseURL:                    DefaultLLMBaseURL,
 		SandboxBaseURL:             "http://localhost:18086",
-		ACPExecutorAddr:            "",
-		ACPExecutorCWD:             "",
+		ACPExecutorAddr:            defaultACPExecutorAddr(options.envLookup),
+		ACPExecutorCWD:             defaultACPExecutorCWD(),
 		ACPExecutorMode:            "safe",
 		ACPExecutorAutoApprove:     false,
 		ACPExecutorMaxCLICalls:     12,
@@ -347,6 +351,82 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 		}
 		cfg.StopSequences = filtered
 	}
+}
+
+func defaultACPExecutorAddr(lookup EnvLookup) string {
+	host := defaultACPHost(lookup)
+	if port, ok := acpPortFromEnv(lookup); ok {
+		return fmt.Sprintf("http://%s:%d", host, port)
+	}
+	if port, ok := readACPPortFile(); ok {
+		return fmt.Sprintf("http://%s:%d", host, port)
+	}
+	return fmt.Sprintf("http://%s:%d", host, DefaultACPPort)
+}
+
+func defaultACPExecutorCWD() string {
+	if info, err := os.Stat("/workspace"); err == nil && info.IsDir() {
+		return "/workspace"
+	}
+	wd, err := os.Getwd()
+	if err != nil || strings.TrimSpace(wd) == "" {
+		return ""
+	}
+	abs, err := filepath.Abs(wd)
+	if err != nil {
+		return wd
+	}
+	return abs
+}
+
+func defaultACPHost(lookup EnvLookup) string {
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+	if value, ok := lookup("ACP_HOST"); ok {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return DefaultACPHost
+}
+
+func acpPortFromEnv(lookup EnvLookup) (int, bool) {
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+	value, ok := lookup("ACP_PORT")
+	if !ok {
+		return 0, false
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil || port <= 0 {
+		return 0, false
+	}
+	return port, true
+}
+
+func readACPPortFile() (int, bool) {
+	wd, err := os.Getwd()
+	if err != nil || strings.TrimSpace(wd) == "" {
+		return 0, false
+	}
+	path := filepath.Join(wd, DefaultACPPortFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	value := strings.TrimSpace(string(data))
+	port, err := strconv.Atoi(value)
+	if err != nil || port <= 0 {
+		return 0, false
+	}
+	return port, true
 }
 
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {

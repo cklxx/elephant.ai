@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -45,6 +46,41 @@ func TestLoadDefaults(t *testing.T) {
 	}
 	if !cfg.FollowTranscript || !cfg.FollowStream {
 		t.Fatalf("expected follow defaults to be true, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
+	}
+	if cfg.ACPExecutorAddr == "" {
+		t.Fatalf("expected default ACP executor addr to be set")
+	}
+	if cfg.ACPExecutorCWD == "" || !filepath.IsAbs(cfg.ACPExecutorCWD) {
+		t.Fatalf("expected default ACP executor cwd to be absolute, got %q", cfg.ACPExecutorCWD)
+	}
+}
+
+func TestLoadDefaultsUsesACPPortFile(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	tmp := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tmp, ".pids"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".pids", "acp.port"), []byte("19077\n"), 0o600); err != nil {
+		t.Fatalf("write port file: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	cfg, _, err := Load(
+		WithEnv(envMap{}.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return nil, os.ErrNotExist }),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.ACPExecutorAddr != "http://127.0.0.1:19077" {
+		t.Fatalf("expected ACP executor addr to use port file, got %q", cfg.ACPExecutorAddr)
 	}
 }
 
