@@ -268,6 +268,11 @@ func (t *sseTransport) Stream(ctx context.Context, w http.ResponseWriter) error 
 		t.streamMu.Unlock()
 	}()
 
+	if _, err := w.Write([]byte(": connected\n\n")); err != nil {
+		return err
+	}
+	flusher.Flush()
+
 	for {
 		select {
 		case <-streamCtx.Done():
