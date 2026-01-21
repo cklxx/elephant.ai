@@ -53,6 +53,7 @@ type RuntimeConfig struct {
 	SandboxBaseURL             string   `json:"sandbox_base_url" yaml:"sandbox_base_url"`
 	ACPExecutorAddr            string   `json:"acp_executor_addr" yaml:"acp_executor_addr"`
 	ACPExecutorCWD             string   `json:"acp_executor_cwd" yaml:"acp_executor_cwd"`
+	ACPExecutorMode            string   `json:"acp_executor_mode" yaml:"acp_executor_mode"`
 	ACPExecutorAutoApprove     bool     `json:"acp_executor_auto_approve" yaml:"acp_executor_auto_approve"`
 	ACPExecutorMaxCLICalls     int      `json:"acp_executor_max_cli_calls" yaml:"acp_executor_max_cli_calls"`
 	ACPExecutorMaxDuration     int      `json:"acp_executor_max_duration_seconds" yaml:"acp_executor_max_duration_seconds"`
@@ -130,6 +131,7 @@ type Overrides struct {
 	SandboxBaseURL             *string   `json:"sandbox_base_url,omitempty" yaml:"sandbox_base_url,omitempty"`
 	ACPExecutorAddr            *string   `json:"acp_executor_addr,omitempty" yaml:"acp_executor_addr,omitempty"`
 	ACPExecutorCWD             *string   `json:"acp_executor_cwd,omitempty" yaml:"acp_executor_cwd,omitempty"`
+	ACPExecutorMode            *string   `json:"acp_executor_mode,omitempty" yaml:"acp_executor_mode,omitempty"`
 	ACPExecutorAutoApprove     *bool     `json:"acp_executor_auto_approve,omitempty" yaml:"acp_executor_auto_approve,omitempty"`
 	ACPExecutorMaxCLICalls     *int      `json:"acp_executor_max_cli_calls,omitempty" yaml:"acp_executor_max_cli_calls,omitempty"`
 	ACPExecutorMaxDuration     *int      `json:"acp_executor_max_duration_seconds,omitempty" yaml:"acp_executor_max_duration_seconds,omitempty"`
@@ -235,6 +237,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		SandboxBaseURL:             "http://localhost:18086",
 		ACPExecutorAddr:            "",
 		ACPExecutorCWD:             "",
+		ACPExecutorMode:            "safe",
 		ACPExecutorAutoApprove:     false,
 		ACPExecutorMaxCLICalls:     12,
 		ACPExecutorMaxDuration:     900,
@@ -314,6 +317,7 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.SandboxBaseURL = strings.TrimSpace(cfg.SandboxBaseURL)
 	cfg.ACPExecutorAddr = strings.TrimSpace(cfg.ACPExecutorAddr)
 	cfg.ACPExecutorCWD = strings.TrimSpace(cfg.ACPExecutorCWD)
+	cfg.ACPExecutorMode = strings.TrimSpace(cfg.ACPExecutorMode)
 	cfg.TavilyAPIKey = strings.TrimSpace(cfg.TavilyAPIKey)
 	cfg.SeedreamTextEndpointID = strings.TrimSpace(cfg.SeedreamTextEndpointID)
 	cfg.SeedreamImageEndpointID = strings.TrimSpace(cfg.SeedreamImageEndpointID)
@@ -437,6 +441,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.ACPExecutorCWD != "" {
 		cfg.ACPExecutorCWD = parsed.ACPExecutorCWD
 		meta.sources["acp_executor_cwd"] = SourceFile
+	}
+	if parsed.ACPExecutorMode != "" {
+		cfg.ACPExecutorMode = parsed.ACPExecutorMode
+		meta.sources["acp_executor_mode"] = SourceFile
 	}
 	if parsed.ACPExecutorAutoApprove != nil {
 		cfg.ACPExecutorAutoApprove = *parsed.ACPExecutorAutoApprove
@@ -596,6 +604,10 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("ACP_EXECUTOR_CWD"); ok && value != "" {
 		cfg.ACPExecutorCWD = value
 		meta.sources["acp_executor_cwd"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_MODE"); ok && value != "" {
+		cfg.ACPExecutorMode = value
+		meta.sources["acp_executor_mode"] = SourceEnv
 	}
 	if value, ok := lookup("ACP_EXECUTOR_AUTO_APPROVE"); ok && value != "" {
 		parsed, err := parseBoolEnv(value)
@@ -1091,6 +1103,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.ACPExecutorCWD = *overrides.ACPExecutorCWD
 		meta.sources["acp_executor_cwd"] = SourceOverride
 	}
+	if overrides.ACPExecutorMode != nil {
+		cfg.ACPExecutorMode = *overrides.ACPExecutorMode
+		meta.sources["acp_executor_mode"] = SourceOverride
+	}
 	if overrides.ACPExecutorAutoApprove != nil {
 		cfg.ACPExecutorAutoApprove = *overrides.ACPExecutorAutoApprove
 		meta.sources["acp_executor_auto_approve"] = SourceOverride
@@ -1247,6 +1263,7 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.SandboxBaseURL = expandEnvValue(lookup, parsed.SandboxBaseURL)
 	parsed.ACPExecutorAddr = expandEnvValue(lookup, parsed.ACPExecutorAddr)
 	parsed.ACPExecutorCWD = expandEnvValue(lookup, parsed.ACPExecutorCWD)
+	parsed.ACPExecutorMode = expandEnvValue(lookup, parsed.ACPExecutorMode)
 	parsed.TavilyAPIKey = expandEnvValue(lookup, parsed.TavilyAPIKey)
 	parsed.SeedreamTextEndpointID = expandEnvValue(lookup, parsed.SeedreamTextEndpointID)
 	parsed.SeedreamImageEndpointID = expandEnvValue(lookup, parsed.SeedreamImageEndpointID)

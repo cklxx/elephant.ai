@@ -53,44 +53,45 @@ type Container struct {
 // Config holds the dependency injection configuration
 type Config struct {
 	// LLM Configuration
-	LLMProvider             string
-	LLMModel                string
-	LLMSmallProvider        string
-	LLMSmallModel           string
-	LLMVisionModel          string
-	APIKey                  string
-	ArkAPIKey               string
-	BaseURL                 string
-	SandboxBaseURL          string
-	ACPExecutorAddr         string
-	ACPExecutorCWD          string
-	ACPExecutorAutoApprove  bool
-	ACPExecutorMaxCLICalls  int
-	ACPExecutorMaxDuration  int
+	LLMProvider                string
+	LLMModel                   string
+	LLMSmallProvider           string
+	LLMSmallModel              string
+	LLMVisionModel             string
+	APIKey                     string
+	ArkAPIKey                  string
+	BaseURL                    string
+	SandboxBaseURL             string
+	ACPExecutorAddr            string
+	ACPExecutorCWD             string
+	ACPExecutorMode            string
+	ACPExecutorAutoApprove     bool
+	ACPExecutorMaxCLICalls     int
+	ACPExecutorMaxDuration     int
 	ACPExecutorRequireManifest bool
-	TavilyAPIKey            string
-	SeedreamTextEndpointID  string
-	SeedreamImageEndpointID string
-	SeedreamTextModel       string
-	SeedreamImageModel      string
-	SeedreamVisionModel     string
-	SeedreamVideoModel      string
-	MaxTokens               int
-	MaxIterations           int
-	UserRateLimitRPS        float64
-	UserRateLimitBurst      int
-	Temperature             float64
-	TemperatureProvided     bool
-	TopP                    float64
-	StopSequences           []string
-	AgentPreset             string
-	ToolPreset              string
-	ToolMode                string
-	Environment             string
-	Verbose                 bool
-	DisableTUI              bool
-	FollowTranscript        bool
-	FollowStream            bool
+	TavilyAPIKey               string
+	SeedreamTextEndpointID     string
+	SeedreamImageEndpointID    string
+	SeedreamTextModel          string
+	SeedreamImageModel         string
+	SeedreamVisionModel        string
+	SeedreamVideoModel         string
+	MaxTokens                  int
+	MaxIterations              int
+	UserRateLimitRPS           float64
+	UserRateLimitBurst         int
+	Temperature                float64
+	TemperatureProvided        bool
+	TopP                       float64
+	StopSequences              []string
+	AgentPreset                string
+	ToolPreset                 string
+	ToolMode                   string
+	Environment                string
+	Verbose                    bool
+	DisableTUI                 bool
+	FollowTranscript           bool
+	FollowStream               bool
 
 	EnvironmentSummary string
 
@@ -299,28 +300,29 @@ func BuildContainer(config Config) (*Container, error) {
 	costTracker := agentApp.NewCostTracker(costStore)
 
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
-		TavilyAPIKey:            config.TavilyAPIKey,
-		ArkAPIKey:               config.ArkAPIKey,
-		LLMFactory:              llmFactory,
-		LLMProvider:             config.LLMProvider,
-		LLMModel:                config.LLMModel,
-		LLMVisionModel:          config.LLMVisionModel,
-		APIKey:                  config.APIKey,
-		BaseURL:                 config.BaseURL,
-		SandboxBaseURL:          config.SandboxBaseURL,
-		ACPExecutorAddr:         config.ACPExecutorAddr,
-		ACPExecutorCWD:          config.ACPExecutorCWD,
-		ACPExecutorAutoApprove:  config.ACPExecutorAutoApprove,
-		ACPExecutorMaxCLICalls:  config.ACPExecutorMaxCLICalls,
-		ACPExecutorMaxDuration:  config.ACPExecutorMaxDuration,
+		TavilyAPIKey:               config.TavilyAPIKey,
+		ArkAPIKey:                  config.ArkAPIKey,
+		LLMFactory:                 llmFactory,
+		LLMProvider:                config.LLMProvider,
+		LLMModel:                   config.LLMModel,
+		LLMVisionModel:             config.LLMVisionModel,
+		APIKey:                     config.APIKey,
+		BaseURL:                    config.BaseURL,
+		SandboxBaseURL:             config.SandboxBaseURL,
+		ACPExecutorAddr:            config.ACPExecutorAddr,
+		ACPExecutorCWD:             config.ACPExecutorCWD,
+		ACPExecutorMode:            config.ACPExecutorMode,
+		ACPExecutorAutoApprove:     config.ACPExecutorAutoApprove,
+		ACPExecutorMaxCLICalls:     config.ACPExecutorMaxCLICalls,
+		ACPExecutorMaxDuration:     config.ACPExecutorMaxDuration,
 		ACPExecutorRequireManifest: config.ACPExecutorRequireManifest,
-		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
-		SeedreamTextModel:       config.SeedreamTextModel,
-		SeedreamImageModel:      config.SeedreamImageModel,
-		SeedreamVisionModel:     config.SeedreamVisionModel,
-		SeedreamVideoModel:      config.SeedreamVideoModel,
-		MemoryService:           memoryService,
+		SeedreamTextEndpointID:     config.SeedreamTextEndpointID,
+		SeedreamImageEndpointID:    config.SeedreamImageEndpointID,
+		SeedreamTextModel:          config.SeedreamTextModel,
+		SeedreamImageModel:         config.SeedreamImageModel,
+		SeedreamVisionModel:        config.SeedreamVisionModel,
+		SeedreamVideoModel:         config.SeedreamVideoModel,
+		MemoryService:              memoryService,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)

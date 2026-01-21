@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"alex/internal/agent/domain"
@@ -531,7 +532,14 @@ func shouldPersistToHistory(event agentports.AgentEvent) bool {
 		return false
 	}
 	switch event.(type) {
-	case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent, *domain.WorkflowDiagnosticContextSnapshotEvent:
+	case *domain.WorkflowEventEnvelope:
+		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+			if strings.HasPrefix(env.Event, "workflow.executor.") {
+				return false
+			}
+		}
+		return true
+	case *domain.WorkflowInputReceivedEvent, *domain.WorkflowDiagnosticContextSnapshotEvent:
 		return true
 	default:
 		return false

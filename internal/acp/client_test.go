@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -142,4 +143,11 @@ func TestNormalizeACPAddr(t *testing.T) {
 	out, err = normalizeACPAddr("https://example.com")
 	require.NoError(t, err)
 	require.Equal(t, "https://example.com", out)
+}
+
+func TestIsRetryableError(t *testing.T) {
+	require.True(t, IsRetryableError(context.DeadlineExceeded))
+	require.True(t, IsRetryableError(&RPCStatusError{StatusCode: 503}))
+	require.False(t, IsRetryableError(&RPCStatusError{StatusCode: 404}))
+	require.True(t, IsRetryableError(&url.Error{Op: "post", URL: "http://127.0.0.1:9000", Err: io.EOF}))
 }

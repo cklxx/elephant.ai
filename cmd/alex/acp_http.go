@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
@@ -20,6 +21,8 @@ type acpHTTPServer struct {
 	server *acpServer
 	logger logging.Logger
 }
+
+const sseKeepAliveInterval = 5 * time.Second
 
 func newACPHTTPServer(server *acpServer) *acpHTTPServer {
 	if server == nil {
@@ -273,12 +276,20 @@ func (t *sseTransport) Stream(ctx context.Context, w http.ResponseWriter) error 
 	}
 	flusher.Flush()
 
+	keepAlive := time.NewTicker(sseKeepAliveInterval)
+	defer keepAlive.Stop()
+
 	for {
 		select {
 		case <-streamCtx.Done():
 			return streamCtx.Err()
 		case payload := <-t.sendCh:
 			if err := writeSSEPayload(w, payload); err != nil {
+				return err
+			}
+			flusher.Flush()
+		case <-keepAlive.C:
+			if _, err := w.Write([]byte(": ping\n\n")); err != nil {
 				return err
 			}
 			flusher.Flush()

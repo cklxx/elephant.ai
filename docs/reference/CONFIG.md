@@ -195,6 +195,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 - `acp_executor_addr`：ACP executor 地址（`http://host:port`）。
 - `acp_executor_cwd`：executor 工作目录（绝对路径）。
+- `acp_executor_mode`：executor 工具模式（`safe` / `read-only` / `full`）。
 - `acp_executor_auto_approve`：自动批准 executor 的权限请求（布尔）。
 - `acp_executor_max_cli_calls`：单次任务最大 CLI 调用次数。
 - `acp_executor_max_duration_seconds`：单次任务最大执行时长（秒）。

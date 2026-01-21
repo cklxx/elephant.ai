@@ -31,20 +31,21 @@ type filteredRegistry struct {
 type Config struct {
 	TavilyAPIKey string
 
-	ArkAPIKey               string
-	SeedreamTextEndpointID  string
-	SeedreamImageEndpointID string
-	SeedreamTextModel       string
-	SeedreamImageModel      string
-	SeedreamVisionModel     string
-	SeedreamVideoModel      string
-	LLMVisionModel          string
-	SandboxBaseURL          string
-	ACPExecutorAddr         string
-	ACPExecutorCWD          string
-	ACPExecutorAutoApprove  bool
-	ACPExecutorMaxCLICalls  int
-	ACPExecutorMaxDuration  int
+	ArkAPIKey                  string
+	SeedreamTextEndpointID     string
+	SeedreamImageEndpointID    string
+	SeedreamTextModel          string
+	SeedreamImageModel         string
+	SeedreamVisionModel        string
+	SeedreamVideoModel         string
+	LLMVisionModel             string
+	SandboxBaseURL             string
+	ACPExecutorAddr            string
+	ACPExecutorCWD             string
+	ACPExecutorMode            string
+	ACPExecutorAutoApprove     bool
+	ACPExecutorMaxCLICalls     int
+	ACPExecutorMaxDuration     int
 	ACPExecutorRequireManifest bool
 
 	LLMFactory    ports.LLMClientFactory
@@ -67,27 +68,28 @@ func NewRegistry(config Config) (*Registry, error) {
 	}
 
 	if err := r.registerBuiltins(Config{
-		TavilyAPIKey:            config.TavilyAPIKey,
-		ArkAPIKey:               config.ArkAPIKey,
-		LLMFactory:              config.LLMFactory,
-		LLMProvider:             config.LLMProvider,
-		LLMModel:                config.LLMModel,
-		LLMVisionModel:          config.LLMVisionModel,
-		APIKey:                  config.APIKey,
-		BaseURL:                 config.BaseURL,
-		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
-		SeedreamTextModel:       config.SeedreamTextModel,
-		SeedreamImageModel:      config.SeedreamImageModel,
-		SeedreamVisionModel:     config.SeedreamVisionModel,
-		SeedreamVideoModel:      config.SeedreamVideoModel,
-		ACPExecutorAddr:         config.ACPExecutorAddr,
-		ACPExecutorCWD:          config.ACPExecutorCWD,
-		ACPExecutorAutoApprove:  config.ACPExecutorAutoApprove,
-		ACPExecutorMaxCLICalls:  config.ACPExecutorMaxCLICalls,
-		ACPExecutorMaxDuration:  config.ACPExecutorMaxDuration,
+		TavilyAPIKey:               config.TavilyAPIKey,
+		ArkAPIKey:                  config.ArkAPIKey,
+		LLMFactory:                 config.LLMFactory,
+		LLMProvider:                config.LLMProvider,
+		LLMModel:                   config.LLMModel,
+		LLMVisionModel:             config.LLMVisionModel,
+		APIKey:                     config.APIKey,
+		BaseURL:                    config.BaseURL,
+		SeedreamTextEndpointID:     config.SeedreamTextEndpointID,
+		SeedreamImageEndpointID:    config.SeedreamImageEndpointID,
+		SeedreamTextModel:          config.SeedreamTextModel,
+		SeedreamImageModel:         config.SeedreamImageModel,
+		SeedreamVisionModel:        config.SeedreamVisionModel,
+		SeedreamVideoModel:         config.SeedreamVideoModel,
+		ACPExecutorAddr:            config.ACPExecutorAddr,
+		ACPExecutorCWD:             config.ACPExecutorCWD,
+		ACPExecutorMode:            config.ACPExecutorMode,
+		ACPExecutorAutoApprove:     config.ACPExecutorAutoApprove,
+		ACPExecutorMaxCLICalls:     config.ACPExecutorMaxCLICalls,
+		ACPExecutorMaxDuration:     config.ACPExecutorMaxDuration,
 		ACPExecutorRequireManifest: config.ACPExecutorRequireManifest,
-		MemoryService:           config.MemoryService,
+		MemoryService:              config.MemoryService,
 	}); err != nil {
 		return nil, err
 	}
@@ -357,11 +359,12 @@ func (r *Registry) registerBuiltins(config Config) error {
 	// Execution & reasoning
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
 	r.static["acp_executor"] = builtin.NewACPExecutor(builtin.ACPExecutorConfig{
-		Addr:                   config.ACPExecutorAddr,
-		CWD:                    config.ACPExecutorCWD,
-		AutoApprove:            config.ACPExecutorAutoApprove,
-		MaxCLICalls:            config.ACPExecutorMaxCLICalls,
-		MaxDurationSeconds:     config.ACPExecutorMaxDuration,
+		Addr:                    config.ACPExecutorAddr,
+		CWD:                     config.ACPExecutorCWD,
+		Mode:                    config.ACPExecutorMode,
+		AutoApprove:             config.ACPExecutorAutoApprove,
+		MaxCLICalls:             config.ACPExecutorMaxCLICalls,
+		MaxDurationSeconds:      config.ACPExecutorMaxDuration,
 		RequireArtifactManifest: config.ACPExecutorRequireManifest,
 	})
 

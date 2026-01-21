@@ -112,6 +112,7 @@ ACP executor config (project wiring):
 runtime:
   acp_executor_addr: "127.0.0.1:18088"
   acp_executor_cwd: "/workspace/project"
+  acp_executor_mode: "safe"
   acp_executor_auto_approve: false
   acp_executor_max_cli_calls: 12
   acp_executor_max_duration_seconds: 900

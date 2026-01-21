@@ -48,6 +48,8 @@ var sseAllowlist = map[string]bool{
 	"workflow.diagnostic.context_compression":  true,
 	"workflow.diagnostic.tool_filtering":       true,
 	"workflow.diagnostic.environment_snapshot": true,
+	"workflow.executor.update":                 true,
+	"workflow.executor.user_message":           true,
 }
 
 var blockedNodeIDs = map[string]bool{

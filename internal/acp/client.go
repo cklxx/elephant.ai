@@ -325,10 +325,11 @@ func (c *Client) post(ctx context.Context, payload []byte) error {
 		return err
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("acp rpc status %d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return &RPCStatusError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(body))}
 	}
+	io.Copy(io.Discard, resp.Body)
 	return nil
 }
 

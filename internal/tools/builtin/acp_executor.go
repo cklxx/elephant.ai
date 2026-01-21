@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mime"
 	"path"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -16,12 +17,20 @@ import (
 	"alex/internal/agent/ports"
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
+	"gopkg.in/yaml.v3"
+)
+
+const (
+	acpRetryBaseDelay  = 200 * time.Millisecond
+	acpRetryMaxDelay   = 2 * time.Second
+	acpRetryMaxElapsed = 10 * time.Second
 )
 
 // ACPExecutorConfig configures the ACP executor adapter.
 type ACPExecutorConfig struct {
 	Addr                    string
 	CWD                     string
+	Mode                    string
 	AutoApprove             bool
 	MaxCLICalls             int
 	MaxDurationSeconds      int
@@ -60,45 +69,9 @@ func (t *acpExecutorTool) Definition() ports.ToolDefinition {
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"prompt": {
-					Type:        "string",
-					Description: "Full task package to send to the executor (includes context snapshot + instruction).",
-				},
 				"instruction": {
 					Type:        "string",
-					Description: "Task instruction for the executor (used when prompt is omitted).",
-				},
-				"context": {
-					Type:        "string",
-					Description: "Context snapshot to prepend when prompt is omitted.",
-				},
-				"cwd": {
-					Type:        "string",
-					Description: "Executor working directory (absolute path).",
-				},
-				"mode": {
-					Type:        "string",
-					Description: "Executor tool mode (full/read-only/safe).",
-				},
-				"addr": {
-					Type:        "string",
-					Description: "ACP executor HTTP base URL (http://host:port).",
-				},
-				"max_cli_calls": {
-					Type:        "integer",
-					Description: "Max CLI/tool calls allowed for this executor run.",
-				},
-				"max_duration_seconds": {
-					Type:        "integer",
-					Description: "Max duration in seconds for this executor run.",
-				},
-				"require_manifest": {
-					Type:        "boolean",
-					Description: "Require artifact manifest emission before completion.",
-				},
-				"auto_approve": {
-					Type:        "boolean",
-					Description: "Auto-approve executor permission requests (session/request_permission).",
+					Description: "Task instruction for the executor (context-first task package is built automatically).",
 				},
 				"attachment_names": {
 					Type:        "array",
@@ -112,18 +85,12 @@ func (t *acpExecutorTool) Definition() ports.ToolDefinition {
 }
 
 func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	addr := strings.TrimSpace(stringArg(call.Arguments, "addr"))
-	if addr == "" {
-		addr = strings.TrimSpace(t.cfg.Addr)
-	}
+	addr := strings.TrimSpace(t.cfg.Addr)
 	if addr == "" {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor addr is required")}, nil
 	}
 
-	cwd := strings.TrimSpace(stringArg(call.Arguments, "cwd"))
-	if cwd == "" {
-		cwd = strings.TrimSpace(t.cfg.CWD)
-	}
+	cwd := strings.TrimSpace(t.cfg.CWD)
 	if cwd == "" {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor cwd is required")}, nil
 	}
@@ -131,39 +98,20 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor cwd must be absolute")}, nil
 	}
 
-	prompt := strings.TrimSpace(stringArg(call.Arguments, "prompt"))
-	if prompt == "" {
-		instruction := strings.TrimSpace(stringArg(call.Arguments, "instruction"))
-		contextSnapshot := strings.TrimSpace(stringArg(call.Arguments, "context"))
-		if instruction == "" {
-			return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor requires prompt or instruction")}, nil
-		}
-		if contextSnapshot != "" {
-			prompt = fmt.Sprintf("Context Snapshot:\n%s\n\nTask:\n%s", contextSnapshot, instruction)
-		} else {
-			prompt = instruction
-		}
+	instruction := strings.TrimSpace(stringArg(call.Arguments, "instruction"))
+	if instruction == "" {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor requires instruction")}, nil
 	}
 
-	maxCLICalls := intArg(call.Arguments, "max_cli_calls")
-	if maxCLICalls <= 0 {
-		maxCLICalls = t.cfg.MaxCLICalls
-	}
-	maxDurationSeconds := intArg(call.Arguments, "max_duration_seconds")
-	if maxDurationSeconds <= 0 {
-		maxDurationSeconds = t.cfg.MaxDurationSeconds
-	}
+	maxCLICalls := t.cfg.MaxCLICalls
+	maxDurationSeconds := t.cfg.MaxDurationSeconds
 	requireManifest := t.cfg.RequireArtifactManifest
-	if raw, ok := call.Arguments["require_manifest"]; ok {
-		if v, ok := raw.(bool); ok {
-			requireManifest = v
-		}
-	}
-
-	mode := strings.TrimSpace(stringArg(call.Arguments, "mode"))
-
+	mode := strings.TrimSpace(t.cfg.Mode)
 	attachmentNames := stringSliceArg(call.Arguments, "attachment_names")
-	promptBlocks := buildPromptBlocks(prompt, attachmentNames, ctx)
+	promptBlocks, err := buildExecutorPromptBlocks(ctx, instruction, call, t.cfg, attachmentNames)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
 
 	execCtx := ctx
 	var cancel context.CancelFunc
@@ -181,11 +129,6 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 	}()
 
 	autoApprove := t.cfg.AutoApprove
-	if raw, ok := call.Arguments["auto_approve"]; ok {
-		if v, ok := raw.(bool); ok {
-			autoApprove = v
-		}
-	}
 	handler := newACPExecutorHandler(ctx, call, maxCLICalls, requireManifest, autoApprove, client, t.logger)
 	client.Start(execCtx, handler)
 
@@ -218,7 +161,7 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		"prompt":    promptBlocks,
 	}
 
-	resp, err := client.Call(execCtx, "session/prompt", params)
+	resp, err := callWithRetry(execCtx, client, "session/prompt", params)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor prompt failed: %w", err)}, nil
 	}
@@ -239,6 +182,7 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		"executor_addr":     addr,
 		"executor_session":  remoteID,
 		"tool_call_count":   handler.toolCallCount(),
+		"executor_updates":  handler.updateSummary(),
 		"artifact_manifest": handler.manifestPayload(),
 		"stop_reason":       extractStopReason(resp.Result),
 	}
@@ -251,7 +195,7 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 }
 
 func callInitialize(ctx context.Context, client *acp.Client) error {
-	resp, err := client.Call(ctx, "initialize", map[string]any{
+	resp, err := callWithRetry(ctx, client, "initialize", map[string]any{
 		"protocolVersion": 1,
 	})
 	if err != nil {
@@ -264,7 +208,7 @@ func callInitialize(ctx context.Context, client *acp.Client) error {
 }
 
 func callSetMode(ctx context.Context, client *acp.Client, sessionID, mode string) error {
-	resp, err := client.Call(ctx, "session/set_mode", map[string]any{
+	resp, err := callWithRetry(ctx, client, "session/set_mode", map[string]any{
 		"sessionId": sessionID,
 		"modeId":    mode,
 	})
@@ -285,7 +229,7 @@ func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client,
 	mcpServers := []any{}
 
 	if remoteID != "" {
-		resp, err := client.Call(ctx, "session/load", map[string]any{
+		resp, err := callWithRetry(ctx, client, "session/load", map[string]any{
 			"sessionId":  remoteID,
 			"cwd":        cwd,
 			"mcpServers": mcpServers,
@@ -295,7 +239,7 @@ func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client,
 		}
 	}
 
-	resp, err := client.Call(ctx, "session/new", map[string]any{
+	resp, err := callWithRetry(ctx, client, "session/new", map[string]any{
 		"cwd":        cwd,
 		"mcpServers": mcpServers,
 	})
@@ -323,6 +267,46 @@ func (t *acpExecutorTool) ensureSession(ctx context.Context, client *acp.Client,
 	return newID, nil
 }
 
+func callWithRetry(ctx context.Context, client *acp.Client, method string, params map[string]any) (*jsonrpc.Response, error) {
+	if client == nil {
+		return nil, fmt.Errorf("acp client not initialized")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	start := time.Now()
+	delay := acpRetryBaseDelay
+
+	for {
+		resp, err := client.Call(ctx, method, params)
+		if err == nil || !acp.IsRetryableError(err) {
+			return resp, err
+		}
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		if time.Since(start) >= acpRetryMaxElapsed {
+			return nil, err
+		}
+
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+
+		if delay < acpRetryMaxDelay {
+			delay *= 2
+			if delay > acpRetryMaxDelay {
+				delay = acpRetryMaxDelay
+			}
+		}
+	}
+}
+
 type executorToolState struct {
 	name    string
 	started time.Time
@@ -345,6 +329,7 @@ type acpExecutorHandler struct {
 	requireManifest bool
 	maxCLICalls     int
 	remoteSessionID string
+	updateCounts    map[string]int
 }
 
 func newACPExecutorHandler(ctx context.Context, call ports.ToolCall, maxCLICalls int, requireManifest bool, autoApprove bool, client *acp.Client, logger logging.Logger) *acpExecutorHandler {
@@ -362,6 +347,7 @@ func newACPExecutorHandler(ctx context.Context, call ports.ToolCall, maxCLICalls
 		attachments:     make(map[string]ports.Attachment),
 		requireManifest: requireManifest,
 		maxCLICalls:     maxCLICalls,
+		updateCounts:    make(map[string]int),
 	}
 }
 
@@ -387,9 +373,13 @@ func (h *acpExecutorHandler) OnNotification(ctx context.Context, req *jsonrpc.Re
 		return
 	}
 
+	h.recordUpdate(req.Params, updateType, updateRaw)
+
 	switch updateType {
 	case "agent_message_chunk":
 		h.handleAgentMessage(updateRaw)
+	case "user_message_chunk":
+		h.handleUserMessage(updateRaw)
 	case "tool_call":
 		h.handleToolCall(updateRaw)
 	case "tool_call_update":
@@ -479,6 +469,25 @@ func (h *acpExecutorHandler) handleAgentMessage(update map[string]any) {
 		}
 		h.mu.Unlock()
 	}
+}
+
+func (h *acpExecutorHandler) handleUserMessage(update map[string]any) {
+	block, ok := update["content"].(map[string]any)
+	if !ok {
+		return
+	}
+	text, attachments := parseContentBlock(block)
+	payload := map[string]any{
+		"content": block,
+	}
+	if text != "" {
+		payload["text"] = text
+	}
+	if len(attachments) > 0 {
+		payload["attachments"] = attachments
+	}
+	nodeID := fmt.Sprintf("executor-user-%d", time.Now().UnixNano())
+	h.emitEnvelope("workflow.executor.user_message", "executor", nodeID, payload)
 }
 
 func (h *acpExecutorHandler) handleToolCall(update map[string]any) {
@@ -677,6 +686,37 @@ func (h *acpExecutorHandler) emitEnvelope(eventType, nodeKind, nodeID string, pa
 	h.listener.OnEvent(env)
 }
 
+func (h *acpExecutorHandler) recordUpdate(params map[string]any, updateType string, update map[string]any) {
+	if updateType == "" {
+		return
+	}
+	sessionID := strings.TrimSpace(stringArg(params, "sessionId"))
+	h.mu.Lock()
+	h.updateCounts[updateType]++
+	h.mu.Unlock()
+
+	payload := map[string]any{
+		"update_type": updateType,
+		"session_id":  sessionID,
+		"update":      update,
+	}
+	nodeID := fmt.Sprintf("executor-update-%d", time.Now().UnixNano())
+	h.emitEnvelope("workflow.executor.update", "diagnostic", nodeID, payload)
+}
+
+func (h *acpExecutorHandler) updateSummary() map[string]int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.updateCounts) == 0 {
+		return nil
+	}
+	out := make(map[string]int, len(h.updateCounts))
+	for key, value := range h.updateCounts {
+		out[key] = value
+	}
+	return out
+}
+
 func buildPromptBlocks(prompt string, attachmentNames []string, ctx context.Context) []any {
 	blocks := []any{map[string]any{"type": "text", "text": prompt}}
 	if len(attachmentNames) == 0 {
@@ -697,6 +737,243 @@ func buildPromptBlocks(prompt string, attachmentNames []string, ctx context.Cont
 		}
 	}
 	return blocks
+}
+
+type executorTaskPackage struct {
+	SessionID    string          `yaml:"session_id"`
+	TaskID       string          `yaml:"task_id,omitempty"`
+	ParentTaskID string          `yaml:"parent_task_id,omitempty"`
+	Instruction  string          `yaml:"instruction"`
+	Context      executorContext `yaml:"context,omitempty"`
+	Runtime      executorRuntime `yaml:"runtime"`
+}
+
+type executorContext struct {
+	SystemPrompt string                     `yaml:"system_prompt,omitempty"`
+	Messages     []executorMessage          `yaml:"messages,omitempty"`
+	Attachments  []executorAttachment       `yaml:"attachments,omitempty"`
+	Important    []ports.ImportantNote      `yaml:"important,omitempty"`
+	Plans        []ports.PlanNode           `yaml:"plans,omitempty"`
+	Beliefs      []ports.Belief             `yaml:"beliefs,omitempty"`
+	Knowledge    []ports.KnowledgeReference `yaml:"knowledge_refs,omitempty"`
+	WorldState   map[string]any             `yaml:"world_state,omitempty"`
+	WorldDiff    map[string]any             `yaml:"world_diff,omitempty"`
+	Feedback     []ports.FeedbackSignal     `yaml:"feedback,omitempty"`
+	Meta         executorContextMeta        `yaml:"meta,omitempty"`
+}
+
+type executorContextMeta struct {
+	Iterations   int `yaml:"iterations,omitempty"`
+	TokenCount   int `yaml:"token_count,omitempty"`
+	MessageCount int `yaml:"message_count,omitempty"`
+}
+
+type executorRuntime struct {
+	CWD             string         `yaml:"cwd"`
+	ToolMode        string         `yaml:"tool_mode,omitempty"`
+	Limits          executorLimits `yaml:"limits,omitempty"`
+	RequireManifest bool           `yaml:"require_manifest"`
+}
+
+type executorLimits struct {
+	MaxCLICalls        int `yaml:"max_cli_calls,omitempty"`
+	MaxDurationSeconds int `yaml:"max_duration_seconds,omitempty"`
+}
+
+type executorMessage struct {
+	Role        string               `yaml:"role"`
+	Content     string               `yaml:"content"`
+	ToolCalls   []ports.ToolCall     `yaml:"tool_calls,omitempty"`
+	ToolResults []executorToolResult `yaml:"tool_results,omitempty"`
+	Metadata    map[string]any       `yaml:"metadata,omitempty"`
+	Attachments []executorAttachment `yaml:"attachments,omitempty"`
+	Source      ports.MessageSource  `yaml:"source,omitempty"`
+}
+
+type executorToolResult struct {
+	CallID      string               `yaml:"call_id"`
+	Content     string               `yaml:"content"`
+	Error       string               `yaml:"error,omitempty"`
+	Metadata    map[string]any       `yaml:"metadata,omitempty"`
+	Attachments []executorAttachment `yaml:"attachments,omitempty"`
+}
+
+type executorAttachment struct {
+	Name        string `yaml:"name"`
+	MediaType   string `yaml:"media_type,omitempty"`
+	URI         string `yaml:"uri,omitempty"`
+	Source      string `yaml:"source,omitempty"`
+	Description string `yaml:"description,omitempty"`
+	Kind        string `yaml:"kind,omitempty"`
+	Format      string `yaml:"format,omitempty"`
+}
+
+func buildExecutorPromptBlocks(ctx context.Context, instruction string, call ports.ToolCall, cfg ACPExecutorConfig, attachmentNames []string) ([]any, error) {
+	pkg := executorTaskPackage{
+		SessionID:    call.SessionID,
+		TaskID:       call.TaskID,
+		ParentTaskID: call.ParentTaskID,
+		Instruction:  instruction,
+		Runtime: executorRuntime{
+			CWD:      cfg.CWD,
+			ToolMode: strings.TrimSpace(cfg.Mode),
+			Limits: executorLimits{
+				MaxCLICalls:        cfg.MaxCLICalls,
+				MaxDurationSeconds: cfg.MaxDurationSeconds,
+			},
+			RequireManifest: cfg.RequireArtifactManifest,
+		},
+	}
+
+	if snapshot := ports.GetTaskStateSnapshot(ctx); snapshot != nil {
+		pkg.Context = executorContext{
+			SystemPrompt: snapshot.SystemPrompt,
+			Messages:     buildExecutorMessages(snapshot.Messages),
+			Attachments:  buildExecutorAttachments(snapshot.Attachments),
+			Important:    cloneImportantNotes(snapshot.Important),
+			Plans:        ports.ClonePlanNodes(snapshot.Plans),
+			Beliefs:      ports.CloneBeliefs(snapshot.Beliefs),
+			Knowledge:    ports.CloneKnowledgeReferences(snapshot.KnowledgeRefs),
+			WorldState:   cloneMapAny(snapshot.WorldState),
+			WorldDiff:    cloneMapAny(snapshot.WorldDiff),
+			Feedback:     ports.CloneFeedbackSignals(snapshot.FeedbackSignals),
+			Meta: executorContextMeta{
+				Iterations:   snapshot.Iterations,
+				TokenCount:   snapshot.TokenCount,
+				MessageCount: len(snapshot.Messages),
+			},
+		}
+	}
+
+	payload, err := yaml.Marshal(pkg)
+	if err != nil {
+		return nil, err
+	}
+	prompt := "Task Package (YAML):\n" + string(payload)
+	return buildPromptBlocks(prompt, attachmentNames, ctx), nil
+}
+
+func buildExecutorMessages(messages []ports.Message) []executorMessage {
+	if len(messages) == 0 {
+		return nil
+	}
+	out := make([]executorMessage, 0, len(messages))
+	for _, msg := range messages {
+		outMsg := executorMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+			Source:  msg.Source,
+		}
+		if len(msg.ToolCalls) > 0 {
+			outMsg.ToolCalls = append([]ports.ToolCall(nil), msg.ToolCalls...)
+		}
+		if len(msg.ToolResults) > 0 {
+			outMsg.ToolResults = buildExecutorToolResults(msg.ToolResults)
+		}
+		if len(msg.Metadata) > 0 {
+			meta := make(map[string]any, len(msg.Metadata))
+			for k, v := range msg.Metadata {
+				meta[k] = v
+			}
+			outMsg.Metadata = meta
+		}
+		if len(msg.Attachments) > 0 {
+			outMsg.Attachments = buildExecutorAttachments(msg.Attachments)
+		}
+		out = append(out, outMsg)
+	}
+	return out
+}
+
+func buildExecutorToolResults(results []ports.ToolResult) []executorToolResult {
+	if len(results) == 0 {
+		return nil
+	}
+	out := make([]executorToolResult, 0, len(results))
+	for _, result := range results {
+		outRes := executorToolResult{
+			CallID:  result.CallID,
+			Content: result.Content,
+		}
+		if result.Error != nil {
+			outRes.Error = result.Error.Error()
+		}
+		if len(result.Metadata) > 0 {
+			meta := make(map[string]any, len(result.Metadata))
+			for k, v := range result.Metadata {
+				meta[k] = v
+			}
+			outRes.Metadata = meta
+		}
+		if len(result.Attachments) > 0 {
+			outRes.Attachments = buildExecutorAttachments(result.Attachments)
+		}
+		out = append(out, outRes)
+	}
+	return out
+}
+
+func buildExecutorAttachments(attachments map[string]ports.Attachment) []executorAttachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(attachments))
+	seen := make(map[string]bool, len(attachments))
+	for key := range attachments {
+		name := strings.TrimSpace(key)
+		if name == "" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	out := make([]executorAttachment, 0, len(names))
+	for _, name := range names {
+		att := attachments[name]
+		attName := strings.TrimSpace(att.Name)
+		if attName == "" {
+			attName = name
+		}
+		out = append(out, executorAttachment{
+			Name:        attName,
+			MediaType:   strings.TrimSpace(att.MediaType),
+			URI:         strings.TrimSpace(att.URI),
+			Source:      strings.TrimSpace(att.Source),
+			Description: strings.TrimSpace(att.Description),
+			Kind:        strings.TrimSpace(att.Kind),
+			Format:      strings.TrimSpace(att.Format),
+		})
+	}
+	return out
+}
+
+func cloneImportantNotes(notes map[string]ports.ImportantNote) []ports.ImportantNote {
+	if len(notes) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(notes))
+	for key := range notes {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]ports.ImportantNote, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, notes[key])
+	}
+	return out
+}
+
+func cloneMapAny(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(src))
+	for key, value := range src {
+		out[key] = value
+	}
+	return out
 }
 
 func attachmentToContentBlock(att ports.Attachment) map[string]any {
