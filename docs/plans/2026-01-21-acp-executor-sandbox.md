@@ -37,6 +37,7 @@
 - 2026-01-21: ACP SSE smoke test: `python3 scripts/acp_test.py --addr http://127.0.0.1:$(cat .pids/acp.port) --cwd /workspace --prompt "ping"` succeeded.
 - 2026-01-21: ACP executor now auto-generates a fallback artifact manifest when missing (flags `artifact_manifest_missing`), plus manual smoke test with the provided web page instruction succeeded (no missing-manifest error).
 - 2026-01-21: Tests run: `./dev.sh test` passed; `./dev.sh lint` still fails on existing lint issues in `internal/acp/client.go`, `internal/acp/errors.go`, and `internal/server/app/event_broadcaster.go`.
+- 2026-01-21: Fixed existing Go lint issues in `internal/acp/client.go`, `internal/acp/errors.go`, and `internal/server/app/event_broadcaster.go`.
 
 ## Notes / Risks
 - If ACP executor still targets host cwd, the CLI agent may reject file ops (seen with `/Users/...` paths).

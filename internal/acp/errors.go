@@ -55,8 +55,5 @@ func IsRetryableError(err error) bool {
 		return true
 	}
 	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
-		return true
-	}
-	return false
+	return errors.As(err, &urlErr)
 }

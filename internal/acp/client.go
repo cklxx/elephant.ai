@@ -329,7 +329,9 @@ func (c *Client) post(ctx context.Context, payload []byte) error {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return &RPCStatusError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(body))}
 	}
-	io.Copy(io.Discard, resp.Body)
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
+		return err
+	}
 	return nil
 }
 

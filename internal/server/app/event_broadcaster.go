@@ -531,12 +531,10 @@ func shouldPersistToHistory(event agentports.AgentEvent) bool {
 	if event == nil {
 		return false
 	}
-	switch event.(type) {
+	switch evt := event.(type) {
 	case *domain.WorkflowEventEnvelope:
-		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
-			if strings.HasPrefix(env.Event, "workflow.executor.") {
-				return false
-			}
+		if strings.HasPrefix(evt.Event, "workflow.executor.") {
+			return false
 		}
 		return true
 	case *domain.WorkflowInputReceivedEvent, *domain.WorkflowDiagnosticContextSnapshotEvent:
