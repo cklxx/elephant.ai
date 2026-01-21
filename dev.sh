@@ -257,6 +257,7 @@ ensure_sandbox_acp_config() {
 }
 
 ensure_sandbox_acp_binary() {
+  SANDBOX_ACP_BIN_UPDATED=0
   local arch
   arch="$(docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'uname -m' 2>/dev/null || true)"
   local goarch="amd64"
@@ -269,13 +270,19 @@ ensure_sandbox_acp_binary() {
       ;;
   esac
 
-  if docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'command -v alex >/dev/null 2>&1 && alex version >/dev/null 2>&1'; then
-    return 0
-  fi
-
   local alex_bin
+  local had_alex=0
+  if docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'command -v alex >/dev/null 2>&1'; then
+    had_alex=1
+  fi
   local out_bin="${PID_DIR}/alex-linux-${goarch}"
+  local rebuild=0
   if [[ ! -x "${out_bin}" ]]; then
+    rebuild=1
+  elif find "${SCRIPT_DIR}/cmd" "${SCRIPT_DIR}/internal" -name '*.go' -newer "${out_bin}" | head -n 1 | grep -q .; then
+    rebuild=1
+  fi
+  if [[ "${rebuild}" == "1" ]]; then
     if ! command_exists "${SCRIPT_DIR}/scripts/go-with-toolchain.sh"; then
       die "go toolchain not available to build linux alex binary"
     fi
@@ -289,6 +296,9 @@ ensure_sandbox_acp_binary() {
   docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'mkdir -p /usr/local/bin'
   docker cp "${alex_bin}" "${SANDBOX_CONTAINER_NAME}:/usr/local/bin/alex"
   docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'chmod +x /usr/local/bin/alex'
+  if [[ "${rebuild}" == "1" || "${had_alex}" == "0" ]]; then
+    SANDBOX_ACP_BIN_UPDATED=1
+  fi
 }
 
 start_acp_daemon_in_sandbox() {
@@ -308,7 +318,7 @@ start_acp_daemon_in_sandbox() {
   ensure_sandbox_acp_binary
   ensure_sandbox_acp_config
   local force_restart=0
-  if [[ "${SANDBOX_CONFIG_UPDATED}" == "1" ]]; then
+  if [[ "${SANDBOX_CONFIG_UPDATED}" == "1" || "${SANDBOX_ACP_BIN_UPDATED:-0}" == "1" ]]; then
     force_restart=1
   fi
 
@@ -321,6 +331,9 @@ start_acp_daemon_in_sandbox() {
       else
         exit 0
       fi
+    fi
+    if [ -d /workspace ]; then
+      cd /workspace
     fi
     nohup /usr/local/bin/alex acp serve --host 0.0.0.0 --port "${ACP_PORT}" >/tmp/acp.log 2>&1 &
     echo $! >/tmp/acp.pid
@@ -515,14 +528,37 @@ start_sandbox() {
   fi
 
   ensure_dirs
+  local workspace_dir=""
+  workspace_dir="$(sandbox_workspace_dir || true)"
+  if [[ -n "$workspace_dir" && ! -d "$workspace_dir" ]]; then
+    log_warn "Sandbox workspace dir ${workspace_dir} not found; skipping mount"
+    workspace_dir=""
+  fi
   local container_running=0
   if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
     container_running=1
+  fi
+  local container_exists=0
+  if docker ps -a --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+    container_exists=1
   fi
 
   local run_acp_in_sandbox=0
   if acp_should_run_in_sandbox; then
     run_acp_in_sandbox=1
+  fi
+
+  if [[ "$container_exists" == "1" && -n "$workspace_dir" ]] && ! sandbox_has_workspace_mount "$workspace_dir"; then
+    log_warn "Sandbox container missing workspace mount; recreating..."
+    if [[ "$container_running" == "1" ]]; then
+      docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
+    fi
+    docker rm "${SANDBOX_CONTAINER_NAME}" >/dev/null
+    container_exists=0
+    container_running=0
+  fi
+
+  if [[ "$run_acp_in_sandbox" == "1" ]]; then
     local port
     if [[ -n "${ACP_PORT}" && "${ACP_PORT}" != "0" ]]; then
       if [[ "$container_running" == "0" ]]; then
@@ -549,6 +585,14 @@ start_sandbox() {
     fi
   fi
 
+  if [[ "$container_exists" == "1" && "$container_running" == "0" && "$run_acp_in_sandbox" == "1" ]]; then
+    if ! sandbox_has_acp_port_mapping "${ACP_PORT}"; then
+      log_warn "Sandbox container missing ACP port mapping; recreating..."
+      docker rm "${SANDBOX_CONTAINER_NAME}" >/dev/null
+      container_exists=0
+    fi
+  fi
+
   local acp_container_host="host.docker.internal"
   local acp_addr="${acp_container_host}:${ACP_PORT}"
 
@@ -557,6 +601,8 @@ start_sandbox() {
       log_warn "Sandbox container missing ACP port mapping; recreating..."
       docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
       docker rm "${SANDBOX_CONTAINER_NAME}" >/dev/null
+      container_running=0
+      container_exists=0
     else
       log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
       wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
@@ -579,12 +625,17 @@ start_sandbox() {
     if [[ "$run_acp_in_sandbox" == "1" ]]; then
       port_flags+=("-p" "${ACP_PORT}:${ACP_PORT}")
     fi
+    local volume_flags=()
+    if [[ -n "$workspace_dir" ]]; then
+      volume_flags+=("-v" "${workspace_dir}:/workspace")
+    fi
     docker run -d --name "${SANDBOX_CONTAINER_NAME}" \
       --add-host "host.docker.internal:host-gateway" \
       -e "ACP_SERVER_HOST=${acp_container_host}" \
       -e "ACP_SERVER_PORT=${ACP_PORT}" \
       -e "ACP_SERVER_ADDR=${acp_addr}" \
       "${port_flags[@]}" \
+      "${volume_flags[@]}" \
       "${SANDBOX_IMAGE}" >/dev/null
   fi
 

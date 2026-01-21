@@ -13,6 +13,7 @@ import (
 	"alex/internal/agent/app"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
+	"alex/internal/logging"
 	"alex/internal/tools/builtin"
 
 	"alex/internal/mcp"
@@ -29,6 +30,8 @@ type acpServer struct {
 	transports   map[string]rpcTransport
 
 	cwdMu sync.Mutex
+
+	logger logging.Logger
 }
 
 type acpSession struct {
@@ -63,6 +66,7 @@ func newACPServer(container *Container, initialMessage string) *acpServer {
 		initialMessage: strings.TrimSpace(initialMessage),
 		sessions:       make(map[string]*acpSession),
 		transports:     make(map[string]rpcTransport),
+		logger:         logging.NewComponentLogger("ACPServer"),
 	}
 }
 
@@ -480,12 +484,17 @@ func (s *acpServer) sendSessionUpdate(sessionID string, update map[string]any) {
 	}
 	transport := s.transportForSession(sessionID)
 	if transport == nil {
+		if s.logger != nil {
+			s.logger.Warn("ACP update dropped: no transport for session %s", sessionID)
+		}
 		return
 	}
-	_ = transport.Notify("session/update", map[string]any{
+	if err := transport.Notify("session/update", map[string]any{
 		"sessionId": sessionID,
 		"update":    update,
-	})
+	}); err != nil && s.logger != nil {
+		s.logger.Warn("ACP update notify failed: %v", err)
+	}
 }
 
 func (session *acpSession) setCancel(cancel context.CancelFunc) {

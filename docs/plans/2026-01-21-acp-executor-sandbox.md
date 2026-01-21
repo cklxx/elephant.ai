@@ -43,6 +43,9 @@
 - 2026-01-21: Trimmed AGENTS.md for brevity and added `docs/guides/engineering-practices.md` for local best practices.
 - 2026-01-21: Tests run: `./dev.sh test`, `./dev.sh lint`.
 - 2026-01-21: `dev.sh` now rewrites localhost LLM base URLs to `host.docker.internal` for sandbox ACP and applies host config/env overrides.
+- 2026-01-22: Mounted repo into sandbox `/workspace`, ensured ACP daemon starts from `/workspace`, and rebuild/copy sandbox `alex` binary when stale with restart on update.
+- 2026-01-22: ACP server now accepts raw domain events for ACP updates and logs missing transports; verified ACP SSE stream emits tool/agent updates with `scripts/acp_test.py`.
+- 2026-01-22: Tests run: `./dev.sh lint`, `./dev.sh test` (web tests still emit intermittent happy-dom AbortError logs but pass).
 
 ## Notes / Risks
 - If ACP executor still targets host cwd, the CLI agent may reject file ops (seen with `/Users/...` paths).

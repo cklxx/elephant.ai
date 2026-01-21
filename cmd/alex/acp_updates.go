@@ -34,8 +34,20 @@ func newACPEventListener(server *acpServer, session *acpSession) *acpEventListen
 }
 
 func (l *acpEventListener) OnEvent(event ports.AgentEvent) {
-	env, ok := event.(*domain.WorkflowEventEnvelope)
-	if !ok || env == nil {
+	if event == nil {
+		return
+	}
+	if env, ok := event.(*domain.WorkflowEventEnvelope); ok && env != nil {
+		l.handleEnvelope(env)
+		return
+	}
+	if env := envelopeFromDomainEvent(event); env != nil {
+		l.handleEnvelope(env)
+	}
+}
+
+func (l *acpEventListener) handleEnvelope(env *domain.WorkflowEventEnvelope) {
+	if env == nil {
 		return
 	}
 	switch env.Event {
@@ -49,6 +61,97 @@ func (l *acpEventListener) OnEvent(event ports.AgentEvent) {
 		l.handleOutputDelta(env)
 	case "workflow.result.final":
 		l.handleResultFinal(env)
+	}
+}
+
+func envelopeFromDomainEvent(event ports.AgentEvent) *domain.WorkflowEventEnvelope {
+	switch e := event.(type) {
+	case *domain.WorkflowNodeOutputDeltaEvent:
+		payload := map[string]any{
+			"iteration": e.Iteration,
+			"delta":     e.Delta,
+			"final":     e.Final,
+		}
+		if !e.CreatedAt.IsZero() {
+			payload["created_at"] = e.CreatedAt
+		}
+		if e.SourceModel != "" {
+			payload["source_model"] = e.SourceModel
+		}
+		if e.MessageCount > 0 {
+			payload["message_count"] = e.MessageCount
+		}
+		return &domain.WorkflowEventEnvelope{
+			BaseEvent: e.BaseEvent,
+			Event:     e.EventType(),
+			NodeKind:  "generation",
+			Payload:   payload,
+		}
+	case *domain.WorkflowToolStartedEvent:
+		payload := map[string]any{
+			"tool_name": e.ToolName,
+			"arguments": e.Arguments,
+			"iteration": e.Iteration,
+			"call_id":   e.CallID,
+		}
+		return &domain.WorkflowEventEnvelope{
+			BaseEvent: e.BaseEvent,
+			Event:     e.EventType(),
+			NodeID:    e.CallID,
+			NodeKind:  "tool",
+			Payload:   payload,
+		}
+	case *domain.WorkflowToolProgressEvent:
+		payload := map[string]any{
+			"chunk":       e.Chunk,
+			"is_complete": e.IsComplete,
+			"call_id":     e.CallID,
+		}
+		return &domain.WorkflowEventEnvelope{
+			BaseEvent: e.BaseEvent,
+			Event:     e.EventType(),
+			NodeID:    e.CallID,
+			NodeKind:  "tool",
+			Payload:   payload,
+		}
+	case *domain.WorkflowToolCompletedEvent:
+		payload := map[string]any{
+			"tool_name":   e.ToolName,
+			"result":      e.Result,
+			"duration":    e.Duration.Milliseconds(),
+			"metadata":    e.Metadata,
+			"attachments": e.Attachments,
+			"call_id":     e.CallID,
+		}
+		if e.Error != nil {
+			payload["error"] = e.Error.Error()
+		}
+		return &domain.WorkflowEventEnvelope{
+			BaseEvent: e.BaseEvent,
+			Event:     e.EventType(),
+			NodeID:    e.CallID,
+			NodeKind:  "tool",
+			Payload:   payload,
+		}
+	case *domain.WorkflowResultFinalEvent:
+		payload := map[string]any{
+			"final_answer":     e.FinalAnswer,
+			"total_iterations": e.TotalIterations,
+			"total_tokens":     e.TotalTokens,
+			"stop_reason":      e.StopReason,
+			"duration":         e.Duration.Milliseconds(),
+			"is_streaming":     e.IsStreaming,
+			"stream_finished":  e.StreamFinished,
+			"attachments":      e.Attachments,
+		}
+		return &domain.WorkflowEventEnvelope{
+			BaseEvent: e.BaseEvent,
+			Event:     e.EventType(),
+			NodeKind:  "result",
+			Payload:   payload,
+		}
+	default:
+		return nil
 	}
 }
 
