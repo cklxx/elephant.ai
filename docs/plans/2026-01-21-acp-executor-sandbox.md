@@ -29,6 +29,7 @@
 - 2026-01-21: Implemented plan items 1–3 (defaults, registry filter, UI aggregation) and updated AGENTS.md guidance.
 - 2026-01-21: Added error-experience entry/summary for host-path rejection.
 - 2026-01-21: Tests run: `./scripts/go-with-toolchain.sh test ./...`, `npm --prefix web run lint`, `npm --prefix web test`.
+- 2026-01-21: Align ACP executor cwd default with runtime (fallback to current working dir when `/workspace` missing) and ensure executor events carry stable parent_task_id for UI aggregation.
 
 ## Notes / Risks
 - If ACP executor still targets host cwd, the CLI agent may reject file ops (seen with `/Users/...` paths).

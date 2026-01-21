@@ -365,7 +365,17 @@ func defaultACPExecutorAddr(lookup EnvLookup) string {
 }
 
 func defaultACPExecutorCWD() string {
-	return "/workspace"
+	const sandboxDir = "/workspace"
+	if info, err := os.Stat(sandboxDir); err == nil && info.IsDir() {
+		return sandboxDir
+	}
+	if wd, err := os.Getwd(); err == nil {
+		wd = strings.TrimSpace(wd)
+		if wd != "" {
+			return wd
+		}
+	}
+	return sandboxDir
 }
 
 func defaultACPHost(lookup EnvLookup) string {

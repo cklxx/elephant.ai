@@ -675,8 +675,12 @@ func (h *acpExecutorHandler) emitEnvelope(eventType, nodeKind, nodeID string, pa
 	if taskID == "" {
 		taskID = h.call.ID
 	}
+	parentTaskID := h.call.ID
+	if parentTaskID == "" {
+		parentTaskID = h.call.ParentTaskID
+	}
 	env := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelSubagent, h.call.SessionID, taskID, h.call.ParentTaskID, ts),
+		BaseEvent: domain.NewBaseEvent(ports.LevelSubagent, h.call.SessionID, taskID, parentTaskID, ts),
 		Event:     eventType,
 		Version:   1,
 		NodeID:    nodeID,

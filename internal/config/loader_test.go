@@ -50,8 +50,14 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ACPExecutorAddr == "" {
 		t.Fatalf("expected default ACP executor addr to be set")
 	}
-	if cfg.ACPExecutorCWD != "/workspace" {
-		t.Fatalf("expected default ACP executor cwd to be /workspace, got %q", cfg.ACPExecutorCWD)
+	expectedCWD := "/workspace"
+	if info, err := os.Stat("/workspace"); err != nil || !info.IsDir() {
+		if wd, err := os.Getwd(); err == nil && strings.TrimSpace(wd) != "" {
+			expectedCWD = wd
+		}
+	}
+	if cfg.ACPExecutorCWD != expectedCWD {
+		t.Fatalf("expected default ACP executor cwd to be %q, got %q", expectedCWD, cfg.ACPExecutorCWD)
 	}
 	if cfg.ACPExecutorMode != "full" {
 		t.Fatalf("expected default ACP executor mode to be full, got %q", cfg.ACPExecutorMode)
