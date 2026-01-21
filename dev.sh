@@ -191,6 +191,23 @@ load_acp_port() {
   return 1
 }
 
+resolve_acp_executor_addr() {
+  local host="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
+  local port="${ACP_PORT:-0}"
+
+  if [[ -z "$port" || "$port" == "0" ]]; then
+    if load_acp_port; then
+      port="$ACP_PORT"
+    fi
+  fi
+
+  if [[ -z "$port" || "$port" == "0" ]]; then
+    return 1
+  fi
+
+  echo "http://${host}:${port}"
+}
+
 resolve_acp_binary() {
   if [[ -n "${ACP_BIN:-}" && -x "${ACP_BIN}" ]]; then
     echo "${ACP_BIN}"
@@ -712,11 +729,16 @@ start_server() {
   build_server
 
   log_info "Starting backend on :${SERVER_PORT}..."
+  local acp_executor_addr=""
+  if acp_executor_addr="$(resolve_acp_executor_addr)"; then
+    log_info "Using ACP executor at ${acp_executor_addr}"
+  fi
   if [[ "${START_WITH_WATCH}" == "1" ]] && command_exists air; then
     PORT="${SERVER_PORT}" \
       ALEX_SERVER_PORT="${SERVER_PORT}" \
       ALEX_SERVER_MODE="deploy" \
       ALEX_LOG_DIR="${LOG_DIR}" \
+      ACP_EXECUTOR_ADDR="${acp_executor_addr}" \
       air \
       --build.cmd "${SCRIPT_DIR}/scripts/go-with-toolchain.sh build -o ${SCRIPT_DIR}/alex-server ./cmd/alex-server" \
       --build.bin "${SCRIPT_DIR}/alex-server" \
@@ -726,6 +748,7 @@ start_server() {
       ALEX_SERVER_PORT="${SERVER_PORT}" \
       ALEX_SERVER_MODE="deploy" \
       ALEX_LOG_DIR="${LOG_DIR}" \
+      ACP_EXECUTOR_ADDR="${acp_executor_addr}" \
       "${SCRIPT_DIR}/alex-server" \
       >"${SERVER_LOG}" 2>&1 &
   fi
