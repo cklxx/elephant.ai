@@ -180,10 +180,12 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		return &ports.ToolResult{CallID: call.ID, Error: resultErr}, nil
 	}
 
-	summary := strings.TrimSpace(handler.finalSummary())
+	summary, summaryAttachments := handler.summaryPayload()
 	if summary == "" {
 		summary = "ACP executor completed."
 	}
+	handler.emitSummaryEvent(summary, summaryAttachments)
+	handler.emitFallbackManifestEvent()
 	metadata := map[string]any{
 		"executor_addr":             addr,
 		"executor_session":          remoteID,
@@ -389,6 +391,7 @@ type acpExecutorHandler struct {
 	limitExceeded   bool
 	requireManifest bool
 	manifestMissing bool
+	summaryEmitted  bool
 	maxCLICalls     int
 	remoteSessionID string
 	updateCounts    map[string]int
@@ -514,6 +517,50 @@ func (h *acpExecutorHandler) isManifestMissing() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.manifestMissing
+}
+
+func (h *acpExecutorHandler) summaryPayload() (string, map[string]ports.Attachment) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	summary := strings.TrimSpace(h.textBuffer.String())
+	attachments := make(map[string]ports.Attachment, len(h.attachments))
+	for key, value := range h.attachments {
+		attachments[key] = value
+	}
+	return summary, attachments
+}
+
+func (h *acpExecutorHandler) emitSummaryEvent(summary string, attachments map[string]ports.Attachment) {
+	if summary == "" {
+		return
+	}
+	h.mu.Lock()
+	if h.summaryEmitted {
+		h.mu.Unlock()
+		return
+	}
+	h.summaryEmitted = true
+	h.mu.Unlock()
+
+	payload := map[string]any{
+		"content": summary,
+	}
+	if len(attachments) > 0 {
+		payload["attachments"] = attachments
+	}
+	nodeID := fmt.Sprintf("executor-summary-%d", time.Now().UnixNano())
+	h.emitEnvelope("workflow.node.output.summary", "generation", nodeID, payload)
+}
+
+func (h *acpExecutorHandler) emitFallbackManifestEvent() {
+	if !h.isManifestMissing() {
+		return
+	}
+	payload := h.manifestPayload()
+	if payload == nil {
+		return
+	}
+	h.emitEnvelope("workflow.artifact.manifest", "artifact", "artifact-manifest-fallback", payload)
 }
 
 func buildFallbackManifest(attachments map[string]ports.Attachment) map[string]any {
