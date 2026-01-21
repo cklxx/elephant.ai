@@ -11,6 +11,7 @@
   * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
   * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
+  * Absolute core: practice compounding engineering—record successful paths and failed experiences.
   * Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
   * Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
   * Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.

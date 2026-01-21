@@ -60,6 +60,13 @@ ACP_HOST="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
 START_WITH_WATCH="${START_WITH_WATCH:-1}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
 
+source "${SCRIPT_DIR}/scripts/lib/common/logging.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/ports.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/sandbox.sh"
+source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
+
 load_dotenv() {
   local env_file="${SCRIPT_DIR}/.env"
   if [[ ! -f "$env_file" ]]; then
@@ -75,26 +82,6 @@ load_dotenv() {
 load_dotenv
 
 export AUTH_JWT_SECRET="${AUTH_JWT_SECRET:-dev-secret-change-me}"
-
-readonly C_RED='\033[0;31m'
-readonly C_GREEN='\033[0;32m'
-readonly C_YELLOW='\033[1;33m'
-readonly C_BLUE='\033[0;34m'
-readonly C_RESET='\033[0m'
-
-log_info() { echo -e "${C_BLUE}▸${C_RESET} $*"; }
-log_success() { echo -e "${C_GREEN}✓${C_RESET} $*"; }
-log_warn() { echo -e "${C_YELLOW}⚠${C_RESET} $*"; }
-log_error() { echo -e "${C_RED}✗${C_RESET} $*" >&2; }
-
-die() {
-  log_error "$*"
-  exit 1
-}
-
-command_exists() {
-  command -v "$1" >/dev/null 2>&1
-}
 
 ensure_playwright_browsers() {
   log_info "Ensuring Playwright browsers..."
@@ -118,143 +105,32 @@ sandbox_host_config_path() {
   echo "${HOME}/.alex/config.yaml"
 }
 
-pick_random_port() {
-  if command_exists python3; then
-    python3 - << 'PY'
-import random
-import socket
-
-for _ in range(50):
-    port = random.randint(20000, 45000)
-    sock = socket.socket()
-    try:
-        sock.bind(("127.0.0.1", port))
-    except OSError:
-        continue
-    sock.close()
-    print(port)
-    raise SystemExit(0)
-raise SystemExit(1)
-PY
-    return $?
+rewrite_base_url_for_sandbox() {
+  local url="$1"
+  if [[ -z "$url" ]]; then
+    return 0
   fi
-
-  local start=20000
-  local end=45000
-  local port
-  for _ in {1..50}; do
-    port=$((start + RANDOM % (end - start + 1)))
-    if is_port_available "$port"; then
-      echo "$port"
-      return 0
-    fi
-  done
-
-  return 1
+  local rewritten="$url"
+  if [[ "$rewritten" =~ ^https?://(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0)(:|/|$) ]]; then
+    rewritten="${rewritten/://localhost/:\/\/host.docker.internal}"
+    rewritten="${rewritten/://127.0.0.1/:\/\/host.docker.internal}"
+    rewritten="${rewritten/://0.0.0.0/:\/\/host.docker.internal}"
+  fi
+  echo "$rewritten"
 }
 
-ensure_acp_port() {
-  local port="$ACP_PORT"
-
-  if [[ -n "$port" && "$port" != "0" ]]; then
-    if ! is_port_available "$port"; then
-      die "ACP port ${port} is already in use; set ACP_PORT to a free port"
-    fi
-    echo "$port" >"$ACP_PORT_FILE"
-    echo "$port"
+read_config_base_url() {
+  local config_path="$1"
+  if [[ -z "$config_path" || ! -f "$config_path" ]]; then
     return 0
   fi
-
-  if [[ -f "$ACP_PORT_FILE" ]]; then
-    port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
-    if [[ -n "$port" ]] && is_port_available "$port"; then
-      echo "$port"
-      return 0
-    fi
-  fi
-
-  port="$(pick_random_port)" || return 1
-  echo "$port" >"$ACP_PORT_FILE"
-  echo "$port"
-}
-
-load_acp_port() {
-  local pid="${1:-}"
-  local port=""
-
-  if [[ -f "$ACP_PORT_FILE" ]]; then
-    port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
-  fi
-
-  if [[ -z "$port" && -n "$pid" ]]; then
-    if command_exists lsof; then
-      local addr
-      addr="$(lsof -nP -a -p "$pid" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9; exit}')"
-      port="${addr##*:}"
-    fi
-  fi
-
-  if [[ -n "$port" ]]; then
-    ACP_PORT="$port"
-    return 0
-  fi
-
-  return 1
-}
-
-load_acp_port_file() {
-  local port=""
-  if [[ -f "$ACP_PORT_FILE" ]]; then
-    port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
-  fi
-  if [[ -n "$port" ]]; then
-    ACP_PORT="$port"
-    echo "$port"
-    return 0
-  fi
-  return 1
-}
-
-resolve_acp_executor_addr() {
-  local host="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
-  local port="${ACP_PORT:-0}"
-
-  if [[ -z "$port" || "$port" == "0" ]]; then
-    if load_acp_port; then
-      port="$ACP_PORT"
-    fi
-  fi
-
-  if [[ -z "$port" || "$port" == "0" ]]; then
-    return 1
-  fi
-
-  echo "http://${host}:${port}"
-}
-
-resolve_acp_binary() {
-  if [[ -n "${ACP_BIN:-}" && -x "${ACP_BIN}" ]]; then
-    echo "${ACP_BIN}"
-    return 0
-  fi
-
-  if [[ -x "${SCRIPT_DIR}/alex" ]]; then
-    echo "${SCRIPT_DIR}/alex"
-    return 0
-  fi
-
-  if ! command_exists "${SCRIPT_DIR}/scripts/go-with-toolchain.sh"; then
-    return 1
-  fi
-
-  log_info "Building CLI (./cmd/alex)..."
-  "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" build -o "${SCRIPT_DIR}/alex" ./cmd/alex >/dev/null
-  if [[ -x "${SCRIPT_DIR}/alex" ]]; then
-    echo "${SCRIPT_DIR}/alex"
-    return 0
-  fi
-
-  return 1
+  local value
+  value="$(awk -F: '/^[[:space:]]*base_url[[:space:]]*:/ {sub(/^[^:]*:[[:space:]]*/, "", $0); print $0; exit}' "$config_path")"
+  value="${value#\"}"
+  value="${value%\"}"
+  value="${value#\'}"
+  value="${value%\'}"
+  echo "$value"
 }
 
 acp_should_run_in_sandbox() {
@@ -296,6 +172,7 @@ detect_sandbox_acp_port() {
 collect_sandbox_env_flags() {
   SANDBOX_ENV_FLAGS=()
   SANDBOX_HAS_LLM_ENV=0
+  local base_url_override=""
   local keys=(
     LLM_PROVIDER
     LLM_MODEL
@@ -312,6 +189,7 @@ collect_sandbox_env_flags() {
     ANTIGRAVITY_API_KEY
     ANTIGRAVITY_BASE_URL
     ARK_API_KEY
+    LLM_BASE_URL
     SEEDREAM_TEXT_ENDPOINT_ID
     SEEDREAM_IMAGE_ENDPOINT_ID
     SEEDREAM_TEXT_MODEL
@@ -323,10 +201,27 @@ collect_sandbox_env_flags() {
   for key in "${keys[@]}"; do
     val="${!key-}"
     if [[ -n "$val" ]]; then
+      if [[ "$key" == *"_BASE_URL" || "$key" == "LLM_BASE_URL" ]]; then
+        val="$(rewrite_base_url_for_sandbox "$val")"
+        base_url_override="$val"
+      fi
       SANDBOX_ENV_FLAGS+=("-e" "${key}=${val}")
       SANDBOX_HAS_LLM_ENV=1
     fi
   done
+
+  if [[ -z "$base_url_override" ]]; then
+    local host_config base_url
+    host_config="$(sandbox_host_config_path)"
+    base_url="$(read_config_base_url "$host_config")"
+    if [[ -n "$base_url" ]]; then
+      local rewritten
+      rewritten="$(rewrite_base_url_for_sandbox "$base_url")"
+      if [[ -n "$rewritten" && "$rewritten" != "$base_url" ]]; then
+        SANDBOX_ENV_FLAGS+=("-e" "LLM_BASE_URL=${rewritten}")
+      fi
+    fi
+  fi
 }
 
 ensure_sandbox_acp_config() {
@@ -446,97 +341,6 @@ stop_acp_daemon_in_sandbox() {
       rm -f /tmp/acp.pid
     fi
   ' >/dev/null 2>&1 || true
-}
-
-start_acp_daemon_host() {
-  if [[ "${START_ACP_WITH_SANDBOX}" != "1" ]]; then
-    return 0
-  fi
-
-  ensure_dirs
-
-  local pid
-  pid="$(read_pid "$ACP_PID_FILE" || true)"
-  if is_process_running "$pid"; then
-    load_acp_port "$pid" || log_warn "ACP running but port unknown; set ACP_PORT or remove ${ACP_PORT_FILE}"
-    log_info "ACP already running (PID: ${pid})"
-    return 0
-  fi
-
-  local port
-  port="$(ensure_acp_port)" || die "Failed to allocate ACP port"
-  ACP_PORT="$port"
-
-  local alex_bin
-  alex_bin="$(resolve_acp_binary)" || die "alex CLI not available (need ./alex or go toolchain)"
-
-  log_info "Starting ACP daemon on ${ACP_HOST}:${ACP_PORT}..."
-  (
-    trap '[[ -n "${child_pid:-}" ]] && kill "$child_pid" 2>/dev/null || true; exit 0' TERM INT
-    while true; do
-      "${alex_bin}" acp serve --host "${ACP_HOST}" --port "${ACP_PORT}" >>"${ACP_LOG}" 2>&1 &
-      child_pid=$!
-      wait "$child_pid"
-      sleep 1
-    done
-  ) &
-
-  echo $! >"${ACP_PID_FILE}"
-}
-
-stop_acp_daemon_host() {
-  local pid
-  pid="$(read_pid "$ACP_PID_FILE" || true)"
-  if ! is_process_running "$pid"; then
-    [[ -f "$ACP_PID_FILE" ]] && rm -f "$ACP_PID_FILE"
-    return 0
-  fi
-
-  log_info "Stopping ACP daemon (PID: ${pid})"
-  kill "$pid" 2>/dev/null || true
-  for _ in {1..20}; do
-    if ! is_process_running "$pid"; then
-      rm -f "$ACP_PID_FILE"
-      return 0
-    fi
-    sleep 0.25
-  done
-  log_warn "ACP daemon did not stop gracefully; force killing (PID: ${pid})"
-  kill -9 "$pid" 2>/dev/null || true
-  rm -f "$ACP_PID_FILE"
-}
-
-read_pid() {
-  local pid_file="$1"
-  [[ -f "$pid_file" ]] && cat "$pid_file"
-}
-
-is_process_running() {
-  local pid="${1:-}"
-  [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
-}
-
-stop_pid() {
-  local pid="${1:-}"
-  local label="${2:-process}"
-
-  if ! is_process_running "$pid"; then
-    return 0
-  fi
-
-  log_info "Stopping ${label} (PID: ${pid})"
-  kill "$pid" 2>/dev/null || true
-
-  for _ in {1..20}; do
-    if ! is_process_running "$pid"; then
-      return 0
-    fi
-    sleep 0.25
-  done
-
-  log_warn "${label} did not stop gracefully; force killing (PID: ${pid})"
-  kill -9 "$pid" 2>/dev/null || true
-  return 0
 }
 
 stop_port_listeners() {
@@ -691,87 +495,12 @@ die_port_in_use() {
   exit 1
 }
 
-stop_service() {
-  local name="$1"
-  local pid_file="$2"
-  local pid
-  pid="$(read_pid "$pid_file" || true)"
-
-  if is_process_running "$pid"; then
-    log_info "Stopping ${name} (PID: ${pid})"
-    kill "$pid" 2>/dev/null || true
-
-    for _ in {1..20}; do
-      if ! is_process_running "$pid"; then
-        rm -f "$pid_file"
-        log_success "${name} stopped"
-        return 0
-      fi
-      sleep 0.25
-    done
-
-    log_warn "${name} did not stop gracefully; force killing"
-    kill -9 "$pid" 2>/dev/null || true
-    rm -f "$pid_file"
-    log_success "${name} stopped"
-    return 0
-  fi
-
-  if [[ -f "$pid_file" ]]; then
-    log_warn "${name} PID file exists but process not running; cleaning up"
-    rm -f "$pid_file"
-    return 0
-  fi
-
-  log_info "${name} is not running"
-}
-
-is_port_available() {
-  local port="$1"
-  ! lsof -ti tcp:"$port" -sTCP:LISTEN >/dev/null 2>&1
-}
-
 assert_port_available() {
   local port="$1"
   local name="$2"
   if ! is_port_available "$port"; then
     die_port_in_use "$port" "$name"
   fi
-}
-
-wait_for_health() {
-  local url="$1"
-  local name="$2"
-  local attempts=30
-
-  if ! command_exists curl; then
-    log_warn "curl not found; skipping ${name} readiness check"
-    return 0
-  fi
-
-  log_info "Waiting for ${name} to be ready..."
-  for i in $(seq 1 "$attempts"); do
-    if curl -sf --noproxy '*' "$url" >/dev/null 2>&1; then
-      log_success "${name} is ready"
-      return 0
-    fi
-    if [[ "$i" -eq "$attempts" ]]; then
-      log_error "${name} did not become ready in ${attempts}s"
-      return 1
-    fi
-    sleep 1
-  done
-}
-
-is_local_sandbox_url() {
-  case "$SANDBOX_BASE_URL" in
-    http://localhost:*|http://127.0.0.1:*|http://0.0.0.0:*|https://localhost:*|https://127.0.0.1:*|https://0.0.0.0:*)
-      return 0
-      ;;
-    *)
-      return 1
-      ;;
-  esac
 }
 
 start_sandbox() {

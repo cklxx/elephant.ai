@@ -42,6 +42,13 @@ SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
 START_ACP_WITH_SANDBOX="${START_ACP_WITH_SANDBOX:-1}"
 ACP_PORT="${ACP_PORT:-0}"
 ACP_HOST="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
+
+source "${SCRIPT_DIR}/scripts/lib/common/logging.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/ports.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/sandbox.sh"
+source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
 source "${SCRIPT_DIR}/scripts/lib/deploy_common.sh"
 
 COMPOSE_CORE_VARS=()
@@ -51,33 +58,9 @@ readonly DEFAULT_DOCKER_COMPOSE_VERSION="v2.29.7"
 DOCKER_COMPOSE_VERSION="${DOCKER_COMPOSE_VERSION:-${DEFAULT_DOCKER_COMPOSE_VERSION}}"
 DOCKER_COMPOSE_CMD=()
 
-# Colors
-readonly C_RED='\033[0;31m'
-readonly C_GREEN='\033[0;32m'
-readonly C_YELLOW='\033[1;33m'
-readonly C_BLUE='\033[0;34m'
-readonly C_CYAN='\033[0;36m'
-readonly C_RESET='\033[0m'
-
 ###############################################################################
 # Utilities
 ###############################################################################
-
-log_info() {
-    echo -e "${C_BLUE}▸${C_RESET} $*"
-}
-
-log_success() {
-    echo -e "${C_GREEN}✓${C_RESET} $*"
-}
-
-log_error() {
-    echo -e "${C_RED}✗${C_RESET} $*" >&2
-}
-
-log_warn() {
-    echo -e "${C_YELLOW}⚠${C_RESET} $*"
-}
 
 print_cn_mirrors() {
     log_info "Using China mirrors for deployment:"
@@ -102,300 +85,16 @@ banner() {
     echo -e "${C_CYAN}${line}${C_RESET}"
 }
 
-die() {
-    log_error "$*"
-    exit 1
-}
-
-command_exists() {
-    command -v "$1" >/dev/null 2>&1
-}
-
 ###############################################################################
 # Process Management
 ###############################################################################
 
-is_port_available() {
-    local port=$1
-    ! lsof -i ":$port" -sTCP:LISTEN -t >/dev/null 2>&1
-}
-
-kill_process_on_port() {
-    local port=$1
-    local pids
-    pids=$(lsof -i ":$port" -sTCP:LISTEN -t 2>/dev/null || true)
-
-    if [[ -n "$pids" ]]; then
-        log_warn "Port $port is in use, killing processes: $pids"
-        echo "$pids" | xargs kill -9 2>/dev/null || true
-        sleep 1
-    fi
-}
-
-read_pid() {
-    local pid_file=$1
-    if [[ -f "$pid_file" ]]; then
-        cat "$pid_file"
-    fi
-}
-
-is_process_running() {
-    local pid=$1
-    [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null
-}
-
-stop_service() {
-    local name=$1
-    local pid_file=$2
-    local pid
-
-    pid=$(read_pid "$pid_file")
-
-    if is_process_running "$pid"; then
-        log_info "Stopping $name (PID: $pid)"
-        kill "$pid" 2>/dev/null || true
-
-        # Wait for graceful shutdown
-        for i in {1..10}; do
-            if ! is_process_running "$pid"; then
-                log_success "$name stopped"
-                rm -f "$pid_file"
-                return 0
-            fi
-            sleep 0.5
-        done
-
-        # Force kill if still running
-        log_warn "$name didn't stop gracefully, force killing"
-        kill -9 "$pid" 2>/dev/null || true
-        rm -f "$pid_file"
-    elif [[ -f "$pid_file" ]]; then
-        log_warn "$name PID file exists but process not running, cleaning up"
-        rm -f "$pid_file"
-    else
-        log_info "$name is not running"
-    fi
-}
-
-pick_random_port() {
-    if command_exists python3; then
-        python3 - << 'PY'
-import random
-import socket
-
-for _ in range(50):
-    port = random.randint(20000, 45000)
-    sock = socket.socket()
-    try:
-        sock.bind(("127.0.0.1", port))
-    except OSError:
-        continue
-    sock.close()
-    print(port)
-    raise SystemExit(0)
-raise SystemExit(1)
-PY
-        return $?
-    fi
-
-    local start=20000
-    local end=45000
-    local port
-    for _ in {1..50}; do
-        port=$((start + RANDOM % (end - start + 1)))
-        if is_port_available "$port"; then
-            echo "$port"
-            return 0
-        fi
-    done
-
-    return 1
-}
-
-ensure_acp_port() {
-    local port="$ACP_PORT"
-
-    if [[ -n "$port" && "$port" != "0" ]]; then
-        if ! is_port_available "$port"; then
-            die "ACP port ${port} is already in use; set ACP_PORT to a free port"
-        fi
-        echo "$port" >"$ACP_PORT_FILE"
-        echo "$port"
-        return 0
-    fi
-
-    if [[ -f "$ACP_PORT_FILE" ]]; then
-        port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
-        if [[ -n "$port" ]] && is_port_available "$port"; then
-            echo "$port"
-            return 0
-        fi
-    fi
-
-    port="$(pick_random_port)" || return 1
-    echo "$port" >"$ACP_PORT_FILE"
-    echo "$port"
-}
-
-load_acp_port() {
-    local pid="${1:-}"
-    local port=""
-
-    if [[ -f "$ACP_PORT_FILE" ]]; then
-        port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
-    fi
-
-    if [[ -z "$port" && -n "$pid" ]]; then
-        if command_exists lsof; then
-            local addr
-            addr="$(lsof -nP -a -p "$pid" -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9; exit}')"
-            port="${addr##*:}"
-        fi
-    fi
-
-    if [[ -n "$port" ]]; then
-        ACP_PORT="$port"
-        return 0
-    fi
-
-    return 1
-}
-
-resolve_acp_executor_addr() {
-    local host="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
-    local port="${ACP_PORT:-0}"
-
-    if [[ -z "$port" || "$port" == "0" ]]; then
-        if load_acp_port; then
-            port="$ACP_PORT"
-        fi
-    fi
-
-    if [[ -z "$port" || "$port" == "0" ]]; then
-        return 1
-    fi
-
-    echo "http://${host}:${port}"
-}
-
-resolve_acp_binary() {
-    if [[ -n "${ACP_BIN:-}" && -x "${ACP_BIN}" ]]; then
-        echo "${ACP_BIN}"
-        return 0
-    fi
-
-    if [[ -x "${SCRIPT_DIR}/alex" ]]; then
-        echo "${SCRIPT_DIR}/alex"
-        return 0
-    fi
-
-    log_info "Building CLI (./cmd/alex)..."
-    if ! make build 2>&1 | tee "${LOG_DIR}/build-acp.log"; then
-        log_error "CLI build failed, check logs/build-acp.log"
-        return 1
-    fi
-
-    if [[ -x "${SCRIPT_DIR}/alex" ]]; then
-        echo "${SCRIPT_DIR}/alex"
-        return 0
-    fi
-
-    return 1
-}
-
 start_acp_daemon() {
-    if [[ "${START_ACP_WITH_SANDBOX}" != "1" ]]; then
-        return 0
-    fi
-
-    mkdir -p "$PID_DIR" "$LOG_DIR"
-
-    local pid
-    pid="$(read_pid "$ACP_PID_FILE" || true)"
-    if is_process_running "$pid"; then
-        load_acp_port "$pid" || log_warn "ACP running but port unknown; set ACP_PORT or remove ${ACP_PORT_FILE}"
-        log_info "ACP already running (PID: ${pid})"
-        return 0
-    fi
-
-    local port
-    port="$(ensure_acp_port)" || die "Failed to allocate ACP port"
-    ACP_PORT="$port"
-
-    local alex_bin
-    alex_bin="$(resolve_acp_binary)" || die "alex CLI not available (need ./alex or go toolchain)"
-
-    log_info "Starting ACP daemon on ${ACP_HOST}:${ACP_PORT}..."
-    (
-        trap '[[ -n "${child_pid:-}" ]] && kill "$child_pid" 2>/dev/null || true; exit 0' TERM INT
-        while true; do
-            "${alex_bin}" acp serve --host "${ACP_HOST}" --port "${ACP_PORT}" >>"${ACP_LOG}" 2>&1 &
-            child_pid=$!
-            wait "$child_pid"
-            sleep 1
-        done
-    ) &
-
-    echo $! >"${ACP_PID_FILE}"
+    start_acp_daemon_host
 }
 
 stop_acp_daemon() {
-    local pid
-    pid="$(read_pid "$ACP_PID_FILE" || true)"
-    if ! is_process_running "$pid"; then
-        [[ -f "$ACP_PID_FILE" ]] && rm -f "$ACP_PID_FILE"
-        return 0
-    fi
-
-    log_info "Stopping ACP daemon (PID: ${pid})"
-    kill "$pid" 2>/dev/null || true
-    for _ in {1..20}; do
-        if ! is_process_running "$pid"; then
-            rm -f "$ACP_PID_FILE"
-            return 0
-        fi
-        sleep 0.25
-    done
-    log_warn "ACP daemon did not stop gracefully; force killing (PID: ${pid})"
-    kill -9 "$pid" 2>/dev/null || true
-    rm -f "$ACP_PID_FILE"
-}
-
-###############################################################################
-# Health Checks
-###############################################################################
-
-wait_for_health() {
-    local url=$1
-    local name=$2
-    local max_attempts=30
-
-    log_info "Waiting for $name to be ready..."
-
-    for i in $(seq 1 $max_attempts); do
-        if curl -sf --noproxy '*' "$url" >/dev/null 2>&1; then
-            log_success "$name is ready!"
-            return 0
-        fi
-
-        if [[ $i -eq $max_attempts ]]; then
-            log_error "$name failed to start within ${max_attempts}s"
-            return 1
-        fi
-
-        sleep 1
-    done
-}
-
-is_local_sandbox_url() {
-    case "$SANDBOX_BASE_URL" in
-        http://localhost:*|http://127.0.0.1:*|http://0.0.0.0:*|https://localhost:*|https://127.0.0.1:*|https://0.0.0.0:*)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    stop_acp_daemon_host
 }
 
 start_sandbox() {

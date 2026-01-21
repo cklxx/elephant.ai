@@ -42,6 +42,7 @@
 - 2026-01-21: `dev.sh` now propagates host LLM env/config into sandbox ACP to avoid missing credentials inside container.
 - 2026-01-21: Trimmed AGENTS.md for brevity and added `docs/guides/engineering-practices.md` for local best practices.
 - 2026-01-21: Tests run: `./dev.sh test`, `./dev.sh lint`.
+- 2026-01-21: `dev.sh` now rewrites localhost LLM base URLs to `host.docker.internal` for sandbox ACP and applies host config/env overrides.
 
 ## Notes / Risks
 - If ACP executor still targets host cwd, the CLI agent may reject file ops (seen with `/Users/...` paths).
