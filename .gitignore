@@ -134,3 +134,4 @@ logs/*.png
 .pids/acp.port
 web/playwright-report/*
 web/test-results/*
+.pids/*
