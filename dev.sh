@@ -18,6 +18,7 @@
 #   SANDBOX_IMAGE=...           # Sandbox image override
 #   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
 #   START_ACP_WITH_SANDBOX=1    # Start ACP serve alongside sandbox (default 1)
+#   ACP_RUN_MODE=sandbox|host   # Run ACP in sandbox container or on host (default sandbox)
 #   ACP_PORT=0                  # ACP port override (0 = auto-pick)
 #   ACP_HOST=127.0.0.1           # ACP bind host (default 127.0.0.1)
 #   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
@@ -52,6 +53,7 @@ SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
 SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
 SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
 START_ACP_WITH_SANDBOX="${START_ACP_WITH_SANDBOX:-1}"
+ACP_RUN_MODE="${ACP_RUN_MODE:-sandbox}"
 ACP_PORT="${ACP_PORT:-0}"
 ACP_HOST="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
 START_WITH_WATCH="${START_WITH_WATCH:-1}"
@@ -191,6 +193,19 @@ load_acp_port() {
   return 1
 }
 
+load_acp_port_file() {
+  local port=""
+  if [[ -f "$ACP_PORT_FILE" ]]; then
+    port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
+  fi
+  if [[ -n "$port" ]]; then
+    ACP_PORT="$port"
+    echo "$port"
+    return 0
+  fi
+  return 1
+}
+
 resolve_acp_executor_addr() {
   local host="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
   local port="${ACP_PORT:-0}"
@@ -233,7 +248,119 @@ resolve_acp_binary() {
   return 1
 }
 
-start_acp_daemon() {
+acp_should_run_in_sandbox() {
+  if [[ "${START_ACP_WITH_SANDBOX}" != "1" ]]; then
+    return 1
+  fi
+  if [[ "${ACP_RUN_MODE}" != "sandbox" ]]; then
+    return 1
+  fi
+  if ! is_local_sandbox_url; then
+    return 1
+  fi
+  if ! command_exists docker; then
+    return 1
+  fi
+  return 0
+}
+
+sandbox_has_acp_port_mapping() {
+  local port="$1"
+  if [[ -z "$port" ]]; then
+    return 1
+  fi
+  docker port "${SANDBOX_CONTAINER_NAME}" "${port}/tcp" >/dev/null 2>&1
+}
+
+detect_sandbox_acp_port() {
+  docker port "${SANDBOX_CONTAINER_NAME}" 2>/dev/null | awk -v sp="${SANDBOX_PORT}" '
+    match($0, /:([0-9]+)$/, m) {
+      port = m[1];
+      if (port != sp) {
+        print port;
+        exit;
+      }
+    }
+  '
+}
+
+ensure_sandbox_acp_binary() {
+  local arch
+  arch="$(docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'uname -m' 2>/dev/null || true)"
+  local goarch="amd64"
+  case "$arch" in
+    aarch64|arm64)
+      goarch="arm64"
+      ;;
+    x86_64|amd64)
+      goarch="amd64"
+      ;;
+  esac
+
+  if docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'command -v alex >/dev/null 2>&1 && alex version >/dev/null 2>&1'; then
+    return 0
+  fi
+
+  local alex_bin
+  local out_bin="${PID_DIR}/alex-linux-${goarch}"
+  if [[ ! -x "${out_bin}" ]]; then
+    if ! command_exists "${SCRIPT_DIR}/scripts/go-with-toolchain.sh"; then
+      die "go toolchain not available to build linux alex binary"
+    fi
+    log_info "Building linux alex (${goarch}) for sandbox..."
+    GOOS=linux GOARCH="${goarch}" CGO_ENABLED=0 \
+      "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" build -o "${out_bin}" ./cmd/alex >/dev/null
+  fi
+  alex_bin="${out_bin}"
+
+  log_info "Copying alex CLI into sandbox container..."
+  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'mkdir -p /usr/local/bin'
+  docker cp "${alex_bin}" "${SANDBOX_CONTAINER_NAME}:/usr/local/bin/alex"
+  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'chmod +x /usr/local/bin/alex'
+}
+
+start_acp_daemon_in_sandbox() {
+  if ! acp_should_run_in_sandbox; then
+    return 0
+  fi
+
+  ensure_dirs
+
+  if [[ -z "${ACP_PORT}" || "${ACP_PORT}" == "0" ]]; then
+    local port
+    port="$(ensure_acp_port)" || die "Failed to allocate ACP port"
+    ACP_PORT="$port"
+  fi
+
+  ensure_sandbox_acp_binary
+
+  log_info "Starting ACP daemon inside sandbox on 0.0.0.0:${ACP_PORT}..."
+  docker exec -e ACP_PORT="${ACP_PORT}" "${SANDBOX_CONTAINER_NAME}" sh -lc '
+    if [ -f /tmp/acp.pid ] && kill -0 $(cat /tmp/acp.pid) 2>/dev/null; then
+      exit 0
+    fi
+    nohup /usr/local/bin/alex acp serve --host 0.0.0.0 --port "${ACP_PORT}" >/tmp/acp.log 2>&1 &
+    echo $! >/tmp/acp.pid
+  '
+}
+
+stop_acp_daemon_in_sandbox() {
+  if ! acp_should_run_in_sandbox; then
+    return 0
+  fi
+  if ! docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+    return 0
+  fi
+  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc '
+    if [ -f /tmp/acp.pid ]; then
+      pid=$(cat /tmp/acp.pid)
+      kill "$pid" 2>/dev/null || true
+      rm -f /tmp/acp.pid
+    fi
+  ' >/dev/null 2>&1 || true
+}
+
+start_acp_daemon_host() {
   if [[ "${START_ACP_WITH_SANDBOX}" != "1" ]]; then
     return 0
   fi
@@ -269,7 +396,7 @@ start_acp_daemon() {
   echo $! >"${ACP_PID_FILE}"
 }
 
-stop_acp_daemon() {
+stop_acp_daemon_host() {
   local pid
   pid="$(read_pid "$ACP_PID_FILE" || true)"
   if ! is_process_running "$pid"; then
@@ -570,15 +697,60 @@ start_sandbox() {
     return 1
   fi
 
-  start_acp_daemon
+  ensure_dirs
+  local container_running=0
+  if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+    container_running=1
+  fi
+
+  local run_acp_in_sandbox=0
+  if acp_should_run_in_sandbox; then
+    run_acp_in_sandbox=1
+    local port
+    if [[ -n "${ACP_PORT}" && "${ACP_PORT}" != "0" ]]; then
+      if [[ "$container_running" == "0" ]]; then
+        port="$(ensure_acp_port)" || die "Failed to allocate ACP port"
+        ACP_PORT="$port"
+      else
+        if [[ ! -f "$ACP_PORT_FILE" ]]; then
+          echo "${ACP_PORT}" >"$ACP_PORT_FILE"
+        fi
+      fi
+    elif [[ "$container_running" == "1" ]]; then
+      if ! load_acp_port_file >/dev/null; then
+        port="$(detect_sandbox_acp_port || true)"
+        if [[ -n "$port" ]]; then
+          ACP_PORT="$port"
+          echo "${port}" >"$ACP_PORT_FILE"
+        fi
+      fi
+    fi
+
+    if [[ -z "${ACP_PORT}" || "${ACP_PORT}" == "0" ]]; then
+      port="$(ensure_acp_port)" || die "Failed to allocate ACP port"
+      ACP_PORT="$port"
+    fi
+  fi
+
   local acp_container_host="host.docker.internal"
   local acp_addr="${acp_container_host}:${ACP_PORT}"
 
-  if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
-    log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
-    wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
-    log_info "ACP server injected at ${acp_addr}"
-    return $?
+  if [[ "$container_running" == "1" ]]; then
+    if [[ "$run_acp_in_sandbox" == "1" ]] && ! sandbox_has_acp_port_mapping "${ACP_PORT}"; then
+      log_warn "Sandbox container missing ACP port mapping; recreating..."
+      docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
+      docker rm "${SANDBOX_CONTAINER_NAME}" >/dev/null
+    else
+      log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
+      wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
+      if [[ "$run_acp_in_sandbox" == "1" ]]; then
+        start_acp_daemon_in_sandbox
+      else
+        start_acp_daemon_host
+        log_info "ACP server injected at ${acp_addr}"
+      fi
+      return $?
+    fi
   fi
 
   if docker ps -a --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
@@ -586,17 +758,26 @@ start_sandbox() {
     docker start "${SANDBOX_CONTAINER_NAME}" >/dev/null
   else
     log_info "Starting sandbox container ${SANDBOX_CONTAINER_NAME} on :${SANDBOX_PORT}..."
+    local port_flags=("-p" "${SANDBOX_PORT}:8080")
+    if [[ "$run_acp_in_sandbox" == "1" ]]; then
+      port_flags+=("-p" "${ACP_PORT}:${ACP_PORT}")
+    fi
     docker run -d --name "${SANDBOX_CONTAINER_NAME}" \
       --add-host "host.docker.internal:host-gateway" \
       -e "ACP_SERVER_HOST=${acp_container_host}" \
       -e "ACP_SERVER_PORT=${ACP_PORT}" \
       -e "ACP_SERVER_ADDR=${acp_addr}" \
-      -p "${SANDBOX_PORT}:8080" \
+      "${port_flags[@]}" \
       "${SANDBOX_IMAGE}" >/dev/null
   fi
 
   wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
-  log_info "ACP server injected at ${acp_addr}"
+  if [[ "$run_acp_in_sandbox" == "1" ]]; then
+    start_acp_daemon_in_sandbox
+  else
+    start_acp_daemon_host
+    log_info "ACP server injected at ${acp_addr}"
+  fi
 }
 
 stop_sandbox() {
@@ -606,11 +787,15 @@ stop_sandbox() {
   if ! command_exists docker; then
     return 0
   fi
+  if acp_should_run_in_sandbox; then
+    stop_acp_daemon_in_sandbox
+  else
+    stop_acp_daemon_host
+  fi
   if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
     log_info "Stopping sandbox container ${SANDBOX_CONTAINER_NAME}..."
     docker stop "${SANDBOX_CONTAINER_NAME}" >/dev/null
   fi
-  stop_acp_daemon
 }
 
 sandbox_ready() {
@@ -847,10 +1032,22 @@ cmd_status() {
   local acp_pid acp_port
   acp_pid="$(read_pid "$ACP_PID_FILE" || true)"
   acp_port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
-  if is_process_running "$acp_pid"; then
-    log_success "ACP: running (PID: ${acp_pid}) ${ACP_HOST}:${acp_port}"
+  if acp_should_run_in_sandbox; then
+    if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+      if docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'test -f /tmp/acp.pid && kill -0 $(cat /tmp/acp.pid) 2>/dev/null'; then
+        log_success "ACP: running (sandbox) http://localhost:${acp_port}"
+      else
+        log_warn "ACP: stopped (sandbox)"
+      fi
+    else
+      log_warn "ACP: sandbox container not running"
+    fi
   else
-    log_warn "ACP: stopped"
+    if is_process_running "$acp_pid"; then
+      log_success "ACP: running (PID: ${acp_pid}) ${ACP_HOST}:${acp_port}"
+    else
+      log_warn "ACP: stopped"
+    fi
   fi
 
 }
