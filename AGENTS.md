@@ -11,6 +11,7 @@
   * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
   * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
+  * Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
   * Run full lint and test validation after changes.
   * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
   * Avoid unnecessary defensive code.

@@ -254,7 +254,7 @@ func (r *Registry) WithoutSubagent() ports.ToolRegistry {
 		parent: r,
 		// Exclude both subagent and explore (which wraps subagent) to prevent
 		// recursive delegation chains inside subagents.
-		exclude: map[string]bool{"subagent": true, "explore": true},
+		exclude: map[string]bool{"subagent": true, "explore": true, "acp_executor": true},
 	}
 }
 

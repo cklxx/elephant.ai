@@ -241,8 +241,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		SandboxBaseURL:             "http://localhost:18086",
 		ACPExecutorAddr:            defaultACPExecutorAddr(options.envLookup),
 		ACPExecutorCWD:             defaultACPExecutorCWD(),
-		ACPExecutorMode:            "safe",
-		ACPExecutorAutoApprove:     false,
+		ACPExecutorMode:            "full",
+		ACPExecutorAutoApprove:     true,
 		ACPExecutorMaxCLICalls:     12,
 		ACPExecutorMaxDuration:     900,
 		ACPExecutorRequireManifest: true,
@@ -365,18 +365,7 @@ func defaultACPExecutorAddr(lookup EnvLookup) string {
 }
 
 func defaultACPExecutorCWD() string {
-	if info, err := os.Stat("/workspace"); err == nil && info.IsDir() {
-		return "/workspace"
-	}
-	wd, err := os.Getwd()
-	if err != nil || strings.TrimSpace(wd) == "" {
-		return ""
-	}
-	abs, err := filepath.Abs(wd)
-	if err != nil {
-		return wd
-	}
-	return abs
+	return "/workspace"
 }
 
 func defaultACPHost(lookup EnvLookup) string {

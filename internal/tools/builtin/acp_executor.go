@@ -87,12 +87,12 @@ func (t *acpExecutorTool) Definition() ports.ToolDefinition {
 func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	addr := strings.TrimSpace(t.cfg.Addr)
 	if addr == "" {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor addr is required")}, nil
+		addr = "http://127.0.0.1:9000"
 	}
 
 	cwd := strings.TrimSpace(t.cfg.CWD)
 	if cwd == "" {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor cwd is required")}, nil
+		cwd = "/workspace"
 	}
 	if !strings.HasPrefix(cwd, "/") {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor cwd must be absolute")}, nil
