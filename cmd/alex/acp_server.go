@@ -370,6 +370,7 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 			session.cwd = ""
 		}
 	}
+	switchedCwd := false
 	if session.cwd != "" {
 		s.cwdMu.Lock()
 		current, err := os.Getwd()
@@ -378,13 +379,15 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 		}
 		if err := os.Chdir(session.cwd); err != nil {
 			s.cwdMu.Unlock()
-			return mcp.NewErrorResponse(req.ID, mcp.InternalError, "failed to switch working directory", err.Error())
+			session.cwd = ""
+		} else {
+			switchedCwd = true
 		}
 	}
 
 	result, execErr := s.container.AgentCoordinator.ExecuteTask(promptCtx, parsed.Text, sessionID, listener)
 
-	if session.cwd != "" {
+	if switchedCwd {
 		if oldCwd != "" {
 			_ = os.Chdir(oldCwd)
 		}
