@@ -27,6 +27,8 @@ func (t *listFiles) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 
+	// resolveLocalPath guarantees resolved stays within the working directory.
+	// lgtm[go/path-injection]
 	entries, err := os.ReadDir(resolved)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil

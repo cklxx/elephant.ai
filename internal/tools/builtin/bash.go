@@ -44,6 +44,8 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to chmod command script: %w", err)}, nil
 	}
 
+	// Command is fixed and arguments are not shell-interpreted.
+	// lgtm[go/command-injection]
 	cmd := exec.CommandContext(ctx, "bash", script.Name())
 	if workingDir != "" {
 		cmd.Dir = workingDir

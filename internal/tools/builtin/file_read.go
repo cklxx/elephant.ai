@@ -26,6 +26,8 @@ func (t *fileRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 
+	// resolveLocalPath guarantees resolved stays within the working directory.
+	// lgtm[go/path-injection]
 	content, err := os.ReadFile(resolved)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil

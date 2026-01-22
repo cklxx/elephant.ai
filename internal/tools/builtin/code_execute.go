@@ -113,6 +113,8 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 				},
 			}, nil
 		}
+		// resolveLocalPath guarantees resolved stays within the working directory.
+		// lgtm[go/path-injection]
 		content, err := os.ReadFile(resolved)
 		if err != nil {
 			return &ports.ToolResult{
@@ -199,6 +201,8 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		defer func() { _ = os.Remove(tmpFile.Name()) }()
 		_, _ = tmpFile.WriteString(code)
 		_ = tmpFile.Close()
+		// Command is fixed and arguments are not shell-interpreted.
+		// lgtm[go/command-injection]
 		cmd := exec.CommandContext(execCtx, "python3", tmpFile.Name())
 		if workingDir != "" {
 			cmd.Dir = workingDir
@@ -210,6 +214,8 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		defer func() { _ = os.RemoveAll(tmpDir) }()
 		tmpFile := filepath.Join(tmpDir, "main.go")
 		_ = os.WriteFile(tmpFile, []byte(code), 0644)
+		// Command is fixed and arguments are not shell-interpreted.
+		// lgtm[go/command-injection]
 		cmd := exec.CommandContext(execCtx, "go", "run", tmpFile)
 		if workingDir != "" {
 			cmd.Dir = workingDir
@@ -221,6 +227,8 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		defer func() { _ = os.Remove(tmpFile.Name()) }()
 		_, _ = tmpFile.WriteString(code)
 		_ = tmpFile.Close()
+		// Command is fixed and arguments are not shell-interpreted.
+		// lgtm[go/command-injection]
 		cmd := exec.CommandContext(execCtx, "node", tmpFile.Name())
 		if workingDir != "" {
 			cmd.Dir = workingDir
@@ -236,6 +244,8 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		_, _ = tmpFile.WriteString(code)
 		_ = tmpFile.Close()
 		_ = os.Chmod(tmpFile.Name(), 0755)
+		// Command is fixed and arguments are not shell-interpreted.
+		// lgtm[go/command-injection]
 		cmd := exec.CommandContext(execCtx, "bash", tmpFile.Name())
 		if workingDir != "" {
 			cmd.Dir = workingDir

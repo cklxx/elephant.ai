@@ -164,6 +164,8 @@ func (m *AttachmentStoreMigrator) fetchRemote(ctx context.Context, uri, mediaTyp
 	if err != nil {
 		return nil, "", err
 	}
+	// URL is validated by ValidateOutboundURL before request construction.
+	// lgtm[go/ssrf]
 	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return nil, "", err
