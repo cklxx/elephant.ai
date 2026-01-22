@@ -10,4 +10,4 @@
 ## Progress Log
 - 2026-01-22: Created plan; starting implementation.
 - 2026-01-22: Updated local search tools and bash execution to respect working directory; documented tool workspace; stubbed default web fetch for tests.
-- 2026-01-22: Ran ./dev.sh lint and ./dev.sh test.
+- 2026-01-22: Fixed SSE test race and reran ./dev.sh lint and ./dev.sh test.
