@@ -97,14 +97,6 @@ var (
 		"web_fetch":    true,
 		"request_user": true,
 	}
-	architectAllowedToolsWeb = map[string]bool{
-		"plan":         true,
-		"clearify":     true,
-		"web_search":   true,
-		"web_fetch":    true,
-		"request_user": true,
-		"acp_executor": true,
-	}
 )
 
 func cloneToolSet(src map[string]bool) map[string]bool {
@@ -141,8 +133,8 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 		case ToolPresetArchitect:
 			return &ToolConfig{
 				Name:         "Architect Access",
-				Description:  "Architect-only tools (search/plan/clarify + executor dispatch)",
-				AllowedTools: cloneToolSet(architectAllowedToolsWeb),
+				Description:  "Web-safe tools (local file/shell/code exec disabled)",
+				AllowedTools: nil,
 				DeniedTools:  cloneToolSet(webDeniedTools),
 			}, nil
 		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox:
