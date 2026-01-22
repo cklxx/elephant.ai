@@ -341,7 +341,7 @@ Each entry:
     {"id":"full","name":"Full Access","description":"All tools available"},
     {"id":"read-only","name":"Read-Only","description":"No local writes or execution"},
     {"id":"safe","name":"Safe Mode","description":"Excludes potentially dangerous tools"},
-    {"id":"sandbox","name":"Sandbox Mode","description":"Disable local file/shell tools; use sandbox_* tools instead"}
+    {"id":"sandbox","name":"Sandbox Mode","description":"Disable local file/shell tools; sandbox_* tools are web-only"}
   ]
 }
 ```

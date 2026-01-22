@@ -248,6 +248,20 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
+			name:      "full blocks acp_executor in cli mode",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetFull,
+			toolName:  "acp_executor",
+			wantAllow: false,
+		},
+		{
+			name:      "full blocks sandbox_shell_exec in cli mode",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetFull,
+			toolName:  "sandbox_shell_exec",
+			wantAllow: false,
+		},
+		{
 			name:      "read-only allows vision_analyze",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
@@ -304,11 +318,11 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
-			name:      "sandbox allows sandbox_shell_exec",
+			name:      "sandbox blocks sandbox_shell_exec",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSandbox,
 			toolName:  "sandbox_shell_exec",
-			wantAllow: true,
+			wantAllow: false,
 		},
 		{
 			name:      "web mode blocks file_read",
@@ -339,11 +353,11 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "architect allows acp_executor",
+			name:      "architect blocks acp_executor in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetArchitect,
 			toolName:  "acp_executor",
-			wantAllow: true,
+			wantAllow: false,
 		},
 		{
 			name:      "architect blocks bash",
@@ -351,6 +365,13 @@ func TestToolPresetBlocking(t *testing.T) {
 			preset:    ToolPresetArchitect,
 			toolName:  "bash",
 			wantAllow: false,
+		},
+		{
+			name:      "web mode architect allows acp_executor",
+			mode:      ToolModeWeb,
+			preset:    ToolPresetArchitect,
+			toolName:  "acp_executor",
+			wantAllow: true,
 		},
 		{
 			name:      "web mode architect blocks file_read",

@@ -57,7 +57,7 @@ var acpModes = []acpMode{
 	{ID: string(presets.ToolPresetFull), Name: "Full Access", Description: "All tools available"},
 	{ID: string(presets.ToolPresetReadOnly), Name: "Read-Only", Description: "No local writes or execution"},
 	{ID: string(presets.ToolPresetSafe), Name: "Safe Mode", Description: "Excludes potentially dangerous tools"},
-	{ID: string(presets.ToolPresetSandbox), Name: "Sandbox Mode", Description: "Disable local file/shell tools; use sandbox_* tools instead"},
+	{ID: string(presets.ToolPresetSandbox), Name: "Sandbox Mode", Description: "Disable local file/shell tools; sandbox_* tools are web-only"},
 }
 
 func newACPServer(container *Container, initialMessage string) *acpServer {

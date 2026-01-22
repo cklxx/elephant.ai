@@ -35,9 +35,21 @@ type ToolConfig struct {
 
 var (
 	cliDeniedTools = map[string]bool{
-		"artifacts_write":  true,
-		"artifacts_list":   true,
-		"artifacts_delete": true,
+		"artifacts_write":            true,
+		"artifacts_list":             true,
+		"artifacts_delete":           true,
+		"acp_executor":               true,
+		"sandbox_browser":            true,
+		"sandbox_browser_info":       true,
+		"sandbox_browser_screenshot": true,
+		"sandbox_browser_dom":        true,
+		"sandbox_file_read":          true,
+		"sandbox_file_write":         true,
+		"sandbox_file_list":          true,
+		"sandbox_file_search":        true,
+		"sandbox_file_replace":       true,
+		"sandbox_shell_exec":         true,
+		"sandbox_write_attachment":   true,
 	}
 	webDeniedTools = map[string]bool{
 		"file_read":    true,
@@ -78,7 +90,14 @@ var (
 		"todo_read":    true,
 		"todo_update":  true,
 	}
-	architectAllowedTools = map[string]bool{
+	architectAllowedToolsCLI = map[string]bool{
+		"plan":         true,
+		"clearify":     true,
+		"web_search":   true,
+		"web_fetch":    true,
+		"request_user": true,
+	}
+	architectAllowedToolsWeb = map[string]bool{
 		"plan":         true,
 		"clearify":     true,
 		"web_search":   true,
@@ -123,7 +142,7 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 			return &ToolConfig{
 				Name:         "Architect Access",
 				Description:  "Architect-only tools (search/plan/clarify + executor dispatch)",
-				AllowedTools: cloneToolSet(architectAllowedTools),
+				AllowedTools: cloneToolSet(architectAllowedToolsWeb),
 				DeniedTools:  cloneToolSet(webDeniedTools),
 			}, nil
 		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox:
@@ -165,7 +184,7 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 		case ToolPresetSandbox:
 			return &ToolConfig{
 				Name:         "Sandbox Access",
-				Description:  "No local file/shell tools; use sandbox_* tools instead",
+				Description:  "No local file/shell tools; sandbox_* tools are web-only",
 				AllowedTools: nil,
 				DeniedTools:  mergeToolSets(cloneToolSet(sandboxDeniedTools), cliDeniedTools),
 			}, nil
@@ -173,7 +192,7 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 			return &ToolConfig{
 				Name:         "Architect Access",
 				Description:  "Architect-only tools (search/plan/clarify + executor dispatch)",
-				AllowedTools: cloneToolSet(architectAllowedTools),
+				AllowedTools: cloneToolSet(architectAllowedToolsCLI),
 				DeniedTools:  cloneToolSet(cliDeniedTools),
 			}, nil
 		default:
