@@ -209,12 +209,19 @@ func fetchAttachmentBytes(ctx context.Context, client *http.Client, uri string, 
 		return nil, "", errors.New("empty attachment payload")
 	}
 
-	mediaType := strings.TrimSpace(fallbackMediaType)
-	if mediaType == "" {
-		mediaType = strings.TrimSpace(resp.Header.Get("Content-Type"))
-	}
+	mediaType := strings.TrimSpace(resp.Header.Get("Content-Type"))
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil && parsed != "" {
 		mediaType = parsed
+	} else {
+		mediaType = ""
+	}
+	if mediaType == "" {
+		mediaType = strings.TrimSpace(fallbackMediaType)
+		if parsed, _, err := mime.ParseMediaType(mediaType); err == nil && parsed != "" {
+			mediaType = parsed
+		} else {
+			mediaType = ""
+		}
 	}
 	if mediaType == "" {
 		mediaType = http.DetectContentType(data)

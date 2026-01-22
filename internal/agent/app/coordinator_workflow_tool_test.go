@@ -9,6 +9,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/ports/mocks"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/workflow"
 )
 
@@ -252,5 +253,71 @@ func TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope(t *testing.T) {
 	}
 	if !foundPrepare {
 		t.Fatalf("expected prepare step envelope to be emitted")
+	}
+}
+
+type recordingMigrator struct {
+	called     bool
+	request    materialports.MigrationRequest
+	normalized map[string]ports.Attachment
+}
+
+func (m *recordingMigrator) Normalize(ctx context.Context, req materialports.MigrationRequest) (map[string]ports.Attachment, error) {
+	m.called = true
+	m.request = req
+	if m.normalized != nil {
+		return m.normalized, nil
+	}
+	return req.Attachments, nil
+}
+
+func TestSaveSessionAfterExecutionMigratesAttachments(t *testing.T) {
+	coordinator := NewAgentCoordinator(
+		stubLLMFactory{client: &mocks.MockLLMClient{}},
+		stubToolRegistry{},
+		&stubSessionStore{},
+		stubContextManager{},
+		nil,
+		stubParser{},
+		nil,
+		Config{LLMProvider: "mock", LLMModel: "session-migrate", MaxIterations: 1},
+	)
+
+	migrator := &recordingMigrator{
+		normalized: map[string]ports.Attachment{
+			"frame.png": {Name: "frame.png", MediaType: "image/png", URI: "/api/attachments/frame.png"},
+		},
+	}
+	coordinator.SetAttachmentMigrator(migrator)
+
+	session := &ports.Session{ID: "session-migrate", Metadata: map[string]string{}}
+	result := &ports.TaskResult{
+		SessionID: "session-migrate",
+		Messages: []ports.Message{
+			{
+				Source: ports.MessageSourceToolResult,
+				Attachments: map[string]ports.Attachment{
+					"frame.png": {Name: "frame.png", MediaType: "image/png", Data: "ZmFrZQ=="},
+				},
+			},
+		},
+	}
+
+	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
+		t.Fatalf("SaveSessionAfterExecution failed: %v", err)
+	}
+
+	if !migrator.called {
+		t.Fatalf("expected attachment migrator to be called")
+	}
+	if session.Attachments == nil {
+		t.Fatalf("expected session attachments to be set")
+	}
+	att, ok := session.Attachments["frame.png"]
+	if !ok {
+		t.Fatalf("expected migrated attachment to be stored on session")
+	}
+	if att.URI != "/api/attachments/frame.png" {
+		t.Fatalf("expected migrated attachment URI, got %q", att.URI)
 	}
 }

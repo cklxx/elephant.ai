@@ -473,6 +473,17 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 
 	// Update session with results
 	sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
+	if c.attachmentMigrator != nil && len(attachmentStore) > 0 {
+		normalized, err := c.attachmentMigrator.Normalize(ctx, materialports.MigrationRequest{
+			Attachments: attachmentStore,
+			Origin:      "session_persist",
+		})
+		if err != nil && c.logger != nil {
+			c.logger.Warn("Failed to migrate attachments for session persistence: %v", err)
+		} else if normalized != nil {
+			attachmentStore = normalized
+		}
+	}
 	session.Messages = sanitizedMessages
 	if len(attachmentStore) > 0 {
 		session.Attachments = attachmentStore
