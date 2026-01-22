@@ -209,6 +209,43 @@ export const EventLine = React.memo(function EventLine({
     );
   }
 
+  if (event.event_type === "workflow.tool.started") {
+    if (isNested || isSubagentEvent) {
+      const content = formatContent(event);
+      const style = getEventStyle(event);
+      if (!content) {
+        return null;
+      }
+      return wrapWithSubagentContext(
+        <div
+          data-testid="event-workflow.tool.started"
+          className={cn(
+            "text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90",
+            style.content,
+          )}
+        >
+          <div className="flex-1 leading-relaxed break-words">{content}</div>
+        </div>,
+      );
+    }
+
+    const startedEvent = event as WorkflowToolStartedEvent;
+    return wrapWithSubagentContext(
+      <div
+        data-testid="event-workflow.tool.started"
+        className={cn("py-1", !isNested && "pl-2 border-l-2 border-primary/10")}
+      >
+        <ToolOutputCard
+          toolName={startedEvent.tool_name}
+          parameters={startedEvent.arguments}
+          timestamp={startedEvent.timestamp}
+          callId={startedEvent.call_id}
+          status="running"
+        />
+      </div>,
+    );
+  }
+
   if (event.event_type === "workflow.tool.completed") {
     const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;

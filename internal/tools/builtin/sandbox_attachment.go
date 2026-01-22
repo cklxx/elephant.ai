@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -12,11 +13,15 @@ import (
 )
 
 type sandboxWriteAttachmentTool struct {
-	client *sandbox.Client
+	client     *sandbox.Client
+	httpClient *http.Client
 }
 
 func NewSandboxWriteAttachment(cfg SandboxConfig) ports.ToolExecutor {
-	return &sandboxWriteAttachmentTool{client: newSandboxClient(cfg)}
+	return &sandboxWriteAttachmentTool{
+		client:     newSandboxClient(cfg),
+		httpClient: newAttachmentHTTPClient(attachmentFetchTimeout, "SandboxAttachmentWrite"),
+	}
 }
 
 func (t *sandboxWriteAttachmentTool) Metadata() ports.ToolMetadata {
@@ -32,7 +37,7 @@ func (t *sandboxWriteAttachmentTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name: "sandbox_write_attachment",
 		Description: "Write an existing attachment into the sandbox filesystem. " +
-			"Use this to materialize generated artifacts (e.g., PPTX) inside the sandbox.",
+			"Accepts attachment name/placeholder, data URI, or HTTPS URL.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
@@ -61,14 +66,14 @@ func (t *sandboxWriteAttachmentTool) Execute(ctx context.Context, call ports.Too
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	payload, mimeType, err := resolveAttachmentPayload(ctx, attachmentRef)
+	payload, mimeType, err := resolveAttachmentBytes(ctx, attachmentRef, t.httpClient)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
 	request := map[string]any{
 		"file":     path,
-		"content":  payload,
+		"content":  base64.StdEncoding.EncodeToString(payload),
 		"encoding": "base64",
 	}
 	if value, ok := boolArgOptional(call.Arguments, "sudo"); ok {
@@ -88,7 +93,7 @@ func (t *sandboxWriteAttachmentTool) Execute(ctx context.Context, call ports.Too
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	bytesWritten := base64DecodedLen(payload)
+	bytesWritten := len(payload)
 	if response.Data.BytesWritten != nil {
 		bytesWritten = *response.Data.BytesWritten
 	}
@@ -103,53 +108,4 @@ func (t *sandboxWriteAttachmentTool) Execute(ctx context.Context, call ports.Too
 			"media_type":     mimeType,
 		},
 	}, nil
-}
-
-func resolveAttachmentPayload(ctx context.Context, ref string) (string, string, error) {
-	attachments, _ := ports.GetAttachmentContext(ctx)
-	if len(attachments) == 0 {
-		return "", "", errors.New("no attachments available in current context")
-	}
-
-	name := normalizePlaceholder(ref)
-	if name == "" {
-		name = ref
-	}
-
-	att, ok := lookupAttachmentCaseInsensitive(attachments, name)
-	if !ok {
-		return "", "", fmt.Errorf("attachment not found: %s", name)
-	}
-
-	mediaType := strings.TrimSpace(att.MediaType)
-	if mediaType == "" {
-		mediaType = "application/octet-stream"
-	}
-	if data := strings.TrimSpace(att.Data); data != "" {
-		return data, mediaType, nil
-	}
-
-	if dataURI := strings.TrimSpace(att.URI); strings.HasPrefix(strings.ToLower(dataURI), "data:") {
-		payload, mimeType, err := decodeDataURI(dataURI)
-		if err != nil {
-			return "", "", err
-		}
-		if strings.TrimSpace(mimeType) == "" {
-			mimeType = mediaType
-		}
-		return base64.StdEncoding.EncodeToString(payload), mimeType, nil
-	}
-
-	return "", "", errors.New("attachment has no inline data; regenerate with inline data to write to sandbox")
-}
-
-func base64DecodedLen(payload string) int {
-	trimmed := strings.TrimSpace(payload)
-	if trimmed == "" {
-		return 0
-	}
-	if decoded, err := base64.StdEncoding.DecodeString(trimmed); err == nil {
-		return len(decoded)
-	}
-	return len(trimmed)
 }
