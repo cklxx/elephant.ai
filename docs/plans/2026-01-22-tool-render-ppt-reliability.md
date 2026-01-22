@@ -17,3 +17,5 @@
 
 ## Progress Log
 - 2026-01-22: Plan created.
+- 2026-01-22: Implemented tool-start rendering via `ToolOutputCard` for core events; added shared attachment resolver + TLS handshake tuning; wired resolver into `pptx_from_images` and `sandbox_write_attachment`; added tests for tool-start rendering and attachment resolver.
+- 2026-01-22: Ran `./dev.sh lint` and `./dev.sh test` (passes; happy-dom AbortError noise after vitest teardown).
