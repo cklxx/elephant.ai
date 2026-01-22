@@ -16,6 +16,8 @@ describe('ArtifactPreviewCard', () => {
 
   beforeEach(() => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
       text: vi.fn().mockResolvedValue('# Example Title\n\nBody content.'),
     } as unknown as Response);
   });
@@ -77,5 +79,32 @@ describe('ArtifactPreviewCard', () => {
     const table = within(dialog).getByRole('table');
     expect(table).toBeTruthy();
     expect(within(table).getByText('Alpha')).toBeTruthy();
+  });
+
+  it('opens HTML previews for inline data attachments', async () => {
+    const user = userEvent.setup();
+    const html = '<!doctype html><html><body><h1>Memory Game</h1></body></html>';
+    const htmlAttachment: AttachmentPayload = {
+      name: 'game.html',
+      description: 'Memory Game',
+      media_type: 'text/html',
+      format: 'html',
+      kind: 'artifact',
+      data: `data:text/html,${encodeURIComponent(html)}`,
+    };
+
+    const fetchMock = vi.mocked(globalThis.fetch);
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: vi.fn().mockResolvedValue(html),
+    } as unknown as Response);
+
+    render(<ArtifactPreviewCard attachment={htmlAttachment} />);
+
+    await user.click(screen.getByRole('button', { name: /preview memory game/i }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Preview' })).toBeTruthy();
   });
 });

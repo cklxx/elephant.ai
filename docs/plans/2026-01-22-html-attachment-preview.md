@@ -16,3 +16,5 @@
 ## Progress Log
 - 2026-01-22: Plan created.
 - 2026-01-22: Allowed HTML previews when an HTML source URI is available; adjusted dialog gating.
+- 2026-01-22: Added test for inline HTML data attachments.
+- 2026-01-22: Ran ./dev.sh lint and ./dev.sh test (happy-dom AbortError logs during teardown).
