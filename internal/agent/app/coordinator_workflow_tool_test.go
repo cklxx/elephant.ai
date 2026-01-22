@@ -199,3 +199,58 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		t.Fatalf("expected tool call step completion envelope")
 	}
 }
+
+func TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope(t *testing.T) {
+	llm := &mocks.MockLLMClient{CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		return &ports.CompletionResponse{
+			Content:    "final answer",
+			StopReason: "stop",
+			Usage:      ports.TokenUsage{TotalTokens: 3},
+		}, nil
+	}}
+
+	sessionStore := &stubSessionStore{}
+	listener := &capturingListener{}
+
+	coordinator := NewAgentCoordinator(
+		stubLLMFactory{client: llm},
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		nil,
+		&mocks.MockParser{},
+		nil,
+		Config{
+			LLMProvider:   "mock",
+			LLMModel:      "session-propagation",
+			MaxIterations: 1,
+			Temperature:   0.2,
+		},
+	)
+
+	ctx := ports.WithOutputContext(context.Background(), &ports.OutputContext{Level: ports.LevelCore})
+	_, err := coordinator.ExecuteTask(ctx, "test session propagation", "session-e2e", listener)
+	if err != nil {
+		t.Fatalf("ExecuteTask returned error: %v", err)
+	}
+
+	started := listener.envelopes("workflow.node.started")
+	if len(started) == 0 {
+		t.Fatalf("expected workflow.node.started envelopes to be emitted")
+	}
+
+	foundPrepare := false
+	for _, env := range started {
+		if env.NodeID != "prepare" {
+			continue
+		}
+		foundPrepare = true
+		if env.GetSessionID() != "session-e2e" {
+			t.Fatalf("expected prepare step session_id=session-e2e, got %q", env.GetSessionID())
+		}
+		break
+	}
+	if !foundPrepare {
+		t.Fatalf("expected prepare step envelope to be emitted")
+	}
+}

@@ -213,6 +213,23 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
 	outCtx := ports.GetOutputContext(ctx)
+	if outCtx == nil {
+		outCtx = &ports.OutputContext{Level: ports.LevelCore}
+	} else {
+		cloned := *outCtx
+		outCtx = &cloned
+	}
+	ids := id.IDsFromContext(ctx)
+	if outCtx.SessionID == "" {
+		outCtx.SessionID = ids.SessionID
+	}
+	if outCtx.TaskID == "" {
+		outCtx.TaskID = ids.TaskID
+	}
+	if outCtx.ParentTaskID == "" {
+		outCtx.ParentTaskID = ids.ParentTaskID
+	}
+	ctx = ports.WithOutputContext(ctx, outCtx)
 	c.logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
 	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
