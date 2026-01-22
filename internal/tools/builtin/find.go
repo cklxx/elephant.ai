@@ -28,12 +28,17 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		path = p
 	}
 
+	resolvedPath, err := resolveLocalPath(ctx, path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
 	maxDepth := 10
 	if md, ok := call.Arguments["max_depth"].(float64); ok {
 		maxDepth = int(md)
 	}
 
-	cmdArgs := t.buildArgs(call, path, maxDepth, name)
+	cmdArgs := t.buildArgs(call, resolvedPath, maxDepth, name)
 
 	cmd := exec.CommandContext(ctx, "find", cmdArgs...)
 	output, err := cmd.CombinedOutput()
@@ -44,17 +49,17 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		return &ports.ToolResult{CallID: call.ID, Content: string(output), Error: fmt.Errorf("find command failed: %w", err)}, nil
 	}
 
-	return t.processOutput(call, string(output), name, path, maxDepth)
+	return t.processOutput(call, string(output), name, path, resolvedPath, maxDepth)
 }
 
-func (t *find) processOutput(call ports.ToolCall, output, name, path string, maxDepth int) (*ports.ToolResult, error) {
+func (t *find) processOutput(call ports.ToolCall, output, name, path, resolvedPath string, maxDepth int) (*ports.ToolResult, error) {
 	lines := strings.Split(output, "\n")
 	var results []string
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		if relPath, err := filepath.Rel(path, line); err == nil && !strings.HasPrefix(relPath, "..") {
+		if relPath, err := filepath.Rel(resolvedPath, line); err == nil && !strings.HasPrefix(relPath, "..") {
 			results = append(results, relPath)
 		} else {
 			results = append(results, line)
@@ -81,12 +86,13 @@ func (t *find) processOutput(call ports.ToolCall, output, name, path string, max
 		CallID:  call.ID,
 		Content: content,
 		Metadata: map[string]any{
-			"pattern":   name,
-			"path":      path,
-			"matches":   len(results),
-			"max_depth": maxDepth,
-			"truncated": truncated,
-			"results":   results,
+			"pattern":       name,
+			"path":          path,
+			"resolved_path": resolvedPath,
+			"matches":       len(results),
+			"max_depth":     maxDepth,
+			"truncated":     truncated,
+			"results":       results,
 		},
 	}, nil
 }

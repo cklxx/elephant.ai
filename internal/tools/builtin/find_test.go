@@ -72,6 +72,8 @@ func TestFindExecute_DirectoriesOnly(t *testing.T) {
 	testDir := filepath.Join(tmpDir, "testsubdir")
 	_ = os.Mkdir(testDir, 0755)
 
+	ctx = WithWorkingDir(ctx, tmpDir)
+
 	call := ports.ToolCall{
 		ID:   "test-2",
 		Name: "find",

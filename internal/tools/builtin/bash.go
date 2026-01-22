@@ -25,17 +25,28 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'command'")}, nil
 	}
 
-	// Auto-prepend working directory if command doesn't start with 'cd'
-	// This ensures commands execute in the current working directory
-	if !strings.HasPrefix(strings.TrimSpace(command), "cd ") {
-		// Get current working directory
-		pwd, err := os.Getwd()
-		if err == nil && pwd != "" {
-			command = fmt.Sprintf("cd %q && %s", pwd, command)
-		}
+	workingDir, _ := os.Getwd()
+	script, err := os.CreateTemp("", "alex-bash-*.sh")
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to create temp script: %w", err)}, nil
+	}
+	defer func() { _ = os.Remove(script.Name()) }()
+
+	if _, err := script.WriteString(command); err != nil {
+		_ = script.Close()
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to write command script: %w", err)}, nil
+	}
+	if err := script.Close(); err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to close command script: %w", err)}, nil
+	}
+	if err := os.Chmod(script.Name(), 0o755); err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to chmod command script: %w", err)}, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "bash", "-c", command)
+	cmd := exec.CommandContext(ctx, "bash", script.Name())
+	if workingDir != "" {
+		cmd.Dir = workingDir
+	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf

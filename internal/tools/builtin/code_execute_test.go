@@ -227,7 +227,8 @@ func TestCodeExecute_CodePath(t *testing.T) {
 		t.Fatalf("failed to write temp script: %v", err)
 	}
 
-	result, err := tool.Execute(context.Background(), ports.ToolCall{
+	ctx := WithWorkingDir(context.Background(), tmpDir)
+	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID:   "test-code-path",
 		Name: "code_execute",
 		Arguments: map[string]any{

@@ -97,7 +97,22 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	extraMeta := map[string]any{}
 
 	if codePath != "" {
-		resolved := resolver.ResolvePath(codePath)
+		resolved, err := resolveLocalPath(ctx, codePath)
+		if err != nil {
+			return &ports.ToolResult{
+				CallID:  call.ID,
+				Content: fmt.Sprintf("Error: invalid code_path %s: %v", codePath, err),
+				Error:   err,
+				Metadata: map[string]any{
+					"success":         false,
+					"language":        language,
+					"code_path":       codePath,
+					"working_dir":     workingDir,
+					"error":           "code_path_invalid",
+					"code_provenance": "file",
+				},
+			}, nil
+		}
 		content, err := os.ReadFile(resolved)
 		if err != nil {
 			return &ports.ToolResult{
@@ -180,7 +195,11 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 
 	switch language {
 	case "python":
-		cmd := exec.CommandContext(execCtx, "python3", "-c", code)
+		tmpFile, _ := os.CreateTemp("", "alex-py-*.py")
+		defer func() { _ = os.Remove(tmpFile.Name()) }()
+		_, _ = tmpFile.WriteString(code)
+		_ = tmpFile.Close()
+		cmd := exec.CommandContext(execCtx, "python3", tmpFile.Name())
 		if workingDir != "" {
 			cmd.Dir = workingDir
 		}

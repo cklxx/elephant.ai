@@ -153,12 +153,14 @@ func CORSMiddleware(environment string, allowedOrigins []string) func(http.Handl
 				}
 			}
 
-			if origin != "" && (originAllowed || allowAny) {
+			if origin != "" && originAllowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				appendVary(w, "Origin")
-				if originAllowed || allowAny {
-					w.Header().Set("Access-Control-Allow-Credentials", "true")
-				}
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			} else if origin != "" && allowAny {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			}

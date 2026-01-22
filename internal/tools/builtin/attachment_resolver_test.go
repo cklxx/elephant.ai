@@ -30,7 +30,8 @@ func TestResolveAttachmentBytesFromContextURI(t *testing.T) {
 		},
 	}
 
-	ctx := ports.WithAttachmentContext(context.Background(), attachments, map[string]int{"slide1.png": 1})
+	ctx := WithAllowLocalFetch(context.Background())
+	ctx = ports.WithAttachmentContext(ctx, attachments, map[string]int{"slide1.png": 1})
 	bytesOut, mimeType, err := resolveAttachmentBytes(ctx, "[slide1.png]", server.Client())
 	if err != nil {
 		t.Fatalf("resolveAttachmentBytes: %v", err)
@@ -51,7 +52,7 @@ func TestResolveAttachmentBytesFromURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bytesOut, mimeType, err := resolveAttachmentBytes(context.Background(), server.URL+"/frame.png", server.Client())
+	bytesOut, mimeType, err := resolveAttachmentBytes(WithAllowLocalFetch(context.Background()), server.URL+"/frame.png", server.Client())
 	if err != nil {
 		t.Fatalf("resolveAttachmentBytes: %v", err)
 	}
@@ -79,7 +80,8 @@ func TestResolveAttachmentBytesPrefersResponseContentType(t *testing.T) {
 		},
 	}
 
-	ctx := ports.WithAttachmentContext(context.Background(), attachments, map[string]int{"frame.png": 1})
+	ctx := WithAllowLocalFetch(context.Background())
+	ctx = ports.WithAttachmentContext(ctx, attachments, map[string]int{"frame.png": 1})
 	bytesOut, mimeType, err := resolveAttachmentBytes(ctx, "[frame.png]", server.Client())
 	if err != nil {
 		t.Fatalf("resolveAttachmentBytes: %v", err)

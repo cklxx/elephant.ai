@@ -70,11 +70,11 @@ func TestCORSMiddlewareAllowsAllOriginsInNonProduction(t *testing.T) {
 
 	wrapped.ServeHTTP(rec, req)
 
-	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://example.dev" {
-		t.Fatalf("expected origin echoed in non-production, got %q", got)
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Fatalf("expected wildcard origin in non-production, got %q", got)
 	}
-	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
-		t.Fatalf("expected credentials header even in non-production, got %q", got)
+	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "" {
+		t.Fatalf("expected no credentials header for wildcard origin, got %q", got)
 	}
 }
 

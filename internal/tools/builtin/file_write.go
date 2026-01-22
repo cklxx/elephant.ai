@@ -34,12 +34,15 @@ func (t *fileWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'content'")}, nil
 	}
 
-	return t.executeLocal(call, path, content), nil
+	resolved, err := resolveLocalPath(ctx, path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
+	return t.executeLocal(call, path, resolved, content), nil
 }
 
-func (t *fileWrite) executeLocal(call ports.ToolCall, path, content string) *ports.ToolResult {
-	resolved := filepath.Clean(path)
-
+func (t *fileWrite) executeLocal(call ports.ToolCall, path, resolved, content string) *ports.ToolResult {
 	if err := ensureParentDirectory(resolved); err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}
 	}
@@ -65,7 +68,8 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, content string) *por
 		CallID:  call.ID,
 		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), resolved),
 		Metadata: map[string]any{
-			"path":           resolved,
+			"path":           path,
+			"resolved_path":  resolved,
 			"chars":          len(content),
 			"lines":          lines,
 			"content_len":    len(content),

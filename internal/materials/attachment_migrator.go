@@ -28,6 +28,7 @@ type AttachmentStoreMigrator struct {
 	logger        logging.Logger
 	cdnBase       string
 	maxFetchBytes int64
+	allowLocal    bool
 }
 
 const defaultMaxFetchBytes = int64(25 << 20) // 25 MiB
@@ -155,7 +156,15 @@ func (m *AttachmentStoreMigrator) fetchRemote(ctx context.Context, uri, mediaTyp
 	if requestCtx == nil {
 		requestCtx = context.Background()
 	}
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, uri, nil)
+	opts := httpclient.DefaultURLValidationOptions()
+	if m.allowLocal {
+		opts.AllowLocalhost = true
+	}
+	parsed, err := httpclient.ValidateOutboundURL(uri, opts)
+	if err != nil {
+		return nil, "", err
+	}
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return nil, "", err
 	}

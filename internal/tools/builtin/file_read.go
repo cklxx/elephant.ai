@@ -21,7 +21,12 @@ func (t *fileRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'path'")}, nil
 	}
 
-	content, err := os.ReadFile(path)
+	resolved, err := resolveLocalPath(ctx, path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
+	content, err := os.ReadFile(resolved)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

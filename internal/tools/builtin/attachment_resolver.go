@@ -181,7 +181,15 @@ func fetchAttachmentBytes(ctx context.Context, client *http.Client, uri string, 
 	if requestCtx == nil {
 		requestCtx = context.Background()
 	}
-	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, uri, nil)
+	opts := httpclient.DefaultURLValidationOptions()
+	if allowLocalFetch(ctx) {
+		opts.AllowLocalhost = true
+	}
+	parsed, err := httpclient.ValidateOutboundURL(uri, opts)
+	if err != nil {
+		return nil, "", err
+	}
+	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return nil, "", err
 	}

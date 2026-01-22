@@ -36,8 +36,10 @@ func (t *fileEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	// Resolve path (handle relative paths)
-	resolver := GetPathResolverFromContext(ctx)
-	resolvedPath := resolver.ResolvePath(filePath)
+	resolvedPath, err := resolveLocalPath(ctx, filePath)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
 
 	// Handle new file creation case (empty old_string)
 	if oldString == "" {

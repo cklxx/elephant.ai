@@ -31,9 +31,6 @@ func TestBashExecuteSuccess(t *testing.T) {
 	if !strings.HasSuffix(command, "printf 'hello'") {
 		t.Fatalf("expected command to include original payload, got %q", command)
 	}
-	if !strings.HasPrefix(command, "cd ") {
-		t.Fatalf("expected command to include working directory prefix, got %q", command)
-	}
 
 	if stdout, ok := result.Metadata["stdout"].(string); !ok || stdout != "hello" {
 		t.Fatalf("expected stdout metadata 'hello', got %v", result.Metadata["stdout"])
