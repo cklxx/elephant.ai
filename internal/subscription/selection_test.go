@@ -41,3 +41,20 @@ func TestResolveSelectionIgnoresYamlMode(t *testing.T) {
 		t.Fatalf("expected yaml selection to be ignored")
 	}
 }
+
+func TestResolveSelectionForOllama(t *testing.T) {
+	t.Setenv("OLLAMA_BASE_URL", "http://localhost:11434")
+	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials { return runtimeconfig.CLICredentials{} })
+
+	selection := Selection{Mode: "cli", Provider: "ollama", Model: "llama3:latest", Source: "ollama"}
+	resolved, ok := resolver.Resolve(selection)
+	if !ok {
+		t.Fatalf("expected selection to resolve")
+	}
+	if resolved.Provider != "ollama" || resolved.Model != "llama3:latest" {
+		t.Fatalf("unexpected resolution: %#v", resolved)
+	}
+	if resolved.BaseURL != "http://localhost:11434" {
+		t.Fatalf("expected base url from env, got %q", resolved.BaseURL)
+	}
+}

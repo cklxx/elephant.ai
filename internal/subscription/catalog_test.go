@@ -113,6 +113,41 @@ func TestFetchProviderModelsUsesAntigravityEndpoint(t *testing.T) {
 	}
 }
 
+func TestParseOllamaModelList(t *testing.T) {
+	input := []byte(`{"models":[{"name":"llama3:latest"},{"model":"phi3"},"mistral"]}`)
+	models, err := parseOllamaModelList(input)
+	if err != nil {
+		t.Fatalf("parse error: %v", err)
+	}
+	if len(models) != 3 {
+		t.Fatalf("expected 3 models, got %#v", models)
+	}
+	if models[0] != "llama3:latest" || models[1] != "mistral" || models[2] != "phi3" {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+}
+
+func TestFetchOllamaModelsUsesTagsEndpoint(t *testing.T) {
+	var gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"models":[{"name":"llama3:latest"}]}`))
+	}))
+	defer srv.Close()
+
+	models, err := fetchOllamaModels(context.Background(), srv.Client(), srv.URL)
+	if err != nil {
+		t.Fatalf("fetch error: %v", err)
+	}
+	if gotPath != "/api/tags" {
+		t.Fatalf("expected /api/tags, got %q", gotPath)
+	}
+	if len(models) != 1 || models[0] != "llama3:latest" {
+		t.Fatalf("unexpected models: %#v", models)
+	}
+}
+
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripFunc) RoundTrip(req *http.Request) (*http.Response, error) {

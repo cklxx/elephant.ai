@@ -29,6 +29,7 @@ const SOURCE_LABELS: Record<string, string> = {
   codex_cli: "codex-cli",
   claude_cli: "claude-cli",
   antigravity_cli: "antigravity-cli",
+  ollama: "ollama",
 };
 
 type ModelsState = "idle" | "loading" | "error";
@@ -167,13 +168,13 @@ export function LLMIndicator() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          CLI subscription models
+          Available models
         </DropdownMenuLabel>
         <div className="space-y-2 px-2 pb-2 text-xs text-muted-foreground">
           {modelsState === "loading" && <div>Loading models...</div>}
           {modelsState === "error" && <div>Failed to load models.</div>}
           {modelsState === "idle" && modelProviders.length === 0 && (
-            <div>No CLI subscription models found.</div>
+            <div>No models found.</div>
           )}
         </div>
         {modelProviders.map((providerEntry) => (
