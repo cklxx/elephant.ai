@@ -341,7 +341,7 @@ export function ArtifactPreviewCard({
       (asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim(),
     )?.cdn_url ?? null;
 
-  const canInlinePreview = Boolean(htmlAsset) || isMarkdown;
+  const canInlinePreview = isMarkdown || (isHTML && Boolean(htmlSourceUri));
 
   const normalizedMarkdown = useMemo(() => {
     if (!markdownPreview) return null;
@@ -853,7 +853,7 @@ export function ArtifactPreviewCard({
                       Preview unavailable.
                     </div>
                   )
-                ) : htmlAsset ? (
+                ) : isHTML ? (
                   <div className="w-full space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
