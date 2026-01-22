@@ -114,8 +114,7 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 			}, nil
 		}
 		// resolveLocalPath guarantees resolved stays within the working directory.
-		// lgtm[go/path-injection]
-		content, err := os.ReadFile(resolved)
+		content, err := os.ReadFile(resolved) // lgtm[go/path-injection]
 		if err != nil {
 			return &ports.ToolResult{
 				CallID:  call.ID,
@@ -202,8 +201,7 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		_, _ = tmpFile.WriteString(code)
 		_ = tmpFile.Close()
 		// Command is fixed and arguments are not shell-interpreted.
-		// lgtm[go/command-injection]
-		cmd := exec.CommandContext(execCtx, "python3", tmpFile.Name())
+		cmd := exec.CommandContext(execCtx, "python3", tmpFile.Name()) // lgtm[go/command-injection]
 		if workingDir != "" {
 			cmd.Dir = workingDir
 		}
@@ -215,8 +213,7 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		tmpFile := filepath.Join(tmpDir, "main.go")
 		_ = os.WriteFile(tmpFile, []byte(code), 0644)
 		// Command is fixed and arguments are not shell-interpreted.
-		// lgtm[go/command-injection]
-		cmd := exec.CommandContext(execCtx, "go", "run", tmpFile)
+		cmd := exec.CommandContext(execCtx, "go", "run", tmpFile) // lgtm[go/command-injection]
 		if workingDir != "" {
 			cmd.Dir = workingDir
 		}
@@ -228,8 +225,7 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		_, _ = tmpFile.WriteString(code)
 		_ = tmpFile.Close()
 		// Command is fixed and arguments are not shell-interpreted.
-		// lgtm[go/command-injection]
-		cmd := exec.CommandContext(execCtx, "node", tmpFile.Name())
+		cmd := exec.CommandContext(execCtx, "node", tmpFile.Name()) // lgtm[go/command-injection]
 		if workingDir != "" {
 			cmd.Dir = workingDir
 		}
@@ -245,8 +241,7 @@ func executeLocally(ctx context.Context, call ports.ToolCall, language, code str
 		_ = tmpFile.Close()
 		_ = os.Chmod(tmpFile.Name(), 0755)
 		// Command is fixed and arguments are not shell-interpreted.
-		// lgtm[go/command-injection]
-		cmd := exec.CommandContext(execCtx, "bash", tmpFile.Name())
+		cmd := exec.CommandContext(execCtx, "bash", tmpFile.Name()) // lgtm[go/command-injection]
 		if workingDir != "" {
 			cmd.Dir = workingDir
 		}

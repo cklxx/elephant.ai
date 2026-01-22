@@ -55,29 +55,25 @@ func (t *fileEdit) createNewFile(callID, filePath, resolvedPath, content string)
 	// Create parent directories if needed
 	dir := filepath.Dir(resolvedPath)
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil { // lgtm[go/path-injection]
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to create directories: %w", err)}, nil
 	}
 
 	// Check if file already exists
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	if _, err := os.Stat(resolvedPath); err == nil {
+	if _, err := os.Stat(resolvedPath); err == nil { // lgtm[go/path-injection]
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("file already exists: %s", filePath)}, nil
 	}
 
 	// Write new file
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	err := os.WriteFile(resolvedPath, []byte(content), 0644)
+	err := os.WriteFile(resolvedPath, []byte(content), 0644) // lgtm[go/path-injection]
 	if err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to create file: %w", err)}, nil
 	}
 
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	fileInfo, _ := os.Stat(resolvedPath)
+	fileInfo, _ := os.Stat(resolvedPath) // lgtm[go/path-injection]
 	lineCount := len(strings.Split(content, "\n"))
 
 	// Generate diff for new file
@@ -105,15 +101,13 @@ func (t *fileEdit) createNewFile(callID, filePath, resolvedPath, content string)
 func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, newString string) (*ports.ToolResult, error) {
 	// Check if file exists
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
+	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) { // lgtm[go/path-injection]
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("file does not exist: %s", filePath)}, nil
 	}
 
 	// Read file content
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	content, err := os.ReadFile(resolvedPath)
+	content, err := os.ReadFile(resolvedPath) // lgtm[go/path-injection]
 	if err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to read file: %w", err)}, nil
 	}
@@ -137,16 +131,14 @@ func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, n
 
 	// Write the modified content
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
+	err = os.WriteFile(resolvedPath, []byte(newContent), 0644) // lgtm[go/path-injection]
 	if err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to write file: %w", err)}, nil
 	}
 
 	// Get file info after writing
 	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	// lgtm[go/path-injection]
-	fileInfo, _ := os.Stat(resolvedPath)
+	fileInfo, _ := os.Stat(resolvedPath) // lgtm[go/path-injection]
 	newLineCount := len(strings.Split(newContent, "\n"))
 	sum := sha256.Sum256([]byte(newContent))
 

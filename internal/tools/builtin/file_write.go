@@ -48,8 +48,7 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, resolved, content st
 	}
 
 	// resolveLocalPath guarantees resolved stays within the working directory.
-	// lgtm[go/path-injection]
-	if err := os.WriteFile(resolved, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(resolved, []byte(content), 0644); err != nil { // lgtm[go/path-injection]
 		return &ports.ToolResult{CallID: call.ID, Error: err}
 	}
 
@@ -107,6 +106,5 @@ func ensureParentDirectory(path string) error {
 		return nil
 	}
 	// resolveLocalPath guarantees resolved stays within the working directory.
-	// lgtm[go/path-injection]
-	return os.MkdirAll(dir, 0o755)
+	return os.MkdirAll(dir, 0o755) // lgtm[go/path-injection]
 }

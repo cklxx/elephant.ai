@@ -355,8 +355,7 @@ func fetchHTML(ctx context.Context, uri string) (string, error) {
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	// URL is validated by ValidateOutboundURL before request construction.
-	// lgtm[go/ssrf]
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil) // lgtm[go/ssrf]
 	if err != nil {
 		return "", err
 	}

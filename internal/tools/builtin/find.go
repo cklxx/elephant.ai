@@ -41,8 +41,7 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 	cmdArgs := t.buildArgs(call, resolvedPath, maxDepth, name)
 
 	// Command is fixed and args are passed without shell expansion.
-	// lgtm[go/command-injection]
-	cmd := exec.CommandContext(ctx, "find", cmdArgs...)
+	cmd := exec.CommandContext(ctx, "find", cmdArgs...) // lgtm[go/command-injection]
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
