@@ -10,6 +10,31 @@ import urllib.request
 import uuid
 
 
+def resolve_default_addr():
+    env_addr = os.getenv("ACP_ADDR") or os.getenv("ACP_SERVER_ADDR")
+    if env_addr:
+        return env_addr
+
+    host = os.getenv("ACP_HOST") or os.getenv("ACP_SERVER_HOST") or "127.0.0.1"
+    port_file = os.getenv("ACP_PORT_FILE")
+    if not port_file:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        repo_root = os.path.dirname(script_dir)
+        port_file = os.path.join(repo_root, ".pids", "acp.port")
+
+    port = ""
+    try:
+        with open(port_file, "r", encoding="utf-8") as handle:
+            port = handle.read().strip()
+    except FileNotFoundError:
+        port = ""
+
+    if port:
+        return f"http://{host}:{port}"
+
+    return "http://127.0.0.1:9000"
+
+
 def normalize_base_url(raw):
     raw = raw.strip()
     if not raw:
@@ -70,18 +95,28 @@ def read_response(out_queue, want_id, timeout=10):
     raise SystemExit(f"timeout waiting for response id={want_id}")
 
 
+def resolve_default_cwds():
+    env_cwd = os.getenv("ACP_CWD")
+    if env_cwd:
+        return [os.path.abspath(env_cwd)]
+    return ["/workspace", os.getcwd()]
+
+
 def main():
     parser = argparse.ArgumentParser(description="ACP smoke test client (HTTP/SSE JSON-RPC)")
-    parser.add_argument("--addr", default="http://127.0.0.1:9000", help="ACP server base URL")
-    parser.add_argument("--cwd", default=os.getcwd(), help="Session working directory")
+    parser.add_argument(
+        "--addr",
+        default="",
+        help="ACP server base URL (defaults to ACP_ADDR/ACP_SERVER_ADDR or .pids/acp.port)",
+    )
+    parser.add_argument("--cwd", default=None, help="Session working directory")
     parser.add_argument("--prompt", default="Hello ACP", help="Prompt text")
     args = parser.parse_args()
 
-    if not os.path.isabs(args.cwd):
-        print("cwd must be absolute")
-        return 2
-
-    base_url = normalize_base_url(args.addr)
+    addr = args.addr.strip() if args.addr else ""
+    if not addr:
+        addr = resolve_default_addr()
+    base_url = normalize_base_url(addr)
     client_id = uuid.uuid4().hex
     sse_url = f"{base_url}/acp/sse?client_id={urllib.parse.quote(client_id)}"
     rpc_url = f"{base_url}/acp/rpc?client_id={urllib.parse.quote(client_id)}"
@@ -100,30 +135,43 @@ def main():
     if not ready_event.wait(timeout=5):
         raise SystemExit("failed to establish SSE connection")
 
-    post_json(rpc_url, {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": 1}})
-    print("<<", read_response(out_queue, 1))
+    request_id = 1
+    post_json(rpc_url, {"jsonrpc": "2.0", "id": request_id, "method": "initialize", "params": {"protocolVersion": 1}})
+    print("<<", read_response(out_queue, request_id))
 
-    post_json(
-        rpc_url,
-        {
-            "jsonrpc": "2.0",
-            "id": 2,
-            "method": "session/new",
-            "params": {"cwd": args.cwd, "mcpServers": []},
-        },
-    )
-    resp = read_response(out_queue, 2)
-    print("<<", resp)
-    session_id = resp.get("result", {}).get("sessionId")
+    request_id += 1
+    session_id = None
+    cwd_candidates = [os.path.abspath(args.cwd)] if args.cwd else resolve_default_cwds()
+    for cwd in cwd_candidates:
+        post_json(
+            rpc_url,
+            {
+                "jsonrpc": "2.0",
+                "id": request_id,
+                "method": "session/new",
+                "params": {"cwd": cwd, "mcpServers": []},
+            },
+        )
+        resp = read_response(out_queue, request_id)
+        print("<<", resp)
+        if "error" in resp:
+            request_id += 1
+            continue
+        session_id = resp.get("result", {}).get("sessionId")
+        if session_id:
+            break
+        request_id += 1
+
     if not session_id:
         print("sessionId missing")
         return 2
 
+    request_id += 1
     post_json(
         rpc_url,
         {
             "jsonrpc": "2.0",
-            "id": 3,
+            "id": request_id,
             "method": "session/prompt",
             "params": {"sessionId": session_id, "prompt": [{"type": "text", "text": args.prompt}]},
         },
@@ -132,7 +180,7 @@ def main():
     while True:
         msg = out_queue.get()
         print("<<", msg)
-        if msg.get("id") == 3:
+        if msg.get("id") == request_id:
             break
 
     stop_event.set()
