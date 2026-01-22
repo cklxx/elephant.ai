@@ -268,3 +268,12 @@ go test -coverprofile=coverage.out ./...
   - SWE-Bench documentation in evaluation/swe_bench/
 
 If you need to adapt ALEX for your environment, start with make dev-robust and customize internal/config manager to fit your infrastructure.
+
+## Tool Workspace and Path Safety
+
+Local file and search tools (for example: file_read, file_write, file_edit, list_files, find, grep, ripgrep, code_execute with code_path, and bash) operate within the process working directory.
+
+- Relative paths resolve against the working directory.
+- Absolute paths outside the working directory are rejected.
+- To run tools against a specific repo, start the CLI or server from that repo directory.
+- Sandbox tools continue to use the sandbox workspace (default: /workspace).

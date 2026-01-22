@@ -26,13 +26,22 @@ func (t *grep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		path = "."
 	}
 
-	cmd := exec.CommandContext(ctx, "grep", "-r", "-n", pattern, path)
+	resolvedPath, err := resolveLocalPath(ctx, path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
+	cmd := exec.CommandContext(ctx, "grep", "-r", "-n", pattern, resolvedPath)
 	output, err := cmd.CombinedOutput()
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: string(output),
 		Error:   err,
+		Metadata: map[string]any{
+			"path":          path,
+			"resolved_path": resolvedPath,
+		},
 	}, nil
 }
 

@@ -118,3 +118,24 @@ Object.assign(console, {
   warn: vi.fn(),
   error: vi.fn(),
 });
+
+const defaultFetch = vi.fn(async (input: RequestInfo | URL) => {
+  const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+  return {
+    ok: true,
+    status: 204,
+    statusText: "No Content",
+    url,
+    headers: new Headers(),
+    text: async () => "",
+    json: async () => ({}),
+    arrayBuffer: async () => new ArrayBuffer(0),
+    blob: async () => new Blob([]),
+  } as Response;
+});
+
+Object.defineProperty(globalThis, "fetch", {
+  value: defaultFetch,
+  writable: true,
+  configurable: true,
+});

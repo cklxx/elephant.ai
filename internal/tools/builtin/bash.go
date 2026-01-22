@@ -25,7 +25,8 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'command'")}, nil
 	}
 
-	workingDir, _ := os.Getwd()
+	resolver := GetPathResolverFromContext(ctx)
+	workingDir := resolver.ResolvePath(".")
 	script, err := os.CreateTemp("", "alex-bash-*.sh")
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to create temp script: %w", err)}, nil

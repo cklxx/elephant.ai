@@ -30,6 +30,11 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		path = p
 	}
 
+	resolvedPath, err := resolveLocalPath(ctx, path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
 	ignoreCase := false
 	if ic, ok := call.Arguments["ignore_case"].(bool); ok {
 		ignoreCase = ic
@@ -40,7 +45,7 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		maxResults = int(mr)
 	}
 
-	cmdArgs := t.buildArgs(call, pattern, path, ignoreCase)
+	cmdArgs := t.buildArgs(call, pattern, resolvedPath, ignoreCase)
 
 	if !t.hasRipgrep() {
 		return &ports.ToolResult{
@@ -61,10 +66,10 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		}, nil
 	}
 
-	return t.processOutput(call, string(output), pattern, path, ignoreCase, maxResults)
+	return t.processOutput(call, string(output), pattern, path, resolvedPath, ignoreCase, maxResults)
 }
 
-func (t *ripgrep) processOutput(call ports.ToolCall, output string, pattern, path string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
+func (t *ripgrep) processOutput(call ports.ToolCall, output string, pattern, path, resolvedPath string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
 	lines := strings.Split(output, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
@@ -108,6 +113,7 @@ func (t *ripgrep) processOutput(call ports.ToolCall, output string, pattern, pat
 		Metadata: map[string]any{
 			"pattern":              pattern,
 			"path":                 path,
+			"resolved_path":        resolvedPath,
 			"matches":              len(lines),
 			"original_matches":     originalMatchCount,
 			"ignore_case":          ignoreCase,
