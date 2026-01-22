@@ -262,6 +262,13 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
+			name:      "full blocks sandbox_code_execute in cli mode",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetFull,
+			toolName:  "sandbox_code_execute",
+			wantAllow: false,
+		},
+		{
 			name:      "read-only allows vision_analyze",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
@@ -322,6 +329,13 @@ func TestToolPresetBlocking(t *testing.T) {
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSandbox,
 			toolName:  "sandbox_shell_exec",
+			wantAllow: false,
+		},
+		{
+			name:      "sandbox blocks sandbox_code_execute",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetSandbox,
+			toolName:  "sandbox_code_execute",
 			wantAllow: false,
 		},
 		{

@@ -460,6 +460,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["sandbox_file_search"] = builtin.NewSandboxFileSearch(sandboxConfig)
 	r.static["sandbox_file_replace"] = builtin.NewSandboxFileReplace(sandboxConfig)
 	r.static["sandbox_shell_exec"] = builtin.NewSandboxShellExec(sandboxConfig)
+	r.static["sandbox_code_execute"] = builtin.NewSandboxCodeExecute(sandboxConfig)
 	r.static["sandbox_write_attachment"] = builtin.NewSandboxWriteAttachment(sandboxConfig)
 
 	return nil

@@ -18,8 +18,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	"alex/internal/attachments"
-	"alex/internal/config"
 	"alex/internal/httpclient"
 	"alex/internal/logging"
 	"alex/internal/materials"
@@ -1142,40 +1140,7 @@ var (
 
 func seedreamAttachmentUploader() (*materials.AttachmentStoreMigrator, error) {
 	seedreamUploaderOnce.Do(func() {
-		fileCfg, _, err := config.LoadFileConfig(config.WithEnv(config.DefaultEnvLookup))
-		if err != nil {
-			seedreamUploaderErr = err
-			return
-		}
-		if fileCfg.Attachments == nil {
-			return
-		}
-		raw := fileCfg.Attachments
-		cfg := attachments.StoreConfig{
-			Provider:                  strings.TrimSpace(raw.Provider),
-			Dir:                       strings.TrimSpace(raw.Dir),
-			CloudflareAccountID:       strings.TrimSpace(raw.CloudflareAccountID),
-			CloudflareAccessKeyID:     strings.TrimSpace(raw.CloudflareAccessKeyID),
-			CloudflareSecretAccessKey: strings.TrimSpace(raw.CloudflareSecretAccessKey),
-			CloudflareBucket:          strings.TrimSpace(raw.CloudflareBucket),
-			CloudflarePublicBaseURL:   strings.TrimSpace(raw.CloudflarePublicBaseURL),
-			CloudflareKeyPrefix:       strings.TrimSpace(raw.CloudflareKeyPrefix),
-		}
-		if ttlRaw := strings.TrimSpace(raw.PresignTTL); ttlRaw != "" {
-			if parsed, err := time.ParseDuration(ttlRaw); err == nil && parsed > 0 {
-				cfg.PresignTTL = parsed
-			}
-		}
-		cfg = attachments.NormalizeConfig(cfg)
-
-		store, err := attachments.NewStore(cfg)
-		if err != nil {
-			seedreamUploaderErr = err
-			return
-		}
-
-		client := httpclient.New(seedreamAssetHTTPTimeout, logging.NewComponentLogger("SeedreamUpload"))
-		seedreamUploader = materials.NewAttachmentStoreMigrator(store, client, cfg.CloudflarePublicBaseURL, logging.NewComponentLogger("SeedreamUpload"))
+		seedreamUploader, seedreamUploaderErr = buildAttachmentStoreMigrator("SeedreamUpload", seedreamAssetHTTPTimeout)
 	})
 	return seedreamUploader, seedreamUploaderErr
 }

@@ -49,6 +49,7 @@ var (
 		"sandbox_file_search":        true,
 		"sandbox_file_replace":       true,
 		"sandbox_shell_exec":         true,
+		"sandbox_code_execute":       true,
 		"sandbox_write_attachment":   true,
 	}
 	webDeniedTools = map[string]bool{
