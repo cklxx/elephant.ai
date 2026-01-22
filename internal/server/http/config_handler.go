@@ -201,7 +201,7 @@ func defaultCatalogService(resolver RuntimeConfigResolver) SubscriptionCatalogSe
 		if baseURL, source := resolveOllamaEnvTarget(); baseURL != "" {
 			return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
 		}
-		return subscription.OllamaTarget{}, false
+		return subscription.OllamaTarget{Source: string(runtimeconfig.SourceDefault)}, true
 	}))
 }
 
