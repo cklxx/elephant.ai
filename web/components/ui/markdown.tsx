@@ -4,4 +4,4 @@
  * Keeps backwards compatibility with previous import path.
  */
 
-export * from "./markdown";
+export * from "./markdown/index";

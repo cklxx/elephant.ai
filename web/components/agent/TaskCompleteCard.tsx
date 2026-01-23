@@ -5,4 +5,4 @@
  * TaskCompleteCard is split into focused modules under TaskCompleteCard/.
  */
 
-export { TaskCompleteCard } from "./TaskCompleteCard";
+export { TaskCompleteCard } from "./TaskCompleteCard/index";
