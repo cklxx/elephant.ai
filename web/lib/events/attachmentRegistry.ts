@@ -1,11 +1,12 @@
 import {
   AnyAgentEvent,
   AttachmentPayload,
+  WorkflowArtifactManifestEvent,
   WorkflowResultFinalEvent,
   WorkflowToolCompletedEvent,
   WorkflowInputReceivedEvent,
-  eventMatches,
 } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 
 type AttachmentMap = Record<string, AttachmentPayload>;
 type AttachmentVisibility = 'default' | 'recalled';
@@ -374,7 +375,7 @@ class AttachmentRegistry {
         this.upsertMany((event as WorkflowInputReceivedEvent).attachments ?? undefined, eventTimestamp);
         break;
       }
-      case eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed'): {
+      case isEventType(event, 'workflow.tool.completed'): {
         const toolEvent = event as WorkflowToolCompletedEvent;
         const normalizedAttachments = normalizeAttachmentMap(
           toolEvent.attachments as AttachmentMap | undefined,
@@ -415,7 +416,32 @@ class AttachmentRegistry {
         }
         break;
       }
-      case eventMatches(event, 'workflow.result.final', 'workflow.result.final'): {
+      case isEventType(event, 'workflow.artifact.manifest'): {
+        const manifestEvent = event as WorkflowArtifactManifestEvent;
+        const payload =
+          manifestEvent.payload &&
+          typeof manifestEvent.payload === 'object' &&
+          !Array.isArray(manifestEvent.payload)
+            ? (manifestEvent.payload as Record<string, any>)
+            : null;
+        const manifest =
+          manifestEvent.manifest ??
+          (payload?.manifest as Record<string, any> | undefined) ??
+          payload;
+        const attachments = normalizeAttachmentMap(
+          (manifestEvent.attachments as AttachmentMap | undefined) ??
+            (payload?.attachments as AttachmentMap | undefined) ??
+            (manifest && typeof manifest === 'object'
+              ? (manifest as Record<string, any>).attachments
+              : undefined),
+        );
+        if (attachments) {
+          this.recordToolAttachments(attachments, eventTimestamp);
+          this.upsertMany(attachments, eventTimestamp);
+        }
+        break;
+      }
+      case isEventType(event, 'workflow.result.final'): {
         const taskEvent = event as WorkflowResultFinalEvent;
         const displayedSnapshot = new Set(this.displayedByTool);
         const normalized = normalizeAttachmentMap(taskEvent.attachments as AttachmentMap | undefined);

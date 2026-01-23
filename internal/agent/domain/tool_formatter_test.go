@@ -27,6 +27,15 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			wants: []string{"language=python", "lines=2", "chars="},
 		},
 		{
+			name:     "sandbox code execute with code",
+			toolName: "sandbox_code_execute",
+			args: map[string]any{
+				"language": "python",
+				"code":     "print('hello')\nprint('world')",
+			},
+			wants: []string{"language=python", "lines=2", "chars="},
+		},
+		{
 			name:     "code execute without code",
 			toolName: "code_execute",
 			args:     map[string]any{"language": "go"},

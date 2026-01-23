@@ -12,7 +12,6 @@ import (
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
-	"alex/internal/agent/presets"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
 	"alex/internal/logging"
@@ -55,14 +54,6 @@ type ServerCoordinator struct {
 	// Cancel function map for task cancellation support
 	cancelFuncs map[string]context.CancelCauseFunc
 	cancelMu    sync.RWMutex
-}
-
-func (s *ServerCoordinator) isWebMode() bool {
-	if s.agentCoordinator == nil {
-		return false
-	}
-	config := s.agentCoordinator.GetConfig()
-	return strings.EqualFold(strings.TrimSpace(config.ToolMode), string(presets.ToolModeWeb))
 }
 
 // ContextSnapshotRecord captures a snapshot of the messages sent to the LLM.
@@ -144,14 +135,7 @@ func WithObservability(obs *observability.Observability) ServerCoordinatorOption
 // ExecuteTaskAsync executes a task asynchronously and streams events via SSE
 // Returns immediately with the task record, spawns background goroutine for execution
 func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
-	logToolPreset := toolPreset
-	if s.isWebMode() {
-		logToolPreset = ""
-	}
-	s.logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, logToolPreset)
-	if s.isWebMode() {
-		toolPreset = ""
-	}
+	s.logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, toolPreset)
 
 	// CRITICAL FIX: Get or create session SYNCHRONOUSLY before creating task
 	// This ensures we have a confirmed session ID for the task record and broadcaster mapping
@@ -289,16 +273,12 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	_ = s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusRunning)
 
 	// Add presets to context for the agent coordinator
-	if agentPreset != "" || (toolPreset != "" && !s.isWebMode()) {
+	if agentPreset != "" || toolPreset != "" {
 		ctx = context.WithValue(ctx, agentApp.PresetContextKey{}, agentApp.PresetConfig{
 			AgentPreset: agentPreset,
 			ToolPreset:  toolPreset,
 		})
-		logToolPreset := toolPreset
-		if s.isWebMode() {
-			logToolPreset = ""
-		}
-		s.logger.Info("[Background] Using presets: agent=%s, tool=%s", agentPreset, logToolPreset)
+		s.logger.Info("[Background] Using presets: agent=%s, tool=%s", agentPreset, toolPreset)
 	}
 
 	// Execute task with broadcaster as event listener
@@ -349,7 +329,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		if agentPreset != "" {
 			props["agent_preset"] = agentPreset
 		}
-		if toolPreset != "" && !s.isWebMode() {
+		if toolPreset != "" {
 			props["tool_preset"] = toolPreset
 		}
 		s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionCancelled, props)
@@ -381,7 +361,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		if agentPreset != "" {
 			props["agent_preset"] = agentPreset
 		}
-		if toolPreset != "" && !s.isWebMode() {
+		if toolPreset != "" {
 			props["tool_preset"] = toolPreset
 		}
 		s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionFailed, props)
@@ -405,7 +385,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	if agentPreset != "" {
 		props["agent_preset"] = agentPreset
 	}
-	if toolPreset != "" && !s.isWebMode() {
+	if toolPreset != "" {
 		props["tool_preset"] = toolPreset
 	}
 	if result.StopReason != "" {

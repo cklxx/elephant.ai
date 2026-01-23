@@ -4,12 +4,13 @@
 import React from "react";
 import {
   AnyAgentEvent,
+  WorkflowArtifactManifestEvent,
   WorkflowToolCompletedEvent,
   WorkflowToolStartedEvent,
   WorkflowNodeOutputSummaryEvent,
   WorkflowResultFinalEvent,
-  eventMatches,
 } from "@/lib/types";
+import { isEventType } from "@/lib/events/matching";
 import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
 import { ToolOutputCard } from "../ToolOutputCard";
@@ -105,7 +106,10 @@ export const EventLine = React.memo(function EventLine({
           )}
 
           {mediaSegments.length > 0 && (
-            <div className="w-full grid grid-cols-2 gap-2">
+            <div
+              className="w-full grid grid-cols-[repeat(auto-fit,minmax(220px,1fr))] gap-2"
+              data-testid="event-input-media"
+            >
               {mediaSegments.map((segment, index) => {
                 if (!segment.attachment) return null;
                 const uri = buildAttachmentUri(segment.attachment);
@@ -158,6 +162,90 @@ export const EventLine = React.memo(function EventLine({
   }
 
   // Tool call complete - use ToolOutputCard
+  if (event.event_type === "workflow.artifact.manifest") {
+    const manifestEvent = event as WorkflowArtifactManifestEvent;
+    const payload =
+      manifestEvent.payload &&
+      typeof manifestEvent.payload === "object" &&
+      !Array.isArray(manifestEvent.payload)
+        ? (manifestEvent.payload as Record<string, any>)
+        : null;
+    const manifest =
+      manifestEvent.manifest ??
+      (payload?.manifest as Record<string, any> | undefined) ??
+      payload;
+    const rawAttachments =
+      manifestEvent.attachments ??
+      (payload?.attachments as Record<string, any> | undefined) ??
+      (manifest && typeof manifest === "object"
+        ? (manifest as Record<string, any>).attachments
+        : undefined);
+    const attachments =
+      rawAttachments && typeof rawAttachments === "object"
+        ? (rawAttachments as Record<string, any>)
+        : undefined;
+    const summary =
+      (typeof manifestEvent.result === "string" &&
+        manifestEvent.result.trim().length > 0
+        ? manifestEvent.result
+        : undefined) ??
+      (manifest &&
+      typeof manifest === "object" &&
+      typeof (manifest as Record<string, any>).summary === "string"
+        ? (manifest as Record<string, any>).summary
+        : undefined) ??
+      "Artifact manifest received.";
+
+    return wrapWithSubagentContext(
+      <div data-testid="event-workflow.artifact.manifest" className="py-1">
+        <ToolOutputCard
+          toolName="artifact_manifest"
+          result={summary}
+          metadata={manifest ? { manifest } : undefined}
+          attachments={attachments as Record<string, any> | undefined}
+          timestamp={manifestEvent.timestamp}
+        />
+      </div>,
+    );
+  }
+
+  if (event.event_type === "workflow.tool.started") {
+    if (isNested || isSubagentEvent) {
+      const content = formatContent(event);
+      const style = getEventStyle(event);
+      if (!content) {
+        return null;
+      }
+      return wrapWithSubagentContext(
+        <div
+          data-testid="event-workflow.tool.started"
+          className={cn(
+            "text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90",
+            style.content,
+          )}
+        >
+          <div className="flex-1 leading-relaxed break-words">{content}</div>
+        </div>,
+      );
+    }
+
+    const startedEvent = event as WorkflowToolStartedEvent;
+    return wrapWithSubagentContext(
+      <div
+        data-testid="event-workflow.tool.started"
+        className={cn("py-1", !isNested && "pl-2 border-l-2 border-primary/10")}
+      >
+        <ToolOutputCard
+          toolName={startedEvent.tool_name}
+          parameters={startedEvent.arguments}
+          timestamp={startedEvent.timestamp}
+          callId={startedEvent.call_id}
+          status="running"
+        />
+      </div>,
+    );
+  }
+
   if (event.event_type === "workflow.tool.completed") {
     const completeEvent = event as WorkflowToolCompletedEvent & {
       arguments?: Record<string, unknown>;
@@ -190,6 +278,24 @@ export const EventLine = React.memo(function EventLine({
           metadata={completeEvent.metadata}
           timestamp={completeEvent.timestamp}
         />,
+      );
+    }
+    if (isNested) {
+      const content = formatContent(event);
+      const style = getEventStyle(event);
+      if (!content) {
+        return null;
+      }
+      return wrapWithSubagentContext(
+        <div
+          data-testid="event-workflow.tool.completed"
+          className={cn(
+            "text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90",
+            style.content,
+          )}
+        >
+          <div className="flex-1 leading-relaxed break-words">{content}</div>
+        </div>,
       );
     }
     return wrapWithSubagentContext(
@@ -233,14 +339,15 @@ export const EventLine = React.memo(function EventLine({
     if (!delta.trim()) {
       return null;
     }
-    const streamFinished = (event as any).final === true;
+    const finalFlag =
+      "final" in event && typeof (event as { final?: boolean }).final === "boolean"
+        ? (event as { final?: boolean }).final
+        : undefined;
+    const streamFinished = finalFlag === true;
     const isStreaming = !streamFinished;
     return wrapWithSubagentContext(
       <div
-        className={cn(
-          "py-2",
-          !isNested && "pl-4 border-l-2 border-primary/10",
-        )}
+        className={cn("py-2", !isNested && "pl-4 border-l-2 border-primary/10")}
         data-testid="event-workflow.node.output.delta"
       >
         <AgentMarkdown
@@ -338,7 +445,7 @@ function PlanGoalCard({
           className="h-9 w-9 rounded-sm object-cover"
           aria-hidden="true"
         />
-        <AlexWordmark className="ml-0.5 text-muted-foreground/60" />
+        <AlexWordmark className="ml-1 text-muted-foreground/60" />
       </div>
       <AgentMarkdown
         content={goal}
@@ -474,7 +581,7 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   ) {
     status = `${event.success}/${event.total ?? event.success + event.failed} succeeded`;
     statusTone = event.failed > 0 ? "warning" : "success";
-  } else if (eventMatches(event, "workflow.node.failed")) {
+  } else if (isEventType(event, "workflow.node.failed")) {
     status = "Subagent reported an error";
     statusTone = "danger";
   }
@@ -493,26 +600,33 @@ export function isSubagentLike(event: AnyAgentEvent): boolean {
   if (!event) return false;
 
   if (event.agent_level === "subagent") return true;
-  if ("is_subtask" in event && Boolean((event as any).is_subtask)) return true;
+  const unknownEvent = event as {
+    is_subtask?: unknown;
+    parent_task_id?: unknown;
+    node_id?: unknown;
+    call_id?: unknown;
+  };
+  if ("is_subtask" in event && Boolean(unknownEvent.is_subtask)) {
+    return true;
+  }
 
   const parentTask =
-    "parent_task_id" in event &&
-    typeof (event as any).parent_task_id === "string"
-      ? (event as any).parent_task_id.trim()
+    "parent_task_id" in event && typeof unknownEvent.parent_task_id === "string"
+      ? String(unknownEvent.parent_task_id).trim()
       : "";
   if (parentTask) return true;
 
   const nodeId =
-    "node_id" in event && typeof (event as any).node_id === "string"
-      ? (event as any).node_id.toLowerCase()
+    "node_id" in event && typeof unknownEvent.node_id === "string"
+      ? String(unknownEvent.node_id).toLowerCase()
       : "";
   if (nodeId.startsWith("subagent") || nodeId.startsWith("subflow-")) {
     return true;
   }
 
   const callId =
-    "call_id" in event && typeof (event as any).call_id === "string"
-      ? (event as any).call_id.toLowerCase()
+    "call_id" in event && typeof unknownEvent.call_id === "string"
+      ? String(unknownEvent.call_id).toLowerCase()
       : "";
   if (callId.startsWith("subagent")) {
     return true;
@@ -524,7 +638,7 @@ export function isSubagentLike(event: AnyAgentEvent): boolean {
     return true;
   }
 
-  return eventMatches(
+  return isEventType(
     event,
     "workflow.subflow.progress",
     "workflow.subflow.completed",

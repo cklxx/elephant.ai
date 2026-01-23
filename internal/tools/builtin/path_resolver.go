@@ -26,14 +26,20 @@ var projectDirs = []string{
 // PathResolver resolves file paths
 type PathResolver struct {
 	workingDir string
+	rootDir    string
 }
 
 // NewPathResolver creates a new path resolver
 func NewPathResolver(workingDir string) *PathResolver {
-	if workingDir == "" {
-		workingDir, _ = os.Getwd()
+	root := defaultWorkingDir()
+	normalized, ok := normalizeWorkingDir(workingDir)
+	if !ok {
+		normalized = root
 	}
-	return &PathResolver{workingDir: workingDir}
+	if root != "" && normalized != "" && !pathWithinBase(root, normalized) {
+		normalized = root
+	}
+	return &PathResolver{workingDir: normalized, rootDir: root}
 }
 
 // isProjectRelativePath determines if a path is project-relative
@@ -77,21 +83,33 @@ func (pr *PathResolver) isProjectRelativePath(path string) bool {
 
 // ResolvePath resolves a path, converting relative paths to absolute paths
 func (pr *PathResolver) ResolvePath(path string) string {
-	// Special handling: check if it's a project-relative path
+	cleaned := filepath.Clean(path)
+	if cleaned == "" || cleaned == "." {
+		return pr.workingDir
+	}
+
+	// Project-relative paths are treated as relative to the working directory.
 	if pr.isProjectRelativePath(path) {
-		// Remove leading / and resolve based on working directory
-		relativePath := path[1:]
-		resolved := filepath.Join(pr.workingDir, relativePath)
+		cleaned = strings.TrimPrefix(cleaned, string(filepath.Separator))
+		if cleaned == "" || cleaned == "." {
+			return pr.workingDir
+		}
+		resolved := filepath.Join(pr.workingDir, cleaned)
 		return filepath.Clean(resolved)
 	}
 
-	// System absolute paths are returned directly (e.g., /usr/local/bin/node or C:\)
-	if filepath.IsAbs(path) {
-		return path
+	if filepath.IsAbs(cleaned) {
+		// Allow absolute paths only when they are already within the working directory.
+		if pr.workingDir != "" && pathWithinBase(pr.workingDir, cleaned) {
+			return cleaned
+		}
+		// Leave absolute paths outside the working directory intact so they can
+		// be rejected by downstream containment checks.
+		return cleaned
 	}
 
-	// Convert relative paths to absolute paths based on working directory
-	resolved := filepath.Join(pr.workingDir, path)
+	// Convert relative paths to absolute paths based on working directory.
+	resolved := filepath.Join(pr.workingDir, cleaned)
 	return filepath.Clean(resolved)
 }
 
@@ -111,4 +129,27 @@ func GetPathResolverFromContext(ctx context.Context) *PathResolver {
 // WithWorkingDir sets the working directory in context
 func WithWorkingDir(ctx context.Context, workingDir string) context.Context {
 	return context.WithValue(ctx, WorkingDirKey, workingDir)
+}
+
+func normalizeWorkingDir(workingDir string) (string, bool) {
+	if workingDir == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(filepath.Clean(workingDir))
+	if err != nil || abs == "" {
+		return "", false
+	}
+	return abs, true
+}
+
+func defaultWorkingDir() string {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	abs, err := filepath.Abs(filepath.Clean(workingDir))
+	if err != nil {
+		return ""
+	}
+	return abs
 }

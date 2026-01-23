@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo } from "react";
-import {
+import type {
   AnyAgentEvent,
+  WorkflowNodeOutputDeltaEvent,
+  WorkflowToolCompletedEvent,
   WorkflowToolStartedEvent,
-  eventMatches,
 } from "@/lib/types";
-import type { WorkflowToolCompletedEvent } from "@/lib/types";
+import { isEventType } from "@/lib/events/matching";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { LoadingDots } from "@/components/ui/loading-states";
 import {
@@ -56,7 +57,7 @@ export function ConversationEventStream({
   const toolStartEventsByCallKey = useMemo(() => {
     const map = new Map<string, WorkflowToolStartedEvent>();
     events.forEach((event) => {
-      if (!eventMatches(event, "workflow.tool.started")) {
+      if (!isEventType(event, "workflow.tool.started")) {
         return;
       }
       const started = event as WorkflowToolStartedEvent;
@@ -72,10 +73,10 @@ export function ConversationEventStream({
 
   const resolvePairedToolStart = useMemo(() => {
     return (event: AnyAgentEvent) => {
-      if (!eventMatches(event, "workflow.tool.completed")) {
+      if (!isEventType(event, "workflow.tool.completed")) {
         return undefined;
       }
-      const callId = (event as any).call_id as string | undefined;
+      const callId = event.call_id;
       const sessionId = typeof event.session_id === "string" ? event.session_id : "";
       if (!callId) {
         return undefined;
@@ -199,7 +200,7 @@ export function ConversationEventStream({
           }
 
           const event = entry.event;
-          const key = `${event.event_type}-${event.timestamp}-${index}`;
+          const key = getStableEventKey(event, index);
 
           return (
             <div
@@ -249,19 +250,17 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
 
   if (
     event.event_type === "workflow.input.received" ||
-    eventMatches(event, "workflow.result.final", "workflow.result.final") ||
-    eventMatches(
+    isEventType(event, "workflow.result.final") ||
+    isEventType(
       event,
       "workflow.result.cancelled",
-      "workflow.result.cancelled",
     ) ||
-    eventMatches(event, "workflow.node.failed", "workflow.node.failed") ||
-    eventMatches(
+    isEventType(event, "workflow.node.failed") ||
+    isEventType(
       event,
       "workflow.node.output.summary",
-      "workflow.node.output.summary",
     ) ||
-    eventMatches(event, "workflow.tool.completed", "workflow.tool.completed")
+    isEventType(event, "workflow.tool.completed")
   ) {
     return false;
   }
@@ -285,7 +284,7 @@ function partitionEvents(
   const activeTaskId = options.activeTaskId;
 
   events.forEach((event) => {
-    if (!eventMatches(event, "workflow.result.final", "workflow.result.final")) {
+    if (!isEventType(event, "workflow.result.final")) {
       return;
     }
     const key = getThreadKey(event);
@@ -356,12 +355,7 @@ function partitionEvents(
     }
 
     if (
-      eventMatches(
-        event,
-        "workflow.node.output.delta",
-        "workflow.node.output.delta",
-        "workflow.node.output.delta",
-      )
+      isEventType(event, "workflow.node.output.delta")
     ) {
       if (
         includeDeltas &&
@@ -404,33 +398,33 @@ function maybeMergeDeltaEvent(
   events: AnyAgentEvent[],
   incoming: AnyAgentEvent,
 ): boolean {
-  if (!eventMatches(incoming, "workflow.node.output.delta")) {
+  if (!isEventType(incoming, "workflow.node.output.delta")) {
     return false;
   }
 
-  const delta = (incoming as any).delta;
+  const delta = incoming.delta;
   if (typeof delta !== "string" || delta.length === 0) {
     const last = events[events.length - 1];
-    if (last && eventMatches(last, "workflow.node.output.delta")) {
-      const merged = {
-        ...(last as any),
-        ...(incoming as any),
-        delta: (last as any).delta ?? "",
+    if (last && isEventType(last, "workflow.node.output.delta")) {
+      const merged: WorkflowNodeOutputDeltaEvent = {
+        ...last,
+        ...incoming,
+        delta: last.delta ?? "",
         timestamp: incoming.timestamp ?? last.timestamp,
-      } as AnyAgentEvent;
+      };
       events[events.length - 1] = merged;
     }
     return true;
   }
 
   const last = events[events.length - 1];
-  if (!last || !eventMatches(last, "workflow.node.output.delta")) {
+  if (!last || !isEventType(last, "workflow.node.output.delta")) {
     return false;
   }
 
-  const lastNodeId = typeof (last as any).node_id === "string" ? (last as any).node_id : "";
+  const lastNodeId = last.node_id ?? "";
   const incomingNodeId =
-    typeof (incoming as any).node_id === "string" ? (incoming as any).node_id : "";
+    incoming.node_id ?? "";
 
   if ((lastNodeId || incomingNodeId) && lastNodeId !== incomingNodeId) {
     return false;
@@ -449,17 +443,17 @@ function maybeMergeDeltaEvent(
   }
 
   const MAX_DELTA_CHARS = 10_000;
-  const mergedDeltaRaw = `${(last as any).delta ?? ""}${delta}`;
+  const mergedDeltaRaw = `${last.delta ?? ""}${delta}`;
   const mergedDelta =
     mergedDeltaRaw.length > MAX_DELTA_CHARS
       ? mergedDeltaRaw.slice(-MAX_DELTA_CHARS)
       : mergedDeltaRaw;
-  const merged = {
-    ...(last as any),
-    ...(incoming as any),
+  const merged: WorkflowNodeOutputDeltaEvent = {
+    ...last,
+    ...incoming,
     delta: mergedDelta,
     timestamp: incoming.timestamp ?? last.timestamp,
-  } as AnyAgentEvent;
+  };
 
   events[events.length - 1] = merged;
   return true;
@@ -515,8 +509,8 @@ function resolveActiveTaskId(events: AnyAgentEvent[]): string | null {
       return;
     }
     if (
-      eventMatches(event, "workflow.result.final", "workflow.result.cancelled") ||
-      eventMatches(event, "workflow.node.failed")
+      isEventType(event, "workflow.result.final", "workflow.result.cancelled") ||
+      isEventType(event, "workflow.node.failed")
     ) {
       activeTaskId = null;
     }
@@ -544,9 +538,7 @@ function shouldSkipDuplicateSummaryEvent(
   event: AnyAgentEvent,
   finalAnswerByThreadKey: Map<string, string>,
 ): boolean {
-  if (
-    !eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary")
-  ) {
+  if (!isEventType(event, "workflow.node.output.summary")) {
     return false;
   }
 
@@ -570,7 +562,7 @@ function shouldSkipDuplicateSummaryEvent(
 }
 
 function isClearifyToolEvent(event: AnyAgentEvent): boolean {
-  if (!eventMatches(event, "workflow.tool.completed")) {
+  if (!isEventType(event, "workflow.tool.completed")) {
     return false;
   }
 
@@ -616,7 +608,7 @@ function buildDisplayEntriesWithClearifyTimeline(
       continue;
     }
 
-    const isTerminal = eventMatches(
+    const isTerminal = isEventType(
       event,
       "workflow.result.final",
       "workflow.result.cancelled",
@@ -706,7 +698,7 @@ function getSubtaskIndex(event: AnyAgentEvent): number {
 
 function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
   return (
-    eventMatches(
+    isEventType(
       event,
       "workflow.tool.completed",
       "workflow.result.final",
@@ -719,7 +711,7 @@ function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
 
 function getToolName(event: AnyAgentEvent): string | null {
   if (
-    !eventMatches(
+    !isEventType(
       event,
       "workflow.tool.started",
       "workflow.tool.progress",
@@ -732,8 +724,9 @@ function getToolName(event: AnyAgentEvent): string | null {
   const name =
     ("tool_name" in event && typeof event.tool_name === "string"
       ? event.tool_name
-      : "tool" in event && typeof (event as any).tool === "string"
-        ? (event as any).tool
+      : "tool" in event &&
+          typeof (event as Record<string, unknown>).tool === "string"
+        ? String((event as Record<string, unknown>).tool)
         : "") || "";
 
   const normalized = name.trim().toLowerCase();
@@ -756,4 +749,35 @@ function sortSubagentEvents(
 
 function isDelegationToolEvent(event: AnyAgentEvent): boolean {
   return getToolName(event) === "subagent";
+}
+
+function getStableEventKey(event: AnyAgentEvent, index: number): string {
+  if (isEventType(event, "workflow.node.output.delta")) {
+    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+    const taskId = typeof event.task_id === "string" ? event.task_id : "";
+    const parentTaskId =
+      "parent_task_id" in event && typeof event.parent_task_id === "string"
+        ? event.parent_task_id
+        : "";
+    const agentLevel = typeof event.agent_level === "string" ? event.agent_level : "";
+    const iteration =
+      "iteration" in event && typeof event.iteration === "number"
+        ? String(event.iteration)
+        : "";
+    const nodeId = event.node_id ?? "";
+    return `delta:${sessionId}:${taskId}:${parentTaskId}:${agentLevel}:${iteration}:${nodeId}`;
+  }
+
+  if (isEventType(event, "workflow.result.final")) {
+    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+    const taskId = typeof event.task_id === "string" ? event.task_id : "";
+    const parentTaskId =
+      "parent_task_id" in event && typeof event.parent_task_id === "string"
+        ? event.parent_task_id
+        : "";
+    const agentLevel = typeof event.agent_level === "string" ? event.agent_level : "";
+    return `final:${sessionId}:${taskId}:${parentTaskId}:${agentLevel}`;
+  }
+
+  return `${event.event_type}-${event.timestamp}-${index}`;
 }

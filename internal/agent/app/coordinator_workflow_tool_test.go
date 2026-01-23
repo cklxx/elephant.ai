@@ -9,6 +9,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/ports/mocks"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/workflow"
 )
 
@@ -197,5 +198,126 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 	}
 	if !hasToolStep {
 		t.Fatalf("expected tool call step completion envelope")
+	}
+}
+
+func TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope(t *testing.T) {
+	llm := &mocks.MockLLMClient{CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		return &ports.CompletionResponse{
+			Content:    "final answer",
+			StopReason: "stop",
+			Usage:      ports.TokenUsage{TotalTokens: 3},
+		}, nil
+	}}
+
+	sessionStore := &stubSessionStore{}
+	listener := &capturingListener{}
+
+	coordinator := NewAgentCoordinator(
+		stubLLMFactory{client: llm},
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		nil,
+		&mocks.MockParser{},
+		nil,
+		Config{
+			LLMProvider:   "mock",
+			LLMModel:      "session-propagation",
+			MaxIterations: 1,
+			Temperature:   0.2,
+		},
+	)
+
+	ctx := ports.WithOutputContext(context.Background(), &ports.OutputContext{Level: ports.LevelCore})
+	_, err := coordinator.ExecuteTask(ctx, "test session propagation", "session-e2e", listener)
+	if err != nil {
+		t.Fatalf("ExecuteTask returned error: %v", err)
+	}
+
+	started := listener.envelopes("workflow.node.started")
+	if len(started) == 0 {
+		t.Fatalf("expected workflow.node.started envelopes to be emitted")
+	}
+
+	foundPrepare := false
+	for _, env := range started {
+		if env.NodeID != "prepare" {
+			continue
+		}
+		foundPrepare = true
+		if env.GetSessionID() != "session-e2e" {
+			t.Fatalf("expected prepare step session_id=session-e2e, got %q", env.GetSessionID())
+		}
+		break
+	}
+	if !foundPrepare {
+		t.Fatalf("expected prepare step envelope to be emitted")
+	}
+}
+
+type recordingMigrator struct {
+	called     bool
+	request    materialports.MigrationRequest
+	normalized map[string]ports.Attachment
+}
+
+func (m *recordingMigrator) Normalize(ctx context.Context, req materialports.MigrationRequest) (map[string]ports.Attachment, error) {
+	m.called = true
+	m.request = req
+	if m.normalized != nil {
+		return m.normalized, nil
+	}
+	return req.Attachments, nil
+}
+
+func TestSaveSessionAfterExecutionMigratesAttachments(t *testing.T) {
+	coordinator := NewAgentCoordinator(
+		stubLLMFactory{client: &mocks.MockLLMClient{}},
+		stubToolRegistry{},
+		&stubSessionStore{},
+		stubContextManager{},
+		nil,
+		stubParser{},
+		nil,
+		Config{LLMProvider: "mock", LLMModel: "session-migrate", MaxIterations: 1},
+	)
+
+	migrator := &recordingMigrator{
+		normalized: map[string]ports.Attachment{
+			"frame.png": {Name: "frame.png", MediaType: "image/png", URI: "/api/attachments/frame.png"},
+		},
+	}
+	coordinator.SetAttachmentMigrator(migrator)
+
+	session := &ports.Session{ID: "session-migrate", Metadata: map[string]string{}}
+	result := &ports.TaskResult{
+		SessionID: "session-migrate",
+		Messages: []ports.Message{
+			{
+				Source: ports.MessageSourceToolResult,
+				Attachments: map[string]ports.Attachment{
+					"frame.png": {Name: "frame.png", MediaType: "image/png", Data: "ZmFrZQ=="},
+				},
+			},
+		},
+	}
+
+	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
+		t.Fatalf("SaveSessionAfterExecution failed: %v", err)
+	}
+
+	if !migrator.called {
+		t.Fatalf("expected attachment migrator to be called")
+	}
+	if session.Attachments == nil {
+		t.Fatalf("expected session attachments to be set")
+	}
+	att, ok := session.Attachments["frame.png"]
+	if !ok {
+		t.Fatalf("expected migrated attachment to be stored on session")
+	}
+	if att.URI != "/api/attachments/frame.png" {
+		t.Fatalf("expected migrated attachment URI, got %q", att.URI)
 	}
 }

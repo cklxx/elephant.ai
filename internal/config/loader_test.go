@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -46,6 +47,47 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.FollowTranscript || !cfg.FollowStream {
 		t.Fatalf("expected follow defaults to be true, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
 	}
+	if cfg.ACPExecutorAddr == "" {
+		t.Fatalf("expected default ACP executor addr to be set")
+	}
+	if cfg.ACPExecutorCWD != "/workspace" {
+		t.Fatalf("expected default ACP executor cwd to be /workspace, got %q", cfg.ACPExecutorCWD)
+	}
+	if cfg.ACPExecutorMode != "sandbox" {
+		t.Fatalf("expected default ACP executor mode to be sandbox, got %q", cfg.ACPExecutorMode)
+	}
+	if !cfg.ACPExecutorAutoApprove {
+		t.Fatalf("expected default ACP executor auto approve to be true")
+	}
+}
+
+func TestLoadDefaultsUsesACPPortFile(t *testing.T) {
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	tmp := t.TempDir()
+	if err := os.Mkdir(filepath.Join(tmp, ".pids"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, ".pids", "acp.port"), []byte("19077\n"), 0o600); err != nil {
+		t.Fatalf("write port file: %v", err)
+	}
+	if err := os.Chdir(tmp); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(wd) })
+
+	cfg, _, err := Load(
+		WithEnv(envMap{}.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return nil, os.ErrNotExist }),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.ACPExecutorAddr != "http://127.0.0.1:19077" {
+		t.Fatalf("expected ACP executor addr to use port file, got %q", cfg.ACPExecutorAddr)
+	}
 }
 
 func TestLoadFromFile(t *testing.T) {
@@ -57,6 +99,13 @@ runtime:
   llm_small_model: "gpt-4o-mini"
   llm_vision_model: "gpt-4o-mini"
   api_key: "sk-test"
+  acp_executor_addr: "127.0.0.1:18088"
+  acp_executor_cwd: "/workspace/project"
+  acp_executor_mode: "safe"
+  acp_executor_auto_approve: true
+  acp_executor_max_cli_calls: 9
+  acp_executor_max_duration_seconds: 120
+  acp_executor_require_manifest: false
   tavily_api_key: "file-tavily"
   ark_api_key: "file-ark"
   seedream_text_endpoint_id: "file-text-id"
@@ -118,6 +167,12 @@ runtime:
 	}
 	if cfg.SeedreamTextModel != "file-text-model" || cfg.SeedreamImageModel != "file-image-model" || cfg.SeedreamVisionModel != "file-vision-model" || cfg.SeedreamVideoModel != "file-video-model" {
 		t.Fatalf("expected seedream models from file, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
+	}
+	if cfg.ACPExecutorAddr != "127.0.0.1:18088" || cfg.ACPExecutorCWD != "/workspace/project" || cfg.ACPExecutorMode != "safe" {
+		t.Fatalf("expected acp executor config from file, got %q/%q/%q", cfg.ACPExecutorAddr, cfg.ACPExecutorCWD, cfg.ACPExecutorMode)
+	}
+	if !cfg.ACPExecutorAutoApprove || cfg.ACPExecutorMaxCLICalls != 9 || cfg.ACPExecutorMaxDuration != 120 || cfg.ACPExecutorRequireManifest {
+		t.Fatalf("unexpected acp executor config values: %+v", cfg)
 	}
 	if cfg.Environment != "staging" {
 		t.Fatalf("expected environment from file, got %q", cfg.Environment)
@@ -260,6 +315,269 @@ runtime:
 	}
 }
 
+func TestAutoProviderResolvesFromEnv(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+  llm_model: "claude-3-5-sonnet"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"ANTHROPIC_API_KEY": "anthropic-key",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected auto provider to resolve to anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "anthropic-key" {
+		t.Fatalf("expected api key to resolve from env, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != "https://api.anthropic.com/v1" {
+		t.Fatalf("expected anthropic base url default, got %q", cfg.BaseURL)
+	}
+}
+
+func TestCLIProviderResolvesFromCodexCLI(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "cli"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/home/test/.codex/auth.json":
+			return []byte(`{"tokens":{"access_token":"codex-token"}}`), nil
+		case "/home/test/.codex/config.toml":
+			return []byte(`model = "gpt-5.2-codex"`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithHomeDir(func() (string, error) { return "/home/test", nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "codex" {
+		t.Fatalf("expected provider codex, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "codex-token" {
+		t.Fatalf("expected codex token from CLI, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != codexCLIBaseURL {
+		t.Fatalf("expected codex base url, got %q", cfg.BaseURL)
+	}
+	if cfg.LLMModel != "gpt-5.2-codex" {
+		t.Fatalf("expected codex model from CLI, got %q", cfg.LLMModel)
+	}
+	if meta.Source("api_key") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAutoProviderUsesCodexCLIWhenAvailable(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/home/test/.codex/auth.json":
+			return []byte(`{"tokens":{"access_token":"codex-token"}}`), nil
+		case "/home/test/.codex/config.toml":
+			return []byte(`model = "gpt-5.2-codex"`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithHomeDir(func() (string, error) { return "/home/test", nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "codex" {
+		t.Fatalf("expected provider codex, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "codex-token" {
+		t.Fatalf("expected codex token from CLI, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != codexCLIBaseURL {
+		t.Fatalf("expected codex base url, got %q", cfg.BaseURL)
+	}
+	if cfg.LLMModel != "gpt-5.2-codex" {
+		t.Fatalf("expected codex model from CLI, got %q", cfg.LLMModel)
+	}
+	if meta.Source("api_key") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceCodexCLI {
+		t.Fatalf("expected codex cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAutoProviderUsesAntigravityCLIWhenCodexMissing(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/tmp/antigravity-auth.json":
+			return []byte(`{"provider":"antigravity","api_key":"ag-token","base_url":"https://api.antigravity.ai/v1","model":"ag-1"}`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithEnv(envMap{
+			"ALEX_CLI_AUTH_PATH": "/tmp/antigravity-auth.json",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "antigravity" {
+		t.Fatalf("expected provider antigravity, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "ag-token" {
+		t.Fatalf("expected antigravity token from CLI, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != "https://api.antigravity.ai/v1" {
+		t.Fatalf("expected antigravity base url, got %q", cfg.BaseURL)
+	}
+	if cfg.LLMModel != "ag-1" {
+		t.Fatalf("expected antigravity model from CLI, got %q", cfg.LLMModel)
+	}
+	if meta.Source("api_key") != SourceAntigravityCLI {
+		t.Fatalf("expected antigravity cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceAntigravityCLI {
+		t.Fatalf("expected antigravity cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAutoProviderUsesClaudeCLIWhenOnlyClaudeAvailable(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	readFile := func(path string) ([]byte, error) {
+		switch path {
+		case "/tmp/config.yaml":
+			return fileData, nil
+		case "/home/test/.claude/.credentials.json":
+			return []byte(`{"access_token":"claude-cli-token"}`), nil
+		default:
+			return nil, os.ErrNotExist
+		}
+	}
+
+	cfg, meta, err := Load(
+		WithConfigPath("/tmp/config.yaml"),
+		WithFileReader(readFile),
+		WithHomeDir(func() (string, error) { return "/home/test", nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected provider anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "claude-cli-token" {
+		t.Fatalf("expected claude token from CLI, got %q", cfg.APIKey)
+	}
+	if meta.Source("api_key") != SourceClaudeCLI {
+		t.Fatalf("expected claude cli source for api_key, got %s", meta.Source("api_key"))
+	}
+	if meta.Source("llm_provider") != SourceClaudeCLI {
+		t.Fatalf("expected claude cli source for llm_provider, got %s", meta.Source("llm_provider"))
+	}
+}
+
+func TestAnthropicOAuthTokenPreferred(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	cfg, meta, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"CLAUDE_CODE_OAUTH_TOKEN": "oauth-token",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected auto provider to resolve to anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "oauth-token" {
+		t.Fatalf("expected oauth token to resolve from env, got %q", cfg.APIKey)
+	}
+	if meta.Source("api_key") != SourceClaudeCLI {
+		t.Fatalf("expected claude cli source for api_key, got %s", meta.Source("api_key"))
+	}
+}
+
+func TestAnthropicProviderUsesEnvKey(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "anthropic"
+  llm_model: "claude-3-5-sonnet"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"ANTHROPIC_API_KEY": "anthropic-key",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "anthropic" {
+		t.Fatalf("expected provider to stay anthropic, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "anthropic-key" {
+		t.Fatalf("expected api key to resolve from env, got %q", cfg.APIKey)
+	}
+	if cfg.BaseURL != "https://api.anthropic.com/v1" {
+		t.Fatalf("expected anthropic base url default, got %q", cfg.BaseURL)
+	}
+}
+
 func TestEnvOverridesFile(t *testing.T) {
 	fileData := []byte(`
 runtime:
@@ -269,25 +587,32 @@ runtime:
 	cfg, meta, err := Load(
 		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
 		WithEnv(envMap{
-			"LLM_TEMPERATURE":            "0",
-			"LLM_MODEL":                  "env-model",
-			"LLM_VISION_MODEL":           "env-vision-model",
-			"TAVILY_API_KEY":             "env-tavily",
-			"ARK_API_KEY":                "env-ark",
-			"SEEDREAM_TEXT_ENDPOINT_ID":  "env-text",
-			"SEEDREAM_IMAGE_ENDPOINT_ID": "env-image",
-			"SEEDREAM_TEXT_MODEL":        "env-text-model",
-			"SEEDREAM_IMAGE_MODEL":       "env-image-model",
-			"SEEDREAM_VISION_MODEL":      "env-vision-model",
-			"SEEDREAM_VIDEO_MODEL":       "env-video-model",
-			"ALEX_ENV":                   "production",
-			"ALEX_VERBOSE":               "yes",
-			"ALEX_NO_TUI":                "true",
-			"ALEX_TUI_FOLLOW_TRANSCRIPT": "false",
-			"ALEX_TUI_FOLLOW_STREAM":     "false",
-			"ALEX_REASONING_STREAM":      "true",
-			"AGENT_PRESET":               "designer",
-			"TOOL_PRESET":                "full",
+			"LLM_TEMPERATURE":                   "0",
+			"LLM_MODEL":                         "env-model",
+			"LLM_VISION_MODEL":                  "env-vision-model",
+			"TAVILY_API_KEY":                    "env-tavily",
+			"ARK_API_KEY":                       "env-ark",
+			"ACP_EXECUTOR_ADDR":                 "10.0.0.2:19000",
+			"ACP_EXECUTOR_CWD":                  "/srv/workspace",
+			"ACP_EXECUTOR_MODE":                 "read-only",
+			"ACP_EXECUTOR_AUTO_APPROVE":         "true",
+			"ACP_EXECUTOR_MAX_CLI_CALLS":        "5",
+			"ACP_EXECUTOR_MAX_DURATION_SECONDS": "600",
+			"ACP_EXECUTOR_REQUIRE_MANIFEST":     "false",
+			"SEEDREAM_TEXT_ENDPOINT_ID":         "env-text",
+			"SEEDREAM_IMAGE_ENDPOINT_ID":        "env-image",
+			"SEEDREAM_TEXT_MODEL":               "env-text-model",
+			"SEEDREAM_IMAGE_MODEL":              "env-image-model",
+			"SEEDREAM_VISION_MODEL":             "env-vision-model",
+			"SEEDREAM_VIDEO_MODEL":              "env-video-model",
+			"ALEX_ENV":                          "production",
+			"ALEX_VERBOSE":                      "yes",
+			"ALEX_NO_TUI":                       "true",
+			"ALEX_TUI_FOLLOW_TRANSCRIPT":        "false",
+			"ALEX_TUI_FOLLOW_STREAM":            "false",
+			"ALEX_REASONING_STREAM":             "true",
+			"AGENT_PRESET":                      "designer",
+			"TOOL_PRESET":                       "full",
 		}.Lookup),
 	)
 	if err != nil {
@@ -310,6 +635,12 @@ runtime:
 	}
 	if cfg.ArkAPIKey != "env-ark" {
 		t.Fatalf("expected ark api key from env, got %q", cfg.ArkAPIKey)
+	}
+	if cfg.ACPExecutorAddr != "10.0.0.2:19000" || cfg.ACPExecutorCWD != "/srv/workspace" || cfg.ACPExecutorMode != "read-only" {
+		t.Fatalf("expected acp executor config from env, got %q/%q/%q", cfg.ACPExecutorAddr, cfg.ACPExecutorCWD, cfg.ACPExecutorMode)
+	}
+	if !cfg.ACPExecutorAutoApprove || cfg.ACPExecutorMaxCLICalls != 5 || cfg.ACPExecutorMaxDuration != 600 || cfg.ACPExecutorRequireManifest {
+		t.Fatalf("unexpected acp executor config from env: %+v", cfg)
 	}
 	if cfg.SeedreamTextModel != "env-text-model" || cfg.SeedreamImageModel != "env-image-model" || cfg.SeedreamVisionModel != "env-vision-model" || cfg.SeedreamVideoModel != "env-video-model" {
 		t.Fatalf("expected seedream models from env, got %q/%q/%q/%q", cfg.SeedreamTextModel, cfg.SeedreamImageModel, cfg.SeedreamVisionModel, cfg.SeedreamVideoModel)
@@ -343,6 +674,9 @@ runtime:
 	}
 	if meta.Source("seedream_text_model") != SourceEnv || meta.Source("seedream_image_model") != SourceEnv || meta.Source("seedream_vision_model") != SourceEnv || meta.Source("seedream_video_model") != SourceEnv {
 		t.Fatalf("expected env source for seedream models")
+	}
+	if meta.Source("acp_executor_addr") != SourceEnv || meta.Source("acp_executor_cwd") != SourceEnv || meta.Source("acp_executor_mode") != SourceEnv || meta.Source("acp_executor_auto_approve") != SourceEnv || meta.Source("acp_executor_max_cli_calls") != SourceEnv || meta.Source("acp_executor_max_duration_seconds") != SourceEnv || meta.Source("acp_executor_require_manifest") != SourceEnv {
+		t.Fatalf("expected env source for acp executor config")
 	}
 	if meta.Source("temperature") != SourceEnv {
 		t.Fatalf("expected env source for temperature, got %s", meta.Source("temperature"))

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
@@ -266,6 +265,11 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	})
 	if tc.Name == "subagent" {
 		if snapshot := b.subagentSnapshots[idx]; snapshot != nil {
+			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
+		}
+	}
+	if tc.Name == "acp_executor" {
+		if snapshot := buildExecutorStateSnapshot(b.state, tc); snapshot != nil {
 			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
 		}
 	}
@@ -1069,21 +1073,6 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 	e.logger.Debug("Inserted system prompt into message history")
 }
 
-func (e *ReactEngine) normalizeAttachmentsWithMigrator(ctx context.Context, state *TaskState, req materialports.MigrationRequest) map[string]ports.Attachment {
-	if len(req.Attachments) == 0 || e.attachmentMigrator == nil {
-		return req.Attachments
-	}
-	if req.Context == nil {
-		req.Context = e.materialRequestContext(state, "")
-	}
-	normalized, err := e.attachmentMigrator.Normalize(ctx, req)
-	if err != nil {
-		e.logger.Warn("attachment migration failed: %v", err)
-		return req.Attachments
-	}
-	return normalized
-}
-
 type attachmentMutations struct {
 	replace map[string]ports.Attachment
 	add     map[string]ports.Attachment
@@ -1101,36 +1090,6 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 ) map[string]ports.Attachment {
 	normalized := normalizeAttachmentMap(attachments)
 	mutations := normalizeAttachmentMutations(metadata)
-
-	if normalized != nil {
-		normalized = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: normalized,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-	}
-
-	if mutations != nil {
-		mutations.replace = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: mutations.replace,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-		mutations.add = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: mutations.add,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-		mutations.update = e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, call.ID),
-			Attachments: mutations.update,
-			Status:      materialapi.MaterialStatusIntermediate,
-			Origin:      call.Name,
-		})
-	}
 
 	var existing map[string]ports.Attachment
 	if state != nil {
@@ -1246,38 +1205,10 @@ func parseImportantNoteMap(raw map[string]any, clock ports.Clock) ports.Importan
 }
 
 func (e *ReactEngine) normalizeMessageHistoryAttachments(ctx context.Context, state *TaskState) {
-	if state == nil {
-		return
-	}
-	for idx := range state.Messages {
-		msg := state.Messages[idx]
-		if len(msg.Attachments) == 0 {
-			continue
-		}
-		normalized := e.normalizeAttachmentsWithMigrator(ctx, state, materialports.MigrationRequest{
-			Context:     e.materialRequestContext(state, msg.ToolCallID),
-			Attachments: msg.Attachments,
-			Status:      messageMaterialStatus(msg),
-			Origin:      messageMaterialOrigin(msg),
-		})
-		if normalized != nil {
-			state.Messages[idx].Attachments = normalized
-		}
-	}
-}
-
-func (e *ReactEngine) materialRequestContext(state *TaskState, toolCallID string) *materialapi.RequestContext {
-	if state == nil {
-		return nil
-	}
-	return &materialapi.RequestContext{
-		RequestID:      state.TaskID,
-		TaskID:         state.TaskID,
-		AgentIteration: uint32(state.Iterations),
-		ToolCallID:     toolCallID,
-		ConversationID: state.SessionID,
-		UserID:         state.SessionID,
-	}
+	_ = ctx
+	_ = state
+	// Intentionally no-op: internal attachments remain inline for agent/tool/LLM flow.
+	// Externalization happens at HTTP/SSE boundaries only.
 }
 
 const attachmentCatalogMetadataKey = "attachment_catalog"

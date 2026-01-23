@@ -2,7 +2,8 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AnyAgentEvent, WorkflowToolStartedEvent, eventMatches } from '@/lib/types';
+import { AnyAgentEvent, WorkflowToolStartedEvent } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 import {
   isWorkflowNodeFailedEvent,
   isWorkflowResultFinalEvent,
@@ -255,7 +256,7 @@ export function VirtualizedEventList({
               const event = visibleEvents[virtualItem.index];
               const completedEvent = isWorkflowToolCompletedEvent(event) ? event : null;
               const isFocused = effectiveFocusedEventIndex === virtualItem.index;
-              const isStreamingDelta = eventMatches(event, 'workflow.node.output.delta');
+              const isStreamingDelta = isEventType(event, 'workflow.node.output.delta');
               return (
                 <div
                   key={virtualItem.key}
@@ -361,7 +362,7 @@ function EventCard({
     </div>
   );
 
-  if (eventMatches(event, 'workflow.node.output.delta')) {
+  if (isEventType(event, 'workflow.node.output.delta')) {
     const delta = (event as any).delta;
     if (typeof delta === 'string' && delta.trim().length > 0) {
       const streamFinished = (event as any).final === true;
@@ -404,7 +405,7 @@ function EventCard({
     return wrapWithContext(<ErrorCard event={event} />);
   }
 
-  if (eventMatches(event, 'workflow.node.started', 'workflow.node.started') && typeof (event as any).iteration === 'number') {
+  if (isEventType(event, 'workflow.node.started') && typeof (event as any).iteration === 'number') {
     return (
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
@@ -418,7 +419,7 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.node.completed', 'workflow.node.completed') && typeof (event as any).iteration === 'number') {
+  if (isEventType(event, 'workflow.node.completed') && typeof (event as any).iteration === 'number') {
     return wrapWithContext(
       <div className="flex flex-wrap items-center gap-3 text-xs text-foreground">
         <Badge variant="outline">
@@ -431,7 +432,7 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.node.started') && typeof (event as any).step_index === 'number') {
+  if (isEventType(event, 'workflow.node.started') && typeof (event as any).step_index === 'number') {
     return wrapWithContext(
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
@@ -445,7 +446,7 @@ function EventCard({
     );
   }
 
-  if (eventMatches(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number') {
+  if (isEventType(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number') {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm font-semibold text-foreground">
@@ -493,7 +494,7 @@ function collapseFinalResults(events: AnyAgentEvent[]): AnyAgentEvent[] {
 
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const evt = events[i];
-    if (eventMatches(evt, 'workflow.result.final', 'workflow.result.final') && 'task_id' in evt && 'session_id' in evt) {
+    if (isEventType(evt, 'workflow.result.final') && 'task_id' in evt && 'session_id' in evt) {
       const key = `${evt.session_id}|${evt.task_id}`;
       if (latestByTask.has(key)) {
         continue;

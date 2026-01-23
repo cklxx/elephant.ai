@@ -4,7 +4,7 @@ import (
 	"alex/internal/agent/ports"
 	"context"
 	"fmt"
-	"os/exec"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -28,39 +28,24 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		path = p
 	}
 
+	resolvedPath, err := sanitizePathWithinBase(ctx, path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
 	maxDepth := 10
 	if md, ok := call.Arguments["max_depth"].(float64); ok {
 		maxDepth = int(md)
 	}
+	if maxDepth < 0 {
+		maxDepth = 0
+	}
 
-	cmdArgs := t.buildArgs(call, path, maxDepth, name)
-
-	cmd := exec.CommandContext(ctx, "find", cmdArgs...)
-	output, err := cmd.CombinedOutput()
+	fileType, _ := call.Arguments["type"].(string)
+	results, err := t.walkMatches(resolvedPath, name, fileType, maxDepth)
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return t.noMatchesResult(call, name, path, maxDepth)
-		}
-		return &ports.ToolResult{CallID: call.ID, Content: string(output), Error: fmt.Errorf("find command failed: %w", err)}, nil
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
-
-	return t.processOutput(call, string(output), name, path, maxDepth)
-}
-
-func (t *find) processOutput(call ports.ToolCall, output, name, path string, maxDepth int) (*ports.ToolResult, error) {
-	lines := strings.Split(output, "\n")
-	var results []string
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		if relPath, err := filepath.Rel(path, line); err == nil && !strings.HasPrefix(relPath, "..") {
-			results = append(results, relPath)
-		} else {
-			results = append(results, line)
-		}
-	}
-
 	if len(results) == 0 {
 		return t.noMatchesResult(call, name, path, maxDepth)
 	}
@@ -81,12 +66,13 @@ func (t *find) processOutput(call ports.ToolCall, output, name, path string, max
 		CallID:  call.ID,
 		Content: content,
 		Metadata: map[string]any{
-			"pattern":   name,
-			"path":      path,
-			"matches":   len(results),
-			"max_depth": maxDepth,
-			"truncated": truncated,
-			"results":   results,
+			"pattern":       name,
+			"path":          path,
+			"resolved_path": resolvedPath,
+			"matches":       len(results),
+			"max_depth":     maxDepth,
+			"truncated":     truncated,
+			"results":       results,
 		},
 	}, nil
 }
@@ -104,13 +90,55 @@ func (t *find) noMatchesResult(call ports.ToolCall, name, path string, maxDepth 
 	}, nil
 }
 
-func (t *find) buildArgs(call ports.ToolCall, path string, maxDepth int, name string) []string {
-	args := []string{path, "-maxdepth", fmt.Sprintf("%d", maxDepth)}
-	if fileType, ok := call.Arguments["type"].(string); ok && fileType != "" {
-		args = append(args, "-type", fileType)
+func (t *find) walkMatches(root, pattern, fileType string, maxDepth int) ([]string, error) {
+	results := make([]string, 0, 32)
+	walkFn := func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, relErr := filepath.Rel(root, path)
+		if relErr != nil {
+			return nil
+		}
+		depth := 0
+		if rel != "." {
+			depth = strings.Count(rel, string(filepath.Separator)) + 1
+		}
+		if depth > maxDepth {
+			if entry.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		if rel == "." {
+			return nil
+		}
+		switch fileType {
+		case "f":
+			if entry.IsDir() {
+				return nil
+			}
+		case "d":
+			if !entry.IsDir() {
+				return nil
+			}
+		}
+
+		match, matchErr := filepath.Match(pattern, entry.Name())
+		if matchErr != nil {
+			return matchErr
+		}
+		if match {
+			results = append(results, rel)
+		}
+		return nil
 	}
-	args = append(args, "-name", name)
-	return args
+
+	if err := filepath.WalkDir(root, walkFn); err != nil {
+		return nil, err
+	}
+	return results, nil
 }
 
 func (t *find) Definition() ports.ToolDefinition {

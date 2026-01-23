@@ -9,15 +9,17 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
 )
 
 type sandboxShellExecTool struct {
-	client *sandbox.Client
+	client   *sandbox.Client
+	uploader materialports.Migrator
 }
 
 func NewSandboxShellExec(cfg SandboxConfig) ports.ToolExecutor {
-	return &sandboxShellExecTool{client: newSandboxClient(cfg)}
+	return &sandboxShellExecTool{client: newSandboxClient(cfg), uploader: cfg.AttachmentUploader}
 }
 
 func (t *sandboxShellExecTool) Metadata() ports.ToolMetadata {
@@ -32,7 +34,7 @@ func (t *sandboxShellExecTool) Metadata() ports.ToolMetadata {
 func (t *sandboxShellExecTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "sandbox_shell_exec",
-		Description: "Execute a shell command inside the sandbox (isolated environment).",
+		Description: "Execute a shell command inside the sandbox (isolated environment). Optionally fetch sandbox files as attachments.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
@@ -41,6 +43,16 @@ func (t *sandboxShellExecTool) Definition() ports.ToolDefinition {
 				"timeout":    {Type: "number", Description: "Timeout in seconds"},
 				"async_mode": {Type: "boolean", Description: "Run asynchronously"},
 				"session_id": {Type: "string", Description: "Optional shell session id"},
+				"attachments": {
+					Type:        "array",
+					Description: "Optional list of sandbox file paths or attachment specs to fetch after execution.",
+					Items:       &ports.Property{Type: "object"},
+				},
+				"output_files": {
+					Type:        "array",
+					Description: "Deprecated alias for attachments (array of absolute file paths).",
+					Items:       &ports.Property{Type: "string"},
+				},
 			},
 			Required: []string{"command"},
 		},
@@ -108,10 +120,25 @@ func (t *sandboxShellExecTool) Execute(ctx context.Context, call ports.ToolCall)
 		}
 	}
 
+	specs, err := parseSandboxAttachmentSpecs(call.Arguments)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	attachments, attachmentErrs := downloadSandboxAttachments(ctx, t.client, call.SessionID, specs, "sandbox_shell_exec")
+	if len(attachments) > 0 {
+		attachments = normalizeSandboxAttachments(ctx, attachments, t.uploader, "sandbox_shell_exec")
+		content = fmt.Sprintf("%s\n\nAttachments: %s", content, formatAttachmentList(attachments))
+	}
+	if len(attachmentErrs) > 0 {
+		metadata["attachment_errors"] = attachmentErrs
+	}
+
 	return &ports.ToolResult{
-		CallID:   call.ID,
-		Content:  content,
-		Metadata: metadata,
+		CallID:      call.ID,
+		Content:     content,
+		Metadata:    metadata,
+		Attachments: attachments,
 	}, nil
 }
 

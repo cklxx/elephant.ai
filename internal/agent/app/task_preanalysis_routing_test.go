@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	"alex/internal/subscription"
 )
 
 type recordingLLMFactory struct {
@@ -151,5 +152,47 @@ func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
 	}
 	if modelCalls[0] != "mock-small|small-model" {
 		t.Fatalf("expected greeting to use small model directly, got %q", modelCalls[0])
+	}
+}
+
+func TestPrepareUsesPinnedSelectionAndSkipsSmallModel(t *testing.T) {
+	session := &ports.Session{ID: "session-pinned", Messages: nil, Metadata: map[string]string{}}
+	store := &stubSessionStore{session: session}
+	factory := &recordingLLMFactory{}
+
+	service := NewExecutionPreparationService(ExecutionPreparationDeps{
+		LLMFactory:   factory,
+		ToolRegistry: &registryWithList{defs: []ports.ToolDefinition{{Name: "shell"}}},
+		SessionStore: store,
+		ContextMgr:   stubContextManager{},
+		Parser:       stubParser{},
+		Config: Config{
+			LLMProvider:      "mock-default",
+			LLMModel:         "default-model",
+			LLMSmallProvider: "mock-small",
+			LLMSmallModel:    "small-model",
+			MaxIterations:    3,
+		},
+		Logger:       ports.NoopLogger{},
+		EventEmitter: ports.NoopEventListener{},
+	})
+
+	ctx := WithLLMSelection(context.Background(), subscription.ResolvedSelection{
+		Provider: "codex",
+		Model:    "gpt-5.2-codex",
+		APIKey:   "tok",
+		BaseURL:  "https://chatgpt.com/backend-api/codex",
+		Headers:  map[string]string{"ChatGPT-Account-Id": "acct"},
+		Pinned:   true,
+	})
+
+	_, err := service.Prepare(ctx, "Do the thing", session.ID)
+	if err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+
+	modelCalls := factory.CallModels()
+	if len(modelCalls) != 1 || modelCalls[0] != "codex|gpt-5.2-codex" {
+		t.Fatalf("expected pinned model only, got %v", modelCalls)
 	}
 }

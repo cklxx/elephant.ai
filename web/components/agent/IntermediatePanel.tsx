@@ -15,8 +15,8 @@ import {
   WorkflowNodeOutputSummaryEvent,
   WorkflowToolCompletedEvent,
   WorkflowToolStartedEvent,
-  eventMatches,
 } from "@/lib/types";
+import { isEventType } from "@/lib/events/matching";
 import { Loader2, X } from "lucide-react";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { LazyMarkdownRenderer } from "./LazyMarkdownRenderer";
@@ -52,27 +52,22 @@ const getThinkStreamKey = (
 const isWorkflowToolStartedEvent = (
   event: AnyAgentEvent,
 ): event is WorkflowToolStartedEvent =>
-  eventMatches(event, "workflow.tool.started", "workflow.tool.started");
+  isEventType(event, "workflow.tool.started");
 
 const isWorkflowToolCompletedEvent = (
   event: AnyAgentEvent,
 ): event is WorkflowToolCompletedEvent =>
-  eventMatches(event, "workflow.tool.completed", "workflow.tool.completed");
+  isEventType(event, "workflow.tool.completed");
 
 const isWorkflowNodeOutputDeltaEvent = (
   event: AnyAgentEvent,
 ): event is WorkflowNodeOutputDeltaEvent =>
-  eventMatches(
-    event,
-    "workflow.node.output.delta",
-    "workflow.node.output.delta",
-    "workflow.node.output.delta",
-  );
+  isEventType(event, "workflow.node.output.delta");
 
 const isWorkflowNodeOutputSummaryEvent = (
   event: AnyAgentEvent,
 ): event is WorkflowNodeOutputSummaryEvent =>
-  eventMatches(event, "workflow.node.output.summary", "workflow.node.output.summary");
+  isEventType(event, "workflow.node.output.summary");
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);

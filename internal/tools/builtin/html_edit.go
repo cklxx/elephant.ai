@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/httpclient"
 	"alex/internal/llm"
 )
 
@@ -343,8 +344,18 @@ func decodeHTMLAttachment(ctx context.Context, att ports.Attachment) (string, er
 }
 
 func fetchHTML(ctx context.Context, uri string) (string, error) {
+	opts := httpclient.DefaultURLValidationOptions()
+	if allowLocalFetch(ctx) {
+		opts.AllowLocalhost = true
+	}
+	parsed, err := httpclient.ValidateOutboundURL(uri, opts)
+	if err != nil {
+		return "", err
+	}
+
 	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	// URL is validated by ValidateOutboundURL before request construction.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return "", err
 	}

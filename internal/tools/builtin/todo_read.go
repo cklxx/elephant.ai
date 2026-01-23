@@ -51,10 +51,8 @@ func (t *todoRead) Definition() ports.ToolDefinition {
 
 func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	// Get session ID from context
-	sessionID, ok := GetSessionID(ctx)
-	if !ok || sessionID == "" {
-		sessionID = "default"
-	}
+	sessionID, _ := GetSessionID(ctx)
+	sessionID = sanitizeSessionID(sessionID)
 
 	// Construct file path
 	todoFile := filepath.Join(t.sessionsDir, sessionID+"_todo.md")

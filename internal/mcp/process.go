@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -67,12 +68,16 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 
 	pm.logger.Info("Starting MCP server: %s %v", pm.command, pm.args)
 
+	resolved, err := resolveExecutable(pm.command)
+	if err != nil {
+		return err
+	}
+
 	// Create command with context
-	pm.process = exec.CommandContext(ctx, pm.command, pm.args...)
+	pm.process = exec.CommandContext(ctx, resolved, pm.args...)
 	pm.process.Env = pm.env
 
 	// Setup pipes
-	var err error
 	pm.stdin, err = pm.process.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("failed to create stdin pipe: %w", err)
@@ -103,6 +108,23 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	go pm.monitorExit()
 
 	return nil
+}
+
+func resolveExecutable(command string) (string, error) {
+	trimmed := strings.TrimSpace(command)
+	if trimmed == "" {
+		return "", fmt.Errorf("command is required")
+	}
+	if strings.Contains(trimmed, "\x00") {
+		return "", fmt.Errorf("command contains invalid characters")
+	}
+
+	resolved, err := exec.LookPath(trimmed)
+	if err != nil {
+		return "", fmt.Errorf("command not found: %w", err)
+	}
+
+	return resolved, nil
 }
 
 // Stop gracefully stops the MCP server process

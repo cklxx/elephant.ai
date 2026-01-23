@@ -22,7 +22,12 @@ func (t *listFiles) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		path = "."
 	}
 
-	entries, err := os.ReadDir(path)
+	resolved, err := resolveLocalPath(ctx, path)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
+	entries, err := os.ReadDir(resolved)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

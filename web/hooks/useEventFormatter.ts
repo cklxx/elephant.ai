@@ -19,7 +19,8 @@
  */
 
 import { useMemo } from 'react';
-import { AnyAgentEvent, eventMatches } from '@/lib/types';
+import { AnyAgentEvent } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 
 /**
  * Custom formatter function type
@@ -179,17 +180,17 @@ export function useEventFormatter(
           }
           return 'User task';
 
-        case eventMatches(event, 'workflow.node.started', 'workflow.node.started') &&
+        case isEventType(event, 'workflow.node.started') &&
           typeof (event as any).iteration === 'number':
           return `→ Iteration ${(event as any).iteration}/${(event as any).total_iters}`;
 
-        case eventMatches(event, 'workflow.node.output.delta', 'workflow.node.output.delta'):
+        case isEventType(event, 'workflow.node.output.delta'):
           if ('iteration' in event && typeof (event as any).iteration === 'number') {
             return `💭 Thinking... (iteration ${(event as any).iteration})`;
           }
           return '💭 Thinking...';
 
-        case eventMatches(event, 'workflow.node.output.summary', 'workflow.node.output.summary'):
+        case isEventType(event, 'workflow.node.output.summary'):
           if ('content' in event) {
             const preview = (event as any).content.slice(0, maxContentLength);
             const suffix = (event as any).content.length > maxContentLength ? '...' : '';
@@ -197,7 +198,7 @@ export function useEventFormatter(
           }
           return '✓ Response received';
 
-        case eventMatches(event, 'workflow.tool.started', 'workflow.tool.started'):
+        case isEventType(event, 'workflow.tool.started'):
           if ('tool_name' in event) {
             const preview =
               'arguments_preview' in event && (event as any).arguments_preview
@@ -207,7 +208,7 @@ export function useEventFormatter(
           }
           return 'Tool executing';
 
-        case eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed'):
+        case isEventType(event, 'workflow.tool.completed'):
           if ('tool_name' in event) {
             const icon = (event as any).error ? '✗' : '✓';
             const content = (event as any).error || formatResult((event as any).result);
@@ -215,11 +216,11 @@ export function useEventFormatter(
           }
           return 'Tool complete';
 
-        case eventMatches(event, 'workflow.node.completed', 'workflow.node.completed') &&
+        case isEventType(event, 'workflow.node.completed') &&
           typeof (event as any).iteration === 'number':
           return `✓ Iteration ${(event as any).iteration} complete (${(event as any).tokens_used} tokens, ${(event as any).tools_run} tools)`;
 
-        case eventMatches(event, 'workflow.result.final', 'workflow.result.final'):
+        case isEventType(event, 'workflow.result.final'):
           if ('final_answer' in event) {
             const preview = (event as any).final_answer.slice(0, maxContentLength + 50);
             const suffix = (event as any).final_answer.length > maxContentLength + 50 ? '...' : '';
@@ -227,7 +228,7 @@ export function useEventFormatter(
           }
           return '✓ Task complete';
 
-        case eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled'): {
+        case isEventType(event, 'workflow.result.cancelled'): {
           const requestedBy = 'requested_by' in event ? (event as any).requested_by : undefined;
           const prefix = requestedBy === 'user' ? '⏹ You stopped the agent' : '⏹ Task cancelled';
           const reason =
@@ -237,17 +238,17 @@ export function useEventFormatter(
           return `${prefix}${reason}`;
         }
 
-        case eventMatches(event, 'workflow.node.failed'):
+        case isEventType(event, 'workflow.node.failed'):
           if ('error' in event) {
             return `✗ Error: ${(event as any).error}`;
           }
           return '✗ Error occurred';
 
-        case eventMatches(event, 'workflow.node.started') &&
+        case isEventType(event, 'workflow.node.started') &&
           typeof (event as any).step_index === 'number':
           return `→ Step ${(event as any).step_index + 1}: ${(event as any).step_description ?? ''}`;
 
-        case eventMatches(event, 'workflow.node.completed') &&
+        case isEventType(event, 'workflow.node.completed') &&
           typeof (event as any).step_index === 'number':
           if ('step_result' in event && typeof (event as any).step_result === 'string') {
             const preview = (event as any).step_result ? (event as any).step_result.slice(0, 80) : '';
@@ -255,13 +256,13 @@ export function useEventFormatter(
           }
           return 'Step completed';
 
-        case eventMatches(event, 'workflow.subflow.progress', 'workflow.subflow.progress'):
+        case isEventType(event, 'workflow.subflow.progress'):
           return `↺ Subagent progress ${(event as any).completed}/${(event as any).total} · ${(event as any).tokens} tokens · ${(event as any).tool_calls} tool calls`;
 
-        case eventMatches(event, 'workflow.subflow.completed', 'workflow.subflow.completed'):
+        case isEventType(event, 'workflow.subflow.completed'):
           return `✓ Subagent summary ${(event as any).success}/${(event as any).total} succeeded (${(event as any).failed} failed, ${(event as any).tokens} tokens, ${(event as any).tool_calls} tool calls)`;
 
-        case eventMatches(event, 'workflow.tool.progress', 'workflow.tool.progress'):
+        case isEventType(event, 'workflow.tool.progress'):
           if ('chunk' in event) {
             return (event as any).chunk;
           }

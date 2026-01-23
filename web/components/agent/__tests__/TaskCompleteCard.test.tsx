@@ -66,6 +66,50 @@ describe("TaskCompleteCard", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("softens headings and lists in the final answer", () => {
+    const { container } = renderWithProvider({
+      ...baseEvent,
+      final_answer: "# Summary\n\n- First\n- Second\n\n**Key:** Detail.",
+      stop_reason: "final_answer",
+    });
+
+    expect(screen.getByText(/Summary/i)).toBeInTheDocument();
+    expect(screen.getByText(/First/i)).toBeInTheDocument();
+    expect(
+      container.querySelector("h1, h2, h3, h4, h5, h6"),
+    ).toBeNull();
+    expect(container.querySelector("ul, ol")).toBeNull();
+    expect(container.querySelector("strong")).toBeInTheDocument();
+  });
+
+  it("preserves headings and lists for document-like answers", () => {
+    const docAnswer = [
+      "# Project Plan",
+      "",
+      "## Goals",
+      "- Goal 1",
+      "- Goal 2",
+      "- Goal 3",
+      "",
+      "## Scope",
+      "- Item A",
+      "- Item B",
+      "- Item C",
+      "",
+      "### Details",
+      "This section contains additional context for the document.",
+    ].join("\n");
+
+    const { container } = renderWithProvider({
+      ...baseEvent,
+      final_answer: docAnswer,
+      stop_reason: "final_answer",
+    });
+
+    expect(container.querySelector("h2")).toBeInTheDocument();
+    expect(container.querySelector("ul")).toBeInTheDocument();
+  });
+
   it("renders inline images from attachment placeholders", () => {
     const imageAnswer = "Here is the preview: [draft.png] with caption.";
     renderWithProvider({

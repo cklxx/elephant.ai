@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dialog";
 
 const AUTO_PREFETCH_MARKDOWN_MAX_BYTES = 512 * 1024;
+const AUTO_PREFETCH_HTML_MAX_BYTES = 512 * 1024;
 const MARKDOWN_SNIPPET_MAX_CHARS = 1400;
 const HTML_EDITOR_MIN_HEIGHT = "min-h-[360px]";
 
@@ -104,9 +105,47 @@ function ensureViewportMeta(html: string): string {
   return `<!doctype html><html><head>${viewportTag}</head><body>${trimmed}</body></html>`;
 }
 
-function buildHtmlDataUri(html: string): string {
-  const normalized = ensureViewportMeta(html);
-  return `data:text/html;charset=utf-8,${encodeURIComponent(normalized)}`;
+function ensureBaseHref(html: string, baseHref: string | null): string {
+  if (!baseHref) return html;
+  const trimmed = html.trim();
+  if (!trimmed) return html;
+  if (/<base\b[^>]*>/i.test(trimmed)) {
+    return html;
+  }
+  const baseTag = `<base href="${baseHref}">`;
+  if (/<head\b[^>]*>/i.test(trimmed)) {
+    return trimmed.replace(
+      /<head\b[^>]*>/i,
+      (match) => `${match}\n  ${baseTag}`,
+    );
+  }
+  if (/<html\b[^>]*>/i.test(trimmed)) {
+    return trimmed.replace(
+      /<html\b[^>]*>/i,
+      (match) => `${match}\n<head>\n  ${baseTag}\n</head>`,
+    );
+  }
+  return `<head>${baseTag}</head>${trimmed}`;
+}
+
+function buildHtmlPreviewHtml(html: string, baseHref: string | null): string {
+  const withViewport = ensureViewportMeta(html);
+  return ensureBaseHref(withViewport, baseHref);
+}
+
+function buildHtmlPreviewUrl(
+  html: string,
+  baseHref: string | null,
+): { url: string; shouldRevoke: boolean } {
+  const normalized = buildHtmlPreviewHtml(html, baseHref);
+  if (typeof URL === "undefined" || typeof URL.createObjectURL !== "function") {
+    return {
+      url: `data:text/html;charset=utf-8,${encodeURIComponent(normalized)}`,
+      shouldRevoke: false,
+    };
+  }
+  const blob = new Blob([normalized], { type: "text/html" });
+  return { url: URL.createObjectURL(blob), shouldRevoke: true };
 }
 
 function validateHtmlSource(html: string): HtmlValidationIssue[] {
@@ -171,6 +210,7 @@ interface ArtifactPreviewCardProps {
   attachment: AttachmentPayload;
   className?: string;
   compact?: boolean;
+  displayMode?: "full" | "compact" | "title";
   showInlinePreview?: boolean;
 }
 
@@ -217,8 +257,14 @@ export function ArtifactPreviewCard({
   attachment,
   className,
   compact = false,
+  displayMode,
   showInlinePreview = true,
 }: ArtifactPreviewCardProps) {
+  const resolvedMode = displayMode ?? (compact ? "compact" : "full");
+  const isCompact = resolvedMode === "compact";
+  const isTitleOnly = resolvedMode === "title";
+  const isDense = isCompact || isTitleOnly;
+  const inlinePreviewEnabled = showInlinePreview && !isTitleOnly;
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [prefetchRequested, setPrefetchRequested] = useState(false);
   const [markdownPreview, setMarkdownPreview] = useState<string | null>(null);
@@ -229,6 +275,7 @@ export function ArtifactPreviewCard({
   const [htmlLoading, setHtmlLoading] = useState(false);
   const [htmlError, setHtmlError] = useState<string | null>(null);
   const [htmlView, setHtmlView] = useState<"preview" | "source">("preview");
+  const [htmlPreviewUrl, setHtmlPreviewUrl] = useState<string | null>(null);
 
   const {
     preferredUri: downloadUri,
@@ -249,8 +296,12 @@ export function ArtifactPreviewCard({
   const displayName = primaryTitle || "Artifact";
   const formatLabel =
     attachment.format?.toUpperCase() || attachment.media_type || "FILE";
+  const normalizedFormat = attachment.format?.toLowerCase() ?? "";
   const isMarkdown =
     formatLabel.includes("MARKDOWN") ||
+    normalizedFormat === "md" ||
+    normalizedFormat === "mkd" ||
+    normalizedFormat === "mdown" ||
     attachment.media_type?.includes("markdown");
   const normalizedTitle = normalizeTitle(primaryTitle ?? null);
 
@@ -277,12 +328,20 @@ export function ArtifactPreviewCard({
         }
       : undefined);
   const htmlSourceUri = htmlAsset?.cdn_url || downloadUri || originalUri;
+  const htmlPreviewBaseHref = useMemo(() => {
+    if (!htmlSourceUri) return null;
+    const trimmed = htmlSourceUri.trim();
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+      return trimmed;
+    }
+    return null;
+  }, [htmlSourceUri]);
   const previewImageUrl =
     imageAssets.find(
       (asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim(),
     )?.cdn_url ?? null;
 
-  const canInlinePreview = Boolean(htmlAsset) || isMarkdown;
+  const canInlinePreview = isMarkdown || (isHTML && Boolean(htmlSourceUri));
 
   const normalizedMarkdown = useMemo(() => {
     if (!markdownPreview) return null;
@@ -339,6 +398,26 @@ export function ArtifactPreviewCard({
 
     setPrefetchRequested(true);
   }, [attachment.size, isMarkdown, prefetchRequested]);
+
+  useEffect(() => {
+    if (!isHTML) return;
+    if (!inlinePreviewEnabled) return;
+    if (htmlPrefetchRequested) return;
+    if (!htmlSourceUri) return;
+
+    const size = typeof attachment.size === "number" ? attachment.size : null;
+    if (size && size > AUTO_PREFETCH_HTML_MAX_BYTES) {
+      return;
+    }
+
+    setHtmlPrefetchRequested(true);
+  }, [
+    attachment.size,
+    htmlPrefetchRequested,
+    htmlSourceUri,
+    isHTML,
+    inlinePreviewEnabled,
+  ]);
 
   // Effect to load markdown (for snippet + modal).
   useEffect(() => {
@@ -428,20 +507,31 @@ export function ArtifactPreviewCard({
       : htmlWarnings.length > 0
         ? "warning"
         : "ok";
-  const htmlPreviewUri = useMemo(() => {
-    if (htmlContent.trim().length > 0) {
-      return buildHtmlDataUri(htmlContent);
-    }
-    return htmlAsset?.cdn_url ?? null;
-  }, [htmlContent, htmlAsset?.cdn_url]);
   const isHtmlDirty = htmlDraft !== null && htmlDraft !== htmlBaseline;
+
+  useEffect(() => {
+    if (htmlContent.trim().length === 0) {
+      setHtmlPreviewUrl(null);
+      return;
+    }
+    const { url, shouldRevoke } = buildHtmlPreviewUrl(
+      htmlContent,
+      htmlPreviewBaseHref,
+    );
+    setHtmlPreviewUrl(url);
+    return () => {
+      if (shouldRevoke) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, [htmlContent, htmlPreviewBaseHref]);
 
   return (
     <>
       <div
         className={cn(
           "group relative w-full overflow-hidden rounded-xl border border-border/40 bg-card transition-colors",
-          compact && "flex aspect-[1.618/1] max-w-[420px] flex-col",
+          isCompact && "flex aspect-[1.618/1] max-w-[420px] flex-col",
           canInlinePreview &&
             "cursor-pointer hover:border-ring/60 hover:ring-1 hover:ring-ring/30 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60",
           className,
@@ -458,28 +548,28 @@ export function ArtifactPreviewCard({
         <div
           className={cn(
             "flex items-center gap-3",
-            compact ? "px-3 py-2" : "px-4 py-3",
+            isDense ? "px-3 py-2" : "px-4 py-3",
           )}
         >
           {/* Icon Box */}
           <div
             className={cn(
               "flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400",
-              compact ? "h-8 w-8" : "h-10 w-10",
+              isDense ? "h-8 w-8" : "h-10 w-10",
             )}
           >
             {previewImageUrl ? (
               <Image
                 src={previewImageUrl}
                 alt=""
-                width={compact ? 32 : 40}
-                height={compact ? 32 : 40}
+                width={isDense ? 32 : 40}
+                height={isDense ? 32 : 40}
                 className="h-full w-full rounded-lg object-cover"
                 unoptimized
-                sizes={compact ? "32px" : "40px"}
+                sizes={isDense ? "32px" : "40px"}
               />
             ) : (
-              <FileIcon className={compact ? "h-4 w-4" : "h-5 w-5"} />
+              <FileIcon className={isDense ? "h-4 w-4" : "h-5 w-5"} />
             )}
           </div>
 
@@ -494,20 +584,23 @@ export function ArtifactPreviewCard({
             >
               {displayName}
             </h4>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
-              <span>{formatLabel}</span>
-              {attachment.size && (
-                <>
-                  <span>•</span>
-                  <span>{Math.round(attachment.size / 1024)} KB</span>
-                </>
-              )}
-            </div>
+            {!isTitleOnly && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
+                <span>{formatLabel}</span>
+                {attachment.size && (
+                  <>
+                    <span>•</span>
+                    <span>{Math.round(attachment.size / 1024)} KB</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Actions - Minimal */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {downloadUri && (
+          {!isTitleOnly && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {downloadUri && (
               <>
                 <a
                   href={downloadUri}
@@ -543,32 +636,33 @@ export function ArtifactPreviewCard({
                   </a>
                 ) : null}
               </>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Inline excerpt (markdown only) */}
-        {isMarkdown ? (
+        {!isTitleOnly && isMarkdown ? (
         <div
           className={cn(
             "border-t border-border/40",
-            compact && "flex-1 min-h-0",
-            compact ? "px-3 py-2" : "px-4 py-2",
+            isCompact && "flex-1 min-h-0",
+            isCompact ? "px-3 py-2" : "px-4 py-2",
           )}
         >
-            {showInlinePreview ? (
+            {inlinePreviewEnabled ? (
               markdownLoading && !markdownPreview ? (
                 <div
                   className={cn(
                     "w-full animate-pulse rounded-lg border border-border/40 bg-muted/20",
-                    compact ? "h-16" : "h-24",
+                    isCompact ? "h-16" : "h-24",
                   )}
                 />
               ) : markdownSnippet ? (
                 <div
                   className={cn(
                     "relative overflow-hidden pointer-events-none",
-                    compact ? "h-full" : "max-h-64",
+                    isCompact ? "h-full" : "max-h-64",
                   )}
                 >
                   <LazyMarkdownRenderer
@@ -577,7 +671,7 @@ export function ArtifactPreviewCard({
                     className={cn(
                       "flex flex-col",
                       "prose prose-sm max-w-none text-foreground/90",
-                      compact ? "leading-snug" : "leading-normal",
+                      isCompact ? "leading-snug" : "leading-normal",
                       "prose-p:my-1.5 prose-headings:my-1 prose-li:my-0.5 prose-pre:my-2",
                       "prose-ol:flex prose-ol:flex-col prose-ul:flex prose-ul:flex-col prose-li:flex prose-li:flex-col",
                     )}
@@ -585,7 +679,58 @@ export function ArtifactPreviewCard({
                   <div
                     className={cn(
                       "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-card via-card/80 to-transparent",
-                      compact ? "h-10" : "h-12",
+                      isCompact ? "h-10" : "h-12",
+                    )}
+                  />
+                </div>
+              ) : (
+                <div className="text-xs text-muted-foreground">
+                  Click to preview
+                </div>
+              )
+            ) : (
+              <div className="text-xs text-muted-foreground">
+                Click to preview
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {!isTitleOnly && isHTML ? (
+          <div
+            className={cn(
+              "border-t border-border/40",
+              isCompact && "flex-1 min-h-0",
+              isCompact ? "px-3 py-2" : "px-4 py-2",
+            )}
+          >
+            {inlinePreviewEnabled ? (
+              htmlLoading && !htmlSource ? (
+                <div
+                  className={cn(
+                    "w-full animate-pulse rounded-lg border border-border/40 bg-muted/20",
+                    isCompact ? "h-full min-h-[6rem]" : "h-32",
+                  )}
+                />
+              ) : htmlError ? (
+                <div className="text-xs text-destructive">{htmlError}</div>
+              ) : htmlPreviewUrl ? (
+                <div
+                  className={cn(
+                    "relative overflow-hidden rounded-lg border border-border/40 bg-white",
+                    isCompact ? "h-full min-h-[6rem]" : "h-32",
+                  )}
+                >
+                  <iframe
+                    src={htmlPreviewUrl}
+                    className="h-full w-full border-0 pointer-events-none"
+                    title="HTML preview"
+                    loading="lazy"
+                  />
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-card via-card/40 to-transparent",
+                      isCompact ? "h-10" : "h-12",
                     )}
                   />
                 </div>
@@ -708,7 +853,7 @@ export function ArtifactPreviewCard({
                       Preview unavailable.
                     </div>
                   )
-                ) : htmlAsset ? (
+                ) : isHTML ? (
                   <div className="w-full space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
@@ -762,11 +907,20 @@ export function ArtifactPreviewCard({
                     </div>
 
                     {htmlView === "preview" ? (
-                      htmlPreviewUri ? (
+                      htmlLoading && !htmlPreviewUrl ? (
+                        <div className="flex items-center justify-center py-10 text-sm text-muted-foreground gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading preview...
+                        </div>
+                      ) : htmlError ? (
+                        <div className="rounded-xl border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">
+                          {htmlError}
+                        </div>
+                      ) : htmlPreviewUrl ? (
                         <div className="w-full">
                           <div className="mx-auto w-full max-w-[1100px]">
                             <iframe
-                              src={htmlPreviewUri}
+                              src={htmlPreviewUrl}
                               className="h-[80vh] w-full rounded-xl border border-border/60 bg-white"
                               title="Preview"
                             />

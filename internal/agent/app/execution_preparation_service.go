@@ -172,9 +172,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if toolMode == presets.ToolModeCLI && toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
-	if toolMode == presets.ToolModeWeb {
-		toolPreset = ""
-	}
 	personaKey := s.config.AgentPreset
 	if s.presetResolver != nil {
 		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
@@ -290,7 +287,21 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 
-	taskAnalysis, preferSmallModel := s.preAnalyzeTask(ctx, session, task)
+	selection, hasSelection := GetLLMSelection(ctx)
+	selectionPinned := hasSelection &&
+		selection.Pinned &&
+		strings.TrimSpace(selection.Provider) != "" &&
+		strings.TrimSpace(selection.Model) != ""
+
+	var taskAnalysis *ports.TaskAnalysis
+	var preferSmallModel bool
+	if selectionPinned {
+		if analysis, _, ok := quickTriageTask(task); ok {
+			taskAnalysis = analysis
+		}
+	} else {
+		taskAnalysis, preferSmallModel = s.preAnalyzeTask(ctx, session, task)
+	}
 	if session != nil && taskAnalysis != nil {
 		if session.Metadata == nil {
 			session.Metadata = make(map[string]string)
@@ -304,14 +315,17 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	effectiveModel := s.config.LLMModel
 	effectiveProvider := s.config.LLMProvider
-	if preferSmallModel && strings.TrimSpace(s.config.LLMSmallModel) != "" {
+	if selectionPinned {
+		effectiveProvider = selection.Provider
+		effectiveModel = selection.Model
+	} else if preferSmallModel && strings.TrimSpace(s.config.LLMSmallModel) != "" {
 		effectiveProvider = strings.TrimSpace(s.config.LLMSmallProvider)
 		if effectiveProvider == "" {
 			effectiveProvider = s.config.LLMProvider
 		}
 		effectiveModel = s.config.LLMSmallModel
 	}
-	if taskNeedsVision(task, preloadedAttachments, GetUserAttachments(ctx)) {
+	if !selectionPinned && taskNeedsVision(task, preloadedAttachments, GetUserAttachments(ctx)) {
 		if visionModel := strings.TrimSpace(s.config.LLMVisionModel); visionModel != "" {
 			effectiveProvider = s.config.LLMProvider
 			effectiveModel = visionModel
@@ -321,10 +335,18 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProvider, effectiveModel)
 	// Use GetIsolatedClient to ensure session-level cost tracking isolation
 	llmInitStarted := time.Now()
-	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, ports.LLMConfig{
+	llmConfig := ports.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
-	})
+	}
+	if selectionPinned {
+		llmConfig.APIKey = selection.APIKey
+		llmConfig.BaseURL = selection.BaseURL
+		if len(selection.Headers) > 0 {
+			llmConfig.Headers = selection.Headers
+		}
+	}
+	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, llmConfig)
 	clilatency.Printf(
 		"[latency] llm_client_init_ms=%.2f provider=%s model=%s\n",
 		float64(time.Since(llmInitStarted))/float64(time.Millisecond),
@@ -982,9 +1004,9 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, to
 	if toolMode == "" {
 		toolMode = presets.ToolModeCLI
 	}
-	configPreset := resolvedToolPreset
-	if configPreset == "" && toolMode != presets.ToolModeWeb {
-		configPreset = s.config.ToolPreset
+	configPreset := strings.TrimSpace(resolvedToolPreset)
+	if configPreset == "" {
+		configPreset = strings.TrimSpace(s.config.ToolPreset)
 	}
 	if isSubagentContext(ctx) {
 		registry = s.getRegistryWithoutSubagent()

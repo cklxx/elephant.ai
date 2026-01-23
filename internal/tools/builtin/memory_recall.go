@@ -41,6 +41,7 @@ func (t *memoryRecall) Definition() ports.ToolDefinition {
 				"keywords": {
 					Type:        "array",
 					Description: "Keywords to match memories.",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"slots": {
 					Type:        "object",

@@ -9,13 +9,15 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
 )
 
 type sandboxBrowserTool struct {
-	client *sandbox.Client
-	vision ports.ToolExecutor
-	prompt string
+	client   *sandbox.Client
+	vision   ports.ToolExecutor
+	prompt   string
+	uploader materialports.Migrator
 }
 
 type sandboxBrowserInfoTool struct {
@@ -23,9 +25,10 @@ type sandboxBrowserInfoTool struct {
 }
 
 type sandboxBrowserScreenshotTool struct {
-	client *sandbox.Client
-	vision ports.ToolExecutor
-	prompt string
+	client   *sandbox.Client
+	vision   ports.ToolExecutor
+	prompt   string
+	uploader materialports.Migrator
 }
 
 type sandboxResponse struct {
@@ -35,7 +38,12 @@ type sandboxResponse struct {
 }
 
 func NewSandboxBrowser(cfg SandboxConfig) ports.ToolExecutor {
-	return &sandboxBrowserTool{client: newSandboxClient(cfg), vision: cfg.VisionTool, prompt: cfg.VisionPrompt}
+	return &sandboxBrowserTool{
+		client:   newSandboxClient(cfg),
+		vision:   cfg.VisionTool,
+		prompt:   cfg.VisionPrompt,
+		uploader: cfg.AttachmentUploader,
+	}
 }
 
 func NewSandboxBrowserInfo(cfg SandboxConfig) ports.ToolExecutor {
@@ -43,7 +51,12 @@ func NewSandboxBrowserInfo(cfg SandboxConfig) ports.ToolExecutor {
 }
 
 func NewSandboxBrowserScreenshot(cfg SandboxConfig) ports.ToolExecutor {
-	return &sandboxBrowserScreenshotTool{client: newSandboxClient(cfg), vision: cfg.VisionTool, prompt: cfg.VisionPrompt}
+	return &sandboxBrowserScreenshotTool{
+		client:   newSandboxClient(cfg),
+		vision:   cfg.VisionTool,
+		prompt:   cfg.VisionPrompt,
+		uploader: cfg.AttachmentUploader,
+	}
 }
 
 func (t *sandboxBrowserTool) Metadata() ports.ToolMetadata {
@@ -75,6 +88,7 @@ Optional screenshot capture returns a PNG attachment. Prefer action logs and the
 				"actions": {
 					Type:        "array",
 					Description: "Ordered list of sandbox browser actions to execute.",
+					Items:       &ports.Property{Type: "object"},
 				},
 				"capture_screenshot": {
 					Type:        "boolean",
@@ -169,6 +183,10 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 
 	if visionSummary != "" {
 		content = fmt.Sprintf("%s Vision summary: %s", content, visionSummary)
+	}
+
+	if len(attachments) > 0 {
+		attachments = normalizeSandboxAttachments(ctx, attachments, t.uploader, "sandbox_browser")
 	}
 
 	return &ports.ToolResult{
@@ -287,11 +305,16 @@ func (t *sandboxBrowserScreenshotTool) Execute(ctx context.Context, call ports.T
 		metadata["vision"] = visionMeta
 	}
 
+	attachments := map[string]ports.Attachment{name: attachment}
+	if len(attachments) > 0 {
+		attachments = normalizeSandboxAttachments(ctx, attachments, t.uploader, "sandbox_browser_screenshot")
+	}
+
 	return &ports.ToolResult{
 		CallID:      call.ID,
 		Content:     content,
 		Metadata:    metadata,
-		Attachments: map[string]ports.Attachment{name: attachment},
+		Attachments: attachments,
 	}, nil
 }
 

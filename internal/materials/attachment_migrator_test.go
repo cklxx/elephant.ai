@@ -69,6 +69,7 @@ func TestAttachmentStoreMigratorFetchesRemoteContent(t *testing.T) {
 	store := &recordingStore{}
 	migrator := NewAttachmentStoreMigrator(store, nil, "", logging.Nop())
 	migrator.maxFetchBytes = 1 << 20
+	migrator.allowLocal = true
 
 	result, err := migrator.Normalize(context.Background(), materialports.MigrationRequest{
 		Attachments: map[string]ports.Attachment{

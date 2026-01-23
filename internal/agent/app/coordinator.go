@@ -57,7 +57,7 @@ type Config struct {
 	TopP                float64
 	StopSequences       []string
 	AgentPreset         string // Agent persona preset (default, code-expert, etc.)
-	ToolPreset          string // Tool access preset (CLI-only: full, read-only, safe)
+	ToolPreset          string // Tool access preset (full, read-only, safe, architect)
 	ToolMode            string // Tool access mode (web or cli)
 	EnvironmentSummary  string
 }
@@ -213,6 +213,23 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
 	outCtx := ports.GetOutputContext(ctx)
+	if outCtx == nil {
+		outCtx = &ports.OutputContext{Level: ports.LevelCore}
+	} else {
+		cloned := *outCtx
+		outCtx = &cloned
+	}
+	ids := id.IDsFromContext(ctx)
+	if outCtx.SessionID == "" {
+		outCtx.SessionID = ids.SessionID
+	}
+	if outCtx.TaskID == "" {
+		outCtx.TaskID = ids.TaskID
+	}
+	if outCtx.ParentTaskID == "" {
+		outCtx.ParentTaskID = ids.ParentTaskID
+	}
+	ctx = ports.WithOutputContext(ctx, outCtx)
 	c.logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
 	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
@@ -456,6 +473,17 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 
 	// Update session with results
 	sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
+	if c.attachmentMigrator != nil && len(attachmentStore) > 0 {
+		normalized, err := c.attachmentMigrator.Normalize(ctx, materialports.MigrationRequest{
+			Attachments: attachmentStore,
+			Origin:      "session_persist",
+		})
+		if err != nil && c.logger != nil {
+			c.logger.Warn("Failed to migrate attachments for session persistence: %v", err)
+		} else if normalized != nil {
+			attachmentStore = normalized
+		}
+	}
 	session.Messages = sanitizedMessages
 	if len(attachmentStore) > 0 {
 		session.Attachments = attachmentStore
@@ -599,7 +627,8 @@ func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
 	}
 }
 
-// SetAttachmentMigrator wires a CDN migrator used to rewrite inline attachments.
+// SetAttachmentMigrator wires an attachment migrator for boundary externalization.
+// Agent state keeps inline payloads; CDN rewriting happens at HTTP/SSE boundaries.
 func (c *AgentCoordinator) SetAttachmentMigrator(migrator materialports.Migrator) {
 	c.attachmentMigrator = migrator
 }
@@ -743,9 +772,6 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 	if toolMode == presets.ToolModeCLI && toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
-	if toolMode == presets.ToolModeWeb {
-		toolPreset = ""
-	}
 
 	window, err := c.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
 		TokenLimit:         c.config.MaxTokens,
@@ -787,9 +813,6 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		}
 	} else if toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
-	}
-	if strings.EqualFold(strings.TrimSpace(toolMode), string(presets.ToolModeWeb)) {
-		toolPreset = ""
 	}
 	session := &ports.Session{ID: "", Messages: nil}
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{

@@ -13,7 +13,6 @@ import (
 	"io"
 	"net/http"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -43,7 +42,7 @@ type pptxFromImages struct {
 
 func NewPPTXFromImages() ports.ToolExecutor {
 	return &pptxFromImages{
-		httpClient: &http.Client{Timeout: 2 * time.Minute},
+		httpClient: newAttachmentHTTPClient(2*time.Minute, "PPTXFromImages"),
 	}
 }
 
@@ -70,6 +69,7 @@ func (t *pptxFromImages) Definition() ports.ToolDefinition {
 				"images": {
 					Type:        "array",
 					Description: "Ordered list of images (data URI, HTTPS URL, base64 string, or prior attachment placeholder such as `[slide.png]`).",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"output_name": {
 					Type:        "string",
@@ -221,174 +221,10 @@ func extensionForImageMIME(mimeType string) (string, bool) {
 	}
 }
 
-var dataURIBase64Pattern = regexp.MustCompile(`(?is)^data:([^;,]+)?(;[^,]*)?,\s*(.+)$`)
-
 func (t *pptxFromImages) resolveImageBytes(ctx context.Context, ref string) ([]byte, string, error) {
-	trimmed := strings.TrimSpace(ref)
-	if trimmed == "" {
-		return nil, "", errors.New("empty image reference")
-	}
-
-	if bytes, mimeType, ok := decodeImageFromAttachmentContext(ctx, trimmed); ok {
-		return bytes, mimeType, nil
-	}
-
-	lower := strings.ToLower(trimmed)
-	if strings.HasPrefix(lower, "data:") {
-		bytes, mimeType, err := decodeDataURI(trimmed)
-		if err != nil {
-			return nil, "", err
-		}
-		return bytes, mimeType, nil
-	}
-
-	if strings.HasPrefix(lower, "https://") || strings.HasPrefix(lower, "http://") {
-		bytes, mimeType, err := t.fetchImage(ctx, trimmed)
-		if err != nil {
-			return nil, "", err
-		}
-		return bytes, mimeType, nil
-	}
-
-	if decoded, err := base64.StdEncoding.DecodeString(trimmed); err == nil && len(decoded) > 0 {
-		return decoded, http.DetectContentType(decoded), nil
-	}
-
-	return nil, "", fmt.Errorf("unsupported image reference %q", trimmed)
-}
-
-func decodeImageFromAttachmentContext(ctx context.Context, ref string) ([]byte, string, bool) {
-	attachments, _ := ports.GetAttachmentContext(ctx)
-	if len(attachments) == 0 {
-		return nil, "", false
-	}
-
-	name := normalizePlaceholder(ref)
-	if name == "" {
-		name = ref
-	}
-
-	att, ok := lookupAttachmentCaseInsensitive(attachments, name)
-	if !ok {
-		return nil, "", false
-	}
-
-	payload, mimeType, err := decodeInlineAttachment(att)
-	if err != nil || len(payload) == 0 {
-		return nil, "", false
-	}
-	if strings.TrimSpace(mimeType) == "" {
-		mimeType = http.DetectContentType(payload)
-	}
-	return payload, mimeType, true
-}
-
-func normalizePlaceholder(value string) string {
-	trimmed := strings.TrimSpace(value)
-	if len(trimmed) < 3 {
-		return ""
-	}
-	if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
-		return strings.TrimSpace(trimmed[1 : len(trimmed)-1])
-	}
-	return ""
-}
-
-func lookupAttachmentCaseInsensitive(attachments map[string]ports.Attachment, name string) (ports.Attachment, bool) {
-	if attachments == nil {
-		return ports.Attachment{}, false
-	}
-	if att, ok := attachments[name]; ok {
-		return att, true
-	}
-	for key, att := range attachments {
-		if strings.EqualFold(key, name) {
-			return att, true
-		}
-	}
-	return ports.Attachment{}, false
-}
-
-func decodeInlineAttachment(att ports.Attachment) ([]byte, string, error) {
-	if data := strings.TrimSpace(att.Data); data != "" {
-		decoded, err := base64.StdEncoding.DecodeString(data)
-		if err != nil {
-			return nil, "", fmt.Errorf("decode base64 payload: %w", err)
-		}
-		return decoded, strings.TrimSpace(att.MediaType), nil
-	}
-
-	if uri := strings.TrimSpace(att.URI); uri != "" {
-		if strings.HasPrefix(strings.ToLower(uri), "data:") {
-			decoded, mimeType, err := decodeDataURI(uri)
-			if err != nil {
-				return nil, "", err
-			}
-			if mimeType == "" {
-				mimeType = strings.TrimSpace(att.MediaType)
-			}
-			return decoded, mimeType, nil
-		}
-	}
-
-	return nil, "", errors.New("attachment has no inline data")
-}
-
-func decodeDataURI(value string) ([]byte, string, error) {
-	match := dataURIBase64Pattern.FindStringSubmatch(strings.TrimSpace(value))
-	if match == nil {
-		return nil, "", errors.New("invalid data URI")
-	}
-	mimeType := strings.TrimSpace(match[1])
-	meta := strings.ToLower(match[2])
-	payload := strings.TrimSpace(match[3])
-	if payload == "" {
-		return nil, "", errors.New("empty data URI payload")
-	}
-	if !strings.Contains(meta, "base64") {
-		return nil, "", errors.New("only base64 data URIs are supported")
-	}
-	decoded, err := base64.StdEncoding.DecodeString(payload)
-	if err != nil {
-		return nil, "", fmt.Errorf("decode data URI: %w", err)
-	}
-	if mimeType == "" {
-		mimeType = http.DetectContentType(decoded)
-	}
-	return decoded, mimeType, nil
-}
-
-func (t *pptxFromImages) fetchImage(ctx context.Context, url string) ([]byte, string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	bytes, mimeType, err := resolveAttachmentBytes(ctx, ref, t.httpClient)
 	if err != nil {
 		return nil, "", err
-	}
-	resp, err := t.httpClient.Do(req)
-	if err != nil {
-		return nil, "", err
-	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, "", fmt.Errorf("unexpected HTTP status %s", resp.Status)
-	}
-
-	bytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, "", err
-	}
-	if len(bytes) == 0 {
-		return nil, "", errors.New("empty image body")
-	}
-
-	mimeType := strings.TrimSpace(resp.Header.Get("Content-Type"))
-	if mimeType == "" {
-		mimeType = http.DetectContentType(bytes)
-	}
-	if idx := strings.Index(mimeType, ";"); idx != -1 {
-		mimeType = strings.TrimSpace(mimeType[:idx])
 	}
 	return bytes, mimeType, nil
 }

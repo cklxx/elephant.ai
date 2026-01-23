@@ -56,6 +56,7 @@ Rules:
 				"success_criteria": {
 					Type:        "array",
 					Description: "Optional string array of success criteria (UI hint).",
+					Items:       &ports.Property{Type: "string"},
 				},
 				"needs_user_input": {
 					Type:        "boolean",

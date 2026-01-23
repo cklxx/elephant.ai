@@ -62,6 +62,17 @@ Run these to validate changes end-to-end:
 - Web lint + unit tests: `npm --prefix web run lint` and `npm --prefix web test`.
 - End-to-end + evaluations: `npm --prefix web run e2e` and `./dev.sh test` for the orchestrated suite.
 
+## 8) Contribution entrypoints (MVP slices)
+
+Use these when turning roadmap items into issues. Each slice is sized for a focused PR and maps to concrete paths.
+
+- [ ] Cross-process orchestration (MVP: resume from persisted state on server restart) — `internal/session/state_store`, `internal/agent/app`.
+- [ ] Planner replan (MVP: replan after tool failure + emit a replan event) — `internal/agent/domain/react_runtime.go`, `internal/agent/domain/events.go`.
+- [ ] Tool SLA profiles (MVP: record per-tool latency/cost in registry + surface via event stream) — `internal/toolregistry`, `internal/agent/domain/events.go`, `web/lib/events`.
+- [ ] Eval gate automation (MVP: CI task to run `./dev.sh test` and summarize failures) — `scripts/`, `.github/workflows/`.
+
+Suggested labels: `good first issue`, `help wanted`, `mvp-slice`.
+
 ## Agent System Robustness TODOs
 
 每个能力拆成可落地的 feature 清单，并根据代码库现状标记是否已具备（`[x]` 已实现，`[ ]` 待补齐）。路径提示用于快速定位实现。

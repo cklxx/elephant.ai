@@ -1,95 +1,40 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import {
-  Loader2,
-  Film,
-  FileText,
-  Image,
-  Copy,
-  PanelLeftClose,
-  PanelLeftOpen,
-  PanelRightClose,
-  PanelRightOpen,
-  Share2,
-  Sparkles,
-} from "lucide-react";
-import { useTaskExecution, useCancelTask } from "@/hooks/useTaskExecution";
+import { Copy, Film, FileText, Image, Loader2 } from "lucide-react";
+
 import { useAgentEventStream } from "@/hooks/useAgentEventStream";
-import { useSessionStore, useDeleteSession } from "@/hooks/useSessionStore";
-import { toast } from "@/components/ui/toast";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { useI18n } from "@/lib/i18n";
-import { Sidebar, Header, ContentArea } from "@/components/layout";
-import { TaskInput } from "@/components/agent/TaskInput";
-import {
-  formatParsedError,
-  getErrorLogPayload,
-  isAPIError,
-  parseError,
-} from "@/lib/errors";
-import type {
-  AnyAgentEvent,
-  AttachmentPayload,
-  AttachmentUpload,
-} from "@/lib/types";
-import { eventMatches } from "@/lib/types";
-import { captureEvent } from "@/lib/analytics/posthog";
-import { AnalyticsEvent } from "@/lib/analytics/events";
-import { apiClient } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import {
-  AttachmentPanel,
-  collectAttachmentItems,
-} from "@/components/agent/AttachmentPanel";
-import { SkillsPanel } from "@/components/agent/SkillsPanel";
-import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
-import { SandboxDesktopPanel } from "@/components/agent/SandboxDesktopPanel";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useI18n } from "@/lib/i18n";
+import type { AnyAgentEvent } from "@/lib/types";
+import { captureEvent } from "@/lib/analytics/posthog";
+import { AnalyticsEvent } from "@/lib/analytics/events";
+import { collectAttachmentItems } from "@/components/agent/AttachmentPanel";
 import { UserPersonaDialog } from "@/components/agent/UserPersonaDialog";
+import { LLMIndicator } from "@/components/agent/LLMIndicator";
+import { isEventType } from "@/lib/events/matching";
 
-const LazyConversationEventStream = dynamic(
-  () =>
-    import("@/components/agent/ConversationEventStream").then(
-      (mod) => mod.ConversationEventStream,
-    ),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="rounded-2xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-        Preparing event stream…
-      </div>
-    ),
-  },
-);
+import { useConversationSession } from "./hooks/useConversationSession";
+import { useCancellation } from "./hooks/useCancellation";
+import { useTaskSubmission } from "./hooks/useTaskSubmission";
+import { useShareDialog } from "./hooks/useShareDialog";
+import { useDeleteDialog } from "./hooks/useDeleteDialog";
+import { ConversationHeader } from "./components/ConversationHeader";
+import { ConversationMainArea } from "./components/ConversationMainArea";
+import { EmptyStateView } from "./components/EmptyStateView";
+import type { QuickPromptItem } from "./components/QuickPromptButtons";
+
 export function ConversationPageContent() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [taskId, setTaskId] = useState<string | null>(null);
+  const [, setTaskId] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
-  const [cancelRequested, setCancelRequested] = useState(false);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);
-  const [prewarmSessionId, setPrewarmSessionId] = useState<string | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isRightPanelOpen, setIsRightPanelOpen] = useState(false);
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [deleteInProgress, setDeleteInProgress] = useState(false);
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const [shareLink, setShareLink] = useState<string | null>(null);
-  const [shareInProgress, setShareInProgress] = useState(false);
   const [personaDialogOpen, setPersonaDialogOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  const cancelIntentRef = useRef(false);
-  const activeTaskIdRef = useRef<string | null>(null);
   const pendingSubmitTsRef = useRef<number | null>(null);
   const submittedAtByTaskRef = useRef<Map<string, number>>(new Map());
   const firstTokenReportedRef = useRef<Set<string>>(new Set());
@@ -101,45 +46,29 @@ export function ConversationPageContent() {
     [searchParams],
   );
 
-  const buildAttachmentMap = useCallback(
-    (uploads: AttachmentUpload[]) =>
-      uploads.reduce<Record<string, AttachmentPayload>>((acc, att) => {
-        const { name, ...rest } = att;
+  const session = useConversationSession({ useMockStream });
 
-        acc[name] = {
-          name,
-          ...rest,
-        } as AttachmentPayload;
-        return acc;
-      }, {}),
-    [],
-  );
-
-  useEffect(() => {
-    activeTaskIdRef.current = activeTaskId;
-  }, [activeTaskId]);
-
-  const { mutate: executeTask, isPending: isCreatePending } =
-    useTaskExecution();
-  const { mutate: cancelTask, isPending: isCancelPending } = useCancelTask();
-  const deleteSessionMutation = useDeleteSession();
   const {
-    currentSessionId,
-    setCurrentSession,
-    addToHistory,
-    clearCurrentSession,
-    removeSession,
-    sessionHistory = [],
-    sessionLabels = {},
-  } = useSessionStore();
+    cancelRequested,
+    setCancelRequested,
+    cancelIntentRef,
+    activeTaskIdRef,
+    performCancellation,
+    handleStop,
+    isCancelPending,
+  } = useCancellation({
+    activeTaskId,
+    resolvedSessionId: session.resolvedSessionId,
+    useMockStream,
+    setActiveTaskId,
+  });
 
-  const resolvedSessionId = sessionId || currentSessionId;
-  const streamSessionId = resolvedSessionId ?? prewarmSessionId;
-  const formatSessionBadge = useCallback(
-    (value: string) =>
-      value.length > 8 ? `${value.slice(0, 4)}…${value.slice(-4)}` : value,
-    [],
-  );
+  const resetTaskState = useCallback(() => {
+    setTaskId(null);
+    setActiveTaskId(null);
+    setCancelRequested(false);
+    cancelIntentRef.current = false;
+  }, [cancelIntentRef, setCancelRequested]);
 
   const handleAgentEvent = useCallback(
     (event: AnyAgentEvent) => {
@@ -148,19 +77,13 @@ export function ConversationPageContent() {
         return;
       }
 
-      if (
-        eventMatches(
-          event,
-          "workflow.node.output.delta",
-          "workflow.node.output.delta",
-        )
-      ) {
+      if (isEventType(event, "workflow.node.output.delta")) {
         if (!firstTokenReportedRef.current.has(currentId)) {
           const submittedAt = submittedAtByTaskRef.current.get(currentId);
           if (typeof submittedAt === "number") {
             firstTokenReportedRef.current.add(currentId);
             captureEvent(AnalyticsEvent.FirstTokenRendered, {
-              session_id: resolvedSessionId ?? null,
+              session_id: session.resolvedSessionId ?? null,
               task_id: currentId,
               latency_ms: Math.max(0, performance.now() - submittedAt),
               mock_stream: useMockStream,
@@ -170,13 +93,8 @@ export function ConversationPageContent() {
       }
 
       if (
-        eventMatches(event, "workflow.result.final", "workflow.result.final") ||
-        eventMatches(
-          event,
-          "workflow.result.cancelled",
-          "workflow.result.cancelled",
-        ) ||
-        eventMatches(event, "workflow.node.failed")
+        isEventType(event, "workflow.result.final", "workflow.result.cancelled") ||
+        isEventType(event, "workflow.node.failed")
       ) {
         submittedAtByTaskRef.current.delete(currentId);
         firstTokenReportedRef.current.delete(currentId);
@@ -185,7 +103,7 @@ export function ConversationPageContent() {
         cancelIntentRef.current = false;
       }
     },
-    [resolvedSessionId, setActiveTaskId, setCancelRequested, useMockStream],
+    [session.resolvedSessionId, setCancelRequested, useMockStream, activeTaskIdRef, cancelIntentRef],
   );
 
   const {
@@ -197,16 +115,79 @@ export function ConversationPageContent() {
     clearEvents,
     reconnect,
     addEvent,
-  } = useAgentEventStream(streamSessionId, {
+  } = useAgentEventStream(session.streamSessionId, {
     useMock: useMockStream,
     onEvent: handleAgentEvent,
   });
-  // Auto-scroll to bottom when new events arrive
+
   useEffect(() => {
     if (contentRef.current) {
       contentRef.current.scrollTop = contentRef.current.scrollHeight;
     }
   }, [events]);
+
+  const handleNewSession = useCallback(() => {
+    session.handleNewSession({ clearEvents, resetTaskState });
+  }, [clearEvents, resetTaskState, session]);
+
+  const handleSessionSelect = useCallback(
+    (id: string) => {
+      session.handleSessionSelect(id, { clearEvents, resetTaskState });
+    },
+    [clearEvents, resetTaskState, session],
+  );
+
+  const { handleTaskSubmit, isCreatePending } = useTaskSubmission({
+    useMockStream,
+    resolvedSessionId: session.resolvedSessionId,
+    sessionId: session.sessionId,
+    currentSessionId: session.currentSessionId,
+    prewarmSessionId: session.prewarmSessionId,
+    prefillTask,
+    setSessionId: session.setSessionId,
+    setTaskId,
+    setActiveTaskId,
+    setPrewarmSessionId: session.setPrewarmSessionId,
+    setCancelRequested,
+    cancelIntentRef,
+    addEvent,
+    clearEvents,
+    setCurrentSession: session.setCurrentSession,
+    addToHistory: session.addToHistory,
+    clearCurrentSession: session.clearCurrentSession,
+    removeSession: session.removeSession,
+    performCancellation,
+    pendingSubmitTsRef,
+    submittedAtByTaskRef,
+    firstTokenReportedRef,
+  });
+
+  const {
+    deleteTargetId,
+    deleteInProgress,
+    handleSessionDeleteRequest,
+    handleDeleteCancel,
+    handleConfirmDelete,
+  } = useDeleteDialog({
+    resolvedSessionId: session.resolvedSessionId,
+    setSessionId: session.setSessionId,
+    setTaskId,
+    setActiveTaskId,
+    setCancelRequested,
+    cancelIntentRef,
+    clearEvents,
+    clearCurrentSession: session.clearCurrentSession,
+    removeSession: session.removeSession,
+  });
+
+  const {
+    shareDialogOpen,
+    setShareDialogOpen,
+    shareLink,
+    shareInProgress,
+    handleShareRequest,
+    handleCopyShareLink,
+  } = useShareDialog({ resolvedSessionId: session.resolvedSessionId });
 
   const hasAttachments = useMemo(
     () => collectAttachmentItems(events).length > 0,
@@ -218,432 +199,24 @@ export function ConversationPageContent() {
     [events],
   );
 
-  useEffect(() => {
-    void import("@/components/agent/ConversationEventStream");
-  }, []);
-
-  useEffect(() => {
-    if (useMockStream) return;
-    if (resolvedSessionId) return;
-    if (prewarmSessionId) return;
-
-    let cancelled = false;
-    apiClient
-      .createSession()
-      .then(({ session_id }) => {
-        if (cancelled) return;
-        setPrewarmSessionId(session_id);
-      })
-      .catch((err) => {
-        console.warn("[ConversationPage] Failed to prewarm session:", err);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [prewarmSessionId, resolvedSessionId, useMockStream]);
-
-  const performCancellation = useCallback(
-    (taskId: string) => {
-      cancelIntentRef.current = false;
-
-      if (useMockStream) {
-        setActiveTaskId(null);
-        setCancelRequested(false);
-        toast.success(
-          t("console.toast.taskCancelRequested.title"),
-          t("console.toast.taskCancelRequested.description"),
-        );
-        captureEvent(AnalyticsEvent.TaskCancelRequested, {
-          session_id: resolvedSessionId ?? null,
-          task_id: taskId,
-          status: "success",
-          mock_stream: true,
-        });
-        return;
-      }
-
-      cancelTask(taskId, {
-        onSuccess: () => {
-          const currentActiveTaskId = activeTaskIdRef.current;
-
-          if (!currentActiveTaskId || currentActiveTaskId === taskId) {
-            setActiveTaskId((prevActiveTaskId) =>
-              prevActiveTaskId === taskId ? null : prevActiveTaskId,
-            );
-          }
-          toast.success(
-            t("console.toast.taskCancelRequested.title"),
-            t("console.toast.taskCancelRequested.description"),
-          );
-          captureEvent(AnalyticsEvent.TaskCancelRequested, {
-            session_id: resolvedSessionId ?? null,
-            task_id: taskId,
-            status: "success",
-            mock_stream: false,
-          });
-        },
-        onError: (cancelError) => {
-          console.error(
-            "[ConversationPage] Task cancellation error:",
-            getErrorLogPayload(cancelError),
-          );
-          setCancelRequested(false);
-          const parsed = parseError(cancelError, t("common.error.unknown"));
-          toast.error(
-            t("console.toast.taskCancelError.title"),
-            t("console.toast.taskCancelError.description", {
-              message: formatParsedError(parsed),
-            }),
-          );
-          captureEvent(AnalyticsEvent.TaskCancelFailed, {
-            session_id: resolvedSessionId ?? null,
-            task_id: taskId,
-            error_kind: isAPIError(cancelError) ? "api" : "unknown",
-            ...(isAPIError(cancelError)
-              ? { status_code: cancelError.status }
-              : {}),
-          });
-        },
-      });
-    },
-    [
-      cancelTask,
-      resolvedSessionId,
-      setActiveTaskId,
-      setCancelRequested,
-      t,
-      useMockStream,
-    ],
-  );
-
-  const handleTaskSubmit = (task: string, attachments: AttachmentUpload[]) => {
-    console.log("[ConversationPage] Task submitted:", { task, attachments });
-    pendingSubmitTsRef.current = performance.now();
-
-    captureEvent(AnalyticsEvent.TaskSubmitted, {
-      session_id: resolvedSessionId ?? null,
-      has_active_session: Boolean(resolvedSessionId),
-      attachment_count: attachments.length,
-      has_attachments: attachments.length > 0,
-      input_length: task.length,
-      mock_stream: useMockStream,
-      prefill_present: Boolean(prefillTask),
-    });
-
-    cancelIntentRef.current = false;
-    setCancelRequested(false);
-
-    if (useMockStream) {
-      const submissionTimestamp = new Date();
-      const provisionalSessionId =
-        sessionId ||
-        currentSessionId ||
-        `mock-${submissionTimestamp.getTime().toString(36)}`;
-      const mockTaskId = `mock-task-${submissionTimestamp.getTime().toString(36)}`;
-
-      const attachmentMap = buildAttachmentMap(attachments);
-
-      addEvent({
-        event_type: "workflow.input.received",
-        timestamp: submissionTimestamp.toISOString(),
-        agent_level: "core",
-        session_id: provisionalSessionId,
-        task_id: mockTaskId,
-        task,
-        attachments: Object.keys(attachmentMap).length
-          ? attachmentMap
-          : undefined,
-      });
-
-      setSessionId(provisionalSessionId);
-      setTaskId(mockTaskId);
-      setActiveTaskId(mockTaskId);
-      setCurrentSession(provisionalSessionId);
-      addToHistory(provisionalSessionId);
-      return;
-    }
-
-    const initialSessionId = resolvedSessionId ?? prewarmSessionId;
-    let retriedWithoutSession = false;
-
-    const runExecution = (requestedSessionId: string | null) => {
-      executeTask(
-        {
-          task,
-          session_id: requestedSessionId ?? undefined,
-          attachments: attachments.length ? attachments : undefined,
-        },
-        {
-          onSuccess: (data) => {
-            console.log("[ConversationPage] Task execution started:", data);
-            setPrewarmSessionId(null);
-            setSessionId(data.session_id);
-            setTaskId(data.task_id);
-            setActiveTaskId(data.task_id);
-            setCurrentSession(data.session_id);
-            addToHistory(data.session_id);
-
-            const submitTs = pendingSubmitTsRef.current;
-            if (typeof submitTs === "number") {
-              submittedAtByTaskRef.current.set(data.task_id, submitTs);
-              firstTokenReportedRef.current.delete(data.task_id);
-            }
-
-            const attachmentMap = buildAttachmentMap(attachments);
-            addEvent({
-              event_type: "workflow.input.received",
-              timestamp: new Date().toISOString(),
-              agent_level: "core",
-              session_id: data.session_id,
-              task_id: data.task_id,
-              parent_task_id: data.parent_task_id ?? undefined,
-              task,
-              attachments: Object.keys(attachmentMap).length
-                ? attachmentMap
-                : undefined,
-            });
-            if (cancelIntentRef.current) {
-              setCancelRequested(true);
-              performCancellation(data.task_id);
-            }
-          },
-          onError: (error) => {
-            const isStaleSession =
-              !retriedWithoutSession &&
-              !!requestedSessionId &&
-              isAPIError(error) &&
-              error.status === 404;
-
-            if (isStaleSession) {
-              retriedWithoutSession = true;
-              console.warn(
-                "[ConversationPage] Session not found, retrying without session_id",
-                {
-                  sessionId: requestedSessionId,
-                  error: getErrorLogPayload(error),
-                },
-              );
-
-              setSessionId(null);
-              setTaskId(null);
-              setActiveTaskId(null);
-              setCancelRequested(false);
-              cancelIntentRef.current = false;
-              clearCurrentSession();
-              removeSession(requestedSessionId);
-              clearEvents();
-
-              captureEvent(AnalyticsEvent.TaskRetriedWithoutSession, {
-                session_id: requestedSessionId,
-                error_status: 404,
-                mock_stream: useMockStream,
-              });
-
-              runExecution(null);
-              return;
-            }
-
-            console.error(
-              "[ConversationPage] Task execution error:",
-              getErrorLogPayload(error),
-            );
-            cancelIntentRef.current = false;
-            setCancelRequested(false);
-            setActiveTaskId(null);
-            const parsed = parseError(error, t("common.error.unknown"));
-            toast.error(
-              t("console.toast.taskFailed"),
-              formatParsedError(parsed),
-            );
-            captureEvent(AnalyticsEvent.TaskSubmissionFailed, {
-              session_id: requestedSessionId ?? null,
-              is_api_error: isAPIError(error),
-              mock_stream: useMockStream,
-              ...(isAPIError(error) ? { status_code: error.status } : {}),
-            });
-          },
-        },
-      );
-    };
-
-    runExecution(initialSessionId ?? null);
-  };
-
-  const handleStop = useCallback(() => {
-    if (isCancelPending) {
-      return;
-    }
-
-    captureEvent(AnalyticsEvent.TaskCancelRequested, {
-      session_id: resolvedSessionId ?? null,
-      task_id: activeTaskId ?? null,
-      status: "initiated",
-      mock_stream: useMockStream,
-      request_state: activeTaskId ? "inflight" : "queued",
-    });
-
-    setCancelRequested(true);
-    if (activeTaskId) {
-      performCancellation(activeTaskId);
-    } else {
-      cancelIntentRef.current = true;
-    }
-  }, [
-    activeTaskId,
-    isCancelPending,
-    performCancellation,
-    resolvedSessionId,
-    useMockStream,
-  ]);
-
-  const handleNewSession = () => {
-    setSessionId(null);
-    setTaskId(null);
-    setActiveTaskId(null);
-    setCancelRequested(false);
-    cancelIntentRef.current = false;
-    setPrewarmSessionId(null);
-    clearEvents();
-    clearCurrentSession();
-    captureEvent(AnalyticsEvent.SessionCreated, {
-      previous_session_id: resolvedSessionId ?? null,
-      had_active_session: Boolean(resolvedSessionId),
-      history_count: sessionHistory.length,
-    });
-  };
-
-  const handleSessionSelect = (id: string) => {
-    if (!id || id === resolvedSessionId) return;
-    clearEvents();
-    setPrewarmSessionId(null);
-    setSessionId(id);
-    setTaskId(null);
-    setActiveTaskId(null);
-    setCancelRequested(false);
-    cancelIntentRef.current = false;
-    setCurrentSession(id);
-    addToHistory(id);
-    captureEvent(AnalyticsEvent.SessionSelected, {
-      session_id: id,
-      previous_session_id: resolvedSessionId ?? null,
-      was_in_history: sessionHistory.includes(id),
-    });
-  };
-
-  const handleSessionDeleteRequest = (id: string) => {
-    setDeleteTargetId(id);
-  };
-
-  const handleDeleteCancel = () => {
-    if (deleteInProgress) return;
-    setDeleteTargetId(null);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!deleteTargetId) return;
-    setDeleteInProgress(true);
-    try {
-      await deleteSessionMutation.mutateAsync(deleteTargetId);
-      removeSession(deleteTargetId);
-      if (resolvedSessionId === deleteTargetId) {
-        clearEvents();
-        setSessionId(null);
-        setTaskId(null);
-        setActiveTaskId(null);
-        setCancelRequested(false);
-        cancelIntentRef.current = false;
-        clearCurrentSession();
-      }
-      toast.success(t("sidebar.session.toast.deleteSuccess"));
-      captureEvent(AnalyticsEvent.SessionDeleted, {
-        session_id: deleteTargetId,
-        status: "success",
-      });
-      setDeleteTargetId(null);
-    } catch (err) {
-      console.error(
-        "[ConversationPage] Failed to delete session:",
-        getErrorLogPayload(err),
-      );
-      const parsed = parseError(err, t("common.error.unknown"));
-      toast.error(
-        t("sidebar.session.toast.deleteError"),
-        formatParsedError(parsed),
-      );
-      captureEvent(AnalyticsEvent.SessionDeleted, {
-        session_id: deleteTargetId,
-        status: "error",
-        error_kind: isAPIError(err) ? "api" : "unknown",
-        ...(isAPIError(err) ? { status_code: err.status } : {}),
-      });
-    } finally {
-      setDeleteInProgress(false);
-    }
-  };
-
-  const handleShareRequest = async () => {
-    if (!resolvedSessionId || shareInProgress) return;
-    setShareInProgress(true);
-    try {
-      const { share_token } = await apiClient.createSessionShare(
-        resolvedSessionId,
-      );
-      const url = new URL("/share", window.location.origin);
-      url.searchParams.set("session_id", resolvedSessionId);
-      url.searchParams.set("token", share_token);
-      setShareLink(url.toString());
-      setShareDialogOpen(true);
-    } catch (err) {
-      const parsed = parseError(err, t("common.error.unknown"));
-      toast.error(
-        t("share.toast.createError.title"),
-        t("share.toast.createError.description", {
-          message: formatParsedError(parsed),
-        }),
-      );
-    } finally {
-      setShareInProgress(false);
-    }
-  };
-
-  const handleCopyShareLink = async () => {
-    if (!shareLink) return;
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      toast.success(
-        t("share.toast.copied.title"),
-        t("share.toast.copied.description"),
-      );
-    } catch (err) {
-      const parsed = parseError(err, t("common.error.unknown"));
-      toast.error(
-        t("share.toast.copyError.title"),
-        t("share.toast.copyError.description", {
-          message: formatParsedError(parsed),
-        }),
-      );
-    }
-  };
-
   const creationPending = useMockStream ? false : isCreatePending;
   const isTaskRunning = Boolean(activeTaskId);
   const stopPending = cancelRequested || isCancelPending;
   const inputDisabled = cancelRequested || isCancelPending;
   const streamIsRunning = isTaskRunning && !stopPending;
 
-  const activeSessionLabel = resolvedSessionId
-    ? sessionLabels[resolvedSessionId]?.trim()
+  const activeSessionLabel = session.resolvedSessionId
+    ? session.sessionLabels[session.resolvedSessionId]?.trim()
     : null;
   const deleteTargetLabel = deleteTargetId
-    ? sessionLabels[deleteTargetId]?.trim() ||
+    ? session.sessionLabels[deleteTargetId]?.trim() ||
       t("console.history.itemPrefix", { id: deleteTargetId.slice(0, 8) })
     : null;
-  const headerTitle = resolvedSessionId
+  const headerTitle = session.resolvedSessionId
     ? activeSessionLabel || t("conversation.header.activeLabel")
     : t("conversation.header.idle");
 
-  const quickPrompts = useMemo(
+  const quickPrompts = useMemo<QuickPromptItem[]>(
     () => [
       {
         id: "image",
@@ -671,114 +244,54 @@ export function ConversationPageContent() {
   );
 
   const showConnectingState =
-    Boolean(resolvedSessionId) &&
+    Boolean(session.resolvedSessionId) &&
     !hasRenderableEvents &&
     !isConnected &&
     !isReconnecting &&
     !error &&
     reconnectAttempts === 0;
   const showConnectionBanner =
-    Boolean(resolvedSessionId) &&
+    Boolean(session.resolvedSessionId) &&
     !hasRenderableEvents &&
     (Boolean(error) || isReconnecting || reconnectAttempts > 0);
 
   const emptyState = (
-    <div className="w-full max-w-md" data-testid="conversation-empty-state">
-      <div className="rounded-3xl p-6 text-center">
-        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/60 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400/70" />
-          {t("console.empty.badge")}
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <p
-            className="text-lg font-semibold tracking-tight text-foreground"
-            data-testid="conversation-empty-title"
-          >
-            {t("console.empty.title")}
-          </p>
-        </div>
-
-        <div className="mt-6">
-          <p className="text-[11px] font-semibold tracking-wide text-muted-foreground">
-            {t("console.quickstart.title")}
-          </p>
-          <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {quickPrompts.map((item) => (
-              <Button
-                key={item.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-9 rounded-full border-border/40 bg-secondary/40 text-xs font-semibold shadow-none hover:bg-secondary/60"
-                onClick={() => setPrefillTask(item.prompt)}
-              >
-                <item.icon className="h-4 w-4" aria-hidden />
-                {item.label}
-              </Button>
-            ))}
-          </div>
-
-          <p className="mt-4 text-xs text-muted-foreground">
-            {t("console.input.hotkeyHint")}
-          </p>
-        </div>
-      </div>
-    </div>
+    <EmptyStateView
+      badge={t("console.empty.badge")}
+      title={t("console.empty.title")}
+      quickstartTitle={t("console.quickstart.title")}
+      hotkeyHint={t("console.input.hotkeyHint")}
+      items={quickPrompts}
+      onSelect={setPrefillTask}
+    />
   );
 
-  const rightPanelToggle = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      data-testid="right-panel-toggle"
-      onClick={() =>
-        setIsRightPanelOpen((prev) => {
-          const next = !prev;
-          captureEvent(AnalyticsEvent.SidebarToggled, {
-            sidebar: "right_panel",
-            next_state: next ? "open" : "closed",
-            previous_state: prev ? "open" : "closed",
-          });
-          return next;
-        })
-      }
-      className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
-      aria-expanded={isRightPanelOpen}
-      aria-controls="conversation-right-panel"
-    >
-      {isRightPanelOpen ? (
-        <PanelRightClose className="h-4 w-4" />
-      ) : (
-        <PanelRightOpen className="h-4 w-4" />
-      )}
-      <span className="sr-only">
-        {isRightPanelOpen ? "Close right panel" : "Open right panel"}
-      </span>
-    </Button>
-  );
+  const handleSidebarToggle = useCallback(() => {
+    setIsSidebarOpen((prev) => {
+      const next = !prev;
+      captureEvent(AnalyticsEvent.SidebarToggled, {
+        next_state: next ? "open" : "closed",
+        previous_state: prev ? "open" : "closed",
+      });
+      return next;
+    });
+  }, []);
 
-  const shareButton = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      onClick={handleShareRequest}
-      disabled={!resolvedSessionId || shareInProgress}
-      className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
-      aria-label={t("header.actions.share")}
-    >
-      {shareInProgress ? (
-        <Loader2 className="h-4 w-4 animate-spin" />
-      ) : (
-        <Share2 className="h-4 w-4" />
-      )}
-    </Button>
-  );
+  const handleRightPanelToggle = useCallback(() => {
+    setIsRightPanelOpen((prev) => {
+      const next = !prev;
+      captureEvent(AnalyticsEvent.SidebarToggled, {
+        sidebar: "right_panel",
+        next_state: next ? "open" : "closed",
+        previous_state: prev ? "open" : "closed",
+      });
+      return next;
+    });
+  }, []);
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
+      <LLMIndicator />
       {shareDialogOpen ? (
         <Dialog
           open
@@ -826,7 +339,7 @@ export function ConversationPageContent() {
         <UserPersonaDialog
           open={personaDialogOpen}
           onOpenChange={setPersonaDialogOpen}
-          sessionId={streamSessionId}
+          sessionId={session.streamSessionId}
         />
       ) : null}
       <Dialog
@@ -852,7 +365,7 @@ export function ConversationPageContent() {
                     {deleteTargetLabel}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {formatSessionBadge(deleteTargetId)}
+                    {session.formatSessionBadge(deleteTargetId)}
                   </span>
                 </div>
               </div>
@@ -871,219 +384,69 @@ export function ConversationPageContent() {
               onClick={handleConfirmDelete}
               disabled={deleteInProgress}
             >
-              {deleteInProgress && <Loader2 className="h-4 w-4 animate-spin" />}
+              {deleteInProgress ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
               {t("sidebar.session.confirmDelete.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
       <div className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
-        <Header
+        <ConversationHeader
           title={headerTitle}
-          showEnvironmentStrip
-          leadingSlot={
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                data-testid="session-list-toggle"
-                onClick={() =>
-                  setIsSidebarOpen((prev) => {
-                    const next = !prev;
-                    captureEvent(AnalyticsEvent.SidebarToggled, {
-                      next_state: next ? "open" : "closed",
-                      previous_state: prev ? "open" : "closed",
-                    });
-                    return next;
-                  })
-                }
-                className="h-10 w-10 rounded-full border border-border/60 bg-background/50 shadow-sm hover:bg-background/70 hover:text-foreground"
-                aria-expanded={isSidebarOpen}
-                aria-controls="conversation-sidebar"
-              >
-                {isSidebarOpen ? (
-                  <PanelLeftClose className="h-4 w-4" />
-                ) : (
-                  <PanelLeftOpen className="h-4 w-4" />
-                )}
-                <span className="sr-only">
-                  {isSidebarOpen
-                    ? t("sidebar.toggle.close")
-                    : t("sidebar.toggle.open")}
-                </span>
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setPersonaDialogOpen(true)}
-                className="h-10 rounded-full border border-border/60 bg-background/50 px-3 text-xs font-semibold shadow-sm hover:bg-background/70"
-                disabled={!streamSessionId}
-              >
-                <Sparkles className="h-4 w-4" aria-hidden />
-                主动询问
-              </Button>
-            </div>
-          }
-          actionsSlot={
-            <div className="flex items-center gap-2">
-              {shareButton}
-              {rightPanelToggle}
-            </div>
-          }
+          isSidebarOpen={isSidebarOpen}
+          onToggleSidebar={handleSidebarToggle}
+          onOpenPersona={() => setPersonaDialogOpen(true)}
+          streamSessionId={session.streamSessionId}
+          onToggleRightPanel={handleRightPanelToggle}
+          isRightPanelOpen={isRightPanelOpen}
+          onShare={handleShareRequest}
+          shareInProgress={shareInProgress}
+          shareDisabled={!session.resolvedSessionId || shareInProgress}
         />
 
-        <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
-            <div
-              id="conversation-sidebar"
-              className={cn(
-                "overflow-hidden transition-all duration-300 lg:w-72 lg:flex-none",
-                isSidebarOpen ? "block" : "hidden",
-              )}
-              aria-hidden={!isSidebarOpen}
-            >
-              <Sidebar
-                sessionHistory={sessionHistory}
-                sessionLabels={sessionLabels}
-                currentSessionId={resolvedSessionId}
-                onSessionSelect={handleSessionSelect}
-                onSessionDelete={handleSessionDeleteRequest}
-                onNewSession={handleNewSession}
-              />
-            </div>
-
-            <div className="flex flex-1 min-h-0 min-w-0 flex-col overflow-hidden rounded-3xl">
-              <ContentArea
-                ref={contentRef}
-                className="flex-1 min-h-0 min-w-0"
-                fullWidth
-                contentClassName="space-y-4"
-              >
-                {!hasRenderableEvents ? (
-                  <div className="flex min-h-[60vh] items-center justify-center">
-                    {showConnectingState ? (
-                      <div className="flex flex-col items-center gap-3 rounded-3xl border border-border/60 bg-background/70 px-8 py-6 text-center">
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
-                          {t("sessions.details.loading")}
-                        </p>
-                      </div>
-                    ) : showConnectionBanner ? (
-                      <ConnectionBanner
-                        isConnected={isConnected}
-                        isReconnecting={isReconnecting}
-                        error={error}
-                        reconnectAttempts={reconnectAttempts}
-                        onReconnect={reconnect}
-                      />
-                    ) : (
-                      emptyState
-                    )}
-                  </div>
-                ) : (
-                  <LazyConversationEventStream
-                    events={events}
-                    isConnected={isConnected}
-                    isReconnecting={isReconnecting}
-                    error={error}
-                    reconnectAttempts={reconnectAttempts}
-                    onReconnect={reconnect}
-                    isRunning={streamIsRunning}
-                  />
-                )}
-              </ContentArea>
-
-              <div className="border-t px-3 py-4 sm:px-6 sm:py-6">
-                <div className="space-y-4">
-                  <SandboxDesktopPanel
-                    sessionId={streamSessionId}
-                    isRunning={streamIsRunning}
-                  />
-                  <TaskInput
-                    onSubmit={handleTaskSubmit}
-                    placeholder={
-                      resolvedSessionId
-                        ? t("console.input.placeholder.active")
-                        : t("console.input.placeholder.idle")
-                    }
-                    disabled={inputDisabled}
-                    loading={creationPending}
-                    prefill={prefillTask}
-                    onPrefillApplied={() => setPrefillTask(null)}
-                    onStop={handleStop}
-                    isRunning={isTaskRunning}
-                    stopPending={stopPending}
-                    stopDisabled={isCancelPending}
-                  />
-                </div>
-              </div>
-            </div>
-            <div
-              id="conversation-right-panel"
-              className={cn(
-                "hidden lg:flex flex-none justify-end overflow-hidden transition-all duration-300",
-                isRightPanelOpen ? "w-[380px] xl:w-[440px]" : "w-0",
-              )}
-              aria-hidden={!isRightPanelOpen}
-            >
-              {isRightPanelOpen ? (
-                <div className="sticky top-24 w-full max-w-[440px] space-y-4">
-                  <SkillsPanel />
-                  {hasAttachments ? (
-                    <AttachmentPanel events={events} />
-                  ) : (
-                    <div className="rounded-3xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-                      No attachments yet.
-                    </div>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </div>
+        <ConversationMainArea
+          contentRef={contentRef}
+          events={events}
+          hasRenderableEvents={hasRenderableEvents}
+          showConnectingState={showConnectingState}
+          showConnectionBanner={showConnectionBanner}
+          isConnected={isConnected}
+          isReconnecting={isReconnecting}
+          error={error}
+          reconnectAttempts={reconnectAttempts}
+          onReconnect={reconnect}
+          streamIsRunning={streamIsRunning}
+          isSidebarOpen={isSidebarOpen}
+          sessionHistory={session.sessionHistory}
+          sessionLabels={session.sessionLabels}
+          resolvedSessionId={session.resolvedSessionId}
+          onSessionSelect={handleSessionSelect}
+          onSessionDelete={handleSessionDeleteRequest}
+          onNewSession={handleNewSession}
+          isRightPanelOpen={isRightPanelOpen}
+          onCloseRightPanel={() => setIsRightPanelOpen(false)}
+          hasAttachments={hasAttachments}
+          streamSessionId={session.streamSessionId}
+          emptyState={emptyState}
+          loadingText={t("sessions.details.loading")}
+          inputPlaceholder={
+            session.resolvedSessionId
+              ? t("console.input.placeholder.active")
+              : t("console.input.placeholder.idle")
+          }
+          creationPending={creationPending}
+          inputDisabled={inputDisabled}
+          prefillTask={prefillTask}
+          onPrefillApplied={() => setPrefillTask(null)}
+          onSubmit={handleTaskSubmit}
+          onStop={handleStop}
+          isTaskRunning={isTaskRunning}
+          stopPending={stopPending}
+          stopDisabled={isCancelPending}
+        />
       </div>
-
-      {isRightPanelOpen && (
-        <div className="fixed inset-0 z-50 flex lg:hidden">
-          <button
-            type="button"
-            className="absolute inset-0 h-full w-full bg-black/30"
-            aria-label="Close right panel"
-            onClick={() => setIsRightPanelOpen(false)}
-          />
-          <aside
-            className="relative ml-auto flex h-full w-full max-w-[440px] flex-col border-l border-border/60 bg-card"
-            aria-label="Resources panel"
-          >
-            <header className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
-              <h2 className="text-sm font-semibold text-foreground">
-                Resources
-              </h2>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 rounded-full"
-                onClick={() => setIsRightPanelOpen(false)}
-                aria-label="Close resources panel"
-              >
-                <PanelRightClose className="h-4 w-4" />
-              </Button>
-            </header>
-
-            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              <SkillsPanel />
-              {hasAttachments ? (
-                <AttachmentPanel events={events} />
-              ) : (
-                <div className="rounded-3xl border border-dashed border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-                  No attachments yet.
-                </div>
-              )}
-            </div>
-          </aside>
-        </div>
-      )}
     </div>
   );
 }

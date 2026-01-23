@@ -31,15 +31,22 @@ type filteredRegistry struct {
 type Config struct {
 	TavilyAPIKey string
 
-	ArkAPIKey               string
-	SeedreamTextEndpointID  string
-	SeedreamImageEndpointID string
-	SeedreamTextModel       string
-	SeedreamImageModel      string
-	SeedreamVisionModel     string
-	SeedreamVideoModel      string
-	LLMVisionModel          string
-	SandboxBaseURL          string
+	ArkAPIKey                  string
+	SeedreamTextEndpointID     string
+	SeedreamImageEndpointID    string
+	SeedreamTextModel          string
+	SeedreamImageModel         string
+	SeedreamVisionModel        string
+	SeedreamVideoModel         string
+	LLMVisionModel             string
+	SandboxBaseURL             string
+	ACPExecutorAddr            string
+	ACPExecutorCWD             string
+	ACPExecutorMode            string
+	ACPExecutorAutoApprove     bool
+	ACPExecutorMaxCLICalls     int
+	ACPExecutorMaxDuration     int
+	ACPExecutorRequireManifest bool
 
 	LLMFactory    ports.LLMClientFactory
 	LLMProvider   string
@@ -61,21 +68,28 @@ func NewRegistry(config Config) (*Registry, error) {
 	}
 
 	if err := r.registerBuiltins(Config{
-		TavilyAPIKey:            config.TavilyAPIKey,
-		ArkAPIKey:               config.ArkAPIKey,
-		LLMFactory:              config.LLMFactory,
-		LLMProvider:             config.LLMProvider,
-		LLMModel:                config.LLMModel,
-		LLMVisionModel:          config.LLMVisionModel,
-		APIKey:                  config.APIKey,
-		BaseURL:                 config.BaseURL,
-		SeedreamTextEndpointID:  config.SeedreamTextEndpointID,
-		SeedreamImageEndpointID: config.SeedreamImageEndpointID,
-		SeedreamTextModel:       config.SeedreamTextModel,
-		SeedreamImageModel:      config.SeedreamImageModel,
-		SeedreamVisionModel:     config.SeedreamVisionModel,
-		SeedreamVideoModel:      config.SeedreamVideoModel,
-		MemoryService:           config.MemoryService,
+		TavilyAPIKey:               config.TavilyAPIKey,
+		ArkAPIKey:                  config.ArkAPIKey,
+		LLMFactory:                 config.LLMFactory,
+		LLMProvider:                config.LLMProvider,
+		LLMModel:                   config.LLMModel,
+		LLMVisionModel:             config.LLMVisionModel,
+		APIKey:                     config.APIKey,
+		BaseURL:                    config.BaseURL,
+		SeedreamTextEndpointID:     config.SeedreamTextEndpointID,
+		SeedreamImageEndpointID:    config.SeedreamImageEndpointID,
+		SeedreamTextModel:          config.SeedreamTextModel,
+		SeedreamImageModel:         config.SeedreamImageModel,
+		SeedreamVisionModel:        config.SeedreamVisionModel,
+		SeedreamVideoModel:         config.SeedreamVideoModel,
+		ACPExecutorAddr:            config.ACPExecutorAddr,
+		ACPExecutorCWD:             config.ACPExecutorCWD,
+		ACPExecutorMode:            config.ACPExecutorMode,
+		ACPExecutorAutoApprove:     config.ACPExecutorAutoApprove,
+		ACPExecutorMaxCLICalls:     config.ACPExecutorMaxCLICalls,
+		ACPExecutorMaxDuration:     config.ACPExecutorMaxDuration,
+		ACPExecutorRequireManifest: config.ACPExecutorRequireManifest,
+		MemoryService:              config.MemoryService,
 	}); err != nil {
 		return nil, err
 	}
@@ -120,6 +134,7 @@ func wrapWithIDPropagation(tool ports.ToolExecutor) ports.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
+	tool = ensureApprovalWrapper(tool)
 	if _, ok := tool.(*idAwareExecutor); ok {
 		return tool
 	}
@@ -157,6 +172,81 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
 }
 
+func ensureApprovalWrapper(tool ports.ToolExecutor) ports.ToolExecutor {
+	if tool == nil {
+		return nil
+	}
+	switch typed := tool.(type) {
+	case *approvalExecutor:
+		return tool
+	case *idAwareExecutor:
+		if _, ok := typed.delegate.(*approvalExecutor); ok {
+			return tool
+		}
+		typed.delegate = &approvalExecutor{delegate: typed.delegate}
+		return tool
+	default:
+		return &approvalExecutor{delegate: tool}
+	}
+}
+
+type approvalExecutor struct {
+	delegate ports.ToolExecutor
+}
+
+func (a *approvalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	if a.delegate == nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool executor missing")}, nil
+	}
+	meta := a.delegate.Metadata()
+	if !meta.Dangerous {
+		return a.delegate.Execute(ctx, call)
+	}
+	approver := builtin.GetApproverFromContext(ctx)
+	if approver == nil || builtin.GetAutoApproveFromContext(ctx) {
+		return a.delegate.Execute(ctx, call)
+	}
+
+	req := &ports.ApprovalRequest{
+		Operation:   meta.Name,
+		FilePath:    extractFilePath(call.Arguments),
+		Summary:     fmt.Sprintf("Approval required for %s", meta.Name),
+		AutoApprove: builtin.GetAutoApproveFromContext(ctx),
+		ToolCallID:  call.ID,
+		ToolName:    call.Name,
+		Arguments:   call.Arguments,
+	}
+	resp, err := approver.RequestApproval(ctx, req)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+	if resp == nil || !resp.Approved {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("operation rejected")}, nil
+	}
+
+	return a.delegate.Execute(ctx, call)
+}
+
+func (a *approvalExecutor) Definition() ports.ToolDefinition {
+	return a.delegate.Definition()
+}
+
+func (a *approvalExecutor) Metadata() ports.ToolMetadata {
+	return a.delegate.Metadata()
+}
+
+func extractFilePath(args map[string]any) string {
+	if args == nil {
+		return ""
+	}
+	for _, key := range []string{"file_path", "path", "resolved_path"} {
+		if val, ok := args[key].(string); ok {
+			return strings.TrimSpace(val)
+		}
+	}
+	return ""
+}
+
 // WithoutSubagent returns a filtered registry that excludes the subagent tool
 // This prevents nested subagent calls at registration level
 func (r *Registry) WithoutSubagent() ports.ToolRegistry {
@@ -164,7 +254,7 @@ func (r *Registry) WithoutSubagent() ports.ToolRegistry {
 		parent: r,
 		// Exclude both subagent and explore (which wraps subagent) to prevent
 		// recursive delegation chains inside subagents.
-		exclude: map[string]bool{"subagent": true, "explore": true},
+		exclude: map[string]bool{"subagent": true, "explore": true, "acp_executor": true},
 	}
 }
 
@@ -264,9 +354,19 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["artifacts_list"] = builtin.NewArtifactsList()
 	r.static["artifacts_delete"] = builtin.NewArtifactsDelete()
 	r.static["a2ui_emit"] = builtin.NewA2UIEmit()
+	r.static["artifact_manifest"] = builtin.NewArtifactManifest()
 
 	// Execution & reasoning
 	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
+	r.static["acp_executor"] = builtin.NewACPExecutor(builtin.ACPExecutorConfig{
+		Addr:                    config.ACPExecutorAddr,
+		CWD:                     config.ACPExecutorCWD,
+		Mode:                    config.ACPExecutorMode,
+		AutoApprove:             config.ACPExecutorAutoApprove,
+		MaxCLICalls:             config.ACPExecutorMaxCLICalls,
+		MaxDurationSeconds:      config.ACPExecutorMaxDuration,
+		RequireArtifactManifest: config.ACPExecutorRequireManifest,
+	})
 
 	// UI orchestration
 	r.static["plan"] = builtin.NewPlan(config.MemoryService)
@@ -302,25 +402,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 		// Reserved for future config.
 	})
 	r.static["douyin_hot"] = builtin.NewDouyinHot()
-	miniappLLM := writeLLM
-	if provider != "" && provider != "mock" {
-		if config.LLMFactory == nil {
-			return fmt.Errorf("miniapp_html: LLMFactory is required when provider is %q", provider)
-		}
-		if model == "" {
-			return fmt.Errorf("miniapp_html: model is required when provider is %q", provider)
-		}
-		client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
-			APIKey:  config.APIKey,
-			BaseURL: config.BaseURL,
-		})
-		if err != nil {
-			return fmt.Errorf("miniapp_html: failed to create LLM client: %w", err)
-		}
-		miniappLLM = client
-	}
-	r.static["miniapp_html"] = builtin.NewMiniAppHTMLWithLLM(miniappLLM)
-
 	// Document generation
 	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
 
@@ -379,6 +460,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["sandbox_file_search"] = builtin.NewSandboxFileSearch(sandboxConfig)
 	r.static["sandbox_file_replace"] = builtin.NewSandboxFileReplace(sandboxConfig)
 	r.static["sandbox_shell_exec"] = builtin.NewSandboxShellExec(sandboxConfig)
+	r.static["sandbox_code_execute"] = builtin.NewSandboxCodeExecute(sandboxConfig)
 	r.static["sandbox_write_attachment"] = builtin.NewSandboxWriteAttachment(sandboxConfig)
 
 	return nil

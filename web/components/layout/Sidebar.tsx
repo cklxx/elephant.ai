@@ -9,7 +9,7 @@ import { useI18n } from "@/lib/i18n";
 
 interface SidebarProps {
   sessionHistory?: string[];
-  sessionLabels?: Record<string, string>;
+  sessionLabels?: Record<string, string | undefined>;
   currentSessionId?: string | null;
   onSessionSelect?: (id: string) => void;
   onSessionDelete?: (id: string) => void;
