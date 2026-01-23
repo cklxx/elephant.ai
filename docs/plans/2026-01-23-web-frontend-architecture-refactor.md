@@ -18,3 +18,4 @@
 - 2026-01-23: Split `web/lib/types.ts` into `web/lib/types/` (api/events/ui) and removed `eventMatches` in favor of `isEventType`.
 - 2026-01-23: Added state management guide under `web/docs/STATE_MANAGEMENT_GUIDE.md`.
 - 2026-01-23: Web test run (`npm --prefix web test`) hung in `next build` after ~8 minutes; process terminated and logged in error experience.
+- 2026-01-23: Retried web build with `NEXT_TELEMETRY_DISABLED=1 TURBOPACK=0` during `npm --prefix web test`; still stalled and terminated (logged).

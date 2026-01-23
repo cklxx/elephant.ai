@@ -4,7 +4,7 @@
  * or timeouts to optimize rendering performance.
  */
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { AnyAgentEvent } from "@/lib/types";
 import { STREAM_FLUSH_MS, IS_TEST_ENV, type FlushHandle, type FlushMode } from "./types";
 
