@@ -224,9 +224,9 @@ export function useSSE(
 
   // Connection state change handler
   const handleConnectionStateChange = useCallback((state: ConnectionState) => {
-    setConnectionState((prev) => ({
+    setConnectionState(() => ({
       ...state,
-      error: state.error ?? (prev.sessionId === state.sessionId ? prev.error : null),
+      error: state.error,
     }));
   }, []);
 
@@ -253,7 +253,6 @@ export function useSSE(
         });
       },
     });
-    connect();
 
     const unsubscribe = agentEventBus.subscribe((event) => {
       enqueueEvent(event);
@@ -262,8 +261,9 @@ export function useSSE(
     return () => {
       unsubscribe();
       pipelineRef.current = null;
+      cleanup();
     };
-  }, [enqueueEvent, connect]);
+  }, [enqueueEvent, cleanup]);
 
   // Handle session changes
   useEffect(() => {

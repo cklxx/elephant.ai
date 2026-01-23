@@ -89,6 +89,7 @@ export function useSSEConnection(
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef(sessionId);
   const connectInternalRef = useRef<(() => Promise<void>) | null>(null);
+  const isDisposedRef = useRef(false);
 
   // Keep refs in sync
   useEffect(() => {
@@ -96,6 +97,7 @@ export function useSSEConnection(
   }, [sessionId]);
 
   const cleanup = useCallback(() => {
+    isDisposedRef.current = true;
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
@@ -138,6 +140,7 @@ export function useSSEConnection(
     }
 
     isConnectingRef.current = true;
+    isDisposedRef.current = false;
 
     const token = authClient.getSession()?.accessToken;
     const replay: SSEReplayMode = hasLocalHistory ? "none" : "session";
@@ -145,6 +148,9 @@ export function useSSEConnection(
     const client = new SSEClient(currentSessionId, pipeline, {
       replay,
       onOpen: () => {
+        if (isDisposedRef.current) {
+          return;
+        }
         isConnectingRef.current = false;
         reconnectAttemptsRef.current = 0;
         onConnectionStateChange({
@@ -157,6 +163,10 @@ export function useSSEConnection(
       },
       onError: (err) => {
         console.error("[SSE] Connection error:", err);
+
+        if (isDisposedRef.current) {
+          return;
+        }
 
         const serverErrorMessage = parseServerError(err);
 
@@ -202,17 +212,21 @@ export function useSSEConnection(
         });
 
         reconnectTimeoutRef.current = setTimeout(() => {
-          void connectInternalRef.current?.();
+          if (!isDisposedRef.current) {
+            void connectInternalRef.current?.();
+          }
         }, delay);
       },
       onClose: () => {
-        onConnectionStateChange({
-          sessionId: currentSessionId,
-          isConnected: false,
-          isReconnecting: false,
-          error: null,
-          reconnectAttempts: reconnectAttemptsRef.current,
-        });
+        if (!isDisposedRef.current) {
+          onConnectionStateChange({
+            sessionId: currentSessionId,
+            isConnected: false,
+            isReconnecting: false,
+            error: null,
+            reconnectAttempts: reconnectAttemptsRef.current,
+          });
+        }
       },
     });
 
@@ -249,6 +263,7 @@ export function useSSEConnection(
   const reconnect = useCallback(() => {
     cleanup();
     reconnectAttemptsRef.current = 0;
+    isDisposedRef.current = false;
     onConnectionStateChange({
       sessionId: sessionIdRef.current,
       isConnected: false,
@@ -258,17 +273,6 @@ export function useSSEConnection(
     });
     void connectInternal();
   }, [cleanup, connectInternal, onConnectionStateChange]);
-
-  // Auto-connect on mount and when session changes
-  useEffect(() => {
-    if (sessionId && enabled && pipelineRef.current) {
-      void connectInternal();
-    }
-
-    return () => {
-      cleanup();
-    };
-  }, [sessionId, enabled, pipelineRef, connectInternal, cleanup]);
 
   return {
     connect,
