@@ -16,7 +16,7 @@
 - [x] Reproduce `build:turbo` and collect evidence (build completes).
 - [x] Implement fix to stabilize SSE reconnection state and avoid duplicate connects.
 - [x] Run full lint + tests (Go + web).
-- [ ] Document results and commit.
+- [x] Document results and commit.
 
 ## Summary
 - `npm --prefix web run build:turbo` completes successfully (no hang observed).
