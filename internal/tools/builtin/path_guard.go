@@ -25,6 +25,12 @@ func sanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve base path: %w", err)
 	}
+	if baseAbs == "" {
+		return "", fmt.Errorf("failed to resolve base path")
+	}
+	if root := defaultWorkingDir(); root != "" && !pathWithinBase(root, baseAbs) {
+		baseAbs = root
+	}
 
 	candidate := resolver.ResolvePath(trimmed)
 	candidateAbs, err := filepath.Abs(filepath.Clean(candidate))

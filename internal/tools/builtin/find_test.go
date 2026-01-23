@@ -68,7 +68,17 @@ func TestFindExecute_DirectoriesOnly(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a temporary test directory
-	tmpDir := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	tmpDir, err := os.MkdirTemp(cwd, "find-test-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(tmpDir)
+	})
 	testDir := filepath.Join(tmpDir, "testsubdir")
 	_ = os.Mkdir(testDir, 0755)
 

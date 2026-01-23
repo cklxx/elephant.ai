@@ -8,7 +8,17 @@ import (
 )
 
 func TestResolveLocalPath(t *testing.T) {
-	base := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	base, err := os.MkdirTemp(cwd, "path-guard-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(base)
+	})
 	ctx := WithWorkingDir(context.Background(), base)
 
 	resolved, err := resolveLocalPath(ctx, "note.txt")
@@ -30,7 +40,17 @@ func TestResolveLocalPath(t *testing.T) {
 }
 
 func TestResolveLocalPathRejectsSymlinkEscape(t *testing.T) {
-	base := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	base, err := os.MkdirTemp(cwd, "path-guard-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(base)
+	})
 	outside := t.TempDir()
 
 	link := filepath.Join(base, "logs")

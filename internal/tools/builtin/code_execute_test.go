@@ -223,7 +223,17 @@ func TestCodeExecute_JavaScript(t *testing.T) {
 func TestCodeExecute_CodePath(t *testing.T) {
 	tool := NewCodeExecute(CodeExecuteConfig{})
 
-	tmpDir := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	tmpDir, err := os.MkdirTemp(cwd, "code-exec-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(tmpDir)
+	})
 	scriptPath := filepath.Join(tmpDir, "hello.py")
 	if err := os.WriteFile(scriptPath, []byte("print('hi from file')"), 0644); err != nil {
 		t.Fatalf("failed to write temp script: %v", err)

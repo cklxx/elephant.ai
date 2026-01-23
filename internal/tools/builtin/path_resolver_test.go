@@ -8,7 +8,17 @@ import (
 )
 
 func TestNewPathResolverNormalizesWorkingDir(t *testing.T) {
-	base := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	base, err := os.MkdirTemp(cwd, "path-resolver-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(base)
+	})
 	dirty := filepath.Join(base, "child", "..")
 
 	resolver := NewPathResolver(dirty)
@@ -18,7 +28,17 @@ func TestNewPathResolverNormalizesWorkingDir(t *testing.T) {
 }
 
 func TestGetPathResolverFromContextNormalizesWorkingDir(t *testing.T) {
-	base := t.TempDir()
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	base, err := os.MkdirTemp(cwd, "path-resolver-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(base)
+	})
 	dirty := filepath.Join(base, "child", "..")
 
 	ctx := WithWorkingDir(context.Background(), dirty)

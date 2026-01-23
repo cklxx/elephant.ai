@@ -34,42 +34,23 @@ func (t *fileWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'content'")}, nil
 	}
 
-	resolver := GetPathResolverFromContext(ctx)
-	base := resolver.ResolvePath(".")
-	baseAbs, err := filepath.Abs(filepath.Clean(base))
+	resolved, err := resolveLocalPath(ctx, path)
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve base path: %w", err)}, nil
-	}
-	candidate := resolver.ResolvePath(path)
-	candidateAbs, err := filepath.Abs(filepath.Clean(candidate))
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve path: %w", err)}, nil
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 
-	return t.executeLocal(call, path, baseAbs, candidateAbs, content), nil
+	return t.executeLocal(call, path, resolved, content), nil
 }
 
-func (t *fileWrite) executeLocal(call ports.ToolCall, path, baseAbs, candidateAbs, content string) *ports.ToolResult {
-	rel, err := filepath.Rel(baseAbs, candidateAbs)
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve path within base: %w", err)}
-	}
-	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("path must stay within the working directory")}
-	}
-	safe := filepath.Join(baseAbs, rel)
-	if !pathWithinBase(baseAbs, safe) {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("path must stay within the working directory")}
-	}
-
-	dir := filepath.Dir(safe)
+func (t *fileWrite) executeLocal(call ports.ToolCall, path, resolved, content string) *ports.ToolResult {
+	dir := filepath.Dir(resolved)
 	if dir != "." && dir != "" {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return &ports.ToolResult{CallID: call.ID, Error: err}
 		}
 	}
 
-	if err := os.WriteFile(safe, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(resolved, []byte(content), 0644); err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}
 	}
 
@@ -88,10 +69,10 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, baseAbs, candidateAb
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), safe),
+		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), resolved),
 		Metadata: map[string]any{
 			"path":           path,
-			"resolved_path":  safe,
+			"resolved_path":  resolved,
 			"chars":          len(content),
 			"lines":          lines,
 			"content_len":    len(content),
