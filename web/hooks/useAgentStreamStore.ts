@@ -2,7 +2,7 @@
 // New store focuses on incremental aggregation with normalized data structures.
 
 import { create } from "zustand";
-import { shallow } from "zustand/shallow";
+import { useShallow } from "zustand/react/shallow";
 import { produce } from "immer";
 import {
   AnyAgentEvent,
@@ -116,29 +116,33 @@ export const useCurrentResearchStep = () => {
 
 export const useCompletedResearchSteps = () => {
   return useAgentStreamStore(
-    (state) => state.researchSteps.filter((step) => step.status === "done"),
-    shallow,
+    useShallow((state) =>
+      state.researchSteps.filter((step) => step.status === "done"),
+    ),
   );
 };
 
 export const useActiveResearchSteps = () => {
   return useAgentStreamStore(
-    (state) => state.researchSteps.filter((step) => step.status === "active"),
-    shallow,
+    useShallow((state) =>
+      state.researchSteps.filter((step) => step.status === "active"),
+    ),
   );
 };
 
 export const usePlannedResearchSteps = () => {
   return useAgentStreamStore(
-    (state) => state.researchSteps.filter((step) => step.status === "planned"),
-    shallow,
+    useShallow((state) =>
+      state.researchSteps.filter((step) => step.status === "planned"),
+    ),
   );
 };
 
 export const useFailedResearchSteps = () => {
   return useAgentStreamStore(
-    (state) => state.researchSteps.filter((step) => step.status === "failed"),
-    shallow,
+    useShallow((state) =>
+      state.researchSteps.filter((step) => step.status === "failed"),
+    ),
   );
 };
 
@@ -151,13 +155,12 @@ export const useActiveToolCall = () => {
 
 export const useIterationToolCalls = (iteration: number) => {
   return useAgentStreamStore(
-    (state) => {
+    useShallow((state) => {
       const calls = Array.from(state.toolCalls.values()).filter(
         (toolCall) => toolCall.iteration === iteration,
       );
       return calls.sort((a, b) => a.started_at.localeCompare(b.started_at));
-    },
-    shallow,
+    }),
   );
 };
 
@@ -170,44 +173,42 @@ export const useCurrentIteration = () => {
 
 export const useCompletedIterations = () => {
   return useAgentStreamStore(
-    (state) =>
+    useShallow((state) =>
       Array.from(state.iterations.values())
         .filter((iter) => iter.status === "done")
         .sort((a, b) => a.iteration - b.iteration),
-    shallow,
+    ),
   );
 };
 
 export const useErrorStates = () => {
   return useAgentStreamStore(
-    (state) => ({
+    useShallow((state) => ({
       hasError: state.taskStatus === "error",
       errorMessage: state.errorMessage,
       iterationErrors: Array.from(state.iterations.values())
         .filter((iter) => iter.errors.length > 0)
         .flatMap((iter) => iter.errors),
-    }),
-    shallow,
+    })),
   );
 };
 
 export const useTaskSummary = () => {
   return useAgentStreamStore(
-    (state) => ({
+    useShallow((state) => ({
       status: state.taskStatus,
       currentIteration: state.currentIteration,
       totalIterations: state.totalIterations,
       totalTokens: state.totalTokens,
       finalAnswer: state.finalAnswer,
       finalAnswerAttachments: state.finalAnswerAttachments,
-    }),
-    shallow,
+    })),
   );
 };
 
 export const useMemoryStats = () => {
   return useAgentStreamStore(
-    (state) => {
+    useShallow((state) => {
       const memUsage = state.eventCache.getMemoryUsage();
       return {
         eventCount: memUsage.eventCount,
@@ -216,18 +217,17 @@ export const useMemoryStats = () => {
         iterationCount: state.iterations.size,
         researchStepCount: state.researchSteps.length,
       };
-    },
-    shallow,
+    }),
   );
 };
 
 export const useIterationsArray = () => {
   return useAgentStreamStore(
-    (state) =>
+    useShallow((state) =>
       Array.from(state.iterations.values()).sort(
         (a, b) => a.iteration - b.iteration,
       ),
-    shallow,
+    ),
   );
 };
 

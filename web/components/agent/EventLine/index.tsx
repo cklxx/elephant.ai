@@ -340,7 +340,9 @@ export const EventLine = React.memo(function EventLine({
       return null;
     }
     const finalFlag =
-      "final" in event ? (event as Record<string, unknown>).final : undefined;
+      "final" in event && typeof (event as { final?: boolean }).final === "boolean"
+        ? (event as { final?: boolean }).final
+        : undefined;
     const streamFinished = finalFlag === true;
     const isStreaming = !streamFinished;
     return wrapWithSubagentContext(
@@ -598,30 +600,33 @@ export function isSubagentLike(event: AnyAgentEvent): boolean {
   if (!event) return false;
 
   if (event.agent_level === "subagent") return true;
-  if (
-    "is_subtask" in event &&
-    Boolean((event as Record<string, unknown>).is_subtask)
-  )
+  const unknownEvent = event as {
+    is_subtask?: unknown;
+    parent_task_id?: unknown;
+    node_id?: unknown;
+    call_id?: unknown;
+  };
+  if ("is_subtask" in event && Boolean(unknownEvent.is_subtask)) {
     return true;
+  }
 
   const parentTask =
-    "parent_task_id" in event &&
-    typeof (event as Record<string, unknown>).parent_task_id === "string"
-      ? String((event as Record<string, unknown>).parent_task_id).trim()
+    "parent_task_id" in event && typeof unknownEvent.parent_task_id === "string"
+      ? String(unknownEvent.parent_task_id).trim()
       : "";
   if (parentTask) return true;
 
   const nodeId =
-    "node_id" in event && typeof (event as Record<string, unknown>).node_id === "string"
-      ? String((event as Record<string, unknown>).node_id).toLowerCase()
+    "node_id" in event && typeof unknownEvent.node_id === "string"
+      ? String(unknownEvent.node_id).toLowerCase()
       : "";
   if (nodeId.startsWith("subagent") || nodeId.startsWith("subflow-")) {
     return true;
   }
 
   const callId =
-    "call_id" in event && typeof (event as Record<string, unknown>).call_id === "string"
-      ? String((event as Record<string, unknown>).call_id).toLowerCase()
+    "call_id" in event && typeof unknownEvent.call_id === "string"
+      ? String(unknownEvent.call_id).toLowerCase()
       : "";
   if (callId.startsWith("subagent")) {
     return true;
