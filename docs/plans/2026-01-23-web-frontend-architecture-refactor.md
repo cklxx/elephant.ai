@@ -11,3 +11,10 @@
 
 ## Progress Log
 - 2026-01-23: Plan created and inventory started.
+- 2026-01-23: Split `useSSE` into modular hooks + added event matching helper (`web/lib/events/matching.ts`); updated key consumers.
+- 2026-01-23: Decomposed `ConversationPageContent` into focused hooks/components; extracted TaskCompleteCard into subcomponents + hooks.
+- 2026-01-23: Consolidated markdown renderer under `components/ui/markdown/` and split attachments into `lib/attachments/`.
+- 2026-01-23: Extracted agent stream reducer + types; updated `useAgentStreamStore` to use reducer + shallow selectors.
+- 2026-01-23: Split `web/lib/types.ts` into `web/lib/types/` (api/events/ui) and removed `eventMatches` in favor of `isEventType`.
+- 2026-01-23: Added state management guide under `web/docs/STATE_MANAGEMENT_GUIDE.md`.
+- 2026-01-23: Web test run (`npm --prefix web test`) hung in `next build` after ~8 minutes; process terminated and logged in error experience.

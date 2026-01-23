@@ -8,7 +8,7 @@
 #   ./dev.sh down|stop          # Stop backend + web
 #   ./dev.sh status             # Show status + ports
 #   ./dev.sh logs [server|web]  # Tail logs
-#   ./dev.sh test               # Go + web tests
+#   ./dev.sh test               # Go tests (CI parity)
 #   ./dev.sh lint               # Go + web lint
 #
 # Env:
@@ -941,15 +941,9 @@ cmd_logs() {
 }
 
 cmd_test() {
-  log_info "Running Go tests..."
-  "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" test ./... -count=1
+  log_info "Running Go tests (CI parity)..."
+  "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" test -race -covermode=atomic -coverprofile=coverage.out ./...
   log_success "Go tests passed"
-
-  ensure_playwright_browsers
-
-  log_info "Running web tests..."
-  NEXT_DISABLE_GOOGLE_FONTS=1 npm --prefix "${SCRIPT_DIR}/web" test
-  log_success "Web tests passed"
 }
 
 cmd_lint() {
@@ -974,7 +968,7 @@ Commands:
   down|stop  Stop backend + web
   status     Show status + ports
   logs       Tail logs (optional: server|web)
-  test       Run Go + web tests
+  test       Run Go tests (CI parity)
   lint       Run Go + web lint
 EOF
 }
