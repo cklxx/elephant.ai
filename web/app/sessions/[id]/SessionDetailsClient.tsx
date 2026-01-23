@@ -16,7 +16,7 @@ import { toast } from '@/components/ui/toast';
 import { getLanguageLocale, useI18n, type TranslationKey } from '@/lib/i18n';
 import { formatParsedError, getErrorLogPayload, parseError } from '@/lib/errors';
 import type { AnyAgentEvent, AttachmentUpload } from '@/lib/types';
-import { eventMatches } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 
 const statusLabels: Record<string, TranslationKey> = {
   completed: 'sessions.details.history.status.completed',
@@ -142,9 +142,9 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
         return;
       }
       if (
-        eventMatches(event, 'workflow.result.final', 'workflow.result.final') ||
-        eventMatches(event, 'workflow.result.cancelled', 'workflow.result.cancelled') ||
-        eventMatches(event, 'workflow.node.failed')
+        isEventType(event, 'workflow.result.final') ||
+        isEventType(event, 'workflow.result.cancelled') ||
+        isEventType(event, 'workflow.node.failed')
       ) {
         setActiveTaskId(null);
         setCancelRequested(false);

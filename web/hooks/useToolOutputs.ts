@@ -8,7 +8,7 @@ import {
   AttachmentPayload,
 } from '@/lib/types';
 import { ToolOutput, ToolOutputType } from '@/components/agent/WebViewport';
-import { eventMatches } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 
 export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
   return useMemo(() => {
@@ -17,7 +17,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
 
     events.forEach((event) => {
       // Track tool call starts
-      if (eventMatches(event, 'workflow.tool.started', 'workflow.tool.started')) {
+      if (isEventType(event, 'workflow.tool.started')) {
         const e = event as WorkflowToolStartedEvent;
         toolCalls.set(e.call_id, {
           id: e.call_id,
@@ -28,7 +28,7 @@ export function useToolOutputs(events: AnyAgentEvent[]): ToolOutput[] {
       }
 
       // Complete tool calls
-      if (eventMatches(event, 'workflow.tool.completed', 'workflow.tool.completed')) {
+      if (isEventType(event, 'workflow.tool.completed')) {
         const e = event as WorkflowToolCompletedEvent;
         const existing = toolCalls.get(e.call_id);
 

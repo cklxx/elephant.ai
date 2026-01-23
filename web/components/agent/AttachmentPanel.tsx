@@ -8,7 +8,8 @@ import {
   buildAttachmentUri,
   getAttachmentSegmentType,
 } from "@/lib/attachments";
-import { AnyAgentEvent, AttachmentPayload, eventMatches } from "@/lib/types";
+import { AnyAgentEvent, AttachmentPayload } from "@/lib/types";
+import { isEventType } from "@/lib/events/matching";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -267,9 +268,9 @@ export function collectAttachmentItems(
 function isRenderedInMainStream(event: AnyAgentEvent): boolean {
   if (
     event.event_type === "workflow.input.received" ||
-    eventMatches(event, "workflow.result.final", "workflow.result.final") ||
-    eventMatches(event, "workflow.result.cancelled", "workflow.result.cancelled") ||
-    eventMatches(event, "workflow.node.failed")
+    isEventType(event, "workflow.result.final") ||
+    isEventType(event, "workflow.result.cancelled") ||
+    isEventType(event, "workflow.node.failed")
   ) {
     return true;
   }
@@ -280,7 +281,7 @@ function describeSource(event: AnyAgentEvent): string {
   if (event.event_type === "workflow.input.received") {
     return "User input";
   }
-  if (eventMatches(event, "workflow.tool.completed", "workflow.tool.completed")) {
+  if (isEventType(event, "workflow.tool.completed")) {
     const toolName =
       ("tool_name" in event && typeof (event as any).tool_name === "string"
         ? (event as any).tool_name
@@ -290,7 +291,7 @@ function describeSource(event: AnyAgentEvent): string {
         : undefined);
     return toolName ? `Tool · ${toolName}` : "Tool output";
   }
-  if (eventMatches(event, "workflow.result.final", "workflow.result.final")) {
+  if (isEventType(event, "workflow.result.final")) {
     return "Final answer";
   }
   return "Agent event";
