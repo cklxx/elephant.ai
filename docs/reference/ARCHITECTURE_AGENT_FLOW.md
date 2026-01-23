@@ -46,6 +46,8 @@ It complements the deeper dives in `docs/AGENT.md`, `docs/reference/ALEX.md`, an
 - Dependency injection container: `internal/di`
 - Configuration and environment: `internal/config`, `internal/environment`
 
+![Architecture Layers](images/architecture_layers.png)
+
 ---
 
 ## 3) Module Map (What Lives Where)
@@ -72,6 +74,8 @@ At startup each delivery surface follows the same skeleton:
 4) Wire LLM providers, tool registry, MCP supervisor, storage, observability.
 5) Resolve the agent application service (`internal/agent/app`).
 6) Attach delivery renderers (CLI/TUI, SSE, web).
+
+![Startup Flow Diagram](images/startup_flow.png)
 
 ```mermaid
 flowchart TD
@@ -101,6 +105,8 @@ Each step emits typed events which are rendered by delivery adapters.
 5) **Control**: Apply policies (max steps, approvals, mode restrictions).
 6) **Complete**: Emit final response, cost summary, and persistence signals.
 
+![Agent Execution Flow Diagram](images/agent_execution_flow.png)
+
 ```mermaid
 flowchart TD
     A[User Prompt] --> B[Bootstrap: context + env + session]
@@ -129,6 +135,8 @@ flowchart TD
   - Web UI (`web/`)
 - Observability attaches metrics and traces to LLM calls and tool invocations
   via `internal/observability` and `internal/logging`.
+
+![Event and Observability Pipeline](images/event_observability_pipeline.png)
 
 ---
 
