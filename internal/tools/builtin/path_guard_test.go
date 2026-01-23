@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -25,5 +26,20 @@ func TestResolveLocalPath(t *testing.T) {
 	outside := filepath.Dir(base)
 	if _, err := resolveLocalPath(ctx, outside); err == nil {
 		t.Fatalf("expected absolute path outside base to be rejected")
+	}
+}
+
+func TestResolveLocalPathRejectsSymlinkEscape(t *testing.T) {
+	base := t.TempDir()
+	outside := t.TempDir()
+
+	link := filepath.Join(base, "logs")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+
+	ctx := WithWorkingDir(context.Background(), base)
+	if _, err := resolveLocalPath(ctx, filepath.Join("logs", "secret.txt")); err == nil {
+		t.Fatalf("expected symlink escape to be rejected")
 	}
 }

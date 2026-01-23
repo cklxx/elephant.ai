@@ -2,7 +2,9 @@ package builtin
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"strings"
 )
@@ -34,7 +36,24 @@ func pathWithinBase(base, target string) bool {
 		return false
 	}
 
-	rel, err := filepath.Rel(baseClean, targetClean)
+	baseResolved, err := filepath.EvalSymlinks(baseClean)
+	if err != nil {
+		return false
+	}
+	targetResolved, err := filepath.EvalSymlinks(targetClean)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return false
+		}
+		parent := filepath.Dir(targetClean)
+		parentResolved, err := filepath.EvalSymlinks(parent)
+		if err != nil {
+			return false
+		}
+		targetResolved = filepath.Join(parentResolved, filepath.Base(targetClean))
+	}
+
+	rel, err := filepath.Rel(baseResolved, targetResolved)
 	if err != nil {
 		return false
 	}
