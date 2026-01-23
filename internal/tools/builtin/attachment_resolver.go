@@ -278,7 +278,7 @@ func readLocalAttachment(uri string, fallbackMediaType string) ([]byte, string, 
 	}
 
 	pathOnDisk := filepath.Join(dir, filepath.FromSlash(relative))
-	if rel, err := filepath.Rel(dir, pathOnDisk); err != nil || strings.HasPrefix(rel, "..") {
+	if !pathWithinBase(dir, pathOnDisk) {
 		return nil, "", true, errors.New("attachment path escapes store dir")
 	}
 	data, err := os.ReadFile(pathOnDisk)

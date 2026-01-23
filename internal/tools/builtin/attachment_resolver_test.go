@@ -3,12 +3,15 @@ package builtin
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -91,6 +94,31 @@ func TestResolveAttachmentBytesPrefersResponseContentType(t *testing.T) {
 	}
 	if !bytes.Equal(bytesOut, payload) {
 		t.Fatalf("expected payload to match server response")
+	}
+}
+
+func TestReadLocalAttachmentRejectsSymlinkEscape(t *testing.T) {
+	base := t.TempDir()
+	outside := t.TempDir()
+
+	link := filepath.Join(base, "logs")
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlink not supported: %v", err)
+	}
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configPayload := fmt.Sprintf("attachments:\n  provider: local\n  dir: %s\n", base)
+	if err := os.WriteFile(configPath, []byte(configPayload), 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+
+	_, _, handled, err := readLocalAttachment(attachmentPathPrefix+"logs/secret.txt", "")
+	if !handled {
+		t.Fatalf("expected local attachment to be handled")
+	}
+	if err == nil {
+		t.Fatalf("expected symlink escape to be rejected")
 	}
 }
 
