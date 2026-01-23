@@ -85,6 +85,7 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 	if r.status == 0 {
 		r.status = http.StatusOK
 	}
+	// ResponseRecorder passes through bytes unchanged; handlers are responsible for output encoding.
 	n, err := r.ResponseWriter.Write(b)
 	if n > 0 {
 		r.bytes += int64(n)
@@ -153,12 +154,14 @@ func CORSMiddleware(environment string, allowedOrigins []string) func(http.Handl
 				}
 			}
 
-			if origin != "" && (originAllowed || allowAny) {
+			if origin != "" && originAllowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
 				appendVary(w, "Origin")
-				if originAllowed || allowAny {
-					w.Header().Set("Access-Control-Allow-Credentials", "true")
-				}
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			} else if origin != "" && allowAny {
+				w.Header().Set("Access-Control-Allow-Origin", "*")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			}

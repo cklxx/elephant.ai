@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eventMatches } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 import {
   createMockEventSequence,
   type MockEventPayload,
@@ -29,12 +29,8 @@ describe('createMockEventSequence', () => {
     const subagentToolEvents = sequence.filter(
       ({ event }) =>
         isSubagentEvent(event) &&
-        eventMatches(
+        isEventType(
           event as any,
-          'workflow.tool.started',
-          'workflow.tool.progress',
-          'workflow.tool.completed',
-          'workflow.result.final',
           'workflow.tool.started',
           'workflow.tool.progress',
           'workflow.tool.completed',
@@ -61,8 +57,8 @@ describe('createMockEventSequence', () => {
     const secondSubagentEvents = getBySubtask(1);
 
     const expectPrepEvents = (events: TimedMockEvent[]) => {
-      expect(events.some(({ event }) => eventMatches(event as any, 'workflow.node.started', 'workflow.node.started'))).toBe(true);
-      expect(events.some(({ event }) => eventMatches(event as any, 'workflow.node.output.delta', 'workflow.node.output.delta'))).toBe(true);
+      expect(events.some(({ event }) => isEventType(event as any, 'workflow.node.started'))).toBe(true);
+      expect(events.some(({ event }) => isEventType(event as any, 'workflow.node.output.delta'))).toBe(true);
     };
 
     expectPrepEvents(firstSubagentEvents);

@@ -8,7 +8,8 @@ import {
   buildAttachmentUri,
   getAttachmentSegmentType,
 } from "@/lib/attachments";
-import { AnyAgentEvent, AttachmentPayload, eventMatches } from "@/lib/types";
+import { AnyAgentEvent, AttachmentPayload } from "@/lib/types";
+import { isEventType } from "@/lib/events/matching";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -30,6 +31,11 @@ export interface AttachmentListItem {
 export function AttachmentPanel({ events }: AttachmentPanelProps) {
   const attachments = useMemo(() => collectAttachmentItems(events), [events]);
   const hasAttachments = attachments.length > 0;
+  const hasMultipleAttachments = attachments.length > 1;
+  const hasMultipleArtifacts =
+    attachments.filter(
+      (item) => item.type === "document" || item.type === "embed",
+    ).length > 1;
 
   if (!hasAttachments) {
     return null;
@@ -50,9 +56,19 @@ export function AttachmentPanel({ events }: AttachmentPanelProps) {
       </CardHeader>
       <CardContent className="pt-0">
         <ScrollArea className="max-h-[70vh]">
-          <div className="flex flex-col gap-3 pr-1">
+          <div
+            className={
+              hasMultipleAttachments
+                ? "grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3 pr-1"
+                : "flex flex-col gap-3 pr-1"
+            }
+          >
             {attachments.map((item) => (
-              <AttachmentPreview key={item.key} item={item} />
+              <AttachmentPreview
+                key={item.key}
+                item={item}
+                compactDocuments={hasMultipleArtifacts}
+              />
             ))}
           </div>
         </ScrollArea>
@@ -61,7 +77,13 @@ export function AttachmentPanel({ events }: AttachmentPanelProps) {
   );
 }
 
-function AttachmentPreview({ item }: { item: AttachmentListItem }) {
+function AttachmentPreview({
+  item,
+  compactDocuments,
+}: {
+  item: AttachmentListItem;
+  compactDocuments: boolean;
+}) {
   const uri = buildAttachmentUri(item.attachment);
   const title = item.attachment.description || item.attachment.name || item.key;
   const badgeLabel = formatTypeLabel(item.type, item.attachment);
@@ -79,7 +101,12 @@ function AttachmentPreview({ item }: { item: AttachmentListItem }) {
           {badgeLabel}
         </Badge>
       </div>
-      <AttachmentBody type={item.type} attachment={item.attachment} uri={uri} />
+      <AttachmentBody
+        type={item.type}
+        attachment={item.attachment}
+        uri={uri}
+        compactDocuments={compactDocuments}
+      />
     </div>
   );
 }
@@ -88,10 +115,12 @@ function AttachmentBody({
   type,
   attachment,
   uri,
+  compactDocuments,
 }: {
   type: AttachmentSegmentType;
   attachment: AttachmentPayload;
   uri: string | null;
+  compactDocuments: boolean;
 }) {
   if (type === "image") {
     if (!uri) {
@@ -125,7 +154,12 @@ function AttachmentBody({
   }
 
   if (type === "document" || type === "embed") {
-    return <ArtifactPreviewCard attachment={attachment} />;
+    return (
+      <ArtifactPreviewCard
+        attachment={attachment}
+        displayMode={compactDocuments ? "title" : undefined}
+      />
+    );
   }
 
   return (
@@ -234,9 +268,9 @@ export function collectAttachmentItems(
 function isRenderedInMainStream(event: AnyAgentEvent): boolean {
   if (
     event.event_type === "workflow.input.received" ||
-    eventMatches(event, "workflow.result.final", "workflow.result.final") ||
-    eventMatches(event, "workflow.result.cancelled", "workflow.result.cancelled") ||
-    eventMatches(event, "workflow.node.failed")
+    isEventType(event, "workflow.result.final") ||
+    isEventType(event, "workflow.result.cancelled") ||
+    isEventType(event, "workflow.node.failed")
   ) {
     return true;
   }
@@ -247,7 +281,7 @@ function describeSource(event: AnyAgentEvent): string {
   if (event.event_type === "workflow.input.received") {
     return "User input";
   }
-  if (eventMatches(event, "workflow.tool.completed", "workflow.tool.completed")) {
+  if (isEventType(event, "workflow.tool.completed")) {
     const toolName =
       ("tool_name" in event && typeof (event as any).tool_name === "string"
         ? (event as any).tool_name
@@ -257,7 +291,7 @@ function describeSource(event: AnyAgentEvent): string {
         : undefined);
     return toolName ? `Tool · ${toolName}` : "Tool output";
   }
-  if (eventMatches(event, "workflow.result.final", "workflow.result.final")) {
+  if (isEventType(event, "workflow.result.final")) {
     return "Final answer";
   }
   return "Agent event";

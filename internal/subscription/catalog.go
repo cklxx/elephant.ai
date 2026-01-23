@@ -73,26 +73,48 @@ type Catalog struct {
 	Providers []CatalogProvider `json:"providers"`
 }
 
-type CatalogService struct {
-	loadCreds func() runtimeconfig.CLICredentials
-	client    *http.Client
-	ttl       time.Duration
-	mu        sync.Mutex
-	cached    Catalog
-	cachedAt  time.Time
+type OllamaTarget struct {
+	BaseURL string
+	Source  string
 }
 
-func NewCatalogService(loadCreds func() runtimeconfig.CLICredentials, client *http.Client, ttl time.Duration) *CatalogService {
+type CatalogOption func(*CatalogService)
+
+func WithOllamaTargetResolver(resolver func(context.Context) (OllamaTarget, bool)) CatalogOption {
+	return func(service *CatalogService) {
+		if resolver != nil {
+			service.ollamaResolver = resolver
+		}
+	}
+}
+
+type CatalogService struct {
+	loadCreds      func() runtimeconfig.CLICredentials
+	client         *http.Client
+	ttl            time.Duration
+	mu             sync.Mutex
+	cached         Catalog
+	cachedAt       time.Time
+	ollamaResolver func(context.Context) (OllamaTarget, bool)
+}
+
+func NewCatalogService(loadCreds func() runtimeconfig.CLICredentials, client *http.Client, ttl time.Duration, opts ...CatalogOption) *CatalogService {
 	if loadCreds == nil {
 		loadCreds = func() runtimeconfig.CLICredentials {
 			return runtimeconfig.LoadCLICredentials()
 		}
 	}
-	return &CatalogService{
+	service := &CatalogService{
 		loadCreds: loadCreds,
 		client:    client,
 		ttl:       ttl,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(service)
+		}
+	}
+	return service
 }
 
 func (s *CatalogService) Catalog(ctx context.Context) Catalog {
@@ -105,6 +127,11 @@ func (s *CatalogService) Catalog(ctx context.Context) Catalog {
 
 	creds := s.loadCreds()
 	providers := listProviders(ctx, creds, s.client)
+	if s.ollamaResolver != nil {
+		if target, ok := s.ollamaResolver(ctx); ok {
+			providers = append(providers, buildOllamaProvider(ctx, s.client, target))
+		}
+	}
 	catalog := Catalog{Providers: providers}
 
 	s.cached = catalog
@@ -206,6 +233,106 @@ func containsModel(models []string, value string) bool {
 		}
 	}
 	return false
+}
+
+const defaultOllamaBaseURL = "http://localhost:11434"
+
+func buildOllamaProvider(ctx context.Context, client *http.Client, target OllamaTarget) CatalogProvider {
+	baseURL := normalizeOllamaBaseURL(target.BaseURL)
+	source := strings.TrimSpace(target.Source)
+	if source == "" {
+		source = "ollama"
+	}
+	provider := CatalogProvider{
+		Provider: "ollama",
+		Source:   source,
+		BaseURL:  baseURL,
+	}
+
+	ollamaCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	models, err := fetchOllamaModels(ollamaCtx, client, baseURL)
+	if err != nil {
+		provider.Error = err.Error()
+		return provider
+	}
+	provider.Models = models
+	return provider
+}
+
+func normalizeOllamaBaseURL(baseURL string) string {
+	base := strings.TrimSpace(baseURL)
+	if base == "" {
+		base = defaultOllamaBaseURL
+	}
+	return strings.TrimRight(base, "/")
+}
+
+func fetchOllamaModels(ctx context.Context, client *http.Client, baseURL string) ([]string, error) {
+	endpoint := ollamaTagsEndpoint(baseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("ollama model list request failed: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	return parseOllamaModelList(body)
+}
+
+func ollamaTagsEndpoint(baseURL string) string {
+	base := normalizeOllamaBaseURL(baseURL)
+	if strings.HasSuffix(base, "/api") {
+		return base + "/tags"
+	}
+	return base + "/api/tags"
+}
+
+func parseOllamaModelList(raw []byte) ([]string, error) {
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, err
+	}
+	models := map[string]struct{}{}
+	if list, ok := payload["models"].([]any); ok {
+		for _, item := range list {
+			switch v := item.(type) {
+			case string:
+				if strings.TrimSpace(v) != "" {
+					models[v] = struct{}{}
+				}
+			case map[string]any:
+				if name, ok := v["name"].(string); ok && strings.TrimSpace(name) != "" {
+					models[name] = struct{}{}
+					continue
+				}
+				if name, ok := v["model"].(string); ok && strings.TrimSpace(name) != "" {
+					models[name] = struct{}{}
+				}
+			}
+		}
+	}
+
+	out := make([]string, 0, len(models))
+	for name := range models {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out, nil
 }
 
 type fetchTarget struct {

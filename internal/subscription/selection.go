@@ -89,7 +89,38 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 			Source:   string(creds.Antigravity.Source),
 			Pinned:   true,
 		}, true
+	case "ollama":
+		return ResolvedSelection{
+			Provider: provider,
+			Model:    model,
+			BaseURL:  resolveOllamaBaseURL(runtimeconfig.DefaultEnvLookup),
+			Source:   "ollama",
+			Pinned:   true,
+		}, true
 	default:
 		return ResolvedSelection{}, false
 	}
+}
+
+func resolveOllamaBaseURL(lookup runtimeconfig.EnvLookup) string {
+	if lookup == nil {
+		lookup = runtimeconfig.DefaultEnvLookup
+	}
+	if base, ok := lookup("OLLAMA_BASE_URL"); ok {
+		base = strings.TrimSpace(base)
+		if base != "" {
+			return base
+		}
+	}
+	if host, ok := lookup("OLLAMA_HOST"); ok {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			return ""
+		}
+		if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+			return host
+		}
+		return "http://" + host
+	}
+	return ""
 }

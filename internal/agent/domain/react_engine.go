@@ -268,6 +268,11 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
 		}
 	}
+	if tc.Name == "acp_executor" {
+		if snapshot := buildExecutorStateSnapshot(b.state, tc); snapshot != nil {
+			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
+		}
+	}
 
 	formattedArgs := formatToolArgumentsForLog(tc.Arguments)
 	b.engine.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, formattedArgs)

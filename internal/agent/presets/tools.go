@@ -14,13 +14,15 @@ const (
 	ToolModeWeb ToolMode = "web"
 )
 
-// ToolPreset defines tool access levels for CLI agents.
+// ToolPreset defines tool access levels for CLI and web agents.
 type ToolPreset string
 
 const (
-	ToolPresetFull     ToolPreset = "full"
-	ToolPresetReadOnly ToolPreset = "read-only"
-	ToolPresetSafe     ToolPreset = "safe"
+	ToolPresetFull      ToolPreset = "full"
+	ToolPresetReadOnly  ToolPreset = "read-only"
+	ToolPresetSafe      ToolPreset = "safe"
+	ToolPresetSandbox   ToolPreset = "sandbox"
+	ToolPresetArchitect ToolPreset = "architect"
 )
 
 // ToolConfig contains tool access configuration for a preset
@@ -33,9 +35,22 @@ type ToolConfig struct {
 
 var (
 	cliDeniedTools = map[string]bool{
-		"artifacts_write":  true,
-		"artifacts_list":   true,
-		"artifacts_delete": true,
+		"artifacts_write":            true,
+		"artifacts_list":             true,
+		"artifacts_delete":           true,
+		"acp_executor":               true,
+		"sandbox_browser":            true,
+		"sandbox_browser_info":       true,
+		"sandbox_browser_screenshot": true,
+		"sandbox_browser_dom":        true,
+		"sandbox_file_read":          true,
+		"sandbox_file_write":         true,
+		"sandbox_file_list":          true,
+		"sandbox_file_search":        true,
+		"sandbox_file_replace":       true,
+		"sandbox_shell_exec":         true,
+		"sandbox_code_execute":       true,
+		"sandbox_write_attachment":   true,
 	}
 	webDeniedTools = map[string]bool{
 		"file_read":    true,
@@ -62,6 +77,27 @@ var (
 		"bash":         true,
 		"code_execute": true,
 	}
+	sandboxDeniedTools = map[string]bool{
+		"file_read":    true,
+		"file_write":   true,
+		"file_edit":    true,
+		"list_files":   true,
+		"grep":         true,
+		"ripgrep":      true,
+		"find":         true,
+		"bash":         true,
+		"code_execute": true,
+		"skills":       true,
+		"todo_read":    true,
+		"todo_update":  true,
+	}
+	architectAllowedToolsCLI = map[string]bool{
+		"plan":         true,
+		"clearify":     true,
+		"web_search":   true,
+		"web_fetch":    true,
+		"request_user": true,
+	}
 )
 
 func cloneToolSet(src map[string]bool) map[string]bool {
@@ -86,12 +122,32 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 	}
 	switch mode {
 	case ToolModeWeb:
-		return &ToolConfig{
-			Name:         "Web Mode",
-			Description:  "All non-local tools (file/shell/code exec disabled)",
-			AllowedTools: nil,
-			DeniedTools:  cloneToolSet(webDeniedTools),
-		}, nil
+		if preset == "" {
+			return &ToolConfig{
+				Name:         "Web Mode",
+				Description:  "All non-local tools (file/shell/code exec disabled)",
+				AllowedTools: nil,
+				DeniedTools:  cloneToolSet(webDeniedTools),
+			}, nil
+		}
+		switch preset {
+		case ToolPresetArchitect:
+			return &ToolConfig{
+				Name:         "Architect Access",
+				Description:  "Web-safe tools (local file/shell/code exec disabled)",
+				AllowedTools: nil,
+				DeniedTools:  cloneToolSet(webDeniedTools),
+			}, nil
+		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox:
+			return &ToolConfig{
+				Name:         "Web Mode",
+				Description:  "All non-local tools (file/shell/code exec disabled)",
+				AllowedTools: nil,
+				DeniedTools:  cloneToolSet(webDeniedTools),
+			}, nil
+		default:
+			return nil, fmt.Errorf("unknown tool preset: %s", preset)
+		}
 	case ToolModeCLI:
 		if preset == "" {
 			preset = ToolPresetFull
@@ -117,6 +173,20 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				Description:  "Excludes potentially dangerous tools (bash, code execution)",
 				AllowedTools: nil,
 				DeniedTools:  mergeToolSets(cloneToolSet(safeDeniedTools), cliDeniedTools),
+			}, nil
+		case ToolPresetSandbox:
+			return &ToolConfig{
+				Name:         "Sandbox Access",
+				Description:  "No local file/shell tools; sandbox_* tools are web-only",
+				AllowedTools: nil,
+				DeniedTools:  mergeToolSets(cloneToolSet(sandboxDeniedTools), cliDeniedTools),
+			}, nil
+		case ToolPresetArchitect:
+			return &ToolConfig{
+				Name:         "Architect Access",
+				Description:  "Architect-only tools (search/plan/clarify + executor dispatch)",
+				AllowedTools: cloneToolSet(architectAllowedToolsCLI),
+				DeniedTools:  cloneToolSet(cliDeniedTools),
 			}, nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
@@ -207,13 +277,15 @@ func GetAllToolPresets() []ToolPreset {
 		ToolPresetFull,
 		ToolPresetReadOnly,
 		ToolPresetSafe,
+		ToolPresetSandbox,
+		ToolPresetArchitect,
 	}
 }
 
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {
-	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe:
+	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox, ToolPresetArchitect:
 		return true
 	default:
 		return false

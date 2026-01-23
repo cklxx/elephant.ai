@@ -210,6 +210,7 @@ interface ArtifactPreviewCardProps {
   attachment: AttachmentPayload;
   className?: string;
   compact?: boolean;
+  displayMode?: "full" | "compact" | "title";
   showInlinePreview?: boolean;
 }
 
@@ -256,8 +257,14 @@ export function ArtifactPreviewCard({
   attachment,
   className,
   compact = false,
+  displayMode,
   showInlinePreview = true,
 }: ArtifactPreviewCardProps) {
+  const resolvedMode = displayMode ?? (compact ? "compact" : "full");
+  const isCompact = resolvedMode === "compact";
+  const isTitleOnly = resolvedMode === "title";
+  const isDense = isCompact || isTitleOnly;
+  const inlinePreviewEnabled = showInlinePreview && !isTitleOnly;
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [prefetchRequested, setPrefetchRequested] = useState(false);
   const [markdownPreview, setMarkdownPreview] = useState<string | null>(null);
@@ -289,8 +296,12 @@ export function ArtifactPreviewCard({
   const displayName = primaryTitle || "Artifact";
   const formatLabel =
     attachment.format?.toUpperCase() || attachment.media_type || "FILE";
+  const normalizedFormat = attachment.format?.toLowerCase() ?? "";
   const isMarkdown =
     formatLabel.includes("MARKDOWN") ||
+    normalizedFormat === "md" ||
+    normalizedFormat === "mkd" ||
+    normalizedFormat === "mdown" ||
     attachment.media_type?.includes("markdown");
   const normalizedTitle = normalizeTitle(primaryTitle ?? null);
 
@@ -330,7 +341,7 @@ export function ArtifactPreviewCard({
       (asset) => typeof asset.cdn_url === "string" && asset.cdn_url.trim(),
     )?.cdn_url ?? null;
 
-  const canInlinePreview = Boolean(htmlAsset) || isMarkdown;
+  const canInlinePreview = isMarkdown || (isHTML && Boolean(htmlSourceUri));
 
   const normalizedMarkdown = useMemo(() => {
     if (!markdownPreview) return null;
@@ -390,7 +401,7 @@ export function ArtifactPreviewCard({
 
   useEffect(() => {
     if (!isHTML) return;
-    if (!showInlinePreview) return;
+    if (!inlinePreviewEnabled) return;
     if (htmlPrefetchRequested) return;
     if (!htmlSourceUri) return;
 
@@ -405,7 +416,7 @@ export function ArtifactPreviewCard({
     htmlPrefetchRequested,
     htmlSourceUri,
     isHTML,
-    showInlinePreview,
+    inlinePreviewEnabled,
   ]);
 
   // Effect to load markdown (for snippet + modal).
@@ -520,7 +531,7 @@ export function ArtifactPreviewCard({
       <div
         className={cn(
           "group relative w-full overflow-hidden rounded-xl border border-border/40 bg-card transition-colors",
-          compact && "flex aspect-[1.618/1] max-w-[420px] flex-col",
+          isCompact && "flex aspect-[1.618/1] max-w-[420px] flex-col",
           canInlinePreview &&
             "cursor-pointer hover:border-ring/60 hover:ring-1 hover:ring-ring/30 focus-visible:outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/60",
           className,
@@ -537,28 +548,28 @@ export function ArtifactPreviewCard({
         <div
           className={cn(
             "flex items-center gap-3",
-            compact ? "px-3 py-2" : "px-4 py-3",
+            isDense ? "px-3 py-2" : "px-4 py-3",
           )}
         >
           {/* Icon Box */}
           <div
             className={cn(
               "flex shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400",
-              compact ? "h-8 w-8" : "h-10 w-10",
+              isDense ? "h-8 w-8" : "h-10 w-10",
             )}
           >
             {previewImageUrl ? (
               <Image
                 src={previewImageUrl}
                 alt=""
-                width={compact ? 32 : 40}
-                height={compact ? 32 : 40}
+                width={isDense ? 32 : 40}
+                height={isDense ? 32 : 40}
                 className="h-full w-full rounded-lg object-cover"
                 unoptimized
-                sizes={compact ? "32px" : "40px"}
+                sizes={isDense ? "32px" : "40px"}
               />
             ) : (
-              <FileIcon className={compact ? "h-4 w-4" : "h-5 w-5"} />
+              <FileIcon className={isDense ? "h-4 w-4" : "h-5 w-5"} />
             )}
           </div>
 
@@ -573,20 +584,23 @@ export function ArtifactPreviewCard({
             >
               {displayName}
             </h4>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
-              <span>{formatLabel}</span>
-              {attachment.size && (
-                <>
-                  <span>•</span>
-                  <span>{Math.round(attachment.size / 1024)} KB</span>
-                </>
-              )}
-            </div>
+            {!isTitleOnly && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
+                <span>{formatLabel}</span>
+                {attachment.size && (
+                  <>
+                    <span>•</span>
+                    <span>{Math.round(attachment.size / 1024)} KB</span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Actions - Minimal */}
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            {downloadUri && (
+          {!isTitleOnly && (
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              {downloadUri && (
               <>
                 <a
                   href={downloadUri}
@@ -622,32 +636,33 @@ export function ArtifactPreviewCard({
                   </a>
                 ) : null}
               </>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Inline excerpt (markdown only) */}
-        {isMarkdown ? (
+        {!isTitleOnly && isMarkdown ? (
         <div
           className={cn(
             "border-t border-border/40",
-            compact && "flex-1 min-h-0",
-            compact ? "px-3 py-2" : "px-4 py-2",
+            isCompact && "flex-1 min-h-0",
+            isCompact ? "px-3 py-2" : "px-4 py-2",
           )}
         >
-            {showInlinePreview ? (
+            {inlinePreviewEnabled ? (
               markdownLoading && !markdownPreview ? (
                 <div
                   className={cn(
                     "w-full animate-pulse rounded-lg border border-border/40 bg-muted/20",
-                    compact ? "h-16" : "h-24",
+                    isCompact ? "h-16" : "h-24",
                   )}
                 />
               ) : markdownSnippet ? (
                 <div
                   className={cn(
                     "relative overflow-hidden pointer-events-none",
-                    compact ? "h-full" : "max-h-64",
+                    isCompact ? "h-full" : "max-h-64",
                   )}
                 >
                   <LazyMarkdownRenderer
@@ -656,7 +671,7 @@ export function ArtifactPreviewCard({
                     className={cn(
                       "flex flex-col",
                       "prose prose-sm max-w-none text-foreground/90",
-                      compact ? "leading-snug" : "leading-normal",
+                      isCompact ? "leading-snug" : "leading-normal",
                       "prose-p:my-1.5 prose-headings:my-1 prose-li:my-0.5 prose-pre:my-2",
                       "prose-ol:flex prose-ol:flex-col prose-ul:flex prose-ul:flex-col prose-li:flex prose-li:flex-col",
                     )}
@@ -664,7 +679,7 @@ export function ArtifactPreviewCard({
                   <div
                     className={cn(
                       "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-card via-card/80 to-transparent",
-                      compact ? "h-10" : "h-12",
+                      isCompact ? "h-10" : "h-12",
                     )}
                   />
                 </div>
@@ -681,20 +696,20 @@ export function ArtifactPreviewCard({
           </div>
         ) : null}
 
-        {isHTML ? (
+        {!isTitleOnly && isHTML ? (
           <div
             className={cn(
               "border-t border-border/40",
-              compact && "flex-1 min-h-0",
-              compact ? "px-3 py-2" : "px-4 py-2",
+              isCompact && "flex-1 min-h-0",
+              isCompact ? "px-3 py-2" : "px-4 py-2",
             )}
           >
-            {showInlinePreview ? (
+            {inlinePreviewEnabled ? (
               htmlLoading && !htmlSource ? (
                 <div
                   className={cn(
                     "w-full animate-pulse rounded-lg border border-border/40 bg-muted/20",
-                    compact ? "h-full min-h-[6rem]" : "h-32",
+                    isCompact ? "h-full min-h-[6rem]" : "h-32",
                   )}
                 />
               ) : htmlError ? (
@@ -703,7 +718,7 @@ export function ArtifactPreviewCard({
                 <div
                   className={cn(
                     "relative overflow-hidden rounded-lg border border-border/40 bg-white",
-                    compact ? "h-full min-h-[6rem]" : "h-32",
+                    isCompact ? "h-full min-h-[6rem]" : "h-32",
                   )}
                 >
                   <iframe
@@ -715,7 +730,7 @@ export function ArtifactPreviewCard({
                   <div
                     className={cn(
                       "pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-card via-card/40 to-transparent",
-                      compact ? "h-10" : "h-12",
+                      isCompact ? "h-10" : "h-12",
                     )}
                   />
                 </div>
@@ -838,7 +853,7 @@ export function ArtifactPreviewCard({
                       Preview unavailable.
                     </div>
                   )
-                ) : htmlAsset ? (
+                ) : isHTML ? (
                   <div className="w-full space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">

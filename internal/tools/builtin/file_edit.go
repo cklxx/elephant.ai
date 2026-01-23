@@ -35,9 +35,10 @@ func (t *fileEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		oldString, _ = os.(string)
 	}
 
-	// Resolve path (handle relative paths)
-	resolver := GetPathResolverFromContext(ctx)
-	resolvedPath := resolver.ResolvePath(filePath)
+	resolvedPath, err := resolveLocalPath(ctx, filePath)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
 
 	// Handle new file creation case (empty old_string)
 	if oldString == "" {
@@ -62,8 +63,7 @@ func (t *fileEdit) createNewFile(callID, filePath, resolvedPath, content string)
 	}
 
 	// Write new file
-	err := os.WriteFile(resolvedPath, []byte(content), 0644)
-	if err != nil {
+	if err := os.WriteFile(resolvedPath, []byte(content), 0644); err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to create file: %w", err)}, nil
 	}
 
@@ -122,8 +122,7 @@ func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, n
 	diff := generateUnifiedDiff(originalContent, newContent, filePath)
 
 	// Write the modified content
-	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(resolvedPath, []byte(newContent), 0644); err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to write file: %w", err)}, nil
 	}
 

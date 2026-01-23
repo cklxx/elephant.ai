@@ -11,8 +11,8 @@ import {
   WorkflowNodeCompletedEvent,
   WorkflowResultFinalEvent,
   WorkflowNodeFailedEvent,
-  eventMatches,
 } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 
 // Iteration Start Event (iteration-level)
 export function isIterationNodeStartedEvent(
@@ -22,7 +22,7 @@ export function isIterationNodeStartedEvent(
   const nodeId = 'node_id' in event ? (event as any).node_id : undefined;
   const stepIndex = (event as any).step_index;
   return (
-    eventMatches(event, 'workflow.node.started') &&
+    isEventType(event, 'workflow.node.started') &&
     typeof (event as any).iteration === 'number' &&
     (nodeKind === 'iteration' ||
       (typeof nodeId === 'string' && nodeId.startsWith('iteration-')) ||
@@ -32,22 +32,22 @@ export function isIterationNodeStartedEvent(
 
 // Thinking Event
 export function isWorkflowNodeOutputDeltaEvent(event: AnyAgentEvent): event is WorkflowNodeOutputDeltaEvent {
-  return eventMatches(event, 'workflow.node.output.delta');
+  return isEventType(event, 'workflow.node.output.delta');
 }
 
 // Think Complete Event
 export function isWorkflowNodeOutputSummaryEvent(event: AnyAgentEvent): event is WorkflowNodeOutputSummaryEvent {
-  return eventMatches(event, 'workflow.node.output.summary');
+  return isEventType(event, 'workflow.node.output.summary');
 }
 
 // Tool Call Start Event
 export function isWorkflowToolStartedEvent(event: AnyAgentEvent): event is WorkflowToolStartedEvent {
-  return eventMatches(event, 'workflow.tool.started');
+  return isEventType(event, 'workflow.tool.started');
 }
 
 // Tool Call Complete Event
 export function isWorkflowToolCompletedEvent(event: AnyAgentEvent): event is WorkflowToolCompletedEvent {
-  return eventMatches(event, 'workflow.tool.completed');
+  return isEventType(event, 'workflow.tool.completed');
 }
 
 // Iteration Complete Event (iteration-level)
@@ -58,7 +58,7 @@ export function isIterationNodeCompletedEvent(
   const nodeId = 'node_id' in event ? (event as any).node_id : undefined;
   const stepIndex = (event as any).step_index;
   return (
-    eventMatches(event, 'workflow.node.completed') &&
+    isEventType(event, 'workflow.node.completed') &&
     typeof (event as any).iteration === 'number' &&
     (nodeKind === 'iteration' ||
       (typeof nodeId === 'string' && nodeId.startsWith('iteration-')) ||
@@ -68,26 +68,26 @@ export function isIterationNodeCompletedEvent(
 
 // Task Complete Event
 export function isWorkflowResultFinalEvent(event: AnyAgentEvent): event is WorkflowResultFinalEvent {
-  return eventMatches(event, 'workflow.result.final');
+  return isEventType(event, 'workflow.result.final');
 }
 
 // Error Event
 export function isWorkflowNodeFailedEvent(event: AnyAgentEvent): event is WorkflowNodeFailedEvent {
-  return eventMatches(event, 'workflow.node.failed');
+  return isEventType(event, 'workflow.node.failed');
 }
 
 // Step Started Event
 export function isWorkflowNodeStartedEvent(
   event: AnyAgentEvent,
 ): event is WorkflowNodeStartedEvent & { step_index: number } {
-  return eventMatches(event, 'workflow.node.started') && typeof (event as any).step_index === 'number';
+  return isEventType(event, 'workflow.node.started') && typeof (event as any).step_index === 'number';
 }
 
 // Step Completed Event
 export function isWorkflowNodeCompletedEvent(
   event: AnyAgentEvent,
 ): event is WorkflowNodeCompletedEvent & { step_index: number } {
-  return eventMatches(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number';
+  return isEventType(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number';
 }
 
 // Utility guards

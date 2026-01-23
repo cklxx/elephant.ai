@@ -1,0 +1,249 @@
+import { buildApiUrl } from "@/lib/api-base";
+import type { AttachmentPayload } from "@/lib/types";
+
+type PreviewAsset = NonNullable<AttachmentPayload["preview_assets"]>[number];
+
+const BLOB_URL_CACHE = new Map<string, string>();
+
+function toTrimmedString(value: unknown): string | undefined {
+  return typeof value === "string" ? value.trim() : undefined;
+}
+
+function canCreateBlobUrl(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof URL !== "undefined" &&
+    typeof URL.createObjectURL === "function" &&
+    typeof Blob !== "undefined"
+  );
+}
+
+function decodeBase64ToBytes(value: string): Uint8Array | null {
+  try {
+    const binary =
+      typeof atob === "function"
+        ? atob(value)
+        : typeof Buffer !== "undefined"
+          ? Buffer.from(value, "base64").toString("binary")
+          : null;
+    if (!binary) {
+      return null;
+    }
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  } catch {
+    return null;
+  }
+}
+
+function buildBlobUrlFromBytes(
+  cacheKey: string,
+  bytes: Uint8Array,
+  mediaType: string,
+): string | null {
+  if (!canCreateBlobUrl()) {
+    return null;
+  }
+  const existing = BLOB_URL_CACHE.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+  try {
+    const payload = new Uint8Array(bytes).buffer;
+    const blob = new Blob([payload], { type: mediaType });
+    const url = URL.createObjectURL(blob);
+    BLOB_URL_CACHE.set(cacheKey, url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
+function buildBlobUrlFromBase64(
+  base64: string,
+  mediaType: string,
+): string | null {
+  if (!canCreateBlobUrl()) {
+    return null;
+  }
+  const cacheKey = `base64:${mediaType}:${base64}`;
+  const bytes = decodeBase64ToBytes(base64);
+  if (!bytes) {
+    return null;
+  }
+  return buildBlobUrlFromBytes(cacheKey, bytes, mediaType);
+}
+
+function buildBlobUrlFromDataUri(dataUri: string): string | null {
+  if (!canCreateBlobUrl()) {
+    return null;
+  }
+  if (!dataUri.startsWith("data:")) {
+    return null;
+  }
+  const cached = BLOB_URL_CACHE.get(`data:${dataUri}`);
+  if (cached) {
+    return cached;
+  }
+  const match = /^data:([^,]*),(.*)$/.exec(dataUri);
+  if (!match) {
+    return null;
+  }
+  const meta = match[1] ?? "";
+  const payload = match[2] ?? "";
+  const isBase64 = /;base64/i.test(meta);
+  const mediaType = meta.split(";")[0] || "application/octet-stream";
+  if (isBase64) {
+    const bytes = decodeBase64ToBytes(payload);
+    if (!bytes) {
+      return null;
+    }
+    return buildBlobUrlFromBytes(`data:${dataUri}`, bytes, mediaType);
+  }
+
+  try {
+    const decoded = decodeURIComponent(payload);
+    const encoder = typeof TextEncoder !== "undefined" ? new TextEncoder() : null;
+    const bytes = encoder ? encoder.encode(decoded) : new Uint8Array([]);
+    if (bytes.length === 0) {
+      return null;
+    }
+    return buildBlobUrlFromBytes(`data:${dataUri}`, bytes, mediaType);
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAttachmentUri(uri: string): string {
+  const trimmed = uri.trim();
+  if (
+    trimmed.startsWith("data:") ||
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://")
+  ) {
+    return trimmed;
+  }
+  if (trimmed.startsWith("/")) {
+    return buildApiUrl(trimmed);
+  }
+  return trimmed;
+}
+
+function isPresentationAttachment(attachment: AttachmentPayload): boolean {
+  const format = attachment.format?.toLowerCase() ?? "";
+  const mediaType = attachment.media_type?.toLowerCase() ?? "";
+  return (
+    format === "ppt" ||
+    format === "pptx" ||
+    mediaType.includes("officedocument.presentation") ||
+    mediaType === "application/ppt" ||
+    mediaType === "application/powerpoint"
+  );
+}
+
+function findPreferredDownloadAsset(
+  attachment: AttachmentPayload,
+): PreviewAsset | undefined {
+  if (!isPresentationAttachment(attachment)) {
+    return undefined;
+  }
+
+  const previewAssets = attachment.preview_assets ?? [];
+  return previewAssets.find((asset) => {
+    const mime = toTrimmedString(asset.mime_type)?.toLowerCase() ?? "";
+    const previewType = toTrimmedString(asset.preview_type)?.toLowerCase() ?? "";
+    const cdnUrl = toTrimmedString(asset.cdn_url);
+    if (!cdnUrl) {
+      return false;
+    }
+    return mime === "application/pdf" || previewType.includes("pdf");
+  });
+}
+
+function buildAttachmentUriInternal(
+  attachment: AttachmentPayload,
+  options?: { preferDownloadAsset?: boolean },
+): string | null {
+  const preferredAsset =
+    options?.preferDownloadAsset === false
+      ? undefined
+      : findPreferredDownloadAsset(attachment);
+  if (preferredAsset?.cdn_url) {
+    return normalizeAttachmentUri(preferredAsset.cdn_url);
+  }
+
+  const direct = toTrimmedString(attachment.uri);
+  if (direct) {
+    if (direct.startsWith("data:")) {
+      const blobUrl = buildBlobUrlFromDataUri(direct);
+      if (blobUrl) {
+        return blobUrl;
+      }
+    }
+    return normalizeAttachmentUri(direct);
+  }
+  const data = toTrimmedString(attachment.data);
+  if (!data) {
+    const previewAssets = attachment.preview_assets ?? [];
+    const preferredAsset = previewAssets.find((asset) => {
+      const mime = toTrimmedString(asset.mime_type)?.toLowerCase() ?? "";
+      const previewType = toTrimmedString(asset.preview_type)?.toLowerCase() ?? "";
+      return (
+        Boolean(toTrimmedString(asset.cdn_url)) &&
+        (mime.startsWith("video/") || previewType.includes("video"))
+      );
+    });
+    const fallbackAsset = previewAssets.find((asset) =>
+      toTrimmedString(asset.cdn_url),
+    );
+    const cdnUrl =
+      toTrimmedString(preferredAsset?.cdn_url) ||
+      toTrimmedString(fallbackAsset?.cdn_url);
+    return cdnUrl ? normalizeAttachmentUri(cdnUrl) : null;
+  }
+  if (
+    data.startsWith("data:") ||
+    data.startsWith("http://") ||
+    data.startsWith("https://") ||
+    data.startsWith("/")
+  ) {
+    if (data.startsWith("data:")) {
+      const blobUrl = buildBlobUrlFromDataUri(data);
+      if (blobUrl) {
+        return blobUrl;
+      }
+    }
+    return normalizeAttachmentUri(data);
+  }
+  const mediaType = attachment.media_type?.trim() || "application/octet-stream";
+  const blobUrl = buildBlobUrlFromBase64(data, mediaType);
+  if (blobUrl) {
+    return blobUrl;
+  }
+  return `data:${mediaType};base64,${data}`;
+}
+
+export function buildAttachmentUri(attachment: AttachmentPayload): string | null {
+  return buildAttachmentUriInternal(attachment, { preferDownloadAsset: true });
+}
+
+export function resolveAttachmentDownloadUris(
+  attachment: AttachmentPayload,
+): { preferredUri: string | null; fallbackUri: string | null; preferredKind: "pdf" | null } {
+  const preferredAsset = findPreferredDownloadAsset(attachment);
+  const fallbackUri = buildAttachmentUriInternal(attachment, {
+    preferDownloadAsset: false,
+  });
+
+  if (preferredAsset?.cdn_url) {
+    const preferredUri = normalizeAttachmentUri(preferredAsset.cdn_url);
+    const fallbackDistinct =
+      fallbackUri && fallbackUri !== preferredUri ? fallbackUri : null;
+    return { preferredUri, fallbackUri: fallbackDistinct, preferredKind: "pdf" };
+  }
+
+  return { preferredUri: fallbackUri, fallbackUri: null, preferredKind: null };
+}

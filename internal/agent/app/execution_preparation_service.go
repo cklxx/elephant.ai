@@ -172,9 +172,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if toolMode == presets.ToolModeCLI && toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
-	if toolMode == presets.ToolModeWeb {
-		toolPreset = ""
-	}
 	personaKey := s.config.AgentPreset
 	if s.presetResolver != nil {
 		if preset, source := s.presetResolver.resolveAgentPreset(ctx, s.config.AgentPreset); preset != "" {
@@ -1007,9 +1004,9 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, to
 	if toolMode == "" {
 		toolMode = presets.ToolModeCLI
 	}
-	configPreset := resolvedToolPreset
-	if configPreset == "" && toolMode != presets.ToolModeWeb {
-		configPreset = s.config.ToolPreset
+	configPreset := strings.TrimSpace(resolvedToolPreset)
+	if configPreset == "" {
+		configPreset = strings.TrimSpace(s.config.ToolPreset)
 	}
 	if isSubagentContext(ctx) {
 		registry = s.getRegistryWithoutSubagent()

@@ -162,7 +162,7 @@ The architecture emphasizes:
 Alex-Code ships with a curated set of built-in tools wired into the MCP ecosystem. The tool suite includes common categories:
 
 - File Operations: file_read, file_update, file_replace, file_list
-- Shell Execution: bash, code_executor
+- Shell Execution: bash, code_execute (local_exec build tag) or sandbox_shell_exec/sandbox_code_execute
 - Search & Analysis: grep, ripgrep, find
 - Task Management: todo_read, todo_update
 - Web Integration: web_search (via Tavily API integration in code)
@@ -268,3 +268,12 @@ go test -coverprofile=coverage.out ./...
   - SWE-Bench documentation in evaluation/swe_bench/
 
 If you need to adapt ALEX for your environment, start with make dev-robust and customize internal/config manager to fit your infrastructure.
+
+## Tool Workspace and Path Safety
+
+Local file and search tools (for example: file_read, file_write, file_edit, list_files, find, grep, ripgrep) operate within the process working directory. Local bash/code_execute are disabled by default unless built with the local_exec tag; prefer sandbox_shell_exec/sandbox_code_execute when available.
+
+- Relative paths resolve against the working directory.
+- Absolute paths outside the working directory are rejected.
+- To run tools against a specific repo, start the CLI or server from that repo directory.
+- Sandbox tools continue to use the sandbox workspace (default: /workspace).

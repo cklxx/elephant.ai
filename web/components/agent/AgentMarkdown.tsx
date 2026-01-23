@@ -56,26 +56,6 @@ function splitTaskListChildren(children: ReactNode) {
 }
 
 const baseComponents: Record<string, ComponentType<any>> = {
-  code: ({ inline, children, ...props }: any) => {
-    if (inline) {
-      return (
-        <code
-          className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground"
-          {...props}
-        >
-          {children}
-        </code>
-      );
-    }
-    return (
-      <code
-        className="block font-mono text-xs leading-snug text-foreground"
-        {...props}
-      >
-        {children}
-      </code>
-    );
-  },
   pre: ({ children }: any) => (
     <pre className="markdown-code-block relative my-2 overflow-x-auto rounded-md border border-border/60 bg-muted/20 p-4">
       {children}

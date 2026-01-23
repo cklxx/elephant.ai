@@ -131,3 +131,7 @@ pet_podcast_basic.png
 # Local tooling
 .bin/
 logs/*.png
+.pids/acp.port
+web/playwright-report/*
+web/test-results/*
+.pids/*

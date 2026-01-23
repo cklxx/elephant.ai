@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -38,43 +39,53 @@ const (
 	DefaultLLMModel    = "gpt-4o-mini"
 	DefaultLLMBaseURL  = "https://api.openai.com/v1"
 	DefaultMaxTokens   = 8192
+	DefaultACPHost     = "127.0.0.1"
+	DefaultACPPort     = 9000
+	DefaultACPPortFile = ".pids/acp.port"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
-	LLMProvider             string   `json:"llm_provider" yaml:"llm_provider"`
-	LLMModel                string   `json:"llm_model" yaml:"llm_model"`
-	LLMSmallProvider        string   `json:"llm_small_provider" yaml:"llm_small_provider"`
-	LLMSmallModel           string   `json:"llm_small_model" yaml:"llm_small_model"`
-	LLMVisionModel          string   `json:"llm_vision_model" yaml:"llm_vision_model"`
-	APIKey                  string   `json:"api_key" yaml:"api_key"`
-	ArkAPIKey               string   `json:"ark_api_key" yaml:"ark_api_key"`
-	BaseURL                 string   `json:"base_url" yaml:"base_url"`
-	SandboxBaseURL          string   `json:"sandbox_base_url" yaml:"sandbox_base_url"`
-	TavilyAPIKey            string   `json:"tavily_api_key" yaml:"tavily_api_key"`
-	SeedreamTextEndpointID  string   `json:"seedream_text_endpoint_id" yaml:"seedream_text_endpoint_id"`
-	SeedreamImageEndpointID string   `json:"seedream_image_endpoint_id" yaml:"seedream_image_endpoint_id"`
-	SeedreamTextModel       string   `json:"seedream_text_model" yaml:"seedream_text_model"`
-	SeedreamImageModel      string   `json:"seedream_image_model" yaml:"seedream_image_model"`
-	SeedreamVisionModel     string   `json:"seedream_vision_model" yaml:"seedream_vision_model"`
-	SeedreamVideoModel      string   `json:"seedream_video_model" yaml:"seedream_video_model"`
-	Environment             string   `json:"environment" yaml:"environment"`
-	Verbose                 bool     `json:"verbose" yaml:"verbose"`
-	DisableTUI              bool     `json:"disable_tui" yaml:"disable_tui"`
-	FollowTranscript        bool     `json:"follow_transcript" yaml:"follow_transcript"`
-	FollowStream            bool     `json:"follow_stream" yaml:"follow_stream"`
-	MaxIterations           int      `json:"max_iterations" yaml:"max_iterations"`
-	MaxTokens               int      `json:"max_tokens" yaml:"max_tokens"`
-	UserRateLimitRPS        float64  `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
-	UserRateLimitBurst      int      `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
-	Temperature             float64  `json:"temperature" yaml:"temperature"`
-	TemperatureProvided     bool     `json:"temperature_provided" yaml:"temperature_provided"`
-	TopP                    float64  `json:"top_p" yaml:"top_p"`
-	StopSequences           []string `json:"stop_sequences" yaml:"stop_sequences"`
-	SessionDir              string   `json:"session_dir" yaml:"session_dir"`
-	CostDir                 string   `json:"cost_dir" yaml:"cost_dir"`
-	AgentPreset             string   `json:"agent_preset" yaml:"agent_preset"`
-	ToolPreset              string   `json:"tool_preset" yaml:"tool_preset"`
+	LLMProvider                string   `json:"llm_provider" yaml:"llm_provider"`
+	LLMModel                   string   `json:"llm_model" yaml:"llm_model"`
+	LLMSmallProvider           string   `json:"llm_small_provider" yaml:"llm_small_provider"`
+	LLMSmallModel              string   `json:"llm_small_model" yaml:"llm_small_model"`
+	LLMVisionModel             string   `json:"llm_vision_model" yaml:"llm_vision_model"`
+	APIKey                     string   `json:"api_key" yaml:"api_key"`
+	ArkAPIKey                  string   `json:"ark_api_key" yaml:"ark_api_key"`
+	BaseURL                    string   `json:"base_url" yaml:"base_url"`
+	SandboxBaseURL             string   `json:"sandbox_base_url" yaml:"sandbox_base_url"`
+	ACPExecutorAddr            string   `json:"acp_executor_addr" yaml:"acp_executor_addr"`
+	ACPExecutorCWD             string   `json:"acp_executor_cwd" yaml:"acp_executor_cwd"`
+	ACPExecutorMode            string   `json:"acp_executor_mode" yaml:"acp_executor_mode"`
+	ACPExecutorAutoApprove     bool     `json:"acp_executor_auto_approve" yaml:"acp_executor_auto_approve"`
+	ACPExecutorMaxCLICalls     int      `json:"acp_executor_max_cli_calls" yaml:"acp_executor_max_cli_calls"`
+	ACPExecutorMaxDuration     int      `json:"acp_executor_max_duration_seconds" yaml:"acp_executor_max_duration_seconds"`
+	ACPExecutorRequireManifest bool     `json:"acp_executor_require_manifest" yaml:"acp_executor_require_manifest"`
+	TavilyAPIKey               string   `json:"tavily_api_key" yaml:"tavily_api_key"`
+	SeedreamTextEndpointID     string   `json:"seedream_text_endpoint_id" yaml:"seedream_text_endpoint_id"`
+	SeedreamImageEndpointID    string   `json:"seedream_image_endpoint_id" yaml:"seedream_image_endpoint_id"`
+	SeedreamTextModel          string   `json:"seedream_text_model" yaml:"seedream_text_model"`
+	SeedreamImageModel         string   `json:"seedream_image_model" yaml:"seedream_image_model"`
+	SeedreamVisionModel        string   `json:"seedream_vision_model" yaml:"seedream_vision_model"`
+	SeedreamVideoModel         string   `json:"seedream_video_model" yaml:"seedream_video_model"`
+	Environment                string   `json:"environment" yaml:"environment"`
+	Verbose                    bool     `json:"verbose" yaml:"verbose"`
+	DisableTUI                 bool     `json:"disable_tui" yaml:"disable_tui"`
+	FollowTranscript           bool     `json:"follow_transcript" yaml:"follow_transcript"`
+	FollowStream               bool     `json:"follow_stream" yaml:"follow_stream"`
+	MaxIterations              int      `json:"max_iterations" yaml:"max_iterations"`
+	MaxTokens                  int      `json:"max_tokens" yaml:"max_tokens"`
+	UserRateLimitRPS           float64  `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
+	UserRateLimitBurst         int      `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
+	Temperature                float64  `json:"temperature" yaml:"temperature"`
+	TemperatureProvided        bool     `json:"temperature_provided" yaml:"temperature_provided"`
+	TopP                       float64  `json:"top_p" yaml:"top_p"`
+	StopSequences              []string `json:"stop_sequences" yaml:"stop_sequences"`
+	SessionDir                 string   `json:"session_dir" yaml:"session_dir"`
+	CostDir                    string   `json:"cost_dir" yaml:"cost_dir"`
+	AgentPreset                string   `json:"agent_preset" yaml:"agent_preset"`
+	ToolPreset                 string   `json:"tool_preset" yaml:"tool_preset"`
 }
 
 // Metadata contains provenance details for loaded configuration.
@@ -113,38 +124,45 @@ func (m Metadata) LoadedAt() time.Time {
 
 // Overrides conveys caller-specified values that should win over env/file sources.
 type Overrides struct {
-	LLMProvider             *string   `json:"llm_provider,omitempty" yaml:"llm_provider,omitempty"`
-	LLMModel                *string   `json:"llm_model,omitempty" yaml:"llm_model,omitempty"`
-	LLMSmallProvider        *string   `json:"llm_small_provider,omitempty" yaml:"llm_small_provider,omitempty"`
-	LLMSmallModel           *string   `json:"llm_small_model,omitempty" yaml:"llm_small_model,omitempty"`
-	LLMVisionModel          *string   `json:"llm_vision_model,omitempty" yaml:"llm_vision_model,omitempty"`
-	APIKey                  *string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
-	ArkAPIKey               *string   `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
-	BaseURL                 *string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	SandboxBaseURL          *string   `json:"sandbox_base_url,omitempty" yaml:"sandbox_base_url,omitempty"`
-	TavilyAPIKey            *string   `json:"tavily_api_key,omitempty" yaml:"tavily_api_key,omitempty"`
-	SeedreamTextEndpointID  *string   `json:"seedream_text_endpoint_id,omitempty" yaml:"seedream_text_endpoint_id,omitempty"`
-	SeedreamImageEndpointID *string   `json:"seedream_image_endpoint_id,omitempty" yaml:"seedream_image_endpoint_id,omitempty"`
-	SeedreamTextModel       *string   `json:"seedream_text_model,omitempty" yaml:"seedream_text_model,omitempty"`
-	SeedreamImageModel      *string   `json:"seedream_image_model,omitempty" yaml:"seedream_image_model,omitempty"`
-	SeedreamVisionModel     *string   `json:"seedream_vision_model,omitempty" yaml:"seedream_vision_model,omitempty"`
-	SeedreamVideoModel      *string   `json:"seedream_video_model,omitempty" yaml:"seedream_video_model,omitempty"`
-	Environment             *string   `json:"environment,omitempty" yaml:"environment,omitempty"`
-	Verbose                 *bool     `json:"verbose,omitempty" yaml:"verbose,omitempty"`
-	DisableTUI              *bool     `json:"disable_tui,omitempty" yaml:"disable_tui,omitempty"`
-	FollowTranscript        *bool     `json:"follow_transcript,omitempty" yaml:"follow_transcript,omitempty"`
-	FollowStream            *bool     `json:"follow_stream,omitempty" yaml:"follow_stream,omitempty"`
-	MaxIterations           *int      `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
-	MaxTokens               *int      `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
-	UserRateLimitRPS        *float64  `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
-	UserRateLimitBurst      *int      `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
-	Temperature             *float64  `json:"temperature,omitempty" yaml:"temperature,omitempty"`
-	TopP                    *float64  `json:"top_p,omitempty" yaml:"top_p,omitempty"`
-	StopSequences           *[]string `json:"stop_sequences,omitempty" yaml:"stop_sequences,omitempty"`
-	SessionDir              *string   `json:"session_dir,omitempty" yaml:"session_dir,omitempty"`
-	CostDir                 *string   `json:"cost_dir,omitempty" yaml:"cost_dir,omitempty"`
-	AgentPreset             *string   `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
-	ToolPreset              *string   `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
+	LLMProvider                *string   `json:"llm_provider,omitempty" yaml:"llm_provider,omitempty"`
+	LLMModel                   *string   `json:"llm_model,omitempty" yaml:"llm_model,omitempty"`
+	LLMSmallProvider           *string   `json:"llm_small_provider,omitempty" yaml:"llm_small_provider,omitempty"`
+	LLMSmallModel              *string   `json:"llm_small_model,omitempty" yaml:"llm_small_model,omitempty"`
+	LLMVisionModel             *string   `json:"llm_vision_model,omitempty" yaml:"llm_vision_model,omitempty"`
+	APIKey                     *string   `json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	ArkAPIKey                  *string   `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
+	BaseURL                    *string   `json:"base_url,omitempty" yaml:"base_url,omitempty"`
+	SandboxBaseURL             *string   `json:"sandbox_base_url,omitempty" yaml:"sandbox_base_url,omitempty"`
+	ACPExecutorAddr            *string   `json:"acp_executor_addr,omitempty" yaml:"acp_executor_addr,omitempty"`
+	ACPExecutorCWD             *string   `json:"acp_executor_cwd,omitempty" yaml:"acp_executor_cwd,omitempty"`
+	ACPExecutorMode            *string   `json:"acp_executor_mode,omitempty" yaml:"acp_executor_mode,omitempty"`
+	ACPExecutorAutoApprove     *bool     `json:"acp_executor_auto_approve,omitempty" yaml:"acp_executor_auto_approve,omitempty"`
+	ACPExecutorMaxCLICalls     *int      `json:"acp_executor_max_cli_calls,omitempty" yaml:"acp_executor_max_cli_calls,omitempty"`
+	ACPExecutorMaxDuration     *int      `json:"acp_executor_max_duration_seconds,omitempty" yaml:"acp_executor_max_duration_seconds,omitempty"`
+	ACPExecutorRequireManifest *bool     `json:"acp_executor_require_manifest,omitempty" yaml:"acp_executor_require_manifest,omitempty"`
+	TavilyAPIKey               *string   `json:"tavily_api_key,omitempty" yaml:"tavily_api_key,omitempty"`
+	SeedreamTextEndpointID     *string   `json:"seedream_text_endpoint_id,omitempty" yaml:"seedream_text_endpoint_id,omitempty"`
+	SeedreamImageEndpointID    *string   `json:"seedream_image_endpoint_id,omitempty" yaml:"seedream_image_endpoint_id,omitempty"`
+	SeedreamTextModel          *string   `json:"seedream_text_model,omitempty" yaml:"seedream_text_model,omitempty"`
+	SeedreamImageModel         *string   `json:"seedream_image_model,omitempty" yaml:"seedream_image_model,omitempty"`
+	SeedreamVisionModel        *string   `json:"seedream_vision_model,omitempty" yaml:"seedream_vision_model,omitempty"`
+	SeedreamVideoModel         *string   `json:"seedream_video_model,omitempty" yaml:"seedream_video_model,omitempty"`
+	Environment                *string   `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Verbose                    *bool     `json:"verbose,omitempty" yaml:"verbose,omitempty"`
+	DisableTUI                 *bool     `json:"disable_tui,omitempty" yaml:"disable_tui,omitempty"`
+	FollowTranscript           *bool     `json:"follow_transcript,omitempty" yaml:"follow_transcript,omitempty"`
+	FollowStream               *bool     `json:"follow_stream,omitempty" yaml:"follow_stream,omitempty"`
+	MaxIterations              *int      `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
+	MaxTokens                  *int      `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
+	UserRateLimitRPS           *float64  `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
+	UserRateLimitBurst         *int      `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
+	Temperature                *float64  `json:"temperature,omitempty" yaml:"temperature,omitempty"`
+	TopP                       *float64  `json:"top_p,omitempty" yaml:"top_p,omitempty"`
+	StopSequences              *[]string `json:"stop_sequences,omitempty" yaml:"stop_sequences,omitempty"`
+	SessionDir                 *string   `json:"session_dir,omitempty" yaml:"session_dir,omitempty"`
+	CostDir                    *string   `json:"cost_dir,omitempty" yaml:"cost_dir,omitempty"`
+	AgentPreset                *string   `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
+	ToolPreset                 *string   `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
 }
 
 // EnvLookup resolves the value for an environment variable.
@@ -215,27 +233,34 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	meta := Metadata{sources: map[string]ValueSource{}, loadedAt: time.Now()}
 
 	cfg := RuntimeConfig{
-		LLMProvider:         DefaultLLMProvider,
-		LLMModel:            DefaultLLMModel,
-		LLMSmallProvider:    DefaultLLMProvider,
-		LLMSmallModel:       DefaultLLMModel,
-		BaseURL:             DefaultLLMBaseURL,
-		SandboxBaseURL:      "http://localhost:18086",
-		SeedreamTextModel:   DefaultSeedreamTextModel,
-		SeedreamImageModel:  DefaultSeedreamImageModel,
-		SeedreamVisionModel: DefaultSeedreamVisionModel,
-		SeedreamVideoModel:  DefaultSeedreamVideoModel,
-		Environment:         "development",
-		FollowTranscript:    true,
-		FollowStream:        true,
-		MaxIterations:       150,
-		MaxTokens:           DefaultMaxTokens,
-		UserRateLimitRPS:    1.0,
-		UserRateLimitBurst:  3,
-		Temperature:         0.7,
-		TopP:                1.0,
-		SessionDir:          "~/.alex-sessions",
-		CostDir:             "~/.alex-costs",
+		LLMProvider:                DefaultLLMProvider,
+		LLMModel:                   DefaultLLMModel,
+		LLMSmallProvider:           DefaultLLMProvider,
+		LLMSmallModel:              DefaultLLMModel,
+		BaseURL:                    DefaultLLMBaseURL,
+		SandboxBaseURL:             "http://localhost:18086",
+		ACPExecutorAddr:            defaultACPExecutorAddr(options.envLookup),
+		ACPExecutorCWD:             defaultACPExecutorCWD(),
+		ACPExecutorMode:            "sandbox",
+		ACPExecutorAutoApprove:     true,
+		ACPExecutorMaxCLICalls:     12,
+		ACPExecutorMaxDuration:     900,
+		ACPExecutorRequireManifest: true,
+		SeedreamTextModel:          DefaultSeedreamTextModel,
+		SeedreamImageModel:         DefaultSeedreamImageModel,
+		SeedreamVisionModel:        DefaultSeedreamVisionModel,
+		SeedreamVideoModel:         DefaultSeedreamVideoModel,
+		Environment:                "development",
+		FollowTranscript:           true,
+		FollowStream:               true,
+		MaxIterations:              150,
+		MaxTokens:                  DefaultMaxTokens,
+		UserRateLimitRPS:           1.0,
+		UserRateLimitBurst:         3,
+		Temperature:                0.7,
+		TopP:                       1.0,
+		SessionDir:                 "~/.alex-sessions",
+		CostDir:                    "~/.alex-costs",
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -294,6 +319,9 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.ArkAPIKey = strings.TrimSpace(cfg.ArkAPIKey)
 	cfg.BaseURL = strings.TrimSpace(cfg.BaseURL)
 	cfg.SandboxBaseURL = strings.TrimSpace(cfg.SandboxBaseURL)
+	cfg.ACPExecutorAddr = strings.TrimSpace(cfg.ACPExecutorAddr)
+	cfg.ACPExecutorCWD = strings.TrimSpace(cfg.ACPExecutorCWD)
+	cfg.ACPExecutorMode = strings.TrimSpace(cfg.ACPExecutorMode)
 	cfg.TavilyAPIKey = strings.TrimSpace(cfg.TavilyAPIKey)
 	cfg.SeedreamTextEndpointID = strings.TrimSpace(cfg.SeedreamTextEndpointID)
 	cfg.SeedreamImageEndpointID = strings.TrimSpace(cfg.SeedreamImageEndpointID)
@@ -323,6 +351,71 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 		}
 		cfg.StopSequences = filtered
 	}
+}
+
+func defaultACPExecutorAddr(lookup EnvLookup) string {
+	host := defaultACPHost(lookup)
+	if port, ok := acpPortFromEnv(lookup); ok {
+		return fmt.Sprintf("http://%s:%d", host, port)
+	}
+	if port, ok := readACPPortFile(); ok {
+		return fmt.Sprintf("http://%s:%d", host, port)
+	}
+	return fmt.Sprintf("http://%s:%d", host, DefaultACPPort)
+}
+
+func defaultACPExecutorCWD() string {
+	return "/workspace"
+}
+
+func defaultACPHost(lookup EnvLookup) string {
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+	if value, ok := lookup("ACP_HOST"); ok {
+		value = strings.TrimSpace(value)
+		if value != "" {
+			return value
+		}
+	}
+	return DefaultACPHost
+}
+
+func acpPortFromEnv(lookup EnvLookup) (int, bool) {
+	if lookup == nil {
+		lookup = DefaultEnvLookup
+	}
+	value, ok := lookup("ACP_PORT")
+	if !ok {
+		return 0, false
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return 0, false
+	}
+	port, err := strconv.Atoi(value)
+	if err != nil || port <= 0 {
+		return 0, false
+	}
+	return port, true
+}
+
+func readACPPortFile() (int, bool) {
+	wd, err := os.Getwd()
+	if err != nil || strings.TrimSpace(wd) == "" {
+		return 0, false
+	}
+	path := filepath.Join(wd, DefaultACPPortFile)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false
+	}
+	value := strings.TrimSpace(string(data))
+	port, err := strconv.Atoi(value)
+	if err != nil || port <= 0 {
+		return 0, false
+	}
+	return port, true
 }
 
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
@@ -409,6 +502,34 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if parsed.SandboxBaseURL != "" {
 		cfg.SandboxBaseURL = parsed.SandboxBaseURL
 		meta.sources["sandbox_base_url"] = SourceFile
+	}
+	if parsed.ACPExecutorAddr != "" {
+		cfg.ACPExecutorAddr = parsed.ACPExecutorAddr
+		meta.sources["acp_executor_addr"] = SourceFile
+	}
+	if parsed.ACPExecutorCWD != "" {
+		cfg.ACPExecutorCWD = parsed.ACPExecutorCWD
+		meta.sources["acp_executor_cwd"] = SourceFile
+	}
+	if parsed.ACPExecutorMode != "" {
+		cfg.ACPExecutorMode = parsed.ACPExecutorMode
+		meta.sources["acp_executor_mode"] = SourceFile
+	}
+	if parsed.ACPExecutorAutoApprove != nil {
+		cfg.ACPExecutorAutoApprove = *parsed.ACPExecutorAutoApprove
+		meta.sources["acp_executor_auto_approve"] = SourceFile
+	}
+	if parsed.ACPExecutorMaxCLICalls != nil {
+		cfg.ACPExecutorMaxCLICalls = *parsed.ACPExecutorMaxCLICalls
+		meta.sources["acp_executor_max_cli_calls"] = SourceFile
+	}
+	if parsed.ACPExecutorMaxDuration != nil {
+		cfg.ACPExecutorMaxDuration = *parsed.ACPExecutorMaxDuration
+		meta.sources["acp_executor_max_duration_seconds"] = SourceFile
+	}
+	if parsed.ACPExecutorRequireManifest != nil {
+		cfg.ACPExecutorRequireManifest = *parsed.ACPExecutorRequireManifest
+		meta.sources["acp_executor_require_manifest"] = SourceFile
 	}
 	if parsed.TavilyAPIKey != "" {
 		cfg.TavilyAPIKey = parsed.TavilyAPIKey
@@ -544,6 +665,50 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	if value, ok := lookup("SANDBOX_BASE_URL"); ok && value != "" {
 		cfg.SandboxBaseURL = value
 		meta.sources["sandbox_base_url"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_ADDR"); ok && value != "" {
+		cfg.ACPExecutorAddr = value
+		meta.sources["acp_executor_addr"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_CWD"); ok && value != "" {
+		cfg.ACPExecutorCWD = value
+		meta.sources["acp_executor_cwd"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_MODE"); ok && value != "" {
+		cfg.ACPExecutorMode = value
+		meta.sources["acp_executor_mode"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_AUTO_APPROVE"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ACP_EXECUTOR_AUTO_APPROVE: %w", err)
+		}
+		cfg.ACPExecutorAutoApprove = parsed
+		meta.sources["acp_executor_auto_approve"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_MAX_CLI_CALLS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse ACP_EXECUTOR_MAX_CLI_CALLS: %w", err)
+		}
+		cfg.ACPExecutorMaxCLICalls = parsed
+		meta.sources["acp_executor_max_cli_calls"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_MAX_DURATION_SECONDS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse ACP_EXECUTOR_MAX_DURATION_SECONDS: %w", err)
+		}
+		cfg.ACPExecutorMaxDuration = parsed
+		meta.sources["acp_executor_max_duration_seconds"] = SourceEnv
+	}
+	if value, ok := lookup("ACP_EXECUTOR_REQUIRE_MANIFEST"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ACP_EXECUTOR_REQUIRE_MANIFEST: %w", err)
+		}
+		cfg.ACPExecutorRequireManifest = parsed
+		meta.sources["acp_executor_require_manifest"] = SourceEnv
 	}
 	if value, ok := lookup("TAVILY_API_KEY"); ok && value != "" {
 		cfg.TavilyAPIKey = value
@@ -999,6 +1164,34 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.SandboxBaseURL = *overrides.SandboxBaseURL
 		meta.sources["sandbox_base_url"] = SourceOverride
 	}
+	if overrides.ACPExecutorAddr != nil {
+		cfg.ACPExecutorAddr = *overrides.ACPExecutorAddr
+		meta.sources["acp_executor_addr"] = SourceOverride
+	}
+	if overrides.ACPExecutorCWD != nil {
+		cfg.ACPExecutorCWD = *overrides.ACPExecutorCWD
+		meta.sources["acp_executor_cwd"] = SourceOverride
+	}
+	if overrides.ACPExecutorMode != nil {
+		cfg.ACPExecutorMode = *overrides.ACPExecutorMode
+		meta.sources["acp_executor_mode"] = SourceOverride
+	}
+	if overrides.ACPExecutorAutoApprove != nil {
+		cfg.ACPExecutorAutoApprove = *overrides.ACPExecutorAutoApprove
+		meta.sources["acp_executor_auto_approve"] = SourceOverride
+	}
+	if overrides.ACPExecutorMaxCLICalls != nil {
+		cfg.ACPExecutorMaxCLICalls = *overrides.ACPExecutorMaxCLICalls
+		meta.sources["acp_executor_max_cli_calls"] = SourceOverride
+	}
+	if overrides.ACPExecutorMaxDuration != nil {
+		cfg.ACPExecutorMaxDuration = *overrides.ACPExecutorMaxDuration
+		meta.sources["acp_executor_max_duration_seconds"] = SourceOverride
+	}
+	if overrides.ACPExecutorRequireManifest != nil {
+		cfg.ACPExecutorRequireManifest = *overrides.ACPExecutorRequireManifest
+		meta.sources["acp_executor_require_manifest"] = SourceOverride
+	}
 	if overrides.TavilyAPIKey != nil {
 		cfg.TavilyAPIKey = *overrides.TavilyAPIKey
 		meta.sources["tavily_api_key"] = SourceOverride
@@ -1137,6 +1330,9 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.ArkAPIKey = expandEnvValue(lookup, parsed.ArkAPIKey)
 	parsed.BaseURL = expandEnvValue(lookup, parsed.BaseURL)
 	parsed.SandboxBaseURL = expandEnvValue(lookup, parsed.SandboxBaseURL)
+	parsed.ACPExecutorAddr = expandEnvValue(lookup, parsed.ACPExecutorAddr)
+	parsed.ACPExecutorCWD = expandEnvValue(lookup, parsed.ACPExecutorCWD)
+	parsed.ACPExecutorMode = expandEnvValue(lookup, parsed.ACPExecutorMode)
 	parsed.TavilyAPIKey = expandEnvValue(lookup, parsed.TavilyAPIKey)
 	parsed.SeedreamTextEndpointID = expandEnvValue(lookup, parsed.SeedreamTextEndpointID)
 	parsed.SeedreamImageEndpointID = expandEnvValue(lookup, parsed.SeedreamImageEndpointID)

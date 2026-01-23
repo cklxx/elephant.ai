@@ -1,4 +1,5 @@
-import { AnyAgentEvent, WorkflowInputReceivedEvent, eventMatches } from '@/lib/types';
+import { AnyAgentEvent, WorkflowInputReceivedEvent } from '@/lib/types';
+import { isEventType } from '@/lib/events/matching';
 
 const STREAM_FLAG_TRUE = '1';
 const STREAM_FLAG_FALSE = '0';
@@ -28,14 +29,7 @@ export function buildEventSignature(event: AnyAgentEvent): string {
     'task_id' in event && event.task_id ? event.task_id : '',
   ];
 
-  if (
-    eventMatches(
-      event,
-      'workflow.tool.started',
-      'workflow.tool.progress',
-      'workflow.tool.completed',
-    )
-  ) {
+  if (isEventType(event, 'workflow.tool.started', 'workflow.tool.progress', 'workflow.tool.completed')) {
     const toolName =
       ('tool_name' in event && typeof event.tool_name === 'string' && event.tool_name) ||
       ('tool' in event && typeof (event as any).tool === 'string' && (event as any).tool) ||
@@ -74,7 +68,7 @@ export function buildEventSignature(event: AnyAgentEvent): string {
     }
   }
 
-  if (eventMatches(event, 'workflow.result.final')) {
+  if (isEventType(event, 'workflow.result.final')) {
     const isStreaming =
       'is_streaming' in event && typeof event.is_streaming === 'boolean'
         ? event.is_streaming

@@ -81,3 +81,26 @@ func TestEventBroadcasterPersistsSubtaskWrappers(t *testing.T) {
 		t.Fatalf("expected persisted agent level %q, got %q", ports.LevelSubagent, got.GetAgentLevel())
 	}
 }
+
+func TestEventBroadcasterSkipsExecutorUpdates(t *testing.T) {
+	store := &capturingHistoryStore{}
+	broadcaster := NewEventBroadcaster(WithEventHistoryStore(store))
+
+	now := time.Now()
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		Version:   1,
+		Event:     "workflow.executor.update",
+		NodeKind:  "diagnostic",
+		NodeID:    "executor-update-1",
+		Payload: map[string]any{
+			"update_type": "tool_call",
+		},
+	}
+
+	broadcaster.OnEvent(envelope)
+
+	if got := store.lastEvent(); got != nil {
+		t.Fatalf("expected executor update to be skipped in history, got %T", got)
+	}
+}

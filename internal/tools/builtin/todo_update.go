@@ -88,10 +88,8 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	}
 
 	// Get session ID from context
-	sessionID, ok := GetSessionID(ctx)
-	if !ok || sessionID == "" {
-		sessionID = "default"
-	}
+	sessionID, _ := GetSessionID(ctx)
+	sessionID = sanitizeSessionID(sessionID)
 
 	var inProgress, pending, completed []string
 

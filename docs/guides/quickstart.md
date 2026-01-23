@@ -121,6 +121,7 @@ make build
 Use `tool_preset` to control which tools the CLI agent can call (web mode ignores it and enables all non-local tools):
 
 ```bash
+./alex config set tool_preset sandbox
 ./alex config set tool_preset safe
 ./alex config set tool_preset read-only
 ./alex config set tool_preset full

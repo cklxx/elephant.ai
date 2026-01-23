@@ -29,6 +29,7 @@ const SOURCE_LABELS: Record<string, string> = {
   codex_cli: "codex-cli",
   claude_cli: "claude-cli",
   antigravity_cli: "antigravity-cli",
+  ollama: "ollama",
 };
 
 type ModelsState = "idle" | "loading" | "error";
@@ -121,6 +122,24 @@ export function LLMIndicator() {
     return !selection;
   }, [selection]);
 
+  const statusMessage = useMemo(() => {
+    if (modelsState === "loading") return "Loading models...";
+    if (modelsState === "error") return "Failed to load models.";
+    if (modelsState === "idle" && modelProviders.length === 0) {
+      return "No models found.";
+    }
+    return "";
+  }, [modelsState, modelProviders.length]);
+
+  const sortedProviders = useMemo(() => {
+    return [...modelProviders].sort((a, b) =>
+      a.provider.localeCompare(b.provider),
+    );
+  }, [modelProviders]);
+
+  const activeProvider = selection?.provider ?? provider;
+  const activeModel = selection?.model ?? model;
+
   return (
     <DropdownMenu open={menuOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
@@ -139,7 +158,7 @@ export function LLMIndicator() {
       <DropdownMenuContent
         align="start"
         sideOffset={12}
-        className="w-80 rounded-2xl p-2"
+        className="w-80 rounded-2xl border border-border/70 bg-background p-2 text-foreground shadow-xl"
       >
         <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">
           Current
@@ -155,7 +174,7 @@ export function LLMIndicator() {
         </DropdownMenuLabel>
         <DropdownMenuItem
           onSelect={handleSelectYaml}
-          className="flex items-center justify-between gap-2"
+          className="flex cursor-pointer items-center justify-between gap-2"
         >
           <div className="flex flex-col">
             <span className="text-sm font-medium">Use YAML config</span>
@@ -167,41 +186,54 @@ export function LLMIndicator() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">
-          CLI subscription models
+          Available models
         </DropdownMenuLabel>
-        <div className="space-y-2 px-2 pb-2 text-xs text-muted-foreground">
-          {modelsState === "loading" && <div>Loading models...</div>}
-          {modelsState === "error" && <div>Failed to load models.</div>}
-          {modelsState === "idle" && modelProviders.length === 0 && (
-            <div>No CLI subscription models found.</div>
-          )}
-        </div>
-        {modelProviders.map((providerEntry) => (
-          <div key={providerEntry.provider} className="space-y-1">
-            <div className="px-2 text-[11px] uppercase text-muted-foreground">
-              {providerEntry.provider} · {providerEntry.source}
-            </div>
-            {providerEntry.error ? (
-              <div className="px-2 pb-2 text-xs text-rose-500">
-                {providerEntry.error}
-              </div>
-            ) : null}
-            {(providerEntry.models ?? []).map((modelId) => (
-              <DropdownMenuItem
-                key={modelId}
-                onSelect={() => handleSelectModel(providerEntry, modelId)}
-                className="flex items-center justify-between gap-2"
-              >
-                <span className="text-sm">{modelId}</span>
-                {selection &&
-                selection.provider === providerEntry.provider &&
-                selection.model === modelId ? (
-                  <span className="text-xs text-emerald-600">Active</span>
-                ) : null}
-              </DropdownMenuItem>
-            ))}
+        {statusMessage ? (
+          <div className="px-2 pb-2 text-xs text-muted-foreground">
+            {statusMessage}
           </div>
-        ))}
+        ) : null}
+        <div className="space-y-3">
+          {sortedProviders.map((providerEntry) => {
+            const models = providerEntry.models ?? [];
+            const sourceLabel =
+              SOURCE_LABELS[providerEntry.source] ?? providerEntry.source;
+            return (
+              <div key={providerEntry.provider} className="space-y-1">
+                <div className="px-2 text-[11px] uppercase text-muted-foreground">
+                  {providerEntry.provider} · {sourceLabel}
+                </div>
+                {providerEntry.error ? (
+                  <div className="px-2 pb-2 text-xs text-rose-500">
+                    {providerEntry.error}
+                  </div>
+                ) : null}
+                {models.length === 0 && !providerEntry.error ? (
+                  <div className="px-2 pb-2 text-xs text-muted-foreground">
+                    No models reported.
+                  </div>
+                ) : null}
+                {models.map((modelId) => {
+                  const isActive =
+                    providerEntry.provider === activeProvider &&
+                    modelId === activeModel;
+                  return (
+                    <DropdownMenuItem
+                      key={modelId}
+                      onSelect={() => handleSelectModel(providerEntry, modelId)}
+                      className="flex cursor-pointer items-center justify-between gap-2 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                    >
+                      <span className="text-sm">{modelId}</span>
+                      {isActive ? (
+                        <span className="text-xs text-emerald-600">Active</span>
+                      ) : null}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
       </DropdownMenuContent>
     </DropdownMenu>
   );

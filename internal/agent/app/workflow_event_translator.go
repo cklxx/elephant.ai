@@ -154,7 +154,56 @@ func (t *workflowEventTranslator) translateToolComplete(evt ports.AgentEvent, e 
 		payload["error"] = e.Error.Error()
 	}
 
-	return t.toolEnvelope(evt, "workflow.tool.completed", e.CallID, payload)
+	envelopes := t.toolEnvelope(evt, "workflow.tool.completed", e.CallID, payload)
+	if manifestPayload := buildArtifactManifestPayload(e); manifestPayload != nil {
+		envelopes = append(envelopes, t.singleEnvelope(evt, "workflow.artifact.manifest", "artifact", "artifact-manifest", manifestPayload)...)
+	}
+	return envelopes
+}
+
+func buildArtifactManifestPayload(e *domain.WorkflowToolCompletedEvent) map[string]any {
+	if e == nil {
+		return nil
+	}
+	if strings.EqualFold(strings.TrimSpace(e.ToolName), "acp_executor") {
+		return nil
+	}
+	attachments := e.Attachments
+	if e.Metadata != nil {
+		if manifest, ok := e.Metadata["artifact_manifest"]; ok {
+			payload := map[string]any{
+				"manifest":    manifest,
+				"source_tool": e.ToolName,
+			}
+			if len(attachments) > 0 {
+				payload["attachments"] = attachments
+			}
+			return payload
+		}
+	}
+	if strings.EqualFold(strings.TrimSpace(e.ToolName), "artifact_manifest") {
+		payload := map[string]any{
+			"result":      e.Result,
+			"source_tool": e.ToolName,
+		}
+		if len(attachments) > 0 {
+			payload["attachments"] = attachments
+		}
+		return payload
+	}
+	if len(attachments) == 0 {
+		return nil
+	}
+	for _, att := range attachments {
+		if strings.EqualFold(strings.TrimSpace(att.Format), "manifest") ||
+			strings.Contains(strings.ToLower(att.Name), "manifest") {
+			return map[string]any{
+				"attachments": attachments,
+				"source_tool": e.ToolName,
+			}
+		}
+	}
+	return nil
 }
 
 func (t *workflowEventTranslator) translateResultFinal(evt ports.AgentEvent, e *domain.WorkflowResultFinalEvent) []*domain.WorkflowEventEnvelope {

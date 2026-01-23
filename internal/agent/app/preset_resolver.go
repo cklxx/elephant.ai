@@ -168,7 +168,14 @@ func (r *PresetResolver) resolveAgentPreset(ctx context.Context, configPreset st
 // Returns the preset name and source ("context", "config", or "").
 func (r *PresetResolver) resolveToolPreset(ctx context.Context, mode presets.ToolMode, configPreset string) (preset string, source string) {
 	if normalizeToolMode(mode) == presets.ToolModeWeb {
-		return "", "mode"
+		if presetCfg, ok := ctx.Value(PresetContextKey{}).(PresetConfig); ok && presetCfg.ToolPreset != "" {
+			r.logger.Debug("Using tool preset from context: %s", presetCfg.ToolPreset)
+			return presetCfg.ToolPreset, "context"
+		}
+		if configPreset != "" {
+			return configPreset, "config"
+		}
+		return "", "default"
 	}
 
 	// Check context first (highest priority)
