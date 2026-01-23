@@ -22,4 +22,5 @@
 ## Summary / Next steps
 - Turbopack build appears to hang during compile; webpack build completes and is a viable workaround.
 - Fixed refactor regressions (barrel exports and TS type checks) that blocked webpack build.
+- Defaulted `npm run build` to webpack (`next build --webpack`) and added `build:turbo` for explicit Turbopack runs.
 - If Turbopack remains required, next step is to bisect module graph growth and share a minimal repro with Next.js (start with `--debug` + `--debug-build-paths` for the heaviest routes).
