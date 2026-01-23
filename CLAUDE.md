@@ -1,173 +1,56 @@
-# CLAUDE.md
+# Repository Helper Prompt (English Copy)
 
-This file provides guidance to Claude Code when working with this repository.
+## 0 · About the user and your role
 
-## Project Overview
+* You are assisting **cklxx**.
+* Assume cklxx is a seasoned backend/database engineer familiar with Rust, Go, Python, and their ecosystems.
+* cklxx values "Slow is Fast" and focuses on reasoning quality, abstraction/architecture, and long-term maintainability rather than short-term speed.
+* **Most important:** Keep error experience entries in `docs/error-experience/entries/` and summary items in `docs/error-experience/summary/entries/`; `docs/error-experience.md` and `docs/error-experience/summary.md` are index-only.
+* Config files are YAML-only; avoid JSON config examples and assume `.yaml` paths.
+* Your core goals:
+  * Act as a **strong reasoning and planning coding assistant**, giving high-quality solutions and implementations with minimal back-and-forth.
+  * Aim to get it right the first time; avoid shallow answers and needless clarification.
+  * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
+  * Start with the most systematic view of the current project, then propose a reasonable plan.
+  * Absolute core: practice compounding engineering—record successful paths and failed experiences.
+  * Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
+  * Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
+  * Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.
+  * Run full lint and test validation after changes.
+  * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
+  * Avoid unnecessary defensive code.
+  * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.
 
-**ALEX - Agile Light Easy Xpert Code Agent** is a terminal-native AI programming agent built in Go with hexagonal architecture, ReAct agent pattern, and comprehensive tooling.
+---
 
-## Quick Reference
+## 1 · Overall reasoning and planning framework (global rules)
 
-### Essential Commands
-```bash
-make dev                     # Format, vet, build (main workflow)
-make test                    # Run all tests
-make build                   # Build ./alex binary
-```
+Keep this concise and action-oriented. Prefer correctness and maintainability over speed.
 
-### Deployment (Local Development)
-```bash
-./deploy.sh start            # Start backend + frontend
-./deploy.sh status           # Check service status
-./deploy.sh logs             # Tail logs
-./deploy.sh down             # Stop all services
-./scripts/test-china-mirrors.sh  # Test China mirror configuration
-```
+### 1.1 Decision priorities
+1. Hard constraints and explicit rules.
+2. Reversibility/order of operations.
+3. Missing info only if it changes correctness.
+4. User preferences within constraints.
 
-**Note**: Deployment script refactored to focus on local development only. Removed Docker/K8s logic.
+### 1.2 Planning & execution
+* Plan for complex tasks (options + trade-offs), otherwise implement directly.
+* Every plan must be a file under `docs/plans/` and updated as work progresses.
+* Before each task, review engineering practices under `docs/`; if missing, search and add them.
+* Record notable incidents in error-experience entries; keep index files index-only.
+* Use TDD when touching logic; run full lint + tests before delivery.
+* Avoid unnecessary defensive code; trust invariants when guaranteed.
 
-**China Mirrors**: For instant sandbox startup in China (30s vs 15-25min):
-- **Recommended**: Set `SANDBOX_IMAGE=enterprise-public-cn-beijing.cr.volces.com/vefaas-public/all-in-one-sandbox:latest` in `.env`
-- One-click setup: `./scripts/setup-china-mirrors-all.sh`
-- Alternative: Set `NPM_REGISTRY`, `PIP_INDEX_URL` in `.env` + configure Docker mirrors
-- Details: `docs/deployment/CHINA_MIRRORS.md`
+### 1.3 Safety & tooling
+* Warn before destructive actions; avoid history rewrites unless explicitly requested.
+* Prefer local registry sources for Rust deps.
+* Keep responses focused on actionable outputs (changes + validation + limitations).
 
-### Testing
-```bash
-go test ./internal/agent/domain/ -v      # Domain layer
-go test ./internal/tools/builtin/ -v     # Builtin tools
-```
+---
 
-### NPM Publishing
-```bash
-make npm-copy-binaries       # Copy binaries to npm packages
-make npm-publish             # Publish to npm
-```
+## Error Experience Index
 
-## Architecture Index
-
-**See detailed docs in:** `docs/architecture/SPRINT_1-4_ARCHITECTURE.md`
-
-### Key Directories
-- `internal/agent/domain/` - Pure business logic (ReactEngine, ToolFormatter)
-- `internal/agent/app/` - Application services (Coordinator)
-- `internal/agent/ports/` - Interfaces for adapters
-- `internal/tools/builtin/` - 15+ built-in tools
-- `internal/llm/` - LLM client adapters (OpenAI, DeepSeek, Ollama)
-- `cmd/alex/` - CLI entry points (main.go, tui_modern.go, cli.go)
-- `cmd/alex-server/` - Web server for SSE-based agent API
-- `web/` - Next.js web frontend (research console UI)
-
-### Hexagonal Architecture Layers
-```
-Domain (Pure Logic)
-  ↓ depends on
-Ports (Interfaces)
-  ↑ implemented by
-Adapters (Infrastructure: LLM, Tools, Session)
-```
-
-## Built-in Tools Index
-
-**Location:** `internal/tools/builtin/`
-
-**Tool Implementations:**
-- File: `file_read.go`, `file_write.go`, `file_edit.go`, `list_files.go`
-- Shell: `bash.go`, `code_execute.go`
-- Search: `grep.go`, `ripgrep.go`, `find.go`
-- Task: `todo_read.go`, `todo_update.go`
-- Web: `web_search.go` (Tavily), `web_fetch.go` (15-min cache)
-- Reasoning: `think.go` (not registered by default)
-
-**Tool Registration:** `internal/tools/registry.go` - Dynamic registration system
-
-## Development Principles
-
-**保持简洁清晰，如无需求勿增实体**
-
-1. **Simplicity First** - Minimal necessary complexity
-2. **Clear Naming** - Self-documenting code
-3. **Minimal Configuration** - Avoid options unless essential
-4. **Testing Required** - All new code needs tests
-
-## Key Implementation Files
-
-### ReAct Agent (Domain Layer)
-- `internal/agent/domain/react_engine.go:33-181` - Main ReAct loop (SolveTask)
-- `internal/agent/domain/tool_formatter.go` - Tool output formatting
-
-### Tool System
-- `internal/tools/registry.go` - Tool registration
-- `internal/tools/builtin/validation.go` - Path security
-
-### LLM Integration
-- `internal/llm/factory.go` - Multi-model factory
-- `internal/llm/openai_client.go` - OpenAI/OpenRouter/DeepSeek adapter
-
-### TUI (Modern Streaming)
-- `cmd/alex/tui_modern.go` - Clean streaming interface (no chat format)
-- `cmd/alex/tui.go` - Original chat-style TUI (deprecated)
-
-### Web Frontend (Next.js)
-- `web/app/page.tsx` - Main page with the research console layout (header → output → input)
-- `web/components/agent/ConversationEventStream.tsx` - Terminal-style event display
-- `web/components/agent/TaskInput.tsx` - Persistent input (always visible)
-- `web/hooks/useSSE.ts` - SSE connection with auto-reconnect
-- `web/hooks/useTaskExecution.ts` - Task submission API
-- `web/lib/api.ts` - API client (uses `NEXT_PUBLIC_API_URL`)
-- `web/lib/types.ts` - TypeScript event types (15+ event types)
-
-**Environment Config:**
-- `web/.env.development` - Dev mode (npm run dev)
-- `web/.env.production` - Production mode (npm run build)
-- No `.env.local` - use environment-specific files only
-
-## Testing Requirements
-
-**All new code MUST include comprehensive tests**
-
-### Test Patterns
-```go
-// Domain layer - dependency injection
-func TestReactEngine_SolveTask(t *testing.T) {
-    engine := NewReactEngine(5)
-    mockLLM := &MockLLM{}
-    mockTools := &MockToolRegistry{}
-    // ... test logic
-}
-
-// Builtin tools - with test helpers
-func TestFileRead_Execute(t *testing.T) {
-    tool := NewFileRead()
-    result, err := tool.Execute(ctx, call)
-    // ... assertions
-}
-```
-
-## Commit Standards
-
-### Commit Message Format
-```
-<type>: <concise description>
-
-<optional detailed explanation>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-Co-Authored-By: Claude <noreply@anthropic.com>
-```
-
-## Important Reminders
-
-**From project instructions:**
-- Do what has been asked; nothing more, nothing less
-- NEVER create files unless absolutely necessary
-- ALWAYS prefer editing existing files to creating new ones
-- NEVER proactively create documentation files unless explicitly requested
-- All new functionality MUST include comprehensive test coverage
-
-## Additional Documentation
-
-- **Detailed Architecture:** `docs/architecture/ALEX_DETAILED_ARCHITECTURE.md`
-- **SWE-Bench Evaluation:** `evaluation/swe_bench/README.md`
-- **Project README:** `README.md` - User-facing documentation
-- **Changelog:** `CHANGELOG.md` - Version history and migration notes
+- Index: `docs/error-experience.md`
+- Summary index: `docs/error-experience/summary.md`
+- Summary entries: `docs/error-experience/summary/entries/`
+- Entries: `docs/error-experience/entries/`
