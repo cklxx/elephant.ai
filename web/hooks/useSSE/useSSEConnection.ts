@@ -25,6 +25,8 @@ export interface UseSSEConnectionReturn {
   reconnect: () => void;
   /** Clean up connection resources */
   cleanup: () => void;
+  /** Trigger a connection attempt if possible */
+  connect: () => void;
 }
 
 /**
@@ -103,6 +105,7 @@ export function useSSEConnection(
       clientRef.current = null;
     }
     isConnectingRef.current = false;
+    reconnectAttemptsRef.current = 0;
   }, []);
 
   const connectInternal = useCallback(async () => {
@@ -234,6 +237,10 @@ export function useSSEConnection(
     }
   }, [enabled, maxReconnectAttempts, pipelineRef, hasLocalHistoryRef, onConnectionStateChange]);
 
+  const connect = useCallback(() => {
+    void connectInternal();
+  }, [connectInternal]);
+
   // Store connectInternal in ref for use in timeout callbacks
   useEffect(() => {
     connectInternalRef.current = connectInternal;
@@ -264,6 +271,7 @@ export function useSSEConnection(
   }, [sessionId, enabled, pipelineRef, connectInternal, cleanup]);
 
   return {
+    connect,
     reconnect,
     cleanup,
   };

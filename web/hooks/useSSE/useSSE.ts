@@ -231,7 +231,7 @@ export function useSSE(
   }, []);
 
   // Connection management
-  const { reconnect, cleanup } = useSSEConnection({
+  const { connect, reconnect, cleanup } = useSSEConnection({
     sessionId,
     enabled,
     maxReconnectAttempts,
@@ -253,6 +253,7 @@ export function useSSE(
         });
       },
     });
+    connect();
 
     const unsubscribe = agentEventBus.subscribe((event) => {
       enqueueEvent(event);
@@ -262,7 +263,7 @@ export function useSSE(
       unsubscribe();
       pipelineRef.current = null;
     };
-  }, [enqueueEvent]);
+  }, [enqueueEvent, connect]);
 
   // Handle session changes
   useEffect(() => {
@@ -293,9 +294,15 @@ export function useSSE(
     if (!shouldResetState && shouldResetAttachments) {
       resetAttachmentRegistry();
     }
+
+    if (sessionId && enabled) {
+      connect();
+    }
   }, [
     sessionId,
+    enabled,
     cleanup,
+    connect,
     resetDedupe,
     resetPipelineDedupe,
     resetStreamingBuffer,
