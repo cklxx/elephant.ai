@@ -5,4 +5,4 @@
  * to the new modular attachments implementation.
  */
 
-export * from "./attachments";
+export * from "./attachments/index";

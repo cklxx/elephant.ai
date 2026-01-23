@@ -3,4 +3,4 @@
  *
  * The canonical definitions now live in ./types/.
  */
-export * from './types';
+export * from "./types/index";
