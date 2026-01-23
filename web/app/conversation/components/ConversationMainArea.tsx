@@ -28,14 +28,14 @@ const LazyConversationEventStream = dynamic(
 );
 
 interface ConversationMainAreaProps {
-  contentRef: React.RefObject<HTMLDivElement>;
+  contentRef: React.RefObject<HTMLDivElement | null>;
   events: AnyAgentEvent[];
   hasRenderableEvents: boolean;
   showConnectingState: boolean;
   showConnectionBanner: boolean;
   isConnected: boolean;
   isReconnecting: boolean;
-  error: Error | null;
+  error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
   streamIsRunning: boolean;
