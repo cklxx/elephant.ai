@@ -35,44 +35,57 @@ func (t *fileEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		oldString, _ = os.(string)
 	}
 
-	// Resolve path (handle relative paths)
-	resolvedPath, err := resolveLocalPath(ctx, filePath)
+	resolver := GetPathResolverFromContext(ctx)
+	base := resolver.ResolvePath(".")
+	baseAbs, err := filepath.Abs(filepath.Clean(base))
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve base path: %w", err)}, nil
+	}
+	candidate := resolver.ResolvePath(filePath)
+	candidateAbs, err := filepath.Abs(filepath.Clean(candidate))
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve path: %w", err)}, nil
 	}
 
 	// Handle new file creation case (empty old_string)
 	if oldString == "" {
-		return t.createNewFile(call.ID, filePath, resolvedPath, newString)
+		return t.createNewFile(call.ID, filePath, baseAbs, candidateAbs, newString)
 	}
 
 	// Handle file editing case
-	return t.editExistingFile(call.ID, filePath, resolvedPath, oldString, newString)
+	return t.editExistingFile(call.ID, filePath, baseAbs, candidateAbs, oldString, newString)
 }
 
 // createNewFile handles creating a new file with the provided content
-func (t *fileEdit) createNewFile(callID, filePath, resolvedPath, content string) (*ports.ToolResult, error) {
+func (t *fileEdit) createNewFile(callID, filePath, baseAbs, candidateAbs, content string) (*ports.ToolResult, error) {
+	rel, err := filepath.Rel(baseAbs, candidateAbs)
+	if err != nil {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to resolve path within base: %w", err)}, nil
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("path must stay within the working directory")}, nil
+	}
+	resolvedPath := filepath.Join(baseAbs, rel)
+	if !pathWithinBase(baseAbs, resolvedPath) {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("path must stay within the working directory")}, nil
+	}
+
 	// Create parent directories if needed
 	dir := filepath.Dir(resolvedPath)
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to create directories: %w", err)}, nil
 	}
 
 	// Check if file already exists
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
 	if _, err := os.Stat(resolvedPath); err == nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("file already exists: %s", filePath)}, nil
 	}
 
 	// Write new file
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	err := os.WriteFile(resolvedPath, []byte(content), 0644)
-	if err != nil {
+	if err := os.WriteFile(resolvedPath, []byte(content), 0644); err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to create file: %w", err)}, nil
 	}
 
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
 	fileInfo, _ := os.Stat(resolvedPath)
 	lineCount := len(strings.Split(content, "\n"))
 
@@ -98,15 +111,25 @@ func (t *fileEdit) createNewFile(callID, filePath, resolvedPath, content string)
 }
 
 // editExistingFile handles editing an existing file with string replacement
-func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, newString string) (*ports.ToolResult, error) {
+func (t *fileEdit) editExistingFile(callID, filePath, baseAbs, candidateAbs, oldString, newString string) (*ports.ToolResult, error) {
+	rel, err := filepath.Rel(baseAbs, candidateAbs)
+	if err != nil {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to resolve path within base: %w", err)}, nil
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("path must stay within the working directory")}, nil
+	}
+	resolvedPath := filepath.Join(baseAbs, rel)
+	if !pathWithinBase(baseAbs, resolvedPath) {
+		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("path must stay within the working directory")}, nil
+	}
+
 	// Check if file exists
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
 	if _, err := os.Stat(resolvedPath); os.IsNotExist(err) {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("file does not exist: %s", filePath)}, nil
 	}
 
 	// Read file content
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
 	content, err := os.ReadFile(resolvedPath)
 	if err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to read file: %w", err)}, nil
@@ -130,14 +153,11 @@ func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, n
 	diff := generateUnifiedDiff(originalContent, newContent, filePath)
 
 	// Write the modified content
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
-	err = os.WriteFile(resolvedPath, []byte(newContent), 0644)
-	if err != nil {
+	if err := os.WriteFile(resolvedPath, []byte(newContent), 0644); err != nil {
 		return &ports.ToolResult{CallID: callID, Error: fmt.Errorf("failed to write file: %w", err)}, nil
 	}
 
 	// Get file info after writing
-	// resolveLocalPath guarantees resolvedPath stays within the working directory.
 	fileInfo, _ := os.Stat(resolvedPath)
 	newLineCount := len(strings.Split(newContent, "\n"))
 	sum := sha256.Sum256([]byte(newContent))

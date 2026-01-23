@@ -34,21 +34,42 @@ func (t *fileWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'content'")}, nil
 	}
 
-	resolved, err := resolveLocalPath(ctx, path)
+	resolver := GetPathResolverFromContext(ctx)
+	base := resolver.ResolvePath(".")
+	baseAbs, err := filepath.Abs(filepath.Clean(base))
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve base path: %w", err)}, nil
+	}
+	candidate := resolver.ResolvePath(path)
+	candidateAbs, err := filepath.Abs(filepath.Clean(candidate))
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve path: %w", err)}, nil
 	}
 
-	return t.executeLocal(call, path, resolved, content), nil
+	return t.executeLocal(call, path, baseAbs, candidateAbs, content), nil
 }
 
-func (t *fileWrite) executeLocal(call ports.ToolCall, path, resolved, content string) *ports.ToolResult {
-	if err := ensureParentDirectory(resolved); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}
+func (t *fileWrite) executeLocal(call ports.ToolCall, path, baseAbs, candidateAbs, content string) *ports.ToolResult {
+	rel, err := filepath.Rel(baseAbs, candidateAbs)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve path within base: %w", err)}
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("path must stay within the working directory")}
+	}
+	safe := filepath.Join(baseAbs, rel)
+	if !pathWithinBase(baseAbs, safe) {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("path must stay within the working directory")}
 	}
 
-	// resolveLocalPath guarantees resolved stays within the working directory.
-	if err := os.WriteFile(resolved, []byte(content), 0644); err != nil {
+	dir := filepath.Dir(safe)
+	if dir != "." && dir != "" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return &ports.ToolResult{CallID: call.ID, Error: err}
+		}
+	}
+
+	if err := os.WriteFile(safe, []byte(content), 0644); err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}
 	}
 
@@ -67,10 +88,10 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, resolved, content st
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), resolved),
+		Content: fmt.Sprintf("Wrote %d bytes to %s", len(content), safe),
 		Metadata: map[string]any{
 			"path":           path,
-			"resolved_path":  resolved,
+			"resolved_path":  safe,
 			"chars":          len(content),
 			"lines":          lines,
 			"content_len":    len(content),
@@ -98,13 +119,4 @@ func (t *fileWrite) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
 		Name: "file_write", Version: "1.0.0", Category: "file_operations", Dangerous: true,
 	}
-}
-
-func ensureParentDirectory(path string) error {
-	dir := filepath.Dir(path)
-	if dir == "." || dir == "" {
-		return nil
-	}
-	// resolveLocalPath guarantees resolved stays within the working directory.
-	return os.MkdirAll(dir, 0o755)
 }

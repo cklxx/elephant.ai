@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -22,13 +23,30 @@ func (t *listFiles) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		path = "."
 	}
 
-	resolved, err := resolveLocalPath(ctx, path)
+	resolver := GetPathResolverFromContext(ctx)
+	base := resolver.ResolvePath(".")
+	baseAbs, err := filepath.Abs(filepath.Clean(base))
 	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve base path: %w", err)}, nil
+	}
+	candidate := resolver.ResolvePath(path)
+	candidateAbs, err := filepath.Abs(filepath.Clean(candidate))
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve path: %w", err)}, nil
+	}
+	rel, err := filepath.Rel(baseAbs, candidateAbs)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("failed to resolve path within base: %w", err)}, nil
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("path must stay within the working directory")}, nil
+	}
+	safe := filepath.Join(baseAbs, rel)
+	if !pathWithinBase(baseAbs, safe) {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("path must stay within the working directory")}, nil
 	}
 
-	// resolveLocalPath guarantees resolved stays within the working directory.
-	entries, err := os.ReadDir(resolved)
+	entries, err := os.ReadDir(safe)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
