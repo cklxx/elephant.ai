@@ -10,6 +10,8 @@ import {
   SessionDetailsResponse,
   ShareTokenResponse,
   SharedSessionResponse,
+  AppsConfigSnapshot,
+  AppsConfigUpdatePayload,
   RuntimeConfigSnapshot,
   RuntimeConfigOverridesPayload,
   EvaluationListResponse,
@@ -186,6 +188,10 @@ export async function getRuntimeConfigSnapshot(): Promise<RuntimeConfigSnapshot>
   return fetchAPI<RuntimeConfigSnapshot>("/api/internal/config/runtime");
 }
 
+export async function getAppsConfigSnapshot(): Promise<AppsConfigSnapshot> {
+  return fetchAPI<AppsConfigSnapshot>("/api/internal/config/apps");
+}
+
 export async function getSandboxBrowserInfo(
   sessionId?: string | null,
 ): Promise<SandboxBrowserInfo> {
@@ -197,6 +203,15 @@ export async function updateRuntimeConfig(
   request: RuntimeConfigOverridesPayload,
 ): Promise<RuntimeConfigSnapshot> {
   return fetchAPI<RuntimeConfigSnapshot>("/api/internal/config/runtime", {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
+}
+
+export async function updateAppsConfig(
+  request: AppsConfigUpdatePayload,
+): Promise<AppsConfigSnapshot> {
+  return fetchAPI<AppsConfigSnapshot>("/api/internal/config/apps", {
     method: "PUT",
     body: JSON.stringify(request),
   });

@@ -2,14 +2,15 @@ package config
 
 // FileConfig captures the on-disk YAML configuration sections.
 type FileConfig struct {
-	Runtime     *RuntimeFileConfig `yaml:"runtime"`
-	Overrides   *Overrides         `yaml:"overrides"`
-	Server      *ServerConfig      `yaml:"server"`
-	Auth        *AuthConfig        `yaml:"auth"`
-	Session     *SessionConfig     `yaml:"session"`
-	Analytics   *AnalyticsConfig   `yaml:"analytics"`
-	Attachments *AttachmentsConfig `yaml:"attachments"`
-	Web         *WebConfig         `yaml:"web"`
+	Runtime     *RuntimeFileConfig `json:"runtime,omitempty" yaml:"runtime"`
+	Overrides   *Overrides         `json:"overrides,omitempty" yaml:"overrides"`
+	Apps        *AppsConfig        `json:"apps,omitempty" yaml:"apps"`
+	Server      *ServerConfig      `json:"server,omitempty" yaml:"server"`
+	Auth        *AuthConfig        `json:"auth,omitempty" yaml:"auth"`
+	Session     *SessionConfig     `json:"session,omitempty" yaml:"session"`
+	Analytics   *AnalyticsConfig   `json:"analytics,omitempty" yaml:"analytics"`
+	Attachments *AttachmentsConfig `json:"attachments,omitempty" yaml:"attachments"`
+	Web         *WebConfig         `json:"web,omitempty" yaml:"web"`
 }
 
 // RuntimeFileConfig mirrors RuntimeConfig for YAML decoding (runtime section).
@@ -53,6 +54,21 @@ type RuntimeFileConfig struct {
 	CostDir                    string   `yaml:"cost_dir"`
 	AgentPreset                string   `yaml:"agent_preset"`
 	ToolPreset                 string   `yaml:"tool_preset"`
+}
+
+// AppsConfig captures user-managed app plugin connectors.
+type AppsConfig struct {
+	Plugins []AppPluginConfig `json:"plugins" yaml:"plugins"`
+}
+
+// AppPluginConfig describes a custom app plugin entry.
+type AppPluginConfig struct {
+	ID              string   `json:"id" yaml:"id"`
+	Name            string   `json:"name" yaml:"name"`
+	Description     string   `json:"description" yaml:"description"`
+	Capabilities    []string `json:"capabilities,omitempty" yaml:"capabilities"`
+	IntegrationNote string   `json:"integration_note,omitempty" yaml:"integration_note"`
+	Sources         []string `json:"sources,omitempty" yaml:"sources"`
 }
 
 // ServerConfig captures server-specific YAML configuration.
