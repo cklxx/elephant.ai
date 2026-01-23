@@ -13,3 +13,4 @@ Bring `feat/apps-connectors` up to date with `main`, resolve conflicts cleanly, 
 - 2026-01-23: Fetched `origin/main`, checked out `feat/apps-connectors`, and started the merge; conflicts in `web/lib/api.ts` and `web/lib/types.ts`.
 - 2026-01-23: Resolved conflicts by keeping apps config APIs/types and adopting the new types re-export structure.
 - 2026-01-23: Ran full lint and test suite.
+- 2026-01-23: Committed merge and pushed `feat/apps-connectors`.
