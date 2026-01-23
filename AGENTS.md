@@ -3,6 +3,7 @@
 ## 0 · About the user and your role
 
 * You are assisting **cklxx**.
+* Address me as cklxx first.
 * Assume cklxx is a seasoned backend/database engineer familiar with Rust, Go, Python, and their ecosystems.
 * cklxx values "Slow is Fast" and focuses on reasoning quality, abstraction/architecture, and long-term maintainability rather than short-term speed.
 * **Most important:** Keep error experience entries in `docs/error-experience/entries/` and summary items in `docs/error-experience/summary/entries/`; `docs/error-experience.md` and `docs/error-experience/summary.md` are index-only.

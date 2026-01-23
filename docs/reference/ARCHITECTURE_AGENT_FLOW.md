@@ -46,7 +46,7 @@ It complements the deeper dives in `docs/AGENT.md`, `docs/reference/ALEX.md`, an
 - Dependency injection container: `internal/di`
 - Configuration and environment: `internal/config`, `internal/environment`
 
-![Architecture Layers](images/architecture_layers.png)
+![Architecture Layers](images/architecture_layers_gen.png)
 
 ---
 
@@ -136,7 +136,7 @@ flowchart TD
 - Observability attaches metrics and traces to LLM calls and tool invocations
   via `internal/observability` and `internal/logging`.
 
-![Event and Observability Pipeline](images/event_observability_pipeline.png)
+![Event and Observability Pipeline](images/event_pipeline_gen.png)
 
 ---
 
