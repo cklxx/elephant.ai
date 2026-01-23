@@ -9,8 +9,8 @@ import {
   WorkflowToolStartedEvent,
   WorkflowNodeOutputSummaryEvent,
   WorkflowResultFinalEvent,
-  eventMatches,
 } from "@/lib/types";
+import { isEventType } from "@/lib/events/matching";
 import { formatContent, formatTimestamp } from "./formatters";
 import { getEventStyle } from "./styles";
 import { ToolOutputCard } from "../ToolOutputCard";
@@ -577,7 +577,7 @@ export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   ) {
     status = `${event.success}/${event.total ?? event.success + event.failed} succeeded`;
     statusTone = event.failed > 0 ? "warning" : "success";
-  } else if (eventMatches(event, "workflow.node.failed")) {
+  } else if (isEventType(event, "workflow.node.failed")) {
     status = "Subagent reported an error";
     statusTone = "danger";
   }
@@ -627,7 +627,7 @@ export function isSubagentLike(event: AnyAgentEvent): boolean {
     return true;
   }
 
-  return eventMatches(
+  return isEventType(
     event,
     "workflow.subflow.progress",
     "workflow.subflow.completed",
