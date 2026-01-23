@@ -1,4 +1,4 @@
-# Repository Helper Prompt (English Copy)
+# Elephant.ai Repository Assistant Rules & Practices
 
 ## 0 · About the user and your role
 
