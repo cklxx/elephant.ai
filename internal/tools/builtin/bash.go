@@ -45,7 +45,8 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 	}
 
 	// Command is fixed and arguments are not shell-interpreted.
-	cmd := exec.CommandContext(ctx, "bash", script.Name()) // lgtm[go/command-injection]
+	// codeql[go/command-injection]
+	cmd := exec.CommandContext(ctx, "bash", script.Name())
 	if workingDir != "" {
 		cmd.Dir = workingDir
 	}

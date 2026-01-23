@@ -86,7 +86,8 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 		r.status = http.StatusOK
 	}
 	// ResponseRecorder passes through bytes unchanged; handlers are responsible for output encoding.
-	n, err := r.ResponseWriter.Write(b) // lgtm[go/xss]
+	// codeql[go/reflected-xss]
+	n, err := r.ResponseWriter.Write(b)
 	if n > 0 {
 		r.bytes += int64(n)
 	}
