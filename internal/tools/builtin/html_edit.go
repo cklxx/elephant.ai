@@ -355,7 +355,6 @@ func fetchHTML(ctx context.Context, uri string) (string, error) {
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	// URL is validated by ValidateOutboundURL before request construction.
-	// codeql[go/request-forgery]
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return "", err

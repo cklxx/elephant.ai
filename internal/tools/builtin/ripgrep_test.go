@@ -3,7 +3,6 @@ package builtin
 import (
 	"alex/internal/agent/ports"
 	"context"
-	"os/exec"
 	"strings"
 	"testing"
 )
@@ -68,44 +67,7 @@ func TestRipgrepMissingPattern(t *testing.T) {
 	}
 }
 
-func TestRipgrepNotInstalled(t *testing.T) {
-	// Check if ripgrep is actually installed
-	_, err := exec.LookPath("rg")
-	if err == nil {
-		t.Skip("Skipping test: ripgrep is installed")
-	}
-
-	tool := NewRipgrep(ShellToolConfig{})
-	ctx := context.Background()
-
-	call := ports.ToolCall{
-		ID:   "test-2",
-		Name: "ripgrep",
-		Arguments: map[string]any{
-			"pattern": "test",
-		},
-	}
-
-	result, err := tool.Execute(ctx, call)
-	if err != nil {
-		t.Fatalf("Expected no error, got %v", err)
-	}
-
-	if result.Error == nil {
-		t.Error("Expected error when ripgrep is not installed")
-	}
-	if !strings.Contains(result.Error.Error(), "not installed") {
-		t.Errorf("Error should mention ripgrep not installed, got: %v", result.Error)
-	}
-}
-
 func TestRipgrepBasicSearch(t *testing.T) {
-	// Check if ripgrep is installed
-	_, err := exec.LookPath("rg")
-	if err != nil {
-		t.Skip("Skipping test: ripgrep is not installed")
-	}
-
 	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
@@ -134,12 +96,6 @@ func TestRipgrepBasicSearch(t *testing.T) {
 }
 
 func TestRipgrepWithFileType(t *testing.T) {
-	// Check if ripgrep is installed
-	_, err := exec.LookPath("rg")
-	if err != nil {
-		t.Skip("Skipping test: ripgrep is not installed")
-	}
-
 	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
@@ -171,12 +127,6 @@ func TestRipgrepWithFileType(t *testing.T) {
 }
 
 func TestRipgrepNoMatches(t *testing.T) {
-	// Check if ripgrep is installed
-	_, err := exec.LookPath("rg")
-	if err != nil {
-		t.Skip("Skipping test: ripgrep is not installed")
-	}
-
 	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 
@@ -213,12 +163,6 @@ func TestRipgrepNoMatches(t *testing.T) {
 }
 
 func TestRipgrepIgnoreCase(t *testing.T) {
-	// Check if ripgrep is installed
-	_, err := exec.LookPath("rg")
-	if err != nil {
-		t.Skip("Skipping test: ripgrep is not installed")
-	}
-
 	tool := NewRipgrep(ShellToolConfig{})
 	ctx := context.Background()
 

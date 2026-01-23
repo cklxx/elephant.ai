@@ -190,7 +190,6 @@ func fetchAttachmentBytes(ctx context.Context, client *http.Client, uri string, 
 		return nil, "", err
 	}
 	// URL is validated by ValidateOutboundURL before request construction.
-	// codeql[go/request-forgery]
 	req, err := http.NewRequestWithContext(requestCtx, http.MethodGet, parsed.String(), nil)
 	if err != nil {
 		return nil, "", err

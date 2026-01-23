@@ -1,3 +1,5 @@
+//go:build local_exec
+
 package builtin
 
 import (

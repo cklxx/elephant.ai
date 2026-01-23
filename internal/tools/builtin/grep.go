@@ -4,7 +4,8 @@ import (
 	"alex/internal/agent/ports"
 	"context"
 	"fmt"
-	"os/exec"
+	"regexp"
+	"strings"
 )
 
 type grep struct {
@@ -26,21 +27,28 @@ func (t *grep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		path = "."
 	}
 
-	resolvedPath, err := resolveLocalPath(ctx, path)
+	resolvedPath, err := sanitizePathWithinBase(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 
-	cmd := exec.CommandContext(ctx, "grep", "-r", "-n", pattern, resolvedPath)
-	output, err := cmd.CombinedOutput()
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+
+	matches, total, err := searchTextMatches(resolvedPath, re, nil, 0)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: string(output),
-		Error:   err,
+		Content: formatSearchContent(matches, total),
 		Metadata: map[string]any{
 			"path":          path,
 			"resolved_path": resolvedPath,
+			"matches":       total,
 		},
 	}, nil
 }
@@ -64,4 +72,11 @@ func (t *grep) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
 		Name: "grep", Version: "1.0.0", Category: "search",
 	}
+}
+
+func formatSearchContent(lines []string, total int) string {
+	if total == 0 {
+		return "No matches found"
+	}
+	return strings.Join(lines, "\n")
 }

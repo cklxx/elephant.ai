@@ -10,20 +10,45 @@ import (
 )
 
 func resolveLocalPath(ctx context.Context, raw string) (string, error) {
+	return sanitizePathWithinBase(ctx, raw)
+}
+
+func sanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return "", fmt.Errorf("path cannot be empty")
 	}
 
 	resolver := GetPathResolverFromContext(ctx)
-	resolved := resolver.ResolvePath(trimmed)
 	base := resolver.ResolvePath(".")
+	baseAbs, err := filepath.Abs(filepath.Clean(base))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve base path: %w", err)
+	}
 
-	if !pathWithinBase(base, resolved) {
+	candidate := resolver.ResolvePath(trimmed)
+	candidateAbs, err := filepath.Abs(filepath.Clean(candidate))
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path: %w", err)
+	}
+
+	rel, err := filepath.Rel(baseAbs, candidateAbs)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve path within base: %w", err)
+	}
+	if rel == "." {
+		return baseAbs, nil
+	}
+	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("path must stay within the working directory")
 	}
 
-	return resolved, nil
+	safe := filepath.Join(baseAbs, rel)
+	if !pathWithinBase(baseAbs, safe) {
+		return "", fmt.Errorf("path must stay within the working directory")
+	}
+
+	return safe, nil
 }
 
 func pathWithinBase(base, target string) bool {

@@ -4,7 +4,7 @@ import (
 	"alex/internal/agent/ports"
 	"context"
 	"fmt"
-	"os/exec"
+	"regexp"
 	"strings"
 )
 
@@ -30,7 +30,7 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		path = p
 	}
 
-	resolvedPath, err := resolveLocalPath(ctx, path)
+	resolvedPath, err := sanitizePathWithinBase(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
@@ -45,42 +45,28 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		maxResults = int(mr)
 	}
 
-	cmdArgs := t.buildArgs(call, pattern, resolvedPath, ignoreCase)
-
-	if !t.hasRipgrep() {
-		return &ports.ToolResult{
-			CallID: call.ID,
-			Error:  fmt.Errorf("ripgrep (rg) is not installed. Install with: brew install ripgrep (macOS) or visit https://github.com/BurntSushi/ripgrep#installation"),
-		}, nil
-	}
-
-	cmd := exec.CommandContext(ctx, "rg", cmdArgs...)
-	output, err := cmd.Output()
+	re, err := compileSearchPattern(pattern, ignoreCase)
 	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
-			return t.noMatchesResult(call, pattern, path, ignoreCase)
-		}
-		return &ports.ToolResult{
-			CallID: call.ID,
-			Error:  fmt.Errorf("ripgrep command failed: %w", err),
-		}, nil
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 
-	return t.processOutput(call, string(output), pattern, path, resolvedPath, ignoreCase, maxResults)
+	matches, total, err := searchTextMatches(resolvedPath, re, fileTypeFilter(stringArg(call.Arguments, "file_type")), maxResults)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+	if total == 0 {
+		return t.noMatchesResult(call, pattern, path, ignoreCase)
+	}
+
+	return t.processMatches(call, matches, total, pattern, path, resolvedPath, ignoreCase, maxResults)
 }
 
-func (t *ripgrep) processOutput(call ports.ToolCall, output string, pattern, path, resolvedPath string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
-	lines := strings.Split(output, "\n")
-	if len(lines) > 0 && lines[len(lines)-1] == "" {
-		lines = lines[:len(lines)-1]
-	}
-
+func (t *ripgrep) processMatches(call ports.ToolCall, lines []string, originalMatchCount int, pattern, path, resolvedPath string, ignoreCase bool, maxResults int) (*ports.ToolResult, error) {
 	const maxLineChars = 200
-	originalMatchCount := len(lines)
 	truncatedByMatches := false
 	linesTruncated := 0
 
-	if len(lines) > maxResults {
+	if maxResults > 0 && len(lines) > maxResults {
 		lines = lines[:maxResults]
 		truncatedByMatches = true
 	}
@@ -139,19 +125,6 @@ func (t *ripgrep) noMatchesResult(call ports.ToolCall, pattern, path string, ign
 	}, nil
 }
 
-func (t *ripgrep) buildArgs(call ports.ToolCall, pattern, path string, ignoreCase bool) []string {
-	args := []string{}
-	if ignoreCase {
-		args = append(args, "-i")
-	}
-	args = append(args, "-n")
-	if fileType, ok := call.Arguments["file_type"].(string); ok && fileType != "" {
-		args = append(args, "-t", fileType)
-	}
-	args = append(args, pattern, path)
-	return args
-}
-
 func (t *ripgrep) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "ripgrep",
@@ -194,7 +167,9 @@ func (t *ripgrep) Metadata() ports.ToolMetadata {
 	}
 }
 
-func (t *ripgrep) hasRipgrep() bool {
-	_, err := exec.LookPath("rg")
-	return err == nil
+func compileSearchPattern(pattern string, ignoreCase bool) (*regexp.Regexp, error) {
+	if ignoreCase {
+		pattern = "(?i)" + pattern
+	}
+	return regexp.Compile(pattern)
 }
