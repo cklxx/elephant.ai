@@ -21,4 +21,5 @@
 ## Summary
 - `npm --prefix web run build:turbo` completes successfully (no hang observed).
 - Fixed SSE connection lifecycle to avoid double connections and stale error state.
+- Switched `web` default build back to Turbopack and added `build:webpack` fallback.
 - Full lint/tests run: `make fmt`, `make vet`, `make test`, `npm --prefix web run lint`, `npm --prefix web test`.
