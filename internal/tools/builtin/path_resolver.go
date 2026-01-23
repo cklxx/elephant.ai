@@ -30,10 +30,11 @@ type PathResolver struct {
 
 // NewPathResolver creates a new path resolver
 func NewPathResolver(workingDir string) *PathResolver {
-	if workingDir == "" {
-		workingDir, _ = os.Getwd()
+	normalized, ok := normalizeWorkingDir(workingDir)
+	if !ok {
+		normalized = defaultWorkingDir()
 	}
-	return &PathResolver{workingDir: workingDir}
+	return &PathResolver{workingDir: normalized}
 }
 
 // isProjectRelativePath determines if a path is project-relative
@@ -102,7 +103,10 @@ func GetPathResolverFromContext(ctx context.Context) *PathResolver {
 	}
 
 	if workingDir, ok := ctx.Value(WorkingDirKey).(string); ok {
-		return NewPathResolver(workingDir)
+		if normalized, ok := normalizeWorkingDir(workingDir); ok {
+			return &PathResolver{workingDir: normalized}
+		}
+		return NewPathResolver("")
 	}
 
 	return NewPathResolver("")
@@ -111,4 +115,27 @@ func GetPathResolverFromContext(ctx context.Context) *PathResolver {
 // WithWorkingDir sets the working directory in context
 func WithWorkingDir(ctx context.Context, workingDir string) context.Context {
 	return context.WithValue(ctx, WorkingDirKey, workingDir)
+}
+
+func normalizeWorkingDir(workingDir string) (string, bool) {
+	if workingDir == "" {
+		return "", false
+	}
+	abs, err := filepath.Abs(filepath.Clean(workingDir))
+	if err != nil || abs == "" {
+		return "", false
+	}
+	return abs, true
+}
+
+func defaultWorkingDir() string {
+	workingDir, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	abs, err := filepath.Abs(filepath.Clean(workingDir))
+	if err != nil {
+		return ""
+	}
+	return abs
 }
