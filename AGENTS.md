@@ -1,4 +1,4 @@
-# Elephant.ai Repository Assistant Rules & Practices
+# Elephant.ai Repo Agent Workflow & Safety Rules
 
 ## 0 · About the user and your role
 
