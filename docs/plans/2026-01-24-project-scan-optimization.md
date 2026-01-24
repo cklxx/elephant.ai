@@ -23,3 +23,4 @@
   - Go: Pre-allocated slice in postgres_event_history_store.go:365 with batchSize capacity
   - Go: Replaced slice prepend with slices.Insert in react_engine.go:1056-1070
   - Web: Added React.memo with custom comparator to ToolCallCard.tsx (20-30% re-render reduction)
+  - Web: Optimized squashFinalEvents in useSSE.ts with early return for common case (no duplicates)

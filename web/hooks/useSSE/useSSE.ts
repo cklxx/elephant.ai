@@ -418,6 +418,33 @@ function isSameTask(a: AnyAgentEvent, b: AnyAgentEvent): boolean {
 }
 
 function squashFinalEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
+  // Fast path: count workflow.result.final events by task key
+  // If no duplicates exist, return original array to avoid allocation
+  const finalEventKeys = new Map<string, number>();
+  let hasDuplicates = false;
+
+  for (const evt of events) {
+    if (
+      isEventType(evt, "workflow.result.final") &&
+      "task_id" in evt &&
+      "session_id" in evt
+    ) {
+      const key = `${evt.session_id}|${evt.task_id}`;
+      const count = (finalEventKeys.get(key) ?? 0) + 1;
+      finalEventKeys.set(key, count);
+      if (count > 1) {
+        hasDuplicates = true;
+        break; // Early exit once we know there are duplicates
+      }
+    }
+  }
+
+  // No duplicates - return original array (most common case)
+  if (!hasDuplicates) {
+    return events;
+  }
+
+  // Duplicates exist - run full deduplication (keep latest per task)
   const seenTasks = new Set<string>();
   const result: AnyAgentEvent[] = [];
 

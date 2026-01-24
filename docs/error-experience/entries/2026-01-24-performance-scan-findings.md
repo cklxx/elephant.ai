@@ -132,7 +132,7 @@ Full project scan identified 30+ optimization opportunities rated by severity. K
 | Priority | Issue | Files | Est. Effort | Impact | Status |
 |----------|-------|-------|-------------|--------|--------|
 | P0 | Regex to module-level | parser.go, react_engine.go | 1h | 15-30% latency | ✅ DONE |
-| P0 | Event filter memoization | useSSE.ts | 2h | 40% CPU reduction | Pending |
+| P0 | Event filter memoization | useSSE.ts | 2h | 40% CPU reduction | ✅ DONE |
 | P0 | Slice pre-allocation | postgres_store.go, react_engine.go | 1h | 10-20% allocations | ✅ DONE |
 | P1 | React.memo ToolCallCard | ToolCallCard.tsx | 30m | 20-30% re-renders | ✅ DONE |
 | P1 | Next.js Image optimization | next.config.mjs | 1h | 20-40% image bytes | N/A (static export) |
