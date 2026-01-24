@@ -7,6 +7,17 @@ import (
 	"regexp"
 )
 
+// Pre-compiled regexes for hot path performance (avoid recompilation per call)
+var (
+	toolCallRe    = regexp.MustCompile(`<tool_call>(.*?)</tool_call>`)
+	toolNameRe    = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
+	cleanPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`<\|tool_call_begin\|>.*?(?:<\|tool_call_end\|>|$)`),
+		regexp.MustCompile(`user<\|tool_call_begin\|>.*`),
+		regexp.MustCompile(`functions\.[\w_]+:\d+\(.*?\)`),
+	}
+)
+
 type parser struct{}
 
 func New() ports.FunctionCallParser {
@@ -18,8 +29,7 @@ func (p *parser) Parse(content string) ([]ports.ToolCall, error) {
 	cleaned := p.cleanLeakedMarkers(content)
 
 	// Parse XML-style tool calls: <tool_call>{...}</tool_call>
-	re := regexp.MustCompile(`<tool_call>(.*?)</tool_call>`)
-	matches := re.FindAllStringSubmatch(cleaned, -1)
+	matches := toolCallRe.FindAllStringSubmatch(cleaned, -1)
 
 	var calls []ports.ToolCall
 	for _, match := range matches {
@@ -48,25 +58,16 @@ func (p *parser) Parse(content string) ([]ports.ToolCall, error) {
 
 // cleanLeakedMarkers removes incomplete or malformed tool call markers
 func (p *parser) cleanLeakedMarkers(content string) string {
-	patterns := []string{
-		`<\|tool_call_begin\|>.*?(?:<\|tool_call_end\|>|$)`,
-		`user<\|tool_call_begin\|>.*`,
-		`functions\.[\w_]+:\d+\(.*?\)`,
-	}
-
 	cleaned := content
-	for _, pattern := range patterns {
-		re := regexp.MustCompile(pattern)
+	for _, re := range cleanPatterns {
 		cleaned = re.ReplaceAllString(cleaned, "")
 	}
-
 	return cleaned
 }
 
 // isValidToolName checks if tool name is valid (alphanumeric + underscore only)
 func isValidToolName(name string) bool {
-	re := regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]*$`)
-	return re.MatchString(name)
+	return toolNameRe.MatchString(name)
 }
 
 func (p *parser) Validate(call ports.ToolCall, definition ports.ToolDefinition) error {

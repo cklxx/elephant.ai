@@ -362,7 +362,8 @@ WHERE session_id = $1 AND id > $2`
 	}
 	defer rows.Close()
 
-	var records []eventRecord
+	// Pre-allocate with batchSize capacity to avoid repeated slice growth
+	records := make([]eventRecord, 0, s.batchSize)
 	for rows.Next() {
 		var rec eventRecord
 		var payload []byte

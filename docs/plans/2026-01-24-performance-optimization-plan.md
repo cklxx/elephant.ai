@@ -585,12 +585,50 @@ Week 3-4 (P2 启动)
 
 ---
 
+## 11. 深度扫描新发现（2026-01-24 第二轮）
+
+### 新增 P0 项（Go 后端）
+
+| # | 问题 | 文件:行号 | 影响 | 工作量 |
+|---|------|-----------|------|--------|
+| 1 | Regex 重复编译 | `parser.go:21,59,68`, `react_engine.go:1020` | 15-30% 延迟 | 1h |
+| 2 | Slice 前置拷贝 | `react_engine.go:1059,1072` | O(n) 拷贝/任务 | 1h |
+| 3 | 未预分配 Slice | `postgres_event_history_store.go:365` | 10-20% 内存 | 30m |
+
+### 新增 P0 项（Web 前端）
+
+| # | 问题 | 文件:行号 | 影响 | 工作量 |
+|---|------|-----------|------|--------|
+| 4 | Prop Drilling (28+ props) | `ConversationMainArea.tsx:30-65` | 级联重渲染 | 3h |
+| 5 | SSE 事件 O(n) 处理 | `useSSE.ts:203,342-344` | 40% CPU | 2h |
+| 6 | Markdown 重解析 | `StreamingMarkdownRenderer.tsx:26-30` | 15-25% CPU | 2h |
+
+### 新增 P1 项
+
+| # | 问题 | 文件 | 影响 |
+|---|------|------|------|
+| 7 | EventBroadcaster 锁竞争 | `event_broadcaster.go:16-42` | 高负载性能 |
+| 8 | JSON 日志开销 | `anthropic_client.go:158-160` | 5-15% |
+| 9 | Next.js Image 优化关闭 | `next.config.mjs:19` | 20-40% 图片 |
+| 10 | ToolCallCard 缺少 memo | `ToolCallCard.tsx` | 20-30% 重渲染 |
+
+### 测试覆盖差距
+
+- 57 个内置工具，仅 30 个测试文件（~53%）
+- 缺少多智能体编排测试
+- CI 未强制覆盖率阈值
+
+详细发现记录于 `docs/error-experience/entries/2026-01-24-performance-scan-findings.md`
+
+---
+
 ## 附录
 
 ### A. 分析范围
 - 100+ 源文件扫描
 - 架构/性能/代码质量/工程实践四维度
 - Explore agent (ID: ae4bcdc) 完成详细分析
+- 2026-01-24 深度扫描：4 个并行 agent 分析 Go/Web/Tests/Resilience
 
 ### B. 参考文档
 - `/docs/AGENT.md` - ReAct 循环架构

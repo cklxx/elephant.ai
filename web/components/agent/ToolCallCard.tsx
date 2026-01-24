@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { memo, useMemo, useState } from 'react';
 import { WorkflowToolStartedEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { isWorkflowToolStartedEvent } from '@/lib/typeGuards';
 import { getToolIcon, formatDuration } from '@/lib/utils';
@@ -19,7 +19,35 @@ interface ToolCallCardProps {
   isFocused?: boolean;
 }
 
-export function ToolCallCard({ event, status, pairedStart, isFocused = false }: ToolCallCardProps) {
+// Custom comparator for React.memo - compare by event ID and status rather than reference
+function arePropsEqual(
+  prev: ToolCallCardProps,
+  next: ToolCallCardProps
+): boolean {
+  // Status change always triggers re-render
+  if (prev.status !== next.status) return false;
+  if (prev.isFocused !== next.isFocused) return false;
+
+  // Compare events by call_id (unique identifier)
+  if (prev.event.call_id !== next.event.call_id) return false;
+
+  // For running status, we need to re-render to show progress
+  if (next.status === 'running') return false;
+
+  // Compare paired start by call_id if present
+  const prevStartId = prev.pairedStart?.call_id;
+  const nextStartId = next.pairedStart?.call_id;
+  if (prevStartId !== nextStartId) return false;
+
+  // For completed events, compare by timestamp to detect updates
+  if ('timestamp' in prev.event && 'timestamp' in next.event) {
+    if (prev.event.timestamp !== next.event.timestamp) return false;
+  }
+
+  return true;
+}
+
+export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedStart, isFocused = false }: ToolCallCardProps) {
   const t = useTranslation();
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -192,7 +220,7 @@ export function ToolCallCard({ event, status, pairedStart, isFocused = false }: 
       )}
     </div>
   );
-}
+}, arePropsEqual);
 
 function getArgumentsPreview(
   event: WorkflowToolStartedEvent | WorkflowToolCompletedEvent,

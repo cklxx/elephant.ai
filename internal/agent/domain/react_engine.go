@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,15 @@ import (
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
+
+// Pre-compiled regexes for hot path performance (avoid recompilation per call)
+var cleanToolCallPatterns = []*regexp.Regexp{
+	regexp.MustCompile(`<\|tool_call_begin\|>.*`),
+	regexp.MustCompile(`<tool_call>.*(?:</tool_call>)?$`),
+	regexp.MustCompile(`user<\|tool_call_begin\|>.*`),
+	regexp.MustCompile(`functions\.[\w_]+:\d+\(.*`),
+	regexp.MustCompile(`(?s)<start_function_call>.*?<end_function_call>`),
+}
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
 type ReactEngine struct {
@@ -1006,21 +1016,10 @@ func workflowFinalizeOutput(result *TaskResult) map[string]any {
 
 // cleanToolCallMarkers removes leaked tool call XML markers from content
 func (e *ReactEngine) cleanToolCallMarkers(content string) string {
-
-	patterns := []string{
-		`<\|tool_call_begin\|>.*`,
-		`<tool_call>.*(?:</tool_call>)?$`,
-		`user<\|tool_call_begin\|>.*`,
-		`functions\.[\w_]+:\d+\(.*`,
-		`(?s)<start_function_call>.*?<end_function_call>`,
-	}
-
 	cleaned := content
-	for _, pattern := range patterns {
-		re := regexp.MustCompile(pattern)
+	for _, re := range cleanToolCallPatterns {
 		cleaned = re.ReplaceAllString(cleaned, "")
 	}
-
 	return strings.TrimSpace(cleaned)
 }
 
@@ -1055,8 +1054,9 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 
 		existing := state.Messages[idx]
 		if idx > 0 {
-			state.Messages = append(state.Messages[:idx], state.Messages[idx+1:]...)
-			state.Messages = append([]Message{existing}, state.Messages...)
+			// Move system message to front using slices.Delete + slices.Insert for efficiency
+			state.Messages = slices.Delete(state.Messages, idx, idx+1)
+			state.Messages = slices.Insert(state.Messages, 0, existing)
 		} else {
 			state.Messages[0] = existing
 		}
@@ -1069,7 +1069,8 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 		Source:  ports.MessageSourceSystemPrompt,
 	}
 
-	state.Messages = append([]Message{systemMessage}, state.Messages...)
+	// Use slices.Insert for efficient prepend
+	state.Messages = slices.Insert(state.Messages, 0, systemMessage)
 	e.logger.Debug("Inserted system prompt into message history")
 }
 
