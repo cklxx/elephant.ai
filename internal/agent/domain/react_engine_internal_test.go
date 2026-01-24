@@ -783,49 +783,6 @@ func TestReactRuntimeAttachesReferencedTaskAttachmentsToUserMessage(t *testing.T
 	}
 }
 
-func TestNormalizeMessageHistoryAttachmentsKeepsInlinePayloads(t *testing.T) {
-	migrator := &captureMigrator{}
-	engine := NewReactEngine(ReactEngineConfig{AttachmentMigrator: migrator})
-	state := &TaskState{
-		SessionID: "session-1",
-		TaskID:    "task-1",
-		Messages: []Message{
-			{
-				Role:   "user",
-				Source: ports.MessageSourceUserHistory,
-				Attachments: map[string]ports.Attachment{
-					"[seed.png]": {Name: "seed.png", MediaType: "image/png", Data: "YmFzZTY0"},
-				},
-			},
-			{
-				Role:       "tool",
-				ToolCallID: "call-123",
-				Source:     ports.MessageSourceToolResult,
-				Attachments: map[string]ports.Attachment{
-					"[tool.png]": {Name: "tool.png", MediaType: "image/png", Data: "aW1hZ2U="},
-				},
-			},
-		},
-	}
-
-	engine.normalizeMessageHistoryAttachments(context.Background(), state)
-
-	if len(migrator.requests) != 0 {
-		t.Fatalf("expected migrator to be skipped, got %d requests", len(migrator.requests))
-	}
-
-	for idx, msg := range state.Messages {
-		for key, att := range msg.Attachments {
-			if att.Data == "" {
-				t.Fatalf("message %d attachment %s missing inline data", idx, key)
-			}
-			if att.URI != "" {
-				t.Fatalf("message %d attachment %s should not be externalized", idx, key)
-			}
-		}
-	}
-}
-
 func TestCompactToolCallHistoryReplacesLargeArguments(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	largeContent := strings.Repeat("a", toolArgHistoryInlineLimit+8)

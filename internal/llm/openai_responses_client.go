@@ -1,12 +1,10 @@
 package llm
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -135,12 +133,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 		c.logger.Debug("%s  %s: %s", prefix, k, loggedValue)
 	}
 
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, logBody, "", "  "); err == nil {
-		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
-	} else {
-		c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	}
+	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
 	resp, err := c.httpClient.Do(httpReq)
@@ -157,7 +150,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
 		c.logger.Debug("%sFailed to read response body: %v", prefix, err)
 		return nil, fmt.Errorf("read response: %w", err)
@@ -203,12 +196,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 		c.usageCallback(result.Usage, c.model, "openai")
 	}
 
-	var prettyResp bytes.Buffer
-	if err := json.Indent(&prettyResp, respBody, "", "  "); err == nil {
-		c.logger.Debug("%sResponse Body:\n%s", prefix, prettyResp.String())
-	} else {
-		c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
-	}
+	c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
 
 	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
@@ -314,12 +302,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		c.logger.Debug("%s  %s: %s", prefix, k, loggedValue)
 	}
 
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, logBody, "", "  "); err == nil {
-		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
-	} else {
-		c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	}
+	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
 	resp, err := c.httpClient.Do(httpReq)
@@ -337,7 +320,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		respBody, readErr := io.ReadAll(resp.Body)
+		respBody, readErr := readResponseBody(resp.Body)
 		if readErr != nil {
 			c.logger.Debug("%sFailed to read error response: %v", prefix, readErr)
 			return nil, fmt.Errorf("read response: %w", readErr)
@@ -371,8 +354,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		} `json:"item"`
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+	scanner := newStreamScanner(resp.Body)
 
 	var contentBuilder strings.Builder
 	var toolCalls []ports.ToolCall
@@ -597,7 +579,7 @@ func buildResponsesUserContent(msg ports.Message, embedAttachments bool) []map[s
 			return
 		}
 		parts = append(parts, map[string]any{
-			"type": "input_image",
+			"type":      "input_image",
 			"image_url": url,
 		})
 	}

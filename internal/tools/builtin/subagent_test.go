@@ -87,8 +87,8 @@ func (r *sessionIDRecorder) SaveSessionAfterExecution(ctx context.Context, _ *po
 func (r *sessionIDRecorder) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
 	return nil, nil
 }
-func (r *sessionIDRecorder) GetConfig() ports.AgentConfig                       { return ports.AgentConfig{} }
-func (r *sessionIDRecorder) GetLLMClient() (ports.LLMClient, error)             { return nil, nil }
+func (r *sessionIDRecorder) GetConfig() ports.AgentConfig           { return ports.AgentConfig{} }
+func (r *sessionIDRecorder) GetLLMClient() (ports.LLMClient, error) { return nil, nil }
 func (r *sessionIDRecorder) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
 	return nil
 }

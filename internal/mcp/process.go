@@ -27,6 +27,7 @@ type ProcessManager struct {
 	running     bool
 	restartChan chan struct{}
 	stopChan    chan struct{}
+	waitDone    chan error
 }
 
 // ProcessConfig configures the MCP server process
@@ -65,6 +66,9 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	if pm.running {
 		return fmt.Errorf("process already running")
 	}
+
+	pm.stopChan = make(chan struct{})
+	pm.waitDone = make(chan error, 1)
 
 	pm.logger.Info("Starting MCP server: %s %v", pm.command, pm.args)
 
@@ -130,40 +134,52 @@ func resolveExecutable(command string) (string, error) {
 // Stop gracefully stops the MCP server process
 func (pm *ProcessManager) Stop(timeout time.Duration) error {
 	pm.mu.Lock()
-	defer pm.mu.Unlock()
-
 	if !pm.running {
+		pm.mu.Unlock()
 		return nil
 	}
 
 	pm.logger.Info("Stopping MCP server (timeout: %v)", timeout)
+	pm.running = false
+
+	stopChan := pm.stopChan
+	waitDone := pm.waitDone
+	process := pm.process
+	stdin := pm.stdin
+	pm.mu.Unlock()
 
 	// Close stop channel to signal monitoring goroutines
-	close(pm.stopChan)
+	if stopChan != nil {
+		close(stopChan)
+	}
 
 	// Try graceful shutdown first by closing stdin
-	if pm.stdin != nil {
-		_ = pm.stdin.Close()
+	if stdin != nil {
+		_ = stdin.Close()
+	}
+
+	if waitDone == nil {
+		waitDone = make(chan error, 1)
+		if process != nil {
+			go func() {
+				waitDone <- process.Wait()
+			}()
+		}
 	}
 
 	// Wait for process to exit with timeout
-	done := make(chan error, 1)
-	go func() {
-		done <- pm.process.Wait()
-	}()
-
 	select {
-	case err := <-done:
+	case err := <-waitDone:
 		pm.logger.Info("Process exited gracefully: %v", err)
-		pm.running = false
 		return nil
 	case <-time.After(timeout):
 		// Timeout - force kill
 		pm.logger.Warn("Graceful shutdown timeout, killing process")
-		if err := pm.process.Process.Kill(); err != nil {
-			return fmt.Errorf("failed to kill process: %w", err)
+		if process != nil && process.Process != nil {
+			if err := process.Process.Kill(); err != nil {
+				return fmt.Errorf("failed to kill process: %w", err)
+			}
 		}
-		pm.running = false
 		return nil
 	}
 }
@@ -291,6 +307,11 @@ func (pm *ProcessManager) monitorExit() {
 	}
 
 	err := pm.process.Wait()
+
+	select {
+	case pm.waitDone <- err:
+	default:
+	}
 
 	pm.mu.Lock()
 	wasRunning := pm.running

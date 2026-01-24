@@ -32,7 +32,7 @@ func TestAntigravityClientBuildsGeminiPayload(t *testing.T) {
 		Tools: []ports.ToolDefinition{{
 			Name:        "tool",
 			Description: "desc",
-			Parameters: ports.ParameterSchema{Type: "object", Properties: map[string]ports.Property{}},
+			Parameters:  ports.ParameterSchema{Type: "object", Properties: map[string]ports.Property{}},
 		}},
 		Metadata: map[string]any{"request_id": "req-1"},
 	})

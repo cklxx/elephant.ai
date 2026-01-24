@@ -1,7 +1,7 @@
 "use client";
 
 import type { KeyboardEvent, MouseEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { AttachmentPayload } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -253,7 +253,7 @@ const stripRedundantHeading = (
   return markdown.trimStart();
 };
 
-export function ArtifactPreviewCard({
+export const ArtifactPreviewCard = memo(function ArtifactPreviewCard({
   attachment,
   className,
   compact = false,
@@ -1012,5 +1012,53 @@ export function ArtifactPreviewCard({
         </Dialog>
       )}
     </>
+  );
+}, areArtifactPreviewPropsEqual);
+
+function buildAttachmentSignature(attachment: AttachmentPayload): string {
+  const previewAssets = attachment.preview_assets ?? [];
+  const previewKey = previewAssets
+    .map((asset) =>
+      [
+        asset.asset_id ?? "",
+        asset.cdn_url ?? "",
+        asset.mime_type ?? "",
+        asset.preview_type ?? "",
+        asset.label ?? "",
+      ].join("|"),
+    )
+    .join(";");
+
+  return [
+    attachment.name ?? "",
+    attachment.uri ?? "",
+    attachment.media_type ?? "",
+    attachment.description ?? "",
+    attachment.kind ?? "",
+    attachment.format ?? "",
+    attachment.preview_profile ?? "",
+    attachment.visibility ?? "",
+    attachment.retention_ttl_seconds ?? "",
+    attachment.size ?? "",
+    previewKey,
+  ].join("::");
+}
+
+function areArtifactPreviewPropsEqual(
+  prev: ArtifactPreviewCardProps,
+  next: ArtifactPreviewCardProps,
+): boolean {
+  if (
+    prev.className !== next.className ||
+    prev.compact !== next.compact ||
+    prev.displayMode !== next.displayMode ||
+    prev.showInlinePreview !== next.showInlinePreview
+  ) {
+    return false;
+  }
+
+  return (
+    buildAttachmentSignature(prev.attachment) ===
+    buildAttachmentSignature(next.attachment)
   );
 }

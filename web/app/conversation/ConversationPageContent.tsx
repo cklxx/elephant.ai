@@ -255,15 +255,18 @@ export function ConversationPageContent() {
     !hasRenderableEvents &&
     (Boolean(error) || isReconnecting || reconnectAttempts > 0);
 
-  const emptyState = (
-    <EmptyStateView
-      badge={t("console.empty.badge")}
-      title={t("console.empty.title")}
-      quickstartTitle={t("console.quickstart.title")}
-      hotkeyHint={t("console.input.hotkeyHint")}
-      items={quickPrompts}
-      onSelect={setPrefillTask}
-    />
+  const emptyState = useMemo(
+    () => (
+      <EmptyStateView
+        badge={t("console.empty.badge")}
+        title={t("console.empty.title")}
+        quickstartTitle={t("console.quickstart.title")}
+        hotkeyHint={t("console.input.hotkeyHint")}
+        items={quickPrompts}
+        onSelect={setPrefillTask}
+      />
+    ),
+    [quickPrompts, setPrefillTask, t],
   );
 
   const handleSidebarToggle = useCallback(() => {
@@ -288,6 +291,103 @@ export function ConversationPageContent() {
       return next;
     });
   }, []);
+
+  const handleCloseRightPanel = useCallback(() => {
+    setIsRightPanelOpen(false);
+  }, []);
+
+  const mainStreamProps = useMemo(
+    () => ({
+      events,
+      hasRenderableEvents,
+      streamIsRunning,
+      streamSessionId: session.streamSessionId,
+    }),
+    [events, hasRenderableEvents, streamIsRunning, session.streamSessionId],
+  );
+
+  const mainConnectionProps = useMemo(
+    () => ({
+      showConnectingState,
+      showConnectionBanner,
+      isConnected,
+      isReconnecting,
+      error,
+      reconnectAttempts,
+      onReconnect: reconnect,
+    }),
+    [
+      showConnectingState,
+      showConnectionBanner,
+      isConnected,
+      isReconnecting,
+      error,
+      reconnectAttempts,
+      reconnect,
+    ],
+  );
+
+  const mainSidebarProps = useMemo(
+    () => ({
+      isSidebarOpen,
+      sessionHistory: session.sessionHistory,
+      sessionLabels: session.sessionLabels,
+      resolvedSessionId: session.resolvedSessionId,
+      onSessionSelect: handleSessionSelect,
+      onSessionDelete: handleSessionDeleteRequest,
+      onNewSession: handleNewSession,
+    }),
+    [
+      isSidebarOpen,
+      session.sessionHistory,
+      session.sessionLabels,
+      session.resolvedSessionId,
+      handleSessionSelect,
+      handleSessionDeleteRequest,
+      handleNewSession,
+    ],
+  );
+
+  const mainRightPanelProps = useMemo(
+    () => ({
+      isRightPanelOpen,
+      onCloseRightPanel: handleCloseRightPanel,
+      hasAttachments,
+    }),
+    [isRightPanelOpen, handleCloseRightPanel, hasAttachments],
+  );
+
+  const mainComposerProps = useMemo(
+    () => ({
+      emptyState,
+      loadingText: t("sessions.details.loading"),
+      inputPlaceholder: session.resolvedSessionId
+        ? t("console.input.placeholder.active")
+        : t("console.input.placeholder.idle"),
+      creationPending,
+      inputDisabled,
+      prefillTask,
+      onPrefillApplied: () => setPrefillTask(null),
+      onSubmit: handleTaskSubmit,
+      onStop: handleStop,
+      isTaskRunning,
+      stopPending,
+      stopDisabled: isCancelPending,
+    }),
+    [
+      emptyState,
+      t,
+      session.resolvedSessionId,
+      creationPending,
+      inputDisabled,
+      prefillTask,
+      handleTaskSubmit,
+      handleStop,
+      isTaskRunning,
+      stopPending,
+      isCancelPending,
+    ],
+  );
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
@@ -408,43 +508,11 @@ export function ConversationPageContent() {
 
         <ConversationMainArea
           contentRef={contentRef}
-          events={events}
-          hasRenderableEvents={hasRenderableEvents}
-          showConnectingState={showConnectingState}
-          showConnectionBanner={showConnectionBanner}
-          isConnected={isConnected}
-          isReconnecting={isReconnecting}
-          error={error}
-          reconnectAttempts={reconnectAttempts}
-          onReconnect={reconnect}
-          streamIsRunning={streamIsRunning}
-          isSidebarOpen={isSidebarOpen}
-          sessionHistory={session.sessionHistory}
-          sessionLabels={session.sessionLabels}
-          resolvedSessionId={session.resolvedSessionId}
-          onSessionSelect={handleSessionSelect}
-          onSessionDelete={handleSessionDeleteRequest}
-          onNewSession={handleNewSession}
-          isRightPanelOpen={isRightPanelOpen}
-          onCloseRightPanel={() => setIsRightPanelOpen(false)}
-          hasAttachments={hasAttachments}
-          streamSessionId={session.streamSessionId}
-          emptyState={emptyState}
-          loadingText={t("sessions.details.loading")}
-          inputPlaceholder={
-            session.resolvedSessionId
-              ? t("console.input.placeholder.active")
-              : t("console.input.placeholder.idle")
-          }
-          creationPending={creationPending}
-          inputDisabled={inputDisabled}
-          prefillTask={prefillTask}
-          onPrefillApplied={() => setPrefillTask(null)}
-          onSubmit={handleTaskSubmit}
-          onStop={handleStop}
-          isTaskRunning={isTaskRunning}
-          stopPending={stopPending}
-          stopDisabled={isCancelPending}
+          stream={mainStreamProps}
+          connection={mainConnectionProps}
+          sidebar={mainSidebarProps}
+          rightPanel={mainRightPanelProps}
+          composer={mainComposerProps}
         />
       </div>
     </div>

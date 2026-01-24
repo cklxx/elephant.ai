@@ -1,13 +1,10 @@
 package builtin
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"math"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -470,71 +467,6 @@ func TestFormatSeedreamVideoResponseCreatesAttachments(t *testing.T) {
 	}
 	if capabilities["stitching"] != "planned" {
 		t.Fatalf("expected capabilities metadata to mention stitching")
-	}
-}
-
-func TestSeedreamVideoToolEmbedRemoteAttachmentDataInlinesVideo(t *testing.T) {
-	payload := bytes.Repeat([]byte{0x01, 0x02, 0x03, 0x04}, 512)
-
-	tool := &seedreamVideoTool{
-		httpClient: &http.Client{
-			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-				resp := &http.Response{
-					StatusCode: http.StatusOK,
-					Header:     make(http.Header),
-					Body:       io.NopCloser(bytes.NewReader(payload)),
-				}
-				resp.Header.Set("Content-Type", "video/mp4")
-				return resp, nil
-			}),
-		},
-	}
-	attachments := map[string]ports.Attachment{
-		"demo.mp4": {
-			Name:      "demo.mp4",
-			MediaType: "video/mp4",
-			URI:       "https://example.com/demo.mp4",
-		},
-	}
-
-	tool.embedRemoteAttachmentData(context.Background(), attachments)
-
-	att := attachments["demo.mp4"]
-	if att.Data != "" {
-		t.Fatalf("expected video attachment data to remain empty (URL-only), got %q", att.Data)
-	}
-	if att.MediaType != "video/mp4" {
-		t.Fatalf("expected media type to remain video/mp4, got %s", att.MediaType)
-	}
-}
-
-func TestSeedreamVideoToolEmbedRemoteAttachmentDataSkipsLargeAssets(t *testing.T) {
-	payload := bytes.Repeat([]byte{0xff}, int(seedreamMaxInlineVideoBytes)+16)
-	tool := &seedreamVideoTool{
-		httpClient: &http.Client{
-			Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-				resp := &http.Response{
-					StatusCode: http.StatusOK,
-					Header:     make(http.Header),
-					Body:       io.NopCloser(bytes.NewReader(payload)),
-				}
-				resp.Header.Set("Content-Type", "video/mp4")
-				return resp, nil
-			}),
-		},
-	}
-	attachments := map[string]ports.Attachment{
-		"large.mp4": {
-			Name:      "large.mp4",
-			MediaType: "video/mp4",
-			URI:       "https://example.com/large.mp4",
-		},
-	}
-
-	tool.embedRemoteAttachmentData(context.Background(), attachments)
-
-	if attachments["large.mp4"].Data != "" {
-		t.Fatalf("expected attachment data to remain empty (URL-only)")
 	}
 }
 

@@ -49,6 +49,8 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * Keep responses focused on actionable outputs (changes + validation + limitations).
 * I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
 * Never write compatibility logic; always refactor from first principles, redesign the architecture, and implement cleanly.
+* I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
+* Never write compatibility logic; always refactor from first principles, redesign the architecture, and implement cleanly.
 
 ---
 

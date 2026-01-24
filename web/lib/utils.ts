@@ -9,6 +9,53 @@ export function isBrowser(): boolean {
   return typeof window !== 'undefined';
 }
 
+const TOOL_ICON_MAP: Record<string, string> = {
+  file_read: '📖',
+  file_write: '✍️',
+  file_edit: '✏️',
+  list_files: '📂',
+  bash: '🐚',
+  run_command: '🐚',
+  code_execute: '⚡',
+  python_execute: '⚡',
+  grep: '🔎',
+  ripgrep: '🔎',
+  find: '🔍',
+  web_search: '🔎',
+  web_fetch: '🌐',
+  think: '💭',
+  task_boundary: '✨',
+  notify_user: '🔔',
+  text_to_image: '🎨',
+  video_generate: '🎥',
+  vision_analyze: '👁️',
+};
+
+const RELATIVE_TIME_FORMATTERS = new Map<string, Intl.RelativeTimeFormat>();
+const DATE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
+function getRelativeTimeFormatter(locale: string) {
+  const key = locale || 'en-US';
+  const cached = RELATIVE_TIME_FORMATTERS.get(key);
+  if (cached) {
+    return cached;
+  }
+  const formatter = new Intl.RelativeTimeFormat(key, { numeric: 'auto' });
+  RELATIVE_TIME_FORMATTERS.set(key, formatter);
+  return formatter;
+}
+
+function getDateFormatter(locale: string) {
+  const key = locale || 'en-US';
+  const cached = DATE_FORMATTERS.get(key);
+  if (cached) {
+    return cached;
+  }
+  const formatter = new Intl.DateTimeFormat(key);
+  DATE_FORMATTERS.set(key, formatter);
+  return formatter;
+}
+
 // Format duration in milliseconds to human readable string
 export function formatDuration(ms: number): string {
   if (ms < 1000) {
@@ -42,7 +89,7 @@ export function formatRelativeTime(timestamp: string, locale: string = 'en-US'):
     { amount: Number.POSITIVE_INFINITY, unit: 'year' },
   ] as const;
 
-  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  const formatter = getRelativeTimeFormatter(locale);
 
   let duration = diffInSeconds;
   for (const division of divisions) {
@@ -55,33 +102,12 @@ export function formatRelativeTime(timestamp: string, locale: string = 'en-US'):
     duration /= division.amount;
   }
 
-  return new Intl.DateTimeFormat(locale).format(targetDate);
+  return getDateFormatter(locale).format(targetDate);
 }
 
 // Get tool icon based on tool name
 export function getToolIcon(toolName: string): string {
-  const iconMap: Record<string, string> = {
-    file_read: '📖',
-    file_write: '✍️',
-    file_edit: '✏️',
-    list_files: '📂',
-    bash: '🐚',
-    run_command: '🐚',
-    code_execute: '⚡',
-    python_execute: '⚡',
-    grep: '🔎',
-    ripgrep: '🔎',
-    find: '🔍',
-    web_search: '🔎',
-    web_fetch: '🌐',
-    think: '💭',
-    task_boundary: '✨',
-    notify_user: '🔔',
-    text_to_image: '🎨',
-    video_generate: '🎥',
-    vision_analyze: '👁️',
-  };
-  return iconMap[toolName] || '🪄';
+  return TOOL_ICON_MAP[toolName] || '🪄';
 }
 
 // Get tool category color

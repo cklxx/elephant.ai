@@ -402,11 +402,11 @@ func TestWorkflowEventTranslatorEmitsArtifactManifestEvent(t *testing.T) {
 
 	ts := time.Unix(1710000300, 0)
 	translator.OnEvent(&domain.WorkflowToolCompletedEvent{
-		BaseEvent:  domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", ts),
-		CallID:     "call-1",
-		ToolName:   "artifact_manifest",
-		Result:     "Recorded 1 artifact(s).",
-		Metadata:   map[string]any{"artifact_manifest": map[string]any{"items": []any{"artifact"}}},
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", ts),
+		CallID:    "call-1",
+		ToolName:  "artifact_manifest",
+		Result:    "Recorded 1 artifact(s).",
+		Metadata:  map[string]any{"artifact_manifest": map[string]any{"items": []any{"artifact"}}},
 		Attachments: map[string]ports.Attachment{
 			"manifest.json": {Name: "manifest.json", MediaType: "application/json", Format: "manifest"},
 		},

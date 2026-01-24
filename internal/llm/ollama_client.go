@@ -1,12 +1,10 @@
 package llm
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -67,7 +65,10 @@ func (c *ollamaClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := readResponseBody(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("ollama request failed: %w", readErr)
+		}
 		return nil, fmt.Errorf("ollama request failed: %s", strings.TrimSpace(string(body)))
 	}
 
@@ -102,12 +103,14 @@ func (c *ollamaClient) StreamComplete(
 	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(resp.Body)
+		body, readErr := readResponseBody(resp.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("ollama request failed: %w", readErr)
+		}
 		return nil, fmt.Errorf("ollama request failed: %s", strings.TrimSpace(string(body)))
 	}
 
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 0, 64*1024), 2*1024*1024)
+	scanner := newStreamScanner(resp.Body)
 
 	var builder strings.Builder
 	var finalResponse *ports.CompletionResponse

@@ -32,7 +32,14 @@
    - Update CONFIG docs and example YAML.
    - Reorganize README with clearer progression.
    - Update plan progress as work completes.
+8. API hygiene
+   - Remove unused parameters from internal helpers (not interface-bound).
+   - Delete no-op hooks that add dead parameters and update callers/tests.
 
 ## Progress
 - 2026-01-24: Plan created; engineering practices reviewed.
 - 2026-01-24: Fixed session list pagination signature across stores/call sites; updated SSE attachment caches to LRU; resolved HTTP rate limiter naming conflict; migrations list pagination and SSE tests adjusted; go test ./... passed.
+- 2026-01-24: Reviewed engineering practices for next batch; starting API hygiene + next perf items.
+- 2026-01-24: Added LLM response size caps, reduced stream scanner buffer, removed pretty JSON logging, and fixed MCP restart stop channel.
+- 2026-01-24: Added non-stream migration timeout, API list caps, cached Intl/tool icons, SSE final-event indexing, and streaming markdown deferral.
+- 2026-01-24: Memoized ConversationMainArea + ArtifactPreviewCard, removed react-syntax-highlighter + duplicate logo, and added missing tool tests.

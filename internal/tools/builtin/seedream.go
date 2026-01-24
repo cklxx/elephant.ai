@@ -1857,13 +1857,6 @@ func formatSeedreamVideoResponse(resp *arkm.GetContentGenerationTaskResponse, de
 	return builder.String(), metadata, attachments
 }
 
-func (t *seedreamVideoTool) embedRemoteAttachmentData(ctx context.Context, attachments map[string]ports.Attachment) {
-	_ = ctx
-	_ = attachments
-	// URL-only attachments: keep the original URI and avoid embedding large payloads
-	// as base64 in session/event payloads.
-}
-
 func inlineLimitForMedia(mediaType string) int64 {
 	lower := strings.ToLower(strings.TrimSpace(mediaType))
 	switch {

@@ -59,6 +59,8 @@ export function useSSE(
   const hasLocalHistoryRef = useRef(false);
   const sessionIdRef = useRef(sessionId);
   const previousSessionIdRef = useRef<string | null>(sessionId);
+  const finalEventIndexRef = useRef<Map<string, number>>(new Map());
+  const finalEventSessionRef = useRef<string | null>(sessionId);
   const initialUserId = authClient.getSession()?.user.id?.trim() || null;
   const userIdRef = useRef<string | null>(initialUserId);
   const onEventRef = useRef(onEvent);
@@ -149,6 +151,25 @@ export function useSSE(
         let nextSessionId = prev.sessionId;
         let nextEvents = prev.events;
         let mutated = false;
+        let finalIndex = finalEventIndexRef.current;
+
+        if (finalEventSessionRef.current !== nextSessionId) {
+          finalIndex = new Map();
+          finalEventIndexRef.current = finalIndex;
+          finalEventSessionRef.current = nextSessionId ?? null;
+        }
+
+        if (finalIndex.size === 0 && nextEvents.length > 0) {
+          const rebuilt = dedupeFinalEvents(nextEvents);
+          finalIndex = rebuilt.index;
+          finalEventIndexRef.current = finalIndex;
+          if (rebuilt.deduped) {
+            nextEvents = rebuilt.events;
+            mutated = true;
+          }
+        }
+
+        let finalIndexDirty = false;
 
         processedEvents.forEach((enrichedEvent) => {
           const activeSessionId = sessionIdRef.current;
@@ -163,30 +184,27 @@ export function useSSE(
             nextSessionId = targetSessionId;
             nextEvents = [];
             mutated = true;
+            finalIndex = new Map();
+            finalEventIndexRef.current = finalIndex;
+            finalEventSessionRef.current = nextSessionId ?? null;
           } else if (!mutated) {
             nextEvents = [...nextEvents];
             mutated = true;
           }
 
-          const isStreamingTaskComplete =
-            isWorkflowResultFinalEvent(enrichedEvent) &&
-            (enrichedEvent.is_streaming === true ||
-              typeof enrichedEvent.stream_finished === "boolean");
-
-          if (isStreamingTaskComplete) {
-            const matchIndex = findLastStreamingTaskCompleteIndex(
-              nextEvents,
-              enrichedEvent
-            );
-            if (matchIndex !== -1) {
-              nextEvents[matchIndex] = enrichedEvent;
+          const finalEventKey = buildFinalEventKey(enrichedEvent);
+          if (finalEventKey) {
+            const existingIndex = finalIndex.get(finalEventKey);
+            if (
+              existingIndex !== undefined &&
+              existingIndex >= 0 &&
+              existingIndex < nextEvents.length &&
+              isSameTask(nextEvents[existingIndex], enrichedEvent)
+            ) {
+              nextEvents[existingIndex] = enrichedEvent;
             } else {
-              const filtered = nextEvents.filter(
-                (evt) =>
-                  !isEventType(evt, "workflow.result.final") ||
-                  !isSameTask(evt, enrichedEvent)
-              );
-              nextEvents = [...filtered, enrichedEvent];
+              nextEvents.push(enrichedEvent);
+              finalIndex.set(finalEventKey, nextEvents.length - 1);
             }
             return;
           }
@@ -198,9 +216,21 @@ export function useSSE(
           nextEvents.push(enrichedEvent);
         });
 
+        const clamped = clampEvents(nextEvents, DEFAULT_MAX_EVENT_HISTORY);
+        if (clamped.length !== nextEvents.length) {
+          nextEvents = clamped;
+          finalIndexDirty = true;
+        }
+
+        if (finalIndexDirty) {
+          finalIndex = buildFinalEventIndex(nextEvents);
+          finalEventIndexRef.current = finalIndex;
+          finalEventSessionRef.current = nextSessionId ?? null;
+        }
+
         const nextState = {
           sessionId: nextSessionId,
-          events: clampEvents(squashFinalEvents(nextEvents), DEFAULT_MAX_EVENT_HISTORY),
+          events: nextEvents,
         };
 
         hasLocalHistoryRef.current = nextState.events.some(
@@ -289,6 +319,8 @@ export function useSSE(
       resetStreamingBuffer();
       resetAssistantMessageBuffer();
       hasLocalHistoryRef.current = false;
+      finalEventIndexRef.current = new Map();
+      finalEventSessionRef.current = sessionId;
     }
 
     if (!shouldResetState && shouldResetAttachments) {
@@ -314,6 +346,8 @@ export function useSSE(
     cancelScheduledFlush();
     clearBuffer();
     setEventState({ sessionId: sessionIdRef.current, events: [] });
+    finalEventIndexRef.current = new Map();
+    finalEventSessionRef.current = sessionIdRef.current;
     if (!userIdRef.current) {
       resetAttachmentRegistry();
     }
@@ -380,33 +414,6 @@ function clampEvents(events: AnyAgentEvent[], maxHistory: number): AnyAgentEvent
   return events.slice(events.length - maxHistory);
 }
 
-function findLastStreamingTaskCompleteIndex(
-  events: AnyAgentEvent[],
-  incoming: AnyAgentEvent
-): number {
-  const incomingTaskId =
-    isEventType(incoming, "workflow.result.final") && "task_id" in incoming
-      ? incoming.task_id
-      : undefined;
-
-  if (!incomingTaskId) return -1;
-
-  for (let i = events.length - 1; i >= 0; i -= 1) {
-    const candidate = events[i];
-    if (!isEventType(candidate, "workflow.result.final")) continue;
-    const candidateTaskId = "task_id" in candidate ? candidate.task_id : undefined;
-    if (
-      candidateTaskId &&
-      candidateTaskId === incomingTaskId &&
-      candidate.session_id === incoming.session_id
-    ) {
-      return i;
-    }
-  }
-
-  return -1;
-}
-
 function isSameTask(a: AnyAgentEvent, b: AnyAgentEvent): boolean {
   const taskA = "task_id" in a ? a.task_id : undefined;
   const taskB = "task_id" in b ? b.task_id : undefined;
@@ -417,45 +424,59 @@ function isSameTask(a: AnyAgentEvent, b: AnyAgentEvent): boolean {
   );
 }
 
-function squashFinalEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
-  // Fast path: count workflow.result.final events by task key
-  // If no duplicates exist, return original array to avoid allocation
-  const finalEventKeys = new Map<string, number>();
+function buildFinalEventKey(event: AnyAgentEvent): string | null {
+  if (!isEventType(event, "workflow.result.final")) {
+    return null;
+  }
+  const taskId = "task_id" in event ? event.task_id : undefined;
+  const sessionId = "session_id" in event ? event.session_id : undefined;
+  if (!taskId || !sessionId) {
+    return null;
+  }
+  return `${sessionId}|${taskId}`;
+}
+
+function buildFinalEventIndex(events: AnyAgentEvent[]): Map<string, number> {
+  const index = new Map<string, number>();
+  events.forEach((event, idx) => {
+    const key = buildFinalEventKey(event);
+    if (key) {
+      index.set(key, idx);
+    }
+  });
+  return index;
+}
+
+function dedupeFinalEvents(events: AnyAgentEvent[]): {
+  events: AnyAgentEvent[];
+  index: Map<string, number>;
+  deduped: boolean;
+} {
+  const index = new Map<string, number>();
   let hasDuplicates = false;
 
-  for (const evt of events) {
-    if (
-      isEventType(evt, "workflow.result.final") &&
-      "task_id" in evt &&
-      "session_id" in evt
-    ) {
-      const key = `${evt.session_id}|${evt.task_id}`;
-      const count = (finalEventKeys.get(key) ?? 0) + 1;
-      finalEventKeys.set(key, count);
-      if (count > 1) {
-        hasDuplicates = true;
-        break; // Early exit once we know there are duplicates
-      }
+  events.forEach((event, idx) => {
+    const key = buildFinalEventKey(event);
+    if (!key) {
+      return;
     }
-  }
+    if (index.has(key)) {
+      hasDuplicates = true;
+    }
+    index.set(key, idx);
+  });
 
-  // No duplicates - return original array (most common case)
   if (!hasDuplicates) {
-    return events;
+    return { events, index, deduped: false };
   }
 
-  // Duplicates exist - run full deduplication (keep latest per task)
   const seenTasks = new Set<string>();
   const result: AnyAgentEvent[] = [];
 
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const evt = events[i];
-    if (
-      isEventType(evt, "workflow.result.final") &&
-      "task_id" in evt &&
-      "session_id" in evt
-    ) {
-      const key = `${evt.session_id}|${evt.task_id}`;
+    const key = buildFinalEventKey(evt);
+    if (key) {
       if (seenTasks.has(key)) {
         continue;
       }
@@ -464,7 +485,8 @@ function squashFinalEvents(events: AnyAgentEvent[]): AnyAgentEvent[] {
     result.push(evt);
   }
 
-  return result.reverse();
+  result.reverse();
+  return { events: result, index: buildFinalEventIndex(result), deduped: true };
 }
 
 function mergeDeltaEvent(

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -102,12 +101,7 @@ func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRe
 		}
 	}
 
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, logBody, "", "  "); err == nil {
-		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
-	} else {
-		c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	}
+	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
@@ -123,7 +117,7 @@ func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRe
 		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
 		c.logger.Debug("%sFailed to read response body: %v", prefix, err)
 		return nil, fmt.Errorf("read response: %w", err)

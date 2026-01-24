@@ -11,4 +11,3 @@ func redactDataURIs(payload []byte) []byte {
 	redacted := dataURIRedactionPattern.ReplaceAllString(string(payload), "data:$1;base64,<redacted>")
 	return []byte(redacted)
 }
-

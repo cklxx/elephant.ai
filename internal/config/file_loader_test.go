@@ -32,15 +32,15 @@ web:
 `)
 
 	env := envMap{
-		"OPENAI_API_KEY":             "secret",
-		"PORT":                       "8081",
-		"ORIGIN_HOST":                "example.com",
-		"AUTH_JWT_SECRET":            "jwt-secret",
+		"OPENAI_API_KEY":                "secret",
+		"PORT":                          "8081",
+		"ORIGIN_HOST":                   "example.com",
+		"AUTH_JWT_SECRET":               "jwt-secret",
 		"AUTH_ACCESS_TOKEN_TTL_MINUTES": "20",
-		"SESSION_DB":                 "postgres://localhost:5432/app",
-		"POSTHOG_API_KEY":            "ph-key",
-		"CF_ACCOUNT":                 "cf-account",
-		"WEB_HOST":                   "localhost:3000",
+		"SESSION_DB":                    "postgres://localhost:5432/app",
+		"POSTHOG_API_KEY":               "ph-key",
+		"CF_ACCOUNT":                    "cf-account",
+		"WEB_HOST":                      "localhost:3000",
 	}
 
 	cfg, path, err := LoadFileConfig(

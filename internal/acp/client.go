@@ -47,7 +47,7 @@ type Client struct {
 }
 
 // Dial connects to the ACP server and returns a client instance.
-func Dial(ctx context.Context, addr string, timeout time.Duration, logger logging.Logger) (*Client, error) {
+func Dial(addr string, timeout time.Duration, logger logging.Logger) (*Client, error) {
 	if logger == nil {
 		logger = logging.NewComponentLogger("ACPClient")
 	}
@@ -58,7 +58,6 @@ func Dial(ctx context.Context, addr string, timeout time.Duration, logger loggin
 	if err != nil {
 		return nil, err
 	}
-	_ = ctx
 	if timeout <= 0 {
 		timeout = 5 * time.Second
 	}

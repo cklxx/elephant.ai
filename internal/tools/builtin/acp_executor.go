@@ -121,7 +121,7 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		defer cancel()
 	}
 
-	client, err := acp.Dial(execCtx, addr, 5*time.Second, t.logger)
+	client, err := acp.Dial(addr, 5*time.Second, t.logger)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor dial failed: %w", err)}, nil
 	}

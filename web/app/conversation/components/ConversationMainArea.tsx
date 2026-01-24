@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Loader2, PanelRightClose } from "lucide-react";
 
@@ -27,10 +27,14 @@ const LazyConversationEventStream = dynamic(
   },
 );
 
-interface ConversationMainAreaProps {
-  contentRef: React.RefObject<HTMLDivElement | null>;
+interface ConversationStreamProps {
   events: AnyAgentEvent[];
   hasRenderableEvents: boolean;
+  streamIsRunning: boolean;
+  streamSessionId: string | null;
+}
+
+interface ConversationConnectionProps {
   showConnectingState: boolean;
   showConnectionBanner: boolean;
   isConnected: boolean;
@@ -38,7 +42,9 @@ interface ConversationMainAreaProps {
   error: string | null;
   reconnectAttempts: number;
   onReconnect: () => void;
-  streamIsRunning: boolean;
+}
+
+interface ConversationSidebarProps {
   isSidebarOpen: boolean;
   sessionHistory: string[];
   sessionLabels: Record<string, string | undefined>;
@@ -46,10 +52,15 @@ interface ConversationMainAreaProps {
   onSessionSelect: (id: string) => void;
   onSessionDelete: (id: string) => void;
   onNewSession: () => void;
+}
+
+interface ConversationRightPanelProps {
   isRightPanelOpen: boolean;
   onCloseRightPanel: () => void;
   hasAttachments: boolean;
-  streamSessionId: string | null;
+}
+
+interface ConversationComposerProps {
   emptyState: React.ReactNode;
   loadingText: string;
   inputPlaceholder: string;
@@ -64,45 +75,66 @@ interface ConversationMainAreaProps {
   stopDisabled: boolean;
 }
 
-export function ConversationMainArea({
+interface ConversationMainAreaProps {
+  contentRef: React.RefObject<HTMLDivElement | null>;
+  stream: ConversationStreamProps;
+  connection: ConversationConnectionProps;
+  sidebar: ConversationSidebarProps;
+  rightPanel: ConversationRightPanelProps;
+  composer: ConversationComposerProps;
+}
+
+export const ConversationMainArea = memo(function ConversationMainArea({
   contentRef,
-  events,
-  hasRenderableEvents,
-  showConnectingState,
-  showConnectionBanner,
-  isConnected,
-  isReconnecting,
-  error,
-  reconnectAttempts,
-  onReconnect,
-  streamIsRunning,
-  isSidebarOpen,
-  sessionHistory,
-  sessionLabels,
-  resolvedSessionId,
-  onSessionSelect,
-  onSessionDelete,
-  onNewSession,
-  isRightPanelOpen,
-  onCloseRightPanel,
-  hasAttachments,
-  streamSessionId,
-  emptyState,
-  loadingText,
-  inputPlaceholder,
-  creationPending,
-  inputDisabled,
-  prefillTask,
-  onPrefillApplied,
-  onSubmit,
-  onStop,
-  isTaskRunning,
-  stopPending,
-  stopDisabled,
+  stream,
+  connection,
+  sidebar,
+  rightPanel,
+  composer,
 }: ConversationMainAreaProps) {
   useEffect(() => {
     void import("@/components/agent/ConversationEventStream");
   }, []);
+
+  const {
+    events,
+    hasRenderableEvents,
+    streamIsRunning,
+    streamSessionId,
+  } = stream;
+  const {
+    showConnectingState,
+    showConnectionBanner,
+    isConnected,
+    isReconnecting,
+    error,
+    reconnectAttempts,
+    onReconnect,
+  } = connection;
+  const {
+    isSidebarOpen,
+    sessionHistory,
+    sessionLabels,
+    resolvedSessionId,
+    onSessionSelect,
+    onSessionDelete,
+    onNewSession,
+  } = sidebar;
+  const { isRightPanelOpen, onCloseRightPanel, hasAttachments } = rightPanel;
+  const {
+    emptyState,
+    loadingText,
+    inputPlaceholder,
+    creationPending,
+    inputDisabled,
+    prefillTask,
+    onPrefillApplied,
+    onSubmit,
+    onStop,
+    isTaskRunning,
+    stopPending,
+    stopDisabled,
+  } = composer;
 
   return (
     <div className="flex flex-1 min-h-0 flex-col gap-5 overflow-hidden lg:flex-row">
@@ -250,4 +282,4 @@ export function ConversationMainArea({
       )}
     </div>
   );
-}
+});

@@ -7,6 +7,9 @@ runtime:
   base_url: "https://api.openai.com/v1"
   sandbox_base_url: "http://localhost:18086"
   tool_preset: "safe"
+  # tool_max_concurrent: 8
+  # user_rate_limit_rps: 1.0
+  # user_rate_limit_burst: 3
 
 # Optional: server + auth + attachments sections (uncomment to use).
 # server:
@@ -16,6 +19,9 @@ runtime:
 #   stream_max_duration_seconds: 7200
 #   stream_max_bytes: 67108864
 #   stream_max_concurrent: 128
+#   rate_limit_requests_per_minute: 600
+#   rate_limit_burst: 120
+#   non_stream_timeout_seconds: 30
 #   allowed_origins:
 #     - "http://localhost:3000"
 # auth:
@@ -26,6 +32,12 @@ runtime:
 #   database_url: "${AUTH_DATABASE_URL}"
 # session:
 #   database_url: "${ALEX_SESSION_DATABASE_URL}"
+#   pool_max_conns: 25
+#   pool_min_conns: 5
+#   pool_max_conn_lifetime_seconds: 3600
+#   pool_max_conn_idle_seconds: 1800
+#   pool_health_check_seconds: 30
+#   pool_connect_timeout_seconds: 5
 # attachments:
 #   provider: "cloudflare"
 #   cloudflare_account_id: "${CLOUDFLARE_ACCOUNT_ID}"

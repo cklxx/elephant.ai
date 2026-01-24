@@ -487,12 +487,12 @@ func TestConvertToolsSkipsInvalidFunctionNames(t *testing.T) {
 			Name:        "valid_tool",
 			Description: "valid",
 			Parameters:  ports.ParameterSchema{Type: "object"},
-			},
-			{
-				Name:        "invalid.tool.name",
-				Description: "invalid",
-				Parameters:  ports.ParameterSchema{Type: "object"},
-			},
+		},
+		{
+			Name:        "invalid.tool.name",
+			Description: "invalid",
+			Parameters:  ports.ParameterSchema{Type: "object"},
+		},
 		{
 			Name:        "also-valid-1",
 			Description: "valid",

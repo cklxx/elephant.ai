@@ -15,7 +15,7 @@ func TestAppsToolListAndShow(t *testing.T) {
 	})
 
 	listResult, err := tool.Execute(context.Background(), ports.ToolCall{
-		ID: "call-1",
+		ID:        "call-1",
 		Arguments: map[string]any{},
 	})
 	if err != nil {

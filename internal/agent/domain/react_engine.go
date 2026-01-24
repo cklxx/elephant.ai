@@ -1242,13 +1242,6 @@ func parseImportantNoteMap(raw map[string]any, clock ports.Clock) ports.Importan
 	return note
 }
 
-func (e *ReactEngine) normalizeMessageHistoryAttachments(ctx context.Context, state *TaskState) {
-	_ = ctx
-	_ = state
-	// Intentionally no-op: internal attachments remain inline for agent/tool/LLM flow.
-	// Externalization happens at HTTP/SSE boundaries only.
-}
-
 const attachmentCatalogMetadataKey = "attachment_catalog"
 
 func (e *ReactEngine) updateAttachmentCatalogMessage(state *TaskState) {

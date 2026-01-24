@@ -74,8 +74,8 @@ func (t *artifactManifestTool) Execute(ctx context.Context, call ports.ToolCall)
 	}
 
 	payload := map[string]any{
-		"items":      items,
-		"generated":  time.Now().UTC().Format(time.RFC3339Nano),
+		"items":     items,
+		"generated": time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	if summary != "" {
 		payload["summary"] = summary

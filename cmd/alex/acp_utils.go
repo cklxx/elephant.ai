@@ -106,4 +106,3 @@ func randSuffix(length int) string {
 	}
 	return raw[len(raw)-length:]
 }
-

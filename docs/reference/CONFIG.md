@@ -114,6 +114,9 @@ apps:
 - `stream_max_duration_seconds`：流式请求最大持续时间（秒，默认 2h）。
 - `stream_max_bytes`：单条流式连接最大输出字节数（默认 64 MiB）。
 - `stream_max_concurrent`：同时允许的流式连接数（默认 128）。
+- `rate_limit_requests_per_minute`：HTTP 请求速率限制（每分钟，默认 600）。
+- `rate_limit_burst`：速率限制突发配额（默认 120）。
+- `non_stream_timeout_seconds`：非流式请求超时（秒，默认 30）。
 
 ### auth
 
@@ -131,6 +134,12 @@ apps:
 
 - `database_url`
 - `dir`
+- `pool_max_conns`
+- `pool_min_conns`
+- `pool_max_conn_lifetime_seconds`
+- `pool_max_conn_idle_seconds`
+- `pool_health_check_seconds`
+- `pool_connect_timeout_seconds`
 
 ### analytics
 
@@ -213,6 +222,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `temperature`：采样温度；显式写入 `0` 会被保留。
 - `top_p`：Top-P 采样。
 - `stop_sequences`：stop 序列列表。
+- `user_rate_limit_rps`：按用户的 LLM 调用速率限制（默认 1.0）。
+- `user_rate_limit_burst`：按用户的 LLM 调用突发配额（默认 3）。
 
 `llm_provider: auto` 会优先读取 env key（含 Claude OAuth），若缺失再回退到 CLI 登录。`llm_provider: cli` 则优先读取 CLI 登录，再回退到 env key。CLI 订阅优先级：Codex → Antigravity → Claude → OpenAI。`*_BASE_URL` 可覆盖基座地址。
 
@@ -224,6 +235,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `verbose`：verbose 模式（CLI/Server 的输出更详细）。
 - `session_dir`：会话存储目录（支持 `~` 与 `$ENV` 展开）。
 - `cost_dir`：cost 存储目录（支持 `~` 与 `$ENV` 展开）。
+- `tool_max_concurrent`：工具调用最大并发数（默认 8）。
 
 ### ACP 执行器配置（executor 适配层）
 

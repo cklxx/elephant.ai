@@ -133,4 +133,3 @@ func allowedToolNames(tools []ports.ToolDefinition) map[string]struct{} {
 	}
 	return allowed
 }
-

@@ -25,10 +25,11 @@ export function StreamingMarkdownRenderer({
 }: StreamingMarkdownRendererProps) {
   const { contentToRender, showStreamingIndicator, shouldAnimate } =
     useStreamingAnimation(content, isStreaming, streamFinished);
+  const shouldRenderMarkdown = !shouldAnimate;
 
   return (
     <div className="space-y-2" aria-live="polite">
-      {contentToRender !== "" && (
+      {contentToRender !== "" && shouldRenderMarkdown && (
         <LazyMarkdownRenderer
           content={contentToRender}
           className={className}
@@ -38,6 +39,16 @@ export function StreamingMarkdownRenderer({
           showLineNumbers={showLineNumbers}
           mode={shouldAnimate ? "streaming" : "static"}
         />
+      )}
+      {contentToRender !== "" && !shouldRenderMarkdown && (
+        <div
+          className={cn(
+            "whitespace-pre-wrap text-sm leading-relaxed text-foreground",
+            className,
+          )}
+        >
+          {contentToRender}
+        </div>
       )}
       {showStreamingIndicator && (
         <div

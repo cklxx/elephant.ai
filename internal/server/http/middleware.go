@@ -582,7 +582,6 @@ func rateLimitKey(r *http.Request) string {
 	return "anonymous"
 }
 
-
 // LoggingMiddleware logs incoming requests
 func LoggingMiddleware(logger logging.Logger) func(http.Handler) http.Handler {
 	logger = logging.OrNop(logger)

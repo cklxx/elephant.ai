@@ -121,8 +121,10 @@ func RunServer(observabilityConfigPath string) error {
 	)
 
 	if historyStore != nil {
+		migrationCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
 		if err := MigrateSessionsToDatabase(
-			context.Background(),
+			migrationCtx,
 			container.SessionDir(),
 			container.SessionStore,
 			container.StateStore,

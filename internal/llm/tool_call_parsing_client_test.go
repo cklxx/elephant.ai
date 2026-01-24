@@ -120,4 +120,3 @@ func TestToolCallParsingClientAppliesToStreamingResponses(t *testing.T) {
 		t.Fatalf("expected 1 tool call, got %#v", resp)
 	}
 }
-

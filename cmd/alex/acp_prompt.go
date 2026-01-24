@@ -196,4 +196,3 @@ func missingAttachmentRefs(text string, attachments []ports.Attachment) []string
 	}
 	return missing
 }
-

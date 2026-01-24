@@ -41,4 +41,3 @@ func TestAttachmentInlineBase64ExtractsFromDataURI(t *testing.T) {
 		t.Fatalf("expected extracted payload, got %q", got)
 	}
 }
-

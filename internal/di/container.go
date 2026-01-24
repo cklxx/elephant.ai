@@ -106,15 +106,15 @@ type Config struct {
 	EnvironmentSummary string
 
 	// Storage Configuration
-	SessionDir         string // Directory for session storage (default: ~/.alex-sessions)
-	CostDir            string // Directory for cost tracking (default: ~/.alex-costs)
-	SessionDatabaseURL string // Optional database URL for session persistence
-	SessionPoolMaxConns         int
-	SessionPoolMinConns         int
-	SessionPoolMaxConnLifetime  time.Duration
-	SessionPoolMaxConnIdleTime  time.Duration
+	SessionDir                   string // Directory for session storage (default: ~/.alex-sessions)
+	CostDir                      string // Directory for cost tracking (default: ~/.alex-costs)
+	SessionDatabaseURL           string // Optional database URL for session persistence
+	SessionPoolMaxConns          int
+	SessionPoolMinConns          int
+	SessionPoolMaxConnLifetime   time.Duration
+	SessionPoolMaxConnIdleTime   time.Duration
 	SessionPoolHealthCheckPeriod time.Duration
-	SessionPoolConnectTimeout   time.Duration
+	SessionPoolConnectTimeout    time.Duration
 
 	// RequireSessionDatabase enforces Postgres-backed session persistence when true.
 	RequireSessionDatabase bool

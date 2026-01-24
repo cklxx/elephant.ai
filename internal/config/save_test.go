@@ -51,7 +51,7 @@ func TestSaveFollowPreferencesPreservesExistingValues(t *testing.T) {
 		"runtime": map[string]any{
 			"api_key": "secret",
 		},
-		"nested":  map[string]any{"value": 42.0},
+		"nested": map[string]any{"value": 42.0},
 	}
 	data, err := yaml.Marshal(existing)
 	if err != nil {

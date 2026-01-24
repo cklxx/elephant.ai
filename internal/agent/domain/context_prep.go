@@ -11,7 +11,6 @@ import (
 // catalogued without rewriting existing history.
 func (e *ReactEngine) prepareUserTaskContext(ctx context.Context, task string, state *TaskState) {
 	ensureAttachmentStore(state)
-	e.normalizeMessageHistoryAttachments(ctx, state)
 
 	attachmentsChanged := false
 	for idx := range state.Messages {

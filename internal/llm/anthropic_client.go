@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"mime"
 	"net/http"
 	"path/filepath"
@@ -155,12 +154,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		}
 	}
 
-	var prettyJSON bytes.Buffer
-	if err := json.Indent(&prettyJSON, logBody, "", "  "); err == nil {
-		c.logger.Debug("%sRequest Body:\n%s", prefix, prettyJSON.String())
-	} else {
-		c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-	}
+	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
 	resp, err := c.httpClient.Do(httpReq)
@@ -177,7 +171,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
 		c.logger.Debug("%sFailed to read response body: %v", prefix, err)
 		return nil, fmt.Errorf("read response: %w", err)
@@ -224,12 +218,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		c.usageCallback(result.Usage, c.model, "anthropic")
 	}
 
-	var prettyResp bytes.Buffer
-	if err := json.Indent(&prettyResp, respBody, "", "  "); err == nil {
-		c.logger.Debug("%sResponse Body:\n%s", prefix, prettyResp.String())
-	} else {
-		c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
-	}
+	c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
 
 	c.logger.Debug("%s=== LLM Response Summary ===", prefix)

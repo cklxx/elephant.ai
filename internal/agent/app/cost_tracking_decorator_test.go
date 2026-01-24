@@ -57,8 +57,8 @@ func (m *mockLLMClient) GetCallCount() int {
 }
 
 type streamingClient struct {
-        *mockLLMClient
-        streamCalled bool
+	*mockLLMClient
+	streamCalled bool
 }
 
 func newStreamingClient(model string) *streamingClient {

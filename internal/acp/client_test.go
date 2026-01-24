@@ -119,7 +119,7 @@ func TestSSEClientCall(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	client, err := Dial(ctx, server.URL, time.Second, nil)
+	client, err := Dial(server.URL, time.Second, nil)
 	require.NoError(t, err)
 	client.Start(ctx, nil)
 

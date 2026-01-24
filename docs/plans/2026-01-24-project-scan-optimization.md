@@ -32,38 +32,41 @@
   - API Serialization: Per-event json.Marshal, no gzip compression, pagination without upper bound
   - Web Bundle: Unused react-syntax-highlighter, only 2 memoized components in web UI
 - 2026-01-24: Validated findings, corrected file paths/counts, and updated summary tables.
+- 2026-01-24: Implemented additional fixes:
+  - Backend: pgxpool tuning, query timeouts, LLM response size caps, reduced stream scanner buffers, migration timeout, MCP restart safety, API limit caps.
+  - HTTP/SSE: gzip compression for non-stream responses, SSE per-connection LRU caches, non-stream timeout guard.
+  - Web: SSE final-event indexing, streaming markdown deferral, memoization of ConversationMainArea/ArtifactPreviewCard, cached Intl/tool icons, removed react-syntax-highlighter + duplicate logo asset.
+  - Tests: added file_edit/list_files/memory_recall tool tests.
 
 ## Summary of All Findings
 
-### Completed Optimizations (P0)
+### Completed Optimizations (P0/P1)
 | Optimization | File | Impact |
 |-------------|------|--------|
-| Regex to module-level | parser.go, react_engine.go | Reduce per-call regex overhead |
-| Slice pre-allocation | postgres_event_history_store.go | Reduce allocations |
-| slices.Insert for prepend | react_engine.go | Avoid extra slice copy |
-| React.memo ToolCallCard | ToolCallCard.tsx | Reduce re-renders |
-| squashFinalEvents early return | useSSE.ts | Reduce CPU in common case |
+| pgxpool tuning + health checks | internal/di/container.go | Connection stability |
+| LLM response size caps + scanner buffer trim | internal/llm/* | OOM prevention, lower RSS |
+| SSE LRU caches + non-stream timeout guard | internal/server/http/sse_handler.go, middleware | Memory stability, slow-client protection |
+| Migration timeout | internal/server/bootstrap/server.go | Startup reliability |
+| API pagination caps | internal/server/http/api_handler.go | Prevent unbounded loads |
+| Gzip middleware | internal/server/http/middleware.go | Bandwidth reduction |
+| SSE final-event indexing | web/hooks/useSSE/useSSE.ts | Reduced O(n) scans |
+| Streaming markdown deferral | web/components/ui/markdown/StreamingMarkdownRenderer.tsx | Fewer re-parses |
+| Memoize heavy components | ConversationMainArea.tsx, ArtifactPreviewCard.tsx | Lower re-renders |
+| Cache Intl + tool icons | web/lib/utils.ts | Lower CPU |
+| Remove react-syntax-highlighter + duplicate logo | web/package.json, web/public | Smaller bundle/assets |
+| Tool coverage gaps | internal/tools/builtin/*_test.go | Added tests |
 
-### Pending P0 Issues (Highest Priority)
-| Issue | File | Risk |
-|-------|------|------|
-| Remove react-syntax-highlighter | web/package.json | Dependency bloat |
-| Configure pgxpool | container.go | Connection stability |
-| io.LimitReader | anthropic/openai_client.go | OOM risk |
-| Cap SSE per-connection caches | sse_handler.go | Memory exhaustion |
-| Migration timeout | server.go | Startup hang |
-
-### Pending P1 Issues (High Priority)
+### Remaining High-Priority Items
 | Issue | File | Impact |
 |-------|------|--------|
-| Reduce scanner max buffer / pool | openai_client.go | Lower RSS under load |
-| Event broadcaster lock strategy | event_broadcaster.go | Contention avoidance |
-| GIN trigram index for memory content | migrations | Memory search speed |
-| Memo ArtifactPreviewCard | ArtifactPreviewCard.tsx | Re-render reduction |
-| Gzip compression middleware | middleware | 70% bandwidth reduction |
+| Event broadcaster lock strategy | internal/server/app/event_broadcaster.go | Contention avoidance |
+| Event history retention policy | postgres_event_history_store.go | DB growth control |
+| Session LRU cache | internal/session/postgresstore/store.go | DB load reduction |
+| Shared http.Client for web_fetch | internal/tools/builtin/web_fetch.go | Connection reuse |
+| Prepared statements for hot paths | DB stores | Query CPU |
+| Bundle analyzer + web CI jobs | .github/workflows/ci.yml | Regression visibility |
+| Memoization for remaining web hotspots | web/components/* | Re-render reduction |
 
 ### Architecture Observations
-- Good: Virtual scrolling, event buffering, LRU caches, TypeScript strict mode
-- Concern: 30+ prop drilling in ConversationMainArea, only 2 memoized components in web UI
-- Concern: 4 separate mutexes in EventBroadcaster without documented lock order
-- Concern: WriteTimeout=0 required for SSE but exposes non-stream routes to slow clients
+- Good: Virtual scrolling, event buffering, LRU caches, TypeScript strict mode.
+- Remaining: EventBroadcaster lock strategy, long-term event retention, and web CI visibility.

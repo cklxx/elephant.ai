@@ -27,7 +27,13 @@ import (
 	id "alex/internal/utils/id"
 )
 
-const defaultMaxCreateTaskBodySize int64 = 20 << 20 // 20 MiB
+const (
+	defaultMaxCreateTaskBodySize int64 = 20 << 20 // 20 MiB
+	maxSessionListLimit                = 200
+	maxSnapshotListLimit               = 200
+	maxTaskListLimit                   = 200
+	maxEvaluationListLimit             = 200
+)
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
@@ -762,8 +768,8 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 		}
 		limit = parsed
 	}
-	if limit > 200 {
-		limit = 200
+	if limit > maxSessionListLimit {
+		limit = maxSessionListLimit
 	}
 
 	offset := 0
@@ -866,6 +872,9 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 			h.writeJSONError(w, http.StatusBadRequest, "limit must be a positive integer", err)
 			return
 		}
+	}
+	if limit > maxSnapshotListLimit {
+		limit = maxSnapshotListLimit
 	}
 	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
 	items, nextCursor, err := h.coordinator.ListSnapshots(r.Context(), sessionID, cursor, limit)
@@ -1034,6 +1043,9 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			limit = l
 		}
+	}
+	if limit > maxTaskListLimit {
+		limit = maxTaskListLimit
 	}
 
 	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
@@ -1625,6 +1637,9 @@ func parseEvaluationQuery(r *http.Request) (agent_eval.EvaluationQuery, bool, er
 		limit, err := strconv.Atoi(limitStr)
 		if err != nil || limit < 0 {
 			return query, false, fmt.Errorf("invalid limit")
+		}
+		if limit > maxEvaluationListLimit {
+			limit = maxEvaluationListLimit
 		}
 		query.Limit = limit
 		hasFilters = true

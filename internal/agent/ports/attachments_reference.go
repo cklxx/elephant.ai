@@ -74,4 +74,3 @@ func extractDataURIBase64(value string) (string, bool) {
 	}
 	return payload, true
 }
-

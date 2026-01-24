@@ -16,8 +16,8 @@ import (
 func SaveFollowPreferences(followTranscript, followStream bool, opts ...Option) (string, error) {
 	options := loadOptions{
 		envLookup: DefaultEnvLookup,
-		readFile: os.ReadFile,
-		homeDir:  os.UserHomeDir,
+		readFile:  os.ReadFile,
+		homeDir:   os.UserHomeDir,
 	}
 	for _, opt := range opts {
 		opt(&options)

@@ -35,14 +35,14 @@ const (
 )
 
 const (
-	DefaultLLMProvider = "openai"
-	DefaultLLMModel    = "gpt-4o-mini"
-	DefaultLLMBaseURL  = "https://api.openai.com/v1"
-	DefaultMaxTokens   = 8192
+	DefaultLLMProvider       = "openai"
+	DefaultLLMModel          = "gpt-4o-mini"
+	DefaultLLMBaseURL        = "https://api.openai.com/v1"
+	DefaultMaxTokens         = 8192
 	DefaultToolMaxConcurrent = 8
-	DefaultACPHost     = "127.0.0.1"
-	DefaultACPPort     = 9000
-	DefaultACPPortFile = ".pids/acp.port"
+	DefaultACPHost           = "127.0.0.1"
+	DefaultACPPort           = 9000
+	DefaultACPPortFile       = ".pids/acp.port"
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.

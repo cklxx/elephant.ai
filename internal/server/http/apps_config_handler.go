@@ -28,7 +28,7 @@ func NewAppsConfigHandler(
 
 type appsConfigResponse struct {
 	Apps config.AppsConfig `json:"apps"`
-	Path string           `json:"path,omitempty"`
+	Path string            `json:"path,omitempty"`
 }
 
 func (h *AppsConfigHandler) snapshot() (appsConfigResponse, error) {
