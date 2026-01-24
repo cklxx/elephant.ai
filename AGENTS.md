@@ -47,6 +47,7 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * Warn before destructive actions; avoid history rewrites unless explicitly requested.
 * Prefer local registry sources for Rust deps.
 * Keep responses focused on actionable outputs (changes + validation + limitations).
+* I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
 
 ---
 
