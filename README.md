@@ -1,9 +1,5 @@
 <p align="center">
-  <span style="display:inline-flex; align-items:center; justify-content:center; padding:14px; border-radius:28px; background:radial-gradient(circle at 30% 30%, #34d39933, #3b82f633 55%, transparent 70%), linear-gradient(135deg, #0f172a, #111827); box-shadow:0 20px 60px -32px rgba(15, 23, 42, 0.6), 0 10px 30px -24px rgba(52, 211, 153, 0.45);">
-    <span style="display:inline-flex; align-items:center; justify-content:center; width:92px; height:92px; border-radius:24px; background:linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0)); border:1px solid rgba(255,255,255,0.08); box-shadow:inset 0 1px 0 rgba(255,255,255,0.06);">
-      <img src="web/public/elephant.jpeg" alt="elephant.ai mascot" width="76" height="76" style="border-radius:20px; object-fit:cover; box-shadow:0 10px 32px -24px rgba(0,0,0,0.45);" />
-    </span>
-  </span>
+    <img src="web/public/elephant.jpeg" alt="elephant.ai mascot" width="76" height="76" style="border-radius:20px; object-fit:cover; box-shadow:0 10px 32px -24px rgba(0,0,0,0.45);" />
 </p>
 
 # elephant.ai
@@ -30,33 +26,24 @@ elephant.ai is a unified runtime for production-grade AI agents: the `alex` CLI/
 
 ---
 
-## Demo (10 minutes)
+## Architecture (short form)
 
-![Demo preview](docs/assets/demo.svg)
-
-```bash
-# Configure runtime once
-export OPENAI_API_KEY="sk-..."
-cp examples/config/runtime-config.yaml ~/.alex/config.yaml
-
-# Run backend + web
-./dev.sh
-
-# Run a demo task from the CLI
-make build
-./alex "Map the runtime layers, explain the event stream, and produce a short summary."
+```
+Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Infrastructure Adapters
 ```
 
-Expected:
-- CLI shows a typed event stream (plan/tool/output).
-- Web UI at `http://localhost:3000` renders the same events and artifacts.
-- Cost + trace metadata update as the run progresses.
+* Delivery: shared DI wiring for `cmd/alex`, `cmd/alex-server`, and `web/` keeps sessions consistent.
+* Agent core: `internal/agent/{app,domain,ports}` implements the Think → Act → Observe loop, approvals, and typed events.
+* Infrastructure: `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/observability`, and `internal/context` provide adapters, context, telemetry, and persistence.
+* Frontend: `web/` streams SSE events, artifacts, approvals, and cost details in real time.
 
 ---
 
-## Quickstart
+## Getting started
 
 Prerequisites: Go 1.24+, Node.js 20+ (web UI), Docker (optional).
+
+### Quickstart
 
 ```bash
 # Configure your LLM provider (examples)
@@ -70,14 +57,6 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 # Run backend + web together
 ./dev.sh
 
-# Check status/logs
-./dev.sh status
-./dev.sh logs server
-./dev.sh logs web
-
-# Stop services
-./dev.sh down
-
 # Optional: build and run the CLI/TUI
 make build
 ./alex
@@ -86,6 +65,32 @@ make build
 
 Configuration is shared across every surface. Use `examples/config/runtime-config.yaml` and `docs/reference/CONFIG.md` for the canonical schema.
 
+### Helpful dev.sh commands
+
+```bash
+# Check status/logs
+./dev.sh status
+./dev.sh logs server
+./dev.sh logs web
+
+# Stop services
+./dev.sh down
+```
+
+### Demo (10 minutes)
+
+![Demo preview](docs/assets/demo.svg)
+
+```bash
+# With services running from the quickstart
+./alex "Map the runtime layers, explain the event stream, and produce a short summary."
+```
+
+Expected:
+- CLI shows a typed event stream (plan/tool/output).
+- Web UI at `http://localhost:3000` renders the same events and artifacts.
+- Cost + trace metadata update as the run progresses.
+
 ---
 
 ## Proof points
@@ -93,25 +98,6 @@ Configuration is shared across every surface. Use `examples/config/runtime-confi
 * Evaluation harnesses + reproducible results: `evaluation/` and `evaluation_results/`.
 * Quality gates (Go + web): `./dev.sh lint`, `./dev.sh test`, and `npm --prefix web run e2e`.
 * Typed events and cost tracking live in `internal/agent/` and `internal/observability/`.
-
----
-
-## Roadmap + contribution entrypoints
-
-`ROADMAP.md` is the guided map of the codebase and the public contribution queue. It calls out MVP-sized slices and recommended areas for external contributions.
-
----
-
-## Architecture (short form)
-
-```
-Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Infrastructure Adapters
-```
-
-* Delivery: shared DI wiring for `cmd/alex`, `cmd/alex-server`, and `web/` keeps sessions consistent.
-* Agent core: `internal/agent/{app,domain,ports}` implements the Think → Act → Observe loop, approvals, and typed events.
-* Infrastructure: `internal/di`, `internal/tools`, `internal/toolregistry`, `internal/llm`, `internal/mcp`, `internal/session`, `internal/storage`, `internal/observability`, and `internal/context` provide adapters, context, telemetry, and persistence.
-* Frontend: `web/` streams SSE events, artifacts, approvals, and cost details in real time.
 
 ---
 
@@ -127,15 +113,6 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 
 ---
 
-## Project governance
-
-* [`LICENSE`](LICENSE): MIT license.
-* [`CONTRIBUTING.md`](CONTRIBUTING.md): contribution workflow and code standards.
-* [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md): expected community behavior.
-* [`SECURITY.md`](SECURITY.md): vulnerability reporting process.
-
----
-
 ## Docs
 
 * [`docs/README.md`](docs/README.md): documentation landing page and navigation.
@@ -144,3 +121,18 @@ Delivery (CLI, Server, Web) → Agent Application Layer → Domain Ports → Inf
 * [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md): canonical configuration schema and precedence.
 * [`docs/guides/quickstart.md`](docs/guides/quickstart.md): from clone to running CLI/server/web.
 * [`docs/operations/DEPLOYMENT.md`](docs/operations/DEPLOYMENT.md): deployment guide for local, Docker Compose, and custom clusters.
+
+---
+
+## Roadmap + contribution entrypoints
+
+`ROADMAP.md` is the guided map of the codebase and the public contribution queue. It calls out MVP-sized slices and recommended areas for external contributions.
+
+---
+
+## Project governance
+
+* [`LICENSE`](LICENSE): MIT license.
+* [`CONTRIBUTING.md`](CONTRIBUTING.md): contribution workflow and code standards.
+* [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md): expected community behavior.
+* [`SECURITY.md`](SECURITY.md): vulnerability reporting process.
