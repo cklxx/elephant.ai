@@ -111,6 +111,18 @@ func ExecuteFunc[T any](cb *CircuitBreaker, ctx context.Context, fn func(ctx con
 	return result, err
 }
 
+// Allow checks whether a request can proceed under the circuit breaker.
+// Callers that need to inspect responses should use Allow/Mark instead of Execute.
+func (cb *CircuitBreaker) Allow() error {
+	return cb.beforeRequest()
+}
+
+// Mark records a request outcome for the circuit breaker.
+// Pass nil to mark success, or a non-nil error to record failure.
+func (cb *CircuitBreaker) Mark(err error) {
+	cb.afterRequest(err)
+}
+
 // beforeRequest checks if request should be allowed
 func (cb *CircuitBreaker) beforeRequest() error {
 	cb.mu.Lock()

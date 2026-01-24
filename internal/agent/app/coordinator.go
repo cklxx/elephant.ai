@@ -52,6 +52,7 @@ type Config struct {
 	BaseURL             string
 	MaxTokens           int
 	MaxIterations       int
+	ToolMaxConcurrent   int
 	Temperature         float64
 	TemperatureProvided bool
 	TopP                float64
@@ -573,8 +574,8 @@ func (c *AgentCoordinator) getSession(ctx context.Context, id string) (*ports.Se
 	return c.sessionStore.Get(ctx, id)
 }
 
-func (c *AgentCoordinator) ListSessions(ctx context.Context) ([]string, error) {
-	return c.sessionStore.List(ctx)
+func (c *AgentCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
+	return c.sessionStore.List(ctx, limit, offset)
 }
 
 // GetCostTracker returns the cost tracker instance

@@ -16,8 +16,8 @@ type SessionStore interface {
 	// Save persists session state
 	Save(ctx context.Context, session *Session) error
 
-	// List returns all session IDs
-	List(ctx context.Context) ([]string, error)
+	// List returns session IDs with optional limit/offset pagination.
+	List(ctx context.Context, limit int, offset int) ([]string, error)
 
 	// Delete removes a session
 	Delete(ctx context.Context, id string) error

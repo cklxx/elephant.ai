@@ -496,6 +496,7 @@ func (it *reactIteration) executeTools() {
 		it.plan.iteration,
 		it.plan.calls,
 		it.runtime.services.ToolExecutor,
+		it.runtime.services.ToolLimiter,
 		it.runtime.tracker,
 	).execute()
 }

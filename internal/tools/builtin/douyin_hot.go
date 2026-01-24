@@ -20,7 +20,7 @@ type douyinHot struct {
 }
 
 func NewDouyinHot() ports.ToolExecutor {
-	return &douyinHot{client: httpclient.New(10*time.Second, nil)}
+	return &douyinHot{client: httpclient.NewWithCircuitBreaker(10*time.Second, nil, "douyin_hot")}
 }
 
 func (t *douyinHot) Metadata() ports.ToolMetadata {

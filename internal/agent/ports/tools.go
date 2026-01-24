@@ -26,6 +26,7 @@ type ToolExecutor interface {
 type ServiceBundle struct {
 	LLM          StreamingLLMClient
 	ToolExecutor ToolRegistry
+	ToolLimiter  ToolExecutionLimiter
 	Parser       FunctionCallParser
 	Context      ContextManager
 }
@@ -104,8 +105,8 @@ type AgentCoordinator interface {
 	// SaveSessionAfterExecution saves session state after task completion
 	SaveSessionAfterExecution(ctx context.Context, session *Session, result *TaskResult) error
 
-	// ListSessions lists all available sessions
-	ListSessions(ctx context.Context) ([]string, error)
+	// ListSessions lists available sessions with optional limit/offset pagination.
+	ListSessions(ctx context.Context, limit int, offset int) ([]string, error)
 
 	// GetConfig returns the coordinator configuration
 	GetConfig() AgentConfig
@@ -181,6 +182,12 @@ type ToolRegistry interface {
 
 	// Unregister removes a tool
 	Unregister(name string) error
+}
+
+// ToolExecutionLimiter gates tool execution concurrency.
+type ToolExecutionLimiter interface {
+	// Limit returns the maximum number of concurrent tool executions.
+	Limit() int
 }
 
 // ToolCall represents a request to execute a tool

@@ -29,7 +29,7 @@ func (c *CLI) cleanupSessions(ctx context.Context, args []string) error {
 		return err
 	}
 
-	sessionIDs, err := c.container.AgentCoordinator.ListSessions(ctx)
+	sessionIDs, err := c.listAllSessions(ctx)
 	if err != nil {
 		return err
 	}

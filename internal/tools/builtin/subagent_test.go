@@ -80,11 +80,13 @@ func (r *sessionIDRecorder) PrepareExecution(ctx context.Context, task string, s
 	return nil, nil
 }
 
-func (r *sessionIDRecorder) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+func (r *sessionIDRecorder) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
 	return nil
 }
 
-func (r *sessionIDRecorder) ListSessions(ctx context.Context) ([]string, error) { return nil, nil }
+func (r *sessionIDRecorder) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
+	return nil, nil
+}
 func (r *sessionIDRecorder) GetConfig() ports.AgentConfig                       { return ports.AgentConfig{} }
 func (r *sessionIDRecorder) GetLLMClient() (ports.LLMClient, error)             { return nil, nil }
 func (r *sessionIDRecorder) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
@@ -125,11 +127,11 @@ func (*workflowRecordingCoordinator) PrepareExecution(ctx context.Context, task 
 	return nil, nil
 }
 
-func (*workflowRecordingCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+func (*workflowRecordingCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
 	return nil
 }
 
-func (*workflowRecordingCoordinator) ListSessions(ctx context.Context) ([]string, error) {
+func (*workflowRecordingCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
 	return nil, nil
 }
 func (*workflowRecordingCoordinator) GetConfig() ports.AgentConfig                       { return ports.AgentConfig{} }

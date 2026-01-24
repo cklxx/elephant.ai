@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	alexerrors "alex/internal/errors"
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
 	"alex/internal/utils/id"
@@ -34,6 +35,7 @@ type Client struct {
 	httpClient     *http.Client
 	requestTimeout time.Duration
 	logger         logging.Logger
+	breaker        *alexerrors.CircuitBreaker
 
 	mu       sync.Mutex
 	running  bool
@@ -67,6 +69,7 @@ func Dial(ctx context.Context, addr string, timeout time.Duration, logger loggin
 		httpClient:     &http.Client{},
 		requestTimeout: timeout,
 		logger:         logger,
+		breaker:        alexerrors.NewCircuitBreaker("acp-"+baseURL, alexerrors.DefaultCircuitBreakerConfig()),
 		readDone:       make(chan struct{}),
 		pending:        make(map[string]chan *jsonrpc.Response),
 	}, nil
@@ -191,15 +194,34 @@ func (c *Client) consumeSSE(ctx context.Context, handler NotificationHandler) er
 	}
 	req.Header.Set("Accept", "text/event-stream")
 
+	if c.breaker != nil {
+		if err := c.breaker.Allow(); err != nil {
+			return err
+		}
+	}
+	var markErr error
+	if c.breaker != nil {
+		defer func() {
+			if markErr == nil || errors.Is(markErr, context.Canceled) || ctx.Err() != nil {
+				c.breaker.Mark(nil)
+				return
+			}
+			c.breaker.Mark(markErr)
+		}()
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		markErr = err
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return fmt.Errorf("acp sse status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		statusErr := fmt.Errorf("acp sse status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		markErr = markBreakerStatusError(resp.StatusCode, statusErr)
+		return statusErr
 	}
 
 	reader := bufio.NewReader(resp.Body)
@@ -208,6 +230,7 @@ func (c *Client) consumeSSE(ctx context.Context, handler NotificationHandler) er
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
+			markErr = err
 			if errors.Is(err, io.EOF) {
 				return err
 			}
@@ -320,14 +343,38 @@ func (c *Client) post(ctx context.Context, payload []byte) error {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	if c.breaker != nil {
+		if err := c.breaker.Allow(); err != nil {
+			return err
+		}
+	}
+
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		if c.breaker != nil {
+			if errors.Is(err, context.Canceled) {
+				c.breaker.Mark(nil)
+			} else {
+				c.breaker.Mark(err)
+			}
+		}
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return &RPCStatusError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(body))}
+		statusErr := &RPCStatusError{StatusCode: resp.StatusCode, Body: strings.TrimSpace(string(body))}
+		if c.breaker != nil {
+			if markErr := markBreakerStatusError(resp.StatusCode, statusErr); markErr != nil {
+				c.breaker.Mark(markErr)
+			} else {
+				c.breaker.Mark(nil)
+			}
+		}
+		return statusErr
+	}
+	if c.breaker != nil {
+		c.breaker.Mark(nil)
 	}
 	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 		return err
@@ -347,4 +394,11 @@ func normalizeACPAddr(addr string) (string, error) {
 		return "", fmt.Errorf("unsupported acp addr scheme: %s", addr)
 	}
 	return "http://" + strings.TrimRight(addr, "/"), nil
+}
+
+func markBreakerStatusError(status int, err error) error {
+	if status >= http.StatusInternalServerError || status == http.StatusTooManyRequests {
+		return err
+	}
+	return nil
 }

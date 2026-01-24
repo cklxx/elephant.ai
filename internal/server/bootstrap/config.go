@@ -26,6 +26,9 @@ type Config struct {
 	StreamMaxDuration   time.Duration
 	StreamMaxBytes      int64
 	StreamMaxConcurrent int
+	RateLimitRequestsPerMinute int
+	RateLimitBurst             int
+	NonStreamTimeout           time.Duration
 	Attachment          attachments.StoreConfig
 }
 
@@ -70,6 +73,9 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		StreamMaxDuration:   2 * time.Hour,
 		StreamMaxBytes:      64 * 1024 * 1024,
 		StreamMaxConcurrent: 128,
+		RateLimitRequestsPerMinute: 600,
+		RateLimitBurst:             120,
+		NonStreamTimeout:           30 * time.Second,
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex-web-sessions",
 		},
@@ -130,6 +136,15 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		if file.Server.StreamMaxConcurrent != nil && *file.Server.StreamMaxConcurrent > 0 {
 			cfg.StreamMaxConcurrent = *file.Server.StreamMaxConcurrent
 		}
+		if file.Server.RateLimitRequestsPerMinute != nil && *file.Server.RateLimitRequestsPerMinute > 0 {
+			cfg.RateLimitRequestsPerMinute = *file.Server.RateLimitRequestsPerMinute
+		}
+		if file.Server.RateLimitBurst != nil && *file.Server.RateLimitBurst > 0 {
+			cfg.RateLimitBurst = *file.Server.RateLimitBurst
+		}
+		if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
+			cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
+		}
 		if file.Server.AllowedOrigins != nil {
 			cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
 		}
@@ -162,6 +177,24 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if dir := strings.TrimSpace(file.Session.Dir); dir != "" {
 			cfg.Session.Dir = dir
+		}
+		if file.Session.PoolMaxConns != nil {
+			cfg.Session.PoolMaxConns = file.Session.PoolMaxConns
+		}
+		if file.Session.PoolMinConns != nil {
+			cfg.Session.PoolMinConns = file.Session.PoolMinConns
+		}
+		if file.Session.PoolMaxConnLifetimeSeconds != nil {
+			cfg.Session.PoolMaxConnLifetimeSeconds = file.Session.PoolMaxConnLifetimeSeconds
+		}
+		if file.Session.PoolMaxConnIdleSeconds != nil {
+			cfg.Session.PoolMaxConnIdleSeconds = file.Session.PoolMaxConnIdleSeconds
+		}
+		if file.Session.PoolHealthCheckSeconds != nil {
+			cfg.Session.PoolHealthCheckSeconds = file.Session.PoolHealthCheckSeconds
+		}
+		if file.Session.PoolConnectTimeoutSeconds != nil {
+			cfg.Session.PoolConnectTimeoutSeconds = file.Session.PoolConnectTimeoutSeconds
 		}
 	}
 

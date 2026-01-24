@@ -52,7 +52,7 @@ func (m *MockSessionStore) Save(ctx context.Context, session *agentPorts.Session
 	return nil
 }
 
-func (m *MockSessionStore) List(ctx context.Context) ([]string, error) {
+func (m *MockSessionStore) List(ctx context.Context, limit int, offset int) ([]string, error) {
 	ids := make([]string, 0, len(m.sessions))
 	for id := range m.sessions {
 		ids = append(ids, id)

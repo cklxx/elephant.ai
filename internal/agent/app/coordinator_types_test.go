@@ -49,7 +49,7 @@ func (s *stubSessionStore) Save(ctx context.Context, session *ports.Session) err
 	return nil
 }
 
-func (s *stubSessionStore) List(ctx context.Context) ([]string, error) {
+func (s *stubSessionStore) List(ctx context.Context, limit int, offset int) ([]string, error) {
 	if s.session == nil {
 		return []string{}, nil
 	}

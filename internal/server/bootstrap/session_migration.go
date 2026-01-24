@@ -15,6 +15,7 @@ import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	serverapp "alex/internal/server/app"
+	serverports "alex/internal/server/ports"
 	"alex/internal/session/filestore"
 	sessionstate "alex/internal/session/state_store"
 )
@@ -83,17 +84,18 @@ func MigrateSessionsToDatabase(
 	sourceHistory := sessionstate.NewFileStore(filepath.Join(sessionDir, "turns"))
 
 	if !force {
-		if destIDs, err := destSessions.List(ctx); err == nil && len(destIDs) >= len(ids) {
+		destCount, err := countSessions(ctx, destSessions)
+		if err == nil && destCount >= len(ids) {
 			logger.Info(
 				"Session migration skipped (destination already has %d sessions; source=%d)",
-				len(destIDs),
+				destCount,
 				len(ids),
 			)
 			_ = writeSessionMigrationMarker(markerPath, sessionMigrationMarker{
 				Version:        1,
 				CompletedAt:    time.Now().UTC(),
 				SourceSessions: len(ids),
-				DestSessions:   len(destIDs),
+				DestSessions:   destCount,
 			})
 			return nil
 		}
@@ -219,6 +221,30 @@ func listFileSessionIDs(sessionDir string) ([]string, error) {
 		ids = append(ids, strings.TrimSuffix(name, ".json"))
 	}
 	return ids, nil
+}
+
+func countSessions(ctx context.Context, store serverports.ServerSessionManager) (int, error) {
+	if store == nil {
+		return 0, nil
+	}
+	const pageSize = 200
+	total := 0
+	offset := 0
+	for {
+		ids, err := store.List(ctx, pageSize, offset)
+		if err != nil {
+			return total, err
+		}
+		if len(ids) == 0 {
+			break
+		}
+		total += len(ids)
+		if len(ids) < pageSize {
+			break
+		}
+		offset += len(ids)
+	}
+	return total, nil
 }
 
 func envBool(name string) bool {

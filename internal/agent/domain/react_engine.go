@@ -51,6 +51,7 @@ type toolCallBatch struct {
 	state                *TaskState
 	iteration            int
 	registry             ports.ToolRegistry
+	limiter              ports.ToolExecutionLimiter
 	tracker              *reactWorkflow
 	attachments          map[string]ports.Attachment
 	attachmentIterations map[string]int
@@ -59,6 +60,7 @@ type toolCallBatch struct {
 	callNodes            []string
 	results              []ToolResult
 	attachmentsMu        sync.Mutex
+	stateMu              sync.Mutex
 }
 
 func newWorkflowRecorder(tracker WorkflowTracker) *workflowRecorder {
@@ -112,6 +114,7 @@ func newToolCallBatch(
 	iteration int,
 	calls []ToolCall,
 	registry ports.ToolRegistry,
+	limiter ports.ToolExecutionLimiter,
 	tracker *reactWorkflow,
 ) *toolCallBatch {
 	expanded := make([]ToolCall, len(calls))
@@ -142,6 +145,7 @@ func newToolCallBatch(
 		state:                state,
 		iteration:            iteration,
 		registry:             registry,
+		limiter:              limiter,
 		tracker:              tracker,
 		attachments:          attachmentsSnapshot,
 		attachmentIterations: iterationSnapshot,
@@ -231,9 +235,38 @@ func (rw *reactWorkflow) completeToolCall(nodeID string, iteration int, call Too
 
 func (b *toolCallBatch) execute() []ToolResult {
 	b.results = make([]ToolResult, len(b.calls))
-	for i, call := range b.calls {
-		b.runCall(i, call)
+	if len(b.calls) == 0 {
+		return b.results
 	}
+	limit := 1
+	if b.limiter != nil && b.limiter.Limit() > 0 {
+		limit = b.limiter.Limit()
+	}
+	if limit <= 1 || len(b.calls) == 1 {
+		for i, call := range b.calls {
+			b.runCall(i, call)
+		}
+		return b.results
+	}
+
+	jobs := make(chan int)
+	var wg sync.WaitGroup
+	wg.Add(len(b.calls))
+
+	for i := 0; i < limit; i++ {
+		go func() {
+			for idx := range jobs {
+				b.runCall(idx, b.calls[idx])
+				wg.Done()
+			}
+		}()
+	}
+
+	for i := range b.calls {
+		jobs <- i
+	}
+	close(jobs)
+	wg.Wait()
 	return b.results
 }
 
@@ -305,7 +338,11 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		result.Metadata,
 		&b.attachmentsMu,
 	)
-	b.engine.applyImportantNotes(b.state, tc, result.Metadata)
+	if len(result.Metadata) > 0 {
+		b.stateMu.Lock()
+		b.engine.applyImportantNotes(b.state, tc, result.Metadata)
+		b.stateMu.Unlock()
+	}
 
 	b.finalize(idx, tc, nodeID, *result, startTime)
 }

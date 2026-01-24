@@ -1,11 +1,13 @@
 package http
 
 import (
+	"compress/gzip"
 	"context"
 	"encoding/base64"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -16,6 +18,7 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"golang.org/x/time/rate"
 )
 
 type contextKey string
@@ -29,6 +32,13 @@ type StreamGuardConfig struct {
 	MaxDuration   time.Duration
 	MaxBytes      int64
 	MaxConcurrent int
+}
+
+type RateLimitConfig struct {
+	RequestsPerMinute int
+	Burst             int
+	EntryTTL          time.Duration
+	CleanupInterval   time.Duration
 }
 
 type responseRecorder struct {
@@ -370,6 +380,181 @@ func StreamGuardMiddleware(cfg StreamGuardConfig) func(http.Handler) http.Handle
 	}
 }
 
+type rateLimitEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+type rateLimiter struct {
+	mu              sync.Mutex
+	limit           rate.Limit
+	burst           int
+	entries         map[string]*rateLimitEntry
+	entryTTL        time.Duration
+	cleanupInterval time.Duration
+	lastCleanup     time.Time
+}
+
+func newRateLimiter(cfg RateLimitConfig) *rateLimiter {
+	ttl := cfg.EntryTTL
+	if ttl <= 0 {
+		ttl = 15 * time.Minute
+	}
+	cleanup := cfg.CleanupInterval
+	if cleanup <= 0 {
+		cleanup = 5 * time.Minute
+	}
+	return &rateLimiter{
+		limit:           rate.Every(time.Minute / time.Duration(cfg.RequestsPerMinute)),
+		burst:           cfg.Burst,
+		entries:         make(map[string]*rateLimitEntry),
+		entryTTL:        ttl,
+		cleanupInterval: cleanup,
+		lastCleanup:     time.Now(),
+	}
+}
+
+func (r *rateLimiter) allow(key string) bool {
+	if r == nil || key == "" {
+		return true
+	}
+
+	now := time.Now()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.cleanupInterval > 0 && now.Sub(r.lastCleanup) >= r.cleanupInterval {
+		for k, entry := range r.entries {
+			if entry == nil || now.Sub(entry.lastSeen) > r.entryTTL {
+				delete(r.entries, k)
+			}
+		}
+		r.lastCleanup = now
+	}
+
+	entry, ok := r.entries[key]
+	if !ok {
+		entry = &rateLimitEntry{
+			limiter:  rate.NewLimiter(r.limit, r.burst),
+			lastSeen: now,
+		}
+		r.entries[key] = entry
+	} else {
+		entry.lastSeen = now
+	}
+
+	return entry.limiter.Allow()
+}
+
+func RateLimitMiddleware(cfg RateLimitConfig) func(http.Handler) http.Handler {
+	if cfg.RequestsPerMinute <= 0 || cfg.Burst <= 0 {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	limiter := newRateLimiter(cfg)
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			key := rateLimitKey(r)
+			if !limiter.allow(key) {
+				http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+type gzipResponseWriter struct {
+	http.ResponseWriter
+	writer      *gzip.Writer
+	wroteHeader bool
+}
+
+func (w *gzipResponseWriter) WriteHeader(status int) {
+	if w.wroteHeader {
+		return
+	}
+	w.wroteHeader = true
+	w.Header().Del("Content-Length")
+	w.ResponseWriter.WriteHeader(status)
+}
+
+func (w *gzipResponseWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.WriteHeader(http.StatusOK)
+	}
+	return w.writer.Write(b)
+}
+
+func (w *gzipResponseWriter) Flush() {
+	if w.writer != nil {
+		_ = w.writer.Flush()
+	}
+	if flusher, ok := w.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
+func acceptsGzip(r *http.Request) bool {
+	if r == nil {
+		return false
+	}
+	encoding := r.Header.Get("Accept-Encoding")
+	return strings.Contains(strings.ToLower(encoding), "gzip")
+}
+
+func shouldSkipCompression(r *http.Request) bool {
+	if r == nil || r.URL == nil {
+		return true
+	}
+	path := r.URL.Path
+	if isStreamRequest(r) {
+		return true
+	}
+	if strings.HasPrefix(path, "/api/attachments/") || strings.HasPrefix(path, "/api/data/") {
+		return true
+	}
+	return false
+}
+
+func CompressionMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if shouldSkipCompression(r) || !acceptsGzip(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			appendVary(w, "Accept-Encoding")
+			w.Header().Set("Content-Encoding", "gzip")
+
+			gz := gzip.NewWriter(w)
+			defer gz.Close()
+
+			gzWriter := &gzipResponseWriter{ResponseWriter: w, writer: gz}
+			if flusher, ok := w.(http.Flusher); ok {
+				gzWriter.ResponseWriter = &responseRecorderFlusher{ResponseWriter: w, Flusher: flusher}
+			}
+			next.ServeHTTP(gzWriter, r)
+		})
+	}
+}
+
+func RequestTimeoutMiddleware(timeout time.Duration) func(http.Handler) http.Handler {
+	if timeout <= 0 {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if isStreamRequest(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			http.TimeoutHandler(next, timeout, "request timeout").ServeHTTP(w, r)
+		})
+	}
+}
+
 func isStreamRequest(r *http.Request) bool {
 	if r == nil || r.URL == nil {
 		return false
@@ -381,6 +566,22 @@ func isStreamRequest(r *http.Request) bool {
 	accept := strings.ToLower(strings.TrimSpace(r.Header.Get("Accept")))
 	return strings.Contains(accept, "text/event-stream")
 }
+
+func rateLimitKey(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	if user, ok := CurrentUser(r.Context()); ok {
+		if id := strings.TrimSpace(user.ID); id != "" {
+			return "user:" + id
+		}
+	}
+	if ip := clientIP(r); ip != "" {
+		return "ip:" + ip
+	}
+	return "anonymous"
+}
+
 
 // LoggingMiddleware logs incoming requests
 func LoggingMiddleware(logger logging.Logger) func(http.Handler) http.Handler {

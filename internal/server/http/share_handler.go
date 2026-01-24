@@ -62,8 +62,8 @@ func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Reques
 	}
 
 	events := h.sseHandler.broadcaster.GetEventHistory(sessionID)
-	sentAttachments := make(map[string]string)
-	finalAnswerCache := make(map[string]string)
+	sentAttachments := newStringLRU(sseSentAttachmentCacheSize)
+	finalAnswerCache := newStringLRU(sseFinalAnswerCacheSize)
 	serialized := make([]map[string]interface{}, 0, len(events))
 	for _, event := range events {
 		if !h.sseHandler.shouldStreamEvent(event) {

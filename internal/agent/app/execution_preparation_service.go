@@ -433,6 +433,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	services := domain.Services{
 		LLM:          streamingClient,
 		ToolExecutor: toolRegistry,
+		ToolLimiter:  NewToolExecutionLimiter(s.config.ToolMaxConcurrent),
 		Parser:       s.parser,
 		Context:      s.contextMgr,
 	}

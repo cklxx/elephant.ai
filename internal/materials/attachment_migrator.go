@@ -35,7 +35,7 @@ const defaultMaxFetchBytes = int64(25 << 20) // 25 MiB
 
 func NewAttachmentStoreMigrator(store AttachmentStorer, client *http.Client, cdnBase string, logger logging.Logger) *AttachmentStoreMigrator {
 	if client == nil {
-		client = httpclient.New(45*time.Second, logger)
+		client = httpclient.NewWithCircuitBreaker(45*time.Second, logger, "attachment_migrator")
 	}
 	return &AttachmentStoreMigrator{
 		store:         store,

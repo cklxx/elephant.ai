@@ -130,11 +130,11 @@ func (stubCoordinator) PrepareExecution(ctx context.Context, task string, sessio
 	return nil, nil
 }
 
-func (stubCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+func (stubCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
 	return nil
 }
 
-func (stubCoordinator) ListSessions(ctx context.Context) ([]string, error) {
+func (stubCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
 	return nil, nil
 }
 

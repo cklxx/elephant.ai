@@ -45,6 +45,7 @@ type RuntimeFileConfig struct {
 	FollowStream               *bool    `yaml:"follow_stream"`
 	MaxIterations              *int     `yaml:"max_iterations"`
 	MaxTokens                  *int     `yaml:"max_tokens"`
+	ToolMaxConcurrent          *int     `yaml:"tool_max_concurrent"`
 	UserRateLimitRPS           *float64 `yaml:"user_rate_limit_rps"`
 	UserRateLimitBurst         *int     `yaml:"user_rate_limit_burst"`
 	Temperature                *float64 `yaml:"temperature"`
@@ -80,6 +81,9 @@ type ServerConfig struct {
 	StreamMaxDurationSeconds *int     `yaml:"stream_max_duration_seconds"`
 	StreamMaxBytes           *int64   `yaml:"stream_max_bytes"`
 	StreamMaxConcurrent      *int     `yaml:"stream_max_concurrent"`
+	RateLimitRequestsPerMinute *int   `yaml:"rate_limit_requests_per_minute"`
+	RateLimitBurst             *int   `yaml:"rate_limit_burst"`
+	NonStreamTimeoutSeconds    *int   `yaml:"non_stream_timeout_seconds"`
 }
 
 // AuthConfig captures authentication configuration stored in YAML.
@@ -106,6 +110,12 @@ type AuthConfig struct {
 type SessionConfig struct {
 	DatabaseURL string `yaml:"database_url"`
 	Dir         string `yaml:"dir"`
+	PoolMaxConns            *int `yaml:"pool_max_conns"`
+	PoolMinConns            *int `yaml:"pool_min_conns"`
+	PoolMaxConnLifetimeSeconds *int `yaml:"pool_max_conn_lifetime_seconds"`
+	PoolMaxConnIdleSeconds     *int `yaml:"pool_max_conn_idle_seconds"`
+	PoolHealthCheckSeconds     *int `yaml:"pool_health_check_seconds"`
+	PoolConnectTimeoutSeconds  *int `yaml:"pool_connect_timeout_seconds"`
 }
 
 // AnalyticsConfig captures analytics configuration.

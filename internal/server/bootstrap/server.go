@@ -176,6 +176,11 @@ func RunServer(observabilityConfigPath string) error {
 			MaxBytes:      config.StreamMaxBytes,
 			MaxConcurrent: config.StreamMaxConcurrent,
 		},
+		serverHTTP.RateLimitConfig{
+			RequestsPerMinute: config.RateLimitRequestsPerMinute,
+			Burst:             config.RateLimitBurst,
+		},
+		config.NonStreamTimeout,
 		config.Attachment,
 	)
 

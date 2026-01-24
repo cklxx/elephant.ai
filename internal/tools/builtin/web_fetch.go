@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
 	"alex/internal/utils"
 
@@ -73,7 +74,7 @@ func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.Too
 	tool := &webFetch{
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,
-			Transport: httpclient.Transport(nil),
+			Transport: httpclient.WrapTransportWithCircuitBreaker(httpclient.Transport(nil), "web_fetch", alexerrors.DefaultCircuitBreakerConfig()),
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
 				if len(via) >= 10 {
 					return fmt.Errorf("stopped after 10 redirects")

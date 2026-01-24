@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -29,6 +30,7 @@ type AsyncEventHistoryStore struct {
 
 	batchSize     int
 	flushInterval time.Duration
+	appendTimeout time.Duration
 	logger        logging.Logger
 }
 
@@ -50,6 +52,16 @@ func WithAsyncHistoryFlushInterval(interval time.Duration) AsyncEventHistoryStor
 	}
 }
 
+func WithAsyncHistoryAppendTimeout(timeout time.Duration) AsyncEventHistoryStoreOption {
+	return func(s *AsyncEventHistoryStore) {
+		if timeout > 0 {
+			s.appendTimeout = timeout
+		}
+	}
+}
+
+var ErrAsyncHistoryQueueFull = errors.New("async event history queue full")
+
 func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistoryStoreOption) *AsyncEventHistoryStore {
 	store := &AsyncEventHistoryStore{
 		inner:         inner,
@@ -58,6 +70,7 @@ func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistor
 		done:          make(chan struct{}),
 		batchSize:     200,
 		flushInterval: 250 * time.Millisecond,
+		appendTimeout: 50 * time.Millisecond,
 		logger:        logging.NewComponentLogger("AsyncEventHistoryStore"),
 	}
 	for _, opt := range opts {
@@ -82,15 +95,20 @@ func (s *AsyncEventHistoryStore) Append(ctx context.Context, event agentports.Ag
 		return nil
 	default:
 		// Avoid blocking latency-sensitive streaming paths. If the queue is full,
-		// fall back to a short context-aware wait.
+		// fall back to a short context-aware wait and surface backpressure.
+		timeout := s.appendTimeout
+		if timeout <= 0 {
+			timeout = 50 * time.Millisecond
+		}
+		timer := time.NewTimer(timeout)
+		defer timer.Stop()
 		select {
 		case s.ch <- event:
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(10 * time.Millisecond):
-			logging.OrNop(s.logger).Warn("Async history queue full; dropping event %s for session %s", event.EventType(), event.GetSessionID())
-			return nil
+		case <-timer.C:
+			return ErrAsyncHistoryQueueFull
 		}
 	}
 }

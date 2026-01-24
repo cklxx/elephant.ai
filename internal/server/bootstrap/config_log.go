@@ -58,5 +58,7 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("Temperature: %.2f (provided=%t; source=%s)", runtimeCfg.Temperature, runtimeCfg.TemperatureProvided, config.RuntimeMeta.Source("temperature"))
 	logger.Info("Environment: %s (source=%s)", runtimeCfg.Environment, config.RuntimeMeta.Source("environment"))
 	logger.Info("Port: %s", config.Port)
+	logger.Info("HTTP Rate Limit: %d rpm (burst=%d)", config.RateLimitRequestsPerMinute, config.RateLimitBurst)
+	logger.Info("HTTP Non-Stream Timeout: %s", config.NonStreamTimeout)
 	logger.Info("===========================")
 }

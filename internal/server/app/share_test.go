@@ -41,7 +41,7 @@ func (s *shareSessionStore) Save(ctx context.Context, session *ports.Session) er
 	return nil
 }
 
-func (s *shareSessionStore) List(ctx context.Context) ([]string, error) {
+func (s *shareSessionStore) List(ctx context.Context, limit int, offset int) ([]string, error) {
 	ids := make([]string, 0, len(s.sessions))
 	for id := range s.sessions {
 		ids = append(ids, id)

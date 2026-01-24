@@ -131,34 +131,61 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	// with what clients receive, even if those operations are slow.
 	b.updateTaskProgress(baseEvent)
 
-	b.mu.RLock()
-	if !suppressLogs {
-		b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, len(b.clients))
+	var targets map[string][]chan agentports.AgentEvent
+	var totalSessions int
+	if sessionID == "" {
+		targets = make(map[string][]chan agentports.AgentEvent)
 	}
+
+	b.mu.RLock()
+	totalSessions = len(b.clients)
+	if !suppressLogs {
+		b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, totalSessions)
+	}
+
+	switch {
+	case sessionID == "":
+		for sid, clients := range b.clients {
+			targets[sid] = append([]chan agentports.AgentEvent(nil), clients...)
+		}
+	case b.clients[sessionID] != nil:
+		targets = map[string][]chan agentports.AgentEvent{
+			sessionID: append([]chan agentports.AgentEvent(nil), b.clients[sessionID]...),
+		}
+	default:
+		targets = nil
+	}
+	b.mu.RUnlock()
 
 	if sessionID == "" {
 		// Broadcast to all sessions if no session ID
-		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", len(b.clients))
-		for sid, clients := range b.clients {
+		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", totalSessions)
+		for sid, clients := range targets {
 			if !suppressLogs {
 				b.logger.Debug("[OnEvent] Broadcasting to session '%s' with %d clients", sid, len(clients))
 			}
 			b.broadcastToClients(sid, clients, event)
 		}
-	} else if clients, ok := b.clients[sessionID]; ok {
-		// Broadcast to specific session's clients
-		if !suppressLogs {
-			b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
-		}
-		b.broadcastToClients(sessionID, clients, event)
-	} else {
-		b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event: %s). Available sessions: %v", sessionID, event.EventType(), b.getSessionIDs())
+		return
 	}
-	b.mu.RUnlock()
+
+	if len(targets) == 0 {
+		b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event: %s). Available sessions: %v", sessionID, event.EventType(), b.getSessionIDs())
+		return
+	}
+
+	clients := targets[sessionID]
+	if !suppressLogs {
+		b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
+	}
+	b.broadcastToClients(sessionID, clients, event)
 }
 
 // getSessionIDs returns list of session IDs for debugging
 func (b *EventBroadcaster) getSessionIDs() []string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
 	ids := make([]string, 0, len(b.clients))
 	for id := range b.clients {
 		ids = append(ids, id)
@@ -320,7 +347,6 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports
 		if client == ch {
 			// Remove client from list
 			b.clients[sessionID] = append(clients[:i], clients[i+1:]...)
-			close(ch)
 			b.metrics.decrementConnections()
 			b.logger.Info("Client unregistered from session %s (remaining: %d)", sessionID, len(b.clients[sessionID]))
 

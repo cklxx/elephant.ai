@@ -753,7 +753,30 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	sessionIDs, err := h.coordinator.ListSessions(r.Context())
+	limit := 50
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			h.writeJSONError(w, http.StatusBadRequest, "limit must be a positive integer", err)
+			return
+		}
+		limit = parsed
+	}
+	if limit > 200 {
+		limit = 200
+	}
+
+	offset := 0
+	if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			h.writeJSONError(w, http.StatusBadRequest, "offset must be a non-negative integer", err)
+			return
+		}
+		offset = parsed
+	}
+
+	sessionIDs, err := h.coordinator.ListSessions(r.Context(), limit, offset)
 	if err != nil {
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list sessions", err)
 		return
@@ -1204,7 +1227,7 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 		return
 	}
 
-	sentAttachments := make(map[string]string)
+	sentAttachments := newStringLRU(sseSentAttachmentCacheSize)
 	sanitizedWindow := preview.Window
 	sanitizedWindow.SessionID = sessionID
 	sanitizedWindow.Messages = sanitizeMessagesForDelivery(preview.Window.Messages, sentAttachments)
@@ -1253,7 +1276,7 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		Snapshots: make([]ContextSnapshotItem, len(snapshots)),
 	}
 
-	sentAttachments := make(map[string]string)
+	sentAttachments := newStringLRU(sseSentAttachmentCacheSize)
 
 	for i, snapshot := range snapshots {
 		item := ContextSnapshotItem{
@@ -1273,7 +1296,7 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 	h.writeJSON(w, http.StatusOK, response)
 }
 
-func sanitizeMessagesForDelivery(messages []agentports.Message, sentAttachments map[string]string) []agentports.Message {
+func sanitizeMessagesForDelivery(messages []agentports.Message, sentAttachments *stringLRU) []agentports.Message {
 	if len(messages) == 0 {
 		return nil
 	}

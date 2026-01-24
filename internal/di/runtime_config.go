@@ -35,6 +35,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		SeedreamVideoModel:         runtime.SeedreamVideoModel,
 		MaxTokens:                  runtime.MaxTokens,
 		MaxIterations:              runtime.MaxIterations,
+		ToolMaxConcurrent:          runtime.ToolMaxConcurrent,
 		UserRateLimitRPS:           runtime.UserRateLimitRPS,
 		UserRateLimitBurst:         runtime.UserRateLimitBurst,
 		Temperature:                runtime.Temperature,

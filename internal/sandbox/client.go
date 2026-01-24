@@ -50,7 +50,7 @@ func NewClient(cfg Config) *Client {
 
 	return &Client{
 		baseURL:    baseURL,
-		httpClient: httpclient.New(timeout, nil),
+		httpClient: httpclient.NewWithCircuitBreaker(timeout, nil, "sandbox"),
 		cache:      sessionCacheFor(baseURL),
 	}
 }

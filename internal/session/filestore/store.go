@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -155,7 +156,7 @@ func (s *store) Save(ctx context.Context, session *ports.Session) error {
 	return nil
 }
 
-func (s *store) List(ctx context.Context) ([]string, error) {
+func (s *store) List(ctx context.Context, limit int, offset int) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -164,11 +165,52 @@ func (s *store) List(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	var ids []string
+
+	if limit <= 0 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	type sessionEntry struct {
+		id      string
+		modTime time.Time
+	}
+	sessions := make([]sessionEntry, 0, len(entries))
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") {
-			ids = append(ids, strings.TrimSuffix(entry.Name(), ".json"))
+		if entry.IsDir() {
+			continue
 		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".json") || strings.HasSuffix(name, "_attachments.json") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		sessions = append(sessions, sessionEntry{
+			id:      strings.TrimSuffix(name, ".json"),
+			modTime: info.ModTime(),
+		})
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].modTime.After(sessions[j].modTime)
+	})
+
+	if offset >= len(sessions) {
+		return []string{}, nil
+	}
+	end := offset + limit
+	if end > len(sessions) {
+		end = len(sessions)
+	}
+
+	ids := make([]string, 0, end-offset)
+	for _, session := range sessions[offset:end] {
+		ids = append(ids, session.id)
 	}
 	return ids, nil
 }

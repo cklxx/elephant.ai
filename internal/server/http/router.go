@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"alex/internal/attachments"
 	authapp "alex/internal/auth/app"
@@ -15,7 +16,7 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, streamGuard StreamGuardConfig, attachmentCfg attachments.StoreConfig) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, streamGuard StreamGuardConfig, rateLimit RateLimitConfig, nonStreamTimeout time.Duration, attachmentCfg attachments.StoreConfig) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
 	attachmentStore := (*AttachmentStore)(nil)
@@ -326,7 +327,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	var handler http.Handler = mux
 	handler = ObservabilityMiddleware(obs, latencyLogger)(handler)
 	handler = LoggingMiddleware(logger)(handler)
+	handler = RateLimitMiddleware(rateLimit)(handler)
+	handler = RequestTimeoutMiddleware(nonStreamTimeout)(handler)
 	handler = StreamGuardMiddleware(streamGuard)(handler)
+	handler = CompressionMiddleware()(handler)
 	handler = CORSMiddleware(environment, allowedOrigins)(handler)
 
 	return handler

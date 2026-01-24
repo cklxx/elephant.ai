@@ -392,7 +392,7 @@ func summarizeSnapshotGaps(snapshot sessionstate.Snapshot) string {
 }
 
 func (c *CLI) listSessions(ctx context.Context) error {
-	sessionIDs, err := c.container.AgentCoordinator.ListSessions(ctx)
+	sessionIDs, err := c.listAllSessions(ctx)
 	if err != nil {
 		return err
 	}
@@ -444,6 +444,27 @@ func (c *CLI) listSessions(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (c *CLI) listAllSessions(ctx context.Context) ([]string, error) {
+	const pageSize = 200
+	var sessionIDs []string
+	offset := 0
+	for {
+		ids, err := c.container.AgentCoordinator.ListSessions(ctx, pageSize, offset)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			break
+		}
+		sessionIDs = append(sessionIDs, ids...)
+		if len(ids) < pageSize {
+			break
+		}
+		offset += len(ids)
+	}
+	return sessionIDs, nil
 }
 
 func (c *CLI) handleConfig(args []string) error {

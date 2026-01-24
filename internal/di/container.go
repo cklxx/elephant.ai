@@ -50,6 +50,15 @@ type Container struct {
 	mcpMu        sync.Mutex
 }
 
+const (
+	defaultSessionPoolMaxConns          = 25
+	defaultSessionPoolMinConns          = 5
+	defaultSessionPoolMaxConnLifetime   = 1 * time.Hour
+	defaultSessionPoolMaxConnIdleTime   = 30 * time.Minute
+	defaultSessionPoolHealthCheckPeriod = 1 * time.Minute
+	defaultSessionPoolConnectTimeout    = 5 * time.Second
+)
+
 // Config holds the dependency injection configuration
 type Config struct {
 	// LLM Configuration
@@ -78,6 +87,7 @@ type Config struct {
 	SeedreamVideoModel         string
 	MaxTokens                  int
 	MaxIterations              int
+	ToolMaxConcurrent          int
 	UserRateLimitRPS           float64
 	UserRateLimitBurst         int
 	Temperature                float64
@@ -99,6 +109,12 @@ type Config struct {
 	SessionDir         string // Directory for session storage (default: ~/.alex-sessions)
 	CostDir            string // Directory for cost tracking (default: ~/.alex-costs)
 	SessionDatabaseURL string // Optional database URL for session persistence
+	SessionPoolMaxConns         int
+	SessionPoolMinConns         int
+	SessionPoolMaxConnLifetime  time.Duration
+	SessionPoolMaxConnIdleTime  time.Duration
+	SessionPoolHealthCheckPeriod time.Duration
+	SessionPoolConnectTimeout   time.Duration
 
 	// RequireSessionDatabase enforces Postgres-backed session persistence when true.
 	RequireSessionDatabase bool
@@ -213,48 +229,88 @@ func BuildContainer(config Config) (*Container, error) {
 	if dbURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		pool, err := pgxpool.New(ctx, dbURL)
+		poolConfig, err := pgxpool.ParseConfig(dbURL)
 		if err != nil {
 			if config.RequireSessionDatabase {
-				return nil, fmt.Errorf("failed to create session DB pool: %w", err)
+				return nil, fmt.Errorf("failed to parse session DB config: %w", err)
 			}
-			logger.Warn("Failed to create session DB pool: %v", err)
-		} else if err := pool.Ping(ctx); err != nil {
-			pool.Close()
-			if config.RequireSessionDatabase {
-				return nil, fmt.Errorf("failed to ping session DB: %w", err)
-			}
-			logger.Warn("Failed to ping session DB: %v", err)
+			logger.Warn("Failed to parse session DB config: %v", err)
 		} else {
-			dbSessionStore := postgresstore.New(pool)
-			if err := dbSessionStore.EnsureSchema(ctx); err != nil {
+			maxConns := defaultSessionPoolMaxConns
+			if config.SessionPoolMaxConns > 0 {
+				maxConns = config.SessionPoolMaxConns
+			}
+			minConns := defaultSessionPoolMinConns
+			if config.SessionPoolMinConns > 0 {
+				minConns = config.SessionPoolMinConns
+			}
+			maxLifetime := defaultSessionPoolMaxConnLifetime
+			if config.SessionPoolMaxConnLifetime > 0 {
+				maxLifetime = config.SessionPoolMaxConnLifetime
+			}
+			maxIdle := defaultSessionPoolMaxConnIdleTime
+			if config.SessionPoolMaxConnIdleTime > 0 {
+				maxIdle = config.SessionPoolMaxConnIdleTime
+			}
+			healthCheck := defaultSessionPoolHealthCheckPeriod
+			if config.SessionPoolHealthCheckPeriod > 0 {
+				healthCheck = config.SessionPoolHealthCheckPeriod
+			}
+			connectTimeout := defaultSessionPoolConnectTimeout
+			if config.SessionPoolConnectTimeout > 0 {
+				connectTimeout = config.SessionPoolConnectTimeout
+			}
+
+			poolConfig.MaxConns = int32(maxConns)
+			poolConfig.MinConns = int32(minConns)
+			poolConfig.MaxConnLifetime = maxLifetime
+			poolConfig.MaxConnIdleTime = maxIdle
+			poolConfig.HealthCheckPeriod = healthCheck
+			poolConfig.ConnConfig.ConnectTimeout = connectTimeout
+
+			pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+			if err != nil {
+				if config.RequireSessionDatabase {
+					return nil, fmt.Errorf("failed to create session DB pool: %w", err)
+				}
+				logger.Warn("Failed to create session DB pool: %v", err)
+			} else if err := pool.Ping(ctx); err != nil {
 				pool.Close()
 				if config.RequireSessionDatabase {
-					return nil, fmt.Errorf("failed to initialize session schema: %w", err)
+					return nil, fmt.Errorf("failed to ping session DB: %w", err)
 				}
-				logger.Warn("Failed to initialize session schema: %v", err)
+				logger.Warn("Failed to ping session DB: %v", err)
 			} else {
-				dbStateStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindState)
-				dbHistoryStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindTurn)
-				if err := dbStateStore.EnsureSchema(ctx); err != nil {
+				dbSessionStore := postgresstore.New(pool)
+				if err := dbSessionStore.EnsureSchema(ctx); err != nil {
 					pool.Close()
 					if config.RequireSessionDatabase {
-						return nil, fmt.Errorf("failed to initialize snapshot schema: %w", err)
+						return nil, fmt.Errorf("failed to initialize session schema: %w", err)
 					}
-					logger.Warn("Failed to initialize snapshot schema: %v", err)
-				} else if err := dbHistoryStore.EnsureSchema(ctx); err != nil {
-					pool.Close()
-					if config.RequireSessionDatabase {
-						return nil, fmt.Errorf("failed to initialize history schema: %w", err)
-					}
-					logger.Warn("Failed to initialize history schema: %v", err)
+					logger.Warn("Failed to initialize session schema: %v", err)
 				} else {
-					sessionDB = pool
-					sessionStore = dbSessionStore
-					stateStore = dbStateStore
-					historyStore = dbHistoryStore
-					memoryStore = memory.NewPostgresStore(pool)
-					logger.Info("Session persistence backed by Postgres")
+					dbStateStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindState)
+					dbHistoryStore := sessionstate.NewPostgresStore(pool, sessionstate.SnapshotKindTurn)
+					if err := dbStateStore.EnsureSchema(ctx); err != nil {
+						pool.Close()
+						if config.RequireSessionDatabase {
+							return nil, fmt.Errorf("failed to initialize snapshot schema: %w", err)
+						}
+						logger.Warn("Failed to initialize snapshot schema: %v", err)
+					} else if err := dbHistoryStore.EnsureSchema(ctx); err != nil {
+						pool.Close()
+						if config.RequireSessionDatabase {
+							return nil, fmt.Errorf("failed to initialize history schema: %w", err)
+						}
+						logger.Warn("Failed to initialize history schema: %v", err)
+					} else {
+						sessionDB = pool
+						sessionStore = dbSessionStore
+						stateStore = dbStateStore
+						historyStore = dbHistoryStore
+						memoryStore = memory.NewPostgresStore(pool)
+						logger.Info("Session persistence backed by Postgres")
+					}
 				}
 			}
 		}
@@ -350,6 +406,7 @@ func BuildContainer(config Config) (*Container, error) {
 			BaseURL:             config.BaseURL,
 			MaxTokens:           config.MaxTokens,
 			MaxIterations:       config.MaxIterations,
+			ToolMaxConcurrent:   config.ToolMaxConcurrent,
 			Temperature:         config.Temperature,
 			TemperatureProvided: config.TemperatureProvided,
 			TopP:                config.TopP,

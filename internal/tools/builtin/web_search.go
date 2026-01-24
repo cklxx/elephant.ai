@@ -33,7 +33,7 @@ func NewWebSearch(apiKey string) ports.ToolExecutor {
 
 func newWebSearch(apiKey string, client *http.Client) *webSearch {
 	if client == nil {
-		client = httpclient.New(30*time.Second, nil)
+		client = httpclient.NewWithCircuitBreaker(30*time.Second, nil, "web_search")
 	}
 	return &webSearch{client: client, apiKey: apiKey}
 }

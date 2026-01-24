@@ -640,9 +640,9 @@ func (s *ServerCoordinator) UpdateSessionPersona(ctx context.Context, id string,
 	return session, nil
 }
 
-// ListSessions returns all session IDs
-func (s *ServerCoordinator) ListSessions(ctx context.Context) ([]string, error) {
-	return s.sessionStore.List(ctx)
+// ListSessions returns session IDs with optional pagination.
+func (s *ServerCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
+	return s.sessionStore.List(ctx, limit, offset)
 }
 
 // CreateSession creates a new session record without executing a task.

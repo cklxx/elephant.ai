@@ -39,6 +39,7 @@ const (
 	DefaultLLMModel    = "gpt-4o-mini"
 	DefaultLLMBaseURL  = "https://api.openai.com/v1"
 	DefaultMaxTokens   = 8192
+	DefaultToolMaxConcurrent = 8
 	DefaultACPHost     = "127.0.0.1"
 	DefaultACPPort     = 9000
 	DefaultACPPortFile = ".pids/acp.port"
@@ -76,6 +77,7 @@ type RuntimeConfig struct {
 	FollowStream               bool     `json:"follow_stream" yaml:"follow_stream"`
 	MaxIterations              int      `json:"max_iterations" yaml:"max_iterations"`
 	MaxTokens                  int      `json:"max_tokens" yaml:"max_tokens"`
+	ToolMaxConcurrent          int      `json:"tool_max_concurrent" yaml:"tool_max_concurrent"`
 	UserRateLimitRPS           float64  `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
 	UserRateLimitBurst         int      `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
 	Temperature                float64  `json:"temperature" yaml:"temperature"`
@@ -154,6 +156,7 @@ type Overrides struct {
 	FollowStream               *bool     `json:"follow_stream,omitempty" yaml:"follow_stream,omitempty"`
 	MaxIterations              *int      `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
 	MaxTokens                  *int      `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
+	ToolMaxConcurrent          *int      `json:"tool_max_concurrent,omitempty" yaml:"tool_max_concurrent,omitempty"`
 	UserRateLimitRPS           *float64  `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
 	UserRateLimitBurst         *int      `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
 	Temperature                *float64  `json:"temperature,omitempty" yaml:"temperature,omitempty"`
@@ -255,6 +258,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		FollowStream:               true,
 		MaxIterations:              150,
 		MaxTokens:                  DefaultMaxTokens,
+		ToolMaxConcurrent:          DefaultToolMaxConcurrent,
 		UserRateLimitRPS:           1.0,
 		UserRateLimitBurst:         3,
 		Temperature:                0.7,
@@ -334,6 +338,10 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.CostDir = strings.TrimSpace(cfg.CostDir)
 	cfg.AgentPreset = strings.TrimSpace(cfg.AgentPreset)
 	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
+
+	if cfg.ToolMaxConcurrent <= 0 {
+		cfg.ToolMaxConcurrent = DefaultToolMaxConcurrent
+	}
 
 	if len(cfg.StopSequences) > 0 {
 		filtered := cfg.StopSequences[:0]
@@ -587,6 +595,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.MaxTokens = *parsed.MaxTokens
 		meta.sources["max_tokens"] = SourceFile
 	}
+	if parsed.ToolMaxConcurrent != nil {
+		cfg.ToolMaxConcurrent = *parsed.ToolMaxConcurrent
+		meta.sources["tool_max_concurrent"] = SourceFile
+	}
 	if parsed.UserRateLimitRPS != nil {
 		cfg.UserRateLimitRPS = *parsed.UserRateLimitRPS
 		meta.sources["user_rate_limit_rps"] = SourceFile
@@ -797,6 +809,14 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		}
 		cfg.MaxTokens = parsed
 		meta.sources["max_tokens"] = SourceEnv
+	}
+	if value, ok := lookup("TOOL_MAX_CONCURRENT"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse TOOL_MAX_CONCURRENT: %w", err)
+		}
+		cfg.ToolMaxConcurrent = parsed
+		meta.sources["tool_max_concurrent"] = SourceEnv
 	}
 	if value, ok := lookup("USER_LLM_RPS"); ok && value != "" {
 		parsed, err := strconv.ParseFloat(value, 64)
@@ -1247,6 +1267,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.MaxTokens != nil {
 		cfg.MaxTokens = *overrides.MaxTokens
 		meta.sources["max_tokens"] = SourceOverride
+	}
+	if overrides.ToolMaxConcurrent != nil {
+		cfg.ToolMaxConcurrent = *overrides.ToolMaxConcurrent
+		meta.sources["tool_max_concurrent"] = SourceOverride
 	}
 	if overrides.UserRateLimitRPS != nil {
 		cfg.UserRateLimitRPS = *overrides.UserRateLimitRPS

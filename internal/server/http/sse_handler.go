@@ -1,6 +1,8 @@
 package http
 
 import (
+	"bytes"
+	"container/list"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -10,6 +12,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"alex/internal/agent/domain"
@@ -24,7 +27,100 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
-const inlineAttachmentRetentionLimit = 128 * 1024 // Keep small text blobs inline for preview fallbacks.
+const (
+	inlineAttachmentRetentionLimit = 128 * 1024 // Keep small text blobs inline for preview fallbacks.
+	sseSentAttachmentCacheSize     = 512
+	sseFinalAnswerCacheSize        = 128
+)
+
+var sseJSONBufferPool = sync.Pool{
+	New: func() any {
+		return new(bytes.Buffer)
+	},
+}
+
+type stringLRUEntry struct {
+	key   string
+	value string
+}
+
+type stringLRU struct {
+	capacity int
+	items    map[string]*list.Element
+	order    *list.List
+}
+
+func newStringLRU(capacity int) *stringLRU {
+	if capacity <= 0 {
+		return &stringLRU{capacity: 0}
+	}
+	return &stringLRU{
+		capacity: capacity,
+		items:    make(map[string]*list.Element),
+		order:    list.New(),
+	}
+}
+
+func (c *stringLRU) Len() int {
+	if c == nil || c.capacity <= 0 {
+		return 0
+	}
+	return len(c.items)
+}
+
+func (c *stringLRU) Get(key string) (string, bool) {
+	if c == nil || c.capacity <= 0 {
+		return "", false
+	}
+	entry, ok := c.items[key]
+	if !ok {
+		return "", false
+	}
+	c.order.MoveToFront(entry)
+	val, _ := entry.Value.(stringLRUEntry)
+	return val.value, true
+}
+
+func (c *stringLRU) Set(key, value string) {
+	if c == nil || c.capacity <= 0 {
+		return
+	}
+	if entry, ok := c.items[key]; ok {
+		entry.Value = stringLRUEntry{key: key, value: value}
+		c.order.MoveToFront(entry)
+		return
+	}
+	element := c.order.PushFront(stringLRUEntry{key: key, value: value})
+	c.items[key] = element
+	for len(c.items) > c.capacity {
+		c.evictOldest()
+	}
+}
+
+func (c *stringLRU) Delete(key string) {
+	if c == nil || c.capacity <= 0 {
+		return
+	}
+	if entry, ok := c.items[key]; ok {
+		c.order.Remove(entry)
+		delete(c.items, key)
+	}
+}
+
+func (c *stringLRU) evictOldest() {
+	if c == nil || c.capacity <= 0 || c.order == nil {
+		return
+	}
+	oldest := c.order.Back()
+	if oldest == nil {
+		return
+	}
+	entry, ok := oldest.Value.(stringLRUEntry)
+	if ok {
+		delete(c.items, entry.key)
+	}
+	c.order.Remove(oldest)
+}
 
 // sseAllowlist enumerates events that are relevant to the product surface. Any
 // envelope not present here will be suppressed to keep the frontend stream
@@ -179,8 +275,8 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 	// Create event channel for this client
 	clientChan := make(chan ports.AgentEvent, 100)
-	sentAttachments := make(map[string]string)
-	finalAnswerCache := make(map[string]string)
+	sentAttachments := newStringLRU(sseSentAttachmentCacheSize)
+	finalAnswerCache := newStringLRU(sseFinalAnswerCacheSize)
 
 	// Register client with broadcaster
 	h.broadcaster.RegisterClient(sessionID, clientChan)
@@ -328,24 +424,34 @@ drainComplete:
 }
 
 // serializeEvent converts domain event to JSON
-func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments map[string]string, finalAnswerCache map[string]string) (string, error) {
+func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU) (string, error) {
 	data, err := h.buildEventData(event, sentAttachments, finalAnswerCache, true)
 	if err != nil {
 		return "", err
 	}
 
-	jsonData, err := json.Marshal(data)
-	if err != nil {
+	return marshalSSEPayload(data)
+}
+
+func marshalSSEPayload(data map[string]interface{}) (string, error) {
+	buf := sseJSONBufferPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer sseJSONBufferPool.Put(buf)
+
+	encoder := json.NewEncoder(buf)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(data); err != nil {
 		return "", err
 	}
 
-	return string(jsonData), nil
+	payload := strings.TrimSuffix(buf.String(), "\n")
+	return payload, nil
 }
 
 // buildEventData is the single source of truth for the SSE event envelope the
 // backend emits. It assumes all events have already been translated into
 // workflow.* envelopes.
-func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[string]string, finalAnswerCache map[string]string, streamDeltas bool) (map[string]interface{}, error) {
+func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU, streamDeltas bool) (map[string]interface{}, error) {
 	data := map[string]interface{}{
 		"event_type":     event.EventType(),
 		"timestamp":      event.Timestamp().Format(time.RFC3339Nano),
@@ -436,15 +542,15 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments map[
 		if val, ok := payload["final_answer"].(string); ok {
 			key := envelope.GetTaskID()
 			delta := val
-			if prev, ok := finalAnswerCache[key]; ok && strings.HasPrefix(val, prev) {
+			if prev, ok := finalAnswerCache.Get(key); ok && strings.HasPrefix(val, prev) {
 				delta = strings.TrimPrefix(val, prev)
 			}
 			if key != "" {
 				if isStreaming, ok := payload["is_streaming"].(bool); ok && isStreaming {
-					finalAnswerCache[key] = val
+					finalAnswerCache.Set(key, val)
 				}
 				if finished, ok := payload["stream_finished"].(bool); ok && finished {
-					delete(finalAnswerCache, key)
+					finalAnswerCache.Delete(key)
 				}
 			}
 			payload["final_answer"] = delta
@@ -650,7 +756,7 @@ func sanitizeStringValue(cache *DataCache, value string) interface{} {
 	return value
 }
 
-func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent map[string]string, cache *DataCache, store *AttachmentStore, forceInclude bool) map[string]ports.Attachment {
+func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent *stringLRU, cache *DataCache, store *AttachmentStore, forceInclude bool) map[string]ports.Attachment {
 	if len(attachments) == 0 {
 		return nil
 	}
@@ -661,10 +767,8 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	}
 
 	if forceInclude {
-		if sent != nil {
-			for name, attachment := range sanitized {
-				sent[name] = attachmentDigest(attachment)
-			}
+		for name, attachment := range sanitized {
+			sent.Set(name, attachmentDigest(attachment))
 		}
 		return sanitized
 	}
@@ -672,11 +776,9 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	// Fast-path: when nothing has been sent yet, reuse the original map to
 	// avoid duplicating attachment payloads in memory. We still populate the
 	// sent registry so duplicates can be skipped on later deliveries.
-	if len(sent) == 0 {
-		if sent != nil {
-			for name, attachment := range sanitized {
-				sent[name] = attachmentDigest(attachment)
-			}
+	if sent.Len() == 0 {
+		for name, attachment := range sanitized {
+			sent.Set(name, attachmentDigest(attachment))
 		}
 		return sanitized
 	}
@@ -684,14 +786,14 @@ func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent 
 	var unsent map[string]ports.Attachment
 	for name, attachment := range sanitized {
 		digest := attachmentDigest(attachment)
-		if prevDigest, alreadySent := sent[name]; alreadySent && prevDigest == digest {
+		if prevDigest, alreadySent := sent.Get(name); alreadySent && prevDigest == digest {
 			continue
 		}
 		if unsent == nil {
 			unsent = make(map[string]ports.Attachment)
 		}
 		unsent[name] = attachment
-		sent[name] = digest
+		sent.Set(name, digest)
 	}
 
 	return unsent
@@ -876,7 +978,7 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache, store *A
 	return ensureHTMLPreview(att)
 }
 
-func sanitizeEnvelopePayload(payload map[string]any, sent map[string]string, cache *DataCache, store *AttachmentStore) map[string]any {
+func sanitizeEnvelopePayload(payload map[string]any, sent *stringLRU, cache *DataCache, store *AttachmentStore) map[string]any {
 	if len(payload) == 0 {
 		return nil
 	}
@@ -896,7 +998,7 @@ func sanitizeEnvelopePayload(payload map[string]any, sent map[string]string, cac
 	return sanitized
 }
 
-func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache, store *AttachmentStore) any {
+func sanitizeEnvelopeValue(value any, sent *stringLRU, cache *DataCache, store *AttachmentStore) any {
 	switch v := value.(type) {
 	case nil:
 		return nil
@@ -951,7 +1053,7 @@ func sanitizeEnvelopeValue(value any, sent map[string]string, cache *DataCache, 
 	}
 }
 
-func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent map[string]string, cache *DataCache, store *AttachmentStore) map[string]any {
+func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent *stringLRU, cache *DataCache, store *AttachmentStore) map[string]any {
 	if env == nil {
 		return nil
 	}
@@ -1044,7 +1146,7 @@ func summarizeStepResult(value any) string {
 	}
 }
 
-func sanitizeUntypedAttachments(value any, sent map[string]string, cache *DataCache, store *AttachmentStore) any {
+func sanitizeUntypedAttachments(value any, sent *stringLRU, cache *DataCache, store *AttachmentStore) any {
 	raw, ok := value.(map[string]any)
 	if !ok {
 		return sanitizeEnvelopeValue(value, sent, cache, store)

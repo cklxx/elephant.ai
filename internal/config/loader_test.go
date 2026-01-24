@@ -47,6 +47,9 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.FollowTranscript || !cfg.FollowStream {
 		t.Fatalf("expected follow defaults to be true, got transcript=%v stream=%v", cfg.FollowTranscript, cfg.FollowStream)
 	}
+	if cfg.ToolMaxConcurrent != DefaultToolMaxConcurrent {
+		t.Fatalf("expected default tool_max_concurrent=%d, got %d", DefaultToolMaxConcurrent, cfg.ToolMaxConcurrent)
+	}
 	if cfg.ACPExecutorAddr == "" {
 		t.Fatalf("expected default ACP executor addr to be set")
 	}
@@ -121,6 +124,7 @@ runtime:
   follow_stream: false
   temperature: 0
   max_iterations: 200
+  tool_max_concurrent: 6
   stop_sequences:
     - "DONE"
   session_dir: "~/sessions"
@@ -149,6 +153,9 @@ runtime:
 	}
 	if cfg.MaxIterations != 200 {
 		t.Fatalf("expected max_iterations=200, got %d", cfg.MaxIterations)
+	}
+	if cfg.ToolMaxConcurrent != 6 {
+		t.Fatalf("expected tool_max_concurrent=6, got %d", cfg.ToolMaxConcurrent)
 	}
 	if len(cfg.StopSequences) != 1 || cfg.StopSequences[0] != "DONE" {
 		t.Fatalf("unexpected stop sequences: %#v", cfg.StopSequences)
@@ -212,6 +219,9 @@ runtime:
 	}
 	if meta.Source("temperature") != SourceFile {
 		t.Fatalf("expected temperature source to be file, got %s", meta.Source("temperature"))
+	}
+	if meta.Source("tool_max_concurrent") != SourceFile {
+		t.Fatalf("expected tool_max_concurrent source to be file, got %s", meta.Source("tool_max_concurrent"))
 	}
 	if meta.Source("follow_transcript") != SourceFile {
 		t.Fatalf("expected follow_transcript source to be file, got %s", meta.Source("follow_transcript"))

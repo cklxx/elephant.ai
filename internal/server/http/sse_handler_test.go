@@ -469,7 +469,7 @@ func TestSSEHandlerRejectsInvalidSessionID(t *testing.T) {
 }
 
 func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
-	sent := make(map[string]string)
+	sent := newStringLRU(sseSentAttachmentCacheSize)
 	cache := NewDataCache(4, time.Minute)
 	attachments := map[string]ports.Attachment{
 		"note.txt": {
@@ -531,7 +531,7 @@ func TestSanitizeWorkflowEnvelopePayloadStripsStepResultMessages(t *testing.T) {
 		},
 	}
 
-	payload := sanitizeWorkflowEnvelopePayload(env, make(map[string]string), cache, nil)
+	payload := sanitizeWorkflowEnvelopePayload(env, newStringLRU(sseSentAttachmentCacheSize), cache, nil)
 	res, ok := payload["result"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected sanitized result map, got %T", payload["result"])
@@ -568,7 +568,7 @@ func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache, nil)
+	sanitized := sanitizeEnvelopePayload(raw, newStringLRU(sseSentAttachmentCacheSize), cache, nil)
 	if sanitized == nil {
 		t.Fatalf("expected sanitized payload")
 	}
@@ -595,7 +595,7 @@ func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
 
 func TestSanitizeAttachmentsForStreamPersistsHTMLToStore(t *testing.T) {
 	cache := NewDataCache(4, time.Minute)
-	sent := make(map[string]string)
+	sent := newStringLRU(sseSentAttachmentCacheSize)
 	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("failed to create attachment store: %v", err)
@@ -667,7 +667,7 @@ func TestSanitizeEnvelopePayloadRetainsInlineMarkdown(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeEnvelopePayload(raw, make(map[string]string), cache, nil)
+	sanitized := sanitizeEnvelopePayload(raw, newStringLRU(sseSentAttachmentCacheSize), cache, nil)
 	attachments, ok := sanitized["attachments"].(map[string]ports.Attachment)
 	if !ok {
 		t.Fatalf("expected attachments map, got %T", sanitized["attachments"])

@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"alex/internal/agent/presets"
 	"alex/internal/di"
@@ -29,6 +30,24 @@ func BuildContainer(config Config) (*di.Container, error) {
 		return nil, fmt.Errorf("session database required in production (set session.database_url or auth.database_url in config.yaml)")
 	}
 	diConfig.SessionDatabaseURL = sessionDBURL
+	if config.Session.PoolMaxConns != nil {
+		diConfig.SessionPoolMaxConns = *config.Session.PoolMaxConns
+	}
+	if config.Session.PoolMinConns != nil {
+		diConfig.SessionPoolMinConns = *config.Session.PoolMinConns
+	}
+	if config.Session.PoolMaxConnLifetimeSeconds != nil {
+		diConfig.SessionPoolMaxConnLifetime = time.Duration(*config.Session.PoolMaxConnLifetimeSeconds) * time.Second
+	}
+	if config.Session.PoolMaxConnIdleSeconds != nil {
+		diConfig.SessionPoolMaxConnIdleTime = time.Duration(*config.Session.PoolMaxConnIdleSeconds) * time.Second
+	}
+	if config.Session.PoolHealthCheckSeconds != nil {
+		diConfig.SessionPoolHealthCheckPeriod = time.Duration(*config.Session.PoolHealthCheckSeconds) * time.Second
+	}
+	if config.Session.PoolConnectTimeoutSeconds != nil {
+		diConfig.SessionPoolConnectTimeout = time.Duration(*config.Session.PoolConnectTimeoutSeconds) * time.Second
+	}
 	diConfig.RequireSessionDatabase = requireSessionDB
 	diConfig.ToolMode = string(presets.ToolModeWeb)
 	return di.BuildContainer(diConfig)

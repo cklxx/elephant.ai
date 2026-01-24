@@ -44,7 +44,30 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
 			return err
 		}
 	}
+	if err := s.ensureTrigramIndex(ctx); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (s *PostgresStore) ensureTrigramIndex(ctx context.Context) error {
+	if s == nil || s.pool == nil {
+		return nil
+	}
+
+	var exists bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm')`).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return nil
+	}
+
+	_, err := s.pool.Exec(ctx, `
+CREATE INDEX IF NOT EXISTS idx_user_memories_content_trgm
+ON user_memories USING GIN (content gin_trgm_ops);
+`)
+	return err
 }
 
 // Insert writes a new memory entry.

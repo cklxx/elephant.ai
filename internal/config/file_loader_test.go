@@ -9,6 +9,7 @@ func TestLoadFileConfigExpandsEnv(t *testing.T) {
 	data := []byte(`
 runtime:
   api_key: "${OPENAI_API_KEY}"
+  tool_max_concurrent: 12
 server:
   port: "${PORT}"
   enable_mcp: false
@@ -55,6 +56,9 @@ web:
 	}
 	if cfg.Runtime == nil || cfg.Runtime.APIKey != "secret" {
 		t.Fatalf("expected runtime api key to expand, got %#v", cfg.Runtime)
+	}
+	if cfg.Runtime == nil || cfg.Runtime.ToolMaxConcurrent == nil || *cfg.Runtime.ToolMaxConcurrent != 12 {
+		t.Fatalf("expected tool_max_concurrent to parse, got %#v", cfg.Runtime)
 	}
 	if cfg.Server == nil || cfg.Server.Port != "8081" || cfg.Server.EnableMCP == nil || *cfg.Server.EnableMCP {
 		t.Fatalf("expected server config to expand, got %#v", cfg.Server)

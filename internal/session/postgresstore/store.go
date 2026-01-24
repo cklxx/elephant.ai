@@ -216,8 +216,8 @@ func (s *Store) Save(ctx context.Context, session *ports.Session) error {
 	return s.insert(ctx, session, true)
 }
 
-// List returns all session IDs.
-func (s *Store) List(ctx context.Context) ([]string, error) {
+// List returns session IDs with optional limit/offset pagination.
+func (s *Store) List(ctx context.Context, limit int, offset int) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -225,13 +225,21 @@ func (s *Store) List(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("session store not initialized")
 	}
 
+	if limit <= 0 {
+		limit = 200
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
 	query := fmt.Sprintf(`
 SELECT id
 FROM %s
 ORDER BY updated_at DESC
+LIMIT $1 OFFSET $2
 `, sessionTable)
 
-	rows, err := s.pool.Query(ctx, query)
+	rows, err := s.pool.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, err
 	}

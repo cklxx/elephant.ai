@@ -63,7 +63,7 @@ func NewEmbedder(config EmbedderConfig) (Embedder, error) {
 
 	return &openaiEmbedder{
 		config:     config,
-		httpClient: httpclient.New(60*time.Second, logging.NewComponentLogger("rag-embedder")),
+		httpClient: httpclient.NewWithCircuitBreaker(60*time.Second, logging.NewComponentLogger("rag-embedder"), "rag_embedder"),
 		cache:      cache,
 	}, nil
 }

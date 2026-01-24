@@ -56,11 +56,11 @@ func (r *recordingCoordinator) PrepareExecution(ctx context.Context, task string
 	return nil, nil
 }
 
-func (r *recordingCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+func (r *recordingCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
 	return nil
 }
 
-func (r *recordingCoordinator) ListSessions(ctx context.Context) ([]string, error) {
+func (r *recordingCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
 	return nil, nil
 }
 
