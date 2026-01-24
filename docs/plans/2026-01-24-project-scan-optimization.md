@@ -37,6 +37,9 @@
   - HTTP/SSE: gzip compression for non-stream responses, SSE per-connection LRU caches, non-stream timeout guard.
   - Web: SSE final-event indexing, streaming markdown deferral, memoization of ConversationMainArea/ArtifactPreviewCard, cached Intl/tool icons, removed react-syntax-highlighter + duplicate logo asset.
   - Tests: added file_edit/list_files/memory_recall tool tests.
+- 2026-01-24: Closed remaining items:
+  - Event broadcaster copy-on-write client map, event history retention pruning, session cache with updated_at validation, shared web_fetch client.
+  - Enabled pgx statement cache, added web CI jobs + bundle analyzer, memoized ConversationHeader/QuickPromptButtons.
 
 ## Summary of All Findings
 
@@ -57,15 +60,7 @@
 | Tool coverage gaps | internal/tools/builtin/*_test.go | Added tests |
 
 ### Remaining High-Priority Items
-| Issue | File | Impact |
-|-------|------|--------|
-| Event broadcaster lock strategy | internal/server/app/event_broadcaster.go | Contention avoidance |
-| Event history retention policy | postgres_event_history_store.go | DB growth control |
-| Session LRU cache | internal/session/postgresstore/store.go | DB load reduction |
-| Shared http.Client for web_fetch | internal/tools/builtin/web_fetch.go | Connection reuse |
-| Prepared statements for hot paths | DB stores | Query CPU |
-| Bundle analyzer + web CI jobs | .github/workflows/ci.yml | Regression visibility |
-| Memoization for remaining web hotspots | web/components/* | Re-render reduction |
+- None. All validated items have been addressed.
 
 ### Architecture Observations
 - Good: Virtual scrolling, event buffering, LRU caches, TypeScript strict mode.

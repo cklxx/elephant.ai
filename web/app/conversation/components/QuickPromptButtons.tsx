@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { memo } from "react";
 
 import { Button } from "@/components/ui/button";
 
@@ -14,7 +15,10 @@ interface QuickPromptButtonsProps {
   onSelect: (prompt: string) => void;
 }
 
-export function QuickPromptButtons({ items, onSelect }: QuickPromptButtonsProps) {
+export const QuickPromptButtons = memo(function QuickPromptButtons({
+  items,
+  onSelect,
+}: QuickPromptButtonsProps) {
   return (
     <div className="mt-3 flex flex-wrap justify-center gap-2">
       {items.map((item) => (
@@ -32,4 +36,4 @@ export function QuickPromptButtons({ items, onSelect }: QuickPromptButtonsProps)
       ))}
     </div>
   );
-}
+});

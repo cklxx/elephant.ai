@@ -30,7 +30,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
    - `internal/server/app/event_broadcaster.go`
    - Multiple mutexes are used but not held simultaneously; no deadlock observed.
    - Risk: high event volume can contend on `mu`/`historyMu`/`taskMu`.
-   - Fix: measure with pprof; simplify lock strategy if hot.
+   - Status: ✅ replaced client map with copy-on-write + atomic reads to remove hot read locks.
 
 5. **JSON pretty-print logging on LLM responses**
    - `internal/llm/anthropic_client.go`, `internal/llm/openai_client.go`, `internal/llm/openai_responses_client.go`, `internal/llm/antigravity_client.go`
@@ -45,6 +45,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 7. **web_fetch HTTP client per tool instance**
    - `internal/tools/builtin/web_fetch.go`
    - If tool instances are short-lived, consider a shared `http.Client` to reuse pools.
+   - Status: ✅ shared singleton client; removed background cleanup goroutine.
 
 ---
 
@@ -72,7 +73,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 
 5. **Missing React.memo on high-frequency components**
    - Only 2 memoized components found (EventLine, ToolCallCard).
-   - Status: ⚠️ partially addressed (memoized `ArtifactPreviewCard` and `ConversationMainArea`); remaining hotspots still pending.
+   - Status: ✅ memoized `ArtifactPreviewCard`, `ConversationMainArea`, `ConversationHeader`, `QuickPromptButtons`.
 
 6. **Event state recomputation**
    - `web/hooks/useAgentStreamStore.ts`
@@ -124,6 +125,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 2. **Prepared statements not used in hot DB paths**
    - Session/memory/history stores use Exec/Query without prepare
    - Impact: parse/plan overhead per call; measure before adding.
+   - Status: ✅ enabled pgx statement cache and cached exec mode for session DB pool.
 
 #### HIGH (P1)
 
@@ -152,7 +154,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 2. **Unbounded event history storage growth**
    - `internal/server/app/postgres_event_history_store.go`
    - Impact: DB storage grows indefinitely without retention policy
-   - Fix: add TTL or archival job.
+   - Status: ✅ added retention window with periodic pruning.
 
 3. **io.ReadAll without size limits (OOM risk)**
    - `internal/llm/anthropic_client.go`, `internal/llm/openai_client.go`
@@ -186,7 +188,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 
 3. **Session JSON parsing on every Get()**
    - `internal/session/postgresstore/store.go`
-   - Fix: optional small LRU cache if session reads dominate.
+   - Status: ✅ added LRU cache with updated_at validation to avoid redundant JSON parsing.
 
 ---
 
@@ -209,7 +211,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 4. **Event broadcaster lock order complexity**
    - `internal/server/app/event_broadcaster.go`
    - Multiple locks are used; no deadlock observed, but contention and ordering complexity are risks.
-   - Fix: document lock order or consolidate under a single lock if needed.
+   - Status: ✅ removed hot-path RW locks via copy-on-write client map.
 
 5. **MCP process restart loses monitor goroutines**
    - `internal/mcp/process.go`
@@ -245,7 +247,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 2. **Large unmemoized components**
    - `web/components/agent/ArtifactPreviewCard.tsx` (1016 lines)
    - `web/app/conversation/components/ConversationMainArea.tsx` (30+ props)
-   - Fix: add memoization and split rendering.
+   - Status: ✅ memoized heavy components and reduced prop churn.
 
 3. **Minimal memo usage in web UI**
    - Only 2 memoized components found (EventLine, ToolCallCard)
@@ -259,7 +261,7 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 
 5. **No bundle analyzer in CI**
    - Bundle regressions are not tracked.
-   - Fix: add bundle size monitoring job.
+   - Status: ✅ added bundle analyzer job in CI.
 
 ---
 
@@ -273,12 +275,12 @@ Repo-wide scan identified ~40 optimization opportunities. This entry reflects va
 | P0 | Add startup migration timeout | server.go, session_migration.go | 15m | Startup reliability | ✅ Done |
 | P0 | Remove react-syntax-highlighter | web/package.json | 15m | Smaller deps | ✅ Done |
 | P1 | Reduce scanner max buffer / pool | openai_client.go | 1h | Lower RSS under load | ✅ Done |
-| P1 | Event broadcaster lock strategy | event_broadcaster.go | 2h | Contention avoidance | Pending |
+| P1 | Event broadcaster lock strategy | event_broadcaster.go | 2h | Contention avoidance | ✅ Done |
 | P1 | GIN trigram index for memory content | migrations | 30m | Recall speed | ✅ Done |
-| P1 | Memo heavy components | ArtifactPreviewCard.tsx | 30m | Re-render reduction | ⚠️ Partial |
+| P1 | Memo heavy components | ArtifactPreviewCard.tsx | 30m | Re-render reduction | ✅ Done |
 | P1 | Gzip compression middleware | server/http | 1h | Bandwidth reduction | ✅ Done |
 | P2 | Cache Intl formatters | web/lib/utils.ts | 30m | Minor CPU | ✅ Done |
-| P2 | Session LRU cache | internal/session/postgresstore/store.go | 1h | DB load reduction | Pending |
-| P2 | Shared http.Client for web_fetch | web_fetch.go | 30m | Connection reuse | Pending |
-| P2 | Prepared statements for hot paths | DB stores | 2h | Query CPU | Pending |
-| P2 | Bundle analyzer in CI | web/ci | 1h | Visibility | Pending |
+| P2 | Session LRU cache | internal/session/postgresstore/store.go | 1h | DB load reduction | ✅ Done |
+| P2 | Shared http.Client for web_fetch | web_fetch.go | 30m | Connection reuse | ✅ Done |
+| P2 | Prepared statements for hot paths | DB stores | 2h | Query CPU | ✅ Done |
+| P2 | Bundle analyzer in CI | web/ci | 1h | Visibility | ✅ Done |

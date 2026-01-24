@@ -43,3 +43,4 @@
 - 2026-01-24: Added LLM response size caps, reduced stream scanner buffer, removed pretty JSON logging, and fixed MCP restart stop channel.
 - 2026-01-24: Added non-stream migration timeout, API list caps, cached Intl/tool icons, SSE final-event indexing, and streaming markdown deferral.
 - 2026-01-24: Memoized ConversationMainArea + ArtifactPreviewCard, removed react-syntax-highlighter + duplicate logo, and added missing tool tests.
+- 2026-01-24: Removed event broadcaster hot-path locks via copy-on-write, added event history retention pruning, session cache, shared web_fetch client, pgx statement cache, web CI + bundle analyzer, and memoized ConversationHeader/QuickPromptButtons.

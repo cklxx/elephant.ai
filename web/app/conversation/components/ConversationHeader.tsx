@@ -7,6 +7,7 @@ import {
   Share2,
   Sparkles,
 } from "lucide-react";
+import { memo } from "react";
 
 import { Header } from "@/components/layout";
 import { Button } from "@/components/ui/button";
@@ -25,7 +26,7 @@ interface ConversationHeaderProps {
   shareDisabled: boolean;
 }
 
-export function ConversationHeader({
+export const ConversationHeader = memo(function ConversationHeader({
   title,
   isSidebarOpen,
   onToggleSidebar,
@@ -119,4 +120,4 @@ export function ConversationHeader({
       }
     />
   );
-}
+});

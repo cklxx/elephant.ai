@@ -21,6 +21,7 @@ defaults:
 
 env:
   GO_VERSION: "1.24.11"
+  NODE_VERSION: "20"
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -46,6 +47,62 @@ jobs:
         with:
           version: v1.64.8
           args: --timeout=5m --out-format=colored-line-number
+
+  web:
+    name: 🌐 Web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm --prefix web ci
+
+      - name: 🔍 Web lint
+        run: npm --prefix web run lint
+
+      - name: 🧪 Web tests
+        run: npm --prefix web run test
+
+      - name: 🏗️ Web build
+        run: npm --prefix web run build
+
+  web-analyze:
+    name: 📦 Web Bundle Analyze
+    runs-on: ubuntu-latest
+    needs: web
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm --prefix web ci
+
+      - name: 📊 Bundle analyze
+        run: npm --prefix web run analyze
+
+      - name: 📦 Upload bundle report
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-bundle-analyze
+          path: web/.next/analyze
+          if-no-files-found: error
 
   test:
     name: 🧪 Test

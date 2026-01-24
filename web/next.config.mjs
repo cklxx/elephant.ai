@@ -1,5 +1,8 @@
+import bundleAnalyzer from '@next/bundle-analyzer';
+
 const repositoryName = process.env.NEXT_PUBLIC_BASE_PATH || '';
 const assetPrefix = process.env.NEXT_PUBLIC_ASSET_PREFIX || repositoryName || undefined;
+const withBundleAnalyzer = bundleAnalyzer({ enabled: process.env.ANALYZE === 'true' });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -23,4 +26,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
