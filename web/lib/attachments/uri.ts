@@ -3,7 +3,57 @@ import type { AttachmentPayload } from "@/lib/types";
 
 type PreviewAsset = NonNullable<AttachmentPayload["preview_assets"]>[number];
 
+const DEFAULT_BLOB_URL_CACHE_LIMIT = 200;
+const BLOB_URL_CACHE_LIMIT = (() => {
+  const raw =
+    typeof process !== "undefined"
+      ? Number(process.env.NEXT_PUBLIC_BLOB_URL_CACHE_LIMIT)
+      : Number.NaN;
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_BLOB_URL_CACHE_LIMIT;
+})();
 const BLOB_URL_CACHE = new Map<string, string>();
+
+function hashValue(value: string): string {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function rememberBlobUrl(cacheKey: string, url: string): void {
+  if (BLOB_URL_CACHE.has(cacheKey)) {
+    BLOB_URL_CACHE.delete(cacheKey);
+  }
+  BLOB_URL_CACHE.set(cacheKey, url);
+
+  if (BLOB_URL_CACHE.size <= BLOB_URL_CACHE_LIMIT) {
+    return;
+  }
+
+  const revoke =
+    typeof URL !== "undefined" && typeof URL.revokeObjectURL === "function"
+      ? URL.revokeObjectURL.bind(URL)
+      : null;
+  while (BLOB_URL_CACHE.size > BLOB_URL_CACHE_LIMIT) {
+    const oldest = BLOB_URL_CACHE.entries().next().value as
+      | [string, string]
+      | undefined;
+    if (!oldest) {
+      return;
+    }
+    const [oldKey, oldUrl] = oldest;
+    BLOB_URL_CACHE.delete(oldKey);
+    if (revoke) {
+      try {
+        revoke(oldUrl);
+      } catch {
+        // Ignore revoke errors to avoid breaking rendering paths.
+      }
+    }
+  }
+}
 
 function toTrimmedString(value: unknown): string | undefined {
   return typeof value === "string" ? value.trim() : undefined;
@@ -11,7 +61,6 @@ function toTrimmedString(value: unknown): string | undefined {
 
 function canCreateBlobUrl(): boolean {
   return (
-    typeof window !== "undefined" &&
     typeof URL !== "undefined" &&
     typeof URL.createObjectURL === "function" &&
     typeof Blob !== "undefined"
@@ -49,13 +98,14 @@ function buildBlobUrlFromBytes(
   }
   const existing = BLOB_URL_CACHE.get(cacheKey);
   if (existing) {
+    rememberBlobUrl(cacheKey, existing);
     return existing;
   }
   try {
     const payload = new Uint8Array(bytes).buffer;
     const blob = new Blob([payload], { type: mediaType });
     const url = URL.createObjectURL(blob);
-    BLOB_URL_CACHE.set(cacheKey, url);
+    rememberBlobUrl(cacheKey, url);
     return url;
   } catch {
     return null;
@@ -69,7 +119,7 @@ function buildBlobUrlFromBase64(
   if (!canCreateBlobUrl()) {
     return null;
   }
-  const cacheKey = `base64:${mediaType}:${base64}`;
+  const cacheKey = `base64:${mediaType}:${base64.length}:${hashValue(base64)}`;
   const bytes = decodeBase64ToBytes(base64);
   if (!bytes) {
     return null;
@@ -84,8 +134,10 @@ function buildBlobUrlFromDataUri(dataUri: string): string | null {
   if (!dataUri.startsWith("data:")) {
     return null;
   }
-  const cached = BLOB_URL_CACHE.get(`data:${dataUri}`);
+  const cacheKey = `data:${dataUri.length}:${hashValue(dataUri)}`;
+  const cached = BLOB_URL_CACHE.get(cacheKey);
   if (cached) {
+    rememberBlobUrl(cacheKey, cached);
     return cached;
   }
   const match = /^data:([^,]*),(.*)$/.exec(dataUri);
@@ -101,7 +153,7 @@ function buildBlobUrlFromDataUri(dataUri: string): string | null {
     if (!bytes) {
       return null;
     }
-    return buildBlobUrlFromBytes(`data:${dataUri}`, bytes, mediaType);
+    return buildBlobUrlFromBytes(cacheKey, bytes, mediaType);
   }
 
   try {
@@ -111,7 +163,7 @@ function buildBlobUrlFromDataUri(dataUri: string): string | null {
     if (bytes.length === 0) {
       return null;
     }
-    return buildBlobUrlFromBytes(`data:${dataUri}`, bytes, mediaType);
+    return buildBlobUrlFromBytes(cacheKey, bytes, mediaType);
   } catch {
     return null;
   }

@@ -4,6 +4,8 @@
 
 This document explains how the ALEX agent executes work across the backend. It describes the reasoning loop, delivery surfaces, dependency injection container, and how infrastructure adapters plug into the domain ports.
 
+Contributor note: cklxx may ask other agent assistants to make changes; only commit your own changes, resolve conflicts, and never roll back code.
+
 ---
 
 ## 🌍 Delivery Context

@@ -13,6 +13,9 @@ runtime:
 #   port: "8080"
 #   enable_mcp: true
 #   max_task_body_bytes: 20971520
+#   stream_max_duration_seconds: 7200
+#   stream_max_bytes: 67108864
+#   stream_max_concurrent: 128
 #   allowed_origins:
 #     - "http://localhost:3000"
 # auth:

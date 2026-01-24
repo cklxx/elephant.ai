@@ -171,6 +171,11 @@ func RunServer(observabilityConfigPath string) error {
 		evaluationService,
 		obs,
 		config.MaxTaskBodyBytes,
+		serverHTTP.StreamGuardConfig{
+			MaxDuration:   config.StreamMaxDuration,
+			MaxBytes:      config.StreamMaxBytes,
+			MaxConcurrent: config.StreamMaxConcurrent,
+		},
 		config.Attachment,
 	)
 

@@ -1,16 +1,16 @@
 <p align="center">
-    <img src="web/public/elephant.jpeg" alt="elephant.ai mascot" width="76" height="76" style="border-radius:20px; object-fit:cover; box-shadow:0 10px 32px -24px rgba(0,0,0,0.45);" />
+    <img src="web/public/elephant.jpeg" alt="elephant.ai mascot" width="76" height="76" style="border-radius:20px; object-fit:cover; border:1px solid rgba(15,23,42,0.18);" />
 </p>
 
 # elephant.ai
 
-elephant.ai is a unified runtime for production-grade AI agents: the `alex` CLI/TUI, `alex-server`, and web UI share one execution core, typed event stream, and observability pipeline. Build once, run everywhere, and render the same session in terminals and the browser.
-
-**One-line pitch:** A single runtime that ships agentic workflows across CLI, server, and web with typed events, evals, and cost/trace accountability.
-
 [![CI](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml/badge.svg)](https://github.com/cklxx/Alex-Code/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+elephant.ai is a unified runtime for production-grade AI agents: the `alex` CLI/TUI, `alex-server`, and web UI share one execution core, typed event stream, and observability pipeline. Build once, run everywhere, and render the same session in terminals and the browser.
+
+**One-line pitch:** A single runtime that ships agentic workflows across CLI, server, and web with typed events, evals, and cost/trace accountability.
 
 ---
 
@@ -19,7 +19,7 @@ elephant.ai is a unified runtime for production-grade AI agents: the `alex` CLI/
 * One runtime, three entrypoints (CLI/TUI, server, dashboard) backed by the same DI container.
 * OpenAI chat + Responses API, Anthropic Claude API, and OpenAI-compatible gateways (OpenRouter/DeepSeek/Antigravity).
 * `llm_provider: auto` (or `cli`) picks the best available subscription from CLI auth + env keys (Codex/Antigravity/Claude/OpenAI).
-* Typed, artifact-aware events that render identically in terminals and the web UI.
+* Typed, artifact-aware events render identically in terminals and the web UI.
 * Built-in observability: structured logs, OpenTelemetry traces, Prometheus metrics, and per-session cost accounting.
 * Retrieval layers for memory, skills, docs, and external context plus approvals for risky actions.
 * Evaluation harnesses (including SWE-Bench) live in-repo for parity between manual and automated runs.
@@ -77,7 +77,9 @@ Configuration is shared across every surface. Use `examples/config/runtime-confi
 ./dev.sh down
 ```
 
-### Demo (10 minutes)
+---
+
+## Demo (10 minutes)
 
 ![Demo preview](docs/assets/demo.svg)
 
@@ -93,11 +95,11 @@ Expected:
 
 ---
 
-## Proof points
+## Operations & quality gates
 
-* Evaluation harnesses + reproducible results: `evaluation/` and `evaluation_results/`.
 * Quality gates (Go + web): `./dev.sh lint`, `./dev.sh test`, and `npm --prefix web run e2e`.
-* Typed events and cost tracking live in `internal/agent/` and `internal/observability/`.
+* Evaluation harnesses + reproducible results: `evaluation/` and `evaluation_results/`.
+* Observability stack: `internal/observability/` (logs, traces, metrics, cost accounting).
 
 ---
 

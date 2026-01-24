@@ -577,8 +577,23 @@ func sanitizeValue(cache *DataCache, value interface{}) interface{} {
 		return nil
 	}
 
-	if str, ok := value.(string); ok {
-		return sanitizeStringValue(cache, str)
+	switch typed := value.(type) {
+	case string:
+		return sanitizeStringValue(cache, typed)
+	case []byte:
+		return sanitizeStringValue(cache, string(typed))
+	case map[string]any:
+		sanitized := make(map[string]any, len(typed))
+		for key, val := range typed {
+			sanitized[key] = sanitizeValue(cache, val)
+		}
+		return sanitized
+	case []any:
+		out := make([]any, len(typed))
+		for i, entry := range typed {
+			out[i] = sanitizeValue(cache, entry)
+		}
+		return out
 	}
 
 	rv := reflect.ValueOf(value)

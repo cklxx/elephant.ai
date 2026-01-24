@@ -369,6 +369,10 @@ func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
 
 // storeEventHistory stores an event in the session's history
 func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.AgentEvent) {
+	event = sanitizeEventForHistory(event)
+	if event == nil {
+		return
+	}
 	if b.historyStore != nil {
 		if err := b.historyStore.Append(context.Background(), event); err != nil {
 			b.logger.Warn("Failed to persist event history for session %s: %v", sessionID, err)
@@ -395,6 +399,10 @@ func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.
 }
 
 func (b *EventBroadcaster) storeGlobalEvent(event agentports.AgentEvent) {
+	event = sanitizeEventForHistory(event)
+	if event == nil {
+		return
+	}
 	if b.historyStore != nil {
 		if err := b.historyStore.Append(context.Background(), event); err != nil {
 			b.logger.Warn("Failed to persist global event history: %v", err)
@@ -408,6 +416,55 @@ func (b *EventBroadcaster) storeGlobalEvent(event agentports.AgentEvent) {
 	b.globalHistory = append(b.globalHistory, event)
 	if len(b.globalHistory) > b.maxHistory {
 		b.globalHistory = b.globalHistory[len(b.globalHistory)-b.maxHistory:]
+	}
+}
+
+func sanitizeEventForHistory(event agentports.AgentEvent) agentports.AgentEvent {
+	if event == nil {
+		return nil
+	}
+	if wrapper, ok := event.(agentports.SubtaskWrapper); ok && wrapper != nil {
+		if setter, ok := event.(interface{ SetWrappedEvent(agentports.AgentEvent) }); ok {
+			if sanitized := sanitizeBaseEventForHistory(wrapper.WrappedEvent()); sanitized != nil {
+				setter.SetWrappedEvent(sanitized)
+			}
+		}
+		return event
+	}
+
+	return sanitizeBaseEventForHistory(event)
+}
+
+func sanitizeBaseEventForHistory(event agentports.AgentEvent) agentports.AgentEvent {
+	if event == nil {
+		return nil
+	}
+	base := BaseAgentEvent(event)
+	if base == nil {
+		return nil
+	}
+
+	switch e := base.(type) {
+	case *domain.WorkflowEventEnvelope:
+		cloned := *e
+		if e.Payload != nil {
+			if cleaned, ok := stripBinaryPayloadsWithStore(e.Payload, nil).(map[string]any); ok {
+				cloned.Payload = cleaned
+			}
+		}
+		return &cloned
+	case *domain.WorkflowInputReceivedEvent:
+		cloned := *e
+		if len(e.Attachments) > 0 {
+			if cleaned, ok := stripBinaryPayloadsWithStore(e.Attachments, nil).(map[string]agentports.Attachment); ok {
+				cloned.Attachments = cleaned
+			}
+		}
+		return &cloned
+	case *domain.WorkflowDiagnosticContextSnapshotEvent:
+		return base
+	default:
+		return base
 	}
 }
 

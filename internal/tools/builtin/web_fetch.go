@@ -1,6 +1,7 @@
 package builtin
 
 import (
+	"container/list"
 	"context"
 	"crypto/md5"
 	"encoding/base64"
@@ -22,22 +23,26 @@ import (
 
 // webFetch implements web content fetching with caching and optional LLM processing
 type webFetch struct {
-	httpClient *http.Client
-	llmClient  ports.LLMClient // Optional LLM for content analysis
-	cache      *fetchCache
+	httpClient      *http.Client
+	llmClient       ports.LLMClient // Optional LLM for content analysis
+	cache           *fetchCache
+	maxContentBytes int
 }
 
 // fetchCache manages URL content cache with TTL
 type fetchCache struct {
-	entries map[string]*cacheEntry
-	mu      sync.RWMutex
-	ttl     time.Duration
+	entries    map[string]*cacheEntry
+	order      *list.List
+	mu         sync.Mutex
+	ttl        time.Duration
+	maxEntries int
 }
 
 type cacheEntry struct {
 	content   string
 	timestamp time.Time
 	url       string
+	element   *list.Element
 }
 
 func NewWebFetch(cfg WebFetchConfig) ports.ToolExecutor {
@@ -46,10 +51,23 @@ func NewWebFetch(cfg WebFetchConfig) ports.ToolExecutor {
 
 // NewWebFetchWithLLM creates web_fetch with optional LLM client for analysis
 func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.ToolExecutor {
-	_ = cfg
+	cacheTTL := cfg.CacheTTL
+	if cacheTTL <= 0 {
+		cacheTTL = 15 * time.Minute
+	}
+	cacheMaxEntries := cfg.CacheMaxEntries
+	if cacheMaxEntries <= 0 {
+		cacheMaxEntries = 256
+	}
+	maxContentBytes := cfg.CacheMaxContentBytes
+	if maxContentBytes <= 0 {
+		maxContentBytes = 2 * 1024 * 1024
+	}
 	cache := &fetchCache{
-		entries: make(map[string]*cacheEntry),
-		ttl:     15 * time.Minute,
+		entries:    make(map[string]*cacheEntry),
+		order:      list.New(),
+		ttl:        cacheTTL,
+		maxEntries: cacheMaxEntries,
 	}
 
 	tool := &webFetch{
@@ -63,8 +81,9 @@ func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.Too
 				return nil
 			},
 		},
-		llmClient: llmClient,
-		cache:     cache,
+		llmClient:       llmClient,
+		cache:           cache,
+		maxContentBytes: maxContentBytes,
 	}
 
 	// Start background cache cleanup
@@ -192,11 +211,13 @@ func (t *webFetch) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	// Cache the result
-	t.cache.put(cacheKey, &cacheEntry{
-		content:   content,
-		timestamp: time.Now(),
-		url:       finalURL,
-	})
+	if t.maxContentBytes <= 0 || len(content) <= t.maxContentBytes {
+		t.cache.put(cacheKey, &cacheEntry{
+			content:   content,
+			timestamp: time.Now(),
+			url:       finalURL,
+		})
+	}
 
 	return t.buildResult(call.ID, finalURL, content, false, call.Arguments["prompt"])
 }
@@ -500,13 +521,20 @@ func (c *fetchCache) key(url string) string {
 }
 
 func (c *fetchCache) get(key string) *cacheEntry {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	if entry, ok := c.entries[key]; ok {
 		if time.Since(entry.timestamp) < c.ttl {
+			if entry.element != nil {
+				c.order.MoveToFront(entry.element)
+			}
 			return entry
 		}
+		if entry.element != nil {
+			c.order.Remove(entry.element)
+		}
+		delete(c.entries, key)
 	}
 	return nil
 }
@@ -514,7 +542,38 @@ func (c *fetchCache) get(key string) *cacheEntry {
 func (c *fetchCache) put(key string, entry *cacheEntry) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if existing, ok := c.entries[key]; ok {
+		existing.content = entry.content
+		existing.timestamp = entry.timestamp
+		existing.url = entry.url
+		if existing.element != nil {
+			c.order.MoveToFront(existing.element)
+		}
+		return
+	}
+	element := c.order.PushFront(key)
+	entry.element = element
 	c.entries[key] = entry
+	for len(c.entries) > c.maxEntries {
+		c.evictLocked()
+	}
+}
+
+func (c *fetchCache) evictLocked() {
+	if len(c.entries) == 0 || c.order == nil {
+		return
+	}
+	oldest := c.order.Back()
+	if oldest == nil {
+		return
+	}
+	key, ok := oldest.Value.(string)
+	if !ok {
+		c.order.Remove(oldest)
+		return
+	}
+	delete(c.entries, key)
+	c.order.Remove(oldest)
 }
 
 func (c *fetchCache) startCleanup() {
@@ -525,6 +584,9 @@ func (c *fetchCache) startCleanup() {
 		c.mu.Lock()
 		for key, entry := range c.entries {
 			if time.Since(entry.timestamp) > c.ttl {
+				if entry.element != nil {
+					c.order.Remove(entry.element)
+				}
 				delete(c.entries, key)
 			}
 		}

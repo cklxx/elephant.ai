@@ -111,6 +111,9 @@ apps:
 - `enable_mcp`：是否启用 MCP 探针（默认 `true`）。
 - `max_task_body_bytes`：`/api/tasks` POST 请求体上限（字节，默认 20 MiB）。
 - `allowed_origins`：CORS 允许来源列表。
+- `stream_max_duration_seconds`：流式请求最大持续时间（秒，默认 2h）。
+- `stream_max_bytes`：单条流式连接最大输出字节数（默认 64 MiB）。
+- `stream_max_concurrent`：同时允许的流式连接数（默认 128）。
 
 ### auth
 

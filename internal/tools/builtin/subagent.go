@@ -393,3 +393,11 @@ func (e *SubtaskEvent) WrappedEvent() ports.AgentEvent {
 	}
 	return e.OriginalEvent
 }
+
+// SetWrappedEvent updates the underlying event for sanitization pipelines.
+func (e *SubtaskEvent) SetWrappedEvent(event ports.AgentEvent) {
+	if e == nil {
+		return
+	}
+	e.OriginalEvent = event
+}

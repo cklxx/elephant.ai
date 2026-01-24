@@ -73,10 +73,13 @@ type AppPluginConfig struct {
 
 // ServerConfig captures server-specific YAML configuration.
 type ServerConfig struct {
-	Port             string   `yaml:"port"`
-	EnableMCP        *bool    `yaml:"enable_mcp"`
-	MaxTaskBodyBytes *int64   `yaml:"max_task_body_bytes"`
-	AllowedOrigins   []string `yaml:"allowed_origins"`
+	Port                     string   `yaml:"port"`
+	EnableMCP                *bool    `yaml:"enable_mcp"`
+	MaxTaskBodyBytes         *int64   `yaml:"max_task_body_bytes"`
+	AllowedOrigins           []string `yaml:"allowed_origins"`
+	StreamMaxDurationSeconds *int     `yaml:"stream_max_duration_seconds"`
+	StreamMaxBytes           *int64   `yaml:"stream_max_bytes"`
+	StreamMaxConcurrent      *int     `yaml:"stream_max_concurrent"`
 }
 
 // AuthConfig captures authentication configuration stored in YAML.

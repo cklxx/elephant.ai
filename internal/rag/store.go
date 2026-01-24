@@ -49,6 +49,11 @@ type VectorStore interface {
 	Close() error
 }
 
+// MetadataDeleter allows removing documents by metadata filters when supported by the backend.
+type MetadataDeleter interface {
+	DeleteByMetadata(ctx context.Context, metadata map[string]string) error
+}
+
 // chromemStore implements VectorStore using chromem-go
 type chromemStore struct {
 	db         *chromem.DB
@@ -177,6 +182,14 @@ func (s *chromemStore) Delete(ctx context.Context, ids []string) error {
 	}
 
 	return nil
+}
+
+// DeleteByMetadata removes documents matching the provided metadata filters.
+func (s *chromemStore) DeleteByMetadata(ctx context.Context, metadata map[string]string) error {
+	if len(metadata) == 0 {
+		return nil
+	}
+	return s.collection.Delete(ctx, nil, metadata)
 }
 
 // Count returns total document count

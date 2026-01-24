@@ -13,17 +13,20 @@ import (
 
 // Config holds server configuration.
 type Config struct {
-	Runtime            runtimeconfig.RuntimeConfig
-	RuntimeMeta        runtimeconfig.Metadata
-	Port               string
-	EnableMCP          bool
-	EnvironmentSummary string
-	Auth               runtimeconfig.AuthConfig
-	Session            runtimeconfig.SessionConfig
-	Analytics          runtimeconfig.AnalyticsConfig
-	AllowedOrigins     []string
-	MaxTaskBodyBytes   int64
-	Attachment         attachments.StoreConfig
+	Runtime             runtimeconfig.RuntimeConfig
+	RuntimeMeta         runtimeconfig.Metadata
+	Port                string
+	EnableMCP           bool
+	EnvironmentSummary  string
+	Auth                runtimeconfig.AuthConfig
+	Session             runtimeconfig.SessionConfig
+	Analytics           runtimeconfig.AnalyticsConfig
+	AllowedOrigins      []string
+	MaxTaskBodyBytes    int64
+	StreamMaxDuration   time.Duration
+	StreamMaxBytes      int64
+	StreamMaxConcurrent int
+	Attachment          attachments.StoreConfig
 }
 
 var defaultAllowedOrigins = []string{
@@ -59,11 +62,14 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	}
 
 	cfg := Config{
-		Runtime:        runtimeCfg,
-		RuntimeMeta:    runtimeMeta,
-		Port:           "8080",
-		EnableMCP:      true, // Default: enabled
-		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
+		Runtime:             runtimeCfg,
+		RuntimeMeta:         runtimeMeta,
+		Port:                "8080",
+		EnableMCP:           true, // Default: enabled
+		AllowedOrigins:      append([]string(nil), defaultAllowedOrigins...),
+		StreamMaxDuration:   2 * time.Hour,
+		StreamMaxBytes:      64 * 1024 * 1024,
+		StreamMaxConcurrent: 128,
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex-web-sessions",
 		},
@@ -114,6 +120,15 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if file.Server.MaxTaskBodyBytes != nil && *file.Server.MaxTaskBodyBytes > 0 {
 			cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
+		}
+		if file.Server.StreamMaxDurationSeconds != nil && *file.Server.StreamMaxDurationSeconds > 0 {
+			cfg.StreamMaxDuration = time.Duration(*file.Server.StreamMaxDurationSeconds) * time.Second
+		}
+		if file.Server.StreamMaxBytes != nil && *file.Server.StreamMaxBytes > 0 {
+			cfg.StreamMaxBytes = *file.Server.StreamMaxBytes
+		}
+		if file.Server.StreamMaxConcurrent != nil && *file.Server.StreamMaxConcurrent > 0 {
+			cfg.StreamMaxConcurrent = *file.Server.StreamMaxConcurrent
 		}
 		if file.Server.AllowedOrigins != nil {
 			cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)

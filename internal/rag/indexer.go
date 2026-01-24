@@ -230,9 +230,13 @@ func (idx *Indexer) UpdateIncremental(ctx context.Context, changedFiles []string
 		default:
 		}
 
-		// Delete old chunks for this file
-		// First, we need to find all document IDs for this file
-		// For now, we'll just re-index (optimization: track doc IDs per file)
+		// Delete old chunks for this file when supported by the vector store.
+		if deleter, ok := idx.store.(MetadataDeleter); ok {
+			if err := deleter.DeleteByMetadata(ctx, map[string]string{"file_path": file}); err != nil {
+				stats.ErrorFiles++
+				return stats, fmt.Errorf("delete existing documents for %s: %w", file, err)
+			}
+		}
 
 		err := idx.indexFile(ctx, file)
 		if err != nil {

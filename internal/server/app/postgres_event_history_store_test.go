@@ -407,3 +407,43 @@ func TestPostgresEventHistoryStore_HasAndDeleteSession(t *testing.T) {
 		t.Fatal("expected no events after delete")
 	}
 }
+
+func TestPostgresEventHistoryStore_WithTimeoutUsesDefault(t *testing.T) {
+	store := &PostgresEventHistoryStore{}
+	start := time.Now()
+	ctx, cancel := store.withTimeout(context.Background())
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected deadline to be set")
+	}
+	if deadline.Before(start) {
+		t.Fatalf("expected deadline after start, got %v", deadline)
+	}
+	allowedSkew := 20 * time.Millisecond
+	if deadline.Sub(start) > defaultHistoryQueryTimeout+allowedSkew {
+		t.Fatalf("expected deadline within %s (skew %s), got %s", defaultHistoryQueryTimeout, allowedSkew, deadline.Sub(start))
+	}
+}
+
+func TestPostgresEventHistoryStore_WithTimeoutRespectsParentDeadline(t *testing.T) {
+	store := &PostgresEventHistoryStore{}
+	parent, parentCancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer parentCancel()
+
+	ctx, cancel := store.withTimeout(parent)
+	defer cancel()
+
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected deadline to be set")
+	}
+	parentDeadline, ok := parent.Deadline()
+	if !ok {
+		t.Fatal("expected parent deadline to be set")
+	}
+	if deadline.After(parentDeadline) {
+		t.Fatalf("expected deadline <= parent deadline (%v), got %v", parentDeadline, deadline)
+	}
+}

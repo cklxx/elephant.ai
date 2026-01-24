@@ -20,6 +20,7 @@ import (
 const (
 	defaultHistoryBatchSize               = 500
 	historyInlineAttachmentRetentionLimit = 128 * 1024
+	defaultHistoryQueryTimeout            = 5 * time.Second
 )
 
 type eventRecord struct {
@@ -82,6 +83,13 @@ func NewPostgresEventHistoryStore(pool *pgxpool.Pool, opts ...PostgresEventHisto
 	return store
 }
 
+func (s *PostgresEventHistoryStore) withTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithTimeout(ctx, defaultHistoryQueryTimeout)
+}
+
 // EnsureSchema creates the event history table if needed.
 func (s *PostgresEventHistoryStore) EnsureSchema(ctx context.Context) error {
 	if s == nil || s.pool == nil {
@@ -111,6 +119,9 @@ func (s *PostgresEventHistoryStore) EnsureSchema(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_session ON agent_session_events (session_id, id);`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_type ON agent_session_events (event_type, id);`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_session_type ON agent_session_events (session_id, event_type, id);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_session_ts ON agent_session_events (session_id, event_ts DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_type_ts ON agent_session_events (event_type, event_ts DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_payload_gin ON agent_session_events USING GIN (payload);`,
 	}
 
 	for _, stmt := range statements {
@@ -141,7 +152,10 @@ func (s *PostgresEventHistoryStore) Append(ctx context.Context, event ports.Agen
 		payloadParam = record.payload
 	}
 
-	_, err = s.pool.Exec(ctx, `
+	ctxWithTimeout, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	_, err = s.pool.Exec(ctxWithTimeout, `
 INSERT INTO agent_session_events (
     session_id, task_id, parent_task_id, agent_level, event_type, event_ts,
     envelope_version, workflow_id, run_id, node_id, node_kind,
@@ -245,7 +259,10 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []po
 	}
 
 	sb.WriteString(";")
-	_, err := s.pool.Exec(ctx, sb.String(), args...)
+	ctxWithTimeout, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	_, err := s.pool.Exec(ctxWithTimeout, sb.String(), args...)
 	return err
 }
 
@@ -296,7 +313,10 @@ func (s *PostgresEventHistoryStore) DeleteSession(ctx context.Context, sessionID
 	if s == nil || s.pool == nil {
 		return fmt.Errorf("history store not initialized")
 	}
-	_, err := s.pool.Exec(ctx, `DELETE FROM agent_session_events WHERE session_id = $1`, sessionID)
+	ctxWithTimeout, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	_, err := s.pool.Exec(ctxWithTimeout, `DELETE FROM agent_session_events WHERE session_id = $1`, sessionID)
 	return err
 }
 
@@ -306,7 +326,10 @@ func (s *PostgresEventHistoryStore) HasSessionEvents(ctx context.Context, sessio
 		return false, fmt.Errorf("history store not initialized")
 	}
 	var exists bool
-	err := s.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM agent_session_events WHERE session_id = $1)`, sessionID).Scan(&exists)
+	ctxWithTimeout, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	err := s.pool.QueryRow(ctxWithTimeout, `SELECT EXISTS(SELECT 1 FROM agent_session_events WHERE session_id = $1)`, sessionID).Scan(&exists)
 	if err != nil {
 		return false, err
 	}
@@ -330,7 +353,10 @@ WHERE session_id = $1 AND id > $2`
 	args = append(args, s.batchSize)
 	query += fmt.Sprintf(" ORDER BY id ASC LIMIT $%d", len(args))
 
-	rows, err := s.pool.Query(ctx, query, args...)
+	ctxWithTimeout, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	rows, err := s.pool.Query(ctxWithTimeout, query, args...)
 	if err != nil {
 		return nil, err
 	}

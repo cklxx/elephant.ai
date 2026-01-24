@@ -265,3 +265,80 @@ func TestAuthMiddlewareAcceptsAccessTokenCookie(t *testing.T) {
 		t.Fatalf("expected handler to be invoked")
 	}
 }
+
+func TestStreamGuardMiddlewareLimitsConcurrentStreams(t *testing.T) {
+	block := make(chan struct{})
+	started := make(chan struct{})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(started)
+		<-block
+	})
+
+	wrapped := StreamGuardMiddleware(StreamGuardConfig{MaxConcurrent: 1})(handler)
+
+	req1 := httptest.NewRequest(http.MethodGet, "/api/sse", nil)
+	req1.Header.Set("Accept", "text/event-stream")
+	rec1 := httptest.NewRecorder()
+	go wrapped.ServeHTTP(rec1, req1)
+
+	<-started
+
+	req2 := httptest.NewRequest(http.MethodGet, "/api/sse", nil)
+	req2.Header.Set("Accept", "text/event-stream")
+	rec2 := httptest.NewRecorder()
+	wrapped.ServeHTTP(rec2, req2)
+
+	if rec2.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 for concurrent stream, got %d", rec2.Code)
+	}
+
+	close(block)
+}
+
+func TestStreamGuardMiddlewareCancelsOnByteLimit(t *testing.T) {
+	done := make(chan struct{})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("a", 32)))
+		<-r.Context().Done()
+		close(done)
+	})
+
+	wrapped := StreamGuardMiddleware(StreamGuardConfig{MaxBytes: 8})(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse", nil)
+	req.Header.Set("Accept", "text/event-stream")
+	rec := httptest.NewRecorder()
+
+	go wrapped.ServeHTTP(rec, req)
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected stream to cancel after byte limit")
+	}
+}
+
+func TestStreamGuardMiddlewareCancelsOnDurationLimit(t *testing.T) {
+	done := make(chan struct{})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+		close(done)
+	})
+
+	wrapped := StreamGuardMiddleware(StreamGuardConfig{MaxDuration: 10 * time.Millisecond})(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse", nil)
+	req.Header.Set("Accept", "text/event-stream")
+	rec := httptest.NewRecorder()
+
+	go wrapped.ServeHTTP(rec, req)
+
+	select {
+	case <-done:
+	case <-time.After(200 * time.Millisecond):
+		t.Fatal("expected stream to cancel after duration limit")
+	}
+}
