@@ -50,7 +50,7 @@ export default function AppsConfigPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const initialPlugins = snapshot?.apps?.plugins ?? [];
+  const initialPlugins = useMemo(() => snapshot?.apps?.plugins ?? [], [snapshot]);
   const isDirty = useMemo(() => {
     return JSON.stringify(plugins) !== JSON.stringify(initialPlugins);
   }, [plugins, initialPlugins]);

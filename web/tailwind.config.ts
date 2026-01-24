@@ -185,11 +185,22 @@ const config: Config = {
           "0%": { "background-position": "-200% 0" },
           "100%": { "background-position": "200% 0" },
         },
+        gradient: {
+          "0%, 100%": {
+            opacity: "1",
+            transform: "scale(1) rotate(0deg)",
+          },
+          "50%": {
+            opacity: "0.8",
+            transform: "scale(1.1) rotate(5deg)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         shimmer: "shimmer 1.6s linear infinite",
+        gradient: "gradient 12s ease-in-out infinite",
       },
     },
   },

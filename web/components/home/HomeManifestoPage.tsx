@@ -225,7 +225,7 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
           }
         });
       },
-      { threshold: 0.2 },
+      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" },
     );
 
     if (ref.current) {
@@ -241,8 +241,8 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
     <div
       ref={ref}
       className={cn(
-        "transition-all duration-700 ease-out will-change-transform",
-        isVisible ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
+        "transition-all duration-1000 ease-out will-change-transform",
+        isVisible ? "translate-y-0 opacity-100 blur-0" : "translate-y-12 opacity-0 blur-sm",
       )}
       style={{ transitionDelay: `${delay}ms` }}
     >
@@ -289,59 +289,55 @@ function LanguageToggle({ lang, className }: { lang: HomeLang; className?: strin
 function Hero({ lang }: { lang: HomeLang }) {
   const t = copy[lang];
   return (
-    <div className="grid gap-6 rounded-[36px] border border-border/60 bg-white/90 p-8 shadow-[0_30px_80px_-50px_rgba(15,23,42,0.35)] lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
-      <div className="space-y-5">
-        <div className="inline-flex items-center gap-2 rounded-full border border-foreground/10 bg-white/90 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="relative overflow-hidden rounded-[48px] border border-white/40 bg-gradient-to-br from-white/95 via-white/90 to-white/95 p-12 shadow-[0_20px_70px_-40px_rgba(0,0,0,0.25)] backdrop-blur-xl lg:p-16">
+      {/* Animated gradient background */}
+      <div className="pointer-events-none absolute inset-0 opacity-60">
+        <div className="absolute inset-0 animate-[gradient_8s_ease-in-out_infinite] bg-[radial-gradient(600px_circle_at_30%_30%,rgba(52,211,153,0.15),transparent_50%),radial-gradient(800px_circle_at_80%_20%,rgba(251,191,36,0.12),transparent_55%),radial-gradient(700px_circle_at_60%_80%,rgba(45,212,191,0.10),transparent_50%)]" />
+      </div>
+
+      <div className="relative mx-auto max-w-4xl space-y-8 text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-foreground/5 bg-white/60 px-4 py-1.5 text-xs font-medium tracking-wide text-muted-foreground/90 shadow-sm backdrop-blur-sm">
           <Sparkles className="h-3.5 w-3.5" aria-hidden />
           {t.badge}
         </div>
 
-        <div className="space-y-3">
-          <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground sm:text-4xl">
+        <div className="space-y-6">
+          <h1 className="bg-gradient-to-br from-foreground via-foreground/95 to-foreground/80 bg-clip-text text-5xl font-bold leading-[1.15] tracking-tight text-transparent sm:text-6xl lg:text-7xl">
             {t.title}
           </h1>
-          <p className="max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
+          <p className="mx-auto max-w-2xl text-lg leading-relaxed text-muted-foreground/90 sm:text-xl">
             {t.subtitle}
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
           <Link href="/conversation">
-            <Button className="rounded-full shadow-sm">
-              <PlayCircle className="mr-2 h-5 w-5" aria-hidden />
+            <Button
+              size="lg"
+              className="group rounded-full shadow-lg transition-all hover:scale-105 hover:shadow-xl"
+            >
+              <PlayCircle className="mr-2 h-5 w-5 transition-transform group-hover:scale-110" aria-hidden />
               {t.actions.primary}
             </Button>
           </Link>
           <LanguageToggle lang={lang} className="sm:hidden" />
         </div>
-      </div>
 
-      <div className="relative overflow-hidden rounded-3xl border border-border/60 bg-white/90 p-5 shadow-sm">
-        <div className="absolute inset-0 bg-[radial-gradient(260px_circle_at_20%_20%,rgba(52,211,153,0.28),transparent_55%),radial-gradient(320px_circle_at_85%_18%,rgba(251,191,36,0.28),transparent_60%),radial-gradient(320px_circle_at_60%_90%,rgba(45,212,191,0.22),transparent_55%)]" />
-        <div className="relative space-y-4">
-          <div className="rounded-2xl bg-emerald-500/10 px-4 py-3 text-sm font-semibold text-emerald-900">
-            {lang === "zh" ? "执行配方卡" : "Execution recipe"}
-          </div>
-          <div className="grid gap-3 text-sm text-foreground">
-            {[
-              lang === "zh" ? "澄清背景与目标" : "Clarify context and goals",
-              lang === "zh" ? "减少确认回合" : "Reduce confirmation loops",
-              lang === "zh" ? "拿到可用结果" : "Ship usable results",
-            ].map((item) => (
-              <div
-                key={item}
-                className="flex items-center gap-2 rounded-xl border border-border/60 bg-white/80 px-3 py-2 shadow-sm"
-              >
-                <span className="h-2 w-2 rounded-full bg-emerald-500" aria-hidden />
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-          <div className="rounded-2xl border border-dashed border-amber-400/60 bg-amber-100/40 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-amber-900">
-            {lang === "zh"
-              ? "cost · token · time saved"
-              : "cost · tokens · time saved"}
-          </div>
+        {/* Subtle feature pills */}
+        <div className="flex flex-wrap items-center justify-center gap-3 pt-4 text-sm">
+          {[
+            lang === "zh" ? "澄清背景与目标" : "Clarify context",
+            lang === "zh" ? "减少确认回合" : "Fewer loops",
+            lang === "zh" ? "可用结果" : "Real results",
+          ].map((item) => (
+            <div
+              key={item}
+              className="group inline-flex items-center gap-2 rounded-full border border-border/40 bg-white/50 px-4 py-2 backdrop-blur-sm transition-all hover:border-emerald-500/40 hover:bg-white/70"
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 transition-transform group-hover:scale-125" aria-hidden />
+              <span className="font-medium text-foreground/80">{item}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -351,22 +347,25 @@ function Hero({ lang }: { lang: HomeLang }) {
 function Highlights({ lang }: { lang: HomeLang }) {
   const highlights = highlightCopy[lang];
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
-      {highlights.map((item) => {
+    <div className="grid gap-4 sm:grid-cols-3">
+      {highlights.map((item, index) => {
         const Icon = item.icon;
         return (
           <div
             key={item.title}
-            className="relative overflow-hidden rounded-2xl border border-border/60 bg-white/90 p-4 shadow-sm"
+            className="group relative overflow-hidden rounded-3xl border border-white/40 bg-white/80 p-6 backdrop-blur-md transition-all hover:scale-[1.02] hover:border-white/60 hover:bg-white/90 hover:shadow-xl"
+            style={{
+              animationDelay: `${index * 100}ms`,
+            }}
           >
-            <div className={cn("absolute inset-0 bg-gradient-to-br", item.accent)} aria-hidden />
-            <div className="relative space-y-3">
-              <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-border/70 bg-background/90 text-foreground shadow-sm">
-                <Icon className="h-4 w-4" aria-hidden />
+            <div className={cn("pointer-events-none absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-500 group-hover:opacity-100", item.accent)} aria-hidden />
+            <div className="relative space-y-4">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-border/30 bg-gradient-to-br from-white/80 to-white/60 text-foreground shadow-sm backdrop-blur-sm transition-transform group-hover:scale-110">
+                <Icon className="h-5 w-5" aria-hidden />
               </div>
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-foreground">{item.title}</p>
-                <p className="text-xs leading-relaxed text-muted-foreground">{item.body}</p>
+              <div className="space-y-2">
+                <p className="text-base font-semibold tracking-tight text-foreground">{item.title}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground/90">{item.body}</p>
               </div>
             </div>
           </div>
@@ -379,40 +378,46 @@ function Highlights({ lang }: { lang: HomeLang }) {
 function ManifestoArticle({ lang }: { lang: HomeLang }) {
   const manifesto = manifestoCopy[lang];
   return (
-    <article className="space-y-4 rounded-3xl border border-border/60 bg-white/90 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <BookOpenText className="h-3.5 w-3.5" aria-hidden />
-        {manifesto.badge}
+    <article className="space-y-8 rounded-[48px] border border-white/40 bg-gradient-to-br from-white/90 via-white/85 to-white/90 p-8 shadow-lg backdrop-blur-xl lg:p-12">
+      <div className="space-y-4">
+        <div className="inline-flex items-center gap-2 rounded-full border border-foreground/5 bg-white/60 px-4 py-1.5 text-xs font-medium tracking-wide text-muted-foreground/90 shadow-sm backdrop-blur-sm">
+          <BookOpenText className="h-3.5 w-3.5" aria-hidden />
+          {manifesto.badge}
+        </div>
+
+        <div className="space-y-3">
+          <h2 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl lg:text-5xl">
+            {manifesto.title}
+          </h2>
+          <p className="max-w-3xl text-base leading-relaxed text-muted-foreground/90 sm:text-lg">
+            {manifesto.lede}
+          </p>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-          {manifesto.title}
-        </h2>
-        <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
-          {manifesto.lede}
-        </p>
-      </div>
-
-      <div className="space-y-3">
-        {manifesto.points.map((point) => (
+      <div className="grid gap-4 sm:grid-cols-3">
+        {manifesto.points.map((point, index) => (
           <div
             key={point.title}
-            className="rounded-2xl border border-border/60 bg-background/90 px-4 py-3 shadow-sm"
+            className="group relative overflow-hidden rounded-3xl border border-white/40 bg-white/60 p-6 backdrop-blur-sm transition-all hover:scale-[1.02] hover:border-white/60 hover:bg-white/80 hover:shadow-xl"
           >
-            <div className="flex items-center gap-2">
+            <div className="absolute left-6 top-6">
               <span
-                className={cn("h-2.5 w-2.5 rounded-full bg-gradient-to-r", point.accent)}
+                className={cn("block h-3 w-3 rounded-full bg-gradient-to-r shadow-sm transition-transform group-hover:scale-125", point.accent)}
                 aria-hidden
               />
-              <p className="text-sm font-semibold text-foreground">{point.title}</p>
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{point.body}</p>
+            <div className="space-y-3 pl-7">
+              <p className="text-base font-semibold tracking-tight text-foreground">{point.title}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground/90">{point.body}</p>
+            </div>
           </div>
         ))}
       </div>
 
-      <p className="text-sm font-semibold text-foreground sm:text-base">{manifesto.closing}</p>
+      <div className="rounded-3xl border border-dashed border-amber-400/30 bg-gradient-to-br from-amber-50/80 to-orange-50/60 px-6 py-4 backdrop-blur-sm">
+        <p className="text-center text-base font-semibold text-foreground sm:text-lg">{manifesto.closing}</p>
+      </div>
     </article>
   );
 }
@@ -420,24 +425,29 @@ function ManifestoArticle({ lang }: { lang: HomeLang }) {
 function SlogPanel({ lang }: { lang: HomeLang }) {
   const slog = slogCopy[lang];
   return (
-    <section className="space-y-4 rounded-3xl border border-border/60 bg-white/90 p-6 shadow-sm">
-      <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-white/80 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Layers className="h-3.5 w-3.5" aria-hidden />
-        {slog.badge}
-      </div>
-      <div className="space-y-2">
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+    <section className="space-y-6 rounded-[48px] border border-white/40 bg-gradient-to-br from-white/90 via-white/85 to-white/90 p-8 shadow-lg backdrop-blur-xl lg:p-10">
+      <div className="space-y-3">
+        <div className="inline-flex items-center gap-2 rounded-full border border-foreground/5 bg-white/60 px-4 py-1.5 text-xs font-medium tracking-wide text-muted-foreground/90 shadow-sm backdrop-blur-sm">
+          <Layers className="h-3.5 w-3.5" aria-hidden />
+          {slog.badge}
+        </div>
+        <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl lg:text-4xl">
           {slog.title}
         </h2>
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {slog.points.map((point) => (
+      <div className="grid gap-4 sm:grid-cols-3">
+        {slog.points.map((point, index) => (
           <div
             key={point.title}
-            className="rounded-2xl border border-border/60 bg-background/90 px-4 py-3 shadow-sm"
+            className="group relative overflow-hidden rounded-3xl border border-white/40 bg-white/60 p-6 backdrop-blur-sm transition-all hover:scale-[1.02] hover:border-white/60 hover:bg-white/80 hover:shadow-xl"
           >
-            <p className="text-sm font-semibold text-foreground">{point.title}</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{point.body}</p>
+            <div className="absolute right-4 top-4 text-6xl font-bold text-foreground/5">
+              {index + 1}
+            </div>
+            <div className="relative space-y-2">
+              <p className="text-base font-semibold tracking-tight text-foreground">{point.title}</p>
+              <p className="text-sm leading-relaxed text-muted-foreground/90">{point.body}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -449,15 +459,16 @@ function VideoPlaceholder({ lang }: { lang: HomeLang }) {
   const copy = videoCopy[lang];
 
   return (
-    <div className="rounded-3xl border border-dashed border-border/80 bg-white/80 p-6 shadow-sm">
-      <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-          <PlayCircle className="h-6 w-6" aria-hidden />
+    <div className="group relative overflow-hidden rounded-[48px] border border-dashed border-white/60 bg-gradient-to-br from-white/70 via-white/60 to-white/70 p-10 backdrop-blur-xl transition-all hover:border-white/80 hover:bg-white/80 hover:shadow-xl lg:p-14">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(800px_circle_at_50%_50%,rgba(139,92,246,0.08),transparent_70%)]" />
+      <div className="relative mx-auto max-w-2xl space-y-6 text-center">
+        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-3xl border border-white/40 bg-gradient-to-br from-white/80 to-white/60 text-primary shadow-lg backdrop-blur-sm transition-transform group-hover:scale-110">
+          <PlayCircle className="h-10 w-10" aria-hidden />
         </div>
-        <div className="space-y-2">
-          <p className="text-lg font-semibold text-foreground">{copy.title}</p>
-          <p className="text-sm leading-relaxed text-muted-foreground">{copy.body}</p>
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/80">
+        <div className="space-y-3">
+          <p className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{copy.title}</p>
+          <p className="text-base leading-relaxed text-muted-foreground/90 sm:text-lg">{copy.body}</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
             {copy.note}
           </p>
         </div>
@@ -470,18 +481,22 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
   const heroCopy = copy[lang];
 
   return (
-    <div className="relative min-h-screen bg-[#fbf6ee] text-foreground">
-      <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(960px_circle_at_14%_14%,rgba(52,211,153,0.18),transparent_55%),radial-gradient(980px_circle_at_86%_10%,rgba(251,191,36,0.18),transparent_55%),radial-gradient(860px_circle_at_50%_90%,rgba(45,212,191,0.16),transparent_60%)]" />
-      <PageContainer className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-10 px-4 pb-16 pt-6 sm:px-6 lg:px-10 lg:pb-24 lg:pt-10">
+    <div className="relative min-h-screen bg-gradient-to-br from-[#fdfbf7] via-[#faf6f0] to-[#f8f3eb] text-foreground">
+      {/* Animated gradient background */}
+      <div className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 animate-[gradient_12s_ease-in-out_infinite] bg-[radial-gradient(1200px_circle_at_20%_20%,rgba(52,211,153,0.12),transparent_60%),radial-gradient(1400px_circle_at_85%_15%,rgba(251,191,36,0.10),transparent_65%),radial-gradient(1100px_circle_at_50%_85%,rgba(45,212,191,0.08),transparent_60%)]" />
+      </div>
+
+      <PageContainer className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-16 px-4 pb-20 pt-6 sm:px-6 lg:gap-20 lg:px-12 lg:pb-32 lg:pt-10">
         <Suspense fallback={<div className="h-[60px]" />}>
           <Header
             title={heroCopy.title}
             subtitle={heroCopy.subtitle}
             actionsSlot={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <LanguageToggle lang={lang} className="hidden sm:inline-flex" />
                 <Link href="/conversation">
-                  <Button size="sm" className="rounded-full shadow-sm">
+                  <Button size="sm" className="rounded-full shadow-md transition-all hover:scale-105 hover:shadow-lg">
                     <PlayCircle className="mr-2 h-4 w-4" aria-hidden />
                     {heroCopy.actions.primary}
                   </Button>
@@ -491,20 +506,20 @@ function HomePage({ lang = "en" }: { lang?: HomeLang }) {
           />
         </Suspense>
 
-        <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-16 lg:gap-20">
           <Reveal>
             <Hero lang={lang} />
           </Reveal>
-          <Reveal delay={80}>
+          <Reveal delay={100}>
             <Highlights lang={lang} />
           </Reveal>
-          <Reveal delay={120}>
+          <Reveal delay={150}>
             <SlogPanel lang={lang} />
           </Reveal>
-          <Reveal delay={160}>
+          <Reveal delay={200}>
             <ManifestoArticle lang={lang} />
           </Reveal>
-          <Reveal delay={200}>
+          <Reveal delay={250}>
             <VideoPlaceholder lang={lang} />
           </Reveal>
         </div>
