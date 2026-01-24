@@ -60,5 +60,6 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("Port: %s", config.Port)
 	logger.Info("HTTP Rate Limit: %d rpm (burst=%d)", config.RateLimitRequestsPerMinute, config.RateLimitBurst)
 	logger.Info("HTTP Non-Stream Timeout: %s", config.NonStreamTimeout)
+	logger.Info("Event History Retention: %s", config.EventHistoryRetention)
 	logger.Info("===========================")
 }

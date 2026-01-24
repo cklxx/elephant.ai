@@ -30,6 +30,11 @@ type webFetch struct {
 	maxContentBytes int
 }
 
+var (
+	webFetchClientOnce sync.Once
+	webFetchClient     *http.Client
+)
+
 // fetchCache manages URL content cache with TTL
 type fetchCache struct {
 	entries    map[string]*cacheEntry
@@ -72,7 +77,18 @@ func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.Too
 	}
 
 	tool := &webFetch{
-		httpClient: &http.Client{
+		httpClient:      sharedWebFetchClient(),
+		llmClient:       llmClient,
+		cache:           cache,
+		maxContentBytes: maxContentBytes,
+	}
+
+	return tool
+}
+
+func sharedWebFetchClient() *http.Client {
+	webFetchClientOnce.Do(func() {
+		webFetchClient = &http.Client{
 			Timeout:   30 * time.Second,
 			Transport: httpclient.WrapTransportWithCircuitBreaker(httpclient.Transport(nil), "web_fetch", alexerrors.DefaultCircuitBreakerConfig()),
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -81,16 +97,9 @@ func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.Too
 				}
 				return nil
 			},
-		},
-		llmClient:       llmClient,
-		cache:           cache,
-		maxContentBytes: maxContentBytes,
-	}
-
-	// Start background cache cleanup
-	go cache.startCleanup()
-
-	return tool
+		}
+	})
+	return webFetchClient
 }
 
 func (t *webFetch) Metadata() ports.ToolMetadata {
@@ -575,22 +584,4 @@ func (c *fetchCache) evictLocked() {
 	}
 	delete(c.entries, key)
 	c.order.Remove(oldest)
-}
-
-func (c *fetchCache) startCleanup() {
-	ticker := time.NewTicker(5 * time.Minute)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		c.mu.Lock()
-		for key, entry := range c.entries {
-			if time.Since(entry.timestamp) > c.ttl {
-				if entry.element != nil {
-					c.order.Remove(entry.element)
-				}
-				delete(c.entries, key)
-			}
-		}
-		c.mu.Unlock()
-	}
 }

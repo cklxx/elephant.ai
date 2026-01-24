@@ -29,6 +29,7 @@ type Config struct {
 	RateLimitRequestsPerMinute int
 	RateLimitBurst             int
 	NonStreamTimeout           time.Duration
+	EventHistoryRetention      time.Duration
 	Attachment                 attachments.StoreConfig
 }
 
@@ -76,6 +77,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		RateLimitRequestsPerMinute: 600,
 		RateLimitBurst:             120,
 		NonStreamTimeout:           30 * time.Second,
+		EventHistoryRetention:      30 * 24 * time.Hour,
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex-web-sessions",
 		},
@@ -145,6 +147,14 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
 			cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
 		}
+		if file.Server.EventHistoryRetentionDays != nil {
+			days := *file.Server.EventHistoryRetentionDays
+			if days <= 0 {
+				cfg.EventHistoryRetention = 0
+			} else {
+				cfg.EventHistoryRetention = time.Duration(days) * 24 * time.Hour
+			}
+		}
 		if file.Server.AllowedOrigins != nil {
 			cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
 		}
@@ -195,6 +205,9 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if file.Session.PoolConnectTimeoutSeconds != nil {
 			cfg.Session.PoolConnectTimeoutSeconds = file.Session.PoolConnectTimeoutSeconds
+		}
+		if file.Session.CacheSize != nil {
+			cfg.Session.CacheSize = file.Session.CacheSize
 		}
 	}
 

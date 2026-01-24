@@ -117,6 +117,7 @@ apps:
 - `rate_limit_requests_per_minute`：HTTP 请求速率限制（每分钟，默认 600）。
 - `rate_limit_burst`：速率限制突发配额（默认 120）。
 - `non_stream_timeout_seconds`：非流式请求超时（秒，默认 30）。
+- `event_history_retention_days`：事件历史保留天数（默认 30；设置为 0 关闭自动清理）。
 
 ### auth
 
@@ -140,6 +141,7 @@ apps:
 - `pool_max_conn_idle_seconds`
 - `pool_health_check_seconds`
 - `pool_connect_timeout_seconds`
+- `cache_size`：Session 读取缓存大小（默认 256；设置为 0 关闭缓存）。
 
 ### analytics
 

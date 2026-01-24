@@ -84,6 +84,7 @@ type ServerConfig struct {
 	RateLimitRequestsPerMinute *int     `yaml:"rate_limit_requests_per_minute"`
 	RateLimitBurst             *int     `yaml:"rate_limit_burst"`
 	NonStreamTimeoutSeconds    *int     `yaml:"non_stream_timeout_seconds"`
+	EventHistoryRetentionDays  *int     `yaml:"event_history_retention_days"`
 }
 
 // AuthConfig captures authentication configuration stored in YAML.
@@ -116,6 +117,7 @@ type SessionConfig struct {
 	PoolMaxConnIdleSeconds     *int   `yaml:"pool_max_conn_idle_seconds"`
 	PoolHealthCheckSeconds     *int   `yaml:"pool_health_check_seconds"`
 	PoolConnectTimeoutSeconds  *int   `yaml:"pool_connect_timeout_seconds"`
+	CacheSize                  *int   `yaml:"cache_size"`
 }
 
 // AnalyticsConfig captures analytics configuration.

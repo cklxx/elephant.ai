@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,22 +22,60 @@ import (
 
 const (
 	sessionTable = "agent_sessions"
+
+	defaultSessionCacheSize = 256
 )
 
 var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // Store implements a Postgres-backed session store.
 type Store struct {
-	pool   *pgxpool.Pool
-	logger logging.Logger
+	pool      *pgxpool.Pool
+	logger    logging.Logger
+	cache     *lru.Cache[string, sessionCacheEntry]
+	cacheSize int
+}
+
+type sessionCacheEntry struct {
+	session   *ports.Session
+	updatedAt time.Time
+}
+
+// StoreOption configures the session store.
+type StoreOption func(*Store)
+
+// WithCacheSize sets the LRU cache size. Set to 0 to disable caching.
+func WithCacheSize(size int) StoreOption {
+	return func(s *Store) {
+		if size < 0 {
+			return
+		}
+		s.cacheSize = size
+	}
 }
 
 // New constructs a Postgres-backed session store.
-func New(pool *pgxpool.Pool) *Store {
-	return &Store{
-		pool:   pool,
-		logger: logging.NewComponentLogger("SessionPostgresStore"),
+func New(pool *pgxpool.Pool, opts ...StoreOption) *Store {
+	store := &Store{
+		pool:      pool,
+		logger:    logging.NewComponentLogger("SessionPostgresStore"),
+		cacheSize: defaultSessionCacheSize,
 	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(store)
+		}
+	}
+	if store.cacheSize <= 0 {
+		return store
+	}
+	cache, err := lru.New[string, sessionCacheEntry](store.cacheSize)
+	if err != nil {
+		store.logger.Warn("Failed to initialize session cache: %v", err)
+		return store
+	}
+	store.cache = cache
+	return store
 }
 
 // EnsureSchema creates the session table if it does not exist.
@@ -103,6 +143,7 @@ func (s *Store) Create(ctx context.Context) (*ports.Session, error) {
 			return nil, err
 		}
 
+		s.storeCachedSession(session)
 		return session, nil
 	}
 
@@ -121,76 +162,18 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*ports.Session, erro
 		return nil, fmt.Errorf("session store not initialized")
 	}
 
-	query := fmt.Sprintf(`
-SELECT id, messages, todos, metadata, attachments, important, user_persona, created_at, updated_at
-FROM %s
-WHERE id = $1
-`, sessionTable)
+	if cached, ok, err := s.loadCachedSession(ctx, sessionID); err != nil {
+		return nil, err
+	} else if ok {
+		return cached, nil
+	}
 
-	var (
-		messagesJSON    []byte
-		todosJSON       []byte
-		metadataJSON    []byte
-		attachmentsJSON []byte
-		importantJSON   []byte
-		personaJSON     []byte
-		session         ports.Session
-	)
-
-	err := s.pool.QueryRow(ctx, query, sessionID).Scan(
-		&session.ID,
-		&messagesJSON,
-		&todosJSON,
-		&metadataJSON,
-		&attachmentsJSON,
-		&importantJSON,
-		&personaJSON,
-		&session.CreatedAt,
-		&session.UpdatedAt,
-	)
+	session, err := s.fetchSession(ctx, sessionID)
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("session not found")
-		}
 		return nil, err
 	}
-
-	if len(messagesJSON) > 0 {
-		if err := json.Unmarshal(messagesJSON, &session.Messages); err != nil {
-			return nil, fmt.Errorf("decode messages: %w", err)
-		}
-	}
-	if len(todosJSON) > 0 {
-		if err := json.Unmarshal(todosJSON, &session.Todos); err != nil {
-			return nil, fmt.Errorf("decode todos: %w", err)
-		}
-	}
-	if len(metadataJSON) > 0 {
-		if err := json.Unmarshal(metadataJSON, &session.Metadata); err != nil {
-			return nil, fmt.Errorf("decode metadata: %w", err)
-		}
-	}
-	if len(attachmentsJSON) > 0 {
-		var attachments map[string]ports.Attachment
-		if err := json.Unmarshal(attachmentsJSON, &attachments); err != nil {
-			return nil, fmt.Errorf("decode attachments: %w", err)
-		}
-		session.Attachments = sanitizeAttachmentMap(attachments)
-	}
-	if len(importantJSON) > 0 {
-		if err := json.Unmarshal(importantJSON, &session.Important); err != nil {
-			return nil, fmt.Errorf("decode important: %w", err)
-		}
-	}
-	if len(personaJSON) > 0 {
-		var persona ports.UserPersonaProfile
-		if err := json.Unmarshal(personaJSON, &persona); err != nil {
-			return nil, fmt.Errorf("decode user persona: %w", err)
-		}
-		session.UserPersona = &persona
-	}
-
-	return &session, nil
+	s.storeCachedSession(session)
+	return cloneSession(session), nil
 }
 
 // Save upserts a session record.
@@ -213,7 +196,11 @@ func (s *Store) Save(ctx context.Context, session *ports.Session) error {
 	}
 	session.UpdatedAt = time.Now()
 
-	return s.insert(ctx, session, true)
+	if err := s.insert(ctx, session, true); err != nil {
+		return err
+	}
+	s.storeCachedSession(session)
+	return nil
 }
 
 // List returns session IDs with optional limit/offset pagination.
@@ -273,6 +260,9 @@ func (s *Store) Delete(ctx context.Context, sessionID string) error {
 
 	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, sessionTable)
 	_, err := s.pool.Exec(ctx, query, sessionID)
+	if err == nil {
+		s.deleteCachedSession(sessionID)
+	}
 	return err
 }
 
@@ -354,6 +344,130 @@ VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8
 	return nil
 }
 
+func (s *Store) loadCachedSession(ctx context.Context, sessionID string) (*ports.Session, bool, error) {
+	if s.cache == nil {
+		return nil, false, nil
+	}
+	entry, ok := s.cache.Get(sessionID)
+	if !ok || entry.session == nil {
+		return nil, false, nil
+	}
+
+	updatedAt, err := s.fetchUpdatedAt(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			s.cache.Remove(sessionID)
+			return nil, false, fmt.Errorf("session not found")
+		}
+		return nil, false, err
+	}
+	if updatedAt.Equal(entry.updatedAt) {
+		return cloneSession(entry.session), true, nil
+	}
+	return nil, false, nil
+}
+
+func (s *Store) storeCachedSession(session *ports.Session) {
+	if s.cache == nil || session == nil {
+		return
+	}
+	cloned := cloneSession(session)
+	if cloned == nil {
+		return
+	}
+	s.cache.Add(session.ID, sessionCacheEntry{
+		session:   cloned,
+		updatedAt: session.UpdatedAt,
+	})
+}
+
+func (s *Store) deleteCachedSession(sessionID string) {
+	if s.cache == nil {
+		return
+	}
+	s.cache.Remove(sessionID)
+}
+
+func (s *Store) fetchUpdatedAt(ctx context.Context, sessionID string) (time.Time, error) {
+	query := fmt.Sprintf(`SELECT updated_at FROM %s WHERE id = $1`, sessionTable)
+	var updatedAt time.Time
+	err := s.pool.QueryRow(ctx, query, sessionID).Scan(&updatedAt)
+	return updatedAt, err
+}
+
+func (s *Store) fetchSession(ctx context.Context, sessionID string) (*ports.Session, error) {
+	query := fmt.Sprintf(`
+SELECT id, messages, todos, metadata, attachments, important, user_persona, created_at, updated_at
+FROM %s
+WHERE id = $1
+`, sessionTable)
+
+	var (
+		messagesJSON    []byte
+		todosJSON       []byte
+		metadataJSON    []byte
+		attachmentsJSON []byte
+		importantJSON   []byte
+		personaJSON     []byte
+		session         ports.Session
+	)
+
+	err := s.pool.QueryRow(ctx, query, sessionID).Scan(
+		&session.ID,
+		&messagesJSON,
+		&todosJSON,
+		&metadataJSON,
+		&attachmentsJSON,
+		&importantJSON,
+		&personaJSON,
+		&session.CreatedAt,
+		&session.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("session not found")
+		}
+		return nil, err
+	}
+
+	if len(messagesJSON) > 0 {
+		if err := json.Unmarshal(messagesJSON, &session.Messages); err != nil {
+			return nil, fmt.Errorf("decode messages: %w", err)
+		}
+	}
+	if len(todosJSON) > 0 {
+		if err := json.Unmarshal(todosJSON, &session.Todos); err != nil {
+			return nil, fmt.Errorf("decode todos: %w", err)
+		}
+	}
+	if len(metadataJSON) > 0 {
+		if err := json.Unmarshal(metadataJSON, &session.Metadata); err != nil {
+			return nil, fmt.Errorf("decode metadata: %w", err)
+		}
+	}
+	if len(attachmentsJSON) > 0 {
+		var attachments map[string]ports.Attachment
+		if err := json.Unmarshal(attachmentsJSON, &attachments); err != nil {
+			return nil, fmt.Errorf("decode attachments: %w", err)
+		}
+		session.Attachments = sanitizeAttachmentMap(attachments)
+	}
+	if len(importantJSON) > 0 {
+		if err := json.Unmarshal(importantJSON, &session.Important); err != nil {
+			return nil, fmt.Errorf("decode important: %w", err)
+		}
+	}
+	if len(personaJSON) > 0 {
+		var persona ports.UserPersonaProfile
+		if err := json.Unmarshal(personaJSON, &persona); err != nil {
+			return nil, fmt.Errorf("decode user persona: %w", err)
+		}
+		session.UserPersona = &persona
+	}
+
+	return &session, nil
+}
+
 func toJSONBytes(value any) ([]byte, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -392,4 +506,24 @@ func sanitizeAttachmentMap(values map[string]ports.Attachment) map[string]ports.
 		return nil
 	}
 	return sanitized
+}
+
+func cloneSession(session *ports.Session) *ports.Session {
+	if session == nil {
+		return nil
+	}
+	cloned := *session
+	cloned.Messages = ports.CloneMessages(session.Messages)
+	if len(session.Todos) > 0 {
+		cloned.Todos = append([]ports.Todo(nil), session.Todos...)
+	}
+	if len(session.Metadata) > 0 {
+		cloned.Metadata = maps.Clone(session.Metadata)
+	} else {
+		cloned.Metadata = nil
+	}
+	cloned.Attachments = ports.CloneAttachmentMap(session.Attachments)
+	cloned.Important = ports.CloneImportantNotes(session.Important)
+	cloned.UserPersona = ports.CloneUserPersonaProfile(session.UserPersona)
+	return &cloned
 }

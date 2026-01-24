@@ -24,6 +24,7 @@ import (
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/time/rate"
 )
@@ -57,6 +58,7 @@ const (
 	defaultSessionPoolMaxConnIdleTime   = 30 * time.Minute
 	defaultSessionPoolHealthCheckPeriod = 1 * time.Minute
 	defaultSessionPoolConnectTimeout    = 5 * time.Second
+	defaultSessionStatementCache        = 256
 )
 
 // Config holds the dependency injection configuration
@@ -115,6 +117,7 @@ type Config struct {
 	SessionPoolMaxConnIdleTime   time.Duration
 	SessionPoolHealthCheckPeriod time.Duration
 	SessionPoolConnectTimeout    time.Duration
+	SessionCacheSize             *int
 
 	// RequireSessionDatabase enforces Postgres-backed session persistence when true.
 	RequireSessionDatabase bool
@@ -267,6 +270,8 @@ func BuildContainer(config Config) (*Container, error) {
 			poolConfig.MaxConnIdleTime = maxIdle
 			poolConfig.HealthCheckPeriod = healthCheck
 			poolConfig.ConnConfig.ConnectTimeout = connectTimeout
+			poolConfig.ConnConfig.StatementCacheCapacity = defaultSessionStatementCache
+			poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
 
 			pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 			if err != nil {
@@ -281,7 +286,12 @@ func BuildContainer(config Config) (*Container, error) {
 				}
 				logger.Warn("Failed to ping session DB: %v", err)
 			} else {
-				dbSessionStore := postgresstore.New(pool)
+				var dbSessionStore *postgresstore.Store
+				if config.SessionCacheSize != nil {
+					dbSessionStore = postgresstore.New(pool, postgresstore.WithCacheSize(*config.SessionCacheSize))
+				} else {
+					dbSessionStore = postgresstore.New(pool)
+				}
 				if err := dbSessionStore.EnsureSchema(ctx); err != nil {
 					pool.Close()
 					if config.RequireSessionDatabase {

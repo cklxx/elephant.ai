@@ -87,3 +87,68 @@ func TestPostgresStore_LastWriteWins(t *testing.T) {
 		t.Fatalf("expected last write to win, got %q", updated.Metadata["version"])
 	}
 }
+
+func TestPostgresStore_CacheDoesNotLeakMutations(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	store := New(pool, WithCacheSize(2))
+
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	session, err := store.Create(ctx)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	loaded, err := store.Get(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get session: %v", err)
+	}
+	loaded.Metadata = map[string]string{"mutated": "yes"}
+
+	reloaded, err := store.Get(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get session again: %v", err)
+	}
+	if reloaded.Metadata["mutated"] == "yes" {
+		t.Fatalf("expected cached session to be immutable")
+	}
+}
+
+func TestPostgresStore_CacheUpdatesOnSave(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	store := New(pool, WithCacheSize(2))
+
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	session, err := store.Create(ctx)
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	loaded, err := store.Get(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get session: %v", err)
+	}
+	loaded.Metadata = map[string]string{"version": "v1"}
+	if err := store.Save(ctx, loaded); err != nil {
+		t.Fatalf("save session: %v", err)
+	}
+
+	reloaded, err := store.Get(ctx, session.ID)
+	if err != nil {
+		t.Fatalf("get session after save: %v", err)
+	}
+	if reloaded.Metadata["version"] != "v1" {
+		t.Fatalf("expected cache to reflect saved data, got %q", reloaded.Metadata["version"])
+	}
+}

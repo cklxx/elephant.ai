@@ -48,6 +48,9 @@ func BuildContainer(config Config) (*di.Container, error) {
 	if config.Session.PoolConnectTimeoutSeconds != nil {
 		diConfig.SessionPoolConnectTimeout = time.Duration(*config.Session.PoolConnectTimeoutSeconds) * time.Second
 	}
+	if config.Session.CacheSize != nil {
+		diConfig.SessionCacheSize = config.Session.CacheSize
+	}
 	diConfig.RequireSessionDatabase = requireSessionDB
 	diConfig.ToolMode = string(presets.ToolModeWeb)
 	return di.BuildContainer(diConfig)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"alex/internal/agent/domain"
@@ -21,6 +22,8 @@ const (
 	defaultHistoryBatchSize               = 500
 	historyInlineAttachmentRetentionLimit = 128 * 1024
 	defaultHistoryQueryTimeout            = 5 * time.Second
+	defaultHistoryRetentionInterval       = 10 * time.Minute
+	defaultHistoryRetentionBatchSize      = 1000
 )
 
 type eventRecord struct {
@@ -53,8 +56,14 @@ type AttachmentStorer interface {
 type PostgresEventHistoryStore struct {
 	pool            *pgxpool.Pool
 	batchSize       int
+	retentionWindow time.Duration
+	retentionEvery  time.Duration
+	retentionBatch  int
 	logger          logging.Logger
 	attachmentStore AttachmentStorer
+	pruneMu         sync.Mutex
+	pruning         bool
+	lastPrunedAt    time.Time
 }
 
 // PostgresEventHistoryStoreOption configures a PostgresEventHistoryStore.
@@ -68,12 +77,44 @@ func WithHistoryAttachmentStore(store AttachmentStorer) PostgresEventHistoryStor
 	}
 }
 
+// WithHistoryRetention configures the retention window for persisted events.
+// A zero or negative duration disables pruning.
+func WithHistoryRetention(window time.Duration) PostgresEventHistoryStoreOption {
+	return func(s *PostgresEventHistoryStore) {
+		if window <= 0 {
+			s.retentionWindow = 0
+			return
+		}
+		s.retentionWindow = window
+	}
+}
+
+// WithHistoryRetentionInterval controls how often the store attempts retention pruning.
+func WithHistoryRetentionInterval(interval time.Duration) PostgresEventHistoryStoreOption {
+	return func(s *PostgresEventHistoryStore) {
+		if interval > 0 {
+			s.retentionEvery = interval
+		}
+	}
+}
+
+// WithHistoryRetentionBatchSize limits how many rows are removed per prune pass.
+func WithHistoryRetentionBatchSize(batch int) PostgresEventHistoryStoreOption {
+	return func(s *PostgresEventHistoryStore) {
+		if batch > 0 {
+			s.retentionBatch = batch
+		}
+	}
+}
+
 // NewPostgresEventHistoryStore constructs a Postgres-backed history store.
 func NewPostgresEventHistoryStore(pool *pgxpool.Pool, opts ...PostgresEventHistoryStoreOption) *PostgresEventHistoryStore {
 	store := &PostgresEventHistoryStore{
-		pool:      pool,
-		batchSize: defaultHistoryBatchSize,
-		logger:    logging.NewComponentLogger("EventHistoryStore"),
+		pool:           pool,
+		batchSize:      defaultHistoryBatchSize,
+		retentionEvery: defaultHistoryRetentionInterval,
+		retentionBatch: defaultHistoryRetentionBatchSize,
+		logger:         logging.NewComponentLogger("EventHistoryStore"),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -121,6 +162,7 @@ func (s *PostgresEventHistoryStore) EnsureSchema(ctx context.Context) error {
 		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_session_type ON agent_session_events (session_id, event_type, id);`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_session_ts ON agent_session_events (session_id, event_ts DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_type_ts ON agent_session_events (event_type, event_ts DESC);`,
+		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_ts ON agent_session_events (event_ts DESC);`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_session_events_payload_gin ON agent_session_events USING GIN (payload);`,
 	}
 
@@ -180,7 +222,11 @@ INSERT INTO agent_session_events (
 		record.maxParallel,
 		payloadParam,
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	s.pruneIfNeeded()
+	return nil
 }
 
 // AppendBatch persists a group of events in a single statement.
@@ -263,7 +309,11 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []po
 	defer cancel()
 
 	_, err := s.pool.Exec(ctxWithTimeout, sb.String(), args...)
-	return err
+	if err != nil {
+		return err
+	}
+	s.pruneIfNeeded()
+	return nil
 }
 
 // Stream replays events matching the filter in order.
@@ -336,6 +386,17 @@ func (s *PostgresEventHistoryStore) HasSessionEvents(ctx context.Context, sessio
 	return exists, nil
 }
 
+// Prune removes event history older than the configured retention window.
+func (s *PostgresEventHistoryStore) Prune(ctx context.Context) error {
+	if s == nil || s.pool == nil {
+		return fmt.Errorf("history store not initialized")
+	}
+	if s.retentionWindow <= 0 {
+		return nil
+	}
+	return s.pruneOnce(ctx)
+}
+
 func (s *PostgresEventHistoryStore) fetchBatch(ctx context.Context, filter EventHistoryFilter, afterID int64) ([]eventRecord, error) {
 	args := []any{filter.SessionID, afterID}
 	query := `
@@ -398,6 +459,63 @@ WHERE session_id = $1 AND id > $2`
 		return nil, err
 	}
 	return records, nil
+}
+
+func (s *PostgresEventHistoryStore) pruneIfNeeded() {
+	if s == nil || s.pool == nil || s.retentionWindow <= 0 {
+		return
+	}
+	now := time.Now()
+
+	s.pruneMu.Lock()
+	if s.pruning {
+		s.pruneMu.Unlock()
+		return
+	}
+	if !s.lastPrunedAt.IsZero() && now.Sub(s.lastPrunedAt) < s.retentionEvery {
+		s.pruneMu.Unlock()
+		return
+	}
+	s.pruning = true
+	s.lastPrunedAt = now
+	s.pruneMu.Unlock()
+
+	go func() {
+		ctx, cancel := s.withTimeout(context.Background())
+		defer cancel()
+
+		if err := s.pruneOnce(ctx); err != nil {
+			logging.OrNop(s.logger).Warn("Failed to prune event history: %v", err)
+		}
+		s.pruneMu.Lock()
+		s.pruning = false
+		s.pruneMu.Unlock()
+	}()
+}
+
+func (s *PostgresEventHistoryStore) pruneOnce(ctx context.Context) error {
+	if s.retentionWindow <= 0 {
+		return nil
+	}
+	cutoff := time.Now().Add(-s.retentionWindow)
+	batch := s.retentionBatch
+	if batch <= 0 {
+		batch = defaultHistoryRetentionBatchSize
+	}
+
+	ctxWithTimeout, cancel := s.withTimeout(ctx)
+	defer cancel()
+
+	_, err := s.pool.Exec(ctxWithTimeout, `
+DELETE FROM agent_session_events
+WHERE id IN (
+    SELECT id
+    FROM agent_session_events
+    WHERE event_ts < $1
+    ORDER BY event_ts ASC
+    LIMIT $2
+)`, cutoff, batch)
+	return err
 }
 
 func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {

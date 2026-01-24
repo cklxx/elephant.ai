@@ -22,6 +22,7 @@ runtime:
 #   rate_limit_requests_per_minute: 600
 #   rate_limit_burst: 120
 #   non_stream_timeout_seconds: 30
+#   event_history_retention_days: 30
 #   allowed_origins:
 #     - "http://localhost:3000"
 # auth:
@@ -38,6 +39,7 @@ runtime:
 #   pool_max_conn_idle_seconds: 1800
 #   pool_health_check_seconds: 30
 #   pool_connect_timeout_seconds: 5
+#   cache_size: 256
 # attachments:
 #   provider: "cloudflare"
 #   cloudflare_account_id: "${CLOUDFLARE_ACCOUNT_ID}"

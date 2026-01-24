@@ -313,6 +313,62 @@ func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 	}
 }
 
+func TestPostgresEventHistoryStorePrunesOldEvents(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	store := NewPostgresEventHistoryStore(pool, WithHistoryRetention(24*time.Hour))
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	oldEvent := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now().Add(-48*time.Hour)),
+		Version:   1,
+		Event:     "workflow.node.started",
+		NodeKind:  "plan",
+		NodeID:    "node-old",
+	}
+	newEvent := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now()),
+		Version:   1,
+		Event:     "workflow.node.completed",
+		NodeKind:  "plan",
+		NodeID:    "node-new",
+	}
+
+	if err := store.Append(ctx, oldEvent); err != nil {
+		t.Fatalf("append old event: %v", err)
+	}
+	if err := store.Append(ctx, newEvent); err != nil {
+		t.Fatalf("append new event: %v", err)
+	}
+
+	if err := store.Prune(ctx); err != nil {
+		t.Fatalf("prune history: %v", err)
+	}
+
+	var events []ports.AgentEvent
+	if err := store.Stream(ctx, EventHistoryFilter{SessionID: "sess"}, func(event ports.AgentEvent) error {
+		events = append(events, event)
+		return nil
+	}); err != nil {
+		t.Fatalf("stream history: %v", err)
+	}
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 retained event, got %d", len(events))
+	}
+	envelope, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+	if envelope.NodeID != "node-new" {
+		t.Fatalf("expected new event to remain, got %q", envelope.NodeID)
+	}
+}
+
 func TestPostgresEventHistoryStore_CrossInstanceReplay(t *testing.T) {
 	pool, _, cleanup := testutil.NewPostgresTestPool(t)
 	defer cleanup()

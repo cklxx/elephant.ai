@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"alex/internal/agent/domain"
 	agentports "alex/internal/agent/ports"
@@ -12,12 +13,14 @@ import (
 	id "alex/internal/utils/id"
 )
 
+type clientMap map[string][]chan agentports.AgentEvent
+
 // EventBroadcaster implements ports.EventListener and broadcasts events to SSE clients
 type EventBroadcaster struct {
 	// Map sessionID -> list of client channels
-	clients map[string][]chan agentports.AgentEvent
-	mu      sync.RWMutex
-	logger  logging.Logger
+	clients   atomic.Value // clientMap
+	clientsMu sync.Mutex
+	logger    logging.Logger
 
 	highVolumeMu       sync.Mutex
 	highVolumeCounters map[string]int
@@ -79,13 +82,13 @@ func WithMaxHistory(max int) EventBroadcasterOption {
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 	b := &EventBroadcaster{
-		clients:            make(map[string][]chan agentports.AgentEvent),
 		sessionToTask:      make(map[string]string),
 		eventHistory:       make(map[string][]agentports.AgentEvent),
 		highVolumeCounters: make(map[string]int),
 		maxHistory:         1000, // Keep up to 1000 events per session
 		logger:             logging.NewComponentLogger("EventBroadcaster"),
 	}
+	b.clients.Store(clientMap{})
 	for _, opt := range opts {
 		if opt != nil {
 			opt(b)
@@ -131,36 +134,16 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 	// with what clients receive, even if those operations are slow.
 	b.updateTaskProgress(baseEvent)
 
-	var targets map[string][]chan agentports.AgentEvent
-	var totalSessions int
-	if sessionID == "" {
-		targets = make(map[string][]chan agentports.AgentEvent)
-	}
-
-	b.mu.RLock()
-	totalSessions = len(b.clients)
+	clientsBySession := b.loadClients()
+	totalSessions := len(clientsBySession)
 	if !suppressLogs {
 		b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, totalSessions)
 	}
 
-	switch {
-	case sessionID == "":
-		for sid, clients := range b.clients {
-			targets[sid] = append([]chan agentports.AgentEvent(nil), clients...)
-		}
-	case b.clients[sessionID] != nil:
-		targets = map[string][]chan agentports.AgentEvent{
-			sessionID: append([]chan agentports.AgentEvent(nil), b.clients[sessionID]...),
-		}
-	default:
-		targets = nil
-	}
-	b.mu.RUnlock()
-
 	if sessionID == "" {
 		// Broadcast to all sessions if no session ID
 		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", totalSessions)
-		for sid, clients := range targets {
+		for sid, clients := range clientsBySession {
 			if !suppressLogs {
 				b.logger.Debug("[OnEvent] Broadcasting to session '%s' with %d clients", sid, len(clients))
 			}
@@ -169,12 +152,12 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 		return
 	}
 
-	if len(targets) == 0 {
+	clients := clientsBySession[sessionID]
+	if len(clients) == 0 {
 		b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event: %s). Available sessions: %v", sessionID, event.EventType(), b.getSessionIDs())
 		return
 	}
 
-	clients := targets[sessionID]
 	if !suppressLogs {
 		b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
 	}
@@ -183,11 +166,9 @@ func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
 
 // getSessionIDs returns list of session IDs for debugging
 func (b *EventBroadcaster) getSessionIDs() []string {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	ids := make([]string, 0, len(b.clients))
-	for id := range b.clients {
+	clients := b.loadClients()
+	ids := make([]string, 0, len(clients))
+	for id := range clients {
 		ids = append(ids, id)
 	}
 	return ids
@@ -329,32 +310,38 @@ func isCriticalEvent(event agentports.AgentEvent) bool {
 
 // RegisterClient registers a new client for a session
 func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agentports.AgentEvent) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.clientsMu.Lock()
+	defer b.clientsMu.Unlock()
 
-	b.clients[sessionID] = append(b.clients[sessionID], ch)
+	current := b.loadClients()
+	updated := cloneClientMap(current)
+	updated[sessionID] = append(updated[sessionID], ch)
+	b.clients.Store(updated)
 	b.metrics.incrementConnections()
-	b.logger.Info("Client registered for session %s (total: %d)", sessionID, len(b.clients[sessionID]))
+	b.logger.Info("Client registered for session %s (total: %d)", sessionID, len(updated[sessionID]))
 }
 
 // UnregisterClient removes a client from the session
 func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports.AgentEvent) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	b.clientsMu.Lock()
+	defer b.clientsMu.Unlock()
 
-	clients := b.clients[sessionID]
+	current := b.loadClients()
+	clients := current[sessionID]
 	for i, client := range clients {
 		if client == ch {
 			// Remove client from list
-			b.clients[sessionID] = append(clients[:i], clients[i+1:]...)
+			updated := cloneClientMap(current)
+			updated[sessionID] = append(clients[:i], clients[i+1:]...)
 			b.metrics.decrementConnections()
-			b.logger.Info("Client unregistered from session %s (remaining: %d)", sessionID, len(b.clients[sessionID]))
+			b.logger.Info("Client unregistered from session %s (remaining: %d)", sessionID, len(updated[sessionID]))
 
 			// Clean up empty session entries
-			if len(b.clients[sessionID]) == 0 {
-				delete(b.clients, sessionID)
+			if len(updated[sessionID]) == 0 {
+				delete(updated, sessionID)
 				b.clearHighVolumeCounter(sessionID)
 			}
+			b.clients.Store(updated)
 			break
 		}
 	}
@@ -362,10 +349,7 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports
 
 // GetClientCount returns the number of clients subscribed to a session
 func (b *EventBroadcaster) GetClientCount(sessionID string) int {
-	b.mu.RLock()
-	defer b.mu.RUnlock()
-
-	return len(b.clients[sessionID])
+	return len(b.loadClients()[sessionID])
 }
 
 // SetSessionContext sets the session context for event extraction
@@ -713,12 +697,11 @@ func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
 	activeConns := b.metrics.activeConnections
 	b.metrics.mu.RUnlock()
 
-	b.mu.RLock()
-	defer b.mu.RUnlock()
+	clientsBySession := b.loadClients()
 
 	// Calculate buffer depth per session
 	bufferDepth := make(map[string]int)
-	for sessionID, clients := range b.clients {
+	for sessionID, clients := range clientsBySession {
 		totalDepth := 0
 		for _, ch := range clients {
 			totalDepth += len(ch)
@@ -734,6 +717,27 @@ func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
 		TotalConnections:  totalConns,
 		ActiveConnections: activeConns,
 		BufferDepth:       bufferDepth,
-		SessionCount:      len(b.clients),
+		SessionCount:      len(clientsBySession),
 	}
+}
+
+func (b *EventBroadcaster) loadClients() clientMap {
+	if b == nil {
+		return nil
+	}
+	if value := b.clients.Load(); value != nil {
+		return value.(clientMap)
+	}
+	return clientMap{}
+}
+
+func cloneClientMap(src clientMap) clientMap {
+	if len(src) == 0 {
+		return clientMap{}
+	}
+	out := make(clientMap, len(src))
+	for sessionID, clients := range src {
+		out[sessionID] = append([]chan agentports.AgentEvent(nil), clients...)
+	}
+	return out
 }

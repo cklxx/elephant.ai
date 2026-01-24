@@ -77,6 +77,9 @@ func RunServer(observabilityConfigPath string) error {
 		if attachmentStore != nil {
 			historyOpts = append(historyOpts, serverApp.WithHistoryAttachmentStore(attachmentStore))
 		}
+		if config.EventHistoryRetention > 0 {
+			historyOpts = append(historyOpts, serverApp.WithHistoryRetention(config.EventHistoryRetention))
+		}
 		pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB, historyOpts...)
 		if err := pgHistory.EnsureSchema(ctx); err != nil {
 			logger.Warn("Failed to initialize event history schema: %v", err)
