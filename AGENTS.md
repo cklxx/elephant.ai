@@ -1,4 +1,4 @@
-# Elephant.ai Repo Agent Workflow & Safety Rules
+# Repo Agent Workflow & Safety Rules
 
 ## 0 · About the user and your role
 
