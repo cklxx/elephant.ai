@@ -40,6 +40,8 @@ const (
 	DefaultLLMBaseURL        = "https://api.openai.com/v1"
 	DefaultMaxTokens         = 8192
 	DefaultToolMaxConcurrent = 8
+	DefaultLLMCacheSize      = 64
+	DefaultLLMCacheTTL       = 30 * time.Minute
 	DefaultACPHost           = "127.0.0.1"
 	DefaultACPPort           = 9000
 	DefaultACPPortFile       = ".pids/acp.port"
@@ -78,6 +80,8 @@ type RuntimeConfig struct {
 	MaxIterations              int      `json:"max_iterations" yaml:"max_iterations"`
 	MaxTokens                  int      `json:"max_tokens" yaml:"max_tokens"`
 	ToolMaxConcurrent          int      `json:"tool_max_concurrent" yaml:"tool_max_concurrent"`
+	LLMCacheSize               int      `json:"llm_cache_size" yaml:"llm_cache_size"`
+	LLMCacheTTLSeconds         int      `json:"llm_cache_ttl_seconds" yaml:"llm_cache_ttl_seconds"`
 	UserRateLimitRPS           float64  `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
 	UserRateLimitBurst         int      `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
 	Temperature                float64  `json:"temperature" yaml:"temperature"`
@@ -157,6 +161,8 @@ type Overrides struct {
 	MaxIterations              *int      `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
 	MaxTokens                  *int      `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
 	ToolMaxConcurrent          *int      `json:"tool_max_concurrent,omitempty" yaml:"tool_max_concurrent,omitempty"`
+	LLMCacheSize               *int      `json:"llm_cache_size,omitempty" yaml:"llm_cache_size,omitempty"`
+	LLMCacheTTLSeconds         *int      `json:"llm_cache_ttl_seconds,omitempty" yaml:"llm_cache_ttl_seconds,omitempty"`
 	UserRateLimitRPS           *float64  `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
 	UserRateLimitBurst         *int      `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
 	Temperature                *float64  `json:"temperature,omitempty" yaml:"temperature,omitempty"`
@@ -259,6 +265,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		MaxIterations:              150,
 		MaxTokens:                  DefaultMaxTokens,
 		ToolMaxConcurrent:          DefaultToolMaxConcurrent,
+		LLMCacheSize:               DefaultLLMCacheSize,
+		LLMCacheTTLSeconds:         int(DefaultLLMCacheTTL.Seconds()),
 		UserRateLimitRPS:           1.0,
 		UserRateLimitBurst:         3,
 		Temperature:                0.7,
@@ -341,6 +349,12 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 
 	if cfg.ToolMaxConcurrent <= 0 {
 		cfg.ToolMaxConcurrent = DefaultToolMaxConcurrent
+	}
+	if cfg.LLMCacheSize < 0 {
+		cfg.LLMCacheSize = 0
+	}
+	if cfg.LLMCacheTTLSeconds < 0 {
+		cfg.LLMCacheTTLSeconds = 0
 	}
 
 	if len(cfg.StopSequences) > 0 {
@@ -599,6 +613,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolMaxConcurrent = *parsed.ToolMaxConcurrent
 		meta.sources["tool_max_concurrent"] = SourceFile
 	}
+	if parsed.LLMCacheSize != nil {
+		cfg.LLMCacheSize = *parsed.LLMCacheSize
+		meta.sources["llm_cache_size"] = SourceFile
+	}
+	if parsed.LLMCacheTTLSeconds != nil {
+		cfg.LLMCacheTTLSeconds = *parsed.LLMCacheTTLSeconds
+		meta.sources["llm_cache_ttl_seconds"] = SourceFile
+	}
 	if parsed.UserRateLimitRPS != nil {
 		cfg.UserRateLimitRPS = *parsed.UserRateLimitRPS
 		meta.sources["user_rate_limit_rps"] = SourceFile
@@ -818,6 +840,22 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolMaxConcurrent = parsed
 		meta.sources["tool_max_concurrent"] = SourceEnv
 	}
+	if value, ok := lookup("LLM_CACHE_SIZE"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse LLM_CACHE_SIZE: %w", err)
+		}
+		cfg.LLMCacheSize = parsed
+		meta.sources["llm_cache_size"] = SourceEnv
+	}
+	if value, ok := lookup("LLM_CACHE_TTL_SECONDS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse LLM_CACHE_TTL_SECONDS: %w", err)
+		}
+		cfg.LLMCacheTTLSeconds = parsed
+		meta.sources["llm_cache_ttl_seconds"] = SourceEnv
+	}
 	if value, ok := lookup("USER_LLM_RPS"); ok && value != "" {
 		parsed, err := strconv.ParseFloat(value, 64)
 		if err != nil {
@@ -991,10 +1029,11 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 			Source:      SourceEnv,
 		},
 		{
-			Provider:   "antigravity",
-			APIKeyEnv:  "ANTIGRAVITY_API_KEY",
-			BaseURLEnv: "ANTIGRAVITY_BASE_URL",
-			Source:     SourceEnv,
+			Provider:    "antigravity",
+			APIKeyEnv:   "ANTIGRAVITY_API_KEY",
+			BaseURLEnv:  "ANTIGRAVITY_BASE_URL",
+			DefaultBase: antigravityDefaultBase,
+			Source:      SourceEnv,
 		},
 		{
 			Provider:   "openai",
@@ -1137,7 +1176,10 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 			if base, ok := lookup("ANTIGRAVITY_BASE_URL"); ok && strings.TrimSpace(base) != "" {
 				cfg.BaseURL = strings.TrimSpace(base)
 				meta.sources["base_url"] = SourceEnv
+				break
 			}
+			cfg.BaseURL = antigravityDefaultBase
+			meta.sources["base_url"] = SourceDefault
 		case "openai", "openrouter", "deepseek":
 			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
 				cfg.BaseURL = strings.TrimSpace(base)
@@ -1271,6 +1313,14 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 	if overrides.ToolMaxConcurrent != nil {
 		cfg.ToolMaxConcurrent = *overrides.ToolMaxConcurrent
 		meta.sources["tool_max_concurrent"] = SourceOverride
+	}
+	if overrides.LLMCacheSize != nil {
+		cfg.LLMCacheSize = *overrides.LLMCacheSize
+		meta.sources["llm_cache_size"] = SourceOverride
+	}
+	if overrides.LLMCacheTTLSeconds != nil {
+		cfg.LLMCacheTTLSeconds = *overrides.LLMCacheTTLSeconds
+		meta.sources["llm_cache_ttl_seconds"] = SourceOverride
 	}
 	if overrides.UserRateLimitRPS != nil {
 		cfg.UserRateLimitRPS = *overrides.UserRateLimitRPS
