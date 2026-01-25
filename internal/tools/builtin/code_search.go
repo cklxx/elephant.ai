@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/config"
 	"alex/internal/rag"
 	"context"
@@ -18,7 +19,7 @@ type codeSearch struct {
 }
 
 // NewCodeSearch creates a new code search tool
-func NewCodeSearch() ports.ToolExecutor {
+func NewCodeSearch() tools.ToolExecutor {
 	return &codeSearch{}
 }
 

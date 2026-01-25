@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 // artifactManifestTool emits a structured artifact manifest for executor runs.
 type artifactManifestTool struct{}
 
 // NewArtifactManifest constructs the artifact_manifest tool executor.
-func NewArtifactManifest() ports.ToolExecutor {
+func NewArtifactManifest() tools.ToolExecutor {
 	return &artifactManifestTool{}
 }
 

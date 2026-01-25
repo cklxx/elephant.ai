@@ -1,26 +1,30 @@
-package ports
+package tools
 
-import "context"
+import (
+	"context"
+
+	core "alex/internal/agent/ports"
+)
 
 // attachmentsCtxKey stores attachment snapshots in a context so tools can
 // access binary placeholders without depending on domain internals.
 type attachmentsCtxKey struct{}
 
 type attachmentContext struct {
-	attachments map[string]Attachment
+	attachments map[string]core.Attachment
 	iterations  map[string]int
 }
 
 // WithAttachmentContext annotates ctx with a snapshot of available attachments
 // and their iteration metadata so downstream tools (e.g. subagent) can reuse
 // them.
-func WithAttachmentContext(ctx context.Context, attachments map[string]Attachment, iterations map[string]int) context.Context {
+func WithAttachmentContext(ctx context.Context, attachments map[string]core.Attachment, iterations map[string]int) context.Context {
 	if len(attachments) == 0 {
 		return ctx
 	}
 
 	payload := attachmentContext{
-		attachments: CloneAttachmentMap(attachments),
+		attachments: core.CloneAttachmentMap(attachments),
 		iterations:  cloneIterationMap(iterations),
 	}
 
@@ -28,7 +32,7 @@ func WithAttachmentContext(ctx context.Context, attachments map[string]Attachmen
 }
 
 // GetAttachmentContext extracts the attachment snapshot (if any) from ctx.
-func GetAttachmentContext(ctx context.Context) (map[string]Attachment, map[string]int) {
+func GetAttachmentContext(ctx context.Context) (map[string]core.Attachment, map[string]int) {
 	if ctx == nil {
 		return nil, nil
 	}
@@ -38,7 +42,7 @@ func GetAttachmentContext(ctx context.Context) (map[string]Attachment, map[strin
 		return nil, nil
 	}
 
-	attachments := CloneAttachmentMap(value.attachments)
+	attachments := core.CloneAttachmentMap(value.attachments)
 	iterations := cloneIterationMap(value.iterations)
 	return attachments, iterations
 }

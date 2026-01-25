@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 	"os/exec"
@@ -16,7 +17,7 @@ import (
 type bash struct {
 }
 
-func NewBash(cfg ShellToolConfig) ports.ToolExecutor {
+func NewBash(cfg ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &bash{}
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
@@ -18,7 +19,7 @@ type seedreamTextTool struct {
 }
 
 // NewSeedreamTextToImage returns a tool that generates imagery from prompts.
-func NewSeedreamTextToImage(config SeedreamConfig) ports.ToolExecutor {
+func NewSeedreamTextToImage(config SeedreamConfig) tools.ToolExecutor {
 	return &seedreamTextTool{
 		config:  config,
 		factory: &seedreamClientFactory{config: config},

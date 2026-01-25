@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result ToolResult) ToolResult {
@@ -52,7 +53,7 @@ func (e *ReactEngine) emitWorkflowToolCompletedEvent(ctx context.Context, state 
 }
 
 // parseToolCalls extracts tool calls from assistant message
-func (e *ReactEngine) parseToolCalls(msg Message, parser ports.FunctionCallParser) []ToolCall {
+func (e *ReactEngine) parseToolCalls(msg Message, parser tools.FunctionCallParser) []ToolCall {
 
 	if len(msg.ToolCalls) > 0 {
 		e.logger.Debug("Using native tool calls from message: count=%d", len(msg.ToolCalls))

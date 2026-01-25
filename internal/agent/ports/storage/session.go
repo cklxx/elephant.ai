@@ -1,8 +1,10 @@
-package ports
+package storage
 
 import (
 	"context"
 	"time"
+
+	core "alex/internal/agent/ports"
 )
 
 // SessionStore persists agent sessions
@@ -26,12 +28,12 @@ type SessionStore interface {
 // Session represents an agent session
 type Session struct {
 	ID          string                   `json:"id"`
-	Messages    []Message                `json:"messages"`
+	Messages    []core.Message           `json:"messages"`
 	Todos       []Todo                   `json:"todos"`
 	Metadata    map[string]string        `json:"metadata"`
-	Attachments map[string]Attachment    `json:"attachments,omitempty"`
-	Important   map[string]ImportantNote `json:"important,omitempty"`
-	UserPersona *UserPersonaProfile      `json:"user_persona,omitempty"`
+	Attachments map[string]core.Attachment    `json:"attachments,omitempty"`
+	Important   map[string]core.ImportantNote `json:"important,omitempty"`
+	UserPersona *core.UserPersonaProfile      `json:"user_persona,omitempty"`
 	CreatedAt   time.Time                `json:"created_at"`
 	UpdatedAt   time.Time                `json:"updated_at"`
 }

@@ -8,10 +8,14 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "session-history-1",
 		Messages: []ports.Message{
 			{
@@ -48,10 +52,10 @@ func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -84,7 +88,7 @@ func TestPrepareInjectsUserHistoryRecall(t *testing.T) {
 }
 
 func TestPrepareHistoryRecallOmitsSystemMessages(t *testing.T) {
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "session-history-2",
 		Messages: []ports.Message{
 			{Role: "system", Content: "You are a helpful assistant."},
@@ -109,10 +113,10 @@ func TestPrepareHistoryRecallOmitsSystemMessages(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -133,7 +137,7 @@ func TestPrepareHistoryRecallOmitsSystemMessages(t *testing.T) {
 }
 
 func TestPrepareHistoryRecallPreservesToolCallOrdering(t *testing.T) {
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "session-history-toolcall-order",
 		Messages: []ports.Message{
 			{
@@ -178,10 +182,10 @@ func TestPrepareHistoryRecallPreservesToolCallOrdering(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -220,7 +224,7 @@ func TestPrepareHistoryRecallPreservesToolCallOrdering(t *testing.T) {
 }
 
 func TestPrepareHistoryRecallReplacesOriginalTurns(t *testing.T) {
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "session-history-duplicates",
 		Messages: []ports.Message{
 			{
@@ -244,9 +248,9 @@ func TestPrepareHistoryRecallReplacesOriginalTurns(t *testing.T) {
 		ContextMgr:   stubContextManager{},
 		Parser:       stubParser{},
 		Config:       Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
-		Logger:       ports.NoopLogger{},
-		Clock:        ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
-		EventEmitter: ports.NoopEventListener{},
+		Logger:       agent.NoopLogger{},
+		Clock:        agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
+		EventEmitter: agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -277,7 +281,7 @@ func TestPrepareHistoryRecallReplacesOriginalTurns(t *testing.T) {
 }
 
 func TestHistoryRecallSummarizesWhenThresholdExceeded(t *testing.T) {
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "session-history-3",
 		Messages: []ports.Message{
 			{
@@ -321,10 +325,10 @@ func TestHistoryRecallSummarizesWhenThresholdExceeded(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3, MaxTokens: 20},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 1, 10, 0, 0, 0, time.UTC) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -346,17 +350,17 @@ func TestHistoryRecallSummarizesWhenThresholdExceeded(t *testing.T) {
 }
 
 type fakeLLMFactory struct {
-	client ports.LLMClient
+	client llm.LLMClient
 }
 
-func (f *fakeLLMFactory) GetClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+func (f *fakeLLMFactory) GetClient(provider, model string, config llm.LLMConfig) (llm.LLMClient, error) {
 	if f.client == nil {
 		return nil, errors.New("no client")
 	}
 	return f.client, nil
 }
 
-func (f *fakeLLMFactory) GetIsolatedClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+func (f *fakeLLMFactory) GetIsolatedClient(provider, model string, config llm.LLMConfig) (llm.LLMClient, error) {
 	if f.client == nil {
 		return nil, errors.New("no client")
 	}
@@ -417,9 +421,9 @@ type registryWithList struct {
 	defs []ports.ToolDefinition
 }
 
-func (r *registryWithList) Register(tool ports.ToolExecutor) error { return nil }
+func (r *registryWithList) Register(tool tools.ToolExecutor) error { return nil }
 
-func (r *registryWithList) Get(name string) (ports.ToolExecutor, error) {
+func (r *registryWithList) Get(name string) (tools.ToolExecutor, error) {
 	return nil, errors.New("not implemented")
 }
 
@@ -429,7 +433,7 @@ func (r *registryWithList) List() []ports.ToolDefinition {
 
 func (r *registryWithList) Unregister(name string) error { return nil }
 
-func (r *registryWithList) WithoutSubagent() ports.ToolRegistry {
+func (r *registryWithList) WithoutSubagent() tools.ToolRegistry {
 	filtered := make([]ports.ToolDefinition, 0, len(r.defs))
 	for _, def := range r.defs {
 		if def.Name == "subagent" || def.Name == "explore" || def.Name == "acp_executor" {
@@ -441,7 +445,7 @@ func (r *registryWithList) WithoutSubagent() ports.ToolRegistry {
 }
 
 func TestPrepareCarriesSessionHistoryIntoState(t *testing.T) {
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "session-history-merge",
 		Messages: []ports.Message{
 			{Role: "system", Content: "Legacy persona", Source: ports.MessageSourceSystemPrompt},
@@ -459,10 +463,10 @@ func TestPrepareCarriesSessionHistoryIntoState(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -492,7 +496,7 @@ func TestPrepareCarriesSessionHistoryIntoState(t *testing.T) {
 }
 
 func TestSessionHistoryAccumulatesAcrossTurns(t *testing.T) {
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "session-history-stack",
 		Messages: []ports.Message{
 			{Role: "system", Content: "Legacy persona", Source: ports.MessageSourceSystemPrompt},
@@ -505,8 +509,8 @@ func TestSessionHistoryAccumulatesAcrossTurns(t *testing.T) {
 	store := &stubSessionStore{session: session}
 	coordinator := &AgentCoordinator{
 		sessionStore: store,
-		logger:       ports.NoopLogger{},
-		clock:        ports.ClockFunc(func() time.Time { return time.Date(2024, time.July, 1, 10, 0, 0, 0, time.UTC) }),
+		logger:       agent.NoopLogger{},
+		clock:        agent.ClockFunc(func() time.Time { return time.Date(2024, time.July, 1, 10, 0, 0, 0, time.UTC) }),
 	}
 	secondRound := []ports.Message{
 		{Role: "user", Content: "第二轮：生成修复计划", Source: ports.MessageSourceUserInput},
@@ -515,7 +519,7 @@ func TestSessionHistoryAccumulatesAcrossTurns(t *testing.T) {
 	}
 	resultMessages := append([]ports.Message(nil), session.Messages...)
 	resultMessages = append(resultMessages, secondRound...)
-	result := &ports.TaskResult{SessionID: session.ID, TaskID: "task-second", Messages: resultMessages}
+	result := &agent.TaskResult{SessionID: session.ID, TaskID: "task-second", Messages: resultMessages}
 	if err := coordinator.SaveSessionAfterExecution(context.Background(), session, result); err != nil {
 		t.Fatalf("save session after execution failed: %v", err)
 	}
@@ -535,10 +539,10 @@ func TestSessionHistoryAccumulatesAcrossTurns(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 3},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 	service := NewExecutionPreparationService(deps)
 	env, err := service.Prepare(context.Background(), "第三轮：提交修复", session.ID)
@@ -551,7 +555,7 @@ func TestSessionHistoryAccumulatesAcrossTurns(t *testing.T) {
 }
 
 func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
-	session := &ports.Session{ID: "session-inherited", Metadata: map[string]string{}}
+	session := &storage.Session{ID: "session-inherited", Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
@@ -560,14 +564,14 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test", MaxIterations: 2},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
-	snapshot := &ports.TaskState{
+	snapshot := &agent.TaskState{
 		SystemPrompt: "You are the orchestrator",
 		Messages: []ports.Message{{
 			Role:    "system",
@@ -578,16 +582,16 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 			"report.md": {Name: "report.md", Data: "YmFzZQ=="},
 		},
 		AttachmentIterations: map[string]int{"report.md": 4},
-		Plans:                []ports.PlanNode{{ID: "plan-1", Title: "Investigate"}},
-		Beliefs:              []ports.Belief{{Statement: "Delegation works"}},
-		KnowledgeRefs:        []ports.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
+		Plans:                []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
+		Beliefs:              []agent.Belief{{Statement: "Delegation works"}},
+		KnowledgeRefs:        []agent.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
 		WorldState:           map[string]any{"last_tool": "think"},
 		WorldDiff:            map[string]any{"iteration": 2},
-		FeedbackSignals:      []ports.FeedbackSignal{{Kind: "info"}},
+		FeedbackSignals:      []agent.FeedbackSignal{{Kind: "info"}},
 	}
 
 	ctx := MarkSubagentContext(context.Background())
-	ctx = ports.WithTaskStateSnapshot(ctx, snapshot)
+	ctx = agent.WithTaskStateSnapshot(ctx, snapshot)
 
 	env, err := service.Prepare(ctx, "Break down the delegated task", "")
 	if err != nil {

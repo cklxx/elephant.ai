@@ -7,20 +7,21 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type todoRead struct {
 	sessionsDir string // For testing override
 }
 
-func NewTodoRead() ports.ToolExecutor {
+func NewTodoRead() tools.ToolExecutor {
 	homeDir, _ := os.UserHomeDir()
 	sessionsDir := filepath.Join(homeDir, ".alex-sessions")
 	return &todoRead{sessionsDir: sessionsDir}
 }
 
 // NewTodoReadWithSessionsDir creates todo_read with custom sessions directory (for testing)
-func NewTodoReadWithSessionsDir(sessionsDir string) ports.ToolExecutor {
+func NewTodoReadWithSessionsDir(sessionsDir string) tools.ToolExecutor {
 	// Expand tilde if present
 	if strings.HasPrefix(sessionsDir, "~/") {
 		homeDir, _ := os.UserHomeDir()

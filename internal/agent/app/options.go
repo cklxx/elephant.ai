@@ -1,14 +1,12 @@
 package app
 
-import (
-	"alex/internal/agent/ports"
-)
+import agent "alex/internal/agent/ports/agent"
 
 // CoordinatorOption configures optional dependencies for the agent coordinator.
 type CoordinatorOption func(*AgentCoordinator)
 
 // WithLogger overrides the default coordinator logger.
-func WithLogger(logger ports.Logger) CoordinatorOption {
+func WithLogger(logger agent.Logger) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if logger != nil {
 			c.logger = logger
@@ -17,7 +15,7 @@ func WithLogger(logger ports.Logger) CoordinatorOption {
 }
 
 // WithClock overrides the default coordinator clock.
-func WithClock(clock ports.Clock) CoordinatorOption {
+func WithClock(clock agent.Clock) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if clock != nil {
 			c.clock = clock

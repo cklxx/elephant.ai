@@ -7,10 +7,13 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/utils/clilatency"
 )
 
-func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *ports.Session, task string) (*ports.TaskAnalysis, bool) {
+func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *storage.Session, task string) (*agent.TaskAnalysis, bool) {
 	if strings.TrimSpace(task) == "" {
 		return nil, false
 	}
@@ -22,7 +25,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		clilatency.Printf("[latency] preanalysis=skipped reason=%s\n", analysis.Approach)
 		return analysis, preferSmall
 	}
-	client, err := s.llmFactory.GetIsolatedClient(provider, model, ports.LLMConfig{
+	client, err := s.llmFactory.GetIsolatedClient(provider, model, llm.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
 	})
@@ -63,7 +66,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	preanalysisStarted := time.Now()
 	analysisCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	streaming, ok := ports.EnsureStreamingClient(client).(ports.StreamingLLMClient)
+	streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
 	if !ok {
 		resp, err := client.Complete(analysisCtx, req)
 		clilatency.Printf(
@@ -118,7 +121,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	return analysis, preferSmallModel
 }
 
-func quickTriageTask(task string) (*ports.TaskAnalysis, bool, bool) {
+func quickTriageTask(task string) (*agent.TaskAnalysis, bool, bool) {
 	trimmed := strings.TrimSpace(task)
 	if trimmed == "" {
 		return nil, false, false
@@ -133,14 +136,14 @@ func quickTriageTask(task string) (*ports.TaskAnalysis, bool, bool) {
 
 	switch strings.ToLower(trimmed) {
 	case "hi", "hello", "hey", "yo", "nihao", "你好", "您好", "嗨", "在吗", "ping", "pings":
-		return &ports.TaskAnalysis{
+		return &agent.TaskAnalysis{
 			Complexity: "simple",
 			ActionName: "Greeting",
 			Goal:       "",
 			Approach:   "greeting",
 		}, true, true
 	case "thanks", "thank you", "thx", "谢谢", "多谢", "感谢", "ok", "okay", "好的", "收到":
-		return &ports.TaskAnalysis{
+		return &agent.TaskAnalysis{
 			Complexity: "simple",
 			ActionName: "Acknowledge",
 			Goal:       "",
@@ -151,7 +154,7 @@ func quickTriageTask(task string) (*ports.TaskAnalysis, bool, bool) {
 	}
 }
 
-func shouldSkipContextWindow(task string, session *ports.Session) (bool, string) {
+func shouldSkipContextWindow(task string, session *storage.Session) (bool, string) {
 	if session == nil {
 		return false, ""
 	}
@@ -214,7 +217,7 @@ type taskAnalysisRetrievalHints struct {
 	Notes          string   `json:"notes"`
 }
 
-func parseTaskAnalysis(raw string) (*ports.TaskAnalysis, string) {
+func parseTaskAnalysis(raw string) (*agent.TaskAnalysis, string) {
 	body := strings.TrimSpace(raw)
 	start := strings.Index(body, "{")
 	end := strings.LastIndex(body, "}")
@@ -228,7 +231,7 @@ func parseTaskAnalysis(raw string) (*ports.TaskAnalysis, string) {
 		return nil, ""
 	}
 
-	analysis := &ports.TaskAnalysis{
+	analysis := &agent.TaskAnalysis{
 		Complexity:      normalizeComplexity(payload.Complexity),
 		ActionName:      coalesce(payload.TaskName, payload.ActionName),
 		Goal:            strings.TrimSpace(payload.Goal),
@@ -237,12 +240,12 @@ func parseTaskAnalysis(raw string) (*ports.TaskAnalysis, string) {
 	}
 
 	if len(payload.Steps) > 0 {
-		analysis.TaskBreakdown = make([]ports.TaskAnalysisStep, 0, len(payload.Steps))
+		analysis.TaskBreakdown = make([]agent.TaskAnalysisStep, 0, len(payload.Steps))
 		for _, step := range payload.Steps {
 			if strings.TrimSpace(step.Description) == "" {
 				continue
 			}
-			analysis.TaskBreakdown = append(analysis.TaskBreakdown, ports.TaskAnalysisStep{
+			analysis.TaskBreakdown = append(analysis.TaskBreakdown, agent.TaskAnalysisStep{
 				Description:          strings.TrimSpace(step.Description),
 				NeedsExternalContext: step.NeedsExternalContext,
 				Rationale:            strings.TrimSpace(step.Rationale),
@@ -331,7 +334,7 @@ func coalesce(values ...string) string {
 	return ""
 }
 
-func buildWorldStateFromWindow(window ports.ContextWindow) (map[string]any, map[string]any) {
+func buildWorldStateFromWindow(window agent.ContextWindow) (map[string]any, map[string]any) {
 	profile := window.Static.World
 	envSummary := strings.TrimSpace(window.Static.EnvironmentSummary)
 	hasProfile := profile.ID != "" || profile.Environment != "" || len(profile.Capabilities) > 0 || len(profile.Limits) > 0 || len(profile.CostModel) > 0

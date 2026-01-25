@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 func TestEventBroadcasterBroadcastsToRegisteredClients(t *testing.T) {
 	broadcaster := NewEventBroadcaster()
-	ch := make(chan ports.AgentEvent, 1)
+	ch := make(chan agent.AgentEvent, 1)
 	broadcaster.RegisterClient("session-1", ch)
 
 	event := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "session-1", "task-1", "", time.Now()),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "session-1", "task-1", "", time.Now()),
 		Version:   1,
 		Event:     "workflow.node.started",
 		NodeKind:  "plan",

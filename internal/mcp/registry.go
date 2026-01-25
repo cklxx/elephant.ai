@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/logging"
 )
 
@@ -246,7 +246,7 @@ func (r *Registry) loadServerTools(serverName string, client *Client) error {
 }
 
 // RegisterWithToolRegistry registers all MCP tools with ALEX's tool registry
-func (r *Registry) RegisterWithToolRegistry(toolRegistry ports.ToolRegistry) error {
+func (r *Registry) RegisterWithToolRegistry(toolRegistry tools.ToolRegistry) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

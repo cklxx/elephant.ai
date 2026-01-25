@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 	"os"
@@ -11,7 +12,7 @@ import (
 type listFiles struct {
 }
 
-func NewListFiles(cfg FileToolConfig) ports.ToolExecutor {
+func NewListFiles(cfg FileToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &listFiles{}
 }

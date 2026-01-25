@@ -9,6 +9,8 @@ import (
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	tools "alex/internal/agent/ports/tools"
 	id "alex/internal/utils/id"
 	"alex/internal/workflow"
 )
@@ -18,14 +20,14 @@ import (
 // ARCHITECTURE: This tool now properly follows hexagonal architecture by:
 // - NOT importing domain layer (no internal/agent/domain)
 // - NOT importing output layer (no internal/output)
-// - Delegating all execution to ports.AgentCoordinator interface
+// - Delegating all execution to agent.AgentCoordinator interface
 // - Using agentApp.MarkSubagentContext to trigger registry filtering (RECURSION PREVENTION)
 type subagent struct {
-	coordinator ports.AgentCoordinator
+	coordinator agent.AgentCoordinator
 }
 
 // NewSubAgent creates a subagent tool with coordinator injection
-func NewSubAgent(coordinator ports.AgentCoordinator, maxWorkers int) ports.ToolExecutor {
+func NewSubAgent(coordinator agent.AgentCoordinator, maxWorkers int) tools.ToolExecutor {
 	return &subagent{
 		coordinator: coordinator,
 	}
@@ -74,7 +76,7 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	prompt := strings.TrimSpace(promptRaw)
 	mode := "single"
 
-	sharedAttachments, sharedIterations := ports.GetAttachmentContext(ctx)
+	sharedAttachments, sharedIterations := tools.GetAttachmentContext(ctx)
 
 	// CRITICAL: Mark context as subagent execution
 	// This triggers ExecutionPreparationService to use filtered registry (without subagent tool)
@@ -82,9 +84,9 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	ctx = agentApp.MarkSubagentContext(ctx)
 
 	// Extract parent listener from context if available
-	var parentListener ports.EventListener
+	var parentListener agent.EventListener
 	if listener := ctx.Value(parentListenerKey{}); listener != nil {
-		if pl, ok := listener.(ports.EventListener); ok {
+		if pl, ok := listener.(agent.EventListener); ok {
 			parentListener = pl
 		}
 	}
@@ -122,7 +124,7 @@ func (t *subagent) executeSubtask(
 	task string,
 	index int,
 	totalTasks int,
-	parentListener ports.EventListener,
+	parentListener agent.EventListener,
 	maxParallel int,
 	inherited map[string]ports.Attachment,
 	iterations map[string]int,
@@ -276,7 +278,7 @@ func extractWorkflows(results []subtaskMetadata) []*workflow.WorkflowSnapshot {
 type parentListenerKey struct{}
 
 // WithParentListener adds a parent listener to context for subagent event forwarding
-func WithParentListener(ctx context.Context, listener ports.EventListener) context.Context {
+func WithParentListener(ctx context.Context, listener agent.EventListener) context.Context {
 	return context.WithValue(ctx, parentListenerKey{}, listener)
 }
 
@@ -285,11 +287,11 @@ type subtaskListener struct {
 	taskIndex      int
 	totalTasks     int
 	taskPreview    string
-	parentListener ports.EventListener
+	parentListener agent.EventListener
 	maxParallel    int
 }
 
-func newSubtaskListener(index, total int, task string, parent ports.EventListener, maxParallel int) *subtaskListener {
+func newSubtaskListener(index, total int, task string, parent agent.EventListener, maxParallel int) *subtaskListener {
 	// Create task preview (max 60 chars)
 	taskPreview := task
 	if len(taskPreview) > 60 {
@@ -305,7 +307,7 @@ func newSubtaskListener(index, total int, task string, parent ports.EventListene
 	}
 }
 
-func (l *subtaskListener) OnEvent(event ports.AgentEvent) {
+func (l *subtaskListener) OnEvent(event agent.AgentEvent) {
 	// Forward event to parent listener if present
 	// Parent can choose to wrap/modify the event based on subtask context
 	if l.parentListener == nil {
@@ -332,14 +334,14 @@ func (l *subtaskListener) OnEvent(event ports.AgentEvent) {
 // SubtaskEvent wraps agent events with subtask context
 // This is exported for UI compatibility
 type SubtaskEvent struct {
-	OriginalEvent  ports.AgentEvent
+	OriginalEvent  agent.AgentEvent
 	SubtaskIndex   int    // 0-based subtask index
 	TotalSubtasks  int    // Total number of subtasks
 	SubtaskPreview string // Short preview of the subtask (for display)
 	MaxParallel    int    // Maximum number of subtasks running in parallel
 }
 
-// Implement ports.AgentEvent interface for SubtaskEvent
+// Implement agent.AgentEvent interface for SubtaskEvent
 func (e *SubtaskEvent) EventType() string {
 	if e.OriginalEvent == nil {
 		return "subtask"
@@ -351,14 +353,14 @@ func (e *SubtaskEvent) Timestamp() time.Time {
 	return e.OriginalEvent.Timestamp()
 }
 
-func (e *SubtaskEvent) GetAgentLevel() ports.AgentLevel {
+func (e *SubtaskEvent) GetAgentLevel() agent.AgentLevel {
 	if e == nil || e.OriginalEvent == nil {
-		return ports.LevelSubagent
+		return agent.LevelSubagent
 	}
-	if level := e.OriginalEvent.GetAgentLevel(); level != "" && level != ports.LevelCore {
+	if level := e.OriginalEvent.GetAgentLevel(); level != "" && level != agent.LevelCore {
 		return level
 	}
-	return ports.LevelSubagent
+	return agent.LevelSubagent
 }
 
 func (e *SubtaskEvent) GetSessionID() string {
@@ -374,11 +376,11 @@ func (e *SubtaskEvent) GetParentTaskID() string {
 }
 
 // SubtaskDetails exposes metadata for downstream consumers without importing the concrete type.
-func (e *SubtaskEvent) SubtaskDetails() ports.SubtaskMetadata {
+func (e *SubtaskEvent) SubtaskDetails() agent.SubtaskMetadata {
 	if e == nil {
-		return ports.SubtaskMetadata{}
+		return agent.SubtaskMetadata{}
 	}
-	return ports.SubtaskMetadata{
+	return agent.SubtaskMetadata{
 		Index:       e.SubtaskIndex,
 		Total:       e.TotalSubtasks,
 		Preview:     e.SubtaskPreview,
@@ -387,7 +389,7 @@ func (e *SubtaskEvent) SubtaskDetails() ports.SubtaskMetadata {
 }
 
 // WrappedEvent returns the underlying agent event carried by the subtask envelope.
-func (e *SubtaskEvent) WrappedEvent() ports.AgentEvent {
+func (e *SubtaskEvent) WrappedEvent() agent.AgentEvent {
 	if e == nil {
 		return nil
 	}
@@ -395,7 +397,7 @@ func (e *SubtaskEvent) WrappedEvent() ports.AgentEvent {
 }
 
 // SetWrappedEvent updates the underlying event for sanitization pipelines.
-func (e *SubtaskEvent) SetWrappedEvent(event ports.AgentEvent) {
+func (e *SubtaskEvent) SetWrappedEvent(event agent.AgentEvent) {
 	if e == nil {
 		return
 	}

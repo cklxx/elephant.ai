@@ -9,9 +9,10 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	storage "alex/internal/agent/ports/storage"
 )
 
-func collectSessionAttachments(session *ports.Session) map[string]ports.Attachment {
+func collectSessionAttachments(session *storage.Session) map[string]ports.Attachment {
 	attachments := make(map[string]ports.Attachment)
 	if session == nil {
 		return attachments
@@ -43,7 +44,7 @@ func mergeAttachmentMaps(target map[string]ports.Attachment, source map[string]p
 	}
 }
 
-func collectSessionImportant(session *ports.Session) map[string]ports.ImportantNote {
+func collectSessionImportant(session *storage.Session) map[string]ports.ImportantNote {
 	notes := make(map[string]ports.ImportantNote)
 	if session == nil {
 		return notes

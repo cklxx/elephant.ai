@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/di"
 	"alex/internal/workflow"
@@ -21,7 +22,7 @@ type AlexAgent struct {
 	coordinator    *app.AgentCoordinator
 	container      *di.Container
 	enableUltra    bool
-	resolvedConfig ports.AgentConfig
+	resolvedConfig agent.AgentConfig
 	runtimeConfig  runtimeconfig.RuntimeConfig
 }
 
@@ -195,7 +196,7 @@ func (aa *AlexAgent) ProcessInstance(ctx context.Context, instance Instance) (*W
 }
 
 // buildTraceFromResult builds a trace from domain task result
-func (aa *AlexAgent) buildTraceFromResult(result *ports.TaskResult, instance Instance, startTime time.Time) []TraceStep {
+func (aa *AlexAgent) buildTraceFromResult(result *agent.TaskResult, instance Instance, startTime time.Time) []TraceStep {
 	if result != nil && result.Workflow != nil {
 		if trace := buildTraceFromWorkflow(result.Workflow); len(trace) > 0 {
 			return trace

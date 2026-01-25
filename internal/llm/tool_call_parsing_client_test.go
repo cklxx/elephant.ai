@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	"alex/internal/parser"
 )
 
@@ -102,7 +103,7 @@ func TestToolCallParsingClientAppliesToStreamingResponses(t *testing.T) {
 	}
 
 	client := WrapWithToolCallParsing(underlying, parser.New())
-	streaming := ports.EnsureStreamingClient(client).(ports.StreamingLLMClient)
+	streaming := portsllm.EnsureStreamingClient(client).(portsllm.StreamingLLMClient)
 
 	resp, err := streaming.StreamComplete(context.Background(), ports.CompletionRequest{
 		Messages: []ports.Message{{Role: "user", Content: "hi"}},

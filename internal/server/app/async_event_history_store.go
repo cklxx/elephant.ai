@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	agentports "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/logging"
 )
 
 type batchEventAppender interface {
-	AppendBatch(ctx context.Context, events []agentports.AgentEvent) error
+	AppendBatch(ctx context.Context, events []agent.AgentEvent) error
 }
 
 // AsyncEventHistoryStore wraps an EventHistoryStore and pushes Append operations
@@ -23,7 +23,7 @@ type batchEventAppender interface {
 type AsyncEventHistoryStore struct {
 	inner EventHistoryStore
 
-	ch            chan agentports.AgentEvent
+	ch            chan agent.AgentEvent
 	flushRequests chan chan error
 	closeOnce     sync.Once
 	done          chan struct{}
@@ -65,7 +65,7 @@ var ErrAsyncHistoryQueueFull = errors.New("async event history queue full")
 func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistoryStoreOption) *AsyncEventHistoryStore {
 	store := &AsyncEventHistoryStore{
 		inner:         inner,
-		ch:            make(chan agentports.AgentEvent, 8192),
+	ch:            make(chan agent.AgentEvent, 8192),
 		flushRequests: make(chan chan error, 16),
 		done:          make(chan struct{}),
 		batchSize:     200,
@@ -85,7 +85,7 @@ func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistor
 	return store
 }
 
-func (s *AsyncEventHistoryStore) Append(ctx context.Context, event agentports.AgentEvent) error {
+func (s *AsyncEventHistoryStore) Append(ctx context.Context, event agent.AgentEvent) error {
 	if s == nil || s.inner == nil || event == nil {
 		return nil
 	}
@@ -113,7 +113,7 @@ func (s *AsyncEventHistoryStore) Append(ctx context.Context, event agentports.Ag
 	}
 }
 
-func (s *AsyncEventHistoryStore) Stream(ctx context.Context, filter EventHistoryFilter, fn func(agentports.AgentEvent) error) error {
+func (s *AsyncEventHistoryStore) Stream(ctx context.Context, filter EventHistoryFilter, fn func(agent.AgentEvent) error) error {
 	if s == nil || s.inner == nil {
 		return fmt.Errorf("history store not initialized")
 	}
@@ -179,7 +179,7 @@ func (s *AsyncEventHistoryStore) run() {
 	ticker := time.NewTicker(s.flushInterval)
 	defer ticker.Stop()
 
-	buffer := make([]agentports.AgentEvent, 0, s.batchSize)
+	buffer := make([]agent.AgentEvent, 0, s.batchSize)
 
 	flushBuffer := func() error {
 		if len(buffer) == 0 {

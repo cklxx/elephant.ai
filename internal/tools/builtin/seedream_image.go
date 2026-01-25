@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/jsonx"
 	"alex/internal/logging"
 
@@ -21,7 +22,7 @@ type seedreamImageTool struct {
 }
 
 // NewSeedreamImageToImage returns a tool that performs image-to-image refinement.
-func NewSeedreamImageToImage(config SeedreamConfig) ports.ToolExecutor {
+func NewSeedreamImageToImage(config SeedreamConfig) tools.ToolExecutor {
 	return &seedreamImageTool{
 		config:  config,
 		factory: &seedreamClientFactory{config: config},

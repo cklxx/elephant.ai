@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/jsonx"
 	"alex/internal/materials"
 	materialapi "alex/internal/materials/api"
@@ -598,7 +599,7 @@ func resolveSeedreamInitImagePlaceholder(ctx context.Context, raw string) (strin
 		return "", "", false
 	}
 
-	attachments, _ := ports.GetAttachmentContext(ctx)
+	attachments, _ := tools.GetAttachmentContext(ctx)
 	if len(attachments) == 0 {
 		return "", "", false
 	}

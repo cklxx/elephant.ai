@@ -7,6 +7,9 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/subscription"
 )
 
@@ -15,11 +18,11 @@ type recordingLLMFactory struct {
 	calls []string
 }
 
-func (f *recordingLLMFactory) GetClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+func (f *recordingLLMFactory) GetClient(provider, model string, config llm.LLMConfig) (llm.LLMClient, error) {
 	return f.GetIsolatedClient(provider, model, config)
 }
 
-func (f *recordingLLMFactory) GetIsolatedClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+func (f *recordingLLMFactory) GetIsolatedClient(provider, model string, config llm.LLMConfig) (llm.LLMClient, error) {
 	f.mu.Lock()
 	f.calls = append(f.calls, provider+"|"+model)
 	f.mu.Unlock()
@@ -58,7 +61,7 @@ func (c *triageClient) Complete(ctx context.Context, req ports.CompletionRequest
 }
 
 func TestPrepareUsesSmallModelForSimpleTasksAndSetsTitleFromPreanalysis(t *testing.T) {
-	session := &ports.Session{ID: "session-preanalysis-simple", Messages: nil, Metadata: map[string]string{}}
+	session := &storage.Session{ID: "session-preanalysis-simple", Messages: nil, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	factory := &recordingLLMFactory{}
 
@@ -75,8 +78,8 @@ func TestPrepareUsesSmallModelForSimpleTasksAndSetsTitleFromPreanalysis(t *testi
 			LLMSmallModel:    "small-model",
 			MaxIterations:    3,
 		},
-		Logger:       ports.NoopLogger{},
-		EventEmitter: ports.NoopEventListener{},
+		Logger:       agent.NoopLogger{},
+		EventEmitter: agent.NoopEventListener{},
 	})
 
 	_, err := service.Prepare(context.Background(), "Fix a typo in README", session.ID)
@@ -116,7 +119,7 @@ noise suffix`)
 }
 
 func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
-	session := &ports.Session{ID: "session-preanalysis-greeting", Messages: nil, Metadata: map[string]string{}}
+	session := &storage.Session{ID: "session-preanalysis-greeting", Messages: nil, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	factory := &recordingLLMFactory{}
 
@@ -133,8 +136,8 @@ func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
 			LLMSmallModel:    "small-model",
 			MaxIterations:    3,
 		},
-		Logger:       ports.NoopLogger{},
-		EventEmitter: ports.NoopEventListener{},
+		Logger:       agent.NoopLogger{},
+		EventEmitter: agent.NoopEventListener{},
 	})
 
 	_, err := service.Prepare(context.Background(), "nihao", session.ID)
@@ -156,7 +159,7 @@ func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
 }
 
 func TestPrepareUsesPinnedSelectionAndSkipsSmallModel(t *testing.T) {
-	session := &ports.Session{ID: "session-pinned", Messages: nil, Metadata: map[string]string{}}
+	session := &storage.Session{ID: "session-pinned", Messages: nil, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	factory := &recordingLLMFactory{}
 
@@ -173,8 +176,8 @@ func TestPrepareUsesPinnedSelectionAndSkipsSmallModel(t *testing.T) {
 			LLMSmallModel:    "small-model",
 			MaxIterations:    3,
 		},
-		Logger:       ports.NoopLogger{},
-		EventEmitter: ports.NoopEventListener{},
+		Logger:       agent.NoopLogger{},
+		EventEmitter: agent.NoopEventListener{},
 	})
 
 	ctx := WithLLMSelection(context.Background(), subscription.ResolvedSelection{

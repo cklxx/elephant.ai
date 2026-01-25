@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 )
 
 func TestFactoryCacheEvictsLRU(t *testing.T) {
 	factory := NewFactory()
 	factory.SetCacheOptions(2, time.Hour)
 
-	cfg := ports.LLMConfig{}
+	cfg := portsllm.LLMConfig{}
 
 	clientA1, err := factory.GetClient("mock", "model-a", cfg)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestFactoryCacheExpiresTTL(t *testing.T) {
 	factory := NewFactory()
 	factory.SetCacheOptions(2, 10*time.Millisecond)
 
-	cfg := ports.LLMConfig{}
+	cfg := portsllm.LLMConfig{}
 
 	client1, err := factory.GetClient("mock", "model-a", cfg)
 	if err != nil {

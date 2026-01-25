@@ -1,13 +1,13 @@
 package app
 
-import agentports "alex/internal/agent/ports"
+import agent "alex/internal/agent/ports/agent"
 
 // BaseAgentEvent unwraps any subtask wrapper to expose the underlying event so
 // downstream handlers (history, metrics, streaming) can behave consistently for
 // core and delegated agents.
-func BaseAgentEvent(event agentports.AgentEvent) agentports.AgentEvent {
+func BaseAgentEvent(event agent.AgentEvent) agent.AgentEvent {
 	for {
-		wrapper, ok := event.(agentports.SubtaskWrapper)
+		wrapper, ok := event.(agent.SubtaskWrapper)
 		if !ok || wrapper == nil {
 			return event
 		}

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	id "alex/internal/utils/id"
 
 	"golang.org/x/time/rate"
@@ -13,7 +14,7 @@ import (
 
 // userRateLimitedClient applies per-user rate limiting around LLM calls.
 type userRateLimitedClient struct {
-	base   ports.LLMClient
+	base   portsllm.LLMClient
 	limit  rate.Limit
 	burst  int
 	mu     sync.Mutex
@@ -24,12 +25,12 @@ type userRateLimitedClient struct {
 // same per-user limiter as the base wrapper.
 type streamingUserRateLimitedClient struct {
 	*userRateLimitedClient
-	streaming ports.StreamingLLMClient
+	streaming portsllm.StreamingLLMClient
 }
 
 // WrapWithUserRateLimit wraps the provided client with a per-user limiter when
 // a positive limit is supplied. A burst less than 1 is coerced to 1.
-func WrapWithUserRateLimit(client ports.LLMClient, limit rate.Limit, burst int) ports.LLMClient {
+func WrapWithUserRateLimit(client portsllm.LLMClient, limit rate.Limit, burst int) portsllm.LLMClient {
 	if client == nil {
 		return nil
 	}
@@ -52,13 +53,13 @@ func WrapWithUserRateLimit(client ports.LLMClient, limit rate.Limit, burst int) 
 		bucket: make(map[string]*rate.Limiter),
 	}
 
-	if streaming, ok := client.(ports.StreamingLLMClient); ok {
+	if streaming, ok := client.(portsllm.StreamingLLMClient); ok {
 		return streamingUserRateLimitedClient{userRateLimitedClient: wrapper, streaming: streaming}
 	}
 
 	return streamingUserRateLimitedClient{
 		userRateLimitedClient: wrapper,
-		streaming:             EnsureStreamingClient(client).(ports.StreamingLLMClient),
+		streaming:             EnsureStreamingClient(client).(portsllm.StreamingLLMClient),
 	}
 }
 

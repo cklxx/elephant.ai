@@ -13,6 +13,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/attachments"
 	serverapp "alex/internal/server/app"
 	"alex/internal/testutil"
@@ -83,7 +84,7 @@ func parseSSEStream(t *testing.T, payload string) []streamedEvent {
 func TestIsDelegationToolEvent(t *testing.T) {
 	now := time.Now()
 	env := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "session-1", "task-1", "", now),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "session-1", "task-1", "", now),
 		Event:     "workflow.tool.completed",
 		NodeKind:  "tool",
 		NodeID:    "subagent:0",
@@ -110,7 +111,7 @@ func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 
 	sessionID := "session-replay"
 	now := time.Now()
-	base := domain.NewBaseEvent(ports.LevelCore, sessionID, "task-1", "parent-1", now)
+	base := domain.NewBaseEvent(agent.LevelCore, sessionID, "task-1", "parent-1", now)
 
 	snapshot := &workflow.WorkflowSnapshot{
 		ID:    "wf-1",
@@ -247,7 +248,7 @@ func TestSSEHandlerBlocksReactIterStepNodes(t *testing.T) {
 
 	sessionID := "session-react-iter"
 	now := time.Now()
-	base := domain.NewBaseEvent(ports.LevelCore, sessionID, "task-react", "", now)
+	base := domain.NewBaseEvent(agent.LevelCore, sessionID, "task-react", "", now)
 
 	stepEvent := &domain.WorkflowNodeCompletedEvent{
 		BaseEvent:       base,
@@ -306,7 +307,7 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 
 	sessionID := "session-subtask"
 	now := time.Now()
-	base := domain.NewBaseEvent(ports.LevelSubagent, sessionID, "task-sub", "parent-task", now)
+	base := domain.NewBaseEvent(agent.LevelSubagent, sessionID, "task-sub", "parent-task", now)
 
 	toolEvent := &domain.WorkflowToolCompletedEvent{
 		BaseEvent: base,
@@ -378,7 +379,7 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	if streamed.event == "" {
 		t.Fatalf("subtask event not streamed: %v", events)
 	}
-	if level := streamed.data["agent_level"]; level != string(ports.LevelSubagent) {
+	if level := streamed.data["agent_level"]; level != string(agent.LevelSubagent) {
 		t.Fatalf("expected subagent level, got %v", level)
 	}
 	if isSubtask := streamed.data["is_subtask"]; isSubtask != true {
@@ -408,7 +409,7 @@ func TestSSEHandler_ReplaysPostgresHistory(t *testing.T) {
 
 	sessionID := "session-replay-postgres"
 	event := domain.NewWorkflowInputReceivedEvent(
-		ports.LevelCore,
+		agent.LevelCore,
 		sessionID,
 		"task-1",
 		"",

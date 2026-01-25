@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 // ErrSnapshotNotFound is returned when a specific turn snapshot cannot be located.
@@ -30,13 +31,13 @@ type Snapshot struct {
 	LLMTurnSeq    int                        `json:"llm_turn_seq"`
 	CreatedAt     time.Time                  `json:"created_at"`
 	Summary       string                     `json:"summary"`
-	Plans         []ports.PlanNode           `json:"plans"`
-	Beliefs       []ports.Belief             `json:"beliefs"`
+	Plans         []agent.PlanNode           `json:"plans"`
+	Beliefs       []agent.Belief             `json:"beliefs"`
 	World         map[string]any             `json:"world_state"`
 	Diff          map[string]any             `json:"diff"`
 	Messages      []ports.Message            `json:"messages"`
-	Feedback      []ports.FeedbackSignal     `json:"feedback"`
-	KnowledgeRefs []ports.KnowledgeReference `json:"knowledge_refs"`
+	Feedback      []agent.FeedbackSignal     `json:"feedback"`
+	KnowledgeRefs []agent.KnowledgeReference `json:"knowledge_refs"`
 }
 
 // SnapshotMetadata provides lightweight info for pagination listings.

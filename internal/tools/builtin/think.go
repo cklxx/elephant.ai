@@ -2,13 +2,14 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 )
 
 type think struct{}
 
-func NewThink() ports.ToolExecutor {
+func NewThink() tools.ToolExecutor {
 	return &think{}
 }
 

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
@@ -619,7 +620,7 @@ func TestInferMediaTypeFromURL(t *testing.T) {
 }
 
 func TestResolveSeedreamInitImagePlaceholder(t *testing.T) {
-	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+	ctx := tools.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
 		"seed.png": {
 			Name:      "seed.png",
 			MediaType: "image/png",
@@ -641,7 +642,7 @@ func TestResolveSeedreamInitImagePlaceholder(t *testing.T) {
 }
 
 func TestResolveSeedreamInitImagePlaceholderMissing(t *testing.T) {
-	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+	ctx := tools.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
 		"seed.png": {
 			Name:      "seed.png",
 			MediaType: "image/png",
@@ -663,7 +664,7 @@ func TestResolveSeedreamInitImagePlaceholderMissing(t *testing.T) {
 }
 
 func TestResolveSeedreamVisionImagesResolvesAttachments(t *testing.T) {
-	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+	ctx := tools.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
 		"scene.png": {
 			Name:      "scene.png",
 			MediaType: "image/png",
@@ -710,7 +711,7 @@ func TestResolveSeedreamVisionImagesResolvesAttachments(t *testing.T) {
 }
 
 func TestResolveSeedreamVisionImagesRejectsMissingPlaceholder(t *testing.T) {
-	ctx := ports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
+	ctx := tools.WithAttachmentContext(context.Background(), map[string]ports.Attachment{
 		"seed.png": {
 			Name:      "seed.png",
 			MediaType: "image/png",

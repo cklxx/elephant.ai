@@ -10,16 +10,18 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/analytics/journal"
 	sessionstate "alex/internal/session/state_store"
 )
 
 func TestSelectWorldPrefersExplicitKey(t *testing.T) {
-	worlds := map[string]ports.WorldProfile{
+	worlds := map[string]agent.WorldProfile{
 		"prod":    {ID: "prod", Environment: "production"},
 		"staging": {ID: "staging", Environment: "staging"},
 	}
-	session := &ports.Session{Metadata: map[string]string{"world": "staging"}}
+	session := &storage.Session{Metadata: map[string]string{"world": "staging"}}
 
 	world := selectWorld("prod", session, worlds)
 	if world.ID != "prod" {
@@ -31,7 +33,7 @@ func TestSelectWorldPrefersExplicitKey(t *testing.T) {
 		t.Fatalf("expected session metadata world, got %q", world.ID)
 	}
 
-	world = selectWorld("", &ports.Session{}, map[string]ports.WorldProfile{})
+	world = selectWorld("", &storage.Session{}, map[string]agent.WorldProfile{})
 	if world.ID != "default" {
 		t.Fatalf("expected default world fallback, got %q", world.ID)
 	}
@@ -41,8 +43,8 @@ func TestBuildWindowIncludesWorldProfile(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
 
-	session := &ports.Session{ID: "sess-1", Metadata: map[string]string{"world": "fallback"}}
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{WorldKey: "prod"})
+	session := &storage.Session{ID: "sess-1", Metadata: map[string]string{"world": "fallback"}}
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{WorldKey: "prod"})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
@@ -61,8 +63,8 @@ func TestBuildWindowIncludesWorldProfile(t *testing.T) {
 func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
-	session := &ports.Session{ID: "sess-ctx", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "CI lab"})
+	session := &storage.Session{ID: "sess-ctx", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{EnvironmentSummary: "CI lab"})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
@@ -83,7 +85,7 @@ func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 func TestBuildWindowIncludesUserPersonaCore(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
-	session := &ports.Session{
+	session := &storage.Session{
 		ID:       "sess-persona",
 		Messages: []ports.Message{{Role: "user", Content: "hi"}},
 		UserPersona: &ports.UserPersonaProfile{
@@ -94,7 +96,7 @@ func TestBuildWindowIncludesUserPersonaCore(t *testing.T) {
 			DecisionStyle:     "deliberate with evidence-first bias",
 		},
 	}
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
@@ -111,8 +113,8 @@ func TestBuildWindowIncludesUserPersonaCore(t *testing.T) {
 func TestBuildWindowSkipsEnvironmentSectionInWebMode(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
-	session := &ports.Session{ID: "web-mode", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
+	session := &storage.Session{ID: "web-mode", Messages: []ports.Message{{Role: "user", Content: "hi"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{
 		EnvironmentSummary: "should-not-appear",
 		ToolMode:           "web",
 	})
@@ -133,9 +135,9 @@ func TestBuildWindowSkipsEnvironmentSectionInWebMode(t *testing.T) {
 func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 	configRoot := resolveDefaultConfigRoot(t)
 	mgr := NewManager(WithConfigRoot(configRoot))
-	session := &ports.Session{ID: "legacy-static", Messages: []ports.Message{{Role: "user", Content: "ping"}}}
+	session := &storage.Session{ID: "legacy-static", Messages: []ports.Message{{Role: "user", Content: "ping"}}}
 
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "ci lab"})
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{EnvironmentSummary: "ci lab"})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
@@ -190,8 +192,8 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 	}
 
 	mgr := NewManager(WithConfigRoot(configRoot))
-	session := &ports.Session{ID: "default-static", Messages: []ports.Message{{Role: "user", Content: "ping"}}}
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{EnvironmentSummary: "yaml smoke"})
+	session := &storage.Session{ID: "default-static", Messages: []ports.Message{{Role: "user", Content: "ping"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{EnvironmentSummary: "yaml smoke"})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
@@ -226,7 +228,7 @@ func TestDeriveHistoryAwareMetaBuildsTimelineFromSessionHistory(t *testing.T) {
 		t.Fatalf("expected persona version to be carried into meta context, got %q", meta.PersonaVersion)
 	}
 
-	var timeline *ports.MemoryFragment
+	var timeline *agent.MemoryFragment
 	for i := range meta.Memories {
 		if meta.Memories[i].Key == "recent_session_timeline" {
 			timeline = &meta.Memories[i]
@@ -270,23 +272,23 @@ func TestBuildWindowEmbedsDynamicStateIntoSystemPrompt(t *testing.T) {
 		TurnID:     4,
 		LLMTurnSeq: 9,
 		CreatedAt:  snapshotTime,
-		Plans: []ports.PlanNode{{
+		Plans: []agent.PlanNode{{
 			ID:     "plan-root",
 			Title:  "Ship feature",
 			Status: "in_progress",
-			Children: []ports.PlanNode{{
+			Children: []agent.PlanNode{{
 				ID:          "plan-tests",
 				Title:       "Write tests",
 				Description: "Add regression coverage",
 				Status:      "pending",
 			}},
 		}},
-		Beliefs: []ports.Belief{{
+		Beliefs: []agent.Belief{{
 			Statement:  "Tests fail on CI",
 			Confidence: 0.8,
 		}},
 		World: map[string]any{"deploy": "blocked"},
-		Feedback: []ports.FeedbackSignal{{
+		Feedback: []agent.FeedbackSignal{{
 			Kind:    "reward",
 			Message: "Stabilize pipeline",
 			Value:   0.6,
@@ -296,8 +298,8 @@ func TestBuildWindowEmbedsDynamicStateIntoSystemPrompt(t *testing.T) {
 		t.Fatalf("save snapshot: %v", err)
 	}
 
-	session := &ports.Session{ID: snapshot.SessionID, Messages: []ports.Message{{Role: "user", Content: "status?"}}}
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	session := &storage.Session{ID: snapshot.SessionID, Messages: []ports.Message{{Role: "user", Content: "status?"}}}
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
@@ -325,7 +327,7 @@ func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
 
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "sess-history",
 		Messages: []ports.Message{
 			{Role: "system", Content: "Legacy persona", Source: ports.MessageSourceSystemPrompt},
@@ -334,7 +336,7 @@ func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
 		},
 	}
 
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
@@ -371,7 +373,7 @@ func TestBuildWindowMetaContextIncludesHistoryTimeline(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
 
-	session := &ports.Session{
+	session := &storage.Session{
 		ID: "sess-history-timeline",
 		Messages: []ports.Message{
 			{Role: "system", Content: "Legacy persona", Source: ports.MessageSourceSystemPrompt},
@@ -385,12 +387,12 @@ func TestBuildWindowMetaContextIncludesHistoryTimeline(t *testing.T) {
 		},
 	}
 
-	window, err := mgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{})
+	window, err := mgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{})
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
 
-	var timeline ports.MemoryFragment
+	var timeline agent.MemoryFragment
 	found := false
 	for _, memory := range window.Meta.Memories {
 		if memory.Key == "recent_session_timeline" {
@@ -415,22 +417,22 @@ func TestBuildWindowMetaContextIncludesHistoryTimeline(t *testing.T) {
 }
 
 func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
-	static := ports.StaticContext{
-		Persona: ports.PersonaProfile{
+	static := agent.StaticContext{
+		Persona: agent.PersonaProfile{
 			Voice: "Operate like ALEX.",
 			Tone:  "direct",
 		},
-		Goal:               ports.GoalProfile{LongTerm: []string{"Ship value"}},
+		Goal:               agent.GoalProfile{LongTerm: []string{"Ship value"}},
 		EnvironmentSummary: "CI lab",
 	}
-	dynamic := ports.DynamicContext{
+	dynamic := agent.DynamicContext{
 		TurnID:     1,
 		LLMTurnSeq: 2,
 	}
 	memoTime := time.Date(2024, time.January, 2, 0, 0, 0, 0, time.UTC)
-	meta := ports.MetaContext{
+	meta := agent.MetaContext{
 		PersonaVersion: "persona-v2",
-		Memories: []ports.MemoryFragment{{
+		Memories: []agent.MemoryFragment{{
 			Key:       "user-pref",
 			Content:   "Prefers Go",
 			CreatedAt: memoTime,
@@ -567,13 +569,13 @@ func TestRecordTurnEmitsJournalEntry(t *testing.T) {
 	store := sessionstate.NewInMemoryStore()
 	jr := &recordingJournal{}
 	mgr := NewManager(WithStateStore(store), WithJournalWriter(jr))
-	record := ports.ContextTurnRecord{
+	record := agent.ContextTurnRecord{
 		SessionID:  "sess-99",
 		TurnID:     7,
 		LLMTurnSeq: 3,
 		Timestamp:  time.Unix(1710000000, 0),
 		Summary:    "completed step",
-		Plans:      []ports.PlanNode{{ID: "p1"}},
+		Plans:      []agent.PlanNode{{ID: "p1"}},
 	}
 	if err := mgr.RecordTurn(context.Background(), record); err != nil {
 		t.Fatalf("RecordTurn returned error: %v", err)

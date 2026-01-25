@@ -15,6 +15,8 @@ import (
 	"alex/internal/acp"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
 
@@ -46,7 +48,7 @@ type acpExecutorTool struct {
 }
 
 // NewACPExecutor creates the ACP executor tool.
-func NewACPExecutor(cfg ACPExecutorConfig) ports.ToolExecutor {
+func NewACPExecutor(cfg ACPExecutorConfig) tools.ToolExecutor {
 	return &acpExecutorTool{
 		cfg:      cfg,
 		logger:   logging.NewComponentLogger("ACPExecutor"),
@@ -378,7 +380,7 @@ type executorToolState struct {
 
 type acpExecutorHandler struct {
 	call        ports.ToolCall
-	listener    ports.EventListener
+	listener    agent.EventListener
 	logger      logging.Logger
 	client      *acp.Client
 	autoApprove bool
@@ -834,7 +836,7 @@ func (h *acpExecutorHandler) emitEnvelope(eventType, nodeKind, nodeID string, pa
 		parentTaskID = h.call.ParentTaskID
 	}
 	env := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelSubagent, h.call.SessionID, taskID, parentTaskID, ts),
+		BaseEvent: domain.NewBaseEvent(agent.LevelSubagent, h.call.SessionID, taskID, parentTaskID, ts),
 		Event:     eventType,
 		Version:   1,
 		NodeID:    nodeID,
@@ -880,7 +882,7 @@ func buildPromptBlocks(prompt string, attachmentNames []string, ctx context.Cont
 	if len(attachmentNames) == 0 {
 		return blocks
 	}
-	attachments, _ := ports.GetAttachmentContext(ctx)
+	attachments, _ := tools.GetAttachmentContext(ctx)
 	for _, name := range attachmentNames {
 		name = strings.TrimSpace(name)
 		if name == "" {
@@ -911,12 +913,12 @@ type executorContext struct {
 	Messages     []executorMessage          `yaml:"messages,omitempty"`
 	Attachments  []executorAttachment       `yaml:"attachments,omitempty"`
 	Important    []ports.ImportantNote      `yaml:"important,omitempty"`
-	Plans        []ports.PlanNode           `yaml:"plans,omitempty"`
-	Beliefs      []ports.Belief             `yaml:"beliefs,omitempty"`
-	Knowledge    []ports.KnowledgeReference `yaml:"knowledge_refs,omitempty"`
+	Plans        []agent.PlanNode           `yaml:"plans,omitempty"`
+	Beliefs      []agent.Belief             `yaml:"beliefs,omitempty"`
+	Knowledge    []agent.KnowledgeReference `yaml:"knowledge_refs,omitempty"`
 	WorldState   map[string]any             `yaml:"world_state,omitempty"`
 	WorldDiff    map[string]any             `yaml:"world_diff,omitempty"`
-	Feedback     []ports.FeedbackSignal     `yaml:"feedback,omitempty"`
+	Feedback     []agent.FeedbackSignal     `yaml:"feedback,omitempty"`
 	Meta         executorContextMeta        `yaml:"meta,omitempty"`
 }
 
@@ -983,18 +985,18 @@ func buildExecutorPromptBlocks(ctx context.Context, instruction string, call por
 		},
 	}
 
-	if snapshot := ports.GetTaskStateSnapshot(ctx); snapshot != nil {
+	if snapshot := agent.GetTaskStateSnapshot(ctx); snapshot != nil {
 		pkg.Context = executorContext{
 			SystemPrompt: snapshot.SystemPrompt,
 			Messages:     buildExecutorMessages(snapshot.Messages),
 			Attachments:  buildExecutorAttachments(snapshot.Attachments),
 			Important:    cloneImportantNotes(snapshot.Important),
-			Plans:        ports.ClonePlanNodes(snapshot.Plans),
-			Beliefs:      ports.CloneBeliefs(snapshot.Beliefs),
-			Knowledge:    ports.CloneKnowledgeReferences(snapshot.KnowledgeRefs),
+			Plans:        agent.ClonePlanNodes(snapshot.Plans),
+			Beliefs:      agent.CloneBeliefs(snapshot.Beliefs),
+			Knowledge:    agent.CloneKnowledgeReferences(snapshot.KnowledgeRefs),
 			WorldState:   cloneMapAny(snapshot.WorldState),
 			WorldDiff:    cloneMapAny(snapshot.WorldDiff),
-			Feedback:     ports.CloneFeedbackSignals(snapshot.FeedbackSignals),
+			Feedback:     agent.CloneFeedbackSignals(snapshot.FeedbackSignals),
 			Meta: executorContextMeta{
 				Iterations:   snapshot.Iterations,
 				TokenCount:   snapshot.TokenCount,
@@ -1340,12 +1342,12 @@ func attachmentNameForMedia(prefix, mimeType string) string {
 	return fmt.Sprintf("%s-%d%s", prefix, time.Now().UnixNano(), ext)
 }
 
-func parentListenerFromContext(ctx context.Context) ports.EventListener {
+func parentListenerFromContext(ctx context.Context) agent.EventListener {
 	if ctx == nil {
 		return nil
 	}
 	if listener := ctx.Value(parentListenerKey{}); listener != nil {
-		if pl, ok := listener.(ports.EventListener); ok {
+		if pl, ok := listener.(agent.EventListener); ok {
 			return pl
 		}
 	}

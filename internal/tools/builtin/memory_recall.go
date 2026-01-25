@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/memory"
 	id "alex/internal/utils/id"
 )
@@ -18,7 +19,7 @@ type memoryRecall struct {
 const recallDefaultLimit = 5
 
 // NewMemoryRecall constructs a tool for recalling user memories.
-func NewMemoryRecall(service memory.Service) ports.ToolExecutor {
+func NewMemoryRecall(service memory.Service) tools.ToolExecutor {
 	return &memoryRecall{service: service}
 }
 

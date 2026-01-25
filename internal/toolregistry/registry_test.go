@@ -6,7 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/memory"
 )
 
@@ -122,15 +125,15 @@ func TestToolDefinitionsArrayItemsIncludesOptionalTools(t *testing.T) {
 
 type stubCoordinator struct{}
 
-func (stubCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
+func (stubCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	return nil, nil
 }
 
-func (stubCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (stubCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	return nil, nil
 }
 
-func (stubCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
+func (stubCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
 	return nil
 }
 
@@ -138,23 +141,23 @@ func (stubCoordinator) ListSessions(ctx context.Context, limit int, offset int) 
 	return nil, nil
 }
 
-func (stubCoordinator) GetConfig() ports.AgentConfig {
-	return ports.AgentConfig{}
+func (stubCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (stubCoordinator) GetLLMClient() (ports.LLMClient, error) {
+func (stubCoordinator) GetLLMClient() (llm.LLMClient, error) {
 	return nil, nil
 }
 
-func (stubCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
+func (stubCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 	return nil
 }
 
-func (stubCoordinator) GetParser() ports.FunctionCallParser {
+func (stubCoordinator) GetParser() tools.FunctionCallParser {
 	return nil
 }
 
-func (stubCoordinator) GetContextManager() ports.ContextManager {
+func (stubCoordinator) GetContextManager() agent.ContextManager {
 	return nil
 }
 

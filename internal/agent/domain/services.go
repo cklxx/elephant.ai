@@ -1,6 +1,6 @@
 package domain
 
-import "alex/internal/agent/ports"
+import agent "alex/internal/agent/ports/agent"
 
 // Services re-exports the service bundle contract for domain logic.
-type Services = ports.ServiceBundle
+type Services = agent.ServiceBundle

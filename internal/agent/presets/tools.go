@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 // ToolMode defines the runtime surface the agent runs under.
@@ -198,12 +199,12 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 
 // FilteredToolRegistry wraps a tool registry with preset-based filtering
 type FilteredToolRegistry struct {
-	parent ports.ToolRegistry
+	parent tools.ToolRegistry
 	config *ToolConfig
 }
 
 // NewFilteredToolRegistry creates a filtered registry based on tool mode and preset.
-func NewFilteredToolRegistry(parent ports.ToolRegistry, mode ToolMode, preset ToolPreset) (*FilteredToolRegistry, error) {
+func NewFilteredToolRegistry(parent tools.ToolRegistry, mode ToolMode, preset ToolPreset) (*FilteredToolRegistry, error) {
 	config, err := GetToolConfig(mode, preset)
 	if err != nil {
 		return nil, err
@@ -216,7 +217,7 @@ func NewFilteredToolRegistry(parent ports.ToolRegistry, mode ToolMode, preset To
 }
 
 // Get retrieves a tool if allowed by the preset
-func (f *FilteredToolRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (f *FilteredToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	// Check if tool is denied
 	if f.config.DeniedTools[name] {
 		return nil, fmt.Errorf("tool not available in %s preset: %s", f.config.Name, name)
@@ -262,7 +263,7 @@ func (f *FilteredToolRegistry) List() []ports.ToolDefinition {
 }
 
 // Register delegates to parent registry
-func (f *FilteredToolRegistry) Register(tool ports.ToolExecutor) error {
+func (f *FilteredToolRegistry) Register(tool tools.ToolExecutor) error {
 	return f.parent.Register(tool)
 }
 

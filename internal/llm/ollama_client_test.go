@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 )
 
 func TestOllamaClientComplete(t *testing.T) {
@@ -124,7 +125,7 @@ func TestOllamaClientStreamComplete(t *testing.T) {
 		t.Fatalf("NewOllamaClient: %v", err)
 	}
 
-	streaming, ok := client.(ports.StreamingLLMClient)
+	streaming, ok := client.(portsllm.StreamingLLMClient)
 	if !ok {
 		t.Fatalf("ollama client should implement StreamingLLMClient")
 	}

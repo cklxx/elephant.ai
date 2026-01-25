@@ -4,14 +4,15 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
-func buildSubagentStateSnapshot(state *TaskState, call ToolCall) *ports.TaskState {
+func buildSubagentStateSnapshot(state *TaskState, call ToolCall) *agent.TaskState {
 	if state == nil {
 		return nil
 	}
 
-	snapshot := ports.CloneTaskState((*ports.TaskState)(state))
+	snapshot := agent.CloneTaskState((*agent.TaskState)(state))
 	snapshot.Messages = removeSubagentToolCallMessage(snapshot.Messages, call.ID)
 
 	if prompt := extractSubagentPrompt(call.Arguments); prompt != "" {

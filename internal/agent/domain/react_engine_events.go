@@ -3,7 +3,7 @@ package domain
 import (
 	"context"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 // SetEventListener configures event emission for TUI/streaming
@@ -17,13 +17,13 @@ func (e *ReactEngine) GetEventListener() EventListener {
 }
 
 // getAgentLevel reads the current agent level from context
-func (e *ReactEngine) getAgentLevel(ctx context.Context) ports.AgentLevel {
+func (e *ReactEngine) getAgentLevel(ctx context.Context) agent.AgentLevel {
 	if ctx == nil {
-		return ports.LevelCore
+		return agent.LevelCore
 	}
-	outCtx := ports.GetOutputContext(ctx)
+	outCtx := agent.GetOutputContext(ctx)
 	if outCtx == nil {
-		return ports.LevelCore
+		return agent.LevelCore
 	}
 	return outCtx.Level
 }

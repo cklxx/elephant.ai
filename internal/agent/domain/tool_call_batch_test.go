@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports/mocks"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type stubToolLimiter struct {
@@ -41,14 +43,14 @@ func TestToolCallBatchRespectsConcurrencyLimit(t *testing.T) {
 	}
 
 	registry := &mocks.MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			return executor, nil
 		},
 	}
 
 	engine := NewReactEngine(ReactEngineConfig{
-		Logger: ports.NoopLogger{},
-		Clock:  ports.SystemClock{},
+		Logger: agent.NoopLogger{},
+		Clock:  agent.SystemClock{},
 	})
 
 	state := &TaskState{SessionID: "sess", TaskID: "task"}

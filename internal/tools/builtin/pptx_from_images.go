@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 
 	_ "embed"
 
@@ -40,7 +41,7 @@ type pptxFromImages struct {
 	httpClient *http.Client
 }
 
-func NewPPTXFromImages() ports.ToolExecutor {
+func NewPPTXFromImages() tools.ToolExecutor {
 	return &pptxFromImages{
 		httpClient: newAttachmentHTTPClient(2*time.Minute, "PPTXFromImages"),
 	}

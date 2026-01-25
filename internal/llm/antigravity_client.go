@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
 	"alex/internal/jsonx"
@@ -33,7 +34,7 @@ type antigravityClient struct {
 }
 
 // NewAntigravityClient constructs an LLM client for Antigravity (Gemini CLI API).
-func NewAntigravityClient(model string, config Config) (ports.LLMClient, error) {
+func NewAntigravityClient(model string, config Config) (portsllm.LLMClient, error) {
 	baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
 	if baseURL == "" {
 		baseURL = antigravityBaseURL

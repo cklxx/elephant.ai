@@ -7,21 +7,23 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/presets"
+	storage "alex/internal/agent/ports/storage"
 )
 
 func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}}},
-		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "core", Metadata: map[string]string{}}},
+		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1, ToolPreset: string(presets.ToolPresetFull)},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -44,14 +46,14 @@ func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
-		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "core", Metadata: map[string]string{}}},
+		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -74,14 +76,14 @@ func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
-		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "sub", Metadata: map[string]string{}}},
+		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "sub", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1, ToolPreset: string(presets.ToolPresetReadOnly)},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -101,14 +103,14 @@ func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "explore"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
-		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "sub", Metadata: map[string]string{}}},
+		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "sub", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -131,14 +133,14 @@ func TestSelectToolRegistryUsesArchitectPresetInWebMode(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
 		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "plan"}, {Name: "clearify"}, {Name: "web_search"}, {Name: "web_fetch"}, {Name: "request_user"}, {Name: "acp_executor"}, {Name: "file_read"}, {Name: "bash"}}},
-		SessionStore:  &stubSessionStore{session: &ports.Session{ID: "core", Metadata: map[string]string{}}},
+		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "stub", MaxIterations: 1, ToolPreset: string(presets.ToolPresetArchitect)},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Unix(0, 0) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)

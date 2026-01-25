@@ -1,17 +1,17 @@
 package domain
 
-import "alex/internal/agent/ports"
+import agent "alex/internal/agent/ports/agent"
 
 // NewReactEngine creates a new ReAct engine with injected infrastructure dependencies.
 func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	logger := cfg.Logger
 	if logger == nil {
-		logger = ports.NoopLogger{}
+		logger = agent.NoopLogger{}
 	}
 
 	clock := cfg.Clock
 	if clock == nil {
-		clock = ports.SystemClock{}
+		clock = agent.SystemClock{}
 	}
 
 	stopReasons := cfg.StopReasons

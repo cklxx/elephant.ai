@@ -1,5 +1,5 @@
 package domain
 
-import "alex/internal/agent/ports"
+import agent "alex/internal/agent/ports/agent"
 
-var _ ports.ReactiveExecutor = (*ReactEngine)(nil)
+var _ agent.ReactiveExecutor = (*ReactEngine)(nil)

@@ -8,7 +8,9 @@ import (
 
 	agentapp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
-	agentPorts "alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
 	"alex/internal/observability"
@@ -19,19 +21,19 @@ import (
 // Mock implementations for testing
 
 type MockSessionStore struct {
-	sessions map[string]*agentPorts.Session
+	sessions map[string]*storage.Session
 }
 
 func NewMockSessionStore() *MockSessionStore {
 	return &MockSessionStore{
-		sessions: make(map[string]*agentPorts.Session),
+		sessions: make(map[string]*storage.Session),
 	}
 }
 
-func (m *MockSessionStore) Create(ctx context.Context) (*agentPorts.Session, error) {
-	session := &agentPorts.Session{
+func (m *MockSessionStore) Create(ctx context.Context) (*storage.Session, error) {
+	session := &storage.Session{
 		ID:        "session-" + time.Now().Format("20060102150405.000000"),
-		Messages:  []agentPorts.Message{},
+		Messages:  []core.Message{},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Metadata:  make(map[string]string),
@@ -40,14 +42,14 @@ func (m *MockSessionStore) Create(ctx context.Context) (*agentPorts.Session, err
 	return session, nil
 }
 
-func (m *MockSessionStore) Get(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (m *MockSessionStore) Get(ctx context.Context, id string) (*storage.Session, error) {
 	if session, ok := m.sessions[id]; ok {
 		return session, nil
 	}
 	return m.Create(ctx)
 }
 
-func (m *MockSessionStore) Save(ctx context.Context, session *agentPorts.Session) error {
+func (m *MockSessionStore) Save(ctx context.Context, session *storage.Session) error {
 	m.sessions[session.ID] = session
 	return nil
 }
@@ -66,21 +68,21 @@ func (m *MockSessionStore) Delete(ctx context.Context, id string) error {
 }
 
 type MockAgentCoordinator struct {
-	sessionStore agentPorts.SessionStore
+	sessionStore storage.SessionStore
 }
 
-func NewMockAgentCoordinator(sessionStore agentPorts.SessionStore) *MockAgentCoordinator {
+func NewMockAgentCoordinator(sessionStore storage.SessionStore) *MockAgentCoordinator {
 	return &MockAgentCoordinator{
 		sessionStore: sessionStore,
 	}
 }
 
-func (m *MockAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (m *MockAgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return m.sessionStore.Get(ctx, id)
 }
 
-func (m *MockAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
-	return &agentPorts.TaskResult{
+func (m *MockAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	return &agent.TaskResult{
 		Answer:     "Mock answer",
 		Iterations: 3,
 		TokensUsed: 100,
@@ -89,13 +91,13 @@ func (m *MockAgentCoordinator) ExecuteTask(ctx context.Context, task string, ses
 	}, nil
 }
 
-func (m *MockAgentCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{}
+func (m *MockAgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (m *MockAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	return agentPorts.ContextWindowPreview{
-		Window: agentPorts.ContextWindow{
+func (m *MockAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	return agent.ContextWindowPreview{
+		Window: agent.ContextWindow{
 			SessionID: sessionID,
 		},
 		TokenLimit: 128000,
@@ -201,9 +203,9 @@ func TestSessionIDConsistency(t *testing.T) {
 		explicitSessionID := "session-explicit-test"
 
 		// Create session first
-		session := &agentPorts.Session{
+		session := &storage.Session{
 			ID:        explicitSessionID,
-			Messages:  []agentPorts.Message{},
+			Messages:  []core.Message{},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 			Metadata:  make(map[string]string),
@@ -488,7 +490,7 @@ func TestTaskStoreProgressFields(t *testing.T) {
 	}
 
 	// Set result and verify total fields
-	result := &agentPorts.TaskResult{
+	result := &agent.TaskResult{
 		Answer:     "Done",
 		Iterations: 5,
 		TokensUsed: 300,
@@ -534,7 +536,7 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 		stateStore,
 	)
 
-	original := []agentPorts.Attachment{
+	original := []core.Attachment{
 		{
 			Name:        " sketch.png ",
 			MediaType:   "image/png",
@@ -636,22 +638,22 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 
 // Mock agent coordinator that supports cancellation
 type MockCancellableAgentCoordinator struct {
-	sessionStore agentPorts.SessionStore
+	sessionStore storage.SessionStore
 	delay        time.Duration
 }
 
-func NewMockCancellableAgentCoordinator(sessionStore agentPorts.SessionStore, delay time.Duration) *MockCancellableAgentCoordinator {
+func NewMockCancellableAgentCoordinator(sessionStore storage.SessionStore, delay time.Duration) *MockCancellableAgentCoordinator {
 	return &MockCancellableAgentCoordinator{
 		sessionStore: sessionStore,
 		delay:        delay,
 	}
 }
 
-func (m *MockCancellableAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (m *MockCancellableAgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return m.sessionStore.Get(ctx, id)
 }
 
-func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	// Simulate long-running task that checks for cancellation
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
@@ -665,7 +667,7 @@ func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task 
 		case <-ticker.C:
 			if time.Now().After(deadline) {
 				// Task completed successfully
-				return &agentPorts.TaskResult{
+				return &agent.TaskResult{
 					Answer:     "Mock answer",
 					Iterations: 3,
 					TokensUsed: 100,
@@ -677,13 +679,13 @@ func (m *MockCancellableAgentCoordinator) ExecuteTask(ctx context.Context, task 
 	}
 }
 
-func (m *MockCancellableAgentCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{}
+func (m *MockCancellableAgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (m *MockCancellableAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	return agentPorts.ContextWindowPreview{
-		Window: agentPorts.ContextWindow{
+func (m *MockCancellableAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	return agent.ContextWindowPreview{
+		Window: agent.ContextWindow{
 			SessionID: sessionID,
 		},
 		ToolMode: "cli",
@@ -825,7 +827,7 @@ func TestCancelCompletedTask(t *testing.T) {
 		t.Fatalf("Failed to create task: %v", err)
 	}
 
-	result := &agentPorts.TaskResult{
+	result := &agent.TaskResult{
 		Answer:     "Completed",
 		Iterations: 1,
 		TokensUsed: 50,
@@ -942,22 +944,22 @@ func TestServerCoordinatorRecordsTaskErrorMetrics(t *testing.T) {
 }
 
 type failingAgentCoordinator struct {
-	sessionStore agentPorts.SessionStore
+	sessionStore storage.SessionStore
 	err          error
 }
 
-func (f *failingAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (f *failingAgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return f.sessionStore.Get(ctx, id)
 }
 
-func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	return nil, f.err
 }
 
-func (f *failingAgentCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{}
+func (f *failingAgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (f *failingAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	return agentPorts.ContextWindowPreview{}, f.err
+func (f *failingAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	return agent.ContextWindowPreview{}, f.err
 }

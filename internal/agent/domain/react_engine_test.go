@@ -8,6 +8,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	"alex/internal/agent/ports/mocks"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func TestReactEngine_SolveTask_SingleIteration(t *testing.T) {
@@ -219,7 +220,7 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	}
 
 	mockTools := &mocks.MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			return &mocks.MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					if call.Name == "plan" {
@@ -336,7 +337,7 @@ func TestReactEngine_SolveTask_MaxIterations(t *testing.T) {
 	}
 
 	mockTools := &mocks.MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			return &mocks.MockToolExecutor{}, nil
 		},
 	}
@@ -384,7 +385,7 @@ func TestReactEngine_SolveTask_ToolError(t *testing.T) {
 	}
 
 	mockTools := &mocks.MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			// Tool not found - return error
 			return nil, fmt.Errorf("tool not found: %s", name)
 		},

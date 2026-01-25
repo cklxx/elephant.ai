@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	storage "alex/internal/agent/ports/storage"
 )
 
 func TestStore_SavePersistsParentTaskMetadata(t *testing.T) {
@@ -151,7 +152,7 @@ func TestStore_RejectsUnsafeIDs(t *testing.T) {
 		t.Fatalf("Get() expected invalid session ID error")
 	}
 
-	session := &ports.Session{
+	session := &storage.Session{
 		ID:       "../escape",
 		Metadata: map[string]string{},
 	}

@@ -8,29 +8,33 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
 	"alex/internal/agent/ports/mocks"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/workflow"
 )
 
-type stubLLMFactory struct{ client ports.LLMClient }
+type stubLLMFactory struct{ client llm.LLMClient }
 
-func (f stubLLMFactory) GetClient(provider, model string, cfg ports.LLMConfig) (ports.LLMClient, error) {
+func (f stubLLMFactory) GetClient(provider, model string, cfg llm.LLMConfig) (llm.LLMClient, error) {
 	if f.client == nil {
 		return nil, fmt.Errorf("no llm client configured")
 	}
 	return f.client, nil
 }
 
-func (f stubLLMFactory) GetIsolatedClient(provider, model string, cfg ports.LLMConfig) (ports.LLMClient, error) {
+func (f stubLLMFactory) GetIsolatedClient(provider, model string, cfg llm.LLMConfig) (llm.LLMClient, error) {
 	return f.GetClient(provider, model, cfg)
 }
 
 func (f stubLLMFactory) DisableRetry() {}
 
-type capturingListener struct{ events []ports.AgentEvent }
+type capturingListener struct{ events []agent.AgentEvent }
 
-func (c *capturingListener) OnEvent(evt ports.AgentEvent) { c.events = append(c.events, evt) }
+func (c *capturingListener) OnEvent(evt agent.AgentEvent) { c.events = append(c.events, evt) }
 
 func (c *capturingListener) envelopes(eventName string) []*domain.WorkflowEventEnvelope {
 	var out []*domain.WorkflowEventEnvelope
@@ -85,7 +89,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 	}}
 
 	registry := &mocks.MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			switch name {
 			case "plan":
 				return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -128,7 +132,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		},
 	)
 
-	ctx := ports.WithOutputContext(context.Background(), &ports.OutputContext{Level: ports.LevelCore})
+	ctx := agent.WithOutputContext(context.Background(), &agent.OutputContext{Level: agent.LevelCore})
 	result, err := coordinator.ExecuteTask(ctx, "please run echo", "session-e2e", listener)
 	if err != nil {
 		t.Fatalf("ExecuteTask returned error: %v", err)
@@ -229,7 +233,7 @@ func TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope(t *testing.T) {
 		},
 	)
 
-	ctx := ports.WithOutputContext(context.Background(), &ports.OutputContext{Level: ports.LevelCore})
+	ctx := agent.WithOutputContext(context.Background(), &agent.OutputContext{Level: agent.LevelCore})
 	_, err := coordinator.ExecuteTask(ctx, "test session propagation", "session-e2e", listener)
 	if err != nil {
 		t.Fatalf("ExecuteTask returned error: %v", err)
@@ -290,8 +294,8 @@ func TestSaveSessionAfterExecutionMigratesAttachments(t *testing.T) {
 	}
 	coordinator.SetAttachmentMigrator(migrator)
 
-	session := &ports.Session{ID: "session-migrate", Metadata: map[string]string{}}
-	result := &ports.TaskResult{
+	session := &storage.Session{ID: "session-migrate", Metadata: map[string]string{}}
+	result := &agent.TaskResult{
 		SessionID: "session-migrate",
 		Messages: []ports.Message{
 			{

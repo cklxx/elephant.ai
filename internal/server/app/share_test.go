@@ -5,21 +5,22 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	storage "alex/internal/agent/ports/storage"
 )
 
 type shareSessionStore struct {
-	sessions map[string]*ports.Session
+	sessions map[string]*storage.Session
 }
 
 func newShareSessionStore() *shareSessionStore {
-	return &shareSessionStore{sessions: make(map[string]*ports.Session)}
+	return &shareSessionStore{sessions: make(map[string]*storage.Session)}
 }
 
-func (s *shareSessionStore) Create(ctx context.Context) (*ports.Session, error) {
-	session := &ports.Session{
+func (s *shareSessionStore) Create(ctx context.Context) (*storage.Session, error) {
+	session := &storage.Session{
 		ID:        "session-share",
-		Messages:  []ports.Message{},
+		Messages:  []core.Message{},
 		Metadata:  map[string]string{},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -28,7 +29,7 @@ func (s *shareSessionStore) Create(ctx context.Context) (*ports.Session, error) 
 	return session, nil
 }
 
-func (s *shareSessionStore) Get(ctx context.Context, id string) (*ports.Session, error) {
+func (s *shareSessionStore) Get(ctx context.Context, id string) (*storage.Session, error) {
 	session, ok := s.sessions[id]
 	if !ok {
 		return nil, errSessionNotFound()
@@ -36,7 +37,7 @@ func (s *shareSessionStore) Get(ctx context.Context, id string) (*ports.Session,
 	return session, nil
 }
 
-func (s *shareSessionStore) Save(ctx context.Context, session *ports.Session) error {
+func (s *shareSessionStore) Save(ctx context.Context, session *storage.Session) error {
 	s.sessions[session.ID] = session
 	return nil
 }
@@ -66,7 +67,7 @@ func (sessionNotFoundError) Error() string {
 
 func TestEnsureSessionShareToken(t *testing.T) {
 	store := newShareSessionStore()
-	session := &ports.Session{
+	session := &storage.Session{
 		ID:        "session-1",
 		Metadata:  map[string]string{},
 		CreatedAt: time.Now(),
@@ -102,7 +103,7 @@ func TestEnsureSessionShareToken(t *testing.T) {
 
 func TestValidateShareToken(t *testing.T) {
 	store := newShareSessionStore()
-	session := &ports.Session{
+	session := &storage.Session{
 		ID:        "session-1",
 		Metadata:  map[string]string{},
 		CreatedAt: time.Now(),

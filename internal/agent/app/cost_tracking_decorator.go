@@ -5,29 +5,32 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
 )
 
 // CostTrackingDecorator creates isolated wrappers for LLM clients to track costs per session
 type CostTrackingDecorator struct {
-	tracker ports.CostTracker
-	logger  ports.Logger
-	clock   ports.Clock
+	tracker storage.CostTracker
+	logger  agent.Logger
+	clock   agent.Clock
 }
 
 // NewCostTrackingDecorator creates a new decorator instance.
-func NewCostTrackingDecorator(tracker ports.CostTracker, logger ports.Logger, clock ports.Clock) *CostTrackingDecorator {
+func NewCostTrackingDecorator(tracker storage.CostTracker, logger agent.Logger, clock agent.Clock) *CostTrackingDecorator {
 	if logger == nil {
-		logger = ports.NoopLogger{}
+		logger = agent.NoopLogger{}
 	}
 	if clock == nil {
-		clock = ports.SystemClock{}
+		clock = agent.SystemClock{}
 	}
 	return &CostTrackingDecorator{tracker: tracker, logger: logger, clock: clock}
 }
 
 // Wrap returns a new wrapper client that tracks costs without modifying the original client
 // This ensures session-level cost isolation even when the underlying client is shared
-func (d *CostTrackingDecorator) Wrap(ctx context.Context, sessionID string, client ports.LLMClient) ports.LLMClient {
+func (d *CostTrackingDecorator) Wrap(ctx context.Context, sessionID string, client llm.LLMClient) llm.LLMClient {
 	if d.tracker == nil {
 		return client
 	}
@@ -45,17 +48,17 @@ func (d *CostTrackingDecorator) Wrap(ctx context.Context, sessionID string, clie
 
 // costTrackingWrapper wraps an LLMClient and tracks usage per session
 type costTrackingWrapper struct {
-	client    ports.LLMClient
+	client    llm.LLMClient
 	sessionID string
-	tracker   ports.CostTracker
-	logger    ports.Logger
-	clock     ports.Clock
+	tracker   storage.CostTracker
+	logger    agent.Logger
+	clock     agent.Clock
 	ctx       context.Context
 }
 
 var (
-	_ ports.LLMClient          = (*costTrackingWrapper)(nil)
-	_ ports.StreamingLLMClient = (*costTrackingWrapper)(nil)
+	_ llm.LLMClient          = (*costTrackingWrapper)(nil)
+	_ llm.StreamingLLMClient = (*costTrackingWrapper)(nil)
 )
 
 func (w *costTrackingWrapper) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
@@ -81,7 +84,7 @@ func (w *costTrackingWrapper) StreamComplete(
 	wantsStreaming := callbacks.OnContentDelta != nil
 
 	if wantsStreaming {
-		if streaming, ok := w.client.(ports.StreamingLLMClient); ok {
+		if streaming, ok := w.client.(llm.StreamingLLMClient); ok {
 			resp, err := streaming.StreamComplete(ctx, req, callbacks)
 			if err == nil {
 				w.recordUsage(resp)
@@ -112,7 +115,7 @@ func (w *costTrackingWrapper) recordUsage(resp *ports.CompletionResponse) {
 		return
 	}
 
-	record := ports.UsageRecord{
+	record := storage.UsageRecord{
 		SessionID:    w.sessionID,
 		Model:        w.client.Model(),
 		Provider:     inferProvider(w.client.Model()),
@@ -122,7 +125,7 @@ func (w *costTrackingWrapper) recordUsage(resp *ports.CompletionResponse) {
 		Timestamp:    w.clock.Now(),
 	}
 
-	record.InputCost, record.OutputCost, record.TotalCost = ports.CalculateCost(
+	record.InputCost, record.OutputCost, record.TotalCost = storage.CalculateCost(
 		resp.Usage.PromptTokens,
 		resp.Usage.CompletionTokens,
 		w.client.Model(),

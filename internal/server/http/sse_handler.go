@@ -17,6 +17,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
@@ -274,7 +275,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create event channel for this client
-	clientChan := make(chan ports.AgentEvent, 100)
+	clientChan := make(chan agent.AgentEvent, 100)
 	sentAttachments := newStringLRU(sseSentAttachmentCacheSize)
 	finalAnswerCache := newStringLRU(sseFinalAnswerCacheSize)
 
@@ -313,7 +314,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
 	}
 
-	sendEvent := func(event ports.AgentEvent) bool {
+	sendEvent := func(event agent.AgentEvent) bool {
 		if !h.shouldStreamEvent(event) {
 			return true
 		}
@@ -350,7 +351,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	var lastHistoryTime time.Time
 
 	if includeGlobalHistory {
-		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: ""}, func(event ports.AgentEvent) error {
+		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: ""}, func(event agent.AgentEvent) error {
 			if sendEvent(event) {
 				lastHistoryTime = event.Timestamp()
 			}
@@ -362,7 +363,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 	// Replay historical events for this session
 	if includeSessionHistory {
-		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: sessionID}, func(event ports.AgentEvent) error {
+		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: sessionID}, func(event agent.AgentEvent) error {
 			if sendEvent(event) {
 				lastHistoryTime = event.Timestamp()
 			}
@@ -424,7 +425,7 @@ drainComplete:
 }
 
 // serializeEvent converts domain event to JSON
-func (h *SSEHandler) serializeEvent(event ports.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU) (string, error) {
+func (h *SSEHandler) serializeEvent(event agent.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU) (string, error) {
 	data, err := h.buildEventData(event, sentAttachments, finalAnswerCache, true)
 	if err != nil {
 		return "", err
@@ -451,7 +452,7 @@ func marshalSSEPayload(data map[string]interface{}) (string, error) {
 // buildEventData is the single source of truth for the SSE event envelope the
 // backend emits. It assumes all events have already been translated into
 // workflow.* envelopes.
-func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU, streamDeltas bool) (map[string]interface{}, error) {
+func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU, streamDeltas bool) (map[string]interface{}, error) {
 	data := map[string]interface{}{
 		"event_type":     event.EventType(),
 		"timestamp":      event.Timestamp().Format(time.RFC3339Nano),
@@ -563,7 +564,7 @@ func (h *SSEHandler) buildEventData(event ports.AgentEvent, sentAttachments *str
 	return data, nil
 }
 
-func (h *SSEHandler) shouldStreamEvent(event ports.AgentEvent) bool {
+func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent) bool {
 	if event == nil {
 		return false
 	}
@@ -1229,7 +1230,7 @@ func attachmentDigest(att ports.Attachment) string {
 
 // isDelegationToolEvent identifies subagent delegation tool calls so they can be
 // filtered from UX-facing streams (the delegated subflow emits its own events).
-func isDelegationToolEvent(event ports.AgentEvent) bool {
+func isDelegationToolEvent(event agent.AgentEvent) bool {
 	env, ok := app.BaseAgentEvent(event).(*domain.WorkflowEventEnvelope)
 	if !ok || env == nil {
 		return false

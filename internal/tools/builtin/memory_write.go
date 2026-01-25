@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/memory"
 	id "alex/internal/utils/id"
 )
@@ -16,7 +17,7 @@ type memoryWrite struct {
 }
 
 // NewMemoryWrite constructs a tool for persisting user-scoped memories.
-func NewMemoryWrite(service memory.Service) ports.ToolExecutor {
+func NewMemoryWrite(service memory.Service) tools.ToolExecutor {
 	return &memoryWrite{service: service}
 }
 

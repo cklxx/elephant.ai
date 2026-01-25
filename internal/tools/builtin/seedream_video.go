@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
 	"alex/internal/logging"
 
@@ -28,7 +29,7 @@ type seedreamVideoTool struct {
 }
 
 // NewSeedreamVideoGenerate returns a tool that creates short videos from prompts.
-func NewSeedreamVideoGenerate(config SeedreamConfig) ports.ToolExecutor {
+func NewSeedreamVideoGenerate(config SeedreamConfig) tools.ToolExecutor {
 	logger := logging.NewComponentLogger("SeedreamVideo")
 	return &seedreamVideoTool{
 		config:     config,

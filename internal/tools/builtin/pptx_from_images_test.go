@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func TestPPTXFromImagesBuildsDeckFromAttachmentPlaceholders(t *testing.T) {
@@ -32,7 +33,7 @@ func TestPPTXFromImagesBuildsDeckFromAttachmentPlaceholders(t *testing.T) {
 		},
 	}
 
-	ctx := ports.WithAttachmentContext(context.Background(), attachments, map[string]int{
+	ctx := tools.WithAttachmentContext(context.Background(), attachments, map[string]int{
 		"slide1.png": 1,
 		"slide2.png": 1,
 	})

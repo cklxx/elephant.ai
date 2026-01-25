@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 	"os"
@@ -10,7 +11,7 @@ import (
 type fileRead struct {
 }
 
-func NewFileRead(cfg FileToolConfig) ports.ToolExecutor {
+func NewFileRead(cfg FileToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &fileRead{}
 }

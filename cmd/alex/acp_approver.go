@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type acpApprover struct {
@@ -21,19 +21,19 @@ func newACPApprover(server *acpServer, sessionID string) *acpApprover {
 	}
 }
 
-func (a *acpApprover) RequestApproval(ctx context.Context, request *ports.ApprovalRequest) (*ports.ApprovalResponse, error) {
+func (a *acpApprover) RequestApproval(ctx context.Context, request *tools.ApprovalRequest) (*tools.ApprovalResponse, error) {
 	if request == nil {
-		return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
+		return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
 	}
 	if request.AutoApprove {
-		return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
+		return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
 	}
 	if a == nil || a.server == nil {
-		return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
+		return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
 	}
 	transport := a.server.transportForSession(a.sessionID)
 	if transport == nil {
-		return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
+		return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
 	}
 
 	toolCallID := strings.TrimSpace(request.ToolCallID)
@@ -83,7 +83,7 @@ func (a *acpApprover) RequestApproval(ctx context.Context, request *ports.Approv
 	})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
-			return &ports.ApprovalResponse{Approved: false, Action: "cancel"}, nil
+			return &tools.ApprovalResponse{Approved: false, Action: "cancel"}, nil
 		}
 		return nil, err
 	}
@@ -97,14 +97,14 @@ func (a *acpApprover) RequestApproval(ctx context.Context, request *ports.Approv
 	outcome, optionID := parsePermissionOutcome(resp.Result)
 	switch outcome {
 	case "cancelled":
-		return &ports.ApprovalResponse{Approved: false, Action: "cancel"}, nil
+		return &tools.ApprovalResponse{Approved: false, Action: "cancel"}, nil
 	case "selected":
 		if strings.HasPrefix(optionID, "allow") {
-			return &ports.ApprovalResponse{Approved: true, Action: "approve"}, nil
+			return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
 		}
-		return &ports.ApprovalResponse{Approved: false, Action: "reject"}, nil
+		return &tools.ApprovalResponse{Approved: false, Action: "reject"}, nil
 	default:
-		return &ports.ApprovalResponse{Approved: false, Action: "reject"}, nil
+		return &tools.ApprovalResponse{Approved: false, Action: "reject"}, nil
 	}
 }
 

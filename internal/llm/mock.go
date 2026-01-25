@@ -5,19 +5,20 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 )
 
 // Ensure the mock client satisfies the streaming interfaces used by the agent.
 var (
-	_ ports.LLMClient          = (*mockClient)(nil)
-	_ ports.StreamingLLMClient = (*mockClient)(nil)
+	_ portsllm.LLMClient          = (*mockClient)(nil)
+	_ portsllm.StreamingLLMClient = (*mockClient)(nil)
 )
 
 // mockClient is a mock LLM client for testing
 type mockClient struct{}
 
 // NewMockClient creates a mock LLM client
-func NewMockClient() ports.LLMClient {
+func NewMockClient() portsllm.LLMClient {
 	return &mockClient{}
 }
 

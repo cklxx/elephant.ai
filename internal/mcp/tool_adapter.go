@@ -32,7 +32,7 @@ func NewToolAdapter(serverName string, client MCPClient, toolSchema ToolSchema) 
 	}
 }
 
-// Execute implements ports.ToolExecutor.Execute
+// Execute implements tools.ToolExecutor.Execute
 func (t *ToolAdapter) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	t.logger.Debug("Executing MCP tool: %s with args: %v", call.Name, call.Arguments)
 
@@ -79,7 +79,7 @@ func (t *ToolAdapter) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	}, nil
 }
 
-// Definition implements ports.ToolExecutor.Definition
+// Definition implements tools.ToolExecutor.Definition
 func (t *ToolAdapter) Definition() ports.ToolDefinition {
 	// Convert MCP input schema to ALEX parameter schema
 	paramSchema := t.convertInputSchema()
@@ -91,7 +91,7 @@ func (t *ToolAdapter) Definition() ports.ToolDefinition {
 	}
 }
 
-// Metadata implements ports.ToolExecutor.Metadata
+// Metadata implements tools.ToolExecutor.Metadata
 func (t *ToolAdapter) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
 		Name:     t.getPrefixedName(),

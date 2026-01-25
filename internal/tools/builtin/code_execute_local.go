@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 // CodeExecuteConfig is reserved for future configuration options.
@@ -22,7 +23,7 @@ type CodeExecuteConfig struct{}
 type codeExecute struct {
 }
 
-func NewCodeExecute(cfg CodeExecuteConfig) ports.ToolExecutor {
+func NewCodeExecute(cfg CodeExecuteConfig) tools.ToolExecutor {
 	_ = cfg
 	return &codeExecute{}
 }

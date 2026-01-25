@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 func (e *ReactEngine) observeToolResults(state *TaskState, iteration int, results []ToolResult) {
@@ -32,7 +32,7 @@ func (e *ReactEngine) appendFeedbackSignals(state *TaskState, results []ToolResu
 	}
 	now := e.clock.Now()
 	for _, result := range results {
-		signal := ports.FeedbackSignal{
+		signal := agent.FeedbackSignal{
 			Kind:      "tool_result",
 			Message:   buildFeedbackMessage(result),
 			Value:     deriveFeedbackValue(result),

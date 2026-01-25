@@ -10,7 +10,11 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
 	"alex/internal/agent/presets"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/logging"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/utils/clilatency"
@@ -19,16 +23,16 @@ import (
 
 // AgentCoordinator manages session lifecycle and delegates to domain
 type AgentCoordinator struct {
-	llmFactory   ports.LLMClientFactory
-	toolRegistry ports.ToolRegistry
-	sessionStore ports.SessionStore
-	contextMgr   ports.ContextManager
-	historyMgr   ports.HistoryManager
-	parser       ports.FunctionCallParser
-	costTracker  ports.CostTracker
+	llmFactory   llm.LLMClientFactory
+	toolRegistry tools.ToolRegistry
+	sessionStore storage.SessionStore
+	contextMgr   agent.ContextManager
+	historyMgr   storage.HistoryManager
+	parser       tools.FunctionCallParser
+	costTracker  storage.CostTracker
 	config       Config
-	logger       ports.Logger
-	clock        ports.Clock
+	logger       agent.Logger
+	clock        agent.Clock
 
 	prepService        preparationService
 	costDecorator      *CostTrackingDecorator
@@ -36,7 +40,7 @@ type AgentCoordinator struct {
 }
 
 type preparationService interface {
-	Prepare(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error)
+	Prepare(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error)
 	SetEnvironmentSummary(summary string)
 	ResolveAgentPreset(ctx context.Context, preset string) string
 	ResolveToolPreset(ctx context.Context, preset string) string
@@ -64,13 +68,13 @@ type Config struct {
 }
 
 func NewAgentCoordinator(
-	llmFactory ports.LLMClientFactory,
-	toolRegistry ports.ToolRegistry,
-	sessionStore ports.SessionStore,
-	contextMgr ports.ContextManager,
-	historyManager ports.HistoryManager,
-	parser ports.FunctionCallParser,
-	costTracker ports.CostTracker,
+	llmFactory llm.LLMClientFactory,
+	toolRegistry tools.ToolRegistry,
+	sessionStore storage.SessionStore,
+	contextMgr agent.ContextManager,
+	historyManager storage.HistoryManager,
+	parser tools.FunctionCallParser,
+	costTracker storage.CostTracker,
 	config Config,
 	opts ...CoordinatorOption,
 ) *AgentCoordinator {
@@ -88,7 +92,7 @@ func NewAgentCoordinator(
 		costTracker:  costTracker,
 		config:       config,
 		logger:       logging.NewComponentLogger("Coordinator"),
-		clock:        ports.SystemClock{},
+		clock:        agent.SystemClock{},
 	}
 
 	for _, opt := range opts {
@@ -126,10 +130,10 @@ func NewAgentCoordinator(
 type planSessionTitleRecorder struct {
 	mu    sync.Mutex
 	title string
-	sink  ports.EventListener
+	sink  agent.EventListener
 }
 
-func (r *planSessionTitleRecorder) OnEvent(event ports.AgentEvent) {
+func (r *planSessionTitleRecorder) OnEvent(event agent.AgentEvent) {
 	if event == nil {
 		return
 	}
@@ -195,8 +199,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	ctx context.Context,
 	task string,
 	sessionID string,
-	listener ports.EventListener,
-) (*ports.TaskResult, error) {
+	listener agent.EventListener,
+) (*agent.TaskResult, error) {
 	prepareStarted := time.Now()
 	// Decorate the listener with the workflow envelope translator so downstream
 	// consumers receive workflow event envelopes.
@@ -213,9 +217,9 @@ func (c *AgentCoordinator) ExecuteTask(
 		ensuredTaskID = id.TaskIDFromContext(ctx)
 	}
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
-	outCtx := ports.GetOutputContext(ctx)
+	outCtx := agent.GetOutputContext(ctx)
 	if outCtx == nil {
-		outCtx = &ports.OutputContext{Level: ports.LevelCore}
+		outCtx = &agent.OutputContext{Level: agent.LevelCore}
 	} else {
 		cloned := *outCtx
 		outCtx = &cloned
@@ -230,13 +234,13 @@ func (c *AgentCoordinator) ExecuteTask(
 	if outCtx.ParentTaskID == "" {
 		outCtx.ParentTaskID = ids.ParentTaskID
 	}
-	ctx = ports.WithOutputContext(ctx, outCtx)
+	ctx = agent.WithOutputContext(ctx, outCtx)
 	c.logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
 	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
 
-	attachWorkflow := func(result *ports.TaskResult, env *ports.ExecutionEnvironment) *ports.TaskResult {
+	attachWorkflow := func(result *agent.TaskResult, env *agent.ExecutionEnvironment) *agent.TaskResult {
 		session := sessionID
 		if env != nil && env.Session != nil && env.Session.ID != "" {
 			session = env.Session.ID
@@ -302,7 +306,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	wf.start(stageExecute)
 	result, executionErr := reactEngine.SolveTask(ctx, task, env.State, env.Services)
 	if result == nil {
-		result = &ports.TaskResult{
+		result = &agent.TaskResult{
 			Answer:       "",
 			Messages:     env.State.Messages,
 			Iterations:   env.State.Iterations,
@@ -410,9 +414,9 @@ func buildCompletionDefaultsFromConfig(cfg Config) domain.CompletionDefaults {
 	return defaults
 }
 
-func attachWorkflowSnapshot(result *ports.TaskResult, wf *agentWorkflow, sessionID, taskID, parentTaskID string) *ports.TaskResult {
+func attachWorkflowSnapshot(result *agent.TaskResult, wf *agentWorkflow, sessionID, taskID, parentTaskID string) *agent.TaskResult {
 	if result == nil {
-		result = &ports.TaskResult{}
+		result = &agent.TaskResult{}
 	}
 	result.SessionID = defaultString(result.SessionID, sessionID)
 	result.TaskID = defaultString(result.TaskID, taskID)
@@ -434,12 +438,12 @@ func defaultString(value, fallback string) string {
 }
 
 // PrepareExecution prepares the execution environment without running the task
-func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	return c.prepService.Prepare(ctx, task, sessionID)
 }
 
 // prepareExecutionWithListener prepares execution with event emission support
-func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.ExecutionEnvironment, error) {
+func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.ExecutionEnvironment, error) {
 	// Create a preparation service instance with the listener for this execution
 	if listener != nil {
 		prepService := NewExecutionPreparationService(ExecutionPreparationDeps{
@@ -463,10 +467,10 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 }
 
 // SaveSessionAfterExecution saves session state after task completion
-func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *ports.Session, result *ports.TaskResult) error {
+func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *storage.Session, result *agent.TaskResult) error {
 	if c.historyMgr != nil && session != nil && result != nil {
 		previousHistory, _ := c.historyMgr.Replay(ctx, session.ID, 0)
-		incoming := append(ports.CloneMessages(previousHistory), stripUserHistoryMessages(result.Messages)...)
+		incoming := append(agent.CloneMessages(previousHistory), stripUserHistoryMessages(result.Messages)...)
 		if err := c.historyMgr.AppendTurn(ctx, session.ID, incoming); err != nil && c.logger != nil {
 			c.logger.Warn("Failed to append turn history: %v", err)
 		}
@@ -525,7 +529,7 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 
 func (c *AgentCoordinator) persistSessionSnapshot(
 	ctx context.Context,
-	env *ports.ExecutionEnvironment,
+	env *agent.ExecutionEnvironment,
 	fallbackTaskID string,
 	parentTaskID string,
 	stopReason string,
@@ -535,7 +539,7 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 	}
 
 	state := env.State
-	result := &ports.TaskResult{
+	result := &agent.TaskResult{
 		Answer:       "",
 		Messages:     state.Messages,
 		Iterations:   state.Iterations,
@@ -563,11 +567,11 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 }
 
 // GetSession retrieves or creates a session (public method)
-func (c *AgentCoordinator) GetSession(ctx context.Context, id string) (*ports.Session, error) {
+func (c *AgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return c.getSession(ctx, id)
 }
 
-func (c *AgentCoordinator) getSession(ctx context.Context, id string) (*ports.Session, error) {
+func (c *AgentCoordinator) getSession(ctx context.Context, id string) (*storage.Session, error) {
 	if id == "" {
 		return c.sessionStore.Create(ctx)
 	}
@@ -579,21 +583,21 @@ func (c *AgentCoordinator) ListSessions(ctx context.Context, limit int, offset i
 }
 
 // GetCostTracker returns the cost tracker instance
-func (c *AgentCoordinator) GetCostTracker() ports.CostTracker {
+func (c *AgentCoordinator) GetCostTracker() storage.CostTracker {
 	return c.costTracker
 }
 
 // GetToolRegistry returns the tool registry instance
-func (c *AgentCoordinator) GetToolRegistry() ports.ToolRegistry {
+func (c *AgentCoordinator) GetToolRegistry() tools.ToolRegistry {
 	return c.toolRegistry
 }
 
 // GetToolRegistryWithoutSubagent returns a filtered registry that excludes subagent
 // This is used by subagent tool to prevent nested subagent calls
-func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
+func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 	// Check if the registry implements WithoutSubagent method
 	type registryWithFilter interface {
-		WithoutSubagent() ports.ToolRegistry
+		WithoutSubagent() tools.ToolRegistry
 	}
 
 	if filtered, ok := c.toolRegistry.(registryWithFilter); ok {
@@ -605,8 +609,8 @@ func (c *AgentCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
 }
 
 // GetConfig returns the coordinator configuration
-func (c *AgentCoordinator) GetConfig() ports.AgentConfig {
-	return ports.AgentConfig{
+func (c *AgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{
 		LLMProvider:   c.config.LLMProvider,
 		LLMModel:      c.config.LLMModel,
 		MaxTokens:     c.config.MaxTokens,
@@ -718,8 +722,8 @@ func obfuscateSessionID(id string) string {
 }
 
 // GetLLMClient returns an LLM client
-func (c *AgentCoordinator) GetLLMClient() (ports.LLMClient, error) {
-	client, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, ports.LLMConfig{
+func (c *AgentCoordinator) GetLLMClient() (llm.LLMClient, error) {
+	client, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, llm.LLMConfig{
 		APIKey:  c.config.APIKey,
 		BaseURL: c.config.BaseURL,
 	})
@@ -730,20 +734,20 @@ func (c *AgentCoordinator) GetLLMClient() (ports.LLMClient, error) {
 }
 
 // GetParser returns the function call parser
-func (c *AgentCoordinator) GetParser() ports.FunctionCallParser {
+func (c *AgentCoordinator) GetParser() tools.FunctionCallParser {
 	return c.parser
 }
 
 // GetContextManager returns the context manager
-func (c *AgentCoordinator) GetContextManager() ports.ContextManager {
+func (c *AgentCoordinator) GetContextManager() agent.ContextManager {
 	return c.contextMgr
 }
 
 // PreviewContextWindow constructs the current context window for a session
 // without mutating session state. This is intended for diagnostics in
 // development flows.
-func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (ports.ContextWindowPreview, error) {
-	preview := ports.ContextWindowPreview{}
+func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	preview := agent.ContextWindowPreview{}
 
 	if c.contextMgr == nil {
 		return preview, fmt.Errorf("context manager not configured")
@@ -774,7 +778,7 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 		toolPreset = string(presets.ToolPresetFull)
 	}
 
-	window, err := c.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+	window, err := c.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
 		TokenLimit:         c.config.MaxTokens,
 		PersonaKey:         preview.PersonaKey,
 		ToolMode:           string(toolMode),
@@ -815,8 +819,8 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 	} else if toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
-	session := &ports.Session{ID: "", Messages: nil}
-	window, err := c.contextMgr.BuildWindow(context.Background(), session, ports.ContextWindowConfig{
+	session := &storage.Session{ID: "", Messages: nil}
+	window, err := c.contextMgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{
 		TokenLimit:         c.config.MaxTokens,
 		PersonaKey:         personaKey,
 		ToolMode:           toolMode,

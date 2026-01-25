@@ -1,10 +1,12 @@
 package mocks
 
 import (
-	"alex/internal/agent/ports"
 	"context"
 	"fmt"
 	"strings"
+
+	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 // ToolScenario represents a complete tool calling scenario for testing
@@ -15,9 +17,9 @@ type ToolScenario struct {
 	Registry    *MockToolRegistry
 }
 
-func scenarioToolRegistry(inner func(name string) (ports.ToolExecutor, error)) *MockToolRegistry {
+func scenarioToolRegistry(inner func(name string) (tools.ToolExecutor, error)) *MockToolRegistry {
 	return &MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			switch name {
 			case "plan":
 				return newUIPlanExecutor(), nil
@@ -33,7 +35,7 @@ func scenarioToolRegistry(inner func(name string) (ports.ToolExecutor, error)) *
 	}
 }
 
-func newUIPlanExecutor() ports.ToolExecutor {
+func newUIPlanExecutor() tools.ToolExecutor {
 	return &MockToolExecutor{
 		ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 			runID, _ := call.Arguments["run_id"].(string)
@@ -71,7 +73,7 @@ func newUIPlanExecutor() ports.ToolExecutor {
 	}
 }
 
-func newUIClearifyExecutor() ports.ToolExecutor {
+func newUIClearifyExecutor() tools.ToolExecutor {
 	return &MockToolExecutor{
 		ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 			runID, _ := call.Arguments["run_id"].(string)
@@ -310,7 +312,7 @@ func NewFileReadScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 300, CompletionTokens: 80, TotalTokens: 380},
 			},
 		),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			if name == "file_read" {
 				return &MockToolExecutor{
 					ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -397,7 +399,7 @@ func NewMultipleToolCallsScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 800, CompletionTokens: 60, TotalTokens: 860},
 			},
 		),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			return &MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					switch call.Name {
@@ -468,7 +470,7 @@ func NewParallelToolCallsScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 90, TotalTokens: 590},
 			},
 		),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			return &MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					path := call.Arguments["path"].(string)
@@ -528,7 +530,7 @@ func NewWebSearchScenario() ToolScenario {
 				ports.TokenUsage{PromptTokens: 600, CompletionTokens: 80, TotalTokens: 680},
 			),
 		),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			return &MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					switch call.Name {
@@ -636,7 +638,7 @@ func NewCodeEditScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 700, CompletionTokens: 55, TotalTokens: 755},
 			},
 		),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			return &MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					switch call.Name {
@@ -707,7 +709,7 @@ func NewToolErrorScenario() ToolScenario {
 		Name:        "tool_error",
 		Description: "Agent handles tool execution errors gracefully",
 		LLM:         newScriptedLLMClient(llmScript...),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			return &MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					if call.Name == "file_read" {
@@ -796,7 +798,7 @@ func NewTodoManagementScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 400, CompletionTokens: 50, TotalTokens: 450},
 			},
 		),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			return &MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					switch call.Name {
@@ -903,7 +905,7 @@ func NewSubagentDelegationScenario() ToolScenario {
 				Usage:      ports.TokenUsage{PromptTokens: 500, CompletionTokens: 90, TotalTokens: 590},
 			},
 		),
-		Registry: scenarioToolRegistry(func(name string) (ports.ToolExecutor, error) {
+		Registry: scenarioToolRegistry(func(name string) (tools.ToolExecutor, error) {
 			return &MockToolExecutor{
 				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					return &ports.ToolResult{

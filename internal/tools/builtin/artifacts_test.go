@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {
@@ -74,7 +75,7 @@ func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {
 	}
 
 	// Execute again with existing attachment to ensure we switch to update
-	ctx := ports.WithAttachmentContext(context.Background(), result.Attachments, nil)
+	ctx := tools.WithAttachmentContext(context.Background(), result.Attachments, nil)
 	updated, err := tool.Execute(ctx, call)
 	if err != nil {
 		t.Fatalf("unexpected error on update: %v", err)
@@ -105,7 +106,7 @@ func TestArtifactsListReturnsSnapshot(t *testing.T) {
 		},
 		"image.png": {Name: "image.png", MediaType: "image/png"},
 	}
-	ctx := ports.WithAttachmentContext(context.Background(), attachments, nil)
+	ctx := tools.WithAttachmentContext(context.Background(), attachments, nil)
 
 	tool := NewArtifactsList()
 	call := ports.ToolCall{ID: "list-1", Name: "artifacts_list"}

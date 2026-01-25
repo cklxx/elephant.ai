@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	agentPorts "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/server/ports"
 	id "alex/internal/utils/id"
 )
@@ -215,7 +215,7 @@ func (s *InMemoryTaskStore) SetError(ctx context.Context, taskID string, err err
 }
 
 // SetResult stores task completion result
-func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result *agentPorts.TaskResult) error {
+func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result *agent.TaskResult) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

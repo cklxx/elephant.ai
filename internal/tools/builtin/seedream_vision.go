@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
@@ -29,12 +30,12 @@ func newSeedreamVisionTool(config SeedreamConfig) *seedreamVisionTool {
 }
 
 // NewSeedreamVisionAnalyze returns a tool that analyzes images with the vision model.
-func NewSeedreamVisionAnalyze(config SeedreamConfig) ports.ToolExecutor {
+func NewSeedreamVisionAnalyze(config SeedreamConfig) tools.ToolExecutor {
 	return NewVisionAnalyze(VisionConfig{Provider: VisionProviderSeedream, Seedream: config})
 }
 
 // NewVisionAnalyze returns a provider-agnostic vision tool (defaults to Seedream).
-func NewVisionAnalyze(config VisionConfig) ports.ToolExecutor {
+func NewVisionAnalyze(config VisionConfig) tools.ToolExecutor {
 	provider := strings.TrimSpace(strings.ToLower(config.Provider))
 	if provider == "" {
 		provider = VisionProviderSeedream
@@ -348,7 +349,7 @@ func resolveSeedreamAttachmentByName(ctx context.Context, name string) (string, 
 		return "", "", "", false
 	}
 
-	attachments, _ := ports.GetAttachmentContext(ctx)
+	attachments, _ := tools.GetAttachmentContext(ctx)
 	if len(attachments) == 0 {
 		return "", "", "", false
 	}

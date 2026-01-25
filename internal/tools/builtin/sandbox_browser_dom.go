@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/sandbox"
 
 	"github.com/chromedp/cdproto/target"
@@ -59,7 +60,7 @@ const (
 	sandboxDOMMaxElemsCap     = 60
 )
 
-func NewSandboxBrowserDOM(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxBrowserDOM(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxBrowserDOMTool{client: newSandboxClient(cfg)}
 }
 

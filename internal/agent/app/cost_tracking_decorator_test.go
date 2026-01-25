@@ -9,9 +9,11 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
 )
 
-// mockLLMClient implements ports.LLMClient for testing
+// mockLLMClient implements llm.LLMClient for testing
 type mockLLMClient struct {
 	model         string
 	callCount     int
@@ -89,30 +91,30 @@ func (m *streamingClient) StreamComplete(
 	}, nil
 }
 
-// mockCostTracker implements ports.CostTracker with thread-safe storage
+// mockCostTracker implements storage.CostTracker with thread-safe storage
 type mockCostTracker struct {
-	records []ports.UsageRecord
+	records []storage.UsageRecord
 	mu      sync.Mutex
 }
 
 func newMockCostTracker() *mockCostTracker {
 	return &mockCostTracker{
-		records: make([]ports.UsageRecord, 0),
+		records: make([]storage.UsageRecord, 0),
 	}
 }
 
-func (m *mockCostTracker) RecordUsage(ctx context.Context, usage ports.UsageRecord) error {
+func (m *mockCostTracker) RecordUsage(ctx context.Context, usage storage.UsageRecord) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.records = append(m.records, usage)
 	return nil
 }
 
-func (m *mockCostTracker) GetSessionCost(ctx context.Context, sessionID string) (*ports.CostSummary, error) {
+func (m *mockCostTracker) GetSessionCost(ctx context.Context, sessionID string) (*storage.CostSummary, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	summary := &ports.CostSummary{
+	summary := &storage.CostSummary{
 		ByModel:    make(map[string]float64),
 		ByProvider: make(map[string]float64),
 	}
@@ -130,11 +132,11 @@ func (m *mockCostTracker) GetSessionCost(ctx context.Context, sessionID string) 
 	return summary, nil
 }
 
-func (m *mockCostTracker) GetSessionStats(ctx context.Context, sessionID string) (*ports.SessionStats, error) {
+func (m *mockCostTracker) GetSessionStats(ctx context.Context, sessionID string) (*storage.SessionStats, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	stats := &ports.SessionStats{
+	stats := &storage.SessionStats{
 		SessionID:  sessionID,
 		ByModel:    make(map[string]float64),
 		ByProvider: make(map[string]float64),
@@ -167,27 +169,27 @@ func (m *mockCostTracker) GetSessionStats(ctx context.Context, sessionID string)
 	return stats, nil
 }
 
-func (m *mockCostTracker) GetDailyCost(ctx context.Context, date time.Time) (*ports.CostSummary, error) {
+func (m *mockCostTracker) GetDailyCost(ctx context.Context, date time.Time) (*storage.CostSummary, error) {
 	return nil, nil
 }
 
-func (m *mockCostTracker) GetMonthlyCost(ctx context.Context, year int, month int) (*ports.CostSummary, error) {
+func (m *mockCostTracker) GetMonthlyCost(ctx context.Context, year int, month int) (*storage.CostSummary, error) {
 	return nil, nil
 }
 
-func (m *mockCostTracker) GetDateRangeCost(ctx context.Context, start, end time.Time) (*ports.CostSummary, error) {
+func (m *mockCostTracker) GetDateRangeCost(ctx context.Context, start, end time.Time) (*storage.CostSummary, error) {
 	return nil, nil
 }
 
-func (m *mockCostTracker) Export(ctx context.Context, format ports.ExportFormat, filter ports.ExportFilter) ([]byte, error) {
+func (m *mockCostTracker) Export(ctx context.Context, format storage.ExportFormat, filter storage.ExportFilter) ([]byte, error) {
 	return nil, nil
 }
 
-func (m *mockCostTracker) GetRecordsBySession(sessionID string) []ports.UsageRecord {
+func (m *mockCostTracker) GetRecordsBySession(sessionID string) []storage.UsageRecord {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var result []ports.UsageRecord
+	var result []storage.UsageRecord
 	for _, r := range m.records {
 		if r.SessionID == sessionID {
 			result = append(result, r)
@@ -196,13 +198,13 @@ func (m *mockCostTracker) GetRecordsBySession(sessionID string) []ports.UsageRec
 	return result
 }
 
-func (m *mockCostTracker) GetAllRecords() []ports.UsageRecord {
+func (m *mockCostTracker) GetAllRecords() []storage.UsageRecord {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append([]ports.UsageRecord{}, m.records...)
+	return append([]storage.UsageRecord{}, m.records...)
 }
 
-// mockLogger implements ports.Logger for testing
+// mockLogger implements agent.Logger for testing
 type mockLogger struct {
 	messages []string
 	mu       sync.Mutex
@@ -242,7 +244,7 @@ func TestCostTrackingWrapperStreamCompleteDelegatesToStreamingClient(t *testing.
 	baseClient := newStreamingClient("gpt-4o")
 
 	wrapped := decorator.Wrap(context.Background(), "session-stream", baseClient)
-	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	streaming, ok := wrapped.(llm.StreamingLLMClient)
 	if !ok {
 		t.Fatalf("wrapped client does not implement StreamingLLMClient")
 	}
@@ -295,7 +297,7 @@ func TestCostTrackingWrapperStreamCompleteFallsBackForNonStreamingClient(t *test
 	baseClient := newMockLLMClient("gpt-4o")
 
 	wrapped := decorator.Wrap(context.Background(), "session-fallback", baseClient)
-	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	streaming, ok := wrapped.(llm.StreamingLLMClient)
 	if !ok {
 		t.Fatalf("wrapped client does not implement StreamingLLMClient")
 	}
@@ -348,7 +350,7 @@ func TestCostTrackingWrapperStreamCompletePrefersNonStreamingWithoutCallbacks(t 
 	baseClient := newStreamingClient("gpt-4o")
 
 	wrapped := decorator.Wrap(context.Background(), "session-nonstream", baseClient)
-	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	streaming, ok := wrapped.(llm.StreamingLLMClient)
 	if !ok {
 		t.Fatalf("wrapped client does not implement StreamingLLMClient")
 	}
@@ -389,7 +391,7 @@ func (m *mockLogger) GetMessages() []string {
 	return append([]string{}, m.messages...)
 }
 
-// mockClock implements ports.Clock for deterministic time in tests
+// mockClock implements agent.Clock for deterministic time in tests
 type mockClock struct {
 	currentTime time.Time
 	mu          sync.Mutex
@@ -496,7 +498,7 @@ func TestConcurrentSessionsIsolation(t *testing.T) {
 			baseClient := newMockLLMClient("gpt-4o")
 
 			// Create wrapped clients for each session
-			clients := make(map[string]ports.LLMClient)
+			clients := make(map[string]llm.LLMClient)
 			for _, sessionID := range tt.sessions {
 				clients[sessionID] = decorator.Wrap(context.Background(), sessionID, baseClient)
 			}
@@ -505,7 +507,7 @@ func TestConcurrentSessionsIsolation(t *testing.T) {
 			var wg sync.WaitGroup
 			for sessionID, client := range clients {
 				wg.Add(1)
-				go func(sid string, c ports.LLMClient) {
+				go func(sid string, c llm.LLMClient) {
 					defer wg.Done()
 					ctx := context.Background()
 					req := ports.CompletionRequest{
@@ -761,7 +763,7 @@ func TestNoRaceConditionsUnderLoad(t *testing.T) {
 	// Create 10 sessions
 	numSessions := 10
 	sessions := make([]string, numSessions)
-	clients := make([]ports.LLMClient, numSessions)
+	clients := make([]llm.LLMClient, numSessions)
 	for i := 0; i < numSessions; i++ {
 		sessionID := fmt.Sprintf("stress-session-%d", i)
 		sessions[i] = sessionID
@@ -775,7 +777,7 @@ func TestNoRaceConditionsUnderLoad(t *testing.T) {
 	for i := 0; i < numSessions; i++ {
 		for j := 0; j < callsPerSession; j++ {
 			wg.Add(1)
-			go func(client ports.LLMClient) {
+			go func(client llm.LLMClient) {
 				defer wg.Done()
 				req := ports.CompletionRequest{
 					Messages: []ports.Message{{Role: "user", Content: "stress test"}},

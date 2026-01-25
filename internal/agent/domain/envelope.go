@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 // WorkflowEventEnvelope standardizes the streaming contract across backends and frontends.
@@ -33,14 +33,14 @@ type WorkflowEventEnvelope struct {
 	Payload map[string]any
 }
 
-// EventType satisfies ports.AgentEvent with the semantic event name.
+// EventType satisfies agent.AgentEvent with the semantic event name.
 func (e *WorkflowEventEnvelope) EventType() string {
 	return e.Event
 }
 
 // NewWorkflowEnvelopeFromEvent copies base context from the originating event while
 // assigning the semantic event_type.
-func NewWorkflowEnvelopeFromEvent(event ports.AgentEvent, eventType string) *WorkflowEventEnvelope {
+func NewWorkflowEnvelopeFromEvent(event agent.AgentEvent, eventType string) *WorkflowEventEnvelope {
 	if event == nil {
 		return nil
 	}

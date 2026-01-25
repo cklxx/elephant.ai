@@ -4,28 +4,29 @@ import (
 	"context"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/presets"
+	tools "alex/internal/agent/ports/tools"
 	id "alex/internal/utils/id"
 )
 
 // PresetResolver handles preset resolution for both agent and tool presets.
 // It resolves presets from context (highest priority), config (fallback), or defaults.
 type PresetResolver struct {
-	logger       ports.Logger
-	clock        ports.Clock
-	eventEmitter ports.EventListener
+	logger       agent.Logger
+	clock        agent.Clock
+	eventEmitter agent.EventListener
 }
 
 // PresetResolverDeps enumerates dependencies for PresetResolver
 type PresetResolverDeps struct {
-	Logger       ports.Logger
-	Clock        ports.Clock
-	EventEmitter ports.EventListener
+	Logger       agent.Logger
+	Clock        agent.Clock
+	EventEmitter agent.EventListener
 }
 
 // NewPresetResolver creates a new preset resolver instance.
-func NewPresetResolver(logger ports.Logger) *PresetResolver {
+func NewPresetResolver(logger agent.Logger) *PresetResolver {
 	return NewPresetResolverWithDeps(PresetResolverDeps{Logger: logger})
 }
 
@@ -33,15 +34,15 @@ func NewPresetResolver(logger ports.Logger) *PresetResolver {
 func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
 	logger := deps.Logger
 	if logger == nil {
-		logger = ports.NoopLogger{}
+		logger = agent.NoopLogger{}
 	}
 	clock := deps.Clock
 	if clock == nil {
-		clock = ports.SystemClock{}
+		clock = agent.SystemClock{}
 	}
 	eventEmitter := deps.EventEmitter
 	if eventEmitter == nil {
-		eventEmitter = ports.NoopEventListener{}
+		eventEmitter = agent.NoopEventListener{}
 	}
 
 	return &PresetResolver{
@@ -55,10 +56,10 @@ func NewPresetResolverWithDeps(deps PresetResolverDeps) *PresetResolver {
 // Priority: context preset > config preset > base registry.
 func (r *PresetResolver) ResolveToolRegistry(
 	ctx context.Context,
-	baseRegistry ports.ToolRegistry,
+	baseRegistry tools.ToolRegistry,
 	mode presets.ToolMode,
 	configPreset string,
-) ports.ToolRegistry {
+) tools.ToolRegistry {
 	toolMode := normalizeToolMode(mode)
 	toolPreset, source := r.resolveToolPreset(ctx, toolMode, configPreset)
 
@@ -118,7 +119,7 @@ func (r *PresetResolver) ResolveToolRegistry(
 		toolNames = append(toolNames, tool.Name)
 	}
 	filterEvent := domain.NewWorkflowDiagnosticToolFilteringEvent(
-		ports.LevelCore,
+		agent.LevelCore,
 		sessionID,
 		ids.TaskID,
 		ids.ParentTaskID,
@@ -136,7 +137,7 @@ func (r *PresetResolver) ResolveToolRegistry(
 // extractSessionID attempts to extract session ID from context
 func (r *PresetResolver) extractSessionID(ctx context.Context) string {
 	// Use the shared SessionContextKey from ports package
-	if sessionID, ok := ctx.Value(ports.SessionContextKey{}).(string); ok {
+	if sessionID, ok := ctx.Value(agent.SessionContextKey{}).(string); ok {
 		return sessionID
 	}
 	// Fallback to legacy string key for backward compatibility

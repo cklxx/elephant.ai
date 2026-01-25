@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	id "alex/internal/utils/id"
 )
 
 type attention struct{}
 
 // NewAttention constructs a tool to pin high-signal notes for later recall.
-func NewAttention() ports.ToolExecutor {
+func NewAttention() tools.ToolExecutor {
 	return &attention{}
 }
 

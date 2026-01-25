@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	serverPorts "alex/internal/server/ports"
 	id "alex/internal/utils/id"
 )
@@ -156,7 +156,7 @@ func TestInMemoryTaskStore_SetResult(t *testing.T) {
 
 	task, _ := store.Create(ctx, "session-1", "Test task", "", "")
 
-	result := &ports.TaskResult{
+	result := &agent.TaskResult{
 		Answer:       "Task completed",
 		Iterations:   5,
 		TokensUsed:   1000,
@@ -212,7 +212,7 @@ func TestInMemoryTaskStore_SetResult_UpdatesSessionID(t *testing.T) {
 	}
 
 	// Execute task and get result with generated session ID
-	result := &ports.TaskResult{
+	result := &agent.TaskResult{
 		Answer:     "Task completed",
 		Iterations: 3,
 		TokensUsed: 500,
@@ -251,7 +251,7 @@ func TestInMemoryTaskStore_SetResult_PreservesExistingSessionID(t *testing.T) {
 	task, _ := store.Create(ctx, "existing-session-123", "Test task", "", "")
 
 	// Execute task and get result with same session ID
-	result := &ports.TaskResult{
+	result := &agent.TaskResult{
 		Answer:     "Task completed",
 		Iterations: 2,
 		TokensUsed: 300,
@@ -479,7 +479,7 @@ func TestInMemoryTaskStore_SetResult_SetsTerminationReason(t *testing.T) {
 
 	task, _ := store.Create(ctx, "session-1", "Test task", "", "")
 
-	result := &ports.TaskResult{
+	result := &agent.TaskResult{
 		Answer:     "Task completed",
 		Iterations: 5,
 		TokensUsed: 1000,

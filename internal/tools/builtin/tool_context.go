@@ -1,9 +1,10 @@
 package builtin
 
 import (
-	"alex/internal/agent/ports"
-	"alex/internal/backup"
 	"context"
+
+	tools "alex/internal/agent/ports/tools"
+	"alex/internal/backup"
 )
 
 // Context keys for tool dependencies
@@ -17,12 +18,12 @@ const (
 )
 
 // GetApproverFromContext retrieves the approver from context
-func GetApproverFromContext(ctx context.Context) ports.Approver {
+func GetApproverFromContext(ctx context.Context) tools.Approver {
 	if ctx == nil {
 		return nil
 	}
 
-	if approver, ok := ctx.Value(ApproverKey).(ports.Approver); ok {
+	if approver, ok := ctx.Value(ApproverKey).(tools.Approver); ok {
 		return approver
 	}
 
@@ -30,7 +31,7 @@ func GetApproverFromContext(ctx context.Context) ports.Approver {
 }
 
 // WithApprover sets the approver in context
-func WithApprover(ctx context.Context, approver ports.Approver) context.Context {
+func WithApprover(ctx context.Context, approver tools.Approver) context.Context {
 	return context.WithValue(ctx, ApproverKey, approver)
 }
 

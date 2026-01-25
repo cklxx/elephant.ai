@@ -8,6 +8,9 @@ import (
 	"sync"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
+	agent "alex/internal/agent/ports/agent"
+	tools "alex/internal/agent/ports/tools"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/llm"
 	"alex/internal/memory"
@@ -16,9 +19,9 @@ import (
 
 // Registry implements ToolRegistry with three-tier caching
 type Registry struct {
-	static  map[string]ports.ToolExecutor
-	dynamic map[string]ports.ToolExecutor
-	mcp     map[string]ports.ToolExecutor
+	static  map[string]tools.ToolExecutor
+	dynamic map[string]tools.ToolExecutor
+	mcp     map[string]tools.ToolExecutor
 	mu      sync.RWMutex
 }
 
@@ -48,7 +51,7 @@ type Config struct {
 	ACPExecutorMaxDuration     int
 	ACPExecutorRequireManifest bool
 
-	LLMFactory    ports.LLMClientFactory
+	LLMFactory    portsllm.LLMClientFactory
 	LLMProvider   string
 	LLMModel      string
 	APIKey        string
@@ -58,9 +61,9 @@ type Config struct {
 
 func NewRegistry(config Config) (*Registry, error) {
 	r := &Registry{
-		static:  make(map[string]ports.ToolExecutor),
-		dynamic: make(map[string]ports.ToolExecutor),
-		mcp:     make(map[string]ports.ToolExecutor),
+		static:  make(map[string]tools.ToolExecutor),
+		dynamic: make(map[string]tools.ToolExecutor),
+		mcp:     make(map[string]tools.ToolExecutor),
 	}
 
 	if config.MemoryService == nil {
@@ -97,7 +100,7 @@ func NewRegistry(config Config) (*Registry, error) {
 	return r, nil
 }
 
-func (r *Registry) Register(tool ports.ToolExecutor) error {
+func (r *Registry) Register(tool tools.ToolExecutor) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	name := tool.Metadata().Name
@@ -114,7 +117,7 @@ func (r *Registry) Register(tool ports.ToolExecutor) error {
 	return nil
 }
 
-func (r *Registry) Get(name string) (ports.ToolExecutor, error) {
+func (r *Registry) Get(name string) (tools.ToolExecutor, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if tool, ok := r.static[name]; ok {
@@ -130,7 +133,7 @@ func (r *Registry) Get(name string) (ports.ToolExecutor, error) {
 }
 
 // wrapWithIDPropagation ensures that tool results always include the originating call's lineage identifiers.
-func wrapWithIDPropagation(tool ports.ToolExecutor) ports.ToolExecutor {
+func wrapWithIDPropagation(tool tools.ToolExecutor) tools.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
@@ -142,7 +145,7 @@ func wrapWithIDPropagation(tool ports.ToolExecutor) ports.ToolExecutor {
 }
 
 type idAwareExecutor struct {
-	delegate ports.ToolExecutor
+	delegate tools.ToolExecutor
 }
 
 func (w *idAwareExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -172,7 +175,7 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
 }
 
-func ensureApprovalWrapper(tool ports.ToolExecutor) ports.ToolExecutor {
+func ensureApprovalWrapper(tool tools.ToolExecutor) tools.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
@@ -191,7 +194,7 @@ func ensureApprovalWrapper(tool ports.ToolExecutor) ports.ToolExecutor {
 }
 
 type approvalExecutor struct {
-	delegate ports.ToolExecutor
+	delegate tools.ToolExecutor
 }
 
 func (a *approvalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -207,7 +210,7 @@ func (a *approvalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*p
 		return a.delegate.Execute(ctx, call)
 	}
 
-	req := &ports.ApprovalRequest{
+	req := &tools.ApprovalRequest{
 		Operation:   meta.Name,
 		FilePath:    extractFilePath(call.Arguments),
 		Summary:     fmt.Sprintf("Approval required for %s", meta.Name),
@@ -249,7 +252,7 @@ func extractFilePath(args map[string]any) string {
 
 // WithoutSubagent returns a filtered registry that excludes the subagent tool
 // This prevents nested subagent calls at registration level
-func (r *Registry) WithoutSubagent() ports.ToolRegistry {
+func (r *Registry) WithoutSubagent() tools.ToolRegistry {
 	return &filteredRegistry{
 		parent: r,
 		// Exclude both subagent and explore (which wraps subagent) to prevent
@@ -258,9 +261,9 @@ func (r *Registry) WithoutSubagent() ports.ToolRegistry {
 	}
 }
 
-// filteredRegistry implements ports.ToolRegistry with exclusions
+// filteredRegistry implements tools.ToolRegistry with exclusions
 
-func (f *filteredRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (f *filteredRegistry) Get(name string) (tools.ToolExecutor, error) {
 	if f.exclude[name] {
 		return nil, fmt.Errorf("tool not available: %s", name)
 	}
@@ -278,7 +281,7 @@ func (f *filteredRegistry) List() []ports.ToolDefinition {
 	return filtered
 }
 
-func (f *filteredRegistry) Register(tool ports.ToolExecutor) error {
+func (f *filteredRegistry) Register(tool tools.ToolExecutor) error {
 	// Delegate to parent, but exclude from own filter
 	name := tool.Metadata().Name
 	if f.exclude[name] {
@@ -388,7 +391,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 		if model == "" {
 			return fmt.Errorf("html_edit: model is required when provider is %q", provider)
 		}
-		client, err := config.LLMFactory.GetClient(provider, model, ports.LLMConfig{
+		client, err := config.LLMFactory.GetClient(provider, model, portsllm.LLMConfig{
 			APIKey:  config.APIKey,
 			BaseURL: config.BaseURL,
 		})
@@ -422,7 +425,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 		imageConfig.ModelEnvVar = "SEEDREAM_IMAGE_MODEL"
 		r.static["image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
 	}
-	var visionTool ports.ToolExecutor
+	var visionTool tools.ToolExecutor
 	if config.SeedreamVisionModel != "" {
 		visionConfig := seedreamBase
 		visionConfig.Model = config.SeedreamVisionModel
@@ -467,7 +470,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 }
 
 // RegisterSubAgent registers the subagent tool that requires a coordinator
-func (r *Registry) RegisterSubAgent(coordinator ports.AgentCoordinator) {
+func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if coordinator == nil {

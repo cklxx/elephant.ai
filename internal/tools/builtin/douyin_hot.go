@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
 )
 
@@ -19,7 +20,7 @@ type douyinHot struct {
 	client *http.Client
 }
 
-func NewDouyinHot() ports.ToolExecutor {
+func NewDouyinHot() tools.ToolExecutor {
 	return &douyinHot{client: httpclient.NewWithCircuitBreaker(10*time.Second, nil, "douyin_hot")}
 }
 

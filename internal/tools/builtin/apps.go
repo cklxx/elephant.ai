@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/config"
 )
 
@@ -24,11 +25,11 @@ type appsTool struct {
 	loadFileConfig func(...config.Option) (config.FileConfig, string, error)
 }
 
-func NewApps() ports.ToolExecutor {
+func NewApps() tools.ToolExecutor {
 	return newAppsWithLoader(config.LoadFileConfig)
 }
 
-func newAppsWithLoader(loader func(...config.Option) (config.FileConfig, string, error)) ports.ToolExecutor {
+func newAppsWithLoader(loader func(...config.Option) (config.FileConfig, string, error)) tools.ToolExecutor {
 	return &appsTool{loadFileConfig: loader}
 }
 

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports"
 )
 
@@ -69,8 +70,8 @@ func truncateWithEllipsis(input string, limit int) string {
 	return trimmed + "…"
 }
 
-func buildContextTurnRecord(state *ports.TaskState, messages []ports.Message, timestamp time.Time, summary string) ports.ContextTurnRecord {
-	record := ports.ContextTurnRecord{
+func buildContextTurnRecord(state *agent.TaskState, messages []ports.Message, timestamp time.Time, summary string) agent.ContextTurnRecord {
+	record := agent.ContextTurnRecord{
 		Timestamp: timestamp,
 		Summary:   summary,
 		Messages:  append([]ports.Message(nil), messages...),
@@ -90,13 +91,13 @@ func buildContextTurnRecord(state *ports.TaskState, messages []ports.Message, ti
 	return record
 }
 
-func clonePlanNodes(nodes []ports.PlanNode) []ports.PlanNode {
+func clonePlanNodes(nodes []agent.PlanNode) []agent.PlanNode {
 	if len(nodes) == 0 {
 		return nil
 	}
-	cloned := make([]ports.PlanNode, 0, len(nodes))
+	cloned := make([]agent.PlanNode, 0, len(nodes))
 	for _, node := range nodes {
-		copyNode := ports.PlanNode{
+		copyNode := agent.PlanNode{
 			ID:          node.ID,
 			Title:       node.Title,
 			Status:      node.Status,
@@ -108,13 +109,13 @@ func clonePlanNodes(nodes []ports.PlanNode) []ports.PlanNode {
 	return cloned
 }
 
-func cloneBeliefs(beliefs []ports.Belief) []ports.Belief {
+func cloneBeliefs(beliefs []agent.Belief) []agent.Belief {
 	if len(beliefs) == 0 {
 		return nil
 	}
-	cloned := make([]ports.Belief, 0, len(beliefs))
+	cloned := make([]agent.Belief, 0, len(beliefs))
 	for _, belief := range beliefs {
-		cloned = append(cloned, ports.Belief{
+		cloned = append(cloned, agent.Belief{
 			Statement:  belief.Statement,
 			Confidence: belief.Confidence,
 			Source:     belief.Source,
@@ -123,13 +124,13 @@ func cloneBeliefs(beliefs []ports.Belief) []ports.Belief {
 	return cloned
 }
 
-func cloneKnowledgeReferences(refs []ports.KnowledgeReference) []ports.KnowledgeReference {
+func cloneKnowledgeReferences(refs []agent.KnowledgeReference) []agent.KnowledgeReference {
 	if len(refs) == 0 {
 		return nil
 	}
-	cloned := make([]ports.KnowledgeReference, 0, len(refs))
+	cloned := make([]agent.KnowledgeReference, 0, len(refs))
 	for _, ref := range refs {
-		copyRef := ports.KnowledgeReference{
+		copyRef := agent.KnowledgeReference{
 			ID:          ref.ID,
 			Description: ref.Description,
 		}
@@ -141,11 +142,11 @@ func cloneKnowledgeReferences(refs []ports.KnowledgeReference) []ports.Knowledge
 	return cloned
 }
 
-func cloneFeedbackSignals(signals []ports.FeedbackSignal) []ports.FeedbackSignal {
+func cloneFeedbackSignals(signals []agent.FeedbackSignal) []agent.FeedbackSignal {
 	if len(signals) == 0 {
 		return nil
 	}
-	cloned := make([]ports.FeedbackSignal, len(signals))
+	cloned := make([]agent.FeedbackSignal, len(signals))
 	copy(cloned, signals)
 	return cloned
 }

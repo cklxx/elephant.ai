@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/jsonx"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
@@ -25,7 +26,7 @@ type store struct {
 var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // New creates a file-backed session store rooted at baseDir.
-func New(baseDir string) ports.SessionStore {
+func New(baseDir string) storage.SessionStore {
 	if strings.HasPrefix(baseDir, "~/") {
 		if home, err := os.UserHomeDir(); err == nil {
 			baseDir = filepath.Join(home, baseDir[2:])
@@ -40,7 +41,7 @@ func New(baseDir string) ports.SessionStore {
 	}
 }
 
-func (s *store) Create(ctx context.Context) (*ports.Session, error) {
+func (s *store) Create(ctx context.Context) (*storage.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -50,10 +51,10 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 		return nil, fmt.Errorf("invalid session ID")
 	}
 
-	session := &ports.Session{
+	session := &storage.Session{
 		ID:        sessionID,
 		Messages:  []ports.Message{},
-		Todos:     []ports.Todo{},
+		Todos:     []storage.Todo{},
 		Metadata:  make(map[string]string),
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
@@ -83,7 +84,7 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 	return session, nil
 }
 
-func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
+func (s *store) Get(ctx context.Context, id string) (*storage.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -97,7 +98,7 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 		return nil, fmt.Errorf("session not found")
 	}
 
-	var session ports.Session
+	var session storage.Session
 	if err := jsonx.Unmarshal(data, &session); err != nil {
 		// Do not log file path or preview, as session file may contain secrets (API keys, etc.)
 		logging.OrNop(s.logger).Error("Failed to decode session file: %v", err)
@@ -113,7 +114,7 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	return &session, nil
 }
 
-func (s *store) Save(ctx context.Context, session *ports.Session) error {
+func (s *store) Save(ctx context.Context, session *storage.Session) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}

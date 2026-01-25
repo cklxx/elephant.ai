@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
+	llm "alex/internal/agent/ports/llm"
 	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
 	"alex/internal/utils"
@@ -25,7 +27,7 @@ import (
 // webFetch implements web content fetching with caching and optional LLM processing
 type webFetch struct {
 	httpClient      *http.Client
-	llmClient       ports.LLMClient // Optional LLM for content analysis
+	llmClient       llm.LLMClient // Optional LLM for content analysis
 	cache           *fetchCache
 	maxContentBytes int
 }
@@ -51,12 +53,12 @@ type cacheEntry struct {
 	element   *list.Element
 }
 
-func NewWebFetch(cfg WebFetchConfig) ports.ToolExecutor {
+func NewWebFetch(cfg WebFetchConfig) tools.ToolExecutor {
 	return NewWebFetchWithLLM(nil, cfg)
 }
 
 // NewWebFetchWithLLM creates web_fetch with optional LLM client for analysis
-func NewWebFetchWithLLM(llmClient ports.LLMClient, cfg WebFetchConfig) ports.ToolExecutor {
+func NewWebFetchWithLLM(llmClient llm.LLMClient, cfg WebFetchConfig) tools.ToolExecutor {
 	cacheTTL := cfg.CacheTTL
 	if cacheTTL <= 0 {
 		cacheTTL = 15 * time.Minute
@@ -414,7 +416,7 @@ func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt strin
 		utils.LogStreamingRequestPayload(requestID, payload)
 	}
 
-	streaming, ok := ports.EnsureStreamingClient(t.llmClient).(ports.StreamingLLMClient)
+	streaming, ok := llm.EnsureStreamingClient(t.llmClient).(llm.StreamingLLMClient)
 	if !ok {
 		return "", fmt.Errorf("streaming LLM client unavailable")
 	}
@@ -428,16 +430,16 @@ func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt strin
 				contentBuffer.WriteString(delta.Delta)
 				progressBuffer.WriteString(delta.Delta)
 				if progressBuffer.Len() >= progressChunkMinChars {
-					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					tools.EmitToolProgress(ctx, progressBuffer.String(), false)
 					progressBuffer.Reset()
 				}
 			}
 			if delta.Final {
 				if progressBuffer.Len() > 0 {
-					ports.EmitToolProgress(ctx, progressBuffer.String(), false)
+					tools.EmitToolProgress(ctx, progressBuffer.String(), false)
 					progressBuffer.Reset()
 				}
-				ports.EmitToolProgress(ctx, "", true)
+				tools.EmitToolProgress(ctx, "", true)
 			}
 		},
 	}

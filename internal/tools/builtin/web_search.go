@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
 	"golang.org/x/net/html"
 )
@@ -27,7 +28,7 @@ type webSearchResult struct {
 	Content string
 }
 
-func NewWebSearch(apiKey string) ports.ToolExecutor {
+func NewWebSearch(apiKey string) tools.ToolExecutor {
 	return newWebSearch(apiKey, nil)
 }
 

@@ -6,14 +6,15 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type explore struct {
-	subagent ports.ToolExecutor
+	subagent tools.ToolExecutor
 }
 
 // NewExplore creates an explore tool that wraps the subagent executor.
-func NewExplore(subagent ports.ToolExecutor) ports.ToolExecutor {
+func NewExplore(subagent tools.ToolExecutor) tools.ToolExecutor {
 	return &explore{subagent: subagent}
 }
 

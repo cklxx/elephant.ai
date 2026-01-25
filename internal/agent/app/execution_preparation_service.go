@@ -8,7 +8,11 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
 	"alex/internal/agent/presets"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
@@ -23,47 +27,47 @@ const (
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
-	LLMFactory     ports.LLMClientFactory
-	ToolRegistry   ports.ToolRegistry
-	SessionStore   ports.SessionStore
-	ContextMgr     ports.ContextManager
-	HistoryMgr     ports.HistoryManager
-	Parser         ports.FunctionCallParser
+	LLMFactory     llm.LLMClientFactory
+	ToolRegistry   tools.ToolRegistry
+	SessionStore   storage.SessionStore
+	ContextMgr     agent.ContextManager
+	HistoryMgr     storage.HistoryManager
+	Parser         tools.FunctionCallParser
 	Config         Config
-	Logger         ports.Logger
-	Clock          ports.Clock
+	Logger         agent.Logger
+	Clock          agent.Clock
 	CostDecorator  *CostTrackingDecorator
 	PresetResolver *PresetResolver // Optional: if nil, one will be created
-	EventEmitter   ports.EventListener
-	CostTracker    ports.CostTracker
+	EventEmitter   agent.EventListener
+	CostTracker    storage.CostTracker
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
 type ExecutionPreparationService struct {
-	llmFactory     ports.LLMClientFactory
-	toolRegistry   ports.ToolRegistry
-	sessionStore   ports.SessionStore
-	contextMgr     ports.ContextManager
-	historyMgr     ports.HistoryManager
-	parser         ports.FunctionCallParser
+	llmFactory     llm.LLMClientFactory
+	toolRegistry   tools.ToolRegistry
+	sessionStore   storage.SessionStore
+	contextMgr     agent.ContextManager
+	historyMgr     storage.HistoryManager
+	parser         tools.FunctionCallParser
 	config         Config
-	logger         ports.Logger
-	clock          ports.Clock
+	logger         agent.Logger
+	clock          agent.Clock
 	costDecorator  *CostTrackingDecorator
 	presetResolver *PresetResolver
-	eventEmitter   ports.EventListener
-	costTracker    ports.CostTracker
+	eventEmitter   agent.EventListener
+	costTracker    storage.CostTracker
 }
 
 // NewExecutionPreparationService creates a service instance.
 func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPreparationService {
 	logger := deps.Logger
 	if logger == nil {
-		logger = ports.NoopLogger{}
+		logger = agent.NoopLogger{}
 	}
 	clock := deps.Clock
 	if clock == nil {
-		clock = ports.SystemClock{}
+		clock = agent.SystemClock{}
 	}
 
 	costDecorator := deps.CostDecorator
@@ -73,7 +77,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 
 	eventEmitter := deps.EventEmitter
 	if eventEmitter == nil {
-		eventEmitter = ports.NoopEventListener{}
+		eventEmitter = agent.NoopEventListener{}
 	}
 
 	presetResolver := deps.PresetResolver
@@ -103,7 +107,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 }
 
 // Prepare builds the execution environment for a task.
-func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	s.logger.Info("PrepareExecution called: task='%s'", task)
 
 	sessionLoadStarted := time.Now()
@@ -130,20 +134,20 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		float64(time.Since(historyLoadStarted))/float64(time.Millisecond),
 		len(sessionHistory),
 	)
-	rawHistory := ports.CloneMessages(sessionHistory)
+	rawHistory := agent.CloneMessages(sessionHistory)
 	if session != nil {
 		session.Messages = sessionHistory
 	}
 
-	var inheritedState *ports.TaskState
+	var inheritedState *agent.TaskState
 	if isSubagentContext(ctx) {
-		inheritedState = ports.GetTaskStateSnapshot(ctx)
+		inheritedState = agent.GetTaskStateSnapshot(ctx)
 	}
 
 	var (
 		initialWorldState    map[string]any
 		initialWorldDiff     map[string]any
-		window               ports.ContextWindow
+		window               agent.ContextWindow
 		contextWasCompressed bool
 	)
 
@@ -177,7 +181,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			originalCount := len(session.Messages)
 			windowStarted := time.Now()
 			var err error
-			window, err = s.contextMgr.BuildWindow(ctx, session, ports.ContextWindowConfig{
+			window, err = s.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
 				TokenLimit:         s.config.MaxTokens,
 				PersonaKey:         personaKey,
 				ToolMode:           string(toolMode),
@@ -198,7 +202,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			if compressedCount := len(window.Messages); compressedCount < originalCount {
 				contextWasCompressed = true
 				compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
-					ports.LevelCore,
+					agent.LevelCore,
 					session.ID,
 					ids.TaskID,
 					ids.ParentTaskID,
@@ -282,7 +286,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		strings.TrimSpace(selection.Provider) != "" &&
 		strings.TrimSpace(selection.Model) != ""
 
-	var taskAnalysis *ports.TaskAnalysis
+	var taskAnalysis *agent.TaskAnalysis
 	var preferSmallModel bool
 	if selectionPinned {
 		if analysis, _, ok := quickTriageTask(task); ok {
@@ -324,7 +328,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	s.logger.Debug("Getting isolated LLM client: provider=%s, model=%s", effectiveProvider, effectiveModel)
 	// Use GetIsolatedClient to ensure session-level cost tracking isolation
 	llmInitStarted := time.Now()
-	llmConfig := ports.LLMConfig{
+	llmConfig := llm.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
 	}
@@ -350,7 +354,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	// Use Wrap instead of Attach to avoid modifying shared client state
 	llmClient = s.costDecorator.Wrap(ctx, session.ID, llmClient)
 
-	streamingClient, ok := ports.EnsureStreamingClient(llmClient).(ports.StreamingLLMClient)
+	streamingClient, ok := llm.EnsureStreamingClient(llmClient).(llm.StreamingLLMClient)
 	if !ok {
 		return nil, fmt.Errorf("failed to wrap LLM client with streaming support")
 	}
@@ -429,7 +433,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	s.logger.Info("Execution environment prepared successfully")
 
-	return &ports.ExecutionEnvironment{
+	return &agent.ExecutionEnvironment{
 		State:        state,
 		Services:     services,
 		Session:      session,

@@ -1,13 +1,13 @@
 package app
 
-import "alex/internal/agent/ports"
+import tools "alex/internal/agent/ports/tools"
 
 type toolConcurrencyLimiter struct {
 	limit int
 }
 
 // NewToolExecutionLimiter returns a semaphore-based limiter for tool calls.
-func NewToolExecutionLimiter(maxConcurrent int) ports.ToolExecutionLimiter {
+func NewToolExecutionLimiter(maxConcurrent int) tools.ToolExecutionLimiter {
 	if maxConcurrent <= 0 {
 		return nil
 	}

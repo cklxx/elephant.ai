@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	llm "alex/internal/agent/ports/llm"
+	tools "alex/internal/agent/ports/tools"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -13,12 +15,12 @@ import (
 
 // InstrumentedLLMClient wraps an LLM client with observability
 type InstrumentedLLMClient struct {
-	inner ports.LLMClient
+	inner llm.LLMClient
 	obs   *Observability
 }
 
 // NewInstrumentedLLMClient creates an instrumented LLM client
-func NewInstrumentedLLMClient(client ports.LLMClient, obs *Observability) ports.LLMClient {
+func NewInstrumentedLLMClient(client llm.LLMClient, obs *Observability) llm.LLMClient {
 	return &InstrumentedLLMClient{
 		inner: client,
 		obs:   obs,
@@ -98,12 +100,12 @@ func (c *InstrumentedLLMClient) Model() string {
 
 // InstrumentedToolExecutor wraps a tool executor with observability
 type InstrumentedToolExecutor struct {
-	inner ports.ToolExecutor
+	inner tools.ToolExecutor
 	obs   *Observability
 }
 
 // NewInstrumentedToolExecutor creates an instrumented tool executor
-func NewInstrumentedToolExecutor(executor ports.ToolExecutor, obs *Observability) ports.ToolExecutor {
+func NewInstrumentedToolExecutor(executor tools.ToolExecutor, obs *Observability) tools.ToolExecutor {
 	return &InstrumentedToolExecutor{
 		inner: executor,
 		obs:   obs,
@@ -175,19 +177,19 @@ func (t *InstrumentedToolExecutor) Metadata() ports.ToolMetadata {
 
 // InstrumentedToolRegistry wraps a tool registry with observability
 type InstrumentedToolRegistry struct {
-	inner ports.ToolRegistry
+	inner tools.ToolRegistry
 	obs   *Observability
 }
 
 // NewInstrumentedToolRegistry creates an instrumented tool registry
-func NewInstrumentedToolRegistry(registry ports.ToolRegistry, obs *Observability) ports.ToolRegistry {
+func NewInstrumentedToolRegistry(registry tools.ToolRegistry, obs *Observability) tools.ToolRegistry {
 	return &InstrumentedToolRegistry{
 		inner: registry,
 		obs:   obs,
 	}
 }
 
-func (r *InstrumentedToolRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (r *InstrumentedToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	tool, err := r.inner.Get(name)
 	if err != nil {
 		return nil, err
@@ -200,7 +202,7 @@ func (r *InstrumentedToolRegistry) List() []ports.ToolDefinition {
 	return r.inner.List()
 }
 
-func (r *InstrumentedToolRegistry) Register(tool ports.ToolExecutor) error {
+func (r *InstrumentedToolRegistry) Register(tool tools.ToolExecutor) error {
 	// Wrap before registering
 	instrumented := NewInstrumentedToolExecutor(tool, r.obs)
 	return r.inner.Register(instrumented)

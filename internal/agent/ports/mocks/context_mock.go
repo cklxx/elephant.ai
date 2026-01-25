@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports"
+	"alex/internal/agent/ports/storage"
 )
 
 type MockContextManager struct {
@@ -13,8 +15,8 @@ type MockContextManager struct {
 	AutoCompactFunc    func(messages []ports.Message, limit int) ([]ports.Message, bool)
 	ShouldCompressFunc func(messages []ports.Message, limit int) bool
 	PreloadFunc        func(ctx context.Context) error
-	BuildWindowFunc    func(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error)
-	RecordTurnFunc     func(ctx context.Context, record ports.ContextTurnRecord) error
+	BuildWindowFunc    func(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error)
+	RecordTurnFunc     func(ctx context.Context, record agent.ContextTurnRecord) error
 }
 
 func (m *MockContextManager) EstimateTokens(messages []ports.Message) int {
@@ -52,17 +54,17 @@ func (m *MockContextManager) Preload(ctx context.Context) error {
 	return nil
 }
 
-func (m *MockContextManager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
+func (m *MockContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if m.BuildWindowFunc != nil {
 		return m.BuildWindowFunc(ctx, session, cfg)
 	}
 	if session == nil {
-		return ports.ContextWindow{}, fmt.Errorf("session required")
+		return agent.ContextWindow{}, fmt.Errorf("session required")
 	}
-	return ports.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
+	return agent.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
 }
 
-func (m *MockContextManager) RecordTurn(ctx context.Context, record ports.ContextTurnRecord) error {
+func (m *MockContextManager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord) error {
 	if m.RecordTurnFunc != nil {
 		return m.RecordTurnFunc(ctx, record)
 	}

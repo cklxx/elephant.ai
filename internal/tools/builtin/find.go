@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 	"os"
@@ -12,7 +13,7 @@ import (
 type find struct {
 }
 
-func NewFind(cfg ShellToolConfig) ports.ToolExecutor {
+func NewFind(cfg ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &find{}
 }

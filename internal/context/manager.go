@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/analytics/journal"
 	"alex/internal/logging"
 	"alex/internal/observability"
@@ -99,7 +101,7 @@ func WithMetrics(metrics *observability.ContextMetrics) Option {
 }
 
 // NewManager constructs a layered context manager implementation.
-func NewManager(opts ...Option) ports.ContextManager {
+func NewManager(opts ...Option) agent.ContextManager {
 	root := resolveContextConfigRoot()
 
 	m := &manager{
@@ -289,17 +291,17 @@ func (m *manager) Preload(ctx context.Context) error {
 	return m.preloadErr
 }
 
-func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
+func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
-		return ports.ContextWindow{}, fmt.Errorf("session required")
+		return agent.ContextWindow{}, fmt.Errorf("session required")
 	}
 	if err := m.Preload(ctx); err != nil {
-		return ports.ContextWindow{}, err
+		return agent.ContextWindow{}, err
 	}
 
 	staticSnapshot, err := m.static.currentSnapshot(ctx)
 	if err != nil {
-		return ports.ContextWindow{}, err
+		return agent.ContextWindow{}, err
 	}
 
 	persona := selectPersona(cfg.PersonaKey, session, staticSnapshot.Personas)
@@ -315,7 +317,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 		}
 	}
 
-	dyn := ports.DynamicContext{}
+	dyn := agent.DynamicContext{}
 	if m.stateStore != nil {
 		snap, err := m.stateStore.LatestSnapshot(ctx, session.ID)
 		if err == nil {
@@ -327,10 +329,10 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 
 	meta := deriveHistoryAwareMeta(messages, persona.ID)
 
-	window := ports.ContextWindow{
+	window := agent.ContextWindow{
 		SessionID: session.ID,
 		Messages:  messages,
-		Static: ports.StaticContext{
+		Static: agent.StaticContext{
 			Persona:            persona,
 			Goal:               goal,
 			Policies:           policies,
@@ -353,7 +355,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *ports.Session, cfg p
 	return window, nil
 }
 
-func (m *manager) RecordTurn(ctx context.Context, record ports.ContextTurnRecord) error {
+func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord) error {
 	if record.SessionID == "" {
 		return nil
 	}
@@ -412,8 +414,8 @@ func buildToolHints(mode string, preset string) []string {
 	return []string{fmt.Sprintf("mode=%s", mode), fmt.Sprintf("preset=%s", preset)}
 }
 
-func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) ports.DynamicContext {
-	return ports.DynamicContext{
+func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) agent.DynamicContext {
+	return agent.DynamicContext{
 		TurnID:            snapshot.TurnID,
 		LLMTurnSeq:        snapshot.LLMTurnSeq,
 		Plans:             snapshot.Plans,
@@ -424,7 +426,7 @@ func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) ports.DynamicConte
 	}
 }
 
-func convertRecordToJournal(record ports.ContextTurnRecord) journal.TurnJournalEntry {
+func convertRecordToJournal(record agent.ContextTurnRecord) journal.TurnJournalEntry {
 	entry := journal.TurnJournalEntry{
 		SessionID:     record.SessionID,
 		TurnID:        record.TurnID,
@@ -448,8 +450,8 @@ func convertRecordToJournal(record ports.ContextTurnRecord) journal.TurnJournalE
 
 const historyTimelineLimit = 8
 
-func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) ports.MetaContext {
-	meta := ports.MetaContext{PersonaVersion: personaVersion}
+func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) agent.MetaContext {
+	meta := agent.MetaContext{PersonaVersion: personaVersion}
 	if len(messages) == 0 {
 		return meta
 	}
@@ -481,7 +483,7 @@ func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) por
 	}
 
 	if timeline := buildHistoryTimeline(messages, historyTimelineLimit); len(timeline) > 0 {
-		meta.Memories = append(meta.Memories, ports.MemoryFragment{
+		meta.Memories = append(meta.Memories, agent.MemoryFragment{
 			Key:       "recent_session_timeline",
 			Content:   strings.Join(timeline, "\n"),
 			CreatedAt: time.Now(),
@@ -489,7 +491,7 @@ func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) por
 		})
 	}
 	if firstSystemSnippet != "" {
-		meta.Memories = append(meta.Memories, ports.MemoryFragment{
+		meta.Memories = append(meta.Memories, agent.MemoryFragment{
 			Key:       "session_system_prompt",
 			Content:   firstSystemSnippet,
 			CreatedAt: time.Now(),
@@ -552,7 +554,7 @@ func normalizeHistoryLabel(msg ports.Message) string {
 	return role
 }
 
-func composeSystemPrompt(logger logging.Logger, static ports.StaticContext, dynamic ports.DynamicContext, meta ports.MetaContext, omitEnvironment bool) string {
+func composeSystemPrompt(logger logging.Logger, static agent.StaticContext, dynamic agent.DynamicContext, meta agent.MetaContext, omitEnvironment bool) string {
 	sections := []string{
 		buildUserPersonaSection(static.UserPersona),
 		buildIdentitySection(static.Persona),
@@ -673,7 +675,7 @@ func buildSkillsSection(logger logging.Logger) string {
 	return skills.IndexMarkdown(library)
 }
 
-func buildIdentitySection(persona ports.PersonaProfile) string {
+func buildIdentitySection(persona agent.PersonaProfile) string {
 	var builder strings.Builder
 	voice := strings.TrimSpace(persona.Voice)
 	if voice == "" {
@@ -693,7 +695,7 @@ func buildIdentitySection(persona ports.PersonaProfile) string {
 	return strings.TrimSpace(builder.String())
 }
 
-func buildGoalsSection(goal ports.GoalProfile) string {
+func buildGoalsSection(goal agent.GoalProfile) string {
 	var lines []string
 	if len(goal.LongTerm) > 0 {
 		lines = append(lines, "Long-term:")
@@ -713,7 +715,7 @@ func buildGoalsSection(goal ports.GoalProfile) string {
 	return formatSection("# Mission Objectives", lines)
 }
 
-func buildPoliciesSection(policies []ports.PolicyRule) string {
+func buildPoliciesSection(policies []agent.PolicyRule) string {
 	if len(policies) == 0 {
 		return ""
 	}
@@ -734,7 +736,7 @@ func buildPoliciesSection(policies []ports.PolicyRule) string {
 	return formatSection("# Guardrails & Policies", lines)
 }
 
-func buildKnowledgeSection(knowledge []ports.KnowledgeReference) string {
+func buildKnowledgeSection(knowledge []agent.KnowledgeReference) string {
 	if len(knowledge) == 0 {
 		return ""
 	}
@@ -765,7 +767,7 @@ func buildKnowledgeSection(knowledge []ports.KnowledgeReference) string {
 	return formatSection("# Knowledge & Experience", lines)
 }
 
-func buildEnvironmentSection(static ports.StaticContext) string {
+func buildEnvironmentSection(static agent.StaticContext) string {
 	var lines []string
 	if env := strings.TrimSpace(static.EnvironmentSummary); env != "" {
 		lines = append(lines, fmt.Sprintf("Environment summary: %s", env))
@@ -791,7 +793,7 @@ func buildEnvironmentSection(static ports.StaticContext) string {
 	return formatSection("# Operating Environment", lines)
 }
 
-func buildDynamicSection(dynamic ports.DynamicContext) string {
+func buildDynamicSection(dynamic agent.DynamicContext) string {
 	var lines []string
 	if dynamic.TurnID > 0 || dynamic.LLMTurnSeq > 0 {
 		lines = append(lines, fmt.Sprintf("Turn: %d (llm_seq=%d)", dynamic.TurnID, dynamic.LLMTurnSeq))
@@ -829,7 +831,7 @@ func buildDynamicSection(dynamic ports.DynamicContext) string {
 	return formatSection("# Live Session State", lines)
 }
 
-func buildMetaSection(meta ports.MetaContext) string {
+func buildMetaSection(meta agent.MetaContext) string {
 	var lines []string
 	if meta.PersonaVersion != "" {
 		lines = append(lines, fmt.Sprintf("Persona version: %s", meta.PersonaVersion))
@@ -920,7 +922,7 @@ func formatKeyValue(key, value string) string {
 	return fmt.Sprintf("%s: %s", key, value)
 }
 
-func formatPlanTree(nodes []ports.PlanNode, depth int) []string {
+func formatPlanTree(nodes []agent.PlanNode, depth int) []string {
 	var lines []string
 	for _, node := range nodes {
 		title := strings.TrimSpace(node.Title)
@@ -972,7 +974,7 @@ func formatPolicyLabel(id string) string {
 	return string(runes)
 }
 
-func selectPersona(key string, session *ports.Session, personas map[string]ports.PersonaProfile) ports.PersonaProfile {
+func selectPersona(key string, session *storage.Session, personas map[string]agent.PersonaProfile) agent.PersonaProfile {
 	if key == "" && session != nil && session.Metadata != nil {
 		key = session.Metadata["persona"]
 	}
@@ -989,12 +991,12 @@ func selectPersona(key string, session *ports.Session, personas map[string]ports
 	}
 	sort.Strings(keys)
 	if len(keys) == 0 {
-		return ports.PersonaProfile{ID: "default", Tone: "neutral"}
+		return agent.PersonaProfile{ID: "default", Tone: "neutral"}
 	}
 	return personas[keys[0]]
 }
 
-func selectGoal(key string, goals map[string]ports.GoalProfile) ports.GoalProfile {
+func selectGoal(key string, goals map[string]agent.GoalProfile) agent.GoalProfile {
 	if goal, ok := goals[key]; ok {
 		return goal
 	}
@@ -1007,12 +1009,12 @@ func selectGoal(key string, goals map[string]ports.GoalProfile) ports.GoalProfil
 	}
 	sort.Strings(keys)
 	if len(keys) == 0 {
-		return ports.GoalProfile{ID: "default"}
+		return agent.GoalProfile{ID: "default"}
 	}
 	return goals[keys[0]]
 }
 
-func selectWorld(key string, session *ports.Session, worlds map[string]ports.WorldProfile) ports.WorldProfile {
+func selectWorld(key string, session *storage.Session, worlds map[string]agent.WorldProfile) agent.WorldProfile {
 	if key == "" && session != nil && session.Metadata != nil {
 		key = session.Metadata["world"]
 	}
@@ -1028,7 +1030,7 @@ func selectWorld(key string, session *ports.Session, worlds map[string]ports.Wor
 	}
 	sort.Strings(keys)
 	if len(keys) == 0 {
-		return ports.WorldProfile{ID: "default"}
+		return agent.WorldProfile{ID: "default"}
 	}
 	return worlds[keys[0]]
 }
@@ -1065,11 +1067,11 @@ type staticRegistry struct {
 type staticSnapshot struct {
 	Version   string
 	LoadedAt  time.Time
-	Personas  map[string]ports.PersonaProfile
-	Goals     map[string]ports.GoalProfile
-	Policies  map[string]ports.PolicyRule
-	Knowledge map[string]ports.KnowledgeReference
-	Worlds    map[string]ports.WorldProfile
+	Personas  map[string]agent.PersonaProfile
+	Goals     map[string]agent.GoalProfile
+	Policies  map[string]agent.PolicyRule
+	Knowledge map[string]agent.KnowledgeReference
+	Worlds    map[string]agent.WorldProfile
 }
 
 func newStaticRegistry(root string, ttl time.Duration, logger logging.Logger, metrics *observability.ContextMetrics) *staticRegistry {
@@ -1162,14 +1164,14 @@ func (r *staticRegistry) load(_ context.Context) (staticSnapshot, error) {
 
 // YAML loaders -------------------------------------------------------------
 
-func loadPersonas(dir string) (map[string]ports.PersonaProfile, error) {
+func loadPersonas(dir string) (map[string]agent.PersonaProfile, error) {
 	entries, err := readYAMLDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	personas := make(map[string]ports.PersonaProfile, len(entries))
+	personas := make(map[string]agent.PersonaProfile, len(entries))
 	for _, content := range entries {
-		var profile ports.PersonaProfile
+		var profile agent.PersonaProfile
 		if err := yaml.Unmarshal(content, &profile); err != nil {
 			return nil, fmt.Errorf("decode persona: %w", err)
 		}
@@ -1179,19 +1181,19 @@ func loadPersonas(dir string) (map[string]ports.PersonaProfile, error) {
 		personas[profile.ID] = profile
 	}
 	if len(personas) == 0 {
-		personas["default"] = ports.PersonaProfile{ID: "default", Tone: "neutral"}
+		personas["default"] = agent.PersonaProfile{ID: "default", Tone: "neutral"}
 	}
 	return personas, nil
 }
 
-func loadGoals(dir string) (map[string]ports.GoalProfile, error) {
+func loadGoals(dir string) (map[string]agent.GoalProfile, error) {
 	entries, err := readYAMLDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	goals := make(map[string]ports.GoalProfile, len(entries))
+	goals := make(map[string]agent.GoalProfile, len(entries))
 	for _, content := range entries {
-		var profile ports.GoalProfile
+		var profile agent.GoalProfile
 		if err := yaml.Unmarshal(content, &profile); err != nil {
 			return nil, fmt.Errorf("decode goal: %w", err)
 		}
@@ -1201,19 +1203,19 @@ func loadGoals(dir string) (map[string]ports.GoalProfile, error) {
 		goals[profile.ID] = profile
 	}
 	if len(goals) == 0 {
-		goals["default"] = ports.GoalProfile{ID: "default"}
+		goals["default"] = agent.GoalProfile{ID: "default"}
 	}
 	return goals, nil
 }
 
-func loadPolicies(dir string) (map[string]ports.PolicyRule, error) {
+func loadPolicies(dir string) (map[string]agent.PolicyRule, error) {
 	entries, err := readYAMLDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	policies := make(map[string]ports.PolicyRule, len(entries))
+	policies := make(map[string]agent.PolicyRule, len(entries))
 	for _, content := range entries {
-		var policy ports.PolicyRule
+		var policy agent.PolicyRule
 		if err := yaml.Unmarshal(content, &policy); err != nil {
 			return nil, fmt.Errorf("decode policy: %w", err)
 		}
@@ -1225,14 +1227,14 @@ func loadPolicies(dir string) (map[string]ports.PolicyRule, error) {
 	return policies, nil
 }
 
-func loadKnowledge(dir string) (map[string]ports.KnowledgeReference, error) {
+func loadKnowledge(dir string) (map[string]agent.KnowledgeReference, error) {
 	entries, err := readYAMLDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	knowledge := make(map[string]ports.KnowledgeReference, len(entries))
+	knowledge := make(map[string]agent.KnowledgeReference, len(entries))
 	for _, content := range entries {
-		var ref ports.KnowledgeReference
+		var ref agent.KnowledgeReference
 		if err := yaml.Unmarshal(content, &ref); err != nil {
 			return nil, fmt.Errorf("decode knowledge pack: %w", err)
 		}
@@ -1244,14 +1246,14 @@ func loadKnowledge(dir string) (map[string]ports.KnowledgeReference, error) {
 	return knowledge, nil
 }
 
-func loadWorlds(dir string) (map[string]ports.WorldProfile, error) {
+func loadWorlds(dir string) (map[string]agent.WorldProfile, error) {
 	entries, err := readYAMLDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	worlds := make(map[string]ports.WorldProfile, len(entries))
+	worlds := make(map[string]agent.WorldProfile, len(entries))
 	for _, content := range entries {
-		var profile ports.WorldProfile
+		var profile agent.WorldProfile
 		if err := yaml.Unmarshal(content, &profile); err != nil {
 			return nil, fmt.Errorf("decode world profile: %w", err)
 		}
@@ -1261,7 +1263,7 @@ func loadWorlds(dir string) (map[string]ports.WorldProfile, error) {
 		worlds[profile.ID] = profile
 	}
 	if len(worlds) == 0 {
-		worlds["default"] = ports.WorldProfile{ID: "default"}
+		worlds["default"] = agent.WorldProfile{ID: "default"}
 	}
 	return worlds, nil
 }
@@ -1299,11 +1301,11 @@ func readYAMLDir(dir string) ([][]byte, error) {
 }
 
 func hashStaticSnapshot(
-	personas map[string]ports.PersonaProfile,
-	goals map[string]ports.GoalProfile,
-	policies map[string]ports.PolicyRule,
-	knowledge map[string]ports.KnowledgeReference,
-	worlds map[string]ports.WorldProfile,
+	personas map[string]agent.PersonaProfile,
+	goals map[string]agent.GoalProfile,
+	policies map[string]agent.PolicyRule,
+	knowledge map[string]agent.KnowledgeReference,
+	worlds map[string]agent.WorldProfile,
 ) string {
 	h := sha256.New()
 	encodeMapForHash(h, "personas", personas)

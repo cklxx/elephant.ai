@@ -7,15 +7,16 @@ import (
 	"sync/atomic"
 
 	"alex/internal/agent/domain"
-	agentports "alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/logging"
 	serverports "alex/internal/server/ports"
 	id "alex/internal/utils/id"
 )
 
-type clientMap map[string][]chan agentports.AgentEvent
+type clientMap map[string][]chan agent.AgentEvent
 
-// EventBroadcaster implements ports.EventListener and broadcasts events to SSE clients
+// EventBroadcaster implements agent.EventListener and broadcasts events to SSE clients
 type EventBroadcaster struct {
 	// Map sessionID -> list of client channels
 	clients   atomic.Value // clientMap
@@ -31,13 +32,13 @@ type EventBroadcaster struct {
 	taskMu        sync.RWMutex      // separate mutex for task tracking
 
 	// Event history for session replay
-	eventHistory map[string][]agentports.AgentEvent // sessionID -> events
+	eventHistory map[string][]agent.AgentEvent // sessionID -> events
 	historyMu    sync.RWMutex
 	maxHistory   int // Maximum events to keep per session
 	historyStore EventHistoryStore
 
 	// Global events that apply to all sessions (e.g., diagnostics)
-	globalHistory []agentports.AgentEvent
+	globalHistory []agent.AgentEvent
 	globalMu      sync.RWMutex
 
 	// Metrics tracking
@@ -83,7 +84,7 @@ func WithMaxHistory(max int) EventBroadcasterOption {
 func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 	b := &EventBroadcaster{
 		sessionToTask:      make(map[string]string),
-		eventHistory:       make(map[string][]agentports.AgentEvent),
+		eventHistory:       make(map[string][]agent.AgentEvent),
 		highVolumeCounters: make(map[string]int),
 		maxHistory:         1000, // Keep up to 1000 events per session
 		logger:             logging.NewComponentLogger("EventBroadcaster"),
@@ -102,8 +103,8 @@ func (b *EventBroadcaster) SetTaskStore(store serverports.TaskStore) {
 	b.taskStore = store
 }
 
-// OnEvent implements ports.EventListener - broadcasts event to all subscribed clients
-func (b *EventBroadcaster) OnEvent(event agentports.AgentEvent) {
+// OnEvent implements agent.EventListener - broadcasts event to all subscribed clients
+func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 	if event == nil {
 		return
 	}
@@ -175,7 +176,7 @@ func (b *EventBroadcaster) getSessionIDs() []string {
 }
 
 // updateTaskProgress updates task progress based on event type
-func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
+func (b *EventBroadcaster) updateTaskProgress(event agent.AgentEvent) {
 	if b.taskStore == nil || event == nil {
 		return
 	}
@@ -236,7 +237,7 @@ func (b *EventBroadcaster) updateTaskProgress(event agentports.AgentEvent) {
 }
 
 // broadcastToClients sends event to all clients in the list
-func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan agentports.AgentEvent, event agentports.AgentEvent) {
+func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan agent.AgentEvent, event agent.AgentEvent) {
 	suppressLogs := b.shouldSuppressHighVolumeLogs(event)
 	if !suppressLogs {
 		b.logger.Debug("[broadcastToClients] Sending event type=%s to %d clients for session=%s", event.EventType(), len(clients), sessionID)
@@ -261,7 +262,7 @@ func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan a
 	}
 }
 
-func (b *EventBroadcaster) ensureCriticalEventDelivery(sessionID string, clientIndex, totalClients int, ch chan agentports.AgentEvent, event agentports.AgentEvent) bool {
+func (b *EventBroadcaster) ensureCriticalEventDelivery(sessionID string, clientIndex, totalClients int, ch chan agent.AgentEvent, event agent.AgentEvent) bool {
 	if !isCriticalEvent(event) {
 		return false
 	}
@@ -296,7 +297,7 @@ func (b *EventBroadcaster) ensureCriticalEventDelivery(sessionID string, clientI
 	}
 }
 
-func isCriticalEvent(event agentports.AgentEvent) bool {
+func isCriticalEvent(event agent.AgentEvent) bool {
 	if event == nil {
 		return false
 	}
@@ -309,7 +310,7 @@ func isCriticalEvent(event agentports.AgentEvent) bool {
 }
 
 // RegisterClient registers a new client for a session
-func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agentports.AgentEvent) {
+func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agent.AgentEvent) {
 	b.clientsMu.Lock()
 	defer b.clientsMu.Unlock()
 
@@ -322,7 +323,7 @@ func (b *EventBroadcaster) RegisterClient(sessionID string, ch chan agentports.A
 }
 
 // UnregisterClient removes a client from the session
-func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agentports.AgentEvent) {
+func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agent.AgentEvent) {
 	b.clientsMu.Lock()
 	defer b.clientsMu.Unlock()
 
@@ -378,7 +379,7 @@ func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
 }
 
 // storeEventHistory stores an event in the session's history
-func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.AgentEvent) {
+func (b *EventBroadcaster) storeEventHistory(sessionID string, event agent.AgentEvent) {
 	event = sanitizeEventForHistory(event)
 	if event == nil {
 		return
@@ -408,7 +409,7 @@ func (b *EventBroadcaster) storeEventHistory(sessionID string, event agentports.
 	}
 }
 
-func (b *EventBroadcaster) storeGlobalEvent(event agentports.AgentEvent) {
+func (b *EventBroadcaster) storeGlobalEvent(event agent.AgentEvent) {
 	event = sanitizeEventForHistory(event)
 	if event == nil {
 		return
@@ -429,12 +430,12 @@ func (b *EventBroadcaster) storeGlobalEvent(event agentports.AgentEvent) {
 	}
 }
 
-func sanitizeEventForHistory(event agentports.AgentEvent) agentports.AgentEvent {
+func sanitizeEventForHistory(event agent.AgentEvent) agent.AgentEvent {
 	if event == nil {
 		return nil
 	}
-	if wrapper, ok := event.(agentports.SubtaskWrapper); ok && wrapper != nil {
-		if setter, ok := event.(interface{ SetWrappedEvent(agentports.AgentEvent) }); ok {
+	if wrapper, ok := event.(agent.SubtaskWrapper); ok && wrapper != nil {
+		if setter, ok := event.(interface{ SetWrappedEvent(agent.AgentEvent) }); ok {
 			if sanitized := sanitizeBaseEventForHistory(wrapper.WrappedEvent()); sanitized != nil {
 				setter.SetWrappedEvent(sanitized)
 			}
@@ -445,7 +446,7 @@ func sanitizeEventForHistory(event agentports.AgentEvent) agentports.AgentEvent 
 	return sanitizeBaseEventForHistory(event)
 }
 
-func sanitizeBaseEventForHistory(event agentports.AgentEvent) agentports.AgentEvent {
+func sanitizeBaseEventForHistory(event agent.AgentEvent) agent.AgentEvent {
 	if event == nil {
 		return nil
 	}
@@ -466,7 +467,7 @@ func sanitizeBaseEventForHistory(event agentports.AgentEvent) agentports.AgentEv
 	case *domain.WorkflowInputReceivedEvent:
 		cloned := *e
 		if len(e.Attachments) > 0 {
-			if cleaned, ok := stripBinaryPayloadsWithStore(e.Attachments, nil).(map[string]agentports.Attachment); ok {
+			if cleaned, ok := stripBinaryPayloadsWithStore(e.Attachments, nil).(map[string]core.Attachment); ok {
 				cloned.Attachments = cleaned
 			}
 		}
@@ -479,7 +480,7 @@ func sanitizeBaseEventForHistory(event agentports.AgentEvent) agentports.AgentEv
 }
 
 // StreamHistory streams stored events for a session or global scope.
-func (b *EventBroadcaster) StreamHistory(ctx context.Context, filter EventHistoryFilter, fn func(agentports.AgentEvent) error) error {
+func (b *EventBroadcaster) StreamHistory(ctx context.Context, filter EventHistoryFilter, fn func(agent.AgentEvent) error) error {
 	if b == nil || fn == nil {
 		return nil
 	}
@@ -490,7 +491,7 @@ func (b *EventBroadcaster) StreamHistory(ctx context.Context, filter EventHistor
 		return b.historyStore.Stream(ctx, filter, fn)
 	}
 
-	var history []agentports.AgentEvent
+	var history []agent.AgentEvent
 	if filter.SessionID == "" {
 		b.globalMu.RLock()
 		history = append(history, b.globalHistory...)
@@ -533,9 +534,9 @@ func (b *EventBroadcaster) StreamHistory(ctx context.Context, filter EventHistor
 }
 
 // GetEventHistory returns all stored events for a session
-func (b *EventBroadcaster) GetEventHistory(sessionID string) []agentports.AgentEvent {
-	var history []agentports.AgentEvent
-	_ = b.StreamHistory(context.Background(), EventHistoryFilter{SessionID: sessionID}, func(event agentports.AgentEvent) error {
+func (b *EventBroadcaster) GetEventHistory(sessionID string) []agent.AgentEvent {
+	var history []agent.AgentEvent
+	_ = b.StreamHistory(context.Background(), EventHistoryFilter{SessionID: sessionID}, func(event agent.AgentEvent) error {
 		history = append(history, event)
 		return nil
 	})
@@ -546,9 +547,9 @@ func (b *EventBroadcaster) GetEventHistory(sessionID string) []agentports.AgentE
 }
 
 // GetGlobalHistory returns global events for diagnostics replay.
-func (b *EventBroadcaster) GetGlobalHistory() []agentports.AgentEvent {
-	var history []agentports.AgentEvent
-	_ = b.StreamHistory(context.Background(), EventHistoryFilter{SessionID: ""}, func(event agentports.AgentEvent) error {
+func (b *EventBroadcaster) GetGlobalHistory() []agent.AgentEvent {
+	var history []agent.AgentEvent
+	_ = b.StreamHistory(context.Background(), EventHistoryFilter{SessionID: ""}, func(event agent.AgentEvent) error {
 		history = append(history, event)
 		return nil
 	})
@@ -593,7 +594,7 @@ func intFromPayload(payload map[string]any, key string) int {
 	}
 }
 
-func shouldPersistToHistory(event agentports.AgentEvent) bool {
+func shouldPersistToHistory(event agent.AgentEvent) bool {
 	event = BaseAgentEvent(event)
 	if event == nil {
 		return false
@@ -614,7 +615,7 @@ func shouldPersistToHistory(event agentports.AgentEvent) bool {
 // shouldSuppressHighVolumeLogs determines whether verbose logs should be
 // suppressed for the provided event type. Assistant streaming events are very
 // high volume and can flood the logs, so we only log these events in batches.
-func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agentports.AgentEvent) bool {
+func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agent.AgentEvent) bool {
 	base := BaseAgentEvent(event)
 	if base == nil {
 		return false
@@ -622,7 +623,7 @@ func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agentports.AgentEv
 	return base.EventType() == assistantMessageEventType
 }
 
-func (b *EventBroadcaster) trackHighVolumeEvent(event agentports.AgentEvent) {
+func (b *EventBroadcaster) trackHighVolumeEvent(event agent.AgentEvent) {
 	base := BaseAgentEvent(event)
 	if base == nil {
 		return
@@ -737,7 +738,7 @@ func cloneClientMap(src clientMap) clientMap {
 	}
 	out := make(clientMap, len(src))
 	for sessionID, clients := range src {
-		out[sessionID] = append([]chan agentports.AgentEvent(nil), clients...)
+		out[sessionID] = append([]chan agent.AgentEvent(nil), clients...)
 	}
 	return out
 }

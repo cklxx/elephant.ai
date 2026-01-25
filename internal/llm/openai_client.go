@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
 	"alex/internal/jsonx"
@@ -33,7 +34,7 @@ type openaiClient struct {
 
 // NewOpenAIClient constructs an LLM client that speaks the OpenAI-compatible
 // chat completions API using the provided configuration.
-func NewOpenAIClient(model string, config Config) (ports.LLMClient, error) {
+func NewOpenAIClient(model string, config Config) (portsllm.LLMClient, error) {
 	if config.BaseURL == "" {
 		config.BaseURL = "https://openrouter.ai/api/v1"
 	}

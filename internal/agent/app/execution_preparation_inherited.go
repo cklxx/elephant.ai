@@ -5,18 +5,19 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
-func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.TaskState, inherited *ports.TaskState) {
+func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.TaskState, inherited *agent.TaskState) {
 	if state == nil || inherited == nil {
 		return
 	}
-	snapshot := ports.CloneTaskState(inherited)
+	snapshot := agent.CloneTaskState(inherited)
 	if trimmed := strings.TrimSpace(snapshot.SystemPrompt); trimmed != "" {
 		state.SystemPrompt = trimmed
 	}
 	if len(snapshot.Messages) > 0 {
-		state.Messages = ports.CloneMessages(snapshot.Messages)
+		state.Messages = agent.CloneMessages(snapshot.Messages)
 	}
 	if len(snapshot.Attachments) > 0 {
 		if state.Attachments == nil {
@@ -43,13 +44,13 @@ func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.
 		}
 	}
 	if len(snapshot.Plans) > 0 {
-		state.Plans = ports.ClonePlanNodes(snapshot.Plans)
+		state.Plans = agent.ClonePlanNodes(snapshot.Plans)
 	}
 	if len(snapshot.Beliefs) > 0 {
-		state.Beliefs = ports.CloneBeliefs(snapshot.Beliefs)
+		state.Beliefs = agent.CloneBeliefs(snapshot.Beliefs)
 	}
 	if len(snapshot.KnowledgeRefs) > 0 {
-		state.KnowledgeRefs = ports.CloneKnowledgeReferences(snapshot.KnowledgeRefs)
+		state.KnowledgeRefs = agent.CloneKnowledgeReferences(snapshot.KnowledgeRefs)
 	}
 	if len(snapshot.WorldState) > 0 {
 		state.WorldState = snapshot.WorldState
@@ -58,6 +59,6 @@ func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.
 		state.WorldDiff = snapshot.WorldDiff
 	}
 	if len(snapshot.FeedbackSignals) > 0 {
-		state.FeedbackSignals = ports.CloneFeedbackSignals(snapshot.FeedbackSignals)
+		state.FeedbackSignals = agent.CloneFeedbackSignals(snapshot.FeedbackSignals)
 	}
 }

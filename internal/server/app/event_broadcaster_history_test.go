@@ -7,15 +7,15 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 type capturingHistoryStore struct {
 	mu   sync.Mutex
-	last ports.AgentEvent
+	last agent.AgentEvent
 }
 
-func (s *capturingHistoryStore) Append(_ context.Context, event ports.AgentEvent) error {
+func (s *capturingHistoryStore) Append(_ context.Context, event agent.AgentEvent) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -23,7 +23,7 @@ func (s *capturingHistoryStore) Append(_ context.Context, event ports.AgentEvent
 	return nil
 }
 
-func (s *capturingHistoryStore) Stream(_ context.Context, _ EventHistoryFilter, _ func(ports.AgentEvent) error) error {
+func (s *capturingHistoryStore) Stream(_ context.Context, _ EventHistoryFilter, _ func(agent.AgentEvent) error) error {
 	return nil
 }
 
@@ -33,7 +33,7 @@ func (s *capturingHistoryStore) HasSessionEvents(_ context.Context, _ string) (b
 	return false, nil
 }
 
-func (s *capturingHistoryStore) lastEvent() ports.AgentEvent {
+func (s *capturingHistoryStore) lastEvent() agent.AgentEvent {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -46,7 +46,7 @@ func TestEventBroadcasterPersistsSubtaskWrappers(t *testing.T) {
 
 	now := time.Now()
 	envelope := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", now),
 		Version:   1,
 		Event:     "workflow.tool.completed",
 		NodeKind:  "tool",
@@ -59,8 +59,8 @@ func TestEventBroadcasterPersistsSubtaskWrappers(t *testing.T) {
 
 	wrapper := &stubSubtaskWrapper{
 		inner: envelope,
-		level: ports.LevelSubagent,
-		meta: ports.SubtaskMetadata{
+		level: agent.LevelSubagent,
+		meta: agent.SubtaskMetadata{
 			Index:       0,
 			Total:       1,
 			Preview:     "Delegated work",
@@ -77,8 +77,8 @@ func TestEventBroadcasterPersistsSubtaskWrappers(t *testing.T) {
 	if got != wrapper {
 		t.Fatalf("expected wrapper event to be persisted, got %T", got)
 	}
-	if got.GetAgentLevel() != ports.LevelSubagent {
-		t.Fatalf("expected persisted agent level %q, got %q", ports.LevelSubagent, got.GetAgentLevel())
+	if got.GetAgentLevel() != agent.LevelSubagent {
+		t.Fatalf("expected persisted agent level %q, got %q", agent.LevelSubagent, got.GetAgentLevel())
 	}
 }
 
@@ -88,7 +88,7 @@ func TestEventBroadcasterSkipsExecutorUpdates(t *testing.T) {
 
 	now := time.Now()
 	envelope := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", now),
 		Version:   1,
 		Event:     "workflow.executor.update",
 		NodeKind:  "diagnostic",

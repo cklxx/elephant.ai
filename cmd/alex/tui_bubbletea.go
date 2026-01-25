@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/types"
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
@@ -28,11 +28,11 @@ const (
 )
 
 type tuiAgentEventMsg struct {
-	event ports.AgentEvent
+	event agent.AgentEvent
 }
 
 type tuiTaskCompleteMsg struct {
-	result *ports.TaskResult
+	result *agent.TaskResult
 	err    error
 }
 
@@ -350,7 +350,7 @@ func (m *bubbleChatUI) runTaskCmd(ctx context.Context, task string, sessionID st
 		taskCtx := id.WithSessionID(ctx, sessionID)
 		taskCtx = id.WithTaskID(taskCtx, id.NewTaskID())
 
-		listener := newBubbleTeaListener(ctx, m.container.Runtime.Verbose, func(e ports.AgentEvent) {
+		listener := newBubbleTeaListener(ctx, m.container.Runtime.Verbose, func(e agent.AgentEvent) {
 			m.send(tuiAgentEventMsg{event: e})
 		})
 		taskCtx = builtin.WithParentListener(taskCtx, listener)
@@ -478,7 +478,7 @@ func (m *bubbleChatUI) appendLine(content string) {
 	}
 }
 
-func (m *bubbleChatUI) handleAgentEvent(event ports.AgentEvent) {
+func (m *bubbleChatUI) handleAgentEvent(event agent.AgentEvent) {
 	if event == nil {
 		return
 	}
@@ -509,7 +509,7 @@ func normalizeSubtaskEvent(event *builtin.SubtaskEvent) *builtin.SubtaskEvent {
 		return event
 	}
 
-	var converted ports.AgentEvent
+	var converted agent.AgentEvent
 	switch env.Event {
 	case "workflow.tool.started":
 		converted = envelopeToToolStarted(env)
@@ -694,10 +694,10 @@ func indentBlock(content string, prefix string) string {
 type bubbleTeaListener struct {
 	ctx     context.Context
 	verbose bool
-	onEvent func(ports.AgentEvent)
+	onEvent func(agent.AgentEvent)
 }
 
-func newBubbleTeaListener(ctx context.Context, verbose bool, onEvent func(ports.AgentEvent)) *bubbleTeaListener {
+func newBubbleTeaListener(ctx context.Context, verbose bool, onEvent func(agent.AgentEvent)) *bubbleTeaListener {
 	return &bubbleTeaListener{
 		ctx:     ctx,
 		verbose: verbose,
@@ -705,7 +705,7 @@ func newBubbleTeaListener(ctx context.Context, verbose bool, onEvent func(ports.
 	}
 }
 
-func (l *bubbleTeaListener) OnEvent(event ports.AgentEvent) {
+func (l *bubbleTeaListener) OnEvent(event agent.AgentEvent) {
 	if event == nil || l.onEvent == nil {
 		return
 	}

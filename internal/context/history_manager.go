@@ -7,6 +7,7 @@ import (
 	"sort"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	sessionstate "alex/internal/session/state_store"
 )
 
@@ -17,18 +18,18 @@ const historyPageSize = 200
 // that history retrieval uses a single module.
 type HistoryManager struct {
 	store  sessionstate.Store
-	logger ports.Logger
-	clock  ports.Clock
+	logger agent.Logger
+	clock  agent.Clock
 }
 
 // NewHistoryManager constructs a HistoryManager backed by the provided snapshot
 // store.
-func NewHistoryManager(store sessionstate.Store, logger ports.Logger, clock ports.Clock) *HistoryManager {
+func NewHistoryManager(store sessionstate.Store, logger agent.Logger, clock agent.Clock) *HistoryManager {
 	if logger == nil {
-		logger = ports.NoopLogger{}
+		logger = agent.NoopLogger{}
 	}
 	if clock == nil {
-		clock = ports.SystemClock{}
+		clock = agent.SystemClock{}
 	}
 	return &HistoryManager{
 		store:  store,
@@ -66,7 +67,7 @@ func (m *HistoryManager) AppendTurn(ctx context.Context, sessionID string, messa
 		}
 	}
 
-	newTurnMessages := ports.CloneMessages(messages[commonPrefix:])
+	newTurnMessages := agent.CloneMessages(messages[commonPrefix:])
 	if len(newTurnMessages) == 0 {
 		return nil
 	}
@@ -111,7 +112,7 @@ func (m *HistoryManager) Replay(ctx context.Context, sessionID string, uptoTurn 
 		return nil, nil
 	}
 
-	return ports.CloneMessages(flattenSnapshots(snapshots)), nil
+	return agent.CloneMessages(flattenSnapshots(snapshots)), nil
 }
 
 func (m *HistoryManager) listSnapshots(ctx context.Context, sessionID string) ([]sessionstate.Snapshot, error) {

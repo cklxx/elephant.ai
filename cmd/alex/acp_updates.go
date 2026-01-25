@@ -6,6 +6,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 type acpEventListener struct {
@@ -33,7 +34,7 @@ func newACPEventListener(server *acpServer, session *acpSession) *acpEventListen
 	}
 }
 
-func (l *acpEventListener) OnEvent(event ports.AgentEvent) {
+func (l *acpEventListener) OnEvent(event agent.AgentEvent) {
 	if event == nil {
 		return
 	}
@@ -64,7 +65,7 @@ func (l *acpEventListener) handleEnvelope(env *domain.WorkflowEventEnvelope) {
 	}
 }
 
-func envelopeFromDomainEvent(event ports.AgentEvent) *domain.WorkflowEventEnvelope {
+func envelopeFromDomainEvent(event agent.AgentEvent) *domain.WorkflowEventEnvelope {
 	switch e := event.(type) {
 	case *domain.WorkflowNodeOutputDeltaEvent:
 		payload := map[string]any{

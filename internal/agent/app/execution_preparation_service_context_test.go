@@ -7,10 +7,12 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 )
 
 func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
-	session := &ports.Session{ID: "session-plan-1", Messages: []ports.Message{}, Metadata: map[string]string{}}
+	session := &storage.Session{ID: "session-plan-1", Messages: []ports.Message{}, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
@@ -19,10 +21,10 @@ func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 2, 9, 0, 0, 0, time.UTC) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 2, 9, 0, 0, 0, time.UTC) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 
 	service := NewExecutionPreparationService(deps)
@@ -49,7 +51,7 @@ func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {
 }
 
 func TestPrepareCapturesWorldStateFromContextManager(t *testing.T) {
-	session := &ports.Session{ID: "session-world", Messages: []ports.Message{}, Metadata: map[string]string{}}
+	session := &storage.Session{ID: "session-world", Messages: []ports.Message{}, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
@@ -58,10 +60,10 @@ func TestPrepareCapturesWorldStateFromContextManager(t *testing.T) {
 		ContextMgr:    worldAwareContextManager{},
 		Parser:        stubParser{},
 		Config:        Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3, EnvironmentSummary: "Local"},
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),
-		CostDecorator: NewCostTrackingDecorator(nil, ports.NoopLogger{}, ports.ClockFunc(time.Now)),
-		EventEmitter:  ports.NoopEventListener{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(func() time.Time { return time.Date(2024, time.June, 3, 10, 0, 0, 0, time.UTC) }),
+		CostDecorator: NewCostTrackingDecorator(nil, agent.NoopLogger{}, agent.ClockFunc(time.Now)),
+		EventEmitter:  agent.NoopEventListener{},
 	}
 	service := NewExecutionPreparationService(deps)
 	env, err := service.Prepare(context.Background(), "Audit world config", session.ID)
@@ -96,15 +98,15 @@ func (worldAwareContextManager) ShouldCompress(messages []ports.Message, limit i
 	return false
 }
 func (worldAwareContextManager) Preload(context.Context) error { return nil }
-func (worldAwareContextManager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
+func (worldAwareContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
-		return ports.ContextWindow{}, fmt.Errorf("session required")
+		return agent.ContextWindow{}, fmt.Errorf("session required")
 	}
-	return ports.ContextWindow{
+	return agent.ContextWindow{
 		SessionID: session.ID,
 		Messages:  append([]ports.Message(nil), session.Messages...),
-		Static: ports.StaticContext{
-			World: ports.WorldProfile{
+		Static: agent.StaticContext{
+			World: agent.WorldProfile{
 				ID:           "local",
 				Environment:  "ci",
 				Capabilities: []string{"fs"},
@@ -114,6 +116,6 @@ func (worldAwareContextManager) BuildWindow(ctx context.Context, session *ports.
 		},
 	}, nil
 }
-func (worldAwareContextManager) RecordTurn(context.Context, ports.ContextTurnRecord) error {
+func (worldAwareContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error {
 	return nil
 }

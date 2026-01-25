@@ -11,17 +11,19 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
-	"alex/internal/llm"
+	internalllm "alex/internal/llm"
 )
 
 type htmlEdit struct {
-	llm ports.LLMClient
+	llm portsllm.LLMClient
 }
 
-func NewHTMLEdit(client ports.LLMClient) ports.ToolExecutor {
+func NewHTMLEdit(client portsllm.LLMClient) tools.ToolExecutor {
 	if client == nil {
-		client = llm.NewMockClient()
+		client = internalllm.NewMockClient()
 	}
 	return &htmlEdit{llm: client}
 }
@@ -133,7 +135,7 @@ func (t *htmlEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	attachments := map[string]ports.Attachment{outputName: attachment}
 
 	mutationKey := "add"
-	if existing, _ := ports.GetAttachmentContext(ctx); existing != nil {
+	if existing, _ := tools.GetAttachmentContext(ctx); existing != nil {
 		if _, ok := existing[outputName]; ok {
 			mutationKey = "update"
 		}
@@ -290,7 +292,7 @@ func resolveHTMLInput(ctx context.Context, name, rawHTML string) (string, string
 		return "", "", fmt.Errorf("name or html is required")
 	}
 
-	attachments, _ := ports.GetAttachmentContext(ctx)
+	attachments, _ := tools.GetAttachmentContext(ctx)
 	if len(attachments) == 0 {
 		return "", name, fmt.Errorf("no attachments available")
 	}

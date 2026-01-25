@@ -10,13 +10,14 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 // a2uiEmit implements the a2ui_emit tool for storing A2UI JSONL payloads.
 type a2uiEmit struct{}
 
 // NewA2UIEmit constructs the a2ui_emit tool executor.
-func NewA2UIEmit() ports.ToolExecutor {
+func NewA2UIEmit() tools.ToolExecutor {
 	return &a2uiEmit{}
 }
 
@@ -77,7 +78,7 @@ func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	attachments := map[string]ports.Attachment{name: attachment}
-	existing, _ := ports.GetAttachmentContext(ctx)
+	existing, _ := tools.GetAttachmentContext(ctx)
 
 	mutationKey := "add"
 	if existing != nil {

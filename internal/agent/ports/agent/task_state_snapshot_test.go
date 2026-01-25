@@ -1,24 +1,26 @@
-package ports
+package agent
 
 import (
 	"context"
 	"testing"
+
+	core "alex/internal/agent/ports"
 )
 
 func TestTaskStateSnapshotRoundTrip(t *testing.T) {
 	original := &TaskState{
 		SystemPrompt: "You are main agent",
-		Messages: []Message{{
+		Messages: []core.Message{{
 			Role:    "user",
 			Content: "Initial context",
 			Metadata: map[string]any{
 				"foo": "bar",
 			},
-			Attachments: map[string]Attachment{
+			Attachments: map[string]core.Attachment{
 				"diagram.png": {Name: "diagram.png", URI: "https://example.com/diagram.png"},
 			},
 		}},
-		Attachments: map[string]Attachment{
+		Attachments: map[string]core.Attachment{
 			"notes.md": {Name: "notes.md", Data: "YmFzZTY0"},
 		},
 		AttachmentIterations: map[string]int{"notes.md": 2},
@@ -38,7 +40,7 @@ func TestTaskStateSnapshotRoundTrip(t *testing.T) {
 
 	snapshot.SystemPrompt = "mutated"
 	snapshot.Messages[0].Content = "mutated"
-	snapshot.Attachments["notes.md"] = Attachment{Name: "notes.md", Data: "new"}
+	snapshot.Attachments["notes.md"] = core.Attachment{Name: "notes.md", Data: "new"}
 	snapshot.AttachmentIterations["notes.md"] = 10
 
 	if original.SystemPrompt == "mutated" {

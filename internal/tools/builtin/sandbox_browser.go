@@ -9,13 +9,14 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
 )
 
 type sandboxBrowserTool struct {
 	client   *sandbox.Client
-	vision   ports.ToolExecutor
+	vision   tools.ToolExecutor
 	prompt   string
 	uploader materialports.Migrator
 }
@@ -26,7 +27,7 @@ type sandboxBrowserInfoTool struct {
 
 type sandboxBrowserScreenshotTool struct {
 	client   *sandbox.Client
-	vision   ports.ToolExecutor
+	vision   tools.ToolExecutor
 	prompt   string
 	uploader materialports.Migrator
 }
@@ -37,7 +38,7 @@ type sandboxResponse struct {
 	Data    map[string]any `json:"data"`
 }
 
-func NewSandboxBrowser(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxBrowser(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxBrowserTool{
 		client:   newSandboxClient(cfg),
 		vision:   cfg.VisionTool,
@@ -46,11 +47,11 @@ func NewSandboxBrowser(cfg SandboxConfig) ports.ToolExecutor {
 	}
 }
 
-func NewSandboxBrowserInfo(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxBrowserInfo(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxBrowserInfoTool{client: newSandboxClient(cfg)}
 }
 
-func NewSandboxBrowserScreenshot(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxBrowserScreenshot(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxBrowserScreenshotTool{
 		client:   newSandboxClient(cfg),
 		vision:   cfg.VisionTool,
@@ -325,7 +326,7 @@ const (
 
 const defaultSandboxVisionPrompt = "Describe the visible browser page. List key text, buttons, inputs, and any obvious next actions."
 
-func analyzeSandboxScreenshot(ctx context.Context, vision ports.ToolExecutor, prompt string, call ports.ToolCall, encoded string) (string, map[string]any) {
+func analyzeSandboxScreenshot(ctx context.Context, vision tools.ToolExecutor, prompt string, call ports.ToolCall, encoded string) (string, map[string]any) {
 	trimmed := strings.TrimSpace(encoded)
 	if trimmed == "" {
 		return "", nil

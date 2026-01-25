@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/llm"
 	"alex/internal/workflow"
 )
@@ -42,7 +42,7 @@ func TestAgentCoordinatorEndToEndExecutionPerformance(t *testing.T) {
 	var total time.Duration
 
 	for i := 0; i < iterations; i++ {
-		ctx := ports.WithOutputContext(context.Background(), &ports.OutputContext{Level: ports.LevelCore})
+		ctx := agent.WithOutputContext(context.Background(), &agent.OutputContext{Level: agent.LevelCore})
 
 		start := time.Now()
 		result, err := coordinator.ExecuteTask(ctx, "Return a concise answer", "", nil)

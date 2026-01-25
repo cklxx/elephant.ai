@@ -12,6 +12,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/attachments"
 	"alex/internal/logging"
 
@@ -176,7 +177,7 @@ func (s *PostgresEventHistoryStore) EnsureSchema(ctx context.Context) error {
 }
 
 // Append persists a new event.
-func (s *PostgresEventHistoryStore) Append(ctx context.Context, event ports.AgentEvent) error {
+func (s *PostgresEventHistoryStore) Append(ctx context.Context, event agent.AgentEvent) error {
 	if s == nil || s.pool == nil {
 		return fmt.Errorf("history store not initialized")
 	}
@@ -231,7 +232,7 @@ INSERT INTO agent_session_events (
 
 // AppendBatch persists a group of events in a single statement.
 // It is intended for non-latency-sensitive background flushers.
-func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []ports.AgentEvent) error {
+func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []agent.AgentEvent) error {
 	if s == nil || s.pool == nil {
 		return fmt.Errorf("history store not initialized")
 	}
@@ -317,7 +318,7 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []po
 }
 
 // Stream replays events matching the filter in order.
-func (s *PostgresEventHistoryStore) Stream(ctx context.Context, filter EventHistoryFilter, fn func(ports.AgentEvent) error) error {
+func (s *PostgresEventHistoryStore) Stream(ctx context.Context, filter EventHistoryFilter, fn func(agent.AgentEvent) error) error {
 	if s == nil || s.pool == nil {
 		return fmt.Errorf("history store not initialized")
 	}
@@ -518,11 +519,11 @@ WHERE id IN (
 	return err
 }
 
-func recordFromEvent(event ports.AgentEvent) (eventRecord, error) {
+func recordFromEvent(event agent.AgentEvent) (eventRecord, error) {
 	return recordFromEventWithStore(event, nil)
 }
 
-func recordFromEventWithStore(event ports.AgentEvent, store AttachmentStorer) (eventRecord, error) {
+func recordFromEventWithStore(event agent.AgentEvent, store AttachmentStorer) (eventRecord, error) {
 	if event == nil {
 		return eventRecord{}, fmt.Errorf("event is nil")
 	}
@@ -551,7 +552,7 @@ func recordFromEventWithStore(event ports.AgentEvent, store AttachmentStorer) (e
 	}
 
 	hasSubtaskWrapper := false
-	if wrapper, ok := event.(ports.SubtaskWrapper); ok && wrapper != nil {
+	if wrapper, ok := event.(agent.SubtaskWrapper); ok && wrapper != nil {
 		meta := wrapper.SubtaskDetails()
 		record.isSubtask = true
 		record.subtaskIndex = meta.Index
@@ -708,8 +709,8 @@ func shouldRetainInlinePayload(mediaType string, size int) bool {
 	return strings.Contains(media, "markdown") || strings.Contains(media, "json")
 }
 
-func eventFromRecord(record eventRecord) (ports.AgentEvent, error) {
-	level := ports.AgentLevel(record.agentLevel)
+func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
+	level := agent.AgentLevel(record.agentLevel)
 	base := domain.NewBaseEvent(level, record.sessionID, record.taskID, record.parentTaskID, record.eventTS)
 
 	if record.envelopeVer > 0 {

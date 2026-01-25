@@ -9,6 +9,10 @@ import (
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/observability"
 	builtin "alex/internal/tools/builtin"
 	id "alex/internal/utils/id"
@@ -29,7 +33,7 @@ func newRecordingCoordinator(buf *bytes.Buffer) *recordingCoordinator {
 	return &recordingCoordinator{logBuffer: buf, logger: logger}
 }
 
-func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
+func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	ids := id.IDsFromContext(ctx)
 	inheritedAtt, inheritedIter := agentApp.GetInheritedAttachments(ctx)
 
@@ -42,7 +46,7 @@ func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, ses
 
 	r.logger.InfoContext(ctx, "executing subtask", "task", task)
 
-	return &ports.TaskResult{
+	return &agent.TaskResult{
 		Answer:       "subtask complete",
 		Iterations:   1,
 		TokensUsed:   42,
@@ -52,11 +56,11 @@ func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, ses
 	}, nil
 }
 
-func (r *recordingCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (r *recordingCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	return nil, nil
 }
 
-func (r *recordingCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
+func (r *recordingCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
 	return nil
 }
 
@@ -64,23 +68,23 @@ func (r *recordingCoordinator) ListSessions(ctx context.Context, limit int, offs
 	return nil, nil
 }
 
-func (r *recordingCoordinator) GetConfig() ports.AgentConfig {
-	return ports.AgentConfig{}
+func (r *recordingCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (r *recordingCoordinator) GetLLMClient() (ports.LLMClient, error) {
+func (r *recordingCoordinator) GetLLMClient() (llm.LLMClient, error) {
 	return nil, nil
 }
 
-func (r *recordingCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
+func (r *recordingCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 	return nil
 }
 
-func (r *recordingCoordinator) GetParser() ports.FunctionCallParser {
+func (r *recordingCoordinator) GetParser() tools.FunctionCallParser {
 	return nil
 }
 
-func (r *recordingCoordinator) GetContextManager() ports.ContextManager {
+func (r *recordingCoordinator) GetContextManager() agent.ContextManager {
 	return nil
 }
 
@@ -210,7 +214,7 @@ func TestSubagentPropagatesAttachmentsToCoordinator(t *testing.T) {
 	iterations := map[string]int{placeholder: 7}
 
 	ctx := context.Background()
-	ctx = ports.WithAttachmentContext(ctx, attachments, iterations)
+	ctx = tools.WithAttachmentContext(ctx, attachments, iterations)
 	ctx = id.WithIDs(ctx, id.IDs{SessionID: "session-1", TaskID: "root-task"})
 
 	call := ports.ToolCall{

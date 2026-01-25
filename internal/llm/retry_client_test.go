@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	alexerrors "alex/internal/errors"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +49,7 @@ func TestRetryClientStreamCompleteUsesUnderlyingStreamingClient(t *testing.T) {
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
 	client := NewRetryClient(mock, alexerrors.DefaultRetryConfig(), breaker)
 
-	streaming, ok := client.(ports.StreamingLLMClient)
+	streaming, ok := client.(portsllm.StreamingLLMClient)
 	require.True(t, ok)
 
 	var deltas []ports.ContentDelta
@@ -70,7 +71,7 @@ func TestRetryClientStreamCompleteFallsBackWhenUnavailable(t *testing.T) {
 	breaker := alexerrors.NewCircuitBreaker("test", alexerrors.DefaultCircuitBreakerConfig())
 	client := NewRetryClient(mock, alexerrors.DefaultRetryConfig(), breaker)
 
-	streaming, ok := client.(ports.StreamingLLMClient)
+	streaming, ok := client.(portsllm.StreamingLLMClient)
 	require.True(t, ok)
 
 	var deltas []ports.ContentDelta

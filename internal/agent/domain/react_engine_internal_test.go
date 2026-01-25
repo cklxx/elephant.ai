@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	materialports "alex/internal/materials/ports"
 )
 
@@ -218,16 +219,16 @@ func TestLookupAttachmentByNamePrefersLatestSeedreamAlias(t *testing.T) {
 
 func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 	ts := time.Date(2024, time.May, 10, 15, 30, 0, 0, time.UTC)
-	plans := []ports.PlanNode{{
+	plans := []agent.PlanNode{{
 		ID:    "root",
 		Title: "Root Plan",
-		Children: []ports.PlanNode{{
+		Children: []agent.PlanNode{{
 			ID:    "child",
 			Title: "Child",
 		}},
 	}}
-	beliefs := []ports.Belief{{Statement: "Will finish", Confidence: 0.8, Source: "test"}}
-	refs := []ports.KnowledgeReference{{
+	beliefs := []agent.Belief{{Statement: "Will finish", Confidence: 0.8, Source: "test"}}
+	refs := []agent.KnowledgeReference{{
 		ID:          "analysis",
 		Description: "Auto",
 		SOPRefs:     []string{"query"},
@@ -244,7 +245,7 @@ func TestBuildContextTurnRecordClonesStructuredFields(t *testing.T) {
 		WorldDiff: map[string]any{
 			"iteration": 3,
 		},
-		FeedbackSignals: []ports.FeedbackSignal{{Kind: "tool_result", Message: "ok", Value: 1}},
+		FeedbackSignals: []agent.FeedbackSignal{{Kind: "tool_result", Message: "ok", Value: 1}},
 	}
 	messages := []ports.Message{{Role: "system", Content: "hello"}}
 	record := buildContextTurnRecord(state, messages, ts, "summary")

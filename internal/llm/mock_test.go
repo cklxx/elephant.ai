@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 )
 
 func TestMockClientCompleteDefaultResponse(t *testing.T) {
@@ -37,7 +38,7 @@ func TestMockClientStreamCompleteEmitsDeltas(t *testing.T) {
 	t.Parallel()
 
 	client := NewMockClient()
-	streaming, ok := client.(ports.StreamingLLMClient)
+	streaming, ok := client.(portsllm.StreamingLLMClient)
 	if !ok {
 		t.Fatal("mock client does not implement StreamingLLMClient")
 	}

@@ -6,20 +6,21 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports"
 	"alex/internal/workflow"
 )
 
 type recordingAgentListener struct {
-	events []ports.AgentEvent
+	events []agent.AgentEvent
 }
 
-func (r *recordingAgentListener) OnEvent(event ports.AgentEvent) {
+func (r *recordingAgentListener) OnEvent(event agent.AgentEvent) {
 	r.events = append(r.events, event)
 }
 
-func (r *recordingAgentListener) snapshot() []ports.AgentEvent {
-	out := make([]ports.AgentEvent, len(r.events))
+func (r *recordingAgentListener) snapshot() []agent.AgentEvent {
+	out := make([]agent.AgentEvent, len(r.events))
 	copy(out, r.events)
 	return out
 }
@@ -30,7 +31,7 @@ func TestWorkflowEventTranslatorEmitsToolCallNodes(t *testing.T) {
 
 	ts := time.Unix(1710000000, 0)
 	translator.OnEvent(&domain.WorkflowNodeCompletedEvent{
-		BaseEvent:       domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", ts),
+		BaseEvent:       domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", ts),
 		StepDescription: "react:iter:1:tool:text_to_image:0",
 		StepIndex:       4,
 		Status:          string(workflow.NodeStatusSucceeded),
@@ -59,7 +60,7 @@ func TestWorkflowEventTranslatorSkipsToolsAggregateNode(t *testing.T) {
 
 	ts := time.Unix(1710000000, 0)
 	translator.OnEvent(&domain.WorkflowNodeCompletedEvent{
-		BaseEvent:       domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", ts),
+		BaseEvent:       domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", ts),
 		StepDescription: "react:iter:1:tools",
 		StepIndex:       3,
 		Status:          string(workflow.NodeStatusSucceeded),
@@ -77,7 +78,7 @@ func TestWorkflowEventTranslatorForwardsNonToolNodes(t *testing.T) {
 
 	ts := time.Unix(1710000000, 0)
 	translator.OnEvent(&domain.WorkflowNodeCompletedEvent{
-		BaseEvent:       domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", ts),
+		BaseEvent:       domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", ts),
 		StepDescription: "react:iter:1:plan",
 		StepIndex:       2,
 		Status:          string(workflow.NodeStatusSucceeded),
@@ -116,7 +117,7 @@ func TestWorkflowEventTranslatorFiltersToolNodesFromLifecycleSnapshots(t *testin
 	}
 
 	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
-		BaseEvent:         domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000001, 0)),
+		BaseEvent:         domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000001, 0)),
 		WorkflowID:        "wf-1",
 		WorkflowEventType: workflow.EventWorkflowUpdated,
 		Workflow:          &snapshot,
@@ -151,7 +152,7 @@ func TestWorkflowEventTranslatorUsesWorkflowIDFromLifecycleEvent(t *testing.T) {
 
 	now := time.Unix(1710000100, 0)
 	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
-		BaseEvent:         domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		BaseEvent:         domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", now),
 		WorkflowID:        "wf-lifecycle",
 		WorkflowEventType: workflow.EventWorkflowUpdated,
 	})
@@ -179,7 +180,7 @@ func TestWorkflowEventTranslatorSkipsLifecycleToolsAggregate(t *testing.T) {
 	aggregate := workflow.NodeSnapshot{ID: "react:iter:1:tools", Status: workflow.NodeStatusSucceeded}
 
 	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
-		BaseEvent:         domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		BaseEvent:         domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", now),
 		WorkflowID:        "wf-agg",
 		WorkflowEventType: workflow.EventNodeSucceeded,
 		Node:              &aggregate,
@@ -206,7 +207,7 @@ func TestWorkflowEventTranslatorSanitizesWorkflowOnNodeEvents(t *testing.T) {
 	}
 
 	translator.OnEvent(&domain.WorkflowNodeStartedEvent{
-		BaseEvent:       domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000002, 0)),
+		BaseEvent:       domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000002, 0)),
 		StepDescription: "react:iter:1:plan",
 		StepIndex:       1,
 		Iteration:       1,
@@ -247,7 +248,7 @@ func TestWorkflowEventTranslatorEmitsLifecycleEventsForToolCallNode(t *testing.T
 	toolNode := workflow.NodeSnapshot{ID: "react:iter:1:tool:text_to_image:0", Status: workflow.NodeStatusSucceeded}
 
 	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
-		BaseEvent:         domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000002, 0)),
+		BaseEvent:         domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000002, 0)),
 		WorkflowID:        "wf-1",
 		WorkflowEventType: workflow.EventNodeSucceeded,
 		Node:              &toolNode,
@@ -267,7 +268,7 @@ func TestWorkflowEventTranslatorAddsCallIDToToolPayload(t *testing.T) {
 	translator := wrapWithWorkflowEnvelope(sink, nil)
 
 	translator.OnEvent(&domain.WorkflowToolProgressEvent{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
 		CallID:    "call-123",
 		Chunk:     "partial",
 	})
@@ -297,7 +298,7 @@ func TestWorkflowEventTranslatorEmitsDiagnosticNodeFailure(t *testing.T) {
 	translator := wrapWithWorkflowEnvelope(sink, nil)
 
 	translator.OnEvent(&domain.WorkflowNodeFailedEvent{
-		BaseEvent:   domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000004, 0)),
+		BaseEvent:   domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000004, 0)),
 		Iteration:   2,
 		Phase:       "execute",
 		Recoverable: true,
@@ -331,7 +332,7 @@ func TestWorkflowEventTranslatorReusesWorkflowContextForTools(t *testing.T) {
 	translator := wrapWithWorkflowEnvelope(sink, nil)
 
 	snapshot := workflow.WorkflowSnapshot{ID: "wf-context", Phase: workflow.PhaseRunning}
-	base := domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000005, 0))
+	base := domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000005, 0))
 
 	translator.OnEvent(&domain.WorkflowLifecycleUpdatedEvent{
 		BaseEvent:         base,
@@ -341,7 +342,7 @@ func TestWorkflowEventTranslatorReusesWorkflowContextForTools(t *testing.T) {
 	})
 
 	translator.OnEvent(&domain.WorkflowToolProgressEvent{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", time.Unix(1710000006, 0)),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000006, 0)),
 		CallID:    "call-ctx",
 		Chunk:     "partial",
 	})
@@ -370,7 +371,7 @@ func TestWorkflowEventTranslatorForwardsContextSnapshotEvents(t *testing.T) {
 
 	ts := time.Unix(1710000200, 0)
 	original := domain.NewWorkflowDiagnosticContextSnapshotEvent(
-		ports.LevelCore,
+		agent.LevelCore,
 		"sess",
 		"task",
 		"parent",
@@ -402,7 +403,7 @@ func TestWorkflowEventTranslatorEmitsArtifactManifestEvent(t *testing.T) {
 
 	ts := time.Unix(1710000300, 0)
 	translator.OnEvent(&domain.WorkflowToolCompletedEvent{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", ts),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", ts),
 		CallID:    "call-1",
 		ToolName:  "artifact_manifest",
 		Result:    "Recorded 1 artifact(s).",

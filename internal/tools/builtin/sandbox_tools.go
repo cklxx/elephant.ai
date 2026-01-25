@@ -1,14 +1,14 @@
 package builtin
 
 import (
-	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
 )
 
 type SandboxConfig struct {
 	BaseURL            string
-	VisionTool         ports.ToolExecutor
+	VisionTool         tools.ToolExecutor
 	VisionPrompt       string
 	AttachmentUploader materialports.Migrator
 }

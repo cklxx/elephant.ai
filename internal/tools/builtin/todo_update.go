@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type todoUpdate struct {
@@ -16,14 +17,14 @@ type todoUpdate struct {
 	writeFile   func(string, []byte, fs.FileMode) error
 }
 
-func NewTodoUpdate() ports.ToolExecutor {
+func NewTodoUpdate() tools.ToolExecutor {
 	homeDir, _ := os.UserHomeDir()
 	sessionsDir := filepath.Join(homeDir, ".alex-sessions")
 	return newTodoUpdate(sessionsDir, nil)
 }
 
 // NewTodoUpdateWithSessionsDir creates todo_update with custom sessions directory (for testing)
-func NewTodoUpdateWithSessionsDir(sessionsDir string) ports.ToolExecutor {
+func NewTodoUpdateWithSessionsDir(sessionsDir string) tools.ToolExecutor {
 	// Expand tilde if present
 	if strings.HasPrefix(sessionsDir, "~/") {
 		homeDir, _ := os.UserHomeDir()

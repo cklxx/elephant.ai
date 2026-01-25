@@ -4,11 +4,12 @@ import (
 	"context"
 	"strings"
 
-	"alex/internal/agent/ports"
 	"alex/internal/agent/presets"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 )
 
-func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*ports.Session, error) {
+func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*storage.Session, error) {
 	if id == "" {
 		session, err := s.sessionStore.Create(ctx)
 		if err != nil {
@@ -24,7 +25,7 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 	return session, err
 }
 
-func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, toolMode presets.ToolMode, resolvedToolPreset string) ports.ToolRegistry {
+func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, toolMode presets.ToolMode, resolvedToolPreset string) tools.ToolRegistry {
 	// Handle subagent context filtering first
 	registry := s.toolRegistry
 	if toolMode == "" {
@@ -45,9 +46,9 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, to
 	return s.presetResolver.ResolveToolRegistry(ctx, registry, toolMode, configPreset)
 }
 
-func (s *ExecutionPreparationService) getRegistryWithoutSubagent() ports.ToolRegistry {
+func (s *ExecutionPreparationService) getRegistryWithoutSubagent() tools.ToolRegistry {
 	type registryWithFilter interface {
-		WithoutSubagent() ports.ToolRegistry
+		WithoutSubagent() tools.ToolRegistry
 	}
 
 	if filtered, ok := s.toolRegistry.(registryWithFilter); ok {

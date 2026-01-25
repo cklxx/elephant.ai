@@ -1,6 +1,10 @@
-package ports
+package llm
 
-import "context"
+import (
+	"context"
+
+	core "alex/internal/agent/ports"
+)
 
 // streamingAdapter wraps an LLMClient that lacks native streaming support and
 // synthesizes CompletionStreamCallbacks by invoking Complete.
@@ -23,7 +27,7 @@ func EnsureStreamingClient(client LLMClient) LLMClient {
 	return &streamingAdapter{base: client}
 }
 
-func (a *streamingAdapter) Complete(ctx context.Context, req CompletionRequest) (*CompletionResponse, error) {
+func (a *streamingAdapter) Complete(ctx context.Context, req core.CompletionRequest) (*core.CompletionResponse, error) {
 	return a.base.Complete(ctx, req)
 }
 
@@ -33,9 +37,9 @@ func (a *streamingAdapter) Model() string {
 
 func (a *streamingAdapter) StreamComplete(
 	ctx context.Context,
-	req CompletionRequest,
-	callbacks CompletionStreamCallbacks,
-) (*CompletionResponse, error) {
+	req core.CompletionRequest,
+	callbacks core.CompletionStreamCallbacks,
+) (*core.CompletionResponse, error) {
 	if streaming, ok := a.base.(StreamingLLMClient); ok {
 		return streaming.StreamComplete(ctx, req, callbacks)
 	}
@@ -47,9 +51,9 @@ func (a *streamingAdapter) StreamComplete(
 
 	if callbacks.OnContentDelta != nil {
 		if resp != nil && resp.Content != "" {
-			callbacks.OnContentDelta(ContentDelta{Delta: resp.Content})
+			callbacks.OnContentDelta(core.ContentDelta{Delta: resp.Content})
 		}
-		callbacks.OnContentDelta(ContentDelta{Final: true})
+		callbacks.OnContentDelta(core.ContentDelta{Final: true})
 	}
 
 	return resp, nil

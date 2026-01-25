@@ -10,6 +10,9 @@ import (
 
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	agentstorage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/llm"
 	serverApp "alex/internal/server/app"
 	serverPorts "alex/internal/server/ports"
@@ -68,7 +71,7 @@ func TestConcurrentCostIsolation(t *testing.T) {
 			)
 
 			// Execute task
-			ctx := ports.WithOutputContext(context.Background(), &ports.OutputContext{Level: ports.LevelCore})
+			ctx := agent.WithOutputContext(context.Background(), &agent.OutputContext{Level: agent.LevelCore})
 			result, err := coordinator.ExecuteTask(ctx, fmt.Sprintf("Task %d", idx), "", nil)
 			if err != nil {
 				results[idx].err = err
@@ -78,7 +81,7 @@ func TestConcurrentCostIsolation(t *testing.T) {
 			results[idx].sessionID = result.SessionID
 
 			// Record usage manually (simulating LLM call)
-			usage := ports.UsageRecord{
+			usage := agentstorage.UsageRecord{
 				SessionID:    result.SessionID,
 				Model:        "test-model",
 				Provider:     "mock",
@@ -289,7 +292,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	}
 
 	// Record initial usage before task starts
-	initialUsage := ports.UsageRecord{
+	initialUsage := agentstorage.UsageRecord{
 		SessionID:    session.ID,
 		Model:        "test-model",
 		Provider:     "mock",
@@ -318,7 +321,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Record usage during execution
-	midUsage := ports.UsageRecord{
+	midUsage := agentstorage.UsageRecord{
 		SessionID:    session.ID,
 		Model:        "test-model",
 		Provider:     "mock",
@@ -374,11 +377,11 @@ func newTestToolRegistry() *testToolRegistry {
 	return &testToolRegistry{}
 }
 
-func (r *testToolRegistry) Register(tool ports.ToolExecutor) error {
+func (r *testToolRegistry) Register(tool tools.ToolExecutor) error {
 	return nil
 }
 
-func (r *testToolRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (r *testToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	return nil, fmt.Errorf("tool not found: %s", name)
 }
 
@@ -397,11 +400,11 @@ func newSlowToolRegistry() *slowToolRegistry {
 	return &slowToolRegistry{}
 }
 
-func (r *slowToolRegistry) Register(tool ports.ToolExecutor) error {
+func (r *slowToolRegistry) Register(tool tools.ToolExecutor) error {
 	return nil
 }
 
-func (r *slowToolRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (r *slowToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	switch name {
 	case "plan":
 		return &fastPlanTool{}, nil
@@ -597,14 +600,14 @@ func (m *testContextManager) ShouldCompress(messages []ports.Message, limit int)
 
 func (m *testContextManager) Preload(context.Context) error { return nil }
 
-func (m *testContextManager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
+func (m *testContextManager) BuildWindow(ctx context.Context, session *agentstorage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
-		return ports.ContextWindow{}, fmt.Errorf("session required")
+		return agent.ContextWindow{}, fmt.Errorf("session required")
 	}
-	return ports.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
+	return agent.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
 }
 
-func (m *testContextManager) RecordTurn(context.Context, ports.ContextTurnRecord) error { return nil }
+func (m *testContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error { return nil }
 
 type testParser struct{}
 

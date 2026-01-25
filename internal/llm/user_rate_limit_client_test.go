@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,7 +25,7 @@ func TestWrapWithUserRateLimitProvidesStreamingAdapter(t *testing.T) {
 	mock := &nonStreamingRateLimitedMock{content: "hello"}
 
 	client := WrapWithUserRateLimit(mock, 1, 1)
-	streaming, ok := client.(ports.StreamingLLMClient)
+	streaming, ok := client.(portsllm.StreamingLLMClient)
 	require.True(t, ok, "wrapped client should expose streaming interface")
 
 	var deltas []ports.ContentDelta

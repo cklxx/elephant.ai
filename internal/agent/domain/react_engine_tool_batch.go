@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func newToolCallBatch(
@@ -15,12 +17,12 @@ func newToolCallBatch(
 	state *TaskState,
 	iteration int,
 	calls []ToolCall,
-	registry ports.ToolRegistry,
-	limiter ports.ToolExecutionLimiter,
+	registry tools.ToolRegistry,
+	limiter tools.ToolExecutionLimiter,
 	tracker *reactWorkflow,
 ) *toolCallBatch {
 	expanded := make([]ToolCall, len(calls))
-	subagentSnapshots := make([]*ports.TaskState, len(calls))
+	subagentSnapshots := make([]*agent.TaskState, len(calls))
 	for i, call := range calls {
 		tc := call
 		tc.Arguments = engine.expandToolCallArguments(tc.Name, tc.Arguments, state)
@@ -118,8 +120,8 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		return
 	}
 
-	toolCtx := ports.WithAttachmentContext(b.ctx, b.attachments, b.attachmentIterations)
-	toolCtx = ports.WithToolProgressEmitter(toolCtx, func(chunk string, isComplete bool) {
+	toolCtx := tools.WithAttachmentContext(b.ctx, b.attachments, b.attachmentIterations)
+	toolCtx = tools.WithToolProgressEmitter(toolCtx, func(chunk string, isComplete bool) {
 		if chunk == "" && !isComplete {
 			return
 		}
@@ -132,12 +134,12 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	})
 	if tc.Name == "subagent" {
 		if snapshot := b.subagentSnapshots[idx]; snapshot != nil {
-			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
+			toolCtx = agent.WithClonedTaskStateSnapshot(toolCtx, snapshot)
 		}
 	}
 	if tc.Name == "acp_executor" {
 		if snapshot := buildExecutorStateSnapshot(b.state, tc); snapshot != nil {
-			toolCtx = ports.WithClonedTaskStateSnapshot(toolCtx, snapshot)
+			toolCtx = agent.WithClonedTaskStateSnapshot(toolCtx, snapshot)
 		}
 	}
 

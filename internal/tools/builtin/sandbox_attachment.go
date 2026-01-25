@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/sandbox"
 )
 
@@ -17,7 +18,7 @@ type sandboxWriteAttachmentTool struct {
 	httpClient *http.Client
 }
 
-func NewSandboxWriteAttachment(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxWriteAttachment(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxWriteAttachmentTool{
 		client:     newSandboxClient(cfg),
 		httpClient: newAttachmentHTTPClient(attachmentFetchTimeout, "SandboxAttachmentWrite"),

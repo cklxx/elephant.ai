@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 	"regexp"
@@ -11,7 +12,7 @@ import (
 type grep struct {
 }
 
-func NewGrep(cfg ShellToolConfig) ports.ToolExecutor {
+func NewGrep(cfg ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &grep{}
 }

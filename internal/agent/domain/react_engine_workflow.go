@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 func newWorkflowRecorder(tracker WorkflowTracker) *workflowRecorder {
@@ -151,7 +152,7 @@ func workflowContextOutput(state *TaskState) map[string]any {
 		return nil
 	}
 
-	snapshot := ports.CloneTaskState(state)
+	snapshot := agent.CloneTaskState(state)
 	if snapshot == nil {
 		return nil
 	}
@@ -233,7 +234,7 @@ func workflowToolCallOutput(iteration int, call ToolCall, result ToolResult) map
 		"tool":      call.Name,
 	}
 
-	cloned := ports.CloneToolResults([]ToolResult{result})
+	cloned := agent.CloneToolResults([]ToolResult{result})
 	if len(cloned) > 0 {
 		output["result"] = cloned[0]
 	}
@@ -247,7 +248,7 @@ func workflowToolOutput(iteration int, results []ToolResult) map[string]any {
 	}
 
 	if len(results) > 0 {
-		output["results"] = ports.CloneToolResults(results)
+		output["results"] = agent.CloneToolResults(results)
 	}
 
 	successes := 0
@@ -281,7 +282,7 @@ func workflowFinalizeOutput(result *TaskResult) map[string]any {
 		output["answer_preview"] = trimmed
 	}
 	if len(result.Messages) > 0 {
-		output["messages"] = ports.CloneMessages(result.Messages)
+		output["messages"] = agent.CloneMessages(result.Messages)
 	}
 
 	return output

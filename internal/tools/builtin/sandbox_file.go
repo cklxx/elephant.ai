@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/sandbox"
 )
 
@@ -32,23 +33,23 @@ type sandboxFileReplaceTool struct {
 	client *sandbox.Client
 }
 
-func NewSandboxFileRead(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxFileReadTool{client: newSandboxClient(cfg)}
 }
 
-func NewSandboxFileWrite(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxFileWrite(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxFileWriteTool{client: newSandboxClient(cfg)}
 }
 
-func NewSandboxFileList(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxFileListTool{client: newSandboxClient(cfg)}
 }
 
-func NewSandboxFileSearch(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxFileSearchTool{client: newSandboxClient(cfg)}
 }
 
-func NewSandboxFileReplace(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxFileReplaceTool{client: newSandboxClient(cfg)}
 }
 

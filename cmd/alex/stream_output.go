@@ -16,6 +16,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/types"
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
@@ -281,8 +282,8 @@ func NewStreamEventBridge(handler *StreamingOutputHandler) *StreamEventBridge {
 	return &StreamEventBridge{handler: handler}
 }
 
-// OnEvent implements ports.EventListener
-func (b *StreamEventBridge) OnEvent(event ports.AgentEvent) {
+// OnEvent implements agent.EventListener
+func (b *StreamEventBridge) OnEvent(event agent.AgentEvent) {
 	// Check if this is a wrapped subtask event
 	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
 		// Handle subtask-specific tracking
@@ -446,7 +447,7 @@ func (h *StreamingOutputHandler) printTaskStart(task string) {
 	h.write(rendered)
 }
 
-func (h *StreamingOutputHandler) printCompletion(result *ports.TaskResult) {
+func (h *StreamingOutputHandler) printCompletion(result *agent.TaskResult) {
 	outCtx := &types.OutputContext{
 		Level:        types.LevelCore,
 		AgentID:      "core",

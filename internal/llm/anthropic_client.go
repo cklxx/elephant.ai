@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	"alex/internal/httpclient"
 	"alex/internal/jsonx"
 	"alex/internal/logging"
@@ -42,7 +43,7 @@ type anthropicClient struct {
 	usageCallback func(usage ports.TokenUsage, model string, provider string)
 }
 
-func NewAnthropicClient(model string, config Config) (ports.LLMClient, error) {
+func NewAnthropicClient(model string, config Config) (portsllm.LLMClient, error) {
 	if config.BaseURL == "" {
 		config.BaseURL = defaultAnthropicBaseURL
 	}

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/jsonx"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
@@ -37,7 +39,7 @@ type Store struct {
 }
 
 type sessionCacheEntry struct {
-	session   *ports.Session
+	session   *storage.Session
 	updatedAt time.Time
 }
 
@@ -111,7 +113,7 @@ func (s *Store) EnsureSchema(ctx context.Context) error {
 }
 
 // Create creates a new session row.
-func (s *Store) Create(ctx context.Context) (*ports.Session, error) {
+func (s *Store) Create(ctx context.Context) (*storage.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -126,10 +128,10 @@ func (s *Store) Create(ctx context.Context) (*ports.Session, error) {
 		}
 
 		now := time.Now()
-		session := &ports.Session{
+		session := &storage.Session{
 			ID:        sessionID,
 			Messages:  []ports.Message{},
-			Todos:     []ports.Todo{},
+			Todos:     []storage.Todo{},
 			Metadata:  make(map[string]string),
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -151,7 +153,7 @@ func (s *Store) Create(ctx context.Context) (*ports.Session, error) {
 }
 
 // Get retrieves a session by ID.
-func (s *Store) Get(ctx context.Context, sessionID string) (*ports.Session, error) {
+func (s *Store) Get(ctx context.Context, sessionID string) (*storage.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -177,7 +179,7 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*ports.Session, erro
 }
 
 // Save upserts a session record.
-func (s *Store) Save(ctx context.Context, session *ports.Session) error {
+func (s *Store) Save(ctx context.Context, session *storage.Session) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -266,14 +268,14 @@ func (s *Store) Delete(ctx context.Context, sessionID string) error {
 	return err
 }
 
-func (s *Store) insert(ctx context.Context, session *ports.Session, upsert bool) error {
+func (s *Store) insert(ctx context.Context, session *storage.Session, upsert bool) error {
 	messagesValue := session.Messages
 	if messagesValue == nil {
 		messagesValue = []ports.Message{}
 	}
 	todosValue := session.Todos
 	if todosValue == nil {
-		todosValue = []ports.Todo{}
+		todosValue = []storage.Todo{}
 	}
 	metadataValue := session.Metadata
 	if metadataValue == nil {
@@ -344,7 +346,7 @@ VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8
 	return nil
 }
 
-func (s *Store) loadCachedSession(ctx context.Context, sessionID string) (*ports.Session, bool, error) {
+func (s *Store) loadCachedSession(ctx context.Context, sessionID string) (*storage.Session, bool, error) {
 	if s.cache == nil {
 		return nil, false, nil
 	}
@@ -367,7 +369,7 @@ func (s *Store) loadCachedSession(ctx context.Context, sessionID string) (*ports
 	return nil, false, nil
 }
 
-func (s *Store) storeCachedSession(session *ports.Session) {
+func (s *Store) storeCachedSession(session *storage.Session) {
 	if s.cache == nil || session == nil {
 		return
 	}
@@ -395,7 +397,7 @@ func (s *Store) fetchUpdatedAt(ctx context.Context, sessionID string) (time.Time
 	return updatedAt, err
 }
 
-func (s *Store) fetchSession(ctx context.Context, sessionID string) (*ports.Session, error) {
+func (s *Store) fetchSession(ctx context.Context, sessionID string) (*storage.Session, error) {
 	query := fmt.Sprintf(`
 SELECT id, messages, todos, metadata, attachments, important, user_persona, created_at, updated_at
 FROM %s
@@ -409,7 +411,7 @@ WHERE id = $1
 		attachmentsJSON []byte
 		importantJSON   []byte
 		personaJSON     []byte
-		session         ports.Session
+		session         storage.Session
 	)
 
 	err := s.pool.QueryRow(ctx, query, sessionID).Scan(
@@ -508,14 +510,14 @@ func sanitizeAttachmentMap(values map[string]ports.Attachment) map[string]ports.
 	return sanitized
 }
 
-func cloneSession(session *ports.Session) *ports.Session {
+func cloneSession(session *storage.Session) *storage.Session {
 	if session == nil {
 		return nil
 	}
 	cloned := *session
-	cloned.Messages = ports.CloneMessages(session.Messages)
+	cloned.Messages = agent.CloneMessages(session.Messages)
 	if len(session.Todos) > 0 {
-		cloned.Todos = append([]ports.Todo(nil), session.Todos...)
+		cloned.Todos = append([]storage.Todo(nil), session.Todos...)
 	}
 	if len(session.Metadata) > 0 {
 		cloned.Metadata = maps.Clone(session.Metadata)

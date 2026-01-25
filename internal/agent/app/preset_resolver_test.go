@@ -8,7 +8,9 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/presets"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func TestPresetResolver_ResolveToolRegistry_DefaultBehavior(t *testing.T) {
@@ -182,7 +184,7 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}, {Name: "think"}},
 	}
 
-	ctx := context.WithValue(context.Background(), ports.SessionContextKey{}, "test-session-123")
+	ctx := context.WithValue(context.Background(), agent.SessionContextKey{}, "test-session-123")
 	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, presets.ToolModeCLI, "read-only")
 
 	if len(eventCapturer.events) != 1 {
@@ -234,8 +236,8 @@ type mockToolRegistry struct {
 	tools []ports.ToolDefinition
 }
 
-func (r *mockToolRegistry) Register(tool ports.ToolExecutor) error { return nil }
-func (r *mockToolRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (r *mockToolRegistry) Register(tool tools.ToolExecutor) error { return nil }
+func (r *mockToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	for _, t := range r.tools {
 		if t.Name == name {
 			return nil, nil
@@ -245,7 +247,7 @@ func (r *mockToolRegistry) Get(name string) (ports.ToolExecutor, error) {
 }
 func (r *mockToolRegistry) List() []ports.ToolDefinition { return r.tools }
 func (r *mockToolRegistry) Unregister(name string) error { return nil }
-func (r *mockToolRegistry) WithoutSubagent() ports.ToolRegistry {
+func (r *mockToolRegistry) WithoutSubagent() tools.ToolRegistry {
 	filtered := make([]ports.ToolDefinition, 0, len(r.tools))
 	for _, t := range r.tools {
 		if t.Name != "subagent" && t.Name != "acp_executor" && t.Name != "explore" {
@@ -258,16 +260,16 @@ func (r *mockToolRegistry) WithoutSubagent() ports.ToolRegistry {
 // Event capturer for testing
 
 type eventCapturer struct {
-	events []ports.AgentEvent
+	events []agent.AgentEvent
 }
 
-func (e *eventCapturer) OnEvent(event ports.AgentEvent) {
+func (e *eventCapturer) OnEvent(event agent.AgentEvent) {
 	e.events = append(e.events, event)
 }
 
 func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
 	event := domain.NewWorkflowDiagnosticToolFilteringEvent(
-		ports.LevelCore,
+		agent.LevelCore,
 		"test-session",
 		"task-1",
 		"parent-task",
@@ -290,7 +292,7 @@ func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
 	if event.GetParentTaskID() != "parent-task" {
 		t.Errorf("Expected parent task ID 'parent-task', got '%s'", event.GetParentTaskID())
 	}
-	if event.GetAgentLevel() != ports.LevelCore {
+	if event.GetAgentLevel() != agent.LevelCore {
 		t.Errorf("Expected agent level LevelCore, got %v", event.GetAgentLevel())
 	}
 	if event.PresetName != "Read-Only Access" {
@@ -310,4 +312,4 @@ func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
 	}
 }
 
-var _ ports.ToolRegistry = (*presets.FilteredToolRegistry)(nil)
+var _ tools.ToolRegistry = (*presets.FilteredToolRegistry)(nil)

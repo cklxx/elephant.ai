@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/tools/builtin"
 	"alex/internal/utils/id"
 )
@@ -178,7 +178,7 @@ func TestStreamingOutputHandlerPrintCompletionResetsStreamedContent(t *testing.T
 	handler.SetOutputWriter(&out)
 
 	handler.streamedContent = true
-	streamedResult := &ports.TaskResult{
+	streamedResult := &agent.TaskResult{
 		Answer:     "streamed answer",
 		Iterations: 1,
 		TokensUsed: 5,
@@ -192,7 +192,7 @@ func TestStreamingOutputHandlerPrintCompletionResetsStreamedContent(t *testing.T
 
 	out.Reset()
 
-	nonStreamedResult := &ports.TaskResult{
+	nonStreamedResult := &agent.TaskResult{
 		Answer:     "final answer",
 		Iterations: 2,
 		TokensUsed: 8,

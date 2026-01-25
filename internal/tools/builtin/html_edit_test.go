@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func TestHTMLEditValidateOnlyInline(t *testing.T) {
@@ -63,7 +64,7 @@ func TestHTMLEditViewFromAttachment(t *testing.T) {
 			Data:      encoded,
 		},
 	}
-	ctx := ports.WithAttachmentContext(context.Background(), attachments, nil)
+	ctx := tools.WithAttachmentContext(context.Background(), attachments, nil)
 
 	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID: "call-2",
@@ -103,7 +104,7 @@ func TestHTMLEditPrefersInlineHTMLOverURI(t *testing.T) {
 			URI:       server.URL,
 		},
 	}
-	ctx := ports.WithAttachmentContext(context.Background(), attachments, nil)
+	ctx := tools.WithAttachmentContext(context.Background(), attachments, nil)
 
 	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID: "call-3",

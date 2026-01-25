@@ -1,12 +1,13 @@
 package storage
 
 import (
-	"alex/internal/agent/ports"
 	"context"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	agentstorage "alex/internal/agent/ports/storage"
 )
 
 func TestFileCostStore_SaveAndGet(t *testing.T) {
@@ -21,7 +22,7 @@ func TestFileCostStore_SaveAndGet(t *testing.T) {
 
 	// Create test record
 	now := time.Now()
-	record := ports.UsageRecord{
+	record := agentstorage.UsageRecord{
 		ID:           "test-1",
 		SessionID:    "session-1",
 		Model:        "gpt-4o",
@@ -77,7 +78,7 @@ func TestFileCostStore_GetByDateRange(t *testing.T) {
 	yesterday := today.Add(-24 * time.Hour)
 	twoDaysAgo := today.Add(-48 * time.Hour)
 
-	records := []ports.UsageRecord{
+	records := []agentstorage.UsageRecord{
 		{
 			ID:        "1",
 			SessionID: "session-1",
@@ -134,7 +135,7 @@ func TestFileCostStore_GetByModel(t *testing.T) {
 
 	ctx := context.Background()
 
-	records := []ports.UsageRecord{
+	records := []agentstorage.UsageRecord{
 		{
 			ID:        "1",
 			SessionID: "session-1",
@@ -195,7 +196,7 @@ func TestFileCostStore_ListAll(t *testing.T) {
 	today := time.Now()
 	yesterday := today.Add(-24 * time.Hour)
 
-	records := []ports.UsageRecord{
+	records := []agentstorage.UsageRecord{
 		{
 			ID:        "1",
 			SessionID: "session-1",
@@ -240,7 +241,7 @@ func TestFileCostStore_SessionIndex(t *testing.T) {
 	today := time.Now()
 	yesterday := today.Add(-24 * time.Hour)
 
-	records := []ports.UsageRecord{
+	records := []agentstorage.UsageRecord{
 		{
 			ID:        "1",
 			SessionID: "session-1",

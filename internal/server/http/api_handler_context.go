@@ -6,7 +6,8 @@ import (
 	"strings"
 	"time"
 
-	agentports "alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 type ContextSnapshotItem struct {
@@ -15,8 +16,8 @@ type ContextSnapshotItem struct {
 	Timestamp        string               `json:"timestamp"`
 	TaskID           string               `json:"task_id,omitempty"`
 	ParentTaskID     string               `json:"parent_task_id,omitempty"`
-	Messages         []agentports.Message `json:"messages"`
-	ExcludedMessages []agentports.Message `json:"excluded_messages,omitempty"`
+	Messages         []core.Message `json:"messages"`
+	ExcludedMessages []core.Message `json:"excluded_messages,omitempty"`
 }
 
 type ContextSnapshotResponse struct {
@@ -31,7 +32,7 @@ type ContextWindowPreviewResponse struct {
 	PersonaKey    string                   `json:"persona_key,omitempty"`
 	ToolMode      string                   `json:"tool_mode,omitempty"`
 	ToolPreset    string                   `json:"tool_preset,omitempty"`
-	Window        agentports.ContextWindow `json:"window"`
+	Window        agent.ContextWindow `json:"window"`
 }
 
 // HandleInternalSessionRequest routes internal session endpoints.
@@ -164,12 +165,12 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 	h.writeJSON(w, http.StatusOK, response)
 }
 
-func sanitizeMessagesForDelivery(messages []agentports.Message, sentAttachments *stringLRU) []agentports.Message {
+func sanitizeMessagesForDelivery(messages []core.Message, sentAttachments *stringLRU) []core.Message {
 	if len(messages) == 0 {
 		return nil
 	}
 
-	sanitized := make([]agentports.Message, 0, len(messages))
+	sanitized := make([]core.Message, 0, len(messages))
 	for _, msg := range messages {
 		cloned := msg
 		if sanitizedAttachments := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments, nil, nil, false); len(sanitizedAttachments) > 0 {

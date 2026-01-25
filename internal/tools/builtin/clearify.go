@@ -7,12 +7,13 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	id "alex/internal/utils/id"
 )
 
 type uiClearify struct{}
 
-func NewClearify() ports.ToolExecutor {
+func NewClearify() tools.ToolExecutor {
 	return &uiClearify{}
 }
 

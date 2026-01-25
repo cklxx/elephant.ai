@@ -6,17 +6,18 @@ import (
 	"fmt"
 	"testing"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/llm"
 	"alex/internal/workflow"
 )
 
 type stubPreparationService struct {
-	env *ports.ExecutionEnvironment
+	env *agent.ExecutionEnvironment
 	err error
 }
 
-func (s stubPreparationService) Prepare(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (s stubPreparationService) Prepare(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	if s.err != nil {
 		return s.env, s.err
 	}
@@ -35,11 +36,11 @@ func (s stubPreparationService) ResolveToolPreset(ctx context.Context, preset st
 
 type cancelAwarePreparationService struct{}
 
-func (cancelAwarePreparationService) Prepare(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (cancelAwarePreparationService) Prepare(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	if ctx.Err() != nil {
 		return nil, ctx.Err()
 	}
-	return &ports.ExecutionEnvironment{Session: &ports.Session{ID: sessionID}}, nil
+	return &agent.ExecutionEnvironment{Session: &storage.Session{ID: sessionID}}, nil
 }
 
 func (cancelAwarePreparationService) SetEnvironmentSummary(string) {}

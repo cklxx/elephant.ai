@@ -8,12 +8,13 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/skills"
 )
 
 type skillsTool struct{}
 
-func NewSkills() ports.ToolExecutor {
+func NewSkills() tools.ToolExecutor {
 	return &skillsTool{}
 }
 

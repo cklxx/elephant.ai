@@ -12,6 +12,7 @@ import (
 
 	"alex/internal/agent/app"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/presets"
 	"alex/internal/logging"
 	"alex/internal/tools/builtin"
@@ -353,7 +354,7 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 
 	listener := newACPEventListener(s, session)
 
-	promptCtx = ports.WithOutputContext(promptCtx, &ports.OutputContext{Level: ports.LevelCore})
+	promptCtx = agent.WithOutputContext(promptCtx, &agent.OutputContext{Level: agent.LevelCore})
 	promptCtx = builtin.WithToolSessionID(promptCtx, sessionID)
 	promptCtx = builtin.WithApprover(promptCtx, newACPApprover(s, sessionID))
 	promptCtx = builtin.WithAutoApprove(promptCtx, false)
@@ -565,7 +566,7 @@ func toolPresetForMode(modeID string) string {
 	return ""
 }
 
-func mapStopReason(result *ports.TaskResult, execErr error) string {
+func mapStopReason(result *agent.TaskResult, execErr error) string {
 	if errors.Is(execErr, context.Canceled) {
 		return "cancelled"
 	}

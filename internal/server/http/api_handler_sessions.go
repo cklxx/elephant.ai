@@ -8,7 +8,8 @@ import (
 	"strings"
 	"time"
 
-	agentports "alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 const (
@@ -30,12 +31,12 @@ type SessionSnapshotsResponse struct {
 }
 
 type SessionPersonaRequest struct {
-	UserPersona *agentports.UserPersonaProfile `json:"user_persona"`
+	UserPersona *core.UserPersonaProfile `json:"user_persona"`
 }
 
 type SessionPersonaResponse struct {
-	SessionID   string                         `json:"session_id"`
-	UserPersona *agentports.UserPersonaProfile `json:"user_persona,omitempty"`
+	SessionID   string                   `json:"session_id"`
+	UserPersona *core.UserPersonaProfile `json:"user_persona,omitempty"`
 }
 
 type TurnSnapshotResponse struct {
@@ -44,12 +45,12 @@ type TurnSnapshotResponse struct {
 	LLMTurnSeq int                         `json:"llm_turn_seq"`
 	Summary    string                      `json:"summary"`
 	CreatedAt  string                      `json:"created_at"`
-	Plans      []agentports.PlanNode       `json:"plans,omitempty"`
-	Beliefs    []agentports.Belief         `json:"beliefs,omitempty"`
+	Plans      []agent.PlanNode            `json:"plans,omitempty"`
+	Beliefs    []agent.Belief              `json:"beliefs,omitempty"`
 	WorldState map[string]any              `json:"world_state,omitempty"`
 	Diff       map[string]any              `json:"diff,omitempty"`
-	Messages   []agentports.Message        `json:"messages"`
-	Feedback   []agentports.FeedbackSignal `json:"feedback,omitempty"`
+	Messages   []core.Message              `json:"messages"`
+	Feedback   []agent.FeedbackSignal      `json:"feedback,omitempty"`
 }
 
 // SessionResponse matches TypeScript Session interface

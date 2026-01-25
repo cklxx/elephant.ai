@@ -1,7 +1,6 @@
 package storage
 
 import (
-	"alex/internal/agent/ports"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	agentstorage "alex/internal/agent/ports/storage"
 )
 
 // fileCostStore implements CostStore using file-based storage
@@ -20,7 +21,7 @@ type fileCostStore struct {
 }
 
 // NewFileCostStore creates a new file-based cost store
-func NewFileCostStore(baseDir string) (ports.CostStore, error) {
+func NewFileCostStore(baseDir string) (agentstorage.CostStore, error) {
 	// Expand home directory
 	if strings.HasPrefix(baseDir, "~/") {
 		home, err := os.UserHomeDir()
@@ -41,7 +42,7 @@ func NewFileCostStore(baseDir string) (ports.CostStore, error) {
 }
 
 // SaveUsage saves a usage record
-func (s *fileCostStore) SaveUsage(ctx context.Context, record ports.UsageRecord) error {
+func (s *fileCostStore) SaveUsage(ctx context.Context, record agentstorage.UsageRecord) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -80,7 +81,7 @@ func (s *fileCostStore) SaveUsage(ctx context.Context, record ports.UsageRecord)
 }
 
 // GetBySession retrieves all usage records for a session
-func (s *fileCostStore) GetBySession(ctx context.Context, sessionID string) ([]ports.UsageRecord, error) {
+func (s *fileCostStore) GetBySession(ctx context.Context, sessionID string) ([]agentstorage.UsageRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -89,7 +90,7 @@ func (s *fileCostStore) GetBySession(ctx context.Context, sessionID string) ([]p
 	indexData, err := os.ReadFile(indexFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return []ports.UsageRecord{}, nil
+			return []agentstorage.UsageRecord{}, nil
 		}
 		return nil, fmt.Errorf("read session index: %w", err)
 	}
@@ -100,7 +101,7 @@ func (s *fileCostStore) GetBySession(ctx context.Context, sessionID string) ([]p
 	}
 
 	// Collect records from all dates
-	var records []ports.UsageRecord
+	var records []agentstorage.UsageRecord
 	for _, date := range dates {
 		dateRecords, err := s.readDateRecords(date)
 		if err != nil {
@@ -119,11 +120,11 @@ func (s *fileCostStore) GetBySession(ctx context.Context, sessionID string) ([]p
 }
 
 // GetByDateRange retrieves records within a date range
-func (s *fileCostStore) GetByDateRange(ctx context.Context, start, end time.Time) ([]ports.UsageRecord, error) {
+func (s *fileCostStore) GetByDateRange(ctx context.Context, start, end time.Time) ([]agentstorage.UsageRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var records []ports.UsageRecord
+	var records []agentstorage.UsageRecord
 
 	// Iterate through dates
 	current := start
@@ -151,7 +152,7 @@ func (s *fileCostStore) GetByDateRange(ctx context.Context, start, end time.Time
 }
 
 // GetByModel retrieves records for a specific model
-func (s *fileCostStore) GetByModel(ctx context.Context, model string) ([]ports.UsageRecord, error) {
+func (s *fileCostStore) GetByModel(ctx context.Context, model string) ([]agentstorage.UsageRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -161,7 +162,7 @@ func (s *fileCostStore) GetByModel(ctx context.Context, model string) ([]ports.U
 		return nil, err
 	}
 
-	var filtered []ports.UsageRecord
+	var filtered []agentstorage.UsageRecord
 	for _, record := range allRecords {
 		if record.Model == model {
 			filtered = append(filtered, record)
@@ -172,11 +173,11 @@ func (s *fileCostStore) GetByModel(ctx context.Context, model string) ([]ports.U
 }
 
 // ListAll retrieves all usage records
-func (s *fileCostStore) ListAll(ctx context.Context) ([]ports.UsageRecord, error) {
+func (s *fileCostStore) ListAll(ctx context.Context) ([]agentstorage.UsageRecord, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var records []ports.UsageRecord
+	var records []agentstorage.UsageRecord
 
 	// Read all date directories
 	entries, err := os.ReadDir(s.baseDir)
@@ -206,14 +207,14 @@ func (s *fileCostStore) ListAll(ctx context.Context) ([]ports.UsageRecord, error
 }
 
 // readDateRecords reads all records for a specific date
-func (s *fileCostStore) readDateRecords(dateStr string) ([]ports.UsageRecord, error) {
+func (s *fileCostStore) readDateRecords(dateStr string) ([]agentstorage.UsageRecord, error) {
 	recordsFile := filepath.Join(s.baseDir, dateStr, "records.jsonl")
 	data, err := os.ReadFile(recordsFile)
 	if err != nil {
 		return nil, err
 	}
 
-	var records []ports.UsageRecord
+	var records []agentstorage.UsageRecord
 	lines := strings.Split(string(data), "\n")
 
 	for _, line := range lines {
@@ -222,7 +223,7 @@ func (s *fileCostStore) readDateRecords(dateStr string) ([]ports.UsageRecord, er
 			continue
 		}
 
-		var record ports.UsageRecord
+		var record agentstorage.UsageRecord
 		if err := json.Unmarshal([]byte(line), &record); err != nil {
 			continue // Skip malformed records
 		}
@@ -234,7 +235,7 @@ func (s *fileCostStore) readDateRecords(dateStr string) ([]ports.UsageRecord, er
 }
 
 // updateSessionIndex updates the session-to-dates index
-func (s *fileCostStore) updateSessionIndex(record ports.UsageRecord) error {
+func (s *fileCostStore) updateSessionIndex(record agentstorage.UsageRecord) error {
 	indexDir := filepath.Join(s.baseDir, "_index")
 	if err := os.MkdirAll(indexDir, 0755); err != nil {
 		return err

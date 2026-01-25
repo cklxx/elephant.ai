@@ -1,10 +1,12 @@
 package parser
 
 import (
-	"alex/internal/agent/ports"
 	"encoding/json"
 	"fmt"
 	"regexp"
+
+	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 // Pre-compiled regexes for hot path performance (avoid recompilation per call)
@@ -20,7 +22,7 @@ var (
 
 type parser struct{}
 
-func New() ports.FunctionCallParser {
+func New() tools.FunctionCallParser {
 	return &parser{}
 }
 

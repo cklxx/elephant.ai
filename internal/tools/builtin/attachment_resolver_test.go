@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 func TestResolveAttachmentBytesFromContextURI(t *testing.T) {
@@ -34,7 +35,7 @@ func TestResolveAttachmentBytesFromContextURI(t *testing.T) {
 	}
 
 	ctx := WithAllowLocalFetch(context.Background())
-	ctx = ports.WithAttachmentContext(ctx, attachments, map[string]int{"slide1.png": 1})
+	ctx = tools.WithAttachmentContext(ctx, attachments, map[string]int{"slide1.png": 1})
 	bytesOut, mimeType, err := resolveAttachmentBytes(ctx, "[slide1.png]", server.Client())
 	if err != nil {
 		t.Fatalf("resolveAttachmentBytes: %v", err)
@@ -84,7 +85,7 @@ func TestResolveAttachmentBytesPrefersResponseContentType(t *testing.T) {
 	}
 
 	ctx := WithAllowLocalFetch(context.Background())
-	ctx = ports.WithAttachmentContext(ctx, attachments, map[string]int{"frame.png": 1})
+	ctx = tools.WithAttachmentContext(ctx, attachments, map[string]int{"frame.png": 1})
 	bytesOut, mimeType, err := resolveAttachmentBytes(ctx, "[frame.png]", server.Client())
 	if err != nil {
 		t.Fatalf("resolveAttachmentBytes: %v", err)

@@ -1,18 +1,20 @@
 package llm
 
 import (
-	"alex/internal/agent/ports"
-	alexerrors "alex/internal/errors"
 	"fmt"
 	"sync"
 	"time"
+
+	portsllm "alex/internal/agent/ports/llm"
+	tools "alex/internal/agent/ports/tools"
+	alexerrors "alex/internal/errors"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 )
 
-// Ensure Factory implements ports.LLMClientFactory interface
-var _ ports.LLMClientFactory = (*Factory)(nil)
+// Ensure Factory implements portsllm.LLMClientFactory interface
+var _ portsllm.LLMClientFactory = (*Factory)(nil)
 
 type Factory struct {
 	cache                *lru.Cache[string, cacheEntry]
@@ -23,11 +25,11 @@ type Factory struct {
 	circuitBreakerConfig alexerrors.CircuitBreakerConfig
 	userRateLimit        rate.Limit
 	userRateBurst        int
-	toolCallParser       ports.FunctionCallParser
+	toolCallParser       tools.FunctionCallParser
 }
 
 type cacheEntry struct {
-	client    ports.LLMClient
+	client    portsllm.LLMClient
 	expiresAt time.Time
 }
 
@@ -100,27 +102,27 @@ func (f *Factory) DisableRetry() {
 
 // EnableToolCallParsing enables automatic parsing of <tool_call>...</tool_call>
 // fallbacks when upstream providers do not return native tool calls.
-func (f *Factory) EnableToolCallParsing(parser ports.FunctionCallParser) {
+func (f *Factory) EnableToolCallParsing(parser tools.FunctionCallParser) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.toolCallParser = parser
 }
 
-// GetClient implements ports.LLMClientFactory interface
+// GetClient implements portsllm.LLMClientFactory interface
 // Creates or retrieves a cached LLM client
-func (f *Factory) GetClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+func (f *Factory) GetClient(provider, model string, config portsllm.LLMConfig) (portsllm.LLMClient, error) {
 	return f.getClient(provider, model, adaptConfig(config), true)
 }
 
-// GetIsolatedClient implements ports.LLMClientFactory interface
+// GetIsolatedClient implements portsllm.LLMClientFactory interface
 // Creates a new non-cached client instance for session isolation
 // This is useful when per-session state (like cost tracking callbacks) needs to be isolated
-func (f *Factory) GetIsolatedClient(provider, model string, config ports.LLMConfig) (ports.LLMClient, error) {
+func (f *Factory) GetIsolatedClient(provider, model string, config portsllm.LLMConfig) (portsllm.LLMClient, error) {
 	return f.getClient(provider, model, adaptConfig(config), false)
 }
 
-// adaptConfig converts ports.LLMConfig to internal Config
-func adaptConfig(config ports.LLMConfig) Config {
+// adaptConfig converts portsllm.LLMConfig to internal Config
+func adaptConfig(config portsllm.LLMConfig) Config {
 	return Config{
 		APIKey:     config.APIKey,
 		BaseURL:    config.BaseURL,
@@ -130,7 +132,7 @@ func adaptConfig(config ports.LLMConfig) Config {
 	}
 }
 
-func (f *Factory) getClient(provider, model string, config Config, useCache bool) (ports.LLMClient, error) {
+func (f *Factory) getClient(provider, model string, config Config, useCache bool) (portsllm.LLMClient, error) {
 	cacheKey := fmt.Sprintf("%s:%s", provider, model)
 	now := time.Now()
 
@@ -157,7 +159,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		}
 	}
 
-	var client ports.LLMClient
+	var client portsllm.LLMClient
 	var err error
 
 	switch provider {

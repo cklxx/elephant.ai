@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/memory"
 	id "alex/internal/utils/id"
 )
@@ -15,7 +16,7 @@ type uiPlan struct {
 	memory memory.Service
 }
 
-func NewPlan(memoryService memory.Service) ports.ToolExecutor {
+func NewPlan(memoryService memory.Service) tools.ToolExecutor {
 	return &uiPlan{memory: memoryService}
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 )
 
 type nonStreamingClient struct {
@@ -21,7 +22,7 @@ func TestEnsureStreamingClientWrapsNonStreaming(t *testing.T) {
 	base := &nonStreamingClient{content: "hello"}
 
 	wrapped := EnsureStreamingClient(base)
-	streaming, ok := wrapped.(ports.StreamingLLMClient)
+	streaming, ok := wrapped.(portsllm.StreamingLLMClient)
 	if !ok {
 		t.Fatalf("expected wrapped client to implement StreamingLLMClient")
 	}

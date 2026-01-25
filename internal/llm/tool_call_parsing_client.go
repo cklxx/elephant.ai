@@ -5,19 +5,21 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type toolCallParsingClient struct {
-	underlying ports.LLMClient
-	parser     ports.FunctionCallParser
+	underlying portsllm.LLMClient
+	parser     tools.FunctionCallParser
 }
 
 var (
-	_ ports.LLMClient          = (*toolCallParsingClient)(nil)
-	_ ports.StreamingLLMClient = (*toolCallParsingClient)(nil)
+	_ portsllm.LLMClient          = (*toolCallParsingClient)(nil)
+	_ portsllm.StreamingLLMClient = (*toolCallParsingClient)(nil)
 )
 
-func WrapWithToolCallParsing(client ports.LLMClient, parser ports.FunctionCallParser) ports.LLMClient {
+func WrapWithToolCallParsing(client portsllm.LLMClient, parser tools.FunctionCallParser) portsllm.LLMClient {
 	if client == nil || parser == nil {
 		return client
 	}
@@ -40,7 +42,7 @@ func (c *toolCallParsingClient) StreamComplete(
 	req ports.CompletionRequest,
 	callbacks ports.CompletionStreamCallbacks,
 ) (*ports.CompletionResponse, error) {
-	streaming, ok := c.underlying.(ports.StreamingLLMClient)
+	streaming, ok := c.underlying.(portsllm.StreamingLLMClient)
 	if !ok {
 		resp, err := c.underlying.Complete(ctx, req)
 		if err != nil {
@@ -67,7 +69,7 @@ func (c *toolCallParsingClient) Model() string {
 }
 
 func (c *toolCallParsingClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
-	if trackingClient, ok := c.underlying.(ports.UsageTrackingClient); ok {
+	if trackingClient, ok := c.underlying.(portsllm.UsageTrackingClient); ok {
 		trackingClient.SetUsageCallback(callback)
 	}
 }

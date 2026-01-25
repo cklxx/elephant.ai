@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	"alex/internal/httpclient"
 	"alex/internal/jsonx"
 	"alex/internal/logging"
 )
 
-var _ ports.StreamingLLMClient = (*ollamaClient)(nil)
+var _ portsllm.StreamingLLMClient = (*ollamaClient)(nil)
 
 // ollamaClient implements both streaming and non-streaming chat completions against an Ollama server.
 type ollamaClient struct {
@@ -24,7 +25,7 @@ type ollamaClient struct {
 	logger     logging.Logger
 }
 
-func NewOllamaClient(model string, config Config) (ports.LLMClient, error) {
+func NewOllamaClient(model string, config Config) (portsllm.LLMClient, error) {
 	baseURL := strings.TrimRight(config.BaseURL, "/")
 	if baseURL == "" {
 		baseURL = "http://localhost:11434/api"

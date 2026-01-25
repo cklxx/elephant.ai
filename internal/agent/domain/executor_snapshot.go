@@ -1,13 +1,16 @@
 package domain
 
-import "alex/internal/agent/ports"
+import (
+	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/ports"
+)
 
-func buildExecutorStateSnapshot(state *TaskState, call ToolCall) *ports.TaskState {
+func buildExecutorStateSnapshot(state *TaskState, call ToolCall) *agent.TaskState {
 	if state == nil {
 		return nil
 	}
 
-	snapshot := ports.CloneTaskState((*ports.TaskState)(state))
+	snapshot := agent.CloneTaskState((*agent.TaskState)(state))
 	snapshot.Messages = removeExecutorToolCallMessage(snapshot.Messages, call.ID)
 	return snapshot
 }

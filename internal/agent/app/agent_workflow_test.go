@@ -5,27 +5,27 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/workflow"
 )
 
 type recordingListener struct {
-	events []ports.AgentEvent
+	events []agent.AgentEvent
 }
 
-func (r *recordingListener) OnEvent(event ports.AgentEvent) {
+func (r *recordingListener) OnEvent(event agent.AgentEvent) {
 	r.events = append(r.events, event)
 }
 
-func (r *recordingListener) snapshot() []ports.AgentEvent {
-	cp := make([]ports.AgentEvent, len(r.events))
+func (r *recordingListener) snapshot() []agent.AgentEvent {
+	cp := make([]agent.AgentEvent, len(r.events))
 	copy(cp, r.events)
 	return cp
 }
 
 func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 	listener := &recordingListener{}
-	bridge := newWorkflowEventBridge("wf-1", listener, nil, ports.LevelCore, "sess", "task", "parent")
+	bridge := newWorkflowEventBridge("wf-1", listener, nil, agent.LevelCore, "sess", "task", "parent")
 
 	pendingNode := workflow.NodeSnapshot{ID: "step-1", Status: workflow.NodeStatusPending}
 	pendingSnapshot := workflow.WorkflowSnapshot{ID: "wf-1", Phase: workflow.PhasePending, Order: []string{"step-1"}}
@@ -104,9 +104,9 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 
 func TestWorkflowEventBridgeUsesLatestContext(t *testing.T) {
 	listener := &recordingListener{}
-	bridge := newWorkflowEventBridge("wf-context", listener, nil, ports.LevelCore, "sess-1", "task-1", "parent-1")
+	bridge := newWorkflowEventBridge("wf-context", listener, nil, agent.LevelCore, "sess-1", "task-1", "parent-1")
 
-	bridge.updateContext("sess-2", "task-2", "parent-2", ports.LevelSubagent)
+	bridge.updateContext("sess-2", "task-2", "parent-2", agent.LevelSubagent)
 
 	node := workflow.NodeSnapshot{ID: "step-ctx", Status: workflow.NodeStatusPending}
 	snapshot := workflow.WorkflowSnapshot{ID: "wf-context", Phase: workflow.PhasePending, Order: []string{"step-ctx"}}
@@ -125,7 +125,7 @@ func TestWorkflowEventBridgeUsesLatestContext(t *testing.T) {
 	if lifecycle.GetSessionID() != "sess-2" || lifecycle.GetTaskID() != "task-2" || lifecycle.GetParentTaskID() != "parent-2" {
 		t.Fatalf("unexpected context fields: session=%s task=%s parent=%s", lifecycle.GetSessionID(), lifecycle.GetTaskID(), lifecycle.GetParentTaskID())
 	}
-	if lifecycle.GetAgentLevel() != ports.LevelSubagent {
+	if lifecycle.GetAgentLevel() != agent.LevelSubagent {
 		t.Fatalf("expected updated agent level, got %s", lifecycle.GetAgentLevel())
 	}
 	if lifecycle.Timestamp().IsZero() {

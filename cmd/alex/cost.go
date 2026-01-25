@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
+	agentstorage "alex/internal/agent/ports/storage"
 )
 
 // handleCostCommand handles all cost-related subcommands
@@ -159,8 +159,8 @@ func (c *CLI) handleCostMonthly(ctx context.Context, args []string) error {
 
 func (c *CLI) handleCostExport(ctx context.Context, args []string) error {
 	// Parse export options
-	format := ports.ExportFormatCSV
-	filter := ports.ExportFilter{}
+	format := agentstorage.ExportFormatCSV
+	filter := agentstorage.ExportFilter{}
 	outputFile := ""
 
 	for i := 0; i < len(args); i++ {
@@ -172,9 +172,9 @@ func (c *CLI) handleCostExport(ctx context.Context, args []string) error {
 			i++
 			switch args[i] {
 			case "csv":
-				format = ports.ExportFormatCSV
+				format = agentstorage.ExportFormatCSV
 			case "json":
-				format = ports.ExportFormatJSON
+				format = agentstorage.ExportFormatJSON
 			default:
 				return fmt.Errorf("invalid format: %s (must be csv or json)", args[i])
 			}
@@ -253,7 +253,7 @@ func (c *CLI) handleCostExport(ctx context.Context, args []string) error {
 	return nil
 }
 
-func (c *CLI) printCostSummary(summary *ports.CostSummary, title string) {
+func (c *CLI) printCostSummary(summary *agentstorage.CostSummary, title string) {
 	fmt.Printf("\n%s\n", title)
 	fmt.Println(strings.Repeat("=", len(title)))
 	fmt.Printf("Total Cost:      $%.6f\n", summary.TotalCost)

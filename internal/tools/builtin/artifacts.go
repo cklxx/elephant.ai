@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 // artifactsWrite implements the artifacts_write tool which creates or updates
@@ -24,17 +25,17 @@ type artifactsList struct{}
 type artifactsDelete struct{}
 
 // NewArtifactsWrite constructs the artifacts_write tool executor.
-func NewArtifactsWrite() ports.ToolExecutor {
+func NewArtifactsWrite() tools.ToolExecutor {
 	return &artifactsWrite{}
 }
 
 // NewArtifactsList constructs the artifacts_list tool executor.
-func NewArtifactsList() ports.ToolExecutor {
+func NewArtifactsList() tools.ToolExecutor {
 	return &artifactsList{}
 }
 
 // NewArtifactsDelete constructs the artifacts_delete tool executor.
-func NewArtifactsDelete() ports.ToolExecutor {
+func NewArtifactsDelete() tools.ToolExecutor {
 	return &artifactsDelete{}
 }
 
@@ -95,7 +96,7 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 	}
 
 	attachments := map[string]ports.Attachment{name: attachment}
-	existing, _ := ports.GetAttachmentContext(ctx)
+	existing, _ := tools.GetAttachmentContext(ctx)
 
 	mutationKey := "add"
 	if existing != nil {
@@ -208,7 +209,7 @@ func deriveMarkdownTitle(content string) string {
 }
 
 func (t *artifactsList) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	attachments, _ := ports.GetAttachmentContext(ctx)
+	attachments, _ := tools.GetAttachmentContext(ctx)
 	if len(attachments) == 0 {
 		return &ports.ToolResult{CallID: call.ID, Content: "No attachments available"}, nil
 	}

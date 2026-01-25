@@ -1,26 +1,29 @@
-package ports
+package agent
 
 import (
 	"context"
 	"time"
+
+	core "alex/internal/agent/ports"
+	"alex/internal/agent/ports/storage"
 )
 
 // ContextManager handles layered context orchestration across static, dynamic and
 // meta layers.
 type ContextManager interface {
 	// EstimateTokens estimates token count for messages.
-	EstimateTokens(messages []Message) int
+	EstimateTokens(messages []core.Message) int
 
 	// Compress reduces message size when limit approached.
-	Compress(messages []Message, targetTokens int) ([]Message, error)
+	Compress(messages []core.Message, targetTokens int) ([]core.Message, error)
 
 	// AutoCompact applies compression automatically when the configured
 	// threshold is exceeded. It returns the possibly compacted slice and a flag
 	// indicating whether compaction occurred.
-	AutoCompact(messages []Message, limit int) ([]Message, bool)
+	AutoCompact(messages []core.Message, limit int) ([]core.Message, bool)
 
 	// ShouldCompress checks if compression needed.
-	ShouldCompress(messages []Message, limit int) bool
+	ShouldCompress(messages []core.Message, limit int) bool
 
 	// Preload ensures the manager has cached static context/configuration before
 	// first use.
@@ -28,7 +31,7 @@ type ContextManager interface {
 
 	// BuildWindow composes the full context window for the given session and
 	// configuration.
-	BuildWindow(ctx context.Context, session *Session, cfg ContextWindowConfig) (ContextWindow, error)
+	BuildWindow(ctx context.Context, session *storage.Session, cfg ContextWindowConfig) (ContextWindow, error)
 
 	// RecordTurn writes the supplied turn record to the dynamic state store so
 	// that UI/API consumers can replay the session.
@@ -53,7 +56,7 @@ type ContextWindowConfig struct {
 // ContextWindow exposes the layered context returned by the manager.
 type ContextWindow struct {
 	SessionID    string         `json:"session_id"`
-	Messages     []Message      `json:"messages"`
+	Messages     []core.Message `json:"messages"`
 	SystemPrompt string         `json:"system_prompt"`
 	Static       StaticContext  `json:"static"`
 	Dynamic      DynamicContext `json:"dynamic"`
@@ -79,7 +82,7 @@ type StaticContext struct {
 	Knowledge          []KnowledgeReference `json:"knowledge"`
 	Tools              []string             `json:"tools"`
 	World              WorldProfile         `json:"world"`
-	UserPersona        *UserPersonaProfile  `json:"user_persona,omitempty"`
+	UserPersona        *core.UserPersonaProfile `json:"user_persona,omitempty"`
 	EnvironmentSummary string               `json:"environment_summary,omitempty"`
 	Version            string               `json:"version,omitempty"`
 }
@@ -188,7 +191,7 @@ type ContextTurnRecord struct {
 	Beliefs       []Belief             `json:"beliefs"`
 	World         map[string]any       `json:"world_state"`
 	Diff          map[string]any       `json:"diff"`
-	Messages      []Message            `json:"messages"`
+	Messages      []core.Message       `json:"messages"`
 	Feedback      []FeedbackSignal     `json:"feedback"`
 	KnowledgeRefs []KnowledgeReference `json:"knowledge_refs"`
 }

@@ -13,7 +13,9 @@ import (
 
 	agentapp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
-	agentPorts "alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/analytics/journal"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/server/app"
@@ -26,48 +28,48 @@ type failingAgentCoordinator struct {
 	err error
 }
 
-func (f *failingAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (f *failingAgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return nil, f.err
 }
 
-func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+func (f *failingAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	return nil, errors.New("not implemented")
 }
 
-func (f *failingAgentCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{}
+func (f *failingAgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (f *failingAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	return agentPorts.ContextWindowPreview{}, f.err
+func (f *failingAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	return agent.ContextWindowPreview{}, f.err
 }
 
 type stubAgentCoordinator struct{}
 
-func (stubAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (stubAgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	if id == "" {
 		id = "stub-session"
 	}
-	return &agentPorts.Session{
+	return &storage.Session{
 		ID:        id,
-		Messages:  []agentPorts.Message{},
+		Messages:  []core.Message{},
 		Metadata:  map[string]string{},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}, nil
 }
 
-func (stubAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
-	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+func (stubAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	return &agent.TaskResult{SessionID: sessionID}, nil
 }
 
-func (stubAgentCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{}
+func (stubAgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (stubAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	return agentPorts.ContextWindowPreview{
-		Window: agentPorts.ContextWindow{
+func (stubAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	return agent.ContextWindowPreview{
+		Window: agent.ContextWindow{
 			SessionID: sessionID,
 		},
 		ToolMode: "cli",
@@ -75,27 +77,27 @@ func (stubAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID 
 }
 
 type storeBackedAgentCoordinator struct {
-	store agentPorts.SessionStore
+	store storage.SessionStore
 }
 
-func (c storeBackedAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (c storeBackedAgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	if id == "" {
 		return c.store.Create(ctx)
 	}
 	return c.store.Get(ctx, id)
 }
 
-func (storeBackedAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
-	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+func (storeBackedAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	return &agent.TaskResult{SessionID: sessionID}, nil
 }
 
-func (storeBackedAgentCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{}
+func (storeBackedAgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (storeBackedAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	return agentPorts.ContextWindowPreview{
-		Window: agentPorts.ContextWindow{
+func (storeBackedAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	return agent.ContextWindowPreview{
+		Window: agent.ContextWindow{
 			SessionID: sessionID,
 		},
 		TokenLimit: 128000,
@@ -105,48 +107,48 @@ func (storeBackedAgentCoordinator) PreviewContextWindow(ctx context.Context, ses
 
 type previewAgentCoordinator struct{}
 
-func (previewAgentCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (previewAgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	if id == "" {
 		id = "preview-session"
 	}
 	now := time.Now()
-	return &agentPorts.Session{
+	return &storage.Session{
 		ID:        id,
-		Messages:  []agentPorts.Message{},
+		Messages:  []core.Message{},
 		Metadata:  map[string]string{},
 		CreatedAt: now,
 		UpdatedAt: now,
 	}, nil
 }
 
-func (previewAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
-	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+func (previewAgentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	return &agent.TaskResult{SessionID: sessionID}, nil
 }
 
-func (previewAgentCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{MaxTokens: 2048, AgentPreset: "dev-debug", ToolPreset: "full"}
+func (previewAgentCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{MaxTokens: 2048, AgentPreset: "dev-debug", ToolPreset: "full"}
 }
 
-func (previewAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	attachments := map[string]agentPorts.Attachment{
+func (previewAgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	attachments := map[string]core.Attachment{
 		"report.md": {
 			Name:      "report.md",
 			MediaType: "text/markdown",
 			Data:      "YmFzZTY0LWRhdGE=",
 		},
 	}
-	messages := []agentPorts.Message{
+	messages := []core.Message{
 		{Role: "system", Content: "System seed", Attachments: attachments},
 		{Role: "user", Content: "Ping", Attachments: attachments},
 	}
 
-	return agentPorts.ContextWindowPreview{
-		Window: agentPorts.ContextWindow{
+	return agent.ContextWindowPreview{
+		Window: agent.ContextWindow{
 			SessionID:    sessionID,
 			Messages:     messages,
 			SystemPrompt: "base prompt",
-			Static: agentPorts.StaticContext{
-				Persona: agentPorts.PersonaProfile{ID: "debugger"},
+			Static: agent.StaticContext{
+				Persona: agent.PersonaProfile{ID: "debugger"},
 				Tools:   []string{"code_read"},
 			},
 		},
@@ -163,27 +165,27 @@ type selectionAwareCoordinator struct {
 	got       chan struct{}
 }
 
-func (c *selectionAwareCoordinator) GetSession(ctx context.Context, id string) (*agentPorts.Session, error) {
+func (c *selectionAwareCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	if id == "" {
 		id = "stub-session"
 	}
-	return &agentPorts.Session{ID: id, Metadata: map[string]string{}}, nil
+	return &storage.Session{ID: id, Metadata: map[string]string{}}, nil
 }
 
-func (c *selectionAwareCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agentPorts.EventListener) (*agentPorts.TaskResult, error) {
+func (c *selectionAwareCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	if sel, ok := agentapp.GetLLMSelection(ctx); ok {
 		c.selection = sel
 	}
 	close(c.got)
-	return &agentPorts.TaskResult{SessionID: sessionID}, nil
+	return &agent.TaskResult{SessionID: sessionID}, nil
 }
 
-func (c *selectionAwareCoordinator) GetConfig() agentPorts.AgentConfig {
-	return agentPorts.AgentConfig{}
+func (c *selectionAwareCoordinator) GetConfig() agent.AgentConfig {
+	return agent.AgentConfig{}
 }
 
-func (c *selectionAwareCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agentPorts.ContextWindowPreview, error) {
-	return agentPorts.ContextWindowPreview{}, nil
+func (c *selectionAwareCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
+	return agent.ContextWindowPreview{}, nil
 }
 
 func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
@@ -258,7 +260,7 @@ func TestSnapshotHandlers(t *testing.T) {
 		LLMTurnSeq: 1,
 		CreatedAt:  time.Now().UTC(),
 		Summary:    "observed",
-		Messages:   []agentPorts.Message{{Role: "system", Content: "hello"}},
+		Messages:   []core.Message{{Role: "system", Content: "hello"}},
 	}
 	if err := stateStore.SaveSnapshot(context.Background(), snapshot); err != nil {
 		t.Fatalf("failed to seed snapshot: %v", err)
@@ -364,7 +366,7 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 	)
 	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), true)
 
-	attachments := map[string]agentPorts.Attachment{
+	attachments := map[string]core.Attachment{
 		"preview.png": {
 			Name:      "preview.png",
 			MediaType: "image/png",
@@ -378,34 +380,34 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 		},
 	}
 
-	message := agentPorts.Message{
+	message := core.Message{
 		Role:        "assistant",
 		Content:     "see [preview.png]",
 		Attachments: attachments,
 	}
 
 	broadcaster.OnEvent(domain.NewWorkflowDiagnosticContextSnapshotEvent(
-		agentPorts.LevelCore,
+		agent.LevelCore,
 		"sess-ctx",
 		"task-1",
 		"",
 		1,
 		1,
 		"req-1",
-		[]agentPorts.Message{message},
+		[]core.Message{message},
 		nil,
 		time.Now(),
 	))
 
 	broadcaster.OnEvent(domain.NewWorkflowDiagnosticContextSnapshotEvent(
-		agentPorts.LevelCore,
+		agent.LevelCore,
 		"sess-ctx",
 		"task-1",
 		"",
 		2,
 		2,
 		"req-2",
-		[]agentPorts.Message{message},
+		[]core.Message{message},
 		nil,
 		time.Now().Add(time.Second),
 	))

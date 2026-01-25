@@ -1,17 +1,19 @@
 package mocks
 
 import (
-	"alex/internal/agent/ports"
 	"context"
+
+	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type MockToolRegistry struct {
-	GetFunc      func(name string) (ports.ToolExecutor, error)
+	GetFunc      func(name string) (tools.ToolExecutor, error)
 	ListFunc     func() []ports.ToolDefinition
-	RegisterFunc func(tool ports.ToolExecutor) error
+	RegisterFunc func(tool tools.ToolExecutor) error
 }
 
-func (m *MockToolRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (m *MockToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	if m.GetFunc != nil {
 		return m.GetFunc(name)
 	}
@@ -25,7 +27,7 @@ func (m *MockToolRegistry) List() []ports.ToolDefinition {
 	return []ports.ToolDefinition{}
 }
 
-func (m *MockToolRegistry) Register(tool ports.ToolExecutor) error {
+func (m *MockToolRegistry) Register(tool tools.ToolExecutor) error {
 	if m.RegisterFunc != nil {
 		return m.RegisterFunc(tool)
 	}

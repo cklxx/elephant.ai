@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 // Writer persists structured turn journal entries so downstream analytics and
@@ -46,13 +47,13 @@ type TurnJournalEntry struct {
 	LLMTurnSeq    int                        `json:"llm_turn_seq"`
 	Timestamp     time.Time                  `json:"timestamp"`
 	Summary       string                     `json:"summary"`
-	Plans         []ports.PlanNode           `json:"plans"`
-	Beliefs       []ports.Belief             `json:"beliefs"`
+	Plans         []agent.PlanNode           `json:"plans"`
+	Beliefs       []agent.Belief             `json:"beliefs"`
 	World         map[string]any             `json:"world_state"`
 	Diff          map[string]any             `json:"diff"`
 	Messages      []ports.Message            `json:"messages"`
-	Feedback      []ports.FeedbackSignal     `json:"feedback"`
-	KnowledgeRefs []ports.KnowledgeReference `json:"knowledge_refs"`
+	Feedback      []agent.FeedbackSignal     `json:"feedback"`
+	KnowledgeRefs []agent.KnowledgeReference `json:"knowledge_refs"`
 }
 
 // FileWriter appends JSONL entries per session so that CLI operators can pull

@@ -7,15 +7,18 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/llm"
 )
 
 type stubSessionStore struct {
-	session *ports.Session
+	session *storage.Session
 }
 
-func (s *stubSessionStore) Create(ctx context.Context) (*ports.Session, error) {
-	sess := &ports.Session{
+func (s *stubSessionStore) Create(ctx context.Context) (*storage.Session, error) {
+	sess := &storage.Session{
 		ID:        "session-stub",
 		Messages:  nil,
 		Metadata:  make(map[string]string),
@@ -26,14 +29,14 @@ func (s *stubSessionStore) Create(ctx context.Context) (*ports.Session, error) {
 	return sess, nil
 }
 
-func (s *stubSessionStore) Get(ctx context.Context, id string) (*ports.Session, error) {
+func (s *stubSessionStore) Get(ctx context.Context, id string) (*storage.Session, error) {
 	if id == "" {
 		return s.Create(ctx)
 	}
 	if s.session != nil && s.session.ID == id {
 		return s.session, nil
 	}
-	sess := &ports.Session{
+	sess := &storage.Session{
 		ID:        id,
 		Messages:  nil,
 		Metadata:  make(map[string]string),
@@ -44,7 +47,7 @@ func (s *stubSessionStore) Get(ctx context.Context, id string) (*ports.Session, 
 	return sess, nil
 }
 
-func (s *stubSessionStore) Save(ctx context.Context, session *ports.Session) error {
+func (s *stubSessionStore) Save(ctx context.Context, session *storage.Session) error {
 	s.session = session
 	return nil
 }
@@ -74,18 +77,18 @@ func (stubContextManager) AutoCompact(messages []ports.Message, limit int) ([]po
 }
 func (stubContextManager) ShouldCompress(messages []ports.Message, limit int) bool { return false }
 func (stubContextManager) Preload(context.Context) error                           { return nil }
-func (stubContextManager) BuildWindow(ctx context.Context, session *ports.Session, cfg ports.ContextWindowConfig) (ports.ContextWindow, error) {
+func (stubContextManager) BuildWindow(ctx context.Context, session *storage.Session, cfg agent.ContextWindowConfig) (agent.ContextWindow, error) {
 	if session == nil {
-		return ports.ContextWindow{}, fmt.Errorf("session required")
+		return agent.ContextWindow{}, fmt.Errorf("session required")
 	}
-	return ports.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
+	return agent.ContextWindow{SessionID: session.ID, Messages: session.Messages}, nil
 }
-func (stubContextManager) RecordTurn(context.Context, ports.ContextTurnRecord) error { return nil }
+func (stubContextManager) RecordTurn(context.Context, agent.ContextTurnRecord) error { return nil }
 
 type stubToolRegistry struct{}
 
-func (stubToolRegistry) Register(tool ports.ToolExecutor) error { return nil }
-func (stubToolRegistry) Get(name string) (ports.ToolExecutor, error) {
+func (stubToolRegistry) Register(tool tools.ToolExecutor) error { return nil }
+func (stubToolRegistry) Get(name string) (tools.ToolExecutor, error) {
 	return nil, fmt.Errorf("tool %s not found", name)
 }
 func (stubToolRegistry) List() []ports.ToolDefinition { return nil }
@@ -124,7 +127,7 @@ func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
 		t.Fatal("expected LLM client in services bundle")
 	}
 
-	result := &ports.TaskResult{Messages: []ports.Message{{Role: "assistant", Content: "done"}}}
+	result := &agent.TaskResult{Messages: []ports.Message{{Role: "assistant", Content: "done"}}}
 	if err := coordinator.SaveSessionAfterExecution(context.Background(), env.Session, result); err != nil {
 		t.Fatalf("save session failed: %v", err)
 	}
@@ -302,18 +305,18 @@ func TestPersistSessionSnapshotPersistsMessagesWithFallbackIDs(t *testing.T) {
 	sessionStore := &stubSessionStore{}
 	coordinator := &AgentCoordinator{
 		sessionStore: sessionStore,
-		logger:       ports.NoopLogger{},
-		clock:        ports.SystemClock{},
+		logger:       agent.NoopLogger{},
+		clock:        agent.SystemClock{},
 	}
 
-	env := &ports.ExecutionEnvironment{
-		Session: &ports.Session{
+	env := &agent.ExecutionEnvironment{
+		Session: &storage.Session{
 			ID:        "session-generated",
 			Metadata:  map[string]string{},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		},
-		State: &ports.TaskState{
+		State: &agent.TaskState{
 			Messages:   []ports.Message{{Role: "assistant", Source: ports.MessageSourceAssistantReply, Content: "partial"}},
 			Iterations: 2,
 			TokenCount: 42,
@@ -344,8 +347,8 @@ func TestPersistSessionSnapshotSkipsWhenStateMissing(t *testing.T) {
 	sessionStore := &stubSessionStore{}
 	coordinator := &AgentCoordinator{
 		sessionStore: sessionStore,
-		logger:       ports.NoopLogger{},
-		clock:        ports.SystemClock{},
+		logger:       agent.NoopLogger{},
+		clock:        agent.SystemClock{},
 	}
 
 	coordinator.persistSessionSnapshot(context.Background(), nil, "task-123", "parent-456", "error")
@@ -353,8 +356,8 @@ func TestPersistSessionSnapshotSkipsWhenStateMissing(t *testing.T) {
 		t.Fatalf("expected no session to be saved when env is nil")
 	}
 
-	env := &ports.ExecutionEnvironment{
-		Session: &ports.Session{
+	env := &agent.ExecutionEnvironment{
+		Session: &storage.Session{
 			ID:        "session-generated",
 			Metadata:  map[string]string{},
 			CreatedAt: time.Now(),
@@ -368,4 +371,4 @@ func TestPersistSessionSnapshotSkipsWhenStateMissing(t *testing.T) {
 }
 
 // Ensure the coordinator continues to satisfy the AgentCoordinator port contract.
-var _ ports.AgentCoordinator = (*AgentCoordinator)(nil)
+var _ agent.AgentCoordinator = (*AgentCoordinator)(nil)

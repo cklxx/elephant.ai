@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	id "alex/internal/utils/id"
 )
 
@@ -125,7 +126,7 @@ func (e *ReactEngine) applyImportantNotes(state *TaskState, call ToolCall, metad
 	}
 }
 
-func normalizeImportantNotes(raw any, clock ports.Clock) []ports.ImportantNote {
+func normalizeImportantNotes(raw any, clock agent.Clock) []ports.ImportantNote {
 	switch v := raw.(type) {
 	case []ports.ImportantNote:
 		notes := make([]ports.ImportantNote, len(v))
@@ -152,7 +153,7 @@ func normalizeImportantNotes(raw any, clock ports.Clock) []ports.ImportantNote {
 	return nil
 }
 
-func parseImportantNoteMap(raw map[string]any, clock ports.Clock) ports.ImportantNote {
+func parseImportantNoteMap(raw map[string]any, clock agent.Clock) ports.ImportantNote {
 	note := ports.ImportantNote{}
 	if idVal, ok := raw["id"].(string); ok {
 		note.ID = strings.TrimSpace(idVal)

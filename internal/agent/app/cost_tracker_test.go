@@ -1,24 +1,25 @@
 package app
 
 import (
-	"alex/internal/agent/ports"
 	"context"
 	"testing"
 	"time"
+
+	storage "alex/internal/agent/ports/storage"
 )
 
 // mockCostStore is a mock implementation of CostStore for testing
 type mockCostStore struct {
-	records []ports.UsageRecord
+	records []storage.UsageRecord
 }
 
-func (m *mockCostStore) SaveUsage(ctx context.Context, record ports.UsageRecord) error {
+func (m *mockCostStore) SaveUsage(ctx context.Context, record storage.UsageRecord) error {
 	m.records = append(m.records, record)
 	return nil
 }
 
-func (m *mockCostStore) GetBySession(ctx context.Context, sessionID string) ([]ports.UsageRecord, error) {
-	var result []ports.UsageRecord
+func (m *mockCostStore) GetBySession(ctx context.Context, sessionID string) ([]storage.UsageRecord, error) {
+	var result []storage.UsageRecord
 	for _, r := range m.records {
 		if r.SessionID == sessionID {
 			result = append(result, r)
@@ -27,8 +28,8 @@ func (m *mockCostStore) GetBySession(ctx context.Context, sessionID string) ([]p
 	return result, nil
 }
 
-func (m *mockCostStore) GetByDateRange(ctx context.Context, start, end time.Time) ([]ports.UsageRecord, error) {
-	var result []ports.UsageRecord
+func (m *mockCostStore) GetByDateRange(ctx context.Context, start, end time.Time) ([]storage.UsageRecord, error) {
+	var result []storage.UsageRecord
 	for _, r := range m.records {
 		if (r.Timestamp.After(start) || r.Timestamp.Equal(start)) &&
 			(r.Timestamp.Before(end) || r.Timestamp.Equal(end)) {
@@ -38,8 +39,8 @@ func (m *mockCostStore) GetByDateRange(ctx context.Context, start, end time.Time
 	return result, nil
 }
 
-func (m *mockCostStore) GetByModel(ctx context.Context, model string) ([]ports.UsageRecord, error) {
-	var result []ports.UsageRecord
+func (m *mockCostStore) GetByModel(ctx context.Context, model string) ([]storage.UsageRecord, error) {
+	var result []storage.UsageRecord
 	for _, r := range m.records {
 		if r.Model == model {
 			result = append(result, r)
@@ -48,7 +49,7 @@ func (m *mockCostStore) GetByModel(ctx context.Context, model string) ([]ports.U
 	return result, nil
 }
 
-func (m *mockCostStore) ListAll(ctx context.Context) ([]ports.UsageRecord, error) {
+func (m *mockCostStore) ListAll(ctx context.Context) ([]storage.UsageRecord, error) {
 	return m.records, nil
 }
 
@@ -57,7 +58,7 @@ func TestCostTracker_RecordUsage(t *testing.T) {
 	tracker := NewCostTracker(store)
 
 	ctx := context.Background()
-	usage := ports.UsageRecord{
+	usage := storage.UsageRecord{
 		SessionID:    "test-session",
 		Model:        "gpt-4o",
 		Provider:     "openrouter",
@@ -88,7 +89,7 @@ func TestCostTracker_RecordUsage(t *testing.T) {
 
 func TestCostTracker_GetSessionCost(t *testing.T) {
 	store := &mockCostStore{
-		records: []ports.UsageRecord{
+		records: []storage.UsageRecord{
 			{
 				ID:           "1",
 				SessionID:    "session-1",
@@ -158,7 +159,7 @@ func TestCostTracker_GetDailyCost(t *testing.T) {
 	yesterday := now.Add(-24 * time.Hour)
 
 	store := &mockCostStore{
-		records: []ports.UsageRecord{
+		records: []storage.UsageRecord{
 			{
 				ID:           "1",
 				SessionID:    "session-1",
@@ -200,7 +201,7 @@ func TestCostTracker_GetDailyCost(t *testing.T) {
 
 func TestCostTracker_ExportJSON(t *testing.T) {
 	store := &mockCostStore{
-		records: []ports.UsageRecord{
+		records: []storage.UsageRecord{
 			{
 				ID:           "1",
 				SessionID:    "session-1",
@@ -217,7 +218,7 @@ func TestCostTracker_ExportJSON(t *testing.T) {
 	tracker := NewCostTracker(store)
 	ctx := context.Background()
 
-	data, err := tracker.Export(ctx, ports.ExportFormatJSON, ports.ExportFilter{})
+	data, err := tracker.Export(ctx, storage.ExportFormatJSON, storage.ExportFilter{})
 	if err != nil {
 		t.Fatalf("Export JSON failed: %v", err)
 	}
@@ -234,7 +235,7 @@ func TestCostTracker_ExportJSON(t *testing.T) {
 
 func TestCostTracker_ExportCSV(t *testing.T) {
 	store := &mockCostStore{
-		records: []ports.UsageRecord{
+		records: []storage.UsageRecord{
 			{
 				ID:           "1",
 				SessionID:    "session-1",
@@ -251,7 +252,7 @@ func TestCostTracker_ExportCSV(t *testing.T) {
 	tracker := NewCostTracker(store)
 	ctx := context.Background()
 
-	data, err := tracker.Export(ctx, ports.ExportFormatCSV, ports.ExportFilter{})
+	data, err := tracker.Export(ctx, storage.ExportFormatCSV, storage.ExportFilter{})
 	if err != nil {
 		t.Fatalf("Export CSV failed: %v", err)
 	}
@@ -269,7 +270,7 @@ func TestCostTracker_ExportCSV(t *testing.T) {
 
 func TestCostTracker_ExportWithFilter(t *testing.T) {
 	store := &mockCostStore{
-		records: []ports.UsageRecord{
+		records: []storage.UsageRecord{
 			{
 				ID:           "1",
 				SessionID:    "session-1",
@@ -297,11 +298,11 @@ func TestCostTracker_ExportWithFilter(t *testing.T) {
 	ctx := context.Background()
 
 	// Filter by session
-	filter := ports.ExportFilter{
+	filter := storage.ExportFilter{
 		SessionID: "session-1",
 	}
 
-	data, err := tracker.Export(ctx, ports.ExportFormatJSON, filter)
+	data, err := tracker.Export(ctx, storage.ExportFormatJSON, filter)
 	if err != nil {
 		t.Fatalf("Export with filter failed: %v", err)
 	}

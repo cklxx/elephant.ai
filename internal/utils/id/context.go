@@ -3,7 +3,7 @@ package id
 import (
 	"context"
 
-	agentports "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 type contextKey string
@@ -29,7 +29,7 @@ func WithSessionID(ctx context.Context, sessionID string) context.Context {
 		return ctx
 	}
 	ctx = context.WithValue(ctx, sessionKey, sessionID)
-	ctx = context.WithValue(ctx, agentports.SessionContextKey{}, sessionID)
+	ctx = context.WithValue(ctx, agent.SessionContextKey{}, sessionID)
 	return ctx
 }
 
@@ -79,7 +79,7 @@ func SessionIDFromContext(ctx context.Context) string {
 	if sessionID, ok := ctx.Value(sessionKey).(string); ok && sessionID != "" {
 		return sessionID
 	}
-	if sessionID, ok := ctx.Value(agentports.SessionContextKey{}).(string); ok {
+	if sessionID, ok := ctx.Value(agent.SessionContextKey{}).(string); ok {
 		return sessionID
 	}
 	return ""

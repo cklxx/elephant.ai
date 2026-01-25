@@ -7,22 +7,23 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	alexerrors "alex/internal/errors"
 	"alex/internal/logging"
 )
 
 // retryClient wraps an LLM client with retry logic and circuit breaker
 type retryClient struct {
-	underlying     ports.LLMClient
+	underlying     portsllm.LLMClient
 	retryConfig    alexerrors.RetryConfig
 	circuitBreaker *alexerrors.CircuitBreaker
 	logger         logging.Logger
 }
 
-var _ ports.StreamingLLMClient = (*retryClient)(nil)
+var _ portsllm.StreamingLLMClient = (*retryClient)(nil)
 
 // NewRetryClient wraps an LLM client with retry and circuit breaker logic
-func NewRetryClient(client ports.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreaker *alexerrors.CircuitBreaker) ports.LLMClient {
+func NewRetryClient(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreaker *alexerrors.CircuitBreaker) portsllm.LLMClient {
 	return &retryClient{
 		underlying:     client,
 		retryConfig:    retryConfig,
@@ -78,7 +79,7 @@ func (c *retryClient) Model() string {
 
 // SetUsageCallback sets the usage callback for cost tracking
 func (c *retryClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
-	if trackingClient, ok := c.underlying.(ports.UsageTrackingClient); ok {
+	if trackingClient, ok := c.underlying.(portsllm.UsageTrackingClient); ok {
 		trackingClient.SetUsageCallback(callback)
 	}
 }
@@ -136,11 +137,11 @@ func (c *retryClient) StreamComplete(
 	return resp, nil
 }
 
-func (c *retryClient) streamingClient() ports.StreamingLLMClient {
-	if streaming, ok := c.underlying.(ports.StreamingLLMClient); ok {
+func (c *retryClient) streamingClient() portsllm.StreamingLLMClient {
+	if streaming, ok := c.underlying.(portsllm.StreamingLLMClient); ok {
 		return streaming
 	}
-	if adapted, ok := EnsureStreamingClient(c.underlying).(ports.StreamingLLMClient); ok {
+	if adapted, ok := EnsureStreamingClient(c.underlying).(portsllm.StreamingLLMClient); ok {
 		return adapted
 	}
 	return nil
@@ -246,7 +247,7 @@ func (c *retryClient) formatStreamingError(err error, duration time.Duration) st
 }
 
 // WrapWithRetry wraps an existing LLM client with retry logic using provided configuration
-func WrapWithRetry(client ports.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) ports.LLMClient {
+func WrapWithRetry(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) portsllm.LLMClient {
 	// Create circuit breaker for this client
 	circuitBreaker := alexerrors.NewCircuitBreaker(
 		fmt.Sprintf("llm-%s", client.Model()),

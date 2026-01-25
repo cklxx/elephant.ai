@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	portsllm "alex/internal/agent/ports/llm"
 	"alex/internal/httpclient"
 	"alex/internal/jsonx"
 	"alex/internal/logging"
@@ -30,7 +31,7 @@ type openAIResponsesClient struct {
 	usageCallback func(usage ports.TokenUsage, model string, provider string)
 }
 
-func NewOpenAIResponsesClient(model string, config Config) (ports.LLMClient, error) {
+func NewOpenAIResponsesClient(model string, config Config) (portsllm.LLMClient, error) {
 	if config.BaseURL == "" {
 		config.BaseURL = defaultOpenAIResponsesBaseURL
 	}
@@ -76,7 +77,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 	// Codex responses require instructions; opencode sets SystemPrompt.instructions() for codex.
 	// Sources:
-	// - packages/opencode/src/session/llm.ts (isCodex -> options.instructions)
+	// - packages/opencode/src/session/portsllm.ts (isCodex -> options.instructions)
 	// - packages/opencode/src/session/system.ts (SystemPrompt.instructions)
 	if c.isCodexEndpoint() {
 		payload["instructions"] = instructions
@@ -248,7 +249,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 	// Codex responses require instructions; opencode sets SystemPrompt.instructions() for codex.
 	// Sources:
-	// - packages/opencode/src/session/llm.ts (isCodex -> options.instructions)
+	// - packages/opencode/src/session/portsllm.ts (isCodex -> options.instructions)
 	// - packages/opencode/src/session/system.ts (SystemPrompt.instructions)
 	if c.isCodexEndpoint() {
 		payload["instructions"] = instructions

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	agentPorts "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 // TaskStatus represents the state of a task
@@ -40,7 +40,7 @@ type Task struct {
 	StartedAt         *time.Time             `json:"started_at,omitempty"`
 	CompletedAt       *time.Time             `json:"completed_at,omitempty"`
 	Error             string                 `json:"error,omitempty"`
-	Result            *agentPorts.TaskResult `json:"result,omitempty"`
+	Result            *agent.TaskResult `json:"result,omitempty"`
 	TerminationReason TerminationReason      `json:"termination_reason,omitempty"`
 
 	// Progress tracking
@@ -84,7 +84,7 @@ type TaskStore interface {
 	SetError(ctx context.Context, taskID string, err error) error
 
 	// SetResult stores task completion result
-	SetResult(ctx context.Context, taskID string, result *agentPorts.TaskResult) error
+	SetResult(ctx context.Context, taskID string, result *agent.TaskResult) error
 
 	// UpdateProgress updates task execution progress
 	UpdateProgress(ctx context.Context, taskID string, iteration int, tokensUsed int) error

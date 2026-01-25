@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
+	storage "alex/internal/agent/ports/storage"
 	id "alex/internal/utils/id"
 )
 
@@ -58,7 +58,7 @@ func (s *ServerCoordinator) EnsureSessionShareToken(ctx context.Context, session
 }
 
 // ValidateShareToken returns the session if the token matches.
-func (s *ServerCoordinator) ValidateShareToken(ctx context.Context, sessionID string, token string) (*ports.Session, error) {
+func (s *ServerCoordinator) ValidateShareToken(ctx context.Context, sessionID string, token string) (*storage.Session, error) {
 	trimmedID := strings.TrimSpace(sessionID)
 	if trimmedID == "" {
 		return nil, fmt.Errorf("session id required")

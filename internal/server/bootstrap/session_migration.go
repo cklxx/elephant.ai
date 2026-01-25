@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	agentports "alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	agentstorage "alex/internal/agent/ports/storage"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	serverapp "alex/internal/server/app"
@@ -39,7 +41,7 @@ type sessionMigrationMarker struct {
 func MigrateSessionsToDatabase(
 	ctx context.Context,
 	sessionDir string,
-	destSessions agentports.SessionStore,
+	destSessions agentstorage.SessionStore,
 	destSnapshots sessionstate.Store,
 	destHistory sessionstate.Store,
 	historyStore serverapp.EventHistoryStore,
@@ -346,12 +348,12 @@ func loadSnapshots(ctx context.Context, store sessionstate.Store, sessionID stri
 	return snaps, nil
 }
 
-func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agentports.AgentEvent {
+func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.AgentEvent {
 	if len(turns) == 0 {
 		return nil
 	}
 
-	var events []agentports.AgentEvent
+	var events []agent.AgentEvent
 	for _, turn := range turns {
 		if len(turn.Messages) == 0 {
 			continue
@@ -366,7 +368,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agentp
 		callNames := make(map[string]string)
 		offset := 0
 		finalAnswer := ""
-		var finalAttachments map[string]agentports.Attachment
+		var finalAttachments map[string]core.Attachment
 
 		for _, msg := range turn.Messages {
 			if len(msg.ToolCalls) > 0 {
@@ -381,7 +383,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agentp
 			switch role {
 			case "user":
 				event := domain.NewWorkflowInputReceivedEvent(
-					agentports.LevelCore,
+					agent.LevelCore,
 					sessionID,
 					taskID,
 					"",
@@ -494,7 +496,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agentp
 	return events
 }
 
-func resolveToolName(callID string, result agentports.ToolResult, callNames map[string]string) string {
+func resolveToolName(callID string, result core.ToolResult, callNames map[string]string) string {
 	if callID != "" {
 		if name := callNames[callID]; name != "" {
 			return name
@@ -513,9 +515,9 @@ func resolveToolName(callID string, result agentports.ToolResult, callNames map[
 	return "tool"
 }
 
-func replayEnvelope(sessionID, taskID string, ts time.Time, eventType, nodeKind, nodeID string, payload map[string]any) agentports.AgentEvent {
+func replayEnvelope(sessionID, taskID string, ts time.Time, eventType, nodeKind, nodeID string, payload map[string]any) agent.AgentEvent {
 	return &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(agentports.LevelCore, sessionID, taskID, "", ts),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, taskID, "", ts),
 		Version:   1,
 		Event:     eventType,
 		NodeKind:  nodeKind,

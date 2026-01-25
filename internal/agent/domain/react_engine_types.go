@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 )
 
@@ -12,8 +14,8 @@ import (
 type ReactEngine struct {
 	maxIterations      int
 	stopReasons        []string
-	logger             ports.Logger
-	clock              ports.Clock
+	logger             agent.Logger
+	clock              agent.Clock
 	eventListener      EventListener // Optional event listener for TUI
 	completion         completionConfig
 	attachmentMigrator materialports.Migrator
@@ -33,12 +35,12 @@ type toolCallBatch struct {
 	ctx                  context.Context
 	state                *TaskState
 	iteration            int
-	registry             ports.ToolRegistry
-	limiter              ports.ToolExecutionLimiter
+	registry             tools.ToolRegistry
+	limiter              tools.ToolExecutionLimiter
 	tracker              *reactWorkflow
 	attachments          map[string]ports.Attachment
 	attachmentIterations map[string]int
-	subagentSnapshots    []*ports.TaskState
+	subagentSnapshots    []*agent.TaskState
 	calls                []ToolCall
 	callNodes            []string
 	results              []ToolResult
@@ -76,8 +78,8 @@ type CompletionDefaults struct {
 type ReactEngineConfig struct {
 	MaxIterations      int
 	StopReasons        []string
-	Logger             ports.Logger
-	Clock              ports.Clock
+	Logger             agent.Logger
+	Clock              agent.Clock
 	EventListener      EventListener
 	CompletionDefaults CompletionDefaults
 	AttachmentMigrator materialports.Migrator

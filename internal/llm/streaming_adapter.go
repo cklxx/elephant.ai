@@ -1,10 +1,10 @@
 package llm
 
-import "alex/internal/agent/ports"
+import portsllm "alex/internal/agent/ports/llm"
 
 // EnsureStreamingClient guarantees the returned client implements
 // StreamingLLMClient by wrapping non-streaming implementations with a fallback
 // adapter.
-func EnsureStreamingClient(client ports.LLMClient) ports.LLMClient {
-	return ports.EnsureStreamingClient(client)
+func EnsureStreamingClient(client portsllm.LLMClient) portsllm.LLMClient {
+	return portsllm.EnsureStreamingClient(client)
 }

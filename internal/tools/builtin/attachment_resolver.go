@@ -17,6 +17,7 @@ import (
 	"unicode"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/attachments"
 	"alex/internal/config"
 	"alex/internal/httpclient"
@@ -65,7 +66,7 @@ func resolveAttachmentBytes(ctx context.Context, ref string, client *http.Client
 }
 
 func resolveAttachmentFromContext(ctx context.Context, ref string) (ports.Attachment, bool) {
-	attachments, _ := ports.GetAttachmentContext(ctx)
+	attachments, _ := tools.GetAttachmentContext(ctx)
 	if len(attachments) == 0 {
 		return ports.Attachment{}, false
 	}

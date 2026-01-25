@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 func TestFileStoreLifecycle(t *testing.T) {
@@ -21,12 +21,12 @@ func TestFileStoreLifecycle(t *testing.T) {
 		LLMTurnSeq: 1,
 		CreatedAt:  time.Now().UTC().Round(time.Second),
 		Summary:    "observed user question",
-		Plans: []ports.PlanNode{{
+		Plans: []agent.PlanNode{{
 			ID:     "root",
 			Title:  "Plan",
 			Status: "in_progress",
 		}},
-		Beliefs: []ports.Belief{{
+		Beliefs: []agent.Belief{{
 			Statement:  "user prefers concise answers",
 			Confidence: 0.8,
 		}},

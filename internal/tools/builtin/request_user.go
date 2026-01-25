@@ -7,11 +7,12 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type uiRequestUser struct{}
 
-func NewRequestUser() ports.ToolExecutor {
+func NewRequestUser() tools.ToolExecutor {
 	return &uiRequestUser{}
 }
 

@@ -3,15 +3,15 @@ package types
 import (
 	"context"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
-type AgentLevel = ports.AgentLevel
+type AgentLevel = agent.AgentLevel
 
 const (
-	LevelCore     = ports.LevelCore
-	LevelSubagent = ports.LevelSubagent
-	LevelParallel = ports.LevelParallel
+	LevelCore     = agent.LevelCore
+	LevelSubagent = agent.LevelSubagent
+	LevelParallel = agent.LevelParallel
 )
 
 // AgentLevelString returns the string representation of an agent level.
@@ -29,33 +29,33 @@ func IsCoreLevel(l AgentLevel) bool {
 	return l == LevelCore
 }
 
-type ToolCategory = ports.ToolCategory
+type ToolCategory = agent.ToolCategory
 
 const (
-	CategoryFile      = ports.CategoryFile
-	CategoryShell     = ports.CategoryShell
-	CategorySearch    = ports.CategorySearch
-	CategoryWeb       = ports.CategoryWeb
-	CategoryTask      = ports.CategoryTask
-	CategoryExecution = ports.CategoryExecution
-	CategoryReasoning = ports.CategoryReasoning
-	CategoryOther     = ports.CategoryOther
+	CategoryFile      = agent.CategoryFile
+	CategoryShell     = agent.CategoryShell
+	CategorySearch    = agent.CategorySearch
+	CategoryWeb       = agent.CategoryWeb
+	CategoryTask      = agent.CategoryTask
+	CategoryExecution = agent.CategoryExecution
+	CategoryReasoning = agent.CategoryReasoning
+	CategoryOther     = agent.CategoryOther
 )
 
-type OutputContext = ports.OutputContext
+type OutputContext = agent.OutputContext
 
 func WithOutputContext(ctx context.Context, outCtx *OutputContext) context.Context {
-	return ports.WithOutputContext(ctx, outCtx)
+	return agent.WithOutputContext(ctx, outCtx)
 }
 
 func GetOutputContext(ctx context.Context) *OutputContext {
-	return ports.GetOutputContext(ctx)
+	return agent.GetOutputContext(ctx)
 }
 
 func WithSilentMode(ctx context.Context) context.Context {
-	return ports.WithSilentMode(ctx)
+	return agent.WithSilentMode(ctx)
 }
 
 func IsSilentMode(ctx context.Context) bool {
-	return ports.IsSilentMode(ctx)
+	return agent.IsSilentMode(ctx)
 }

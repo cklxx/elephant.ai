@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
 )
@@ -18,7 +19,7 @@ type sandboxCodeExecuteTool struct {
 	uploader materialports.Migrator
 }
 
-func NewSandboxCodeExecute(cfg SandboxConfig) ports.ToolExecutor {
+func NewSandboxCodeExecute(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxCodeExecuteTool{
 		client:   newSandboxClient(cfg),
 		uploader: cfg.AttachmentUploader,

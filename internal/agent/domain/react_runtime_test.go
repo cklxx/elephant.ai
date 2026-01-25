@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 
 	"github.com/stretchr/testify/require"
 )
@@ -71,10 +71,10 @@ func (c *collectingListener) collected() []AgentEvent {
 func TestReactRuntimeFinalizeResultDecoratesWorkflowOnce(t *testing.T) {
 	tracker := newStubWorkflowTracker()
 	now := time.Now()
-	clock := ports.ClockFunc(func() time.Time { return now })
+	clock := agent.ClockFunc(func() time.Time { return now })
 
 	engine := NewReactEngine(ReactEngineConfig{
-		Logger:   ports.NoopLogger{},
+		Logger:   agent.NoopLogger{},
 		Clock:    clock,
 		Workflow: tracker,
 	})
@@ -107,13 +107,13 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 	tracker := newStubWorkflowTracker()
 	listener := &collectingListener{}
 	now := time.Now()
-	clock := ports.ClockFunc(func() time.Time { return now })
+	clock := agent.ClockFunc(func() time.Time { return now })
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	engine := NewReactEngine(ReactEngineConfig{
-		Logger:        ports.NoopLogger{},
+		Logger:        agent.NoopLogger{},
 		Clock:         clock,
 		EventListener: listener,
 		Workflow:      tracker,

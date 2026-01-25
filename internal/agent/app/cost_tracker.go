@@ -1,24 +1,25 @@
 package app
 
 import (
-	"alex/internal/agent/ports"
-	"alex/internal/logging"
 	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
+
+	"alex/internal/agent/ports/storage"
+	"alex/internal/logging"
 )
 
 // costTracker implements the CostTracker interface
 type costTracker struct {
-	store  ports.CostStore
+	store  storage.CostStore
 	logger logging.Logger
 }
 
 // NewCostTracker creates a new cost tracker instance
-func NewCostTracker(store ports.CostStore) ports.CostTracker {
+func NewCostTracker(store storage.CostStore) storage.CostTracker {
 	return &costTracker{
 		store:  store,
 		logger: logging.NewComponentLogger("CostTracker"),
@@ -26,7 +27,7 @@ func NewCostTracker(store ports.CostStore) ports.CostTracker {
 }
 
 // RecordUsage records a single LLM API call usage
-func (t *costTracker) RecordUsage(ctx context.Context, usage ports.UsageRecord) error {
+func (t *costTracker) RecordUsage(ctx context.Context, usage storage.UsageRecord) error {
 	// Generate ID if not provided
 	if usage.ID == "" {
 		usage.ID = fmt.Sprintf("usage-%d-%s", time.Now().UnixNano(), usage.SessionID)
@@ -44,7 +45,7 @@ func (t *costTracker) RecordUsage(ctx context.Context, usage ports.UsageRecord) 
 
 	// Calculate costs if not already set
 	if usage.TotalCost == 0 {
-		inputCost, outputCost, totalCost := ports.CalculateCost(
+		inputCost, outputCost, totalCost := storage.CalculateCost(
 			usage.InputTokens,
 			usage.OutputTokens,
 			usage.Model,
@@ -66,7 +67,7 @@ func (t *costTracker) RecordUsage(ctx context.Context, usage ports.UsageRecord) 
 }
 
 // GetSessionCost returns total cost for a specific session
-func (t *costTracker) GetSessionCost(ctx context.Context, sessionID string) (*ports.CostSummary, error) {
+func (t *costTracker) GetSessionCost(ctx context.Context, sessionID string) (*storage.CostSummary, error) {
 	records, err := t.store.GetBySession(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("get session records: %w", err)
@@ -76,21 +77,21 @@ func (t *costTracker) GetSessionCost(ctx context.Context, sessionID string) (*po
 }
 
 // GetSessionStats returns detailed statistics for a specific session
-func (t *costTracker) GetSessionStats(ctx context.Context, sessionID string) (*ports.SessionStats, error) {
+func (t *costTracker) GetSessionStats(ctx context.Context, sessionID string) (*storage.SessionStats, error) {
 	records, err := t.store.GetBySession(ctx, sessionID)
 	if err != nil {
 		return nil, fmt.Errorf("get session records: %w", err)
 	}
 
 	if len(records) == 0 {
-		return &ports.SessionStats{
+		return &storage.SessionStats{
 			SessionID:  sessionID,
 			ByModel:    make(map[string]float64),
 			ByProvider: make(map[string]float64),
 		}, nil
 	}
 
-	stats := &ports.SessionStats{
+	stats := &storage.SessionStats{
 		SessionID:    sessionID,
 		ByModel:      make(map[string]float64),
 		ByProvider:   make(map[string]float64),
@@ -130,7 +131,7 @@ func (t *costTracker) GetSessionStats(ctx context.Context, sessionID string) (*p
 }
 
 // GetDailyCost returns aggregated cost for a specific day
-func (t *costTracker) GetDailyCost(ctx context.Context, date time.Time) (*ports.CostSummary, error) {
+func (t *costTracker) GetDailyCost(ctx context.Context, date time.Time) (*storage.CostSummary, error) {
 	// Normalize to start and end of day
 	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
 	end := start.Add(24 * time.Hour)
@@ -148,7 +149,7 @@ func (t *costTracker) GetDailyCost(ctx context.Context, date time.Time) (*ports.
 }
 
 // GetMonthlyCost returns aggregated cost for a specific month
-func (t *costTracker) GetMonthlyCost(ctx context.Context, year int, month int) (*ports.CostSummary, error) {
+func (t *costTracker) GetMonthlyCost(ctx context.Context, year int, month int) (*storage.CostSummary, error) {
 	// First day of month
 	start := time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
 	// First day of next month
@@ -167,7 +168,7 @@ func (t *costTracker) GetMonthlyCost(ctx context.Context, year int, month int) (
 }
 
 // GetDateRangeCost returns cost for a date range
-func (t *costTracker) GetDateRangeCost(ctx context.Context, start, end time.Time) (*ports.CostSummary, error) {
+func (t *costTracker) GetDateRangeCost(ctx context.Context, start, end time.Time) (*storage.CostSummary, error) {
 	records, err := t.store.GetByDateRange(ctx, start, end)
 	if err != nil {
 		return nil, fmt.Errorf("get date range records: %w", err)
@@ -181,7 +182,7 @@ func (t *costTracker) GetDateRangeCost(ctx context.Context, start, end time.Time
 }
 
 // Export exports usage records in specified format
-func (t *costTracker) Export(ctx context.Context, format ports.ExportFormat, filter ports.ExportFilter) ([]byte, error) {
+func (t *costTracker) Export(ctx context.Context, format storage.ExportFormat, filter storage.ExportFilter) ([]byte, error) {
 	// Get filtered records
 	records, err := t.getFilteredRecords(ctx, filter)
 	if err != nil {
@@ -189,9 +190,9 @@ func (t *costTracker) Export(ctx context.Context, format ports.ExportFormat, fil
 	}
 
 	switch format {
-	case ports.ExportFormatJSON:
+	case storage.ExportFormatJSON:
 		return t.exportJSON(records)
-	case ports.ExportFormatCSV:
+	case storage.ExportFormatCSV:
 		return t.exportCSV(records)
 	default:
 		return nil, fmt.Errorf("unsupported export format: %s", format)
@@ -199,8 +200,8 @@ func (t *costTracker) Export(ctx context.Context, format ports.ExportFormat, fil
 }
 
 // aggregateRecords aggregates usage records into a summary
-func (t *costTracker) aggregateRecords(records []ports.UsageRecord) *ports.CostSummary {
-	summary := &ports.CostSummary{
+func (t *costTracker) aggregateRecords(records []storage.UsageRecord) *storage.CostSummary {
+	summary := &storage.CostSummary{
 		ByModel:    make(map[string]float64),
 		ByProvider: make(map[string]float64),
 	}
@@ -239,8 +240,8 @@ func (t *costTracker) aggregateRecords(records []ports.UsageRecord) *ports.CostS
 }
 
 // getFilteredRecords retrieves records based on filter criteria
-func (t *costTracker) getFilteredRecords(ctx context.Context, filter ports.ExportFilter) ([]ports.UsageRecord, error) {
-	var records []ports.UsageRecord
+func (t *costTracker) getFilteredRecords(ctx context.Context, filter storage.ExportFilter) ([]storage.UsageRecord, error) {
+	var records []storage.UsageRecord
 	var err error
 
 	// Priority: SessionID > DateRange > Model > All
@@ -267,7 +268,7 @@ func (t *costTracker) getFilteredRecords(ctx context.Context, filter ports.Expor
 	}
 
 	// Apply additional filters
-	filtered := make([]ports.UsageRecord, 0, len(records))
+	filtered := make([]storage.UsageRecord, 0, len(records))
 	for _, record := range records {
 		if filter.Provider != "" && record.Provider != filter.Provider {
 			continue
@@ -282,7 +283,7 @@ func (t *costTracker) getFilteredRecords(ctx context.Context, filter ports.Expor
 }
 
 // exportJSON exports records as JSON
-func (t *costTracker) exportJSON(records []ports.UsageRecord) ([]byte, error) {
+func (t *costTracker) exportJSON(records []storage.UsageRecord) ([]byte, error) {
 	data, err := json.MarshalIndent(records, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshal JSON: %w", err)
@@ -291,7 +292,7 @@ func (t *costTracker) exportJSON(records []ports.UsageRecord) ([]byte, error) {
 }
 
 // exportCSV exports records as CSV
-func (t *costTracker) exportCSV(records []ports.UsageRecord) ([]byte, error) {
+func (t *costTracker) exportCSV(records []storage.UsageRecord) ([]byte, error) {
 	var buf strings.Builder
 	writer := csv.NewWriter(&buf)
 

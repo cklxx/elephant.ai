@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
 )
 
@@ -41,7 +42,7 @@ type musicTrack struct {
 	ArtworkURL string `json:"artwork_url"`
 }
 
-func NewMusicPlay() ports.ToolExecutor {
+func NewMusicPlay() tools.ToolExecutor {
 	return newMusicPlay(nil, "https://itunes.apple.com")
 }
 

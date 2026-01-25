@@ -8,7 +8,9 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports/mocks"
+	tools "alex/internal/agent/ports/tools"
 )
 
 type recordingWorkflow struct {
@@ -126,7 +128,7 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 	}
 
 	mockRegistry := &mocks.MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			switch name {
 			case "plan":
 				return &mocks.MockToolExecutor{
@@ -162,8 +164,8 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 
 	engine := domain.NewReactEngine(domain.ReactEngineConfig{
 		MaxIterations: 6,
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.SystemClock{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.SystemClock{},
 		Workflow:      tracker,
 	})
 
@@ -286,7 +288,7 @@ func TestReactEngineBlocksMultipleToolCallsPerIteration(t *testing.T) {
 	}
 
 	mockRegistry := &mocks.MockToolRegistry{
-		GetFunc: func(name string) (ports.ToolExecutor, error) {
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 				return &ports.ToolResult{CallID: call.ID, Content: call.Name}, nil
 			}}, nil
@@ -302,8 +304,8 @@ func TestReactEngineBlocksMultipleToolCallsPerIteration(t *testing.T) {
 
 	engine := domain.NewReactEngine(domain.ReactEngineConfig{
 		MaxIterations: 3,
-		Logger:        ports.NoopLogger{},
-		Clock:         ports.SystemClock{},
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.SystemClock{},
 		Workflow:      tracker,
 	})
 

@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 	"regexp"
@@ -11,7 +12,7 @@ import (
 type ripgrep struct {
 }
 
-func NewRipgrep(cfg ShellToolConfig) ports.ToolExecutor {
+func NewRipgrep(cfg ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &ripgrep{}
 }

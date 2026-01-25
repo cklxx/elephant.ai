@@ -4,6 +4,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
 )
@@ -14,7 +15,7 @@ type CodeExecuteConfig struct{}
 type codeExecute struct {
 }
 
-func NewCodeExecute(cfg CodeExecuteConfig) ports.ToolExecutor {
+func NewCodeExecute(cfg CodeExecuteConfig) tools.ToolExecutor {
 	_ = cfg
 	return &codeExecute{}
 }

@@ -29,7 +29,7 @@ func TestWithIDsAndFromContext(t *testing.T) {
 		t.Fatalf("expected parent %s, got %s", ids.ParentTaskID, got.ParentTaskID)
 	}
 
-	// Ensure compatibility with ports.SessionContextKey lookup
+	// Ensure compatibility with agent.SessionContextKey lookup
 	if compat := SessionIDFromContext(ctx); compat != ids.SessionID {
 		t.Fatalf("expected compat session %s, got %s", ids.SessionID, compat)
 	}

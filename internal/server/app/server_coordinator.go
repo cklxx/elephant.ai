@@ -12,6 +12,8 @@ import (
 	agentApp "alex/internal/agent/app"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/analytics"
 	"alex/internal/analytics/journal"
 	"alex/internal/logging"
@@ -28,10 +30,10 @@ import (
 // AgentExecutor defines the interface for agent task execution
 // This allows for easier testing and mocking
 type AgentExecutor interface {
-	GetSession(ctx context.Context, id string) (*ports.Session, error)
-	ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error)
-	GetConfig() ports.AgentConfig
-	PreviewContextWindow(ctx context.Context, sessionID string) (ports.ContextWindowPreview, error)
+	GetSession(ctx context.Context, id string) (*storage.Session, error)
+	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
+	GetConfig() agent.AgentConfig
+	PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error)
 }
 
 // Ensure AgentCoordinator implements AgentExecutor
@@ -42,7 +44,7 @@ var _ AgentExecutor = (*agentApp.AgentCoordinator)(nil)
 type ServerCoordinator struct {
 	agentCoordinator AgentExecutor
 	broadcaster      *EventBroadcaster
-	sessionStore     ports.SessionStore
+	sessionStore     storage.SessionStore
 	stateStore       sessionstate.Store
 	historyStore     sessionstate.Store
 	taskStore        serverPorts.TaskStore
@@ -72,7 +74,7 @@ type ContextSnapshotRecord struct {
 func NewServerCoordinator(
 	agentCoordinator AgentExecutor,
 	broadcaster *EventBroadcaster,
-	sessionStore ports.SessionStore,
+	sessionStore storage.SessionStore,
 	taskStore serverPorts.TaskStore,
 	stateStore sessionstate.Store,
 	opts ...ServerCoordinatorOption,
@@ -497,7 +499,7 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 	}
 
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
-	level := ports.GetOutputContext(ctx).Level
+	level := agent.GetOutputContext(ctx).Level
 	attachments := agentApp.GetUserAttachments(ctx)
 	var attachmentMap map[string]ports.Attachment
 	if len(attachments) > 0 {
@@ -542,9 +544,9 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 }
 
 // PreviewContextWindow returns the constructed context window for a session.
-func (s *ServerCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (ports.ContextWindowPreview, error) {
+func (s *ServerCoordinator) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
 	if s.agentCoordinator == nil {
-		return ports.ContextWindowPreview{}, fmt.Errorf("agent coordinator not configured")
+		return agent.ContextWindowPreview{}, fmt.Errorf("agent coordinator not configured")
 	}
 	return s.agentCoordinator.PreviewContextWindow(ctx, sessionID)
 }
@@ -560,7 +562,7 @@ func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnaps
 		SessionID:  sessionID,
 		EventTypes: []string{(&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType()},
 	}
-	_ = s.broadcaster.StreamHistory(context.Background(), filter, func(event ports.AgentEvent) error {
+	_ = s.broadcaster.StreamHistory(context.Background(), filter, func(event agent.AgentEvent) error {
 		snapshot, ok := event.(*domain.WorkflowDiagnosticContextSnapshotEvent)
 		if !ok {
 			return nil
@@ -589,10 +591,10 @@ func (s *ServerCoordinator) emitWorkflowResultCancelledEvent(ctx context.Context
 		return
 	}
 
-	outCtx := ports.GetOutputContext(ctx)
+	outCtx := agent.GetOutputContext(ctx)
 	level := outCtx.Level
 	if level == "" {
-		level = ports.LevelCore
+		level = agent.LevelCore
 	}
 
 	event := domain.NewWorkflowResultCancelledEvent(
@@ -620,12 +622,12 @@ func (s *ServerCoordinator) emitWorkflowResultCancelledEvent(ctx context.Context
 }
 
 // GetSession retrieves a session by ID
-func (s *ServerCoordinator) GetSession(ctx context.Context, id string) (*ports.Session, error) {
+func (s *ServerCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return s.sessionStore.Get(ctx, id)
 }
 
 // UpdateSessionPersona updates the user persona profile for a session.
-func (s *ServerCoordinator) UpdateSessionPersona(ctx context.Context, id string, persona *ports.UserPersonaProfile) (*ports.Session, error) {
+func (s *ServerCoordinator) UpdateSessionPersona(ctx context.Context, id string, persona *ports.UserPersonaProfile) (*storage.Session, error) {
 	if persona == nil {
 		return nil, fmt.Errorf("user persona is required")
 	}
@@ -646,7 +648,7 @@ func (s *ServerCoordinator) ListSessions(ctx context.Context, limit int, offset 
 }
 
 // CreateSession creates a new session record without executing a task.
-func (s *ServerCoordinator) CreateSession(ctx context.Context) (*ports.Session, error) {
+func (s *ServerCoordinator) CreateSession(ctx context.Context) (*storage.Session, error) {
 	if s.agentCoordinator == nil {
 		return nil, fmt.Errorf("agent coordinator not initialized")
 	}
@@ -754,7 +756,7 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 }
 
 // ForkSession creates a new session as a fork of an existing one
-func (s *ServerCoordinator) ForkSession(ctx context.Context, sessionID string) (*ports.Session, error) {
+func (s *ServerCoordinator) ForkSession(ctx context.Context, sessionID string) (*storage.Session, error) {
 	// Get original session
 	originalSession, err := s.sessionStore.Get(ctx, sessionID)
 	if err != nil {

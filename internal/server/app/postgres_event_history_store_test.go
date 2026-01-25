@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/testutil"
 )
 
@@ -27,7 +28,7 @@ func TestRecordFromEventStripsAttachmentData(t *testing.T) {
 	}
 
 	envelope := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now()),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", time.Now()),
 		Version:   1,
 		Payload:   payload,
 	}
@@ -97,7 +98,7 @@ func TestRecordFromEventStoresInlineBinaryAttachment(t *testing.T) {
 	}
 
 	envelope := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now()),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", time.Now()),
 		Version:   1,
 		Payload:   payload,
 	}
@@ -160,7 +161,7 @@ func TestRecordFromEventRetainsSmallTextAttachmentData(t *testing.T) {
 	}
 
 	envelope := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now()),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", time.Now()),
 		Version:   1,
 		Payload:   payload,
 	}
@@ -196,9 +197,9 @@ func TestRecordFromEventRetainsSmallTextAttachmentData(t *testing.T) {
 }
 
 type stubSubtaskWrapper struct {
-	inner ports.AgentEvent
-	meta  ports.SubtaskMetadata
-	level ports.AgentLevel
+	inner agent.AgentEvent
+	meta  agent.SubtaskMetadata
+	level agent.AgentLevel
 }
 
 func (w *stubSubtaskWrapper) EventType() string {
@@ -209,11 +210,11 @@ func (w *stubSubtaskWrapper) Timestamp() time.Time {
 	return w.inner.Timestamp()
 }
 
-func (w *stubSubtaskWrapper) GetAgentLevel() ports.AgentLevel {
+func (w *stubSubtaskWrapper) GetAgentLevel() agent.AgentLevel {
 	if w.level != "" {
 		return w.level
 	}
-	return ports.LevelSubagent
+	return agent.LevelSubagent
 }
 
 func (w *stubSubtaskWrapper) GetSessionID() string {
@@ -228,18 +229,18 @@ func (w *stubSubtaskWrapper) GetParentTaskID() string {
 	return w.inner.GetParentTaskID()
 }
 
-func (w *stubSubtaskWrapper) SubtaskDetails() ports.SubtaskMetadata {
+func (w *stubSubtaskWrapper) SubtaskDetails() agent.SubtaskMetadata {
 	return w.meta
 }
 
-func (w *stubSubtaskWrapper) WrappedEvent() ports.AgentEvent {
+func (w *stubSubtaskWrapper) WrappedEvent() agent.AgentEvent {
 	return w.inner
 }
 
 func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 	now := time.Now()
 	envelope := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "parent", now),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", now),
 		Version:   1,
 		Event:     "workflow.tool.completed",
 		NodeKind:  "tool",
@@ -252,8 +253,8 @@ func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 
 	wrapper := &stubSubtaskWrapper{
 		inner: envelope,
-		level: ports.LevelSubagent,
-		meta: ports.SubtaskMetadata{
+		level: agent.LevelSubagent,
+		meta: agent.SubtaskMetadata{
 			Index:       2,
 			Total:       5,
 			Preview:     "Inspect output rendering",
@@ -266,8 +267,8 @@ func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 		t.Fatalf("recordFromEvent returned error: %v", err)
 	}
 
-	if record.agentLevel != string(ports.LevelSubagent) {
-		t.Fatalf("expected agent level %q, got %q", ports.LevelSubagent, record.agentLevel)
+	if record.agentLevel != string(agent.LevelSubagent) {
+		t.Fatalf("expected agent level %q, got %q", agent.LevelSubagent, record.agentLevel)
 	}
 	if !record.isSubtask {
 		t.Fatalf("expected isSubtask=true, got false")
@@ -293,8 +294,8 @@ func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected envelope, got %T", rehydrated)
 	}
-	if env.GetAgentLevel() != ports.LevelSubagent {
-		t.Fatalf("expected rehydrated agent level %q, got %q", ports.LevelSubagent, env.GetAgentLevel())
+	if env.GetAgentLevel() != agent.LevelSubagent {
+		t.Fatalf("expected rehydrated agent level %q, got %q", agent.LevelSubagent, env.GetAgentLevel())
 	}
 	if !env.IsSubtask {
 		t.Fatalf("expected rehydrated IsSubtask=true, got false")
@@ -324,14 +325,14 @@ func TestPostgresEventHistoryStorePrunesOldEvents(t *testing.T) {
 	}
 
 	oldEvent := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now().Add(-48*time.Hour)),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", time.Now().Add(-48*time.Hour)),
 		Version:   1,
 		Event:     "workflow.node.started",
 		NodeKind:  "plan",
 		NodeID:    "node-old",
 	}
 	newEvent := &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(ports.LevelCore, "sess", "task", "", time.Now()),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", time.Now()),
 		Version:   1,
 		Event:     "workflow.node.completed",
 		NodeKind:  "plan",
@@ -349,8 +350,8 @@ func TestPostgresEventHistoryStorePrunesOldEvents(t *testing.T) {
 		t.Fatalf("prune history: %v", err)
 	}
 
-	var events []ports.AgentEvent
-	if err := store.Stream(ctx, EventHistoryFilter{SessionID: "sess"}, func(event ports.AgentEvent) error {
+	var events []agent.AgentEvent
+	if err := store.Stream(ctx, EventHistoryFilter{SessionID: "sess"}, func(event agent.AgentEvent) error {
 		events = append(events, event)
 		return nil
 	}); err != nil {
@@ -382,7 +383,7 @@ func TestPostgresEventHistoryStore_CrossInstanceReplay(t *testing.T) {
 	}
 
 	event := domain.NewWorkflowInputReceivedEvent(
-		ports.LevelCore,
+		agent.LevelCore,
 		"session-1",
 		"task-1",
 		"",
@@ -395,8 +396,8 @@ func TestPostgresEventHistoryStore_CrossInstanceReplay(t *testing.T) {
 		t.Fatalf("append event: %v", err)
 	}
 
-	var got []ports.AgentEvent
-	if err := storeB.Stream(ctx, EventHistoryFilter{SessionID: "session-1"}, func(evt ports.AgentEvent) error {
+	var got []agent.AgentEvent
+	if err := storeB.Stream(ctx, EventHistoryFilter{SessionID: "session-1"}, func(evt agent.AgentEvent) error {
 		got = append(got, evt)
 		return nil
 	}); err != nil {
@@ -431,7 +432,7 @@ func TestPostgresEventHistoryStore_HasAndDeleteSession(t *testing.T) {
 	}
 
 	event := domain.NewWorkflowInputReceivedEvent(
-		ports.LevelCore,
+		agent.LevelCore,
 		sessionID,
 		"task-1",
 		"",

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"alex/internal/agent/app"
-	"alex/internal/agent/ports"
+	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/storage"
 )
 
@@ -45,7 +45,7 @@ func main() {
 	sessionID := "example-session-" + fmt.Sprintf("%d", time.Now().Unix())
 
 	// Simulate multiple API calls with different models
-	usageRecords := []ports.UsageRecord{
+	usageRecords := []agentstorage.UsageRecord{
 		{
 			SessionID:    sessionID,
 			Model:        "gpt-4o",
@@ -89,7 +89,7 @@ func main() {
 		}
 
 		// Show calculated cost
-		inputCost, outputCost, totalCost := ports.CalculateCost(
+		inputCost, outputCost, totalCost := agentstorage.CalculateCost(
 			record.InputTokens,
 			record.OutputTokens,
 			record.Model,
@@ -120,7 +120,7 @@ func main() {
 	// 6. Export to CSV
 	fmt.Println("6. Exporting data to CSV...")
 	fmt.Println()
-	csvData, err := costTracker.Export(ctx, ports.ExportFormatCSV, ports.ExportFilter{
+	csvData, err := costTracker.Export(ctx, agentstorage.ExportFormatCSV, agentstorage.ExportFilter{
 		SessionID: sessionID,
 	})
 	if err != nil {
@@ -136,7 +136,7 @@ func main() {
 	// 7. Export to JSON
 	fmt.Println("7. Exporting data to JSON...")
 	fmt.Println()
-	jsonData, err := costTracker.Export(ctx, ports.ExportFormatJSON, ports.ExportFilter{
+	jsonData, err := costTracker.Export(ctx, agentstorage.ExportFormatJSON, agentstorage.ExportFilter{
 		SessionID: sessionID,
 	})
 	if err != nil {
@@ -163,7 +163,7 @@ func main() {
 	fmt.Printf("  alex cost export --format csv --session %s\n", sessionID)
 }
 
-func printCostSummary(title string, summary *ports.CostSummary) {
+func printCostSummary(title string, summary *agentstorage.CostSummary) {
 	fmt.Printf("   %s:\n", title)
 	fmt.Printf("   %s\n", string(make([]byte, len(title)+3)))
 	fmt.Printf("   Total Cost:      $%.6f\n", summary.TotalCost)
@@ -188,7 +188,7 @@ func printCostSummary(title string, summary *ports.CostSummary) {
 	fmt.Println()
 }
 
-func analyzeCosts(summary *ports.CostSummary) {
+func analyzeCosts(summary *agentstorage.CostSummary) {
 	// Calculate average cost per request
 	avgCostPerRequest := summary.TotalCost / float64(summary.RequestCount)
 	fmt.Printf("   Average cost per request: $%.6f\n", avgCostPerRequest)

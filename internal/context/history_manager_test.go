@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	sessionstate "alex/internal/session/state_store"
 )
 
 func TestHistoryManagerAppendAndReplayOrder(t *testing.T) {
 	ctx := context.Background()
 	store := sessionstate.NewInMemoryStore()
-	manager := NewHistoryManager(store, ports.NoopLogger{}, ports.ClockFunc(time.Now))
+	manager := NewHistoryManager(store, agent.NoopLogger{}, agent.ClockFunc(time.Now))
 	sessionID := "session-order"
 
 	firstTurn := []ports.Message{
@@ -23,7 +24,7 @@ func TestHistoryManagerAppendAndReplayOrder(t *testing.T) {
 		t.Fatalf("append first turn failed: %v", err)
 	}
 
-	secondTurn := append(ports.CloneMessages(firstTurn),
+	secondTurn := append(agent.CloneMessages(firstTurn),
 		ports.Message{
 			Role: "assistant",
 			ToolCalls: []ports.ToolCall{
@@ -57,7 +58,7 @@ func TestHistoryManagerAppendAndReplayOrder(t *testing.T) {
 func TestHistoryManagerResetsOnPrefixMismatch(t *testing.T) {
 	ctx := context.Background()
 	store := sessionstate.NewInMemoryStore()
-	manager := NewHistoryManager(store, ports.NoopLogger{}, ports.ClockFunc(time.Now))
+	manager := NewHistoryManager(store, agent.NoopLogger{}, agent.ClockFunc(time.Now))
 	sessionID := "session-reset"
 
 	first := []ports.Message{{Role: "user", Content: "first", Source: ports.MessageSourceUserInput}}

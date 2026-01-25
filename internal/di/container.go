@@ -10,7 +10,9 @@ import (
 	"time"
 
 	agentApp "alex/internal/agent/app"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	agentstorage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
 	ctxmgr "alex/internal/context"
@@ -32,11 +34,11 @@ import (
 // Container holds all application dependencies
 type Container struct {
 	AgentCoordinator *agentApp.AgentCoordinator
-	SessionStore     ports.SessionStore
+	SessionStore     agentstorage.SessionStore
 	StateStore       sessionstate.Store
 	HistoryStore     sessionstate.Store
-	HistoryManager   ports.HistoryManager
-	CostTracker      ports.CostTracker
+	HistoryManager   agentstorage.HistoryManager
+	CostTracker      agentstorage.CostTracker
 	MemoryService    memory.Service
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
@@ -220,7 +222,7 @@ func BuildContainer(config Config) (*Container, error) {
 	}
 
 	var (
-		sessionStore ports.SessionStore
+		sessionStore agentstorage.SessionStore
 		stateStore   sessionstate.Store
 		historyStore sessionstate.Store
 		sessionDB    *pgxpool.Pool
@@ -357,7 +359,7 @@ func BuildContainer(config Config) (*Container, error) {
 		ctxmgr.WithStateStore(stateStore),
 		ctxmgr.WithJournalWriter(journalWriter),
 	)
-	historyMgr := ctxmgr.NewHistoryManager(historyStore, logger, ports.SystemClock{})
+	historyMgr := ctxmgr.NewHistoryManager(historyStore, logger, agent.SystemClock{})
 	parserImpl := parser.New()
 	llmFactory.EnableToolCallParsing(parserImpl)
 
@@ -513,7 +515,7 @@ func (c *Container) MCPInitializationStatus() MCPInitializationStatus {
 	return c.mcpInitTracker.Snapshot()
 }
 
-func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolRegistry ports.ToolRegistry, logger logging.Logger, tracker *MCPInitializationTracker) {
+func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolRegistry tools.ToolRegistry, logger logging.Logger, tracker *MCPInitializationTracker) {
 	const (
 		initialBackoff = time.Second
 		maxBackoff     = 30 * time.Second

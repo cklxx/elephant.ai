@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
-	agentports "alex/internal/agent/ports"
+	core "alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	ctxconfig "alex/internal/context"
 	"gopkg.in/yaml.v3"
 )
@@ -99,7 +101,7 @@ func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *ht
 	}
 	toolPreset := strings.TrimSpace(query.Get("tool_preset"))
 
-	cfg := agentports.ContextWindowConfig{
+	cfg := agent.ContextWindowConfig{
 		PersonaKey: strings.TrimSpace(query.Get("persona_key")),
 		GoalKey:    strings.TrimSpace(query.Get("goal_key")),
 		WorldKey:   strings.TrimSpace(query.Get("world_key")),
@@ -108,19 +110,19 @@ func (h *ContextConfigHandler) HandleContextPreview(w http.ResponseWriter, r *ht
 	}
 
 	manager := ctxconfig.NewManager(ctxconfig.WithConfigRoot(h.root))
-	session := &agentports.Session{ID: "context-preview", Messages: nil}
+	session := &storage.Session{ID: "context-preview", Messages: nil}
 	window, err := manager.BuildWindow(r.Context(), session, cfg)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	estimateMessages := append([]agentports.Message(nil), window.Messages...)
+	estimateMessages := append([]core.Message(nil), window.Messages...)
 	if strings.TrimSpace(window.SystemPrompt) != "" {
-		estimateMessages = append(estimateMessages, agentports.Message{
+		estimateMessages = append(estimateMessages, core.Message{
 			Role:    "system",
 			Content: window.SystemPrompt,
-			Source:  agentports.MessageSourceSystemPrompt,
+			Source:  core.MessageSourceSystemPrompt,
 		})
 	}
 	tokenEstimate := manager.EstimateTokens(estimateMessages)

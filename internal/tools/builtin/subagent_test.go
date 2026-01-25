@@ -8,6 +8,10 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
+	tools "alex/internal/agent/ports/tools"
 	id "alex/internal/utils/id"
 	"alex/internal/workflow"
 )
@@ -16,7 +20,7 @@ type stubEvent struct{}
 
 func (stubEvent) EventType() string               { return "workflow.tool.completed" }
 func (stubEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
-func (stubEvent) GetAgentLevel() ports.AgentLevel { return ports.AgentLevel("subagent") }
+func (stubEvent) GetAgentLevel() agent.AgentLevel { return agent.AgentLevel("subagent") }
 func (stubEvent) GetSessionID() string            { return "session" }
 func (stubEvent) GetTaskID() string               { return "task" }
 func (stubEvent) GetParentTaskID() string         { return "parent" }
@@ -25,7 +29,7 @@ type stubCoreEvent struct{}
 
 func (stubCoreEvent) EventType() string               { return "workflow.node.output.delta" }
 func (stubCoreEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
-func (stubCoreEvent) GetAgentLevel() ports.AgentLevel { return ports.LevelCore }
+func (stubCoreEvent) GetAgentLevel() agent.AgentLevel { return agent.LevelCore }
 func (stubCoreEvent) GetSessionID() string            { return "session" }
 func (stubCoreEvent) GetTaskID() string               { return "task" }
 func (stubCoreEvent) GetParentTaskID() string         { return "parent" }
@@ -41,7 +45,7 @@ func TestSubtaskEventEventTypeMatchesOriginal(t *testing.T) {
 func TestSubtaskEventGetAgentLevelDefaultsToSubagent(t *testing.T) {
 	evt := &SubtaskEvent{OriginalEvent: stubCoreEvent{}}
 
-	if got := evt.GetAgentLevel(); got != ports.LevelSubagent {
+	if got := evt.GetAgentLevel(); got != agent.LevelSubagent {
 		t.Fatalf("expected core events to be elevated to subagent, got %q", got)
 	}
 }
@@ -49,7 +53,7 @@ func TestSubtaskEventGetAgentLevelDefaultsToSubagent(t *testing.T) {
 func TestSubtaskEventGetAgentLevelRespectsExistingLevel(t *testing.T) {
 	evt := &SubtaskEvent{OriginalEvent: stubEvent{}}
 
-	if got := evt.GetAgentLevel(); got != ports.AgentLevel("subagent") {
+	if got := evt.GetAgentLevel(); got != agent.AgentLevel("subagent") {
 		t.Fatalf("expected non-core agent level to be preserved, got %q", got)
 	}
 }
@@ -57,7 +61,7 @@ func TestSubtaskEventGetAgentLevelRespectsExistingLevel(t *testing.T) {
 func TestSubtaskEventGetAgentLevelNilOriginal(t *testing.T) {
 	evt := &SubtaskEvent{}
 
-	if got := evt.GetAgentLevel(); got != ports.LevelSubagent {
+	if got := evt.GetAgentLevel(); got != agent.LevelSubagent {
 		t.Fatalf("expected nil original events to default to subagent level, got %q", got)
 	}
 }
@@ -68,32 +72,32 @@ type sessionIDRecorder struct {
 	ctxIDs    id.IDs
 }
 
-func (r *sessionIDRecorder) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
+func (r *sessionIDRecorder) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.sessionID = sessionID
 	r.ctxIDs = id.IDsFromContext(ctx)
-	return &ports.TaskResult{}, nil
+	return &agent.TaskResult{}, nil
 }
 
-func (r *sessionIDRecorder) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (r *sessionIDRecorder) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	return nil, nil
 }
 
-func (r *sessionIDRecorder) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
+func (r *sessionIDRecorder) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
 	return nil
 }
 
 func (r *sessionIDRecorder) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
 	return nil, nil
 }
-func (r *sessionIDRecorder) GetConfig() ports.AgentConfig           { return ports.AgentConfig{} }
-func (r *sessionIDRecorder) GetLLMClient() (ports.LLMClient, error) { return nil, nil }
-func (r *sessionIDRecorder) GetToolRegistryWithoutSubagent() ports.ToolRegistry {
+func (r *sessionIDRecorder) GetConfig() agent.AgentConfig           { return agent.AgentConfig{} }
+func (r *sessionIDRecorder) GetLLMClient() (llm.LLMClient, error) { return nil, nil }
+func (r *sessionIDRecorder) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 	return nil
 }
-func (r *sessionIDRecorder) GetParser() ports.FunctionCallParser     { return nil }
-func (r *sessionIDRecorder) GetContextManager() ports.ContextManager { return nil }
+func (r *sessionIDRecorder) GetParser() tools.FunctionCallParser     { return nil }
+func (r *sessionIDRecorder) GetContextManager() agent.ContextManager { return nil }
 func (r *sessionIDRecorder) GetSystemPrompt() string                 { return "" }
 
 type workflowRecordingCoordinator struct {
@@ -101,7 +105,7 @@ type workflowRecordingCoordinator struct {
 	tasks []string
 }
 
-func (w *workflowRecordingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener ports.EventListener) (*ports.TaskResult, error) {
+func (w *workflowRecordingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -115,7 +119,7 @@ func (w *workflowRecordingCoordinator) ExecuteTask(ctx context.Context, task str
 		Nodes: []workflow.NodeSnapshot{{ID: "node", Status: workflow.NodeStatusSucceeded}},
 	}
 
-	return &ports.TaskResult{
+	return &agent.TaskResult{
 		Answer:     fmt.Sprintf("result-%d", idx+1),
 		Iterations: idx + 1,
 		TokensUsed: (idx + 1) * 10,
@@ -123,22 +127,22 @@ func (w *workflowRecordingCoordinator) ExecuteTask(ctx context.Context, task str
 	}, nil
 }
 
-func (*workflowRecordingCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*ports.ExecutionEnvironment, error) {
+func (*workflowRecordingCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
 	return nil, nil
 }
 
-func (*workflowRecordingCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *ports.Session, _ *ports.TaskResult) error {
+func (*workflowRecordingCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
 	return nil
 }
 
 func (*workflowRecordingCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
 	return nil, nil
 }
-func (*workflowRecordingCoordinator) GetConfig() ports.AgentConfig                       { return ports.AgentConfig{} }
-func (*workflowRecordingCoordinator) GetLLMClient() (ports.LLMClient, error)             { return nil, nil }
-func (*workflowRecordingCoordinator) GetToolRegistryWithoutSubagent() ports.ToolRegistry { return nil }
-func (*workflowRecordingCoordinator) GetParser() ports.FunctionCallParser                { return nil }
-func (*workflowRecordingCoordinator) GetContextManager() ports.ContextManager            { return nil }
+func (*workflowRecordingCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
+func (*workflowRecordingCoordinator) GetLLMClient() (llm.LLMClient, error)             { return nil, nil }
+func (*workflowRecordingCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
+func (*workflowRecordingCoordinator) GetParser() tools.FunctionCallParser                { return nil }
+func (*workflowRecordingCoordinator) GetContextManager() agent.ContextManager            { return nil }
 func (*workflowRecordingCoordinator) GetSystemPrompt() string                            { return "" }
 
 func TestSubagentUsesParentSessionID(t *testing.T) {

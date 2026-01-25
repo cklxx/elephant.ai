@@ -6,6 +6,9 @@ import (
 	"strings"
 
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
 	id "alex/internal/utils/id"
 )
 
@@ -13,7 +16,7 @@ type historyRecall struct {
 	messages []ports.Message
 }
 
-func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, session *ports.Session) []ports.Message {
+func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, session *storage.Session) []ports.Message {
 	if session == nil {
 		return nil
 	}
@@ -24,16 +27,16 @@ func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, se
 				s.logger.Warn("Failed to replay session history (session=%s): %v", session.ID, err)
 			}
 		} else if len(history) > 0 {
-			return ports.CloneMessages(history)
+			return agent.CloneMessages(history)
 		}
 	}
 	if len(session.Messages) == 0 {
 		return nil
 	}
-	return ports.CloneMessages(session.Messages)
+	return agent.CloneMessages(session.Messages)
 }
 
-func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, _ string, messages []ports.Message) *historyRecall {
+func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, client llm.LLMClient, _ string, messages []ports.Message) *historyRecall {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -45,7 +48,7 @@ func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm
 
 	recall := &historyRecall{}
 	if s.shouldSummarizeHistory(rawMessages) {
-		summaryMessages := s.composeHistorySummary(ctx, llm, rawMessages)
+		summaryMessages := s.composeHistorySummary(ctx, client, rawMessages)
 		if len(summaryMessages) > 0 {
 			recall.messages = summaryMessages
 			return recall
@@ -57,8 +60,8 @@ func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm
 	return recall
 }
 
-func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context, llm ports.LLMClient, messages []ports.Message) []ports.Message {
-	if llm == nil || len(messages) == 0 {
+func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context, client llm.LLMClient, messages []ports.Message) []ports.Message {
+	if client == nil || len(messages) == 0 {
 		return nil
 	}
 	prompt := buildHistorySummaryPrompt(messages)
@@ -87,9 +90,9 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 	}
 	summaryCtx, cancel := context.WithTimeout(ctx, historySummaryLLMTimeout)
 	defer cancel()
-	streaming, ok := ports.EnsureStreamingClient(llm).(ports.StreamingLLMClient)
+	streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
 	if !ok {
-		resp, err := llm.Complete(summaryCtx, req)
+		resp, err := client.Complete(summaryCtx, req)
 		if err != nil {
 			s.logger.Warn("History summary composition failed (request_id=%s): %v", requestID, err)
 			return nil

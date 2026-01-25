@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 func TestFileWriterAppendsEntries(t *testing.T) {
@@ -24,7 +24,7 @@ func TestFileWriterAppendsEntries(t *testing.T) {
 		LLMTurnSeq: 2,
 		Timestamp:  time.Unix(1700000000, 0),
 		Summary:    "answered user",
-		Plans:      []ports.PlanNode{{ID: "plan-1", Title: "Do thing"}},
+		Plans:      []agent.PlanNode{{ID: "plan-1", Title: "Do thing"}},
 	}
 	if err := writer.Write(context.Background(), entry); err != nil {
 		t.Fatalf("Write: %v", err)

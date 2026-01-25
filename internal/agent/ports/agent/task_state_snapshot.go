@@ -1,6 +1,10 @@
-package ports
+package agent
 
-import "context"
+import (
+	"context"
+
+	core "alex/internal/agent/ports"
+)
 
 type taskStateSnapshotKey struct{}
 
@@ -54,7 +58,7 @@ func CloneTaskState(state *TaskState) *TaskState {
 		SessionID:              state.SessionID,
 		TaskID:                 state.TaskID,
 		ParentTaskID:           state.ParentTaskID,
-		PendingUserAttachments: CloneAttachmentMap(state.PendingUserAttachments),
+		PendingUserAttachments: core.CloneAttachmentMap(state.PendingUserAttachments),
 		LatestGoalPrompt:       state.LatestGoalPrompt,
 		LatestPlanPrompt:       state.LatestPlanPrompt,
 	}
@@ -65,13 +69,13 @@ func CloneTaskState(state *TaskState) *TaskState {
 		cloned.ToolResults = CloneToolResults(state.ToolResults)
 	}
 	if len(state.Attachments) > 0 {
-		cloned.Attachments = CloneAttachmentMap(state.Attachments)
+		cloned.Attachments = core.CloneAttachmentMap(state.Attachments)
 	}
 	if len(state.AttachmentIterations) > 0 {
 		cloned.AttachmentIterations = cloneIterationMap(state.AttachmentIterations)
 	}
 	if len(state.Important) > 0 {
-		cloned.Important = CloneImportantNotes(state.Important)
+		cloned.Important = core.CloneImportantNotes(state.Important)
 	}
 	if len(state.Plans) > 0 {
 		cloned.Plans = ClonePlanNodes(state.Plans)
@@ -95,18 +99,18 @@ func CloneTaskState(state *TaskState) *TaskState {
 }
 
 // CloneMessages performs a deep copy of the provided message slice.
-func CloneMessages(messages []Message) []Message {
+func CloneMessages(messages []core.Message) []core.Message {
 	if len(messages) == 0 {
 		return nil
 	}
-	cloned := make([]Message, len(messages))
+	cloned := make([]core.Message, len(messages))
 	for i := range messages {
 		cloned[i] = cloneMessage(messages[i])
 	}
 	return cloned
 }
 
-func cloneMessage(msg Message) Message {
+func cloneMessage(msg core.Message) core.Message {
 	cloned := msg
 	if len(msg.ToolCalls) > 0 {
 		cloned.ToolCalls = cloneToolCalls(msg.ToolCalls)
@@ -122,16 +126,16 @@ func cloneMessage(msg Message) Message {
 		cloned.Metadata = metadata
 	}
 	if len(msg.Attachments) > 0 {
-		cloned.Attachments = CloneAttachmentMap(msg.Attachments)
+		cloned.Attachments = core.CloneAttachmentMap(msg.Attachments)
 	}
 	return cloned
 }
 
-func cloneToolCalls(calls []ToolCall) []ToolCall {
+func cloneToolCalls(calls []core.ToolCall) []core.ToolCall {
 	if len(calls) == 0 {
 		return nil
 	}
-	cloned := make([]ToolCall, len(calls))
+	cloned := make([]core.ToolCall, len(calls))
 	for i := range calls {
 		cloned[i] = calls[i]
 		if len(calls[i].Arguments) > 0 {
@@ -146,11 +150,11 @@ func cloneToolCalls(calls []ToolCall) []ToolCall {
 }
 
 // CloneToolResults deep copies the provided tool results.
-func CloneToolResults(results []ToolResult) []ToolResult {
+func CloneToolResults(results []core.ToolResult) []core.ToolResult {
 	if len(results) == 0 {
 		return nil
 	}
-	cloned := make([]ToolResult, len(results))
+	cloned := make([]core.ToolResult, len(results))
 	for i := range results {
 		cloned[i] = results[i]
 		if len(results[i].Metadata) > 0 {
@@ -161,7 +165,7 @@ func CloneToolResults(results []ToolResult) []ToolResult {
 			cloned[i].Metadata = metadata
 		}
 		if len(results[i].Attachments) > 0 {
-			cloned[i].Attachments = CloneAttachmentMap(results[i].Attachments)
+			cloned[i].Attachments = core.CloneAttachmentMap(results[i].Attachments)
 		}
 	}
 	return cloned
@@ -263,4 +267,15 @@ func cloneWorldValue(value any) any {
 	default:
 		return v
 	}
+}
+
+func cloneIterationMap(src map[string]int) map[string]int {
+	if len(src) == 0 {
+		return nil
+	}
+	cloned := make(map[string]int, len(src))
+	for key, iter := range src {
+		cloned[key] = iter
+	}
+	return cloned
 }

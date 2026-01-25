@@ -2,6 +2,7 @@ package builtin
 
 import (
 	"alex/internal/agent/ports"
+	tools "alex/internal/agent/ports/tools"
 	"context"
 	"crypto/sha256"
 	"fmt"
@@ -13,7 +14,7 @@ import (
 type fileWrite struct {
 }
 
-func NewFileWrite(cfg FileToolConfig) ports.ToolExecutor {
+func NewFileWrite(cfg FileToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &fileWrite{}
 }

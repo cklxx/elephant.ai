@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 	"alex/internal/workflow"
 )
 
@@ -29,7 +29,7 @@ type agentWorkflow struct {
 	eventSink *workflowEventBridge
 }
 
-func newAgentWorkflow(id string, logger *slog.Logger, listener ports.EventListener, outCtx *ports.OutputContext) *agentWorkflow {
+func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListener, outCtx *agent.OutputContext) *agentWorkflow {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -44,7 +44,7 @@ func newAgentWorkflow(id string, logger *slog.Logger, listener ports.EventListen
 
 	if listener != nil {
 		if outCtx == nil {
-			outCtx = &ports.OutputContext{Level: ports.LevelCore}
+			outCtx = &agent.OutputContext{Level: agent.LevelCore}
 		}
 		aw.eventSink = newWorkflowEventBridge(id, listener, logger, outCtx.Level, outCtx.SessionID, outCtx.TaskID, outCtx.ParentTaskID)
 		wf.AddListener(aw.eventSink)
@@ -115,7 +115,7 @@ func (aw *agentWorkflow) ensureNode(id string, input any) *workflow.Node {
 	return node
 }
 
-func (aw *agentWorkflow) setContext(sessionID, taskID, parentTaskID string, level ports.AgentLevel) {
+func (aw *agentWorkflow) setContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel) {
 	if aw.eventSink == nil {
 		return
 	}
@@ -143,14 +143,14 @@ func (aw *agentWorkflow) CompleteNodeFailure(id string, err error) {
 }
 
 type workflowEventBridge struct {
-	listener   ports.EventListener
+	listener   agent.EventListener
 	logger     *slog.Logger
 	workflowID string
 	mu         sync.RWMutex
 	context    workflowEventContext
 }
 
-func newWorkflowEventBridge(workflowID string, listener ports.EventListener, logger *slog.Logger, level ports.AgentLevel, sessionID, taskID, parentTaskID string) *workflowEventBridge {
+func newWorkflowEventBridge(workflowID string, listener agent.EventListener, logger *slog.Logger, level agent.AgentLevel, sessionID, taskID, parentTaskID string) *workflowEventBridge {
 	return &workflowEventBridge{
 		listener:   listener,
 		logger:     logger,
@@ -164,7 +164,7 @@ func newWorkflowEventBridge(workflowID string, listener ports.EventListener, log
 	}
 }
 
-func (b *workflowEventBridge) updateContext(sessionID, taskID, parentTaskID string, level ports.AgentLevel) {
+func (b *workflowEventBridge) updateContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel) {
 	b.mu.Lock()
 	b.context.update(sessionID, taskID, parentTaskID, level)
 	b.mu.Unlock()
@@ -204,10 +204,10 @@ type workflowEventContext struct {
 	sessionID    string
 	taskID       string
 	parentTaskID string
-	level        ports.AgentLevel
+	level        agent.AgentLevel
 }
 
-func (c *workflowEventContext) update(sessionID, taskID, parentTaskID string, level ports.AgentLevel) {
+func (c *workflowEventContext) update(sessionID, taskID, parentTaskID string, level agent.AgentLevel) {
 	if sessionID != "" {
 		c.sessionID = sessionID
 	}
