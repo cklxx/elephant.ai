@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="web/public/elephant.jpg" alt="elephant.ai mascot" width="76" height="76" style="border-radius:50%;" />
+    <img src="web/public/elephant-rounded.png" alt="elephant.ai mascot" width="76" height="76" />
 </p>
 
 # elephant.ai
