@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
 	id "alex/internal/utils/id"
@@ -18,6 +19,7 @@ import (
 
 // HandleSSEStream handles SSE connection for real-time event streaming
 func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
+	logger := logging.FromContext(r.Context(), h.logger)
 	// Set SSE headers (CORS headers are handled by middleware)
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -47,7 +49,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("SSE connection established for session: %s", sessionID)
+	logger.Info("SSE connection established for session: %s", sessionID)
 
 	ctx := r.Context()
 	closeReason := "client_closed"
@@ -94,7 +96,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	// Get flusher for streaming (unwrap middlewares if necessary)
 	flusher, ok := resolveHTTPFlusher(w)
 	if !ok {
-		h.logger.Error("Response writer does not support streaming (type=%T)", w)
+		logger.Error("Response writer does not support streaming (type=%T)", w)
 		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 		return
 	}
@@ -107,7 +109,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		id.ParentTaskIDFromContext(r.Context()),
 	)
 	if _, err := io.WriteString(w, initialPayload); err != nil {
-		h.logger.Error("Failed to send connection message: %v", err)
+		logger.Error("Failed to send connection message: %v", err)
 		if h.obs != nil {
 			h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "write_error", 0)
 		}
@@ -133,7 +135,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 		data, err := h.serializeEvent(event, sentAttachments, finalAnswerCache)
 		if err != nil {
-			h.logger.Error("Failed to serialize event: %v", err)
+			logger.Error("Failed to serialize event: %v", err)
 			if h.obs != nil {
 				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "serialization_error", 0)
 			}
@@ -142,7 +144,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 		payload := fmt.Sprintf("event: %s\ndata: %s\n\n", event.EventType(), data)
 		if _, err := io.WriteString(w, payload); err != nil {
-			h.logger.Error("Failed to send SSE message: %v", err)
+			logger.Error("Failed to send SSE message: %v", err)
 			if h.obs != nil {
 				h.obs.Metrics.RecordSSEMessage(r.Context(), event.EventType(), "write_error", 0)
 			}
@@ -165,7 +167,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		}); err != nil {
-			h.logger.Warn("Failed to replay global events: %v", err)
+			logger.Warn("Failed to replay global events: %v", err)
 		}
 	}
 
@@ -177,9 +179,9 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 			}
 			return nil
 		}); err != nil {
-			h.logger.Warn("Failed to replay historical events for session %s: %v", sessionID, err)
+			logger.Warn("Failed to replay historical events for session %s: %v", sessionID, err)
 		} else {
-			h.logger.Info("Completed replaying historical events for session: %s", sessionID)
+			logger.Info("Completed replaying historical events for session: %s", sessionID)
 		}
 	}
 
@@ -214,7 +216,7 @@ drainComplete:
 		case <-ticker.C:
 			// Send heartbeat to keep connection alive
 			if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
-				h.logger.Error("Failed to send heartbeat: %v", err)
+				logger.Error("Failed to send heartbeat: %v", err)
 				if h.obs != nil {
 					h.obs.Metrics.RecordSSEMessage(r.Context(), "heartbeat", "write_error", 0)
 				}
@@ -225,7 +227,7 @@ drainComplete:
 
 		case <-r.Context().Done():
 			// Client disconnected
-			h.logger.Info("SSE connection closed for session: %s", sessionID)
+			logger.Info("SSE connection closed for session: %s", sessionID)
 			closeReason = "context_cancelled"
 			return
 		}

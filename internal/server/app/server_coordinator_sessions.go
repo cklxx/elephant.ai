@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/agent/ports"
 	storage "alex/internal/agent/ports/storage"
+	"alex/internal/logging"
 )
 
 // GetSession retrieves a session by ID
@@ -40,13 +41,14 @@ func (s *ServerCoordinator) CreateSession(ctx context.Context) (*storage.Session
 	if s.agentCoordinator == nil {
 		return nil, fmt.Errorf("agent coordinator not initialized")
 	}
+	logger := logging.FromContext(ctx, s.logger)
 	session, err := s.agentCoordinator.GetSession(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
 	if s.stateStore != nil {
 		if err := s.stateStore.Init(ctx, session.ID); err != nil {
-			s.logger.Warn("[ServerCoordinator] Failed to initialize state store for session %s: %v", session.ID, err)
+			logger.Warn("[ServerCoordinator] Failed to initialize state store for session %s: %v", session.ID, err)
 		}
 	}
 	return session, nil

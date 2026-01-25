@@ -14,6 +14,7 @@ func TestWithIDsAndFromContext(t *testing.T) {
 		SessionID:    "session-test",
 		TaskID:       "task-test",
 		ParentTaskID: "parent-task",
+		LogID:        "log-test",
 	}
 
 	ctx = WithIDs(ctx, ids)
@@ -27,6 +28,9 @@ func TestWithIDsAndFromContext(t *testing.T) {
 	}
 	if got.ParentTaskID != ids.ParentTaskID {
 		t.Fatalf("expected parent %s, got %s", ids.ParentTaskID, got.ParentTaskID)
+	}
+	if got.LogID != ids.LogID {
+		t.Fatalf("expected log id %s, got %s", ids.LogID, got.LogID)
 	}
 
 	// Ensure compatibility with agent.SessionContextKey lookup
@@ -51,6 +55,24 @@ func TestEnsureTaskID(t *testing.T) {
 
 	if TaskIDFromContext(ctx) != "task-existing" {
 		t.Fatalf("expected stored task id task-existing, got %s", TaskIDFromContext(ctx))
+	}
+}
+
+func TestEnsureLogID(t *testing.T) {
+	ctx := context.Background()
+	ctx, generated := EnsureLogID(ctx, func() string { return "log-123" })
+	if generated != "log-123" {
+		t.Fatalf("expected generated id log-123, got %s", generated)
+	}
+
+	ctx = WithLogID(ctx, "log-existing")
+	ctx, generated = EnsureLogID(ctx, func() string { return "log-new" })
+	if generated != "log-existing" {
+		t.Fatalf("expected to reuse existing id, got %s", generated)
+	}
+
+	if LogIDFromContext(ctx) != "log-existing" {
+		t.Fatalf("expected stored log id log-existing, got %s", LogIDFromContext(ctx))
 	}
 }
 
@@ -86,6 +108,11 @@ func TestNewGenerators(t *testing.T) {
 
 	if rawUUID := NewUUIDv7(); rawUUID == "" {
 		t.Fatalf("expected raw uuidv7 to be non-empty")
+	}
+
+	logID := NewLogID()
+	if !strings.HasPrefix(logID, "log-") || len(logID) <= len("log-") {
+		t.Fatalf("unexpected log id format: %s", logID)
 	}
 }
 
@@ -136,7 +163,7 @@ func TestIDsRoundTripJSONCompatibility(t *testing.T) {
 		t.Fatalf("failed to unmarshal ids: %v", err)
 	}
 
-	if decoded != (IDs{SessionID: "session-123", TaskID: "task-456", ParentTaskID: "task-parent"}) {
+	if decoded != (IDs{SessionID: "session-123", TaskID: "task-456", ParentTaskID: "task-parent", LogID: ""}) {
 		t.Fatalf("unexpected ids round trip result: %+v", decoded)
 	}
 }

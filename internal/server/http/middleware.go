@@ -15,6 +15,7 @@ import (
 	authdomain "alex/internal/auth/domain"
 	"alex/internal/logging"
 	"alex/internal/observability"
+	id "alex/internal/utils/id"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -582,13 +583,38 @@ func rateLimitKey(r *http.Request) string {
 	return "anonymous"
 }
 
+func resolveLogID(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+	for _, header := range []string{"X-Log-Id", "X-Request-Id", "X-Correlation-Id"} {
+		if value := strings.TrimSpace(r.Header.Get(header)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
 // LoggingMiddleware logs incoming requests
 func LoggingMiddleware(logger logging.Logger) func(http.Handler) http.Handler {
 	logger = logging.OrNop(logger)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			logger.Info("%s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
-			next.ServeHTTP(w, r)
+			ctx := r.Context()
+			logID := id.LogIDFromContext(ctx)
+			if logID == "" {
+				logID = resolveLogID(r)
+				if logID == "" {
+					logID = id.NewLogID()
+				}
+				ctx = id.WithLogID(ctx, logID)
+			}
+			if logID != "" {
+				w.Header().Set("X-Log-Id", logID)
+			}
+			reqLogger := logging.WithLogID(logger, logID)
+			reqLogger.Info("%s %s from %s", r.Method, r.URL.Path, r.RemoteAddr)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }

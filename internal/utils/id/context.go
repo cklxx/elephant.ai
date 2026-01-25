@@ -13,6 +13,7 @@ const (
 	taskKey       contextKey = "alex_task_id"
 	parentTaskKey contextKey = "alex_parent_task_id"
 	userKey       contextKey = "alex_user_id"
+	logKey        contextKey = "alex_log_id"
 )
 
 // IDs captures the identifiers propagated across agent execution boundaries.
@@ -20,6 +21,7 @@ type IDs struct {
 	SessionID    string
 	TaskID       string
 	ParentTaskID string
+	LogID        string
 }
 
 // WithSessionID stores the provided session identifier on the context.
@@ -67,6 +69,9 @@ func WithIDs(ctx context.Context, ids IDs) context.Context {
 	}
 	if ids.ParentTaskID != "" {
 		ctx = WithParentTaskID(ctx, ids.ParentTaskID)
+	}
+	if ids.LogID != "" {
+		ctx = WithLogID(ctx, ids.LogID)
 	}
 	return ctx
 }
@@ -118,12 +123,32 @@ func UserIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// WithLogID stores the provided log identifier on the context.
+func WithLogID(ctx context.Context, logID string) context.Context {
+	if logID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, logKey, logID)
+}
+
+// LogIDFromContext extracts the log identifier from context.
+func LogIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if logID, ok := ctx.Value(logKey).(string); ok {
+		return logID
+	}
+	return ""
+}
+
 // IDsFromContext collects all known identifiers from the context.
 func IDsFromContext(ctx context.Context) IDs {
 	return IDs{
 		SessionID:    SessionIDFromContext(ctx),
 		TaskID:       TaskIDFromContext(ctx),
 		ParentTaskID: ParentTaskIDFromContext(ctx),
+		LogID:        LogIDFromContext(ctx),
 	}
 }
 
@@ -141,5 +166,22 @@ func EnsureTaskID(ctx context.Context, generator func() string) (context.Context
 		return ctx, ""
 	}
 	ctx = WithTaskID(ctx, next)
+	return ctx, next
+}
+
+// EnsureLogID guarantees a log identifier is present on the context.
+// It returns the updated context and the resulting identifier.
+func EnsureLogID(ctx context.Context, generator func() string) (context.Context, string) {
+	if existing := LogIDFromContext(ctx); existing != "" {
+		return ctx, existing
+	}
+	next := ""
+	if generator != nil {
+		next = generator()
+	}
+	if next == "" {
+		return ctx, ""
+	}
+	ctx = WithLogID(ctx, next)
 	return ctx, next
 }

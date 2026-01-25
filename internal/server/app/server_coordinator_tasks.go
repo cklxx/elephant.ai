@@ -8,6 +8,7 @@ import (
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/analytics"
+	"alex/internal/logging"
 	serverPorts "alex/internal/server/ports"
 )
 
@@ -15,6 +16,7 @@ func (s *ServerCoordinator) emitWorkflowResultCancelledEvent(ctx context.Context
 	if s.broadcaster == nil || task == nil {
 		return
 	}
+	logger := logging.FromContext(ctx, s.logger)
 
 	outCtx := agent.GetOutputContext(ctx)
 	level := outCtx.Level
@@ -38,11 +40,11 @@ func (s *ServerCoordinator) emitWorkflowResultCancelledEvent(ctx context.Context
 			"reason":       reason,
 			"requested_by": requestedBy,
 		}
-		s.logger.Info("[CancelTask] Emitting workflow.result.cancelled envelope: sessionID=%s taskID=%s", task.SessionID, task.ID)
+		logger.Info("[CancelTask] Emitting workflow.result.cancelled envelope: sessionID=%s taskID=%s", task.SessionID, task.ID)
 		s.broadcaster.OnEvent(envelope)
 	}
 
-	s.logger.Info("[CancelTask] Emitting workflow.result.cancelled event: sessionID=%s taskID=%s", task.SessionID, task.ID)
+	logger.Info("[CancelTask] Emitting workflow.result.cancelled event: sessionID=%s taskID=%s", task.SessionID, task.ID)
 	s.broadcaster.OnEvent(event)
 }
 
@@ -67,6 +69,7 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 	if err != nil {
 		return err
 	}
+	logger := logging.FromContext(ctx, s.logger)
 
 	// Only allow cancelling pending or running tasks
 	if task.Status != serverPorts.TaskStatusPending && task.Status != serverPorts.TaskStatusRunning {
@@ -80,18 +83,18 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 
 	status := "no_active_execution"
 	if exists && cancelFunc != nil {
-		s.logger.Info("[CancelTask] Cancelling task execution: taskID=%s", taskID)
+		logger.Info("[CancelTask] Cancelling task execution: taskID=%s", taskID)
 		cancelFunc(fmt.Errorf("task cancelled by user"))
 		s.emitWorkflowResultCancelledEvent(ctx, task, "cancelled", "user")
 		status = "dispatched"
 	} else {
-		s.logger.Warn("[CancelTask] No cancel function found for taskID=%s, updating status only", taskID)
+		logger.Warn("[CancelTask] No cancel function found for taskID=%s, updating status only", taskID)
 		// If no cancel function exists (task not started yet or already completed), just update status
 		if err := s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled); err != nil {
 			return err
 		}
 		if err := s.taskStore.SetTerminationReason(ctx, taskID, serverPorts.TerminationReasonCancelled); err != nil {
-			s.logger.Warn("[CancelTask] Failed to set termination reason for taskID=%s: %v", taskID, err)
+			logger.Warn("[CancelTask] Failed to set termination reason for taskID=%s: %v", taskID, err)
 		}
 		s.emitWorkflowResultCancelledEvent(ctx, task, "cancelled", "user")
 	}

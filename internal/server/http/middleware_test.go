@@ -16,6 +16,7 @@ import (
 	authapp "alex/internal/auth/app"
 	"alex/internal/observability"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 )
 
 func TestCORSMiddlewareHonorsEnvironment(t *testing.T) {
@@ -340,5 +341,49 @@ func TestStreamGuardMiddlewareCancelsOnDurationLimit(t *testing.T) {
 	case <-done:
 	case <-time.After(200 * time.Millisecond):
 		t.Fatal("expected stream to cancel after duration limit")
+	}
+}
+
+func TestLoggingMiddlewareUsesProvidedLogID(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Context-Log-Id", id.LogIDFromContext(r.Context()))
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := LoggingMiddleware(nil)(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
+	req.Header.Set("X-Log-Id", "log-123")
+	rec := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(rec, req)
+
+	if got := rec.Header().Get("X-Log-Id"); got != "log-123" {
+		t.Fatalf("expected response log id log-123, got %q", got)
+	}
+	if got := rec.Header().Get("X-Context-Log-Id"); got != "log-123" {
+		t.Fatalf("expected context log id log-123, got %q", got)
+	}
+}
+
+func TestLoggingMiddlewareGeneratesLogID(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Context-Log-Id", id.LogIDFromContext(r.Context()))
+		w.WriteHeader(http.StatusOK)
+	})
+
+	wrapped := LoggingMiddleware(nil)(handler)
+
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
+	rec := httptest.NewRecorder()
+
+	wrapped.ServeHTTP(rec, req)
+
+	logID := rec.Header().Get("X-Log-Id")
+	if logID == "" {
+		t.Fatalf("expected generated log id in response header")
+	}
+	if got := rec.Header().Get("X-Context-Log-Id"); got != logID {
+		t.Fatalf("expected context log id %q, got %q", logID, got)
 	}
 }

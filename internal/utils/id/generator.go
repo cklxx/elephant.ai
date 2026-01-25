@@ -56,6 +56,11 @@ func NewRequestID() string {
 	return defaultGenerator.newIdentifier("llm")
 }
 
+// NewLogID generates a new identifier for log correlation.
+func NewLogID() string {
+	return defaultGenerator.newIdentifier("log")
+}
+
 func (g *Generator) generateBody() string {
 	g.mu.RLock()
 	strategy := g.strategy

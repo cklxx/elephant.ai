@@ -75,6 +75,9 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 	} else if sessionID := SessionIDFromContext(ctx); sessionID != "" {
 		args = append(args, "session_id", sessionID)
 	}
+	if ids.LogID != "" {
+		args = append(args, "log_id", ids.LogID)
+	}
 
 	if ids.TaskID != "" {
 		args = append(args, "task_id", ids.TaskID)

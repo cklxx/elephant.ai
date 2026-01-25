@@ -68,7 +68,10 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 	if prompt == "" {
 		return nil
 	}
-	requestID := id.NewRequestID()
+	requestID := id.LogIDFromContext(ctx)
+	if requestID == "" {
+		requestID = id.NewRequestID()
+	}
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{

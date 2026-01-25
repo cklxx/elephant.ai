@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/analytics"
+	"alex/internal/logging"
 	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/tools/builtin"
@@ -24,22 +25,23 @@ import (
 // ExecuteTaskAsync executes a task asynchronously and streams events via SSE
 // Returns immediately with the task record, spawns background goroutine for execution
 func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
-	s.logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, toolPreset)
+	logger := logging.FromContext(ctx, s.logger)
+	logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, toolPreset)
 
 	// CRITICAL FIX: Get or create session SYNCHRONOUSLY before creating task
 	// This ensures we have a confirmed session ID for the task record and broadcaster mapping
 	session, err := s.agentCoordinator.GetSession(ctx, sessionID)
 	if err != nil {
-		s.logger.Error("[ServerCoordinator] Failed to get/create session: %v", err)
+		logger.Error("[ServerCoordinator] Failed to get/create session: %v", err)
 		return nil, fmt.Errorf("failed to get/create session: %w", err)
 	}
 	if s.stateStore != nil {
 		if err := s.stateStore.Init(ctx, session.ID); err != nil {
-			s.logger.Warn("[ServerCoordinator] Failed to initialize state store: %v", err)
+			logger.Warn("[ServerCoordinator] Failed to initialize state store: %v", err)
 		}
 	}
 	confirmedSessionID := session.ID
-	s.logger.Info("[ServerCoordinator] Session confirmed: %s (original: '%s')", confirmedSessionID, sessionID)
+	logger.Info("[ServerCoordinator] Session confirmed: %s (original: '%s')", confirmedSessionID, sessionID)
 
 	// Preallocate a task ID so we can emit workflow.input.received before hitting slower stores.
 	taskID := id.NewTaskID()
@@ -51,7 +53,7 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	// Create task record with confirmed session ID and preallocated task ID from context
 	taskRecord, err := s.taskStore.Create(ctx, confirmedSessionID, task, agentPreset, toolPreset)
 	if err != nil {
-		s.logger.Error("[ServerCoordinator] Failed to create task: %v", err)
+		logger.Error("[ServerCoordinator] Failed to create task: %v", err)
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
@@ -65,7 +67,7 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 
 	// Verify broadcaster is initialized
 	if s.broadcaster == nil {
-		s.logger.Error("[ServerCoordinator] Broadcaster is nil!")
+		logger.Error("[ServerCoordinator] Broadcaster is nil!")
 		_ = s.taskStore.SetError(ctx, taskRecord.ID, fmt.Errorf("broadcaster not initialized"))
 		return taskRecord, fmt.Errorf("broadcaster not initialized")
 	}
@@ -87,12 +89,13 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	taskCopy := *taskRecord
 	go s.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset)
 
-	s.logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskID, taskSessionID)
+	logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskID, taskSessionID)
 	return &taskCopy, nil
 }
 
 // executeTaskInBackground runs the actual task execution in a background goroutine
 func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID string, task string, sessionID string, agentPreset string, toolPreset string) {
+	logger := logging.FromContext(ctx, s.logger)
 	defer func() {
 		// Clean up cancel function from map
 		s.cancelMu.Lock()
@@ -103,7 +106,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 			errMsg := fmt.Sprintf("[Background] PANIC in task execution (taskID=%s, sessionID=%s): %v", taskID, sessionID, r)
 
 			// Log to file (use %s to avoid linter warning)
-			s.logger.Error("%s", errMsg)
+			logger.Error("%s", errMsg)
 
 			// CRITICAL: Also print to stderr so server operator can see it
 			fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
@@ -113,7 +116,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		}
 	}()
 
-	s.logger.Info("[Background] Starting task execution: taskID=%s, sessionID=%s", taskID, sessionID)
+	logger.Info("[Background] Starting task execution: taskID=%s, sessionID=%s", taskID, sessionID)
 
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
 	startTime := time.Now()
@@ -142,7 +145,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Defensive validation: Ensure agentCoordinator is initialized
 	if s.agentCoordinator == nil {
 		errMsg := fmt.Sprintf("[Background] CRITICAL: agentCoordinator is nil (taskID=%s)", taskID)
-		s.logger.Error("%s", errMsg)
+		logger.Error("%s", errMsg)
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
 		err := fmt.Errorf("agent coordinator not initialized")
 		spanErr = err
@@ -167,11 +170,11 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 			AgentPreset: agentPreset,
 			ToolPreset:  toolPreset,
 		})
-		s.logger.Info("[Background] Using presets: agent=%s, tool=%s", agentPreset, toolPreset)
+		logger.Info("[Background] Using presets: agent=%s, tool=%s", agentPreset, toolPreset)
 	}
 
 	// Execute task with broadcaster as event listener
-	s.logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
+	logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
 
 	// Ensure subagent tool invocations forward their events to the main listener
 	ctx = builtin.WithParentListener(ctx, s.broadcaster)
@@ -180,7 +183,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	// Check if context was cancelled
 	if ctx.Err() != nil {
-		s.logger.Info("[Background] Task cancelled: taskID=%s, sessionID=%s, reason=%v", taskID, sessionID, context.Cause(ctx))
+		logger.Info("[Background] Task cancelled: taskID=%s, sessionID=%s, reason=%v", taskID, sessionID, context.Cause(ctx))
 		status = "cancelled"
 		if cause := context.Cause(ctx); cause != nil {
 			spanErr = cause
@@ -231,7 +234,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		spanErr = err
 
 		// Log to file (use %s to avoid linter warning)
-		s.logger.Error("%s", errMsg)
+		logger.Error("%s", errMsg)
 
 		// CRITICAL: Also print to stderr so server operator can see it
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
@@ -260,7 +263,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Update task with result
 	_ = s.taskStore.SetResult(ctx, taskID, result)
 
-	s.logger.Info("[Background] Task execution completed: taskID=%s", taskID)
+	logger.Info("[Background] Task execution completed: taskID=%s", taskID)
 
 	props := map[string]any{
 		"task_id":     taskID,
@@ -287,6 +290,7 @@ func (s *ServerCoordinator) captureAnalytics(ctx context.Context, distinctID str
 	if s.analytics == nil {
 		return
 	}
+	logger := logging.FromContext(ctx, s.logger)
 
 	payload := map[string]any{
 		"source": "server",
@@ -300,7 +304,7 @@ func (s *ServerCoordinator) captureAnalytics(ctx context.Context, distinctID str
 	}
 
 	if err := s.analytics.Capture(ctx, distinctID, event, payload); err != nil {
-		s.logger.Debug("[Analytics] failed to capture event %s: %v", event, err)
+		logger.Debug("[Analytics] failed to capture event %s: %v", event, err)
 	}
 }
 
@@ -308,6 +312,7 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 	if s.broadcaster == nil {
 		return
 	}
+	logger := logging.FromContext(ctx, s.logger)
 
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
 	level := agent.GetOutputContext(ctx).Level
@@ -335,7 +340,7 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 	}
 
 	event := domain.NewWorkflowInputReceivedEvent(level, sessionID, taskID, parentTaskID, task, attachmentMap, time.Now())
-	s.logger.Debug("[Background] Emitting workflow.input.received event for session=%s task=%s", sessionID, taskID)
+	logger.Debug("[Background] Emitting workflow.input.received event for session=%s task=%s", sessionID, taskID)
 	s.broadcaster.OnEvent(event)
 
 	attachmentCount := len(attachmentMap)

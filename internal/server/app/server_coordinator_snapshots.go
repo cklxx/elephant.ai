@@ -9,6 +9,7 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/analytics/journal"
+	"alex/internal/logging"
 	sessionstate "alex/internal/session/state_store"
 )
 
@@ -82,9 +83,8 @@ func (s *ServerCoordinator) ReplaySession(ctx context.Context, sessionID string)
 			return fmt.Errorf("save snapshot: %w", err)
 		}
 	}
-	if s.logger != nil {
-		s.logger.Info("[Replay] Rehydrated %d turn(s) for session %s", len(snapshots), sessionID)
-	}
+	logger := logging.FromContext(ctx, s.logger)
+	logger.Info("[Replay] Rehydrated %d turn(s) for session %s", len(snapshots), sessionID)
 	return nil
 }
 

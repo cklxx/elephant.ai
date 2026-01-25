@@ -47,6 +47,7 @@ type Logger struct {
 	component  string
 	enableFile bool
 	category   LogCategory
+	logID      string
 }
 
 // GetLogger returns the singleton logger instance
@@ -182,6 +183,25 @@ func (l *Logger) Close() error {
 	return nil
 }
 
+// WithLogID returns a shallow copy of the logger that tags log lines with a log id.
+func (l *Logger) WithLogID(logID string) *Logger {
+	if l == nil {
+		return nil
+	}
+	if strings.TrimSpace(logID) == "" {
+		return l
+	}
+	return &Logger{
+		file:       l.file,
+		logger:     l.logger,
+		level:      l.level,
+		component:  l.component,
+		enableFile: l.enableFile,
+		category:   l.category,
+		logID:      logID,
+	}
+}
+
 // log is the internal logging function
 func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	if level < l.level || !l.enableFile {
@@ -213,17 +233,27 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	if category == "" {
 		category = "SERVICE"
 	}
+	logID := strings.TrimSpace(l.logID)
+	if logID != "" {
+		logLine := fmt.Sprintf("%s [%s] [%s] [%s] [logid=%s] %s:%d - %s\n",
+			timestamp, levelStr, category, component, logID, file, line, message)
+		sanitizedLine := sanitizeLogLine(logLine)
+		if l.logger != nil {
+			l.logger.Print(sanitizedLine)
+		}
+		if os.Getenv("ALEX_SERVER_MODE") == "deploy" {
+			fmt.Print(sanitizedLine)
+		}
+		return
+	}
+
 	logLine := fmt.Sprintf("%s [%s] [%s] [%s] %s:%d - %s\n",
 		timestamp, levelStr, category, component, file, line, message)
 
 	sanitizedLine := sanitizeLogLine(logLine)
-
-	// Write to debug log file if available
 	if l.logger != nil {
 		l.logger.Print(sanitizedLine)
 	}
-
-	// Only write to stdout when ALEX_SERVER_MODE=deploy (for log redirection)
 	if os.Getenv("ALEX_SERVER_MODE") == "deploy" {
 		fmt.Print(sanitizedLine)
 	}
