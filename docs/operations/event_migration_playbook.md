@@ -10,7 +10,7 @@ This playbook assigns concrete actions for the workflow-first event stream migra
 
 ## Backend (mapper + emission)
 
-1. Implement an event translation layer near `internal/agent/app/agent_workflow.go`:
+1. Implement an event translation layer near `internal/agent/app/coordinator/agent_workflow.go`:
    - Build a shared envelope `{version,event_type,timestamp,agent_level,workflow_id,run_id|task_id,parent_task_id,session_id,node_id,node_kind,payload}`.
    - Map existing domain events to new namespaced `event_type` values (see IDL).
 2. Emit missing events:

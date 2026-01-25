@@ -18,10 +18,11 @@ The mock scenarios simulate realistic agent interactions including:
 
 ```go
 import (
-    "alex/internal/agent/domain"
-    "alex/internal/agent/ports/mocks"
     "context"
     "testing"
+
+    react "alex/internal/agent/domain/react"
+    "alex/internal/agent/ports/mocks"
 )
 
 func TestMyAgent(t *testing.T) {
@@ -29,7 +30,7 @@ func TestMyAgent(t *testing.T) {
     scenario := mocks.NewFileReadScenario()
 
     // Set up services with mock LLM and tools
-    services := domain.Services{
+    services := react.Services{
         LLM:          scenario.LLM,
         ToolExecutor: scenario.Registry,
         Parser:       &mocks.MockParser{},
@@ -37,8 +38,8 @@ func TestMyAgent(t *testing.T) {
     }
 
     // Run the agent
-    engine := domain.NewReactEngine(10)
-    state := &domain.TaskState{}
+    engine := react.NewReactEngine(react.ReactEngineConfig{MaxIterations: 10})
+    state := &react.TaskState{}
 
     result, err := engine.SolveTask(context.Background(), "What is the API endpoint?", state, services)
 
@@ -251,7 +252,7 @@ if result.StopReason != "final_answer" {
 Run benchmarks for all scenarios:
 
 ```bash
-go test ./internal/agent/domain/ -bench=BenchmarkScenarios -benchmem
+go test ./internal/agent/domain/react -bench=BenchmarkScenarios -benchmem
 ```
 
 ## Adding New Scenarios
@@ -310,21 +311,21 @@ func TestReactEngine_MyScenario(t *testing.T) {
 
 ```bash
 # Run all scenario tests
-go test ./internal/agent/domain/ -v -run Scenario
+go test ./internal/agent/domain/react -v -run Scenario
 
 # Run specific scenario
-go test ./internal/agent/domain/ -v -run TestReactEngine_FileReadScenario
+go test ./internal/agent/domain/react -v -run TestReactEngine_FileReadScenario
 
 # Run all tests including scenarios
-go test ./internal/agent/domain/ -v
+go test ./internal/agent/domain/react -v
 
 # Run with coverage
-go test ./internal/agent/domain/ -cover
+go test ./internal/agent/domain/react -cover
 ```
 
 ## See Also
 
-- `internal/agent/domain/react_engine.go` - ReAct engine implementation
-- `internal/agent/domain/react_engine_test.go` - Basic unit tests
-- `internal/agent/domain/react_engine_scenarios_test.go` - Scenario-based tests
+- `internal/agent/domain/react/engine.go` - ReAct engine implementation
+- `internal/agent/domain/react/engine_test.go` - Basic unit tests
+- `internal/agent/domain/react/scenarios_test.go` - Scenario-based tests
 - `internal/agent/ports/` - Port interfaces

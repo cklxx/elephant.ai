@@ -30,7 +30,7 @@ It complements the deeper dives in `docs/AGENT.md`, `docs/reference/ALEX.md`, an
 
 **Application Layer**
 - Coordinates use cases and orchestrates the agent loop.
-- Key packages: `internal/agent/app`
+- Key packages: `internal/agent/app/coordinator`
 
 **Domain Layer**
 - Think -> Act -> Observe loop, events, and policies.
@@ -55,7 +55,7 @@ It complements the deeper dives in `docs/AGENT.md`, `docs/reference/ALEX.md`, an
 | Area | Responsibility | Primary Packages |
 | --- | --- | --- |
 | Delivery surfaces | CLI/TUI, server handlers, SSE streaming, web UI | `cmd/`, `internal/output`, `internal/server`, `web/` |
-| Agent application | Use case orchestration, session commands, streaming results | `internal/agent/app` |
+| Agent application | Use case orchestration, session commands, streaming results | `internal/agent/app/coordinator` |
 | Agent domain | ReAct loop, events, policies, approvals | `internal/agent/domain`, `internal/agent/ports`, `internal/agent/presets` |
 | LLM integration | Provider SDKs, retries, streaming, cost tracking | `internal/llm`, `internal/subscription` |
 | Tools + MCP | Built-in tools, MCP tools, registry | `internal/tools`, `internal/toolregistry`, `internal/mcp` |
@@ -72,7 +72,7 @@ At startup each delivery surface follows the same skeleton:
 2) Snapshot environment and runtime metadata (`internal/environment`).
 3) Build the DI container (`internal/di`) and register core adapters.
 4) Wire LLM providers, tool registry, MCP supervisor, storage, observability.
-5) Resolve the agent application service (`internal/agent/app`).
+5) Resolve the agent coordinator (`internal/agent/app/coordinator`).
 6) Attach delivery renderers (CLI/TUI, SSE, web).
 
 ![Startup Flow Diagram](images/startup_flow.png)
@@ -81,7 +81,7 @@ At startup each delivery surface follows the same skeleton:
 flowchart TD
     A[CLI/TUI | Server | ACP | Web] --> B[internal/config + internal/environment]
     B --> C[internal/di Container]
-    C --> D[internal/agent/app Executor]
+    C --> D[internal/agent/app/coordinator.AgentCoordinator]
     C --> E[internal/llm + internal/subscription]
     C --> F[internal/toolregistry + internal/tools + internal/mcp]
     C --> G[internal/session + internal/context + internal/memory + internal/rag]

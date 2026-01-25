@@ -14,7 +14,7 @@ All delivery surfaces (CLI/TUI, HTTP server, and dashboard) share the same depen
 
 1. Load configuration from environment variables, config files, and flags (`internal/config`).
 2. Build the DI container which registers LLM providers, tool registries, MCP servers, persistence, and observability exporters.
-3. Resolve the agent application service (`internal/agent/app`) which exposes high-level commands such as `ExecuteTask`, `ResumeSession`, and `ListSessions`.
+3. Resolve the agent coordinator (`internal/agent/app/coordinator`) which exposes high-level commands such as `ExecuteTask`, `ResumeSession`, and `ListSessions`.
 4. Attach delivery-specific renderers (Bubble Tea UI, CLI stream, HTTP handlers, SSE encoders) from `internal/output` and `internal/server`.
 
 The uniform container ensures that enabling MCP, swapping an LLM provider, or adjusting policy applies to every surface with zero extra wiring.
@@ -109,7 +109,7 @@ CLI / Server / Web
  internal/di.Container
         │ resolves
         ▼
- internal/agent/app.Executor
+ internal/agent/app/coordinator.AgentCoordinator
         │ emits events
         ▼
  internal/output renderers ───► terminal / HTTP / SSE
