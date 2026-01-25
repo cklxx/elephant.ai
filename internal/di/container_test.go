@@ -3,6 +3,7 @@ package di
 import (
 	"os"
 	"testing"
+	"time"
 
 	"alex/internal/session/postgresstore"
 	sessionstate "alex/internal/session/state_store"
@@ -143,6 +144,58 @@ func TestResolveStorageDir_DoesNotStripHomeIncorrectly(t *testing.T) {
 				t.Errorf("resolveStorageDir(%q) failed to expand tilde = %v", tc.input, result)
 			}
 		})
+	}
+}
+
+func TestResolveSessionPoolOptionsDefaults(t *testing.T) {
+	options := resolveSessionPoolOptions(Config{})
+	if options.maxConns != defaultSessionPoolMaxConns {
+		t.Fatalf("maxConns = %d, want %d", options.maxConns, defaultSessionPoolMaxConns)
+	}
+	if options.minConns != defaultSessionPoolMinConns {
+		t.Fatalf("minConns = %d, want %d", options.minConns, defaultSessionPoolMinConns)
+	}
+	if options.maxLifetime != defaultSessionPoolMaxConnLifetime {
+		t.Fatalf("maxLifetime = %s, want %s", options.maxLifetime, defaultSessionPoolMaxConnLifetime)
+	}
+	if options.maxIdle != defaultSessionPoolMaxConnIdleTime {
+		t.Fatalf("maxIdle = %s, want %s", options.maxIdle, defaultSessionPoolMaxConnIdleTime)
+	}
+	if options.healthCheck != defaultSessionPoolHealthCheckPeriod {
+		t.Fatalf("healthCheck = %s, want %s", options.healthCheck, defaultSessionPoolHealthCheckPeriod)
+	}
+	if options.connectTimeout != defaultSessionPoolConnectTimeout {
+		t.Fatalf("connectTimeout = %s, want %s", options.connectTimeout, defaultSessionPoolConnectTimeout)
+	}
+}
+
+func TestResolveSessionPoolOptionsOverrides(t *testing.T) {
+	config := Config{
+		SessionPoolMaxConns:          42,
+		SessionPoolMinConns:          7,
+		SessionPoolMaxConnLifetime:   3 * time.Hour,
+		SessionPoolMaxConnIdleTime:   12 * time.Minute,
+		SessionPoolHealthCheckPeriod: 2 * time.Minute,
+		SessionPoolConnectTimeout:    8 * time.Second,
+	}
+	options := resolveSessionPoolOptions(config)
+	if options.maxConns != config.SessionPoolMaxConns {
+		t.Fatalf("maxConns = %d, want %d", options.maxConns, config.SessionPoolMaxConns)
+	}
+	if options.minConns != config.SessionPoolMinConns {
+		t.Fatalf("minConns = %d, want %d", options.minConns, config.SessionPoolMinConns)
+	}
+	if options.maxLifetime != config.SessionPoolMaxConnLifetime {
+		t.Fatalf("maxLifetime = %s, want %s", options.maxLifetime, config.SessionPoolMaxConnLifetime)
+	}
+	if options.maxIdle != config.SessionPoolMaxConnIdleTime {
+		t.Fatalf("maxIdle = %s, want %s", options.maxIdle, config.SessionPoolMaxConnIdleTime)
+	}
+	if options.healthCheck != config.SessionPoolHealthCheckPeriod {
+		t.Fatalf("healthCheck = %s, want %s", options.healthCheck, config.SessionPoolHealthCheckPeriod)
+	}
+	if options.connectTimeout != config.SessionPoolConnectTimeout {
+		t.Fatalf("connectTimeout = %s, want %s", options.connectTimeout, config.SessionPoolConnectTimeout)
 	}
 }
 

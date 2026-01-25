@@ -46,3 +46,4 @@
 - 2026-01-25: Split react_engine.go into focused modules (types/constants/workflow/tool-batch/events/solve/tooling/prompts/finalize/placeholders/observe).
 - 2026-01-25: Split execution_preparation_service into focused modules (analysis/attachments/history/inherited/presets/session) without behavior changes.
 - 2026-01-25: Split agent ports into subpackages (agent/llm/tools/storage), updated imports/tests, and validated `go test ./internal/...`.
+- 2026-01-25: Refactored DI container into builder-style helpers, added session pool option tests, and validated fmt/vet/test.
