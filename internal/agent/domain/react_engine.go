@@ -59,7 +59,7 @@ type toolCallBatch struct {
 	calls                []ToolCall
 	callNodes            []string
 	results              []ToolResult
-	attachmentsMu        sync.Mutex
+	attachmentsMu        sync.RWMutex
 	stateMu              sync.Mutex
 }
 
@@ -1124,7 +1124,7 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 	call ToolCall,
 	attachments map[string]ports.Attachment,
 	metadata map[string]any,
-	attachmentsMu *sync.Mutex,
+	attachmentsMu *sync.RWMutex,
 ) map[string]ports.Attachment {
 	normalized := normalizeAttachmentMap(attachments)
 	mutations := normalizeAttachmentMutations(metadata)
@@ -1132,9 +1132,9 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 	var existing map[string]ports.Attachment
 	if state != nil {
 		if attachmentsMu != nil {
-			attachmentsMu.Lock()
+			attachmentsMu.RLock()
 			existing = normalizeAttachmentMap(state.Attachments)
-			attachmentsMu.Unlock()
+			attachmentsMu.RUnlock()
 		} else {
 			existing = normalizeAttachmentMap(state.Attachments)
 		}

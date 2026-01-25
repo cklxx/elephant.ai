@@ -38,3 +38,4 @@
 - 2026-01-25: Plan created; engineering practices reviewed.
 - 2026-01-25: Added LLM client cache controls (size + TTL), wiring through runtime config and DI; added eviction/TTL tests.
 - 2026-01-25: Introduced jsonx wrapper on goccy/go-json and migrated session/state stores to it.
+- 2026-01-25: Switched toolCallBatch attachment locking to RWMutex for better read concurrency; updated tests.

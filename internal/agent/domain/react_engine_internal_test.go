@@ -630,7 +630,7 @@ func TestApplyToolAttachmentMutationsUpdatesState(t *testing.T) {
 		"note.md": {MediaType: "text/markdown", Data: "YmFzZSBjb250ZW50"},
 	}
 
-	var mu sync.Mutex
+	var mu sync.RWMutex
 	merged := engine.applyToolAttachmentMutations(context.Background(), state, call, attachments, metadata, &mu)
 
 	if len(merged) != 2 {
@@ -667,7 +667,7 @@ func TestApplyToolAttachmentMutationsRemoveOnly(t *testing.T) {
 		},
 	}
 
-	var mu sync.Mutex
+	var mu sync.RWMutex
 	merged := engine.applyToolAttachmentMutations(context.Background(), state, ToolCall{Name: "artifacts_delete"}, nil, metadata, &mu)
 
 	if len(merged) != 1 {
