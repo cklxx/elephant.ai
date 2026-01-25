@@ -152,6 +152,51 @@ onToken(token => setState(prev => [...prev, token]));
 
 ---
 
+#### 3.1.5 工具卡片展示最佳实践
+
+**内容可读性**:
+
+**行宽限制** (基于2026年最新研究):
+- **文本内容**: 50-75字符/行，最佳点为66字符 ([Baymard Institute](https://baymard.com/blog/line-length-readability))
+- **代码块**: 80-120字符/行 ([The 80/24 rule](https://blog.ploeh.dk/2019/11/04/the-80-24-rule/))
+- **卡片最大宽度**: 800-1200px ([New Target](https://www.newtarget.com/web-insights-blog/max-content-width/))
+
+**视觉层次**:
+```typescript
+// ✅ Good: 清晰的层次结构
+interface ToolCardLayout {
+  header: {
+    fontSize: '13px',
+    fontWeight: 600,
+    padding: '6px 12px'
+  },
+  content: {
+    fontSize: '12px',    // 比标题小1px
+    lineHeight: 1.6,     // 150-160%以提高可读性
+    maxWidth: '900px',   // 限制行宽
+    padding: '12px 16px'
+  },
+  code: {
+    fontSize: '11-12px', // 等宽字体可稍小
+    lineHeight: 1.5,
+    maxWidth: '100ch',   // 约100字符宽度
+    overflow: 'auto'
+  }
+}
+```
+
+**间距规范**:
+- 卡片外边距: 4-8px
+- 卡片内边距: 12-16px
+- 内容区间距: 8-12px
+- 代码块padding: 12-16px
+
+**参考**:
+- [Optimal Line Length for Readability | UXPin](https://www.uxpin.com/studio/blog/optimal-line-length-for-readability/)
+- [UI Card Design Best Practices](https://www.alfdesigngroup.com/post/best-practices-to-design-ui-cards-for-your-website)
+
+---
+
 #### 3.2 进度指示器
 
 **模式**: TODO List 风格

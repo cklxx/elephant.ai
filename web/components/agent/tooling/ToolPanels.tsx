@@ -58,7 +58,7 @@ export function CopyButton({
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-[10px] font-semibold text-foreground transition hover:bg-muted"
+      className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/80 px-2.5 py-1 text-[10px] font-medium text-foreground/70 transition-all hover:bg-muted hover:text-foreground hover:border-border shadow-sm"
       aria-label={copied ? successLabel : label}
     >
       {copied ? <ClipboardCheck className="h-3 w-3" /> : <Clipboard className="h-3 w-3" />}
@@ -69,7 +69,7 @@ export function CopyButton({
 
 export function SimplePanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card/90 p-3 text-[11px] text-foreground/80">
+    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/90 p-4 text-[12px] text-foreground/80">
       {children}
     </div>
   );
@@ -77,8 +77,8 @@ export function SimplePanel({ children }: { children: ReactNode }) {
 
 export function PanelHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <p className="text-[11px] font-semibold text-muted-foreground">{title}</p>
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
       {action}
     </div>
   );
@@ -98,9 +98,11 @@ export function ToolArgumentsPanel({
   return (
     <SimplePanel>
       <PanelHeader title={label} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={args} />} />
-      <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 font-mono text-[11px] leading-snug text-foreground/80">
-        {args}
-      </pre>
+      <div className="max-w-[900px]">
+        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
+          {args}
+        </pre>
+      </div>
     </SimplePanel>
   );
 }
@@ -184,9 +186,9 @@ export function ToolResultPanel({
     <SimplePanel>
       <PanelHeader title={resultTitle} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={formatted} />} />
       {attachmentsAvailable ? (
-        <div className="rounded-lg border border-border/60 bg-background p-3">
+        <div className="max-w-[900px] rounded-lg border border-border/60 bg-background p-4">
           {(textSegments.length > 0 || formatted.trim().length > 0) && (
-            <div className="max-h-56 overflow-auto whitespace-pre-wrap text-[11px] leading-normal text-foreground/80">
+            <div className="max-h-64 overflow-auto whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/85">
               {textSegments.length > 0
                 ? textSegments.map((segment, index) => (
                     <span key={`tool-result-text-${index}`}>{segment.text}</span>
@@ -257,9 +259,11 @@ export function ToolResultPanel({
           )}
         </div>
       ) : (
-        <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background px-3 py-2 text-[11px] leading-snug text-foreground/80">
-          {formatted}
-        </pre>
+        <div className="max-w-[900px]">
+          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
+            {formatted}
+          </pre>
+        </div>
       )}
     </SimplePanel>
   );
@@ -269,9 +273,11 @@ export function ToolStreamPanel({ title, content }: { title: string; content: st
   return (
     <SimplePanel>
       <PanelHeader title={title} />
-      <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-snug text-muted-foreground">
-        {content.trim()}
-      </pre>
+      <div className="max-w-[900px]">
+        <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border/40 bg-muted/20 px-4 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
+          {content.trim()}
+        </pre>
+      </div>
     </SimplePanel>
   );
 }

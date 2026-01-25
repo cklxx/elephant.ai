@@ -201,17 +201,17 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
 
       {/* Expanded Details - Keep it clean */}
       {isExpanded && (
-        <div className="mt-1 pl-4 pr-1">
+        <div className="mt-2 pl-6 pr-2 pb-1">
           {showVideoWaitHint && (
-            <div className="flex items-center gap-2 p-2 mb-2 text-xs rounded-md bg-amber-50 text-amber-800 border border-amber-100">
-              <Film className="w-4 h-4" />
+            <div className="flex items-center gap-2 px-3 py-2 mb-3 text-[12px] rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800/30">
+              <Film className="w-4 h-4 flex-shrink-0" />
               <span>Generating video... this may take a moment.</span>
             </div>
           )}
 
-          <div className="rounded-lg overflow-hidden border border-border/40 bg-muted/30 text-xs">
+          <div className="space-y-2">
             {panels.map((panel, i) => (
-              <div key={i} className="[&>div]:border-none [&>div]:shadow-none [&>div]:bg-transparent [&_pre]:p-3 [&_pre]:text-xs">
+              <div key={i} className="[&>div]:border-none [&>div]:shadow-none [&>div]:bg-transparent">
                 {panel}
               </div>
             ))}

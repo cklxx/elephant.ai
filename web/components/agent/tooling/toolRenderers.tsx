@@ -84,9 +84,11 @@ const browserRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="browser-metadata">
         <PanelHeader title={ctx.labels.metadataTitle} />
-        <p className="text-sm text-foreground/80">
-          {ctx.completeEvent.metadata.url}
-        </p>
+        <div className="max-w-[800px]">
+          <p className="text-[12px] leading-relaxed text-foreground/80 break-all">
+            {ctx.completeEvent.metadata.url}
+          </p>
+        </div>
       </SimplePanel>,
     );
   }
@@ -100,9 +102,11 @@ const shellRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="shell-command">
         <PanelHeader title="Command" />
-        <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-2 font-mono text-[10px] leading-snug text-foreground/90">
-          {ctx.startEvent.arguments.command}
-        </pre>
+        <div className="max-w-[900px]">
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-muted/20 px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/90 shadow-sm">
+            {ctx.startEvent.arguments.command}
+          </pre>
+        </div>
       </SimplePanel>,
     );
   }
@@ -120,9 +124,11 @@ const codeExecuteRenderer: ToolRenderer = (ctx) => {
       panels.push(
       <SimplePanel key="code-execute-source">
         <PanelHeader title="Code" />
-        <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-muted/20 p-3 font-mono text-[11px] leading-snug text-foreground/90">
-          {code}
-        </pre>
+        <div className="max-w-[900px]">
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-muted/20 px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/90 shadow-sm">
+            {code}
+          </pre>
+        </div>
       </SimplePanel>,
     );
   }
@@ -136,7 +142,11 @@ const fileRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="file-target">
         <PanelHeader title="File" />
-        <p className="font-mono text-[11px] text-foreground/70">{ctx.startEvent.arguments.path}</p>
+        <div className="max-w-[900px]">
+          <p className="rounded-md border border-border/40 bg-muted/10 px-3 py-2 font-mono text-[12px] text-foreground/80 break-all">
+            {ctx.startEvent.arguments.path}
+          </p>
+        </div>
       </SimplePanel>,
     );
   }

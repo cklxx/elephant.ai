@@ -19,7 +19,7 @@ export function LoadingSpinner({ size = 'md', className, label }: LoadingSpinner
 
   return (
     <div className={cn('flex flex-col items-center justify-center gap-3', className)}>
-      <Loader2 className={cn('animate-spin', sizeClasses[size])} />
+      <Loader2 className={cn('animate-spin-fast', sizeClasses[size])} />
       {label && <p>{label}</p>}
     </div>
   );
@@ -46,7 +46,7 @@ export function LoadingState({
     <div className={cn('flex items-center gap-3 p-4', className)}>
       {status === 'loading' && (
         <>
-          <Loader2 className="h-5 w-5 animate-spin" />
+          <Loader2 className="h-5 w-5 animate-spin-fast" />
           <span>{loadingText}</span>
         </>
       )}
@@ -132,7 +132,7 @@ export function LoadingDots({
               dotClassName
             )}
             style={{
-              animationDelay: `${idx * 0.12}s`,
+              animationDelay: `${idx * 0.08}s`,
             }}
           />
         ))}
@@ -140,7 +140,7 @@ export function LoadingDots({
       <style jsx>{`
         .loading-dot {
           background: hsl(var(--foreground) / 0.5);
-          animation: sweep 0.6s ease-in-out infinite;
+          animation: sweep 0.4s ease-in-out infinite;
         }
         @keyframes sweep {
           0%, 100% {
