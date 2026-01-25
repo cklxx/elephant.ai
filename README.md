@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="web/public/elephant.jpg" alt="elephant.ai mascot" width="76" height="76" style="border-radius:20px; object-fit:cover; outline:1px solid rgba(15,23,42,0.18); outline-offset:2px;" />
+    <img src="web/public/elephant.jpg" alt="elephant.ai mascot" width="76" height="76" style="border-radius:50%;" />
 </p>
 
 # elephant.ai
