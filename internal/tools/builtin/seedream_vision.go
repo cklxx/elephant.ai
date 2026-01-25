@@ -65,6 +65,9 @@ func (t *seedreamVisionTool) Metadata() ports.ToolMetadata {
 }
 
 func (t *visionTool) Metadata() ports.ToolMetadata {
+	if t.seedream != nil {
+		return t.seedream.Metadata()
+	}
 	return ports.ToolMetadata{Name: "vision_analyze"}
 }
 
@@ -99,7 +102,15 @@ func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
 }
 
 func (t *visionTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{Name: "vision_analyze"}
+	if t.seedream != nil {
+		return t.seedream.Definition()
+	}
+	return ports.ToolDefinition{
+		Name: "vision_analyze",
+		Parameters: ports.ParameterSchema{
+			Type: "object",
+		},
+	}
 }
 
 func (t *seedreamVisionTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
