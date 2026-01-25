@@ -123,12 +123,12 @@ export function LoadingDots({
 }) {
   return (
     <>
-      <span className={cn('inline-flex items-center gap-1.5', className)} aria-hidden="true">
+      <span className={cn('inline-flex items-center gap-1', className)} aria-hidden="true">
         {Array.from({ length: count }).map((_, idx) => (
           <span
             key={idx}
             className={cn(
-              'loading-dot h-2 w-2 rounded-full motion-reduce:animate-none',
+              'loading-dot h-1.5 w-1.5 rounded-full motion-reduce:animate-none',
               dotClassName
             )}
             style={{
@@ -139,12 +139,12 @@ export function LoadingDots({
       </span>
       <style jsx>{`
         .loading-dot {
-          background: hsl(var(--foreground) / 0.2);
+          background: hsl(var(--foreground) / 0.5);
           animation: sweep 0.6s ease-in-out infinite;
         }
         @keyframes sweep {
           0%, 100% {
-            opacity: 0.3;
+            opacity: 0.4;
           }
           50% {
             opacity: 1;
