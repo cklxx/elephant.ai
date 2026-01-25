@@ -46,6 +46,8 @@ type RuntimeFileConfig struct {
 	MaxIterations              *int     `yaml:"max_iterations"`
 	MaxTokens                  *int     `yaml:"max_tokens"`
 	ToolMaxConcurrent          *int     `yaml:"tool_max_concurrent"`
+	LLMCacheSize               *int     `yaml:"llm_cache_size"`
+	LLMCacheTTLSeconds         *int     `yaml:"llm_cache_ttl_seconds"`
 	UserRateLimitRPS           *float64 `yaml:"user_rate_limit_rps"`
 	UserRateLimitBurst         *int     `yaml:"user_rate_limit_burst"`
 	Temperature                *float64 `yaml:"temperature"`

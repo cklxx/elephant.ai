@@ -2,6 +2,7 @@ package di
 
 import (
 	runtimeconfig "alex/internal/config"
+	"time"
 
 	"alex/internal/agent/presets"
 )
@@ -36,6 +37,8 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		MaxTokens:                  runtime.MaxTokens,
 		MaxIterations:              runtime.MaxIterations,
 		ToolMaxConcurrent:          runtime.ToolMaxConcurrent,
+		LLMCacheSize:               runtime.LLMCacheSize,
+		LLMCacheTTL:                time.Duration(runtime.LLMCacheTTLSeconds) * time.Second,
 		UserRateLimitRPS:           runtime.UserRateLimitRPS,
 		UserRateLimitBurst:         runtime.UserRateLimitBurst,
 		Temperature:                runtime.Temperature,

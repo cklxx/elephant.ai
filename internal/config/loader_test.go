@@ -125,6 +125,8 @@ runtime:
   temperature: 0
   max_iterations: 200
   tool_max_concurrent: 6
+  llm_cache_size: 12
+  llm_cache_ttl_seconds: 90
   stop_sequences:
     - "DONE"
   session_dir: "~/sessions"
@@ -156,6 +158,12 @@ runtime:
 	}
 	if cfg.ToolMaxConcurrent != 6 {
 		t.Fatalf("expected tool_max_concurrent=6, got %d", cfg.ToolMaxConcurrent)
+	}
+	if cfg.LLMCacheSize != 12 {
+		t.Fatalf("expected llm_cache_size=12, got %d", cfg.LLMCacheSize)
+	}
+	if cfg.LLMCacheTTLSeconds != 90 {
+		t.Fatalf("expected llm_cache_ttl_seconds=90, got %d", cfg.LLMCacheTTLSeconds)
 	}
 	if len(cfg.StopSequences) != 1 || cfg.StopSequences[0] != "DONE" {
 		t.Fatalf("unexpected stop sequences: %#v", cfg.StopSequences)
@@ -222,6 +230,12 @@ runtime:
 	}
 	if meta.Source("tool_max_concurrent") != SourceFile {
 		t.Fatalf("expected tool_max_concurrent source to be file, got %s", meta.Source("tool_max_concurrent"))
+	}
+	if meta.Source("llm_cache_size") != SourceFile {
+		t.Fatalf("expected llm_cache_size source to be file, got %s", meta.Source("llm_cache_size"))
+	}
+	if meta.Source("llm_cache_ttl_seconds") != SourceFile {
+		t.Fatalf("expected llm_cache_ttl_seconds source to be file, got %s", meta.Source("llm_cache_ttl_seconds"))
 	}
 	if meta.Source("follow_transcript") != SourceFile {
 		t.Fatalf("expected follow_transcript source to be file, got %s", meta.Source("follow_transcript"))

@@ -90,6 +90,8 @@ type Config struct {
 	MaxTokens                  int
 	MaxIterations              int
 	ToolMaxConcurrent          int
+	LLMCacheSize               int
+	LLMCacheTTL                time.Duration
 	UserRateLimitRPS           float64
 	UserRateLimitBurst         int
 	Temperature                float64
@@ -212,6 +214,7 @@ func BuildContainer(config Config) (*Container, error) {
 
 	// Infrastructure Layer
 	llmFactory := llm.NewFactory()
+	llmFactory.SetCacheOptions(config.LLMCacheSize, config.LLMCacheTTL)
 	if config.UserRateLimitRPS > 0 {
 		llmFactory.EnableUserRateLimit(rate.Limit(config.UserRateLimitRPS), config.UserRateLimitBurst)
 	}

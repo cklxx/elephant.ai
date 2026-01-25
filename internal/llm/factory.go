@@ -5,7 +5,9 @@ import (
 	alexerrors "alex/internal/errors"
 	"fmt"
 	"sync"
+	"time"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"
 )
 
@@ -13,7 +15,8 @@ import (
 var _ ports.LLMClientFactory = (*Factory)(nil)
 
 type Factory struct {
-	cache                map[string]ports.LLMClient
+	cache                *lru.Cache[string, cacheEntry]
+	cacheTTL             time.Duration
 	mu                   sync.RWMutex
 	enableRetry          bool
 	retryConfig          alexerrors.RetryConfig
@@ -23,9 +26,20 @@ type Factory struct {
 	toolCallParser       ports.FunctionCallParser
 }
 
+type cacheEntry struct {
+	client    ports.LLMClient
+	expiresAt time.Time
+}
+
+const (
+	defaultLLMCacheSize = 64
+	defaultLLMCacheTTL  = 30 * time.Minute
+)
+
 func NewFactory() *Factory {
 	return &Factory{
-		cache:                make(map[string]ports.LLMClient),
+		cache:                newLLMCache(defaultLLMCacheSize),
+		cacheTTL:             defaultLLMCacheTTL,
 		enableRetry:          true, // Enabled by default
 		retryConfig:          alexerrors.DefaultRetryConfig(),
 		circuitBreakerConfig: alexerrors.DefaultCircuitBreakerConfig(),
@@ -36,12 +50,33 @@ func NewFactory() *Factory {
 // NewFactoryWithRetryConfig creates a factory with custom retry configuration
 func NewFactoryWithRetryConfig(retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) *Factory {
 	return &Factory{
-		cache:                make(map[string]ports.LLMClient),
+		cache:                newLLMCache(defaultLLMCacheSize),
+		cacheTTL:             defaultLLMCacheTTL,
 		enableRetry:          true,
 		retryConfig:          retryConfig,
 		circuitBreakerConfig: circuitBreakerConfig,
 		userRateBurst:        1,
 	}
+}
+
+// SetCacheOptions configures the LLM client cache.
+// A size <= 0 disables caching. A TTL <= 0 disables expiration.
+func (f *Factory) SetCacheOptions(size int, ttl time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.cache = newLLMCache(size)
+	f.cacheTTL = ttl
+}
+
+func newLLMCache(size int) *lru.Cache[string, cacheEntry] {
+	if size <= 0 {
+		return nil
+	}
+	cache, err := lru.New[string, cacheEntry](size)
+	if err != nil {
+		return nil
+	}
+	return cache
 }
 
 // EnableUserRateLimit enforces a per-user limiter around LLM calls.
@@ -97,24 +132,30 @@ func adaptConfig(config ports.LLMConfig) Config {
 
 func (f *Factory) getClient(provider, model string, config Config, useCache bool) (ports.LLMClient, error) {
 	cacheKey := fmt.Sprintf("%s:%s", provider, model)
+	now := time.Now()
 
-	// Check cache if enabled
-	if useCache {
-		f.mu.RLock()
-		if client, ok := f.cache[cacheKey]; ok {
-			f.mu.RUnlock()
-			return client, nil
-		}
-		f.mu.RUnlock()
-	}
-
-	// Get retry configuration
 	f.mu.RLock()
 	enableRetry := f.enableRetry
 	retryConfig := f.retryConfig
 	circuitBreakerConfig := f.circuitBreakerConfig
 	toolCallParser := f.toolCallParser
+	cache := f.cache
+	cacheTTL := f.cacheTTL
+	userRateLimit := f.userRateLimit
+	userRateBurst := f.userRateBurst
 	f.mu.RUnlock()
+
+	// Check cache if enabled
+	if useCache {
+		if cache != nil {
+			if entry, ok := cache.Get(cacheKey); ok {
+				if entry.client != nil && (entry.expiresAt.IsZero() || now.Before(entry.expiresAt)) {
+					return entry.client, nil
+				}
+				cache.Remove(cacheKey)
+			}
+		}
+	}
 
 	var client ports.LLMClient
 	var err error
@@ -147,8 +188,8 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		client = WrapWithRetry(client, retryConfig, circuitBreakerConfig)
 	}
 
-	if f.userRateLimit > 0 {
-		client = WrapWithUserRateLimit(client, f.userRateLimit, f.userRateBurst)
+	if userRateLimit > 0 {
+		client = WrapWithUserRateLimit(client, userRateLimit, userRateBurst)
 	}
 
 	if toolCallParser != nil {
@@ -157,9 +198,13 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 
 	// Cache only if requested
 	if useCache {
-		f.mu.Lock()
-		f.cache[cacheKey] = client
-		f.mu.Unlock()
+		if cache != nil {
+			var expiresAt time.Time
+			if cacheTTL > 0 {
+				expiresAt = now.Add(cacheTTL)
+			}
+			cache.Add(cacheKey, cacheEntry{client: client, expiresAt: expiresAt})
+		}
 	}
 
 	return client, nil
