@@ -157,9 +157,10 @@ func attachmentNameForMedia(prefix, mimeType string, index int) string {
 		}
 	}
 	if ext == "" {
-		if prefix == "image" {
+		switch prefix {
+		case "image":
 			ext = ".png"
-		} else if prefix == "audio" {
+		case "audio":
 			ext = ".wav"
 		}
 	}

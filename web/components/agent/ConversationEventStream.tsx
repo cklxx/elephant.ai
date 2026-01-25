@@ -216,7 +216,7 @@ export function ConversationEventStream({
         })}
         {isRunning && (
           <div
-            className="mt-4 flex max-w-[fit-content] items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-2 text-muted-foreground"
+            className="mt-4 flex items-center text-muted-foreground"
             aria-live="polite"
             data-testid="workflow-running-indicator"
           >

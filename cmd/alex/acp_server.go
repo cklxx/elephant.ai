@@ -128,7 +128,7 @@ func (s *acpServer) handleRequest(ctx context.Context, req *mcp.Request, clientI
 	_ = transport.SendResponse(resp)
 }
 
-func (s *acpServer) handleNotification(ctx context.Context, req *mcp.Request, clientID string) {
+func (s *acpServer) handleNotification(_ context.Context, req *mcp.Request, _ string) {
 	if req == nil {
 		return
 	}
@@ -587,7 +587,7 @@ func mapStopReason(result *ports.TaskResult, execErr error) string {
 	}
 }
 
-func (s *acpServer) configureMCPServers(ctx context.Context, session *acpSession, servers []any) error {
+func (s *acpServer) configureMCPServers(_ context.Context, _ *acpSession, servers []any) error {
 	if s.container.MCPRegistry == nil || s.container.AgentCoordinator == nil {
 		return nil
 	}

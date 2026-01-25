@@ -130,9 +130,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	)
 
 	ids := id.IDsFromContext(ctx)
-	if session != nil {
-		ids.SessionID = session.ID
-	}
 
 	historyLoadStarted := time.Now()
 	sessionHistory := s.loadSessionHistory(ctx, session)
@@ -469,7 +466,7 @@ func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, se
 	return ports.CloneMessages(session.Messages)
 }
 
-func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, task string, messages []ports.Message) *historyRecall {
+func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, llm ports.LLMClient, _ string, messages []ports.Message) *historyRecall {
 	if len(messages) == 0 {
 		return nil
 	}

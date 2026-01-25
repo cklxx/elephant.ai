@@ -122,18 +122,41 @@ export function LoadingDots({
   dotClassName?: string;
 }) {
   return (
-    <span className={cn('inline-flex items-center gap-1', className)} aria-hidden="true">
-      {Array.from({ length: count }).map((_, idx) => (
-        <span
-          key={idx}
-          className={cn(
-            'h-1.5 w-1.5 rounded-full bg-current animate-bounce motion-reduce:animate-none',
-            dotClassName
-          )}
-          style={{ animationDelay: `${idx * 150}ms` }}
-        />
-      ))}
-    </span>
+    <>
+      <span className={cn('inline-flex items-center gap-1.5', className)} aria-hidden="true">
+        {Array.from({ length: count }).map((_, idx) => (
+          <span
+            key={idx}
+            className={cn(
+              'loading-dot h-2 w-2 rounded-full motion-reduce:animate-none',
+              dotClassName
+            )}
+            style={{
+              animationDelay: `${idx * 0.12}s`,
+            }}
+          />
+        ))}
+      </span>
+      <style jsx>{`
+        .loading-dot {
+          background: hsl(var(--foreground) / 0.2);
+          animation: sweep 0.6s ease-in-out infinite;
+        }
+        @keyframes sweep {
+          0%, 100% {
+            opacity: 0.3;
+          }
+          50% {
+            opacity: 1;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .loading-dot {
+            animation: none;
+          }
+        }
+      `}</style>
+    </>
   );
 }
 

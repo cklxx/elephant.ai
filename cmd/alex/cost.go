@@ -77,7 +77,7 @@ Examples:
 	return nil
 }
 
-func (c *CLI) handleCostShow(ctx context.Context, args []string) error {
+func (c *CLI) handleCostShow(ctx context.Context, _ []string) error {
 	// Show total cost across all time
 	start := time.Unix(0, 0)
 	end := time.Now()
