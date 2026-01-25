@@ -207,8 +207,8 @@ func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 
 // RenderTaskStart renders task start metadata for immediate CLI feedback
 func (r *CLIRenderer) RenderTaskStart(ctx *types.OutputContext, task string) string {
-	header := lipgloss.NewStyle().Foreground(lipgloss.Color("#5EA3FF")).Bold(true).Render("▶ Start")
-	return fmt.Sprintf("%s\n", header)
+	// Silent start - don't show "▶ Start" header
+	return ""
 }
 
 // RenderTaskComplete renders task completion
