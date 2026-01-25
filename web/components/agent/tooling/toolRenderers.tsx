@@ -84,8 +84,8 @@ const browserRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="browser-metadata">
         <PanelHeader title={ctx.labels.metadataTitle} />
-        <div className="max-w-[800px]">
-          <p className="text-[12px] leading-relaxed text-foreground/80 break-all">
+        <div className="max-w-[600px]">
+          <p className="text-[12px] leading-relaxed text-foreground/80 truncate" title={ctx.completeEvent.metadata.url}>
             {ctx.completeEvent.metadata.url}
           </p>
         </div>
@@ -102,7 +102,7 @@ const shellRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="shell-command">
         <PanelHeader title="Command" />
-        <div className="max-w-[900px]">
+        <div className="max-w-[600px]">
           <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-muted/20 px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/90 shadow-sm">
             {ctx.startEvent.arguments.command}
           </pre>
@@ -124,7 +124,7 @@ const codeExecuteRenderer: ToolRenderer = (ctx) => {
       panels.push(
       <SimplePanel key="code-execute-source">
         <PanelHeader title="Code" />
-        <div className="max-w-[900px]">
+        <div className="max-w-[600px]">
           <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-muted/20 px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/90 shadow-sm">
             {code}
           </pre>
@@ -142,8 +142,8 @@ const fileRenderer: ToolRenderer = (ctx) => {
     panels.push(
       <SimplePanel key="file-target">
         <PanelHeader title="File" />
-        <div className="max-w-[900px]">
-          <p className="rounded-md border border-border/40 bg-muted/10 px-3 py-2 font-mono text-[12px] text-foreground/80 break-all">
+        <div className="max-w-[600px]">
+          <p className="rounded-md border border-border/40 bg-muted/10 px-3 py-2 font-mono text-[12px] text-foreground/80 truncate" title={ctx.startEvent.arguments.path}>
             {ctx.startEvent.arguments.path}
           </p>
         </div>

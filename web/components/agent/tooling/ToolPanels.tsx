@@ -98,7 +98,7 @@ export function ToolArgumentsPanel({
   return (
     <SimplePanel>
       <PanelHeader title={label} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={args} />} />
-      <div className="max-w-[900px]">
+      <div className="max-w-[600px]">
         <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
           {args}
         </pre>
@@ -186,7 +186,7 @@ export function ToolResultPanel({
     <SimplePanel>
       <PanelHeader title={resultTitle} action={<CopyButton label={copyLabel} successLabel={copiedLabel} value={formatted} />} />
       {attachmentsAvailable ? (
-        <div className="max-w-[900px] rounded-lg border border-border/60 bg-background p-4">
+        <div className="max-w-[600px] rounded-lg border border-border/60 bg-background p-4">
           {(textSegments.length > 0 || formatted.trim().length > 0) && (
             <div className="max-h-64 overflow-auto whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/85">
               {textSegments.length > 0
@@ -259,7 +259,7 @@ export function ToolResultPanel({
           )}
         </div>
       ) : (
-        <div className="max-w-[900px]">
+        <div className="max-w-[600px]">
           <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
             {formatted}
           </pre>
@@ -273,7 +273,7 @@ export function ToolStreamPanel({ title, content }: { title: string; content: st
   return (
     <SimplePanel>
       <PanelHeader title={title} />
-      <div className="max-w-[900px]">
+      <div className="max-w-[600px]">
         <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border/40 bg-muted/20 px-4 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
           {content.trim()}
         </pre>
