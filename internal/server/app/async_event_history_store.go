@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/async"
 	"alex/internal/logging"
 )
 
@@ -80,7 +81,9 @@ func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistor
 		opt(store)
 	}
 	if inner != nil {
-		go store.run()
+		async.Go(store.logger, "eventHistory.asyncStore", func() {
+			store.run()
+		})
 	}
 	return store
 }

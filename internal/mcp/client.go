@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/async"
 	"alex/internal/logging"
 )
 
@@ -117,7 +118,9 @@ func (c *Client) Start(ctx context.Context) error {
 	}
 
 	// Start reading responses in background
-	go c.readLoop()
+	async.Go(c.logger, "mcp.client.readLoop", func() {
+		c.readLoop()
+	})
 
 	// Perform initialize handshake
 	if err := c.initialize(ctx); err != nil {

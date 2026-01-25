@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/async"
 	"alex/internal/logging"
 )
 
@@ -241,7 +242,9 @@ func (cb *CircuitBreaker) setState(newState CircuitState) {
 	// Call state change callback if configured
 	if cb.config.OnStateChange != nil {
 		// Call in goroutine to avoid blocking
-		go cb.config.OnStateChange(oldState, newState, cb.name)
+		async.Go(cb.logger, "circuitBreaker.onStateChange", func() {
+			cb.config.OnStateChange(oldState, newState, cb.name)
+		})
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/async"
 	"alex/internal/logging"
 )
 
@@ -102,7 +103,9 @@ func (r *Registry) Initialize() error {
 	}
 
 	// Start health monitoring
-	go r.monitorHealth()
+	async.Go(r.logger, "mcp.monitorHealth", func() {
+		r.monitorHealth()
+	})
 
 	return nil
 }
@@ -213,7 +216,9 @@ func (r *Registry) startServer(name string, config ServerConfig) error {
 	}
 
 	// Monitor for restarts
-	go r.monitorServerRestart(name, instance)
+	async.Go(r.logger, "mcp.monitorRestart."+name, func() {
+		r.monitorServerRestart(name, instance)
+	})
 
 	return nil
 }
