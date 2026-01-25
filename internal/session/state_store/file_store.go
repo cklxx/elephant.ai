@@ -2,7 +2,6 @@ package state_store
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"alex/internal/jsonx"
 )
 
 // FileStore persists snapshots as JSON documents on disk for local dev usage.
@@ -63,7 +64,7 @@ func (s *FileStore) SaveSnapshot(ctx context.Context, snapshot Snapshot) error {
 	if payload.CreatedAt.IsZero() {
 		payload.CreatedAt = time.Now()
 	}
-	data, err := json.MarshalIndent(payload, "", "  ")
+	data, err := jsonx.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
@@ -100,7 +101,7 @@ func (s *FileStore) GetSnapshot(_ context.Context, sessionID string, turnID int)
 		return Snapshot{}, fmt.Errorf("read snapshot: %w", err)
 	}
 	var snapshot Snapshot
-	if err := json.Unmarshal(data, &snapshot); err != nil {
+	if err := jsonx.Unmarshal(data, &snapshot); err != nil {
 		return Snapshot{}, fmt.Errorf("decode snapshot: %w", err)
 	}
 	return snapshot, nil

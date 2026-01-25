@@ -2,7 +2,6 @@ package postgresstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/jsonx"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 
@@ -431,35 +431,35 @@ WHERE id = $1
 	}
 
 	if len(messagesJSON) > 0 {
-		if err := json.Unmarshal(messagesJSON, &session.Messages); err != nil {
+		if err := jsonx.Unmarshal(messagesJSON, &session.Messages); err != nil {
 			return nil, fmt.Errorf("decode messages: %w", err)
 		}
 	}
 	if len(todosJSON) > 0 {
-		if err := json.Unmarshal(todosJSON, &session.Todos); err != nil {
+		if err := jsonx.Unmarshal(todosJSON, &session.Todos); err != nil {
 			return nil, fmt.Errorf("decode todos: %w", err)
 		}
 	}
 	if len(metadataJSON) > 0 {
-		if err := json.Unmarshal(metadataJSON, &session.Metadata); err != nil {
+		if err := jsonx.Unmarshal(metadataJSON, &session.Metadata); err != nil {
 			return nil, fmt.Errorf("decode metadata: %w", err)
 		}
 	}
 	if len(attachmentsJSON) > 0 {
 		var attachments map[string]ports.Attachment
-		if err := json.Unmarshal(attachmentsJSON, &attachments); err != nil {
+		if err := jsonx.Unmarshal(attachmentsJSON, &attachments); err != nil {
 			return nil, fmt.Errorf("decode attachments: %w", err)
 		}
 		session.Attachments = sanitizeAttachmentMap(attachments)
 	}
 	if len(importantJSON) > 0 {
-		if err := json.Unmarshal(importantJSON, &session.Important); err != nil {
+		if err := jsonx.Unmarshal(importantJSON, &session.Important); err != nil {
 			return nil, fmt.Errorf("decode important: %w", err)
 		}
 	}
 	if len(personaJSON) > 0 {
 		var persona ports.UserPersonaProfile
-		if err := json.Unmarshal(personaJSON, &persona); err != nil {
+		if err := jsonx.Unmarshal(personaJSON, &persona); err != nil {
 			return nil, fmt.Errorf("decode user persona: %w", err)
 		}
 		session.UserPersona = &persona
@@ -469,7 +469,7 @@ WHERE id = $1
 }
 
 func toJSONBytes(value any) ([]byte, error) {
-	data, err := json.Marshal(value)
+	data, err := jsonx.Marshal(value)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,6 @@ package filestore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/jsonx"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 )
@@ -61,7 +61,7 @@ func (s *store) Create(ctx context.Context) (*ports.Session, error) {
 
 	// Save with O_CREATE|O_EXCL to prevent overwrites
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", session.ID))
-	data, err := json.MarshalIndent(session, "", "  ")
+	data, err := jsonx.MarshalIndent(session, "", "  ")
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (s *store) Get(ctx context.Context, id string) (*ports.Session, error) {
 	}
 
 	var session ports.Session
-	if err := json.Unmarshal(data, &session); err != nil {
+	if err := jsonx.Unmarshal(data, &session); err != nil {
 		// Do not log file path or preview, as session file may contain secrets (API keys, etc.)
 		logging.OrNop(s.logger).Error("Failed to decode session file: %v", err)
 		return nil, fmt.Errorf("failed to decode session: %w", err)
@@ -130,7 +130,7 @@ func (s *store) Save(ctx context.Context, session *ports.Session) error {
 	sessionCopy := *session
 	sessionCopy.Attachments = nil
 
-	data, err := json.MarshalIndent(sessionCopy, "", "  ")
+	data, err := jsonx.MarshalIndent(sessionCopy, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -145,7 +145,7 @@ func (s *store) Save(ctx context.Context, session *ports.Session) error {
 		return nil
 	}
 
-	attachmentData, err := json.MarshalIndent(attachments, "", "  ")
+	attachmentData, err := jsonx.MarshalIndent(attachments, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal attachments: %w", err)
 	}
@@ -263,7 +263,7 @@ func (s *store) loadAttachments(sessionID string) (map[string]ports.Attachment, 
 		return nil, fmt.Errorf("failed to read attachments: %w", err)
 	}
 	var attachments map[string]ports.Attachment
-	if err := json.Unmarshal(data, &attachments); err != nil {
+	if err := jsonx.Unmarshal(data, &attachments); err != nil {
 		return nil, fmt.Errorf("failed to decode attachments: %w", err)
 	}
 	return sanitizeAttachmentMap(attachments), nil

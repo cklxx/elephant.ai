@@ -2,10 +2,11 @@ package state_store
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
+
+	"alex/internal/jsonx"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -93,7 +94,7 @@ func (s *PostgresStore) SaveSnapshot(ctx context.Context, snapshot Snapshot) err
 	if payload.CreatedAt.IsZero() {
 		payload.CreatedAt = time.Now()
 	}
-	data, err := json.Marshal(payload)
+	data, err := jsonx.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal snapshot: %w", err)
 	}
@@ -151,7 +152,7 @@ WHERE session_id = $1 AND turn_id = $2 AND kind = $3
 	}
 
 	var snap Snapshot
-	if err := json.Unmarshal(payload, &snap); err != nil {
+	if err := jsonx.Unmarshal(payload, &snap); err != nil {
 		return Snapshot{}, fmt.Errorf("decode snapshot: %w", err)
 	}
 	return snap, nil
