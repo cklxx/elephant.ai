@@ -40,3 +40,4 @@
 - 2026-01-25: Introduced jsonx wrapper on goccy/go-json and migrated session/state stores to it.
 - 2026-01-25: Switched toolCallBatch attachment locking to RWMutex for better read concurrency; updated tests.
 - 2026-01-25: Migrated LLM client JSON encoding/decoding to jsonx for hot paths.
+- 2026-01-25: Split Seedream tools into per-domain files (common/text/image/vision/video/helpers) with no behavior change.
