@@ -12,3 +12,4 @@ var (
 )
 
 type RawMessage = json.RawMessage
+type Number = json.Number

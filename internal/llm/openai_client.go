@@ -3,7 +3,6 @@ package llm
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 	"alex/internal/agent/ports"
 	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
+	"alex/internal/jsonx"
 	"alex/internal/logging"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -77,7 +77,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		oaiReq["tool_choice"] = "auto"
 	}
 
-	body, err := json.Marshal(oaiReq)
+	body, err := jsonx.Marshal(oaiReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -172,14 +172,14 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		Error *struct {
 			Type    string          `json:"type"`
 			Message string          `json:"message"`
-			Code    json.RawMessage `json:"code"`
+			Code    jsonx.RawMessage `json:"code"`
 		} `json:"error"`
 	}
 
 	c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
 
-	if err := json.Unmarshal(respBody, &oaiResp); err != nil {
+	if err := jsonx.Unmarshal(respBody, &oaiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
@@ -227,7 +227,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	// Convert tool calls
 	for _, tc := range oaiResp.Choices[0].Message.ToolCalls {
 		var args map[string]any
-		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		if err := jsonx.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 			c.logger.Debug("%sFailed to parse tool call arguments: %v", prefix, err)
 			continue
 		}
@@ -288,7 +288,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		oaiReq["stop"] = append([]string(nil), req.StopSequences...)
 	}
 
-	body, err := json.Marshal(oaiReq)
+	body, err := jsonx.Marshal(oaiReq)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -436,7 +436,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		}
 
 		var chunk streamChunk
-		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+		if err := jsonx.Unmarshal([]byte(payload), &chunk); err != nil {
 			c.logger.Debug("%sFailed to decode stream chunk: %v", prefix, err)
 			continue
 		}
@@ -503,7 +503,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		}
 		var args map[string]any
 		if acc.arguments.Len() > 0 {
-			if err := json.Unmarshal([]byte(acc.arguments.String()), &args); err != nil {
+			if err := jsonx.Unmarshal([]byte(acc.arguments.String()), &args); err != nil {
 				c.logger.Debug("%sFailed to parse tool call arguments: %v", prefix, err)
 			}
 		}
@@ -518,7 +518,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		c.usageCallback(result.Usage, c.model, provider)
 	}
 
-	if respPayload, err := json.Marshal(map[string]any{
+	if respPayload, err := jsonx.Marshal(map[string]any{
 		"content":     result.Content,
 		"stop_reason": result.StopReason,
 		"tool_calls":  result.ToolCalls,

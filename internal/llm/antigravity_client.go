@@ -3,7 +3,6 @@ package llm
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -13,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
+	"alex/internal/jsonx"
 	"alex/internal/logging"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -65,7 +65,7 @@ func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRe
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 
 	payload := buildAntigravityPayload(req, requestID, c.model)
-	body, err := json.Marshal(payload)
+	body, err := jsonx.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -371,8 +371,8 @@ func convertAntigravityTools(tools []ports.ToolDefinition) []map[string]any {
 			continue
 		}
 		var schema map[string]any
-		if data, err := json.Marshal(tool.Parameters); err == nil {
-			_ = json.Unmarshal(data, &schema)
+		if data, err := jsonx.Marshal(tool.Parameters); err == nil {
+			_ = jsonx.Unmarshal(data, &schema)
 		}
 		if schema == nil {
 			schema = map[string]any{"type": "object", "properties": map[string]any{}}
@@ -391,7 +391,7 @@ func convertAntigravityTools(tools []ports.ToolDefinition) []map[string]any {
 
 func parseAntigravityResponse(body []byte, requestID string) (*ports.CompletionResponse, error) {
 	var payload map[string]any
-	if err := json.Unmarshal(body, &payload); err != nil {
+	if err := jsonx.Unmarshal(body, &payload); err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
@@ -432,7 +432,7 @@ func parseAntigravityResponse(body []byte, requestID string) (*ports.CompletionR
 					case map[string]any:
 						args = v
 					case string:
-						_ = json.Unmarshal([]byte(v), &args)
+						_ = jsonx.Unmarshal([]byte(v), &args)
 					}
 					callID := ""
 					if idValue, ok := fc["id"].(string); ok {
@@ -527,7 +527,7 @@ func parseJSONValue(content string) any {
 		return map[string]any{}
 	}
 	var parsed any
-	if err := json.Unmarshal([]byte(trimmed), &parsed); err == nil {
+	if err := jsonx.Unmarshal([]byte(trimmed), &parsed); err == nil {
 		return parsed
 	}
 	return trimmed
@@ -541,7 +541,7 @@ func readInt(value any) int {
 		return v
 	case int64:
 		return int(v)
-	case json.Number:
+	case jsonx.Number:
 		if parsed, err := v.Int64(); err == nil {
 			return int(parsed)
 		}

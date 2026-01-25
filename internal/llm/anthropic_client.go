@@ -3,7 +3,6 @@ package llm
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"mime"
 	"net/http"
@@ -14,6 +13,7 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/httpclient"
+	"alex/internal/jsonx"
 	"alex/internal/logging"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -89,7 +89,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		payload["tools"] = convertAnthropicTools(req.Tools)
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := jsonx.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -183,7 +183,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	}
 
 	var apiResp anthropicResponse
-	if err := json.Unmarshal(respBody, &apiResp); err != nil {
+	if err := jsonx.Unmarshal(respBody, &apiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
 		return nil, fmt.Errorf("decode response: %w", err)
 	}

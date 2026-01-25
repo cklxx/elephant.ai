@@ -1,11 +1,11 @@
 package llm
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
 
 	"alex/internal/agent/ports"
+	"alex/internal/jsonx"
 )
 
 var validToolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)
@@ -22,7 +22,7 @@ func buildToolCallHistory(calls []ports.ToolCall) []map[string]any {
 		}
 		args := "{}"
 		if len(call.Arguments) > 0 {
-			if data, err := json.Marshal(call.Arguments); err == nil {
+			if data, err := jsonx.Marshal(call.Arguments); err == nil {
 				args = string(data)
 			}
 		}

@@ -3,7 +3,6 @@ package llm
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,6 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/httpclient"
+	"alex/internal/jsonx"
 	"alex/internal/logging"
 )
 
@@ -73,7 +73,7 @@ func (c *ollamaClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 
 	var response ollamaResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := jsonx.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("decode ollama response: %w", err)
 	}
 	if response.Error != "" {
@@ -129,7 +129,7 @@ func (c *ollamaClient) StreamComplete(
 		)
 
 		var chunk ollamaResponse
-		if err := json.Unmarshal([]byte(line), &chunk); err != nil {
+		if err := jsonx.Unmarshal([]byte(line), &chunk); err != nil {
 			return nil, fmt.Errorf("decode ollama stream chunk: %w", err)
 		}
 		if chunk.Error != "" {
@@ -196,7 +196,7 @@ func (c *ollamaClient) buildRequestPayload(req ports.CompletionRequest, stream b
 		request.Options = options
 	}
 
-	body, err := json.Marshal(request)
+	body, err := jsonx.Marshal(request)
 	if err != nil {
 		return nil, fmt.Errorf("marshal ollama request: %w", err)
 	}

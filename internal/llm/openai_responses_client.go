@@ -3,7 +3,6 @@ package llm
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,6 +11,7 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/httpclient"
+	"alex/internal/jsonx"
 	"alex/internal/logging"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
@@ -92,7 +92,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 		payload["stop"] = append([]string(nil), req.StopSequences...)
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := jsonx.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -162,7 +162,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 
 	var apiResp responsesResponse
-	if err := json.Unmarshal(respBody, &apiResp); err != nil {
+	if err := jsonx.Unmarshal(respBody, &apiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
 		return nil, fmt.Errorf("decode response: %w", err)
 	}
@@ -261,7 +261,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		payload["stop"] = append([]string(nil), req.StopSequences...)
 	}
 
-	body, err := json.Marshal(payload)
+	body, err := jsonx.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal request: %w", err)
 	}
@@ -379,7 +379,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		}
 
 		var evt responsesStreamEvent
-		if err := json.Unmarshal([]byte(data), &evt); err != nil {
+		if err := jsonx.Unmarshal([]byte(data), &evt); err != nil {
 			c.logger.Debug("%sFailed to decode stream event: %v", prefix, err)
 			continue
 		}
@@ -523,7 +523,7 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 				}
 				args := "{}"
 				if len(call.Arguments) > 0 {
-					if data, err := json.Marshal(call.Arguments); err == nil {
+					if data, err := jsonx.Marshal(call.Arguments); err == nil {
 						args = string(data)
 					}
 				}
@@ -647,7 +647,7 @@ type responsesUsage struct {
 type responsesErrorPayload struct {
 	Type    string          `json:"type"`
 	Message string          `json:"message"`
-	Code    json.RawMessage `json:"code"`
+	Code    jsonx.RawMessage `json:"code"`
 }
 
 type responseOutputItem struct {
@@ -655,7 +655,7 @@ type responseOutputItem struct {
 	ID        string              `json:"id"`
 	Role      string              `json:"role"`
 	Name      string              `json:"name"`
-	Arguments json.RawMessage     `json:"arguments"`
+	Arguments jsonx.RawMessage     `json:"arguments"`
 	Content   []responseContent   `json:"content"`
 	ToolCalls []responseToolCall  `json:"tool_calls"`
 	Metadata  map[string]any      `json:"metadata"`
@@ -737,22 +737,22 @@ func flattenOutputText(raw any) string {
 	}
 }
 
-func parseToolArguments(raw json.RawMessage) map[string]any {
+func parseToolArguments(raw jsonx.RawMessage) map[string]any {
 	if len(raw) == 0 {
 		return nil
 	}
 
 	var args map[string]any
-	if err := json.Unmarshal(raw, &args); err == nil {
+	if err := jsonx.Unmarshal(raw, &args); err == nil {
 		return args
 	}
 
 	var asString string
-	if err := json.Unmarshal(raw, &asString); err != nil {
+	if err := jsonx.Unmarshal(raw, &asString); err != nil {
 		return nil
 	}
 
-	if err := json.Unmarshal([]byte(asString), &args); err != nil {
+	if err := jsonx.Unmarshal([]byte(asString), &args); err != nil {
 		return nil
 	}
 	return args
