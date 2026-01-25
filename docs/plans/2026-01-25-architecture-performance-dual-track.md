@@ -47,3 +47,5 @@
 - 2026-01-25: Split execution_preparation_service into focused modules (analysis/attachments/history/inherited/presets/session) without behavior changes.
 - 2026-01-25: Split agent ports into subpackages (agent/llm/tools/storage), updated imports/tests, and validated `go test ./internal/...`.
 - 2026-01-25: Refactored DI container into builder-style helpers, added session pool option tests, and validated fmt/vet/test.
+- 2026-01-25: Added async goroutine wrapper with panic recovery, replaced direct `go func` spawns in internal packages, and decoupled logging/observability to fix build cycles.
+- 2026-01-25: Split context manager into focused modules (compression/window/prompt/static registry/root) without behavior changes.
