@@ -21,10 +21,10 @@ test: ## Run all tests
 	@$(GO) test ./... -v
 
 test-domain: ## Run domain layer tests (fast, mocked)
-	@$(GO) test ./internal/agent/domain/ -v
+	@$(GO) test ./internal/agent/domain/... -v
 
 test-app: ## Run application layer tests
-	@$(GO) test ./internal/agent/app/ -v
+	@$(GO) test ./internal/agent/app/... -v
 
 clean: ## Clean build artifacts
 	@rm -f alex
@@ -54,7 +54,7 @@ install: build ## Install alex to $GOPATH/bin
 # Architecture validation
 check-deps: ## Check that domain has zero infrastructure deps
 	@echo "Checking domain layer dependencies..."
-	@$(GO) list -f '{{.Imports}}' ./internal/agent/domain/ | grep -v ports | grep -E 'alex/internal/(llm|tools|session|context|messaging|parser)' && echo "❌ Domain layer has infrastructure dependencies!" || echo "✓ Domain layer is clean (only depends on ports)"
+	@$(GO) list -f '{{.Imports}}' ./internal/agent/domain/... | grep -v ports | grep -E 'alex/internal/(llm|tools|session|context|messaging|parser)' && echo "❌ Domain layer has infrastructure dependencies!" || echo "✓ Domain layer is clean (only depends on ports)"
 
 # Performance
 bench: ## Run benchmarks

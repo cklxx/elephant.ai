@@ -1,14 +1,16 @@
 package output
 
 import (
-	"alex/internal/agent/domain"
-	"alex/internal/agent/types"
 	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"alex/internal/agent/domain"
+	"alex/internal/agent/domain/formatter"
+	"alex/internal/agent/types"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/formatters"
@@ -37,7 +39,7 @@ type CLIRenderer struct {
 	// - LevelCore: Always show tool calls
 	// - LevelSubagent/LevelParallel: Hide tool details, show progress summary only
 	verbose    bool
-	formatter  *domain.ToolFormatter
+	formatter  *formatter.ToolFormatter
 	mdRenderer MarkdownRenderer
 }
 
@@ -54,7 +56,7 @@ func NewCLIRenderer(verbose bool) *CLIRenderer {
 func NewCLIRendererWithMarkdown(verbose bool, md MarkdownRenderer) *CLIRenderer {
 	renderer := &CLIRenderer{
 		verbose:   verbose,
-		formatter: domain.NewToolFormatter(),
+		formatter: formatter.NewToolFormatter(),
 	}
 
 	if md != nil {

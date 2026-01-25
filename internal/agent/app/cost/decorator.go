@@ -1,0 +1,166 @@
+package cost
+
+import (
+	"context"
+	"strings"
+
+	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
+	llm "alex/internal/agent/ports/llm"
+	storage "alex/internal/agent/ports/storage"
+)
+
+// CostTrackingDecorator creates isolated wrappers for LLM clients to track costs per session
+type CostTrackingDecorator struct {
+	tracker storage.CostTracker
+	logger  agent.Logger
+	clock   agent.Clock
+}
+
+// NewCostTrackingDecorator creates a new decorator instance.
+func NewCostTrackingDecorator(tracker storage.CostTracker, logger agent.Logger, clock agent.Clock) *CostTrackingDecorator {
+	if logger == nil {
+		logger = agent.NoopLogger{}
+	}
+	if clock == nil {
+		clock = agent.SystemClock{}
+	}
+	return &CostTrackingDecorator{tracker: tracker, logger: logger, clock: clock}
+}
+
+// Wrap returns a new wrapper client that tracks costs without modifying the original client
+// This ensures session-level cost isolation even when the underlying client is shared
+func (d *CostTrackingDecorator) Wrap(ctx context.Context, sessionID string, client llm.LLMClient) llm.LLMClient {
+	if d.tracker == nil {
+		return client
+	}
+
+	// Return a wrapper that intercepts Complete() calls
+	return &costTrackingWrapper{
+		client:    client,
+		sessionID: sessionID,
+		tracker:   d.tracker,
+		logger:    d.logger,
+		clock:     d.clock,
+		ctx:       ctx,
+	}
+}
+
+// costTrackingWrapper wraps an LLMClient and tracks usage per session
+type costTrackingWrapper struct {
+	client    llm.LLMClient
+	sessionID string
+	tracker   storage.CostTracker
+	logger    agent.Logger
+	clock     agent.Clock
+	ctx       context.Context
+}
+
+var (
+	_ llm.LLMClient          = (*costTrackingWrapper)(nil)
+	_ llm.StreamingLLMClient = (*costTrackingWrapper)(nil)
+)
+
+func (w *costTrackingWrapper) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+	// Call underlying client
+	resp, err := w.client.Complete(ctx, req)
+	if err != nil {
+		return resp, err
+	}
+
+	w.recordUsage(resp)
+	return resp, nil
+}
+
+func (w *costTrackingWrapper) Model() string {
+	return w.client.Model()
+}
+
+func (w *costTrackingWrapper) StreamComplete(
+	ctx context.Context,
+	req ports.CompletionRequest,
+	callbacks ports.CompletionStreamCallbacks,
+) (*ports.CompletionResponse, error) {
+	wantsStreaming := callbacks.OnContentDelta != nil
+
+	if wantsStreaming {
+		if streaming, ok := w.client.(llm.StreamingLLMClient); ok {
+			resp, err := streaming.StreamComplete(ctx, req, callbacks)
+			if err == nil {
+				w.recordUsage(resp)
+			}
+			return resp, err
+		}
+	}
+
+	resp, err := w.client.Complete(ctx, req)
+	if err != nil {
+		return resp, err
+	}
+
+	if wantsStreaming {
+		cb := callbacks.OnContentDelta
+		if resp != nil && resp.Content != "" {
+			cb(ports.ContentDelta{Delta: resp.Content})
+		}
+		cb(ports.ContentDelta{Final: true})
+	}
+
+	w.recordUsage(resp)
+	return resp, nil
+}
+
+func (w *costTrackingWrapper) recordUsage(resp *ports.CompletionResponse) {
+	if w.tracker == nil || resp == nil {
+		return
+	}
+
+	record := storage.UsageRecord{
+		SessionID:    w.sessionID,
+		Model:        w.client.Model(),
+		Provider:     inferProvider(w.client.Model()),
+		InputTokens:  resp.Usage.PromptTokens,
+		OutputTokens: resp.Usage.CompletionTokens,
+		TotalTokens:  resp.Usage.TotalTokens,
+		Timestamp:    w.clock.Now(),
+	}
+
+	record.InputCost, record.OutputCost, record.TotalCost = storage.CalculateCost(
+		resp.Usage.PromptTokens,
+		resp.Usage.CompletionTokens,
+		w.client.Model(),
+	)
+
+	if err := w.tracker.RecordUsage(w.ctx, record); err != nil {
+		w.logger.Warn("Failed to record cost for session %s: %v", w.sessionID, err)
+	}
+}
+
+// inferProvider attempts to infer the provider from the model name
+func inferProvider(model string) string {
+	// Normalize to lowercase for case-insensitive matching
+	lower := strings.ToLower(model)
+
+	// Check for provider prefixes (e.g., "openrouter/anthropic/claude", "anthropic/claude")
+	if strings.Contains(lower, "anthropic/") || strings.HasPrefix(lower, "claude") {
+		return "anthropic"
+	}
+	if strings.Contains(lower, "openai/") || strings.HasPrefix(lower, "gpt") {
+		return "openai"
+	}
+	if strings.Contains(lower, "deepseek/") || strings.HasPrefix(lower, "deepseek") {
+		return "deepseek"
+	}
+
+	// Check for model name patterns
+	if strings.HasPrefix(lower, "gpt-") {
+		return "openai"
+	}
+	if strings.HasPrefix(lower, "claude-") {
+		return "anthropic"
+	}
+
+	// Default to openrouter if we can't determine
+	// (most unknown models are likely accessed via openrouter)
+	return "openrouter"
+}

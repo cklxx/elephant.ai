@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	agentApp "alex/internal/agent/app"
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
@@ -21,7 +21,7 @@ import (
 // - NOT importing domain layer (no internal/agent/domain)
 // - NOT importing output layer (no internal/output)
 // - Delegating all execution to agent.AgentCoordinator interface
-// - Using agentApp.MarkSubagentContext to trigger registry filtering (RECURSION PREVENTION)
+// - Using appcontext.MarkSubagentContext to trigger registry filtering (RECURSION PREVENTION)
 type subagent struct {
 	coordinator agent.AgentCoordinator
 }
@@ -81,7 +81,7 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	// CRITICAL: Mark context as subagent execution
 	// This triggers ExecutionPreparationService to use filtered registry (without subagent tool)
 	// Prevents infinite recursion
-	ctx = agentApp.MarkSubagentContext(ctx)
+	ctx = appcontext.MarkSubagentContext(ctx)
 
 	// Extract parent listener from context if available
 	var parentListener agent.EventListener
@@ -142,12 +142,12 @@ func (t *subagent) executeSubtask(
 	}
 	subtaskCtx = id.WithTaskID(subtaskCtx, id.NewTaskID())
 	if len(inherited) > 0 {
-		subtaskCtx = agentApp.WithInheritedAttachments(subtaskCtx, inherited, iterations)
+		subtaskCtx = appcontext.WithInheritedAttachments(subtaskCtx, inherited, iterations)
 	}
 
 	// Delegate to coordinator - it handles all the domain logic
 	// The coordinator's ExecutionPreparationService will:
-	// 1. Detect marked context via agentApp.IsSubagentContext()
+	// 1. Detect marked context via appcontext.IsSubagentContext()
 	// 2. Use GetToolRegistryWithoutSubagent() to get filtered registry
 	// 3. This prevents nested subagent calls (recursion prevention)
 	taskResult, err := t.coordinator.ExecuteTask(subtaskCtx, task, ids.SessionID, listener)

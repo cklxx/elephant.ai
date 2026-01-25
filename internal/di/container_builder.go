@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
-	agentApp "alex/internal/agent/app"
+	appconfig "alex/internal/agent/app/config"
+	agentcoordinator "alex/internal/agent/app/coordinator"
+	agentcost "alex/internal/agent/app/cost"
 	agent "alex/internal/agent/ports/agent"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
@@ -123,7 +125,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	mcpRegistry := mcp.NewRegistry()
 	tracker := newMCPInitializationTracker()
 
-	coordinator := agentApp.NewAgentCoordinator(
+	coordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
 		toolRegistry,
 		resources.sessionStore,
@@ -131,7 +133,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		historyMgr,
 		parserImpl,
 		costTracker,
-		agentApp.Config{
+		appconfig.Config{
 			LLMProvider:         b.config.LLMProvider,
 			LLMModel:            b.config.LLMModel,
 			LLMSmallProvider:    b.config.LLMSmallProvider,
@@ -337,7 +339,7 @@ func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cost store: %w", err)
 	}
-	return agentApp.NewCostTracker(costStore), nil
+	return agentcost.NewCostTracker(costStore), nil
 }
 
 func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService memory.Service) (*toolregistry.Registry, error) {

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	agentApp "alex/internal/agent/app"
+	agentcoordinator "alex/internal/agent/app/coordinator"
 	agentstorage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/async"
@@ -22,7 +22,7 @@ import (
 
 // Container holds all application dependencies
 type Container struct {
-	AgentCoordinator *agentApp.AgentCoordinator
+	AgentCoordinator *agentcoordinator.AgentCoordinator
 	SessionStore     agentstorage.SessionStore
 	StateStore       sessionstate.Store
 	HistoryStore     sessionstate.Store

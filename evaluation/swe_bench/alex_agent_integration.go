@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/app"
+	agentcoordinator "alex/internal/agent/app/coordinator"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	runtimeconfig "alex/internal/config"
@@ -19,7 +19,7 @@ import (
 // AlexAgent implements the Agent interface using the new hexagonal architecture
 type AlexAgent struct {
 	config         *BatchConfig
-	coordinator    *app.AgentCoordinator
+	coordinator    *agentcoordinator.AgentCoordinator
 	container      *di.Container
 	enableUltra    bool
 	resolvedConfig agent.AgentConfig

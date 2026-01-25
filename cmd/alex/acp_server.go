@@ -10,7 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"alex/internal/agent/app"
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/presets"
@@ -362,10 +362,10 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 		promptCtx = builtin.WithWorkingDir(promptCtx, session.cwd)
 	}
 	if len(parsed.Attachments) > 0 {
-		promptCtx = app.WithUserAttachments(promptCtx, parsed.Attachments)
+		promptCtx = appcontext.WithUserAttachments(promptCtx, parsed.Attachments)
 	}
 	if preset := toolPresetForMode(session.modeID); preset != "" {
-		promptCtx = context.WithValue(promptCtx, app.PresetContextKey{}, app.PresetConfig{ToolPreset: preset})
+		promptCtx = context.WithValue(promptCtx, appcontext.PresetContextKey{}, appcontext.PresetConfig{ToolPreset: preset})
 	}
 
 	var oldCwd string

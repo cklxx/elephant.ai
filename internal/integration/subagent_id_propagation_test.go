@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	agentApp "alex/internal/agent/app"
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	llm "alex/internal/agent/ports/llm"
@@ -35,7 +35,7 @@ func newRecordingCoordinator(buf *bytes.Buffer) *recordingCoordinator {
 
 func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	ids := id.IDsFromContext(ctx)
-	inheritedAtt, inheritedIter := agentApp.GetInheritedAttachments(ctx)
+	inheritedAtt, inheritedIter := appcontext.GetInheritedAttachments(ctx)
 
 	r.mu.Lock()
 	r.lastIDs = ids

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	agentapp "alex/internal/agent/app"
+	appcontext "alex/internal/agent/app/context"
 	agentports "alex/internal/agent/ports"
 	"alex/internal/agent/types"
 	serverPorts "alex/internal/server/ports"
@@ -130,11 +130,11 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 		ctx = id.WithUserID(ctx, user.ID)
 	}
 	if len(attachments) > 0 {
-		ctx = agentapp.WithUserAttachments(ctx, attachments)
+		ctx = appcontext.WithUserAttachments(ctx, attachments)
 	}
 	if req.LLMSelection != nil && h.selectionResolver != nil {
 		if resolved, ok := h.selectionResolver.Resolve(*req.LLMSelection); ok {
-			ctx = agentapp.WithLLMSelection(ctx, resolved)
+			ctx = appcontext.WithLLMSelection(ctx, resolved)
 		}
 	}
 

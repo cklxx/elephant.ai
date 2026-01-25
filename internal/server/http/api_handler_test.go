@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	agentapp "alex/internal/agent/app"
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/domain"
 	core "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
@@ -173,7 +173,7 @@ func (c *selectionAwareCoordinator) GetSession(ctx context.Context, id string) (
 }
 
 func (c *selectionAwareCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
-	if sel, ok := agentapp.GetLLMSelection(ctx); ok {
+	if sel, ok := appcontext.GetLLMSelection(ctx); ok {
 		c.selection = sel
 	}
 	close(c.got)

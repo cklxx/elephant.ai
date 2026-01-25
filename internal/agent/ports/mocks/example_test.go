@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"alex/internal/agent/domain"
+	react "alex/internal/agent/domain/react"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports/mocks"
 )
@@ -16,7 +16,7 @@ func Example_basicScenario() {
 	scenario := mocks.NewFileReadScenario()
 
 	// Set up agent services with mocks
-	services := domain.Services{
+	services := react.Services{
 		LLM:          scenario.LLM,
 		ToolExecutor: scenario.Registry,
 		Parser:       &mocks.MockParser{},
@@ -24,8 +24,8 @@ func Example_basicScenario() {
 	}
 
 	// Create engine and execute task
-	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
-	state := &domain.TaskState{}
+	engine := react.NewReactEngine(react.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
+	state := &react.TaskState{}
 
 	result, err := engine.SolveTask(
 		context.Background(),
@@ -52,15 +52,15 @@ func Example_basicScenario() {
 func Example_multipleToolCalls() {
 	scenario := mocks.NewMultipleToolCallsScenario()
 
-	services := domain.Services{
+	services := react.Services{
 		LLM:          scenario.LLM,
 		ToolExecutor: scenario.Registry,
 		Parser:       &mocks.MockParser{},
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
-	state := &domain.TaskState{}
+	engine := react.NewReactEngine(react.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
+	state := &react.TaskState{}
 
 	result, _ := engine.SolveTask(
 		context.Background(),
@@ -80,15 +80,15 @@ func Example_multipleToolCalls() {
 func Example_parallelToolCalls() {
 	scenario := mocks.NewParallelToolCallsScenario()
 
-	services := domain.Services{
+	services := react.Services{
 		LLM:          scenario.LLM,
 		ToolExecutor: scenario.Registry,
 		Parser:       &mocks.MockParser{},
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
-	state := &domain.TaskState{}
+	engine := react.NewReactEngine(react.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
+	state := &react.TaskState{}
 
 	result, _ := engine.SolveTask(
 		context.Background(),
@@ -108,15 +108,15 @@ func Example_parallelToolCalls() {
 func Example_errorHandling() {
 	scenario := mocks.NewToolErrorScenario()
 
-	services := domain.Services{
+	services := react.Services{
 		LLM:          scenario.LLM,
 		ToolExecutor: scenario.Registry,
 		Parser:       &mocks.MockParser{},
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
-	state := &domain.TaskState{}
+	engine := react.NewReactEngine(react.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
+	state := &react.TaskState{}
 
 	result, _ := engine.SolveTask(
 		context.Background(),
@@ -148,15 +148,15 @@ func TestScenarioCustomization(t *testing.T) {
 	customLLM := scenario.LLM
 	// You can wrap or modify the CompleteFunc as needed
 
-	services := domain.Services{
+	services := react.Services{
 		LLM:          customLLM,
 		ToolExecutor: scenario.Registry,
 		Parser:       &mocks.MockParser{},
 		Context:      &mocks.MockContextManager{},
 	}
 
-	engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
-	state := &domain.TaskState{}
+	engine := react.NewReactEngine(react.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
+	state := &react.TaskState{}
 
 	result, err := engine.SolveTask(
 		context.Background(),
@@ -181,15 +181,15 @@ func TestIteratingAllScenarios(t *testing.T) {
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.Name, func(t *testing.T) {
-			services := domain.Services{
+			services := react.Services{
 				LLM:          scenario.LLM,
 				ToolExecutor: scenario.Registry,
 				Parser:       &mocks.MockParser{},
 				Context:      &mocks.MockContextManager{},
 			}
 
-			engine := domain.NewReactEngine(domain.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
-			state := &domain.TaskState{}
+			engine := react.NewReactEngine(react.ReactEngineConfig{MaxIterations: 10, Logger: agent.NoopLogger{}, Clock: agent.SystemClock{}})
+			state := &react.TaskState{}
 
 			result, err := engine.SolveTask(
 				context.Background(),

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	agentapp "alex/internal/agent/app"
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/domain"
 	core "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
@@ -555,7 +555,7 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 		},
 	}
 
-	ctx := agentapp.WithUserAttachments(context.Background(), original)
+	ctx := appcontext.WithUserAttachments(context.Background(), original)
 
 	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "展示占位符 [sketch.png] 和 [diagram.svg]", "", "", "")
 	if err != nil {

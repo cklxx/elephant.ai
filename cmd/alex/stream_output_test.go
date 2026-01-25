@@ -126,7 +126,7 @@ func TestStreamingOutputHandlerPrintsTaskStart(t *testing.T) {
 	handler.printTaskStart("demo task")
 
 	output := out.String()
-	require.Contains(t, output, "Start")
+	require.Equal(t, "", strings.TrimSpace(output))
 	require.NotContains(t, output, "session-123")
 	require.NotContains(t, output, "task-456")
 	require.NotContains(t, output, "demo task")

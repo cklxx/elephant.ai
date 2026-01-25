@@ -1,23 +1,25 @@
 package output
 
 import (
-	"alex/internal/agent/domain"
-	"alex/internal/agent/types"
 	"encoding/json"
 	"fmt"
 	"time"
+
+	"alex/internal/agent/domain"
+	"alex/internal/agent/domain/formatter"
+	"alex/internal/agent/types"
 )
 
 // SSERenderer renders output for SSE (Server-Sent Events) streaming
 // Output is JSON-formatted events suitable for web clients
 type SSERenderer struct {
-	formatter *domain.ToolFormatter
+	formatter *formatter.ToolFormatter
 }
 
 // NewSSERenderer creates a new SSE renderer
 func NewSSERenderer() *SSERenderer {
 	return &SSERenderer{
-		formatter: domain.NewToolFormatter(),
+		formatter: formatter.NewToolFormatter(),
 	}
 }
 

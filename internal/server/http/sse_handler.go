@@ -1,7 +1,7 @@
 package http
 
 import (
-	"alex/internal/agent/domain"
+	"alex/internal/agent/domain/formatter"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
@@ -51,7 +51,7 @@ var blockedNodePrefixes = []string{
 type SSEHandler struct {
 	broadcaster     *app.EventBroadcaster
 	logger          logging.Logger
-	formatter       *domain.ToolFormatter
+	formatter       *formatter.ToolFormatter
 	obs             *observability.Observability
 	dataCache       *DataCache
 	attachmentStore *AttachmentStore
@@ -87,7 +87,7 @@ func NewSSEHandler(broadcaster *app.EventBroadcaster, opts ...SSEHandlerOption) 
 	handler := &SSEHandler{
 		broadcaster: broadcaster,
 		logger:      logging.NewComponentLogger("SSEHandler"),
-		formatter:   domain.NewToolFormatter(),
+		formatter:   formatter.NewToolFormatter(),
 	}
 	for _, opt := range opts {
 		if opt == nil {

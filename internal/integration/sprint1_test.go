@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
-	agentApp "alex/internal/agent/app"
+	appconfig "alex/internal/agent/app/config"
+	agentcoordinator "alex/internal/agent/app/coordinator"
+	agentcost "alex/internal/agent/app/cost"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	agentstorage "alex/internal/agent/ports/storage"
@@ -36,7 +38,7 @@ func TestConcurrentCostIsolation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create cost store: %v", err)
 	}
-	costTracker := agentApp.NewCostTracker(costStore)
+	costTracker := agentcost.NewCostTracker(costStore)
 
 	// Create 3 concurrent sessions
 	const numSessions = 3
@@ -54,7 +56,7 @@ func TestConcurrentCostIsolation(t *testing.T) {
 			defer wg.Done()
 
 			// Create isolated coordinator for this session
-			coordinator := agentApp.NewAgentCoordinator(
+			coordinator := agentcoordinator.NewAgentCoordinator(
 				llmFactory,
 				newTestToolRegistry(),
 				sessionStore,
@@ -62,7 +64,7 @@ func TestConcurrentCostIsolation(t *testing.T) {
 				nil,
 				newTestParser(),
 				costTracker,
-				agentApp.Config{
+				appconfig.Config{
 					LLMProvider:   "mock",
 					LLMModel:      "test-model",
 					MaxIterations: 2,
@@ -159,12 +161,12 @@ func TestTaskCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create cost store: %v", err)
 	}
-	costTracker := agentApp.NewCostTracker(costStore)
+	costTracker := agentcost.NewCostTracker(costStore)
 	taskStore := serverApp.NewInMemoryTaskStore()
 	broadcaster := serverApp.NewEventBroadcaster()
 	stateStore := sessionstate.NewInMemoryStore()
 
-	agentCoordinator := agentApp.NewAgentCoordinator(
+	agentCoordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
 		newSlowToolRegistry(), // Slow tools that respect context cancellation
 		sessionStore,
@@ -172,7 +174,7 @@ func TestTaskCancellation(t *testing.T) {
 		nil,
 		newSlowParser(), // Parser that returns tool calls
 		costTracker,
-		agentApp.Config{
+		appconfig.Config{
 			LLMProvider:   "mock",
 			LLMModel:      "test-model",
 			MaxIterations: 100, // Many iterations to allow cancellation
@@ -255,12 +257,12 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create cost store: %v", err)
 	}
-	costTracker := agentApp.NewCostTracker(costStore)
+	costTracker := agentcost.NewCostTracker(costStore)
 	taskStore := serverApp.NewInMemoryTaskStore()
 	broadcaster := serverApp.NewEventBroadcaster()
 	stateStore := sessionstate.NewInMemoryStore()
 
-	agentCoordinator := agentApp.NewAgentCoordinator(
+	agentCoordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
 		newSlowToolRegistry(),
 		sessionStore,
@@ -268,7 +270,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 		nil,
 		newSlowParser(),
 		costTracker,
-		agentApp.Config{
+		appconfig.Config{
 			LLMProvider:   "mock",
 			LLMModel:      "test-model",
 			MaxIterations: 100,

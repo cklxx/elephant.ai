@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	agentApp "alex/internal/agent/app"
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
@@ -166,7 +166,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	// Add presets to context for the agent coordinator
 	if agentPreset != "" || toolPreset != "" {
-		ctx = context.WithValue(ctx, agentApp.PresetContextKey{}, agentApp.PresetConfig{
+		ctx = context.WithValue(ctx, appcontext.PresetContextKey{}, appcontext.PresetConfig{
 			AgentPreset: agentPreset,
 			ToolPreset:  toolPreset,
 		})
@@ -316,7 +316,7 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 
 	parentTaskID := id.ParentTaskIDFromContext(ctx)
 	level := agent.GetOutputContext(ctx).Level
-	attachments := agentApp.GetUserAttachments(ctx)
+	attachments := appcontext.GetUserAttachments(ctx)
 	var attachmentMap map[string]ports.Attachment
 	if len(attachments) > 0 {
 		attachmentMap = make(map[string]ports.Attachment, len(attachments))

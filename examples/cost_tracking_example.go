@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"alex/internal/agent/app"
+	"alex/internal/agent/app/cost"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/storage"
 )
@@ -33,7 +33,7 @@ func main() {
 
 	// 2. Create Cost Tracker
 	fmt.Println("2. Creating cost tracker...")
-	costTracker := app.NewCostTracker(costStore)
+	costTracker := cost.NewCostTracker(costStore)
 	fmt.Println("   ✓ Cost tracker created")
 	fmt.Println()
 

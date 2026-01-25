@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	agentApp "alex/internal/agent/app"
+	agentcoordinator "alex/internal/agent/app/coordinator"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
@@ -27,7 +27,7 @@ type AgentExecutor interface {
 }
 
 // Ensure AgentCoordinator implements AgentExecutor
-var _ AgentExecutor = (*agentApp.AgentCoordinator)(nil)
+var _ AgentExecutor = (*agentcoordinator.AgentCoordinator)(nil)
 
 // ServerCoordinator coordinates task execution for the server
 // It wraps AgentExecutor and integrates with EventBroadcaster
