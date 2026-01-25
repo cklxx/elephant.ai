@@ -86,6 +86,7 @@ function getTodoCounts(metadata?: Record<string, any> | null): {
 }
 
 const TOOL_TITLE_HINT_MAX_LEN = 140;
+const TOOL_TITLE_MAX_LEN = 56;
 
 function normalizeOneLine(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined;
@@ -93,9 +94,29 @@ function normalizeOneLine(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function truncateHint(value: string, maxLen: number = TOOL_TITLE_HINT_MAX_LEN): string {
+function truncateWithEllipsis(value: string, maxLen: number): string {
   if (value.length <= maxLen) return value;
-  return `${value.slice(0, maxLen)}…`;
+  if (maxLen <= 1) return "…".slice(0, maxLen);
+  return `${value.slice(0, maxLen - 1)}…`;
+}
+
+function truncateHint(value: string, maxLen: number = TOOL_TITLE_HINT_MAX_LEN): string {
+  return truncateWithEllipsis(value, maxLen);
+}
+
+function truncateToolTitle(base: string, hint?: string): string {
+  if (!hint) return truncateWithEllipsis(base, TOOL_TITLE_MAX_LEN);
+  const separator = "：";
+  const full = `${base}${separator}${hint}`;
+  if (full.length <= TOOL_TITLE_MAX_LEN) return full;
+  if (base.length >= TOOL_TITLE_MAX_LEN) {
+    return truncateWithEllipsis(base, TOOL_TITLE_MAX_LEN);
+  }
+  const availableHintLen = TOOL_TITLE_MAX_LEN - base.length - separator.length;
+  if (availableHintLen <= 0) {
+    return truncateWithEllipsis(base, TOOL_TITLE_MAX_LEN);
+  }
+  return `${base}${separator}${truncateWithEllipsis(hint, availableHintLen)}`;
 }
 
 function summarizeNameList(names: string[]): string | undefined {
@@ -307,14 +328,15 @@ export function userFacingToolTitle(input: {
 }): string {
   const tool = input.toolName.toLowerCase().trim();
   const base = humanizeToolName(tool);
+  const formatTitle = (hint?: string) => truncateToolTitle(base, hint);
 
   if (!tool || tool === "think") {
-    return base;
+    return formatTitle();
   }
 
   if (tool === "web_search" || tool === "search_web" || tool === "websearch") {
     const query = pickFirstHint(input.arguments, ["query", "q"]);
-    return query ? `${base}：${query}` : base;
+    return formatTitle(query);
   }
 
   if (tool === "sandbox_browser") {
@@ -323,7 +345,7 @@ export function userFacingToolTitle(input: {
       input.metadata?.sandbox_browser?.actions ??
       null;
     const summary = summarizeSandboxActions(actions);
-    return summary ? `${base}：${summary}` : base;
+    return formatTitle(summary);
   }
 
   if (tool === "sandbox_browser_dom") {
@@ -332,85 +354,85 @@ export function userFacingToolTitle(input: {
       input.metadata?.sandbox_browser_dom?.steps ??
       null;
     const summary = summarizeSandboxDOMSteps(steps);
-    return summary ? `${base}：${summary}` : base;
+    return formatTitle(summary);
   }
 
   if (tool === "web_fetch" || tool === "read_url_content" || tool === "open_browser_url" || tool === "read_browser_page") {
     const url = pickFirstHint(input.arguments, ["url"]) ?? pickMetadataUrl(input.metadata);
-    return url ? `${base}：${url}` : base;
+    return formatTitle(url);
   }
 
   if (tool === "bash" || tool === "run_command") {
     const command = pickFirstHint(input.arguments, ["command"]);
-    return command ? `${base}：${command}` : base;
+    return formatTitle(command);
   }
 
   if (tool === "code_execute" || tool === "python_execute") {
     const language = pickFirstHint(input.arguments, ["language"]);
     const codePath = pickFirstHint(input.arguments, ["code_path", "path"]);
     const hint = joinHints([language, codePath]);
-    return hint ? `${base}：${hint}` : base;
+    return formatTitle(hint);
   }
 
   if (tool === "file_read" || tool === "read_resource") {
     const path = pickFirstHint(input.arguments, ["path", "uri"]);
-    return path ? `${base}：${path}` : base;
+    return formatTitle(path);
   }
 
   if (tool === "file_write" || tool === "write_to_file") {
     const path = pickFirstHint(input.arguments, ["path"]);
-    return path ? `${base}：${path}` : base;
+    return formatTitle(path);
   }
 
   if (tool === "file_edit" || tool === "replace_file_content") {
     const path = pickFirstHint(input.arguments, ["file_path", "path", "filePath"]);
-    return path ? `${base}：${path}` : base;
+    return formatTitle(path);
   }
 
   if (tool === "multi_replace_file_content") {
     const paths = formatHintValue(
       input.arguments?.paths ?? input.arguments?.file_paths ?? input.arguments?.filePaths,
     );
-    return paths ? `${base}：${paths}` : base;
+    return formatTitle(paths);
   }
 
   if (tool === "list_dir" || tool === "list_files") {
     const path = pickFirstHint(input.arguments, ["path"]);
-    return path ? `${base}：${path}` : base;
+    return formatTitle(path);
   }
 
   if (tool === "grep" || tool === "ripgrep" || tool === "grep_search" || tool === "search_in_file") {
     const pattern = pickFirstHint(input.arguments, ["pattern", "query"]);
     const path = pickFirstHint(input.arguments, ["path"]);
     const hint = joinHints([pattern, path]);
-    return hint ? `${base}：${hint}` : base;
+    return formatTitle(hint);
   }
 
   if (tool === "find" || tool === "find_by_name") {
     const name = pickFirstHint(input.arguments, ["name"]);
     const path = pickFirstHint(input.arguments, ["path"]);
     const hint = joinHints([name, path]);
-    return hint ? `${base}：${hint}` : base;
+    return formatTitle(hint);
   }
 
   if (tool === "click_browser_element") {
     const hint = pickFirstHint(input.arguments, ["text", "selector", "uid", "id"]);
-    return hint ? `${base}：${hint}` : base;
+    return formatTitle(hint);
   }
 
   if (tool === "type_browser_element") {
     const hint = pickFirstHint(input.arguments, ["text", "value", "uid", "selector"]);
-    return hint ? `${base}：${hint}` : base;
+    return formatTitle(hint);
   }
 
   if (tool === "scroll_browser_page") {
     const hint = pickFirstHint(input.arguments, ["direction", "amount"]);
-    return hint ? `${base}：${hint}` : base;
+    return formatTitle(hint);
   }
 
   if (tool === "notify_user") {
     const message = pickFirstHint(input.arguments, ["message"]);
-    return message ? `${base}：${message}` : base;
+    return formatTitle(message);
   }
 
   if (tool === "todo_update") {
@@ -422,42 +444,42 @@ export function userFacingToolTitle(input: {
       if (typeof counts.pending === "number") parts.push(`待办 ${counts.pending}`);
       if (typeof counts.completed === "number") parts.push(`已完成 ${counts.completed}`);
       const hint = truncateHint(parts.join(" / "));
-      return hint ? `${base}：${hint}` : base;
+      return formatTitle(hint);
     }
     const todos = input.arguments?.todos;
     if (Array.isArray(todos)) {
-      return `${base}：${todos.length} 项`;
+      return formatTitle(`${todos.length} 项`);
     }
-    return base;
+    return formatTitle();
   }
 
   if (tool === "todo_read") {
-    return base;
+    return formatTitle();
   }
 
   if (tool === "artifacts_write" || tool === "artifacts_list" || tool === "artifacts_delete") {
     const name = pickFirstHint(input.arguments, ["name"]);
-    if (name) return `${base}：${name}`;
+    if (name) return formatTitle(name);
     const namesHint = formatHintValue(input.arguments?.names);
-    if (namesHint) return `${base}：${namesHint}`;
+    if (namesHint) return formatTitle(namesHint);
     const attachmentNames = summarizeAttachmentNames(input.attachments);
-    return attachmentNames ? `${base}：${attachmentNames}` : base;
+    return formatTitle(attachmentNames);
   }
 
   if (tool === "text_to_image" || tool === "video_generate") {
     const prompt = pickFirstHint(input.arguments, ["prompt"]);
-    return prompt ? `${base}：${prompt}` : base;
+    return formatTitle(prompt);
   }
 
   if (tool === "vision_analyze") {
     const hint =
       pickFirstHint(input.arguments, ["url", "path", "file_path", "name"]) ??
       pickMetadataUrl(input.metadata);
-    return hint ? `${base}：${hint}` : base;
+    return formatTitle(hint);
   }
 
   const fallback = pickFirstHint(input.arguments, FALLBACK_HINT_KEYS) ?? pickMetadataUrl(input.metadata);
-  return fallback ? `${base}：${fallback}` : base;
+  return formatTitle(fallback);
 }
 
 export function userFacingToolSummary(input: {
