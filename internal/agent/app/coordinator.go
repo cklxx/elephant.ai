@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/async"
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
@@ -128,9 +129,10 @@ func NewAgentCoordinator(
 }
 
 type planSessionTitleRecorder struct {
-	mu    sync.Mutex
-	title string
-	sink  agent.EventListener
+	mu      sync.Mutex
+	title   string
+	sink    agent.EventListener
+	onTitle func(string)
 }
 
 func (r *planSessionTitleRecorder) OnEvent(event agent.AgentEvent) {
@@ -141,9 +143,16 @@ func (r *planSessionTitleRecorder) OnEvent(event agent.AgentEvent) {
 	if tc, ok := event.(*domain.WorkflowToolCompletedEvent); ok {
 		if tc.Error == nil && strings.EqualFold(strings.TrimSpace(tc.ToolName), "plan") {
 			if title := extractPlanSessionTitle(tc.Metadata); title != "" {
+				shouldNotify := false
 				r.mu.Lock()
-				r.title = title
+				if r.title == "" {
+					r.title = title
+					shouldNotify = true
+				}
 				r.mu.Unlock()
+				if shouldNotify && r.onTitle != nil {
+					r.onTitle(title)
+				}
 			}
 		}
 	}
@@ -194,6 +203,37 @@ func normalizeSessionTitle(value string) string {
 	return trimmed
 }
 
+func (c *AgentCoordinator) persistSessionTitle(sessionID string, title string) {
+	if c == nil || c.sessionStore == nil {
+		return
+	}
+	title = normalizeSessionTitle(title)
+	if strings.TrimSpace(sessionID) == "" || title == "" {
+		return
+	}
+
+	async.Go(c.logger, "session-title-update", func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		session, err := c.sessionStore.Get(ctx, sessionID)
+		if err != nil {
+			c.logger.Warn("Failed to load session for title update: %v", err)
+			return
+		}
+		if session.Metadata == nil {
+			session.Metadata = make(map[string]string)
+		}
+		if strings.TrimSpace(session.Metadata["title"]) != "" {
+			return
+		}
+		session.Metadata["title"] = title
+		if err := c.sessionStore.Save(ctx, session); err != nil {
+			c.logger.Warn("Failed to persist session title: %v", err)
+		}
+	})
+}
+
 // ExecuteTask executes a task with optional event listener for streaming output
 func (c *AgentCoordinator) ExecuteTask(
 	ctx context.Context,
@@ -207,7 +247,12 @@ func (c *AgentCoordinator) ExecuteTask(
 	eventListener := wrapWithWorkflowEnvelope(listener, nil)
 	var planTitleRecorder *planSessionTitleRecorder
 	if eventListener != nil && !isSubagentContext(ctx) {
-		planTitleRecorder = &planSessionTitleRecorder{sink: eventListener}
+		planTitleRecorder = &planSessionTitleRecorder{
+			sink: eventListener,
+			onTitle: func(title string) {
+				c.persistSessionTitle(sessionID, title)
+			},
+		}
 		eventListener = planTitleRecorder
 	}
 
@@ -253,6 +298,9 @@ func (c *AgentCoordinator) ExecuteTask(
 	if err != nil {
 		wf.fail(stagePrepare, err)
 		return attachWorkflow(nil, env), err
+	}
+	if sessionID == "" {
+		sessionID = env.Session.ID
 	}
 	clilatency.Printf(
 		"[latency] prepare_ms=%.2f session=%s\n",

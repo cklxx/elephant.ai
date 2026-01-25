@@ -25,7 +25,6 @@ describe('plan goal session titles', () => {
   });
 
   it('uses the stored session title as the session label', async () => {
-    vi.mocked(apiClient.getSessionTitle).mockResolvedValueOnce('Plan labeling');
     const event: WorkflowToolCompletedEvent = {
       event_type: 'workflow.tool.completed',
       agent_level: 'core',
@@ -44,10 +43,11 @@ describe('plan goal session titles', () => {
     expect(useSessionStore.getState().sessionLabels['session-plan-1']).toBe(
       'Plan labeling',
     );
+    expect(apiClient.getSessionTitle).not.toHaveBeenCalled();
   });
 
-  it('skips renaming when no session title is available', async () => {
-    vi.mocked(apiClient.getSessionTitle).mockResolvedValueOnce(null);
+  it('falls back to fetching session title when metadata is missing', async () => {
+    vi.mocked(apiClient.getSessionTitle).mockResolvedValueOnce('Fetched title');
     const event: WorkflowToolCompletedEvent = {
       event_type: 'workflow.tool.completed',
       agent_level: 'core',
@@ -62,7 +62,26 @@ describe('plan goal session titles', () => {
     defaultEventRegistry.run(event);
     await flushPromises();
 
-    expect(useSessionStore.getState().sessionLabels['session-plan-2']).toBeUndefined();
+    expect(useSessionStore.getState().sessionLabels['session-plan-2']).toBe('Fetched title');
+  });
+
+  it('skips renaming when fetched session title is empty', async () => {
+    vi.mocked(apiClient.getSessionTitle).mockResolvedValueOnce(null);
+    const event: WorkflowToolCompletedEvent = {
+      event_type: 'workflow.tool.completed',
+      agent_level: 'core',
+      timestamp: new Date().toISOString(),
+      session_id: 'session-plan-4',
+      call_id: 'call-plan-4',
+      tool_name: 'plan',
+      result: 'Draft help center IA',
+      duration: 45,
+    };
+
+    defaultEventRegistry.run(event);
+    await flushPromises();
+
+    expect(useSessionStore.getState().sessionLabels['session-plan-4']).toBeUndefined();
   });
 
   it('ignores non-plan tool completions', () => {

@@ -13,12 +13,29 @@ function normalizeSessionTitle(value: string): string {
   if (!trimmed) {
     return '';
   }
-  const chars = Array.from(trimmed);
+  const firstLine = trimmed.split(/\r?\n/)[0]?.trim() ?? '';
+  if (!firstLine) {
+    return '';
+  }
+  const chars = Array.from(firstLine);
   const maxChars = 32;
   if (chars.length <= maxChars) {
-    return trimmed;
+    return firstLine;
   }
   return `${chars.slice(0, maxChars).join('')}…`;
+}
+
+function extractPlanTitle(metadata?: Record<string, any> | null): string {
+  if (!metadata || typeof metadata !== 'object') {
+    return '';
+  }
+  const rawTitle =
+    typeof metadata.session_title === 'string'
+      ? metadata.session_title
+      : typeof metadata.overall_goal_ui === 'string'
+        ? metadata.overall_goal_ui
+        : '';
+  return normalizeSessionTitle(rawTitle);
 }
 
 function handlePlanGoal(event: AnyAgentEvent) {
@@ -34,6 +51,12 @@ function handlePlanGoal(event: AnyAgentEvent) {
 
   const { renameSession, sessionLabels } = useSessionStore.getState();
   if (sessionLabels?.[sessionId]?.trim()) {
+    return;
+  }
+
+  const metadataTitle = extractPlanTitle(planEvent.metadata ?? null);
+  if (metadataTitle) {
+    renameSession(sessionId, metadataTitle);
     return;
   }
 
