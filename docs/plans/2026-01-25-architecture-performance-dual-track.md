@@ -44,3 +44,4 @@
 - 2026-01-25: Split API handler into resource-focused files (tasks, sessions, context, evaluations, misc, response) without behavior changes.
 - 2026-01-25: Split react_engine_helpers into focused helper files (factory/tool-args/attachments/messages/context/world/feedback).
 - 2026-01-25: Split react_engine.go into focused modules (types/constants/workflow/tool-batch/events/solve/tooling/prompts/finalize/placeholders/observe).
+- 2026-01-25: Split execution_preparation_service into focused modules (analysis/attachments/history/inherited/presets/session) without behavior changes.
