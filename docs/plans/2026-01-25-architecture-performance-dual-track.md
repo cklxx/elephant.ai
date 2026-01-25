@@ -42,3 +42,4 @@
 - 2026-01-25: Migrated LLM client JSON encoding/decoding to jsonx for hot paths.
 - 2026-01-25: Split Seedream tools into per-domain files (common/text/image/vision/video/helpers) with no behavior change.
 - 2026-01-25: Split API handler into resource-focused files (tasks, sessions, context, evaluations, misc, response) without behavior changes.
+- 2026-01-25: Split react_engine_helpers into focused helper files (factory/tool-args/attachments/messages/context/world/feedback).
