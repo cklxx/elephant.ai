@@ -434,10 +434,11 @@ func convertAnthropicTools(tools []ports.ToolDefinition) []map[string]any {
 		if !isValidToolName(tool.Name) {
 			continue
 		}
+		schema := normalizeToolSchema(tool.Parameters)
 		result = append(result, map[string]any{
 			"name":         tool.Name,
 			"description":  tool.Description,
-			"input_schema": tool.Parameters,
+			"input_schema": schema,
 		})
 	}
 	return result

@@ -371,8 +371,9 @@ func convertAntigravityTools(tools []ports.ToolDefinition) []map[string]any {
 		if !isValidToolName(tool.Name) {
 			continue
 		}
+		schemaSpec := normalizeToolSchema(tool.Parameters)
 		var schema map[string]any
-		if data, err := jsonx.Marshal(tool.Parameters); err == nil {
+		if data, err := jsonx.Marshal(schemaSpec); err == nil {
 			_ = jsonx.Unmarshal(data, &schema)
 		}
 		if schema == nil {
