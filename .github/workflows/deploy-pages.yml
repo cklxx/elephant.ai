@@ -140,19 +140,3 @@ jobs:
           echo "- 📱 [Mobile View](${{ steps.deployment.outputs.page_url }})" >> $GITHUB_STEP_SUMMARY
           echo "- 🔧 [Repository](https://github.com/${{ github.repository }})" >> $GITHUB_STEP_SUMMARY
 
-  notify:
-    runs-on: ubuntu-latest
-    needs: [build, deploy]
-    if: always()
-    steps:
-      - name: 📢 Notify deployment status
-        env:
-          REPO_NAME: ${{ github.event.repository.name }}
-        run: |
-          if [ "${{ needs.deploy.result }}" == "success" ]; then
-            echo "✅ Website deployed successfully!"
-            echo "🔗 URL: https://${{ github.repository_owner }}.github.io/${REPO_NAME}/"
-          else
-            echo "❌ Deployment failed!"
-            echo "📝 Check the logs for details"
-          fi

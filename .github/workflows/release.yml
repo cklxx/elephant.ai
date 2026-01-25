@@ -20,21 +20,32 @@ on:
         default: true
         type: boolean
 
+env:
+  GO_VERSION: '1.24.11'
+  NODE_VERSION: '20'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     name: 🎯 Create Release
     runs-on: ubuntu-latest
-    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      
+
       - name: 🐹 Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.24.6'
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
       
       - name: 📋 Get version
         id: version
@@ -118,39 +129,30 @@ jobs:
 
   # Trigger NPM publishing if requested
   publish-npm:
-    name: 📦 Publish to NPM  
+    name: 📦 Publish to NPM
     needs: release
     if: github.event.inputs.publish_npm != 'false'
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: 📥 Checkout
         uses: actions/checkout@v4
-      
+
       - name: 🐹 Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: '1.24.6'
-      
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
-      
-      - name: 📋 Get version
-        id: npm_version
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            VERSION=${GITHUB_REF#refs/tags/v}
-            echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          fi
-      
+
       - name: 🚀 Build and Publish NPM
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          echo "📦 Publishing NPM packages for v${{ steps.npm_version.outputs.version }}"
-          make release-npm VERSION=${{ steps.npm_version.outputs.version }}
+          echo "📦 Publishing NPM packages for v${{ needs.release.outputs.version }}"
+          make release-npm VERSION=${{ needs.release.outputs.version }}

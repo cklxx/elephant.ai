@@ -2,208 +2,140 @@ name: Security
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
   schedule:
-    # Run weekly security scans
     - cron: '0 2 * * 1'
 
 env:
-  GO_VERSION: '1.24.9'
+  GO_VERSION: '1.24.11'
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  vulnerability-scan:
-    name: Vulnerability Scan
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Run govulncheck
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@v1.1.3
-        govulncheck ./...
-      continue-on-error: true
-
-  static-analysis:
-    name: Static Analysis
+  vulnerability-and-static:
+    name: 🔍 Vulnerability & Static Analysis
     runs-on: ubuntu-latest
     permissions:
       security-events: write
-    
+
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Run Gosec Security Scanner
-      run: |
-        # Download and install gosec binary directly
-        curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
-        gosec -fmt sarif -out gosec.sarif ./... || echo "Gosec scan completed with issues"
-        ls -la gosec.* || echo "No gosec output files found"
-      continue-on-error: true
-        
-    - name: Upload SARIF file
-      uses: github/codeql-action/upload-sarif@v3
-      if: always() && hashFiles('gosec.sarif') != ''
-      with:
-        sarif_file: gosec.sarif
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@v1.1.3
+          govulncheck ./...
+        continue-on-error: true
+
+      - name: Run Gosec Security Scanner
+        run: |
+          curl -sfL https://raw.githubusercontent.com/securecodewarrior/gosec/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest
+          gosec -fmt sarif -out gosec.sarif ./... || echo "Gosec scan completed with issues"
+        continue-on-error: true
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        if: always() && hashFiles('gosec.sarif') != ''
+        with:
+          sarif_file: gosec.sarif
 
   codeql-analysis:
-    name: CodeQL Analysis
+    name: 🔬 CodeQL Analysis
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
       security-events: write
-    
-    strategy:
-      fail-fast: false
-      matrix:
-        language: [ 'go' ]
-    
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Initialize CodeQL
-      uses: github/codeql-action/init@v3
-      with:
-        languages: ${{ matrix.language }}
-        
-    - name: Build
-      run: go build -v ./...
-      
-    - name: Perform CodeQL Analysis
-      uses: github/codeql-action/analyze@v3
-
-  dependency-check:
-    name: Dependency Check
-    runs-on: ubuntu-latest
 
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
 
-    - name: Check for known vulnerabilities
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
-      continue-on-error: true
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: go
+
+      - name: Build
+        run: go build -v ./...
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
 
   secrets-scan:
-    name: Secrets Scan
+    name: 🔐 Secrets Scan
     runs-on: ubuntu-latest
-    
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-      
-    - name: Run TruffleHog OSS (PR)
-      if: github.event_name == 'pull_request'
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        base: ${{ github.event.repository.default_branch }}
-        head: HEAD
-        extra_args: --debug --only-verified
-        
-    - name: Run TruffleHog OSS (Push)
-      if: github.event_name == 'push'
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        base: HEAD~1
-        head: HEAD
-        extra_args: --debug --only-verified
-        
-    - name: Run TruffleHog OSS (Full Scan)
-      if: github.event_name == 'schedule'
-      uses: trufflesecurity/trufflehog@main
-      with:
-        path: ./
-        extra_args: --debug --only-verified
 
-  supply-chain-security:
-    name: Supply Chain Security
-    runs-on: ubuntu-latest
-    
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Generate SBOM
-      uses: anchore/sbom-action@v0
-      with:
-        path: ./
-        format: spdx-json
-        output-file: sbom.spdx.json
-        
-    - name: Scan SBOM for vulnerabilities
-      uses: anchore/scan-action@v3
-      with:
-        sbom: "sbom.spdx.json"
-        severity-cutoff: high
-        fail-build: false
-      continue-on-error: true
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  license-check:
-    name: License Check
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event_name == 'pull_request' && github.event.repository.default_branch || (github.event_name == 'push' && 'HEAD~1' || '') }}
+          head: HEAD
+          extra_args: --only-verified
+
+  supply-chain-and-license:
+    name: 📦 Supply Chain & License
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Check out code
-      uses: actions/checkout@v4
-      
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-        
-    - name: Check licenses
-      run: |
-        # Check that we only use approved licenses
-        go install github.com/google/go-licenses@latest
-        go-licenses check ./... || echo "License check failed but continuing"
-      continue-on-error: true
-        
-    - name: Generate license report
-      run: |
-        go-licenses report ./... > licenses.txt || echo "License report failed but continuing"
-        cat licenses.txt || echo "No license file generated"
-      continue-on-error: true
-        
-    - name: Upload license report
-      uses: actions/upload-artifact@v4
-      with:
-        name: license-report
-        path: licenses.txt
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: ./
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Scan SBOM for vulnerabilities
+        uses: anchore/scan-action@v3
+        with:
+          sbom: "sbom.spdx.json"
+          severity-cutoff: high
+          fail-build: false
+        continue-on-error: true
+
+      - name: Check and report licenses
+        run: |
+          go install github.com/google/go-licenses@latest
+          go-licenses check ./... || echo "License check completed with issues"
+          go-licenses report ./... > licenses.txt || echo "License report failed"
+        continue-on-error: true
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report
+          path: licenses.txt
+          if-no-files-found: ignore
