@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"alex/internal/async"
 	"alex/internal/logging"
 )
 
@@ -106,10 +107,14 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	pm.logger.Info("MCP server started with PID: %d", pm.process.Process.Pid)
 
 	// Monitor stderr in background
-	go pm.monitorStderr()
+	async.Go(pm.logger, "mcp.monitorStderr", func() {
+		pm.monitorStderr()
+	})
 
 	// Monitor process exit
-	go pm.monitorExit()
+	async.Go(pm.logger, "mcp.monitorExit", func() {
+		pm.monitorExit()
+	})
 
 	return nil
 }
@@ -161,9 +166,9 @@ func (pm *ProcessManager) Stop(timeout time.Duration) error {
 	if waitDone == nil {
 		waitDone = make(chan error, 1)
 		if process != nil {
-			go func() {
+			async.Go(pm.logger, "mcp.waitProcess", func() {
 				waitDone <- process.Wait()
-			}()
+			})
 		}
 	}
 

@@ -16,6 +16,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"alex/internal/async"
 	alexerrors "alex/internal/errors"
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
@@ -95,10 +96,10 @@ func (c *Client) Start(ctx context.Context, handler NotificationHandler) {
 	c.running = true
 	c.mu.Unlock()
 
-	go func() {
+	async.Go(c.logger, "acp.client.readLoop", func() {
 		defer close(c.readDone)
 		c.readLoop(ctx, handler)
-	}()
+	})
 }
 
 // Wait blocks until the read loop exits.

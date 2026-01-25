@@ -8,6 +8,9 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"alex/internal/async"
+	"alex/internal/logging"
 )
 
 var capabilityChecks = []struct {
@@ -117,6 +120,7 @@ func trimQuotes(value string) string {
 }
 
 func collectLocalCapabilities() []string {
+	logger := logging.NewComponentLogger("EnvironmentCapabilities")
 	// Use a channel to collect results from parallel goroutines
 	type capabilityResult struct {
 		output string
@@ -126,13 +130,12 @@ func collectLocalCapabilities() []string {
 
 	// Launch parallel capability checks
 	for i, check := range capabilityChecks {
-		go func(idx int, c struct {
-			Program string
-			Args    []string
-		}) {
+		idx := i
+		c := check
+		async.Go(logger, "environment.capabilityCheck", func() {
 			output := runLocalCommand(c.Program, c.Args...)
 			resultChan <- capabilityResult{output: output, index: idx}
-		}(i, check)
+		})
 	}
 
 	// Collect results in order

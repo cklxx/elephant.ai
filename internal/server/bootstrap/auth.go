@@ -12,6 +12,7 @@ import (
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
 	authports "alex/internal/auth/ports"
+	"alex/internal/async"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -169,7 +170,7 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 			}
 		}
 
-		go func() {
+		async.Go(logger, "server.authStateCleanup", func() {
 			ticker := time.NewTicker(interval)
 			defer func() {
 				ticker.Stop()
@@ -184,7 +185,7 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 					return
 				}
 			}
-		}()
+		})
 
 		cleanupFuncs = append(cleanupFuncs, func() {
 			cancel()

@@ -10,12 +10,13 @@ import (
 	agentApp "alex/internal/agent/app"
 	agentstorage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/async"
 	"alex/internal/llm"
 	"alex/internal/logging"
 	"alex/internal/mcp"
 	"alex/internal/memory"
 	sessionstate "alex/internal/session/state_store"
-	toolregistry "alex/internal/toolregistry"
+	"alex/internal/toolregistry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -249,7 +250,7 @@ func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolReg
 		maxBackoff     = 30 * time.Second
 	)
 
-	go func() {
+	async.Go(logger, "di.mcpInitialization", func() {
 		logger = logging.OrNop(logger)
 		backoff := initialBackoff
 		for {
@@ -292,7 +293,7 @@ func startMCPInitialization(ctx context.Context, registry *mcp.Registry, toolReg
 				return
 			}
 		}
-	}()
+	})
 }
 
 func sleepContext(ctx context.Context, d time.Duration) bool {

@@ -1,10 +1,8 @@
 package logging
 
 import (
-	"fmt"
 	"reflect"
 
-	"alex/internal/observability"
 	"alex/internal/utils"
 )
 
@@ -69,39 +67,6 @@ func FromUtils(logger *utils.Logger) Logger {
 		return Nop()
 	}
 	return logger
-}
-
-type observabilityPrintfLogger struct {
-	logger *observability.Logger
-}
-
-// FromObservabilityWithComponent wraps an observability logger and preserves
-// printf-style call sites by formatting the message before emitting it.
-func FromObservabilityWithComponent(logger *observability.Logger, component string) Logger {
-	if logger == nil {
-		return Nop()
-	}
-	scoped := logger
-	if component != "" {
-		scoped = scoped.With("component", component)
-	}
-	return &observabilityPrintfLogger{logger: scoped}
-}
-
-func (l *observabilityPrintfLogger) Debug(format string, args ...any) {
-	l.logger.Debug(fmt.Sprintf(format, args...))
-}
-
-func (l *observabilityPrintfLogger) Info(format string, args ...any) {
-	l.logger.Info(fmt.Sprintf(format, args...))
-}
-
-func (l *observabilityPrintfLogger) Warn(format string, args ...any) {
-	l.logger.Warn(fmt.Sprintf(format, args...))
-}
-
-func (l *observabilityPrintfLogger) Error(format string, args ...any) {
-	l.logger.Error(fmt.Sprintf(format, args...))
 }
 
 type multiLogger struct {

@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"alex/internal/async"
+	"alex/internal/logging"
+
 	promclient "github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -306,12 +309,13 @@ func (m *MetricsCollector) StartPrometheusServer(port int) error {
 		Handler: mux,
 	}
 
-	go func() {
+	logger := logging.NewComponentLogger("PrometheusMetrics")
+	async.Go(logger, "observability.prometheus", func() {
 		log.Printf("Prometheus metrics server listening on :%d", port)
 		if err := m.prometheusServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("Prometheus server error: %v", err)
 		}
-	}()
+	})
 
 	return nil
 }

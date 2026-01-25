@@ -9,6 +9,7 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/async"
 )
 
 func newToolCallBatch(
@@ -80,12 +81,12 @@ func (b *toolCallBatch) execute() []ToolResult {
 	wg.Add(len(b.calls))
 
 	for i := 0; i < limit; i++ {
-		go func() {
+		async.Go(b.engine.logger, "react.toolBatch.worker", func() {
 			for idx := range jobs {
 				b.runCall(idx, b.calls[idx])
 				wg.Done()
 			}
-		}()
+		})
 	}
 
 	for i := range b.calls {

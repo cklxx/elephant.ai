@@ -13,6 +13,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/async"
 	"alex/internal/attachments"
 	"alex/internal/logging"
 
@@ -481,7 +482,7 @@ func (s *PostgresEventHistoryStore) pruneIfNeeded() {
 	s.lastPrunedAt = now
 	s.pruneMu.Unlock()
 
-	go func() {
+	async.Go(logging.OrNop(s.logger), "server.eventHistory.prune", func() {
 		ctx, cancel := s.withTimeout(context.Background())
 		defer cancel()
 
@@ -491,7 +492,7 @@ func (s *PostgresEventHistoryStore) pruneIfNeeded() {
 		s.pruneMu.Lock()
 		s.pruning = false
 		s.pruneMu.Unlock()
-	}()
+	})
 }
 
 func (s *PostgresEventHistoryStore) pruneOnce(ctx context.Context) error {

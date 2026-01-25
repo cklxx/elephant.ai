@@ -11,6 +11,7 @@ import (
 	"time"
 
 	agentdomain "alex/internal/agent/domain"
+	"alex/internal/async"
 	"alex/internal/attachments"
 	"alex/internal/diagnostics"
 	"alex/internal/logging"
@@ -222,10 +223,10 @@ func serveUntilSignal(server *http.Server, logger logging.Logger) error {
 	logger = logging.OrNop(logger)
 
 	errCh := make(chan error, 1)
-	go func() {
+	async.Go(logger, "server.listen", func() {
 		logger.Info("Server listening on %s", server.Addr)
 		errCh <- server.ListenAndServe()
-	}()
+	})
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)

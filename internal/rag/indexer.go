@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"alex/internal/async"
+	"alex/internal/logging"
 )
 
 // IndexerConfig holds indexing configuration
@@ -61,6 +64,7 @@ func NewIndexer(config IndexerConfig, chunker Chunker, embedder Embedder, store 
 // Index indexes all code files in the repository
 func (idx *Indexer) Index(ctx context.Context) (*IndexStats, error) {
 	stats := &IndexStats{}
+	logger := logging.NewComponentLogger("RAGIndexer")
 
 	// Walk repository and collect files
 	files, err := idx.collectFiles()
@@ -86,7 +90,8 @@ func (idx *Indexer) Index(ctx context.Context) (*IndexStats, error) {
 		wg.Add(1)
 		sem <- struct{}{} // Acquire semaphore
 
-		go func(filePath string) {
+		filePath := file
+		async.Go(logger, "rag.indexFile", func() {
 			defer wg.Done()
 			defer func() { <-sem }() // Release semaphore
 
@@ -100,7 +105,7 @@ func (idx *Indexer) Index(ctx context.Context) (*IndexStats, error) {
 			} else {
 				stats.IndexedFiles++
 			}
-		}(file)
+		})
 	}
 
 	wg.Wait()
