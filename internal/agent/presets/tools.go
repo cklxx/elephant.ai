@@ -52,6 +52,14 @@ var (
 		"sandbox_shell_exec":         true,
 		"sandbox_code_execute":       true,
 		"sandbox_write_attachment":   true,
+		// Memory tools (Web UI only)
+		"memory_write":               true,
+		"memory_recall":              true,
+		// Media generation tools (Web UI only)
+		"text_to_image":              true,
+		"image_to_image":             true,
+		"video_generate":             true,
+		"pptx_from_images":           true,
 	}
 	webDeniedTools = map[string]bool{
 		"file_read":    true,
