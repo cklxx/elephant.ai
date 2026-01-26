@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"alex/internal/output"
+
 	"golang.org/x/term"
 )
 
@@ -17,6 +19,8 @@ func RunNativeChatUI(container *Container) error {
 	if container == nil {
 		return fmt.Errorf("container is nil")
 	}
+
+	output.ConfigureCLIColorProfile(os.Stdout)
 
 	if !container.Runtime.DisableTUI && shouldUseFullscreenTUI() && term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stdin.Fd())) {
 		if err := RunBubbleChatUI(container); err == nil {

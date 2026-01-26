@@ -6,6 +6,8 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 type stubMarkdownRenderer struct{}
@@ -139,4 +141,28 @@ func TestRenderMarkdownStreamChunkTrimsWhitespaceEdges(t *testing.T) {
 	if chunk != "Hello\n" {
 		t.Fatalf("expected trimmed output, got %q", chunk)
 	}
+}
+
+func TestRenderToolCallCompleteConstrainsWidth(t *testing.T) {
+	renderer := newTestRenderer(false)
+	renderer.maxWidth = 24
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	longResult := strings.Repeat("a", 200)
+
+	rendered := renderer.RenderToolCallComplete(ctx, "bash", longResult, nil, 0)
+
+	if got := maxRenderedWidth(rendered); got > renderer.maxWidth {
+		t.Fatalf("expected rendered output to fit within %d columns, got %d", renderer.maxWidth, got)
+	}
+}
+
+func maxRenderedWidth(rendered string) int {
+	maxWidth := 0
+	for _, line := range strings.Split(rendered, "\n") {
+		width := ansi.StringWidth(line)
+		if width > maxWidth {
+			maxWidth = width
+		}
+	}
+	return maxWidth
 }

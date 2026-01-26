@@ -41,6 +41,7 @@ type CLIRenderer struct {
 	verbose    bool
 	formatter  *formatter.ToolFormatter
 	mdRenderer MarkdownRenderer
+	maxWidth   int
 }
 
 const nonVerbosePreviewLimit = 80
@@ -57,6 +58,7 @@ func NewCLIRendererWithMarkdown(verbose bool, md MarkdownRenderer) *CLIRenderer 
 	renderer := &CLIRenderer{
 		verbose:   verbose,
 		formatter: formatter.NewToolFormatter(),
+		maxWidth:  0,
 	}
 
 	if md != nil {
@@ -64,16 +66,14 @@ func NewCLIRendererWithMarkdown(verbose bool, md MarkdownRenderer) *CLIRenderer 
 		return renderer
 	}
 
-	// Set lipgloss to use stdout for color detection only when using the default renderer.
-	lipgloss.SetColorProfile(lipgloss.NewRenderer(os.Stdout).ColorProfile())
-
-	renderer.mdRenderer = buildDefaultMarkdownRenderer()
+	profile := ConfigureCLIColorProfile(os.Stdout)
+	renderer.mdRenderer = buildDefaultMarkdownRenderer(profile)
+	renderer.maxWidth = detectOutputWidth(os.Stdout)
 
 	return renderer
 }
 
-func buildDefaultMarkdownRenderer() MarkdownRenderer {
-	profile := lipgloss.NewRenderer(os.Stdout).ColorProfile()
+func buildDefaultMarkdownRenderer(profile termenv.Profile) MarkdownRenderer {
 	return newMarkdownHighlighter(profile)
 }
 
@@ -112,10 +112,10 @@ func (r *CLIRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 		if !r.verbose {
 			preview = truncateInlinePreview(preview, nonVerbosePreviewLimit)
 		}
-		return fmt.Sprintf("%s%s %s(%s)\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName), preview)
+		return r.constrainWidth(fmt.Sprintf("%s%s %s(%s)\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName), preview))
 	}
 
-	return fmt.Sprintf("%s%s %s\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName))
+	return r.constrainWidth(fmt.Sprintf("%s%s %s\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName)))
 }
 
 func truncateInlinePreview(preview string, limit int) string {
@@ -189,7 +189,7 @@ func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 	if isConversationalTool(toolName) {
 		if err != nil {
 			errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-			return fmt.Sprintf("%s\n", errStyle.Render(fmt.Sprintf("✗ %v", err)))
+			return r.constrainWidth(fmt.Sprintf("%s\n", errStyle.Render(fmt.Sprintf("✗ %v", err))))
 		}
 		content := strings.TrimSpace(result)
 		if content == "" {
@@ -200,11 +200,11 @@ func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 
 	if err != nil {
 		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-		return fmt.Sprintf("%s  %s\n", indent, errStyle.Render(fmt.Sprintf("✗ %s failed: %v", toolName, err)))
+		return r.constrainWidth(fmt.Sprintf("%s  %s\n", indent, errStyle.Render(fmt.Sprintf("✗ %s failed: %v", toolName, err))))
 	}
 
 	// Smart display based on tool category and hierarchy
-	return r.formatToolOutput(ctx, toolName, result, indent)
+	return r.constrainWidth(r.formatToolOutput(ctx, toolName, result, indent))
 }
 
 // RenderTaskStart renders task start metadata for immediate CLI feedback
@@ -254,7 +254,7 @@ func (r *CLIRenderer) RenderError(ctx *types.OutputContext, phase string, err er
 		indent = "  "
 	}
 
-	return fmt.Sprintf("\n%s%s\n", indent, errStyle.Render(fmt.Sprintf("✗ Error in %s: %v", phase, err)))
+	return r.constrainWidth(fmt.Sprintf("\n%s%s\n", indent, errStyle.Render(fmt.Sprintf("✗ Error in %s: %v", phase, err))))
 }
 
 // RenderSubagentProgress renders subagent progress with proper indentation
@@ -262,7 +262,7 @@ func (r *CLIRenderer) RenderSubagentProgress(ctx *types.OutputContext, completed
 	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 	progressText := fmt.Sprintf("  ✓ [%d/%d] Task %d | %d tokens | %d tools",
 		completed, total, completed, tokens, toolCalls)
-	return grayStyle.Render(progressText) + "\n"
+	return r.constrainWidth(grayStyle.Render(progressText) + "\n")
 }
 
 // RenderSubagentComplete renders subagent completion summary
@@ -270,7 +270,7 @@ func (r *CLIRenderer) RenderSubagentComplete(ctx *types.OutputContext, total, su
 	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 	summaryText := fmt.Sprintf("  ━━━ Completed: %d/%d tasks | Total: %d tokens, %d tool calls",
 		success, total, tokens, toolCalls)
-	return grayStyle.Render(summaryText) + "\n\n"
+	return r.constrainWidth(grayStyle.Render(summaryText) + "\n\n")
 }
 
 // formatToolOutput formats tool output based on tool category and hierarchy
@@ -620,6 +620,10 @@ func stripANSI(input string) string {
 		i++
 	}
 	return out.String()
+}
+
+func (r *CLIRenderer) constrainWidth(rendered string) string {
+	return ConstrainWidth(rendered, r.maxWidth)
 }
 
 // filterSystemReminders removes <system-reminder> tags from output
