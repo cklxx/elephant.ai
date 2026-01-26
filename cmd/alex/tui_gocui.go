@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
+	"unicode/utf8"
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
@@ -46,12 +48,17 @@ type gocuiChatUI struct {
 
 	renderer *output.CLIRenderer
 
+	updateQueue    chan func()
+	updateStop     chan struct{}
+	updateStopOnce sync.Once
+
 	running           bool
 	cancelCurrentTurn context.CancelFunc
 	statusLine        string
 
 	activeTools map[string]ToolInfo
 	subagents   *SubagentDisplay
+	history     *inputHistory
 
 	mdBuffer                        *markdownStreamBuffer
 	streamedCurrentTurn             bool
@@ -88,6 +95,8 @@ func RunGocui(container *Container) error {
 	defer gui.Close()
 
 	ui := newGocuiChatUI(container, baseCtx, baseCancel, gui)
+	ui.startUpdateLoop()
+	defer ui.stopUpdateLoop()
 	gui.SetManagerFunc(ui.layout)
 
 	if err := ui.bindKeys(); err != nil {
@@ -113,6 +122,7 @@ func newGocuiChatUI(container *Container, baseCtx context.Context, baseCancel co
 		renderer:    output.NewCLIRendererWithMarkdown(container.Runtime.Verbose, plainMarkdownRenderer{}),
 		activeTools: make(map[string]ToolInfo),
 		subagents:   NewSubagentDisplay(),
+		history:     newInputHistory(),
 		mdBuffer:    newMarkdownStreamBuffer(),
 	}
 }
@@ -129,6 +139,24 @@ func (ui *gocuiChatUI) bindKeys() error {
 		return err
 	}
 	if err := ui.gui.SetKeybinding(gocuiInputView, gocui.KeyEnter, gocui.ModNone, ui.onSubmit); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding(gocuiInputView, gocui.KeyArrowUp, gocui.ModNone, ui.onHistoryPrev); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding(gocuiInputView, gocui.KeyArrowDown, gocui.ModNone, ui.onHistoryNext); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding("", gocui.KeyPgup, gocui.ModNone, ui.onScrollPageUp); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding("", gocui.KeyPgdn, gocui.ModNone, ui.onScrollPageDown); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding("", gocui.KeyHome, gocui.ModNone, ui.onScrollTop); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding("", gocui.KeyEnd, gocui.ModNone, ui.onScrollBottom); err != nil {
 		return err
 	}
 
@@ -214,7 +242,7 @@ func (ui *gocuiChatUI) onSubmit(g *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 
-	input := strings.TrimSpace(v.Buffer())
+	input := strings.TrimSpace(readInputView(v))
 	v.Clear()
 	_ = v.SetCursor(0, 0)
 	_ = v.SetOrigin(0, 0)
@@ -231,6 +259,9 @@ func (ui *gocuiChatUI) onSubmit(g *gocui.Gui, v *gocui.View) error {
 		ui.setStatusLine(styleGray.Render("cleared"))
 		return nil
 	case commandRun:
+		if ui.history != nil {
+			ui.history.Add(cmd.task)
+		}
 		ui.appendUserMessage(cmd.task)
 		ui.streamedCurrentTurn = false
 		ui.assistantHeaderPrinted = false
@@ -244,6 +275,110 @@ func (ui *gocuiChatUI) onSubmit(g *gocui.Gui, v *gocui.View) error {
 	default:
 		return nil
 	}
+}
+
+func (ui *gocuiChatUI) onHistoryPrev(_ *gocui.Gui, v *gocui.View) error {
+	if ui.history == nil || v == nil {
+		return nil
+	}
+	current := readInputView(v)
+	previous, ok := ui.history.Prev(current)
+	if !ok {
+		return nil
+	}
+	return setInputViewText(v, previous)
+}
+
+func (ui *gocuiChatUI) onHistoryNext(_ *gocui.Gui, v *gocui.View) error {
+	if ui.history == nil || v == nil {
+		return nil
+	}
+	current := readInputView(v)
+	next, ok := ui.history.Next(current)
+	if !ok {
+		return nil
+	}
+	return setInputViewText(v, next)
+}
+
+func (ui *gocuiChatUI) onScrollPageUp(_ *gocui.Gui, _ *gocui.View) error {
+	return ui.scrollOutput(-ui.outputPageDelta())
+}
+
+func (ui *gocuiChatUI) onScrollPageDown(_ *gocui.Gui, _ *gocui.View) error {
+	return ui.scrollOutput(ui.outputPageDelta())
+}
+
+func (ui *gocuiChatUI) onScrollTop(_ *gocui.Gui, _ *gocui.View) error {
+	return ui.scrollToTop()
+}
+
+func (ui *gocuiChatUI) onScrollBottom(_ *gocui.Gui, _ *gocui.View) error {
+	return ui.scrollToBottom()
+}
+
+func (ui *gocuiChatUI) outputPageDelta() int {
+	if ui.outputView == nil {
+		return 1
+	}
+	_, height := ui.outputView.Size()
+	if height <= 1 {
+		return 1
+	}
+	return height - 1
+}
+
+func (ui *gocuiChatUI) scrollOutput(delta int) error {
+	if ui.outputView == nil {
+		return nil
+	}
+
+	_, originY := ui.outputView.Origin()
+	maxY := ui.maxOutputOriginY()
+
+	nextY := originY + delta
+	if nextY < 0 {
+		nextY = 0
+	}
+	if nextY > maxY {
+		nextY = maxY
+	}
+
+	ui.outputView.Autoscroll = nextY >= maxY
+	return ui.outputView.SetOrigin(0, nextY)
+}
+
+func (ui *gocuiChatUI) scrollToTop() error {
+	if ui.outputView == nil {
+		return nil
+	}
+	ui.outputView.Autoscroll = false
+	return ui.outputView.SetOrigin(0, 0)
+}
+
+func (ui *gocuiChatUI) scrollToBottom() error {
+	if ui.outputView == nil {
+		return nil
+	}
+	maxY := ui.maxOutputOriginY()
+	ui.outputView.Autoscroll = true
+	return ui.outputView.SetOrigin(0, maxY)
+}
+
+func (ui *gocuiChatUI) maxOutputOriginY() int {
+	if ui.outputView == nil {
+		return 0
+	}
+	_, height := ui.outputView.Size()
+	if height <= 0 {
+		return 0
+	}
+	lines := ui.outputView.BufferLines()
+	maxY := len(lines) - height
+	if maxY < 0 {
+		maxY = 0
+	}
+	return maxY
 }
 
 func (ui *gocuiChatUI) startTask(ctx context.Context, task string) {
@@ -595,14 +730,94 @@ func (ui *gocuiChatUI) shutdown() {
 	}
 }
 
-func (ui *gocuiChatUI) queue(update func()) {
-	if ui.gui == nil || update == nil {
+func (ui *gocuiChatUI) startUpdateLoop() {
+	ui.updateQueue = make(chan func(), 256)
+	ui.updateStop = make(chan struct{})
+	go ui.runUpdateLoop()
+}
+
+func (ui *gocuiChatUI) stopUpdateLoop() {
+	if ui.updateStop == nil {
 		return
 	}
-	ui.gui.Update(func(*gocui.Gui) error {
-		update()
-		return nil
+	ui.updateStopOnce.Do(func() {
+		close(ui.updateStop)
 	})
+}
+
+func (ui *gocuiChatUI) runUpdateLoop() {
+	for {
+		select {
+		case <-ui.updateStop:
+			return
+		case update := <-ui.updateQueue:
+			if update == nil {
+				continue
+			}
+			done := make(chan struct{})
+			if ui.gui == nil {
+				close(done)
+			} else {
+				ui.gui.Update(func(*gocui.Gui) error {
+					update()
+					close(done)
+					return nil
+				})
+			}
+			select {
+			case <-done:
+			case <-ui.updateStop:
+				return
+			}
+		}
+	}
+}
+
+func (ui *gocuiChatUI) queue(update func()) {
+	if update == nil || ui.updateQueue == nil {
+		return
+	}
+	select {
+	case ui.updateQueue <- update:
+	case <-ui.updateStop:
+	}
+}
+
+func readInputView(v *gocui.View) string {
+	if v == nil {
+		return ""
+	}
+	return strings.TrimRight(v.Buffer(), "\n")
+}
+
+func setInputViewText(v *gocui.View, text string) error {
+	if v == nil {
+		return nil
+	}
+	v.Clear()
+	if _, err := fmt.Fprint(v, text); err != nil {
+		return err
+	}
+	width, _ := v.Size()
+	if width <= 0 {
+		_ = v.SetOrigin(0, 0)
+		_ = v.SetCursor(0, 0)
+		return nil
+	}
+	cursorPos := utf8.RuneCountInString(text)
+	cursorX := cursorPos
+	originX := 0
+	if width > 0 && cursorPos >= width {
+		originX = cursorPos - width + 1
+		cursorX = width - 1
+	}
+	if err := v.SetOrigin(originX, 0); err != nil {
+		return err
+	}
+	if err := v.SetCursor(cursorX, 0); err != nil {
+		return err
+	}
+	return nil
 }
 
 type gocuiListener struct {
