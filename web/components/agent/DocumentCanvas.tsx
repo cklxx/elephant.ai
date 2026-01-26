@@ -16,7 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useTranslation } from "@/lib/i18n";
 import { Highlight, themes, Language } from "prism-react-renderer";
-import { MarkdownRenderer } from "@/components/ui/markdown";
+import { LazyMarkdownRenderer } from "@/components/ui/markdown";
 import {
   replacePlaceholdersWithMarkdown,
   buildAttachmentUri,
@@ -412,7 +412,7 @@ function DocumentRenderer({
 
     return (
       <div className={containerClass}>
-        <MarkdownRenderer
+        <LazyMarkdownRenderer
           content={renderedContent}
           className={typographyClass}
           attachments={document.attachments}
