@@ -2,21 +2,21 @@ package main
 
 import "testing"
 
-func TestShouldUseFullscreenTUIHonorsIMEEnv(t *testing.T) {
+func TestShouldUseFullscreenTUIAllowsIMEEnv(t *testing.T) {
 	t.Setenv("ALEX_TUI_MODE", "fullscreen")
 	t.Setenv("ALEX_TUI_IME", "1")
 
-	if shouldUseFullscreenTUI() {
-		t.Fatalf("expected IME flag to force line input")
+	if !shouldUseFullscreenTUI() {
+		t.Fatalf("expected IME flag to allow fullscreen")
 	}
 }
 
-func TestShouldUseFullscreenTUIHonorsInputMode(t *testing.T) {
+func TestShouldUseFullscreenTUIAllowsIMEInputMode(t *testing.T) {
 	t.Setenv("ALEX_TUI_MODE", "fullscreen")
 	t.Setenv("ALEX_TUI_INPUT", "ime")
 
-	if shouldUseFullscreenTUI() {
-		t.Fatalf("expected ALEX_TUI_INPUT=ime to force line input")
+	if !shouldUseFullscreenTUI() {
+		t.Fatalf("expected ALEX_TUI_INPUT=ime to allow fullscreen")
 	}
 }
 

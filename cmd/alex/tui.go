@@ -60,7 +60,9 @@ func shouldForceLineInput(envLookup func(string) (string, bool)) bool {
 
 	if value, ok := envLookup("ALEX_TUI_INPUT"); ok {
 		switch strings.ToLower(strings.TrimSpace(value)) {
-		case "ime", "cooked", "line", "terminal":
+		case "ime":
+			return false
+		case "cooked", "line", "terminal":
 			return true
 		case "raw", "fullscreen":
 			return false
@@ -68,7 +70,7 @@ func shouldForceLineInput(envLookup func(string) (string, bool)) bool {
 	}
 
 	if value, ok := envLookup("ALEX_TUI_IME"); ok && envTruthy(value) {
-		return true
+		return false
 	}
 
 	if hasCJKLocale(envLookup) {

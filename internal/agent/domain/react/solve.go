@@ -98,7 +98,7 @@ func (e *ReactEngine) think(
 	}
 
 	llmCallStarted := time.Now()
-	const streamChunkMinChars = 256
+	const streamChunkMinChars = 1
 	var streamBuffer strings.Builder
 	streamedContent := false
 	callbacks := ports.CompletionStreamCallbacks{

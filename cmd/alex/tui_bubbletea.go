@@ -25,6 +25,7 @@ import (
 const (
 	tuiAgentName   = "alex"
 	tuiAgentIndent = "  "
+	typewriterTickDelay = 6 * time.Millisecond
 )
 
 type tuiAgentEventMsg struct {
@@ -39,6 +40,8 @@ type tuiTaskCompleteMsg struct {
 type tuiSessionReadyMsg struct {
 	sessionID string
 }
+
+type tuiTypewriterTickMsg struct{}
 
 type bubbleChatUI struct {
 	container *Container
@@ -60,6 +63,8 @@ type bubbleChatUI struct {
 
 	transcript strings.Builder
 	follow     bool
+	imeMode    bool
+	imeBuffer  []rune
 
 	running             bool
 	cancelCurrentTurn   context.CancelFunc
@@ -73,6 +78,8 @@ type bubbleChatUI struct {
 	assistantHeaderPrinted          bool
 
 	statusLine string
+	typewriterQueue  []rune
+	typewriterActive bool
 }
 
 func RunBubbleChatUI(container *Container) error {
@@ -123,6 +130,7 @@ func newBubbleChatUI(container *Container, baseCtx context.Context, baseCancel c
 		input:       input,
 		renderer:    output.NewCLIRenderer(container.Runtime.Verbose),
 		follow:      container.Runtime.FollowTranscript,
+		imeMode:     shouldUseIMEInput(runtimeEnvLookup()),
 		activeTools: make(map[string]ToolInfo),
 		subagents:   NewSubagentDisplay(),
 		mdBuffer:    newMarkdownStreamBuffer(),
@@ -148,10 +156,10 @@ func (m *bubbleChatUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tuiAgentEventMsg:
-		m.handleAgentEvent(msg.event)
-		return m, nil
+		return m, m.handleAgentEvent(msg.event)
 
 	case tuiTaskCompleteMsg:
+		m.flushTypewriter()
 		m.running = false
 		if m.cancelCurrentTurn != nil {
 			m.cancelCurrentTurn()
@@ -175,6 +183,9 @@ func (m *bubbleChatUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+
+	case tuiTypewriterTickMsg:
+		return m, m.onTypewriterTick()
 	}
 
 	var cmd tea.Cmd
@@ -292,6 +303,16 @@ func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.onSubmit()
 	}
 
+	if m.imeMode {
+		updated, handled := applyIMEKey(m.imeBuffer, msg)
+		if handled {
+			m.imeBuffer = updated
+			m.input.SetValue(string(m.imeBuffer))
+			m.input.CursorEnd()
+			return m, nil
+		}
+	}
+
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	m.input, _ = m.input.Update(msg)
@@ -318,12 +339,14 @@ func (m *bubbleChatUI) onSubmit() (tea.Model, tea.Cmd) {
 		m.viewport.SetContent("")
 		m.appendSystemCard()
 		m.input.SetValue("")
+		m.imeBuffer = nil
 		m.statusLine = styleGray.Render("cleared")
 		return m, nil
 	}
 
 	m.appendUserMessage(task)
 	m.input.SetValue("")
+	m.imeBuffer = nil
 	m.streamedCurrentTurn = false
 	m.assistantHeaderPrinted = false
 	m.running = true
@@ -349,6 +372,8 @@ func (m *bubbleChatUI) runTaskCmd(ctx context.Context, task string, sessionID st
 
 		taskCtx := id.WithSessionID(ctx, sessionID)
 		taskCtx = id.WithTaskID(taskCtx, id.NewTaskID())
+		taskCtx = builtin.WithApprover(taskCtx, cliApproverForSession(sessionID))
+		taskCtx = builtin.WithAutoApprove(taskCtx, false)
 
 		listener := newBubbleTeaListener(ctx, m.container.Runtime.Verbose, func(e agent.AgentEvent) {
 			m.send(tuiAgentEventMsg{event: e})
@@ -461,6 +486,24 @@ func (m *bubbleChatUI) appendAgentRaw(content string) {
 	m.appendRaw(indentBlock(content, tuiAgentIndent))
 }
 
+func (m *bubbleChatUI) appendAgentStreamRaw(content string) {
+	if content == "" {
+		return
+	}
+
+	// Avoid an empty spacer line right after the agent header when the renderer
+	// happens to emit leading newlines (common with markdown renderers).
+	if !m.assistantHeaderPrinted {
+		content = strings.TrimLeft(content, "\n")
+		if content == "" {
+			return
+		}
+	}
+
+	m.ensureAgentHeader()
+	m.appendRaw(indentBlock(content, tuiAgentIndent))
+}
+
 func (m *bubbleChatUI) appendLine(content string) {
 	if content == "" {
 		m.transcript.WriteString("\n")
@@ -478,25 +521,27 @@ func (m *bubbleChatUI) appendLine(content string) {
 	}
 }
 
-func (m *bubbleChatUI) handleAgentEvent(event agent.AgentEvent) {
+func (m *bubbleChatUI) handleAgentEvent(event agent.AgentEvent) tea.Cmd {
 	if event == nil {
-		return
+		return nil
 	}
 
 	// Subtask wrapper events.
 	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
+		m.flushTypewriter()
 		lines := m.subagents.Handle(normalizeSubtaskEvent(subtaskEvent))
 		for _, line := range lines {
 			m.appendAgentRaw(line)
 		}
-		return
+		return nil
 	}
 
 	// New contract: workflow envelopes.
 	if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
-		m.handleEnvelopeEvent(env)
-		return
+		return m.handleEnvelopeEvent(env)
 	}
+
+	return nil
 }
 
 func normalizeSubtaskEvent(event *builtin.SubtaskEvent) *builtin.SubtaskEvent {
@@ -532,15 +577,15 @@ func normalizeSubtaskEvent(event *builtin.SubtaskEvent) *builtin.SubtaskEvent {
 	return &copy
 }
 
-func (m *bubbleChatUI) handleEnvelopeEvent(env *domain.WorkflowEventEnvelope) {
+func (m *bubbleChatUI) handleEnvelopeEvent(env *domain.WorkflowEventEnvelope) tea.Cmd {
 	if env == nil {
-		return
+		return nil
 	}
 
 	switch env.Event {
 	case "workflow.node.output.delta":
 		if evt := envelopeToNodeOutputDelta(env); evt != nil {
-			m.onAssistantMessage(evt)
+			return m.onAssistantMessage(evt)
 		}
 	case "workflow.tool.started":
 		if evt := envelopeToToolStarted(env); evt != nil {
@@ -552,27 +597,33 @@ func (m *bubbleChatUI) handleEnvelopeEvent(env *domain.WorkflowEventEnvelope) {
 		}
 	case "workflow.node.failed":
 		if evt := envelopeToNodeFailed(env); evt != nil {
+			m.flushTypewriter()
 			m.appendAgentLine(styleError.Render(fmt.Sprintf("✗ Error: %v", evt.Error)))
 		}
 	}
+
+	return nil
 }
 
-func (m *bubbleChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaEvent) {
+func (m *bubbleChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaEvent) tea.Cmd {
 	if event == nil {
-		return
+		return nil
 	}
 
 	if strings.TrimSpace(event.Delta) != "" || event.Final {
 		m.streamedCurrentTurn = true
 	}
 
+	var cmds []tea.Cmd
 	if event.Delta != "" {
 		for _, chunk := range m.mdBuffer.Append(event.Delta) {
 			if chunk.content == "" {
 				continue
 			}
 			rendered := m.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
-			emitTypewriter(rendered, m.appendAgentRaw)
+			if cmd := m.enqueueTypewriter(rendered); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 			m.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
 		}
 	}
@@ -581,26 +632,39 @@ func (m *bubbleChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaE
 		trailing := m.mdBuffer.FlushAll()
 		if trailing != "" {
 			rendered := m.renderer.RenderMarkdownStreamChunk(trailing, false)
-			emitTypewriter(rendered, m.appendAgentRaw)
+			if cmd := m.enqueueTypewriter(rendered); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 			if strings.HasSuffix(rendered, "\n") {
 				m.lastStreamChunkEndedWithNewline = true
 			} else {
 				m.lastStreamChunkEndedWithNewline = false
-				m.appendRaw("\n")
+				if cmd := m.enqueueTypewriter("\n"); cmd != nil {
+					cmds = append(cmds, cmd)
+				}
 				m.lastStreamChunkEndedWithNewline = true
 			}
 		} else if !m.lastStreamChunkEndedWithNewline {
-			m.appendRaw("\n")
+			if cmd := m.enqueueTypewriter("\n"); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
 			m.lastStreamChunkEndedWithNewline = true
 		}
 		m.renderer.ResetMarkdownStreamState()
 	}
+
+	if len(cmds) == 0 {
+		return nil
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m *bubbleChatUI) onToolCallStart(event *domain.WorkflowToolStartedEvent) {
 	if event == nil {
 		return
 	}
+
+	m.flushTypewriter()
 
 	if m.streamedCurrentTurn && !m.lastStreamChunkEndedWithNewline {
 		m.appendRaw("\n")
@@ -630,6 +694,8 @@ func (m *bubbleChatUI) onToolCallComplete(event *domain.WorkflowToolCompletedEve
 	if event == nil {
 		return
 	}
+
+	m.flushTypewriter()
 
 	info, exists := m.activeTools[event.CallID]
 	if !exists {
@@ -662,6 +728,49 @@ func (m *bubbleChatUI) appendRaw(content string) {
 	if m.follow {
 		m.viewport.GotoBottom()
 	}
+}
+
+func (m *bubbleChatUI) enqueueTypewriter(content string) tea.Cmd {
+	if content == "" {
+		return nil
+	}
+	m.typewriterQueue = append(m.typewriterQueue, []rune(content)...)
+	if !m.typewriterActive {
+		m.typewriterActive = true
+		return typewriterTick()
+	}
+	return nil
+}
+
+func (m *bubbleChatUI) flushTypewriter() {
+	if len(m.typewriterQueue) == 0 {
+		m.typewriterActive = false
+		return
+	}
+	m.appendAgentStreamRaw(string(m.typewriterQueue))
+	m.typewriterQueue = nil
+	m.typewriterActive = false
+}
+
+func (m *bubbleChatUI) onTypewriterTick() tea.Cmd {
+	if len(m.typewriterQueue) == 0 {
+		m.typewriterActive = false
+		return nil
+	}
+	r := m.typewriterQueue[0]
+	m.typewriterQueue = m.typewriterQueue[1:]
+	m.appendAgentStreamRaw(string(r))
+	if len(m.typewriterQueue) == 0 {
+		m.typewriterActive = false
+		return nil
+	}
+	return typewriterTick()
+}
+
+func typewriterTick() tea.Cmd {
+	return tea.Tick(typewriterTickDelay, func(time.Time) tea.Msg {
+		return tuiTypewriterTickMsg{}
+	})
 }
 
 func indentBlock(content string, prefix string) string {

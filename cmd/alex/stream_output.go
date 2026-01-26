@@ -57,10 +57,10 @@ const (
 	// markdownBufferThreshold controls how much streamed markdown we buffer before
 	// emitting a partial fragment. Keep this small so CLI/TUI get fast first-byte
 	// output even when the model streams without newlines.
-	markdownBufferThreshold = 64
+	markdownBufferThreshold = 1
 	// markdownMaxFlushDelay bounds how long we wait to show partial output after
 	// the last flush, even if the buffer is still small.
-	markdownMaxFlushDelay = 16 * time.Millisecond
+	markdownMaxFlushDelay = 0
 )
 
 type markdownChunk struct {
@@ -198,6 +198,8 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx = id.WithTaskID(ctx, id.NewTaskID())
+	ctx = builtin.WithApprover(ctx, cliApproverForSession(sessionID))
+	ctx = builtin.WithAutoApprove(ctx, false)
 
 	verbose := container.Runtime.Verbose
 
