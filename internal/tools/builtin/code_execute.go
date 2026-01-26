@@ -1,4 +1,4 @@
-//go:build !local_exec
+//go:build no_local_exec
 
 package builtin
 
@@ -83,6 +83,6 @@ Safety:
 }
 
 func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	err := fmt.Errorf("local code execution is disabled; use sandbox_code_execute or build with -tags=local_exec")
+	err := fmt.Errorf("local code execution is disabled in this build; rebuild without -tags=no_local_exec to enable")
 	return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 }

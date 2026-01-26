@@ -338,7 +338,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["list_files"] = builtin.NewListFiles(fileConfig)
 
 	// Shell & search
-	r.static["bash"] = builtin.NewBash(shellConfig)
+	if builtin.LocalExecEnabled {
+		r.static["bash"] = builtin.NewBash(shellConfig)
+	}
 	r.static["grep"] = builtin.NewGrep(shellConfig)
 	r.static["ripgrep"] = builtin.NewRipgrep(shellConfig)
 	r.static["find"] = builtin.NewFind(shellConfig)
@@ -360,7 +362,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["artifact_manifest"] = builtin.NewArtifactManifest()
 
 	// Execution & reasoning
-	r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
+	if builtin.LocalExecEnabled {
+		r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
+	}
 	r.static["acp_executor"] = builtin.NewACPExecutor(builtin.ACPExecutorConfig{
 		Addr:                    config.ACPExecutorAddr,
 		CWD:                     config.ACPExecutorCWD,

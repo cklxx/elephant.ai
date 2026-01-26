@@ -35,32 +35,24 @@ type ToolConfig struct {
 }
 
 var (
-	cliDeniedTools = map[string]bool{
-		"artifacts_write":            true,
-		"artifacts_list":             true,
-		"artifacts_delete":           true,
-		"acp_executor":               true,
-		"sandbox_browser":            true,
-		"sandbox_browser_info":       true,
-		"sandbox_browser_screenshot": true,
-		"sandbox_browser_dom":        true,
-		"sandbox_file_read":          true,
-		"sandbox_file_write":         true,
-		"sandbox_file_list":          true,
-		"sandbox_file_search":        true,
-		"sandbox_file_replace":       true,
-		"sandbox_shell_exec":         true,
-		"sandbox_code_execute":       true,
-		"sandbox_write_attachment":   true,
-		// Memory tools (Web UI only)
-		"memory_write":               true,
-		"memory_recall":              true,
-		// Media generation tools (Web UI only)
-		"text_to_image":              true,
-		"image_to_image":             true,
-		"video_generate":             true,
-		"pptx_from_images":           true,
-	}
+	cliDeniedTools = func() map[string]bool {
+		tools := map[string]bool{
+			"artifacts_write":  true,
+			"artifacts_list":   true,
+			"artifacts_delete": true,
+			"acp_executor":     true,
+			// Memory tools (Web UI only)
+			"memory_write":  true,
+			"memory_recall": true,
+			// Media generation tools (Web UI only)
+			"text_to_image":    true,
+			"image_to_image":   true,
+			"video_generate":   true,
+			"pptx_from_images": true,
+		}
+		addSandboxTools(tools)
+		return tools
+	}()
 	webDeniedTools = map[string]bool{
 		"file_read":    true,
 		"file_write":   true,
@@ -75,17 +67,25 @@ var (
 		"todo_read":    true,
 		"todo_update":  true,
 	}
-	readOnlyDeniedTools = map[string]bool{
-		"file_write":   true,
-		"file_edit":    true,
-		"bash":         true,
-		"code_execute": true,
-		"todo_update":  true,
-	}
-	safeDeniedTools = map[string]bool{
-		"bash":         true,
-		"code_execute": true,
-	}
+	readOnlyDeniedTools = func() map[string]bool {
+		tools := map[string]bool{
+			"file_write":   true,
+			"file_edit":    true,
+			"bash":         true,
+			"code_execute": true,
+			"todo_update":  true,
+		}
+		addSandboxTools(tools)
+		return tools
+	}()
+	safeDeniedTools = func() map[string]bool {
+		tools := map[string]bool{
+			"bash":         true,
+			"code_execute": true,
+		}
+		addSandboxTools(tools)
+		return tools
+	}()
 	sandboxDeniedTools = map[string]bool{
 		"file_read":    true,
 		"file_write":   true,
@@ -107,7 +107,27 @@ var (
 		"web_fetch":    true,
 		"request_user": true,
 	}
+	sandboxToolNames = []string{
+		"sandbox_browser",
+		"sandbox_browser_info",
+		"sandbox_browser_screenshot",
+		"sandbox_browser_dom",
+		"sandbox_file_read",
+		"sandbox_file_write",
+		"sandbox_file_list",
+		"sandbox_file_search",
+		"sandbox_file_replace",
+		"sandbox_shell_exec",
+		"sandbox_code_execute",
+		"sandbox_write_attachment",
+	}
 )
+
+func addSandboxTools(dst map[string]bool) {
+	for _, name := range sandboxToolNames {
+		dst[name] = true
+	}
+}
 
 func cloneToolSet(src map[string]bool) map[string]bool {
 	dst := make(map[string]bool, len(src))

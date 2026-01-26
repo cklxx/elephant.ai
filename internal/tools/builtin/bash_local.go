@@ -1,4 +1,4 @@
-//go:build local_exec
+//go:build !no_local_exec
 
 package builtin
 

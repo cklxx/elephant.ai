@@ -255,14 +255,14 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
-			name:      "full blocks sandbox_shell_exec in cli mode",
+			name:      "full handles sandbox_shell_exec in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
 			toolName:  "sandbox_shell_exec",
 			wantAllow: false,
 		},
 		{
-			name:      "full blocks sandbox_code_execute in cli mode",
+			name:      "full handles sandbox_code_execute in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
 			toolName:  "sandbox_code_execute",
