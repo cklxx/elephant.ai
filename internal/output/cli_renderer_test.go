@@ -3,6 +3,7 @@ package output
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/types"
@@ -153,6 +154,99 @@ func TestRenderToolCallCompleteConstrainsWidth(t *testing.T) {
 
 	if got := maxRenderedWidth(rendered); got > renderer.maxWidth {
 		t.Fatalf("expected rendered output to fit within %d columns, got %d", renderer.maxWidth, got)
+	}
+}
+
+func TestRenderToolCallCompleteSearchSummaryUsesHeaderCount(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	result := "Found 2 matches:\nfoo.go:1:hello\nbar.go:2:world\n\n[TRUNCATED] Results truncated"
+
+	rendered := renderer.RenderToolCallComplete(ctx, "ripgrep", result, nil, 0)
+
+	if !strings.Contains(rendered, "2 matches") {
+		t.Fatalf("expected header match count to be used, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "truncated") {
+		t.Fatalf("expected truncated marker, got %q", rendered)
+	}
+}
+
+func TestRenderToolCallCompleteListFilesSummary(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	result := "[DIR]  docs\n[FILE] README.md (1024 bytes)\n[FILE] main.go (1024 bytes)\n"
+
+	rendered := renderer.RenderToolCallComplete(ctx, "list_files", result, nil, 0)
+
+	if !strings.Contains(rendered, "3 entries") {
+		t.Fatalf("expected entry count summary, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "2 files") || !strings.Contains(rendered, "1 dir") {
+		t.Fatalf("expected file/dir counts, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "2.0 KB") {
+		t.Fatalf("expected size summary, got %q", rendered)
+	}
+}
+
+func TestRenderToolCallCompleteWebSearchSummary(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	result := "Search: golang\n\nSummary: fast\n\n2 Results:\n\n1. Go\n   URL: https://golang.org\n   desc\n\n2. Example\n   URL: https://example.com\n   desc"
+
+	rendered := renderer.RenderToolCallComplete(ctx, "web_search", result, nil, 0)
+
+	if !strings.Contains(rendered, "search \"golang\"") {
+		t.Fatalf("expected search query summary, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "2 results") {
+		t.Fatalf("expected results count, got %q", rendered)
+	}
+}
+
+func TestRenderToolCallCompleteWebFetchSummary(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	result := "Source: https://example.com (cached)\n\nQuestion: What is it?\n\nAnalysis:\nfirst line\nsecond line"
+
+	rendered := renderer.RenderToolCallComplete(ctx, "web_fetch", result, nil, 0)
+
+	if !strings.Contains(rendered, "analyzed example.com") {
+		t.Fatalf("expected analyzed host summary, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "cached") {
+		t.Fatalf("expected cached marker, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "2 lines") {
+		t.Fatalf("expected line count, got %q", rendered)
+	}
+}
+
+func TestRenderToolCallCompleteFileWriteSummary(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	result := "Wrote 128 bytes to /tmp/demo.txt"
+
+	rendered := renderer.RenderToolCallComplete(ctx, "file_write", result, nil, 0)
+
+	if !strings.Contains(rendered, "wrote /tmp/demo.txt") {
+		t.Fatalf("expected write summary, got %q", rendered)
+	}
+	if !strings.Contains(rendered, "128 B") {
+		t.Fatalf("expected size summary, got %q", rendered)
+	}
+}
+
+func TestRenderToolCallCompleteAddsDurationSuffix(t *testing.T) {
+	renderer := newTestRenderer(false)
+	ctx := &types.OutputContext{Level: types.LevelCore}
+	result := "No matches found"
+
+	rendered := renderer.RenderToolCallComplete(ctx, "find", result, nil, 1500*time.Millisecond)
+
+	if !strings.Contains(rendered, "(1.50s)") {
+		t.Fatalf("expected duration suffix, got %q", rendered)
 	}
 }
 

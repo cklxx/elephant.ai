@@ -3,7 +3,9 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -45,6 +47,38 @@ type CLIRenderer struct {
 }
 
 const nonVerbosePreviewLimit = 80
+
+var toolDisplayNames = map[string]string{
+	"a2ui_emit":                  "a2ui.emit",
+	"artifact_manifest":          "artifact.manifest",
+	"artifacts_delete":           "artifact.delete",
+	"artifacts_list":             "artifact.list",
+	"artifacts_write":            "artifact.write",
+	"douyin_hot":                 "douyin.hot",
+	"file_edit":                  "file.edit",
+	"file_read":                  "file.read",
+	"file_write":                 "file.write",
+	"image_to_image":             "image.i2i",
+	"list_files":                 "file.list",
+	"pptx_from_images":           "pptx.images",
+	"sandbox_browser":            "sandbox.browser",
+	"sandbox_browser_dom":        "browser.dom",
+	"sandbox_browser_info":       "browser.info",
+	"sandbox_browser_screenshot": "browser.shot",
+	"sandbox_code_execute":       "sandbox.exec",
+	"sandbox_file_list":          "sandbox.list",
+	"sandbox_file_read":          "sandbox.read",
+	"sandbox_file_replace":       "sandbox.replace",
+	"sandbox_file_search":        "sandbox.search",
+	"sandbox_file_write":         "sandbox.write",
+	"sandbox_shell_exec":         "sandbox.shell",
+	"sandbox_write_attachment":   "sandbox.attach",
+	"text_to_image":              "image.t2i",
+	"video_generate":             "video.gen",
+	"vision_analyze":             "vision.analyze",
+	"web_fetch":                  "web.fetch",
+	"web_search":                 "web.search",
+}
 
 // NewCLIRenderer creates a new CLI renderer
 // verbose=true enables detailed output (full args, more content preview)
@@ -91,6 +125,7 @@ func (r *CLIRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 	if isConversationalTool(toolName) {
 		return ""
 	}
+	displayName := displayToolName(toolName)
 
 	// Core agent: always show tool calls (concise or verbose format)
 	// Determine indentation based on hierarchy
@@ -112,10 +147,10 @@ func (r *CLIRenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 		if !r.verbose {
 			preview = truncateInlinePreview(preview, nonVerbosePreviewLimit)
 		}
-		return r.constrainWidth(fmt.Sprintf("%s%s %s(%s)\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName), preview))
+		return r.constrainWidth(fmt.Sprintf("%s%s %s(%s)\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(displayName), preview))
 	}
 
-	return r.constrainWidth(fmt.Sprintf("%s%s %s\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(toolName)))
+	return r.constrainWidth(fmt.Sprintf("%s%s %s\n", indent, spinnerStyle.Render(spinner), toolNameStyle.Render(displayName)))
 }
 
 func truncateInlinePreview(preview string, limit int) string {
@@ -154,6 +189,60 @@ func isConversationalTool(toolName string) bool {
 	}
 }
 
+func displayToolName(toolName string) string {
+	normalized := strings.ToLower(strings.TrimSpace(toolName))
+	if normalized == "" {
+		return toolName
+	}
+	if display, ok := toolDisplayNames[normalized]; ok {
+		return display
+	}
+	return toolName
+}
+
+func appendDurationSuffix(rendered string, duration time.Duration) string {
+	if rendered == "" || duration <= 0 {
+		return rendered
+	}
+	formatted := formatDurationShort(duration)
+	if formatted == "" {
+		return rendered
+	}
+	suffix := fmt.Sprintf(" (%s)", formatted)
+	newline := strings.Index(rendered, "\n")
+	if newline == -1 {
+		return rendered + suffix
+	}
+	return rendered[:newline] + suffix + rendered[newline:]
+}
+
+func formatDurationShort(duration time.Duration) string {
+	if duration <= 0 {
+		return ""
+	}
+	if duration < time.Second {
+		return fmt.Sprintf("%dms", duration.Milliseconds())
+	}
+	if duration < time.Minute {
+		seconds := duration.Seconds()
+		if seconds < 10 {
+			return fmt.Sprintf("%.2fs", seconds)
+		}
+		if seconds < 100 {
+			return fmt.Sprintf("%.1fs", seconds)
+		}
+		return fmt.Sprintf("%.0fs", seconds)
+	}
+	if duration < time.Hour {
+		minutes := int(duration.Minutes())
+		seconds := int(duration.Seconds()) % 60
+		return fmt.Sprintf("%dm%02ds", minutes, seconds)
+	}
+	hours := int(duration.Hours())
+	minutes := int(duration.Minutes()) % 60
+	return fmt.Sprintf("%dh%02dm", hours, minutes)
+}
+
 func truncateWithEllipsis(preview string, limit int) string {
 	if limit <= 0 {
 		return preview
@@ -178,6 +267,7 @@ func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 	if ctx.Level == types.LevelSubagent || ctx.Level == types.LevelParallel {
 		return ""
 	}
+	displayName := displayToolName(toolName)
 
 	// Core agent: always show tool results (concise or verbose format)
 	// Determine indentation based on hierarchy
@@ -200,11 +290,13 @@ func (r *CLIRenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 
 	if err != nil {
 		errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
-		return r.constrainWidth(fmt.Sprintf("%s  %s\n", indent, errStyle.Render(fmt.Sprintf("✗ %s failed: %v", toolName, err))))
+		return r.constrainWidth(fmt.Sprintf("%s  %s\n", indent, errStyle.Render(fmt.Sprintf("✗ %s failed: %v", displayName, err))))
 	}
 
 	// Smart display based on tool category and hierarchy
-	return r.constrainWidth(r.formatToolOutput(ctx, toolName, result, indent))
+	formatted := r.formatToolOutput(ctx, toolName, result, indent)
+	formatted = appendDurationSuffix(formatted, duration)
+	return r.constrainWidth(formatted)
 }
 
 // RenderTaskStart renders task start metadata for immediate CLI feedback
@@ -277,19 +369,23 @@ func (r *CLIRenderer) RenderSubagentComplete(ctx *types.OutputContext, total, su
 func (r *CLIRenderer) formatToolOutput(ctx *types.OutputContext, toolName, result string, indent string) string {
 	// Use brighter gray (#808080) that works on both light and dark backgrounds
 	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
-	category := CategorizeToolName(toolName)
+	normalizedTool := strings.TrimSpace(toolName)
+	if strings.HasPrefix(normalizedTool, "sandbox_file_") {
+		return r.formatSandboxFileOutput(normalizedTool, result, indent, grayStyle)
+	}
+	category := CategorizeToolName(normalizedTool)
 
 	switch category {
 	case types.CategoryFile:
-		return r.formatFileOutput(toolName, result, indent, grayStyle)
+		return r.formatFileOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategorySearch:
-		return r.formatSearchOutput(toolName, result, indent, grayStyle)
+		return r.formatSearchOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategoryShell, types.CategoryExecution:
-		return r.formatExecutionOutput(toolName, result, indent, grayStyle)
+		return r.formatExecutionOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategoryWeb:
-		return r.formatWebOutput(toolName, result, indent, grayStyle)
+		return r.formatWebOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategoryTask:
-		return r.formatTaskOutput(toolName, result, indent, grayStyle)
+		return r.formatTaskOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategoryReasoning:
 		return r.formatReasoningOutput(result, indent, grayStyle)
 	default:
@@ -307,11 +403,11 @@ func (r *CLIRenderer) formatFileOutput(toolName, result, indent string, style li
 
 	switch toolName {
 	case "file_read":
-		lines := strings.Count(cleaned, "\n")
+		lines := countLines(cleaned)
 		return fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d lines read", lines)))
 	case "file_write", "file_edit":
-		if strings.Contains(cleaned, "Success") || strings.Contains(cleaned, "written") {
-			return fmt.Sprintf("%s  %s\n", indent, style.Render("→ ✓ file written"))
+		if summary, ok := summarizeFileOperation(cleaned); ok {
+			return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+summary))
 		}
 		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
 	case "list_files":
@@ -323,29 +419,41 @@ func (r *CLIRenderer) formatFileOutput(toolName, result, indent string, style li
 
 func (r *CLIRenderer) formatSearchOutput(toolName, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
-	lines := strings.Split(strings.TrimSpace(cleaned), "\n")
-	matchCount := len(lines)
-	if cleaned == "" {
+	summary := parseSearchSummary(cleaned)
+	matchCount := summary.Total
+	lines := summary.Matches
+	if summary.NoMatches {
 		matchCount = 0
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d matches", matchCount))))
+	if summary.NoMatches {
+		output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ no matches")))
+		return output.String()
+	}
+	summaryLine := fmt.Sprintf("→ %d matches", matchCount)
+	if summary.Truncated {
+		summaryLine += " (truncated)"
+	}
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(summaryLine)))
 
 	// In verbose mode, show first few matches
-	if r.verbose && matchCount > 0 && matchCount <= 5 {
-		for _, line := range lines {
+	if r.verbose && matchCount > 0 {
+		preview := lines
+		if len(preview) > 5 {
+			preview = preview[:5]
+		}
+		for _, line := range preview {
 			if line != "" {
 				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(line)))
 			}
 		}
-	} else if r.verbose && matchCount > 5 {
-		for i := 0; i < 3; i++ {
-			if lines[i] != "" {
-				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(lines[i])))
-			}
+		if len(lines) > len(preview) {
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", len(lines)-len(preview)))))
 		}
-		output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", matchCount-3))))
+		if summary.Warning != "" {
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(summary.Warning)))
+		}
 	}
 
 	return output.String()
@@ -470,7 +578,19 @@ func pluralize(word string, count int) string {
 }
 
 func (r *CLIRenderer) formatWebOutput(toolName, result, indent string, style lipgloss.Style) string {
-	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ ✓ fetched"))
+	cleaned := filterSystemReminders(result)
+	switch toolName {
+	case "web_search":
+		return r.formatWebSearchOutput(cleaned, indent, style)
+	case "web_fetch":
+		return r.formatWebFetchOutput(cleaned, indent, style)
+	default:
+		preview := truncateWithEllipsis(cleaned, 100)
+		if preview == "" {
+			preview = "ok"
+		}
+		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
+	}
 }
 
 func (r *CLIRenderer) formatTaskOutput(toolName, result, indent string, style lipgloss.Style) string {
@@ -674,32 +794,635 @@ func (r *CLIRenderer) formatTodoList(content, indent string, style lipgloss.Styl
 // formatListFiles formats file list with count summary and optional preview
 func (r *CLIRenderer) formatListFiles(content, indent string, style lipgloss.Style) string {
 	lines := strings.Split(strings.TrimSpace(content), "\n")
-	fileCount := len(lines)
-	if content == "" {
-		fileCount = 0
+	summary := parseListFilesSummary(lines)
+	totalCount := summary.Total
+	if strings.TrimSpace(content) == "" {
+		totalCount = 0
+		summary = listFilesSummary{}
 	}
 
 	var output strings.Builder
 
 	// Show count summary
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d files/directories", fileCount))))
+	summaryParts := []string{}
+	summaryParts = append(summaryParts, fmt.Sprintf("%d entries", totalCount))
+	if summary.Dirs > 0 {
+		summaryParts = append(summaryParts, fmt.Sprintf("%d %s", summary.Dirs, pluralize("dir", summary.Dirs)))
+	}
+	if summary.Files > 0 {
+		summaryParts = append(summaryParts, fmt.Sprintf("%d %s", summary.Files, pluralize("file", summary.Files)))
+	}
+	if summary.TotalBytes > 0 {
+		summaryParts = append(summaryParts, formatBytes(summary.TotalBytes))
+	}
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+strings.Join(summaryParts, ", "))))
 
 	// In verbose mode, show first few files
-	if r.verbose && fileCount > 0 && fileCount <= 10 {
+	if r.verbose && totalCount > 0 && totalCount <= 10 {
 		for _, line := range lines {
 			if line != "" {
 				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(line)))
 			}
 		}
-	} else if r.verbose && fileCount > 10 {
+	} else if r.verbose && totalCount > 10 {
 		for i := 0; i < 5; i++ {
 			if lines[i] != "" {
 				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(lines[i])))
 			}
 		}
-		output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", fileCount-5))))
+		output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", totalCount-5))))
 	}
 
+	return output.String()
+}
+
+type listFilesSummary struct {
+	Total      int
+	Files      int
+	Dirs       int
+	TotalBytes int64
+}
+
+func parseListFilesSummary(lines []string) listFilesSummary {
+	var summary listFilesSummary
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		summary.Total++
+		if strings.HasPrefix(trimmed, "[DIR]") {
+			summary.Dirs++
+			continue
+		}
+		if strings.HasPrefix(trimmed, "[FILE]") {
+			summary.Files++
+			if size, ok := parseFileSize(trimmed); ok {
+				summary.TotalBytes += size
+			}
+		}
+	}
+	return summary
+}
+
+func parseFileSize(line string) (int64, bool) {
+	open := strings.LastIndex(line, "(")
+	close := strings.LastIndex(line, ")")
+	if open == -1 || close == -1 || close <= open {
+		return 0, false
+	}
+	inner := strings.TrimSpace(line[open+1 : close])
+	fields := strings.Fields(inner)
+	if len(fields) == 0 {
+		return 0, false
+	}
+	size, err := strconv.ParseInt(fields[0], 10, 64)
+	if err != nil {
+		return 0, false
+	}
+	return size, true
+}
+
+func formatBytes(bytes int64) string {
+	if bytes < 1024 {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	units := []string{"KB", "MB", "GB", "TB", "PB"}
+	value := float64(bytes)
+	for _, unit := range units {
+		value /= 1024
+		if value < 1024 {
+			return fmt.Sprintf("%.1f %s", value, unit)
+		}
+	}
+	return fmt.Sprintf("%.1f PB", value)
+}
+
+type searchSummary struct {
+	Total     int
+	Matches   []string
+	Truncated bool
+	Warning   string
+	NoMatches bool
+}
+
+func parseSearchSummary(content string) searchSummary {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return searchSummary{NoMatches: true}
+	}
+	lines := strings.Split(trimmed, "\n")
+	if len(lines) == 0 {
+		return searchSummary{NoMatches: true}
+	}
+	first := strings.TrimSpace(lines[0])
+	summary := searchSummary{}
+	if strings.HasPrefix(first, "No matches found") {
+		summary.NoMatches = true
+		return summary
+	}
+	if strings.HasPrefix(first, "Found ") {
+		if total, ok := parseFoundMatches(first); ok {
+			summary.Total = total
+		}
+		lines = lines[1:]
+	}
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "[TRUNCATED]") {
+			summary.Truncated = true
+			summary.Warning = line
+			continue
+		}
+		summary.Matches = append(summary.Matches, line)
+	}
+	if summary.Total == 0 {
+		summary.Total = len(summary.Matches)
+	}
+	return summary
+}
+
+func parseFoundMatches(line string) (int, bool) {
+	rest := strings.TrimSpace(strings.TrimPrefix(line, "Found "))
+	if rest == "" {
+		return 0, false
+	}
+	parts := strings.Fields(rest)
+	if len(parts) == 0 {
+		return 0, false
+	}
+	value, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return 0, false
+	}
+	return value, true
+}
+
+func summarizeFileOperation(content string) (string, bool) {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return "", false
+	}
+	if strings.HasPrefix(trimmed, "Wrote ") && strings.Contains(trimmed, " bytes to ") {
+		parts := strings.SplitN(trimmed, " bytes to ", 2)
+		if len(parts) != 2 {
+			return "", false
+		}
+		bytesText := strings.TrimSpace(strings.TrimPrefix(parts[0], "Wrote "))
+		path := strings.TrimSpace(parts[1])
+		if path == "" {
+			return "", false
+		}
+		if bytesValue, err := strconv.ParseInt(bytesText, 10, 64); err == nil {
+			return fmt.Sprintf("wrote %s (%s)", path, formatBytes(bytesValue)), true
+		}
+		return fmt.Sprintf("wrote %s", path), true
+	}
+	if strings.HasPrefix(trimmed, "Created ") {
+		return parseFileLineSummary("created", strings.TrimPrefix(trimmed, "Created "))
+	}
+	if strings.HasPrefix(trimmed, "Updated ") {
+		return parseFileLineSummary("updated", strings.TrimPrefix(trimmed, "Updated "))
+	}
+	if strings.HasPrefix(trimmed, "Replaced ") && strings.Contains(trimmed, " in ") {
+		parts := strings.SplitN(strings.TrimPrefix(trimmed, "Replaced "), " in ", 2)
+		if len(parts) == 2 {
+			return fmt.Sprintf("replaced %s in %s", strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])), true
+		}
+	}
+	return "", false
+}
+
+func parseFileLineSummary(action, remainder string) (string, bool) {
+	value := strings.TrimSpace(remainder)
+	if value == "" {
+		return "", false
+	}
+	idx := strings.LastIndex(value, " (")
+	if idx == -1 || !strings.HasSuffix(value, ")") {
+		return fmt.Sprintf("%s %s", action, value), true
+	}
+	path := strings.TrimSpace(value[:idx])
+	suffix := strings.TrimSuffix(value[idx+2:], ")")
+	fields := strings.Fields(suffix)
+	if len(fields) > 0 {
+		return fmt.Sprintf("%s %s (%s lines)", action, path, fields[0]), true
+	}
+	return fmt.Sprintf("%s %s", action, path), true
+}
+
+type webSearchItem struct {
+	Title string
+	URL   string
+}
+
+type webSearchSummary struct {
+	Query       string
+	Summary     string
+	ResultCount int
+	Results     []webSearchItem
+}
+
+func (r *CLIRenderer) formatWebSearchOutput(content, indent string, style lipgloss.Style) string {
+	summary := parseWebSearchContent(content)
+	var parts []string
+	query := strings.TrimSpace(summary.Query)
+	if query != "" {
+		parts = append(parts, fmt.Sprintf("search %q", truncateInlinePreview(query, 48)))
+	} else {
+		parts = append(parts, "search")
+	}
+	if summary.ResultCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d results", summary.ResultCount))
+	}
+	if strings.TrimSpace(summary.Summary) != "" {
+		parts = append(parts, "summary available")
+	}
+
+	line := strings.Join(parts, ", ")
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+line)))
+
+	if r.verbose {
+		if summaryText := strings.TrimSpace(summary.Summary); summaryText != "" {
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render("summary: "+truncateWithEllipsis(summaryText, 200))))
+		}
+		for i, item := range summary.Results {
+			if i >= 3 {
+				break
+			}
+			title := strings.TrimSpace(item.Title)
+			if title == "" {
+				continue
+			}
+			host := hostFromURL(item.URL)
+			line := title
+			if host != "" {
+				line = fmt.Sprintf("%s (%s)", title, host)
+			}
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(line)))
+		}
+	}
+
+	return output.String()
+}
+
+func parseWebSearchContent(content string) webSearchSummary {
+	var summary webSearchSummary
+	lines := strings.Split(content, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		switch {
+		case strings.HasPrefix(trimmed, "Search:"):
+			summary.Query = strings.TrimSpace(strings.TrimPrefix(trimmed, "Search:"))
+		case strings.HasPrefix(trimmed, "Summary:"):
+			summary.Summary = strings.TrimSpace(strings.TrimPrefix(trimmed, "Summary:"))
+		case strings.HasSuffix(trimmed, "Results:"):
+			fields := strings.Fields(trimmed)
+			if len(fields) > 0 {
+				if count, err := strconv.Atoi(fields[0]); err == nil {
+					summary.ResultCount = count
+				}
+			}
+		case strings.HasPrefix(trimmed, "URL:"):
+			if len(summary.Results) > 0 {
+				summary.Results[len(summary.Results)-1].URL = strings.TrimSpace(strings.TrimPrefix(trimmed, "URL:"))
+			}
+		default:
+			if title, ok := parseNumberedTitle(trimmed); ok {
+				summary.Results = append(summary.Results, webSearchItem{Title: title})
+			}
+		}
+	}
+	if summary.ResultCount == 0 && len(summary.Results) > 0 {
+		summary.ResultCount = len(summary.Results)
+	}
+	return summary
+}
+
+func parseNumberedTitle(line string) (string, bool) {
+	idx := strings.Index(line, ".")
+	if idx <= 0 {
+		return "", false
+	}
+	if _, err := strconv.Atoi(strings.TrimSpace(line[:idx])); err != nil {
+		return "", false
+	}
+	title := strings.TrimSpace(line[idx+1:])
+	if title == "" {
+		return "", false
+	}
+	return title, true
+}
+
+type webFetchSummary struct {
+	URL      string
+	Cached   bool
+	Question string
+	Analysis string
+	Content  string
+}
+
+func (r *CLIRenderer) formatWebFetchOutput(content, indent string, style lipgloss.Style) string {
+	summary := parseWebFetchContent(content)
+	host := hostFromURL(summary.URL)
+	if host == "" {
+		host = strings.TrimSpace(summary.URL)
+	}
+	body := summary.Content
+	action := "fetched"
+	if strings.TrimSpace(summary.Analysis) != "" || strings.TrimSpace(summary.Question) != "" {
+		action = "analyzed"
+		if summary.Analysis != "" {
+			body = summary.Analysis
+		}
+	}
+	lineCount := countLines(strings.TrimSpace(body))
+	var parts []string
+	if host != "" {
+		parts = append(parts, fmt.Sprintf("%s %s", action, host))
+	} else {
+		parts = append(parts, action)
+	}
+	if summary.Cached {
+		parts = append(parts, "cached")
+	}
+	if lineCount > 0 {
+		parts = append(parts, fmt.Sprintf("%d lines", lineCount))
+	}
+	line := strings.Join(parts, ", ")
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+line)))
+	if r.verbose {
+		if question := strings.TrimSpace(summary.Question); question != "" {
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render("question: "+truncateWithEllipsis(question, 160))))
+		}
+		label := "content"
+		if strings.TrimSpace(summary.Analysis) != "" {
+			label = "analysis"
+			body = summary.Analysis
+		}
+		preview := takePreviewLines(body, 3)
+		if len(preview) > 0 {
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(label+":")))
+			for _, line := range preview {
+				output.WriteString(fmt.Sprintf("%s      %s\n", indent, style.Render(truncateWithEllipsis(line, 200))))
+			}
+		}
+	}
+	return output.String()
+}
+
+func parseWebFetchContent(content string) webFetchSummary {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return webFetchSummary{}
+	}
+	lines := strings.Split(trimmed, "\n")
+	summary := webFetchSummary{}
+	index := 0
+	if len(lines) > 0 && strings.HasPrefix(strings.TrimSpace(lines[0]), "Source:") {
+		source := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[0]), "Source:"))
+		if strings.HasSuffix(source, "(cached)") {
+			summary.Cached = true
+			source = strings.TrimSpace(strings.TrimSuffix(source, "(cached)"))
+		}
+		summary.URL = source
+		index = 1
+	}
+	for index < len(lines) && strings.TrimSpace(lines[index]) == "" {
+		index++
+	}
+	if index < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[index]), "Question:") {
+		summary.Question = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[index]), "Question:"))
+		index++
+		for index < len(lines) && strings.TrimSpace(lines[index]) == "" {
+			index++
+		}
+		if index < len(lines) && strings.HasPrefix(strings.TrimSpace(lines[index]), "Analysis:") {
+			index++
+			summary.Analysis = strings.TrimSpace(strings.Join(lines[index:], "\n"))
+			return summary
+		}
+		summary.Content = strings.TrimSpace(strings.Join(lines[index:], "\n"))
+		return summary
+	}
+	summary.Content = strings.TrimSpace(strings.Join(lines[index:], "\n"))
+	return summary
+}
+
+func hostFromURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	if err == nil && parsed.Host != "" {
+		return parsed.Host
+	}
+	return trimmed
+}
+
+func takePreviewLines(content string, maxLines int) []string {
+	if maxLines <= 0 {
+		return nil
+	}
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return nil
+	}
+	lines := strings.Split(trimmed, "\n")
+	if len(lines) > maxLines {
+		lines = lines[:maxLines]
+	}
+	return lines
+}
+
+func (r *CLIRenderer) formatSandboxFileOutput(toolName, result, indent string, style lipgloss.Style) string {
+	cleaned := filterSystemReminders(result)
+	switch toolName {
+	case "sandbox_file_read":
+		lines := countLines(cleaned)
+		return fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d lines read", lines)))
+	case "sandbox_file_write", "sandbox_file_replace":
+		if summary, ok := summarizeFileOperation(cleaned); ok {
+			return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+summary))
+		}
+		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
+	case "sandbox_file_list":
+		if summary, ok := parseSandboxFileListSummary(cleaned); ok {
+			return r.renderSandboxFileList(summary, indent, style)
+		}
+		preview := truncateWithEllipsis(cleaned, 100)
+		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
+	case "sandbox_file_search":
+		if summary, ok := parseSandboxFileSearchSummary(cleaned); ok {
+			return r.renderSandboxFileSearch(summary, indent, style)
+		}
+		preview := truncateWithEllipsis(cleaned, 100)
+		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
+	default:
+		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
+	}
+}
+
+type sandboxFileListSummary struct {
+	Path       string
+	Total      int
+	Files      int
+	Dirs       int
+	TotalBytes int64
+	Entries    []sandboxFileEntry
+}
+
+type sandboxFileEntry struct {
+	Path  string
+	IsDir bool
+	Size  *int64
+}
+
+func parseSandboxFileListSummary(content string) (sandboxFileListSummary, bool) {
+	var payload struct {
+		Path           string `json:"path"`
+		Files          []struct {
+			Path        string  `json:"path"`
+			Name        string  `json:"name"`
+			IsDirectory bool    `json:"is_directory"`
+			Size        *int64  `json:"size"`
+			Permissions *string `json:"permissions"`
+		} `json:"files"`
+		TotalCount     int `json:"total_count"`
+		DirectoryCount int `json:"directory_count"`
+		FileCount      int `json:"file_count"`
+	}
+	if err := json.Unmarshal([]byte(content), &payload); err != nil {
+		return sandboxFileListSummary{}, false
+	}
+	summary := sandboxFileListSummary{
+		Path:  payload.Path,
+		Total: payload.TotalCount,
+		Files: payload.FileCount,
+		Dirs:  payload.DirectoryCount,
+	}
+	derivedFiles := 0
+	derivedDirs := 0
+	for _, entry := range payload.Files {
+		if entry.IsDirectory {
+			derivedDirs++
+		} else {
+			derivedFiles++
+		}
+	}
+	if summary.Files == 0 && summary.Dirs == 0 && (derivedFiles > 0 || derivedDirs > 0) {
+		summary.Files = derivedFiles
+		summary.Dirs = derivedDirs
+	}
+	if summary.Total == 0 && len(payload.Files) > 0 {
+		summary.Total = len(payload.Files)
+	}
+	for _, entry := range payload.Files {
+		summary.Entries = append(summary.Entries, sandboxFileEntry{
+			Path:  entry.Path,
+			IsDir: entry.IsDirectory,
+			Size:  entry.Size,
+		})
+		if entry.Size != nil {
+			summary.TotalBytes += *entry.Size
+		}
+	}
+	return summary, true
+}
+
+func (r *CLIRenderer) renderSandboxFileList(summary sandboxFileListSummary, indent string, style lipgloss.Style) string {
+	var output strings.Builder
+	parts := []string{fmt.Sprintf("%d entries", summary.Total)}
+	if summary.Dirs > 0 {
+		parts = append(parts, fmt.Sprintf("%d %s", summary.Dirs, pluralize("dir", summary.Dirs)))
+	}
+	if summary.Files > 0 {
+		parts = append(parts, fmt.Sprintf("%d %s", summary.Files, pluralize("file", summary.Files)))
+	}
+	if summary.TotalBytes > 0 {
+		parts = append(parts, formatBytes(summary.TotalBytes))
+	}
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+strings.Join(parts, ", "))))
+	if r.verbose && len(summary.Entries) > 0 {
+		preview := summary.Entries
+		if len(preview) > 5 {
+			preview = preview[:5]
+		}
+		for _, entry := range preview {
+			line := entry.Path
+			if entry.IsDir {
+				line = "[DIR] " + line
+			} else {
+				line = "[FILE] " + line
+				if entry.Size != nil {
+					line = fmt.Sprintf("%s (%s)", line, formatBytes(*entry.Size))
+				}
+			}
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(line)))
+		}
+		if len(summary.Entries) > len(preview) {
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", len(summary.Entries)-len(preview)))))
+		}
+	}
+	return output.String()
+}
+
+type sandboxFileSearchSummary struct {
+	File    string
+	Matches []string
+	Lines   []int
+}
+
+func parseSandboxFileSearchSummary(content string) (sandboxFileSearchSummary, bool) {
+	var payload struct {
+		File        string   `json:"file"`
+		Matches     []string `json:"matches"`
+		LineNumbers []int    `json:"line_numbers"`
+	}
+	if err := json.Unmarshal([]byte(content), &payload); err != nil {
+		return sandboxFileSearchSummary{}, false
+	}
+	return sandboxFileSearchSummary{
+		File:    payload.File,
+		Matches: payload.Matches,
+		Lines:   payload.LineNumbers,
+	}, true
+}
+
+func (r *CLIRenderer) renderSandboxFileSearch(summary sandboxFileSearchSummary, indent string, style lipgloss.Style) string {
+	var output strings.Builder
+	matchCount := len(summary.Matches)
+	header := fmt.Sprintf("→ %d matches", matchCount)
+	if summary.File != "" {
+		header += fmt.Sprintf(" in %s", summary.File)
+	}
+	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(header)))
+	if r.verbose && matchCount > 0 {
+		preview := summary.Matches
+		if len(preview) > 5 {
+			preview = preview[:5]
+		}
+		for i, match := range preview {
+			line := match
+			if i < len(summary.Lines) && summary.Lines[i] > 0 {
+				line = fmt.Sprintf("%d: %s", summary.Lines[i], match)
+			}
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(truncateWithEllipsis(line, 200))))
+		}
+		if len(summary.Matches) > len(preview) {
+			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", len(summary.Matches)-len(preview)))))
+		}
+	}
 	return output.String()
 }
 
