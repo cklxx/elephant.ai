@@ -38,6 +38,34 @@ This document tracks architectural and design issues discovered during the ongoi
 - **Fix**: Prefer cookie-based SSE auth (or short-lived signed SSE token) and keep query-token as legacy fallback.
 - **Status**: in progress (added HttpOnly access-token cookie support; frontend omits query token for same-origin SSE)
 
+### 5) HTTP delivery layer depends on builtins + domain formatter
+
+- **Symptoms**: `internal/server/http` imports `internal/tools/builtin` and `internal/agent/domain/formatter` (plus other domain packages).
+- **Impact**: Transport handlers are tightly coupled to tool implementation details and ANSI presentation logic; limits reuse across delivery surfaces.
+- **Fix**: Introduce a `server/app` façade (tool metadata + event formatting), and keep HTTP handlers consuming only app/ports interfaces. Move ANSI formatting to output/presentation packages.
+- **Status**: open
+
+### 6) Builtin tools package is a high fan-out monolith
+
+- **Symptoms**: `internal/tools/builtin` imports 26 internal packages across LLM, memory, storage, MCP, sandbox, skills, and workflow.
+- **Impact**: Changes to tools cascade across unrelated layers; test isolation and refactors become risky.
+- **Fix**: Split builtins into subpackages per tool domain with narrow constructor interfaces; add a small registry/builder to wire tools from ports.
+- **Status**: open
+
+### 7) Domain layer contains presentation + log-serialization logic
+
+- **Symptoms**: `internal/agent/domain/formatter` embeds ANSI color codes and tool-specific display rules; `internal/agent/domain/react` formats tool args with `encoding/json` for logs.
+- **Impact**: Presentation concerns leak into domain; output changes require domain edits.
+- **Fix**: Move formatting/redaction into output or logging adapters; keep domain emitting typed data structures.
+- **Status**: open
+
+### 8) Large-file hotspots in core packages
+
+- **Symptoms**: Multiple core files exceed 700–1600 LOC (`internal/output/cli_renderer.go`, `internal/server/http/middleware.go`, `internal/server/http/sse_handler_render.go`, `internal/llm/openai_responses_client.go`).
+- **Impact**: Harder reviews, higher merge conflict risk, and blurred responsibility boundaries.
+- **Fix**: Incrementally split by responsibility (rendering vs event mapping, middleware vs auth/rate limiting, streaming vs parsing).
+- **Status**: open
+
 ## Frontend (web/)
 
 ### 1) Tracked env files cause git pollution
