@@ -71,6 +71,10 @@ func shouldForceLineInput(envLookup func(string) (string, bool)) bool {
 		return true
 	}
 
+	if hasCJKLocale(envLookup) {
+		return true
+	}
+
 	return false
 }
 
@@ -80,6 +84,43 @@ func envTruthy(value string) bool {
 		return false
 	default:
 		return true
+	}
+}
+
+func hasCJKLocale(envLookup func(string) (string, bool)) bool {
+	if envLookup == nil {
+		envLookup = runtimeEnvLookup()
+	}
+
+	if value, ok := envLookup("LC_ALL"); ok && isCJKLocale(value) {
+		return true
+	}
+	if value, ok := envLookup("LC_CTYPE"); ok && isCJKLocale(value) {
+		return true
+	}
+	if value, ok := envLookup("LANG"); ok && isCJKLocale(value) {
+		return true
+	}
+	return false
+}
+
+func isCJKLocale(value string) bool {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	if trimmed == "" {
+		return false
+	}
+	if idx := strings.IndexAny(trimmed, ".@"); idx >= 0 {
+		trimmed = trimmed[:idx]
+	}
+	switch {
+	case strings.HasPrefix(trimmed, "zh"):
+		return true
+	case strings.HasPrefix(trimmed, "ja"):
+		return true
+	case strings.HasPrefix(trimmed, "ko"):
+		return true
+	default:
+		return false
 	}
 }
 

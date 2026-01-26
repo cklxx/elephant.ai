@@ -15,3 +15,4 @@
 ## Progress
 - 2026-01-26: Plan created; engineering practices reviewed.
 - 2026-01-26: Added IME input mode switches and tests to force line-mode input.
+- 2026-01-26: Added CJK locale detection and typewriter streaming for assistant output.

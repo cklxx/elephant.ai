@@ -344,11 +344,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 				h.firstTokenLogged = true
 			}
 			rendered := h.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
-			if chunk.completeLine {
-				h.write(rendered)
-			} else {
-				emitTypewriter(rendered, h.write)
-			}
+			emitTypewriter(rendered, h.write)
 			h.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
 		}
 	}
@@ -356,7 +352,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 		trailing := h.mdBuffer.FlushAll()
 		if trailing != "" {
 			rendered := h.renderer.RenderMarkdownStreamChunk(trailing, false)
-			h.write(rendered)
+			emitTypewriter(rendered, h.write)
 			if strings.HasSuffix(rendered, "\n") {
 				h.lastStreamChunkEndedWithNewline = true
 			} else {

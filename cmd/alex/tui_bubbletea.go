@@ -572,11 +572,7 @@ func (m *bubbleChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaE
 				continue
 			}
 			rendered := m.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
-			if chunk.completeLine {
-				m.appendAgentRaw(rendered)
-			} else {
-				emitTypewriter(rendered, m.appendAgentRaw)
-			}
+			emitTypewriter(rendered, m.appendAgentRaw)
 			m.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
 		}
 	}
@@ -585,7 +581,7 @@ func (m *bubbleChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaE
 		trailing := m.mdBuffer.FlushAll()
 		if trailing != "" {
 			rendered := m.renderer.RenderMarkdownStreamChunk(trailing, false)
-			m.appendAgentRaw(rendered)
+			emitTypewriter(rendered, m.appendAgentRaw)
 			if strings.HasSuffix(rendered, "\n") {
 				m.lastStreamChunkEndedWithNewline = true
 			} else {
