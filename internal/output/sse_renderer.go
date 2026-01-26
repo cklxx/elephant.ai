@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/domain/formatter"
+	"alex/internal/presentation/formatter"
 	"alex/internal/agent/types"
 )
 

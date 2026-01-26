@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/domain/formatter"
+	"alex/internal/presentation/formatter"
 	"alex/internal/agent/types"
 
 	"github.com/alecthomas/chroma/v2"

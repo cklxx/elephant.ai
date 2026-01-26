@@ -1,7 +1,7 @@
 package http
 
 import (
-	"alex/internal/agent/domain/formatter"
+	"alex/internal/presentation/formatter"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
