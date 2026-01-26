@@ -33,6 +33,9 @@ func RunNativeChatUI(container *Container) error {
 
 func shouldUseFullscreenTUI() bool {
 	envLookup := runtimeEnvLookup()
+	if shouldForceLineInput(envLookup) {
+		return false
+	}
 	mode, _ := envLookup("ALEX_TUI_MODE")
 	mode = strings.TrimSpace(mode)
 	if strings.EqualFold(mode, "fullscreen") || strings.EqualFold(mode, "full") {
@@ -47,6 +50,36 @@ func shouldUseFullscreenTUI() bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func shouldForceLineInput(envLookup func(string) (string, bool)) bool {
+	if envLookup == nil {
+		envLookup = runtimeEnvLookup()
+	}
+
+	if value, ok := envLookup("ALEX_TUI_INPUT"); ok {
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "ime", "cooked", "line", "terminal":
+			return true
+		case "raw", "fullscreen":
+			return false
+		}
+	}
+
+	if value, ok := envLookup("ALEX_TUI_IME"); ok && envTruthy(value) {
+		return true
+	}
+
+	return false
+}
+
+func envTruthy(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "0", "false", "no", "off":
+		return false
+	default:
+		return true
 	}
 }
 
