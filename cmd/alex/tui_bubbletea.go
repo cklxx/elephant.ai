@@ -16,7 +16,6 @@ import (
 	id "alex/internal/utils/id"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
@@ -56,14 +55,10 @@ type bubbleChatUI struct {
 	width  int
 	height int
 
-	viewport viewport.Model
 	input    textinput.Model
-
 	renderer *output.CLIRenderer
 
-	transcript strings.Builder
-	follow     bool
-	imeMode    bool
+	imeMode bool
 
 	running             bool
 	cancelCurrentTurn   context.CancelFunc
@@ -76,9 +71,12 @@ type bubbleChatUI struct {
 	lastStreamChunkEndedWithNewline bool
 	assistantHeaderPrinted          bool
 
-	statusLine string
+	statusLine       string
 	typewriterQueue  []rune
 	typewriterActive bool
+
+	// streamBuffer accumulates streaming content until newline
+	streamBuffer strings.Builder
 }
 
 func RunBubbleChatUI(container *Container) error {
@@ -100,7 +98,8 @@ func RunBubbleChatUI(container *Container) error {
 	baseCtx, baseCancel := context.WithCancel(baseCtx)
 
 	model := newBubbleChatUI(container, baseCtx, baseCancel)
-	program := tea.NewProgram(model, tea.WithAltScreen())
+	// Inline mode: no alternate screen, content flows in terminal
+	program := tea.NewProgram(model)
 	model.program = program
 	_, err := program.Run()
 	baseCancel()
@@ -108,13 +107,6 @@ func RunBubbleChatUI(container *Container) error {
 }
 
 func newBubbleChatUI(container *Container, baseCtx context.Context, baseCancel context.CancelFunc) *bubbleChatUI {
-	vp := viewport.New(0, 0)
-	vp.MouseWheelEnabled = true
-	vp.KeyMap.PageDown.SetEnabled(true)
-	vp.KeyMap.PageUp.SetEnabled(true)
-	vp.KeyMap.HalfPageDown.SetEnabled(true)
-	vp.KeyMap.HalfPageUp.SetEnabled(true)
-
 	input := textinput.New()
 	input.Prompt = styleBoldGreen.Render("❯ ")
 	input.Placeholder = "Type a message…"
@@ -125,10 +117,8 @@ func newBubbleChatUI(container *Container, baseCtx context.Context, baseCancel c
 		baseCtx:     baseCtx,
 		baseCancel:  baseCancel,
 		startTime:   time.Now(),
-		viewport:    vp,
 		input:       input,
 		renderer:    output.NewCLIRenderer(container.Runtime.Verbose),
-		follow:      container.Runtime.FollowTranscript,
 		imeMode:     shouldUseIMEInput(runtimeEnvLookup()),
 		activeTools: make(map[string]ToolInfo),
 		subagents:   NewSubagentDisplay(),
@@ -193,82 +183,39 @@ func (m *bubbleChatUI) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *bubbleChatUI) View() string {
-	header := m.renderHeader()
-	footer := m.renderFooter()
-
-	return lipgloss.JoinVertical(lipgloss.Left,
-		header,
-		m.viewport.View(),
-		footer,
-	)
-}
-
-func (m *bubbleChatUI) renderHeader() string {
-	title := styleBold.Render(styleGreen.Render(tuiAgentName))
-
-	parts := []string{title}
-	if cwd, err := os.Getwd(); err == nil && cwd != "" {
-		parts = append(parts, styleGray.Render(filepathBase(cwd)))
-	}
-	if branch := currentGitBranch(); branch != "" {
-		parts = append(parts, styleGray.Render("git:"+branch))
-	}
-	if m.sessionID != "" {
-		parts = append(parts, styleGray.Render("session:"+shortSessionID(m.sessionID)))
-	}
-	if m.running {
-		parts = append(parts, styleYellow.Render("running"))
-	}
-
-	line := strings.Join(parts, styleGray.Render(" • "))
-	return lipgloss.NewStyle().
-		Padding(0, 1).
-		Border(lipgloss.NormalBorder(), false, false, true, false).
-		BorderForeground(lipgloss.Color("8")).
-		Render(line)
-}
-
-func (m *bubbleChatUI) renderFooter() string {
-	hints := []string{
-		"Enter send",
-		"Ctrl+C cancel/quit",
-		"Ctrl+L clear",
-		"PgUp/PgDn scroll",
-		"End follow",
-	}
-
-	if m.statusLine == "" {
-		m.statusLine = styleGray.Render(strings.Join(hints, " • "))
+	// Inline mode: only render the input line, content is printed above
+	var status string
+	if m.statusLine != "" {
+		status = m.statusLine
+	} else if m.running {
+		status = styleYellow.Render("running…")
 	}
 
 	inputLine := m.input.View()
-	status := m.statusLine
-
-	return lipgloss.JoinVertical(lipgloss.Left,
-		lipgloss.NewStyle().
-			Padding(0, 1).
-			Border(lipgloss.NormalBorder(), true, false, false, false).
-			BorderForeground(lipgloss.Color("8")).
-			Render(inputLine),
-		lipgloss.NewStyle().Padding(0, 1).Render(status),
-	)
+	if status != "" {
+		return inputLine + "  " + status
+	}
+	return inputLine
 }
 
 func (m *bubbleChatUI) onWindowSize(msg tea.WindowSizeMsg) {
 	m.width = msg.Width
 	m.height = msg.Height
-
-	// Header/footer render with borders, so they take more than one row.
-	headerHeight := 2
-	footerHeight := 3
-	bodyHeight := msg.Height - headerHeight - footerHeight
-	if bodyHeight < 1 {
-		bodyHeight = 1
-	}
-
-	m.viewport.Width = msg.Width
-	m.viewport.Height = bodyHeight
 	m.input.Width = maxInt(20, msg.Width-4)
+}
+
+// println outputs a line to the terminal (persistent, scrolls up)
+func (m *bubbleChatUI) println(s string) {
+	if m.program != nil {
+		m.program.Println(s)
+	}
+}
+
+// printLines outputs multiple lines
+func (m *bubbleChatUI) printLines(lines ...string) {
+	for _, line := range lines {
+		m.println(line)
+	}
 }
 
 func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -283,19 +230,10 @@ func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "ctrl+l":
-		m.transcript.Reset()
-		m.viewport.SetContent("")
-		m.appendSystemCard()
+		// In inline mode, just print a separator
+		m.println(styleGray.Render("─── cleared ───"))
 		m.statusLine = styleGray.Render("cleared")
 		return m, nil
-
-	case "end":
-		m.follow = true
-		m.viewport.GotoBottom()
-		return m, nil
-
-	case "pgup", "pgdown", "up", "down":
-		m.follow = false
 	}
 
 	if msg.Type == tea.KeyEnter {
@@ -311,8 +249,7 @@ func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
-	m.viewport, cmd = m.viewport.Update(msg)
-	m.input, _ = m.input.Update(msg)
+	m.input, cmd = m.input.Update(msg)
 
 	return m, cmd
 }
@@ -333,9 +270,7 @@ func (m *bubbleChatUI) onSubmit() (tea.Model, tea.Cmd) {
 		m.shutdown()
 		return m, tea.Quit
 	case "/clear":
-		m.transcript.Reset()
-		m.viewport.SetContent("")
-		m.appendSystemCard()
+		m.println(styleGray.Render("─── cleared ───"))
 		m.input.SetValue("")
 		m.statusLine = styleGray.Render("cleared")
 		return m, nil
@@ -497,24 +432,32 @@ func (m *bubbleChatUI) appendAgentStreamRaw(content string) {
 	}
 
 	m.ensureAgentHeader()
-	m.appendRaw(indentBlock(content, tuiAgentIndent))
+
+	// In inline mode, buffer content and print complete lines
+	for _, r := range content {
+		if r == '\n' {
+			line := indentBlock(m.streamBuffer.String(), tuiAgentIndent)
+			m.println(strings.TrimSuffix(line, "\n"))
+			m.streamBuffer.Reset()
+		} else {
+			m.streamBuffer.WriteRune(r)
+		}
+	}
+}
+
+// flushStreamBuffer outputs any remaining buffered content
+func (m *bubbleChatUI) flushStreamBuffer() {
+	if m.streamBuffer.Len() > 0 {
+		line := indentBlock(m.streamBuffer.String(), tuiAgentIndent)
+		m.println(strings.TrimSuffix(line, "\n"))
+		m.streamBuffer.Reset()
+	}
 }
 
 func (m *bubbleChatUI) appendLine(content string) {
-	if content == "" {
-		m.transcript.WriteString("\n")
-	} else {
-		if !strings.HasSuffix(content, "\n") {
-			m.transcript.WriteString(content)
-			m.transcript.WriteString("\n")
-		} else {
-			m.transcript.WriteString(content)
-		}
-	}
-	m.viewport.SetContent(m.transcript.String())
-	if m.follow {
-		m.viewport.GotoBottom()
-	}
+	// In inline mode, print directly to terminal
+	content = strings.TrimSuffix(content, "\n")
+	m.println(content)
 }
 
 func (m *bubbleChatUI) handleAgentEvent(event agent.AgentEvent) tea.Cmd {
@@ -719,10 +662,10 @@ func (m *bubbleChatUI) appendRaw(content string) {
 	if content == "" {
 		return
 	}
-	m.transcript.WriteString(content)
-	m.viewport.SetContent(m.transcript.String())
-	if m.follow {
-		m.viewport.GotoBottom()
+	// In inline mode, print each line separately
+	lines := strings.Split(strings.TrimSuffix(content, "\n"), "\n")
+	for _, line := range lines {
+		m.println(line)
 	}
 }
 
@@ -739,13 +682,13 @@ func (m *bubbleChatUI) enqueueTypewriter(content string) tea.Cmd {
 }
 
 func (m *bubbleChatUI) flushTypewriter() {
-	if len(m.typewriterQueue) == 0 {
-		m.typewriterActive = false
-		return
+	if len(m.typewriterQueue) > 0 {
+		m.appendAgentStreamRaw(string(m.typewriterQueue))
+		m.typewriterQueue = nil
 	}
-	m.appendAgentStreamRaw(string(m.typewriterQueue))
-	m.typewriterQueue = nil
 	m.typewriterActive = false
+	// Also flush the stream buffer
+	m.flushStreamBuffer()
 }
 
 func (m *bubbleChatUI) onTypewriterTick() tea.Cmd {
