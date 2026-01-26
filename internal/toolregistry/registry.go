@@ -8,14 +8,24 @@ import (
 	"sync"
 
 	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
 	agent "alex/internal/agent/ports/agent"
+	portsllm "alex/internal/agent/ports/llm"
 	tools "alex/internal/agent/ports/tools"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/llm"
 	"alex/internal/memory"
-	"alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/artifacts"
+	"alex/internal/tools/builtin/execution"
+	"alex/internal/tools/builtin/fileops"
+	"alex/internal/tools/builtin/media"
+	memorytools "alex/internal/tools/builtin/memory"
+	"alex/internal/tools/builtin/orchestration"
+	"alex/internal/tools/builtin/sandbox"
+	"alex/internal/tools/builtin/search"
+	sessiontools "alex/internal/tools/builtin/session"
 	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/ui"
+	"alex/internal/tools/builtin/web"
 )
 
 // Registry implements ToolRegistry with three-tier caching
@@ -333,40 +343,40 @@ func (r *Registry) registerBuiltins(config Config) error {
 	shellConfig := shared.ShellToolConfig{}
 
 	// File operations
-	r.static["file_read"] = builtin.NewFileRead(fileConfig)
-	r.static["file_write"] = builtin.NewFileWrite(fileConfig)
-	r.static["file_edit"] = builtin.NewFileEdit(fileConfig)
-	r.static["list_files"] = builtin.NewListFiles(fileConfig)
+	r.static["file_read"] = fileops.NewFileRead(fileConfig)
+	r.static["file_write"] = fileops.NewFileWrite(fileConfig)
+	r.static["file_edit"] = fileops.NewFileEdit(fileConfig)
+	r.static["list_files"] = fileops.NewListFiles(fileConfig)
 
 	// Shell & search
-	if builtin.LocalExecEnabled {
-		r.static["bash"] = builtin.NewBash(shellConfig)
+	if execution.LocalExecEnabled {
+		r.static["bash"] = execution.NewBash(shellConfig)
 	}
-	r.static["grep"] = builtin.NewGrep(shellConfig)
-	r.static["ripgrep"] = builtin.NewRipgrep(shellConfig)
-	r.static["find"] = builtin.NewFind(shellConfig)
+	r.static["grep"] = search.NewGrep(shellConfig)
+	r.static["ripgrep"] = search.NewRipgrep(shellConfig)
+	r.static["find"] = search.NewFind(shellConfig)
 	// TODO: full impl code search
-	// r.static["code_search"] = builtin.NewCodeSearch()
+	// r.static["code_search"] = search.NewCodeSearch()
 
 	// Task management
-	r.static["todo_read"] = builtin.NewTodoRead()
-	r.static["todo_update"] = builtin.NewTodoUpdate()
-	r.static["skills"] = builtin.NewSkills()
-	r.static["apps"] = builtin.NewApps()
-	r.static["music_play"] = builtin.NewMusicPlay()
+	r.static["todo_read"] = sessiontools.NewTodoRead()
+	r.static["todo_update"] = sessiontools.NewTodoUpdate()
+	r.static["skills"] = sessiontools.NewSkills()
+	r.static["apps"] = sessiontools.NewApps()
+	r.static["music_play"] = media.NewMusicPlay()
 
 	// Attachment and artifact operations
-	r.static["artifacts_write"] = builtin.NewArtifactsWrite()
-	r.static["artifacts_list"] = builtin.NewArtifactsList()
-	r.static["artifacts_delete"] = builtin.NewArtifactsDelete()
-	r.static["a2ui_emit"] = builtin.NewA2UIEmit()
-	r.static["artifact_manifest"] = builtin.NewArtifactManifest()
+	r.static["artifacts_write"] = artifacts.NewArtifactsWrite()
+	r.static["artifacts_list"] = artifacts.NewArtifactsList()
+	r.static["artifacts_delete"] = artifacts.NewArtifactsDelete()
+	r.static["a2ui_emit"] = artifacts.NewA2UIEmit()
+	r.static["artifact_manifest"] = artifacts.NewArtifactManifest()
 
 	// Execution & reasoning
-	if builtin.LocalExecEnabled {
-		r.static["code_execute"] = builtin.NewCodeExecute(builtin.CodeExecuteConfig{})
+	if execution.LocalExecEnabled {
+		r.static["code_execute"] = execution.NewCodeExecute(execution.CodeExecuteConfig{})
 	}
-	r.static["acp_executor"] = builtin.NewACPExecutor(builtin.ACPExecutorConfig{
+	r.static["acp_executor"] = execution.NewACPExecutor(execution.ACPExecutorConfig{
 		Addr:                    config.ACPExecutorAddr,
 		CWD:                     config.ACPExecutorCWD,
 		Mode:                    config.ACPExecutorMode,
@@ -377,15 +387,15 @@ func (r *Registry) registerBuiltins(config Config) error {
 	})
 
 	// UI orchestration
-	r.static["plan"] = builtin.NewPlan(config.MemoryService)
-	r.static["clearify"] = builtin.NewClearify()
-	r.static["memory_recall"] = builtin.NewMemoryRecall(config.MemoryService)
-	r.static["memory_write"] = builtin.NewMemoryWrite(config.MemoryService)
-	r.static["attention"] = builtin.NewAttention()
-	r.static["request_user"] = builtin.NewRequestUser()
+	r.static["plan"] = ui.NewPlan(config.MemoryService)
+	r.static["clearify"] = ui.NewClearify()
+	r.static["memory_recall"] = memorytools.NewMemoryRecall(config.MemoryService)
+	r.static["memory_write"] = memorytools.NewMemoryWrite(config.MemoryService)
+	r.static["attention"] = ui.NewAttention()
+	r.static["request_user"] = ui.NewRequestUser()
 
 	// Web tools
-	r.static["web_search"] = builtin.NewWebSearch(config.TavilyAPIKey)
+	r.static["web_search"] = web.NewWebSearch(config.TavilyAPIKey)
 	writeLLM := llm.NewMockClient()
 	provider := strings.TrimSpace(config.LLMProvider)
 	model := strings.TrimSpace(config.LLMModel)
@@ -405,15 +415,15 @@ func (r *Registry) registerBuiltins(config Config) error {
 		}
 		writeLLM = client
 	}
-	r.static["html_edit"] = builtin.NewHTMLEdit(writeLLM)
-	r.static["web_fetch"] = builtin.NewWebFetch(shared.WebFetchConfig{
+	r.static["html_edit"] = web.NewHTMLEdit(writeLLM)
+	r.static["web_fetch"] = web.NewWebFetch(shared.WebFetchConfig{
 		// Reserved for future config.
 	})
-	r.static["douyin_hot"] = builtin.NewDouyinHot()
+	r.static["douyin_hot"] = web.NewDouyinHot()
 	// Document generation
-	r.static["pptx_from_images"] = builtin.NewPPTXFromImages()
+	r.static["pptx_from_images"] = artifacts.NewPPTXFromImages()
 
-	seedreamBase := builtin.SeedreamConfig{
+	seedreamBase := media.SeedreamConfig{
 		APIKey: config.ArkAPIKey,
 	}
 	if config.SeedreamTextModel != "" {
@@ -421,14 +431,14 @@ func (r *Registry) registerBuiltins(config Config) error {
 		textConfig.Model = config.SeedreamTextModel
 		textConfig.ModelDescriptor = "Seedream 4.5 text-to-image"
 		textConfig.ModelEnvVar = "SEEDREAM_TEXT_MODEL"
-		r.static["text_to_image"] = builtin.NewSeedreamTextToImage(textConfig)
+		r.static["text_to_image"] = media.NewSeedreamTextToImage(textConfig)
 	}
 	if config.SeedreamImageModel != "" {
 		imageConfig := seedreamBase
 		imageConfig.Model = config.SeedreamImageModel
 		imageConfig.ModelDescriptor = "Seedream 4.5 image-to-image"
 		imageConfig.ModelEnvVar = "SEEDREAM_IMAGE_MODEL"
-		r.static["image_to_image"] = builtin.NewSeedreamImageToImage(imageConfig)
+		r.static["image_to_image"] = media.NewSeedreamImageToImage(imageConfig)
 	}
 	var visionTool tools.ToolExecutor
 	if config.SeedreamVisionModel != "" {
@@ -436,8 +446,8 @@ func (r *Registry) registerBuiltins(config Config) error {
 		visionConfig.Model = config.SeedreamVisionModel
 		visionConfig.ModelDescriptor = "Seedream vision analysis"
 		visionConfig.ModelEnvVar = "SEEDREAM_VISION_MODEL"
-		visionTool = builtin.NewVisionAnalyze(builtin.VisionConfig{
-			Provider: builtin.VisionProviderSeedream,
+		visionTool = media.NewVisionAnalyze(media.VisionConfig{
+			Provider: media.VisionProviderSeedream,
 			Seedream: visionConfig,
 		})
 		r.static["vision_analyze"] = visionTool
@@ -451,25 +461,25 @@ func (r *Registry) registerBuiltins(config Config) error {
 		videoConfig.Model = videoModel
 		videoConfig.ModelDescriptor = "Seedance video generation"
 		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
-		r.static["video_generate"] = builtin.NewSeedreamVideoGenerate(videoConfig)
+		r.static["video_generate"] = media.NewSeedreamVideoGenerate(videoConfig)
 	}
-	sandboxConfig := builtin.SandboxConfig{
+	sandboxConfig := sandbox.SandboxConfig{
 		BaseURL:      config.SandboxBaseURL,
 		VisionTool:   visionTool,
 		VisionPrompt: "",
 	}
-	r.static["sandbox_browser"] = builtin.NewSandboxBrowser(sandboxConfig)
-	r.static["sandbox_browser_info"] = builtin.NewSandboxBrowserInfo(sandboxConfig)
-	r.static["sandbox_browser_screenshot"] = builtin.NewSandboxBrowserScreenshot(sandboxConfig)
-	r.static["sandbox_browser_dom"] = builtin.NewSandboxBrowserDOM(sandboxConfig)
-	r.static["sandbox_file_read"] = builtin.NewSandboxFileRead(sandboxConfig)
-	r.static["sandbox_file_write"] = builtin.NewSandboxFileWrite(sandboxConfig)
-	r.static["sandbox_file_list"] = builtin.NewSandboxFileList(sandboxConfig)
-	r.static["sandbox_file_search"] = builtin.NewSandboxFileSearch(sandboxConfig)
-	r.static["sandbox_file_replace"] = builtin.NewSandboxFileReplace(sandboxConfig)
-	r.static["sandbox_shell_exec"] = builtin.NewSandboxShellExec(sandboxConfig)
-	r.static["sandbox_code_execute"] = builtin.NewSandboxCodeExecute(sandboxConfig)
-	r.static["sandbox_write_attachment"] = builtin.NewSandboxWriteAttachment(sandboxConfig)
+	r.static["sandbox_browser"] = sandbox.NewSandboxBrowser(sandboxConfig)
+	r.static["sandbox_browser_info"] = sandbox.NewSandboxBrowserInfo(sandboxConfig)
+	r.static["sandbox_browser_screenshot"] = sandbox.NewSandboxBrowserScreenshot(sandboxConfig)
+	r.static["sandbox_browser_dom"] = sandbox.NewSandboxBrowserDOM(sandboxConfig)
+	r.static["sandbox_file_read"] = sandbox.NewSandboxFileRead(sandboxConfig)
+	r.static["sandbox_file_write"] = sandbox.NewSandboxFileWrite(sandboxConfig)
+	r.static["sandbox_file_list"] = sandbox.NewSandboxFileList(sandboxConfig)
+	r.static["sandbox_file_search"] = sandbox.NewSandboxFileSearch(sandboxConfig)
+	r.static["sandbox_file_replace"] = sandbox.NewSandboxFileReplace(sandboxConfig)
+	r.static["sandbox_shell_exec"] = sandbox.NewSandboxShellExec(sandboxConfig)
+	r.static["sandbox_code_execute"] = sandbox.NewSandboxCodeExecute(sandboxConfig)
+	r.static["sandbox_write_attachment"] = sandbox.NewSandboxWriteAttachment(sandboxConfig)
 
 	return nil
 }
@@ -484,12 +494,12 @@ func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 
 	if _, exists := r.static["subagent"]; exists {
 		if _, ok := r.static["explore"]; !ok {
-			r.static["explore"] = builtin.NewExplore(r.static["subagent"])
+			r.static["explore"] = orchestration.NewExplore(r.static["subagent"])
 		}
 		return
 	}
 
-	subTool := builtin.NewSubAgent(coordinator, 3)
+	subTool := orchestration.NewSubAgent(coordinator, 3)
 	r.static["subagent"] = subTool
-	r.static["explore"] = builtin.NewExplore(subTool)
+	r.static["explore"] = orchestration.NewExplore(subTool)
 }

@@ -12,19 +12,19 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/types"
 	"alex/internal/output"
-	"alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/orchestration"
+	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
-	"alex/internal/tools/builtin/shared"
 )
 
 const (
-	tuiAgentName   = "alex"
-	tuiAgentIndent = "  "
+	tuiAgentName        = "alex"
+	tuiAgentIndent      = "  "
 	typewriterTickDelay = 6 * time.Millisecond
 )
 
@@ -303,7 +303,7 @@ func (m *bubbleChatUI) runTaskCmd(ctx context.Context, task string, sessionID st
 		listener := newBubbleTeaListener(ctx, m.container.Runtime.Verbose, func(e agent.AgentEvent) {
 			m.send(tuiAgentEventMsg{event: e})
 		})
-		taskCtx = builtin.WithParentListener(taskCtx, listener)
+		taskCtx = shared.WithParentListener(taskCtx, listener)
 
 		result, err := m.container.AgentCoordinator.ExecuteTask(taskCtx, task, sessionID, listener)
 		if err != nil {
@@ -460,7 +460,7 @@ func (m *bubbleChatUI) handleAgentEvent(event agent.AgentEvent) tea.Cmd {
 	}
 
 	// Subtask wrapper events.
-	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
+	if subtaskEvent, ok := event.(*orchestration.SubtaskEvent); ok {
 		m.flushTypewriter()
 		lines := m.subagents.Handle(normalizeSubtaskEvent(subtaskEvent))
 		for _, line := range lines {
@@ -477,7 +477,7 @@ func (m *bubbleChatUI) handleAgentEvent(event agent.AgentEvent) tea.Cmd {
 	return nil
 }
 
-func normalizeSubtaskEvent(event *builtin.SubtaskEvent) *builtin.SubtaskEvent {
+func normalizeSubtaskEvent(event *orchestration.SubtaskEvent) *orchestration.SubtaskEvent {
 	if event == nil || event.OriginalEvent == nil {
 		return event
 	}

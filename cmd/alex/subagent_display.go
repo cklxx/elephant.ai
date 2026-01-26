@@ -8,7 +8,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/output"
-	"alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/orchestration"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -57,7 +57,7 @@ func NewSubagentDisplay() *SubagentDisplay {
 // Handle consumes a SubtaskEvent and returns the lines that should be printed
 // to the CLI. The caller is responsible for writing the returned strings to
 // stdout in order.
-func (d *SubagentDisplay) Handle(event *builtin.SubtaskEvent) []string {
+func (d *SubagentDisplay) Handle(event *orchestration.SubtaskEvent) []string {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -148,7 +148,7 @@ func (d *SubagentDisplay) ensureState(index int, preview string) *subagentTaskSt
 	return state
 }
 
-func (d *SubagentDisplay) updateTotals(event *builtin.SubtaskEvent) {
+func (d *SubagentDisplay) updateTotals(event *orchestration.SubtaskEvent) {
 	if d.totalTasks == 0 {
 		d.totalTasks = event.TotalSubtasks
 	}

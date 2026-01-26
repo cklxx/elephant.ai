@@ -13,7 +13,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
-	"alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/orchestration"
 	"alex/internal/utils/id"
 )
 
@@ -22,7 +22,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	startEvent := &builtin.SubtaskEvent{
+	startEvent := &orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolStartedEvent{
 			CallID:   "call-1",
 			ToolName: "test-tool",
@@ -41,7 +41,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	require.True(t, containsAny(output, "→ Task 1", "-> Task 1"))
 	out.Reset()
 
-	completeEvent := &builtin.SubtaskEvent{
+	completeEvent := &orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolCompletedEvent{
 			CallID:   "call-1",
 			ToolName: "test-tool",
@@ -54,7 +54,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	handler.handleSubtaskEvent(completeEvent)
 	require.Equal(t, "", out.String(), "tool completion should not emit output directly")
 
-	taskCompleteEvent := &builtin.SubtaskEvent{
+	taskCompleteEvent := &orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowResultFinalEvent{
 			TotalTokens: 128,
 		},
@@ -73,7 +73,7 @@ func TestHandleSubtaskEventHandlesErrors(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	errEvent := &builtin.SubtaskEvent{
+	errEvent := &orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowNodeFailedEvent{
 			Error: errors.New("boom"),
 		},

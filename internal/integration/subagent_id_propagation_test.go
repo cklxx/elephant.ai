@@ -14,7 +14,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/observability"
-	builtin "alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/orchestration"
 	id "alex/internal/utils/id"
 )
 
@@ -127,7 +127,7 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 	coordinator := newRecordingCoordinator(buf)
-	tool := builtin.NewSubAgent(coordinator, 1)
+	tool := orchestration.NewSubAgent(coordinator, 1)
 
 	sessionID := "session-root-123"
 	rootTaskID := "task-root-456"
@@ -199,7 +199,7 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 func TestSubagentPropagatesAttachmentsToCoordinator(t *testing.T) {
 	buf := &bytes.Buffer{}
 	coordinator := newRecordingCoordinator(buf)
-	tool := builtin.NewSubAgent(coordinator, 1)
+	tool := orchestration.NewSubAgent(coordinator, 1)
 
 	placeholder := "doubao-seedream-3-0_nonce_0.png"
 	attachments := map[string]ports.Attachment{

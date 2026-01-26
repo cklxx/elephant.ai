@@ -21,9 +21,9 @@ import (
 	"alex/internal/async"
 	"alex/internal/logging"
 	"alex/internal/output"
-	"alex/internal/tools/builtin"
-	id "alex/internal/utils/id"
+	"alex/internal/tools/builtin/orchestration"
 	"alex/internal/tools/builtin/shared"
+	id "alex/internal/utils/id"
 )
 
 // ToolInfo stores information about an active tool call
@@ -235,7 +235,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	bridge := NewStreamEventBridge(handler)
 
 	// Add listener to context so subagent can forward events
-	ctx = builtin.WithParentListener(ctx, bridge)
+	ctx = shared.WithParentListener(ctx, bridge)
 
 	// Handle interrupts for graceful cancellation
 	signals := make(chan os.Signal, 1)
@@ -302,7 +302,7 @@ func NewStreamEventBridge(handler *StreamingOutputHandler) *StreamEventBridge {
 // OnEvent implements agent.EventListener
 func (b *StreamEventBridge) OnEvent(event agent.AgentEvent) {
 	// Check if this is a wrapped subtask event
-	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
+	if subtaskEvent, ok := event.(*orchestration.SubtaskEvent); ok {
 		// Handle subtask-specific tracking
 		b.handler.handleSubtaskEvent(subtaskEvent)
 		return
@@ -509,7 +509,7 @@ func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.WorkflowResultF
 }
 
 // handleSubtaskEvent handles events from subtasks with simple line-by-line output
-func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.SubtaskEvent) {
+func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *orchestration.SubtaskEvent) {
 	h.streamWriter.Flush()
 	lines := h.subagentDisplay.Handle(subtaskEvent)
 	for _, line := range lines {

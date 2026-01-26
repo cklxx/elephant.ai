@@ -16,7 +16,7 @@ import (
 	"alex/internal/logging"
 	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
-	"alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
 
 	"go.opentelemetry.io/otel/attribute"
@@ -181,7 +181,7 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
 
 	// Ensure subagent tool invocations forward their events to the main listener
-	ctx = builtin.WithParentListener(ctx, s.broadcaster)
+	ctx = shared.WithParentListener(ctx, s.broadcaster)
 
 	result, err := s.agentCoordinator.ExecuteTask(ctx, task, sessionID, s.broadcaster)
 

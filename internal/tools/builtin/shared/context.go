@@ -3,6 +3,7 @@ package shared
 import (
 	"context"
 
+	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/backup"
 )
@@ -16,6 +17,8 @@ const (
 	ToolSessionIDKey toolContextKey = "tool_session_id"
 	AutoApproveKey   toolContextKey = "auto_approve"
 )
+
+type parentListenerKey struct{}
 
 // GetApproverFromContext retrieves the approver from context
 func GetApproverFromContext(ctx context.Context) tools.Approver {
@@ -87,4 +90,24 @@ func GetAutoApproveFromContext(ctx context.Context) bool {
 // WithAutoApprove sets the auto-approve flag in context
 func WithAutoApprove(ctx context.Context, autoApprove bool) context.Context {
 	return context.WithValue(ctx, AutoApproveKey, autoApprove)
+}
+
+// GetParentListenerFromContext retrieves the parent listener (if any) for subtask event forwarding.
+func GetParentListenerFromContext(ctx context.Context) agent.EventListener {
+	if ctx == nil {
+		return nil
+	}
+
+	if listener := ctx.Value(parentListenerKey{}); listener != nil {
+		if typed, ok := listener.(agent.EventListener); ok {
+			return typed
+		}
+	}
+
+	return nil
+}
+
+// WithParentListener adds a parent listener to context for subagent event forwarding.
+func WithParentListener(ctx context.Context, listener agent.EventListener) context.Context {
+	return context.WithValue(ctx, parentListenerKey{}, listener)
 }

@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"alex/internal/agent/domain"
-	"alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/orchestration"
 )
 
 func TestSubagentDisplaySuccess(t *testing.T) {
 	display := NewSubagentDisplay()
 
-	initialLines := display.Handle(&builtin.SubtaskEvent{
+	initialLines := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:   0,
 		TotalSubtasks:  2,
@@ -25,7 +25,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 		t.Fatalf("expected start line for first subtask, got %v", initialLines)
 	}
 
-	noOutput := display.Handle(&builtin.SubtaskEvent{
+	noOutput := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolCompletedEvent{},
 		SubtaskIndex:  0,
 	})
@@ -33,7 +33,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 		t.Fatalf("expected no output on tool completion, got %v", noOutput)
 	}
 
-	lines := display.Handle(&builtin.SubtaskEvent{
+	lines := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 120},
 		SubtaskIndex:  0,
 	})
@@ -50,7 +50,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 		t.Fatalf("expected preview in completion line, got %q", lines[0])
 	}
 
-	secondStart := display.Handle(&builtin.SubtaskEvent{
+	secondStart := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:   1,
 		TotalSubtasks:  2,
@@ -60,12 +60,12 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 		t.Fatalf("expected start line for second task, got %v", secondStart)
 	}
 
-	display.Handle(&builtin.SubtaskEvent{
+	display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolCompletedEvent{},
 		SubtaskIndex:  1,
 	})
 
-	completion := display.Handle(&builtin.SubtaskEvent{
+	completion := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 80},
 		SubtaskIndex:  1,
 	})
@@ -93,7 +93,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 func TestSubagentDisplayFailure(t *testing.T) {
 	display := NewSubagentDisplay()
 
-	firstLines := display.Handle(&builtin.SubtaskEvent{
+	firstLines := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent:  &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:   0,
 		TotalSubtasks:  1,
@@ -110,7 +110,7 @@ func TestSubagentDisplayFailure(t *testing.T) {
 		t.Fatalf("expected start line for first task, got %v", firstLines)
 	}
 
-	failure := display.Handle(&builtin.SubtaskEvent{
+	failure := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowNodeFailedEvent{Error: assertError("timeout exceeded")},
 		SubtaskIndex:  0,
 	})
@@ -137,7 +137,7 @@ func TestSubagentDisplayFailure(t *testing.T) {
 func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	display := NewSubagentDisplay()
 
-	header := display.Handle(&builtin.SubtaskEvent{
+	header := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  0,
 		TotalSubtasks: 1,
@@ -146,7 +146,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 		t.Fatalf("expected header and start line for first subtask, got %v", header)
 	}
 
-	firstCompletion := display.Handle(&builtin.SubtaskEvent{
+	firstCompletion := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 10},
 		SubtaskIndex:  0,
 	})
@@ -158,7 +158,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	}
 
 	// Introduce another subtask with an updated total count.
-	secondStart := display.Handle(&builtin.SubtaskEvent{
+	secondStart := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  1,
 		TotalSubtasks: 2,
@@ -173,7 +173,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 		t.Fatalf("expected start line when new subtask begins, got %v", secondStart)
 	}
 
-	secondCompletion := display.Handle(&builtin.SubtaskEvent{
+	secondCompletion := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowResultFinalEvent{TotalTokens: 20},
 		SubtaskIndex:  1,
 	})
@@ -191,7 +191,7 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 	display := NewSubagentDisplay()
 
-	initial := display.Handle(&builtin.SubtaskEvent{
+	initial := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  0,
 		TotalSubtasks: 2,
@@ -204,7 +204,7 @@ func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 		t.Fatalf("expected serial phrasing when max parallel is one, got %q", initial[0])
 	}
 
-	update := display.Handle(&builtin.SubtaskEvent{
+	update := display.Handle(&orchestration.SubtaskEvent{
 		OriginalEvent: &domain.WorkflowToolStartedEvent{},
 		SubtaskIndex:  1,
 		TotalSubtasks: 2,

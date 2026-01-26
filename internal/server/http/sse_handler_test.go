@@ -17,7 +17,6 @@ import (
 	"alex/internal/attachments"
 	serverapp "alex/internal/server/app"
 	"alex/internal/testutil"
-	"alex/internal/tools/builtin"
 	"alex/internal/workflow"
 )
 
@@ -53,6 +52,32 @@ type streamedEvent struct {
 	event string
 	data  map[string]any
 }
+
+type stubSubtaskEvent struct {
+	original agent.AgentEvent
+	meta     agent.SubtaskMetadata
+}
+
+func (e *stubSubtaskEvent) EventType() string { return e.original.EventType() }
+func (e *stubSubtaskEvent) Timestamp() time.Time {
+	return e.original.Timestamp()
+}
+func (e *stubSubtaskEvent) GetAgentLevel() agent.AgentLevel {
+	level := e.original.GetAgentLevel()
+	if level != "" && level != agent.LevelCore {
+		return level
+	}
+	return agent.LevelSubagent
+}
+func (e *stubSubtaskEvent) GetSessionID() string    { return e.original.GetSessionID() }
+func (e *stubSubtaskEvent) GetTaskID() string       { return e.original.GetTaskID() }
+func (e *stubSubtaskEvent) GetParentTaskID() string { return e.original.GetParentTaskID() }
+func (e *stubSubtaskEvent) SubtaskDetails() agent.SubtaskMetadata {
+	return e.meta
+}
+func (e *stubSubtaskEvent) WrappedEvent() agent.AgentEvent { return e.original }
+
+var _ agent.SubtaskWrapper = (*stubSubtaskEvent)(nil)
 
 func parseSSEStream(t *testing.T, payload string) []streamedEvent {
 	t.Helper()
@@ -329,12 +354,14 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 		"duration":  toolEvent.Duration.Milliseconds(),
 	}
 
-	subtask := &builtin.SubtaskEvent{
-		OriginalEvent:  envelope,
-		SubtaskIndex:   1,
-		TotalSubtasks:  3,
-		SubtaskPreview: "inspect UI output",
-		MaxParallel:    2,
+	subtask := &stubSubtaskEvent{
+		original: envelope,
+		meta: agent.SubtaskMetadata{
+			Index:       1,
+			Total:       3,
+			Preview:     "inspect UI output",
+			MaxParallel: 2,
+		},
 	}
 
 	// Seed history with subtask-wrapped event.
@@ -385,7 +412,7 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	if isSubtask := streamed.data["is_subtask"]; isSubtask != true {
 		t.Fatalf("expected is_subtask=true, got %v", isSubtask)
 	}
-	if idx := streamed.data["subtask_index"]; idx != float64(subtask.SubtaskIndex) {
+	if idx := streamed.data["subtask_index"]; idx != float64(subtask.meta.Index) {
 		t.Fatalf("unexpected subtask_index: %v", idx)
 	}
 	payload, ok := streamed.data["payload"].(map[string]any)
