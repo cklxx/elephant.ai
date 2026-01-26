@@ -43,7 +43,7 @@ This document tracks architectural and design issues discovered during the ongoi
 - **Symptoms**: `internal/server/http` imports `internal/tools/builtin` and `internal/agent/domain/formatter` (plus other domain packages).
 - **Impact**: Transport handlers are tightly coupled to tool implementation details and ANSI presentation logic; limits reuse across delivery surfaces.
 - **Fix**: Introduce a `server/app` façade (tool metadata + event formatting), and keep HTTP handlers consuming only app/ports interfaces. Move ANSI formatting to output/presentation packages.
-- **Status**: open
+- **Status**: in progress (formatter moved to presentation; SSE handler uses `agent.SubtaskWrapper` to remove builtin dependency in production code)
 
 ### 6) Builtin tools package is a high fan-out monolith
 

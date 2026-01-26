@@ -24,3 +24,5 @@
 - 2026-01-26: Plan created; engineering practices reviewed.
 - 2026-01-26: Phase 1 started — moved tool formatter out of domain into `internal/presentation/formatter`, updated imports.
 - 2026-01-26: Phase 1 validated with `make fmt`, `make vet`, `make test`.
+- 2026-01-26: Phase 2 started — SSE handler now uses `agent.SubtaskWrapper` to remove builtin dependency.
+- 2026-01-26: Phase 2 validated with `make fmt`, `make vet`, `make test` (one transient test failure; recorded in error-experience).

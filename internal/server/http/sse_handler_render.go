@@ -15,7 +15,6 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
-	"alex/internal/tools/builtin"
 	"alex/internal/workflow"
 )
 
@@ -65,8 +64,8 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 
 	// Subtask envelopes are flattened into the base envelope while retaining
 	// metadata.
-	if subtaskEvent, ok := event.(*builtin.SubtaskEvent); ok {
-		base, err := h.buildEventData(subtaskEvent.OriginalEvent, sentAttachments, finalAnswerCache, streamDeltas)
+	if subtaskEvent, ok := event.(agent.SubtaskWrapper); ok {
+		base, err := h.buildEventData(subtaskEvent.WrappedEvent(), sentAttachments, finalAnswerCache, streamDeltas)
 		if err != nil {
 			return nil, err
 		}
@@ -81,17 +80,18 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 			data["parent_task_id"] = parentTaskID
 		}
 		data["is_subtask"] = true
-		if subtaskEvent.SubtaskIndex > 0 {
-			data["subtask_index"] = subtaskEvent.SubtaskIndex
+		meta := subtaskEvent.SubtaskDetails()
+		if meta.Index > 0 {
+			data["subtask_index"] = meta.Index
 		}
-		if subtaskEvent.TotalSubtasks > 0 {
-			data["total_subtasks"] = subtaskEvent.TotalSubtasks
+		if meta.Total > 0 {
+			data["total_subtasks"] = meta.Total
 		}
-		if subtaskEvent.SubtaskPreview != "" {
-			data["subtask_preview"] = subtaskEvent.SubtaskPreview
+		if meta.Preview != "" {
+			data["subtask_preview"] = meta.Preview
 		}
-		if subtaskEvent.MaxParallel > 0 {
-			data["max_parallel"] = subtaskEvent.MaxParallel
+		if meta.MaxParallel > 0 {
+			data["max_parallel"] = meta.MaxParallel
 		}
 		return data, nil
 	}
