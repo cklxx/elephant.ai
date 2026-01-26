@@ -2,11 +2,15 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
 	"alex/internal/agent/domain"
+	"alex/internal/output"
 	"alex/internal/tools/builtin"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
 // SubagentDisplay coordinates consistent CLI output for subagent progress across
@@ -28,6 +32,8 @@ type SubagentDisplay struct {
 	toolCalls int
 
 	tasks map[int]*subagentTaskState
+
+	useUnicode bool
 }
 
 type subagentTaskState struct {
@@ -43,7 +49,8 @@ type subagentTaskState struct {
 
 func NewSubagentDisplay() *SubagentDisplay {
 	return &SubagentDisplay{
-		tasks: make(map[int]*subagentTaskState),
+		tasks:      make(map[int]*subagentTaskState),
+		useUnicode: supportsUnicodeSymbols(),
 	}
 }
 
@@ -179,7 +186,15 @@ func (d *SubagentDisplay) renderHeader(updated bool) string {
 		icon = "↻"
 	}
 
-	return fmt.Sprintf("\n%s%s Subagent: Running %d %s%s%s\n", grayStyle, icon, d.totalTasks, taskLabel, parallel, resetStyle)
+	if !d.useUnicode {
+		icon = "AGENT"
+		if updated {
+			icon = "UPDATE"
+		}
+	}
+
+	line := fmt.Sprintf("%s Subagent: Running %d %s%s", icon, d.totalTasks, taskLabel, parallel)
+	return output.ConstrainOutputWidth("\n"+subagentGrayStyle.Render(line)+"\n", os.Stdout)
 }
 
 func (d *SubagentDisplay) renderCompletionLine(index int, state *subagentTaskState) string {
@@ -199,7 +214,12 @@ func (d *SubagentDisplay) renderCompletionLine(index int, state *subagentTaskSta
 		toolLabel = "tool"
 	}
 
-	return fmt.Sprintf("%s   ✓ [%d/%d] Task %d%s | %d %s | %d %s%s\n", grayStyle, concluded, d.totalTasks, index+1, preview, state.tokens, tokenLabel, state.toolCalls, toolLabel, resetStyle)
+	check := "✓"
+	if !d.useUnicode {
+		check = "OK"
+	}
+	line := fmt.Sprintf("   %s [%d/%d] Task %d%s | %d %s | %d %s", check, concluded, d.totalTasks, index+1, preview, state.tokens, tokenLabel, state.toolCalls, toolLabel)
+	return output.ConstrainOutputWidth(subagentGrayStyle.Render(line)+"\n", os.Stdout)
 }
 
 func (d *SubagentDisplay) renderFailureLine(index int, state *subagentTaskState) string {
@@ -217,7 +237,12 @@ func (d *SubagentDisplay) renderFailureLine(index int, state *subagentTaskState)
 		errText = "failed"
 	}
 
-	return fmt.Sprintf("%s   ✗ [%d/%d] Task %d%s: %s%s\n", redStyle, concluded, d.totalTasks, index+1, preview, errText, resetStyle)
+	cross := "✗"
+	if !d.useUnicode {
+		cross = "X"
+	}
+	line := fmt.Sprintf("   %s [%d/%d] Task %d%s: %s", cross, concluded, d.totalTasks, index+1, preview, errText)
+	return output.ConstrainOutputWidth(subagentRedStyle.Render(line)+"\n", os.Stdout)
 }
 
 func (d *SubagentDisplay) renderSummary() string {
@@ -226,11 +251,21 @@ func (d *SubagentDisplay) renderSummary() string {
 	toolLabel := pluralize(d.toolCalls, "tool call", "tool calls")
 
 	if d.failed == 0 {
-		return fmt.Sprintf("%s   → All %d %s completed successfully | %d %s | %d %s%s\n", grayStyle, d.totalTasks, taskLabel, d.tokens, tokenLabel, d.toolCalls, toolLabel, resetStyle)
+		arrow := "→"
+		if !d.useUnicode {
+			arrow = "->"
+		}
+		line := fmt.Sprintf("   %s All %d %s completed successfully | %d %s | %d %s", arrow, d.totalTasks, taskLabel, d.tokens, tokenLabel, d.toolCalls, toolLabel)
+		return output.ConstrainOutputWidth(subagentGrayStyle.Render(line)+"\n", os.Stdout)
 	}
 
 	failureLabel := pluralize(d.failed, "failure", "failures")
-	return fmt.Sprintf("%s   → %d of %d %s completed, %d %s | %d %s | %d %s%s\n", redStyle, d.completed, d.totalTasks, taskLabel, d.failed, failureLabel, d.tokens, tokenLabel, d.toolCalls, toolLabel, resetStyle)
+	arrow := "→"
+	if !d.useUnicode {
+		arrow = "->"
+	}
+	line := fmt.Sprintf("   %s %d of %d %s completed, %d %s | %d %s | %d %s", arrow, d.completed, d.totalTasks, taskLabel, d.failed, failureLabel, d.tokens, tokenLabel, d.toolCalls, toolLabel)
+	return output.ConstrainOutputWidth(subagentRedStyle.Render(line)+"\n", os.Stdout)
 }
 
 func (d *SubagentDisplay) renderStartLine(index int, state *subagentTaskState) string {
@@ -239,7 +274,12 @@ func (d *SubagentDisplay) renderStartLine(index int, state *subagentTaskState) s
 		preview = " – " + truncatePreview(preview)
 	}
 
-	return fmt.Sprintf("%s   → Task %d%s%s\n", grayStyle, index+1, preview, resetStyle)
+	arrow := "→"
+	if !d.useUnicode {
+		arrow = "->"
+	}
+	line := fmt.Sprintf("   %s Task %d%s", arrow, index+1, preview)
+	return output.ConstrainOutputWidth(subagentGrayStyle.Render(line)+"\n", os.Stdout)
 }
 
 func sanitizePreview(preview string) string {
@@ -271,8 +311,14 @@ func pluralize(count int, singular, plural string) string {
 	return plural
 }
 
-const (
-	grayStyle  = "\033[90m"
-	redStyle   = "\033[91m"
-	resetStyle = "\033[0m"
+func supportsUnicodeSymbols() bool {
+	if term, ok := os.LookupEnv("TERM"); ok && strings.EqualFold(strings.TrimSpace(term), "dumb") {
+		return false
+	}
+	return true
+}
+
+var (
+	subagentGrayStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280"))
+	subagentRedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444"))
 )

@@ -38,7 +38,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 	handler.handleSubtaskEvent(startEvent)
 	output := out.String()
 	require.Contains(t, output, "Subagent: Running 2 tasks")
-	require.Contains(t, output, "→ Task 1")
+	require.True(t, containsAny(output, "→ Task 1", "-> Task 1"))
 	out.Reset()
 
 	completeEvent := &builtin.SubtaskEvent{
@@ -64,7 +64,7 @@ func TestHandleSubtaskEventTracksProgress(t *testing.T) {
 
 	handler.handleSubtaskEvent(taskCompleteEvent)
 	output = out.String()
-	require.Contains(t, output, "✓ [1/2] Task 1")
+	require.True(t, containsAny(output, "✓ [1/2] Task 1", "OK [1/2] Task 1"))
 	require.Contains(t, output, "| 128 tokens | 1 tool")
 }
 
@@ -85,7 +85,7 @@ func TestHandleSubtaskEventHandlesErrors(t *testing.T) {
 	handler.handleSubtaskEvent(errEvent)
 	output := out.String()
 	require.Contains(t, output, "Subagent: Running 3 tasks")
-	require.Contains(t, output, "✗ [1/3] Task 2")
+	require.True(t, containsAny(output, "✗ [1/3] Task 2", "X [1/3] Task 2"))
 	require.Contains(t, output, "boom")
 }
 

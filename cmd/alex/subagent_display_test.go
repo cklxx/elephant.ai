@@ -21,7 +21,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	if len(initialLines) != 2 || !strings.Contains(initialLines[0], "Subagent: Running 2 tasks (max 2 parallel)") {
 		t.Fatalf("expected header announcing total tasks with parallel info, got %v", initialLines)
 	}
-	if !strings.Contains(initialLines[1], "→ Task 1 – Investigate login bug") {
+	if !containsAny(initialLines[1], "→ Task 1 – Investigate login bug", "-> Task 1 – Investigate login bug") {
 		t.Fatalf("expected start line for first subtask, got %v", initialLines)
 	}
 
@@ -40,7 +40,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("expected a single completion line, got %v", lines)
 	}
-	if !strings.Contains(lines[0], "✓ [1/2] Task 1") {
+	if !containsAny(lines[0], "✓ [1/2] Task 1", "OK [1/2] Task 1") {
 		t.Fatalf("expected progress counter in completion line, got %q", lines[0])
 	}
 	if !strings.Contains(lines[0], "120 token") {
@@ -56,7 +56,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 		TotalSubtasks:  2,
 		SubtaskPreview: "Prepare release plan",
 	})
-	if len(secondStart) != 1 || !strings.Contains(secondStart[0], "→ Task 2 – Prepare release plan") {
+	if len(secondStart) != 1 || !containsAny(secondStart[0], "→ Task 2 – Prepare release plan", "-> Task 2 – Prepare release plan") {
 		t.Fatalf("expected start line for second task, got %v", secondStart)
 	}
 
@@ -73,7 +73,7 @@ func TestSubagentDisplaySuccess(t *testing.T) {
 	if len(completion) != 2 {
 		t.Fatalf("expected completion and summary lines for second subtask, got %v", completion)
 	}
-	if !strings.Contains(completion[0], "✓ [2/2] Task 2") {
+	if !containsAny(completion[0], "✓ [2/2] Task 2", "OK [2/2] Task 2") {
 		t.Fatalf("expected concluded counter for second task, got %q", completion[0])
 	}
 	if !strings.Contains(completion[0], "Prepare release plan") {
@@ -106,7 +106,7 @@ func TestSubagentDisplayFailure(t *testing.T) {
 	if strings.Contains(firstLines[0], "max 0 parallel") {
 		t.Fatalf("expected zero max_parallel to fall back to serial phrasing, got %q", firstLines[0])
 	}
-	if !strings.Contains(firstLines[1], "→ Task 1 – Draft release notes") {
+	if !containsAny(firstLines[1], "→ Task 1 – Draft release notes", "-> Task 1 – Draft release notes") {
 		t.Fatalf("expected start line for first task, got %v", firstLines)
 	}
 
@@ -117,7 +117,7 @@ func TestSubagentDisplayFailure(t *testing.T) {
 	if len(failure) != 2 {
 		t.Fatalf("expected failure and summary lines, got %v", failure)
 	}
-	if !strings.Contains(failure[0], "✗ [1/1] Task 1") {
+	if !containsAny(failure[0], "✗ [1/1] Task 1", "X [1/1] Task 1") {
 		t.Fatalf("expected concluded counter in failure line, got %q", failure[0])
 	}
 	if !strings.Contains(failure[0], "timeout exceeded") {
@@ -166,10 +166,10 @@ func TestSubagentDisplayReprintsSummaryForAdditionalSubtasks(t *testing.T) {
 	if len(secondStart) != 2 {
 		t.Fatalf("expected updated header and start line when new subtask begins, got %v", secondStart)
 	}
-	if !strings.Contains(secondStart[0], "↻ Subagent: Running 2 tasks") {
+	if !containsAny(secondStart[0], "↻ Subagent: Running 2 tasks", "UPDATE Subagent: Running 2 tasks") {
 		t.Fatalf("expected refreshed header reflecting updated total, got %v", secondStart[0])
 	}
-	if !strings.Contains(secondStart[1], "→ Task 2") {
+	if !containsAny(secondStart[1], "→ Task 2", "-> Task 2") {
 		t.Fatalf("expected start line when new subtask begins, got %v", secondStart)
 	}
 
@@ -213,10 +213,10 @@ func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 	if len(update) != 2 {
 		t.Fatalf("expected header refresh and start line after max parallel increases, got %v", update)
 	}
-	if !strings.Contains(update[0], "↻ Subagent: Running 2 tasks (max 3 parallel)") {
+	if !containsAny(update[0], "↻ Subagent: Running 2 tasks (max 3 parallel)", "UPDATE Subagent: Running 2 tasks (max 3 parallel)") {
 		t.Fatalf("expected header to include updated parallel count, got %q", update[0])
 	}
-	if !strings.Contains(update[1], "→ Task 2") {
+	if !containsAny(update[1], "→ Task 2", "-> Task 2") {
 		t.Fatalf("expected start line for second task, got %v", update)
 	}
 }

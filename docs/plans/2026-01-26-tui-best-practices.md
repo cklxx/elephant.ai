@@ -15,3 +15,4 @@
 
 ## Progress
 - 2026-01-26: Plan created; engineering practices reviewed.
+- 2026-01-26: Polished subagent output styling, width clamping, and unicode fallbacks; updated tests.
