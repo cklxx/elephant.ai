@@ -64,3 +64,4 @@
 ## Progress
 - 2026-01-26: Plan created; engineering practices reviewed.
 - 2026-01-26: Moved builtin tools into domain subpackages (fileops/search/execution/session/ui/web/artifacts/media/sandbox/orchestration/memory) and updated registry wiring + CLI/server imports to use new packages; removed shim approach in favor of direct imports; moved parent listener context helper into `shared`; added `shared.StringMapArg`; exported attachment migration helper and attachment resolver helpers for cross-package reuse.
+- 2026-01-26: Consolidated per-domain move notes into this plan and removed redundant per-package plan files to reduce plan sprawl.

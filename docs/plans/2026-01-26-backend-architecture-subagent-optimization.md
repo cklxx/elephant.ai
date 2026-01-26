@@ -29,3 +29,4 @@
 - 2026-01-26: Phase 3 started — extracted builtin helpers into `internal/tools/builtin/shared` + `internal/tools/builtin/pathutil`, updated usages and toolregistry/cmd wiring.
 - 2026-01-26: Phase 3 validated with `make fmt`, `make vet`, `make test`.
 - 2026-01-26: Phase 3 continued — moved builtin tools into domain subpackages and rewired registry/callers to use the new packages (shims removed).
+- 2026-01-26: Phase 3 consolidated per-package move notes into the main builtin split plan; removed redundant plan files.
