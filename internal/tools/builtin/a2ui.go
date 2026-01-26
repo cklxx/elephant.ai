@@ -11,6 +11,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
 // a2uiEmit implements the a2ui_emit tool for storing A2UI JSONL payloads.
@@ -22,7 +23,7 @@ func NewA2UIEmit() tools.ToolExecutor {
 }
 
 func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	content := strings.TrimSpace(stringArg(call.Arguments, "content"))
+	content := strings.TrimSpace(shared.StringArg(call.Arguments, "content"))
 	if content == "" {
 		if messages := call.Arguments["messages"]; messages != nil {
 			serialized, err := serializeA2UIMessages(messages)
@@ -37,7 +38,7 @@ func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("content or messages is required")}, nil
 	}
 
-	name := strings.TrimSpace(stringArg(call.Arguments, "name"))
+	name := strings.TrimSpace(shared.StringArg(call.Arguments, "name"))
 	if name == "" {
 		name = fmt.Sprintf("a2ui-%s.jsonl", sanitizeA2UIFilename(call.ID))
 	}
@@ -45,23 +46,23 @@ func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		name = fmt.Sprintf("%s.jsonl", name)
 	}
 
-	mediaType := strings.TrimSpace(stringArg(call.Arguments, "media_type"))
+	mediaType := strings.TrimSpace(shared.StringArg(call.Arguments, "media_type"))
 	if mediaType == "" {
 		mediaType = "application/a2ui+json"
 	}
 
-	description := strings.TrimSpace(stringArg(call.Arguments, "description"))
-	format := strings.TrimSpace(stringArg(call.Arguments, "format"))
+	description := strings.TrimSpace(shared.StringArg(call.Arguments, "description"))
+	format := strings.TrimSpace(shared.StringArg(call.Arguments, "format"))
 	if format == "" {
 		format = "a2ui"
 	}
 	format = normalizeFormat(format)
 
-	kind := strings.TrimSpace(stringArg(call.Arguments, "kind"))
+	kind := strings.TrimSpace(shared.StringArg(call.Arguments, "kind"))
 	if kind == "" {
 		kind = "attachment"
 	}
-	retention := uint64Arg(call.Arguments, "retention_ttl_seconds")
+	retention := shared.Uint64Arg(call.Arguments, "retention_ttl_seconds")
 
 	encoded := base64.StdEncoding.EncodeToString([]byte(content))
 	attachment := ports.Attachment{

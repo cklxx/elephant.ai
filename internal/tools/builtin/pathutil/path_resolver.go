@@ -1,4 +1,4 @@
-package builtin
+package pathutil
 
 import (
 	"context"
@@ -152,4 +152,9 @@ func defaultWorkingDir() string {
 		return ""
 	}
 	return abs
+}
+
+// DefaultWorkingDir exposes the current working directory used as root.
+func DefaultWorkingDir() string {
+	return defaultWorkingDir()
 }

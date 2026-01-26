@@ -15,6 +15,7 @@ import (
 	"alex/internal/llm"
 	"alex/internal/memory"
 	"alex/internal/tools/builtin"
+	"alex/internal/tools/builtin/shared"
 )
 
 // Registry implements ToolRegistry with three-tier caching
@@ -205,8 +206,8 @@ func (a *approvalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*p
 	if !meta.Dangerous {
 		return a.delegate.Execute(ctx, call)
 	}
-	approver := builtin.GetApproverFromContext(ctx)
-	if approver == nil || builtin.GetAutoApproveFromContext(ctx) {
+	approver := shared.GetApproverFromContext(ctx)
+	if approver == nil || shared.GetAutoApproveFromContext(ctx) {
 		return a.delegate.Execute(ctx, call)
 	}
 
@@ -214,7 +215,7 @@ func (a *approvalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*p
 		Operation:   meta.Name,
 		FilePath:    extractFilePath(call.Arguments),
 		Summary:     fmt.Sprintf("Approval required for %s", meta.Name),
-		AutoApprove: builtin.GetAutoApproveFromContext(ctx),
+		AutoApprove: shared.GetAutoApproveFromContext(ctx),
 		ToolCallID:  call.ID,
 		ToolName:    call.Name,
 		Arguments:   call.Arguments,
@@ -328,8 +329,8 @@ func (r *Registry) Unregister(name string) error {
 }
 
 func (r *Registry) registerBuiltins(config Config) error {
-	fileConfig := builtin.FileToolConfig{}
-	shellConfig := builtin.ShellToolConfig{}
+	fileConfig := shared.FileToolConfig{}
+	shellConfig := shared.ShellToolConfig{}
 
 	// File operations
 	r.static["file_read"] = builtin.NewFileRead(fileConfig)
@@ -405,7 +406,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 		writeLLM = client
 	}
 	r.static["html_edit"] = builtin.NewHTMLEdit(writeLLM)
-	r.static["web_fetch"] = builtin.NewWebFetch(builtin.WebFetchConfig{
+	r.static["web_fetch"] = builtin.NewWebFetch(shared.WebFetchConfig{
 		// Reserved for future config.
 	})
 	r.static["douyin_hot"] = builtin.NewDouyinHot()

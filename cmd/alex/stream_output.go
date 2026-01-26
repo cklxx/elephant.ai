@@ -23,6 +23,7 @@ import (
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
 	id "alex/internal/utils/id"
+	"alex/internal/tools/builtin/shared"
 )
 
 // ToolInfo stores information about an active tool call
@@ -207,8 +208,8 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx = id.WithTaskID(ctx, id.NewTaskID())
-	ctx = builtin.WithApprover(ctx, cliApproverForSession(sessionID))
-	ctx = builtin.WithAutoApprove(ctx, false)
+	ctx = shared.WithApprover(ctx, cliApproverForSession(sessionID))
+	ctx = shared.WithAutoApprove(ctx, false)
 
 	verbose := container.Runtime.Verbose
 

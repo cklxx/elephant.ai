@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 func TestFileEditCreatesNewFile(t *testing.T) {
-	root := defaultWorkingDir()
+	root := pathutil.DefaultWorkingDir()
 	tempDir, err := os.MkdirTemp(root, "file-edit-")
 	if err != nil {
 		t.Fatalf("mkdir temp: %v", err)
@@ -19,7 +20,7 @@ func TestFileEditCreatesNewFile(t *testing.T) {
 	t.Cleanup(func() {
 		_ = os.RemoveAll(tempDir)
 	})
-	ctx := WithWorkingDir(context.Background(), tempDir)
+	ctx := pathutil.WithWorkingDir(context.Background(), tempDir)
 	tool := &fileEdit{}
 
 	call := ports.ToolCall{
@@ -52,7 +53,7 @@ func TestFileEditCreatesNewFile(t *testing.T) {
 }
 
 func TestFileEditUpdatesExistingFile(t *testing.T) {
-	root := defaultWorkingDir()
+	root := pathutil.DefaultWorkingDir()
 	tempDir, err := os.MkdirTemp(root, "file-edit-")
 	if err != nil {
 		t.Fatalf("mkdir temp: %v", err)
@@ -65,7 +66,7 @@ func TestFileEditUpdatesExistingFile(t *testing.T) {
 		t.Fatalf("write seed file: %v", err)
 	}
 
-	ctx := WithWorkingDir(context.Background(), tempDir)
+	ctx := pathutil.WithWorkingDir(context.Background(), tempDir)
 	tool := &fileEdit{}
 	call := ports.ToolCall{
 		ID: "call-edit",
@@ -94,7 +95,7 @@ func TestFileEditUpdatesExistingFile(t *testing.T) {
 }
 
 func TestFileEditRejectsNonUniqueOldString(t *testing.T) {
-	root := defaultWorkingDir()
+	root := pathutil.DefaultWorkingDir()
 	tempDir, err := os.MkdirTemp(root, "file-edit-")
 	if err != nil {
 		t.Fatalf("mkdir temp: %v", err)
@@ -107,7 +108,7 @@ func TestFileEditRejectsNonUniqueOldString(t *testing.T) {
 		t.Fatalf("write seed file: %v", err)
 	}
 
-	ctx := WithWorkingDir(context.Background(), tempDir)
+	ctx := pathutil.WithWorkingDir(context.Background(), tempDir)
 	tool := &fileEdit{}
 	call := ports.ToolCall{
 		ID: "call-duplicate",

@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type grep struct {
 }
 
-func NewGrep(cfg ShellToolConfig) tools.ToolExecutor {
+func NewGrep(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &grep{}
 }
@@ -28,7 +30,7 @@ func (t *grep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		path = "."
 	}
 
-	resolvedPath, err := sanitizePathWithinBase(ctx, path)
+	resolvedPath, err := pathutil.SanitizePathWithinBase(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

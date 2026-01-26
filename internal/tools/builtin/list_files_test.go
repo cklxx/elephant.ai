@@ -8,10 +8,11 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 func TestListFilesIncludesDirsAndFiles(t *testing.T) {
-	root := defaultWorkingDir()
+	root := pathutil.DefaultWorkingDir()
 	tempDir, err := os.MkdirTemp(root, "list-files-")
 	if err != nil {
 		t.Fatalf("mkdir temp: %v", err)
@@ -26,7 +27,7 @@ func TestListFilesIncludesDirsAndFiles(t *testing.T) {
 		t.Fatalf("write file: %v", err)
 	}
 
-	ctx := WithWorkingDir(context.Background(), tempDir)
+	ctx := pathutil.WithWorkingDir(context.Background(), tempDir)
 	tool := &listFiles{}
 	call := ports.ToolCall{
 		ID: "call-list",

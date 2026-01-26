@@ -14,6 +14,7 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
+	"alex/internal/tools/builtin/shared"
 )
 
 type musicPlay struct {
@@ -100,8 +101,8 @@ Returns a playable HTML playlist (APlayer) with preview URLs.`,
 }
 
 func (t *musicPlay) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	mood := strings.TrimSpace(stringArg(call.Arguments, "mood"))
-	request := strings.TrimSpace(stringArg(call.Arguments, "request"))
+	mood := strings.TrimSpace(shared.StringArg(call.Arguments, "mood"))
+	request := strings.TrimSpace(shared.StringArg(call.Arguments, "request"))
 	query := strings.TrimSpace(request)
 	if query == "" {
 		query = moodQuery(mood)
@@ -114,7 +115,7 @@ func (t *musicPlay) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		}, nil
 	}
 
-	limit := int(uint64Arg(call.Arguments, "limit"))
+	limit := int(shared.Uint64Arg(call.Arguments, "limit"))
 	if limit == 0 {
 		limit = 6
 	}
@@ -125,7 +126,7 @@ func (t *musicPlay) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		limit = 1
 	}
 
-	country := strings.ToUpper(strings.TrimSpace(stringArg(call.Arguments, "country")))
+	country := strings.ToUpper(strings.TrimSpace(shared.StringArg(call.Arguments, "country")))
 	if country == "" {
 		country = "US"
 	}

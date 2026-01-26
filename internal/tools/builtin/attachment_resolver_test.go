@@ -16,6 +16,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
 func TestResolveAttachmentBytesFromContextURI(t *testing.T) {
@@ -34,7 +35,7 @@ func TestResolveAttachmentBytesFromContextURI(t *testing.T) {
 		},
 	}
 
-	ctx := WithAllowLocalFetch(context.Background())
+	ctx := shared.WithAllowLocalFetch(context.Background())
 	ctx = tools.WithAttachmentContext(ctx, attachments, map[string]int{"slide1.png": 1})
 	bytesOut, mimeType, err := resolveAttachmentBytes(ctx, "[slide1.png]", server.Client())
 	if err != nil {
@@ -56,7 +57,7 @@ func TestResolveAttachmentBytesFromURL(t *testing.T) {
 	}))
 	defer server.Close()
 
-	bytesOut, mimeType, err := resolveAttachmentBytes(WithAllowLocalFetch(context.Background()), server.URL+"/frame.png", server.Client())
+	bytesOut, mimeType, err := resolveAttachmentBytes(shared.WithAllowLocalFetch(context.Background()), server.URL+"/frame.png", server.Client())
 	if err != nil {
 		t.Fatalf("resolveAttachmentBytes: %v", err)
 	}
@@ -84,7 +85,7 @@ func TestResolveAttachmentBytesPrefersResponseContentType(t *testing.T) {
 		},
 	}
 
-	ctx := WithAllowLocalFetch(context.Background())
+	ctx := shared.WithAllowLocalFetch(context.Background())
 	ctx = tools.WithAttachmentContext(ctx, attachments, map[string]int{"frame.png": 1})
 	bytesOut, mimeType, err := resolveAttachmentBytes(ctx, "[frame.png]", server.Client())
 	if err != nil {

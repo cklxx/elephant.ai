@@ -15,6 +15,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 // CodeExecuteConfig is reserved for future configuration options.
@@ -95,12 +96,12 @@ func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	code, _ := call.Arguments["code"].(string)
 	codePath, _ := call.Arguments["code_path"].(string)
 
-	resolver := GetPathResolverFromContext(ctx)
+	resolver := pathutil.GetPathResolverFromContext(ctx)
 	workingDir := resolver.ResolvePath(".")
 	extraMeta := map[string]any{}
 
 	if codePath != "" {
-		resolved, err := resolveLocalPath(ctx, codePath)
+		resolved, err := pathutil.ResolveLocalPath(ctx, codePath)
 		if err != nil {
 			return &ports.ToolResult{
 				CallID:  call.ID,

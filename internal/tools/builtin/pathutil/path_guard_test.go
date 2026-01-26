@@ -1,4 +1,4 @@
-package builtin
+package pathutil
 
 import (
 	"context"
@@ -21,7 +21,7 @@ func TestResolveLocalPath(t *testing.T) {
 	})
 	ctx := WithWorkingDir(context.Background(), base)
 
-	resolved, err := resolveLocalPath(ctx, "note.txt")
+	resolved, err := ResolveLocalPath(ctx, "note.txt")
 	if err != nil {
 		t.Fatalf("expected path to resolve, got error: %v", err)
 	}
@@ -29,12 +29,12 @@ func TestResolveLocalPath(t *testing.T) {
 		t.Fatalf("expected resolved path %q to stay within base %q", resolved, base)
 	}
 
-	if _, err := resolveLocalPath(ctx, "../escape.txt"); err == nil {
+	if _, err := ResolveLocalPath(ctx, "../escape.txt"); err == nil {
 		t.Fatalf("expected traversal path to be rejected")
 	}
 
 	outside := filepath.Dir(base)
-	if _, err := resolveLocalPath(ctx, outside); err == nil {
+	if _, err := ResolveLocalPath(ctx, outside); err == nil {
 		t.Fatalf("expected absolute path outside base to be rejected")
 	}
 }
@@ -59,7 +59,7 @@ func TestResolveLocalPathRejectsSymlinkEscape(t *testing.T) {
 	}
 
 	ctx := WithWorkingDir(context.Background(), base)
-	if _, err := resolveLocalPath(ctx, filepath.Join("logs", "secret.txt")); err == nil {
+	if _, err := ResolveLocalPath(ctx, filepath.Join("logs", "secret.txt")); err == nil {
 		t.Fatalf("expected symlink escape to be rejected")
 	}
 }

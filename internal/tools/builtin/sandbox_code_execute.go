@@ -12,6 +12,7 @@ import (
 	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
+	"alex/internal/tools/builtin/shared"
 )
 
 type sandboxCodeExecuteTool struct {
@@ -84,7 +85,7 @@ Optionally fetch output files from the sandbox as attachments.`,
 }
 
 func (t *sandboxCodeExecuteTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	language := strings.ToLower(strings.TrimSpace(stringArg(call.Arguments, "language")))
+	language := strings.ToLower(strings.TrimSpace(shared.StringArg(call.Arguments, "language")))
 	if language == "js" {
 		language = "javascript"
 	}
@@ -93,8 +94,8 @@ func (t *sandboxCodeExecuteTool) Execute(ctx context.Context, call ports.ToolCal
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	codePath := strings.TrimSpace(stringArg(call.Arguments, "code_path"))
-	code := stringArg(call.Arguments, "code")
+	codePath := strings.TrimSpace(shared.StringArg(call.Arguments, "code_path"))
+	code := shared.StringArg(call.Arguments, "code")
 	if codePath == "" && strings.TrimSpace(code) == "" {
 		err := errors.New("code or code_path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -121,7 +122,7 @@ func (t *sandboxCodeExecuteTool) Execute(ctx context.Context, call ports.ToolCal
 	payload := map[string]any{
 		"command": command,
 	}
-	if execDir := strings.TrimSpace(stringArg(call.Arguments, "exec_dir")); execDir != "" {
+	if execDir := strings.TrimSpace(shared.StringArg(call.Arguments, "exec_dir")); execDir != "" {
 		payload["exec_dir"] = execDir
 	}
 	if timeout, ok := floatArgOptional(call.Arguments, "timeout"); ok {

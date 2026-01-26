@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
 type todoUpdate struct {
@@ -89,7 +90,7 @@ func (t *todoUpdate) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	}
 
 	// Get session ID from context
-	sessionID, _ := GetSessionID(ctx)
+	sessionID, _ := shared.GetSessionID(ctx)
 	sessionID = sanitizeSessionID(sessionID)
 
 	var inProgress, pending, completed []string

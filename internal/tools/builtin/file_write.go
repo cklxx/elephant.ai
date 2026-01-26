@@ -9,12 +9,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type fileWrite struct {
 }
 
-func NewFileWrite(cfg FileToolConfig) tools.ToolExecutor {
+func NewFileWrite(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &fileWrite{}
 }
@@ -35,7 +37,7 @@ func (t *fileWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'content'")}, nil
 	}
 
-	resolved, err := resolveLocalPath(ctx, path)
+	resolved, err := pathutil.ResolveLocalPath(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

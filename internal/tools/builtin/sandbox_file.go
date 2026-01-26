@@ -11,6 +11,7 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/sandbox"
+	"alex/internal/tools/builtin/shared"
 )
 
 type sandboxFileReadTool struct {
@@ -80,7 +81,7 @@ func (t *sandboxFileReadTool) Definition() ports.ToolDefinition {
 }
 
 func (t *sandboxFileReadTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	path := strings.TrimSpace(stringArg(call.Arguments, "path"))
+	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
 		err := errors.New("path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -151,7 +152,7 @@ func (t *sandboxFileWriteTool) Definition() ports.ToolDefinition {
 }
 
 func (t *sandboxFileWriteTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	path := strings.TrimSpace(stringArg(call.Arguments, "path"))
+	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
 		err := errors.New("path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -160,7 +161,7 @@ func (t *sandboxFileWriteTool) Execute(ctx context.Context, call ports.ToolCall)
 		err := errors.New("path must be absolute in sandbox_file_write")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-	content := stringArg(call.Arguments, "content")
+	content := shared.StringArg(call.Arguments, "content")
 	if content == "" {
 		err := errors.New("content is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -170,7 +171,7 @@ func (t *sandboxFileWriteTool) Execute(ctx context.Context, call ports.ToolCall)
 		"file":    path,
 		"content": content,
 	}
-	if encoding := strings.TrimSpace(stringArg(call.Arguments, "encoding")); encoding != "" {
+	if encoding := strings.TrimSpace(shared.StringArg(call.Arguments, "encoding")); encoding != "" {
 		payload["encoding"] = encoding
 	}
 	if value, ok := boolArgOptional(call.Arguments, "append"); ok {
@@ -246,7 +247,7 @@ func (t *sandboxFileListTool) Definition() ports.ToolDefinition {
 }
 
 func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	path := strings.TrimSpace(stringArg(call.Arguments, "path"))
+	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
 		err := errors.New("path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -263,7 +264,7 @@ func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) 
 	if value, ok := boolArgOptional(call.Arguments, "show_hidden"); ok {
 		payload["show_hidden"] = value
 	}
-	if types := stringSliceArg(call.Arguments, "file_types"); len(types) > 0 {
+	if types := shared.StringSliceArg(call.Arguments, "file_types"); len(types) > 0 {
 		payload["file_types"] = types
 	}
 	if value, ok := intArgOptional(call.Arguments, "max_depth"); ok {
@@ -275,7 +276,7 @@ func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) 
 	if value, ok := boolArgOptional(call.Arguments, "include_permissions"); ok {
 		payload["include_permissions"] = value
 	}
-	if sortBy := strings.TrimSpace(stringArg(call.Arguments, "sort_by")); sortBy != "" {
+	if sortBy := strings.TrimSpace(shared.StringArg(call.Arguments, "sort_by")); sortBy != "" {
 		payload["sort_by"] = sortBy
 	}
 	if value, ok := boolArgOptional(call.Arguments, "sort_desc"); ok {
@@ -333,7 +334,7 @@ func (t *sandboxFileSearchTool) Definition() ports.ToolDefinition {
 }
 
 func (t *sandboxFileSearchTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	path := strings.TrimSpace(stringArg(call.Arguments, "path"))
+	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
 		err := errors.New("path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -342,7 +343,7 @@ func (t *sandboxFileSearchTool) Execute(ctx context.Context, call ports.ToolCall
 		err := errors.New("path must be absolute in sandbox_file_search")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-	regex := strings.TrimSpace(stringArg(call.Arguments, "regex"))
+	regex := strings.TrimSpace(shared.StringArg(call.Arguments, "regex"))
 	if regex == "" {
 		err := errors.New("regex is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -408,7 +409,7 @@ func (t *sandboxFileReplaceTool) Definition() ports.ToolDefinition {
 }
 
 func (t *sandboxFileReplaceTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	path := strings.TrimSpace(stringArg(call.Arguments, "path"))
+	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
 		err := errors.New("path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -417,12 +418,12 @@ func (t *sandboxFileReplaceTool) Execute(ctx context.Context, call ports.ToolCal
 		err := errors.New("path must be absolute in sandbox_file_replace")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-	oldStr := stringArg(call.Arguments, "old_str")
+	oldStr := shared.StringArg(call.Arguments, "old_str")
 	if oldStr == "" {
 		err := errors.New("old_str is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-	newStr := stringArg(call.Arguments, "new_str")
+	newStr := shared.StringArg(call.Arguments, "new_str")
 
 	payload := map[string]any{
 		"file":    path,

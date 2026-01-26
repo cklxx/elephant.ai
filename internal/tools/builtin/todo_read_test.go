@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"alex/internal/tools/builtin/shared"
 )
 
 func TestTodoRead_Metadata(t *testing.T) {
@@ -138,7 +139,7 @@ func TestTodoRead_Execute_DefaultSessionID(t *testing.T) {
 	tool := NewTodoReadWithSessionsDir(tempDir)
 
 	// Empty session ID should use "default"
-	ctx := WithSessionID(context.Background(), "")
+	ctx := shared.WithSessionID(context.Background(), "")
 
 	call := ports.ToolCall{
 		ID:        "call-4",
@@ -227,10 +228,10 @@ func TestWithSessionID(t *testing.T) {
 	sessionID := "test-session-id"
 
 	// Add session ID to context
-	ctx = WithSessionID(ctx, sessionID)
+	ctx = shared.WithSessionID(ctx, sessionID)
 
 	// Retrieve session ID from context
-	retrievedID, ok := GetSessionID(ctx)
+	retrievedID, ok := shared.GetSessionID(ctx)
 	assert.True(t, ok)
 	assert.Equal(t, sessionID, retrievedID)
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"alex/internal/tools/builtin/shared"
 )
 
 func TestTodoUpdate_Metadata(t *testing.T) {
@@ -45,7 +46,7 @@ func TestTodoUpdate_Execute_NoTodos(t *testing.T) {
 	tempDir := t.TempDir()
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
 
-	ctx := WithSessionID(context.Background(), "test_session")
+	ctx := shared.WithSessionID(context.Background(), "test_session")
 
 	call := ports.ToolCall{
 		ID:        "call-1",
@@ -66,7 +67,7 @@ func TestTodoUpdate_Execute_InvalidTodos(t *testing.T) {
 	tempDir := t.TempDir()
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
 
-	ctx := WithSessionID(context.Background(), "test_session")
+	ctx := shared.WithSessionID(context.Background(), "test_session")
 
 	call := ports.ToolCall{
 		ID:   "call-2",
@@ -90,7 +91,7 @@ func TestTodoUpdate_Execute_Success(t *testing.T) {
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
 
 	sessionID := "test_session_update"
-	ctx := WithSessionID(context.Background(), sessionID)
+	ctx := shared.WithSessionID(context.Background(), sessionID)
 
 	todos := []any{
 		map[string]any{
@@ -155,7 +156,7 @@ func TestTodoUpdate_Execute_EmptyTodos(t *testing.T) {
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
 
 	sessionID := "test_session_empty"
-	ctx := WithSessionID(context.Background(), sessionID)
+	ctx := shared.WithSessionID(context.Background(), sessionID)
 
 	call := ports.ToolCall{
 		ID:   "call-4",
@@ -189,7 +190,7 @@ func TestTodoUpdate_Execute_OnlyPending(t *testing.T) {
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
 
 	sessionID := "test_session_pending"
-	ctx := WithSessionID(context.Background(), sessionID)
+	ctx := shared.WithSessionID(context.Background(), sessionID)
 
 	todos := []any{
 		map[string]any{
@@ -240,7 +241,7 @@ func TestTodoUpdate_Execute_MixedStatus(t *testing.T) {
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
 
 	sessionID := "test_session_mixed"
-	ctx := WithSessionID(context.Background(), sessionID)
+	ctx := shared.WithSessionID(context.Background(), sessionID)
 
 	todos := []any{
 		map[string]any{
@@ -301,7 +302,7 @@ func TestTodoUpdate_Execute_DefaultStatus(t *testing.T) {
 	tool := NewTodoUpdateWithSessionsDir(tempDir)
 
 	sessionID := "test_session_default"
-	ctx := WithSessionID(context.Background(), sessionID)
+	ctx := shared.WithSessionID(context.Background(), sessionID)
 
 	// Todo without status should default to pending
 	todos := []any{
@@ -380,7 +381,7 @@ func TestTodoUpdate_Execute_FileWriteError(t *testing.T) {
 	}
 
 	sessionID := "test_session_error"
-	ctx := WithSessionID(context.Background(), sessionID)
+	ctx := shared.WithSessionID(context.Background(), sessionID)
 
 	todos := []any{
 		map[string]any{
@@ -452,7 +453,7 @@ func TestTodoUpdate_IntegrationWithRead(t *testing.T) {
 	readTool := NewTodoReadWithSessionsDir(tempDir)
 
 	sessionID := "integration_test"
-	ctx := WithSessionID(context.Background(), sessionID)
+	ctx := shared.WithSessionID(context.Background(), sessionID)
 
 	// Create todos
 	todos := []any{

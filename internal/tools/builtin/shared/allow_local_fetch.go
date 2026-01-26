@@ -1,4 +1,4 @@
-package builtin
+package shared
 
 import "context"
 
@@ -9,7 +9,8 @@ func WithAllowLocalFetch(ctx context.Context) context.Context {
 	return context.WithValue(ctx, allowLocalFetchKey{}, true)
 }
 
-func allowLocalFetch(ctx context.Context) bool {
+// AllowLocalFetch reports whether local/loopback URLs are allowed in tool fetches.
+func AllowLocalFetch(ctx context.Context) bool {
 	if ctx == nil {
 		return false
 	}

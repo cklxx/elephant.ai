@@ -11,6 +11,7 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/logging"
+	"alex/internal/tools/builtin/shared"
 )
 
 type ACPExecutorConfig struct {
@@ -84,7 +85,7 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor cwd must be absolute")}, nil
 	}
 
-	instruction := strings.TrimSpace(stringArg(call.Arguments, "instruction"))
+	instruction := strings.TrimSpace(shared.StringArg(call.Arguments, "instruction"))
 	if instruction == "" {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("acp_executor requires instruction")}, nil
 	}
@@ -93,7 +94,7 @@ func (t *acpExecutorTool) Execute(ctx context.Context, call ports.ToolCall) (*po
 	maxDurationSeconds := t.cfg.MaxDurationSeconds
 	requireManifest := t.cfg.RequireArtifactManifest
 	mode := strings.TrimSpace(t.cfg.Mode)
-	attachmentNames := stringSliceArg(call.Arguments, "attachment_names")
+	attachmentNames := shared.StringSliceArg(call.Arguments, "attachment_names")
 	promptBlocks, err := buildExecutorPromptBlocks(ctx, instruction, call, t.cfg, attachmentNames)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil

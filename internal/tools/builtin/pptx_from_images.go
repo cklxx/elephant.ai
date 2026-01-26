@@ -22,6 +22,7 @@ import (
 	_ "embed"
 
 	"github.com/jung-kurt/gofpdf"
+	"alex/internal/tools/builtin/shared"
 )
 
 const (
@@ -91,13 +92,13 @@ func (t *pptxFromImages) Definition() ports.ToolDefinition {
 }
 
 func (t *pptxFromImages) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	images := stringSliceArg(call.Arguments, "images")
+	images := shared.StringSliceArg(call.Arguments, "images")
 	if len(images) == 0 {
 		err := errors.New("images is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	outputName := strings.TrimSpace(stringArg(call.Arguments, "output_name"))
+	outputName := strings.TrimSpace(shared.StringArg(call.Arguments, "output_name"))
 	if outputName == "" {
 		outputName = "deck.pptx"
 	}
@@ -109,7 +110,7 @@ func (t *pptxFromImages) Execute(ctx context.Context, call ports.ToolCall) (*por
 		outputName += ".pptx"
 	}
 
-	description := strings.TrimSpace(stringArg(call.Arguments, "description"))
+	description := strings.TrimSpace(shared.StringArg(call.Arguments, "description"))
 	if description == "" {
 		description = fmt.Sprintf("Generated deck with %d image slide(s)", len(images))
 	}

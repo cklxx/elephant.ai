@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
 type todoRead struct {
@@ -52,7 +53,7 @@ func (t *todoRead) Definition() ports.ToolDefinition {
 
 func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	// Get session ID from context
-	sessionID, _ := GetSessionID(ctx)
+	sessionID, _ := shared.GetSessionID(ctx)
 	sessionID = sanitizeSessionID(sessionID)
 
 	// Construct file path

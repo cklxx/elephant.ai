@@ -23,6 +23,7 @@ import (
 	id "alex/internal/utils/id"
 
 	"github.com/PuerkitoBio/goquery"
+	"alex/internal/tools/builtin/shared"
 )
 
 // webFetch implements web content fetching with caching and optional LLM processing
@@ -54,12 +55,12 @@ type cacheEntry struct {
 	element   *list.Element
 }
 
-func NewWebFetch(cfg WebFetchConfig) tools.ToolExecutor {
+func NewWebFetch(cfg shared.WebFetchConfig) tools.ToolExecutor {
 	return NewWebFetchWithLLM(nil, cfg)
 }
 
 // NewWebFetchWithLLM creates web_fetch with optional LLM client for analysis
-func NewWebFetchWithLLM(llmClient llm.LLMClient, cfg WebFetchConfig) tools.ToolExecutor {
+func NewWebFetchWithLLM(llmClient llm.LLMClient, cfg shared.WebFetchConfig) tools.ToolExecutor {
 	cacheTTL := cfg.CacheTTL
 	if cacheTTL <= 0 {
 		cacheTTL = 15 * time.Minute

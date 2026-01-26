@@ -6,12 +6,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type fileRead struct {
 }
 
-func NewFileRead(cfg FileToolConfig) tools.ToolExecutor {
+func NewFileRead(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &fileRead{}
 }
@@ -22,7 +24,7 @@ func (t *fileRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'path'")}, nil
 	}
 
-	resolved, err := resolveLocalPath(ctx, path)
+	resolved, err := pathutil.ResolveLocalPath(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
 // artifactManifestTool emits a structured artifact manifest for executor runs.
@@ -67,9 +68,9 @@ func (t *artifactManifestTool) Execute(ctx context.Context, call ports.ToolCall)
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("items is required")}, nil
 	}
 
-	summary := strings.TrimSpace(stringArg(call.Arguments, "summary"))
-	fingerprint := strings.TrimSpace(stringArg(call.Arguments, "environment_fingerprint"))
-	name := strings.TrimSpace(stringArg(call.Arguments, "attachment_name"))
+	summary := strings.TrimSpace(shared.StringArg(call.Arguments, "summary"))
+	fingerprint := strings.TrimSpace(shared.StringArg(call.Arguments, "environment_fingerprint"))
+	name := strings.TrimSpace(shared.StringArg(call.Arguments, "attachment_name"))
 	if name == "" {
 		name = fmt.Sprintf("artifact-manifest-%d.json", time.Now().Unix())
 	}

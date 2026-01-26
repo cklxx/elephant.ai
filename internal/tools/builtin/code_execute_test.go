@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 func TestCodeExecute_Python(t *testing.T) {
@@ -239,7 +240,7 @@ func TestCodeExecute_CodePath(t *testing.T) {
 		t.Fatalf("failed to write temp script: %v", err)
 	}
 
-	ctx := WithWorkingDir(context.Background(), tmpDir)
+	ctx := pathutil.WithWorkingDir(context.Background(), tmpDir)
 	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID:   "test-code-path",
 		Name: "code_execute",

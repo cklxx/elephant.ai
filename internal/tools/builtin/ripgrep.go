@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type ripgrep struct {
 }
 
-func NewRipgrep(cfg ShellToolConfig) tools.ToolExecutor {
+func NewRipgrep(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &ripgrep{}
 }
@@ -31,7 +33,7 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		path = p
 	}
 
-	resolvedPath, err := sanitizePathWithinBase(ctx, path)
+	resolvedPath, err := pathutil.SanitizePathWithinBase(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
@@ -51,7 +53,7 @@ func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 
-	matches, total, err := searchTextMatches(resolvedPath, re, fileTypeFilter(stringArg(call.Arguments, "file_type")), maxResults)
+	matches, total, err := searchTextMatches(resolvedPath, re, fileTypeFilter(shared.StringArg(call.Arguments, "file_type")), maxResults)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

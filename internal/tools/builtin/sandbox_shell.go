@@ -12,6 +12,7 @@ import (
 	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
+	"alex/internal/tools/builtin/shared"
 )
 
 type sandboxShellExecTool struct {
@@ -61,7 +62,7 @@ func (t *sandboxShellExecTool) Definition() ports.ToolDefinition {
 }
 
 func (t *sandboxShellExecTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	command := strings.TrimSpace(stringArg(call.Arguments, "command"))
+	command := strings.TrimSpace(shared.StringArg(call.Arguments, "command"))
 	if command == "" {
 		err := errors.New("command is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -70,7 +71,7 @@ func (t *sandboxShellExecTool) Execute(ctx context.Context, call ports.ToolCall)
 	payload := map[string]any{
 		"command": command,
 	}
-	if execDir := strings.TrimSpace(stringArg(call.Arguments, "exec_dir")); execDir != "" {
+	if execDir := strings.TrimSpace(shared.StringArg(call.Arguments, "exec_dir")); execDir != "" {
 		payload["exec_dir"] = execDir
 	}
 	if value, ok := boolArgOptional(call.Arguments, "async_mode"); ok {
@@ -79,7 +80,7 @@ func (t *sandboxShellExecTool) Execute(ctx context.Context, call ports.ToolCall)
 	if timeout, ok := floatArgOptional(call.Arguments, "timeout"); ok {
 		payload["timeout"] = timeout
 	}
-	if sessionID := strings.TrimSpace(stringArg(call.Arguments, "session_id")); sessionID != "" {
+	if sessionID := strings.TrimSpace(shared.StringArg(call.Arguments, "session_id")); sessionID != "" {
 		payload["id"] = sessionID
 	}
 

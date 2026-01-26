@@ -17,6 +17,7 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
+	"alex/internal/tools/builtin/shared"
 )
 
 type executorToolState struct {
@@ -82,7 +83,7 @@ func (h *acpExecutorHandler) OnNotification(ctx context.Context, req *jsonrpc.Re
 	if !ok {
 		return
 	}
-	updateType := strings.TrimSpace(stringArg(updateRaw, "sessionUpdate"))
+	updateType := strings.TrimSpace(shared.StringArg(updateRaw, "sessionUpdate"))
 	if updateType == "" {
 		return
 	}
@@ -293,11 +294,11 @@ func (h *acpExecutorHandler) handleUserMessage(update map[string]any) {
 }
 
 func (h *acpExecutorHandler) handleToolCall(update map[string]any) {
-	callID := strings.TrimSpace(stringArg(update, "toolCallId"))
+	callID := strings.TrimSpace(shared.StringArg(update, "toolCallId"))
 	if callID == "" {
 		return
 	}
-	title := strings.TrimSpace(stringArg(update, "title"))
+	title := strings.TrimSpace(shared.StringArg(update, "title"))
 	rawInput, _ := update["rawInput"].(map[string]any)
 
 	h.mu.Lock()
@@ -326,12 +327,12 @@ func (h *acpExecutorHandler) handleToolCall(update map[string]any) {
 }
 
 func (h *acpExecutorHandler) handleToolCallUpdate(update map[string]any) {
-	callID := strings.TrimSpace(stringArg(update, "toolCallId"))
+	callID := strings.TrimSpace(shared.StringArg(update, "toolCallId"))
 	if callID == "" {
 		return
 	}
-	status := strings.ToLower(strings.TrimSpace(stringArg(update, "status")))
-	rawOutput := stringArg(update, "rawOutput")
+	status := strings.ToLower(strings.TrimSpace(shared.StringArg(update, "status")))
+	rawOutput := shared.StringArg(update, "rawOutput")
 
 	contentBlocks := []any{}
 	if raw, ok := update["content"].([]any); ok {
@@ -417,7 +418,7 @@ func (h *acpExecutorHandler) handlePlanUpdate(update map[string]any) {
 		if !ok {
 			continue
 		}
-		content := strings.TrimSpace(stringArg(item, "content"))
+		content := strings.TrimSpace(shared.StringArg(item, "content"))
 		if content == "" {
 			continue
 		}
@@ -496,7 +497,7 @@ func (h *acpExecutorHandler) recordUpdate(params map[string]any, updateType stri
 	if updateType == "" {
 		return
 	}
-	sessionID := strings.TrimSpace(stringArg(params, "sessionId"))
+	sessionID := strings.TrimSpace(shared.StringArg(params, "sessionId"))
 	h.mu.Lock()
 	h.updateCounts[updateType]++
 	h.mu.Unlock()
@@ -527,31 +528,31 @@ func parseContentBlock(block map[string]any) (string, map[string]ports.Attachmen
 	if block == nil {
 		return "", nil
 	}
-	blockType := strings.ToLower(stringArg(block, "type"))
+	blockType := strings.ToLower(shared.StringArg(block, "type"))
 	switch blockType {
 	case "text":
-		return strings.TrimSpace(stringArg(block, "text")), nil
+		return strings.TrimSpace(shared.StringArg(block, "text")), nil
 	case "image":
-		name := attachmentNameForMedia("image", stringArg(block, "mimeType"))
+		name := attachmentNameForMedia("image", shared.StringArg(block, "mimeType"))
 		return "", map[string]ports.Attachment{
 			name: {
 				Name:      name,
-				MediaType: strings.TrimSpace(stringArg(block, "mimeType")),
-				Data:      strings.TrimSpace(stringArg(block, "data")),
+				MediaType: strings.TrimSpace(shared.StringArg(block, "mimeType")),
+				Data:      strings.TrimSpace(shared.StringArg(block, "data")),
 			},
 		}
 	case "audio":
-		name := attachmentNameForMedia("audio", stringArg(block, "mimeType"))
+		name := attachmentNameForMedia("audio", shared.StringArg(block, "mimeType"))
 		return "", map[string]ports.Attachment{
 			name: {
 				Name:      name,
-				MediaType: strings.TrimSpace(stringArg(block, "mimeType")),
-				Data:      strings.TrimSpace(stringArg(block, "data")),
+				MediaType: strings.TrimSpace(shared.StringArg(block, "mimeType")),
+				Data:      strings.TrimSpace(shared.StringArg(block, "data")),
 			},
 		}
 	case "resource_link":
-		name := strings.TrimSpace(stringArg(block, "name"))
-		uri := strings.TrimSpace(stringArg(block, "uri"))
+		name := strings.TrimSpace(shared.StringArg(block, "name"))
+		uri := strings.TrimSpace(shared.StringArg(block, "uri"))
 		if name == "" && uri != "" {
 			name = path.Base(uri)
 		}
@@ -561,8 +562,8 @@ func parseContentBlock(block map[string]any) (string, map[string]ports.Attachmen
 		att := ports.Attachment{
 			Name:        name,
 			URI:         uri,
-			MediaType:   strings.TrimSpace(stringArg(block, "mimeType")),
-			Description: strings.TrimSpace(stringArg(block, "description")),
+			MediaType:   strings.TrimSpace(shared.StringArg(block, "mimeType")),
+			Description: strings.TrimSpace(shared.StringArg(block, "description")),
 		}
 		return "", map[string]ports.Attachment{name: att}
 	case "resource":
@@ -570,7 +571,7 @@ func parseContentBlock(block map[string]any) (string, map[string]ports.Attachmen
 		if !ok {
 			return "", nil
 		}
-		uri := strings.TrimSpace(stringArg(resource, "uri"))
+		uri := strings.TrimSpace(shared.StringArg(resource, "uri"))
 		name := ""
 		if uri != "" {
 			name = path.Base(uri)
@@ -578,8 +579,8 @@ func parseContentBlock(block map[string]any) (string, map[string]ports.Attachmen
 		if name == "" {
 			name = fmt.Sprintf("resource-%d", time.Now().UnixNano())
 		}
-		mimeType := strings.TrimSpace(stringArg(resource, "mimeType"))
-		if text := strings.TrimSpace(stringArg(resource, "text")); text != "" {
+		mimeType := strings.TrimSpace(shared.StringArg(resource, "mimeType"))
+		if text := strings.TrimSpace(shared.StringArg(resource, "text")); text != "" {
 			return "", map[string]ports.Attachment{name: {
 				Name:      name,
 				URI:       uri,
@@ -587,7 +588,7 @@ func parseContentBlock(block map[string]any) (string, map[string]ports.Attachmen
 				Data:      base64.StdEncoding.EncodeToString([]byte(text)),
 			}}
 		}
-		if blob := strings.TrimSpace(stringArg(resource, "blob")); blob != "" {
+		if blob := strings.TrimSpace(shared.StringArg(resource, "blob")); blob != "" {
 			return "", map[string]ports.Attachment{name: {
 				Name:      name,
 				URI:       uri,

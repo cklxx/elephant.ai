@@ -7,12 +7,13 @@ import (
 	tools "alex/internal/agent/ports/tools"
 	"context"
 	"fmt"
+	"alex/internal/tools/builtin/shared"
 )
 
 type bash struct {
 }
 
-func NewBash(cfg ShellToolConfig) tools.ToolExecutor {
+func NewBash(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &bash{}
 }

@@ -7,10 +7,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 func TestFindTool(t *testing.T) {
-	find := NewFind(ShellToolConfig{})
+	find := NewFind(shared.ShellToolConfig{})
 
 	// Verify metadata
 	meta := find.Metadata()
@@ -29,7 +31,7 @@ func TestFindTool(t *testing.T) {
 }
 
 func TestFindExecute_GoFiles(t *testing.T) {
-	find := NewFind(ShellToolConfig{})
+	find := NewFind(shared.ShellToolConfig{})
 	ctx := context.Background()
 
 	// Test finding .go files in current directory
@@ -64,7 +66,7 @@ func TestFindExecute_GoFiles(t *testing.T) {
 }
 
 func TestFindExecute_DirectoriesOnly(t *testing.T) {
-	find := NewFind(ShellToolConfig{})
+	find := NewFind(shared.ShellToolConfig{})
 	ctx := context.Background()
 
 	// Create a temporary test directory
@@ -82,7 +84,7 @@ func TestFindExecute_DirectoriesOnly(t *testing.T) {
 	testDir := filepath.Join(tmpDir, "testsubdir")
 	_ = os.Mkdir(testDir, 0755)
 
-	ctx = WithWorkingDir(ctx, tmpDir)
+	ctx = pathutil.WithWorkingDir(ctx, tmpDir)
 
 	call := ports.ToolCall{
 		ID:   "test-2",
@@ -116,7 +118,7 @@ func TestFindExecute_DirectoriesOnly(t *testing.T) {
 }
 
 func TestFindExecute_NoMatches(t *testing.T) {
-	find := NewFind(ShellToolConfig{})
+	find := NewFind(shared.ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{
@@ -148,7 +150,7 @@ func TestFindExecute_NoMatches(t *testing.T) {
 }
 
 func TestFindExecute_MissingName(t *testing.T) {
-	find := NewFind(ShellToolConfig{})
+	find := NewFind(shared.ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{
@@ -172,7 +174,7 @@ func TestFindExecute_MissingName(t *testing.T) {
 }
 
 func TestFindExecute_DefaultPath(t *testing.T) {
-	find := NewFind(ShellToolConfig{})
+	find := NewFind(shared.ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{
@@ -195,7 +197,7 @@ func TestFindExecute_DefaultPath(t *testing.T) {
 }
 
 func TestFindExecute_DefaultMaxDepth(t *testing.T) {
-	find := NewFind(ShellToolConfig{})
+	find := NewFind(shared.ShellToolConfig{})
 	ctx := context.Background()
 
 	call := ports.ToolCall{

@@ -9,12 +9,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type fileEdit struct {
 }
 
-func NewFileEdit(cfg FileToolConfig) tools.ToolExecutor {
+func NewFileEdit(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &fileEdit{}
 }
@@ -36,7 +38,7 @@ func (t *fileEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		oldString, _ = os.(string)
 	}
 
-	resolvedPath, err := resolveLocalPath(ctx, filePath)
+	resolvedPath, err := pathutil.ResolveLocalPath(ctx, filePath)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

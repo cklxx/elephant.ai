@@ -1,13 +1,13 @@
-package builtin
+package shared
 
 import (
 	"fmt"
 	"strings"
 )
 
-// stringArg fetches a string-like argument from the tool call map, returning an
+// StringArg fetches a string-like argument from the tool call map, returning an
 // empty string when the key is absent or nil.
-func stringArg(args map[string]any, key string) string {
+func StringArg(args map[string]any, key string) string {
 	if args == nil {
 		return ""
 	}
@@ -18,9 +18,9 @@ func stringArg(args map[string]any, key string) string {
 	return fmt.Sprint(value)
 }
 
-// stringSliceArg coalesces array-like arguments into a trimmed slice of
+// StringSliceArg coalesces array-like arguments into a trimmed slice of
 // strings, handling both []any and singular string inputs.
-func stringSliceArg(args map[string]any, key string) []string {
+func StringSliceArg(args map[string]any, key string) []string {
 	raw, ok := args[key]
 	if !ok {
 		return nil
@@ -44,9 +44,9 @@ func stringSliceArg(args map[string]any, key string) []string {
 	return nil
 }
 
-// uint64Arg parses a positive integer-ish argument into a uint64, returning 0
+// Uint64Arg parses a positive integer-ish argument into a uint64, returning 0
 // on missing or invalid inputs.
-func uint64Arg(args map[string]any, key string) uint64 {
+func Uint64Arg(args map[string]any, key string) uint64 {
 	if args == nil {
 		return 0
 	}
@@ -80,9 +80,9 @@ type jsonNumber interface {
 	Int64() (int64, error)
 }
 
-// contentSnippet returns a trimmed prefix of content to use as a lightweight
+// ContentSnippet returns a trimmed prefix of content to use as a lightweight
 // preview, avoiding empty strings and over-long slices.
-func contentSnippet(content string, max int) string {
+func ContentSnippet(content string, max int) string {
 	trimmed := strings.TrimSpace(content)
 	if trimmed == "" {
 		return ""
@@ -93,9 +93,9 @@ func contentSnippet(content string, max int) string {
 	return trimmed[:max]
 }
 
-// previewProfile normalizes the attachment preview profile based on MIME type
+// PreviewProfile normalizes the attachment preview profile based on MIME type
 // or format so downstream consumers can pick a renderer.
-func previewProfile(mediaType, format string) string {
+func PreviewProfile(mediaType, format string) string {
 	media := strings.ToLower(mediaType)
 	fmtFormat := strings.ToLower(format)
 

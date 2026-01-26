@@ -12,12 +12,14 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type bash struct {
 }
 
-func NewBash(cfg ShellToolConfig) tools.ToolExecutor {
+func NewBash(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &bash{}
 }
@@ -28,7 +30,7 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("missing 'command'")}, nil
 	}
 
-	resolver := GetPathResolverFromContext(ctx)
+	resolver := pathutil.GetPathResolverFromContext(ctx)
 	workingDir := resolver.ResolvePath(".")
 	script, err := os.CreateTemp("", "alex-bash-*.sh")
 	if err != nil {

@@ -8,12 +8,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type find struct {
 }
 
-func NewFind(cfg ShellToolConfig) tools.ToolExecutor {
+func NewFind(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &find{}
 }
@@ -29,7 +31,7 @@ func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		path = p
 	}
 
-	resolvedPath, err := sanitizePathWithinBase(ctx, path)
+	resolvedPath, err := pathutil.SanitizePathWithinBase(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

@@ -16,9 +16,9 @@ import (
 	"alex/internal/agent/presets"
 	"alex/internal/async"
 	"alex/internal/logging"
-	"alex/internal/tools/builtin"
-
 	"alex/internal/mcp"
+	"alex/internal/tools/builtin/pathutil"
+	"alex/internal/tools/builtin/shared"
 )
 
 type acpServer struct {
@@ -360,11 +360,11 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 	listener := newACPEventListener(s, session)
 
 	promptCtx = agent.WithOutputContext(promptCtx, &agent.OutputContext{Level: agent.LevelCore})
-	promptCtx = builtin.WithToolSessionID(promptCtx, sessionID)
-	promptCtx = builtin.WithApprover(promptCtx, newACPApprover(s, sessionID))
-	promptCtx = builtin.WithAutoApprove(promptCtx, false)
+	promptCtx = shared.WithToolSessionID(promptCtx, sessionID)
+	promptCtx = shared.WithApprover(promptCtx, newACPApprover(s, sessionID))
+	promptCtx = shared.WithAutoApprove(promptCtx, false)
 	if session.cwd != "" {
-		promptCtx = builtin.WithWorkingDir(promptCtx, session.cwd)
+			promptCtx = pathutil.WithWorkingDir(promptCtx, session.cwd)
 	}
 	if len(parsed.Attachments) > 0 {
 		promptCtx = appcontext.WithUserAttachments(promptCtx, parsed.Attachments)

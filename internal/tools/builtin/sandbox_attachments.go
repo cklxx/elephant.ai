@@ -15,6 +15,7 @@ import (
 	materialapi "alex/internal/materials/api"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
+	"alex/internal/tools/builtin/shared"
 )
 
 const sandboxAssetHTTPTimeout = 45 * time.Second
@@ -50,7 +51,7 @@ func parseSandboxAttachmentSpecs(args map[string]any) ([]sandboxAttachmentSpec, 
 
 	raw, ok := args["attachments"]
 	if !ok {
-		paths := stringSliceArg(args, "output_files")
+		paths := shared.StringSliceArg(args, "output_files")
 		if len(paths) == 0 {
 			return nil, nil
 		}
@@ -90,9 +91,9 @@ func parseSandboxAttachmentSpecs(args map[string]any) ([]sandboxAttachmentSpec, 
 }
 
 func parseSandboxAttachmentSpec(raw map[string]any) (sandboxAttachmentSpec, error) {
-	path := strings.TrimSpace(stringArg(raw, "path"))
+	path := strings.TrimSpace(shared.StringArg(raw, "path"))
 	if path == "" {
-		path = strings.TrimSpace(stringArg(raw, "file"))
+		path = strings.TrimSpace(shared.StringArg(raw, "file"))
 	}
 	if path == "" {
 		return sandboxAttachmentSpec{}, fmt.Errorf("attachment path is required")
@@ -100,13 +101,13 @@ func parseSandboxAttachmentSpec(raw map[string]any) (sandboxAttachmentSpec, erro
 
 	spec := sandboxAttachmentSpec{
 		Path:                path,
-		Name:                strings.TrimSpace(stringArg(raw, "name")),
-		MediaType:           strings.TrimSpace(stringArg(raw, "media_type")),
-		Description:         strings.TrimSpace(stringArg(raw, "description")),
-		Kind:                strings.TrimSpace(stringArg(raw, "kind")),
-		Format:              strings.TrimSpace(stringArg(raw, "format")),
-		PreviewProfile:      strings.TrimSpace(stringArg(raw, "preview_profile")),
-		RetentionTTLSeconds: uint64Arg(raw, "retention_ttl_seconds"),
+		Name:                strings.TrimSpace(shared.StringArg(raw, "name")),
+		MediaType:           strings.TrimSpace(shared.StringArg(raw, "media_type")),
+		Description:         strings.TrimSpace(shared.StringArg(raw, "description")),
+		Kind:                strings.TrimSpace(shared.StringArg(raw, "kind")),
+		Format:              strings.TrimSpace(shared.StringArg(raw, "format")),
+		PreviewProfile:      strings.TrimSpace(shared.StringArg(raw, "preview_profile")),
+		RetentionTTLSeconds: shared.Uint64Arg(raw, "retention_ttl_seconds"),
 	}
 	return spec, nil
 }
@@ -166,7 +167,7 @@ func downloadSandboxAttachments(
 			RetentionTTLSeconds: spec.RetentionTTLSeconds,
 		}
 		if attachment.PreviewProfile == "" && (attachment.MediaType != "" || attachment.Format != "") {
-			attachment.PreviewProfile = previewProfile(attachment.MediaType, attachment.Format)
+			attachment.PreviewProfile = shared.PreviewProfile(attachment.MediaType, attachment.Format)
 		}
 
 		attachments[name] = attachment

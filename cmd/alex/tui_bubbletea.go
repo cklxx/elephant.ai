@@ -19,6 +19,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
+	"alex/internal/tools/builtin/shared"
 )
 
 const (
@@ -211,13 +212,6 @@ func (m *bubbleChatUI) println(s string) {
 	}
 }
 
-// printLines outputs multiple lines
-func (m *bubbleChatUI) printLines(lines ...string) {
-	for _, line := range lines {
-		m.println(line)
-	}
-}
-
 func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "ctrl+c":
@@ -303,8 +297,8 @@ func (m *bubbleChatUI) runTaskCmd(ctx context.Context, task string, sessionID st
 
 		taskCtx := id.WithSessionID(ctx, sessionID)
 		taskCtx = id.WithTaskID(taskCtx, id.NewTaskID())
-		taskCtx = builtin.WithApprover(taskCtx, cliApproverForSession(sessionID))
-		taskCtx = builtin.WithAutoApprove(taskCtx, false)
+		taskCtx = shared.WithApprover(taskCtx, cliApproverForSession(sessionID))
+		taskCtx = shared.WithAutoApprove(taskCtx, false)
 
 		listener := newBubbleTeaListener(ctx, m.container.Runtime.Verbose, func(e agent.AgentEvent) {
 			m.send(tuiAgentEventMsg{event: e})
@@ -757,25 +751,6 @@ func (l *bubbleTeaListener) OnEvent(event agent.AgentEvent) {
 		return
 	}
 	l.onEvent(event)
-}
-
-func filepathBase(path string) string {
-	if path == "" {
-		return ""
-	}
-	parts := strings.Split(strings.TrimRight(path, "/"), "/")
-	if len(parts) == 0 {
-		return path
-	}
-	return parts[len(parts)-1]
-}
-
-func shortSessionID(sessionID string) string {
-	parts := strings.Split(sessionID, "-")
-	if len(parts) == 0 {
-		return sessionID
-	}
-	return parts[len(parts)-1]
 }
 
 func maxInt(a, b int) int {

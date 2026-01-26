@@ -16,6 +16,7 @@ import (
 	"alex/internal/httpclient"
 	internalllm "alex/internal/llm"
 	id "alex/internal/utils/id"
+	"alex/internal/tools/builtin/shared"
 )
 
 type htmlEdit struct {
@@ -79,11 +80,11 @@ func (t *htmlEdit) Definition() ports.ToolDefinition {
 
 func (t *htmlEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	args := call.Arguments
-	action := strings.ToLower(strings.TrimSpace(stringArg(args, "action")))
-	name := unwrapArtifactPlaceholderName(stringArg(args, "name"))
-	rawHTML := strings.TrimSpace(stringArg(args, "html"))
-	instructions := strings.TrimSpace(stringArg(args, "instructions"))
-	outputName := strings.TrimSpace(stringArg(args, "output_name"))
+	action := strings.ToLower(strings.TrimSpace(shared.StringArg(args, "action")))
+	name := unwrapArtifactPlaceholderName(shared.StringArg(args, "name"))
+	rawHTML := strings.TrimSpace(shared.StringArg(args, "html"))
+	instructions := strings.TrimSpace(shared.StringArg(args, "instructions"))
+	outputName := strings.TrimSpace(shared.StringArg(args, "output_name"))
 	validateOnly := boolArg(args, "validate_only")
 
 	if action == "" {
@@ -351,7 +352,7 @@ func decodeHTMLAttachment(ctx context.Context, att ports.Attachment) (string, er
 
 func fetchHTML(ctx context.Context, uri string) (string, error) {
 	opts := httpclient.DefaultURLValidationOptions()
-	if allowLocalFetch(ctx) {
+	if shared.AllowLocalFetch(ctx) {
 		opts.AllowLocalhost = true
 	}
 	parsed, err := httpclient.ValidateOutboundURL(uri, opts)

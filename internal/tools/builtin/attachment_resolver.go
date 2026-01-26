@@ -22,6 +22,8 @@ import (
 	"alex/internal/config"
 	"alex/internal/httpclient"
 	"alex/internal/logging"
+	"alex/internal/tools/builtin/pathutil"
+	"alex/internal/tools/builtin/shared"
 )
 
 const (
@@ -183,7 +185,7 @@ func fetchAttachmentBytes(ctx context.Context, client *http.Client, uri string, 
 		requestCtx = context.Background()
 	}
 	opts := httpclient.DefaultURLValidationOptions()
-	if allowLocalFetch(ctx) {
+	if shared.AllowLocalFetch(ctx) {
 		opts.AllowLocalhost = true
 	}
 	parsed, err := httpclient.ValidateOutboundURL(uri, opts)
@@ -279,7 +281,7 @@ func readLocalAttachment(uri string, fallbackMediaType string) ([]byte, string, 
 	}
 
 	pathOnDisk := filepath.Join(dir, filepath.FromSlash(relative))
-	if !pathWithinBase(dir, pathOnDisk) {
+	if !pathutil.PathWithinBase(dir, pathOnDisk) {
 		return nil, "", true, errors.New("attachment path escapes store dir")
 	}
 	data, err := os.ReadFile(pathOnDisk)

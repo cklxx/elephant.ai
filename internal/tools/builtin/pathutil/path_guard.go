@@ -1,4 +1,4 @@
-package builtin
+package pathutil
 
 import (
 	"context"
@@ -9,11 +9,13 @@ import (
 	"strings"
 )
 
-func resolveLocalPath(ctx context.Context, raw string) (string, error) {
-	return sanitizePathWithinBase(ctx, raw)
+// ResolveLocalPath resolves a local path and ensures it stays within the working directory.
+func ResolveLocalPath(ctx context.Context, raw string) (string, error) {
+	return SanitizePathWithinBase(ctx, raw)
 }
 
-func sanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
+// SanitizePathWithinBase validates that a path stays within the working directory.
+func SanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return "", fmt.Errorf("path cannot be empty")
@@ -55,6 +57,11 @@ func sanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
 	}
 
 	return safe, nil
+}
+
+// PathWithinBase reports whether target is contained within base after resolving symlinks.
+func PathWithinBase(base, target string) bool {
+	return pathWithinBase(base, target)
 }
 
 func pathWithinBase(base, target string) bool {

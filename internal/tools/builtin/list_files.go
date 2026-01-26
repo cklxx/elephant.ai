@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"alex/internal/tools/builtin/shared"
+	"alex/internal/tools/builtin/pathutil"
 )
 
 type listFiles struct {
 }
 
-func NewListFiles(cfg FileToolConfig) tools.ToolExecutor {
+func NewListFiles(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
 	return &listFiles{}
 }
@@ -23,7 +25,7 @@ func (t *listFiles) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		path = "."
 	}
 
-	resolved, err := resolveLocalPath(ctx, path)
+	resolved, err := pathutil.ResolveLocalPath(ctx, path)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}

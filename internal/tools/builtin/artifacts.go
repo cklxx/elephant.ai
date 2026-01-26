@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
 // artifactsWrite implements the artifacts_write tool which creates or updates
@@ -40,19 +41,19 @@ func NewArtifactsDelete() tools.ToolExecutor {
 }
 
 func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	name := unwrapArtifactPlaceholderName(stringArg(call.Arguments, "name"))
+	name := unwrapArtifactPlaceholderName(shared.StringArg(call.Arguments, "name"))
 	if name == "" {
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("name is required")}, nil
 	}
 
-	content := stringArg(call.Arguments, "content")
-	mediaType := strings.TrimSpace(stringArg(call.Arguments, "media_type"))
+	content := shared.StringArg(call.Arguments, "content")
+	mediaType := strings.TrimSpace(shared.StringArg(call.Arguments, "media_type"))
 	if mediaType == "" {
 		mediaType = "text/markdown"
 	}
 
-	description := strings.TrimSpace(stringArg(call.Arguments, "description"))
-	format := strings.TrimSpace(stringArg(call.Arguments, "format"))
+	description := strings.TrimSpace(shared.StringArg(call.Arguments, "description"))
+	format := strings.TrimSpace(shared.StringArg(call.Arguments, "format"))
 	if format == "" {
 		format = strings.TrimPrefix(strings.ToLower(filepath.Ext(name)), ".")
 	}
@@ -64,11 +65,11 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 		description = strings.TrimSpace(deriveAttachmentDescription(name, content, mediaType, format))
 	}
 
-	kind := strings.TrimSpace(stringArg(call.Arguments, "kind"))
+	kind := strings.TrimSpace(shared.StringArg(call.Arguments, "kind"))
 	if kind == "" {
 		kind = "artifact"
 	}
-	retention := uint64Arg(call.Arguments, "retention_ttl_seconds")
+	retention := shared.Uint64Arg(call.Arguments, "retention_ttl_seconds")
 
 	encoded := base64.StdEncoding.EncodeToString([]byte(content))
 	sum := sha256.Sum256([]byte(content))
@@ -82,10 +83,10 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 		Format:              format,
 		RetentionTTLSeconds: retention,
 		Source:              call.Name,
-		PreviewProfile:      previewProfile(mediaType, format),
+		PreviewProfile:      shared.PreviewProfile(mediaType, format),
 	}
 
-	if snippet := strings.TrimSpace(contentSnippet(content, 240)); snippet != "" {
+	if snippet := strings.TrimSpace(shared.ContentSnippet(content, 240)); snippet != "" {
 		attachment.PreviewAssets = []ports.AttachmentPreviewAsset{{
 			AssetID:     fmt.Sprintf("%s-thumb", name),
 			Label:       "Thumbnail",
@@ -214,7 +215,7 @@ func (t *artifactsList) Execute(ctx context.Context, call ports.ToolCall) (*port
 		return &ports.ToolResult{CallID: call.ID, Content: "No attachments available"}, nil
 	}
 
-	target := unwrapArtifactPlaceholderName(stringArg(call.Arguments, "name"))
+	target := unwrapArtifactPlaceholderName(shared.StringArg(call.Arguments, "name"))
 	var builder strings.Builder
 	builder.WriteString("Attachments on record:\n")
 
@@ -281,9 +282,9 @@ func (t *artifactsList) Metadata() ports.ToolMetadata {
 }
 
 func (t *artifactsDelete) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	names := stringSliceArg(call.Arguments, "names")
+	names := shared.StringSliceArg(call.Arguments, "names")
 	if len(names) == 0 {
-		if single := unwrapArtifactPlaceholderName(stringArg(call.Arguments, "name")); single != "" {
+		if single := unwrapArtifactPlaceholderName(shared.StringArg(call.Arguments, "name")); single != "" {
 			names = append(names, single)
 		}
 	}

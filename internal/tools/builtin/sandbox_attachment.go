@@ -11,6 +11,7 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/sandbox"
+	"alex/internal/tools/builtin/shared"
 )
 
 type sandboxWriteAttachmentTool struct {
@@ -52,12 +53,12 @@ func (t *sandboxWriteAttachmentTool) Definition() ports.ToolDefinition {
 }
 
 func (t *sandboxWriteAttachmentTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	attachmentRef := strings.TrimSpace(stringArg(call.Arguments, "attachment"))
+	attachmentRef := strings.TrimSpace(shared.StringArg(call.Arguments, "attachment"))
 	if attachmentRef == "" {
 		err := errors.New("attachment is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
-	path := strings.TrimSpace(stringArg(call.Arguments, "path"))
+	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
 		err := errors.New("path is required")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
