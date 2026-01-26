@@ -16,3 +16,4 @@
 ## Progress
 - 2026-01-26: Plan created; engineering practices reviewed.
 - 2026-01-26: Reviewed CLI output best-practice references; scoped to registered tools and started CLI-only rendering summaries + tool name shortening.
+- 2026-01-26: Implemented CLI-only summaries (file/search/web/sandbox), duration suffix, and tool display names; added tests; ran `make fmt`, `make vet`, `make test`.
