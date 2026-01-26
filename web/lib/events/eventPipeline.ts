@@ -1,9 +1,8 @@
 import { AnyAgentEvent } from '@/lib/types';
-import { safeValidateEvent } from '@/lib/schemas';
 import { AgentEventBus } from './eventBus';
 import { EventRegistry } from './eventRegistry';
 import { buildEventSignature } from './signature';
-import { z } from 'zod';
+import { normalizeAgentEvent } from './normalize';
 
 export interface EventPipelineOptions {
   bus: AgentEventBus;
@@ -50,21 +49,12 @@ export class EventPipeline {
 
   process(raw: unknown) {
     try {
-      const validationResult = safeValidateEvent(raw);
-      if (!validationResult.success) {
-        const fallback = coerceEvent(raw);
-        if (fallback) {
-          if (this.isDuplicate(fallback)) {
-            return;
-          }
-          this.registry.run(fallback);
-          this.bus.emit(fallback);
-        } else {
-          this.onInvalidEvent?.(raw, validationResult.error);
-        }
+      const normalized = normalizeAgentEvent(raw);
+      if (normalized.status === 'invalid') {
+        this.onInvalidEvent?.(raw, normalized.error);
         return;
       }
-      const event = validationResult.data as AnyAgentEvent;
+      const event = normalized.event;
       if (this.isDuplicate(event)) {
         return;
       }
@@ -73,57 +63,5 @@ export class EventPipeline {
     } catch (error) {
       this.onInvalidEvent?.(raw, error);
     }
-  }
-}
-
-function coerceEvent(raw: unknown): AnyAgentEvent | null {
-  if (!raw || typeof raw !== 'object') {
-    return null;
-  }
-
-  const obj = raw as Record<string, any>;
-  const rawPayload = obj.payload;
-  const payloadObject =
-    rawPayload && typeof rawPayload === 'object' && !Array.isArray(rawPayload)
-      ? (rawPayload as Record<string, any>)
-      : null;
-  const merged: Record<string, any> = payloadObject ? { ...payloadObject, ...obj } : { ...obj };
-  merged.payload = payloadObject ?? obj.payload ?? null;
-
-  if (payloadObject && merged.duration === undefined && typeof payloadObject.duration_ms === 'number') {
-    merged.duration = payloadObject.duration_ms;
-  }
-
-  const eventType = merged.event_type;
-  if (typeof eventType !== 'string' || !eventType.trim()) {
-    return null;
-  }
-
-  if (!merged.timestamp) {
-    merged.timestamp = new Date().toISOString();
-  }
-  if (!merged.agent_level) {
-    merged.agent_level = 'core';
-  }
-  if (merged.session_id === undefined) {
-    merged.session_id = '';
-  }
-  if (merged.version === undefined || merged.version === null) {
-    merged.version = 1;
-  }
-
-  try {
-    // Keep validation lightweight; this prevents obviously malformed payloads
-    // while still accepting envelopes that drift from the strict schema.
-    z.object({
-      event_type: z.string(),
-      timestamp: z.string(),
-      agent_level: z.string(),
-    })
-      .passthrough()
-      .parse(merged);
-    return merged as AnyAgentEvent;
-  } catch {
-    return merged as AnyAgentEvent;
   }
 }

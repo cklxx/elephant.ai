@@ -14,6 +14,7 @@ import {
   collectAttachmentItems,
 } from "@/components/agent/AttachmentPanel";
 import { cn } from "@/lib/utils";
+import { normalizeAgentEvents } from "@/lib/events/normalize";
 
 export function SharePageContent() {
   const { t } = useI18n();
@@ -52,7 +53,8 @@ export function SharePageContent() {
       .getSharedSession(sessionId, token)
       .then((response) => {
         if (cancelled) return;
-        setEvents(response.events ?? []);
+        const normalized = normalizeAgentEvents(response.events ?? []);
+        setEvents(normalized);
         setTitle(response.title?.trim() || null);
       })
       .catch((err) => {
