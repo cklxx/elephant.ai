@@ -64,7 +64,6 @@ type bubbleChatUI struct {
 	transcript strings.Builder
 	follow     bool
 	imeMode    bool
-	imeBuffer  []rune
 
 	running             bool
 	cancelCurrentTurn   context.CancelFunc
@@ -303,25 +302,17 @@ func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.onSubmit()
 	}
 
-	if m.imeMode {
-		cursorPos := m.input.Position()
-		updated, newCursorPos, handled := applyIMEKey(m.imeBuffer, cursorPos, msg)
-		if handled {
-			m.imeBuffer = updated
-			m.input.SetValue(string(m.imeBuffer))
-			m.input.SetCursor(newCursorPos)
-			return m, nil
-		}
+	// In IME mode, intercept backspace for grapheme-aware deletion
+	if m.imeMode && isBackspaceKey(msg) {
+		newValue, newCursor := applyGraphemeBackspace(m.input.Value(), m.input.Position())
+		m.input.SetValue(newValue)
+		m.input.SetCursor(newCursor)
+		return m, nil
 	}
 
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	m.input, _ = m.input.Update(msg)
-
-	// Sync imeBuffer with textinput after non-IME key handling (e.g., arrow keys)
-	if m.imeMode {
-		m.imeBuffer = []rune(m.input.Value())
-	}
 
 	return m, cmd
 }
@@ -346,14 +337,12 @@ func (m *bubbleChatUI) onSubmit() (tea.Model, tea.Cmd) {
 		m.viewport.SetContent("")
 		m.appendSystemCard()
 		m.input.SetValue("")
-		m.imeBuffer = nil
 		m.statusLine = styleGray.Render("cleared")
 		return m, nil
 	}
 
 	m.appendUserMessage(task)
 	m.input.SetValue("")
-	m.imeBuffer = nil
 	m.streamedCurrentTurn = false
 	m.assistantHeaderPrinted = false
 	m.running = true

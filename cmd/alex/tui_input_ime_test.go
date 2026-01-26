@@ -6,116 +6,129 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func TestApplyIMEKeyInsertsRunes(t *testing.T) {
-	buffer, cursorPos, handled := applyIMEKey(nil, 0, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("你好")})
-	if !handled {
-		t.Fatal("expected key to be handled")
+func TestIsBackspaceKey(t *testing.T) {
+	cases := []struct {
+		name   string
+		msg    tea.KeyMsg
+		expect bool
+	}{
+		{
+			name:   "KeyBackspace type",
+			msg:    tea.KeyMsg{Type: tea.KeyBackspace},
+			expect: true,
+		},
+		{
+			name:   "KeyDelete type",
+			msg:    tea.KeyMsg{Type: tea.KeyDelete},
+			expect: true,
+		},
+		{
+			name:   "backspace string",
+			msg:    tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{127}},
+			expect: true,
+		},
+		{
+			name:   "ctrl+h (rune 8)",
+			msg:    tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{8}},
+			expect: true,
+		},
+		{
+			name:   "enter not backspace",
+			msg:    tea.KeyMsg{Type: tea.KeyEnter},
+			expect: false,
+		},
+		{
+			name:   "normal runes not backspace",
+			msg:    tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("你好")},
+			expect: false,
+		},
 	}
-	if got := string(buffer); got != "你好" {
-		t.Fatalf("expected buffer to be 你好, got %q", got)
-	}
-	if cursorPos != 2 {
-		t.Fatalf("expected cursor at position 2, got %d", cursorPos)
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := isBackspaceKey(tc.msg); got != tc.expect {
+				t.Fatalf("expected %v, got %v", tc.expect, got)
+			}
+		})
 	}
 }
 
-func TestApplyIMEKeyBackspace(t *testing.T) {
-	buffer := []rune("你好")
-	buffer, cursorPos, handled := applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyBackspace})
-	if !handled {
-		t.Fatal("expected backspace to be handled")
+func TestApplyGraphemeBackspace(t *testing.T) {
+	cases := []struct {
+		name         string
+		value        string
+		cursorPos    int
+		expectValue  string
+		expectCursor int
+	}{
+		{
+			name:         "delete last Chinese character",
+			value:        "你好",
+			cursorPos:    2,
+			expectValue:  "你",
+			expectCursor: 1,
+		},
+		{
+			name:         "delete middle Chinese character",
+			value:        "你好世界",
+			cursorPos:    2,
+			expectValue:  "你世界",
+			expectCursor: 1,
+		},
+		{
+			name:         "delete first Chinese character",
+			value:        "你好",
+			cursorPos:    1,
+			expectValue:  "好",
+			expectCursor: 0,
+		},
+		{
+			name:         "empty string",
+			value:        "",
+			cursorPos:    0,
+			expectValue:  "",
+			expectCursor: 0,
+		},
+		{
+			name:         "cursor at start",
+			value:        "你好",
+			cursorPos:    0,
+			expectValue:  "你好",
+			expectCursor: 0,
+		},
+		{
+			name:         "combining character (e + accent)",
+			value:        "e\u0301", // é as combining sequence
+			cursorPos:    2,
+			expectValue:  "",
+			expectCursor: 0,
+		},
+		{
+			name:         "mixed ASCII and Chinese",
+			value:        "hello你好",
+			cursorPos:    7,
+			expectValue:  "hello你",
+			expectCursor: 6,
+		},
+		{
+			name:         "delete ASCII character",
+			value:        "hello",
+			cursorPos:    5,
+			expectValue:  "hell",
+			expectCursor: 4,
+		},
 	}
-	if got := string(buffer); got != "你" {
-		t.Fatalf("expected buffer to be 你, got %q", got)
-	}
-	if cursorPos != 1 {
-		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
-	}
-}
 
-func TestApplyIMEKeyBackspaceGrapheme(t *testing.T) {
-	buffer := []rune("e\u0301")
-	buffer, cursorPos, handled := applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyBackspace})
-	if !handled {
-		t.Fatal("expected backspace to be handled")
-	}
-	if got := string(buffer); got != "" {
-		t.Fatalf("expected buffer to be empty, got %q", got)
-	}
-	if cursorPos != 0 {
-		t.Fatalf("expected cursor at position 0, got %d", cursorPos)
-	}
-}
-
-func TestApplyIMEKeyBackspaceRune(t *testing.T) {
-	buffer := []rune("你好")
-	buffer, cursorPos, handled := applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{127}})
-	if !handled {
-		t.Fatal("expected rune backspace to be handled")
-	}
-	if got := string(buffer); got != "你" {
-		t.Fatalf("expected buffer to be 你, got %q", got)
-	}
-	if cursorPos != 1 {
-		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
-	}
-
-	buffer = []rune("你好")
-	buffer, cursorPos, handled = applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{8}})
-	if !handled {
-		t.Fatal("expected ctrl+h rune to be handled")
-	}
-	if got := string(buffer); got != "你" {
-		t.Fatalf("expected buffer to be 你, got %q", got)
-	}
-	if cursorPos != 1 {
-		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
-	}
-}
-
-func TestApplyIMEKeyUnrelatedKey(t *testing.T) {
-	buffer := []rune("hello")
-	updated, cursorPos, handled := applyIMEKey(buffer, 5, tea.KeyMsg{Type: tea.KeyEnter})
-	if handled {
-		t.Fatal("expected enter not to be handled")
-	}
-	if got := string(updated); got != "hello" {
-		t.Fatalf("expected buffer unchanged, got %q", got)
-	}
-	if cursorPos != 5 {
-		t.Fatalf("expected cursor unchanged at position 5, got %d", cursorPos)
-	}
-}
-
-func TestApplyIMEKeyBackspaceInMiddle(t *testing.T) {
-	// Test deleting in the middle: "你好世界" with cursor after "好"
-	buffer := []rune("你好世界")
-	// Cursor is at position 2 (after "你好")
-	buffer, cursorPos, handled := applyIMEKey(buffer, 2, tea.KeyMsg{Type: tea.KeyBackspace})
-	if !handled {
-		t.Fatal("expected backspace to be handled")
-	}
-	if got := string(buffer); got != "你世界" {
-		t.Fatalf("expected buffer to be 你世界, got %q", got)
-	}
-	if cursorPos != 1 {
-		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
-	}
-}
-
-func TestApplyIMEKeyInsertInMiddle(t *testing.T) {
-	// Test inserting in the middle: "你界" with cursor after "你"
-	buffer := []rune("你界")
-	// Insert "好世" at position 1
-	buffer, cursorPos, handled := applyIMEKey(buffer, 1, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("好世")})
-	if !handled {
-		t.Fatal("expected runes to be handled")
-	}
-	if got := string(buffer); got != "你好世界" {
-		t.Fatalf("expected buffer to be 你好世界, got %q", got)
-	}
-	if cursorPos != 3 {
-		t.Fatalf("expected cursor at position 3, got %d", cursorPos)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			newValue, newCursor := applyGraphemeBackspace(tc.value, tc.cursorPos)
+			if newValue != tc.expectValue {
+				t.Errorf("expected value %q, got %q", tc.expectValue, newValue)
+			}
+			if newCursor != tc.expectCursor {
+				t.Errorf("expected cursor %d, got %d", tc.expectCursor, newCursor)
+			}
+		})
 	}
 }
 

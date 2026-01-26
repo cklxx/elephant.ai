@@ -32,116 +32,66 @@ func shouldUseIMEInput(envLookup func(string) (string, bool)) bool {
 	return false
 }
 
-func applyIMEKey(buffer []rune, cursorPos int, msg tea.KeyMsg) (newBuffer []rune, newCursorPos int, handled bool) {
+// isBackspaceKey returns true if the key message represents a backspace action
+func isBackspaceKey(msg tea.KeyMsg) bool {
 	switch msg.String() {
 	case "ctrl+h", "backspace", "delete", "del":
-		newBuffer, newCursorPos = deleteGraphemeAtCursor(buffer, cursorPos)
-		return newBuffer, newCursorPos, true
+		return true
 	}
 
 	switch msg.Type {
+	case tea.KeyBackspace, tea.KeyDelete:
+		return true
 	case tea.KeyRunes:
 		if len(msg.Runes) == 1 {
 			switch msg.Runes[0] {
-			case 8, 127:
-				newBuffer, newCursorPos = deleteGraphemeAtCursor(buffer, cursorPos)
-				return newBuffer, newCursorPos, true
+			case 8, 127: // ctrl+h or DEL character
+				return true
 			}
 		}
-		if len(msg.Runes) == 0 {
-			return buffer, cursorPos, true
-		}
-		// Insert at cursor position
-		newBuffer = make([]rune, 0, len(buffer)+len(msg.Runes))
-		newBuffer = append(newBuffer, buffer[:cursorPos]...)
-		newBuffer = append(newBuffer, msg.Runes...)
-		newBuffer = append(newBuffer, buffer[cursorPos:]...)
-		return newBuffer, cursorPos + len(msg.Runes), true
-	case tea.KeySpace:
-		newBuffer = make([]rune, 0, len(buffer)+1)
-		newBuffer = append(newBuffer, buffer[:cursorPos]...)
-		newBuffer = append(newBuffer, ' ')
-		newBuffer = append(newBuffer, buffer[cursorPos:]...)
-		return newBuffer, cursorPos + 1, true
-	case tea.KeyTab:
-		newBuffer = make([]rune, 0, len(buffer)+1)
-		newBuffer = append(newBuffer, buffer[:cursorPos]...)
-		newBuffer = append(newBuffer, '\t')
-		newBuffer = append(newBuffer, buffer[cursorPos:]...)
-		return newBuffer, cursorPos + 1, true
-	case tea.KeyBackspace, tea.KeyDelete:
-		newBuffer, newCursorPos = deleteGraphemeAtCursor(buffer, cursorPos)
-		return newBuffer, newCursorPos, true
-	default:
-		return buffer, cursorPos, false
 	}
+	return false
 }
 
-// deleteGraphemeAtCursor deletes the grapheme cluster before the cursor position
-// cursorPos is in rune index, not byte index
-func deleteGraphemeAtCursor(buffer []rune, cursorPos int) ([]rune, int) {
-	if len(buffer) == 0 || cursorPos == 0 {
-		return buffer, cursorPos
+// applyGraphemeBackspace performs grapheme-aware backspace on the given value and cursor position.
+// Returns the new value and new cursor position.
+func applyGraphemeBackspace(value string, cursorPos int) (string, int) {
+	runes := []rune(value)
+	if len(runes) == 0 || cursorPos == 0 {
+		return value, cursorPos
 	}
 
-	// Convert to string for grapheme analysis
-	content := string(buffer)
-
-	// Build a map from byte position to rune position
-	byteToRune := make(map[int]int)
-	runePos := 0
-	for bytePos := range content {
-		byteToRune[bytePos] = runePos
-		runePos++
+	// Clamp cursor position
+	if cursorPos > len(runes) {
+		cursorPos = len(runes)
 	}
-	byteToRune[len(content)] = len(buffer)
 
-	// Find all grapheme boundaries (in byte positions)
-	graphemes := uniseg.NewGraphemes(content)
-	type boundary struct {
-		bytePos int
-		runePos int
-	}
-	var boundaries []boundary
-	boundaries = append(boundaries, boundary{0, 0})
+	// Find grapheme cluster boundaries
+	graphemes := uniseg.NewGraphemes(value)
+	var boundaries []int
+	boundaries = append(boundaries, 0)
 
+	runeIdx := 0
 	for graphemes.Next() {
-		_, endByte := graphemes.Positions()
-		if endByte <= len(content) {
-			boundaries = append(boundaries, boundary{endByte, byteToRune[endByte]})
-		}
+		runeCount := len([]rune(graphemes.Str()))
+		runeIdx += runeCount
+		boundaries = append(boundaries, runeIdx)
 	}
 
-	// Find the grapheme boundary before cursor position (in rune index)
-	deleteFromRune := 0
+	// Find the grapheme boundary before cursor position
+	deleteFrom := 0
 	for i := len(boundaries) - 1; i >= 0; i-- {
-		if boundaries[i].runePos < cursorPos {
-			deleteFromRune = boundaries[i].runePos
+		if boundaries[i] < cursorPos {
+			deleteFrom = boundaries[i]
 			break
 		}
 	}
 
-	// Delete the grapheme cluster (using rune indices)
-	newBuffer := make([]rune, 0, len(buffer))
-	newBuffer = append(newBuffer, buffer[:deleteFromRune]...)
-	newBuffer = append(newBuffer, buffer[cursorPos:]...)
+	// Build new value
+	newRunes := make([]rune, 0, len(runes))
+	newRunes = append(newRunes, runes[:deleteFrom]...)
+	newRunes = append(newRunes, runes[cursorPos:]...)
 
-	return newBuffer, deleteFromRune
+	return string(newRunes), deleteFrom
 }
 
-func deleteLastGrapheme(buffer []rune) []rune {
-	if len(buffer) == 0 {
-		return buffer
-	}
-	content := string(buffer)
-	graphemes := uniseg.NewGraphemes(content)
-	lastStart := -1
-	for graphemes.Next() {
-		start, _ := graphemes.Positions()
-		lastStart = start
-	}
-	if lastStart <= 0 {
-		return nil
-	}
-	return []rune(content[:lastStart])
-}
