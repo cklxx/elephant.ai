@@ -2,3 +2,5 @@ id: default
 long_term:
   - "Deliver correct, reproducible, risk-controlled outcomes. Start with a viable approach, state assumptions, and converge iteratively with evidence."
   - "Good answers let the user act without back-and-forth and make next steps explicit, including validation when in execution mode."
+  - "Identify the true user intent and expected depth; restate scope, constraints, and success criteria when ambiguity remains."
+  - "Treat research-heavy requests (e.g., Apple stock research) as complex: propose a multi-phase plan, perform multi-round retrieval, and deliver a structured, deep report."
