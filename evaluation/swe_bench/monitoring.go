@@ -8,6 +8,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"alex/internal/async"
 )
 
 // ProgressReporterImpl implements the ProgressReporter interface
@@ -40,7 +42,9 @@ func (pr *ProgressReporterImpl) Start(ctx context.Context) error {
 	pr.ticker = time.NewTicker(10 * time.Second)
 	pr.isRunning = true
 
-	go pr.reportingLoop(ctx)
+	async.Go(panicLogger{}, "swe-bench.progress", func() {
+		pr.reportingLoop(ctx)
+	})
 
 	return nil
 }
@@ -186,7 +190,9 @@ func (m *MonitorImpl) StartMonitoring(ctx context.Context) error {
 	m.isRunning = true
 
 	// Start monitoring goroutine
-	go m.monitoringLoop(ctx)
+	async.Go(panicLogger{}, "swe-bench.monitor", func() {
+		m.monitoringLoop(ctx)
+	})
 
 	return nil
 }

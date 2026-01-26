@@ -7,6 +7,8 @@ import (
 	"math/rand"
 	"sync"
 	"time"
+
+	"alex/internal/async"
 )
 
 // BatchProcessorImpl implements the BatchProcessor interface
@@ -82,7 +84,9 @@ func (bp *BatchProcessorImpl) ProcessBatch(ctx context.Context, instances []Inst
 	}()
 
 	// Submit tasks to worker pool
-	go bp.submitTasks(ctx, instances)
+	async.Go(panicLogger{}, "swe-bench.submit", func() {
+		bp.submitTasks(ctx, instances)
+	})
 
 	// Collect results
 	results, err := bp.collectResults(ctx)

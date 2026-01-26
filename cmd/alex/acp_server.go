@@ -14,6 +14,7 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/presets"
+	"alex/internal/async"
 	"alex/internal/logging"
 	"alex/internal/tools/builtin"
 
@@ -107,10 +108,14 @@ func (s *acpServer) Serve(ctx context.Context, in io.Reader, out io.Writer) erro
 		}
 
 		if req.IsNotification() {
-			go s.handleNotification(ctx, req, clientID)
+			async.Go(s.logger, "acp.notification", func() {
+				s.handleNotification(ctx, req, clientID)
+			})
 			continue
 		}
-		go s.handleRequest(ctx, req, clientID)
+		async.Go(s.logger, "acp.request", func() {
+			s.handleRequest(ctx, req, clientID)
+		})
 	}
 }
 

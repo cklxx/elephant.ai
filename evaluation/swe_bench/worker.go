@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"alex/internal/async"
 )
 
 // WorkerPoolImpl implements the WorkerPool interface
@@ -92,7 +94,9 @@ func (wp *WorkerPoolImpl) Start(ctx context.Context) error {
 
 		// Start worker goroutine
 		wp.wg.Add(1)
-		go wp.workerLoop(worker)
+		async.Go(panicLogger{}, "swe-bench.worker", func() {
+			wp.workerLoop(worker)
+		})
 	}
 
 	wp.isStarted = true
@@ -118,10 +122,10 @@ func (wp *WorkerPoolImpl) Stop(ctx context.Context) error {
 
 	// Wait for workers to finish with timeout
 	done := make(chan struct{})
-	go func() {
+	async.Go(panicLogger{}, "swe-bench.worker-wait", func() {
+		defer close(done)
 		wp.wg.Wait()
-		close(done)
-	}()
+	})
 
 	select {
 	case <-done:
@@ -273,10 +277,10 @@ func (wp *WorkerPoolImpl) processTask(worker *Worker, task WorkerTask) WorkerRes
 	var err error
 
 	done := make(chan struct{})
-	go func() {
+	async.Go(panicLogger{}, "swe-bench.process-instance", func() {
 		defer close(done)
 		result, err = worker.agent.ProcessInstance(ctx, task.Instance)
-	}()
+	})
 
 	select {
 	case <-done:

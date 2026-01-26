@@ -11,6 +11,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"alex/internal/async"
+
 	"alex/evaluation/swe_bench"
 )
 
@@ -113,7 +115,9 @@ func (em *EvaluationManager) ScheduleEvaluation(ctx context.Context, config *Eva
 	em.activeJobs[jobID] = job
 
 	// 异步执行评估
-	go em.executeEvaluation(ctx, job)
+	async.Go(panicLogger{}, "agent-eval.execute", func() {
+		em.executeEvaluation(ctx, job)
+	})
 
 	return job, nil
 }

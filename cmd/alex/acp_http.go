@@ -13,6 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"alex/internal/async"
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
 )
@@ -96,12 +97,16 @@ func (h *acpHTTPServer) handleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.IsNotification() {
-		go h.server.handleNotification(context.Background(), req, clientID)
+		async.Go(h.logger, "acp.http.notification", func() {
+			h.server.handleNotification(context.Background(), req, clientID)
+		})
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
 
-	go h.server.handleRequest(context.Background(), req, clientID)
+	async.Go(h.logger, "acp.http.request", func() {
+		h.server.handleRequest(context.Background(), req, clientID)
+	})
 	w.WriteHeader(http.StatusAccepted)
 }
 
