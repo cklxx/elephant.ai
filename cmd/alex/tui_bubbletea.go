@@ -304,11 +304,12 @@ func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.imeMode {
-		updated, handled := applyIMEKey(m.imeBuffer, msg)
+		cursorPos := m.input.Position()
+		updated, newCursorPos, handled := applyIMEKey(m.imeBuffer, cursorPos, msg)
 		if handled {
 			m.imeBuffer = updated
 			m.input.SetValue(string(m.imeBuffer))
-			m.input.CursorEnd()
+			m.input.SetCursor(newCursorPos)
 			return m, nil
 		}
 	}

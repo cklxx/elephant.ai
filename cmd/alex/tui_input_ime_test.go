@@ -7,65 +7,115 @@ import (
 )
 
 func TestApplyIMEKeyInsertsRunes(t *testing.T) {
-	buffer, handled := applyIMEKey(nil, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("你好")})
+	buffer, cursorPos, handled := applyIMEKey(nil, 0, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("你好")})
 	if !handled {
 		t.Fatal("expected key to be handled")
 	}
 	if got := string(buffer); got != "你好" {
 		t.Fatalf("expected buffer to be 你好, got %q", got)
 	}
+	if cursorPos != 2 {
+		t.Fatalf("expected cursor at position 2, got %d", cursorPos)
+	}
 }
 
 func TestApplyIMEKeyBackspace(t *testing.T) {
 	buffer := []rune("你好")
-	buffer, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyBackspace})
+	buffer, cursorPos, handled := applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyBackspace})
 	if !handled {
 		t.Fatal("expected backspace to be handled")
 	}
 	if got := string(buffer); got != "你" {
 		t.Fatalf("expected buffer to be 你, got %q", got)
 	}
+	if cursorPos != 1 {
+		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
+	}
 }
 
 func TestApplyIMEKeyBackspaceGrapheme(t *testing.T) {
 	buffer := []rune("e\u0301")
-	buffer, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyBackspace})
+	buffer, cursorPos, handled := applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyBackspace})
 	if !handled {
 		t.Fatal("expected backspace to be handled")
 	}
 	if got := string(buffer); got != "" {
 		t.Fatalf("expected buffer to be empty, got %q", got)
 	}
+	if cursorPos != 0 {
+		t.Fatalf("expected cursor at position 0, got %d", cursorPos)
+	}
 }
 
 func TestApplyIMEKeyBackspaceRune(t *testing.T) {
 	buffer := []rune("你好")
-	buffer, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{127}})
+	buffer, cursorPos, handled := applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{127}})
 	if !handled {
 		t.Fatal("expected rune backspace to be handled")
 	}
 	if got := string(buffer); got != "你" {
 		t.Fatalf("expected buffer to be 你, got %q", got)
 	}
+	if cursorPos != 1 {
+		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
+	}
 
 	buffer = []rune("你好")
-	buffer, handled = applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{8}})
+	buffer, cursorPos, handled = applyIMEKey(buffer, len(buffer), tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{8}})
 	if !handled {
 		t.Fatal("expected ctrl+h rune to be handled")
 	}
 	if got := string(buffer); got != "你" {
 		t.Fatalf("expected buffer to be 你, got %q", got)
 	}
+	if cursorPos != 1 {
+		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
+	}
 }
 
 func TestApplyIMEKeyUnrelatedKey(t *testing.T) {
 	buffer := []rune("hello")
-	updated, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyEnter})
+	updated, cursorPos, handled := applyIMEKey(buffer, 5, tea.KeyMsg{Type: tea.KeyEnter})
 	if handled {
 		t.Fatal("expected enter not to be handled")
 	}
 	if got := string(updated); got != "hello" {
 		t.Fatalf("expected buffer unchanged, got %q", got)
+	}
+	if cursorPos != 5 {
+		t.Fatalf("expected cursor unchanged at position 5, got %d", cursorPos)
+	}
+}
+
+func TestApplyIMEKeyBackspaceInMiddle(t *testing.T) {
+	// Test deleting in the middle: "你好世界" with cursor after "好"
+	buffer := []rune("你好世界")
+	// Cursor is at position 2 (after "你好")
+	buffer, cursorPos, handled := applyIMEKey(buffer, 2, tea.KeyMsg{Type: tea.KeyBackspace})
+	if !handled {
+		t.Fatal("expected backspace to be handled")
+	}
+	if got := string(buffer); got != "你世界" {
+		t.Fatalf("expected buffer to be 你世界, got %q", got)
+	}
+	if cursorPos != 1 {
+		t.Fatalf("expected cursor at position 1, got %d", cursorPos)
+	}
+}
+
+func TestApplyIMEKeyInsertInMiddle(t *testing.T) {
+	// Test inserting in the middle: "你界" with cursor after "你"
+	buffer := []rune("你界")
+	// Insert "好世" at position 1
+	buffer, cursorPos, handled := applyIMEKey(buffer, 1, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("好世")})
+	if !handled {
+		t.Fatal("expected runes to be handled")
+	}
+	if got := string(buffer); got != "你好世界" {
+		t.Fatalf("expected buffer to be 你好世界, got %q", got)
+	}
+	if cursorPos != 3 {
+		t.Fatalf("expected cursor at position 3, got %d", cursorPos)
 	}
 }
 
