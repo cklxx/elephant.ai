@@ -33,12 +33,19 @@ func shouldUseIMEInput(envLookup func(string) (string, bool)) bool {
 }
 
 func applyIMEKey(buffer []rune, msg tea.KeyMsg) ([]rune, bool) {
-	if msg.String() == "ctrl+h" {
+	switch msg.String() {
+	case "ctrl+h", "backspace", "delete", "del":
 		return deleteLastGrapheme(buffer), true
 	}
 
 	switch msg.Type {
 	case tea.KeyRunes:
+		if len(msg.Runes) == 1 {
+			switch msg.Runes[0] {
+			case 8, 127:
+				return deleteLastGrapheme(buffer), true
+			}
+		}
 		if len(msg.Runes) == 0 {
 			return buffer, true
 		}

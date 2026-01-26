@@ -38,6 +38,26 @@ func TestApplyIMEKeyBackspaceGrapheme(t *testing.T) {
 	}
 }
 
+func TestApplyIMEKeyBackspaceRune(t *testing.T) {
+	buffer := []rune("你好")
+	buffer, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{127}})
+	if !handled {
+		t.Fatal("expected rune backspace to be handled")
+	}
+	if got := string(buffer); got != "你" {
+		t.Fatalf("expected buffer to be 你, got %q", got)
+	}
+
+	buffer = []rune("你好")
+	buffer, handled = applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{8}})
+	if !handled {
+		t.Fatal("expected ctrl+h rune to be handled")
+	}
+	if got := string(buffer); got != "你" {
+		t.Fatalf("expected buffer to be 你, got %q", got)
+	}
+}
+
 func TestApplyIMEKeyUnrelatedKey(t *testing.T) {
 	buffer := []rune("hello")
 	updated, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyEnter})

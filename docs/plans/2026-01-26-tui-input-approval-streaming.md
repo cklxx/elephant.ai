@@ -19,3 +19,4 @@
 - 2026-01-26: Enabled CLI approver (session-wide allow), IME-aware TUI input, and typewriter streaming; defaulted local exec builds and kept sandbox tools off in CLI preset.
 - 2026-01-26: Tests updated/added; ran `make fmt`, `make vet`, `make test`.
 - 2026-01-26: Added grapheme-aware backspace handling and buffered CLI stream writer; ran `make fmt`, `make vet`, `make test`.
+- 2026-01-26: Handled backspace/delete key variants (DEL/BS runes) for IME input; tests updated.
