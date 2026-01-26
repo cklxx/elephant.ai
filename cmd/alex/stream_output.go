@@ -49,6 +49,7 @@ type StreamingOutputHandler struct {
 	lastStreamChunkEndedWithNewline bool
 	startedAt                       time.Time
 	firstTokenLogged                bool
+	streamWriter                    *streamWriter
 }
 
 var ErrForceExit = errors.New("force exit requested by user")
@@ -160,7 +161,7 @@ func (b *markdownStreamBuffer) FlushAll() string {
 }
 
 func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOutputHandler {
-	return &StreamingOutputHandler{
+	handler := &StreamingOutputHandler{
 		container:       container,
 		renderer:        output.NewCLIRenderer(verbose),
 		activeTools:     make(map[string]ToolInfo),
@@ -169,15 +170,23 @@ func NewStreamingOutputHandler(container *Container, verbose bool) *StreamingOut
 		out:             os.Stdout,
 		mdBuffer:        newMarkdownStreamBuffer(),
 	}
+	handler.streamWriter = newStreamWriter(handler.out)
+	return handler
 }
 
 // SetOutputWriter allows overriding the output writer, primarily for testing
 func (h *StreamingOutputHandler) SetOutputWriter(w io.Writer) {
 	if w == nil {
 		h.out = os.Stdout
+		if h.streamWriter != nil {
+			h.streamWriter.out = h.out
+		}
 		return
 	}
 	h.out = w
+	if h.streamWriter != nil {
+		h.streamWriter.out = h.out
+	}
 }
 
 // RunTaskWithStreamOutput executes a task with inline streaming output
@@ -218,6 +227,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	handler := NewStreamingOutputHandler(container, verbose)
 	handler.ctx = ctx // Store context for OutputContext lookup
 	handler.startedAt = time.Now()
+	handler.streamWriter = newStreamWriter(handler.out)
 	handler.printTaskStart(task)
 
 	// Create event bridge
@@ -346,7 +356,7 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 				h.firstTokenLogged = true
 			}
 			rendered := h.renderer.RenderMarkdownStreamChunk(chunk.content, chunk.completeLine)
-			emitTypewriter(rendered, h.write)
+			h.streamWriter.WriteChunk(rendered)
 			h.lastStreamChunkEndedWithNewline = strings.HasSuffix(rendered, "\n")
 		}
 	}
@@ -354,23 +364,25 @@ func (h *StreamingOutputHandler) onAssistantMessage(event *domain.WorkflowNodeOu
 		trailing := h.mdBuffer.FlushAll()
 		if trailing != "" {
 			rendered := h.renderer.RenderMarkdownStreamChunk(trailing, false)
-			emitTypewriter(rendered, h.write)
+			h.streamWriter.WriteChunk(rendered)
 			if strings.HasSuffix(rendered, "\n") {
 				h.lastStreamChunkEndedWithNewline = true
 			} else {
 				h.lastStreamChunkEndedWithNewline = false
-				h.write("\n")
+				h.streamWriter.WriteChunk("\n")
 				h.lastStreamChunkEndedWithNewline = true
 			}
 		} else if !h.lastStreamChunkEndedWithNewline {
-			h.write("\n")
+			h.streamWriter.WriteChunk("\n")
 			h.lastStreamChunkEndedWithNewline = true
 		}
 		h.renderer.ResetMarkdownStreamState()
+		h.streamWriter.Flush()
 	}
 }
 
 func (h *StreamingOutputHandler) onToolCallStart(event *domain.WorkflowToolStartedEvent) {
+	h.streamWriter.Flush()
 	h.activeTools[event.CallID] = ToolInfo{
 		Name:      event.ToolName,
 		StartTime: event.Timestamp(),
@@ -396,6 +408,7 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.WorkflowToolCo
 	if !exists {
 		return
 	}
+	h.streamWriter.Flush()
 
 	// Use agent level from event
 	outCtx := &types.OutputContext{
@@ -416,6 +429,7 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.WorkflowToolCo
 }
 
 func (h *StreamingOutputHandler) onError(event *domain.WorkflowNodeFailedEvent) {
+	h.streamWriter.Flush()
 	outCtx := &types.OutputContext{
 		Level:        event.GetAgentLevel(),
 		AgentID:      string(event.GetAgentLevel()),
@@ -435,6 +449,7 @@ func (h *StreamingOutputHandler) onTaskComplete(event *domain.WorkflowResultFina
 }
 
 func (h *StreamingOutputHandler) printTaskStart(task string) {
+	h.streamWriter.Flush()
 	ids := id.IDsFromContext(h.ctx)
 	outCtx := &types.OutputContext{
 		Level:        types.LevelCore,
@@ -450,6 +465,7 @@ func (h *StreamingOutputHandler) printTaskStart(task string) {
 }
 
 func (h *StreamingOutputHandler) printCompletion(result *agent.TaskResult) {
+	h.streamWriter.Flush()
 	outCtx := &types.OutputContext{
 		Level:        types.LevelCore,
 		AgentID:      "core",
@@ -493,6 +509,7 @@ func (h *StreamingOutputHandler) consumeTaskCompletion() *domain.WorkflowResultF
 
 // handleSubtaskEvent handles events from subtasks with simple line-by-line output
 func (h *StreamingOutputHandler) handleSubtaskEvent(subtaskEvent *builtin.SubtaskEvent) {
+	h.streamWriter.Flush()
 	lines := h.subagentDisplay.Handle(subtaskEvent)
 	for _, line := range lines {
 		h.write(line)
@@ -510,6 +527,53 @@ func (h *StreamingOutputHandler) write(rendered string) {
 	if f, ok := h.out.(flusher); ok {
 		_ = f.Flush()
 	}
+}
+
+type streamWriter struct {
+	out       io.Writer
+	maxRunes  int
+	maxDelay  time.Duration
+	lastFlush time.Time
+	runes     int
+	builder   strings.Builder
+}
+
+func newStreamWriter(out io.Writer) *streamWriter {
+	return &streamWriter{
+		out:      out,
+		maxRunes: 8,
+		maxDelay: 12 * time.Millisecond,
+	}
+}
+
+func (w *streamWriter) WriteChunk(chunk string) {
+	if chunk == "" {
+		return
+	}
+
+	for _, r := range chunk {
+		w.builder.WriteRune(r)
+		w.runes++
+		if r == '\n' || w.runes >= w.maxRunes || (w.maxDelay > 0 && !w.lastFlush.IsZero() && time.Since(w.lastFlush) >= w.maxDelay) {
+			w.flush()
+		}
+	}
+}
+
+func (w *streamWriter) Flush() {
+	w.flush()
+}
+
+func (w *streamWriter) flush() {
+	if w.runes == 0 {
+		return
+	}
+	if _, err := fmt.Fprint(w.out, w.builder.String()); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "stream output write error: %v\n", err)
+	}
+	w.builder.Reset()
+	w.runes = 0
+	w.lastFlush = time.Now()
 }
 
 func (b *StreamEventBridge) handleEnvelopeEvent(env *domain.WorkflowEventEnvelope) {

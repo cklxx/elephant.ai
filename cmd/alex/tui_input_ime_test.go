@@ -27,6 +27,17 @@ func TestApplyIMEKeyBackspace(t *testing.T) {
 	}
 }
 
+func TestApplyIMEKeyBackspaceGrapheme(t *testing.T) {
+	buffer := []rune("e\u0301")
+	buffer, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyBackspace})
+	if !handled {
+		t.Fatal("expected backspace to be handled")
+	}
+	if got := string(buffer); got != "" {
+		t.Fatalf("expected buffer to be empty, got %q", got)
+	}
+}
+
 func TestApplyIMEKeyUnrelatedKey(t *testing.T) {
 	buffer := []rune("hello")
 	updated, handled := applyIMEKey(buffer, tea.KeyMsg{Type: tea.KeyEnter})

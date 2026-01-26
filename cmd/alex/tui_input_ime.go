@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/rivo/uniseg"
 )
 
 func shouldUseIMEInput(envLookup func(string) (string, bool)) bool {
@@ -32,6 +33,10 @@ func shouldUseIMEInput(envLookup func(string) (string, bool)) bool {
 }
 
 func applyIMEKey(buffer []rune, msg tea.KeyMsg) ([]rune, bool) {
+	if msg.String() == "ctrl+h" {
+		return deleteLastGrapheme(buffer), true
+	}
+
 	switch msg.Type {
 	case tea.KeyRunes:
 		if len(msg.Runes) == 0 {
@@ -46,12 +51,25 @@ func applyIMEKey(buffer []rune, msg tea.KeyMsg) ([]rune, bool) {
 		buffer = append(buffer, '\t')
 		return buffer, true
 	case tea.KeyBackspace, tea.KeyDelete:
-		if len(buffer) == 0 {
-			return buffer, true
-		}
-		buffer = buffer[:len(buffer)-1]
-		return buffer, true
+		return deleteLastGrapheme(buffer), true
 	default:
 		return buffer, false
 	}
+}
+
+func deleteLastGrapheme(buffer []rune) []rune {
+	if len(buffer) == 0 {
+		return buffer
+	}
+	content := string(buffer)
+	graphemes := uniseg.NewGraphemes(content)
+	lastStart := -1
+	for graphemes.Next() {
+		start, _ := graphemes.Positions()
+		lastStart = start
+	}
+	if lastStart <= 0 {
+		return nil
+	}
+	return []rune(content[:lastStart])
 }
