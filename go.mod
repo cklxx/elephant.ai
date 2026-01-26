@@ -23,6 +23,7 @@ require (
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/posthog/posthog-go v1.6.12
 	github.com/prometheus/client_golang v1.23.2
+	github.com/rivo/uniseg v0.4.7
 	github.com/segmentio/ksuid v1.0.4
 	github.com/stretchr/testify v1.11.1
 	github.com/volcengine/volcengine-go-sdk v1.1.47
@@ -87,7 +88,6 @@ require (
 	github.com/prometheus/common v0.66.1 // indirect
 	github.com/prometheus/otlptranslator v0.0.2 // indirect
 	github.com/prometheus/procfs v0.17.0 // indirect
-	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/xid v1.5.0 // indirect
 	github.com/volcengine/volc-sdk-golang v1.0.226 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
