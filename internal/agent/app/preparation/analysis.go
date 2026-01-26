@@ -11,6 +11,7 @@ import (
 	llm "alex/internal/agent/ports/llm"
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/utils/clilatency"
+	id "alex/internal/utils/id"
 )
 
 func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *storage.Session, task string) (*agent.TaskAnalysis, bool) {
@@ -40,6 +41,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		taskNameRule = `- task_name must be an empty string because the session already has a title.` + "\n\n"
 	}
 
+	requestID := id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{
@@ -61,6 +63,9 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		},
 		Temperature: 0.2,
 		MaxTokens:   320,
+		Metadata: map[string]any{
+			"request_id": requestID,
+		},
 	}
 
 	preanalysisStarted := time.Now()

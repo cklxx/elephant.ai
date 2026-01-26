@@ -68,10 +68,10 @@ func TestWebFetchAnalyzeLLMLogsRequestAndResponse(t *testing.T) {
 	}
 
 	content := string(data)
-	if !strings.Contains(content, "[req:tool-call-123] [request]") {
+	if !strings.Contains(content, "tool-call-123] [request]") {
 		t.Fatalf("request payload not logged, content: %s", content)
 	}
-	if !strings.Contains(content, "[req:tool-call-123] [response]") {
+	if !strings.Contains(content, "tool-call-123] [response]") {
 		t.Fatalf("response payload not logged, content: %s", content)
 	}
 }

@@ -171,7 +171,7 @@ func extractPlanSessionTitle(metadata map[string]any) string {
 	return ""
 }
 
-func (c *AgentCoordinator) persistSessionTitle(sessionID string, title string) {
+func (c *AgentCoordinator) persistSessionTitle(ctx context.Context, sessionID string, title string) {
 	if c == nil || c.sessionStore == nil {
 		return
 	}
@@ -180,13 +180,18 @@ func (c *AgentCoordinator) persistSessionTitle(sessionID string, title string) {
 		return
 	}
 
-	async.Go(c.logger, "session-title-update", func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	logger := c.loggerFor(ctx)
+	async.Go(logger, "session-title-update", func() {
+		updateCtx := context.Background()
+		if logID := id.LogIDFromContext(ctx); logID != "" {
+			updateCtx = id.WithLogID(updateCtx, logID)
+		}
+		updateCtx, cancel := context.WithTimeout(updateCtx, 2*time.Second)
 		defer cancel()
 
-		session, err := c.sessionStore.Get(ctx, sessionID)
+		session, err := c.sessionStore.Get(updateCtx, sessionID)
 		if err != nil {
-			c.logger.Warn("Failed to load session for title update: %v", err)
+			logger.Warn("Failed to load session for title update: %v", err)
 			return
 		}
 		if session.Metadata == nil {
@@ -196,8 +201,8 @@ func (c *AgentCoordinator) persistSessionTitle(sessionID string, title string) {
 			return
 		}
 		session.Metadata["title"] = title
-		if err := c.sessionStore.Save(ctx, session); err != nil {
-			c.logger.Warn("Failed to persist session title: %v", err)
+		if err := c.sessionStore.Save(updateCtx, session); err != nil {
+			logger.Warn("Failed to persist session title: %v", err)
 		}
 	})
 }
@@ -209,6 +214,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	sessionID string,
 	listener agent.EventListener,
 ) (*agent.TaskResult, error) {
+	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
+	logger := c.loggerFor(ctx)
 	prepareStarted := time.Now()
 	// Decorate the listener with the workflow envelope translator so downstream
 	// consumers receive workflow event envelopes.
@@ -218,7 +225,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		planTitleRecorder = &planSessionTitleRecorder{
 			sink: eventListener,
 			onTitle: func(title string) {
-				c.persistSessionTitle(sessionID, title)
+				c.persistSessionTitle(ctx, sessionID, title)
 			},
 		}
 		eventListener = planTitleRecorder
@@ -248,7 +255,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		outCtx.ParentTaskID = ids.ParentTaskID
 	}
 	ctx = agent.WithOutputContext(ctx, outCtx)
-	c.logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
+	logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
 	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
@@ -298,12 +305,12 @@ func (c *AgentCoordinator) ExecuteTask(
 	ctx = id.WithSessionID(ctx, env.Session.ID)
 
 	// Create ReactEngine and configure listener
-	c.logger.Info("Delegating to ReactEngine...")
+	logger.Info("Delegating to ReactEngine...")
 	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
 
 	reactEngine := react.NewReactEngine(react.ReactEngineConfig{
 		MaxIterations:      c.config.MaxIterations,
-		Logger:             c.logger,
+		Logger:             logger,
 		Clock:              c.clock,
 		CompletionDefaults: completionDefaults,
 		AttachmentMigrator: c.attachmentMigrator,
@@ -312,11 +319,11 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	if eventListener != nil {
 		// DO NOT log listener objects to avoid leaking sensitive information.
-		c.logger.Debug("Listener provided")
+		logger.Debug("Listener provided")
 		reactEngine.SetEventListener(eventListener)
-		c.logger.Info("Event listener successfully set on ReactEngine")
+		logger.Info("Event listener successfully set on ReactEngine")
 	} else {
-		c.logger.Warn("No listener provided to ExecuteTask")
+		logger.Warn("No listener provided to ExecuteTask")
 	}
 
 	wf.start(stageExecute)
@@ -335,7 +342,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	if ctx.Err() != nil {
-		c.logger.Info("Task execution cancelled: %v", ctx.Err())
+		logger.Info("Task execution cancelled: %v", ctx.Err())
 		c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "cancelled")
 		return attachWorkflow(result, env), ctx.Err()
 	}
@@ -357,16 +364,16 @@ func (c *AgentCoordinator) ExecuteTask(
 	wf.succeed(stageSummarize, map[string]any{"answer_preview": answerPreview})
 
 	if executionErr != nil {
-		c.logger.Error("Task execution failed: %v", executionErr)
+		logger.Error("Task execution failed: %v", executionErr)
 	}
 
 	// Log session-level cost/token metrics
 	if c.costTracker != nil {
 		sessionStats, err := c.costTracker.GetSessionStats(ctx, env.Session.ID)
 		if err != nil {
-			c.logger.Warn("Failed to get session stats: %v", err)
+			logger.Warn("Failed to get session stats: %v", err)
 		} else {
-			c.logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
+			logger.Info("Session summary: requests=%d, total_tokens=%d (input=%d, output=%d), cost=$%.6f, duration=%v",
 				sessionStats.RequestCount, sessionStats.TotalTokens,
 				sessionStats.InputTokens, sessionStats.OutputTokens,
 				sessionStats.TotalCost, sessionStats.Duration)
@@ -377,7 +384,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	// mutate the parent session state).
 	wf.start(stagePersist)
 	if appcontext.IsSubagentContext(ctx) {
-		c.logger.Debug("Skipping session persistence for subagent execution")
+		logger.Debug("Skipping session persistence for subagent execution")
 		wf.succeed(stagePersist, "skipped (subagent context)")
 	} else {
 		if planTitleRecorder != nil {
@@ -453,42 +460,49 @@ func defaultString(value, fallback string) string {
 	return fallback
 }
 
+func (c *AgentCoordinator) loggerFor(ctx context.Context) agent.Logger {
+	return logging.FromContext(ctx, c.logger)
+}
+
 // PrepareExecution prepares the execution environment without running the task
 func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
-	return c.prepService.Prepare(ctx, task, sessionID)
+	return c.prepareExecutionWithListener(ctx, task, sessionID, nil)
 }
 
 // prepareExecutionWithListener prepares execution with event emission support
 func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.ExecutionEnvironment, error) {
-	// Create a preparation service instance with the listener for this execution
-	if listener != nil {
-		prepService := preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-			LLMFactory:    c.llmFactory,
-			ToolRegistry:  c.toolRegistry,
-			SessionStore:  c.sessionStore,
-			ContextMgr:    c.contextMgr,
-			HistoryMgr:    c.historyMgr,
-			Parser:        c.parser,
-			Config:        c.config,
-			Logger:        c.logger,
-			Clock:         c.clock,
-			CostDecorator: c.costDecorator,
-			EventEmitter:  listener, // Pass the listener for event emission
-			CostTracker:   c.costTracker,
-		})
-		return prepService.Prepare(ctx, task, sessionID)
+	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
+	if listener == nil {
+		if _, ok := c.prepService.(*preparation.ExecutionPreparationService); !ok && c.prepService != nil {
+			return c.prepService.Prepare(ctx, task, sessionID)
+		}
 	}
-	// No listener, use default prep service
-	return c.prepService.Prepare(ctx, task, sessionID)
+	logger := c.loggerFor(ctx)
+	prepService := preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
+		LLMFactory:    c.llmFactory,
+		ToolRegistry:  c.toolRegistry,
+		SessionStore:  c.sessionStore,
+		ContextMgr:    c.contextMgr,
+		HistoryMgr:    c.historyMgr,
+		Parser:        c.parser,
+		Config:        c.config,
+		Logger:        logger,
+		Clock:         c.clock,
+		CostDecorator: cost.NewCostTrackingDecorator(c.costTracker, logger, c.clock),
+		EventEmitter:  listener,
+		CostTracker:   c.costTracker,
+	})
+	return prepService.Prepare(ctx, task, sessionID)
 }
 
 // SaveSessionAfterExecution saves session state after task completion
 func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *storage.Session, result *agent.TaskResult) error {
+	logger := c.loggerFor(ctx)
 	if c.historyMgr != nil && session != nil && result != nil {
 		previousHistory, _ := c.historyMgr.Replay(ctx, session.ID, 0)
 		incoming := append(agent.CloneMessages(previousHistory), stripUserHistoryMessages(result.Messages)...)
-		if err := c.historyMgr.AppendTurn(ctx, session.ID, incoming); err != nil && c.logger != nil {
-			c.logger.Warn("Failed to append turn history: %v", err)
+		if err := c.historyMgr.AppendTurn(ctx, session.ID, incoming); err != nil && logger != nil {
+			logger.Warn("Failed to append turn history: %v", err)
 		}
 	}
 
@@ -499,8 +513,8 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 			Attachments: attachmentStore,
 			Origin:      "session_persist",
 		})
-		if err != nil && c.logger != nil {
-			c.logger.Warn("Failed to migrate attachments for session persistence: %v", err)
+		if err != nil && logger != nil {
+			logger.Warn("Failed to migrate attachments for session persistence: %v", err)
 		} else if normalized != nil {
 			attachmentStore = normalized
 		}
@@ -533,12 +547,12 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 		delete(session.Metadata, "last_parent_task_id")
 	}
 
-	c.logger.Debug("Saving session...")
+	logger.Debug("Saving session...")
 	if err := c.sessionStore.Save(ctx, session); err != nil {
-		c.logger.Error("Failed to save session: %v", err)
+		logger.Error("Failed to save session: %v", err)
 		return fmt.Errorf("failed to save session: %w", err)
 	}
-	c.logger.Debug("Session saved successfully")
+	logger.Debug("Session saved successfully")
 
 	return nil
 }
@@ -550,6 +564,7 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 	parentTaskID string,
 	stopReason string,
 ) {
+	logger := c.loggerFor(ctx)
 	if env == nil || env.State == nil || env.Session == nil {
 		return
 	}
@@ -578,7 +593,7 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 	}
 
 	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
-		c.logger.Error("Failed to persist session after failure: %v", err)
+		logger.Error("Failed to persist session after failure: %v", err)
 	}
 }
 

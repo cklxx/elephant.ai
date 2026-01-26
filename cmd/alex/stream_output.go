@@ -18,6 +18,8 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/types"
+	"alex/internal/async"
+	"alex/internal/logging"
 	"alex/internal/output"
 	"alex/internal/tools/builtin"
 	id "alex/internal/utils/id"
@@ -184,6 +186,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	baseCtx := context.Background()
 	ctx, cancel := context.WithCancel(baseCtx)
 	defer cancel()
+	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 
 	if sessionID == "" {
 		session, err := container.SessionStore.Create(ctx)
@@ -231,7 +234,8 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 
 	var forceExit atomic.Bool
 
-	go func() {
+	logger := logging.NewComponentLogger("CLIStreamOutput")
+	async.Go(logger, "cli.signal-handler", func() {
 		interrupted := false
 		for {
 			select {
@@ -249,7 +253,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 				return
 			}
 		}
-	}()
+	})
 
 	// Execute task with streaming via listener
 	domainResult, err := container.AgentCoordinator.ExecuteTask(ctx, task, sessionID, bridge)

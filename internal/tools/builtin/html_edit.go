@@ -15,6 +15,7 @@ import (
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
 	internalllm "alex/internal/llm"
+	id "alex/internal/utils/id"
 )
 
 type htmlEdit struct {
@@ -177,6 +178,9 @@ func (t *htmlEdit) applyEdits(ctx context.Context, html, instructions string) (s
 		},
 		Temperature: 0.2,
 		MaxTokens:   1500,
+		Metadata: map[string]any{
+			"request_id": id.NewRequestIDWithLogID(id.LogIDFromContext(ctx)),
+		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("html_edit failed: %w", err)

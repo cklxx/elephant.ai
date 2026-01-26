@@ -78,7 +78,7 @@ func TestPersistSessionTitleWritesOnce(t *testing.T) {
 		clock:        agent.SystemClock{},
 	}
 
-	coordinator.persistSessionTitle("session-1", "Early title")
+	coordinator.persistSessionTitle(context.Background(), "session-1", "Early title")
 
 	select {
 	case <-store.saveCh:
@@ -98,7 +98,7 @@ func TestPersistSessionTitleWritesOnce(t *testing.T) {
 		t.Fatalf("expected one save, got %d", savedCount)
 	}
 
-	coordinator.persistSessionTitle("session-1", "New title")
+	coordinator.persistSessionTitle(context.Background(), "session-1", "New title")
 
 	select {
 	case <-store.saveCh:
@@ -115,7 +115,7 @@ func TestPersistSessionTitleSkipsBlankTitle(t *testing.T) {
 		clock:        agent.SystemClock{},
 	}
 
-	coordinator.persistSessionTitle("session-2", "  ")
+	coordinator.persistSessionTitle(context.Background(), "session-2", "  ")
 
 	select {
 	case <-store.saveCh:

@@ -20,6 +20,7 @@ import (
 	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
 	"alex/internal/utils"
+	id "alex/internal/utils/id"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -394,7 +395,10 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 
 // analyzeLLM uses LLM to analyze content based on prompt
 func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt string) (string, error) {
-	requestID := strings.TrimSpace(callID)
+	requestID := id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
+	if trimmed := strings.TrimSpace(callID); trimmed != "" {
+		requestID = fmt.Sprintf("%s:%s", requestID, trimmed)
+	}
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
 			{

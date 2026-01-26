@@ -2,6 +2,7 @@ package id
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -54,6 +55,16 @@ func NewTaskID() string {
 // NewRequestID generates a new identifier for LLM requests and correlated logs.
 func NewRequestID() string {
 	return defaultGenerator.newIdentifier("llm")
+}
+
+// NewRequestIDWithLogID generates a request identifier that embeds the log id for correlation.
+func NewRequestIDWithLogID(logID string) string {
+	requestID := NewRequestID()
+	logID = strings.TrimSpace(logID)
+	if logID == "" {
+		return requestID
+	}
+	return fmt.Sprintf("%s:%s", logID, requestID)
 }
 
 // NewLogID generates a new identifier for log correlation.

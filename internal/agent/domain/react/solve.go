@@ -41,10 +41,7 @@ func (e *ReactEngine) think(
 ) (Message, error) {
 
 	tools := services.ToolExecutor.List()
-	requestID := id.LogIDFromContext(ctx)
-	if requestID == "" {
-		requestID = id.NewRequestID()
-	}
+	requestID := id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
 
 	e.logger.Debug(

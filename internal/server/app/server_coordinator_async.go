@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/analytics"
+	"alex/internal/async"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	serverPorts "alex/internal/server/ports"
@@ -25,6 +26,7 @@ import (
 // ExecuteTaskAsync executes a task asynchronously and streams events via SSE
 // Returns immediately with the task record, spawns background goroutine for execution
 func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
+	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 	logger := logging.FromContext(ctx, s.logger)
 	logger.Info("[ServerCoordinator] ExecuteTaskAsync called: task='%s', sessionID='%s', agentPreset='%s', toolPreset='%s'", task, sessionID, agentPreset, toolPreset)
 
@@ -87,7 +89,9 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	// exposing callers to shared mutable state and prevents data races when the
 	// goroutine later calls SetResult/SetStatus on the same underlying task.
 	taskCopy := *taskRecord
-	go s.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset)
+	async.Go(s.logger, "server.executeTask", func() {
+		s.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset)
+	})
 
 	logger.Info("[ServerCoordinator] Task created: taskID=%s, sessionID=%s, returning immediately", taskID, taskSessionID)
 	return &taskCopy, nil
