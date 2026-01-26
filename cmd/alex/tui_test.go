@@ -20,11 +20,11 @@ func TestShouldUseFullscreenTUIExplicitFullscreen(t *testing.T) {
 	}
 }
 
-func TestShouldUseFullscreenTUITViewMode(t *testing.T) {
-	t.Setenv("ALEX_TUI_MODE", "tview")
+func TestShouldUseFullscreenTUIGocuiMode(t *testing.T) {
+	t.Setenv("ALEX_TUI_MODE", "gocui")
 
 	if !shouldUseFullscreenTUI() {
-		t.Fatalf("expected tview mode to enable fullscreen")
+		t.Fatalf("expected gocui mode to enable fullscreen")
 	}
 }
 

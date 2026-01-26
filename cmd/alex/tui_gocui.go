@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
@@ -18,33 +17,26 @@ import (
 	id "alex/internal/utils/id"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gdamore/tcell/v2"
+	"github.com/jroimartin/gocui"
 	"github.com/muesli/termenv"
-	"github.com/rivo/tview"
 	"golang.org/x/term"
 )
 
 const (
-	tuiAgentName   = "alex"
-	tuiAgentIndent = "  "
+	gocuiOutputView = "output"
+	gocuiStatusView = "status"
+	gocuiPromptView = "prompt"
+	gocuiInputView  = "input"
 )
 
-type plainMarkdownRenderer struct{}
-
-func (plainMarkdownRenderer) Render(content string) (string, error) {
-	return content, nil
-}
-
-type tviewChatUI struct {
+type gocuiChatUI struct {
 	container *Container
+	gui       *gocui.Gui
 
-	app        *tview.Application
-	outputView *tview.TextView
-	statusView *tview.TextView
-	inputField *tview.InputField
-	layout     *tview.Flex
-
-	outputWriter io.Writer
+	outputView *gocui.View
+	statusView *gocui.View
+	promptView *gocui.View
+	inputView  *gocui.View
 
 	baseCtx    context.Context
 	baseCancel context.CancelFunc
@@ -68,7 +60,7 @@ type tviewChatUI struct {
 	streamBuffer                    strings.Builder
 }
 
-func RunTUIView(container *Container) error {
+func RunGocui(container *Container) error {
 	if container == nil {
 		return fmt.Errorf("container is nil")
 	}
@@ -88,8 +80,22 @@ func RunTUIView(container *Container) error {
 	baseCtx = types.WithOutputContext(baseCtx, coreOutCtx)
 	baseCtx, baseCancel := context.WithCancel(baseCtx)
 
-	ui := newTUIView(container, baseCtx, baseCancel)
-	if err := ui.run(); err != nil {
+	gui, err := gocui.NewGui(gocui.OutputNormal)
+	if err != nil {
+		baseCancel()
+		return err
+	}
+	defer gui.Close()
+
+	ui := newGocuiChatUI(container, baseCtx, baseCancel, gui)
+	gui.SetManagerFunc(ui.layout)
+
+	if err := ui.bindKeys(); err != nil {
+		baseCancel()
+		return err
+	}
+
+	if err := gui.MainLoop(); err != nil && !errors.Is(err, gocui.ErrQuit) {
 		baseCancel()
 		return err
 	}
@@ -97,147 +103,150 @@ func RunTUIView(container *Container) error {
 	return nil
 }
 
-func newTUIView(container *Container, baseCtx context.Context, baseCancel context.CancelFunc) *tviewChatUI {
-	app := tview.NewApplication()
+func newGocuiChatUI(container *Container, baseCtx context.Context, baseCancel context.CancelFunc, gui *gocui.Gui) *gocuiChatUI {
+	return &gocuiChatUI{
+		container:   container,
+		gui:         gui,
+		baseCtx:     baseCtx,
+		baseCancel:  baseCancel,
+		startTime:   time.Now(),
+		renderer:    output.NewCLIRendererWithMarkdown(container.Runtime.Verbose, plainMarkdownRenderer{}),
+		activeTools: make(map[string]ToolInfo),
+		subagents:   NewSubagentDisplay(),
+		mdBuffer:    newMarkdownStreamBuffer(),
+	}
+}
 
-	outputView := tview.NewTextView().
-		SetDynamicColors(false).
-		SetWrap(true).
-		SetWordWrap(true)
-	outputView.SetScrollable(true)
-
-	statusView := tview.NewTextView().SetWrap(false)
-
-	inputField := tview.NewInputField().
-		SetLabel("❯ ").
-		SetFieldWidth(0)
-	inputField.SetLabelColor(tcell.ColorGreen)
-
-	footer := tview.NewFlex().
-		SetDirection(tview.FlexRow).
-		AddItem(statusView, 1, 0, false).
-		AddItem(inputField, 1, 0, true)
-
-	layout := tview.NewFlex().
-		SetDirection(tview.FlexRow).
-		AddItem(outputView, 0, 1, false).
-		AddItem(footer, 2, 0, true)
-
-	ui := &tviewChatUI{
-		container:    container,
-		app:          app,
-		outputView:   outputView,
-		statusView:   statusView,
-		inputField:   inputField,
-		layout:       layout,
-		outputWriter: outputView,
-		baseCtx:      baseCtx,
-		baseCancel:   baseCancel,
-		startTime:    time.Now(),
-		renderer:     output.NewCLIRendererWithMarkdown(container.Runtime.Verbose, plainMarkdownRenderer{}),
-		activeTools:  make(map[string]ToolInfo),
-		subagents:    NewSubagentDisplay(),
-		mdBuffer:     newMarkdownStreamBuffer(),
+func (ui *gocuiChatUI) bindKeys() error {
+	if ui.gui == nil {
+		return fmt.Errorf("gui is nil")
 	}
 
-	inputField.SetDoneFunc(func(key tcell.Key) {
-		if key != tcell.KeyEnter {
-			return
+	if err := ui.gui.SetKeybinding("", gocui.KeyCtrlC, gocui.ModNone, ui.onCtrlC); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding("", gocui.KeyCtrlL, gocui.ModNone, ui.onClear); err != nil {
+		return err
+	}
+	if err := ui.gui.SetKeybinding(gocuiInputView, gocui.KeyEnter, gocui.ModNone, ui.onSubmit); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (ui *gocuiChatUI) layout(g *gocui.Gui) error {
+	maxX, maxY := g.Size()
+	if maxX < 10 || maxY < 6 {
+		return nil
+	}
+
+	if v, err := g.SetView(gocuiOutputView, 0, 0, maxX-1, maxY-4); err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
 		}
-		ui.onSubmit()
-	})
-
-	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
-		return ui.handleGlobalKey(event)
-	})
-
-	app.SetRoot(layout, true).SetFocus(inputField)
-
-	app.QueueUpdateDraw(func() {
+		v.Autoscroll = true
+		v.Wrap = true
+		v.Frame = false
+		ui.outputView = v
 		ui.appendSystemCard()
-	})
-
-	return ui
-}
-
-func (ui *tviewChatUI) run() error {
-	if ui.app == nil {
-		return fmt.Errorf("tview application missing")
-	}
-	return ui.app.Run()
-}
-
-func (ui *tviewChatUI) handleGlobalKey(event *tcell.EventKey) *tcell.EventKey {
-	if event == nil {
-		return event
 	}
 
-	switch event.Key() {
-	case tcell.KeyCtrlC:
-		ui.onCancelOrExit()
-		return nil
-	case tcell.KeyCtrlL:
-		ui.clearTranscript()
-		ui.setStatusLine(styleGray.Render("cleared"))
-		return nil
-	default:
-		return event
+	if v, err := g.SetView(gocuiStatusView, 0, maxY-3, maxX-1, maxY-3); err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+		v.Frame = false
+		ui.statusView = v
 	}
+
+	if v, err := g.SetView(gocuiPromptView, 0, maxY-2, 1, maxY-2); err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+		v.Frame = false
+		v.Editable = false
+		v.Wrap = false
+		fmt.Fprint(v, "❯ ")
+		ui.promptView = v
+	}
+
+	if v, err := g.SetView(gocuiInputView, 2, maxY-2, maxX-1, maxY-2); err != nil {
+		if !errors.Is(err, gocui.ErrUnknownView) {
+			return err
+		}
+		v.Frame = false
+		v.Editable = true
+		v.Wrap = false
+		v.Autoscroll = false
+		v.Editor = gocui.DefaultEditor
+		ui.inputView = v
+		if _, err := g.SetCurrentView(gocuiInputView); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (ui *tviewChatUI) onCancelOrExit() {
+func (ui *gocuiChatUI) onCtrlC(g *gocui.Gui, _ *gocui.View) error {
 	if ui.running && ui.cancelCurrentTurn != nil {
 		ui.setStatusLine(styleSystem.Render("⏹️ cancel requested…"))
 		ui.cancelCurrentTurn()
-		return
+		return nil
 	}
 	ui.shutdown()
-	if ui.app != nil {
-		ui.app.Stop()
-	}
+	return gocui.ErrQuit
 }
 
-func (ui *tviewChatUI) onSubmit() {
+func (ui *gocuiChatUI) onClear(_ *gocui.Gui, _ *gocui.View) error {
+	ui.clearTranscript()
+	ui.setStatusLine(styleGray.Render("cleared"))
+	return nil
+}
+
+func (ui *gocuiChatUI) onSubmit(g *gocui.Gui, v *gocui.View) error {
 	if ui.running {
 		ui.setStatusLine(styleGray.Render("busy (Ctrl+C to cancel)"))
-		return
+		return nil
+	}
+	if v == nil {
+		return nil
 	}
 
-	task := ui.inputField.GetText()
-	cmd := parseUserCommand(task)
+	input := strings.TrimSpace(v.Buffer())
+	v.Clear()
+	_ = v.SetCursor(0, 0)
+	_ = v.SetOrigin(0, 0)
 
+	cmd := parseUserCommand(input)
 	switch cmd.kind {
 	case commandEmpty:
-		return
+		return nil
 	case commandQuit:
 		ui.shutdown()
-		if ui.app != nil {
-			ui.app.Stop()
-		}
-		return
+		return gocui.ErrQuit
 	case commandClear:
 		ui.clearTranscript()
-		ui.inputField.SetText("")
 		ui.setStatusLine(styleGray.Render("cleared"))
-		return
+		return nil
 	case commandRun:
-		ui.inputField.SetText("")
 		ui.appendUserMessage(cmd.task)
 		ui.streamedCurrentTurn = false
 		ui.assistantHeaderPrinted = false
 		ui.running = true
 		ui.setStatusLine(styleGray.Render("running…"))
 
-		ctx, cancel := context.WithCancel(ui.baseCtx)
+		taskCtx, cancel := context.WithCancel(ui.baseCtx)
 		ui.cancelCurrentTurn = cancel
-		ui.startTask(ctx, cmd.task)
-		return
+		ui.startTask(taskCtx, cmd.task)
+		return nil
 	default:
-		return
+		return nil
 	}
 }
 
-func (ui *tviewChatUI) startTask(ctx context.Context, task string) {
+func (ui *gocuiChatUI) startTask(ctx context.Context, task string) {
 	go func() {
 		sessionID := ui.sessionID
 		if sessionID == "" {
@@ -259,7 +268,7 @@ func (ui *tviewChatUI) startTask(ctx context.Context, task string) {
 		taskCtx = shared.WithApprover(taskCtx, cliApproverForSession(sessionID))
 		taskCtx = shared.WithAutoApprove(taskCtx, false)
 
-		listener := newTUIViewListener(ctx, func(e agent.AgentEvent) {
+		listener := newGocuiListener(ctx, func(e agent.AgentEvent) {
 			ui.queue(func() {
 				ui.handleAgentEvent(e)
 			})
@@ -273,7 +282,7 @@ func (ui *tviewChatUI) startTask(ctx context.Context, task string) {
 	}()
 }
 
-func (ui *tviewChatUI) finishTask(result *agent.TaskResult, err error) {
+func (ui *gocuiChatUI) finishTask(result *agent.TaskResult, err error) {
 	ui.running = false
 	ui.flushStreamBuffer()
 	if ui.cancelCurrentTurn != nil {
@@ -299,7 +308,7 @@ func (ui *tviewChatUI) finishTask(result *agent.TaskResult, err error) {
 	}
 }
 
-func (ui *tviewChatUI) handleAgentEvent(event agent.AgentEvent) {
+func (ui *gocuiChatUI) handleAgentEvent(event agent.AgentEvent) {
 	if event == nil {
 		return
 	}
@@ -336,7 +345,7 @@ func (ui *tviewChatUI) handleAgentEvent(event agent.AgentEvent) {
 	}
 }
 
-func (ui *tviewChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaEvent) {
+func (ui *gocuiChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaEvent) {
 	if event == nil {
 		return
 	}
@@ -376,7 +385,7 @@ func (ui *tviewChatUI) onAssistantMessage(event *domain.WorkflowNodeOutputDeltaE
 	}
 }
 
-func (ui *tviewChatUI) onToolCallStart(event *domain.WorkflowToolStartedEvent) {
+func (ui *gocuiChatUI) onToolCallStart(event *domain.WorkflowToolStartedEvent) {
 	if event == nil {
 		return
 	}
@@ -406,7 +415,7 @@ func (ui *tviewChatUI) onToolCallStart(event *domain.WorkflowToolStartedEvent) {
 	ui.appendAgentRaw(rendered)
 }
 
-func (ui *tviewChatUI) onToolCallComplete(event *domain.WorkflowToolCompletedEvent) {
+func (ui *gocuiChatUI) onToolCallComplete(event *domain.WorkflowToolCompletedEvent) {
 	if event == nil {
 		return
 	}
@@ -434,7 +443,7 @@ func (ui *tviewChatUI) onToolCallComplete(event *domain.WorkflowToolCompletedEve
 	delete(ui.activeTools, event.CallID)
 }
 
-func (ui *tviewChatUI) appendSystemCard() {
+func (ui *gocuiChatUI) appendSystemCard() {
 	cwd, _ := os.Getwd()
 	displayCwd := cwd
 	if len(displayCwd) > 60 {
@@ -450,7 +459,7 @@ func (ui *tviewChatUI) appendSystemCard() {
 
 	cardWidth := 76
 	if ui.outputView != nil {
-		_, _, width, _ := ui.outputView.GetInnerRect()
+		width, _ := ui.outputView.Size()
 		if width > 0 {
 			cardWidth = minInt(100, width-4)
 			if cardWidth < 48 {
@@ -469,7 +478,7 @@ func (ui *tviewChatUI) appendSystemCard() {
 	ui.appendLine(card.Render(title + "\n" + strings.Join(lines, "\n")))
 }
 
-func (ui *tviewChatUI) appendUserMessage(content string) {
+func (ui *gocuiChatUI) appendUserMessage(content string) {
 	header := styleBold.Render(styleGreen.Render("You"))
 	body := lipgloss.NewStyle().PaddingLeft(2).Render(content)
 	ui.appendLine(header)
@@ -477,7 +486,7 @@ func (ui *tviewChatUI) appendUserMessage(content string) {
 	ui.appendLine("")
 }
 
-func (ui *tviewChatUI) ensureAgentHeader() {
+func (ui *gocuiChatUI) ensureAgentHeader() {
 	if ui.assistantHeaderPrinted {
 		return
 	}
@@ -486,7 +495,7 @@ func (ui *tviewChatUI) ensureAgentHeader() {
 	ui.appendLine(header)
 }
 
-func (ui *tviewChatUI) appendAgentLine(line string) {
+func (ui *gocuiChatUI) appendAgentLine(line string) {
 	if strings.TrimSpace(line) == "" {
 		return
 	}
@@ -494,7 +503,7 @@ func (ui *tviewChatUI) appendAgentLine(line string) {
 	ui.appendLine(indentBlock(line, tuiAgentIndent))
 }
 
-func (ui *tviewChatUI) appendAgentRaw(content string) {
+func (ui *gocuiChatUI) appendAgentRaw(content string) {
 	if strings.TrimSpace(content) == "" {
 		return
 	}
@@ -510,7 +519,7 @@ func (ui *tviewChatUI) appendAgentRaw(content string) {
 	ui.appendRaw(indentBlock(content, tuiAgentIndent))
 }
 
-func (ui *tviewChatUI) appendAgentStreamRaw(content string) {
+func (ui *gocuiChatUI) appendAgentStreamRaw(content string) {
 	if content == "" {
 		return
 	}
@@ -535,7 +544,7 @@ func (ui *tviewChatUI) appendAgentStreamRaw(content string) {
 	}
 }
 
-func (ui *tviewChatUI) flushStreamBuffer() {
+func (ui *gocuiChatUI) flushStreamBuffer() {
 	if ui.streamBuffer.Len() == 0 {
 		return
 	}
@@ -545,22 +554,19 @@ func (ui *tviewChatUI) flushStreamBuffer() {
 	ui.lastStreamChunkEndedWithNewline = true
 }
 
-func (ui *tviewChatUI) appendLine(content string) {
+func (ui *gocuiChatUI) appendLine(content string) {
 	content = strings.TrimSuffix(content, "\n")
 	ui.appendRaw(content + "\n")
 }
 
-func (ui *tviewChatUI) appendRaw(content string) {
-	if content == "" || ui.outputWriter == nil {
+func (ui *gocuiChatUI) appendRaw(content string) {
+	if content == "" || ui.outputView == nil {
 		return
 	}
-	fmt.Fprint(ui.outputWriter, content)
-	if ui.outputView != nil {
-		ui.outputView.ScrollToEnd()
-	}
+	fmt.Fprint(ui.outputView, content)
 }
 
-func (ui *tviewChatUI) clearTranscript() {
+func (ui *gocuiChatUI) clearTranscript() {
 	if ui.outputView == nil {
 		return
 	}
@@ -570,15 +576,16 @@ func (ui *tviewChatUI) clearTranscript() {
 	ui.appendSystemCard()
 }
 
-func (ui *tviewChatUI) setStatusLine(line string) {
+func (ui *gocuiChatUI) setStatusLine(line string) {
 	ui.statusLine = line
 	if ui.statusView == nil {
 		return
 	}
-	ui.statusView.SetText(line)
+	ui.statusView.Clear()
+	fmt.Fprint(ui.statusView, line)
 }
 
-func (ui *tviewChatUI) shutdown() {
+func (ui *gocuiChatUI) shutdown() {
 	if ui.cancelCurrentTurn != nil {
 		ui.cancelCurrentTurn()
 		ui.cancelCurrentTurn = nil
@@ -588,23 +595,26 @@ func (ui *tviewChatUI) shutdown() {
 	}
 }
 
-func (ui *tviewChatUI) queue(update func()) {
-	if ui.app == nil || update == nil {
+func (ui *gocuiChatUI) queue(update func()) {
+	if ui.gui == nil || update == nil {
 		return
 	}
-	ui.app.QueueUpdateDraw(update)
+	ui.gui.Update(func(*gocui.Gui) error {
+		update()
+		return nil
+	})
 }
 
-type tviewListener struct {
+type gocuiListener struct {
 	ctx     context.Context
 	onEvent func(agent.AgentEvent)
 }
 
-func newTUIViewListener(ctx context.Context, onEvent func(agent.AgentEvent)) *tviewListener {
-	return &tviewListener{ctx: ctx, onEvent: onEvent}
+func newGocuiListener(ctx context.Context, onEvent func(agent.AgentEvent)) *gocuiListener {
+	return &gocuiListener{ctx: ctx, onEvent: onEvent}
 }
 
-func (l *tviewListener) OnEvent(event agent.AgentEvent) {
+func (l *gocuiListener) OnEvent(event agent.AgentEvent) {
 	if event == nil || l.onEvent == nil {
 		return
 	}
@@ -647,32 +657,8 @@ func normalizeSubtaskEvent(event *orchestration.SubtaskEvent) *orchestration.Sub
 	return &copy
 }
 
-func indentBlock(content string, prefix string) string {
-	if content == "" || prefix == "" {
-		return content
-	}
+type plainMarkdownRenderer struct{}
 
-	hasTrailingNewline := strings.HasSuffix(content, "\n")
-	content = strings.TrimSuffix(content, "\n")
-
-	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		if line == "" {
-			continue
-		}
-		lines[i] = prefix + line
-	}
-
-	out := strings.Join(lines, "\n")
-	if hasTrailingNewline {
-		out += "\n"
-	}
-	return out
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
+func (plainMarkdownRenderer) Render(content string) (string, error) {
+	return content, nil
 }

@@ -28,10 +28,11 @@
 - 2026-01-26: Implemented tview-based TUI (`cmd/alex/tui_tview.go`), removed Bubble Tea files/tests, unified command parsing, and updated TUI mode selection.
 - 2026-01-26: Updated dependencies (remove bubbletea/bubbles, add tview/tcell) and reran `go mod tidy`.
 - 2026-01-26: Validation complete — `make fmt`, `make vet`, `make test` succeeded.
+- 2026-01-26: macOS TUI could not accept input; switching from tview to gocui with plain rendering and preserving line-mode fallback.
+- 2026-01-26: Implement gocui-based TUI (`cmd/alex/tui_gocui.go`), remove tview wiring, and update dependencies/tests.
+- 2026-01-26: Validation complete — `make fmt`, `make vet`, `make test` succeeded after gocui cutover.
 
 ## Next Steps
-1. Replace Bubble Tea UI with tview implementation (output viewport + input + status).
-2. Keep line-mode fallback for non-TTY/disabled TUI, remove Bubble Tea-only code/tests.
-3. Update tests around TUI mode selection and shared command parsing.
-4. Update go.mod/go.sum (drop bubbletea/bubbles, add tview/tcell).
-5. Run `make fmt`, `make vet`, `make test`.
+1. Validate gocui UI on macOS (input focus, ctrl+c/cancel, scrollback).
+2. Decide whether to reintroduce ANSI colors safely (currently plain rendering).
+3. Re-run full lint/test after macOS verification (if any fixes land).

@@ -13,7 +13,7 @@ import (
 )
 
 // RunNativeChatUI starts the interactive chat UI. It prefers the full-screen
-// tview TUI and falls back to a simple line-mode loop when TTY features
+// gocui TUI and falls back to a simple line-mode loop when TTY features
 // are unavailable or disabled.
 func RunNativeChatUI(container *Container) error {
 	if container == nil {
@@ -21,7 +21,7 @@ func RunNativeChatUI(container *Container) error {
 	}
 
 	if !container.Runtime.DisableTUI && shouldUseFullscreenTUI() && term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stdin.Fd())) {
-		if err := RunTUIView(container); err == nil {
+		if err := RunGocui(container); err == nil {
 			return nil
 		}
 	}
@@ -35,7 +35,7 @@ func shouldUseFullscreenTUI() bool {
 	// Check explicit mode setting first
 	mode, _ := envLookup("ALEX_TUI_MODE")
 	mode = strings.TrimSpace(mode)
-	if strings.EqualFold(mode, "fullscreen") || strings.EqualFold(mode, "full") || strings.EqualFold(mode, "tview") {
+	if strings.EqualFold(mode, "fullscreen") || strings.EqualFold(mode, "full") || strings.EqualFold(mode, "gocui") {
 		return true
 	}
 	if strings.EqualFold(mode, "terminal") || strings.EqualFold(mode, "inline") || strings.EqualFold(mode, "line") {

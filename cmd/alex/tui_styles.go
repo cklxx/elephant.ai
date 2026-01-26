@@ -2,7 +2,7 @@ package main
 
 import "github.com/charmbracelet/lipgloss"
 
-// Shared TUI styles (tview + line-mode fallback).
+// Shared TUI styles (gocui + line-mode fallback).
 var (
 	styleGray      = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
 	styleGreen     = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
