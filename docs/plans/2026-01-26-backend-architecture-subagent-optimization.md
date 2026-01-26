@@ -30,3 +30,6 @@
 - 2026-01-26: Phase 3 validated with `make fmt`, `make vet`, `make test`.
 - 2026-01-26: Phase 3 continued — moved builtin tools into domain subpackages and rewired registry/callers to use the new packages (shims removed).
 - 2026-01-26: Phase 3 consolidated per-package move notes into the main builtin split plan; removed redundant plan files.
+- 2026-01-26: Phase 4 started — split `internal/server/http/middleware.go` into focused middleware files and split SSE render helpers into `sse_render*.go` (removed original render file).
+- 2026-01-26: Phase 4 continued — split `internal/output/cli_renderer.go` helpers into dedicated files; split `internal/llm/openai_responses_client.go` into focused files for completion, streaming, input, parsing, and types.
+- 2026-01-26: Phase 4 validation — `make fmt`, `make vet`, `make test` passed after the splits.
