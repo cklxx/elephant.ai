@@ -64,7 +64,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 }
 
 func (e *ReactEngine) applyToolAttachmentMutations(
-	ctx context.Context,
+	_ context.Context,
 	state *TaskState,
 	call ToolCall,
 	attachments map[string]ports.Attachment,

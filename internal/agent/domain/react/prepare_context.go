@@ -9,7 +9,7 @@ import (
 // prepareUserTaskContext mutates the provided task state so it is ready for a new
 // user task turn: system prompt anchored, user task appended, and attachments
 // catalogued without rewriting existing history.
-func (e *ReactEngine) prepareUserTaskContext(ctx context.Context, task string, state *TaskState) {
+func (e *ReactEngine) prepareUserTaskContext(_ context.Context, task string, state *TaskState) {
 	ensureAttachmentStore(state)
 
 	attachmentsChanged := false
