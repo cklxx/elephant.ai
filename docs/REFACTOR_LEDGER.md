@@ -50,7 +50,7 @@ This document tracks architectural and design issues discovered during the ongoi
 - **Symptoms**: `internal/tools/builtin` imports 26 internal packages across LLM, memory, storage, MCP, sandbox, skills, and workflow.
 - **Impact**: Changes to tools cascade across unrelated layers; test isolation and refactors become risky.
 - **Fix**: Split builtins into subpackages per tool domain with narrow constructor interfaces; add a small registry/builder to wire tools from ports.
-- **Status**: open
+- **Status**: in progress (extracted shared/pathutil helper subpackages; updating call sites and tests)
 
 ### 7) Domain layer contains presentation + log-serialization logic
 
