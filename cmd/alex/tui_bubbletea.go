@@ -316,6 +316,12 @@ func (m *bubbleChatUI) onKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.viewport, cmd = m.viewport.Update(msg)
 	m.input, _ = m.input.Update(msg)
+
+	// Sync imeBuffer with textinput after non-IME key handling (e.g., arrow keys)
+	if m.imeMode {
+		m.imeBuffer = []rune(m.input.Value())
+	}
+
 	return m, cmd
 }
 
