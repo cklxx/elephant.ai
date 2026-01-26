@@ -31,8 +31,10 @@
 - 2026-01-26: macOS TUI could not accept input; switching from tview to gocui with plain rendering and preserving line-mode fallback.
 - 2026-01-26: Implement gocui-based TUI (`cmd/alex/tui_gocui.go`), remove tview wiring, and update dependencies/tests.
 - 2026-01-26: Validation complete — `make fmt`, `make vet`, `make test` succeeded after gocui cutover.
+- 2026-01-26: Add ordered UI update queue, input history (Up/Down), and scrollback controls (PgUp/PgDn/Home/End); add unit tests for history behavior.
+- 2026-01-26: Validation complete — `make fmt`, `make vet`, `make test` succeeded after gocui UX optimizations.
 
 ## Next Steps
-1. Validate gocui UI on macOS (input focus, ctrl+c/cancel, scrollback).
+1. Validate gocui UI on macOS (input focus, history, scrollback, ctrl+c/cancel).
 2. Decide whether to reintroduce ANSI colors safely (currently plain rendering).
 3. Re-run full lint/test after macOS verification (if any fixes land).

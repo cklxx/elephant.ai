@@ -17,3 +17,4 @@
 - 2026-01-26: Refreshed framework notes using official docs for Bubble Tea, Bubbles components, tview, gocui, and termui; captured citations for the CLI/TUI migration decision.
 - 2026-01-26: Selected tview for the full cutover and began implementation of the new TUI shell.
 - 2026-01-26: macOS input issues reported; pivoted to gocui for the interactive TUI implementation.
+- 2026-01-26: Re-checked gocui update ordering notes and view scroll APIs; re-reviewed Bubble Tea MVU entrypoints for comparison when optimizing chat UX.
