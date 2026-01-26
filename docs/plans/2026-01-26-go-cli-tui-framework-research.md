@@ -15,3 +15,4 @@
 - 2026-01-26: Plan created; engineering practices reviewed.
 - 2026-01-26: Reviewed current TUI stacks (Bubble Tea/Bubbles/Lip Gloss, tview, gocui, termui, tcell); recommended Bubble Tea for chat UX (viewport + text input), tview for quick stable UI, gocui/tcell for lower-level control; noted tui-go is archived and not recommended.
 - 2026-01-26: Refreshed framework notes using official docs for Bubble Tea, Bubbles components, tview, gocui, and termui; captured citations for the CLI/TUI migration decision.
+- 2026-01-26: Selected tview for the full cutover and began implementation of the new TUI shell.

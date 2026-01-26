@@ -13,17 +13,15 @@ import (
 )
 
 // RunNativeChatUI starts the interactive chat UI. It prefers the full-screen
-// Bubble Tea TUI and falls back to a simple line-mode loop when TTY features
+// tview TUI and falls back to a simple line-mode loop when TTY features
 // are unavailable or disabled.
 func RunNativeChatUI(container *Container) error {
 	if container == nil {
 		return fmt.Errorf("container is nil")
 	}
 
-	output.ConfigureCLIColorProfile(os.Stdout)
-
 	if !container.Runtime.DisableTUI && shouldUseFullscreenTUI() && term.IsTerminal(int(os.Stdout.Fd())) && term.IsTerminal(int(os.Stdin.Fd())) {
-		if err := RunBubbleChatUI(container); err == nil {
+		if err := RunTUIView(container); err == nil {
 			return nil
 		}
 	}
@@ -37,7 +35,7 @@ func shouldUseFullscreenTUI() bool {
 	// Check explicit mode setting first
 	mode, _ := envLookup("ALEX_TUI_MODE")
 	mode = strings.TrimSpace(mode)
-	if strings.EqualFold(mode, "fullscreen") || strings.EqualFold(mode, "full") {
+	if strings.EqualFold(mode, "fullscreen") || strings.EqualFold(mode, "full") || strings.EqualFold(mode, "tview") {
 		return true
 	}
 	if strings.EqualFold(mode, "terminal") || strings.EqualFold(mode, "inline") || strings.EqualFold(mode, "line") {
@@ -53,57 +51,13 @@ func shouldUseFullscreenTUI() bool {
 		return true
 	}
 
-	// Default to fullscreen BubbleTea mode (IME-aware for CJK)
+	// Default to fullscreen TUI.
 	return true
 }
 
-func envTruthy(value string) bool {
-	switch strings.ToLower(strings.TrimSpace(value)) {
-	case "", "0", "false", "no", "off":
-		return false
-	default:
-		return true
-	}
-}
-
-func hasCJKLocale(envLookup func(string) (string, bool)) bool {
-	if envLookup == nil {
-		envLookup = runtimeEnvLookup()
-	}
-
-	if value, ok := envLookup("LC_ALL"); ok && isCJKLocale(value) {
-		return true
-	}
-	if value, ok := envLookup("LC_CTYPE"); ok && isCJKLocale(value) {
-		return true
-	}
-	if value, ok := envLookup("LANG"); ok && isCJKLocale(value) {
-		return true
-	}
-	return false
-}
-
-func isCJKLocale(value string) bool {
-	trimmed := strings.ToLower(strings.TrimSpace(value))
-	if trimmed == "" {
-		return false
-	}
-	if idx := strings.IndexAny(trimmed, ".@"); idx >= 0 {
-		trimmed = trimmed[:idx]
-	}
-	switch {
-	case strings.HasPrefix(trimmed, "zh"):
-		return true
-	case strings.HasPrefix(trimmed, "ja"):
-		return true
-	case strings.HasPrefix(trimmed, "ko"):
-		return true
-	default:
-		return false
-	}
-}
-
 func runLineChatUI(container *Container) error {
+	output.ConfigureCLIColorProfile(os.Stdout)
+
 	session, err := container.SessionStore.Create(context.Background())
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
@@ -130,24 +84,24 @@ func runLineChatUI(container *Container) error {
 			return nil
 		}
 
-		task := strings.TrimSpace(scanner.Text())
-		if task == "" {
+		cmd := parseUserCommand(scanner.Text())
+		switch cmd.kind {
+		case commandEmpty:
 			continue
-		}
-
-		switch task {
-		case "/quit", "/exit":
+		case commandQuit:
 			return nil
-		case "/clear":
+		case commandClear:
 			fmt.Print("\033[2J\033[H")
 			continue
-		}
-
-		if err := RunTaskWithStreamOutput(container, task, session.ID); err != nil {
-			if err == ErrForceExit {
-				return err
+		case commandRun:
+			if err := RunTaskWithStreamOutput(container, cmd.task, session.ID); err != nil {
+				if err == ErrForceExit {
+					return err
+				}
+				fmt.Fprintf(os.Stderr, "%s %v\n", styleError.Render("Error:"), err)
 			}
-			fmt.Fprintf(os.Stderr, "%s %v\n", styleError.Render("Error:"), err)
+		default:
+			continue
 		}
 	}
 }

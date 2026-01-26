@@ -14,7 +14,7 @@ const (
 	TargetLLM OutputTarget = "llm" // For LLM consumption (complete, structured)
 	TargetCLI OutputTarget = "cli" // For CLI display (concise, formatted)
 	TargetSSE OutputTarget = "sse" // For SSE streaming (JSON events)
-	TargetTUI OutputTarget = "tui" // For TUI display (bubbletea messages)
+	TargetTUI OutputTarget = "tui" // For interactive TUI display
 )
 
 // Renderer defines the interface for rendering agent output

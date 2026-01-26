@@ -20,6 +20,14 @@ func TestShouldUseFullscreenTUIExplicitFullscreen(t *testing.T) {
 	}
 }
 
+func TestShouldUseFullscreenTUITViewMode(t *testing.T) {
+	t.Setenv("ALEX_TUI_MODE", "tview")
+
+	if !shouldUseFullscreenTUI() {
+		t.Fatalf("expected tview mode to enable fullscreen")
+	}
+}
+
 func TestShouldUseFullscreenTUIExplicitLineMode(t *testing.T) {
 	t.Setenv("ALEX_TUI_MODE", "line")
 
@@ -53,7 +61,7 @@ func TestShouldUseFullscreenTUIFullscreenEnvOn(t *testing.T) {
 }
 
 func TestShouldUseFullscreenTUICJKLocaleStillFullscreen(t *testing.T) {
-	// CJK locale now defaults to fullscreen (IME input is supported)
+	// CJK locale defaults to fullscreen unless explicitly overridden.
 	t.Setenv("LANG", "zh_CN.UTF-8")
 	t.Setenv("ALEX_TUI_MODE", "")
 	t.Setenv("ALEX_TUI_FULLSCREEN", "")
