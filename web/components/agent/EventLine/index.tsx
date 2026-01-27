@@ -571,14 +571,63 @@ export interface SubagentContext {
   statusTone?: "info" | "success" | "warning" | "danger";
 }
 
+function resolveSubtaskPreview(event: AnyAgentEvent): string | undefined {
+  const direct =
+    "subtask_preview" in event && typeof event.subtask_preview === "string"
+      ? event.subtask_preview
+      : "";
+  if (direct.trim()) {
+    return direct.trim();
+  }
+
+  const payload =
+    "payload" in event && event.payload && typeof event.payload === "object"
+      ? (event.payload as Record<string, unknown>)
+      : null;
+  const payloadPreview =
+    payload && typeof payload.subtask_preview === "string"
+      ? payload.subtask_preview
+      : "";
+  if (payloadPreview.trim()) {
+    return payloadPreview.trim();
+  }
+
+  const payloadTask =
+    payload && typeof payload.task === "string" ? payload.task : "";
+  if (payloadTask.trim()) {
+    return payloadTask.trim();
+  }
+
+  const task =
+    "task" in event && typeof event.task === "string" ? event.task : "";
+  if (task.trim()) {
+    return task.trim();
+  }
+
+  return undefined;
+}
+
+function resolveMaxParallel(event: AnyAgentEvent): number | undefined {
+  if ("max_parallel" in event && typeof event.max_parallel === "number") {
+    return event.max_parallel;
+  }
+  if (
+    "payload" in event &&
+    event.payload &&
+    typeof event.payload === "object" &&
+    typeof (event.payload as Record<string, unknown>).max_parallel === "number"
+  ) {
+    return (event.payload as Record<string, unknown>).max_parallel as number;
+  }
+  return undefined;
+}
+
 export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
-  const preview =
-    "subtask_preview" in event && event.subtask_preview?.trim()
-      ? event.subtask_preview.trim()
-      : undefined;
+  const preview = resolveSubtaskPreview(event);
+  const maxParallel = resolveMaxParallel(event);
   const concurrency =
-    "max_parallel" in event && event.max_parallel && event.max_parallel > 1
-      ? `Parallel ×${event.max_parallel}`
+    typeof maxParallel === "number" && maxParallel > 1
+      ? `Parallel ×${maxParallel}`
       : undefined;
 
   const progressParts: string[] = [];

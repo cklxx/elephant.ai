@@ -588,6 +588,10 @@ function shouldSkipDuplicateSummaryEvent(
     return false;
   }
 
+  if (!isSubagentLike(event)) {
+    return false;
+  }
+
   const key = getThreadKey(event);
   if (!key) {
     return false;

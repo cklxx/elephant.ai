@@ -318,7 +318,7 @@ describe('ConversationEventStream', () => {
     expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
   });
 
-  it('dedupes workflow.node.output.summary when it repeats the final answer', () => {
+  it('keeps core workflow.node.output.summary even when it repeats the final answer', () => {
     const summaryTimestamp = new Date(Date.now() + 500).toISOString();
     const completionTimestamp = new Date(Date.now() + 1500).toISOString();
     const content = '## Final Summary\n\n- ✅ Done\n';
@@ -346,6 +346,61 @@ describe('ConversationEventStream', () => {
         total_tokens: 1234,
         stop_reason: 'complete',
         duration: 3200,
+        timestamp: completionTimestamp,
+      } as AnyAgentEvent,
+    ];
+
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={events}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
+    expect(screen.getByTestId('event-workflow.node.output.summary')).toBeInTheDocument();
+  });
+
+  it('dedupes subagent workflow.node.output.summary when it repeats the final answer', () => {
+    const summaryTimestamp = new Date(Date.now() + 500).toISOString();
+    const completionTimestamp = new Date(Date.now() + 1500).toISOString();
+    const content = 'Subagent summary: done.';
+
+    const events: AnyAgentEvent[] = [
+      baseEvent,
+      {
+        event_type: 'workflow.node.output.summary',
+        agent_level: 'subagent',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: 'parent-1',
+        iteration: 1,
+        content,
+        timestamp: summaryTimestamp,
+        is_subtask: true,
+        subtask_index: 0,
+        total_subtasks: 1,
+      } as AnyAgentEvent,
+      {
+        event_type: 'workflow.result.final',
+        agent_level: 'subagent',
+        session_id: 'session-1',
+        task_id: 'task-1',
+        parent_task_id: 'parent-1',
+        is_subtask: true,
+        subtask_index: 0,
+        total_subtasks: 1,
+        final_answer: content,
+        total_iterations: 1,
+        total_tokens: 123,
+        stop_reason: 'complete',
+        duration: 1200,
         timestamp: completionTimestamp,
       } as AnyAgentEvent,
     ];

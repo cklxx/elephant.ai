@@ -87,4 +87,26 @@ describe('SubagentEventLine', () => {
     expect(screen.getAllByText(/3 tool calls/i)).not.toHaveLength(0);
     expect(screen.getAllByText(/1200 tokens/i)).not.toHaveLength(0);
   });
+
+  it('uses payload subtask preview when top-level preview is missing', () => {
+    const event: AnyAgentEvent = {
+      event_type: 'workflow.tool.started',
+      agent_level: 'subagent',
+      session_id: 'session-123',
+      task_id: 'task-abc',
+      parent_task_id: 'parent-1',
+      timestamp: new Date().toISOString(),
+      iteration: 1,
+      call_id: 'call-1',
+      tool_name: 'bash',
+      arguments: { command: 'ls' },
+      payload: {
+        subtask_preview: 'Payload preview title',
+      },
+    } as AnyAgentEvent;
+
+    renderWithI18n(event);
+
+    expect(screen.getByText('Payload preview title')).toBeInTheDocument();
+  });
 });
