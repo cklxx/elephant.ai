@@ -110,6 +110,7 @@ type SubtaskResult struct {
 	Iterations int                        `json:"iterations,omitempty"`
 	TokensUsed int                        `json:"tokens_used,omitempty"`
 	Workflow   *workflow.WorkflowSnapshot `json:"workflow,omitempty"`
+	LogID      string                     `json:"log_id,omitempty"`
 	Error      error                      `json:"error,omitempty"`
 }
 
@@ -136,8 +137,12 @@ func (t *subagent) executeSubtask(
 	if ids.SessionID != "" {
 		subtaskCtx = id.WithSessionID(subtaskCtx, ids.SessionID)
 	}
+	subLogID := ""
 	if ids.LogID != "" {
-		subtaskCtx = id.WithLogID(subtaskCtx, ids.LogID)
+		subLogID = fmt.Sprintf("%s:sub:%s", ids.LogID, id.NewLogID())
+		subtaskCtx = id.WithLogID(subtaskCtx, subLogID)
+	} else {
+		subtaskCtx, subLogID = id.EnsureLogID(subtaskCtx, id.NewLogID)
 	}
 	subtaskCtx = id.WithTaskID(subtaskCtx, id.NewTaskID())
 	if len(inherited) > 0 {
@@ -161,6 +166,7 @@ func (t *subagent) executeSubtask(
 				}
 				return nil
 			}(),
+			LogID: subLogID,
 			Error: err,
 		}
 	}
@@ -172,6 +178,7 @@ func (t *subagent) executeSubtask(
 		Iterations: taskResult.Iterations,
 		TokensUsed: taskResult.TokensUsed,
 		Workflow:   taskResult.Workflow,
+		LogID:      subLogID,
 	}
 }
 
@@ -241,6 +248,7 @@ type subtaskMetadata struct {
 	Iterations int                        `json:"iterations,omitempty"`
 	TokensUsed int                        `json:"tokens_used,omitempty"`
 	Workflow   *workflow.WorkflowSnapshot `json:"workflow,omitempty"`
+	LogID      string                     `json:"log_id,omitempty"`
 	Error      string                     `json:"error,omitempty"`
 }
 
@@ -254,6 +262,7 @@ func buildSubtaskMetadata(results []SubtaskResult) []subtaskMetadata {
 			Iterations: r.Iterations,
 			TokensUsed: r.TokensUsed,
 			Workflow:   r.Workflow,
+			LogID:      r.LogID,
 		}
 		if r.Error != nil {
 			item.Error = r.Error.Error()

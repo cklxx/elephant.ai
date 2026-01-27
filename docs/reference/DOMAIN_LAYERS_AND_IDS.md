@@ -26,6 +26,7 @@ and output envelopes. Domain types can carry IDs but should not generate them.
   identifier. Used to join logs, SSE payloads, LLM requests, and tool traces.
 - **task_id**: agent execution instance within a session.
 - **parent_task_id**: parent execution for subagent or delegated runs.
+  - Subagent log_id is derived as `<parent_log_id>:sub:<new_log_id>` to preserve correlation.
 - **workflow_id**: internal workflow instance identifier for a run.
 - **node_id / step_index / iteration**: workflow node identifiers for stage
   timing and debugging.

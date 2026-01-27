@@ -16,6 +16,9 @@ also mirrored to stdout.
 CLI runs share the same log files and generate a fresh `log_id` per invocation
 via `cliBaseContext()`.
 
+Subagent runs derive their `log_id` from the parent (`<parent_log_id>:sub:<new_log_id>`)
+so log search by the parent log id also returns subagent logs.
+
 ## File logs (system categories)
 
 ### `alex-service.log`

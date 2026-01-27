@@ -17,6 +17,8 @@ This document defines the logging conventions for all runtime components
 ## Standard prefixes
 - Use `log_id=<id>` (not `logid=`).
 - LLM logs must include `[log_id=<id>]` plus `[req:<request_id>]`.
+- Subagent runs must generate a derived log_id using the parent as a prefix:
+  `<parent_log_id>:sub:<new_log_id>`.
 
 ## Context handling
 - Entry points must generate a `log_id` if missing.

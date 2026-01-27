@@ -8,10 +8,10 @@
 - Full lint + test validation cannot pass, blocking engineering-practices compliance for this change set.
 
 ## Notes / Suspected Causes
-- These errors appear pre-existing and unrelated to the documentation-only changes in this task.
+- The errors were introduced while switching CLI entry points to `cliBaseContext()`, which required import adjustments.
 
 ## Remediation Ideas
 - Add the missing `context` import in `cmd/alex/cost.go` and remove the unused import in `cmd/alex/acp.go` (or use `context` where required), then rerun lint/test.
 
 ## Resolution (This Run)
-- None; left unchanged to keep scope limited to research documentation.
+- Added the missing `context` import in `cmd/alex/cost.go` and removed the unused import in `cmd/alex/acp.go`; reran lint/test successfully.

@@ -17,5 +17,5 @@
 
 ## Progress
 - 2026-01-27: Plan created; engineering practices reviewed.
-- 2026-01-27: Standardized log_id key usage, added context-aware CLI latency logging, and updated logging conventions + log files docs.
-- 2026-01-27: Ran `./dev.sh lint` and `./dev.sh test` (pass; LC_DYSYMTAB linker warnings emitted).
+- 2026-01-27: Standardized log_id key usage, added context-aware CLI latency logging, and updated logging conventions + log files docs (including subagent log_id derivation).
+- 2026-01-27: Ran `./dev.sh test` (pass; LC_DYSYMTAB linker warnings emitted). `./dev.sh lint` failed due to pre-existing `internal/channels/wechat/gateway.go` errcheck.

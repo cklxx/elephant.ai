@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"strings"
 	"sync"
 	"testing"
 
@@ -176,8 +177,11 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	if ids.TaskID == rootTaskID {
 		t.Fatalf("expected delegated task id to differ from root (%s)", rootTaskID)
 	}
-	if ids.LogID != logID {
-		t.Fatalf("expected delegated log id %s, got %s", logID, ids.LogID)
+	if ids.LogID == "" {
+		t.Fatalf("expected delegated log id to be set")
+	}
+	if !strings.Contains(ids.LogID, logID) {
+		t.Fatalf("expected delegated log id to include %s, got %s", logID, ids.LogID)
 	}
 
 	entries, err := coordinator.LoggedEntries()
@@ -198,8 +202,11 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	if entry["parent_task_id"] != rootTaskID {
 		t.Fatalf("expected log parent_task_id %s, got %v", rootTaskID, entry["parent_task_id"])
 	}
-	if entry["log_id"] != logID {
-		t.Fatalf("expected log log_id %s, got %v", logID, entry["log_id"])
+	if entry["log_id"] != ids.LogID {
+		t.Fatalf("expected log log_id %s, got %v", ids.LogID, entry["log_id"])
+	}
+	if !strings.Contains(ids.LogID, logID) {
+		t.Fatalf("expected log log_id to include %s, got %v", logID, entry["log_id"])
 	}
 }
 
