@@ -794,7 +794,7 @@ start_server() {
       ACP_EXECUTOR_ADDR="${acp_executor_addr}" \
       air \
       --build.cmd "${SCRIPT_DIR}/scripts/go-with-toolchain.sh build -o ${SCRIPT_DIR}/alex-server ./cmd/alex-server" \
-      --build.bin "${SCRIPT_DIR}/alex-server" \
+      --build.entrypoint "[\"./alex-server\"]" \
       >"${SERVER_LOG}" 2>&1 &
   else
     PORT="${SERVER_PORT}" \
