@@ -130,7 +130,7 @@ Features:
   ✓ Code search and indexing
 
 Architecture: Hexagonal (Ports & Adapters)
-Documentation: docs/reference/ARCHITECTURE_AGENT_FLOW.md + docs/reference/CONFIG.md
+Documentation: AGENTS.md + docs/reference/ARCHITECTURE_AGENT_FLOW.md + docs/reference/CONFIG.md
 `, appVersion(), configLine)
 }
 
