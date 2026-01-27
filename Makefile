@@ -65,7 +65,6 @@ docs: ## Show documentation locations
 	@echo "Documentation available in:"
 	@echo "  - README.md"
 	@echo "  - docs/README.md"
-	@echo "  - docs/AGENT.md"
 	@echo "  - docs/reference/ARCHITECTURE_AGENT_FLOW.md"
 	@echo "  - docs/reference/CONFIG.md"
 	@echo "  - docs/operations/DEPLOYMENT.md"

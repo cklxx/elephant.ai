@@ -142,4 +142,4 @@ Use `tool_preset` to control which tools the CLI agent can call (web mode ignore
 
 - Deployment: `docs/operations/DEPLOYMENT.md`
 - Configuration reference: `docs/reference/CONFIG.md`
-- Runtime/agent deep dive: `docs/AGENT.md`
+- Runtime/agent deep dive: `docs/reference/ARCHITECTURE_AGENT_FLOW.md`

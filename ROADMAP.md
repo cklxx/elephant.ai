@@ -9,7 +9,7 @@ Start with the "why" and the top-level mechanics:
 
 - `README.md` — product overview, quickstart (`./dev.sh`), and high-level architecture.
 - `docs/README.md` — table of contents for deeper docs.
-- `docs/AGENT.md` — the Think → Act → Observe loop, event lifecycle, and orchestration semantics.
+- `docs/reference/ARCHITECTURE_AGENT_FLOW.md` — the Think → Act → Observe loop, event lifecycle, and orchestration semantics.
 
 ## 2) Entry Surfaces
 

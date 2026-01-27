@@ -2,7 +2,7 @@
 > Last updated: 2026-01-23
 
 This document consolidates the runtime architecture and the agent execution flow for elephant.ai.
-It complements the deeper dives in `docs/AGENT.md`, `docs/reference/CONFIG.md`, and `docs/reference/ACP.md`.
+It complements the deeper dives in `docs/reference/CONFIG.md` and `docs/reference/ACP.md`.
 
 ---
 
@@ -97,6 +97,8 @@ flowchart TD
 The agent loop is implemented in the domain layer and orchestrated by the application layer.
 Each step emits typed events which are rendered by delivery adapters.
 
+### ReAct Execution Loop
+
 **High-level steps:**
 1) **Bootstrap**: Build the system prompt, load session context, capture environment.
 2) **Think**: Request reasoning tokens from the configured LLM.
@@ -104,6 +106,12 @@ Each step emits typed events which are rendered by delivery adapters.
 4) **Observe**: Capture tool results, compress logs, update context/memory.
 5) **Control**: Apply policies (max steps, approvals, mode restrictions).
 6) **Complete**: Emit final response, cost summary, and persistence signals.
+
+### Memory & Sessions
+
+- Session state and transcript persistence live in `internal/session` and `internal/context`.
+- Retrieval and long-running memory live in `internal/rag` and the memory stores wired in `internal/di`.
+- Compression and context windowing happens before each loop iteration to keep prompts bounded.
 
 ![Agent Execution Flow Diagram](images/agent_execution_flow.png)
 
@@ -153,7 +161,6 @@ flowchart TD
 
 ## 8) Suggested Reading Order
 
-1) `docs/AGENT.md` for the reasoning loop narrative.
-2) `docs/reference/ARCHITECTURE_AGENT_FLOW.md` (this doc) for the system map.
-3) `docs/reference/CONFIG.md` for configuration and init wiring.
-4) `docs/reference/ACP.md` for external client integration.
+1) `docs/reference/ARCHITECTURE_AGENT_FLOW.md` (this doc) for the reasoning loop narrative + system map.
+2) `docs/reference/CONFIG.md` for configuration and init wiring.
+3) `docs/reference/ACP.md` for external client integration.
