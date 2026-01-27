@@ -61,5 +61,18 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("HTTP Rate Limit: %d rpm (burst=%d)", config.RateLimitRequestsPerMinute, config.RateLimitBurst)
 	logger.Info("HTTP Non-Stream Timeout: %s", config.NonStreamTimeout)
 	logger.Info("Event History Retention: %s", config.EventHistoryRetention)
+	wechatCfg := config.Channels.WeChat
+	if wechatCfg.Enabled {
+		logger.Info(
+			"WeChat Gateway: enabled (login_mode=%s, tool_mode=%s, tool_preset=%s, allow_groups=%t, mention_only=%t)",
+			wechatCfg.LoginMode,
+			wechatCfg.ToolMode,
+			wechatCfg.ToolPreset,
+			wechatCfg.AllowGroups,
+			wechatCfg.MentionOnly,
+		)
+	} else {
+		logger.Info("WeChat Gateway: disabled")
+	}
 	logger.Info("===========================")
 }

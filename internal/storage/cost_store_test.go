@@ -284,7 +284,7 @@ func TestFileCostStore_HomeDirectory(t *testing.T) {
 	tempHome := t.TempDir()
 	t.Setenv("HOME", tempHome)
 
-	store, err := NewFileCostStore("~/.test-alex-costs")
+	store, err := NewFileCostStore("~/.alex/test-costs")
 	if err != nil {
 		t.Fatalf("NewFileCostStore with home dir failed: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestFileCostStore_HomeDirectory(t *testing.T) {
 		t.Fatal("Store should not be nil")
 	}
 
-	testDir := filepath.Join(tempHome, ".test-alex-costs")
+	testDir := filepath.Join(tempHome, ".alex", "test-costs")
 	if _, err := os.Stat(testDir); err != nil {
 		t.Fatalf("expected test directory to be created: %v", err)
 	}

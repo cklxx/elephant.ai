@@ -160,6 +160,46 @@ apps:
 
 - `api_url`：仅供部署脚本读取（用于 `NEXT_PUBLIC_API_URL`）。
 
+### channels
+
+#### channels.wechat
+
+- `enabled`：是否启用微信网关（默认 false）。
+- `login_mode`：`desktop` / `normal`（桌面模式通常更稳定）。
+- `hot_login`：是否启用热登录（避免频繁扫码）。
+- `hot_login_storage_path`：热登录存储文件路径。
+- `session_prefix`：会话 ID 前缀（默认 `wechat`）。
+- `reply_prefix`：回复前缀（可用于标识机器人）。
+- `mention_only`：群聊仅在被 @ 时回应（默认 true）。
+- `reply_with_mention`：群聊回复时 @ 发送者（默认 true）。
+- `allow_groups` / `allow_direct`：是否响应群聊/私聊。
+- `allowed_conversation_ids`：允许的会话 ID 列表（使用 openwechat `User.ID()` 值）。
+- `agent_preset`：该通道使用的 agent preset。
+- `tool_preset`：该通道使用的 tool preset。
+- `tool_mode`：`cli` / `web`；`cli` 允许本地 bash/文件系统（“电脑模式”）。
+- `reply_timeout_seconds`：单条消息的执行超时（秒）。
+
+示例（YAML）：
+
+```yaml
+channels:
+  wechat:
+    enabled: true
+    login_mode: "desktop"
+    hot_login: true
+    hot_login_storage_path: "~/.alex/wechat/storage.json"
+    session_prefix: "wechat"
+    mention_only: true
+    reply_with_mention: true
+    allow_groups: true
+    allow_direct: true
+    allowed_conversation_ids: []
+    agent_preset: "default"
+    tool_preset: "full"
+    tool_mode: "cli"
+    reply_timeout_seconds: 180
+```
+
 ### observability
 
 - 仍由 `internal/observability` 读取 `observability` 段（日志/metrics/tracing）。

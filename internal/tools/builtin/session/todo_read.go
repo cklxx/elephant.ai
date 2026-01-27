@@ -17,7 +17,7 @@ type todoRead struct {
 
 func NewTodoRead() tools.ToolExecutor {
 	homeDir, _ := os.UserHomeDir()
-	sessionsDir := filepath.Join(homeDir, ".alex-sessions")
+	sessionsDir := filepath.Join(homeDir, ".alex", "sessions")
 	return &todoRead{sessionsDir: sessionsDir}
 }
 

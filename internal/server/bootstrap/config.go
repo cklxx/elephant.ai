@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/agent/presets"
 	"alex/internal/attachments"
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
@@ -21,6 +22,7 @@ type Config struct {
 	Auth                       runtimeconfig.AuthConfig
 	Session                    runtimeconfig.SessionConfig
 	Analytics                  runtimeconfig.AnalyticsConfig
+	Channels                   ChannelsConfig
 	AllowedOrigins             []string
 	MaxTaskBodyBytes           int64
 	StreamMaxDuration          time.Duration
@@ -31,6 +33,30 @@ type Config struct {
 	NonStreamTimeout           time.Duration
 	EventHistoryRetention      time.Duration
 	Attachment                 attachments.StoreConfig
+}
+
+// ChannelsConfig captures server-side channel gateways.
+type ChannelsConfig struct {
+	WeChat WeChatGatewayConfig
+}
+
+// WeChatGatewayConfig captures the resolved WeChat gateway configuration.
+type WeChatGatewayConfig struct {
+	Enabled                bool
+	LoginMode              string
+	HotLogin               bool
+	HotLoginStoragePath    string
+	SessionPrefix          string
+	ReplyPrefix            string
+	MentionOnly            bool
+	ReplyWithMention       bool
+	AllowGroups            bool
+	AllowDirect            bool
+	AllowedConversationIDs []string
+	AgentPreset            string
+	ToolPreset             string
+	ToolMode               string
+	ReplyTimeout           time.Duration
 }
 
 var defaultAllowedOrigins = []string{
@@ -79,11 +105,28 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		NonStreamTimeout:           30 * time.Second,
 		EventHistoryRetention:      30 * 24 * time.Hour,
 		Session: runtimeconfig.SessionConfig{
-			Dir: "~/.alex-web-sessions",
+			Dir: "~/.alex/sessions",
+		},
+		Channels: ChannelsConfig{
+			WeChat: WeChatGatewayConfig{
+				Enabled:             false,
+				LoginMode:           "desktop",
+				HotLogin:            false,
+				HotLoginStoragePath: "~/.alex/wechat/storage.json",
+				SessionPrefix:       "wechat",
+				MentionOnly:         true,
+				ReplyWithMention:    true,
+				AllowGroups:         true,
+				AllowDirect:         true,
+				AgentPreset:         string(presets.PresetDefault),
+				ToolMode:            "cli",
+				ToolPreset:          string(presets.ToolPresetFull),
+				ReplyTimeout:        2 * time.Minute,
+			},
 		},
 		Attachment: attachments.StoreConfig{
 			Provider: attachments.ProviderLocal,
-			Dir:      "~/.alex-web-attachments",
+			Dir:      "~/.alex/attachments",
 		},
 	}
 
@@ -117,6 +160,63 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if cfg == nil {
 		return
+	}
+
+	if file.Channels != nil && file.Channels.WeChat != nil {
+		wechat := file.Channels.WeChat
+		if wechat.Enabled != nil {
+			cfg.Channels.WeChat.Enabled = *wechat.Enabled
+		}
+		if loginMode := strings.TrimSpace(wechat.LoginMode); loginMode != "" {
+			cfg.Channels.WeChat.LoginMode = loginMode
+		}
+		if wechat.HotLogin != nil {
+			cfg.Channels.WeChat.HotLogin = *wechat.HotLogin
+		}
+		if storage := strings.TrimSpace(wechat.HotLoginStoragePath); storage != "" {
+			cfg.Channels.WeChat.HotLoginStoragePath = storage
+		}
+		if prefix := strings.TrimSpace(wechat.SessionPrefix); prefix != "" {
+			cfg.Channels.WeChat.SessionPrefix = prefix
+		}
+		if replyPrefix := strings.TrimSpace(wechat.ReplyPrefix); replyPrefix != "" {
+			cfg.Channels.WeChat.ReplyPrefix = replyPrefix
+		}
+		if wechat.MentionOnly != nil {
+			cfg.Channels.WeChat.MentionOnly = *wechat.MentionOnly
+		}
+		if wechat.ReplyWithMention != nil {
+			cfg.Channels.WeChat.ReplyWithMention = *wechat.ReplyWithMention
+		}
+		if wechat.AllowGroups != nil {
+			cfg.Channels.WeChat.AllowGroups = *wechat.AllowGroups
+		}
+		if wechat.AllowDirect != nil {
+			cfg.Channels.WeChat.AllowDirect = *wechat.AllowDirect
+		}
+		if len(wechat.AllowedConversationIDs) > 0 {
+			ids := make([]string, 0, len(wechat.AllowedConversationIDs))
+			for _, value := range wechat.AllowedConversationIDs {
+				value = strings.TrimSpace(value)
+				if value == "" {
+					continue
+				}
+				ids = append(ids, value)
+			}
+			cfg.Channels.WeChat.AllowedConversationIDs = ids
+		}
+		if agentPreset := strings.TrimSpace(wechat.AgentPreset); agentPreset != "" {
+			cfg.Channels.WeChat.AgentPreset = agentPreset
+		}
+		if toolPreset := strings.TrimSpace(wechat.ToolPreset); toolPreset != "" {
+			cfg.Channels.WeChat.ToolPreset = toolPreset
+		}
+		if toolMode := strings.TrimSpace(wechat.ToolMode); toolMode != "" {
+			cfg.Channels.WeChat.ToolMode = toolMode
+		}
+		if wechat.ReplyTimeoutSeconds != nil && *wechat.ReplyTimeoutSeconds > 0 {
+			cfg.Channels.WeChat.ReplyTimeout = time.Duration(*wechat.ReplyTimeoutSeconds) * time.Second
+		}
 	}
 
 	if file.Server != nil {

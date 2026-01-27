@@ -29,6 +29,18 @@ attachments:
   presign_ttl: "20m"
 web:
   api_url: "http://${WEB_HOST}"
+channels:
+  wechat:
+    enabled: true
+    login_mode: "${WECHAT_LOGIN_MODE}"
+    hot_login_storage_path: "${WECHAT_STORAGE}"
+    session_prefix: "wechat"
+    reply_prefix: "${WECHAT_REPLY_PREFIX}"
+    mention_only: false
+    allow_groups: true
+    allow_direct: true
+    allowed_conversation_ids:
+      - "${WECHAT_ALLOW_1}"
 `)
 
 	env := envMap{
@@ -41,6 +53,10 @@ web:
 		"POSTHOG_API_KEY":               "ph-key",
 		"CF_ACCOUNT":                    "cf-account",
 		"WEB_HOST":                      "localhost:3000",
+		"WECHAT_LOGIN_MODE":             "desktop",
+		"WECHAT_STORAGE":                "~/.alex/wechat",
+		"WECHAT_REPLY_PREFIX":           "[bot] ",
+		"WECHAT_ALLOW_1":                "conv-1",
 	}
 
 	cfg, path, err := LoadFileConfig(
@@ -83,6 +99,18 @@ web:
 	}
 	if cfg.Web == nil || cfg.Web.APIURL != "http://localhost:3000" {
 		t.Fatalf("expected web config to expand, got %#v", cfg.Web)
+	}
+	if cfg.Channels == nil || cfg.Channels.WeChat == nil {
+		t.Fatalf("expected channels config to expand, got %#v", cfg.Channels)
+	}
+	if cfg.Channels.WeChat.LoginMode != "desktop" || cfg.Channels.WeChat.HotLoginStoragePath != "~/.alex/wechat" {
+		t.Fatalf("expected wechat channel values to expand, got %#v", cfg.Channels.WeChat)
+	}
+	if cfg.Channels.WeChat.ReplyPrefix != "[bot] " {
+		t.Fatalf("expected wechat reply prefix to expand, got %#v", cfg.Channels.WeChat.ReplyPrefix)
+	}
+	if cfg.Channels.WeChat.AllowedConversationIDs == nil || len(cfg.Channels.WeChat.AllowedConversationIDs) != 1 || cfg.Channels.WeChat.AllowedConversationIDs[0] != "conv-1" {
+		t.Fatalf("expected wechat allowlist to expand, got %#v", cfg.Channels.WeChat.AllowedConversationIDs)
 	}
 }
 

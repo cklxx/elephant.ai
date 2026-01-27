@@ -11,6 +11,10 @@ import (
 
 // BuildContainer wires the shared DI container using the server runtime configuration.
 func BuildContainer(config Config) (*di.Container, error) {
+	return buildContainerWithToolMode(config, presets.ToolModeWeb)
+}
+
+func buildContainerWithToolMode(config Config, toolMode presets.ToolMode) (*di.Container, error) {
 	diConfig := di.ConfigFromRuntimeConfig(config.Runtime)
 	diConfig.EnableMCP = config.EnableMCP
 	diConfig.EnvironmentSummary = config.EnvironmentSummary
@@ -52,6 +56,9 @@ func BuildContainer(config Config) (*di.Container, error) {
 		diConfig.SessionCacheSize = config.Session.CacheSize
 	}
 	diConfig.RequireSessionDatabase = requireSessionDB
-	diConfig.ToolMode = string(presets.ToolModeWeb)
+	if strings.TrimSpace(string(toolMode)) == "" {
+		toolMode = presets.ToolModeWeb
+	}
+	diConfig.ToolMode = string(toolMode)
 	return di.BuildContainer(diConfig)
 }

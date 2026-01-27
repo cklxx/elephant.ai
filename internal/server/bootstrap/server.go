@@ -124,6 +124,18 @@ func RunServer(observabilityConfigPath string) error {
 		serverApp.WithHistoryStore(container.HistoryStore),
 	)
 
+	gatewayCtx, gatewayCancel := context.WithCancel(context.Background())
+	gatewayCleanup, err := startWeChatGateway(gatewayCtx, config, container, logger)
+	if err != nil {
+		logger.Warn("WeChat gateway disabled: %v", err)
+	}
+	defer func() {
+		gatewayCancel()
+		if gatewayCleanup != nil {
+			gatewayCleanup()
+		}
+	}()
+
 	if historyStore != nil {
 		migrationCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()

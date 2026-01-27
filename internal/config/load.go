@@ -48,8 +48,8 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		UserRateLimitBurst:         3,
 		Temperature:                0.7,
 		TopP:                       1.0,
-		SessionDir:                 "~/.alex-sessions",
-		CostDir:                    "~/.alex-costs",
+		SessionDir:                 "~/.alex/sessions",
+		CostDir:                    "~/.alex/costs",
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.

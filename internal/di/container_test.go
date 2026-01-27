@@ -27,13 +27,13 @@ func TestResolveStorageDir(t *testing.T) {
 		{
 			name:       "use configured absolute path when provided",
 			configured: "/custom/path",
-			defaultVal: "~/.alex-sessions",
+			defaultVal: "~/.alex/sessions",
 			want:       "/custom/path",
 		},
 		{
 			name:       "use default when configured is empty",
 			configured: "",
-			defaultVal: "~/.alex-sessions",
+			defaultVal: "~/.alex/sessions",
 			wantPrefix: home, // Should expand to home directory
 		},
 		{
@@ -44,9 +44,9 @@ func TestResolveStorageDir(t *testing.T) {
 		},
 		{
 			name:       "expand tilde with slash",
-			configured: "~/.alex-sessions",
+			configured: "~/.alex/sessions",
 			defaultVal: "",
-			want:       home + "/.alex-sessions",
+			want:       home + "/.alex/sessions",
 		},
 		{
 			name:       "expand tilde without slash",
@@ -56,15 +56,15 @@ func TestResolveStorageDir(t *testing.T) {
 		},
 		{
 			name:       "expand tilde with path no slash",
-			configured: "~.alex-sessions",
+			configured: "~.alex/sessions",
 			defaultVal: "",
-			want:       home + "/.alex-sessions",
+			want:       home + "/.alex/sessions",
 		},
 		{
 			name:       "handle $HOME environment variable",
-			configured: "$HOME/.alex-costs",
+			configured: "$HOME/.alex/costs",
 			defaultVal: "",
-			want:       home + "/.alex-costs",
+			want:       home + "/.alex/costs",
 		},
 		{
 			name:       "handle empty string edge case",
@@ -120,9 +120,9 @@ func TestResolveStorageDir_DoesNotStripHomeIncorrectly(t *testing.T) {
 		name  string
 		input string
 	}{
-		{"tilde with slash", "~/.alex-sessions"},
+		{"tilde with slash", "~/.alex/sessions"},
 		{"tilde alone", "~"},
-		{"HOME env var", "$HOME/.alex-sessions"},
+		{"HOME env var", "$HOME/.alex/sessions"},
 	}
 
 	for _, tc := range testCases {

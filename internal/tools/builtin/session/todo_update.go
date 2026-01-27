@@ -20,7 +20,7 @@ type todoUpdate struct {
 
 func NewTodoUpdate() tools.ToolExecutor {
 	homeDir, _ := os.UserHomeDir()
-	sessionsDir := filepath.Join(homeDir, ".alex-sessions")
+	sessionsDir := filepath.Join(homeDir, ".alex", "sessions")
 	return newTodoUpdate(sessionsDir, nil)
 }
 

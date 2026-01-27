@@ -5,6 +5,7 @@ type FileConfig struct {
 	Runtime     *RuntimeFileConfig `json:"runtime,omitempty" yaml:"runtime"`
 	Overrides   *Overrides         `json:"overrides,omitempty" yaml:"overrides"`
 	Apps        *AppsConfig        `json:"apps,omitempty" yaml:"apps"`
+	Channels    *ChannelsConfig    `json:"channels,omitempty" yaml:"channels"`
 	Server      *ServerConfig      `json:"server,omitempty" yaml:"server"`
 	Auth        *AuthConfig        `json:"auth,omitempty" yaml:"auth"`
 	Session     *SessionConfig     `json:"session,omitempty" yaml:"session"`
@@ -72,6 +73,30 @@ type AppPluginConfig struct {
 	Capabilities    []string `json:"capabilities,omitempty" yaml:"capabilities"`
 	IntegrationNote string   `json:"integration_note,omitempty" yaml:"integration_note"`
 	Sources         []string `json:"sources,omitempty" yaml:"sources"`
+}
+
+// ChannelsConfig captures channel integrations (e.g., WeChat).
+type ChannelsConfig struct {
+	WeChat *WeChatChannelConfig `json:"wechat,omitempty" yaml:"wechat"`
+}
+
+// WeChatChannelConfig captures WeChat gateway settings in YAML.
+type WeChatChannelConfig struct {
+	Enabled                *bool    `json:"enabled" yaml:"enabled"`
+	LoginMode              string   `json:"login_mode" yaml:"login_mode"`
+	HotLogin               *bool    `json:"hot_login" yaml:"hot_login"`
+	HotLoginStoragePath    string   `json:"hot_login_storage_path" yaml:"hot_login_storage_path"`
+	SessionPrefix          string   `json:"session_prefix" yaml:"session_prefix"`
+	ReplyPrefix            string   `json:"reply_prefix" yaml:"reply_prefix"`
+	MentionOnly            *bool    `json:"mention_only" yaml:"mention_only"`
+	ReplyWithMention       *bool    `json:"reply_with_mention" yaml:"reply_with_mention"`
+	AllowGroups            *bool    `json:"allow_groups" yaml:"allow_groups"`
+	AllowDirect            *bool    `json:"allow_direct" yaml:"allow_direct"`
+	AllowedConversationIDs []string `json:"allowed_conversation_ids" yaml:"allowed_conversation_ids"`
+	AgentPreset            string   `json:"agent_preset" yaml:"agent_preset"`
+	ToolPreset             string   `json:"tool_preset" yaml:"tool_preset"`
+	ToolMode               string   `json:"tool_mode" yaml:"tool_mode"`
+	ReplyTimeoutSeconds    *int     `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
 }
 
 // ServerConfig captures server-specific YAML configuration.

@@ -7,9 +7,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"alex/internal/tools/builtin/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"alex/internal/tools/builtin/shared"
 )
 
 func TestTodoRead_Metadata(t *testing.T) {
@@ -193,9 +193,9 @@ func TestTodoRead_NewTodoRead(t *testing.T) {
 	// Check that it's a todoRead instance
 	todoReadTool, ok := tool.(*todoRead)
 	require.True(t, ok)
-	// sessionsDir should be set to .alex-sessions
+	// sessionsDir should be set to ~/.alex/sessions
 	home, _ := os.UserHomeDir()
-	expectedDir := filepath.Join(home, ".alex-sessions")
+	expectedDir := filepath.Join(home, ".alex", "sessions")
 	assert.Equal(t, expectedDir, todoReadTool.sessionsDir)
 }
 

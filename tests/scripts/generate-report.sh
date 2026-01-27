@@ -872,7 +872,7 @@ send_email_report() {
     log_info "发送邮件报告到: $EMAIL_RECIPIENT"
 
     # 查找邮件配置
-    local email_config="${EMAIL_CONFIG:-$HOME/.alex-email-config}"
+    local email_config="${EMAIL_CONFIG:-$HOME/.alex/email-config}"
 
     if [ ! -f "$email_config" ]; then
         log_warning "邮件配置文件不存在，跳过邮件发送"

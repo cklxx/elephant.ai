@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"alex/internal/tools/builtin/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"alex/internal/tools/builtin/shared"
 )
 
 func TestTodoUpdate_Metadata(t *testing.T) {
@@ -413,7 +413,7 @@ func TestTodoUpdate_NewTodoUpdate(t *testing.T) {
 
 	// Verify it creates the sessions directory
 	home, _ := os.UserHomeDir()
-	expectedDir := filepath.Join(home, ".alex-sessions")
+	expectedDir := filepath.Join(home, ".alex", "sessions")
 
 	// Check that the tool's sessionsDir is set correctly
 	todoUpdateTool, ok := tool.(*todoUpdate)

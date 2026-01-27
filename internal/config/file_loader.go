@@ -59,6 +59,10 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 		expanded := expandAppsConfigEnv(lookup, *parsed.Apps)
 		parsed.Apps = &expanded
 	}
+	if parsed.Channels != nil {
+		expanded := expandChannelsConfigEnv(lookup, *parsed.Channels)
+		parsed.Channels = &expanded
+	}
 	if parsed.Server != nil {
 		parsed.Server.Port = expandEnvValue(lookup, parsed.Server.Port)
 		if len(parsed.Server.AllowedOrigins) > 0 {
@@ -140,5 +144,27 @@ func expandAppsConfigEnv(lookup EnvLookup, parsed AppsConfig) AppsConfig {
 		plugins = append(plugins, plugin)
 	}
 	parsed.Plugins = plugins
+	return parsed
+}
+
+func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsConfig {
+	if parsed.WeChat != nil {
+		wechat := *parsed.WeChat
+		wechat.LoginMode = expandEnvValue(lookup, wechat.LoginMode)
+		wechat.HotLoginStoragePath = expandEnvValue(lookup, wechat.HotLoginStoragePath)
+		wechat.SessionPrefix = expandEnvValue(lookup, wechat.SessionPrefix)
+		wechat.ReplyPrefix = expandEnvValue(lookup, wechat.ReplyPrefix)
+		wechat.AgentPreset = expandEnvValue(lookup, wechat.AgentPreset)
+		wechat.ToolPreset = expandEnvValue(lookup, wechat.ToolPreset)
+		wechat.ToolMode = expandEnvValue(lookup, wechat.ToolMode)
+		if len(wechat.AllowedConversationIDs) > 0 {
+			ids := make([]string, 0, len(wechat.AllowedConversationIDs))
+			for _, value := range wechat.AllowedConversationIDs {
+				ids = append(ids, expandEnvValue(lookup, value))
+			}
+			wechat.AllowedConversationIDs = ids
+		}
+		parsed.WeChat = &wechat
+	}
 	return parsed
 }

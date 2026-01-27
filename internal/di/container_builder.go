@@ -77,8 +77,8 @@ func BuildContainer(config Config) (*Container, error) {
 
 func newContainerBuilder(config Config) *containerBuilder {
 	logger := logging.NewComponentLogger("DI")
-	sessionDir := resolveStorageDir(config.SessionDir, "~/.alex-sessions")
-	costDir := resolveStorageDir(config.CostDir, "~/.alex-costs")
+	sessionDir := resolveStorageDir(config.SessionDir, "~/.alex/sessions")
+	costDir := resolveStorageDir(config.CostDir, "~/.alex/costs")
 	if strings.TrimSpace(config.ToolMode) == "" {
 		config.ToolMode = string(presets.ToolModeCLI)
 	}
