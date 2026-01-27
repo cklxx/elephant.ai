@@ -8,6 +8,7 @@
 - For OpenAI-compatible third-party services, `bot_type` should be `chatGPT`.
 - WeChat official account config fields include `wechatmp_token`, `wechatmp_port`, `wechatmp_app_id`, `wechatmp_app_secret`, and `wechatmp_aes_key`. The `wechatmp_port` requires port forwarding to 80 or 443.
 - WeCom self-built app config fields include `wechatcom_corp_id`, `wechatcomapp_token`, `wechatcomapp_port`, `wechatcomapp_secret`, `wechatcomapp_agent_id`, and `wechatcomapp_aes_key`. The `wechatcomapp_port` does not require port forwarding.
+- Personal account channels are split between itchat (`wx`) and wechaty (`wxy`); itchat handles QR login + message dispatch directly, while wechaty uses a puppet service token for login and message events.
 
 ## Recommended integration pattern (copy the technique)
 ### 1) Use chatgpt-on-wechat as the WeChat gateway
@@ -26,6 +27,17 @@ chatgpt-on-wechat expects OpenAI-style endpoints when `open_ai_api_base` is conf
 - Convert `messages` (system + conversation) into a single `task` string or use the latest user message plus a stitched context.
 - Call elephant.ai `POST /api/tasks` with `{task, session_id}`.
 - Optionally stream from `GET /api/sse?session_id=...&replay=session` and map the final assistant output back to OpenAI response schema.
+
+## Personal account channel notes (wx vs wxy)
+### `wx` (itchat)
+- Uses itchat QR login with ASCII QR rendering; supports hot reload to reuse cookies between restarts.
+- Registers text and “note” message handlers and routes friend/group messages through a shared processor.
+- Best for quick local experiments, but depends on WeChat Web login availability.
+
+### `wxy` (wechaty)
+- Uses Wechaty with `wechaty_puppet_service_token`; token-driven puppet services abstract the login + protocol.
+- Provides event hooks for message/ready/logout and reuses the same chat processing pipeline.
+- Better for long-running deployments if you have a stable puppet provider, but adds an external dependency.
 
 ## YAML config mapping (mirror chatgpt-on-wechat config.json)
 > Upstream uses `config.json`. The YAML below is a 1:1 key map; keep it YAML here and translate when applying upstream.

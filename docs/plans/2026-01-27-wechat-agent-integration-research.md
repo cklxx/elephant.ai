@@ -20,3 +20,5 @@
 - 2026-01-27: Updated the report with upstream config details and integration mapping.
 - 2026-01-27: Ran `./dev.sh lint` and `./dev.sh test` (both failed: cmd/alex context import errors).
 - 2026-01-27: Logged error-experience entry + summary for the lint/test failures.
+- 2026-01-27: Dug into CoW WeChat channels (itchat `wx`, wechaty `wxy`) and noted wechatferry mention in the upstream changelog.
+- 2026-01-27: Refined the research report with personal account channel notes; ran `./dev.sh lint` and `./dev.sh test`.
