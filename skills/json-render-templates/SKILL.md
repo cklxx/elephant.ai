@@ -110,3 +110,58 @@ payload:
         - url: "https://example.com/image-2.jpg"
           caption: "Pricing layout"
 ```
+
+## Template: Table
+```yaml
+payload:
+  root:
+    type: table
+    props:
+      headers: ["Service", "Latency(ms)", "Errors"]
+      rows:
+        - ["api-gateway", 120, "0.2%"]
+        - ["recommendation", 180, "0.4%"]
+```
+
+## Template: Kanban
+```yaml
+payload:
+  root:
+    type: kanban
+    props:
+      columns:
+        - title: "Todo"
+          items:
+            - title: "Collect requirements"
+              meta: "Owner: PM"
+        - title: "In Progress"
+          items:
+            - title: "Implement renderer"
+              subtitle: "json-render"
+        - title: "Done"
+          items:
+            - title: "Define templates"
+              meta: "v1"
+```
+
+## Template: Diagram (nodes + edges)
+```yaml
+payload:
+  root:
+    type: diagram
+    props:
+      nodes:
+        - id: service-a
+          label: "Service A"
+        - id: service-b
+          label: "Service B"
+        - id: service-c
+          label: "Service C"
+      edges:
+        - from: service-a
+          to: service-b
+          label: "calls"
+        - from: service-b
+          to: service-c
+          label: "writes"
+```
