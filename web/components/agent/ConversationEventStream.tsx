@@ -103,12 +103,12 @@ export function ConversationEventStream({
       | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
       | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number; order: number }
       | {
-          kind: "subagentGroup";
-          groupKey: string;
-          threads: SubagentThread[];
-          ts: number;
-          order: number;
-        };
+        kind: "subagentGroup";
+        groupKey: string;
+        threads: SubagentThread[];
+        ts: number;
+        order: number;
+      };
 
     const entries: CombinedEntry[] = displayEntries.map((entry, idx) => {
       if (entry.kind === "event") {
@@ -203,7 +203,7 @@ export function ConversationEventStream({
             return (
               <div
                 key={`subagent-group-${entry.groupKey}`}
-                className="-mx-2 px-2 my-2 flex flex-col gap-3"
+                className="-mx-2 px-2 my-2 flex flex-row gap-3 overflow-y-scroll"
                 data-testid="subagent-thread-group"
               >
                 {entry.threads.map((thread) => {
@@ -809,7 +809,7 @@ function getToolName(event: AnyAgentEvent): string | null {
     ("tool_name" in event && typeof event.tool_name === "string"
       ? event.tool_name
       : "tool" in event &&
-          typeof (event as Record<string, unknown>).tool === "string"
+        typeof (event as Record<string, unknown>).tool === "string"
         ? String((event as Record<string, unknown>).tool)
         : "") || "";
 
