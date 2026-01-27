@@ -119,6 +119,50 @@ func TestA2UIEmitSerializesMessages(t *testing.T) {
 	}
 }
 
+func TestA2UIEmitSerializesContentObject(t *testing.T) {
+	tool := NewA2UIEmit()
+	call := ports.ToolCall{
+		ID:   "call-3",
+		Name: "a2ui_emit",
+		Arguments: map[string]any{
+			"content": map[string]any{
+				"type":    "ui",
+				"version": "1.0",
+				"messages": []any{
+					map[string]any{
+						"type": "heading",
+						"text": "Hello",
+					},
+				},
+			},
+		},
+	}
+
+	result, err := tool.Execute(context.Background(), call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+
+	var att ports.Attachment
+	for _, entry := range result.Attachments {
+		att = entry
+		break
+	}
+	decoded, err := base64.StdEncoding.DecodeString(att.Data)
+	if err != nil {
+		t.Fatalf("failed to decode attachment data: %v", err)
+	}
+	if !json.Valid(decoded) {
+		t.Fatalf("expected JSON content, got: %s", string(decoded))
+	}
+	if !strings.Contains(string(decoded), "\"messages\"") {
+		t.Fatalf("expected serialized messages, got: %s", string(decoded))
+	}
+}
+
 func TestA2UIEmitDefinitionMessagesHasItems(t *testing.T) {
 	def := NewA2UIEmit().Definition()
 

@@ -23,7 +23,26 @@ func NewA2UIEmit() tools.ToolExecutor {
 }
 
 func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	content := strings.TrimSpace(shared.StringArg(call.Arguments, "content"))
+	content := ""
+	if raw, ok := call.Arguments["content"]; ok && raw != nil {
+		switch typed := raw.(type) {
+		case string:
+			content = strings.TrimSpace(typed)
+		case []byte:
+			content = strings.TrimSpace(string(typed))
+		case json.RawMessage:
+			content = strings.TrimSpace(string(typed))
+		default:
+			serialized, err := json.Marshal(typed)
+			if err != nil {
+				return &ports.ToolResult{
+					CallID: call.ID,
+					Error:  fmt.Errorf("content must be JSON-serializable: %w", err),
+				}, nil
+			}
+			content = strings.TrimSpace(string(serialized))
+		}
+	}
 	if content == "" {
 		if messages := call.Arguments["messages"]; messages != nil {
 			serialized, err := serializeA2UIMessages(messages)

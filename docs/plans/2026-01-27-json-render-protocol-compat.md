@@ -15,3 +15,4 @@
 - 2026-01-27: Added wrapper parsing + prop preservation; extended renderer/SSR for container/grid/tag and richer text/image/form props; added tests.
 - 2026-01-27: Widened workflow tool result typing to allow object payloads used by json-render emitters.
 - 2026-01-27: Normalized tool result handling across web UI consumers (summaries, attachments, tool outputs).
+- 2026-01-27: Allow a2ui_emit content to accept JSON objects (serialize to JSON) and added coverage.
