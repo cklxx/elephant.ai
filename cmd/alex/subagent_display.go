@@ -83,13 +83,18 @@ func (d *SubagentDisplay) Handle(event *orchestration.SubtaskEvent) []string {
 
 	state := d.ensureState(event.SubtaskIndex, event.SubtaskPreview)
 
+	// Track if we need to show start line for fast-completing tasks
+	needsStartLine := !state.started
+
 	if !state.started {
+		state.started = true
+		// For regular events, show start line immediately
 		switch event.OriginalEvent.(type) {
 		case *domain.WorkflowResultFinalEvent, *domain.WorkflowNodeFailedEvent:
-			state.started = true
+			// Don't show start line yet; will show before completion/failure
 		default:
-			state.started = true
 			lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
+			needsStartLine = false
 		}
 	}
 
@@ -102,6 +107,10 @@ func (d *SubagentDisplay) Handle(event *orchestration.SubtaskEvent) []string {
 		if state.done {
 			break
 		}
+		// Show start line first if this is a fast-completing task
+		if needsStartLine {
+			lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
+		}
 		state.done = true
 		state.tokens = e.TotalTokens
 		d.completed++
@@ -111,6 +120,10 @@ func (d *SubagentDisplay) Handle(event *orchestration.SubtaskEvent) []string {
 	case *domain.WorkflowNodeFailedEvent:
 		if state.done {
 			break
+		}
+		// Show start line first if this is a fast-completing task
+		if needsStartLine {
+			lines = append(lines, d.renderStartLine(event.SubtaskIndex, state))
 		}
 		state.done = true
 		state.failed = true

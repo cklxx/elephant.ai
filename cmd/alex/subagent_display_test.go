@@ -221,6 +221,80 @@ func TestSubagentDisplayUpdatesHeaderWhenMaxParallelIncreases(t *testing.T) {
 	}
 }
 
+func TestSubagentDisplayFastCompletingTasks(t *testing.T) {
+	display := NewSubagentDisplay()
+
+	// Simulate a task that completes immediately without any intermediate events
+	// (first event is the final result)
+	lines := display.Handle(&orchestration.SubtaskEvent{
+		OriginalEvent:  &domain.WorkflowResultFinalEvent{TotalTokens: 50},
+		SubtaskIndex:   0,
+		TotalSubtasks:  3,
+		SubtaskPreview: "Fast task 1",
+		MaxParallel:    3,
+	})
+
+	// Should show header, start line, and completion line
+	if len(lines) != 3 {
+		t.Fatalf("expected header + start + completion lines for fast-completing task, got %d lines: %v", len(lines), lines)
+	}
+	if !strings.Contains(lines[0], "Subagent: Running 3 tasks (max 3 parallel)") {
+		t.Fatalf("expected header, got %q", lines[0])
+	}
+	if !containsAny(lines[1], "→ Task 1 – Fast task 1", "-> Task 1 – Fast task 1") {
+		t.Fatalf("expected start line for fast task, got %q", lines[1])
+	}
+	if !containsAny(lines[2], "✓ [1/3] Task 1", "OK [1/3] Task 1") {
+		t.Fatalf("expected completion line, got %q", lines[2])
+	}
+
+	// Second fast-completing task
+	lines2 := display.Handle(&orchestration.SubtaskEvent{
+		OriginalEvent:  &domain.WorkflowResultFinalEvent{TotalTokens: 30},
+		SubtaskIndex:   1,
+		TotalSubtasks:  3,
+		SubtaskPreview: "Fast task 2",
+		MaxParallel:    3,
+	})
+
+	// Should show start line and completion line (no header since totals unchanged)
+	if len(lines2) != 2 {
+		t.Fatalf("expected start + completion lines for second fast task, got %d lines: %v", len(lines2), lines2)
+	}
+	if !containsAny(lines2[0], "→ Task 2 – Fast task 2", "-> Task 2 – Fast task 2") {
+		t.Fatalf("expected start line for second fast task, got %q", lines2[0])
+	}
+	if !containsAny(lines2[1], "✓ [2/3] Task 2", "OK [2/3] Task 2") {
+		t.Fatalf("expected completion line for second task, got %q", lines2[1])
+	}
+
+	// Third fast-failing task
+	lines3 := display.Handle(&orchestration.SubtaskEvent{
+		OriginalEvent:  &domain.WorkflowNodeFailedEvent{Error: assertError("quick failure")},
+		SubtaskIndex:   2,
+		TotalSubtasks:  3,
+		SubtaskPreview: "Fast task 3",
+		MaxParallel:    3,
+	})
+
+	// Should show start line, failure line, and summary
+	if len(lines3) != 3 {
+		t.Fatalf("expected start + failure + summary lines for third fast task, got %d lines: %v", len(lines3), lines3)
+	}
+	if !containsAny(lines3[0], "→ Task 3 – Fast task 3", "-> Task 3 – Fast task 3") {
+		t.Fatalf("expected start line for third fast task, got %q", lines3[0])
+	}
+	if !containsAny(lines3[1], "✗ [3/3] Task 3", "X [3/3] Task 3") {
+		t.Fatalf("expected failure line for third task, got %q", lines3[1])
+	}
+	if !strings.Contains(lines3[1], "quick failure") {
+		t.Fatalf("expected error message in failure line, got %q", lines3[1])
+	}
+	if !strings.Contains(lines3[2], "2 of 3 tasks completed, 1 failure") {
+		t.Fatalf("expected summary with failure count, got %q", lines3[2])
+	}
+}
+
 type assertError string
 
 func (e assertError) Error() string {
