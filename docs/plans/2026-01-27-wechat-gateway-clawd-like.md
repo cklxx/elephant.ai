@@ -18,4 +18,5 @@
 - 2026-01-27: Plan created; engineering practices reviewed.
 - 2026-01-27: Research completed (clawd.bot docs, openwechat docs).
 - 2026-01-27: Implemented WeChat gateway, channel config, and unified ~/.alex storage defaults.
-- 2026-01-27: Ran `./dev.sh lint` and `./dev.sh test` (both pass; go test emits ld warnings on macOS).
+- 2026-01-27: Added ASCII QR printing on login (openwechat UUID callback).
+- 2026-01-27: Ran `./dev.sh`, `./dev.sh lint`, and `./dev.sh test` (all pass; go test emits ld warnings on macOS).

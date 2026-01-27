@@ -14,6 +14,7 @@ import (
 	id "alex/internal/utils/id"
 
 	"github.com/eatmoreapple/openwechat"
+	"github.com/skip2/go-qrcode"
 )
 
 // AgentExecutor captures the agent execution surface needed by the gateway.
@@ -60,6 +61,17 @@ func (g *Gateway) Start(ctx context.Context) error {
 		ctx = context.Background()
 	}
 	bot := openwechat.DefaultBot(g.loginMode(), openwechat.WithContextOption(ctx))
+	bot.UUIDCallback = func(uuid string) {
+		url := openwechat.GetQrcodeUrl(uuid)
+		code, err := qrcode.New(url, qrcode.Low)
+		if err != nil {
+			g.logger.Warn("WeChat QR generation failed: %v", err)
+			g.logger.Info("WeChat login URL: %s", url)
+			return
+		}
+		g.logger.Info("WeChat login QR (scan with mobile):\n%s", code.ToString(true))
+		g.logger.Info("WeChat login URL: %s", url)
+	}
 	bot.MessageHandler = g.handleMessage
 	g.bot = bot
 
