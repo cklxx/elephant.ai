@@ -47,10 +47,11 @@ export function AgentCard({
           "border-y-border/40 border-r-border/40",
           "bg-muted/10 transition-all duration-200",
           "group-hover:bg-muted/20 group-hover:shadow-sm",
+          "overflow-hidden",
           getStateColor(data.state),
         )}
       >
-        <div className="p-3 space-y-3">
+        <div className="p-3 space-y-3 min-w-0">
           <CardHeader
             state={data.state}
             preview={data.preview}

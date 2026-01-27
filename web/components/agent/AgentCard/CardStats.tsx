@@ -12,9 +12,9 @@ export function CardStats({ progress, stats, concurrency }: CardStatsProps) {
   const hasProgress = progress && progress.total > 0;
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 min-w-0">
       {hasProgress && (
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">
               Progress: {progress.current}/{progress.total}

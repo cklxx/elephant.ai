@@ -21,7 +21,7 @@ export function CardBody({
   const displayEvents = expanded ? events : events.slice(-1);
 
   return (
-    <div className={cn("space-y-1", expanded && "max-h-[400px] overflow-y-auto")}>
+    <div className={cn("space-y-1 min-w-0 w-full overflow-x-hidden", expanded && "max-h-[400px] overflow-y-auto")}>
       {displayEvents.map((event, i) => {
         const pairedToolStart = resolvePairedToolStart ? resolvePairedToolStart(event) : undefined;
         const actualIndex = expanded ? i : events.length - 1;
@@ -31,6 +31,7 @@ export function CardBody({
             key={`event-${actualIndex}-${event.event_type}-${event.timestamp}`}
             className={cn(
               "transition-colors rounded-md hover:bg-muted/10 -mx-2 px-2",
+              "min-w-0 w-full overflow-x-hidden break-words",
               !expanded && "line-clamp-3",
             )}
           >
