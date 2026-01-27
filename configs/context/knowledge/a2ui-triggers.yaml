@@ -1,0 +1,7 @@
+id: a2ui-triggers
+description: |
+  A2UI trigger rules (generative UI):
+  - If the user asks for a visual UI/diagram (flowchart, form, dashboard, info cards, gallery, UI mock), load skill `a2ui_templates` and emit A2UI with `a2ui_emit`.
+  - If the answer is a structured multi-entity summary that benefits from layout, prefer A2UI over long prose.
+  - If UI intent is implied but ambiguous, ask one confirmation question; otherwise default to A2UI for explicit UI asks.
+  - Prefer `messages` payloads; keep `a2ui_emit` args minimal.
