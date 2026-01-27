@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { AgentMarkdown } from "../AgentMarkdown";
 import { AlexWordmark } from "@/components/ui/alex-wordmark";
 import Image from "next/image";
+import { CompactToolCall } from "../AgentCard/CompactToolCall";
 
 interface EventLineProps {
   event: AnyAgentEvent;
@@ -281,20 +282,28 @@ export const EventLine = React.memo(function EventLine({
       );
     }
     if (isNested) {
-      const content = formatContent(event);
-      const style = getEventStyle(event);
-      if (!content) {
-        return null;
-      }
+      const resultStr = completeEvent.error
+        ? String(completeEvent.error)
+        : completeEvent.result && typeof completeEvent.result === "string"
+          ? completeEvent.result
+          : completeEvent.result && typeof completeEvent.result === "object" && "output" in completeEvent.result
+            ? String(completeEvent.result.output)
+            : completeEvent.result && typeof completeEvent.result === "object" && "content" in completeEvent.result
+              ? String(completeEvent.result.content)
+              : completeEvent.result
+                ? JSON.stringify(completeEvent.result)
+                : undefined;
+
       return wrapWithSubagentContext(
-        <div
-          data-testid="event-workflow.tool.completed"
-          className={cn(
-            "text-sm py-0.5 flex gap-3 text-muted-foreground/80 hover:text-foreground/90",
-            style.content,
-          )}
-        >
-          <div className="flex-1 leading-relaxed break-words">{content}</div>
+        <div data-testid="event-workflow.tool.completed">
+          <CompactToolCall
+            toolName={completeEvent.tool_name}
+            success={!completeEvent.error}
+            result={resultStr}
+            error={completeEvent.error}
+            duration={completeEvent.duration}
+            parameters={pairedArguments}
+          />
         </div>,
       );
     }
