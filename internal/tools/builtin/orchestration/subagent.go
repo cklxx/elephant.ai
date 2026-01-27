@@ -431,3 +431,118 @@ func (e *SubtaskEvent) SetWrappedEvent(event agent.AgentEvent) {
 	}
 	e.OriginalEvent = event
 }
+
+type attachmentCollector struct {
+	mu          sync.Mutex
+	attachments map[string]ports.Attachment
+	inherited   map[string]ports.Attachment
+}
+
+func newAttachmentCollector(inherited map[string]ports.Attachment) *attachmentCollector {
+	return &attachmentCollector{inherited: normalizeAttachmentMap(inherited)}
+}
+
+func (c *attachmentCollector) Capture(event agent.AgentEvent) {
+	if c == nil || event == nil {
+		return
+	}
+	if wrapper, ok := event.(agent.SubtaskWrapper); ok {
+		event = wrapper.WrappedEvent()
+	}
+	carrier, ok := event.(agent.AttachmentCarrier)
+	if !ok {
+		return
+	}
+	c.merge(carrier.GetAttachments())
+}
+
+func (c *attachmentCollector) Snapshot() map[string]ports.Attachment {
+	if c == nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.attachments) == 0 {
+		return nil
+	}
+	return ports.CloneAttachmentMap(c.attachments)
+}
+
+func (c *attachmentCollector) merge(values map[string]ports.Attachment) {
+	normalized := normalizeAttachmentMap(values)
+	if len(normalized) == 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.attachments == nil {
+		c.attachments = make(map[string]ports.Attachment, len(normalized))
+	}
+	for name, att := range normalized {
+		if c.isInherited(name, att) {
+			continue
+		}
+		c.attachments[name] = ports.CloneAttachment(att)
+	}
+}
+
+func (c *attachmentCollector) isInherited(name string, att ports.Attachment) bool {
+	if len(c.inherited) == 0 {
+		return false
+	}
+	if existing, ok := c.inherited[name]; ok {
+		return attachmentsEqual(existing, att)
+	}
+	return false
+}
+
+func normalizeAttachmentMap(values map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(values) == 0 {
+		return nil
+	}
+	normalized := make(map[string]ports.Attachment, len(values))
+	for key, att := range values {
+		name := strings.TrimSpace(key)
+		if name == "" {
+			name = strings.TrimSpace(att.Name)
+		}
+		if name == "" {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = name
+		}
+		normalized[name] = att
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
+}
+
+func attachmentsEqual(a, b ports.Attachment) bool {
+	if a.Name != b.Name ||
+		a.MediaType != b.MediaType ||
+		a.Data != b.Data ||
+		a.URI != b.URI ||
+		a.Source != b.Source ||
+		a.Description != b.Description ||
+		a.Kind != b.Kind ||
+		a.Format != b.Format ||
+		a.PreviewProfile != b.PreviewProfile {
+		return false
+	}
+	return previewAssetsEqual(a.PreviewAssets, b.PreviewAssets)
+}
+
+func previewAssetsEqual(a, b []ports.AttachmentPreviewAsset) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

@@ -36,6 +36,20 @@ func (stubCoreEvent) GetSessionID() string            { return "session" }
 func (stubCoreEvent) GetTaskID() string               { return "task" }
 func (stubCoreEvent) GetParentTaskID() string         { return "parent" }
 
+type attachmentEvent struct {
+	attachments map[string]ports.Attachment
+}
+
+func (attachmentEvent) EventType() string               { return "workflow.tool.completed" }
+func (attachmentEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
+func (attachmentEvent) GetAgentLevel() agent.AgentLevel { return agent.LevelSubagent }
+func (attachmentEvent) GetSessionID() string            { return "session" }
+func (attachmentEvent) GetTaskID() string               { return "task" }
+func (attachmentEvent) GetParentTaskID() string         { return "parent" }
+func (e attachmentEvent) GetAttachments() map[string]ports.Attachment {
+	return e.attachments
+}
+
 func TestSubtaskEventEventTypeMatchesOriginal(t *testing.T) {
 	evt := &SubtaskEvent{OriginalEvent: stubEvent{}}
 
@@ -147,6 +161,37 @@ func (*workflowRecordingCoordinator) GetParser() tools.FunctionCallParser       
 func (*workflowRecordingCoordinator) GetContextManager() agent.ContextManager            { return nil }
 func (*workflowRecordingCoordinator) GetSystemPrompt() string                            { return "" }
 
+type attachmentCoordinator struct {
+	events []agent.AgentEvent
+}
+
+func (c *attachmentCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	for _, evt := range c.events {
+		if listener != nil {
+			listener.OnEvent(evt)
+		}
+	}
+	return &agent.TaskResult{Answer: "done"}, nil
+}
+
+func (*attachmentCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
+	return nil, nil
+}
+
+func (*attachmentCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
+	return nil
+}
+
+func (*attachmentCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
+	return nil, nil
+}
+func (*attachmentCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
+func (*attachmentCoordinator) GetLLMClient() (llm.LLMClient, error)             { return nil, nil }
+func (*attachmentCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
+func (*attachmentCoordinator) GetParser() tools.FunctionCallParser                { return nil }
+func (*attachmentCoordinator) GetContextManager() agent.ContextManager            { return nil }
+func (*attachmentCoordinator) GetSystemPrompt() string                            { return "" }
+
 func TestSubagentUsesParentSessionID(t *testing.T) {
 	recorder := &sessionIDRecorder{}
 	tool := NewSubAgent(recorder, 1)
@@ -218,9 +263,64 @@ func TestSubagentExposesWorkflowMetadata(t *testing.T) {
 	}
 }
 
+func TestSubagentCollectsGeneratedAttachments(t *testing.T) {
+	inherited := map[string]ports.Attachment{
+		"base.png": {
+			Name:      "base.png",
+			MediaType: "image/png",
+			Data:      "YmFzZQ==",
+			Source:    "seed",
+		},
+	}
+
+	emitted := map[string]ports.Attachment{
+		"base.png": {
+			Name:      "base.png",
+			MediaType: "image/png",
+			Data:      "YmFzZQ==",
+			Source:    "seed",
+		},
+		"report.md": {
+			Name:      "report.md",
+			MediaType: "text/markdown",
+			Data:      "cmVwb3J0",
+			Source:    "sandbox",
+		},
+	}
+
+	coordinator := &attachmentCoordinator{
+		events: []agent.AgentEvent{attachmentEvent{attachments: emitted}},
+	}
+	tool := NewSubAgent(coordinator, 1)
+
+	ctx := tools.WithAttachmentContext(context.Background(), inherited, map[string]int{"base.png": 1})
+	call := ports.ToolCall{
+		ID:        "call-1",
+		Name:      "subagent",
+		Arguments: map[string]any{"prompt": "summarize findings"},
+	}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("subagent execute failed: %v", err)
+	}
+	if result == nil {
+		t.Fatal("expected tool result to be returned")
+	}
+	if len(result.Attachments) == 0 {
+		t.Fatalf("expected attachments to be returned, got %#v", result.Attachments)
+	}
+	if _, ok := result.Attachments["base.png"]; ok {
+		t.Fatalf("expected inherited attachment to be filtered, got base.png")
+	}
+	if _, ok := result.Attachments["report.md"]; !ok {
+		t.Fatalf("expected generated attachment report.md to be returned, got %#v", result.Attachments)
+	}
+}
+
 func TestSubtaskPreviewIsUTF8Safe(t *testing.T) {
 	task := strings.Repeat("测试", 40)
-	listener := newSubtaskListener(0, 1, task, nil, 1)
+	listener := newSubtaskListener(0, 1, task, nil, 1, nil)
 
 	if !utf8.ValidString(listener.taskPreview) {
 		t.Fatalf("expected preview to be valid UTF-8, got %q", listener.taskPreview)

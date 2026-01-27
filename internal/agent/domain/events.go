@@ -78,6 +78,11 @@ type WorkflowInputReceivedEvent struct {
 
 func (e *WorkflowInputReceivedEvent) EventType() string { return "workflow.input.received" }
 
+// GetAttachments exposes input attachments for attachment-aware listeners.
+func (e *WorkflowInputReceivedEvent) GetAttachments() map[string]ports.Attachment {
+	return ports.CloneAttachmentMap(e.Attachments)
+}
+
 // NewWorkflowInputReceivedEvent constructs a user task event with the provided metadata.
 func NewWorkflowInputReceivedEvent(
 	level agent.AgentLevel,
@@ -199,6 +204,11 @@ type WorkflowToolCompletedEvent struct {
 
 func (e *WorkflowToolCompletedEvent) EventType() string { return "workflow.tool.completed" }
 
+// GetAttachments exposes tool result attachments for attachment-aware listeners.
+func (e *WorkflowToolCompletedEvent) GetAttachments() map[string]ports.Attachment {
+	return ports.CloneAttachmentMap(e.Attachments)
+}
+
 // WorkflowResultFinalEvent - emitted when entire task finishes
 type WorkflowResultFinalEvent struct {
 	BaseEvent
@@ -218,6 +228,11 @@ type WorkflowResultFinalEvent struct {
 }
 
 func (e *WorkflowResultFinalEvent) EventType() string { return "workflow.result.final" }
+
+// GetAttachments exposes final-result attachments for attachment-aware listeners.
+func (e *WorkflowResultFinalEvent) GetAttachments() map[string]ports.Attachment {
+	return ports.CloneAttachmentMap(e.Attachments)
+}
 
 // WorkflowResultCancelledEvent - emitted when a running task receives an explicit cancellation request
 type WorkflowResultCancelledEvent struct {
