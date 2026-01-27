@@ -31,6 +31,7 @@ export function CardBody({
             key={`event-${actualIndex}-${event.event_type}-${event.timestamp}`}
             className={cn(
               "transition-colors rounded-md hover:bg-muted/10 -mx-2 px-2",
+              !expanded && "line-clamp-3",
             )}
           >
             <EventLine
