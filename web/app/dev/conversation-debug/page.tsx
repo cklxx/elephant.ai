@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient, type SSEReplayMode } from "@/lib/api";
-import { type WorkflowEventType } from "@/lib/types";
+import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type SSEDebugEvent = {
@@ -76,6 +76,17 @@ function parsePayload(raw: string) {
       error: error instanceof Error ? error.message : "Invalid JSON",
     };
   }
+}
+
+function extractLogId(parsed: unknown): string | null {
+  if (!parsed || typeof parsed !== "object") {
+    return null;
+  }
+  const value = (parsed as Record<string, unknown>).log_id;
+  if (typeof value === "string" && value.trim().length > 0) {
+    return value.trim();
+  }
+  return null;
 }
 
 function buildPreview(entry: SSEDebugEvent) {
@@ -165,6 +176,85 @@ function JsonViewer({ data }: { data: unknown }) {
   );
 }
 
+function LogSnippetView({ snippet }: { snippet?: LogTraceBundle["service"] | null }) {
+  if (!snippet) {
+    return <p className="text-xs text-muted-foreground">No log data loaded.</p>;
+  }
+  if (snippet.error) {
+    return (
+      <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+        {snippet.error === "not_found" ? "Log file not found." : snippet.error}
+      </div>
+    );
+  }
+  const entries = snippet.entries ?? [];
+  if (entries.length === 0) {
+    return <p className="text-xs text-muted-foreground">No matching log entries.</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {entries.map((entry, idx) => (
+        <div
+          key={`${snippet.path ?? "log"}-${idx}`}
+          className="rounded-lg border border-border/60 bg-muted/20 p-2"
+        >
+          <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+            {entry}
+          </pre>
+        </div>
+      ))}
+      {snippet.truncated && (
+        <Badge variant="warning" className="text-[10px]">
+          Truncated
+        </Badge>
+      )}
+    </div>
+  );
+}
+
+type TimingEntry = {
+  id: string;
+  label: string;
+  durationMs: number;
+  hint?: string;
+};
+
+function formatDuration(ms: number) {
+  if (!Number.isFinite(ms)) {
+    return "—";
+  }
+  if (ms >= 1000) {
+    return `${(ms / 1000).toFixed(2)}s`;
+  }
+  return `${Math.round(ms)}ms`;
+}
+
+function TimingList({ entries, emptyLabel }: { entries: TimingEntry[]; emptyLabel: string }) {
+  if (entries.length === 0) {
+    return <p className="text-xs text-muted-foreground">{emptyLabel}</p>;
+  }
+  return (
+    <div className="space-y-2">
+      {entries.map((entry) => (
+        <div
+          key={entry.id}
+          className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs"
+        >
+          <div className="min-w-0">
+            <p className="truncate font-medium text-foreground">{entry.label}</p>
+            {entry.hint && (
+              <p className="truncate text-[11px] text-muted-foreground">{entry.hint}</p>
+            )}
+          </div>
+          <span className="whitespace-nowrap font-semibold text-foreground/80">
+            {formatDuration(entry.durationMs)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ConversationDebugPage() {
   const [sessionIdInput, setSessionIdInput] = useState("");
   const [replayMode, setReplayMode] = useState<SSEReplayMode>("full");
@@ -180,6 +270,10 @@ export default function ConversationDebugPage() {
   const [sessionSnapshotLoading, setSessionSnapshotLoading] = useState(false);
   const [sessionSnapshotUpdatedAt, setSessionSnapshotUpdatedAt] = useState<string | null>(null);
   const [sessionAutoRefresh, setSessionAutoRefresh] = useState(true);
+  const [logIdInput, setLogIdInput] = useState("");
+  const [logTrace, setLogTrace] = useState<LogTraceBundle | null>(null);
+  const [logTraceError, setLogTraceError] = useState<string | null>(null);
+  const [logTraceLoading, setLogTraceLoading] = useState(false);
 
   const { currentSessionId, sessionHistory } = useSessionStore();
 
@@ -189,6 +283,7 @@ export default function ConversationDebugPage() {
   const autoSeededRef = useRef(false);
 
   const sessionId = sessionIdInput.trim();
+  const logId = logIdInput.trim();
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -246,6 +341,7 @@ export default function ConversationDebugPage() {
 
     const source = apiClient.createSSEConnection(sessionId, undefined, {
       replay: replayMode,
+      debug: true,
     });
 
     source.onopen = () => {
@@ -299,6 +395,36 @@ export default function ConversationDebugPage() {
     [sessionId],
   );
 
+  const loadLogTrace = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!logId) {
+        setLogTrace(null);
+        setLogTraceError(null);
+        setLogTraceLoading(false);
+        return;
+      }
+
+      if (!options?.silent) {
+        setLogTraceLoading(true);
+      }
+      setLogTraceError(null);
+
+      try {
+        const trace = await apiClient.getLogTrace(logId);
+        setLogTrace(trace);
+      } catch (err) {
+        setLogTraceError(
+          err instanceof Error ? err.message : "Failed to load log trace.",
+        );
+      } finally {
+        if (!options?.silent) {
+          setLogTraceLoading(false);
+        }
+      }
+    },
+    [logId],
+  );
+
   useEffect(() => {
     return () => {
       disconnect();
@@ -346,6 +472,14 @@ export default function ConversationDebugPage() {
   }, [loadSessionSnapshot, sessionId]);
 
   useEffect(() => {
+    if (!logId) {
+      setLogTrace(null);
+      setLogTraceError(null);
+      setLogTraceLoading(false);
+    }
+  }, [logId]);
+
+  useEffect(() => {
     if (!sessionId || !sessionAutoRefresh) {
       return;
     }
@@ -371,6 +505,111 @@ export default function ConversationDebugPage() {
     () => events.find((entry) => entry.id === selectedId) ?? null,
     [events, selectedId],
   );
+  const selectedLogId = useMemo(() => {
+    if (!selectedEvent) {
+      return null;
+    }
+    return extractLogId(selectedEvent.parsed);
+  }, [selectedEvent]);
+  const timingSummary = useMemo(() => {
+    const stages: TimingEntry[] = [];
+    const llmCalls: TimingEntry[] = [];
+    const tools: TimingEntry[] = [];
+    let totalDurationMs: number | null = null;
+
+    for (const entry of events) {
+      if (!entry.parsed || typeof entry.parsed !== "object") {
+        continue;
+      }
+      const payload = (entry.parsed as Record<string, unknown>).payload;
+      if (!payload || typeof payload !== "object") {
+        continue;
+      }
+      const data = payload as Record<string, unknown>;
+
+      if (
+        entry.eventType === "workflow.node.completed" ||
+        entry.eventType === "workflow.node.failed"
+      ) {
+        const duration = Number(data.duration_ms);
+        if (Number.isFinite(duration) && duration > 0) {
+          const label =
+            (data.step_description as string | undefined) ||
+            (data.node_id as string | undefined) ||
+            "stage";
+          stages.push({
+            id: entry.id,
+            label,
+            durationMs: duration,
+          });
+        }
+      }
+
+      if (entry.eventType === "workflow.node.output.summary") {
+        const duration = Number(data.llm_duration_ms);
+        if (Number.isFinite(duration) && duration > 0) {
+          const iteration = data.iteration ? `iter ${data.iteration}` : "llm";
+          const model = typeof data.llm_model === "string" ? data.llm_model : "";
+          const requestId =
+            typeof data.llm_request_id === "string" ? data.llm_request_id : "";
+          const hintParts = [model && `model=${model}`, requestId && `req=${requestId}`]
+            .filter(Boolean)
+            .join(" · ");
+          llmCalls.push({
+            id: entry.id,
+            label: iteration,
+            durationMs: duration,
+            hint: hintParts || undefined,
+          });
+        }
+      }
+
+      if (entry.eventType === "workflow.tool.completed") {
+        const duration = Number(data.duration);
+        if (Number.isFinite(duration) && duration > 0) {
+          const toolName =
+            (data.tool_name as string | undefined) ||
+            (data.tool as string | undefined) ||
+            "tool";
+          const meta = data.metadata as Record<string, unknown> | undefined;
+          const llmDuration = meta ? Number(meta.llm_duration_ms) : NaN;
+          const llmRequest =
+            meta && typeof meta.llm_request_id === "string"
+              ? meta.llm_request_id
+              : "";
+          const hintParts = [
+            Number.isFinite(llmDuration) && llmDuration > 0
+              ? `llm=${formatDuration(llmDuration)}`
+              : "",
+            llmRequest ? `req=${llmRequest}` : "",
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          tools.push({
+            id: entry.id,
+            label: toolName,
+            durationMs: duration,
+            hint: hintParts || undefined,
+          });
+        }
+      }
+
+      if (entry.eventType === "workflow.result.final" && totalDurationMs === null) {
+        const duration = Number(data.duration);
+        if (Number.isFinite(duration) && duration > 0) {
+          totalDurationMs = duration;
+        }
+      }
+    }
+
+    const byDuration = (a: TimingEntry, b: TimingEntry) => b.durationMs - a.durationMs;
+    return {
+      stages: stages.sort(byDuration),
+      llmCalls: llmCalls.sort(byDuration),
+      tools: tools.sort(byDuration),
+      totalDurationMs,
+    };
+  }, [events]);
 
   const statusBadge = useMemo(() => {
     if (error) {
@@ -682,6 +921,137 @@ export default function ConversationDebugPage() {
                   ) : (
                     <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
                       Enter a session ID to load the server snapshot.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Timing breakdown</CardTitle>
+                  <CardDescription>
+                    Breakdown of workflow stages, tools, and LLM calls for the active session stream.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Badge variant="outline">
+                      Total:{" "}
+                      {timingSummary.totalDurationMs !== null
+                        ? formatDuration(timingSummary.totalDurationMs)
+                        : "—"}
+                    </Badge>
+                    <Badge variant="outline">Stages: {timingSummary.stages.length}</Badge>
+                    <Badge variant="outline">Tools: {timingSummary.tools.length}</Badge>
+                    <Badge variant="outline">LLM calls: {timingSummary.llmCalls.length}</Badge>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">Stages</p>
+                      <TimingList
+                        entries={timingSummary.stages}
+                        emptyLabel="No stage timings yet."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">Tools</p>
+                      <TimingList
+                        entries={timingSummary.tools}
+                        emptyLabel="No tool timings yet."
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground">LLM calls</p>
+                    <TimingList
+                      entries={timingSummary.llmCalls}
+                      emptyLabel="No LLM timing data yet."
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Log trace by Log ID</CardTitle>
+                  <CardDescription>
+                    Fetch server, LLM, latency, and raw request logs for a specific log_id.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1">
+                    <p className="text-xs font-semibold text-muted-foreground">Log ID</p>
+                    <Input
+                      value={logIdInput}
+                      onChange={(event) => setLogIdInput(event.target.value)}
+                      placeholder="log-xxxxxxxx"
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          void loadLogTrace();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => void loadLogTrace()}
+                      disabled={!logId || logTraceLoading}
+                    >
+                      <Play className="mr-2 h-4 w-4" />
+                      Fetch logs
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setLogIdInput("");
+                        setLogTrace(null);
+                        setLogTraceError(null);
+                      }}
+                    >
+                      Clear
+                    </Button>
+                    {selectedLogId && selectedLogId !== logId && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setLogIdInput(selectedLogId)}
+                      >
+                        Use selected log_id
+                      </Button>
+                    )}
+                    {logTraceLoading && <Badge variant="warning">Loading</Badge>}
+                  </div>
+                  {logTraceError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {logTraceError}
+                    </div>
+                  )}
+                  {logTrace ? (
+                    <Tabs defaultValue="service">
+                      <TabsList>
+                        <TabsTrigger value="service">Service</TabsTrigger>
+                        <TabsTrigger value="llm">LLM</TabsTrigger>
+                        <TabsTrigger value="latency">Latency</TabsTrigger>
+                        <TabsTrigger value="requests">Requests</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="service">
+                        <LogSnippetView snippet={logTrace.service} />
+                      </TabsContent>
+                      <TabsContent value="llm">
+                        <LogSnippetView snippet={logTrace.llm} />
+                      </TabsContent>
+                      <TabsContent value="latency">
+                        <LogSnippetView snippet={logTrace.latency} />
+                      </TabsContent>
+                      <TabsContent value="requests">
+                        <LogSnippetView snippet={logTrace.requests} />
+                      </TabsContent>
+                    </Tabs>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                      Enter a log_id to fetch trace logs.
                     </div>
                   )}
                 </CardContent>

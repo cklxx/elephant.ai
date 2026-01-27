@@ -24,6 +24,7 @@ import {
   SandboxBrowserInfo,
   UserPersonaProfile,
   RuntimeModelCatalog,
+  LogTraceBundle,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -460,6 +461,13 @@ export async function createSession(): Promise<{ session_id: string }> {
   });
 }
 
+// Dev log trace
+export async function getLogTrace(logId: string): Promise<LogTraceBundle> {
+  return fetchAPI<LogTraceBundle>(
+    `/api/dev/logs?log_id=${encodeURIComponent(logId)}`,
+  );
+}
+
 // SSE Connection
 
 export type SSEReplayMode = "full" | "session" | "none";
@@ -475,7 +483,7 @@ export function sseRequiresAccessToken(): boolean {
 export function createSSEConnection(
   sessionId: string,
   accessToken?: string,
-  options: { replay?: SSEReplayMode } = {},
+  options: { replay?: SSEReplayMode; debug?: boolean } = {},
 ): EventSource {
   const url = new URL(buildApiUrl("/api/sse"));
   url.searchParams.set("session_id", sessionId);
@@ -483,6 +491,9 @@ export function createSSEConnection(
   const replay = options.replay ?? "full";
   if (replay !== "full") {
     url.searchParams.set("replay", replay);
+  }
+  if (options.debug) {
+    url.searchParams.set("debug", "1");
   }
 
   const shouldIncludeAccessToken = sseRequiresAccessToken();
@@ -513,6 +524,7 @@ export const apiClient = {
   getSessionRaw,
   getSessionTitle,
   deleteSession,
+  getLogTrace,
   createSessionShare,
   getSharedSession,
   getContextWindowPreview,

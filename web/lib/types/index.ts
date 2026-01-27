@@ -3,6 +3,7 @@ export * from './api/session';
 export * from './api/evaluation';
 export * from './api/runtime';
 export * from './api/apps';
+export * from './api/logs';
 export * from './api/context';
 export * from './api/persona';
 export * from './events/base';
