@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -14,12 +15,15 @@ import (
 const lineInputBufferSize = 1024 * 1024
 
 type lineChatLoop struct {
-	reader  *bufio.Reader
-	out     io.Writer
-	errOut  io.Writer
-	runTask func(task string) error
-	clear   func()
-	header  func()
+	prompter linePrompter
+	out      io.Writer
+	errOut   io.Writer
+	runTask  func(task string) error
+	clear    func()
+	header   func()
+
+	abortCount int
+	lastAbort  time.Time
 }
 
 func runLineChatUI(container *Container, in io.Reader, out io.Writer, errOut io.Writer) error {
@@ -36,6 +40,7 @@ func runLineChatUI(container *Container, in io.Reader, out io.Writer, errOut io.
 		errOut = os.Stderr
 	}
 
+	interactive := isInteractiveTTY(in, out)
 	ctx := cliBaseContext()
 	session, err := container.AgentCoordinator.GetSession(ctx, "")
 	if err != nil {
@@ -43,20 +48,30 @@ func runLineChatUI(container *Container, in io.Reader, out io.Writer, errOut io.
 	}
 
 	header := func() {
-		printLineModeHeader(out)
+		if interactive {
+			printLineModeHeader(out)
+		}
 	}
 	clear := func() {
-		clearLineModeScreen(out)
-		header()
+		if interactive {
+			clearLineModeScreen(out)
+			header()
+		}
 	}
 
+	prompt := styleBoldGreen.Render("❯ ")
+	prompter := buildLinePrompter(in, out, errOut, prompt, interactive, historyFilePath(container))
+	defer func() {
+		_ = prompter.Close()
+	}()
+
 	loop := &lineChatLoop{
-		reader:  bufio.NewReaderSize(in, lineInputBufferSize),
-		out:     out,
-		errOut:  errOut,
-		runTask: func(task string) error { return RunTaskWithStreamOutput(container, task, session.ID) },
-		clear:   clear,
-		header:  header,
+		prompter: prompter,
+		out:      out,
+		errOut:   errOut,
+		runTask:  func(task string) error { return RunTaskWithStreamOutput(container, task, session.ID) },
+		clear:    clear,
+		header:   header,
 	}
 
 	loop.header()
@@ -64,13 +79,12 @@ func runLineChatUI(container *Container, in io.Reader, out io.Writer, errOut io.
 }
 
 func (l *lineChatLoop) run() error {
-	if l == nil || l.reader == nil {
+	if l == nil || l.prompter == nil {
 		return nil
 	}
 
 	for {
-		l.printPrompt()
-		line, ok, err := readLine(l.reader)
+		line, ok, err := l.readPrompt()
 		if err != nil {
 			return err
 		}
@@ -89,7 +103,15 @@ func (l *lineChatLoop) run() error {
 				l.clear()
 			}
 			continue
+		case commandHelp:
+			if l.out != nil {
+				printLineModeHelp(l.out)
+			}
+			continue
 		case commandRun:
+			if l.prompter != nil {
+				l.prompter.AppendHistory(cmd.task)
+			}
 			if err := l.runCommand(cmd.task); err != nil {
 				return err
 			}
@@ -99,11 +121,36 @@ func (l *lineChatLoop) run() error {
 	}
 }
 
-func (l *lineChatLoop) printPrompt() {
-	if l == nil || l.out == nil {
-		return
+func (l *lineChatLoop) readPrompt() (string, bool, error) {
+	if l == nil || l.prompter == nil {
+		return "", false, nil
 	}
-	fmt.Fprint(l.out, styleBoldGreen.Render("❯ "))
+	line, ok, err := l.prompter.Prompt()
+	if err == nil {
+		l.abortCount = 0
+		return line, ok, nil
+	}
+	if errors.Is(err, errPromptAborted) {
+		if l.shouldExitOnAbort() {
+			return "", false, nil
+		}
+		if l.out != nil {
+			fmt.Fprintln(l.out, styleGray.Render("Press Ctrl+C again to exit."))
+		}
+		return "", true, nil
+	}
+	return "", false, err
+}
+
+func (l *lineChatLoop) shouldExitOnAbort() bool {
+	now := time.Now()
+	if l.lastAbort.IsZero() || now.Sub(l.lastAbort) > time.Second {
+		l.lastAbort = now
+		l.abortCount = 1
+		return false
+	}
+	l.abortCount++
+	return l.abortCount >= 2
 }
 
 func (l *lineChatLoop) runCommand(task string) error {
@@ -144,7 +191,19 @@ func printLineModeHeader(out io.Writer) {
 	if branch := currentGitBranch(); branch != "" {
 		fmt.Fprintf(out, "%s %s\n", styleGray.Render("git:"), styleGreen.Render(branch))
 	}
-	fmt.Fprintf(out, "%s\n\n", styleGray.Render("commands: /quit, /exit, /clear"))
+	fmt.Fprintf(out, "%s\n\n", styleGray.Render("commands: /help, /quit, /exit, /clear"))
+}
+
+func printLineModeHelp(out io.Writer) {
+	if out == nil {
+		return
+	}
+	fmt.Fprintln(out, styleGray.Render("Commands:"))
+	for _, cmd := range lineModeCommands() {
+		fmt.Fprintf(out, "  %s\n", styleGreen.Render(cmd))
+	}
+	fmt.Fprintln(out, styleGray.Render("Tips: Ctrl+D to exit, Ctrl+C twice to quit, ↑/↓ for history."))
+	fmt.Fprintln(out)
 }
 
 func clearLineModeScreen(out io.Writer) {
@@ -156,4 +215,34 @@ func clearLineModeScreen(out io.Writer) {
 		return
 	}
 	fmt.Fprint(out, "\n")
+}
+
+func isInteractiveTTY(in io.Reader, out io.Writer) bool {
+	inFile, inOK := in.(*os.File)
+	outFile, outOK := out.(*os.File)
+	if !inOK || !outOK {
+		return false
+	}
+	return term.IsTerminal(int(inFile.Fd())) && term.IsTerminal(int(outFile.Fd()))
+}
+
+func buildLinePrompter(in io.Reader, out io.Writer, errOut io.Writer, prompt string, interactive bool, historyPath string) linePrompter {
+	if !interactive {
+		if reader, ok := in.(*bufio.Reader); ok {
+			return newBufferedPrompter(reader, prompt, out, false)
+		}
+		return newBufferedPrompter(bufio.NewReaderSize(in, lineInputBufferSize), prompt, out, false)
+	}
+	linerPrompt, err := newLinerPrompter(prompt, historyPath, errOut)
+	if err != nil {
+		if errOut != nil {
+			fmt.Fprintf(errOut, "Warning: readline disabled: %v\n", err)
+		}
+		return newBufferedPrompter(bufio.NewReaderSize(in, lineInputBufferSize), prompt, out, true)
+	}
+	return linerPrompt
+}
+
+func lineModeCommands() []string {
+	return []string{"/help", "/quit", "/exit", "/clear"}
 }

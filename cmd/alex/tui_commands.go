@@ -9,6 +9,7 @@ const (
 	commandEmpty
 	commandQuit
 	commandClear
+	commandHelp
 	commandRun
 )
 
@@ -28,6 +29,8 @@ func parseUserCommand(input string) userCommand {
 		return userCommand{kind: commandQuit}
 	case "/clear":
 		return userCommand{kind: commandClear}
+	case "/help", "/?":
+		return userCommand{kind: commandHelp}
 	default:
 		return userCommand{kind: commandRun, task: trimmed}
 	}

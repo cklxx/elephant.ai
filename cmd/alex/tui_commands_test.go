@@ -14,6 +14,8 @@ func TestParseUserCommand(t *testing.T) {
 		{name: "quit", input: "/quit", kind: commandQuit},
 		{name: "exit", input: "/exit", kind: commandQuit},
 		{name: "clear", input: "/clear", kind: commandClear},
+		{name: "help", input: "/help", kind: commandHelp},
+		{name: "help short", input: "/?", kind: commandHelp},
 		{name: "task trimmed", input: "  hello  ", kind: commandRun, task: "hello"},
 		{name: "command as task", input: "/unknown", kind: commandRun, task: "/unknown"},
 	}
