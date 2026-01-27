@@ -70,6 +70,7 @@ type OutputContext struct {
 	SessionID    string
 	TaskID       string
 	ParentTaskID string
+	LogID        string
 }
 
 type outputContextKey struct{}
@@ -93,6 +94,7 @@ func GetOutputContext(ctx context.Context) *OutputContext {
 		SessionID:    "",
 		TaskID:       "",
 		ParentTaskID: "",
+		LogID:        "",
 	}
 }
 

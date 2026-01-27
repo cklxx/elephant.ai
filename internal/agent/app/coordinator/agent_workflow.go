@@ -29,7 +29,7 @@ type agentWorkflow struct {
 	eventSink *workflowEventBridge
 }
 
-func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListener, outCtx *agent.OutputContext, logID string) *agentWorkflow {
+func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListener, outCtx *agent.OutputContext) *agentWorkflow {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -46,7 +46,7 @@ func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListen
 		if outCtx == nil {
 			outCtx = &agent.OutputContext{Level: agent.LevelCore}
 		}
-		aw.eventSink = newWorkflowEventBridge(id, listener, logger, outCtx.Level, outCtx.SessionID, outCtx.TaskID, outCtx.ParentTaskID, logID)
+		aw.eventSink = newWorkflowEventBridge(id, listener, logger, outCtx)
 		wf.AddListener(aw.eventSink)
 	}
 
@@ -115,11 +115,11 @@ func (aw *agentWorkflow) ensureNode(id string, input any) *workflow.Node {
 	return node
 }
 
-func (aw *agentWorkflow) setContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel, logID string) {
+func (aw *agentWorkflow) setContext(outCtx *agent.OutputContext) {
 	if aw.eventSink == nil {
 		return
 	}
-	aw.eventSink.updateContext(sessionID, taskID, parentTaskID, level, logID)
+	aw.eventSink.updateContext(outCtx)
 }
 
 // EnsureNode satisfies the domain.WorkflowTracker interface.
@@ -150,24 +150,29 @@ type workflowEventBridge struct {
 	context    workflowEventContext
 }
 
-func newWorkflowEventBridge(workflowID string, listener agent.EventListener, logger *slog.Logger, level agent.AgentLevel, sessionID, taskID, parentTaskID, logID string) *workflowEventBridge {
+func newWorkflowEventBridge(workflowID string, listener agent.EventListener, logger *slog.Logger, outCtx *agent.OutputContext) *workflowEventBridge {
+	ctx := workflowEventContext{level: agent.LevelCore}
+	if outCtx != nil {
+		ctx.level = outCtx.Level
+		ctx.sessionID = outCtx.SessionID
+		ctx.taskID = outCtx.TaskID
+		ctx.parentTaskID = outCtx.ParentTaskID
+		ctx.logID = outCtx.LogID
+	}
 	return &workflowEventBridge{
 		listener:   listener,
 		logger:     logger,
 		workflowID: workflowID,
-		context: workflowEventContext{
-			level:        level,
-			sessionID:    sessionID,
-			taskID:       taskID,
-			parentTaskID: parentTaskID,
-			logID:        logID,
-		},
+		context:    ctx,
 	}
 }
 
-func (b *workflowEventBridge) updateContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel, logID string) {
+func (b *workflowEventBridge) updateContext(outCtx *agent.OutputContext) {
+	if outCtx == nil {
+		return
+	}
 	b.mu.Lock()
-	b.context.update(sessionID, taskID, parentTaskID, level, logID)
+	b.context.updateFromOutputContext(outCtx)
 	b.mu.Unlock()
 }
 
@@ -209,21 +214,21 @@ type workflowEventContext struct {
 	logID        string
 }
 
-func (c *workflowEventContext) update(sessionID, taskID, parentTaskID string, level agent.AgentLevel, logID string) {
-	if sessionID != "" {
-		c.sessionID = sessionID
+func (c *workflowEventContext) updateFromOutputContext(outCtx *agent.OutputContext) {
+	if outCtx.SessionID != "" {
+		c.sessionID = outCtx.SessionID
 	}
-	if taskID != "" {
-		c.taskID = taskID
+	if outCtx.TaskID != "" {
+		c.taskID = outCtx.TaskID
 	}
-	if parentTaskID != "" {
-		c.parentTaskID = parentTaskID
+	if outCtx.ParentTaskID != "" {
+		c.parentTaskID = outCtx.ParentTaskID
 	}
-	if level != "" {
-		c.level = level
+	if outCtx.Level != "" {
+		c.level = outCtx.Level
 	}
-	if logID != "" {
-		c.logID = logID
+	if outCtx.LogID != "" {
+		c.logID = outCtx.LogID
 	}
 }
 

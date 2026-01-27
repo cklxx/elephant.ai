@@ -7,7 +7,7 @@ import { loadAttachmentText } from "@/lib/attachment-text";
 import { JsonRenderTree } from "@/lib/json-render-model";
 import { parseUIPayload } from "@/lib/ui-payload";
 import { JsonRenderRenderer } from "@/components/agent/JsonRenderRenderer";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { LoadingDots } from "@/components/ui/loading-states";
 
 export function A2UIAttachmentPreview({
@@ -81,13 +81,9 @@ export function A2UIAttachmentPreview({
   const tree = isCurrent ? state.tree : null;
   const payload = isCurrent ? state.payload : null;
   const error = isCurrent ? state.error : null;
-  const title = attachment.description?.trim() || "Generated UI";
 
   return (
     <Card className="border border-border/50 bg-background/80">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-      </CardHeader>
       <CardContent className="space-y-3">
         {error ? (
           <div className="text-sm text-destructive">{error}</div>
@@ -103,7 +99,7 @@ export function A2UIAttachmentPreview({
         ) : (
           <>
             {tree ? (
-              <div className="max-h-[640px] overflow-auto">
+              <div className="min-h-[220px] max-h-[640px] overflow-auto pt-2">
                 <JsonRenderRenderer tree={tree} />
               </div>
             ) : (

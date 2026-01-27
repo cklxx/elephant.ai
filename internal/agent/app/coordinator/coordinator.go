@@ -254,11 +254,13 @@ func (c *AgentCoordinator) ExecuteTask(
 	if outCtx.ParentTaskID == "" {
 		outCtx.ParentTaskID = ids.ParentTaskID
 	}
+	if outCtx.LogID == "" {
+		outCtx.LogID = ids.LogID
+	}
 	ctx = agent.WithOutputContext(ctx, outCtx)
 	logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
-	logID := id.LogIDFromContext(ctx)
-	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx, logID)
+	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
 
 	attachWorkflow := func(result *agent.TaskResult, env *agent.ExecutionEnvironment) *agent.TaskResult {
@@ -283,7 +285,10 @@ func (c *AgentCoordinator) ExecuteTask(
 		float64(time.Since(prepareStarted))/float64(time.Millisecond),
 		env.Session.ID,
 	)
-	wf.setContext(env.Session.ID, ensuredTaskID, parentTaskID, outCtx.Level, logID)
+	outCtx.SessionID = env.Session.ID
+	outCtx.TaskID = ensuredTaskID
+	outCtx.ParentTaskID = parentTaskID
+	wf.setContext(outCtx)
 	prepareOutput := map[string]any{
 		"session": env.Session.ID,
 		"task":    task,
