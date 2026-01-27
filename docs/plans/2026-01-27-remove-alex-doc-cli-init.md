@@ -1,7 +1,7 @@
-# Plan: Replace legacy reference doc with AGENT.md + adjust CLI config/init (2026-01-27)
+# Plan: Replace legacy reference doc with AGENTS.md + adjust CLI config/init (2026-01-27)
 
 ## Goal
-Remove the legacy reference doc, standardize docs to reference `docs/AGENT.md`, and align CLI usage/config initialization messaging with the canonical docs and resolved config path.
+Remove the legacy reference doc, standardize docs to reference `AGENTS.md`, and align CLI usage/config initialization messaging with the canonical docs and resolved config path.
 
 ## Constraints
 - Keep config examples YAML-only.
@@ -15,7 +15,7 @@ Remove the legacy reference doc, standardize docs to reference `docs/AGENT.md`, 
 
 2. **Docs consolidation**
    - Remove the legacy reference doc file.
-   - Update references in README, docs landing pages, Makefile docs target, and architecture flow notes to point to `docs/AGENT.md` (and other relevant docs).
+   - Update references in README, docs landing pages, Makefile docs target, and architecture flow notes to point to `AGENTS.md` (and other relevant docs).
 
 3. **CLI config/init adjustments**
    - Update CLI usage output to reference AGENT/architecture flow docs instead of the removed ALEX doc.

@@ -631,7 +631,7 @@ Week 3-4 (P2 启动)
 - 2026-01-24 深度扫描：4 个并行 agent 分析 Go/Web/Tests/Resilience
 
 ### B. 参考文档
-- `/docs/AGENT.md` - ReAct 循环架构
+- `/AGENTS.md` - ReAct 循环架构
 - `/web/ARCHITECTURE.md` - 前端架构
 - `/ROADMAP.md` - 功能路线图
 - `/docs/error-experience/` - 历史问题记录

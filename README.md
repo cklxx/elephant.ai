@@ -118,7 +118,7 @@ Expected:
 ## Docs
 
 * [`docs/README.md`](docs/README.md): documentation landing page and navigation.
-* [`docs/reference/ARCHITECTURE_AGENT_FLOW.md`](docs/reference/ARCHITECTURE_AGENT_FLOW.md): runtime overview covering the Think → Act → Observe loop and delivery surfaces.
+* [`AGENTS.md`](AGENTS.md): repo agent workflow, safety rules, and prompt posture.
 * [`docs/reference/ARCHITECTURE_AGENT_FLOW.md`](docs/reference/ARCHITECTURE_AGENT_FLOW.md): architecture and execution flow overview across the delivery surfaces.
 * [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md): canonical configuration schema and precedence.
 * [`docs/guides/quickstart.md`](docs/guides/quickstart.md): from clone to running CLI/server/web.
