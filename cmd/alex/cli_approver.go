@@ -15,12 +15,12 @@ import (
 )
 
 type cliApprover struct {
-	sessionID       string
-	in              io.Reader
-	out             io.Writer
-	interactive     bool
-	autoApproveAll  bool
-	mu              sync.Mutex
+	sessionID      string
+	in             io.Reader
+	out            io.Writer
+	interactive    bool
+	autoApproveAll bool
+	mu             sync.Mutex
 }
 
 func newCLIApprover(sessionID string) *cliApprover {
@@ -72,20 +72,14 @@ func (a *cliApprover) RequestApproval(ctx context.Context, request *tools.Approv
 		return &tools.ApprovalResponse{Approved: false, Action: "reject"}, nil
 	}
 
-	choice := strings.ToLower(strings.TrimSpace(line))
-	switch choice {
-	case "", "y", "yes", "allow":
-		return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
-	case "a", "all", "always":
-		a.autoApproveAll = true
-		return &tools.ApprovalResponse{Approved: true, Action: "approve_all"}, nil
-	case "n", "no", "reject":
-		return &tools.ApprovalResponse{Approved: false, Action: "reject"}, nil
-	case "q", "quit", "exit":
-		return &tools.ApprovalResponse{Approved: false, Action: "quit"}, nil
-	default:
+	decision, ok := parseApprovalDecision(line)
+	if !ok {
 		return &tools.ApprovalResponse{Approved: false, Action: "reject"}, nil
 	}
+	if decision.AutoApproveAll {
+		a.autoApproveAll = true
+	}
+	return &tools.ApprovalResponse{Approved: decision.Approved, Action: decision.Action}, nil
 }
 
 func approvalPrompt(request *tools.ApprovalRequest) string {

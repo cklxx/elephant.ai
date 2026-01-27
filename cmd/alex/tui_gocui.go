@@ -12,6 +12,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	tools "alex/internal/agent/ports/tools"
 	"alex/internal/agent/types"
 	"alex/internal/output"
 	"alex/internal/tools/builtin/orchestration"
@@ -21,7 +22,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jroimartin/gocui"
 	"github.com/muesli/termenv"
-	"golang.org/x/term"
 )
 
 const (
@@ -60,6 +60,11 @@ type gocuiChatUI struct {
 	subagents   *SubagentDisplay
 	history     *inputHistory
 
+	approvalPrompt      *tuiApprovalPrompt
+	approvalSavedInput  string
+	approvalSavedStatus string
+	approvalStatusLine  string
+
 	mdBuffer                        *markdownStreamBuffer
 	streamedCurrentTurn             bool
 	assistantHeaderPrinted          bool
@@ -70,10 +75,6 @@ type gocuiChatUI struct {
 func RunGocui(container *Container) error {
 	if container == nil {
 		return fmt.Errorf("container is nil")
-	}
-
-	if !term.IsTerminal(int(os.Stdout.Fd())) || !term.IsTerminal(int(os.Stdin.Fd())) {
-		return fmt.Errorf("not running in a TTY")
 	}
 
 	lipgloss.SetColorProfile(termenv.Ascii)
@@ -90,7 +91,7 @@ func RunGocui(container *Container) error {
 	gui, err := gocui.NewGui(gocui.OutputNormal)
 	if err != nil {
 		baseCancel()
-		return err
+		return fmt.Errorf("new gui: %w", err)
 	}
 	defer gui.Close()
 
@@ -101,12 +102,12 @@ func RunGocui(container *Container) error {
 
 	if err := ui.bindKeys(); err != nil {
 		baseCancel()
-		return err
+		return fmt.Errorf("bind keys: %w", err)
 	}
 
 	if err := gui.MainLoop(); err != nil && !errors.Is(err, gocui.ErrQuit) {
 		baseCancel()
-		return err
+		return fmt.Errorf("main loop: %w", err)
 	}
 	baseCancel()
 	return nil
@@ -165,13 +166,15 @@ func (ui *gocuiChatUI) bindKeys() error {
 
 func (ui *gocuiChatUI) layout(g *gocui.Gui) error {
 	maxX, maxY := g.Size()
+	// gocui requires x1 > x0 and y1 > y0 (half-open intervals)
 	if maxX < 10 || maxY < 6 {
 		return nil
 	}
 
-	if v, err := g.SetView(gocuiOutputView, 0, 0, maxX-1, maxY-4); err != nil {
+	// Output view: takes most of the screen (height = maxY-3)
+	if v, err := g.SetView(gocuiOutputView, 0, 0, maxX-1, maxY-3); err != nil {
 		if !errors.Is(err, gocui.ErrUnknownView) {
-			return err
+			return fmt.Errorf("set output view: %w", err)
 		}
 		v.Autoscroll = true
 		v.Wrap = true
@@ -180,17 +183,19 @@ func (ui *gocuiChatUI) layout(g *gocui.Gui) error {
 		ui.appendSystemCard()
 	}
 
-	if v, err := g.SetView(gocuiStatusView, 0, maxY-3, maxX-1, maxY-3); err != nil {
+	// Status view: single line at maxY-3 (y1 must be > y0)
+	if v, err := g.SetView(gocuiStatusView, 0, maxY-3, maxX-1, maxY-2); err != nil {
 		if !errors.Is(err, gocui.ErrUnknownView) {
-			return err
+			return fmt.Errorf("set status view: %w", err)
 		}
 		v.Frame = false
 		ui.statusView = v
 	}
 
-	if v, err := g.SetView(gocuiPromptView, 0, maxY-2, 1, maxY-2); err != nil {
+	// Prompt view: single line at maxY-2 (y1 must be > y0)
+	if v, err := g.SetView(gocuiPromptView, 0, maxY-2, 2, maxY-1); err != nil {
 		if !errors.Is(err, gocui.ErrUnknownView) {
-			return err
+			return fmt.Errorf("set prompt view: %w", err)
 		}
 		v.Frame = false
 		v.Editable = false
@@ -199,18 +204,19 @@ func (ui *gocuiChatUI) layout(g *gocui.Gui) error {
 		ui.promptView = v
 	}
 
-	if v, err := g.SetView(gocuiInputView, 2, maxY-2, maxX-1, maxY-2); err != nil {
+	// Input view: single line at maxY-2 (y1 must be > y0)
+	if v, err := g.SetView(gocuiInputView, 2, maxY-2, maxX-1, maxY-1); err != nil {
 		if !errors.Is(err, gocui.ErrUnknownView) {
-			return err
+			return fmt.Errorf("set input view: %w", err)
 		}
 		v.Frame = false
 		v.Editable = true
 		v.Wrap = false
 		v.Autoscroll = false
-		v.Editor = gocui.DefaultEditor
+		v.Editor = newRuneAwareEditor()
 		ui.inputView = v
 		if _, err := g.SetCurrentView(gocuiInputView); err != nil {
-			return err
+			return fmt.Errorf("set current view: %w", err)
 		}
 	}
 
@@ -234,6 +240,9 @@ func (ui *gocuiChatUI) onClear(_ *gocui.Gui, _ *gocui.View) error {
 }
 
 func (ui *gocuiChatUI) onSubmit(g *gocui.Gui, v *gocui.View) error {
+	if ui.isAwaitingApproval() {
+		return ui.onApprovalSubmit(v)
+	}
 	if ui.running {
 		ui.setStatusLine(styleGray.Render("busy (Ctrl+C to cancel)"))
 		return nil
@@ -278,6 +287,9 @@ func (ui *gocuiChatUI) onSubmit(g *gocui.Gui, v *gocui.View) error {
 }
 
 func (ui *gocuiChatUI) onHistoryPrev(_ *gocui.Gui, v *gocui.View) error {
+	if ui.isAwaitingApproval() {
+		return nil
+	}
 	if ui.history == nil || v == nil {
 		return nil
 	}
@@ -290,6 +302,9 @@ func (ui *gocuiChatUI) onHistoryPrev(_ *gocui.Gui, v *gocui.View) error {
 }
 
 func (ui *gocuiChatUI) onHistoryNext(_ *gocui.Gui, v *gocui.View) error {
+	if ui.isAwaitingApproval() {
+		return nil
+	}
 	if ui.history == nil || v == nil {
 		return nil
 	}
@@ -299,6 +314,36 @@ func (ui *gocuiChatUI) onHistoryNext(_ *gocui.Gui, v *gocui.View) error {
 		return nil
 	}
 	return setInputViewText(v, next)
+}
+
+func (ui *gocuiChatUI) isAwaitingApproval() bool {
+	return ui.approvalPrompt != nil
+}
+
+func (ui *gocuiChatUI) onApprovalSubmit(v *gocui.View) error {
+	if v == nil {
+		return nil
+	}
+
+	input := readInputView(v)
+	decision, ok := parseApprovalDecision(input)
+	if !ok {
+		ui.setStatusLine(styleError.Render("invalid approval choice (y/a/n/q)"))
+		return nil
+	}
+
+	prompt := ui.approvalPrompt
+	if prompt == nil {
+		return nil
+	}
+
+	ui.endApproval(prompt)
+	select {
+	case prompt.response <- decision:
+	default:
+	}
+
+	return nil
 }
 
 func (ui *gocuiChatUI) onScrollPageUp(_ *gocui.Gui, _ *gocui.View) error {
@@ -400,7 +445,7 @@ func (ui *gocuiChatUI) startTask(ctx context.Context, task string) {
 
 		taskCtx := id.WithSessionID(ctx, sessionID)
 		taskCtx = id.WithTaskID(taskCtx, id.NewTaskID())
-		taskCtx = shared.WithApprover(taskCtx, cliApproverForSession(sessionID))
+		taskCtx = shared.WithApprover(taskCtx, gocuiApproverForSession(ui, sessionID))
 		taskCtx = shared.WithAutoApprove(taskCtx, false)
 
 		listener := newGocuiListener(ctx, func(e agent.AgentEvent) {
@@ -720,6 +765,108 @@ func (ui *gocuiChatUI) setStatusLine(line string) {
 	fmt.Fprint(ui.statusView, line)
 }
 
+func (ui *gocuiChatUI) requestApproval(ctx context.Context, request *tools.ApprovalRequest) (approvalDecision, error) {
+	prompt := &tuiApprovalPrompt{
+		request:  request,
+		response: make(chan approvalDecision, 1),
+	}
+
+	ui.queue(func() {
+		ui.beginApproval(prompt)
+	})
+
+	select {
+	case decision := <-prompt.response:
+		return decision, nil
+	case <-ctx.Done():
+		ui.queue(func() {
+			ui.abortApproval(prompt)
+		})
+		return approvalDecision{}, ctx.Err()
+	}
+}
+
+func (ui *gocuiChatUI) beginApproval(prompt *tuiApprovalPrompt) {
+	if prompt == nil || ui.approvalPrompt != nil {
+		return
+	}
+
+	ui.approvalPrompt = prompt
+	ui.approvalSavedInput = readInputView(ui.inputView)
+	ui.approvalSavedStatus = ui.statusLine
+	ui.approvalStatusLine = formatApprovalStatusLine(prompt.request)
+
+	ui.clearInputView()
+	ui.setStatusLine(ui.approvalStatusLine)
+	ui.appendApprovalNotice(prompt.request)
+}
+
+func (ui *gocuiChatUI) abortApproval(prompt *tuiApprovalPrompt) {
+	ui.endApproval(prompt)
+}
+
+func (ui *gocuiChatUI) endApproval(prompt *tuiApprovalPrompt) {
+	if prompt == nil || ui.approvalPrompt != prompt {
+		return
+	}
+
+	ui.approvalPrompt = nil
+	ui.appendLine("")
+
+	if ui.inputView != nil {
+		_ = setInputViewText(ui.inputView, ui.approvalSavedInput)
+	}
+
+	if ui.statusLine == ui.approvalStatusLine {
+		ui.setStatusLine(ui.approvalSavedStatus)
+	}
+
+	ui.approvalSavedInput = ""
+	ui.approvalSavedStatus = ""
+	ui.approvalStatusLine = ""
+}
+
+func (ui *gocuiChatUI) clearInputView() {
+	if ui.inputView == nil {
+		return
+	}
+	ui.inputView.Clear()
+	_ = ui.inputView.SetCursor(0, 0)
+	_ = ui.inputView.SetOrigin(0, 0)
+}
+
+func formatApprovalStatusLine(request *tools.ApprovalRequest) string {
+	title := approvalPromptTitle(request)
+	return styleSystem.Render(fmt.Sprintf("%s — [y]es / [a]ll / [n]o / [q]uit", title))
+}
+
+func approvalPromptTitle(request *tools.ApprovalRequest) string {
+	if request == nil {
+		return "Approval required"
+	}
+	if request.ToolName != "" {
+		return fmt.Sprintf("Approval required for %s", request.ToolName)
+	}
+	if request.Operation != "" {
+		return fmt.Sprintf("Approval required for %s", request.Operation)
+	}
+	return "Approval required"
+}
+
+func (ui *gocuiChatUI) appendApprovalNotice(request *tools.ApprovalRequest) {
+	title := approvalPromptTitle(request)
+	ui.appendLine(styleSystem.Render(title))
+	if request == nil {
+		return
+	}
+	if request.FilePath != "" {
+		ui.appendLine(styleSystem.Render(fmt.Sprintf("Path: %s", request.FilePath)))
+	}
+	if request.Summary != "" {
+		ui.appendLine(styleSystem.Render(fmt.Sprintf("Summary: %s", request.Summary)))
+	}
+}
+
 func (ui *gocuiChatUI) shutdown() {
 	if ui.cancelCurrentTurn != nil {
 		ui.cancelCurrentTurn()
@@ -876,4 +1023,55 @@ type plainMarkdownRenderer struct{}
 
 func (plainMarkdownRenderer) Render(content string) (string, error) {
 	return content, nil
+}
+
+// newRuneAwareEditor creates a custom editor that properly handles UTF-8
+// characters (including Chinese) when deleting with backspace.
+// This fixes the issue where backspace only removes one byte of a multi-byte
+// character instead of the whole rune.
+func newRuneAwareEditor() gocui.Editor {
+	return gocui.EditorFunc(func(v *gocui.View, key gocui.Key, ch rune, mod gocui.Modifier) {
+		switch {
+		case ch != 0 && mod == 0:
+			v.EditWrite(ch)
+		case key == gocui.KeySpace:
+			v.EditWrite(' ')
+		case key == gocui.KeyBackspace || key == gocui.KeyBackspace2:
+			// Custom backspace: delete last rune by converting to []rune
+			deleteLastRune(v)
+		case key == gocui.KeyDelete:
+			v.EditDelete(false)
+		case key == gocui.KeyInsert:
+			v.Overwrite = !v.Overwrite
+		case key == gocui.KeyEnter:
+			v.EditNewLine()
+		case key == gocui.KeyArrowDown:
+			v.MoveCursor(0, 1, false)
+		case key == gocui.KeyArrowUp:
+			v.MoveCursor(0, -1, false)
+		case key == gocui.KeyArrowLeft:
+			v.MoveCursor(-1, 0, false)
+		case key == gocui.KeyArrowRight:
+			v.MoveCursor(1, 0, false)
+		}
+	})
+}
+
+// deleteLastRune removes the last rune from the view's buffer.
+// This handles multi-byte UTF-8 characters (like Chinese) correctly.
+func deleteLastRune(v *gocui.View) {
+	content := readInputView(v)
+	if content == "" {
+		return
+	}
+
+	// Convert to runes and remove the last one
+	runes := []rune(content)
+	if len(runes) == 0 {
+		return
+	}
+	newContent := string(runes[:len(runes)-1])
+
+	// Update view with new content
+	_ = setInputViewText(v, newContent)
 }
