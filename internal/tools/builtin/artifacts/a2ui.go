@@ -46,23 +46,11 @@ func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		name = fmt.Sprintf("%s.jsonl", name)
 	}
 
-	mediaType := strings.TrimSpace(shared.StringArg(call.Arguments, "media_type"))
-	if mediaType == "" {
-		mediaType = "application/a2ui+json"
-	}
-
 	description := strings.TrimSpace(shared.StringArg(call.Arguments, "description"))
-	format := strings.TrimSpace(shared.StringArg(call.Arguments, "format"))
-	if format == "" {
-		format = "a2ui"
-	}
-	format = normalizeFormat(format)
-
-	kind := strings.TrimSpace(shared.StringArg(call.Arguments, "kind"))
-	if kind == "" {
-		kind = "attachment"
-	}
-	retention := shared.Uint64Arg(call.Arguments, "retention_ttl_seconds")
+	mediaType := "application/a2ui+json"
+	format := "a2ui"
+	kind := "attachment"
+	retention := uint64(0)
 
 	encoded := base64.StdEncoding.EncodeToString([]byte(content))
 	attachment := ports.Attachment{
@@ -112,12 +100,6 @@ func (t *a2uiEmit) Definition() ports.ToolDefinition {
 			Properties: map[string]ports.Property{
 				"content":               {Type: "string", Description: "A2UI payload as JSON or JSONL string"},
 				"messages":              {Type: "array", Description: "Optional array of JSON messages to serialize as JSONL when content is omitted", Items: &ports.Property{Type: "object"}},
-				"name":                  {Type: "string", Description: "Optional attachment filename (defaults to a2ui-<call_id>.jsonl)"},
-				"media_type":            {Type: "string", Description: "MIME type (default: application/a2ui+json)"},
-				"description":           {Type: "string", Description: "Optional description for the attachment"},
-				"format":                {Type: "string", Description: "Format hint (default: a2ui)"},
-				"kind":                  {Type: "string", Description: "Attachment kind (attachment or artifact)"},
-				"retention_ttl_seconds": {Type: "integer", Description: "Override retention TTL in seconds"},
 			},
 		},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
