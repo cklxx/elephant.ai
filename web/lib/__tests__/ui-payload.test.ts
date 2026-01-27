@@ -1,12 +1,12 @@
 import { parseUIPayload } from "../ui-payload";
 
 describe("parseUIPayload", () => {
-  it("detects A2UI messages", () => {
+  it("rejects A2UI messages", () => {
     const payload = JSON.stringify({
       beginRendering: { surfaceId: "main", root: "root" },
     });
     const result = parseUIPayload(payload);
-    expect(result.kind).toBe("a2ui");
+    expect(result.kind).toBe("unknown");
   });
 
   it("detects json-render payload", () => {

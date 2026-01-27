@@ -226,6 +226,109 @@ function renderElement(
         </div>
       );
     }
+    case "table": {
+      const rows = Array.isArray(props.rows) ? props.rows : [];
+      const headers = normalizeTableHeaders(props.headers, rows);
+      const tableRows = normalizeTableRows(rows, headers);
+      if (tableRows.length === 0) {
+        return <Fallback key={key} message="Table is empty." />;
+      }
+      return (
+        <div key={key} className="overflow-auto rounded-xl border border-border/60">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 text-xs uppercase text-muted-foreground">
+              <tr>
+                {headers.map((header) => (
+                  <th key={`${key}-th-${header}`} className="px-3 py-2 text-left">
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {tableRows.map((row, rowIndex) => (
+                <tr key={`${key}-row-${rowIndex}`} className="border-t border-border/40">
+                  {row.map((cell, cellIndex) => (
+                    <td key={`${key}-cell-${rowIndex}-${cellIndex}`} className="px-3 py-2">
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    case "kanban": {
+      const columns = Array.isArray(props.columns) ? props.columns : [];
+      if (columns.length === 0) {
+        return <Fallback key={key} message="Kanban has no columns." />;
+      }
+      return (
+        <div key={key} className="flex gap-4 overflow-auto pb-2">
+          {columns.map((column: any, index: number) => (
+            <div
+              key={`${key}-col-${index}`}
+              className="min-w-[200px] rounded-xl border border-border/60 bg-muted/20 p-3"
+            >
+              <div className="text-sm font-semibold text-foreground">
+                {String(column?.title ?? `Column ${index + 1}`)}
+              </div>
+              <div className="mt-2 space-y-2">
+                {normalizeKanbanItems(column?.items).map((item, itemIndex) => (
+                  <div
+                    key={`${key}-item-${index}-${itemIndex}`}
+                    className="rounded-lg border border-border/60 bg-card px-3 py-2 text-sm"
+                  >
+                    <div className="font-medium text-foreground">{item.title}</div>
+                    {item.subtitle ? (
+                      <div className="text-xs text-muted-foreground">{item.subtitle}</div>
+                    ) : null}
+                    {item.meta ? (
+                      <div className="text-xs text-muted-foreground">{item.meta}</div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    case "diagram": {
+      const nodes = Array.isArray(props.nodes) ? props.nodes : [];
+      const edges = Array.isArray(props.edges) ? props.edges : [];
+      if (nodes.length === 0 && edges.length === 0) {
+        return <Fallback key={key} message="Diagram has no nodes or edges." />;
+      }
+      return (
+        <div key={key} className="space-y-2">
+          {nodes.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {nodes.map((node: any, index: number) => (
+                <div
+                  key={`${key}-node-${node?.id ?? index}`}
+                  className="rounded-lg border border-border/60 bg-muted/20 px-3 py-1 text-sm font-medium"
+                >
+                  {String(node?.label ?? node?.id ?? `Node ${index + 1}`)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+          {edges.length > 0 ? (
+            <div className="space-y-1 text-xs text-muted-foreground">
+              {edges.map((edge: any, index: number) => (
+                <div key={`${key}-edge-${index}`}>
+                  {String(edge?.from ?? "?")} -&gt; {String(edge?.to ?? "?")}
+                  {edge?.label ? ` (${edge.label})` : ""}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      );
+    }
     default: {
       return <Fallback key={key} message={`Unsupported element: ${element.type}`} />;
     }
@@ -324,6 +427,45 @@ function MetricCard({ metric }: { metric: any }) {
   );
 }
 
+function normalizeTableHeaders(headers: any, rows: any[]): string[] {
+  if (Array.isArray(headers) && headers.length > 0) {
+    return headers.map((header) => String(header));
+  }
+  if (rows.length > 0 && isPlainObject(rows[0])) {
+    return Object.keys(rows[0]);
+  }
+  return ["Value"];
+}
+
+function normalizeTableRows(rows: any[], headers: string[]): string[][] {
+  return rows.map((row) => {
+    if (Array.isArray(row)) {
+      const normalized = row.map((cell) => String(cell ?? ""));
+      return normalized.length > 0 ? normalized : [""];
+    }
+    if (isPlainObject(row)) {
+      return headers.map((header) => String(row[header] ?? ""));
+    }
+    return [String(row ?? "")];
+  });
+}
+
+function normalizeKanbanItems(items: any): Array<{ title: string; subtitle: string; meta: string }> {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.map((item) => {
+    if (isPlainObject(item)) {
+      return {
+        title: String(item.title ?? item.label ?? item.name ?? "Untitled"),
+        subtitle: item.subtitle ? String(item.subtitle) : "",
+        meta: item.meta ? String(item.meta) : "",
+      };
+    }
+    return { title: String(item ?? ""), subtitle: "", meta: "" };
+  });
+}
+
 function headingClass(level: number) {
   switch (level) {
     case 1:
@@ -343,6 +485,10 @@ function clampHeadingLevel(value: any): number {
     return 2;
   }
   return Math.min(4, Math.max(1, level));
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function alignClass(value: any) {

@@ -4,10 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { AttachmentPayload } from "@/lib/types";
 import { loadAttachmentText } from "@/lib/attachment-text";
-import { A2UIMessage } from "@/lib/a2ui";
 import { JsonRenderTree } from "@/lib/json-render-model";
 import { parseUIPayload } from "@/lib/ui-payload";
-import { A2UIRenderer } from "@/components/agent/A2UIRenderer";
 import { JsonRenderRenderer } from "@/components/agent/JsonRenderRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,16 +28,12 @@ export function A2UIAttachmentPreview({
 
   const [state, setState] = useState<{
     key: string;
-    kind: "a2ui" | "json-render" | "unknown";
     payload: string | null;
-    messages: A2UIMessage[] | null;
     tree: JsonRenderTree | null;
     error: string | null;
   }>(() => ({
     key: attachmentKey,
-    kind: "unknown",
     payload: null,
-    messages: null,
     tree: null,
     error: null,
   }));
@@ -66,23 +60,10 @@ export function A2UIAttachmentPreview({
       .then((payload) => {
         if (cancelled) return;
         const parsed = parseUIPayload(payload);
-        if (parsed.kind === "a2ui") {
-          setState({
-            key: attachmentKey,
-            kind: "a2ui",
-            payload,
-            messages: parsed.messages,
-            tree: null,
-            error: null,
-          });
-          return;
-        }
         if (parsed.kind === "json-render") {
           setState({
             key: attachmentKey,
-            kind: "json-render",
             payload,
-            messages: null,
             tree: parsed.tree,
             error: null,
           });
@@ -90,9 +71,7 @@ export function A2UIAttachmentPreview({
         }
         setState({
           key: attachmentKey,
-          kind: "unknown",
           payload,
-          messages: [],
           tree: null,
           error: parsed.error,
         });
@@ -101,9 +80,7 @@ export function A2UIAttachmentPreview({
         if (cancelled) return;
         setState({
           key: attachmentKey,
-          kind: "unknown",
           payload: null,
-          messages: [],
           tree: null,
           error: err instanceof Error ? err.message : String(err),
         });
@@ -117,29 +94,15 @@ export function A2UIAttachmentPreview({
 
   useEffect(() => {
     const isCurrent = state.key === attachmentKey;
-    const kind = isCurrent ? state.kind : "unknown";
-    const messages = isCurrent ? state.messages : null;
     const payload = isCurrent ? state.payload : null;
-    if (kind === "a2ui" && (!messages || messages.length === 0)) {
-      return;
-    }
-    if (kind === "json-render" && !payload) {
+    if (!payload) {
       return;
     }
     let cancelled = false;
-    const body =
-      kind === "a2ui"
-        ? { messages }
-        : kind === "json-render"
-          ? { payload }
-          : null;
-    if (!body) {
-      return;
-    }
     fetch("/api/a2ui/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ payload }),
     })
       .then(async (response) => {
         if (!response.ok) {
@@ -166,19 +129,16 @@ export function A2UIAttachmentPreview({
     return () => {
       cancelled = true;
     };
-  }, [attachmentKey, state.key, state.kind, state.messages, state.payload]);
+  }, [attachmentKey, state.key, state.payload]);
 
   const isCurrent = state.key === attachmentKey;
-  const kind = isCurrent ? state.kind : "unknown";
-  const messages = isCurrent ? state.messages : null;
   const tree = isCurrent ? state.tree : null;
+  const payload = isCurrent ? state.payload : null;
   const error = isCurrent ? state.error : null;
   const title = attachment.description || attachment.name || "A2UI";
   const preview =
     previewHtml.key === attachmentKey ? previewHtml : undefined;
-  const hasPreview =
-    (kind === "a2ui" && messages && messages.length > 0) ||
-    (kind === "json-render" && tree?.root);
+  const hasPreview = Boolean(tree?.root);
   const previewPending = Boolean(
     hasPreview && !preview?.html && !preview?.error,
   );
@@ -191,14 +151,14 @@ export function A2UIAttachmentPreview({
       <CardContent className="space-y-3">
         {error ? (
           <div className="text-sm text-destructive">{error}</div>
-        ) : messages === null ? (
+        ) : payload === null ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <LoadingDots />
             <span>Loading UI...</span>
           </div>
-        ) : kind === "unknown" ? (
+        ) : !tree?.root ? (
           <div className="text-sm text-muted-foreground">
-            No compatible UI content.
+            No compatible UI content (json-render only).
           </div>
         ) : hasPreview ? (
           <Tabs
@@ -235,22 +195,18 @@ export function A2UIAttachmentPreview({
               )}
             </TabsContent>
             <TabsContent value="interactive">
-              {kind === "a2ui" && messages ? (
-                <A2UIRenderer messages={messages} />
-              ) : kind === "json-render" && tree ? (
+              {tree ? (
                 <JsonRenderRenderer tree={tree} />
               ) : null}
             </TabsContent>
           </Tabs>
         ) : (
           <>
-            {kind === "a2ui" && messages ? (
-              <A2UIRenderer messages={messages} />
-            ) : kind === "json-render" && tree ? (
+            {tree ? (
               <JsonRenderRenderer tree={tree} />
             ) : (
               <div className="text-sm text-muted-foreground">
-                No compatible UI content.
+                No compatible UI content (json-render only).
               </div>
             )}
           </>

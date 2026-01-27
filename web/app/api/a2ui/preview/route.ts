@@ -4,7 +4,6 @@ import { resolveApiBaseUrl } from "@/lib/api-base";
 import {
   decodeBase64Text,
   decodeDataUri,
-  renderA2UIHtmlFromMessages,
 } from "@/lib/a2ui-ssr";
 import { renderJsonRenderHtml } from "@/lib/json-render-ssr";
 import { parseUIPayload } from "@/lib/ui-payload";
@@ -13,7 +12,6 @@ const MAX_PAYLOAD_BYTES = 1_000_000;
 
 type PreviewRequestBody = {
   payload?: string;
-  messages?: unknown;
   data?: string;
   uri?: string;
 };
@@ -26,31 +24,17 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Invalid JSON body.", { status: 400 });
   }
 
-  const messages = Array.isArray(body?.messages) ? body?.messages : null;
-  if (messages && messages.length > 0) {
-    const html = renderA2UIHtmlFromMessages(messages);
-    return htmlResponse(html);
-  }
-
   const payload =
     typeof body?.payload === "string" && body.payload.trim()
       ? body.payload
       : null;
   if (payload) {
-    const html = renderUiHtmlFromPayload(payload);
-    if (html) {
-      return htmlResponse(html);
-    }
-    return new NextResponse("Unable to render UI payload.", { status: 422 });
+    return renderPayloadResponse(payload);
   }
 
   const data = typeof body?.data === "string" ? body.data.trim() : "";
   if (data) {
-    const html = renderUiHtmlFromPayload(decodeBase64Text(data));
-    if (html) {
-      return htmlResponse(html);
-    }
-    return new NextResponse("Unable to render UI payload.", { status: 422 });
+    return renderPayloadResponse(decodeBase64Text(data));
   }
 
   const uri = typeof body?.uri === "string" ? body.uri.trim() : "";
@@ -63,11 +47,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse("Unable to load UI payload.", { status: 422 });
   }
 
-  const html = renderUiHtmlFromPayload(fetched);
-  if (!html) {
-    return new NextResponse("Unable to render UI payload.", { status: 422 });
-  }
-  return htmlResponse(html);
+  return renderPayloadResponse(fetched);
 }
 
 function htmlResponse(html: string) {
@@ -77,6 +57,14 @@ function htmlResponse(html: string) {
       "cache-control": "no-store",
     },
   });
+}
+
+function renderPayloadResponse(payload: string) {
+  const html = renderUiHtmlFromPayload(payload);
+  if (!html) {
+    return new NextResponse("Unable to render UI payload.", { status: 422 });
+  }
+  return htmlResponse(html);
 }
 
 async function loadPayloadFromUri(
@@ -129,9 +117,6 @@ async function loadPayloadFromUri(
 
 function renderUiHtmlFromPayload(payload: string): string | null {
   const ui = parseUIPayload(payload);
-  if (ui.kind === "a2ui") {
-    return renderA2UIHtmlFromMessages(ui.messages);
-  }
   if (ui.kind === "json-render") {
     return renderJsonRenderHtml(ui.tree);
   }

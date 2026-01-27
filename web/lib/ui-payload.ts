@@ -1,8 +1,6 @@
-import { A2UIMessage, parseA2UIMessagePayload } from "@/lib/a2ui";
 import { JsonRenderTree, parseJsonRenderPayload } from "@/lib/json-render-model";
 
 export type UIPayload =
-  | { kind: "a2ui"; messages: A2UIMessage[] }
   | { kind: "json-render"; tree: JsonRenderTree }
   | { kind: "unknown"; error: string };
 
@@ -12,13 +10,11 @@ export function parseUIPayload(payload: string): UIPayload {
     return { kind: "unknown", error: "Empty UI payload." };
   }
 
-  try {
-    const messages = parseA2UIMessagePayload(trimmed);
-    if (hasA2UIFields(messages)) {
-      return { kind: "a2ui", messages };
-    }
-  } catch {
-    // Ignore and fall through to json-render parsing.
+  if (looksLikeA2UI(trimmed)) {
+    return {
+      kind: "unknown",
+      error: "A2UI payloads are not supported. Use json-render payloads instead.",
+    };
   }
 
   try {
@@ -35,14 +31,54 @@ export function parseUIPayload(payload: string): UIPayload {
   }
 }
 
-function hasA2UIFields(messages: A2UIMessage[]): boolean {
-  return messages.some(
-    (message) =>
-      Boolean(
-        message.surfaceUpdate ||
-          message.dataModelUpdate ||
-          message.beginRendering ||
-          message.deleteSurface,
-      ),
+function looksLikeA2UI(payload: string): boolean {
+  const trimmed = payload.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  const parsed = parseJSONValue(trimmed);
+  if (parsed !== undefined) {
+    return isA2UIValue(parsed);
+  }
+
+  const lines = trimmed.split(/\r?\n/);
+  for (const line of lines) {
+    const candidate = line.trim();
+    if (!candidate) {
+      continue;
+    }
+    const parsedLine = parseJSONValue(candidate);
+    if (parsedLine !== undefined && isA2UIValue(parsedLine)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function parseJSONValue(value: string): any | undefined {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+}
+
+function isA2UIValue(value: any): boolean {
+  if (Array.isArray(value)) {
+    return value.some(isA2UIValue);
+  }
+  if (!isPlainObject(value)) {
+    return false;
+  }
+  return Boolean(
+    value.surfaceUpdate ||
+      value.dataModelUpdate ||
+      value.beginRendering ||
+      value.deleteSurface,
   );
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

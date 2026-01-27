@@ -166,6 +166,88 @@ function renderElement(element: JsonRenderElement, tree: JsonRenderTree): string
       output.push("</div>");
       return output.join("");
     }
+    case "table": {
+      const rows = Array.isArray(props.rows) ? props.rows : [];
+      const headers = normalizeTableHeaders(props.headers, rows);
+      const tableRows = normalizeTableRows(rows, headers);
+      if (tableRows.length === 0) {
+        return renderFallback("Table is empty.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-table-wrap"><table class="jr-table">');
+      output.push("<thead><tr>");
+      headers.forEach((header) => {
+        output.push(`<th>${escapeHtml(header)}</th>`);
+      });
+      output.push("</tr></thead><tbody>");
+      tableRows.forEach((row) => {
+        output.push("<tr>");
+        row.forEach((cell) => {
+          output.push(`<td>${escapeHtml(cell)}</td>`);
+        });
+        output.push("</tr>");
+      });
+      output.push("</tbody></table></div>");
+      return output.join("");
+    }
+    case "kanban": {
+      const columns = Array.isArray(props.columns) ? props.columns : [];
+      if (columns.length === 0) {
+        return renderFallback("Kanban has no columns.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-kanban">');
+      columns.forEach((column, index) => {
+        const title = escapeHtml(String(column?.title ?? `Column ${index + 1}`));
+        output.push('<div class="jr-kanban-column">');
+        output.push(`<div class="jr-kanban-title">${title}</div>`);
+        const items = normalizeKanbanItems(column?.items);
+        output.push('<div class="jr-kanban-items">');
+        items.forEach((item) => {
+          output.push('<div class="jr-kanban-card">');
+          output.push(`<div class="jr-kanban-card-title">${escapeHtml(item.title)}</div>`);
+          if (item.subtitle) {
+            output.push(`<div class="jr-kanban-card-subtitle">${escapeHtml(item.subtitle)}</div>`);
+          }
+          if (item.meta) {
+            output.push(`<div class="jr-kanban-card-meta">${escapeHtml(item.meta)}</div>`);
+          }
+          output.push("</div>");
+        });
+        output.push("</div></div>");
+      });
+      output.push("</div>");
+      return output.join("");
+    }
+    case "diagram": {
+      const nodes = Array.isArray(props.nodes) ? props.nodes : [];
+      const edges = Array.isArray(props.edges) ? props.edges : [];
+      if (nodes.length === 0 && edges.length === 0) {
+        return renderFallback("Diagram has no nodes or edges.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-diagram">');
+      if (nodes.length > 0) {
+        output.push('<div class="jr-diagram-nodes">');
+        nodes.forEach((node, index) => {
+          const label = escapeHtml(String(node?.label ?? node?.id ?? `Node ${index + 1}`));
+          output.push(`<div class="jr-diagram-node">${label}</div>`);
+        });
+        output.push("</div>");
+      }
+      if (edges.length > 0) {
+        output.push('<div class="jr-diagram-edges">');
+        edges.forEach((edge) => {
+          const from = escapeHtml(String(edge?.from ?? "?"));
+          const to = escapeHtml(String(edge?.to ?? "?"));
+          const label = edge?.label ? ` (${escapeHtml(String(edge.label))})` : "";
+          output.push(`<div class="jr-diagram-edge">${from} -> ${to}${label}</div>`);
+        });
+        output.push("</div>");
+      }
+      output.push("</div>");
+      return output.join("");
+    }
     default:
       return renderFallback(`Unsupported element: ${element.type}`);
   }
@@ -218,6 +300,49 @@ function deriveNodesFromEdges(edges: any[]) {
 
 function findEdge(edges: any[], from: any, to: any) {
   return edges.find((edge) => edge?.from === from && edge?.to === to);
+}
+
+function normalizeTableHeaders(headers: any, rows: any[]): string[] {
+  if (Array.isArray(headers) && headers.length > 0) {
+    return headers.map((header) => String(header));
+  }
+  if (rows.length > 0 && isPlainObject(rows[0])) {
+    return Object.keys(rows[0]);
+  }
+  return ["Value"];
+}
+
+function normalizeTableRows(rows: any[], headers: string[]): string[][] {
+  return rows.map((row) => {
+    if (Array.isArray(row)) {
+      const normalized = row.map((cell) => String(cell ?? ""));
+      return normalized.length > 0 ? normalized : [""];
+    }
+    if (isPlainObject(row)) {
+      return headers.map((header) => String(row[header] ?? ""));
+    }
+    return [String(row ?? "")];
+  });
+}
+
+function normalizeKanbanItems(items: any): Array<{ title: string; subtitle: string; meta: string }> {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items.map((item) => {
+    if (isPlainObject(item)) {
+      return {
+        title: String(item.title ?? item.label ?? item.name ?? "Untitled"),
+        subtitle: item.subtitle ? String(item.subtitle) : "",
+        meta: item.meta ? String(item.meta) : "",
+      };
+    }
+    return { title: String(item ?? ""), subtitle: "", meta: "" };
+  });
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function clampHeadingLevel(value: any): number {
@@ -314,5 +439,20 @@ const JR_STYLES = `
 .jr-gallery-item { width: 200px; display: flex; flex-direction: column; gap: 6px; }
 .jr-gallery-image { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; border: 1px solid #e2e8f0; }
 .jr-gallery-caption { font-size: 11px; color: #64748b; }
+.jr-table-wrap { overflow-x: auto; border: 1px solid #e2e8f0; border-radius: 12px; }
+.jr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jr-table th { text-align: left; padding: 8px 10px; background: #f1f5f9; font-size: 11px; text-transform: uppercase; color: #64748b; }
+.jr-table td { padding: 8px 10px; border-top: 1px solid #e2e8f0; }
+.jr-kanban { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.jr-kanban-column { min-width: 200px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; padding: 10px; }
+.jr-kanban-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.jr-kanban-items { display: flex; flex-direction: column; gap: 8px; }
+.jr-kanban-card { border: 1px solid #e2e8f0; border-radius: 10px; background: #ffffff; padding: 8px 10px; }
+.jr-kanban-card-title { font-size: 12px; font-weight: 600; }
+.jr-kanban-card-subtitle, .jr-kanban-card-meta { font-size: 11px; color: #64748b; }
+.jr-diagram { display: flex; flex-direction: column; gap: 8px; }
+.jr-diagram-nodes { display: flex; flex-wrap: wrap; gap: 8px; }
+.jr-diagram-node { border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px 10px; background: #f8fafc; font-size: 12px; font-weight: 600; }
+.jr-diagram-edges { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #64748b; }
 .jr-fallback { border: 1px dashed #cbd5f5; border-radius: 10px; padding: 8px; font-size: 12px; color: #64748b; background: #f1f5f9; }
 `;
