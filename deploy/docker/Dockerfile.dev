@@ -21,8 +21,7 @@ ENV GOPROXY=${GO_PROXY} \
 
 RUN go install golang.org/x/tools/cmd/goimports@latest \
     github.com/golangci/golangci-lint/cmd/golangci-lint@latest \
-    golang.org/x/vuln/cmd/govulncheck@latest \
-    github.com/air-verse/air@latest
+    golang.org/x/vuln/cmd/govulncheck@latest
 
 WORKDIR /app
 
@@ -34,7 +33,7 @@ RUN chmod +x scripts/*.sh
 
 FROM base AS development
 ENV GO_ENV=development
-CMD ["air", "-c", ".air.toml"]
+CMD ["./scripts/go-with-toolchain.sh", "run", "./cmd/alex"]
 
 FROM base AS testing
 RUN go install gotest.tools/gotestsum@latest

@@ -21,7 +21,6 @@
 #   ACP_RUN_MODE=sandbox|host   # Run ACP in sandbox container or on host (default sandbox)
 #   ACP_PORT=0                  # ACP port override (0 = auto-pick)
 #   ACP_HOST=127.0.0.1           # ACP bind host (default 127.0.0.1)
-#   START_WITH_WATCH=1          # Backend hot reload (requires `air`)
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
 #   AUTH_JWT_SECRET=...         # Auth secret (default: dev-secret-change-me)
 #   SKIP_LOCAL_AUTH_DB=1        # Skip local auth DB auto-setup (default 0)
@@ -57,7 +56,6 @@ START_ACP_WITH_SANDBOX="${START_ACP_WITH_SANDBOX:-1}"
 ACP_RUN_MODE="${ACP_RUN_MODE:-sandbox}"
 ACP_PORT="${ACP_PORT:-0}"
 ACP_HOST="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
-START_WITH_WATCH="${START_WITH_WATCH:-1}"
 AUTO_STOP_CONFLICTING_PORTS="${AUTO_STOP_CONFLICTING_PORTS:-1}"
 
 source "${SCRIPT_DIR}/scripts/lib/common/logging.sh"
@@ -441,24 +439,6 @@ our_backend_listener_pids() {
   done
 }
 
-maybe_stop_backend_supervisor() {
-  local pid="$1"
-  local ppid
-  local parent_comm
-  local parent_cmd
-
-  ppid="$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ' || true)"
-  [[ -n "$ppid" && "$ppid" != "0" && "$ppid" != "1" ]] || return 0
-
-  parent_comm="$(ps -o comm= -p "$ppid" 2>/dev/null || true)"
-  [[ "$parent_comm" == "air" ]] || return 0
-
-  parent_cmd="$(ps -o command= -p "$ppid" 2>/dev/null || true)"
-  if [[ "$parent_cmd" == *"alex-server"* ]] || [[ "$parent_cmd" == *"cmd/alex-server"* ]]; then
-    stop_pid "$ppid" "backend supervisor (air)"
-  fi
-}
-
 stop_alex_server_listeners() {
   local port="$1"
 
@@ -485,7 +465,6 @@ stop_alex_server_listeners() {
       log_warn "Stopping PID ${pid}"
     fi
 
-    maybe_stop_backend_supervisor "$pid"
     stop_pid "$pid" "backend port ${port} listener"
   done
 }
@@ -786,25 +765,13 @@ start_server() {
   if acp_executor_addr="$(resolve_acp_executor_addr)"; then
     log_info "Using ACP executor at ${acp_executor_addr}"
   fi
-  if [[ "${START_WITH_WATCH}" == "1" ]] && command_exists air; then
-    PORT="${SERVER_PORT}" \
-      ALEX_SERVER_PORT="${SERVER_PORT}" \
-      ALEX_SERVER_MODE="deploy" \
-      ALEX_LOG_DIR="${LOG_DIR}" \
-      ACP_EXECUTOR_ADDR="${acp_executor_addr}" \
-      air \
-      --build.cmd "${SCRIPT_DIR}/scripts/go-with-toolchain.sh build -o ${SCRIPT_DIR}/alex-server ./cmd/alex-server" \
-      --build.entrypoint "[\"./alex-server\"]" \
-      >"${SERVER_LOG}" 2>&1 &
-  else
-    PORT="${SERVER_PORT}" \
-      ALEX_SERVER_PORT="${SERVER_PORT}" \
-      ALEX_SERVER_MODE="deploy" \
-      ALEX_LOG_DIR="${LOG_DIR}" \
-      ACP_EXECUTOR_ADDR="${acp_executor_addr}" \
-      "${SCRIPT_DIR}/alex-server" \
-      >"${SERVER_LOG}" 2>&1 &
-  fi
+  PORT="${SERVER_PORT}" \
+    ALEX_SERVER_PORT="${SERVER_PORT}" \
+    ALEX_SERVER_MODE="deploy" \
+    ALEX_LOG_DIR="${LOG_DIR}" \
+    ACP_EXECUTOR_ADDR="${acp_executor_addr}" \
+    "${SCRIPT_DIR}/alex-server" \
+    >"${SERVER_LOG}" 2>&1 &
 
   echo $! >"${SERVER_PID_FILE}"
   wait_for_health "http://localhost:${SERVER_PORT}/health" "backend" || true
