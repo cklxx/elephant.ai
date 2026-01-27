@@ -19,7 +19,7 @@ import {
 interface ToolOutputCardProps {
   toolName: string;
   parameters?: Record<string, unknown>;
-  result?: string;
+  result?: unknown;
   error?: string;
   duration?: number;
   timestamp?: string;
@@ -45,7 +45,8 @@ export function ToolOutputCard({
     () => sanitizeToolMetadataForUI(toolName, metadata ?? null) ?? null,
     [toolName, metadata],
   );
-  const hasResult = Boolean(result && result.trim().length > 0);
+  const resultText = normalizeToolResult(result);
+  const hasResult = resultText.trim().length > 0;
   const hasParameters = Boolean(
     parameters && Object.keys(parameters).length > 0,
   );
@@ -275,4 +276,18 @@ function formatParams(
 function formatParamValue(value: unknown): string {
   if (typeof value === "string") return value;
   return JSON.stringify(value);
+}
+
+function normalizeToolResult(result: unknown): string {
+  if (typeof result === "string") {
+    return result;
+  }
+  if (result == null) {
+    return "";
+  }
+  try {
+    return JSON.stringify(result, null, 2);
+  } catch {
+    return String(result);
+  }
 }

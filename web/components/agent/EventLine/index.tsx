@@ -258,24 +258,25 @@ export const EventLine = React.memo(function EventLine({
         ? (completeEvent.arguments as Record<string, unknown>)
         : pairedToolStartEvent?.arguments;
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
+    const resultText = resolveToolResultText(completeEvent.result);
     if (toolName === "plan") {
-      if (isOrchestratorRetryMessage(completeEvent.result)) {
+      if (isOrchestratorRetryMessage(resultText)) {
         return null;
       }
       return wrapWithSubagentContext(
         <PlanGoalCard
-          goal={completeEvent.result}
+          goal={resultText ?? ""}
           timestamp={completeEvent.timestamp}
         />,
       );
     }
     if (toolName === "clearify") {
-      if (isOrchestratorRetryMessage(completeEvent.result)) {
+      if (isOrchestratorRetryMessage(resultText)) {
         return null;
       }
       return wrapWithSubagentContext(
         <ClearifyTaskCard
-          result={completeEvent.result}
+          result={resultText ?? ""}
           metadata={completeEvent.metadata}
           timestamp={completeEvent.timestamp}
         />,
@@ -284,15 +285,7 @@ export const EventLine = React.memo(function EventLine({
     if (isNested) {
       const resultStr = completeEvent.error
         ? String(completeEvent.error)
-        : completeEvent.result && typeof completeEvent.result === "string"
-          ? completeEvent.result
-          : completeEvent.result && typeof completeEvent.result === "object" && "output" in completeEvent.result
-            ? String(completeEvent.result.output)
-            : completeEvent.result && typeof completeEvent.result === "object" && "content" in completeEvent.result
-              ? String(completeEvent.result.content)
-              : completeEvent.result
-                ? JSON.stringify(completeEvent.result)
-                : undefined;
+        : resolveToolResultText(completeEvent.result);
 
       return wrapWithSubagentContext(
         <div data-testid="event-workflow.tool.completed">
@@ -510,6 +503,30 @@ function ClearifyTaskCard({
       ) : null}
     </div>
   );
+}
+
+function resolveToolResultText(result: unknown): string | undefined {
+  if (typeof result === "string") {
+    return result;
+  }
+  if (result && typeof result === "object") {
+    const record = result as Record<string, unknown>;
+    if ("output" in record) {
+      return String(record.output ?? "");
+    }
+    if ("content" in record) {
+      return String(record.content ?? "");
+    }
+    try {
+      return JSON.stringify(record);
+    } catch {
+      return String(record);
+    }
+  }
+  if (result != null) {
+    return String(result);
+  }
+  return undefined;
 }
 
 function AssistantLogCard({

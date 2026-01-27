@@ -94,9 +94,10 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
     // Priority: Result Summary > Error > Args Summary > Default Text
     const argsSummary = getArgumentsPreview(event, adapter.context.startEvent ?? undefined);
     const errorSummary = adapter.context.completeEvent?.error?.trim();
+    const resultText = normalizeResultText(adapter.context.completeEvent?.result);
     const resultSummary = userFacingToolSummary({
       toolName,
-      result: adapter.context.completeEvent?.result ?? null,
+      result: resultText,
       error: adapter.context.completeEvent?.error ?? null,
       metadata: adapter.context.completeEvent?.metadata ?? null,
       attachments: adapter.context.completeEvent?.attachments ?? null,
@@ -235,6 +236,20 @@ function getArgumentsPreview(
     startEvent?.arguments ??
     (isWorkflowToolStartedEvent(event) ? event.arguments : undefined);
   return returnSummarizeArguments(args);
+}
+
+function normalizeResultText(result: unknown): string {
+  if (typeof result === 'string') {
+    return result;
+  }
+  if (result == null) {
+    return '';
+  }
+  try {
+    return JSON.stringify(result);
+  } catch {
+    return String(result);
+  }
 }
 
 function returnSummarizeArguments(args?: Record<string, unknown>): string | undefined {

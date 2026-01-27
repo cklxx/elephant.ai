@@ -77,59 +77,65 @@ function mapToolNameToType(toolName: string): ToolOutputType {
 
 function parseToolResult(
   toolName: string,
-  result: string,
+  result: unknown,
   error?: string,
   metadata?: Record<string, any>
 ): Partial<ToolOutput> {
-  // Try to parse JSON result
-  try {
-    const parsed = JSON.parse(result);
+  const rawText =
+    typeof result === 'string'
+      ? result
+      : result != null
+        ? JSON.stringify(result)
+        : '';
+  const parsed =
+    typeof result === 'string'
+      ? parseJsonObject(result)
+      : isPlainObject(result)
+        ? (result as Record<string, any>)
+        : null;
 
-    // Bash tool
-    if (toolName.includes('bash') || toolName.includes('execute')) {
-      return {
-        command: parsed.command || parsed.input,
-        stdout: parsed.stdout || parsed.output,
-        stderr: parsed.stderr || error,
-        exitCode: parsed.exit_code ?? parsed.exitCode,
-      };
-    }
+  // Bash tool
+  if (parsed && (toolName.includes('bash') || toolName.includes('execute'))) {
+    return {
+      command: parsed.command || parsed.input,
+      stdout: parsed.stdout || parsed.output,
+      stderr: parsed.stderr || error,
+      exitCode: parsed.exit_code ?? parsed.exitCode,
+    };
+  }
 
-    // Web fetch
-    if (toolName.includes('web_fetch')) {
-      return {
-        url: parsed.url,
-        screenshot: parsed.screenshot,
-        htmlPreview: parsed.html || parsed.content,
-      };
-    }
+  // Web fetch
+  if (parsed && toolName.includes('web_fetch')) {
+    return {
+      url: parsed.url,
+      screenshot: parsed.screenshot,
+      htmlPreview: parsed.html || parsed.content,
+    };
+  }
 
-    // File read
-    if (toolName.includes('file_read')) {
-      return {
-        filePath: parsed.path || parsed.file_path,
-        content: parsed.content || result,
-      };
-    }
+  // File read
+  if (parsed && toolName.includes('file_read')) {
+    return {
+      filePath: parsed.path || parsed.file_path,
+      content: parsed.content || rawText,
+    };
+  }
 
-    // File write
-    if (toolName.includes('file_write')) {
-      return {
-        filePath: parsed.path || parsed.file_path,
-        content: parsed.content || result,
-      };
-    }
+  // File write
+  if (parsed && toolName.includes('file_write')) {
+    return {
+      filePath: parsed.path || parsed.file_path,
+      content: parsed.content || rawText,
+    };
+  }
 
-    // File edit
-    if (toolName.includes('file_edit')) {
-      return {
-        filePath: parsed.path || parsed.file_path,
-        oldContent: parsed.old_content || parsed.before,
-        newContent: parsed.new_content || parsed.after || parsed.content,
-      };
-    }
-  } catch {
-    // Not JSON or parsing failed, try metadata or treat as plain text
+  // File edit
+  if (parsed && toolName.includes('file_edit')) {
+    return {
+      filePath: parsed.path || parsed.file_path,
+      oldContent: parsed.old_content || parsed.before,
+      newContent: parsed.new_content || parsed.after || parsed.content,
+    };
   }
 
   // Fallback to metadata when JSON result is unavailable
@@ -140,15 +146,28 @@ function parseToolResult(
         url: web.url,
         screenshot: web.screenshot,
         htmlPreview: web.html ?? web.content,
-        result: error || result,
+        result: error || rawText,
       };
     }
   }
 
   // Fallback to generic result
   return {
-    result: error || result,
+    result: error || rawText,
   };
+}
+
+function parseJsonObject(value: string): Record<string, any> | null {
+  try {
+    const parsed = JSON.parse(value);
+    return isPlainObject(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
 function extractWebMetadata(metadata: Record<string, any>):

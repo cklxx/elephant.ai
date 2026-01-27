@@ -13,7 +13,7 @@ export interface ToolCallState {
   arguments_preview?: string;
   status: ToolCallStatus;
   stream_chunks: string[];
-  result?: string;
+  result?: unknown;
   error?: string;
   duration?: number;
   started_at: string;

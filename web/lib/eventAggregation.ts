@@ -24,7 +24,7 @@ export interface AggregatedToolCall {
   arguments_preview?: string;
   status: 'running' | 'streaming' | 'complete' | 'error';
   stream_chunks: string[];
-  result?: string;
+  result?: unknown;
   error?: string;
   duration?: number;
   completed_at?: string;
@@ -169,8 +169,11 @@ function buildArgumentsPreview(args: Record<string, any> | undefined, fallback?:
   return truncatePreview(entries.join(', '), 140);
 }
 
-function buildResultPreview(result: string | undefined) {
-  if (!result) {
+function buildResultPreview(result: unknown) {
+  if (typeof result !== "string") {
+    return undefined;
+  }
+  if (!result.trim()) {
     return undefined;
   }
   return truncatePreview(result, 160);

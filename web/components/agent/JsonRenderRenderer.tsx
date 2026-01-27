@@ -1,11 +1,11 @@
-import { JsonRenderElement, JsonRenderTree } from "@/lib/json-render-model";
 import Image from "next/image";
-import type { JSX } from "react";
+import type { CSSProperties, JSX } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { JsonRenderElement, JsonRenderTree } from "@/lib/json-render-model";
 
 export function JsonRenderRenderer({ tree }: { tree: JsonRenderTree }) {
   if (!tree.root) {
@@ -58,8 +58,23 @@ function renderElement(
       );
     }
     case "card": {
+      const padding = toCssSize(props.padding);
+      const radius = toCssSize(props.radius);
+      const style: CSSProperties = {};
+      if (padding) {
+        style.padding = padding;
+      }
+      if (radius) {
+        style.borderRadius = radius;
+      }
+      const borderClass =
+        props.border === false ? "border-0" : "border border-border/60";
       return (
-        <div key={key} className="rounded-xl border border-border/60 bg-card p-4">
+        <div
+          key={key}
+          className={cn("rounded-xl bg-card", borderClass)}
+          style={style}
+        >
           {renderChildren(element, tree, key)}
         </div>
       );
@@ -78,16 +93,57 @@ function renderElement(
     case "text":
     case "paragraph": {
       const text = String(props.text ?? props.value ?? "");
+      const style: CSSProperties = {};
+      const color = toCssColor(props.color);
+      if (color) {
+        style.color = color;
+      }
+      const marginTop = toCssSize(props.marginTop);
+      if (marginTop) {
+        style.marginTop = marginTop;
+      }
+      const align = textAlignValue(props.align);
+      if (align) {
+        style.textAlign = align;
+      }
       return (
-        <p key={key} className="text-sm text-foreground">
+        <p
+          key={key}
+          className={cn(
+            "text-sm text-foreground",
+            textSizeClass(props.size),
+            textWeightClass(props.weight),
+          )}
+          style={style}
+        >
           {text}
         </p>
       );
     }
     case "badge": {
       const text = String(props.text ?? props.value ?? "");
+      const style = badgeStyleFromProps(props);
       return (
-        <Badge key={key} variant="outline">
+        <Badge
+          key={key}
+          variant="outline"
+          style={style}
+          className={textSizeClass(props.size)}
+        >
+          {text}
+        </Badge>
+      );
+    }
+    case "tag": {
+      const text = String(props.value ?? props.text ?? "");
+      const style = badgeStyleFromProps(props);
+      return (
+        <Badge
+          key={key}
+          variant="outline"
+          style={style}
+          className={textSizeClass(props.size)}
+        >
           {text}
         </Badge>
       );
@@ -96,19 +152,40 @@ function renderElement(
       return <hr key={key} className="my-2 border-border" />;
     }
     case "image": {
-      const url = String(props.url ?? "");
+      const url = String(props.url ?? props.src ?? "");
       return url ? (
         <Image
           key={key}
           src={url}
           alt=""
-          width={800}
-          height={420}
+          width={resolveImageSize(props.ratio).width}
+          height={resolveImageSize(props.ratio).height}
           unoptimized
-          className="h-auto w-full rounded-lg"
+          className={cn("h-auto w-full object-cover", imageBorderClass(props))}
+          style={imageStyleFromProps(props)}
         />
       ) : (
         <Fallback key={key} message="Image missing url." />
+      );
+    }
+    case "container": {
+      const style = layoutStyleFromProps(props);
+      return (
+        <div
+          key={key}
+          className={cn("flex flex-col", alignClass(props.align), justifyClass(props.justify))}
+          style={style}
+        >
+          {renderChildren(element, tree, key)}
+        </div>
+      );
+    }
+    case "grid": {
+      const style = gridStyleFromProps(props);
+      return (
+        <div key={key} className="grid" style={style}>
+          {renderChildren(element, tree, key)}
+        </div>
       );
     }
     case "flow": {
@@ -129,10 +206,14 @@ function renderElement(
     }
     case "form": {
       const title = props.title ? String(props.title) : "";
+      const description = props.description ? String(props.description) : "";
       const fields = Array.isArray(props.fields) ? props.fields : [];
       return (
         <div key={key} className="space-y-3">
           {title ? <h3 className="text-base font-semibold">{title}</h3> : null}
+          {description ? (
+            <p className="text-xs text-muted-foreground">{description}</p>
+          ) : null}
           {fields.map((field: any, index: number) => (
             <FieldRow key={`${key}-field-${index}`} field={field} />
           ))}
@@ -398,17 +479,173 @@ function findEdge(edges: any[], from: any, to: any) {
   return edges.find((edge) => edge?.from === from && edge?.to === to);
 }
 
+function toCssSize(value: any): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value}px`;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  return undefined;
+}
+
+function toCssColor(value: any): string | undefined {
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  return undefined;
+}
+
+function textSizeClass(value: any): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  switch (value.toLowerCase()) {
+    case "xs":
+      return "text-xs";
+    case "sm":
+      return "text-sm";
+    case "md":
+      return "text-base";
+    case "lg":
+      return "text-lg";
+    case "xl":
+      return "text-xl";
+    case "2xl":
+      return "text-2xl";
+    default:
+      return "";
+  }
+}
+
+function textWeightClass(value: any): string {
+  if (typeof value !== "string") {
+    return "";
+  }
+  switch (value.toLowerCase()) {
+    case "bold":
+    case "semibold":
+      return "font-semibold";
+    case "medium":
+      return "font-medium";
+    case "normal":
+      return "font-normal";
+    default:
+      return "";
+  }
+}
+
+function textAlignValue(value: any): CSSProperties["textAlign"] | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  switch (value.toLowerCase()) {
+    case "center":
+      return "center";
+    case "right":
+      return "right";
+    case "left":
+      return "left";
+    default:
+      return undefined;
+  }
+}
+
+function badgeStyleFromProps(props: Record<string, any>): CSSProperties {
+  const style: CSSProperties = {};
+  const color = toCssColor(props.color);
+  if (color) {
+    style.color = color;
+    style.borderColor = color;
+  }
+  const marginTop = toCssSize(props.marginTop);
+  if (marginTop) {
+    style.marginTop = marginTop;
+  }
+  return style;
+}
+
+function layoutStyleFromProps(props: Record<string, any>): CSSProperties {
+  const style: CSSProperties = {};
+  const gap = toCssSize(props.gap);
+  if (gap) {
+    style.gap = gap;
+  }
+  const padding = toCssSize(props.padding);
+  if (padding) {
+    style.padding = padding;
+  }
+  return style;
+}
+
+function gridStyleFromProps(props: Record<string, any>): CSSProperties {
+  const style: CSSProperties = layoutStyleFromProps(props);
+  const columns =
+    typeof props.columns === "number" && Number.isFinite(props.columns)
+      ? props.columns
+      : typeof props.columns === "string"
+        ? parseInt(props.columns, 10)
+        : 0;
+  if (columns > 0) {
+    style.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`;
+  }
+  return style;
+}
+
+function resolveImageSize(ratio: any): { width: number; height: number } {
+  const fallback = { width: 800, height: 420 };
+  if (typeof ratio !== "string") {
+    return fallback;
+  }
+  const parts = ratio.split(":");
+  if (parts.length !== 2) {
+    return fallback;
+  }
+  const width = Number(parts[0]);
+  const height = Number(parts[1]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return fallback;
+  }
+  const baseWidth = 800;
+  return { width: baseWidth, height: Math.round(baseWidth * (height / width)) };
+}
+
+function imageStyleFromProps(props: Record<string, any>): CSSProperties {
+  const style: CSSProperties = {};
+  const radius = toCssSize(props.radius);
+  if (radius) {
+    style.borderRadius = radius;
+  }
+  return style;
+}
+
+function imageBorderClass(props: Record<string, any>): string {
+  return props.border ? "border border-border/60" : "";
+}
+
 function FieldRow({ field }: { field: any }) {
   const label = field?.label ? String(field.label) : "";
   const value = field?.value ?? "";
-  const type = field?.type === "textarea" ? "textarea" : "input";
+  const placeholder = field?.placeholder ? String(field.placeholder) : "";
+  const rawType = field?.type ? String(field.type) : "text";
+  const type = rawType === "textarea" ? "textarea" : "input";
+  const inputType = rawType === "textarea" ? "text" : rawType;
+  const rows =
+    typeof field?.rows === "number" && Number.isFinite(field.rows)
+      ? field.rows
+      : undefined;
   return (
     <div className="space-y-1">
       {label ? <div className="text-xs font-medium text-foreground">{label}</div> : null}
       {type === "textarea" ? (
-        <Textarea value={value} readOnly />
+        <Textarea value={value} placeholder={placeholder} rows={rows} readOnly />
       ) : (
-        <Input value={value} readOnly />
+        <Input
+          type={inputType}
+          value={value}
+          placeholder={placeholder}
+          readOnly
+        />
       )}
     </div>
   );

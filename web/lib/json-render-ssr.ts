@@ -44,7 +44,15 @@ function renderElement(element: JsonRenderElement, tree: JsonRenderTree): string
       return `<div class="jr-list">${renderChildren(element, tree)}</div>`;
     }
     case "card": {
-      return `<div class="jr-card">${renderChildren(element, tree)}</div>`;
+      const style = buildStyle({
+        padding: props.padding,
+        borderRadius: props.radius,
+        border: props.border === false ? "none" : undefined,
+      });
+      return `<div class="jr-card"${styleAttribute(style)}>${renderChildren(
+        element,
+        tree,
+      )}</div>`;
     }
     case "heading": {
       const text = escapeHtml(String(props.text ?? props.title ?? ""));
@@ -55,21 +63,43 @@ function renderElement(element: JsonRenderElement, tree: JsonRenderTree): string
     case "text":
     case "paragraph": {
       const text = escapeHtml(String(props.text ?? props.value ?? ""));
-      return `<p class="jr-text">${text}</p>`;
+      const style = buildTextStyle(props);
+      return `<p class="jr-text"${styleAttribute(style)}>${text}</p>`;
     }
     case "badge": {
       const text = escapeHtml(String(props.text ?? props.value ?? ""));
-      return `<span class="jr-badge">${text}</span>`;
+      const style = buildBadgeStyle(props);
+      return `<span class="jr-badge"${styleAttribute(style)}>${text}</span>`;
+    }
+    case "tag": {
+      const text = escapeHtml(String(props.value ?? props.text ?? ""));
+      const style = buildBadgeStyle(props);
+      return `<span class="jr-tag"${styleAttribute(style)}>${text}</span>`;
     }
     case "divider": {
       return '<hr class="jr-divider" />';
     }
     case "image": {
-      const url = escapeAttribute(String(props.url ?? ""));
+      const url = escapeAttribute(String(props.url ?? props.src ?? ""));
       if (!url) {
         return renderFallback("Image missing url.");
       }
-      return `<img class="jr-image" src="${url}" alt="" />`;
+      const style = buildImageStyle(props);
+      return `<img class="jr-image"${styleAttribute(style)} src="${url}" alt="" />`;
+    }
+    case "container": {
+      const style = buildLayoutStyle(props);
+      return `<div class="jr-container"${styleAttribute(style)}>${renderChildren(
+        element,
+        tree,
+      )}</div>`;
+    }
+    case "grid": {
+      const style = buildGridStyle(props);
+      return `<div class="jr-grid"${styleAttribute(style)}>${renderChildren(
+        element,
+        tree,
+      )}</div>`;
     }
     case "flow": {
       const nodes = Array.isArray(props.nodes) ? props.nodes : [];
@@ -79,22 +109,35 @@ function renderElement(element: JsonRenderElement, tree: JsonRenderTree): string
     }
     case "form": {
       const title = props.title ? escapeHtml(String(props.title)) : "";
+      const description = props.description ? escapeHtml(String(props.description)) : "";
       const fields = Array.isArray(props.fields) ? props.fields : [];
       const output: string[] = [];
       output.push('<div class="jr-form">');
       if (title) {
         output.push(`<div class="jr-section-title">${title}</div>`);
       }
+      if (description) {
+        output.push(`<div class="jr-section-desc">${description}</div>`);
+      }
       fields.forEach((field) => {
         const label = field?.label ? escapeHtml(String(field.label)) : "";
         const value = escapeAttribute(String(field?.value ?? ""));
+        const placeholder = escapeAttribute(String(field?.placeholder ?? ""));
         if (label) {
           output.push(`<div class="jr-field-label">${label}</div>`);
         }
         if (field?.type === "textarea") {
-          output.push(`<textarea class="jr-textarea" readonly>${escapeHtml(String(field?.value ?? ""))}</textarea>`);
+          const rows = Number.isFinite(field?.rows) ? ` rows="${field.rows}"` : "";
+          output.push(
+            `<textarea class="jr-textarea" readonly${rows} placeholder="${placeholder}">${escapeHtml(
+              String(field?.value ?? ""),
+            )}</textarea>`,
+          );
         } else {
-          output.push(`<input class="jr-input" type="text" value="${value}" readonly />`);
+          const inputType = field?.type ? escapeAttribute(String(field.type)) : "text";
+          output.push(
+            `<input class="jr-input" type="${inputType}" value="${value}" placeholder="${placeholder}" readonly />`,
+          );
         }
       });
       output.push("</div>");
@@ -381,6 +424,177 @@ function flexJustify(value: any, fallback: string): string {
   }
 }
 
+function cssSize(value: any): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value}px`;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  return undefined;
+}
+
+function cssColor(value: any): string | undefined {
+  if (typeof value === "string" && value.trim() !== "") {
+    return value;
+  }
+  return undefined;
+}
+
+function styleAttribute(style: string): string {
+  return style ? ` style="${style}"` : "";
+}
+
+function joinStyles(...styles: Array<string | undefined>): string {
+  return styles.filter(Boolean).join("");
+}
+
+function buildStyle({
+  padding,
+  borderRadius,
+  border,
+}: {
+  padding?: any;
+  borderRadius?: any;
+  border?: string;
+}): string {
+  return joinStyles(
+    padding ? `padding:${cssSize(padding)};` : "",
+    borderRadius ? `border-radius:${cssSize(borderRadius)};` : "",
+    border ? `border:${border};` : "",
+  );
+}
+
+function buildLayoutStyle(props: Record<string, any>): string {
+  const gap = cssSize(props.gap);
+  const padding = cssSize(props.padding);
+  return joinStyles(gap ? `gap:${gap};` : "", padding ? `padding:${padding};` : "");
+}
+
+function buildGridStyle(props: Record<string, any>): string {
+  const base = buildLayoutStyle(props);
+  const columns =
+    typeof props.columns === "number" && Number.isFinite(props.columns)
+      ? props.columns
+      : typeof props.columns === "string"
+        ? parseInt(props.columns, 10)
+        : 0;
+  const columnStyle =
+    columns > 0 ? `grid-template-columns: repeat(${columns}, minmax(0, 1fr));` : "";
+  return joinStyles(base, columnStyle);
+}
+
+function buildTextStyle(props: Record<string, any>): string {
+  const size = textSizeCss(props.size);
+  const weight = textWeightCss(props.weight);
+  const color = cssColor(props.color);
+  const marginTop = cssSize(props.marginTop);
+  const align = textAlignCss(props.align);
+  return joinStyles(
+    size ? `font-size:${size};` : "",
+    weight ? `font-weight:${weight};` : "",
+    color ? `color:${color};` : "",
+    marginTop ? `margin-top:${marginTop};` : "",
+    align ? `text-align:${align};` : "",
+  );
+}
+
+function buildBadgeStyle(props: Record<string, any>): string {
+  const color = cssColor(props.color);
+  const marginTop = cssSize(props.marginTop);
+  return joinStyles(
+    color ? `color:${color};` : "",
+    color ? `border-color:${color};` : "",
+    marginTop ? `margin-top:${marginTop};` : "",
+  );
+}
+
+function buildImageStyle(props: Record<string, any>): string {
+  const radius = cssSize(props.radius);
+  const ratio = aspectRatioCss(props.ratio);
+  const border = props.border ? "1px solid #e2e8f0" : undefined;
+  return joinStyles(
+    radius ? `border-radius:${radius};` : "",
+    ratio ? `aspect-ratio:${ratio};` : "",
+    ratio ? "object-fit:cover;" : "",
+    border ? `border:${border};` : "",
+  );
+}
+
+function textSizeCss(value: any): string | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${value}px`;
+  }
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  switch (value.toLowerCase()) {
+    case "xs":
+      return "12px";
+    case "sm":
+      return "14px";
+    case "md":
+      return "16px";
+    case "lg":
+      return "18px";
+    case "xl":
+      return "20px";
+    case "2xl":
+      return "24px";
+    default:
+      return undefined;
+  }
+}
+
+function textWeightCss(value: any): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  switch (value.toLowerCase()) {
+    case "bold":
+    case "semibold":
+      return "600";
+    case "medium":
+      return "500";
+    case "normal":
+      return "400";
+    default:
+      return undefined;
+  }
+}
+
+function textAlignCss(value: any): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  switch (value.toLowerCase()) {
+    case "center":
+      return "center";
+    case "right":
+      return "right";
+    case "left":
+      return "left";
+    default:
+      return undefined;
+  }
+}
+
+function aspectRatioCss(value: any): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const parts = value.split(":");
+  if (parts.length !== 2) {
+    return undefined;
+  }
+  const width = Number(parts[0]);
+  const height = Number(parts[1]);
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return undefined;
+  }
+  return `${width} / ${height}`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -400,9 +614,11 @@ function renderFallback(message: string): string {
 
 const JR_STYLES = `
 .jr-root { padding: 16px; display: flex; flex-direction: column; gap: 16px; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; color: #0f172a; }
-.jr-column, .jr-row, .jr-list { display: flex; gap: 12px; }
+.jr-column, .jr-row, .jr-list, .jr-container { display: flex; gap: 12px; }
 .jr-column, .jr-list { flex-direction: column; }
 .jr-row { flex-wrap: wrap; }
+.jr-container { flex-direction: column; }
+.jr-grid { display: grid; gap: 12px; }
 .jr-card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; background: #ffffff; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05); }
 .jr-heading { margin: 0; }
 .jr-heading-1 { font-size: 24px; font-weight: 600; }
@@ -411,6 +627,7 @@ const JR_STYLES = `
 .jr-heading-4 { font-size: 16px; font-weight: 600; }
 .jr-text { margin: 0; font-size: 14px; }
 .jr-badge { display: inline-flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #334155; background: #f8fafc; }
+.jr-tag { display: inline-flex; align-items: center; border: 1px solid #e2e8f0; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; color: #334155; background: #f8fafc; }
 .jr-divider { border: none; border-top: 1px solid #e2e8f0; margin: 8px 0; }
 .jr-image { max-width: 100%; border-radius: 12px; }
 .jr-flow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -422,6 +639,7 @@ const JR_STYLES = `
 .jr-input, .jr-textarea { width: 100%; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
 .jr-textarea { min-height: 90px; }
 .jr-section-title { font-size: 15px; font-weight: 600; }
+.jr-section-desc { font-size: 12px; color: #64748b; }
 .jr-dashboard { display: flex; flex-direction: column; gap: 12px; }
 .jr-metrics { display: flex; flex-wrap: wrap; gap: 12px; }
 .jr-metric { border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 12px; background: #f8fafc; min-width: 140px; }

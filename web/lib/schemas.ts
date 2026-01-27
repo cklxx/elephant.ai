@@ -185,7 +185,7 @@ const WorkflowToolCompletedEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('workflow.tool.completed'),
   call_id: z.string(),
   tool_name: z.string(),
-  result: z.string().default(''),
+  result: z.unknown().optional(),
   error: z.string().optional(),
   duration: z.number().default(0),
   metadata: z.record(z.string(), z.unknown()).optional(),

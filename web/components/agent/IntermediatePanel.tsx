@@ -78,7 +78,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     toolName: string;
     timestamp: string;
     completedTimestamp?: string;
-    result?: string;
+    result?: unknown;
     error?: string;
     duration?: number;
     parameters?: Record<string, unknown>;
@@ -125,11 +125,14 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       return metadataUrl;
     }
 
-    const result = call.error || call.result;
-    if (typeof result === "string" && result.trim().length > 0) {
+    const resultText =
+      typeof call.error === "string"
+        ? call.error
+        : normalizeResultText(call.result);
+    if (resultText.trim().length > 0) {
       const summary = userFacingToolSummary({
         toolName: call.toolName,
-        result: call.result ?? null,
+        result: resultText,
         error: call.error ?? null,
         metadata: (call.metadata as Record<string, any>) ?? null,
         attachments: (call.attachments as any) ?? null,
@@ -137,7 +140,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
       if (summary) {
         return summary.length > 120 ? `${summary.slice(0, 120)}…` : summary;
       }
-      const trimmed = result.trim();
+      const trimmed = resultText.trim();
       return trimmed.length > 120 ? `${trimmed.slice(0, 120)}…` : trimmed;
     }
 
@@ -335,9 +338,10 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     if (!headlineCall) {
       return "";
     }
+    const resultText = normalizeResultText(headlineCall.result);
     const summary = userFacingToolSummary({
       toolName: headlineCall.toolName,
-      result: headlineCall.result ?? null,
+      result: resultText,
       error: headlineCall.error ?? null,
       metadata: (headlineCall.metadata as Record<string, any>) ?? null,
       attachments: (headlineCall.attachments as any) ?? null,
@@ -622,4 +626,18 @@ function ThinkStreamCard({ item }: { item: ThinkPreviewItem }) {
       </div>
     </section>
   );
+}
+
+function normalizeResultText(result: unknown): string {
+  if (typeof result === "string") {
+    return result;
+  }
+  if (result == null) {
+    return "";
+  }
+  try {
+    return JSON.stringify(result);
+  } catch {
+    return String(result);
+  }
 }

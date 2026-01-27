@@ -52,4 +52,40 @@ describe("parseJsonRenderPayload", () => {
     const tree = parseJsonRenderPayload(payload);
     expect(tree.root?.type).toBe("heading");
   });
+
+  it("unwraps json-render wrapper payloads", () => {
+    const payload = JSON.stringify({
+      type: "json-render",
+      schema: "v1",
+      data: {
+        view: "form",
+        title: "User Form",
+        fields: [{ label: "Name", type: "text" }],
+      },
+    });
+
+    const tree = parseJsonRenderPayload(payload);
+    expect(tree.root?.type).toBe("form");
+    expect(tree.root?.props?.title).toBe("User Form");
+  });
+
+  it("unwraps content page bodies and preserves props", () => {
+    const payload = JSON.stringify({
+      content: {
+        type: "page",
+        title: "Gallery",
+        body: {
+          type: "container",
+          padding: 24,
+          gap: 16,
+          children: [{ type: "text", value: "Hello" }],
+        },
+      },
+    });
+
+    const tree = parseJsonRenderPayload(payload);
+    expect(tree.root?.type).toBe("container");
+    expect(tree.root?.props?.padding).toBe(24);
+    expect(Array.isArray(tree.root?.children)).toBe(true);
+  });
 });

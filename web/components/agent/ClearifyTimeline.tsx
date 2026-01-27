@@ -207,7 +207,7 @@ function parseClearifyMetadata(event: WorkflowToolCompletedEvent): {
   const taskGoalUI =
     typeof metadata?.task_goal_ui === "string" && metadata.task_goal_ui.trim()
       ? String(metadata.task_goal_ui).trim()
-      : (event.result.split(/\r?\n/)[0]?.trim() ?? "");
+      : (extractResultLine(event.result) ?? "");
 
   const successCriteria = Array.isArray(metadata?.success_criteria)
     ? (metadata.success_criteria as unknown[])
@@ -229,4 +229,12 @@ function parseClearifyMetadata(event: WorkflowToolCompletedEvent): {
     needsUserInput,
     questionToUser,
   };
+}
+
+function extractResultLine(result: unknown): string | null {
+  const text = typeof result === "string" ? result : "";
+  if (!text) {
+    return null;
+  }
+  return text.split(/\r?\n/)[0]?.trim() ?? null;
 }

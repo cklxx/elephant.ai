@@ -409,7 +409,8 @@ class AttachmentRegistry {
           toolEvent.attachments = mergedAttachments;
           this.recordToolAttachments(mergedAttachments, eventTimestamp);
         } else {
-          toolEvent.attachments = this.hydrateFromContent(toolEvent.result, {
+          const content = normalizeAttachmentContent(toolEvent.result);
+          toolEvent.attachments = this.hydrateFromContent(content, {
             markDisplayed: true,
             timestamp: eventTimestamp,
           });
@@ -503,6 +504,20 @@ class AttachmentRegistry {
       default:
         break;
     }
+  }
+}
+
+function normalizeAttachmentContent(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value == null) {
+    return "";
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
 }
 

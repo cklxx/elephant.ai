@@ -85,7 +85,7 @@ export interface WorkflowToolProgressPayload {
 export interface WorkflowToolCompletedPayload {
   call_id: string;
   tool_name: string;
-  result: string;
+  result: unknown;
   error?: string;
   duration: number;
   metadata?: Record<string, any>;

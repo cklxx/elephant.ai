@@ -67,23 +67,24 @@ export function parseJsonRenderPayload(payload: string): JsonRenderTree {
 }
 
 export function normalizeJsonRenderValue(value: any): JsonRenderTree {
-  if (value == null) {
+  const normalized = normalizeJsonRenderInput(value);
+  if (normalized == null) {
     return { root: null, elements: {} };
   }
 
-  if (isUiMessageBundle(value)) {
-    const root = buildRootFromUiMessages(value.messages);
+  if (isUiMessageBundle(normalized)) {
+    const root = buildRootFromUiMessages(normalized.messages);
     const elements = indexJsonRenderElements(root);
     return { root, elements };
   }
 
-  if (isJsonRenderTreeLike(value)) {
-    const elements = normalizeElementsMap(value.elements);
+  if (isJsonRenderTreeLike(normalized)) {
+    const elements = normalizeElementsMap(normalized.elements);
     let root: JsonRenderElement | null = null;
-    if (typeof value.root === "string") {
-      root = elements[value.root] ?? null;
-    } else if (isJsonRenderElement(value.root)) {
-      root = normalizeElement(value.root);
+    if (typeof normalized.root === "string") {
+      root = elements[normalized.root] ?? null;
+    } else if (isJsonRenderElement(normalized.root)) {
+      root = normalizeElement(normalized.root);
     }
     if (root && Object.keys(elements).length === 0) {
       return { root, elements: indexJsonRenderElements(root) };
@@ -94,24 +95,84 @@ export function normalizeJsonRenderValue(value: any): JsonRenderTree {
     return { root, elements };
   }
 
-  if (Array.isArray(value)) {
+  if (Array.isArray(normalized)) {
     const root = {
       key: "root",
       type: "Column",
       props: { gap: 12 },
-      children: value
+      children: normalized
         .map((entry, idx) => toJsonRenderElement(entry, `item-${idx}`))
         .filter(Boolean) as JsonRenderElement[],
     } satisfies JsonRenderElement;
     return { root, elements: indexJsonRenderElements(root) };
   }
 
-  if (isJsonRenderElement(value)) {
-    const root = normalizeElement(value);
+  if (isJsonRenderElement(normalized)) {
+    const root = normalizeElement(normalized);
     return { root, elements: indexJsonRenderElements(root) };
   }
 
   return { root: null, elements: {} };
+}
+
+function normalizeJsonRenderInput(value: any): any {
+  if (value == null) {
+    return value;
+  }
+  if (typeof value === "string") {
+    const parsed = parseJsonValue(value);
+    return parsed !== undefined ? normalizeJsonRenderInput(parsed) : value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeJsonRenderInput(entry));
+  }
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  const maybeWrapperType = typeof value.type === "string" ? value.type : "";
+  const isWrapper =
+    !maybeWrapperType ||
+    maybeWrapperType === "json-render" ||
+    maybeWrapperType === "json_render";
+
+  if (isWrapper && typeof value.content === "string") {
+    const parsed = parseJsonValue(value.content);
+    if (parsed !== undefined) {
+      return normalizeJsonRenderInput(parsed);
+    }
+  }
+  if (isWrapper && typeof value.data === "string") {
+    const parsed = parseJsonValue(value.data);
+    if (parsed !== undefined) {
+      return normalizeJsonRenderInput(parsed);
+    }
+  }
+  if (isWrapper && value.content !== undefined) {
+    return normalizeJsonRenderInput(value.content);
+  }
+  if (maybeWrapperType === "json-render" || maybeWrapperType === "json_render") {
+    if (value.data !== undefined) {
+      return normalizeJsonRenderInput(value.data);
+    }
+  }
+  if (maybeWrapperType === "page" && value.body !== undefined) {
+    return normalizeJsonRenderInput(value.body);
+  }
+  if (typeof value.view === "string" && !("type" in value)) {
+    const { view, ...rest } = value;
+    return { type: view, ...rest };
+  }
+
+  return value;
+}
+
+function parseJsonValue(value: string): any | undefined {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return undefined;
+  }
 }
 
 function isJsonRenderTreeLike(value: any): value is {
@@ -136,8 +197,8 @@ function normalizeElementsMap(input: any): Record<string, JsonRenderElement> {
 }
 
 function normalizeElement(element: JsonRenderElement): JsonRenderElement {
-  const props = isPlainObject(element.props) ? element.props : undefined;
-  const children = Array.isArray(element.children) ? element.children : undefined;
+  const props = extractElementProps(element as Record<string, any>);
+  const children = normalizeChildren(extractChildren(element as Record<string, any>));
   return {
     key: element.key,
     type: element.type,
@@ -207,9 +268,6 @@ function buildRootFromUiMessages(messages: any[]): JsonRenderElement {
 }
 
 function toJsonRenderElement(value: any, fallbackKey: string): JsonRenderElement | null {
-  if (isJsonRenderElement(value) && hasElementShape(value)) {
-    return normalizeElement({ ...value, key: value.key ?? fallbackKey });
-  }
   if (!isPlainObject(value)) {
     return {
       key: fallbackKey,
@@ -218,21 +276,64 @@ function toJsonRenderElement(value: any, fallbackKey: string): JsonRenderElement
     };
   }
   const rawType = typeof value.type === "string" ? value.type : "Text";
-  const props: Record<string, any> = { ...value };
-  delete props.type;
+  const props = extractElementProps(value);
+  const children = normalizeChildren(extractChildren(value));
   return {
-    key: fallbackKey,
+    key: value.key ?? fallbackKey,
     type: rawType,
     props,
+    children,
   };
 }
 
-function hasElementShape(value: Record<string, any>): boolean {
-  if ("props" in value || "children" in value) {
-    return true;
+function extractElementProps(value: Record<string, any>): Record<string, any> | undefined {
+  const props: Record<string, any> = {};
+  if (isPlainObject(value.props)) {
+    Object.assign(props, value.props);
   }
-  const allowed = new Set(["type", "key", "props", "children"]);
-  return Object.keys(value).every((key) => allowed.has(key));
+  for (const [key, val] of Object.entries(value)) {
+    if (key === "type" || key === "key" || key === "props" || key === "children") {
+      continue;
+    }
+    if (key === "body") {
+      continue;
+    }
+    props[key] = val;
+  }
+  return Object.keys(props).length > 0 ? props : undefined;
+}
+
+function extractChildren(value: Record<string, any>): any[] | undefined {
+  if (Array.isArray(value.children)) {
+    return value.children;
+  }
+  if (value.body !== undefined) {
+    return [value.body];
+  }
+  return undefined;
+}
+
+function normalizeChildren(
+  children: any[] | undefined,
+): Array<JsonRenderElement | string> | undefined {
+  if (!Array.isArray(children)) {
+    return undefined;
+  }
+  const normalized: Array<JsonRenderElement | string> = [];
+  children.forEach((child, idx) => {
+    if (child == null) {
+      return;
+    }
+    if (typeof child === "string") {
+      normalized.push(child);
+      return;
+    }
+    const element = toJsonRenderElement(child, `child-${idx}`);
+    if (element) {
+      normalized.push(element);
+    }
+  });
+  return normalized;
 }
 
 function applyJsonRenderPatches(base: JsonRenderTree, patches: JsonRenderPatch[]): JsonRenderTree {

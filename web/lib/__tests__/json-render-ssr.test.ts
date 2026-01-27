@@ -75,4 +75,39 @@ describe("renderJsonRenderHtml", () => {
     expect(html).toContain("a -> b");
     expect(html).toContain("calls");
   });
+
+  it("renders container/grid payloads from json-render protocol", () => {
+    const payload = JSON.stringify({
+      content: {
+        type: "page",
+        body: {
+          type: "container",
+          padding: 24,
+          gap: 16,
+          children: [
+            {
+              type: "grid",
+              columns: 2,
+              gap: 12,
+              children: [
+                {
+                  type: "card",
+                  children: [{ type: "text", value: "Card A" }],
+                },
+                {
+                  type: "card",
+                  children: [{ type: "text", value: "Card B" }],
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Card A");
+    expect(html).toContain("Card B");
+  });
 });
