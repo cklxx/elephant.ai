@@ -12,6 +12,7 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/async"
 	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
 	"alex/internal/workflow"
@@ -47,36 +48,86 @@ func (t *subagent) Metadata() ports.ToolMetadata {
 func (t *subagent) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name:        "subagent",
-		Description: `Delegate complex work to a dedicated subagent (single run). The subagent inherits the current tool access mode/preset and cannot spawn other subagents.`,
+		Description: `Delegate complex work to dedicated subagents. Provide a single prompt or a list of tasks to run in parallel/serial. The subagent inherits the current tool access mode/preset and cannot spawn other subagents.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
 				"prompt": {
 					Type:        "string",
-					Description: "Describe the task to delegate to the subagent.",
+					Description: "Single task to delegate when tasks are not provided.",
+				},
+				"tasks": {
+					Type:        "array",
+					Description: "Optional list of subtasks to delegate to subagents.",
+					Items:       &ports.Property{Type: "string"},
+				},
+				"mode": {
+					Type:        "string",
+					Description: "Execution mode for multiple tasks (parallel or serial).",
+					Enum:        []any{"parallel", "serial"},
+				},
+				"max_parallel": {
+					Type:        "integer",
+					Description: "Maximum number of subtasks to run concurrently when mode=parallel.",
 				},
 			},
-			Required: []string{"prompt"},
 		},
 	}
 }
 
 func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	promptRaw, ok := call.Arguments["prompt"].(string)
-	if !ok || strings.TrimSpace(promptRaw) == "" {
-		err := fmt.Errorf("missing required parameter: prompt")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	// Reject unexpected parameters to enforce a single prompt.
 	for key := range call.Arguments {
-		if key != "prompt" {
+		switch key {
+		case "prompt", "tasks", "mode", "max_parallel":
+		default:
 			err := fmt.Errorf("unsupported parameter: %s", key)
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
 	}
 
-	prompt := strings.TrimSpace(promptRaw)
-	mode := "single"
+	prompt := ""
+	if raw, ok := call.Arguments["prompt"]; ok {
+		promptStr, ok := raw.(string)
+		if !ok {
+			err := fmt.Errorf("prompt must be a string")
+			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		}
+		prompt = strings.TrimSpace(promptStr)
+	}
+
+	tasks, err := parseStringList(call.Arguments, "tasks")
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	mode, err := parseSubagentMode(call.Arguments, len(tasks))
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	maxParallel, err := parseOptionalPositiveInt(call.Arguments, "max_parallel")
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	if len(tasks) == 0 {
+		if prompt == "" {
+			err := fmt.Errorf("missing required parameter: prompt")
+			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		}
+		tasks = []string{prompt}
+	}
+
+	if mode == "" {
+		if len(tasks) > 1 {
+			mode = "parallel"
+		} else {
+			mode = "single"
+		}
+	}
+	if len(tasks) <= 1 && mode == "parallel" {
+		mode = "single"
+	}
 
 	sharedAttachments, sharedIterations := tools.GetAttachmentContext(ctx)
 
@@ -88,11 +139,35 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	// Extract parent listener from context if available.
 	parentListener := shared.GetParentListenerFromContext(ctx)
 
-	results := make([]SubtaskResult, 1)
+	results := make([]SubtaskResult, len(tasks))
 	collector := newAttachmentCollector(sharedAttachments)
-	results[0] = t.executeSubtask(ctx, prompt, 0, 1, parentListener, 1, sharedAttachments, sharedIterations, collector)
+	parallelism := resolveParallelism(mode, len(tasks), maxParallel)
+	if parallelism <= 1 {
+		for i, task := range tasks {
+			results[i] = t.executeSubtask(ctx, task, i, len(tasks), parentListener, parallelism, sharedAttachments, sharedIterations, collector)
+		}
+	} else {
+		jobs := make(chan int)
+		var wg sync.WaitGroup
+		wg.Add(len(tasks))
 
-	if results[0].Error != nil {
+		for i := 0; i < parallelism; i++ {
+			async.Go(nil, "subagent.parallel", func() {
+				for idx := range jobs {
+					results[idx] = t.executeSubtask(ctx, tasks[idx], idx, len(tasks), parentListener, parallelism, sharedAttachments, sharedIterations, collector)
+					wg.Done()
+				}
+			})
+		}
+
+		for i := range tasks {
+			jobs <- i
+		}
+		close(jobs)
+		wg.Wait()
+	}
+
+	if len(tasks) == 1 && results[0].Error != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
 			Content: fmt.Sprintf("Subagent execution failed: %v", results[0].Error),
@@ -101,7 +176,7 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	// Format results
-	formatted, err := t.formatResults(call, []string{prompt}, results, mode)
+	formatted, err := t.formatResults(call, tasks, results, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +184,70 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		formatted.Attachments = attachments
 	}
 	return formatted, nil
+}
+
+func parseSubagentMode(args map[string]any, taskCount int) (string, error) {
+	raw, exists := args["mode"]
+	if !exists || raw == nil {
+		if taskCount > 1 {
+			return "parallel", nil
+		}
+		return "", nil
+	}
+	mode, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("mode must be a string")
+	}
+	normalized := strings.ToLower(strings.TrimSpace(mode))
+	switch normalized {
+	case "parallel", "serial":
+		return normalized, nil
+	case "":
+		if taskCount > 1 {
+			return "parallel", nil
+		}
+		return "", nil
+	default:
+		return "", fmt.Errorf("unsupported mode: %s", mode)
+	}
+}
+
+func parseOptionalPositiveInt(args map[string]any, key string) (int, error) {
+	raw, exists := args[key]
+	if !exists || raw == nil {
+		return 0, nil
+	}
+	switch v := raw.(type) {
+	case int:
+		if v < 0 {
+			return 0, fmt.Errorf("%s must be a positive integer", key)
+		}
+		return v, nil
+	case float64:
+		if v < 0 {
+			return 0, fmt.Errorf("%s must be a positive integer", key)
+		}
+		return int(v), nil
+	default:
+		return 0, fmt.Errorf("%s must be a positive integer", key)
+	}
+}
+
+func resolveParallelism(mode string, taskCount int, maxParallel int) int {
+	if mode == "serial" || taskCount <= 1 {
+		return 1
+	}
+	if mode == "" || mode == "parallel" {
+		parallelism := taskCount
+		if maxParallel > 0 && maxParallel < parallelism {
+			parallelism = maxParallel
+		}
+		if parallelism < 1 {
+			return 1
+		}
+		return parallelism
+	}
+	return 1
 }
 
 // SubtaskResult holds the result of a single subtask execution

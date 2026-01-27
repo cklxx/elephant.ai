@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import { RequireAuth } from "@/components/auth/RequireAuth";
 import { useSessionStore } from "@/hooks/useSessionStore";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiClient, type SSEReplayMode } from "@/lib/api";
+import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse } from "@/lib/api";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -52,7 +52,7 @@ const EVENT_TYPES: Array<WorkflowEventType | "connected"> = [
   "workflow.diagnostic.context_snapshot",
 ];
 
-const MAX_EVENTS = 500;
+const DEFAULT_MAX_EVENTS = 2000;
 const SESSION_REFRESH_MS = 3000;
 
 function formatTimestamp(value: string) {
@@ -259,6 +259,8 @@ export default function ConversationDebugPage() {
   const [sessionIdInput, setSessionIdInput] = useState("");
   const [replayMode, setReplayMode] = useState<SSEReplayMode>("full");
   const [events, setEvents] = useState<SSEDebugEvent[]>([]);
+  const [maxEvents, setMaxEvents] = useState(DEFAULT_MAX_EVENTS);
+  const [maxEventsInput, setMaxEventsInput] = useState(String(DEFAULT_MAX_EVENTS));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [autoScroll, setAutoScroll] = useState(true);
@@ -270,6 +272,13 @@ export default function ConversationDebugPage() {
   const [sessionSnapshotLoading, setSessionSnapshotLoading] = useState(false);
   const [sessionSnapshotUpdatedAt, setSessionSnapshotUpdatedAt] = useState<string | null>(null);
   const [sessionAutoRefresh, setSessionAutoRefresh] = useState(true);
+  const [turnSnapshotMeta, setTurnSnapshotMeta] = useState<
+    SessionSnapshotsResponse["items"][number] | null
+  >(null);
+  const [turnSnapshot, setTurnSnapshot] = useState<Record<string, unknown> | null>(null);
+  const [turnSnapshotError, setTurnSnapshotError] = useState<string | null>(null);
+  const [turnSnapshotLoading, setTurnSnapshotLoading] = useState(false);
+  const [turnSnapshotUpdatedAt, setTurnSnapshotUpdatedAt] = useState<string | null>(null);
   const [logIdInput, setLogIdInput] = useState("");
   const [logTrace, setLogTrace] = useState<LogTraceBundle | null>(null);
   const [logTraceError, setLogTraceError] = useState<string | null>(null);
@@ -284,6 +293,18 @@ export default function ConversationDebugPage() {
 
   const sessionId = sessionIdInput.trim();
   const logId = logIdInput.trim();
+
+  const handleMaxEventsChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+      setMaxEventsInput(value);
+      const parsed = Number(value);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        setMaxEvents(Math.floor(parsed));
+      }
+    },
+    [],
+  );
 
   const disconnect = useCallback(() => {
     if (eventSourceRef.current) {
@@ -317,15 +338,15 @@ export default function ConversationDebugPage() {
 
       setEvents((prev) => {
         const next = [...prev, entry];
-        if (next.length > MAX_EVENTS) {
-          next.shift();
+        if (maxEvents > 0 && next.length > maxEvents) {
+          next.splice(0, next.length - maxEvents);
         }
         return next;
       });
 
       setSelectedId((current) => current ?? nextId);
     },
-    [],
+    [maxEvents],
   );
 
   const connect = useCallback(() => {
@@ -395,6 +416,49 @@ export default function ConversationDebugPage() {
     [sessionId],
   );
 
+  const loadTurnSnapshot = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!sessionId) {
+        setTurnSnapshotMeta(null);
+        setTurnSnapshot(null);
+        setTurnSnapshotError(null);
+        setTurnSnapshotUpdatedAt(null);
+        setTurnSnapshotLoading(false);
+        return;
+      }
+
+      if (!options?.silent) {
+        setTurnSnapshotLoading(true);
+      }
+      setTurnSnapshotError(null);
+
+      try {
+        const snapshots = await apiClient.listSessionSnapshots(sessionId, 1);
+        if (!snapshots.items || snapshots.items.length === 0) {
+          setTurnSnapshotMeta(null);
+          setTurnSnapshot(null);
+          setTurnSnapshotUpdatedAt(new Date().toISOString());
+          return;
+        }
+
+        const latest = snapshots.items[0];
+        setTurnSnapshotMeta(latest);
+        const snapshot = await apiClient.getSessionTurnSnapshot(sessionId, latest.turn_id);
+        setTurnSnapshot(snapshot);
+        setTurnSnapshotUpdatedAt(new Date().toISOString());
+      } catch (err) {
+        setTurnSnapshotError(
+          err instanceof Error ? err.message : "Failed to load turn snapshot.",
+        );
+      } finally {
+        if (!options?.silent) {
+          setTurnSnapshotLoading(false);
+        }
+      }
+    },
+    [sessionId],
+  );
+
   const loadLogTrace = useCallback(
     async (options?: { silent?: boolean }) => {
       if (!logId) {
@@ -455,6 +519,13 @@ export default function ConversationDebugPage() {
   }, [autoScroll, events]);
 
   useEffect(() => {
+    if (maxEvents <= 0) {
+      return;
+    }
+    setEvents((prev) => (prev.length > maxEvents ? prev.slice(-maxEvents) : prev));
+  }, [maxEvents]);
+
+  useEffect(() => {
     if (selectedId && !events.some((entry) => entry.id === selectedId)) {
       setSelectedId(events.length > 0 ? events[events.length - 1].id : null);
     }
@@ -466,10 +537,16 @@ export default function ConversationDebugPage() {
       setSessionSnapshotError(null);
       setSessionSnapshotUpdatedAt(null);
       setSessionSnapshotLoading(false);
+      setTurnSnapshotMeta(null);
+      setTurnSnapshot(null);
+      setTurnSnapshotError(null);
+      setTurnSnapshotUpdatedAt(null);
+      setTurnSnapshotLoading(false);
       return;
     }
     void loadSessionSnapshot();
-  }, [loadSessionSnapshot, sessionId]);
+    void loadTurnSnapshot();
+  }, [loadSessionSnapshot, loadTurnSnapshot, sessionId]);
 
   useEffect(() => {
     if (!logId) {
@@ -485,9 +562,10 @@ export default function ConversationDebugPage() {
     }
     const handle = setInterval(() => {
       void loadSessionSnapshot({ silent: true });
+      void loadTurnSnapshot({ silent: true });
     }, SESSION_REFRESH_MS);
     return () => clearInterval(handle);
-  }, [loadSessionSnapshot, sessionAutoRefresh, sessionId]);
+  }, [loadSessionSnapshot, loadTurnSnapshot, sessionAutoRefresh, sessionId]);
 
   const filteredEvents = useMemo(() => {
     if (!filter.trim()) {
@@ -511,6 +589,16 @@ export default function ConversationDebugPage() {
     }
     return extractLogId(selectedEvent.parsed);
   }, [selectedEvent]);
+  const turnSnapshotMessagesCount = useMemo(() => {
+    if (!turnSnapshot || typeof turnSnapshot !== "object") {
+      return null;
+    }
+    const messages = (turnSnapshot as Record<string, unknown>).messages;
+    if (!Array.isArray(messages)) {
+      return null;
+    }
+    return messages.length;
+  }, [turnSnapshot]);
   const timingSummary = useMemo(() => {
     const stages: TimingEntry[] = [];
     const llmCalls: TimingEntry[] = [];
@@ -640,6 +728,22 @@ export default function ConversationDebugPage() {
     return <Badge variant="outline">Idle</Badge>;
   }, [sessionId, sessionSnapshotError, sessionSnapshotLoading, sessionSnapshotUpdatedAt]);
 
+  const turnStatusBadge = useMemo(() => {
+    if (turnSnapshotError) {
+      return <Badge variant="destructive">Turn error</Badge>;
+    }
+    if (!sessionId) {
+      return <Badge variant="outline">No session</Badge>;
+    }
+    if (turnSnapshotLoading) {
+      return <Badge variant="warning">Loading</Badge>;
+    }
+    if (turnSnapshotUpdatedAt) {
+      return <Badge variant="success">Fresh</Badge>;
+    }
+    return <Badge variant="outline">Idle</Badge>;
+  }, [sessionId, turnSnapshotError, turnSnapshotLoading, turnSnapshotUpdatedAt]);
+
   return (
     <RequireAuth>
       <div className="min-h-screen bg-slate-50 px-4 py-8 lg:px-8">
@@ -664,6 +768,9 @@ export default function ConversationDebugPage() {
                 )}
                 <Badge variant="outline">Replay: {replayMode}</Badge>
                 <Badge variant="outline">Events: {events.length}</Badge>
+                <Badge variant="outline">
+                  Cap: {maxEvents > 0 ? maxEvents : "∞"}
+                </Badge>
               </div>
             </div>
 
@@ -742,16 +849,28 @@ export default function ConversationDebugPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Input
                     value={filter}
                     onChange={(event) => setFilter(event.target.value)}
                     placeholder="Filter by type or text"
                   />
+                  <div className="min-w-[140px]">
+                    <Input
+                      type="number"
+                      min="0"
+                      value={maxEventsInput}
+                      onChange={handleMaxEventsChange}
+                      placeholder="Max events"
+                    />
+                  </div>
                   <Badge variant="outline">
                     {filteredEvents.length}/{events.length}
                   </Badge>
                 </div>
+                <p className="text-[11px] text-muted-foreground">
+                  Event buffer size. Use 0 for unlimited.
+                </p>
                 <ScrollArea className="h-[520px] pr-3">
                   <div className="space-y-2">
                     {filteredEvents.map((entry) => {
@@ -921,6 +1040,87 @@ export default function ConversationDebugPage() {
                   ) : (
                     <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
                       Enter a session ID to load the server snapshot.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Latest turn snapshot</CardTitle>
+                  <CardDescription>
+                    Snapshot data captured per LLM turn, including stored messages.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {turnStatusBadge}
+                    {turnSnapshotUpdatedAt && (
+                      <Badge variant="outline">
+                        Updated: {formatTimestamp(turnSnapshotUpdatedAt)}
+                      </Badge>
+                    )}
+                    {turnSnapshotMeta && (
+                      <Badge variant="outline">Turn: {turnSnapshotMeta.turn_id}</Badge>
+                    )}
+                    {turnSnapshotMeta && (
+                      <Badge variant="outline">Seq: {turnSnapshotMeta.llm_turn_seq}</Badge>
+                    )}
+                    {turnSnapshotMeta?.created_at && (
+                      <Badge variant="outline">
+                        Created: {formatTimestamp(turnSnapshotMeta.created_at)}
+                      </Badge>
+                    )}
+                    <Badge variant="outline">
+                      Auto-refresh {sessionAutoRefresh ? "on" : "off"}
+                    </Badge>
+                    {turnSnapshotMessagesCount !== null && (
+                      <Badge variant="outline">
+                        Messages: {turnSnapshotMessagesCount}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => loadTurnSnapshot()}
+                      disabled={!sessionId || turnSnapshotLoading}
+                    >
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Refresh
+                    </Button>
+                    {turnSnapshotLoading && <Badge variant="warning">Loading</Badge>}
+                  </div>
+                  {turnSnapshotError && (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {turnSnapshotError}
+                    </div>
+                  )}
+                  {turnSnapshot ? (
+                    <Tabs defaultValue="parsed">
+                      <TabsList>
+                        <TabsTrigger value="parsed">Parsed JSON</TabsTrigger>
+                        <TabsTrigger value="raw">Raw JSON</TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="parsed">
+                        <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                          <JsonViewer data={turnSnapshot} />
+                        </div>
+                      </TabsContent>
+                      <TabsContent value="raw">
+                        <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                          <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+                            {JSON.stringify(turnSnapshot, null, 2)}
+                          </pre>
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                      {sessionId
+                        ? "No turn snapshots found yet."
+                        : "Enter a session ID to load the latest turn snapshot."}
                     </div>
                   )}
                 </CardContent>

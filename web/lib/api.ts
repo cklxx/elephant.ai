@@ -340,6 +340,44 @@ export async function getSessionRaw(sessionId: string): Promise<{
   return { session, tasks };
 }
 
+export type SessionSnapshotsResponse = {
+  session_id: string;
+  items: Array<{
+    turn_id: number;
+    llm_turn_seq: number;
+    summary: string;
+    created_at: string;
+  }>;
+  next_cursor?: string;
+};
+
+export async function listSessionSnapshots(
+  sessionId: string,
+  limit = 20,
+  cursor = "",
+): Promise<SessionSnapshotsResponse> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+  });
+  if (cursor) {
+    params.set("cursor", cursor);
+  }
+  const encoded = encodeURIComponent(sessionId);
+  return fetchAPI<SessionSnapshotsResponse>(
+    `/api/sessions/${encoded}/snapshots?${params.toString()}`,
+  );
+}
+
+export async function getSessionTurnSnapshot(
+  sessionId: string,
+  turnId: number,
+): Promise<Record<string, unknown>> {
+  const encoded = encodeURIComponent(sessionId);
+  return fetchAPI<Record<string, unknown>>(
+    `/api/sessions/${encoded}/turns/${turnId}`,
+  );
+}
+
 export async function getSessionTitle(
   sessionId: string,
 ): Promise<string | null> {
@@ -523,6 +561,8 @@ export const apiClient = {
   getSessionDetails,
   getSessionRaw,
   getSessionTitle,
+  listSessionSnapshots,
+  getSessionTurnSnapshot,
   deleteSession,
   getLogTrace,
   createSessionShare,

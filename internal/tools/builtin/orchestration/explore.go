@@ -104,12 +104,29 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		notes = strings.TrimSpace(noteStr)
 	}
 
-	prompt := buildExplorePrompt(objective, localScope, webScope, customTasks, notes)
+	subtasks := buildExploreSubtasks(objective, localScope, webScope, customTasks, notes)
+	if len(subtasks) == 0 {
+		base := fmt.Sprintf("[CUSTOM] %s", objective)
+		subtasks = []string{appendNotes(base, notes)}
+	}
+
+	prompt := buildExplorePrompt(objective, subtasks)
+
+	mode, err := parseSubagentMode(call.Arguments, len(subtasks))
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
 
 	delegationCall := ports.ToolCall{
 		ID:        call.ID + ":explore",
 		Name:      "subagent",
-		Arguments: map[string]any{"prompt": prompt},
+		Arguments: func() map[string]any {
+			args := map[string]any{"tasks": subtasks}
+			if mode != "" {
+				args["mode"] = mode
+			}
+			return args
+		}(),
 	}
 
 	delegateResult, execErr := e.subagent.Execute(ctx, delegationCall)
@@ -121,7 +138,7 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 	delegationDetails := map[string]any{
 		"call": map[string]any{
 			"tool":      delegationCall.Name,
-			"arguments": map[string]any{"prompt": prompt},
+			"arguments": delegationCall.Arguments,
 		},
 		"result_metadata": delegationMetadata,
 		"result_content":  delegateResult.Content,
@@ -143,38 +160,6 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 		Content:  content,
 		Metadata: resultMetadata,
 	}, nil
-}
-
-func parseStringList(args map[string]any, key string) ([]string, error) {
-	raw, exists := args[key]
-	if !exists || raw == nil {
-		return nil, nil
-	}
-
-	switch v := raw.(type) {
-	case []string:
-		result := make([]string, 0, len(v))
-		for _, item := range v {
-			if strings.TrimSpace(item) != "" {
-				result = append(result, strings.TrimSpace(item))
-			}
-		}
-		return result, nil
-	case []any:
-		result := make([]string, 0, len(v))
-		for i, item := range v {
-			str, ok := item.(string)
-			if !ok {
-				return nil, fmt.Errorf("%s[%d] must be a string", key, i)
-			}
-			if trimmed := strings.TrimSpace(str); trimmed != "" {
-				result = append(result, trimmed)
-			}
-		}
-		return result, nil
-	default:
-		return nil, fmt.Errorf("%s must be an array of strings when provided", key)
-	}
 }
 
 func buildExploreSubtasks(objective string, localScope, webScope, customTasks []string, notes string) []string {
@@ -200,13 +185,7 @@ func buildExploreSubtasks(objective string, localScope, webScope, customTasks []
 	return subtasks
 }
 
-func buildExplorePrompt(objective string, localScope, webScope, customTasks []string, notes string) string {
-	subtasks := buildExploreSubtasks(objective, localScope, webScope, customTasks, notes)
-	if len(subtasks) == 0 {
-		base := fmt.Sprintf("[CUSTOM] %s", objective)
-		subtasks = []string{appendNotes(base, notes)}
-	}
-
+func buildExplorePrompt(objective string, subtasks []string) string {
 	var builder strings.Builder
 	builder.WriteString(strings.TrimSpace(objective))
 	builder.WriteString("\n\nTasks:\n")

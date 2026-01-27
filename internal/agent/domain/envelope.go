@@ -1,8 +1,10 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
+	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 )
 
@@ -36,6 +38,46 @@ type WorkflowEventEnvelope struct {
 // EventType satisfies agent.AgentEvent with the semantic event name.
 func (e *WorkflowEventEnvelope) EventType() string {
 	return e.Event
+}
+
+// GetAttachments exposes attachments when the payload includes them.
+func (e *WorkflowEventEnvelope) GetAttachments() map[string]ports.Attachment {
+	if e == nil || len(e.Payload) == 0 {
+		return nil
+	}
+	raw, ok := e.Payload["attachments"]
+	if !ok || raw == nil {
+		return nil
+	}
+	switch typed := raw.(type) {
+	case map[string]ports.Attachment:
+		return ports.CloneAttachmentMap(typed)
+	case map[string]any:
+		attachments := make(map[string]ports.Attachment)
+		for key, value := range typed {
+			att, ok := value.(ports.Attachment)
+			if !ok {
+				continue
+			}
+			name := strings.TrimSpace(key)
+			if name == "" {
+				name = strings.TrimSpace(att.Name)
+			}
+			if name == "" {
+				continue
+			}
+			if att.Name == "" {
+				att.Name = name
+			}
+			attachments[name] = att
+		}
+		if len(attachments) == 0 {
+			return nil
+		}
+		return attachments
+	default:
+		return nil
+	}
 }
 
 // NewWorkflowEnvelopeFromEvent copies base context from the originating event while

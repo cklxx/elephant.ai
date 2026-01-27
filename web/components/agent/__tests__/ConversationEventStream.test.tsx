@@ -469,7 +469,7 @@ describe('ConversationEventStream', () => {
       node.querySelector('[data-testid="event-workflow.input.received"]'),
     );
     const subagentIndex = children.findIndex(
-      (node) => node.getAttribute('data-testid') === 'subagent-thread',
+      (node) => node.getAttribute('data-testid') === 'subagent-thread-group',
     );
 
     expect(baseIndex).toBeGreaterThanOrEqual(0);

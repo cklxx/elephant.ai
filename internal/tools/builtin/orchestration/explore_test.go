@@ -75,23 +75,27 @@ func TestExploreDelegationFlow(t *testing.T) {
 		t.Fatalf("expected subagent call name, got %q", mock.lastCall.Name)
 	}
 
-	prompt, ok := mock.lastCall.Arguments["prompt"].(string)
+	tasks, ok := mock.lastCall.Arguments["tasks"].([]string)
 	if !ok {
-		t.Fatalf("expected prompt to be string, got %T", mock.lastCall.Arguments["prompt"])
+		t.Fatalf("expected tasks to be []string, got %T", mock.lastCall.Arguments["tasks"])
 	}
-	if !strings.Contains(prompt, "Assess repository health") || !strings.Contains(prompt, "auth package") {
-		t.Fatalf("prompt missing scopes/objective: %s", prompt)
+	if len(tasks) != 3 {
+		t.Fatalf("expected 3 tasks, got %d", len(tasks))
 	}
-	if !strings.Contains(prompt, "Go security best practices") || !strings.Contains(prompt, "Summarize findings for stakeholders") {
-		t.Fatalf("prompt missing web/custom tasks: %s", prompt)
+	joined := strings.Join(tasks, "\n")
+	if !strings.Contains(joined, "Assess repository health") || !strings.Contains(joined, "auth package") {
+		t.Fatalf("tasks missing scopes/objective: %s", joined)
 	}
-	if !strings.Contains(prompt, "Notes: Prioritize authentication concerns") {
-		t.Fatalf("expected notes propagated in prompt: %s", prompt)
+	if !strings.Contains(joined, "Go security best practices") || !strings.Contains(joined, "Summarize findings for stakeholders") {
+		t.Fatalf("tasks missing web/custom tasks: %s", joined)
+	}
+	if !strings.Contains(joined, "Notes: Prioritize authentication concerns") {
+		t.Fatalf("expected notes propagated in tasks: %s", joined)
+	}
+	if mode, ok := mock.lastCall.Arguments["mode"].(string); !ok || mode != "parallel" {
+		t.Fatalf("expected mode to be parallel, got %#v", mock.lastCall.Arguments["mode"])
 	}
 
-	if !strings.Contains(result.Content, "Delegated objective \"Assess repository health\"") {
-		t.Fatalf("summary missing objective: %s", result.Content)
-	}
 	if !strings.Contains(result.Content, "Delegated objective \"Assess repository health\"") {
 		t.Fatalf("summary missing objective: %s", result.Content)
 	}
@@ -106,8 +110,12 @@ func TestExploreDelegationFlow(t *testing.T) {
 	if got := metadata["custom_tasks"].([]string); len(got) != 1 || got[0] != "Summarize findings for stakeholders" {
 		t.Fatalf("unexpected custom tasks metadata: %#v", got)
 	}
-	if metadata["prompt"] != prompt {
-		t.Fatalf("expected prompt metadata to match")
+	prompt, ok := metadata["prompt"].(string)
+	if !ok {
+		t.Fatalf("expected prompt metadata to be string, got %T", metadata["prompt"])
+	}
+	if !strings.Contains(prompt, "Assess repository health") || !strings.Contains(prompt, "auth package") {
+		t.Fatalf("prompt metadata missing scopes/objective: %s", prompt)
 	}
 }
 
@@ -130,9 +138,12 @@ func TestExploreDefaultSubtaskWhenNoScopes(t *testing.T) {
 	if mock.lastCall == nil {
 		t.Fatalf("expected subagent execution")
 	}
-	prompt, _ := mock.lastCall.Arguments["prompt"].(string)
-	if !strings.Contains(prompt, "Evaluate new feature") {
-		t.Fatalf("unexpected prompt: %s", prompt)
+	tasks, ok := mock.lastCall.Arguments["tasks"].([]string)
+	if !ok {
+		t.Fatalf("expected tasks to be []string, got %T", mock.lastCall.Arguments["tasks"])
+	}
+	if len(tasks) != 1 || !strings.Contains(tasks[0], "Evaluate new feature") {
+		t.Fatalf("unexpected tasks: %v", tasks)
 	}
 
 	if metadata := result.Metadata["custom_tasks"]; metadata != nil {

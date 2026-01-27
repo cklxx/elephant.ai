@@ -9,6 +9,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	llm "alex/internal/agent/ports/llm"
@@ -333,5 +334,35 @@ func TestSubtaskPreviewIsUTF8Safe(t *testing.T) {
 		if got := len([]rune(listener.taskPreview)); got != 60 {
 			t.Fatalf("expected preview to be 60 runes, got %d", got)
 		}
+	}
+}
+
+func TestSubtaskListenerCapturesEnvelopeAttachments(t *testing.T) {
+	attachments := map[string]ports.Attachment{
+		"report.md": {
+			Name:      "report.md",
+			MediaType: "text/markdown",
+			Data:      "cmVwb3J0",
+			Source:    "subagent",
+		},
+	}
+	evt := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelSubagent, "session", "task", "parent", time.Now()),
+		Event:     "workflow.tool.completed",
+		Payload: map[string]any{
+			"attachments": attachments,
+		},
+	}
+
+	collector := newAttachmentCollector(nil)
+	listener := newSubtaskListener(0, 1, "task", nil, 1, collector)
+	listener.OnEvent(evt)
+
+	got := collector.Snapshot()
+	if len(got) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(got))
+	}
+	if _, ok := got["report.md"]; !ok {
+		t.Fatalf("expected report.md attachment, got %#v", got)
 	}
 }
