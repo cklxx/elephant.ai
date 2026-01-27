@@ -4,4 +4,3 @@ description: |
   - If the user asks for a visual UI/diagram (flowchart, form, dashboard, info cards, gallery, UI mock), load skill `json-render-templates` and emit a json-render payload via `a2ui_emit` (content string).
   - If the answer is a structured multi-entity summary that benefits from layout, prefer json-render UI over long prose.
   - If UI intent is implied but ambiguous, ask one confirmation question; otherwise default to json-render for explicit UI asks.
-  - If json-render is not suitable, fall back to `a2ui_templates` with A2UI `messages`.
