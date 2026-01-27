@@ -21,7 +21,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 
 	requestID := extractRequestID(req.Metadata)
 	if requestID == "" {
-		requestID = id.NewRequestID()
+		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 

@@ -60,7 +60,7 @@ func NewOpenAIClient(model string, config Config) (portsllm.LLMClient, error) {
 func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	requestID := extractRequestID(req.Metadata)
 	if requestID == "" {
-		requestID = id.NewRequestID()
+		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 
@@ -259,7 +259,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
 	requestID := extractRequestID(req.Metadata)
 	if requestID == "" {
-		requestID = id.NewRequestID()
+		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 	provider := "openrouter"

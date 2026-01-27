@@ -69,7 +69,7 @@ func NewAnthropicClient(model string, config Config) (portsllm.LLMClient, error)
 func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	requestID := extractRequestID(req.Metadata)
 	if requestID == "" {
-		requestID = id.NewRequestID()
+		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 

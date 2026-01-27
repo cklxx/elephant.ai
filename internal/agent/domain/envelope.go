@@ -48,9 +48,13 @@ func NewWorkflowEnvelopeFromEvent(event agent.AgentEvent, eventType string) *Wor
 	if ts.IsZero() {
 		ts = time.Now()
 	}
-	return &WorkflowEventEnvelope{
+	env := &WorkflowEventEnvelope{
 		BaseEvent: NewBaseEvent(event.GetAgentLevel(), event.GetSessionID(), event.GetTaskID(), event.GetParentTaskID(), ts),
 		Event:     eventType,
 		Version:   1,
 	}
+	if withLogID, ok := event.(interface{ GetLogID() string }); ok {
+		env.SetLogID(withLogID.GetLogID())
+	}
+	return env
 }

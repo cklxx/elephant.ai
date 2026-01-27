@@ -344,6 +344,9 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 	}
 
 	event := domain.NewWorkflowInputReceivedEvent(level, sessionID, taskID, parentTaskID, task, attachmentMap, time.Now())
+	if logID := id.LogIDFromContext(ctx); logID != "" {
+		event.SetLogID(logID)
+	}
 	logger.Debug("[Background] Emitting workflow.input.received event for session=%s task=%s", sessionID, taskID)
 	s.broadcaster.OnEvent(event)
 

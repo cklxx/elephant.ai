@@ -29,7 +29,7 @@ type agentWorkflow struct {
 	eventSink *workflowEventBridge
 }
 
-func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListener, outCtx *agent.OutputContext) *agentWorkflow {
+func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListener, outCtx *agent.OutputContext, logID string) *agentWorkflow {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -46,7 +46,7 @@ func newAgentWorkflow(id string, logger *slog.Logger, listener agent.EventListen
 		if outCtx == nil {
 			outCtx = &agent.OutputContext{Level: agent.LevelCore}
 		}
-		aw.eventSink = newWorkflowEventBridge(id, listener, logger, outCtx.Level, outCtx.SessionID, outCtx.TaskID, outCtx.ParentTaskID)
+		aw.eventSink = newWorkflowEventBridge(id, listener, logger, outCtx.Level, outCtx.SessionID, outCtx.TaskID, outCtx.ParentTaskID, logID)
 		wf.AddListener(aw.eventSink)
 	}
 
@@ -115,11 +115,11 @@ func (aw *agentWorkflow) ensureNode(id string, input any) *workflow.Node {
 	return node
 }
 
-func (aw *agentWorkflow) setContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel) {
+func (aw *agentWorkflow) setContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel, logID string) {
 	if aw.eventSink == nil {
 		return
 	}
-	aw.eventSink.updateContext(sessionID, taskID, parentTaskID, level)
+	aw.eventSink.updateContext(sessionID, taskID, parentTaskID, level, logID)
 }
 
 // EnsureNode satisfies the domain.WorkflowTracker interface.
@@ -150,7 +150,7 @@ type workflowEventBridge struct {
 	context    workflowEventContext
 }
 
-func newWorkflowEventBridge(workflowID string, listener agent.EventListener, logger *slog.Logger, level agent.AgentLevel, sessionID, taskID, parentTaskID string) *workflowEventBridge {
+func newWorkflowEventBridge(workflowID string, listener agent.EventListener, logger *slog.Logger, level agent.AgentLevel, sessionID, taskID, parentTaskID, logID string) *workflowEventBridge {
 	return &workflowEventBridge{
 		listener:   listener,
 		logger:     logger,
@@ -160,13 +160,14 @@ func newWorkflowEventBridge(workflowID string, listener agent.EventListener, log
 			sessionID:    sessionID,
 			taskID:       taskID,
 			parentTaskID: parentTaskID,
+			logID:        logID,
 		},
 	}
 }
 
-func (b *workflowEventBridge) updateContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel) {
+func (b *workflowEventBridge) updateContext(sessionID, taskID, parentTaskID string, level agent.AgentLevel, logID string) {
 	b.mu.Lock()
-	b.context.update(sessionID, taskID, parentTaskID, level)
+	b.context.update(sessionID, taskID, parentTaskID, level, logID)
 	b.mu.Unlock()
 }
 
@@ -205,9 +206,10 @@ type workflowEventContext struct {
 	taskID       string
 	parentTaskID string
 	level        agent.AgentLevel
+	logID        string
 }
 
-func (c *workflowEventContext) update(sessionID, taskID, parentTaskID string, level agent.AgentLevel) {
+func (c *workflowEventContext) update(sessionID, taskID, parentTaskID string, level agent.AgentLevel, logID string) {
 	if sessionID != "" {
 		c.sessionID = sessionID
 	}
@@ -219,6 +221,9 @@ func (c *workflowEventContext) update(sessionID, taskID, parentTaskID string, le
 	}
 	if level != "" {
 		c.level = level
+	}
+	if logID != "" {
+		c.logID = logID
 	}
 }
 
@@ -233,6 +238,7 @@ type stepPayload struct {
 	iteration int
 	result    any
 	status    string
+	duration  time.Duration
 }
 
 func (b *workflowEventBridge) buildStepPayload(evt workflow.Event) *stepPayload {
@@ -259,6 +265,9 @@ func (b *workflowEventBridge) buildStepPayload(evt workflow.Event) *stepPayload 
 	if evt.Type == workflow.EventNodeSucceeded || evt.Type == workflow.EventNodeFailed {
 		step.result = normalizeStepResult(evt.Node)
 		step.status = string(evt.Node.Status)
+		if evt.Node.Duration > 0 {
+			step.duration = evt.Node.Duration
+		}
 	}
 
 	return step
@@ -268,7 +277,11 @@ func (c workflowEventContext) baseEvent(ts time.Time) domain.BaseEvent {
 	if ts.IsZero() {
 		ts = time.Now()
 	}
-	return domain.NewBaseEvent(c.level, c.sessionID, c.taskID, c.parentTaskID, ts)
+	base := domain.NewBaseEvent(c.level, c.sessionID, c.taskID, c.parentTaskID, ts)
+	if c.logID != "" {
+		base.SetLogID(c.logID)
+	}
+	return base
 }
 
 func (b *workflowEventBridge) emitLifecycle(base domain.BaseEvent, evt workflow.Event) {
@@ -305,6 +318,7 @@ func (b *workflowEventBridge) emitStep(base domain.BaseEvent, evt workflow.Event
 			StepResult:      step.result,
 			Status:          step.status,
 			Iteration:       step.iteration,
+			Duration:        step.duration,
 			Workflow:        evt.Snapshot,
 		})
 	}

@@ -66,7 +66,7 @@ func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Reques
 	finalAnswerCache := newStringLRU(sseFinalAnswerCacheSize)
 	serialized := make([]map[string]interface{}, 0, len(events))
 	for _, event := range events {
-		if !h.sseHandler.shouldStreamEvent(event) {
+		if !h.sseHandler.shouldStreamEvent(event, false) {
 			continue
 		}
 		if isDelegationToolEvent(event) {

@@ -25,7 +25,7 @@ func (r *recordingListener) snapshot() []agent.AgentEvent {
 
 func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 	listener := &recordingListener{}
-	bridge := newWorkflowEventBridge("wf-1", listener, nil, agent.LevelCore, "sess", "task", "parent")
+	bridge := newWorkflowEventBridge("wf-1", listener, nil, agent.LevelCore, "sess", "task", "parent", "log-1")
 
 	pendingNode := workflow.NodeSnapshot{ID: "step-1", Status: workflow.NodeStatusPending}
 	pendingSnapshot := workflow.WorkflowSnapshot{ID: "wf-1", Phase: workflow.PhasePending, Order: []string{"step-1"}}
@@ -104,9 +104,9 @@ func TestWorkflowEventBridgeEmitsLifecycleEvents(t *testing.T) {
 
 func TestWorkflowEventBridgeUsesLatestContext(t *testing.T) {
 	listener := &recordingListener{}
-	bridge := newWorkflowEventBridge("wf-context", listener, nil, agent.LevelCore, "sess-1", "task-1", "parent-1")
+	bridge := newWorkflowEventBridge("wf-context", listener, nil, agent.LevelCore, "sess-1", "task-1", "parent-1", "log-1")
 
-	bridge.updateContext("sess-2", "task-2", "parent-2", agent.LevelSubagent)
+	bridge.updateContext("sess-2", "task-2", "parent-2", agent.LevelSubagent, "log-2")
 
 	node := workflow.NodeSnapshot{ID: "step-ctx", Status: workflow.NodeStatusPending}
 	snapshot := workflow.WorkflowSnapshot{ID: "wf-context", Phase: workflow.PhasePending, Order: []string{"step-ctx"}}

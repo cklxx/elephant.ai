@@ -5,6 +5,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	id "alex/internal/utils/id"
 )
 
 // SetEventListener configures event emission for TUI/streaming
@@ -41,5 +42,9 @@ func (e *ReactEngine) emitEvent(event AgentEvent) {
 }
 
 func (e *ReactEngine) newBaseEvent(ctx context.Context, sessionID, taskID, parentTaskID string) domain.BaseEvent {
-	return domain.NewBaseEvent(e.getAgentLevel(ctx), sessionID, taskID, parentTaskID, e.clock.Now())
+	base := domain.NewBaseEvent(e.getAgentLevel(ctx), sessionID, taskID, parentTaskID, e.clock.Now())
+	if logID := id.LogIDFromContext(ctx); logID != "" {
+		base.SetLogID(logID)
+	}
+	return base
 }

@@ -71,6 +71,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		devSessionHandler := routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleDevSessionRequest)))
 		mux.Handle("/api/dev/sessions", devSessionHandler)
 		mux.Handle("/api/dev/sessions/", devSessionHandler)
+		mux.Handle("/api/dev/logs", routeHandler("/api/dev/logs", wrap(http.HandlerFunc(apiHandler.HandleDevLogTrace))))
 
 		contextConfigHandler := NewContextConfigHandler("")
 		if contextConfigHandler != nil {

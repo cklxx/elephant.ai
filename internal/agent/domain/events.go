@@ -20,6 +20,7 @@ type BaseEvent struct {
 	sessionID    string
 	taskID       string
 	parentTaskID string
+	logID        string
 }
 
 func (e *BaseEvent) Timestamp() time.Time {
@@ -40,6 +41,15 @@ func (e *BaseEvent) GetTaskID() string {
 
 func (e *BaseEvent) GetParentTaskID() string {
 	return e.parentTaskID
+}
+
+func (e *BaseEvent) GetLogID() string {
+	return e.logID
+}
+
+// SetLogID attaches a log identifier for correlation.
+func (e *BaseEvent) SetLogID(logID string) {
+	e.logID = logID
 }
 
 func newBaseEventWithIDs(level agent.AgentLevel, sessionID, taskID, parentTaskID string, ts time.Time) BaseEvent {
@@ -120,6 +130,7 @@ type WorkflowNodeOutputSummaryEvent struct {
 	Iteration     int
 	Content       string
 	ToolCallCount int
+	Metadata      map[string]any
 }
 
 func (e *WorkflowNodeOutputSummaryEvent) EventType() string { return "workflow.node.output.summary" }
@@ -147,6 +158,7 @@ type WorkflowNodeCompletedEvent struct {
 	Iteration       int
 	TokensUsed      int
 	ToolsRun        int
+	Duration        time.Duration
 	Workflow        *workflow.WorkflowSnapshot
 }
 

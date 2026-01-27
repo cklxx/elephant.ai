@@ -311,6 +311,9 @@ func (t *workflowEventTranslator) translateNodeCompleted(e *domain.WorkflowNodeC
 		if e.ToolsRun > 0 {
 			payload["tools_run"] = e.ToolsRun
 		}
+		if e.Duration > 0 {
+			payload["duration_ms"] = e.Duration.Milliseconds()
+		}
 		if status != "" {
 			payload["status"] = e.Status
 		}
@@ -318,11 +321,18 @@ func (t *workflowEventTranslator) translateNodeCompleted(e *domain.WorkflowNodeC
 }
 
 func (t *workflowEventTranslator) translateNodeOutputSummary(e *domain.WorkflowNodeOutputSummaryEvent, evt agent.AgentEvent) []*domain.WorkflowEventEnvelope {
-	return t.singleEnvelope(evt, "workflow.node.output.summary", "generation", "", map[string]any{
+	payload := map[string]any{
 		"iteration":       e.Iteration,
 		"content":         e.Content,
 		"tool_call_count": e.ToolCallCount,
-	})
+	}
+	for key, val := range e.Metadata {
+		if _, exists := payload[key]; exists {
+			continue
+		}
+		payload[key] = val
+	}
+	return t.singleEnvelope(evt, "workflow.node.output.summary", "generation", "", payload)
 }
 
 func (t *workflowEventTranslator) translateNodeOutputDelta(e *domain.WorkflowNodeOutputDeltaEvent, evt agent.AgentEvent) []*domain.WorkflowEventEnvelope {

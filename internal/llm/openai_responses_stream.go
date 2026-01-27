@@ -17,7 +17,7 @@ import (
 func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
 	requestID := extractRequestID(req.Metadata)
 	if requestID == "" {
-		requestID = id.NewRequestID()
+		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
 

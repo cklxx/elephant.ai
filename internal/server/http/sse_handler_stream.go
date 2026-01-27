@@ -34,6 +34,8 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	replayMode := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("replay")))
+	debugMode := strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("debug")), "1") ||
+		strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("debug")), "true")
 	includeSessionHistory := true
 	includeGlobalHistory := true
 	switch replayMode {
@@ -125,7 +127,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	sendEvent := func(event agent.AgentEvent) bool {
-		if !h.shouldStreamEvent(event) {
+		if !h.shouldStreamEvent(event, debugMode) {
 			return true
 		}
 
@@ -234,7 +236,7 @@ drainComplete:
 	}
 }
 
-func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent) bool {
+func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent, debugMode bool) bool {
 	if event == nil {
 		return false
 	}
@@ -259,7 +261,7 @@ func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent) bool {
 	// Only stream workflow envelopes and explicit user task submissions.
 	switch base.(type) {
 	case *domain.WorkflowEventEnvelope, *domain.WorkflowInputReceivedEvent:
-		if env, ok := event.(*domain.WorkflowEventEnvelope); ok {
+		if env, ok := event.(*domain.WorkflowEventEnvelope); ok && !debugMode {
 			if blockedNodeIDs[env.NodeID] {
 				return false
 			}

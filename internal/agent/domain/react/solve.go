@@ -136,9 +136,10 @@ func (e *ReactEngine) think(
 		},
 	}
 	resp, err := services.LLM.StreamComplete(ctx, req, callbacks)
+	llmDuration := time.Since(llmCallStarted)
 	clilatency.Printf(
 		"[latency] llm_complete_ms=%.2f iteration=%d model=%s request_id=%s\n",
-		float64(time.Since(llmCallStarted))/float64(time.Millisecond),
+		float64(llmDuration)/float64(time.Millisecond),
 		state.Iterations,
 		strings.TrimSpace(modelName),
 		requestID,
@@ -185,10 +186,25 @@ func (e *ReactEngine) think(
 	e.logger.Debug("LLM response received (request_id=%s): content=%d bytes, tool_calls=%d",
 		requestID, len(resp.Content), len(resp.ToolCalls))
 
+	meta := map[string]any{}
+	if llmDuration > 0 {
+		meta["llm_duration_ms"] = llmDuration.Milliseconds()
+	}
+	if requestID != "" {
+		meta["llm_request_id"] = requestID
+	}
+	if modelName != "" {
+		meta["llm_model"] = modelName
+	}
+	if len(meta) == 0 {
+		meta = nil
+	}
+
 	return Message{
 		Role:      "assistant",
 		Content:   resp.Content,
 		ToolCalls: resp.ToolCalls,
+		Metadata:  meta,
 		Source:    ports.MessageSourceAssistantReply,
 	}, nil
 }

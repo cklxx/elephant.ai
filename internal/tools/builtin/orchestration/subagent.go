@@ -136,6 +136,9 @@ func (t *subagent) executeSubtask(
 	if ids.SessionID != "" {
 		subtaskCtx = id.WithSessionID(subtaskCtx, ids.SessionID)
 	}
+	if ids.LogID != "" {
+		subtaskCtx = id.WithLogID(subtaskCtx, ids.LogID)
+	}
 	subtaskCtx = id.WithTaskID(subtaskCtx, id.NewTaskID())
 	if len(inherited) > 0 {
 		subtaskCtx = appcontext.WithInheritedAttachments(subtaskCtx, inherited, iterations)

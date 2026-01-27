@@ -34,6 +34,12 @@ type webFetch struct {
 	maxContentBytes int
 }
 
+type llmCallMeta struct {
+	RequestID string
+	Duration  time.Duration
+	Model     string
+}
+
 var (
 	webFetchClientOnce sync.Once
 	webFetchClient     *http.Client
@@ -193,7 +199,7 @@ func (t *webFetch) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	// Check cache
 	cacheKey := t.cache.key(urlStr)
 	if cached := t.cache.get(cacheKey); cached != nil {
-		return t.buildResult(call.ID, cached.url, cached.content, true, call.Arguments["prompt"])
+		return t.buildResult(ctx, call.ID, cached.url, cached.content, true, call.Arguments["prompt"])
 	}
 
 	// Fetch content
@@ -233,7 +239,7 @@ func (t *webFetch) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		})
 	}
 
-	return t.buildResult(call.ID, finalURL, content, false, call.Arguments["prompt"])
+	return t.buildResult(ctx, call.ID, finalURL, content, false, call.Arguments["prompt"])
 }
 
 // fetchContent fetches and processes HTML content
@@ -324,15 +330,19 @@ func (t *webFetch) htmlToText(html string) (string, error) {
 }
 
 // buildResult constructs the final tool result with optional LLM analysis
-func (t *webFetch) buildResult(callID, url, content string, cached bool, promptArg any) (*ports.ToolResult, error) {
+func (t *webFetch) buildResult(ctx context.Context, callID, url, content string, cached bool, promptArg any) (*ports.ToolResult, error) {
 	prompt, hasPrompt := promptArg.(string)
 
 	// If LLM available and prompt provided, analyze content
 	if hasPrompt && prompt != "" && t.llmClient != nil {
-		analysisCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		analysisBase := context.Background()
+		if logID := id.LogIDFromContext(ctx); logID != "" {
+			analysisBase = id.WithLogID(analysisBase, logID)
+		}
+		analysisCtx, cancel := context.WithTimeout(analysisBase, 10*time.Second)
 		defer cancel()
 
-		analysis, err := t.analyzeLLM(analysisCtx, callID, content, prompt)
+		analysis, meta, err := t.analyzeLLM(analysisCtx, callID, content, prompt)
 		if err == nil && analysis != "" {
 			// Return LLM analysis (no emojis for TUI compatibility)
 			output := fmt.Sprintf("Source: %s%s\n\n"+
@@ -348,6 +358,15 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 				"cached":       cached,
 				"analyzed":     true,
 				"content_size": len(content),
+			}
+			if meta.RequestID != "" {
+				metadata["llm_request_id"] = meta.RequestID
+			}
+			if meta.Duration > 0 {
+				metadata["llm_duration_ms"] = meta.Duration.Milliseconds()
+			}
+			if meta.Model != "" {
+				metadata["llm_model"] = meta.Model
 			}
 			metadata["web"] = map[string]any{
 				"url":      url,
@@ -395,10 +414,15 @@ func (t *webFetch) buildResult(callID, url, content string, cached bool, promptA
 }
 
 // analyzeLLM uses LLM to analyze content based on prompt
-func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt string) (string, error) {
+func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt string) (string, llmCallMeta, error) {
+	meta := llmCallMeta{}
 	requestID := id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	if trimmed := strings.TrimSpace(callID); trimmed != "" {
 		requestID = fmt.Sprintf("%s:%s", requestID, trimmed)
+	}
+	meta.RequestID = requestID
+	if t.llmClient != nil {
+		meta.Model = strings.TrimSpace(t.llmClient.Model())
 	}
 	req := ports.CompletionRequest{
 		Messages: []ports.Message{
@@ -423,7 +447,7 @@ func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt strin
 
 	streaming, ok := llm.EnsureStreamingClient(t.llmClient).(llm.StreamingLLMClient)
 	if !ok {
-		return "", fmt.Errorf("streaming LLM client unavailable")
+		return "", meta, fmt.Errorf("streaming LLM client unavailable")
 	}
 
 	const progressChunkMinChars = 256
@@ -449,14 +473,18 @@ func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt strin
 		},
 	}
 
+	started := time.Now()
 	resp, err := streaming.StreamComplete(ctx, req, callbacks)
 	if err != nil {
-		return "", err
+		meta.Duration = time.Since(started)
+		return "", meta, err
 	}
+	meta.Duration = time.Since(started)
 
 	if requestID == "" && resp != nil {
 		if id, ok := resp.Metadata["request_id"].(string); ok {
 			requestID = strings.TrimSpace(id)
+			meta.RequestID = requestID
 		}
 	}
 
@@ -468,7 +496,7 @@ func (t *webFetch) analyzeLLM(ctx context.Context, callID, content, prompt strin
 	if contentOut == "" {
 		contentOut = contentBuffer.String()
 	}
-	return contentOut, nil
+	return contentOut, meta, nil
 }
 
 // Helper functions

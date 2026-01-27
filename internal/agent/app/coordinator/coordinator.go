@@ -257,7 +257,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	ctx = agent.WithOutputContext(ctx, outCtx)
 	logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
-	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
+	logID := id.LogIDFromContext(ctx)
+	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx, logID)
 	wf.start(stagePrepare)
 
 	attachWorkflow := func(result *agent.TaskResult, env *agent.ExecutionEnvironment) *agent.TaskResult {
@@ -282,7 +283,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		float64(time.Since(prepareStarted))/float64(time.Millisecond),
 		env.Session.ID,
 	)
-	wf.setContext(env.Session.ID, ensuredTaskID, parentTaskID, outCtx.Level)
+	wf.setContext(env.Session.ID, ensuredTaskID, parentTaskID, outCtx.Level, logID)
 	prepareOutput := map[string]any{
 		"session": env.Session.ID,
 		"task":    task,

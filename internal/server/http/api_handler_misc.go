@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"alex/internal/logging"
 	"alex/internal/sandbox"
 )
 
@@ -102,6 +103,30 @@ func (h *APIHandler) HandleSandboxBrowserScreenshot(w http.ResponseWriter, r *ht
 	w.Header().Set("Content-Type", "image/png")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(payload)
+}
+
+// HandleDevLogTrace returns log excerpts correlated by log id.
+func (h *APIHandler) HandleDevLogTrace(w http.ResponseWriter, r *http.Request) {
+	if !h.devMode {
+		http.NotFound(w, r)
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	logID := strings.TrimSpace(r.URL.Query().Get("log_id"))
+	if logID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "log_id is required", nil)
+		return
+	}
+
+	bundle := logging.FetchLogBundle(logID, logging.LogFetchOptions{
+		MaxEntries: 400,
+		MaxBytes:   1 << 20,
+	})
+	h.writeJSON(w, http.StatusOK, bundle)
 }
 
 // HandleHealthCheck handles GET /health

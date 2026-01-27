@@ -326,6 +326,76 @@ func TestSSEHandlerBlocksReactIterStepNodes(t *testing.T) {
 	}
 }
 
+func TestSSEHandlerDebugModeStreamsReactIterStepNodes(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-react-iter-debug"
+	now := time.Now()
+	base := domain.NewBaseEvent(agent.LevelCore, sessionID, "task-react", "", now)
+
+	stepEvent := &domain.WorkflowNodeCompletedEvent{
+		BaseEvent:       base,
+		StepIndex:       0,
+		StepDescription: "react step tool",
+		Status:          "succeeded",
+		Iteration:       1,
+	}
+	stepEnvelope := domain.NewWorkflowEnvelopeFromEvent(stepEvent, "workflow.node.completed")
+	if stepEnvelope == nil {
+		t.Fatal("failed to create step envelope")
+	}
+	stepEnvelope.NodeID = "react:iter:1:tool:video_generate:0"
+	stepEnvelope.NodeKind = "step"
+	stepEnvelope.Payload = map[string]any{
+		"step_index":       stepEvent.StepIndex,
+		"step_description": stepEvent.StepDescription,
+		"status":           stepEvent.Status,
+		"iteration":        stepEvent.Iteration,
+	}
+
+	broadcaster.OnEvent(stepEnvelope)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID+"&debug=1", nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), "workflow.node.completed") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	found := false
+	for _, evt := range events {
+		if evt.event == "workflow.node.completed" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("react iter step node should be streamed in debug mode: %v", events)
+	}
+}
+
 func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)

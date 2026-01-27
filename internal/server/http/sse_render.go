@@ -54,6 +54,11 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 		"task_id":        event.GetTaskID(),
 		"parent_task_id": event.GetParentTaskID(),
 	}
+	if withLogID, ok := event.(interface{ GetLogID() string }); ok {
+		if logID := strings.TrimSpace(withLogID.GetLogID()); logID != "" {
+			data["log_id"] = logID
+		}
+	}
 
 	// Subtask envelopes are flattened into the base envelope while retaining
 	// metadata.

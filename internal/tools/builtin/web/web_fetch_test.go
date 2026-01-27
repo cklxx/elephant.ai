@@ -14,7 +14,7 @@ func TestWebFetchBuildResultCreatesAttachment(t *testing.T) {
 	tool := &webFetch{}
 	content := "# Headline\n\nKey insight here."
 
-	result, err := tool.buildResult("call-1", "https://news.example.com/update", content, false, nil)
+	result, err := tool.buildResult(context.Background(), "call-1", "https://news.example.com/update", content, false, nil)
 	if err != nil {
 		t.Fatalf("buildResult returned error: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestWebFetchAnalyzeLLMLogsRequestAndResponse(t *testing.T) {
 		}},
 	}
 
-	_, err := tool.buildResult("tool-call-123", "https://example.com", "page content", false, "What matters?")
+	_, err := tool.buildResult(context.Background(), "tool-call-123", "https://example.com", "page content", false, "What matters?")
 	if err != nil {
 		t.Fatalf("buildResult returned error: %v", err)
 	}

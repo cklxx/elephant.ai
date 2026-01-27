@@ -132,8 +132,9 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	sessionID := "session-root-123"
 	rootTaskID := "task-root-456"
 	ancestorTaskID := "task-ancestor-789"
+	logID := "log-root-000"
 
-	ctx := id.WithIDs(context.Background(), id.IDs{SessionID: sessionID, TaskID: rootTaskID, ParentTaskID: ancestorTaskID})
+	ctx := id.WithIDs(context.Background(), id.IDs{SessionID: sessionID, TaskID: rootTaskID, ParentTaskID: ancestorTaskID, LogID: logID})
 
 	call := ports.ToolCall{
 		ID:           "call-1",
@@ -175,6 +176,9 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	if ids.TaskID == rootTaskID {
 		t.Fatalf("expected delegated task id to differ from root (%s)", rootTaskID)
 	}
+	if ids.LogID != logID {
+		t.Fatalf("expected delegated log id %s, got %s", logID, ids.LogID)
+	}
 
 	entries, err := coordinator.LoggedEntries()
 	if err != nil {
@@ -193,6 +197,9 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	}
 	if entry["parent_task_id"] != rootTaskID {
 		t.Fatalf("expected log parent_task_id %s, got %v", rootTaskID, entry["parent_task_id"])
+	}
+	if entry["log_id"] != logID {
+		t.Fatalf("expected log log_id %s, got %v", logID, entry["log_id"])
 	}
 }
 

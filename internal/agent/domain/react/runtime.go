@@ -446,11 +446,13 @@ func (it *reactIteration) think() error {
 	}
 
 	if len(it.toolCalls) > 0 && !hasPlanCall {
+		meta := extractLLMMetadata(thought.Metadata)
 		it.runtime.engine.emitEvent(&domain.WorkflowNodeOutputSummaryEvent{
 			BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
 			Iteration:     it.index,
 			Content:       thought.Content,
 			ToolCallCount: len(it.toolCalls),
+			Metadata:      meta,
 		})
 	}
 
@@ -648,4 +650,20 @@ func (r *reactRuntime) emitFinalAnswerStream(stopReason string, result *TaskResu
 			StreamFinished:  false,
 		})
 	}
+}
+
+func extractLLMMetadata(metadata map[string]any) map[string]any {
+	if len(metadata) == 0 {
+		return nil
+	}
+	out := make(map[string]any)
+	for _, key := range []string{"llm_duration_ms", "llm_request_id", "llm_model"} {
+		if val, ok := metadata[key]; ok {
+			out[key] = val
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

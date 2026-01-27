@@ -120,14 +120,27 @@ func (t *htmlEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}
 	}
 
+	metadata := map[string]any{}
+
 	editedHTML := sourceHTML
 	edited := false
 	if !validateOnly {
-		updated, err := t.applyEdits(ctx, sourceHTML, instructions)
+		updated, meta, err := t.applyEdits(ctx, sourceHTML, instructions)
 		if err != nil {
 			return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 		}
 		editedHTML = updated
+		if meta != nil {
+			if meta.RequestID != "" {
+				metadata["llm_request_id"] = meta.RequestID
+			}
+			if meta.Duration > 0 {
+				metadata["llm_duration_ms"] = meta.Duration.Milliseconds()
+			}
+			if meta.Model != "" {
+				metadata["llm_model"] = meta.Model
+			}
+		}
 		edited = true
 	}
 
@@ -144,18 +157,16 @@ func (t *htmlEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		}
 	}
 
-	metadata := map[string]any{
-		"source_name": sourceName,
-		"output_name": outputName,
-		"edited":      edited,
-		"validation": map[string]any{
-			"error_count":   len(errors),
-			"warning_count": len(warnings),
-			"issues":        issues,
-		},
-		"attachment_mutations": map[string]any{
-			mutationKey: attachments,
-		},
+	metadata["source_name"] = sourceName
+	metadata["output_name"] = outputName
+	metadata["edited"] = edited
+	metadata["validation"] = map[string]any{
+		"error_count":   len(errors),
+		"warning_count": len(warnings),
+		"issues":        issues,
+	}
+	metadata["attachment_mutations"] = map[string]any{
+		mutationKey: attachments,
 	}
 
 	content := buildHTMLResultSummary(action, outputName, len(errors), len(warnings))
@@ -171,8 +182,14 @@ func (t *htmlEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}, nil
 }
 
-func (t *htmlEdit) applyEdits(ctx context.Context, html, instructions string) (string, error) {
+func (t *htmlEdit) applyEdits(ctx context.Context, html, instructions string) (string, *llmCallMeta, error) {
 	prompt := buildHTMLEditPrompt(html, instructions)
+	meta := &llmCallMeta{}
+	meta.RequestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
+	if t.llm != nil {
+		meta.Model = strings.TrimSpace(t.llm.Model())
+	}
+	started := time.Now()
 	resp, err := t.llm.Complete(ctx, ports.CompletionRequest{
 		Messages: []ports.Message{
 			{Role: "system", Content: "You are a precise HTML editor. Apply the requested changes and return ONLY the full HTML document with minimal unrelated changes."},
@@ -181,20 +198,22 @@ func (t *htmlEdit) applyEdits(ctx context.Context, html, instructions string) (s
 		Temperature: 0.2,
 		MaxTokens:   1500,
 		Metadata: map[string]any{
-			"request_id": id.NewRequestIDWithLogID(id.LogIDFromContext(ctx)),
+			"request_id": meta.RequestID,
 		},
 	})
 	if err != nil {
-		return "", fmt.Errorf("html_edit failed: %w", err)
+		meta.Duration = time.Since(started)
+		return "", meta, fmt.Errorf("html_edit failed: %w", err)
 	}
+	meta.Duration = time.Since(started)
 	updated := extractHTMLFromResponse(resp.Content)
 	if updated == "" {
-		return "", fmt.Errorf("html_edit produced empty output")
+		return "", meta, fmt.Errorf("html_edit produced empty output")
 	}
 	if !looksLikeHTML(updated) {
-		return "", fmt.Errorf("html_edit did not return valid HTML")
+		return "", meta, fmt.Errorf("html_edit did not return valid HTML")
 	}
-	return updated, nil
+	return updated, meta, nil
 }
 
 func buildHTMLEditPrompt(html, instructions string) string {
