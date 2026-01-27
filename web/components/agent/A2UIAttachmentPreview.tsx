@@ -3,8 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { AttachmentPayload } from "@/lib/types";
-import { A2UIMessage, loadA2UIAttachmentMessages } from "@/lib/a2ui";
+import { loadAttachmentText } from "@/lib/attachment-text";
+import { A2UIMessage } from "@/lib/a2ui";
+import { JsonRenderTree } from "@/lib/json-render-model";
+import { parseUIPayload } from "@/lib/ui-payload";
 import { A2UIRenderer } from "@/components/agent/A2UIRenderer";
+import { JsonRenderRenderer } from "@/components/agent/JsonRenderRenderer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoadingDots } from "@/components/ui/loading-states";
@@ -26,11 +30,17 @@ export function A2UIAttachmentPreview({
 
   const [state, setState] = useState<{
     key: string;
+    kind: "a2ui" | "json-render" | "unknown";
+    payload: string | null;
     messages: A2UIMessage[] | null;
+    tree: JsonRenderTree | null;
     error: string | null;
   }>(() => ({
     key: attachmentKey,
+    kind: "unknown",
+    payload: null,
     messages: null,
+    tree: null,
     error: null,
   }));
 
@@ -52,16 +62,49 @@ export function A2UIAttachmentPreview({
     let cancelled = false;
     const controller = new AbortController();
 
-    loadA2UIAttachmentMessages(attachmentSnapshot, controller.signal)
-      .then((loaded) => {
+    loadAttachmentText(attachmentSnapshot, controller.signal)
+      .then((payload) => {
         if (cancelled) return;
-        setState({ key: attachmentKey, messages: loaded, error: null });
+        const parsed = parseUIPayload(payload);
+        if (parsed.kind === "a2ui") {
+          setState({
+            key: attachmentKey,
+            kind: "a2ui",
+            payload,
+            messages: parsed.messages,
+            tree: null,
+            error: null,
+          });
+          return;
+        }
+        if (parsed.kind === "json-render") {
+          setState({
+            key: attachmentKey,
+            kind: "json-render",
+            payload,
+            messages: null,
+            tree: parsed.tree,
+            error: null,
+          });
+          return;
+        }
+        setState({
+          key: attachmentKey,
+          kind: "unknown",
+          payload,
+          messages: [],
+          tree: null,
+          error: parsed.error,
+        });
       })
       .catch((err) => {
         if (cancelled) return;
         setState({
           key: attachmentKey,
+          kind: "unknown",
+          payload: null,
           messages: [],
+          tree: null,
           error: err instanceof Error ? err.message : String(err),
         });
       });
@@ -74,15 +117,29 @@ export function A2UIAttachmentPreview({
 
   useEffect(() => {
     const isCurrent = state.key === attachmentKey;
+    const kind = isCurrent ? state.kind : "unknown";
     const messages = isCurrent ? state.messages : null;
-    if (!messages || messages.length === 0) {
+    const payload = isCurrent ? state.payload : null;
+    if (kind === "a2ui" && (!messages || messages.length === 0)) {
+      return;
+    }
+    if (kind === "json-render" && !payload) {
       return;
     }
     let cancelled = false;
+    const body =
+      kind === "a2ui"
+        ? { messages }
+        : kind === "json-render"
+          ? { payload }
+          : null;
+    if (!body) {
+      return;
+    }
     fetch("/api/a2ui/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages }),
+      body: JSON.stringify(body),
     })
       .then(async (response) => {
         if (!response.ok) {
@@ -109,15 +166,19 @@ export function A2UIAttachmentPreview({
     return () => {
       cancelled = true;
     };
-  }, [attachmentKey, state.key, state.messages]);
+  }, [attachmentKey, state.key, state.kind, state.messages, state.payload]);
 
   const isCurrent = state.key === attachmentKey;
+  const kind = isCurrent ? state.kind : "unknown";
   const messages = isCurrent ? state.messages : null;
+  const tree = isCurrent ? state.tree : null;
   const error = isCurrent ? state.error : null;
   const title = attachment.description || attachment.name || "A2UI";
   const preview =
     previewHtml.key === attachmentKey ? previewHtml : undefined;
-  const hasPreview = Boolean(messages && messages.length > 0);
+  const hasPreview =
+    (kind === "a2ui" && messages && messages.length > 0) ||
+    (kind === "json-render" && tree?.root);
   const previewPending = Boolean(
     hasPreview && !preview?.html && !preview?.error,
   );
@@ -135,8 +196,10 @@ export function A2UIAttachmentPreview({
             <LoadingDots />
             <span>Loading UI...</span>
           </div>
-        ) : messages.length === 0 ? (
-          <div className="text-sm text-muted-foreground">No A2UI content.</div>
+        ) : kind === "unknown" ? (
+          <div className="text-sm text-muted-foreground">
+            No compatible UI content.
+          </div>
         ) : hasPreview ? (
           <Tabs
             value={activeTab}
@@ -172,11 +235,25 @@ export function A2UIAttachmentPreview({
               )}
             </TabsContent>
             <TabsContent value="interactive">
-              <A2UIRenderer messages={messages} />
+              {kind === "a2ui" && messages ? (
+                <A2UIRenderer messages={messages} />
+              ) : kind === "json-render" && tree ? (
+                <JsonRenderRenderer tree={tree} />
+              ) : null}
             </TabsContent>
           </Tabs>
         ) : (
-          <A2UIRenderer messages={messages} />
+          <>
+            {kind === "a2ui" && messages ? (
+              <A2UIRenderer messages={messages} />
+            ) : kind === "json-render" && tree ? (
+              <JsonRenderRenderer tree={tree} />
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                No compatible UI content.
+              </div>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

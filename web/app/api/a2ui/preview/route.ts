@@ -4,9 +4,10 @@ import { resolveApiBaseUrl } from "@/lib/api-base";
 import {
   decodeBase64Text,
   decodeDataUri,
-  renderA2UIHtml,
   renderA2UIHtmlFromMessages,
 } from "@/lib/a2ui-ssr";
+import { renderJsonRenderHtml } from "@/lib/json-render-ssr";
+import { parseUIPayload } from "@/lib/ui-payload";
 
 const MAX_PAYLOAD_BYTES = 1_000_000;
 
@@ -36,27 +37,36 @@ export async function POST(req: NextRequest) {
       ? body.payload
       : null;
   if (payload) {
-    const html = renderA2UIHtml(payload);
-    return htmlResponse(html);
+    const html = renderUiHtmlFromPayload(payload);
+    if (html) {
+      return htmlResponse(html);
+    }
+    return new NextResponse("Unable to render UI payload.", { status: 422 });
   }
 
   const data = typeof body?.data === "string" ? body.data.trim() : "";
   if (data) {
-    const html = renderA2UIHtml(decodeBase64Text(data));
-    return htmlResponse(html);
+    const html = renderUiHtmlFromPayload(decodeBase64Text(data));
+    if (html) {
+      return htmlResponse(html);
+    }
+    return new NextResponse("Unable to render UI payload.", { status: 422 });
   }
 
   const uri = typeof body?.uri === "string" ? body.uri.trim() : "";
   if (!uri) {
-    return new NextResponse("Missing A2UI payload.", { status: 400 });
+    return new NextResponse("Missing UI payload.", { status: 400 });
   }
 
   const fetched = await loadPayloadFromUri(uri, req);
   if (!fetched) {
-    return new NextResponse("Unable to load A2UI payload.", { status: 422 });
+    return new NextResponse("Unable to load UI payload.", { status: 422 });
   }
 
-  const html = renderA2UIHtml(fetched);
+  const html = renderUiHtmlFromPayload(fetched);
+  if (!html) {
+    return new NextResponse("Unable to render UI payload.", { status: 422 });
+  }
   return htmlResponse(html);
 }
 
@@ -115,4 +125,15 @@ async function loadPayloadFromUri(
     return null;
   }
   return new TextDecoder("utf-8").decode(buffer);
+}
+
+function renderUiHtmlFromPayload(payload: string): string | null {
+  const ui = parseUIPayload(payload);
+  if (ui.kind === "a2ui") {
+    return renderA2UIHtmlFromMessages(ui.messages);
+  }
+  if (ui.kind === "json-render") {
+    return renderJsonRenderHtml(ui.tree);
+  }
+  return null;
 }
