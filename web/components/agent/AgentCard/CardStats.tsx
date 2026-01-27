@@ -11,12 +11,21 @@ interface CardStatsProps {
 
 export function CardStats({ progress, stats, concurrency, hideTokens }: CardStatsProps) {
   const hasProgress = progress && progress.total > 0;
+  const hasStatsRow =
+    Boolean(concurrency) ||
+    stats.toolCalls > 0 ||
+    (!hideTokens && stats.tokens > 0) ||
+    Boolean(stats.duration);
+
+  if (!hasProgress && !hasStatsRow) {
+    return null;
+  }
 
   return (
-    <div className="space-y-2 min-w-0">
+    <div className="space-y-1 min-w-0">
       {hasProgress && (
-        <div className="space-y-1 min-w-0">
-          <div className="flex items-center justify-between text-xs">
+        <div className="space-y-0.5 min-w-0">
+          <div className="flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground">
               Progress: {progress.current}/{progress.total}
             </span>
@@ -38,7 +47,7 @@ export function CardStats({ progress, stats, concurrency, hideTokens }: CardStat
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground leading-tight">
         {concurrency && (
           <div className="flex items-center gap-1">
             <span>⚡</span>

@@ -323,8 +323,16 @@ export const EventLine = React.memo(function EventLine({
   // Task complete
   if (event.event_type === "workflow.result.final") {
     return wrapWithSubagentContext(
-      <div className="py-2" data-testid="event-workflow.result.final">
-        <div className="flex items-center gap-2 mb-1">
+      <div
+        className={cn("py-2", isNested && "py-1")}
+        data-testid="event-workflow.result.final"
+      >
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            isNested ? "mb-0.5" : "mb-1",
+          )}
+        >
           <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
             Summary
           </span>

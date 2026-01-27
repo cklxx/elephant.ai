@@ -18,3 +18,4 @@ Adjust subagent event layout and grouping to reflect concurrent subagent threads
 - 2026-01-27: Updated test selector for subagent group wrapper.
 - 2026-01-27: Collapsed subagent cards now clip to ~3 lines using fixed max height.
 - 2026-01-27: When completed, inline token count is displayed in the header row before progress.
+- 2026-01-27: Tightened header/body spacing and nested summary padding for cleaner collapsed layout.

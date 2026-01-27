@@ -52,7 +52,7 @@ export function AgentCard({
           getStateColor(data.state),
         )}
       >
-        <div className="p-3 space-y-3 min-w-0">
+        <div className="p-3 min-w-0">
           <CardHeader
             state={data.state}
             preview={data.preview}

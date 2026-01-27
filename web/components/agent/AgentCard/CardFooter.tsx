@@ -18,7 +18,7 @@ export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) 
     : (expanded ? "Show only latest" : `Show all ${eventCount} events`);
 
   return (
-    <div className="flex items-center justify-between pt-1 border-t border-border/30">
+    <div className="flex items-center justify-between border-t border-border/30">
       <Button
         variant="ghost"
         size="sm"
