@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { ConversationEventStream } from '../ConversationEventStream';
 import { LanguageProvider } from '@/lib/i18n';
 import { AnyAgentEvent } from '@/lib/types';
@@ -418,6 +418,10 @@ describe('ConversationEventStream', () => {
 
     const threads = screen.getAllByTestId('subagent-thread');
     expect(threads).toHaveLength(1);
+
+    const expandButton = within(threads[0]).getByRole('button', { name: /Show events/ });
+    fireEvent.click(expandButton);
+
     expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(2);
 
     const conversationEvents = screen.getByTestId('conversation-events');
@@ -541,6 +545,10 @@ describe('ConversationEventStream', () => {
 
     const threads = screen.getAllByTestId('subagent-thread');
     expect(threads).toHaveLength(1);
+
+    const expandButton = within(threads[0]).getByRole('button', { name: /Show events/ });
+    fireEvent.click(expandButton);
+
     expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(1);
 
     expect(within(threads[0]).getByTestId('event-workflow.tool.completed')).toBeInTheDocument();

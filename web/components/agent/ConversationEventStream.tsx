@@ -13,12 +13,13 @@ import { LoadingDots } from "@/components/ui/loading-states";
 import {
   EventLine,
   SubagentContext,
-  SubagentHeader,
   getSubagentContext,
   isSubagentLike,
 } from "./EventLine";
 import { ClearifyTimeline, type ClearifyTaskGroup } from "./ClearifyTimeline";
 import { isOrchestratorRetryMessage } from "@/lib/utils";
+import { AgentCard } from "./AgentCard";
+import { subagentThreadToCardData } from "./AgentCard/utils";
 
 interface ConversationEventStreamProps {
   events: AnyAgentEvent[];
@@ -152,34 +153,19 @@ export function ConversationEventStream({
       <div className="flex flex-col" data-testid="conversation-events">
         {combinedEntries.map((entry, index) => {
           if (entry.kind === "subagent") {
+            const cardData = subagentThreadToCardData(
+              entry.thread.key,
+              entry.thread.context,
+              entry.thread.events,
+              entry.thread.subtaskIndex,
+            );
+
             return (
-              <div
+              <AgentCard
                 key={entry.thread.key}
-                className="group my-2 -mx-2 px-2 transition-colors rounded-lg hover:bg-muted/10"
-                data-testid="subagent-thread"
-                data-subagent-key={entry.thread.key}
-              >
-                <div className="rounded-lg border border-border/40 bg-muted/10 p-2 transition-colors group-hover:bg-muted/20">
-                  <div className="mb-2">
-                    <SubagentHeader context={entry.thread.context} />
-                  </div>
-                  <div className="space-y-1">
-                    {entry.thread.events.map((ev, i) => (
-                      <div
-                        key={`${entry.thread.key}-${ev.event_type}-${ev.timestamp}-${i}`}
-                        className="transition-colors rounded-md hover:bg-muted/10 -mx-2 px-2"
-                      >
-                        <EventLine
-                          event={ev}
-                          showSubagentContext={false}
-                          pairedToolStartEvent={resolvePairedToolStart(ev)}
-                          variant="nested"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                data={cardData}
+                resolvePairedToolStart={resolvePairedToolStart}
+              />
             );
           }
 
