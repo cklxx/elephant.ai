@@ -85,6 +85,7 @@ func (c *CLI) showUsage() {
 }
 
 func printUsage() {
+	configLine := configUsageLine()
 	fmt.Printf(`
 elephant.ai - Fragment-to-Fabric Agent Console (v%s)
 
@@ -108,7 +109,7 @@ Usage:
   alex acp serve [--port N]           Run ACP over HTTP/SSE (default 127.0.0.1:9000)
 
 Configuration:
-  Config file: ~/.alex/config.yaml (or $ALEX_CONFIG_PATH)
+%s
 
 Sessions cleanup options:
   --older-than 30d               Delete sessions not updated in the last 30 days
@@ -129,8 +130,27 @@ Features:
   ✓ Code search and indexing
 
 Architecture: Hexagonal (Ports & Adapters)
-Documentation: elephant.ai architecture details (docs/architecture/ALEX_DETAILED_ARCHITECTURE.md)
-`, appVersion())
+Documentation: docs/AGENT.md + docs/reference/ARCHITECTURE_AGENT_FLOW.md
+`, appVersion(), configLine)
+}
+
+func configUsageLine() string {
+	return configUsageLineWith(runtimeEnvLookup(), os.UserHomeDir)
+}
+
+func configUsageLineWith(envLookup runtimeconfig.EnvLookup, homeDir func() (string, error)) string {
+	path, source := runtimeconfig.ResolveConfigPath(envLookup, homeDir)
+	if strings.TrimSpace(path) == "" {
+		return "  Config file: (unresolved)"
+	}
+	suffix := ""
+	switch source {
+	case "ALEX_CONFIG_PATH":
+		suffix = " (ALEX_CONFIG_PATH)"
+	case "fallback":
+		suffix = " (fallback)"
+	}
+	return fmt.Sprintf("  Config file: %s%s", path, suffix)
 }
 
 func (c *CLI) handleSessions(args []string) error {
