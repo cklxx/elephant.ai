@@ -642,7 +642,9 @@ export function isSubagentLike(event: AnyAgentEvent): boolean {
     "parent_task_id" in event && typeof unknownEvent.parent_task_id === "string"
       ? String(unknownEvent.parent_task_id).trim()
       : "";
-  if (parentTask) return true;
+  const currentTaskId =
+    typeof event.task_id === "string" ? event.task_id.trim() : "";
+  if (parentTask && parentTask !== currentTaskId) return true;
 
   const nodeId =
     "node_id" in event && typeof unknownEvent.node_id === "string"

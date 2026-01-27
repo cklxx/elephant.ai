@@ -87,10 +87,28 @@ export function ConversationEventStream({
   }, [toolStartEventsByCallKey]);
 
   const combinedEntries = useMemo(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log("[ConversationEventStream] subagentThreads count:", subagentThreads.length);
+      subagentThreads.forEach((thread, idx) => {
+        console.log(`[subagentThread ${idx}]`, {
+          key: thread.key,
+          groupKey: thread.groupKey,
+          eventsCount: thread.events.length,
+          subtaskIndex: thread.subtaskIndex,
+        });
+      });
+    }
+
     type CombinedEntry =
       | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
       | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number; order: number }
-      | { kind: "subagent"; thread: SubagentThread; ts: number; order: number };
+      | {
+          kind: "subagentGroup";
+          groupKey: string;
+          threads: SubagentThread[];
+          ts: number;
+          order: number;
+        };
 
     const entries: CombinedEntry[] = displayEntries.map((entry, idx) => {
       if (entry.kind === "event") {
@@ -110,6 +128,11 @@ export function ConversationEventStream({
       };
     });
 
+    const groupedSubagents = new Map<
+      string,
+      { groupKey: string; threads: SubagentThread[]; ts: number; order: number }
+    >();
+
     subagentThreads.forEach((thread, idx) => {
       const threadTs =
         typeof thread.firstSeenAt === "number"
@@ -119,11 +142,35 @@ export function ConversationEventStream({
         typeof thread.firstArrival === "number"
           ? thread.firstArrival
           : displayEntries.length + idx;
+      const groupKey = thread.groupKey || thread.key;
+
+      const group = groupedSubagents.get(groupKey);
+      if (!group) {
+        groupedSubagents.set(groupKey, {
+          groupKey,
+          threads: [thread],
+          ts: threadTs,
+          order: threadOrder,
+        });
+        return;
+      }
+
+      group.threads.push(thread);
+      if (threadTs < group.ts) {
+        group.ts = threadTs;
+      }
+      if (threadOrder < group.order) {
+        group.order = threadOrder;
+      }
+    });
+
+    groupedSubagents.forEach((group) => {
       entries.push({
-        kind: "subagent",
-        thread,
-        ts: threadTs,
-        order: threadOrder,
+        kind: "subagentGroup",
+        groupKey: group.groupKey,
+        threads: group.threads,
+        ts: group.ts,
+        order: group.order,
       });
     });
 
@@ -152,20 +199,31 @@ export function ConversationEventStream({
     >
       <div className="flex flex-col" data-testid="conversation-events">
         {combinedEntries.map((entry, index) => {
-          if (entry.kind === "subagent") {
-            const cardData = subagentThreadToCardData(
-              entry.thread.key,
-              entry.thread.context,
-              entry.thread.events,
-              entry.thread.subtaskIndex,
-            );
-
+          if (entry.kind === "subagentGroup") {
             return (
-              <AgentCard
-                key={entry.thread.key}
-                data={cardData}
-                resolvePairedToolStart={resolvePairedToolStart}
-              />
+              <div
+                key={`subagent-group-${entry.groupKey}`}
+                className="-mx-2 px-2 my-2 flex flex-col gap-3"
+                data-testid="subagent-thread-group"
+              >
+                {entry.threads.map((thread) => {
+                  const cardData = subagentThreadToCardData(
+                    thread.key,
+                    thread.context,
+                    thread.events,
+                    thread.subtaskIndex,
+                  );
+
+                  return (
+                    <AgentCard
+                      key={thread.key}
+                      data={cardData}
+                      resolvePairedToolStart={resolvePairedToolStart}
+                      className="mx-0 my-0"
+                    />
+                  );
+                })}
+              </div>
             );
           }
 
@@ -217,6 +275,7 @@ export function ConversationEventStream({
 
 interface SubagentThread {
   key: string;
+  groupKey: string;
   context: SubagentContext;
   events: AnyAgentEvent[];
   subtaskIndex: number;
@@ -311,6 +370,7 @@ function partitionEvents(
       if (!threads.has(key)) {
         threads.set(key, {
           key,
+          groupKey: getSubagentGroupKey(event),
           context,
           events: [],
           subtaskIndex,
@@ -655,23 +715,61 @@ function getSubagentKey(event: AnyAgentEvent): string {
       ? event.parent_task_id
       : undefined;
 
+  const taskId =
+    "task_id" in event && typeof event.task_id === "string"
+      ? event.task_id
+      : undefined;
+
   const subtaskIndex =
     "subtask_index" in event && typeof event.subtask_index === "number"
       ? event.subtask_index
       : undefined;
 
+  const callId =
+    "call_id" in event && typeof event.call_id === "string"
+      ? event.call_id
+      : undefined;
+
   if (parentTaskId) {
+    if (taskId) {
+      return `${parentTaskId}:${taskId}`;
+    }
+    if (callId) {
+      return `${parentTaskId}:call:${callId}`;
+    }
     if (typeof subtaskIndex === "number") {
-      return `${parentTaskId}:${subtaskIndex}`;
+      return `${parentTaskId}:subtask:${subtaskIndex}`;
     }
     return `parent:${parentTaskId}`;
   }
+  if (taskId) {
+    return `task:${taskId}`;
+  }
+  if (callId) {
+    return `call:${callId}`;
+  }
+  return `task:${event.task_id ?? "unknown"}`;
+}
 
-  if ("call_id" in event && typeof event.call_id === "string") {
-    return `call:${event.call_id}`;
+function getSubagentGroupKey(event: AnyAgentEvent): string {
+  const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+  const parentTaskId =
+    "parent_task_id" in event && typeof event.parent_task_id === "string"
+      ? event.parent_task_id
+      : undefined;
+  if (parentTaskId) {
+    return `parent:${sessionId}:${parentTaskId}`;
   }
 
-  return `task:${event.task_id ?? "unknown"}`;
+  const taskId =
+    "task_id" in event && typeof event.task_id === "string"
+      ? event.task_id
+      : undefined;
+  if (taskId) {
+    return `task:${sessionId}:${taskId}`;
+  }
+
+  return `subagent:${sessionId}:${getSubagentKey(event)}`;
 }
 
 function getSubtaskIndex(event: AnyAgentEvent): number {

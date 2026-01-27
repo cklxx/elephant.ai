@@ -9,9 +9,13 @@ interface CardFooterProps {
 }
 
 export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) {
-  if (eventCount <= 1) {
+  if (eventCount === 0) {
     return null;
   }
+
+  const buttonText = eventCount === 1
+    ? (expanded ? "Collapse" : "Show full content")
+    : (expanded ? "Show only latest" : `Show all ${eventCount} events`);
 
   return (
     <div className="flex items-center justify-between pt-1 border-t border-border/30">
@@ -24,9 +28,7 @@ export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) 
           "w-full justify-between",
         )}
       >
-        <span>
-          {expanded ? "Show only latest" : `Show all ${eventCount} events`}
-        </span>
+        <span>{buttonText}</span>
         <span className={cn("transition-transform", expanded && "rotate-180")}>
           ▼
         </span>
