@@ -9,7 +9,7 @@ interface CardFooterProps {
 }
 
 export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) {
-  if (eventCount === 0) {
+  if (eventCount <= 1) {
     return null;
   }
 
@@ -25,7 +25,7 @@ export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) 
         )}
       >
         <span>
-          {expanded ? "Hide" : "Show"} events ({eventCount})
+          {expanded ? "Show only latest" : `Show all ${eventCount} events`}
         </span>
         <span className={cn("transition-transform", expanded && "rotate-180")}>
           ▼

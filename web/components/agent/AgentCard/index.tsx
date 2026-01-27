@@ -68,13 +68,11 @@ export function AgentCard({
             }
           />
 
-          {expanded && (
-            <CardBody
-              events={data.events}
-              expanded={expanded}
-              resolvePairedToolStart={resolvePairedToolStart}
-            />
-          )}
+          <CardBody
+            events={data.events}
+            expanded={expanded}
+            resolvePairedToolStart={resolvePairedToolStart}
+          />
 
           <CardFooter
             expanded={expanded}

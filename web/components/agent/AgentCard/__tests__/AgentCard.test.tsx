@@ -57,12 +57,12 @@ describe("AgentCard", () => {
   it("toggles event display on footer button click", () => {
     render(<AgentCard data={mockCardData} />);
 
-    const toggleButton = screen.getByRole("button", { name: /Show events/ });
+    const toggleButton = screen.getByRole("button", { name: /Show all.*events/ });
     expect(toggleButton).toBeInTheDocument();
 
     fireEvent.click(toggleButton);
 
-    expect(screen.getByRole("button", { name: /Hide events/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show only latest/ })).toBeInTheDocument();
   });
 
   it("renders with controlled expanded state", () => {
@@ -71,13 +71,13 @@ describe("AgentCard", () => {
       <AgentCard data={mockCardData} expanded={false} onToggleExpand={onToggle} />,
     );
 
-    expect(screen.getByRole("button", { name: /Show events/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show all.*events/ })).toBeInTheDocument();
 
     rerender(
       <AgentCard data={mockCardData} expanded={true} onToggleExpand={onToggle} />,
     );
 
-    expect(screen.getByRole("button", { name: /Hide events/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show only latest/ })).toBeInTheDocument();
   });
 
   it("displays concurrency badge when applicable", () => {
@@ -127,7 +127,24 @@ describe("AgentCard", () => {
 
     render(<AgentCard data={noEventsData} />);
 
-    expect(screen.queryByRole("button", { name: /Show events/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("does not show footer when only one event", () => {
+    const oneEventData: AgentCardData = {
+      ...mockCardData,
+      events: [
+        {
+          event_type: "workflow.tool.completed",
+          timestamp: "2024-01-01T00:00:00Z",
+          agent_level: "subagent",
+        },
+      ],
+    };
+
+    render(<AgentCard data={oneEventData} />);
+
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("displays state icon", () => {

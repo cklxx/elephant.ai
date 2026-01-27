@@ -419,7 +419,9 @@ describe('ConversationEventStream', () => {
     const threads = screen.getAllByTestId('subagent-thread');
     expect(threads).toHaveLength(1);
 
-    const expandButton = within(threads[0]).getByRole('button', { name: /Show events/ });
+    expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(1);
+
+    const expandButton = within(threads[0]).getByRole('button', { name: /Show all.*events/ });
     fireEvent.click(expandButton);
 
     expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(2);
@@ -545,9 +547,6 @@ describe('ConversationEventStream', () => {
 
     const threads = screen.getAllByTestId('subagent-thread');
     expect(threads).toHaveLength(1);
-
-    const expandButton = within(threads[0]).getByRole('button', { name: /Show events/ });
-    fireEvent.click(expandButton);
 
     expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(1);
 

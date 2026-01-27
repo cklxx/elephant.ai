@@ -14,18 +14,21 @@ export function CardBody({
   expanded,
   resolvePairedToolStart,
 }: CardBodyProps) {
-  if (!expanded || events.length === 0) {
+  if (events.length === 0) {
     return null;
   }
 
+  const displayEvents = expanded ? events : events.slice(-1);
+
   return (
-    <div className="space-y-1 max-h-[400px] overflow-y-auto">
-      {events.map((event, i) => {
+    <div className={cn("space-y-1", expanded && "max-h-[400px] overflow-y-auto")}>
+      {displayEvents.map((event, i) => {
         const pairedToolStart = resolvePairedToolStart ? resolvePairedToolStart(event) : undefined;
+        const actualIndex = expanded ? i : events.length - 1;
 
         return (
           <div
-            key={`event-${i}-${event.event_type}-${event.timestamp}`}
+            key={`event-${actualIndex}-${event.event_type}-${event.timestamp}`}
             className={cn(
               "transition-colors rounded-md hover:bg-muted/10 -mx-2 px-2",
             )}

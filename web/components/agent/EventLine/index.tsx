@@ -539,7 +539,9 @@ export interface SubagentContext {
 
 export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   const preview =
-    "subtask_preview" in event ? event.subtask_preview?.trim() : undefined;
+    "subtask_preview" in event && event.subtask_preview?.trim()
+      ? event.subtask_preview.trim()
+      : undefined;
   const concurrency =
     "max_parallel" in event && event.max_parallel && event.max_parallel > 1
       ? `Parallel ×${event.max_parallel}`
