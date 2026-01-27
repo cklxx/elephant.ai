@@ -9,6 +9,7 @@ interface CardHeaderProps {
   preview?: string;
   type?: string;
   concurrency?: { index: number; total: number };
+  inlineTokens?: number;
 }
 
 export function CardHeader({
@@ -16,6 +17,7 @@ export function CardHeader({
   preview,
   type,
   concurrency,
+  inlineTokens,
 }: CardHeaderProps) {
   const displayTitle = preview || type || "Sub Agent";
 
@@ -25,9 +27,18 @@ export function CardHeader({
         <span className="text-lg leading-none" role="img" aria-label={state}>
           {getStateIcon(state)}
         </span>
-        <span className="text-sm text-foreground/80 truncate font-medium">
+        <span className="text-sm text-foreground/80 truncate font-medium min-w-0">
           {displayTitle}
         </span>
+        {inlineTokens && inlineTokens > 0 && (
+          <span
+            className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0"
+            data-testid="subagent-inline-tokens"
+          >
+            <span>💬</span>
+            <span>{formatTokens(inlineTokens)} tokens</span>
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2 shrink-0">
         {concurrency && concurrency.total > 1 && (
@@ -46,4 +57,11 @@ export function CardHeader({
       </div>
     </div>
   );
+}
+
+function formatTokens(tokens: number): string {
+  if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(1)}K`;
+  }
+  return tokens.toString();
 }

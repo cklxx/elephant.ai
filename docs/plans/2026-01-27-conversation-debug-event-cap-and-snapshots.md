@@ -17,3 +17,5 @@
 
 ## Progress Log
 - 2026-01-27: Plan created.
+- 2026-01-27: Added configurable event buffer (default 2000, 0 = unlimited) with UI control + badge.
+- 2026-01-27: Added latest turn snapshot panel + auto-refresh, and API client helpers for snapshots/turns.

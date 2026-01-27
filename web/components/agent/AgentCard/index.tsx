@@ -20,6 +20,7 @@ export function AgentCard({
 
   const isControlled = controlledExpanded !== undefined;
   const expanded = isControlled ? controlledExpanded : internalExpanded;
+  const showInlineTokens = data.state === "completed" && data.stats.tokens > 0;
 
   const handleToggle = () => {
     if (onToggleExpand) {
@@ -57,6 +58,7 @@ export function AgentCard({
             preview={data.preview}
             type={data.type}
             concurrency={data.concurrency}
+            inlineTokens={showInlineTokens ? data.stats.tokens : undefined}
           />
 
           <CardStats
@@ -67,6 +69,7 @@ export function AgentCard({
                 ? `Parallel ×${data.concurrency.total}`
                 : undefined
             }
+            hideTokens={showInlineTokens}
           />
 
           <CardBody

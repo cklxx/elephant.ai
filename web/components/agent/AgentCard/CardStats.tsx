@@ -6,9 +6,10 @@ interface CardStatsProps {
   progress?: AgentCardProgress;
   stats: AgentCardStats;
   concurrency?: string;
+  hideTokens?: boolean;
 }
 
-export function CardStats({ progress, stats, concurrency }: CardStatsProps) {
+export function CardStats({ progress, stats, concurrency, hideTokens }: CardStatsProps) {
   const hasProgress = progress && progress.total > 0;
 
   return (
@@ -52,7 +53,7 @@ export function CardStats({ progress, stats, concurrency }: CardStatsProps) {
             </span>
           </div>
         )}
-        {stats.tokens > 0 && (
+        {!hideTokens && stats.tokens > 0 && (
           <div className="flex items-center gap-1">
             <span>💬</span>
             <span>{formatTokens(stats.tokens)} tokens</span>

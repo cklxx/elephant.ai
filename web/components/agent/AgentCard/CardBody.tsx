@@ -23,7 +23,9 @@ export function CardBody({
   return (
     <div className={cn("space-y-1 min-w-0 w-full overflow-x-hidden", expanded && "max-h-[400px] overflow-y-auto")}>
       {displayEvents.map((event, i) => {
-        const pairedToolStart = resolvePairedToolStart ? resolvePairedToolStart(event) : undefined;
+        const pairedToolStart = resolvePairedToolStart
+          ? resolvePairedToolStart(event)
+          : undefined;
         const actualIndex = expanded ? i : events.length - 1;
 
         return (
@@ -32,7 +34,7 @@ export function CardBody({
             className={cn(
               "transition-colors rounded-md hover:bg-muted/10 -mx-2 px-2",
               "min-w-0 w-full overflow-x-hidden break-words",
-              !expanded && "line-clamp-3",
+              !expanded && "max-h-[3.75rem] overflow-hidden",
             )}
           >
             <EventLine

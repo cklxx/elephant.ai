@@ -104,6 +104,9 @@ describe("AgentCard", () => {
     render(<AgentCard data={completedData} />);
 
     expect(screen.getByText("Completed")).toBeInTheDocument();
+    const inlineTokens = screen.getByTestId("subagent-inline-tokens");
+    expect(inlineTokens).toHaveTextContent("3.2K tokens");
+    expect(screen.getAllByText(/3\.2K tokens/)).toHaveLength(1);
     const card = screen.getByTestId("subagent-thread");
     expect(card).toHaveAttribute("data-agent-state", "completed");
   });
@@ -130,7 +133,7 @@ describe("AgentCard", () => {
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("does not show footer when only one event", () => {
+  it("shows footer when only one event", () => {
     const oneEventData: AgentCardData = {
       ...mockCardData,
       events: [
@@ -144,7 +147,7 @@ describe("AgentCard", () => {
 
     render(<AgentCard data={oneEventData} />);
 
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Show full content/ })).toBeInTheDocument();
   });
 
   it("displays state icon", () => {
