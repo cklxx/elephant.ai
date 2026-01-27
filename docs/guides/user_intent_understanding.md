@@ -19,7 +19,7 @@ Prompt the model with a “compiler-style” pipeline that converts user input i
 9) **Render**: Produce smooth natural language, explicitly stating assumptions and uncertainties so the user does not assume confirmation.
 
 ## Quick example
-- Input: “Following this approach, how should an LLM interpret user input?”
+- Input: “我想搞清楚大模型到底怎么理解用户需求，能不能用更像人说话的方式讲讲？最好给个小例子。”
 - Pipeline result:
   - Skeleton: explain a “compiler-style parse into scenario and actions” method.
   - Slots: approach=compiler-style parsing, output=form of explanation+steps, others not provided.
