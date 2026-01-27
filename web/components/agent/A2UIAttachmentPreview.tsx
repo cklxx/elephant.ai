@@ -84,7 +84,7 @@ export function A2UIAttachmentPreview({
 
   return (
     <Card className="border border-border/50 bg-background/80">
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 pt-6">
         {error ? (
           <div className="text-sm text-destructive">{error}</div>
         ) : payload === null ? (
@@ -99,7 +99,7 @@ export function A2UIAttachmentPreview({
         ) : (
           <>
             {tree ? (
-              <div className="min-h-[220px] max-h-[640px] overflow-auto pt-2">
+              <div>
                 <JsonRenderRenderer tree={tree} />
               </div>
             ) : (

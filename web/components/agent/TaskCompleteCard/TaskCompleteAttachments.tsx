@@ -26,7 +26,7 @@ export function TaskCompleteAttachments({
   return (
     <>
       {!streamInProgress && hasA2UIAttachments && (
-        <div className="space-y-4">
+        <div className="mt-4 space-y-4">
           {Object.entries(a2uiAttachments).map(([key, attachment]) => (
             <A2UIAttachmentPreview
               key={`task-complete-a2ui-${key}`}
