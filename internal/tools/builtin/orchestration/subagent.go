@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	appcontext "alex/internal/agent/app/context"
@@ -88,7 +89,8 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	parentListener := shared.GetParentListenerFromContext(ctx)
 
 	results := make([]SubtaskResult, 1)
-	results[0] = t.executeSubtask(ctx, prompt, 0, 1, parentListener, 1, sharedAttachments, sharedIterations)
+	collector := newAttachmentCollector(sharedAttachments)
+	results[0] = t.executeSubtask(ctx, prompt, 0, 1, parentListener, 1, sharedAttachments, sharedIterations, collector)
 
 	if results[0].Error != nil {
 		return &ports.ToolResult{
@@ -99,7 +101,14 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 
 	// Format results
-	return t.formatResults(call, []string{prompt}, results, mode)
+	formatted, err := t.formatResults(call, []string{prompt}, results, mode)
+	if err != nil {
+		return nil, err
+	}
+	if attachments := collector.Snapshot(); len(attachments) > 0 {
+		formatted.Attachments = attachments
+	}
+	return formatted, nil
 }
 
 // SubtaskResult holds the result of a single subtask execution
@@ -125,9 +134,10 @@ func (t *subagent) executeSubtask(
 	maxParallel int,
 	inherited map[string]ports.Attachment,
 	iterations map[string]int,
+	collector *attachmentCollector,
 ) SubtaskResult {
 	// Create a listener that wraps events with subtask context
-	listener := newSubtaskListener(index, totalTasks, task, parentListener, maxParallel)
+	listener := newSubtaskListener(index, totalTasks, task, parentListener, maxParallel, collector)
 
 	ids := id.IDsFromContext(ctx)
 	subtaskCtx := ctx
@@ -289,14 +299,12 @@ type subtaskListener struct {
 	taskPreview    string
 	parentListener agent.EventListener
 	maxParallel    int
+	collector      *attachmentCollector
 }
 
-func newSubtaskListener(index, total int, task string, parent agent.EventListener, maxParallel int) *subtaskListener {
+func newSubtaskListener(index, total int, task string, parent agent.EventListener, maxParallel int, collector *attachmentCollector) *subtaskListener {
 	// Create task preview (max 60 chars)
-	taskPreview := task
-	if len(taskPreview) > 60 {
-		taskPreview = taskPreview[:57] + "..."
-	}
+	taskPreview := truncatePreview(task, 60)
 
 	return &subtaskListener{
 		taskIndex:      index,
@@ -304,10 +312,30 @@ func newSubtaskListener(index, total int, task string, parent agent.EventListene
 		taskPreview:    taskPreview,
 		parentListener: parent,
 		maxParallel:    maxParallel,
+		collector:      collector,
 	}
 }
 
+func truncatePreview(value string, maxRunes int) string {
+	if maxRunes <= 0 {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	cut := maxRunes - 3
+	if cut < 1 {
+		return string(runes[:maxRunes])
+	}
+	return string(runes[:cut]) + "..."
+}
+
 func (l *subtaskListener) OnEvent(event agent.AgentEvent) {
+	if l.collector != nil {
+		l.collector.Capture(event)
+	}
+
 	// Forward event to parent listener if present
 	// Parent can choose to wrap/modify the event based on subtask context
 	if l.parentListener == nil {

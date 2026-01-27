@@ -3,9 +3,11 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
@@ -213,5 +215,23 @@ func TestSubagentExposesWorkflowMetadata(t *testing.T) {
 
 	if len(workflows) != len(structured) {
 		t.Fatalf("expected %d workflows, got %d", len(structured), len(workflows))
+	}
+}
+
+func TestSubtaskPreviewIsUTF8Safe(t *testing.T) {
+	task := strings.Repeat("测试", 40)
+	listener := newSubtaskListener(0, 1, task, nil, 1)
+
+	if !utf8.ValidString(listener.taskPreview) {
+		t.Fatalf("expected preview to be valid UTF-8, got %q", listener.taskPreview)
+	}
+
+	if len([]rune(task)) > 60 {
+		if !strings.HasSuffix(listener.taskPreview, "...") {
+			t.Fatalf("expected preview to be truncated with ellipsis, got %q", listener.taskPreview)
+		}
+		if got := len([]rune(listener.taskPreview)); got != 60 {
+			t.Fatalf("expected preview to be 60 runes, got %d", got)
+		}
 	}
 }
