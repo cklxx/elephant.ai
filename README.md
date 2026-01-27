@@ -119,7 +119,7 @@ Expected:
 
 * [`docs/README.md`](docs/README.md): documentation landing page and navigation.
 * [`docs/AGENT.md`](docs/AGENT.md): runtime overview covering the Think → Act → Observe loop and delivery surfaces.
-* [`docs/reference/ALEX.md`](docs/reference/ALEX.md): architecture and development reference, including module boundaries and common commands.
+* [`docs/reference/ARCHITECTURE_AGENT_FLOW.md`](docs/reference/ARCHITECTURE_AGENT_FLOW.md): architecture and execution flow overview across the delivery surfaces.
 * [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md): canonical configuration schema and precedence.
 * [`docs/guides/quickstart.md`](docs/guides/quickstart.md): from clone to running CLI/server/web.
 * [`docs/operations/DEPLOYMENT.md`](docs/operations/DEPLOYMENT.md): deployment guide for local, Docker Compose, and custom clusters.

@@ -2,7 +2,7 @@
 > Last updated: 2026-01-23
 
 This document consolidates the runtime architecture and the agent execution flow for elephant.ai.
-It complements the deeper dives in `docs/AGENT.md`, `docs/reference/ALEX.md`, and `docs/reference/ACP.md`.
+It complements the deeper dives in `docs/AGENT.md`, `docs/reference/CONFIG.md`, and `docs/reference/ACP.md`.
 
 ---
 
@@ -154,5 +154,6 @@ flowchart TD
 ## 8) Suggested Reading Order
 
 1) `docs/AGENT.md` for the reasoning loop narrative.
-2) `docs/reference/ALEX.md` for architecture and development overview.
-3) `docs/reference/ACP.md` for external client integration.
+2) `docs/reference/ARCHITECTURE_AGENT_FLOW.md` (this doc) for the system map.
+3) `docs/reference/CONFIG.md` for configuration and init wiring.
+4) `docs/reference/ACP.md` for external client integration.

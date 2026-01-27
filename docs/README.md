@@ -8,7 +8,7 @@ This landing page highlights the docs you are most likely to open in a typical w
 ## 📌 Core Docs
 
 - [`AGENT.md`](AGENT.md): Runtime overview covering the Think-Act-Observe loop, tool orchestration, and delivery surfaces.
-- [`reference/ALEX.md`](reference/ALEX.md): Architecture and development reference, including module boundaries, dev workflows, and common commands.
+- [`reference/ARCHITECTURE_AGENT_FLOW.md`](reference/ARCHITECTURE_AGENT_FLOW.md): Architecture and execution flow overview across delivery surfaces.
 - [`reference/CONFIG.md`](reference/CONFIG.md): Canonical configuration schema, merge precedence, and annotated examples.
 - [`guides/quickstart.md`](guides/quickstart.md): Fast path to build and run the agent locally with the minimum required steps.
 - [`operations/DEPLOYMENT.md`](operations/DEPLOYMENT.md): Deployment guide for local runs, Docker Compose, and Kubernetes clusters.
@@ -16,7 +16,7 @@ This landing page highlights the docs you are most likely to open in a typical w
 Use these in order when you need a fast answer:
 
 1. **How does the agent think and act?** Check `AGENT.md`.
-2. **How do I develop or troubleshoot?** Check `reference/ALEX.md` (architecture) or `guides/quickstart.md` (hands-on).
+2. **How do I develop or troubleshoot?** Check `reference/ARCHITECTURE_AGENT_FLOW.md` (architecture) or `guides/quickstart.md` (hands-on).
 3. **How do I configure or deploy?** Check `reference/CONFIG.md` for knobs and `operations/DEPLOYMENT.md` for runtime setups.
 
 If you add new material, keep this list short and focused on docs that people reach for weekly. Remove or archive anything that drifts from that bar.

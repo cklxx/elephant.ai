@@ -107,7 +107,7 @@ This review focuses on folder naming, top-level architecture layout, and extensi
 
 **Recommendation**
 - Pick one canonical domain name (either “materials” or “attachments”).
-- Add a short note in `docs/reference/ALEX.md` to document the mapping until migration is complete.
+- Add a short note in `docs/AGENT.md` to document the mapping until migration is complete.
 
 **Extensibility gain:** reduces onboarding cost and avoids more synonyms as the domain grows.
 
