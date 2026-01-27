@@ -2,7 +2,6 @@ package main
 
 import (
 	"alex/internal/rag"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -99,7 +98,7 @@ func (c *CLI) handleIndex(args []string) error {
 	fmt.Println("Indexing files...")
 	start := time.Now()
 
-	ctx := context.Background()
+	ctx := cliBaseContext()
 	stats, err := indexer.Index(ctx)
 	if err != nil {
 		return fmt.Errorf("index repository: %w", err)
@@ -176,7 +175,7 @@ func (c *CLI) handleSearch(query string) error {
 	}, embedder, store)
 
 	// Search
-	ctx := context.Background()
+	ctx := cliBaseContext()
 	results, err := retriever.Search(ctx, query)
 	if err != nil {
 		return fmt.Errorf("search failed: %w", err)

@@ -78,7 +78,7 @@ func RunGocui(container *Container) error {
 
 	lipgloss.SetColorProfile(termenv.Ascii)
 
-	baseCtx := context.Background()
+	baseCtx := cliBaseContext()
 	coreOutCtx := &types.OutputContext{
 		Level:   types.LevelCore,
 		AgentID: "core",

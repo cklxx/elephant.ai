@@ -193,10 +193,9 @@ func (h *StreamingOutputHandler) SetOutputWriter(w io.Writer) {
 // RunTaskWithStreamOutput executes a task with inline streaming output
 func RunTaskWithStreamOutput(container *Container, task string, sessionID string) error {
 	// Start execution with stream handler
-	baseCtx := context.Background()
+	baseCtx := cliBaseContext()
 	ctx, cancel := context.WithCancel(baseCtx)
 	defer cancel()
-	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 
 	if sessionID == "" {
 		session, err := container.SessionStore.Create(ctx)
@@ -222,6 +221,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 		SessionID:    ids.SessionID,
 		TaskID:       ids.TaskID,
 		ParentTaskID: ids.ParentTaskID,
+		LogID:        ids.LogID,
 	}
 	ctx = types.WithOutputContext(ctx, coreOutCtx)
 
@@ -247,7 +247,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 
 	var forceExit atomic.Bool
 
-	logger := logging.NewComponentLogger("CLIStreamOutput")
+	logger := logging.FromContext(ctx, logging.NewComponentLogger("CLIStreamOutput"))
 	async.Go(logger, "cli.signal-handler", func() {
 		interrupted := false
 		for {

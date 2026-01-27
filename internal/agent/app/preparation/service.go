@@ -123,7 +123,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if session != nil && session.ID != "" {
 		latencySessionID = session.ID
 	}
-	clilatency.Printf(
+	clilatency.PrintfWithContext(ctx,
 		"[latency] session_load_ms=%.2f session=%s\n",
 		float64(time.Since(sessionLoadStarted))/float64(time.Millisecond),
 		latencySessionID,
@@ -133,7 +133,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 
 	historyLoadStarted := time.Now()
 	sessionHistory := s.loadSessionHistory(ctx, session)
-	clilatency.Printf(
+	clilatency.PrintfWithContext(ctx,
 		"[latency] session_history_ms=%.2f messages=%d\n",
 		float64(time.Since(historyLoadStarted))/float64(time.Millisecond),
 		len(sessionHistory),
@@ -178,7 +178,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	}
 	if s.contextMgr != nil {
 		if skip, reason := shouldSkipContextWindow(task, session); skip {
-			clilatency.Printf("[latency] context_window=skipped reason=%s\n", reason)
+			clilatency.PrintfWithContext(ctx, "[latency] context_window=skipped reason=%s\n", reason)
 			window.Messages = session.Messages
 			window.SystemPrompt = DefaultSystemPrompt
 		} else {
@@ -195,7 +195,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)
 			}
-			clilatency.Printf(
+			clilatency.PrintfWithContext(ctx,
 				"[latency] context_window_ms=%.2f original=%d final=%d\n",
 				float64(time.Since(windowStarted))/float64(time.Millisecond),
 				originalCount,
@@ -344,7 +344,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		}
 	}
 	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, llmConfig)
-	clilatency.Printf(
+	clilatency.PrintfWithContext(ctx,
 		"[latency] llm_client_init_ms=%.2f provider=%s model=%s\n",
 		float64(time.Since(llmInitStarted))/float64(time.Millisecond),
 		strings.TrimSpace(effectiveProvider),

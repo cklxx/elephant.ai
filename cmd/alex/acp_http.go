@@ -98,14 +98,14 @@ func (h *acpHTTPServer) handleRPC(w http.ResponseWriter, r *http.Request) {
 
 	if req.IsNotification() {
 		async.Go(h.logger, "acp.http.notification", func() {
-			h.server.handleNotification(context.Background(), req, clientID)
+			h.server.handleNotification(cliBaseContext(), req, clientID)
 		})
 		w.WriteHeader(http.StatusAccepted)
 		return
 	}
 
 	async.Go(h.logger, "acp.http.request", func() {
-		h.server.handleRequest(context.Background(), req, clientID)
+		h.server.handleRequest(cliBaseContext(), req, clientID)
 	})
 	w.WriteHeader(http.StatusAccepted)
 }
@@ -168,7 +168,7 @@ func (t *sseTransport) Call(ctx context.Context, method string, params map[strin
 		return nil, fmt.Errorf("acp transport not initialized")
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = cliBaseContext()
 	}
 
 	id := t.nextID()
@@ -214,7 +214,7 @@ func (t *sseTransport) Notify(method string, params map[string]any) error {
 	if err != nil {
 		return err
 	}
-	return t.send(context.Background(), payload)
+	return t.send(cliBaseContext(), payload)
 }
 
 func (t *sseTransport) SendResponse(resp *jsonrpc.Response) error {
@@ -225,7 +225,7 @@ func (t *sseTransport) SendResponse(resp *jsonrpc.Response) error {
 	if err != nil {
 		return err
 	}
-	return t.send(context.Background(), payload)
+	return t.send(cliBaseContext(), payload)
 }
 
 func (t *sseTransport) DeliverResponse(resp *jsonrpc.Response) bool {
@@ -304,7 +304,7 @@ func (t *sseTransport) Stream(ctx context.Context, w http.ResponseWriter) error 
 
 func (t *sseTransport) send(ctx context.Context, payload []byte) error {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = cliBaseContext()
 	}
 	select {
 	case t.sendCh <- payload:

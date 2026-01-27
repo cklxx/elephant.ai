@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -65,7 +64,7 @@ func (c *CLI) handleEval(args []string) error {
 	options.Verbose = *verbose
 
 	// Use background context for now; consider cancellation if needed later.
-	ctx := context.Background()
+	ctx := cliBaseContext()
 	job, err := cliManager.RunEvaluation(ctx, options)
 	if err != nil {
 		return err

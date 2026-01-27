@@ -23,7 +23,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		return nil, false
 	}
 	if analysis, preferSmall, ok := quickTriageTask(task); ok {
-		clilatency.Printf("[latency] preanalysis=skipped reason=%s\n", analysis.Approach)
+		clilatency.PrintfWithContext(ctx, "[latency] preanalysis=skipped reason=%s\n", analysis.Approach)
 		return analysis, preferSmall
 	}
 	client, err := s.llmFactory.GetIsolatedClient(provider, model, llm.LLMConfig{
@@ -74,7 +74,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	streaming, ok := llm.EnsureStreamingClient(client).(llm.StreamingLLMClient)
 	if !ok {
 		resp, err := client.Complete(analysisCtx, req)
-		clilatency.Printf(
+		clilatency.PrintfWithContext(ctx,
 			"[latency] preanalysis_ms=%.2f model=%s\n",
 			float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
 			strings.TrimSpace(model),
@@ -101,7 +101,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 	resp, err := streaming.StreamComplete(analysisCtx, req, ports.CompletionStreamCallbacks{
 		OnContentDelta: func(ports.ContentDelta) {},
 	})
-	clilatency.Printf(
+	clilatency.PrintfWithContext(ctx,
 		"[latency] preanalysis_ms=%.2f model=%s\n",
 		float64(time.Since(preanalysisStarted))/float64(time.Millisecond),
 		strings.TrimSpace(model),

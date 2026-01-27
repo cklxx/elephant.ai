@@ -62,7 +62,11 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	if requestID == "" {
 		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
+	logID := id.LogIDFromContext(ctx)
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
+	if logID != "" {
+		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
+	}
 
 	// Convert to OpenAI format
 	oaiReq := map[string]any{
@@ -261,7 +265,11 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	if requestID == "" {
 		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
+	logID := id.LogIDFromContext(ctx)
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
+	if logID != "" {
+		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
+	}
 	provider := "openrouter"
 	switch {
 	case strings.Contains(c.baseURL, "api.openai.com"):

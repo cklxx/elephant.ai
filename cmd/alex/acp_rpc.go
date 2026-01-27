@@ -47,7 +47,7 @@ func (c *rpcConn) nextID() int64 {
 
 func (c *rpcConn) Call(ctx context.Context, method string, params map[string]any) (*jsonrpc.Response, error) {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = cliBaseContext()
 	}
 	id := c.nextID()
 	key := strconv.FormatInt(id, 10)

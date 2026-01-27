@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
 )
@@ -22,7 +20,7 @@ func loadRuntimeConfigSnapshot() (runtimeconfig.RuntimeConfig, runtimeconfig.Met
 func loadManagedOverrides(envLookup runtimeconfig.EnvLookup) (runtimeconfig.Overrides, error) {
 	storePath := managedOverridesPath(envLookup)
 	store := configadmin.NewFileStore(storePath)
-	overrides, err := store.LoadOverrides(context.Background())
+	overrides, err := store.LoadOverrides(cliBaseContext())
 	if err != nil {
 		return runtimeconfig.Overrides{}, err
 	}
@@ -32,7 +30,7 @@ func loadManagedOverrides(envLookup runtimeconfig.EnvLookup) (runtimeconfig.Over
 func saveManagedOverrides(envLookup runtimeconfig.EnvLookup, overrides runtimeconfig.Overrides) error {
 	storePath := managedOverridesPath(envLookup)
 	store := configadmin.NewFileStore(storePath)
-	return store.SaveOverrides(context.Background(), overrides)
+	return store.SaveOverrides(cliBaseContext(), overrides)
 }
 
 func runtimeEnvLookup() runtimeconfig.EnvLookup {

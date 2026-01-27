@@ -74,7 +74,7 @@ func newACPServer(container *Container, initialMessage string) *acpServer {
 
 func (s *acpServer) Serve(ctx context.Context, in io.Reader, out io.Writer) error {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = cliBaseContext()
 	}
 	rpc := newRPCConn(in, out)
 	clientID := "stdio"
@@ -327,7 +327,7 @@ func (s *acpServer) handleSessionCancel(params map[string]any) error {
 
 func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *mcp.Response {
 	if ctx == nil {
-		ctx = context.Background()
+		ctx = cliBaseContext()
 	}
 	params := req.Params
 	sessionID := strings.TrimSpace(stringParam(params, "sessionId"))

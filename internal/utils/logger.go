@@ -235,7 +235,7 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 	}
 	logID := strings.TrimSpace(l.logID)
 	if logID != "" {
-		logLine := fmt.Sprintf("%s [%s] [%s] [%s] [logid=%s] %s:%d - %s\n",
+		logLine := fmt.Sprintf("%s [%s] [%s] [%s] [log_id=%s] %s:%d - %s\n",
 			timestamp, levelStr, category, component, logID, file, line, message)
 		sanitizedLine := sanitizeLogLine(logLine)
 		if l.logger != nil {

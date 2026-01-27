@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net/http"
@@ -28,7 +27,7 @@ func (c *CLI) handleACPStdio(args []string) error {
 	}
 
 	server := newACPServer(c.container, strings.TrimSpace(*initialMessage))
-	return server.Serve(context.Background(), os.Stdin, os.Stdout)
+	return server.Serve(cliBaseContext(), os.Stdin, os.Stdout)
 }
 
 func (c *CLI) handleACPServe(args []string) error {

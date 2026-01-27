@@ -62,5 +62,5 @@ func prefixLogID(logID, format string) string {
 	if logID == "" {
 		return format
 	}
-	return "logid=" + logID + " " + format
+	return "log_id=" + logID + " " + format
 }

@@ -13,6 +13,9 @@ written, and how to correlate entries with `log_id`.
 In deploy mode (`ALEX_SERVER_MODE=deploy`), service/LLM/latency log lines are
 also mirrored to stdout.
 
+CLI runs share the same log files and generate a fresh `log_id` per invocation
+via `cliBaseContext()`.
+
 ## File logs (system categories)
 
 ### `alex-service.log`
@@ -21,7 +24,7 @@ also mirrored to stdout.
 - **Content**: general server/application logs (routing, orchestration, errors).
 - **Format**:
   ```
-  YYYY-MM-DD HH:MM:SS [LEVEL] [SERVICE] [Component] [logid=<log_id>] file.go:line - message
+  YYYY-MM-DD HH:MM:SS [LEVEL] [SERVICE] [Component] [log_id=<log_id>] file.go:line - message
   ```
 
 ### `alex-llm.log`
@@ -29,6 +32,7 @@ also mirrored to stdout.
 - **Writer**: LLM clients (`internal/llm/*_client.go`).
 - **Content**: request metadata, headers (redacted), response summaries, errors.
 - **Correlation**:
+  - LLM logs include `[log_id=<id>]` in the prefix when available.
   - Each LLM call uses a `request_id` prefix like `[req:<id>]`.
   - `request_id` embeds `log_id` when available (`<log_id>:llm-...`), so `log_id`
     substring search works.
@@ -37,8 +41,7 @@ also mirrored to stdout.
 - **Category**: `LATENCY`
 - **Writer**: HTTP observability middleware (`internal/server/http`).
 - **Content**: per-request latency: `route=... method=... status=... latency_ms=... bytes=...`.
-- **Note**: currently does **not** include `log_id` in the line body; correlation
-  uses route/time rather than direct log_id matching.
+- **Correlation**: includes `log_id` when the request context carries one.
 
 ## Request payload logs
 
@@ -62,7 +65,6 @@ also mirrored to stdout.
 
 ## Correlation guidance
 - Primary key: `log_id`.
-- Service logs include `logid=<log_id>`.
+- Service logs include `log_id=<log_id>`.
 - LLM/request logs include `request_id` which embeds `log_id`.
-- Latency log currently lacks `log_id`; add it only if per-request correlation is
-  required at the latency log layer.
+- Latency log includes `log_id` when present on the request context.

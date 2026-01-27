@@ -21,9 +21,9 @@ func TestFetchLogBundleCollectsMatches(t *testing.T) {
 
 	logID := "log-abc123"
 
-	writeTestLog(t, filepath.Join(logDir, "alex-service.log"), "line logid=log-abc123 service\nother line\n")
+	writeTestLog(t, filepath.Join(logDir, "alex-service.log"), "line log_id=log-abc123 service\nother line\n")
 	writeTestLog(t, filepath.Join(logDir, "alex-llm.log"), "[req:log-abc123:llm-1] request\n")
-	writeTestLog(t, filepath.Join(logDir, "alex-latency.log"), "latency logid=log-abc123 ms=12\n")
+	writeTestLog(t, filepath.Join(logDir, "alex-latency.log"), "latency log_id=log-abc123 ms=12\n")
 	writeTestLog(t, filepath.Join(logDir, "streaming.log"), "2026-01-27 [req:log-abc123:llm-1] [request] body_bytes=2\n{}\n\n")
 
 	bundle := FetchLogBundle(logID, LogFetchOptions{MaxBytes: 1024, MaxEntries: 20})
@@ -50,7 +50,7 @@ func TestFetchLogBundleFlagsTruncation(t *testing.T) {
 	t.Setenv("ALEX_LOG_DIR", logDir)
 
 	logID := "log-truncate"
-	content := strings.Repeat("x", 2048) + " logid=log-truncate end\n"
+	content := strings.Repeat("x", 2048) + " log_id=log-truncate end\n"
 	writeTestLog(t, filepath.Join(logDir, "alex-service.log"), content)
 
 	bundle := FetchLogBundle(logID, LogFetchOptions{MaxBytes: 128, MaxEntries: 10})

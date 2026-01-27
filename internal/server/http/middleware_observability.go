@@ -61,7 +61,7 @@ func ObservabilityMiddleware(obs *observability.Observability, latencyLogger log
 				obs.Metrics.RecordHTTPServerRequest(ctx, r.Method, resolvedRoute, rec.status, latency, rec.bytes)
 			}
 			if hasLatencyLogger {
-				latencyLogger.Info(
+				logging.FromContext(ctx, latencyLogger).Info(
 					"route=%s method=%s status=%d latency_ms=%.2f bytes=%d",
 					resolvedRoute,
 					r.Method,

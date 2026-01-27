@@ -71,7 +71,11 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	if requestID == "" {
 		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
+	logID := id.LogIDFromContext(ctx)
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
+	if logID != "" {
+		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
+	}
 
 	messages, system := c.convertMessages(req.Messages)
 	payload := map[string]any{

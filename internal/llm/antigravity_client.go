@@ -63,7 +63,11 @@ func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRe
 	if requestID == "" {
 		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
 	}
+	logID := id.LogIDFromContext(ctx)
 	prefix := fmt.Sprintf("[req:%s] ", requestID)
+	if logID != "" {
+		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
+	}
 
 	payload := buildAntigravityPayload(req, requestID, c.model)
 	body, err := jsonx.Marshal(payload)

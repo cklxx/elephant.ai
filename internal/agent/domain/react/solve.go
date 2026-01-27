@@ -137,7 +137,7 @@ func (e *ReactEngine) think(
 	}
 	resp, err := services.LLM.StreamComplete(ctx, req, callbacks)
 	llmDuration := time.Since(llmCallStarted)
-	clilatency.Printf(
+	clilatency.PrintfWithContext(ctx,
 		"[latency] llm_complete_ms=%.2f iteration=%d model=%s request_id=%s\n",
 		float64(llmDuration)/float64(time.Millisecond),
 		state.Iterations,

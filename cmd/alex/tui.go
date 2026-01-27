@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -58,7 +57,7 @@ func shouldUseFullscreenTUI() bool {
 func runLineChatUI(container *Container) error {
 	output.ConfigureCLIColorProfile(os.Stdout)
 
-	session, err := container.SessionStore.Create(context.Background())
+	session, err := container.SessionStore.Create(cliBaseContext())
 	if err != nil {
 		return fmt.Errorf("create session: %w", err)
 	}

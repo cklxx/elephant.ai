@@ -280,7 +280,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	if sessionID == "" {
 		sessionID = env.Session.ID
 	}
-	clilatency.Printf(
+	clilatency.PrintfWithContext(ctx,
 		"[latency] prepare_ms=%.2f session=%s\n",
 		float64(time.Since(prepareStarted))/float64(time.Millisecond),
 		env.Session.ID,

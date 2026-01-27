@@ -154,7 +154,7 @@ func configUsageLineWith(envLookup runtimeconfig.EnvLookup, homeDir func() (stri
 }
 
 func (c *CLI) handleSessions(args []string) error {
-	ctx := context.Background()
+	ctx := cliBaseContext()
 
 	if len(args) == 0 || args[0] == "list" {
 		return c.listSessions(ctx)
