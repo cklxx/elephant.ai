@@ -4,7 +4,11 @@ import { useMemo } from "react";
 import type { ComponentType, HTMLAttributes } from "react";
 
 import { useTranslation } from "@/lib/i18n";
-import { replacePlaceholdersWithMarkdown, isA2UIAttachment } from "@/lib/attachments";
+import {
+  replacePlaceholdersWithMarkdown,
+  stripAttachmentPlaceholders,
+  isA2UIAttachment,
+} from "@/lib/attachments";
 import type { AttachmentPayload, WorkflowResultFinalEvent } from "@/lib/types";
 import { Card } from "@/components/ui/card";
 
@@ -105,8 +109,12 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     (event.is_streaming === true && event.stream_finished !== true);
   const streamFinished = event.stream_finished === true;
   const inlineAttachments = streamInProgress ? undefined : standardAttachments;
-  const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
+  const sanitizedAnswer = stripAttachmentPlaceholders(
     markdownAnswer,
+    a2uiAttachments,
+  );
+  const contentWithInlineMedia = replacePlaceholdersWithMarkdown(
+    sanitizedAnswer,
     inlineAttachments,
   );
 
@@ -123,7 +131,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     hasMultipleArtifacts,
     shouldSoftenSummary,
   } = useTaskCompleteSegments({
-    markdownAnswer,
+    markdownAnswer: sanitizedAnswer,
     attachments: standardAttachments,
   });
 

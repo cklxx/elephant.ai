@@ -6,6 +6,7 @@ import {
   getAttachmentSegmentType,
   parseContentSegments,
   replacePlaceholdersWithMarkdown,
+  stripAttachmentPlaceholders,
   resolveAttachmentDownloadUris,
 } from "../attachments";
 import { AttachmentPayload } from "@/lib/types";
@@ -121,6 +122,21 @@ describe("replacePlaceholdersWithMarkdown", () => {
     const rendered = replacePlaceholdersWithMarkdown(content, attachments);
     expect(rendered).toContain("[Meeting notes](https://example.com/notes.md)");
     expect(rendered).not.toContain("![Meeting notes]");
+  });
+});
+
+describe("stripAttachmentPlaceholders", () => {
+  it("removes placeholders for provided attachments", () => {
+    const content = "See [ui.jsonl] for details.";
+    const attachments: Record<string, AttachmentPayload> = {
+      "ui.jsonl": {
+        name: "ui.jsonl",
+        media_type: "application/a2ui+json",
+      },
+    };
+
+    const stripped = stripAttachmentPlaceholders(content, attachments);
+    expect(stripped).toBe("See  for details.");
   });
 });
 

@@ -36,6 +36,25 @@ export function replacePlaceholdersWithMarkdown(
   });
 }
 
+export function stripAttachmentPlaceholders(
+  content: string,
+  attachments?: Record<string, AttachmentPayload>,
+): string {
+  if (!content || !attachments || Object.keys(attachments).length === 0) {
+    return content;
+  }
+  return content.replace(PLACEHOLDER_REGEX, (match, rawName) => {
+    const name = String(rawName).trim();
+    if (!name) {
+      return match;
+    }
+    if (!attachments[name]) {
+      return match;
+    }
+    return "";
+  });
+}
+
 export function parseContentSegments(
   content: string,
   attachments?: Record<string, AttachmentPayload>,
