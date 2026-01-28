@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 
 	"github.com/stretchr/testify/require"
@@ -146,4 +147,19 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 	require.Equal(t, "cancelled", completes[0].StopReason)
 	require.Equal(t, time.Second, completes[0].Duration)
 	require.Contains(t, tracker.started, workflowNodeFinalize)
+}
+
+func TestRecordThoughtAppendsThinkingOnlyMessage(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{}
+	runtime := &reactRuntime{engine: engine, state: state}
+	iteration := &reactIteration{runtime: runtime}
+
+	iteration.recordThought(&Message{
+		Role:     "assistant",
+		Thinking: ports.Thinking{Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: "plan"}}},
+	})
+
+	require.Len(t, state.Messages, 1)
+	require.Len(t, state.Messages[0].Thinking.Parts, 1)
 }

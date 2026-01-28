@@ -268,7 +268,7 @@ func convertOllamaMessages(msgs []ports.Message) []ollamaMessage {
 			continue
 		}
 
-		content := msg.Content
+		content := appendThinkingToText(msg.Content, msg.Thinking)
 
 		var images []string
 		if strings.EqualFold(role, "user") && len(msg.Attachments) > 0 {

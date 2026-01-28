@@ -27,15 +27,15 @@ type reactRuntime struct {
 	prepare   func()
 
 	// UI orchestration state (Plan → Clarify → ReAct → Finalize).
-	runID           string
-	planEmitted     bool
-	planVersion     int
-	planComplexity  string
-	currentTaskID   string
+	runID          string
+	planEmitted    bool
+	planVersion    int
+	planComplexity string
+	currentTaskID  string
 	clarifyEmitted map[string]bool
-	pendingTaskID   string
-	nextTaskSeq     int
-	pauseRequested  bool
+	pendingTaskID  string
+	nextTaskSeq    int
+	pauseRequested bool
 }
 
 type reactIteration struct {
@@ -579,7 +579,8 @@ func (it *reactIteration) recordThought(thought *Message) {
 	if att := resolveContentAttachments(thought.Content, state); len(att) > 0 {
 		thought.Attachments = att
 	}
-	if trimmed := strings.TrimSpace(thought.Content); trimmed != "" || len(thought.ToolCalls) > 0 {
+	trimmed := strings.TrimSpace(thought.Content)
+	if trimmed != "" || len(thought.ToolCalls) > 0 || len(thought.Thinking.Parts) > 0 {
 		state.Messages = append(state.Messages, *thought)
 	}
 	it.runtime.engine.logger.Debug("LLM response: content_length=%d, tool_calls=%d", len(thought.Content), len(thought.ToolCalls))

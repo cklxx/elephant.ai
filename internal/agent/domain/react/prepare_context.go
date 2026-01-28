@@ -11,6 +11,7 @@ import (
 // catalogued without rewriting existing history.
 func (e *ReactEngine) prepareUserTaskContext(_ context.Context, task string, state *TaskState) {
 	ensureAttachmentStore(state)
+	offloadMessageThinking(state)
 
 	attachmentsChanged := false
 	for idx := range state.Messages {
@@ -54,5 +55,17 @@ func (e *ReactEngine) prepareUserTaskContext(_ context.Context, task string, sta
 	state.Messages = append(state.Messages, userMessage)
 	if registerMessageAttachments(state, userMessage) {
 		e.updateAttachmentCatalogMessage(state)
+	}
+}
+
+func offloadMessageThinking(state *TaskState) {
+	if state == nil {
+		return
+	}
+	for idx := range state.Messages {
+		if len(state.Messages[idx].Thinking.Parts) == 0 {
+			continue
+		}
+		state.Messages[idx].Thinking = ports.Thinking{}
 	}
 }

@@ -418,6 +418,7 @@ func parseAntigravityResponse(body []byte, requestID string) (*ports.CompletionR
 
 	content := ""
 	toolCalls := make([]ports.ToolCall, 0)
+	var thinking ports.Thinking
 	if contentObj, ok := first["content"].(map[string]any); ok {
 		if parts, ok := contentObj["parts"].([]any); ok {
 			for _, part := range parts {
@@ -426,6 +427,9 @@ func parseAntigravityResponse(body []byte, requestID string) (*ports.CompletionR
 					continue
 				}
 				if thought, ok := partObj["thought"].(bool); ok && thought {
+					if text, ok := partObj["text"].(string); ok {
+						appendThinkingText(&thinking, "thought", text)
+					}
 					continue
 				}
 				if text, ok := partObj["text"].(string); ok {
@@ -498,6 +502,7 @@ func parseAntigravityResponse(body []byte, requestID string) (*ports.CompletionR
 		Metadata: map[string]any{
 			"request_id": requestID,
 		},
+		Thinking: thinking,
 	}, nil
 }
 

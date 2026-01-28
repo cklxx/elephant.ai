@@ -2,6 +2,14 @@ package ports
 
 import "time"
 
+// ThinkingConfig configures model-side reasoning output when supported.
+type ThinkingConfig struct {
+	Enabled      bool   `json:"enabled,omitempty"`
+	Effort       string `json:"effort,omitempty"`
+	Summary      string `json:"summary,omitempty"`
+	BudgetTokens int    `json:"budget_tokens,omitempty"`
+}
+
 // CompletionRequest contains all parameters for LLM completion
 type CompletionRequest struct {
 	Messages      []Message        `json:"messages"`
@@ -10,16 +18,32 @@ type CompletionRequest struct {
 	MaxTokens     int              `json:"max_tokens,omitempty"`
 	TopP          float64          `json:"top_p,omitempty"`
 	StopSequences []string         `json:"stop,omitempty"`
+	Thinking      ThinkingConfig   `json:"thinking,omitempty"`
 	Metadata      map[string]any   `json:"metadata,omitempty"`
 }
 
 // CompletionResponse is the LLM's response
 type CompletionResponse struct {
 	Content    string         `json:"content"`
+	Thinking   Thinking       `json:"thinking,omitempty"`
 	ToolCalls  []ToolCall     `json:"tool_calls,omitempty"`
 	StopReason string         `json:"stop_reason"`
 	Usage      TokenUsage     `json:"usage"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
+// Thinking captures model-generated reasoning content across providers.
+type Thinking struct {
+	Parts []ThinkingPart `json:"parts,omitempty"`
+}
+
+// ThinkingPart stores a single reasoning segment with optional metadata.
+type ThinkingPart struct {
+	Kind       string `json:"kind,omitempty"`
+	Text       string `json:"text,omitempty"`
+	Encrypted  string `json:"encrypted,omitempty"`
+	Signature  string `json:"signature,omitempty"`
+	ProviderID string `json:"provider_id,omitempty"`
 }
 
 // ContentDelta represents a streamed assistant content fragment.
@@ -59,6 +83,7 @@ const (
 type Message struct {
 	Role        string                `json:"role"`
 	Content     string                `json:"content"`
+	Thinking    Thinking              `json:"thinking,omitempty"`
 	ToolCalls   []ToolCall            `json:"tool_calls,omitempty"`
 	ToolResults []ToolResult          `json:"tool_results,omitempty"`
 	ToolCallID  string                `json:"tool_call_id,omitempty"`

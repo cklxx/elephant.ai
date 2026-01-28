@@ -59,6 +59,9 @@ func (e *ReactEngine) think(
 		Temperature: e.completion.temperature,
 		MaxTokens:   e.completion.maxTokens,
 		TopP:        e.completion.topP,
+		Thinking: ports.ThinkingConfig{
+			Enabled: true,
+		},
 		Metadata: map[string]any{
 			"request_id": requestID,
 		},
@@ -203,6 +206,7 @@ func (e *ReactEngine) think(
 	return Message{
 		Role:      "assistant",
 		Content:   resp.Content,
+		Thinking:  resp.Thinking,
 		ToolCalls: resp.ToolCalls,
 		Metadata:  meta,
 		Source:    ports.MessageSourceAssistantReply,

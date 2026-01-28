@@ -83,3 +83,29 @@ func TestAntigravityClientConvertsToolCalls(t *testing.T) {
 		t.Fatalf("unexpected tool calls: %#v", resp.ToolCalls)
 	}
 }
+
+func TestAntigravityClientCapturesThinking(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"candidates":[{"content":{"parts":[{"text":"thoughts","thought":true},{"text":"answer"}]},"finishReason":"STOP"}]}`))
+	}))
+	defer srv.Close()
+
+	client, err := NewAntigravityClient("gemini-3-pro-high", Config{APIKey: "tok", BaseURL: srv.URL})
+	if err != nil {
+		t.Fatalf("client error: %v", err)
+	}
+
+	resp, err := client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{{Role: "user", Content: "hi"}},
+	})
+	if err != nil {
+		t.Fatalf("complete error: %v", err)
+	}
+	if resp.Content != "answer" {
+		t.Fatalf("expected response content, got %q", resp.Content)
+	}
+	if len(resp.Thinking.Parts) != 1 || resp.Thinking.Parts[0].Text != "thoughts" {
+		t.Fatalf("expected thinking capture, got %+v", resp.Thinking)
+	}
+}

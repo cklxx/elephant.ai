@@ -43,12 +43,10 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 				"content": parts,
 			})
 		case "assistant":
-			if strings.TrimSpace(msg.Content) != "" {
+			if parts := buildResponsesAssistantContent(msg); len(parts) > 0 {
 				items = append(items, map[string]any{
-					"role": "assistant",
-					"content": []map[string]any{
-						{"type": "output_text", "text": msg.Content},
-					},
+					"role":    "assistant",
+					"content": parts,
 				})
 			}
 			for _, call := range msg.ToolCalls {
@@ -85,6 +83,26 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 		}
 	}
 	return items, strings.Join(instructionsParts, "\n\n")
+}
+
+func buildResponsesAssistantContent(msg ports.Message) []map[string]any {
+	parts := make([]map[string]any, 0, 2)
+	if strings.TrimSpace(msg.Content) != "" {
+		parts = append(parts, map[string]any{
+			"type": "output_text",
+			"text": msg.Content,
+		})
+	}
+	if thinkingText := thinkingPromptText(msg.Thinking); thinkingText != "" {
+		parts = append(parts, map[string]any{
+			"type": "output_text",
+			"text": thinkingText,
+		})
+	}
+	if len(parts) == 0 {
+		return nil
+	}
+	return parts
 }
 
 func buildResponsesUserContent(msg ports.Message, embedAttachments bool) []map[string]any {

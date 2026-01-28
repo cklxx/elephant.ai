@@ -36,6 +36,11 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 		"temperature": req.Temperature,
 		"stream":      false,
 	}
+	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
+		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
+			payload["reasoning"] = reasoning
+		}
+	}
 	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
 		payload["max_output_tokens"] = req.MaxTokens
 	}
@@ -140,7 +145,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 		return nil, mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
 	}
 
-	content, toolCalls := parseResponsesOutput(apiResp)
+	content, toolCalls, thinking := parseResponsesOutput(apiResp)
 
 	result := &ports.CompletionResponse{
 		Content:    content,
@@ -155,6 +160,9 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 			"request_id":  requestID,
 			"response_id": strings.TrimSpace(apiResp.ID),
 		},
+	}
+	if len(thinking.Parts) > 0 {
+		result.Thinking = thinking
 	}
 
 	if c.usageCallback != nil {

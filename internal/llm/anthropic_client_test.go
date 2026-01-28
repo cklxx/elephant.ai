@@ -218,3 +218,52 @@ func TestAnthropicClientUsesOAuthToken(t *testing.T) {
 		t.Fatalf("unexpected content: %q", resp.Content)
 	}
 }
+
+func TestAnthropicClientCapturesThinking(t *testing.T) {
+	t.Parallel()
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"id":          "msg-3",
+			"role":        "assistant",
+			"stop_reason": "end_turn",
+			"content": []any{
+				map[string]any{"type": "thinking", "text": "brainstorm", "signature": "sig"},
+				map[string]any{"type": "text", "text": "done"},
+			},
+			"usage": map[string]any{
+				"input_tokens":  1,
+				"output_tokens": 2,
+			},
+		}
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
+	}))
+
+	client, err := NewAnthropicClient("claude-test", Config{
+		APIKey:  "sk-ant-test",
+		BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewAnthropicClient: %v", err)
+	}
+
+	resp, err := client.Complete(context.Background(), ports.CompletionRequest{
+		Messages:  []ports.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: 32,
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+	if resp.Content != "done" {
+		t.Fatalf("unexpected content: %q", resp.Content)
+	}
+	if len(resp.Thinking.Parts) != 1 {
+		t.Fatalf("expected thinking parts, got %+v", resp.Thinking)
+	}
+	if resp.Thinking.Parts[0].Text != "brainstorm" || resp.Thinking.Parts[0].Signature != "sig" {
+		t.Fatalf("unexpected thinking part: %+v", resp.Thinking.Parts[0])
+	}
+}

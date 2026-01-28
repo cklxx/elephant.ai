@@ -76,6 +76,11 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		"max_tokens":  req.MaxTokens,
 		"stream":      false,
 	}
+	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
+		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
+			oaiReq["reasoning"] = reasoning
+		}
+	}
 
 	if len(req.Tools) > 0 {
 		oaiReq["tools"] = c.convertTools(req.Tools)
@@ -157,8 +162,10 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	var oaiResp struct {
 		Choices []struct {
 			Message struct {
-				Content   string `json:"content"`
-				ToolCalls []struct {
+				Content          string `json:"content"`
+				Reasoning        string `json:"reasoning"`
+				ReasoningContent string `json:"reasoning_content"`
+				ToolCalls        []struct {
 					ID       string `json:"id"`
 					Type     string `json:"type"`
 					Function struct {
@@ -213,6 +220,12 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		Metadata: map[string]any{
 			"request_id": requestID,
 		},
+	}
+	thinking := ports.Thinking{}
+	appendThinkingText(&thinking, "reasoning", oaiResp.Choices[0].Message.Reasoning)
+	appendThinkingText(&thinking, "reasoning_content", oaiResp.Choices[0].Message.ReasoningContent)
+	if len(thinking.Parts) > 0 {
+		result.Thinking = thinking
 	}
 
 	// Trigger usage callback if set
@@ -286,6 +299,11 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		"temperature": req.Temperature,
 		"max_tokens":  req.MaxTokens,
 		"stream":      true,
+	}
+	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
+		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
+			oaiReq["reasoning"] = reasoning
+		}
 	}
 
 	if len(req.Tools) > 0 {
@@ -379,9 +397,11 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	type streamChunk struct {
 		Choices []struct {
 			Delta struct {
-				Content   string          `json:"content"`
-				Role      string          `json:"role"`
-				ToolCalls []toolCallDelta `json:"tool_calls"`
+				Content          string          `json:"content"`
+				Reasoning        string          `json:"reasoning"`
+				ReasoningContent string          `json:"reasoning_content"`
+				Role             string          `json:"role"`
+				ToolCalls        []toolCallDelta `json:"tool_calls"`
 			} `json:"delta"`
 			FinishReason *string `json:"finish_reason"`
 		} `json:"choices"`
@@ -402,6 +422,8 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	var toolOrder []int
 
 	var contentBuilder strings.Builder
+	var reasoningBuilder strings.Builder
+	var reasoningContentBuilder strings.Builder
 	usage := ports.TokenUsage{}
 	finishReason := ""
 	loggedTTFB := false
@@ -471,6 +493,12 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 				callbacks.OnContentDelta(ports.ContentDelta{Delta: text})
 			}
 		}
+		if reasoning := choice.Delta.Reasoning; reasoning != "" {
+			reasoningBuilder.WriteString(reasoning)
+		}
+		if reasoning := choice.Delta.ReasoningContent; reasoning != "" {
+			reasoningContentBuilder.WriteString(reasoning)
+		}
 
 		for _, tc := range choice.Delta.ToolCalls {
 			acc := appendToolCall(tc.Index)
@@ -503,6 +531,16 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		Metadata: map[string]any{
 			"request_id": requestID,
 		},
+	}
+	thinking := ports.Thinking{}
+	if reasoningBuilder.Len() > 0 {
+		appendThinkingText(&thinking, "reasoning", reasoningBuilder.String())
+	}
+	if reasoningContentBuilder.Len() > 0 {
+		appendThinkingText(&thinking, "reasoning_content", reasoningContentBuilder.String())
+	}
+	if len(thinking.Parts) > 0 {
+		result.Thinking = thinking
 	}
 
 	for _, idx := range toolOrder {
@@ -596,8 +634,9 @@ func extractRequestID(metadata map[string]any) string {
 }
 
 func buildMessageContent(msg ports.Message, embedAttachments bool) any {
+	contentWithThinking := appendThinkingToText(msg.Content, msg.Thinking)
 	if len(msg.Attachments) == 0 || !embedAttachments {
-		return msg.Content
+		return contentWithThinking
 	}
 
 	index := buildAttachmentIndex(msg.Attachments)
@@ -672,7 +711,11 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 	}
 
 	if !hasImage {
-		return msg.Content
+		return contentWithThinking
+	}
+
+	if thinkingText := thinkingPromptText(msg.Thinking); thinkingText != "" {
+		appendText(thinkingText)
 	}
 
 	return parts

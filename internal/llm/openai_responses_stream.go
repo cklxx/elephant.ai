@@ -32,6 +32,11 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		"stream": true,
 		"store":  false,
 	}
+	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
+		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
+			payload["reasoning"] = reasoning
+		}
+	}
 	if !c.isCodexEndpoint() {
 		payload["temperature"] = req.Temperature
 	}
@@ -143,12 +148,14 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			CallID    string `json:"call_id"`
 			Name      string `json:"name"`
 			Arguments string `json:"arguments"`
+			Content   string `json:"content"`
 		} `json:"item"`
 	}
 
 	scanner := newStreamScanner(resp.Body)
 
 	var contentBuilder strings.Builder
+	var thinkingBuilder strings.Builder
 	var toolCalls []ports.ToolCall
 	usage := ports.TokenUsage{}
 	stopReason := ""
@@ -188,6 +195,10 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 					callbacks.OnContentDelta(ports.ContentDelta{Delta: evt.Delta})
 				}
 			}
+		case "response.reasoning.delta", "response.thinking.delta":
+			if evt.Delta != "" {
+				thinkingBuilder.WriteString(evt.Delta)
+			}
 		case "response.output_item.done":
 			if evt.Item != nil && evt.Item.Type == "function_call" {
 				args := parseToolArguments([]byte(evt.Item.Arguments))
@@ -200,6 +211,10 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 					Name:      evt.Item.Name,
 					Arguments: args,
 				})
+			} else if evt.Item != nil && (evt.Item.Type == "reasoning" || evt.Item.Type == "thinking") {
+				if evt.Item.Content != "" {
+					thinkingBuilder.WriteString(evt.Item.Content)
+				}
 			}
 		case "response.completed", "response.incomplete":
 			stopReason = evt.Type
@@ -236,6 +251,11 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			"request_id":  requestID,
 			"response_id": strings.TrimSpace(responseID),
 		},
+	}
+	if thinkingText := strings.TrimSpace(thinkingBuilder.String()); thinkingText != "" {
+		result.Thinking = ports.Thinking{
+			Parts: []ports.ThinkingPart{{Kind: "reasoning", Text: thinkingText}},
+		}
 	}
 
 	if result.StopReason == "" {

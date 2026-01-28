@@ -7,9 +7,10 @@ import (
 	"alex/internal/jsonx"
 )
 
-func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall) {
+func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, ports.Thinking) {
 	var contentBuilder strings.Builder
 	var toolCalls []ports.ToolCall
+	var thinking ports.Thinking
 
 	for _, item := range resp.Output {
 		switch strings.ToLower(strings.TrimSpace(item.Type)) {
@@ -18,6 +19,8 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall) {
 				kind := strings.ToLower(strings.TrimSpace(part.Type))
 				if kind == "output_text" || kind == "text" {
 					contentBuilder.WriteString(part.Text)
+				} else if kind == "reasoning" || kind == "thinking" {
+					appendThinkingText(&thinking, kind, part.Text)
 				}
 			}
 			for _, tc := range item.ToolCalls {
@@ -27,6 +30,12 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall) {
 					Name:      tc.Function.Name,
 					Arguments: args,
 				})
+			}
+		case "reasoning", "thinking":
+			for _, part := range item.Content {
+				if text := strings.TrimSpace(part.Text); text != "" {
+					appendThinkingText(&thinking, strings.ToLower(strings.TrimSpace(item.Type)), text)
+				}
 			}
 		case "tool_call", "function_call":
 			args := parseToolArguments(item.Arguments)
@@ -45,7 +54,7 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall) {
 		}
 	}
 
-	return content, toolCalls
+	return content, toolCalls, thinking
 }
 
 func flattenOutputText(raw any) string {

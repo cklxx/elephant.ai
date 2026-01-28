@@ -83,6 +83,11 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		"max_tokens": req.MaxTokens,
 		"messages":   messages,
 	}
+	if shouldSendAnthropicThinking(c.model, req.Thinking) {
+		if thinking := buildAnthropicThinkingConfig(req.Thinking); thinking != nil {
+			payload["thinking"] = thinking
+		}
+	}
 	if system != "" {
 		payload["system"] = system
 	}
@@ -201,7 +206,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		return nil, mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
 	}
 
-	content, toolCalls := parseAnthropicContent(apiResp.Content)
+	content, toolCalls, thinking := parseAnthropicContent(apiResp.Content)
 	usage := ports.TokenUsage{
 		PromptTokens:     apiResp.Usage.InputTokens,
 		CompletionTokens: apiResp.Usage.OutputTokens,
@@ -217,6 +222,9 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 			"request_id": requestID,
 			"message_id": strings.TrimSpace(apiResp.ID),
 		},
+	}
+	if len(thinking.Parts) > 0 {
+		result.Thinking = thinking
 	}
 
 	if c.usageCallback != nil {
@@ -311,11 +319,19 @@ func (c *anthropicClient) convertMessages(msgs []ports.Message) ([]anthropicMess
 }
 
 func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []anthropicContentBlock {
+	thinkingText := thinkingPromptText(msg.Thinking)
 	if len(msg.Attachments) == 0 || !embedAttachments {
-		if strings.TrimSpace(msg.Content) == "" {
+		if strings.TrimSpace(msg.Content) == "" && thinkingText == "" {
 			return nil
 		}
-		return []anthropicContentBlock{{Type: "text", Text: msg.Content}}
+		blocks := make([]anthropicContentBlock, 0, 2)
+		if strings.TrimSpace(msg.Content) != "" {
+			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: msg.Content})
+		}
+		if thinkingText != "" {
+			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: thinkingText})
+		}
+		return blocks
 	}
 
 	index := buildAttachmentIndex(msg.Attachments)
@@ -389,10 +405,21 @@ func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []an
 	}
 
 	if !hasImage {
-		if strings.TrimSpace(msg.Content) == "" {
+		if strings.TrimSpace(msg.Content) == "" && thinkingText == "" {
 			return nil
 		}
-		return []anthropicContentBlock{{Type: "text", Text: msg.Content}}
+		blocks := make([]anthropicContentBlock, 0, 2)
+		if strings.TrimSpace(msg.Content) != "" {
+			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: msg.Content})
+		}
+		if thinkingText != "" {
+			blocks = append(blocks, anthropicContentBlock{Type: "text", Text: thinkingText})
+		}
+		return blocks
+	}
+
+	if thinkingText != "" {
+		parts = append(parts, anthropicContentBlock{Type: "text", Text: thinkingText})
 	}
 
 	return parts
@@ -461,6 +488,7 @@ type anthropicContentBlock struct {
 	Input     map[string]any        `json:"input,omitempty"`
 	ToolUseID string                `json:"tool_use_id,omitempty"`
 	Content   any                   `json:"content,omitempty"`
+	Signature string                `json:"signature,omitempty"`
 	Source    *anthropicImageSource `json:"source,omitempty"`
 }
 
@@ -491,9 +519,10 @@ type anthropicError struct {
 	Message string `json:"message"`
 }
 
-func parseAnthropicContent(blocks []anthropicContentBlock) (string, []ports.ToolCall) {
+func parseAnthropicContent(blocks []anthropicContentBlock) (string, []ports.ToolCall, ports.Thinking) {
 	var contentBuilder strings.Builder
 	var toolCalls []ports.ToolCall
+	var thinking ports.Thinking
 
 	for _, block := range blocks {
 		switch strings.ToLower(strings.TrimSpace(block.Type)) {
@@ -505,10 +534,16 @@ func parseAnthropicContent(blocks []anthropicContentBlock) (string, []ports.Tool
 				Name:      block.Name,
 				Arguments: normalizeToolArguments(block.Input),
 			})
+		case "thinking", "redacted_thinking":
+			appendThinkingPart(&thinking, ports.ThinkingPart{
+				Kind:      strings.ToLower(strings.TrimSpace(block.Type)),
+				Text:      block.Text,
+				Signature: block.Signature,
+			})
 		}
 	}
 
-	return contentBuilder.String(), toolCalls
+	return contentBuilder.String(), toolCalls, thinking
 }
 
 func isAnthropicOAuthToken(token string) bool {
