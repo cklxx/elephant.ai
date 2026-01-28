@@ -409,11 +409,17 @@ function partitionEvents(
       // Threads with anchors come before those without
       if (a.anchor && !b.anchor) return -1;
       if (!a.anchor && b.anchor) return 1;
-      // Fallback to subtask index
-      if (a.subtaskIndex !== b.subtaskIndex) {
+      // Fallback to subtask index (if both are valid/finite)
+      const aHasValidSubtask = Number.isFinite(a.subtaskIndex);
+      const bHasValidSubtask = Number.isFinite(b.subtaskIndex);
+      if (aHasValidSubtask && bHasValidSubtask && a.subtaskIndex !== b.subtaskIndex) {
         return a.subtaskIndex - b.subtaskIndex;
       }
-      return 0;
+      // If only one has valid subtask index, it comes first
+      if (aHasValidSubtask && !bHasValidSubtask) return -1;
+      if (!aHasValidSubtask && bHasValidSubtask) return 1;
+      // Final fallback: sort by arrival order (first seen first)
+      return a.firstArrival - b.firstArrival;
     });
 
   return {

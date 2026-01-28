@@ -132,8 +132,14 @@ function parseConcurrency(
     return undefined;
   }
 
+  // Handle Infinity subtaskIndex - use sequential assignment based on parsing order
+  // The caller should pass a valid sequential index when subtask_index is not available
+  const effectiveIndex = subtaskIndex !== undefined && Number.isFinite(subtaskIndex)
+    ? subtaskIndex + 1
+    : 1;
+
   return {
-    index: subtaskIndex !== undefined ? subtaskIndex + 1 : 1,
+    index: effectiveIndex,
     total,
   };
 }
