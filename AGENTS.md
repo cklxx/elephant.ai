@@ -65,12 +65,8 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 
 ## Memory Loading Guidance (First Run + Progressive Disclosure)
 
-### Memory sources (folders)
-Load memory from the following folders only; index files are index-only.
-- Error experience entries: `docs/error-experience/entries/`
-- Error experience summaries: `docs/error-experience/summary/entries/`
-- Good experience entries: `docs/good-experience/entries/`
-- Good experience summaries: `docs/good-experience/summary/entries/`
+### Memory sources
+Use: error entries + summaries, good entries + summaries, and `docs/memory/long-term.md`.
 
 ### First-run memory load (mandatory)
 On the first run in a repo session:
@@ -92,3 +88,8 @@ Only expand memory beyond the active set when:
 - Use summaries first; only open full entries if summaries are insufficient.
 - Prefer the most recent item when multiple entries discuss the same topic.
 - If two items are equally relevant, pick the one with higher recurrence across entries.
+
+### Long-term memory doc rules
+- `docs/memory/long-term.md` stores only durable, long-lived lessons.
+- Always update the `Updated:` timestamp to hour precision (`YYYY-MM-DD HH:00`).
+- On the **first memory load each day**, re-rank memories (recency/frequency/relevance), refresh the active set, and update the long-term doc if needed.
