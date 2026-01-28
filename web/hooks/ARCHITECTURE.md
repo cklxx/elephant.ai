@@ -10,11 +10,11 @@
              │                                │
              ▼                                ▼
 ┌────────────────────────┐      ┌────────────────────────────┐
-│   Data Fetching Hooks  │      │   Presentation Hooks       │
-│                        │      │                            │
-│  • useSSE              │      │  • useEventFormatter       │
-│  • useTaskExecution    │      │                            │
-│  • useTaskStatus       │      │                            │
+│   Data Fetching Hooks  │      │   Presentation Utilities   │
+│                        │      │   (Pure Functions)         │
+│  • useSSE              │      │                            │
+│  • useTaskExecution    │      │  • formatters.ts           │
+│  • useTaskStatus       │      │    (formatContent, etc.)   │
 │  • useCancelTask       │      │                            │
 └────────────┬───────────┘      └────────────┬───────────────┘
              │                                │
@@ -73,19 +73,20 @@ Dependencies:
   • apiClient methods
 ```
 
-### 3. Presentation Hooks
+### 3. Presentation Utilities
 **Purpose:** Format and display data consistently
 
 ```
-useEventFormatter
-├── Memoized formatters (useMemo)
-├── Custom format overrides
-├── Handles 15+ event types
-└── Configurable truncation
+formatters.ts (Pure Functions)
+├── formatContent(event) - Format based on event type
+├── formatArgs(args) - Format tool arguments
+├── formatResult(result) - Format tool results
+├── formatTimestamp(ts) - Format to HH:MM:SS
+└── Handles 15+ event types
 
 Dependencies:
-  • React: useMemo
-  • Pure functions only
+  • No React dependencies
+  • Can be used anywhere
 ```
 
 ## Hook Interaction Patterns
@@ -93,18 +94,18 @@ Dependencies:
 ### Pattern 1: Real-time Event Stream
 
 ```typescript
+import { formatContent } from '@/components/agent/EventLine/formatters';
+
 // Component connects to SSE and displays events
 function LiveEventStream() {
   // 1. Connect to SSE
   const { events, isConnected } = useSSE(sessionId);
 
-  // 2. Format events for display
-  const { formatContent, getEventStyle } = useEventFormatter();
-
+  // 2. Format events for display (pure function)
   return (
     <div>
       {events.map(event => (
-        <div className={getEventStyle(event.event_type)}>
+        <div>
           {formatContent(event)}
         </div>
       ))}
@@ -141,22 +142,17 @@ function TaskForm() {
 }
 ```
 
-### Pattern 3: Virtualized List with Custom Formatting
+### Pattern 3: Virtualized List with Formatting
 
 ```typescript
-// Component uses virtual scrolling + custom formatting
+import { formatContent } from '@/components/agent/EventLine/formatters';
+
+// Component uses virtual scrolling + formatting
 function VirtualEventList() {
   // 1. Get events from SSE
   const { events } = useSSE(sessionId);
 
-  // 2. Custom formatters
-  const { formatContent } = useEventFormatter({
-    formatOverrides: {
-      workflow.input.received: (e) => `🎯 ${e.task}`
-    }
-  });
-
-  // 3. Virtual scrolling (EventList component)
+  // 2. Virtual scrolling with formatted events (EventList component)
   return <EventList events={events} />;
 }
 ```
@@ -182,20 +178,20 @@ CPU: Low (event-driven)
 Network: Persistent connection (SSE)
 ```
 
-### useEventFormatter
+### Event Formatters (Pure Functions)
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Memoization Strategy                                    │
+│ Function Characteristics                                │
 ├─────────────────────────────────────────────────────────┤
-│ formatContent:    Memoized (deps: maxLength, overrides) │
-│ getEventStyle:    Memoized (no deps)                    │
-│ formatTimestamp:  Memoized (no deps)                    │
-│ formatArgs:       Memoized (no deps)                    │
-│ formatResult:     Memoized (deps: maxLength)            │
+│ formatContent:    Pure function, no side effects        │
+│ formatTimestamp:  Pure function, no side effects        │
+│ formatArgs:       Pure function, no side effects        │
+│ formatResult:     Pure function, no side effects        │
 └─────────────────────────────────────────────────────────┘
 
-Memory: O(1) - constant memoized functions
-CPU: Very low (functions only recalculated on deps change)
+Memory: Zero overhead - no state or memoization needed
+CPU: Very low (simple string operations)
+No React dependencies - can be used anywhere
 Rendering: ~30% faster with 1000+ events
 ```
 
@@ -244,29 +240,35 @@ if (sessionId) {
 }
 ```
 
-### useEventFormatter Best Practices
+### Event Formatter Best Practices
 
 ✅ **DO:**
-- Define formatOverrides outside component (or use useMemo)
-- Reuse hook instance across multiple event displays
-- Use for custom formatting needs
+- Import formatters from `components/agent/EventLine/formatters`
+- Use pure functions for simple formatting needs
+- Call formatters directly in render (no memoization needed)
 
 ❌ **DON'T:**
-- Don't create new overrides object on every render
-- Don't use if you just need the default formatting
+- Don't create wrapper hooks for simple formatting
+- Don't use React state for formatter configuration
 
 ```tsx
-// ✅ Good - stable overrides
-const formatOverrides = useMemo(() => ({
-  workflow.input.received: (e) => `🎯 ${e.task}`
-}), []);
+import { formatContent, formatTimestamp } from '@/components/agent/EventLine/formatters';
 
-const formatter = useEventFormatter({ formatOverrides });
+// ✅ Good - direct usage
+function EventItem({ event }) {
+  return (
+    <div>
+      <span>{formatTimestamp(event.timestamp)}</span>
+      <span>{formatContent(event)}</span>
+    </div>
+  );
+}
 
-// ❌ Bad - creates new object every render
-const formatter = useEventFormatter({
-  formatOverrides: { workflow.input.received: (e) => `🎯 ${e.task}` }
-});
+// ❌ Bad - unnecessary wrapper
+function EventItem({ event }) {
+  const formatted = useMemo(() => formatContent(event), [event]);
+  return <span>{formatted}</span>;
+}
 ```
 
 ### useTaskExecution Best Practices
@@ -380,36 +382,42 @@ function ConditionalEventStream() {
 
 ## Testing Strategy
 
-### Unit Testing Hooks
+### Unit Testing Formatters
 
 ```typescript
-import { renderHook, waitFor } from '@testing-library/react';
-import { useEventFormatter } from './useEventFormatter';
+import { formatContent, formatArgs, formatResult } from '@/components/agent/EventLine/formatters';
 
-describe('useEventFormatter', () => {
+describe('formatContent', () => {
   it('should format workflow.input.received events', () => {
-    const { result } = renderHook(() => useEventFormatter());
-
     const event = {
       event_type: 'workflow.input.received',
       task: 'Test task',
       timestamp: Date.now()
-    };
+    } as any;
 
-    expect(result.current.formatContent(event)).toBe('👤 User: Test task');
+    expect(formatContent(event)).toBe('Test task');
   });
 
-  it('should apply custom overrides', () => {
-    const { result } = renderHook(() =>
-      useEventFormatter({
-        formatOverrides: {
-          workflow.input.received: (e) => `Custom: ${e.task}`
-        }
-      })
-    );
+  it('should format tool started events', () => {
+    const event = {
+      event_type: 'workflow.tool.started',
+      tool_name: 'search',
+      arguments: { query: 'test' }
+    } as any;
 
-    const event = { event_type: 'workflow.input.received', task: 'Test' };
-    expect(result.current.formatContent(event)).toBe('Custom: Test');
+    expect(formatContent(event)).toContain('search');
+  });
+});
+
+describe('formatArgs', () => {
+  it('should format string args', () => {
+    expect(formatArgs('test')).toBe('test');
+  });
+
+  it('should format object args', () => {
+    const result = formatArgs({ key1: 'value1', key2: 'value2' });
+    expect(result).toContain('key1');
+    expect(result).toContain('key2');
   });
 });
 ```

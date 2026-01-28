@@ -12,7 +12,7 @@ Successfully completed Phase 3 of the frontend refactoring plan, focusing on hoo
 
 ### Key Achievements
 - ✅ Simplified `useSSE.ts` - eliminated circular dependency issue
-- ✅ Created `useEventFormatter.ts` - memoized event formatting
+- ✅ ~~Created `useEventFormatter.ts` - memoized event formatting~~ (REMOVED: consolidated to `components/agent/EventLine/formatters.ts`)
 - ✅ Optimized `useTaskExecution.ts` - added retry logic and lifecycle hooks
 - ✅ Enhanced `EventList.tsx` - improved scroll lock detection
 - ✅ Created comprehensive documentation

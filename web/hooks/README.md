@@ -31,38 +31,35 @@ const { events, isConnected, reconnect, clearEvents } = useSSE(sessionId, {
 
 ---
 
-### useEventFormatter
-**Location:** `hooks/useEventFormatter.ts`
+### Event Formatting (Pure Functions)
+**Location:** `components/agent/EventLine/formatters.ts`
 
-Memoized event formatting functions for consistent event display.
+Pure utility functions for formatting agent events. These functions are used by `EventLine` and `VirtualizedEventList` components.
 
-**Features:**
-- Memoized formatters prevent recalculation on every render
-- Customizable format overrides per event type
-- Configurable truncation length
-- Handles all agent event types
+**Functions:**
+- `formatContent(event)` - Format event content based on event type
+- `formatArgs(args)` - Format tool call arguments
+- `formatResult(result)` - Format tool call result
+- `formatTimestamp(timestamp)` - Format timestamp to HH:MM:SS
 
 **Usage:**
 ```tsx
-const { formatContent, getEventStyle, formatTimestamp } = useEventFormatter({
-  maxContentLength: 150,
-  formatOverrides: {
-    workflow.input.received: (event) => `🎯 ${event.task}`
-  }
-});
+import { formatContent, formatTimestamp } from '@/components/agent/EventLine/formatters';
 
-// In render:
-<span className={getEventStyle(event.event_type)}>
-  {formatContent(event)}
-</span>
+function MyComponent({ event }) {
+  return (
+    <span>
+      {formatTimestamp(event.timestamp)} - {formatContent(event)}
+    </span>
+  );
+}
 ```
 
-**Performance Impact:**
-- Memoized functions prevent recreation on every render
-- Reduces CPU usage when rendering large event lists
-- ~30% faster rendering with 1000+ events
-
-**Note:** The existing `EventLine` component uses pure utility functions in `formatters.ts` and `styles.ts`, which is also performant. Use `useEventFormatter` when you need custom formatting in other components or want to override default formats.
+**Features:**
+- No React dependencies - can be used anywhere
+- Simple and predictable - always returns same output for same input
+- 100 character default truncation
+- Handles all agent event types
 
 ---
 
@@ -151,30 +148,17 @@ cancelTask(taskId);
 
 ## Migration Guide
 
-### From inline event formatting to useEventFormatter:
+### Using Event Formatting Functions:
 
-**Before:**
+Import formatting utilities from `EventLine/formatters.ts`:
+
 ```tsx
+import { formatContent, formatTimestamp, formatArgs } from '@/components/agent/EventLine/formatters';
+
 function MyComponent({ event }) {
-  const getStyle = () => {
-    switch (event.event_type) {
-      case 'error': return 'text-destructive';
-      // ... more cases
-    }
-  };
-
-  return <span className={getStyle()}>{event.content}</span>;
-}
-```
-
-**After:**
-```tsx
-function MyComponent({ event }) {
-  const { formatContent, getEventStyle } = useEventFormatter();
-
   return (
-    <span className={getEventStyle(event.event_type)}>
-      {formatContent(event)}
+    <span>
+      {formatTimestamp(event.timestamp)} - {formatContent(event)}
     </span>
   );
 }
@@ -186,11 +170,6 @@ function MyComponent({ event }) {
 - Connection attempts: 95% reduction
 - Memory leaks: Eliminated
 - Reconnection stability: Improved
-
-### useEventFormatter Memoization
-- Render time (1000 events): 30% faster
-- Memory usage: Slightly lower (memoized functions)
-- Re-render prevention: Yes
 
 ### useTaskExecution Retry Logic
 - Network failure recovery: 3 automatic retries
@@ -213,29 +192,32 @@ function MyComponent({ event }) {
 ## Testing Recommendations
 
 ```tsx
-// Example test for useEventFormatter
-import { renderHook } from '@testing-library/react';
-import { useEventFormatter } from '@/hooks/useEventFormatter';
+// Example test for event formatting utilities
+import { formatContent, formatArgs, formatResult } from '@/components/agent/EventLine/formatters';
 
-describe('useEventFormatter', () => {
+describe('formatContent', () => {
   it('should format workflow.input.received events', () => {
-    const { result } = renderHook(() => useEventFormatter());
-    const event = { event_type: 'workflow.input.received', task: 'Test task' };
-
-    expect(result.current.formatContent(event)).toBe('👤 User: Test task');
+    const event = { event_type: 'workflow.input.received', task: 'Test task' } as any;
+    expect(formatContent(event)).toBe('Test task');
   });
 
-  it('should apply custom overrides', () => {
-    const { result } = renderHook(() =>
-      useEventFormatter({
-        formatOverrides: {
-          workflow.input.received: (e) => `Custom: ${e.task}`
-        }
-      })
-    );
+  it('should format tool started events', () => {
+    const event = {
+      event_type: 'workflow.tool.started',
+      tool_name: 'search',
+      arguments: { query: 'test' }
+    } as any;
+    expect(formatContent(event)).toContain('search');
+  });
+});
 
-    const event = { event_type: 'workflow.input.received', task: 'Test' };
-    expect(result.current.formatContent(event)).toBe('Custom: Test');
+describe('formatArgs', () => {
+  it('should format simple string args', () => {
+    expect(formatArgs('test')).toBe('test');
+  });
+
+  it('should format object args', () => {
+    expect(formatArgs({ key1: 'value1', key2: 'value2' })).toContain('key1');
   });
 });
 ```
