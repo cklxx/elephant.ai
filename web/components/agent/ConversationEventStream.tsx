@@ -207,6 +207,15 @@ function parseEventTimestamp(event: AnyAgentEvent): number | null {
 }
 
 function shouldSkipEvent(event: AnyAgentEvent): boolean {
+  // Skip prepare node events - these are internal setup events
+  // workflow.node.started with node_id="prepare" should be skipped
+  if (
+    event.event_type === "workflow.node.started" &&
+    (event as any).node_id === "prepare"
+  ) {
+    return true;
+  }
+
   if (event.agent_level === "subagent") {
     return false;
   }
