@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type {
   AnyAgentEvent,
   WorkflowNodeOutputDeltaEvent,
@@ -48,7 +48,7 @@ export function ConversationEventStream({
   optimisticMessages = [],
 }: ConversationEventStreamProps) {
   const activeTaskId = useMemo(() => resolveActiveTaskId(events), [events]);
-  const { displayEvents, subagentThreadsByParentId, pendingToolCalls, pendingNodes } = useMemo(
+  const { displayEvents, allSubagentThreads, pendingToolCalls, pendingNodes } = useMemo(
     () =>
       partitionEvents(events, {
         includeDeltas: isRunning,
@@ -60,6 +60,9 @@ export function ConversationEventStream({
     () => buildDisplayEntriesWithClarifyTimeline(displayEvents),
     [displayEvents],
   );
+
+  // Track which subagent threads have been rendered
+  const renderedThreadsRef = useRef<Set<string>>(new Set());
 
   const resolvePairedToolStart = useMemo(() => {
     return (event: AnyAgentEvent) => {
@@ -138,11 +141,21 @@ export function ConversationEventStream({
           const event = entry.event;
           const key = getStableEventKey(event, index);
 
-          // Check if this is a subagent tool call that should show cards
-          // Use task_id (which is the parent_task_id of subagent events) to find threads
-          const parentTaskId = isSubagentToolEvent(event) && typeof event.task_id === "string" ? event.task_id : null;
-          const subagentThreads = parentTaskId ? subagentThreadsByParentId.get(parentTaskId) : null;
-          const hasSubagentCards = subagentThreads && subagentThreads.length > 0;
+          // Check if this is a subagent tool call that should show a card
+          // Assign unrendered threads to tool calls in order
+          let subagentThreadForThisTool: SubagentThread | null = null;
+          if (isSubagentToolEvent(event)) {
+            // Find first unrendered thread
+            for (const thread of allSubagentThreads) {
+              if (!renderedThreadsRef.current.has(thread.key)) {
+                subagentThreadForThisTool = thread;
+                renderedThreadsRef.current.add(thread.key);
+                break;
+              }
+            }
+          }
+          const hasSubagentCard = subagentThreadForThisTool !== null && subagentThreadForThisTool.events.length > 0;
+
           return (
             <div
               key={key}
@@ -153,20 +166,20 @@ export function ConversationEventStream({
                 event={event}
                 pairedToolStartEvent={resolvePairedToolStart(event)}
               />
-              {hasSubagentCards && subagentThreads!.map((thread) => (
-                <div key={thread.key} className="mt-2 mb-2" data-testid="subagent-card-container">
+              {hasSubagentCard && subagentThreadForThisTool && (
+                <div className="mt-2 mb-2" data-testid="subagent-card-container">
                   <AgentCard
                     data={subagentThreadToCardData(
-                      thread.key,
-                      thread.context,
-                      thread.events,
-                      thread.subtaskIndex,
+                      subagentThreadForThisTool.key,
+                      subagentThreadForThisTool.context,
+                      subagentThreadForThisTool.events,
+                      subagentThreadForThisTool.subtaskIndex,
                     )}
                     resolvePairedToolStart={resolvePairedToolStart}
                     className="mx-0 my-0"
                   />
                 </div>
-              ))}
+              )}
             </div>
           );
         })}
@@ -186,6 +199,27 @@ export function ConversationEventStream({
             />
           </div>
         ))}
+        {/* Render any unrendered subagent threads at the end */}
+        {allSubagentThreads
+          .filter((thread) => !renderedThreadsRef.current.has(thread.key))
+          .map((thread) => (
+            <div
+              key={`unrendered-${thread.key}`}
+              className="mt-2 mb-2"
+              data-testid="subagent-card-container"
+            >
+              <AgentCard
+                data={subagentThreadToCardData(
+                  thread.key,
+                  thread.context,
+                  thread.events,
+                  thread.subtaskIndex,
+                )}
+                resolvePairedToolStart={resolvePairedToolStart}
+                className="mx-0 my-0"
+              />
+            </div>
+          ))}
         {isRunning && (
           <div
             className="mt-4 flex items-center text-muted-foreground"
@@ -257,7 +291,7 @@ function partitionEvents(
   options: { includeDeltas: boolean; activeTaskId: string | null },
 ): {
   displayEvents: AnyAgentEvent[];
-  subagentThreadsByParentId: Map<string, SubagentThread[]>;
+  allSubagentThreads: SubagentThread[];
   pendingToolCalls: Map<string, WorkflowToolStartedEvent>;
   pendingNodes: Map<string, AnyAgentEvent>;
 } {
@@ -369,30 +403,15 @@ function partitionEvents(
     }
   });
 
-  // Group threads by parent_task_id for lookup by anchor events
-  // Store ALL threads for each parent_task_id (there can be multiple subagent calls)
-  const subagentThreadsByParentId = new Map<string, SubagentThread[]>();
-  Array.from(threads.values()).forEach((thread) => {
-    // Extract parent_task_id from thread key (format: parentTaskId:taskId or parentTaskId:call:callId)
-    const parentTaskId = thread.key.split(':')[0];
-    if (!parentTaskId) return;
-
-    const sortedThread = {
-      ...thread,
-      events: sortSubagentEvents(thread.events, arrivalOrder),
-    };
-
-    const existing = subagentThreadsByParentId.get(parentTaskId);
-    if (!existing) {
-      subagentThreadsByParentId.set(parentTaskId, [sortedThread]);
-    } else {
-      existing.push(sortedThread);
-    }
-  });
+  // Sort all thread events
+  const allSubagentThreads = Array.from(threads.values()).map((thread) => ({
+    ...thread,
+    events: sortSubagentEvents(thread.events, arrivalOrder),
+  }));
 
   return {
     displayEvents,
-    subagentThreadsByParentId,
+    allSubagentThreads,
     pendingToolCalls,
     pendingNodes,
   };
