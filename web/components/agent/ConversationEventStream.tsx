@@ -1,10 +1,8 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo } from "react";
 import type {
   AnyAgentEvent,
-  WorkflowNodeOutputDeltaEvent,
-  WorkflowToolCompletedEvent,
   WorkflowToolStartedEvent,
 } from "@/lib/types";
 import { isEventType } from "@/lib/events/matching";
@@ -16,14 +14,10 @@ import {
   getSubagentContext,
 } from "./EventLine";
 import { isSubagentLike } from "@/lib/subagent";
-import { ClarifyTimeline, type ClarifyTaskGroup } from "./ClarifyTimeline";
-import { isOrchestratorRetryMessage } from "@/lib/utils";
 import { AgentCard } from "./AgentCard";
 import { subagentThreadToCardData } from "./AgentCard/utils";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { cn } from "@/lib/utils";
-import Image from "next/image";
-import { AlexWordmark } from "@/components/ui/alex-wordmark";
 
 interface ConversationEventStreamProps {
   events: AnyAgentEvent[];
@@ -33,7 +27,6 @@ interface ConversationEventStreamProps {
   reconnectAttempts: number;
   onReconnect: () => void;
   isRunning?: boolean;
-  /** Optimistic messages to display before backend confirmation */
   optimisticMessages?: Array<{ id: string; content: string; timestamp: string }>;
 }
 
@@ -47,38 +40,18 @@ export function ConversationEventStream({
   isRunning = false,
   optimisticMessages = [],
 }: ConversationEventStreamProps) {
-  const activeTaskId = useMemo(() => resolveActiveTaskId(events), [events]);
-  const { displayEvents, allSubagentThreads, pendingToolCalls, pendingNodes } = useMemo(
-    () =>
-      partitionEvents(events, {
-        includeDeltas: isRunning,
-        activeTaskId,
-      }),
-    [events, isRunning, activeTaskId],
-  );
-  const displayEntries = useMemo(
-    () => buildDisplayEntriesWithClarifyTimeline(displayEvents),
-    [displayEvents],
-  );
+  const {
+    mainStream,
+    subagentGroups,
+    pendingTools,
+    pendingNodes,
+    resolvePairedToolStart,
+  } = useMemo(() => partitionEvents(events, isRunning), [events, isRunning]);
 
-
-  const resolvePairedToolStart = useMemo(() => {
-    return (event: AnyAgentEvent) => {
-      if (!isEventType(event, "workflow.tool.completed")) {
-        return undefined;
-      }
-      const callId = event.call_id;
-      const sessionId = typeof event.session_id === "string" ? event.session_id : "";
-      if (!callId) {
-        return undefined;
-      }
-      return pendingToolCalls.get(`${sessionId}:${callId}`);
-    };
-  }, [pendingToolCalls]);
-
-  const combinedEntries = useMemo(
-    () => buildInterleavedEntries(displayEntries, allSubagentThreads),
-    [displayEntries, allSubagentThreads]
+  // Build unified timeline with subagent groups attached to triggers
+  const timeline = useMemo(
+    () => buildUnifiedTimeline(mainStream, subagentGroups),
+    [mainStream, subagentGroups]
   );
 
   if (!isConnected || error) {
@@ -98,9 +71,8 @@ export function ConversationEventStream({
       className="flex flex-col w-full max-w-4xl mx-auto pb-12"
       data-testid="conversation-stream"
     >
-
       <div className="flex flex-col" data-testid="conversation-events">
-        {/* Render optimistic messages (user messages waiting for backend confirmation) */}
+        {/* Optimistic messages */}
         {optimisticMessages.map((msg) => (
           <div
             key={`optimistic-${msg.id}`}
@@ -119,84 +91,51 @@ export function ConversationEventStream({
           </div>
         ))}
 
-        {combinedEntries.map((entry, index) => {
-          if (entry.kind === "clarifyTimeline") {
-            return (
-              <div
-                key={`clarify-timeline-${entry.ts}-${index}`}
-                className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
-                data-testid="clarify-timeline-entry"
-              >
-                <ClarifyTimeline
-                  groups={entry.groups}
-                  isRunning={isRunning}
-                  resolvePairedToolStart={resolvePairedToolStart}
-                />
-              </div>
-            );
-          }
+        {/* Unified timeline */}
+        {timeline.map((entry, index) => (
+          <TimelineEntry
+            key={getEntryKey(entry, index)}
+            entry={entry}
+            resolvePairedToolStart={resolvePairedToolStart}
+          />
+        ))}
 
-          if (entry.kind === "subagentGroup") {
-            const { threads } = entry;
-            return (
-              <div
-                key={`subagent-group-${threads.map(t => t.key).join('-')}`}
-                className="-mx-2 px-2 my-2 flex flex-col gap-3"
-                data-testid="subagent-thread-group"
-              >
-                {threads.map((thread) => (
-                  <div
-                    key={thread.key}
-                    className="mt-2 mb-2"
-                    data-testid="subagent-card-container"
-                  >
-                    <AgentCard
-                      data={subagentThreadToCardData(
-                        thread.key,
-                        thread.context,
-                        thread.events,
-                        thread.subtaskIndex,
-                      )}
-                      resolvePairedToolStart={resolvePairedToolStart}
-                      className="mx-0 my-0"
-                    />
-                  </div>
-                ))}
-              </div>
-            );
-          }
-
-          const event = entry.event;
-          const key = getStableEventKey(event, index);
-
-          return (
-            <div
-              key={key}
-              className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
-            >
-              <EventLine
-                event={event}
-                pairedToolStartEvent={resolvePairedToolStart(event)}
-              />
-            </div>
-          );
-        })}
-        {/* Render pending tool calls (running state) */}
-        {Array.from(pendingToolCalls.values()).map((pendingTool) => (
+        {/* Pending running states */}
+        {Array.from(pendingTools.values()).map((tool) => (
           <div
-            key={`pending-tool-${pendingTool.call_id}`}
-            className={cn("py-1 pl-2 border-primary/10", "group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2")}
+            key={`pending-tool-${tool.call_id}`}
+            className={cn(
+              "py-1 pl-2 border-primary/10",
+              "group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
+            )}
             data-testid="pending-tool-call"
           >
             <ToolOutputCard
-              toolName={pendingTool.tool_name}
-              parameters={pendingTool.arguments}
-              timestamp={pendingTool.timestamp}
-              callId={pendingTool.call_id}
+              toolName={tool.tool_name}
+              parameters={tool.arguments}
+              timestamp={tool.timestamp}
+              callId={tool.call_id}
               status="running"
             />
           </div>
         ))}
+
+        {Array.from(pendingNodes.values()).map((node) => (
+          <div
+            key={`pending-node-${(node as any).node_id || node.timestamp}`}
+            className={cn(
+              "py-1 pl-2 border-primary/10",
+              "group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
+            )}
+            data-testid="pending-node"
+          >
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <LoadingDots />
+              <span>Running: {(node as any).node_id || "node"}</span>
+            </div>
+          </div>
+        ))}
+
         {isRunning && (
           <div
             className="mt-4 flex items-center text-muted-foreground"
@@ -212,499 +151,351 @@ export function ConversationEventStream({
   );
 }
 
+// ============================================================================
+// Timeline Entry Component
+// ============================================================================
+
+function TimelineEntry({
+  entry,
+  resolvePairedToolStart,
+}: {
+  entry: TimelineEntry;
+  resolvePairedToolStart: (event: AnyAgentEvent) => WorkflowToolStartedEvent | undefined;
+}) {
+  switch (entry.kind) {
+    case "subagentGroup": {
+      if (!entry.trigger) {
+        // Fallback: render only subagent cards without trigger
+        return (
+          <div
+            className="-mx-2 px-2 my-2 flex flex-col gap-3"
+            data-testid="subagent-thread-group"
+          >
+            <div className="pl-4 border-l-2 border-muted">
+              {entry.threads.map((thread) => (
+                <div
+                  key={thread.key}
+                  className="mt-2 mb-2"
+                  data-testid="subagent-card-container"
+                >
+                  <AgentCard
+                    data={subagentThreadToCardData(
+                      thread.key,
+                      thread.context,
+                      thread.events,
+                      thread.subtaskIndex,
+                    )}
+                    resolvePairedToolStart={resolvePairedToolStart}
+                    className="mx-0 my-0"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div
+          className="-mx-2 px-2 my-2 flex flex-col gap-3"
+          data-testid="subagent-thread-group"
+        >
+          {/* Trigger tool call */}
+          <div className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2">
+            <EventLine
+              event={entry.trigger}
+              pairedToolStartEvent={resolvePairedToolStart(entry.trigger)}
+            />
+          </div>
+
+          {/* Subagent cards */}
+          <div className="pl-4 border-l-2 border-muted">
+            {entry.threads.map((thread) => (
+              <div
+                key={thread.key}
+                className="mt-2 mb-2"
+                data-testid="subagent-card-container"
+              >
+                <AgentCard
+                  data={subagentThreadToCardData(
+                    thread.key,
+                    thread.context,
+                    thread.events,
+                    thread.subtaskIndex,
+                  )}
+                  resolvePairedToolStart={resolvePairedToolStart}
+                  className="mx-0 my-0"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    case "event":
+    default:
+      return (
+        <div className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2">
+          <EventLine
+            event={entry.event}
+            pairedToolStartEvent={resolvePairedToolStart(entry.event)}
+          />
+        </div>
+      );
+  }
+}
+
+// ============================================================================
+// Timeline Builder
+// ============================================================================
+
+function buildUnifiedTimeline(
+  mainStream: AnyAgentEvent[],
+  subagentGroups: Map<string, SubagentThread[]>,
+): TimelineEntry[] {
+  const result: TimelineEntry[] = [];
+  const assignedGroups = new Set<string>();
+
+  for (const event of mainStream) {
+    // Check if this is a subagent trigger
+    if (isSubagentTrigger(event)) {
+      const parentTaskId = event.task_id;
+      if (!parentTaskId) continue;
+
+      const group = subagentGroups.get(parentTaskId);
+      if (group && !assignedGroups.has(parentTaskId)) {
+        // Create subagent group entry
+        result.push({
+          kind: "subagentGroup",
+          trigger: event,
+          threads: group,
+          ts: Date.parse(event.timestamp ?? "") || 0,
+        });
+        assignedGroups.add(parentTaskId);
+        continue;
+      }
+    }
+
+    // Regular event
+    result.push({
+      kind: "event",
+      event,
+      ts: Date.parse(event.timestamp ?? "") || 0,
+    });
+  }
+
+  // Add any unassigned groups at the end (fallback)
+  subagentGroups.forEach((threads, parentTaskId) => {
+    if (!assignedGroups.has(parentTaskId)) {
+      const earliestTs = threads.reduce((min, t) => {
+        return t.firstSeenAt !== null && t.firstSeenAt < min ? t.firstSeenAt : min;
+      }, Number.POSITIVE_INFINITY);
+
+      result.push({
+        kind: "subagentGroup",
+        trigger: null,
+        threads,
+        ts: earliestTs === Number.POSITIVE_INFINITY ? Date.now() : earliestTs,
+      });
+    }
+  });
+
+  return result;
+}
+
+function isSubagentTrigger(event: AnyAgentEvent): boolean {
+  return (
+    isEventType(event, "workflow.tool.completed") &&
+    "tool_name" in event &&
+    typeof event.tool_name === "string" &&
+    event.tool_name.toLowerCase() === "subagent"
+  );
+}
+
+function getEntryKey(entry: TimelineEntry, index: number): string {
+  if (entry.kind === "subagentGroup") {
+    if (entry.trigger) {
+      const id = (entry.trigger as any).call_id || entry.trigger.task_id || index;
+      return `subagent-group-${id}`;
+    }
+    return `subagent-group-unassigned-${index}`;
+  }
+  return `event-${entry.event.event_type}-${index}`;
+}
+
+// ============================================================================
+// Types
+// ============================================================================
+
 interface SubagentThread {
   key: string;
   context: SubagentContext;
   events: AnyAgentEvent[];
   subtaskIndex: number;
   firstSeenAt: number | null;
-  firstArrival: number;
 }
 
-function parseEventTimestamp(event: AnyAgentEvent): number | null {
-  const ts = Date.parse(event.timestamp ?? "");
-  return Number.isFinite(ts) ? ts : null;
-}
+type TimelineEntry =
+  | { kind: "event"; event: AnyAgentEvent; ts: number }
+  | { kind: "subagentGroup"; trigger: AnyAgentEvent | null; threads: SubagentThread[]; ts: number };
 
-function shouldSkipEvent(event: AnyAgentEvent): boolean {
-  // Skip prepare node events - these are internal setup events
-  if (
-    event.event_type === "workflow.node.started" &&
-    (event as any).node_id === "prepare"
-  ) {
-    return true;
-  }
-
-  // Skip diagnostic events
-  if (event.event_type.startsWith("workflow.diagnostic")) {
-    return true;
-  }
-
-  // Skip node lifecycle events (started/completed) - only show summaries and results
-  if (
-    event.event_type === "workflow.node.started" ||
-    event.event_type === "workflow.node.completed"
-  ) {
-    return true;
-  }
-
-  // Skip tool started events - they are merged with completed events or shown as pending
-  // But keep subagent tool started events (they should be shown in the subagent card)
-  if (event.event_type === "workflow.tool.started" && event.agent_level !== "subagent") {
-    return true;
-  }
-
-  // Subagent internal events are shown in the subagent card, not in main stream
-  // But subagent tool calls (anchor events) are shown
-  if (event.agent_level === "subagent") {
-    return !isSubagentToolEvent(event);
-  }
-
-  return false;
-}
-
-function partitionEvents(
-  events: AnyAgentEvent[],
-  options: { includeDeltas: boolean; activeTaskId: string | null },
-): {
-  displayEvents: AnyAgentEvent[];
-  allSubagentThreads: SubagentThread[];
-  pendingToolCalls: Map<string, WorkflowToolStartedEvent>;
+interface PartitionResult {
+  mainStream: AnyAgentEvent[];
+  subagentGroups: Map<string, SubagentThread[]>;
+  pendingTools: Map<string, WorkflowToolStartedEvent>;
   pendingNodes: Map<string, AnyAgentEvent>;
-} {
-  const displayEvents: AnyAgentEvent[] = [];
-  const threads = new Map<string, SubagentThread>();
-  const arrivalOrder = new WeakMap<AnyAgentEvent, number>();
+  resolvePairedToolStart: (event: AnyAgentEvent) => WorkflowToolStartedEvent | undefined;
+}
+
+// ============================================================================
+// Event Partitioning
+// ============================================================================
+
+function partitionEvents(events: AnyAgentEvent[], isRunning: boolean): PartitionResult {
+  const mainStream: AnyAgentEvent[] = [];
+  const subagentThreads = new Map<string, SubagentThread>();
   const startedTools = new Map<string, WorkflowToolStartedEvent>();
   const completedToolIds = new Set<string>();
   const startedNodes = new Map<string, AnyAgentEvent>();
   const completedNodeIds = new Set<string>();
-  let arrival = 0;
-  const includeDeltas = options.includeDeltas;
-  const activeTaskId = options.activeTaskId;
 
-  // First pass: collect all started and completed tool/node calls
+  // First pass: track lifecycle states
   events.forEach((event) => {
+    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+
     if (isEventType(event, "workflow.tool.started")) {
-      const key = `${event.session_id}:${event.call_id}`;
-      startedTools.set(key, event as WorkflowToolStartedEvent);
+      startedTools.set(`${sessionId}:${event.call_id}`, event);
     } else if (isEventType(event, "workflow.tool.completed")) {
-      const key = `${event.session_id}:${event.call_id}`;
-      completedToolIds.add(key);
+      completedToolIds.add(`${sessionId}:${event.call_id}`);
     } else if (isEventType(event, "workflow.node.started")) {
-      const nodeId = (event as any).node_id;
-      const taskId = event.task_id || "";
-      // Use node_id + task_id for reliable matching; skip if no identifier
-      const key = nodeId ? `${event.session_id}:${taskId}:${nodeId}` : `${event.session_id}:${taskId}:default`;
-      startedNodes.set(key, event);
+      const nodeId = (event as any).node_id || "";
+      startedNodes.set(`${sessionId}:${nodeId}`, event);
     } else if (isEventType(event, "workflow.node.completed")) {
-      const nodeId = (event as any).node_id;
-      const taskId = event.task_id || "";
-      const key = nodeId ? `${event.session_id}:${taskId}:${nodeId}` : `${event.session_id}:${taskId}:default`;
-      completedNodeIds.add(key);
+      const nodeId = (event as any).node_id || "";
+      completedNodeIds.add(`${sessionId}:${nodeId}`);
     }
   });
 
-  // Find pending tool calls (started but not completed)
-  const pendingToolCalls = new Map<string, WorkflowToolStartedEvent>();
+  // Find pending (started but not completed)
+  const pendingTools = new Map<string, WorkflowToolStartedEvent>();
   startedTools.forEach((started, key) => {
-    if (!completedToolIds.has(key)) {
-      pendingToolCalls.set(key, started);
-    }
+    if (!completedToolIds.has(key)) pendingTools.set(key, started);
   });
 
-  // Find pending node calls (started but not completed)
   const pendingNodes = new Map<string, AnyAgentEvent>();
   startedNodes.forEach((started, key) => {
-    if (!completedNodeIds.has(key)) {
-      pendingNodes.set(key, started);
-    }
+    if (!completedNodeIds.has(key)) pendingNodes.set(key, started);
   });
 
+  // Create resolve function
+  const resolvePairedToolStart = (event: AnyAgentEvent): WorkflowToolStartedEvent | undefined => {
+    if (!isEventType(event, "workflow.tool.completed")) return undefined;
+    const callId = event.call_id;
+    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+    if (!callId) return undefined;
+    return startedTools.get(`${sessionId}:${callId}`);
+  };
+
+  // Second pass: build display streams
   events.forEach((event) => {
-    arrival += 1;
-    arrivalOrder.set(event, arrival);
-
-    const eventTs = parseEventTimestamp(event);
-
-    // Handle subagent events - aggregate them into threads
+    // Subagent events → aggregate into threads
     if (isSubagentLike(event)) {
       const key = getSubagentKey(event);
       const context = getSubagentContext(event);
-      const subtaskIndex = getSubtaskIndex(event);
 
-      if (!threads.has(key)) {
-        threads.set(key, {
+      if (!subagentThreads.has(key)) {
+        subagentThreads.set(key, {
           key,
           context,
           events: [],
-          subtaskIndex,
-          firstSeenAt: eventTs,
-          firstArrival: arrival,
+          subtaskIndex: getSubtaskIndex(event),
+          firstSeenAt: parseEventTimestamp(event),
         });
       }
 
-      const thread = threads.get(key)!;
+      const thread = subagentThreads.get(key)!;
       thread.context = mergeSubagentContext(thread.context, context);
-      if (eventTs !== null && (thread.firstSeenAt === null || eventTs < thread.firstSeenAt)) {
-        thread.firstSeenAt = eventTs;
-      }
-      if (arrival < thread.firstArrival) {
-        thread.firstArrival = arrival;
-      }
 
-      // Add displayable subagent events to the thread
-      if (shouldDisplaySubagentEvent(event)) {
+      if (shouldDisplayInSubagentCard(event)) {
         thread.events.push(event);
-      }
-    }
-
-    // Handle delta events - merge if possible
-    if (isEventType(event, "workflow.node.output.delta")) {
-      if (
-        includeDeltas &&
-        event.agent_level !== "subagent" &&
-        (activeTaskId === null ||
-          (typeof event.task_id === "string" && event.task_id === activeTaskId))
-      ) {
-        if (!maybeMergeDeltaEvent(displayEvents, event)) {
-          displayEvents.push(event);
-        }
       }
       return;
     }
 
-    // Add non-skipped events to display
-    if (!shouldSkipEvent(event)) {
-      displayEvents.push(event);
+    // Core agent events → main stream
+    if (shouldDisplayInMainStream(event, isRunning)) {
+      mainStream.push(event);
     }
-  });
-
-  // Sort all thread events
-  const allSubagentThreads = Array.from(threads.values()).map((thread) => ({
-    ...thread,
-    events: sortSubagentEvents(thread.events, arrivalOrder),
-  }));
-
-  return {
-    displayEvents,
-    allSubagentThreads,
-    pendingToolCalls,
-    pendingNodes,
-  };
-}
-
-function maybeMergeDeltaEvent(
-  events: AnyAgentEvent[],
-  incoming: AnyAgentEvent,
-): boolean {
-  if (!isEventType(incoming, "workflow.node.output.delta")) {
-    return false;
-  }
-
-  const delta = incoming.delta;
-  if (typeof delta !== "string" || delta.length === 0) {
-    const last = events[events.length - 1];
-    if (last && isEventType(last, "workflow.node.output.delta")) {
-      const merged: WorkflowNodeOutputDeltaEvent = {
-        ...last,
-        ...incoming,
-        delta: last.delta ?? "",
-        timestamp: incoming.timestamp ?? last.timestamp,
-      };
-      events[events.length - 1] = merged;
-    }
-    return true;
-  }
-
-  const last = events[events.length - 1];
-  if (!last || !isEventType(last, "workflow.node.output.delta")) {
-    return false;
-  }
-
-  const lastNodeId = last.node_id ?? "";
-  const incomingNodeId = incoming.node_id ?? "";
-
-  if ((lastNodeId || incomingNodeId) && lastNodeId !== incomingNodeId) {
-    return false;
-  }
-  if (last.session_id !== incoming.session_id) {
-    return false;
-  }
-  if ((last.task_id ?? "") !== (incoming.task_id ?? "")) {
-    return false;
-  }
-  if ((last.parent_task_id ?? "") !== (incoming.parent_task_id ?? "")) {
-    return false;
-  }
-  if ((last.agent_level ?? "") !== (incoming.agent_level ?? "")) {
-    return false;
-  }
-
-  const MAX_DELTA_CHARS = 10_000;
-  const mergedDeltaRaw = `${last.delta ?? ""}${delta}`;
-  const mergedDelta =
-    mergedDeltaRaw.length > MAX_DELTA_CHARS
-      ? mergedDeltaRaw.slice(-MAX_DELTA_CHARS)
-      : mergedDeltaRaw;
-  const merged: WorkflowNodeOutputDeltaEvent = {
-    ...last,
-    ...incoming,
-    delta: mergedDelta,
-    timestamp: incoming.timestamp ?? last.timestamp,
-  };
-
-  events[events.length - 1] = merged;
-  return true;
-}
-
-type DisplayEntry =
-  | { kind: "event"; event: AnyAgentEvent }
-  | { kind: "clarifyTimeline"; groups: ClarifyTaskGroup[]; ts: number };
-
-type CombinedEntry =
-  | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
-  | { kind: "clarifyTimeline"; groups: ClarifyTaskGroup[]; ts: number; order: number }
-  | { kind: "subagentGroup"; threads: SubagentThread[]; ts: number; order: number };
-
-function buildInterleavedEntries(
-  displayEntries: DisplayEntry[],
-  subagentThreads: SubagentThread[],
-): CombinedEntry[] {
-  // Create entries from display events
-  const eventEntries: CombinedEntry[] = displayEntries.map((entry, index) => {
-    if (entry.kind === "event") {
-      return {
-        kind: "event",
-        event: entry.event,
-        ts: Date.parse(entry.event.timestamp ?? "") || 0,
-        order: index,
-      };
-    }
-    return {
-      kind: "clarifyTimeline",
-      groups: entry.groups,
-      ts: entry.ts,
-      order: index,
-    };
   });
 
   // Group subagent threads by parent_task_id
-  const groupedThreads = new Map<string, SubagentThread[]>();
+  const subagentGroups = new Map<string, SubagentThread[]>();
   subagentThreads.forEach((thread) => {
-    const parentTaskId = thread.key.split(':')[0];
+    const parentTaskId = thread.key.split(":")[0];
     if (!parentTaskId) return;
 
-    const existing = groupedThreads.get(parentTaskId);
-    if (!existing) {
-      groupedThreads.set(parentTaskId, [thread]);
+    const group = subagentGroups.get(parentTaskId);
+    if (!group) {
+      subagentGroups.set(parentTaskId, [thread]);
     } else {
-      existing.push(thread);
+      group.push(thread);
     }
   });
 
-  // Create entries from grouped threads
-  const groupEntries: CombinedEntry[] = Array.from(groupedThreads.entries()).map(
-    ([parentTaskId, threads], index) => {
-      // Get earliest timestamp from all threads in this group
-      let earliestTs = Number.POSITIVE_INFINITY;
-      threads.forEach((t) => {
-        if (t.firstSeenAt !== null && t.firstSeenAt < earliestTs) {
-          earliestTs = t.firstSeenAt;
-        }
-      });
-      return {
-        kind: "subagentGroup" as const,
-        threads,
-        ts: earliestTs === Number.POSITIVE_INFINITY ? Date.now() : earliestTs,
-        order: index,
-      };
-    }
-  );
-
-  // Merge both lists by timestamp
-  const result: CombinedEntry[] = [];
-  let eventIdx = 0;
-  let groupIdx = 0;
-
-  while (eventIdx < eventEntries.length || groupIdx < groupEntries.length) {
-    const nextEvent = eventEntries[eventIdx];
-    const nextGroup = groupEntries[groupIdx];
-
-    if (!nextGroup) {
-      result.push(nextEvent);
-      eventIdx++;
-    } else if (!nextEvent) {
-      result.push(nextGroup);
-      groupIdx++;
-    } else if (nextGroup.ts <= nextEvent.ts) {
-      result.push(nextGroup);
-      groupIdx++;
-    } else {
-      result.push(nextEvent);
-      eventIdx++;
-    }
-  }
-
-  return result;
+  return { mainStream, subagentGroups, pendingTools, pendingNodes, resolvePairedToolStart };
 }
 
-function resolveActiveTaskId(events: AnyAgentEvent[]): string | null {
-  let activeTaskId: string | null = null;
+// ============================================================================
+// Display Rules
+// ============================================================================
 
-  events.forEach((event) => {
-    if (event.event_type === "workflow.input.received") {
-      if (event.agent_level !== "core") {
-        return;
-      }
-      if (typeof event.task_id === "string" && event.task_id.trim()) {
-        activeTaskId = event.task_id;
-      }
-      return;
-    }
-    if (!activeTaskId) {
-      return;
-    }
-    if (event.agent_level !== "core") {
-      return;
-    }
-    if (event.task_id !== activeTaskId) {
-      return;
-    }
-    if (
-      isEventType(event, "workflow.result.final", "workflow.result.cancelled") ||
-      isEventType(event, "workflow.node.failed")
-    ) {
-      activeTaskId = null;
-    }
-  });
+function shouldDisplayInMainStream(event: AnyAgentEvent, isRunning: boolean): boolean {
+  // Always show user input
+  if (isEventType(event, "workflow.input.received")) return true;
 
-  if (activeTaskId) {
-    return activeTaskId;
+  // Show AI output (deltas only when running and from core agent)
+  if (isEventType(event, "workflow.node.output.delta")) {
+    return isRunning && event.agent_level !== "subagent";
   }
 
-  for (let i = events.length - 1; i >= 0; i -= 1) {
-    const event = events[i];
-    if (event.agent_level !== "core") {
-      continue;
-    }
-    const taskId = typeof event.task_id === "string" ? event.task_id.trim() : "";
-    if (taskId) {
-      return taskId;
-    }
-  }
+  // Show AI summary
+  if (isEventType(event, "workflow.node.output.summary")) return true;
 
-  return null;
-}
+  // Show final results
+  if (isEventType(event, "workflow.result.final", "workflow.result.cancelled")) return true;
 
-function isClarifyToolEvent(event: AnyAgentEvent): boolean {
-  if (!isEventType(event, "workflow.tool.completed")) {
-    return false;
-  }
+  // Show tool completed (started is merged in)
+  if (isEventType(event, "workflow.tool.completed")) return true;
 
-  if (event.agent_level && event.agent_level !== "core") {
-    return false;
-  }
+  // Skip internal lifecycle
+  if (isEventType(event, "workflow.node.started", "workflow.node.completed")) return false;
+  if (isEventType(event, "workflow.tool.started")) return false;
 
-  const toolName =
-    "tool_name" in event && typeof event.tool_name === "string"
-      ? event.tool_name.toLowerCase()
-      : "";
-  if (toolName !== "clarify") {
-    return false;
-  }
-
-  const result =
-    "result" in event && typeof event.result === "string" ? event.result : "";
-  if (isOrchestratorRetryMessage(result)) {
-    return false;
-  }
+  // Skip diagnostics
+  if (event.event_type.startsWith("workflow.diagnostic")) return false;
 
   return true;
 }
 
-function buildDisplayEntriesWithClarifyTimeline(
-  displayEvents: AnyAgentEvent[],
-): DisplayEntry[] {
-  const entries: DisplayEntry[] = [];
-  const groups: ClarifyTaskGroup[] = [];
-  let currentGroup: ClarifyTaskGroup | null = null;
-  let timelineTs: number | null = null;
-  let timelineStarted = false;
-
-  for (const event of displayEvents) {
-    if (isClarifyToolEvent(event)) {
-      timelineStarted = true;
-      if (timelineTs === null) {
-        timelineTs = Date.parse(event.timestamp ?? "") || 0;
-      }
-      if (currentGroup) {
-        groups.push(currentGroup);
-      }
-      currentGroup = {
-        clarifyEvent: event as WorkflowToolCompletedEvent,
-        events: [],
-      };
-      continue;
-    }
-
-    const isTerminal = isEventType(
-      event,
-      "workflow.result.final",
-      "workflow.result.cancelled",
-    );
-
-    if (timelineStarted && isTerminal) {
-      if (currentGroup) {
-        groups.push(currentGroup);
-        currentGroup = null;
-      }
-      entries.push({ kind: "clarifyTimeline", groups: [...groups], ts: timelineTs ?? 0 });
-      groups.length = 0;
-      timelineStarted = false;
-      timelineTs = null;
-      entries.push({ kind: "event", event });
-      continue;
-    }
-
-    if (timelineStarted && currentGroup) {
-      currentGroup.events.push(event);
-      continue;
-    }
-
-    entries.push({ kind: "event", event });
-  }
-
-  if (timelineStarted) {
-    if (currentGroup) {
-      groups.push(currentGroup);
-    }
-    if (groups.length > 0) {
-      entries.push({ kind: "clarifyTimeline", groups, ts: timelineTs ?? 0 });
-    }
-  }
-
-  return entries;
+function shouldDisplayInSubagentCard(event: AnyAgentEvent): boolean {
+  // Only show meaningful completion events in subagent cards
+  return isEventType(
+    event,
+    "workflow.tool.completed",
+    "workflow.result.final",
+    "workflow.result.cancelled",
+    "workflow.node.output.summary",
+    "workflow.node.failed",
+  );
 }
 
-function mergeSubagentContext(
-  existing: SubagentContext,
-  incoming: SubagentContext,
-): SubagentContext {
-  // Merge stats by taking the latest non-empty value
-  // Stats like tokens should come from the final event (workflow.result.final)
-  const mergedStats = incoming.stats || existing.stats;
+// ============================================================================
+// Utilities
+// ============================================================================
 
-  return {
-    ...existing,
-    ...incoming,
-    preview: incoming.preview ?? existing.preview,
-    concurrency: incoming.concurrency ?? existing.concurrency,
-    progress: incoming.progress ?? existing.progress,
-    stats: mergedStats,
-    status: incoming.status ?? existing.status,
-    statusTone: incoming.statusTone ?? existing.statusTone,
-  };
+function parseEventTimestamp(event: AnyAgentEvent): number | null {
+  const ts = Date.parse(event.timestamp ?? "");
+  return Number.isFinite(ts) ? ts : null;
 }
 
 function getSubagentKey(event: AnyAgentEvent): string {
@@ -712,114 +503,39 @@ function getSubagentKey(event: AnyAgentEvent): string {
     "parent_task_id" in event && typeof event.parent_task_id === "string"
       ? event.parent_task_id
       : undefined;
-
   const taskId =
-    "task_id" in event && typeof event.task_id === "string"
-      ? event.task_id
-      : undefined;
-
-  const subtaskIndex =
-    "subtask_index" in event && typeof event.subtask_index === "number"
-      ? event.subtask_index
-      : undefined;
-
+    "task_id" in event && typeof event.task_id === "string" ? event.task_id : undefined;
   const callId =
-    "call_id" in event && typeof event.call_id === "string"
-      ? event.call_id
-      : undefined;
+    "call_id" in event && typeof event.call_id === "string" ? event.call_id : undefined;
 
   if (parentTaskId) {
-    if (taskId) {
-      return `${parentTaskId}:${taskId}`;
-    }
-    if (callId) {
-      return `${parentTaskId}:call:${callId}`;
-    }
-    if (typeof subtaskIndex === "number") {
-      return `${parentTaskId}:subtask:${subtaskIndex}`;
-    }
+    if (taskId) return `${parentTaskId}:${taskId}`;
+    if (callId) return `${parentTaskId}:call:${callId}`;
     return `parent:${parentTaskId}`;
   }
-  if (taskId) {
-    return `task:${taskId}`;
-  }
-  if (callId) {
-    return `call:${callId}`;
-  }
-  return `task:${event.task_id ?? "unknown"}`;
+  if (taskId) return `task:${taskId}`;
+  if (callId) return `call:${callId}`;
+  return `unknown:${event.timestamp || Date.now()}`;
 }
 
 function getSubtaskIndex(event: AnyAgentEvent): number {
-  const subtaskIndex =
-    "subtask_index" in event && typeof event.subtask_index === "number"
-      ? event.subtask_index
-      : Number.POSITIVE_INFINITY;
-  return subtaskIndex;
+  return "subtask_index" in event && typeof event.subtask_index === "number"
+    ? event.subtask_index
+    : Number.POSITIVE_INFINITY;
 }
 
-function isSubagentToolEvent(event: AnyAgentEvent): boolean {
-  const toolName =
-    "tool_name" in event && typeof event.tool_name === "string"
-      ? event.tool_name.toLowerCase()
-      : "";
-  return toolName === "subagent";
-}
-
-
-function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
-  return (
-    isEventType(
-      event,
-      "workflow.tool.completed",
-      "workflow.result.final",
-      "workflow.result.cancelled",
-      "workflow.node.output.summary",
-      "workflow.node.failed",
-    ) || false
-  );
-}
-
-function sortSubagentEvents(
-  events: AnyAgentEvent[],
-  arrivalOrder: WeakMap<AnyAgentEvent, number>,
-): AnyAgentEvent[] {
-  return [...events].sort((a, b) => {
-    const tA = parseEventTimestamp(a) ?? 0;
-    const tB = parseEventTimestamp(b) ?? 0;
-    if (tA !== tB) return tA - tB;
-    const aArrival = arrivalOrder.get(a) ?? 0;
-    const bArrival = arrivalOrder.get(b) ?? 0;
-    return aArrival - bArrival;
-  });
-}
-
-function getStableEventKey(event: AnyAgentEvent, index: number): string {
-  if (isEventType(event, "workflow.node.output.delta")) {
-    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
-    const taskId = typeof event.task_id === "string" ? event.task_id : "";
-    const parentTaskId =
-      "parent_task_id" in event && typeof event.parent_task_id === "string"
-        ? event.parent_task_id
-        : "";
-    const agentLevel = typeof event.agent_level === "string" ? event.agent_level : "";
-    const iteration =
-      "iteration" in event && typeof event.iteration === "number"
-        ? String(event.iteration)
-        : "";
-    const nodeId = event.node_id ?? "";
-    return `delta:${sessionId}:${taskId}:${parentTaskId}:${agentLevel}:${iteration}:${nodeId}`;
-  }
-
-  if (isEventType(event, "workflow.result.final")) {
-    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
-    const taskId = typeof event.task_id === "string" ? event.task_id : "";
-    const parentTaskId =
-      "parent_task_id" in event && typeof event.parent_task_id === "string"
-        ? event.parent_task_id
-        : "";
-    const agentLevel = typeof event.agent_level === "string" ? event.agent_level : "";
-    return `final:${sessionId}:${taskId}:${parentTaskId}:${agentLevel}`;
-  }
-
-  return `${event.event_type}-${event.timestamp}-${index}`;
+function mergeSubagentContext(
+  existing: SubagentContext,
+  incoming: SubagentContext,
+): SubagentContext {
+  return {
+    ...existing,
+    ...incoming,
+    preview: incoming.preview ?? existing.preview,
+    concurrency: incoming.concurrency ?? existing.concurrency,
+    progress: incoming.progress ?? existing.progress,
+    stats: incoming.stats ?? existing.stats,
+    status: incoming.status ?? existing.status,
+    statusTone: incoming.statusTone ?? existing.statusTone,
+  };
 }
