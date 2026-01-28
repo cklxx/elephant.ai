@@ -86,10 +86,60 @@ export function ConversationEventStream({
     };
   }, [toolStartEventsByCallKey]);
 
-  const combinedEntries = useMemo(
-    () => buildInterleavedEntries(displayEntries, subagentThreads),
-    [displayEntries, subagentThreads]
-  );
+  const combinedEntries = useMemo(() => {
+    const result = buildInterleavedEntries(displayEntries, subagentThreads);
+
+    // Debug: Log subagent info to diagnose duplicates
+    if (process.env.NODE_ENV === "development") {
+      console.group("[Subagent Debug]");
+
+      // Check display entries for subagent-related events
+      const displaySubagentEvents = displayEntries.filter(e =>
+        e.kind === "event" && isSubagentLike(e.event)
+      );
+      console.log("Display entries with isSubagentLike:", displaySubagentEvents.map(e => ({
+        type: e.kind === "event" ? e.event.event_type : "timeline",
+        agentLevel: e.kind === "event" ? e.event.agent_level : "n/a",
+        parentTaskId: e.kind === "event" ? (e.event as any).parent_task_id : "n/a",
+        taskId: e.kind === "event" ? e.event.task_id : "n/a",
+        preview: e.kind === "event" ? getSubagentContext(e.event).preview?.slice(0, 30) : "n/a",
+      })));
+
+      // Check subagent threads
+      console.log("Subagent threads:", subagentThreads.map(t => ({
+        key: t.key,
+        groupKey: t.groupKey,
+        eventCount: t.events.length,
+        subtaskIndex: t.subtaskIndex,
+        firstArrival: t.firstArrival,
+        preview: t.context.preview?.slice(0, 30),
+      })));
+
+      // Check combined entries for duplicate groupKeys
+      const groupKeyCounts = new Map<string, number>();
+      result.forEach(e => {
+        if (e.kind === "subagentGroup") {
+          groupKeyCounts.set(e.groupKey, (groupKeyCounts.get(e.groupKey) || 0) + 1);
+        }
+      });
+      const duplicates = Array.from(groupKeyCounts.entries()).filter(([_, count]) => count > 1);
+      if (duplicates.length > 0) {
+        console.error("DUPLICATE subagent groups found:", duplicates);
+      }
+
+      console.log("Combined entries summary:", result.map(e =>
+        e.kind === "subagentGroup"
+          ? `📦 subagentGroup(${e.groupKey}, threads=${e.threads.length})`
+          : e.kind === "clarifyTimeline"
+            ? `📋 clarifyTimeline`
+            : `📄 ${e.event.event_type}`
+      ));
+
+      console.groupEnd();
+    }
+
+    return result;
+  }, [displayEntries, subagentThreads]);
 
   if (!isConnected || error) {
     return (
