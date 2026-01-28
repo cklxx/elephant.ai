@@ -61,8 +61,11 @@ export function ConversationEventStream({
     [displayEvents],
   );
 
-  // Track which subagent threads have been rendered
-  const renderedThreadsRef = useRef<Set<string>>(new Set());
+  // Track which subagent threads have been rendered using an index
+  // This resets on each render to ensure proper assignment
+  const threadIndexRef = useRef<number>(0);
+  // Reset index when events change
+  threadIndexRef.current = 0;
 
   const resolvePairedToolStart = useMemo(() => {
     return (event: AnyAgentEvent) => {
@@ -145,13 +148,10 @@ export function ConversationEventStream({
           // Assign unrendered threads to tool calls in order
           let subagentThreadForThisTool: SubagentThread | null = null;
           if (isSubagentToolEvent(event)) {
-            // Find first unrendered thread
-            for (const thread of allSubagentThreads) {
-              if (!renderedThreadsRef.current.has(thread.key)) {
-                subagentThreadForThisTool = thread;
-                renderedThreadsRef.current.add(thread.key);
-                break;
-              }
+            // Assign threads sequentially using the index
+            if (threadIndexRef.current < allSubagentThreads.length) {
+              subagentThreadForThisTool = allSubagentThreads[threadIndexRef.current];
+              threadIndexRef.current++;
             }
           }
           const hasSubagentCard = subagentThreadForThisTool !== null && subagentThreadForThisTool.events.length > 0;
@@ -199,9 +199,9 @@ export function ConversationEventStream({
             />
           </div>
         ))}
-        {/* Render any unrendered subagent threads at the end */}
+        {/* Render any remaining subagent threads at the end */}
         {allSubagentThreads
-          .filter((thread) => !renderedThreadsRef.current.has(thread.key))
+          .slice(threadIndexRef.current)
           .map((thread) => (
             <div
               key={`unrendered-${thread.key}`}
