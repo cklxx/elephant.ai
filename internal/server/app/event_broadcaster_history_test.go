@@ -104,3 +104,88 @@ func TestEventBroadcasterSkipsExecutorUpdates(t *testing.T) {
 		t.Fatalf("expected executor update to be skipped in history, got %T", got)
 	}
 }
+
+func TestEventBroadcasterSkipsHighVolumeHistoryEvents(t *testing.T) {
+	now := time.Now()
+
+	cases := []struct {
+		name   string
+		event  agent.AgentEvent
+		expect bool
+	}{
+		{
+			name: "skip output delta",
+			event: &domain.WorkflowEventEnvelope{
+				BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", now),
+				Version:   1,
+				Event:     "workflow.node.output.delta",
+				NodeKind:  "generation",
+				Payload: map[string]any{
+					"delta": "stream",
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "skip tool progress",
+			event: &domain.WorkflowEventEnvelope{
+				BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", now),
+				Version:   1,
+				Event:     "workflow.tool.progress",
+				NodeKind:  "tool",
+				Payload: map[string]any{
+					"chunk": "partial",
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "skip streaming final chunk",
+			event: &domain.WorkflowEventEnvelope{
+				BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", now),
+				Version:   1,
+				Event:     "workflow.result.final",
+				NodeKind:  "result",
+				Payload: map[string]any{
+					"final_answer":    "partial",
+					"is_streaming":    true,
+					"stream_finished": false,
+				},
+			},
+			expect: false,
+		},
+		{
+			name: "keep terminal final",
+			event: &domain.WorkflowEventEnvelope{
+				BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "", now),
+				Version:   1,
+				Event:     "workflow.result.final",
+				NodeKind:  "result",
+				Payload: map[string]any{
+					"final_answer":    "complete",
+					"is_streaming":    false,
+					"stream_finished": true,
+				},
+			},
+			expect: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &capturingHistoryStore{}
+			broadcaster := NewEventBroadcaster(WithEventHistoryStore(store))
+
+			broadcaster.OnEvent(tc.event)
+
+			got := store.lastEvent()
+			if tc.expect {
+				if got == nil {
+					t.Fatalf("expected event to be persisted")
+				}
+			} else if got != nil {
+				t.Fatalf("expected event to be skipped, got %T", got)
+			}
+		})
+	}
+}

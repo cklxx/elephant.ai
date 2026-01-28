@@ -604,12 +604,42 @@ func shouldPersistToHistory(event agent.AgentEvent) bool {
 		if strings.HasPrefix(evt.Event, "workflow.executor.") {
 			return false
 		}
+		if shouldDropHistoryEnvelope(evt) {
+			return false
+		}
 		return true
 	case *domain.WorkflowInputReceivedEvent, *domain.WorkflowDiagnosticContextSnapshotEvent:
 		return true
 	default:
 		return false
 	}
+}
+
+func shouldDropHistoryEnvelope(evt *domain.WorkflowEventEnvelope) bool {
+	if evt == nil {
+		return false
+	}
+	switch evt.Event {
+	case "workflow.node.output.delta", "workflow.tool.progress":
+		return true
+	case "workflow.result.final":
+		return isStreamingHistoryEnvelope(evt.Payload)
+	default:
+		return false
+	}
+}
+
+func isStreamingHistoryEnvelope(payload map[string]any) bool {
+	if len(payload) == 0 {
+		return false
+	}
+	if isStreaming, ok := payload["is_streaming"].(bool); ok && isStreaming {
+		return true
+	}
+	if finished, ok := payload["stream_finished"].(bool); ok && !finished {
+		return true
+	}
+	return false
 }
 
 // shouldSuppressHighVolumeLogs determines whether verbose logs should be
