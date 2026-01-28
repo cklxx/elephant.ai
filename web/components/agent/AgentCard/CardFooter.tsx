@@ -18,14 +18,14 @@ export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) 
     : (expanded ? "Show only latest" : `Show all ${eventCount} events`);
 
   return (
-    <div className="flex items-center justify-between border-t border-border/30">
+    <div className="flex items-center justify-between py-1">
       <Button
         variant="ghost"
         size="sm"
         onClick={onToggle}
         className={cn(
-          "h-7 text-xs text-muted-foreground hover:text-foreground transition-colors",
-          "w-full justify-between",
+          "h-6 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors",
+          "w-full justify-between px-2 -mx-2",
         )}
       >
         <span>{buttonText}</span>

@@ -168,8 +168,8 @@ export const EventLine = React.memo(function EventLine({
     const manifestEvent = event as WorkflowArtifactManifestEvent;
     const payload =
       manifestEvent.payload &&
-      typeof manifestEvent.payload === "object" &&
-      !Array.isArray(manifestEvent.payload)
+        typeof manifestEvent.payload === "object" &&
+        !Array.isArray(manifestEvent.payload)
         ? (manifestEvent.payload as Record<string, any>)
         : null;
     const manifest =
@@ -192,8 +192,8 @@ export const EventLine = React.memo(function EventLine({
         ? manifestEvent.result
         : undefined) ??
       (manifest &&
-      typeof manifest === "object" &&
-      typeof (manifest as Record<string, any>).summary === "string"
+        typeof manifest === "object" &&
+        typeof (manifest as Record<string, any>).summary === "string"
         ? (manifest as Record<string, any>).summary
         : undefined) ??
       "Artifact manifest received.";
@@ -235,7 +235,7 @@ export const EventLine = React.memo(function EventLine({
     return wrapWithSubagentContext(
       <div
         data-testid="event-workflow.tool.started"
-        className={cn("py-1", !isNested && "pl-2 border-l-2 border-primary/10")}
+        className={cn("py-1", !isNested && "pl-2 border-primary/10")}
       >
         <ToolOutputCard
           toolName={startedEvent.tool_name}
@@ -254,8 +254,8 @@ export const EventLine = React.memo(function EventLine({
     };
     const pairedArguments =
       completeEvent.arguments &&
-      typeof completeEvent.arguments === "object" &&
-      !Array.isArray(completeEvent.arguments)
+        typeof completeEvent.arguments === "object" &&
+        !Array.isArray(completeEvent.arguments)
         ? (completeEvent.arguments as Record<string, unknown>)
         : pairedToolStartEvent?.arguments;
     const toolName = (completeEvent.tool_name ?? "").toLowerCase();
@@ -304,7 +304,7 @@ export const EventLine = React.memo(function EventLine({
     return wrapWithSubagentContext(
       <div
         data-testid="event-workflow.tool.completed"
-        className={cn("py-1", !isNested && "pl-2 border-l-2 border-primary/10")}
+        className={cn("py-1", !isNested && "pl-2 border-primary/10")}
       >
         <ToolOutputCard
           toolName={completeEvent.tool_name}
@@ -328,16 +328,6 @@ export const EventLine = React.memo(function EventLine({
         className={cn("py-2", isNested && "py-1")}
         data-testid="event-workflow.result.final"
       >
-        <div
-          className={cn(
-            "flex items-center gap-2",
-            isNested ? "mb-0.5" : "mb-1",
-          )}
-        >
-          <span className="text-[10px] font-bold text-muted-foreground/60 tracking-wider">
-            Summary
-          </span>
-        </div>
         <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
       </div>,
     );
@@ -481,13 +471,13 @@ function ClarifyTaskCard({
       : (result.split(/\r?\n/)[0]?.trim() ?? "");
   const successCriteria = Array.isArray(metadata?.success_criteria)
     ? (metadata?.success_criteria as unknown[])
-        .map((item) => (typeof item === "string" ? item.trim() : ""))
-        .filter((item) => item.length > 0)
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0)
     : [];
   const needsUserInput = metadata?.needs_user_input === true;
   const questionToUser =
     typeof metadata?.question_to_user === "string" &&
-    metadata.question_to_user.trim()
+      metadata.question_to_user.trim()
       ? String(metadata.question_to_user).trim()
       : null;
 
@@ -626,10 +616,7 @@ function resolveMaxParallel(event: AnyAgentEvent): number | undefined {
 export function getSubagentContext(event: AnyAgentEvent): SubagentContext {
   const preview = resolveSubtaskPreview(event);
   const maxParallel = resolveMaxParallel(event);
-  const concurrency =
-    typeof maxParallel === "number" && maxParallel > 1
-      ? `Parallel ×${maxParallel}`
-      : undefined;
+  const concurrency: string | undefined = undefined;
 
   const progressParts: string[] = [];
   if ("completed" in event && typeof event.completed === "number") {

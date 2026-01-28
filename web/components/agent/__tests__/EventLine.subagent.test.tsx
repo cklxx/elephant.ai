@@ -37,7 +37,6 @@ describe('SubagentEventLine', () => {
     expect(
       screen.getByText('List project files for review'),
     ).toBeInTheDocument();
-    expect(screen.getByText('Parallel ×2')).toBeInTheDocument();
     expect(screen.getByText('▸ bash(ls)')).toBeInTheDocument();
   });
 
@@ -47,6 +46,7 @@ describe('SubagentEventLine', () => {
       agent_level: 'subagent',
       session_id: 'session-123',
       task_id: 'task-xyz',
+      parent_task_id: 'parent-1',
       timestamp: new Date().toISOString(),
       call_id: 'call-42',
       tool_name: 'code_execute',

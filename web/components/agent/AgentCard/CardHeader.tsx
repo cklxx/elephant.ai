@@ -2,7 +2,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { AgentCardState } from "./types";
-import { getStateIcon, getStateLabel, getStateBadgeColor } from "./styles";
+import { getStateLabel, getStateBadgeColor } from "./styles";
 
 interface CardHeaderProps {
   state: AgentCardState;
@@ -24,9 +24,6 @@ export function CardHeader({
   return (
     <div className="flex items-start justify-between gap-2">
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        <span className="text-lg leading-none" role="img" aria-label={state}>
-          {getStateIcon(state)}
-        </span>
         <span className="text-sm text-foreground/80 truncate font-medium min-w-0">
           {displayTitle}
         </span>

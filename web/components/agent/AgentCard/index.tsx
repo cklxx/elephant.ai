@@ -52,7 +52,7 @@ export function AgentCard({
           getStateColor(data.state),
         )}
       >
-        <div className="p-3 min-w-0">
+        <div className="p-3 min-w-0 relative">
           <CardHeader
             state={data.state}
             preview={data.preview}
@@ -72,17 +72,18 @@ export function AgentCard({
             hideTokens={showInlineTokens}
           />
 
-          <CardBody
-            events={data.events}
-            expanded={expanded}
-            resolvePairedToolStart={resolvePairedToolStart}
-          />
-
           <CardFooter
             expanded={expanded}
             onToggle={handleToggle}
             eventCount={data.events.length}
           />
+          <div className={cn("relative", expanded && "max-h-[300px] overflow-y-auto")}>
+            <CardBody
+              events={data.events}
+              expanded={expanded}
+              resolvePairedToolStart={resolvePairedToolStart}
+            />
+          </div>
         </div>
       </div>
     </div>

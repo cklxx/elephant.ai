@@ -114,7 +114,7 @@ export function ConversationEventStream({
             return (
               <div
                 key={`subagent-group-${entry.groupKey}`}
-                className="-mx-2 px-2 my-2 flex flex-row gap-3 overflow-y-scroll"
+                className="-mx-2 px-2 my-2 flex flex-col gap-3"
                 data-testid="subagent-thread-group"
               >
                 {entry.threads.map((thread) => {

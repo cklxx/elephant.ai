@@ -23,11 +23,15 @@ describe("AgentCard", () => {
         event_type: "workflow.tool.completed",
         timestamp: "2024-01-01T00:00:00Z",
         agent_level: "subagent",
+        tool_name: "bash",
+        result: "success",
       },
       {
         event_type: "workflow.tool.completed",
         timestamp: "2024-01-01T00:00:01Z",
         agent_level: "subagent",
+        tool_name: "code_execute",
+        result: "success",
       },
     ],
   };
@@ -92,7 +96,6 @@ describe("AgentCard", () => {
     render(<AgentCard data={dataWithConcurrency} />);
 
     expect(screen.getByText("2/3")).toBeInTheDocument();
-    expect(screen.getByText(/Parallel ×3/)).toBeInTheDocument();
   });
 
   it("renders completed state correctly", () => {
@@ -141,6 +144,8 @@ describe("AgentCard", () => {
           event_type: "workflow.tool.completed",
           timestamp: "2024-01-01T00:00:00Z",
           agent_level: "subagent",
+          tool_name: "bash",
+          result: "success",
         },
       ],
     };
@@ -150,10 +155,9 @@ describe("AgentCard", () => {
     expect(screen.getByRole("button", { name: /Show full content/ })).toBeInTheDocument();
   });
 
-  it("displays state icon", () => {
+  it("displays state badge", () => {
     render(<AgentCard data={mockCardData} />);
 
-    const stateIcon = screen.getByRole("img", { name: "running" });
-    expect(stateIcon).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
   });
 });
