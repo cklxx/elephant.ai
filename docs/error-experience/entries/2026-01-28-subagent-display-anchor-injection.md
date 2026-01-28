@@ -9,6 +9,34 @@
 
 ### 根本原因分析
 
+**初始实现的索引错位问题**:
+
+```typescript
+// 错误：buildAnchorMap 使用原始数组索引
+function buildAnchorMap(events) {
+  events.forEach((event, index) => {  // index 是原始数组索引
+    if (isDelegationToolEvent(event)) {
+      anchorMap.set(anchorId, { eventIndex: index });  // 记录原始索引
+    }
+  });
+}
+
+// 但 buildInterleavedEntries 遍历的是 displayEntries（经过筛选的）
+baseEntries.forEach((entry, currentIndex) => {  // currentIndex 是筛选后数组索引
+  const shouldInsert = group.anchorIndex <= currentIndex;  // 索引对比无意义！
+});
+```
+
+**第二个问题：锚点事件被过滤**:
+```typescript
+// partitionEvents 中跳过了 delegation tool events
+if (isDelegationToolEvent(event)) {
+  return;  // 锚点事件没有进入 displayEvents！
+}
+```
+
+这导致锚点事件根本不在展示列表中，无法作为插入参考点。
+
 **旧架构的分区-合并模式问题** (`ConversationEventStream.tsx:316-441`):
 
 ```typescript
@@ -35,11 +63,64 @@ const combined = [...displayEvents, ...subagentThreads]
 ```
 
 **问题点**:
-1. **时间戳不可靠**: subagent 和主 agent 的时间戳可能来自不同的时钟基准
-2. **缺乏因果关联**: subagent 由其父 agent 的工具调用触发，但这种关系在分区后丢失
-3. **排序粒度问题**: 全局时间戳排序无法反映"在此事件后插入子agent结果"的语义
+1. **索引不对齐**: `anchorMap` 使用原始数组索引，但插入逻辑基于筛选后的 `displayEntries`
+2. **锚点事件被过滤**: `isDelegationToolEvent` 的事件被跳过，没有进入 `displayEvents`
+3. **时间戳不可靠**: subagent 和主 agent 的时间戳可能来自不同的时钟基准
+4. **缺乏因果关联**: subagent 由其父 agent 的工具调用触发，但这种关系在分区后丢失
 
 ## 解决方案：锚点注入法
+
+### 修复要点
+
+**1. 修复索引对齐问题**:
+```typescript
+// 修改 buildAnchorMap 接收 displayEntries 而非原始 events
+function buildAnchorMap(displayEntries) {
+  displayEntries.forEach((entry, displayIndex) => {  // 使用筛选后的索引
+    if (isSubagentToolEvent(entry.event)) {
+      anchorMap.set(anchorId, { displayIndex });  // 记录 displayEntries 索引
+    }
+  });
+}
+```
+
+**2. 保留锚点事件**:
+```typescript
+// 不再跳过 subagent tool events
+if (isSubagentToolEvent(event)) {
+  displayEvents.push(event);  // 让锚点事件显示在时间线中
+  return;
+}
+```
+
+**3. 调整 hooks 调用顺序**:
+```typescript
+// 必须先构建 displayEntries，再构建 anchorMap
+const { displayEvents, subagentThreads } = useMemo(() => partitionEvents(...), [...]);
+const displayEntries = useMemo(() => buildDisplayEntriesWithClearifyTimeline(displayEvents), [...]);
+const anchorMap = useMemo(() => buildAnchorMap(displayEntries), [displayEntries]);  // 依赖 displayEntries
+```
+
+**4. 修复插入顺序（紧跟锚点事件）**:
+```typescript
+// 修改前：subagent 插入在锚点事件之后的下一个事件
+baseEntries.forEach((entry, currentIndex) => {
+  // ...检查是否需要插入...
+  if (shouldInsert) groupsToInsert.forEach(g => result.push(g));
+  // 然后添加当前 entry
+  result.push(entry);
+});
+
+// 修改后：紧跟锚点事件立即插入
+baseEntries.forEach((entry, currentIndex) => {
+  // 先添加当前 entry
+  result.push(entry);
+
+  // 然后立即检查是否有 subagent 锚定到当前位置
+  const shouldInsert = group.anchorDisplayIndex === currentIndex;
+  if (shouldInsert) groupsToInsert.forEach(g => result.push(g));
+});
+```
 
 ### 核心思想
 每个 subagent 线程绑定到一个"锚点事件"（触发它的工具调用），并插入到该锚点位置。
