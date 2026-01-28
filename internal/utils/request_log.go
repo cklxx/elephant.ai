@@ -1,49 +1,47 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 var (
-	requestLogMu        sync.Mutex
+	requestLogOnce      sync.Once
+	requestLogQueue     chan requestLogWrite
+	requestLogPending   atomic.Int64
 	streamingLogDeduper sync.Map
 )
 
 const (
 	requestLogEnvVar    = "ALEX_REQUEST_LOG_DIR"
 	requestLogSubfolder = "logs/requests"
-	requestLogFileName  = "streaming.log"
+	requestLogFileName  = "llm.jsonl"
 )
 
 const (
 	defaultStreamingLogTTL = 5 * time.Minute
+	requestLogQueueSize    = 256
 )
 
-// LogStreamingRequestPayload persists the serialized request payload for a streaming request.
-// The payload is written to logs/requests/streaming.log (or the directory specified via
+// LogStreamingRequestPayload persists the serialized request payload as a JSONL log entry.
+// The payload is written to logs/requests/llm.jsonl (or the directory specified via
 // ALEX_REQUEST_LOG_DIR) so it doesn't mix with the general server logs.
 func LogStreamingRequestPayload(requestID string, payload []byte) {
 	logStreamingPayload(requestID, payload, "request")
 }
 
-// LogStreamingResponsePayload persists the serialized response payload for a streaming request.
-// The payload is written to logs/requests/streaming.log (or the directory specified via
+// LogStreamingResponsePayload persists the serialized response payload as a JSONL log entry.
+// The payload is written to logs/requests/llm.jsonl (or the directory specified via
 // ALEX_REQUEST_LOG_DIR) to keep it isolated from the general server logs.
 func LogStreamingResponsePayload(requestID string, payload []byte) {
 	logStreamingPayload(requestID, payload, "response")
-}
-
-// LogStreamingSummary persists the textual or serialized summary for a streaming request.
-// The summary is logged separately so operators can quickly review the LLM Streaming Summary
-// that is also emitted to the structured logger.
-func LogStreamingSummary(requestID string, payload []byte) {
-	logStreamingPayload(requestID, payload, "summary")
 }
 
 func logStreamingPayload(requestID string, payload []byte, entryType string) {
@@ -51,9 +49,9 @@ func logStreamingPayload(requestID string, payload []byte, entryType string) {
 		return
 	}
 
-	dir, err := ensureRequestLogDir()
-	if err != nil {
-		log.Printf("request log: failed to prepare directory: %v", err)
+	dir := resolveRequestLogDir()
+	if strings.TrimSpace(dir) == "" {
+		log.Printf("request log: resolved log directory empty")
 		return
 	}
 
@@ -70,30 +68,31 @@ func logStreamingPayload(requestID string, payload []byte, entryType string) {
 	if entryLabel == "" {
 		entryLabel = "payload"
 	}
-	entry := fmt.Sprintf("%s [req:%s] [%s] body_bytes=%d\n%s\n\n",
-		time.Now().Format(time.RFC3339Nano), trimmedID, entryLabel, len(payload), string(payload))
+	entry := requestLogEntry{
+		Timestamp: time.Now().Format(time.RFC3339Nano),
+		RequestID: trimmedID,
+		LogID:     logIDFromRequestID(trimmedID),
+		EntryType: entryLabel,
+		BodyBytes: len(payload),
+	}
+	if json.Valid(payload) {
+		entry.Payload = json.RawMessage(payload)
+	} else {
+		entry.PayloadText = string(payload)
+	}
 
-	path := filepath.Join(dir, requestLogFileName)
-	requestLogMu.Lock()
-	defer requestLogMu.Unlock()
-
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	entryBytes, err := json.Marshal(entry)
 	if err != nil {
-		log.Printf("request log: failed to open %s: %v", path, err)
+		log.Printf("request log: failed to encode entry: %v", err)
 		return
 	}
-	defer func() {
-		if cerr := file.Close(); cerr != nil {
-			log.Printf("request log: failed to close %s: %v", path, cerr)
-		}
-	}()
+	entryBytes = append(entryBytes, '\n')
 
-	if _, err := file.WriteString(entry); err != nil {
-		log.Printf("request log: failed to write entry: %v", err)
-	}
+	path := filepath.Join(dir, requestLogFileName)
+	enqueueRequestLogWrite(path, entryBytes)
 }
 
-func ensureRequestLogDir() (string, error) {
+func resolveRequestLogDir() string {
 	var dir string
 	if value, ok := os.LookupEnv(requestLogEnvVar); ok {
 		dir = strings.TrimSpace(value)
@@ -105,10 +104,7 @@ func ensureRequestLogDir() (string, error) {
 		}
 		dir = filepath.Join(base, requestLogSubfolder)
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", err
-	}
-	return dir, nil
+	return dir
 }
 
 func shouldLogStreamingEntry(requestID string, ttl time.Duration) bool {
@@ -132,4 +128,86 @@ func shouldLogStreamingEntry(requestID string, ttl time.Duration) bool {
 		}
 	})
 	return true
+}
+
+type requestLogWrite struct {
+	path  string
+	entry []byte
+}
+
+type requestLogEntry struct {
+	Timestamp   string          `json:"timestamp"`
+	RequestID   string          `json:"request_id"`
+	LogID       string          `json:"log_id,omitempty"`
+	EntryType   string          `json:"entry_type"`
+	BodyBytes   int             `json:"body_bytes"`
+	Payload     json.RawMessage `json:"payload,omitempty"`
+	PayloadText string          `json:"payload_text,omitempty"`
+}
+
+func logIDFromRequestID(requestID string) string {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" {
+		return ""
+	}
+	marker := ":llm-"
+	if idx := strings.LastIndex(requestID, marker); idx > 0 {
+		return requestID[:idx]
+	}
+	return ""
+}
+
+func enqueueRequestLogWrite(path string, entry []byte) {
+	initRequestLogWriter()
+	requestLogPending.Add(1)
+	select {
+	case requestLogQueue <- requestLogWrite{path: path, entry: entry}:
+	default:
+		requestLogPending.Add(-1)
+		log.Printf("request log: queue full, dropping entry")
+	}
+}
+
+func initRequestLogWriter() {
+	requestLogOnce.Do(func() {
+		requestLogQueue = make(chan requestLogWrite, requestLogQueueSize)
+		go requestLogWriter()
+	})
+}
+
+func requestLogWriter() {
+	for item := range requestLogQueue {
+		if err := appendRequestLogEntry(item.path, item.entry); err != nil {
+			log.Printf("request log: failed to write entry: %v", err)
+		}
+		requestLogPending.Add(-1)
+	}
+}
+
+func appendRequestLogEntry(path string, entry []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", filepath.Dir(path), err)
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = file.Close() }()
+	if _, err := file.Write(entry); err != nil {
+		return fmt.Errorf("write %s: %w", path, err)
+	}
+	return nil
+}
+
+// WaitForRequestLogQueueDrain waits for async request log writes to finish or timeout.
+// Intended for tests that need to read log files after logging.
+func WaitForRequestLogQueueDrain(timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if requestLogPending.Load() == 0 {
+			return true
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return requestLogPending.Load() == 0
 }

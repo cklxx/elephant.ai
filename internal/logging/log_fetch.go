@@ -11,7 +11,7 @@ const (
 	logDirEnvVar        = "ALEX_LOG_DIR"
 	requestLogEnvVar    = "ALEX_REQUEST_LOG_DIR"
 	requestLogSubfolder = "logs/requests"
-	requestLogFileName  = "streaming.log"
+	requestLogFileName  = "llm.jsonl"
 
 	serviceLogFileName = "alex-service.log"
 	llmLogFileName     = "alex-llm.log"
@@ -146,61 +146,5 @@ func readLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
 }
 
 func readRequestLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
-	snippet := LogFileSnippet{Path: path}
-	file, err := os.Open(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			snippet.Error = "not_found"
-		} else {
-			snippet.Error = err.Error()
-		}
-		return snippet
-	}
-	defer func() { _ = file.Close() }()
-
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), opts.MaxLineBytes)
-
-	var block []string
-	bytesRead := 0
-	flush := func() {
-		if len(block) == 0 {
-			return
-		}
-		entry := strings.Join(block, "\n")
-		if strings.Contains(entry, logID) {
-			snippet.Entries = append(snippet.Entries, entry)
-		}
-		block = block[:0]
-	}
-
-	for scanner.Scan() {
-		line := scanner.Text()
-		bytesRead += len(line)
-		if strings.TrimSpace(line) == "" {
-			flush()
-			if len(snippet.Entries) >= opts.MaxEntries {
-				snippet.Truncated = true
-				break
-			}
-			if bytesRead >= opts.MaxBytes {
-				snippet.Truncated = true
-				break
-			}
-			continue
-		}
-		block = append(block, line)
-	}
-	flush()
-
-	if len(snippet.Entries) > opts.MaxEntries {
-		snippet.Entries = snippet.Entries[:opts.MaxEntries]
-		snippet.Truncated = true
-	}
-
-	if err := scanner.Err(); err != nil {
-		snippet.Error = err.Error()
-	}
-
-	return snippet
+	return readLogMatches(path, logID, opts)
 }

@@ -2,12 +2,15 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"alex/internal/agent/ports"
+	"alex/internal/utils"
 )
 
 func TestWebFetchBuildResultCreatesAttachment(t *testing.T) {
@@ -61,18 +64,21 @@ func TestWebFetchAnalyzeLLMLogsRequestAndResponse(t *testing.T) {
 		t.Fatalf("buildResult returned error: %v", err)
 	}
 
-	logPath := filepath.Join(logDir, "streaming.log")
+	logPath := filepath.Join(logDir, "llm.jsonl")
+	if !utils.WaitForRequestLogQueueDrain(2 * time.Second) {
+		t.Fatalf("timed out waiting for request log queue to drain")
+	}
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read request log: %v", err)
 	}
 
-	content := string(data)
-	if !strings.Contains(content, "tool-call-123] [request]") {
-		t.Fatalf("request payload not logged, content: %s", content)
+	entries := parseRequestLogEntries(t, string(data))
+	if !hasRequestLogEntry(entries, "tool-call-123", "request") {
+		t.Fatalf("request payload not logged, entries: %#v", entries)
 	}
-	if !strings.Contains(content, "tool-call-123] [response]") {
-		t.Fatalf("response payload not logged, content: %s", content)
+	if !hasRequestLogEntry(entries, "tool-call-123", "response") {
+		t.Fatalf("response payload not logged, entries: %#v", entries)
 	}
 }
 
@@ -85,3 +91,40 @@ func (s *stubLLMClient) Complete(_ context.Context, _ ports.CompletionRequest) (
 }
 
 func (*stubLLMClient) Model() string { return "stub-model" }
+
+type requestLogEntry struct {
+	RequestID string `json:"request_id"`
+	EntryType string `json:"entry_type"`
+}
+
+func parseRequestLogEntries(t *testing.T, content string) []requestLogEntry {
+	t.Helper()
+	var entries []requestLogEntry
+	for _, line := range strings.Split(strings.TrimSpace(content), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var entry requestLogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("failed to parse request log entry: %v", err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func hasRequestLogEntry(entries []requestLogEntry, requestID, entryType string) bool {
+	for _, entry := range entries {
+		if matchesRequestID(entry.RequestID, requestID) && entry.EntryType == entryType {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesRequestID(actual, expected string) bool {
+	if actual == expected {
+		return true
+	}
+	return strings.HasSuffix(actual, ":"+expected)
+}

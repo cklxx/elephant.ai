@@ -48,13 +48,12 @@ so log search by the parent log id also returns subagent logs.
 
 ## Request payload logs
 
-### `logs/requests/streaming.log`
+### `logs/requests/llm.jsonl`
 - **Writer**: `internal/utils/request_log.go`
-- **Content**: raw streaming request/response/summary payloads for LLM calls.
-- **Format**:
-  ```
-  2026-01-27T12:34:56.123Z [req:<request_id>] [request|response|summary] body_bytes=123
-  <payload>
+- **Content**: JSONL payloads for LLM request/response bodies (streaming logs only keep the final aggregated response).
+- **Format** (one JSON object per line):
+  ```json
+  {"timestamp":"2026-01-27T12:34:56.123Z","request_id":"log-20260127-001:llm-abc123","log_id":"log-20260127-001","entry_type":"request","body_bytes":123,"payload":{"model":"..."}}
   ```
 - **Correlation**: `request_id` embeds `log_id` when present, so `log_id` search
   returns the relevant request/response blocks.

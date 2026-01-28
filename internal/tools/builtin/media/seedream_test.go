@@ -2,6 +2,7 @@ package media
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -10,9 +11,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/utils"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
@@ -509,18 +512,21 @@ func TestSeedreamTextToolLogsRequestAndResponse(t *testing.T) {
 		t.Fatalf("expected tool to succeed, got error: %v", err)
 	}
 
-	logPath := filepath.Join(logDir, "streaming.log")
+	logPath := filepath.Join(logDir, "llm.jsonl")
+	if !utils.WaitForRequestLogQueueDrain(2 * time.Second) {
+		t.Fatalf("timed out waiting for request log queue to drain")
+	}
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatalf("failed to read request log: %v", err)
 	}
 
-	content := string(data)
-	if !strings.Contains(content, "[req:seedream-call] [request]") {
-		t.Fatalf("expected request payload entry in log, got: %s", content)
+	entries := parseRequestLogEntries(t, string(data))
+	if !hasRequestLogEntry(entries, "seedream-call", "request") {
+		t.Fatalf("expected request payload entry in log, got: %#v", entries)
 	}
-	if !strings.Contains(content, "[req:seedream-call] [response]") {
-		t.Fatalf("expected response payload entry in log, got: %s", content)
+	if !hasRequestLogEntry(entries, "seedream-call", "response") {
+		t.Fatalf("expected response payload entry in log, got: %#v", entries)
 	}
 }
 
@@ -558,6 +564,43 @@ func (s *stubSeedreamClient) GetContentGenerationTask(context.Context, arkm.GetC
 		return s.getResp, s.getErr
 	}
 	return nil, errors.New("unexpected GetContentGenerationTask call")
+}
+
+type requestLogEntry struct {
+	RequestID string `json:"request_id"`
+	EntryType string `json:"entry_type"`
+}
+
+func parseRequestLogEntries(t *testing.T, content string) []requestLogEntry {
+	t.Helper()
+	var entries []requestLogEntry
+	for _, line := range strings.Split(strings.TrimSpace(content), "\n") {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var entry requestLogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("failed to parse request log entry: %v", err)
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func hasRequestLogEntry(entries []requestLogEntry, requestID, entryType string) bool {
+	for _, entry := range entries {
+		if matchesRequestID(entry.RequestID, requestID) && entry.EntryType == entryType {
+			return true
+		}
+	}
+	return false
+}
+
+func matchesRequestID(actual, expected string) bool {
+	if actual == expected {
+		return true
+	}
+	return strings.HasSuffix(actual, ":"+expected)
 }
 
 func TestSeedreamVideoRejectsDurationsOutsideRange(t *testing.T) {

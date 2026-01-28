@@ -1,11 +1,13 @@
 package utils
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 func resetStreamingLogDeduperForTest() {
@@ -23,28 +25,22 @@ func TestLogStreamingPayload_WritesSequentialEntries(t *testing.T) {
 	LogStreamingResponsePayload("req-123", respPayload)
 
 	logPath := filepath.Join(logDir, requestLogFileName)
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("failed to read log file: %v", err)
+	entries := readRequestLogEntries(t, logPath)
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 log entries, got %d", len(entries))
 	}
 
-	content := string(data)
-	if !strings.Contains(content, "req-123") {
-		t.Fatalf("log missing request id: %s", content)
+	if entries[0].RequestID != "req-123" || entries[0].EntryType != "request" {
+		t.Fatalf("expected first entry to be request, got %+v", entries[0])
 	}
-	if !strings.Contains(content, string(reqPayload)) {
-		t.Fatalf("log missing raw request payload: %s", content)
+	if entries[1].RequestID != "req-123" || entries[1].EntryType != "response" {
+		t.Fatalf("expected second entry to be response, got %+v", entries[1])
 	}
-	if !strings.Contains(content, string(respPayload)) {
-		t.Fatalf("log missing raw response payload: %s", content)
+	if string(entries[0].Payload) != string(reqPayload) {
+		t.Fatalf("expected request payload to match, got %s", string(entries[0].Payload))
 	}
-	requestIndex := strings.Index(content, string(reqPayload))
-	responseIndex := strings.Index(content, string(respPayload))
-	if requestIndex == -1 || responseIndex == -1 {
-		t.Fatalf("expected request and response payloads in log: %s", content)
-	}
-	if requestIndex >= responseIndex {
-		t.Fatalf("expected request payload to be logged before response: %s", content)
+	if string(entries[1].Payload) != string(respPayload) {
+		t.Fatalf("expected response payload to match, got %s", string(entries[1].Payload))
 	}
 }
 
@@ -60,39 +56,36 @@ func TestLogStreamingPayload_DeduplicatesByEntryType(t *testing.T) {
 	LogStreamingResponsePayload("req-dup", payload)
 
 	logPath := filepath.Join(logDir, requestLogFileName)
-	data, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatalf("failed to read log file: %v", err)
+	entries := readRequestLogEntries(t, logPath)
+
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 deduped entries, got %d: %#v", len(entries), entries)
 	}
-	content := string(data)
-	if strings.Count(content, "[request]") != 1 {
-		t.Fatalf("expected 1 request log entry for req-dup: %s", content)
-	}
-	if strings.Count(content, "[response]") != 1 {
-		t.Fatalf("expected 1 response log entry for req-dup: %s", content)
+	if entries[0].EntryType != "request" || entries[1].EntryType != "response" {
+		t.Fatalf("expected request/response entries, got %#v", entries)
 	}
 }
 
-func TestLogStreamingSummary_WritesOncePerRequest(t *testing.T) {
-	logDir := t.TempDir()
-	t.Setenv(requestLogEnvVar, logDir)
-	resetStreamingLogDeduperForTest()
-
-	summary := []byte("LLM Streaming Summary\nStop Reason: done")
-	LogStreamingSummary("req-sum", summary)
-	LogStreamingSummary("req-sum", summary)
-
-	logPath := filepath.Join(logDir, requestLogFileName)
-	data, err := os.ReadFile(logPath)
+func readRequestLogEntries(t *testing.T, path string) []requestLogEntry {
+	t.Helper()
+	if !WaitForRequestLogQueueDrain(2 * time.Second) {
+		t.Fatalf("timed out waiting for request log queue to drain")
+	}
+	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("failed to read log file: %v", err)
 	}
-
-	content := string(data)
-	if strings.Count(content, "[summary]") != 1 {
-		t.Fatalf("expected a single summary entry, got: %s", content)
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	entries := make([]requestLogEntry, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		var entry requestLogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			t.Fatalf("failed to decode log entry: %v", err)
+		}
+		entries = append(entries, entry)
 	}
-	if !strings.Contains(content, "LLM Streaming Summary") {
-		t.Fatalf("expected summary payload to be logged: %s", content)
-	}
+	return entries
 }

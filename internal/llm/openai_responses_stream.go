@@ -246,6 +246,17 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		c.usageCallback(result.Usage, c.model, "openai")
 	}
 
+	if respPayload, err := jsonx.Marshal(map[string]any{
+		"content":     result.Content,
+		"stop_reason": result.StopReason,
+		"tool_calls":  result.ToolCalls,
+		"usage":       result.Usage,
+	}); err != nil {
+		c.logger.Debug("%sFailed to marshal streaming response payload: %v", prefix, err)
+	} else {
+		utils.LogStreamingResponsePayload(requestID, respPayload)
+	}
+
 	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
 	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
 	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))

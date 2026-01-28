@@ -175,8 +175,8 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 			TotalTokens      int `json:"total_tokens"`
 		} `json:"usage"`
 		Error *struct {
-			Type    string          `json:"type"`
-			Message string          `json:"message"`
+			Type    string           `json:"type"`
+			Message string           `json:"message"`
 			Code    jsonx.RawMessage `json:"code"`
 		} `json:"error"`
 	}
@@ -537,19 +537,6 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	} else {
 		utils.LogStreamingResponsePayload(requestID, respPayload)
 	}
-
-	summaryBuilder := &strings.Builder{}
-	summaryBuilder.WriteString("=== LLM Streaming Summary ===\n")
-	fmt.Fprintf(summaryBuilder, "Stop Reason: %s\n", result.StopReason)
-	fmt.Fprintf(summaryBuilder, "Content Length: %d chars\n", len(result.Content))
-	fmt.Fprintf(summaryBuilder, "Tool Calls: %d\n", len(result.ToolCalls))
-	fmt.Fprintf(summaryBuilder, "Usage: %d prompt + %d completion = %d total tokens\n",
-		result.Usage.PromptTokens,
-		result.Usage.CompletionTokens,
-		result.Usage.TotalTokens,
-	)
-	summaryBuilder.WriteString("==================")
-	utils.LogStreamingSummary(requestID, []byte(summaryBuilder.String()))
 
 	c.logger.Debug("%s=== LLM Streaming Summary ===", prefix)
 	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)

@@ -24,7 +24,7 @@ func TestFetchLogBundleCollectsMatches(t *testing.T) {
 	writeTestLog(t, filepath.Join(logDir, "alex-service.log"), "line log_id=log-abc123 service\nother line\n")
 	writeTestLog(t, filepath.Join(logDir, "alex-llm.log"), "[req:log-abc123:llm-1] request\n")
 	writeTestLog(t, filepath.Join(logDir, "alex-latency.log"), "latency log_id=log-abc123 ms=12\n")
-	writeTestLog(t, filepath.Join(logDir, "streaming.log"), "2026-01-27 [req:log-abc123:llm-1] [request] body_bytes=2\n{}\n\n")
+	writeTestLog(t, filepath.Join(logDir, "llm.jsonl"), "{\"timestamp\":\"2026-01-27T12:00:00Z\",\"request_id\":\"log-abc123:llm-1\",\"log_id\":\"log-abc123\",\"entry_type\":\"request\",\"body_bytes\":2,\"payload\":{}}\n")
 
 	bundle := FetchLogBundle(logID, LogFetchOptions{MaxBytes: 1024, MaxEntries: 20})
 
