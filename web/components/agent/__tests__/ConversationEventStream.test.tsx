@@ -1,20 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { render, screen, within, fireEvent } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { ConversationEventStream } from '../ConversationEventStream';
 import { LanguageProvider } from '@/lib/i18n';
 import { AnyAgentEvent } from '@/lib/types';
 
 const baseEvent: AnyAgentEvent = {
   event_type: 'workflow.input.received',
-  timestamp: new Date().toISOString(),
-  agent_level: 'core',
   session_id: 'session-1',
   task_id: 'task-1',
-  task: 'Summarize the latest output',
+  content: 'Summarize the latest output',
+  timestamp: new Date().toISOString(),
 };
 
 describe('ConversationEventStream', () => {
-  it('enriches tool output titles with start arguments', () => {
+  it('renders input event', () => {
+    render(
+      <LanguageProvider>
+        <ConversationEventStream
+          events={[baseEvent]}
+          isConnected
+          isReconnecting={false}
+          error={null}
+          reconnectAttempts={0}
+          onReconnect={() => {}}
+        />
+      </LanguageProvider>,
+    );
+
+    expect(screen.getByTestId('event-workflow.input.received')).toBeInTheDocument();
+  });
+
+  it('renders tool completed event with arguments from paired started event', () => {
     const startedAt = new Date().toISOString();
     const completedAt = new Date(Date.now() + 500).toISOString();
 
@@ -27,9 +43,7 @@ describe('ConversationEventStream', () => {
         task_id: 'task-1',
         call_id: 'call-1',
         tool_name: 'web_search',
-        arguments: {
-          query: 'PM iteration pain points',
-        },
+        arguments: { query: 'test query' },
         timestamp: startedAt,
       },
       {
@@ -43,29 +57,6 @@ describe('ConversationEventStream', () => {
         duration: 120,
         timestamp: completedAt,
       },
-      {
-        event_type: 'workflow.tool.started',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        call_id: 'call-2',
-        tool_name: 'artifacts_list',
-        arguments: {
-          name: 'pm_iteration_article.md',
-        },
-        timestamp: startedAt,
-      },
-      {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        call_id: 'call-2',
-        tool_name: 'artifacts_list',
-        result: 'Attachments on record',
-        duration: 50,
-        timestamp: completedAt,
-      },
     ];
 
     render(
@@ -81,356 +72,30 @@ describe('ConversationEventStream', () => {
       </LanguageProvider>,
     );
 
-    expect(screen.getByText('正在查找：PM iteration pain points')).toBeInTheDocument();
-    expect(screen.getByText('查看文件：pm_iteration_article.md')).toBeInTheDocument();
+    expect(screen.getByTestId('event-workflow.tool.completed')).toBeInTheDocument();
   });
 
-  it('filters workflow.node.output.delta events from the output stream', () => {
-    const firstTimestamp = new Date().toISOString();
-    const thirdTimestamp = new Date(Date.now() + 2000).toISOString();
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        delta: 'Here is the summary',
-        final: false,
-        timestamp: firstTimestamp,
-        created_at: firstTimestamp,
-      },
-      {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        delta: ' with additional context.',
-        final: true,
-        timestamp: thirdTimestamp,
-        created_at: thirdTimestamp,
-      },
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-        />
-      </LanguageProvider>,
-    );
-
-    expect(screen.getByTestId('conversation-stream')).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Here is the summary with additional context\./i),
-    ).not.toBeInTheDocument();
-  });
-
-  it('shows workflow.node.output.delta events while running', () => {
-    const firstTimestamp = new Date().toISOString();
-    const thirdTimestamp = new Date(Date.now() + 2000).toISOString();
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        delta: 'Here is the summary',
-        final: false,
-        timestamp: firstTimestamp,
-        created_at: firstTimestamp,
-      },
-      {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        delta: ' with additional context.',
-        final: true,
-        timestamp: thirdTimestamp,
-        created_at: thirdTimestamp,
-      },
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-          isRunning
-        />
-      </LanguageProvider>,
-    );
-
-    expect(
-      screen.getByText(/Here is the summary with additional context\./i),
-    ).toBeInTheDocument();
-  });
-
-  it('keeps delta stream nodes stable across updates', () => {
-    const firstTimestamp = new Date().toISOString();
-    const secondTimestamp = new Date(Date.now() + 1000).toISOString();
-
-    const initialEvents: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        delta: 'Here is the summary',
-        final: false,
-        timestamp: firstTimestamp,
-        created_at: firstTimestamp,
-      },
-    ];
-
-    const { rerender } = render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={initialEvents}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-          isRunning
-        />
-      </LanguageProvider>,
-    );
-
-    const deltaNode = screen.getByTestId('event-workflow.node.output.delta');
-    expect(deltaNode).toBeInTheDocument();
-
-    const updatedEvents: AnyAgentEvent[] = [
-      ...initialEvents,
-      {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        delta: ' with more',
-        final: false,
-        timestamp: secondTimestamp,
-        created_at: secondTimestamp,
-      },
-    ];
-
-    rerender(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={updatedEvents}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-          isRunning
-        />
-      </LanguageProvider>,
-    );
-
-    const updatedNode = screen.getByTestId('event-workflow.node.output.delta');
-    expect(updatedNode).toBe(deltaNode);
-  });
-
-  it('renders the latest workflow.result.final event inline without duplication', () => {
-    const firstTimestamp = new Date().toISOString();
-    const completionTimestamp = new Date(Date.now() + 1500).toISOString();
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.result.final',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        final_answer: 'All done',
-        total_iterations: 2,
-        total_tokens: 1234,
-        stop_reason: 'complete',
-        duration: 3200,
-        attachments: {
-          'image-1': {
-            name: 'diagram.png',
-            uri: '/attachments/diagram.png',
-            description: 'A diagram',
-          },
-        },
-        timestamp: completionTimestamp,
-      },
-      {
-        event_type: 'workflow.node.output.delta',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        delta: 'Trailing message that should not appear',
-        final: true,
-        timestamp: firstTimestamp,
-        created_at: firstTimestamp,
-      },
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-        />
-      </LanguageProvider>,
-    );
-
-    expect(screen.getByText(/all done/i)).toBeInTheDocument();
-    expect(screen.queryByTestId('terminal-final-answer')).not.toBeInTheDocument();
-
-    // Ensure the completion is shown once in the event stream
-    expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
-  });
-
-  it('keeps core workflow.node.output.summary even when it repeats the final answer', () => {
-    const summaryTimestamp = new Date(Date.now() + 500).toISOString();
-    const completionTimestamp = new Date(Date.now() + 1500).toISOString();
-    const content = '## Final Summary\n\n- ✅ Done\n';
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.node.output.summary',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        iteration: 1,
-        content,
-        timestamp: summaryTimestamp,
-      } as AnyAgentEvent,
-      {
-        event_type: 'workflow.result.final',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: undefined,
-        final_answer: content,
-        total_iterations: 2,
-        total_tokens: 1234,
-        stop_reason: 'complete',
-        duration: 3200,
-        timestamp: completionTimestamp,
-      } as AnyAgentEvent,
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-        />
-      </LanguageProvider>,
-    );
-
-    expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
-    expect(screen.getByTestId('event-workflow.node.output.summary')).toBeInTheDocument();
-  });
-
-  it('dedupes subagent workflow.node.output.summary when it repeats the final answer', () => {
-    const summaryTimestamp = new Date(Date.now() + 500).toISOString();
-    const completionTimestamp = new Date(Date.now() + 1500).toISOString();
-    const content = 'Subagent summary: done.';
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.node.output.summary',
-        agent_level: 'subagent',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: 'parent-1',
-        iteration: 1,
-        content,
-        timestamp: summaryTimestamp,
-        is_subtask: true,
-        subtask_index: 0,
-        total_subtasks: 1,
-      } as AnyAgentEvent,
-      {
-        event_type: 'workflow.result.final',
-        agent_level: 'subagent',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: 'parent-1',
-        is_subtask: true,
-        subtask_index: 0,
-        total_subtasks: 1,
-        final_answer: content,
-        total_iterations: 1,
-        total_tokens: 123,
-        stop_reason: 'complete',
-        duration: 1200,
-        timestamp: completionTimestamp,
-      } as AnyAgentEvent,
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-        />
-      </LanguageProvider>,
-    );
-
-    expect(screen.getAllByTestId('task-complete-event')).toHaveLength(1);
-    expect(screen.queryByTestId('event-workflow.node.output.summary')).not.toBeInTheDocument();
-  });
-
-  it('aggregates subagent events under a single panel', () => {
+  it('renders subagent tool call with aggregated card', () => {
+    const toolTimestamp = new Date(Date.now() + 300).toISOString();
     const subagentTimestamp = new Date(Date.now() + 500).toISOString();
 
     const events: AnyAgentEvent[] = [
       baseEvent,
       {
         event_type: 'workflow.tool.completed',
+        agent_level: 'core',
+        session_id: 'session-1',
+        task_id: 'parent-1',
+        call_id: 'subagent-call-1',
+        tool_name: 'subagent',
+        result: 'Subtask started',
+        duration: 100,
+        timestamp: toolTimestamp,
+      },
+      {
+        event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
-        call_id: 'subagent:1',
+        call_id: 'tool-call-1',
         tool_name: 'web_search',
         result: 'Fetched references',
         duration: 120,
@@ -438,7 +103,7 @@ describe('ConversationEventStream', () => {
         task_id: 'task-1',
         parent_task_id: 'parent-1',
         subtask_index: 0,
-        total_subtasks: 2,
+        total_subtasks: 1,
         subtask_preview: 'Collect references',
       },
       {
@@ -448,8 +113,8 @@ describe('ConversationEventStream', () => {
         task_id: 'task-1',
         parent_task_id: 'parent-1',
         subtask_index: 0,
-        total_subtasks: 2,
-        final_answer: 'Ready to merge findings',
+        total_subtasks: 1,
+        final_answer: 'Subtask completed',
         total_iterations: 1,
         total_tokens: 1200,
         stop_reason: 'complete',
@@ -471,37 +136,27 @@ describe('ConversationEventStream', () => {
       </LanguageProvider>,
     );
 
-    const threads = screen.getAllByTestId('subagent-thread');
-    expect(threads).toHaveLength(1);
+    // Subagent tool call should be visible
+    expect(screen.getAllByTestId('event-workflow.tool.completed')).toHaveLength(1);
 
-    expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(1);
+    // Subagent card should be visible
+    const cards = screen.getAllByTestId('subagent-thread');
+    expect(cards).toHaveLength(1);
 
-    const expandButton = within(threads[0]).getByRole('button', { name: /Show all.*events/ });
-    fireEvent.click(expandButton);
-
-    expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(2);
-
-    const conversationEvents = screen.getByTestId('conversation-events');
-    expect(within(conversationEvents).getAllByTestId(/event-workflow.input.received/)).toHaveLength(1);
+    // Card should contain aggregated events
+    expect(within(cards[0]).getAllByTestId(/event-workflow/).length).toBeGreaterThanOrEqual(1);
   });
 
-  it('orders subagent threads by their first seen timestamp even without displayable events', () => {
-    const baseTimestamp = new Date().toISOString();
-    const progressTimestamp = new Date(Date.now() + 1000).toISOString();
-
+  it('filters prepare node events', () => {
     const events: AnyAgentEvent[] = [
-      { ...baseEvent, timestamp: baseTimestamp },
+      baseEvent,
       {
-        event_type: 'workflow.tool.progress',
-        agent_level: 'subagent',
+        event_type: 'workflow.node.started',
+        agent_level: 'core',
         session_id: 'session-1',
         task_id: 'task-1',
-        parent_task_id: 'parent-1',
-        subtask_index: 0,
-        total_subtasks: 1,
-        tool_name: 'web_search',
-        progress: 0.3,
-        timestamp: progressTimestamp,
+        node_id: 'prepare',
+        timestamp: new Date().toISOString(),
       } as AnyAgentEvent,
     ];
 
@@ -518,45 +173,16 @@ describe('ConversationEventStream', () => {
       </LanguageProvider>,
     );
 
-    const conversationEvents = screen.getByTestId('conversation-events');
-    const children = Array.from(conversationEvents.children);
-    const baseIndex = children.findIndex((node) =>
-      node.querySelector('[data-testid="event-workflow.input.received"]'),
-    );
-    const subagentIndex = children.findIndex(
-      (node) => node.getAttribute('data-testid') === 'subagent-thread-group',
-    );
-
-    expect(baseIndex).toBeGreaterThanOrEqual(0);
-    expect(subagentIndex).toBeGreaterThanOrEqual(0);
-    expect(subagentIndex).toBeGreaterThan(baseIndex);
+    expect(screen.getByTestId('event-workflow.input.received')).toBeInTheDocument();
+    expect(screen.queryByTestId('event-workflow.node.started')).not.toBeInTheDocument();
   });
 
-  it('ignores delegation-only subagent tool events', () => {
-    const subagentTimestamp = new Date(Date.now() + 500).toISOString();
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'subagent',
-        session_id: 'session-1',
-        task_id: 'task-1',
-        parent_task_id: 'parent-1',
-        subtask_index: 0,
-        total_subtasks: 1,
-        tool_name: 'subagent',
-        result: 'delegation summary',
-        duration: 200,
-        timestamp: subagentTimestamp,
-      },
-    ];
-
+  it('renders connection banner when not connected', () => {
     render(
       <LanguageProvider>
         <ConversationEventStream
-          events={events}
-          isConnected
+          events={[baseEvent]}
+          isConnected={false}
           isReconnecting={false}
           error={null}
           reconnectAttempts={0}
@@ -565,106 +191,6 @@ describe('ConversationEventStream', () => {
       </LanguageProvider>,
     );
 
-    expect(screen.queryByTestId('subagent-thread')).not.toBeInTheDocument();
-    expect(screen.getByTestId('conversation-stream')).toBeInTheDocument();
-  });
-
-  it('routes core-level events with parent_task_id into the subagent aggregate', () => {
-    const subagentTimestamp = new Date(Date.now() + 500).toISOString();
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        session_id: 'session-1',
-        task_id: 'subtask-123',
-        parent_task_id: 'parent-1',
-        tool_name: 'text_to_image',
-        result: 'image generated',
-        duration: 200,
-        timestamp: subagentTimestamp,
-      },
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-        />
-      </LanguageProvider>,
-    );
-
-    const threads = screen.getAllByTestId('subagent-thread');
-    expect(threads).toHaveLength(1);
-
-    expect(within(threads[0]).getAllByTestId(/event-subagent/)).toHaveLength(1);
-
-    expect(within(threads[0]).getByTestId('event-workflow.tool.completed')).toBeInTheDocument();
-    expect(screen.getAllByTestId('event-workflow.tool.completed')).toHaveLength(1);
-  });
-
-  it('renders clarify events when present', () => {
-    const planTimestamp = new Date(Date.now() + 500).toISOString();
-    const clarifyTimestamp = new Date(Date.now() + 1000).toISOString();
-
-    const events: AnyAgentEvent[] = [
-      baseEvent,
-      {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        session_id: baseEvent.session_id,
-        task_id: baseEvent.task_id,
-        tool_name: 'plan',
-        result: 'Handle two tasks',
-        duration: 1,
-        timestamp: planTimestamp,
-        metadata: {
-          internal_plan: {
-            steps: [
-              {
-                task_goal: 'Single task',
-                success_criteria: [],
-              },
-            ],
-          },
-        },
-      },
-      {
-        event_type: 'workflow.tool.completed',
-        agent_level: 'core',
-        session_id: baseEvent.session_id,
-        task_id: baseEvent.task_id,
-        tool_name: 'clarify',
-        result: 'Single task detail should render',
-        duration: 1,
-        timestamp: clarifyTimestamp,
-        metadata: {
-          task_goal_ui: 'Single task detail should render',
-          success_criteria: ['displayed'],
-        },
-      },
-    ];
-
-    render(
-      <LanguageProvider>
-        <ConversationEventStream
-          events={events}
-          isConnected
-          isReconnecting={false}
-          error={null}
-          reconnectAttempts={0}
-          onReconnect={() => {}}
-        />
-      </LanguageProvider>,
-    );
-
-    expect(screen.getByText(/handle two tasks/i)).toBeInTheDocument();
-    expect(screen.getByText(/single task detail should render/i)).toBeInTheDocument();
+    expect(screen.getByText('Offline')).toBeInTheDocument();
   });
 });

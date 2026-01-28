@@ -40,7 +40,7 @@ interface EventLineProps {
  */
 export const EventLine = React.memo(function EventLine({
   event,
-  showSubagentContext = true,
+  showSubagentContext = false,
   pairedToolStartEvent = null,
   variant = "default",
 }: EventLineProps) {
@@ -49,7 +49,7 @@ export const EventLine = React.memo(function EventLine({
   const subagentContext = isSubagentEvent ? getSubagentContext(event) : null;
 
   const wrapWithSubagentContext = (content: React.ReactNode) => {
-    if (!isSubagentEvent || !subagentContext) {
+    if (!isSubagentEvent || !subagentContext || !showSubagentContext) {
       return content;
     }
 
@@ -58,7 +58,7 @@ export const EventLine = React.memo(function EventLine({
         className="space-y-1"
         data-testid={`event-subagent-${event.event_type}`}
       >
-        {showSubagentContext && <SubagentHeader context={subagentContext} />}
+        <SubagentHeader context={subagentContext} />
         {content}
       </div>
     );
@@ -436,18 +436,6 @@ function PlanGoalCard({
 }) {
   return (
     <div className="py-1 mb-1" data-testid="event-ui-plan">
-      <div className="flex items-center">
-        <Image
-          src="/elephant.jpg"
-          alt=""
-          width={36}
-          height={36}
-          sizes="36px"
-          className="h-9 w-9 rounded-sm object-cover"
-          aria-hidden="true"
-        />
-        <AlexWordmark className="ml-1 text-muted-foreground/60" />
-      </div>
       <AgentMarkdown
         content={goal}
         className="prose max-w-none text-base leading-snug text-foreground"

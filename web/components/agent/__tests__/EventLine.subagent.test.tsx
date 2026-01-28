@@ -4,10 +4,10 @@ import { EventLine } from '../EventLine';
 import { LanguageProvider } from '@/lib/i18n';
 import { AnyAgentEvent } from '@/lib/types';
 
-function renderWithI18n(event: AnyAgentEvent) {
+function renderWithI18n(event: AnyAgentEvent, showSubagentContext = true) {
   return render(
     <LanguageProvider>
-      <EventLine event={event} />
+      <EventLine event={event} showSubagentContext={showSubagentContext} />
     </LanguageProvider>,
   );
 }
