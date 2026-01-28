@@ -331,7 +331,12 @@ function partitionEvents(
       const subtaskIndex = getSubtaskIndex(event);
 
       // Look up the anchor for this subagent thread
-      const anchor = anchorMap.get(key);
+      let anchor = anchorMap.get(key);
+
+      // If no explicit anchor found, use this first subagent event as its own anchor
+      if (!anchor && !threads.has(key)) {
+        anchor = { triggerEvent: event, originalIndex: arrival - 1 };
+      }
 
       if (!threads.has(key)) {
         threads.set(key, {
