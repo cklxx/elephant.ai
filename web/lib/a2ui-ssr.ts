@@ -97,40 +97,6 @@ export function parseA2UIMessagePayload(payload: string): A2UIMessage[] {
   return messages;
 }
 
-export function decodeBase64Text(encoded: string): string {
-  const trimmed = encoded?.trim?.() ?? "";
-  if (!trimmed) {
-    return "";
-  }
-  const buffer = (globalThis as any).Buffer;
-  if (buffer) {
-    return buffer.from(trimmed, "base64").toString("utf-8");
-  }
-  if (typeof atob === "function") {
-    const binary = atob(trimmed);
-    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
-    return new TextDecoder("utf-8").decode(bytes);
-  }
-  return trimmed;
-}
-
-export function decodeDataUri(uri: string): string | null {
-  const match = uri.match(/^data:([^,]*?),(.*)$/);
-  if (!match) {
-    return null;
-  }
-  const meta = match[1] || "";
-  const data = match[2] || "";
-  if (meta.includes(";base64")) {
-    return decodeBase64Text(data);
-  }
-  try {
-    return decodeURIComponent(data);
-  } catch {
-    return data;
-  }
-}
-
 function normalizeA2UIMessages(value: any): A2UIMessage[] {
   if (Array.isArray(value)) {
     return value.filter(isPlainObject) as A2UIMessage[];

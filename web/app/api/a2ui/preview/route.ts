@@ -4,7 +4,7 @@ import { resolveApiBaseUrl } from "@/lib/api-base";
 import {
   decodeBase64Text,
   decodeDataUri,
-} from "@/lib/a2ui-ssr";
+} from "@/lib/attachment-text";
 import { renderJsonRenderHtml } from "@/lib/json-render-ssr";
 import { parseUIPayload } from "@/lib/ui-payload";
 
