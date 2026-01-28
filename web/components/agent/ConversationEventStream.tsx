@@ -61,24 +61,6 @@ export function ConversationEventStream({
     [displayEvents],
   );
 
-  // Build a set of keys for events that are the first event of a subagent thread
-  // When we encounter such an event, we render the subagent card
-  const firstEventKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const thread of allSubagentThreads) {
-      if (thread.events.length > 0) {
-        const firstEvent = thread.events[0];
-        const key = getStableEventKey(firstEvent, 0);
-        keys.add(key);
-      }
-    }
-    return keys;
-  }, [allSubagentThreads]);
-
-  // Track which threads have been rendered
-  const renderedThreadKeys = useRef<Set<string>>(new Set());
-  // Reset when events change
-  renderedThreadKeys.current = new Set();
 
   const resolvePairedToolStart = useMemo(() => {
     return (event: AnyAgentEvent) => {
@@ -95,8 +77,8 @@ export function ConversationEventStream({
   }, [pendingToolCalls]);
 
   const combinedEntries = useMemo(
-    () => buildInterleavedEntries(displayEntries),
-    [displayEntries]
+    () => buildInterleavedEntries(displayEntries, allSubagentThreads),
+    [displayEntries, allSubagentThreads]
   );
 
   if (!isConnected || error) {
@@ -154,42 +136,36 @@ export function ConversationEventStream({
             );
           }
 
+          if (entry.kind === "subagentThread") {
+            const thread = entry.thread;
+            return (
+              <div
+                key={`subagent-${thread.key}`}
+                className="mt-2 mb-2"
+                data-testid="subagent-card-container"
+              >
+                <AgentCard
+                  data={subagentThreadToCardData(
+                    thread.key,
+                    thread.context,
+                    thread.events,
+                    thread.subtaskIndex,
+                  )}
+                  resolvePairedToolStart={resolvePairedToolStart}
+                  className="mx-0 my-0"
+                />
+              </div>
+            );
+          }
+
           const event = entry.event;
           const key = getStableEventKey(event, index);
-
-          // Find subagent threads whose first event is this event
-          const threadsToRender: SubagentThread[] = [];
-          for (const thread of allSubagentThreads) {
-            if (thread.events.length > 0 && !renderedThreadKeys.current.has(thread.key)) {
-              const firstEvent = thread.events[0];
-              const firstEventKey = getStableEventKey(firstEvent, 0);
-              if (firstEventKey === key) {
-                threadsToRender.push(thread);
-                renderedThreadKeys.current.add(thread.key);
-              }
-            }
-          }
 
           return (
             <div
               key={key}
               className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
             >
-              {threadsToRender.map((thread) => (
-                <div key={thread.key} className="mt-2 mb-2" data-testid="subagent-card-container">
-                  <AgentCard
-                    data={subagentThreadToCardData(
-                      thread.key,
-                      thread.context,
-                      thread.events,
-                      thread.subtaskIndex,
-                    )}
-                    resolvePairedToolStart={resolvePairedToolStart}
-                    className="mx-0 my-0"
-                  />
-                </div>
-              ))}
-
               <EventLine
                 event={event}
                 pairedToolStartEvent={resolvePairedToolStart(event)}
@@ -213,27 +189,6 @@ export function ConversationEventStream({
             />
           </div>
         ))}
-        {/* Render any subagent threads that weren't matched to a display event */}
-        {allSubagentThreads
-          .filter((thread) => !renderedThreadKeys.current.has(thread.key))
-          .map((thread) => (
-            <div
-              key={`unmatched-${thread.key}`}
-              className="mt-2 mb-2"
-              data-testid="subagent-card-container"
-            >
-              <AgentCard
-                data={subagentThreadToCardData(
-                  thread.key,
-                  thread.context,
-                  thread.events,
-                  thread.subtaskIndex,
-                )}
-                resolvePairedToolStart={resolvePairedToolStart}
-                className="mx-0 my-0"
-              />
-            </div>
-          ))}
         {isRunning && (
           <div
             className="mt-4 flex items-center text-muted-foreground"
@@ -501,12 +456,15 @@ type DisplayEntry =
 
 type CombinedEntry =
   | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
-  | { kind: "clarifyTimeline"; groups: ClarifyTaskGroup[]; ts: number; order: number };
+  | { kind: "clarifyTimeline"; groups: ClarifyTaskGroup[]; ts: number; order: number }
+  | { kind: "subagentThread"; thread: SubagentThread; ts: number; order: number };
 
 function buildInterleavedEntries(
   displayEntries: DisplayEntry[],
+  subagentThreads: SubagentThread[],
 ): CombinedEntry[] {
-  return displayEntries.map((entry, index) => {
+  // Create entries from display events
+  const eventEntries: CombinedEntry[] = displayEntries.map((entry, index) => {
     if (entry.kind === "event") {
       return {
         kind: "event",
@@ -522,6 +480,40 @@ function buildInterleavedEntries(
       order: index,
     };
   });
+
+  // Create entries from subagent threads
+  const threadEntries: CombinedEntry[] = subagentThreads.map((thread, index) => ({
+    kind: "subagentThread" as const,
+    thread,
+    ts: thread.firstSeenAt ?? Date.now(),
+    order: index,
+  }));
+
+  // Merge both lists by timestamp
+  const result: CombinedEntry[] = [];
+  let eventIdx = 0;
+  let threadIdx = 0;
+
+  while (eventIdx < eventEntries.length || threadIdx < threadEntries.length) {
+    const nextEvent = eventEntries[eventIdx];
+    const nextThread = threadEntries[threadIdx];
+
+    if (!nextThread) {
+      result.push(nextEvent);
+      eventIdx++;
+    } else if (!nextEvent) {
+      result.push(nextThread);
+      threadIdx++;
+    } else if (nextThread.ts <= nextEvent.ts) {
+      result.push(nextThread);
+      threadIdx++;
+    } else {
+      result.push(nextEvent);
+      eventIdx++;
+    }
+  }
+
+  return result;
 }
 
 function resolveActiveTaskId(events: AnyAgentEvent[]): string | null {
