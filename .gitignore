@@ -136,3 +136,4 @@ web/playwright-report/*
 web/test-results/*
 .pids/*
 cmd/alex/alex
+internal/llm/logs/requests/llm.jsonl
