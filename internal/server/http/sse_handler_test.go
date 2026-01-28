@@ -494,6 +494,121 @@ func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	}
 }
 
+func TestSSEHandlerStreamsSubagentToolStartAndComplete(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-subagent-tool"
+	taskID := "task-main"
+	parentTaskID := "task-parent"
+	now := time.Now()
+	base := domain.NewBaseEvent(agent.LevelCore, sessionID, taskID, parentTaskID, now)
+
+	startEvent := &domain.WorkflowToolStartedEvent{
+		BaseEvent: base,
+		Iteration: 1,
+		CallID:    "call-subagent-1",
+		ToolName:  "subagent",
+		Arguments: map[string]any{"prompt": "inspect the backend pipeline"},
+	}
+	startEnvelope := domain.NewWorkflowEnvelopeFromEvent(startEvent, "workflow.tool.started")
+	if startEnvelope == nil {
+		t.Fatal("failed to create start envelope")
+	}
+	startEnvelope.NodeID = startEvent.CallID
+	startEnvelope.NodeKind = "tool"
+	startEnvelope.Payload = map[string]any{
+		"call_id":   startEvent.CallID,
+		"tool_name": startEvent.ToolName,
+		"arguments": startEvent.Arguments,
+		"iteration": startEvent.Iteration,
+	}
+
+	completeEvent := &domain.WorkflowToolCompletedEvent{
+		BaseEvent: base,
+		CallID:    startEvent.CallID,
+		ToolName:  "subagent",
+		Result:    "delegation complete",
+		Duration:  175 * time.Millisecond,
+	}
+	completeEnvelope := domain.NewWorkflowEnvelopeFromEvent(completeEvent, "workflow.tool.completed")
+	if completeEnvelope == nil {
+		t.Fatal("failed to create completion envelope")
+	}
+	completeEnvelope.NodeID = completeEvent.CallID
+	completeEnvelope.NodeKind = "tool"
+	completeEnvelope.Payload = map[string]any{
+		"call_id":   completeEvent.CallID,
+		"tool_name": completeEvent.ToolName,
+		"result":    completeEvent.Result,
+		"duration":  completeEvent.Duration.Milliseconds(),
+	}
+
+	broadcaster.OnEvent(startEnvelope)
+	broadcaster.OnEvent(completeEnvelope)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID, nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), "workflow.tool.completed") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	var started, completed map[string]any
+	for _, evt := range events {
+		switch evt.event {
+		case "workflow.tool.started":
+			started = evt.data
+		case "workflow.tool.completed":
+			completed = evt.data
+		}
+	}
+
+	if started == nil {
+		t.Fatalf("expected workflow.tool.started to be streamed: %v", events)
+	}
+	if completed == nil {
+		t.Fatalf("expected workflow.tool.completed to be streamed: %v", events)
+	}
+
+	for _, payload := range []map[string]any{started, completed} {
+		if payload["task_id"] != taskID {
+			t.Fatalf("expected task_id %s, got %v", taskID, payload["task_id"])
+		}
+		if payload["parent_task_id"] != parentTaskID {
+			t.Fatalf("expected parent_task_id %s, got %v", parentTaskID, payload["parent_task_id"])
+		}
+		toolPayload, ok := payload["payload"].(map[string]any)
+		if !ok {
+			t.Fatalf("expected payload map in event data, got %T", payload["payload"])
+		}
+		if toolPayload["tool_name"] != "subagent" {
+			t.Fatalf("expected tool_name subagent, got %v", toolPayload["tool_name"])
+		}
+	}
+}
+
 func TestSSEHandler_ReplaysPostgresHistory(t *testing.T) {
 	pool, _, cleanup := testutil.NewPostgresTestPool(t)
 	defer cleanup()

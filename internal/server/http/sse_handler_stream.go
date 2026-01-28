@@ -132,7 +132,12 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if isDelegationToolEvent(event) {
-			return true
+			switch event.EventType() {
+			case "workflow.tool.started", "workflow.tool.completed":
+				// Allow delegation tool anchors to reach the frontend.
+			default:
+				return true
+			}
 		}
 
 		data, err := h.serializeEvent(event, sentAttachments, finalAnswerCache)
@@ -304,8 +309,8 @@ func resolveHTTPFlusher(w http.ResponseWriter) (http.Flusher, bool) {
 	return nil, false
 }
 
-// isDelegationToolEvent identifies subagent delegation tool calls so they can be
-// filtered from UX-facing streams (the delegated subflow emits its own events).
+// isDelegationToolEvent identifies subagent delegation tool calls so streaming
+// filters can suppress noisy delegation traffic while preserving anchor events.
 func isDelegationToolEvent(event agent.AgentEvent) bool {
 	env, ok := app.BaseAgentEvent(event).(*domain.WorkflowEventEnvelope)
 	if !ok || env == nil {
