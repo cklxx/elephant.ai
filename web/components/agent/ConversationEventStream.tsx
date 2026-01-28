@@ -199,27 +199,6 @@ export function ConversationEventStream({
             />
           </div>
         ))}
-        {/* Render any remaining subagent threads at the end */}
-        {allSubagentThreads
-          .slice(threadIndexRef.current)
-          .map((thread) => (
-            <div
-              key={`unrendered-${thread.key}`}
-              className="mt-2 mb-2"
-              data-testid="subagent-card-container"
-            >
-              <AgentCard
-                data={subagentThreadToCardData(
-                  thread.key,
-                  thread.context,
-                  thread.events,
-                  thread.subtaskIndex,
-                )}
-                resolvePairedToolStart={resolvePairedToolStart}
-                className="mx-0 my-0"
-              />
-            </div>
-          ))}
         {isRunning && (
           <div
             className="mt-4 flex items-center text-muted-foreground"
