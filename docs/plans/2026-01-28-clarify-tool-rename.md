@@ -16,3 +16,4 @@ Rename the UI orchestration tool from `clearify` to the correct English `clarify
 - 2026-01-28: Plan created.
 - 2026-01-28: Replaced clearify naming with clarify across backend/frontend/tests/docs and renamed UI tool + timeline component files.
 - 2026-01-28: Removed legacy `claify` alias in CLI renderer helpers.
+- 2026-01-28: Ran `./dev.sh lint` and `./dev.sh test` (Go tests passed; linker warnings observed).
