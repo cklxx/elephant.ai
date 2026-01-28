@@ -12,7 +12,7 @@ import (
 )
 
 // formatToolOutput formats tool output based on tool category and hierarchy
-func (r *CLIRenderer) formatToolOutput(ctx *types.OutputContext, toolName, result string, indent string) string {
+func (r *CLIRenderer) formatToolOutput(_ *types.OutputContext, toolName, result string, indent string) string {
 	// Use brighter gray (#808080) that works on both light and dark backgrounds
 	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 	normalizedTool := strings.TrimSpace(toolName)
@@ -63,7 +63,7 @@ func (r *CLIRenderer) formatFileOutput(toolName, result, indent string, style li
 	}
 }
 
-func (r *CLIRenderer) formatSearchOutput(toolName, result, indent string, style lipgloss.Style) string {
+func (r *CLIRenderer) formatSearchOutput(_, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
 	summary := parseSearchSummary(cleaned)
 	matchCount := summary.Total
