@@ -253,7 +253,8 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
   }
 
   // Skip tool started events - they are merged with completed events or shown as pending
-  if (event.event_type === "workflow.tool.started") {
+  // But keep subagent tool started events (they should be shown in the subagent card)
+  if (event.event_type === "workflow.tool.started" && event.agent_level !== "subagent") {
     return true;
   }
 
