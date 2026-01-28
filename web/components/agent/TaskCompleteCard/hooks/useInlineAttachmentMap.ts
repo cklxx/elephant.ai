@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import type { AttachmentPayload } from "@/lib/types";
 import { buildAttachmentUri, getAttachmentSegmentType } from "@/lib/attachments";
 
@@ -20,59 +18,56 @@ export function useInlineAttachmentMap({
   content,
   attachments,
 }: UseInlineAttachmentMapOptions) {
-  const inlineImageMap = useMemo(() => {
-    const map = new Map<string, string>();
-    const imageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
-    let match: RegExpExecArray | null;
-    while ((match = imageRegex.exec(content)) !== null) {
-      const alt = (match[1] || "").trim();
-      const url = (match[2] || "").trim();
-      if (!url) {
-        continue;
-      }
-      const key = alt || url;
-      if (!map.has(key)) {
-        map.set(key, url);
-      }
+  // Parse inline images from markdown content
+  const inlineImageMap = new Map<string, string>();
+  const imageRegex = /!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = imageRegex.exec(content)) !== null) {
+    const alt = (match[1] || "").trim();
+    const url = (match[2] || "").trim();
+    if (!url) {
+      continue;
     }
-    return map;
-  }, [content]);
-
-  const { inlineAttachmentMap, attachmentNames, hasAttachments } = useMemo(() => {
-    if (!attachments) {
-      return {
-        inlineAttachmentMap: new Map<string, InlineAttachmentEntry>(),
-        attachmentNames: [] as string[],
-        hasAttachments: false,
-      };
+    const key = alt || url;
+    if (!inlineImageMap.has(key)) {
+      inlineImageMap.set(key, url);
     }
+  }
 
-    const inlineMap = new Map<string, InlineAttachmentEntry>();
-    const names: string[] = [];
-
-    Object.entries(attachments).forEach(([key, attachment]) => {
-      const uri = buildAttachmentUri(attachment);
-      if (uri) {
-        inlineMap.set(uri, {
-          key,
-          type: getAttachmentSegmentType(attachment),
-          description: attachment.description,
-          mime: attachment.media_type,
-          attachment,
-        });
-      }
-      const label = attachment.description || attachment.name || key;
-      if (label) {
-        names.push(label);
-      }
-    });
-
+  // Build attachment map
+  if (!attachments) {
     return {
-      inlineAttachmentMap: inlineMap,
-      attachmentNames: names,
-      hasAttachments: names.length > 0,
+      inlineAttachmentMap: new Map<string, InlineAttachmentEntry>(),
+      attachmentNames: [] as string[],
+      hasAttachments: false,
+      inlineImageMap,
     };
-  }, [attachments]);
+  }
 
-  return { inlineAttachmentMap, attachmentNames, hasAttachments, inlineImageMap };
+  const inlineAttachmentMap = new Map<string, InlineAttachmentEntry>();
+  const attachmentNames: string[] = [];
+
+  for (const [key, attachment] of Object.entries(attachments)) {
+    const uri = buildAttachmentUri(attachment);
+    if (uri) {
+      inlineAttachmentMap.set(uri, {
+        key,
+        type: getAttachmentSegmentType(attachment),
+        description: attachment.description,
+        mime: attachment.media_type,
+        attachment,
+      });
+    }
+    const label = attachment.description || attachment.name || key;
+    if (label) {
+      attachmentNames.push(label);
+    }
+  }
+
+  return {
+    inlineAttachmentMap,
+    attachmentNames,
+    hasAttachments: attachmentNames.length > 0,
+    inlineImageMap,
+  };
 }

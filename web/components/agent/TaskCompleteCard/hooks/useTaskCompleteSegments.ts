@@ -1,5 +1,3 @@
-import { useMemo } from "react";
-
 import { parseContentSegments, type ContentSegment } from "@/lib/attachments";
 import type { AttachmentPayload } from "@/lib/types";
 
@@ -16,99 +14,85 @@ export function useTaskCompleteSegments({
   markdownAnswer,
   attachments,
 }: UseTaskCompleteSegmentsOptions) {
-  const segments = useMemo(
-    () => parseContentSegments(markdownAnswer, attachments),
-    [attachments, markdownAnswer],
-  );
+  // Parse segments from markdown and attachments
+  const segments = parseContentSegments(markdownAnswer, attachments);
 
-  const inlineRenderBlocks = useMemo(() => {
-    const blocks: InlineRenderBlock[] = [];
-    let buffer = "";
+  // Build inline render blocks from segments
+  const blocks: InlineRenderBlock[] = [];
+  let buffer = "";
 
-    segments.forEach((segment) => {
-      if (segment.type === "text") {
-        if (segment.text) {
-          buffer += segment.text;
-        }
-        return;
+  for (const segment of segments) {
+    if (segment.type === "text") {
+      if (segment.text) {
+        buffer += segment.text;
       }
+      continue;
+    }
 
-      if (segment.implicit) {
-        return;
+    if (segment.implicit) {
+      continue;
+    }
+
+    const placeholder = segment.placeholder?.trim() ?? "";
+    if (!placeholder.startsWith("[")) {
+      if (placeholder) {
+        buffer += placeholder;
       }
+      continue;
+    }
 
-      const placeholder = segment.placeholder?.trim() ?? "";
-      if (!placeholder.startsWith("[")) {
-        if (placeholder) {
-          buffer += placeholder;
-        }
-        return;
-      }
-
-      if (buffer.trim().length > 0) {
-        blocks.push({ kind: "markdown", content: buffer });
-        buffer = "";
-      } else if (buffer.length > 0) {
-        blocks.push({ kind: "markdown", content: buffer });
-        buffer = "";
-      }
-
-      if (segment.attachment) {
-        blocks.push({ kind: "attachment", segment });
-      }
-    });
-
-    if (buffer.length > 0) {
+    if (buffer.trim().length > 0) {
       blocks.push({ kind: "markdown", content: buffer });
+      buffer = "";
+    } else if (buffer.length > 0) {
+      blocks.push({ kind: "markdown", content: buffer });
+      buffer = "";
     }
 
-    if (blocks.length === 0) {
-      blocks.push({ kind: "markdown", content: markdownAnswer });
+    if (segment.attachment) {
+      blocks.push({ kind: "attachment", segment });
     }
+  }
 
-    return blocks;
-  }, [markdownAnswer, segments]);
+  if (buffer.length > 0) {
+    blocks.push({ kind: "markdown", content: buffer });
+  }
 
-  const { unreferencedMediaSegments, artifactSegments } = useMemo(() => {
-    const unreferencedMedia: ContentSegment[] = [];
-    const artifacts: ContentSegment[] = [];
+  if (blocks.length === 0) {
+    blocks.push({ kind: "markdown", content: markdownAnswer });
+  }
 
-    for (const segment of segments) {
-      if (!segment.attachment) continue;
+  // Collect unreferenced media and artifacts
+  const unreferencedMediaSegments: ContentSegment[] = [];
+  const artifactSegments: ContentSegment[] = [];
 
-      if (!segment.implicit) {
-        continue;
-      }
+  for (const segment of segments) {
+    if (!segment.attachment) continue;
+    if (!segment.implicit) continue;
 
-      if (segment.type === "image" || segment.type === "video") {
-        unreferencedMedia.push(segment);
-      } else if (segment.type === "document" || segment.type === "embed") {
-        artifacts.push(segment);
-      }
+    if (segment.type === "image" || segment.type === "video") {
+      unreferencedMediaSegments.push(segment);
+    } else if (segment.type === "document" || segment.type === "embed") {
+      artifactSegments.push(segment);
     }
+  }
 
-    return {
-      unreferencedMediaSegments: unreferencedMedia,
-      artifactSegments: artifacts,
-    };
-  }, [segments]);
-
-  const shouldSoftenSummary = useMemo(() => {
-    const text = markdownAnswer.trim();
-    if (!text) {
-      return true;
-    }
-    const headingMatches = text.match(/^#{1,6}\s+/gm) ?? [];
-    const listMatches = text.match(/^\s*(?:[-*+]|\d+\.)\s+/gm) ?? [];
-    const headingCount = headingMatches.length;
-    const listCount = listMatches.length;
-    const isDocumentLike =
-      headingCount >= 3 || listCount >= 6 || text.length >= 800;
-    return !isDocumentLike;
-  }, [markdownAnswer]);
+  // Determine if summary should be softened
+  const text = markdownAnswer.trim();
+  const shouldSoftenSummary = !text
+    ? true
+    : (() => {
+        const headingMatches = text.match(/^#{1,6}\s+/gm) ?? [];
+        const listMatches = text.match(/^\s*(?:[-*+]|\d+\.)\s+/gm) ?? [];
+        const headingCount = headingMatches.length;
+        const listCount = listMatches.length;
+        const isDocumentLike =
+          headingCount >= 3 || listCount >= 6 || text.length >= 800;
+        return !isDocumentLike;
+      })();
 
   return {
-    inlineRenderBlocks,
+    inlineRenderBlocks: blocks,
     unreferencedMediaSegments,
     artifactSegments,
     hasMultipleArtifacts: artifactSegments.length > 1,
