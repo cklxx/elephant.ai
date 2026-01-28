@@ -19,3 +19,5 @@
 - 2026-01-28: Ran `./dev.sh lint`.
 - 2026-01-28: Ran `./dev.sh test` (Go tests passed; linker warnings about malformed LC_DYSYMTAB).
 - 2026-01-28: Identified mismatch path: subagent inherits OutputContext from parent, so `prepare` node emits before OutputContext is reset to ensuredTaskID, yielding task_id/parent_task_id equality.
+- 2026-01-28: Re-ran `./dev.sh lint`.
+- 2026-01-28: Re-ran `./dev.sh test` (Go tests passed; linker warnings about malformed LC_DYSYMTAB).
