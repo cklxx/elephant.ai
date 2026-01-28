@@ -84,7 +84,7 @@ export function ToolOutputCard({
     }
   }, [resolvedStatus, t]);
 
-  const debugMode = useMemo(() => isDebugModeEnabled(), []);
+  const debugMode = isDebugModeEnabled();
 
   const elapsedMs = useElapsedDurationMs({
     startTimestamp: timestamp ?? null,

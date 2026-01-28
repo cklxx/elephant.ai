@@ -500,8 +500,7 @@ function EventCard({
 }
 
 function EventContextMeta({ event }: { event: AnyAgentEvent }) {
-  const debugMode = useMemo(() => isDebugModeEnabled(), []);
-  if (!debugMode) {
+  if (!isDebugModeEnabled()) {
     return null;
   }
 

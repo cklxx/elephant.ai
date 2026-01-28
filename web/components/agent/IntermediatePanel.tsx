@@ -71,7 +71,7 @@ const isWorkflowNodeOutputSummaryEvent = (
 
 export function IntermediatePanel({ events }: IntermediatePanelProps) {
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const debugMode = useMemo(() => isDebugModeEnabled(), []);
+  const debugMode = isDebugModeEnabled();
 
   interface AggregatedToolCall {
     callId: string;

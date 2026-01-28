@@ -49,6 +49,8 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * Keep responses focused on actionable outputs (changes + validation + limitations).
 * I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
 * Never write compatibility logic; always refactor from first principles, redesign the architecture, and implement cleanly.
+* I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
+* Never write compatibility logic; always refactor from first principles, redesign the architecture, and implement cleanly.
 
 ---
 
@@ -58,3 +60,36 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 - Summary index: `docs/error-experience/summary.md`
 - Summary entries: `docs/error-experience/summary/entries/`
 - Entries: `docs/error-experience/entries/`
+
+---
+
+## Memory Loading Guidance (First Run + Progressive Disclosure)
+
+### Memory sources
+Use: error entries + summaries, good entries + summaries, and `docs/memory/long-term.md`.
+
+### First-run memory load (mandatory)
+On the first run in a repo session:
+1. Read the latest 3–5 items from **each** of the four folders above.
+2. Build a unified memory list and rank items by:
+   - **Recency**: newer dates score higher.
+   - **Frequency**: topics that repeat across entries score higher.
+   - **Relevance**: lexical overlap with the current task and current files wins.
+3. Keep only the top 8–12 items as the **active memory set**.
+4. Store the remaining items as **cold memory** (not loaded unless requested).
+
+### Progressive disclosure (on-demand)
+Only expand memory beyond the active set when:
+- The task touches a known failure/success pattern but lacks specifics.
+- Tests fail with a known error signature.
+- The user explicitly requests historical context or a postmortem.
+
+### Retrieval rules
+- Use summaries first; only open full entries if summaries are insufficient.
+- Prefer the most recent item when multiple entries discuss the same topic.
+- If two items are equally relevant, pick the one with higher recurrence across entries.
+
+### Long-term memory doc rules
+- `docs/memory/long-term.md` stores only durable, long-lived lessons.
+- Always update the `Updated:` timestamp to hour precision (`YYYY-MM-DD HH:00`).
+- On the **first memory load each day**, re-rank memories (recency/frequency/relevance), refresh the active set, and update the long-term doc if needed.
