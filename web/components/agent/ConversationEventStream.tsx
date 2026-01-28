@@ -56,7 +56,6 @@ export function ConversationEventStream({
       }),
     [events, isRunning, activeTaskId],
   );
-
   const displayEntries = useMemo(
     () => buildDisplayEntriesWithClarifyTimeline(displayEvents),
     [displayEvents],
@@ -139,12 +138,11 @@ export function ConversationEventStream({
           const event = entry.event;
           const key = getStableEventKey(event, index);
 
-          // Check if this is a subagent tool call that should show a card
-          // Use task_id (which is the parent_task_id of subagent events) to find the thread
+          // Check if this is a subagent tool call that should show cards
+          // Use task_id (which is the parent_task_id of subagent events) to find threads
           const parentTaskId = isSubagentToolEvent(event) && typeof event.task_id === "string" ? event.task_id : null;
-          const subagentThread = parentTaskId ? subagentThreadsByParentId.get(parentTaskId) : null;
-          const hasSubagentCard = subagentThread && subagentThread.events.length > 0;
-
+          const subagentThreads = parentTaskId ? subagentThreadsByParentId.get(parentTaskId) : null;
+          const hasSubagentCards = subagentThreads && subagentThreads.length > 0;
           return (
             <div
               key={key}
@@ -155,20 +153,20 @@ export function ConversationEventStream({
                 event={event}
                 pairedToolStartEvent={resolvePairedToolStart(event)}
               />
-              {hasSubagentCard && (
-                <div className="mt-2 mb-2" data-testid="subagent-card-container">
+              {hasSubagentCards && subagentThreads!.map((thread) => (
+                <div key={thread.key} className="mt-2 mb-2" data-testid="subagent-card-container">
                   <AgentCard
                     data={subagentThreadToCardData(
-                      subagentThread.key,
-                      subagentThread.context,
-                      subagentThread.events,
-                      subagentThread.subtaskIndex,
+                      thread.key,
+                      thread.context,
+                      thread.events,
+                      thread.subtaskIndex,
                     )}
                     resolvePairedToolStart={resolvePairedToolStart}
                     className="mx-0 my-0"
                   />
                 </div>
-              )}
+              ))}
             </div>
           );
         })}
@@ -186,19 +184,6 @@ export function ConversationEventStream({
               callId={pendingTool.call_id}
               status="running"
             />
-          </div>
-        ))}
-        {/* Render pending nodes (running state) */}
-        {Array.from(pendingNodes.values()).map((pendingNode) => (
-          <div
-            key={`pending-node-${(pendingNode as any).node_id || pendingNode.timestamp}`}
-            className={cn("py-1 pl-2 border-primary/10", "group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2")}
-            data-testid="pending-node"
-          >
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <LoadingDots />
-              <span>Running: {(pendingNode as any).node_id || 'node'}</span>
-            </div>
           </div>
         ))}
         {isRunning && (
@@ -272,7 +257,7 @@ function partitionEvents(
   options: { includeDeltas: boolean; activeTaskId: string | null },
 ): {
   displayEvents: AnyAgentEvent[];
-  subagentThreadsByParentId: Map<string, SubagentThread>;
+  subagentThreadsByParentId: Map<string, SubagentThread[]>;
   pendingToolCalls: Map<string, WorkflowToolStartedEvent>;
   pendingNodes: Map<string, AnyAgentEvent>;
 } {
@@ -296,10 +281,15 @@ function partitionEvents(
       const key = `${event.session_id}:${event.call_id}`;
       completedToolIds.add(key);
     } else if (isEventType(event, "workflow.node.started")) {
-      const key = `${event.session_id}:${(event as any).node_id || event.timestamp}`;
+      const nodeId = (event as any).node_id;
+      const taskId = event.task_id || "";
+      // Use node_id + task_id for reliable matching; skip if no identifier
+      const key = nodeId ? `${event.session_id}:${taskId}:${nodeId}` : `${event.session_id}:${taskId}:default`;
       startedNodes.set(key, event);
     } else if (isEventType(event, "workflow.node.completed")) {
-      const key = `${event.session_id}:${(event as any).node_id || event.timestamp}`;
+      const nodeId = (event as any).node_id;
+      const taskId = event.task_id || "";
+      const key = nodeId ? `${event.session_id}:${taskId}:${nodeId}` : `${event.session_id}:${taskId}:default`;
       completedNodeIds.add(key);
     }
   });
@@ -380,19 +370,23 @@ function partitionEvents(
   });
 
   // Group threads by parent_task_id for lookup by anchor events
-  const subagentThreadsByParentId = new Map<string, SubagentThread>();
+  // Store ALL threads for each parent_task_id (there can be multiple subagent calls)
+  const subagentThreadsByParentId = new Map<string, SubagentThread[]>();
   Array.from(threads.values()).forEach((thread) => {
     // Extract parent_task_id from thread key (format: parentTaskId:taskId or parentTaskId:call:callId)
     const parentTaskId = thread.key.split(':')[0];
     if (!parentTaskId) return;
 
-    // Merge threads with same parent_task_id (take the one with most events, or earliest)
+    const sortedThread = {
+      ...thread,
+      events: sortSubagentEvents(thread.events, arrivalOrder),
+    };
+
     const existing = subagentThreadsByParentId.get(parentTaskId);
-    if (!existing || thread.events.length > existing.events.length) {
-      subagentThreadsByParentId.set(parentTaskId, {
-        ...thread,
-        events: sortSubagentEvents(thread.events, arrivalOrder),
-      });
+    if (!existing) {
+      subagentThreadsByParentId.set(parentTaskId, [sortedThread]);
+    } else {
+      existing.push(sortedThread);
     }
   });
 
