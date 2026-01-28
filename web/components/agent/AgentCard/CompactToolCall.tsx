@@ -19,13 +19,16 @@ export function CompactToolCall({
   parameters,
 }: CompactToolCallProps) {
   const [expanded, setExpanded] = useState(false);
+  const testId = `compact-tool-call-${toolName
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")}`;
 
   const hasDetails = parameters && Object.keys(parameters).length > 0;
   const displayResult = error || result || "No output";
   const shortResult = displayResult.length > 80 ? displayResult.slice(0, 80) + "..." : displayResult;
 
   return (
-    <div className="text-xs space-y-1">
+    <div className="text-xs space-y-1" data-testid={testId}>
       <div
         className={cn(
           "flex items-start gap-2 p-2 rounded-md transition-colors",

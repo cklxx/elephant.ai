@@ -2,7 +2,7 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { AnyAgentEvent, WorkflowToolStartedEvent } from '@/lib/types';
+import { AnyAgentEvent, WorkflowToolCompletedEvent, WorkflowToolStartedEvent } from '@/lib/types';
 import { isEventType } from '@/lib/events/matching';
 import {
   isWorkflowNodeFailedEvent,
@@ -10,7 +10,10 @@ import {
   isWorkflowToolCompletedEvent,
   isWorkflowToolStartedEvent,
 } from '@/lib/typeGuards';
+import { isSubagentLike } from '@/lib/subagent';
+import { formatContent, formatResult } from './EventLine/formatters';
 import { ToolCallCard } from './ToolCallCard';
+import { CompactToolCall } from './AgentCard/CompactToolCall';
 import { ThinkingIndicator } from './ThinkingIndicator';
 import { TaskCompleteCard } from './TaskCompleteCard';
 import { ErrorCard } from './ErrorCard';
@@ -354,6 +357,7 @@ function EventCard({
   isFocused?: boolean;
 }) {
   const t = useTranslation();
+  const isSubagentEvent = isSubagentLike(event);
 
   const wrapWithContext = (content: ReactNode) => (
     <div className="flex flex-col gap-3">
@@ -380,6 +384,14 @@ function EventCard({
   }
 
   if (isWorkflowToolStartedEvent(event)) {
+    if (isSubagentEvent) {
+      const summary = formatContent(event) || `▸ ${event.tool_name ?? 'Tool'}`;
+      return wrapWithContext(
+        <div className="text-xs text-muted-foreground" data-testid="subagent-tool-start">
+          {summary}
+        </div>,
+      );
+    }
     return wrapWithContext(
       <ToolCallCard event={event} status="running" pairedStart={pairedStart} isFocused={isFocused} />,
     );
@@ -387,6 +399,33 @@ function EventCard({
 
   if (isWorkflowToolCompletedEvent(event)) {
     const hasError = Boolean(event.error);
+    if (isSubagentEvent) {
+      const completedEvent = event as WorkflowToolCompletedEvent & {
+        arguments?: Record<string, unknown>;
+      };
+      const pairedArguments =
+        completedEvent.arguments &&
+        typeof completedEvent.arguments === 'object' &&
+        !Array.isArray(completedEvent.arguments)
+          ? (completedEvent.arguments as Record<string, unknown>)
+          : pairedStart?.arguments;
+      const resultText = completedEvent.error
+        ? String(completedEvent.error)
+        : formatResult(completedEvent.result);
+
+      return wrapWithContext(
+        <div data-testid="subagent-tool-completed">
+          <CompactToolCall
+            toolName={completedEvent.tool_name}
+            success={!completedEvent.error}
+            result={resultText}
+            error={completedEvent.error ? String(completedEvent.error) : undefined}
+            duration={completedEvent.duration}
+            parameters={pairedArguments}
+          />
+        </div>,
+      );
+    }
     return wrapWithContext(
       <ToolCallCard
         event={event}

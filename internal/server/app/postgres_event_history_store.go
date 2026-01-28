@@ -186,7 +186,7 @@ func (s *PostgresEventHistoryStore) Append(ctx context.Context, event agent.Agen
 		return nil
 	}
 
-	record, err := recordFromEventWithStore(BaseAgentEvent(event), s.attachmentStore)
+	record, err := recordFromEventWithStore(event, s.attachmentStore)
 	if err != nil {
 		return err
 	}
@@ -246,7 +246,7 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []ag
 		if event == nil {
 			continue
 		}
-		record, err := recordFromEventWithStore(BaseAgentEvent(event), s.attachmentStore)
+		record, err := recordFromEventWithStore(event, s.attachmentStore)
 		if err != nil {
 			return err
 		}

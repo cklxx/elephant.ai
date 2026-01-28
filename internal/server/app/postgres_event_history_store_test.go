@@ -237,6 +237,33 @@ func (w *stubSubtaskWrapper) WrappedEvent() agent.AgentEvent {
 	return w.inner
 }
 
+func assertSubtaskEnvelope(t *testing.T, event agent.AgentEvent, meta agent.SubtaskMetadata) {
+	t.Helper()
+
+	envelope, ok := event.(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", event)
+	}
+	if envelope.GetAgentLevel() != agent.LevelSubagent {
+		t.Fatalf("expected agent level %q, got %q", agent.LevelSubagent, envelope.GetAgentLevel())
+	}
+	if !envelope.IsSubtask {
+		t.Fatalf("expected IsSubtask=true, got false")
+	}
+	if envelope.SubtaskIndex != meta.Index {
+		t.Fatalf("expected subtask index %d, got %d", meta.Index, envelope.SubtaskIndex)
+	}
+	if envelope.TotalSubtasks != meta.Total {
+		t.Fatalf("expected total subtasks %d, got %d", meta.Total, envelope.TotalSubtasks)
+	}
+	if envelope.SubtaskPreview != meta.Preview {
+		t.Fatalf("expected preview %q, got %q", meta.Preview, envelope.SubtaskPreview)
+	}
+	if envelope.MaxParallel != meta.MaxParallel {
+		t.Fatalf("expected max parallel %d, got %d", meta.MaxParallel, envelope.MaxParallel)
+	}
+}
+
 func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 	now := time.Now()
 	envelope := &domain.WorkflowEventEnvelope{
@@ -312,6 +339,110 @@ func TestRecordFromEventPreservesSubtaskWrapperMetadata(t *testing.T) {
 	if env.MaxParallel != wrapper.meta.MaxParallel {
 		t.Fatalf("expected rehydrated max parallel %d, got %d", wrapper.meta.MaxParallel, env.MaxParallel)
 	}
+}
+
+func TestPostgresEventHistoryStore_PreservesSubtaskWrapperMetadataOnAppend(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	store := NewPostgresEventHistoryStore(pool)
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	now := time.Now()
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess-subtask", "task-1", "parent-1", now),
+		Version:   1,
+		Event:     "workflow.tool.completed",
+		NodeKind:  "tool",
+		NodeID:    "bash:1",
+		Payload: map[string]any{
+			"tool_name": "bash",
+			"result":    "ok",
+		},
+	}
+	meta := agent.SubtaskMetadata{
+		Index:       1,
+		Total:       2,
+		Preview:     "Run unit tests",
+		MaxParallel: 1,
+	}
+	wrapper := &stubSubtaskWrapper{
+		inner: envelope,
+		level: agent.LevelSubagent,
+		meta:  meta,
+	}
+
+	if err := store.Append(ctx, wrapper); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+
+	var events []agent.AgentEvent
+	if err := store.Stream(ctx, EventHistoryFilter{SessionID: "sess-subtask"}, func(evt agent.AgentEvent) error {
+		events = append(events, evt)
+		return nil
+	}); err != nil {
+		t.Fatalf("stream history: %v", err)
+	}
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	assertSubtaskEnvelope(t, events[0], meta)
+}
+
+func TestPostgresEventHistoryStore_PreservesSubtaskWrapperMetadataOnAppendBatch(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	store := NewPostgresEventHistoryStore(pool)
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	now := time.Now()
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess-subtask-batch", "task-2", "parent-2", now),
+		Version:   1,
+		Event:     "workflow.tool.completed",
+		NodeKind:  "tool",
+		NodeID:    "bash:2",
+		Payload: map[string]any{
+			"tool_name": "bash",
+			"result":    "ok",
+		},
+	}
+	meta := agent.SubtaskMetadata{
+		Index:       0,
+		Total:       3,
+		Preview:     "Check tool output",
+		MaxParallel: 2,
+	}
+	wrapper := &stubSubtaskWrapper{
+		inner: envelope,
+		level: agent.LevelSubagent,
+		meta:  meta,
+	}
+
+	if err := store.AppendBatch(ctx, []agent.AgentEvent{wrapper}); err != nil {
+		t.Fatalf("append batch: %v", err)
+	}
+
+	var events []agent.AgentEvent
+	if err := store.Stream(ctx, EventHistoryFilter{SessionID: "sess-subtask-batch"}, func(evt agent.AgentEvent) error {
+		events = append(events, evt)
+		return nil
+	}); err != nil {
+		t.Fatalf("stream history: %v", err)
+	}
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	assertSubtaskEnvelope(t, events[0], meta)
 }
 
 func TestPostgresEventHistoryStorePrunesOldEvents(t *testing.T) {

@@ -14,8 +14,8 @@ import {
   EventLine,
   SubagentContext,
   getSubagentContext,
-  isSubagentLike,
 } from "./EventLine";
+import { isSubagentLike } from "@/lib/subagent";
 import { ClearifyTimeline, type ClearifyTaskGroup } from "./ClearifyTimeline";
 import { isOrchestratorRetryMessage } from "@/lib/utils";
 import { AgentCard } from "./AgentCard";
@@ -41,7 +41,7 @@ export function ConversationEventStream({
   isRunning = false,
 }: ConversationEventStreamProps) {
   const activeTaskId = useMemo(() => resolveActiveTaskId(events), [events]);
-  const { displayEvents, subagentThreads } = useMemo(
+  const { displayEvents, subagentThreads, anchorMap } = useMemo(
     () =>
       partitionEvents(events, {
         includeDeltas: isRunning,
@@ -95,90 +95,13 @@ export function ConversationEventStream({
           groupKey: thread.groupKey,
           eventsCount: thread.events.length,
           subtaskIndex: thread.subtaskIndex,
+          anchorEventId: thread.anchorEventId,
         });
       });
     }
 
-    type CombinedEntry =
-      | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
-      | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number; order: number }
-      | {
-        kind: "subagentGroup";
-        groupKey: string;
-        threads: SubagentThread[];
-        ts: number;
-        order: number;
-      };
-
-    const entries: CombinedEntry[] = displayEntries.map((entry, idx) => {
-      if (entry.kind === "event") {
-        return {
-          kind: "event",
-          event: entry.event,
-          ts: Date.parse(entry.event.timestamp ?? "") || 0,
-          order: idx,
-        };
-      }
-
-      return {
-        kind: "clearifyTimeline",
-        groups: entry.groups,
-        ts: entry.ts,
-        order: idx,
-      };
-    });
-
-    const groupedSubagents = new Map<
-      string,
-      { groupKey: string; threads: SubagentThread[]; ts: number; order: number }
-    >();
-
-    subagentThreads.forEach((thread, idx) => {
-      const threadTs =
-        typeof thread.firstSeenAt === "number"
-          ? thread.firstSeenAt
-          : Number.POSITIVE_INFINITY;
-      const threadOrder =
-        typeof thread.firstArrival === "number"
-          ? thread.firstArrival
-          : displayEntries.length + idx;
-      const groupKey = thread.groupKey || thread.key;
-
-      const group = groupedSubagents.get(groupKey);
-      if (!group) {
-        groupedSubagents.set(groupKey, {
-          groupKey,
-          threads: [thread],
-          ts: threadTs,
-          order: threadOrder,
-        });
-        return;
-      }
-
-      group.threads.push(thread);
-      if (threadTs < group.ts) {
-        group.ts = threadTs;
-      }
-      if (threadOrder < group.order) {
-        group.order = threadOrder;
-      }
-    });
-
-    groupedSubagents.forEach((group) => {
-      entries.push({
-        kind: "subagentGroup",
-        groupKey: group.groupKey,
-        threads: group.threads,
-        ts: group.ts,
-        order: group.order,
-      });
-    });
-
-    return entries.sort((a, b) => {
-      if (a.ts !== b.ts) return a.ts - b.ts;
-      return a.order - b.order;
-    });
-  }, [displayEntries, subagentThreads]);
+    return buildInterleavedEntries(displayEntries, subagentThreads, anchorMap);
+  }, [displayEntries, subagentThreads, anchorMap]);
 
   if (!isConnected || error) {
     return (
@@ -281,6 +204,10 @@ interface SubagentThread {
   subtaskIndex: number;
   firstSeenAt: number | null;
   firstArrival: number;
+  /** Anchor event key - identifies the parent tool call that triggered this subagent */
+  anchorEventId?: string;
+  /** Timestamp of the anchor event for fallback sorting */
+  anchorTimestamp?: number;
 }
 
 function parseEventTimestamp(event: AnyAgentEvent): number | null {
@@ -319,6 +246,7 @@ function partitionEvents(
 ): {
   displayEvents: AnyAgentEvent[];
   subagentThreads: SubagentThread[];
+  anchorMap: Map<string, { timestamp: number | null; eventIndex: number }>;
 } {
   const displayEvents: AnyAgentEvent[] = [];
   const threads = new Map<string, SubagentThread>();
@@ -327,6 +255,9 @@ function partitionEvents(
   let arrival = 0;
   const includeDeltas = options.includeDeltas;
   const activeTaskId = options.activeTaskId;
+
+  // Build anchor map from all events before partitioning
+  const anchorMap = buildAnchorMap(events);
 
   events.forEach((event) => {
     if (!isEventType(event, "workflow.result.final")) {
@@ -366,6 +297,8 @@ function partitionEvents(
       const key = getSubagentKey(event);
       const context = getSubagentContext(event);
       const subtaskIndex = getSubtaskIndex(event);
+      const anchorId = getSubagentAnchorId(event);
+      const anchorInfo = anchorId ? anchorMap.get(anchorId) : undefined;
 
       if (!threads.has(key)) {
         threads.set(key, {
@@ -376,6 +309,8 @@ function partitionEvents(
           subtaskIndex,
           firstSeenAt: eventTs,
           firstArrival: arrival,
+          anchorEventId: anchorId,
+          anchorTimestamp: anchorInfo?.timestamp ?? undefined,
         });
       }
 
@@ -432,11 +367,21 @@ function partitionEvents(
         events: sortSubagentEvents(thread.events, arrivalOrder),
       }))
       .sort((a, b) => {
+        // Sort by anchor event index if available
+        if (a.anchorEventId && b.anchorEventId) {
+          const aAnchor = anchorMap.get(a.anchorEventId);
+          const bAnchor = anchorMap.get(b.anchorEventId);
+          if (aAnchor && bAnchor) {
+            return aAnchor.eventIndex - bAnchor.eventIndex;
+          }
+        }
+        // Fallback to subtask index
         if (a.subtaskIndex !== b.subtaskIndex) {
           return a.subtaskIndex - b.subtaskIndex;
         }
         return 0;
       }),
+    anchorMap,
   };
 }
 
@@ -508,6 +453,186 @@ function maybeMergeDeltaEvent(
 type DisplayEntry =
   | { kind: "event"; event: AnyAgentEvent }
   | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number };
+
+type CombinedEntry =
+  | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
+  | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number; order: number }
+  | {
+    kind: "subagentGroup";
+    groupKey: string;
+    threads: SubagentThread[];
+    ts: number;
+    order: number;
+    anchorEventId?: string;
+  };
+
+/**
+ * Build interleaved timeline with subagent groups anchored to their trigger events.
+ *
+ * This function creates a unified timeline where subagent groups are inserted
+ * immediately after their anchor events (the tool calls that triggered them),
+ * rather than being sorted purely by timestamp.
+ */
+function buildInterleavedEntries(
+  displayEntries: DisplayEntry[],
+  subagentThreads: SubagentThread[],
+  anchorMap: Map<string, { timestamp: number | null; eventIndex: number }>,
+): CombinedEntry[] {
+  // Group subagent threads by their groupKey
+  const groupedSubagents = new Map<
+    string,
+    { groupKey: string; threads: SubagentThread[]; anchorEventId?: string; anchorIndex: number }
+  >();
+
+  subagentThreads.forEach((thread) => {
+    const groupKey = thread.groupKey || thread.key;
+    const group = groupedSubagents.get(groupKey);
+
+    // Determine anchor index for positioning
+    let anchorIndex = Number.POSITIVE_INFINITY;
+    if (thread.anchorEventId) {
+      const anchorInfo = anchorMap.get(thread.anchorEventId);
+      if (anchorInfo) {
+        anchorIndex = anchorInfo.eventIndex;
+      }
+    }
+
+    if (!group) {
+      groupedSubagents.set(groupKey, {
+        groupKey,
+        threads: [thread],
+        anchorEventId: thread.anchorEventId,
+        anchorIndex,
+      });
+      return;
+    }
+
+    group.threads.push(thread);
+    // Use the earliest anchor index among threads in the group
+    if (anchorIndex < group.anchorIndex) {
+      group.anchorIndex = anchorIndex;
+      group.anchorEventId = thread.anchorEventId;
+    }
+  });
+
+  // Convert display entries to combined entries with their original index
+  const baseEntries: Array<
+    | { kind: "event"; event: AnyAgentEvent; ts: number; order: number; originalIndex: number }
+    | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number; order: number; originalIndex: number }
+  > = displayEntries.map((entry, idx) => {
+    if (entry.kind === "event") {
+      return {
+        kind: "event",
+        event: entry.event,
+        ts: Date.parse(entry.event.timestamp ?? "") || 0,
+        order: idx,
+        originalIndex: idx,
+      };
+    }
+    return {
+      kind: "clearifyTimeline",
+      groups: entry.groups,
+      ts: entry.ts,
+      order: idx,
+      originalIndex: idx,
+    };
+  });
+
+  // Insert subagent groups at their anchor positions
+  const result: CombinedEntry[] = [];
+  const insertedGroups = new Set<string>();
+
+  baseEntries.forEach((entry, currentIndex) => {
+    // Insert any subagent groups that should appear after this entry
+    const groupsToInsert: Array<{ groupKey: string; threads: SubagentThread[]; anchorIndex: number }> = [];
+
+    groupedSubagents.forEach((group, groupKey) => {
+      if (insertedGroups.has(groupKey)) return;
+
+      // Determine if this group should be inserted after current entry
+      let shouldInsert = false;
+
+      if (group.anchorIndex !== Number.POSITIVE_INFINITY) {
+        // Has valid anchor - insert after the anchor event
+        shouldInsert = group.anchorIndex <= currentIndex;
+      } else {
+        // No anchor - use timestamp comparison as fallback
+        const groupTs = group.threads[0]?.firstSeenAt ?? Number.POSITIVE_INFINITY;
+        shouldInsert = groupTs <= entry.ts;
+      }
+
+      if (shouldInsert) {
+        groupsToInsert.push({
+          groupKey: group.groupKey,
+          threads: group.threads,
+          anchorIndex: group.anchorIndex,
+        });
+      }
+    });
+
+    // Sort groups by anchor index, then by subtask index for stable ordering
+    groupsToInsert.sort((a, b) => {
+      if (a.anchorIndex !== b.anchorIndex) {
+        return a.anchorIndex - b.anchorIndex;
+      }
+      // Within same anchor, sort by first thread's subtaskIndex
+      const aSubtaskIdx = a.threads[0]?.subtaskIndex ?? Number.POSITIVE_INFINITY;
+      const bSubtaskIdx = b.threads[0]?.subtaskIndex ?? Number.POSITIVE_INFINITY;
+      return aSubtaskIdx - bSubtaskIdx;
+    });
+
+    groupsToInsert.forEach((group) => {
+      if (insertedGroups.has(group.groupKey)) return;
+      insertedGroups.add(group.groupKey);
+
+      const groupTs = group.threads[0]?.firstSeenAt ?? entry.ts;
+      result.push({
+        kind: "subagentGroup",
+        groupKey: group.groupKey,
+        threads: group.threads,
+        ts: groupTs,
+        order: currentIndex,
+        anchorEventId: group.threads[0]?.anchorEventId,
+      });
+    });
+
+    // Add the current entry
+    if (entry.kind === "event") {
+      result.push({
+        kind: "event",
+        event: entry.event,
+        ts: entry.ts,
+        order: entry.order,
+      });
+    } else {
+      result.push({
+        kind: "clearifyTimeline",
+        groups: entry.groups,
+        ts: entry.ts,
+        order: entry.order,
+      });
+    }
+  });
+
+  // Insert any remaining groups at the end
+  groupedSubagents.forEach((group, groupKey) => {
+    if (insertedGroups.has(groupKey)) return;
+
+    const lastEntry = baseEntries[baseEntries.length - 1];
+    const lastTs = lastEntry?.ts ?? 0;
+
+    result.push({
+      kind: "subagentGroup",
+      groupKey: group.groupKey,
+      threads: group.threads,
+      ts: group.threads[0]?.firstSeenAt ?? lastTs,
+      order: baseEntries.length,
+      anchorEventId: group.threads[0]?.anchorEventId,
+    });
+  });
+
+  return result;
+}
 
 function normalizeComparableText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
@@ -782,6 +907,90 @@ function getSubtaskIndex(event: AnyAgentEvent): number {
       ? event.subtask_index
       : Number.POSITIVE_INFINITY;
   return subtaskIndex;
+}
+
+/**
+ * Extract anchor event identifier from subagent event.
+ * Anchor identifies the parent tool call that triggered this subagent.
+ */
+function getSubagentAnchorId(event: AnyAgentEvent): string | undefined {
+  // Primary: use call_id if it references a subagent delegation
+  const callId =
+    "call_id" in event && typeof event.call_id === "string"
+      ? event.call_id
+      : undefined;
+  if (callId?.startsWith("subagent")) {
+    return `call:${callId}`;
+  }
+
+  // Secondary: use parent_task_id + task_id combination
+  const parentTaskId =
+    "parent_task_id" in event && typeof event.parent_task_id === "string"
+      ? event.parent_task_id
+      : undefined;
+  const taskId =
+    "task_id" in event && typeof event.task_id === "string"
+      ? event.task_id
+      : undefined;
+
+  if (parentTaskId && taskId) {
+    return `task:${parentTaskId}:${taskId}`;
+  }
+
+  // Tertiary: use subtask_index if available
+  const subtaskIndex =
+    "subtask_index" in event && typeof event.subtask_index === "number"
+      ? event.subtask_index
+      : undefined;
+  if (parentTaskId && typeof subtaskIndex === "number") {
+    return `subtask:${parentTaskId}:${subtaskIndex}`;
+  }
+
+  return undefined;
+}
+
+/**
+ * Build a lookup map for anchor events from the main event stream.
+ * Returns a map from anchorId -> { timestamp, eventIndex }
+ */
+function buildAnchorMap(
+  events: AnyAgentEvent[],
+): Map<string, { timestamp: number | null; eventIndex: number }> {
+  const anchorMap = new Map<string, { timestamp: number | null; eventIndex: number }>();
+
+  events.forEach((event, index) => {
+    // Subagent delegation tool calls create anchors
+    if (isDelegationToolEvent(event)) {
+      const callId =
+        "call_id" in event && typeof event.call_id === "string"
+          ? event.call_id
+          : undefined;
+      if (callId) {
+        const anchorId = `call:${callId}`;
+        const ts = parseEventTimestamp(event);
+        anchorMap.set(anchorId, { timestamp: ts, eventIndex: index });
+      }
+      return;
+    }
+
+    // Also track task creation events as potential anchors
+    const parentTaskId =
+      "parent_task_id" in event && typeof event.parent_task_id === "string"
+        ? event.parent_task_id
+        : undefined;
+    const taskId =
+      "task_id" in event && typeof event.task_id === "string" ? event.task_id : undefined;
+
+    if (parentTaskId && taskId && event.agent_level === "subagent") {
+      const anchorId = `task:${parentTaskId}:${taskId}`;
+      if (!anchorMap.has(anchorId)) {
+        const ts = parseEventTimestamp(event);
+        anchorMap.set(anchorId, { timestamp: ts, eventIndex: index });
+      }
+    }
+  });
+
+  return anchorMap;
 }
 
 function shouldDisplaySubagentEvent(event: AnyAgentEvent): boolean {
