@@ -23,6 +23,7 @@
   - `docs/error-experience/summary/entries/`
   - `docs/good-experience/entries/`
   - `docs/good-experience/summary/entries/`
+  - `docs/memory/long-term.md`
 - **Parsing**:
   - Extract date from filename; parse `Error:`/`Summary:` + `Remediation:` lines.
   - Infer tags via lightweight keyword map + TF-IDF top n-grams.
@@ -44,6 +45,10 @@
 - Read latest 3–5 items from each folder, then merge with top-K from `index.yaml`.
 - Keep **active set** size 8–12; store remainder as cold memory.
 - Load summaries first; pull full entries only if summary lacks required detail.
+
+### 3.1) Daily refresh (first load per day)
+- On the first memory load each day, re-rank using recency/frequency/relevance.
+- Refresh the active set and update `docs/memory/long-term.md` if durable items change.
 
 ### 4) Progressive Disclosure
 - Escalate memory retrieval only when:
