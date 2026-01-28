@@ -86,60 +86,10 @@ export function ConversationEventStream({
     };
   }, [toolStartEventsByCallKey]);
 
-  const combinedEntries = useMemo(() => {
-    const result = buildInterleavedEntries(displayEntries, subagentThreads);
-
-    // Debug: Log subagent info to diagnose duplicates
-    if (process.env.NODE_ENV === "development") {
-      console.group("[Subagent Debug]");
-
-      // Check display entries for subagent-related events
-      const displaySubagentEvents = displayEntries.filter(e =>
-        e.kind === "event" && isSubagentLike(e.event)
-      );
-      console.log("Display entries with isSubagentLike:", displaySubagentEvents.map(e => ({
-        type: e.kind === "event" ? e.event.event_type : "timeline",
-        agentLevel: e.kind === "event" ? e.event.agent_level : "n/a",
-        parentTaskId: e.kind === "event" ? (e.event as any).parent_task_id : "n/a",
-        taskId: e.kind === "event" ? e.event.task_id : "n/a",
-        preview: e.kind === "event" ? getSubagentContext(e.event).preview?.slice(0, 30) : "n/a",
-      })));
-
-      // Check subagent threads
-      console.log("Subagent threads:", subagentThreads.map(t => ({
-        key: t.key,
-        groupKey: t.groupKey,
-        eventCount: t.events.length,
-        subtaskIndex: t.subtaskIndex,
-        firstArrival: t.firstArrival,
-        preview: t.context.preview?.slice(0, 30),
-      })));
-
-      // Check combined entries for duplicate groupKeys
-      const groupKeyCounts = new Map<string, number>();
-      result.forEach(e => {
-        if (e.kind === "subagentGroup") {
-          groupKeyCounts.set(e.groupKey, (groupKeyCounts.get(e.groupKey) || 0) + 1);
-        }
-      });
-      const duplicates = Array.from(groupKeyCounts.entries()).filter(([_, count]) => count > 1);
-      if (duplicates.length > 0) {
-        console.error("DUPLICATE subagent groups found:", duplicates);
-      }
-
-      console.log("Combined entries summary:", result.map(e =>
-        e.kind === "subagentGroup"
-          ? `📦 subagentGroup(${e.groupKey}, threads=${e.threads.length})`
-          : e.kind === "clarifyTimeline"
-            ? `📋 clarifyTimeline`
-            : `📄 ${e.event.event_type}`
-      ));
-
-      console.groupEnd();
-    }
-
-    return result;
-  }, [displayEntries, subagentThreads]);
+  const combinedEntries = useMemo(
+    () => buildInterleavedEntries(displayEntries, subagentThreads),
+    [displayEntries, subagentThreads]
+  );
 
   if (!isConnected || error) {
     return (
@@ -564,20 +514,37 @@ type CombinedEntry =
   };
 
 /**
- * Build interleaved timeline with subagent groups inserted at their anchor positions.
+ * Build combined timeline by merging display entries with subagent groups.
  *
- * Subagent threads are already sorted by partitionEvents based on their anchor's originalIndex.
- * We need to convert display entries to combined entries and insert subagent groups
- * at the positions corresponding to their anchors.
- *
- * Since subagent tool calls may be inside clarify timeline entries, we use a pointer
- * to track which subagent group should be inserted next based on anchor order.
+ * Simple approach:
+ * 1. Convert display entries to combined entries
+ * 2. Create subagent groups from threads (grouped by groupKey)
+ * 3. Sort subagent groups by their first event timestamp
+ * 4. Merge both lists by timestamp
  */
 function buildInterleavedEntries(
   displayEntries: DisplayEntry[],
   subagentThreads: SubagentThread[],
 ): CombinedEntry[] {
-  // Group threads by groupKey for rendering
+  // Convert display entries to combined entries
+  const eventEntries: CombinedEntry[] = displayEntries.map((entry, index) => {
+    if (entry.kind === "event") {
+      return {
+        kind: "event",
+        event: entry.event,
+        ts: Date.parse(entry.event.timestamp ?? "") || 0,
+        order: index,
+      };
+    }
+    return {
+      kind: "clarifyTimeline",
+      groups: entry.groups,
+      ts: entry.ts,
+      order: index,
+    };
+  });
+
+  // Group threads by groupKey
   const groupedThreads = new Map<string, SubagentThread[]>();
   subagentThreads.forEach((thread) => {
     const groupKey = thread.groupKey || thread.key;
@@ -589,136 +556,53 @@ function buildInterleavedEntries(
     }
   });
 
-  // Create array of groups with their earliest anchor index
-  const subagentGroups: Array<{
-    groupKey: string;
-    threads: SubagentThread[];
-    anchorOriginalIndex: number;
-  }> = [];
+  // Create subagent group entries sorted by first event timestamp
+  const subagentGroupEntries: CombinedEntry[] = Array.from(groupedThreads.entries())
+    .map(([groupKey, threads]) => {
+      // Get earliest timestamp from all threads in this group
+      let earliestTs = Number.POSITIVE_INFINITY;
+      threads.forEach((t) => {
+        if (t.firstSeenAt !== null && t.firstSeenAt < earliestTs) {
+          earliestTs = t.firstSeenAt;
+        }
+      });
+      return {
+        kind: "subagentGroup" as const,
+        groupKey,
+        threads,
+        ts: earliestTs === Number.POSITIVE_INFINITY ? Date.now() : earliestTs,
+        order: -1, // Will be determined by sort
+      };
+    })
+    .sort((a, b) => a.ts - b.ts);
 
-  groupedThreads.forEach((threads, groupKey) => {
-    // Find earliest anchor among threads in this group
-    let earliestAnchorIndex = Number.POSITIVE_INFINITY;
-    threads.forEach((t) => {
-      if (t.anchor) {
-        earliestAnchorIndex = Math.min(earliestAnchorIndex, t.anchor.originalIndex);
-      }
-    });
-    subagentGroups.push({
-      groupKey,
-      threads,
-      anchorOriginalIndex: earliestAnchorIndex,
-    });
-  });
-
-  // Sort groups by anchor position
-  subagentGroups.sort((a, b) => {
-    // Groups with anchors come before those without
-    if (a.anchorOriginalIndex !== Number.POSITIVE_INFINITY && b.anchorOriginalIndex === Number.POSITIVE_INFINITY) {
-      return -1;
-    }
-    if (a.anchorOriginalIndex === Number.POSITIVE_INFINITY && b.anchorOriginalIndex !== Number.POSITIVE_INFINITY) {
-      return 1;
-    }
-    // Both have anchors or both don't - sort by anchor index or subtask index
-    if (a.anchorOriginalIndex !== b.anchorOriginalIndex) {
-      return a.anchorOriginalIndex - b.anchorOriginalIndex;
-    }
-    // Fallback to first thread's subtaskIndex
-    const aSubtaskIdx = a.threads[0]?.subtaskIndex ?? Number.POSITIVE_INFINITY;
-    const bSubtaskIdx = b.threads[0]?.subtaskIndex ?? Number.POSITIVE_INFINITY;
-    return aSubtaskIdx - bSubtaskIdx;
-  });
-
-  // Build a map from original event index to display index
-  // This allows us to correctly position subagent groups
-  const originalToDisplayIndex = new Map<number, number>();
-  displayEntries.forEach((entry, displayIdx) => {
-    if (entry.kind === "event") {
-      // We need to find this event's position in the original array
-      // For now, use arrival order approximation via timestamp
-      originalToDisplayIndex.set(displayIdx, displayIdx);
-    }
-  });
-
-  // Build the result by iterating through displayEntries and inserting subagent groups
+  // Merge both lists by timestamp
   const result: CombinedEntry[] = [];
-  const insertedGroups = new Set<string>();
+  let eventIdx = 0;
+  let groupIdx = 0;
 
-  // Sort groups by anchor position - they'll be inserted after their anchor position
-  subagentGroups.sort((a, b) => a.anchorOriginalIndex - b.anchorOriginalIndex);
+  while (eventIdx < eventEntries.length || groupIdx < subagentGroupEntries.length) {
+    const nextEvent = eventEntries[eventIdx];
+    const nextGroup = subagentGroupEntries[groupIdx];
 
-  // Calculate insertion points based on proportional position
-  const maxOriginalIndex = Math.max(
-    ...subagentGroups.map(g => g.anchorOriginalIndex).filter(i => i !== Number.POSITIVE_INFINITY),
-    displayEntries.length
-  );
-
-  displayEntries.forEach((entry, displayIndex) => {
-    // Check if any subagent groups should be inserted BEFORE this entry
-    // A group should be inserted if its proportional position is <= current position
-    const currentProportion = displayIndex / displayEntries.length;
-
-    subagentGroups.forEach((group) => {
-      if (insertedGroups.has(group.groupKey)) return;
-
-      const groupProportion = group.anchorOriginalIndex / maxOriginalIndex;
-
-      // Insert if group's proportional position is close to or before current position
-      if (groupProportion <= currentProportion + 0.01) { // Small buffer for rounding
-        const groupTs = group.threads[0]?.firstSeenAt ?? (entry.kind === "event"
-          ? (Date.parse(entry.event.timestamp ?? "") || 0)
-          : entry.ts);
-        result.push({
-          kind: "subagentGroup",
-          groupKey: group.groupKey,
-          threads: group.threads,
-          ts: groupTs,
-          order: displayIndex,
-        });
-        insertedGroups.add(group.groupKey);
-      }
-    });
-
-    // Add the current entry
-    if (entry.kind === "event") {
-      result.push({
-        kind: "event",
-        event: entry.event,
-        ts: Date.parse(entry.event.timestamp ?? "") || 0,
-        order: displayIndex,
-      });
+    if (!nextGroup) {
+      // No more groups, add remaining events
+      result.push(nextEvent);
+      eventIdx++;
+    } else if (!nextEvent) {
+      // No more events, add remaining groups
+      result.push(nextGroup);
+      groupIdx++;
+    } else if (nextGroup.ts <= nextEvent.ts) {
+      // Group comes before or at same time as event
+      result.push(nextGroup);
+      groupIdx++;
     } else {
-      result.push({
-        kind: "clarifyTimeline",
-        groups: entry.groups,
-        ts: entry.ts,
-        order: displayIndex,
-      });
+      // Event comes before group
+      result.push(nextEvent);
+      eventIdx++;
     }
-
-  });
-
-  // Add any remaining groups that weren't inserted
-  const lastEntry = displayEntries[displayEntries.length - 1];
-  const lastTs = lastEntry
-    ? (lastEntry.kind === "event"
-      ? (Date.parse(lastEntry.event.timestamp ?? "") || 0)
-      : lastEntry.ts)
-    : 0;
-
-  subagentGroups.forEach((group) => {
-    if (insertedGroups.has(group.groupKey)) return;
-
-    result.push({
-      kind: "subagentGroup",
-      groupKey: group.groupKey,
-      threads: group.threads,
-      ts: group.threads[0]?.firstSeenAt ?? lastTs,
-      order: displayEntries.length,
-    });
-    insertedGroups.add(group.groupKey);
-  });
+  }
 
   return result;
 }
