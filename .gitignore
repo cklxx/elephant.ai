@@ -137,3 +137,4 @@ web/test-results/*
 .pids/*
 cmd/alex/alex
 internal/llm/logs/requests/llm.jsonl
+logs/requests/llm.jsonl
