@@ -257,6 +257,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	if outCtx.LogID == "" {
 		outCtx.LogID = ids.LogID
 	}
+	outCtx.TaskID = ensuredTaskID
 	ctx = agent.WithOutputContext(ctx, outCtx)
 	logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 

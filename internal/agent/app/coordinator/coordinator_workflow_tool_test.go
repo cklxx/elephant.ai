@@ -15,6 +15,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
+	"alex/internal/utils/id"
 	"alex/internal/workflow"
 )
 
@@ -258,6 +259,77 @@ func TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope(t *testing.T) {
 	}
 	if !foundPrepare {
 		t.Fatalf("expected prepare step envelope to be emitted")
+	}
+}
+
+func TestExecuteTaskUsesEnsuredTaskIDForPrepareEnvelope(t *testing.T) {
+	llm := &mocks.MockLLMClient{CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		return &ports.CompletionResponse{
+			Content:    "final answer",
+			StopReason: "stop",
+			Usage:      ports.TokenUsage{TotalTokens: 3},
+		}, nil
+	}}
+
+	sessionStore := &stubSessionStore{}
+	listener := &capturingListener{}
+
+	coordinator := NewAgentCoordinator(
+		stubLLMFactory{client: llm},
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		nil,
+		&mocks.MockParser{},
+		nil,
+		appconfig.Config{
+			LLMProvider:   "mock",
+			LLMModel:      "prepare-task-id",
+			MaxIterations: 1,
+			Temperature:   0.2,
+		},
+	)
+
+	ctx := id.WithIDs(context.Background(), id.IDs{
+		SessionID:    "session-e2e",
+		TaskID:       "task-sub-1",
+		ParentTaskID: "task-parent",
+	})
+	ctx = agent.WithOutputContext(ctx, &agent.OutputContext{
+		Level:        agent.LevelSubagent,
+		SessionID:    "session-e2e",
+		TaskID:       "task-parent",
+		ParentTaskID: "task-parent",
+	})
+
+	result, err := coordinator.ExecuteTask(ctx, "test prepare task", "session-e2e", listener)
+	if err != nil {
+		t.Fatalf("ExecuteTask returned error: %v", err)
+	}
+	if result.TaskID != "task-sub-1" {
+		t.Fatalf("expected task id task-sub-1, got %q", result.TaskID)
+	}
+
+	started := listener.envelopes("workflow.node.started")
+	if len(started) == 0 {
+		t.Fatalf("expected workflow.node.started envelopes to be emitted")
+	}
+
+	var prepare *domain.WorkflowEventEnvelope
+	for _, env := range started {
+		if env.NodeID == "prepare" {
+			prepare = env
+			break
+		}
+	}
+	if prepare == nil {
+		t.Fatalf("expected prepare step envelope to be emitted")
+	}
+	if prepare.GetTaskID() != result.TaskID {
+		t.Fatalf("expected prepare step task_id=%q, got %q", result.TaskID, prepare.GetTaskID())
+	}
+	if prepare.GetParentTaskID() != "task-parent" {
+		t.Fatalf("expected prepare step parent_task_id=task-parent, got %q", prepare.GetParentTaskID())
 	}
 }
 
