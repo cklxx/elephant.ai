@@ -136,24 +136,32 @@ export function ConversationEventStream({
             );
           }
 
-          if (entry.kind === "subagentThread") {
-            const thread = entry.thread;
+          if (entry.kind === "subagentGroup") {
+            const { threads } = entry;
             return (
               <div
-                key={`subagent-${thread.key}`}
-                className="mt-2 mb-2"
-                data-testid="subagent-card-container"
+                key={`subagent-group-${threads.map(t => t.key).join('-')}`}
+                className="-mx-2 px-2 my-2 flex flex-col gap-3"
+                data-testid="subagent-thread-group"
               >
-                <AgentCard
-                  data={subagentThreadToCardData(
-                    thread.key,
-                    thread.context,
-                    thread.events,
-                    thread.subtaskIndex,
-                  )}
-                  resolvePairedToolStart={resolvePairedToolStart}
-                  className="mx-0 my-0"
-                />
+                {threads.map((thread) => (
+                  <div
+                    key={thread.key}
+                    className="mt-2 mb-2"
+                    data-testid="subagent-card-container"
+                  >
+                    <AgentCard
+                      data={subagentThreadToCardData(
+                        thread.key,
+                        thread.context,
+                        thread.events,
+                        thread.subtaskIndex,
+                      )}
+                      resolvePairedToolStart={resolvePairedToolStart}
+                      className="mx-0 my-0"
+                    />
+                  </div>
+                ))}
               </div>
             );
           }
@@ -457,7 +465,7 @@ type DisplayEntry =
 type CombinedEntry =
   | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
   | { kind: "clarifyTimeline"; groups: ClarifyTaskGroup[]; ts: number; order: number }
-  | { kind: "subagentThread"; thread: SubagentThread; ts: number; order: number };
+  | { kind: "subagentGroup"; threads: SubagentThread[]; ts: number; order: number };
 
 function buildInterleavedEntries(
   displayEntries: DisplayEntry[],
@@ -481,32 +489,57 @@ function buildInterleavedEntries(
     };
   });
 
-  // Create entries from subagent threads
-  const threadEntries: CombinedEntry[] = subagentThreads.map((thread, index) => ({
-    kind: "subagentThread" as const,
-    thread,
-    ts: thread.firstSeenAt ?? Date.now(),
-    order: index,
-  }));
+  // Group subagent threads by parent_task_id
+  const groupedThreads = new Map<string, SubagentThread[]>();
+  subagentThreads.forEach((thread) => {
+    const parentTaskId = thread.key.split(':')[0];
+    if (!parentTaskId) return;
+
+    const existing = groupedThreads.get(parentTaskId);
+    if (!existing) {
+      groupedThreads.set(parentTaskId, [thread]);
+    } else {
+      existing.push(thread);
+    }
+  });
+
+  // Create entries from grouped threads
+  const groupEntries: CombinedEntry[] = Array.from(groupedThreads.entries()).map(
+    ([parentTaskId, threads], index) => {
+      // Get earliest timestamp from all threads in this group
+      let earliestTs = Number.POSITIVE_INFINITY;
+      threads.forEach((t) => {
+        if (t.firstSeenAt !== null && t.firstSeenAt < earliestTs) {
+          earliestTs = t.firstSeenAt;
+        }
+      });
+      return {
+        kind: "subagentGroup" as const,
+        threads,
+        ts: earliestTs === Number.POSITIVE_INFINITY ? Date.now() : earliestTs,
+        order: index,
+      };
+    }
+  );
 
   // Merge both lists by timestamp
   const result: CombinedEntry[] = [];
   let eventIdx = 0;
-  let threadIdx = 0;
+  let groupIdx = 0;
 
-  while (eventIdx < eventEntries.length || threadIdx < threadEntries.length) {
+  while (eventIdx < eventEntries.length || groupIdx < groupEntries.length) {
     const nextEvent = eventEntries[eventIdx];
-    const nextThread = threadEntries[threadIdx];
+    const nextGroup = groupEntries[groupIdx];
 
-    if (!nextThread) {
+    if (!nextGroup) {
       result.push(nextEvent);
       eventIdx++;
     } else if (!nextEvent) {
-      result.push(nextThread);
-      threadIdx++;
-    } else if (nextThread.ts <= nextEvent.ts) {
-      result.push(nextThread);
-      threadIdx++;
+      result.push(nextGroup);
+      groupIdx++;
+    } else if (nextGroup.ts <= nextEvent.ts) {
+      result.push(nextGroup);
+      groupIdx++;
     } else {
       result.push(nextEvent);
       eventIdx++;
