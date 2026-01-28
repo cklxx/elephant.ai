@@ -19,7 +19,8 @@ export function CompactToolCall({
   parameters,
 }: CompactToolCallProps) {
   const [expanded, setExpanded] = useState(false);
-  const testId = `compact-tool-call-${toolName
+  const normalizedToolName = toolName || "unknown";
+  const testId = `compact-tool-call-${normalizedToolName
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, "-")}`;
 
@@ -46,7 +47,7 @@ export function CompactToolCall({
               "font-medium",
               success ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"
             )}>
-              {toolName}
+              {normalizedToolName}
             </span>
             {duration !== undefined && (
               <span className="text-[10px] text-muted-foreground">
