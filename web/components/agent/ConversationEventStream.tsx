@@ -145,33 +145,12 @@ export function ConversationEventStream({
           const subagentThread = parentTaskId ? subagentThreadsByParentId.get(parentTaskId) : null;
           const hasSubagentCard = subagentThread && subagentThread.events.length > 0;
 
-          // Check if this is the start of an AI response (delta or summary)
-          // by checking if previous event was not an AI output
-          const isAIOutput = isEventType(event, "workflow.node.output.delta", "workflow.node.output.summary");
-          const prevEntry = index > 0 ? combinedEntries[index - 1] : null;
-          const prevEvent = prevEntry?.kind === "event" ? prevEntry.event : null;
-          const prevWasAIOutput = prevEvent && isEventType(prevEvent, "workflow.node.output.delta", "workflow.node.output.summary");
-          const isStartOfAIResponse = isAIOutput && !prevWasAIOutput;
-
           return (
             <div
               key={key}
               className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
             >
-              {isStartOfAIResponse && (
-                <div className="flex items-center py-2">
-                  <Image
-                    src="/elephant.jpg"
-                    alt=""
-                    width={36}
-                    height={36}
-                    sizes="36px"
-                    className="h-9 w-9 rounded-sm object-cover"
-                    aria-hidden="true"
-                  />
-                  <AlexWordmark className="ml-1 text-muted-foreground/60" />
-                </div>
-              )}
+
               <EventLine
                 event={event}
                 pairedToolStartEvent={resolvePairedToolStart(event)}
@@ -270,6 +249,11 @@ function shouldSkipEvent(event: AnyAgentEvent): boolean {
     event.event_type === "workflow.node.started" ||
     event.event_type === "workflow.node.completed"
   ) {
+    return true;
+  }
+
+  // Skip tool started events - they are merged with completed events or shown as pending
+  if (event.event_type === "workflow.tool.started") {
     return true;
   }
 

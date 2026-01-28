@@ -436,6 +436,20 @@ function PlanGoalCard({
 }) {
   return (
     <div className="py-1 mb-1" data-testid="event-ui-plan">
+      {(
+        <div className="flex items-center py-2">
+          <Image
+            src="/elephant.jpg"
+            alt=""
+            width={36}
+            height={36}
+            sizes="36px"
+            className="h-9 w-9 rounded-sm object-cover"
+            aria-hidden="true"
+          />
+          <AlexWordmark className="ml-1 text-muted-foreground/60" />
+        </div>
+      )}
       <AgentMarkdown
         content={goal}
         className="prose max-w-none text-base leading-snug text-foreground"
