@@ -630,15 +630,56 @@ function buildInterleavedEntries(
     return aSubtaskIdx - bSubtaskIdx;
   });
 
+  // Build a map from original event index to display index
+  // This allows us to correctly position subagent groups
+  const originalToDisplayIndex = new Map<number, number>();
+  displayEntries.forEach((entry, displayIdx) => {
+    if (entry.kind === "event") {
+      // We need to find this event's position in the original array
+      // For now, use arrival order approximation via timestamp
+      originalToDisplayIndex.set(displayIdx, displayIdx);
+    }
+  });
+
   // Build the result by iterating through displayEntries and inserting subagent groups
   const result: CombinedEntry[] = [];
-  let subagentGroupIndex = 0;
+  const insertedGroups = new Set<string>();
 
-  // We need to track the position in the original events array
-  // Each display entry may correspond to one or more original events
-  // For simplicity, we use the entry index and compare with anchor's desired position
+  // Sort groups by anchor position - they'll be inserted after their anchor position
+  subagentGroups.sort((a, b) => a.anchorOriginalIndex - b.anchorOriginalIndex);
+
+  // Calculate insertion points based on proportional position
+  const maxOriginalIndex = Math.max(
+    ...subagentGroups.map(g => g.anchorOriginalIndex).filter(i => i !== Number.POSITIVE_INFINITY),
+    displayEntries.length
+  );
 
   displayEntries.forEach((entry, displayIndex) => {
+    // Check if any subagent groups should be inserted BEFORE this entry
+    // A group should be inserted if its proportional position is <= current position
+    const currentProportion = displayIndex / displayEntries.length;
+
+    subagentGroups.forEach((group) => {
+      if (insertedGroups.has(group.groupKey)) return;
+
+      const groupProportion = group.anchorOriginalIndex / maxOriginalIndex;
+
+      // Insert if group's proportional position is close to or before current position
+      if (groupProportion <= currentProportion + 0.01) { // Small buffer for rounding
+        const groupTs = group.threads[0]?.firstSeenAt ?? (entry.kind === "event"
+          ? (Date.parse(entry.event.timestamp ?? "") || 0)
+          : entry.ts);
+        result.push({
+          kind: "subagentGroup",
+          groupKey: group.groupKey,
+          threads: group.threads,
+          ts: groupTs,
+          order: displayIndex,
+        });
+        insertedGroups.add(group.groupKey);
+      }
+    });
+
     // Add the current entry
     if (entry.kind === "event") {
       result.push({
@@ -656,58 +697,18 @@ function buildInterleavedEntries(
       });
     }
 
-    // Insert all subagent groups that should appear after this entry
-    // A group should be inserted if its anchorOriginalIndex is "covered" by this entry
-    // Since we don't have exact mapping, we use a heuristic:
-    // Insert groups whose anchor position is roughly at or before this display position
-    while (subagentGroupIndex < subagentGroups.length) {
-      const group = subagentGroups[subagentGroupIndex];
-
-      // Determine if this group should be inserted now
-      let shouldInsert = false;
-
-      if (group.anchorOriginalIndex !== Number.POSITIVE_INFINITY) {
-        // Has anchor - insert after we've passed enough entries
-        // The anchor is at position X in original events, we insert after entry at position ~X
-        // Since displayEntries is a subset, we use displayIndex as approximation
-        // But we need to be careful not to insert too early
-        shouldInsert = displayIndex >= Math.min(group.anchorOriginalIndex, displayEntries.length - 1);
-      } else {
-        // No anchor - use timestamp fallback
-        const groupTs = group.threads[0]?.firstSeenAt ?? Number.POSITIVE_INFINITY;
-        const entryTs = entry.kind === "event"
-          ? (Date.parse(entry.event.timestamp ?? "") || 0)
-          : entry.ts;
-        shouldInsert = groupTs <= entryTs;
-      }
-
-      if (!shouldInsert) break;
-
-      // Insert this group
-      const groupTs = group.threads[0]?.firstSeenAt ?? (entry.kind === "event"
-        ? (Date.parse(entry.event.timestamp ?? "") || 0)
-        : entry.ts);
-      result.push({
-        kind: "subagentGroup",
-        groupKey: group.groupKey,
-        threads: group.threads,
-        ts: groupTs,
-        order: displayIndex,
-      });
-
-      subagentGroupIndex++;
-    }
   });
 
-  // Add remaining groups at the end
-  while (subagentGroupIndex < subagentGroups.length) {
-    const group = subagentGroups[subagentGroupIndex];
-    const lastEntry = displayEntries[displayEntries.length - 1];
-    const lastTs = lastEntry
-      ? (lastEntry.kind === "event"
-        ? (Date.parse(lastEntry.event.timestamp ?? "") || 0)
-        : lastEntry.ts)
-      : 0;
+  // Add any remaining groups that weren't inserted
+  const lastEntry = displayEntries[displayEntries.length - 1];
+  const lastTs = lastEntry
+    ? (lastEntry.kind === "event"
+      ? (Date.parse(lastEntry.event.timestamp ?? "") || 0)
+      : lastEntry.ts)
+    : 0;
+
+  subagentGroups.forEach((group) => {
+    if (insertedGroups.has(group.groupKey)) return;
 
     result.push({
       kind: "subagentGroup",
@@ -716,9 +717,8 @@ function buildInterleavedEntries(
       ts: group.threads[0]?.firstSeenAt ?? lastTs,
       order: displayEntries.length,
     });
-
-    subagentGroupIndex++;
-  }
+    insertedGroups.add(group.groupKey);
+  });
 
   return result;
 }
