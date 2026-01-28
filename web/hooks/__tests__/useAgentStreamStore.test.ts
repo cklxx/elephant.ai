@@ -88,7 +88,6 @@ describe('useAgentStreamStore', () => {
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-123',
         chunk: 'file1.txt\n',
       };
@@ -98,8 +97,8 @@ describe('useAgentStreamStore', () => {
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-123',
+        tool_name: 'bash',
         result: 'file1.txt\nfile2.txt',
         duration: 100,
       };
@@ -162,7 +161,7 @@ describe('useAgentStreamStore', () => {
         session_id: 'test-123',
         agent_level: 'core',
         iteration: 1,
-        total_iterations: 5,
+        total_iters: 5,
       };
 
       const workflowNodeDeltaEvent: AnyAgentEvent = {
@@ -206,7 +205,7 @@ describe('useAgentStreamStore', () => {
         session_id: 'test-123',
         agent_level: 'core',
         iteration: 1,
-        total_iterations: 3,
+        total_iters: 3,
       };
 
       act(() => {
@@ -224,7 +223,6 @@ describe('useAgentStreamStore', () => {
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 3,
         final_answer: 'Task completed successfully',
         stop_reason: 'completed',
         total_iterations: 3,
@@ -249,7 +247,6 @@ describe('useAgentStreamStore', () => {
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 3,
         final_answer: 'Partial final answer',
         stop_reason: 'completed',
         total_iterations: 3,
@@ -262,7 +259,6 @@ describe('useAgentStreamStore', () => {
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 3,
         final_answer: 'Refined final answer with artifact [report.pdf]',
         stop_reason: 'completed',
         total_iterations: 3,
@@ -297,7 +293,6 @@ describe('useAgentStreamStore', () => {
         agent_level: 'core',
         is_streaming: true,
         stream_finished: false,
-        iteration: 3,
         final_answer: 'Hello ',
         stop_reason: 'completed',
         total_iterations: 3,
@@ -312,7 +307,6 @@ describe('useAgentStreamStore', () => {
         agent_level: 'core',
         is_streaming: false,
         stream_finished: true,
-        iteration: 3,
         final_answer: '',
         stop_reason: 'completed',
         total_iterations: 3,
@@ -395,8 +389,8 @@ describe('useAgentStreamStore', () => {
         timestamp: new Date().toISOString(),
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-456',
+        tool_name: 'search',
         result: 'Found 5 matches',
         duration: 250,
       };
@@ -426,7 +420,7 @@ describe('useAgentStreamStore', () => {
           session_id: 'test-123',
           agent_level: 'core',
           iteration: 1,
-          total_iterations: 3,
+          total_iters: 3,
         },
       ];
 
