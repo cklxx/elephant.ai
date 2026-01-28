@@ -60,3 +60,35 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 - Summary index: `docs/error-experience/summary.md`
 - Summary entries: `docs/error-experience/summary/entries/`
 - Entries: `docs/error-experience/entries/`
+
+---
+
+## Memory Loading Guidance (First Run + Progressive Disclosure)
+
+### Memory sources (folders)
+Load memory from the following folders only; index files are index-only.
+- Error experience entries: `docs/error-experience/entries/`
+- Error experience summaries: `docs/error-experience/summary/entries/`
+- Good experience entries: `docs/good-experience/entries/`
+- Good experience summaries: `docs/good-experience/summary/entries/`
+
+### First-run memory load (mandatory)
+On the first run in a repo session:
+1. Read the latest 3–5 items from **each** of the four folders above.
+2. Build a unified memory list and rank items by:
+   - **Recency**: newer dates score higher.
+   - **Frequency**: topics that repeat across entries score higher.
+   - **Relevance**: lexical overlap with the current task and current files wins.
+3. Keep only the top 8–12 items as the **active memory set**.
+4. Store the remaining items as **cold memory** (not loaded unless requested).
+
+### Progressive disclosure (on-demand)
+Only expand memory beyond the active set when:
+- The task touches a known failure/success pattern but lacks specifics.
+- Tests fail with a known error signature.
+- The user explicitly requests historical context or a postmortem.
+
+### Retrieval rules
+- Use summaries first; only open full entries if summaries are insufficient.
+- Prefer the most recent item when multiple entries discuss the same topic.
+- If two items are equally relevant, pick the one with higher recurrence across entries.
