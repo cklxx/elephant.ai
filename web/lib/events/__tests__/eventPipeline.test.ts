@@ -140,12 +140,12 @@ describe('EventPipeline deduplication', () => {
     } satisfies AnyAgentEvent;
 
     pipeline.process({ ...basePayload, tool_name: 'plan' });
-    pipeline.process({ ...basePayload, tool_name: 'clearify' });
+    pipeline.process({ ...basePayload, tool_name: 'clarify' });
 
     expect(received).toHaveLength(2);
     expect(received.map((e) => (e as AnyAgentEvent & { tool_name?: string }).tool_name)).toEqual([
       'plan',
-      'clearify',
+      'clarify',
     ]);
   });
 });

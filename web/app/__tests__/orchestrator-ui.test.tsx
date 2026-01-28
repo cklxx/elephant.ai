@@ -113,7 +113,7 @@ describe("Conversation page orchestrator UI tools", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders plan/clearify UI tools with correct levels", async () => {
+  it("renders plan/clarify UI tools with correct levels", async () => {
     const baseTimestamp = new Date().toISOString();
     mockEventsRef.current = [
       {
@@ -124,7 +124,7 @@ describe("Conversation page orchestrator UI tools", () => {
         task_id: "test-task",
         call_id: "call-plan",
         tool_name: "plan",
-        result: "重构 Planner UI，并引入 plan/clearify 两个 UI 工具。",
+        result: "重构 Planner UI，并引入 plan/clarify 两个 UI 工具。",
         duration: 5,
         metadata: {
           internal_plan: {
@@ -138,13 +138,13 @@ describe("Conversation page orchestrator UI tools", () => {
         agent_level: "core",
         session_id: "test-session",
         task_id: "test-task",
-        call_id: "call-clearify",
-        tool_name: "clearify",
+        call_id: "call-clarify",
+        tool_name: "clarify",
         result: "更新 EventLine 的分级渲染",
         duration: 3,
         metadata: {
           task_goal_ui: "更新 EventLine 的分级渲染",
-          success_criteria: ["plan 显示为 Level 1", "clearify 显示为 Level 2"],
+          success_criteria: ["plan 显示为 Level 1", "clarify 显示为 Level 2"],
         },
       } as AnyAgentEvent,
     ];
@@ -153,14 +153,14 @@ describe("Conversation page orchestrator UI tools", () => {
 
     expect(
       await screen.findByText(
-        "重构 Planner UI，并引入 plan/clearify 两个 UI 工具。",
+        "重构 Planner UI，并引入 plan/clarify 两个 UI 工具。",
         undefined,
         { timeout: 5000 },
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("更新 EventLine 的分级渲染")).toBeInTheDocument();
     expect(screen.getByText("plan 显示为 Level 1")).toBeInTheDocument();
-    expect(screen.getByText("clearify 显示为 Level 2")).toBeInTheDocument();
+    expect(screen.getByText("clarify 显示为 Level 2")).toBeInTheDocument();
 
     // internal_plan must never be rendered.
     expect(screen.queryByText("SHOULD_NOT_RENDER")).not.toBeInTheDocument();

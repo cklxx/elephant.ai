@@ -608,7 +608,7 @@ func toolKindForName(name string) string {
 		return "search"
 	case name == "bash" || name == "code_execute" || strings.HasPrefix(name, "sandbox_shell"):
 		return "execute"
-	case name == "plan" || name == "clearify" || name == "attention":
+	case name == "plan" || name == "clarify" || name == "attention":
 		return "think"
 	case name == "web_fetch" || name == "douyin_hot":
 		return "fetch"

@@ -388,7 +388,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// UI orchestration
 	r.static["plan"] = ui.NewPlan(config.MemoryService)
-	r.static["clearify"] = ui.NewClearify()
+	r.static["clarify"] = ui.NewClarify()
 	r.static["memory_recall"] = memorytools.NewMemoryRecall(config.MemoryService)
 	r.static["memory_write"] = memorytools.NewMemoryWrite(config.MemoryService)
 	r.static["attention"] = ui.NewAttention()

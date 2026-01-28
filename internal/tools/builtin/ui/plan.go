@@ -37,11 +37,11 @@ func (t *uiPlan) Definition() ports.ToolDefinition {
 		Description: `UI tool: emit Level 1 goal and (optionally) attach a hidden internal plan for the orchestrator.
 
 Rules:
-- Must be called before any non-plan/clearify tool call.
+- Must be called before any non-plan/clarify tool call.
 - When complexity="simple", overall_goal_ui must be a single line.
 - overall_goal_ui must state the deliverable and a measurable acceptance signal (paths/tests/metrics).
-- When complexity="simple", you may proceed directly to the required action tool calls after plan(); do NOT call clearify() unless you need to pause for user input.
-- When complexity="complex", call clearify() before the first action tool call for each task.`,
+- When complexity="simple", you may proceed directly to the required action tool calls after plan(); do NOT call clarify() unless you need to pause for user input.
+- When complexity="complex", call clarify() before the first action tool call for each task.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{

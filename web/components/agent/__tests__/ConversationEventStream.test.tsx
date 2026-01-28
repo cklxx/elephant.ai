@@ -609,9 +609,9 @@ describe('ConversationEventStream', () => {
     expect(screen.getAllByTestId('event-workflow.tool.completed')).toHaveLength(1);
   });
 
-  it('renders clearify events when present', () => {
+  it('renders clarify events when present', () => {
     const planTimestamp = new Date(Date.now() + 500).toISOString();
-    const clearifyTimestamp = new Date(Date.now() + 1000).toISOString();
+    const clarifyTimestamp = new Date(Date.now() + 1000).toISOString();
 
     const events: AnyAgentEvent[] = [
       baseEvent,
@@ -640,10 +640,10 @@ describe('ConversationEventStream', () => {
         agent_level: 'core',
         session_id: baseEvent.session_id,
         task_id: baseEvent.task_id,
-        tool_name: 'clearify',
+        tool_name: 'clarify',
         result: 'Single task detail should render',
         duration: 1,
-        timestamp: clearifyTimestamp,
+        timestamp: clarifyTimestamp,
         metadata: {
           task_goal_ui: 'Single task detail should render',
           success_criteria: ['displayed'],

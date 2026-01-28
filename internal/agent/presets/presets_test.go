@@ -290,10 +290,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "read-only allows clearify",
+			name:      "read-only allows clarify",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
-			toolName:  "clearify",
+			toolName:  "clarify",
 			wantAllow: true,
 		},
 		{
@@ -304,10 +304,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "safe allows clearify",
+			name:      "safe allows clarify",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
-			toolName:  "clearify",
+			toolName:  "clarify",
 			wantAllow: true,
 		},
 		{

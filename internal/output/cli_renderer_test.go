@@ -91,9 +91,9 @@ func TestRenderToolCallCompleteRendersConversationalContent(t *testing.T) {
 	renderer := newTestRenderer(false)
 	ctx := &types.OutputContext{Level: types.LevelCore}
 
-	rendered := renderer.RenderToolCallComplete(ctx, "clearify", "Need input", nil, 0)
+	rendered := renderer.RenderToolCallComplete(ctx, "clarify", "Need input", nil, 0)
 
-	if strings.Contains(rendered, "clearify") {
+	if strings.Contains(rendered, "clarify") {
 		t.Fatalf("expected conversational tool name to be hidden, got %q", rendered)
 	}
 	if !strings.Contains(rendered, "Need input") {

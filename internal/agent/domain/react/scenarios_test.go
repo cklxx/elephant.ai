@@ -59,12 +59,12 @@ func TestReactEngine_MultipleToolCallsScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Should have 6 iterations: plan + clearify + 3 tool calls + final answer
+	// Should have 6 iterations: plan + clarify + 3 tool calls + final answer
 	if result.Iterations != 6 {
 		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
 	}
 
-	// Should have 5 tool results: plan, clearify, file_read, ripgrep, bash
+	// Should have 5 tool results: plan, clarify, file_read, ripgrep, bash
 	if len(state.ToolResults) != 5 {
 		t.Errorf("Expected 5 tool results, got %d", len(state.ToolResults))
 	}
@@ -164,7 +164,7 @@ func TestReactEngine_CodeEditScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 6 iterations: plan, clearify, file_read, file_edit, bash (test), final answer
+	// 6 iterations: plan, clarify, file_read, file_edit, bash (test), final answer
 	if result.Iterations != 6 {
 		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
 	}
@@ -268,7 +268,7 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 4 iterations: plan, clearify, subagent call, final answer
+	// 4 iterations: plan, clarify, subagent call, final answer
 	if result.Iterations != 4 {
 		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
 	}

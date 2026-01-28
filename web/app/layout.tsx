@@ -21,7 +21,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "elephant.ai",
   description:
-    "Build controllable, auditable agents with Plan + Clearify + ReAct.",
+    "Build controllable, auditable agents with Plan + Clarify + ReAct.",
   icons: {
     icon: "/elephant.jpg",
   },

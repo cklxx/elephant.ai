@@ -4,16 +4,14 @@ import { AnyAgentEvent } from "@/lib/types";
 export function isSubagentLike(event: AnyAgentEvent): boolean {
   if (!event) return false;
 
-  if (event.agent_level === "subagent") return true;
+  // Primary: parent_task_id exists and is different from task_id
+  // This is the definitive indicator of a subagent
   const unknownEvent = event as {
     is_subtask?: unknown;
     parent_task_id?: unknown;
     node_id?: unknown;
     call_id?: unknown;
   };
-  if ("is_subtask" in event && Boolean(unknownEvent.is_subtask)) {
-    return true;
-  }
 
   const parentTask =
     "parent_task_id" in event && typeof unknownEvent.parent_task_id === "string"
@@ -21,7 +19,17 @@ export function isSubagentLike(event: AnyAgentEvent): boolean {
       : "";
   const currentTaskId =
     typeof event.task_id === "string" ? event.task_id.trim() : "";
-  if (parentTask && parentTask !== currentTaskId) return true;
+
+  // Must have both parent_task_id and task_id, and they must be different
+  if (parentTask && currentTaskId && parentTask !== currentTaskId) {
+    return true;
+  }
+
+  // Secondary: explicit subagent markers
+  if (event.agent_level === "subagent") return true;
+  if ("is_subtask" in event && Boolean(unknownEvent.is_subtask)) {
+    return true;
+  }
 
   const nodeId =
     "node_id" in event && typeof unknownEvent.node_id === "string"

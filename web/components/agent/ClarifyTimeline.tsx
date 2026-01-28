@@ -10,32 +10,32 @@ import { Check, Loader2, CircleHelp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EventLine } from "./EventLine";
 
-export interface ClearifyTaskGroup {
-  clearifyEvent: WorkflowToolCompletedEvent;
+export interface ClarifyTaskGroup {
+  clarifyEvent: WorkflowToolCompletedEvent;
   events: AnyAgentEvent[];
 }
 
-interface ClearifyTimelineProps {
-  groups: ClearifyTaskGroup[];
+interface ClarifyTimelineProps {
+  groups: ClarifyTaskGroup[];
   isRunning: boolean;
   resolvePairedToolStart: (
     event: AnyAgentEvent,
   ) => WorkflowToolStartedEvent | undefined;
 }
 
-export function ClearifyTimeline({
+export function ClarifyTimeline({
   groups,
   isRunning,
   resolvePairedToolStart,
-}: ClearifyTimelineProps) {
+}: ClarifyTimelineProps) {
   if (!groups || groups.length === 0) {
     return null;
   }
 
   return (
-    <div className="py-2" data-testid="clearify-timeline">
+    <div className="py-2" data-testid="clarify-timeline">
       {groups.map((group, idx) => (
-        <ClearifyTimelineItem
+        <ClarifyTimelineItem
           key={getGroupKey(group, idx)}
           group={group}
           index={idx}
@@ -48,25 +48,25 @@ export function ClearifyTimeline({
   );
 }
 
-function getGroupKey(group: ClearifyTaskGroup, index: number): string {
+function getGroupKey(group: ClarifyTaskGroup, index: number): string {
   const metaTaskId =
-    typeof group.clearifyEvent.metadata?.task_id === "string"
-      ? group.clearifyEvent.metadata.task_id.trim()
+    typeof group.clarifyEvent.metadata?.task_id === "string"
+      ? group.clarifyEvent.metadata.task_id.trim()
       : "";
-  if (metaTaskId) return `clearify:${metaTaskId}`;
-  if (group.clearifyEvent.call_id)
-    return `clearify:call:${group.clearifyEvent.call_id}`;
-  return `clearify:${group.clearifyEvent.timestamp}:${index}`;
+  if (metaTaskId) return `clarify:${metaTaskId}`;
+  if (group.clarifyEvent.call_id)
+    return `clarify:call:${group.clarifyEvent.call_id}`;
+  return `clarify:${group.clarifyEvent.timestamp}:${index}`;
 }
 
-function ClearifyTimelineItem({
+function ClarifyTimelineItem({
   group,
   index,
   total,
   isRunning,
   resolvePairedToolStart,
 }: {
-  group: ClearifyTaskGroup;
+  group: ClarifyTaskGroup;
   index: number;
   total: number;
   isRunning: boolean;
@@ -76,8 +76,8 @@ function ClearifyTimelineItem({
 }) {
   const { taskGoalUI, successCriteria, needsUserInput, questionToUser } =
     useMemo(
-      () => parseClearifyMetadata(group.clearifyEvent),
-      [group.clearifyEvent],
+      () => parseClarifyMetadata(group.clarifyEvent),
+      [group.clarifyEvent],
     );
 
   const isLast = index === total - 1;
@@ -91,7 +91,7 @@ function ClearifyTimelineItem({
   return (
     <div
       className="relative grid grid-cols-[16px,1fr] gap-x-0.5 py-1"
-      data-testid="event-ui-clearify"
+      data-testid="event-ui-clarify"
     >
       {/* Timeline gutter */}
       <div
@@ -196,7 +196,7 @@ function ClearifyTimelineItem({
   );
 }
 
-function parseClearifyMetadata(event: WorkflowToolCompletedEvent): {
+function parseClarifyMetadata(event: WorkflowToolCompletedEvent): {
   taskGoalUI: string;
   successCriteria: string[];
   needsUserInput: boolean;

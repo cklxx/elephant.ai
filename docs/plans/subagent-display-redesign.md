@@ -81,7 +81,7 @@ if (isSubagentToolEvent(event)) {
 const { displayEvents, subagentThreads } = useMemo(() =>
   partitionEvents(...), [...]);
 const displayEntries = useMemo(() =>
-  buildDisplayEntriesWithClearifyTimeline(displayEvents), [...]);
+  buildDisplayEntriesWithClarifyTimeline(displayEvents), [...]);
 const anchorMap = useMemo(() =>
   buildAnchorMap(displayEntries), [displayEntries]);  // 依赖 displayEntries
 ```

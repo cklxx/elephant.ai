@@ -102,7 +102,7 @@ var (
 	}
 	architectAllowedToolsCLI = map[string]bool{
 		"plan":         true,
-		"clearify":     true,
+		"clarify":     true,
 		"web_search":   true,
 		"web_fetch":    true,
 		"request_user": true,

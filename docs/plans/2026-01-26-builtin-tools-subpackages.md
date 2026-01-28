@@ -31,7 +31,7 @@
 - `internal/tools/builtin/session`
   - `todo_read.go`, `todo_update.go`, `skills.go`, `apps.go`.
 - `internal/tools/builtin/ui`
-  - `plan.go`, `clearify.go`, `request_user.go`, `attention.go`, `think.go`.
+  - `plan.go`, `clarify.go`, `request_user.go`, `attention.go`, `think.go`.
 - `internal/tools/builtin/memory`
   - `memory_recall.go`, `memory_write.go`.
 - `internal/tools/builtin/web`

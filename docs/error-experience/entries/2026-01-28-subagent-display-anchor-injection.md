@@ -97,7 +97,7 @@ if (isSubagentToolEvent(event)) {
 ```typescript
 // 必须先构建 displayEntries，再构建 anchorMap
 const { displayEvents, subagentThreads } = useMemo(() => partitionEvents(...), [...]);
-const displayEntries = useMemo(() => buildDisplayEntriesWithClearifyTimeline(displayEvents), [...]);
+const displayEntries = useMemo(() => buildDisplayEntriesWithClarifyTimeline(displayEvents), [...]);
 const anchorMap = useMemo(() => buildAnchorMap(displayEntries), [displayEntries]);  // 依赖 displayEntries
 ```
 

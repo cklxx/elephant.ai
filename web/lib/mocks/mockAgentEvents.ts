@@ -226,8 +226,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
   const taskIdOne = 'task-1';
   const taskIdTwo = 'task-2';
   const callIdPlan = 'mock-call-plan';
-  const callIdClearifyOne = 'mock-call-clearify-1';
-  const callIdClearifyTwo = 'mock-call-clearify-2';
+  const callIdClarifyOne = 'mock-call-clarify-1';
+  const callIdClarifyTwo = 'mock-call-clarify-2';
   const callIdOne = 'mock-call-1';
   const callIdTwo = 'mock-call-2';
   const subagentCallIdOne = 'mock-subagent-call-1';
@@ -268,8 +268,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
       event: {
         event_type: 'workflow.tool.completed',
         agent_level: 'core',
-        call_id: callIdClearifyOne,
-        tool_name: 'clearify',
+        call_id: callIdClarifyOne,
+        tool_name: 'clarify',
         result: '收集现有 UI 事件流',
         duration: 80,
         metadata: {
@@ -319,8 +319,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
       event: {
         event_type: 'workflow.tool.completed',
         agent_level: 'core',
-        call_id: callIdClearifyTwo,
-        tool_name: 'clearify',
+        call_id: callIdClarifyTwo,
+        tool_name: 'clarify',
         result: '实现新的层级视图',
         duration: 80,
         metadata: {
@@ -426,7 +426,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         total_subtasks: 2,
         call_id: subagentCallIdOne,
         tool_name: 'web_search',
-        arguments: { query: 'plan/clearify protocol' },
+        arguments: { query: 'plan/clarify protocol' },
         iteration: 1,
       },
     },

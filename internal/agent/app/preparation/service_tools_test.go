@@ -135,7 +135,7 @@ func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset
 func TestSelectToolRegistryUsesArchitectPresetInWebMode(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "plan"}, {Name: "clearify"}, {Name: "web_search"}, {Name: "web_fetch"}, {Name: "request_user"}, {Name: "acp_executor"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "plan"}, {Name: "clarify"}, {Name: "web_search"}, {Name: "web_fetch"}, {Name: "request_user"}, {Name: "acp_executor"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -153,7 +153,7 @@ func TestSelectToolRegistryUsesArchitectPresetInWebMode(t *testing.T) {
 	if containsString(names, "bash") || containsString(names, "file_read") {
 		t.Fatalf("web architect preset should block local tools, got: %v", names)
 	}
-	for _, allowed := range []string{"plan", "clearify", "web_search", "web_fetch", "request_user", "acp_executor"} {
+	for _, allowed := range []string{"plan", "clarify", "web_search", "web_fetch", "request_user", "acp_executor"} {
 		if !containsString(names, allowed) {
 			t.Fatalf("expected tool %s in web architect preset, got: %v", allowed, names)
 		}

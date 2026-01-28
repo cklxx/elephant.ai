@@ -11,24 +11,24 @@ import (
 	id "alex/internal/utils/id"
 )
 
-type uiClearify struct{}
+type uiClarify struct{}
 
-func NewClearify() tools.ToolExecutor {
-	return &uiClearify{}
+func NewClarify() tools.ToolExecutor {
+	return &uiClarify{}
 }
 
-func (t *uiClearify) Metadata() ports.ToolMetadata {
+func (t *uiClarify) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "clearify",
+		Name:     "clarify",
 		Version:  "1.0.0",
 		Category: "ui",
 		Tags:     []string{"ui", "orchestration"},
 	}
 }
 
-func (t *uiClearify) Definition() ports.ToolDefinition {
+func (t *uiClarify) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "clearify",
+		Name: "clarify",
 		Description: `UI tool: emit Level 2 task header before starting a unit of work.
 
 Rules:
@@ -73,7 +73,7 @@ Rules:
 	}
 }
 
-func (t *uiClearify) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	runID, ok := call.Arguments["run_id"].(string)
 	if !ok {
 		err := fmt.Errorf("missing 'run_id'")

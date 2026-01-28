@@ -271,12 +271,12 @@ export const EventLine = React.memo(function EventLine({
         />,
       );
     }
-    if (toolName === "clearify") {
+    if (toolName === "clarify") {
       if (isOrchestratorRetryMessage(resultText)) {
         return null;
       }
       return wrapWithSubagentContext(
-        <ClearifyTaskCard
+        <ClarifyTaskCard
           result={resultText ?? ""}
           metadata={completeEvent.metadata}
           timestamp={completeEvent.timestamp}
@@ -466,7 +466,7 @@ function PlanGoalCard({
   );
 }
 
-function ClearifyTaskCard({
+function ClarifyTaskCard({
   result,
   metadata,
   timestamp,
@@ -492,7 +492,7 @@ function ClearifyTaskCard({
       : null;
 
   return (
-    <div className="py-2 border-primary/10" data-testid="event-ui-clearify">
+    <div className="py-2 border-primary/10" data-testid="event-ui-clarify">
       <div className="text-sm text-foreground whitespace-pre-wrap leading-normal">
         {taskGoalUI}
       </div>

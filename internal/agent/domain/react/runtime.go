@@ -26,13 +26,13 @@ type reactRuntime struct {
 	finalize  sync.Once
 	prepare   func()
 
-	// UI orchestration state (Plan → Clearify → ReAct → Finalize).
+	// UI orchestration state (Plan → Clarify → ReAct → Finalize).
 	runID           string
 	planEmitted     bool
 	planVersion     int
 	planComplexity  string
 	currentTaskID   string
-	clearifyEmitted map[string]bool
+	clarifyEmitted map[string]bool
 	pendingTaskID   string
 	nextTaskSeq     int
 	pauseRequested  bool
@@ -67,7 +67,7 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 	if state != nil {
 		runtime.runID = strings.TrimSpace(state.TaskID)
 	}
-	runtime.clearifyEmitted = make(map[string]bool)
+	runtime.clarifyEmitted = make(map[string]bool)
 	runtime.nextTaskSeq = 1
 	return runtime
 }
@@ -198,15 +198,15 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	}
 
 	hasPlan := false
-	hasClearify := false
+	hasClarify := false
 	hasRequestUser := false
 	for _, call := range calls {
 		name := strings.ToLower(strings.TrimSpace(call.Name))
 		switch name {
 		case "plan":
 			hasPlan = true
-		case "clearify":
-			hasClearify = true
+		case "clarify":
+			hasClarify = true
 		case "request_user":
 			hasRequestUser = true
 		}
@@ -219,9 +219,9 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 		return false, ""
 	}
 
-	if hasClearify {
+	if hasClarify {
 		if len(calls) > 1 {
-			return true, "clearify() 必须单独调用。请移除同轮其它工具调用并重试。"
+			return true, "clarify() 必须单独调用。请移除同轮其它工具调用并重试。"
 		}
 		if !r.planEmitted {
 			return true, r.planGatePrompt()
@@ -246,8 +246,8 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	if strings.EqualFold(strings.TrimSpace(r.planComplexity), "simple") {
 		return false, ""
 	}
-	if r.currentTaskID == "" || !r.clearifyEmitted[r.currentTaskID] {
-		return true, r.clearifyGatePrompt()
+	if r.currentTaskID == "" || !r.clarifyEmitted[r.currentTaskID] {
+		return true, r.clarifyGatePrompt()
 	}
 	return false, ""
 }
@@ -264,12 +264,12 @@ func (r *reactRuntime) planGatePrompt() string {
 - session_title: (可选) 会话短标题（单行，≤32字）；默认由小模型预分析生成，通常留空
 - overall_goal_ui: 目标/范围描述，写清交付状态和可量化验收信号（complex 可多行；simple 必须单行）
 - internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单；如有验证路径/证据可在此补充
-- complexity="simple" 时：plan() 后可直接调用动作工具；无需 clearify()（除非需要用户补充信息并暂停）。
-- complexity="complex" 时：在每个任务的首个动作工具调用前必须 clearify()。
+- complexity="simple" 时：plan() 后可直接调用动作工具；无需 clarify()（除非需要用户补充信息并暂停）。
+- complexity="complex" 时：在每个任务的首个动作工具调用前必须 clarify()。
 plan() 成功后再继续。`, runID))
 }
 
-func (r *reactRuntime) clearifyGatePrompt() string {
+func (r *reactRuntime) clarifyGatePrompt() string {
 	runID := strings.TrimSpace(r.runID)
 	if runID == "" {
 		runID = "<run_id>"
@@ -282,14 +282,14 @@ func (r *reactRuntime) clearifyGatePrompt() string {
 		r.nextTaskSeq++
 	}
 
-	return strings.TrimSpace(fmt.Sprintf(`在调用动作工具前必须先调用 clearify() 声明当前任务。
-请先调用 clearify()（仅此一个工具调用），并满足：
+	return strings.TrimSpace(fmt.Sprintf(`在调用动作工具前必须先调用 clarify() 声明当前任务。
+请先调用 clarify()（仅此一个工具调用），并满足：
 - run_id: %q
 - task_id: %q
 - task_goal_ui: 描述你接下来要做的具体任务
 - success_criteria: (可选) 字符串数组
 如需用户补充信息：needs_user_input=true 并提供 question_to_user。
-clearify() 成功后再继续。`, runID, taskID))
+clarify() 成功后再继续。`, runID, taskID))
 }
 
 func (r *reactRuntime) injectOrchestratorCorrection(content string) {
@@ -341,7 +341,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 					}
 				}
 			}
-		case "clearify":
+		case "clarify":
 			if result.Metadata == nil {
 				continue
 			}
@@ -351,7 +351,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 				continue
 			}
 			r.currentTaskID = taskID
-			r.clearifyEmitted[taskID] = true
+			r.clarifyEmitted[taskID] = true
 			r.pendingTaskID = ""
 
 			if needs, ok := result.Metadata["needs_user_input"].(bool); ok && needs {

@@ -147,7 +147,7 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 		"correctness, reproducibility, and controlled risk",
 		"propose a direction early",
 		"In execution, inspect code",
-		"Workflow Contract (Strict): Flow: Plan -> Clearify (when needed) -> ReAct -> Finalize.",
+		"Workflow Contract (Strict): Flow: Plan -> Clarify (when needed) -> ReAct -> Finalize.",
 		"Never execute destructive shell commands or delete data without explicit confirmation.",
 	}
 	for _, snippet := range expectations {

@@ -16,7 +16,7 @@ import {
   getSubagentContext,
 } from "./EventLine";
 import { isSubagentLike } from "@/lib/subagent";
-import { ClearifyTimeline, type ClearifyTaskGroup } from "./ClearifyTimeline";
+import { ClarifyTimeline, type ClarifyTaskGroup } from "./ClarifyTimeline";
 import { isOrchestratorRetryMessage } from "@/lib/utils";
 import { AgentCard } from "./AgentCard";
 import { subagentThreadToCardData } from "./AgentCard/utils";
@@ -51,7 +51,7 @@ export function ConversationEventStream({
   );
 
   const displayEntries = useMemo(
-    () => buildDisplayEntriesWithClearifyTimeline(displayEvents),
+    () => buildDisplayEntriesWithClarifyTimeline(displayEvents),
     [displayEvents],
   );
 
@@ -138,14 +138,14 @@ export function ConversationEventStream({
             );
           }
 
-          if (entry.kind === "clearifyTimeline") {
+          if (entry.kind === "clarifyTimeline") {
             return (
               <div
-                key={`clearify-timeline-${entry.ts}-${index}`}
+                key={`clarify-timeline-${entry.ts}-${index}`}
                 className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
-                data-testid="clearify-timeline-entry"
+                data-testid="clarify-timeline-entry"
               >
-                <ClearifyTimeline
+                <ClarifyTimeline
                   groups={entry.groups}
                   isRunning={isRunning}
                   resolvePairedToolStart={resolvePairedToolStart}
@@ -500,11 +500,11 @@ function maybeMergeDeltaEvent(
 
 type DisplayEntry =
   | { kind: "event"; event: AnyAgentEvent }
-  | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number };
+  | { kind: "clarifyTimeline"; groups: ClarifyTaskGroup[]; ts: number };
 
 type CombinedEntry =
   | { kind: "event"; event: AnyAgentEvent; ts: number; order: number }
-  | { kind: "clearifyTimeline"; groups: ClearifyTaskGroup[]; ts: number; order: number }
+  | { kind: "clarifyTimeline"; groups: ClarifyTaskGroup[]; ts: number; order: number }
   | {
     kind: "subagentGroup";
     groupKey: string;
@@ -520,7 +520,7 @@ type CombinedEntry =
  * We need to convert display entries to combined entries and insert subagent groups
  * at the positions corresponding to their anchors.
  *
- * Since subagent tool calls may be inside clearify timeline entries, we use a pointer
+ * Since subagent tool calls may be inside clarify timeline entries, we use a pointer
  * to track which subagent group should be inserted next based on anchor order.
  */
 function buildInterleavedEntries(
@@ -599,7 +599,7 @@ function buildInterleavedEntries(
       });
     } else {
       result.push({
-        kind: "clearifyTimeline",
+        kind: "clarifyTimeline",
         groups: entry.groups,
         ts: entry.ts,
         order: displayIndex,
@@ -775,7 +775,7 @@ function shouldSkipDuplicateSummaryEvent(
   return normalizeComparableText(content) === finalAnswer;
 }
 
-function isClearifyToolEvent(event: AnyAgentEvent): boolean {
+function isClarifyToolEvent(event: AnyAgentEvent): boolean {
   if (!isEventType(event, "workflow.tool.completed")) {
     return false;
   }
@@ -784,7 +784,7 @@ function isClearifyToolEvent(event: AnyAgentEvent): boolean {
     return false;
   }
 
-  if (getToolName(event) !== "clearify") {
+  if (getToolName(event) !== "clarify") {
     return false;
   }
 
@@ -797,17 +797,17 @@ function isClearifyToolEvent(event: AnyAgentEvent): boolean {
   return true;
 }
 
-function buildDisplayEntriesWithClearifyTimeline(
+function buildDisplayEntriesWithClarifyTimeline(
   displayEvents: AnyAgentEvent[],
 ): DisplayEntry[] {
   const entries: DisplayEntry[] = [];
-  const groups: ClearifyTaskGroup[] = [];
-  let currentGroup: ClearifyTaskGroup | null = null;
+  const groups: ClarifyTaskGroup[] = [];
+  let currentGroup: ClarifyTaskGroup | null = null;
   let timelineTs: number | null = null;
   let timelineStarted = false;
 
   for (const event of displayEvents) {
-    if (isClearifyToolEvent(event)) {
+    if (isClarifyToolEvent(event)) {
       timelineStarted = true;
       if (timelineTs === null) {
         timelineTs = Date.parse(event.timestamp ?? "") || 0;
@@ -816,7 +816,7 @@ function buildDisplayEntriesWithClearifyTimeline(
         groups.push(currentGroup);
       }
       currentGroup = {
-        clearifyEvent: event as WorkflowToolCompletedEvent,
+        clarifyEvent: event as WorkflowToolCompletedEvent,
         events: [],
       };
       continue;
@@ -833,7 +833,7 @@ function buildDisplayEntriesWithClearifyTimeline(
         groups.push(currentGroup);
         currentGroup = null;
       }
-      entries.push({ kind: "clearifyTimeline", groups: [...groups], ts: timelineTs ?? 0 });
+      entries.push({ kind: "clarifyTimeline", groups: [...groups], ts: timelineTs ?? 0 });
       groups.length = 0;
       timelineStarted = false;
       timelineTs = null;
@@ -854,7 +854,7 @@ function buildDisplayEntriesWithClearifyTimeline(
       groups.push(currentGroup);
     }
     if (groups.length > 0) {
-      entries.push({ kind: "clearifyTimeline", groups, ts: timelineTs ?? 0 });
+      entries.push({ kind: "clarifyTimeline", groups, ts: timelineTs ?? 0 });
     }
   }
 
