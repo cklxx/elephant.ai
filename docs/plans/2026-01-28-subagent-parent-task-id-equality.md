@@ -18,3 +18,4 @@
 - 2026-01-28: Traced event emission paths; identified ACP executor envelope fallback that can set parent_task_id == task_id when call.TaskID is empty.
 - 2026-01-28: Ran `./dev.sh lint`.
 - 2026-01-28: Ran `./dev.sh test` (Go tests passed; linker warnings about malformed LC_DYSYMTAB).
+- 2026-01-28: Identified mismatch path: subagent inherits OutputContext from parent, so `prepare` node emits before OutputContext is reset to ensuredTaskID, yielding task_id/parent_task_id equality.
