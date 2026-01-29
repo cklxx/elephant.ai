@@ -904,3 +904,172 @@ func TestSanitizeEnvelopePayloadRetainsInlineMarkdown(t *testing.T) {
 		t.Fatalf("expected markdown media type to be preserved, got %q", att.MediaType)
 	}
 }
+
+func TestBuildEventDataForceIncludesAttachmentsOnTerminalFinal(t *testing.T) {
+	handler := NewSSEHandler(serverapp.NewEventBroadcaster())
+	cache := NewDataCache(4, time.Minute)
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("failed to create attachment store: %v", err)
+	}
+	handler.dataCache = cache
+	handler.attachmentStore = store
+
+	now := time.Now()
+	base := domain.NewBaseEvent(agent.LevelCore, "session-final", "run-final", "", now)
+
+	imgData := base64.StdEncoding.EncodeToString([]byte("fake-png-data"))
+	typedAtts := map[string]ports.Attachment{
+		"chart.png": {
+			Name:      "chart.png",
+			MediaType: "image/png",
+			Data:      imgData,
+		},
+	}
+
+	// First, simulate a tool-completed event that sends the attachment so it
+	// gets registered in the LRU.
+	toolEnvelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: base,
+		Event:     "workflow.tool.completed",
+		NodeKind:  "tool",
+		NodeID:    "tool:0",
+		Payload: map[string]any{
+			"tool_name":   "image_gen",
+			"attachments": typedAtts,
+		},
+	}
+	sent := newStringLRU(sseSentAttachmentCacheSize)
+	finalAnswerCache := newStringLRU(sseFinalAnswerCacheSize)
+
+	_, err = handler.buildEventData(toolEnvelope, sent, finalAnswerCache, true)
+	if err != nil {
+		t.Fatalf("buildEventData for tool event: %v", err)
+	}
+
+	// Now send the terminal final event with the same attachments.
+	finalEnvelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: base,
+		Event:     "workflow.result.final",
+		Payload: map[string]any{
+			"stream_finished": true,
+			"final_answer":    "Here is your chart",
+			"attachments":     typedAtts,
+		},
+	}
+
+	data, err := handler.buildEventData(finalEnvelope, sent, finalAnswerCache, true)
+	if err != nil {
+		t.Fatalf("buildEventData for final event: %v", err)
+	}
+
+	payload, ok := data["payload"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected payload map, got %T", data["payload"])
+	}
+
+	atts, ok := payload["attachments"].(map[string]ports.Attachment)
+	if !ok {
+		t.Fatalf("expected attachments in final payload, got %T", payload["attachments"])
+	}
+	att, ok := atts["chart.png"]
+	if !ok {
+		t.Fatalf("expected chart.png in final attachments, got keys: %v", atts)
+	}
+	if att.URI == "" {
+		t.Fatalf("expected attachment to have a URI, got empty")
+	}
+}
+
+func TestNormalizeAttachmentPayloadPersistsImageToStore(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("failed to create attachment store: %v", err)
+	}
+
+	pngData := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG header
+	att := ports.Attachment{
+		Name:      "diagram.png",
+		MediaType: "image/png",
+		Data:      base64.StdEncoding.EncodeToString(pngData),
+	}
+
+	out := normalizeAttachmentPayload(att, cache, store)
+	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
+		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", out.URI)
+	}
+	if out.Data != "" {
+		t.Fatalf("expected binary data to be cleared after persistence, got non-empty")
+	}
+	if out.MediaType != "image/png" {
+		t.Fatalf("expected media type to be preserved, got %q", out.MediaType)
+	}
+}
+
+func TestNormalizeAttachmentPayloadPersistsDataURIToStore(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("failed to create attachment store: %v", err)
+	}
+
+	pdfData := []byte("%PDF-1.4 fake content")
+	dataURI := "data:application/pdf;base64," + base64.StdEncoding.EncodeToString(pdfData)
+	att := ports.Attachment{
+		Name: "report.pdf",
+		URI:  dataURI,
+	}
+
+	out := normalizeAttachmentPayload(att, cache, store)
+	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
+		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", out.URI)
+	}
+	if out.Data != "" {
+		t.Fatalf("expected data to be cleared after persistence")
+	}
+	if out.MediaType != "application/pdf" {
+		t.Fatalf("expected media type to be set from data URI, got %q", out.MediaType)
+	}
+}
+
+func TestNormalizeAttachmentPayloadFallsBackToCacheWithoutStore(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
+
+	att := ports.Attachment{
+		Name:      "photo.jpg",
+		MediaType: "image/jpeg",
+		Data:      base64.StdEncoding.EncodeToString([]byte("fake-jpeg")),
+	}
+
+	out := normalizeAttachmentPayload(att, cache, nil)
+	if out.URI == "" || !strings.HasPrefix(out.URI, "/api/data/") {
+		t.Fatalf("expected data cache URI, got %q", out.URI)
+	}
+}
+
+func TestPersistToStoreRetainsInlineTextPayload(t *testing.T) {
+	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("failed to create attachment store: %v", err)
+	}
+
+	content := []byte("small text content")
+	att := ports.Attachment{
+		Name:      "notes.txt",
+		MediaType: "text/plain",
+		Data:      base64.StdEncoding.EncodeToString(content),
+	}
+
+	out, ok := persistToStore(att, store)
+	if !ok {
+		t.Fatalf("expected persistToStore to succeed")
+	}
+	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
+		t.Fatalf("expected stored URI, got %q", out.URI)
+	}
+	// Small text payloads should be retained inline.
+	if out.Data == "" {
+		t.Fatalf("expected small text payload to be retained inline")
+	}
+}

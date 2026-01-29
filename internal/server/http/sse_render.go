@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
+	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 )
 
@@ -144,6 +145,27 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 	}
 
 	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache, h.attachmentStore)
+
+	// Force-include all attachments on the terminal workflow.result.final event
+	// so the frontend always receives the full attachment set in the completion
+	// card, even when individual attachments were already sent via earlier
+	// tool-completed events and deduplicated by the LRU.
+	if envelope.Event == "workflow.result.final" {
+		if finished, _ := envelope.Payload["stream_finished"].(bool); finished {
+			if rawAtts, ok := envelope.Payload["attachments"]; ok {
+				if typedAtts, ok := rawAtts.(map[string]ports.Attachment); ok && len(typedAtts) > 0 {
+					forced := sanitizeAttachmentsForStream(typedAtts, sentAttachments, h.dataCache, h.attachmentStore, true)
+					if len(forced) > 0 {
+						if payload == nil {
+							payload = make(map[string]any)
+						}
+						payload["attachments"] = forced
+					}
+				}
+			}
+		}
+	}
+
 	if streamDeltas && envelope.Event == "workflow.result.final" {
 		if val, ok := payload["final_answer"].(string); ok {
 			key := envelope.GetRunID()

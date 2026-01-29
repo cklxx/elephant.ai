@@ -166,22 +166,87 @@ func shouldRetainInlinePayload(mediaType string, size int) bool {
 	return strings.Contains(media, "markdown") || strings.Contains(media, "json")
 }
 
+// persistToStore decodes inline attachment payloads (base64 Data or data: URIs)
+// and writes them to the persistent AttachmentStore. This works for any media
+// type, not just HTML. Returns the updated attachment and true on success.
+func persistToStore(att ports.Attachment, store *AttachmentStore) (ports.Attachment, bool) {
+	if store == nil {
+		return att, false
+	}
+
+	// Nothing inline to persist.
+	if att.Data == "" && !strings.HasPrefix(att.URI, "data:") {
+		return att, false
+	}
+
+	mediaType := strings.TrimSpace(att.MediaType)
+	if mediaType == "" {
+		mediaType = "application/octet-stream"
+	}
+
+	var payload []byte
+	switch {
+	case att.Data != "":
+		if decoded, err := base64.StdEncoding.DecodeString(att.Data); err == nil {
+			payload = decoded
+		}
+	case strings.HasPrefix(att.URI, "data:"):
+		if ct, decoded, ok := decodeDataURI(att.URI); ok {
+			if ct != "" {
+				mediaType = ct
+			}
+			payload = decoded
+		}
+	}
+
+	if len(payload) == 0 {
+		return att, false
+	}
+
+	uri, err := store.StoreBytes(att.Name, mediaType, payload)
+	if err != nil || strings.TrimSpace(uri) == "" {
+		return att, false
+	}
+
+	att.URI = uri
+	if att.MediaType == "" {
+		att.MediaType = mediaType
+	}
+	// Retain inline payload for small text-like assets so frontends can
+	// render them without an additional fetch.
+	if shouldRetainInlinePayload(att.MediaType, len(payload)) {
+		att.Data = base64.StdEncoding.EncodeToString(payload)
+	} else {
+		att.Data = ""
+	}
+	return att, true
+}
+
 // normalizeAttachmentPayload converts inline payloads (Data or data URIs) into cache-backed URLs
 // or persistent attachment store entries so SSE streams do not push large base64 blobs to the client.
 func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache, store *AttachmentStore) ports.Attachment {
+	// HTML attachments get special preview enrichment via persistHTMLAttachment.
 	if store != nil && shouldPersistHTML(att) {
 		if rewritten, ok := persistHTMLAttachment(att, store); ok {
 			return rewritten
 		}
 	}
 
-	if cache == nil {
-		return att
+	// For all other attachment types, try the persistent store first so
+	// assets get CDN-backed, session-independent URLs.
+	if store != nil {
+		if rewritten, ok := persistToStore(att, store); ok {
+			return ensureHTMLPreview(rewritten)
+		}
 	}
 
 	// Already points to an external or cached resource.
 	if att.Data == "" && att.URI != "" && !strings.HasPrefix(att.URI, "data:") {
 		return ensureHTMLPreview(att)
+	}
+
+	if cache == nil {
+		return att
 	}
 
 	mediaType := strings.TrimSpace(att.MediaType)
