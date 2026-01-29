@@ -114,11 +114,8 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 		return
 	}
 
-	suppressLogs := b.shouldSuppressHighVolumeLogs(baseEvent)
-	if suppressLogs {
+	if b.shouldSuppressHighVolumeLogs(baseEvent) {
 		b.trackHighVolumeEvent(baseEvent)
-	} else {
-		b.logger.Debug("[OnEvent] Received event: type=%s, sessionID=%s", baseEvent.EventType(), baseEvent.GetSessionID())
 	}
 
 	// Store event in history for session replay
@@ -136,18 +133,11 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 	b.updateTaskProgress(baseEvent)
 
 	clientsBySession := b.loadClients()
-	totalSessions := len(clientsBySession)
-	if !suppressLogs {
-		b.logger.Debug("[OnEvent] SessionID extracted: '%s', total clients map size: %d", sessionID, totalSessions)
-	}
 
 	if sessionID == "" {
 		// Broadcast to all sessions if no session ID
-		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", totalSessions)
+		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", len(clientsBySession))
 		for sid, clients := range clientsBySession {
-			if !suppressLogs {
-				b.logger.Debug("[OnEvent] Broadcasting to session '%s' with %d clients", sid, len(clients))
-			}
 			b.broadcastToClients(sid, clients, event)
 		}
 		return
@@ -159,9 +149,6 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 		return
 	}
 
-	if !suppressLogs {
-		b.logger.Debug("[OnEvent] Found %d clients for session '%s', broadcasting event type: %s", len(clients), sessionID, event.EventType())
-	}
 	b.broadcastToClients(sessionID, clients, event)
 }
 
@@ -202,9 +189,6 @@ func (b *EventBroadcaster) updateTaskProgress(event agent.AgentEvent) {
 
 	ctx := id.WithSessionID(context.Background(), sessionID)
 	ctx = id.WithRunID(ctx, taskID)
-	if !b.shouldSuppressHighVolumeLogs(event) {
-		b.logger.Debug("[updateTaskProgress] Tracking event type=%s for session=%s run=%s", event.EventType(), sessionID, taskID)
-	}
 
 	// Update progress based on event type
 	switch e := event.(type) {
@@ -238,18 +222,9 @@ func (b *EventBroadcaster) updateTaskProgress(event agent.AgentEvent) {
 
 // broadcastToClients sends event to all clients in the list
 func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan agent.AgentEvent, event agent.AgentEvent) {
-	suppressLogs := b.shouldSuppressHighVolumeLogs(event)
-	if !suppressLogs {
-		b.logger.Debug("[broadcastToClients] Sending event type=%s to %d clients for session=%s", event.EventType(), len(clients), sessionID)
-	}
-
 	for i, ch := range clients {
 		select {
 		case ch <- event:
-			// Event sent successfully
-			if !suppressLogs {
-				b.logger.Debug("[broadcastToClients] Event sent successfully to client %d/%d for session=%s", i+1, len(clients), sessionID)
-			}
 			b.metrics.incrementEventsSent()
 		default:
 			if b.ensureCriticalEventDelivery(sessionID, i, len(clients), ch, event) {
@@ -404,9 +379,6 @@ func (b *EventBroadcaster) storeEventHistory(sessionID string, event agent.Agent
 	}
 
 	b.eventHistory[sessionID] = history
-	if !b.shouldSuppressHighVolumeLogs(event) {
-		b.logger.Debug("Stored event in history: sessionID=%s, type=%s, total=%d", sessionID, event.EventType(), len(history))
-	}
 }
 
 func (b *EventBroadcaster) storeGlobalEvent(event agent.AgentEvent) {
