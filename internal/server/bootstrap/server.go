@@ -136,6 +136,18 @@ func RunServer(observabilityConfigPath string) error {
 		}
 	}()
 
+	larkCtx, larkCancel := context.WithCancel(context.Background())
+	larkCleanup, err := startLarkGateway(larkCtx, config, container, logger)
+	if err != nil {
+		logger.Warn("Lark gateway disabled: %v", err)
+	}
+	defer func() {
+		larkCancel()
+		if larkCleanup != nil {
+			larkCleanup()
+		}
+	}()
+
 	if historyStore != nil {
 		migrationCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()

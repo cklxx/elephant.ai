@@ -38,6 +38,7 @@ type Config struct {
 // ChannelsConfig captures server-side channel gateways.
 type ChannelsConfig struct {
 	WeChat WeChatGatewayConfig
+	Lark   LarkGatewayConfig
 }
 
 // WeChatGatewayConfig captures the resolved WeChat gateway configuration.
@@ -57,6 +58,22 @@ type WeChatGatewayConfig struct {
 	ToolPreset             string
 	ToolMode               string
 	ReplyTimeout           time.Duration
+}
+
+// LarkGatewayConfig captures the resolved Lark gateway configuration.
+type LarkGatewayConfig struct {
+	Enabled       bool
+	AppID         string
+	AppSecret     string
+	BaseDomain    string
+	SessionPrefix string
+	ReplyPrefix   string
+	AllowGroups   bool
+	AllowDirect   bool
+	AgentPreset   string
+	ToolPreset    string
+	ToolMode      string
+	ReplyTimeout  time.Duration
 }
 
 var defaultAllowedOrigins = []string{
@@ -122,6 +139,17 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 				ToolMode:            "cli",
 				ToolPreset:          string(presets.ToolPresetFull),
 				ReplyTimeout:        2 * time.Minute,
+			},
+			Lark: LarkGatewayConfig{
+				Enabled:       false,
+				BaseDomain:    "https://open.larkoffice.com",
+				SessionPrefix: "lark",
+				AllowGroups:   true,
+				AllowDirect:   true,
+				AgentPreset:   string(presets.PresetDefault),
+				ToolMode:      "cli",
+				ToolPreset:    string(presets.ToolPresetFull),
+				ReplyTimeout:  3 * time.Minute,
 			},
 		},
 		Attachment: attachments.StoreConfig{
@@ -216,6 +244,46 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if wechat.ReplyTimeoutSeconds != nil && *wechat.ReplyTimeoutSeconds > 0 {
 			cfg.Channels.WeChat.ReplyTimeout = time.Duration(*wechat.ReplyTimeoutSeconds) * time.Second
+		}
+	}
+
+	if file.Channels != nil && file.Channels.Lark != nil {
+		larkCfg := file.Channels.Lark
+		if larkCfg.Enabled != nil {
+			cfg.Channels.Lark.Enabled = *larkCfg.Enabled
+		}
+		if appID := strings.TrimSpace(larkCfg.AppID); appID != "" {
+			cfg.Channels.Lark.AppID = appID
+		}
+		if appSecret := strings.TrimSpace(larkCfg.AppSecret); appSecret != "" {
+			cfg.Channels.Lark.AppSecret = appSecret
+		}
+		if baseDomain := strings.TrimSpace(larkCfg.BaseDomain); baseDomain != "" {
+			cfg.Channels.Lark.BaseDomain = baseDomain
+		}
+		if prefix := strings.TrimSpace(larkCfg.SessionPrefix); prefix != "" {
+			cfg.Channels.Lark.SessionPrefix = prefix
+		}
+		if replyPrefix := strings.TrimSpace(larkCfg.ReplyPrefix); replyPrefix != "" {
+			cfg.Channels.Lark.ReplyPrefix = replyPrefix
+		}
+		if larkCfg.AllowGroups != nil {
+			cfg.Channels.Lark.AllowGroups = *larkCfg.AllowGroups
+		}
+		if larkCfg.AllowDirect != nil {
+			cfg.Channels.Lark.AllowDirect = *larkCfg.AllowDirect
+		}
+		if agentPreset := strings.TrimSpace(larkCfg.AgentPreset); agentPreset != "" {
+			cfg.Channels.Lark.AgentPreset = agentPreset
+		}
+		if toolPreset := strings.TrimSpace(larkCfg.ToolPreset); toolPreset != "" {
+			cfg.Channels.Lark.ToolPreset = toolPreset
+		}
+		if toolMode := strings.TrimSpace(larkCfg.ToolMode); toolMode != "" {
+			cfg.Channels.Lark.ToolMode = toolMode
+		}
+		if larkCfg.ReplyTimeoutSeconds != nil && *larkCfg.ReplyTimeoutSeconds > 0 {
+			cfg.Channels.Lark.ReplyTimeout = time.Duration(*larkCfg.ReplyTimeoutSeconds) * time.Second
 		}
 	}
 

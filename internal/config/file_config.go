@@ -75,9 +75,10 @@ type AppPluginConfig struct {
 	Sources         []string `json:"sources,omitempty" yaml:"sources"`
 }
 
-// ChannelsConfig captures channel integrations (e.g., WeChat).
+// ChannelsConfig captures channel integrations (e.g., WeChat, Lark).
 type ChannelsConfig struct {
 	WeChat *WeChatChannelConfig `json:"wechat,omitempty" yaml:"wechat"`
+	Lark   *LarkChannelConfig   `json:"lark,omitempty" yaml:"lark"`
 }
 
 // WeChatChannelConfig captures WeChat gateway settings in YAML.
@@ -97,6 +98,22 @@ type WeChatChannelConfig struct {
 	ToolPreset             string   `json:"tool_preset" yaml:"tool_preset"`
 	ToolMode               string   `json:"tool_mode" yaml:"tool_mode"`
 	ReplyTimeoutSeconds    *int     `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
+}
+
+// LarkChannelConfig captures Lark gateway settings in YAML.
+type LarkChannelConfig struct {
+	Enabled             *bool  `json:"enabled" yaml:"enabled"`
+	AppID               string `json:"app_id" yaml:"app_id"`
+	AppSecret           string `json:"app_secret" yaml:"app_secret"`
+	BaseDomain          string `json:"base_domain" yaml:"base_domain"`
+	SessionPrefix       string `json:"session_prefix" yaml:"session_prefix"`
+	ReplyPrefix         string `json:"reply_prefix" yaml:"reply_prefix"`
+	AllowGroups         *bool  `json:"allow_groups" yaml:"allow_groups"`
+	AllowDirect         *bool  `json:"allow_direct" yaml:"allow_direct"`
+	AgentPreset         string `json:"agent_preset" yaml:"agent_preset"`
+	ToolPreset          string `json:"tool_preset" yaml:"tool_preset"`
+	ToolMode            string `json:"tool_mode" yaml:"tool_mode"`
+	ReplyTimeoutSeconds *int   `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
 }
 
 // ServerConfig captures server-specific YAML configuration.
