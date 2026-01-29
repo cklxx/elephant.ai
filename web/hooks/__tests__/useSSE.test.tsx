@@ -419,7 +419,7 @@ describe("useSSE", () => {
       expect(result.current.events[0]).toMatchObject({ stream_finished: true, final_answer: "partial" });
     });
 
-    test("rehydrates attachments for streaming workflow.result.final placeholders after merge", async () => {
+    test("passes through backend-provided attachments on streaming workflow.result.final", async () => {
       const { result } = renderHook(() => useSSE("session-attachments"));
 
       await waitForConnection(1);
@@ -480,13 +480,20 @@ describe("useSSE", () => {
         mockEventSource.simulateEvent("workflow.result.final", {
           ...baseStream,
           timestamp: new Date(baseTimestamp + 10).toISOString(),
-          final_answer: "包含 [表达",
+          final_answer: "包含内容",
         });
         mockEventSource.simulateEvent("workflow.result.final", {
           ...baseStream,
           timestamp: new Date(baseTimestamp + 20).toISOString(),
-          final_answer: "的艺术.md]",
+          final_answer: "完成。",
           stream_finished: true,
+          attachments: {
+            [attachmentName]: {
+              name: attachmentName,
+              media_type: "text/markdown",
+              uri: "https://example.com/file.md",
+            },
+          },
         });
       });
 
@@ -495,7 +502,6 @@ describe("useSSE", () => {
       );
       expect(taskEvents).toHaveLength(1);
       const finalEvent = taskEvents[0] as WorkflowResultFinalEvent;
-      expect(finalEvent.final_answer).toContain(`[${attachmentName}]`);
       expect(finalEvent.attachments?.[attachmentName]).toBeDefined();
     });
 

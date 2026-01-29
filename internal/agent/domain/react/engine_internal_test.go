@@ -465,7 +465,7 @@ func TestExpandToolCallArgumentsSkipsArtifactNameExpansion(t *testing.T) {
 	}
 }
 
-func TestDecorateFinalResultOmitsUnreferencedAttachments(t *testing.T) {
+func TestDecorateFinalResultIncludesAllToolGeneratedAttachments(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{
 		Attachments: map[string]ports.Attachment{
@@ -480,18 +480,29 @@ func TestDecorateFinalResultOmitsUnreferencedAttachments(t *testing.T) {
 
 	result := &TaskResult{
 		Answer: "Task finished successfully.",
+		Attachments: map[string]ports.Attachment{
+			"seed.png": {
+				Name:      "seed.png",
+				MediaType: "image/png",
+				Source:    "seedream",
+				Data:      "YmFzZTY0",
+			},
+		},
 	}
 
 	attachments := engine.decorateFinalResult(state, result)
-	if attachments != nil {
-		t.Fatalf("expected no attachments to be returned, got %+v", attachments)
+	if len(attachments) != 1 {
+		t.Fatalf("expected one tool-generated attachment, got %d", len(attachments))
+	}
+	if _, ok := attachments["seed.png"]; !ok {
+		t.Fatalf("expected seed.png in attachments, got %+v", attachments)
 	}
 	if result.Answer != "Task finished successfully." {
 		t.Fatalf("expected final answer to remain unchanged, got %q", result.Answer)
 	}
 }
 
-func TestDecorateFinalResultIncludesReferencedAttachments(t *testing.T) {
+func TestDecorateFinalResultStripsPlaceholdersFromAnswer(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{
 		Attachments: map[string]ports.Attachment{
@@ -505,20 +516,21 @@ func TestDecorateFinalResultIncludesReferencedAttachments(t *testing.T) {
 
 	result := &TaskResult{
 		Answer: "Artifacts ready: [seed.png]",
+		Attachments: map[string]ports.Attachment{
+			"seed.png": {
+				Name:      "seed.png",
+				MediaType: "image/png",
+				URI:       "https://example.com/seed.png",
+			},
+		},
 	}
 
 	attachments := engine.decorateFinalResult(state, result)
 	if len(attachments) != 1 {
 		t.Fatalf("expected single attachment to remain, got %d", len(attachments))
 	}
-	if _, ok := attachments["seed.png"]; !ok {
-		t.Fatalf("expected placeholder to resolve to attachment, got %+v", attachments)
-	}
 	if strings.Contains(result.Answer, "[seed.png]") {
 		t.Fatalf("expected placeholder to be stripped from answer, got %q", result.Answer)
-	}
-	if result.Attachments == nil {
-		t.Fatalf("expected result.Attachments to be set")
 	}
 	if _, ok := result.Attachments["seed.png"]; !ok {
 		t.Fatalf("expected result.Attachments to contain seed.png, got %+v", result.Attachments)
@@ -692,8 +704,11 @@ func TestUpdateAttachmentCatalogMessageAppendsSystemNote(t *testing.T) {
 	if note.Metadata == nil || note.Metadata[attachmentCatalogMetadataKey] != true {
 		t.Fatalf("expected catalog metadata flag to be set, got %+v", note.Metadata)
 	}
-	if !strings.Contains(note.Content, "[diagram.png]") {
-		t.Fatalf("expected catalog content to reference attachment placeholder, got %q", note.Content)
+	if !strings.Contains(note.Content, "diagram.png") {
+		t.Fatalf("expected catalog content to reference attachment name, got %q", note.Content)
+	}
+	if strings.Contains(note.Content, "[diagram.png]") {
+		t.Fatalf("expected catalog to NOT use placeholder brackets, got %q", note.Content)
 	}
 	if note.Source != ports.MessageSourceAssistantReply {
 		t.Fatalf("expected catalog note to use assistant reply source, got %q", note.Source)
@@ -720,8 +735,11 @@ func TestUpdateAttachmentCatalogMessageRefreshesExistingNote(t *testing.T) {
 	}
 
 	note := state.Messages[len(state.Messages)-1]
-	if !strings.Contains(note.Content, "[second.png]") {
+	if !strings.Contains(note.Content, "second.png") {
 		t.Fatalf("expected refreshed catalog to include new attachment, got %q", note.Content)
+	}
+	if strings.Contains(note.Content, "[second.png]") {
+		t.Fatalf("expected refreshed catalog to NOT use placeholder brackets, got %q", note.Content)
 	}
 
 	// Ensure catalog notes are append-only.
@@ -1001,6 +1019,88 @@ func TestAppendGoalPlanReminderWhenDistanceExceeded(t *testing.T) {
 	}
 	if !strings.Contains(updated[0].Content, "Plan:") {
 		t.Fatalf("expected plan to appear in reminder, got %q", updated[0].Content)
+	}
+}
+
+func TestCollectAllToolGeneratedAttachmentsExcludesUserUploads(t *testing.T) {
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"gen1.png": {
+				Name:      "gen1.png",
+				MediaType: "image/png",
+				Source:    "seedream",
+			},
+			"gen2.png": {
+				Name:      "gen2.png",
+				MediaType: "image/png",
+				Source:    "tool_x",
+			},
+			"upload.png": {
+				Name:      "upload.png",
+				MediaType: "image/png",
+				Source:    "user_upload",
+			},
+		},
+	}
+
+	got := collectAllToolGeneratedAttachments(state)
+	if len(got) != 2 {
+		t.Fatalf("expected two tool-generated attachments, got %d: %+v", len(got), got)
+	}
+	if _, ok := got["gen1.png"]; !ok {
+		t.Fatalf("expected gen1.png to be present: %+v", got)
+	}
+	if _, ok := got["gen2.png"]; !ok {
+		t.Fatalf("expected gen2.png to be present: %+v", got)
+	}
+	if _, ok := got["upload.png"]; ok {
+		t.Fatalf("did not expect user_upload attachment: %+v", got)
+	}
+}
+
+func TestCollectAllToolGeneratedAttachmentsReturnsNilWhenEmpty(t *testing.T) {
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"upload.png": {
+				Name:      "upload.png",
+				MediaType: "image/png",
+				Source:    "user_upload",
+			},
+		},
+	}
+
+	got := collectAllToolGeneratedAttachments(state)
+	if got != nil {
+		t.Fatalf("expected nil when only user uploads present, got %+v", got)
+	}
+}
+
+func TestBuildToolMessagesDoesNotInjectPlaceholders(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	results := []ToolResult{{
+		CallID:  "call-1",
+		Content: "Image generated successfully.",
+		Attachments: map[string]ports.Attachment{
+			"output.png": {
+				Name:      "output.png",
+				MediaType: "image/png",
+				Data:      "YmFzZTY0",
+			},
+		},
+	}}
+
+	messages := engine.buildToolMessages(results)
+	if len(messages) != 1 {
+		t.Fatalf("expected one tool message, got %d", len(messages))
+	}
+	if strings.Contains(messages[0].Content, "[output.png]") {
+		t.Fatalf("tool message should NOT inject placeholder references, got %q", messages[0].Content)
+	}
+	if strings.Contains(messages[0].Content, "Attachments available for follow-up steps") {
+		t.Fatalf("tool message should NOT inject attachment listing, got %q", messages[0].Content)
+	}
+	if messages[0].Content != "Image generated successfully." {
+		t.Fatalf("expected original content preserved, got %q", messages[0].Content)
 	}
 }
 

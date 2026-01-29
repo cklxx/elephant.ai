@@ -30,9 +30,10 @@ describe('attachmentRegistry', () => {
     resetAttachmentRegistry();
   });
 
-  it('hydrates workflow.result.final events even when attachments were already shown', () => {
-    const toolEvent: WorkflowToolCompletedEvent = {
-      ...baseToolCallEvent(),
+  it('passes through backend-provided attachments on workflow.result.final', () => {
+    const taskComplete: WorkflowResultFinalEvent = {
+      ...baseWorkflowResultFinalEvent(),
+      final_answer: 'Artifacts ready.',
       attachments: {
         'generated.png': {
           name: 'generated.png',
@@ -40,12 +41,6 @@ describe('attachmentRegistry', () => {
           data: 'YmFzZTY0',
         },
       },
-    };
-    handleAttachmentEvent(toolEvent);
-
-    const taskComplete: WorkflowResultFinalEvent = {
-      ...baseWorkflowResultFinalEvent(),
-      final_answer: 'Artifacts ready: [generated.png]',
     };
     handleAttachmentEvent(taskComplete);
 
@@ -69,14 +64,14 @@ describe('attachmentRegistry', () => {
 
     const taskComplete: WorkflowResultFinalEvent = {
       ...baseWorkflowResultFinalEvent(),
-      final_answer: 'Check this out: [temporary.png]',
+      final_answer: 'Check this out.',
     };
     handleAttachmentEvent(taskComplete);
 
     expect(taskComplete.attachments).toBeUndefined();
   });
 
-  it('retains workflow.result.final attachments that were not previously displayed', () => {
+  it('retains workflow.result.final attachments provided by backend', () => {
     const taskComplete: WorkflowResultFinalEvent = {
       ...baseWorkflowResultFinalEvent(),
       attachments: {
@@ -93,33 +88,15 @@ describe('attachmentRegistry', () => {
     expect(taskComplete.attachments?.['fresh.png']).toBeDefined();
   });
 
-  it('hydrates workflow.result.final events from registry when assets were not displayed', () => {
-    const userTask: WorkflowInputReceivedEvent = {
-      event_type: 'workflow.input.received',
-      agent_level: 'core',
-      timestamp: new Date().toISOString(),
-      session_id: 'sess-1',
-      run_id: 'task-1',
-      parent_run_id: undefined,
-      task: 'Describe attachment',
-      attachments: {
-        'analysis.png': {
-          name: 'analysis.png',
-          media_type: 'image/png',
-          data: 'YW5hbHlzaXM=',
-        },
-      },
-    };
-    handleAttachmentEvent(userTask);
-
+  it('returns undefined when final event has no backend attachments', () => {
     const taskComplete: WorkflowResultFinalEvent = {
       ...baseWorkflowResultFinalEvent(),
-      final_answer: 'See [analysis.png] for reference.',
+      final_answer: 'Task finished successfully.',
     };
+
     handleAttachmentEvent(taskComplete);
 
-    expect(taskComplete.attachments).toBeDefined();
-    expect(taskComplete.attachments?.['analysis.png']).toBeDefined();
+    expect(taskComplete.attachments).toBeUndefined();
   });
 
   it('hydrates workflow.tool.completed events using stored attachments when missing', () => {
@@ -152,7 +129,7 @@ describe('attachmentRegistry', () => {
     expect(toolComplete.attachments?.['clip.mp4']).toBeDefined();
   });
 
-  it('surfaces undisplayed attachments when final results omit them', () => {
+  it('does not surface undisplayed attachments on final event without backend attachments', () => {
     const userTask: WorkflowInputReceivedEvent = {
       event_type: 'workflow.input.received',
       agent_level: 'core',
@@ -179,8 +156,7 @@ describe('attachmentRegistry', () => {
 
     handleAttachmentEvent(taskComplete);
 
-    expect(taskComplete.attachments).toBeDefined();
-    expect(taskComplete.attachments?.['undisplayed.txt']).toBeDefined();
+    expect(taskComplete.attachments).toBeUndefined();
   });
 
   it('hydrates attachments from metadata mutations even when attachments are absent', () => {
@@ -224,7 +200,19 @@ describe('attachmentRegistry', () => {
 
     const taskComplete: WorkflowResultFinalEvent = {
       ...baseWorkflowResultFinalEvent(),
-      final_answer: 'See [report.md] and [summary.pdf] for details.',
+      final_answer: 'See reports for details.',
+      attachments: {
+        'report.md': {
+          name: 'report.md',
+          media_type: 'text/markdown',
+          uri: 'https://example.com/report.md',
+        },
+        'summary.pdf': {
+          name: 'summary.pdf',
+          media_type: 'application/pdf',
+          uri: 'https://example.com/summary.pdf',
+        },
+      },
     };
     handleAttachmentEvent(taskComplete);
 
@@ -261,7 +249,7 @@ describe('attachmentRegistry', () => {
     expect(earlierTaskComplete.attachments).toBeUndefined();
   });
 
-  it('keeps recalled attachments hidden unless referenced', () => {
+  it('passes through recalled attachments when backend includes them', () => {
     ingestRecalledAttachments({
       'history.pdf': {
         name: 'history.pdf',
@@ -278,33 +266,19 @@ describe('attachmentRegistry', () => {
     handleAttachmentEvent(summaryOnly);
     expect(summaryOnly.attachments).toBeUndefined();
 
-    const referenced: WorkflowResultFinalEvent = {
+    const withBackendAttachments: WorkflowResultFinalEvent = {
       ...baseWorkflowResultFinalEvent(),
-      final_answer: 'See [history.pdf] for details.',
-    };
-    handleAttachmentEvent(referenced);
-    expect(referenced.attachments?.['history.pdf']).toBeDefined();
-    expect(referenced.attachments?.['history.pdf']?.visibility).toBe('recalled');
-  });
-
-  it('keeps recalled attachments as recalled when final answers reference them', () => {
-    ingestRecalledAttachments({
-      'hidden.txt': {
-        name: 'hidden.txt',
-        media_type: 'text/plain',
-        data: 'c2VjcmV0',
-        visibility: 'recalled',
+      final_answer: 'See details.',
+      attachments: {
+        'history.pdf': {
+          name: 'history.pdf',
+          media_type: 'application/pdf',
+          uri: 'https://example.com/history.pdf',
+          visibility: 'recalled',
+        },
       },
-    });
-
-    const referenced: WorkflowResultFinalEvent = {
-      ...baseWorkflowResultFinalEvent(),
-      final_answer: 'Pulling in [hidden.txt].',
     };
-
-    handleAttachmentEvent(referenced);
-
-    expect(referenced.attachments?.['hidden.txt']).toBeDefined();
-    expect(referenced.attachments?.['hidden.txt']?.visibility).toBe('recalled');
+    handleAttachmentEvent(withBackendAttachments);
+    expect(withBackendAttachments.attachments?.['history.pdf']).toBeDefined();
   });
 });
