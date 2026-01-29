@@ -1,6 +1,42 @@
-# Repo Agent Workflow & Safety Rules
+# elephant.ai — Proactive AI Assistant
 
-## 0 · About the user and your role
+## Project identity
+
+elephant.ai is a **proactive AI assistant** — not a passive chatbot that waits to be asked. It embeds into daily workflows (Lark, WeChat, CLI, web), remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
+
+### Core design principles
+
+1. **Proactive over reactive.** The assistant should anticipate needs, recall prior context, and suggest next steps — not just answer questions.
+2. **Channel-native.** The assistant lives where the user works (Lark, WeChat, CLI, web). Each channel is a first-class citizen, not an afterthought.
+3. **Memory is the foundation.** Persistent memory across sessions enables continuity. Auto-save conversations, inject relevant history, never make the user repeat themselves.
+4. **Autonomous execution.** The Think → Act → Observe loop runs to completion. The assistant searches, codes, browses, and generates artifacts without hand-holding.
+5. **Approval gates for trust.** Proactivity requires safety. Risky operations always require explicit human approval.
+6. **One runtime, all surfaces.** CLI, server, web, and chat channels share the same execution core, typed events, and observability pipeline.
+7. **Tools feel local.** In web mode, sandbox-backed tools present themselves as local operations. The LLM should never perceive infrastructure boundaries.
+8. **Skills as workflows.** Markdown-driven skills (deep research, meeting notes, email drafting, slide decks) encapsulate multi-step proactive capabilities.
+9. **Observable by default.** Every action produces structured traces, metrics, and cost accounting. Proactivity without accountability is recklessness.
+
+### Architecture compass
+
+```
+Delivery (CLI, Server, Web, Lark, WeChat)
+  → Agent Application Layer (preparation, coordination, cost)
+  → Domain (ReAct loop, events, approvals, context assembly)
+  → Infrastructure Adapters (LLM, tools, memory, storage, observability)
+```
+
+When making design decisions, prefer:
+- Context engineering over prompt hacking.
+- Typed events over unstructured logs.
+- Clean port/adapter boundaries over convenience shortcuts.
+- Multi-provider LLM support over vendor lock-in.
+- Skills and memory over one-shot answers.
+
+---
+
+## Repo agent workflow & safety rules
+
+### 0 · About the user and your role
 
 * You are assisting **cklxx**.
 * Address me as cklxx first.
@@ -13,28 +49,27 @@
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
   * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
   * Start with the most systematic view of the current project, then propose a reasonable plan.
-  * Absolute core: practice compounding engineering—record successful paths and failed experiences.
+  * Absolute core: practice compounding engineering — record successful paths and failed experiences.
   * Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
   * Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
   * Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.
   * Run full lint and test validation after changes.
   * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
-  * Avoid unnecessary defensive code.
   * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.
 
 ---
 
-## 1 · Overall reasoning and planning framework (global rules)
+### 1 · Overall reasoning and planning framework (global rules)
 
 Keep this concise and action-oriented. Prefer correctness and maintainability over speed.
 
-### 1.1 Decision priorities
+#### 1.1 Decision priorities
 1. Hard constraints and explicit rules.
 2. Reversibility/order of operations.
 3. Missing info only if it changes correctness.
 4. User preferences within constraints.
 
-### 1.2 Planning & execution
+#### 1.2 Planning & execution
 * Plan for complex tasks (options + trade-offs), otherwise implement directly.
 * Every plan must be a file under `docs/plans/` and updated as work progresses.
 * Before each task, review engineering practices under `docs/`; if missing, search and add them.
@@ -43,18 +78,16 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * After completing changes, always commit, and prefer multiple small commits.
 * Avoid unnecessary defensive code; trust invariants when guaranteed.
 
-### 1.3 Safety & tooling
+#### 1.3 Safety & tooling
 * Warn before destructive actions; avoid history rewrites unless explicitly requested.
 * Prefer local registry sources for Rust deps.
 * Keep responses focused on actionable outputs (changes + validation + limitations).
 * I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
 * Never write compatibility logic; always refactor from first principles, redesign the architecture, and implement cleanly.
-* I may ask other agent assistants to make changes; you should only commit your own code, fix conflicts, and never roll back code.
-* Never write compatibility logic; always refactor from first principles, redesign the architecture, and implement cleanly.
 
 ---
 
-## Error Experience Index
+## Error experience index
 
 - Index: `docs/error-experience.md`
 - Summary index: `docs/error-experience/summary.md`
@@ -63,7 +96,7 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 
 ---
 
-## Memory Loading Guidance (First Run + Progressive Disclosure)
+## Memory loading guidance (first run + progressive disclosure)
 
 ### Memory sources
 Use: error entries + summaries, good entries + summaries, and `docs/memory/long-term.md`.
