@@ -67,7 +67,7 @@ export function CardHeader({
       </div>
 
       {/* Row 2: meta line */}
-      <div className="pl-6 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground leading-tight">
+      <div className="pl-[22px] flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground leading-tight">
         <span className={getStateIconColor(state)}>{getStateLabel(state)}</span>
         {inlineTokens && inlineTokens > 0 && (
           <>

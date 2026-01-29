@@ -20,7 +20,7 @@ export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) 
       : `${eventCount} events`;
 
   return (
-    <div className="pl-6 py-0.5">
+    <div className="pl-[22px] py-0.5">
       <button
         type="button"
         onClick={onToggle}

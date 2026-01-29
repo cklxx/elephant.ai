@@ -22,7 +22,7 @@ export function CardStats({ progress, stats, concurrency, hideTokens }: CardStat
   }
 
   return (
-    <div className="pl-6 space-y-1 min-w-0">
+    <div className="pl-[22px] space-y-1 min-w-0">
       {hasProgress && (
         <div className="flex items-center gap-2 min-w-0">
           <div className="h-1 flex-1 bg-muted rounded-full overflow-hidden">

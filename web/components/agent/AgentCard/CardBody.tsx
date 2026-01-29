@@ -21,7 +21,7 @@ export function CardBody({
   const displayEvents = expanded ? events : events.slice(-1);
 
   return (
-    <div className="pl-6 space-y-1 min-w-0 w-full overflow-x-hidden">
+    <div className="pl-[22px] space-y-1 min-w-0 w-full overflow-x-hidden">
       {displayEvents.map((event, i) => {
         const pairedToolStart = resolvePairedToolStart
           ? resolvePairedToolStart(event)
