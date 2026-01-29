@@ -87,8 +87,13 @@ export function ConversationEventStream({
 
         {mainStream.map((event, index) => {
           if (isSubagentToolStarted(event)) {
+            // Lookup by run_id first (= core agent's run_id = subagent's
+            // parent_run_id = groupKey), then fall back to call_id
+            const runId = event.run_id;
             const callId = event.call_id;
-            const threads = callId ? subagentGroups.get(callId) : undefined;
+            const threads =
+              (runId ? subagentGroups.get(runId) : undefined) ??
+              (callId ? subagentGroups.get(callId) : undefined);
             const fallback: SubagentThread = {
               key: `subagent-${callId ?? index}`,
               groupKey: callId ?? "unknown",
@@ -388,6 +393,16 @@ function isOrchestratorTool(event: AnyAgentEvent): boolean {
 }
 
 function getSubagentGroupKey(event: AnyAgentEvent): string | null {
+  // parent_run_id first: all events from the same subagent share this key
+  // (= core agent's run_id), which the AgentCard render uses for lookup.
+  // causation_id/call_id are per-tool-call and would fragment the group.
+  const parentRunId =
+    "parent_run_id" in event && typeof event.parent_run_id === "string"
+      ? event.parent_run_id
+      : "";
+  if (parentRunId.trim()) {
+    return parentRunId.trim();
+  }
   const causationId =
     "causation_id" in event && typeof event.causation_id === "string"
       ? event.causation_id
@@ -401,13 +416,6 @@ function getSubagentGroupKey(event: AnyAgentEvent): string | null {
       : "";
   if (callId.trim()) {
     return callId.trim();
-  }
-  const parentRunId =
-    "parent_run_id" in event && typeof event.parent_run_id === "string"
-      ? event.parent_run_id
-      : "";
-  if (parentRunId.trim()) {
-    return parentRunId.trim();
   }
   return null;
 }
