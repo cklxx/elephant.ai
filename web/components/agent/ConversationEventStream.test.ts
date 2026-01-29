@@ -17,28 +17,28 @@ describe('Subagent anchor logic', () => {
       expect(anchorId).toBe('call:subagent_123');
     });
 
-    it('should extract anchor from parent_task_id + task_id', () => {
+    it('should extract anchor from parent_run_id + run_id', () => {
       const event = {
         event_type: 'workflow.node.output.summary',
         agent_level: 'subagent',
-        parent_task_id: 'task_parent',
-        task_id: 'task_child',
+        parent_run_id: 'run_parent',
+        run_id: 'run_child',
       } as AnyAgentEvent;
 
       const anchorId = extractAnchorId(event);
-      expect(anchorId).toBe('task:task_parent:task_child');
+      expect(anchorId).toBe('run:run_parent:run_child');
     });
 
-    it('should extract anchor from subtask_index when task_id missing', () => {
+    it('should extract anchor from subtask_index when run_id missing', () => {
       const event = {
         event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
-        parent_task_id: 'task_parent',
+        parent_run_id: 'run_parent',
         subtask_index: 2,
       } as unknown as AnyAgentEvent;
 
       const anchorId = extractAnchorId(event);
-      expect(anchorId).toBe('subtask:task_parent:2');
+      expect(anchorId).toBe('subtask:run_parent:2');
     });
 
     it('should return undefined when no anchor info available', () => {
@@ -171,22 +171,22 @@ function extractAnchorId(event: AnyAgentEvent): string | undefined {
     return `call:${callId}`;
   }
 
-  const parentTaskId = 'parent_task_id' in event && typeof event.parent_task_id === 'string'
-    ? event.parent_task_id
+  const parentRunId = 'parent_run_id' in event && typeof event.parent_run_id === 'string'
+    ? event.parent_run_id
     : undefined;
-  const taskId = 'task_id' in event && typeof event.task_id === 'string'
-    ? event.task_id
+  const runId = 'run_id' in event && typeof event.run_id === 'string'
+    ? event.run_id
     : undefined;
 
-  if (parentTaskId && taskId) {
-    return `task:${parentTaskId}:${taskId}`;
+  if (parentRunId && runId) {
+    return `run:${parentRunId}:${runId}`;
   }
 
   const subtaskIndex = 'subtask_index' in event && typeof event.subtask_index === 'number'
     ? event.subtask_index
     : undefined;
-  if (parentTaskId && typeof subtaskIndex === 'number') {
-    return `subtask:${parentTaskId}:${subtaskIndex}`;
+  if (parentRunId && typeof subtaskIndex === 'number') {
+    return `subtask:${parentRunId}:${subtaskIndex}`;
   }
 
   return undefined;

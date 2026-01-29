@@ -49,8 +49,8 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 			"level":          string(ctx.Level),
 			"agent_id":       ctx.AgentID,
 			"session_id":     ctx.SessionID,
-			"task_id":        ctx.TaskID,
-			"parent_task_id": ctx.ParentTaskID,
+			"run_id":         ctx.TaskID,
+			"parent_run_id":  ctx.ParentTaskID,
 		},
 	}
 
@@ -73,8 +73,8 @@ func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName 
 		"level":          string(ctx.Level),
 		"agent_id":       ctx.AgentID,
 		"session_id":     ctx.SessionID,
-		"task_id":        ctx.TaskID,
-		"parent_task_id": ctx.ParentTaskID,
+		"run_id":         ctx.TaskID,
+		"parent_run_id":  ctx.ParentTaskID,
 	}
 
 	if err != nil {
@@ -104,8 +104,8 @@ func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 			"level":          string(ctx.Level),
 			"agent_id":       ctx.AgentID,
 			"session_id":     ctx.SessionID,
-			"task_id":        ctx.TaskID,
-			"parent_task_id": ctx.ParentTaskID,
+			"run_id":         ctx.TaskID,
+			"parent_run_id":  ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -122,8 +122,8 @@ func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err er
 			"level":          string(ctx.Level),
 			"agent_id":       ctx.AgentID,
 			"session_id":     ctx.SessionID,
-			"task_id":        ctx.TaskID,
-			"parent_task_id": ctx.ParentTaskID,
+			"run_id":         ctx.TaskID,
+			"parent_run_id":  ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -141,8 +141,8 @@ func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed
 			"tool_calls":     toolCalls,
 			"agent_id":       ctx.AgentID,
 			"session_id":     ctx.SessionID,
-			"task_id":        ctx.TaskID,
-			"parent_task_id": ctx.ParentTaskID,
+			"run_id":         ctx.TaskID,
+			"parent_run_id":  ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -161,8 +161,8 @@ func (r *SSERenderer) RenderSubagentComplete(ctx *types.OutputContext, total, su
 			"tool_calls":     toolCalls,
 			"agent_id":       ctx.AgentID,
 			"session_id":     ctx.SessionID,
-			"task_id":        ctx.TaskID,
-			"parent_task_id": ctx.ParentTaskID,
+			"run_id":         ctx.TaskID,
+			"parent_run_id":  ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)

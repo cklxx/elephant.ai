@@ -99,8 +99,8 @@ describe('attachmentRegistry', () => {
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'sess-1',
-      task_id: 'task-1',
-      parent_task_id: undefined,
+      run_id: 'task-1',
+      parent_run_id: undefined,
       task: 'Describe attachment',
       attachments: {
         'analysis.png': {
@@ -128,8 +128,8 @@ describe('attachmentRegistry', () => {
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'sess-2',
-      task_id: 'task-2',
-      parent_task_id: undefined,
+      run_id: 'task-2',
+      parent_run_id: undefined,
       task: 'Summarize video',
       attachments: {
         'clip.mp4': {
@@ -158,8 +158,8 @@ describe('attachmentRegistry', () => {
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'sess-3',
-      task_id: 'task-3',
-      parent_task_id: undefined,
+      run_id: 'task-3',
+      parent_run_id: undefined,
       task: 'Upload assets for later',
       attachments: {
         'undisplayed.txt': {
@@ -236,7 +236,7 @@ describe('attachmentRegistry', () => {
   it('does not leak attachments from newer tasks when events are processed in reverse order', () => {
     const newerTaskComplete: WorkflowResultFinalEvent = {
       ...baseWorkflowResultFinalEvent(),
-      task_id: 'task-2',
+      run_id: 'task-2',
       timestamp: '2024-01-02T12:00:00.000Z',
       attachments: {
         'future.md': {
@@ -249,7 +249,7 @@ describe('attachmentRegistry', () => {
 
     const earlierTaskComplete: WorkflowResultFinalEvent = {
       ...baseWorkflowResultFinalEvent(),
-      task_id: 'task-1',
+      run_id: 'task-1',
       timestamp: '2024-01-01T12:00:00.000Z',
       final_answer: 'First task complete with no attachments.',
     };

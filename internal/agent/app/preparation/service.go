@@ -208,8 +208,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				compressionEvent := domain.NewWorkflowDiagnosticContextCompressionEvent(
 					agent.LevelCore,
 					session.ID,
-					ids.TaskID,
-					ids.ParentTaskID,
+					ids.RunID,
+					ids.ParentRunID,
 					originalCount,
 					compressedCount,
 					s.clock.Now(),
@@ -237,7 +237,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 - Keep attachment placeholders out of the main body; list them at the end of the final answer.
 - If you want clients to render an attachment card, reference the file with a placeholder like [report.md].`)
 	}
-	if runID := strings.TrimSpace(ids.TaskID); runID != "" {
+	if runID := strings.TrimSpace(ids.RunID); runID != "" {
 		systemPrompt = strings.TrimSpace(systemPrompt +
 			"\n\n## Runtime Identifiers\n" +
 			fmt.Sprintf("- run_id: %s\n", runID) +
@@ -373,8 +373,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		SystemPrompt:         systemPrompt,
 		Messages:             stateMessages,
 		SessionID:            session.ID,
-		TaskID:               ids.TaskID,
-		ParentTaskID:         ids.ParentTaskID,
+		RunID:                ids.RunID,
+		ParentRunID:          ids.ParentRunID,
 		Attachments:          preloadedAttachments,
 		AttachmentIterations: make(map[string]int),
 		Important:            preloadedImportant,

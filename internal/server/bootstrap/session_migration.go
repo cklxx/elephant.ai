@@ -359,7 +359,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.
 			continue
 		}
 
-		taskID := fmt.Sprintf("%s-%s-%d", replayTaskPrefix, sessionID, turn.TurnID)
+		runID := fmt.Sprintf("%s-%s-%d", replayTaskPrefix, sessionID, turn.TurnID)
 		baseTime := turn.CreatedAt
 		if baseTime.IsZero() {
 			baseTime = time.Now()
@@ -385,7 +385,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.
 				event := domain.NewWorkflowInputReceivedEvent(
 					agent.LevelCore,
 					sessionID,
-					taskID,
+					runID,
 					"",
 					msg.Content,
 					msg.Attachments,
@@ -397,7 +397,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.
 				if len(msg.ToolCalls) > 0 {
 					events = append(events, replayEnvelope(
 						sessionID,
-						taskID,
+						runID,
 						baseTime.Add(time.Duration(offset)*time.Millisecond),
 						"workflow.node.output.summary",
 						"generation",
@@ -431,7 +431,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.
 					}
 					events = append(events, replayEnvelope(
 						sessionID,
-						taskID,
+						runID,
 						baseTime.Add(time.Duration(offset)*time.Millisecond),
 						"workflow.tool.completed",
 						"tool",
@@ -457,7 +457,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.
 						}
 						events = append(events, replayEnvelope(
 							sessionID,
-							taskID,
+							runID,
 							baseTime.Add(time.Duration(offset)*time.Millisecond),
 							"workflow.tool.completed",
 							"tool",
@@ -483,7 +483,7 @@ func buildReplayEvents(sessionID string, turns []sessionstate.Snapshot) []agent.
 			}
 			events = append(events, replayEnvelope(
 				sessionID,
-				taskID,
+				runID,
 				baseTime.Add(time.Duration(offset)*time.Millisecond),
 				"workflow.result.final",
 				"result",
@@ -515,9 +515,9 @@ func resolveToolName(callID string, result core.ToolResult, callNames map[string
 	return "tool"
 }
 
-func replayEnvelope(sessionID, taskID string, ts time.Time, eventType, nodeKind, nodeID string, payload map[string]any) agent.AgentEvent {
+func replayEnvelope(sessionID, runID string, ts time.Time, eventType, nodeKind, nodeID string, payload map[string]any) agent.AgentEvent {
 	return &domain.WorkflowEventEnvelope{
-		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, taskID, "", ts),
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, runID, "", ts),
 		Version:   1,
 		Event:     eventType,
 		NodeKind:  nodeKind,

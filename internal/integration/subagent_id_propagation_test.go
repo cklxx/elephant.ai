@@ -52,8 +52,8 @@ func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, ses
 		Iterations:   1,
 		TokensUsed:   42,
 		SessionID:    ids.SessionID,
-		TaskID:       id.TaskIDFromContext(ctx),
-		ParentTaskID: id.ParentTaskIDFromContext(ctx),
+		RunID:        id.RunIDFromContext(ctx),
+		ParentRunID:  id.ParentRunIDFromContext(ctx),
 	}, nil
 }
 
@@ -135,7 +135,7 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	ancestorTaskID := "task-ancestor-789"
 	logID := "log-root-000"
 
-	ctx := id.WithIDs(context.Background(), id.IDs{SessionID: sessionID, TaskID: rootTaskID, ParentTaskID: ancestorTaskID, LogID: logID})
+	ctx := id.WithIDs(context.Background(), id.IDs{SessionID: sessionID, RunID: rootTaskID, ParentRunID: ancestorTaskID, LogID: logID})
 
 	call := ports.ToolCall{
 		ID:           "call-1",
@@ -168,13 +168,13 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	if ids.SessionID != sessionID {
 		t.Fatalf("expected delegated session %s, got %s", sessionID, ids.SessionID)
 	}
-	if ids.ParentTaskID != rootTaskID {
-		t.Fatalf("expected delegated parent task %s, got %s", rootTaskID, ids.ParentTaskID)
+	if ids.ParentRunID != rootTaskID {
+		t.Fatalf("expected delegated parent task %s, got %s", rootTaskID, ids.ParentRunID)
 	}
-	if ids.TaskID == "" {
+	if ids.RunID == "" {
 		t.Fatal("expected delegated task id to be set")
 	}
-	if ids.TaskID == rootTaskID {
+	if ids.RunID == rootTaskID {
 		t.Fatalf("expected delegated task id to differ from root (%s)", rootTaskID)
 	}
 	if ids.LogID == "" {
@@ -196,11 +196,11 @@ func TestSubagentDelegationPropagatesIdentifiers(t *testing.T) {
 	if entry["session_id"] != sessionID {
 		t.Fatalf("expected log session_id %s, got %v", sessionID, entry["session_id"])
 	}
-	if entry["task_id"] != ids.TaskID {
-		t.Fatalf("expected log task_id %s, got %v", ids.TaskID, entry["task_id"])
+	if entry["run_id"] != ids.RunID {
+		t.Fatalf("expected log run_id %s, got %v", ids.RunID, entry["run_id"])
 	}
-	if entry["parent_task_id"] != rootTaskID {
-		t.Fatalf("expected log parent_task_id %s, got %v", rootTaskID, entry["parent_task_id"])
+	if entry["parent_run_id"] != rootTaskID {
+		t.Fatalf("expected log parent_run_id %s, got %v", rootTaskID, entry["parent_run_id"])
 	}
 	if entry["log_id"] != ids.LogID {
 		t.Fatalf("expected log log_id %s, got %v", ids.LogID, entry["log_id"])
@@ -229,7 +229,7 @@ func TestSubagentPropagatesAttachmentsToCoordinator(t *testing.T) {
 
 	ctx := context.Background()
 	ctx = tools.WithAttachmentContext(ctx, attachments, iterations)
-	ctx = id.WithIDs(ctx, id.IDs{SessionID: "session-1", TaskID: "root-task"})
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: "session-1", RunID: "root-task"})
 
 	call := ports.ToolCall{
 		ID:        "call-attachments",

@@ -53,7 +53,7 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
           const matcher = (existing: AnyAgentEvent) =>
             isEventType(existing, "workflow.result.final", "workflow.result.final") &&
             existing.session_id === complete.session_id &&
-            existing.task_id === complete.task_id;
+            existing.run_id === complete.run_id;
           const replaced = draft.eventCache.replaceLastIf(matcher, event);
           if (!replaced) {
             draft.eventCache.add(event);
@@ -75,7 +75,7 @@ export const useAgentStreamStore = create<AgentStreamState>()((set, get) => ({
             const matcher = (existing: AnyAgentEvent) =>
               isEventType(existing, "workflow.result.final", "workflow.result.final") &&
               existing.session_id === complete.session_id &&
-              existing.task_id === complete.task_id;
+              existing.run_id === complete.run_id;
             const replaced = draft.eventCache.replaceLastIf(matcher, event);
             if (!replaced) {
               draft.eventCache.add(event);

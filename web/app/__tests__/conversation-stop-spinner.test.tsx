@@ -65,7 +65,7 @@ vi.mock('@/hooks/useAgentEventStream', () => ({
         timestamp: new Date().toISOString(),
         agent_level: 'core',
         session_id: 'test-session',
-        task_id: 'task-1',
+        run_id: 'task-1',
         task: 'seed',
       } as AnyAgentEvent,
     ],

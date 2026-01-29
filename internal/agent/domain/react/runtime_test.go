@@ -83,7 +83,7 @@ func TestReactRuntimeFinalizeResultDecoratesWorkflowOnce(t *testing.T) {
 
 	state := &TaskState{
 		SessionID: "s1",
-		TaskID:    "t1",
+		RunID:    "t1",
 	}
 
 	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
@@ -123,7 +123,7 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 
 	state := &TaskState{
 		SessionID: "s1",
-		TaskID:    "t1",
+		RunID:    "t1",
 	}
 
 	runtime := newReactRuntime(engine, ctx, "demo", state, Services{}, nil)

@@ -35,10 +35,10 @@ type CreateTaskRequest struct {
 
 // CreateTaskResponse matches TypeScript CreateTaskResponse interface
 type CreateTaskResponse struct {
-	TaskID       string `json:"task_id"`
-	SessionID    string `json:"session_id"`
-	Status       string `json:"status"`
-	ParentTaskID string `json:"parent_task_id,omitempty"`
+	RunID       string `json:"run_id"`
+	SessionID   string `json:"session_id"`
+	Status      string `json:"status"`
+	ParentRunID string `json:"parent_run_id,omitempty"`
 }
 
 // AttachmentPayload represents an attachment sent from the client.
@@ -150,10 +150,10 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Return task response matching TypeScript interface
 	response := CreateTaskResponse{
-		TaskID:       task.ID,
-		SessionID:    task.SessionID,
-		Status:       string(task.Status),
-		ParentTaskID: task.ParentTaskID,
+		RunID:       task.ID,
+		SessionID:   task.SessionID,
+		Status:      string(task.Status),
+		ParentRunID: task.ParentTaskID,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -278,12 +278,12 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	// Convert to TaskStatusResponse
 	response := TaskStatusResponse{
-		TaskID:       task.ID,
-		SessionID:    task.SessionID,
-		ParentTaskID: task.ParentTaskID,
-		Status:       string(task.Status),
-		CreatedAt:    task.CreatedAt.Format(time.RFC3339),
-		Error:        task.Error,
+		RunID:       task.ID,
+		SessionID:   task.SessionID,
+		ParentRunID: task.ParentTaskID,
+		Status:      string(task.Status),
+		CreatedAt:   task.CreatedAt.Format(time.RFC3339),
+		Error:       task.Error,
 	}
 
 	if task.CompletedAt != nil {
@@ -365,12 +365,12 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	taskResponses := make([]TaskStatusResponse, len(tasks))
 	for i, task := range tasks {
 		taskResponses[i] = TaskStatusResponse{
-			TaskID:       task.ID,
-			SessionID:    task.SessionID,
-			ParentTaskID: task.ParentTaskID,
-			Status:       string(task.Status),
-			CreatedAt:    task.CreatedAt.Format(time.RFC3339),
-			Error:        task.Error,
+			RunID:       task.ID,
+			SessionID:   task.SessionID,
+			ParentRunID: task.ParentTaskID,
+			Status:      string(task.Status),
+			CreatedAt:   task.CreatedAt.Format(time.RFC3339),
+			Error:       task.Error,
 		}
 		if task.CompletedAt != nil {
 			completedStr := task.CompletedAt.Format(time.RFC3339)

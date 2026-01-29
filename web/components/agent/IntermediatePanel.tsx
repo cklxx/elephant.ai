@@ -41,12 +41,12 @@ const getThinkStreamKey = (
   event: WorkflowNodeOutputDeltaEvent | WorkflowNodeOutputSummaryEvent,
   iteration: number,
 ) => {
-  const taskIdentifier =
-    event.task_id ??
-    (event.parent_task_id
-      ? `${event.parent_task_id}:${event.subtask_index ?? "0"}`
+  const runIdentifier =
+    event.run_id ??
+    (event.parent_run_id
+      ? `${event.parent_run_id}:${event.subtask_index ?? "0"}`
       : event.session_id);
-  return `${taskIdentifier}:${iteration}`;
+  return `${runIdentifier}:${iteration}`;
 };
 
 const isWorkflowToolStartedEvent = (

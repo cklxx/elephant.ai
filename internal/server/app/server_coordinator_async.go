@@ -45,9 +45,9 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 	confirmedSessionID := session.ID
 	logger.Info("[ServerCoordinator] Session confirmed: %s (original: '%s')", confirmedSessionID, sessionID)
 
-	// Preallocate a task ID so we can emit workflow.input.received before hitting slower stores.
-	taskID := id.NewTaskID()
-	ctx = id.WithTaskID(ctx, taskID)
+	// Preallocate a run ID so we can emit workflow.input.received before hitting slower stores.
+	taskID := id.NewRunID()
+	ctx = id.WithRunID(ctx, taskID)
 
 	// Emit workflow.input.received event immediately so the frontend gets instant feedback.
 	s.emitWorkflowInputReceivedEvent(ctx, confirmedSessionID, taskID, task)
@@ -59,13 +59,13 @@ func (s *ServerCoordinator) ExecuteTaskAsync(ctx context.Context, task string, s
 		return nil, fmt.Errorf("failed to create task: %w", err)
 	}
 
-	parentTaskID := id.ParentTaskIDFromContext(ctx)
-	if parentTaskID != "" {
-		taskRecord.ParentTaskID = parentTaskID
+	parentRunID := id.ParentRunIDFromContext(ctx)
+	if parentRunID != "" {
+		taskRecord.ParentTaskID = parentRunID
 	}
 
 	taskSessionID := taskRecord.SessionID
-	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, TaskID: taskRecord.ID, ParentTaskID: parentTaskID})
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, RunID: taskRecord.ID, ParentRunID: parentRunID})
 
 	// Verify broadcaster is initialized
 	if s.broadcaster == nil {
@@ -122,13 +122,13 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 
 	logger.Info("[Background] Starting task execution: taskID=%s, sessionID=%s", taskID, sessionID)
 
-	parentTaskID := id.ParentTaskIDFromContext(ctx)
+	parentRunID := id.ParentRunIDFromContext(ctx)
 	startTime := time.Now()
 	status := "success"
 	var spanErr error
 	if s.obs != nil {
 		if s.obs.Tracer != nil {
-			attrs := append(observability.SessionAttrs(sessionID), attribute.String(observability.AttrTaskID, taskID))
+			attrs := append(observability.SessionAttrs(sessionID), attribute.String(observability.AttrRunID, taskID))
 			ctxWithSpan, span := s.obs.Tracer.StartSpan(ctx, observability.SpanSessionSolveTask, attrs...)
 			ctx = ctxWithSpan
 			defer func() {
@@ -161,9 +161,9 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Set session context in broadcaster
 	ctx = s.broadcaster.SetSessionContext(ctx, sessionID)
 
-	// Register task-session mapping for progress tracking
-	s.broadcaster.RegisterTaskSession(sessionID, taskID)
-	defer s.broadcaster.UnregisterTaskSession(sessionID)
+	// Register run-session mapping for progress tracking
+	s.broadcaster.RegisterRunSession(sessionID, taskID)
+	defer s.broadcaster.UnregisterRunSession(sessionID)
 
 	// Update task status to running
 	_ = s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusRunning)
@@ -214,13 +214,13 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		_ = s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusCancelled)
 		_ = s.taskStore.SetTerminationReason(context.Background(), taskID, terminationReason)
 		props := map[string]any{
-			"task_id":            taskID,
+			"run_id":             taskID,
 			"session_id":         sessionID,
 			"termination_reason": string(terminationReason),
 			"duration_ms":        time.Since(startTime).Milliseconds(),
 		}
-		if parentTaskID != "" {
-			props["parent_task_id"] = parentTaskID
+		if parentRunID != "" {
+			props["parent_run_id"] = parentRunID
 		}
 		if agentPreset != "" {
 			props["agent_preset"] = agentPreset
@@ -246,13 +246,13 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 		// Update task status
 		_ = s.taskStore.SetError(ctx, taskID, err)
 		props := map[string]any{
-			"task_id":     taskID,
+			"run_id":      taskID,
 			"session_id":  sessionID,
 			"duration_ms": time.Since(startTime).Milliseconds(),
 			"error":       err.Error(),
 		}
-		if parentTaskID != "" {
-			props["parent_task_id"] = parentTaskID
+		if parentRunID != "" {
+			props["parent_run_id"] = parentRunID
 		}
 		if agentPreset != "" {
 			props["agent_preset"] = agentPreset
@@ -270,13 +270,13 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	logger.Info("[Background] Task execution completed: taskID=%s", taskID)
 
 	props := map[string]any{
-		"task_id":     taskID,
+		"run_id":      taskID,
 		"session_id":  sessionID,
 		"duration_ms": time.Since(startTime).Milliseconds(),
 		"iterations":  result.Iterations,
 	}
-	if parentTaskID != "" {
-		props["parent_task_id"] = parentTaskID
+	if parentRunID != "" {
+		props["parent_run_id"] = parentRunID
 	}
 	if agentPreset != "" {
 		props["agent_preset"] = agentPreset
@@ -318,7 +318,7 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 	}
 	logger := logging.FromContext(ctx, s.logger)
 
-	parentTaskID := id.ParentTaskIDFromContext(ctx)
+	parentRunID := id.ParentRunIDFromContext(ctx)
 	level := agent.GetOutputContext(ctx).Level
 	attachments := appcontext.GetUserAttachments(ctx)
 	var attachmentMap map[string]ports.Attachment
@@ -343,24 +343,24 @@ func (s *ServerCoordinator) emitWorkflowInputReceivedEvent(ctx context.Context, 
 		}
 	}
 
-	event := domain.NewWorkflowInputReceivedEvent(level, sessionID, taskID, parentTaskID, task, attachmentMap, time.Now())
+	event := domain.NewWorkflowInputReceivedEvent(level, sessionID, taskID, parentRunID, task, attachmentMap, time.Now())
 	if logID := id.LogIDFromContext(ctx); logID != "" {
 		event.SetLogID(logID)
 	}
-	logger.Debug("[Background] Emitting workflow.input.received event for session=%s task=%s", sessionID, taskID)
+	logger.Debug("[Background] Emitting workflow.input.received event for session=%s run=%s", sessionID, taskID)
 	s.broadcaster.OnEvent(event)
 
 	attachmentCount := len(attachmentMap)
 	props := map[string]any{
-		"task_id":          taskID,
+		"run_id":           taskID,
 		"session_id":       sessionID,
 		"level":            level,
-		"has_parent_task":  parentTaskID != "",
+		"has_parent_run":   parentRunID != "",
 		"has_attachments":  attachmentCount > 0,
 		"attachment_count": attachmentCount,
 	}
-	if parentTaskID != "" {
-		props["parent_task_id"] = parentTaskID
+	if parentRunID != "" {
+		props["parent_run_id"] = parentRunID
 	}
 
 	s.captureAnalytics(ctx, sessionID, analytics.EventTaskExecutionStarted, props)

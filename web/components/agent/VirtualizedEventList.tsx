@@ -508,11 +508,11 @@ function EventContextMeta({ event }: { event: AnyAgentEvent }) {
   if (event.session_id) {
     parts.push(`Session ${event.session_id}`);
   }
-  if (event.task_id) {
-    parts.push(`Task ${event.task_id}`);
+  if (event.run_id) {
+    parts.push(`Run ${event.run_id}`);
   }
-  if (event.parent_task_id) {
-    parts.push(`Parent ${event.parent_task_id}`);
+  if (event.parent_run_id) {
+    parts.push(`Parent ${event.parent_run_id}`);
   }
 
   if (parts.length === 0) {
@@ -527,17 +527,17 @@ function EventContextMeta({ event }: { event: AnyAgentEvent }) {
 }
 
 function collapseFinalResults(events: AnyAgentEvent[]): AnyAgentEvent[] {
-  const latestByTask = new Map<string, AnyAgentEvent>();
+  const latestByRun = new Map<string, AnyAgentEvent>();
   const ordered: AnyAgentEvent[] = [];
 
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const evt = events[i];
-    if (isEventType(evt, 'workflow.result.final') && 'task_id' in evt && 'session_id' in evt) {
-      const key = `${evt.session_id}|${evt.task_id}`;
-      if (latestByTask.has(key)) {
+    if (isEventType(evt, 'workflow.result.final') && 'run_id' in evt && 'session_id' in evt) {
+      const key = `${evt.session_id}|${evt.run_id}`;
+      if (latestByRun.has(key)) {
         continue;
       }
-      latestByTask.set(key, evt);
+      latestByRun.set(key, evt);
       ordered.push(evt);
       continue;
     }

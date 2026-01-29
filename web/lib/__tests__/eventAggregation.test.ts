@@ -111,9 +111,9 @@ describe('EventLRUCache', () => {
 
       expect(smallCache.size()).toBe(3);
       const allEvents = smallCache.getAll();
-      expect(allEvents[0].iteration).toBe(2); // First event evicted
-      expect(allEvents[1].iteration).toBe(3);
-      expect(allEvents[2].iteration).toBe(4);
+      expect((allEvents[0] as any).iteration).toBe(2); // First event evicted
+      expect((allEvents[1] as any).iteration).toBe(3);
+      expect((allEvents[2] as any).iteration).toBe(4);
     });
 
     it('should maintain exactly max size when adding many events', () => {
@@ -130,8 +130,8 @@ describe('EventLRUCache', () => {
       expect(cache.size()).toBe(1000);
       // Should keep the last 1000 events
       const allEvents = cache.getAll();
-      expect(allEvents[0].iteration).toBe(500);
-      expect(allEvents[999].iteration).toBe(1499);
+      expect((allEvents[0] as any).iteration).toBe(500);
+      expect((allEvents[999] as any).iteration).toBe(1499);
     });
   });
 
@@ -157,7 +157,7 @@ describe('EventLRUCache', () => {
         event_type: 'workflow.result.final',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'session-1',
-        task_id: 'task-1',
+        run_id: 'task-1',
         agent_level: 'core',
         final_answer: 'first answer',
         total_iterations: 1,
@@ -173,7 +173,7 @@ describe('EventLRUCache', () => {
 
       cache.add(first);
       const replaced = cache.replaceLastIf(
-        (event) => event.event_type === 'workflow.result.final' && event.task_id === 'task-1',
+        (event) => event.event_type === 'workflow.result.final' && event.run_id === 'task-1',
         second,
       );
       if (!replaced) {
@@ -183,7 +183,7 @@ describe('EventLRUCache', () => {
       expect(replaced).toBe(true);
       const all = cache.getAll();
       expect(all).toHaveLength(1);
-      expect(all[0].final_answer).toBe('streaming update');
+      expect((all[0] as any).final_answer).toBe('streaming update');
     });
 
     it('should not replace non-adjacent matching events', () => {
@@ -191,7 +191,7 @@ describe('EventLRUCache', () => {
         event_type: 'workflow.result.final',
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'session-1',
-        task_id: 'task-1',
+        run_id: 'task-1',
         agent_level: 'core',
         final_answer: 'first answer',
         total_iterations: 1,
@@ -216,7 +216,7 @@ describe('EventLRUCache', () => {
       cache.add(first);
       cache.add(deltaEvent);
       const replaced = cache.replaceLastIf(
-        (event) => event.event_type === 'workflow.result.final' && event.task_id === 'task-1',
+        (event) => event.event_type === 'workflow.result.final' && event.run_id === 'task-1',
         second,
       );
 
@@ -226,8 +226,8 @@ describe('EventLRUCache', () => {
       }
       const all = cache.getAll();
       expect(all).toHaveLength(3);
-      expect(all[0].final_answer).toBe('first answer');
-      expect(all[2].final_answer).toBe('streaming update');
+      expect((all[0] as any).final_answer).toBe('first answer');
+      expect((all[2] as any).final_answer).toBe('streaming update');
     });
   });
 });
@@ -277,7 +277,6 @@ describe('aggregateToolCalls', () => {
         timestamp: '2025-01-01T10:00:01Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-1',
         chunk: 'file1.txt\n',
       },
@@ -286,7 +285,6 @@ describe('aggregateToolCalls', () => {
         timestamp: '2025-01-01T10:00:02Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-1',
         chunk: 'file2.txt\n',
       },
@@ -317,7 +315,6 @@ describe('aggregateToolCalls', () => {
         timestamp: '2025-01-01T10:00:05Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-1',
         tool_name: 'bash',
         result: 'file1.txt\nfile2.txt',
@@ -351,7 +348,6 @@ describe('aggregateToolCalls', () => {
         timestamp: '2025-01-01T10:00:01Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-1',
         tool_name: 'bash',
         result: '',
@@ -375,7 +371,6 @@ describe('aggregateToolCalls', () => {
         timestamp: '2025-01-01T10:00:01Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'orphan-call',
         tool_name: 'bash',
         result: 'orphan result',
@@ -402,7 +397,6 @@ describe('buildToolCallSummaries', () => {
         timestamp: '2025-01-01T10:00:00Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-1',
         tool_name: 'code_execute',
         arguments: { language: 'python', source: 'print("hi")' },
@@ -412,7 +406,6 @@ describe('buildToolCallSummaries', () => {
         timestamp: '2025-01-01T10:00:02Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-1',
         tool_name: 'code_execute',
         result: 'hi\n',
@@ -467,7 +460,6 @@ describe('buildToolCallSummaries', () => {
         timestamp: '2025-01-01T10:00:03Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-3',
         tool_name: 'shell_exec',
         result: 'file.txt',
@@ -567,6 +559,7 @@ describe('groupByIteration', () => {
         agent_level: 'core',
         iteration: 1,
         content: 'I need to analyze the code',
+        tool_call_count: 0,
       },
     ];
 
@@ -601,7 +594,6 @@ describe('groupByIteration', () => {
         timestamp: '2025-01-01T10:00:11Z',
         session_id: 'test-123',
         agent_level: 'core',
-        iteration: 1,
         call_id: 'call-1',
         tool_name: 'bash',
         result: 'output',

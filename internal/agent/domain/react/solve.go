@@ -75,8 +75,8 @@ func (e *ReactEngine) think(
 	snapshot := domain.NewWorkflowDiagnosticContextSnapshotEvent(
 		e.getAgentLevel(ctx),
 		state.SessionID,
-		state.TaskID,
-		state.ParentTaskID,
+		state.RunID,
+		state.ParentRunID,
 		state.Iterations,
 		state.Iterations,
 		requestID,
@@ -113,7 +113,7 @@ func (e *ReactEngine) think(
 					chunk := streamBuffer.String()
 					streamBuffer.Reset()
 					e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
 						Iteration:   state.Iterations,
 						Delta:       chunk,
 						Final:       false,
@@ -127,7 +127,7 @@ func (e *ReactEngine) think(
 					chunk := streamBuffer.String()
 					streamBuffer.Reset()
 					e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
 						Iteration:   state.Iterations,
 						Delta:       chunk,
 						Final:       false,
@@ -163,7 +163,7 @@ func (e *ReactEngine) think(
 		if chunk != "" {
 			streamedContent = true
 			e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+				BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
 				Iteration:   state.Iterations,
 				Delta:       chunk,
 				Final:       false,
@@ -178,7 +178,7 @@ func (e *ReactEngine) think(
 		finalDelta = resp.Content
 	}
 	e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
 		Iteration:   state.Iterations,
 		Delta:       finalDelta,
 		Final:       true,

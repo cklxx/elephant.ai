@@ -65,7 +65,7 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 		prepare:   prepare,
 	}
 	if state != nil {
-		runtime.runID = strings.TrimSpace(state.TaskID)
+		runtime.runID = strings.TrimSpace(state.RunID)
 	}
 	runtime.clarifyEmitted = make(map[string]bool)
 	runtime.nextTaskSeq = 1
@@ -155,7 +155,7 @@ func (r *reactRuntime) emitWorkflowToolStartedEvents(calls []ToolCall) {
 	for idx := range calls {
 		call := calls[idx]
 		r.engine.emitEvent(&domain.WorkflowToolStartedEvent{
-			BaseEvent: r.engine.newBaseEvent(r.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+			BaseEvent: r.engine.newBaseEvent(r.ctx, state.SessionID, state.RunID, state.ParentRunID),
 			Iteration: state.Iterations,
 			CallID:    call.ID,
 			ToolName:  call.Name,
@@ -392,14 +392,14 @@ func (it *reactIteration) think() error {
 	tracker.startThink(it.index)
 
 	it.runtime.engine.emitEvent(&domain.WorkflowNodeStartedEvent{
-		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
 		Iteration:  it.index,
 		TotalIters: it.runtime.engine.maxIterations,
 	})
 
 	it.runtime.engine.logger.Debug("THINK phase: Calling LLM with %d messages", len(state.Messages))
 	it.runtime.engine.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-		BaseEvent:    it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		BaseEvent:    it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
 		Iteration:    it.index,
 		MessageCount: len(state.Messages),
 	})
@@ -409,7 +409,7 @@ func (it *reactIteration) think() error {
 		it.runtime.engine.logger.Error("Think step failed: %v", err)
 
 		it.runtime.engine.emitEvent(&domain.WorkflowNodeFailedEvent{
-			BaseEvent:   it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+			BaseEvent:   it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
 			Iteration:   it.index,
 			Phase:       "think",
 			Error:       err,
@@ -448,7 +448,7 @@ func (it *reactIteration) think() error {
 	if len(it.toolCalls) > 0 && !hasPlanCall {
 		meta := extractLLMMetadata(thought.Metadata)
 		it.runtime.engine.emitEvent(&domain.WorkflowNodeOutputSummaryEvent{
-			BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+			BaseEvent:     it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
 			Iteration:     it.index,
 			Content:       thought.Content,
 			ToolCallCount: len(it.toolCalls),
@@ -549,7 +549,7 @@ func (it *reactIteration) finish() {
 	it.runtime.engine.logger.Debug("Current token count: %d", tokenCount)
 
 	it.runtime.engine.emitEvent(&domain.WorkflowNodeCompletedEvent{
-		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		BaseEvent:  it.runtime.engine.newBaseEvent(it.runtime.ctx, state.SessionID, state.RunID, state.ParentRunID),
 		Iteration:  it.index,
 		TokensUsed: state.TokenCount,
 		ToolsRun:   len(it.toolResult),
@@ -601,7 +601,7 @@ func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emi
 		if emitCompletionEvent {
 			r.emitFinalAnswerStream(stopReason, result)
 			r.engine.emitEvent(&domain.WorkflowResultFinalEvent{
-				BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.TaskID, r.state.ParentTaskID),
+				BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
 				FinalAnswer:     result.Answer,
 				TotalIterations: result.Iterations,
 				TotalTokens:     result.TokensUsed,
@@ -641,7 +641,7 @@ func (r *reactRuntime) emitFinalAnswerStream(stopReason string, result *TaskResu
 		}
 		builder.WriteString(string(runes[i:end]))
 		r.engine.emitEvent(&domain.WorkflowResultFinalEvent{
-			BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.TaskID, r.state.ParentTaskID),
+			BaseEvent:       r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
 			FinalAnswer:     builder.String(),
 			TotalIterations: result.Iterations,
 			TotalTokens:     result.TokensUsed,

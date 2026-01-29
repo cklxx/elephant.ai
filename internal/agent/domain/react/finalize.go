@@ -30,8 +30,8 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string, duration tim
 		TokensUsed:   state.TokenCount,
 		StopReason:   stopReason,
 		SessionID:    state.SessionID,
-		TaskID:       state.TaskID,
-		ParentTaskID: state.ParentTaskID,
+		RunID:       state.RunID,
+		ParentRunID: state.ParentRunID,
 		Important:    ports.CloneImportantNotes(state.Important),
 		Duration:     duration,
 	}

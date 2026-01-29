@@ -105,10 +105,10 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 	// Send initial connection message
 	initialPayload := fmt.Sprintf(
-		"event: connected\ndata: {\"session_id\":\"%s\",\"task_id\":\"%s\",\"parent_task_id\":\"%s\"}\n\n",
+		"event: connected\ndata: {\"session_id\":\"%s\",\"run_id\":\"%s\",\"parent_run_id\":\"%s\"}\n\n",
 		sessionID,
-		id.TaskIDFromContext(r.Context()),
-		id.ParentTaskIDFromContext(r.Context()),
+		id.RunIDFromContext(r.Context()),
+		id.ParentRunIDFromContext(r.Context()),
 	)
 	if _, err := io.WriteString(w, initialPayload); err != nil {
 		logger.Error("Failed to send connection message: %v", err)

@@ -18,8 +18,8 @@ describe('SubagentEventLine', () => {
       event_type: 'workflow.tool.started',
       agent_level: 'subagent',
       session_id: 'session-123',
-      task_id: 'task-abc',
-      parent_task_id: 'parent-1',
+      run_id: 'task-abc',
+      parent_run_id: 'parent-1',
       timestamp: new Date().toISOString(),
       iteration: 1,
       call_id: 'call-1',
@@ -45,8 +45,8 @@ describe('SubagentEventLine', () => {
       event_type: 'workflow.tool.completed',
       agent_level: 'subagent',
       session_id: 'session-123',
-      task_id: 'task-xyz',
-      parent_task_id: 'parent-1',
+      run_id: 'task-xyz',
+      parent_run_id: 'parent-1',
       timestamp: new Date().toISOString(),
       call_id: 'call-42',
       tool_name: 'code_execute',
@@ -75,8 +75,8 @@ describe('SubagentEventLine', () => {
       event_type: 'workflow.subflow.progress',
       agent_level: 'subagent',
       session_id: 'session-123',
-      task_id: 'task-abc',
-      parent_task_id: 'parent-1',
+      run_id: 'task-abc',
+      parent_run_id: 'parent-1',
       timestamp: new Date().toISOString(),
       completed: 2,
       total: 4,
@@ -96,8 +96,8 @@ describe('SubagentEventLine', () => {
       event_type: 'workflow.tool.started',
       agent_level: 'subagent',
       session_id: 'session-123',
-      task_id: 'task-abc',
-      parent_task_id: 'parent-1',
+      run_id: 'task-abc',
+      parent_run_id: 'parent-1',
       timestamp: new Date().toISOString(),
       iteration: 1,
       call_id: 'call-1',
@@ -106,7 +106,7 @@ describe('SubagentEventLine', () => {
       payload: {
         subtask_preview: 'Payload preview title',
       },
-    } as AnyAgentEvent;
+    } as unknown as AnyAgentEvent;
 
     renderWithI18n(event);
 

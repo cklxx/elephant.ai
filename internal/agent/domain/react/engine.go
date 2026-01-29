@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 
+	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
@@ -20,6 +21,7 @@ type ReactEngine struct {
 	completion         completionConfig
 	attachmentMigrator materialports.Migrator
 	workflow           WorkflowTracker
+	seq                domain.SeqCounter // Monotonic event sequence per run
 }
 
 type workflowRecorder struct {

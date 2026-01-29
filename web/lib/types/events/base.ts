@@ -57,17 +57,29 @@ export interface WorkflowSnapshot {
 }
 
 export interface WorkflowEnvelope<TType extends AgentEventType = WorkflowEventType> {
+  // Identity
+  event_id?: string;
   version?: number;
   event_type: TType;
+  seq?: number;
   timestamp: string;
+
+  // Hierarchy
   agent_level: AgentLevel;
   session_id: string;
-  task_id?: string;
-  parent_task_id?: string;
-  workflow_id?: string;
   run_id?: string;
+  parent_run_id?: string;
+
+  // Causal chain
+  correlation_id?: string;
+  causation_id?: string;
+
+  // Workflow
+  workflow_id?: string;
   node_id?: string;
   node_kind?: string;
+
+  // Subtask metadata
   is_subtask?: boolean;
   subtask_index?: number;
   total_subtasks?: number;
@@ -86,8 +98,8 @@ export type AgentEvent<TPayload = Record<string, unknown>> = WorkflowEnvelope<Ag
 export interface ConnectedEvent {
   event_type: 'connected';
   session_id: string;
-  task_id?: string;
-  parent_task_id?: string;
+  run_id?: string;
+  parent_run_id?: string;
   timestamp?: string;
   agent_level?: AgentLevel;
 }

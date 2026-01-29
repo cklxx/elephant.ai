@@ -41,10 +41,17 @@ func (e *ReactEngine) emitEvent(event AgentEvent) {
 	}
 }
 
-func (e *ReactEngine) newBaseEvent(ctx context.Context, sessionID, taskID, parentTaskID string) domain.BaseEvent {
-	base := domain.NewBaseEvent(e.getAgentLevel(ctx), sessionID, taskID, parentTaskID, e.clock.Now())
+func (e *ReactEngine) newBaseEvent(ctx context.Context, sessionID, runID, parentRunID string) domain.BaseEvent {
+	base := domain.NewBaseEvent(e.getAgentLevel(ctx), sessionID, runID, parentRunID, e.clock.Now())
 	if logID := id.LogIDFromContext(ctx); logID != "" {
 		base.SetLogID(logID)
 	}
+	if cid := id.CorrelationIDFromContext(ctx); cid != "" {
+		base.SetCorrelationID(cid)
+	}
+	if cid := id.CausationIDFromContext(ctx); cid != "" {
+		base.SetCausationID(cid)
+	}
+	base.SetSeq(e.seq.Next())
 	return base
 }

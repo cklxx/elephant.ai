@@ -128,11 +128,11 @@ func (tp *TracerProvider) StartSpan(ctx context.Context, name string, attrs ...a
 	if ids.SessionID != "" {
 		attrs = append(attrs, attribute.String(AttrSessionID, ids.SessionID))
 	}
-	if ids.TaskID != "" {
-		attrs = append(attrs, attribute.String(AttrTaskID, ids.TaskID))
+	if ids.RunID != "" {
+		attrs = append(attrs, attribute.String(AttrRunID, ids.RunID))
 	}
-	if ids.ParentTaskID != "" {
-		attrs = append(attrs, attribute.String(AttrParentTaskID, ids.ParentTaskID))
+	if ids.ParentRunID != "" {
+		attrs = append(attrs, attribute.String(AttrParentRunID, ids.ParentRunID))
 	}
 
 	return tp.tracer.Start(ctx, name, trace.WithAttributes(attrs...))
@@ -151,8 +151,8 @@ const (
 // Common attribute keys
 const (
 	AttrSessionID    = "alex.session_id"
-	AttrTaskID       = "alex.task_id"
-	AttrParentTaskID = "alex.parent_task_id"
+	AttrRunID       = "alex.run_id"
+	AttrParentRunID = "alex.parent_run_id"
 	AttrToolName     = "alex.tool_name"
 	AttrModel        = "alex.llm.model"
 	AttrTokenCount   = "alex.llm.token_count"

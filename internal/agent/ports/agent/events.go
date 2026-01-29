@@ -9,8 +9,12 @@ type AgentEvent interface {
 	Timestamp() time.Time
 	GetAgentLevel() AgentLevel
 	GetSessionID() string
-	GetTaskID() string
-	GetParentTaskID() string
+	GetRunID() string
+	GetParentRunID() string
+	GetCorrelationID() string
+	GetCausationID() string
+	GetEventID() string
+	GetSeq() uint64
 }
 
 // SubtaskMetadata describes contextual fields emitted alongside delegated subflows.

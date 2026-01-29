@@ -120,7 +120,7 @@ func TestStreamingOutputHandlerPrintsTaskStart(t *testing.T) {
 	var out bytes.Buffer
 	handler.SetOutputWriter(&out)
 
-	ctx := id.WithTaskID(id.WithSessionID(context.Background(), "session-123"), "task-456")
+	ctx := id.WithRunID(id.WithSessionID(context.Background(), "session-123"), "task-456")
 	handler.ctx = ctx
 
 	handler.printTaskStart("demo task")

@@ -31,14 +31,14 @@ const (
 type eventRecord struct {
 	id            int64
 	sessionID     string
-	taskID        string
-	parentTaskID  string
+	runID         string
+	parentRunID   string
 	agentLevel    string
 	eventType     string
 	eventTS       time.Time
 	envelopeVer   int
 	workflowID    string
-	runID         string
+	workflowRunID string
 	nodeID        string
 	nodeKind      string
 	isSubtask     bool
@@ -142,14 +142,14 @@ func (s *PostgresEventHistoryStore) EnsureSchema(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS agent_session_events (
     id BIGSERIAL PRIMARY KEY,
     session_id TEXT NOT NULL DEFAULT '',
-    task_id TEXT NOT NULL DEFAULT '',
-    parent_task_id TEXT NOT NULL DEFAULT '',
+    run_id TEXT NOT NULL DEFAULT '',
+    parent_run_id TEXT NOT NULL DEFAULT '',
     agent_level TEXT NOT NULL DEFAULT '',
     event_type TEXT NOT NULL,
     event_ts TIMESTAMPTZ NOT NULL,
     envelope_version INTEGER NOT NULL DEFAULT 0,
     workflow_id TEXT NOT NULL DEFAULT '',
-    run_id TEXT NOT NULL DEFAULT '',
+    workflow_run_id TEXT NOT NULL DEFAULT '',
     node_id TEXT NOT NULL DEFAULT '',
     node_kind TEXT NOT NULL DEFAULT '',
     is_subtask BOOLEAN NOT NULL DEFAULT FALSE,
@@ -201,20 +201,20 @@ func (s *PostgresEventHistoryStore) Append(ctx context.Context, event agent.Agen
 
 	_, err = s.pool.Exec(ctxWithTimeout, `
 INSERT INTO agent_session_events (
-    session_id, task_id, parent_task_id, agent_level, event_type, event_ts,
-    envelope_version, workflow_id, run_id, node_id, node_kind,
+    session_id, run_id, parent_run_id, agent_level, event_type, event_ts,
+    envelope_version, workflow_id, workflow_run_id, node_id, node_kind,
     is_subtask, subtask_index, total_subtasks, subtask_preview, max_parallel, payload
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17::jsonb)
 `,
 		record.sessionID,
-		record.taskID,
-		record.parentTaskID,
+		record.runID,
+		record.parentRunID,
 		record.agentLevel,
 		record.eventType,
 		record.eventTS,
 		record.envelopeVer,
 		record.workflowID,
-		record.runID,
+		record.workflowRunID,
 		record.nodeID,
 		record.nodeKind,
 		record.isSubtask,
@@ -256,8 +256,8 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []ag
 		return nil
 	}
 
-	const columns = `session_id, task_id, parent_task_id, agent_level, event_type, event_ts,
-    envelope_version, workflow_id, run_id, node_id, node_kind,
+	const columns = `session_id, run_id, parent_run_id, agent_level, event_type, event_ts,
+    envelope_version, workflow_id, workflow_run_id, node_id, node_kind,
     is_subtask, subtask_index, total_subtasks, subtask_preview, max_parallel, payload`
 
 	args := make([]any, 0, len(records)*17)
@@ -287,14 +287,14 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []ag
 		}
 		args = append(args,
 			record.sessionID,
-			record.taskID,
-			record.parentTaskID,
+			record.runID,
+			record.parentRunID,
 			record.agentLevel,
 			record.eventType,
 			record.eventTS,
 			record.envelopeVer,
 			record.workflowID,
-			record.runID,
+			record.workflowRunID,
 			record.nodeID,
 			record.nodeKind,
 			record.isSubtask,
@@ -402,8 +402,8 @@ func (s *PostgresEventHistoryStore) Prune(ctx context.Context) error {
 func (s *PostgresEventHistoryStore) fetchBatch(ctx context.Context, filter EventHistoryFilter, afterID int64) ([]eventRecord, error) {
 	args := []any{filter.SessionID, afterID}
 	query := `
-SELECT id, session_id, task_id, parent_task_id, agent_level, event_type, event_ts,
-       envelope_version, workflow_id, run_id, node_id, node_kind,
+SELECT id, session_id, run_id, parent_run_id, agent_level, event_type, event_ts,
+       envelope_version, workflow_id, workflow_run_id, node_id, node_kind,
        is_subtask, subtask_index, total_subtasks, subtask_preview, max_parallel, payload
 FROM agent_session_events
 WHERE session_id = $1 AND id > $2`
@@ -433,14 +433,14 @@ WHERE session_id = $1 AND id > $2`
 		if err := rows.Scan(
 			&rec.id,
 			&rec.sessionID,
-			&rec.taskID,
-			&rec.parentTaskID,
+			&rec.runID,
+			&rec.parentRunID,
 			&rec.agentLevel,
 			&rec.eventType,
 			&rec.eventTS,
 			&rec.envelopeVer,
 			&rec.workflowID,
-			&rec.runID,
+			&rec.workflowRunID,
 			&rec.nodeID,
 			&rec.nodeKind,
 			&rec.isSubtask,
@@ -544,12 +544,12 @@ func recordFromEventWithStore(event agent.AgentEvent, store AttachmentStorer) (e
 	}
 
 	record := eventRecord{
-		sessionID:    event.GetSessionID(),
-		taskID:       event.GetTaskID(),
-		parentTaskID: event.GetParentTaskID(),
-		agentLevel:   string(agentLevel),
-		eventType:    base.EventType(),
-		eventTS:      ts,
+		sessionID:   event.GetSessionID(),
+		runID:       event.GetRunID(),
+		parentRunID: event.GetParentRunID(),
+		agentLevel:  string(agentLevel),
+		eventType:   base.EventType(),
+		eventTS:     ts,
 	}
 
 	hasSubtaskWrapper := false
@@ -571,7 +571,7 @@ func recordFromEventWithStore(event agent.AgentEvent, store AttachmentStorer) (e
 			record.envelopeVer = 1
 		}
 		record.workflowID = e.WorkflowID
-		record.runID = e.RunID
+		record.workflowRunID = e.RunID
 		record.nodeID = e.NodeID
 		record.nodeKind = e.NodeKind
 		if !hasSubtaskWrapper {
@@ -712,7 +712,7 @@ func shouldRetainInlinePayload(mediaType string, size int) bool {
 
 func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 	level := agent.AgentLevel(record.agentLevel)
-	base := domain.NewBaseEvent(level, record.sessionID, record.taskID, record.parentTaskID, record.eventTS)
+	base := domain.NewBaseEvent(level, record.sessionID, record.runID, record.parentRunID, record.eventTS)
 
 	if record.envelopeVer > 0 {
 		payload := map[string]any{}
@@ -726,7 +726,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 			Version:        record.envelopeVer,
 			Event:          record.eventType,
 			WorkflowID:     record.workflowID,
-			RunID:          record.runID,
+			RunID:          record.workflowRunID,
 			NodeID:         record.nodeID,
 			NodeKind:       record.nodeKind,
 			IsSubtask:      record.isSubtask,
@@ -749,7 +749,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 				return nil, err
 			}
 		}
-		return domain.NewWorkflowInputReceivedEvent(level, record.sessionID, record.taskID, record.parentTaskID, payload.Task, payload.Attachments, record.eventTS), nil
+		return domain.NewWorkflowInputReceivedEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Task, payload.Attachments, record.eventTS), nil
 	case (&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType():
 		var payload struct {
 			Iteration  int             `json:"iteration"`
@@ -763,7 +763,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 				return nil, err
 			}
 		}
-		return domain.NewWorkflowDiagnosticContextSnapshotEvent(level, record.sessionID, record.taskID, record.parentTaskID, payload.Iteration, payload.LLMTurnSeq, payload.RequestID, payload.Messages, payload.Excluded, record.eventTS), nil
+		return domain.NewWorkflowDiagnosticContextSnapshotEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Iteration, payload.LLMTurnSeq, payload.RequestID, payload.Messages, payload.Excluded, record.eventTS), nil
 	default:
 		payload := map[string]any{}
 		if len(record.payload) > 0 {

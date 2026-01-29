@@ -50,14 +50,14 @@ type ServerCoordinator struct {
 
 // ContextSnapshotRecord captures a snapshot of the messages sent to the LLM.
 type ContextSnapshotRecord struct {
-	SessionID    string
-	TaskID       string
-	ParentTaskID string
-	RequestID    string
-	Iteration    int
-	Timestamp    time.Time
-	Messages     []ports.Message
-	Excluded     []ports.Message
+	SessionID   string
+	RunID       string
+	ParentRunID string
+	RequestID   string
+	Iteration   int
+	Timestamp   time.Time
+	Messages    []ports.Message
+	Excluded    []ports.Message
 }
 
 // NewServerCoordinator creates a new server coordinator

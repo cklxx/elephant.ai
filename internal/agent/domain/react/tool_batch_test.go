@@ -53,7 +53,7 @@ func TestToolCallBatchRespectsConcurrencyLimit(t *testing.T) {
 		Clock:  agent.SystemClock{},
 	})
 
-	state := &TaskState{SessionID: "sess", TaskID: "task"}
+	state := &TaskState{SessionID: "sess", RunID: "task"}
 	calls := []ToolCall{
 		{ID: "call-1", Name: "t1"},
 		{ID: "call-2", Name: "t2"},

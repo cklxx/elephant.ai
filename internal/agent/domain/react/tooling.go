@@ -20,10 +20,10 @@ func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result 
 		normalized.SessionID = state.SessionID
 	}
 	if normalized.TaskID == "" {
-		normalized.TaskID = state.TaskID
+		normalized.TaskID = state.RunID
 	}
 	if normalized.ParentTaskID == "" {
-		normalized.ParentTaskID = state.ParentTaskID
+		normalized.ParentTaskID = state.ParentRunID
 	}
 	if strings.EqualFold(tc.Name, "a2ui_emit") {
 		normalized.Attachments = nil
@@ -42,7 +42,7 @@ func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result 
 
 func (e *ReactEngine) emitWorkflowToolCompletedEvent(ctx context.Context, state *TaskState, tc ToolCall, result ToolResult, duration time.Duration) {
 	e.emitEvent(&domain.WorkflowToolCompletedEvent{
-		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.TaskID, state.ParentTaskID),
+		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
 		CallID:      result.CallID,
 		ToolName:    tc.Name,
 		Result:      result.Content,

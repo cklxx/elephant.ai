@@ -17,7 +17,7 @@ export function buildEventSignature(event: AnyAgentEvent): string {
     return [
       taskEvent.event_type,
       taskEvent.session_id ?? '',
-      taskEvent.task_id ?? '',
+      taskEvent.run_id ?? '',
       taskEvent.task,
     ].join('|');
   }
@@ -26,7 +26,7 @@ export function buildEventSignature(event: AnyAgentEvent): string {
     event.event_type,
     event.timestamp ?? '',
     event.session_id ?? '',
-    'task_id' in event && event.task_id ? event.task_id : '',
+    'run_id' in event && event.run_id ? event.run_id : '',
   ];
 
   if (isEventType(event, 'workflow.tool.started', 'workflow.tool.progress', 'workflow.tool.completed')) {

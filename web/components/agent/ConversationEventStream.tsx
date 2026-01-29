@@ -259,11 +259,16 @@ function buildUnifiedTimeline(
   for (const event of mainStream) {
     // Check if this is a subagent trigger
     if (isSubagentTrigger(event)) {
-      const parentTaskId = event.task_id;
-      if (!parentTaskId) continue;
+      const triggerCallId =
+        "call_id" in event && typeof event.call_id === "string"
+          ? event.call_id
+          : undefined;
+      const parentRunId = event.run_id;
+      const groupKey = triggerCallId || parentRunId;
+      if (!groupKey) continue;
 
-      const group = subagentGroups.get(parentTaskId);
-      if (group && !assignedGroups.has(parentTaskId)) {
+      const group = subagentGroups.get(groupKey);
+      if (group && !assignedGroups.has(groupKey)) {
         // Create subagent group entry
         result.push({
           kind: "subagentGroup",
@@ -271,7 +276,7 @@ function buildUnifiedTimeline(
           threads: group,
           ts: Date.parse(event.timestamp ?? "") || 0,
         });
-        assignedGroups.add(parentTaskId);
+        assignedGroups.add(groupKey);
         continue;
       }
     }
@@ -285,8 +290,8 @@ function buildUnifiedTimeline(
   }
 
   // Add any unassigned groups at the end (fallback)
-  subagentGroups.forEach((threads, parentTaskId) => {
-    if (!assignedGroups.has(parentTaskId)) {
+  subagentGroups.forEach((threads, groupKey) => {
+    if (!assignedGroups.has(groupKey)) {
       const earliestTs = threads.reduce((min, t) => {
         return t.firstSeenAt !== null && t.firstSeenAt < min ? t.firstSeenAt : min;
       }, Number.POSITIVE_INFINITY);
@@ -315,7 +320,7 @@ function isSubagentTrigger(event: AnyAgentEvent): boolean {
 function getEntryKey(entry: TimelineEntry, index: number): string {
   if (entry.kind === "subagentGroup") {
     if (entry.trigger) {
-      const id = (entry.trigger as any).call_id || entry.trigger.task_id || index;
+      const id = (entry.trigger as any).call_id || entry.trigger.run_id || index;
       return `subagent-group-${id}`;
     }
     return `subagent-group-unassigned-${index}`;
@@ -428,15 +433,15 @@ function partitionEvents(events: AnyAgentEvent[], isRunning: boolean): Partition
     }
   });
 
-  // Group subagent threads by parent_task_id
+  // Group subagent threads by causation_id or parent_run_id (the key prefix)
   const subagentGroups = new Map<string, SubagentThread[]>();
   subagentThreads.forEach((thread) => {
-    const parentTaskId = thread.key.split(":")[0];
-    if (!parentTaskId) return;
+    const groupKey = thread.key.split(":")[0];
+    if (!groupKey) return;
 
-    const group = subagentGroups.get(parentTaskId);
+    const group = subagentGroups.get(groupKey);
     if (!group) {
-      subagentGroups.set(parentTaskId, [thread]);
+      subagentGroups.set(groupKey, [thread]);
     } else {
       group.push(thread);
     }
@@ -499,21 +504,26 @@ function parseEventTimestamp(event: AnyAgentEvent): number | null {
 }
 
 function getSubagentKey(event: AnyAgentEvent): string {
-  const parentTaskId =
-    "parent_task_id" in event && typeof event.parent_task_id === "string"
-      ? event.parent_task_id
+  const causationId =
+    "causation_id" in event && typeof event.causation_id === "string"
+      ? event.causation_id
       : undefined;
-  const taskId =
-    "task_id" in event && typeof event.task_id === "string" ? event.task_id : undefined;
+  const parentRunId =
+    "parent_run_id" in event && typeof event.parent_run_id === "string"
+      ? event.parent_run_id
+      : undefined;
+  const runId =
+    "run_id" in event && typeof event.run_id === "string" ? event.run_id : undefined;
   const callId =
     "call_id" in event && typeof event.call_id === "string" ? event.call_id : undefined;
 
-  if (parentTaskId) {
-    if (taskId) return `${parentTaskId}:${taskId}`;
-    if (callId) return `${parentTaskId}:call:${callId}`;
-    return `parent:${parentTaskId}`;
+  const groupPrefix = causationId || parentRunId;
+  if (groupPrefix) {
+    if (runId) return `${groupPrefix}:${runId}`;
+    if (callId) return `${groupPrefix}:call:${callId}`;
+    return `parent:${groupPrefix}`;
   }
-  if (taskId) return `task:${taskId}`;
+  if (runId) return `run:${runId}`;
   if (callId) return `call:${callId}`;
   return `unknown:${event.timestamp || Date.now()}`;
 }

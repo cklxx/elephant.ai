@@ -23,7 +23,7 @@ var (
 	defaultGenerator = &Generator{strategy: StrategyKSUID}
 )
 
-const taskIDSuffixLength = 6
+const runIDSuffixLength = 12
 
 // Generator produces identifiers for sessions and tasks.
 type Generator struct {
@@ -47,9 +47,14 @@ func NewSessionID() string {
 	return defaultGenerator.newIdentifier("session")
 }
 
-// NewTaskID generates a new task identifier with a stable prefix for display.
-func NewTaskID() string {
-	return defaultGenerator.newShortIdentifier("task", taskIDSuffixLength)
+// NewRunID generates a new run identifier with a stable prefix for display.
+func NewRunID() string {
+	return defaultGenerator.newShortIdentifier("run", runIDSuffixLength)
+}
+
+// NewEventID generates a unique event identifier.
+func NewEventID() string {
+	return defaultGenerator.newIdentifier("evt")
 }
 
 // NewRequestID generates a new identifier for LLM requests and correlated logs.

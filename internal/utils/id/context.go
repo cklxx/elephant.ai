@@ -9,19 +9,23 @@ import (
 type contextKey string
 
 const (
-	sessionKey    contextKey = "alex_session_id"
-	taskKey       contextKey = "alex_task_id"
-	parentTaskKey contextKey = "alex_parent_task_id"
-	userKey       contextKey = "alex_user_id"
-	logKey        contextKey = "alex_log_id"
+	sessionKey     contextKey = "alex_session_id"
+	runKey         contextKey = "alex_run_id"
+	parentRunKey   contextKey = "alex_parent_run_id"
+	userKey        contextKey = "alex_user_id"
+	logKey         contextKey = "alex_log_id"
+	correlationKey contextKey = "alex_correlation_id"
+	causationKey   contextKey = "alex_causation_id"
 )
 
 // IDs captures the identifiers propagated across agent execution boundaries.
 type IDs struct {
-	SessionID    string
-	TaskID       string
-	ParentTaskID string
-	LogID        string
+	SessionID     string
+	RunID         string
+	ParentRunID   string
+	LogID         string
+	CorrelationID string
+	CausationID   string
 }
 
 // WithSessionID stores the provided session identifier on the context.
@@ -43,20 +47,36 @@ func WithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userKey, userID)
 }
 
-// WithTaskID stores the current task identifier on the context.
-func WithTaskID(ctx context.Context, taskID string) context.Context {
-	if taskID == "" {
+// WithRunID stores the current run identifier on the context.
+func WithRunID(ctx context.Context, runID string) context.Context {
+	if runID == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, taskKey, taskID)
+	return context.WithValue(ctx, runKey, runID)
 }
 
-// WithParentTaskID stores the parent task identifier (if any) on the context.
-func WithParentTaskID(ctx context.Context, parentTaskID string) context.Context {
-	if parentTaskID == "" {
+// WithParentRunID stores the parent run identifier (if any) on the context.
+func WithParentRunID(ctx context.Context, parentRunID string) context.Context {
+	if parentRunID == "" {
 		return ctx
 	}
-	return context.WithValue(ctx, parentTaskKey, parentTaskID)
+	return context.WithValue(ctx, parentRunKey, parentRunID)
+}
+
+// WithCorrelationID stores the correlation identifier on the context.
+func WithCorrelationID(ctx context.Context, correlationID string) context.Context {
+	if correlationID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, correlationKey, correlationID)
+}
+
+// WithCausationID stores the causation identifier on the context.
+func WithCausationID(ctx context.Context, causationID string) context.Context {
+	if causationID == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, causationKey, causationID)
 }
 
 // WithIDs stores any provided identifiers on the context.
@@ -64,14 +84,20 @@ func WithIDs(ctx context.Context, ids IDs) context.Context {
 	if ids.SessionID != "" {
 		ctx = WithSessionID(ctx, ids.SessionID)
 	}
-	if ids.TaskID != "" {
-		ctx = WithTaskID(ctx, ids.TaskID)
+	if ids.RunID != "" {
+		ctx = WithRunID(ctx, ids.RunID)
 	}
-	if ids.ParentTaskID != "" {
-		ctx = WithParentTaskID(ctx, ids.ParentTaskID)
+	if ids.ParentRunID != "" {
+		ctx = WithParentRunID(ctx, ids.ParentRunID)
 	}
 	if ids.LogID != "" {
 		ctx = WithLogID(ctx, ids.LogID)
+	}
+	if ids.CorrelationID != "" {
+		ctx = WithCorrelationID(ctx, ids.CorrelationID)
+	}
+	if ids.CausationID != "" {
+		ctx = WithCausationID(ctx, ids.CausationID)
 	}
 	return ctx
 }
@@ -90,23 +116,23 @@ func SessionIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-// TaskIDFromContext extracts the task identifier from context.
-func TaskIDFromContext(ctx context.Context) string {
+// RunIDFromContext extracts the run identifier from context.
+func RunIDFromContext(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if taskID, ok := ctx.Value(taskKey).(string); ok {
-		return taskID
+	if runID, ok := ctx.Value(runKey).(string); ok {
+		return runID
 	}
 	return ""
 }
 
-// ParentTaskIDFromContext extracts the parent task identifier from context.
-func ParentTaskIDFromContext(ctx context.Context) string {
+// ParentRunIDFromContext extracts the parent run identifier from context.
+func ParentRunIDFromContext(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	if parentID, ok := ctx.Value(parentTaskKey).(string); ok {
+	if parentID, ok := ctx.Value(parentRunKey).(string); ok {
 		return parentID
 	}
 	return ""
@@ -142,20 +168,44 @@ func LogIDFromContext(ctx context.Context) string {
 	return ""
 }
 
+// CorrelationIDFromContext extracts the correlation identifier from context.
+func CorrelationIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if cid, ok := ctx.Value(correlationKey).(string); ok {
+		return cid
+	}
+	return ""
+}
+
+// CausationIDFromContext extracts the causation identifier from context.
+func CausationIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if cid, ok := ctx.Value(causationKey).(string); ok {
+		return cid
+	}
+	return ""
+}
+
 // IDsFromContext collects all known identifiers from the context.
 func IDsFromContext(ctx context.Context) IDs {
 	return IDs{
-		SessionID:    SessionIDFromContext(ctx),
-		TaskID:       TaskIDFromContext(ctx),
-		ParentTaskID: ParentTaskIDFromContext(ctx),
-		LogID:        LogIDFromContext(ctx),
+		SessionID:     SessionIDFromContext(ctx),
+		RunID:         RunIDFromContext(ctx),
+		ParentRunID:   ParentRunIDFromContext(ctx),
+		LogID:         LogIDFromContext(ctx),
+		CorrelationID: CorrelationIDFromContext(ctx),
+		CausationID:   CausationIDFromContext(ctx),
 	}
 }
 
-// EnsureTaskID guarantees a task identifier is present on the context.
+// EnsureRunID guarantees a run identifier is present on the context.
 // It returns the updated context and the resulting identifier.
-func EnsureTaskID(ctx context.Context, generator func() string) (context.Context, string) {
-	if existing := TaskIDFromContext(ctx); existing != "" {
+func EnsureRunID(ctx context.Context, generator func() string) (context.Context, string) {
+	if existing := RunIDFromContext(ctx); existing != "" {
 		return ctx, existing
 	}
 	next := ""
@@ -165,7 +215,7 @@ func EnsureTaskID(ctx context.Context, generator func() string) (context.Context
 	if next == "" {
 		return ctx, ""
 	}
-	ctx = WithTaskID(ctx, next)
+	ctx = WithRunID(ctx, next)
 	return ctx, next
 }
 

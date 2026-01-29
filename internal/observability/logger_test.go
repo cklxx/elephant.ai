@@ -83,8 +83,8 @@ func TestLoggerWithContext(t *testing.T) {
 	ctx := context.Background()
 	ctx = ContextWithTraceID(ctx, "trace-123")
 	ctx = ContextWithSessionID(ctx, "session-456")
-	ctx = id.WithTaskID(ctx, "task-789")
-	ctx = id.WithParentTaskID(ctx, "parent-000")
+	ctx = id.WithRunID(ctx, "task-789")
+	ctx = id.WithParentRunID(ctx, "parent-000")
 
 	logger.InfoContext(ctx, "test message")
 

@@ -122,8 +122,8 @@ func (r *PresetResolver) ResolveToolRegistry(
 	filterEvent := domain.NewWorkflowDiagnosticToolFilteringEvent(
 		agent.LevelCore,
 		sessionID,
-		ids.TaskID,
-		ids.ParentTaskID,
+		ids.RunID,
+		ids.ParentRunID,
 		config.Name,
 		originalCount,
 		filteredCount,

@@ -11,10 +11,12 @@ func TestWithIDsAndFromContext(t *testing.T) {
 	ctx := context.Background()
 
 	ids := IDs{
-		SessionID:    "session-test",
-		TaskID:       "task-test",
-		ParentTaskID: "parent-task",
-		LogID:        "log-test",
+		SessionID:     "session-test",
+		RunID:         "run-test",
+		ParentRunID:   "run-parent",
+		LogID:         "log-test",
+		CorrelationID: "run-root",
+		CausationID:   "call-trigger",
 	}
 
 	ctx = WithIDs(ctx, ids)
@@ -23,14 +25,20 @@ func TestWithIDsAndFromContext(t *testing.T) {
 	if got.SessionID != ids.SessionID {
 		t.Fatalf("expected session %s, got %s", ids.SessionID, got.SessionID)
 	}
-	if got.TaskID != ids.TaskID {
-		t.Fatalf("expected task %s, got %s", ids.TaskID, got.TaskID)
+	if got.RunID != ids.RunID {
+		t.Fatalf("expected run %s, got %s", ids.RunID, got.RunID)
 	}
-	if got.ParentTaskID != ids.ParentTaskID {
-		t.Fatalf("expected parent %s, got %s", ids.ParentTaskID, got.ParentTaskID)
+	if got.ParentRunID != ids.ParentRunID {
+		t.Fatalf("expected parent %s, got %s", ids.ParentRunID, got.ParentRunID)
 	}
 	if got.LogID != ids.LogID {
 		t.Fatalf("expected log id %s, got %s", ids.LogID, got.LogID)
+	}
+	if got.CorrelationID != ids.CorrelationID {
+		t.Fatalf("expected correlation %s, got %s", ids.CorrelationID, got.CorrelationID)
+	}
+	if got.CausationID != ids.CausationID {
+		t.Fatalf("expected causation %s, got %s", ids.CausationID, got.CausationID)
 	}
 
 	// Ensure compatibility with agent.SessionContextKey lookup
@@ -39,22 +47,22 @@ func TestWithIDsAndFromContext(t *testing.T) {
 	}
 }
 
-func TestEnsureTaskID(t *testing.T) {
+func TestEnsureRunID(t *testing.T) {
 	ctx := context.Background()
-	ctx, generated := EnsureTaskID(ctx, func() string { return "task-123" })
-	if generated != "task-123" {
-		t.Fatalf("expected generated id task-123, got %s", generated)
+	ctx, generated := EnsureRunID(ctx, func() string { return "run-123" })
+	if generated != "run-123" {
+		t.Fatalf("expected generated id run-123, got %s", generated)
 	}
 
 	// Should reuse existing value on subsequent calls
-	ctx = WithTaskID(ctx, "task-existing")
-	ctx, generated = EnsureTaskID(ctx, func() string { return "task-new" })
-	if generated != "task-existing" {
+	ctx = WithRunID(ctx, "run-existing")
+	ctx, generated = EnsureRunID(ctx, func() string { return "run-new" })
+	if generated != "run-existing" {
 		t.Fatalf("expected to reuse existing id, got %s", generated)
 	}
 
-	if TaskIDFromContext(ctx) != "task-existing" {
-		t.Fatalf("expected stored task id task-existing, got %s", TaskIDFromContext(ctx))
+	if RunIDFromContext(ctx) != "run-existing" {
+		t.Fatalf("expected stored run id run-existing, got %s", RunIDFromContext(ctx))
 	}
 }
 
@@ -86,9 +94,14 @@ func TestNewGenerators(t *testing.T) {
 		t.Fatalf("unexpected session id format: %s", sessionID)
 	}
 
-	taskID := NewTaskID()
-	if !strings.HasPrefix(taskID, "task-") || len(taskID) != len("task-")+taskIDSuffixLength {
-		t.Fatalf("unexpected task id format: %s", taskID)
+	runID := NewRunID()
+	if !strings.HasPrefix(runID, "run-") || len(runID) != len("run-")+runIDSuffixLength {
+		t.Fatalf("unexpected run id format: %s", runID)
+	}
+
+	eventID := NewEventID()
+	if !strings.HasPrefix(eventID, "evt-") || len(eventID) <= len("evt-") {
+		t.Fatalf("unexpected event id format: %s", eventID)
 	}
 
 	SetStrategy(StrategyUUIDv7)
@@ -97,9 +110,9 @@ func TestNewGenerators(t *testing.T) {
 		t.Fatalf("unexpected uuidv7 session id format: %s", sessionUUID)
 	}
 
-	taskUUID := NewTaskID()
-	if !strings.HasPrefix(taskUUID, "task-") || len(taskUUID) != len("task-")+taskIDSuffixLength {
-		t.Fatalf("unexpected uuidv7 task id format: %s", taskUUID)
+	runUUID := NewRunID()
+	if !strings.HasPrefix(runUUID, "run-") || len(runUUID) != len("run-")+runIDSuffixLength {
+		t.Fatalf("unexpected uuidv7 run id format: %s", runUUID)
 	}
 
 	if raw := NewKSUID(); raw == "" {
@@ -124,7 +137,7 @@ func TestGeneratedIdentifiersAreUnique(t *testing.T) {
 	const total = 1024
 
 	sessionSeen := make(map[string]struct{}, total)
-	taskSeen := make(map[string]struct{}, total)
+	runSeen := make(map[string]struct{}, total)
 
 	for i := 0; i < total; i++ {
 		sessionID := NewSessionID()
@@ -133,25 +146,25 @@ func TestGeneratedIdentifiersAreUnique(t *testing.T) {
 		}
 		sessionSeen[sessionID] = struct{}{}
 
-		taskID := NewTaskID()
-		if _, exists := taskSeen[taskID]; exists {
-			t.Fatalf("duplicate task id generated: %s", taskID)
+		runID := NewRunID()
+		if _, exists := runSeen[runID]; exists {
+			t.Fatalf("duplicate run id generated: %s", runID)
 		}
-		taskSeen[taskID] = struct{}{}
+		runSeen[runID] = struct{}{}
 	}
 
 	if len(sessionSeen) != total {
 		t.Fatalf("expected %d unique session ids, got %d", total, len(sessionSeen))
 	}
 
-	if len(taskSeen) != total {
-		t.Fatalf("expected %d unique task ids, got %d", total, len(taskSeen))
+	if len(runSeen) != total {
+		t.Fatalf("expected %d unique run ids, got %d", total, len(runSeen))
 	}
 }
 
 func TestIDsRoundTripJSONCompatibility(t *testing.T) {
 	ctx := context.Background()
-	ctx = WithIDs(ctx, IDs{SessionID: "session-123", TaskID: "task-456", ParentTaskID: "task-parent"})
+	ctx = WithIDs(ctx, IDs{SessionID: "session-123", RunID: "run-456", ParentRunID: "run-parent"})
 
 	encoded, err := json.Marshal(IDsFromContext(ctx))
 	if err != nil {
@@ -163,7 +176,29 @@ func TestIDsRoundTripJSONCompatibility(t *testing.T) {
 		t.Fatalf("failed to unmarshal ids: %v", err)
 	}
 
-	if decoded != (IDs{SessionID: "session-123", TaskID: "task-456", ParentTaskID: "task-parent", LogID: ""}) {
+	if decoded != (IDs{SessionID: "session-123", RunID: "run-456", ParentRunID: "run-parent", LogID: ""}) {
 		t.Fatalf("unexpected ids round trip result: %+v", decoded)
+	}
+}
+
+func TestCorrelationCausationContext(t *testing.T) {
+	ctx := context.Background()
+
+	ctx = WithCorrelationID(ctx, "run-root")
+	ctx = WithCausationID(ctx, "call-trigger")
+
+	if got := CorrelationIDFromContext(ctx); got != "run-root" {
+		t.Fatalf("expected correlation run-root, got %s", got)
+	}
+	if got := CausationIDFromContext(ctx); got != "call-trigger" {
+		t.Fatalf("expected causation call-trigger, got %s", got)
+	}
+
+	// Empty context returns empty
+	if got := CorrelationIDFromContext(context.Background()); got != "" {
+		t.Fatalf("expected empty correlation, got %s", got)
+	}
+	if got := CausationIDFromContext(nil); got != "" {
+		t.Fatalf("expected empty causation for nil ctx, got %s", got)
 	}
 }

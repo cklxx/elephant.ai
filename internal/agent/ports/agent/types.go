@@ -65,9 +65,9 @@ type TaskState struct {
 	ToolResults            []core.ToolResult
 	Complete               bool
 	FinalAnswer            string
-	SessionID              string
-	TaskID                 string
-	ParentTaskID           string
+	SessionID   string
+	RunID       string
+	ParentRunID string
 	Attachments            map[string]core.Attachment
 	AttachmentIterations   map[string]int
 	PendingUserAttachments map[string]core.Attachment
@@ -103,9 +103,9 @@ type TaskResult struct {
 	Iterations   int
 	TokensUsed   int
 	StopReason   string
-	SessionID    string // The session ID used for this task
-	TaskID       string // The unique task identifier for this execution
-	ParentTaskID string // The parent task identifier when invoked as a subtask
+	SessionID   string // The session ID used for this run
+	RunID       string // The unique run identifier for this execution
+	ParentRunID string // The parent run identifier when invoked as a subtask
 	Duration     time.Duration
 	Important    map[string]core.ImportantNote
 	Workflow     *workflow.WorkflowSnapshot

@@ -136,6 +136,10 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	// Prevents infinite recursion
 	ctx = appcontext.MarkSubagentContext(ctx)
 
+	// Propagate causal chain: set causation_id to the subagent tool call ID
+	// so every subtask knows which call spawned it.
+	ctx = id.WithCausationID(ctx, call.ID)
+
 	// Extract parent listener from context if available.
 	parentListener := shared.GetParentListenerFromContext(ctx)
 
@@ -280,8 +284,8 @@ func (t *subagent) executeSubtask(
 
 	ids := id.IDsFromContext(ctx)
 	subtaskCtx := ctx
-	if ids.TaskID != "" {
-		subtaskCtx = id.WithParentTaskID(subtaskCtx, ids.TaskID)
+	if ids.RunID != "" {
+		subtaskCtx = id.WithParentRunID(subtaskCtx, ids.RunID)
 	}
 	if ids.SessionID != "" {
 		subtaskCtx = id.WithSessionID(subtaskCtx, ids.SessionID)
@@ -293,7 +297,14 @@ func (t *subagent) executeSubtask(
 	} else {
 		subtaskCtx, subLogID = id.EnsureLogID(subtaskCtx, id.NewLogID)
 	}
-	subtaskCtx = id.WithTaskID(subtaskCtx, id.NewTaskID())
+	subtaskCtx = id.WithRunID(subtaskCtx, id.NewRunID())
+
+	// Propagate correlation_id: inherit from parent or use parent's runID as root.
+	if ids.CorrelationID != "" {
+		subtaskCtx = id.WithCorrelationID(subtaskCtx, ids.CorrelationID)
+	} else if ids.RunID != "" {
+		subtaskCtx = id.WithCorrelationID(subtaskCtx, ids.RunID)
+	}
 	if len(inherited) > 0 {
 		subtaskCtx = appcontext.WithInheritedAttachments(subtaskCtx, inherited, iterations)
 	}
@@ -534,12 +545,28 @@ func (e *SubtaskEvent) GetSessionID() string {
 	return e.OriginalEvent.GetSessionID()
 }
 
-func (e *SubtaskEvent) GetTaskID() string {
-	return e.OriginalEvent.GetTaskID()
+func (e *SubtaskEvent) GetRunID() string {
+	return e.OriginalEvent.GetRunID()
 }
 
-func (e *SubtaskEvent) GetParentTaskID() string {
-	return e.OriginalEvent.GetParentTaskID()
+func (e *SubtaskEvent) GetParentRunID() string {
+	return e.OriginalEvent.GetParentRunID()
+}
+
+func (e *SubtaskEvent) GetCorrelationID() string {
+	return e.OriginalEvent.GetCorrelationID()
+}
+
+func (e *SubtaskEvent) GetCausationID() string {
+	return e.OriginalEvent.GetCausationID()
+}
+
+func (e *SubtaskEvent) GetEventID() string {
+	return e.OriginalEvent.GetEventID()
+}
+
+func (e *SubtaskEvent) GetSeq() uint64 {
+	return e.OriginalEvent.GetSeq()
 }
 
 // SubtaskDetails exposes metadata for downstream consumers without importing the concrete type.

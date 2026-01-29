@@ -105,7 +105,7 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 	}
 
 	if complexity != "simple" {
-		expected := strings.TrimSpace(id.TaskIDFromContext(ctx))
+		expected := strings.TrimSpace(id.RunIDFromContext(ctx))
 		if expected != "" && runID != expected {
 			err := errors.New("run_id does not match the active task")
 			return &ports.ToolResult{

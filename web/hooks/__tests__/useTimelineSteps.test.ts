@@ -343,7 +343,7 @@ describe('useTimelineSteps', () => {
           timestamp: '2025-01-01T09:59:59Z',
           session_id: 'test-123',
           agent_level: 'core',
-          task_id: 'task-1',
+          run_id: 'task-1',
           call_id: 'call-plan',
           tool_name: 'plan',
           result: '做一次无步骤的执行。',

@@ -287,11 +287,11 @@ func TestWorkflowDiagnosticToolFilteringEventImplementation(t *testing.T) {
 	if event.GetSessionID() != "test-session" {
 		t.Errorf("Expected session ID 'test-session', got '%s'", event.GetSessionID())
 	}
-	if event.GetTaskID() != "task-1" {
-		t.Errorf("Expected task ID 'task-1', got '%s'", event.GetTaskID())
+	if event.GetRunID() != "task-1" {
+		t.Errorf("Expected run ID 'task-1', got '%s'", event.GetRunID())
 	}
-	if event.GetParentTaskID() != "parent-task" {
-		t.Errorf("Expected parent task ID 'parent-task', got '%s'", event.GetParentTaskID())
+	if event.GetParentRunID() != "parent-task" {
+		t.Errorf("Expected parent run ID 'parent-task', got '%s'", event.GetParentRunID())
 	}
 	if event.GetAgentLevel() != agent.LevelCore {
 		t.Errorf("Expected agent level LevelCore, got %v", event.GetAgentLevel())

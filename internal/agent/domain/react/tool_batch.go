@@ -100,8 +100,8 @@ func (b *toolCallBatch) execute() []ToolResult {
 
 func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	tc.SessionID = b.state.SessionID
-	tc.TaskID = b.state.TaskID
-	tc.ParentTaskID = b.state.ParentTaskID
+	tc.TaskID = b.state.RunID
+	tc.ParentTaskID = b.state.ParentRunID
 
 	nodeID := ""
 	if b.tracker != nil {
@@ -128,7 +128,7 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 			return
 		}
 		b.engine.emitEvent(&domain.WorkflowToolProgressEvent{
-			BaseEvent:  b.engine.newBaseEvent(b.ctx, b.state.SessionID, b.state.TaskID, b.state.ParentTaskID),
+			BaseEvent:  b.engine.newBaseEvent(b.ctx, b.state.SessionID, b.state.RunID, b.state.ParentRunID),
 			CallID:     tc.ID,
 			Chunk:      chunk,
 			IsComplete: isComplete,

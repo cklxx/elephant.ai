@@ -11,7 +11,7 @@ const isSubagentEvent = (event: MockEventPayload) => event.agent_level === 'suba
 const asSubtaskMeta = (event: MockEventPayload) =>
   event as MockEventPayload & {
     is_subtask: boolean;
-    parent_task_id: string;
+    parent_run_id: string;
     subtask_index: number;
     total_subtasks: number;
   };
@@ -43,7 +43,7 @@ describe('createMockEventSequence', () => {
     for (const timedEvent of subagentToolEvents) {
       const meta = asSubtaskMeta(timedEvent.event);
       expect(meta.is_subtask).toBe(true);
-      expect(meta.parent_task_id).toBe('mock-core-task');
+      expect(meta.parent_run_id).toBe('mock-core-run');
       expect(meta.subtask_index).toBeGreaterThanOrEqual(0);
       expect(meta.total_subtasks).toBeGreaterThan(meta.subtask_index);
     }

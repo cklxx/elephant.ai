@@ -79,12 +79,12 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 		args = append(args, "log_id", ids.LogID)
 	}
 
-	if ids.TaskID != "" {
-		args = append(args, "task_id", ids.TaskID)
+	if ids.RunID != "" {
+		args = append(args, "run_id", ids.RunID)
 	}
 
-	if ids.ParentTaskID != "" {
-		args = append(args, "parent_task_id", ids.ParentTaskID)
+	if ids.ParentRunID != "" {
+		args = append(args, "parent_run_id", ids.ParentRunID)
 	}
 
 	if len(args) == 0 {

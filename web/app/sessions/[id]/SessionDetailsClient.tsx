@@ -138,7 +138,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
   const handleAgentEvent = useCallback(
     (event: AnyAgentEvent) => {
       const currentId = activeTaskIdRef.current;
-      if (!currentId || !event.task_id || event.task_id !== currentId) {
+      if (!currentId || !event.run_id || event.run_id !== currentId) {
         return;
       }
       if (

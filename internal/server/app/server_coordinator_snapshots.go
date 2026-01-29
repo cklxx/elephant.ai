@@ -113,9 +113,9 @@ func (s *ServerCoordinator) GetContextSnapshots(sessionID string) []ContextSnaps
 			return nil
 		}
 		record := ContextSnapshotRecord{
-			SessionID:    sessionID,
-			TaskID:       snapshot.GetTaskID(),
-			ParentTaskID: snapshot.GetParentTaskID(),
+			SessionID:   sessionID,
+			RunID:       snapshot.GetRunID(),
+			ParentRunID: snapshot.GetParentRunID(),
 			RequestID:    snapshot.RequestID,
 			Iteration:    snapshot.Iteration,
 			Timestamp:    snapshot.Timestamp(),

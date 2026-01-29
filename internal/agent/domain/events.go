@@ -1,11 +1,13 @@
 package domain
 
 import (
+	"sync/atomic"
 	"time"
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports/storage"
+	"alex/internal/utils/id"
 	"alex/internal/workflow"
 )
 
@@ -15,59 +17,92 @@ type EventListener = agent.EventListener
 
 // BaseEvent provides common fields for all events
 type BaseEvent struct {
-	timestamp    time.Time
-	agentLevel   agent.AgentLevel
-	sessionID    string
-	taskID       string
-	parentTaskID string
-	logID        string
+	// Identity
+	eventID string // Unique per event: "evt-{ksuid}"
+	seq     uint64 // Monotonic within a run
+
+	// Temporal
+	timestamp time.Time
+
+	// Hierarchy
+	sessionID   string           // Conversation scope
+	runID       string           // This agent execution
+	parentRunID string           // Parent agent's runID (empty for core)
+	agentLevel  agent.AgentLevel // "core" or "subagent"
+
+	// Causal chain
+	correlationID string // Root runID of the causal chain
+	causationID   string // call_id that spawned this run
+
+	// Operational
+	logID string // Log correlation
 }
 
-func (e *BaseEvent) Timestamp() time.Time {
-	return e.timestamp
-}
-
-func (e *BaseEvent) GetAgentLevel() agent.AgentLevel {
-	return e.agentLevel
-}
-
-func (e *BaseEvent) GetSessionID() string {
-	return e.sessionID
-}
-
-func (e *BaseEvent) GetTaskID() string {
-	return e.taskID
-}
-
-func (e *BaseEvent) GetParentTaskID() string {
-	return e.parentTaskID
-}
-
-func (e *BaseEvent) GetLogID() string {
-	return e.logID
-}
+func (e *BaseEvent) Timestamp() time.Time       { return e.timestamp }
+func (e *BaseEvent) GetAgentLevel() agent.AgentLevel { return e.agentLevel }
+func (e *BaseEvent) GetSessionID() string        { return e.sessionID }
+func (e *BaseEvent) GetRunID() string            { return e.runID }
+func (e *BaseEvent) GetParentRunID() string      { return e.parentRunID }
+func (e *BaseEvent) GetCorrelationID() string    { return e.correlationID }
+func (e *BaseEvent) GetCausationID() string      { return e.causationID }
+func (e *BaseEvent) GetEventID() string          { return e.eventID }
+func (e *BaseEvent) GetSeq() uint64              { return e.seq }
+func (e *BaseEvent) GetLogID() string            { return e.logID }
 
 // SetLogID attaches a log identifier for correlation.
-func (e *BaseEvent) SetLogID(logID string) {
-	e.logID = logID
+func (e *BaseEvent) SetLogID(logID string) { e.logID = logID }
+
+// SeqCounter provides monotonic event sequence numbering within a run.
+type SeqCounter struct {
+	counter atomic.Uint64
 }
 
-func newBaseEventWithIDs(level agent.AgentLevel, sessionID, taskID, parentTaskID string, ts time.Time) BaseEvent {
+// Next returns the next sequence number.
+func (s *SeqCounter) Next() uint64 {
+	return s.counter.Add(1)
+}
+
+func newBaseEventWithIDs(level agent.AgentLevel, sessionID, runID, parentRunID string, ts time.Time) BaseEvent {
 	return BaseEvent{
-		timestamp:    ts,
-		agentLevel:   level,
-		sessionID:    sessionID,
-		taskID:       taskID,
-		parentTaskID: parentTaskID,
+		eventID:   id.NewEventID(),
+		timestamp: ts,
+		agentLevel:  level,
+		sessionID:   sessionID,
+		runID:       runID,
+		parentRunID: parentRunID,
 	}
 }
 
 // NewBaseEvent exposes construction of BaseEvent for adapters that need to bridge
 // external lifecycle systems (e.g., workflows) into the agent event stream while
 // preserving field encapsulation.
-func NewBaseEvent(level agent.AgentLevel, sessionID, taskID, parentTaskID string, ts time.Time) BaseEvent {
-	return newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts)
+func NewBaseEvent(level agent.AgentLevel, sessionID, runID, parentRunID string, ts time.Time) BaseEvent {
+	return newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts)
 }
+
+// NewBaseEventFull constructs a BaseEvent with all fields including causal chain.
+func NewBaseEventFull(level agent.AgentLevel, sessionID, runID, parentRunID, correlationID, causationID string, seq uint64, ts time.Time) BaseEvent {
+	return BaseEvent{
+		eventID:       id.NewEventID(),
+		seq:           seq,
+		timestamp:     ts,
+		agentLevel:    level,
+		sessionID:     sessionID,
+		runID:         runID,
+		parentRunID:   parentRunID,
+		correlationID: correlationID,
+		causationID:   causationID,
+	}
+}
+
+// SetSeq assigns a sequence number to the event (typically called by emitter).
+func (e *BaseEvent) SetSeq(seq uint64) { e.seq = seq }
+
+// SetCorrelationID assigns the correlation ID.
+func (e *BaseEvent) SetCorrelationID(cid string) { e.correlationID = cid }
+
+// SetCausationID assigns the causation ID.
+func (e *BaseEvent) SetCausationID(cid string) { e.causationID = cid }
 
 // WorkflowInputReceivedEvent - emitted when a user submits a new task
 type WorkflowInputReceivedEvent struct {
@@ -86,7 +121,7 @@ func (e *WorkflowInputReceivedEvent) GetAttachments() map[string]ports.Attachmen
 // NewWorkflowInputReceivedEvent constructs a user task event with the provided metadata.
 func NewWorkflowInputReceivedEvent(
 	level agent.AgentLevel,
-	sessionID, taskID, parentTaskID string,
+	sessionID, runID, parentRunID string,
 	task string,
 	attachments map[string]ports.Attachment,
 	ts time.Time,
@@ -97,7 +132,7 @@ func NewWorkflowInputReceivedEvent(
 	}
 
 	return &WorkflowInputReceivedEvent{
-		BaseEvent:   newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		BaseEvent:   newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		Task:        task,
 		Attachments: cloned,
 	}
@@ -246,12 +281,12 @@ func (e *WorkflowResultCancelledEvent) EventType() string { return "workflow.res
 // NewWorkflowResultCancelledEvent constructs a cancellation notification event for SSE consumers.
 func NewWorkflowResultCancelledEvent(
 	level agent.AgentLevel,
-	sessionID, taskID, parentTaskID string,
+	sessionID, runID, parentRunID string,
 	reason, requestedBy string,
 	ts time.Time,
 ) *WorkflowResultCancelledEvent {
 	return &WorkflowResultCancelledEvent{
-		BaseEvent:   newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		BaseEvent:   newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		Reason:      reason,
 		RequestedBy: requestedBy,
 	}
@@ -281,13 +316,13 @@ func (e *WorkflowDiagnosticContextCompressionEvent) EventType() string {
 }
 
 // NewWorkflowDiagnosticContextCompressionEvent creates a new context compression event
-func NewWorkflowDiagnosticContextCompressionEvent(level agent.AgentLevel, sessionID, taskID, parentTaskID string, originalCount, compressedCount int, ts time.Time) *WorkflowDiagnosticContextCompressionEvent {
+func NewWorkflowDiagnosticContextCompressionEvent(level agent.AgentLevel, sessionID, runID, parentRunID string, originalCount, compressedCount int, ts time.Time) *WorkflowDiagnosticContextCompressionEvent {
 	compressionRate := 0.0
 	if originalCount > 0 {
 		compressionRate = float64(compressedCount) / float64(originalCount) * 100.0
 	}
 	return &WorkflowDiagnosticContextCompressionEvent{
-		BaseEvent:       newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		BaseEvent:       newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		OriginalCount:   originalCount,
 		CompressedCount: compressedCount,
 		CompressionRate: compressionRate,
@@ -311,7 +346,7 @@ func (e *WorkflowDiagnosticContextSnapshotEvent) EventType() string {
 // NewWorkflowDiagnosticContextSnapshotEvent creates an immutable snapshot of the LLM context payload.
 func NewWorkflowDiagnosticContextSnapshotEvent(
 	level agent.AgentLevel,
-	sessionID, taskID, parentTaskID string,
+	sessionID, runID, parentRunID string,
 	iteration int,
 	llmTurnSeq int,
 	requestID string,
@@ -319,7 +354,7 @@ func NewWorkflowDiagnosticContextSnapshotEvent(
 	ts time.Time,
 ) *WorkflowDiagnosticContextSnapshotEvent {
 	return &WorkflowDiagnosticContextSnapshotEvent{
-		BaseEvent:  newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		BaseEvent:  newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		Iteration:  iteration,
 		LLMTurnSeq: llmTurnSeq,
 		RequestID:  requestID,
@@ -343,13 +378,13 @@ func (e *WorkflowDiagnosticToolFilteringEvent) EventType() string {
 }
 
 // NewWorkflowDiagnosticToolFilteringEvent creates a new tool filtering event
-func NewWorkflowDiagnosticToolFilteringEvent(level agent.AgentLevel, sessionID, taskID, parentTaskID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *WorkflowDiagnosticToolFilteringEvent {
+func NewWorkflowDiagnosticToolFilteringEvent(level agent.AgentLevel, sessionID, runID, parentRunID, presetName string, originalCount, filteredCount int, filteredTools []string, ts time.Time) *WorkflowDiagnosticToolFilteringEvent {
 	filterRatio := 0.0
 	if originalCount > 0 {
 		filterRatio = float64(filteredCount) / float64(originalCount) * 100.0
 	}
 	return &WorkflowDiagnosticToolFilteringEvent{
-		BaseEvent:       newBaseEventWithIDs(level, sessionID, taskID, parentTaskID, ts),
+		BaseEvent:       newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
 		PresetName:      presetName,
 		OriginalCount:   originalCount,
 		FilteredCount:   filteredCount,

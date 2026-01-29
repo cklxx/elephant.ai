@@ -13,10 +13,13 @@ const BaseAgentEventSchema = z.object({
   timestamp: z.string().default(() => new Date().toISOString()),
   agent_level: AgentLevelSchema.default('core'),
   session_id: z.string().default(''),
-  task_id: z.string().optional(),
-  parent_task_id: z.string().optional(),
-  workflow_id: z.string().optional(),
+  event_id: z.string().optional(),
+  seq: z.number().optional(),
   run_id: z.string().optional(),
+  parent_run_id: z.string().optional(),
+  correlation_id: z.string().optional(),
+  causation_id: z.string().optional(),
+  workflow_id: z.string().optional(),
   node_id: z.string().optional(),
   node_kind: z.string().optional(),
   is_subtask: z.boolean().optional(),
@@ -54,8 +57,8 @@ export const ToolCallSchema = z.object({
   name: z.string(),
   arguments: z.record(z.string(), z.any()),
   session_id: z.string().optional(),
-  task_id: z.string().optional(),
-  parent_task_id: z.string().optional(),
+  run_id: z.string().optional(),
+  parent_run_id: z.string().optional(),
 });
 
 export const ToolResultSchema = z.object({
@@ -269,8 +272,8 @@ const WorkflowDiagnosticContextSnapshotEventSchema = BaseAgentEventSchema.extend
 const ConnectedEventSchema = z.object({
   event_type: z.literal('connected'),
   session_id: z.string(),
-  task_id: z.string().optional(),
-  parent_task_id: z.string().optional(),
+  run_id: z.string().optional(),
+  parent_run_id: z.string().optional(),
   timestamp: z.string().optional(),
   agent_level: AgentLevelSchema.optional(),
 });

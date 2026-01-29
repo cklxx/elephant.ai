@@ -27,9 +27,9 @@ type EventBroadcaster struct {
 	highVolumeCounters map[string]int
 
 	// Task progress tracking
-	taskStore     serverports.TaskStore
-	sessionToTask map[string]string // sessionID -> taskID mapping
-	taskMu        sync.RWMutex      // separate mutex for task tracking
+	taskStore    serverports.TaskStore
+	sessionToRun map[string]string // sessionID -> runID mapping
+	runMu        sync.RWMutex     // separate mutex for run tracking
 
 	// Event history for session replay
 	eventHistory map[string][]agent.AgentEvent // sessionID -> events
@@ -83,7 +83,7 @@ func WithMaxHistory(max int) EventBroadcasterOption {
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 	b := &EventBroadcaster{
-		sessionToTask:      make(map[string]string),
+		sessionToRun:       make(map[string]string),
 		eventHistory:       make(map[string][]agent.AgentEvent),
 		highVolumeCounters: make(map[string]int),
 		maxHistory:         1000, // Keep up to 1000 events per session
@@ -192,18 +192,18 @@ func (b *EventBroadcaster) updateTaskProgress(event agent.AgentEvent) {
 	}
 
 	// Get taskID for this session
-	b.taskMu.RLock()
-	taskID, ok := b.sessionToTask[sessionID]
-	b.taskMu.RUnlock()
+	b.runMu.RLock()
+	taskID, ok := b.sessionToRun[sessionID]
+	b.runMu.RUnlock()
 
 	if !ok {
 		return
 	}
 
 	ctx := id.WithSessionID(context.Background(), sessionID)
-	ctx = id.WithTaskID(ctx, taskID)
+	ctx = id.WithRunID(ctx, taskID)
 	if !b.shouldSuppressHighVolumeLogs(event) {
-		b.logger.Debug("[updateTaskProgress] Tracking event type=%s for session=%s task=%s", event.EventType(), sessionID, taskID)
+		b.logger.Debug("[updateTaskProgress] Tracking event type=%s for session=%s run=%s", event.EventType(), sessionID, taskID)
 	}
 
 	// Update progress based on event type
@@ -360,22 +360,22 @@ func (b *EventBroadcaster) SetSessionContext(ctx context.Context, sessionID stri
 	return id.WithSessionID(ctx, sessionID)
 }
 
-// RegisterTaskSession associates a taskID with a sessionID for progress tracking
-func (b *EventBroadcaster) RegisterTaskSession(sessionID, taskID string) {
-	b.taskMu.Lock()
-	defer b.taskMu.Unlock()
+// RegisterRunSession associates a runID with a sessionID for progress tracking
+func (b *EventBroadcaster) RegisterRunSession(sessionID, runID string) {
+	b.runMu.Lock()
+	defer b.runMu.Unlock()
 
-	b.sessionToTask[sessionID] = taskID
-	b.logger.Info("Registered task-session mapping: sessionID=%s, taskID=%s", sessionID, taskID)
+	b.sessionToRun[sessionID] = runID
+	b.logger.Info("Registered run-session mapping: sessionID=%s, runID=%s", sessionID, runID)
 }
 
-// UnregisterTaskSession removes the taskID-sessionID mapping
-func (b *EventBroadcaster) UnregisterTaskSession(sessionID string) {
-	b.taskMu.Lock()
-	defer b.taskMu.Unlock()
+// UnregisterRunSession removes the runID-sessionID mapping
+func (b *EventBroadcaster) UnregisterRunSession(sessionID string) {
+	b.runMu.Lock()
+	defer b.runMu.Unlock()
 
-	delete(b.sessionToTask, sessionID)
-	b.logger.Info("Unregistered task-session mapping: sessionID=%s", sessionID)
+	delete(b.sessionToRun, sessionID)
+	b.logger.Info("Unregistered run-session mapping: sessionID=%s", sessionID)
 }
 
 // storeEventHistory stores an event in the session's history

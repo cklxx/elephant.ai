@@ -825,10 +825,10 @@ func (t *subflowStatsTracker) flowKey(event agent.SubtaskWrapper) string {
 	if event == nil {
 		return "subflow"
 	}
-	if parent := event.GetParentTaskID(); parent != "" {
+	if parent := event.GetParentRunID(); parent != "" {
 		return parent
 	}
-	if task := event.GetTaskID(); task != "" {
+	if task := event.GetRunID(); task != "" {
 		return task
 	}
 	if session := event.GetSessionID(); session != "" {

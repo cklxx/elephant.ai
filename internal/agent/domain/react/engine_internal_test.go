@@ -579,7 +579,7 @@ func (m *rewriteMigrator) Normalize(ctx context.Context, req materialports.Migra
 func TestAttachmentMutationsKeepInlinePayloads(t *testing.T) {
 	migrator := &rewriteMigrator{}
 	engine := NewReactEngine(ReactEngineConfig{AttachmentMigrator: migrator})
-	state := &TaskState{SessionID: "s1", TaskID: "t1"}
+	state := &TaskState{SessionID: "s1", RunID: "t1"}
 	call := ToolCall{Name: "html_edit", ID: "call-1"}
 	inline := ports.Attachment{
 		Name:      "demo.html",

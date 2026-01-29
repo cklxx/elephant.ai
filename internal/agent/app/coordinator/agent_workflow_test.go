@@ -140,8 +140,8 @@ func TestWorkflowEventBridgeUsesLatestContext(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected workflow lifecycle event, got %T", events[0])
 	}
-	if lifecycle.GetSessionID() != "sess-2" || lifecycle.GetTaskID() != "task-2" || lifecycle.GetParentTaskID() != "parent-2" {
-		t.Fatalf("unexpected context fields: session=%s task=%s parent=%s", lifecycle.GetSessionID(), lifecycle.GetTaskID(), lifecycle.GetParentTaskID())
+	if lifecycle.GetSessionID() != "sess-2" || lifecycle.GetRunID() != "task-2" || lifecycle.GetParentRunID() != "parent-2" {
+		t.Fatalf("unexpected context fields: session=%s run=%s parent=%s", lifecycle.GetSessionID(), lifecycle.GetRunID(), lifecycle.GetParentRunID())
 	}
 	if lifecycle.GetAgentLevel() != agent.LevelSubagent {
 		t.Fatalf("expected updated agent level, got %s", lifecycle.GetAgentLevel())

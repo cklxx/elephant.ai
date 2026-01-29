@@ -15,6 +15,11 @@ describe("subagentThreadToCardData", () => {
         event_type: "workflow.tool.completed",
         timestamp: "2024-01-01T00:00:00Z",
         agent_level: "subagent",
+        session_id: "session-test",
+        call_id: "call-1",
+        tool_name: "test",
+        result: "",
+        duration: 0,
       },
     ];
 
@@ -60,6 +65,10 @@ describe("subagentThreadToCardData", () => {
         event_type: "workflow.tool.started",
         timestamp: "2024-01-01T00:00:00Z",
         agent_level: "subagent",
+        session_id: "session-test",
+        call_id: "call-1",
+        tool_name: "test",
+        arguments: {},
       },
     ];
 
@@ -74,6 +83,12 @@ describe("subagentThreadToCardData", () => {
         event_type: "workflow.result.final",
         timestamp: "2024-01-01T00:00:00Z",
         agent_level: "subagent",
+        session_id: "session-test",
+        final_answer: "",
+        total_iterations: 0,
+        total_tokens: 0,
+        stop_reason: "done",
+        duration: 0,
       },
     ];
 
@@ -88,6 +103,8 @@ describe("subagentThreadToCardData", () => {
         event_type: "workflow.node.failed",
         timestamp: "2024-01-01T00:00:00Z",
         agent_level: "subagent",
+        session_id: "session-test",
+        error: "test error",
       },
     ];
 
@@ -102,6 +119,8 @@ describe("subagentThreadToCardData", () => {
         event_type: "workflow.result.cancelled",
         timestamp: "2024-01-01T00:00:00Z",
         agent_level: "subagent",
+        session_id: "session-test",
+        reason: "user",
       },
     ];
 

@@ -58,12 +58,12 @@ export function useStreamingAnswerBuffer(): UseStreamingAnswerBufferReturn {
     (event: AnyAgentEvent): AnyAgentEvent => {
       if (!isWorkflowResultFinalEvent(event)) return event;
 
-      const taskId = event.task_id;
+      const runId = event.run_id;
       const sessionId = event.session_id ?? "";
 
-      if (!taskId) return event;
+      if (!runId) return event;
 
-      const key = `${sessionId}|${taskId}`;
+      const key = `${sessionId}|${runId}`;
       const buffer = streamingAnswerBufferRef.current;
       const chunk = event.final_answer ?? "";
       const previous = buffer.get(key) ?? "";
@@ -105,20 +105,20 @@ export function useStreamingAnswerBuffer(): UseStreamingAnswerBufferReturn {
 
   const trackAssistantMessage = useCallback(
     (event: WorkflowNodeOutputDeltaEvent) => {
-      const taskId =
-        "task_id" in event && typeof event.task_id === "string"
-          ? event.task_id
+      const runId =
+        "run_id" in event && typeof event.run_id === "string"
+          ? event.run_id
           : undefined;
       const sessionId =
         "session_id" in event && typeof event.session_id === "string"
           ? event.session_id
           : "";
 
-      if (!taskId) return;
+      if (!runId) return;
 
       const iteration =
         typeof event.iteration === "number" ? event.iteration : Number.MIN_SAFE_INTEGER;
-      const key = `${sessionId}|${taskId}`;
+      const key = `${sessionId}|${runId}`;
       const buffer = assistantMessageBufferRef.current;
       const existing = buffer.get(key);
 
@@ -138,18 +138,18 @@ export function useStreamingAnswerBuffer(): UseStreamingAnswerBufferReturn {
     (event: AnyAgentEvent): AnyAgentEvent => {
       if (!isWorkflowResultFinalEvent(event)) return event;
 
-      const taskId =
-        "task_id" in event && typeof event.task_id === "string"
-          ? event.task_id
+      const runId =
+        "run_id" in event && typeof event.run_id === "string"
+          ? event.run_id
           : undefined;
       const sessionId =
         "session_id" in event && typeof event.session_id === "string"
           ? event.session_id
           : "";
 
-      if (!taskId) return event;
+      if (!runId) return event;
 
-      const key = `${sessionId}|${taskId}`;
+      const key = `${sessionId}|${runId}`;
       const buffer = assistantMessageBufferRef.current;
       const entry = buffer.get(key);
       const existingAnswer =

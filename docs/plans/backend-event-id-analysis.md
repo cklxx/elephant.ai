@@ -1,133 +1,102 @@
 # Backend Event ID Design Analysis
 
-## Current ID Structure
+**Updated**: 2026-01-29 — Wiring gaps fixed, all fields now populate at runtime.
+
+## Current ID Structure (Post-Redesign)
 
 ### BaseEvent Fields (backend)
 ```go
 type BaseEvent struct {
-    timestamp    time.Time
-    agentLevel   agent.AgentLevel  // "core" or "subagent"
-    sessionID    string            // Session identifier
-    taskID       string            // Current task ID
-    parentTaskID string            // Parent task ID (for subagents)
-    logID        string            // Log correlation ID
+    eventID       string           // Unique per event: "evt-{ksuid}"
+    seq           uint64           // Monotonic within a run (via SeqCounter)
+
+    timestamp     time.Time
+    agentLevel    agent.AgentLevel // "core" or "subagent"
+    sessionID     string           // Conversation scope
+    runID         string           // This agent execution: "run-{12-char-suffix}"
+    parentRunID   string           // Parent agent's runID (empty for core)
+
+    correlationID string           // Root runID of the causal chain
+    causationID   string           // call_id that spawned this run
+
+    logID         string           // Log correlation
 }
 ```
 
 ### ID Relationships in Subagent Flow
 
 ```
-Core Agent Task (taskID: "task-parent-123")
+Core Agent Run (runID: "run-abcdef123456", correlationID: "run-abcdef123456")
     │
-    ├── executes subagent tool (call_id: "call-subagent-456")
+    ├── executes subagent tool (call_id: "call-subagent-789")
     │
-    └── Subagent 1 (taskID: "task-sub-1", parentTaskID: "task-parent-123")
-    │       ├── tool call (call_id: "call-tool-1")
-    │       └── result.final
+    └── Subagent 1 (runID: "run-sub1...", parentRunID: "run-abcdef123456")
+    │       correlationID: "run-abcdef123456"  ← root of chain
+    │       causationID:   "call-subagent-789" ← tool call that spawned
+    │       ├── tool call (call_id: "call-tool-1", seq: 1)
+    │       └── result.final (seq: 5)
     │
-    └── Subagent 2 (taskID: "task-sub-2", parentTaskID: "task-parent-123")
-            ├── tool call (call_id: "call-tool-2")
-            └── result.final
+    └── Subagent 2 (runID: "run-sub2...", parentRunID: "run-abcdef123456")
+            correlationID: "run-abcdef123456"
+            causationID:   "call-subagent-789"
+            ├── tool call (call_id: "call-tool-2", seq: 1)
+            └── result.final (seq: 4)
 ```
 
-## Issues Found
+## Wiring Status
 
-### 1. **Ambiguous parent-child relationship**
-- `parentTaskID` is set on subagent events, but the trigger event (subagent tool call) doesn't explicitly link to spawned subagents
-- Frontend must infer relationship by matching `parentTaskID` of subagent events with `taskID` of trigger
+| Field            | Status | Location                                     |
+|------------------|--------|----------------------------------------------|
+| `event_id`       | Wired  | `domain/events.go:newBaseEventWithIDs`        |
+| `seq`            | Wired  | `react/events.go:newBaseEvent` → `SeqCounter` |
+| `correlation_id` | Wired  | Coordinator sets root; subagent inherits       |
+| `causation_id`   | Wired  | Subagent tool sets `call.ID` on context        |
+| `run_id`         | Wired  | 12-char suffix (was 6), ~71 bits entropy       |
 
-### 2. **Inconsistent ID naming in JSON serialization**
-Backend uses Go conventions (`TaskID`, `ParentTaskID`), but frontend receives:
-```typescript
-// Sometimes snake_case
-parent_task_id: string
+## Changes Made (2026-01-29)
 
-// Sometimes camelCase
-parentTaskId: string
+### P0: correlation_id / causation_id wiring
+- **`coordinator.go:ExecuteTask`**: Core runs now set `correlationID = ensuredRunID` on context
+  when no correlationID is present (root of causal chain).
+- **`subagent.go:Execute`**: Sets `causationID = call.ID` (the subagent tool call's ID) on
+  context before delegating to `executeSubtask`.
+- **`subagent.go:executeSubtask`**: Propagates `correlationID` from parent context; falls back
+  to parent's `runID` if parent has no correlationID.
+- **`react/events.go:newBaseEvent`**: Reads `CorrelationIDFromContext` and
+  `CausationIDFromContext` and stamps them on every emitted event.
 
-// Sometimes missing entirely
-```
+### P1: SeqCounter wiring
+- **`react/engine.go`**: Added `seq domain.SeqCounter` field to `ReactEngine`.
+- **`react/events.go:newBaseEvent`**: Calls `e.seq.Next()` and sets the result via
+  `base.SetSeq()` on every event.
+- `SeqCounter` is `atomic.Uint64`-backed; each engine instance (one per `ExecuteTask` call)
+  gets a fresh counter starting from 1.
 
-### 3. **call_id vs CallID confusion**
-- Backend: `CallID string` (Go struct)
-- Frontend: sometimes `call_id`, sometimes missing from type definitions
-- Tool events have `call_id`, but other events don't
+### P2: RunID entropy increase
+- **`generator.go`**: Changed `runIDSuffixLength` from 6 → 12.
+- 12 chars of base-62 KSUID ≈ 71 bits of entropy → collision probability < 1 in 10^9 at
+  10^6 IDs.
 
-### 4. **Missing explicit trigger-to-execution link**
-```
-Problem: 5 subagents spawned, but no explicit "batch ID" to group them
-Current: Use parentTaskID as implicit group key
-Issue: If multiple subagent calls in same parent task, they get mixed up
-```
+## Frontend Adaptation (Previously Implemented)
 
-## Recommended Fixes
-
-### Option A: Add explicit `batch_id` or `invocation_id`
-```go
-type BaseEvent struct {
-    // ... existing fields ...
-    InvocationID string  // Unique ID for each subagent tool invocation
-}
-
-// Core agent events: InvocationID = ""
-// Subagent events:   InvocationID = "inv-subagent-456"
-```
-
-### Option B: Add `spawned_by_call_id` to subagent events
-```go
-type BaseEvent struct {
-    // ... existing fields ...
-    SpawnedByCallID string  // For subagent events: the call_id that spawned them
-}
-```
-
-### Option C: Include `subagent_metadata` in trigger event
-```go
-type WorkflowToolCompletedEvent struct {
-    BaseEvent
-    ToolName string
-    Result   string
-    // Add:
-    SubagentMetadata struct {
-        TaskIDs   []string  // List of subtask IDs spawned
-        Count     int
-        Mode      string    // "parallel" or "serial"
-    }
-}
-```
-
-## Frontend Adaptation (Implemented)
-
-To work around current backend design, frontend now:
-
-1. **Recognizes trigger events**: `tool_name: "subagent"` + `event_type: "workflow.tool.completed"`
-2. **Uses `task_id` as parent identifier**: Groups all subagent events by `parent_task_id`
-3. **Binds groups to trigger position**: Subagent cards render after trigger event, not by timestamp
+Frontend already consumes all fields via `WorkflowEnvelope`:
 
 ```typescript
-function isSubagentTrigger(event: AnyAgentEvent): boolean {
-  return (
-    event.event_type === "workflow.tool.completed" &&
-    event.tool_name?.toLowerCase() === "subagent"
-  );
-}
-
-// Build unified timeline with subagent groups attached to triggers
-function buildUnifiedTimeline(mainStream, subagentGroups) {
-  for (const event of mainStream) {
-    if (isSubagentTrigger(event)) {
-      const group = subagentGroups.get(event.task_id);
-      if (group) {
-        // Render subagent cards here, at trigger position
-        result.push({ kind: "subagentGroup", trigger: event, threads: group });
-        continue;
-      }
-    }
-    // Regular event
-    result.push({ kind: "event", event });
-  }
+interface WorkflowEnvelope<T> {
+  event_type: T;
+  timestamp: string;
+  session_id: string;
+  agent_level: 'core' | 'subagent';
+  run_id?: string;
+  parent_run_id?: string;
+  event_id?: string;
+  seq?: number;
+  correlation_id?: string;
+  causation_id?: string;
 }
 ```
+
+These fields are emitted in `sse_render.go:buildEventData` and now carry populated values.
 
 ## References
 

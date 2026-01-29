@@ -415,12 +415,12 @@ function clampEvents(events: AnyAgentEvent[], maxHistory: number): AnyAgentEvent
 }
 
 function isSameTask(a: AnyAgentEvent, b: AnyAgentEvent): boolean {
-  const taskA = "task_id" in a ? a.task_id : undefined;
-  const taskB = "task_id" in b ? b.task_id : undefined;
+  const runA = "run_id" in a ? a.run_id : undefined;
+  const runB = "run_id" in b ? b.run_id : undefined;
   const sessionA = "session_id" in a ? a.session_id : undefined;
   const sessionB = "session_id" in b ? b.session_id : undefined;
   return Boolean(
-    taskA && taskB && sessionA && sessionB && taskA === taskB && sessionA === sessionB
+    runA && runB && sessionA && sessionB && runA === runB && sessionA === sessionB
   );
 }
 
@@ -428,12 +428,12 @@ function buildFinalEventKey(event: AnyAgentEvent): string | null {
   if (!isEventType(event, "workflow.result.final")) {
     return null;
   }
-  const taskId = "task_id" in event ? event.task_id : undefined;
+  const runId = "run_id" in event ? event.run_id : undefined;
   const sessionId = "session_id" in event ? event.session_id : undefined;
-  if (!taskId || !sessionId) {
+  if (!runId || !sessionId) {
     return null;
   }
-  return `${sessionId}|${taskId}`;
+  return `${sessionId}|${runId}`;
 }
 
 function buildFinalEventIndex(events: AnyAgentEvent[]): Map<string, number> {
@@ -517,11 +517,11 @@ function mergeDeltaEvent(
     return false;
   }
 
-  if ((last.task_id ?? "") !== (incoming.task_id ?? "")) {
+  if ((last.run_id ?? "") !== (incoming.run_id ?? "")) {
     return false;
   }
 
-  if ((last.parent_task_id ?? "") !== (incoming.parent_task_id ?? "")) {
+  if ((last.parent_run_id ?? "") !== (incoming.parent_run_id ?? "")) {
     return false;
   }
 

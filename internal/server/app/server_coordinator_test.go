@@ -296,8 +296,8 @@ func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
 	if capture.event != analytics.EventTaskExecutionStarted {
 		t.Errorf("expected event %s, got %s", analytics.EventTaskExecutionStarted, capture.event)
 	}
-	if capture.properties["task_id"] != "task-analytics" {
-		t.Errorf("expected task_id task-analytics, got %v", capture.properties["task_id"])
+	if capture.properties["run_id"] != "task-analytics" {
+		t.Errorf("expected run_id task-analytics, got %v", capture.properties["run_id"])
 	}
 	if capture.properties["source"] != "server" {
 		t.Errorf("expected source server, got %v", capture.properties["source"])

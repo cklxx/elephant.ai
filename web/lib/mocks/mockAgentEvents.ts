@@ -210,7 +210,7 @@ export type MockEventPayload = Partial<AnyAgentEvent> &
   Partial<
     Pick<
       AgentEvent,
-      'is_subtask' | 'parent_task_id' | 'subtask_index' | 'total_subtasks' | 'subtask_preview' | 'max_parallel'
+      'is_subtask' | 'parent_run_id' | 'subtask_index' | 'total_subtasks' | 'subtask_preview' | 'max_parallel'
     >
   > &
   Record<string, unknown>;
@@ -222,9 +222,9 @@ export interface TimedMockEvent {
 
 export function createMockEventSequence(_task: string): TimedMockEvent[] {
   const runId = 'mock-run-1';
-  const parentTaskId = 'mock-core-task';
-  const taskIdOne = 'task-1';
-  const taskIdTwo = 'task-2';
+  const parentRunId = 'mock-core-run';
+  const subRunIdOne = 'sub-run-1';
+  const subRunIdTwo = 'sub-run-2';
   const callIdPlan = 'mock-call-plan';
   const callIdClarifyOne = 'mock-call-clarify-1';
   const callIdClarifyTwo = 'mock-call-clarify-2';
@@ -274,7 +274,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         duration: 80,
         metadata: {
           run_id: runId,
-          task_id: taskIdOne,
+          task_id: subRunIdOne,
           task_goal_ui: '收集现有 UI 事件流',
           success_criteria: ['定位旧展示路径', '确认需要替换的组件与聚合逻辑'],
         },
@@ -325,7 +325,7 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         duration: 80,
         metadata: {
           run_id: runId,
-          task_id: taskIdTwo,
+          task_id: subRunIdTwo,
           task_goal_ui: '实现新的层级视图',
           success_criteria: ['渲染 Goal/Task/Log 三层结构', '工具输出与日志保持一致字体'],
         },
@@ -395,7 +395,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.node.started',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdOne,
+        parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
         subtask_preview: 'Subagent: gather docs',
@@ -408,7 +409,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.node.output.delta',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdOne,
+        parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
         delta: 'Thinking...',
@@ -421,7 +423,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.tool.started',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdOne,
+        parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
         call_id: subagentCallIdOne,
@@ -436,7 +439,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.tool.progress',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdOne,
+        parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
         call_id: subagentCallIdOne,
@@ -449,7 +453,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdOne,
+        parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
         call_id: subagentCallIdOne,
@@ -464,7 +469,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.result.final',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdOne,
+        parent_run_id: parentRunId,
         subtask_index: 0,
         total_subtasks: 2,
         final_answer: 'Subagent summary: gathered protocol constraints and UI levels.',
@@ -481,7 +487,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.node.started',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdTwo,
+        parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
         subtask_preview: 'Subagent: verify UI',
@@ -494,7 +501,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.node.output.delta',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdTwo,
+        parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
         delta: 'Reviewing UI...',
@@ -507,7 +515,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.tool.started',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdTwo,
+        parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
         call_id: subagentCallIdTwo,
@@ -522,7 +531,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.tool.completed',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdTwo,
+        parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
         call_id: subagentCallIdTwo,
@@ -537,7 +547,8 @@ export function createMockEventSequence(_task: string): TimedMockEvent[] {
         event_type: 'workflow.result.final',
         agent_level: 'subagent',
         is_subtask: true,
-        parent_task_id: parentTaskId,
+        run_id: subRunIdTwo,
+        parent_run_id: parentRunId,
         subtask_index: 1,
         total_subtasks: 2,
         final_answer: 'Subagent summary: UI renders Goal/Task/Log correctly; fonts consistent.',

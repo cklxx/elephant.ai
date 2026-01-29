@@ -69,9 +69,13 @@ func (e *stubSubtaskEvent) GetAgentLevel() agent.AgentLevel {
 	}
 	return agent.LevelSubagent
 }
-func (e *stubSubtaskEvent) GetSessionID() string    { return e.original.GetSessionID() }
-func (e *stubSubtaskEvent) GetTaskID() string       { return e.original.GetTaskID() }
-func (e *stubSubtaskEvent) GetParentTaskID() string { return e.original.GetParentTaskID() }
+func (e *stubSubtaskEvent) GetSessionID() string      { return e.original.GetSessionID() }
+func (e *stubSubtaskEvent) GetRunID() string           { return e.original.GetRunID() }
+func (e *stubSubtaskEvent) GetParentRunID() string     { return e.original.GetParentRunID() }
+func (e *stubSubtaskEvent) GetCorrelationID() string   { return e.original.GetCorrelationID() }
+func (e *stubSubtaskEvent) GetCausationID() string     { return e.original.GetCausationID() }
+func (e *stubSubtaskEvent) GetEventID() string         { return e.original.GetEventID() }
+func (e *stubSubtaskEvent) GetSeq() uint64             { return e.original.GetSeq() }
 func (e *stubSubtaskEvent) SubtaskDetails() agent.SubtaskMetadata {
 	return e.meta
 }
@@ -593,11 +597,11 @@ func TestSSEHandlerStreamsSubagentToolStartAndComplete(t *testing.T) {
 	}
 
 	for _, payload := range []map[string]any{started, completed} {
-		if payload["task_id"] != taskID {
-			t.Fatalf("expected task_id %s, got %v", taskID, payload["task_id"])
+		if payload["run_id"] != taskID {
+			t.Fatalf("expected run_id %s, got %v", taskID, payload["run_id"])
 		}
-		if payload["parent_task_id"] != parentTaskID {
-			t.Fatalf("expected parent_task_id %s, got %v", parentTaskID, payload["parent_task_id"])
+		if payload["parent_run_id"] != parentTaskID {
+			t.Fatalf("expected parent_run_id %s, got %v", parentTaskID, payload["parent_run_id"])
 		}
 		toolPayload, ok := payload["payload"].(map[string]any)
 		if !ok {

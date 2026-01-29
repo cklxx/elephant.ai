@@ -291,9 +291,9 @@ func TestExecuteTaskUsesEnsuredTaskIDForPrepareEnvelope(t *testing.T) {
 	)
 
 	ctx := id.WithIDs(context.Background(), id.IDs{
-		SessionID:    "session-e2e",
-		TaskID:       "task-sub-1",
-		ParentTaskID: "task-parent",
+		SessionID:   "session-e2e",
+		RunID:       "task-sub-1",
+		ParentRunID: "task-parent",
 	})
 	ctx = agent.WithOutputContext(ctx, &agent.OutputContext{
 		Level:        agent.LevelSubagent,
@@ -306,8 +306,8 @@ func TestExecuteTaskUsesEnsuredTaskIDForPrepareEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExecuteTask returned error: %v", err)
 	}
-	if result.TaskID != "task-sub-1" {
-		t.Fatalf("expected task id task-sub-1, got %q", result.TaskID)
+	if result.RunID != "task-sub-1" {
+		t.Fatalf("expected run id task-sub-1, got %q", result.RunID)
 	}
 
 	started := listener.envelopes("workflow.node.started")
@@ -325,11 +325,11 @@ func TestExecuteTaskUsesEnsuredTaskIDForPrepareEnvelope(t *testing.T) {
 	if prepare == nil {
 		t.Fatalf("expected prepare step envelope to be emitted")
 	}
-	if prepare.GetTaskID() != result.TaskID {
-		t.Fatalf("expected prepare step task_id=%q, got %q", result.TaskID, prepare.GetTaskID())
+	if prepare.GetRunID() != result.RunID {
+		t.Fatalf("expected prepare step run_id=%q, got %q", result.RunID, prepare.GetRunID())
 	}
-	if prepare.GetParentTaskID() != "task-parent" {
-		t.Fatalf("expected prepare step parent_task_id=task-parent, got %q", prepare.GetParentTaskID())
+	if prepare.GetParentRunID() != "task-parent" {
+		t.Fatalf("expected prepare step parent_run_id=task-parent, got %q", prepare.GetParentRunID())
 	}
 }
 

@@ -59,12 +59,16 @@ function buildFinalEventKey(event: AnyAgentEvent): string | null {
   if (!isEventType(event, 'workflow.result.final')) {
     return null;
   }
-  const taskId = 'task_id' in event ? event.task_id : undefined;
+  const eventId = 'event_id' in event ? event.event_id : undefined;
+  if (eventId) {
+    return eventId;
+  }
+  const runId = 'run_id' in event ? event.run_id : undefined;
   const sessionId = 'session_id' in event ? event.session_id : undefined;
-  if (!taskId || !sessionId) {
+  if (!runId || !sessionId) {
     return null;
   }
-  return `${sessionId}|${taskId}`;
+  return `${sessionId}|${runId}`;
 }
 
 function coerceEvent(raw: unknown): AnyAgentEvent | null {

@@ -20,7 +20,7 @@ describe('EventLine (workflow.input.received)', () => {
       agent_level: 'core',
       timestamp: new Date().toISOString(),
       session_id: 'session-input-1',
-      task_id: 'task-input-1',
+      run_id: 'task-input-1',
       task: 'Review these clips',
       attachments: {
         'clip-1': {

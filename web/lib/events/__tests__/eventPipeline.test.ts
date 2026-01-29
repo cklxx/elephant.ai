@@ -23,7 +23,7 @@ describe('EventPipeline deduplication', () => {
     const envelope = {
       event_type: 'workflow.result.final',
       session_id: 's1',
-      task_id: 't1',
+      run_id: 't1',
       timestamp: '2024-01-01T00:00:00Z',
       final_answer: 'hello',
       payload: {
@@ -41,7 +41,7 @@ describe('EventPipeline deduplication', () => {
     const envelope = {
       event_type: 'workflow.result.final',
       session_id: 's-null',
-      task_id: 't-null',
+      run_id: 't-null',
       timestamp: '2024-01-01T00:00:00Z',
       final_answer: 'hello',
       attachments: null,
@@ -62,7 +62,7 @@ describe('EventPipeline deduplication', () => {
     const first = {
       event_type: 'workflow.result.final',
       session_id: 's-stream',
-      task_id: 't-stream',
+      run_id: 't-stream',
       timestamp: '2024-01-01T00:00:00Z',
       final_answer: 'partial',
       is_streaming: true,
@@ -86,7 +86,7 @@ describe('EventPipeline deduplication', () => {
     const stream = {
       event_type: 'workflow.result.final',
       session_id: 's2',
-      task_id: 't2',
+      run_id: 't2',
       timestamp: '2024-02-01T00:00:00Z',
       final_answer: 'done',
       is_streaming: true,
@@ -110,7 +110,7 @@ describe('EventPipeline deduplication', () => {
     const envelope = {
       event_type: 'workflow.result.final',
       session_id: 's3',
-      task_id: 't3',
+      run_id: 't3',
       timestamp: '2024-03-01T00:00:00Z',
       final_answer: 'hello',
       payload: {
@@ -131,7 +131,7 @@ describe('EventPipeline deduplication', () => {
     const basePayload = {
       event_type: 'workflow.tool.completed',
       session_id: 'session-tool',
-      task_id: 'task-tool',
+      run_id: 'task-tool',
       timestamp,
       tool_name: '',
       call_id: '',

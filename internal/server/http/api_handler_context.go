@@ -11,11 +11,11 @@ import (
 )
 
 type ContextSnapshotItem struct {
-	RequestID        string               `json:"request_id"`
-	Iteration        int                  `json:"iteration"`
-	Timestamp        string               `json:"timestamp"`
-	TaskID           string               `json:"task_id,omitempty"`
-	ParentTaskID     string               `json:"parent_task_id,omitempty"`
+	RequestID        string         `json:"request_id"`
+	Iteration        int            `json:"iteration"`
+	Timestamp        string         `json:"timestamp"`
+	RunID            string         `json:"run_id,omitempty"`
+	ParentRunID      string         `json:"parent_run_id,omitempty"`
 	Messages         []core.Message `json:"messages"`
 	ExcludedMessages []core.Message `json:"excluded_messages,omitempty"`
 }
@@ -149,11 +149,11 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 
 	for i, snapshot := range snapshots {
 		item := ContextSnapshotItem{
-			RequestID:    snapshot.RequestID,
-			Iteration:    snapshot.Iteration,
-			Timestamp:    snapshot.Timestamp.Format(time.RFC3339Nano),
-			TaskID:       snapshot.TaskID,
-			ParentTaskID: snapshot.ParentTaskID,
+			RequestID:   snapshot.RequestID,
+			Iteration:   snapshot.Iteration,
+			Timestamp:   snapshot.Timestamp.Format(time.RFC3339Nano),
+			RunID:       snapshot.RunID,
+			ParentRunID: snapshot.ParentRunID,
 		}
 		item.Messages = sanitizeMessagesForDelivery(snapshot.Messages, sentAttachments)
 		if len(snapshot.Excluded) > 0 {

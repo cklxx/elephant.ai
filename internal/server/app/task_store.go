@@ -30,16 +30,16 @@ func (s *InMemoryTaskStore) Create(ctx context.Context, sessionID string, descri
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	taskID := id.TaskIDFromContext(ctx)
+	taskID := id.RunIDFromContext(ctx)
 	if taskID == "" {
-		taskID = id.NewTaskID()
+		taskID = id.NewRunID()
 	}
 	now := time.Now()
 
 	task := &ports.Task{
 		ID:           taskID,
 		SessionID:    sessionID,
-		ParentTaskID: id.ParentTaskIDFromContext(ctx),
+		ParentTaskID: id.ParentRunIDFromContext(ctx),
 		Status:       ports.TaskStatusPending,
 		Description:  description,
 		CreatedAt:    now,
@@ -240,8 +240,8 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 		task.SessionID = result.SessionID
 	}
 
-	if result.ParentTaskID != "" {
-		task.ParentTaskID = result.ParentTaskID
+	if result.ParentRunID != "" {
+		task.ParentTaskID = result.ParentRunID
 	}
 
 	return nil

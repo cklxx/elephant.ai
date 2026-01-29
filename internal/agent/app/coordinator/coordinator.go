@@ -232,11 +232,17 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	ctx = id.WithSessionID(ctx, sessionID)
-	ctx, ensuredTaskID := id.EnsureTaskID(ctx, id.NewTaskID)
-	if ensuredTaskID == "" {
-		ensuredTaskID = id.TaskIDFromContext(ctx)
+	ctx, ensuredRunID := id.EnsureRunID(ctx, id.NewRunID)
+	if ensuredRunID == "" {
+		ensuredRunID = id.RunIDFromContext(ctx)
 	}
-	parentTaskID := id.ParentTaskIDFromContext(ctx)
+	parentRunID := id.ParentRunIDFromContext(ctx)
+
+	// Core run: set correlation_id = own run_id as root of the causal chain.
+	// Subagent runs inherit this via subagent.executeSubtask.
+	if id.CorrelationIDFromContext(ctx) == "" && ensuredRunID != "" {
+		ctx = id.WithCorrelationID(ctx, ensuredRunID)
+	}
 	outCtx := agent.GetOutputContext(ctx)
 	if outCtx == nil {
 		outCtx = &agent.OutputContext{Level: agent.LevelCore}
@@ -249,19 +255,19 @@ func (c *AgentCoordinator) ExecuteTask(
 		outCtx.SessionID = ids.SessionID
 	}
 	if outCtx.TaskID == "" {
-		outCtx.TaskID = ids.TaskID
+		outCtx.TaskID = ids.RunID
 	}
 	if outCtx.ParentTaskID == "" {
-		outCtx.ParentTaskID = ids.ParentTaskID
+		outCtx.ParentTaskID = ids.ParentRunID
 	}
 	if outCtx.LogID == "" {
 		outCtx.LogID = ids.LogID
 	}
-	outCtx.TaskID = ensuredTaskID
+	outCtx.TaskID = ensuredRunID
 	ctx = agent.WithOutputContext(ctx, outCtx)
 	logger.Info("ExecuteTask called: task='%s', session='%s'", task, obfuscateSessionID(sessionID))
 
-	wf := newAgentWorkflow(ensuredTaskID, slog.Default(), eventListener, outCtx)
+	wf := newAgentWorkflow(ensuredRunID, slog.Default(), eventListener, outCtx)
 	wf.start(stagePrepare)
 
 	attachWorkflow := func(result *agent.TaskResult, env *agent.ExecutionEnvironment) *agent.TaskResult {
@@ -269,7 +275,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		if env != nil && env.Session != nil && env.Session.ID != "" {
 			session = env.Session.ID
 		}
-		return attachWorkflowSnapshot(result, wf, session, ensuredTaskID, parentTaskID)
+		return attachWorkflowSnapshot(result, wf, session, ensuredRunID, parentRunID)
 	}
 
 	// Prepare execution environment with event listener support
@@ -287,8 +293,8 @@ func (c *AgentCoordinator) ExecuteTask(
 		env.Session.ID,
 	)
 	outCtx.SessionID = env.Session.ID
-	outCtx.TaskID = ensuredTaskID
-	outCtx.ParentTaskID = parentTaskID
+	outCtx.TaskID = ensuredRunID
+	outCtx.ParentTaskID = parentRunID
 	wf.setContext(outCtx)
 	prepareOutput := map[string]any{
 		"session": env.Session.ID,
@@ -337,20 +343,20 @@ func (c *AgentCoordinator) ExecuteTask(
 	result, executionErr := reactEngine.SolveTask(ctx, task, env.State, env.Services)
 	if result == nil {
 		result = &agent.TaskResult{
-			Answer:       "",
-			Messages:     env.State.Messages,
-			Iterations:   env.State.Iterations,
-			TokensUsed:   env.State.TokenCount,
-			StopReason:   "error",
-			SessionID:    env.State.SessionID,
-			TaskID:       env.State.TaskID,
-			ParentTaskID: env.State.ParentTaskID,
+			Answer:      "",
+			Messages:    env.State.Messages,
+			Iterations:  env.State.Iterations,
+			TokensUsed:  env.State.TokenCount,
+			StopReason:  "error",
+			SessionID:   env.State.SessionID,
+			RunID:       env.State.RunID,
+			ParentRunID: env.State.ParentRunID,
 		}
 	}
 
 	if ctx.Err() != nil {
 		logger.Info("Task execution cancelled: %v", ctx.Err())
-		c.persistSessionSnapshot(ctx, env, ensuredTaskID, parentTaskID, "cancelled")
+		c.persistSessionSnapshot(ctx, env, ensuredRunID, parentRunID, "cancelled")
 		return attachWorkflow(result, env), ctx.Err()
 	}
 
@@ -412,8 +418,8 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	result.SessionID = env.Session.ID
-	result.TaskID = defaultString(result.TaskID, ensuredTaskID)
-	result.ParentTaskID = defaultString(result.ParentTaskID, parentTaskID)
+	result.RunID = defaultString(result.RunID, ensuredRunID)
+	result.ParentRunID = defaultString(result.ParentRunID, parentRunID)
 
 	if executionErr != nil {
 		return attachWorkflow(result, env), fmt.Errorf("task execution failed: %w", executionErr)
@@ -444,13 +450,13 @@ func buildCompletionDefaultsFromConfig(cfg appconfig.Config) react.CompletionDef
 	return defaults
 }
 
-func attachWorkflowSnapshot(result *agent.TaskResult, wf *agentWorkflow, sessionID, taskID, parentTaskID string) *agent.TaskResult {
+func attachWorkflowSnapshot(result *agent.TaskResult, wf *agentWorkflow, sessionID, runID, parentRunID string) *agent.TaskResult {
 	if result == nil {
 		result = &agent.TaskResult{}
 	}
 	result.SessionID = defaultString(result.SessionID, sessionID)
-	result.TaskID = defaultString(result.TaskID, taskID)
-	result.ParentTaskID = defaultString(result.ParentTaskID, parentTaskID)
+	result.RunID = defaultString(result.RunID, runID)
+	result.ParentRunID = defaultString(result.ParentRunID, parentRunID)
 
 	if wf != nil {
 		snapshot := wf.snapshot()
@@ -545,11 +551,11 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	if result.SessionID != "" {
 		session.Metadata["session_id"] = result.SessionID
 	}
-	if result.TaskID != "" {
-		session.Metadata["last_task_id"] = result.TaskID
+	if result.RunID != "" {
+		session.Metadata["last_task_id"] = result.RunID
 	}
-	if result.ParentTaskID != "" {
-		session.Metadata["last_parent_task_id"] = result.ParentTaskID
+	if result.ParentRunID != "" {
+		session.Metadata["last_parent_task_id"] = result.ParentRunID
 	} else {
 		delete(session.Metadata, "last_parent_task_id")
 	}
@@ -567,8 +573,8 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 func (c *AgentCoordinator) persistSessionSnapshot(
 	ctx context.Context,
 	env *agent.ExecutionEnvironment,
-	fallbackTaskID string,
-	parentTaskID string,
+	fallbackRunID string,
+	parentRunID string,
 	stopReason string,
 ) {
 	logger := c.loggerFor(ctx)
@@ -578,25 +584,25 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 
 	state := env.State
 	result := &agent.TaskResult{
-		Answer:       "",
-		Messages:     state.Messages,
-		Iterations:   state.Iterations,
-		TokensUsed:   state.TokenCount,
-		StopReason:   stopReason,
-		SessionID:    state.SessionID,
-		TaskID:       state.TaskID,
-		ParentTaskID: state.ParentTaskID,
-		Important:    ports.CloneImportantNotes(state.Important),
+		Answer:      "",
+		Messages:    state.Messages,
+		Iterations:  state.Iterations,
+		TokensUsed:  state.TokenCount,
+		StopReason:  stopReason,
+		SessionID:   state.SessionID,
+		RunID:       state.RunID,
+		ParentRunID: state.ParentRunID,
+		Important:   ports.CloneImportantNotes(state.Important),
 	}
 
 	if result.SessionID == "" {
 		result.SessionID = env.Session.ID
 	}
-	if result.TaskID == "" {
-		result.TaskID = fallbackTaskID
+	if result.RunID == "" {
+		result.RunID = fallbackRunID
 	}
-	if result.ParentTaskID == "" {
-		result.ParentTaskID = parentTaskID
+	if result.ParentRunID == "" {
+		result.ParentRunID = parentRunID
 	}
 
 	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {

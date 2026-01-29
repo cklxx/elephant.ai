@@ -112,7 +112,7 @@ export function useTaskSubmission({
           timestamp: submissionTimestamp.toISOString(),
           agent_level: "core",
           session_id: provisionalSessionId,
-          task_id: mockTaskId,
+          run_id: mockTaskId,
           task,
           attachments: Object.keys(attachmentMap).length
             ? attachmentMap
@@ -159,8 +159,8 @@ export function useTaskSubmission({
                 timestamp: new Date().toISOString(),
                 agent_level: "core",
                 session_id: data.session_id,
-                task_id: data.task_id,
-                parent_task_id: data.parent_task_id ?? undefined,
+                run_id: data.task_id,
+                parent_run_id: data.parent_task_id ?? undefined,
                 task,
                 attachments: Object.keys(attachmentMap).length
                   ? attachmentMap

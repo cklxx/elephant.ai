@@ -85,7 +85,7 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	expected := strings.TrimSpace(id.TaskIDFromContext(ctx))
+	expected := strings.TrimSpace(id.RunIDFromContext(ctx))
 	if expected != "" && runID != expected {
 		err := errors.New("run_id does not match the active task")
 		return &ports.ToolResult{

@@ -254,7 +254,7 @@ describe('ConversationPageContent - stale session handling', () => {
           timestamp: new Date().toISOString(),
           agent_level: 'core',
           session_id: 'active-session',
-          task_id: 'task-1',
+          run_id: 'task-1',
           tool_name: 'test-tool',
         } as AnyAgentEvent,
       ],

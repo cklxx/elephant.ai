@@ -6,7 +6,7 @@ const baseAssistantEvent: WorkflowNodeOutputDeltaEvent = {
   event_type: 'workflow.node.output.delta',
   agent_level: 'core',
   session_id: 'session-123',
-  task_id: 'task-abc',
+  run_id: 'task-abc',
   iteration: 1,
   delta: 'Hello world',
   final: false,

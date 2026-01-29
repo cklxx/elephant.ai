@@ -47,12 +47,16 @@ func marshalSSEPayload(data map[string]interface{}) (string, error) {
 // workflow.* envelopes.
 func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU, streamDeltas bool) (map[string]interface{}, error) {
 	data := map[string]interface{}{
-		"event_type":     event.EventType(),
-		"timestamp":      event.Timestamp().Format(time.RFC3339Nano),
-		"agent_level":    event.GetAgentLevel(),
-		"session_id":     event.GetSessionID(),
-		"task_id":        event.GetTaskID(),
-		"parent_task_id": event.GetParentTaskID(),
+		"event_id":        event.GetEventID(),
+		"event_type":      event.EventType(),
+		"seq":             event.GetSeq(),
+		"timestamp":       event.Timestamp().Format(time.RFC3339Nano),
+		"agent_level":     event.GetAgentLevel(),
+		"session_id":      event.GetSessionID(),
+		"run_id":          event.GetRunID(),
+		"parent_run_id":   event.GetParentRunID(),
+		"correlation_id":  event.GetCorrelationID(),
+		"causation_id":    event.GetCausationID(),
 	}
 	if withLogID, ok := event.(interface{ GetLogID() string }); ok {
 		if logID := strings.TrimSpace(withLogID.GetLogID()); logID != "" {
@@ -73,10 +77,12 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 		data["timestamp"] = subtaskEvent.Timestamp().Format(time.RFC3339Nano)
 		data["agent_level"] = subtaskEvent.GetAgentLevel()
 		data["session_id"] = subtaskEvent.GetSessionID()
-		data["task_id"] = subtaskEvent.GetTaskID()
-		if parentTaskID := subtaskEvent.GetParentTaskID(); parentTaskID != "" {
-			data["parent_task_id"] = parentTaskID
+		data["run_id"] = subtaskEvent.GetRunID()
+		if parentRunID := subtaskEvent.GetParentRunID(); parentRunID != "" {
+			data["parent_run_id"] = parentRunID
 		}
+		data["correlation_id"] = subtaskEvent.GetCorrelationID()
+		data["causation_id"] = subtaskEvent.GetCausationID()
 		data["is_subtask"] = true
 		meta := subtaskEvent.SubtaskDetails()
 		if meta.Index > 0 {
@@ -140,7 +146,7 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache, h.attachmentStore)
 	if streamDeltas && envelope.Event == "workflow.result.final" {
 		if val, ok := payload["final_answer"].(string); ok {
-			key := envelope.GetTaskID()
+			key := envelope.GetRunID()
 			delta := val
 			if prev, ok := finalAnswerCache.Get(key); ok && strings.HasPrefix(val, prev) {
 				delta = strings.TrimPrefix(val, prev)

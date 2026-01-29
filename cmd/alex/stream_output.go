@@ -206,7 +206,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	}
 
 	ctx = id.WithSessionID(ctx, sessionID)
-	ctx = id.WithTaskID(ctx, id.NewTaskID())
+	ctx = id.WithRunID(ctx, id.NewRunID())
 	ctx = shared.WithApprover(ctx, cliApproverForSession(sessionID))
 	ctx = shared.WithAutoApprove(ctx, false)
 
@@ -219,8 +219,8 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 		AgentID:      "core",
 		Verbose:      verbose,
 		SessionID:    ids.SessionID,
-		TaskID:       ids.TaskID,
-		ParentTaskID: ids.ParentTaskID,
+		TaskID:       ids.RunID,
+		ParentTaskID: ids.ParentRunID,
 		LogID:        ids.LogID,
 	}
 	ctx = types.WithOutputContext(ctx, coreOutCtx)
@@ -396,8 +396,8 @@ func (h *StreamingOutputHandler) onToolCallStart(event *domain.WorkflowToolStart
 		AgentID:      string(event.GetAgentLevel()),
 		Verbose:      h.verbose,
 		SessionID:    event.GetSessionID(),
-		TaskID:       event.GetTaskID(),
-		ParentTaskID: event.GetParentTaskID(),
+		TaskID:       event.GetRunID(),
+		ParentTaskID: event.GetParentRunID(),
 	}
 
 	rendered := h.renderer.RenderToolCallStart(outCtx, event.ToolName, event.Arguments)
@@ -418,8 +418,8 @@ func (h *StreamingOutputHandler) onToolCallComplete(event *domain.WorkflowToolCo
 		AgentID:      string(event.GetAgentLevel()),
 		Verbose:      h.verbose,
 		SessionID:    event.GetSessionID(),
-		TaskID:       event.GetTaskID(),
-		ParentTaskID: event.GetParentTaskID(),
+		TaskID:       event.GetRunID(),
+		ParentTaskID: event.GetParentRunID(),
 	}
 
 	duration := time.Since(info.StartTime)
@@ -436,8 +436,8 @@ func (h *StreamingOutputHandler) onError(event *domain.WorkflowNodeFailedEvent) 
 		AgentID:      string(event.GetAgentLevel()),
 		Verbose:      h.verbose,
 		SessionID:    event.GetSessionID(),
-		TaskID:       event.GetTaskID(),
-		ParentTaskID: event.GetParentTaskID(),
+		TaskID:       event.GetRunID(),
+		ParentTaskID: event.GetParentRunID(),
 	}
 	rendered := h.renderer.RenderError(outCtx, event.Phase, event.Error)
 	h.write(rendered)
@@ -457,8 +457,8 @@ func (h *StreamingOutputHandler) printTaskStart(task string) {
 		AgentID:      "core",
 		Verbose:      h.verbose,
 		SessionID:    ids.SessionID,
-		TaskID:       ids.TaskID,
-		ParentTaskID: ids.ParentTaskID,
+		TaskID:       ids.RunID,
+		ParentTaskID: ids.ParentRunID,
 	}
 
 	rendered := h.renderer.RenderTaskStart(outCtx, task)
@@ -472,8 +472,8 @@ func (h *StreamingOutputHandler) printCompletion(result *agent.TaskResult) {
 		AgentID:      "core",
 		Verbose:      h.verbose,
 		SessionID:    result.SessionID,
-		TaskID:       result.TaskID,
-		ParentTaskID: result.ParentTaskID,
+		TaskID:       result.RunID,
+		ParentTaskID: result.ParentRunID,
 	}
 	resultCopy := *result
 	if h.streamedContent {
@@ -719,7 +719,7 @@ func envelopeBase(env *domain.WorkflowEventEnvelope) domain.BaseEvent {
 	if ts.IsZero() {
 		ts = time.Now()
 	}
-	return domain.NewBaseEvent(env.GetAgentLevel(), env.GetSessionID(), env.GetTaskID(), env.GetParentTaskID(), ts)
+	return domain.NewBaseEvent(env.GetAgentLevel(), env.GetSessionID(), env.GetRunID(), env.GetParentRunID(), ts)
 }
 
 func payloadString(payload map[string]any, key string) string {

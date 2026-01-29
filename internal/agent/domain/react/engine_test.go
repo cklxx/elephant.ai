@@ -68,7 +68,7 @@ func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
 	}
 	engine := newReactEngineForTest(1)
 	state := &TaskState{
-		TaskID:       "task-abc",
+		RunID:       "task-abc",
 		SystemPrompt: "Follow the user objective.",
 		Messages: []ports.Message{
 			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},
@@ -120,7 +120,7 @@ func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
 	}
 	engine := newReactEngineForTest(1)
 	state := &TaskState{
-		TaskID:       "task-def",
+		RunID:       "task-def",
 		SystemPrompt: "Follow the user objective.",
 		Messages: []ports.Message{
 			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},

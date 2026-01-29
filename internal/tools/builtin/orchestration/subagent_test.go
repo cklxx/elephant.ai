@@ -25,8 +25,12 @@ func (stubEvent) EventType() string               { return "workflow.tool.comple
 func (stubEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
 func (stubEvent) GetAgentLevel() agent.AgentLevel { return agent.AgentLevel("subagent") }
 func (stubEvent) GetSessionID() string            { return "session" }
-func (stubEvent) GetTaskID() string               { return "task" }
-func (stubEvent) GetParentTaskID() string         { return "parent" }
+func (stubEvent) GetRunID() string                { return "task" }
+func (stubEvent) GetParentRunID() string          { return "parent" }
+func (stubEvent) GetCorrelationID() string        { return "" }
+func (stubEvent) GetCausationID() string          { return "" }
+func (stubEvent) GetEventID() string              { return "" }
+func (stubEvent) GetSeq() uint64                  { return 0 }
 
 type stubCoreEvent struct{}
 
@@ -34,8 +38,12 @@ func (stubCoreEvent) EventType() string               { return "workflow.node.ou
 func (stubCoreEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
 func (stubCoreEvent) GetAgentLevel() agent.AgentLevel { return agent.LevelCore }
 func (stubCoreEvent) GetSessionID() string            { return "session" }
-func (stubCoreEvent) GetTaskID() string               { return "task" }
-func (stubCoreEvent) GetParentTaskID() string         { return "parent" }
+func (stubCoreEvent) GetRunID() string                { return "task" }
+func (stubCoreEvent) GetParentRunID() string          { return "parent" }
+func (stubCoreEvent) GetCorrelationID() string        { return "" }
+func (stubCoreEvent) GetCausationID() string          { return "" }
+func (stubCoreEvent) GetEventID() string              { return "" }
+func (stubCoreEvent) GetSeq() uint64                  { return 0 }
 
 type attachmentEvent struct {
 	attachments map[string]ports.Attachment
@@ -45,8 +53,12 @@ func (attachmentEvent) EventType() string               { return "workflow.tool.
 func (attachmentEvent) Timestamp() time.Time            { return time.Unix(0, 0) }
 func (attachmentEvent) GetAgentLevel() agent.AgentLevel { return agent.LevelSubagent }
 func (attachmentEvent) GetSessionID() string            { return "session" }
-func (attachmentEvent) GetTaskID() string               { return "task" }
-func (attachmentEvent) GetParentTaskID() string         { return "parent" }
+func (attachmentEvent) GetRunID() string                { return "task" }
+func (attachmentEvent) GetParentRunID() string          { return "parent" }
+func (attachmentEvent) GetCorrelationID() string        { return "" }
+func (attachmentEvent) GetCausationID() string          { return "" }
+func (attachmentEvent) GetEventID() string              { return "" }
+func (attachmentEvent) GetSeq() uint64                  { return 0 }
 func (e attachmentEvent) GetAttachments() map[string]ports.Attachment {
 	return e.attachments
 }
@@ -198,7 +210,7 @@ func TestSubagentUsesParentSessionID(t *testing.T) {
 	tool := NewSubAgent(recorder, 1)
 
 	sessionID := "session-root"
-	ctx := id.WithIDs(context.Background(), id.IDs{SessionID: sessionID, TaskID: "task-root"})
+	ctx := id.WithIDs(context.Background(), id.IDs{SessionID: sessionID, RunID: "task-root"})
 
 	call := ports.ToolCall{
 		ID:        "call-1",

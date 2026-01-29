@@ -10,7 +10,7 @@ describe('EventLine tool start rendering', () => {
       event_type: 'workflow.tool.started',
       agent_level: 'core',
       session_id: 'session-123',
-      task_id: 'task-123',
+      run_id: 'task-123',
       timestamp: new Date().toISOString(),
       iteration: 1,
       call_id: 'call-1',

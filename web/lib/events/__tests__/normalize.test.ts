@@ -9,7 +9,7 @@ describe('normalizeAgentEvent', () => {
       timestamp: '2024-01-01T00:00:00Z',
       agent_level: 'core',
       session_id: 'session-share',
-      task_id: 'task-share',
+      run_id: 'task-share',
       payload: {
         tool_name: 'bash',
         call_id: 'call-1',
@@ -58,7 +58,7 @@ describe('normalizeAgentEvent', () => {
         timestamp: '2024-01-01T00:00:00Z',
         agent_level: 'core',
         session_id: 'session-1',
-        task_id: 'task-1',
+        run_id: 'task-1',
         final_answer: 'first',
       },
       {
@@ -76,7 +76,7 @@ describe('normalizeAgentEvent', () => {
         timestamp: '2024-01-01T00:00:02Z',
         agent_level: 'core',
         session_id: 'session-1',
-        task_id: 'task-1',
+        run_id: 'task-1',
         final_answer: 'second',
       },
     ];

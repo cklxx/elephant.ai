@@ -221,12 +221,28 @@ func (w *stubSubtaskWrapper) GetSessionID() string {
 	return w.inner.GetSessionID()
 }
 
-func (w *stubSubtaskWrapper) GetTaskID() string {
-	return w.inner.GetTaskID()
+func (w *stubSubtaskWrapper) GetRunID() string {
+	return w.inner.GetRunID()
 }
 
-func (w *stubSubtaskWrapper) GetParentTaskID() string {
-	return w.inner.GetParentTaskID()
+func (w *stubSubtaskWrapper) GetParentRunID() string {
+	return w.inner.GetParentRunID()
+}
+
+func (w *stubSubtaskWrapper) GetCorrelationID() string {
+	return w.inner.GetCorrelationID()
+}
+
+func (w *stubSubtaskWrapper) GetCausationID() string {
+	return w.inner.GetCausationID()
+}
+
+func (w *stubSubtaskWrapper) GetEventID() string {
+	return w.inner.GetEventID()
+}
+
+func (w *stubSubtaskWrapper) GetSeq() uint64 {
+	return w.inner.GetSeq()
 }
 
 func (w *stubSubtaskWrapper) SubtaskDetails() agent.SubtaskMetadata {

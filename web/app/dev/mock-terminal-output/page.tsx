@@ -22,8 +22,8 @@ function createSessionId() {
 function findLatestTask(events: AnyAgentEvent[]): string | null {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
-    if ('task_id' in event && event.task_id) {
-      return event.task_id;
+    if ('run_id' in event && event.run_id) {
+      return event.run_id;
     }
   }
   return null;

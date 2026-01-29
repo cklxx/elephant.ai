@@ -155,8 +155,8 @@ func newWorkflowEventBridge(workflowID string, listener agent.EventListener, log
 	if outCtx != nil {
 		ctx.level = outCtx.Level
 		ctx.sessionID = outCtx.SessionID
-		ctx.taskID = outCtx.TaskID
-		ctx.parentTaskID = outCtx.ParentTaskID
+		ctx.runID = outCtx.TaskID
+		ctx.parentRunID = outCtx.ParentTaskID
 		ctx.logID = outCtx.LogID
 	}
 	return &workflowEventBridge{
@@ -207,11 +207,11 @@ func (b *workflowEventBridge) resolveIndex(evt workflow.Event) (int, bool) {
 }
 
 type workflowEventContext struct {
-	sessionID    string
-	taskID       string
-	parentTaskID string
-	level        agent.AgentLevel
-	logID        string
+	sessionID   string
+	runID       string
+	parentRunID string
+	level       agent.AgentLevel
+	logID       string
 }
 
 func (c *workflowEventContext) updateFromOutputContext(outCtx *agent.OutputContext) {
@@ -219,10 +219,10 @@ func (c *workflowEventContext) updateFromOutputContext(outCtx *agent.OutputConte
 		c.sessionID = outCtx.SessionID
 	}
 	if outCtx.TaskID != "" {
-		c.taskID = outCtx.TaskID
+		c.runID = outCtx.TaskID
 	}
 	if outCtx.ParentTaskID != "" {
-		c.parentTaskID = outCtx.ParentTaskID
+		c.parentRunID = outCtx.ParentTaskID
 	}
 	if outCtx.Level != "" {
 		c.level = outCtx.Level
@@ -282,7 +282,7 @@ func (c workflowEventContext) baseEvent(ts time.Time) domain.BaseEvent {
 	if ts.IsZero() {
 		ts = time.Now()
 	}
-	base := domain.NewBaseEvent(c.level, c.sessionID, c.taskID, c.parentTaskID, ts)
+	base := domain.NewBaseEvent(c.level, c.sessionID, c.runID, c.parentRunID, ts)
 	if c.logID != "" {
 		base.SetLogID(c.logID)
 	}

@@ -41,7 +41,7 @@ func TestInMemoryTaskStore_Create(t *testing.T) {
 }
 
 func TestInMemoryTaskStore_CreateCapturesParentTaskID(t *testing.T) {
-	ctx := id.WithParentTaskID(context.Background(), "parent-123")
+	ctx := id.WithParentRunID(context.Background(), "parent-123")
 	store := NewInMemoryTaskStore()
 
 	task, err := store.Create(ctx, "session-1", "Test task", "", "")
@@ -157,12 +157,12 @@ func TestInMemoryTaskStore_SetResult(t *testing.T) {
 	task, _ := store.Create(ctx, "session-1", "Test task", "", "")
 
 	result := &agent.TaskResult{
-		Answer:       "Task completed",
-		Iterations:   5,
-		TokensUsed:   1000,
-		StopReason:   "final_answer",
-		SessionID:    "session-1",
-		ParentTaskID: "parent-xyz",
+		Answer:      "Task completed",
+		Iterations:  5,
+		TokensUsed:  1000,
+		StopReason:  "final_answer",
+		SessionID:   "session-1",
+		ParentRunID: "parent-xyz",
 	}
 
 	err := store.SetResult(ctx, task.ID, result)

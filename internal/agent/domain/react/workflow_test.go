@@ -170,7 +170,7 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 
 	state := &TaskState{
 		SessionID: "sess",
-		TaskID:    "task",
+		RunID:    "task",
 		PendingUserAttachments: map[string]ports.Attachment{
 			"note.txt": {Name: "note.txt", MediaType: "text/plain"},
 		},
@@ -308,7 +308,7 @@ func TestReactEngineBlocksMultipleToolCallsPerIteration(t *testing.T) {
 		Workflow:      tracker,
 	})
 
-	state := &TaskState{SessionID: "sess", TaskID: "task"}
+	state := &TaskState{SessionID: "sess", RunID: "task"}
 	if _, err := engine.SolveTask(context.Background(), "do work", state, services); err != nil {
 		t.Fatalf("SolveTask returned error: %v", err)
 	}

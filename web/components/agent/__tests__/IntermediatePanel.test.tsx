@@ -32,8 +32,8 @@ describe("IntermediatePanel", () => {
         arguments: { url: "https://example.com" },
         timestamp,
         session_id: "s1",
-        task_id: "t1",
-        parent_task_id: undefined,
+        run_id: "t1",
+        parent_run_id: undefined,
       },
       {
         event_type: "workflow.tool.completed",
@@ -44,8 +44,8 @@ describe("IntermediatePanel", () => {
         duration: 1200,
         timestamp: new Date(Date.now() + 50).toISOString(),
         session_id: "s1",
-        task_id: "t1",
-        parent_task_id: undefined,
+        run_id: "t1",
+        parent_run_id: undefined,
       },
       {
         event_type: "workflow.tool.started",
@@ -55,8 +55,8 @@ describe("IntermediatePanel", () => {
         arguments: { command: "npm test -- --watch=false" },
         timestamp: new Date(Date.now() + 100).toISOString(),
         session_id: "s1",
-        task_id: "t1",
-        parent_task_id: undefined,
+        run_id: "t1",
+        parent_run_id: undefined,
       },
     ];
 
@@ -79,8 +79,8 @@ describe("IntermediatePanel", () => {
         arguments: { url: "https://news.example.com" },
         timestamp: new Date().toISOString(),
         session_id: "s2",
-        task_id: "t2",
-        parent_task_id: undefined,
+        run_id: "t2",
+        parent_run_id: undefined,
       },
       {
         event_type: "workflow.tool.completed",
@@ -91,8 +91,8 @@ describe("IntermediatePanel", () => {
         duration: 800,
         timestamp: new Date(Date.now() + 25).toISOString(),
         session_id: "s2",
-        task_id: "t2",
-        parent_task_id: undefined,
+        run_id: "t2",
+        parent_run_id: undefined,
       },
     ];
 
@@ -118,8 +118,8 @@ describe("IntermediatePanel", () => {
         arguments: { todos: [] },
         timestamp: start.toISOString(),
         session_id: "s10",
-        task_id: "t10",
-        parent_task_id: undefined,
+        run_id: "t10",
+        parent_run_id: undefined,
       },
     ];
 
@@ -140,8 +140,8 @@ describe("IntermediatePanel", () => {
         duration: 1200,
         timestamp: new Date(start.getTime() + 5200).toISOString(),
         session_id: "s10",
-        task_id: "t10",
-        parent_task_id: undefined,
+        run_id: "t10",
+        parent_run_id: undefined,
         metadata: {
           total_count: 1,
           in_progress_count: 0,
