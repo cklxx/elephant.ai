@@ -208,11 +208,12 @@ func (b *containerBuilder) buildSessionResources() (sessionResources, error) {
 		b.logPostgresFailure(err)
 	}
 
+	memoryDir := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
 	return sessionResources{
 		sessionStore: filestore.New(b.sessionDir),
 		stateStore:   sessionstate.NewFileStore(filepath.Join(b.sessionDir, "snapshots")),
 		historyStore: sessionstate.NewFileStore(filepath.Join(b.sessionDir, "turns")),
-		memoryStore:  memory.NewInMemoryStore(),
+		memoryStore:  memory.NewFileStore(memoryDir),
 	}, nil
 }
 

@@ -55,24 +55,24 @@ func TestNewGatewayPreservesCustomPrefix(t *testing.T) {
 	}
 }
 
-func TestSessionIDForChatDeterministic(t *testing.T) {
+func TestMemoryIDForChatDeterministic(t *testing.T) {
 	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
-	first := gw.sessionIDForChat("oc_abc123")
-	second := gw.sessionIDForChat("oc_abc123")
+	first := gw.memoryIDForChat("oc_abc123")
+	second := gw.memoryIDForChat("oc_abc123")
 	if first != second {
-		t.Fatalf("expected deterministic session id, got %q vs %q", first, second)
+		t.Fatalf("expected deterministic memory id, got %q vs %q", first, second)
 	}
 	if !strings.HasPrefix(first, "lark-") {
 		t.Fatalf("expected prefix 'lark-', got %q", first)
 	}
 }
 
-func TestSessionIDForChatDistinct(t *testing.T) {
+func TestMemoryIDForChatDistinct(t *testing.T) {
 	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
-	a := gw.sessionIDForChat("oc_chat_a")
-	b := gw.sessionIDForChat("oc_chat_b")
+	a := gw.memoryIDForChat("oc_chat_a")
+	b := gw.memoryIDForChat("oc_chat_b")
 	if a == b {
-		t.Fatalf("expected different session ids for different chats, both got %q", a)
+		t.Fatalf("expected different memory ids for different chats, both got %q", a)
 	}
 }
 

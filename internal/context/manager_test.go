@@ -144,9 +144,8 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 
 	prompt := window.SystemPrompt
 	expectations := []string{
-		"correctness, reproducibility, and controlled risk",
-		"propose a direction early",
-		"In execution, inspect code",
+		"a sharp coding partner who thinks fast and talks with a bit of flair",
+		"A few sentences beat a wall of text every time",
 		"Workflow Contract (Strict): Flow: Plan -> Clarify (when needed) -> ReAct -> Finalize.",
 		"Never execute destructive shell commands or delete data without explicit confirmation.",
 	}

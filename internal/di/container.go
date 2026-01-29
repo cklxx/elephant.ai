@@ -103,6 +103,7 @@ type Config struct {
 	// Storage Configuration
 	SessionDir                   string // Directory for session storage (default: ~/.alex/sessions)
 	CostDir                      string // Directory for cost tracking (default: ~/.alex/costs)
+	MemoryDir                    string // Directory for file-based memory storage (default: ~/.alex/memory)
 	SessionDatabaseURL           string // Optional database URL for session persistence
 	SessionPoolMaxConns          int
 	SessionPoolMinConns          int

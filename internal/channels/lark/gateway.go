@@ -214,8 +214,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		return nil
 	}
 
-	sessionID := g.sessionIDForChat(chatID)
-	lock := g.sessionLock(sessionID)
+	// Each message gets a fresh session (zero history). Memory recall
+	// injects relevant context instead of accumulating session messages.
+	memoryID := g.memoryIDForChat(chatID)
+	sessionID := fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
+
+	lock := g.sessionLock(memoryID)
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -276,9 +280,10 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	execCtx = shared.WithParentListener(execCtx, listener)
 
 	// Memory recall: inject relevant past learnings into the task context.
+	// Uses memoryID (stable per chat) so memories persist across fresh sessions.
 	taskContent := content
 	if g.memoryMgr != nil {
-		if recalled := g.memoryMgr.RecallForTask(execCtx, sessionID, content); recalled != "" {
+		if recalled := g.memoryMgr.RecallForTask(execCtx, memoryID, content); recalled != "" {
 			taskContent = recalled + "\n\n" + content
 		}
 	}
@@ -290,7 +295,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	// Memory save: persist important notes from the result.
 	if g.memoryMgr != nil {
-		g.memoryMgr.SaveFromResult(execCtx, sessionID, result)
+		g.memoryMgr.SaveFromResult(execCtx, memoryID, result)
 	}
 
 	reply := g.buildReply(result, execErr)
@@ -513,8 +518,9 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 	return reply
 }
 
-// sessionIDForChat derives a deterministic session ID from a chat ID.
-func (g *Gateway) sessionIDForChat(chatID string) string {
+// memoryIDForChat derives a deterministic memory identity from a chat ID.
+// This stable ID is used for memory save/recall across fresh sessions.
+func (g *Gateway) memoryIDForChat(chatID string) string {
 	hash := sha1.Sum([]byte(chatID))
 	return fmt.Sprintf("%s-%x", g.cfg.SessionPrefix, hash[:8])
 }
