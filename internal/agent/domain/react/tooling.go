@@ -89,7 +89,7 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 			content = fmt.Sprintf("Tool %s completed successfully.", result.CallID)
 		}
 
-		content = ensureToolAttachmentReferences(content, result.Attachments)
+		content = strings.TrimSpace(content)
 
 		msg := Message{
 			Role:        "tool",

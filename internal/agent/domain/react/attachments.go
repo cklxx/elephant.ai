@@ -10,36 +10,6 @@ import (
 	"alex/internal/agent/ports"
 )
 
-// ensureToolAttachmentReferences injects attachment placeholders into the
-// content when a tool emitted attachments but forgot to reference them.
-func ensureToolAttachmentReferences(content string, attachments map[string]ports.Attachment) string {
-	if len(attachments) == 0 {
-		return strings.TrimSpace(content)
-	}
-
-	normalized := strings.TrimSpace(content)
-	mentioned := make(map[string]bool, len(attachments))
-
-	keys := sortedAttachmentKeys(attachments)
-	for _, name := range keys {
-		placeholder := fmt.Sprintf("[%s]", name)
-		if strings.Contains(normalized, placeholder) {
-			mentioned[name] = true
-		}
-	}
-
-	var builder strings.Builder
-	if normalized != "" {
-		builder.WriteString(normalized)
-		builder.WriteString("\n\n")
-	}
-	builder.WriteString("Attachments available for follow-up steps:\n")
-	for _, name := range keys {
-		fmt.Fprintf(&builder, "- [%s]%s\n", name, boolToStar(mentioned[name]))
-	}
-
-	return strings.TrimSpace(builder.String())
-}
 
 // snapshotAttachments clones the attachment store and returns per-attachment
 // iteration indices for later reconciliation.
@@ -62,13 +32,6 @@ func snapshotAttachments(state *TaskState) (map[string]ports.Attachment, map[str
 		}
 	}
 	return attachments, iterations
-}
-
-func boolToStar(b bool) string {
-	if b {
-		return " (referenced)"
-	}
-	return ""
 }
 
 // normalizeToolAttachments standardizes tool attachments by filling defaults
@@ -438,19 +401,19 @@ func buildAttachmentCatalogContent(state *TaskState) string {
 	}
 
 	var builder strings.Builder
-	builder.WriteString("Attachment catalog (for model reference only).\n")
-	builder.WriteString("Reference assets by typing their placeholders exactly as shown (e.g., [diagram.png]).\n\n")
+	builder.WriteString("Attachment catalog (informational — the system displays these to the user automatically).\n")
+	builder.WriteString("Do not reference these files in your response text. They will be attached to the final result automatically.\n\n")
 
 	for i, key := range keys {
 		att := state.Attachments[key]
-		placeholder := strings.TrimSpace(key)
-		if placeholder == "" {
-			placeholder = strings.TrimSpace(att.Name)
+		name := strings.TrimSpace(key)
+		if name == "" {
+			name = strings.TrimSpace(att.Name)
 		}
-		if placeholder == "" {
+		if name == "" {
 			continue
 		}
-		builder.WriteString(fmt.Sprintf("%d. [%s]", i+1, placeholder))
+		builder.WriteString(fmt.Sprintf("%d. %s", i+1, name))
 		var meta []string
 		description := strings.TrimSpace(att.Description)
 		if description != "" {
@@ -465,7 +428,7 @@ func buildAttachmentCatalogContent(state *TaskState) string {
 		builder.WriteString("\n")
 	}
 
-	builder.WriteString("\nUse the placeholders verbatim to work with these attachments in follow-up steps.")
+	builder.WriteString("\nThese attachments are available for follow-up tool calls if needed.")
 
 	return strings.TrimSpace(builder.String())
 }
@@ -797,9 +760,38 @@ func collectGeneratedAttachments(state *TaskState, iteration int) map[string]por
 	return generated
 }
 
-// ensureAttachmentPlaceholders strips all attachment placeholder markers from
-// the final answer. Attachments are delivered as separate messages by downstream
-// channels, so inline placeholders should not leak into the reply text.
+// collectAllToolGeneratedAttachments returns every non-user-upload attachment
+// from the task state, regardless of whether the final answer references them.
+// This is used by finalize() so the final result carries the complete set of
+// tool-generated assets for downstream rendering.
+func collectAllToolGeneratedAttachments(state *TaskState) map[string]ports.Attachment {
+	if state == nil || len(state.Attachments) == 0 {
+		return nil
+	}
+	collected := make(map[string]ports.Attachment)
+	for key, att := range state.Attachments {
+		if strings.EqualFold(strings.TrimSpace(att.Source), "user_upload") {
+			continue
+		}
+		placeholder := strings.TrimSpace(key)
+		if placeholder == "" {
+			placeholder = strings.TrimSpace(att.Name)
+		}
+		if placeholder == "" {
+			continue
+		}
+		cloned := att
+		if cloned.Name == "" {
+			cloned.Name = placeholder
+		}
+		collected[placeholder] = cloned
+	}
+	if len(collected) == 0 {
+		return nil
+	}
+	return collected
+}
+
 // stripAttachmentPlaceholders removes all [placeholder] markers from the text.
 // Attachments are delivered as separate messages by downstream channels.
 func stripAttachmentPlaceholders(answer string) string {
