@@ -37,6 +37,7 @@ type TaskAnalysis struct {
 	SuccessCriteria []string
 	TaskBreakdown   []TaskAnalysisStep
 	Retrieval       TaskRetrievalPlan
+	ReactEmoji      string
 }
 
 // TaskAnalysisStep captures a step in the pre-analysis task plan.

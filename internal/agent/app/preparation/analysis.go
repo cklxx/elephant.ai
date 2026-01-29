@@ -55,9 +55,12 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 					"Output requirements:\n" +
 					`- Respond ONLY with JSON.\n` +
 					taskNameRule +
+					`- react_emoji: a single Lark emoji type that best matches the user's message sentiment/topic. ` +
+					`Choose from: THUMBSUP, SMILE, WAVE, THINKING, MUSCLE, HEART, APPLAUSE, DONE, Coffee, Fire, LGTM, OK, THANKS, Get, JIAYI.` + "\n\n" +
 					`Schema: {"complexity":"simple|complex","recommended_model":"small|default","task_name":"...","goal":"...","approach":"...","success_criteria":["..."],` +
 					`"steps":[{"description":"...","rationale":"...","needs_external_context":false}],` +
-					`"retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""}}`,
+					`"retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""},` +
+					`"react_emoji":"..."}`,
 			},
 			{Role: "user", Content: task},
 		},
@@ -146,6 +149,7 @@ func quickTriageTask(task string) (*agent.TaskAnalysis, bool, bool) {
 			ActionName: "Greeting",
 			Goal:       "",
 			Approach:   "greeting",
+			ReactEmoji: "WAVE",
 		}, true, true
 	case "thanks", "thank you", "thx", "谢谢", "多谢", "感谢", "ok", "okay", "好的", "收到":
 		return &agent.TaskAnalysis{
@@ -153,6 +157,7 @@ func quickTriageTask(task string) (*agent.TaskAnalysis, bool, bool) {
 			ActionName: "Acknowledge",
 			Goal:       "",
 			Approach:   "ack",
+			ReactEmoji: "THUMBSUP",
 		}, true, true
 	default:
 		return nil, false, false
@@ -205,6 +210,7 @@ type taskAnalysisPayload struct {
 	SuccessCriteria  []string                   `json:"success_criteria"`
 	Steps            []taskAnalysisStepPayload  `json:"steps"`
 	Retrieval        taskAnalysisRetrievalHints `json:"retrieval"`
+	ReactEmoji       string                     `json:"react_emoji"`
 }
 
 type taskAnalysisStepPayload struct {
@@ -242,6 +248,7 @@ func parseTaskAnalysis(raw string) (*agent.TaskAnalysis, string) {
 		Goal:            strings.TrimSpace(payload.Goal),
 		Approach:        strings.TrimSpace(payload.Approach),
 		SuccessCriteria: compactStrings(payload.SuccessCriteria),
+		ReactEmoji:      strings.TrimSpace(payload.ReactEmoji),
 	}
 
 	if len(payload.Steps) > 0 {

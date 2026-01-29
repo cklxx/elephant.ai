@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"alex/internal/agent/domain"
 	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
@@ -310,3 +312,74 @@ func (s *stubExecutor) EnsureSession(_ context.Context, sessionID string) (*stor
 func (s *stubExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
 	return nil, nil
 }
+
+func TestEmojiReactionInterceptorDelegatesAndReactsOnce(t *testing.T) {
+	delegate := &recordingGatewayListener{}
+
+	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+
+	interceptor := &emojiReactionInterceptor{
+		delegate:  delegate,
+		gateway:   gw,
+		messageID: "om_test_123",
+		ctx:       context.Background(),
+	}
+
+	// First emoji event should trigger (but addReaction won't do anything since client is nil).
+	emojiEvent := domain.NewWorkflowPreAnalysisEmojiEvent(
+		agent.LevelCore, "sess", "run", "", "WAVE", time.Now(),
+	)
+	interceptor.OnEvent(emojiEvent)
+	interceptor.OnEvent(emojiEvent) // Second call should not react again (sync.Once).
+
+	// Non-emoji events should still be delegated.
+	otherEvent := &stubAgentEvent{eventType: "workflow.node.started"}
+	interceptor.OnEvent(otherEvent)
+
+	events := delegate.EventTypes()
+	if len(events) != 3 {
+		t.Fatalf("expected 3 delegated events, got %d: %v", len(events), events)
+	}
+	if events[0] != "workflow.diagnostic.preanalysis_emoji" {
+		t.Fatalf("expected first event to be emoji, got %q", events[0])
+	}
+	if events[2] != "workflow.node.started" {
+		t.Fatalf("expected third event to be node.started, got %q", events[2])
+	}
+}
+
+type recordingGatewayListener struct {
+	mu     sync.Mutex
+	events []agent.AgentEvent
+}
+
+func (l *recordingGatewayListener) OnEvent(event agent.AgentEvent) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.events = append(l.events, event)
+}
+
+func (l *recordingGatewayListener) EventTypes() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	types := make([]string, len(l.events))
+	for i, e := range l.events {
+		types[i] = e.EventType()
+	}
+	return types
+}
+
+type stubAgentEvent struct {
+	eventType string
+}
+
+func (e *stubAgentEvent) EventType() string          { return e.eventType }
+func (e *stubAgentEvent) Timestamp() time.Time       { return time.Time{} }
+func (e *stubAgentEvent) GetAgentLevel() agent.AgentLevel { return "" }
+func (e *stubAgentEvent) GetSessionID() string        { return "" }
+func (e *stubAgentEvent) GetRunID() string            { return "" }
+func (e *stubAgentEvent) GetParentRunID() string      { return "" }
+func (e *stubAgentEvent) GetCorrelationID() string    { return "" }
+func (e *stubAgentEvent) GetCausationID() string      { return "" }
+func (e *stubAgentEvent) GetEventID() string          { return "" }
+func (e *stubAgentEvent) GetSeq() uint64              { return 0 }

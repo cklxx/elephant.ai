@@ -309,6 +309,16 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			s.preAnalyzeTaskAsync(ctx, session, task)
 		}
 	}
+	if taskAnalysis != nil && taskAnalysis.ReactEmoji != "" {
+		s.eventEmitter.OnEvent(domain.NewWorkflowPreAnalysisEmojiEvent(
+			agent.LevelCore,
+			session.ID,
+			ids.RunID,
+			ids.ParentRunID,
+			taskAnalysis.ReactEmoji,
+			s.clock.Now(),
+		))
+	}
 	if session != nil && taskAnalysis != nil {
 		if session.Metadata == nil {
 			session.Metadata = make(map[string]string)
@@ -468,6 +478,7 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 	}
 
 	sessionID := session.ID
+	ids := id.IDsFromContext(ctx)
 
 	// Snapshot a minimal session for the goroutine so it doesn't race with the
 	// caller mutating the original session object.
@@ -485,6 +496,16 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 		analysis, _ := s.preAnalyzeTask(bgCtx, sessionSnapshot, task)
 		if analysis == nil {
 			return
+		}
+		if analysis.ReactEmoji != "" {
+			s.eventEmitter.OnEvent(domain.NewWorkflowPreAnalysisEmojiEvent(
+				agent.LevelCore,
+				sessionID,
+				ids.RunID,
+				ids.ParentRunID,
+				analysis.ReactEmoji,
+				s.clock.Now(),
+			))
 		}
 		title := sessiontitle.NormalizeSessionTitle(analysis.ActionName)
 		if title == "" {

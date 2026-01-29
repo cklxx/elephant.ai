@@ -57,7 +57,8 @@ func (c *triageClient) Complete(ctx context.Context, req ports.CompletionRequest
   "approach":"Edit the file",
   "success_criteria":["README builds"],
   "steps":[{"description":"Edit README.md","rationale":"Correct the typo","needs_external_context":false}],
-  "retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""}
+  "retrieval":{"should_retrieve":false,"local_queries":[],"search_queries":[],"crawl_urls":[],"knowledge_gaps":[],"notes":""},
+  "react_emoji":"THUMBSUP"
 }`}, nil
 	}
 	return &ports.CompletionResponse{Content: "ok"}, nil
@@ -219,5 +220,127 @@ func TestPrepareUsesPinnedSelectionAndSkipsSmallModel(t *testing.T) {
 	modelCalls := factory.CallModels()
 	if len(modelCalls) != 1 || modelCalls[0] != "codex|gpt-5.2-codex" {
 		t.Fatalf("expected pinned model only, got %v", modelCalls)
+	}
+}
+
+func TestParseTaskAnalysisExtractsReactEmoji(t *testing.T) {
+	analysis, _ := parseTaskAnalysis(`{
+		"complexity":"simple",
+		"recommended_model":"small",
+		"task_name":"Greeting",
+		"goal":"greet",
+		"approach":"respond",
+		"success_criteria":[],
+		"steps":[],
+		"retrieval":{"should_retrieve":false},
+		"react_emoji":"WAVE"
+	}`)
+	if analysis == nil {
+		t.Fatal("expected analysis")
+	}
+	if analysis.ReactEmoji != "WAVE" {
+		t.Fatalf("expected react_emoji WAVE, got %q", analysis.ReactEmoji)
+	}
+}
+
+func TestParseTaskAnalysisEmptyReactEmoji(t *testing.T) {
+	analysis, _ := parseTaskAnalysis(`{
+		"complexity":"complex",
+		"recommended_model":"default",
+		"task_name":"Build feature",
+		"goal":"build",
+		"approach":"code",
+		"success_criteria":[],
+		"steps":[],
+		"retrieval":{"should_retrieve":false}
+	}`)
+	if analysis == nil {
+		t.Fatal("expected analysis")
+	}
+	if analysis.ReactEmoji != "" {
+		t.Fatalf("expected empty react_emoji, got %q", analysis.ReactEmoji)
+	}
+}
+
+func TestQuickTriageTaskEmoji(t *testing.T) {
+	tests := []struct {
+		input string
+		emoji string
+	}{
+		{"hello", "WAVE"},
+		{"你好", "WAVE"},
+		{"hi", "WAVE"},
+		{"thanks", "THUMBSUP"},
+		{"谢谢", "THUMBSUP"},
+		{"ok", "THUMBSUP"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			analysis, _, ok := quickTriageTask(tt.input)
+			if !ok {
+				t.Fatalf("expected quickTriageTask to match %q", tt.input)
+			}
+			if analysis.ReactEmoji != tt.emoji {
+				t.Fatalf("expected emoji %q for %q, got %q", tt.emoji, tt.input, analysis.ReactEmoji)
+			}
+		})
+	}
+}
+
+type recordingEventListener struct {
+	mu     sync.Mutex
+	events []agent.AgentEvent
+}
+
+func (l *recordingEventListener) OnEvent(event agent.AgentEvent) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.events = append(l.events, event)
+}
+
+func (l *recordingEventListener) Events() []agent.AgentEvent {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]agent.AgentEvent(nil), l.events...)
+}
+
+func TestPrepareEmitsEmojiEventForGreeting(t *testing.T) {
+	session := &storage.Session{ID: "session-emoji-greeting", Messages: nil, Metadata: map[string]string{}}
+	store := &stubSessionStore{session: session}
+	factory := &recordingLLMFactory{}
+	listener := &recordingEventListener{}
+
+	service := NewExecutionPreparationService(ExecutionPreparationDeps{
+		LLMFactory:   factory,
+		ToolRegistry: &registryWithList{defs: []ports.ToolDefinition{{Name: "shell"}}},
+		SessionStore: store,
+		ContextMgr:   stubContextManager{},
+		Parser:       stubParser{},
+		Config: appconfig.Config{
+			LLMProvider:      "mock-default",
+			LLMModel:         "default-model",
+			LLMSmallProvider: "mock-small",
+			LLMSmallModel:    "small-model",
+			MaxIterations:    3,
+		},
+		Logger:       agent.NoopLogger{},
+		EventEmitter: listener,
+	})
+
+	_, err := service.Prepare(context.Background(), "hello", session.ID)
+	if err != nil {
+		t.Fatalf("prepare failed: %v", err)
+	}
+
+	events := listener.Events()
+	var found bool
+	for _, evt := range events {
+		if evt.EventType() == "workflow.diagnostic.preanalysis_emoji" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("expected WorkflowPreAnalysisEmojiEvent to be emitted for greeting")
 	}
 }

@@ -303,6 +303,29 @@ type WorkflowNodeFailedEvent struct {
 
 func (e *WorkflowNodeFailedEvent) EventType() string { return "workflow.node.failed" }
 
+// WorkflowPreAnalysisEmojiEvent - emitted when pre-analysis determines a react emoji
+type WorkflowPreAnalysisEmojiEvent struct {
+	BaseEvent
+	ReactEmoji string
+}
+
+func (e *WorkflowPreAnalysisEmojiEvent) EventType() string {
+	return "workflow.diagnostic.preanalysis_emoji"
+}
+
+// NewWorkflowPreAnalysisEmojiEvent constructs a pre-analysis emoji event.
+func NewWorkflowPreAnalysisEmojiEvent(
+	level agent.AgentLevel,
+	sessionID, runID, parentRunID string,
+	reactEmoji string,
+	ts time.Time,
+) *WorkflowPreAnalysisEmojiEvent {
+	return &WorkflowPreAnalysisEmojiEvent{
+		BaseEvent:  newBaseEventWithIDs(level, sessionID, runID, parentRunID, ts),
+		ReactEmoji: reactEmoji,
+	}
+}
+
 // WorkflowDiagnosticContextCompressionEvent - emitted when context is compressed
 type WorkflowDiagnosticContextCompressionEvent struct {
 	BaseEvent

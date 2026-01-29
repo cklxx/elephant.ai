@@ -14,6 +14,7 @@ import (
 	"time"
 
 	appcontext "alex/internal/agent/app/context"
+	"alex/internal/agent/domain"
 	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
@@ -128,6 +129,25 @@ func (g *Gateway) Stop() {
 	// The Lark WS client is stopped by cancelling its context.
 }
 
+// emojiReactionInterceptor wraps an EventListener to intercept emoji events
+// and send a Lark reaction before delegating to the original listener.
+type emojiReactionInterceptor struct {
+	delegate  agent.EventListener
+	gateway   *Gateway
+	messageID string
+	ctx       context.Context
+	once      sync.Once
+}
+
+func (i *emojiReactionInterceptor) OnEvent(event agent.AgentEvent) {
+	if emojiEvent, ok := event.(*domain.WorkflowPreAnalysisEmojiEvent); ok && emojiEvent.ReactEmoji != "" {
+		i.once.Do(func() {
+			i.gateway.addReaction(i.ctx, i.messageID, emojiEvent.ReactEmoji)
+		})
+	}
+	i.delegate.OnEvent(event)
+}
+
 // handleMessage is the P2MessageReceiveV1 event handler.
 func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
 	if event == nil || event.Event == nil || event.Event.Message == nil {
@@ -217,6 +237,18 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if listener == nil {
 		listener = agent.NoopEventListener{}
 	}
+	if messageID != "" {
+		listener = &emojiReactionInterceptor{
+			delegate:  listener,
+			gateway:   g,
+			messageID: messageID,
+			ctx:       execCtx,
+		}
+	}
+	sender := &larkProgressSender{gateway: g, chatID: chatID, messageID: messageID, isGroup: isGroup}
+	progressLn := newProgressListener(execCtx, listener, sender, g.logger)
+	defer progressLn.Close()
+	listener = progressLn
 	execCtx = shared.WithParentListener(execCtx, listener)
 	result, execErr := g.agent.ExecuteTask(execCtx, content, sessionID, listener)
 	reply := g.buildReply(result, execErr)
@@ -318,6 +350,83 @@ func (g *Gateway) replyMessageTyped(ctx context.Context, messageID, msgType, con
 	if !resp.Success() {
 		g.logger.Warn("Lark reply message error: code=%d msg=%s", resp.Code, resp.Msg)
 	}
+}
+
+// sendMessageTypedWithID sends a new message and returns the message ID.
+func (g *Gateway) sendMessageTypedWithID(ctx context.Context, chatID, msgType, content string) (string, error) {
+	if g.client == nil {
+		return "", fmt.Errorf("lark client not initialized")
+	}
+	req := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType("chat_id").
+		Body(larkim.NewCreateMessageReqBodyBuilder().
+			ReceiveId(chatID).
+			MsgType(msgType).
+			Content(content).
+			Build()).
+		Build()
+
+	resp, err := g.client.Im.Message.Create(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	if !resp.Success() {
+		return "", fmt.Errorf("lark send message error: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	if resp.Data == nil || resp.Data.MessageId == nil {
+		return "", fmt.Errorf("lark send message missing message_id")
+	}
+	return *resp.Data.MessageId, nil
+}
+
+// replyMessageTypedWithID replies to a message and returns the new message ID.
+func (g *Gateway) replyMessageTypedWithID(ctx context.Context, messageID, msgType, content string) (string, error) {
+	if g.client == nil {
+		return "", fmt.Errorf("lark client not initialized")
+	}
+	req := larkim.NewReplyMessageReqBuilder().
+		MessageId(messageID).
+		Body(larkim.NewReplyMessageReqBodyBuilder().
+			MsgType(msgType).
+			Content(content).
+			Build()).
+		Build()
+
+	resp, err := g.client.Im.Message.Reply(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	if !resp.Success() {
+		return "", fmt.Errorf("lark reply message error: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	if resp.Data == nil || resp.Data.MessageId == nil {
+		return "", fmt.Errorf("lark reply message missing message_id")
+	}
+	return *resp.Data.MessageId, nil
+}
+
+// updateMessage updates an existing text message in-place using the Lark
+// im/v1/messages/:message_id (PUT) API.
+func (g *Gateway) updateMessage(ctx context.Context, messageID, text string) error {
+	if g.client == nil {
+		return fmt.Errorf("lark client not initialized")
+	}
+	req := larkim.NewUpdateMessageReqBuilder().
+		MessageId(messageID).
+		Body(larkim.NewUpdateMessageReqBodyBuilder().
+			MsgType("text").
+			Content(textContent(text)).
+			Build()).
+		Build()
+
+	resp, err := g.client.Im.Message.Update(ctx, req)
+	if err != nil {
+		return err
+	}
+	if !resp.Success() {
+		return fmt.Errorf("lark update message error: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	return nil
 }
 
 // addReaction adds an emoji reaction to the specified message.
