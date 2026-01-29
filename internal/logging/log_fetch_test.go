@@ -75,6 +75,39 @@ func TestReadLogMatchesScansEntireFile(t *testing.T) {
 	}
 }
 
+func TestReadLogMatchesSkipsOversizedLines(t *testing.T) {
+	logDir := t.TempDir()
+	// Line 1: normal match
+	// Line 2: oversized (exceeds MaxLineBytes), should be skipped
+	// Line 3: normal match after the oversized line
+	var content strings.Builder
+	content.WriteString("first log_id=log-size match\n")
+	content.WriteString(strings.Repeat("A", 2048) + " log_id=log-size oversized\n")
+	content.WriteString("third log_id=log-size match\n")
+	path := filepath.Join(logDir, "test.log")
+	writeTestLog(t, path, content.String())
+
+	snippet := readLogMatches(path, "log-size", LogFetchOptions{
+		MaxBytes:     1 << 20,
+		MaxEntries:   50,
+		MaxLineBytes: 512, // Oversized line (2048+) exceeds this
+	})
+
+	if snippet.Error != "" {
+		t.Fatalf("unexpected error: %s", snippet.Error)
+	}
+	// Should find lines 1 and 3, skipping the oversized line 2.
+	if len(snippet.Entries) != 2 {
+		t.Fatalf("expected 2 entries, got %d", len(snippet.Entries))
+	}
+	if !strings.Contains(snippet.Entries[0], "first") {
+		t.Fatalf("expected first match, got: %s", snippet.Entries[0])
+	}
+	if !strings.Contains(snippet.Entries[1], "third") {
+		t.Fatalf("expected third match, got: %s", snippet.Entries[1])
+	}
+}
+
 func TestFetchLogBundleFlagsTruncation(t *testing.T) {
 	logDir := t.TempDir()
 	t.Setenv("ALEX_LOG_DIR", logDir)

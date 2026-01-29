@@ -75,7 +75,7 @@ func normalizeLogFetchOptions(opts LogFetchOptions) LogFetchOptions {
 		opts.MaxBytes = 1 << 20
 	}
 	if opts.MaxLineBytes <= 0 {
-		opts.MaxLineBytes = 1 << 20
+		opts.MaxLineBytes = 8 << 20
 	}
 	return opts
 }
@@ -107,6 +107,7 @@ func resolveRequestLogDirectory() string {
 }
 
 func readLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
+	opts = normalizeLogFetchOptions(opts)
 	snippet := LogFileSnippet{Path: path}
 	file, err := os.Open(path)
 	if err != nil {
@@ -119,12 +120,16 @@ func readLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
 	}
 	defer func() { _ = file.Close() }()
 
-	scanner := bufio.NewScanner(file)
-	scanner.Buffer(make([]byte, 0, 64*1024), opts.MaxLineBytes)
-
+	reader := bufio.NewReaderSize(file, 64*1024)
 	matchedBytes := 0
-	for scanner.Scan() {
-		line := scanner.Text()
+	for {
+		line, err := readLineString(reader, opts.MaxLineBytes)
+		if err != nil {
+			break
+		}
+		if line == "" {
+			continue
+		}
 		if strings.Contains(line, logID) {
 			snippet.Entries = append(snippet.Entries, line)
 			matchedBytes += len(line)
@@ -138,11 +143,43 @@ func readLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
 			}
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		snippet.Error = err.Error()
-	}
 
 	return snippet
+}
+
+// readLineString reads a single newline-terminated line from reader.
+// Lines longer than maxBytes are silently skipped (drained and discarded).
+// Returns ("", io.EOF) at end of input.
+func readLineString(reader *bufio.Reader, maxBytes int) (string, error) {
+	var buf []byte
+	oversize := false
+	for {
+		segment, isPrefix, err := reader.ReadLine()
+		if err != nil {
+			if len(buf) > 0 && !oversize {
+				return string(buf), nil
+			}
+			return "", err
+		}
+		if oversize {
+			if !isPrefix {
+				oversize = false
+			}
+			continue
+		}
+		buf = append(buf, segment...)
+		if len(buf) > maxBytes {
+			buf = nil
+			if isPrefix {
+				oversize = true
+			}
+			// Line exceeds limit — skip entirely.
+			continue
+		}
+		if !isPrefix {
+			return string(buf), nil
+		}
+	}
 }
 
 func readRequestLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
