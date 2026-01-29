@@ -15,6 +15,7 @@ import (
 	"alex/internal/logging"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
 func TestNewGatewayRequiresAgent(t *testing.T) {
@@ -477,6 +478,77 @@ func (l *recordingGatewayListener) EventTypes() []string {
 		types[i] = e.EventType()
 	}
 	return types
+}
+
+func TestExtractSenderID(t *testing.T) {
+	t.Run("nil event", func(t *testing.T) {
+		got := extractSenderID(nil)
+		if got != "" {
+			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+
+	t.Run("nil sender", func(t *testing.T) {
+		event := &larkim.P2MessageReceiveV1{}
+		got := extractSenderID(event)
+		if got != "" {
+			t.Fatalf("expected empty for nil event body, got %q", got)
+		}
+	})
+
+	t.Run("valid sender", func(t *testing.T) {
+		openID := "ou_user123"
+		event := &larkim.P2MessageReceiveV1{
+			Event: &larkim.P2MessageReceiveV1Data{
+				Sender: &larkim.EventSender{
+					SenderId: &larkim.UserId{
+						OpenId: &openID,
+					},
+				},
+			},
+		}
+		got := extractSenderID(event)
+		if got != "ou_user123" {
+			t.Fatalf("expected 'ou_user123', got %q", got)
+		}
+	})
+}
+
+func TestAutoChatContextConfigDefaults(t *testing.T) {
+	cfg := Config{
+		AppID:     "cli_test",
+		AppSecret: "secret",
+	}
+	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// AutoChatContext and AutoChatContextSize should be zero-value (not set by NewGateway).
+	if gw.cfg.AutoChatContext {
+		t.Fatal("expected AutoChatContext to default to false in Config")
+	}
+	if gw.cfg.AutoChatContextSize != 0 {
+		t.Fatalf("expected AutoChatContextSize to default to 0, got %d", gw.cfg.AutoChatContextSize)
+	}
+}
+
+func TestAutoChatContextConfigEnabled(t *testing.T) {
+	cfg := Config{
+		AppID:               "cli_test",
+		AppSecret:           "secret",
+		AutoChatContext:     true,
+		AutoChatContextSize: 30,
+	}
+	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !gw.cfg.AutoChatContext {
+		t.Fatal("expected AutoChatContext to be true")
+	}
+	if gw.cfg.AutoChatContextSize != 30 {
+		t.Fatalf("expected AutoChatContextSize 30, got %d", gw.cfg.AutoChatContextSize)
+	}
 }
 
 type stubAgentEvent struct {
