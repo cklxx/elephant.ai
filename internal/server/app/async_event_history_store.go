@@ -66,7 +66,7 @@ var ErrAsyncHistoryQueueFull = errors.New("async event history queue full")
 func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistoryStoreOption) *AsyncEventHistoryStore {
 	store := &AsyncEventHistoryStore{
 		inner:         inner,
-	ch:            make(chan agent.AgentEvent, 8192),
+		ch:            make(chan agent.AgentEvent, 8192),
 		flushRequests: make(chan chan error, 16),
 		done:          make(chan struct{}),
 		batchSize:     200,
