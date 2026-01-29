@@ -30,7 +30,7 @@ function inferState(
   context: SubagentContext,
 ): AgentCardState {
   if (events.length === 0) {
-    return "idle";
+    return "running";
   }
 
   const lastEvent = events[events.length - 1];

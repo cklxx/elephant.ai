@@ -8,8 +8,14 @@ import type {
 import { isEventType } from "@/lib/events/matching";
 import { ConnectionBanner } from "./ConnectionBanner";
 import { LoadingDots } from "@/components/ui/loading-states";
-import { EventLine } from "./EventLine";
+import {
+  EventLine,
+  SubagentContext,
+  getSubagentContext,
+} from "./EventLine";
 import { isSubagentLike } from "@/lib/subagent";
+import { AgentCard } from "./AgentCard";
+import { subagentThreadToCardData } from "./AgentCard/utils";
 import { ToolOutputCard } from "./ToolOutputCard";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +43,7 @@ export function ConversationEventStream({
   const orderedEvents = useMemo(() => sortEventsBySeq(events), [events]);
   const {
     mainStream,
+    subagentGroups,
     pendingTools,
     resolvePairedToolStart,
   } = useMemo(() => partitionEvents(orderedEvents, isRunning), [orderedEvents, isRunning]);
@@ -78,17 +85,69 @@ export function ConversationEventStream({
           </div>
         ))}
 
-        {mainStream.map((event, index) => (
-          <div
-            key={getEventKey(event, index)}
-            className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
-          >
-            <EventLine
-              event={event}
-              pairedToolStartEvent={resolvePairedToolStart(event)}
-            />
-          </div>
-        ))}
+        {mainStream.map((event, index) => {
+          if (isSubagentToolStarted(event)) {
+            const callId = event.call_id;
+            const threads = callId ? subagentGroups.get(callId) : undefined;
+            const fallback: SubagentThread = {
+              key: `subagent-${callId ?? index}`,
+              groupKey: callId ?? "unknown",
+              context: getSubagentContext(event),
+              events: [],
+              subtaskIndex: 0,
+              firstSeenAt: parseEventTimestamp(event),
+            };
+            const threadList = threads && threads.length > 0 ? threads : [fallback];
+            const sortedThreads = [...threadList].sort((a, b) => {
+              if (a.subtaskIndex !== b.subtaskIndex) {
+                return a.subtaskIndex - b.subtaskIndex;
+              }
+              const aTs = a.firstSeenAt ?? Number.POSITIVE_INFINITY;
+              const bTs = b.firstSeenAt ?? Number.POSITIVE_INFINITY;
+              return aTs - bTs;
+            });
+            return (
+              <div
+                key={getEventKey(event, index)}
+                className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
+                data-testid="subagent-thread-group"
+              >
+                <div className="pl-4 border-l-2 border-muted">
+                  {sortedThreads.map((thread) => (
+                    <div
+                      key={thread.key}
+                      className="mt-2 mb-2"
+                      data-testid="subagent-card-container"
+                    >
+                      <AgentCard
+                        data={subagentThreadToCardData(
+                          thread.key,
+                          thread.context,
+                          thread.events,
+                          thread.subtaskIndex,
+                        )}
+                        resolvePairedToolStart={resolvePairedToolStart}
+                        className="mx-0 my-0"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={getEventKey(event, index)}
+              className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
+            >
+              <EventLine
+                event={event}
+                pairedToolStartEvent={resolvePairedToolStart(event)}
+              />
+            </div>
+          );
+        })}
 
         {/* Pending running states */}
         {Array.from(pendingTools.values()).map((tool) => (
@@ -142,8 +201,18 @@ function getEventKey(event: AnyAgentEvent, index: number): string {
   return `event-${event.event_type}-${index}`;
 }
 
+interface SubagentThread {
+  key: string;
+  groupKey: string;
+  context: SubagentContext;
+  events: AnyAgentEvent[];
+  subtaskIndex: number;
+  firstSeenAt: number | null;
+}
+
 interface PartitionResult {
   mainStream: AnyAgentEvent[];
+  subagentGroups: Map<string, SubagentThread[]>;
   pendingTools: Map<string, WorkflowToolStartedEvent>;
   resolvePairedToolStart: (event: AnyAgentEvent) => WorkflowToolStartedEvent | undefined;
 }
@@ -154,12 +223,16 @@ interface PartitionResult {
 
 function partitionEvents(events: AnyAgentEvent[], isRunning: boolean): PartitionResult {
   const mainStream: AnyAgentEvent[] = [];
+  const subagentThreads = new Map<string, SubagentThread>();
   const startedTools = new Map<string, WorkflowToolStartedEvent>();
   const completedToolIds = new Set<string>();
 
   // First pass: track lifecycle states
   events.forEach((event) => {
     if (isSubagentLike(event)) {
+      return;
+    }
+    if (isSubagentToolStarted(event) || isSubagentToolCompleted(event)) {
       return;
     }
     const sessionId = typeof event.session_id === "string" ? event.session_id : "";
@@ -189,6 +262,30 @@ function partitionEvents(events: AnyAgentEvent[], isRunning: boolean): Partition
   // Second pass: build display streams
   events.forEach((event) => {
     if (isSubagentLike(event)) {
+      const groupKey = getSubagentGroupKey(event);
+      if (!groupKey) {
+        return;
+      }
+      const threadKey = getSubagentThreadKey(event, groupKey);
+      const context = getSubagentContext(event);
+
+      if (!subagentThreads.has(threadKey)) {
+        subagentThreads.set(threadKey, {
+          key: threadKey,
+          groupKey,
+          context,
+          events: [],
+          subtaskIndex: getSubtaskIndex(event),
+          firstSeenAt: parseEventTimestamp(event),
+        });
+      }
+
+      const thread = subagentThreads.get(threadKey)!;
+      thread.context = mergeSubagentContext(thread.context, context);
+
+      if (shouldDisplayInSubagentCard(event)) {
+        thread.events.push(event);
+      }
       return;
     }
 
@@ -198,7 +295,17 @@ function partitionEvents(events: AnyAgentEvent[], isRunning: boolean): Partition
     }
   });
 
-  return { mainStream, pendingTools, resolvePairedToolStart };
+  const subagentGroups = new Map<string, SubagentThread[]>();
+  subagentThreads.forEach((thread) => {
+    const group = subagentGroups.get(thread.groupKey);
+    if (!group) {
+      subagentGroups.set(thread.groupKey, [thread]);
+    } else {
+      group.push(thread);
+    }
+  });
+
+  return { mainStream, subagentGroups, pendingTools, resolvePairedToolStart };
 }
 
 // ============================================================================
@@ -221,11 +328,13 @@ function shouldDisplayInMainStream(event: AnyAgentEvent, isRunning: boolean): bo
   if (isEventType(event, "workflow.result.final", "workflow.result.cancelled")) return true;
 
   // Show tool completed (started is merged in)
-  if (isEventType(event, "workflow.tool.completed")) return true;
+  if (isEventType(event, "workflow.tool.started")) return true;
+  if (isEventType(event, "workflow.tool.completed")) {
+    return !isSubagentToolCompleted(event);
+  }
 
   // Skip internal lifecycle
   if (isEventType(event, "workflow.node.started", "workflow.node.completed")) return false;
-  if (isEventType(event, "workflow.tool.started")) return false;
 
   // Skip diagnostics
   if (event.event_type.startsWith("workflow.diagnostic")) return false;
@@ -240,6 +349,107 @@ function shouldDisplayInMainStream(event: AnyAgentEvent, isRunning: boolean): bo
 function parseEventTimestamp(event: AnyAgentEvent): number | null {
   const ts = Date.parse(event.timestamp ?? "");
   return Number.isFinite(ts) ? ts : null;
+}
+
+function isSubagentToolStarted(event: AnyAgentEvent): event is WorkflowToolStartedEvent {
+  return isSubagentToolEvent(event, "workflow.tool.started");
+}
+
+function isSubagentToolCompleted(event: AnyAgentEvent): boolean {
+  return isSubagentToolEvent(event, "workflow.tool.completed");
+}
+
+function isSubagentToolEvent(
+  event: AnyAgentEvent,
+  kind: "workflow.tool.started" | "workflow.tool.completed",
+): event is WorkflowToolStartedEvent {
+  if (!isEventType(event, kind)) {
+    return false;
+  }
+  const toolName =
+    "tool_name" in event && typeof event.tool_name === "string"
+      ? event.tool_name.toLowerCase()
+      : "";
+  return toolName === "subagent";
+}
+
+function getSubagentGroupKey(event: AnyAgentEvent): string | null {
+  const causationId =
+    "causation_id" in event && typeof event.causation_id === "string"
+      ? event.causation_id
+      : "";
+  if (causationId.trim()) {
+    return causationId.trim();
+  }
+  const callId =
+    "call_id" in event && typeof event.call_id === "string"
+      ? event.call_id
+      : "";
+  if (callId.trim()) {
+    return callId.trim();
+  }
+  const parentRunId =
+    "parent_run_id" in event && typeof event.parent_run_id === "string"
+      ? event.parent_run_id
+      : "";
+  if (parentRunId.trim()) {
+    return parentRunId.trim();
+  }
+  return null;
+}
+
+function getSubagentThreadKey(event: AnyAgentEvent, groupKey: string): string {
+  const runId =
+    "run_id" in event && typeof event.run_id === "string" ? event.run_id : "";
+  if (runId.trim()) {
+    return `${groupKey}|${runId.trim()}`;
+  }
+  const callId =
+    "call_id" in event && typeof event.call_id === "string" ? event.call_id : "";
+  if (callId.trim()) {
+    return `${groupKey}|call:${callId.trim()}`;
+  }
+  const eventId =
+    "event_id" in event && typeof event.event_id === "string" ? event.event_id : "";
+  if (eventId.trim()) {
+    return `${groupKey}|evt:${eventId.trim()}`;
+  }
+  const ts = event.timestamp ?? Date.now().toString();
+  return `${groupKey}|unknown:${ts}`;
+}
+
+function shouldDisplayInSubagentCard(event: AnyAgentEvent): boolean {
+  return isEventType(
+    event,
+    "workflow.tool.completed",
+    "workflow.result.final",
+    "workflow.result.cancelled",
+    "workflow.node.output.summary",
+    "workflow.node.failed",
+    "workflow.subflow.completed",
+  );
+}
+
+function getSubtaskIndex(event: AnyAgentEvent): number {
+  return "subtask_index" in event && typeof event.subtask_index === "number"
+    ? event.subtask_index
+    : Number.POSITIVE_INFINITY;
+}
+
+function mergeSubagentContext(
+  existing: SubagentContext,
+  incoming: SubagentContext,
+): SubagentContext {
+  return {
+    ...existing,
+    ...incoming,
+    preview: incoming.preview ?? existing.preview,
+    concurrency: incoming.concurrency ?? existing.concurrency,
+    progress: incoming.progress ?? existing.progress,
+    stats: incoming.stats ?? existing.stats,
+    status: incoming.status ?? existing.status,
+    statusTone: incoming.statusTone ?? existing.statusTone,
+  };
 }
 
 function sortEventsBySeq(events: AnyAgentEvent[]): AnyAgentEvent[] {
