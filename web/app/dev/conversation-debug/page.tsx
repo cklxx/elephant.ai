@@ -300,9 +300,14 @@ function LLMCallDetailView({
     }
   }, [logId, cached, onFetch]);
 
+  const requestsSnippet = useMemo(() => {
+    if (!cached || cached === "loading" || cached === "error") return null;
+    return cached.requests ?? null;
+  }, [cached]);
+
   const requestEntries = useMemo(() => {
-    if (!cached || cached === "loading" || cached === "error") return [];
-    const raw = cached.requests?.entries ?? [];
+    if (!requestsSnippet) return [];
+    const raw = requestsSnippet.entries ?? [];
     return raw.map((line) => {
       try {
         return JSON.parse(line) as Record<string, unknown>;
@@ -310,13 +315,28 @@ function LLMCallDetailView({
         return null;
       }
     }).filter((item): item is Record<string, unknown> => item !== null);
-  }, [cached]);
+  }, [requestsSnippet]);
 
   const matchedEntries = useMemo(() => {
-    if (!entry.requestId) return requestEntries;
-    return requestEntries.filter(
+    if (!entry.requestId || requestEntries.length === 0) return requestEntries;
+    // Try exact match on request_id
+    const exact = requestEntries.filter(
       (item) => item.request_id === entry.requestId,
     );
+    if (exact.length > 0) return exact;
+    // Fall back: match by llm-<ksuid> suffix (the entry may store a shorter form)
+    const llmSuffix = entry.requestId.includes(":llm-")
+      ? entry.requestId.slice(entry.requestId.lastIndexOf(":llm-") + 1)
+      : null;
+    if (llmSuffix) {
+      const bySuffix = requestEntries.filter((item) => {
+        const rid = typeof item.request_id === "string" ? item.request_id : "";
+        return rid === llmSuffix || rid.endsWith(llmSuffix);
+      });
+      if (bySuffix.length > 0) return bySuffix;
+    }
+    // Final fallback: return all entries (already scoped by log_id on the backend)
+    return requestEntries;
   }, [requestEntries, entry.requestId]);
 
   const requestPayloads = useMemo(
@@ -361,11 +381,17 @@ function LLMCallDetailView({
         )}
         {logId && cached && cached !== "loading" && cached !== "error" && (
           <>
-            {matchedEntries.length === 0 ? (
-              <p className="text-xs text-muted-foreground">
-                No matching request entries found for request_id={entry.requestId || "—"}.
+            {requestsSnippet?.error && (
+              <p className="text-xs text-rose-600">
+                Request log error: {requestsSnippet.error === "not_found" ? "llm.jsonl not found" : requestsSnippet.error}
               </p>
-            ) : (
+            )}
+            {!requestsSnippet?.error && matchedEntries.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No request log entries found (log_id={logId}, raw entries={requestsSnippet?.entries?.length ?? 0}).
+              </p>
+            )}
+            {matchedEntries.length > 0 && (
               <>
                 {requestPayloads.length > 0 && (
                   <details className="rounded-md border border-dashed border-border/70 bg-muted/30 px-2 py-1">
