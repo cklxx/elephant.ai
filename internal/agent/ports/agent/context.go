@@ -137,6 +137,10 @@ type KnowledgeReference struct {
 	SOPRefs        []string `json:"sop_refs" yaml:"sop_refs"`
 	RAGCollections []string `json:"rag_collections" yaml:"rag_collections"`
 	MemoryKeys     []string `json:"memory_keys" yaml:"memory_keys"`
+
+	// ResolvedSOPContent holds the resolved markdown content for each SOP ref.
+	// Populated at runtime by SOPResolver; never read from config.
+	ResolvedSOPContent map[string]string `json:"resolved_sop_content,omitempty" yaml:"-"`
 }
 
 // WorldProfile enumerates runtime environment capabilities and limits.
