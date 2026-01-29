@@ -105,39 +105,19 @@ func TestExpandPlaceholdersResolvesGenericAlias(t *testing.T) {
 	}
 }
 
-func TestEnsureAttachmentPlaceholdersStripsAllPlaceholders(t *testing.T) {
-	attachments := map[string]ports.Attachment{
-		"seed.png": {
-			Name:      "seed.png",
-			MediaType: "image/png",
-			Data:      "YmFzZTY0",
-			URI:       "https://example.com/seed.png",
-		},
-	}
-
-	result := ensureAttachmentPlaceholders("Here is [seed.png] for you", attachments)
+func TestStripAttachmentPlaceholdersStripsAll(t *testing.T) {
+	result := stripAttachmentPlaceholders("Here is [seed.png] for you")
 	if strings.Contains(result, "[seed.png]") {
 		t.Fatalf("expected placeholder to be stripped, got %q", result)
-	}
-	if strings.Contains(result, "https://example.com/seed.png") {
-		t.Fatalf("expected no direct URIs, got %q", result)
 	}
 	if result != "Here is  for you" {
 		t.Fatalf("expected surrounding text to remain, got %q", result)
 	}
 }
 
-func TestEnsureAttachmentPlaceholdersStripsInlinePlaceholders(t *testing.T) {
-	attachments := map[string]ports.Attachment{
-		"seed.png": {
-			Name:      "seed.png",
-			MediaType: "image/png",
-			URI:       "https://example.com/seed.png",
-		},
-	}
-
+func TestStripAttachmentPlaceholdersStripsInlinePlaceholders(t *testing.T) {
 	answer := "Latest render: [seed.png]"
-	result := ensureAttachmentPlaceholders(answer, attachments)
+	result := stripAttachmentPlaceholders(answer)
 
 	if strings.Contains(result, "[seed.png]") {
 		t.Fatalf("expected placeholder to be stripped, got %q", result)
@@ -147,9 +127,9 @@ func TestEnsureAttachmentPlaceholdersStripsInlinePlaceholders(t *testing.T) {
 	}
 }
 
-func TestEnsureAttachmentPlaceholdersRemovesUnknownPlaceholders(t *testing.T) {
+func TestStripAttachmentPlaceholdersRemovesUnknownPlaceholders(t *testing.T) {
 	answer := "Attachments: [missing.png]"
-	result := ensureAttachmentPlaceholders(answer, nil)
+	result := stripAttachmentPlaceholders(answer)
 	if strings.Contains(result, "[missing.png]") {
 		t.Fatalf("expected missing placeholder to be removed, got %q", result)
 	}

@@ -87,10 +87,10 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
 
   const { mutate: executeTask, isPending: isCreatePending } = useTaskExecution({
     onSuccess: (response) => {
-      setActiveTaskId(response.task_id);
+      setActiveTaskId(response.run_id);
       if (cancelIntentRef.current) {
         setCancelRequested(true);
-        performCancellation(response.task_id);
+        performCancellation(response.run_id);
       }
     },
     onError: (submitError) => {
@@ -281,7 +281,7 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
                             : 'info';
 
                 return (
-                  <div key={task.task_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={task.run_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div>
                       <p className="font-medium text-gray-900">{translatedStatus}</p>
                       <p className="text-sm text-gray-600">
@@ -290,8 +290,8 @@ export function SessionDetailsClient({ sessionId }: SessionDetailsClientProps) {
                         })}
                       </p>
                       <p className="text-xs text-gray-500 mt-1 font-mono">
-                        {`Task: ${task.task_id}`}
-                        {task.parent_task_id ? ` · Parent: ${task.parent_task_id}` : ''}
+                        {`Task: ${task.run_id}`}
+                        {task.parent_run_id ? ` · Parent: ${task.parent_run_id}` : ''}
                       </p>
                     </div>
                     <Badge variant={badgeVariant}>

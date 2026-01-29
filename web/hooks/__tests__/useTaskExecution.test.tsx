@@ -46,7 +46,7 @@ describe('useTaskExecution', () => {
   describe('Task Creation', () => {
     it('should create a task successfully', async () => {
       const mockResponse = {
-        task_id: 'task-123',
+        run_id: 'task-123',
         session_id: 'session-456',
         status: 'pending' as const,
       };
@@ -96,7 +96,7 @@ describe('useTaskExecution', () => {
 
     it('should accept session_id in request', async () => {
       const mockResponse = {
-        task_id: 'task-123',
+        run_id: 'task-123',
         session_id: 'existing-session',
         status: 'pending' as const,
       };
@@ -124,7 +124,7 @@ describe('useTaskExecution', () => {
 
     it('includes llm_selection from localStorage', async () => {
       const mockResponse = {
-        task_id: 'task-123',
+        run_id: 'task-123',
         session_id: 'session-456',
         status: 'pending' as const,
       };
@@ -176,7 +176,7 @@ describe('useTaskStatus', () => {
 
   it('should fetch task status when taskId is provided', async () => {
     const mockStatus = {
-      task_id: 'task-123',
+      run_id: 'task-123',
       session_id: 'session-456',
       status: 'running' as const,
       created_at: new Date().toISOString(),
@@ -198,7 +198,7 @@ describe('useTaskStatus', () => {
 
   it('should poll every 2 seconds when task is running', async () => {
     const mockRunningStatus = {
-      task_id: 'task-123',
+      run_id: 'task-123',
       session_id: 'session-456',
       status: 'running' as const,
       created_at: new Date().toISOString(),
@@ -224,7 +224,7 @@ describe('useTaskStatus', () => {
 
   it('should stop polling when task is completed', async () => {
     const mockCompletedStatus = {
-      task_id: 'task-123',
+      run_id: 'task-123',
       session_id: 'session-456',
       status: 'completed' as const,
       created_at: new Date().toISOString(),
@@ -251,7 +251,7 @@ describe('useTaskStatus', () => {
 
   it('should stop polling when task fails', async () => {
     const mockFailedStatus = {
-      task_id: 'task-123',
+      run_id: 'task-123',
       session_id: 'session-456',
       status: 'failed' as const,
       created_at: new Date().toISOString(),

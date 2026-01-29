@@ -16,16 +16,16 @@ export interface CreateTaskRequest {
 }
 
 export interface CreateTaskResponse {
-  task_id: string;
+  run_id: string;
   session_id: string;
-  parent_task_id?: string | null;
+  parent_run_id?: string | null;
   status?: string;
 }
 
 export interface TaskStatusResponse {
-  task_id: string;
+  run_id: string;
   session_id?: string;
-  parent_task_id?: string | null;
+  parent_run_id?: string | null;
   status: string;
   created_at?: string;
   completed_at?: string | null;

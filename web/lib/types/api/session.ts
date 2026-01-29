@@ -10,8 +10,8 @@ export interface Session {
 }
 
 export interface SessionTaskSummary {
-  task_id: string;
-  parent_task_id?: string | null;
+  run_id: string;
+  parent_run_id?: string | null;
   status: string;
   created_at: string;
   updated_at?: string;

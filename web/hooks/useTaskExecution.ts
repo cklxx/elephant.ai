@@ -68,9 +68,9 @@ export function useTaskExecution(options: UseTaskExecutionOptions = {}) {
       });
 
       console.log('[useTaskExecution] Task created successfully:', {
-        taskId: response.task_id,
+        runId: response.run_id,
         sessionId: response.session_id,
-        parentTaskId: response.parent_task_id ?? null,
+        parentRunId: response.parent_run_id ?? null,
       });
 
       return response;

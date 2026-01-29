@@ -800,7 +800,9 @@ func collectGeneratedAttachments(state *TaskState, iteration int) map[string]por
 // ensureAttachmentPlaceholders strips all attachment placeholder markers from
 // the final answer. Attachments are delivered as separate messages by downstream
 // channels, so inline placeholders should not leak into the reply text.
-func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.Attachment) string {
+// stripAttachmentPlaceholders removes all [placeholder] markers from the text.
+// Attachments are delivered as separate messages by downstream channels.
+func stripAttachmentPlaceholders(answer string) string {
 	normalized := strings.TrimSpace(answer)
 	replaced := contentPlaceholderPattern.ReplaceAllString(normalized, "")
 	return strings.TrimSpace(replaced)

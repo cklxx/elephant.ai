@@ -44,8 +44,8 @@ vi.mock('@/hooks/useTaskExecution', () => ({
     ) => {
       opts.onSuccess?.({
         session_id: 'test-session',
-        task_id: 'task-1',
-        parent_task_id: null,
+        run_id: 'task-1',
+        parent_run_id: null,
       });
     },
   }),

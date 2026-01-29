@@ -142,15 +142,15 @@ export function useTaskSubmission({
               console.log("[ConversationPage] Task execution started:", data);
               setPrewarmSessionId(null);
               setSessionId(data.session_id);
-              setTaskId(data.task_id);
-              setActiveTaskId(data.task_id);
+              setTaskId(data.run_id);
+              setActiveTaskId(data.run_id);
               setCurrentSession(data.session_id);
               addToHistory(data.session_id);
 
               const submitTs = pendingSubmitTsRef.current;
               if (typeof submitTs === "number") {
-                submittedAtByTaskRef.current.set(data.task_id, submitTs);
-                firstTokenReportedRef.current.delete(data.task_id);
+                submittedAtByTaskRef.current.set(data.run_id, submitTs);
+                firstTokenReportedRef.current.delete(data.run_id);
               }
 
               const attachmentMap = buildAttachmentMap(attachments);
@@ -159,8 +159,8 @@ export function useTaskSubmission({
                 timestamp: new Date().toISOString(),
                 agent_level: "core",
                 session_id: data.session_id,
-                run_id: data.task_id,
-                parent_run_id: data.parent_task_id ?? undefined,
+                run_id: data.run_id,
+                parent_run_id: data.parent_run_id ?? undefined,
                 task,
                 attachments: Object.keys(attachmentMap).length
                   ? attachmentMap
@@ -168,7 +168,7 @@ export function useTaskSubmission({
               });
               if (cancelIntentRef.current) {
                 setCancelRequested(true);
-                performCancellation(data.task_id);
+                performCancellation(data.run_id);
               }
             },
             onError: (error) => {

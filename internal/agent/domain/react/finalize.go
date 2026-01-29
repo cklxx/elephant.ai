@@ -21,7 +21,7 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string, duration tim
 	}
 
 	attachments := resolveContentAttachments(finalAnswer, state)
-	finalAnswer = ensureAttachmentPlaceholders(finalAnswer, attachments)
+	finalAnswer = stripAttachmentPlaceholders(finalAnswer)
 
 	return &TaskResult{
 		Answer:       finalAnswer,
@@ -47,7 +47,7 @@ func (e *ReactEngine) decorateFinalResult(state *TaskState, result *TaskResult) 
 	attachments := result.Attachments
 	if attachments == nil {
 		attachments = resolveContentAttachments(result.Answer, state)
-		result.Answer = ensureAttachmentPlaceholders(result.Answer, attachments)
+		result.Answer = stripAttachmentPlaceholders(result.Answer)
 	}
 
 	a2uiAttachments := collectA2UIAttachments(state)

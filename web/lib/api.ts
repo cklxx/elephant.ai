@@ -302,8 +302,8 @@ export async function getSessionDetails(
 
   const now = new Date().toISOString();
   const taskSummaries = tasks.map((task) => ({
-    task_id: task.task_id,
-    parent_task_id: task.parent_task_id ?? null,
+    run_id: task.run_id,
+    parent_run_id: task.parent_run_id ?? null,
     status: task.status,
     created_at: task.created_at ?? now,
     updated_at: task.completed_at ?? task.updated_at ?? undefined,

@@ -189,7 +189,7 @@ describe('ConversationPageContent - stale session handling', () => {
         options?: {
           onSuccess?: (response: {
             session_id: string;
-            task_id: string;
+            run_id: string;
             status: 'pending';
           }) => void;
           onError?: (error: unknown) => void;
@@ -206,7 +206,7 @@ describe('ConversationPageContent - stale session handling', () => {
         expect(variables.session_id).toBeUndefined();
         options?.onSuccess?.({
           session_id: 'new-session',
-          task_id: 'new-task',
+          run_id: 'new-task',
           status: 'pending',
         });
       }
