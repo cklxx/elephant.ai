@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"alex/internal/agent/app/cost"
+	"alex/internal/agent/app/hooks"
 	agent "alex/internal/agent/ports/agent"
 )
 
@@ -32,6 +33,15 @@ func WithCostTrackingDecorator(decorator *cost.CostTrackingDecorator) Coordinato
 	return func(c *AgentCoordinator) {
 		if decorator != nil {
 			c.costDecorator = decorator
+		}
+	}
+}
+
+// WithHookRegistry sets the proactive hook registry for pre/post-task processing.
+func WithHookRegistry(registry *hooks.Registry) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if registry != nil {
+			c.hookRegistry = registry
 		}
 	}
 }

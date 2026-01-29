@@ -12,6 +12,7 @@ import (
 	appconfig "alex/internal/agent/app/config"
 	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/app/cost"
+	"alex/internal/agent/app/hooks"
 	"alex/internal/agent/app/preparation"
 	sessiontitle "alex/internal/agent/app/sessiontitle"
 	"alex/internal/agent/domain"
@@ -45,6 +46,7 @@ type AgentCoordinator struct {
 	prepService        preparationService
 	costDecorator      *cost.CostTrackingDecorator
 	attachmentMigrator materialports.Migrator
+	hookRegistry       *hooks.Registry
 }
 
 type preparationService interface {
@@ -318,6 +320,28 @@ func (c *AgentCoordinator) ExecuteTask(
 	wf.succeed(stagePrepare, prepareOutput)
 	ctx = id.WithSessionID(ctx, env.Session.ID)
 
+	// Run proactive hooks (pre-task memory recall, etc.)
+	if c.hookRegistry != nil && !appcontext.IsSubagentContext(ctx) {
+		hookTask := hooks.TaskInfo{
+			TaskInput: task,
+			SessionID: env.Session.ID,
+			RunID:     ensuredRunID,
+			UserID:    c.resolveUserID(env.Session),
+		}
+		injections := c.hookRegistry.RunOnTaskStart(ctx, hookTask)
+		if len(injections) > 0 {
+			proactiveContext := hooks.FormatInjectionsAsContext(injections)
+			if proactiveContext != "" {
+				env.State.Messages = append(env.State.Messages, ports.Message{
+					Role:    "user",
+					Content: proactiveContext,
+					Source:  ports.MessageSourceProactive,
+				})
+				logger.Info("Injected %d proactive context items", len(injections))
+			}
+		}
+	}
+
 	// Create ReactEngine and configure listener
 	logger.Info("Delegating to ReactEngine...")
 	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
@@ -397,6 +421,21 @@ func (c *AgentCoordinator) ExecuteTask(
 				sessionStats.InputTokens, sessionStats.OutputTokens,
 				sessionStats.TotalCost, sessionStats.Duration)
 		}
+	}
+
+	// Run proactive hooks (post-task memory capture, etc.)
+	if c.hookRegistry != nil && !appcontext.IsSubagentContext(ctx) && executionErr == nil {
+		hookResult := hooks.TaskResultInfo{
+			TaskInput:  task,
+			Answer:     result.Answer,
+			SessionID:  env.Session.ID,
+			RunID:      ensuredRunID,
+			UserID:     c.resolveUserID(env.Session),
+			Iterations: result.Iterations,
+			StopReason: result.StopReason,
+			ToolCalls:  extractToolCallInfo(result),
+		}
+		c.hookRegistry.RunOnTaskCompleted(ctx, hookResult)
 	}
 
 	// Save session unless this is a delegated subagent run (which should not
@@ -915,6 +954,64 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		return prompt
 	}
 	return preparation.DefaultSystemPrompt
+}
+
+// resolveUserID extracts a user identifier from the session metadata.
+func (c *AgentCoordinator) resolveUserID(session *storage.Session) string {
+	if session == nil || session.Metadata == nil {
+		return ""
+	}
+	if uid := strings.TrimSpace(session.Metadata["user_id"]); uid != "" {
+		return uid
+	}
+	// Fallback: use session ID prefix for Lark/WeChat sessions
+	if strings.HasPrefix(session.ID, "lark:") || strings.HasPrefix(session.ID, "wechat:") {
+		return session.ID
+	}
+	return ""
+}
+
+// extractToolCallInfo extracts tool call information from TaskResult messages.
+// It scans assistant messages for ToolCalls (which carry the tool name) and
+// matches them with subsequent tool result messages.
+func extractToolCallInfo(result *agent.TaskResult) []hooks.ToolResultInfo {
+	if result == nil {
+		return nil
+	}
+
+	// Build a map of call_id → tool name from assistant messages
+	callNames := make(map[string]string)
+	for _, msg := range result.Messages {
+		if msg.Role == "assistant" {
+			for _, tc := range msg.ToolCalls {
+				callNames[tc.ID] = tc.Name
+			}
+		}
+	}
+
+	// Collect tool results from ToolResult entries in messages
+	var calls []hooks.ToolResultInfo
+	for _, msg := range result.Messages {
+		for _, tr := range msg.ToolResults {
+			name := callNames[tr.CallID]
+			if name == "" {
+				name = "unknown"
+			}
+			calls = append(calls, hooks.ToolResultInfo{
+				ToolName: name,
+				Success:  tr.Error == nil,
+				Output:   truncateString(tr.Content, 200),
+			})
+		}
+	}
+	return calls
+}
+
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
 
 // performTaskPreAnalysis performs quick task analysis using LLM

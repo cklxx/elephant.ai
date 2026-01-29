@@ -11,6 +11,7 @@ import (
 	appconfig "alex/internal/agent/app/config"
 	agentcoordinator "alex/internal/agent/app/coordinator"
 	agentcost "alex/internal/agent/app/cost"
+	"alex/internal/agent/app/hooks"
 	agent "alex/internal/agent/ports/agent"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
@@ -125,6 +126,8 @@ func (b *containerBuilder) Build() (*Container, error) {
 	mcpRegistry := mcp.NewRegistry()
 	tracker := newMCPInitializationTracker()
 
+	hookRegistry := b.buildHookRegistry(memoryService)
+
 	coordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
 		toolRegistry,
@@ -153,6 +156,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 			ToolMode:            b.config.ToolMode,
 			EnvironmentSummary:  b.config.EnvironmentSummary,
 		},
+		agentcoordinator.WithHookRegistry(hookRegistry),
 	)
 
 	// Register subagent tool after coordinator is created.
@@ -341,6 +345,25 @@ func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) 
 		return nil, fmt.Errorf("failed to create cost store: %w", err)
 	}
 	return agentcost.NewCostTracker(costStore), nil
+}
+
+func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hooks.Registry {
+	registry := hooks.NewRegistry(b.logger)
+
+	// Register memory recall hook (pre-task auto-recall)
+	if memoryService != nil {
+		recallHook := hooks.NewMemoryRecallHook(memoryService, b.logger, hooks.MemoryRecallConfig{
+			MaxRecalls: 5,
+		})
+		registry.Register(recallHook)
+
+		// Register memory capture hook (post-task auto-capture)
+		captureHook := hooks.NewMemoryCaptureHook(memoryService, b.logger)
+		registry.Register(captureHook)
+	}
+
+	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())
+	return registry
 }
 
 func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService memory.Service) (*toolregistry.Registry, error) {
