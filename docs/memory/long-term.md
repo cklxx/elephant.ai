@@ -1,10 +1,29 @@
 # Long-Term Memory
 
-Updated: 2026-01-29 11:00
+Updated: 2026-01-29 15:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
 
 ## Items
-- (empty)
+
+### Event Partitioning Architecture
+- **Subagent groupKey must use `parent_run_id` first.** `causation_id`/`call_id` are per-tool-call within the subagent and fragment events into orphan groups. AgentCard render looks up by core agent's `run_id` which equals subagent's `parent_run_id`.
+- **Tool event display rules:** `workflow.tool.started` in main stream only for `tool_name="subagent"` (renders AgentCard). All other tool starts go to `pendingTools` (running) or are merged into `workflow.tool.completed` (done). Orchestrator tools (`plan`/`clarify`) are filtered from `pendingTools`.
+- **`isSubagentLike` checks `parent_run_id !== run_id`** — the only reliable subagent indicator. Do NOT rely on `agent_level`.
+- **Debug technique for event routing:** Add a single aggregated `console.log` at the end of `partitionEvents` dumping all classification decisions. One log > many scattered logs.
+
+### Session & Streaming
+- Streaming events (output deltas, tool progress, chunks) must be dropped from session history to avoid crowding terminal events.
+- Subagent card ordering uses anchor-based injection with `call_id` or `parent_task_id`/`task_id` for causal ordering.
+
+### Performance Patterns
+- Event dedup, LRU caps, RAF buffering, deferred markdown parsing keep streaming UI responsive.
+- Precompile hot-path regex, cap response reads, apply retention/backpressure to prevent unbounded growth.
+
+### Project Conventions
+- Config: YAML only, `.yaml` paths.
+- Error experience: entries in `docs/error-experience/entries/`, summaries in `docs/error-experience/summary/entries/`; index files are index-only.
+- Plans: always write to `docs/plans/`, update as work progresses.
+- Commit often, prefer small commits. Run full lint+tsc after changes.

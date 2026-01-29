@@ -117,7 +117,7 @@ export function ConversationEventStream({
                 className="group transition-colors rounded-lg hover:bg-muted/10 -mx-2 px-2"
                 data-testid="subagent-thread-group"
               >
-                <div className="pl-4 border-l-2 border-muted">
+                <div className="border-l-2 border-muted">
                   {sortedThreads.map((thread) => (
                     <div
                       key={thread.key}
