@@ -65,6 +65,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		ToolPreset:    larkCfg.ToolPreset,
 		ReplyTimeout:  larkCfg.ReplyTimeout,
 		ReactEmoji:    larkCfg.ReactEmoji,
+		MemoryEnabled: larkCfg.MemoryEnabled,
 	}
 
 	gateway, err := lark.NewGateway(gatewayCfg, agentContainer.AgentCoordinator, logger)
@@ -76,6 +77,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 	if broadcaster != nil {
 		gateway.SetEventListener(broadcaster)
+	}
+	if larkCfg.MemoryEnabled && agentContainer.MemoryService != nil {
+		gateway.SetMemoryManager(agentContainer.MemoryService)
 	}
 
 	async.Go(logger, "lark.gateway", func() {

@@ -75,6 +75,7 @@ type LarkGatewayConfig struct {
 	ToolMode      string
 	ReplyTimeout  time.Duration
 	ReactEmoji    string
+	MemoryEnabled bool
 }
 
 var defaultAllowedOrigins = []string{
@@ -289,6 +290,9 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if reactEmoji := strings.TrimSpace(larkCfg.ReactEmoji); reactEmoji != "" {
 			cfg.Channels.Lark.ReactEmoji = reactEmoji
+		}
+		if larkCfg.MemoryEnabled != nil {
+			cfg.Channels.Lark.MemoryEnabled = *larkCfg.MemoryEnabled
 		}
 	}
 

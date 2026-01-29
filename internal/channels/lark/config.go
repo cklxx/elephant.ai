@@ -16,4 +16,5 @@ type Config struct {
 	ToolPreset    string
 	ReplyTimeout  time.Duration
 	ReactEmoji    string // Emoji reaction sent immediately on message receipt (e.g. "SMILE"). Empty disables.
+	MemoryEnabled bool   // Enable automatic memory save/recall per session.
 }

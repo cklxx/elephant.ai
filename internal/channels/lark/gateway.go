@@ -20,6 +20,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	toolports "alex/internal/agent/ports/tools"
 	"alex/internal/logging"
+	"alex/internal/memory"
 	artifacts "alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
@@ -52,6 +53,7 @@ type Gateway struct {
 	wsClient      *larkws.Client
 	sessionLocks  sync.Map
 	eventListener agent.EventListener
+	memoryMgr     *larkMemoryManager
 	dedupMu       sync.Mutex
 	dedupCache    *lru.Cache[string, time.Time]
 	now           func() time.Time
@@ -88,6 +90,14 @@ func (g *Gateway) SetEventListener(listener agent.EventListener) {
 		return
 	}
 	g.eventListener = listener
+}
+
+// SetMemoryManager enables automatic memory save/recall for the gateway.
+func (g *Gateway) SetMemoryManager(svc memory.Service) {
+	if g == nil || svc == nil {
+		return
+	}
+	g.memoryMgr = newLarkMemoryManager(svc, g.logger)
 }
 
 // Start creates the Lark SDK client, event dispatcher, and WebSocket client, then blocks.
@@ -250,7 +260,22 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	defer progressLn.Close()
 	listener = progressLn
 	execCtx = shared.WithParentListener(execCtx, listener)
-	result, execErr := g.agent.ExecuteTask(execCtx, content, sessionID, listener)
+
+	// Memory recall: inject relevant past learnings into the task context.
+	taskContent := content
+	if g.memoryMgr != nil {
+		if recalled := g.memoryMgr.RecallForTask(execCtx, sessionID, content); recalled != "" {
+			taskContent = recalled + "\n\n" + content
+		}
+	}
+
+	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
+
+	// Memory save: persist important notes from the result.
+	if g.memoryMgr != nil {
+		g.memoryMgr.SaveFromResult(execCtx, sessionID, result)
+	}
+
 	reply := g.buildReply(result, execErr)
 	if reply == "" {
 		reply = "（无可用回复）"
