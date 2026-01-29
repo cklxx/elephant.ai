@@ -125,13 +125,6 @@ function normalizeAttachmentMutations(
   return null;
 }
 
-function shouldIncludeDisplayedAttachments(taskEvent: WorkflowResultFinalEvent): boolean {
-  if (taskEvent.is_streaming === true && taskEvent.stream_finished === false) {
-    return false;
-  }
-  return true;
-}
-
 class AttachmentRegistry {
   private store: Map<string, StoredAttachment> = new Map();
   private displayedByTool = new Set<string>();
@@ -322,52 +315,6 @@ class AttachmentRegistry {
     return resolved;
   }
 
-  private takeUndisplayedFromStore(): AttachmentMap | undefined {
-    return this.takeFromStore();
-  }
-
-  private takeFromStore(options: { includeDisplayed?: boolean; timestamp?: number; includeRecalled?: boolean } = {}): AttachmentMap | undefined {
-    const entries = Array.from(this.store.entries()).filter(
-      ([key, stored]) =>
-        (options.includeDisplayed || !this.displayedByTool.has(key)) &&
-        this.isAvailable(key, options.timestamp) &&
-        (options.includeRecalled !== false || stored.visibility !== 'recalled'),
-    );
-
-    if (entries.length === 0) {
-      return undefined;
-    }
-
-    const result = Object.fromEntries(entries.map(([key, stored]) => [key, stored.attachment]));
-    entries.forEach(([key]) => this.displayedByTool.add(key));
-    return result;
-  }
-
-  private omitPreviouslyDisplayedUnlessReferenced(
-    attachments?: AttachmentMap,
-    content?: string,
-    displayedSnapshot: Set<string> = this.displayedByTool,
-  ): AttachmentMap | undefined {
-    const normalized = normalizeAttachmentMap(attachments);
-    if (!normalized) {
-      return undefined;
-    }
-
-    const referencedKeys = new Set(extractPlaceholderKeys(content));
-    const entries = Object.entries(normalized).filter(([key]) => {
-      if (referencedKeys.has(key)) {
-        return true;
-      }
-      return !displayedSnapshot.has(key);
-    });
-
-    if (entries.length === 0) {
-      return undefined;
-    }
-
-    return Object.fromEntries(entries);
-  }
-
   handleEvent(event: AnyAgentEvent) {
     const eventTimestamp = this.getEventTimestamp(event);
     switch (true) {
@@ -444,60 +391,10 @@ class AttachmentRegistry {
       }
       case isEventType(event, 'workflow.result.final'): {
         const taskEvent = event as WorkflowResultFinalEvent;
-        const displayedSnapshot = new Set(this.displayedByTool);
         const normalized = normalizeAttachmentMap(taskEvent.attachments as AttachmentMap | undefined);
         if (normalized) {
-          const filtered = this.omitPreviouslyDisplayedUnlessReferenced(
-            normalized,
-            taskEvent.final_answer,
-            displayedSnapshot,
-          );
-          taskEvent.attachments = filtered;
-          if (filtered) {
-            this.upsertMany(filtered, eventTimestamp);
-          }
-          break;
-        }
-
-        const fallback = this.hydrateFromContent(taskEvent.final_answer, {
-          skipDisplayed: true,
-          timestamp: eventTimestamp,
-        });
-        if (fallback) {
-          const filtered = this.omitPreviouslyDisplayedUnlessReferenced(
-            fallback,
-            taskEvent.final_answer,
-            displayedSnapshot,
-          );
-          taskEvent.attachments = filtered;
-          if (filtered) {
-            this.upsertMany(filtered, eventTimestamp);
-          }
-          break;
-        }
-
-        const rendered = this.hydrateFromContent(taskEvent.final_answer, {
-          timestamp: eventTimestamp,
-        });
-        if (rendered) {
-          taskEvent.attachments = this.omitPreviouslyDisplayedUnlessReferenced(
-            rendered,
-            taskEvent.final_answer,
-            displayedSnapshot,
-          );
-        }
-        if (!taskEvent.attachments) {
-          const allowDisplayed = shouldIncludeDisplayedAttachments(taskEvent);
-          const fromStore = this.takeFromStore({
-            includeDisplayed: allowDisplayed,
-            includeRecalled: false,
-            timestamp: eventTimestamp,
-          });
-          taskEvent.attachments = this.omitPreviouslyDisplayedUnlessReferenced(
-            fromStore,
-            taskEvent.final_answer,
-            displayedSnapshot,
-          );
+          taskEvent.attachments = normalized;
+          this.upsertMany(normalized, eventTimestamp);
         }
         break;
       }
