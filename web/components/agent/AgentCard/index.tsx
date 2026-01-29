@@ -59,6 +59,8 @@ export function AgentCard({
             type={data.type}
             concurrency={data.concurrency}
             inlineTokens={showInlineTokens ? data.stats.tokens : undefined}
+            hasEvents={data.events.length > 0}
+            onToggle={handleToggle}
           />
 
           <CardStats

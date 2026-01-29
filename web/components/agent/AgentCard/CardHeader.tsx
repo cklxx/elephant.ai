@@ -10,6 +10,8 @@ interface CardHeaderProps {
   type?: string;
   concurrency?: { index: number; total: number };
   inlineTokens?: number;
+  hasEvents?: boolean;
+  onToggle?: () => void;
 }
 
 export function CardHeader({
@@ -18,11 +20,14 @@ export function CardHeader({
   type,
   concurrency,
   inlineTokens,
+  hasEvents,
+  onToggle,
 }: CardHeaderProps) {
   const displayTitle = preview || type || "Sub Agent";
+  const clickable = hasEvents && onToggle;
 
-  return (
-    <div className="flex items-start justify-between gap-2">
+  const content = (
+    <div className="flex items-start justify-between gap-2 w-full">
       <div className="flex items-center gap-2 flex-1 min-w-0">
         <span className="text-sm text-foreground/80 truncate font-medium min-w-0">
           {displayTitle}
@@ -54,6 +59,21 @@ export function CardHeader({
       </div>
     </div>
   );
+
+  if (clickable) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full text-left cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm"
+        aria-label={`Toggle ${displayTitle} details`}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return content;
 }
 
 function formatTokens(tokens: number): string {

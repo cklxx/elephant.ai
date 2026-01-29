@@ -34,7 +34,7 @@ export function CardBody({
             className={cn(
               "transition-colors rounded-md hover:bg-muted/10 -mx-2 px-2",
               "min-w-0 w-full overflow-x-hidden break-words text-muted-foreground/70",
-              !expanded && "max-h-[3.75rem] overflow-hidden",
+              !expanded && "line-clamp-2",
             )}
           >
             <EventLine
