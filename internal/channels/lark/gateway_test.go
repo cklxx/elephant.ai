@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
+
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 func TestNewGatewayRequiresAgent(t *testing.T) {
@@ -142,6 +145,34 @@ func TestStartReturnsNilWhenDisabled(t *testing.T) {
 	gw := &Gateway{cfg: Config{Enabled: false}, logger: logging.OrNop(nil)}
 	if err := gw.Start(context.Background()); err != nil {
 		t.Fatalf("expected nil error for disabled gateway, got %v", err)
+	}
+}
+
+func TestGatewayMessageDedup(t *testing.T) {
+	now := time.Date(2026, 1, 29, 11, 0, 0, 0, time.UTC)
+	cache, err := lru.New[string, time.Time](2)
+	if err != nil {
+		t.Fatalf("failed to create dedup cache: %v", err)
+	}
+	gw := &Gateway{
+		cfg:        Config{SessionPrefix: "lark"},
+		logger:     logging.OrNop(nil),
+		dedupCache: cache,
+		now: func() time.Time {
+			return now
+		},
+	}
+
+	if gw.isDuplicateMessage("msg-1") {
+		t.Fatalf("expected first message not to be duplicate")
+	}
+	if !gw.isDuplicateMessage("msg-1") {
+		t.Fatalf("expected second message to be duplicate")
+	}
+
+	now = now.Add(messageDedupTTL + time.Second)
+	if gw.isDuplicateMessage("msg-1") {
+		t.Fatalf("expected message to expire from dedupe window")
 	}
 }
 

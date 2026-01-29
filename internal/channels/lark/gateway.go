@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	appcontext "alex/internal/agent/app/context"
 	agent "alex/internal/agent/ports/agent"
@@ -14,11 +15,17 @@ import (
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 
+	lru "github.com/hashicorp/golang-lru/v2"
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
+)
+
+const (
+	messageDedupCacheSize = 2048
+	messageDedupTTL       = 10 * time.Minute
 )
 
 // AgentExecutor captures the agent execution surface needed by the gateway.
@@ -35,6 +42,9 @@ type Gateway struct {
 	client       *lark.Client
 	wsClient     *larkws.Client
 	sessionLocks sync.Map
+	dedupMu      sync.Mutex
+	dedupCache   *lru.Cache[string, time.Time]
+	now          func() time.Time
 }
 
 // NewGateway constructs a Lark gateway instance.
@@ -48,11 +58,17 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if strings.TrimSpace(cfg.SessionPrefix) == "" {
 		cfg.SessionPrefix = "lark"
 	}
+	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
+	if err != nil {
+		return nil, fmt.Errorf("lark message deduper init: %w", err)
+	}
 	logger = logging.OrNop(logger)
 	return &Gateway{
-		cfg:    cfg,
-		agent:  agent,
-		logger: logger,
+		cfg:        cfg,
+		agent:      agent,
+		logger:     logger,
+		dedupCache: dedupCache,
+		now:        time.Now,
 	}, nil
 }
 
@@ -128,6 +144,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		return nil
 	}
 
+	messageID := deref(msg.MessageId)
+	if messageID != "" && g.isDuplicateMessage(messageID) {
+		g.logger.Debug("Lark duplicate message skipped: %s", messageID)
+		return nil
+	}
+
 	sessionID := g.sessionIDForChat(chatID)
 	lock := g.sessionLock(sessionID)
 	lock.Lock()
@@ -175,7 +197,6 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		reply = "（无可用回复）"
 	}
 
-	messageID := deref(msg.MessageId)
 	if isGroup && messageID != "" {
 		g.replyMessage(execCtx, messageID, reply)
 	} else {
@@ -183,6 +204,37 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	return nil
+}
+
+func (g *Gateway) isDuplicateMessage(messageID string) bool {
+	if messageID == "" {
+		return false
+	}
+	g.dedupMu.Lock()
+	defer g.dedupMu.Unlock()
+
+	if g.dedupCache == nil {
+		cache, err := lru.New[string, time.Time](messageDedupCacheSize)
+		if err != nil {
+			return false
+		}
+		g.dedupCache = cache
+	}
+
+	nowFn := g.now
+	if nowFn == nil {
+		nowFn = time.Now
+	}
+	now := nowFn()
+
+	if ts, ok := g.dedupCache.Get(messageID); ok {
+		if now.Sub(ts) <= messageDedupTTL {
+			return true
+		}
+		g.dedupCache.Remove(messageID)
+	}
+	g.dedupCache.Add(messageID, now)
+	return false
 }
 
 // sendMessage sends a new message to the given chat (used for P2P).
