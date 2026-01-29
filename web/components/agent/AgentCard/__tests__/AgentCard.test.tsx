@@ -53,8 +53,7 @@ describe("AgentCard", () => {
   it("displays progress information", () => {
     render(<AgentCard data={mockCardData} />);
 
-    expect(screen.getByText(/Progress: 5\/10/)).toBeInTheDocument();
-    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText(/5\/10/)).toBeInTheDocument();
   });
 
   it("displays stats information", () => {
@@ -67,12 +66,12 @@ describe("AgentCard", () => {
   it("toggles event display on footer button click", () => {
     render(<AgentCard data={mockCardData} />);
 
-    const toggleButton = screen.getByRole("button", { name: /Show all.*events/ });
+    const toggleButton = screen.getByText(/2 events/);
     expect(toggleButton).toBeInTheDocument();
 
     fireEvent.click(toggleButton);
 
-    expect(screen.getByRole("button", { name: /Show only latest/ })).toBeInTheDocument();
+    expect(screen.getByText(/Collapse/)).toBeInTheDocument();
   });
 
   it("renders with controlled expanded state", () => {
@@ -81,13 +80,13 @@ describe("AgentCard", () => {
       <AgentCard data={mockCardData} expanded={false} onToggleExpand={onToggle} />,
     );
 
-    expect(screen.getByRole("button", { name: /Show all.*events/ })).toBeInTheDocument();
+    expect(screen.getByText(/2 events/)).toBeInTheDocument();
 
     rerender(
       <AgentCard data={mockCardData} expanded={true} onToggleExpand={onToggle} />,
     );
 
-    expect(screen.getByRole("button", { name: /Show only latest/ })).toBeInTheDocument();
+    expect(screen.getByText(/Collapse/)).toBeInTheDocument();
   });
 
   it("displays concurrency badge when applicable", () => {
@@ -161,10 +160,10 @@ describe("AgentCard", () => {
 
     render(<AgentCard data={oneEventData} />);
 
-    expect(screen.getByRole("button", { name: /Show full content/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Expand/ })).toBeInTheDocument();
   });
 
-  it("displays state badge", () => {
+  it("displays state label", () => {
     render(<AgentCard data={mockCardData} />);
 
     expect(screen.getByText("Running")).toBeInTheDocument();

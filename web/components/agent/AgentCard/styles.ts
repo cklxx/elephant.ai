@@ -1,36 +1,6 @@
+import { Loader2, Check, X, Ban, Circle } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { AgentCardState } from "./types";
-
-export function getStateColor(state: AgentCardState): string {
-  switch (state) {
-    case "running":
-      return "border-l-blue-500 dark:border-l-blue-400";
-    case "completed":
-      return "border-l-green-500 dark:border-l-green-400";
-    case "failed":
-      return "border-l-red-500 dark:border-l-red-400";
-    case "cancelled":
-      return "border-l-yellow-500 dark:border-l-yellow-400";
-    case "idle":
-    default:
-      return "border-l-muted-foreground/30";
-  }
-}
-
-export function getStateIcon(state: AgentCardState): string {
-  switch (state) {
-    case "running":
-      return "↻";
-    case "completed":
-      return "✓";
-    case "failed":
-      return "✗";
-    case "cancelled":
-      return "⊘";
-    case "idle":
-    default:
-      return "○";
-  }
-}
 
 export function getStateLabel(state: AgentCardState): string {
   switch (state) {
@@ -49,18 +19,77 @@ export function getStateLabel(state: AgentCardState): string {
   }
 }
 
-export function getStateBadgeColor(state: AgentCardState): string {
+export function getStateAccentColor(state: AgentCardState): string {
   switch (state) {
     case "running":
-      return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+      return "bg-blue-500";
     case "completed":
-      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+      return "bg-emerald-500";
     case "failed":
-      return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+      return "bg-red-500";
     case "cancelled":
-      return "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400";
+      return "bg-amber-500";
     case "idle":
     default:
-      return "bg-muted text-muted-foreground";
+      return "bg-muted-foreground/30";
+  }
+}
+
+export function getStateContainerStyle(state: AgentCardState): string {
+  switch (state) {
+    case "running":
+      return "bg-blue-50/30 dark:bg-blue-950/20";
+    case "failed":
+      return "bg-red-50/30 dark:bg-red-950/20";
+    default:
+      return "bg-muted/10";
+  }
+}
+
+export function getStateIconContainerStyle(state: AgentCardState): string {
+  switch (state) {
+    case "running":
+      return "bg-blue-100/60 dark:bg-blue-900/40";
+    case "completed":
+      return "bg-emerald-100/60 dark:bg-emerald-900/40";
+    case "failed":
+      return "bg-red-100/60 dark:bg-red-900/40";
+    case "cancelled":
+      return "bg-amber-100/60 dark:bg-amber-900/40";
+    case "idle":
+    default:
+      return "bg-muted/40";
+  }
+}
+
+export function getStateIconColor(state: AgentCardState): string {
+  switch (state) {
+    case "running":
+      return "text-blue-600 dark:text-blue-400";
+    case "completed":
+      return "text-emerald-600 dark:text-emerald-400";
+    case "failed":
+      return "text-red-600 dark:text-red-400";
+    case "cancelled":
+      return "text-amber-600 dark:text-amber-400";
+    case "idle":
+    default:
+      return "text-muted-foreground";
+  }
+}
+
+export function getStateLucideIcon(state: AgentCardState): LucideIcon {
+  switch (state) {
+    case "running":
+      return Loader2;
+    case "completed":
+      return Check;
+    case "failed":
+      return X;
+    case "cancelled":
+      return Ban;
+    case "idle":
+    default:
+      return Circle;
   }
 }

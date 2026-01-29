@@ -1,5 +1,5 @@
 import React from "react";
-import { Button } from "@/components/ui/button";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CardFooterProps {
@@ -13,26 +13,27 @@ export function CardFooter({ expanded, onToggle, eventCount }: CardFooterProps) 
     return null;
   }
 
-  const buttonText = eventCount === 1
-    ? (expanded ? "Collapse" : "Show full content")
-    : (expanded ? "Show only latest" : `Show all ${eventCount} events`);
+  const label = expanded
+    ? "Collapse"
+    : eventCount === 1
+      ? "Expand"
+      : `${eventCount} events`;
 
   return (
-    <div className="flex items-center justify-between py-1">
-      <Button
-        variant="ghost"
-        size="sm"
+    <div className="pl-6 py-0.5">
+      <button
+        type="button"
         onClick={onToggle}
-        className={cn(
-          "h-6 text-[11px] text-muted-foreground/60 hover:text-muted-foreground transition-colors",
-          "w-full justify-between px-2 -mx-2",
-        )}
+        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer"
       >
-        <span>{buttonText}</span>
-        <span className={cn("transition-transform", expanded && "rotate-180")}>
-          ▼
-        </span>
-      </Button>
+        <span>{label}</span>
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 transition-transform",
+            expanded && "rotate-180",
+          )}
+        />
+      </button>
     </div>
   );
 }

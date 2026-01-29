@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Check, X, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CompactToolCallProps {
@@ -32,21 +33,19 @@ export function CompactToolCall({
     <div className="text-xs space-y-1" data-testid={testId}>
       <div
         className={cn(
-          "flex items-start gap-2 p-2 rounded-md transition-colors",
-          success ? "bg-green-50 dark:bg-green-950/20" : "bg-red-50 dark:bg-red-950/20",
-          hasDetails && "cursor-pointer hover:opacity-80",
+          "flex items-start gap-2 p-2 rounded-md border border-border/30",
+          hasDetails && "cursor-pointer hover:bg-muted/10",
         )}
         onClick={() => hasDetails && setExpanded(!expanded)}
       >
-        <span className="text-base leading-none shrink-0">
-          {success ? "✓" : "✗"}
-        </span>
+        {success ? (
+          <Check className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+        ) : (
+          <X className="h-3 w-3 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+        )}
         <div className="flex-1 min-w-0 space-y-0.5">
           <div className="flex items-baseline gap-2 flex-wrap">
-            <span className={cn(
-              "font-medium",
-              success ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"
-            )}>
+            <span className="font-medium text-foreground/80">
               {normalizedToolName}
             </span>
             {duration !== undefined && (
@@ -55,25 +54,22 @@ export function CompactToolCall({
               </span>
             )}
           </div>
-          <div className={cn(
-            "text-[11px] break-words",
-            success ? "text-green-600 dark:text-green-500/80" : "text-red-600 dark:text-red-500/80"
-          )}>
+          <div className="text-[11px] break-words text-muted-foreground/70">
             {shortResult}
           </div>
         </div>
         {hasDetails && (
-          <span className={cn(
-            "text-[10px] text-muted-foreground transition-transform shrink-0",
-            expanded && "rotate-180"
-          )}>
-            ▼
-          </span>
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 text-muted-foreground shrink-0 transition-transform",
+              expanded && "rotate-180",
+            )}
+          />
         )}
       </div>
 
       {expanded && hasDetails && (
-        <div className="ml-6 pl-3 border-l-2 border-border/30 space-y-1 text-[11px]">
+        <div className="ml-6 pl-3 border-l border-border/30 space-y-1 text-[11px]">
           <div className="text-muted-foreground font-medium">Parameters:</div>
           <div className="space-y-0.5">
             {Object.entries(parameters).map(([key, value]) => (

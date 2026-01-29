@@ -5,7 +5,7 @@ import { CardHeader } from "./CardHeader";
 import { CardStats } from "./CardStats";
 import { CardBody } from "./CardBody";
 import { CardFooter } from "./CardFooter";
-import { getStateColor } from "./styles";
+import { getStateAccentColor, getStateContainerStyle } from "./styles";
 
 export * from "./types";
 
@@ -32,11 +32,7 @@ export function AgentCard({
 
   return (
     <div
-      className={cn(
-        "group my-2 -mx-2 px-2 transition-colors rounded-lg",
-        "hover:bg-muted/5",
-        className,
-      )}
+      className={cn("my-2", className)}
       data-testid="subagent-thread"
       data-subagent-key={data.id}
       data-agent-id={data.id}
@@ -44,15 +40,16 @@ export function AgentCard({
     >
       <div
         className={cn(
-          "rounded-lg border-l-4 border-y border-r",
-          "border-y-border/40 border-r-border/40",
-          "bg-muted/10 transition-all duration-200",
-          "group-hover:bg-muted/20 group-hover:shadow-sm",
+          "rounded-lg border border-border/40",
+          "transition-colors duration-200",
           "overflow-hidden",
-          getStateColor(data.state),
+          getStateContainerStyle(data.state),
         )}
       >
-        <div className="p-3 min-w-0 relative">
+        {data.state !== "idle" && (
+          <div className={cn("h-0.5 w-full", getStateAccentColor(data.state))} />
+        )}
+        <div className="px-3 py-2.5 min-w-0 space-y-2">
           <CardHeader
             state={data.state}
             preview={data.preview}
@@ -60,6 +57,7 @@ export function AgentCard({
             concurrency={data.concurrency}
             inlineTokens={showInlineTokens ? data.stats.tokens : undefined}
             hasEvents={data.events.length > 0}
+            expanded={expanded}
             onToggle={handleToggle}
           />
 

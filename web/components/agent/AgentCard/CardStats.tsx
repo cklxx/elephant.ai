@@ -22,28 +22,23 @@ export function CardStats({ progress, stats, concurrency, hideTokens }: CardStat
   }
 
   return (
-    <div className="space-y-1 min-w-0">
+    <div className="pl-6 space-y-1 min-w-0">
       {hasProgress && (
-        <div className="space-y-0.5 min-w-0">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-muted-foreground">
-              Progress: {progress.current}/{progress.total}
-            </span>
-            <span className="text-muted-foreground font-medium">
-              {Math.round(progress.percentage)}%
-            </span>
-          </div>
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-1 flex-1 bg-muted rounded-full overflow-hidden">
             <div
               className={cn(
                 "h-full transition-all duration-300 ease-out",
                 progress.percentage >= 100
-                  ? "bg-green-500 dark:bg-green-400"
-                  : "bg-blue-500 dark:bg-blue-400",
+                  ? "bg-emerald-500/70"
+                  : "bg-blue-500/70",
               )}
               style={{ width: `${Math.min(progress.percentage, 100)}%` }}
             />
           </div>
+          <span className="text-[10px] text-muted-foreground shrink-0">
+            {progress.current}/{progress.total}
+          </span>
         </div>
       )}
 
