@@ -41,6 +41,10 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	policies := mapToSlice(staticSnapshot.Policies)
 	knowledge := mapToSlice(staticSnapshot.Knowledge)
 
+	if m.sopResolver != nil {
+		knowledge = m.sopResolver.ResolveKnowledgeRefs(knowledge)
+	}
+
 	messages := append([]ports.Message(nil), session.Messages...)
 	if cfg.TokenLimit > 0 {
 		if compacted, ok := m.AutoCompact(messages, cfg.TokenLimit); ok {

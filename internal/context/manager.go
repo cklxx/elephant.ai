@@ -1,6 +1,8 @@
 package context
 
 import (
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +22,7 @@ type manager struct {
 	journal    journal.Writer
 
 	static      *staticRegistry
+	sopResolver *SOPResolver
 	preloadOnce sync.Once
 	preloadErr  error
 }
@@ -83,6 +86,13 @@ func WithMetrics(metrics *observability.ContextMetrics) Option {
 	}
 }
 
+// WithSOPResolver injects a custom SOP resolver (useful for tests).
+func WithSOPResolver(resolver *SOPResolver) Option {
+	return func(m *manager) {
+		m.sopResolver = resolver
+	}
+}
+
 // NewManager constructs a layered context manager implementation.
 func NewManager(opts ...Option) agent.ContextManager {
 	root := resolveContextConfigRoot()
@@ -106,5 +116,21 @@ func NewManager(opts ...Option) agent.ContextManager {
 		}
 		m.static = newStaticRegistry(cfgRoot, defaultStaticTTL, m.logger, m.metrics)
 	}
+	if m.sopResolver == nil {
+		repoRoot := deriveRepoRoot(m.configRoot)
+		m.sopResolver = NewSOPResolver(repoRoot, m.logger)
+	}
 	return m
+}
+
+// deriveRepoRoot strips the "configs/context" suffix from the config root to
+// obtain the repository root directory.
+func deriveRepoRoot(configRoot string) string {
+	cleaned := filepath.Clean(configRoot)
+	suffix := filepath.Join("configs", "context")
+	if strings.HasSuffix(cleaned, suffix) {
+		return strings.TrimSuffix(cleaned, suffix)
+	}
+	// Fallback: walk up two levels if the path ends with the expected dirs.
+	return filepath.Dir(filepath.Dir(cleaned))
 }

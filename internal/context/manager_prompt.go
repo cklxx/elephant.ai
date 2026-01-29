@@ -212,9 +212,25 @@ func buildKnowledgeSection(knowledge []agent.KnowledgeReference) string {
 		if ref.Description != "" {
 			lines = append(lines, fmt.Sprintf("  - Summary: %s", ref.Description))
 		}
-		if len(ref.SOPRefs) > 0 {
+
+		// Render resolved SOP content inline when available.
+		if len(ref.ResolvedSOPContent) > 0 {
+			for _, sopRef := range ref.SOPRefs {
+				content, ok := ref.ResolvedSOPContent[sopRef]
+				if !ok || content == "" {
+					continue
+				}
+				sopLabel := SOPRefLabel(sopRef)
+				lines = append(lines, fmt.Sprintf("  - SOP [%s]:", sopLabel))
+				for _, cl := range strings.Split(content, "\n") {
+					lines = append(lines, fmt.Sprintf("    %s", cl))
+				}
+			}
+		} else if len(ref.SOPRefs) > 0 {
+			// Fallback to raw ref strings if resolution didn't happen.
 			lines = append(lines, fmt.Sprintf("  - SOP refs: %s", strings.Join(ref.SOPRefs, ", ")))
 		}
+
 		if len(ref.RAGCollections) > 0 {
 			lines = append(lines, fmt.Sprintf("  - RAG collections: %s", strings.Join(ref.RAGCollections, ", ")))
 		}
