@@ -384,11 +384,12 @@ function LLMCallDetailView({
             {requestsSnippet?.error && (
               <p className="text-xs text-rose-600">
                 Request log error: {requestsSnippet.error === "not_found" ? "llm.jsonl not found" : requestsSnippet.error}
+                {requestsSnippet.path && <span className="ml-1 text-muted-foreground">(path: {requestsSnippet.path})</span>}
               </p>
             )}
             {!requestsSnippet?.error && matchedEntries.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No request log entries found (log_id={logId}, raw entries={requestsSnippet?.entries?.length ?? 0}).
+                No request log entries found (log_id={logId}, raw={requestsSnippet?.entries?.length ?? 0}, path={requestsSnippet?.path ?? "—"}).
               </p>
             )}
             {matchedEntries.length > 0 && (

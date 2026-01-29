@@ -45,6 +45,36 @@ func TestFetchLogBundleCollectsMatches(t *testing.T) {
 	}
 }
 
+func TestReadLogMatchesScansEntireFile(t *testing.T) {
+	logDir := t.TempDir()
+	// Write a file where matching entries appear after more than MaxBytes of non-matching data.
+	var content strings.Builder
+	for i := 0; i < 200; i++ {
+		content.WriteString(strings.Repeat("x", 100) + " unrelated line\n")
+	}
+	// ~23KB of non-matching lines above; our match is at the end.
+	content.WriteString("important log_id=log-deep-scan match\n")
+	path := filepath.Join(logDir, "test.log")
+	writeTestLog(t, path, content.String())
+
+	// MaxBytes is only 1KB — much less than the file, but the match should still be found
+	// because MaxBytes limits matched output size, not scan range.
+	snippet := readLogMatches(path, "log-deep-scan", LogFetchOptions{
+		MaxBytes:   1024,
+		MaxEntries: 50,
+	})
+
+	if snippet.Error != "" {
+		t.Fatalf("unexpected error: %s", snippet.Error)
+	}
+	if len(snippet.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(snippet.Entries))
+	}
+	if !strings.Contains(snippet.Entries[0], "log-deep-scan") {
+		t.Fatalf("expected match, got: %s", snippet.Entries[0])
+	}
+}
+
 func TestFetchLogBundleFlagsTruncation(t *testing.T) {
 	logDir := t.TempDir()
 	t.Setenv("ALEX_LOG_DIR", logDir)

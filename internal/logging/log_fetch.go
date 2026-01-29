@@ -122,20 +122,20 @@ func readLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 0, 64*1024), opts.MaxLineBytes)
 
-	bytesRead := 0
+	matchedBytes := 0
 	for scanner.Scan() {
 		line := scanner.Text()
-		bytesRead += len(line)
 		if strings.Contains(line, logID) {
 			snippet.Entries = append(snippet.Entries, line)
+			matchedBytes += len(line)
 			if len(snippet.Entries) >= opts.MaxEntries {
 				snippet.Truncated = true
 				break
 			}
-		}
-		if bytesRead >= opts.MaxBytes {
-			snippet.Truncated = true
-			break
+			if matchedBytes >= opts.MaxBytes {
+				snippet.Truncated = true
+				break
+			}
 		}
 	}
 	if err := scanner.Err(); err != nil {
