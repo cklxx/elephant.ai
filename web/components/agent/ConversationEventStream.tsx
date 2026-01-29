@@ -245,10 +245,12 @@ function partitionEvents(events: AnyAgentEvent[], isRunning: boolean): Partition
     }
   });
 
-  // Find pending (started but not completed)
+  // Find pending (started but not completed), excluding orchestrator tools
   const pendingTools = new Map<string, WorkflowToolStartedEvent>();
   startedTools.forEach((started, key) => {
-    if (!completedToolIds.has(key)) pendingTools.set(key, started);
+    if (!completedToolIds.has(key) && !isOrchestratorTool(started)) {
+      pendingTools.set(key, started);
+    }
   });
 
   // Create resolve function
@@ -328,8 +330,11 @@ function shouldDisplayInMainStream(event: AnyAgentEvent, isRunning: boolean): bo
   // Show final results
   if (isEventType(event, "workflow.result.final", "workflow.result.cancelled")) return true;
 
-  // Show tool completed (started is merged in)
-  if (isEventType(event, "workflow.tool.started")) return true;
+  // Only show subagent tool starts (render as AgentCard); other starts
+  // are handled by pendingTools while running, completed merges started params
+  if (isEventType(event, "workflow.tool.started")) {
+    return isSubagentToolEvent(event, "workflow.tool.started");
+  }
   if (isEventType(event, "workflow.tool.completed")) {
     return !isSubagentToolCompleted(event);
   }
@@ -372,6 +377,14 @@ function isSubagentToolEvent(
       ? event.tool_name.toLowerCase()
       : "";
   return toolName === "subagent";
+}
+
+function isOrchestratorTool(event: AnyAgentEvent): boolean {
+  const toolName =
+    "tool_name" in event && typeof event.tool_name === "string"
+      ? event.tool_name.toLowerCase()
+      : "";
+  return toolName === "plan" || toolName === "clarify";
 }
 
 function getSubagentGroupKey(event: AnyAgentEvent): string | null {
@@ -422,6 +435,7 @@ function getSubagentThreadKey(event: AnyAgentEvent, groupKey: string): string {
 function shouldDisplayInSubagentCard(event: AnyAgentEvent): boolean {
   return isEventType(
     event,
+    "workflow.tool.started",
     "workflow.tool.completed",
     "workflow.result.final",
     "workflow.result.cancelled",
