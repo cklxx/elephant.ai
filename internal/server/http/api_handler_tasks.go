@@ -13,6 +13,7 @@ import (
 
 	appcontext "alex/internal/agent/app/context"
 	agentports "alex/internal/agent/ports"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/types"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/subscription"
@@ -142,6 +143,10 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	// Background goroutine will handle actual execution and update status
 	task, err := h.coordinator.ExecuteTaskAsync(ctx, req.Task, req.SessionID, req.AgentPreset, req.ToolPreset)
 	if err != nil {
+		if errors.Is(err, storage.ErrSessionNotFound) {
+			h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
+			return
+		}
 		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create task", err)
 		return
 	}

@@ -3,6 +3,7 @@ package filestore
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,5 +163,17 @@ func TestStore_RejectsUnsafeIDs(t *testing.T) {
 
 	if err := store.Delete(context.Background(), "../escape"); err == nil {
 		t.Fatalf("Delete() expected invalid session ID error")
+	}
+}
+
+func TestStore_GetMissingReturnsNotFound(t *testing.T) {
+	t.Parallel()
+
+	baseDir := t.TempDir()
+	store := New(baseDir)
+
+	_, err := store.Get(context.Background(), "missing-session")
+	if !errors.Is(err, storage.ErrSessionNotFound) {
+		t.Fatalf("expected ErrSessionNotFound, got %v", err)
 	}
 }

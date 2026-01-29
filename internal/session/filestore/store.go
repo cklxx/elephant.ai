@@ -95,7 +95,7 @@ func (s *store) Get(ctx context.Context, id string) (*storage.Session, error) {
 	path := filepath.Join(s.baseDir, fmt.Sprintf("%s.json", id))
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("session not found")
+		return nil, storage.ErrSessionNotFound
 	}
 
 	var session storage.Session

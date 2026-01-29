@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
 )
 
@@ -149,6 +150,13 @@ func TestStartReturnsNilWhenDisabled(t *testing.T) {
 var errTest = fmt.Errorf("test error")
 
 type stubExecutor struct{}
+
+func (s *stubExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	if sessionID == "" {
+		sessionID = "lark-session"
+	}
+	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+}
 
 func (s *stubExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
 	return nil, nil

@@ -223,6 +223,24 @@ func TestHandleCreateTaskReturnsJSONErrorOnSessionDecodeFailure(t *testing.T) {
 	}
 }
 
+func TestHandleCreateTaskReturnsNotFoundOnMissingSession(t *testing.T) {
+	coordinator := app.NewServerCoordinator(&failingAgentCoordinator{err: storage.ErrSessionNotFound}, app.NewEventBroadcaster(), nil, nil, nil)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+
+	reqBody := bytes.NewBufferString(`{"task":"demo","session_id":"missing-session"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/tasks", reqBody)
+	rr := httptest.NewRecorder()
+
+	handler.HandleCreateTask(rr, req)
+
+	if rr.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rr.Code)
+	}
+	if !strings.Contains(rr.Body.String(), "Session not found") {
+		t.Fatalf("expected response to mention session not found, got %s", rr.Body.String())
+	}
+}
+
 func TestHandleCreateTaskHonorsBodyLimit(t *testing.T) {
 	coordinator := app.NewServerCoordinator(&stubAgentCoordinator{}, app.NewEventBroadcaster(), nil, nil, nil)
 	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithMaxCreateTaskBodySize(64))

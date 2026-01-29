@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -10,6 +11,7 @@ import (
 
 	core "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 )
 
 const (
@@ -40,17 +42,17 @@ type SessionPersonaResponse struct {
 }
 
 type TurnSnapshotResponse struct {
-	SessionID  string                      `json:"session_id"`
-	TurnID     int                         `json:"turn_id"`
-	LLMTurnSeq int                         `json:"llm_turn_seq"`
-	Summary    string                      `json:"summary"`
-	CreatedAt  string                      `json:"created_at"`
-	Plans      []agent.PlanNode            `json:"plans,omitempty"`
-	Beliefs    []agent.Belief              `json:"beliefs,omitempty"`
-	WorldState map[string]any              `json:"world_state,omitempty"`
-	Diff       map[string]any              `json:"diff,omitempty"`
-	Messages   []core.Message              `json:"messages"`
-	Feedback   []agent.FeedbackSignal      `json:"feedback,omitempty"`
+	SessionID  string                 `json:"session_id"`
+	TurnID     int                    `json:"turn_id"`
+	LLMTurnSeq int                    `json:"llm_turn_seq"`
+	Summary    string                 `json:"summary"`
+	CreatedAt  string                 `json:"created_at"`
+	Plans      []agent.PlanNode       `json:"plans,omitempty"`
+	Beliefs    []agent.Belief         `json:"beliefs,omitempty"`
+	WorldState map[string]any         `json:"world_state,omitempty"`
+	Diff       map[string]any         `json:"diff,omitempty"`
+	Messages   []core.Message         `json:"messages"`
+	Feedback   []agent.FeedbackSignal `json:"feedback,omitempty"`
 }
 
 // SessionResponse matches TypeScript Session interface
@@ -206,7 +208,7 @@ func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Req
 
 	shareToken, err := h.coordinator.EnsureSessionShareToken(r.Context(), sessionID, false)
 	if err != nil {
-		if strings.Contains(err.Error(), "session not found") {
+		if errors.Is(err, storage.ErrSessionNotFound) {
 			h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
 			return
 		}

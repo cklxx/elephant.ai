@@ -2,8 +2,10 @@ package postgresstore
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/testutil"
 )
 
@@ -116,6 +118,23 @@ func TestPostgresStore_CacheDoesNotLeakMutations(t *testing.T) {
 	}
 	if reloaded.Metadata["mutated"] == "yes" {
 		t.Fatalf("expected cached session to be immutable")
+	}
+}
+
+func TestPostgresStore_GetMissingReturnsNotFound(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	store := New(pool)
+
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	_, err := store.Get(ctx, "missing-session")
+	if !errors.Is(err, storage.ErrSessionNotFound) {
+		t.Fatalf("expected ErrSessionNotFound, got %v", err)
 	}
 }
 

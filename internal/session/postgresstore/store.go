@@ -359,7 +359,7 @@ func (s *Store) loadCachedSession(ctx context.Context, sessionID string) (*stora
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			s.cache.Remove(sessionID)
-			return nil, false, fmt.Errorf("session not found")
+			return nil, false, storage.ErrSessionNotFound
 		}
 		return nil, false, err
 	}
@@ -427,7 +427,7 @@ WHERE id = $1
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("session not found")
+			return nil, storage.ErrSessionNotFound
 		}
 		return nil, err
 	}

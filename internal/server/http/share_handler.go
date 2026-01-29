@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
 	"alex/internal/server/app"
 )
@@ -52,7 +53,7 @@ func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Reques
 			http.Error(w, "Invalid share token", http.StatusForbidden)
 			return
 		}
-		if strings.Contains(err.Error(), "session not found") {
+		if errors.Is(err, storage.ErrSessionNotFound) {
 			http.Error(w, "Session not found", http.StatusNotFound)
 			return
 		}

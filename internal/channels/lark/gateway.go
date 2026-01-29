@@ -10,6 +10,7 @@ import (
 
 	appcontext "alex/internal/agent/app/context"
 	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 
@@ -22,6 +23,7 @@ import (
 
 // AgentExecutor captures the agent execution surface needed by the gateway.
 type AgentExecutor interface {
+	EnsureSession(ctx context.Context, sessionID string) (*storage.Session, error)
 	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
 }
 
@@ -134,6 +136,27 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	execCtx := context.Background()
 	execCtx = id.WithSessionID(execCtx, sessionID)
 	execCtx, _ = id.EnsureLogID(execCtx, id.NewLogID)
+
+	session, err := g.agent.EnsureSession(execCtx, sessionID)
+	if err != nil {
+		g.logger.Warn("Lark ensure session failed: %v", err)
+		reply := g.buildReply(nil, fmt.Errorf("ensure session: %w", err))
+		if reply == "" {
+			reply = "（无可用回复）"
+		}
+		messageID := deref(msg.MessageId)
+		if isGroup && messageID != "" {
+			g.replyMessage(execCtx, messageID, reply)
+		} else {
+			g.sendMessage(execCtx, chatID, reply)
+		}
+		return nil
+	}
+	if session != nil && session.ID != "" && session.ID != sessionID {
+		sessionID = session.ID
+		execCtx = id.WithSessionID(execCtx, sessionID)
+	}
+
 	if g.cfg.AgentPreset != "" || g.cfg.ToolPreset != "" {
 		execCtx = context.WithValue(execCtx, appcontext.PresetContextKey{}, appcontext.PresetConfig{
 			AgentPreset: g.cfg.AgentPreset,

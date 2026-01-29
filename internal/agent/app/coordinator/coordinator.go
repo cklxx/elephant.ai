@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -613,6 +614,34 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 // GetSession retrieves or creates a session (public method)
 func (c *AgentCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return c.getSession(ctx, id)
+}
+
+// EnsureSession returns an existing session or creates one with the provided ID.
+func (c *AgentCoordinator) EnsureSession(ctx context.Context, id string) (*storage.Session, error) {
+	if id == "" {
+		return c.sessionStore.Create(ctx)
+	}
+	session, err := c.sessionStore.Get(ctx, id)
+	if err == nil {
+		return session, nil
+	}
+	if !errors.Is(err, storage.ErrSessionNotFound) {
+		return nil, err
+	}
+
+	now := c.clock.Now()
+	session = &storage.Session{
+		ID:        id,
+		Messages:  []ports.Message{},
+		Todos:     []storage.Todo{},
+		Metadata:  map[string]string{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := c.sessionStore.Save(ctx, session); err != nil {
+		return nil, err
+	}
+	return session, nil
 }
 
 func (c *AgentCoordinator) getSession(ctx context.Context, id string) (*storage.Session, error) {

@@ -10,6 +10,7 @@ import (
 
 	appcontext "alex/internal/agent/app/context"
 	agent "alex/internal/agent/ports/agent"
+	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 
@@ -19,6 +20,7 @@ import (
 
 // AgentExecutor captures the agent execution surface needed by the gateway.
 type AgentExecutor interface {
+	EnsureSession(ctx context.Context, sessionID string) (*storage.Session, error)
 	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
 }
 
@@ -171,6 +173,23 @@ func (g *Gateway) handleMessage(msg *openwechat.Message) {
 	ctx := context.Background()
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
+
+	session, err := g.agent.EnsureSession(ctx, sessionID)
+	if err != nil {
+		reply := g.buildReply(msg, nil, fmt.Errorf("ensure session: %w", err))
+		if reply == "" {
+			reply = "（无可用回复）"
+		}
+		if _, replyErr := msg.ReplyText(reply); replyErr != nil {
+			g.logger.Warn("WeChat reply failed: %v", replyErr)
+		}
+		return
+	}
+	if session != nil && session.ID != "" && session.ID != sessionID {
+		sessionID = session.ID
+		ctx = id.WithSessionID(ctx, sessionID)
+	}
+
 	if g.cfg.AgentPreset != "" || g.cfg.ToolPreset != "" {
 		ctx = context.WithValue(ctx, appcontext.PresetContextKey{}, appcontext.PresetConfig{
 			AgentPreset: g.cfg.AgentPreset,
