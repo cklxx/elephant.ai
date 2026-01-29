@@ -26,17 +26,17 @@ func NewSandboxShellExec(cfg SandboxConfig) tools.ToolExecutor {
 
 func (t *sandboxShellExecTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_shell_exec",
+		Name:     "shell_exec",
 		Version:  "0.1.0",
-		Category: "sandbox_shell",
-		Tags:     []string{"sandbox", "shell", "exec"},
+		Category: "shell",
+		Tags:     []string{"shell", "exec", "command"},
 	}
 }
 
 func (t *sandboxShellExecTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_shell_exec",
-		Description: "Execute a shell command inside the sandbox (isolated environment). Optionally fetch sandbox files as attachments.",
+		Name:        "shell_exec",
+		Description: "Execute a shell command in the local environment. Optionally fetch output files as attachments.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
@@ -47,7 +47,7 @@ func (t *sandboxShellExecTool) Definition() ports.ToolDefinition {
 				"session_id": {Type: "string", Description: "Optional shell session id"},
 				"attachments": {
 					Type:        "array",
-					Description: "Optional list of sandbox file paths or attachment specs to fetch after execution.",
+					Description: "Optional list of file paths or attachment specs to fetch after execution.",
 					Items:       &ports.Property{Type: "object"},
 				},
 				"output_files": {

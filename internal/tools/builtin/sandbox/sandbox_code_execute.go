@@ -29,21 +29,21 @@ func NewSandboxCodeExecute(cfg SandboxConfig) tools.ToolExecutor {
 
 func (t *sandboxCodeExecuteTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_code_execute",
+		Name:     "execute_code",
 		Version:  "0.1.0",
-		Category: "sandbox_shell",
-		Tags:     []string{"sandbox", "code", "execute"},
+		Category: "execution",
+		Tags:     []string{"code", "execute", "run"},
 	}
 }
 
 func (t *sandboxCodeExecuteTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "sandbox_code_execute",
-		Description: `Execute code inside the sandbox using the available runtimes.
+		Name: "execute_code",
+		Description: `Execute code using the available local runtimes.
 
 Supported languages: python, go, javascript/js, bash.
-Provide inline code or reference an existing sandbox file via code_path.
-Optionally fetch output files from the sandbox as attachments.`,
+Provide inline code or reference an existing file via code_path.
+Optionally fetch output files as attachments.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
@@ -58,11 +58,11 @@ Optionally fetch output files from the sandbox as attachments.`,
 				},
 				"code_path": {
 					Type:        "string",
-					Description: "Absolute path to a code file already present in the sandbox.",
+					Description: "Absolute path to an existing code file.",
 				},
 				"exec_dir": {
 					Type:        "string",
-					Description: "Absolute working directory inside the sandbox.",
+					Description: "Absolute working directory.",
 				},
 				"timeout": {
 					Type:        "number",
@@ -70,7 +70,7 @@ Optionally fetch output files from the sandbox as attachments.`,
 				},
 				"attachments": {
 					Type:        "array",
-					Description: "Optional list of sandbox file paths or attachment specs to fetch after execution.",
+					Description: "Optional list of file paths or attachment specs to fetch after execution.",
 					Items:       &ports.Property{Type: "object"},
 				},
 				"output_files": {

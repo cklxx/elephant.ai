@@ -16,7 +16,7 @@ func (r *CLIRenderer) formatToolOutput(_ *types.OutputContext, toolName, result 
 	// Use brighter gray (#808080) that works on both light and dark backgrounds
 	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 	normalizedTool := strings.TrimSpace(toolName)
-	if strings.HasPrefix(normalizedTool, "sandbox_file_") {
+	if normalizedTool == "read_file" || normalizedTool == "write_file" || normalizedTool == "list_dir" || normalizedTool == "search_file" || normalizedTool == "replace_in_file" {
 		return r.formatSandboxFileOutput(normalizedTool, result, indent, grayStyle)
 	}
 	category := CategorizeToolName(normalizedTool)
@@ -412,21 +412,21 @@ func (r *CLIRenderer) formatWebFetchOutput(content, indent string, style lipglos
 func (r *CLIRenderer) formatSandboxFileOutput(toolName, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
 	switch toolName {
-	case "sandbox_file_read":
+	case "read_file":
 		lines := countLines(cleaned)
 		return fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d lines read", lines)))
-	case "sandbox_file_write", "sandbox_file_replace":
+	case "write_file", "replace_in_file":
 		if summary, ok := summarizeFileOperation(cleaned); ok {
 			return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+summary))
 		}
 		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
-	case "sandbox_file_list":
+	case "list_dir":
 		if summary, ok := parseSandboxFileListSummary(cleaned); ok {
 			return r.renderSandboxFileList(summary, indent, style)
 		}
 		preview := truncateWithEllipsis(cleaned, 100)
 		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
-	case "sandbox_file_search":
+	case "search_file":
 		if summary, ok := parseSandboxFileSearchSummary(cleaned); ok {
 			return r.renderSandboxFileSearch(summary, indent, style)
 		}

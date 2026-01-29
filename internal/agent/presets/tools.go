@@ -108,18 +108,18 @@ var (
 		"request_user": true,
 	}
 	sandboxToolNames = []string{
-		"sandbox_browser",
-		"sandbox_browser_info",
-		"sandbox_browser_screenshot",
-		"sandbox_browser_dom",
-		"sandbox_file_read",
-		"sandbox_file_write",
-		"sandbox_file_list",
-		"sandbox_file_search",
-		"sandbox_file_replace",
-		"sandbox_shell_exec",
-		"sandbox_code_execute",
-		"sandbox_write_attachment",
+		"browser_action",
+		"browser_info",
+		"browser_screenshot",
+		"browser_dom",
+		"read_file",
+		"write_file",
+		"list_dir",
+		"search_file",
+		"replace_in_file",
+		"shell_exec",
+		"execute_code",
+		"write_attachment",
 	}
 )
 

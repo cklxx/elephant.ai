@@ -62,10 +62,10 @@ func NewSandboxBrowserScreenshot(cfg SandboxConfig) tools.ToolExecutor {
 
 func (t *sandboxBrowserTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_browser",
+		Name:     "browser_action",
 		Version:  "0.1.0",
 		Category: "web",
-		Tags:     []string{"sandbox", "browser", "automation"},
+		Tags:     []string{"browser", "automation", "interaction"},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
 			Produces:          []string{"text/plain"},
 			ProducesArtifacts: []string{"image/png"},
@@ -75,20 +75,20 @@ func (t *sandboxBrowserTool) Metadata() ports.ToolMetadata {
 
 func (t *sandboxBrowserTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "sandbox_browser",
-		Description: `Execute browser actions inside the AIO Sandbox.
+		Name: "browser_action",
+		Description: `Execute browser actions via the local browser instance.
 
-Provide a list of action objects that match the sandbox browser API:
+Provide a list of action objects:
 - action_type: MOVE_TO, CLICK, MOUSE_DOWN, MOUSE_UP, RIGHT_CLICK, DOUBLE_CLICK, DRAG_TO, SCROLL, TYPING, PRESS, KEY_DOWN, KEY_UP, HOTKEY
-- additional fields vary per action (see sandbox OpenAPI).
+- additional fields vary per action type.
 
-Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use sandbox_browser_dom.`,
+Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use browser_dom.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
 				"actions": {
 					Type:        "array",
-					Description: "Ordered list of sandbox browser actions to execute.",
+					Description: "Ordered list of browser actions to execute.",
 					Items:       &ports.Property{Type: "object"},
 				},
 				"capture_screenshot": {
@@ -200,10 +200,10 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 
 func (t *sandboxBrowserInfoTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_browser_info",
+		Name:     "browser_info",
 		Version:  "0.1.0",
 		Category: "web",
-		Tags:     []string{"sandbox", "browser", "metadata"},
+		Tags:     []string{"browser", "metadata", "info"},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
 			Produces: []string{"application/json", "text/plain"},
 		},
@@ -212,8 +212,8 @@ func (t *sandboxBrowserInfoTool) Metadata() ports.ToolMetadata {
 
 func (t *sandboxBrowserInfoTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_browser_info",
-		Description: "Fetch browser metadata from the AIO Sandbox (user agent, CDP URL, viewport, VNC URL).",
+		Name:        "browser_info",
+		Description: "Fetch browser metadata (user agent, viewport, connection info).",
 		Parameters: ports.ParameterSchema{
 			Type:       "object",
 			Properties: map[string]ports.Property{},
@@ -248,10 +248,10 @@ func (t *sandboxBrowserInfoTool) Execute(ctx context.Context, call ports.ToolCal
 
 func (t *sandboxBrowserScreenshotTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_browser_screenshot",
+		Name:     "browser_screenshot",
 		Version:  "0.1.0",
 		Category: "web",
-		Tags:     []string{"sandbox", "browser", "screenshot"},
+		Tags:     []string{"browser", "screenshot", "capture"},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
 			ProducesArtifacts: []string{"image/png"},
 		},
@@ -260,8 +260,8 @@ func (t *sandboxBrowserScreenshotTool) Metadata() ports.ToolMetadata {
 
 func (t *sandboxBrowserScreenshotTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_browser_screenshot",
-		Description: "Capture a screenshot from the sandbox browser.",
+		Name:        "browser_screenshot",
+		Description: "Capture a screenshot from the browser.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{

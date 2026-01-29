@@ -29,23 +29,23 @@ func NewSandboxWriteAttachment(cfg SandboxConfig) tools.ToolExecutor {
 
 func (t *sandboxWriteAttachmentTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_write_attachment",
+		Name:     "write_attachment",
 		Version:  "0.1.0",
-		Category: "sandbox_files",
-		Tags:     []string{"sandbox", "file", "attachment"},
+		Category: "files",
+		Tags:     []string{"file", "attachment", "write"},
 	}
 }
 
 func (t *sandboxWriteAttachmentTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "sandbox_write_attachment",
-		Description: "Write an existing attachment into the sandbox filesystem. " +
+		Name: "write_attachment",
+		Description: "Write an existing attachment to the local filesystem. " +
 			"Accepts attachment name/placeholder, data URI, or HTTPS URL.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
 				"attachment": {Type: "string", Description: "Attachment name or placeholder (e.g., deck.pptx or [deck.pptx])"},
-				"path":       {Type: "string", Description: "Absolute target path in the sandbox"},
+				"path":       {Type: "string", Description: "Absolute target path"},
 				"sudo":       {Type: "boolean", Description: "Use sudo privileges"},
 			},
 			Required: []string{"attachment", "path"},

@@ -55,7 +55,7 @@ type sandboxDOMElement struct {
 }
 
 const (
-	sandboxDOMToolName        = "sandbox_browser_dom"
+	sandboxDOMToolName        = "browser_dom"
 	sandboxDOMDefaultMaxHints = 6
 	sandboxDOMDefaultMaxElems = 24
 	sandboxDOMMaxElemsCap     = 60
@@ -70,7 +70,7 @@ func (t *sandboxBrowserDOMTool) Metadata() ports.ToolMetadata {
 		Name:     sandboxDOMToolName,
 		Version:  "0.1.0",
 		Category: "web",
-		Tags:     []string{"sandbox", "browser", "dom", "automation"},
+		Tags:     []string{"browser", "dom", "automation"},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
 			Produces: []string{"text/plain", "application/json"},
 		},
@@ -80,7 +80,7 @@ func (t *sandboxBrowserDOMTool) Metadata() ports.ToolMetadata {
 func (t *sandboxBrowserDOMTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name: sandboxDOMToolName,
-		Description: `Use the sandbox browser via CDP for DOM-level automation (Playwright-like).
+		Description: `Use the browser via CDP for DOM-level automation (Playwright-like).
 
 Provide ordered steps using CSS selectors. Useful for click/fill/wait/query/evaluate without relying on screenshots.`,
 		Parameters: ports.ParameterSchema{

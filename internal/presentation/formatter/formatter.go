@@ -69,9 +69,9 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 	}
 
 	switch name {
-	case "code_execute", "sandbox_code_execute":
+	case "code_execute", "execute_code":
 		return tf.codeExecuteArgs(args), 80
-	case "bash", "sandbox_shell_exec":
+	case "bash", "shell_exec":
 		return tf.bashArgs(args), 160
 	case "file_read":
 		return tf.fileReadArgs(args), 120

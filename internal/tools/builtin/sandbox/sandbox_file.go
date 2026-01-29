@@ -56,21 +56,21 @@ func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 
 func (t *sandboxFileReadTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_file_read",
+		Name:     "read_file",
 		Version:  "0.1.0",
-		Category: "sandbox_files",
-		Tags:     []string{"sandbox", "file", "read"},
+		Category: "files",
+		Tags:     []string{"file", "read"},
 	}
 }
 
 func (t *sandboxFileReadTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_file_read",
-		Description: "Read file contents from the sandbox workspace (absolute paths only).",
+		Name:        "read_file",
+		Description: "Read file contents from the local filesystem (absolute paths only).",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"path":       {Type: "string", Description: "Absolute file path in the sandbox"},
+				"path":       {Type: "string", Description: "Absolute file path"},
 				"start_line": {Type: "integer", Description: "Optional start line (0-based)"},
 				"end_line":   {Type: "integer", Description: "Optional end line (exclusive)"},
 				"sudo":       {Type: "boolean", Description: "Use sudo privileges"},
@@ -124,21 +124,21 @@ func (t *sandboxFileReadTool) Execute(ctx context.Context, call ports.ToolCall) 
 
 func (t *sandboxFileWriteTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_file_write",
+		Name:     "write_file",
 		Version:  "0.1.0",
-		Category: "sandbox_files",
-		Tags:     []string{"sandbox", "file", "write"},
+		Category: "files",
+		Tags:     []string{"file", "write"},
 	}
 }
 
 func (t *sandboxFileWriteTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_file_write",
-		Description: "Write content to a sandbox file (absolute paths only). Use encoding=base64 for binary data.",
+		Name:        "write_file",
+		Description: "Write content to a file (absolute paths only). Use encoding=base64 for binary data.",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"path":             {Type: "string", Description: "Absolute file path in the sandbox"},
+				"path":             {Type: "string", Description: "Absolute file path"},
 				"content":          {Type: "string", Description: "Text content or base64 payload"},
 				"encoding":         {Type: "string", Description: "Content encoding: utf-8 or base64"},
 				"append":           {Type: "boolean", Description: "Append to the file instead of overwriting"},
@@ -217,21 +217,21 @@ func (t *sandboxFileWriteTool) Execute(ctx context.Context, call ports.ToolCall)
 
 func (t *sandboxFileListTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_file_list",
+		Name:     "list_dir",
 		Version:  "0.1.0",
-		Category: "sandbox_files",
-		Tags:     []string{"sandbox", "file", "list"},
+		Category: "files",
+		Tags:     []string{"file", "list", "directory"},
 	}
 }
 
 func (t *sandboxFileListTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_file_list",
-		Description: "List files in a sandbox directory (absolute paths only).",
+		Name:        "list_dir",
+		Description: "List files in a directory (absolute paths only).",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"path":                {Type: "string", Description: "Absolute directory path in the sandbox"},
+				"path":                {Type: "string", Description: "Absolute directory path"},
 				"recursive":           {Type: "boolean", Description: "List recursively"},
 				"show_hidden":         {Type: "boolean", Description: "Include hidden files"},
 				"file_types":          {Type: "array", Description: "Filter by file extensions", Items: &ports.Property{Type: "string"}},
@@ -310,21 +310,21 @@ func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) 
 
 func (t *sandboxFileSearchTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_file_search",
+		Name:     "search_file",
 		Version:  "0.1.0",
-		Category: "sandbox_files",
-		Tags:     []string{"sandbox", "file", "search"},
+		Category: "files",
+		Tags:     []string{"file", "search"},
 	}
 }
 
 func (t *sandboxFileSearchTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_file_search",
-		Description: "Search for a regex pattern in a sandbox file (absolute paths only).",
+		Name:        "search_file",
+		Description: "Search for a regex pattern in a file (absolute paths only).",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"path":  {Type: "string", Description: "Absolute file path in the sandbox"},
+				"path":  {Type: "string", Description: "Absolute file path"},
 				"regex": {Type: "string", Description: "Regex pattern to search"},
 				"sudo":  {Type: "boolean", Description: "Use sudo privileges"},
 			},
@@ -384,21 +384,21 @@ func (t *sandboxFileSearchTool) Execute(ctx context.Context, call ports.ToolCall
 
 func (t *sandboxFileReplaceTool) Metadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:     "sandbox_file_replace",
+		Name:     "replace_in_file",
 		Version:  "0.1.0",
-		Category: "sandbox_files",
-		Tags:     []string{"sandbox", "file", "replace"},
+		Category: "files",
+		Tags:     []string{"file", "replace", "edit"},
 	}
 }
 
 func (t *sandboxFileReplaceTool) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name:        "sandbox_file_replace",
-		Description: "Replace exact text in a sandbox file (absolute paths only).",
+		Name:        "replace_in_file",
+		Description: "Replace exact text in a file (absolute paths only).",
 		Parameters: ports.ParameterSchema{
 			Type: "object",
 			Properties: map[string]ports.Property{
-				"path":    {Type: "string", Description: "Absolute file path in the sandbox"},
+				"path":    {Type: "string", Description: "Absolute file path"},
 				"old_str": {Type: "string", Description: "Original string to replace"},
 				"new_str": {Type: "string", Description: "Replacement string"},
 				"sudo":    {Type: "boolean", Description: "Use sudo privileges"},

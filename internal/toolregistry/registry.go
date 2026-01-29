@@ -469,18 +469,18 @@ func (r *Registry) registerBuiltins(config Config) error {
 		VisionTool:   visionTool,
 		VisionPrompt: "",
 	}
-	r.static["sandbox_browser"] = sandbox.NewSandboxBrowser(sandboxConfig)
-	r.static["sandbox_browser_info"] = sandbox.NewSandboxBrowserInfo(sandboxConfig)
-	r.static["sandbox_browser_screenshot"] = sandbox.NewSandboxBrowserScreenshot(sandboxConfig)
-	r.static["sandbox_browser_dom"] = sandbox.NewSandboxBrowserDOM(sandboxConfig)
-	r.static["sandbox_file_read"] = sandbox.NewSandboxFileRead(sandboxConfig)
-	r.static["sandbox_file_write"] = sandbox.NewSandboxFileWrite(sandboxConfig)
-	r.static["sandbox_file_list"] = sandbox.NewSandboxFileList(sandboxConfig)
-	r.static["sandbox_file_search"] = sandbox.NewSandboxFileSearch(sandboxConfig)
-	r.static["sandbox_file_replace"] = sandbox.NewSandboxFileReplace(sandboxConfig)
-	r.static["sandbox_shell_exec"] = sandbox.NewSandboxShellExec(sandboxConfig)
-	r.static["sandbox_code_execute"] = sandbox.NewSandboxCodeExecute(sandboxConfig)
-	r.static["sandbox_write_attachment"] = sandbox.NewSandboxWriteAttachment(sandboxConfig)
+	r.static["browser_action"] = sandbox.NewSandboxBrowser(sandboxConfig)
+	r.static["browser_info"] = sandbox.NewSandboxBrowserInfo(sandboxConfig)
+	r.static["browser_screenshot"] = sandbox.NewSandboxBrowserScreenshot(sandboxConfig)
+	r.static["browser_dom"] = sandbox.NewSandboxBrowserDOM(sandboxConfig)
+	r.static["read_file"] = sandbox.NewSandboxFileRead(sandboxConfig)
+	r.static["write_file"] = sandbox.NewSandboxFileWrite(sandboxConfig)
+	r.static["list_dir"] = sandbox.NewSandboxFileList(sandboxConfig)
+	r.static["search_file"] = sandbox.NewSandboxFileSearch(sandboxConfig)
+	r.static["replace_in_file"] = sandbox.NewSandboxFileReplace(sandboxConfig)
+	r.static["shell_exec"] = sandbox.NewSandboxShellExec(sandboxConfig)
+	r.static["execute_code"] = sandbox.NewSandboxCodeExecute(sandboxConfig)
+	r.static["write_attachment"] = sandbox.NewSandboxWriteAttachment(sandboxConfig)
 
 	// Lark tools
 	r.static["lark_chat_history"] = larktools.NewLarkChatHistory()

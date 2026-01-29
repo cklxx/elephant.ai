@@ -255,17 +255,17 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
-			name:      "full handles sandbox_shell_exec in cli mode",
+			name:      "full handles shell_exec in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
-			toolName:  "sandbox_shell_exec",
+			toolName:  "shell_exec",
 			wantAllow: false,
 		},
 		{
-			name:      "full handles sandbox_code_execute in cli mode",
+			name:      "full handles execute_code in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
-			toolName:  "sandbox_code_execute",
+			toolName:  "execute_code",
 			wantAllow: false,
 		},
 		{
@@ -325,17 +325,17 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
-			name:      "sandbox blocks sandbox_shell_exec",
+			name:      "sandbox blocks shell_exec",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSandbox,
-			toolName:  "sandbox_shell_exec",
+			toolName:  "shell_exec",
 			wantAllow: false,
 		},
 		{
-			name:      "sandbox blocks sandbox_code_execute",
+			name:      "sandbox blocks execute_code",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSandbox,
-			toolName:  "sandbox_code_execute",
+			toolName:  "execute_code",
 			wantAllow: false,
 		},
 		{

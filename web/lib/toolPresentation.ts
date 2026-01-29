@@ -339,7 +339,7 @@ export function userFacingToolTitle(input: {
     return formatTitle(query);
   }
 
-  if (tool === "sandbox_browser") {
+  if (tool === "browser_action") {
     const actions =
       input.arguments?.actions ??
       input.metadata?.sandbox_browser?.actions ??
@@ -348,7 +348,7 @@ export function userFacingToolTitle(input: {
     return formatTitle(summary);
   }
 
-  if (tool === "sandbox_browser_dom") {
+  if (tool === "browser_dom") {
     const steps =
       input.arguments?.steps ??
       input.metadata?.sandbox_browser_dom?.steps ??
@@ -501,7 +501,7 @@ export function userFacingToolSummary(input: {
     return "内部处理";
   }
 
-  if (tool === "sandbox_browser") {
+  if (tool === "browser_action") {
     const actions =
       input.metadata?.sandbox_browser?.actions ?? input.metadata?.actions ?? null;
     const summary = summarizeSandboxActions(actions);
@@ -543,7 +543,7 @@ export function userFacingToolSummary(input: {
 
   const sanitized = stripSystemReminders(input.result ?? "");
   if (!sanitized) return undefined;
-  if (tool === "sandbox_browser") {
+  if (tool === "browser_action") {
     return sanitized
       .replace(/screenshot captured\./i, "")
       .replace(/\s+/g, " ")
@@ -581,7 +581,7 @@ export function userFacingToolResultText(input: {
     return sanitized;
   }
 
-  if (tool === "sandbox_browser") {
+  if (tool === "browser_action") {
     return sanitized
       .replace(/screenshot captured\./i, "")
       .replace(/\s+/g, " ")
