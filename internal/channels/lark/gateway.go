@@ -275,10 +275,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		}
 		listener = emojiInterceptor
 	}
-	sender := &larkProgressSender{gateway: g, chatID: chatID, messageID: messageID, isGroup: isGroup}
-	progressLn := newProgressListener(execCtx, listener, sender, g.logger)
-	defer progressLn.Close()
-	listener = progressLn
+	if g.cfg.ShowToolProgress {
+		sender := &larkProgressSender{gateway: g, chatID: chatID, messageID: messageID, isGroup: isGroup}
+		progressLn := newProgressListener(execCtx, listener, sender, g.logger)
+		defer progressLn.Close()
+		listener = progressLn
+	}
 	execCtx = shared.WithParentListener(execCtx, listener)
 
 	// Memory recall: inject relevant past learnings into the task context.
@@ -510,6 +512,9 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 		reply = fmt.Sprintf("执行失败：%v", execErr)
 	} else if result != nil {
 		reply = strings.TrimSpace(result.Answer)
+		if reply == "" {
+			reply = extractThinkingFallback(result.Messages)
+		}
 	}
 	if reply == "" {
 		return ""
@@ -518,6 +523,25 @@ func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
 		reply = g.cfg.ReplyPrefix + reply
 	}
 	return reply
+}
+
+// extractThinkingFallback scans messages in reverse for the last assistant
+// message with non-empty thinking content. This is a safety net for models
+// that reason but produce no text output.
+func extractThinkingFallback(msgs []ports.Message) string {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		msg := msgs[i]
+		if msg.Role != "assistant" {
+			continue
+		}
+		for _, part := range msg.Thinking.Parts {
+			text := strings.TrimSpace(part.Text)
+			if text != "" {
+				return text
+			}
+		}
+	}
+	return ""
 }
 
 // memoryIDForChat derives a deterministic memory identity from a chat ID.

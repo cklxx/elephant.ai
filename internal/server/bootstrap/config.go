@@ -74,8 +74,9 @@ type LarkGatewayConfig struct {
 	ToolPreset    string
 	ToolMode      string
 	ReplyTimeout  time.Duration
-	ReactEmoji    string
-	MemoryEnabled bool
+	ReactEmoji       string
+	MemoryEnabled    bool
+	ShowToolProgress bool
 }
 
 var defaultAllowedOrigins = []string{
@@ -293,6 +294,9 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if larkCfg.MemoryEnabled != nil {
 			cfg.Channels.Lark.MemoryEnabled = *larkCfg.MemoryEnabled
+		}
+		if larkCfg.ShowToolProgress != nil {
+			cfg.Channels.Lark.ShowToolProgress = *larkCfg.ShowToolProgress
 		}
 	}
 

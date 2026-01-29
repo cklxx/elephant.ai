@@ -62,6 +62,19 @@ func appendThinkingText(thinking *ports.Thinking, kind, text string) {
 	appendThinkingPart(thinking, ports.ThinkingPart{Kind: kind, Text: text})
 }
 
+// isArkEndpoint returns true if the base URL points to a ByteDance ARK endpoint.
+func isArkEndpoint(baseURL string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(baseURL)), "ark")
+}
+
+// shouldSendArkReasoning returns true when thinking is enabled and the endpoint
+// is an ARK service. ARK endpoint IDs (e.g. "ep-xxx") don't reveal model type,
+// so no model check is performed — non-reasoning ARK models silently ignore the
+// reasoning_effort parameter.
+func shouldSendArkReasoning(baseURL string, cfg ports.ThinkingConfig) bool {
+	return cfg.Enabled && isArkEndpoint(baseURL)
+}
+
 func shouldSendOpenAIReasoning(baseURL, model string, cfg ports.ThinkingConfig) bool {
 	if !cfg.Enabled {
 		return false

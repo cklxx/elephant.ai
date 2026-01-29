@@ -53,19 +53,20 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	gatewayCfg := lark.Config{
-		Enabled:       larkCfg.Enabled,
-		AppID:         larkCfg.AppID,
-		AppSecret:     larkCfg.AppSecret,
-		BaseDomain:    larkCfg.BaseDomain,
-		SessionPrefix: larkCfg.SessionPrefix,
-		ReplyPrefix:   larkCfg.ReplyPrefix,
-		AllowGroups:   larkCfg.AllowGroups,
-		AllowDirect:   larkCfg.AllowDirect,
-		AgentPreset:   larkCfg.AgentPreset,
-		ToolPreset:    larkCfg.ToolPreset,
-		ReplyTimeout:  larkCfg.ReplyTimeout,
-		ReactEmoji:    larkCfg.ReactEmoji,
-		MemoryEnabled: larkCfg.MemoryEnabled,
+		Enabled:          larkCfg.Enabled,
+		AppID:            larkCfg.AppID,
+		AppSecret:        larkCfg.AppSecret,
+		BaseDomain:       larkCfg.BaseDomain,
+		SessionPrefix:    larkCfg.SessionPrefix,
+		ReplyPrefix:      larkCfg.ReplyPrefix,
+		AllowGroups:      larkCfg.AllowGroups,
+		AllowDirect:      larkCfg.AllowDirect,
+		AgentPreset:      larkCfg.AgentPreset,
+		ToolPreset:       larkCfg.ToolPreset,
+		ReplyTimeout:     larkCfg.ReplyTimeout,
+		ReactEmoji:       larkCfg.ReactEmoji,
+		MemoryEnabled:    larkCfg.MemoryEnabled,
+		ShowToolProgress: larkCfg.ShowToolProgress,
 	}
 
 	gateway, err := lark.NewGateway(gatewayCfg, agentContainer.AgentCoordinator, logger)

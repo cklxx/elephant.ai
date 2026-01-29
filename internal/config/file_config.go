@@ -114,8 +114,9 @@ type LarkChannelConfig struct {
 	ToolPreset          string `json:"tool_preset" yaml:"tool_preset"`
 	ToolMode            string `json:"tool_mode" yaml:"tool_mode"`
 	ReplyTimeoutSeconds *int   `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
-	ReactEmoji          string `json:"react_emoji" yaml:"react_emoji"`
-	MemoryEnabled       *bool  `json:"memory_enabled" yaml:"memory_enabled"`
+	ReactEmoji       string `json:"react_emoji" yaml:"react_emoji"`
+	MemoryEnabled    *bool  `json:"memory_enabled" yaml:"memory_enabled"`
+	ShowToolProgress *bool  `json:"show_tool_progress" yaml:"show_tool_progress"`
 }
 
 // ServerConfig captures server-specific YAML configuration.

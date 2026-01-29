@@ -76,7 +76,17 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		"max_tokens":  req.MaxTokens,
 		"stream":      false,
 	}
-	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
+	if shouldSendArkReasoning(c.baseURL, req.Thinking) {
+		effort := strings.TrimSpace(req.Thinking.Effort)
+		if effort == "" {
+			effort = "medium"
+		}
+		oaiReq["reasoning_effort"] = effort
+		if req.MaxTokens > 0 {
+			delete(oaiReq, "max_tokens")
+			oaiReq["max_completion_tokens"] = req.MaxTokens
+		}
+	} else if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
 		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
 			oaiReq["reasoning"] = reasoning
 		}
@@ -238,6 +248,8 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 			provider = "deepseek"
 		case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
 			provider = "antigravity"
+		case strings.Contains(strings.ToLower(c.baseURL), "ark"):
+			provider = "ark"
 		}
 		c.usageCallback(result.Usage, c.model, provider)
 	}
@@ -291,6 +303,8 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		provider = "deepseek"
 	case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
 		provider = "antigravity"
+	case strings.Contains(strings.ToLower(c.baseURL), "ark"):
+		provider = "ark"
 	}
 
 	oaiReq := map[string]any{
@@ -300,7 +314,17 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		"max_tokens":  req.MaxTokens,
 		"stream":      true,
 	}
-	if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
+	if shouldSendArkReasoning(c.baseURL, req.Thinking) {
+		effort := strings.TrimSpace(req.Thinking.Effort)
+		if effort == "" {
+			effort = "medium"
+		}
+		oaiReq["reasoning_effort"] = effort
+		if req.MaxTokens > 0 {
+			delete(oaiReq, "max_tokens")
+			oaiReq["max_completion_tokens"] = req.MaxTokens
+		}
+	} else if shouldSendOpenAIReasoning(c.baseURL, c.model, req.Thinking) {
 		if reasoning := buildOpenAIReasoningConfig(req.Thinking); reasoning != nil {
 			oaiReq["reasoning"] = reasoning
 		}

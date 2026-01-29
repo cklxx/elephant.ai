@@ -313,6 +313,116 @@ func (s *stubExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agen
 	return nil, nil
 }
 
+func TestBuildReplyThinkingFallback(t *testing.T) {
+	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+
+	t.Run("fallback to thinking when answer empty", func(t *testing.T) {
+		result := &agent.TaskResult{
+			Answer: "",
+			Messages: []ports.Message{
+				{Role: "user", Content: "hello"},
+				{
+					Role: "assistant",
+					Thinking: ports.Thinking{
+						Parts: []ports.ThinkingPart{
+							{Kind: "reasoning", Text: "I should greet the user"},
+						},
+					},
+				},
+			},
+		}
+		reply := gw.buildReply(result, nil)
+		if reply != "I should greet the user" {
+			t.Fatalf("expected thinking fallback, got %q", reply)
+		}
+	})
+
+	t.Run("no fallback when answer present", func(t *testing.T) {
+		result := &agent.TaskResult{
+			Answer: "Hello!",
+			Messages: []ports.Message{
+				{
+					Role: "assistant",
+					Thinking: ports.Thinking{
+						Parts: []ports.ThinkingPart{
+							{Kind: "reasoning", Text: "thinking content"},
+						},
+					},
+				},
+			},
+		}
+		reply := gw.buildReply(result, nil)
+		if reply != "Hello!" {
+			t.Fatalf("expected answer, got %q", reply)
+		}
+	})
+
+	t.Run("empty when no thinking and no answer", func(t *testing.T) {
+		result := &agent.TaskResult{
+			Answer:   "",
+			Messages: []ports.Message{{Role: "assistant"}},
+		}
+		reply := gw.buildReply(result, nil)
+		if reply != "" {
+			t.Fatalf("expected empty reply, got %q", reply)
+		}
+	})
+
+	t.Run("last assistant message thinking used", func(t *testing.T) {
+		result := &agent.TaskResult{
+			Answer: "",
+			Messages: []ports.Message{
+				{
+					Role: "assistant",
+					Thinking: ports.Thinking{
+						Parts: []ports.ThinkingPart{
+							{Kind: "reasoning", Text: "first thought"},
+						},
+					},
+				},
+				{Role: "user", Content: "follow up"},
+				{
+					Role: "assistant",
+					Thinking: ports.Thinking{
+						Parts: []ports.ThinkingPart{
+							{Kind: "reasoning", Text: "second thought"},
+						},
+					},
+				},
+			},
+		}
+		reply := gw.buildReply(result, nil)
+		if reply != "second thought" {
+			t.Fatalf("expected last assistant thinking, got %q", reply)
+		}
+	})
+}
+
+func TestExtractThinkingFallback(t *testing.T) {
+	t.Run("nil messages", func(t *testing.T) {
+		if got := extractThinkingFallback(nil); got != "" {
+			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+
+	t.Run("no assistant messages", func(t *testing.T) {
+		msgs := []ports.Message{{Role: "user", Content: "hi"}}
+		if got := extractThinkingFallback(msgs); got != "" {
+			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+
+	t.Run("assistant with empty thinking", func(t *testing.T) {
+		msgs := []ports.Message{{
+			Role:     "assistant",
+			Thinking: ports.Thinking{Parts: []ports.ThinkingPart{{Text: "  "}}},
+		}}
+		if got := extractThinkingFallback(msgs); got != "" {
+			t.Fatalf("expected empty for whitespace-only thinking, got %q", got)
+		}
+	})
+}
+
 func TestEmojiReactionInterceptorDelegatesAndReactsOnce(t *testing.T) {
 	delegate := &recordingGatewayListener{}
 
