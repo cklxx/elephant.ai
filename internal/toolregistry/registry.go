@@ -17,6 +17,7 @@ import (
 	"alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
+	"alex/internal/tools/builtin/larktools"
 	"alex/internal/tools/builtin/media"
 	memorytools "alex/internal/tools/builtin/memory"
 	"alex/internal/tools/builtin/orchestration"
@@ -480,6 +481,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["sandbox_shell_exec"] = sandbox.NewSandboxShellExec(sandboxConfig)
 	r.static["sandbox_code_execute"] = sandbox.NewSandboxCodeExecute(sandboxConfig)
 	r.static["sandbox_write_attachment"] = sandbox.NewSandboxWriteAttachment(sandboxConfig)
+
+	// Lark tools
+	r.static["lark_chat_history"] = larktools.NewLarkChatHistory()
 
 	return nil
 }

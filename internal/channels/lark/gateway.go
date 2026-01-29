@@ -226,6 +226,8 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	execCtx := context.Background()
 	execCtx = id.WithSessionID(execCtx, sessionID)
 	execCtx, _ = id.EnsureLogID(execCtx, id.NewLogID)
+	execCtx = shared.WithLarkClient(execCtx, g.client)
+	execCtx = shared.WithLarkChatID(execCtx, chatID)
 
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
 	if err != nil {

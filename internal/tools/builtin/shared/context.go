@@ -16,6 +16,8 @@ const (
 	BackupManagerKey toolContextKey = "backup_manager"
 	ToolSessionIDKey toolContextKey = "tool_session_id"
 	AutoApproveKey   toolContextKey = "auto_approve"
+	larkClientKey    toolContextKey = "lark_client"
+	larkChatIDKey    toolContextKey = "lark_chat_id"
 )
 
 type parentListenerKey struct{}
@@ -110,4 +112,34 @@ func GetParentListenerFromContext(ctx context.Context) agent.EventListener {
 // WithParentListener adds a parent listener to context for subagent event forwarding.
 func WithParentListener(ctx context.Context, listener agent.EventListener) context.Context {
 	return context.WithValue(ctx, parentListenerKey{}, listener)
+}
+
+// WithLarkClient sets the Lark client in context. Typed as interface{} to avoid
+// importing the Lark SDK in the shared package.
+func WithLarkClient(ctx context.Context, client interface{}) context.Context {
+	return context.WithValue(ctx, larkClientKey, client)
+}
+
+// LarkClientFromContext retrieves the Lark client from context.
+func LarkClientFromContext(ctx context.Context) interface{} {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Value(larkClientKey)
+}
+
+// WithLarkChatID sets the Lark chat ID in context.
+func WithLarkChatID(ctx context.Context, chatID string) context.Context {
+	return context.WithValue(ctx, larkChatIDKey, chatID)
+}
+
+// LarkChatIDFromContext retrieves the Lark chat ID from context.
+func LarkChatIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if chatID, ok := ctx.Value(larkChatIDKey).(string); ok {
+		return chatID
+	}
+	return ""
 }
