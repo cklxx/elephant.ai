@@ -137,7 +137,7 @@ func RunServer(observabilityConfigPath string) error {
 	}()
 
 	larkCtx, larkCancel := context.WithCancel(context.Background())
-	larkCleanup, err := startLarkGateway(larkCtx, config, container, logger)
+	larkCleanup, err := startLarkGateway(larkCtx, config, container, logger, broadcaster)
 	if err != nil {
 		logger.Warn("Lark gateway disabled: %v", err)
 	}

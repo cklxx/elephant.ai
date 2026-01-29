@@ -1,18 +1,26 @@
 package lark
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
+	"mime"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	appcontext "alex/internal/agent/app/context"
+	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
+	toolports "alex/internal/agent/ports/tools"
 	"alex/internal/logging"
+	artifacts "alex/internal/tools/builtin/artifacts"
+	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -36,15 +44,16 @@ type AgentExecutor interface {
 
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
-	cfg          Config
-	agent        AgentExecutor
-	logger       logging.Logger
-	client       *lark.Client
-	wsClient     *larkws.Client
-	sessionLocks sync.Map
-	dedupMu      sync.Mutex
-	dedupCache   *lru.Cache[string, time.Time]
-	now          func() time.Time
+	cfg           Config
+	agent         AgentExecutor
+	logger        logging.Logger
+	client        *lark.Client
+	wsClient      *larkws.Client
+	sessionLocks  sync.Map
+	eventListener agent.EventListener
+	dedupMu       sync.Mutex
+	dedupCache    *lru.Cache[string, time.Time]
+	now           func() time.Time
 }
 
 // NewGateway constructs a Lark gateway instance.
@@ -70,6 +79,14 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		dedupCache: dedupCache,
 		now:        time.Now,
 	}, nil
+}
+
+// SetEventListener configures an optional listener to receive workflow events.
+func (g *Gateway) SetEventListener(listener agent.EventListener) {
+	if g == nil {
+		return
+	}
+	g.eventListener = listener
 }
 
 // Start creates the Lark SDK client, event dispatcher, and WebSocket client, then blocks.
@@ -191,7 +208,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		defer cancel()
 	}
 
-	result, execErr := g.agent.ExecuteTask(execCtx, content, sessionID, agent.NoopEventListener{})
+	listener := g.eventListener
+	if listener == nil {
+		listener = agent.NoopEventListener{}
+	}
+	execCtx = shared.WithParentListener(execCtx, listener)
+	result, execErr := g.agent.ExecuteTask(execCtx, content, sessionID, listener)
 	reply := g.buildReply(result, execErr)
 	if reply == "" {
 		reply = "（无可用回复）"
@@ -202,6 +224,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	} else {
 		g.sendMessage(execCtx, chatID, reply)
 	}
+	g.sendAttachments(execCtx, chatID, messageID, isGroup, result)
 
 	return nil
 }
@@ -239,12 +262,23 @@ func (g *Gateway) isDuplicateMessage(messageID string) bool {
 
 // sendMessage sends a new message to the given chat (used for P2P).
 func (g *Gateway) sendMessage(ctx context.Context, chatID, text string) {
-	content := textContent(text)
+	g.sendMessageTyped(ctx, chatID, "text", textContent(text))
+}
+
+// replyMessage replies to a specific message (used for group chats).
+func (g *Gateway) replyMessage(ctx context.Context, messageID, text string) {
+	g.replyMessageTyped(ctx, messageID, "text", textContent(text))
+}
+
+func (g *Gateway) sendMessageTyped(ctx context.Context, chatID, msgType, content string) {
+	if g.client == nil {
+		return
+	}
 	req := larkim.NewCreateMessageReqBuilder().
 		ReceiveIdType("chat_id").
 		Body(larkim.NewCreateMessageReqBodyBuilder().
 			ReceiveId(chatID).
-			MsgType("text").
+			MsgType(msgType).
 			Content(content).
 			Build()).
 		Build()
@@ -259,13 +293,14 @@ func (g *Gateway) sendMessage(ctx context.Context, chatID, text string) {
 	}
 }
 
-// replyMessage replies to a specific message (used for group chats).
-func (g *Gateway) replyMessage(ctx context.Context, messageID, text string) {
-	content := textContent(text)
+func (g *Gateway) replyMessageTyped(ctx context.Context, messageID, msgType, content string) {
+	if g.client == nil {
+		return
+	}
 	req := larkim.NewReplyMessageReqBuilder().
 		MessageId(messageID).
 		Body(larkim.NewReplyMessageReqBodyBuilder().
-			MsgType("text").
+			MsgType(msgType).
 			Content(content).
 			Build()).
 		Build()
@@ -331,6 +366,236 @@ func (g *Gateway) sessionLock(sessionID string) *sync.Mutex {
 func textContent(text string) string {
 	payload, _ := json.Marshal(map[string]string{"text": text})
 	return string(payload)
+}
+
+func imageContent(imageKey string) string {
+	payload, _ := json.Marshal(map[string]string{"image_key": imageKey})
+	return string(payload)
+}
+
+func fileContent(fileKey string) string {
+	payload, _ := json.Marshal(map[string]string{"file_key": fileKey})
+	return string(payload)
+}
+
+func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, isGroup bool, result *agent.TaskResult) {
+	if result == nil || g.client == nil {
+		return
+	}
+
+	attachments := collectAttachmentsFromResult(result)
+	if len(attachments) == 0 {
+		return
+	}
+	for name, att := range attachments {
+		if isA2UIAttachment(att) {
+			delete(attachments, name)
+		}
+	}
+	if len(attachments) == 0 {
+		return
+	}
+
+	ctx = shared.WithAllowLocalFetch(ctx)
+	ctx = toolports.WithAttachmentContext(ctx, attachments, nil)
+	client := artifacts.NewAttachmentHTTPClient(artifacts.AttachmentFetchTimeout, "LarkAttachment")
+
+	names := sortedAttachmentNames(attachments)
+	for _, name := range names {
+		att := attachments[name]
+		payload, mediaType, err := artifacts.ResolveAttachmentBytes(ctx, "["+name+"]", client)
+		if err != nil {
+			g.logger.Warn("Lark attachment %s resolve failed: %v", name, err)
+			continue
+		}
+
+		if isImageAttachment(att, mediaType, name) {
+			imageKey, err := g.uploadImage(ctx, payload)
+			if err != nil {
+				g.logger.Warn("Lark image upload failed (%s): %v", name, err)
+				continue
+			}
+			if isGroup && messageID != "" {
+				g.replyMessageTyped(ctx, messageID, "image", imageContent(imageKey))
+			} else {
+				g.sendMessageTyped(ctx, chatID, "image", imageContent(imageKey))
+			}
+			continue
+		}
+
+		fileName := fileNameForAttachment(att, name)
+		fileType := fileTypeForAttachment(fileName, mediaType)
+		fileKey, err := g.uploadFile(ctx, payload, fileName, fileType)
+		if err != nil {
+			g.logger.Warn("Lark file upload failed (%s): %v", name, err)
+			continue
+		}
+		if isGroup && messageID != "" {
+			g.replyMessageTyped(ctx, messageID, "file", fileContent(fileKey))
+		} else {
+			g.sendMessageTyped(ctx, chatID, "file", fileContent(fileKey))
+		}
+	}
+}
+
+func collectAttachmentsFromResult(result *agent.TaskResult) map[string]ports.Attachment {
+	if result == nil || len(result.Messages) == 0 {
+		return nil
+	}
+
+	attachments := make(map[string]ports.Attachment)
+	for _, msg := range result.Messages {
+		mergeAttachments(attachments, msg.Attachments)
+		if len(msg.ToolResults) > 0 {
+			for _, res := range msg.ToolResults {
+				mergeAttachments(attachments, res.Attachments)
+			}
+		}
+	}
+	if len(attachments) == 0 {
+		return nil
+	}
+	return attachments
+}
+
+func mergeAttachments(out map[string]ports.Attachment, incoming map[string]ports.Attachment) {
+	if len(incoming) == 0 {
+		return
+	}
+	for key, att := range incoming {
+		name := strings.TrimSpace(key)
+		if name == "" {
+			name = strings.TrimSpace(att.Name)
+		}
+		if name == "" {
+			continue
+		}
+		if _, exists := out[name]; exists {
+			continue
+		}
+		if att.Name == "" {
+			att.Name = name
+		}
+		out[name] = att
+	}
+}
+
+func sortedAttachmentNames(attachments map[string]ports.Attachment) []string {
+	names := make([]string, 0, len(attachments))
+	for name := range attachments {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func isA2UIAttachment(att ports.Attachment) bool {
+	media := strings.ToLower(strings.TrimSpace(att.MediaType))
+	format := strings.ToLower(strings.TrimSpace(att.Format))
+	profile := strings.ToLower(strings.TrimSpace(att.PreviewProfile))
+	return strings.Contains(media, "a2ui") || format == "a2ui" || strings.Contains(profile, "a2ui")
+}
+
+func isImageAttachment(att ports.Attachment, mediaType, name string) bool {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(mediaType)), "image/") {
+		return true
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.MediaType)), "image/") {
+		return true
+	}
+	switch strings.ToLower(filepath.Ext(name)) {
+	case ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp":
+		return true
+	default:
+		return false
+	}
+}
+
+func fileNameForAttachment(att ports.Attachment, fallback string) string {
+	name := strings.TrimSpace(att.Name)
+	if name == "" {
+		name = strings.TrimSpace(fallback)
+	}
+	if name == "" {
+		name = "attachment"
+	}
+	if filepath.Ext(name) == "" {
+		if ext := extensionForMediaType(att.MediaType); ext != "" {
+			name += ext
+		}
+	}
+	return name
+}
+
+func fileTypeForAttachment(name, mediaType string) string {
+	if ext := strings.TrimPrefix(strings.ToLower(filepath.Ext(name)), "."); ext != "" {
+		return ext
+	}
+	if ext := strings.TrimPrefix(extensionForMediaType(mediaType), "."); ext != "" {
+		return ext
+	}
+	return "bin"
+}
+
+func extensionForMediaType(mediaType string) string {
+	trimmed := strings.TrimSpace(mediaType)
+	if trimmed == "" {
+		return ""
+	}
+	exts, err := mime.ExtensionsByType(trimmed)
+	if err != nil || len(exts) == 0 {
+		return ""
+	}
+	return exts[0]
+}
+
+func (g *Gateway) uploadImage(ctx context.Context, payload []byte) (string, error) {
+	if g.client == nil {
+		return "", fmt.Errorf("lark client not initialized")
+	}
+	req := larkim.NewCreateImageReqBuilder().
+		Body(larkim.NewCreateImageReqBodyBuilder().
+			ImageType("message").
+			Image(bytes.NewReader(payload)).
+			Build()).
+		Build()
+
+	resp, err := g.client.Im.V1.Image.Create(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	if !resp.Success() {
+		return "", fmt.Errorf("lark image upload failed: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	if resp.Data == nil || resp.Data.ImageKey == nil || strings.TrimSpace(*resp.Data.ImageKey) == "" {
+		return "", fmt.Errorf("lark image upload missing image_key")
+	}
+	return *resp.Data.ImageKey, nil
+}
+
+func (g *Gateway) uploadFile(ctx context.Context, payload []byte, fileName, fileType string) (string, error) {
+	if g.client == nil {
+		return "", fmt.Errorf("lark client not initialized")
+	}
+	req := larkim.NewCreateFileReqBuilder().
+		Body(larkim.NewCreateFileReqBodyBuilder().
+			FileType(fileType).
+			FileName(fileName).
+			File(bytes.NewReader(payload)).
+			Build()).
+		Build()
+
+	resp, err := g.client.Im.V1.File.Create(ctx, req)
+	if err != nil {
+		return "", err
+	}
+	if !resp.Success() {
+		return "", fmt.Errorf("lark file upload failed: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+	if resp.Data == nil || resp.Data.FileKey == nil || strings.TrimSpace(*resp.Data.FileKey) == "" {
+		return "", fmt.Errorf("lark file upload missing file_key")
+	}
+	return *resp.Data.FileKey, nil
 }
 
 // deref safely dereferences a string pointer.

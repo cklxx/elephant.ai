@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
@@ -128,6 +129,80 @@ func TestTextContent(t *testing.T) {
 	got := textContent("hello")
 	if !strings.Contains(got, `"text":"hello"`) {
 		t.Fatalf("expected json text content, got %q", got)
+	}
+}
+
+func TestAttachmentContentPayloads(t *testing.T) {
+	image := imageContent("img_123")
+	if !strings.Contains(image, `"image_key":"img_123"`) {
+		t.Fatalf("expected image payload, got %q", image)
+	}
+	file := fileContent("file_456")
+	if !strings.Contains(file, `"file_key":"file_456"`) {
+		t.Fatalf("expected file payload, got %q", file)
+	}
+}
+
+func TestCollectAttachmentsFromResult(t *testing.T) {
+	result := &agent.TaskResult{
+		Messages: []ports.Message{
+			{
+				Attachments: map[string]ports.Attachment{
+					"": {Name: "photo.png", MediaType: "image/png"},
+				},
+			},
+			{
+				ToolResults: []ports.ToolResult{
+					{Attachments: map[string]ports.Attachment{
+						"report.pdf": {Name: "report.pdf", MediaType: "application/pdf"},
+					}},
+				},
+			},
+			{
+				Attachments: map[string]ports.Attachment{
+					"photo.png": {Name: "photo.png", MediaType: "image/png"},
+				},
+			},
+		},
+	}
+
+	attachments := collectAttachmentsFromResult(result)
+	if len(attachments) != 2 {
+		t.Fatalf("expected 2 attachments, got %d", len(attachments))
+	}
+	if _, ok := attachments["photo.png"]; !ok {
+		t.Fatalf("expected photo.png attachment, got %#v", attachments)
+	}
+	if _, ok := attachments["report.pdf"]; !ok {
+		t.Fatalf("expected report.pdf attachment, got %#v", attachments)
+	}
+}
+
+func TestIsImageAttachment(t *testing.T) {
+	if !isImageAttachment(ports.Attachment{}, "image/png", "file.bin") {
+		t.Fatal("expected image by media type")
+	}
+	if !isImageAttachment(ports.Attachment{MediaType: "image/jpeg"}, "", "file.bin") {
+		t.Fatal("expected image by attachment media type")
+	}
+	if !isImageAttachment(ports.Attachment{}, "", "photo.png") {
+		t.Fatal("expected image by extension")
+	}
+	if isImageAttachment(ports.Attachment{}, "", "report.pdf") {
+		t.Fatal("expected non-image for pdf")
+	}
+}
+
+func TestFileNameAndTypeForAttachment(t *testing.T) {
+	name := fileNameForAttachment(ports.Attachment{MediaType: "image/png"}, "image")
+	if !strings.HasSuffix(name, ".png") {
+		t.Fatalf("expected png extension, got %q", name)
+	}
+	if fileType := fileTypeForAttachment("video.mp4", ""); fileType != "mp4" {
+		t.Fatalf("expected mp4 file type, got %q", fileType)
+	}
+	if fileType := fileTypeForAttachment("document", "application/pdf"); fileType != "pdf" {
+		t.Fatalf("expected pdf file type, got %q", fileType)
 	}
 }
 

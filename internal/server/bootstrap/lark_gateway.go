@@ -10,9 +10,10 @@ import (
 	"alex/internal/channels/lark"
 	"alex/internal/di"
 	"alex/internal/logging"
+	serverApp "alex/internal/server/app"
 )
 
-func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger) (func(), error) {
+func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
 	logger = logging.OrNop(logger)
 	larkCfg := cfg.Channels.Lark
 	if !larkCfg.Enabled {
@@ -71,6 +72,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 			_ = extraContainer.Shutdown()
 		}
 		return nil, err
+	}
+	if broadcaster != nil {
+		gateway.SetEventListener(broadcaster)
 	}
 
 	async.Go(logger, "lark.gateway", func() {
