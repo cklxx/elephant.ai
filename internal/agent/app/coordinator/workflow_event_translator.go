@@ -50,6 +50,13 @@ func (t *workflowEventTranslator) OnEvent(evt agent.AgentEvent) {
 		return
 	}
 
+	// Pre-analysis emoji events are lightweight signals consumed by gateway
+	// interceptors (e.g., Lark reaction). Pass through without envelope wrapping.
+	if _, ok := evt.(*domain.WorkflowPreAnalysisEmojiEvent); ok {
+		t.sink.OnEvent(evt)
+		return
+	}
+
 	// Avoid re-wrapping envelopes that already follow the new contract.
 	if _, ok := evt.(*domain.WorkflowEventEnvelope); ok {
 		t.sink.OnEvent(evt)

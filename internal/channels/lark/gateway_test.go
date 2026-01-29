@@ -383,3 +383,60 @@ func (e *stubAgentEvent) GetCorrelationID() string    { return "" }
 func (e *stubAgentEvent) GetCausationID() string      { return "" }
 func (e *stubAgentEvent) GetEventID() string          { return "" }
 func (e *stubAgentEvent) GetSeq() uint64              { return 0 }
+
+func TestEmojiReactionInterceptorFallbackWhenNoEvent(t *testing.T) {
+	delegate := &recordingGatewayListener{}
+	gw := &Gateway{
+		cfg:    Config{SessionPrefix: "lark", ReactEmoji: "SMILE"},
+		logger: logging.OrNop(nil),
+	}
+
+	interceptor := &emojiReactionInterceptor{
+		delegate:  delegate,
+		gateway:   gw,
+		messageID: "om_test_fallback",
+		ctx:       context.Background(),
+	}
+
+	// Send a non-emoji event — interceptor should not fire.
+	interceptor.OnEvent(&stubAgentEvent{eventType: "workflow.node.started"})
+	if interceptor.fired {
+		t.Fatal("expected interceptor not to have fired yet")
+	}
+
+	// Fallback should send the config emoji.
+	interceptor.sendFallback()
+	if !interceptor.fired {
+		t.Fatal("expected interceptor to have fired after fallback")
+	}
+
+	// Calling fallback again should be idempotent (sync.Once).
+	interceptor.sendFallback()
+}
+
+func TestEmojiReactionInterceptorNoFallbackAfterDynamic(t *testing.T) {
+	delegate := &recordingGatewayListener{}
+	gw := &Gateway{
+		cfg:    Config{SessionPrefix: "lark", ReactEmoji: "SMILE"},
+		logger: logging.OrNop(nil),
+	}
+
+	interceptor := &emojiReactionInterceptor{
+		delegate:  delegate,
+		gateway:   gw,
+		messageID: "om_test_no_fallback",
+		ctx:       context.Background(),
+	}
+
+	// Dynamic emoji event fires first.
+	emojiEvent := domain.NewWorkflowPreAnalysisEmojiEvent(
+		agent.LevelCore, "sess", "run", "", "WAVE", time.Now(),
+	)
+	interceptor.OnEvent(emojiEvent)
+	if !interceptor.fired {
+		t.Fatal("expected interceptor to have fired on dynamic emoji")
+	}
+
+	// Fallback should be a no-op since dynamic already fired.
+	interceptor.sendFallback() // should not panic or send again
+}

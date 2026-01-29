@@ -147,15 +147,32 @@ type emojiReactionInterceptor struct {
 	messageID string
 	ctx       context.Context
 	once      sync.Once
+	fired     bool
 }
 
 func (i *emojiReactionInterceptor) OnEvent(event agent.AgentEvent) {
 	if emojiEvent, ok := event.(*domain.WorkflowPreAnalysisEmojiEvent); ok && emojiEvent.ReactEmoji != "" {
 		i.once.Do(func() {
+			i.fired = true
 			i.gateway.addReaction(i.ctx, i.messageID, emojiEvent.ReactEmoji)
 		})
 	}
 	i.delegate.OnEvent(event)
+}
+
+// sendFallback sends the config-level fallback emoji if no dynamic emoji was received.
+func (i *emojiReactionInterceptor) sendFallback() {
+	if i.fired {
+		return
+	}
+	fallback := i.gateway.cfg.ReactEmoji
+	if fallback == "" {
+		return
+	}
+	i.once.Do(func() {
+		i.fired = true
+		i.gateway.addReaction(i.ctx, i.messageID, fallback)
+	})
 }
 
 // handleMessage is the P2MessageReceiveV1 event handler.
@@ -195,11 +212,6 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if messageID != "" && g.isDuplicateMessage(messageID) {
 		g.logger.Debug("Lark duplicate message skipped: %s", messageID)
 		return nil
-	}
-
-	// Immediately acknowledge receipt with an emoji reaction.
-	if messageID != "" && g.cfg.ReactEmoji != "" {
-		g.addReaction(ctx, messageID, g.cfg.ReactEmoji)
 	}
 
 	sessionID := g.sessionIDForChat(chatID)
@@ -247,13 +259,15 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if listener == nil {
 		listener = agent.NoopEventListener{}
 	}
+	var emojiInterceptor *emojiReactionInterceptor
 	if messageID != "" {
-		listener = &emojiReactionInterceptor{
+		emojiInterceptor = &emojiReactionInterceptor{
 			delegate:  listener,
 			gateway:   g,
 			messageID: messageID,
 			ctx:       execCtx,
 		}
+		listener = emojiInterceptor
 	}
 	sender := &larkProgressSender{gateway: g, chatID: chatID, messageID: messageID, isGroup: isGroup}
 	progressLn := newProgressListener(execCtx, listener, sender, g.logger)
@@ -270,6 +284,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
+	if emojiInterceptor != nil {
+		emojiInterceptor.sendFallback()
+	}
 
 	// Memory save: persist important notes from the result.
 	if g.memoryMgr != nil {
