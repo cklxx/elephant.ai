@@ -323,6 +323,7 @@ func (g *Gateway) replyMessageTyped(ctx context.Context, messageID, msgType, con
 // addReaction adds an emoji reaction to the specified message.
 func (g *Gateway) addReaction(ctx context.Context, messageID, emojiType string) {
 	if g.client == nil || messageID == "" || emojiType == "" {
+		g.logger.Warn("Lark add reaction failed: client=%v messageID=%q emojiType=%q", g.client, messageID, emojiType)
 		return
 	}
 	req := larkim.NewCreateMessageReactionReqBuilder().
