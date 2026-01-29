@@ -409,6 +409,56 @@ func TestPostgresEventHistoryStore_PreservesSubtaskWrapperMetadataOnAppend(t *te
 	assertSubtaskEnvelope(t, events[0], meta)
 }
 
+func TestPostgresEventHistoryStore_EnsureSchemaUpgradesExistingTable(t *testing.T) {
+	pool, _, cleanup := testutil.NewPostgresTestPool(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	_, err := pool.Exec(ctx, `
+CREATE TABLE agent_session_events (
+    id BIGSERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL DEFAULT '',
+    event_type TEXT NOT NULL,
+    event_ts TIMESTAMPTZ NOT NULL,
+    payload JSONB
+);`)
+	if err != nil {
+		t.Fatalf("create legacy schema: %v", err)
+	}
+
+	store := NewPostgresEventHistoryStore(pool)
+	if err := store.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess-upgrade", "task-1", "", time.Now()),
+		Version:   1,
+		Event:     "workflow.tool.completed",
+		NodeKind:  "tool",
+		NodeID:    "bash:1",
+		Payload: map[string]any{
+			"tool_name": "bash",
+			"result":    "ok",
+		},
+	}
+
+	if err := store.Append(ctx, envelope); err != nil {
+		t.Fatalf("append after schema upgrade: %v", err)
+	}
+
+	var events []agent.AgentEvent
+	if err := store.Stream(ctx, EventHistoryFilter{SessionID: "sess-upgrade"}, func(evt agent.AgentEvent) error {
+		events = append(events, evt)
+		return nil
+	}); err != nil {
+		t.Fatalf("stream history: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+}
+
 func TestPostgresEventHistoryStore_PreservesSubtaskWrapperMetadataOnAppendBatch(t *testing.T) {
 	pool, _, cleanup := testutil.NewPostgresTestPool(t)
 	defer cleanup()
