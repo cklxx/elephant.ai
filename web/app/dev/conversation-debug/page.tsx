@@ -89,6 +89,17 @@ function extractLogId(parsed: unknown): string | null {
   return null;
 }
 
+/** Derive log_id from llm_request_id. Format: `<log_id>:llm-<ksuid>` or `<parent>:sub:<child>:llm-<ksuid>` */
+function deriveLogIdFromRequestId(requestId: string): string | null {
+  if (!requestId) return null;
+  // Find the last `:llm-` segment and take everything before it as the log_id
+  const llmIdx = requestId.lastIndexOf(":llm-");
+  if (llmIdx > 0) {
+    return requestId.slice(0, llmIdx);
+  }
+  return null;
+}
+
 function buildPreview(entry: SSEDebugEvent) {
   if (entry.parsed && typeof entry.parsed === "object") {
     const payload = entry.parsed as Record<string, unknown>;
@@ -1034,7 +1045,7 @@ export default function ConversationDebugPage() {
           const hintParts = [model && `model=${model}`, requestId && `req=${requestId}`]
             .filter(Boolean)
             .join(" · ");
-          const logId = extractLogId(envelope);
+          const logId = extractLogId(envelope) ?? deriveLogIdFromRequestId(requestId);
           node.llmCalls.push({
             id: entry.id,
             label: iteration,
@@ -1127,7 +1138,22 @@ export default function ConversationDebugPage() {
     }
     roots.sort(bySeq);
 
-    return { roots, totalDurationMs, stageCount, toolCount, llmCount };
+    // Prune empty leaf nodes (no stages, tools, llmCalls, or children with content)
+    function hasContent(node: RunNode): boolean {
+      return (
+        node.stages.length > 0 ||
+        node.tools.length > 0 ||
+        node.llmCalls.length > 0 ||
+        node.totalDurationMs !== null ||
+        node.children.some(hasContent)
+      );
+    }
+    function pruneEmpty(node: RunNode): RunNode {
+      return { ...node, children: node.children.filter(hasContent).map(pruneEmpty) };
+    }
+    const prunedRoots = roots.filter(hasContent).map(pruneEmpty);
+
+    return { roots: prunedRoots, totalDurationMs, stageCount, toolCount, llmCount };
   }, [events]);
 
   const statusBadge = useMemo(() => {
