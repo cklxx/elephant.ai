@@ -4,7 +4,7 @@ import { memo, useMemo, useState } from 'react';
 import { WorkflowToolStartedEvent, WorkflowToolCompletedEvent } from '@/lib/types';
 import { isWorkflowToolStartedEvent } from '@/lib/typeGuards';
 import { getToolIcon, formatDuration } from '@/lib/utils';
-import { Loader2, X, Film } from 'lucide-react';
+import { ChevronRight, Loader2, X, Film } from 'lucide-react';
 import { useTranslation } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { resolveToolRenderer } from './tooling/toolRenderers';
@@ -145,15 +145,15 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
       )}
       data-testid={`tool-call-card-${toolName.toLowerCase().replace(/[^a-z0-9_-]+/g, '-')}`}
     >
-      {/* Header Row - Manus Style Gray Pill */}
+      {/* Header Row */}
       <div
         role="button"
         onClick={() => setIsExpanded(!isExpanded)}
         data-testid="tool-call-header"
         className={cn(
-          "grid grid-cols-[16px,1fr,auto] items-center gap-x-3 px-3 py-1.5 cursor-pointer select-none rounded-md",
+          "grid grid-cols-[16px,auto,1fr,auto] items-center gap-x-2 px-3 py-1.5 cursor-pointer select-none rounded-md",
           "text-[13px] leading-snug",
-          "bg-secondary/40 hover:bg-secondary/60 transition-colors border border-border/40",
+          "bg-muted/50 hover:bg-muted/70 transition-colors border border-border/60",
           status === 'running' && "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
           status === 'error' && "bg-red-50/50 border-red-100/50 text-red-900 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800/30"
         )}
@@ -172,6 +172,13 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
               <span className="text-[13px] leading-none">{ToolIcon}</span>}
         </div>
 
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200",
+            isExpanded && "rotate-90",
+          )}
+        />
+
         <div className="min-w-0 overflow-hidden">
           <span
             className={cn(
@@ -182,7 +189,7 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
           >
             {displayToolName}
           </span>
-          {summaryText ? (
+          {summaryText && !isExpanded ? (
             <span className="block truncate text-[12px] text-muted-foreground/60">
               {summaryText}
             </span>
@@ -200,25 +207,37 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
         </div>
       </div>
 
-      {/* Expanded Details - Keep it clean */}
-      {isExpanded && (
-        <div className="mt-2 pl-6 pr-2 pb-1">
-          {showVideoWaitHint && (
-            <div className="flex items-center gap-2 px-3 py-2 mb-3 text-[12px] rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800/30">
-              <Film className="w-4 h-4 flex-shrink-0" />
-              <span>Generating video... this may take a moment.</span>
-            </div>
+      {/* Expanded Details — CSS grid-row animation */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-out",
+          isExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div
+          className={cn(
+            "overflow-hidden transition-opacity duration-150",
+            isExpanded ? "opacity-100" : "opacity-0",
           )}
-
-          <div className="space-y-2">
-            {panels.map((panel, i) => (
-              <div key={i} className="[&>div]:border-none [&>div]:shadow-none [&>div]:bg-transparent">
-                {panel}
+        >
+          <div className="mt-2 pl-4 pr-1 pb-1 border-l-2 border-border/40 ml-2">
+            {showVideoWaitHint && (
+              <div className="flex items-center gap-2 px-3 py-2 mb-3 text-[12px] rounded-lg bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800/30">
+                <Film className="w-4 h-4 flex-shrink-0" />
+                <span>Generating video... this may take a moment.</span>
               </div>
-            ))}
+            )}
+
+            <div className="space-y-2">
+              {panels.map((panel, i) => (
+                <div key={i}>
+                  {panel}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }, arePropsEqual);

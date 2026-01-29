@@ -69,7 +69,7 @@ export function CopyButton({
 
 export function SimplePanel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/90 p-4 text-[12px] text-foreground/80">
+    <div className="flex flex-col gap-2.5 py-1 text-[12px] text-foreground/80">
       {children}
     </div>
   );
@@ -78,7 +78,7 @@ export function SimplePanel({ children }: { children: ReactNode }) {
 export function PanelHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{title}</p>
+      <p className="text-xs font-medium text-muted-foreground border-l-2 border-primary/20 pl-2">{title}</p>
       {action}
     </div>
   );
@@ -131,7 +131,7 @@ export function ToolResultPanel({
   metadata?: Record<string, any> | null;
 }) {
   const normalizedTool = (toolName ?? "").toLowerCase().trim();
-  const hideAttachments = normalizedTool === "sandbox_browser";
+  const hideAttachments = normalizedTool === "browser_action";
   if (error) {
     return (
       <SimplePanel>
@@ -188,7 +188,7 @@ export function ToolResultPanel({
       {attachmentsAvailable ? (
         <div className="max-w-[600px] rounded-lg border border-border/60 bg-background p-4">
           {(textSegments.length > 0 || formatted.trim().length > 0) && (
-            <div className="max-h-64 overflow-auto whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/85">
+            <div className="max-h-80 overflow-auto whitespace-pre-wrap text-[12px] leading-relaxed text-foreground/85">
               {textSegments.length > 0
                 ? textSegments.map((segment, index) => (
                     <span key={`tool-result-text-${index}`}>{segment.text}</span>
@@ -260,7 +260,7 @@ export function ToolResultPanel({
         </div>
       ) : (
         <div className="max-w-[600px]">
-          <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
+          <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-md border border-border/60 bg-background px-4 py-3 font-mono text-[12px] leading-relaxed text-foreground/85 shadow-sm">
             {formatted}
           </pre>
         </div>
@@ -274,7 +274,7 @@ export function ToolStreamPanel({ title, content }: { title: string; content: st
     <SimplePanel>
       <PanelHeader title={title} />
       <div className="max-w-[600px]">
-        <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-md border border-border/40 bg-muted/20 px-4 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
+        <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md border border-border/40 bg-muted/20 px-4 py-3 font-mono text-[11px] leading-relaxed text-muted-foreground/90">
           {content.trim()}
         </pre>
       </div>

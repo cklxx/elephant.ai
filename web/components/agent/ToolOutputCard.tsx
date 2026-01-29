@@ -3,11 +3,11 @@
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { formatDuration, cn, getToolIcon } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
-import { userFacingToolTitle } from "@/lib/toolPresentation";
+import { userFacingToolTitle, userFacingToolSummary } from "@/lib/toolPresentation";
 import { useElapsedDurationMs } from "@/hooks/useElapsedDurationMs";
 import { sanitizeToolMetadataForUI } from "@/lib/toolSanitize";
 import {
@@ -104,6 +104,17 @@ export function ToolOutputCard({
     [attachments],
   );
 
+  const summaryText = useMemo(() => {
+    const resultText = normalizeToolResult(result);
+    return userFacingToolSummary({
+      toolName,
+      result: resultText,
+      error: error ?? null,
+      metadata: sanitizedMetadata ?? null,
+      attachments: attachments ?? null,
+    });
+  }, [toolName, result, error, sanitizedMetadata, attachments]);
+
   const hasMetadata =
     Boolean(sanitizedMetadata) &&
     typeof sanitizedMetadata === "object" &&
@@ -164,10 +175,10 @@ export function ToolOutputCard({
         data-testid="tool-output-header"
         title={toggleLabel}
         className={cn(
-          "flex items-center gap-2 px-1 py-0.5 text-left",
+          "grid grid-cols-[16px,auto,1fr,auto] items-center gap-x-2 px-3 py-1.5 text-left w-full",
           "text-[13px] leading-snug",
-          "cursor-pointer select-none rounded-md border border-border/40",
-          "bg-secondary/40 transition-colors hover:bg-secondary/60",
+          "cursor-pointer select-none rounded-md border border-border/60",
+          "bg-muted/50 transition-colors hover:bg-muted/70",
           resolvedStatus === "running" &&
             "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
           resolvedStatus === "failed" &&
@@ -176,81 +187,106 @@ export function ToolOutputCard({
       >
         <div
           className={cn(
-            "relative flex h-4 w-4 flex-none items-center justify-center rounded-md",
-            resolvedStatus === "running" &&
-              "border-blue-200/60 bg-blue-50/40 dark:border-blue-800/30 dark:bg-blue-950/30",
-            resolvedStatus === "failed" &&
-              "border-red-200/60 bg-red-50/40 dark:border-red-800/30 dark:bg-red-950/30",
+            "flex h-4 w-4 items-center justify-center",
+            resolvedStatus === "running" && "text-blue-600 dark:text-blue-400",
+            resolvedStatus === "failed" && "text-red-600 dark:text-red-400",
+            resolvedStatus === "completed" && "text-muted-foreground/70",
           )}
         >
-          <span className="text-[10px] leading-none" aria-hidden="true">
-            {toolIcon}
-          </span>
+          {resolvedStatus === "running" ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <span className="text-[10px] leading-none" aria-hidden="true">
+              {toolIcon}
+            </span>
+          )}
         </div>
 
-        <div className="min-w-0 flex-1 space-y-1">
-          <div className="flex items-start justify-between gap-3">
-            <span
-              className={cn(
-                "min-w-0 flex-1 truncate text-xs tracking-tight",
-                resolvedStatus === "completed" && "text-muted-foreground/80",
-              )}
-              data-testid="tool-name"
-            >
-              {displayToolName}
-            </span>
-          </div>
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200",
+            isExpanded && "rotate-90",
+          )}
+        />
 
+        <div className="min-w-0 overflow-hidden">
+          <span
+            className={cn(
+              "block truncate text-[13px] font-semibold tracking-tight",
+              resolvedStatus === "completed" && "text-muted-foreground/80",
+            )}
+            data-testid="tool-name"
+          >
+            {displayToolName}
+          </span>
+          {summaryText && !isExpanded ? (
+            <span className="block truncate text-[12px] text-muted-foreground/60">
+              {summaryText}
+            </span>
+          ) : null}
           {debugMode && callId && (
-            <p className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] tabular-nums text-muted-foreground/60">
-              {debugMode && callId ? (
-                <span>
-                  {t("events.toolCall.id")}: {callId}
-                </span>
-              ) : null}
+            <p className="text-[10px] tabular-nums text-muted-foreground/60">
+              {t("events.toolCall.id")}: {callId}
             </p>
           )}
         </div>
 
+        <div className="flex items-center gap-2 text-[11px] tabular-nums text-muted-foreground/60">
+          {displayDurationMs != null ? (
+            <span>{formatDuration(displayDurationMs)}</span>
+          ) : null}
+        </div>
       </button>
 
-      {/* Expanded Content */}
-      {isExpanded && showBody && (
-        <div className="mt-2 pl-4 pr-1" data-testid="tool-content-expanded">
-          <div className="grid gap-3 lg:grid-cols-2">
-            {hasParameters && (
-              <ToolArgumentsPanel
-                args={formattedArguments}
-                label={t("tool.section.parameters")}
-                copyLabel={t("events.toolCall.copyArguments")}
-                copiedLabel={t("events.toolCall.copied")}
-              />
-            )}
+      {/* Expanded Content — CSS grid-row animation */}
+      <div
+        className={cn(
+          "grid transition-[grid-template-rows] duration-200 ease-out",
+          isExpanded && showBody ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+        )}
+      >
+        <div
+          className={cn(
+            "overflow-hidden transition-opacity duration-150",
+            isExpanded && showBody ? "opacity-100" : "opacity-0",
+          )}
+        >
+          <div className="mt-2 pl-4 pr-1 border-l-2 border-border/40 ml-2" data-testid="tool-content-expanded">
+            <div className="grid gap-3 grid-cols-1 lg:grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
+              {hasParameters && (
+                <ToolArgumentsPanel
+                  args={formattedArguments}
+                  label={t("tool.section.parameters")}
+                  copyLabel={t("events.toolCall.copyArguments")}
+                  copiedLabel={t("events.toolCall.copied")}
+                />
+              )}
 
-            {(hasResult || hasError || attachmentCount > 0) && (
-              <ToolResultPanel
-                toolName={toolName}
-                result={result ?? ""}
-                error={error ?? null}
-                resultTitle={t("tool.section.output")}
-                errorTitle={t("tool.section.error")}
-                copyLabel={t("events.toolCall.copyResult")}
-                copyErrorLabel={t("events.toolCall.copyError")}
-                copiedLabel={t("events.toolCall.copied")}
-                attachments={attachments}
-                metadata={(sanitizedMetadata as Record<string, any>) ?? null}
-              />
-            )}
+              {(hasResult || hasError || attachmentCount > 0) && (
+                <ToolResultPanel
+                  toolName={toolName}
+                  result={result ?? ""}
+                  error={error ?? null}
+                  resultTitle={t("tool.section.output")}
+                  errorTitle={t("tool.section.error")}
+                  copyLabel={t("events.toolCall.copyResult")}
+                  copyErrorLabel={t("events.toolCall.copyError")}
+                  copiedLabel={t("events.toolCall.copied")}
+                  attachments={attachments}
+                  metadata={(sanitizedMetadata as Record<string, any>) ?? null}
+                />
+              )}
 
-            {hasMetadata && (
-              <ToolStreamPanel
-                title={t("conversation.tool.timeline.metadata")}
-                content={formattedMetadata}
-              />
-            )}
+              {hasMetadata && (
+                <ToolStreamPanel
+                  title={t("conversation.tool.timeline.metadata")}
+                  content={formattedMetadata}
+                />
+              )}
+            </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
