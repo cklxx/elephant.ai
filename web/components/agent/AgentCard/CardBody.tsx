@@ -21,7 +21,7 @@ export function CardBody({
   const displayEvents = expanded ? events : events.slice(-1);
 
   return (
-    <div className={cn("space-y-1 min-w-0 w-full overflow-x-hidden", expanded && "max-h-[300px] overflow-y-auto")}>
+    <div className="space-y-1 min-w-0 w-full overflow-x-hidden">
       {displayEvents.map((event, i) => {
         const pairedToolStart = resolvePairedToolStart
           ? resolvePairedToolStart(event)

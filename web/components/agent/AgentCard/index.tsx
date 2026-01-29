@@ -72,11 +72,6 @@ export function AgentCard({
             hideTokens={showInlineTokens}
           />
 
-          <CardFooter
-            expanded={expanded}
-            onToggle={handleToggle}
-            eventCount={data.events.length}
-          />
           <div className={cn("relative", expanded && "max-h-[300px] overflow-y-auto")}>
             <CardBody
               events={data.events}
@@ -84,6 +79,11 @@ export function AgentCard({
               resolvePairedToolStart={resolvePairedToolStart}
             />
           </div>
+          <CardFooter
+            expanded={expanded}
+            onToggle={handleToggle}
+            eventCount={data.events.length}
+          />
         </div>
       </div>
     </div>
