@@ -92,14 +92,22 @@ func TestPrepareRunsPreanalysisAsyncAndPersistsTitleInBackground(t *testing.T) {
 	}
 
 	// Pre-analysis is async: Prepare should use the default model (not small)
-	// because the triage result is not yet available.
+	// because the triage result is not yet available. The async goroutine also
+	// calls GetIsolatedClient with the small model, so we cannot assert call
+	// order — only that the default model appears in the recorded calls.
 	modelCalls := factory.CallModels()
 	if len(modelCalls) < 1 {
 		t.Fatalf("expected at least 1 LLM factory call, got %v", modelCalls)
 	}
-	// The first synchronous call should be the execution client using the default model.
-	if modelCalls[0] != "mock-default|default-model" {
-		t.Fatalf("expected execution to use default model, got %q", modelCalls[0])
+	var foundDefault bool
+	for _, call := range modelCalls {
+		if call == "mock-default|default-model" {
+			foundDefault = true
+			break
+		}
+	}
+	if !foundDefault {
+		t.Fatalf("expected execution to use default model, calls: %v", modelCalls)
 	}
 
 	// TaskAnalysis should be nil since quickTriageTask doesn't match a normal task.

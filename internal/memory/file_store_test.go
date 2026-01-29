@@ -133,18 +133,22 @@ func TestFileStoreSearchMatchesSlots(t *testing.T) {
 	store := NewFileStore(dir)
 	_ = store.EnsureSchema(context.Background())
 
-	store.Insert(context.Background(), Entry{
+	if _, err := store.Insert(context.Background(), Entry{
 		UserID:   "u",
 		Content:  "triage auth issue",
 		Keywords: []string{"auth"},
 		Slots:    map[string]string{"intent": "triage"},
-	})
-	store.Insert(context.Background(), Entry{
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Insert(context.Background(), Entry{
 		UserID:   "u",
 		Content:  "write auth docs",
 		Keywords: []string{"auth"},
 		Slots:    map[string]string{"intent": "write"},
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	results, err := store.Search(context.Background(), Query{
 		UserID:   "u",
