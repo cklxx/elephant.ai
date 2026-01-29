@@ -232,10 +232,11 @@ function partitionEvents(events: AnyAgentEvent[], isRunning: boolean): Partition
     if (isSubagentLike(event)) {
       return;
     }
-    if (isSubagentToolStarted(event) || isSubagentToolCompleted(event)) {
+    if (isSubagentToolEvent(event, "workflow.tool.started") || isSubagentToolEvent(event, "workflow.tool.completed")) {
       return;
     }
-    const sessionId = typeof event.session_id === "string" ? event.session_id : "";
+    const sessionId =
+      typeof event.session_id === "string" ? event.session_id : "";
 
     if (isEventType(event, "workflow.tool.started")) {
       startedTools.set(`${sessionId}:${event.call_id}`, event);
@@ -362,7 +363,7 @@ function isSubagentToolCompleted(event: AnyAgentEvent): boolean {
 function isSubagentToolEvent(
   event: AnyAgentEvent,
   kind: "workflow.tool.started" | "workflow.tool.completed",
-): event is WorkflowToolStartedEvent {
+): boolean {
   if (!isEventType(event, kind)) {
     return false;
   }
