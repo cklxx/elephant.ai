@@ -105,7 +105,7 @@ func TestExpandPlaceholdersResolvesGenericAlias(t *testing.T) {
 	}
 }
 
-func TestEnsureAttachmentPlaceholdersUsesURIWhenAvailable(t *testing.T) {
+func TestEnsureAttachmentPlaceholdersStripsAllPlaceholders(t *testing.T) {
 	attachments := map[string]ports.Attachment{
 		"seed.png": {
 			Name:      "seed.png",
@@ -115,16 +115,19 @@ func TestEnsureAttachmentPlaceholdersUsesURIWhenAvailable(t *testing.T) {
 		},
 	}
 
-	result := ensureAttachmentPlaceholders("", attachments)
-	if strings.Contains(result, "https://example.com/seed.png") {
-		t.Fatalf("expected placeholders instead of direct URIs, got %q", result)
+	result := ensureAttachmentPlaceholders("Here is [seed.png] for you", attachments)
+	if strings.Contains(result, "[seed.png]") {
+		t.Fatalf("expected placeholder to be stripped, got %q", result)
 	}
-	if !strings.Contains(result, "[seed.png]") {
-		t.Fatalf("expected placeholder reference for attachment, got %q", result)
+	if strings.Contains(result, "https://example.com/seed.png") {
+		t.Fatalf("expected no direct URIs, got %q", result)
+	}
+	if result != "Here is  for you" {
+		t.Fatalf("expected surrounding text to remain, got %q", result)
 	}
 }
 
-func TestEnsureAttachmentPlaceholdersReplacesInlinePlaceholders(t *testing.T) {
+func TestEnsureAttachmentPlaceholdersStripsInlinePlaceholders(t *testing.T) {
 	attachments := map[string]ports.Attachment{
 		"seed.png": {
 			Name:      "seed.png",
@@ -136,14 +139,11 @@ func TestEnsureAttachmentPlaceholdersReplacesInlinePlaceholders(t *testing.T) {
 	answer := "Latest render: [seed.png]"
 	result := ensureAttachmentPlaceholders(answer, attachments)
 
-	if !strings.Contains(result, "[seed.png]") {
-		t.Fatalf("expected placeholder to remain for frontend replacement, got %q", result)
+	if strings.Contains(result, "[seed.png]") {
+		t.Fatalf("expected placeholder to be stripped, got %q", result)
 	}
-	if strings.Contains(result, "Latest render: [seed.png]") {
-		t.Fatalf("expected placeholder to move to the end, got %q", result)
-	}
-	if strings.Contains(result, "https://example.com/seed.png") {
-		t.Fatalf("expected to avoid embedding attachment URI, got %q", result)
+	if result != "Latest render:" {
+		t.Fatalf("expected surrounding text only, got %q", result)
 	}
 }
 
@@ -534,11 +534,14 @@ func TestDecorateFinalResultIncludesReferencedAttachments(t *testing.T) {
 	if _, ok := attachments["seed.png"]; !ok {
 		t.Fatalf("expected placeholder to resolve to attachment, got %+v", attachments)
 	}
-	if !strings.Contains(result.Answer, "[seed.png]") {
-		t.Fatalf("expected placeholder to remain for frontend rendering, got %q", result.Answer)
+	if strings.Contains(result.Answer, "[seed.png]") {
+		t.Fatalf("expected placeholder to be stripped from answer, got %q", result.Answer)
 	}
-	if strings.Contains(result.Answer, "https://example.com/seed.png") {
-		t.Fatalf("expected to avoid embedding attachment URI, got %q", result.Answer)
+	if result.Attachments == nil {
+		t.Fatalf("expected result.Attachments to be set")
+	}
+	if _, ok := result.Attachments["seed.png"]; !ok {
+		t.Fatalf("expected result.Attachments to contain seed.png, got %+v", result.Attachments)
 	}
 }
 

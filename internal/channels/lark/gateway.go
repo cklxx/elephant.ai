@@ -413,7 +413,8 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 		return
 	}
 
-	attachments := collectAttachmentsFromResult(result)
+	// Only send attachments explicitly referenced in the final answer.
+	attachments := result.Attachments
 	if len(attachments) == 0 {
 		return
 	}
@@ -454,7 +455,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 		}
 
 		fileName := fileNameForAttachment(att, name)
-		fileType := fileTypeForAttachment(fileName, mediaType)
+		fileType := larkFileType(fileTypeForAttachment(fileName, mediaType))
 		fileKey, err := g.uploadFile(ctx, payload, fileName, fileType)
 		if err != nil {
 			g.logger.Warn("Lark file upload failed (%s): %v", name, err)
@@ -555,6 +556,23 @@ func fileNameForAttachment(att ports.Attachment, fallback string) string {
 		}
 	}
 	return name
+}
+
+// larkSupportedFileTypes lists the file_type values accepted by the Lark
+// im/v1/files upload API. Any extension not in this set must be sent as "stream".
+var larkSupportedFileTypes = map[string]bool{
+	"opus": true, "mp4": true, "pdf": true,
+	"doc": true, "xls": true, "ppt": true,
+	"stream": true,
+}
+
+// larkFileType maps a raw file extension to a Lark-compatible file_type value.
+func larkFileType(ext string) string {
+	lower := strings.ToLower(strings.TrimSpace(ext))
+	if larkSupportedFileTypes[lower] {
+		return lower
+	}
+	return "stream"
 }
 
 func fileTypeForAttachment(name, mediaType string) string {

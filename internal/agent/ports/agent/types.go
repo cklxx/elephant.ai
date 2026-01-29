@@ -109,6 +109,7 @@ type TaskResult struct {
 	Duration     time.Duration
 	Important    map[string]core.ImportantNote
 	Workflow     *workflow.WorkflowSnapshot
+	Attachments  map[string]core.Attachment // Resolved attachments for the final answer
 }
 
 // StreamCallback is called during task execution to stream events.

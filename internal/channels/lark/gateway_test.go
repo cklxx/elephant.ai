@@ -206,6 +206,36 @@ func TestFileNameAndTypeForAttachment(t *testing.T) {
 	}
 }
 
+func TestLarkFileType(t *testing.T) {
+	tests := []struct {
+		ext  string
+		want string
+	}{
+		{"pdf", "pdf"},
+		{"mp4", "mp4"},
+		{"doc", "doc"},
+		{"xls", "xls"},
+		{"ppt", "ppt"},
+		{"opus", "opus"},
+		{"stream", "stream"},
+		{"md", "stream"},
+		{"txt", "stream"},
+		{"csv", "stream"},
+		{"json", "stream"},
+		{"bin", "stream"},
+		{"PDF", "pdf"},
+		{"", "stream"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.ext, func(t *testing.T) {
+			got := larkFileType(tt.ext)
+			if got != tt.want {
+				t.Fatalf("larkFileType(%q) = %q, want %q", tt.ext, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestDeref(t *testing.T) {
 	if deref(nil) != "" {
 		t.Fatal("expected empty string for nil")

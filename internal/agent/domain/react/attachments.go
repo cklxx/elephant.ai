@@ -797,91 +797,12 @@ func collectGeneratedAttachments(state *TaskState, iteration int) map[string]por
 	return generated
 }
 
-// ensureAttachmentPlaceholders appends missing attachment placeholders to a
-// final answer so downstream channels surface linked artifacts.
+// ensureAttachmentPlaceholders strips all attachment placeholder markers from
+// the final answer. Attachments are delivered as separate messages by downstream
+// channels, so inline placeholders should not leak into the reply text.
 func ensureAttachmentPlaceholders(answer string, attachments map[string]ports.Attachment) string {
 	normalized := strings.TrimSpace(answer)
-
-	// Strip unknown placeholders entirely when we have no attachment catalog.
-	if len(attachments) == 0 {
-		replaced := contentPlaceholderPattern.ReplaceAllString(normalized, "")
-		return strings.TrimSpace(replaced)
-	}
-
-	used := make(map[string]bool, len(attachments))
-	ordered := make([]string, 0, len(attachments))
-	replaced := contentPlaceholderPattern.ReplaceAllStringFunc(normalized, func(match string) string {
-		name := strings.TrimSpace(match[1 : len(match)-1])
-		if name == "" {
-			return ""
-		}
-		if _, ok := attachments[name]; !ok {
-			return ""
-		}
-		if !used[name] {
-			used[name] = true
-			ordered = append(ordered, name)
-		}
-		return ""
-	})
-
-	replaced = strings.TrimSpace(replaced)
-
-	var missing []string
-	for key := range attachments {
-		name := strings.TrimSpace(key)
-		if name == "" || used[name] {
-			continue
-		}
-		missing = append(missing, name)
-	}
-
-	if len(missing) == 0 {
-		if len(ordered) == 0 {
-			return replaced
-		}
-	}
-
-	sort.Strings(missing)
-	var builder strings.Builder
-	if replaced != "" {
-		builder.WriteString(replaced)
-		builder.WriteString("\n\n")
-	}
-
-	if len(missing) == 1 {
-		name := missing[0]
-		att := attachments[name]
-		if isMarkdownLikeAttachment(att) {
-			fmt.Fprintf(&builder, "请查阅附件中的 Markdown 文件 `%s` 获取详细内容。\n\n", name)
-		} else {
-			fmt.Fprintf(&builder, "请查阅附件 `%s` 获取详细内容。\n\n", name)
-		}
-		for _, placeholder := range append(ordered, missing...) {
-			fmt.Fprintf(&builder, "[%s]\n", placeholder)
-		}
-		return strings.TrimSpace(builder.String())
-	}
-
-	if len(missing) > 0 {
-		builder.WriteString("请查阅以下附件获取详细内容：\n\n")
-	}
-	for _, name := range append(ordered, missing...) {
-		fmt.Fprintf(&builder, "[%s]\n", name)
-	}
-	return strings.TrimSpace(builder.String())
+	replaced := contentPlaceholderPattern.ReplaceAllString(normalized, "")
+	return strings.TrimSpace(replaced)
 }
 
-func isMarkdownLikeAttachment(att ports.Attachment) bool {
-	media := strings.ToLower(strings.TrimSpace(att.MediaType))
-	if strings.Contains(media, "markdown") {
-		return true
-	}
-	format := strings.ToLower(strings.TrimSpace(att.Format))
-	switch format {
-	case "md", "markdown", "x-markdown":
-		return true
-	default:
-		return false
-	}
-}
