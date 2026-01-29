@@ -47,34 +47,38 @@ export function CardStats({ progress, stats, concurrency, hideTokens }: CardStat
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground leading-tight">
-        {concurrency && (
-          <div className="flex items-center gap-1">
-            <span>⚡</span>
-            <span>{concurrency}</span>
-          </div>
-        )}
-        {stats.toolCalls > 0 && (
-          <div className="flex items-center gap-1">
-            <span>🔧</span>
-            <span>
-              {stats.toolCalls} tool call{stats.toolCalls === 1 ? "" : "s"}
-            </span>
-          </div>
-        )}
-        {!hideTokens && stats.tokens > 0 && (
-          <div className="flex items-center gap-1">
-            <span>💬</span>
-            <span>{formatTokens(stats.tokens)} tokens</span>
-          </div>
-        )}
-        {stats.duration && (
-          <div className="flex items-center gap-1">
-            <span>⏱️</span>
-            <span>{formatDuration(stats.duration)}</span>
-          </div>
-        )}
-      </div>
+      <StatsRow concurrency={concurrency} stats={stats} hideTokens={hideTokens} />
+    </div>
+  );
+}
+
+function StatsRow({
+  concurrency,
+  stats,
+  hideTokens,
+}: {
+  concurrency?: string;
+  stats: AgentCardStats;
+  hideTokens?: boolean;
+}) {
+  const items: string[] = [];
+  if (concurrency) items.push(concurrency);
+  if (stats.toolCalls > 0)
+    items.push(`${stats.toolCalls} tool call${stats.toolCalls === 1 ? "" : "s"}`);
+  if (!hideTokens && stats.tokens > 0)
+    items.push(`${formatTokens(stats.tokens)} tokens`);
+  if (stats.duration) items.push(formatDuration(stats.duration));
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground leading-tight">
+      {items.map((item, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && <span aria-hidden="true">&middot;</span>}
+          <span>{item}</span>
+        </React.Fragment>
+      ))}
     </div>
   );
 }

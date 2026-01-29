@@ -2,7 +2,7 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { AgentCardState } from "./types";
-import { getStateLabel, getStateBadgeColor } from "./styles";
+import { getStateLabel, getStateIcon, getStateBadgeColor } from "./styles";
 
 interface CardHeaderProps {
   state: AgentCardState;
@@ -29,11 +29,10 @@ export function CardHeader({
         </span>
         {inlineTokens && inlineTokens > 0 && (
           <span
-            className="flex items-center gap-1 text-[11px] text-muted-foreground shrink-0"
+            className="text-[11px] text-muted-foreground shrink-0"
             data-testid="subagent-inline-tokens"
           >
-            <span>💬</span>
-            <span>{formatTokens(inlineTokens)} tokens</span>
+            {formatTokens(inlineTokens)} tokens
           </span>
         )}
       </div>
@@ -47,9 +46,10 @@ export function CardHeader({
           className={cn(
             "text-[10px] px-1.5 py-0.5 font-medium",
             getStateBadgeColor(state),
+            state === "running" && "animate-pulse",
           )}
         >
-          {getStateLabel(state)}
+          {getStateIcon(state)} {getStateLabel(state)}
         </Badge>
       </div>
     </div>
