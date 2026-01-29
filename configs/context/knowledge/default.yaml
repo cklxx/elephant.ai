@@ -3,12 +3,12 @@ description: |
   Layered operating procedures for execution, research, and context hygiene.
   These references keep guidance compact and auditable.
 sop_refs:
-  - TASK_EXECUTION_FRAMEWORK.md#task-execution-framework
-  - TASK_EXECUTION_FRAMEWORK.md#todo-lifecycle
-  - TASK_EXECUTION_FRAMEWORK.md#research--investigation-strategy
-  - TASK_EXECUTION_FRAMEWORK.md#communication-standards
-  - TASK_EXECUTION_FRAMEWORK.md#context-budget--compression
-  - TASK_EXECUTION_FRAMEWORK.md#observability--traceability
+  - docs/reference/TASK_EXECUTION_FRAMEWORK.md#task-execution-framework
+  - docs/reference/TASK_EXECUTION_FRAMEWORK.md#todo-lifecycle
+  - docs/reference/TASK_EXECUTION_FRAMEWORK.md#research--investigation-strategy
+  - docs/reference/TASK_EXECUTION_FRAMEWORK.md#communication-standards
+  - docs/reference/TASK_EXECUTION_FRAMEWORK.md#context-budget--compression
+  - docs/reference/TASK_EXECUTION_FRAMEWORK.md#observability--traceability
   - docs/guides/user_intent_understanding.md#user-intent-understanding-pipeline-prompt
   - docs/reference/ARCHITECTURE_AGENT_FLOW.md#react-execution-loop
   - docs/reference/ARCHITECTURE_AGENT_FLOW.md#memory--sessions
