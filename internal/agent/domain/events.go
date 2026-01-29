@@ -497,6 +497,36 @@ func cloneToolResult(result ports.ToolResult) ports.ToolResult {
 	return cloned
 }
 
+// BackgroundTaskDispatchedEvent is emitted when a background task is dispatched.
+type BackgroundTaskDispatchedEvent struct {
+	BaseEvent
+	TaskID      string
+	Description string
+	Prompt      string
+	AgentType   string
+}
+
+func (e *BackgroundTaskDispatchedEvent) EventType() string {
+	return "background.task.dispatched"
+}
+
+// BackgroundTaskCompletedEvent is emitted when a background task finishes.
+type BackgroundTaskCompletedEvent struct {
+	BaseEvent
+	TaskID      string
+	Description string
+	Status      string // "completed", "failed", "cancelled"
+	Answer      string
+	Error       string
+	Duration    time.Duration
+	Iterations  int
+	TokensUsed  int
+}
+
+func (e *BackgroundTaskCompletedEvent) EventType() string {
+	return "background.task.completed"
+}
+
 // EventListenerFunc is a function adapter for EventListener
 type EventListenerFunc func(AgentEvent)
 

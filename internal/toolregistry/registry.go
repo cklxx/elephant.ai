@@ -267,9 +267,15 @@ func extractFilePath(args map[string]any) string {
 func (r *Registry) WithoutSubagent() tools.ToolRegistry {
 	return &filteredRegistry{
 		parent: r,
-		// Exclude both subagent and explore (which wraps subagent) to prevent
-		// recursive delegation chains inside subagents.
-		exclude: map[string]bool{"subagent": true, "explore": true, "acp_executor": true},
+		// Exclude delegation tools to prevent recursive delegation chains inside subagents.
+		exclude: map[string]bool{
+			"subagent":    true,
+			"explore":     true,
+			"acp_executor": true,
+			"bg_dispatch": true,
+			"bg_status":   true,
+			"bg_collect":  true,
+		},
 	}
 }
 
@@ -506,4 +512,9 @@ func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 	subTool := orchestration.NewSubAgent(coordinator, 3)
 	r.static["subagent"] = subTool
 	r.static["explore"] = orchestration.NewExplore(subTool)
+
+	// Register background task tools (dispatcher injected via context at runtime).
+	r.static["bg_dispatch"] = orchestration.NewBGDispatch()
+	r.static["bg_status"] = orchestration.NewBGStatus()
+	r.static["bg_collect"] = orchestration.NewBGCollect()
 }

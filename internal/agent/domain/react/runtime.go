@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
+	agent "alex/internal/agent/ports/agent"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
@@ -36,6 +37,9 @@ type reactRuntime struct {
 	pendingTaskID  string
 	nextTaskSeq    int
 	pauseRequested bool
+
+	// Background task manager for async subagent execution.
+	bgManager *BackgroundTaskManager
 }
 
 type reactIteration struct {
@@ -69,6 +73,24 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 	}
 	runtime.clarifyEmitted = make(map[string]bool)
 	runtime.nextTaskSeq = 1
+
+	// Initialize background task manager when executor is available.
+	if engine.backgroundExecutor != nil {
+		sessionID := ""
+		if state != nil {
+			sessionID = state.SessionID
+		}
+		runtime.bgManager = newBackgroundTaskManager(
+			ctx,
+			engine.logger,
+			engine.clock,
+			engine.backgroundExecutor,
+			engine.externalExecutor,
+			sessionID,
+			engine.eventListener,
+		)
+	}
+
 	return runtime
 }
 
@@ -76,8 +98,17 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 	r.tracker.startContext(r.task)
 	r.prepareContext()
 
+	// Set background dispatcher in context for tools.
+	if r.bgManager != nil {
+		r.ctx = agent.WithBackgroundDispatcher(r.ctx, r.bgManager)
+	}
+
 	for r.state.Iterations < r.engine.maxIterations {
+		// Inject background completion notifications before each iteration.
+		r.injectBackgroundNotifications()
+
 		if result, stop, err := r.handleCancellation(); stop || err != nil {
+			r.cleanupBackgroundTasks()
 			return result, err
 		}
 
@@ -86,13 +117,16 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 
 		result, done, err := r.runIteration()
 		if err != nil {
+			r.cleanupBackgroundTasks()
 			return nil, err
 		}
 		if done {
+			r.cleanupBackgroundTasks()
 			return result, nil
 		}
 	}
 
+	r.cleanupBackgroundTasks()
 	return r.handleMaxIterations()
 }
 

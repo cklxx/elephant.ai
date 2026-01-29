@@ -22,6 +22,12 @@ type ReactEngine struct {
 	attachmentMigrator materialports.Migrator
 	workflow           WorkflowTracker
 	seq                domain.SeqCounter // Monotonic event sequence per run
+
+	// Background task support: executor closure for internal subagent delegation.
+	backgroundExecutor func(ctx context.Context, prompt, sessionID string,
+		listener agent.EventListener) (*agent.TaskResult, error)
+	// Optional external agent executor for non-internal agent types.
+	externalExecutor agent.ExternalAgentExecutor
 }
 
 type workflowRecorder struct {
@@ -86,4 +92,12 @@ type ReactEngineConfig struct {
 	CompletionDefaults CompletionDefaults
 	AttachmentMigrator materialports.Migrator
 	Workflow           WorkflowTracker
+
+	// BackgroundExecutor is a closure that delegates to coordinator.ExecuteTask
+	// for background subagent tasks. When nil, bg_dispatch is unavailable.
+	BackgroundExecutor func(ctx context.Context, prompt, sessionID string,
+		listener agent.EventListener) (*agent.TaskResult, error)
+	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
+	// Optional; when nil only "internal" agent type is supported.
+	ExternalExecutor agent.ExternalAgentExecutor
 }

@@ -35,6 +35,8 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		completion:         completion,
 		attachmentMigrator: cfg.AttachmentMigrator,
 		workflow:           cfg.Workflow,
+		backgroundExecutor: cfg.BackgroundExecutor,
+		externalExecutor:   cfg.ExternalExecutor,
 	}
 }
 

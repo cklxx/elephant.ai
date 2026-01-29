@@ -329,6 +329,11 @@ func (c *AgentCoordinator) ExecuteTask(
 		CompletionDefaults: completionDefaults,
 		AttachmentMigrator: c.attachmentMigrator,
 		Workflow:           wf,
+		BackgroundExecutor: func(bgCtx context.Context, prompt, sessionID string,
+			listener agent.EventListener) (*agent.TaskResult, error) {
+			bgCtx = appcontext.MarkSubagentContext(bgCtx)
+			return c.ExecuteTask(bgCtx, prompt, sessionID, listener)
+		},
 	})
 
 	if eventListener != nil {
