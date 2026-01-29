@@ -283,12 +283,31 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 	execCtx = shared.WithParentListener(execCtx, listener)
 
+	// Save user message to memory for long-term recall.
+	if g.memoryMgr != nil {
+		senderID := extractSenderID(event)
+		g.memoryMgr.SaveMessage(execCtx, memoryID, "user", content, senderID)
+	}
+
+	// Auto chat context: fetch recent messages from the Lark chat.
+	taskContent := content
+	if g.cfg.AutoChatContext && g.client != nil {
+		pageSize := g.cfg.AutoChatContextSize
+		if pageSize <= 0 {
+			pageSize = 20
+		}
+		if chatHistory, err := fetchRecentChatMessages(execCtx, g.client, chatID, pageSize); err != nil {
+			g.logger.Warn("Lark auto chat context fetch failed: %v", err)
+		} else if chatHistory != "" {
+			taskContent = "[近期对话]\n" + chatHistory + "\n\n" + taskContent
+		}
+	}
+
 	// Memory recall: inject relevant past learnings into the task context.
 	// Uses memoryID (stable per chat) so memories persist across fresh sessions.
-	taskContent := content
 	if g.memoryMgr != nil {
 		if recalled := g.memoryMgr.RecallForTask(execCtx, memoryID, content); recalled != "" {
-			taskContent = recalled + "\n\n" + content
+			taskContent = recalled + "\n\n" + taskContent
 		}
 	}
 
@@ -300,6 +319,11 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	// Memory save: persist important notes from the result.
 	if g.memoryMgr != nil {
 		g.memoryMgr.SaveFromResult(execCtx, memoryID, result)
+	}
+
+	// Save agent reply to memory for long-term recall.
+	if g.memoryMgr != nil && result != nil && strings.TrimSpace(result.Answer) != "" {
+		g.memoryMgr.SaveMessage(execCtx, memoryID, "assistant", result.Answer, "bot")
 	}
 
 	reply := g.buildReply(result, execErr)
@@ -827,6 +851,14 @@ func (g *Gateway) uploadFile(ctx context.Context, payload []byte, fileName, file
 		return "", fmt.Errorf("lark file upload missing file_key")
 	}
 	return *resp.Data.FileKey, nil
+}
+
+// extractSenderID extracts the sender open_id from a Lark message event.
+func extractSenderID(event *larkim.P2MessageReceiveV1) string {
+	if event == nil || event.Event == nil || event.Event.Sender == nil || event.Event.Sender.SenderId == nil {
+		return ""
+	}
+	return deref(event.Event.Sender.SenderId.OpenId)
 }
 
 // deref safely dereferences a string pointer.

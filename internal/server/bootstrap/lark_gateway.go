@@ -65,8 +65,10 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		ToolPreset:       larkCfg.ToolPreset,
 		ReplyTimeout:     larkCfg.ReplyTimeout,
 		ReactEmoji:       larkCfg.ReactEmoji,
-		MemoryEnabled:    larkCfg.MemoryEnabled,
-		ShowToolProgress: larkCfg.ShowToolProgress,
+		MemoryEnabled:       larkCfg.MemoryEnabled,
+		ShowToolProgress:    larkCfg.ShowToolProgress,
+		AutoChatContext:     larkCfg.AutoChatContext,
+		AutoChatContextSize: larkCfg.AutoChatContextSize,
 	}
 
 	gateway, err := lark.NewGateway(gatewayCfg, agentContainer.AgentCoordinator, logger)

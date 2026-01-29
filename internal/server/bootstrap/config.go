@@ -74,9 +74,11 @@ type LarkGatewayConfig struct {
 	ToolPreset    string
 	ToolMode      string
 	ReplyTimeout  time.Duration
-	ReactEmoji       string
-	MemoryEnabled    bool
-	ShowToolProgress bool
+	ReactEmoji          string
+	MemoryEnabled       bool
+	ShowToolProgress    bool
+	AutoChatContext     bool
+	AutoChatContextSize int
 }
 
 var defaultAllowedOrigins = []string{
@@ -153,7 +155,9 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 				ToolMode:      "cli",
 				ToolPreset:    string(presets.ToolPresetFull),
 				ReplyTimeout:  3 * time.Minute,
-				ReactEmoji:    "SMILE",
+				ReactEmoji:          "SMILE",
+				AutoChatContext:     true,
+				AutoChatContextSize: 20,
 			},
 		},
 		Attachment: attachments.StoreConfig{
@@ -297,6 +301,12 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if larkCfg.ShowToolProgress != nil {
 			cfg.Channels.Lark.ShowToolProgress = *larkCfg.ShowToolProgress
+		}
+		if larkCfg.AutoChatContext != nil {
+			cfg.Channels.Lark.AutoChatContext = *larkCfg.AutoChatContext
+		}
+		if larkCfg.AutoChatContextSize != nil && *larkCfg.AutoChatContextSize > 0 {
+			cfg.Channels.Lark.AutoChatContextSize = *larkCfg.AutoChatContextSize
 		}
 	}
 

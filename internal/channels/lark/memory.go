@@ -25,6 +25,35 @@ func newLarkMemoryManager(svc memory.Service, logger logging.Logger) *larkMemory
 	}
 }
 
+// SaveMessage persists a single chat message (user or assistant) to memory.
+// role should be "user" or "assistant"; senderID identifies the message author.
+// Failures are logged but do not block message processing.
+func (m *larkMemoryManager) SaveMessage(ctx context.Context, memoryID, role, content, senderID string) {
+	if m == nil || m.service == nil {
+		return
+	}
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return
+	}
+
+	keywords := extractKeywords(content)
+	entry := memory.Entry{
+		UserID:   memoryID,
+		Content:  content,
+		Keywords: keywords,
+		Slots: map[string]string{
+			"type":      "chat_message",
+			"role":      role,
+			"sender_id": senderID,
+		},
+		CreatedAt: time.Now(),
+	}
+	if _, err := m.service.Save(ctx, entry); err != nil {
+		m.logger.Warn("Lark memory save message failed (role=%s): %v", role, err)
+	}
+}
+
 // SaveFromResult extracts important notes from the task result and persists
 // them via the memory service, keyed by session/user context.
 func (m *larkMemoryManager) SaveFromResult(ctx context.Context, sessionID string, result *agent.TaskResult) {
