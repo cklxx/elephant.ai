@@ -26,6 +26,7 @@ export interface RendererContext {
   };
   streamContent?: string;
   streamTimestamp?: string;
+  debugMode?: boolean;
 }
 
 export interface ToolRendererResult {
@@ -36,6 +37,7 @@ export interface ToolRendererResult {
 export type ToolRenderer = (context: RendererContext) => ToolRendererResult;
 
 const buildArguments = (ctx: RendererContext): ReactNode | null => {
+  if (!ctx.debugMode) return null;
   if (!ctx.startEvent?.arguments || Object.keys(ctx.startEvent.arguments).length === 0) {
     return null;
   }

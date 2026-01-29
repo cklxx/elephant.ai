@@ -11,6 +11,7 @@ import { resolveToolRenderer } from './tooling/toolRenderers';
 import { adaptToolCallForRenderer } from './tooling/toolDataAdapters';
 import { userFacingToolSummary, userFacingToolTitle } from '@/lib/toolPresentation';
 import { useElapsedDurationMs } from '@/hooks/useElapsedDurationMs';
+import { isDebugModeEnabled } from '@/lib/debugMode';
 
 interface ToolCallCardProps {
   event: WorkflowToolStartedEvent | WorkflowToolCompletedEvent;
@@ -121,9 +122,12 @@ export const ToolCallCard = memo(function ToolCallCard({ event, status, pairedSt
     );
   }, [adapter, event, status, t, toolName]);
 
+  const debugMode = isDebugModeEnabled();
+
   // Render panels (args, output, etc.)
   const { panels } = renderer({
     ...adapter.context,
+    debugMode,
     labels: {
       arguments: t('conversation.tool.timeline.arguments'),
       stream: t('conversation.tool.timeline.liveOutput'),

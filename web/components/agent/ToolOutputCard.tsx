@@ -1,9 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { formatDuration, cn, getToolIcon } from "@/lib/utils";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
@@ -180,9 +179,9 @@ export function ToolOutputCard({
           "cursor-pointer select-none rounded-md border border-border/60",
           "bg-muted/50 transition-colors hover:bg-muted/70",
           resolvedStatus === "running" &&
-            "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
+          "bg-blue-50/50 border-blue-100/50 text-blue-900 dark:bg-blue-900/20 dark:text-blue-100 dark:border-blue-800/30",
           resolvedStatus === "failed" &&
-            "bg-red-50/50 border-red-100/50 text-red-900 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800/30",
+          "bg-red-50/50 border-red-100/50 text-red-900 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800/30",
         )}
       >
         <div
@@ -201,13 +200,6 @@ export function ToolOutputCard({
             </span>
           )}
         </div>
-
-        <ChevronRight
-          className={cn(
-            "h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200",
-            isExpanded && "rotate-90",
-          )}
-        />
 
         <div className="min-w-0 overflow-hidden">
           <span
@@ -253,7 +245,7 @@ export function ToolOutputCard({
         >
           <div className="mt-2 pl-4 pr-1 border-l-2 border-border/40 ml-2" data-testid="tool-content-expanded">
             <div className="grid gap-3 grid-cols-1 lg:grid-cols-[repeat(auto-fit,minmax(320px,1fr))]">
-              {hasParameters && (
+              {debugMode && hasParameters && (
                 <ToolArgumentsPanel
                   args={formattedArguments}
                   label={t("tool.section.parameters")}
@@ -277,7 +269,7 @@ export function ToolOutputCard({
                 />
               )}
 
-              {hasMetadata && (
+              {debugMode && hasMetadata && (
                 <ToolStreamPanel
                   title={t("conversation.tool.timeline.metadata")}
                   content={formattedMetadata}
