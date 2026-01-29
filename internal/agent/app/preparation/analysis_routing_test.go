@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	appconfig "alex/internal/agent/app/config"
 	appcontext "alex/internal/agent/app/context"
@@ -62,7 +63,7 @@ func (c *triageClient) Complete(ctx context.Context, req ports.CompletionRequest
 	return &ports.CompletionResponse{Content: "ok"}, nil
 }
 
-func TestPrepareUsesSmallModelForSimpleTasksAndSetsTitleFromPreanalysis(t *testing.T) {
+func TestPrepareRunsPreanalysisAsyncAndPersistsTitleInBackground(t *testing.T) {
 	session := &storage.Session{ID: "session-preanalysis-simple", Messages: nil, Metadata: map[string]string{}}
 	store := &stubSessionStore{session: session}
 	factory := &recordingLLMFactory{}
@@ -84,24 +85,42 @@ func TestPrepareUsesSmallModelForSimpleTasksAndSetsTitleFromPreanalysis(t *testi
 		EventEmitter: agent.NoopEventListener{},
 	})
 
-	_, err := service.Prepare(context.Background(), "Fix a typo in README", session.ID)
+	env, err := service.Prepare(context.Background(), "Fix a typo in README", session.ID)
 	if err != nil {
 		t.Fatalf("prepare failed: %v", err)
 	}
 
-	if got := strings.TrimSpace(session.Metadata["title"]); got != "Fix typo in README" {
-		t.Fatalf("expected session title from pre-analysis, got %q", got)
+	// Pre-analysis is async: Prepare should use the default model (not small)
+	// because the triage result is not yet available.
+	modelCalls := factory.CallModels()
+	if len(modelCalls) < 1 {
+		t.Fatalf("expected at least 1 LLM factory call, got %v", modelCalls)
+	}
+	// The first synchronous call should be the execution client using the default model.
+	if modelCalls[0] != "mock-default|default-model" {
+		t.Fatalf("expected execution to use default model, got %q", modelCalls[0])
 	}
 
-	modelCalls := factory.CallModels()
-	if len(modelCalls) < 2 {
-		t.Fatalf("expected at least 2 LLM factory calls (preanalysis + execution), got %v", modelCalls)
+	// TaskAnalysis should be nil since quickTriageTask doesn't match a normal task.
+	if env.TaskAnalysis != nil {
+		t.Fatalf("expected nil TaskAnalysis for async preanalysis, got %+v", env.TaskAnalysis)
 	}
-	if modelCalls[0] != "mock-small|small-model" {
-		t.Fatalf("expected preanalysis to use small model, got %q", modelCalls[0])
-	}
-	if modelCalls[len(modelCalls)-1] != "mock-small|small-model" {
-		t.Fatalf("expected execution to use small model for simple tasks, got %q", modelCalls[len(modelCalls)-1])
+
+	// Wait for the async goroutine to persist the title.
+	// Use the thread-safe SessionTitle() accessor to avoid racing with the goroutine.
+	deadline := time.After(2 * time.Second)
+	for {
+		if got := store.SessionTitle(); got != "" {
+			if got != "Fix typo in README" {
+				t.Fatalf("expected async title 'Fix typo in README', got %q", got)
+			}
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatal("timed out waiting for async title persistence")
+		case <-time.After(10 * time.Millisecond):
+		}
 	}
 }
 
@@ -142,12 +161,13 @@ func TestPrepareSkipsLLMPreanalysisForGreeting(t *testing.T) {
 		EventEmitter: agent.NoopEventListener{},
 	})
 
-	_, err := service.Prepare(context.Background(), "nihao", session.ID)
+	env, err := service.Prepare(context.Background(), "nihao", session.ID)
 	if err != nil {
 		t.Fatalf("prepare failed: %v", err)
 	}
 
-	if got := strings.TrimSpace(session.Metadata["title"]); got != "Greeting" {
+	// quickTriageTask sets the title synchronously on the returned env.Session.
+	if got := strings.TrimSpace(env.Session.Metadata["title"]); got != "Greeting" {
 		t.Fatalf("expected session title Greeting, got %q", got)
 	}
 

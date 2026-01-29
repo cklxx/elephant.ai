@@ -17,6 +17,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/agent/presets"
+	"alex/internal/async"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
@@ -297,7 +298,16 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			taskAnalysis = analysis
 		}
 	} else {
-		taskAnalysis, preferSmallModel = s.preAnalyzeTask(ctx, session, task)
+		// quickTriageTask is instant (no LLM call); use it for synchronous routing.
+		if analysis, preferSmall, ok := quickTriageTask(task); ok {
+			taskAnalysis = analysis
+			preferSmallModel = preferSmall
+		} else {
+			// Fire LLM-based pre-analysis asynchronously to avoid blocking the
+			// prepare phase with a small-model round-trip (up to 4 s).
+			// The title will be persisted in the background when the call completes.
+			s.preAnalyzeTaskAsync(ctx, session, task)
+		}
 	}
 	if session != nil && taskAnalysis != nil {
 		if session.Metadata == nil {
@@ -444,4 +454,60 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		SystemPrompt: systemPrompt,
 		TaskAnalysis: taskAnalysis,
 	}, nil
+}
+
+// preAnalyzeTaskAsync fires preAnalyzeTask in a background goroutine and
+// persists the resulting title to the session store when done. This removes
+// the small-model round-trip from the critical path of Prepare().
+func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, session *storage.Session, task string) {
+	if session == nil || strings.TrimSpace(session.ID) == "" {
+		return
+	}
+	if session.Metadata != nil && strings.TrimSpace(session.Metadata["title"]) != "" {
+		return
+	}
+
+	sessionID := session.ID
+
+	// Snapshot a minimal session for the goroutine so it doesn't race with the
+	// caller mutating the original session object.
+	sessionSnapshot := &storage.Session{
+		ID:       sessionID,
+		Metadata: map[string]string{},
+	}
+
+	bgCtx := context.Background()
+	if logID := id.LogIDFromContext(ctx); logID != "" {
+		bgCtx = id.WithLogID(bgCtx, logID)
+	}
+
+	async.Go(s.logger, "preanalysis-title", func() {
+		analysis, _ := s.preAnalyzeTask(bgCtx, sessionSnapshot, task)
+		if analysis == nil {
+			return
+		}
+		title := sessiontitle.NormalizeSessionTitle(analysis.ActionName)
+		if title == "" {
+			return
+		}
+
+		persistCtx, cancel := context.WithTimeout(bgCtx, 2*time.Second)
+		defer cancel()
+
+		sess, err := s.sessionStore.Get(persistCtx, sessionID)
+		if err != nil {
+			s.logger.Warn("Async title: failed to load session: %v", err)
+			return
+		}
+		if sess.Metadata == nil {
+			sess.Metadata = make(map[string]string)
+		}
+		if strings.TrimSpace(sess.Metadata["title"]) != "" {
+			return // Title already set by plan tool or elsewhere.
+		}
+		sess.Metadata["title"] = title
+		if err := s.sessionStore.Save(persistCtx, sess); err != nil {
+			s.logger.Warn("Async title: failed to persist: %v", err)
+		}
+	})
 }
