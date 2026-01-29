@@ -15,4 +15,5 @@ type Config struct {
 	AgentPreset   string
 	ToolPreset    string
 	ReplyTimeout  time.Duration
+	ReactEmoji    string // Emoji reaction sent immediately on message receipt (e.g. "SMILE"). Empty disables.
 }

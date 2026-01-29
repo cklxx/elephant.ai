@@ -223,6 +223,19 @@ func TestStartReturnsNilWhenDisabled(t *testing.T) {
 	}
 }
 
+func TestAddReactionSkipsWhenClientNil(t *testing.T) {
+	gw := &Gateway{cfg: Config{SessionPrefix: "lark", ReactEmoji: "SMILE"}, logger: logging.OrNop(nil)}
+	// Should not panic when client is nil.
+	gw.addReaction(context.Background(), "om_test_msg", "SMILE")
+}
+
+func TestAddReactionSkipsEmptyInputs(t *testing.T) {
+	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	// Should not panic with empty messageID or emojiType.
+	gw.addReaction(context.Background(), "", "SMILE")
+	gw.addReaction(context.Background(), "om_test_msg", "")
+}
+
 func TestGatewayMessageDedup(t *testing.T) {
 	now := time.Date(2026, 1, 29, 11, 0, 0, 0, time.UTC)
 	cache, err := lru.New[string, time.Time](2)

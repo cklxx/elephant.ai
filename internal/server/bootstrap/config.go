@@ -74,6 +74,7 @@ type LarkGatewayConfig struct {
 	ToolPreset    string
 	ToolMode      string
 	ReplyTimeout  time.Duration
+	ReactEmoji    string
 }
 
 var defaultAllowedOrigins = []string{
@@ -150,6 +151,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 				ToolMode:      "cli",
 				ToolPreset:    string(presets.ToolPresetFull),
 				ReplyTimeout:  3 * time.Minute,
+				ReactEmoji:    "SMILE",
 			},
 		},
 		Attachment: attachments.StoreConfig{
@@ -284,6 +286,9 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if larkCfg.ReplyTimeoutSeconds != nil && *larkCfg.ReplyTimeoutSeconds > 0 {
 			cfg.Channels.Lark.ReplyTimeout = time.Duration(*larkCfg.ReplyTimeoutSeconds) * time.Second
+		}
+		if reactEmoji := strings.TrimSpace(larkCfg.ReactEmoji); reactEmoji != "" {
+			cfg.Channels.Lark.ReactEmoji = reactEmoji
 		}
 	}
 

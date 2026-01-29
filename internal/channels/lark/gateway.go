@@ -167,6 +167,11 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		return nil
 	}
 
+	// Immediately acknowledge receipt with an emoji reaction.
+	if messageID != "" && g.cfg.ReactEmoji != "" {
+		g.addReaction(ctx, messageID, g.cfg.ReactEmoji)
+	}
+
 	sessionID := g.sessionIDForChat(chatID)
 	lock := g.sessionLock(sessionID)
 	lock.Lock()
@@ -312,6 +317,30 @@ func (g *Gateway) replyMessageTyped(ctx context.Context, messageID, msgType, con
 	}
 	if !resp.Success() {
 		g.logger.Warn("Lark reply message error: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+}
+
+// addReaction adds an emoji reaction to the specified message.
+func (g *Gateway) addReaction(ctx context.Context, messageID, emojiType string) {
+	if g.client == nil || messageID == "" || emojiType == "" {
+		return
+	}
+	req := larkim.NewCreateMessageReactionReqBuilder().
+		MessageId(messageID).
+		Body(larkim.NewCreateMessageReactionReqBodyBuilder().
+			ReactionType(larkim.NewEmojiBuilder().
+				EmojiType(emojiType).
+				Build()).
+			Build()).
+		Build()
+
+	resp, err := g.client.Im.V1.MessageReaction.Create(ctx, req)
+	if err != nil {
+		g.logger.Warn("Lark add reaction failed: %v", err)
+		return
+	}
+	if !resp.Success() {
+		g.logger.Warn("Lark add reaction error: code=%d msg=%s", resp.Code, resp.Msg)
 	}
 }
 

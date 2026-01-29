@@ -64,6 +64,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		AgentPreset:   larkCfg.AgentPreset,
 		ToolPreset:    larkCfg.ToolPreset,
 		ReplyTimeout:  larkCfg.ReplyTimeout,
+		ReactEmoji:    larkCfg.ReactEmoji,
 	}
 
 	gateway, err := lark.NewGateway(gatewayCfg, agentContainer.AgentCoordinator, logger)
