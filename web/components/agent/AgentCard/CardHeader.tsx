@@ -33,7 +33,6 @@ export function CardHeader({
 }: CardHeaderProps) {
   const displayTitle = preview || type || "Sub Agent";
   const clickable = hasEvents && onToggle;
-  const StateIcon = getStateLucideIcon(state);
 
   const content = (
     <div className="space-y-1 w-full">
@@ -45,13 +44,13 @@ export function CardHeader({
             getStateIconContainerStyle(state),
           )}
         >
-          <StateIcon
-            className={cn(
+          {React.createElement(getStateLucideIcon(state), {
+            className: cn(
               "h-3 w-3",
               getStateIconColor(state),
               state === "running" && "animate-spin",
-            )}
-          />
+            ),
+          })}
         </span>
         <span className="text-[13px] leading-snug text-foreground/80 truncate font-medium flex-1 min-w-0">
           {displayTitle}
