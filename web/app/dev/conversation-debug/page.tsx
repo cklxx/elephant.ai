@@ -219,6 +219,42 @@ type TimingEntry = {
   hint?: string;
 };
 
+type ToolTimingEntry = TimingEntry & {
+  seq?: number;
+  callId?: string;
+};
+
+type LLMTimingEntry = TimingEntry & {
+  seq?: number;
+  logId?: string;
+  requestId?: string;
+  model?: string;
+};
+
+type RunNode = {
+  runId: string;
+  parentRunId: string | null;
+  correlationId: string | null;
+  causationId: string | null;
+  agentLevel: string;
+  children: RunNode[];
+  stages: TimingEntry[];
+  tools: ToolTimingEntry[];
+  llmCalls: LLMTimingEntry[];
+  totalDurationMs: number | null;
+  firstSeq: number | null;
+};
+
+type RunTree = {
+  roots: RunNode[];
+  totalDurationMs: number | null;
+  stageCount: number;
+  toolCount: number;
+  llmCount: number;
+};
+
+type LLMDetailCache = Map<string, LogTraceBundle | "loading" | "error">;
+
 function formatDuration(ms: number) {
   if (!Number.isFinite(ms)) {
     return "—";
@@ -229,28 +265,305 @@ function formatDuration(ms: number) {
   return `${Math.round(ms)}ms`;
 }
 
-function TimingList({ entries, emptyLabel }: { entries: TimingEntry[]; emptyLabel: string }) {
-  if (entries.length === 0) {
-    return <p className="text-xs text-muted-foreground">{emptyLabel}</p>;
-  }
+
+function truncateId(id: string, maxLen = 12): string {
+  if (id.length <= maxLen) return id;
+  return `${id.slice(0, maxLen)}…`;
+}
+
+function LLMCallDetailView({
+  entry,
+  cache,
+  onFetch,
+}: {
+  entry: LLMTimingEntry;
+  cache: LLMDetailCache;
+  onFetch: (logId: string) => void;
+}) {
+  const logId = entry.logId;
+  const cached = logId ? cache.get(logId) : undefined;
+
+  const handleExpand = useCallback(() => {
+    if (logId && !cached) {
+      onFetch(logId);
+    }
+  }, [logId, cached, onFetch]);
+
+  const requestEntries = useMemo(() => {
+    if (!cached || cached === "loading" || cached === "error") return [];
+    const raw = cached.requests?.entries ?? [];
+    return raw.map((line) => {
+      try {
+        return JSON.parse(line) as Record<string, unknown>;
+      } catch {
+        return null;
+      }
+    }).filter((item): item is Record<string, unknown> => item !== null);
+  }, [cached]);
+
+  const matchedEntries = useMemo(() => {
+    if (!entry.requestId) return requestEntries;
+    return requestEntries.filter(
+      (item) => item.request_id === entry.requestId,
+    );
+  }, [requestEntries, entry.requestId]);
+
+  const requestPayloads = useMemo(
+    () => matchedEntries.filter((item) => item.entry_type === "request"),
+    [matchedEntries],
+  );
+  const responsePayloads = useMemo(
+    () => matchedEntries.filter((item) => item.entry_type === "response"),
+    [matchedEntries],
+  );
+
   return (
-    <div className="space-y-2">
-      {entries.map((entry) => (
-        <div
-          key={entry.id}
-          className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs"
-        >
-          <div className="min-w-0">
-            <p className="truncate font-medium text-foreground">{entry.label}</p>
-            {entry.hint && (
-              <p className="truncate text-[11px] text-muted-foreground">{entry.hint}</p>
-            )}
-          </div>
-          <span className="whitespace-nowrap font-semibold text-foreground/80">
-            {formatDuration(entry.durationMs)}
-          </span>
+    <details
+      className="rounded-md border border-border/60 bg-muted/10"
+      onToggle={(e) => {
+        if ((e.target as HTMLDetailsElement).open) handleExpand();
+      }}
+    >
+      <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-xs">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="font-medium text-foreground">{entry.label}</span>
+          {entry.model && (
+            <span className="text-[11px] text-muted-foreground">model={entry.model}</span>
+          )}
+          {entry.seq !== undefined && (
+            <span className="text-[11px] text-muted-foreground">seq:{entry.seq}</span>
+          )}
         </div>
-      ))}
+        <span className="whitespace-nowrap font-semibold text-foreground/80">
+          {formatDuration(entry.durationMs)}
+        </span>
+      </summary>
+      <div className="space-y-2 border-t border-border/40 px-3 py-2">
+        {!logId && (
+          <p className="text-xs text-muted-foreground">No log_id available for this LLM call.</p>
+        )}
+        {logId && cached === "loading" && (
+          <p className="text-xs text-muted-foreground">Loading log trace…</p>
+        )}
+        {logId && cached === "error" && (
+          <p className="text-xs text-rose-600">Failed to load log trace.</p>
+        )}
+        {logId && cached && cached !== "loading" && cached !== "error" && (
+          <>
+            {matchedEntries.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No matching request entries found for request_id={entry.requestId || "—"}.
+              </p>
+            ) : (
+              <>
+                {requestPayloads.length > 0 && (
+                  <details className="rounded-md border border-dashed border-border/70 bg-muted/30 px-2 py-1">
+                    <summary className="cursor-pointer text-xs font-semibold text-foreground/80">
+                      Request ({requestPayloads.length})
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {requestPayloads.map((item, idx) => (
+                        <JsonNode key={`req-${idx}`} label={`request[${idx}]`} value={item} depth={0} />
+                      ))}
+                    </div>
+                  </details>
+                )}
+                {responsePayloads.length > 0 && (
+                  <details className="rounded-md border border-dashed border-border/70 bg-muted/30 px-2 py-1">
+                    <summary className="cursor-pointer text-xs font-semibold text-foreground/80">
+                      Response ({responsePayloads.length})
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {responsePayloads.map((item, idx) => (
+                        <JsonNode key={`res-${idx}`} label={`response[${idx}]`} value={item} depth={0} />
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </>
+            )}
+          </>
+        )}
+      </div>
+    </details>
+  );
+}
+
+function RunNodeView({
+  node,
+  cache,
+  onFetchLLM,
+  depth = 0,
+}: {
+  node: RunNode;
+  cache: LLMDetailCache;
+  onFetchLLM: (logId: string) => void;
+  depth?: number;
+}) {
+  const hasContent =
+    node.stages.length > 0 ||
+    node.tools.length > 0 ||
+    node.llmCalls.length > 0 ||
+    node.children.length > 0;
+
+  const idChainParts: string[] = [];
+  if (node.correlationId) idChainParts.push(`corr: ${truncateId(node.correlationId)}`);
+  if (node.causationId) idChainParts.push(`cause: ${truncateId(node.causationId)}`);
+  if (node.parentRunId) idChainParts.push(`parent: ${truncateId(node.parentRunId)}`);
+
+  return (
+    <details open={depth < 2} className="rounded-lg border border-border/60 bg-muted/10">
+      <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs">
+        <Badge variant={node.agentLevel === "core" ? "default" : "secondary"} className="text-[10px]">
+          {node.agentLevel}
+        </Badge>
+        <span className="font-medium text-foreground" title={node.runId}>
+          {node.runId === "__root__" ? "(no run_id)" : truncateId(node.runId, 16)}
+        </span>
+        {node.totalDurationMs !== null && (
+          <span className="font-semibold text-foreground/80">
+            {formatDuration(node.totalDurationMs)}
+          </span>
+        )}
+        {node.firstSeq !== null && (
+          <span className="text-[11px] text-muted-foreground">seq:{node.firstSeq}</span>
+        )}
+        {idChainParts.length > 0 && (
+          <span className="text-[10px] text-muted-foreground/70">
+            {idChainParts.join(" · ")}
+          </span>
+        )}
+      </summary>
+      {hasContent && (
+        <div className="space-y-3 border-t border-border/40 px-3 py-2">
+          {node.stages.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground">Stages</p>
+              <div className="space-y-1">
+                {node.stages.map((stage) => (
+                  <div
+                    key={stage.id}
+                    className="flex items-center justify-between gap-2 rounded border border-border/40 bg-muted/20 px-2 py-1 text-xs"
+                  >
+                    <span className="truncate font-medium text-foreground">{stage.label}</span>
+                    <span className="whitespace-nowrap font-semibold text-foreground/80">
+                      {formatDuration(stage.durationMs)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {node.tools.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground">Tools</p>
+              <div className="space-y-1">
+                {node.tools.map((tool) => (
+                  <div
+                    key={tool.id}
+                    className="flex items-center justify-between gap-2 rounded border border-border/40 bg-muted/20 px-2 py-1 text-xs"
+                  >
+                    <div className="min-w-0">
+                      <span className="truncate font-medium text-foreground">{tool.label}</span>
+                      <span className="ml-2 text-[11px] text-muted-foreground">
+                        {[
+                          tool.seq !== undefined && `seq:${tool.seq}`,
+                          tool.callId && `call:${truncateId(tool.callId, 10)}`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                      {tool.hint && (
+                        <p className="truncate text-[10px] text-muted-foreground">{tool.hint}</p>
+                      )}
+                    </div>
+                    <span className="whitespace-nowrap font-semibold text-foreground/80">
+                      {formatDuration(tool.durationMs)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {node.llmCalls.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground">LLM Calls</p>
+              <div className="space-y-1">
+                {node.llmCalls.map((llm) => (
+                  <LLMCallDetailView
+                    key={llm.id}
+                    entry={llm}
+                    cache={cache}
+                    onFetch={onFetchLLM}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {node.children.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-muted-foreground">
+                Children ({node.children.length})
+              </p>
+              <div className="space-y-2 pl-2">
+                {node.children.map((child) => (
+                  <RunNodeView
+                    key={child.runId}
+                    node={child}
+                    cache={cache}
+                    onFetchLLM={onFetchLLM}
+                    depth={depth + 1}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </details>
+  );
+}
+
+function RunTreeView({
+  tree,
+  cache,
+  onFetchLLM,
+}: {
+  tree: RunTree;
+  cache: LLMDetailCache;
+  onFetchLLM: (logId: string) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <Badge variant="outline">
+          Total:{" "}
+          {tree.totalDurationMs !== null ? formatDuration(tree.totalDurationMs) : "—"}
+        </Badge>
+        <Badge variant="outline">Stages: {tree.stageCount}</Badge>
+        <Badge variant="outline">Tools: {tree.toolCount}</Badge>
+        <Badge variant="outline">LLM calls: {tree.llmCount}</Badge>
+      </div>
+
+      {tree.roots.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+          No timing data yet. Connect to a session to capture events.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {tree.roots.map((root) => (
+            <RunNodeView
+              key={root.runId}
+              node={root}
+              cache={cache}
+              onFetchLLM={onFetchLLM}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -283,6 +596,7 @@ export default function ConversationDebugPage() {
   const [logTrace, setLogTrace] = useState<LogTraceBundle | null>(null);
   const [logTraceError, setLogTraceError] = useState<string | null>(null);
   const [logTraceLoading, setLogTraceLoading] = useState(false);
+  const [llmDetailCache, setLlmDetailCache] = useState<LLMDetailCache>(new Map());
 
   const { currentSessionId, sessionHistory } = useSessionStore();
 
@@ -489,6 +803,34 @@ export default function ConversationDebugPage() {
     [logId],
   );
 
+  const fetchLLMDetail = useCallback(
+    (targetLogId: string) => {
+      setLlmDetailCache((prev) => {
+        if (prev.has(targetLogId)) return prev;
+        const next = new Map(prev);
+        next.set(targetLogId, "loading");
+        return next;
+      });
+      apiClient
+        .getLogTrace(targetLogId)
+        .then((trace) => {
+          setLlmDetailCache((prev) => {
+            const next = new Map(prev);
+            next.set(targetLogId, trace);
+            return next;
+          });
+        })
+        .catch(() => {
+          setLlmDetailCache((prev) => {
+            const next = new Map(prev);
+            next.set(targetLogId, "error");
+            return next;
+          });
+        });
+    },
+    [],
+  );
+
   useEffect(() => {
     return () => {
       disconnect();
@@ -599,22 +941,73 @@ export default function ConversationDebugPage() {
     }
     return messages.length;
   }, [turnSnapshot]);
-  const timingSummary = useMemo(() => {
-    const stages: TimingEntry[] = [];
-    const llmCalls: TimingEntry[] = [];
-    const tools: TimingEntry[] = [];
+  const runTree = useMemo((): RunTree => {
+    const nodeMap = new Map<string, RunNode>();
     let totalDurationMs: number | null = null;
+    let stageCount = 0;
+    let toolCount = 0;
+    let llmCount = 0;
+
+    const FALLBACK_RUN = "__root__";
+
+    function getOrCreateNode(envelope: Record<string, unknown>): RunNode {
+      const runId = typeof envelope.run_id === "string" && envelope.run_id.trim()
+        ? envelope.run_id.trim()
+        : FALLBACK_RUN;
+      let node = nodeMap.get(runId);
+      if (!node) {
+        node = {
+          runId,
+          parentRunId: typeof envelope.parent_run_id === "string" && envelope.parent_run_id.trim()
+            ? envelope.parent_run_id.trim()
+            : null,
+          correlationId: typeof envelope.correlation_id === "string" && envelope.correlation_id.trim()
+            ? envelope.correlation_id.trim()
+            : null,
+          causationId: typeof envelope.causation_id === "string" && envelope.causation_id.trim()
+            ? envelope.causation_id.trim()
+            : null,
+          agentLevel: typeof envelope.agent_level === "string" ? envelope.agent_level : "core",
+          children: [],
+          stages: [],
+          tools: [],
+          llmCalls: [],
+          totalDurationMs: null,
+          firstSeq: null,
+        };
+        nodeMap.set(runId, node);
+      }
+      // Update metadata if not yet set
+      if (!node.parentRunId && typeof envelope.parent_run_id === "string" && envelope.parent_run_id.trim()) {
+        node.parentRunId = envelope.parent_run_id.trim();
+      }
+      if (!node.correlationId && typeof envelope.correlation_id === "string" && envelope.correlation_id.trim()) {
+        node.correlationId = envelope.correlation_id.trim();
+      }
+      if (!node.causationId && typeof envelope.causation_id === "string" && envelope.causation_id.trim()) {
+        node.causationId = envelope.causation_id.trim();
+      }
+      const seq = typeof envelope.seq === "number" ? envelope.seq : null;
+      if (seq !== null && (node.firstSeq === null || seq < node.firstSeq)) {
+        node.firstSeq = seq;
+      }
+      return node;
+    }
 
     for (const entry of events) {
       if (!entry.parsed || typeof entry.parsed !== "object") {
         continue;
       }
-      const payload = (entry.parsed as Record<string, unknown>).payload;
+      const envelope = entry.parsed as Record<string, unknown>;
+      const payload = envelope.payload;
       if (!payload || typeof payload !== "object") {
         continue;
       }
       const data = payload as Record<string, unknown>;
+      const node = getOrCreateNode(envelope);
+      const seq = typeof envelope.seq === "number" ? envelope.seq : undefined;
 
+      // Stages
       if (
         entry.eventType === "workflow.node.completed" ||
         entry.eventType === "workflow.node.failed"
@@ -625,14 +1018,12 @@ export default function ConversationDebugPage() {
             (data.step_description as string | undefined) ||
             (data.node_id as string | undefined) ||
             "stage";
-          stages.push({
-            id: entry.id,
-            label,
-            durationMs: duration,
-          });
+          node.stages.push({ id: entry.id, label, durationMs: duration });
+          stageCount++;
         }
       }
 
+      // LLM calls
       if (entry.eventType === "workflow.node.output.summary") {
         const duration = Number(data.llm_duration_ms);
         if (Number.isFinite(duration) && duration > 0) {
@@ -643,15 +1034,22 @@ export default function ConversationDebugPage() {
           const hintParts = [model && `model=${model}`, requestId && `req=${requestId}`]
             .filter(Boolean)
             .join(" · ");
-          llmCalls.push({
+          const logId = extractLogId(envelope);
+          node.llmCalls.push({
             id: entry.id,
             label: iteration,
             durationMs: duration,
             hint: hintParts || undefined,
+            seq,
+            logId: logId ?? undefined,
+            requestId: requestId || undefined,
+            model: model || undefined,
           });
+          llmCount++;
         }
       }
 
+      // Tools
       if (entry.eventType === "workflow.tool.completed") {
         const duration = Number(data.duration);
         if (Number.isFinite(duration) && duration > 0) {
@@ -659,6 +1057,7 @@ export default function ConversationDebugPage() {
             (data.tool_name as string | undefined) ||
             (data.tool as string | undefined) ||
             "tool";
+          const callId = typeof data.call_id === "string" ? data.call_id : undefined;
           const meta = data.metadata as Record<string, unknown> | undefined;
           const llmDuration = meta ? Number(meta.llm_duration_ms) : NaN;
           const llmRequest =
@@ -673,30 +1072,62 @@ export default function ConversationDebugPage() {
           ]
             .filter(Boolean)
             .join(" · ");
-          tools.push({
+          node.tools.push({
             id: entry.id,
             label: toolName,
             durationMs: duration,
             hint: hintParts || undefined,
+            seq,
+            callId,
           });
+          toolCount++;
         }
       }
 
-      if (entry.eventType === "workflow.result.final" && totalDurationMs === null) {
+      // Total duration from final result
+      if (entry.eventType === "workflow.result.final") {
         const duration = Number(data.duration);
         if (Number.isFinite(duration) && duration > 0) {
-          totalDurationMs = duration;
+          node.totalDurationMs = duration;
+          if (totalDurationMs === null) {
+            totalDurationMs = duration;
+          }
         }
       }
     }
 
-    const byDuration = (a: TimingEntry, b: TimingEntry) => b.durationMs - a.durationMs;
-    return {
-      stages: stages.sort(byDuration),
-      llmCalls: llmCalls.sort(byDuration),
-      tools: tools.sort(byDuration),
-      totalDurationMs,
+    // Link children to parents
+    const bySeq = (a: { firstSeq: number | null }, b: { firstSeq: number | null }) => {
+      if (a.firstSeq === null && b.firstSeq === null) return 0;
+      if (a.firstSeq === null) return 1;
+      if (b.firstSeq === null) return -1;
+      return a.firstSeq - b.firstSeq;
     };
+    const roots: RunNode[] = [];
+    for (const node of nodeMap.values()) {
+      // Sort tools and LLM calls by seq (stages keep insertion order from event loop)
+      const byEntrySeq = (a: ToolTimingEntry | LLMTimingEntry, b: ToolTimingEntry | LLMTimingEntry) => {
+        if (a.seq === undefined && b.seq === undefined) return 0;
+        if (a.seq === undefined) return 1;
+        if (b.seq === undefined) return -1;
+        return a.seq - b.seq;
+      };
+      node.tools.sort(byEntrySeq);
+      node.llmCalls.sort(byEntrySeq);
+
+      if (node.parentRunId && nodeMap.has(node.parentRunId)) {
+        nodeMap.get(node.parentRunId)!.children.push(node);
+      } else {
+        roots.push(node);
+      }
+    }
+    // Sort children and roots by seq
+    for (const node of nodeMap.values()) {
+      node.children.sort(bySeq);
+    }
+    roots.sort(bySeq);
+
+    return { roots, totalDurationMs, stageCount, toolCount, llmCount };
   }, [events]);
 
   const statusBadge = useMemo(() => {
@@ -1130,44 +1561,16 @@ export default function ConversationDebugPage() {
                 <CardHeader>
                   <CardTitle className="text-base">Timing breakdown</CardTitle>
                   <CardDescription>
-                    Breakdown of workflow stages, tools, and LLM calls for the active session stream.
+                    Hierarchical breakdown of workflow stages, tools, and LLM calls grouped by run.
+                    Click LLM calls to expand request/response details.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <Badge variant="outline">
-                      Total:{" "}
-                      {timingSummary.totalDurationMs !== null
-                        ? formatDuration(timingSummary.totalDurationMs)
-                        : "—"}
-                    </Badge>
-                    <Badge variant="outline">Stages: {timingSummary.stages.length}</Badge>
-                    <Badge variant="outline">Tools: {timingSummary.tools.length}</Badge>
-                    <Badge variant="outline">LLM calls: {timingSummary.llmCalls.length}</Badge>
-                  </div>
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground">Stages</p>
-                      <TimingList
-                        entries={timingSummary.stages}
-                        emptyLabel="No stage timings yet."
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs font-semibold text-muted-foreground">Tools</p>
-                      <TimingList
-                        entries={timingSummary.tools}
-                        emptyLabel="No tool timings yet."
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground">LLM calls</p>
-                    <TimingList
-                      entries={timingSummary.llmCalls}
-                      emptyLabel="No LLM timing data yet."
-                    />
-                  </div>
+                <CardContent>
+                  <RunTreeView
+                    tree={runTree}
+                    cache={llmDetailCache}
+                    onFetchLLM={fetchLLMDetail}
+                  />
                 </CardContent>
               </Card>
 
