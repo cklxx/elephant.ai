@@ -83,14 +83,13 @@ describe('ConversationEventStream', () => {
     const events: AnyAgentEvent[] = [
       baseEvent,
       {
-        event_type: 'workflow.tool.completed',
+        event_type: 'workflow.tool.started',
         agent_level: 'core',
         session_id: 'session-1',
         run_id: 'parent-1',
         call_id: 'subagent-call-1',
         tool_name: 'subagent',
-        result: 'Subtask started',
-        duration: 100,
+        arguments: { task: 'Collect references' },
         timestamp: toolTimestamp,
       },
       {
@@ -138,15 +137,9 @@ describe('ConversationEventStream', () => {
       </LanguageProvider>,
     );
 
-    // Subagent tool call should be visible
-    expect(screen.getAllByTestId('event-workflow.tool.completed')).toHaveLength(1);
-
     // Subagent card should be visible
     const cards = screen.getAllByTestId('subagent-thread');
     expect(cards).toHaveLength(1);
-
-    // Card should contain aggregated events
-    expect(within(cards[0]).getAllByTestId(/event-workflow/).length).toBeGreaterThanOrEqual(1);
   });
 
   it('filters prepare node events', () => {

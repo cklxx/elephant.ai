@@ -54,7 +54,7 @@ describe('attachments uri cache', () => {
   });
 
   it('reuses blob urls for identical base64 payloads', async () => {
-    const { buildAttachmentUri } = await import('@/lib/attachments/uri');
+    const { buildAttachmentUri } = await import('./uri');
     const attachment: AttachmentPayload = {
       name: 'note.txt',
       media_type: 'text/plain',
@@ -70,7 +70,7 @@ describe('attachments uri cache', () => {
   });
 
   it('evicts oldest blob urls when cache limit is exceeded', async () => {
-    const { buildAttachmentUri } = await import('@/lib/attachments/uri');
+    const { buildAttachmentUri } = await import('./uri');
     const attachments: AttachmentPayload[] = [
       { name: 'a.txt', media_type: 'text/plain', data: Buffer.from('a').toString('base64') },
       { name: 'b.txt', media_type: 'text/plain', data: Buffer.from('b').toString('base64') },

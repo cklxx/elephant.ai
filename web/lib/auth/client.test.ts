@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { describe, expect, beforeEach, vi, it, afterEach } from "vitest";
 
 import { authClient } from "./client";
