@@ -56,16 +56,20 @@ func TestFileStoreSearchFiltersUser(t *testing.T) {
 	store := NewFileStore(dir)
 	_ = store.EnsureSchema(context.Background())
 
-	store.Insert(context.Background(), Entry{
+	if _, err := store.Insert(context.Background(), Entry{
 		UserID:   "user-a",
 		Content:  "alpha note",
 		Keywords: []string{"shared"},
-	})
-	store.Insert(context.Background(), Entry{
+	}); err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+	if _, err := store.Insert(context.Background(), Entry{
 		UserID:   "user-b",
 		Content:  "beta note",
 		Keywords: []string{"shared"},
-	})
+	}); err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
 
 	results, err := store.Search(context.Background(), Query{
 		UserID:   "user-a",
@@ -91,18 +95,22 @@ func TestFileStoreSearchSortsNewestFirst(t *testing.T) {
 	older := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	newer := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	store.Insert(context.Background(), Entry{
+	if _, err := store.Insert(context.Background(), Entry{
 		UserID:    "u",
 		Content:   "old entry about deployment",
 		Keywords:  []string{"deploy"},
 		CreatedAt: older,
-	})
-	store.Insert(context.Background(), Entry{
+	}); err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+	if _, err := store.Insert(context.Background(), Entry{
 		UserID:    "u",
 		Content:   "new entry about deployment",
 		Keywords:  []string{"deploy"},
 		CreatedAt: newer,
-	})
+	}); err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
 
 	results, err := store.Search(context.Background(), Query{
 		UserID:   "u",

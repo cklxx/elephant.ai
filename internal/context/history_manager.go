@@ -182,5 +182,102 @@ func commonPrefixLen(existing []ports.Message, incoming []ports.Message) int {
 }
 
 func messagesEqual(a, b ports.Message) bool {
-	return reflect.DeepEqual(a, b)
+	if a.Role != b.Role ||
+		a.Content != b.Content ||
+		a.ToolCallID != b.ToolCallID ||
+		a.Source != b.Source {
+		return false
+	}
+
+	if !reflect.DeepEqual(a.Thinking, b.Thinking) {
+		return false
+	}
+
+	if !toolCallsEqual(a.ToolCalls, b.ToolCalls) {
+		return false
+	}
+
+	if !toolResultsEqual(a.ToolResults, b.ToolResults) {
+		return false
+	}
+
+	if !reflect.DeepEqual(a.Metadata, b.Metadata) {
+		return false
+	}
+
+	if !attachmentsEqual(a.Attachments, b.Attachments) {
+		return false
+	}
+
+	return true
+}
+
+func toolCallsEqual(a, b []ports.ToolCall) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].ID != b[i].ID ||
+			a[i].Name != b[i].Name ||
+			a[i].SessionID != b[i].SessionID ||
+			a[i].TaskID != b[i].TaskID ||
+			a[i].ParentTaskID != b[i].ParentTaskID {
+			return false
+		}
+		if !reflect.DeepEqual(a[i].Arguments, b[i].Arguments) {
+			return false
+		}
+	}
+	return true
+}
+
+func toolResultsEqual(a, b []ports.ToolResult) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i].CallID != b[i].CallID ||
+			a[i].Content != b[i].Content ||
+			a[i].SessionID != b[i].SessionID {
+			return false
+		}
+		// Compare errors properly using errors.Is
+		if !errorsEqual(a[i].Error, b[i].Error) {
+			return false
+		}
+		if !reflect.DeepEqual(a[i].Metadata, b[i].Metadata) {
+			return false
+		}
+	}
+	return true
+}
+
+func errorsEqual(a, b error) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	// For error comparison, check if one wraps the other or compare messages
+	if errors.Is(a, b) || errors.Is(b, a) {
+		return true
+	}
+	return a.Error() == b.Error()
+}
+
+func attachmentsEqual(a, b map[string]ports.Attachment) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, va := range a {
+		vb, ok := b[k]
+		if !ok {
+			return false
+		}
+		if !reflect.DeepEqual(va, vb) {
+			return false
+		}
+	}
+	return true
 }
