@@ -517,7 +517,7 @@ func TestSessionHistoryAccumulatesAcrossTurns(t *testing.T) {
 	}
 	resultMessages := append([]ports.Message(nil), session.Messages...)
 	resultMessages = append(resultMessages, secondRound...)
-	result := &agent.TaskResult{SessionID: session.ID, RunID: "task-second", Messages: resultMessages}
+	result := &agent.TaskResult{Messages: resultMessages}
 	session.Messages = result.Messages
 	if err := store.Save(context.Background(), session); err != nil {
 		t.Fatalf("save session after execution failed: %v", err)
