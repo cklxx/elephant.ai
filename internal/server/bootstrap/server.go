@@ -148,6 +148,22 @@ func RunServer(observabilityConfigPath string) error {
 		}
 	}()
 
+	// Start scheduler if enabled
+	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
+	if config.Runtime.Proactive.Scheduler.Enabled {
+		sched := startScheduler(schedulerCtx, config, container, logger)
+		if sched != nil {
+			defer func() {
+				schedulerCancel()
+				sched.Stop()
+			}()
+		} else {
+			schedulerCancel()
+		}
+	} else {
+		schedulerCancel()
+	}
+
 	if historyStore != nil {
 		migrationCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
