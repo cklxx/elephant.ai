@@ -5,6 +5,10 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { AnyAgentEvent, WorkflowToolCompletedEvent, WorkflowToolStartedEvent } from '@/lib/types';
 import { isEventType } from '@/lib/events/matching';
 import {
+  isIterationNodeStartedEvent,
+  isIterationNodeCompletedEvent,
+  isWorkflowNodeStartedEvent,
+  isWorkflowNodeCompletedEvent,
   isWorkflowNodeFailedEvent,
   isWorkflowResultFinalEvent,
   isWorkflowToolCompletedEvent,
@@ -444,54 +448,54 @@ function EventCard({
     return wrapWithContext(<ErrorCard event={event} />);
   }
 
-  if (isEventType(event, 'workflow.node.started') && typeof (event as any).iteration === 'number') {
+  if (isIterationNodeStartedEvent(event)) {
     return (
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
         <span className="text-sm font-semibold text-foreground">
           {t('events.iteration.progress', {
-            iteration: (event as any).iteration,
-            total: (event as any).total_iters,
+            iteration: event.iteration,
+            total: (event as Record<string, unknown>).total_iters,
           })}
         </span>
       </div>
     );
   }
 
-  if (isEventType(event, 'workflow.node.completed') && typeof (event as any).iteration === 'number') {
+  if (isIterationNodeCompletedEvent(event)) {
     return wrapWithContext(
       <div className="flex flex-wrap items-center gap-3 text-xs text-foreground">
         <Badge variant="outline">
-          {t('events.iteration.complete', { iteration: (event as any).iteration })}
+          {t('events.iteration.complete', { iteration: event.iteration })}
         </Badge>
         <span className="text-muted-foreground">
-          {t('events.iteration.tokens', { count: (event as any).tokens_used })}
+          {t('events.iteration.tokens', { count: (event as Record<string, unknown>).tokens_used })}
         </span>
       </div>,
     );
   }
 
-  if (isEventType(event, 'workflow.node.started') && typeof (event as any).step_index === 'number') {
+  if (isWorkflowNodeStartedEvent(event)) {
     return wrapWithContext(
       <div className="flex items-center gap-3">
         <span className="inline-flex h-3 w-3 animate-pulse rounded-full bg-foreground" />
         <span className="text-sm font-semibold text-foreground">
           {t('events.step.started', {
-            index: (event as any).step_index + 1,
-            description: (event as any).step_description,
+            index: event.step_index + 1,
+            description: (event as Record<string, unknown>).step_description,
           })}
         </span>
       </div>,
     );
   }
 
-  if (isEventType(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number') {
+  if (isWorkflowNodeCompletedEvent(event)) {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm font-semibold text-foreground">
-          {t('events.step.completed', { index: (event as any).step_index + 1 })}
+          {t('events.step.completed', { index: event.step_index + 1 })}
         </p>
-        <p className="text-sm text-foreground/75">{(event as any).step_result}</p>
+        <p className="text-sm text-foreground/75">{(event as Record<string, unknown>).step_result as string}</p>
       </div>
     );
   }

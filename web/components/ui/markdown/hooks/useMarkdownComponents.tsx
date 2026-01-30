@@ -1,4 +1,14 @@
-import { Children, ComponentType, ReactNode, isValidElement, useMemo } from "react";
+import {
+  Children,
+  ComponentType,
+  ReactNode,
+  isValidElement,
+  useMemo,
+  type HTMLAttributes,
+  type AnchorHTMLAttributes,
+  type InputHTMLAttributes,
+  type ImgHTMLAttributes,
+} from "react";
 
 import { VideoPreview } from "@/components/ui/video-preview";
 import { cn } from "@/lib/utils";
@@ -20,11 +30,17 @@ interface InlineAttachmentInfo {
   mime?: string;
 }
 
+// react-markdown passes arbitrary component props through its components map
+type MdComponentMap = Record<string, ComponentType<any>>;
+
 interface UseMarkdownComponentsOptions {
   showLineNumbers: boolean;
   inlineAttachmentMap: Map<string, InlineAttachmentInfo>;
-  components?: Record<string, ComponentType<any>>;
+  components?: MdComponentMap;
 }
+
+type HtmlDivProps = HTMLAttributes<HTMLElement>;
+type HtmlAnchorProps = AnchorHTMLAttributes<HTMLAnchorElement> & { children?: ReactNode };
 
 function splitTaskListChildren(children: ReactNode) {
   const nodes = Children.toArray(children);
@@ -47,9 +63,9 @@ export function useMarkdownComponents({
   inlineAttachmentMap,
   components,
 }: UseMarkdownComponentsOptions) {
-  const defaultComponents: Record<string, ComponentType<any>> = useMemo(
+  const defaultComponents: MdComponentMap = useMemo(
     () => ({
-      h1: ({ className: headingClass, ...props }: any) => (
+      h1: ({ className: headingClass, ...props }: HtmlDivProps) => (
         <h2
           className={cn(
             "mt-3 mb-2 scroll-m-20 text-base font-medium leading-snug tracking-tight",
@@ -58,7 +74,7 @@ export function useMarkdownComponents({
           {...props}
         />
       ),
-      h2: ({ className: headingClass, ...props }: any) => (
+      h2: ({ className: headingClass, ...props }: HtmlDivProps) => (
         <h3
           className={cn(
             "mt-2 mb-2 scroll-m-20 text-base font-medium leading-snug tracking-tight",
@@ -67,7 +83,7 @@ export function useMarkdownComponents({
           {...props}
         />
       ),
-      h3: ({ className: headingClass, ...props }: any) => (
+      h3: ({ className: headingClass, ...props }: HtmlDivProps) => (
         <h4
           className={cn(
             "mt-2 mb-1.5 scroll-m-20 text-base font-medium leading-snug tracking-tight",
@@ -76,7 +92,7 @@ export function useMarkdownComponents({
           {...props}
         />
       ),
-      h4: ({ className: headingClass, ...props }: any) => (
+      h4: ({ className: headingClass, ...props }: HtmlDivProps) => (
         <h5
           className={cn(
             "mt-3 mb-1 scroll-m-20 text-base font-medium leading-snug text-foreground/90",
@@ -85,7 +101,7 @@ export function useMarkdownComponents({
           {...props}
         />
       ),
-      h5: ({ className: headingClass, ...props }: any) => (
+      h5: ({ className: headingClass, ...props }: HtmlDivProps) => (
         <h6
           className={cn(
             "mt-2 mb-1 scroll-m-20 text-base font-medium leading-snug text-muted-foreground",
@@ -94,7 +110,7 @@ export function useMarkdownComponents({
           {...props}
         />
       ),
-      h6: ({ className: headingClass, ...props }: any) => (
+      h6: ({ className: headingClass, ...props }: HtmlDivProps) => (
         <h6
           className={cn(
             "mt-2 mb-1 scroll-m-20 text-base font-medium leading-snug text-muted-foreground",
@@ -103,14 +119,14 @@ export function useMarkdownComponents({
           {...props}
         />
       ),
-      strong: ({ className: strongClass, ...props }: any) => (
+      strong: ({ className: strongClass, ...props }: HtmlDivProps) => (
         <strong className={cn("font-medium text-foreground", strongClass)} {...props} />
       ),
-      p: ({ className: paragraphClass, ...props }: any) => (
+      p: ({ className: paragraphClass, ...props }: HtmlDivProps) => (
         <p className={cn("my-0 whitespace-pre-wrap", paragraphClass)} {...props} />
       ),
-      hr: (props: any) => <hr className={cn("my-6", props.className)} {...props} />,
-      a: ({ className: linkClassName, href, children, ...props }: any) => {
+      hr: (props: HtmlDivProps) => <hr className={cn("my-6", props.className)} {...props} />,
+      a: ({ className: linkClassName, href, children, ...props }: HtmlAnchorProps) => {
         const matchedAttachment = href
           ? inlineAttachmentMap.get(href)
           : undefined;
@@ -141,7 +157,7 @@ export function useMarkdownComponents({
           </a>
         );
       },
-      blockquote: ({ className: blockquoteClass, ...props }: any) => (
+      blockquote: ({ className: blockquoteClass, ...props }: HtmlDivProps) => (
         <blockquote className={cn(blockquoteClass)} {...props} />
       ),
       table: MarkdownTable,
@@ -150,7 +166,7 @@ export function useMarkdownComponents({
       tr: MarkdownTableRow,
       th: MarkdownTableHeaderCell,
       td: MarkdownTableCell,
-      ul: ({ className: ulClass, ...props }: any) => {
+      ul: ({ className: ulClass, ...props }: HtmlDivProps) => {
         const isTaskList =
           typeof ulClass === "string" && ulClass.includes("contains-task-list");
         return (
@@ -164,7 +180,7 @@ export function useMarkdownComponents({
           />
         );
       },
-      ol: ({ className: olClass, ...props }: any) => {
+      ol: ({ className: olClass, ...props }: HtmlDivProps) => {
         const isTaskList =
           typeof olClass === "string" && olClass.includes("contains-task-list");
         return (
@@ -178,7 +194,7 @@ export function useMarkdownComponents({
           />
         );
       },
-      li: ({ className: liClass, children, ...props }: any) => {
+      li: ({ className: liClass, children, ...props }: HtmlDivProps & { children?: ReactNode }) => {
         const taskChildren = splitTaskListChildren(children);
         if (taskChildren) {
           return (
@@ -194,7 +210,7 @@ export function useMarkdownComponents({
           </li>
         );
       },
-      input: ({ className: inputClass, type, ...props }: any) => {
+      input: ({ className: inputClass, type, ...props }: InputHTMLAttributes<HTMLInputElement>) => {
         if (type === "checkbox") {
           return (
             <input
@@ -210,7 +226,7 @@ export function useMarkdownComponents({
         return <input type={type} className={cn(inputClass)} {...props} />;
       },
       br: () => null,
-      img: ({ src, alt, ...imgProps }: any) => {
+      img: ({ src, alt, ...imgProps }: ImgHTMLAttributes<HTMLImageElement>) => {
         if (src) {
           const matchedAttachment = inlineAttachmentMap.get(src);
           if (matchedAttachment?.type === "video") {

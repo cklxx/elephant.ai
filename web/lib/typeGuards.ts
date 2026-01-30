@@ -14,16 +14,21 @@ import {
 } from '@/lib/types';
 import { isEventType } from '@/lib/events/matching';
 
+/** Safe accessor for optional properties on narrowed event unions */
+function prop<T>(event: AnyAgentEvent, key: string): T | undefined {
+  return key in event ? (event as Record<string, unknown>)[key] as T : undefined;
+}
+
 // Iteration Start Event (iteration-level)
 export function isIterationNodeStartedEvent(
   event: AnyAgentEvent,
 ): event is WorkflowNodeStartedEvent & { iteration: number } {
-  const nodeKind = 'node_kind' in event ? (event as any).node_kind : undefined;
-  const nodeId = 'node_id' in event ? (event as any).node_id : undefined;
-  const stepIndex = (event as any).step_index;
+  const nodeKind = prop<string>(event, 'node_kind');
+  const nodeId = prop<string>(event, 'node_id');
+  const stepIndex = prop<number>(event, 'step_index');
   return (
     isEventType(event, 'workflow.node.started') &&
-    typeof (event as any).iteration === 'number' &&
+    typeof prop<number>(event, 'iteration') === 'number' &&
     (nodeKind === 'iteration' ||
       (typeof nodeId === 'string' && nodeId.startsWith('iteration-')) ||
       typeof stepIndex !== 'number')
@@ -54,12 +59,12 @@ export function isWorkflowToolCompletedEvent(event: AnyAgentEvent): event is Wor
 export function isIterationNodeCompletedEvent(
   event: AnyAgentEvent,
 ): event is WorkflowNodeCompletedEvent & { iteration: number } {
-  const nodeKind = 'node_kind' in event ? (event as any).node_kind : undefined;
-  const nodeId = 'node_id' in event ? (event as any).node_id : undefined;
-  const stepIndex = (event as any).step_index;
+  const nodeKind = prop<string>(event, 'node_kind');
+  const nodeId = prop<string>(event, 'node_id');
+  const stepIndex = prop<number>(event, 'step_index');
   return (
     isEventType(event, 'workflow.node.completed') &&
-    typeof (event as any).iteration === 'number' &&
+    typeof prop<number>(event, 'iteration') === 'number' &&
     (nodeKind === 'iteration' ||
       (typeof nodeId === 'string' && nodeId.startsWith('iteration-')) ||
       typeof stepIndex !== 'number')
@@ -80,14 +85,14 @@ export function isWorkflowNodeFailedEvent(event: AnyAgentEvent): event is Workfl
 export function isWorkflowNodeStartedEvent(
   event: AnyAgentEvent,
 ): event is WorkflowNodeStartedEvent & { step_index: number } {
-  return isEventType(event, 'workflow.node.started') && typeof (event as any).step_index === 'number';
+  return isEventType(event, 'workflow.node.started') && typeof prop<number>(event, 'step_index') === 'number';
 }
 
 // Step Completed Event
 export function isWorkflowNodeCompletedEvent(
   event: AnyAgentEvent,
 ): event is WorkflowNodeCompletedEvent & { step_index: number } {
-  return isEventType(event, 'workflow.node.completed') && typeof (event as any).step_index === 'number';
+  return isEventType(event, 'workflow.node.completed') && typeof prop<number>(event, 'step_index') === 'number';
 }
 
 // Utility guards
@@ -99,5 +104,5 @@ export function hasIteration(
   AnyAgentEvent,
   { iteration: number }
 > {
-  return 'iteration' in event && typeof (event as any).iteration === 'number';
+  return 'iteration' in event && typeof prop<number>(event, 'iteration') === 'number';
 }
