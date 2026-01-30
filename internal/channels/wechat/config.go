@@ -1,22 +1,15 @@
 package wechat
 
-import "time"
+import "alex/internal/channels"
 
 // Config captures WeChat gateway behavior.
 type Config struct {
+	channels.BaseConfig    `yaml:",inline"`
 	Enabled                bool
 	LoginMode              string
 	HotLogin               bool
 	HotLoginStoragePath    string
-	SessionPrefix          string
-	ReplyPrefix            string
 	MentionOnly            bool
 	ReplyWithMention       bool
-	AllowGroups            bool
-	AllowDirect            bool
 	AllowedConversationIDs []string
-	AgentPreset            string
-	ToolPreset             string
-	ReplyTimeout           time.Duration
-	MemoryEnabled          bool
 }

@@ -13,6 +13,7 @@ import (
 	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
+	"alex/internal/channels"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 
@@ -48,7 +49,7 @@ func TestNewGatewayDefaultsSessionPrefix(t *testing.T) {
 }
 
 func TestNewGatewayPreservesCustomPrefix(t *testing.T) {
-	cfg := Config{AppID: "cli_test", AppSecret: "secret", SessionPrefix: "custom"}
+	cfg := Config{BaseConfig: channels.BaseConfig{SessionPrefix: "custom"}, AppID: "cli_test", AppSecret: "secret"}
 	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -59,7 +60,7 @@ func TestNewGatewayPreservesCustomPrefix(t *testing.T) {
 }
 
 func TestMemoryIDForChatDeterministic(t *testing.T) {
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 	first := gw.memoryIDForChat("oc_abc123")
 	second := gw.memoryIDForChat("oc_abc123")
 	if first != second {
@@ -71,7 +72,7 @@ func TestMemoryIDForChatDeterministic(t *testing.T) {
 }
 
 func TestMemoryIDForChatDistinct(t *testing.T) {
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 	a := gw.memoryIDForChat("oc_chat_a")
 	b := gw.memoryIDForChat("oc_chat_b")
 	if a == b {
@@ -80,7 +81,7 @@ func TestMemoryIDForChatDistinct(t *testing.T) {
 }
 
 func TestExtractText(t *testing.T) {
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 	tests := []struct {
 		name     string
 		raw      string
@@ -104,7 +105,7 @@ func TestExtractText(t *testing.T) {
 }
 
 func TestBuildReply(t *testing.T) {
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 
 	t.Run("with error", func(t *testing.T) {
 		reply := gw.buildReply(nil, errTest)
@@ -121,7 +122,7 @@ func TestBuildReply(t *testing.T) {
 	})
 
 	t.Run("with prefix", func(t *testing.T) {
-		gwPrefix := &Gateway{cfg: Config{SessionPrefix: "lark", ReplyPrefix: "[Bot] "}, logger: logging.OrNop(nil)}
+		gwPrefix := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", ReplyPrefix: "[Bot] "}}, logger: logging.OrNop(nil)}
 		result := &agent.TaskResult{Answer: "hello"}
 		reply := gwPrefix.buildReply(result, nil)
 		if !strings.HasPrefix(reply, "[Bot] ") {
@@ -259,13 +260,13 @@ func TestStartReturnsNilWhenDisabled(t *testing.T) {
 }
 
 func TestAddReactionSkipsWhenClientNil(t *testing.T) {
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark", ReactEmoji: "SMILE"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}, ReactEmoji: "SMILE"}, logger: logging.OrNop(nil)}
 	// Should not panic when client is nil.
 	gw.addReaction(context.Background(), "om_test_msg", "SMILE")
 }
 
 func TestAddReactionSkipsEmptyInputs(t *testing.T) {
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 	// Should not panic with empty messageID or emojiType.
 	gw.addReaction(context.Background(), "", "SMILE")
 	gw.addReaction(context.Background(), "om_test_msg", "")
@@ -278,7 +279,7 @@ func TestGatewayMessageDedup(t *testing.T) {
 		t.Fatalf("failed to create dedup cache: %v", err)
 	}
 	gw := &Gateway{
-		cfg:        Config{SessionPrefix: "lark"},
+		cfg:        Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}},
 		logger:     logging.OrNop(nil),
 		dedupCache: cache,
 		now: func() time.Time {
@@ -309,7 +310,7 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 
 	executor := &capturingExecutor{}
 	gw := &Gateway{
-		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", AllowDirect: true},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -364,7 +365,7 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 		result: &agent.TaskResult{Answer: "noted"},
 	}
 	gw := &Gateway{
-		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", AllowDirect: true, MemoryEnabled: true},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true, MemoryEnabled: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -413,7 +414,7 @@ func TestHandleMessageSessionModeStable(t *testing.T) {
 
 	executor := &capturingExecutor{}
 	gw := &Gateway{
-		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", SessionMode: "stable", AllowDirect: true},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "stable"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -461,7 +462,7 @@ func TestHandleMessageSessionModeFresh(t *testing.T) {
 
 	executor := &capturingExecutor{}
 	gw := &Gateway{
-		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", SessionMode: "fresh", AllowDirect: true},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "fresh"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -512,7 +513,7 @@ func TestHandleMessageResetCommand(t *testing.T) {
 
 	executor := &resetExecutor{}
 	gw := &Gateway{
-		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", SessionMode: "stable", AllowDirect: true},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "stable"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -617,7 +618,7 @@ func (r *resetExecutor) ResetSession(_ context.Context, sessionID string) error 
 }
 
 func TestBuildReplyThinkingFallback(t *testing.T) {
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 
 	t.Run("fallback to thinking when answer empty", func(t *testing.T) {
 		result := &agent.TaskResult{
@@ -729,7 +730,7 @@ func TestExtractThinkingFallback(t *testing.T) {
 func TestEmojiReactionInterceptorDelegatesAndReactsOnce(t *testing.T) {
 	delegate := &recordingGatewayListener{}
 
-	gw := &Gateway{cfg: Config{SessionPrefix: "lark"}, logger: logging.OrNop(nil)}
+	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
 
 	interceptor := &emojiReactionInterceptor{
 		delegate:  delegate,
@@ -871,7 +872,7 @@ func (e *stubAgentEvent) GetSeq() uint64                  { return 0 }
 func TestEmojiReactionInterceptorFallbackWhenNoEvent(t *testing.T) {
 	delegate := &recordingGatewayListener{}
 	gw := &Gateway{
-		cfg:    Config{SessionPrefix: "lark", ReactEmoji: "SMILE"},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}, ReactEmoji: "SMILE"},
 		logger: logging.OrNop(nil),
 	}
 
@@ -901,7 +902,7 @@ func TestEmojiReactionInterceptorFallbackWhenNoEvent(t *testing.T) {
 func TestEmojiReactionInterceptorNoFallbackAfterDynamic(t *testing.T) {
 	delegate := &recordingGatewayListener{}
 	gw := &Gateway{
-		cfg:    Config{SessionPrefix: "lark", ReactEmoji: "SMILE"},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}, ReactEmoji: "SMILE"},
 		logger: logging.OrNop(nil),
 	}
 

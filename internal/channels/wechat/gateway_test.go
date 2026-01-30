@@ -4,11 +4,13 @@ import (
 	"strings"
 	"testing"
 
+	"alex/internal/channels"
+
 	"github.com/eatmoreapple/openwechat"
 )
 
 func TestConversationKeyPrefersID(t *testing.T) {
-	gateway := &Gateway{cfg: Config{SessionPrefix: "wechat"}}
+	gateway := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "wechat"}}}
 	user := &openwechat.User{Uin: 123, UserName: "wxid_abc", NickName: "nick"}
 	got := gateway.conversationKey(user)
 	if got != "123" {
@@ -17,7 +19,7 @@ func TestConversationKeyPrefersID(t *testing.T) {
 }
 
 func TestConversationKeyFallbackToUserName(t *testing.T) {
-	gateway := &Gateway{cfg: Config{SessionPrefix: "wechat"}}
+	gateway := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "wechat"}}}
 	user := &openwechat.User{UserName: "wxid_abc", NickName: "nick"}
 	got := gateway.conversationKey(user)
 	if got != "wxid_abc" {
@@ -26,7 +28,7 @@ func TestConversationKeyFallbackToUserName(t *testing.T) {
 }
 
 func TestSessionIDForConversationStable(t *testing.T) {
-	gateway := &Gateway{cfg: Config{SessionPrefix: "wechat"}}
+	gateway := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "wechat"}}}
 	first := gateway.sessionIDForConversation("conv-1")
 	second := gateway.sessionIDForConversation("conv-1")
 	if first != second {
@@ -38,7 +40,7 @@ func TestSessionIDForConversationStable(t *testing.T) {
 }
 
 func TestMentionHelpers(t *testing.T) {
-	gateway := &Gateway{cfg: Config{SessionPrefix: "wechat"}}
+	gateway := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "wechat"}}}
 	gateway.self = &openwechat.Self{User: &openwechat.User{NickName: "robot"}}
 
 	content := "@robot hello"

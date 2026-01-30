@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"sync"
 
-	appcontext "alex/internal/agent/app/context"
 	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
+	"alex/internal/channels"
 	"alex/internal/logging"
 	id "alex/internal/utils/id"
 
@@ -18,21 +16,18 @@ import (
 	"github.com/skip2/go-qrcode"
 )
 
-// AgentExecutor captures the agent execution surface needed by the gateway.
-type AgentExecutor interface {
-	EnsureSession(ctx context.Context, sessionID string) (*storage.Session, error)
-	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
-}
+// AgentExecutor is an alias for the shared channel executor interface.
+type AgentExecutor = channels.AgentExecutor
 
 // Gateway bridges WeChat messages into the agent runtime.
 type Gateway struct {
-	cfg          Config
-	agent        AgentExecutor
-	logger       logging.Logger
-	bot          *openwechat.Bot
-	self         *openwechat.Self
-	hotStorage   io.ReadWriteCloser
-	sessionLocks sync.Map
+	channels.BaseGateway
+	cfg        Config
+	agent      AgentExecutor
+	logger     logging.Logger
+	bot        *openwechat.Bot
+	self       *openwechat.Self
+	hotStorage io.ReadWriteCloser
 }
 
 // NewGateway constructs a WeChat gateway instance.
@@ -166,31 +161,11 @@ func (g *Gateway) handleMessage(msg *openwechat.Message) {
 	}
 
 	sessionID := g.sessionIDForConversation(conversationKey)
-	lock := g.sessionLock(sessionID)
+	lock := g.SessionLock(sessionID)
 	lock.Lock()
 	defer lock.Unlock()
 
-	ctx := context.Background()
-	ctx = id.WithSessionID(ctx, sessionID)
-	ctx = id.WithUserID(ctx, conversationKey)
-	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
-	ctx = appcontext.WithChannel(ctx, "wechat")
-	ctx = appcontext.WithChatID(ctx, conversationKey)
-	ctx = appcontext.WithIsGroup(ctx, isGroup)
-	if g.cfg.MemoryEnabled {
-		ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
-			Enabled:         true,
-			AutoRecall:      true,
-			AutoCapture:     true,
-			CaptureMessages: true,
-		})
-	} else {
-		ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
-			Enabled:     false,
-			AutoRecall:  false,
-			AutoCapture: false,
-		})
-	}
+	ctx := channels.BuildBaseContext(g.cfg.BaseConfig, "wechat", sessionID, conversationKey, conversationKey, isGroup)
 
 	session, err := g.agent.EnsureSession(ctx, sessionID)
 	if err != nil {
@@ -208,17 +183,9 @@ func (g *Gateway) handleMessage(msg *openwechat.Message) {
 		ctx = id.WithSessionID(ctx, sessionID)
 	}
 
-	if g.cfg.AgentPreset != "" || g.cfg.ToolPreset != "" {
-		ctx = context.WithValue(ctx, appcontext.PresetContextKey{}, appcontext.PresetConfig{
-			AgentPreset: g.cfg.AgentPreset,
-			ToolPreset:  g.cfg.ToolPreset,
-		})
-	}
-	if g.cfg.ReplyTimeout > 0 {
-		timeoutCtx, cancel := context.WithTimeout(ctx, g.cfg.ReplyTimeout)
-		ctx = timeoutCtx
-		defer cancel()
-	}
+	ctx = channels.ApplyPresets(ctx, g.cfg.BaseConfig)
+	ctx, cancelTimeout := channels.ApplyTimeout(ctx, g.cfg.BaseConfig)
+	defer cancelTimeout()
 
 	result, execErr := g.agent.ExecuteTask(ctx, content, sessionID, agent.NoopEventListener{})
 	reply := g.buildReply(msg, result, execErr)
@@ -231,17 +198,9 @@ func (g *Gateway) handleMessage(msg *openwechat.Message) {
 }
 
 func (g *Gateway) buildReply(msg *openwechat.Message, result *agent.TaskResult, execErr error) string {
-	reply := ""
-	if execErr != nil {
-		reply = fmt.Sprintf("执行失败：%v", execErr)
-	} else if result != nil {
-		reply = strings.TrimSpace(result.Answer)
-	}
+	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
 	if reply == "" {
 		return ""
-	}
-	if g.cfg.ReplyPrefix != "" {
-		reply = g.cfg.ReplyPrefix + reply
 	}
 	if msg != nil && msg.IsSendByGroup() && g.cfg.ReplyWithMention {
 		sender, err := msg.SenderInGroup()
@@ -327,14 +286,6 @@ func (g *Gateway) selfMentionTokens() []string {
 		tokens = append(tokens, "@"+name)
 	}
 	return tokens
-}
-
-func (g *Gateway) sessionLock(sessionID string) *sync.Mutex {
-	if sessionID == "" {
-		return &sync.Mutex{}
-	}
-	value, _ := g.sessionLocks.LoadOrStore(sessionID, &sync.Mutex{})
-	return value.(*sync.Mutex)
 }
 
 func displayName(user *openwechat.User) string {

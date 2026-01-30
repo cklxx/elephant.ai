@@ -17,8 +17,8 @@ import (
 	"alex/internal/agent/domain"
 	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
 	toolports "alex/internal/agent/ports/tools"
+	"alex/internal/channels"
 	"alex/internal/logging"
 	artifacts "alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/shared"
@@ -37,20 +37,17 @@ const (
 	messageDedupTTL       = 10 * time.Minute
 )
 
-// AgentExecutor captures the agent execution surface needed by the gateway.
-type AgentExecutor interface {
-	EnsureSession(ctx context.Context, sessionID string) (*storage.Session, error)
-	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
-}
+// AgentExecutor is an alias for the shared channel executor interface.
+type AgentExecutor = channels.AgentExecutor
 
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
+	channels.BaseGateway
 	cfg           Config
 	agent         AgentExecutor
 	logger        logging.Logger
 	client        *lark.Client
 	wsClient      *larkws.Client
-	sessionLocks  sync.Map
 	eventListener agent.EventListener
 	dedupMu       sync.Mutex
 	dedupCache    *lru.Cache[string, time.Time]
@@ -211,34 +208,14 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		sessionID = fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
 	}
 
-	lock := g.sessionLock(memoryID)
+	lock := g.SessionLock(memoryID)
 	lock.Lock()
 	defer lock.Unlock()
 
-	execCtx := context.Background()
-	execCtx = id.WithSessionID(execCtx, sessionID)
-	execCtx = id.WithUserID(execCtx, senderID)
-	execCtx, _ = id.EnsureLogID(execCtx, id.NewLogID)
-	execCtx = appcontext.WithChannel(execCtx, "lark")
-	execCtx = appcontext.WithChatID(execCtx, chatID)
-	execCtx = appcontext.WithIsGroup(execCtx, isGroup)
+	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
 	execCtx = appcontext.WithSessionHistory(execCtx, false)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
-	if g.cfg.MemoryEnabled {
-		execCtx = appcontext.WithMemoryPolicy(execCtx, appcontext.MemoryPolicy{
-			Enabled:         true,
-			AutoRecall:      true,
-			AutoCapture:     true,
-			CaptureMessages: true,
-		})
-	} else {
-		execCtx = appcontext.WithMemoryPolicy(execCtx, appcontext.MemoryPolicy{
-			Enabled:     false,
-			AutoRecall:  false,
-			AutoCapture: false,
-		})
-	}
 
 	if strings.TrimSpace(content) == "/reset" {
 		if resetter, ok := g.agent.(interface {
@@ -277,17 +254,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		execCtx = id.WithSessionID(execCtx, sessionID)
 	}
 
-	if g.cfg.AgentPreset != "" || g.cfg.ToolPreset != "" {
-		execCtx = context.WithValue(execCtx, appcontext.PresetContextKey{}, appcontext.PresetConfig{
-			AgentPreset: g.cfg.AgentPreset,
-			ToolPreset:  g.cfg.ToolPreset,
-		})
-	}
-	if g.cfg.ReplyTimeout > 0 {
-		timeoutCtx, cancel := context.WithTimeout(execCtx, g.cfg.ReplyTimeout)
-		execCtx = timeoutCtx
-		defer cancel()
-	}
+	execCtx = channels.ApplyPresets(execCtx, g.cfg.BaseConfig)
+	execCtx, cancelTimeout := channels.ApplyTimeout(execCtx, g.cfg.BaseConfig)
+	defer cancelTimeout()
 
 	listener := g.eventListener
 	if listener == nil {
@@ -535,20 +504,15 @@ func (g *Gateway) addReaction(ctx context.Context, messageID, emojiType string) 
 
 // buildReply constructs the reply string from the agent result.
 func (g *Gateway) buildReply(result *agent.TaskResult, execErr error) string {
-	reply := ""
-	if execErr != nil {
-		reply = fmt.Sprintf("执行失败：%v", execErr)
-	} else if result != nil {
-		reply = strings.TrimSpace(result.Answer)
-		if reply == "" {
-			reply = extractThinkingFallback(result.Messages)
+	reply := channels.BuildReplyCore(g.cfg.BaseConfig, result, execErr)
+	if reply == "" && result != nil {
+		// Lark-specific fallback: check thinking content for models that reason but produce no text.
+		if fallback := extractThinkingFallback(result.Messages); fallback != "" {
+			reply = fallback
+			if g.cfg.ReplyPrefix != "" {
+				reply = g.cfg.ReplyPrefix + reply
+			}
 		}
-	}
-	if reply == "" {
-		return ""
-	}
-	if g.cfg.ReplyPrefix != "" {
-		reply = g.cfg.ReplyPrefix + reply
 	}
 	return reply
 }
@@ -593,14 +557,6 @@ func (g *Gateway) extractText(raw string) string {
 		return ""
 	}
 	return strings.TrimSpace(parsed.Text)
-}
-
-func (g *Gateway) sessionLock(sessionID string) *sync.Mutex {
-	if sessionID == "" {
-		return &sync.Mutex{}
-	}
-	value, _ := g.sessionLocks.LoadOrStore(sessionID, &sync.Mutex{})
-	return value.(*sync.Mutex)
 }
 
 // textContent builds the JSON content payload for a Lark text message.
