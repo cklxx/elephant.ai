@@ -173,13 +173,16 @@ func TestMemoryCaptureHook_DefaultUserID(t *testing.T) {
 	svc := &mockMemoryService{}
 	hook := NewMemoryCaptureHook(svc, nil)
 
-	hook.OnTaskCompleted(context.Background(), TaskResultInfo{
+	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput:  "test",
 		Answer:     "answer",
 		UserID:     "",
 		StopReason: "complete",
 		ToolCalls:  []ToolResultInfo{{ToolName: "bash", Success: true}},
 	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 
 	if svc.lastEntry.UserID != "default" {
 		t.Errorf("expected default userID, got %q", svc.lastEntry.UserID)

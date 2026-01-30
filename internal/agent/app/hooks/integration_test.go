@@ -193,11 +193,13 @@ func TestIntegration_MultipleHooksOrdering(t *testing.T) {
 	svc := memory.NewService(store)
 
 	// Seed a memory so recall produces results
-	svc.Save(context.Background(), memory.Entry{
+	if _, err := svc.Save(context.Background(), memory.Entry{
 		UserID:   "testuser",
 		Content:  "Important context about testing",
 		Keywords: []string{"testing", "ci"},
-	})
+	}); err != nil {
+		t.Fatalf("save seed memory: %v", err)
+	}
 
 	// Custom high-priority hook
 	customHook := &staticHook{
