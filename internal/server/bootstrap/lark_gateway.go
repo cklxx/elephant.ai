@@ -8,7 +8,6 @@ import (
 
 	"alex/internal/agent/presets"
 	"alex/internal/async"
-	"alex/internal/channels"
 	"alex/internal/channels/lark"
 	"alex/internal/di"
 	"alex/internal/logging"
@@ -55,16 +54,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	gatewayCfg := lark.Config{
-		BaseConfig: channels.BaseConfig{
-			SessionPrefix: larkCfg.SessionPrefix,
-			ReplyPrefix:   larkCfg.ReplyPrefix,
-			AllowGroups:   larkCfg.AllowGroups,
-			AllowDirect:   larkCfg.AllowDirect,
-			AgentPreset:   larkCfg.AgentPreset,
-			ToolPreset:    larkCfg.ToolPreset,
-			ReplyTimeout:  larkCfg.ReplyTimeout,
-			MemoryEnabled: larkCfg.MemoryEnabled,
-		},
+		BaseConfig:                    larkCfg.BaseConfig,
 		Enabled:                       larkCfg.Enabled,
 		AppID:                         larkCfg.AppID,
 		AppSecret:                     larkCfg.AppSecret,

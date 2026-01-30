@@ -7,7 +7,6 @@ import (
 
 	"alex/internal/agent/presets"
 	"alex/internal/async"
-	"alex/internal/channels"
 	"alex/internal/channels/wechat"
 	"alex/internal/di"
 	"alex/internal/logging"
@@ -53,16 +52,7 @@ func startWeChatGateway(ctx context.Context, cfg Config, container *di.Container
 	}
 
 	gatewayCfg := wechat.Config{
-		BaseConfig: channels.BaseConfig{
-			SessionPrefix: wechatCfg.SessionPrefix,
-			ReplyPrefix:   wechatCfg.ReplyPrefix,
-			AllowGroups:   wechatCfg.AllowGroups,
-			AllowDirect:   wechatCfg.AllowDirect,
-			AgentPreset:   wechatCfg.AgentPreset,
-			ToolPreset:    wechatCfg.ToolPreset,
-			ReplyTimeout:  wechatCfg.ReplyTimeout,
-			MemoryEnabled: wechatCfg.MemoryEnabled,
-		},
+		BaseConfig:             wechatCfg.BaseConfig,
 		Enabled:                wechatCfg.Enabled,
 		LoginMode:              wechatCfg.LoginMode,
 		HotLogin:               wechatCfg.HotLogin,

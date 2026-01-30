@@ -84,31 +84,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		return nil, fmt.Errorf("memory service is required")
 	}
 
-	if err := r.registerBuiltins(Config{
-		TavilyAPIKey:               config.TavilyAPIKey,
-		ArkAPIKey:                  config.ArkAPIKey,
-		LLMFactory:                 config.LLMFactory,
-		LLMProvider:                config.LLMProvider,
-		LLMModel:                   config.LLMModel,
-		LLMVisionModel:             config.LLMVisionModel,
-		APIKey:                     config.APIKey,
-		BaseURL:                    config.BaseURL,
-		SeedreamTextEndpointID:     config.SeedreamTextEndpointID,
-		SeedreamImageEndpointID:    config.SeedreamImageEndpointID,
-		SeedreamTextModel:          config.SeedreamTextModel,
-		SeedreamImageModel:         config.SeedreamImageModel,
-		SeedreamVisionModel:        config.SeedreamVisionModel,
-		SeedreamVideoModel:         config.SeedreamVideoModel,
-		ACPExecutorAddr:            config.ACPExecutorAddr,
-		ACPExecutorCWD:             config.ACPExecutorCWD,
-		ACPExecutorMode:            config.ACPExecutorMode,
-		ACPExecutorAutoApprove:     config.ACPExecutorAutoApprove,
-		ACPExecutorMaxCLICalls:     config.ACPExecutorMaxCLICalls,
-		ACPExecutorMaxDuration:     config.ACPExecutorMaxDuration,
-		ACPExecutorRequireManifest: config.ACPExecutorRequireManifest,
-		MemoryService:              config.MemoryService,
-		OKRGoalsRoot:               config.OKRGoalsRoot,
-	}); err != nil {
+	if err := r.registerBuiltins(config); err != nil {
 		return nil, err
 	}
 
