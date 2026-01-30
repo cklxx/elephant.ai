@@ -2,6 +2,7 @@
 
 import { useRef, useEffect, useState, useMemo, useCallback, useId } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useRenderTracking } from '@/hooks/useRenderTracking';
 import { AnyAgentEvent, WorkflowToolCompletedEvent, WorkflowToolStartedEvent } from '@/lib/types';
 import { isEventType } from '@/lib/events/matching';
 import {
@@ -45,6 +46,7 @@ export function VirtualizedEventList({
   onJumpToLatest,
   className,
 }: VirtualizedEventListProps) {
+  useRenderTracking('VirtualizedEventList');
   const t = useTranslation();
   const { visibleEvents, indexMap } = useMemo(() => {
     const collapsed = collapseFinalResults(events);

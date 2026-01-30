@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { Film, FileText, Image } from "lucide-react";
 
 import { useAgentEventStream } from "@/hooks/useAgentEventStream";
+import { useRenderTracking } from "@/hooks/useRenderTracking";
 import { useI18n } from "@/lib/i18n";
 import type { AnyAgentEvent } from "@/lib/types";
 import { captureEvent } from "@/lib/analytics/posthog";
@@ -41,6 +42,7 @@ const LazyUserPersonaDialog = dynamic(
 );
 
 export function ConversationPageContent() {
+  useRenderTracking("ConversationPageContent");
   const [, setTaskId] = useState<string | null>(null);
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
   const [prefillTask, setPrefillTask] = useState<string | null>(null);

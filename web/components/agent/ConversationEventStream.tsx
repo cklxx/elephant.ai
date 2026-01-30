@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, memo } from "react";
+import { useRenderTracking } from "@/hooks/useRenderTracking";
 import type {
   AnyAgentEvent,
 } from "@/lib/types";
@@ -44,6 +45,7 @@ function ConversationEventStreamInner({
   isRunning = false,
   optimisticMessages = [],
 }: ConversationEventStreamProps) {
+  useRenderTracking("ConversationEventStream");
   const orderedEvents = useMemo(() => sortEventsBySeq(events), [events]);
   const {
     mainStream,
