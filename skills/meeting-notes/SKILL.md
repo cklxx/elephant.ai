@@ -1,6 +1,20 @@
 ---
 name: meeting-notes
 description: 将会议/访谈记录快速转成可分发纪要，突出决策、行动项、风险与待澄清问题。
+triggers:
+  intent_patterns:
+    - "meeting notes|会议纪要|会议记录|会议总结|sync"
+  context_signals:
+    keywords: ["会议", "纪要", "notes", "summary"]
+  confidence_threshold: 0.6
+priority: 7
+exclusive_group: notes
+max_tokens: 1800
+cooldown: 180
+output:
+  format: markdown
+  artifacts: true
+  artifact_type: document
 ---
 
 # 会议纪要（可分发与可执行）

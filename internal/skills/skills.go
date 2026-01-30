@@ -14,11 +14,49 @@ import (
 
 // Skill represents a reusable workflow playbook stored as Markdown.
 type Skill struct {
-	Name        string
-	Description string
-	Title       string
-	Body        string
-	SourcePath  string
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	Title       string `yaml:"-"`
+	Body        string `yaml:"-"`
+	SourcePath  string `yaml:"-"`
+
+	Triggers       *SkillTriggers `yaml:"triggers,omitempty"`
+	Priority       int            `yaml:"priority,omitempty"`
+	ExclusiveGroup string         `yaml:"exclusive_group,omitempty"`
+	Prerequisites  []string       `yaml:"prerequisites,omitempty"`
+	MaxTokens      int            `yaml:"max_tokens,omitempty"`
+	Cooldown       int            `yaml:"cooldown,omitempty"`
+	Output         *SkillOutput   `yaml:"output,omitempty"`
+	Chain          []ChainStep    `yaml:"chain,omitempty"`
+}
+
+type SkillTriggers struct {
+	IntentPatterns      []string        `yaml:"intent_patterns,omitempty"`
+	ToolSignals         []string        `yaml:"tool_signals,omitempty"`
+	ContextSignals      *ContextSignals `yaml:"context_signals,omitempty"`
+	ConfidenceThreshold float64         `yaml:"confidence_threshold,omitempty"`
+}
+
+type ContextSignals struct {
+	Keywords []string            `yaml:"keywords,omitempty"`
+	Slots    map[string][]string `yaml:"slots,omitempty"`
+}
+
+type SkillOutput struct {
+	Format       string `yaml:"format,omitempty"`
+	Artifacts    bool   `yaml:"artifacts,omitempty"`
+	ArtifactType string `yaml:"artifact_type,omitempty"`
+}
+
+type ChainStep struct {
+	SkillName string            `yaml:"skill"`
+	InputFrom string            `yaml:"input_from,omitempty"`
+	OutputAs  string            `yaml:"output_as,omitempty"`
+	Params    map[string]string `yaml:"params,omitempty"`
+}
+
+type SkillChain struct {
+	Steps []ChainStep `yaml:"chain"`
 }
 
 // Library is a loaded collection of skills.
@@ -126,9 +164,17 @@ func discoverSkillFiles(root string) ([]string, error) {
 	return paths, nil
 }
 
-type frontMatter struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
+type skillFrontMatter struct {
+	Name           string         `yaml:"name"`
+	Description    string         `yaml:"description"`
+	Triggers       *SkillTriggers `yaml:"triggers,omitempty"`
+	Priority       int            `yaml:"priority,omitempty"`
+	ExclusiveGroup string         `yaml:"exclusive_group,omitempty"`
+	Prerequisites  []string       `yaml:"prerequisites,omitempty"`
+	MaxTokens      int            `yaml:"max_tokens,omitempty"`
+	Cooldown       int            `yaml:"cooldown,omitempty"`
+	Output         *SkillOutput   `yaml:"output,omitempty"`
+	Chain          []ChainStep    `yaml:"chain,omitempty"`
 }
 
 func parseSkillFile(path string) (Skill, error) {
@@ -139,7 +185,7 @@ func parseSkillFile(path string) (Skill, error) {
 	content := strings.ReplaceAll(string(data), "\r\n", "\n")
 
 	metaText, bodyText, hasFrontMatter := splitFrontMatter(content)
-	var meta frontMatter
+	var meta skillFrontMatter
 	if hasFrontMatter {
 		if err := yaml.Unmarshal([]byte(metaText), &meta); err != nil {
 			return Skill{}, fmt.Errorf("parse skill front matter %s: %w", path, err)
@@ -152,13 +198,28 @@ func parseSkillFile(path string) (Skill, error) {
 		title = meta.Name
 	}
 
-	return Skill{
-		Name:        strings.TrimSpace(meta.Name),
-		Description: strings.TrimSpace(meta.Description),
-		Title:       title,
-		Body:        body,
-		SourcePath:  path,
-	}, nil
+	skill := Skill{
+		Name:           strings.TrimSpace(meta.Name),
+		Description:    strings.TrimSpace(meta.Description),
+		Title:          title,
+		Body:           body,
+		SourcePath:     path,
+		Triggers:       meta.Triggers,
+		Priority:       meta.Priority,
+		ExclusiveGroup: meta.ExclusiveGroup,
+		Prerequisites:  meta.Prerequisites,
+		MaxTokens:      meta.MaxTokens,
+		Cooldown:       meta.Cooldown,
+		Output:         meta.Output,
+		Chain:          meta.Chain,
+	}
+	if skill.Priority == 0 {
+		skill.Priority = 5
+	}
+	if skill.MaxTokens == 0 {
+		skill.MaxTokens = 2000
+	}
+	return skill, nil
 }
 
 func splitFrontMatter(content string) (string, string, bool) {

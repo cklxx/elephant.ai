@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
@@ -59,7 +60,7 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	action, _ := call.Arguments["action"].(string)
 	action = strings.ToLower(strings.TrimSpace(action))
 
-	library, err := skills.DefaultLibrary()
+	library, err := skills.CachedLibrary(5 * time.Minute)
 	if err != nil {
 		wrapped := fmt.Errorf("load skills: %w", err)
 		return &ports.ToolResult{CallID: call.ID, Content: wrapped.Error(), Error: wrapped}, nil

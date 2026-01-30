@@ -1,6 +1,23 @@
 ---
 name: deep-research
 description: 深度调研技能，覆盖问题澄清、检索规划、多源验证、证据跟踪与行动建议。
+triggers:
+  intent_patterns:
+    - "research|调研|调查|分析|analysis|market"
+  tool_signals:
+    - web_search
+    - web_fetch
+  context_signals:
+    keywords: ["调研", "研究", "analysis", "research"]
+  confidence_threshold: 0.6
+priority: 8
+exclusive_group: research
+max_tokens: 2400
+cooldown: 300
+output:
+  format: markdown
+  artifacts: true
+  artifact_type: document
 ---
 
 # 深度调研（提问→检索→验证→决策）

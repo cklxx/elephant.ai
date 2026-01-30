@@ -1,6 +1,20 @@
 ---
 name: email-drafting
 description: 快速拉齐受众、目的、语气和 CTA 的邮件写作 SOP，覆盖新建邮件与回复线程两种常见场景。
+triggers:
+  intent_patterns:
+    - "email|邮件|写信|reply|回复邮件"
+  context_signals:
+    keywords: ["email", "邮件", "回复", "draft", "subject"]
+  confidence_threshold: 0.6
+priority: 6
+exclusive_group: writing
+max_tokens: 1600
+cooldown: 120
+output:
+  format: markdown
+  artifacts: true
+  artifact_type: document
 ---
 
 # 邮件写作（新邮件与线程回复）
