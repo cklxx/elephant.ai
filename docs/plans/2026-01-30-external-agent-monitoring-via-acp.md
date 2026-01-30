@@ -1,7 +1,7 @@
 # External Agent Monitoring — Claude Code & Codex Native Protocol Integration
 
 **Date:** 2026-01-30
-**Status:** Draft
+**Status:** Completed
 **Author:** cklxx
 
 ---
@@ -380,17 +380,18 @@ claude -p --output-format stream-json \
 
 elephant.ai spawns a co-process MCP server alongside each Claude Code subprocess:
 
-1. **Config generation:** Write a temporary MCP config file per task:
-   ```json
-   {
-     "mcpServers": {
-       "elephant": {
-         "command": "<elephant-binary>",
-         "args": ["mcp-permission-server", "--task-id", "<task-id>", "--sock", "/tmp/elephant-perm-<task-id>.sock"],
-         "type": "stdio"
-       }
-     }
-   }
+1. **Config generation:** Write a temporary MCP config file per task (YAML example; CLI still consumes JSON when required):
+   ```yaml
+   mcpServers:
+     elephant:
+       command: "<elephant-binary>"
+       args:
+         - "mcp-permission-server"
+         - "--task-id"
+         - "<task-id>"
+         - "--sock"
+         - "/tmp/elephant-perm-<task-id>.sock"
+       type: "stdio"
    ```
 
 2. **MCP server binary:** A minimal MCP stdio server (embedded in elephant.ai binary as a subcommand) that:
@@ -427,7 +428,7 @@ type Executor struct {
 **Execution flow:**
 
 1. Spawn `codex mcp-server` subprocess
-2. Send JSON-RPC `initialize` request
+2. Use existing `internal/mcp.Client` (newline-delimited JSON-RPC) for `initialize` and `tools/call`
 3. Send `tools/call` with tool `codex`:
    ```json
    {
@@ -924,7 +925,7 @@ Status indicators in dependency lines: `▶` running, `⏳` waiting, `✅` done,
 
 #### Layer 9: Configuration
 
-**File:** `configs/external_agents.yaml` (new)
+**File:** `configs/config.yaml` (extend `runtime.external_agents`)
 
 ```yaml
 external_agents:
@@ -933,12 +934,11 @@ external_agents:
     binary: "claude"                    # Binary name or path
     default_model: ""                   # Empty = use Claude Code's default
     default_mode: "interactive"         # "autonomous" or "interactive"
-    autonomous_allowed_tools:           # Tools auto-approved in autonomous mode
+    autonomous_allowed_tools:           # Auto-approve list for interactive mode; passed to --allowedTools in autonomous mode
       - "Read"
-      - "Edit"
       - "Glob"
       - "Grep"
-      - "Bash(git *)"
+      - "WebSearch"
     max_budget_usd: 5.00               # Per-task budget limit
     max_turns: 50                       # Max agentic turns per task
     timeout: 30m                        # Max wall-clock time
@@ -1120,7 +1120,7 @@ The main agent uses the dashboard in three modes:
 | `internal/agent/app/coordinator/coordinator.go` | Instantiate external executor registry from config; wire `ExternalExecutor` into `ReactEngineConfig` (currently omitted at line 361-379) |
 | `internal/tools/builtin/orchestration/bg_dispatch.go` | Update description to list supported agent types (`"claude_code"`, `"codex"`); add `config`, `depends_on`, `workspace_mode`, `file_scope`, `inherit_context` parameters |
 | `internal/tools/builtin/orchestration/bg_status.go` | Kanban-style dashboard rendering with progress, input-waiting state, grouped by effective status |
-| `configs/` | Add external agent configuration |
+| `configs/config.yaml` | Extend runtime config with `external_agents` |
 
 ---
 
@@ -1374,3 +1374,4 @@ The main agent uses the dashboard in three modes:
   - Resolved Open Question 1 (auto-approve read-only tools)
   - Noted pre-existing partial-result-with-error data loss in `BackgroundTaskManager`
   - Clarified coordinator wiring gap (`ExternalExecutor` not in `ReactEngineConfig` construction)
+- 2026-01-30: Implementation complete — external executors (Claude Code, Codex), permission MCP server, workspace isolation/merge tooling, input injection, progress dashboard/events, config wiring, and tests added.
