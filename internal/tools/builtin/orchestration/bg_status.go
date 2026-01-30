@@ -48,8 +48,7 @@ func (t *bgStatus) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		switch key {
 		case "task_ids":
 		default:
-			err := fmt.Errorf("unsupported parameter: %s", key)
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
 	}
 
@@ -60,8 +59,7 @@ func (t *bgStatus) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	dispatcher := agent.GetBackgroundDispatcher(ctx)
 	if dispatcher == nil {
-		err := fmt.Errorf("background task dispatch is not available in this context")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "background task dispatch is not available in this context")
 	}
 
 	summaries := dispatcher.Status(ids)

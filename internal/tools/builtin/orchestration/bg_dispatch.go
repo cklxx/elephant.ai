@@ -82,24 +82,23 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		switch key {
 		case "task_id", "description", "prompt", "agent_type", "config", "depends_on", "workspace_mode", "file_scope", "inherit_context":
 		default:
-			err := fmt.Errorf("unsupported parameter: %s", key)
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
 	}
 
-	taskID, err := requireString(call.Arguments, "task_id")
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	taskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_id")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	description, err := requireString(call.Arguments, "description")
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	description, errResult := shared.RequireStringArg(call.Arguments, call.ID, "description")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	prompt, err := requireString(call.Arguments, "prompt")
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	prompt, errResult := shared.RequireStringArg(call.Arguments, call.ID, "prompt")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	agentType := "internal"
@@ -133,8 +132,7 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 
 	dispatcher := agent.GetBackgroundDispatcher(ctx)
 	if dispatcher == nil {
-		err := fmt.Errorf("background task dispatch is not available in this context")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "background task dispatch is not available in this context")
 	}
 
 	req := agent.BackgroundDispatchRequest{
@@ -227,18 +225,3 @@ func dedupe(items []string) []string {
 	return out
 }
 
-func requireString(args map[string]any, key string) (string, error) {
-	raw, ok := args[key]
-	if !ok || raw == nil {
-		return "", fmt.Errorf("missing required parameter: %s", key)
-	}
-	str, ok := raw.(string)
-	if !ok {
-		return "", fmt.Errorf("%s must be a string", key)
-	}
-	trimmed := strings.TrimSpace(str)
-	if trimmed == "" {
-		return "", fmt.Errorf("%s must not be empty", key)
-	}
-	return trimmed, nil
-}

@@ -70,16 +70,13 @@ func NewExplore(subagent tools.ToolExecutor) tools.ToolExecutor {
 
 func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	if e.subagent == nil {
-		err := fmt.Errorf("explore tool is unavailable: subagent not registered")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "explore tool is unavailable: subagent not registered")
 	}
 
-	objectiveVal, ok := call.Arguments["objective"].(string)
-	if !ok || strings.TrimSpace(objectiveVal) == "" {
-		err := fmt.Errorf("objective must be a non-empty string")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	objective, errResult := shared.RequireStringArg(call.Arguments, call.ID, "objective")
+	if errResult != nil {
+		return errResult, nil
 	}
-	objective := strings.TrimSpace(objectiveVal)
 
 	localScope, err := parseStringList(call.Arguments, "local_scope")
 	if err != nil {
@@ -98,8 +95,7 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 	if raw, exists := call.Arguments["notes"]; exists {
 		noteStr, ok := raw.(string)
 		if !ok {
-			err := fmt.Errorf("notes must be a string when provided")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "notes must be a string when provided")
 		}
 		notes = strings.TrimSpace(noteStr)
 	}

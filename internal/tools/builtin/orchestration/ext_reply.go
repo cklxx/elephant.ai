@@ -64,26 +64,24 @@ func (t *extReply) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		switch key {
 		case "task_id", "request_id", "approved", "option_id", "message":
 		default:
-			err := fmt.Errorf("unsupported parameter: %s", key)
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
 	}
 
-	taskID, err := requireString(call.Arguments, "task_id")
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	taskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_id")
+	if errResult != nil {
+		return errResult, nil
 	}
-	requestID, err := requireString(call.Arguments, "request_id")
-	if err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	requestID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "request_id")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	approved := false
 	if raw, ok := call.Arguments["approved"]; ok {
 		val, ok := raw.(bool)
 		if !ok {
-			err := fmt.Errorf("approved must be a boolean")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "approved must be a boolean")
 		}
 		approved = val
 	}
@@ -93,8 +91,7 @@ func (t *extReply) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		if str, ok := raw.(string); ok {
 			optionID = strings.TrimSpace(str)
 		} else {
-			err := fmt.Errorf("option_id must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "option_id must be a string")
 		}
 	}
 
@@ -103,21 +100,18 @@ func (t *extReply) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		if str, ok := raw.(string); ok {
 			message = strings.TrimSpace(str)
 		} else {
-			err := fmt.Errorf("message must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "message must be a string")
 		}
 	}
 
 	dispatcher := agent.GetBackgroundDispatcher(ctx)
 	if dispatcher == nil {
-		err := fmt.Errorf("background task dispatch is not available in this context")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "background task dispatch is not available in this context")
 	}
 
 	responder, ok := dispatcher.(agent.ExternalInputResponder)
 	if !ok {
-		err := fmt.Errorf("external input responder is not available in this context")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "external input responder is not available in this context")
 	}
 
 	if err := responder.ReplyExternalInput(ctx, agent.InputResponse{

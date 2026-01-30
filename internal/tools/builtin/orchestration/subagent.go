@@ -77,8 +77,7 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		switch key {
 		case "prompt", "tasks", "mode", "max_parallel":
 		default:
-			err := fmt.Errorf("unsupported parameter: %s", key)
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
 	}
 
@@ -86,8 +85,7 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	if raw, ok := call.Arguments["prompt"]; ok {
 		promptStr, ok := raw.(string)
 		if !ok {
-			err := fmt.Errorf("prompt must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "prompt must be a string")
 		}
 		prompt = strings.TrimSpace(promptStr)
 	}
@@ -109,8 +107,7 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	if len(tasks) == 0 {
 		if prompt == "" {
-			err := fmt.Errorf("missing required parameter: prompt")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "missing required parameter: prompt")
 		}
 		tasks = []string{prompt}
 	}
