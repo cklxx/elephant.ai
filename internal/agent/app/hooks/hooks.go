@@ -18,6 +18,7 @@ const (
 	InjectionSkillActivation InjectionType = "skill_activation"
 	InjectionSuggestion     InjectionType = "suggestion"
 	InjectionWarning        InjectionType = "warning"
+	InjectionOKRContext     InjectionType = "okr_context"
 )
 
 // Injection describes content to be injected into the agent context.
