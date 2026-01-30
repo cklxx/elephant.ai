@@ -89,7 +89,7 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * Before each task, review engineering practices under `docs/`; if missing, search and add them.
 * Record notable incidents in error-experience entries; keep index files index-only.
 * Use TDD when touching logic; run full lint + tests before delivery.
-* After completing changes, always commit, and prefer multiple small commits.
+* After completing changes, always commit. Split one solution into incremental batches and commit each batch separately — one solution, multiple commits.
 * Avoid unnecessary defensive code; trust invariants when guaranteed.
 
 #### 1.3 Safety & tooling
