@@ -291,6 +291,93 @@ function renderElement(element: JsonRenderElement, tree: JsonRenderTree): string
       output.push("</div>");
       return output.join("");
     }
+    case "accordion": {
+      const title = escapeHtml(String(props.title ?? props.label ?? ""));
+      const content = renderChildren(element, tree);
+      return `<details class="jr-accordion" open><summary class="jr-accordion-title">${title}</summary><div class="jr-accordion-body">${content}</div></details>`;
+    }
+    case "progress": {
+      const value = typeof props.value === "number" ? props.value : 0;
+      const max = typeof props.max === "number" && props.max > 0 ? props.max : 100;
+      const pct = Math.min(100, Math.max(0, (value / max) * 100));
+      const label = props.label ? escapeHtml(String(props.label)) : "";
+      const color = cssColor(props.color);
+      const barStyle = color ? `width:${pct}%;background-color:${color};` : `width:${pct}%;`;
+      const output: string[] = [];
+      output.push('<div class="jr-progress">');
+      if (label) {
+        output.push(`<div class="jr-progress-header"><span>${label}</span><span>${Math.round(pct)}%</span></div>`);
+      }
+      output.push(`<div class="jr-progress-track"><div class="jr-progress-bar" style="${barStyle}"></div></div>`);
+      output.push("</div>");
+      return output.join("");
+    }
+    case "link": {
+      const href = escapeAttribute(String(props.href ?? props.url ?? ""));
+      const text = escapeHtml(String(props.text ?? props.label ?? href));
+      const target = escapeAttribute(String(props.target ?? "_blank"));
+      const rel = target === "_blank" ? ' rel="noopener noreferrer"' : "";
+      return `<a class="jr-link" href="${href}" target="${target}"${rel}>${text}</a>`;
+    }
+    case "alert": {
+      const variant = alertVariantSsr(props.variant);
+      const title = props.title ? escapeHtml(String(props.title)) : "";
+      const message = escapeHtml(String(props.message ?? props.text ?? props.description ?? ""));
+      const output: string[] = [];
+      output.push(`<div class="jr-alert jr-alert-${variant}">`);
+      if (title) {
+        output.push(`<div class="jr-alert-title">${title}</div>`);
+      }
+      if (message) {
+        output.push(`<div class="jr-alert-message">${message}</div>`);
+      }
+      output.push("</div>");
+      return output.join("");
+    }
+    case "timeline": {
+      const items = Array.isArray(props.items) ? props.items : [];
+      if (items.length === 0) {
+        return renderFallback("Timeline has no items.");
+      }
+      const output: string[] = [];
+      output.push('<div class="jr-timeline">');
+      items.forEach((item, index) => {
+        const status = typeof item?.status === "string" ? item.status.toLowerCase() : "";
+        const dotClass = timelineDotClassSsr(status);
+        const isLast = index === items.length - 1;
+        output.push(`<div class="jr-timeline-item${isLast ? " jr-timeline-last" : ""}">`);
+        output.push(`<span class="jr-timeline-dot ${dotClass}"></span>`);
+        output.push(`<div class="jr-timeline-content">`);
+        output.push(`<div class="jr-timeline-title">${escapeHtml(String(item?.title ?? item?.label ?? ""))}</div>`);
+        if (item?.description) {
+          output.push(`<div class="jr-timeline-desc">${escapeHtml(String(item.description))}</div>`);
+        }
+        output.push("</div></div>");
+      });
+      output.push("</div>");
+      return output.join("");
+    }
+    case "stat": {
+      const label = props.label ? escapeHtml(String(props.label)) : "";
+      const value = escapeHtml(String(props.value ?? ""));
+      const unit = props.unit ? escapeHtml(String(props.unit)) : "";
+      const change = props.change ? escapeHtml(String(props.change)) : "";
+      const description = props.description ? escapeHtml(String(props.description)) : "";
+      const output: string[] = [];
+      output.push('<div class="jr-stat">');
+      if (label) {
+        output.push(`<div class="jr-stat-label">${label}</div>`);
+      }
+      output.push(`<div class="jr-stat-value">${value}${unit ? `<span class="jr-stat-unit">${unit}</span>` : ""}</div>`);
+      if (change) {
+        output.push(`<div class="jr-stat-change">${change}</div>`);
+      }
+      if (description) {
+        output.push(`<div class="jr-stat-desc">${description}</div>`);
+      }
+      output.push("</div>");
+      return output.join("");
+    }
     default:
       return renderFallback(`Unsupported element: ${element.type}`);
   }
@@ -608,6 +695,37 @@ function escapeAttribute(value: string): string {
   return escapeHtml(value);
 }
 
+function alertVariantSsr(value: any): string {
+  if (typeof value !== "string") return "info";
+  switch (value.toLowerCase()) {
+    case "warning":
+      return "warning";
+    case "error":
+    case "destructive":
+      return "error";
+    case "success":
+      return "success";
+    default:
+      return "info";
+  }
+}
+
+function timelineDotClassSsr(status: string): string {
+  switch (status) {
+    case "completed":
+    case "done":
+      return "jr-dot-done";
+    case "active":
+    case "current":
+      return "jr-dot-active";
+    case "error":
+    case "failed":
+      return "jr-dot-error";
+    default:
+      return "jr-dot-pending";
+  }
+}
+
 function renderFallback(message: string): string {
   return `<div class="jr-fallback">${escapeHtml(message)}</div>`;
 }
@@ -673,4 +791,35 @@ const JR_STYLES = `
 .jr-diagram-node { border: 1px solid #e2e8f0; border-radius: 10px; padding: 6px 10px; background: #f8fafc; font-size: 12px; font-weight: 600; }
 .jr-diagram-edges { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: #64748b; }
 .jr-fallback { border: 1px dashed #cbd5f5; border-radius: 10px; padding: 8px; font-size: 12px; color: #64748b; background: #f1f5f9; }
+.jr-accordion { border: 1px solid #e2e8f0; border-radius: 10px; }
+.jr-accordion-title { padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+.jr-accordion-title::after { content: "▼"; font-size: 10px; color: #64748b; }
+.jr-accordion-body { border-top: 1px solid #e2e8f0; padding: 12px 14px; }
+.jr-progress { display: flex; flex-direction: column; gap: 4px; }
+.jr-progress-header { display: flex; justify-content: space-between; font-size: 11px; color: #64748b; }
+.jr-progress-track { height: 8px; width: 100%; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
+.jr-progress-bar { height: 100%; border-radius: 999px; background: #334155; transition: width 0.3s; }
+.jr-link { font-size: 13px; color: #2563eb; text-decoration: underline; text-underline-offset: 2px; }
+.jr-alert { border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.jr-alert-info { border: 1px solid #93c5fd; background: #eff6ff; color: #1e40af; }
+.jr-alert-warning { border: 1px solid #fcd34d; background: #fefce8; color: #92400e; }
+.jr-alert-error { border: 1px solid #fca5a5; background: #fef2f2; color: #991b1b; }
+.jr-alert-success { border: 1px solid #86efac; background: #f0fdf4; color: #166534; }
+.jr-alert-title { font-weight: 600; }
+.jr-alert-message { margin-top: 2px; }
+.jr-timeline { display: flex; flex-direction: column; padding-left: 20px; }
+.jr-timeline-item { position: relative; padding-bottom: 14px; }
+.jr-timeline-item:not(.jr-timeline-last)::before { content: ""; position: absolute; left: -14px; top: 12px; width: 1px; height: 100%; background: #e2e8f0; }
+.jr-timeline-dot { position: absolute; left: -17px; top: 5px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid; }
+.jr-dot-done { border-color: #22c55e; background: #22c55e; }
+.jr-dot-active { border-color: #3b82f6; background: #3b82f6; }
+.jr-dot-error { border-color: #ef4444; background: #ef4444; }
+.jr-dot-pending { border-color: #e2e8f0; background: #ffffff; }
+.jr-timeline-title { font-size: 13px; font-weight: 600; }
+.jr-timeline-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+.jr-stat { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px; background: #ffffff; }
+.jr-stat-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; }
+.jr-stat-value { font-size: 24px; font-weight: 600; margin-top: 4px; }
+.jr-stat-unit { font-size: 13px; font-weight: 400; color: #64748b; margin-left: 4px; }
+.jr-stat-change, .jr-stat-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
 `;

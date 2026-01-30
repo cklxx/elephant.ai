@@ -110,4 +110,127 @@ describe("renderJsonRenderHtml", () => {
     expect(html).toContain("Card A");
     expect(html).toContain("Card B");
   });
+
+  it("renders accordion component", () => {
+    const payload = JSON.stringify({
+      root: {
+        type: "accordion",
+        props: { title: "Details" },
+        children: [{ type: "text", props: { text: "Hidden content" } }],
+      },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Details");
+    expect(html).toContain("Hidden content");
+    expect(html).toContain("jr-accordion");
+    expect(html).toContain("<details");
+  });
+
+  it("renders progress component", () => {
+    const payload = JSON.stringify({
+      root: {
+        type: "progress",
+        props: { value: 75, max: 100, label: "Upload" },
+      },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Upload");
+    expect(html).toContain("75%");
+    expect(html).toContain("jr-progress-bar");
+  });
+
+  it("renders link component", () => {
+    const payload = JSON.stringify({
+      root: {
+        type: "link",
+        props: { href: "https://example.com", text: "Example" },
+      },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Example");
+    expect(html).toContain("https://example.com");
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain("noopener noreferrer");
+  });
+
+  it("renders alert component with variants", () => {
+    const payload = JSON.stringify({
+      root: {
+        type: "column",
+        children: [
+          { type: "alert", props: { variant: "warning", title: "Heads up", message: "Check this" } },
+          { type: "alert", props: { variant: "error", message: "Something broke" } },
+          { type: "alert", props: { variant: "success", title: "Done" } },
+        ],
+      },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Heads up");
+    expect(html).toContain("Check this");
+    expect(html).toContain("jr-alert-warning");
+    expect(html).toContain("Something broke");
+    expect(html).toContain("jr-alert-error");
+    expect(html).toContain("jr-alert-success");
+  });
+
+  it("renders timeline component", () => {
+    const payload = JSON.stringify({
+      root: {
+        type: "timeline",
+        props: {
+          items: [
+            { title: "Step 1", description: "Init", status: "completed" },
+            { title: "Step 2", status: "active" },
+            { title: "Step 3" },
+          ],
+        },
+      },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Step 1");
+    expect(html).toContain("Init");
+    expect(html).toContain("jr-dot-done");
+    expect(html).toContain("jr-dot-active");
+    expect(html).toContain("jr-dot-pending");
+  });
+
+  it("renders stat component", () => {
+    const payload = JSON.stringify({
+      root: {
+        type: "stat",
+        props: { label: "Revenue", value: "$12.4k", unit: "USD", change: "+14%", description: "vs last month" },
+      },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Revenue");
+    expect(html).toContain("$12.4k");
+    expect(html).toContain("USD");
+    expect(html).toContain("+14%");
+    expect(html).toContain("vs last month");
+    expect(html).toContain("jr-stat");
+  });
+
+  it("renders empty timeline as fallback", () => {
+    const payload = JSON.stringify({
+      root: { type: "timeline", props: { items: [] } },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Timeline has no items");
+  });
+
+  it("clamps progress value between 0 and 100", () => {
+    const payload = JSON.stringify({
+      root: { type: "progress", props: { value: 150, max: 100 } },
+    });
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("width:100%");
+  });
 });

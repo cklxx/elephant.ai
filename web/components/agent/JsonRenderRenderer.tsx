@@ -1,5 +1,6 @@
 import Image from "next/image";
-import type { CSSProperties, JSX } from "react";
+import type { CSSProperties, JSX, ReactNode } from "react";
+import { useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -410,6 +411,134 @@ function renderElement(
         </div>
       );
     }
+    case "accordion": {
+      const title = String(props.title ?? props.label ?? "");
+      const defaultOpen = props.defaultOpen === true;
+      return (
+        <AccordionItem key={key} title={title} defaultOpen={defaultOpen}>
+          {renderChildren(element, tree, key)}
+        </AccordionItem>
+      );
+    }
+    case "progress": {
+      const value = typeof props.value === "number" ? props.value : 0;
+      const max = typeof props.max === "number" && props.max > 0 ? props.max : 100;
+      const pct = Math.min(100, Math.max(0, (value / max) * 100));
+      const label = props.label ? String(props.label) : "";
+      const color = toCssColor(props.color);
+      return (
+        <div key={key} className="space-y-1">
+          {label ? (
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <span>{label}</span>
+              <span>{Math.round(pct)}%</span>
+            </div>
+          ) : null}
+          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-foreground/70 transition-all"
+              style={{ width: `${pct}%`, ...(color ? { backgroundColor: color } : {}) }}
+            />
+          </div>
+        </div>
+      );
+    }
+    case "link": {
+      const href = String(props.href ?? props.url ?? "");
+      const text = String(props.text ?? props.label ?? href);
+      const target = String(props.target ?? "_blank");
+      return (
+        <a
+          key={key}
+          href={href}
+          target={target}
+          rel={target === "_blank" ? "noopener noreferrer" : undefined}
+          className="text-sm text-blue-600 underline decoration-blue-600/30 hover:decoration-blue-600"
+        >
+          {text}
+        </a>
+      );
+    }
+    case "alert": {
+      const variant = alertVariant(props.variant);
+      const title = props.title ? String(props.title) : "";
+      const message = String(props.message ?? props.text ?? props.description ?? "");
+      return (
+        <div
+          key={key}
+          className={cn(
+            "rounded-lg border px-4 py-3 text-sm",
+            variant.border,
+            variant.bg,
+            variant.text,
+          )}
+        >
+          {title ? <div className="font-semibold">{title}</div> : null}
+          {message ? <div className={title ? "mt-1" : ""}>{message}</div> : null}
+        </div>
+      );
+    }
+    case "timeline": {
+      const items = Array.isArray(props.items) ? props.items : [];
+      if (items.length === 0) {
+        return <Fallback key={key} message="Timeline has no items." />;
+      }
+      return (
+        <div key={key} className="relative space-y-0 pl-6">
+          {items.map((item: any, index: number) => {
+            const status = timelineStatus(item?.status);
+            const isLast = index === items.length - 1;
+            return (
+              <div key={`${key}-tl-${index}`} className="relative pb-4">
+                {!isLast ? (
+                  <span className="absolute left-[-17px] top-3 h-full w-px bg-border" />
+                ) : null}
+                <span
+                  className={cn(
+                    "absolute left-[-20px] top-1.5 h-2.5 w-2.5 rounded-full border-2",
+                    status.dot,
+                  )}
+                />
+                <div className="text-sm font-medium text-foreground">
+                  {String(item?.title ?? item?.label ?? "")}
+                </div>
+                {item?.description ? (
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {String(item.description)}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    case "stat": {
+      const label = props.label ? String(props.label) : "";
+      const value = String(props.value ?? "");
+      const unit = props.unit ? String(props.unit) : "";
+      const change = props.change ? String(props.change) : "";
+      const description = props.description ? String(props.description) : "";
+      return (
+        <div key={key} className="rounded-xl border border-border/60 bg-card p-4">
+          {label ? (
+            <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {label}
+            </div>
+          ) : null}
+          <div className="mt-1 text-2xl font-semibold text-foreground">
+            {value}
+            {unit ? <span className="ml-1 text-sm font-normal text-muted-foreground">{unit}</span> : null}
+          </div>
+          {change ? (
+            <div className="mt-1 text-xs text-muted-foreground">{change}</div>
+          ) : null}
+          {description ? (
+            <div className="mt-1 text-xs text-muted-foreground">{description}</div>
+          ) : null}
+        </div>
+      );
+    }
     default: {
       return <Fallback key={key} message={`Unsupported element: ${element.type}`} />;
     }
@@ -751,6 +880,64 @@ function justifyClass(value: any) {
       return "justify-between";
     default:
       return "justify-start";
+  }
+}
+
+function AccordionItem({
+  title,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  defaultOpen: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-lg border border-border/60">
+      <button
+        type="button"
+        className="flex w-full items-center justify-between px-4 py-2.5 text-sm font-medium text-foreground"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        <span>{title}</span>
+        <span className={cn("text-xs text-muted-foreground transition-transform", open && "rotate-180")}>
+          ▼
+        </span>
+      </button>
+      {open ? <div className="border-t border-border/60 px-4 py-3">{children}</div> : null}
+    </div>
+  );
+}
+
+function alertVariant(value: any): { border: string; bg: string; text: string } {
+  switch (typeof value === "string" ? value.toLowerCase() : "") {
+    case "warning":
+      return { border: "border-yellow-300", bg: "bg-yellow-50 dark:bg-yellow-950/30", text: "text-yellow-800 dark:text-yellow-200" };
+    case "error":
+    case "destructive":
+      return { border: "border-red-300", bg: "bg-red-50 dark:bg-red-950/30", text: "text-red-800 dark:text-red-200" };
+    case "success":
+      return { border: "border-green-300", bg: "bg-green-50 dark:bg-green-950/30", text: "text-green-800 dark:text-green-200" };
+    case "info":
+    default:
+      return { border: "border-blue-300", bg: "bg-blue-50 dark:bg-blue-950/30", text: "text-blue-800 dark:text-blue-200" };
+  }
+}
+
+function timelineStatus(value: any): { dot: string } {
+  switch (typeof value === "string" ? value.toLowerCase() : "") {
+    case "completed":
+    case "done":
+      return { dot: "border-green-500 bg-green-500" };
+    case "active":
+    case "current":
+      return { dot: "border-blue-500 bg-blue-500" };
+    case "error":
+    case "failed":
+      return { dot: "border-red-500 bg-red-500" };
+    default:
+      return { dot: "border-border bg-background" };
   }
 }
 
