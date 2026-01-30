@@ -8,6 +8,7 @@ import { AttachmentPanel } from "@/components/agent/AttachmentPanel";
 import { SkillsPanel } from "@/components/agent/SkillsPanel";
 import { ConnectionBanner } from "@/components/agent/ConnectionBanner";
 import { SandboxDesktopPanel } from "@/components/agent/SandboxDesktopPanel";
+import { SmartErrorBoundary } from "@/components/SmartErrorBoundary";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { AnyAgentEvent, AttachmentUpload } from "@/lib/types";
@@ -183,15 +184,17 @@ export const ConversationMainArea = memo(function ConversationMainArea({
               )}
             </div>
           ) : (
-            <LazyConversationEventStream
-              events={events}
-              isConnected={isConnected}
-              isReconnecting={isReconnecting}
-              error={error}
-              reconnectAttempts={reconnectAttempts}
-              onReconnect={onReconnect}
-              isRunning={streamIsRunning}
-            />
+            <SmartErrorBoundary level="section">
+              <LazyConversationEventStream
+                events={events}
+                isConnected={isConnected}
+                isReconnecting={isReconnecting}
+                error={error}
+                reconnectAttempts={reconnectAttempts}
+                onReconnect={onReconnect}
+                isRunning={streamIsRunning}
+              />
+            </SmartErrorBoundary>
           )}
         </ContentArea>
 

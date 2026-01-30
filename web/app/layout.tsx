@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { SmartErrorBoundary } from "@/components/SmartErrorBoundary";
 import { cn } from "@/lib/utils";
 
 const sans = Plus_Jakarta_Sans({
@@ -44,9 +44,9 @@ export default function RootLayout({
         )}
       >
         <Providers>
-          <ErrorBoundary>
+          <SmartErrorBoundary level="page">
             <main className="flex min-h-screen flex-col">{children}</main>
-          </ErrorBoundary>
+          </SmartErrorBoundary>
         </Providers>
       </body>
     </html>
