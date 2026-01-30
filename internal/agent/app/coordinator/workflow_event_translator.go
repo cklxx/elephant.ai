@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/workflow"
 )
 
@@ -89,14 +90,14 @@ func (t *workflowEventTranslator) translate(evt agent.AgentEvent) []*domain.Work
 		return t.translateNodeOutputDelta(e, evt)
 
 	case *domain.WorkflowToolStartedEvent:
-		return t.translateTool(evt, "workflow.tool.started", e.CallID, map[string]any{
+		return t.translateTool(evt, types.EventToolStarted, e.CallID, map[string]any{
 			"tool_name": e.ToolName,
 			"arguments": e.Arguments,
 			"iteration": e.Iteration,
 		})
 
 	case *domain.WorkflowToolProgressEvent:
-		return t.translateTool(evt, "workflow.tool.progress", e.CallID, map[string]any{
+		return t.translateTool(evt, types.EventToolProgress, e.CallID, map[string]any{
 			"chunk":       e.Chunk,
 			"is_complete": e.IsComplete,
 		})
@@ -114,14 +115,14 @@ func (t *workflowEventTranslator) translate(evt agent.AgentEvent) []*domain.Work
 		return t.translateNodeFailure(evt, e)
 
 	case *domain.WorkflowDiagnosticContextCompressionEvent:
-		return t.diagnosticEnvelope(evt, "workflow.diagnostic.context_compression", map[string]any{
+		return t.diagnosticEnvelope(evt, types.EventDiagnosticContextCompression, map[string]any{
 			"original_count":   e.OriginalCount,
 			"compressed_count": e.CompressedCount,
 			"compression_rate": e.CompressionRate,
 		})
 
 	case *domain.WorkflowDiagnosticToolFilteringEvent:
-		return t.diagnosticEnvelope(evt, "workflow.diagnostic.tool_filtering", map[string]any{
+		return t.diagnosticEnvelope(evt, types.EventDiagnosticToolFiltering, map[string]any{
 			"preset_name":       e.PresetName,
 			"original_count":    e.OriginalCount,
 			"filtered_count":    e.FilteredCount,
@@ -130,7 +131,7 @@ func (t *workflowEventTranslator) translate(evt agent.AgentEvent) []*domain.Work
 		})
 
 	case *domain.WorkflowDiagnosticEnvironmentSnapshotEvent:
-		return t.diagnosticEnvelope(evt, "workflow.diagnostic.environment_snapshot", map[string]any{
+		return t.diagnosticEnvelope(evt, types.EventDiagnosticEnvironmentSnapshot, map[string]any{
 			"host":     e.Host,
 			"captured": e.Captured,
 		})
@@ -139,7 +140,7 @@ func (t *workflowEventTranslator) translate(evt agent.AgentEvent) []*domain.Work
 		return t.translateInputEnvelope(evt, e)
 
 	case *domain.ProactiveContextRefreshEvent:
-		return t.singleEnvelope(evt, "proactive.context.refresh", "diagnostic", "", map[string]any{
+		return t.singleEnvelope(evt, types.EventProactiveContextRefresh, "diagnostic", "", map[string]any{
 			"iteration":         e.Iteration,
 			"memories_injected": e.MemoriesInjected,
 		})
@@ -167,9 +168,9 @@ func (t *workflowEventTranslator) translateToolComplete(evt agent.AgentEvent, e 
 		payload["error"] = e.Error.Error()
 	}
 
-	envelopes := t.toolEnvelope(evt, "workflow.tool.completed", e.CallID, payload)
+	envelopes := t.toolEnvelope(evt, types.EventToolCompleted, e.CallID, payload)
 	if manifestPayload := buildArtifactManifestPayload(e); manifestPayload != nil {
-		envelopes = append(envelopes, t.singleEnvelope(evt, "workflow.artifact.manifest", "artifact", "artifact-manifest", manifestPayload)...)
+		envelopes = append(envelopes, t.singleEnvelope(evt, types.EventArtifactManifest, "artifact", "artifact-manifest", manifestPayload)...)
 	}
 	return envelopes
 }
@@ -220,7 +221,7 @@ func buildArtifactManifestPayload(e *domain.WorkflowToolCompletedEvent) map[stri
 }
 
 func (t *workflowEventTranslator) translateResultFinal(evt agent.AgentEvent, e *domain.WorkflowResultFinalEvent) []*domain.WorkflowEventEnvelope {
-	return t.singleEnvelope(evt, "workflow.result.final", "result", stageSummarize, map[string]any{
+	return t.singleEnvelope(evt, types.EventResultFinal, "result", stageSummarize, map[string]any{
 		"final_answer":     e.FinalAnswer,
 		"total_iterations": e.TotalIterations,
 		"total_tokens":     e.TotalTokens,
@@ -233,7 +234,7 @@ func (t *workflowEventTranslator) translateResultFinal(evt agent.AgentEvent, e *
 }
 
 func (t *workflowEventTranslator) translateResultCancelled(evt agent.AgentEvent, e *domain.WorkflowResultCancelledEvent) []*domain.WorkflowEventEnvelope {
-	return t.singleEnvelope(evt, "workflow.result.cancelled", "result", "", map[string]any{
+	return t.singleEnvelope(evt, types.EventResultCancelled, "result", "", map[string]any{
 		"reason":       e.Reason,
 		"requested_by": e.RequestedBy,
 	})
@@ -250,11 +251,11 @@ func (t *workflowEventTranslator) translateNodeFailure(evt agent.AgentEvent, e *
 		payload["error"] = e.Error.Error()
 	}
 
-	return t.diagnosticEnvelope(evt, "workflow.node.failed", payload)
+	return t.diagnosticEnvelope(evt, types.EventNodeFailed, payload)
 }
 
 func (t *workflowEventTranslator) translateInputEnvelope(evt agent.AgentEvent, e *domain.WorkflowInputReceivedEvent) []*domain.WorkflowEventEnvelope {
-	return t.singleEnvelope(evt, "workflow.input.received", "input", "", map[string]any{
+	return t.singleEnvelope(evt, types.EventInputReceived, "input", "", map[string]any{
 		"task":        e.Task,
 		"attachments": e.Attachments,
 	})
@@ -274,7 +275,7 @@ func (t *workflowEventTranslator) translateLifecycle(e *domain.WorkflowLifecycle
 
 	return t.workflowEnvelopeFromOptions(evt, envelopeOptions{
 		snapshot:       e.Workflow,
-		eventType:      "workflow.lifecycle.updated",
+		eventType:      types.EventLifecycleUpdated,
 		nodeKind:       "node",
 		nodeID:         nodeID,
 		payload:        payload,
@@ -288,7 +289,7 @@ func (t *workflowEventTranslator) translateNodeStarted(e *domain.WorkflowNodeSta
 		return nil
 	}
 
-	return t.nodeEnvelope(evt, "workflow.node.started", nodeEventMeta{
+	return t.nodeEnvelope(evt, types.EventNodeStarted, nodeEventMeta{
 		stepDescription: e.StepDescription,
 		stepIndex:       e.StepIndex,
 		iteration:       e.Iteration,
@@ -304,9 +305,9 @@ func (t *workflowEventTranslator) translateNodeCompleted(e *domain.WorkflowNodeC
 	}
 
 	status := strings.ToLower(strings.TrimSpace(e.Status))
-	eventType := "workflow.node.completed"
+	eventType := types.EventNodeCompleted
 	if status == string(workflow.NodeStatusFailed) || status == "failed" {
-		eventType = "workflow.node.failed"
+		eventType = types.EventNodeFailed
 	}
 
 	return t.nodeEnvelope(evt, eventType, nodeEventMeta{
@@ -345,7 +346,7 @@ func (t *workflowEventTranslator) translateNodeOutputSummary(e *domain.WorkflowN
 		}
 		payload[key] = val
 	}
-	return t.singleEnvelope(evt, "workflow.node.output.summary", "generation", "", payload)
+	return t.singleEnvelope(evt, types.EventNodeOutputSummary, "generation", "", payload)
 }
 
 func (t *workflowEventTranslator) translateNodeOutputDelta(e *domain.WorkflowNodeOutputDeltaEvent, evt agent.AgentEvent) []*domain.WorkflowEventEnvelope {
@@ -364,7 +365,7 @@ func (t *workflowEventTranslator) translateNodeOutputDelta(e *domain.WorkflowNod
 		payload["message_count"] = e.MessageCount
 	}
 
-	return t.singleEnvelope(evt, "workflow.node.output.delta", "generation", "", payload)
+	return t.singleEnvelope(evt, types.EventNodeOutputDelta, "generation", "", payload)
 }
 
 func (t *workflowEventTranslator) translateSubtaskEvent(event agent.SubtaskWrapper) []*domain.WorkflowEventEnvelope {
@@ -372,10 +373,10 @@ func (t *workflowEventTranslator) translateSubtaskEvent(event agent.SubtaskWrapp
 		return nil
 	}
 
-	eventType := "workflow.subflow.progress"
+	eventType := types.EventSubflowProgress
 	switch event.WrappedEvent().(type) {
 	case *domain.WorkflowResultFinalEvent, *domain.WorkflowResultCancelledEvent:
-		eventType = "workflow.subflow.completed"
+		eventType = types.EventSubflowCompleted
 	}
 
 	env := domain.NewWorkflowEnvelopeFromEvent(event, eventType)

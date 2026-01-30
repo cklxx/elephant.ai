@@ -1,6 +1,7 @@
 package http
 
 import (
+	"alex/internal/agent/types"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/presentation/formatter"
@@ -17,27 +18,27 @@ const (
 // envelope not present here will be suppressed to keep the frontend stream
 // lean and avoid noisy system-level lifecycle spam.
 var sseAllowlist = map[string]bool{
-	"workflow.node.started":                    true,
-	"workflow.node.completed":                  true,
-	"workflow.node.failed":                     true,
-	"workflow.node.output.delta":               true,
-	"workflow.node.output.summary":             true,
-	"workflow.tool.started":                    true,
-	"workflow.tool.progress":                   true,
-	"workflow.tool.completed":                  true,
-	"workflow.artifact.manifest":               true,
-	"workflow.input.received":                  true,
-	"workflow.subflow.progress":                true,
-	"workflow.subflow.completed":               true,
-	"workflow.result.final":                    true,
-	"workflow.result.cancelled":                true,
-	"workflow.diagnostic.error":                true,
-	"workflow.diagnostic.context_compression":  true,
-	"workflow.diagnostic.tool_filtering":       true,
-	"workflow.diagnostic.environment_snapshot": true,
-	"workflow.executor.update":                 true,
-	"workflow.executor.user_message":           true,
-	"proactive.context.refresh":                true,
+	types.EventNodeStarted:                  true,
+	types.EventNodeCompleted:                true,
+	types.EventNodeFailed:                   true,
+	types.EventNodeOutputDelta:              true,
+	types.EventNodeOutputSummary:            true,
+	types.EventToolStarted:                  true,
+	types.EventToolProgress:                 true,
+	types.EventToolCompleted:                true,
+	types.EventArtifactManifest:             true,
+	types.EventInputReceived:                true,
+	types.EventSubflowProgress:              true,
+	types.EventSubflowCompleted:             true,
+	types.EventResultFinal:                  true,
+	types.EventResultCancelled:              true,
+	types.EventDiagnosticError:              true,
+	types.EventDiagnosticContextCompression: true,
+	types.EventDiagnosticToolFiltering:      true,
+	types.EventDiagnosticEnvironmentSnapshot: true,
+	types.EventExecutorUpdate:               true,
+	types.EventExecutorUserMessage:          true,
+	types.EventProactiveContextRefresh:      true,
 }
 
 var blockedNodeIDs = map[string]bool{

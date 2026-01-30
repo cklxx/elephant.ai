@@ -15,6 +15,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/logging"
 	jsonrpc "alex/internal/mcp"
 	"alex/internal/tools/builtin/shared"
@@ -199,7 +200,7 @@ func (h *acpExecutorHandler) emitSummaryEvent(summary string, attachments map[st
 		payload["attachments"] = attachments
 	}
 	nodeID := fmt.Sprintf("executor-summary-%d", time.Now().UnixNano())
-	h.emitEnvelope("workflow.node.output.summary", "generation", nodeID, payload)
+	h.emitEnvelope(types.EventNodeOutputSummary, "generation", nodeID, payload)
 }
 
 func (h *acpExecutorHandler) emitFallbackManifestEvent() {
@@ -210,7 +211,7 @@ func (h *acpExecutorHandler) emitFallbackManifestEvent() {
 	if payload == nil {
 		return
 	}
-	h.emitEnvelope("workflow.artifact.manifest", "artifact", "artifact-manifest-fallback", payload)
+	h.emitEnvelope(types.EventArtifactManifest, "artifact", "artifact-manifest-fallback", payload)
 }
 
 func buildFallbackManifest(attachments map[string]ports.Attachment) map[string]any {
@@ -260,7 +261,7 @@ func (h *acpExecutorHandler) handleAgentMessage(update map[string]any) {
 		h.mu.Lock()
 		h.textBuffer.WriteString(text)
 		h.mu.Unlock()
-		h.emitEnvelope("workflow.node.output.delta", "generation", "executor-output", map[string]any{
+		h.emitEnvelope(types.EventNodeOutputDelta, "generation", "executor-output", map[string]any{
 			"delta": text,
 			"final": false,
 		})
@@ -290,7 +291,7 @@ func (h *acpExecutorHandler) handleUserMessage(update map[string]any) {
 		payload["attachments"] = attachments
 	}
 	nodeID := fmt.Sprintf("executor-user-%d", time.Now().UnixNano())
-	h.emitEnvelope("workflow.executor.user_message", "executor", nodeID, payload)
+	h.emitEnvelope(types.EventExecutorUserMessage, "executor", nodeID, payload)
 }
 
 func (h *acpExecutorHandler) handleToolCall(update map[string]any) {
@@ -323,7 +324,7 @@ func (h *acpExecutorHandler) handleToolCall(update map[string]any) {
 		"arguments": rawInput,
 		"iteration": 0,
 	}
-	h.emitEnvelope("workflow.tool.started", "tool", callID, payload)
+	h.emitEnvelope(types.EventToolStarted, "tool", callID, payload)
 }
 
 func (h *acpExecutorHandler) handleToolCallUpdate(update map[string]any) {
@@ -380,7 +381,7 @@ func (h *acpExecutorHandler) handleToolCallUpdate(update map[string]any) {
 			"call_id": callID,
 			"chunk":   chunk,
 		}
-		h.emitEnvelope("workflow.tool.progress", "tool", callID, payload)
+		h.emitEnvelope(types.EventToolProgress, "tool", callID, payload)
 	default:
 		result := strings.TrimSpace(rawOutput)
 		if result == "" && len(textChunks) > 0 {
@@ -402,7 +403,7 @@ func (h *acpExecutorHandler) handleToolCallUpdate(update map[string]any) {
 		if len(attachments) > 0 {
 			payload["attachments"] = attachments
 		}
-		h.emitEnvelope("workflow.tool.completed", "tool", callID, payload)
+		h.emitEnvelope(types.EventToolCompleted, "tool", callID, payload)
 		h.handleArtifactManifest(toolName, result, attachments)
 	}
 }
@@ -438,7 +439,7 @@ func (h *acpExecutorHandler) handlePlanUpdate(update map[string]any) {
 			"entries": entries,
 		},
 	}
-	h.emitEnvelope("workflow.tool.completed", "tool", callID, payload)
+	h.emitEnvelope(types.EventToolCompleted, "tool", callID, payload)
 }
 
 func (h *acpExecutorHandler) handleArtifactManifest(toolName, result string, attachments map[string]ports.Attachment) {
@@ -457,7 +458,7 @@ func (h *acpExecutorHandler) handleArtifactManifest(toolName, result string, att
 	h.manifest = manifest
 	h.mu.Unlock()
 
-	h.emitEnvelope("workflow.artifact.manifest", "artifact", "artifact-manifest", manifest)
+	h.emitEnvelope(types.EventArtifactManifest, "artifact", "artifact-manifest", manifest)
 }
 
 func (h *acpExecutorHandler) cancelRemote(sessionID string) {
@@ -508,7 +509,7 @@ func (h *acpExecutorHandler) recordUpdate(params map[string]any, updateType stri
 		"update":      update,
 	}
 	nodeID := fmt.Sprintf("executor-update-%d", time.Now().UnixNano())
-	h.emitEnvelope("workflow.executor.update", "diagnostic", nodeID, payload)
+	h.emitEnvelope(types.EventExecutorUpdate, "diagnostic", nodeID, payload)
 }
 
 func (h *acpExecutorHandler) updateSummary() map[string]int {

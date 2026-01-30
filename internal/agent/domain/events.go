@@ -7,6 +7,7 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports/storage"
+	"alex/internal/agent/types"
 	"alex/internal/utils/id"
 	"alex/internal/workflow"
 )
@@ -111,7 +112,7 @@ type WorkflowInputReceivedEvent struct {
 	Attachments map[string]ports.Attachment
 }
 
-func (e *WorkflowInputReceivedEvent) EventType() string { return "workflow.input.received" }
+func (e *WorkflowInputReceivedEvent) EventType() string { return types.EventInputReceived }
 
 // GetAttachments exposes input attachments for attachment-aware listeners.
 func (e *WorkflowInputReceivedEvent) GetAttachments() map[string]ports.Attachment {
@@ -149,7 +150,7 @@ type WorkflowNodeStartedEvent struct {
 	Workflow        *workflow.WorkflowSnapshot
 }
 
-func (e *WorkflowNodeStartedEvent) EventType() string { return "workflow.node.started" }
+func (e *WorkflowNodeStartedEvent) EventType() string { return types.EventNodeStarted }
 
 // WorkflowNodeOutputDeltaEvent - emitted when LLM is generating response or streaming content
 type WorkflowNodeOutputDeltaEvent struct {
@@ -162,7 +163,7 @@ type WorkflowNodeOutputDeltaEvent struct {
 	SourceModel  string
 }
 
-func (e *WorkflowNodeOutputDeltaEvent) EventType() string { return "workflow.node.output.delta" }
+func (e *WorkflowNodeOutputDeltaEvent) EventType() string { return types.EventNodeOutputDelta }
 
 // WorkflowNodeOutputSummaryEvent - emitted when an LLM response finishes
 type WorkflowNodeOutputSummaryEvent struct {
@@ -173,7 +174,7 @@ type WorkflowNodeOutputSummaryEvent struct {
 	Metadata      map[string]any
 }
 
-func (e *WorkflowNodeOutputSummaryEvent) EventType() string { return "workflow.node.output.summary" }
+func (e *WorkflowNodeOutputSummaryEvent) EventType() string { return types.EventNodeOutputSummary }
 
 // WorkflowLifecycleUpdatedEvent mirrors raw workflow transitions so consumers can render
 // timeline updates without inferring state from step events alone.
@@ -186,7 +187,7 @@ type WorkflowLifecycleUpdatedEvent struct {
 	Workflow          *workflow.WorkflowSnapshot
 }
 
-func (e *WorkflowLifecycleUpdatedEvent) EventType() string { return "workflow.lifecycle.updated" }
+func (e *WorkflowLifecycleUpdatedEvent) EventType() string { return types.EventLifecycleUpdated }
 
 // WorkflowNodeCompletedEvent - emitted when a workflow node finishes (step or iteration)
 type WorkflowNodeCompletedEvent struct {
@@ -202,7 +203,7 @@ type WorkflowNodeCompletedEvent struct {
 	Workflow        *workflow.WorkflowSnapshot
 }
 
-func (e *WorkflowNodeCompletedEvent) EventType() string { return "workflow.node.completed" }
+func (e *WorkflowNodeCompletedEvent) EventType() string { return types.EventNodeCompleted }
 
 // WorkflowToolStartedEvent - emitted when tool execution begins
 type WorkflowToolStartedEvent struct {
@@ -213,7 +214,7 @@ type WorkflowToolStartedEvent struct {
 	Arguments map[string]interface{}
 }
 
-func (e *WorkflowToolStartedEvent) EventType() string { return "workflow.tool.started" }
+func (e *WorkflowToolStartedEvent) EventType() string { return types.EventToolStarted }
 
 // WorkflowToolProgressEvent - emitted during tool execution (for streaming tools)
 type WorkflowToolProgressEvent struct {
@@ -223,7 +224,7 @@ type WorkflowToolProgressEvent struct {
 	IsComplete bool
 }
 
-func (e *WorkflowToolProgressEvent) EventType() string { return "workflow.tool.progress" }
+func (e *WorkflowToolProgressEvent) EventType() string { return types.EventToolProgress }
 
 // WorkflowToolCompletedEvent - emitted when tool execution finishes
 type WorkflowToolCompletedEvent struct {
@@ -237,7 +238,7 @@ type WorkflowToolCompletedEvent struct {
 	Attachments map[string]ports.Attachment
 }
 
-func (e *WorkflowToolCompletedEvent) EventType() string { return "workflow.tool.completed" }
+func (e *WorkflowToolCompletedEvent) EventType() string { return types.EventToolCompleted }
 
 // GetAttachments exposes tool result attachments for attachment-aware listeners.
 func (e *WorkflowToolCompletedEvent) GetAttachments() map[string]ports.Attachment {
@@ -262,7 +263,7 @@ type WorkflowResultFinalEvent struct {
 	Attachments    map[string]ports.Attachment
 }
 
-func (e *WorkflowResultFinalEvent) EventType() string { return "workflow.result.final" }
+func (e *WorkflowResultFinalEvent) EventType() string { return types.EventResultFinal }
 
 // GetAttachments exposes final-result attachments for attachment-aware listeners.
 func (e *WorkflowResultFinalEvent) GetAttachments() map[string]ports.Attachment {
@@ -276,7 +277,7 @@ type WorkflowResultCancelledEvent struct {
 	RequestedBy string
 }
 
-func (e *WorkflowResultCancelledEvent) EventType() string { return "workflow.result.cancelled" }
+func (e *WorkflowResultCancelledEvent) EventType() string { return types.EventResultCancelled }
 
 // NewWorkflowResultCancelledEvent constructs a cancellation notification event for SSE consumers.
 func NewWorkflowResultCancelledEvent(
@@ -301,7 +302,7 @@ type WorkflowNodeFailedEvent struct {
 	Recoverable bool
 }
 
-func (e *WorkflowNodeFailedEvent) EventType() string { return "workflow.node.failed" }
+func (e *WorkflowNodeFailedEvent) EventType() string { return types.EventNodeFailed }
 
 // WorkflowPreAnalysisEmojiEvent - emitted when pre-analysis determines a react emoji
 type WorkflowPreAnalysisEmojiEvent struct {
@@ -310,7 +311,7 @@ type WorkflowPreAnalysisEmojiEvent struct {
 }
 
 func (e *WorkflowPreAnalysisEmojiEvent) EventType() string {
-	return "workflow.diagnostic.preanalysis_emoji"
+	return types.EventDiagnosticPreanalysisEmoji
 }
 
 // NewWorkflowPreAnalysisEmojiEvent constructs a pre-analysis emoji event.
@@ -335,7 +336,7 @@ type WorkflowDiagnosticContextCompressionEvent struct {
 }
 
 func (e *WorkflowDiagnosticContextCompressionEvent) EventType() string {
-	return "workflow.diagnostic.context_compression"
+	return types.EventDiagnosticContextCompression
 }
 
 // NewWorkflowDiagnosticContextCompressionEvent creates a new context compression event
@@ -363,7 +364,7 @@ type WorkflowDiagnosticContextSnapshotEvent struct {
 }
 
 func (e *WorkflowDiagnosticContextSnapshotEvent) EventType() string {
-	return "workflow.diagnostic.context_snapshot"
+	return types.EventDiagnosticContextSnapshot
 }
 
 // NewWorkflowDiagnosticContextSnapshotEvent creates an immutable snapshot of the LLM context payload.
@@ -397,7 +398,7 @@ type WorkflowDiagnosticToolFilteringEvent struct {
 }
 
 func (e *WorkflowDiagnosticToolFilteringEvent) EventType() string {
-	return "workflow.diagnostic.tool_filtering"
+	return types.EventDiagnosticToolFiltering
 }
 
 // NewWorkflowDiagnosticToolFilteringEvent creates a new tool filtering event
@@ -424,7 +425,7 @@ type WorkflowDiagnosticEnvironmentSnapshotEvent struct {
 }
 
 func (e *WorkflowDiagnosticEnvironmentSnapshotEvent) EventType() string {
-	return "workflow.diagnostic.environment_snapshot"
+	return types.EventDiagnosticEnvironmentSnapshot
 }
 
 // NewWorkflowDiagnosticEnvironmentSnapshotEvent constructs a new environment snapshot event.
@@ -444,7 +445,7 @@ type ProactiveContextRefreshEvent struct {
 }
 
 func (e *ProactiveContextRefreshEvent) EventType() string {
-	return "proactive.context.refresh"
+	return types.EventProactiveContextRefresh
 }
 
 func cloneStringMap(values map[string]string) map[string]string {
@@ -518,7 +519,7 @@ type BackgroundTaskDispatchedEvent struct {
 }
 
 func (e *BackgroundTaskDispatchedEvent) EventType() string {
-	return "background.task.dispatched"
+	return types.EventBackgroundTaskDispatched
 }
 
 // BackgroundTaskCompletedEvent is emitted when a background task finishes.
@@ -535,7 +536,7 @@ type BackgroundTaskCompletedEvent struct {
 }
 
 func (e *BackgroundTaskCompletedEvent) EventType() string {
-	return "background.task.completed"
+	return types.EventBackgroundTaskCompleted
 }
 
 // EventListenerFunc is a function adapter for EventListener

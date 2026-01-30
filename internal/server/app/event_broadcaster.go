@@ -9,6 +9,7 @@ import (
 	"alex/internal/agent/domain"
 	core "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/logging"
 	serverports "alex/internal/server/ports"
 	id "alex/internal/utils/id"
@@ -46,7 +47,7 @@ type EventBroadcaster struct {
 }
 
 const (
-	assistantMessageEventType = "workflow.node.output.delta"
+	assistantMessageEventType = types.EventNodeOutputDelta
 	assistantMessageLogBatch  = 10
 	globalHighVolumeSessionID = "__global__"
 )
@@ -194,15 +195,15 @@ func (b *EventBroadcaster) updateTaskProgress(event agent.AgentEvent) {
 	case *domain.WorkflowEventEnvelope:
 		iter := intFromPayload(e.Payload, "iteration")
 		switch e.EventType() {
-		case "workflow.node.started":
+		case types.EventNodeStarted:
 			task, err := b.taskStore.Get(ctx, taskID)
 			if err == nil {
 				_ = b.taskStore.UpdateProgress(ctx, taskID, iter, task.TokensUsed)
 			}
-		case "workflow.node.completed":
+		case types.EventNodeCompleted:
 			tokens := intFromPayload(e.Payload, "tokens_used")
 			_ = b.taskStore.UpdateProgress(ctx, taskID, iter, tokens)
-		case "workflow.result.final":
+		case types.EventResultFinal:
 			totalIters := intFromPayload(e.Payload, "total_iterations")
 			totalTokens := intFromPayload(e.Payload, "total_tokens")
 			_ = b.taskStore.UpdateProgress(ctx, taskID, totalIters, totalTokens)
@@ -276,7 +277,7 @@ func isCriticalEvent(event agent.AgentEvent) bool {
 		return false
 	}
 	switch event.EventType() {
-	case "workflow.result.final", "workflow.result.cancelled":
+	case types.EventResultFinal, types.EventResultCancelled:
 		return true
 	default:
 		return false
@@ -600,9 +601,9 @@ func shouldDropHistoryEnvelope(evt *domain.WorkflowEventEnvelope) bool {
 		return false
 	}
 	switch evt.Event {
-	case "workflow.node.output.delta", "workflow.tool.progress":
+	case types.EventNodeOutputDelta, types.EventToolProgress:
 		return true
-	case "workflow.result.final":
+	case types.EventResultFinal:
 		return isStreamingHistoryEnvelope(evt.Payload)
 	default:
 		return false

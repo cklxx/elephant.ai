@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/logging"
 	"alex/internal/observability"
 	"alex/internal/server/app"
@@ -135,7 +136,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 		if isDelegationToolEvent(event) {
 			switch event.EventType() {
-			case "workflow.tool.started", "workflow.tool.completed":
+			case types.EventToolStarted, types.EventToolCompleted:
 				// Allow delegation tool anchors to reach the frontend.
 			default:
 				return true
@@ -320,7 +321,7 @@ func isDelegationToolEvent(event agent.AgentEvent) bool {
 	}
 
 	switch env.Event {
-	case "workflow.tool.started", "workflow.tool.progress", "workflow.tool.completed":
+	case types.EventToolStarted, types.EventToolProgress, types.EventToolCompleted:
 	default:
 		return false
 	}
