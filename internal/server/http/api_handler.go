@@ -3,6 +3,7 @@ package http
 import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
+	"alex/internal/memory"
 	"alex/internal/observability"
 	"alex/internal/sandbox"
 	"alex/internal/server/app"
@@ -26,6 +27,7 @@ type APIHandler struct {
 	sandboxClient         *sandbox.Client
 	maxCreateTaskBodySize int64
 	selectionResolver     *subscription.SelectionResolver
+	memoryService         memory.Service
 }
 
 // APIHandlerOption configures API handler behavior.
@@ -80,6 +82,13 @@ func WithMaxCreateTaskBodySize(limit int64) APIHandlerOption {
 func WithDevMode(enabled bool) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.devMode = enabled
+	}
+}
+
+// WithMemoryService wires a memory service for dev memory query endpoints.
+func WithMemoryService(svc memory.Service) APIHandlerOption {
+	return func(handler *APIHandler) {
+		handler.memoryService = svc
 	}
 }
 

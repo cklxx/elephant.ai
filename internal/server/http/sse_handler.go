@@ -1,9 +1,9 @@
 package http
 
 import (
-	"alex/internal/presentation/formatter"
 	"alex/internal/logging"
 	"alex/internal/observability"
+	"alex/internal/presentation/formatter"
 	"alex/internal/server/app"
 )
 
@@ -37,6 +37,7 @@ var sseAllowlist = map[string]bool{
 	"workflow.diagnostic.environment_snapshot": true,
 	"workflow.executor.update":                 true,
 	"workflow.executor.user_message":           true,
+	"proactive.context.refresh":                true,
 }
 
 var blockedNodeIDs = map[string]bool{

@@ -3,16 +3,16 @@ package shared
 import (
 	"context"
 
-	agent "alex/internal/agent/ports/agent"
+	id "alex/internal/utils/id"
 )
 
 // WithSessionID adds a session ID to the context using the shared SessionContextKey
 func WithSessionID(ctx context.Context, sessionID string) context.Context {
-	return context.WithValue(ctx, agent.SessionContextKey{}, sessionID)
+	return context.WithValue(ctx, id.SessionContextKey{}, sessionID)
 }
 
 // GetSessionID retrieves the session ID from the context
 func GetSessionID(ctx context.Context) (string, bool) {
-	sessionID, ok := ctx.Value(agent.SessionContextKey{}).(string)
+	sessionID, ok := ctx.Value(id.SessionContextKey{}).(string)
 	return sessionID, ok
 }

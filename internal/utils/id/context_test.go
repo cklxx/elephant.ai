@@ -41,7 +41,7 @@ func TestWithIDsAndFromContext(t *testing.T) {
 		t.Fatalf("expected causation %s, got %s", ids.CausationID, got.CausationID)
 	}
 
-	// Ensure compatibility with agent.SessionContextKey lookup
+	// Ensure compatibility with SessionContextKey lookup
 	if compat := SessionIDFromContext(ctx); compat != ids.SessionID {
 		t.Fatalf("expected compat session %s, got %s", ids.SessionID, compat)
 	}

@@ -12,6 +12,7 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/agent/presets"
+	id "alex/internal/utils/id"
 )
 
 func TestPresetResolver_ResolveToolRegistry_DefaultBehavior(t *testing.T) {
@@ -185,7 +186,7 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}, {Name: "think"}},
 	}
 
-	ctx := context.WithValue(context.Background(), agent.SessionContextKey{}, "test-session-123")
+	ctx := context.WithValue(context.Background(), id.SessionContextKey{}, "test-session-123")
 	registry := resolver.ResolveToolRegistry(ctx, baseRegistry, presets.ToolModeCLI, "read-only")
 
 	if len(eventCapturer.events) != 1 {

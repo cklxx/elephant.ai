@@ -10,13 +10,14 @@ import (
 	"alex/internal/auth/domain"
 	"alex/internal/config"
 	"alex/internal/logging"
+	"alex/internal/memory"
 	"alex/internal/observability"
 	"alex/internal/sandbox"
 	"alex/internal/server/app"
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, streamGuard StreamGuardConfig, rateLimit RateLimitConfig, nonStreamTimeout time.Duration, attachmentCfg attachments.StoreConfig) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, streamGuard StreamGuardConfig, rateLimit RateLimitConfig, nonStreamTimeout time.Duration, attachmentCfg attachments.StoreConfig, memoryService memory.Service) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
 	attachmentStore := (*AttachmentStore)(nil)
@@ -48,6 +49,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		WithSandboxClient(sandboxClient),
 		WithDevMode(devMode),
 		WithMaxCreateTaskBodySize(taskBodyLimit),
+		WithMemoryService(memoryService),
 	)
 
 	var authMiddleware func(http.Handler) http.Handler
@@ -72,6 +74,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.Handle("/api/dev/sessions", devSessionHandler)
 		mux.Handle("/api/dev/sessions/", devSessionHandler)
 		mux.Handle("/api/dev/logs", routeHandler("/api/dev/logs", wrap(http.HandlerFunc(apiHandler.HandleDevLogTrace))))
+		mux.Handle("/api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleDevMemory))))
 
 		contextConfigHandler := NewContextConfigHandler("")
 		if contextConfigHandler != nil {

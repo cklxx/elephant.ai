@@ -38,10 +38,6 @@ type ContextManager interface {
 	RecordTurn(ctx context.Context, record ContextTurnRecord) error
 }
 
-// SessionContextKey is the shared context key for storing session IDs across packages.
-// This ensures consistent session ID propagation from server layer to agent layer.
-type SessionContextKey struct{}
-
 // ContextWindowConfig drives context composition behaviour.
 type ContextWindowConfig struct {
 	TokenLimit         int

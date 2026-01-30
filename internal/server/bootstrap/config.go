@@ -68,6 +68,7 @@ type LarkGatewayConfig struct {
 	AppSecret           string
 	BaseDomain          string
 	SessionPrefix       string
+	SessionMode         string
 	ReplyPrefix         string
 	AllowGroups         bool
 	AllowDirect         bool
@@ -151,6 +152,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 				Enabled:             false,
 				BaseDomain:          "https://open.larkoffice.com",
 				SessionPrefix:       "lark",
+				SessionMode:         "stable",
 				AllowGroups:         true,
 				AllowDirect:         true,
 				AgentPreset:         string(presets.PresetDefault),
@@ -276,6 +278,9 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if prefix := strings.TrimSpace(larkCfg.SessionPrefix); prefix != "" {
 			cfg.Channels.Lark.SessionPrefix = prefix
+		}
+		if sessionMode := strings.TrimSpace(larkCfg.SessionMode); sessionMode != "" {
+			cfg.Channels.Lark.SessionMode = sessionMode
 		}
 		if replyPrefix := strings.TrimSpace(larkCfg.ReplyPrefix); replyPrefix != "" {
 			cfg.Channels.Lark.ReplyPrefix = replyPrefix

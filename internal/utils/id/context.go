@@ -1,10 +1,6 @@
 package id
 
-import (
-	"context"
-
-	agent "alex/internal/agent/ports/agent"
-)
+import "context"
 
 type contextKey string
 
@@ -18,6 +14,10 @@ const (
 	causationKey   contextKey = "alex_causation_id"
 )
 
+// SessionContextKey is the shared context key for storing session IDs across packages.
+// This ensures consistent session ID propagation from server layer to agent layer.
+type SessionContextKey struct{}
+
 // IDs captures the identifiers propagated across agent execution boundaries.
 type IDs struct {
 	SessionID     string
@@ -29,13 +29,13 @@ type IDs struct {
 }
 
 // WithSessionID stores the provided session identifier on the context.
-// It also populates the shared SessionContextKey for backward compatibility.
+// It also populates the shared SessionContextKey for cross-package access.
 func WithSessionID(ctx context.Context, sessionID string) context.Context {
 	if sessionID == "" {
 		return ctx
 	}
 	ctx = context.WithValue(ctx, sessionKey, sessionID)
-	ctx = context.WithValue(ctx, agent.SessionContextKey{}, sessionID)
+	ctx = context.WithValue(ctx, SessionContextKey{}, sessionID)
 	return ctx
 }
 
@@ -110,7 +110,7 @@ func SessionIDFromContext(ctx context.Context) string {
 	if sessionID, ok := ctx.Value(sessionKey).(string); ok && sessionID != "" {
 		return sessionID
 	}
-	if sessionID, ok := ctx.Value(agent.SessionContextKey{}).(string); ok {
+	if sessionID, ok := ctx.Value(SessionContextKey{}).(string); ok {
 		return sessionID
 	}
 	return ""

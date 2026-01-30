@@ -138,6 +138,12 @@ func (t *workflowEventTranslator) translate(evt agent.AgentEvent) []*domain.Work
 	case *domain.WorkflowInputReceivedEvent:
 		return t.translateInputEnvelope(evt, e)
 
+	case *domain.ProactiveContextRefreshEvent:
+		return t.singleEnvelope(evt, "proactive.context.refresh", "diagnostic", "", map[string]any{
+			"iteration":         e.Iteration,
+			"memories_injected": e.MemoriesInjected,
+		})
+
 	case agent.SubtaskWrapper:
 		return t.translateSubtaskEvent(e)
 	default:

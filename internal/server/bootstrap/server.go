@@ -212,6 +212,7 @@ func RunServer(observabilityConfigPath string) error {
 		},
 		config.NonStreamTimeout,
 		config.Attachment,
+		container.MemoryService,
 	)
 
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{

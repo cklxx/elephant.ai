@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import { RequireAuth } from "@/components/auth/RequireAuth";
-import { useSessionStore } from "@/hooks/useSessionStore";
+import { useSessionStore, useSessions } from "@/hooks/useSessionStore";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse } from "@/lib/api";
+import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse, type MemoryEntry } from "@/lib/api";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +50,7 @@ const EVENT_TYPES: Array<WorkflowEventType | "connected"> = [
   "workflow.diagnostic.tool_filtering",
   "workflow.diagnostic.environment_snapshot",
   "workflow.diagnostic.context_snapshot",
+  "proactive.context.refresh",
 ];
 
 const DEFAULT_MAX_EVENTS = 2000;
@@ -606,6 +607,145 @@ function RunTreeView({
   );
 }
 
+const SOURCE_BADGE_VARIANTS: Record<string, { variant: "default" | "secondary" | "outline" | "destructive"; label: string }> = {
+  proactive_context: { variant: "default", label: "Memory" },
+  user_input: { variant: "secondary", label: "User" },
+  system_prompt: { variant: "outline", label: "System" },
+  user_history: { variant: "outline", label: "History" },
+};
+
+function sourceBadgeFor(source: string | undefined, role: string | undefined) {
+  if (source && SOURCE_BADGE_VARIANTS[source]) {
+    return SOURCE_BADGE_VARIANTS[source];
+  }
+  if (role === "assistant") return { variant: "secondary" as const, label: "Assistant" };
+  if (role === "user") return { variant: "secondary" as const, label: "User" };
+  if (role === "system") return { variant: "outline" as const, label: "System" };
+  return { variant: "outline" as const, label: source || role || "unknown" };
+}
+
+/** Rough token estimate: ~4 chars/token for ASCII, ~1.5 chars/token for CJK. */
+function estimateTokens(text: string): number {
+  if (!text) return 0;
+  let asciiChars = 0;
+  let cjkChars = 0;
+  for (const ch of text) {
+    const code = ch.codePointAt(0) ?? 0;
+    if (code > 0x2e80) {
+      cjkChars++;
+    } else {
+      asciiChars++;
+    }
+  }
+  return Math.ceil(asciiChars / 4 + cjkChars / 1.5);
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function TurnMessagesViewer({
+  turnSnapshot,
+  sessionChannel,
+}: {
+  turnSnapshot: Record<string, unknown>;
+  sessionChannel: string | null;
+}) {
+  const messages = Array.isArray(turnSnapshot.messages)
+    ? (turnSnapshot.messages as Array<Record<string, unknown>>)
+    : [];
+
+  const tokenStats = useMemo(() => {
+    let cumulative = 0;
+    return messages.map((msg) => {
+      const content = typeof msg.content === "string" ? msg.content : "";
+      const toolCalls = Array.isArray(msg.tool_calls)
+        ? JSON.stringify(msg.tool_calls).length
+        : 0;
+      const toolResults = Array.isArray(msg.tool_results)
+        ? JSON.stringify(msg.tool_results).length
+        : 0;
+      const tokens = estimateTokens(content) + Math.ceil(toolCalls / 4) + Math.ceil(toolResults / 4);
+      cumulative += tokens;
+      return { tokens, cumulative };
+    });
+  }, [messages]);
+
+  const totalTokens = tokenStats.length > 0 ? tokenStats[tokenStats.length - 1].cumulative : 0;
+
+  if (messages.length === 0) {
+    return <p className="text-xs text-muted-foreground">No messages in turn snapshot.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <Badge variant="outline">Messages: {messages.length}</Badge>
+        <Badge variant="outline">~{formatTokens(totalTokens)} tokens (est.)</Badge>
+      </div>
+      <ScrollArea className="h-[400px]">
+        <div className="space-y-1 pr-3">
+          {messages.map((msg, idx) => {
+            const role = typeof msg.role === "string" ? msg.role : undefined;
+            const source = typeof msg.source === "string" ? msg.source : undefined;
+            const content = typeof msg.content === "string" ? msg.content : "";
+            const badge = sourceBadgeFor(source, role);
+            const isLarkUser = sessionChannel === "lark" && role === "user" && source !== "proactive_context";
+            const stats = tokenStats[idx];
+
+            return (
+              <details
+                key={`turn-msg-${idx}`}
+                className="rounded-md border border-border/60 bg-muted/10"
+              >
+                <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-xs">
+                  <Badge
+                    variant={badge.variant}
+                    className={cn(
+                      "text-[10px]",
+                      source === "proactive_context" && "bg-purple-100 text-purple-800 border-purple-200",
+                    )}
+                  >
+                    {badge.label}
+                  </Badge>
+                  {isLarkUser && (
+                    <Badge variant="outline" className="text-[10px] border-blue-200 text-blue-700">
+                      Lark
+                    </Badge>
+                  )}
+                  {role && <span className="text-muted-foreground">[{role}]</span>}
+                  <span className="text-[10px] text-muted-foreground/70 whitespace-nowrap">
+                    ~{formatTokens(stats.tokens)}t / {formatTokens(stats.cumulative)} cum
+                  </span>
+                  <span className="truncate text-foreground/80">
+                    {content.slice(0, 100)}{content.length > 100 ? "..." : ""}
+                  </span>
+                </summary>
+                <div className="border-t border-border/40 px-3 py-2">
+                  <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+                    {content || "(empty)"}
+                  </pre>
+                  {Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0 && (
+                    <div className="mt-2">
+                      <JsonNode label="tool_calls" value={msg.tool_calls as unknown[]} depth={0} />
+                    </div>
+                  )}
+                  {Array.isArray(msg.tool_results) && msg.tool_results.length > 0 && (
+                    <div className="mt-2">
+                      <JsonNode label="tool_results" value={msg.tool_results as unknown[]} depth={0} />
+                    </div>
+                  )}
+                </div>
+              </details>
+            );
+          })}
+        </div>
+      </ScrollArea>
+    </div>
+  );
+}
+
 export default function ConversationDebugPage() {
   const [sessionIdInput, setSessionIdInput] = useState("");
   const [replayMode, setReplayMode] = useState<SSEReplayMode>("full");
@@ -635,8 +775,19 @@ export default function ConversationDebugPage() {
   const [logTraceError, setLogTraceError] = useState<string | null>(null);
   const [logTraceLoading, setLogTraceLoading] = useState(false);
   const [llmDetailCache, setLlmDetailCache] = useState<LLMDetailCache>(new Map());
+  const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
+  const [memoryLoading, setMemoryLoading] = useState(false);
+  const [memoryError, setMemoryError] = useState<string | null>(null);
 
   const { currentSessionId, sessionHistory } = useSessionStore();
+  const { data: sessionsData } = useSessions();
+
+  const larkSessions = useMemo(() => {
+    if (!sessionsData?.sessions) return [];
+    return sessionsData.sessions
+      .filter((s) => s.id.startsWith("lark-"))
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  }, [sessionsData]);
 
   const eventSourceRef = useRef<EventSource | null>(null);
   const listEndRef = useRef<HTMLDivElement | null>(null);
@@ -979,6 +1130,52 @@ export default function ConversationDebugPage() {
     }
     return messages.length;
   }, [turnSnapshot]);
+
+  // Derive channel from session metadata or session ID prefix heuristic.
+  const sessionChannel = useMemo(() => {
+    const meta = sessionSnapshot?.session as Record<string, unknown> | undefined;
+    const metadata = meta?.metadata as Record<string, string> | undefined;
+    if (metadata?.channel) return metadata.channel;
+    if (sessionId.startsWith("lark-")) return "lark";
+    if (sessionId.startsWith("wechat-")) return "wechat";
+    return null;
+  }, [sessionSnapshot, sessionId]);
+
+  // Extract proactive context messages from the turn snapshot.
+  const proactiveMessages = useMemo(() => {
+    if (!turnSnapshot || typeof turnSnapshot !== "object") return [];
+    const messages = (turnSnapshot as Record<string, unknown>).messages;
+    if (!Array.isArray(messages)) return [];
+    return messages.filter(
+      (msg: Record<string, unknown>) => msg.source === "proactive_context",
+    ) as Array<Record<string, unknown>>;
+  }, [turnSnapshot]);
+
+  // Extract proactive.context.refresh events from the SSE stream.
+  const memoryRefreshEvents = useMemo(() => {
+    return events
+      .filter((e) => e.eventType === "proactive.context.refresh")
+      .map((e) => ({
+        id: e.id,
+        receivedAt: e.receivedAt,
+        payload: e.parsed as Record<string, unknown> | null,
+      }));
+  }, [events]);
+
+  const loadMemoryEntries = useCallback(async () => {
+    if (!sessionId) return;
+    setMemoryLoading(true);
+    setMemoryError(null);
+    try {
+      const entries = await apiClient.getMemoryEntries(sessionId);
+      setMemoryEntries(entries ?? []);
+    } catch (err) {
+      setMemoryError(err instanceof Error ? err.message : "Failed to load memories.");
+    } finally {
+      setMemoryLoading(false);
+    }
+  }, [sessionId]);
+
   const runTree = useMemo((): RunTree => {
     const nodeMap = new Map<string, RunNode>();
     let totalDurationMs: number | null = null;
@@ -1250,6 +1447,11 @@ export default function ConversationDebugPage() {
                 {sessionId && (
                   <Badge variant="outline">Session: {sessionId}</Badge>
                 )}
+                {sessionChannel && (
+                  <Badge variant={sessionChannel === "lark" ? "default" : "secondary"}>
+                    Channel: {sessionChannel}
+                  </Badge>
+                )}
                 <Badge variant="outline">Replay: {replayMode}</Badge>
                 <Badge variant="outline">Events: {events.length}</Badge>
                 <Badge variant="outline">
@@ -1316,6 +1518,31 @@ export default function ConversationDebugPage() {
                 </Button>
               </div>
             </div>
+
+            {larkSessions.length > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <p className="text-xs font-semibold text-muted-foreground whitespace-nowrap">Lark Sessions</p>
+                <select
+                  value={larkSessions.some((s) => s.id === sessionIdInput) ? sessionIdInput : ""}
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      setSessionIdInput(event.target.value);
+                    }
+                  }}
+                  className="h-8 min-w-[260px] max-w-md rounded-md border border-input bg-background px-2 text-xs shadow-sm"
+                >
+                  <option value="">-- Pick a Lark session --</option>
+                  {larkSessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.id}{s.title ? ` — ${s.title}` : ""} ({new Date(s.updated_at).toLocaleString()})
+                    </option>
+                  ))}
+                </select>
+                <Badge variant="outline" className="text-[10px]">
+                  {larkSessions.length} Lark
+                </Badge>
+              </div>
+            )}
 
             {error && (
               <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
@@ -1605,6 +1832,174 @@ export default function ConversationDebugPage() {
                       {sessionId
                         ? "No turn snapshots found yet."
                         : "Enter a session ID to load the latest turn snapshot."}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Memory</CardTitle>
+                  <CardDescription>
+                    Proactive memory: recalled context injected into the LLM, refresh events, and stored entries.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Section A: Recalled memories from turn snapshot */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground">
+                      Recalled memories (turn snapshot)
+                    </p>
+                    {proactiveMessages.length > 0 ? (
+                      <div className="space-y-1">
+                        <Badge variant="outline">{proactiveMessages.length} memories recalled</Badge>
+                        {proactiveMessages.map((msg, idx) => {
+                          const content = typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content);
+                          return (
+                            <details
+                              key={`proactive-msg-${idx}`}
+                              className="rounded-md border border-border/60 bg-muted/10"
+                            >
+                              <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-foreground">
+                                Memory #{idx + 1}
+                                <span className="ml-2 text-muted-foreground">
+                                  {content.slice(0, 80)}{content.length > 80 ? "..." : ""}
+                                </span>
+                              </summary>
+                              <div className="border-t border-border/40 px-3 py-2">
+                                <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+                                  {content}
+                                </pre>
+                              </div>
+                            </details>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No proactive context in current turn.</p>
+                    )}
+                  </div>
+
+                  {/* Section B: Memory refresh events from SSE */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground">
+                      Memory refresh events (SSE stream)
+                    </p>
+                    {memoryRefreshEvents.length > 0 ? (
+                      <div className="space-y-1">
+                        {memoryRefreshEvents.map((evt) => {
+                          const payload = evt.payload?.payload as Record<string, unknown> | undefined;
+                          return (
+                            <div
+                              key={evt.id}
+                              className="flex items-center gap-2 rounded border border-border/40 bg-muted/20 px-2 py-1 text-xs"
+                            >
+                              <Badge variant="secondary" className="text-[10px]">refresh</Badge>
+                              <span>iteration: {String(payload?.iteration ?? "—")}</span>
+                              <span>memories: {String(payload?.memories_injected ?? "—")}</span>
+                              <span className="text-muted-foreground">
+                                {formatTimestamp(evt.receivedAt)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No memory refresh events captured.</p>
+                    )}
+                  </div>
+
+                  {/* Section C: Memory store entries from API */}
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold text-muted-foreground">
+                      Memory store
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => void loadMemoryEntries()}
+                        disabled={!sessionId || memoryLoading}
+                      >
+                        Load memories
+                      </Button>
+                      {memoryLoading && <Badge variant="warning">Loading</Badge>}
+                      {memoryEntries.length > 0 && (
+                        <Badge variant="outline">{memoryEntries.length} entries</Badge>
+                      )}
+                    </div>
+                    {memoryError && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                        {memoryError}
+                      </div>
+                    )}
+                    {memoryEntries.length > 0 && (
+                      <ScrollArea className="h-[300px]">
+                        <div className="space-y-2 pr-3">
+                          {memoryEntries.map((entry) => (
+                            <details
+                              key={entry.key}
+                              className="rounded-md border border-border/60 bg-muted/10"
+                            >
+                              <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-xs">
+                                <div className="flex min-w-0 items-center gap-2">
+                                  <span className="font-medium text-foreground">
+                                    {entry.content.slice(0, 60)}{entry.content.length > 60 ? "..." : ""}
+                                  </span>
+                                  {entry.slots?.type && (
+                                    <Badge variant="secondary" className="text-[10px]">
+                                      {entry.slots.type}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <span className="whitespace-nowrap text-muted-foreground">
+                                  {entry.created_at ? formatTimestamp(entry.created_at) : "—"}
+                                </span>
+                              </summary>
+                              <div className="space-y-2 border-t border-border/40 px-3 py-2">
+                                <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+                                  {entry.content}
+                                </pre>
+                                {entry.keywords && entry.keywords.length > 0 && (
+                                  <div className="flex flex-wrap gap-1">
+                                    {entry.keywords.map((kw) => (
+                                      <Badge key={kw} variant="outline" className="text-[10px]">
+                                        {kw}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                                {entry.slots && Object.keys(entry.slots).length > 0 && (
+                                  <div className="text-[11px] text-muted-foreground">
+                                    Slots: {Object.entries(entry.slots).map(([k, v]) => `${k}=${v}`).join(", ")}
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-base">Turn messages</CardTitle>
+                  <CardDescription>
+                    Messages from the latest turn snapshot with source badges.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {turnSnapshot ? (
+                    <TurnMessagesViewer
+                      turnSnapshot={turnSnapshot}
+                      sessionChannel={sessionChannel}
+                    />
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-border/60 px-4 py-6 text-center text-sm text-muted-foreground">
+                      No turn snapshot available.
                     </div>
                   )}
                 </CardContent>

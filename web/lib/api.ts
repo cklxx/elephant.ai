@@ -503,6 +503,29 @@ export async function getLogTrace(logId: string): Promise<LogTraceBundle> {
   );
 }
 
+// Dev memory query
+
+export type MemoryEntry = {
+  key: string;
+  user_id: string;
+  content: string;
+  keywords: string[];
+  slots: Record<string, string>;
+  terms?: string[];
+  created_at: string;
+};
+
+export async function getMemoryEntries(
+  sessionId: string,
+  limit = 20,
+): Promise<MemoryEntry[]> {
+  const params = new URLSearchParams({
+    session_id: sessionId,
+    limit: String(limit),
+  });
+  return fetchAPI<MemoryEntry[]>(`/api/dev/memory?${params.toString()}`);
+}
+
 // SSE Connection
 
 export type SSEReplayMode = "full" | "session" | "none";
@@ -562,6 +585,7 @@ export const apiClient = {
   getSessionTurnSnapshot,
   deleteSession,
   getLogTrace,
+  getMemoryEntries,
   createSessionShare,
   getSharedSession,
   getContextWindowPreview,

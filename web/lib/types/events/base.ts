@@ -23,7 +23,8 @@ export type WorkflowEventType =
   | 'workflow.diagnostic.context_compression'
   | 'workflow.diagnostic.tool_filtering'
   | 'workflow.diagnostic.environment_snapshot'
-  | 'workflow.diagnostic.context_snapshot';
+  | 'workflow.diagnostic.context_snapshot'
+  | 'proactive.context.refresh';
 
 export type WorkflowLifecycleUpdatedEventType =
   | 'node_added'
