@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -74,15 +73,9 @@ Rules:
 }
 
 func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	runID, ok := call.Arguments["run_id"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'run_id'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		err := fmt.Errorf("run_id cannot be empty")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	runID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "run_id")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	expected := strings.TrimSpace(id.RunIDFromContext(ctx))
@@ -96,26 +89,14 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		}, nil
 	}
 
-	taskID, ok := call.Arguments["task_id"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'task_id'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	taskID = strings.TrimSpace(taskID)
-	if taskID == "" {
-		err := fmt.Errorf("task_id cannot be empty")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	taskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_id")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	taskGoalUI, ok := call.Arguments["task_goal_ui"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'task_goal_ui'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	taskGoalUI = strings.TrimSpace(taskGoalUI)
-	if taskGoalUI == "" {
-		err := fmt.Errorf("task_goal_ui cannot be empty")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	taskGoalUI, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_goal_ui")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	branchID := ""
@@ -123,8 +104,7 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		if value, ok := raw.(string); ok {
 			branchID = strings.TrimSpace(value)
 		} else if raw != nil {
-			err := fmt.Errorf("branch_id must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "branch_id must be a string")
 		}
 	}
 
@@ -132,8 +112,7 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	if raw, exists := call.Arguments["success_criteria"]; exists {
 		arr, ok := raw.([]any)
 		if !ok {
-			err := fmt.Errorf("success_criteria must be an array of strings")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "success_criteria must be an array of strings")
 		}
 		for _, item := range arr {
 			text, ok := item.(string)
@@ -152,8 +131,7 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	if raw, exists := call.Arguments["needs_user_input"]; exists {
 		value, ok := raw.(bool)
 		if !ok {
-			err := fmt.Errorf("needs_user_input must be a boolean")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "needs_user_input must be a boolean")
 		}
 		needsUserInput = value
 	}
@@ -163,13 +141,11 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		if value, ok := raw.(string); ok {
 			questionToUser = strings.TrimSpace(value)
 		} else if raw != nil {
-			err := fmt.Errorf("question_to_user must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "question_to_user must be a string")
 		}
 	}
 	if needsUserInput && questionToUser == "" {
-		err := fmt.Errorf("question_to_user is required when needs_user_input=true")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "question_to_user is required when needs_user_input=true")
 	}
 
 	// Reject unexpected parameters to keep the protocol strict.
@@ -177,8 +153,7 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		switch key {
 		case "run_id", "branch_id", "task_id", "task_goal_ui", "success_criteria", "needs_user_input", "question_to_user":
 		default:
-			err := fmt.Errorf("unsupported parameter: %s", key)
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
 	}
 

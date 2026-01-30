@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"alex/internal/agent/ports"
 	"alex/internal/jsonx"
 )
 
@@ -249,4 +250,26 @@ func PreviewProfile(mediaType, format string) string {
 		return "document.image"
 	}
 	return "document"
+}
+
+// ToolError constructs a failed ToolResult from a formatted error message.
+func ToolError(callID string, format string, args ...any) (*ports.ToolResult, error) {
+	err := fmt.Errorf(format, args...)
+	return &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}, nil
+}
+
+// RequireStringArg extracts a required non-empty string argument, returning a
+// ToolResult error if the argument is missing, not a string, or blank.
+func RequireStringArg(args map[string]any, callID, key string) (string, *ports.ToolResult) {
+	raw, ok := args[key].(string)
+	if !ok {
+		err := fmt.Errorf("missing '%s'", key)
+		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+	}
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		err := fmt.Errorf("%s cannot be empty", key)
+		return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
+	}
+	return trimmed, nil
 }

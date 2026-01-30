@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"alex/internal/agent/ports"
@@ -50,15 +49,9 @@ func NewAttention() tools.ToolExecutor {
 }
 
 func (t *attention) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	rawContent, ok := call.Arguments["content"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'content'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	content := strings.TrimSpace(rawContent)
-	if content == "" {
-		err := fmt.Errorf("content cannot be empty")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	content, errResult := shared.RequireStringArg(call.Arguments, call.ID, "content")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	tags := shared.StringSliceArg(call.Arguments, "tags")

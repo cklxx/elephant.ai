@@ -2,8 +2,6 @@ package ui
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -52,23 +50,16 @@ func NewRequestUser() tools.ToolExecutor {
 }
 
 func (t *uiRequestUser) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	message, ok := call.Arguments["message"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'message'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	message = strings.TrimSpace(message)
-	if message == "" {
-		err := errors.New("message cannot be empty")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	message, errResult := shared.RequireStringArg(call.Arguments, call.ID, "message")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	title := ""
 	if raw, exists := call.Arguments["title"]; exists {
 		value, ok := raw.(string)
 		if !ok {
-			err := fmt.Errorf("title must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "title must be a string")
 		}
 		title = strings.TrimSpace(value)
 	}
@@ -77,8 +68,7 @@ func (t *uiRequestUser) Execute(_ context.Context, call ports.ToolCall) (*ports.
 	if raw, exists := call.Arguments["reason"]; exists {
 		value, ok := raw.(string)
 		if !ok {
-			err := fmt.Errorf("reason must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "reason must be a string")
 		}
 		reason = strings.TrimSpace(value)
 	}
@@ -87,8 +77,7 @@ func (t *uiRequestUser) Execute(_ context.Context, call ports.ToolCall) (*ports.
 		switch key {
 		case "message", "title", "reason":
 		default:
-			err := fmt.Errorf("unsupported parameter: %s", key)
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
 	}
 

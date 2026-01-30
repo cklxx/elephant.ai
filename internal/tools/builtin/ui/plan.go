@@ -3,7 +3,6 @@ package ui
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -81,26 +80,18 @@ Rules:
 }
 
 func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	runID, ok := call.Arguments["run_id"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'run_id'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	runID = strings.TrimSpace(runID)
-	if runID == "" {
-		err := fmt.Errorf("run_id cannot be empty")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	runID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "run_id")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	complexityRaw, ok := call.Arguments["complexity"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'complexity'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	complexityRaw, errResult := shared.RequireStringArg(call.Arguments, call.ID, "complexity")
+	if errResult != nil {
+		return errResult, nil
 	}
-	complexity := strings.ToLower(strings.TrimSpace(complexityRaw))
+	complexity := strings.ToLower(complexityRaw)
 	if complexity != "simple" && complexity != "complex" {
-		err := fmt.Errorf("complexity must be \"simple\" or \"complex\"")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "complexity must be \"simple\" or \"complex\"")
 	}
 
 	if complexity != "simple" {
@@ -116,33 +107,24 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 		}
 	}
 
-	goal, ok := call.Arguments["overall_goal_ui"].(string)
-	if !ok {
-		err := fmt.Errorf("missing 'overall_goal_ui'")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	goal = strings.TrimSpace(goal)
-	if goal == "" {
-		err := fmt.Errorf("overall_goal_ui cannot be empty")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	goal, errResult := shared.RequireStringArg(call.Arguments, call.ID, "overall_goal_ui")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	if complexity == "simple" && (strings.Contains(goal, "\n") || strings.Contains(goal, "\r")) {
-		err := fmt.Errorf("overall_goal_ui must be single-line when complexity=\"simple\"")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		return shared.ToolError(call.ID, "overall_goal_ui must be single-line when complexity=\"simple\"")
 	}
 
 	var sessionTitle string
 	if raw, exists := call.Arguments["session_title"]; exists {
 		value, ok := raw.(string)
 		if !ok {
-			err := fmt.Errorf("session_title must be a string")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "session_title must be a string")
 		}
 		sessionTitle = strings.TrimSpace(value)
 		if sessionTitle != "" && (strings.Contains(sessionTitle, "\n") || strings.Contains(sessionTitle, "\r")) {
-			err := fmt.Errorf("session_title must be single-line")
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "session_title must be single-line")
 		}
 	}
 
@@ -151,8 +133,7 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 		switch key {
 		case "run_id", "session_title", "overall_goal_ui", "complexity", "internal_plan", "memory_keywords", "memory_slots":
 		default:
-			err := fmt.Errorf("unsupported parameter: %s", key)
-			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
 	}
 
