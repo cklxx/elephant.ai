@@ -217,24 +217,27 @@ type WeChatChannelConfig struct {
 
 // LarkChannelConfig captures Lark gateway settings in YAML.
 type LarkChannelConfig struct {
-	Enabled             *bool  `json:"enabled" yaml:"enabled"`
-	AppID               string `json:"app_id" yaml:"app_id"`
-	AppSecret           string `json:"app_secret" yaml:"app_secret"`
-	BaseDomain          string `json:"base_domain" yaml:"base_domain"`
-	SessionPrefix       string `json:"session_prefix" yaml:"session_prefix"`
-	SessionMode         string `json:"session_mode" yaml:"session_mode"`
-	ReplyPrefix         string `json:"reply_prefix" yaml:"reply_prefix"`
-	AllowGroups         *bool  `json:"allow_groups" yaml:"allow_groups"`
-	AllowDirect         *bool  `json:"allow_direct" yaml:"allow_direct"`
-	AgentPreset         string `json:"agent_preset" yaml:"agent_preset"`
-	ToolPreset          string `json:"tool_preset" yaml:"tool_preset"`
-	ToolMode            string `json:"tool_mode" yaml:"tool_mode"`
-	ReplyTimeoutSeconds *int   `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
-	ReactEmoji          string `json:"react_emoji" yaml:"react_emoji"`
-	MemoryEnabled       *bool  `json:"memory_enabled" yaml:"memory_enabled"`
-	ShowToolProgress    *bool  `json:"show_tool_progress" yaml:"show_tool_progress"`
-	AutoChatContext     *bool  `json:"auto_chat_context" yaml:"auto_chat_context"`
-	AutoChatContextSize *int   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
+	Enabled                       *bool  `json:"enabled" yaml:"enabled"`
+	AppID                         string `json:"app_id" yaml:"app_id"`
+	AppSecret                     string `json:"app_secret" yaml:"app_secret"`
+	BaseDomain                    string `json:"base_domain" yaml:"base_domain"`
+	SessionPrefix                 string `json:"session_prefix" yaml:"session_prefix"`
+	SessionMode                   string `json:"session_mode" yaml:"session_mode"`
+	ReplyPrefix                   string `json:"reply_prefix" yaml:"reply_prefix"`
+	AllowGroups                   *bool  `json:"allow_groups" yaml:"allow_groups"`
+	AllowDirect                   *bool  `json:"allow_direct" yaml:"allow_direct"`
+	AgentPreset                   string `json:"agent_preset" yaml:"agent_preset"`
+	ToolPreset                    string `json:"tool_preset" yaml:"tool_preset"`
+	ToolMode                      string `json:"tool_mode" yaml:"tool_mode"`
+	ReplyTimeoutSeconds           *int   `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
+	ReactEmoji                    string `json:"react_emoji" yaml:"react_emoji"`
+	MemoryEnabled                 *bool  `json:"memory_enabled" yaml:"memory_enabled"`
+	ShowToolProgress              *bool  `json:"show_tool_progress" yaml:"show_tool_progress"`
+	AutoChatContext               *bool  `json:"auto_chat_context" yaml:"auto_chat_context"`
+	AutoChatContextSize           *int   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
+	PlanReviewEnabled             *bool  `json:"plan_review_enabled" yaml:"plan_review_enabled"`
+	PlanReviewRequireConfirmation *bool  `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`
+	PlanReviewPendingTTLMinutes   *int   `json:"plan_review_pending_ttl_minutes" yaml:"plan_review_pending_ttl_minutes"`
 }
 
 // ServerConfig captures server-specific YAML configuration.

@@ -65,15 +65,15 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 			ReplyTimeout:  larkCfg.ReplyTimeout,
 			MemoryEnabled: larkCfg.MemoryEnabled,
 		},
-		Enabled:             larkCfg.Enabled,
-		AppID:               larkCfg.AppID,
-		AppSecret:           larkCfg.AppSecret,
-		BaseDomain:          larkCfg.BaseDomain,
-		SessionMode:         larkCfg.SessionMode,
-		ReactEmoji:          larkCfg.ReactEmoji,
-		ShowToolProgress:    larkCfg.ShowToolProgress,
-		AutoChatContext:     larkCfg.AutoChatContext,
-		AutoChatContextSize: larkCfg.AutoChatContextSize,
+		Enabled:                       larkCfg.Enabled,
+		AppID:                         larkCfg.AppID,
+		AppSecret:                     larkCfg.AppSecret,
+		BaseDomain:                    larkCfg.BaseDomain,
+		SessionMode:                   larkCfg.SessionMode,
+		ReactEmoji:                    larkCfg.ReactEmoji,
+		ShowToolProgress:              larkCfg.ShowToolProgress,
+		AutoChatContext:               larkCfg.AutoChatContext,
+		AutoChatContextSize:           larkCfg.AutoChatContextSize,
 		PlanReviewEnabled:             larkCfg.PlanReviewEnabled,
 		PlanReviewRequireConfirmation: larkCfg.PlanReviewRequireConfirmation,
 		PlanReviewPendingTTL:          larkCfg.PlanReviewPendingTTL,
@@ -87,6 +87,22 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		}
 	}
 
+	var planReviewStore lark.PlanReviewStore
+	if gatewayCfg.PlanReviewEnabled {
+		if container.SessionDB == nil {
+			logger.Warn("Lark plan review disabled: session DB not configured")
+			gatewayCfg.PlanReviewEnabled = false
+		} else {
+			store := lark.NewPlanReviewPostgresStore(container.SessionDB, gatewayCfg.PlanReviewPendingTTL)
+			if err := store.EnsureSchema(ctx); err != nil {
+				logger.Warn("Lark plan review store init failed: %v", err)
+				gatewayCfg.PlanReviewEnabled = false
+			} else {
+				planReviewStore = store
+			}
+		}
+	}
+
 	gateway, err := lark.NewGateway(gatewayCfg, agentContainer.AgentCoordinator, logger)
 	if err != nil {
 		if extraContainer != nil {
@@ -96,6 +112,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 	if broadcaster != nil {
 		gateway.SetEventListener(broadcaster)
+	}
+	if planReviewStore != nil {
+		gateway.SetPlanReviewStore(planReviewStore)
 	}
 	async.Go(logger, "lark.gateway", func() {
 		if err := gateway.Start(ctx); err != nil {

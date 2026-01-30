@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/presets"
 	"alex/internal/attachments"
+	"alex/internal/channels"
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
 )
@@ -43,44 +44,33 @@ type ChannelsConfig struct {
 
 // WeChatGatewayConfig captures the resolved WeChat gateway configuration.
 type WeChatGatewayConfig struct {
+	channels.BaseConfig
 	Enabled                bool
 	LoginMode              string
 	HotLogin               bool
 	HotLoginStoragePath    string
-	SessionPrefix          string
-	ReplyPrefix            string
 	MentionOnly            bool
 	ReplyWithMention       bool
-	AllowGroups            bool
-	AllowDirect            bool
 	AllowedConversationIDs []string
-	AgentPreset            string
-	ToolPreset             string
 	ToolMode               string
-	ReplyTimeout           time.Duration
-	MemoryEnabled          bool
 }
 
 // LarkGatewayConfig captures the resolved Lark gateway configuration.
 type LarkGatewayConfig struct {
-	Enabled             bool
-	AppID               string
-	AppSecret           string
-	BaseDomain          string
-	SessionPrefix       string
-	SessionMode         string
-	ReplyPrefix         string
-	AllowGroups         bool
-	AllowDirect         bool
-	AgentPreset         string
-	ToolPreset          string
-	ToolMode            string
-	ReplyTimeout        time.Duration
-	ReactEmoji          string
-	MemoryEnabled       bool
-	ShowToolProgress    bool
-	AutoChatContext     bool
-	AutoChatContextSize int
+	channels.BaseConfig
+	Enabled                       bool
+	AppID                         string
+	AppSecret                     string
+	BaseDomain                    string
+	SessionMode                   string
+	ToolMode                      string
+	ReactEmoji                    string
+	ShowToolProgress              bool
+	AutoChatContext               bool
+	AutoChatContextSize           int
+	PlanReviewEnabled             bool
+	PlanReviewRequireConfirmation bool
+	PlanReviewPendingTTL          time.Duration
 }
 
 var defaultAllowedOrigins = []string{
@@ -133,32 +123,32 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		},
 		Channels: ChannelsConfig{
 			WeChat: WeChatGatewayConfig{
-				Enabled:             false,
+				BaseConfig: channels.BaseConfig{
+					SessionPrefix: "wechat",
+					AllowGroups:   true,
+					AllowDirect:   true,
+					AgentPreset:   string(presets.PresetDefault),
+					ToolPreset:    string(presets.ToolPresetFull),
+					ReplyTimeout:  2 * time.Minute,
+				},
 				LoginMode:           "desktop",
-				HotLogin:            false,
 				HotLoginStoragePath: "~/.alex/wechat/storage.json",
-				SessionPrefix:       "wechat",
 				MentionOnly:         true,
 				ReplyWithMention:    true,
-				AllowGroups:         true,
-				AllowDirect:         true,
-				AgentPreset:         string(presets.PresetDefault),
 				ToolMode:            "cli",
-				ToolPreset:          string(presets.ToolPresetFull),
-				ReplyTimeout:        2 * time.Minute,
-				MemoryEnabled:       false,
 			},
 			Lark: LarkGatewayConfig{
-				Enabled:             false,
+				BaseConfig: channels.BaseConfig{
+					SessionPrefix: "lark",
+					AllowGroups:   true,
+					AllowDirect:   true,
+					AgentPreset:   string(presets.PresetDefault),
+					ToolPreset:    string(presets.ToolPresetFull),
+					ReplyTimeout:  3 * time.Minute,
+				},
 				BaseDomain:          "https://open.larkoffice.com",
-				SessionPrefix:       "lark",
 				SessionMode:         "stable",
-				AllowGroups:         true,
-				AllowDirect:         true,
-				AgentPreset:         string(presets.PresetDefault),
 				ToolMode:            "cli",
-				ToolPreset:          string(presets.ToolPresetFull),
-				ReplyTimeout:        3 * time.Minute,
 				ReactEmoji:          "SMILE",
 				AutoChatContext:     true,
 				AutoChatContextSize: 20,
@@ -317,6 +307,15 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if larkCfg.AutoChatContextSize != nil && *larkCfg.AutoChatContextSize > 0 {
 			cfg.Channels.Lark.AutoChatContextSize = *larkCfg.AutoChatContextSize
+		}
+		if larkCfg.PlanReviewEnabled != nil {
+			cfg.Channels.Lark.PlanReviewEnabled = *larkCfg.PlanReviewEnabled
+		}
+		if larkCfg.PlanReviewRequireConfirmation != nil {
+			cfg.Channels.Lark.PlanReviewRequireConfirmation = *larkCfg.PlanReviewRequireConfirmation
+		}
+		if larkCfg.PlanReviewPendingTTLMinutes != nil && *larkCfg.PlanReviewPendingTTLMinutes > 0 {
+			cfg.Channels.Lark.PlanReviewPendingTTL = time.Duration(*larkCfg.PlanReviewPendingTTLMinutes) * time.Minute
 		}
 	}
 
