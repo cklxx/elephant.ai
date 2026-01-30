@@ -1,50 +1,52 @@
-# elephant.ai — Proactive AI Assistant
+# elephant.ai — Proactive AI Assistant / 主动式 AI 助手
 
-## Project identity
+## Project identity / 项目定位
 
 elephant.ai is a **proactive AI assistant** that embeds into daily workflows — Lark, WeChat, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
 
-### What "proactive" means for this codebase
+elephant.ai 是一个**主动式 AI 助手**，嵌入日常工作流（飞书、微信、CLI、Web），跨会话记忆上下文，通过内置技能主动出击，自主执行实际工作。一套运行时，覆盖所有平台，随时就绪。
 
-| Principle | Implementation |
+### What "proactive" means for this codebase / "主动"在本代码库中的含义
+
+| Principle / 原则 | Implementation / 实现 |
 |---|---|
-| **Anticipate, don't wait** | Auto-save Lark/WeChat messages to memory; inject recent chat history as context before the user asks. |
-| **Channel-native** | The assistant is a first-class participant in Lark groups and WeChat chats, not a separate app the user must switch to. |
-| **Persistent memory** | `internal/memory/` stores conversations, decisions, and context across sessions. The LLM retrieves relevant history automatically. |
-| **Autonomous execution** | The ReAct loop (`internal/agent/domain/react/`) runs Think → Act → Observe to completion — web search, code execution, file ops, browser automation — without hand-holding. |
-| **Built-in skills** | `skills/` contains markdown-driven workflows (deep research, meeting notes, email drafting, slide decks, video production) that the assistant executes on demand. |
-| **Approval gates** | Proactivity requires safety. Risky tool calls require explicit human approval via CLI, web, or chat. |
-| **Tools feel local** | In web mode, sandbox-backed tools (file read/write, shell exec, code execution, browser) present as local operations. The LLM should never perceive sandbox boundaries. |
-| **Observable** | Every action produces structured traces, metrics, and cost accounting (`internal/observability/`). |
+| **Anticipate, don't wait / 预判而非等待** | Auto-save Lark/WeChat messages to memory; inject recent chat history as context before the user asks. / 自动保存飞书/微信消息到记忆；在用户提问前注入近期聊天历史作为上下文。 |
+| **Channel-native / 渠道原生** | The assistant is a first-class participant in Lark groups and WeChat chats, not a separate app the user must switch to. / 助手是飞书群和微信聊天的一等参与者，而非需要用户切换的独立应用。 |
+| **Persistent memory / 持久记忆** | `internal/memory/` stores conversations, decisions, and context across sessions. The LLM retrieves relevant history automatically. / `internal/memory/` 跨会话存储对话、决策和上下文。LLM 自动检索相关历史。 |
+| **Autonomous execution / 自主执行** | The ReAct loop (`internal/agent/domain/react/`) runs Think → Act → Observe to completion — web search, code execution, file ops, browser automation — without hand-holding. / ReAct 循环运行 Think → Act → Observe 直至完成——网页搜索、代码执行、文件操作、浏览器自动化——无需手把手引导。 |
+| **Built-in skills / 内置技能** | `skills/` contains markdown-driven workflows (deep research, meeting notes, email drafting, slide decks, video production) that the assistant executes on demand. / `skills/` 包含 Markdown 驱动的工作流（深度研究、会议记录、邮件起草、幻灯片、视频制作），助手按需执行。 |
+| **Approval gates / 审批门控** | Proactivity requires safety. Risky tool calls require explicit human approval via CLI, web, or chat. / 主动性需要安全性。高风险工具调用需通过 CLI、Web 或聊天获得人类明确批准。 |
+| **Tools feel local / 工具感知为本地** | In web mode, sandbox-backed tools (file read/write, shell exec, code execution, browser) present as local operations. The LLM should never perceive sandbox boundaries. / 在 Web 模式下，沙箱支持的工具呈现为本地操作。LLM 不应感知沙箱边界。 |
+| **Observable / 可观测** | Every action produces structured traces, metrics, and cost accounting (`internal/observability/`). / 每个动作都产出结构化追踪、指标和成本核算。 |
 
-### Architecture
+### Architecture / 架构
 
 ```
-Delivery (CLI, Server, Web, Lark, WeChat)
-  → Agent Application Layer (preparation, coordination, cost)
-  → Domain (ReAct loop, events, approvals, context assembly)
-  → Infrastructure Adapters (LLM, tools, memory, storage, observability)
+Delivery (CLI, Server, Web, Lark, WeChat) / 交付层
+  → Agent Application Layer (preparation, coordination, cost) / Agent 应用层（准备、协调、成本）
+  → Domain (ReAct loop, events, approvals, context assembly) / 领域层（ReAct 循环、事件、审批、上下文组装）
+  → Infrastructure Adapters (LLM, tools, memory, storage, observability) / 基础设施适配层（LLM、工具、记忆、存储、可观测）
 ```
 
-Key packages:
-- `internal/agent/` — ReAct loop, typed events, approval gates
-- `internal/llm/` — Multi-provider (OpenAI, Claude, ARK, DeepSeek, Ollama)
-- `internal/memory/` — Persistent store (Postgres, file, in-memory)
-- `internal/context/`, `internal/rag/` — Layered retrieval and summarization
-- `internal/tools/builtin/` — File ops, shell, code exec, browser, media, search
-- `internal/channels/` — Lark, WeChat integrations
-- `internal/observability/` — Traces, metrics, cost accounting
-- `web/` — Next.js dashboard with SSE streaming
+Key packages / 核心包：
+- `internal/agent/` — ReAct loop, typed events, approval gates / ReAct 循环、类型化事件、审批门控
+- `internal/llm/` — Multi-provider (OpenAI, Claude, ARK, DeepSeek, Ollama) / 多供应商
+- `internal/memory/` — Persistent store (Postgres, file, in-memory) / 持久存储
+- `internal/context/`, `internal/rag/` — Layered retrieval and summarization / 分层检索与摘要
+- `internal/tools/builtin/` — File ops, shell, code exec, browser, media, search / 文件操作、Shell、代码执行、浏览器、媒体、搜索
+- `internal/channels/` — Lark, WeChat integrations / 飞书、微信集成
+- `internal/observability/` — Traces, metrics, cost accounting / 追踪、指标、成本核算
+- `web/` — Next.js dashboard with SSE streaming / Next.js 仪表盘 + SSE 流式传输
 
-### Design preferences
+### Design preferences / 设计偏好
 
-When making decisions, prefer:
-- Context engineering over prompt hacking.
-- Typed events over unstructured logs.
-- Clean port/adapter boundaries over convenience shortcuts.
-- Multi-provider LLM support over vendor lock-in.
-- Skills and memory over one-shot answers.
-- Proactive context injection over user-driven retrieval.
+When making decisions, prefer: / 做设计决策时，优先选择：
+- Context engineering over prompt hacking. / 上下文工程优于提示词技巧。
+- Typed events over unstructured logs. / 类型化事件优于非结构化日志。
+- Clean port/adapter boundaries over convenience shortcuts. / 清晰的端口/适配器边界优于便利捷径。
+- Multi-provider LLM support over vendor lock-in. / 多供应商 LLM 支持优于供应商锁定。
+- Skills and memory over one-shot answers. / 技能和记忆优于一次性回答。
+- Proactive context injection over user-driven retrieval. / 主动上下文注入优于用户驱动的检索。
 
 ---
 
