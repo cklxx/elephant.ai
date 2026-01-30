@@ -85,7 +85,7 @@ func (t *htmlEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	rawHTML := strings.TrimSpace(shared.StringArg(args, "html"))
 	instructions := strings.TrimSpace(shared.StringArg(args, "instructions"))
 	outputName := strings.TrimSpace(shared.StringArg(args, "output_name"))
-	validateOnly := boolArg(args, "validate_only")
+	validateOnly := shared.BoolArgWithDefault(args, "validate_only", false)
 
 	if action == "" {
 		if instructions != "" {
@@ -478,26 +478,3 @@ func buildHTMLAttachment(name, html, source string) ports.Attachment {
 	}
 }
 
-func boolArg(args map[string]any, key string) bool {
-	if args == nil {
-		return false
-	}
-	value, ok := args[key]
-	if !ok || value == nil {
-		return false
-	}
-	switch typed := value.(type) {
-	case bool:
-		return typed
-	case string:
-		trimmed := strings.ToLower(strings.TrimSpace(typed))
-		return trimmed == "true" || trimmed == "1" || trimmed == "yes"
-	case int:
-		return typed != 0
-	case int64:
-		return typed != 0
-	case float64:
-		return typed != 0
-	}
-	return false
-}

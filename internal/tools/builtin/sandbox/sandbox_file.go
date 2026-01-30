@@ -208,23 +208,15 @@ func (t *sandboxFileReadTool) Execute(ctx context.Context, call ports.ToolCall) 
 		payload["sudo"] = value
 	}
 
-	var response sandbox.Response[sandbox.FileReadResult]
-	if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/file/read", payload, call.SessionID, &response); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if !response.Success {
-		err := fmt.Errorf("sandbox file read failed: %s", response.Message)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if response.Data == nil {
-		err := errors.New("sandbox file read returned empty payload")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	data, errResult := doSandboxRequest[sandbox.FileReadResult](ctx, t.client, call.ID, call.SessionID, httpMethodPost, "/v1/file/read", payload, "sandbox file read")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	return &ports.ToolResult{
 		CallID:   call.ID,
-		Content:  response.Data.Content,
-		Metadata: map[string]any{"path": response.Data.File},
+		Content:  data.Content,
+		Metadata: map[string]any{"path": data.File},
 	}, nil
 }
 
@@ -264,29 +256,21 @@ func (t *sandboxFileWriteTool) Execute(ctx context.Context, call ports.ToolCall)
 		payload["sudo"] = value
 	}
 
-	var response sandbox.Response[sandbox.FileWriteResult]
-	if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/file/write", payload, call.SessionID, &response); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if !response.Success {
-		err := fmt.Errorf("sandbox file write failed: %s", response.Message)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if response.Data == nil {
-		err := errors.New("sandbox file write returned empty payload")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	data, errResult := doSandboxRequest[sandbox.FileWriteResult](ctx, t.client, call.ID, call.SessionID, httpMethodPost, "/v1/file/write", payload, "sandbox file write")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	bytesWritten := len(content)
-	if response.Data.BytesWritten != nil {
-		bytesWritten = *response.Data.BytesWritten
+	if data.BytesWritten != nil {
+		bytesWritten = *data.BytesWritten
 	}
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Wrote %d bytes to %s", bytesWritten, response.Data.File),
+		Content: fmt.Sprintf("Wrote %d bytes to %s", bytesWritten, data.File),
 		Metadata: map[string]any{
-			"path":          response.Data.File,
+			"path":          data.File,
 			"bytes_written": bytesWritten,
 		},
 	}, nil
@@ -329,20 +313,12 @@ func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) 
 		payload["sort_desc"] = value
 	}
 
-	var response sandbox.Response[sandbox.FileListResult]
-	if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/file/list", payload, call.SessionID, &response); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if !response.Success {
-		err := fmt.Errorf("sandbox file list failed: %s", response.Message)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if response.Data == nil {
-		err := errors.New("sandbox file list returned empty payload")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	data, errResult := doSandboxRequest[sandbox.FileListResult](ctx, t.client, call.ID, call.SessionID, httpMethodPost, "/v1/file/list", payload, "sandbox file list")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	payloadJSON, err := json.MarshalIndent(response.Data, "", "  ")
+	payloadJSON, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
@@ -350,7 +326,7 @@ func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) 
 	return &ports.ToolResult{
 		CallID:   call.ID,
 		Content:  string(payloadJSON),
-		Metadata: map[string]any{"path": response.Data.Path},
+		Metadata: map[string]any{"path": data.Path},
 	}, nil
 }
 
@@ -378,20 +354,12 @@ func (t *sandboxFileSearchTool) Execute(ctx context.Context, call ports.ToolCall
 		payload["sudo"] = value
 	}
 
-	var response sandbox.Response[sandbox.FileSearchResult]
-	if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/file/search", payload, call.SessionID, &response); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if !response.Success {
-		err := fmt.Errorf("sandbox file search failed: %s", response.Message)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if response.Data == nil {
-		err := errors.New("sandbox file search returned empty payload")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	data, errResult := doSandboxRequest[sandbox.FileSearchResult](ctx, t.client, call.ID, call.SessionID, httpMethodPost, "/v1/file/search", payload, "sandbox file search")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	payloadJSON, err := json.MarshalIndent(response.Data, "", "  ")
+	payloadJSON, err := json.MarshalIndent(data, "", "  ")
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
@@ -399,7 +367,7 @@ func (t *sandboxFileSearchTool) Execute(ctx context.Context, call ports.ToolCall
 	return &ports.ToolResult{
 		CallID:   call.ID,
 		Content:  string(payloadJSON),
-		Metadata: map[string]any{"path": response.Data.File},
+		Metadata: map[string]any{"path": data.File},
 	}, nil
 }
 
@@ -429,25 +397,17 @@ func (t *sandboxFileReplaceTool) Execute(ctx context.Context, call ports.ToolCal
 		payload["sudo"] = value
 	}
 
-	var response sandbox.Response[sandbox.FileReplaceResult]
-	if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/file/replace", payload, call.SessionID, &response); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if !response.Success {
-		err := fmt.Errorf("sandbox file replace failed: %s", response.Message)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if response.Data == nil {
-		err := errors.New("sandbox file replace returned empty payload")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	data, errResult := doSandboxRequest[sandbox.FileReplaceResult](ctx, t.client, call.ID, call.SessionID, httpMethodPost, "/v1/file/replace", payload, "sandbox file replace")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Replaced %d occurrence(s) in %s", response.Data.ReplacedCount, response.Data.File),
+		Content: fmt.Sprintf("Replaced %d occurrence(s) in %s", data.ReplacedCount, data.File),
 		Metadata: map[string]any{
-			"path":           response.Data.File,
-			"replaced_count": response.Data.ReplacedCount,
+			"path":           data.File,
+			"replaced_count": data.ReplacedCount,
 		},
 	}, nil
 }

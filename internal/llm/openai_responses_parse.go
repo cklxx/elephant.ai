@@ -17,9 +17,10 @@ func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, por
 		case "message":
 			for _, part := range item.Content {
 				kind := strings.ToLower(strings.TrimSpace(part.Type))
-				if kind == "output_text" || kind == "text" {
+				switch kind {
+				case "output_text", "text":
 					contentBuilder.WriteString(part.Text)
-				} else if kind == "reasoning" || kind == "thinking" {
+				case "reasoning", "thinking":
 					appendThinkingText(&thinking, kind, part.Text)
 				}
 			}

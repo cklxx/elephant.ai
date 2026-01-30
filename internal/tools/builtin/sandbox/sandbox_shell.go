@@ -84,39 +84,31 @@ func (t *sandboxShellExecTool) Execute(ctx context.Context, call ports.ToolCall)
 		payload["id"] = sessionID
 	}
 
-	var response sandbox.Response[sandbox.ShellCommandResult]
-	if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/shell/exec", payload, call.SessionID, &response); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if !response.Success {
-		err := fmt.Errorf("sandbox shell exec failed: %s", response.Message)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if response.Data == nil {
-		err := errors.New("sandbox shell exec returned empty payload")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	data, errResult := doSandboxRequest[sandbox.ShellCommandResult](ctx, t.client, call.ID, call.SessionID, httpMethodPost, "/v1/shell/exec", payload, "sandbox shell exec")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	content := fmt.Sprintf("Command status: %s", response.Data.Status)
-	if response.Data.ExitCode != nil {
-		content = fmt.Sprintf("%s (exit=%d)", content, *response.Data.ExitCode)
+	content := fmt.Sprintf("Command status: %s", data.Status)
+	if data.ExitCode != nil {
+		content = fmt.Sprintf("%s (exit=%d)", content, *data.ExitCode)
 	}
-	if response.Data.Output != nil && strings.TrimSpace(*response.Data.Output) != "" {
-		content = fmt.Sprintf("%s\n\n%s", content, strings.TrimSpace(*response.Data.Output))
+	if data.Output != nil && strings.TrimSpace(*data.Output) != "" {
+		content = fmt.Sprintf("%s\n\n%s", content, strings.TrimSpace(*data.Output))
 	}
 
 	metadata := map[string]any{
-		"session_id": response.Data.SessionID,
-		"status":     response.Data.Status,
+		"session_id": data.SessionID,
+		"status":     data.Status,
 	}
-	if response.Data.ExitCode != nil {
-		metadata["exit_code"] = *response.Data.ExitCode
+	if data.ExitCode != nil {
+		metadata["exit_code"] = *data.ExitCode
 	}
-	if response.Data.Output != nil {
-		metadata["output"] = *response.Data.Output
+	if data.Output != nil {
+		metadata["output"] = *data.Output
 	}
-	if len(response.Data.Console) > 0 {
-		payloadJSON, err := json.Marshal(response.Data.Console)
+	if len(data.Console) > 0 {
+		payloadJSON, err := json.Marshal(data.Console)
 		if err == nil {
 			metadata["console"] = json.RawMessage(payloadJSON)
 		}

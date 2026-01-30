@@ -126,38 +126,30 @@ func (t *sandboxCodeExecuteTool) Execute(ctx context.Context, call ports.ToolCal
 		payload["timeout"] = timeout
 	}
 
-	var response sandbox.Response[sandbox.ShellCommandResult]
-	if err := t.client.DoJSON(ctx, httpMethodPost, "/v1/shell/exec", payload, call.SessionID, &response); err != nil {
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if !response.Success {
-		err := fmt.Errorf("sandbox code execute failed: %s", response.Message)
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
-	}
-	if response.Data == nil {
-		err := errors.New("sandbox code execute returned empty payload")
-		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	data, errResult := doSandboxRequest[sandbox.ShellCommandResult](ctx, t.client, call.ID, call.SessionID, httpMethodPost, "/v1/shell/exec", payload, "sandbox code execute")
+	if errResult != nil {
+		return errResult, nil
 	}
 
-	content := fmt.Sprintf("Command status: %s", response.Data.Status)
-	if response.Data.ExitCode != nil {
-		content = fmt.Sprintf("%s (exit=%d)", content, *response.Data.ExitCode)
+	content := fmt.Sprintf("Command status: %s", data.Status)
+	if data.ExitCode != nil {
+		content = fmt.Sprintf("%s (exit=%d)", content, *data.ExitCode)
 	}
-	if response.Data.Output != nil && strings.TrimSpace(*response.Data.Output) != "" {
-		content = fmt.Sprintf("%s\n\n%s", content, strings.TrimSpace(*response.Data.Output))
+	if data.Output != nil && strings.TrimSpace(*data.Output) != "" {
+		content = fmt.Sprintf("%s\n\n%s", content, strings.TrimSpace(*data.Output))
 	}
 
 	metadata := map[string]any{
 		"language":   language,
 		"command":    command,
-		"session_id": response.Data.SessionID,
-		"status":     response.Data.Status,
+		"session_id": data.SessionID,
+		"status":     data.Status,
 	}
-	if response.Data.ExitCode != nil {
-		metadata["exit_code"] = *response.Data.ExitCode
+	if data.ExitCode != nil {
+		metadata["exit_code"] = *data.ExitCode
 	}
-	if response.Data.Output != nil {
-		metadata["output"] = *response.Data.Output
+	if data.Output != nil {
+		metadata["output"] = *data.Output
 	}
 	if codePath == "" {
 		metadata["code_path"] = execPath
@@ -207,17 +199,9 @@ func writeSandboxCode(ctx context.Context, client *sandbox.Client, sessionID, la
 		"content": code,
 	}
 
-	var response sandbox.Response[sandbox.FileWriteResult]
-	if err := client.DoJSON(ctx, httpMethodPost, "/v1/file/write", request, sessionID, &response); err != nil {
+	if _, err := doSandboxCall[sandbox.FileWriteResult](ctx, client, httpMethodPost, "/v1/file/write", request, sessionID, "sandbox code write"); err != nil {
 		return "", err
 	}
-	if !response.Success {
-		return "", fmt.Errorf("sandbox code write failed: %s", response.Message)
-	}
-	if response.Data == nil {
-		return "", errors.New("sandbox code write returned empty payload")
-	}
-
 	return path, nil
 }
 
