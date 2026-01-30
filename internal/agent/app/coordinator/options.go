@@ -55,3 +55,12 @@ func WithMemoryService(svc memory.Service) CoordinatorOption {
 		}
 	}
 }
+
+// WithExternalExecutor provides the external agent executor registry.
+func WithExternalExecutor(executor agent.ExternalAgentExecutor) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if executor != nil {
+			c.externalExecutor = executor
+		}
+	}
+}

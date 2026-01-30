@@ -1,5 +1,6 @@
 # Generated from .env. Edit if you need literal secrets.
 runtime:
+  environment: "development"
   llm_provider: "openai"
   llm_model: "ep-20250926173528-8zl5v"
   base_url: "https://ark-cn-beijing.bytedance.net/api/v3"
@@ -47,6 +48,24 @@ runtime:
       min_interval_seconds: 1800
       quiet_hours: [22, 8]
       priority_threshold: 0.6
+  external_agents:
+    claude_code:
+      enabled: false
+      binary: "claude"
+      default_mode: "interactive"
+      max_turns: 50
+      timeout: "30m"
+      env:
+        ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+    codex:
+      enabled: false
+      binary: "codex"
+      default_model: "o3"
+      approval_policy: "on-request"
+      sandbox: "workspace-write"
+      timeout: "30m"
+      env:
+        OPENAI_API_KEY: "${OPENAI_API_KEY}"
 auth:
   jwt_secret: "${AUTH_JWT_SECRET}"
   access_token_ttl_minutes: "15"
