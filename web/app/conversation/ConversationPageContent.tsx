@@ -12,6 +12,7 @@ import { useI18n } from "@/lib/i18n";
 import type { AnyAgentEvent } from "@/lib/types";
 import { captureEvent } from "@/lib/analytics/posthog";
 import { AnalyticsEvent } from "@/lib/analytics/events";
+import { performanceMonitor } from "@/lib/analytics/performance";
 import { collectAttachmentItems } from "@/components/agent/AttachmentPanel";
 import { UserPersonaDialog } from "@/components/agent/UserPersonaDialog";
 import { LLMIndicator } from "@/components/agent/LLMIndicator";
@@ -82,12 +83,17 @@ export function ConversationPageContent() {
           const submittedAt = submittedAtByTaskRef.current.get(currentId);
           if (typeof submittedAt === "number") {
             firstTokenReportedRef.current.add(currentId);
+            const ttftMs = Math.max(0, performance.now() - submittedAt);
             captureEvent(AnalyticsEvent.FirstTokenRendered, {
               session_id: session.resolvedSessionId ?? null,
               task_id: currentId,
-              latency_ms: Math.max(0, performance.now() - submittedAt),
+              latency_ms: ttftMs,
               mock_stream: useMockStream,
             });
+            performanceMonitor.trackTTFT(
+              session.resolvedSessionId ?? currentId,
+              ttftMs,
+            );
           }
         }
       }

@@ -9,6 +9,7 @@ import { SSEClient } from "@/lib/events/sseClient";
 import { EventPipeline } from "@/lib/events/eventPipeline";
 import { authClient } from "@/lib/auth/client";
 import { createLogger } from "@/lib/logger";
+import { performanceMonitor } from "@/lib/analytics/performance";
 import type { SSEReplayMode } from "@/lib/api";
 import type { ConnectionState } from "./types";
 
@@ -93,6 +94,7 @@ export function useSSEConnection(
   const sessionIdRef = useRef(sessionId);
   const connectInternalRef = useRef<(() => Promise<void>) | null>(null);
   const isDisposedRef = useRef(false);
+  const connectionStartTimeRef = useRef<number | null>(null);
 
   // Keep refs in sync
   useEffect(() => {
@@ -142,6 +144,7 @@ export function useSSEConnection(
 
     isConnectingRef.current = true;
     isDisposedRef.current = false;
+    connectionStartTimeRef.current = performance.now();
 
     const token = authClient.getSession()?.accessToken;
     const replay: SSEReplayMode = hasLocalHistory ? "none" : "session";
@@ -153,7 +156,18 @@ export function useSSEConnection(
           return;
         }
         isConnectingRef.current = false;
+        const startTime = connectionStartTimeRef.current;
+        const attempts = reconnectAttemptsRef.current;
         reconnectAttemptsRef.current = 0;
+        connectionStartTimeRef.current = null;
+        if (startTime !== null) {
+          performanceMonitor.trackSSEConnection({
+            sessionId: currentSessionId,
+            duration: performance.now() - startTime,
+            success: true,
+            reconnectCount: attempts,
+          });
+        }
         onConnectionStateChange({
           sessionId: currentSessionId,
           isConnected: true,
@@ -187,6 +201,16 @@ export function useSSEConnection(
 
         if (nextAttempts > maxReconnectAttempts) {
           log.warn("Maximum reconnection attempts exceeded");
+          const startTime = connectionStartTimeRef.current;
+          connectionStartTimeRef.current = null;
+          if (startTime !== null) {
+            performanceMonitor.trackSSEConnection({
+              sessionId: currentSessionId,
+              duration: performance.now() - startTime,
+              success: false,
+              reconnectCount: nextAttempts,
+            });
+          }
           onConnectionStateChange({
             sessionId: currentSessionId,
             isConnected: false,
