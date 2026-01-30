@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -200,6 +201,63 @@ func TestFileStoreNonExistentDir(t *testing.T) {
 	}
 	if len(results) != 0 {
 		t.Fatalf("expected 0 results, got %d", len(results))
+	}
+}
+
+func TestFileStoreSearchWithoutTermsReturnsAll(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStore(dir)
+	_ = store.EnsureSchema(context.Background())
+
+	saved, err := store.Insert(context.Background(), Entry{
+		UserID:   "u",
+		Content:  "remember this for later",
+		Keywords: []string{"note"},
+	})
+	if err != nil {
+		t.Fatalf("Insert: %v", err)
+	}
+
+	// Search with no terms/keywords should return all entries for the user.
+	results, err := store.Search(context.Background(), Query{
+		UserID: "u",
+		Limit:  10,
+	})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result without terms, got %d", len(results))
+	}
+	if results[0].Content != saved.Content {
+		t.Fatalf("content mismatch: got %q, want %q", results[0].Content, saved.Content)
+	}
+}
+
+func TestFileStoreSearchWithoutTermsRespectsLimit(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStore(dir)
+	_ = store.EnsureSchema(context.Background())
+
+	for i := 0; i < 5; i++ {
+		if _, err := store.Insert(context.Background(), Entry{
+			UserID:    "u",
+			Content:   fmt.Sprintf("entry %d", i),
+			CreatedAt: time.Now().Add(time.Duration(i) * time.Minute),
+		}); err != nil {
+			t.Fatalf("Insert: %v", err)
+		}
+	}
+
+	results, err := store.Search(context.Background(), Query{
+		UserID: "u",
+		Limit:  3,
+	})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results (limit), got %d", len(results))
 	}
 }
 

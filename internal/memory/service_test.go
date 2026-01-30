@@ -100,15 +100,16 @@ func TestServiceRejectsMissingUserOrContent(t *testing.T) {
 	}
 }
 
-func TestRecallWithoutTermsReturnsEmpty(t *testing.T) {
+func TestRecallWithoutTermsReturnsAll(t *testing.T) {
 	store := NewInMemoryStore()
 	svc := NewService(store)
-	if _, err := svc.Save(context.Background(), Entry{
+	saved, err := svc.Save(context.Background(), Entry{
 		UserID:    "u",
 		Content:   "hello world",
 		Keywords:  []string{"greeting"},
 		CreatedAt: time.Now(),
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -116,8 +117,11 @@ func TestRecallWithoutTermsReturnsEmpty(t *testing.T) {
 	if err != nil {
 		t.Fatalf("recall error: %v", err)
 	}
-	if len(results) != 0 {
-		t.Fatalf("expected empty results without terms, got %d", len(results))
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result without terms (list all), got %d", len(results))
+	}
+	if results[0].Key != saved.Key {
+		t.Fatalf("unexpected key: got %s, want %s", results[0].Key, saved.Key)
 	}
 }
 

@@ -47,18 +47,19 @@ func (s *InMemoryStore) Search(_ context.Context, query Query) ([]Entry, error) 
 	for _, term := range query.Terms {
 		termSet[strings.ToLower(term)] = true
 	}
-	if len(termSet) == 0 && len(query.Keywords) == 0 {
-		return nil, nil
-	}
+	hasTerms := len(termSet) > 0 || len(query.Keywords) > 0
 
 	var results []Entry
 	for _, entry := range candidates {
 		if !matchSlots(entry.Slots, query.Slots) {
 			continue
 		}
-		if matchesTerms(entry.Terms, termSet) || containsAny(entry.Content, query.Keywords) {
-			results = append(results, entry)
+		if hasTerms {
+			if !matchesTerms(entry.Terms, termSet) && !containsAny(entry.Content, query.Keywords) {
+				continue
+			}
 		}
+		results = append(results, entry)
 		if query.Limit > 0 && len(results) >= query.Limit {
 			break
 		}

@@ -101,7 +101,7 @@ func (s *PostgresStore) Search(ctx context.Context, query Query) ([]Entry, error
 	}
 
 	if len(query.Terms) == 0 && len(query.Keywords) == 0 {
-		return nil, nil
+		return s.listByUser(ctx, query)
 	}
 
 	conditions := []string{"user_id = $1"}
@@ -161,6 +161,68 @@ ORDER BY created_at DESC
 LIMIT $%d
 `, where, argPos)
 	args = append(args, query.Limit)
+
+	rows, err := s.pool.Query(ctx, querySQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []Entry
+	for rows.Next() {
+		var (
+			entry     Entry
+			slotsJSON []byte
+		)
+		if err := rows.Scan(&entry.Key, &entry.UserID, &entry.Content, &entry.Keywords, &slotsJSON, &entry.Terms, &entry.CreatedAt); err != nil {
+			return nil, err
+		}
+		if len(slotsJSON) > 0 {
+			var slots map[string]string
+			if err := json.Unmarshal(slotsJSON, &slots); err == nil {
+				entry.Slots = slots
+			}
+		}
+		results = append(results, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return results, nil
+}
+
+// listByUser returns the most recent entries for a user when no search terms
+// are provided. Slot filters from the query are still applied.
+func (s *PostgresStore) listByUser(ctx context.Context, query Query) ([]Entry, error) {
+	conditions := []string{"user_id = $1"}
+	args := []any{query.UserID}
+	argPos := 2
+
+	if len(query.Slots) > 0 {
+		slotsJSON, err := json.Marshal(query.Slots)
+		if err != nil {
+			return nil, fmt.Errorf("encode slot filter: %w", err)
+		}
+		conditions = append(conditions, fmt.Sprintf("slots @> $%d::jsonb", argPos))
+		args = append(args, slotsJSON)
+		argPos++
+	}
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+
+	where := strings.Join(conditions, " AND ")
+	querySQL := fmt.Sprintf(`
+SELECT key, user_id, content, keywords, slots, terms, created_at
+FROM user_memories
+WHERE %s
+ORDER BY created_at DESC
+LIMIT $%d
+`, where, argPos)
+	args = append(args, limit)
 
 	rows, err := s.pool.Query(ctx, querySQL, args...)
 	if err != nil {

@@ -97,6 +97,10 @@ func (s *FileStore) Search(_ context.Context, query Query) ([]Entry, error) {
 		termSet[strings.ToLower(kw)] = true
 	}
 
+	// When no terms: include every entry that passes user/slot filters.
+	// When terms present: also require keyword/content match.
+	hasTerms := len(termSet) > 0
+
 	var results []Entry
 	for _, entry := range entries {
 		if query.UserID != "" && entry.UserID != query.UserID {
@@ -105,14 +109,14 @@ func (s *FileStore) Search(_ context.Context, query Query) ([]Entry, error) {
 		if !matchSlots(entry.Slots, query.Slots) {
 			continue
 		}
-		if len(termSet) == 0 {
-			continue
+		if hasTerms {
+			if !matchesTerms(entry.Terms, termSet) &&
+				!matchesKeywords(entry.Keywords, termSet) &&
+				!containsAnyCaseInsensitive(entry.Content, query.Keywords) {
+				continue
+			}
 		}
-		if matchesTerms(entry.Terms, termSet) ||
-			matchesKeywords(entry.Keywords, termSet) ||
-			containsAnyCaseInsensitive(entry.Content, query.Keywords) {
-			results = append(results, entry)
-		}
+		results = append(results, entry)
 		if query.Limit > 0 && len(results) >= query.Limit {
 			break
 		}
