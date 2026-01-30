@@ -191,262 +191,290 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if cfg == nil {
 		return
 	}
+	applyWeChatConfig(cfg, file)
+	applyLarkConfig(cfg, file)
+	applyServerHTTPConfig(cfg, file)
+	applyAuthConfig(cfg, file)
+	applySessionConfig(cfg, file)
+	applyAnalyticsConfig(cfg, file)
+	applyAttachmentConfig(cfg, file)
+}
 
-	if file.Channels != nil && file.Channels.WeChat != nil {
-		wechat := file.Channels.WeChat
-		if wechat.Enabled != nil {
-			cfg.Channels.WeChat.Enabled = *wechat.Enabled
-		}
-		if loginMode := strings.TrimSpace(wechat.LoginMode); loginMode != "" {
-			cfg.Channels.WeChat.LoginMode = loginMode
-		}
-		if wechat.HotLogin != nil {
-			cfg.Channels.WeChat.HotLogin = *wechat.HotLogin
-		}
-		if storage := strings.TrimSpace(wechat.HotLoginStoragePath); storage != "" {
-			cfg.Channels.WeChat.HotLoginStoragePath = storage
-		}
-		if prefix := strings.TrimSpace(wechat.SessionPrefix); prefix != "" {
-			cfg.Channels.WeChat.SessionPrefix = prefix
-		}
-		if replyPrefix := strings.TrimSpace(wechat.ReplyPrefix); replyPrefix != "" {
-			cfg.Channels.WeChat.ReplyPrefix = replyPrefix
-		}
-		if wechat.MentionOnly != nil {
-			cfg.Channels.WeChat.MentionOnly = *wechat.MentionOnly
-		}
-		if wechat.ReplyWithMention != nil {
-			cfg.Channels.WeChat.ReplyWithMention = *wechat.ReplyWithMention
-		}
-		if wechat.AllowGroups != nil {
-			cfg.Channels.WeChat.AllowGroups = *wechat.AllowGroups
-		}
-		if wechat.AllowDirect != nil {
-			cfg.Channels.WeChat.AllowDirect = *wechat.AllowDirect
-		}
-		if len(wechat.AllowedConversationIDs) > 0 {
-			ids := make([]string, 0, len(wechat.AllowedConversationIDs))
-			for _, value := range wechat.AllowedConversationIDs {
-				value = strings.TrimSpace(value)
-				if value == "" {
-					continue
-				}
-				ids = append(ids, value)
+func applyWeChatConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Channels == nil || file.Channels.WeChat == nil {
+		return
+	}
+	wechat := file.Channels.WeChat
+	if wechat.Enabled != nil {
+		cfg.Channels.WeChat.Enabled = *wechat.Enabled
+	}
+	if loginMode := strings.TrimSpace(wechat.LoginMode); loginMode != "" {
+		cfg.Channels.WeChat.LoginMode = loginMode
+	}
+	if wechat.HotLogin != nil {
+		cfg.Channels.WeChat.HotLogin = *wechat.HotLogin
+	}
+	if storage := strings.TrimSpace(wechat.HotLoginStoragePath); storage != "" {
+		cfg.Channels.WeChat.HotLoginStoragePath = storage
+	}
+	if prefix := strings.TrimSpace(wechat.SessionPrefix); prefix != "" {
+		cfg.Channels.WeChat.SessionPrefix = prefix
+	}
+	if replyPrefix := strings.TrimSpace(wechat.ReplyPrefix); replyPrefix != "" {
+		cfg.Channels.WeChat.ReplyPrefix = replyPrefix
+	}
+	if wechat.MentionOnly != nil {
+		cfg.Channels.WeChat.MentionOnly = *wechat.MentionOnly
+	}
+	if wechat.ReplyWithMention != nil {
+		cfg.Channels.WeChat.ReplyWithMention = *wechat.ReplyWithMention
+	}
+	if wechat.AllowGroups != nil {
+		cfg.Channels.WeChat.AllowGroups = *wechat.AllowGroups
+	}
+	if wechat.AllowDirect != nil {
+		cfg.Channels.WeChat.AllowDirect = *wechat.AllowDirect
+	}
+	if len(wechat.AllowedConversationIDs) > 0 {
+		ids := make([]string, 0, len(wechat.AllowedConversationIDs))
+		for _, value := range wechat.AllowedConversationIDs {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
 			}
-			cfg.Channels.WeChat.AllowedConversationIDs = ids
+			ids = append(ids, value)
 		}
-		if agentPreset := strings.TrimSpace(wechat.AgentPreset); agentPreset != "" {
-			cfg.Channels.WeChat.AgentPreset = agentPreset
-		}
-		if toolPreset := strings.TrimSpace(wechat.ToolPreset); toolPreset != "" {
-			cfg.Channels.WeChat.ToolPreset = toolPreset
-		}
-		if toolMode := strings.TrimSpace(wechat.ToolMode); toolMode != "" {
-			cfg.Channels.WeChat.ToolMode = toolMode
-		}
-		if wechat.ReplyTimeoutSeconds != nil && *wechat.ReplyTimeoutSeconds > 0 {
-			cfg.Channels.WeChat.ReplyTimeout = time.Duration(*wechat.ReplyTimeoutSeconds) * time.Second
-		}
-		if wechat.MemoryEnabled != nil {
-			cfg.Channels.WeChat.MemoryEnabled = *wechat.MemoryEnabled
+		cfg.Channels.WeChat.AllowedConversationIDs = ids
+	}
+	if agentPreset := strings.TrimSpace(wechat.AgentPreset); agentPreset != "" {
+		cfg.Channels.WeChat.AgentPreset = agentPreset
+	}
+	if toolPreset := strings.TrimSpace(wechat.ToolPreset); toolPreset != "" {
+		cfg.Channels.WeChat.ToolPreset = toolPreset
+	}
+	if toolMode := strings.TrimSpace(wechat.ToolMode); toolMode != "" {
+		cfg.Channels.WeChat.ToolMode = toolMode
+	}
+	if wechat.ReplyTimeoutSeconds != nil && *wechat.ReplyTimeoutSeconds > 0 {
+		cfg.Channels.WeChat.ReplyTimeout = time.Duration(*wechat.ReplyTimeoutSeconds) * time.Second
+	}
+	if wechat.MemoryEnabled != nil {
+		cfg.Channels.WeChat.MemoryEnabled = *wechat.MemoryEnabled
+	}
+}
+
+func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Channels == nil || file.Channels.Lark == nil {
+		return
+	}
+	larkCfg := file.Channels.Lark
+	if larkCfg.Enabled != nil {
+		cfg.Channels.Lark.Enabled = *larkCfg.Enabled
+	}
+	if appID := strings.TrimSpace(larkCfg.AppID); appID != "" {
+		cfg.Channels.Lark.AppID = appID
+	}
+	if appSecret := strings.TrimSpace(larkCfg.AppSecret); appSecret != "" {
+		cfg.Channels.Lark.AppSecret = appSecret
+	}
+	if baseDomain := strings.TrimSpace(larkCfg.BaseDomain); baseDomain != "" {
+		cfg.Channels.Lark.BaseDomain = baseDomain
+	}
+	if prefix := strings.TrimSpace(larkCfg.SessionPrefix); prefix != "" {
+		cfg.Channels.Lark.SessionPrefix = prefix
+	}
+	if sessionMode := strings.TrimSpace(larkCfg.SessionMode); sessionMode != "" {
+		cfg.Channels.Lark.SessionMode = sessionMode
+	}
+	if replyPrefix := strings.TrimSpace(larkCfg.ReplyPrefix); replyPrefix != "" {
+		cfg.Channels.Lark.ReplyPrefix = replyPrefix
+	}
+	if larkCfg.AllowGroups != nil {
+		cfg.Channels.Lark.AllowGroups = *larkCfg.AllowGroups
+	}
+	if larkCfg.AllowDirect != nil {
+		cfg.Channels.Lark.AllowDirect = *larkCfg.AllowDirect
+	}
+	if agentPreset := strings.TrimSpace(larkCfg.AgentPreset); agentPreset != "" {
+		cfg.Channels.Lark.AgentPreset = agentPreset
+	}
+	if toolPreset := strings.TrimSpace(larkCfg.ToolPreset); toolPreset != "" {
+		cfg.Channels.Lark.ToolPreset = toolPreset
+	}
+	if toolMode := strings.TrimSpace(larkCfg.ToolMode); toolMode != "" {
+		cfg.Channels.Lark.ToolMode = toolMode
+	}
+	if larkCfg.ReplyTimeoutSeconds != nil && *larkCfg.ReplyTimeoutSeconds > 0 {
+		cfg.Channels.Lark.ReplyTimeout = time.Duration(*larkCfg.ReplyTimeoutSeconds) * time.Second
+	}
+	if reactEmoji := strings.TrimSpace(larkCfg.ReactEmoji); reactEmoji != "" {
+		cfg.Channels.Lark.ReactEmoji = reactEmoji
+	}
+	if larkCfg.MemoryEnabled != nil {
+		cfg.Channels.Lark.MemoryEnabled = *larkCfg.MemoryEnabled
+	}
+	if larkCfg.ShowToolProgress != nil {
+		cfg.Channels.Lark.ShowToolProgress = *larkCfg.ShowToolProgress
+	}
+	if larkCfg.AutoChatContext != nil {
+		cfg.Channels.Lark.AutoChatContext = *larkCfg.AutoChatContext
+	}
+	if larkCfg.AutoChatContextSize != nil && *larkCfg.AutoChatContextSize > 0 {
+		cfg.Channels.Lark.AutoChatContextSize = *larkCfg.AutoChatContextSize
+	}
+	if larkCfg.PlanReviewEnabled != nil {
+		cfg.Channels.Lark.PlanReviewEnabled = *larkCfg.PlanReviewEnabled
+	}
+	if larkCfg.PlanReviewRequireConfirmation != nil {
+		cfg.Channels.Lark.PlanReviewRequireConfirmation = *larkCfg.PlanReviewRequireConfirmation
+	}
+	if larkCfg.PlanReviewPendingTTLMinutes != nil && *larkCfg.PlanReviewPendingTTLMinutes > 0 {
+		cfg.Channels.Lark.PlanReviewPendingTTL = time.Duration(*larkCfg.PlanReviewPendingTTLMinutes) * time.Minute
+	}
+}
+
+func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Server == nil {
+		return
+	}
+	if port := strings.TrimSpace(file.Server.Port); port != "" {
+		cfg.Port = port
+	}
+	if file.Server.EnableMCP != nil {
+		cfg.EnableMCP = *file.Server.EnableMCP
+	}
+	if file.Server.MaxTaskBodyBytes != nil && *file.Server.MaxTaskBodyBytes > 0 {
+		cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
+	}
+	if file.Server.StreamMaxDurationSeconds != nil && *file.Server.StreamMaxDurationSeconds > 0 {
+		cfg.StreamMaxDuration = time.Duration(*file.Server.StreamMaxDurationSeconds) * time.Second
+	}
+	if file.Server.StreamMaxBytes != nil && *file.Server.StreamMaxBytes > 0 {
+		cfg.StreamMaxBytes = *file.Server.StreamMaxBytes
+	}
+	if file.Server.StreamMaxConcurrent != nil && *file.Server.StreamMaxConcurrent > 0 {
+		cfg.StreamMaxConcurrent = *file.Server.StreamMaxConcurrent
+	}
+	if file.Server.RateLimitRequestsPerMinute != nil && *file.Server.RateLimitRequestsPerMinute > 0 {
+		cfg.RateLimitRequestsPerMinute = *file.Server.RateLimitRequestsPerMinute
+	}
+	if file.Server.RateLimitBurst != nil && *file.Server.RateLimitBurst > 0 {
+		cfg.RateLimitBurst = *file.Server.RateLimitBurst
+	}
+	if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
+		cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
+	}
+	if file.Server.EventHistoryRetentionDays != nil {
+		days := *file.Server.EventHistoryRetentionDays
+		if days <= 0 {
+			cfg.EventHistoryRetention = 0
+		} else {
+			cfg.EventHistoryRetention = time.Duration(days) * 24 * time.Hour
 		}
 	}
-
-	if file.Channels != nil && file.Channels.Lark != nil {
-		larkCfg := file.Channels.Lark
-		if larkCfg.Enabled != nil {
-			cfg.Channels.Lark.Enabled = *larkCfg.Enabled
-		}
-		if appID := strings.TrimSpace(larkCfg.AppID); appID != "" {
-			cfg.Channels.Lark.AppID = appID
-		}
-		if appSecret := strings.TrimSpace(larkCfg.AppSecret); appSecret != "" {
-			cfg.Channels.Lark.AppSecret = appSecret
-		}
-		if baseDomain := strings.TrimSpace(larkCfg.BaseDomain); baseDomain != "" {
-			cfg.Channels.Lark.BaseDomain = baseDomain
-		}
-		if prefix := strings.TrimSpace(larkCfg.SessionPrefix); prefix != "" {
-			cfg.Channels.Lark.SessionPrefix = prefix
-		}
-		if sessionMode := strings.TrimSpace(larkCfg.SessionMode); sessionMode != "" {
-			cfg.Channels.Lark.SessionMode = sessionMode
-		}
-		if replyPrefix := strings.TrimSpace(larkCfg.ReplyPrefix); replyPrefix != "" {
-			cfg.Channels.Lark.ReplyPrefix = replyPrefix
-		}
-		if larkCfg.AllowGroups != nil {
-			cfg.Channels.Lark.AllowGroups = *larkCfg.AllowGroups
-		}
-		if larkCfg.AllowDirect != nil {
-			cfg.Channels.Lark.AllowDirect = *larkCfg.AllowDirect
-		}
-		if agentPreset := strings.TrimSpace(larkCfg.AgentPreset); agentPreset != "" {
-			cfg.Channels.Lark.AgentPreset = agentPreset
-		}
-		if toolPreset := strings.TrimSpace(larkCfg.ToolPreset); toolPreset != "" {
-			cfg.Channels.Lark.ToolPreset = toolPreset
-		}
-		if toolMode := strings.TrimSpace(larkCfg.ToolMode); toolMode != "" {
-			cfg.Channels.Lark.ToolMode = toolMode
-		}
-		if larkCfg.ReplyTimeoutSeconds != nil && *larkCfg.ReplyTimeoutSeconds > 0 {
-			cfg.Channels.Lark.ReplyTimeout = time.Duration(*larkCfg.ReplyTimeoutSeconds) * time.Second
-		}
-		if reactEmoji := strings.TrimSpace(larkCfg.ReactEmoji); reactEmoji != "" {
-			cfg.Channels.Lark.ReactEmoji = reactEmoji
-		}
-		if larkCfg.MemoryEnabled != nil {
-			cfg.Channels.Lark.MemoryEnabled = *larkCfg.MemoryEnabled
-		}
-		if larkCfg.ShowToolProgress != nil {
-			cfg.Channels.Lark.ShowToolProgress = *larkCfg.ShowToolProgress
-		}
-		if larkCfg.AutoChatContext != nil {
-			cfg.Channels.Lark.AutoChatContext = *larkCfg.AutoChatContext
-		}
-		if larkCfg.AutoChatContextSize != nil && *larkCfg.AutoChatContextSize > 0 {
-			cfg.Channels.Lark.AutoChatContextSize = *larkCfg.AutoChatContextSize
-		}
-		if larkCfg.PlanReviewEnabled != nil {
-			cfg.Channels.Lark.PlanReviewEnabled = *larkCfg.PlanReviewEnabled
-		}
-		if larkCfg.PlanReviewRequireConfirmation != nil {
-			cfg.Channels.Lark.PlanReviewRequireConfirmation = *larkCfg.PlanReviewRequireConfirmation
-		}
-		if larkCfg.PlanReviewPendingTTLMinutes != nil && *larkCfg.PlanReviewPendingTTLMinutes > 0 {
-			cfg.Channels.Lark.PlanReviewPendingTTL = time.Duration(*larkCfg.PlanReviewPendingTTLMinutes) * time.Minute
-		}
+	if file.Server.AllowedOrigins != nil {
+		cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
 	}
+}
 
-	if file.Server != nil {
-		if port := strings.TrimSpace(file.Server.Port); port != "" {
-			cfg.Port = port
-		}
-		if file.Server.EnableMCP != nil {
-			cfg.EnableMCP = *file.Server.EnableMCP
-		}
-		if file.Server.MaxTaskBodyBytes != nil && *file.Server.MaxTaskBodyBytes > 0 {
-			cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
-		}
-		if file.Server.StreamMaxDurationSeconds != nil && *file.Server.StreamMaxDurationSeconds > 0 {
-			cfg.StreamMaxDuration = time.Duration(*file.Server.StreamMaxDurationSeconds) * time.Second
-		}
-		if file.Server.StreamMaxBytes != nil && *file.Server.StreamMaxBytes > 0 {
-			cfg.StreamMaxBytes = *file.Server.StreamMaxBytes
-		}
-		if file.Server.StreamMaxConcurrent != nil && *file.Server.StreamMaxConcurrent > 0 {
-			cfg.StreamMaxConcurrent = *file.Server.StreamMaxConcurrent
-		}
-		if file.Server.RateLimitRequestsPerMinute != nil && *file.Server.RateLimitRequestsPerMinute > 0 {
-			cfg.RateLimitRequestsPerMinute = *file.Server.RateLimitRequestsPerMinute
-		}
-		if file.Server.RateLimitBurst != nil && *file.Server.RateLimitBurst > 0 {
-			cfg.RateLimitBurst = *file.Server.RateLimitBurst
-		}
-		if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
-			cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
-		}
-		if file.Server.EventHistoryRetentionDays != nil {
-			days := *file.Server.EventHistoryRetentionDays
-			if days <= 0 {
-				cfg.EventHistoryRetention = 0
-			} else {
-				cfg.EventHistoryRetention = time.Duration(days) * 24 * time.Hour
-			}
-		}
-		if file.Server.AllowedOrigins != nil {
-			cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)
-		}
+func applyAuthConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Auth == nil {
+		return
 	}
-
-	if file.Auth != nil {
-		cfg.Auth = runtimeconfig.AuthConfig{
-			JWTSecret:             strings.TrimSpace(file.Auth.JWTSecret),
-			AccessTokenTTLMinutes: strings.TrimSpace(file.Auth.AccessTokenTTLMinutes),
-			RefreshTokenTTLDays:   strings.TrimSpace(file.Auth.RefreshTokenTTLDays),
-			StateTTLMinutes:       strings.TrimSpace(file.Auth.StateTTLMinutes),
-			RedirectBaseURL:       strings.TrimSpace(file.Auth.RedirectBaseURL),
-			GoogleClientID:        strings.TrimSpace(file.Auth.GoogleClientID),
-			GoogleClientSecret:    strings.TrimSpace(file.Auth.GoogleClientSecret),
-			GoogleAuthURL:         strings.TrimSpace(file.Auth.GoogleAuthURL),
-			GoogleTokenURL:        strings.TrimSpace(file.Auth.GoogleTokenURL),
-			GoogleUserInfoURL:     strings.TrimSpace(file.Auth.GoogleUserInfoURL),
-			WeChatAppID:           strings.TrimSpace(file.Auth.WeChatAppID),
-			WeChatAuthURL:         strings.TrimSpace(file.Auth.WeChatAuthURL),
-			DatabaseURL:           strings.TrimSpace(file.Auth.DatabaseURL),
-			BootstrapEmail:        strings.TrimSpace(file.Auth.BootstrapEmail),
-			BootstrapPassword:     file.Auth.BootstrapPassword,
-			BootstrapDisplayName:  strings.TrimSpace(file.Auth.BootstrapDisplayName),
-		}
+	cfg.Auth = runtimeconfig.AuthConfig{
+		JWTSecret:             strings.TrimSpace(file.Auth.JWTSecret),
+		AccessTokenTTLMinutes: strings.TrimSpace(file.Auth.AccessTokenTTLMinutes),
+		RefreshTokenTTLDays:   strings.TrimSpace(file.Auth.RefreshTokenTTLDays),
+		StateTTLMinutes:       strings.TrimSpace(file.Auth.StateTTLMinutes),
+		RedirectBaseURL:       strings.TrimSpace(file.Auth.RedirectBaseURL),
+		GoogleClientID:        strings.TrimSpace(file.Auth.GoogleClientID),
+		GoogleClientSecret:    strings.TrimSpace(file.Auth.GoogleClientSecret),
+		GoogleAuthURL:         strings.TrimSpace(file.Auth.GoogleAuthURL),
+		GoogleTokenURL:        strings.TrimSpace(file.Auth.GoogleTokenURL),
+		GoogleUserInfoURL:     strings.TrimSpace(file.Auth.GoogleUserInfoURL),
+		WeChatAppID:           strings.TrimSpace(file.Auth.WeChatAppID),
+		WeChatAuthURL:         strings.TrimSpace(file.Auth.WeChatAuthURL),
+		DatabaseURL:           strings.TrimSpace(file.Auth.DatabaseURL),
+		BootstrapEmail:        strings.TrimSpace(file.Auth.BootstrapEmail),
+		BootstrapPassword:     file.Auth.BootstrapPassword,
+		BootstrapDisplayName:  strings.TrimSpace(file.Auth.BootstrapDisplayName),
 	}
+}
 
-	if file.Session != nil {
-		if dbURL := strings.TrimSpace(file.Session.DatabaseURL); dbURL != "" {
-			cfg.Session.DatabaseURL = dbURL
-		}
-		if dir := strings.TrimSpace(file.Session.Dir); dir != "" {
-			cfg.Session.Dir = dir
-		}
-		if file.Session.PoolMaxConns != nil {
-			cfg.Session.PoolMaxConns = file.Session.PoolMaxConns
-		}
-		if file.Session.PoolMinConns != nil {
-			cfg.Session.PoolMinConns = file.Session.PoolMinConns
-		}
-		if file.Session.PoolMaxConnLifetimeSeconds != nil {
-			cfg.Session.PoolMaxConnLifetimeSeconds = file.Session.PoolMaxConnLifetimeSeconds
-		}
-		if file.Session.PoolMaxConnIdleSeconds != nil {
-			cfg.Session.PoolMaxConnIdleSeconds = file.Session.PoolMaxConnIdleSeconds
-		}
-		if file.Session.PoolHealthCheckSeconds != nil {
-			cfg.Session.PoolHealthCheckSeconds = file.Session.PoolHealthCheckSeconds
-		}
-		if file.Session.PoolConnectTimeoutSeconds != nil {
-			cfg.Session.PoolConnectTimeoutSeconds = file.Session.PoolConnectTimeoutSeconds
-		}
-		if file.Session.CacheSize != nil {
-			cfg.Session.CacheSize = file.Session.CacheSize
-		}
+func applySessionConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Session == nil {
+		return
 	}
-
-	if file.Analytics != nil {
-		cfg.Analytics = runtimeconfig.AnalyticsConfig{
-			PostHogAPIKey: strings.TrimSpace(file.Analytics.PostHogAPIKey),
-			PostHogHost:   strings.TrimSpace(file.Analytics.PostHogHost),
-		}
+	if dbURL := strings.TrimSpace(file.Session.DatabaseURL); dbURL != "" {
+		cfg.Session.DatabaseURL = dbURL
 	}
+	if dir := strings.TrimSpace(file.Session.Dir); dir != "" {
+		cfg.Session.Dir = dir
+	}
+	if file.Session.PoolMaxConns != nil {
+		cfg.Session.PoolMaxConns = file.Session.PoolMaxConns
+	}
+	if file.Session.PoolMinConns != nil {
+		cfg.Session.PoolMinConns = file.Session.PoolMinConns
+	}
+	if file.Session.PoolMaxConnLifetimeSeconds != nil {
+		cfg.Session.PoolMaxConnLifetimeSeconds = file.Session.PoolMaxConnLifetimeSeconds
+	}
+	if file.Session.PoolMaxConnIdleSeconds != nil {
+		cfg.Session.PoolMaxConnIdleSeconds = file.Session.PoolMaxConnIdleSeconds
+	}
+	if file.Session.PoolHealthCheckSeconds != nil {
+		cfg.Session.PoolHealthCheckSeconds = file.Session.PoolHealthCheckSeconds
+	}
+	if file.Session.PoolConnectTimeoutSeconds != nil {
+		cfg.Session.PoolConnectTimeoutSeconds = file.Session.PoolConnectTimeoutSeconds
+	}
+	if file.Session.CacheSize != nil {
+		cfg.Session.CacheSize = file.Session.CacheSize
+	}
+}
 
-	if file.Attachments != nil {
-		if provider := strings.TrimSpace(file.Attachments.Provider); provider != "" {
-			cfg.Attachment.Provider = provider
-		}
-		if dir := strings.TrimSpace(file.Attachments.Dir); dir != "" {
-			cfg.Attachment.Dir = dir
-		}
-		if accountID := strings.TrimSpace(file.Attachments.CloudflareAccountID); accountID != "" {
-			cfg.Attachment.CloudflareAccountID = accountID
-		}
-		if accessKey := strings.TrimSpace(file.Attachments.CloudflareAccessKeyID); accessKey != "" {
-			cfg.Attachment.CloudflareAccessKeyID = accessKey
-		}
-		if secret := strings.TrimSpace(file.Attachments.CloudflareSecretAccessKey); secret != "" {
-			cfg.Attachment.CloudflareSecretAccessKey = secret
-		}
-		if bucket := strings.TrimSpace(file.Attachments.CloudflareBucket); bucket != "" {
-			cfg.Attachment.CloudflareBucket = bucket
-		}
-		if base := strings.TrimSpace(file.Attachments.CloudflarePublicBaseURL); base != "" {
-			cfg.Attachment.CloudflarePublicBaseURL = base
-		}
-		if prefix := strings.TrimSpace(file.Attachments.CloudflareKeyPrefix); prefix != "" {
-			cfg.Attachment.CloudflareKeyPrefix = prefix
-		}
-		if ttlRaw := strings.TrimSpace(file.Attachments.PresignTTL); ttlRaw != "" {
-			if parsed, err := time.ParseDuration(ttlRaw); err == nil && parsed > 0 {
-				cfg.Attachment.PresignTTL = parsed
-			}
+func applyAnalyticsConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Analytics == nil {
+		return
+	}
+	cfg.Analytics = runtimeconfig.AnalyticsConfig{
+		PostHogAPIKey: strings.TrimSpace(file.Analytics.PostHogAPIKey),
+		PostHogHost:   strings.TrimSpace(file.Analytics.PostHogHost),
+	}
+}
+
+func applyAttachmentConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Attachments == nil {
+		return
+	}
+	if provider := strings.TrimSpace(file.Attachments.Provider); provider != "" {
+		cfg.Attachment.Provider = provider
+	}
+	if dir := strings.TrimSpace(file.Attachments.Dir); dir != "" {
+		cfg.Attachment.Dir = dir
+	}
+	if accountID := strings.TrimSpace(file.Attachments.CloudflareAccountID); accountID != "" {
+		cfg.Attachment.CloudflareAccountID = accountID
+	}
+	if accessKey := strings.TrimSpace(file.Attachments.CloudflareAccessKeyID); accessKey != "" {
+		cfg.Attachment.CloudflareAccessKeyID = accessKey
+	}
+	if secret := strings.TrimSpace(file.Attachments.CloudflareSecretAccessKey); secret != "" {
+		cfg.Attachment.CloudflareSecretAccessKey = secret
+	}
+	if bucket := strings.TrimSpace(file.Attachments.CloudflareBucket); bucket != "" {
+		cfg.Attachment.CloudflareBucket = bucket
+	}
+	if base := strings.TrimSpace(file.Attachments.CloudflarePublicBaseURL); base != "" {
+		cfg.Attachment.CloudflarePublicBaseURL = base
+	}
+	if prefix := strings.TrimSpace(file.Attachments.CloudflareKeyPrefix); prefix != "" {
+		cfg.Attachment.CloudflareKeyPrefix = prefix
+	}
+	if ttlRaw := strings.TrimSpace(file.Attachments.PresignTTL); ttlRaw != "" {
+		if parsed, err := time.ParseDuration(ttlRaw); err == nil && parsed > 0 {
+			cfg.Attachment.PresignTTL = parsed
 		}
 	}
 }

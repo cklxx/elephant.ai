@@ -11,6 +11,7 @@ import (
 	"time"
 
 	agentdomain "alex/internal/agent/domain"
+	"alex/internal/analytics"
 	"alex/internal/async"
 	"alex/internal/attachments"
 	"alex/internal/diagnostics"
@@ -24,6 +25,9 @@ import (
 func RunServer(observabilityConfigPath string) error {
 	logger := logging.NewComponentLogger("Main")
 	logger.Info("Starting elephant.ai SSE Server...")
+	degraded := NewDegradedComponents()
+
+	// ── Phase 1: Required infrastructure (failure aborts startup) ──
 
 	obs, cleanupObs := InitObservability(observabilityConfigPath, logger)
 	if cleanupObs != nil {
@@ -59,38 +63,71 @@ func RunServer(observabilityConfigPath string) error {
 		container.AgentCoordinator.SetEnvironmentSummary(summary)
 	}
 
+	// ── Phase 2: Optional services (failure records degraded, continues) ──
+
 	config.Attachment = attachments.NormalizeConfig(config.Attachment)
 	var attachmentStore *attachments.Store
-	if store, err := attachments.NewStore(config.Attachment); err != nil {
-		logger.Warn("Attachment migrator disabled: %v", err)
-	} else {
-		attachmentStore = store
-		migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
-		container.AgentCoordinator.SetAttachmentMigrator(migrator)
-	}
-
 	var historyStore serverApp.EventHistoryStore
 	var asyncHistoryStore *serverApp.AsyncEventHistoryStore
-	if container.SessionDB != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		historyOpts := []serverApp.PostgresEventHistoryStoreOption{}
-		if attachmentStore != nil {
-			historyOpts = append(historyOpts, serverApp.WithHistoryAttachmentStore(attachmentStore))
-		}
-		if config.EventHistoryRetention > 0 {
-			historyOpts = append(historyOpts, serverApp.WithHistoryRetention(config.EventHistoryRetention))
-		}
-		pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB, historyOpts...)
-		if err := pgHistory.EnsureSchema(ctx); err != nil {
-			logger.Warn("Failed to initialize event history schema: %v", err)
-		} else {
-			historyStore = pgHistory
-			asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory)
-			defer func() {
-				_ = asyncHistoryStore.Close()
-			}()
-		}
+	var analyticsClient analytics.Client
+	var analyticsCleanup func()
+
+	optionalStages := []BootstrapStage{
+		{
+			Name: "attachments", Required: false,
+			Init: func() error {
+				store, err := attachments.NewStore(config.Attachment)
+				if err != nil {
+					return err
+				}
+				attachmentStore = store
+				migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
+				container.AgentCoordinator.SetAttachmentMigrator(migrator)
+				return nil
+			},
+		},
+		{
+			Name: "event-history", Required: false,
+			Init: func() error {
+				if container.SessionDB == nil {
+					return nil // not an error, just not configured
+				}
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+				historyOpts := []serverApp.PostgresEventHistoryStoreOption{}
+				if attachmentStore != nil {
+					historyOpts = append(historyOpts, serverApp.WithHistoryAttachmentStore(attachmentStore))
+				}
+				if config.EventHistoryRetention > 0 {
+					historyOpts = append(historyOpts, serverApp.WithHistoryRetention(config.EventHistoryRetention))
+				}
+				pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB, historyOpts...)
+				if err := pgHistory.EnsureSchema(ctx); err != nil {
+					return err
+				}
+				historyStore = pgHistory
+				asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory)
+				return nil
+			},
+		},
+		{
+			Name: "analytics", Required: false,
+			Init: func() error {
+				analyticsClient, analyticsCleanup = BuildAnalyticsClient(config.Analytics, logger)
+				return nil
+			},
+		},
+	}
+
+	if err := RunStages(optionalStages, degraded, logger); err != nil {
+		return fmt.Errorf("optional stages: %w", err)
+	}
+
+	if asyncHistoryStore != nil {
+		defer func() { _ = asyncHistoryStore.Close() }()
+	}
+	if analyticsCleanup != nil {
+		defer analyticsCleanup()
 	}
 
 	broadcasterHistoryStore := historyStore
@@ -103,11 +140,6 @@ func RunServer(observabilityConfigPath string) error {
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)
 	defer cleanupDiagnostics()
-
-	analyticsClient, analyticsCleanup := BuildAnalyticsClient(config.Analytics, logger)
-	if analyticsCleanup != nil {
-		defer analyticsCleanup()
-	}
 
 	journalReader := BuildJournalReader(container.SessionDir(), logger)
 
@@ -124,45 +156,59 @@ func RunServer(observabilityConfigPath string) error {
 		serverApp.WithProgressTracker(progressTracker),
 	)
 
-	gatewayCtx, gatewayCancel := context.WithCancel(context.Background())
-	gatewayCleanup, err := startWeChatGateway(gatewayCtx, config, container, logger)
-	if err != nil {
-		logger.Warn("WeChat gateway disabled: %v", err)
-	}
-	defer func() {
-		gatewayCancel()
-		if gatewayCleanup != nil {
-			gatewayCleanup()
-		}
-	}()
+	// ── Phase 3: Subsystems (gateways, scheduler — managed lifecycle) ──
 
-	larkCtx, larkCancel := context.WithCancel(context.Background())
-	larkCleanup, err := startLarkGateway(larkCtx, config, container, logger, broadcaster)
-	if err != nil {
-		logger.Warn("Lark gateway disabled: %v", err)
-	}
-	defer func() {
-		larkCancel()
-		if larkCleanup != nil {
-			larkCleanup()
-		}
-	}()
+	subsystems := NewSubsystemManager(logger)
+	defer subsystems.StopAll()
 
-	// Start scheduler if enabled
-	schedulerCtx, schedulerCancel := context.WithCancel(context.Background())
-	if config.Runtime.Proactive.Scheduler.Enabled {
-		sched := startScheduler(schedulerCtx, config, container, logger)
-		if sched != nil {
-			defer func() {
-				schedulerCancel()
-				sched.Stop()
-			}()
-		} else {
-			schedulerCancel()
-		}
-	} else {
-		schedulerCancel()
+	gatewayStages := []BootstrapStage{
+		{
+			Name: "wechat-gateway", Required: false,
+			Init: func() error {
+				return subsystems.Start(context.Background(), &gatewaySubsystem{
+					name: "wechat",
+					startFn: func(ctx context.Context) (func(), error) {
+						return startWeChatGateway(ctx, config, container, logger)
+					},
+				})
+			},
+		},
+		{
+			Name: "lark-gateway", Required: false,
+			Init: func() error {
+				return subsystems.Start(context.Background(), &gatewaySubsystem{
+					name: "lark",
+					startFn: func(ctx context.Context) (func(), error) {
+						return startLarkGateway(ctx, config, container, logger, broadcaster)
+					},
+				})
+			},
+		},
+		{
+			Name: "scheduler", Required: false,
+			Init: func() error {
+				if !config.Runtime.Proactive.Scheduler.Enabled {
+					return nil
+				}
+				return subsystems.Start(context.Background(), &gatewaySubsystem{
+					name: "scheduler",
+					startFn: func(ctx context.Context) (func(), error) {
+						sched := startScheduler(ctx, config, container, logger)
+						if sched == nil {
+							return nil, fmt.Errorf("scheduler init returned nil")
+						}
+						return sched.Stop, nil
+					},
+				})
+			},
+		},
 	}
+
+	if err := RunStages(gatewayStages, degraded, logger); err != nil {
+		return fmt.Errorf("gateway stages: %w", err)
+	}
+
+	// ── Phase 4: Session migration (best-effort) ──
 
 	if historyStore != nil {
 		migrationCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -179,6 +225,8 @@ func RunServer(observabilityConfigPath string) error {
 			logger.Warn("Session migration failed: %v", err)
 		}
 	}
+
+	// ── Phase 5: HTTP layer ──
 
 	healthChecker := serverApp.NewHealthChecker()
 	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
@@ -232,6 +280,10 @@ func RunServer(observabilityConfigPath string) error {
 		progressTracker,
 	)
 
+	if !degraded.IsEmpty() {
+		logger.Warn("[Bootstrap] Server starting in degraded mode: %v", degraded.Map())
+	}
+
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
 		Host:     hostEnv,
 		Captured: envCapturedAt,
@@ -246,6 +298,30 @@ func RunServer(observabilityConfigPath string) error {
 	}
 
 	return serveUntilSignal(server, logger)
+}
+
+// gatewaySubsystem adapts the start/cleanup gateway pattern to the Subsystem interface.
+type gatewaySubsystem struct {
+	name    string
+	startFn func(ctx context.Context) (func(), error)
+	cleanup func()
+}
+
+func (g *gatewaySubsystem) Name() string { return g.name }
+
+func (g *gatewaySubsystem) Start(ctx context.Context) error {
+	cleanup, err := g.startFn(ctx)
+	if err != nil {
+		return err
+	}
+	g.cleanup = cleanup
+	return nil
+}
+
+func (g *gatewaySubsystem) Stop() {
+	if g.cleanup != nil {
+		g.cleanup()
+	}
 }
 
 func subscribeDiagnostics(broadcaster *serverApp.EventBroadcaster) func() {
