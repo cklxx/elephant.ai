@@ -8,9 +8,9 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**A proactive AI assistant that lives where you work.**
+**A proactive personal AI — your own dedicated AI agent.**
 
-elephant.ai is not another chatbot you have to ask. It is a proactive AI assistant that embeds into your daily workflows — Lark, WeChat, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
+elephant.ai is not another chatbot you have to ask. It is a proactive personal AI agent that embeds into your daily workflows — Lark, WeChat, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
 
 ---
 
