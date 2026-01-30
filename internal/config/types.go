@@ -125,9 +125,9 @@ func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 			Timeout:     30 * time.Minute,
 			AutonomousAllowedTools: []string{
 				"Read",
-				"Edit",
 				"Glob",
 				"Grep",
+				"WebSearch",
 			},
 			Env: map[string]string{},
 		},

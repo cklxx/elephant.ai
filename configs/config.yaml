@@ -53,6 +53,11 @@ runtime:
       enabled: false
       binary: "claude"
       default_mode: "interactive"
+      autonomous_allowed_tools:
+        - "Read"
+        - "Glob"
+        - "Grep"
+        - "WebSearch"
       max_turns: 50
       timeout: "30m"
       env:
