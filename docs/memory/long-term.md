@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-01-29 15:00
+Updated: 2026-01-30 12:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -27,3 +27,4 @@ Updated: 2026-01-29 15:00
 - Error experience: entries in `docs/error-experience/entries/`, summaries in `docs/error-experience/summary/entries/`; index files are index-only.
 - Plans: always write to `docs/plans/`, update as work progresses.
 - Commit often, prefer small commits. Run full lint+tsc after changes.
+- Keep `agent/ports` free of memory/RAG dependencies; inject memory service at engine/app layers to avoid import cycles.

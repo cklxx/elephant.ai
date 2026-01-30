@@ -2,10 +2,19 @@
 
 > **Author:** cklxx
 > **Date:** 2026-01-30
-> **Status:** Draft
+> **Status:** In Progress
 > **Scope:** elephant.ai 主动性能力升级 — 从被动响应到主动行动
 
 ---
+
+## 实施进度（2026-01-30）
+
+- **已落地：Layer 1 自动记忆** — 通过 Hook Registry + MemoryPolicy 实现任务前自动召回 / 任务后自动捕获，统一在 Coordinator 层注入，配置集中在 `runtime.proactive`。
+- **已落地：Layer 2 RAG 融合基础** — 引入 `HybridStore`（关键词 + 向量搜索）与 RRF 融合、metadata 过滤与最小相似度阈值。
+- **已落地：Layer 2 自动技能体系基础** — Skill frontmatter 扩展 + Matcher + Chain 解析 + Cache + Feedback Store + 自动注入系统提示词。
+- **已落地：迭代间上下文刷新** — ReAct 迭代内注入 recall 结果并发出 `proactive.context.refresh` 事件。
+- **已落地：技能学习数据采集** — WorkflowTrace 写入记忆 + SkillLearner 生成建议技能模板。
+- **待补充：Layer 2/3 余项** — 记忆生命周期管理、Scheduler、PatternRecognizer、InitiativeEvaluator、AttentionEngine。
 
 ## 一、背景与现状分析
 
