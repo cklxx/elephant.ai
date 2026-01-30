@@ -290,6 +290,16 @@ func (c *AgentCoordinator) ExecuteTask(
 	if sessionID == "" {
 		sessionID = env.Session.ID
 	}
+	// Propagate context user_id into session metadata so resolveUserID
+	// can find it for proactive hooks and memory operations.
+	if ctxUserID := id.UserIDFromContext(ctx); ctxUserID != "" {
+		if env.Session.Metadata == nil {
+			env.Session.Metadata = make(map[string]string)
+		}
+		if env.Session.Metadata["user_id"] == "" {
+			env.Session.Metadata["user_id"] = ctxUserID
+		}
+	}
 	clilatency.PrintfWithContext(ctx,
 		"[latency] prepare_ms=%.2f session=%s\n",
 		float64(time.Since(prepareStarted))/float64(time.Millisecond),
@@ -965,7 +975,7 @@ func (c *AgentCoordinator) resolveUserID(session *storage.Session) string {
 		return uid
 	}
 	// Fallback: use session ID prefix for Lark/WeChat sessions
-	if strings.HasPrefix(session.ID, "lark:") || strings.HasPrefix(session.ID, "wechat:") {
+	if strings.HasPrefix(session.ID, "lark-") || strings.HasPrefix(session.ID, "wechat-") {
 		return session.ID
 	}
 	return ""

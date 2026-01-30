@@ -371,5 +371,82 @@ func TestPersistSessionSnapshotSkipsWhenStateMissing(t *testing.T) {
 	}
 }
 
+func TestResolveUserID(t *testing.T) {
+	coordinator := &AgentCoordinator{logger: agent.NoopLogger{}}
+
+	t.Run("nil session", func(t *testing.T) {
+		if got := coordinator.resolveUserID(nil); got != "" {
+			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+
+	t.Run("nil metadata", func(t *testing.T) {
+		session := &storage.Session{ID: "test-session"}
+		if got := coordinator.resolveUserID(session); got != "" {
+			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+
+	t.Run("user_id from metadata", func(t *testing.T) {
+		session := &storage.Session{
+			ID:       "lark-abc123",
+			Metadata: map[string]string{"user_id": "ou_user_42"},
+		}
+		if got := coordinator.resolveUserID(session); got != "ou_user_42" {
+			t.Fatalf("expected 'ou_user_42', got %q", got)
+		}
+	})
+
+	t.Run("lark- prefix fallback", func(t *testing.T) {
+		session := &storage.Session{
+			ID:       "lark-abc123",
+			Metadata: map[string]string{},
+		}
+		if got := coordinator.resolveUserID(session); got != "lark-abc123" {
+			t.Fatalf("expected 'lark-abc123', got %q", got)
+		}
+	})
+
+	t.Run("wechat- prefix fallback", func(t *testing.T) {
+		session := &storage.Session{
+			ID:       "wechat-def456",
+			Metadata: map[string]string{},
+		}
+		if got := coordinator.resolveUserID(session); got != "wechat-def456" {
+			t.Fatalf("expected 'wechat-def456', got %q", got)
+		}
+	})
+
+	t.Run("lark colon prefix no longer matches", func(t *testing.T) {
+		session := &storage.Session{
+			ID:       "lark:old-format",
+			Metadata: map[string]string{},
+		}
+		if got := coordinator.resolveUserID(session); got != "" {
+			t.Fatalf("expected empty for 'lark:' prefix (wrong separator), got %q", got)
+		}
+	})
+
+	t.Run("non-channel session returns empty", func(t *testing.T) {
+		session := &storage.Session{
+			ID:       "cli-session-xyz",
+			Metadata: map[string]string{},
+		}
+		if got := coordinator.resolveUserID(session); got != "" {
+			t.Fatalf("expected empty for non-channel session, got %q", got)
+		}
+	})
+
+	t.Run("user_id takes precedence over prefix fallback", func(t *testing.T) {
+		session := &storage.Session{
+			ID:       "lark-abc123",
+			Metadata: map[string]string{"user_id": "ou_real_user"},
+		}
+		if got := coordinator.resolveUserID(session); got != "ou_real_user" {
+			t.Fatalf("expected 'ou_real_user', got %q", got)
+		}
+	})
+}
+
 // Ensure the coordinator continues to satisfy the AgentCoordinator port contract.
 var _ agent.AgentCoordinator = (*AgentCoordinator)(nil)

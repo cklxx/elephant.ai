@@ -13,6 +13,8 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
+	"alex/internal/memory"
+	id "alex/internal/utils/id"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
@@ -297,6 +299,113 @@ func TestGatewayMessageDedup(t *testing.T) {
 	}
 }
 
+func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
+	openID := "ou_sender_abc"
+	chatID := "oc_chat_123"
+	msgID := "om_msg_001"
+	content := `{"text":"hello"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	gw := &Gateway{
+		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", AllowDirect: true},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	// Initialize dedup cache.
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	if executor.capturedCtx == nil {
+		t.Fatal("expected ExecuteTask to be called")
+	}
+
+	gotUserID := id.UserIDFromContext(executor.capturedCtx)
+	if gotUserID != "ou_sender_abc" {
+		t.Fatalf("expected user_id 'ou_sender_abc' on context, got %q", gotUserID)
+	}
+}
+
+func TestHandleMessagePassesSenderIDToMemory(t *testing.T) {
+	openID := "ou_sender_xyz"
+	chatID := "oc_chat_456"
+	msgID := "om_msg_002"
+	content := `{"text":"remember this"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	store := &stubMemoryStore{}
+	svc := memory.NewService(store)
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{Answer: "noted"},
+	}
+	gw := &Gateway{
+		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", AllowDirect: true},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	gw.SetMemoryManager(svc)
+
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	// Verify memory entries use senderID ("ou_sender_xyz"), not memoryID (chat hash).
+	for _, entry := range store.entries {
+		if entry.UserID != "ou_sender_xyz" {
+			t.Fatalf("expected memory entry UserID 'ou_sender_xyz', got %q", entry.UserID)
+		}
+	}
+	if len(store.entries) == 0 {
+		t.Fatal("expected at least one memory entry to be saved")
+	}
+}
+
 // --- test helpers ---
 
 var errTest = fmt.Errorf("test error")
@@ -312,6 +421,24 @@ func (s *stubExecutor) EnsureSession(_ context.Context, sessionID string) (*stor
 
 func (s *stubExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
 	return nil, nil
+}
+
+// capturingExecutor records the context and returns a configurable result.
+type capturingExecutor struct {
+	capturedCtx context.Context
+	result      *agent.TaskResult
+}
+
+func (c *capturingExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	if sessionID == "" {
+		sessionID = "lark-session"
+	}
+	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+}
+
+func (c *capturingExecutor) ExecuteTask(ctx context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	c.capturedCtx = ctx
+	return c.result, nil
 }
 
 func TestBuildReplyThinkingFallback(t *testing.T) {

@@ -28,7 +28,7 @@ func newLarkMemoryManager(svc memory.Service, logger logging.Logger) *larkMemory
 // SaveMessage persists a single chat message (user or assistant) to memory.
 // role should be "user" or "assistant"; senderID identifies the message author.
 // Failures are logged but do not block message processing.
-func (m *larkMemoryManager) SaveMessage(ctx context.Context, memoryID, role, content, senderID string) {
+func (m *larkMemoryManager) SaveMessage(ctx context.Context, userID, role, content, senderID string) {
 	if m == nil || m.service == nil {
 		return
 	}
@@ -39,7 +39,7 @@ func (m *larkMemoryManager) SaveMessage(ctx context.Context, memoryID, role, con
 
 	keywords := extractKeywords(content)
 	entry := memory.Entry{
-		UserID:   memoryID,
+		UserID:   userID,
 		Content:  content,
 		Keywords: keywords,
 		Slots: map[string]string{
@@ -55,8 +55,8 @@ func (m *larkMemoryManager) SaveMessage(ctx context.Context, memoryID, role, con
 }
 
 // SaveFromResult extracts important notes from the task result and persists
-// them via the memory service, keyed by session/user context.
-func (m *larkMemoryManager) SaveFromResult(ctx context.Context, sessionID string, result *agent.TaskResult) {
+// them via the memory service, keyed by user identity.
+func (m *larkMemoryManager) SaveFromResult(ctx context.Context, userID string, result *agent.TaskResult) {
 	if m == nil || m.service == nil || result == nil {
 		return
 	}
@@ -70,12 +70,12 @@ func (m *larkMemoryManager) SaveFromResult(ctx context.Context, sessionID string
 			continue
 		}
 		entry := memory.Entry{
-			UserID:  sessionID,
+			UserID:  userID,
 			Content: content,
 			Keywords: note.Tags,
 			Slots: map[string]string{
 				"source":     note.Source,
-				"session_id": sessionID,
+				"session_id": userID,
 			},
 			CreatedAt: note.CreatedAt,
 		}
@@ -90,7 +90,7 @@ func (m *larkMemoryManager) SaveFromResult(ctx context.Context, sessionID string
 
 // RecallForTask queries the memory service with the task text and returns
 // relevant memories formatted as a context string.
-func (m *larkMemoryManager) RecallForTask(ctx context.Context, sessionID, task string) string {
+func (m *larkMemoryManager) RecallForTask(ctx context.Context, userID, task string) string {
 	if m == nil || m.service == nil {
 		return ""
 	}
@@ -101,7 +101,7 @@ func (m *larkMemoryManager) RecallForTask(ctx context.Context, sessionID, task s
 	}
 
 	entries, err := m.service.Recall(ctx, memory.Query{
-		UserID:   sessionID,
+		UserID:   userID,
 		Keywords: keywords,
 		Limit:    5,
 	})

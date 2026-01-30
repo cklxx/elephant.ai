@@ -216,6 +216,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	// Each message gets a fresh session (zero history). Memory recall
 	// injects relevant context instead of accumulating session messages.
+	senderID := extractSenderID(event)
 	memoryID := g.memoryIDForChat(chatID)
 	sessionID := fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
 
@@ -225,6 +226,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	execCtx := context.Background()
 	execCtx = id.WithSessionID(execCtx, sessionID)
+	execCtx = id.WithUserID(execCtx, senderID)
 	execCtx, _ = id.EnsureLogID(execCtx, id.NewLogID)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
@@ -285,8 +287,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	// Save user message to memory for long-term recall.
 	if g.memoryMgr != nil {
-		senderID := extractSenderID(event)
-		g.memoryMgr.SaveMessage(execCtx, memoryID, "user", content, senderID)
+		g.memoryMgr.SaveMessage(execCtx, senderID, "user", content, senderID)
 	}
 
 	// Auto chat context: fetch recent messages from the Lark chat.
@@ -304,9 +305,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	// Memory recall: inject relevant past learnings into the task context.
-	// Uses memoryID (stable per chat) so memories persist across fresh sessions.
+	// Uses senderID so memories are per-user, not per-chat.
 	if g.memoryMgr != nil {
-		if recalled := g.memoryMgr.RecallForTask(execCtx, memoryID, content); recalled != "" {
+		if recalled := g.memoryMgr.RecallForTask(execCtx, senderID, content); recalled != "" {
 			taskContent = recalled + "\n\n" + taskContent
 		}
 	}
@@ -318,12 +319,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	// Memory save: persist important notes from the result.
 	if g.memoryMgr != nil {
-		g.memoryMgr.SaveFromResult(execCtx, memoryID, result)
+		g.memoryMgr.SaveFromResult(execCtx, senderID, result)
 	}
 
 	// Save agent reply to memory for long-term recall.
 	if g.memoryMgr != nil && result != nil && strings.TrimSpace(result.Answer) != "" {
-		g.memoryMgr.SaveMessage(execCtx, memoryID, "assistant", result.Answer, "bot")
+		g.memoryMgr.SaveMessage(execCtx, senderID, "assistant", result.Answer, "bot")
 	}
 
 	reply := g.buildReply(result, execErr)
