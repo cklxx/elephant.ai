@@ -72,6 +72,8 @@ func (c *CLI) Run(args []string) error {
 		return c.handleEval(cmdArgs)
 	case "acp":
 		return c.handleACP(cmdArgs)
+	case "mcp-permission-server":
+		return runMCPPermissionServer(cmdArgs)
 
 	default:
 		// Default: treat as task and run with stream output
