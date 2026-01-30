@@ -11,7 +11,14 @@ import (
 )
 
 func TestRouterRegistersAuthEndpointsWhenDisabled(t *testing.T) {
-	router := NewRouter(nil, serverapp.NewEventBroadcaster(), serverapp.NewHealthChecker(), nil, nil, "development", nil, "", nil, nil, nil, 0, StreamGuardConfig{}, RateLimitConfig{}, 0, attachments.StoreConfig{Dir: t.TempDir()}, nil, nil)
+	router := NewRouter(
+		RouterDeps{
+			Broadcaster:   serverapp.NewEventBroadcaster(),
+			HealthChecker: serverapp.NewHealthChecker(),
+			AttachmentCfg: attachments.StoreConfig{Dir: t.TempDir()},
+		},
+		RouterConfig{Environment: "development"},
+	)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/auth/register", strings.NewReader(`{"email":"a"}`))
 	w := httptest.NewRecorder()

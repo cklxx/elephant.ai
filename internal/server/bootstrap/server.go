@@ -253,31 +253,35 @@ func RunServer(observabilityConfigPath string) error {
 		logger.Warn("Evaluation service disabled: %v", err)
 	}
 	router := serverHTTP.NewRouter(
-		serverCoordinator,
-		broadcaster,
-		healthChecker,
-		authHandler,
-		authService,
-		config.Runtime.Environment,
-		config.AllowedOrigins,
-		config.Runtime.SandboxBaseURL,
-		configHandler,
-		evaluationService,
-		obs,
-		config.MaxTaskBodyBytes,
-		serverHTTP.StreamGuardConfig{
-			MaxDuration:   config.StreamMaxDuration,
-			MaxBytes:      config.StreamMaxBytes,
-			MaxConcurrent: config.StreamMaxConcurrent,
+		serverHTTP.RouterDeps{
+			Coordinator:    serverCoordinator,
+			Broadcaster:    broadcaster,
+			RunTracker:     progressTracker,
+			HealthChecker:  healthChecker,
+			AuthHandler:    authHandler,
+			AuthService:    authService,
+			ConfigHandler:  configHandler,
+			Evaluation:     evaluationService,
+			Obs:            obs,
+			MemoryService:  container.MemoryService,
+			AttachmentCfg:  config.Attachment,
+			SandboxBaseURL: config.Runtime.SandboxBaseURL,
 		},
-		serverHTTP.RateLimitConfig{
-			RequestsPerMinute: config.RateLimitRequestsPerMinute,
-			Burst:             config.RateLimitBurst,
+		serverHTTP.RouterConfig{
+			Environment:      config.Runtime.Environment,
+			AllowedOrigins:   config.AllowedOrigins,
+			MaxTaskBodyBytes: config.MaxTaskBodyBytes,
+			StreamGuard: serverHTTP.StreamGuardConfig{
+				MaxDuration:   config.StreamMaxDuration,
+				MaxBytes:      config.StreamMaxBytes,
+				MaxConcurrent: config.StreamMaxConcurrent,
+			},
+			RateLimit: serverHTTP.RateLimitConfig{
+				RequestsPerMinute: config.RateLimitRequestsPerMinute,
+				Burst:             config.RateLimitBurst,
+			},
+			NonStreamTimeout: config.NonStreamTimeout,
 		},
-		config.NonStreamTimeout,
-		config.Attachment,
-		container.MemoryService,
-		progressTracker,
 	)
 
 	if !degraded.IsEmpty() {

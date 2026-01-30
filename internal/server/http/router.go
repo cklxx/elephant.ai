@@ -3,58 +3,53 @@ package http
 import (
 	"net/http"
 	"strings"
-	"time"
 
 	"alex/internal/attachments"
-	authapp "alex/internal/auth/app"
 	"alex/internal/auth/domain"
 	"alex/internal/config"
 	"alex/internal/logging"
-	"alex/internal/memory"
-	"alex/internal/observability"
 	"alex/internal/sandbox"
-	"alex/internal/server/app"
 )
 
-// NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, streamGuard StreamGuardConfig, rateLimit RateLimitConfig, nonStreamTimeout time.Duration, attachmentCfg attachments.StoreConfig, memoryService memory.Service, runTracker app.RunTracker) http.Handler {
+// NewRouter creates a new HTTP router with all endpoints.
+func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
-	attachmentStore := (*AttachmentStore)(nil)
-	attachmentCfg = attachments.NormalizeConfig(attachmentCfg)
+	attachmentCfg := attachments.NormalizeConfig(deps.AttachmentCfg)
+	var attachmentStore *AttachmentStore
 	if store, err := NewAttachmentStore(attachmentCfg); err != nil {
 		logger.Warn("Attachment store disabled: %v", err)
 	} else {
 		attachmentStore = store
 	}
-	taskBodyLimit := maxTaskBodyBytes
+	taskBodyLimit := cfg.MaxTaskBodyBytes
 	if taskBodyLimit <= 0 {
 		taskBodyLimit = defaultMaxCreateTaskBodySize
 	}
-	normalizedEnv := strings.TrimSpace(environment)
+	normalizedEnv := strings.TrimSpace(cfg.Environment)
 
 	// Create handlers
-	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore), WithSSERunTracker(runTracker))
-	shareHandler := NewShareHandler(coordinator, sseHandler)
+	sseHandler := NewSSEHandler(deps.Broadcaster, WithSSEObservability(deps.Obs), WithSSEAttachmentStore(attachmentStore), WithSSERunTracker(deps.RunTracker))
+	shareHandler := NewShareHandler(deps.Coordinator, sseHandler)
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
-	sandboxClient := sandbox.NewClient(sandbox.Config{BaseURL: sandboxBaseURL})
+	sandboxClient := sandbox.NewClient(sandbox.Config{BaseURL: deps.SandboxBaseURL})
 	apiHandler := NewAPIHandler(
-		coordinator,
-		healthChecker,
+		deps.Coordinator,
+		deps.HealthChecker,
 		internalMode,
-		WithAPIObservability(obs),
-		WithEvaluationService(evaluationService),
+		WithAPIObservability(deps.Obs),
+		WithEvaluationService(deps.Evaluation),
 		WithAttachmentStore(attachmentStore),
 		WithSandboxClient(sandboxClient),
 		WithDevMode(devMode),
 		WithMaxCreateTaskBodySize(taskBodyLimit),
-		WithMemoryService(memoryService),
+		WithMemoryService(deps.MemoryService),
 	)
 
 	var authMiddleware func(http.Handler) http.Handler
-	if authHandler != nil && authService != nil {
-		authMiddleware = AuthMiddleware(authService)
+	if deps.AuthHandler != nil && deps.AuthService != nil {
+		authMiddleware = AuthMiddleware(deps.AuthService)
 	}
 
 	wrap := func(handler http.Handler) http.Handler {
@@ -64,8 +59,10 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		return authMiddleware(handler)
 	}
 
-	// Create mux
+	// Create mux using Go 1.22+ method-specific patterns.
 	mux := http.NewServeMux()
+
+	// ── Internal / dev endpoints ──
 
 	mux.Handle("/api/internal/sessions/", routeHandler("/api/internal/sessions", http.HandlerFunc(apiHandler.HandleInternalSessionRequest)))
 
@@ -87,21 +84,21 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 	}
 
-	if (internalMode || devMode) && configHandler != nil {
+	if (internalMode || devMode) && deps.ConfigHandler != nil {
 		runtimeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.Method {
 			case http.MethodGet:
-				configHandler.HandleGetRuntimeConfig(w, r)
+				deps.ConfigHandler.HandleGetRuntimeConfig(w, r)
 			case http.MethodPut:
-				configHandler.HandleUpdateRuntimeConfig(w, r)
+				deps.ConfigHandler.HandleUpdateRuntimeConfig(w, r)
 			default:
 				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			}
 		})
 		mux.Handle("/api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(runtimeHandler)))
-		mux.Handle("/api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(configHandler.HandleRuntimeStream))))
-		mux.Handle("/api/internal/config/runtime/models", routeHandler("/api/internal/config/runtime/models", wrap(http.HandlerFunc(configHandler.HandleGetRuntimeModels))))
-		mux.Handle("/api/internal/subscription/catalog", routeHandler("/api/internal/subscription/catalog", wrap(http.HandlerFunc(configHandler.HandleGetSubscriptionCatalog))))
+		mux.Handle("/api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(deps.ConfigHandler.HandleRuntimeStream))))
+		mux.Handle("/api/internal/config/runtime/models", routeHandler("/api/internal/config/runtime/models", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeModels))))
+		mux.Handle("/api/internal/subscription/catalog", routeHandler("/api/internal/subscription/catalog", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetSubscriptionCatalog))))
 	}
 	if internalMode {
 		appsConfigHandler := NewAppsConfigHandler(config.LoadAppsConfig, config.SaveAppsConfig)
@@ -110,7 +107,8 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 	}
 
-	// SSE endpoint
+	// ── SSE / streaming ──
+
 	mux.Handle("/api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
 	mux.Handle("/api/share/sessions/", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))
 	if attachmentStore != nil {
@@ -120,28 +118,30 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	mux.Handle("/api/sandbox/browser-info", routeHandler("/api/sandbox/browser-info", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserInfo))))
 	mux.Handle("/api/sandbox/browser-screenshot", routeHandler("/api/sandbox/browser-screenshot", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserScreenshot))))
 
-	if authHandler != nil {
-		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(authHandler.HandleRegister)))
-		mux.Handle("/api/auth/login", routeHandler("/api/auth/login", http.HandlerFunc(authHandler.HandleLogin)))
-		mux.Handle("/api/auth/logout", routeHandler("/api/auth/logout", http.HandlerFunc(authHandler.HandleLogout)))
-		mux.Handle("/api/auth/refresh", routeHandler("/api/auth/refresh", http.HandlerFunc(authHandler.HandleRefresh)))
-		mux.Handle("/api/auth/me", routeHandler("/api/auth/me", http.HandlerFunc(authHandler.HandleMe)))
-		mux.Handle("/api/auth/plans", routeHandler("/api/auth/plans", http.HandlerFunc(authHandler.HandleListPlans)))
+	// ── Auth endpoints ──
+
+	if deps.AuthHandler != nil {
+		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(deps.AuthHandler.HandleRegister)))
+		mux.Handle("/api/auth/login", routeHandler("/api/auth/login", http.HandlerFunc(deps.AuthHandler.HandleLogin)))
+		mux.Handle("/api/auth/logout", routeHandler("/api/auth/logout", http.HandlerFunc(deps.AuthHandler.HandleLogout)))
+		mux.Handle("/api/auth/refresh", routeHandler("/api/auth/refresh", http.HandlerFunc(deps.AuthHandler.HandleRefresh)))
+		mux.Handle("/api/auth/me", routeHandler("/api/auth/me", http.HandlerFunc(deps.AuthHandler.HandleMe)))
+		mux.Handle("/api/auth/plans", routeHandler("/api/auth/plans", http.HandlerFunc(deps.AuthHandler.HandleListPlans)))
 		if internalMode {
-			mux.Handle("/api/auth/points", routeHandler("/api/auth/points", wrap(http.HandlerFunc(authHandler.HandleAdjustPoints))))
-			mux.Handle("/api/auth/subscription", routeHandler("/api/auth/subscription", wrap(http.HandlerFunc(authHandler.HandleUpdateSubscription))))
+			mux.Handle("/api/auth/points", routeHandler("/api/auth/points", wrap(http.HandlerFunc(deps.AuthHandler.HandleAdjustPoints))))
+			mux.Handle("/api/auth/subscription", routeHandler("/api/auth/subscription", wrap(http.HandlerFunc(deps.AuthHandler.HandleUpdateSubscription))))
 		}
 		mux.Handle("/api/auth/google/login", routeHandler("/api/auth/google/login", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHandler.HandleOAuthStart(domain.ProviderGoogle, w, r)
+			deps.AuthHandler.HandleOAuthStart(domain.ProviderGoogle, w, r)
 		})))
 		mux.Handle("/api/auth/google/callback", routeHandler("/api/auth/google/callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHandler.HandleOAuthCallback(domain.ProviderGoogle, w, r)
+			deps.AuthHandler.HandleOAuthCallback(domain.ProviderGoogle, w, r)
 		})))
 		mux.Handle("/api/auth/wechat/login", routeHandler("/api/auth/wechat/login", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHandler.HandleOAuthStart(domain.ProviderWeChat, w, r)
+			deps.AuthHandler.HandleOAuthStart(domain.ProviderWeChat, w, r)
 		})))
 		mux.Handle("/api/auth/wechat/callback", routeHandler("/api/auth/wechat/callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			authHandler.HandleOAuthCallback(domain.ProviderWeChat, w, r)
+			deps.AuthHandler.HandleOAuthCallback(domain.ProviderWeChat, w, r)
 		})))
 	} else {
 		authDisabled := func(w http.ResponseWriter, r *http.Request) {
@@ -161,7 +161,8 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		mux.Handle("/api/auth/wechat/callback", routeHandler("/api/auth/wechat/callback", http.HandlerFunc(authDisabled)))
 	}
 
-	// Task endpoints
+	// ── Task endpoints ──
+
 	mux.Handle("/api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
@@ -173,7 +174,26 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 	}))))
 
-	// Evaluation endpoints
+	mux.Handle("/api/tasks/", routeHandler("/api/tasks/:task_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
+
+		if strings.HasSuffix(path, "/cancel") {
+			annotateRequestRoute(r, "/api/tasks/:task_id/cancel")
+			apiHandler.HandleCancelTask(w, r)
+			return
+		}
+
+		if !strings.Contains(path, "/") {
+			annotateRequestRoute(r, "/api/tasks/:task_id")
+			apiHandler.HandleGetTask(w, r)
+			return
+		}
+
+		http.Error(w, "Not found", http.StatusNotFound)
+	}))))
+
+	// ── Evaluation endpoints ──
+
 	mux.Handle("/api/evaluations", routeHandler("/api/evaluations", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -185,7 +205,25 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 		}
 	}))))
 
-	// Agent catalog endpoints
+	mux.Handle("/api/evaluations/", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := strings.TrimPrefix(r.URL.Path, "/api/evaluations/")
+		if strings.Contains(path, "/") {
+			http.Error(w, "Not found", http.StatusNotFound)
+			return
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+			apiHandler.HandleGetEvaluation(w, r)
+		case http.MethodDelete:
+			apiHandler.HandleDeleteEvaluation(w, r)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	}))))
+
+	// ── Agent catalog endpoints ──
+
 	mux.Handle("/api/agents", routeHandler("/api/agents", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -207,51 +245,14 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 			http.Error(w, "Not found", http.StatusNotFound)
 			return
 		default:
-			// Only GET is supported for now; more agent-specific endpoints can be added later.
 			annotateRequestRoute(r, "/api/agents/:agent_id")
 			apiHandler.HandleGetAgent(w, r)
 			return
 		}
 	}))))
 
-	mux.Handle("/api/evaluations/", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/api/evaluations/")
-		if strings.Contains(path, "/") {
-			http.Error(w, "Not found", http.StatusNotFound)
-			return
-		}
+	// ── Session endpoints ──
 
-		switch r.Method {
-		case http.MethodGet:
-			apiHandler.HandleGetEvaluation(w, r)
-		case http.MethodDelete:
-			apiHandler.HandleDeleteEvaluation(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	}))))
-
-	mux.Handle("/api/tasks/", routeHandler("/api/tasks/:task_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
-
-		// Handle /api/tasks/:id/cancel
-		if strings.HasSuffix(path, "/cancel") {
-			annotateRequestRoute(r, "/api/tasks/:task_id/cancel")
-			apiHandler.HandleCancelTask(w, r)
-			return
-		}
-
-		// Handle /api/tasks/:id
-		if !strings.Contains(path, "/") {
-			annotateRequestRoute(r, "/api/tasks/:task_id")
-			apiHandler.HandleGetTask(w, r)
-			return
-		}
-
-		http.Error(w, "Not found", http.StatusNotFound)
-	}))))
-
-	// Session endpoints
 	sessionsHandler := routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
 			annotateRequestRoute(r, "/api/sessions")
@@ -320,22 +321,23 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 
 		http.Error(w, "Not found", http.StatusNotFound)
 	})))
-	// Handle both `/api/sessions` and `/api/sessions/` without relying on ServeMux redirects.
 	mux.Handle("/api/sessions", sessionsHandler)
 	mux.Handle("/api/sessions/", sessionsHandler)
 
-	// Health check endpoint
+	// ── Health check ──
+
 	mux.Handle("/health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
 
-	// Apply middleware
+	// ── Middleware stack ──
+
 	var handler http.Handler = mux
-	handler = ObservabilityMiddleware(obs, latencyLogger)(handler)
+	handler = ObservabilityMiddleware(deps.Obs, latencyLogger)(handler)
 	handler = LoggingMiddleware(logger)(handler)
-	handler = RateLimitMiddleware(rateLimit)(handler)
-	handler = RequestTimeoutMiddleware(nonStreamTimeout)(handler)
-	handler = StreamGuardMiddleware(streamGuard)(handler)
+	handler = RateLimitMiddleware(cfg.RateLimit)(handler)
+	handler = RequestTimeoutMiddleware(cfg.NonStreamTimeout)(handler)
+	handler = StreamGuardMiddleware(cfg.StreamGuard)(handler)
 	handler = CompressionMiddleware()(handler)
-	handler = CORSMiddleware(environment, allowedOrigins)(handler)
+	handler = CORSMiddleware(cfg.Environment, cfg.AllowedOrigins)(handler)
 
 	return handler
 }
