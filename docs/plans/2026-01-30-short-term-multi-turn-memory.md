@@ -106,8 +106,10 @@ sessionID := g.memoryIDForChat(chatID)
 | `historyMgr` 在 Lark 的 DI 路径中被正确初始化 | 检查 `container_builder.go` 中 historyMgr 是否依赖 channel type | 低 — historyMgr 是全局组件 |
 | `SaveSessionAfterExecution()` 在 Lark 代码路径中被调用 | 搜索 coordinator 的 session save 逻辑 | 低 — coordinator 通用逻辑 |
 | `historyMgr.AppendTurn()` 支持同一 sessionID 多次追加 | 编写单元测试：连续 3 次 AppendTurn 同一 sessionID | 中 — 当前 Lark 从未触发此场景 |
+| **AppendTurn 前缀匹配不误清空** | 编写集成测试：连续两次 ExecuteTask，确保 history 未被清空 | 中 — system prompt/注入消息可能导致 prefix mismatch |
 | `loadSessionHistory()` 能恢复多轮历史 | 编写集成测试：save 2 轮 → 新请求 load → 验证 Messages 包含 2 轮 | 中 — 同上 |
 | session 持久化存储（file/postgres）支持更新已存在的 session | 检查 `sessionStore.Save()` 是 upsert 还是 insert-only | 低 — WeChat 已在使用此路径 |
+| `session.UpdatedAt` 行为可靠 | 验证 Save 是否自动更新 UpdatedAt；新建 session 是否非零 | 中 — 过期逻辑依赖 UpdatedAt |
 
 **建议：在实施 Step 1 之前，先运行上述验证用例。如果任一失败，需先修复再改 session ID。**
 
@@ -127,6 +129,14 @@ sessionID := g.memoryIDForChat(chatID)
 ```
 
 改动后 `memoryID` 和 `sessionID` 是同一个值，锁逻辑不变。
+
+**回滚开关：**
+
+```yaml
+# config.yaml
+lark:
+  session_mode: stable # stable | fresh
+```
 
 **同时修复 hash 长度问题：** 当前 `memoryIDForChat` 只取 SHA1 前 8 字节（64 bit）。
 Plan 2 将 sessionID = memoryID，碰撞意味着**两个不同群聊共享 session（对话串台）**，后果严重。
@@ -206,6 +216,9 @@ func (s *Service) loadSessionHistory(ctx context.Context, session *storage.Sessi
         session.Metadata = nil // 若 historyMgr 使用 metadata 存摘要/指针，统一清理
         session.UpdatedAt = s.now()
         _ = s.sessionStore.Save(ctx, session)
+        if s.historyMgr != nil {
+            s.historyMgr.ClearSession(ctx, session.ID)
+        }
 
         return nil
     }
@@ -348,7 +361,8 @@ coordinator 优先从 `ctx` 取 UserID（gateway 每次 request 设置的当前 
 ```
 文件: internal/channels/lark/gateway.go
 改动:
-  - sessionID = memoryID (1 行)
+  - sessionID = memoryID (stable)
+  - 支持 `lark.session_mode`（stable|fresh）便于回滚
   - memoryIDForChat hash[:8] → hash[:12] (1 行)
 测试: gateway_test.go 新增/更新
 ```
@@ -393,10 +407,15 @@ if strings.TrimSpace(content) == "/reset" {
         session.UpdatedAt = g.now()
         g.sessionStore.Save(ctx, session)
     }
+    if g.historyMgr != nil {
+        g.historyMgr.ClearSession(ctx, sessionID)
+    }
     g.replyText(ctx, chatID, "已清空对话历史，下次对话将从零开始。")
     return
 }
 ```
+
+> 如果 `historyMgr` 没有 `ClearSession` 方法，需要在 `history_manager.go` 中新增。
 
 ### Step 5: 验证
 
@@ -407,35 +426,45 @@ if strings.TrimSpace(content) == "/reset" {
 - 手动: Lark P2P 发2条消息，验证第2条看到第1条的上下文
 - 手动: Lark 群聊发消息，验证 AutoChatContext 仍注入群聊记录
 - 手动: Lark 发 /reset，验证下一条消息不包含之前的历史
+- 手动: /reset 后 historyMgr.Replay 不再返回旧 turn
 - 手动: 等待 48h（或临时调低阈值），验证过期后 session 自动清空
 ```
 
-## 7. 参数推荐
+## 7. Rollback Plan
+
+- **稳定 session 回滚**：新增 `lark.session_mode: stable|fresh`（默认 stable）；出现群聊并发或串台问题时切回 `fresh`。
+- **过期逻辑回滚**：将 `agent.session_stale_after=0`（禁用），保留历史不清空。
+- **/reset 回滚**：仅移除 `/reset` 处理分支，不影响主流程。
+
+## 8. 参数推荐
 
 | 参数 | 推荐值 | 说明 |
 |------|--------|------|
 | `session_stale_after` | **48h** | 超过 48h 未活动的 session 清空历史（覆盖"昨天"追问场景） |
+| `session_mode` | **stable** | `stable`=复用 session；`fresh`=每条消息新 session（回滚开关） |
 | `AutoChatContextSize` | **25** | 仅群聊时使用，20-30 条合理 |
 | `MaxTokens` 历史占比阈值 | **70%** | 现有值，保持不变 |
 | `historySummaryMaxTokens` | 现有值 | LLM 摘要的输出上限，保持不变 |
 | `memoryIDForChat` hash 长度 | **12 字节** | 从 8 字节升级，降低碰撞概率 |
 
-## 8. Edge Cases
+## 9. Edge Cases
 
 | 场景 | 行为 | 备注 |
 |------|------|------|
 | Bot 重启后第一条消息 | EnsureSession 拿到持久化的旧 session | historyMgr 从 DB/文件恢复 ✅ |
 | 超长对话 (100+ 轮) | shouldSummarizeHistory 触发 LLM 摘要 | 压缩为 2-3 段 ✅ |
 | 并发消息 (同一 chat) | sessionLock 串行化 | 已有机制 ✅（群聊高并发见 §5.5） |
+| AppendTurn 前缀不一致 | 历史被清空 | 需验证并修复（见 §4 前置验证） |
 | 48h 无活动后发消息 | session 过期清空，关键信息存入长期记忆 | 新增机制（§5.3） |
 | 用户说"忘掉之前的" | 发送 `/reset` 清空 session | 新增机制（§6 Step 4） |
 | 群聊中多用户交替提问 | 共享 session，bot 看到全部历史 | 期望行为 |
+| 群聊话题切换但仍在 48h 内 | 旧话题仍保留 | 已知 trade-off；后续可基于话题相关性清理 |
 | 群聊中记忆 save/recall 的 UserID | 从 ctx 取当前 senderID，不从 session metadata | 修复（§5.6） |
 | historyMgr 不可用 | 降级到 session.Messages (仅当前轮) | 已有 fallback ✅ |
 | memoryIDForChat hash 碰撞 | 两个群聊共享 session（对话串台） | 12 字节 hash 后概率极低 ✅ |
 | session 过期时保存长期记忆失败 | 忽略错误，仍然清空 session（降级可接受） | 日志告警 |
 
-## 9. 不在本方案范围内
+## 10. 不在本方案范围内
 
 - **长期记忆优化**（检索排序、HybridStore 启用）→ 见 `2026-01-30-memory-architecture-improvement.md`
 - **记忆路径统一**（去掉 larkMemoryManager 冗余）→ 同上 Phase 1（本方案完成后执行）

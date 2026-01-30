@@ -19,12 +19,12 @@ elephant.ai 的记忆系统存在以下结构性问题：
 
 | 问题 | 影响 | 严重度 |
 |------|------|--------|
-| Lark gateway 与 hooks 层存在**重复记忆路径** | 同一条消息被两套系统各存一次，检索时互相看不到 | 高 |
+| Lark legacy memory 路径 **已 dormant 但仍保留** | 架构认知偏差与维护成本；后续演进容易走错路径 | 中 |
 | 检索无相关性排序（keyword store 纯 `ORDER BY created_at DESC`） | 返回最新而非最相关的记忆，浪费 context slot | 高 |
 | 存储无摘要压缩 — 原始对话全文直接写入 | 记忆膨胀快，检索噪声大 | 中 |
 | 无记忆过期/衰减机制 | 旧记忆永远占位，新记忆被挤出 top-5 | 中 |
 | HybridStore 已实现但未在生产环境启用 | RRF 排序能力闲置 | 中 |
-| Lark 频道的 `larkMemoryManager` 与 coordinator hooks 是两套独立体系 | 维护成本高，行为不一致 | 中 |
+| `larkMemoryManager` 与 hooks 并存（但未调用） | 代码噪声 + 误导式文档 | 中 |
 | 无对话摘要窗口（每次全量 token 压缩） | 长对话时 token 消耗高 | 低 |
 
 ## 2. Current Architecture
@@ -50,7 +50,7 @@ elephant.ai 的记忆系统存在以下结构性问题：
 
 | 参数 | 位置 | 现值 | 说明 |
 |------|------|------|------|
-| `RecallForTask` Limit | `lark/memory.go` | 5 | channel 层检索上限 |
+| `RecallForTask` Limit | `lark/memory.go` | 5 | legacy/dormant（当前无效） |
 | `MaxRecalls` | `hooks/memory_recall.go` | 5 | hooks 层检索上限 |
 | `AutoChatContextSize` | `lark/config.go` | 20 (max 50) | Lark 近期聊天消息数 |
 | 历史摘要阈值 | `preparation/history.go` | 70% of MaxTokens | 触发压缩的 token 占比 |
@@ -87,16 +87,16 @@ elephant.ai 的记忆系统存在以下结构性问题：
 
 ### 3.1 Key Differences from Current
 
-1. **去掉 `larkMemoryManager` 的 Save/Recall**，统一到 coordinator hooks
+1. **清理 dormant 的 `larkMemoryManager` 代码路径**，同步文档与实现
 2. **启用 HybridStore**，所有 Recall 走 RRF 排序
-3. **新增 ConversationCaptureHook**，替代 channel 层的原始消息存储
+3. **新增 ConversationCaptureHook**，补齐“纯对话型”长期记忆
 4. **记忆分层**：chat_turn / auto_capture / workflow_trace / user_explicit（配合 scope=user|chat）
 
 ## 4. Implementation Phases
 
-### Phase 1: 统一记忆路径（消除冗余）
+### Phase 1: ConversationCapture + 清理 legacy
 
-**目标：** 去掉 Lark gateway 中 `larkMemoryManager` 的 Save/Recall 调用，让所有记忆操作走 coordinator hooks。
+**目标：** 引入“纯对话”记忆入口、清理 dormant 的 `larkMemoryManager` 代码路径，并修复群聊 UserID 解析。
 
 **变更清单：**
 
@@ -181,82 +181,29 @@ func smartTruncate(s string, maxLen int) string {
 - **群聊追加 chat-scope**：在群聊中，同一条 turn pair 额外写一条 `scope=chat`（受 `capture_group_memory` 开关控制），用于共享决策与群级上下文。
 - **召回顺序**：先 user-scope，再 chat-scope，小额度补充，防止群聊噪声淹没个人偏好。
 
-#### 4.1.2 精简 Lark gateway `handleMessage`
+#### 4.1.2 清理 dormant 的 `larkMemoryManager`
 
-```diff
- // gateway.go handleMessage()
-
--// Save user message to memory for long-term recall.
--if g.memoryMgr != nil {
--    g.memoryMgr.SaveMessage(execCtx, senderID, "user", content, senderID)
--}
-
- // Memory recall 移除 — 由 coordinator hooks 统一处理
--if g.memoryMgr != nil {
--    if recalled := g.memoryMgr.RecallForTask(execCtx, senderID, content); recalled != "" {
--        taskContent = recalled + "\n\n" + taskContent
--    }
--}
-
- result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
-
--// Memory save 移除 — 由 coordinator hooks 统一处理
--if g.memoryMgr != nil {
--    g.memoryMgr.SaveFromResult(execCtx, senderID, result)
--}
--if g.memoryMgr != nil && result != nil && strings.TrimSpace(result.Answer) != "" {
--    g.memoryMgr.SaveMessage(execCtx, senderID, "assistant", result.Answer, "bot")
--}
-```
+源码验证表明 gateway 并未调用 `larkMemoryManager`。Phase 1 直接清理：
+- 移除 `SetMemoryManager` 的注入与字段
+- 删除 `larkMemoryManager` 类型（若无其他使用）
+- 同步架构图/文档，避免误导
 
 **保留：** `AutoChatContext` 不变 — 它获取的是 Lark 原始聊天记录（短期上下文），与记忆系统（长期）不重叠。
 
-#### 4.1.3 灰度切换 — Path Mode
+#### 4.1.3 避免重复捕获（ConversationCaptureHook vs MemoryCaptureHook）
 
-直接删除 `larkMemoryManager` 调用是不可逆的。如果 coordinator hooks 路径有 bug，Lark 完全失去记忆能力。
+**规则：工具调用任务优先由 MemoryCaptureHook 处理。**
 
-**新增 `proactive.memory.path_mode`（显式三态，避免歧义）：**
-
-```yaml
-# config.yaml
-proactive:
-  memory:
-    path_mode: hooks_only # hooks_only | legacy_only | dual_write
+```go
+// ConversationCaptureHook.OnTaskCompleted
+if len(result.ToolCalls) > 0 {
+    return nil // 有工具调用时跳过，避免与 MemoryCaptureHook 重叠
+}
 ```
 
-```diff
- // gateway.go handleMessage()
-+if g.cfg.Proactive.Memory.PathMode != "hooks_only" {
-+    // Legacy path for Lark only (guarded by path_mode)
-     if g.memoryMgr != nil {
-         g.memoryMgr.SaveMessage(execCtx, senderID, "user", content, senderID)
-     }
-     if g.memoryMgr != nil {
-         if recalled := g.memoryMgr.RecallForTask(execCtx, senderID, content); recalled != "" {
-             taskContent = recalled + "\n\n" + taskContent
-         }
-     }
-+}
-
- result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
-
-+if g.cfg.Proactive.Memory.PathMode == "legacy_only" || g.cfg.Proactive.Memory.PathMode == "dual_write" {
-     if g.memoryMgr != nil {
-         g.memoryMgr.SaveFromResult(execCtx, senderID, result)
-     }
-     // ...
-+}
-```
-
-**切换流程：**
-1. 测试环境 `path_mode: hooks_only` → 验证 hooks-only 路径
-2. 生产灰度 `path_mode: dual_write`（legacy 写入 + hooks 读写）→ 观察 1 周 recall 命中率
-3. 确认无退化后切回 `hooks_only`，再删除 legacy 代码与 flag
-
-**语义说明：**
-- `hooks_only`：禁用 Lark legacy 路径（推荐默认）。
-- `legacy_only`：仅 Lark 走 legacy，hooks 在 Lark 上禁用（用于紧急回滚）。
-- `dual_write`：Lark legacy + hooks 同时写入，但**只用 hooks 召回**，避免重复 recall。
+**灰度策略：**
+- 先启用 `capture_messages`（仅 user-scope）
+- 观测噪声后再启用 `capture_group_memory`（chat-scope）
 
 #### 4.1.4 UserID 解析修复
 
@@ -309,6 +256,7 @@ if memoryService != nil && b.config.Proactive.Memory.Enabled {
 ```
 
 **验证：**
+- `CaptureMessages=true` 且有工具调用时，ConversationCaptureHook 不写入
 - `go test ./internal/channels/lark/...`
 - `go test ./internal/agent/app/hooks/...`
 - 集成测试：Lark 发消息 → 验证记忆只存一份 → 下次对话能 recall
@@ -327,6 +275,7 @@ if memoryService != nil && b.config.Proactive.Memory.Enabled {
 # config.yaml
 proactive:
   memory:
+    schema_version: 1                # 配置 schema 版本，便于迁移
     enabled: true
     store: hybrid   # 从 "auto" 改为 "hybrid"
     max_recalls: 8  # 从 5 提升到 8（RRF 有排序，可以多取一些）
@@ -368,6 +317,7 @@ proactive:
   - mock embedder 返回 nil/空 embedding → 同上
   - 不配置 embedder（`embedder_model` 为空）→ 确认系统正常启动，recall 走 keyword store
   - embedder 超时（mock 3s delay）→ 确认不阻塞 recall，降级返回 keyword 结果
+  - 向量存储损坏/不可读（权限/磁盘满）→ 不 panic，不阻塞，回退 keyword
 
 ---
 
@@ -468,6 +418,10 @@ queries := []memory.Query{
 //   - vector: 若支持 metadata filter 则下推，否则 post-filter + 过采样补齐
 ```
 
+**优化选项（降低多次查询成本）：**
+- 在 `memory.Query` 增加 `TTLBySlotType`，由 Store 层用 `CASE WHEN` 统一过滤，减少多次查询。
+- 但仍保留 hooks 侧的 **recall quota** 逻辑（按类型配额合并），避免噪声占满。
+
 可选的存储清理（低优先级；用于控制存储增长）：
 ```go
 // 后台 goroutine，每天执行一次
@@ -534,7 +488,6 @@ proactive:
   memory:
     enabled: true
     store: hybrid                    # file | postgres | hybrid | auto
-    path_mode: hooks_only            # hooks_only | legacy_only | dual_write
     max_recalls: 8                   # Phase 2: HybridStore 有排序，可多取
     auto_recall: true
     auto_capture: true
@@ -575,12 +528,20 @@ agent:
 | 阶段 | 优先级 | 依赖 | 风险 |
 |------|--------|------|------|
 | **Plan 2: 稳定 Session ID** | **P0** | 无 | 低 — 一行改动 |
-| Phase 1: 统一记忆路径 | **P0** | Plan 2 完成 | 低 — 删除冗余代码（有 feature flag 灰度） |
+| Phase 1: 统一记忆路径 | **P0** | Plan 2 完成 | 低 — 清理 dormant 代码（capture_messages 灰度） |
 | Phase 2: 启用 HybridStore | **P1** | embedder 配置 | 中 — 需要 embedding API |
 | Phase 3: 记忆质量优化 | **P2** | Phase 1 | 中 — LLM 摘要有成本 |
 | Phase 4: 参数调优 | **P2** | Phase 2 | 低 — 纯配置变更 |
 
-## 7. 关键设计决策
+> 说明：Plan 2 与 Phase 1 可并行开发，但**建议按顺序部署**（先稳定 session，再上线 ConversationCaptureHook）。
+
+## 7. Rollback Plan
+
+- **Phase 1（ConversationCaptureHook）**：将 `capture_messages=false`，保留 `MemoryCaptureHook`；必要时回滚删除 `larkMemoryManager` 的变更。
+- **Phase 2（HybridStore）**：将 `store=keyword` 或 `auto`，保留现有数据；向量目录可保留用于后续恢复。
+- **Phase 3（LLM 摘要 / TTL）**：关闭 `capture.use_llm_summary`；将 TTL 设为 0 或移除相应配置。
+
+## 8. 关键设计决策
 
 ### Q1: 为什么不用滑动窗口而用 token 压缩？
 
@@ -602,9 +563,10 @@ AutoChatContext 和 memory recall 解决不同问题：
 
 ### Q4: Lark 的 larkMemoryManager 应该完全删除吗？
 
-Phase 1 后，`larkMemoryManager` 的 SaveMessage / RecallForTask / SaveFromResult 全部由 coordinator hooks 替代。但 `larkMemoryManager` 类型本身可以保留（作为未来 channel-specific 记忆逻辑的扩展点），只是不再在 gateway.handleMessage 中调用。
+鉴于当前已 dormant 且无调用，**推荐直接删除**，减少误导与维护成本。  
+如确需保留 channel-specific 记忆逻辑，应将其移入 `internal/channels/lark/legacy/` 并配套明确的启用开关与测试，避免“半留半废”状态。
 
-## 8. Risk Assessment
+## 9. Risk Assessment
 
 | 风险 | 概率 | 影响 | 缓解措施 |
 |------|------|------|----------|
@@ -612,11 +574,11 @@ Phase 1 后，`larkMemoryManager` 的 SaveMessage / RecallForTask / SaveFromResu
 | 记忆迁移：旧 memoryID 的数据丢失 | 高 | 已知 — 旧 hash-based memoryID 的数据不可恢复 | 接受，因为旧系统本身就是坏的（user_id bug） |
 | ConversationCaptureHook 增加延迟 | 低 | 每次 task 完成多 1 次 memory.Save（合并 turn pair） | Save 是异步的，不阻塞响应 |
 | LLM 摘要增加成本（Phase 3） | 中 | 每次对话多一次小模型调用 | 仅长文本触发，可配置关闭 |
-| **Phase 1 删除 larkMemoryManager 导致记忆中断** | 中 | Lark 短期无记忆能力 | **path_mode 灰度切换**（§4.1.3） |
+| **ConversationCaptureHook 引入噪声** | 中 | 长期记忆质量下降 | **capture_messages/capture_group_memory 开关灰度** |
 | **群聊 UserID 交叉污染** | 高 | 不同用户的记忆互相覆盖 | **coordinator 从 ctx 取 UserID**（§4.1.4） |
 | **群聊 chat-scope 噪声过大** | 中 | recall 被群聊噪声污染 | **scope=chat TTL 更短 + recall quota 限额**（§4.3.3） |
 
-## 9. Success Metrics
+## 10. Success Metrics
 
 分阶段设目标，避免早期数据不足时过度调参：
 
@@ -625,7 +587,7 @@ Phase 1 后，`larkMemoryManager` 的 SaveMessage / RecallForTask / SaveFromResu
 | 指标 | 当前 | 目标 | 衡量方式 |
 |------|------|------|----------|
 | Memory recall 命中率 | 未知 | > **40%** | recall 返回 > 0 结果的比例 |
-| Recall 结果被 LLM 实际引用 | 未知 | > **25%** | 检查 LLM 回复中是否引用了 recalled 内容 |
+| Recall 结果被 LLM 实际引用 | 暂不追踪 | - | Phase 1-2 先用 proxy 指标（命中率 + RRF score 分布） |
 | Memory save 去重率 | ~15% | > **25%** | 被 Jaccard 去重跳过的比例 |
 | Recall p95 延迟 | ~50ms | < **200ms** | 包含 hybrid search 的端到端延迟 |
 | 记忆路径数量 | 3（channel + hooks + tool） | **1**（hooks only） | 代码路径计数 |
