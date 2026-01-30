@@ -83,3 +83,27 @@ func TestHistoryManagerResetsOnPrefixMismatch(t *testing.T) {
 		t.Fatalf("unexpected history content after reset: %+v", history[0])
 	}
 }
+
+func TestHistoryManagerClearSession(t *testing.T) {
+	ctx := context.Background()
+	store := sessionstate.NewInMemoryStore()
+	manager := NewHistoryManager(store, agent.NoopLogger{}, agent.ClockFunc(time.Now))
+	sessionID := "session-clear"
+
+	first := []ports.Message{{Role: "user", Content: "first", Source: ports.MessageSourceUserInput}}
+	if err := manager.AppendTurn(ctx, sessionID, first); err != nil {
+		t.Fatalf("append turn failed: %v", err)
+	}
+
+	if err := manager.ClearSession(ctx, sessionID); err != nil {
+		t.Fatalf("clear session failed: %v", err)
+	}
+
+	history, err := manager.Replay(ctx, sessionID, 0)
+	if err != nil {
+		t.Fatalf("replay failed: %v", err)
+	}
+	if len(history) != 0 {
+		t.Fatalf("expected empty history after clear, got %d messages", len(history))
+	}
+}

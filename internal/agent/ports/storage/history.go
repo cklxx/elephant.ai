@@ -17,4 +17,7 @@ type HistoryManager interface {
 	// turns. If uptoTurn is greater than zero, only turns with IDs less than
 	// uptoTurn are included; otherwise all turns are returned.
 	Replay(ctx context.Context, sessionID string, uptoTurn int) ([]core.Message, error)
+
+	// ClearSession removes all recorded turns for the session.
+	ClearSession(ctx context.Context, sessionID string) error
 }

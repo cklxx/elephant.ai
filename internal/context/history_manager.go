@@ -115,6 +115,14 @@ func (m *HistoryManager) Replay(ctx context.Context, sessionID string, uptoTurn 
 	return agent.CloneMessages(flattenSnapshots(snapshots)), nil
 }
 
+// ClearSession removes all stored turns for the session.
+func (m *HistoryManager) ClearSession(ctx context.Context, sessionID string) error {
+	if m == nil || m.store == nil || sessionID == "" {
+		return nil
+	}
+	return m.store.ClearSession(ctx, sessionID)
+}
+
 func (m *HistoryManager) listSnapshots(ctx context.Context, sessionID string) ([]sessionstate.Snapshot, error) {
 	cursor := ""
 	var snapshots []sessionstate.Snapshot
