@@ -1,7 +1,7 @@
 # Frontend Code Optimization Plan
 
 **Date:** 2026-01-30
-**Status:** P0/P1 Complete, A2UI Components Done, P2 Backlog
+**Status:** P0/P1/P2(10,12) Complete, A2UI Done, P2(11,13) Backlog
 
 ---
 
@@ -75,17 +75,26 @@
 ## P2 - Architecture level (backlog)
 
 ### 10. Split large components
-- `ArtifactPreviewCard.tsx` (1064 lines), `EventLine/index.tsx` (710 lines), etc.
-- Extract sub-renderers
-- **Status:** [ ] Backlog
+- **Files:** `components/agent/ArtifactPreviewCard.tsx` → extracted into:
+  - `artifact-preview-html.ts`: 7 exported functions (decode, load, viewport/base injection, preview URL, validation)
+  - `artifact-preview-markdown.ts`: `normalizeTitle`, `stripRedundantHeading`
+- **Result:** Main component reduced from 1064 → 894 lines; 30 new unit tests for extracted functions
+- **Status:** [x] Done — commit `2b3c6ee9`
 
 ### 11. API endpoint registry + Zod response validation
 - Centralize endpoints, add runtime validation
 - **Status:** [ ] Backlog
 
 ### 12. Structured logging
-- Replace console.warn/error with logging service
-- **Status:** [ ] Backlog
+- **File:** `lib/logger.ts` — `createLogger()` factory with namespace prefix, level-gated output, child loggers
+- **Migration:** Replaced 16 raw console calls across 5 files:
+  - `hooks/useSSE/useSSEConnection.ts` (6 calls)
+  - `hooks/useSSE/useSSE.ts` (1 call)
+  - `lib/events/sseClient.ts` (1 call)
+  - `lib/auth/client.ts` (6 calls)
+  - `lib/api.ts` (3 calls — note: this is not 3 calls in the file, but 3 that were migrated)
+- **Tests:** 11 tests for logger, all passing
+- **Status:** [x] Done — commits `717e0944`, `1691a8da`
 
 ### 13. Merge dual deduplication
 - Consolidate EventPipeline (4000) + useSSEDeduplication (2000) into single layer
@@ -122,5 +131,5 @@ Deleted 3 unused components (459 lines total):
 
 All changes validated:
 - ESLint: 0 errors
-- Vitest: 51 files, 298 tests passed
+- Vitest: 54 files, 339 tests passed
 - TypeScript: no new errors introduced (pre-existing test type issues unchanged)
