@@ -11,6 +11,7 @@ These are the local engineering practices for this repo. Keep them short and act
 
 ## Planning & Records
 - Every non-trivial task must have a plan file under `docs/plans/` and be updated as work progresses.
+- Continuously review best practices and execution flow; record improvements and update guides/plans when new patterns emerge.
 - Log notable incidents in `docs/error-experience/entries/` and add a summary entry under `docs/error-experience/summary/entries/`.
 - Log notable wins in `docs/good-experience/entries/` and add a summary entry under `docs/good-experience/summary/entries/`.
 - Keep `docs/error-experience.md` and `docs/error-experience/summary.md` as index-only.
