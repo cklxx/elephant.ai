@@ -1,6 +1,7 @@
 package react
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -8,6 +9,33 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 )
+
+type backgroundDispatcherWithEvents struct {
+	inner   agent.BackgroundTaskDispatcher
+	runtime *reactRuntime
+}
+
+func newBackgroundDispatcherWithEvents(runtime *reactRuntime, inner agent.BackgroundTaskDispatcher) agent.BackgroundTaskDispatcher {
+	return &backgroundDispatcherWithEvents{inner: inner, runtime: runtime}
+}
+
+func (d *backgroundDispatcherWithEvents) Dispatch(ctx context.Context, taskID, description, prompt, agentType, causationID string) error {
+	if err := d.inner.Dispatch(ctx, taskID, description, prompt, agentType, causationID); err != nil {
+		return err
+	}
+	if d.runtime != nil {
+		d.runtime.emitBackgroundDispatchedEvent(ctx, taskID, description, prompt, agentType)
+	}
+	return nil
+}
+
+func (d *backgroundDispatcherWithEvents) Status(ids []string) []agent.BackgroundTaskSummary {
+	return d.inner.Status(ids)
+}
+
+func (d *backgroundDispatcherWithEvents) Collect(ids []string, wait bool, timeout time.Duration) []agent.BackgroundTaskResult {
+	return d.inner.Collect(ids, wait, timeout)
+}
 
 // injectBackgroundNotifications drains completed background tasks and injects
 // system messages into the conversation so the LLM can decide when to collect
@@ -23,6 +51,9 @@ func (r *reactRuntime) injectBackgroundNotifications() {
 	}
 
 	for _, taskID := range completed {
+		if r.hasBackgroundCompletionEmitted(taskID) {
+			continue
+		}
 		summaries := r.bgManager.Status([]string{taskID})
 		if len(summaries) == 0 {
 			continue
@@ -60,7 +91,19 @@ func (r *reactRuntime) injectBackgroundNotifications() {
 
 		// Emit domain event.
 		r.emitBackgroundCompletedEvent(s)
+		r.markBackgroundCompletionEmitted(taskID)
 	}
+}
+
+// emitBackgroundDispatchedEvent emits a BackgroundTaskDispatchedEvent.
+func (r *reactRuntime) emitBackgroundDispatchedEvent(ctx context.Context, taskID, description, prompt, agentType string) {
+	r.engine.emitEvent(&domain.BackgroundTaskDispatchedEvent{
+		BaseEvent:   r.engine.newBaseEvent(ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		TaskID:      taskID,
+		Description: description,
+		Prompt:      prompt,
+		AgentType:   agentType,
+	})
 }
 
 // emitBackgroundCompletedEvent emits a BackgroundTaskCompletedEvent.
@@ -84,6 +127,20 @@ func (r *reactRuntime) emitBackgroundCompletedEvent(s agent.BackgroundTaskSummar
 	})
 }
 
+func (r *reactRuntime) hasBackgroundCompletionEmitted(taskID string) bool {
+	if r.bgCompletionEmitted == nil {
+		return false
+	}
+	return r.bgCompletionEmitted[taskID]
+}
+
+func (r *reactRuntime) markBackgroundCompletionEmitted(taskID string) {
+	if r.bgCompletionEmitted == nil {
+		return
+	}
+	r.bgCompletionEmitted[taskID] = true
+}
+
 // cleanupBackgroundTasks waits briefly for pending background tasks and then
 // shuts down the manager.
 func (r *reactRuntime) cleanupBackgroundTasks() {
@@ -97,5 +154,17 @@ func (r *reactRuntime) cleanupBackgroundTasks() {
 
 	r.engine.logger.Info("Waiting up to 10s for %d background task(s) to complete...", r.bgManager.TaskCount())
 	r.bgManager.AwaitAll(10 * time.Second)
+
+	summaries := r.bgManager.Status(nil)
+	for _, s := range summaries {
+		if r.hasBackgroundCompletionEmitted(s.ID) {
+			continue
+		}
+		switch s.Status {
+		case agent.BackgroundTaskStatusCompleted, agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
+			r.emitBackgroundCompletedEvent(s)
+			r.markBackgroundCompletionEmitted(s.ID)
+		}
+	}
 	r.bgManager.Shutdown()
 }

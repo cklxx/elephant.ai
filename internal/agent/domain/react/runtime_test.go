@@ -83,7 +83,7 @@ func TestReactRuntimeFinalizeResultDecoratesWorkflowOnce(t *testing.T) {
 
 	state := &TaskState{
 		SessionID: "s1",
-		RunID:    "t1",
+		RunID:     "t1",
 	}
 
 	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
@@ -123,7 +123,7 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 
 	state := &TaskState{
 		SessionID: "s1",
-		RunID:    "t1",
+		RunID:     "t1",
 	}
 
 	runtime := newReactRuntime(engine, ctx, "demo", state, Services{}, nil)
@@ -147,6 +147,110 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 	require.Equal(t, "cancelled", completes[0].StopReason)
 	require.Equal(t, time.Second, completes[0].Duration)
 	require.Contains(t, tracker.started, workflowNodeFinalize)
+}
+
+func TestBackgroundDispatchEmitsEvent(t *testing.T) {
+	listener := &collectingListener{}
+	engine := NewReactEngine(ReactEngineConfig{
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(time.Now),
+		EventListener: listener,
+		BackgroundExecutor: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+			return &agent.TaskResult{Answer: "ok"}, nil
+		},
+	})
+	state := &TaskState{
+		SessionID: "s1",
+		RunID:     "t1",
+	}
+
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+	require.NotNil(t, runtime.bgManager)
+
+	dispatcher := newBackgroundDispatcherWithEvents(runtime, runtime.bgManager)
+	err := dispatcher.Dispatch(context.Background(), "task-1", "desc", "prompt", "internal", "cause-1")
+	require.NoError(t, err)
+
+	var dispatched []*domain.BackgroundTaskDispatchedEvent
+	for _, evt := range listener.collected() {
+		if d, ok := evt.(*domain.BackgroundTaskDispatchedEvent); ok {
+			dispatched = append(dispatched, d)
+		}
+	}
+	require.Len(t, dispatched, 1)
+	require.Equal(t, "task-1", dispatched[0].TaskID)
+	require.Equal(t, "desc", dispatched[0].Description)
+	require.Equal(t, "prompt", dispatched[0].Prompt)
+	require.Equal(t, "internal", dispatched[0].AgentType)
+}
+
+func TestCleanupEmitsBackgroundCompletionEvents(t *testing.T) {
+	listener := &collectingListener{}
+	engine := NewReactEngine(ReactEngineConfig{
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(time.Now),
+		EventListener: listener,
+		BackgroundExecutor: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+			return &agent.TaskResult{Answer: "done"}, nil
+		},
+	})
+	state := &TaskState{
+		SessionID: "s1",
+		RunID:     "t1",
+	}
+
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+	require.NotNil(t, runtime.bgManager)
+
+	err := runtime.bgManager.Dispatch(context.Background(), "task-1", "desc", "prompt", "internal", "cause-1")
+	require.NoError(t, err)
+
+	runtime.bgManager.AwaitAll(2 * time.Second)
+	runtime.cleanupBackgroundTasks()
+
+	var completed []*domain.BackgroundTaskCompletedEvent
+	for _, evt := range listener.collected() {
+		if c, ok := evt.(*domain.BackgroundTaskCompletedEvent); ok {
+			completed = append(completed, c)
+		}
+	}
+	require.Len(t, completed, 1)
+	require.Equal(t, "task-1", completed[0].TaskID)
+	require.Equal(t, "completed", completed[0].Status)
+}
+
+func TestCleanupSkipsAlreadyEmittedBackgroundCompletions(t *testing.T) {
+	listener := &collectingListener{}
+	engine := NewReactEngine(ReactEngineConfig{
+		Logger:        agent.NoopLogger{},
+		Clock:         agent.ClockFunc(time.Now),
+		EventListener: listener,
+		BackgroundExecutor: func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+			return &agent.TaskResult{Answer: "done"}, nil
+		},
+	})
+	state := &TaskState{
+		SessionID: "s1",
+		RunID:     "t1",
+	}
+
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+	require.NotNil(t, runtime.bgManager)
+
+	err := runtime.bgManager.Dispatch(context.Background(), "task-1", "desc", "prompt", "internal", "cause-1")
+	require.NoError(t, err)
+
+	runtime.bgManager.AwaitAll(2 * time.Second)
+	runtime.injectBackgroundNotifications()
+	runtime.cleanupBackgroundTasks()
+
+	var completed []*domain.BackgroundTaskCompletedEvent
+	for _, evt := range listener.collected() {
+		if c, ok := evt.(*domain.BackgroundTaskCompletedEvent); ok {
+			completed = append(completed, c)
+		}
+	}
+	require.Len(t, completed, 1)
 }
 
 func TestRecordThoughtAppendsThinkingOnlyMessage(t *testing.T) {

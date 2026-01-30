@@ -40,6 +40,8 @@ type reactRuntime struct {
 
 	// Background task manager for async subagent execution.
 	bgManager *BackgroundTaskManager
+	// Track emitted completion events to avoid duplicates.
+	bgCompletionEmitted map[string]bool
 }
 
 type reactIteration struct {
@@ -89,6 +91,7 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 			sessionID,
 			engine.eventListener,
 		)
+		runtime.bgCompletionEmitted = make(map[string]bool)
 	}
 
 	return runtime
@@ -100,7 +103,7 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 
 	// Set background dispatcher in context for tools.
 	if r.bgManager != nil {
-		r.ctx = agent.WithBackgroundDispatcher(r.ctx, r.bgManager)
+		r.ctx = agent.WithBackgroundDispatcher(r.ctx, newBackgroundDispatcherWithEvents(r, r.bgManager))
 	}
 
 	for r.state.Iterations < r.engine.maxIterations {
