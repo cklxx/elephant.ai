@@ -58,22 +58,23 @@ type WeChatGatewayConfig struct {
 	ToolPreset             string
 	ToolMode               string
 	ReplyTimeout           time.Duration
+	MemoryEnabled          bool
 }
 
 // LarkGatewayConfig captures the resolved Lark gateway configuration.
 type LarkGatewayConfig struct {
-	Enabled       bool
-	AppID         string
-	AppSecret     string
-	BaseDomain    string
-	SessionPrefix string
-	ReplyPrefix   string
-	AllowGroups   bool
-	AllowDirect   bool
-	AgentPreset   string
-	ToolPreset    string
-	ToolMode      string
-	ReplyTimeout  time.Duration
+	Enabled             bool
+	AppID               string
+	AppSecret           string
+	BaseDomain          string
+	SessionPrefix       string
+	ReplyPrefix         string
+	AllowGroups         bool
+	AllowDirect         bool
+	AgentPreset         string
+	ToolPreset          string
+	ToolMode            string
+	ReplyTimeout        time.Duration
 	ReactEmoji          string
 	MemoryEnabled       bool
 	ShowToolProgress    bool
@@ -144,17 +145,18 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 				ToolMode:            "cli",
 				ToolPreset:          string(presets.ToolPresetFull),
 				ReplyTimeout:        2 * time.Minute,
+				MemoryEnabled:       false,
 			},
 			Lark: LarkGatewayConfig{
-				Enabled:       false,
-				BaseDomain:    "https://open.larkoffice.com",
-				SessionPrefix: "lark",
-				AllowGroups:   true,
-				AllowDirect:   true,
-				AgentPreset:   string(presets.PresetDefault),
-				ToolMode:      "cli",
-				ToolPreset:    string(presets.ToolPresetFull),
-				ReplyTimeout:  3 * time.Minute,
+				Enabled:             false,
+				BaseDomain:          "https://open.larkoffice.com",
+				SessionPrefix:       "lark",
+				AllowGroups:         true,
+				AllowDirect:         true,
+				AgentPreset:         string(presets.PresetDefault),
+				ToolMode:            "cli",
+				ToolPreset:          string(presets.ToolPresetFull),
+				ReplyTimeout:        3 * time.Minute,
 				ReactEmoji:          "SMILE",
 				AutoChatContext:     true,
 				AutoChatContextSize: 20,
@@ -252,6 +254,9 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		}
 		if wechat.ReplyTimeoutSeconds != nil && *wechat.ReplyTimeoutSeconds > 0 {
 			cfg.Channels.WeChat.ReplyTimeout = time.Duration(*wechat.ReplyTimeoutSeconds) * time.Second
+		}
+		if wechat.MemoryEnabled != nil {
+			cfg.Channels.WeChat.MemoryEnabled = *wechat.MemoryEnabled
 		}
 	}
 

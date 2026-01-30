@@ -10,6 +10,8 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/memory"
+	id "alex/internal/utils/id"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
@@ -42,6 +44,8 @@ type reactRuntime struct {
 	bgManager *BackgroundTaskManager
 	// Track emitted completion events to avoid duplicates.
 	bgCompletionEmitted map[string]bool
+
+	memoryRefresh MemoryRefreshConfig
 }
 
 type reactIteration struct {
@@ -61,14 +65,15 @@ type toolExecutionPlan struct {
 
 func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, state *TaskState, services Services, prepare func()) *reactRuntime {
 	runtime := &reactRuntime{
-		engine:    engine,
-		ctx:       ctx,
-		task:      task,
-		state:     state,
-		services:  services,
-		tracker:   newReactWorkflow(engine.workflow),
-		startTime: engine.clock.Now(),
-		prepare:   prepare,
+		engine:        engine,
+		ctx:           ctx,
+		task:          task,
+		state:         state,
+		services:      services,
+		tracker:       newReactWorkflow(engine.workflow),
+		startTime:     engine.clock.Now(),
+		prepare:       prepare,
+		memoryRefresh: engine.memoryRefresh,
 	}
 	if state != nil {
 		runtime.runID = strings.TrimSpace(state.RunID)
@@ -154,6 +159,7 @@ func (r *reactRuntime) handleCancellation() (*TaskResult, bool, error) {
 
 func (r *reactRuntime) runIteration() (*TaskResult, bool, error) {
 	iteration := r.newIteration()
+	r.refreshContext(iteration.index)
 
 	if err := iteration.think(); err != nil {
 		return nil, true, err
@@ -704,4 +710,141 @@ func extractLLMMetadata(metadata map[string]any) map[string]any {
 		return nil
 	}
 	return out
+}
+
+func (r *reactRuntime) refreshContext(iteration int) {
+	cfg := r.memoryRefresh
+	if !cfg.Enabled || cfg.Interval <= 0 || iteration == 0 || iteration%cfg.Interval != 0 {
+		return
+	}
+	if r.engine.memoryService == nil {
+		return
+	}
+	userID := strings.TrimSpace(id.UserIDFromContext(r.ctx))
+	if userID == "" {
+		return
+	}
+
+	keywords := extractRecentKeywords(r.state.ToolResults, 5)
+	if len(keywords) == 0 {
+		return
+	}
+
+	memories, err := r.engine.memoryService.Recall(r.ctx, memory.Query{
+		UserID:   userID,
+		Text:     strings.Join(keywords, " "),
+		Keywords: keywords,
+		Limit:    3,
+	})
+	if err != nil || len(memories) == 0 {
+		return
+	}
+
+	content := formatRefreshMemories(memories, cfg.MaxTokens)
+	if strings.TrimSpace(content) == "" {
+		return
+	}
+
+	r.state.Messages = append(r.state.Messages, Message{
+		Role:    "system",
+		Content: content,
+		Source:  ports.MessageSourceProactive,
+	})
+
+	r.engine.emitEvent(&domain.ProactiveContextRefreshEvent{
+		BaseEvent:        r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		Iteration:        iteration,
+		MemoriesInjected: len(memories),
+	})
+}
+
+func extractRecentKeywords(results []ToolResult, limit int) []string {
+	if limit <= 0 || len(results) == 0 {
+		return nil
+	}
+	start := len(results) - limit
+	if start < 0 {
+		start = 0
+	}
+	var tokens []string
+	for i := start; i < len(results); i++ {
+		res := results[i]
+		if res.Content != "" {
+			tokens = append(tokens, res.Content)
+		}
+	}
+	return extractKeywordsFromText(strings.Join(tokens, " "))
+}
+
+func extractKeywordsFromText(text string) []string {
+	fields := strings.FieldsFunc(text, func(r rune) bool {
+		if r >= 'a' && r <= 'z' {
+			return false
+		}
+		if r >= 'A' && r <= 'Z' {
+			return false
+		}
+		if r >= '0' && r <= '9' {
+			return false
+		}
+		if r >= 0x4E00 && r <= 0x9FFF {
+			return false
+		}
+		return true
+	})
+
+	seen := make(map[string]bool, len(fields))
+	var keywords []string
+	for _, field := range fields {
+		lower := strings.ToLower(strings.TrimSpace(field))
+		if lower == "" || len(lower) < 2 || seen[lower] {
+			continue
+		}
+		seen[lower] = true
+		keywords = append(keywords, lower)
+		if len(keywords) >= 10 {
+			break
+		}
+	}
+	return keywords
+}
+
+func formatRefreshMemories(entries []memory.Entry, maxTokens int) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	sb.WriteString("## Proactive Memory Refresh\n\n")
+	sb.WriteString("Additional context recalled from prior work:\n\n")
+	for i, entry := range entries {
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, strings.TrimSpace(entry.Content)))
+	}
+	text := sb.String()
+	if maxTokens <= 0 {
+		return text
+	}
+	if estimateTokenCount(text) <= maxTokens {
+		return text
+	}
+	return truncateToTokens(text, maxTokens)
+}
+
+func estimateTokenCount(text string) int {
+	trimmed := strings.TrimSpace(text)
+	if trimmed == "" {
+		return 0
+	}
+	return len([]rune(trimmed)) / 4
+}
+
+func truncateToTokens(text string, maxTokens int) string {
+	if maxTokens <= 0 {
+		return text
+	}
+	runes := []rune(text)
+	limit := maxTokens * 4
+	if limit <= 0 || limit >= len(runes) {
+		return text
+	}
+	return string(runes[:limit]) + "..."
 }

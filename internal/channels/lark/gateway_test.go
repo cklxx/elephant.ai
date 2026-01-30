@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/domain"
 	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
-	"alex/internal/memory"
 	id "alex/internal/utils/id"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -349,7 +349,7 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 	}
 }
 
-func TestHandleMessagePassesSenderIDToMemory(t *testing.T) {
+func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	openID := "ou_sender_xyz"
 	chatID := "oc_chat_456"
 	msgID := "om_msg_002"
@@ -357,19 +357,15 @@ func TestHandleMessagePassesSenderIDToMemory(t *testing.T) {
 	msgType := "text"
 	chatType := "p2p"
 
-	store := &stubMemoryStore{}
-	svc := memory.NewService(store)
-
 	executor := &capturingExecutor{
 		result: &agent.TaskResult{Answer: "noted"},
 	}
 	gw := &Gateway{
-		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", AllowDirect: true},
+		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", AllowDirect: true, MemoryEnabled: true},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
 	}
-	gw.SetMemoryManager(svc)
 
 	cache, _ := lru.New[string, time.Time](16)
 	gw.dedupCache = cache
@@ -395,14 +391,12 @@ func TestHandleMessagePassesSenderIDToMemory(t *testing.T) {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
 
-	// Verify memory entries use senderID ("ou_sender_xyz"), not memoryID (chat hash).
-	for _, entry := range store.entries {
-		if entry.UserID != "ou_sender_xyz" {
-			t.Fatalf("expected memory entry UserID 'ou_sender_xyz', got %q", entry.UserID)
-		}
+	policy, ok := appcontext.MemoryPolicyFromContext(executor.capturedCtx)
+	if !ok {
+		t.Fatal("expected memory policy on context")
 	}
-	if len(store.entries) == 0 {
-		t.Fatal("expected at least one memory entry to be saved")
+	if !policy.Enabled || !policy.AutoRecall || !policy.AutoCapture {
+		t.Fatalf("expected memory policy enabled, got %+v", policy)
 	}
 }
 
@@ -682,16 +676,16 @@ type stubAgentEvent struct {
 	eventType string
 }
 
-func (e *stubAgentEvent) EventType() string          { return e.eventType }
-func (e *stubAgentEvent) Timestamp() time.Time       { return time.Time{} }
+func (e *stubAgentEvent) EventType() string               { return e.eventType }
+func (e *stubAgentEvent) Timestamp() time.Time            { return time.Time{} }
 func (e *stubAgentEvent) GetAgentLevel() agent.AgentLevel { return "" }
-func (e *stubAgentEvent) GetSessionID() string        { return "" }
-func (e *stubAgentEvent) GetRunID() string            { return "" }
-func (e *stubAgentEvent) GetParentRunID() string      { return "" }
-func (e *stubAgentEvent) GetCorrelationID() string    { return "" }
-func (e *stubAgentEvent) GetCausationID() string      { return "" }
-func (e *stubAgentEvent) GetEventID() string          { return "" }
-func (e *stubAgentEvent) GetSeq() uint64              { return 0 }
+func (e *stubAgentEvent) GetSessionID() string            { return "" }
+func (e *stubAgentEvent) GetRunID() string                { return "" }
+func (e *stubAgentEvent) GetParentRunID() string          { return "" }
+func (e *stubAgentEvent) GetCorrelationID() string        { return "" }
+func (e *stubAgentEvent) GetCausationID() string          { return "" }
+func (e *stubAgentEvent) GetEventID() string              { return "" }
+func (e *stubAgentEvent) GetSeq() uint64                  { return 0 }
 
 func TestEmojiReactionInterceptorFallbackWhenNoEvent(t *testing.T) {
 	delegate := &recordingGatewayListener{}

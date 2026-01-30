@@ -26,6 +26,7 @@ type Entry struct {
 // Query describes a recall request.
 type Query struct {
 	UserID   string            `json:"user_id"`
+	Text     string            `json:"text,omitempty"`
 	Keywords []string          `json:"keywords"`
 	Slots    map[string]string `json:"slots"`
 	Terms    []string          `json:"terms,omitempty"`
@@ -95,9 +96,10 @@ func (s *service) Recall(ctx context.Context, query Query) ([]Entry, error) {
 		return nil, fmt.Errorf("user_id is required")
 	}
 
+	query.Text = strings.TrimSpace(query.Text)
 	query.Keywords = normalizeKeywords(query.Keywords)
 	query.Slots = normalizeSlots(query.Slots)
-	query.Terms = collectTerms("", query.Keywords, query.Slots)
+	query.Terms = collectTerms(query.Text, query.Keywords, query.Slots)
 	if query.Limit <= 0 {
 		query.Limit = defaultRecallLimit
 	}

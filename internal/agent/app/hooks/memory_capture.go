@@ -2,11 +2,15 @@ package hooks
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/logging"
 	"alex/internal/memory"
+	"alex/internal/skills"
 )
 
 const (
@@ -21,15 +25,37 @@ const (
 // MemoryCaptureHook automatically captures key decisions and outcomes from completed
 // tasks and writes them to the memory store for future recall.
 type MemoryCaptureHook struct {
-	memoryService memory.Service
-	logger        logging.Logger
+	memoryService   memory.Service
+	enabled         bool
+	captureMessages bool
+	dedupeThreshold float64
+	logger          logging.Logger
+}
+
+// MemoryCaptureConfig controls auto-capture behaviour.
+type MemoryCaptureConfig struct {
+	Enabled         bool
+	AutoCapture     bool
+	CaptureMessages bool
+	DedupeThreshold float64
 }
 
 // NewMemoryCaptureHook creates a new memory capture hook.
-func NewMemoryCaptureHook(svc memory.Service, logger logging.Logger) *MemoryCaptureHook {
+func NewMemoryCaptureHook(svc memory.Service, logger logging.Logger, cfg MemoryCaptureConfig) *MemoryCaptureHook {
+	enabled := true
+	if cfg.Enabled == false || cfg.AutoCapture == false {
+		enabled = false
+	}
+	dedupe := cfg.DedupeThreshold
+	if dedupe <= 0 {
+		dedupe = 0.85
+	}
 	return &MemoryCaptureHook{
-		memoryService: svc,
-		logger:        logging.OrNop(logger),
+		memoryService:   svc,
+		enabled:         enabled,
+		captureMessages: cfg.CaptureMessages,
+		dedupeThreshold: dedupe,
+		logger:          logging.OrNop(logger),
 	}
 }
 
@@ -43,12 +69,26 @@ func (h *MemoryCaptureHook) OnTaskStart(_ context.Context, _ TaskInfo) []Injecti
 // OnTaskCompleted extracts a summary from the task result and writes it to memory.
 // Only tasks with tool calls are captured to avoid noise from pure conversations.
 func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResultInfo) error {
-	if h.memoryService == nil {
+	if h.memoryService == nil || !h.enabled {
 		return nil
+	}
+	policy, hasPolicy := appcontext.MemoryPolicyFromContext(ctx)
+	if hasPolicy {
+		if !policy.Enabled || !policy.AutoCapture {
+			return nil
+		}
+	} else {
+		policy = appcontext.ResolveMemoryPolicy(ctx)
 	}
 
 	// Filter: only capture tasks that involved tool calls
-	if len(result.ToolCalls) < minToolCallsForCapture {
+	captureMessages := h.captureMessages
+	if hasPolicy {
+		if !policy.CaptureMessages {
+			captureMessages = false
+		}
+	}
+	if !captureMessages && len(result.ToolCalls) < minToolCallsForCapture {
 		return nil
 	}
 
@@ -73,14 +113,19 @@ func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResu
 		Slots:    slots,
 	}
 
-	saved, err := h.memoryService.Save(ctx, entry)
-	if err != nil {
-		h.logger.Warn("Memory capture failed: %v", err)
-		return fmt.Errorf("memory capture: %w", err)
+	if h.isDuplicate(ctx, entry, userID) {
+		h.logger.Debug("Skipped auto-capture due to similarity threshold (user=%s)", userID)
+	} else {
+		saved, err := h.memoryService.Save(ctx, entry)
+		if err != nil {
+			h.logger.Warn("Memory capture failed: %v", err)
+			return fmt.Errorf("memory capture: %w", err)
+		}
+		h.logger.Info("Auto-captured memory %s (keywords: %v, tools: %d)",
+			saved.Key, keywords, len(result.ToolCalls))
 	}
 
-	h.logger.Info("Auto-captured memory %s (keywords: %v, tools: %d)",
-		saved.Key, keywords, len(result.ToolCalls))
+	h.captureWorkflowTrace(ctx, result, userID)
 
 	return nil
 }
@@ -166,4 +211,120 @@ func buildCaptureSlots(result TaskResultInfo) map[string]string {
 	}
 
 	return slots
+}
+
+func (h *MemoryCaptureHook) isDuplicate(ctx context.Context, entry memory.Entry, userID string) bool {
+	if h.memoryService == nil || h.dedupeThreshold <= 0 {
+		return false
+	}
+	query := memory.Query{
+		UserID:   userID,
+		Text:     entry.Content,
+		Keywords: entry.Keywords,
+		Limit:    5,
+	}
+	existing, err := h.memoryService.Recall(ctx, query)
+	if err != nil || len(existing) == 0 {
+		return false
+	}
+	for _, prev := range existing {
+		if similarityScore(entry.Content, prev.Content) >= h.dedupeThreshold {
+			return true
+		}
+	}
+	return false
+}
+
+func (h *MemoryCaptureHook) captureWorkflowTrace(ctx context.Context, result TaskResultInfo, userID string) {
+	if h.memoryService == nil || len(result.ToolCalls) < 2 {
+		return
+	}
+
+	trace := skills.WorkflowTrace{
+		TaskID:    result.RunID,
+		UserID:    userID,
+		Outcome:   result.StopReason,
+		CreatedAt: time.Now(),
+	}
+	for _, call := range result.ToolCalls {
+		trace.Tools = append(trace.Tools, skills.ToolStep{
+			Name:    call.ToolName,
+			Success: call.Success,
+		})
+	}
+
+	payload, err := json.Marshal(trace)
+	if err != nil {
+		h.logger.Warn("Workflow trace marshal failed: %v", err)
+		return
+	}
+
+	entry := memory.Entry{
+		UserID:   userID,
+		Content:  string(payload),
+		Keywords: append([]string{"workflow_trace"}, trace.ToolNames()...),
+		Slots: map[string]string{
+			"type":    "workflow_trace",
+			"task_id": result.RunID,
+			"outcome": result.StopReason,
+		},
+		CreatedAt: trace.CreatedAt,
+	}
+
+	if _, err := h.memoryService.Save(ctx, entry); err != nil {
+		h.logger.Warn("Workflow trace save failed: %v", err)
+	}
+}
+
+func similarityScore(a, b string) float64 {
+	tokensA := tokenizeForSimilarity(a)
+	tokensB := tokenizeForSimilarity(b)
+	if len(tokensA) == 0 || len(tokensB) == 0 {
+		return 0
+	}
+	setA := make(map[string]bool, len(tokensA))
+	for _, token := range tokensA {
+		setA[token] = true
+	}
+	intersection := 0
+	for _, token := range tokensB {
+		if setA[token] {
+			intersection++
+		}
+	}
+	union := len(tokensA) + len(tokensB) - intersection
+	if union == 0 {
+		return 0
+	}
+	return float64(intersection) / float64(union)
+}
+
+func tokenizeForSimilarity(text string) []string {
+	fields := strings.FieldsFunc(text, func(r rune) bool {
+		if r >= 'a' && r <= 'z' {
+			return false
+		}
+		if r >= 'A' && r <= 'Z' {
+			return false
+		}
+		if r >= '0' && r <= '9' {
+			return false
+		}
+		if r >= 0x4E00 && r <= 0x9FFF {
+			return false
+		}
+		return true
+	})
+
+	tokens := make([]string, 0, len(fields))
+	seen := make(map[string]bool, len(fields))
+	for _, field := range fields {
+		trimmed := strings.ToLower(strings.TrimSpace(field))
+		if trimmed == "" || len(trimmed) < 2 || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		tokens = append(tokens, trimmed)
+	}
+	return tokens
 }

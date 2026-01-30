@@ -66,6 +66,7 @@ func startWeChatGateway(ctx context.Context, cfg Config, container *di.Container
 		AgentPreset:            wechatCfg.AgentPreset,
 		ToolPreset:             wechatCfg.ToolPreset,
 		ReplyTimeout:           wechatCfg.ReplyTimeout,
+		MemoryEnabled:          wechatCfg.MemoryEnabled,
 	}
 
 	gateway, err := wechat.NewGateway(gatewayCfg, agentContainer.AgentCoordinator, logger)

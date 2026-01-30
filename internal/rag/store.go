@@ -34,10 +34,10 @@ type VectorStore interface {
 	Add(ctx context.Context, docs []Document) error
 
 	// Search performs similarity search by embedding
-	Search(ctx context.Context, queryEmbedding []float32, topK int, minSimilarity float32) ([]SearchResult, error)
+	Search(ctx context.Context, queryEmbedding []float32, topK int, minSimilarity float32, metadata map[string]string) ([]SearchResult, error)
 
 	// SearchByText performs similarity search by text query
-	SearchByText(ctx context.Context, queryText string, topK int, minSimilarity float32) ([]SearchResult, error)
+	SearchByText(ctx context.Context, queryText string, topK int, minSimilarity float32, metadata map[string]string) ([]SearchResult, error)
 
 	// Delete removes documents by ID
 	Delete(ctx context.Context, ids []string) error
@@ -125,19 +125,19 @@ func (s *chromemStore) Add(ctx context.Context, docs []Document) error {
 
 // Search performs similarity search by embedding
 // NOTE: chromem-go v0.7.0 doesn't support direct embedding queries
-func (s *chromemStore) Search(ctx context.Context, queryEmbedding []float32, topK int, minSimilarity float32) ([]SearchResult, error) {
+func (s *chromemStore) Search(ctx context.Context, queryEmbedding []float32, topK int, minSimilarity float32, _ map[string]string) ([]SearchResult, error) {
 	// Not supported by chromem-go v0.7.0
 	return nil, fmt.Errorf("embedding-based search not supported by chromem-go. Use SearchByText instead")
 }
 
 // SearchByText performs similarity search using text query
-func (s *chromemStore) SearchByText(ctx context.Context, queryText string, topK int, minSimilarity float32) ([]SearchResult, error) {
+func (s *chromemStore) SearchByText(ctx context.Context, queryText string, topK int, minSimilarity float32, metadata map[string]string) ([]SearchResult, error) {
 	if topK <= 0 {
 		topK = 5
 	}
 
 	// Query collection (chromem-go will generate embedding internally)
-	results, err := s.collection.Query(ctx, queryText, topK, nil, nil)
+	results, err := s.collection.Query(ctx, queryText, topK, metadata, nil)
 	if err != nil {
 		return nil, fmt.Errorf("query collection: %w", err)
 	}

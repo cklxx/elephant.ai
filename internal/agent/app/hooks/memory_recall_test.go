@@ -19,6 +19,7 @@ type mockMemoryService struct {
 	saveErr    error
 	saveCalled int
 	lastEntry  memory.Entry
+	entries    []memory.Entry
 }
 
 func (m *mockMemoryService) Recall(_ context.Context, query memory.Query) ([]memory.Entry, error) {
@@ -30,18 +31,19 @@ func (m *mockMemoryService) Recall(_ context.Context, query memory.Query) ([]mem
 func (m *mockMemoryService) Save(_ context.Context, entry memory.Entry) (memory.Entry, error) {
 	m.saveCalled++
 	m.lastEntry = entry
+	m.entries = append(m.entries, entry)
 	return m.saveResult, m.saveErr
 }
 
 func TestMemoryRecallHook_Name(t *testing.T) {
-	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{})
+	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
 	if hook.Name() != "memory_recall" {
 		t.Errorf("expected name 'memory_recall', got %q", hook.Name())
 	}
 }
 
 func TestMemoryRecallHook_OnTaskStart_NilService(t *testing.T) {
-	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{})
+	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
 	result := hook.OnTaskStart(context.Background(), TaskInfo{TaskInput: "test"})
 	if result != nil {
 		t.Errorf("expected nil injections with nil service, got %v", result)
@@ -50,7 +52,7 @@ func TestMemoryRecallHook_OnTaskStart_NilService(t *testing.T) {
 
 func TestMemoryRecallHook_OnTaskStart_EmptyInput(t *testing.T) {
 	svc := &mockMemoryService{}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{TaskInput: ""})
 	if result != nil {
@@ -68,7 +70,7 @@ func TestMemoryRecallHook_OnTaskStart_SuccessfulRecall(t *testing.T) {
 			{Key: "2", Content: "Database migration plan", Keywords: []string{"database", "migration"}},
 		},
 	}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{MaxRecalls: 3})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true, MaxRecalls: 3})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "deploy the new database migration",
@@ -80,6 +82,9 @@ func TestMemoryRecallHook_OnTaskStart_SuccessfulRecall(t *testing.T) {
 	}
 	if svc.lastQuery.UserID != "testuser" {
 		t.Errorf("expected userID 'testuser', got %q", svc.lastQuery.UserID)
+	}
+	if svc.lastQuery.Text != "deploy the new database migration" {
+		t.Errorf("expected query text to match task input, got %q", svc.lastQuery.Text)
 	}
 	if svc.lastQuery.Limit != 3 {
 		t.Errorf("expected limit 3, got %d", svc.lastQuery.Limit)
@@ -109,7 +114,7 @@ func TestMemoryRecallHook_OnTaskStart_SuccessfulRecall(t *testing.T) {
 
 func TestMemoryRecallHook_OnTaskStart_NoResults(t *testing.T) {
 	svc := &mockMemoryService{recallResult: []memory.Entry{}}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "test query",
@@ -123,7 +128,7 @@ func TestMemoryRecallHook_OnTaskStart_NoResults(t *testing.T) {
 
 func TestMemoryRecallHook_OnTaskStart_RecallError(t *testing.T) {
 	svc := &mockMemoryService{recallErr: errors.New("store unavailable")}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "test query",
@@ -139,7 +144,7 @@ func TestMemoryRecallHook_OnTaskStart_DefaultUserID(t *testing.T) {
 	svc := &mockMemoryService{recallResult: []memory.Entry{
 		{Key: "1", Content: "test memory"},
 	}}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
 
 	hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "some query",
@@ -184,8 +189,8 @@ func TestExtractKeywords(t *testing.T) {
 			excludes: []string{"please", "help", "me", "with", "the"},
 		},
 		{
-			name:    "short words filtered",
-			input:   "I a b c deploy",
+			name:     "short words filtered",
+			input:    "I a b c deploy",
 			contains: []string{"deploy"},
 			excludes: []string{"a", "b", "c"},
 		},

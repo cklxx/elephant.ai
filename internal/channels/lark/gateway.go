@@ -230,6 +230,20 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	execCtx, _ = id.EnsureLogID(execCtx, id.NewLogID)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
+	if g.cfg.MemoryEnabled {
+		execCtx = appcontext.WithMemoryPolicy(execCtx, appcontext.MemoryPolicy{
+			Enabled:         true,
+			AutoRecall:      true,
+			AutoCapture:     true,
+			CaptureMessages: true,
+		})
+	} else {
+		execCtx = appcontext.WithMemoryPolicy(execCtx, appcontext.MemoryPolicy{
+			Enabled:     false,
+			AutoRecall:  false,
+			AutoCapture: false,
+		})
+	}
 
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
 	if err != nil {
@@ -285,11 +299,6 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 	execCtx = shared.WithParentListener(execCtx, listener)
 
-	// Save user message to memory for long-term recall.
-	if g.memoryMgr != nil {
-		g.memoryMgr.SaveMessage(execCtx, senderID, "user", content, senderID)
-	}
-
 	// Auto chat context: fetch recent messages from the Lark chat.
 	taskContent := content
 	if g.cfg.AutoChatContext && g.client != nil {
@@ -304,27 +313,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		}
 	}
 
-	// Memory recall: inject relevant past learnings into the task context.
-	// Uses senderID so memories are per-user, not per-chat.
-	if g.memoryMgr != nil {
-		if recalled := g.memoryMgr.RecallForTask(execCtx, senderID, content); recalled != "" {
-			taskContent = recalled + "\n\n" + taskContent
-		}
-	}
-
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
 	if emojiInterceptor != nil {
 		emojiInterceptor.sendFallback()
-	}
-
-	// Memory save: persist important notes from the result.
-	if g.memoryMgr != nil {
-		g.memoryMgr.SaveFromResult(execCtx, senderID, result)
-	}
-
-	// Save agent reply to memory for long-term recall.
-	if g.memoryMgr != nil && result != nil && strings.TrimSpace(result.Answer) != "" {
-		g.memoryMgr.SaveMessage(execCtx, senderID, "assistant", result.Answer, "bot")
 	}
 
 	reply := g.buildReply(result, execErr)

@@ -53,18 +53,18 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	gatewayCfg := lark.Config{
-		Enabled:          larkCfg.Enabled,
-		AppID:            larkCfg.AppID,
-		AppSecret:        larkCfg.AppSecret,
-		BaseDomain:       larkCfg.BaseDomain,
-		SessionPrefix:    larkCfg.SessionPrefix,
-		ReplyPrefix:      larkCfg.ReplyPrefix,
-		AllowGroups:      larkCfg.AllowGroups,
-		AllowDirect:      larkCfg.AllowDirect,
-		AgentPreset:      larkCfg.AgentPreset,
-		ToolPreset:       larkCfg.ToolPreset,
-		ReplyTimeout:     larkCfg.ReplyTimeout,
-		ReactEmoji:       larkCfg.ReactEmoji,
+		Enabled:             larkCfg.Enabled,
+		AppID:               larkCfg.AppID,
+		AppSecret:           larkCfg.AppSecret,
+		BaseDomain:          larkCfg.BaseDomain,
+		SessionPrefix:       larkCfg.SessionPrefix,
+		ReplyPrefix:         larkCfg.ReplyPrefix,
+		AllowGroups:         larkCfg.AllowGroups,
+		AllowDirect:         larkCfg.AllowDirect,
+		AgentPreset:         larkCfg.AgentPreset,
+		ToolPreset:          larkCfg.ToolPreset,
+		ReplyTimeout:        larkCfg.ReplyTimeout,
+		ReactEmoji:          larkCfg.ReactEmoji,
 		MemoryEnabled:       larkCfg.MemoryEnabled,
 		ShowToolProgress:    larkCfg.ShowToolProgress,
 		AutoChatContext:     larkCfg.AutoChatContext,
@@ -81,10 +81,6 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	if broadcaster != nil {
 		gateway.SetEventListener(broadcaster)
 	}
-	if larkCfg.MemoryEnabled && agentContainer.MemoryService != nil {
-		gateway.SetMemoryManager(agentContainer.MemoryService)
-	}
-
 	async.Go(logger, "lark.gateway", func() {
 		if err := gateway.Start(ctx); err != nil {
 			logger.Warn("Lark gateway stopped: %v", err)

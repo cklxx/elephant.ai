@@ -38,16 +38,16 @@ type BaseEvent struct {
 	logID string // Log correlation
 }
 
-func (e *BaseEvent) Timestamp() time.Time       { return e.timestamp }
+func (e *BaseEvent) Timestamp() time.Time            { return e.timestamp }
 func (e *BaseEvent) GetAgentLevel() agent.AgentLevel { return e.agentLevel }
-func (e *BaseEvent) GetSessionID() string        { return e.sessionID }
-func (e *BaseEvent) GetRunID() string            { return e.runID }
-func (e *BaseEvent) GetParentRunID() string      { return e.parentRunID }
-func (e *BaseEvent) GetCorrelationID() string    { return e.correlationID }
-func (e *BaseEvent) GetCausationID() string      { return e.causationID }
-func (e *BaseEvent) GetEventID() string          { return e.eventID }
-func (e *BaseEvent) GetSeq() uint64              { return e.seq }
-func (e *BaseEvent) GetLogID() string            { return e.logID }
+func (e *BaseEvent) GetSessionID() string            { return e.sessionID }
+func (e *BaseEvent) GetRunID() string                { return e.runID }
+func (e *BaseEvent) GetParentRunID() string          { return e.parentRunID }
+func (e *BaseEvent) GetCorrelationID() string        { return e.correlationID }
+func (e *BaseEvent) GetCausationID() string          { return e.causationID }
+func (e *BaseEvent) GetEventID() string              { return e.eventID }
+func (e *BaseEvent) GetSeq() uint64                  { return e.seq }
+func (e *BaseEvent) GetLogID() string                { return e.logID }
 
 // SetLogID attaches a log identifier for correlation.
 func (e *BaseEvent) SetLogID(logID string) { e.logID = logID }
@@ -64,8 +64,8 @@ func (s *SeqCounter) Next() uint64 {
 
 func newBaseEventWithIDs(level agent.AgentLevel, sessionID, runID, parentRunID string, ts time.Time) BaseEvent {
 	return BaseEvent{
-		eventID:   id.NewEventID(),
-		timestamp: ts,
+		eventID:     id.NewEventID(),
+		timestamp:   ts,
 		agentLevel:  level,
 		sessionID:   sessionID,
 		runID:       runID,
@@ -434,6 +434,17 @@ func NewWorkflowDiagnosticEnvironmentSnapshotEvent(host map[string]string, captu
 		Host:      cloneStringMap(host),
 		Captured:  captured,
 	}
+}
+
+// ProactiveContextRefreshEvent signals a mid-loop proactive memory refresh.
+type ProactiveContextRefreshEvent struct {
+	BaseEvent
+	Iteration        int
+	MemoriesInjected int
+}
+
+func (e *ProactiveContextRefreshEvent) EventType() string {
+	return "proactive.context.refresh"
 }
 
 func cloneStringMap(values map[string]string) map[string]string {

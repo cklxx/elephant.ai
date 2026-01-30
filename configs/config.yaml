@@ -8,6 +8,45 @@ runtime:
   ark_api_key: "${ARK_API_KEY}"
   max_tokens: 12800
   verbose: false
+  proactive:
+    enabled: true
+    memory:
+      enabled: true
+      auto_recall: true
+      auto_capture: true
+      capture_messages: false
+      max_recalls: 5
+      refresh_interval: 3
+      max_refresh_tokens: 500
+      store: "auto"
+      dedupe_threshold: 0.85
+      hybrid:
+        alpha: 0.6
+        min_similarity: 0.7
+        collection: "memory"
+    skills:
+      auto_activation:
+        enabled: true
+        max_activated: 3
+        token_budget: 4000
+        confidence_threshold: 0.6
+      feedback:
+        enabled: false
+        store_path: "${ALEX_SKILL_FEEDBACK_PATH}"
+      cache_ttl_seconds: 300
+    rag:
+      enabled: false
+      persist_dir: "${ALEX_RAG_DIR}"
+      collection: "rag"
+      min_similarity: 0.7
+    scheduler:
+      enabled: false
+      triggers: []
+    attention:
+      max_daily_notifications: 5
+      min_interval_seconds: 1800
+      quiet_hours: [22, 8]
+      priority_threshold: 0.6
 auth:
   jwt_secret: "${AUTH_JWT_SECRET}"
   access_token_ttl_minutes: "15"

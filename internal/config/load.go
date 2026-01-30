@@ -50,6 +50,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		TopP:                       1.0,
 		SessionDir:                 "~/.alex/sessions",
 		CostDir:                    "~/.alex/costs",
+		Proactive:                  DefaultProactiveConfig(),
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -123,6 +124,7 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.CostDir = strings.TrimSpace(cfg.CostDir)
 	cfg.AgentPreset = strings.TrimSpace(cfg.AgentPreset)
 	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
+	normalizeProactiveConfig(&cfg.Proactive)
 
 	if cfg.ToolMaxConcurrent <= 0 {
 		cfg.ToolMaxConcurrent = DefaultToolMaxConcurrent
@@ -149,6 +151,63 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 			filtered = append(filtered, trimmed)
 		}
 		cfg.StopSequences = filtered
+	}
+}
+
+func normalizeProactiveConfig(cfg *ProactiveConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.Memory.MaxRecalls <= 0 {
+		cfg.Memory.MaxRecalls = 5
+	}
+	if cfg.Memory.RefreshInterval < 0 {
+		cfg.Memory.RefreshInterval = 0
+	}
+	if cfg.Memory.MaxRefreshTokens < 0 {
+		cfg.Memory.MaxRefreshTokens = 0
+	}
+	if cfg.Memory.DedupeThreshold <= 0 {
+		cfg.Memory.DedupeThreshold = 0.85
+	}
+	if cfg.Memory.Hybrid.Alpha <= 0 {
+		cfg.Memory.Hybrid.Alpha = 0.6
+	}
+	if cfg.Memory.Hybrid.MinSimilarity <= 0 {
+		cfg.Memory.Hybrid.MinSimilarity = 0.7
+	}
+	if cfg.Skills.AutoActivation.MaxActivated <= 0 {
+		cfg.Skills.AutoActivation.MaxActivated = 3
+	}
+	if cfg.Skills.AutoActivation.TokenBudget <= 0 {
+		cfg.Skills.AutoActivation.TokenBudget = 4000
+	}
+	if cfg.Skills.AutoActivation.ConfidenceThreshold <= 0 {
+		cfg.Skills.AutoActivation.ConfidenceThreshold = 0.6
+	}
+	if cfg.Skills.CacheTTLSeconds <= 0 {
+		cfg.Skills.CacheTTLSeconds = 300
+	}
+	if cfg.Attention.MaxDailyNotifications <= 0 {
+		cfg.Attention.MaxDailyNotifications = 5
+	}
+	if cfg.Attention.MinIntervalSeconds <= 0 {
+		cfg.Attention.MinIntervalSeconds = 1800
+	}
+	if cfg.Attention.PriorityThreshold <= 0 {
+		cfg.Attention.PriorityThreshold = 0.6
+	}
+	if cfg.Attention.QuietHours[0] == 0 && cfg.Attention.QuietHours[1] == 0 {
+		cfg.Attention.QuietHours = [2]int{22, 8}
+	}
+	if cfg.Memory.Store == "" {
+		cfg.Memory.Store = "auto"
+	}
+	if cfg.Memory.Hybrid.Collection == "" {
+		cfg.Memory.Hybrid.Collection = "memory"
+	}
+	if cfg.RAG.Collection == "" {
+		cfg.RAG.Collection = "rag"
 	}
 }
 

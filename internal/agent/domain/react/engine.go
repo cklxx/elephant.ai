@@ -9,6 +9,7 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
+	"alex/internal/memory"
 )
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
@@ -22,6 +23,8 @@ type ReactEngine struct {
 	attachmentMigrator materialports.Migrator
 	workflow           WorkflowTracker
 	seq                domain.SeqCounter // Monotonic event sequence per run
+	memoryRefresh      MemoryRefreshConfig
+	memoryService      memory.Service
 
 	// Background task support: executor closure for internal subagent delegation.
 	backgroundExecutor func(ctx context.Context, prompt, sessionID string,
@@ -82,6 +85,13 @@ type CompletionDefaults struct {
 	StopSequences []string
 }
 
+// MemoryRefreshConfig configures mid-loop memory refresh.
+type MemoryRefreshConfig struct {
+	Enabled   bool
+	Interval  int
+	MaxTokens int
+}
+
 // ReactEngineConfig captures the dependencies required to construct a ReactEngine.
 type ReactEngineConfig struct {
 	MaxIterations      int
@@ -100,4 +110,7 @@ type ReactEngineConfig struct {
 	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
 	// Optional; when nil only "internal" agent type is supported.
 	ExternalExecutor agent.ExternalAgentExecutor
+
+	MemoryRefresh MemoryRefreshConfig
+	MemoryService memory.Service
 }

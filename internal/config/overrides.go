@@ -170,4 +170,8 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.ToolPreset = *overrides.ToolPreset
 		meta.sources["tool_preset"] = SourceOverride
 	}
+	if overrides.Proactive != nil {
+		cfg.Proactive = *overrides.Proactive
+		meta.sources["proactive"] = SourceOverride
+	}
 }

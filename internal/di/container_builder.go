@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"alex/internal/mcp"
 	"alex/internal/memory"
 	"alex/internal/parser"
+	"alex/internal/rag"
 	"alex/internal/session/filestore"
 	"alex/internal/session/postgresstore"
 	sessionstate "alex/internal/session/state_store"
@@ -44,7 +46,6 @@ type sessionResources struct {
 	stateStore   sessionstate.Store
 	historyStore sessionstate.Store
 	sessionDB    *pgxpool.Pool
-	memoryStore  memory.Store
 }
 
 type sessionPoolOptions struct {
@@ -103,7 +104,10 @@ func (b *containerBuilder) Build() (*Container, error) {
 		return nil, err
 	}
 
-	memoryService := b.buildMemoryService(resources.memoryStore)
+	memoryService, err := b.buildMemoryService(resources)
+	if err != nil {
+		return nil, err
+	}
 	journalWriter := b.buildJournalWriter()
 	contextMgr := ctxmgr.NewManager(
 		ctxmgr.WithStateStore(resources.stateStore),
@@ -155,6 +159,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 			ToolPreset:          b.config.ToolPreset,
 			ToolMode:            b.config.ToolMode,
 			EnvironmentSummary:  b.config.EnvironmentSummary,
+			Proactive:           b.config.Proactive,
 		},
 		agentcoordinator.WithHookRegistry(hookRegistry),
 	)
@@ -212,12 +217,10 @@ func (b *containerBuilder) buildSessionResources() (sessionResources, error) {
 		b.logPostgresFailure(err)
 	}
 
-	memoryDir := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
 	return sessionResources{
 		sessionStore: filestore.New(b.sessionDir),
 		stateStore:   sessionstate.NewFileStore(filepath.Join(b.sessionDir, "snapshots")),
 		historyStore: sessionstate.NewFileStore(filepath.Join(b.sessionDir, "turns")),
-		memoryStore:  memory.NewFileStore(memoryDir),
 	}, nil
 }
 
@@ -267,7 +270,6 @@ func (b *containerBuilder) buildPostgresResources(ctx context.Context, dbURL str
 		stateStore:   dbStateStore,
 		historyStore: dbHistoryStore,
 		sessionDB:    pool,
-		memoryStore:  memory.NewPostgresStore(pool),
 	}, nil
 }
 
@@ -321,12 +323,83 @@ func applySessionPoolOptions(poolConfig *pgxpool.Config, options sessionPoolOpti
 	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
 }
 
-func (b *containerBuilder) buildMemoryService(store memory.Store) memory.Service {
-	memoryService := memory.NewService(store)
+func (b *containerBuilder) buildMemoryService(resources sessionResources) (memory.Service, error) {
+	store, err := b.buildMemoryStore(resources)
+	if err != nil {
+		return nil, err
+	}
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		b.logger.Warn("Failed to initialize memory store schema: %v", err)
 	}
-	return memoryService
+	return memory.NewService(store), nil
+}
+
+func (b *containerBuilder) buildMemoryStore(resources sessionResources) (memory.Store, error) {
+	mode := strings.ToLower(strings.TrimSpace(b.config.Proactive.Memory.Store))
+	if mode == "" || mode == "auto" {
+		return b.buildAutoMemoryStore(resources)
+	}
+	switch mode {
+	case "file":
+		return memory.NewFileStore(resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")), nil
+	case "postgres":
+		if resources.sessionDB == nil {
+			return nil, fmt.Errorf("memory store postgres requires session database")
+		}
+		return memory.NewPostgresStore(resources.sessionDB), nil
+	case "hybrid":
+		return b.buildHybridMemoryStore(resources)
+	default:
+		return nil, fmt.Errorf("unknown memory store %q", mode)
+	}
+}
+
+func (b *containerBuilder) buildAutoMemoryStore(resources sessionResources) (memory.Store, error) {
+	if resources.sessionDB != nil {
+		return memory.NewPostgresStore(resources.sessionDB), nil
+	}
+	return memory.NewFileStore(resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")), nil
+}
+
+func (b *containerBuilder) buildHybridMemoryStore(resources sessionResources) (memory.Store, error) {
+	keywordStore, err := b.buildAutoMemoryStore(resources)
+	if err != nil {
+		return nil, err
+	}
+
+	hybridCfg := b.config.Proactive.Memory.Hybrid
+	persistDir := strings.TrimSpace(hybridCfg.PersistDir)
+	if persistDir == "" {
+		persistDir = filepath.Join(resolveStorageDir(b.config.MemoryDir, "~/.alex/memory"), "vector")
+	}
+	if err := os.MkdirAll(persistDir, 0o755); err != nil {
+		b.logger.Warn("Failed to create memory vector dir: %v", err)
+	}
+
+	baseURL := strings.TrimSpace(hybridCfg.EmbedderBaseURL)
+	if baseURL == "" {
+		baseURL = strings.TrimSpace(b.config.BaseURL)
+	}
+	embedder, err := rag.NewEmbedder(rag.EmbedderConfig{
+		Provider:  "openai",
+		Model:     strings.TrimSpace(hybridCfg.EmbedderModel),
+		APIKey:    b.config.APIKey,
+		BaseURL:   baseURL,
+		CacheSize: 10000,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("init memory embedder: %w", err)
+	}
+
+	vectorStore, err := rag.NewVectorStore(rag.StoreConfig{
+		PersistPath: persistDir,
+		Collection:  strings.TrimSpace(hybridCfg.Collection),
+	}, embedder)
+	if err != nil {
+		return nil, fmt.Errorf("init memory vector store: %w", err)
+	}
+
+	return memory.NewHybridStore(keywordStore, vectorStore, embedder, hybridCfg.Alpha, float32(hybridCfg.MinSimilarity)), nil
 }
 
 func (b *containerBuilder) buildJournalWriter() journal.Writer {
@@ -349,17 +422,32 @@ func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) 
 
 func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hooks.Registry {
 	registry := hooks.NewRegistry(b.logger)
+	if !b.config.Proactive.Enabled {
+		b.logger.Info("Proactive hooks disabled by config")
+		return registry
+	}
 
 	// Register memory recall hook (pre-task auto-recall)
-	if memoryService != nil {
+	if memoryService != nil && b.config.Proactive.Memory.Enabled {
 		recallHook := hooks.NewMemoryRecallHook(memoryService, b.logger, hooks.MemoryRecallConfig{
-			MaxRecalls: 5,
+			Enabled:    b.config.Proactive.Memory.Enabled,
+			AutoRecall: b.config.Proactive.Memory.AutoRecall,
+			MaxRecalls: b.config.Proactive.Memory.MaxRecalls,
 		})
-		registry.Register(recallHook)
+		if b.config.Proactive.Memory.AutoRecall {
+			registry.Register(recallHook)
+		}
 
 		// Register memory capture hook (post-task auto-capture)
-		captureHook := hooks.NewMemoryCaptureHook(memoryService, b.logger)
-		registry.Register(captureHook)
+		captureHook := hooks.NewMemoryCaptureHook(memoryService, b.logger, hooks.MemoryCaptureConfig{
+			Enabled:         b.config.Proactive.Memory.Enabled,
+			AutoCapture:     b.config.Proactive.Memory.AutoCapture,
+			CaptureMessages: b.config.Proactive.Memory.CaptureMessages,
+			DedupeThreshold: b.config.Proactive.Memory.DedupeThreshold,
+		})
+		if b.config.Proactive.Memory.AutoCapture {
+			registry.Register(captureHook)
+		}
 	}
 
 	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())

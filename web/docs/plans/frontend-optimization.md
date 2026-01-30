@@ -1,7 +1,7 @@
 # Frontend Code Optimization Plan
 
 **Date:** 2026-01-30
-**Status:** P0/P1 Complete, P2 Backlog
+**Status:** P0/P1 Complete, A2UI Components Done, P2 Backlog
 
 ---
 
@@ -93,6 +93,22 @@
 
 ---
 
+## A2UI — New json-render components
+
+### 14. Add 6 new component types
+- **Files:** `components/agent/JsonRenderRenderer.tsx`, `lib/json-render-ssr.ts`, `lib/__tests__/json-render-ssr.test.ts`
+- **Components added:**
+  - **Accordion** — collapsible sections with title/content, `useState` toggle (React), `<details>` (SSR)
+  - **Progress** — progress bar with value/max/label/color, percentage display, clamped 0-100%
+  - **Link** — hyperlink with href/text/target, `rel="noopener noreferrer"` for `_blank`
+  - **Alert** — callout box with variant (info/warning/error/success), title/message, themed colors
+  - **Timeline** — step-by-step display with items (title/description/status), dot colors by status (completed/active/error/pending)
+  - **Stat** — standalone metric card with label/value/unit/change/description
+- **Tests:** 8 new SSR tests covering all components + edge cases (empty timeline, clamped progress)
+- **Status:** [x] Done — commit `fff1afc0`
+
+---
+
 ## Dead code removal (pre-optimization)
 
 Deleted 3 unused components (459 lines total):
@@ -106,5 +122,5 @@ Deleted 3 unused components (459 lines total):
 
 All changes validated:
 - ESLint: 0 errors
-- Vitest: 51 files, 290 tests passed
+- Vitest: 51 files, 298 tests passed
 - TypeScript: no new errors introduced (pre-existing test type issues unchanged)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/logging"
 	"alex/internal/memory"
 )
@@ -19,12 +20,15 @@ const (
 type MemoryRecallHook struct {
 	memoryService memory.Service
 	maxRecalls    int
+	enabled       bool
 	logger        logging.Logger
 }
 
 // MemoryRecallConfig configures the memory recall hook.
 type MemoryRecallConfig struct {
-	MaxRecalls int // Maximum memories to recall (default: 5)
+	Enabled    bool // Enable auto recall
+	AutoRecall bool // Enable recall specifically
+	MaxRecalls int  // Maximum memories to recall (default: 5)
 }
 
 // NewMemoryRecallHook creates a new memory recall hook.
@@ -33,9 +37,14 @@ func NewMemoryRecallHook(svc memory.Service, logger logging.Logger, cfg MemoryRe
 	if maxRecalls <= 0 {
 		maxRecalls = defaultMaxRecalls
 	}
+	enabled := true
+	if cfg.Enabled == false || cfg.AutoRecall == false {
+		enabled = false
+	}
 	return &MemoryRecallHook{
 		memoryService: svc,
 		maxRecalls:    maxRecalls,
+		enabled:       enabled,
 		logger:        logging.OrNop(logger),
 	}
 }
@@ -44,7 +53,11 @@ func (h *MemoryRecallHook) Name() string { return memoryRecallHookName }
 
 // OnTaskStart recalls memories matching the task input and returns them as injections.
 func (h *MemoryRecallHook) OnTaskStart(ctx context.Context, task TaskInfo) []Injection {
-	if h.memoryService == nil {
+	if h.memoryService == nil || !h.enabled {
+		return nil
+	}
+	policy := appcontext.ResolveMemoryPolicy(ctx)
+	if !policy.Enabled || !policy.AutoRecall {
 		return nil
 	}
 	if strings.TrimSpace(task.TaskInput) == "" {
@@ -62,6 +75,7 @@ func (h *MemoryRecallHook) OnTaskStart(ctx context.Context, task TaskInfo) []Inj
 
 	entries, err := h.memoryService.Recall(ctx, memory.Query{
 		UserID:   userID,
+		Text:     task.TaskInput,
 		Keywords: keywords,
 		Limit:    h.maxRecalls,
 	})

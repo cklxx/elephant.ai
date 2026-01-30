@@ -9,6 +9,8 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/memory"
+	id "alex/internal/utils/id"
 
 	"github.com/stretchr/testify/require"
 )
@@ -68,6 +70,18 @@ func (c *collectingListener) collected() []AgentEvent {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return append([]AgentEvent(nil), c.events...)
+}
+
+type stubMemoryService struct {
+	entries []memory.Entry
+}
+
+func (s *stubMemoryService) Save(_ context.Context, entry memory.Entry) (memory.Entry, error) {
+	return entry, nil
+}
+
+func (s *stubMemoryService) Recall(_ context.Context, _ memory.Query) ([]memory.Entry, error) {
+	return s.entries, nil
 }
 
 func TestReactRuntimeFinalizeResultDecoratesWorkflowOnce(t *testing.T) {
@@ -147,6 +161,49 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 	require.Equal(t, "cancelled", completes[0].StopReason)
 	require.Equal(t, time.Second, completes[0].Duration)
 	require.Contains(t, tracker.started, workflowNodeFinalize)
+}
+
+func TestReactRuntimeRefreshContextInjectsMemories(t *testing.T) {
+	listener := &collectingListener{}
+	memSvc := &stubMemoryService{
+		entries: []memory.Entry{{Content: "Prefer YAML-only config paths."}},
+	}
+	engine := NewReactEngine(ReactEngineConfig{
+		Logger:        agent.NoopLogger{},
+		EventListener: listener,
+		MemoryRefresh: MemoryRefreshConfig{
+			Enabled:   true,
+			Interval:  1,
+			MaxTokens: 200,
+		},
+		MemoryService: memSvc,
+	})
+
+	state := &TaskState{
+		SessionID:   "s1",
+		RunID:       "r1",
+		ToolResults: []ToolResult{{Content: "config normalization"}},
+	}
+	ctx := id.WithUserID(context.Background(), "u1")
+	runtime := newReactRuntime(engine, ctx, "demo", state, Services{}, nil)
+
+	runtime.refreshContext(1)
+
+	require.Len(t, state.Messages, 1)
+	require.Equal(t, "system", state.Messages[0].Role)
+	require.Equal(t, ports.MessageSourceProactive, state.Messages[0].Source)
+	require.Contains(t, state.Messages[0].Content, "Proactive Memory Refresh")
+
+	events := listener.collected()
+	found := false
+	for _, ev := range events {
+		if refresh, ok := ev.(*domain.ProactiveContextRefreshEvent); ok {
+			found = true
+			require.Equal(t, 1, refresh.Iteration)
+			require.Equal(t, 1, refresh.MemoriesInjected)
+		}
+	}
+	require.True(t, found, "expected proactive context refresh event")
 }
 
 func TestBackgroundDispatchEmitsEvent(t *testing.T) {

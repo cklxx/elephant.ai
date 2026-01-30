@@ -1,5 +1,7 @@
 package config
 
+import runtimeconfig "alex/internal/config"
+
 // Config captures runtime defaults for coordinator execution and preparation.
 type Config struct {
 	LLMProvider         string
@@ -20,4 +22,5 @@ type Config struct {
 	ToolPreset          string // Tool access preset (full, read-only, safe, architect)
 	ToolMode            string // Tool access mode (web or cli)
 	EnvironmentSummary  string
+	Proactive           runtimeconfig.ProactiveConfig
 }

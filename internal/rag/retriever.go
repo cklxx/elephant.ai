@@ -52,7 +52,7 @@ func (r *Retriever) Search(ctx context.Context, query string) ([]RetrievalResult
 	}
 
 	// Use text-based search (chromem-go generates embeddings internally)
-	searchResults, err := r.store.SearchByText(ctx, query, r.config.TopK, r.config.MinSimilarity)
+	searchResults, err := r.store.SearchByText(ctx, query, r.config.TopK, r.config.MinSimilarity, nil)
 	if err != nil {
 		return nil, fmt.Errorf("search store: %w", err)
 	}

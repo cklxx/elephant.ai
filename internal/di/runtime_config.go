@@ -55,5 +55,6 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		FollowStream:               runtime.FollowStream,
 		SessionDir:                 runtime.SessionDir,
 		CostDir:                    runtime.CostDir,
+		Proactive:                  runtime.Proactive,
 	}
 }

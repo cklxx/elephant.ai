@@ -26,22 +26,24 @@ import (
 	"alex/internal/async"
 	"alex/internal/logging"
 	materialports "alex/internal/materials/ports"
+	"alex/internal/memory"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
 
 // AgentCoordinator manages session lifecycle and delegates to domain
 type AgentCoordinator struct {
-	llmFactory   llm.LLMClientFactory
-	toolRegistry tools.ToolRegistry
-	sessionStore storage.SessionStore
-	contextMgr   agent.ContextManager
-	historyMgr   storage.HistoryManager
-	parser       tools.FunctionCallParser
-	costTracker  storage.CostTracker
-	config       appconfig.Config
-	logger       agent.Logger
-	clock        agent.Clock
+	llmFactory    llm.LLMClientFactory
+	toolRegistry  tools.ToolRegistry
+	sessionStore  storage.SessionStore
+	contextMgr    agent.ContextManager
+	historyMgr    storage.HistoryManager
+	parser        tools.FunctionCallParser
+	costTracker   storage.CostTracker
+	config        appconfig.Config
+	logger        agent.Logger
+	clock         agent.Clock
+	memoryService memory.Service
 
 	prepService        preparationService
 	costDecorator      *cost.CostTrackingDecorator
@@ -363,6 +365,12 @@ func (c *AgentCoordinator) ExecuteTask(
 		CompletionDefaults: completionDefaults,
 		AttachmentMigrator: c.attachmentMigrator,
 		Workflow:           wf,
+		MemoryRefresh: react.MemoryRefreshConfig{
+			Enabled:   c.config.Proactive.Enabled && c.config.Proactive.Memory.Enabled && c.config.Proactive.Memory.AutoRecall,
+			Interval:  c.config.Proactive.Memory.RefreshInterval,
+			MaxTokens: c.config.Proactive.Memory.MaxRefreshTokens,
+		},
+		MemoryService: c.memoryService,
 		BackgroundExecutor: func(bgCtx context.Context, prompt, sessionID string,
 			listener agent.EventListener) (*agent.TaskResult, error) {
 			bgCtx = appcontext.MarkSubagentContext(bgCtx)

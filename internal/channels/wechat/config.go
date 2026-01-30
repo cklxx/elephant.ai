@@ -18,4 +18,5 @@ type Config struct {
 	AgentPreset            string
 	ToolPreset             string
 	ReplyTimeout           time.Duration
+	MemoryEnabled          bool
 }

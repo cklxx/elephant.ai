@@ -210,6 +210,9 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolPreset = parsed.ToolPreset
 		meta.sources["tool_preset"] = SourceFile
 	}
+	if parsed.Proactive != nil {
+		applyProactiveFileConfig(cfg, meta, parsed.Proactive)
+	}
 
 	return nil
 }
@@ -259,6 +262,9 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.CostDir = expandEnvValue(lookup, parsed.CostDir)
 	parsed.AgentPreset = expandEnvValue(lookup, parsed.AgentPreset)
 	parsed.ToolPreset = expandEnvValue(lookup, parsed.ToolPreset)
+	if parsed.Proactive != nil {
+		expandProactiveFileConfigEnv(lookup, parsed.Proactive)
+	}
 
 	if len(parsed.StopSequences) > 0 {
 		expanded := make([]string, 0, len(parsed.StopSequences))

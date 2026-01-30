@@ -172,7 +172,22 @@ func (g *Gateway) handleMessage(msg *openwechat.Message) {
 
 	ctx := context.Background()
 	ctx = id.WithSessionID(ctx, sessionID)
+	ctx = id.WithUserID(ctx, conversationKey)
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
+	if g.cfg.MemoryEnabled {
+		ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
+			Enabled:         true,
+			AutoRecall:      true,
+			AutoCapture:     true,
+			CaptureMessages: true,
+		})
+	} else {
+		ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
+			Enabled:     false,
+			AutoRecall:  false,
+			AutoCapture: false,
+		})
+	}
 
 	session, err := g.agent.EnsureSession(ctx, sessionID)
 	if err != nil {

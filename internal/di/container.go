@@ -11,6 +11,7 @@ import (
 	agentstorage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/async"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/llm"
 	"alex/internal/logging"
 	"alex/internal/mcp"
@@ -118,6 +119,8 @@ type Config struct {
 
 	// Feature Flags
 	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
+
+	Proactive runtimeconfig.ProactiveConfig
 }
 
 // Start initializes heavy dependencies (MCP) based on feature flags

@@ -25,6 +25,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	}
 
 	completion := buildCompletionDefaults(cfg.CompletionDefaults)
+	memoryRefresh := cfg.MemoryRefresh
 
 	return &ReactEngine{
 		maxIterations:      maxIterations,
@@ -35,6 +36,8 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		completion:         completion,
 		attachmentMigrator: cfg.AttachmentMigrator,
 		workflow:           cfg.Workflow,
+		memoryRefresh:      memoryRefresh,
+		memoryService:      cfg.MemoryService,
 		backgroundExecutor: cfg.BackgroundExecutor,
 		externalExecutor:   cfg.ExternalExecutor,
 	}
