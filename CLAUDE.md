@@ -2,21 +2,22 @@
 
 ## Project identity
 
-elephant.ai is a **proactive AI assistant** — not a passive chatbot that waits to be asked. It embeds into daily workflows (Lark, WeChat, CLI, web), remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
+elephant.ai is a **proactive AI assistant** that embeds into daily workflows — Lark, WeChat, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
 
-### Core design principles
+### What "proactive" means for this codebase
 
-1. **Proactive over reactive.** The assistant should anticipate needs, recall prior context, and suggest next steps — not just answer questions.
-2. **Channel-native.** The assistant lives where the user works (Lark, WeChat, CLI, web). Each channel is a first-class citizen, not an afterthought.
-3. **Memory is the foundation.** Persistent memory across sessions enables continuity. Auto-save conversations, inject relevant history, never make the user repeat themselves.
-4. **Autonomous execution.** The Think → Act → Observe loop runs to completion. The assistant searches, codes, browses, and generates artifacts without hand-holding.
-5. **Approval gates for trust.** Proactivity requires safety. Risky operations always require explicit human approval.
-6. **One runtime, all surfaces.** CLI, server, web, and chat channels share the same execution core, typed events, and observability pipeline.
-7. **Tools feel local.** In web mode, sandbox-backed tools present themselves as local operations. The LLM should never perceive infrastructure boundaries.
-8. **Skills as workflows.** Markdown-driven skills (deep research, meeting notes, email drafting, slide decks) encapsulate multi-step proactive capabilities.
-9. **Observable by default.** Every action produces structured traces, metrics, and cost accounting. Proactivity without accountability is recklessness.
+| Principle | Implementation |
+|---|---|
+| **Anticipate, don't wait** | Auto-save Lark/WeChat messages to memory; inject recent chat history as context before the user asks. |
+| **Channel-native** | The assistant is a first-class participant in Lark groups and WeChat chats, not a separate app the user must switch to. |
+| **Persistent memory** | `internal/memory/` stores conversations, decisions, and context across sessions. The LLM retrieves relevant history automatically. |
+| **Autonomous execution** | The ReAct loop (`internal/agent/domain/react/`) runs Think → Act → Observe to completion — web search, code execution, file ops, browser automation — without hand-holding. |
+| **Built-in skills** | `skills/` contains markdown-driven workflows (deep research, meeting notes, email drafting, slide decks, video production) that the assistant executes on demand. |
+| **Approval gates** | Proactivity requires safety. Risky tool calls require explicit human approval via CLI, web, or chat. |
+| **Tools feel local** | In web mode, sandbox-backed tools (file read/write, shell exec, code execution, browser) present as local operations. The LLM should never perceive sandbox boundaries. |
+| **Observable** | Every action produces structured traces, metrics, and cost accounting (`internal/observability/`). |
 
-### Architecture compass
+### Architecture
 
 ```
 Delivery (CLI, Server, Web, Lark, WeChat)
@@ -25,12 +26,25 @@ Delivery (CLI, Server, Web, Lark, WeChat)
   → Infrastructure Adapters (LLM, tools, memory, storage, observability)
 ```
 
-When making design decisions, prefer:
+Key packages:
+- `internal/agent/` — ReAct loop, typed events, approval gates
+- `internal/llm/` — Multi-provider (OpenAI, Claude, ARK, DeepSeek, Ollama)
+- `internal/memory/` — Persistent store (Postgres, file, in-memory)
+- `internal/context/`, `internal/rag/` — Layered retrieval and summarization
+- `internal/tools/builtin/` — File ops, shell, code exec, browser, media, search
+- `internal/channels/` — Lark, WeChat integrations
+- `internal/observability/` — Traces, metrics, cost accounting
+- `web/` — Next.js dashboard with SSE streaming
+
+### Design preferences
+
+When making decisions, prefer:
 - Context engineering over prompt hacking.
 - Typed events over unstructured logs.
 - Clean port/adapter boundaries over convenience shortcuts.
 - Multi-provider LLM support over vendor lock-in.
 - Skills and memory over one-shot answers.
+- Proactive context injection over user-driven retrieval.
 
 ---
 
