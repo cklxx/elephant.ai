@@ -233,6 +233,8 @@ const translations = {
       "Results will appear here as tools execute",
     "connection.connected": "Connected",
     "connection.reconnecting": "Reconnecting…",
+    "connection.slowRetry": "Auto-retrying…",
+    "connection.taskRunning": "Task still running on server",
     "connection.disconnected": "Offline",
     "connection.reconnect": "Retry",
     "document.empty.title": "No document selected",

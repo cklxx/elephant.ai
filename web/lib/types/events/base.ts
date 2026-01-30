@@ -100,6 +100,7 @@ export interface ConnectedEvent {
   session_id: string;
   run_id?: string;
   parent_run_id?: string;
+  active_run_id?: string;
   timestamp?: string;
   agent_level?: AgentLevel;
 }

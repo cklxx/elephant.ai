@@ -14,6 +14,8 @@ export interface UseSSEReturn {
   events: AnyAgentEvent[];
   isConnected: boolean;
   isReconnecting: boolean;
+  isSlowRetry: boolean;
+  activeRunId: string | null;
   error: string | null;
   reconnectAttempts: number;
   clearEvents: () => void;
@@ -30,6 +32,8 @@ export interface ConnectionState {
   sessionId: string | null;
   isConnected: boolean;
   isReconnecting: boolean;
+  isSlowRetry: boolean;
+  activeRunId: string | null;
   error: string | null;
   reconnectAttempts: number;
 }
@@ -42,6 +46,8 @@ export interface AssistantBufferEntry {
 export type FlushHandle = ReturnType<typeof setTimeout> | number;
 export type FlushMode = "raf" | "timeout" | null;
 
+export const SLOW_RETRY_INTERVAL_MS = 60_000;
+export const FAST_RECONNECT_ATTEMPTS = 5;
 export const STREAM_FLUSH_MS = 16;
 export const MAX_EVENT_HISTORY = 1000;
 export const IS_TEST_ENV =

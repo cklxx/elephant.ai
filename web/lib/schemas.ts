@@ -274,6 +274,7 @@ const ConnectedEventSchema = z.object({
   session_id: z.string(),
   run_id: z.string().optional(),
   parent_run_id: z.string().optional(),
+  active_run_id: z.string().optional(),
   timestamp: z.string().optional(),
   agent_level: AgentLevelSchema.optional(),
 });
