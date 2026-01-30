@@ -269,12 +269,14 @@ func (r *Registry) WithoutSubagent() tools.ToolRegistry {
 		parent: r,
 		// Exclude delegation tools to prevent recursive delegation chains inside subagents.
 		exclude: map[string]bool{
-			"subagent":    true,
-			"explore":     true,
+			"subagent":     true,
+			"explore":      true,
 			"acp_executor": true,
-			"bg_dispatch": true,
-			"bg_status":   true,
-			"bg_collect":  true,
+			"bg_dispatch":  true,
+			"bg_status":    true,
+			"bg_collect":   true,
+			"ext_reply":    true,
+			"ext_merge":    true,
 		},
 	}
 }
@@ -517,4 +519,6 @@ func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 	r.static["bg_dispatch"] = orchestration.NewBGDispatch()
 	r.static["bg_status"] = orchestration.NewBGStatus()
 	r.static["bg_collect"] = orchestration.NewBGCollect()
+	r.static["ext_reply"] = orchestration.NewExtReply()
+	r.static["ext_merge"] = orchestration.NewExtMerge()
 }

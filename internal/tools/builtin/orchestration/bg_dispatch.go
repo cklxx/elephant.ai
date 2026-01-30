@@ -18,7 +18,7 @@ func NewBGDispatch() *bgDispatch {
 
 func (t *bgDispatch) Definition() ports.ToolDefinition {
 	return ports.ToolDefinition{
-		Name: "bg_dispatch",
+		Name:        "bg_dispatch",
 		Description: `Dispatch a task to run in the background. The task executes asynchronously while you continue working. Use bg_status to check progress and bg_collect to retrieve results.`,
 		Parameters: ports.ParameterSchema{
 			Type: "object",
@@ -37,7 +37,29 @@ func (t *bgDispatch) Definition() ports.ToolDefinition {
 				},
 				"agent_type": {
 					Type:        "string",
-					Description: `Agent type to use. "internal" (default) uses the built-in subagent. Future types: "claude_code", "cursor", etc.`,
+					Description: `Agent type to use. "internal" (default) uses the built-in subagent. External types include "claude_code" and "codex".`,
+				},
+				"config": {
+					Type:        "object",
+					Description: "Optional per-task config overrides (string map) passed to the external agent executor.",
+				},
+				"depends_on": {
+					Type:        "array",
+					Description: "Task IDs that must complete successfully before this task starts.",
+					Items:       &ports.Property{Type: "string"},
+				},
+				"workspace_mode": {
+					Type:        "string",
+					Description: `Workspace isolation mode: "shared" (default), "branch", or "worktree".`,
+				},
+				"file_scope": {
+					Type:        "array",
+					Description: "Advisory file scope for this task (paths or directories).",
+					Items:       &ports.Property{Type: "string"},
+				},
+				"inherit_context": {
+					Type:        "boolean",
+					Description: "Whether to prepend completed dependency results to the task prompt.",
 				},
 			},
 			Required: []string{"task_id", "description", "prompt"},
@@ -58,7 +80,7 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	// Validate parameters.
 	for key := range call.Arguments {
 		switch key {
-		case "task_id", "description", "prompt", "agent_type":
+		case "task_id", "description", "prompt", "agent_type", "config", "depends_on", "workspace_mode", "file_scope", "inherit_context":
 		default:
 			err := fmt.Errorf("unsupported parameter: %s", key)
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -86,6 +108,28 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 			agentType = strings.TrimSpace(str)
 		}
 	}
+	configOverrides, err := parseStringMap(call.Arguments, "config")
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+	dependsOn, err := parseStringList(call.Arguments, "depends_on")
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+	fileScope, err := parseStringList(call.Arguments, "file_scope")
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+	inheritContext, _, err := parseOptionalBool(call.Arguments, "inherit_context")
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+	workspaceMode := ""
+	if raw, ok := call.Arguments["workspace_mode"]; ok {
+		if str, ok := raw.(string); ok {
+			workspaceMode = strings.TrimSpace(str)
+		}
+	}
 
 	dispatcher := agent.GetBackgroundDispatcher(ctx)
 	if dispatcher == nil {
@@ -93,14 +137,94 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	if err := dispatcher.Dispatch(ctx, taskID, description, prompt, agentType, call.ID); err != nil {
+	req := agent.BackgroundDispatchRequest{
+		TaskID:         taskID,
+		Description:    description,
+		Prompt:         prompt,
+		AgentType:      agentType,
+		CausationID:    call.ID,
+		Config:         configOverrides,
+		DependsOn:      dependsOn,
+		WorkspaceMode:  agent.WorkspaceMode(workspaceMode),
+		FileScope:      fileScope,
+		InheritContext: inheritContext,
+	}
+	if err := dispatcher.Dispatch(ctx, req); err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	content := fmt.Sprintf("Background task %q dispatched successfully. Use bg_status(task_ids=[\"%s\"]) to check progress.", taskID, taskID)
+	if len(fileScope) > 0 {
+		conflicts := detectScopeConflicts(fileScope, dispatcher.Status(nil), taskID)
+		if len(conflicts) > 0 {
+			var sb strings.Builder
+			sb.WriteString(content)
+			sb.WriteString("\n\n⚠ Scope overlap detected:\n")
+			for _, conflict := range conflicts {
+				sb.WriteString(fmt.Sprintf("  Task %q overlaps on: %s\n", conflict.TaskID, strings.Join(conflict.OverlapPaths, ", ")))
+			}
+			content = sb.String()
+		}
 	}
 
 	return &ports.ToolResult{
 		CallID:  call.ID,
-		Content: fmt.Sprintf("Background task %q dispatched successfully. Use bg_status(task_ids=[\"%s\"]) to check progress.", taskID, taskID),
+		Content: content,
 	}, nil
+}
+
+type scopeConflict struct {
+	TaskID       string
+	OverlapPaths []string
+}
+
+func detectScopeConflicts(scope []string, summaries []agent.BackgroundTaskSummary, newTaskID string) []scopeConflict {
+	var conflicts []scopeConflict
+	for _, summary := range summaries {
+		if summary.ID == newTaskID {
+			continue
+		}
+		if summary.Status != agent.BackgroundTaskStatusRunning && summary.Status != agent.BackgroundTaskStatusBlocked {
+			continue
+		}
+		if len(summary.FileScope) == 0 {
+			continue
+		}
+		overlap := overlapPaths(scope, summary.FileScope)
+		if len(overlap) > 0 {
+			conflicts = append(conflicts, scopeConflict{
+				TaskID:       summary.ID,
+				OverlapPaths: overlap,
+			})
+		}
+	}
+	return conflicts
+}
+
+func overlapPaths(a, b []string) []string {
+	var overlap []string
+	for _, pathA := range a {
+		for _, pathB := range b {
+			if strings.HasPrefix(pathA, pathB) || strings.HasPrefix(pathB, pathA) {
+				overlap = append(overlap, pathA)
+				break
+			}
+		}
+	}
+	return dedupe(overlap)
+}
+
+func dedupe(items []string) []string {
+	seen := map[string]struct{}{}
+	var out []string
+	for _, item := range items {
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		out = append(out, item)
+	}
+	return out
 }
 
 func requireString(args map[string]any, key string) (string, error) {

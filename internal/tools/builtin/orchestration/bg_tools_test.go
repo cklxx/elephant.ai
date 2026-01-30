@@ -13,21 +13,25 @@ import (
 
 // mockDispatcher implements agent.BackgroundTaskDispatcher for tool tests.
 type mockDispatcher struct {
-	dispatched []dispatchCall
-	summaries  []agent.BackgroundTaskSummary
-	results    []agent.BackgroundTaskResult
+	dispatched  []dispatchCall
+	summaries   []agent.BackgroundTaskSummary
+	results     []agent.BackgroundTaskResult
 	dispatchErr error
+	replyCalls  []agent.InputResponse
+	replyErr    error
+	mergeResult *agent.MergeResult
+	mergeErr    error
 }
 
 type dispatchCall struct {
-	TaskID, Description, Prompt, AgentType, CausationID string
+	Req agent.BackgroundDispatchRequest
 }
 
-func (m *mockDispatcher) Dispatch(_ context.Context, taskID, description, prompt, agentType, causationID string) error {
+func (m *mockDispatcher) Dispatch(_ context.Context, req agent.BackgroundDispatchRequest) error {
 	if m.dispatchErr != nil {
 		return m.dispatchErr
 	}
-	m.dispatched = append(m.dispatched, dispatchCall{taskID, description, prompt, agentType, causationID})
+	m.dispatched = append(m.dispatched, dispatchCall{Req: req})
 	return nil
 }
 
@@ -37,6 +41,21 @@ func (m *mockDispatcher) Status(_ []string) []agent.BackgroundTaskSummary {
 
 func (m *mockDispatcher) Collect(_ []string, _ bool, _ time.Duration) []agent.BackgroundTaskResult {
 	return m.results
+}
+
+func (m *mockDispatcher) ReplyExternalInput(_ context.Context, resp agent.InputResponse) error {
+	if m.replyErr != nil {
+		return m.replyErr
+	}
+	m.replyCalls = append(m.replyCalls, resp)
+	return nil
+}
+
+func (m *mockDispatcher) MergeExternalWorkspace(_ context.Context, _ string, _ agent.MergeStrategy) (*agent.MergeResult, error) {
+	if m.mergeErr != nil {
+		return nil, m.mergeErr
+	}
+	return m.mergeResult, nil
 }
 
 func ctxWithDispatcher(d agent.BackgroundTaskDispatcher) context.Context {
@@ -68,14 +87,14 @@ func TestBGDispatch_Success(t *testing.T) {
 	if len(d.dispatched) != 1 {
 		t.Fatalf("expected 1 dispatch call, got %d", len(d.dispatched))
 	}
-	if d.dispatched[0].TaskID != "t1" {
-		t.Errorf("expected task_id=t1, got %s", d.dispatched[0].TaskID)
+	if d.dispatched[0].Req.TaskID != "t1" {
+		t.Errorf("expected task_id=t1, got %s", d.dispatched[0].Req.TaskID)
 	}
-	if d.dispatched[0].AgentType != "internal" {
-		t.Errorf("expected default agent_type=internal, got %s", d.dispatched[0].AgentType)
+	if d.dispatched[0].Req.AgentType != "internal" {
+		t.Errorf("expected default agent_type=internal, got %s", d.dispatched[0].Req.AgentType)
 	}
-	if d.dispatched[0].CausationID != "call-1" {
-		t.Errorf("expected causation_id=call-1, got %s", d.dispatched[0].CausationID)
+	if d.dispatched[0].Req.CausationID != "call-1" {
+		t.Errorf("expected causation_id=call-1, got %s", d.dispatched[0].Req.CausationID)
 	}
 }
 
@@ -100,8 +119,8 @@ func TestBGDispatch_CustomAgentType(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("unexpected result error: %v", result.Error)
 	}
-	if d.dispatched[0].AgentType != "claude_code" {
-		t.Errorf("expected agent_type=claude_code, got %s", d.dispatched[0].AgentType)
+	if d.dispatched[0].Req.AgentType != "claude_code" {
+		t.Errorf("expected agent_type=claude_code, got %s", d.dispatched[0].Req.AgentType)
 	}
 }
 
@@ -325,5 +344,66 @@ func TestBGCollect_FailedResult(t *testing.T) {
 	}
 	if !strings.Contains(result.Content, "1 failed/cancelled") {
 		t.Errorf("expected failure count in output: %s", result.Content)
+	}
+}
+
+// --- ext_reply tests ---
+
+func TestExtReply_Success(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewExtReply()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "c",
+		Arguments: map[string]any{
+			"task_id":    "t1",
+			"request_id": "r1",
+			"approved":   true,
+			"message":    "ok",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if len(d.replyCalls) != 1 {
+		t.Fatalf("expected 1 reply call, got %d", len(d.replyCalls))
+	}
+	if d.replyCalls[0].TaskID != "t1" || d.replyCalls[0].RequestID != "r1" || !d.replyCalls[0].Approved {
+		t.Fatalf("unexpected reply payload: %+v", d.replyCalls[0])
+	}
+}
+
+// --- ext_merge tests ---
+
+func TestExtMerge_Success(t *testing.T) {
+	d := &mockDispatcher{
+		mergeResult: &agent.MergeResult{
+			TaskID:       "t1",
+			Strategy:     agent.MergeStrategyAuto,
+			Success:      true,
+			FilesChanged: []string{"file1.go"},
+		},
+	}
+	ctx := ctxWithDispatcher(d)
+	tool := NewExtMerge()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "c",
+		Arguments: map[string]any{
+			"task_id": "t1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if !strings.Contains(result.Content, "Merge successful") {
+		t.Fatalf("expected merge success output, got: %s", result.Content)
 	}
 }
