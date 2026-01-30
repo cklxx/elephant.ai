@@ -129,6 +129,9 @@ func TestCollectNoWait(t *testing.T) {
 	if results[0].Status == agent.BackgroundTaskStatusCompleted {
 		t.Fatal("task should not be completed yet")
 	}
+	if results[0].Duration != 0 {
+		t.Fatalf("expected duration to be 0 for pending task, got %v", results[0].Duration)
+	}
 }
 
 func TestShutdown(t *testing.T) {

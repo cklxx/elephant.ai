@@ -225,12 +225,19 @@ func (m *BackgroundTaskManager) Collect(ids []string, wait bool, timeout time.Du
 	results := make([]agent.BackgroundTaskResult, 0, len(targets))
 	for _, bt := range targets {
 		bt.mu.Lock()
+		duration := time.Duration(0)
+		if !bt.completedAt.IsZero() {
+			duration = bt.completedAt.Sub(bt.startedAt)
+			if duration < 0 {
+				duration = 0
+			}
+		}
 		r := agent.BackgroundTaskResult{
 			ID:          bt.id,
 			Description: bt.description,
 			Status:      bt.status,
 			AgentType:   bt.agentType,
-			Duration:    bt.completedAt.Sub(bt.startedAt),
+			Duration:    duration,
 		}
 		if bt.result != nil {
 			r.Answer = bt.result.Answer
