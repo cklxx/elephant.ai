@@ -104,11 +104,13 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send initial connection message
+	activeRunID := h.broadcaster.GetActiveRunID(sessionID)
 	initialPayload := fmt.Sprintf(
-		"event: connected\ndata: {\"session_id\":\"%s\",\"run_id\":\"%s\",\"parent_run_id\":\"%s\"}\n\n",
+		"event: connected\ndata: {\"session_id\":\"%s\",\"run_id\":\"%s\",\"parent_run_id\":\"%s\",\"active_run_id\":\"%s\"}\n\n",
 		sessionID,
 		id.RunIDFromContext(r.Context()),
 		id.ParentRunIDFromContext(r.Context()),
+		activeRunID,
 	)
 	if _, err := io.WriteString(w, initialPayload); err != nil {
 		logger.Error("Failed to send connection message: %v", err)

@@ -353,6 +353,15 @@ func (b *EventBroadcaster) UnregisterRunSession(sessionID string) {
 	b.logger.Info("Unregistered run-session mapping: sessionID=%s", sessionID)
 }
 
+// GetActiveRunID returns the runID currently associated with the given session,
+// or an empty string if no run is active. This is used by the SSE handler to
+// inform reconnecting clients whether a task is still running.
+func (b *EventBroadcaster) GetActiveRunID(sessionID string) string {
+	b.runMu.RLock()
+	defer b.runMu.RUnlock()
+	return b.sessionToRun[sessionID]
+}
+
 // storeEventHistory stores an event in the session's history
 func (b *EventBroadcaster) storeEventHistory(sessionID string, event agent.AgentEvent) {
 	event = sanitizeEventForHistory(event)

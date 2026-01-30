@@ -110,6 +110,113 @@ func parseSSEStream(t *testing.T, payload string) []streamedEvent {
 	return events
 }
 
+func TestSSEConnectedEventIncludesActiveRunID(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-active-run"
+	broadcaster.RegisterRunSession(sessionID, "run-xyz")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID+"&replay=none", nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	// Wait for the connected event to be written
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), "connected") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	var connectedEvent streamedEvent
+	for _, evt := range events {
+		if evt.event == "connected" {
+			connectedEvent = evt
+			break
+		}
+	}
+
+	if connectedEvent.event == "" {
+		t.Fatalf("expected connected event, got %v", events)
+	}
+	if activeRunID, ok := connectedEvent.data["active_run_id"].(string); !ok || activeRunID != "run-xyz" {
+		t.Fatalf("expected active_run_id=run-xyz in connected event, got %v", connectedEvent.data)
+	}
+}
+
+func TestSSEConnectedEventEmptyActiveRunID(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-no-run"
+	// No run registered for this session
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID+"&replay=none", nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), "connected") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	var connectedEvent streamedEvent
+	for _, evt := range events {
+		if evt.event == "connected" {
+			connectedEvent = evt
+			break
+		}
+	}
+
+	if connectedEvent.event == "" {
+		t.Fatalf("expected connected event, got %v", events)
+	}
+	activeRunID, ok := connectedEvent.data["active_run_id"].(string)
+	if !ok {
+		t.Fatalf("expected active_run_id field in connected event, got %v", connectedEvent.data)
+	}
+	if activeRunID != "" {
+		t.Fatalf("expected empty active_run_id when no run is active, got %q", activeRunID)
+	}
+}
+
 func TestIsDelegationToolEvent(t *testing.T) {
 	now := time.Now()
 	env := &domain.WorkflowEventEnvelope{

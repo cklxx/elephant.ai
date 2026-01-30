@@ -8,6 +8,27 @@ import (
 	agent "alex/internal/agent/ports/agent"
 )
 
+func TestGetActiveRunIDReturnsRegisteredRun(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+
+	// No run registered → empty string
+	if got := broadcaster.GetActiveRunID("session-1"); got != "" {
+		t.Fatalf("expected empty string for unregistered session, got %q", got)
+	}
+
+	// Register run → returns run ID
+	broadcaster.RegisterRunSession("session-1", "run-abc")
+	if got := broadcaster.GetActiveRunID("session-1"); got != "run-abc" {
+		t.Fatalf("expected run-abc, got %q", got)
+	}
+
+	// Unregister → returns empty string again
+	broadcaster.UnregisterRunSession("session-1")
+	if got := broadcaster.GetActiveRunID("session-1"); got != "" {
+		t.Fatalf("expected empty string after unregister, got %q", got)
+	}
+}
+
 func TestEventBroadcasterBroadcastsToRegisteredClients(t *testing.T) {
 	broadcaster := NewEventBroadcaster()
 	ch := make(chan agent.AgentEvent, 1)
