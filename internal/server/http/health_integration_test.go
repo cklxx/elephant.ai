@@ -33,7 +33,6 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	// Create server components
 	broadcaster := app.NewEventBroadcaster()
 	taskStore := app.NewInMemoryTaskStore()
-	broadcaster.SetTaskStore(taskStore)
 
 	serverCoordinator := app.NewServerCoordinator(
 		container.AgentCoordinator,
@@ -49,7 +48,7 @@ func TestHealthEndpoint_Integration(t *testing.T) {
 	healthChecker.RegisterProbe(app.NewLLMFactoryProbe(container))
 
 	// Create router
-	router := NewRouter(serverCoordinator, broadcaster, healthChecker, nil, nil, "development", nil, "", nil, nil, nil, 0, StreamGuardConfig{}, RateLimitConfig{}, 0, attachments.StoreConfig{Dir: t.TempDir()}, nil)
+	router := NewRouter(serverCoordinator, broadcaster, healthChecker, nil, nil, "development", nil, "", nil, nil, nil, 0, StreamGuardConfig{}, RateLimitConfig{}, 0, attachments.StoreConfig{Dir: t.TempDir()}, nil, nil)
 
 	// Test health endpoint
 	req := httptest.NewRequest("GET", "/health", nil)

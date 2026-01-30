@@ -52,6 +52,7 @@ var blockedNodePrefixes = []string{
 // SSEHandler handles Server-Sent Events connections
 type SSEHandler struct {
 	broadcaster     *app.EventBroadcaster
+	runTracker      app.RunTracker
 	logger          logging.Logger
 	formatter       *formatter.ToolFormatter
 	obs             *observability.Observability
@@ -81,6 +82,13 @@ func WithSSEDataCache(cache *DataCache) SSEHandlerOption {
 func WithSSEAttachmentStore(store *AttachmentStore) SSEHandlerOption {
 	return func(handler *SSEHandler) {
 		handler.attachmentStore = store
+	}
+}
+
+// WithSSERunTracker wires a RunTracker for active run ID lookup.
+func WithSSERunTracker(tracker app.RunTracker) SSEHandlerOption {
+	return func(handler *SSEHandler) {
+		handler.runTracker = tracker
 	}
 }
 

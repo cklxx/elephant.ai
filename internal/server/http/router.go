@@ -17,7 +17,7 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints
-func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, streamGuard StreamGuardConfig, rateLimit RateLimitConfig, nonStreamTimeout time.Duration, attachmentCfg attachments.StoreConfig, memoryService memory.Service) http.Handler {
+func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadcaster, healthChecker *app.HealthCheckerImpl, authHandler *AuthHandler, authService *authapp.Service, environment string, allowedOrigins []string, sandboxBaseURL string, configHandler *ConfigHandler, evaluationService *app.EvaluationService, obs *observability.Observability, maxTaskBodyBytes int64, streamGuard StreamGuardConfig, rateLimit RateLimitConfig, nonStreamTimeout time.Duration, attachmentCfg attachments.StoreConfig, memoryService memory.Service, runTracker app.RunTracker) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
 	attachmentStore := (*AttachmentStore)(nil)
@@ -34,7 +34,7 @@ func NewRouter(coordinator *app.ServerCoordinator, broadcaster *app.EventBroadca
 	normalizedEnv := strings.TrimSpace(environment)
 
 	// Create handlers
-	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore))
+	sseHandler := NewSSEHandler(broadcaster, WithSSEObservability(obs), WithSSEAttachmentStore(attachmentStore), WithSSERunTracker(runTracker))
 	shareHandler := NewShareHandler(coordinator, sseHandler)
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")

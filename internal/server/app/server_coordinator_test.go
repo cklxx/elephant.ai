@@ -137,7 +137,7 @@ func TestSessionIDConsistency(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
@@ -267,7 +267,7 @@ func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
@@ -420,7 +420,7 @@ func TestBroadcasterMapping(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
@@ -524,7 +524,7 @@ func TestWorkflowInputReceivedEventEmission(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
@@ -698,7 +698,7 @@ func TestTaskCancellation(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	// Use a cancellable agent coordinator with 1 second delay
@@ -777,7 +777,7 @@ func TestCancelNonExistentTask(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
@@ -806,7 +806,7 @@ func TestCancelCompletedTask(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	agentCoordinator := NewMockAgentCoordinator(sessionStore)
@@ -854,7 +854,7 @@ func TestNoCancelFunctionLeak(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 
 	// Use fast mock coordinator to quickly complete tasks
@@ -911,7 +911,7 @@ func TestServerCoordinatorRecordsTaskErrorMetrics(t *testing.T) {
 	sessionStore := NewMockSessionStore()
 	taskStore := NewInMemoryTaskStore()
 	broadcaster := NewEventBroadcaster()
-	broadcaster.SetTaskStore(taskStore)
+
 	stateStore := sessionstate.NewInMemoryStore()
 	failingAgent := &failingAgentCoordinator{sessionStore: sessionStore, err: errors.New("boom")}
 	metrics := &observability.MetricsCollector{}

@@ -112,10 +112,11 @@ func parseSSEStream(t *testing.T, payload string) []streamedEvent {
 
 func TestSSEConnectedEventIncludesActiveRunID(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
-	handler := NewSSEHandler(broadcaster)
+	tracker := serverapp.NewTaskProgressTracker(serverapp.NewInMemoryTaskStore())
+	handler := NewSSEHandler(broadcaster, WithSSERunTracker(tracker))
 
 	sessionID := "session-active-run"
-	broadcaster.RegisterRunSession(sessionID, "run-xyz")
+	tracker.RegisterRunSession(sessionID, "run-xyz")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

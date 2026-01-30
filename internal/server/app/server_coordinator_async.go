@@ -162,8 +162,10 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	ctx = s.broadcaster.SetSessionContext(ctx, sessionID)
 
 	// Register run-session mapping for progress tracking
-	s.broadcaster.RegisterRunSession(sessionID, taskID)
-	defer s.broadcaster.UnregisterRunSession(sessionID)
+	if s.progressTracker != nil {
+		s.progressTracker.RegisterRunSession(sessionID, taskID)
+		defer s.progressTracker.UnregisterRunSession(sessionID)
+	}
 
 	// Update task status to running
 	_ = s.taskStore.SetStatus(ctx, taskID, serverPorts.TaskStatusRunning)
@@ -180,10 +182,16 @@ func (s *ServerCoordinator) executeTaskInBackground(ctx context.Context, taskID 
 	// Execute task with broadcaster as event listener
 	logger.Info("[Background] Calling AgentCoordinator.ExecuteTask...")
 
-	// Ensure subagent tool invocations forward their events to the main listener
-	ctx = shared.WithParentListener(ctx, s.broadcaster)
+	// Compose the event listener: broadcaster for SSE clients + optional progress tracker
+	var listener agent.EventListener = s.broadcaster
+	if s.progressTracker != nil {
+		listener = NewMultiEventListener(s.broadcaster, s.progressTracker)
+	}
 
-	result, err := s.agentCoordinator.ExecuteTask(ctx, task, sessionID, s.broadcaster)
+	// Ensure subagent tool invocations forward their events to the main listener
+	ctx = shared.WithParentListener(ctx, listener)
+
+	result, err := s.agentCoordinator.ExecuteTask(ctx, task, sessionID, listener)
 
 	// Check if context was cancelled
 	if ctx.Err() != nil {

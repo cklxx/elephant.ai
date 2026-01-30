@@ -105,7 +105,10 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send initial connection message
-	activeRunID := h.broadcaster.GetActiveRunID(sessionID)
+	var activeRunID string
+	if h.runTracker != nil {
+		activeRunID = h.runTracker.GetActiveRunID(sessionID)
+	}
 	initialPayload := fmt.Sprintf(
 		"event: connected\ndata: {\"session_id\":\"%s\",\"run_id\":\"%s\",\"parent_run_id\":\"%s\",\"active_run_id\":\"%s\"}\n\n",
 		sessionID,

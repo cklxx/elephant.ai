@@ -99,11 +99,10 @@ func RunServer(observabilityConfigPath string) error {
 	}
 	broadcaster := serverApp.NewEventBroadcaster(serverApp.WithEventHistoryStore(broadcasterHistoryStore))
 	taskStore := serverApp.NewInMemoryTaskStore()
+	progressTracker := serverApp.NewTaskProgressTracker(taskStore)
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)
 	defer cleanupDiagnostics()
-
-	broadcaster.SetTaskStore(taskStore)
 
 	analyticsClient, analyticsCleanup := BuildAnalyticsClient(config.Analytics, logger)
 	if analyticsCleanup != nil {
@@ -122,6 +121,7 @@ func RunServer(observabilityConfigPath string) error {
 		serverApp.WithJournalReader(journalReader),
 		serverApp.WithObservability(obs),
 		serverApp.WithHistoryStore(container.HistoryStore),
+		serverApp.WithProgressTracker(progressTracker),
 	)
 
 	gatewayCtx, gatewayCancel := context.WithCancel(context.Background())
@@ -229,6 +229,7 @@ func RunServer(observabilityConfigPath string) error {
 		config.NonStreamTimeout,
 		config.Attachment,
 		container.MemoryService,
+		progressTracker,
 	)
 
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{

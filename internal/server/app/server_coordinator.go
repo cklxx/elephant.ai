@@ -34,6 +34,7 @@ var _ AgentExecutor = (*agentcoordinator.AgentCoordinator)(nil)
 type ServerCoordinator struct {
 	agentCoordinator AgentExecutor
 	broadcaster      *EventBroadcaster
+	progressTracker  *TaskProgressTracker
 	sessionStore     storage.SessionStore
 	stateStore       sessionstate.Store
 	historyStore     sessionstate.Store
@@ -121,5 +122,12 @@ func WithHistoryStore(store sessionstate.Store) ServerCoordinatorOption {
 func WithObservability(obs *observability.Observability) ServerCoordinatorOption {
 	return func(coordinator *ServerCoordinator) {
 		coordinator.obs = obs
+	}
+}
+
+// WithProgressTracker wires a task progress tracker into the coordinator.
+func WithProgressTracker(tracker *TaskProgressTracker) ServerCoordinatorOption {
+	return func(coordinator *ServerCoordinator) {
+		coordinator.progressTracker = tracker
 	}
 }

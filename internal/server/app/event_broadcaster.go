@@ -11,7 +11,6 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/types"
 	"alex/internal/logging"
-	serverports "alex/internal/server/ports"
 	id "alex/internal/utils/id"
 )
 
@@ -26,11 +25,6 @@ type EventBroadcaster struct {
 
 	highVolumeMu       sync.Mutex
 	highVolumeCounters map[string]int
-
-	// Task progress tracking
-	taskStore    serverports.TaskStore
-	sessionToRun map[string]string // sessionID -> runID mapping
-	runMu        sync.RWMutex     // separate mutex for run tracking
 
 	// Event history for session replay
 	eventHistory map[string][]agent.AgentEvent // sessionID -> events
@@ -83,7 +77,6 @@ func WithMaxHistory(max int) EventBroadcasterOption {
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 	b := &EventBroadcaster{
-		sessionToRun:       make(map[string]string),
 		eventHistory:       make(map[string][]agent.AgentEvent),
 		highVolumeCounters: make(map[string]int),
 		maxHistory:         1000, // Keep up to 1000 events per session
@@ -96,11 +89,6 @@ func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 		}
 	}
 	return b
-}
-
-// SetTaskStore sets the task store for progress tracking
-func (b *EventBroadcaster) SetTaskStore(store serverports.TaskStore) {
-	b.taskStore = store
 }
 
 // OnEvent implements agent.EventListener - broadcasts event to all subscribed clients
@@ -127,10 +115,6 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 			b.storeGlobalEvent(event)
 		}
 	}
-
-	// Run side effects before we broadcast to keep task progress/attachments consistent
-	// with what clients receive, even if those operations are slow.
-	b.updateTaskProgress(baseEvent)
 
 	clientsBySession := b.loadClients()
 
@@ -160,64 +144,6 @@ func (b *EventBroadcaster) getSessionIDs() []string {
 		ids = append(ids, id)
 	}
 	return ids
-}
-
-// updateTaskProgress updates task progress based on event type
-func (b *EventBroadcaster) updateTaskProgress(event agent.AgentEvent) {
-	if b.taskStore == nil || event == nil {
-		return
-	}
-
-	event = BaseAgentEvent(event)
-	if event == nil {
-		return
-	}
-
-	sessionID := event.GetSessionID()
-	if sessionID == "" {
-		return
-	}
-
-	// Get taskID for this session
-	b.runMu.RLock()
-	taskID, ok := b.sessionToRun[sessionID]
-	b.runMu.RUnlock()
-
-	if !ok {
-		return
-	}
-
-	ctx := id.WithSessionID(context.Background(), sessionID)
-	ctx = id.WithRunID(ctx, taskID)
-
-	// Update progress based on event type
-	switch e := event.(type) {
-	case *domain.WorkflowEventEnvelope:
-		iter := intFromPayload(e.Payload, "iteration")
-		switch e.EventType() {
-		case types.EventNodeStarted:
-			task, err := b.taskStore.Get(ctx, taskID)
-			if err == nil {
-				_ = b.taskStore.UpdateProgress(ctx, taskID, iter, task.TokensUsed)
-			}
-		case types.EventNodeCompleted:
-			tokens := intFromPayload(e.Payload, "tokens_used")
-			_ = b.taskStore.UpdateProgress(ctx, taskID, iter, tokens)
-		case types.EventResultFinal:
-			totalIters := intFromPayload(e.Payload, "total_iterations")
-			totalTokens := intFromPayload(e.Payload, "total_tokens")
-			_ = b.taskStore.UpdateProgress(ctx, taskID, totalIters, totalTokens)
-		}
-	case *domain.WorkflowResultFinalEvent:
-		_ = b.taskStore.UpdateProgress(ctx, taskID, e.TotalIterations, e.TotalTokens)
-	case *domain.WorkflowNodeCompletedEvent:
-		_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, e.TokensUsed)
-	case *domain.WorkflowNodeStartedEvent:
-		task, err := b.taskStore.Get(ctx, taskID)
-		if err == nil {
-			_ = b.taskStore.UpdateProgress(ctx, taskID, e.Iteration, task.TokensUsed)
-		}
-	}
 }
 
 // broadcastToClients sends event to all clients in the list
@@ -333,33 +259,6 @@ func (b *EventBroadcaster) GetClientCount(sessionID string) int {
 func (b *EventBroadcaster) SetSessionContext(ctx context.Context, sessionID string) context.Context {
 	// Store sessionID in context using shared key from ports package
 	return id.WithSessionID(ctx, sessionID)
-}
-
-// RegisterRunSession associates a runID with a sessionID for progress tracking
-func (b *EventBroadcaster) RegisterRunSession(sessionID, runID string) {
-	b.runMu.Lock()
-	defer b.runMu.Unlock()
-
-	b.sessionToRun[sessionID] = runID
-	b.logger.Info("Registered run-session mapping: sessionID=%s, runID=%s", sessionID, runID)
-}
-
-// UnregisterRunSession removes the runID-sessionID mapping
-func (b *EventBroadcaster) UnregisterRunSession(sessionID string) {
-	b.runMu.Lock()
-	defer b.runMu.Unlock()
-
-	delete(b.sessionToRun, sessionID)
-	b.logger.Info("Unregistered run-session mapping: sessionID=%s", sessionID)
-}
-
-// GetActiveRunID returns the runID currently associated with the given session,
-// or an empty string if no run is active. This is used by the SSE handler to
-// inform reconnecting clients whether a task is still running.
-func (b *EventBroadcaster) GetActiveRunID(sessionID string) string {
-	b.runMu.RLock()
-	defer b.runMu.RUnlock()
-	return b.sessionToRun[sessionID]
 }
 
 // storeEventHistory stores an event in the session's history
