@@ -40,6 +40,8 @@ export type {
 } from "./types";
 
 export {
+  SLOW_RETRY_INTERVAL_MS,
+  FAST_RECONNECT_ATTEMPTS,
   STREAM_FLUSH_MS,
   MAX_EVENT_HISTORY,
   IS_TEST_ENV,

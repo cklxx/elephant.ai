@@ -175,6 +175,10 @@ export function useSSEConnection(
 
         const serverErrorMessage = parseServerError(err);
 
+        // Reserve the reconnect slot before dispose() to prevent onClose
+        // from double-scheduling (dispose triggers onClose synchronously).
+        reconnectTimeoutRef.current = setTimeout(() => {}, 0) as ReturnType<typeof setTimeout>;
+
         if (clientRef.current) {
           clientRef.current.dispose();
           clientRef.current = null;
@@ -219,6 +223,10 @@ export function useSSEConnection(
           reconnectAttempts: nextAttempts,
         });
 
+        // Clear the sentinel timeout set before dispose() and schedule the real one
+        if (reconnectTimeoutRef.current !== null) {
+          clearTimeout(reconnectTimeoutRef.current);
+        }
         reconnectTimeoutRef.current = setTimeout(() => {
           reconnectTimeoutRef.current = null;
           if (!isDisposedRef.current) {

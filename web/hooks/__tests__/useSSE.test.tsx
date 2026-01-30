@@ -700,7 +700,7 @@ describe("useSSE", () => {
       expect(result.current.reconnectAttempts).toBe(6);
     });
 
-    test("should stop reconnecting after max attempts", async () => {
+    test("should switch to slow retry after max fast attempts", async () => {
       const maxAttempts = 3;
       const { result } = renderHook(() =>
         useSSE("test-session-123", { maxReconnectAttempts: maxAttempts }),
@@ -712,18 +712,15 @@ describe("useSSE", () => {
         mockEventSource.simulateOpen();
       });
 
-      // To reach max attempts, we need:
+      // Exhaust fast reconnection attempts:
       // 1. Initial error (attempts: 0->1)
       // 2. Reconnect + error (attempts: 1->2)
       // 3. Reconnect + error (attempts: 2->3)
-      // 4. Reconnect + error (attempts: 3, NOW 3 >= 3, so stop)
       for (let i = 0; i < maxAttempts; i++) {
-        // Trigger error
         act(() => {
           mockEventSource.simulateError();
         });
 
-        // Advance timer to trigger reconnection (except after the last one)
         if (i < maxAttempts - 1) {
           const delay = 1000 * Math.pow(2, i);
           const expectedCall = connectionCalls + 1;
@@ -735,28 +732,26 @@ describe("useSSE", () => {
         }
       }
 
-      // Process the final scheduled reconnection and trigger the terminal error
-      const finalDelay = 1000 * Math.pow(2, maxAttempts - 1);
+      // Process the final fast-phase reconnection
+      const finalFastDelay = 1000 * Math.pow(2, maxAttempts - 1);
+      const callBeforeFinal = connectionCalls + 1;
       act(() => {
-        vi.advanceTimersByTime(finalDelay);
+        vi.advanceTimersByTime(finalFastDelay);
       });
+      await waitForConnection(callBeforeFinal);
 
+      // One more error pushes past maxAttempts → enters slow retry phase
       act(() => {
         mockEventSource.simulateError();
       });
 
-      // After scheduled timers run, reconnection should stop
-      expect(result.current.isReconnecting).toBe(false);
-      expect(result.current.error).toBe(
-        "Maximum reconnection attempts exceeded",
-      );
-      expect(result.current.reconnectAttempts).toBe(maxAttempts);
+      // Should still be reconnecting (slow retry), NOT permanently stopped
+      expect(result.current.isReconnecting).toBe(true);
+      expect(result.current.isSlowRetry).toBe(true);
+      expect(result.current.reconnectAttempts).toBeGreaterThan(maxAttempts);
 
-      // Should not schedule further reconnections
-      act(() => {
-        vi.runOnlyPendingTimers();
-      });
-      expect(vi.getTimerCount()).toBe(0);
+      // A timer should still be scheduled (slow retry at ~60s)
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
     });
 
     test("should keep reconnecting when server returns error payload", async () => {

@@ -28,6 +28,8 @@ vi.mock("@/hooks/useAgentEventStream", () => ({
     events: mockEventsRef.current,
     isConnected: true,
     isReconnecting: false,
+    isSlowRetry: false,
+    activeRunId: null,
     error: null,
     reconnectAttempts: 0,
     clearEvents: vi.fn(),

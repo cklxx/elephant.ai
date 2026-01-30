@@ -189,6 +189,8 @@ export function useMockAgentStream(
     events,
     isConnected,
     isReconnecting,
+    isSlowRetry: false,
+    activeRunId: null,
     error,
     reconnectAttempts,
     clearEvents,
