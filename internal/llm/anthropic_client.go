@@ -270,10 +270,7 @@ func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []an
 		return blocks
 	}
 
-	index := buildAttachmentIndex(msg.Attachments)
-
 	var parts []anthropicContentBlock
-	used := make(map[string]bool)
 	hasImage := false
 
 	appendText := func(text string) {
@@ -286,10 +283,10 @@ func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []an
 		})
 	}
 
-	appendImage := func(att ports.Attachment, placeholder string) {
+	appendBase64Image := func(att ports.Attachment, placeholder string) bool {
 		data := ports.AttachmentInlineBase64(att)
 		if data == "" {
-			return
+			return false
 		}
 		hasImage = true
 		parts = append(parts, anthropicContentBlock{
@@ -300,45 +297,16 @@ func buildAnthropicMessageContent(msg ports.Message, embedAttachments bool) []an
 				Data:      data,
 			},
 		})
+		return true
 	}
 
-	content := msg.Content
-	cursor := 0
-	matches := attachmentPlaceholderPattern.FindAllStringSubmatchIndex(content, -1)
-	for _, match := range matches {
-		if len(match) < 4 {
-			continue
-		}
-		if match[0] > cursor {
-			appendText(content[cursor:match[0]])
-		}
-		placeholderToken := content[match[0]:match[1]]
-		appendText(placeholderToken)
-
-		name := strings.TrimSpace(content[match[2]:match[3]])
-		if name == "" {
-			cursor = match[1]
-			continue
-		}
-		if att, key, ok := index.resolve(name); ok && isImageAttachment(att, key) && !used[key] {
-			appendImage(att, key)
-			used[key] = true
-		}
-		cursor = match[1]
-	}
-	if cursor < len(content) {
-		appendText(content[cursor:])
-	}
-
-	for _, desc := range orderedImageAttachments(content, msg.Attachments) {
-		key := desc.Placeholder
-		if key == "" || used[key] {
-			continue
-		}
-		appendText("[" + key + "]")
-		appendImage(desc.Attachment, key)
-		used[key] = true
-	}
+	embedAttachmentImages(msg.Content, msg.Attachments, appendText,
+		appendBase64Image,
+		func(att ports.Attachment, key string) bool {
+			appendText("[" + key + "]")
+			return appendBase64Image(att, key)
+		},
+	)
 
 	if !hasImage {
 		if strings.TrimSpace(msg.Content) == "" && thinkingText == "" {

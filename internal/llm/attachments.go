@@ -153,6 +153,60 @@ func (i attachmentIndex) sortedKeys() []string {
 	return append([]string(nil), i.keys...)
 }
 
+// embedAttachmentImages walks message content, resolves inline [placeholder] references
+// to image attachments, and appends any remaining unembedded images at the end.
+// onInlineImage is called for images resolved from content placeholders.
+// onTrailingImage is called for remaining images not referenced in content.
+// Both callbacks return true if the image was consumed (marks the key as used).
+func embedAttachmentImages(
+	content string,
+	attachments map[string]ports.Attachment,
+	appendText func(string),
+	onInlineImage func(att ports.Attachment, key string) bool,
+	onTrailingImage func(att ports.Attachment, key string) bool,
+) {
+	index := buildAttachmentIndex(attachments)
+	used := make(map[string]bool)
+
+	cursor := 0
+	matches := attachmentPlaceholderPattern.FindAllStringSubmatchIndex(content, -1)
+	for _, match := range matches {
+		if len(match) < 4 {
+			continue
+		}
+		if match[0] > cursor {
+			appendText(content[cursor:match[0]])
+		}
+		placeholderToken := content[match[0]:match[1]]
+		appendText(placeholderToken)
+
+		name := strings.TrimSpace(content[match[2]:match[3]])
+		if name == "" {
+			cursor = match[1]
+			continue
+		}
+		if att, key, ok := index.resolve(name); ok && isImageAttachment(att, key) && !used[key] {
+			if onInlineImage(att, key) {
+				used[key] = true
+			}
+		}
+		cursor = match[1]
+	}
+	if cursor < len(content) {
+		appendText(content[cursor:])
+	}
+
+	for _, desc := range orderedImageAttachments(content, attachments) {
+		key := desc.Placeholder
+		if key == "" || used[key] {
+			continue
+		}
+		if onTrailingImage(desc.Attachment, key) {
+			used[key] = true
+		}
+	}
+}
+
 func isImageAttachment(att ports.Attachment, placeholder string) bool {
 	mediaType := strings.ToLower(strings.TrimSpace(att.MediaType))
 	if strings.HasPrefix(mediaType, "image/") {

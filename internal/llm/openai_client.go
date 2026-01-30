@@ -512,10 +512,7 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 		return contentWithThinking
 	}
 
-	index := buildAttachmentIndex(msg.Attachments)
-
 	var parts []map[string]any
-	used := make(map[string]bool)
 	hasImage := false
 
 	appendText := func(text string) {
@@ -528,60 +525,35 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 		})
 	}
 
-	appendImage := func(url string) {
+	appendURLImage := func(att ports.Attachment, _ string) bool {
+		url := ports.AttachmentReferenceValue(att)
 		if url == "" {
-			return
+			return false
 		}
 		hasImage = true
 		parts = append(parts, map[string]any{
 			"type": "image_url",
-			"image_url": map[string]any{
-				"url": url,
-			},
+			"image_url": map[string]any{"url": url},
 		})
+		return true
 	}
 
-	content := msg.Content
-	cursor := 0
-	matches := attachmentPlaceholderPattern.FindAllStringSubmatchIndex(content, -1)
-	for _, match := range matches {
-		if len(match) < 4 {
-			continue
-		}
-		if match[0] > cursor {
-			appendText(content[cursor:match[0]])
-		}
-		placeholderToken := content[match[0]:match[1]]
-		appendText(placeholderToken)
-
-		name := strings.TrimSpace(content[match[2]:match[3]])
-		if name == "" {
-			cursor = match[1]
-			continue
-		}
-		if att, key, ok := index.resolve(name); ok && isImageAttachment(att, key) && !used[key] {
-			if url := ports.AttachmentReferenceValue(att); url != "" {
-				appendImage(url)
-				used[key] = true
+	embedAttachmentImages(msg.Content, msg.Attachments, appendText,
+		appendURLImage,
+		func(att ports.Attachment, key string) bool {
+			url := ports.AttachmentReferenceValue(att)
+			if url == "" {
+				return false
 			}
-		}
-		cursor = match[1]
-	}
-	if cursor < len(content) {
-		appendText(content[cursor:])
-	}
-
-	for _, desc := range orderedImageAttachments(content, msg.Attachments) {
-		key := desc.Placeholder
-		if key == "" || used[key] {
-			continue
-		}
-		if url := ports.AttachmentReferenceValue(desc.Attachment); url != "" {
 			appendText("[" + key + "]")
-			appendImage(url)
-			used[key] = true
-		}
-	}
+			hasImage = true
+			parts = append(parts, map[string]any{
+				"type": "image_url",
+				"image_url": map[string]any{"url": url},
+			})
+			return true
+		},
+	)
 
 	if !hasImage {
 		return contentWithThinking
