@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-01-30 20:00
+Updated: 2026-01-30 23:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
