@@ -26,19 +26,11 @@ type webVitalPayload struct {
 
 // HandleWebVitals ingests frontend performance signals.
 func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
-	body := http.MaxBytesReader(w, r.Body, maxWebVitalBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
 	var payload webVitalPayload
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&payload); err != nil {
-		h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
+	if !h.decodeJSONBody(w, r, &payload, maxWebVitalBodySize) {
 		return
 	}
 	if payload.Name == "" {
@@ -54,8 +46,7 @@ func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
 
 // HandleSandboxBrowserInfo proxies sandbox browser info for the web console.
 func (h *APIHandler) HandleSandboxBrowserInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 	if h.sandboxClient == nil {
@@ -83,8 +74,7 @@ func (h *APIHandler) HandleSandboxBrowserInfo(w http.ResponseWriter, r *http.Req
 
 // HandleSandboxBrowserScreenshot proxies sandbox browser screenshots for the web console.
 func (h *APIHandler) HandleSandboxBrowserScreenshot(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 	if h.sandboxClient == nil {
@@ -111,8 +101,7 @@ func (h *APIHandler) HandleDevLogTrace(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 

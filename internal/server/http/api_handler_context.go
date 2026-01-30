@@ -72,8 +72,7 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -121,8 +120,7 @@ func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 

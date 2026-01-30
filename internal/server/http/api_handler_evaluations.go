@@ -1,10 +1,8 @@
 package http
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"strconv"
@@ -81,8 +79,7 @@ type workerResultSummary struct {
 
 // HandleStartEvaluation launches a new evaluation job accessible from the web console.
 func (h *APIHandler) HandleStartEvaluation(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
 
@@ -91,40 +88,8 @@ func (h *APIHandler) HandleStartEvaluation(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	body := http.MaxBytesReader(w, r.Body, maxEvaluationBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
-
 	var req startEvaluationRequest
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		var syntaxErr *json.SyntaxError
-		var typeErr *json.UnmarshalTypeError
-		var maxBytesErr *http.MaxBytesError
-		switch {
-		case errors.Is(err, io.EOF):
-			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
-			return
-		case errors.As(err, &syntaxErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
-			return
-		case errors.As(err, &typeErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
-			return
-		case errors.As(err, &maxBytesErr):
-			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
-			return
-		}
-	}
-
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
+	if !h.decodeJSONBody(w, r, &req, maxEvaluationBodySize) {
 		return
 	}
 
@@ -155,8 +120,7 @@ func (h *APIHandler) HandleStartEvaluation(w http.ResponseWriter, r *http.Reques
 
 // HandleListEvaluations enumerates known evaluation jobs and their summaries.
 func (h *APIHandler) HandleListEvaluations(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -202,8 +166,7 @@ func (h *APIHandler) HandleListEvaluations(w http.ResponseWriter, r *http.Reques
 
 // HandleGetEvaluation returns detailed metrics and instance summaries for a job.
 func (h *APIHandler) HandleGetEvaluation(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -243,8 +206,7 @@ func (h *APIHandler) HandleGetEvaluation(w http.ResponseWriter, r *http.Request)
 
 // HandleDeleteEvaluation removes a persisted evaluation snapshot by job id.
 func (h *APIHandler) HandleDeleteEvaluation(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodDelete) {
 		return
 	}
 
@@ -273,8 +235,7 @@ func (h *APIHandler) HandleDeleteEvaluation(w http.ResponseWriter, r *http.Reque
 
 // HandleListAgents returns all stored agent profiles.
 func (h *APIHandler) HandleListAgents(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -294,8 +255,7 @@ func (h *APIHandler) HandleListAgents(w http.ResponseWriter, r *http.Request) {
 
 // HandleGetAgent returns a single agent profile if present.
 func (h *APIHandler) HandleGetAgent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -325,8 +285,7 @@ func (h *APIHandler) HandleGetAgent(w http.ResponseWriter, r *http.Request) {
 
 // HandleListAgentEvaluations returns evaluation snapshots associated with a given agent.
 func (h *APIHandler) HandleListAgentEvaluations(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 

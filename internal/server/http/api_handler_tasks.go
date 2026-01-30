@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -60,49 +59,12 @@ type TaskStatusResponse = types.AgentTask
 
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
 func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
 
-	// Limit request body size to avoid resource exhaustion attacks
-	body := http.MaxBytesReader(w, r.Body, h.maxCreateTaskBodySize)
-	defer func() {
-		_ = body.Close()
-	}()
-
-	// Parse request body
 	var req CreateTaskRequest
-
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		var syntaxErr *json.SyntaxError
-		var typeErr *json.UnmarshalTypeError
-		var maxBytesErr *http.MaxBytesError
-		switch {
-		case errors.Is(err, io.EOF):
-			h.writeJSONError(w, http.StatusBadRequest, "Request body is empty", err)
-			return
-		case errors.As(err, &syntaxErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid JSON at position %d", syntaxErr.Offset), err)
-			return
-		case errors.As(err, &typeErr):
-			h.writeJSONError(w, http.StatusBadRequest, fmt.Sprintf("Invalid value for field '%s'", typeErr.Field), err)
-			return
-		case errors.As(err, &maxBytesErr):
-			h.writeJSONError(w, http.StatusRequestEntityTooLarge, "Request body too large", err)
-			return
-		default:
-			h.writeJSONError(w, http.StatusBadRequest, "Invalid request body", err)
-			return
-		}
-	}
-
-	// Ensure there are no extra JSON tokens
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		h.writeJSONError(w, http.StatusBadRequest, "Request body must contain a single JSON object", fmt.Errorf("unexpected extra JSON token"))
+	if !h.decodeJSONBody(w, r, &req, h.maxCreateTaskBodySize) {
 		return
 	}
 
@@ -263,8 +225,7 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 
 // HandleGetTask handles GET /api/tasks/:id
 func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -304,8 +265,7 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 
 // HandleListTasks handles GET /api/tasks
 func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -398,8 +358,7 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 
 // HandleCancelTask handles POST /api/tasks/:id/cancel
 func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
 

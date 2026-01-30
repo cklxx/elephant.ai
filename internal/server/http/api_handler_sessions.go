@@ -86,8 +86,7 @@ type ShareSessionResponse struct {
 
 // HandleGetSession handles GET /api/sessions/:id
 func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -174,8 +173,7 @@ func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.R
 
 // HandleCreateSession handles POST /api/sessions
 func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
 
@@ -194,8 +192,7 @@ func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request)
 
 // HandleCreateSessionShare handles POST /api/sessions/:id/share
 func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
 
@@ -228,8 +225,7 @@ func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Req
 
 // HandleListSessions handles GET /api/sessions
 func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -302,8 +298,7 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 
 // HandleDeleteSession handles DELETE /api/sessions/:id
 func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodDelete) {
 		return
 	}
 
@@ -325,8 +320,7 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 
 // HandleListSnapshots handles GET /api/sessions/:id/snapshots
 func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 
@@ -377,8 +371,7 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 
 // HandleGetTurnSnapshot handles GET /api/sessions/:id/turns/:turnID
 func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 	trimmed := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
@@ -428,8 +421,7 @@ func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Reques
 
 // HandleReplaySession handles POST /api/sessions/:id/replay
 func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
 	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/replay")
@@ -452,8 +444,7 @@ func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request)
 
 // HandleForkSession handles POST /api/sessions/:id/fork
 func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
+	if !h.requireMethod(w, r, http.MethodPost) {
 		return
 	}
 

@@ -17,8 +17,7 @@ func (h *APIHandler) HandleDevMemory(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 	if h.memoryService == nil {
