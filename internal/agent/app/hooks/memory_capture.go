@@ -8,6 +8,7 @@ import (
 	"time"
 
 	appcontext "alex/internal/agent/app/context"
+	"alex/internal/agent/textutil"
 	"alex/internal/logging"
 	"alex/internal/memory"
 	"alex/internal/skills"
@@ -233,7 +234,7 @@ func (h *MemoryCaptureHook) isDuplicate(ctx context.Context, entry memory.Entry,
 		return false
 	}
 	for _, prev := range existing {
-		if similarityScore(entry.Content, prev.Content) >= h.dedupeThreshold {
+		if textutil.SimilarityScore(entry.Content, prev.Content) >= h.dedupeThreshold {
 			return true
 		}
 	}
@@ -293,57 +294,4 @@ func (h *MemoryCaptureHook) captureWorkflowTrace(ctx context.Context, result Tas
 	if _, err := h.memoryService.Save(ctx, entry); err != nil {
 		h.logger.Warn("Workflow trace save failed: %v", err)
 	}
-}
-
-func similarityScore(a, b string) float64 {
-	tokensA := tokenizeForSimilarity(a)
-	tokensB := tokenizeForSimilarity(b)
-	if len(tokensA) == 0 || len(tokensB) == 0 {
-		return 0
-	}
-	setA := make(map[string]bool, len(tokensA))
-	for _, token := range tokensA {
-		setA[token] = true
-	}
-	intersection := 0
-	for _, token := range tokensB {
-		if setA[token] {
-			intersection++
-		}
-	}
-	union := len(tokensA) + len(tokensB) - intersection
-	if union == 0 {
-		return 0
-	}
-	return float64(intersection) / float64(union)
-}
-
-func tokenizeForSimilarity(text string) []string {
-	fields := strings.FieldsFunc(text, func(r rune) bool {
-		if r >= 'a' && r <= 'z' {
-			return false
-		}
-		if r >= 'A' && r <= 'Z' {
-			return false
-		}
-		if r >= '0' && r <= '9' {
-			return false
-		}
-		if r >= 0x4E00 && r <= 0x9FFF {
-			return false
-		}
-		return true
-	})
-
-	tokens := make([]string, 0, len(fields))
-	seen := make(map[string]bool, len(fields))
-	for _, field := range fields {
-		trimmed := strings.ToLower(strings.TrimSpace(field))
-		if trimmed == "" || len(trimmed) < 2 || seen[trimmed] {
-			continue
-		}
-		seen[trimmed] = true
-		tokens = append(tokens, trimmed)
-	}
-	return tokens
 }

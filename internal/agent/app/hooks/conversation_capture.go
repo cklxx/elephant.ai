@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	appcontext "alex/internal/agent/app/context"
+	"alex/internal/agent/textutil"
 	"alex/internal/logging"
 	"alex/internal/memory"
 )
@@ -77,8 +78,8 @@ func (h *ConversationCaptureHook) OnTaskCompleted(ctx context.Context, result Ta
 		return nil
 	}
 
-	input := smartTruncate(result.TaskInput, maxConversationInputLen)
-	answer := smartTruncate(result.Answer, maxConversationAnswerLen)
+	input := textutil.SmartTruncate(result.TaskInput, maxConversationInputLen)
+	answer := textutil.SmartTruncate(result.Answer, maxConversationAnswerLen)
 	if input == "" && answer == "" {
 		return nil
 	}
@@ -163,29 +164,9 @@ func (h *ConversationCaptureHook) isDuplicate(ctx context.Context, entry memory.
 		return false
 	}
 	for _, prev := range existing {
-		if similarityScore(entry.Content, prev.Content) >= h.dedupeThreshold {
+		if textutil.SimilarityScore(entry.Content, prev.Content) >= h.dedupeThreshold {
 			return true
 		}
 	}
 	return false
-}
-
-func smartTruncate(value string, limit int) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || limit <= 0 {
-		return ""
-	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
-		return trimmed
-	}
-	if limit <= 10 {
-		return string(runes[:limit])
-	}
-	headLen := limit * 6 / 10
-	tailLen := limit - headLen - 5
-	if tailLen < 1 {
-		tailLen = 1
-	}
-	return string(runes[:headLen]) + " ... " + string(runes[len(runes)-tailLen:])
 }

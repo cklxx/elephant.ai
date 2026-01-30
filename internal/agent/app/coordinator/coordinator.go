@@ -23,6 +23,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/agent/presets"
+	"alex/internal/agent/textutil"
 	"alex/internal/async"
 	"alex/internal/logging"
 	materialports "alex/internal/materials/ports"
@@ -1080,7 +1081,7 @@ func (c *AgentCoordinator) captureStaleSession(ctx context.Context, session *sto
 		sb.WriteString("\n")
 	}
 
-	content := smartTruncate(sb.String(), maxContentLen)
+	content := textutil.SmartTruncate(sb.String(), maxContentLen)
 	if strings.TrimSpace(content) == "" {
 		return
 	}
@@ -1108,26 +1109,6 @@ func (c *AgentCoordinator) captureStaleSession(ctx context.Context, session *sto
 	}); err != nil && c.logger != nil {
 		c.logger.Warn("Session stale capture failed: %v", err)
 	}
-}
-
-func smartTruncate(value string, limit int) string {
-	trimmed := strings.TrimSpace(value)
-	if trimmed == "" || limit <= 0 {
-		return ""
-	}
-	runes := []rune(trimmed)
-	if len(runes) <= limit {
-		return trimmed
-	}
-	if limit <= 10 {
-		return string(runes[:limit])
-	}
-	headLen := limit * 6 / 10
-	tailLen := limit - headLen - 5
-	if tailLen < 1 {
-		tailLen = 1
-	}
-	return string(runes[:headLen]) + " ... " + string(runes[len(runes)-tailLen:])
 }
 
 // extractToolCallInfo extracts tool call information from TaskResult messages.
