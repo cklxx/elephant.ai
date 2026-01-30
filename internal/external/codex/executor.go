@@ -74,7 +74,7 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	if err := client.Start(ctx); err != nil {
 		return nil, err
 	}
-	defer client.Stop()
+	defer func() { _ = client.Stop() }()
 
 	args := map[string]any{
 		"prompt": req.Prompt,

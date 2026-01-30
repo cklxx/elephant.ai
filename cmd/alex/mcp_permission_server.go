@@ -140,14 +140,17 @@ type relayResponse struct {
 }
 
 func (s *permissionServer) forward(ctx context.Context, payload map[string]any) (*relayResponse, error) {
-	conn, err := net.Dial("unix", s.socketPath)
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	dialer := net.Dialer{}
+	conn, err := dialer.DialContext(ctx, "unix", s.socketPath)
 	if err != nil {
 		return nil, err
 	}
 	defer conn.Close()
-
-	if ctx == nil {
-		ctx = context.Background()
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = conn.SetDeadline(deadline)
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {

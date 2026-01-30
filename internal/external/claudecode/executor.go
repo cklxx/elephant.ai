@@ -143,7 +143,7 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		}
 		return nil, err
 	}
-	defer proc.Stop()
+	defer func() { _ = proc.Stop() }()
 	if cleanup != nil {
 		defer cleanup()
 	}
