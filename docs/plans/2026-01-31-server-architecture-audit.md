@@ -1,8 +1,27 @@
 # internal/server 架构审计与优化计划
 
 **Created:** 2026-01-31
-**Status:** Draft
+**Status:** Completed (Batches 1-6)
 **Author:** cklxx + AI
+
+---
+
+## Execution Summary
+
+| Batch | Phase | Description | Commit | Status |
+|-------|-------|-------------|--------|--------|
+| 1 | 4.2 | broadcasterMetrics → atomic | `b1dee5d6` | Done |
+| 2 | 5.1 | Event type constants centralized | `f2f82936` | Done |
+| 3 | 1.2 | Decouple EventBroadcaster ↔ TaskStore | `57ab32af` | Done |
+| 4 | 3 | Structured startup (stages + SubsystemManager) | `aa2d8368` | Done |
+| 5 | 1.1 | Split ServerCoordinator into 3 services | `7d0f2e07` | Done |
+| 6 | 2 | Router refactor (RouterDeps/RouterConfig) | `ff3d09d3` | Done |
+
+### Remaining items (not in scope for this round)
+- Phase 4.1: InMemoryTaskStore TTL eviction
+- Phase 5.2: LLM Health Probe actual detection
+- Phase 5.3: WriteTimeout per-route handling
+- Phase 5.4: Event drop observability & backpressure
 
 ---
 
