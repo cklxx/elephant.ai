@@ -11,6 +11,10 @@ runtime:
   verbose: false
   proactive:
     enabled: true
+    okr:
+      enabled: true
+      goals_root: "~/.alex/goals"
+      auto_inject: true
     memory:
       enabled: true
       auto_recall: true
