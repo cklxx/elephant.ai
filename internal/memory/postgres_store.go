@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -166,30 +167,7 @@ LIMIT $%d
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
-	var results []Entry
-	for rows.Next() {
-		var (
-			entry     Entry
-			slotsJSON []byte
-		)
-		if err := rows.Scan(&entry.Key, &entry.UserID, &entry.Content, &entry.Keywords, &slotsJSON, &entry.Terms, &entry.CreatedAt); err != nil {
-			return nil, err
-		}
-		if len(slotsJSON) > 0 {
-			var slots map[string]string
-			if err := json.Unmarshal(slotsJSON, &slots); err == nil {
-				entry.Slots = slots
-			}
-		}
-		results = append(results, entry)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return results, nil
+	return scanMemoryRows(rows)
 }
 
 // listByUser returns the most recent entries for a user when no search terms
@@ -228,8 +206,11 @@ LIMIT $%d
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	return scanMemoryRows(rows)
+}
 
+func scanMemoryRows(rows pgx.Rows) ([]Entry, error) {
+	defer rows.Close()
 	var results []Entry
 	for rows.Next() {
 		var (
@@ -250,6 +231,5 @@ LIMIT $%d
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-
 	return results, nil
 }
