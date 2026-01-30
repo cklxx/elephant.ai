@@ -1,0 +1,52 @@
+package scheduler
+
+import (
+	"context"
+	"fmt"
+
+	agent "alex/internal/agent/ports/agent"
+	id "alex/internal/utils/id"
+)
+
+// AgentCoordinator is the subset of the coordinator interface needed by the scheduler.
+type AgentCoordinator interface {
+	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
+}
+
+// Notifier routes scheduler results to external channels.
+type Notifier interface {
+	SendLark(ctx context.Context, chatID string, content string) error
+}
+
+// executeTrigger runs a trigger's task via the agent coordinator and routes the result.
+func (s *Scheduler) executeTrigger(trigger Trigger) {
+	ctx := context.Background()
+	if trigger.UserID != "" {
+		ctx = id.WithUserID(ctx, trigger.UserID)
+	}
+
+	sessionID := fmt.Sprintf("scheduler-%s", trigger.Name)
+
+	s.logger.Info("Scheduler: executing trigger %q (schedule=%s)", trigger.Name, trigger.Schedule)
+
+	result, err := s.coordinator.ExecuteTask(ctx, trigger.Task, sessionID, nil)
+
+	content := formatResult(trigger, result, err)
+
+	if trigger.Channel == "lark" && trigger.ChatID != "" && s.notifier != nil {
+		if sendErr := s.notifier.SendLark(ctx, trigger.ChatID, content); sendErr != nil {
+			s.logger.Warn("Scheduler: failed to send Lark notification for %q: %v", trigger.Name, sendErr)
+		}
+	}
+}
+
+// formatResult produces a human-readable summary of the trigger execution.
+func formatResult(trigger Trigger, result *agent.TaskResult, err error) string {
+	if err != nil {
+		return fmt.Sprintf("Scheduled task '%s' failed: %v", trigger.Name, err)
+	}
+	if result == nil {
+		return fmt.Sprintf("Scheduled task '%s' completed (no result).", trigger.Name)
+	}
+	return result.Answer
+}
