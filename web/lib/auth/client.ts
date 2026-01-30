@@ -1,4 +1,7 @@
 import { buildApiUrl } from "../api-base";
+import { createLogger } from "../logger";
+
+const log = createLogger("Auth");
 
 type RawSubscription = {
   tier: string;
@@ -258,7 +261,7 @@ function readSessionFromStorage(): AuthSession | null {
     }
     return normalizeStoredSession(parsed);
   } catch (error) {
-    console.warn("[authClient] Failed to read session from storage", error);
+    log.warn("Failed to read session from storage", { error });
     return null;
   }
 }
@@ -274,7 +277,7 @@ function writeSessionToStorage(session: AuthSession | null): void {
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
   } catch (error) {
-    console.warn("[authClient] Failed to persist session", error);
+    log.warn("Failed to persist session", { error });
   }
 }
 
@@ -346,7 +349,7 @@ class AuthClient {
       try {
         listener(session);
       } catch (error) {
-        console.error("[authClient] Session listener failed", error);
+        log.error("Session listener failed", { error });
       }
     }
   }
@@ -394,7 +397,7 @@ class AuthClient {
       this.session = stored;
       this.notify(this.session);
     } catch (error) {
-      console.warn("[authClient] Failed to synchronize session from storage", error);
+      log.warn("Failed to synchronize session from storage", { error });
     } finally {
       this.storageSyncInProgress = false;
     }
@@ -492,7 +495,7 @@ class AuthClient {
       const session = await this.refresh();
       return session?.accessToken ?? null;
     } catch (error) {
-      console.warn("[authClient] Failed to refresh access token", error);
+      log.warn("Failed to refresh access token", { error });
       return null;
     }
   }
@@ -501,7 +504,7 @@ class AuthClient {
     try {
       await postJSON<void>("/api/auth/logout");
     } catch (error) {
-      console.warn("[authClient] Logout request failed", error);
+      log.warn("Logout request failed", { error });
     } finally {
       this.clearSession();
     }

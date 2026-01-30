@@ -1,7 +1,10 @@
 import { apiClient } from '@/lib/api';
 import { WorkflowEventType } from '@/lib/types';
+import { createLogger } from '@/lib/logger';
 import { EventPipeline } from './eventPipeline';
 import type { SSEReplayMode } from '@/lib/api';
+
+const log = createLogger("SSE");
 
 export interface SSEClientOptions {
   eventTypes: Array<WorkflowEventType | 'connected'>;
@@ -92,7 +95,7 @@ export class SSEClient {
           const payload = JSON.parse(rawEvent.data);
           this.pipeline.process(payload);
         } catch (error) {
-          console.error("[SSE] Failed to parse event payload", error);
+          log.error("Failed to parse event payload", { error });
         }
       });
     });

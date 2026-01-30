@@ -8,8 +8,11 @@ import type { MutableRefObject } from "react";
 import { SSEClient } from "@/lib/events/sseClient";
 import { EventPipeline } from "@/lib/events/eventPipeline";
 import { authClient } from "@/lib/auth/client";
+import { createLogger } from "@/lib/logger";
 import type { SSEReplayMode } from "@/lib/api";
 import type { ConnectionState } from "./types";
+
+const log = createLogger("SSE");
 
 export interface UseSSEConnectionOptions {
   sessionId: string | null;
@@ -126,9 +129,7 @@ export function useSSEConnection(
 
     // Check if we've exceeded max attempts
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      console.warn(
-        "[SSE] Max reconnection attempts reached, stopping auto-reconnect"
-      );
+      log.warn("Max reconnection attempts reached, stopping auto-reconnect");
       onConnectionStateChange({
         sessionId: currentSessionId,
         isConnected: false,
@@ -162,7 +163,7 @@ export function useSSEConnection(
         });
       },
       onError: (err) => {
-        console.error("[SSE] Connection error:", err);
+        log.error("Connection error", { error: err });
 
         if (isDisposedRef.current) {
           return;
@@ -177,10 +178,7 @@ export function useSSEConnection(
         isConnectingRef.current = false;
 
         if (serverErrorMessage) {
-          console.warn(
-            "[SSE] Server returned error payload, continuing to reconnect:",
-            serverErrorMessage
-          );
+          log.warn("Server returned error payload, continuing to reconnect", { error: serverErrorMessage });
         }
 
         const nextAttempts = reconnectAttemptsRef.current + 1;
@@ -188,7 +186,7 @@ export function useSSEConnection(
         const clampedAttempts = Math.min(nextAttempts, maxReconnectAttempts);
 
         if (nextAttempts > maxReconnectAttempts) {
-          console.warn("[SSE] Maximum reconnection attempts exceeded");
+          log.warn("Maximum reconnection attempts exceeded");
           onConnectionStateChange({
             sessionId: currentSessionId,
             isConnected: false,
@@ -200,9 +198,7 @@ export function useSSEConnection(
         }
 
         const delay = Math.min(1000 * 2 ** (nextAttempts - 1), 30000) + Math.random() * 1000;
-        console.log(
-          `[SSE] Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`
-        );
+        log.debug(`Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`);
         onConnectionStateChange({
           sessionId: currentSessionId,
           isConnected: false,
@@ -235,7 +231,7 @@ export function useSSEConnection(
     try {
       client.connect(token);
     } catch (err) {
-      console.error("[SSE] Failed to connect:", err);
+      log.error("Failed to connect", { error: err });
       if (clientRef.current) {
         clientRef.current.dispose();
         clientRef.current = null;

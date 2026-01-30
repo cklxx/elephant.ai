@@ -2,6 +2,7 @@
 
 import { buildApiUrl } from "./api-base";
 import { authClient } from "./auth/client";
+import { createLogger } from "./logger";
 import {
   CreateTaskRequest,
   CreateTaskResponse,
@@ -45,6 +46,8 @@ export class APIError extends Error {
   }
 }
 
+const log = createLogger("API");
+
 async function fetchAPI<T>(
   endpoint: string,
   options: ApiRequestOptions = {},
@@ -77,10 +80,7 @@ async function fetchAPI<T>(
       try {
         await authClient.refresh();
       } catch (refreshError) {
-        console.warn(
-          "[apiClient] Refresh token failed after 401",
-          refreshError,
-        );
+        log.warn("Refresh token failed after 401", { error: refreshError });
       }
       return fetchAPI<T>(endpoint, options, attempt + 1);
     }
@@ -94,10 +94,7 @@ async function fetchAPI<T>(
         try {
           parsedBody = JSON.parse(errorText);
         } catch (parseError) {
-          console.warn(
-            "[apiClient] Failed to parse error JSON response",
-            parseError,
-          );
+          log.warn("Failed to parse error JSON response", { error: parseError });
         }
       }
 
@@ -294,7 +291,7 @@ export async function getSessionDetails(
     const rawTasks = Array.isArray(response?.tasks) ? response.tasks : [];
     tasks = rawTasks.filter((task) => !task.session_id || task.session_id === sessionId);
   } catch (error) {
-    console.warn("[apiClient] Failed to load session tasks", {
+    log.warn("Failed to load session tasks", {
       sessionId,
       error: error instanceof Error ? error.message : error,
     });

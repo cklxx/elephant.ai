@@ -25,6 +25,7 @@ import { defaultEventRegistry } from "@/lib/events/eventRegistry";
 import { handleAttachmentEvent, resetAttachmentRegistry } from "@/lib/events/attachmentRegistry";
 import { EventPipeline } from "@/lib/events/eventPipeline";
 import { authClient } from "@/lib/auth/client";
+import { createLogger } from "@/lib/logger";
 
 import { useSSEDeduplication } from "./useSSEDeduplication";
 import { useSSEEventBuffer } from "./useSSEEventBuffer";
@@ -32,6 +33,7 @@ import { useStreamingAnswerBuffer } from "./useStreamingAnswerBuffer";
 import { useSSEConnection } from "./useSSEConnection";
 import type { UseSSEOptions, UseSSEReturn, EventState, ConnectionState, MAX_EVENT_HISTORY } from "./types";
 
+const log = createLogger("SSE");
 const MAX_STREAM_DELTA_CHARS = 10_000;
 const DEFAULT_MAX_EVENT_HISTORY = 1000;
 
@@ -276,10 +278,9 @@ export function useSSE(
       bus: agentEventBus,
       registry: defaultEventRegistry,
       onInvalidEvent: (raw, validationError) => {
-        console.warn("[SSE] Event validation failed (skipping):", {
+        log.warn("Event validation failed (skipping)", {
           raw,
           error: validationError,
-          note: "This event will be skipped. This is usually harmless.",
         });
       },
     });
