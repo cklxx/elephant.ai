@@ -10,6 +10,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/jsonx"
 	"alex/internal/memory"
 	id "alex/internal/utils/id"
 )
@@ -30,15 +31,17 @@ type reactRuntime struct {
 	prepare   func()
 
 	// UI orchestration state (Plan → Clarify → ReAct → Finalize).
-	runID          string
-	planEmitted    bool
-	planVersion    int
-	planComplexity string
-	currentTaskID  string
-	clarifyEmitted map[string]bool
-	pendingTaskID  string
-	nextTaskSeq    int
-	pauseRequested bool
+	runID                 string
+	planEmitted           bool
+	planVersion           int
+	planComplexity        string
+	planReviewEnabled     bool
+	lastPlanReviewVersion int
+	currentTaskID         string
+	clarifyEmitted        map[string]bool
+	pendingTaskID         string
+	nextTaskSeq           int
+	pauseRequested        bool
 
 	// Background task manager for async subagent execution.
 	bgManager *BackgroundTaskManager
@@ -80,6 +83,7 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 	}
 	if state != nil {
 		runtime.runID = strings.TrimSpace(state.RunID)
+		runtime.planReviewEnabled = state.PlanReviewEnabled
 	}
 	runtime.clarifyEmitted = make(map[string]bool)
 	runtime.nextTaskSeq = 1
@@ -400,6 +404,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 					}
 				}
 			}
+			r.maybeTriggerPlanReview(call, result)
 		case "clarify":
 			if result.Metadata == nil {
 				continue
@@ -420,6 +425,87 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 			r.pauseRequested = true
 		}
 	}
+}
+
+func (r *reactRuntime) maybeTriggerPlanReview(call ToolCall, result ToolResult) {
+	if r == nil || !r.planReviewEnabled {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(r.planComplexity), "complex") {
+		return
+	}
+	if r.planVersion <= r.lastPlanReviewVersion {
+		return
+	}
+
+	goal := ""
+	internalPlan := any(nil)
+	if result.Metadata != nil {
+		if raw, ok := result.Metadata["overall_goal_ui"].(string); ok {
+			goal = strings.TrimSpace(raw)
+		}
+		if raw, ok := result.Metadata["internal_plan"]; ok {
+			internalPlan = raw
+		}
+	}
+	if goal == "" {
+		if raw, ok := call.Arguments["overall_goal_ui"].(string); ok {
+			goal = strings.TrimSpace(raw)
+		}
+	}
+	if internalPlan == nil {
+		if raw, ok := call.Arguments["internal_plan"]; ok {
+			internalPlan = raw
+		}
+	}
+	if goal == "" {
+		return
+	}
+
+	r.injectPlanReviewMarker(goal, internalPlan, r.runID)
+	r.pauseRequested = true
+	r.lastPlanReviewVersion = r.planVersion
+}
+
+func (r *reactRuntime) injectPlanReviewMarker(goal string, internalPlan any, runID string) {
+	if r == nil || r.state == nil {
+		return
+	}
+	goal = strings.TrimSpace(goal)
+	if goal == "" {
+		return
+	}
+	if runID == "" {
+		runID = "<run_id>"
+	}
+
+	planText := ""
+	if internalPlan != nil {
+		if data, err := jsonx.Marshal(internalPlan); err == nil {
+			planText = string(data)
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString("<plan_review_pending>\n")
+	sb.WriteString("run_id: ")
+	sb.WriteString(runID)
+	sb.WriteString("\n")
+	sb.WriteString("overall_goal_ui: ")
+	sb.WriteString(goal)
+	sb.WriteString("\n")
+	if planText != "" {
+		sb.WriteString("internal_plan: ")
+		sb.WriteString(planText)
+		sb.WriteString("\n")
+	}
+	sb.WriteString("</plan_review_pending>")
+
+	r.state.Messages = append(r.state.Messages, Message{
+		Role:    "system",
+		Content: sb.String(),
+		Source:  ports.MessageSourceSystemPrompt,
+	})
 }
 
 func (r *reactRuntime) filterValidToolCalls(toolCalls []ToolCall) []ToolCall {

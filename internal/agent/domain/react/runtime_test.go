@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -341,4 +342,41 @@ func TestRecordThoughtAppendsThinkingOnlyMessage(t *testing.T) {
 
 	require.Len(t, state.Messages, 1)
 	require.Len(t, state.Messages[0].Thinking.Parts, 1)
+}
+
+func TestPlanReviewTriggersPauseAndMarker(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		RunID:             "run-123",
+		PlanReviewEnabled: true,
+	}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	calls := []ToolCall{{
+		Name: "plan",
+		Arguments: map[string]any{
+			"complexity":      "complex",
+			"overall_goal_ui": "ship feature",
+			"internal_plan":   map[string]any{"steps": []any{"a", "b"}},
+		},
+	}}
+	results := []ToolResult{{
+		Metadata: map[string]any{
+			"complexity":      "complex",
+			"overall_goal_ui": "ship feature",
+			"internal_plan":   map[string]any{"steps": []any{"a", "b"}},
+		},
+	}}
+
+	runtime.updateOrchestratorState(calls, results)
+
+	require.True(t, runtime.pauseRequested, "expected pauseRequested for plan review")
+	found := false
+	for _, msg := range state.Messages {
+		if strings.Contains(msg.Content, "<plan_review_pending>") {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected plan review marker in messages")
 }
