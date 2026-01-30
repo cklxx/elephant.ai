@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	llm "alex/internal/agent/ports/llm"
@@ -68,6 +69,9 @@ func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, se
 			}
 			return nil
 		}
+	}
+	if !appcontext.SessionHistoryEnabled(ctx) {
+		return nil
 	}
 	if s.historyMgr != nil {
 		history, err := s.historyMgr.Replay(ctx, session.ID, 0)

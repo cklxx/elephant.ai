@@ -586,7 +586,8 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 // SaveSessionAfterExecution saves session state after task completion
 func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, session *storage.Session, result *agent.TaskResult) error {
 	logger := c.loggerFor(ctx)
-	if c.historyMgr != nil && session != nil && result != nil {
+	historyEnabled := appcontext.SessionHistoryEnabled(ctx)
+	if historyEnabled && c.historyMgr != nil && session != nil && result != nil {
 		previousHistory, _ := c.historyMgr.Replay(ctx, session.ID, 0)
 		incoming := append(agent.CloneMessages(previousHistory), stripUserHistoryMessages(result.Messages)...)
 		if err := c.historyMgr.AppendTurn(ctx, session.ID, incoming); err != nil && logger != nil {
@@ -595,27 +596,33 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	}
 
 	// Update session with results
-	sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
-	if c.attachmentMigrator != nil && len(attachmentStore) > 0 {
-		normalized, err := c.attachmentMigrator.Normalize(ctx, materialports.MigrationRequest{
-			Attachments: attachmentStore,
-			Origin:      "session_persist",
-		})
-		if err != nil && logger != nil {
-			logger.Warn("Failed to migrate attachments for session persistence: %v", err)
-		} else if normalized != nil {
-			attachmentStore = normalized
+	if historyEnabled {
+		sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
+		if c.attachmentMigrator != nil && len(attachmentStore) > 0 {
+			normalized, err := c.attachmentMigrator.Normalize(ctx, materialports.MigrationRequest{
+				Attachments: attachmentStore,
+				Origin:      "session_persist",
+			})
+			if err != nil && logger != nil {
+				logger.Warn("Failed to migrate attachments for session persistence: %v", err)
+			} else if normalized != nil {
+				attachmentStore = normalized
+			}
 		}
-	}
-	session.Messages = sanitizedMessages
-	if len(attachmentStore) > 0 {
-		session.Attachments = attachmentStore
+		session.Messages = sanitizedMessages
+		if len(attachmentStore) > 0 {
+			session.Attachments = attachmentStore
+		} else {
+			session.Attachments = nil
+		}
+		if len(result.Important) > 0 {
+			session.Important = ports.CloneImportantNotes(result.Important)
+		} else {
+			session.Important = nil
+		}
 	} else {
+		session.Messages = nil
 		session.Attachments = nil
-	}
-	if len(result.Important) > 0 {
-		session.Important = ports.CloneImportantNotes(result.Important)
-	} else {
 		session.Important = nil
 	}
 	session.UpdatedAt = c.clock.Now()

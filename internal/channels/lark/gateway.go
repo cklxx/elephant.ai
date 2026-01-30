@@ -222,6 +222,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	execCtx = appcontext.WithChannel(execCtx, "lark")
 	execCtx = appcontext.WithChatID(execCtx, chatID)
 	execCtx = appcontext.WithIsGroup(execCtx, isGroup)
+	execCtx = appcontext.WithSessionHistory(execCtx, false)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
 	if g.cfg.MemoryEnabled {

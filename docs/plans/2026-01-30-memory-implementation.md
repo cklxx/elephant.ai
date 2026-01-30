@@ -37,3 +37,5 @@
 - 2026-01-30: Drafted execution plan; began channel context wiring and history manager clear support.
 - 2026-01-30: Added channel/chat/group context wiring, stable Lark sessions + /reset handling, session staleness clearing, conversation capture hook, memory capture slot enrichment, removed dormant Lark memory manager, and added tests for staleness + session mode/reset + group recall.
 - 2026-01-30: Tests run: `go test ./internal/channels/lark/...`, `go test ./internal/agent/app/hooks/...`, `go test ./internal/agent/app/preparation/...`, `go test ./internal/context/...` OK. Full lint/test failed due to pre-existing import cycle in `internal/external` and undefined `causationID` in `internal/agent/domain/react/background.go`.
+- 2026-01-30: Disabled Lark session history injection + persistence via context flag; added tests for history-disabled behavior.
+- 2026-01-30: Tests run: `go test ./internal/channels/lark/...`, `go test ./internal/agent/app/preparation/...`, `go test ./internal/agent/app/coordinator/...`, `./dev.sh lint`, `./dev.sh test` (passed; linker emitted LC_DYSYMTAB warnings).

@@ -347,6 +347,9 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 	if gotUserID != "ou_sender_abc" {
 		t.Fatalf("expected user_id 'ou_sender_abc' on context, got %q", gotUserID)
 	}
+	if appcontext.SessionHistoryEnabled(executor.capturedCtx) {
+		t.Fatalf("expected session history to be disabled for lark")
+	}
 }
 
 func TestHandleMessageSetsMemoryPolicy(t *testing.T) {

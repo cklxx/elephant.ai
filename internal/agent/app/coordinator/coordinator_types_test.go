@@ -7,6 +7,7 @@ import (
 	"time"
 
 	appconfig "alex/internal/agent/app/config"
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
@@ -70,9 +71,11 @@ func (s *stubSessionStore) Delete(ctx context.Context, id string) error {
 
 type stubHistoryManager struct {
 	clearedSessionID string
+	appendCalled     bool
 }
 
 func (s *stubHistoryManager) AppendTurn(context.Context, string, []ports.Message) error {
+	s.appendCalled = true
 	return nil
 }
 
@@ -527,6 +530,45 @@ func TestResetSessionClearsState(t *testing.T) {
 	}
 	if history.clearedSessionID != session.ID {
 		t.Fatalf("expected history cleared for %q, got %q", session.ID, history.clearedSessionID)
+	}
+}
+
+func TestSaveSessionAfterExecutionSkipsHistoryWhenDisabled(t *testing.T) {
+	session := &storage.Session{
+		ID:       "session-skip",
+		Metadata: map[string]string{},
+	}
+	store := &stubSessionStore{session: session}
+	history := &stubHistoryManager{}
+
+	coordinator := NewAgentCoordinator(
+		llm.NewFactory(),
+		stubToolRegistry{},
+		store,
+		stubContextManager{},
+		history,
+		stubParser{},
+		nil,
+		appconfig.Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3},
+	)
+
+	result := &agent.TaskResult{
+		SessionID:  session.ID,
+		StopReason: "complete",
+		Messages: []ports.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+
+	ctx := appcontext.WithSessionHistory(context.Background(), false)
+	if err := coordinator.SaveSessionAfterExecution(ctx, session, result); err != nil {
+		t.Fatalf("save session failed: %v", err)
+	}
+	if history.appendCalled {
+		t.Fatalf("expected history append to be skipped")
+	}
+	if store.session == nil || len(store.session.Messages) != 0 {
+		t.Fatalf("expected session messages to be cleared")
 	}
 }
 
