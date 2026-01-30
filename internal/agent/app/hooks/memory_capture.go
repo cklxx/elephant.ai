@@ -43,7 +43,7 @@ type MemoryCaptureConfig struct {
 // NewMemoryCaptureHook creates a new memory capture hook.
 func NewMemoryCaptureHook(svc memory.Service, logger logging.Logger, cfg MemoryCaptureConfig) *MemoryCaptureHook {
 	enabled := true
-	if cfg.Enabled == false || cfg.AutoCapture == false {
+	if !cfg.Enabled || !cfg.AutoCapture {
 		enabled = false
 	}
 	dedupe := cfg.DedupeThreshold

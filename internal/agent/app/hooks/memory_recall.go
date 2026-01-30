@@ -38,7 +38,7 @@ func NewMemoryRecallHook(svc memory.Service, logger logging.Logger, cfg MemoryRe
 		maxRecalls = defaultMaxRecalls
 	}
 	enabled := true
-	if cfg.Enabled == false || cfg.AutoRecall == false {
+	if !cfg.Enabled || !cfg.AutoRecall {
 		enabled = false
 	}
 	return &MemoryRecallHook{
