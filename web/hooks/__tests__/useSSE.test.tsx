@@ -113,6 +113,8 @@ describe("useSSE", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
+    // Make reconnection jitter deterministic in tests
+    vi.spyOn(Math, 'random').mockReturnValue(0);
     connectionCalls = 0;
 
     mockGetSession.mockReturnValue({

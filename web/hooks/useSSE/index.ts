@@ -34,7 +34,6 @@ export type { UseStreamingAnswerBufferReturn } from "./useStreamingAnswerBuffer"
 export type {
   EventState,
   ConnectionState,
-  DedupeCache,
   AssistantBufferEntry,
   FlushHandle,
   FlushMode,

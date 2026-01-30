@@ -199,7 +199,7 @@ export function useSSEConnection(
           return;
         }
 
-        const delay = Math.min(1000 * 2 ** (nextAttempts - 1), 30000);
+        const delay = Math.min(1000 * 2 ** (nextAttempts - 1), 30000) + Math.random() * 1000;
         console.log(
           `[SSE] Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`
         );

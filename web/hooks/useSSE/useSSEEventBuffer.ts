@@ -8,6 +8,9 @@ import { useCallback, useEffect, useRef } from "react";
 import type { AnyAgentEvent } from "@/lib/types";
 import { STREAM_FLUSH_MS, IS_TEST_ENV, type FlushHandle, type FlushMode } from "./types";
 
+/** Flush early when buffer exceeds this threshold to prevent unbounded growth */
+const MAX_BUFFER_SIZE = 50;
+
 export interface UseSSEEventBufferOptions {
   onFlush: (events: AnyAgentEvent[]) => void;
 }
@@ -103,9 +106,16 @@ export function useSSEEventBuffer(
   const enqueueEvent = useCallback(
     (event: AnyAgentEvent) => {
       pendingEventsRef.current.push(event);
-      scheduleFlush();
+      // Flush early when buffer is large to prevent unbounded growth
+      // (e.g. when RAF is delayed by background tab or GC pause)
+      if (pendingEventsRef.current.length >= MAX_BUFFER_SIZE) {
+        cancelScheduledFlush();
+        flushNow();
+      } else {
+        scheduleFlush();
+      }
     },
-    [scheduleFlush]
+    [scheduleFlush, cancelScheduledFlush, flushNow]
   );
 
   const clearBuffer = useCallback(() => {

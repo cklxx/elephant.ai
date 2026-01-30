@@ -34,11 +34,6 @@ export interface ConnectionState {
   reconnectAttempts: number;
 }
 
-export interface DedupeCache {
-  seen: Set<string>;
-  order: string[];
-}
-
 export interface AssistantBufferEntry {
   iteration: number;
   content: string;

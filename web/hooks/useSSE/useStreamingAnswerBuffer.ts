@@ -9,6 +9,9 @@ import type { AnyAgentEvent, WorkflowNodeOutputDeltaEvent } from "@/lib/types";
 import { isWorkflowResultFinalEvent } from "@/lib/typeGuards";
 import type { AssistantBufferEntry } from "./types";
 
+/** Evict buffer entries older than this (ms) to prevent memory leaks on stalled streams */
+const BUFFER_TTL_MS = 30_000;
+
 export interface UseStreamingAnswerBufferReturn {
   /** Merge streaming task complete event with buffered content */
   mergeStreamingTaskComplete: (event: AnyAgentEvent) => AnyAgentEvent;
@@ -42,9 +45,18 @@ function combineChunks(previous: string, chunk: string): string {
   return previous + chunk;
 }
 
+/** Evict entries older than TTL from a map with timestamped values */
+function evictStale<V>(map: Map<string, V & { _ts: number }>, now: number): void {
+  for (const [key, entry] of map) {
+    if (now - entry._ts > BUFFER_TTL_MS) {
+      map.delete(key);
+    }
+  }
+}
+
 export function useStreamingAnswerBuffer(): UseStreamingAnswerBufferReturn {
-  const streamingAnswerBufferRef = useRef<Map<string, string>>(new Map());
-  const assistantMessageBufferRef = useRef<Map<string, AssistantBufferEntry>>(new Map());
+  const streamingAnswerBufferRef = useRef<Map<string, { value: string; _ts: number }>>(new Map());
+  const assistantMessageBufferRef = useRef<Map<string, AssistantBufferEntry & { _ts: number }>>(new Map());
 
   const resetStreamingBuffer = useCallback(() => {
     streamingAnswerBufferRef.current.clear();
@@ -63,17 +75,22 @@ export function useStreamingAnswerBuffer(): UseStreamingAnswerBufferReturn {
 
       if (!runId) return event;
 
+      const now = Date.now();
       const key = `${sessionId}|${runId}`;
       const buffer = streamingAnswerBufferRef.current;
       const chunk = event.final_answer ?? "";
-      const previous = buffer.get(key) ?? "";
+      const previousEntry = buffer.get(key);
+      const previous = previousEntry?.value ?? "";
       const isStreaming = event.is_streaming === true;
       const streamFinished = event.stream_finished === true;
       const streamInProgress = isStreaming || event.stream_finished === false;
 
+      // Periodically evict stale entries
+      evictStale(buffer, now);
+
       if (streamInProgress) {
         const combined = combineChunks(previous, chunk);
-        buffer.set(key, combined);
+        buffer.set(key, { value: combined, _ts: now });
         return {
           ...event,
           final_answer: combined,
@@ -116,11 +133,15 @@ export function useStreamingAnswerBuffer(): UseStreamingAnswerBufferReturn {
 
       if (!runId) return;
 
+      const now = Date.now();
       const iteration =
         typeof event.iteration === "number" ? event.iteration : Number.MIN_SAFE_INTEGER;
       const key = `${sessionId}|${runId}`;
       const buffer = assistantMessageBufferRef.current;
       const existing = buffer.get(key);
+
+      // Periodically evict stale entries
+      evictStale(buffer, now);
 
       const baseContent =
         existing && existing.iteration === iteration ? existing.content : "";
@@ -129,6 +150,7 @@ export function useStreamingAnswerBuffer(): UseStreamingAnswerBufferReturn {
       buffer.set(key, {
         iteration,
         content: combined,
+        _ts: now,
       });
     },
     []

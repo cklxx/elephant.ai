@@ -502,9 +502,12 @@ function mergeDeltaEvent(
     return false;
   }
 
-  const lastNodeId = typeof (last as any).node_id === "string" ? (last as any).node_id : "";
+  const lastRec = last as Record<string, unknown>;
+  const incomingRec = incoming as Record<string, unknown>;
+
+  const lastNodeId = typeof lastRec.node_id === "string" ? lastRec.node_id : "";
   const incomingNodeId =
-    typeof (incoming as any).node_id === "string" ? (incoming as any).node_id : "";
+    typeof incomingRec.node_id === "string" ? incomingRec.node_id : "";
 
   if ((lastNodeId || incomingNodeId) && lastNodeId !== incomingNodeId) {
     return false;
@@ -529,18 +532,21 @@ function mergeDeltaEvent(
     return false;
   }
 
-  const lastDelta = typeof (last as any).delta === "string" ? (last as any).delta : "";
+  const lastDelta = typeof lastRec.delta === "string" ? lastRec.delta : "";
   const incomingDelta =
-    typeof (incoming as any).delta === "string" ? (incoming as any).delta : "";
+    typeof incomingRec.delta === "string" ? incomingRec.delta : "";
   const mergedDeltaRaw = incomingDelta ? `${lastDelta}${incomingDelta}` : lastDelta;
+  // When merged delta exceeds the cap, discard history and keep only the
+  // latest incoming chunk to avoid slicing in the middle of a markdown
+  // structure (e.g. unclosed code blocks).
   const mergedDelta =
     mergedDeltaRaw.length > MAX_STREAM_DELTA_CHARS
-      ? mergedDeltaRaw.slice(-MAX_STREAM_DELTA_CHARS)
+      ? incomingDelta || lastDelta
       : mergedDeltaRaw;
 
   const merged = {
-    ...(last as any),
-    ...(incoming as any),
+    ...lastRec,
+    ...incomingRec,
     delta: mergedDelta,
     timestamp: incoming.timestamp ?? last.timestamp,
   } as AnyAgentEvent;
