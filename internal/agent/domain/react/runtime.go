@@ -44,6 +44,9 @@ type reactRuntime struct {
 	bgManager *BackgroundTaskManager
 	// Track emitted completion events to avoid duplicates.
 	bgCompletionEmitted map[string]bool
+	// External input requests from interactive external agents.
+	externalInputCh      <-chan agent.InputRequest
+	externalInputEmitted map[string]bool
 
 	memoryRefresh MemoryRefreshConfig
 }
@@ -84,8 +87,12 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 	// Initialize background task manager when executor is available.
 	if engine.backgroundExecutor != nil {
 		sessionID := ""
+		runID := ""
+		parentRunID := ""
 		if state != nil {
 			sessionID = state.SessionID
+			runID = state.RunID
+			parentRunID = state.ParentRunID
 		}
 		runtime.bgManager = newBackgroundTaskManager(
 			ctx,
@@ -93,10 +100,18 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 			engine.clock,
 			engine.backgroundExecutor,
 			engine.externalExecutor,
+			engine.emitEvent,
+			func(ctx context.Context) domain.BaseEvent {
+				return engine.newBaseEvent(ctx, sessionID, runID, parentRunID)
+			},
 			sessionID,
 			engine.eventListener,
 		)
 		runtime.bgCompletionEmitted = make(map[string]bool)
+		if runtime.bgManager != nil {
+			runtime.externalInputCh = runtime.bgManager.InputRequests()
+			runtime.externalInputEmitted = make(map[string]bool)
+		}
 	}
 
 	return runtime
@@ -114,6 +129,7 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 	for r.state.Iterations < r.engine.maxIterations {
 		// Inject background completion notifications before each iteration.
 		r.injectBackgroundNotifications()
+		r.injectExternalInputRequests()
 
 		if result, stop, err := r.handleCancellation(); stop || err != nil {
 			r.cleanupBackgroundTasks()

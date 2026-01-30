@@ -225,7 +225,13 @@ func TestBackgroundDispatchEmitsEvent(t *testing.T) {
 	require.NotNil(t, runtime.bgManager)
 
 	dispatcher := newBackgroundDispatcherWithEvents(runtime, runtime.bgManager)
-	err := dispatcher.Dispatch(context.Background(), "task-1", "desc", "prompt", "internal", "cause-1")
+	err := dispatcher.Dispatch(context.Background(), agent.BackgroundDispatchRequest{
+		TaskID:      "task-1",
+		Description: "desc",
+		Prompt:      "prompt",
+		AgentType:   "internal",
+		CausationID: "cause-1",
+	})
 	require.NoError(t, err)
 
 	var dispatched []*domain.BackgroundTaskDispatchedEvent
@@ -259,7 +265,13 @@ func TestCleanupEmitsBackgroundCompletionEvents(t *testing.T) {
 	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
 	require.NotNil(t, runtime.bgManager)
 
-	err := runtime.bgManager.Dispatch(context.Background(), "task-1", "desc", "prompt", "internal", "cause-1")
+	err := runtime.bgManager.Dispatch(context.Background(), agent.BackgroundDispatchRequest{
+		TaskID:      "task-1",
+		Description: "desc",
+		Prompt:      "prompt",
+		AgentType:   "internal",
+		CausationID: "cause-1",
+	})
 	require.NoError(t, err)
 
 	runtime.bgManager.AwaitAll(2 * time.Second)
@@ -294,7 +306,13 @@ func TestCleanupSkipsAlreadyEmittedBackgroundCompletions(t *testing.T) {
 	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
 	require.NotNil(t, runtime.bgManager)
 
-	err := runtime.bgManager.Dispatch(context.Background(), "task-1", "desc", "prompt", "internal", "cause-1")
+	err := runtime.bgManager.Dispatch(context.Background(), agent.BackgroundDispatchRequest{
+		TaskID:      "task-1",
+		Description: "desc",
+		Prompt:      "prompt",
+		AgentType:   "internal",
+		CausationID: "cause-1",
+	})
 	require.NoError(t, err)
 
 	runtime.bgManager.AwaitAll(2 * time.Second)

@@ -11,20 +11,41 @@ type BackgroundTaskStatus string
 const (
 	BackgroundTaskStatusPending   BackgroundTaskStatus = "pending"
 	BackgroundTaskStatusRunning   BackgroundTaskStatus = "running"
+	BackgroundTaskStatusBlocked   BackgroundTaskStatus = "blocked"
 	BackgroundTaskStatusCompleted BackgroundTaskStatus = "completed"
 	BackgroundTaskStatusFailed    BackgroundTaskStatus = "failed"
 	BackgroundTaskStatusCancelled BackgroundTaskStatus = "cancelled"
 )
 
+// BackgroundDispatchRequest captures inputs for background task dispatch.
+type BackgroundDispatchRequest struct {
+	TaskID         string
+	Description    string
+	Prompt         string
+	AgentType      string
+	CausationID    string
+	Config         map[string]string
+	DependsOn      []string
+	WorkspaceMode  WorkspaceMode
+	FileScope      []string
+	InheritContext bool
+}
+
 // BackgroundTaskSummary provides a lightweight status view of a background task.
 type BackgroundTaskSummary struct {
-	ID          string
-	Description string
-	Status      BackgroundTaskStatus
-	AgentType   string
-	StartedAt   time.Time
-	CompletedAt time.Time
-	Error       string
+	ID           string
+	Description  string
+	Status       BackgroundTaskStatus
+	AgentType    string
+	StartedAt    time.Time
+	CompletedAt  time.Time
+	Error        string
+	Progress     *ExternalAgentProgress
+	PendingInput *InputRequestSummary
+	Elapsed      time.Duration
+	Workspace    *WorkspaceAllocation
+	FileScope    []string
+	DependsOn    []string
 }
 
 // BackgroundTaskResult contains the full result of a completed background task.
@@ -46,7 +67,7 @@ type BackgroundTaskResult struct {
 type BackgroundTaskDispatcher interface {
 	// Dispatch starts a new background task. Returns an error if the task ID
 	// is already in use.
-	Dispatch(ctx context.Context, taskID, description, prompt, agentType, causationID string) error
+	Dispatch(ctx context.Context, req BackgroundDispatchRequest) error
 
 	// Status returns lightweight summaries for the requested task IDs.
 	// Pass nil or empty slice to query all tasks.
@@ -55,6 +76,16 @@ type BackgroundTaskDispatcher interface {
 	// Collect returns full results for completed tasks. When wait is true the
 	// call blocks until the requested tasks finish or the timeout elapses.
 	Collect(ids []string, wait bool, timeout time.Duration) []BackgroundTaskResult
+}
+
+// ExternalInputResponder allows tools to reply to external agent input requests.
+type ExternalInputResponder interface {
+	ReplyExternalInput(ctx context.Context, resp InputResponse) error
+}
+
+// ExternalWorkspaceMerger allows tools to merge external agent workspaces.
+type ExternalWorkspaceMerger interface {
+	MergeExternalWorkspace(ctx context.Context, taskID string, strategy MergeStrategy) (*MergeResult, error)
 }
 
 // backgroundDispatcherKey is the context key for BackgroundTaskDispatcher.

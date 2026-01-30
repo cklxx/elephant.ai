@@ -19,12 +19,12 @@ func newBackgroundDispatcherWithEvents(runtime *reactRuntime, inner agent.Backgr
 	return &backgroundDispatcherWithEvents{inner: inner, runtime: runtime}
 }
 
-func (d *backgroundDispatcherWithEvents) Dispatch(ctx context.Context, taskID, description, prompt, agentType, causationID string) error {
-	if err := d.inner.Dispatch(ctx, taskID, description, prompt, agentType, causationID); err != nil {
+func (d *backgroundDispatcherWithEvents) Dispatch(ctx context.Context, req agent.BackgroundDispatchRequest) error {
+	if err := d.inner.Dispatch(ctx, req); err != nil {
 		return err
 	}
 	if d.runtime != nil {
-		d.runtime.emitBackgroundDispatchedEvent(ctx, taskID, description, prompt, agentType)
+		d.runtime.emitBackgroundDispatchedEvent(ctx, req.TaskID, req.Description, req.Prompt, req.AgentType)
 	}
 	return nil
 }

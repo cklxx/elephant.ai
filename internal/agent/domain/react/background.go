@@ -3,11 +3,15 @@ package react
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
+	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/async"
+	"alex/internal/external/workspace"
+	"alex/internal/tools/builtin/pathutil"
 	id "alex/internal/utils/id"
 )
 
@@ -24,19 +28,30 @@ type backgroundTask struct {
 	completedAt time.Time
 	result      *agent.TaskResult
 	err         error
+
+	progress         *agent.ExternalAgentProgress
+	pendingInput     *agent.InputRequestSummary
+	lastProgressEmit time.Time
+	dependsOn        []string
+	inheritContext   bool
+	workspace        *agent.WorkspaceAllocation
+	fileScope        []string
+	config           map[string]string
 }
 
 // BackgroundTaskManager manages background task lifecycle within a single run.
 // It implements agent.BackgroundTaskDispatcher.
 type BackgroundTaskManager struct {
-	mu          sync.RWMutex
-	tasks       map[string]*backgroundTask
-	completions chan string // task IDs signaled on completion
-	logger      agent.Logger
-	clock       agent.Clock
-	taskCtx     context.Context
-	cancelAll   context.CancelFunc
-	runCtx      context.Context // for value inheritance (IDs, etc.)
+	mu           sync.RWMutex
+	tasks        map[string]*backgroundTask
+	completions  chan string // task IDs signaled on completion
+	logger       agent.Logger
+	clock        agent.Clock
+	taskCtx      context.Context
+	cancelAll    context.CancelFunc
+	runCtx       context.Context // for value inheritance (IDs, etc.)
+	workingDir   string
+	workspaceMgr *workspace.Manager
 
 	// executeTask delegates to coordinator.ExecuteTask for internal subagents.
 	executeTask func(ctx context.Context, prompt, sessionID string,
@@ -44,6 +59,10 @@ type BackgroundTaskManager struct {
 
 	// externalExecutor handles external code agents (can be nil).
 	externalExecutor agent.ExternalAgentExecutor
+	inputExecutor    agent.InteractiveExternalExecutor
+	externalInputCh  chan agent.InputRequest
+	emitEvent        func(event agent.AgentEvent)
+	baseEvent        func(ctx context.Context) domain.BaseEvent
 
 	sessionID      string
 	parentListener agent.EventListener
@@ -57,11 +76,30 @@ func newBackgroundTaskManager(
 	executeTask func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error),
 	externalExecutor agent.ExternalAgentExecutor,
+	emitEvent func(event agent.AgentEvent),
+	baseEvent func(ctx context.Context) domain.BaseEvent,
 	sessionID string,
 	parentListener agent.EventListener,
 ) *BackgroundTaskManager {
 	taskCtx, cancel := context.WithCancel(context.Background())
-	return &BackgroundTaskManager{
+	workingDir := pathutil.GetPathResolverFromContext(runCtx).ResolvePath(".")
+	var workspaceMgr *workspace.Manager
+	if workingDir != "" {
+		workspaceMgr = workspace.NewManager(workingDir, logger)
+	}
+
+	var inputExecutor agent.InteractiveExternalExecutor
+	var externalInputCh chan agent.InputRequest
+	if externalExecutor != nil {
+		if interactive, ok := externalExecutor.(agent.InteractiveExternalExecutor); ok {
+			if interactive.InputRequests() != nil {
+				inputExecutor = interactive
+				externalInputCh = make(chan agent.InputRequest, 32)
+			}
+		}
+	}
+
+	manager := &BackgroundTaskManager{
 		tasks:            make(map[string]*backgroundTask),
 		completions:      make(chan string, 64),
 		logger:           logger,
@@ -69,18 +107,58 @@ func newBackgroundTaskManager(
 		taskCtx:          taskCtx,
 		cancelAll:        cancel,
 		runCtx:           runCtx,
+		workingDir:       workingDir,
+		workspaceMgr:     workspaceMgr,
 		executeTask:      executeTask,
 		externalExecutor: externalExecutor,
+		inputExecutor:    inputExecutor,
+		externalInputCh:  externalInputCh,
+		emitEvent:        emitEvent,
+		baseEvent:        baseEvent,
 		sessionID:        sessionID,
 		parentListener:   parentListener,
 	}
+
+	if inputExecutor != nil && externalInputCh != nil {
+		async.Go(logger, "bg.externalInput", func() {
+			manager.forwardExternalInputRequests()
+		})
+	}
+
+	return manager
 }
 
 // Dispatch starts a background task. Returns an error if the task ID is already in use.
 func (m *BackgroundTaskManager) Dispatch(
 	ctx context.Context,
-	taskID, description, prompt, agentType, causationID string,
+	req agent.BackgroundDispatchRequest,
 ) error {
+	taskID := strings.TrimSpace(req.TaskID)
+	if taskID == "" {
+		return fmt.Errorf("task_id is required")
+	}
+	description := strings.TrimSpace(req.Description)
+	if description == "" {
+		return fmt.Errorf("description is required")
+	}
+	prompt := strings.TrimSpace(req.Prompt)
+	if prompt == "" {
+		return fmt.Errorf("prompt is required")
+	}
+	agentType := strings.TrimSpace(req.AgentType)
+	if agentType == "" {
+		agentType = "internal"
+	}
+	workspaceMode := req.WorkspaceMode
+	if workspaceMode == "" {
+		workspaceMode = agent.WorkspaceModeShared
+	}
+	if workspaceMode != agent.WorkspaceModeShared &&
+		workspaceMode != agent.WorkspaceModeBranch &&
+		workspaceMode != agent.WorkspaceModeWorktree {
+		return fmt.Errorf("invalid workspace_mode: %s", workspaceMode)
+	}
+
 	m.mu.Lock()
 	if _, exists := m.tasks[taskID]; exists {
 		m.mu.Unlock()
@@ -88,13 +166,37 @@ func (m *BackgroundTaskManager) Dispatch(
 	}
 
 	bt := &backgroundTask{
-		id:          taskID,
-		description: description,
-		prompt:      prompt,
-		agentType:   agentType,
-		causationID: causationID,
-		status:      agent.BackgroundTaskStatusPending,
-		startedAt:   m.clock.Now(),
+		id:             taskID,
+		description:    description,
+		prompt:         prompt,
+		agentType:      agentType,
+		causationID:    req.CausationID,
+		status:         agent.BackgroundTaskStatusPending,
+		startedAt:      m.clock.Now(),
+		dependsOn:      append([]string(nil), req.DependsOn...),
+		inheritContext: req.InheritContext,
+		fileScope:      append([]string(nil), req.FileScope...),
+		config:         cloneStringMap(req.Config),
+	}
+	if len(req.DependsOn) > 0 {
+		bt.status = agent.BackgroundTaskStatusBlocked
+	}
+	if err := m.validateDependencies(taskID, req.DependsOn); err != nil {
+		m.mu.Unlock()
+		return err
+	}
+
+	if workspaceMode != agent.WorkspaceModeShared {
+		if m.workspaceMgr == nil {
+			m.mu.Unlock()
+			return fmt.Errorf("workspace manager not available for mode %s", workspaceMode)
+		}
+		alloc, err := m.workspaceMgr.Allocate(ctx, taskID, workspaceMode, req.FileScope)
+		if err != nil {
+			m.mu.Unlock()
+			return err
+		}
+		bt.workspace = alloc
 	}
 	m.tasks[taskID] = bt
 	m.mu.Unlock()
@@ -114,8 +216,8 @@ func (m *BackgroundTaskManager) Dispatch(
 	} else if ids.RunID != "" {
 		taskCtx = id.WithCorrelationID(taskCtx, ids.RunID)
 	}
-	if causationID != "" {
-		taskCtx = id.WithCausationID(taskCtx, causationID)
+	if bt.causationID != "" {
+		taskCtx = id.WithCausationID(taskCtx, bt.causationID)
 	}
 	if ids.LogID != "" {
 		taskCtx = id.WithLogID(taskCtx, fmt.Sprintf("%s:bg:%s", ids.LogID, id.NewLogID()))
@@ -131,34 +233,69 @@ func (m *BackgroundTaskManager) Dispatch(
 // runTask executes a background task, routing to internal or external executor.
 func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask, agentType string) {
 	bt.mu.Lock()
-	bt.status = agent.BackgroundTaskStatusRunning
+	if bt.status != agent.BackgroundTaskStatusBlocked {
+		bt.status = agent.BackgroundTaskStatusRunning
+	}
 	bt.mu.Unlock()
+
+	if len(bt.dependsOn) > 0 {
+		if err := m.awaitDependencies(ctx, bt); err != nil {
+			bt.mu.Lock()
+			bt.completedAt = m.clock.Now()
+			bt.err = err
+			bt.status = agent.BackgroundTaskStatusFailed
+			bt.mu.Unlock()
+			m.signalCompletion(bt.id)
+			return
+		}
+		bt.mu.Lock()
+		bt.status = agent.BackgroundTaskStatusRunning
+		bt.mu.Unlock()
+	}
+
+	prompt := bt.prompt
+	if bt.inheritContext {
+		prompt = m.buildContextEnrichedPrompt(bt)
+	}
 
 	var result *agent.TaskResult
 	var err error
 
 	switch agentType {
 	case "", "internal":
-		result, err = m.executeTask(ctx, bt.prompt, m.sessionID, m.parentListener)
+		result, err = m.executeTask(ctx, prompt, m.sessionID, m.parentListener)
 	default:
 		if m.externalExecutor == nil {
 			err = fmt.Errorf("external agent executor not configured for type %q", agentType)
 		} else {
-			var extResult *agent.ExternalAgentResult
-			extResult, err = m.externalExecutor.Execute(ctx, agent.ExternalAgentRequest{
-				Prompt:      bt.prompt,
+			workingDir := m.workingDir
+			if bt.workspace != nil && bt.workspace.WorkingDir != "" {
+				workingDir = bt.workspace.WorkingDir
+			}
+
+			extResult, execErr := m.externalExecutor.Execute(ctx, agent.ExternalAgentRequest{
+				TaskID:      bt.id,
+				Prompt:      prompt,
+				AgentType:   agentType,
+				WorkingDir:  workingDir,
+				Config:      cloneStringMap(bt.config),
 				SessionID:   m.sessionID,
 				CausationID: bt.causationID,
+				OnProgress: func(p agent.ExternalAgentProgress) {
+					m.captureProgress(ctx, bt, p)
+				},
 			})
-			if err == nil && extResult != nil {
+			if extResult != nil {
 				result = &agent.TaskResult{
 					Answer:     extResult.Answer,
 					Iterations: extResult.Iterations,
 					TokensUsed: extResult.TokensUsed,
 				}
-				if extResult.Error != "" {
-					err = fmt.Errorf("%s", extResult.Error)
-				}
+			}
+			if execErr != nil {
+				err = execErr
+			} else if extResult != nil && extResult.Error != "" {
+				err = fmt.Errorf("%s", extResult.Error)
 			}
 		}
 	}
@@ -176,12 +313,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 	}
 	bt.mu.Unlock()
 
-	// Signal completion (non-blocking).
-	select {
-	case m.completions <- bt.id:
-	default:
-		m.logger.Warn("background completions channel full, dropping signal for task %q", bt.id)
-	}
+	m.signalCompletion(bt.id)
 }
 
 // Status returns lightweight summaries for the requested task IDs.
@@ -194,6 +326,18 @@ func (m *BackgroundTaskManager) Status(ids []string) []agent.BackgroundTaskSumma
 	summaries := make([]agent.BackgroundTaskSummary, 0, len(targets))
 	for _, bt := range targets {
 		bt.mu.Lock()
+		now := m.clock.Now()
+		elapsed := time.Duration(0)
+		if !bt.startedAt.IsZero() {
+			end := bt.completedAt
+			if end.IsZero() {
+				end = now
+			}
+			elapsed = end.Sub(bt.startedAt)
+			if elapsed < 0 {
+				elapsed = 0
+			}
+		}
 		s := agent.BackgroundTaskSummary{
 			ID:          bt.id,
 			Description: bt.description,
@@ -201,9 +345,28 @@ func (m *BackgroundTaskManager) Status(ids []string) []agent.BackgroundTaskSumma
 			AgentType:   bt.agentType,
 			StartedAt:   bt.startedAt,
 			CompletedAt: bt.completedAt,
+			Elapsed:     elapsed,
 		}
 		if bt.err != nil {
 			s.Error = bt.err.Error()
+		}
+		if bt.progress != nil {
+			progress := *bt.progress
+			s.Progress = &progress
+		}
+		if bt.pendingInput != nil {
+			pending := *bt.pendingInput
+			s.PendingInput = &pending
+		}
+		if bt.workspace != nil {
+			workspaceCopy := *bt.workspace
+			s.Workspace = &workspaceCopy
+		}
+		if len(bt.fileScope) > 0 {
+			s.FileScope = append([]string(nil), bt.fileScope...)
+		}
+		if len(bt.dependsOn) > 0 {
+			s.DependsOn = append([]string(nil), bt.dependsOn...)
 		}
 		bt.mu.Unlock()
 		summaries = append(summaries, s)
@@ -277,6 +440,302 @@ func (m *BackgroundTaskManager) Shutdown() {
 	m.cancelAll()
 }
 
+// InputRequests exposes external input requests when available.
+func (m *BackgroundTaskManager) InputRequests() <-chan agent.InputRequest {
+	return m.externalInputCh
+}
+
+// ReplyExternalInput forwards an external input response to the executor.
+func (m *BackgroundTaskManager) ReplyExternalInput(ctx context.Context, resp agent.InputResponse) error {
+	if m.inputExecutor == nil {
+		return fmt.Errorf("external input responder not configured")
+	}
+	if err := m.inputExecutor.Reply(ctx, resp); err != nil {
+		return err
+	}
+	if strings.TrimSpace(resp.TaskID) != "" {
+		m.mu.RLock()
+		bt := m.tasks[resp.TaskID]
+		m.mu.RUnlock()
+		if bt != nil {
+			bt.mu.Lock()
+			if bt.pendingInput != nil && bt.pendingInput.RequestID == resp.RequestID {
+				bt.pendingInput = nil
+			}
+			bt.mu.Unlock()
+		}
+	}
+	if m.emitEvent != nil && m.baseEvent != nil {
+		m.emitEvent(&domain.ExternalInputResponseEvent{
+			BaseEvent: m.baseEvent(ctx),
+			TaskID:    resp.TaskID,
+			RequestID: resp.RequestID,
+			Approved:  resp.Approved,
+			OptionID:  resp.OptionID,
+			Message:   resp.Text,
+		})
+	}
+	return nil
+}
+
+// MergeExternalWorkspace merges an external agent's workspace back into the base branch.
+func (m *BackgroundTaskManager) MergeExternalWorkspace(ctx context.Context, taskID string, strategy agent.MergeStrategy) (*agent.MergeResult, error) {
+	if m.workspaceMgr == nil {
+		return nil, fmt.Errorf("workspace manager not available")
+	}
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return nil, fmt.Errorf("task_id is required")
+	}
+	if strategy == "" {
+		strategy = agent.MergeStrategyAuto
+	}
+
+	m.mu.RLock()
+	bt := m.tasks[taskID]
+	m.mu.RUnlock()
+	if bt == nil {
+		return nil, fmt.Errorf("background task %q not found", taskID)
+	}
+	bt.mu.Lock()
+	alloc := bt.workspace
+	bt.mu.Unlock()
+	if alloc == nil {
+		return nil, fmt.Errorf("task %q has no workspace to merge", taskID)
+	}
+	return m.workspaceMgr.Merge(ctx, alloc, strategy)
+}
+
+func (m *BackgroundTaskManager) forwardExternalInputRequests() {
+	if m.inputExecutor == nil || m.externalInputCh == nil {
+		return
+	}
+	inputs := m.inputExecutor.InputRequests()
+	for {
+		select {
+		case <-m.taskCtx.Done():
+			close(m.externalInputCh)
+			return
+		case req, ok := <-inputs:
+			if !ok {
+				close(m.externalInputCh)
+				return
+			}
+			if strings.TrimSpace(req.TaskID) != "" {
+				m.mu.RLock()
+				bt := m.tasks[req.TaskID]
+				m.mu.RUnlock()
+				if bt != nil {
+					bt.mu.Lock()
+					bt.pendingInput = &agent.InputRequestSummary{
+						RequestID: req.RequestID,
+						Type:      req.Type,
+						Summary:   req.Summary,
+						Since:     m.clock.Now(),
+					}
+					bt.mu.Unlock()
+				}
+			}
+			select {
+			case m.externalInputCh <- req:
+			default:
+				m.logger.Warn("external input channel full, dropping request %q", req.RequestID)
+			}
+		}
+	}
+}
+
+func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgroundTask, p agent.ExternalAgentProgress) {
+	now := m.clock.Now()
+	shouldEmit := false
+	bt.mu.Lock()
+	bt.progress = &p
+	if m.emitEvent != nil && m.baseEvent != nil {
+		if bt.lastProgressEmit.IsZero() || now.Sub(bt.lastProgressEmit) >= 2*time.Second {
+			bt.lastProgressEmit = now
+			shouldEmit = true
+		}
+	}
+	bt.mu.Unlock()
+
+	if shouldEmit {
+		elapsed := time.Duration(0)
+		if !bt.startedAt.IsZero() {
+			elapsed = now.Sub(bt.startedAt)
+			if elapsed < 0 {
+				elapsed = 0
+			}
+		}
+		m.emitEvent(&domain.ExternalAgentProgressEvent{
+			BaseEvent:   m.baseEvent(ctx),
+			TaskID:      bt.id,
+			AgentType:   bt.agentType,
+			Iteration:   p.Iteration,
+			MaxIter:     p.MaxIter,
+			TokensUsed:  p.TokensUsed,
+			CostUSD:     p.CostUSD,
+			CurrentTool: p.CurrentTool,
+			Elapsed:     elapsed,
+		})
+	}
+}
+
+func (m *BackgroundTaskManager) buildContextEnrichedPrompt(bt *backgroundTask) string {
+	if len(bt.dependsOn) == 0 {
+		return bt.prompt
+	}
+	var sb strings.Builder
+	sb.WriteString("[Collaboration Context]\n")
+	sb.WriteString("This task depends on completed tasks whose results are provided below.\n\n")
+	for _, depID := range bt.dependsOn {
+		m.mu.RLock()
+		dep := m.tasks[depID]
+		m.mu.RUnlock()
+		if dep == nil {
+			continue
+		}
+		dep.mu.Lock()
+		status := dep.status
+		answer := ""
+		if dep.result != nil {
+			answer = dep.result.Answer
+		}
+		errMsg := ""
+		if dep.err != nil {
+			errMsg = dep.err.Error()
+		}
+		dep.mu.Unlock()
+
+		sb.WriteString(fmt.Sprintf("--- Task %q (%s) — %s ---\n", depID, dep.agentType, strings.ToUpper(string(status))))
+		if answer != "" {
+			sb.WriteString("Result summary: ")
+			sb.WriteString(answer)
+			sb.WriteString("\n")
+		}
+		if errMsg != "" {
+			sb.WriteString("Error: ")
+			sb.WriteString(errMsg)
+			sb.WriteString("\n")
+		}
+		sb.WriteString("\n")
+	}
+	sb.WriteString("[Your Task]\n")
+	sb.WriteString(bt.prompt)
+	return sb.String()
+}
+
+func (m *BackgroundTaskManager) awaitDependencies(ctx context.Context, bt *backgroundTask) error {
+	pollInterval := 200 * time.Millisecond
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		allDone := true
+		for _, depID := range bt.dependsOn {
+			m.mu.RLock()
+			dep := m.tasks[depID]
+			m.mu.RUnlock()
+			if dep == nil {
+				return fmt.Errorf("dependency %q not found", depID)
+			}
+			dep.mu.Lock()
+			status := dep.status
+			errMsg := ""
+			if dep.err != nil {
+				errMsg = dep.err.Error()
+			}
+			dep.mu.Unlock()
+
+			switch status {
+			case agent.BackgroundTaskStatusCompleted:
+				// ok
+			case agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
+				if errMsg == "" {
+					errMsg = "dependency failed"
+				}
+				return fmt.Errorf("dependency %q failed: %s", depID, errMsg)
+			default:
+				allDone = false
+			}
+			if !allDone {
+				break
+			}
+		}
+		if allDone {
+			return nil
+		}
+		time.Sleep(pollInterval)
+	}
+}
+
+func (m *BackgroundTaskManager) validateDependencies(taskID string, deps []string) error {
+	if len(deps) == 0 {
+		return nil
+	}
+	for _, dep := range deps {
+		if strings.TrimSpace(dep) == "" {
+			return fmt.Errorf("dependency task id must not be empty")
+		}
+		if dep == taskID {
+			return fmt.Errorf("task %q cannot depend on itself", taskID)
+		}
+		if _, ok := m.tasks[dep]; !ok {
+			return fmt.Errorf("dependency %q not found", dep)
+		}
+	}
+
+	graph := make(map[string][]string, len(m.tasks)+1)
+	for id, task := range m.tasks {
+		graph[id] = append([]string(nil), task.dependsOn...)
+	}
+	graph[taskID] = append([]string(nil), deps...)
+
+	const (
+		unvisited = iota
+		visiting
+		done
+	)
+	state := make(map[string]int, len(graph))
+	var visit func(string) error
+	visit = func(node string) error {
+		switch state[node] {
+		case visiting:
+			return fmt.Errorf("dependency cycle detected involving %q", node)
+		case done:
+			return nil
+		}
+		state[node] = visiting
+		for _, next := range graph[node] {
+			if err := visit(next); err != nil {
+				return err
+			}
+		}
+		state[node] = done
+		return nil
+	}
+	return visit(taskID)
+}
+
+func (m *BackgroundTaskManager) signalCompletion(taskID string) {
+	select {
+	case m.completions <- taskID:
+	default:
+		m.logger.Warn("background completions channel full, dropping signal for task %q", taskID)
+	}
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
 // resolveTargets returns the tasks matching ids, or all tasks when ids is empty.
 // Caller must hold m.mu (read lock or write lock).
 func (m *BackgroundTaskManager) resolveTargets(ids []string) []*backgroundTask {
@@ -312,7 +771,9 @@ func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) 
 		targets := m.resolveTargets(ids)
 		for _, bt := range targets {
 			bt.mu.Lock()
-			if bt.status == agent.BackgroundTaskStatusPending || bt.status == agent.BackgroundTaskStatusRunning {
+			if bt.status == agent.BackgroundTaskStatusPending ||
+				bt.status == agent.BackgroundTaskStatusRunning ||
+				bt.status == agent.BackgroundTaskStatusBlocked {
 				allDone = false
 			}
 			bt.mu.Unlock()
