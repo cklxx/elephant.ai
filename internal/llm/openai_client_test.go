@@ -479,7 +479,9 @@ func TestConvertToolsSkipsInvalidFunctionNames(t *testing.T) {
 	t.Parallel()
 
 	client := &openaiClient{
-		logger: utils.NewCategorizedLogger(utils.LogCategoryLLM, "test"),
+		baseClient: baseClient{
+			logger: utils.NewCategorizedLogger(utils.LogCategoryLLM, "test"),
+		},
 	}
 
 	tools := []ports.ToolDefinition{

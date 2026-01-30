@@ -1,29 +1,17 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"net/http"
-	"strconv"
 	"strings"
 
 	"alex/internal/agent/ports"
 	"alex/internal/jsonx"
 	"alex/internal/utils"
-	id "alex/internal/utils/id"
 )
 
 func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
-	requestID := extractRequestID(req.Metadata)
-	if requestID == "" {
-		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
-	}
-	logID := id.LogIDFromContext(ctx)
-	prefix := fmt.Sprintf("[req:%s] ", requestID)
-	if logID != "" {
-		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
-	}
+	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 
 	input, instructions := c.buildResponsesInputAndInstructions(req.Messages)
 	payload := map[string]any{
@@ -43,10 +31,6 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	if req.MaxTokens > 0 && !c.isCodexEndpoint() {
 		payload["max_output_tokens"] = req.MaxTokens
 	}
-	// Codex responses require instructions; opencode sets SystemPrompt.instructions() for codex.
-	// Sources:
-	// - packages/opencode/src/session/portsllm.ts (isCodex -> options.instructions)
-	// - packages/opencode/src/session/system.ts (SystemPrompt.instructions)
 	if c.isCodexEndpoint() {
 		payload["instructions"] = instructions
 	}
@@ -64,45 +48,13 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	}
 	logBody := redactDataURIs(body)
 
-	c.logger.Debug("%s=== LLM Request ===", prefix)
-	c.logger.Debug("%sURL: POST %s/responses", prefix, c.baseURL)
-	c.logger.Debug("%sModel: %s", prefix, c.model)
-
 	endpoint := c.baseURL + "/responses"
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	}
-	if c.maxRetries > 0 {
-		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
-	}
-	for k, v := range c.headers {
-		httpReq.Header.Set(k, v)
-	}
-
-	c.logger.Debug("%sRequest Headers:", prefix)
-	for k, v := range httpReq.Header {
-		var loggedValue string
-		switch strings.ToLower(k) {
-		case "authorization":
-			loggedValue = "Bearer (hidden)"
-		case "proxy-authorization", "cookie", "set-cookie", "x-api-key", "x-api_key", "x-auth-token", "x-amz-security-token", "x-amz-security-token-expires":
-			loggedValue = "(hidden)"
-		default:
-			loggedValue = strings.Join(v, ", ")
-		}
-		c.logger.Debug("%s  %s: %s", prefix, k, loggedValue)
-	}
+	c.logRequestMeta(prefix, "POST", endpoint)
 
 	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
 		return nil, wrapRequestError(err)
@@ -110,11 +62,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	defer func() { _ = resp.Body.Close() }()
 
 	c.logger.Debug("%s=== LLM Streaming Response ===", prefix)
-	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
-	c.logger.Debug("%sResponse Headers:", prefix)
-	for k, v := range resp.Header {
-		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
-	}
+	c.logResponseStatus(prefix, resp)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, readErr := readResponseBody(resp.Body)
@@ -262,9 +210,7 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		result.StopReason = "completed"
 	}
 
-	if c.usageCallback != nil {
-		c.usageCallback(result.Usage, c.model, "openai")
-	}
+	c.fireUsageCallback(result.Usage, "openai")
 
 	if respPayload, err := jsonx.Marshal(map[string]any{
 		"content":     result.Content,
@@ -277,17 +223,6 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		utils.LogStreamingResponsePayload(requestID, respPayload)
 	}
 
-	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
-	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
-	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
-	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
-	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
-		prefix,
-		result.Usage.PromptTokens,
-		result.Usage.CompletionTokens,
-		result.Usage.TotalTokens,
-	)
-	c.logger.Debug("%s==================", prefix)
-
+	c.logResponseSummary(prefix, result)
 	return result, nil
 }

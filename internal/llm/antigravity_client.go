@@ -1,20 +1,15 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 
 	"alex/internal/agent/ports"
 	portsllm "alex/internal/agent/ports/llm"
 	alexerrors "alex/internal/errors"
-	"alex/internal/httpclient"
 	"alex/internal/jsonx"
-	"alex/internal/logging"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
 )
@@ -23,51 +18,22 @@ const antigravityBaseURL = "https://cloudcode-pa.googleapis.com"
 
 // Antigravity client uses Gemini-style requests via cloudcode-pa.
 type antigravityClient struct {
-	model         string
-	apiKey        string
-	baseURL       string
-	httpClient    *http.Client
-	logger        logging.Logger
-	headers       map[string]string
-	maxRetries    int
-	usageCallback func(usage ports.TokenUsage, model string, provider string)
+	baseClient
 }
 
 // NewAntigravityClient constructs an LLM client for Antigravity (Gemini CLI API).
 func NewAntigravityClient(model string, config Config) (portsllm.LLMClient, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(config.BaseURL), "/")
-	if baseURL == "" {
-		baseURL = antigravityBaseURL
-	}
-
-	timeout := 120 * time.Second
-	if config.Timeout > 0 {
-		timeout = time.Duration(config.Timeout) * time.Second
-	}
-
-	logger := utils.NewCategorizedLogger(utils.LogCategoryLLM, "antigravity")
-
 	return &antigravityClient{
-		model:      model,
-		apiKey:     config.APIKey,
-		baseURL:    baseURL,
-		httpClient: httpclient.New(timeout, logger),
-		logger:     logger,
-		headers:    config.Headers,
-		maxRetries: config.MaxRetries,
+		baseClient: newBaseClient(model, config, baseClientOpts{
+			defaultBaseURL: antigravityBaseURL,
+			logCategory:    utils.LogCategoryLLM,
+			logComponent:   "antigravity",
+		}),
 	}, nil
 }
 
 func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	requestID := extractRequestID(req.Metadata)
-	if requestID == "" {
-		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
-	}
-	logID := id.LogIDFromContext(ctx)
-	prefix := fmt.Sprintf("[req:%s] ", requestID)
-	if logID != "" {
-		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
-	}
+	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 
 	payload := buildAntigravityPayload(req, requestID, c.model)
 	body, err := jsonx.Marshal(payload)
@@ -76,51 +42,18 @@ func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRe
 	}
 	logBody := redactDataURIs(body)
 
-	c.logger.Debug("%s=== LLM Request ===", prefix)
-	c.logger.Debug("%sURL: POST %s/v1internal:generateContent", prefix, c.baseURL)
-	c.logger.Debug("%sModel: %s", prefix, c.model)
-
 	endpoint := c.baseURL + "/v1internal:generateContent"
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	}
-	if c.maxRetries > 0 {
-		httpReq.Header.Set("X-Retry-Limit", fmt.Sprintf("%d", c.maxRetries))
-	}
-	for k, v := range c.headers {
-		httpReq.Header.Set(k, v)
-	}
-
-	c.logger.Debug("%sRequest Headers:", prefix)
-	for k := range httpReq.Header {
-		if k == "Authorization" {
-			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
-		} else {
-			c.logger.Debug("%s  %s: <redacted>", prefix, k)
-		}
-	}
-
+	c.logRequestMeta(prefix, "POST", endpoint)
 	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
 		return nil, wrapRequestError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	c.logger.Debug("%s=== LLM Response ===", prefix)
-	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
-	c.logger.Debug("%sResponse Headers:", prefix)
-	for k, v := range resp.Header {
-		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
-	}
+	c.logResponseStatus(prefix, resp)
 
 	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
@@ -138,26 +71,9 @@ func (c *antigravityClient) Complete(ctx context.Context, req ports.CompletionRe
 		return nil, err
 	}
 
-	if c.usageCallback != nil {
-		c.usageCallback(result.Usage, c.model, "antigravity")
-	}
-
-	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
-	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
-	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
-	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
-	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
-		prefix,
-		result.Usage.PromptTokens,
-		result.Usage.CompletionTokens,
-		result.Usage.TotalTokens)
-	c.logger.Debug("%s==================", prefix)
-
+	c.fireUsageCallback(result.Usage, "antigravity")
+	c.logResponseSummary(prefix, result)
 	return result, nil
-}
-
-func (c *antigravityClient) Model() string {
-	return c.model
 }
 
 // SetUsageCallback implements UsageTrackingClient.

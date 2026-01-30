@@ -1,72 +1,38 @@
 package llm
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
 	"alex/internal/agent/ports"
 	portsllm "alex/internal/agent/ports/llm"
 	alexerrors "alex/internal/errors"
-	"alex/internal/httpclient"
 	"alex/internal/jsonx"
-	"alex/internal/logging"
 	"alex/internal/utils"
-	id "alex/internal/utils/id"
 )
 
 // OpenAI API compatible client
 type openaiClient struct {
-	model         string
-	apiKey        string
-	baseURL       string
-	httpClient    *http.Client
-	logger        logging.Logger
-	headers       map[string]string
-	maxRetries    int
-	usageCallback func(usage ports.TokenUsage, model string, provider string)
+	baseClient
 }
 
 // NewOpenAIClient constructs an LLM client that speaks the OpenAI-compatible
 // chat completions API using the provided configuration.
 func NewOpenAIClient(model string, config Config) (portsllm.LLMClient, error) {
-	if config.BaseURL == "" {
-		config.BaseURL = "https://openrouter.ai/api/v1"
-	}
-
-	timeout := 120 * time.Second
-	if config.Timeout > 0 {
-		timeout = time.Duration(config.Timeout) * time.Second
-	}
-
-	logger := utils.NewCategorizedLogger(utils.LogCategoryLLM, "openai")
-
 	return &openaiClient{
-		model:      model,
-		apiKey:     config.APIKey,
-		baseURL:    strings.TrimRight(config.BaseURL, "/"),
-		httpClient: httpclient.New(timeout, logger),
-		logger:     logger,
-		headers:    config.Headers,
-		maxRetries: config.MaxRetries,
+		baseClient: newBaseClient(model, config, baseClientOpts{
+			defaultBaseURL: "https://openrouter.ai/api/v1",
+			logCategory:    utils.LogCategoryLLM,
+			logComponent:   "openai",
+		}),
 	}, nil
 }
 
 func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	requestID := extractRequestID(req.Metadata)
-	if requestID == "" {
-		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
-	}
-	logID := id.LogIDFromContext(ctx)
-	prefix := fmt.Sprintf("[req:%s] ", requestID)
-	if logID != "" {
-		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
-	}
+	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 
 	// Convert to OpenAI format
 	oaiReq := map[string]any{
@@ -103,60 +69,20 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	}
 	logBody := redactDataURIs(body)
 
-	// Debug log: Request details
-	c.logger.Debug("%s=== LLM Request ===", prefix)
-	c.logger.Debug("%sURL: POST %s/chat/completions", prefix, c.baseURL)
-	c.logger.Debug("%sModel: %s", prefix, c.model)
-
 	endpoint := c.baseURL + "/chat/completions"
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	}
-	if c.maxRetries > 0 {
-		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
-	}
-
-	for k, v := range c.headers {
-		httpReq.Header.Set(k, v)
-	}
-
-	// Debug log: Request headers
-	c.logger.Debug("%sRequest Headers:", prefix)
-	for k, v := range httpReq.Header {
-		if k == "Authorization" {
-			// Mask API key for security
-			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
-		} else {
-			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
-		}
-	}
+	c.logRequestMeta(prefix, "POST", endpoint)
 
 	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
 		return nil, wrapRequestError(err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Debug log: Response status
-	c.logger.Debug("%s=== LLM Response ===", prefix)
-	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
-
-	// Debug log: Response headers
-	c.logger.Debug("%sResponse Headers:", prefix)
-	for k, v := range resp.Header {
-		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
-	}
+	c.logResponseStatus(prefix, resp)
 
 	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
@@ -238,21 +164,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		result.Thinking = thinking
 	}
 
-	// Trigger usage callback if set
-	if c.usageCallback != nil {
-		provider := "openrouter"
-		switch {
-		case strings.Contains(c.baseURL, "api.openai.com"):
-			provider = "openai"
-		case strings.Contains(c.baseURL, "api.deepseek.com"):
-			provider = "deepseek"
-		case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
-			provider = "antigravity"
-		case strings.Contains(strings.ToLower(c.baseURL), "ark"):
-			provider = "ark"
-		}
-		c.usageCallback(result.Usage, c.model, provider)
-	}
+	c.fireUsageCallback(result.Usage, c.detectProvider())
 
 	// Convert tool calls
 	for _, tc := range oaiResp.Choices[0].Message.ToolCalls {
@@ -268,44 +180,15 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		})
 	}
 
-	// Debug log: Summary
-	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
-	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
-	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
-	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
-	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
-		prefix,
-		result.Usage.PromptTokens,
-		result.Usage.CompletionTokens,
-		result.Usage.TotalTokens)
-	c.logger.Debug("%s==================", prefix)
-
+	c.logResponseSummary(prefix, result)
 	return result, nil
 }
 
 // StreamComplete streams incremental completion deltas while constructing the
 // final aggregated response.
 func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
-	requestID := extractRequestID(req.Metadata)
-	if requestID == "" {
-		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
-	}
-	logID := id.LogIDFromContext(ctx)
-	prefix := fmt.Sprintf("[req:%s] ", requestID)
-	if logID != "" {
-		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
-	}
-	provider := "openrouter"
-	switch {
-	case strings.Contains(c.baseURL, "api.openai.com"):
-		provider = "openai"
-	case strings.Contains(c.baseURL, "api.deepseek.com"):
-		provider = "deepseek"
-	case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
-		provider = "antigravity"
-	case strings.Contains(strings.ToLower(c.baseURL), "ark"):
-		provider = "ark"
-	}
+	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
+	provider := c.detectProvider()
 
 	oaiReq := map[string]any{
 		"model":       c.model,
@@ -345,44 +228,14 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	}
 	logBody := redactDataURIs(body)
 
-	c.logger.Debug("%s=== LLM Request ===", prefix)
-	c.logger.Debug("%sURL: POST %s/chat/completions", prefix, c.baseURL)
-	c.logger.Debug("%sModel: %s", prefix, c.model)
-
 	endpoint := c.baseURL + "/chat/completions"
-
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Set("Content-Type", "application/json")
-	if c.apiKey != "" {
-		httpReq.Header.Set("Authorization", "Bearer "+c.apiKey)
-	}
-	if c.maxRetries > 0 {
-		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
-	}
-
-	for k, v := range c.headers {
-		httpReq.Header.Set(k, v)
-	}
-
-	c.logger.Debug("%sRequest Headers:", prefix)
-	for k, v := range httpReq.Header {
-		if k == "Authorization" {
-			c.logger.Debug("%s  %s: Bearer (hidden)", prefix, k)
-		} else {
-			c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
-		}
-	}
+	c.logRequestMeta(prefix, "POST", endpoint)
 
 	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
-
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
 
 	requestStarted := time.Now()
-	resp, err := c.httpClient.Do(httpReq)
+	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
 		return nil, wrapRequestError(err)
@@ -390,11 +243,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	defer func() { _ = resp.Body.Close() }()
 
 	c.logger.Debug("%s=== LLM Streaming Response ===", prefix)
-	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
-	c.logger.Debug("%sResponse Headers:", prefix)
-	for k, v := range resp.Header {
-		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
-	}
+	c.logResponseStatus(prefix, resp)
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		respBody, readErr := readResponseBody(resp.Body)
@@ -585,9 +434,7 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		})
 	}
 
-	if c.usageCallback != nil {
-		c.usageCallback(result.Usage, c.model, provider)
-	}
+	c.fireUsageCallback(result.Usage, provider)
 
 	if respPayload, err := jsonx.Marshal(map[string]any{
 		"content":     result.Content,
@@ -600,27 +447,29 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		utils.LogStreamingResponsePayload(requestID, respPayload)
 	}
 
-	c.logger.Debug("%s=== LLM Streaming Summary ===", prefix)
-	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
-	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
-	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
-	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
-		prefix,
-		result.Usage.PromptTokens,
-		result.Usage.CompletionTokens,
-		result.Usage.TotalTokens)
-	c.logger.Debug("%s==================", prefix)
-
+	c.logResponseSummary(prefix, result)
 	return result, nil
-}
-
-func (c *openaiClient) Model() string {
-	return c.model
 }
 
 // SetUsageCallback implements UsageTrackingClient
 func (c *openaiClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
 	c.usageCallback = callback
+}
+
+// detectProvider infers the provider name from the base URL.
+func (c *openaiClient) detectProvider() string {
+	switch {
+	case strings.Contains(c.baseURL, "api.openai.com"):
+		return "openai"
+	case strings.Contains(c.baseURL, "api.deepseek.com"):
+		return "deepseek"
+	case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
+		return "antigravity"
+	case strings.Contains(strings.ToLower(c.baseURL), "ark"):
+		return "ark"
+	default:
+		return "openrouter"
+	}
 }
 
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {

@@ -7,17 +7,12 @@ import (
 	"mime"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
-	"time"
 
 	"alex/internal/agent/ports"
 	portsllm "alex/internal/agent/ports/llm"
-	"alex/internal/httpclient"
 	"alex/internal/jsonx"
-	"alex/internal/logging"
 	"alex/internal/utils"
-	id "alex/internal/utils/id"
 )
 
 const (
@@ -33,49 +28,21 @@ const (
 )
 
 type anthropicClient struct {
-	model         string
-	apiKey        string
-	baseURL       string
-	httpClient    *http.Client
-	logger        logging.Logger
-	headers       map[string]string
-	maxRetries    int
-	usageCallback func(usage ports.TokenUsage, model string, provider string)
+	baseClient
 }
 
 func NewAnthropicClient(model string, config Config) (portsllm.LLMClient, error) {
-	if config.BaseURL == "" {
-		config.BaseURL = defaultAnthropicBaseURL
-	}
-
-	timeout := 120 * time.Second
-	if config.Timeout > 0 {
-		timeout = time.Duration(config.Timeout) * time.Second
-	}
-
-	logger := utils.NewCategorizedLogger(utils.LogCategoryLLM, "anthropic")
-
 	return &anthropicClient{
-		model:      model,
-		apiKey:     config.APIKey,
-		baseURL:    strings.TrimRight(config.BaseURL, "/"),
-		httpClient: httpclient.New(timeout, logger),
-		logger:     logger,
-		headers:    config.Headers,
-		maxRetries: config.MaxRetries,
+		baseClient: newBaseClient(model, config, baseClientOpts{
+			defaultBaseURL: defaultAnthropicBaseURL,
+			logCategory:    utils.LogCategoryLLM,
+			logComponent:   "anthropic",
+		}),
 	}, nil
 }
 
 func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
-	requestID := extractRequestID(req.Metadata)
-	if requestID == "" {
-		requestID = id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
-	}
-	logID := id.LogIDFromContext(ctx)
-	prefix := fmt.Sprintf("[req:%s] ", requestID)
-	if logID != "" {
-		prefix = fmt.Sprintf("[log_id=%s] %s", logID, prefix)
-	}
+	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 
 	messages, system := c.convertMessages(req.Messages)
 	payload := map[string]any{
@@ -105,11 +72,11 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	}
 	logBody := redactDataURIs(body)
 
-	c.logger.Debug("%s=== LLM Request ===", prefix)
-	c.logger.Debug("%sURL: POST %s%s", prefix, c.baseURL, anthropicMessagesPath)
-	c.logger.Debug("%sModel: %s", prefix, c.model)
-
 	endpoint := c.baseURL + anthropicMessagesPath
+	c.logRequestMeta(prefix, "POST", endpoint)
+
+	// Anthropic uses custom auth (x-api-key or OAuth Bearer) instead of standard Bearer,
+	// so we build the request manually rather than using doPost.
 	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return nil, err
@@ -117,7 +84,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 
 	httpReq.Header.Set("Content-Type", anthropicRequestContentType)
 	if c.maxRetries > 0 {
-		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
+		httpReq.Header.Set("X-Retry-Limit", fmt.Sprintf("%d", c.maxRetries))
 	}
 	for k, v := range c.headers {
 		httpReq.Header.Set(k, v)
@@ -153,16 +120,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		)
 	}
 
-	c.logger.Debug("%sRequest Headers:", prefix)
-	for k, v := range httpReq.Header {
-		if strings.EqualFold(k, anthropicRequestHeaderKey) || strings.EqualFold(k, "Authorization") {
-			c.logger.Debug("%s  %s: (hidden)", prefix, k)
-		} else {
-			// Avoid logging potentially sensitive header values; only indicate presence.
-			_ = v
-			c.logger.Debug("%s  %s: (present)", prefix, k)
-		}
-	}
+	c.logRequestHeaders(prefix, httpReq.Header)
 
 	c.logger.Debug("%sRequest Body: %s", prefix, string(logBody))
 	utils.LogStreamingRequestPayload(requestID, append([]byte(nil), logBody...))
@@ -174,12 +132,7 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	c.logger.Debug("%s=== LLM Response ===", prefix)
-	c.logger.Debug("%sStatus: %d %s", prefix, resp.StatusCode, resp.Status)
-	c.logger.Debug("%sResponse Headers:", prefix)
-	for k, v := range resp.Header {
-		c.logger.Debug("%s  %s: %s", prefix, k, strings.Join(v, ", "))
-	}
+	c.logResponseStatus(prefix, resp)
 
 	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
@@ -227,30 +180,13 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		result.Thinking = thinking
 	}
 
-	if c.usageCallback != nil {
-		c.usageCallback(result.Usage, c.model, "anthropic")
-	}
+	c.fireUsageCallback(result.Usage, "anthropic")
 
 	c.logger.Debug("%sResponse Body: %s", prefix, string(respBody))
 	utils.LogStreamingResponsePayload(requestID, append([]byte(nil), respBody...))
 
-	c.logger.Debug("%s=== LLM Response Summary ===", prefix)
-	c.logger.Debug("%sStop Reason: %s", prefix, result.StopReason)
-	c.logger.Debug("%sContent Length: %d chars", prefix, len(result.Content))
-	c.logger.Debug("%sTool Calls: %d", prefix, len(result.ToolCalls))
-	c.logger.Debug("%sUsage: %d prompt + %d completion = %d total tokens",
-		prefix,
-		result.Usage.PromptTokens,
-		result.Usage.CompletionTokens,
-		result.Usage.TotalTokens,
-	)
-	c.logger.Debug("%s==================", prefix)
-
+	c.logResponseSummary(prefix, result)
 	return result, nil
-}
-
-func (c *anthropicClient) Model() string {
-	return c.model
 }
 
 func (c *anthropicClient) SetUsageCallback(callback func(usage ports.TokenUsage, model string, provider string)) {
