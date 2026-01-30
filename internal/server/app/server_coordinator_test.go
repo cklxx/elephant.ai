@@ -283,7 +283,7 @@ func TestServerCoordinatorAnalyticsCapture(t *testing.T) {
 	)
 
 	ctx := context.Background()
-	coordinator.emitWorkflowInputReceivedEvent(ctx, "session-analytics", "task-analytics", "capture metrics")
+	coordinator.Tasks.emitWorkflowInputReceivedEvent(ctx, "session-analytics", "task-analytics", "capture metrics")
 
 	if len(analyticsMock.captures) != 1 {
 		t.Fatalf("expected 1 analytics capture, got %d", len(analyticsMock.captures))
