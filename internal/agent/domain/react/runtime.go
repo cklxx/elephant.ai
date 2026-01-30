@@ -10,6 +10,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/textutil"
 	"alex/internal/jsonx"
 	"alex/internal/memory"
 	id "alex/internal/utils/id"
@@ -875,40 +876,7 @@ func extractRecentKeywords(results []ToolResult, limit int) []string {
 			tokens = append(tokens, res.Content)
 		}
 	}
-	return extractKeywordsFromText(strings.Join(tokens, " "))
-}
-
-func extractKeywordsFromText(text string) []string {
-	fields := strings.FieldsFunc(text, func(r rune) bool {
-		if r >= 'a' && r <= 'z' {
-			return false
-		}
-		if r >= 'A' && r <= 'Z' {
-			return false
-		}
-		if r >= '0' && r <= '9' {
-			return false
-		}
-		if r >= 0x4E00 && r <= 0x9FFF {
-			return false
-		}
-		return true
-	})
-
-	seen := make(map[string]bool, len(fields))
-	var keywords []string
-	for _, field := range fields {
-		lower := strings.ToLower(strings.TrimSpace(field))
-		if lower == "" || len(lower) < 2 || seen[lower] {
-			continue
-		}
-		seen[lower] = true
-		keywords = append(keywords, lower)
-		if len(keywords) >= 10 {
-			break
-		}
-	}
-	return keywords
+	return textutil.ExtractKeywords(strings.Join(tokens, " "), textutil.KeywordOptions{})
 }
 
 func formatRefreshMemories(entries []memory.Entry, maxTokens int) string {

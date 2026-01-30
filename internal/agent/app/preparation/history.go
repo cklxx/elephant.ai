@@ -10,6 +10,7 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	llm "alex/internal/agent/ports/llm"
 	storage "alex/internal/agent/ports/storage"
+	"alex/internal/agent/textutil"
 	id "alex/internal/utils/id"
 )
 
@@ -205,7 +206,7 @@ func condenseHistoryText(value string, limit int) string {
 	if trimmed == "" {
 		return ""
 	}
-	normalized := normalizeWhitespace(trimmed)
+	normalized := textutil.NormalizeWhitespace(trimmed)
 	runes := []rune(normalized)
 	if len(runes) <= limit {
 		return normalized
@@ -214,13 +215,6 @@ func condenseHistoryText(value string, limit int) string {
 		return string(runes[:1])
 	}
 	return string(runes[:limit-1]) + "…"
-}
-
-func normalizeWhitespace(value string) string {
-	if value == "" {
-		return ""
-	}
-	return strings.Join(strings.Fields(value), " ")
 }
 
 func historyMessagesFromSession(messages []ports.Message) []ports.Message {

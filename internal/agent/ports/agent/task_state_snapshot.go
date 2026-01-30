@@ -88,10 +88,10 @@ func CloneTaskState(state *TaskState) *TaskState {
 		cloned.KnowledgeRefs = CloneKnowledgeReferences(state.KnowledgeRefs)
 	}
 	if len(state.WorldState) > 0 {
-		cloned.WorldState = cloneMapAny(state.WorldState)
+		cloned.WorldState = CloneMapAny(state.WorldState)
 	}
 	if len(state.WorldDiff) > 0 {
-		cloned.WorldDiff = cloneMapAny(state.WorldDiff)
+		cloned.WorldDiff = CloneMapAny(state.WorldDiff)
 	}
 	if len(state.FeedbackSignals) > 0 {
 		cloned.FeedbackSignals = CloneFeedbackSignals(state.FeedbackSignals)
@@ -230,7 +230,8 @@ func CloneFeedbackSignals(signals []FeedbackSignal) []FeedbackSignal {
 	return cloned
 }
 
-func cloneMapAny(input map[string]any) map[string]any {
+// CloneMapAny deep copies a map[string]any, recursively cloning nested values.
+func CloneMapAny(input map[string]any) map[string]any {
 	if len(input) == 0 {
 		return nil
 	}
@@ -244,14 +245,14 @@ func cloneMapAny(input map[string]any) map[string]any {
 func cloneWorldValue(value any) any {
 	switch v := value.(type) {
 	case map[string]any:
-		return cloneMapAny(v)
+		return CloneMapAny(v)
 	case []map[string]any:
 		if len(v) == 0 {
 			return nil
 		}
 		cloned := make([]map[string]any, len(v))
 		for i := range v {
-			cloned[i] = cloneMapAny(v[i])
+			cloned[i] = CloneMapAny(v[i])
 		}
 		return cloned
 	case []string:
