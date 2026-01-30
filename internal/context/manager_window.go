@@ -86,7 +86,17 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		window.Static.EnvironmentSummary = ""
 	}
 
-	window.SystemPrompt = composeSystemPrompt(m.logger, window.Static, window.Dynamic, window.Meta, omitEnvironment)
+	window.SystemPrompt = composeSystemPrompt(systemPromptInput{
+		Logger:          m.logger,
+		Static:          window.Static,
+		Dynamic:         window.Dynamic,
+		Meta:            window.Meta,
+		OmitEnvironment: omitEnvironment,
+		TaskInput:       cfg.TaskInput,
+		Messages:        window.Messages,
+		SessionID:       session.ID,
+		SkillsConfig:    cfg.Skills,
+	})
 	return window, nil
 }
 

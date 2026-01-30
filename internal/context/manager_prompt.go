@@ -12,19 +12,31 @@ import (
 	"alex/internal/skills"
 )
 
-func composeSystemPrompt(logger logging.Logger, static agent.StaticContext, dynamic agent.DynamicContext, meta agent.MetaContext, omitEnvironment bool) string {
+type systemPromptInput struct {
+	Logger          logging.Logger
+	Static          agent.StaticContext
+	Dynamic         agent.DynamicContext
+	Meta            agent.MetaContext
+	OmitEnvironment bool
+	TaskInput       string
+	Messages        []ports.Message
+	SessionID       string
+	SkillsConfig    agent.SkillsConfig
+}
+
+func composeSystemPrompt(input systemPromptInput) string {
 	sections := []string{
-		buildUserPersonaSection(static.UserPersona),
-		buildIdentitySection(static.Persona),
-		buildGoalsSection(static.Goal),
-		buildPoliciesSection(static.Policies),
-		buildKnowledgeSection(static.Knowledge),
-		buildSkillsSection(logger),
+		buildUserPersonaSection(input.Static.UserPersona),
+		buildIdentitySection(input.Static.Persona),
+		buildGoalsSection(input.Static.Goal),
+		buildPoliciesSection(input.Static.Policies),
+		buildKnowledgeSection(input.Static.Knowledge),
+		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
 	}
-	if !omitEnvironment {
-		sections = append(sections, buildEnvironmentSection(static))
+	if !input.OmitEnvironment {
+		sections = append(sections, buildEnvironmentSection(input.Static))
 	}
-	sections = append(sections, buildDynamicSection(dynamic), buildMetaSection(meta))
+	sections = append(sections, buildDynamicSection(input.Dynamic), buildMetaSection(input.Meta))
 	var compact []string
 	for _, section := range sections {
 		if trimmed := strings.TrimSpace(section); trimmed != "" {
@@ -124,13 +136,149 @@ func buildUserPersonaSection(profile *ports.UserPersonaProfile) string {
 	return formatSection("# User Persona Core (Highest Priority)", lines)
 }
 
-func buildSkillsSection(logger logging.Logger) string {
-	library, err := skills.DefaultLibrary()
+func buildSkillsSection(logger logging.Logger, taskInput string, messages []ports.Message, sessionID string, cfg agent.SkillsConfig) string {
+	library, err := skills.CachedLibrary(time.Duration(cfg.AutoActivation.CacheTTLSeconds) * time.Second)
 	if err != nil {
 		logging.OrNop(logger).Warn("Failed to load skills: %v", err)
 		return ""
 	}
-	return skills.IndexMarkdown(library)
+
+	autoCfg := skills.AutoActivationConfig{
+		Enabled:             cfg.AutoActivation.Enabled,
+		MaxActivated:        cfg.AutoActivation.MaxActivated,
+		TokenBudget:         cfg.AutoActivation.TokenBudget,
+		ConfidenceThreshold: cfg.AutoActivation.ConfidenceThreshold,
+		FallbackToIndex:     cfg.AutoActivation.FallbackToIndex,
+	}
+
+	feedbackStore := skills.NewFeedbackStore(skills.FeedbackConfig{
+		Enabled:   cfg.Feedback.Enabled,
+		StorePath: cfg.Feedback.StorePath,
+	})
+
+	var matches []skills.MatchResult
+	if autoCfg.Enabled && strings.TrimSpace(taskInput) != "" {
+		matcher := skills.NewSkillMatcher(&library, skills.MatcherOptions{FeedbackStore: feedbackStore})
+		matches = matcher.Match(skills.MatchContext{
+			TaskInput:   taskInput,
+			RecentTools: extractRecentTools(messages, 8),
+			SessionID:   sessionID,
+		}, autoCfg)
+		matches = skills.ApplyActivationLimits(matches, autoCfg)
+		matcher.MarkActivated(sessionID, matches)
+		if feedbackStore != nil {
+			feedbackStore.RecordActivations(matches)
+		}
+	}
+
+	var sb strings.Builder
+	if len(matches) > 0 {
+		sb.WriteString("# Activated Skills\n\n")
+		sb.WriteString("The following skills were automatically activated based on the current task. Follow their workflow instructions.\n\n")
+		for _, match := range matches {
+			body := match.Skill.Body
+			if len(match.Skill.Chain) > 0 {
+				if resolved, err := library.ResolveChain(skills.SkillChain{Steps: match.Skill.Chain}); err == nil {
+					body = resolved
+				}
+			}
+			if strings.TrimSpace(body) == "" {
+				continue
+			}
+			sb.WriteString(fmt.Sprintf("## Skill: %s (confidence: %.0f%%)\n\n", match.Skill.Name, match.Score*100))
+			sb.WriteString(body)
+			sb.WriteString("\n\n---\n\n")
+		}
+	}
+
+	if autoCfg.FallbackToIndex {
+		remaining := filterSkills(library.List(), matches)
+		if len(remaining) > 0 {
+			sb.WriteString("# Other Available Skills\n\n")
+			sb.WriteString("Use the `skills` tool to load any of the following playbooks:\n\n")
+			for _, skill := range remaining {
+				desc := strings.TrimSpace(skill.Description)
+				if desc == "" {
+					desc = "(no description)"
+				}
+				sb.WriteString(fmt.Sprintf("- `%s` — %s\n", skill.Name, desc))
+			}
+		}
+	} else if len(matches) == 0 {
+		return skills.IndexMarkdown(library)
+	}
+
+	return strings.TrimSpace(sb.String())
+}
+
+func filterSkills(all []skills.Skill, matches []skills.MatchResult) []skills.Skill {
+	if len(matches) == 0 {
+		return all
+	}
+	selected := make(map[string]bool, len(matches))
+	for _, match := range matches {
+		selected[skills.NormalizeName(match.Skill.Name)] = true
+	}
+	out := make([]skills.Skill, 0, len(all))
+	for _, skill := range all {
+		if selected[skills.NormalizeName(skill.Name)] {
+			continue
+		}
+		out = append(out, skill)
+	}
+	return out
+}
+
+func extractRecentTools(messages []ports.Message, limit int) []string {
+	if limit <= 0 {
+		return nil
+	}
+	seen := make(map[string]bool, limit)
+	var tools []string
+	for i := len(messages) - 1; i >= 0 && len(tools) < limit; i-- {
+		msg := messages[i]
+		if msg.Role == "assistant" {
+			for _, call := range msg.ToolCalls {
+				name := strings.TrimSpace(call.Name)
+				if name == "" || seen[name] {
+					continue
+				}
+				seen[name] = true
+				tools = append(tools, name)
+				if len(tools) >= limit {
+					break
+				}
+			}
+		}
+		if msg.Role == "tool" {
+			for _, result := range msg.ToolResults {
+				name := extractToolNameFromMetadata(result.Metadata)
+				if name == "" || seen[name] {
+					continue
+				}
+				seen[name] = true
+				tools = append(tools, name)
+				if len(tools) >= limit {
+					break
+				}
+			}
+		}
+	}
+	return tools
+}
+
+func extractToolNameFromMetadata(metadata map[string]any) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+	for _, key := range []string{"tool_name", "tool", "name"} {
+		if raw, ok := metadata[key]; ok {
+			if name, ok := raw.(string); ok {
+				return strings.TrimSpace(name)
+			}
+		}
+	}
+	return ""
 }
 
 func buildIdentitySection(persona agent.PersonaProfile) string {

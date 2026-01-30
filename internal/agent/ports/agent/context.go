@@ -51,6 +51,8 @@ type ContextWindowConfig struct {
 	ToolMode           string
 	ToolPreset         string
 	EnvironmentSummary string
+	TaskInput          string
+	Skills             SkillsConfig
 }
 
 // ContextWindow exposes the layered context returned by the manager.
@@ -76,15 +78,15 @@ type ContextWindowPreview struct {
 
 // StaticContext captures persona, goals, rules and knowledge packs.
 type StaticContext struct {
-	Persona            PersonaProfile       `json:"persona"`
-	Goal               GoalProfile          `json:"goal"`
-	Policies           []PolicyRule         `json:"policies"`
-	Knowledge          []KnowledgeReference `json:"knowledge"`
-	Tools              []string             `json:"tools"`
-	World              WorldProfile         `json:"world"`
+	Persona            PersonaProfile           `json:"persona"`
+	Goal               GoalProfile              `json:"goal"`
+	Policies           []PolicyRule             `json:"policies"`
+	Knowledge          []KnowledgeReference     `json:"knowledge"`
+	Tools              []string                 `json:"tools"`
+	World              WorldProfile             `json:"world"`
 	UserPersona        *core.UserPersonaProfile `json:"user_persona,omitempty"`
-	EnvironmentSummary string               `json:"environment_summary,omitempty"`
-	Version            string               `json:"version,omitempty"`
+	EnvironmentSummary string                   `json:"environment_summary,omitempty"`
+	Version            string                   `json:"version,omitempty"`
 }
 
 // DynamicContext contains plans, beliefs and world-state diffs.

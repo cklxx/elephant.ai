@@ -18,6 +18,7 @@ import (
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/agent/presets"
 	"alex/internal/async"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
@@ -192,6 +193,8 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				ToolMode:           string(toolMode),
 				ToolPreset:         toolPreset,
 				EnvironmentSummary: s.config.EnvironmentSummary,
+				TaskInput:          task,
+				Skills:             buildSkillsConfig(s.config.Proactive.Skills),
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)
@@ -531,4 +534,21 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 			s.logger.Warn("Async title: failed to persist: %v", err)
 		}
 	})
+}
+
+func buildSkillsConfig(cfg runtimeconfig.SkillsConfig) agent.SkillsConfig {
+	return agent.SkillsConfig{
+		AutoActivation: agent.SkillAutoActivationConfig{
+			Enabled:             cfg.AutoActivation.Enabled,
+			MaxActivated:        cfg.AutoActivation.MaxActivated,
+			TokenBudget:         cfg.AutoActivation.TokenBudget,
+			ConfidenceThreshold: cfg.AutoActivation.ConfidenceThreshold,
+			CacheTTLSeconds:     cfg.CacheTTLSeconds,
+			FallbackToIndex:     true,
+		},
+		Feedback: agent.SkillFeedbackConfig{
+			Enabled:   cfg.Feedback.Enabled,
+			StorePath: cfg.Feedback.StorePath,
+		},
+	}
 }
