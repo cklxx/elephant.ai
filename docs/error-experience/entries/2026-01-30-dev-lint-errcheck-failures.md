@@ -13,3 +13,7 @@
 
 ## Remediation Ideas
 - Update the tests to assert/handle returned errors.
+
+## Resolution
+- Added error checks in `internal/agent/app/hooks/memory_capture_test.go` and `internal/agent/app/hooks/integration_test.go`.
+- `./dev.sh lint` passes.

@@ -21,3 +21,6 @@
 - 2026-01-30: Restored ToolOutputCard chevron affordance.
 - 2026-01-30: `./dev.sh lint` failed (errcheck in hooks tests); logged error experience entry.
 - 2026-01-30: `./dev.sh test` passed (linker warnings about malformed LC_DYSYMTAB).
+- 2026-01-30: Fixed errcheck issues in hooks tests; re-running lint/tests.
+- 2026-01-30: `./dev.sh lint` passed after errcheck fixes.
+- 2026-01-30: `./dev.sh test` passed (linker warnings about malformed LC_DYSYMTAB).
