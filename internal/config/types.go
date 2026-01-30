@@ -149,8 +149,16 @@ type ProactiveConfig struct {
 	Memory    MemoryConfig    `json:"memory" yaml:"memory"`
 	Skills    SkillsConfig    `json:"skills" yaml:"skills"`
 	RAG       RAGConfig       `json:"rag" yaml:"rag"`
+	OKR       OKRProactiveConfig `json:"okr" yaml:"okr"`
 	Scheduler SchedulerConfig `json:"scheduler" yaml:"scheduler"`
 	Attention AttentionConfig `json:"attention" yaml:"attention"`
+}
+
+// OKRProactiveConfig configures OKR goal management behavior.
+type OKRProactiveConfig struct {
+	Enabled    bool   `json:"enabled" yaml:"enabled"`
+	GoalsRoot  string `json:"goals_root" yaml:"goals_root"`  // default: ~/.alex/goals
+	AutoInject bool   `json:"auto_inject" yaml:"auto_inject"` // inject OKR context into tasks
 }
 
 // MemoryConfig drives automatic memory behavior.
@@ -219,6 +227,7 @@ type SchedulerTriggerConfig struct {
 	Task             string `json:"task" yaml:"task"`
 	Channel          string `json:"channel" yaml:"channel"`
 	UserID           string `json:"user_id" yaml:"user_id"`
+	ChatID           string `json:"chat_id" yaml:"chat_id"` // channel-specific chat ID for notifications
 	ApprovalRequired bool   `json:"approval_required" yaml:"approval_required"`
 	Risk             string `json:"risk" yaml:"risk"`
 }
@@ -267,6 +276,10 @@ func DefaultProactiveConfig() ProactiveConfig {
 		RAG: RAGConfig{
 			Enabled:       false,
 			MinSimilarity: 0.7,
+		},
+		OKR: OKRProactiveConfig{
+			Enabled:    false,
+			AutoInject: true,
 		},
 		Scheduler: SchedulerConfig{
 			Enabled: false,

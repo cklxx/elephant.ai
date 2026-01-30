@@ -18,6 +18,7 @@ import (
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
 	"alex/internal/tools/builtin/larktools"
+	okrtools "alex/internal/tools/builtin/okr"
 	"alex/internal/tools/builtin/media"
 	memorytools "alex/internal/tools/builtin/memory"
 	"alex/internal/tools/builtin/orchestration"
@@ -69,6 +70,7 @@ type Config struct {
 	APIKey        string
 	BaseURL       string
 	MemoryService memory.Service
+	OKRGoalsRoot  string
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -105,6 +107,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		ACPExecutorMaxDuration:     config.ACPExecutorMaxDuration,
 		ACPExecutorRequireManifest: config.ACPExecutorRequireManifest,
 		MemoryService:              config.MemoryService,
+		OKRGoalsRoot:               config.OKRGoalsRoot,
 	}); err != nil {
 		return nil, err
 	}
@@ -492,6 +495,14 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// Lark tools
 	r.static["lark_chat_history"] = larktools.NewLarkChatHistory()
+
+	// OKR tools
+	okrCfg := okrtools.DefaultOKRConfig()
+	if config.OKRGoalsRoot != "" {
+		okrCfg.GoalsRoot = config.OKRGoalsRoot
+	}
+	r.static["okr_read"] = okrtools.NewOKRRead(okrCfg)
+	r.static["okr_write"] = okrtools.NewOKRWrite(okrCfg)
 
 	return nil
 }

@@ -14,6 +14,7 @@ import (
 	agentcost "alex/internal/agent/app/cost"
 	"alex/internal/agent/app/hooks"
 	agent "alex/internal/agent/ports/agent"
+	okrtools "alex/internal/tools/builtin/okr"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
@@ -471,6 +472,20 @@ func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hook
 		}
 	}
 
+	// Register OKR context hook (pre-task OKR injection)
+	if b.config.Proactive.OKR.Enabled {
+		okrCfg := okrtools.DefaultOKRConfig()
+		if goalsRoot := b.config.Proactive.OKR.GoalsRoot; goalsRoot != "" {
+			okrCfg.GoalsRoot = resolveStorageDir(goalsRoot, okrCfg.GoalsRoot)
+		}
+		okrStore := okrtools.NewGoalStore(okrCfg)
+		okrHook := hooks.NewOKRContextHook(okrStore, b.logger, hooks.OKRContextConfig{
+			Enabled:    b.config.Proactive.OKR.Enabled,
+			AutoInject: b.config.Proactive.OKR.AutoInject,
+		})
+		registry.Register(okrHook)
+	}
+
 	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())
 	return registry
 }
@@ -500,9 +515,17 @@ func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService
 		SeedreamVisionModel:        b.config.SeedreamVisionModel,
 		SeedreamVideoModel:         b.config.SeedreamVideoModel,
 		MemoryService:              memoryService,
+		OKRGoalsRoot:               b.resolveOKRGoalsRoot(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
 	}
 	return toolRegistry, nil
+}
+
+func (b *containerBuilder) resolveOKRGoalsRoot() string {
+	if root := b.config.Proactive.OKR.GoalsRoot; root != "" {
+		return resolveStorageDir(root, "")
+	}
+	return "" // Let OKR tools use their own default
 }
