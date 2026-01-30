@@ -5,8 +5,9 @@
 > **Created:** 2026-01-30
 > **Updated:** 2026-01-30
 
-> **⚠️ 执行顺序：** 本方案应**先于** `2026-01-30-memory-architecture-improvement.md` Phase 1 执行。
-> 本方案给 Lark 稳定 session ID → session history 自动生效 → larkMemoryManager 的 recall 变得冗余 → Phase 1 删除水到渠成。
+> **⚠️ 执行顺序（更新）：** 源码验证表明 `larkMemoryManager` 在 gateway 中已 **dormant**。
+> 本方案与 `2026-01-30-memory-architecture-improvement.md` Phase 1 **可并行开发**，
+> 但推荐部署顺序仍为：Plan 2（稳定 session）→ Phase 1（ConversationCaptureHook + 清理 dormant 代码）→ Phase 2-4。
 
 ## 1. Problem
 
