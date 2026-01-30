@@ -52,6 +52,8 @@ export function useSSE(
     sessionId,
     isConnected: false,
     isReconnecting: false,
+    isSlowRetry: false,
+    activeRunId: null,
     error: null,
     reconnectAttempts: 0,
   }));
@@ -66,6 +68,7 @@ export function useSSE(
   const initialUserId = authClient.getSession()?.user.id?.trim() || null;
   const userIdRef = useRef<string | null>(initialUserId);
   const onEventRef = useRef(onEvent);
+  const activeRunIdRef = useRef<string | null>(null);
 
   // Keep refs in sync
   useEffect(() => {
@@ -96,6 +99,16 @@ export function useSSE(
       const processedEvents: AnyAgentEvent[] = [];
 
       pendingEvents.forEach((event) => {
+        // Extract active_run_id from connected events
+        if (event.event_type === "connected" && "active_run_id" in event) {
+          const runId = (event as Record<string, unknown>).active_run_id;
+          activeRunIdRef.current = typeof runId === "string" && runId !== "" ? runId : null;
+          setConnectionState((prev) => ({
+            ...prev,
+            activeRunId: activeRunIdRef.current,
+          }));
+        }
+
         // Apply streaming buffer merge
         const bufferedEvent = mergeStreamingTaskComplete(event);
 
@@ -393,11 +406,21 @@ export function useSSE(
     Boolean(sessionId) && connectionState.sessionId === sessionId
       ? connectionState.reconnectAttempts
       : 0;
+  const isSlowRetry =
+    Boolean(sessionId) && connectionState.sessionId === sessionId
+      ? connectionState.isSlowRetry
+      : false;
+  const activeRunId =
+    Boolean(sessionId) && connectionState.sessionId === sessionId
+      ? connectionState.activeRunId
+      : null;
 
   return {
     events,
     isConnected,
     isReconnecting,
+    isSlowRetry,
+    activeRunId,
     error,
     reconnectAttempts,
     clearEvents,

@@ -11,6 +11,7 @@ import { authClient } from "@/lib/auth/client";
 import { createLogger } from "@/lib/logger";
 import { performanceMonitor } from "@/lib/analytics/performance";
 import type { SSEReplayMode } from "@/lib/api";
+import { SLOW_RETRY_INTERVAL_MS } from "./types";
 import type { ConnectionState } from "./types";
 
 const log = createLogger("SSE");
@@ -129,19 +130,6 @@ export function useSSEConnection(
       return;
     }
 
-    // Check if we've exceeded max attempts
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      log.warn("Max reconnection attempts reached, stopping auto-reconnect");
-      onConnectionStateChange({
-        sessionId: currentSessionId,
-        isConnected: false,
-        isReconnecting: false,
-        error: "Maximum reconnection attempts exceeded",
-        reconnectAttempts: maxReconnectAttempts,
-      });
-      return;
-    }
-
     isConnectingRef.current = true;
     isDisposedRef.current = false;
     connectionStartTimeRef.current = performance.now();
@@ -172,6 +160,8 @@ export function useSSEConnection(
           sessionId: currentSessionId,
           isConnected: true,
           isReconnecting: false,
+          isSlowRetry: false,
+          activeRunId: null,
           error: null,
           reconnectAttempts: 0,
         });
@@ -197,10 +187,15 @@ export function useSSEConnection(
 
         const nextAttempts = reconnectAttemptsRef.current + 1;
         reconnectAttemptsRef.current = nextAttempts;
-        const clampedAttempts = Math.min(nextAttempts, maxReconnectAttempts);
 
-        if (nextAttempts > maxReconnectAttempts) {
-          log.warn("Maximum reconnection attempts exceeded");
+        // Two-phase reconnection: fast exponential backoff, then slow 60s intervals
+        const isFastPhase = nextAttempts <= maxReconnectAttempts;
+        const delay = isFastPhase
+          ? Math.min(1000 * 2 ** (nextAttempts - 1), 30000) + Math.random() * 1000
+          : SLOW_RETRY_INTERVAL_MS + Math.random() * 5000;
+
+        if (!isFastPhase && nextAttempts === maxReconnectAttempts + 1) {
+          log.warn("Fast reconnection attempts exhausted, switching to slow retry");
           const startTime = connectionStartTimeRef.current;
           connectionStartTimeRef.current = null;
           if (startTime !== null) {
@@ -211,41 +206,60 @@ export function useSSEConnection(
               reconnectCount: nextAttempts,
             });
           }
-          onConnectionStateChange({
-            sessionId: currentSessionId,
-            isConnected: false,
-            isReconnecting: false,
-            error: "Maximum reconnection attempts exceeded",
-            reconnectAttempts: maxReconnectAttempts,
-          });
-          return;
         }
 
-        const delay = Math.min(1000 * 2 ** (nextAttempts - 1), 30000) + Math.random() * 1000;
-        log.debug(`Scheduling reconnect attempt ${nextAttempts}/${maxReconnectAttempts} in ${delay}ms`);
+        log.debug(`Scheduling reconnect attempt ${nextAttempts} in ${Math.round(delay)}ms (${isFastPhase ? "fast" : "slow"} phase)`);
         onConnectionStateChange({
           sessionId: currentSessionId,
           isConnected: false,
           isReconnecting: true,
+          isSlowRetry: !isFastPhase,
+          activeRunId: null,
           error: serverErrorMessage,
-          reconnectAttempts: clampedAttempts,
+          reconnectAttempts: nextAttempts,
         });
 
         reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null;
           if (!isDisposedRef.current) {
             void connectInternalRef.current?.();
           }
         }, delay);
       },
       onClose: () => {
-        if (!isDisposedRef.current) {
+        if (isDisposedRef.current) return;
+
+        if (clientRef.current) {
+          clientRef.current = null;
+        }
+        isConnectingRef.current = false;
+
+        // Only schedule reconnect if onError hasn't already done so
+        if (reconnectTimeoutRef.current === null) {
+          const nextAttempts = reconnectAttemptsRef.current + 1;
+          reconnectAttemptsRef.current = nextAttempts;
+          const isFastPhase = nextAttempts <= maxReconnectAttempts;
+          const delay = isFastPhase
+            ? Math.min(1000 * 2 ** (nextAttempts - 1), 30000) + Math.random() * 1000
+            : SLOW_RETRY_INTERVAL_MS + Math.random() * 5000;
+
+          log.debug(`Connection closed, scheduling reconnect attempt ${nextAttempts} in ${Math.round(delay)}ms`);
           onConnectionStateChange({
             sessionId: currentSessionId,
             isConnected: false,
-            isReconnecting: false,
+            isReconnecting: true,
+            isSlowRetry: !isFastPhase,
+            activeRunId: null,
             error: null,
-            reconnectAttempts: reconnectAttemptsRef.current,
+            reconnectAttempts: nextAttempts,
           });
+
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectTimeoutRef.current = null;
+            if (!isDisposedRef.current) {
+              void connectInternalRef.current?.();
+            }
+          }, delay);
         }
       },
     });
@@ -265,6 +279,8 @@ export function useSSEConnection(
         sessionId: currentSessionId,
         isConnected: false,
         isReconnecting: false,
+        isSlowRetry: false,
+        activeRunId: null,
         error: err instanceof Error ? err.message : "Unknown connection error",
         reconnectAttempts: reconnectAttemptsRef.current,
       });
@@ -288,6 +304,8 @@ export function useSSEConnection(
       sessionId: sessionIdRef.current,
       isConnected: false,
       isReconnecting: true,
+      isSlowRetry: false,
+      activeRunId: null,
       error: null,
       reconnectAttempts: 0,
     });
