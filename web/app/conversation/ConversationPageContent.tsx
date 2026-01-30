@@ -2,19 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Copy, Film, FileText, Image, Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Film, FileText, Image } from "lucide-react";
 
 import { useAgentEventStream } from "@/hooks/useAgentEventStream";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useI18n } from "@/lib/i18n";
 import type { AnyAgentEvent } from "@/lib/types";
 import { captureEvent } from "@/lib/analytics/posthog";
 import { AnalyticsEvent } from "@/lib/analytics/events";
 import { performanceMonitor } from "@/lib/analytics/performance";
 import { collectAttachmentItems } from "@/components/agent/AttachmentPanel";
-import { UserPersonaDialog } from "@/components/agent/UserPersonaDialog";
 import { LLMIndicator } from "@/components/agent/LLMIndicator";
 import { isEventType } from "@/lib/events/matching";
 
@@ -27,6 +24,21 @@ import { ConversationHeader } from "./components/ConversationHeader";
 import { ConversationMainArea } from "./components/ConversationMainArea";
 import { EmptyStateView } from "./components/EmptyStateView";
 import type { QuickPromptItem } from "./components/QuickPromptButtons";
+
+const LazyShareDialog = dynamic(
+  () => import("./components/ShareDialog"),
+  { ssr: false },
+);
+
+const LazyDeleteConfirmDialog = dynamic(
+  () => import("./components/DeleteConfirmDialog"),
+  { ssr: false },
+);
+
+const LazyUserPersonaDialog = dynamic(
+  () => import("@/components/agent/UserPersonaDialog").then((mod) => mod.UserPersonaDialog),
+  { ssr: false },
+);
 
 export function ConversationPageContent() {
   const [, setTaskId] = useState<string | null>(null);
@@ -399,105 +411,36 @@ export function ConversationPageContent() {
     <div className="relative h-[100dvh] overflow-hidden bg-muted/10 text-foreground">
       <LLMIndicator />
       {shareDialogOpen ? (
-        <Dialog
+        <LazyShareDialog
           open
           onOpenChange={(open) => {
-            if (!open) {
-              setShareDialogOpen(false);
-            }
+            if (!open) setShareDialogOpen(false);
           }}
-        >
-          <DialogContent className="max-w-md rounded-3xl">
-            <DialogHeader className="space-y-2">
-              <DialogTitle className="text-lg font-semibold">
-                {t("share.dialog.title")}
-              </DialogTitle>
-              <DialogDescription className="text-sm text-muted-foreground">
-                {t("share.dialog.description")}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <Input readOnly value={shareLink ?? ""} />
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={handleCopyShareLink}
-                disabled={!shareLink}
-                className="w-full"
-              >
-                <Copy className="h-4 w-4" />
-                {t("share.dialog.copy")}
-              </Button>
-            </div>
-            <DialogFooter className="sm:justify-end">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShareDialogOpen(false)}
-              >
-                {t("share.dialog.close")}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+          shareLink={shareLink}
+          onCopyShareLink={handleCopyShareLink}
+        />
       ) : null}
       {personaDialogOpen ? (
-        <UserPersonaDialog
+        <LazyUserPersonaDialog
           open={personaDialogOpen}
           onOpenChange={setPersonaDialogOpen}
           sessionId={session.streamSessionId}
         />
       ) : null}
-      <Dialog
-        open={Boolean(deleteTargetId)}
-        onOpenChange={(open) => {
-          if (!open) {
-            handleDeleteCancel();
-          }
-        }}
-      >
-        <DialogContent className="max-w-md rounded-3xl">
-          <DialogHeader className="space-y-3">
-            <DialogTitle className="text-lg font-semibold">
-              {t("sidebar.session.confirmDelete.title")}
-            </DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              {t("sidebar.session.confirmDelete.description")}
-            </DialogDescription>
-            {deleteTargetId && (
-              <div className="flex items-center justify-between rounded-2xl border border-border/70 bg-muted/30 px-3 py-2">
-                <div className="flex flex-col">
-                  <span className="text-sm font-semibold text-foreground">
-                    {deleteTargetLabel}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {session.formatSessionBadge(deleteTargetId)}
-                  </span>
-                </div>
-              </div>
-            )}
-          </DialogHeader>
-          <DialogFooter className="sm:justify-end">
-            <Button
-              variant="outline"
-              onClick={handleDeleteCancel}
-              disabled={deleteInProgress}
-            >
-              {t("sidebar.session.confirmDelete.cancel")}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleConfirmDelete}
-              disabled={deleteInProgress}
-            >
-              {deleteInProgress ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : null}
-              {t("sidebar.session.confirmDelete.confirm")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {deleteTargetId ? (
+        <LazyDeleteConfirmDialog
+          open={Boolean(deleteTargetId)}
+          onOpenChange={(open) => {
+            if (!open) handleDeleteCancel();
+          }}
+          targetId={deleteTargetId}
+          targetLabel={deleteTargetLabel}
+          targetBadge={deleteTargetId ? session.formatSessionBadge(deleteTargetId) : null}
+          deleteInProgress={deleteInProgress}
+          onCancel={handleDeleteCancel}
+          onConfirm={handleConfirmDelete}
+        />
+      ) : null}
       <div className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 pb-10 pt-6 lg:px-8 2xl:px-12">
         <ConversationHeader
           title={headerTitle}
