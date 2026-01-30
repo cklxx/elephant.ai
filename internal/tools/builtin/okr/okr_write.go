@@ -12,12 +12,34 @@ import (
 )
 
 type okrWrite struct {
+	shared.BaseTool
 	store *GoalStore
 }
 
 // NewOKRWrite creates the okr_write tool.
 func NewOKRWrite(cfg OKRConfig) tools.ToolExecutor {
-	return &okrWrite{store: NewGoalStore(cfg)}
+	return &okrWrite{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "okr_write",
+				Description: "Create or update an OKR goal file. Content must be a valid markdown file with YAML frontmatter containing goal metadata and key results. The 'updated' field is automatically set to today's date.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"goal_id": {Type: "string", Description: "Goal identifier (used as filename, e.g. 'q1-2026-revenue')"},
+						"content": {Type: "string", Description: "Full goal file content with YAML frontmatter and markdown body"},
+					},
+					Required: []string{"goal_id", "content"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "okr_write",
+				Version:  "1.0.0",
+				Category: "okr",
+			},
+		),
+		store: NewGoalStore(cfg),
+	}
 }
 
 func (t *okrWrite) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -69,25 +91,3 @@ func (t *okrWrite) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolR
 	}, nil
 }
 
-func (t *okrWrite) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "okr_write",
-		Description: "Create or update an OKR goal file. Content must be a valid markdown file with YAML frontmatter containing goal metadata and key results. The 'updated' field is automatically set to today's date.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"goal_id": {Type: "string", Description: "Goal identifier (used as filename, e.g. 'q1-2026-revenue')"},
-				"content": {Type: "string", Description: "Full goal file content with YAML frontmatter and markdown body"},
-			},
-			Required: []string{"goal_id", "content"},
-		},
-	}
-}
-
-func (t *okrWrite) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "okr_write",
-		Version:  "1.0.0",
-		Category: "okr",
-	}
-}

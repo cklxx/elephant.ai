@@ -39,55 +39,52 @@ const (
 var pptxBlankTemplate []byte
 
 type pptxFromImages struct {
+	shared.BaseTool
 	httpClient *http.Client
 }
 
 func NewPPTXFromImages() tools.ToolExecutor {
 	return &pptxFromImages{
-		httpClient: NewAttachmentHTTPClient(2*time.Minute, "PPTXFromImages"),
-	}
-}
-
-func (t *pptxFromImages) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "pptx_from_images",
-		Version:  "1.0.0",
-		Category: "design",
-		Tags:     []string{"pptx", "slides", "deck", "powerpoint", "image"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Consumes: []string{"image/png", "image/jpeg"},
-			Produces: []string{pptxFromImagesMediaType, pdfMediaType},
-		},
-	}
-}
-
-func (t *pptxFromImages) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "pptx_from_images",
-		Description: "Assemble a PPTX deck from a list of slide images (pure-image slides).",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"images": {
-					Type:        "array",
-					Description: "Ordered list of images (data URI, HTTPS URL, base64 string, or prior attachment placeholder such as `[slide.png]`).",
-					Items:       &ports.Property{Type: "string"},
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "pptx_from_images",
+				Description: "Assemble a PPTX deck from a list of slide images (pure-image slides).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"images": {
+							Type:        "array",
+							Description: "Ordered list of images (data URI, HTTPS URL, base64 string, or prior attachment placeholder such as `[slide.png]`).",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"output_name": {
+							Type:        "string",
+							Description: "Output filename (default: deck.pptx).",
+						},
+						"description": {
+							Type:        "string",
+							Description: "Optional description for the resulting deck attachment.",
+						},
+					},
+					Required: []string{"images"},
 				},
-				"output_name": {
-					Type:        "string",
-					Description: "Output filename (default: deck.pptx).",
-				},
-				"description": {
-					Type:        "string",
-					Description: "Optional description for the resulting deck attachment.",
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Consumes: []string{"image/png", "image/jpeg"},
+					Produces: []string{pptxFromImagesMediaType, pdfMediaType},
 				},
 			},
-			Required: []string{"images"},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Consumes: []string{"image/png", "image/jpeg"},
-			Produces: []string{pptxFromImagesMediaType, pdfMediaType},
-		},
+			ports.ToolMetadata{
+				Name:     "pptx_from_images",
+				Version:  "1.0.0",
+				Category: "design",
+				Tags:     []string{"pptx", "slides", "deck", "powerpoint", "image"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Consumes: []string{"image/png", "image/jpeg"},
+					Produces: []string{pptxFromImagesMediaType, pdfMediaType},
+				},
+			},
+		),
+		httpClient: NewAttachmentHTTPClient(2*time.Minute, "PPTXFromImages"),
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime/model/responses"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
@@ -19,6 +20,7 @@ type seedreamVisionTool struct {
 }
 
 type visionTool struct {
+	shared.BaseTool
 	seedream *seedreamVisionTool
 }
 
@@ -40,13 +42,53 @@ func NewVisionAnalyze(config VisionConfig) tools.ToolExecutor {
 	if provider == "" {
 		provider = VisionProviderSeedream
 	}
+	base := shared.NewBaseTool(
+		ports.ToolDefinition{
+			Name:        "vision_analyze",
+			Description: "Use the Doubao multimodal vision model to describe or answer questions about supplied image URLs.",
+			Parameters: ports.ParameterSchema{
+				Type: "object",
+				Properties: map[string]ports.Property{
+					"images": {
+						Type:        "array",
+						Description: "List of image URLs or data URIs to analyze.",
+						Items:       &ports.Property{Type: "string"},
+					},
+					"prompt": {
+						Type:        "string",
+						Description: "Question or instruction for the vision model.",
+					},
+					"detail": {
+						Type:        "string",
+						Description: "Detail level for the vision model: low, high, or auto.",
+						Enum:        []any{"low", "high", "auto"},
+					},
+				},
+				Required: []string{"images"},
+			},
+			MaterialCapabilities: ports.ToolMaterialCapabilities{
+				Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+			},
+		},
+		ports.ToolMetadata{
+			Name:     "vision_analyze",
+			Version:  "1.0.0",
+			Category: "analysis",
+			Tags:     []string{"vision", "analysis", "seedream", "multimodal"},
+			MaterialCapabilities: ports.ToolMaterialCapabilities{
+				Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+			},
+		},
+	)
 	switch provider {
 	case VisionProviderSeedream:
 		return &visionTool{
+			BaseTool: base,
 			seedream: newSeedreamVisionTool(config.Seedream),
 		}
 	default:
 		return &visionTool{
+			BaseTool: base,
 			seedream: newSeedreamVisionTool(config.Seedream),
 		}
 	}
@@ -62,13 +104,6 @@ func (t *seedreamVisionTool) Metadata() ports.ToolMetadata {
 			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
 		},
 	}
-}
-
-func (t *visionTool) Metadata() ports.ToolMetadata {
-	if t.seedream != nil {
-		return t.seedream.Metadata()
-	}
-	return ports.ToolMetadata{Name: "vision_analyze"}
 }
 
 func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
@@ -97,18 +132,6 @@ func (t *seedreamVisionTool) Definition() ports.ToolDefinition {
 		},
 		MaterialCapabilities: ports.ToolMaterialCapabilities{
 			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-		},
-	}
-}
-
-func (t *visionTool) Definition() ports.ToolDefinition {
-	if t.seedream != nil {
-		return t.seedream.Definition()
-	}
-	return ports.ToolDefinition{
-		Name: "vision_analyze",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
 		},
 	}
 }

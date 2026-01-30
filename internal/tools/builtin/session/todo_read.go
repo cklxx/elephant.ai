@@ -12,13 +12,33 @@ import (
 )
 
 type todoRead struct {
+	shared.BaseTool
 	sessionsDir string // For testing override
+}
+
+func newTodoReadBaseTool() shared.BaseTool {
+	return shared.NewBaseTool(
+		ports.ToolDefinition{
+			Name:        "todo_read",
+			Description: "Read the current session's todo list content",
+			Parameters: ports.ParameterSchema{
+				Type:       "object",
+				Properties: map[string]ports.Property{},
+			},
+		},
+		ports.ToolMetadata{
+			Name:     "todo_read",
+			Version:  "1.0.0",
+			Category: "session",
+			Tags:     []string{"todo"},
+		},
+	)
 }
 
 func NewTodoRead() tools.ToolExecutor {
 	homeDir, _ := os.UserHomeDir()
 	sessionsDir := filepath.Join(homeDir, ".alex", "sessions")
-	return &todoRead{sessionsDir: sessionsDir}
+	return &todoRead{BaseTool: newTodoReadBaseTool(), sessionsDir: sessionsDir}
 }
 
 // NewTodoReadWithSessionsDir creates todo_read with custom sessions directory (for testing)
@@ -28,27 +48,7 @@ func NewTodoReadWithSessionsDir(sessionsDir string) tools.ToolExecutor {
 		homeDir, _ := os.UserHomeDir()
 		sessionsDir = filepath.Join(homeDir, sessionsDir[2:])
 	}
-	return &todoRead{sessionsDir: sessionsDir}
-}
-
-func (t *todoRead) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "todo_read",
-		Version:  "1.0.0",
-		Category: "session",
-		Tags:     []string{"todo"},
-	}
-}
-
-func (t *todoRead) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "todo_read",
-		Description: "Read the current session's todo list content",
-		Parameters: ports.ParameterSchema{
-			Type:       "object",
-			Properties: map[string]ports.Property{},
-		},
-	}
+	return &todoRead{BaseTool: newTodoReadBaseTool(), sessionsDir: sessionsDir}
 }
 
 func (t *todoRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {

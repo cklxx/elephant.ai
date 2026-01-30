@@ -14,51 +14,50 @@ import (
 )
 
 // artifactManifestTool emits a structured artifact manifest for executor runs.
-type artifactManifestTool struct{}
+type artifactManifestTool struct {
+	shared.BaseTool
+}
 
 // NewArtifactManifest constructs the artifact_manifest tool executor.
 func NewArtifactManifest() tools.ToolExecutor {
-	return &artifactManifestTool{}
-}
-
-func (t *artifactManifestTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "artifact_manifest",
-		Version:  "1.0.0",
-		Category: "attachments",
-		Tags:     []string{"artifact", "manifest"},
-	}
-}
-
-func (t *artifactManifestTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "artifact_manifest",
-		Description: "Emit a structured manifest of executor artifacts (diffs, reports, binaries, logs).",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"items": {
-					Type:        "array",
-					Description: "Artifact entries describing outputs (kind/path/command/checksum/etc).",
-					Items: &ports.Property{
-						Type: "object",
+	return &artifactManifestTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "artifact_manifest",
+				Description: "Emit a structured manifest of executor artifacts (diffs, reports, binaries, logs).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"items": {
+							Type:        "array",
+							Description: "Artifact entries describing outputs (kind/path/command/checksum/etc).",
+							Items: &ports.Property{
+								Type: "object",
+							},
+						},
+						"summary": {
+							Type:        "string",
+							Description: "Optional manifest summary.",
+						},
+						"environment_fingerprint": {
+							Type:        "string",
+							Description: "Executor environment fingerprint (image/runtime identifiers).",
+						},
+						"attachment_name": {
+							Type:        "string",
+							Description: "Optional attachment name for the manifest payload.",
+						},
 					},
-				},
-				"summary": {
-					Type:        "string",
-					Description: "Optional manifest summary.",
-				},
-				"environment_fingerprint": {
-					Type:        "string",
-					Description: "Executor environment fingerprint (image/runtime identifiers).",
-				},
-				"attachment_name": {
-					Type:        "string",
-					Description: "Optional attachment name for the manifest payload.",
+					Required: []string{"items"},
 				},
 			},
-			Required: []string{"items"},
-		},
+			ports.ToolMetadata{
+				Name:     "artifact_manifest",
+				Version:  "1.0.0",
+				Category: "attachments",
+				Tags:     []string{"artifact", "manifest"},
+			},
+		),
 	}
 }
 

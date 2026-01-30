@@ -5,6 +5,7 @@ package execution
 import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 	"context"
 	"fmt"
 )
@@ -13,24 +14,25 @@ import (
 type CodeExecuteConfig struct{}
 
 type codeExecute struct {
+	shared.BaseTool
 }
 
 func NewCodeExecute(cfg CodeExecuteConfig) tools.ToolExecutor {
 	_ = cfg
-	return &codeExecute{}
-}
-
-func (t *codeExecute) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:      "code_execute",
-		Version:   "1.0.0",
-		Category:  "execution",
-		Tags:      []string{"code", "execute"},
-		Dangerous: true,
+	return &codeExecute{
+		BaseTool: shared.NewBaseTool(
+			codeExecuteDefinition(),
+			codeExecuteMetadata(),
+		),
 	}
 }
 
-func (t *codeExecute) Definition() ports.ToolDefinition {
+func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	err := fmt.Errorf("local code execution is disabled in this build; rebuild without -tags=no_local_exec to enable")
+	return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+}
+
+func codeExecuteDefinition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name: "code_execute",
 		Description: `Execute code in multiple programming languages with local execution and timeout controls.
@@ -82,7 +84,12 @@ Safety:
 	}
 }
 
-func (t *codeExecute) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	err := fmt.Errorf("local code execution is disabled in this build; rebuild without -tags=no_local_exec to enable")
-	return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+func codeExecuteMetadata() ports.ToolMetadata {
+	return ports.ToolMetadata{
+		Name:      "code_execute",
+		Version:   "1.0.0",
+		Category:  "execution",
+		Tags:      []string{"code", "execute"},
+		Dangerous: true,
+	}
 }

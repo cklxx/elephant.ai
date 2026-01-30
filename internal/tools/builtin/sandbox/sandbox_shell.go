@@ -16,48 +16,48 @@ import (
 )
 
 type sandboxShellExecTool struct {
+	shared.BaseTool
 	client   *sandbox.Client
 	uploader materialports.Migrator
 }
 
 func NewSandboxShellExec(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxShellExecTool{client: newSandboxClient(cfg), uploader: cfg.AttachmentUploader}
-}
-
-func (t *sandboxShellExecTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "shell_exec",
-		Version:  "0.1.0",
-		Category: "shell",
-		Tags:     []string{"shell", "exec", "command"},
-	}
-}
-
-func (t *sandboxShellExecTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "shell_exec",
-		Description: "Execute a shell command in the local environment. Optionally fetch output files as attachments.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"command":    {Type: "string", Description: "Shell command to execute"},
-				"exec_dir":   {Type: "string", Description: "Absolute working directory"},
-				"timeout":    {Type: "number", Description: "Timeout in seconds"},
-				"async_mode": {Type: "boolean", Description: "Run asynchronously"},
-				"session_id": {Type: "string", Description: "Optional shell session id"},
-				"attachments": {
-					Type:        "array",
-					Description: "Optional list of file paths or attachment specs to fetch after execution.",
-					Items:       &ports.Property{Type: "object"},
-				},
-				"output_files": {
-					Type:        "array",
-					Description: "Deprecated alias for attachments (array of absolute file paths).",
-					Items:       &ports.Property{Type: "string"},
+	return &sandboxShellExecTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "shell_exec",
+				Description: "Execute a shell command in the local environment. Optionally fetch output files as attachments.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"command":    {Type: "string", Description: "Shell command to execute"},
+						"exec_dir":   {Type: "string", Description: "Absolute working directory"},
+						"timeout":    {Type: "number", Description: "Timeout in seconds"},
+						"async_mode": {Type: "boolean", Description: "Run asynchronously"},
+						"session_id": {Type: "string", Description: "Optional shell session id"},
+						"attachments": {
+							Type:        "array",
+							Description: "Optional list of file paths or attachment specs to fetch after execution.",
+							Items:       &ports.Property{Type: "object"},
+						},
+						"output_files": {
+							Type:        "array",
+							Description: "Deprecated alias for attachments (array of absolute file paths).",
+							Items:       &ports.Property{Type: "string"},
+						},
+					},
+					Required: []string{"command"},
 				},
 			},
-			Required: []string{"command"},
-		},
+			ports.ToolMetadata{
+				Name:     "shell_exec",
+				Version:  "0.1.0",
+				Category: "shell",
+				Tags:     []string{"shell", "exec", "command"},
+			},
+		),
+		client:   newSandboxClient(cfg),
+		uploader: cfg.AttachmentUploader,
 	}
 }
 

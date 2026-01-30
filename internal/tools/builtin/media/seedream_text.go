@@ -8,12 +8,14 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"
 )
 
 type seedreamTextTool struct {
+	shared.BaseTool
 	config  SeedreamConfig
 	factory *seedreamClientFactory
 }
@@ -21,64 +23,60 @@ type seedreamTextTool struct {
 // NewSeedreamTextToImage returns a tool that generates imagery from prompts.
 func NewSeedreamTextToImage(config SeedreamConfig) tools.ToolExecutor {
 	return &seedreamTextTool{
-		config:  config,
-		factory: &seedreamClientFactory{config: config},
-	}
-}
-
-func (t *seedreamTextTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "text_to_image",
-		Version:  "2.0.0",
-		Category: "design",
-		Tags:     []string{"image", "generation", "seedream", "text-to-image"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-		},
-	}
-}
-
-func (t *seedreamTextTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "text_to_image",
-		Description: "Generate new imagery with Volcano Engine Seedream text-to-image models.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"prompt": {
-					Type:        "string",
-					Description: "Creative brief describing what to render.",
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "text_to_image",
+				Description: "Generate new imagery with Volcano Engine Seedream text-to-image models.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"prompt": {
+							Type:        "string",
+							Description: "Creative brief describing what to render.",
+						},
+						"size": {
+							Type:        "string",
+							Description: "Optional WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
+						},
+						"width": {
+							Type:        "integer",
+							Description: "Alternative way to set output width in pixels.",
+						},
+						"height": {
+							Type:        "integer",
+							Description: "Alternative way to set output height in pixels.",
+						},
+						"seed": {
+							Type:        "integer",
+							Description: "Random seed for reproducible generations.",
+						},
+						"cfg_scale": {
+							Type:        "number",
+							Description: "Classifier-free guidance / prompt strength.",
+						},
+						"optimize_prompt": {
+							Type:        "boolean",
+							Description: "Let Seedream refine the prompt automatically.",
+						},
+					},
+					Required: []string{"prompt"},
 				},
-				"size": {
-					Type:        "string",
-					Description: "Optional WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
-				},
-				"width": {
-					Type:        "integer",
-					Description: "Alternative way to set output width in pixels.",
-				},
-				"height": {
-					Type:        "integer",
-					Description: "Alternative way to set output height in pixels.",
-				},
-				"seed": {
-					Type:        "integer",
-					Description: "Random seed for reproducible generations.",
-				},
-				"cfg_scale": {
-					Type:        "number",
-					Description: "Classifier-free guidance / prompt strength.",
-				},
-				"optimize_prompt": {
-					Type:        "boolean",
-					Description: "Let Seedream refine the prompt automatically.",
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
 				},
 			},
-			Required: []string{"prompt"},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-		},
+			ports.ToolMetadata{
+				Name:     "text_to_image",
+				Version:  "2.0.0",
+				Category: "design",
+				Tags:     []string{"image", "generation", "seedream", "text-to-image"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+				},
+			},
+		),
+		config:  config,
+		factory: &seedreamClientFactory{config: config},
 	}
 }
 

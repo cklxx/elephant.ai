@@ -14,6 +14,7 @@ import (
 )
 
 type memoryRecall struct {
+	shared.BaseTool
 	service memory.Service
 }
 
@@ -21,40 +22,38 @@ const recallDefaultLimit = 5
 
 // NewMemoryRecall constructs a tool for recalling user memories.
 func NewMemoryRecall(service memory.Service) tools.ToolExecutor {
-	return &memoryRecall{service: service}
-}
-
-func (t *memoryRecall) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "memory_recall",
-		Version:  "0.1.0",
-		Category: "memory",
-		Tags:     []string{"memory", "retrieval"},
-	}
-}
-
-func (t *memoryRecall) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "memory_recall",
-		Description: "Recall user memories using keywords and intent slots.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"keywords": {
-					Type:        "array",
-					Description: "Keywords to match memories.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"slots": {
-					Type:        "object",
-					Description: "Intent slots (key/value) to filter memories.",
-				},
-				"limit": {
-					Type:        "integer",
-					Description: "Maximum number of memories to return (default 5).",
+	return &memoryRecall{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "memory_recall",
+				Description: "Recall user memories using keywords and intent slots.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"keywords": {
+							Type:        "array",
+							Description: "Keywords to match memories.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"slots": {
+							Type:        "object",
+							Description: "Intent slots (key/value) to filter memories.",
+						},
+						"limit": {
+							Type:        "integer",
+							Description: "Maximum number of memories to return (default 5).",
+						},
+					},
 				},
 			},
-		},
+			ports.ToolMetadata{
+				Name:     "memory_recall",
+				Version:  "0.1.0",
+				Category: "memory",
+				Tags:     []string{"memory", "retrieval"},
+			},
+		),
+		service: service,
 	}
 }
 

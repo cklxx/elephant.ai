@@ -11,11 +11,29 @@ import (
 )
 
 type fileRead struct {
+	shared.BaseTool
 }
 
 func NewFileRead(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &fileRead{}
+	return &fileRead{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "file_read",
+				Description: "Read file contents",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path": {Type: "string", Description: "File path"},
+					},
+					Required: []string{"path"},
+				},
+			},
+			ports.ToolMetadata{
+				Name: "file_read", Version: "1.0.0", Category: "file_operations",
+			},
+		),
+	}
 }
 
 func (t *fileRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -36,22 +54,3 @@ func (t *fileRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	return &ports.ToolResult{CallID: call.ID, Content: string(content)}, nil
 }
 
-func (t *fileRead) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "file_read",
-		Description: "Read file contents",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path": {Type: "string", Description: "File path"},
-			},
-			Required: []string{"path"},
-		},
-	}
-}
-
-func (t *fileRead) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name: "file_read", Version: "1.0.0", Category: "file_operations",
-	}
-}

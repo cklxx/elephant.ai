@@ -8,46 +8,46 @@ import (
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/tools/builtin/shared"
 )
 
-type bgCollect struct{}
+type bgCollect struct {
+	shared.BaseTool
+}
 
 // NewBGCollect creates the bg_collect tool for retrieving background task results.
 func NewBGCollect() *bgCollect {
-	return &bgCollect{}
-}
-
-func (t *bgCollect) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "bg_collect",
-		Description: `Collect full results from background tasks. By default returns immediately with whatever status tasks are in. Set wait=true to block until tasks complete (with optional timeout).`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"task_ids": {
-					Type:        "array",
-					Description: "Optional list of task IDs to collect. Omit to collect all.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"wait": {
-					Type:        "boolean",
-					Description: "When true, block until the requested tasks complete or timeout elapses. Default: false.",
-				},
-				"timeout_seconds": {
-					Type:        "integer",
-					Description: "Maximum seconds to wait when wait=true. Default: 30.",
+	return &bgCollect{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "bg_collect",
+				Description: `Collect full results from background tasks. By default returns immediately with whatever status tasks are in. Set wait=true to block until tasks complete (with optional timeout).`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"task_ids": {
+							Type:        "array",
+							Description: "Optional list of task IDs to collect. Omit to collect all.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"wait": {
+							Type:        "boolean",
+							Description: "When true, block until the requested tasks complete or timeout elapses. Default: false.",
+						},
+						"timeout_seconds": {
+							Type:        "integer",
+							Description: "Maximum seconds to wait when wait=true. Default: 30.",
+						},
+					},
 				},
 			},
-		},
-	}
-}
-
-func (t *bgCollect) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "bg_collect",
-		Version:  "1.0.0",
-		Category: "agent",
-		Tags:     []string{"background", "orchestration", "async"},
+			ports.ToolMetadata{
+				Name:     "bg_collect",
+				Version:  "1.0.0",
+				Category: "agent",
+				Tags:     []string{"background", "orchestration", "async"},
+			},
+		),
 	}
 }
 

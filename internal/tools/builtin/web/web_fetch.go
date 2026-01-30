@@ -28,6 +28,7 @@ import (
 
 // webFetch implements web content fetching with caching and optional LLM processing
 type webFetch struct {
+	shared.BaseTool
 	httpClient      *http.Client
 	llmClient       llm.LLMClient // Optional LLM for content analysis
 	cache           *fetchCache
@@ -87,6 +88,51 @@ func NewWebFetchWithLLM(llmClient llm.LLMClient, cfg shared.WebFetchConfig) tool
 	}
 
 	tool := &webFetch{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "web_fetch",
+				Description: `Fetch and analyze web page content with intelligent processing.
+
+Features:
+- Fetches HTML content and converts to clean text
+- 15-minute cache for repeated requests
+- Handles redirects automatically
+- Optional LLM analysis of content
+- Extracts headings, paragraphs, lists
+
+Usage:
+- url: Full URL to fetch (http/https)
+- prompt: Analysis question (optional, requires LLM)`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"url": {
+							Type:        "string",
+							Description: "Full URL to fetch (http/https)",
+						},
+						"prompt": {
+							Type:        "string",
+							Description: "Optional: Question to analyze content with LLM",
+						},
+					},
+					Required: []string{"url"},
+				},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces:          []string{"text/html"},
+					ProducesArtifacts: []string{"markdown"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "web_fetch",
+				Version:  "1.0.0",
+				Category: "web",
+				Tags:     []string{"web", "fetch", "http", "content"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces:          []string{"text/html"},
+					ProducesArtifacts: []string{"markdown"},
+				},
+			},
+		),
 		httpClient:      sharedWebFetchClient(),
 		llmClient:       llmClient,
 		cache:           cache,
@@ -110,55 +156,6 @@ func sharedWebFetchClient() *http.Client {
 		}
 	})
 	return webFetchClient
-}
-
-func (t *webFetch) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "web_fetch",
-		Version:  "1.0.0",
-		Category: "web",
-		Tags:     []string{"web", "fetch", "http", "content"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces:          []string{"text/html"},
-			ProducesArtifacts: []string{"markdown"},
-		},
-	}
-}
-
-func (t *webFetch) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "web_fetch",
-		Description: `Fetch and analyze web page content with intelligent processing.
-
-Features:
-- Fetches HTML content and converts to clean text
-- 15-minute cache for repeated requests
-- Handles redirects automatically
-- Optional LLM analysis of content
-- Extracts headings, paragraphs, lists
-
-Usage:
-- url: Full URL to fetch (http/https)
-- prompt: Analysis question (optional, requires LLM)`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"url": {
-					Type:        "string",
-					Description: "Full URL to fetch (http/https)",
-				},
-				"prompt": {
-					Type:        "string",
-					Description: "Optional: Question to analyze content with LLM",
-				},
-			},
-			Required: []string{"url"},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces:          []string{"text/html"},
-			ProducesArtifacts: []string{"markdown"},
-		},
-	}
 }
 
 func (t *webFetch) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {

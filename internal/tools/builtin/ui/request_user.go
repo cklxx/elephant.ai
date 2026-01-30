@@ -8,46 +8,46 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
-type uiRequestUser struct{}
+type uiRequestUser struct {
+	shared.BaseTool
+}
 
 func NewRequestUser() tools.ToolExecutor {
-	return &uiRequestUser{}
-}
-
-func (t *uiRequestUser) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "request_user",
-		Version:  "1.0.0",
-		Category: "ui",
-		Tags:     []string{"ui", "user", "request"},
-	}
-}
-
-func (t *uiRequestUser) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "request_user",
-		Description: "UI tool: request the user to perform an action (e.g., login) and pause execution." +
-			" Always use when an external login, 2FA, or CAPTCHA is required.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"message": {
-					Type:        "string",
-					Description: "Instruction to the user describing the required action.",
-				},
-				"title": {
-					Type:        "string",
-					Description: "Optional short title for the request.",
-				},
-				"reason": {
-					Type:        "string",
-					Description: "Optional reason or context for the request.",
+	return &uiRequestUser{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "request_user",
+				Description: "UI tool: request the user to perform an action (e.g., login) and pause execution." +
+					" Always use when an external login, 2FA, or CAPTCHA is required.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"message": {
+							Type:        "string",
+							Description: "Instruction to the user describing the required action.",
+						},
+						"title": {
+							Type:        "string",
+							Description: "Optional short title for the request.",
+						},
+						"reason": {
+							Type:        "string",
+							Description: "Optional reason or context for the request.",
+						},
+					},
+					Required: []string{"message"},
 				},
 			},
-			Required: []string{"message"},
-		},
+			ports.ToolMetadata{
+				Name:     "request_user",
+				Version:  "1.0.0",
+				Category: "ui",
+				Tags:     []string{"ui", "user", "request"},
+			},
+		),
 	}
 }
 

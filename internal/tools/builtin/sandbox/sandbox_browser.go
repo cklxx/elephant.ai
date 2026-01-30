@@ -12,9 +12,11 @@ import (
 	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/sandbox"
+	"alex/internal/tools/builtin/shared"
 )
 
 type sandboxBrowserTool struct {
+	shared.BaseTool
 	client   *sandbox.Client
 	vision   tools.ToolExecutor
 	prompt   string
@@ -22,10 +24,12 @@ type sandboxBrowserTool struct {
 }
 
 type sandboxBrowserInfoTool struct {
+	shared.BaseTool
 	client *sandbox.Client
 }
 
 type sandboxBrowserScreenshotTool struct {
+	shared.BaseTool
 	client   *sandbox.Client
 	vision   tools.ToolExecutor
 	prompt   string
@@ -40,6 +44,51 @@ type sandboxResponse struct {
 
 func NewSandboxBrowser(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxBrowserTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "browser_action",
+				Description: `Execute browser actions via the local browser instance.
+
+Provide a list of action objects:
+- action_type: MOVE_TO, CLICK, MOUSE_DOWN, MOUSE_UP, RIGHT_CLICK, DOUBLE_CLICK, DRAG_TO, SCROLL, TYPING, PRESS, KEY_DOWN, KEY_UP, HOTKEY
+- additional fields vary per action type.
+
+Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use browser_dom.`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"actions": {
+							Type:        "array",
+							Description: "Ordered list of browser actions to execute.",
+							Items:       &ports.Property{Type: "object"},
+						},
+						"capture_screenshot": {
+							Type:        "boolean",
+							Description: "Capture a screenshot after executing all actions.",
+						},
+						"screenshot_name": {
+							Type:        "string",
+							Description: "Filename to use for the screenshot attachment.",
+						},
+					},
+					Required: []string{"actions"},
+				},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces:          []string{"text/plain"},
+					ProducesArtifacts: []string{"image/png"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "browser_action",
+				Version:  "0.1.0",
+				Category: "web",
+				Tags:     []string{"browser", "automation", "interaction"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces:          []string{"text/plain"},
+					ProducesArtifacts: []string{"image/png"},
+				},
+			},
+		),
 		client:   newSandboxClient(cfg),
 		vision:   cfg.VisionTool,
 		prompt:   cfg.VisionPrompt,
@@ -48,64 +97,66 @@ func NewSandboxBrowser(cfg SandboxConfig) tools.ToolExecutor {
 }
 
 func NewSandboxBrowserInfo(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxBrowserInfoTool{client: newSandboxClient(cfg)}
+	return &sandboxBrowserInfoTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "browser_info",
+				Description: "Fetch browser metadata (user agent, viewport, connection info).",
+				Parameters: ports.ParameterSchema{
+					Type:       "object",
+					Properties: map[string]ports.Property{},
+				},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"application/json", "text/plain"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "browser_info",
+				Version:  "0.1.0",
+				Category: "web",
+				Tags:     []string{"browser", "metadata", "info"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"application/json", "text/plain"},
+				},
+			},
+		),
+		client: newSandboxClient(cfg),
+	}
 }
 
 func NewSandboxBrowserScreenshot(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxBrowserScreenshotTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "browser_screenshot",
+				Description: "Capture a screenshot from the browser.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"name": {
+							Type:        "string",
+							Description: "Filename to use for the screenshot attachment.",
+						},
+					},
+				},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					ProducesArtifacts: []string{"image/png"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "browser_screenshot",
+				Version:  "0.1.0",
+				Category: "web",
+				Tags:     []string{"browser", "screenshot", "capture"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					ProducesArtifacts: []string{"image/png"},
+				},
+			},
+		),
 		client:   newSandboxClient(cfg),
 		vision:   cfg.VisionTool,
 		prompt:   cfg.VisionPrompt,
 		uploader: cfg.AttachmentUploader,
-	}
-}
-
-func (t *sandboxBrowserTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "browser_action",
-		Version:  "0.1.0",
-		Category: "web",
-		Tags:     []string{"browser", "automation", "interaction"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces:          []string{"text/plain"},
-			ProducesArtifacts: []string{"image/png"},
-		},
-	}
-}
-
-func (t *sandboxBrowserTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "browser_action",
-		Description: `Execute browser actions via the local browser instance.
-
-Provide a list of action objects:
-- action_type: MOVE_TO, CLICK, MOUSE_DOWN, MOUSE_UP, RIGHT_CLICK, DOUBLE_CLICK, DRAG_TO, SCROLL, TYPING, PRESS, KEY_DOWN, KEY_UP, HOTKEY
-- additional fields vary per action type.
-
-Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use browser_dom.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"actions": {
-					Type:        "array",
-					Description: "Ordered list of browser actions to execute.",
-					Items:       &ports.Property{Type: "object"},
-				},
-				"capture_screenshot": {
-					Type:        "boolean",
-					Description: "Capture a screenshot after executing all actions.",
-				},
-				"screenshot_name": {
-					Type:        "string",
-					Description: "Filename to use for the screenshot attachment.",
-				},
-			},
-			Required: []string{"actions"},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces:          []string{"text/plain"},
-			ProducesArtifacts: []string{"image/png"},
-		},
 	}
 }
 
@@ -198,32 +249,6 @@ func (t *sandboxBrowserTool) Execute(ctx context.Context, call ports.ToolCall) (
 	}, nil
 }
 
-func (t *sandboxBrowserInfoTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "browser_info",
-		Version:  "0.1.0",
-		Category: "web",
-		Tags:     []string{"browser", "metadata", "info"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"application/json", "text/plain"},
-		},
-	}
-}
-
-func (t *sandboxBrowserInfoTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "browser_info",
-		Description: "Fetch browser metadata (user agent, viewport, connection info).",
-		Parameters: ports.ParameterSchema{
-			Type:       "object",
-			Properties: map[string]ports.Property{},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"application/json", "text/plain"},
-		},
-	}
-}
-
 func (t *sandboxBrowserInfoTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	var response sandboxResponse
 	if err := t.client.DoJSON(ctx, httpMethodGet, "/v1/browser/info", nil, call.SessionID, &response); err != nil {
@@ -244,37 +269,6 @@ func (t *sandboxBrowserInfoTool) Execute(ctx context.Context, call ports.ToolCal
 		Content:  string(payload),
 		Metadata: map[string]any{"sandbox_browser_info": response.Data},
 	}, nil
-}
-
-func (t *sandboxBrowserScreenshotTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "browser_screenshot",
-		Version:  "0.1.0",
-		Category: "web",
-		Tags:     []string{"browser", "screenshot", "capture"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			ProducesArtifacts: []string{"image/png"},
-		},
-	}
-}
-
-func (t *sandboxBrowserScreenshotTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "browser_screenshot",
-		Description: "Capture a screenshot from the browser.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"name": {
-					Type:        "string",
-					Description: "Filename to use for the screenshot attachment.",
-				},
-			},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			ProducesArtifacts: []string{"image/png"},
-		},
-	}
 }
 
 func (t *sandboxBrowserScreenshotTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {

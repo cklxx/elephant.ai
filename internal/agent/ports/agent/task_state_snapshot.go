@@ -61,6 +61,7 @@ func CloneTaskState(state *TaskState) *TaskState {
 		PendingUserAttachments: core.CloneAttachmentMap(state.PendingUserAttachments),
 		LatestGoalPrompt:       state.LatestGoalPrompt,
 		LatestPlanPrompt:       state.LatestPlanPrompt,
+		PlanReviewEnabled:      state.PlanReviewEnabled,
 	}
 	if len(state.Messages) > 0 {
 		cloned.Messages = CloneMessages(state.Messages)

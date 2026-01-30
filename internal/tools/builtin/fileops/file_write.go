@@ -14,11 +14,30 @@ import (
 )
 
 type fileWrite struct {
+	shared.BaseTool
 }
 
 func NewFileWrite(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &fileWrite{}
+	return &fileWrite{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "file_write",
+				Description: "Write content to file",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path":    {Type: "string", Description: "File path"},
+						"content": {Type: "string", Description: "Content to write"},
+					},
+					Required: []string{"path", "content"},
+				},
+			},
+			ports.ToolMetadata{
+				Name: "file_write", Version: "1.0.0", Category: "file_operations", Dangerous: true,
+			},
+		),
+	}
 }
 
 func (t *fileWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -84,23 +103,3 @@ func (t *fileWrite) executeLocal(call ports.ToolCall, path, resolved, content st
 	}
 }
 
-func (t *fileWrite) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "file_write",
-		Description: "Write content to file",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path":    {Type: "string", Description: "File path"},
-				"content": {Type: "string", Description: "Content to write"},
-			},
-			Required: []string{"path", "content"},
-		},
-	}
-}
-
-func (t *fileWrite) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name: "file_write", Version: "1.0.0", Category: "file_operations", Dangerous: true,
-	}
-}

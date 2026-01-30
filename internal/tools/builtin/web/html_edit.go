@@ -21,6 +21,7 @@ import (
 )
 
 type htmlEdit struct {
+	shared.BaseTool
 	llm portsllm.LLMClient
 }
 
@@ -28,54 +29,52 @@ func NewHTMLEdit(client portsllm.LLMClient) tools.ToolExecutor {
 	if client == nil {
 		client = internalllm.NewMockClient()
 	}
-	return &htmlEdit{llm: client}
-}
-
-func (t *htmlEdit) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "html_edit",
-		Version:  "1.0.0",
-		Category: "web",
-		Tags:     []string{"html", "edit", "validate"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"text/html"},
-		},
-	}
-}
-
-func (t *htmlEdit) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "html_edit",
-		Description: "View, edit, or validate HTML artifacts. Loads HTML from a named attachment or inline html, applies edit instructions, and returns validation results.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"action": {
-					Type:        "string",
-					Description: "Action to perform: view, edit, or validate. Defaults to edit when instructions are provided, otherwise validate.",
-				},
-				"name": {
-					Type:        "string",
-					Description: "HTML artifact filename or placeholder to load (e.g. game.html or [game.html])",
-				},
-				"html": {
-					Type:        "string",
-					Description: "Raw HTML to edit/validate (optional; overrides name)",
-				},
-				"instructions": {
-					Type:        "string",
-					Description: "Edit instructions to apply when action=edit",
-				},
-				"output_name": {
-					Type:        "string",
-					Description: "Output artifact filename (default: name or edited.html)",
-				},
-				"validate_only": {
-					Type:        "boolean",
-					Description: "If true, skip edits and only validate",
+	return &htmlEdit{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "html_edit",
+				Description: "View, edit, or validate HTML artifacts. Loads HTML from a named attachment or inline html, applies edit instructions, and returns validation results.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"action": {
+							Type:        "string",
+							Description: "Action to perform: view, edit, or validate. Defaults to edit when instructions are provided, otherwise validate.",
+						},
+						"name": {
+							Type:        "string",
+							Description: "HTML artifact filename or placeholder to load (e.g. game.html or [game.html])",
+						},
+						"html": {
+							Type:        "string",
+							Description: "Raw HTML to edit/validate (optional; overrides name)",
+						},
+						"instructions": {
+							Type:        "string",
+							Description: "Edit instructions to apply when action=edit",
+						},
+						"output_name": {
+							Type:        "string",
+							Description: "Output artifact filename (default: name or edited.html)",
+						},
+						"validate_only": {
+							Type:        "boolean",
+							Description: "If true, skip edits and only validate",
+						},
+					},
 				},
 			},
-		},
+			ports.ToolMetadata{
+				Name:     "html_edit",
+				Version:  "1.0.0",
+				Category: "web",
+				Tags:     []string{"html", "edit", "validate"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"text/html"},
+				},
+			},
+		),
+		llm: client,
 	}
 }
 

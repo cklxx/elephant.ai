@@ -14,46 +14,45 @@ import (
 )
 
 type memoryWrite struct {
+	shared.BaseTool
 	service memory.Service
 }
 
 // NewMemoryWrite constructs a tool for persisting user-scoped memories.
 func NewMemoryWrite(service memory.Service) tools.ToolExecutor {
-	return &memoryWrite{service: service}
-}
-
-func (t *memoryWrite) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "memory_write",
-		Version:  "0.1.0",
-		Category: "memory",
-		Tags:     []string{"memory", "state"},
-	}
-}
-
-func (t *memoryWrite) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "memory_write",
-		Description: "Persist a user-scoped memory entry using keywords and intent slots.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"content": {
-					Type:        "string",
-					Description: "Full memory content to store.",
-				},
-				"keywords": {
-					Type:        "array",
-					Description: "Keywords describing the memory.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"slots": {
-					Type:        "object",
-					Description: "Intent slots (key/value) to label the memory.",
+	return &memoryWrite{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "memory_write",
+				Description: "Persist a user-scoped memory entry using keywords and intent slots.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"content": {
+							Type:        "string",
+							Description: "Full memory content to store.",
+						},
+						"keywords": {
+							Type:        "array",
+							Description: "Keywords describing the memory.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"slots": {
+							Type:        "object",
+							Description: "Intent slots (key/value) to label the memory.",
+						},
+					},
+					Required: []string{"content"},
 				},
 			},
-			Required: []string{"content"},
-		},
+			ports.ToolMetadata{
+				Name:     "memory_write",
+				Version:  "0.1.0",
+				Category: "memory",
+				Tags:     []string{"memory", "state"},
+			},
+		),
+		service: service,
 	}
 }
 

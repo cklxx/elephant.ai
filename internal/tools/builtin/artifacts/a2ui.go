@@ -15,11 +15,39 @@ import (
 )
 
 // a2uiEmit implements the a2ui_emit tool for storing A2UI JSONL payloads.
-type a2uiEmit struct{}
+type a2uiEmit struct {
+	shared.BaseTool
+}
 
 // NewA2UIEmit constructs the a2ui_emit tool executor.
 func NewA2UIEmit() tools.ToolExecutor {
-	return &a2uiEmit{}
+	return &a2uiEmit{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "a2ui_emit",
+				Description: "Store an A2UI JSONL payload as an attachment for final-result rendering.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"content":  {Type: "string", Description: "A2UI payload as JSON or JSONL string"},
+						"messages": {Type: "array", Description: "Optional array of JSON messages to serialize as JSONL when content is omitted", Items: &ports.Property{Type: "object"}},
+					},
+				},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"application/a2ui+json"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "a2ui_emit",
+				Version:  "1.0.0",
+				Category: "attachments",
+				Tags:     []string{"a2ui", "ui", "attachments"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"application/a2ui+json"},
+				},
+			},
+		),
+	}
 }
 
 func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -108,35 +136,6 @@ func (t *a2uiEmit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		Attachments: attachments,
 	}
 	return result, nil
-}
-
-func (t *a2uiEmit) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "a2ui_emit",
-		Description: "Store an A2UI JSONL payload as an attachment for final-result rendering.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"content":               {Type: "string", Description: "A2UI payload as JSON or JSONL string"},
-				"messages":              {Type: "array", Description: "Optional array of JSON messages to serialize as JSONL when content is omitted", Items: &ports.Property{Type: "object"}},
-			},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"application/a2ui+json"},
-		},
-	}
-}
-
-func (t *a2uiEmit) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "a2ui_emit",
-		Version:  "1.0.0",
-		Category: "attachments",
-		Tags:     []string{"a2ui", "ui", "attachments"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"application/a2ui+json"},
-		},
-	}
 }
 
 func sanitizeA2UIFilename(seed string) string {

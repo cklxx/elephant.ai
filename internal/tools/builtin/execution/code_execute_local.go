@@ -16,30 +16,27 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/tools/builtin/pathutil"
+	"alex/internal/tools/builtin/shared"
 )
 
 // CodeExecuteConfig is reserved for future configuration options.
 type CodeExecuteConfig struct{}
 
 type codeExecute struct {
+	shared.BaseTool
 }
 
 func NewCodeExecute(cfg CodeExecuteConfig) tools.ToolExecutor {
 	_ = cfg
-	return &codeExecute{}
-}
-
-func (t *codeExecute) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:      "code_execute",
-		Version:   "1.0.0",
-		Category:  "execution",
-		Tags:      []string{"code", "execute"},
-		Dangerous: true,
+	return &codeExecute{
+		BaseTool: shared.NewBaseTool(
+			codeExecuteDefinition(),
+			codeExecuteMetadata(),
+		),
 	}
 }
 
-func (t *codeExecute) Definition() ports.ToolDefinition {
+func codeExecuteDefinition() ports.ToolDefinition {
 	return ports.ToolDefinition{
 		Name: "code_execute",
 		Description: `Execute code in multiple programming languages with local execution and timeout controls.
@@ -88,6 +85,16 @@ Safety:
 			},
 			Required: []string{"language", "code"},
 		},
+	}
+}
+
+func codeExecuteMetadata() ports.ToolMetadata {
+	return ports.ToolMetadata{
+		Name:      "code_execute",
+		Version:   "1.0.0",
+		Category:  "execution",
+		Tags:      []string{"code", "execute"},
+		Dangerous: true,
 	}
 }
 

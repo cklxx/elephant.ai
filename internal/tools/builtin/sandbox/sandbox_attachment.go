@@ -16,40 +16,37 @@ import (
 )
 
 type sandboxWriteAttachmentTool struct {
+	shared.BaseTool
 	client     *sandbox.Client
 	httpClient *http.Client
 }
 
 func NewSandboxWriteAttachment(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxWriteAttachmentTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "write_attachment",
+				Description: "Write an existing attachment to the local filesystem. " +
+					"Accepts attachment name/placeholder, data URI, or HTTPS URL.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"attachment": {Type: "string", Description: "Attachment name or placeholder (e.g., deck.pptx or [deck.pptx])"},
+						"path":       {Type: "string", Description: "Absolute target path"},
+						"sudo":       {Type: "boolean", Description: "Use sudo privileges"},
+					},
+					Required: []string{"attachment", "path"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "write_attachment",
+				Version:  "0.1.0",
+				Category: "files",
+				Tags:     []string{"file", "attachment", "write"},
+			},
+		),
 		client:     newSandboxClient(cfg),
 		httpClient: artifacts.NewAttachmentHTTPClient(artifacts.AttachmentFetchTimeout, "SandboxAttachmentWrite"),
-	}
-}
-
-func (t *sandboxWriteAttachmentTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "write_attachment",
-		Version:  "0.1.0",
-		Category: "files",
-		Tags:     []string{"file", "attachment", "write"},
-	}
-}
-
-func (t *sandboxWriteAttachmentTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "write_attachment",
-		Description: "Write an existing attachment to the local filesystem. " +
-			"Accepts attachment name/placeholder, data URI, or HTTPS URL.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"attachment": {Type: "string", Description: "Attachment name or placeholder (e.g., deck.pptx or [deck.pptx])"},
-				"path":       {Type: "string", Description: "Absolute target path"},
-				"sudo":       {Type: "boolean", Description: "Use sudo privileges"},
-			},
-			Required: []string{"attachment", "path"},
-		},
 	}
 }
 

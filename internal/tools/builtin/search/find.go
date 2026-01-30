@@ -13,11 +13,48 @@ import (
 )
 
 type find struct {
+	shared.BaseTool
 }
 
 func NewFind(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &find{}
+	return &find{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "find",
+				Description: "Find files and directories by name or pattern using the find command. Supports wildcards and limits results to maximum 100 matches.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"name": {
+							Type:        "string",
+							Description: "The name pattern to search for (supports wildcards like *.go)",
+						},
+						"path": {
+							Type:        "string",
+							Description: "Path to search in (default: current directory)",
+						},
+						"type": {
+							Type:        "string",
+							Description: "Type of files to find: 'f' for files, 'd' for directories",
+							Enum:        []any{"f", "d"},
+						},
+						"max_depth": {
+							Type:        "number",
+							Description: "Maximum depth to search (default: 10)",
+						},
+					},
+					Required: []string{"name"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "find",
+				Version:  "1.0.0",
+				Category: "search",
+				Tags:     []string{"filesystem", "search", "files"},
+			},
+		),
+	}
 }
 
 func (t *find) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -144,41 +181,3 @@ func (t *find) walkMatches(root, pattern, fileType string, maxDepth int) ([]stri
 	return results, nil
 }
 
-func (t *find) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "find",
-		Description: "Find files and directories by name or pattern using the find command. Supports wildcards and limits results to maximum 100 matches.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"name": {
-					Type:        "string",
-					Description: "The name pattern to search for (supports wildcards like *.go)",
-				},
-				"path": {
-					Type:        "string",
-					Description: "Path to search in (default: current directory)",
-				},
-				"type": {
-					Type:        "string",
-					Description: "Type of files to find: 'f' for files, 'd' for directories",
-					Enum:        []any{"f", "d"},
-				},
-				"max_depth": {
-					Type:        "number",
-					Description: "Maximum depth to search (default: 10)",
-				},
-			},
-			Required: []string{"name"},
-		},
-	}
-}
-
-func (t *find) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "find",
-		Version:  "1.0.0",
-		Category: "search",
-		Tags:     []string{"filesystem", "search", "files"},
-	}
-}

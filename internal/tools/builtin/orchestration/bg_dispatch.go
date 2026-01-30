@@ -7,72 +7,72 @@ import (
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/tools/builtin/shared"
 )
 
-type bgDispatch struct{}
+type bgDispatch struct {
+	shared.BaseTool
+}
 
 // NewBGDispatch creates the bg_dispatch tool for launching background tasks.
 func NewBGDispatch() *bgDispatch {
-	return &bgDispatch{}
-}
-
-func (t *bgDispatch) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "bg_dispatch",
-		Description: `Dispatch a task to run in the background. The task executes asynchronously while you continue working. Use bg_status to check progress and bg_collect to retrieve results.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"task_id": {
-					Type:        "string",
-					Description: "A unique identifier for this background task.",
-				},
-				"description": {
-					Type:        "string",
-					Description: "A short human-readable description of the task.",
-				},
-				"prompt": {
-					Type:        "string",
-					Description: "The full task prompt to execute in the background.",
-				},
-				"agent_type": {
-					Type:        "string",
-					Description: `Agent type to use. "internal" (default) uses the built-in subagent. External types include "claude_code" and "codex".`,
-				},
-				"config": {
-					Type:        "object",
-					Description: "Optional per-task config overrides (string map) passed to the external agent executor.",
-				},
-				"depends_on": {
-					Type:        "array",
-					Description: "Task IDs that must complete successfully before this task starts.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"workspace_mode": {
-					Type:        "string",
-					Description: `Workspace isolation mode: "shared" (default), "branch", or "worktree".`,
-				},
-				"file_scope": {
-					Type:        "array",
-					Description: "Advisory file scope for this task (paths or directories).",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"inherit_context": {
-					Type:        "boolean",
-					Description: "Whether to prepend completed dependency results to the task prompt.",
+	return &bgDispatch{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "bg_dispatch",
+				Description: `Dispatch a task to run in the background. The task executes asynchronously while you continue working. Use bg_status to check progress and bg_collect to retrieve results.`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"task_id": {
+							Type:        "string",
+							Description: "A unique identifier for this background task.",
+						},
+						"description": {
+							Type:        "string",
+							Description: "A short human-readable description of the task.",
+						},
+						"prompt": {
+							Type:        "string",
+							Description: "The full task prompt to execute in the background.",
+						},
+						"agent_type": {
+							Type:        "string",
+							Description: `Agent type to use. "internal" (default) uses the built-in subagent. External types include "claude_code" and "codex".`,
+						},
+						"config": {
+							Type:        "object",
+							Description: "Optional per-task config overrides (string map) passed to the external agent executor.",
+						},
+						"depends_on": {
+							Type:        "array",
+							Description: "Task IDs that must complete successfully before this task starts.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"workspace_mode": {
+							Type:        "string",
+							Description: `Workspace isolation mode: "shared" (default), "branch", or "worktree".`,
+						},
+						"file_scope": {
+							Type:        "array",
+							Description: "Advisory file scope for this task (paths or directories).",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"inherit_context": {
+							Type:        "boolean",
+							Description: "Whether to prepend completed dependency results to the task prompt.",
+						},
+					},
+					Required: []string{"task_id", "description", "prompt"},
 				},
 			},
-			Required: []string{"task_id", "description", "prompt"},
-		},
-	}
-}
-
-func (t *bgDispatch) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "bg_dispatch",
-		Version:  "1.0.0",
-		Category: "agent",
-		Tags:     []string{"background", "orchestration", "async"},
+			ports.ToolMetadata{
+				Name:     "bg_dispatch",
+				Version:  "1.0.0",
+				Category: "agent",
+				Tags:     []string{"background", "orchestration", "async"},
+			},
+		),
 	}
 }
 

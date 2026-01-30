@@ -14,11 +14,76 @@ import (
 )
 
 type fileEdit struct {
+	shared.BaseTool
 }
 
 func NewFileEdit(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &fileEdit{}
+	return &fileEdit{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "file_edit",
+				Description: `Edit files by replacing specific text content with exact string matching.
+
+Usage:
+- For editing existing files: Provide unique old_string that exists in the file
+- For creating new files: Use empty old_string ("") and provide new_string content
+- Returns unified diff showing changes made to the file
+- Automatically creates parent directories when creating new files
+
+Parameters:
+- file_path: Path to the file to modify (relative paths are resolved)
+- old_string: Text to replace (must be unique in file, empty for new file)
+- new_string: Replacement text content
+
+File Creation (old_string = ""):
+- Creates new file with new_string as content
+- Fails if file already exists
+- Creates parent directories automatically
+
+File Editing (old_string not empty):
+- Finds and replaces exact match of old_string
+- Fails if old_string not found or appears multiple times
+- Shows unified diff of changes
+
+Security:
+- Uses exact string matching (not regex)
+- old_string must appear exactly once in the file for safety
+- Preserves file permissions (644 for new files)
+
+Example workflow:
+1. Use file_read to examine current content
+2. Copy exact text for old_string (including whitespace)
+3. Provide replacement text as new_string
+4. Tool shows diff and updates file`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"file_path": {
+							Type:        "string",
+							Description: "The absolute path to the file to modify",
+						},
+						"old_string": {
+							Type:        "string",
+							Description: "The text to replace (empty for new file)",
+						},
+						"new_string": {
+							Type:        "string",
+							Description: "The text to replace with",
+						},
+					},
+					Required: []string{"file_path", "old_string", "new_string"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:      "file_edit",
+				Version:   "1.0.0",
+				Category:  "file_operations",
+				Tags:      []string{"file", "edit", "replace", "diff"},
+				Dangerous: true,
+			},
+		),
+	}
 }
 
 func (t *fileEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -148,73 +213,6 @@ func (t *fileEdit) editExistingFile(callID, filePath, resolvedPath, oldString, n
 			"content_sha256": fmt.Sprintf("%x", sum),
 		},
 	}, nil
-}
-
-func (t *fileEdit) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "file_edit",
-		Description: `Edit files by replacing specific text content with exact string matching.
-
-Usage:
-- For editing existing files: Provide unique old_string that exists in the file
-- For creating new files: Use empty old_string ("") and provide new_string content
-- Returns unified diff showing changes made to the file
-- Automatically creates parent directories when creating new files
-
-Parameters:
-- file_path: Path to the file to modify (relative paths are resolved)
-- old_string: Text to replace (must be unique in file, empty for new file)
-- new_string: Replacement text content
-
-File Creation (old_string = ""):
-- Creates new file with new_string as content
-- Fails if file already exists
-- Creates parent directories automatically
-
-File Editing (old_string not empty):
-- Finds and replaces exact match of old_string
-- Fails if old_string not found or appears multiple times
-- Shows unified diff of changes
-
-Security:
-- Uses exact string matching (not regex)
-- old_string must appear exactly once in the file for safety
-- Preserves file permissions (644 for new files)
-
-Example workflow:
-1. Use file_read to examine current content
-2. Copy exact text for old_string (including whitespace)
-3. Provide replacement text as new_string
-4. Tool shows diff and updates file`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"file_path": {
-					Type:        "string",
-					Description: "The absolute path to the file to modify",
-				},
-				"old_string": {
-					Type:        "string",
-					Description: "The text to replace (empty for new file)",
-				},
-				"new_string": {
-					Type:        "string",
-					Description: "The text to replace with",
-				},
-			},
-			Required: []string{"file_path", "old_string", "new_string"},
-		},
-	}
-}
-
-func (t *fileEdit) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:      "file_edit",
-		Version:   "1.0.0",
-		Category:  "file_operations",
-		Tags:      []string{"file", "edit", "replace", "diff"},
-		Dangerous: true,
-	}
 }
 
 // generateUnifiedDiff creates a simple unified diff between old and new content

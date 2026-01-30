@@ -12,40 +12,40 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
+	"alex/internal/tools/builtin/shared"
 )
 
 const douyinHotURL = "https://www.iesdouyin.com/web/api/v2/hotsearch/billboard/word/"
 
 type douyinHot struct {
+	shared.BaseTool
 	client *http.Client
 }
 
 func NewDouyinHot() tools.ToolExecutor {
-	return &douyinHot{client: httpclient.NewWithCircuitBreaker(10*time.Second, nil, "douyin_hot")}
-}
-
-func (t *douyinHot) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "douyin_hot",
-		Version:  "1.0.0",
-		Category: "web",
-		Tags:     []string{"douyin", "trending", "hotlist"},
-	}
-}
-
-func (t *douyinHot) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "douyin_hot",
-		Description: "Fetch current Douyin trending keywords for ideation and search seeding.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"limit": {
-					Type:        "integer",
-					Description: "Maximum number of hot keywords to return (default 20).",
+	return &douyinHot{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "douyin_hot",
+				Description: "Fetch current Douyin trending keywords for ideation and search seeding.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"limit": {
+							Type:        "integer",
+							Description: "Maximum number of hot keywords to return (default 20).",
+						},
+					},
 				},
 			},
-		},
+			ports.ToolMetadata{
+				Name:     "douyin_hot",
+				Version:  "1.0.0",
+				Category: "web",
+				Tags:     []string{"douyin", "trending", "hotlist"},
+			},
+		),
+		client: httpclient.NewWithCircuitBreaker(10*time.Second, nil, "douyin_hot"),
 	}
 }
 

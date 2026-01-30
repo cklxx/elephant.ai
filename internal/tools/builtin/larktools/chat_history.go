@@ -20,43 +20,42 @@ const (
 	maxPageSize     = 50
 )
 
-type larkChatHistory struct{}
+type larkChatHistory struct {
+	shared.BaseTool
+}
 
 // NewLarkChatHistory constructs a tool for querying Lark conversation history.
 func NewLarkChatHistory() tools.ToolExecutor {
-	return &larkChatHistory{}
-}
-
-func (t *larkChatHistory) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "lark_chat_history",
-		Version:  "0.1.0",
-		Category: "lark",
-		Tags:     []string{"lark", "chat", "history"},
-	}
-}
-
-func (t *larkChatHistory) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "lark_chat_history",
-		Description: "Retrieve recent messages from the current Lark chat. Returns messages in chronological order formatted as '[timestamp] sender: content'. Only available when running inside a Lark chat context.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"page_size": {
-					Type:        "integer",
-					Description: "Number of messages to retrieve (default 20, max 50).",
-				},
-				"start_time": {
-					Type:        "string",
-					Description: "Start time as Unix timestamp in seconds. Only messages after this time are returned.",
-				},
-				"end_time": {
-					Type:        "string",
-					Description: "End time as Unix timestamp in seconds. Only messages before this time are returned.",
+	return &larkChatHistory{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "lark_chat_history",
+				Description: "Retrieve recent messages from the current Lark chat. Returns messages in chronological order formatted as '[timestamp] sender: content'. Only available when running inside a Lark chat context.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"page_size": {
+							Type:        "integer",
+							Description: "Number of messages to retrieve (default 20, max 50).",
+						},
+						"start_time": {
+							Type:        "string",
+							Description: "Start time as Unix timestamp in seconds. Only messages after this time are returned.",
+						},
+						"end_time": {
+							Type:        "string",
+							Description: "End time as Unix timestamp in seconds. Only messages before this time are returned.",
+						},
+					},
 				},
 			},
-		},
+			ports.ToolMetadata{
+				Name:     "lark_chat_history",
+				Version:  "0.1.0",
+				Category: "lark",
+				Tags:     []string{"lark", "chat", "history"},
+			},
+		),
 	}
 }
 

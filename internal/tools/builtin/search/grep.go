@@ -12,11 +12,30 @@ import (
 )
 
 type grep struct {
+	shared.BaseTool
 }
 
 func NewGrep(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &grep{}
+	return &grep{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "grep",
+				Description: "Search for pattern in files",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"pattern": {Type: "string", Description: "Search pattern"},
+						"path":    {Type: "string", Description: "Path to search (default: .)"},
+					},
+					Required: []string{"pattern"},
+				},
+			},
+			ports.ToolMetadata{
+				Name: "grep", Version: "1.0.0", Category: "search",
+			},
+		),
+	}
 }
 
 func (t *grep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -54,27 +73,6 @@ func (t *grep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 			"matches":       total,
 		},
 	}, nil
-}
-
-func (t *grep) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "grep",
-		Description: "Search for pattern in files",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"pattern": {Type: "string", Description: "Search pattern"},
-				"path":    {Type: "string", Description: "Path to search (default: .)"},
-			},
-			Required: []string{"pattern"},
-		},
-	}
-}
-
-func (t *grep) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name: "grep", Version: "1.0.0", Category: "search",
-	}
 }
 
 func formatSearchContent(lines []string, total int) string {

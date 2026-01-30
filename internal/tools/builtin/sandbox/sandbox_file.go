@@ -15,68 +15,174 @@ import (
 )
 
 type sandboxFileReadTool struct {
+	shared.BaseTool
 	client *sandbox.Client
 }
 
 type sandboxFileWriteTool struct {
+	shared.BaseTool
 	client *sandbox.Client
 }
 
 type sandboxFileListTool struct {
+	shared.BaseTool
 	client *sandbox.Client
 }
 
 type sandboxFileSearchTool struct {
+	shared.BaseTool
 	client *sandbox.Client
 }
 
 type sandboxFileReplaceTool struct {
+	shared.BaseTool
 	client *sandbox.Client
 }
 
 func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxFileReadTool{client: newSandboxClient(cfg)}
-}
-
-func NewSandboxFileWrite(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxFileWriteTool{client: newSandboxClient(cfg)}
-}
-
-func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxFileListTool{client: newSandboxClient(cfg)}
-}
-
-func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxFileSearchTool{client: newSandboxClient(cfg)}
-}
-
-func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxFileReplaceTool{client: newSandboxClient(cfg)}
-}
-
-func (t *sandboxFileReadTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "read_file",
-		Version:  "0.1.0",
-		Category: "files",
-		Tags:     []string{"file", "read"},
+	return &sandboxFileReadTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "read_file",
+				Description: "Read file contents from the local filesystem (absolute paths only).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path":       {Type: "string", Description: "Absolute file path"},
+						"start_line": {Type: "integer", Description: "Optional start line (0-based)"},
+						"end_line":   {Type: "integer", Description: "Optional end line (exclusive)"},
+						"sudo":       {Type: "boolean", Description: "Use sudo privileges"},
+					},
+					Required: []string{"path"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "read_file",
+				Version:  "0.1.0",
+				Category: "files",
+				Tags:     []string{"file", "read"},
+			},
+		),
+		client: newSandboxClient(cfg),
 	}
 }
 
-func (t *sandboxFileReadTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "read_file",
-		Description: "Read file contents from the local filesystem (absolute paths only).",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path":       {Type: "string", Description: "Absolute file path"},
-				"start_line": {Type: "integer", Description: "Optional start line (0-based)"},
-				"end_line":   {Type: "integer", Description: "Optional end line (exclusive)"},
-				"sudo":       {Type: "boolean", Description: "Use sudo privileges"},
+func NewSandboxFileWrite(cfg SandboxConfig) tools.ToolExecutor {
+	return &sandboxFileWriteTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "write_file",
+				Description: "Write content to a file (absolute paths only). Use encoding=base64 for binary data.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path":             {Type: "string", Description: "Absolute file path"},
+						"content":          {Type: "string", Description: "Text content or base64 payload"},
+						"encoding":         {Type: "string", Description: "Content encoding: utf-8 or base64"},
+						"append":           {Type: "boolean", Description: "Append to the file instead of overwriting"},
+						"leading_newline":  {Type: "boolean", Description: "Add a leading newline (text only)"},
+						"trailing_newline": {Type: "boolean", Description: "Add a trailing newline (text only)"},
+						"sudo":             {Type: "boolean", Description: "Use sudo privileges"},
+					},
+					Required: []string{"path", "content"},
+				},
 			},
-			Required: []string{"path"},
-		},
+			ports.ToolMetadata{
+				Name:     "write_file",
+				Version:  "0.1.0",
+				Category: "files",
+				Tags:     []string{"file", "write"},
+			},
+		),
+		client: newSandboxClient(cfg),
+	}
+}
+
+func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
+	return &sandboxFileListTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "list_dir",
+				Description: "List files in a directory (absolute paths only).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path":                {Type: "string", Description: "Absolute directory path"},
+						"recursive":           {Type: "boolean", Description: "List recursively"},
+						"show_hidden":         {Type: "boolean", Description: "Include hidden files"},
+						"file_types":          {Type: "array", Description: "Filter by file extensions", Items: &ports.Property{Type: "string"}},
+						"max_depth":           {Type: "integer", Description: "Maximum depth for recursive listing"},
+						"include_size":        {Type: "boolean", Description: "Include file size"},
+						"include_permissions": {Type: "boolean", Description: "Include permissions"},
+						"sort_by":             {Type: "string", Description: "Sort by: name, size, modified, type"},
+						"sort_desc":           {Type: "boolean", Description: "Sort in descending order"},
+					},
+					Required: []string{"path"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "list_dir",
+				Version:  "0.1.0",
+				Category: "files",
+				Tags:     []string{"file", "list", "directory"},
+			},
+		),
+		client: newSandboxClient(cfg),
+	}
+}
+
+func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
+	return &sandboxFileSearchTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "search_file",
+				Description: "Search for a regex pattern in a file (absolute paths only).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path":  {Type: "string", Description: "Absolute file path"},
+						"regex": {Type: "string", Description: "Regex pattern to search"},
+						"sudo":  {Type: "boolean", Description: "Use sudo privileges"},
+					},
+					Required: []string{"path", "regex"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "search_file",
+				Version:  "0.1.0",
+				Category: "files",
+				Tags:     []string{"file", "search"},
+			},
+		),
+		client: newSandboxClient(cfg),
+	}
+}
+
+func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
+	return &sandboxFileReplaceTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "replace_in_file",
+				Description: "Replace exact text in a file (absolute paths only).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path":    {Type: "string", Description: "Absolute file path"},
+						"old_str": {Type: "string", Description: "Original string to replace"},
+						"new_str": {Type: "string", Description: "Replacement string"},
+						"sudo":    {Type: "boolean", Description: "Use sudo privileges"},
+					},
+					Required: []string{"path", "old_str", "new_str"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "replace_in_file",
+				Version:  "0.1.0",
+				Category: "files",
+				Tags:     []string{"file", "replace", "edit"},
+			},
+		),
+		client: newSandboxClient(cfg),
 	}
 }
 
@@ -120,35 +226,6 @@ func (t *sandboxFileReadTool) Execute(ctx context.Context, call ports.ToolCall) 
 		Content:  response.Data.Content,
 		Metadata: map[string]any{"path": response.Data.File},
 	}, nil
-}
-
-func (t *sandboxFileWriteTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "write_file",
-		Version:  "0.1.0",
-		Category: "files",
-		Tags:     []string{"file", "write"},
-	}
-}
-
-func (t *sandboxFileWriteTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "write_file",
-		Description: "Write content to a file (absolute paths only). Use encoding=base64 for binary data.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path":             {Type: "string", Description: "Absolute file path"},
-				"content":          {Type: "string", Description: "Text content or base64 payload"},
-				"encoding":         {Type: "string", Description: "Content encoding: utf-8 or base64"},
-				"append":           {Type: "boolean", Description: "Append to the file instead of overwriting"},
-				"leading_newline":  {Type: "boolean", Description: "Add a leading newline (text only)"},
-				"trailing_newline": {Type: "boolean", Description: "Add a trailing newline (text only)"},
-				"sudo":             {Type: "boolean", Description: "Use sudo privileges"},
-			},
-			Required: []string{"path", "content"},
-		},
-	}
 }
 
 func (t *sandboxFileWriteTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -215,37 +292,6 @@ func (t *sandboxFileWriteTool) Execute(ctx context.Context, call ports.ToolCall)
 	}, nil
 }
 
-func (t *sandboxFileListTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "list_dir",
-		Version:  "0.1.0",
-		Category: "files",
-		Tags:     []string{"file", "list", "directory"},
-	}
-}
-
-func (t *sandboxFileListTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "list_dir",
-		Description: "List files in a directory (absolute paths only).",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path":                {Type: "string", Description: "Absolute directory path"},
-				"recursive":           {Type: "boolean", Description: "List recursively"},
-				"show_hidden":         {Type: "boolean", Description: "Include hidden files"},
-				"file_types":          {Type: "array", Description: "Filter by file extensions", Items: &ports.Property{Type: "string"}},
-				"max_depth":           {Type: "integer", Description: "Maximum depth for recursive listing"},
-				"include_size":        {Type: "boolean", Description: "Include file size"},
-				"include_permissions": {Type: "boolean", Description: "Include permissions"},
-				"sort_by":             {Type: "string", Description: "Sort by: name, size, modified, type"},
-				"sort_desc":           {Type: "boolean", Description: "Sort in descending order"},
-			},
-			Required: []string{"path"},
-		},
-	}
-}
-
 func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
@@ -308,31 +354,6 @@ func (t *sandboxFileListTool) Execute(ctx context.Context, call ports.ToolCall) 
 	}, nil
 }
 
-func (t *sandboxFileSearchTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "search_file",
-		Version:  "0.1.0",
-		Category: "files",
-		Tags:     []string{"file", "search"},
-	}
-}
-
-func (t *sandboxFileSearchTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "search_file",
-		Description: "Search for a regex pattern in a file (absolute paths only).",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path":  {Type: "string", Description: "Absolute file path"},
-				"regex": {Type: "string", Description: "Regex pattern to search"},
-				"sudo":  {Type: "boolean", Description: "Use sudo privileges"},
-			},
-			Required: []string{"path", "regex"},
-		},
-	}
-}
-
 func (t *sandboxFileSearchTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	path := strings.TrimSpace(shared.StringArg(call.Arguments, "path"))
 	if path == "" {
@@ -380,32 +401,6 @@ func (t *sandboxFileSearchTool) Execute(ctx context.Context, call ports.ToolCall
 		Content:  string(payloadJSON),
 		Metadata: map[string]any{"path": response.Data.File},
 	}, nil
-}
-
-func (t *sandboxFileReplaceTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "replace_in_file",
-		Version:  "0.1.0",
-		Category: "files",
-		Tags:     []string{"file", "replace", "edit"},
-	}
-}
-
-func (t *sandboxFileReplaceTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "replace_in_file",
-		Description: "Replace exact text in a file (absolute paths only).",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path":    {Type: "string", Description: "Absolute file path"},
-				"old_str": {Type: "string", Description: "Original string to replace"},
-				"new_str": {Type: "string", Description: "Replacement string"},
-				"sudo":    {Type: "boolean", Description: "Use sudo privileges"},
-			},
-			Required: []string{"path", "old_str", "new_str"},
-		},
-	}
 }
 
 func (t *sandboxFileReplaceTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {

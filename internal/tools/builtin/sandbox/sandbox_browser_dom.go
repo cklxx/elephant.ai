@@ -18,6 +18,7 @@ import (
 )
 
 type sandboxBrowserDOMTool struct {
+	shared.BaseTool
 	client *sandbox.Client
 }
 
@@ -62,53 +63,51 @@ const (
 )
 
 func NewSandboxBrowserDOM(cfg SandboxConfig) tools.ToolExecutor {
-	return &sandboxBrowserDOMTool{client: newSandboxClient(cfg)}
-}
-
-func (t *sandboxBrowserDOMTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     sandboxDOMToolName,
-		Version:  "0.1.0",
-		Category: "web",
-		Tags:     []string{"browser", "dom", "automation"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"text/plain", "application/json"},
-		},
-	}
-}
-
-func (t *sandboxBrowserDOMTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: sandboxDOMToolName,
-		Description: `Use the browser via CDP for DOM-level automation (Playwright-like).
+	return &sandboxBrowserDOMTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: sandboxDOMToolName,
+				Description: `Use the browser via CDP for DOM-level automation (Playwright-like).
 
 Provide ordered steps using CSS selectors. Useful for click/fill/wait/query/evaluate without relying on screenshots.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"steps": {
-					Type:        "array",
-					Description: "Ordered list of DOM actions (goto, click, fill, type, press, wait_for, get_text, get_html, get_attribute, evaluate).",
-					Items:       &ports.Property{Type: "object"},
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"steps": {
+							Type:        "array",
+							Description: "Ordered list of DOM actions (goto, click, fill, type, press, wait_for, get_text, get_html, get_attribute, evaluate).",
+							Items:       &ports.Property{Type: "object"},
+						},
+						"continue_on_error": {
+							Type:        "boolean",
+							Description: "Continue executing steps after a failure (default false).",
+						},
+						"inspect": {
+							Type:        "object",
+							Description: "Optional DOM inspection settings.",
+						},
+						"return_page": {
+							Type:        "boolean",
+							Description: "Include current page title and URL in the result (default true).",
+						},
+					},
+					Required: []string{"steps"},
 				},
-				"continue_on_error": {
-					Type:        "boolean",
-					Description: "Continue executing steps after a failure (default false).",
-				},
-				"inspect": {
-					Type:        "object",
-					Description: "Optional DOM inspection settings.",
-				},
-				"return_page": {
-					Type:        "boolean",
-					Description: "Include current page title and URL in the result (default true).",
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"text/plain", "application/json"},
 				},
 			},
-			Required: []string{"steps"},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"text/plain", "application/json"},
-		},
+			ports.ToolMetadata{
+				Name:     sandboxDOMToolName,
+				Version:  "0.1.0",
+				Category: "web",
+				Tags:     []string{"browser", "dom", "automation"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"text/plain", "application/json"},
+				},
+			},
+		),
+		client: newSandboxClient(cfg),
 	}
 }
 

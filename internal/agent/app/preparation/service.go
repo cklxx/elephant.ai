@@ -409,6 +409,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		KnowledgeRefs:        nil,
 		WorldState:           initialWorldState,
 		WorldDiff:            initialWorldDiff,
+		PlanReviewEnabled:    appcontext.PlanReviewEnabled(ctx),
 	}
 	for key := range preloadedAttachments {
 		if key == "" {

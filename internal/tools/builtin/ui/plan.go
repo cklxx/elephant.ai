@@ -15,26 +15,16 @@ import (
 )
 
 type uiPlan struct {
+	shared.BaseTool
 	memory memory.Service
 }
 
 func NewPlan(memoryService memory.Service) tools.ToolExecutor {
-	return &uiPlan{memory: memoryService}
-}
-
-func (t *uiPlan) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "plan",
-		Version:  "1.0.0",
-		Category: "ui",
-		Tags:     []string{"ui", "orchestration"},
-	}
-}
-
-func (t *uiPlan) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "plan",
-		Description: `UI tool: emit Level 1 goal and (optionally) attach a hidden internal plan for the orchestrator.
+	return &uiPlan{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "plan",
+				Description: `UI tool: emit Level 1 goal and (optionally) attach a hidden internal plan for the orchestrator.
 
 Rules:
 - Must be called before any non-plan/clarify tool call.
@@ -42,42 +32,51 @@ Rules:
 - overall_goal_ui must state the deliverable and a measurable acceptance signal (paths/tests/metrics).
 - When complexity="simple", you may proceed directly to the required action tool calls after plan(); do NOT call clarify() unless you need to pause for user input.
 - When complexity="complex", call clarify() before the first action tool call for each task.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"run_id": {
-					Type:        "string",
-					Description: "Run identifier (must match the current run_id provided by the system).",
-				},
-				"session_title": {
-					Type:        "string",
-					Description: "Short session title used for session headers/lists (single-line).",
-				},
-				"overall_goal_ui": {
-					Type:        "string",
-					Description: "User-facing goal UI text. For complexity=simple it must be single-line.",
-				},
-				"complexity": {
-					Type:        "string",
-					Description: "simple or complex",
-					Enum:        []any{"simple", "complex"},
-				},
-				"memory_keywords": {
-					Type:        "array",
-					Description: "Keywords to recall user memories before planning.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"memory_slots": {
-					Type:        "object",
-					Description: "Intent slots (key/value) used to recall user memories.",
-				},
-				"internal_plan": {
-					Type:        "object",
-					Description: "Hidden internal plan object for orchestrator storage (must not be rendered).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"run_id": {
+							Type:        "string",
+							Description: "Run identifier (must match the current run_id provided by the system).",
+						},
+						"session_title": {
+							Type:        "string",
+							Description: "Short session title used for session headers/lists (single-line).",
+						},
+						"overall_goal_ui": {
+							Type:        "string",
+							Description: "User-facing goal UI text. For complexity=simple it must be single-line.",
+						},
+						"complexity": {
+							Type:        "string",
+							Description: "simple or complex",
+							Enum:        []any{"simple", "complex"},
+						},
+						"memory_keywords": {
+							Type:        "array",
+							Description: "Keywords to recall user memories before planning.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"memory_slots": {
+							Type:        "object",
+							Description: "Intent slots (key/value) used to recall user memories.",
+						},
+						"internal_plan": {
+							Type:        "object",
+							Description: "Hidden internal plan object for orchestrator storage (must not be rendered).",
+						},
+					},
+					Required: []string{"run_id", "overall_goal_ui", "complexity"},
 				},
 			},
-			Required: []string{"run_id", "overall_goal_ui", "complexity"},
-		},
+			ports.ToolMetadata{
+				Name:     "plan",
+				Version:  "1.0.0",
+				Category: "ui",
+				Tags:     []string{"ui", "orchestration"},
+			},
+		),
+		memory: memoryService,
 	}
 }
 

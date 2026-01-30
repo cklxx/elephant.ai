@@ -23,6 +23,7 @@ import (
 )
 
 type seedreamVideoTool struct {
+	shared.BaseTool
 	config     SeedreamConfig
 	factory    *seedreamClientFactory
 	httpClient *http.Client
@@ -33,92 +34,88 @@ type seedreamVideoTool struct {
 func NewSeedreamVideoGenerate(config SeedreamConfig) tools.ToolExecutor {
 	logger := logging.NewComponentLogger("SeedreamVideo")
 	return &seedreamVideoTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "video_generate",
+				Description: fmt.Sprintf(
+					"Create short cinematic videos with the Doubao Seedance model. The tool will plan for an establishing first frame, honor the requested duration, and enforces the official %d-%d second clip window.",
+					seedanceMinDurationSeconds,
+					seedanceMaxDurationSeconds,
+				),
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"prompt": {
+							Type:        "string",
+							Description: "High-level creative direction for the video sequence.",
+						},
+						"duration_seconds": {
+							Type:        "integer",
+							Description: fmt.Sprintf("Target length of the generated video in seconds (%d-%d per official Seedance docs).", seedanceMinDurationSeconds, seedanceMaxDurationSeconds),
+						},
+						"first_frame_prompt": {
+							Type:        "string",
+							Description: "Optional prompt for the establishing first frame (defaults to prompt).",
+						},
+						"first_frame_url": {
+							Type:        "string",
+							Description: "Optional URL or data URI for the first frame reference.",
+						},
+						"first_frame_base64": {
+							Type:        "string",
+							Description: "Optional base64 payload for the first frame image.",
+						},
+						"first_frame_mime_type": {
+							Type:        "string",
+							Description: "Optional MIME type for first_frame_base64.",
+						},
+						"resolution": {
+							Type:        "string",
+							Description: "Requested output resolution (e.g. 1080p, 720p).",
+						},
+						"camera_fixed": {
+							Type:        "boolean",
+							Description: "Whether the camera should remain fixed during generation.",
+						},
+						"return_last_frame": {
+							Type:        "boolean",
+							Description: "Whether to include the last frame image in the response.",
+						},
+						"seed": {
+							Type:        "integer",
+							Description: "Random seed for reproducible generation.",
+						},
+						"poll_interval_seconds": {
+							Type:        "integer",
+							Description: "How frequently to poll for task completion (default 3).",
+						},
+						"max_wait_seconds": {
+							Type:        "integer",
+							Description: "Maximum time to wait for the task before timing out (default 300).",
+						},
+					},
+					Required: []string{"prompt", "duration_seconds"},
+				},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+					Produces: []string{"video/mp4", "image/png", "application/octet-stream"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "video_generate",
+				Version:  "1.0.0",
+				Category: "design",
+				Tags:     []string{"video", "generation", "seedream", "seedance"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+					Produces: []string{"video/mp4", "image/png", "application/octet-stream"},
+				},
+			},
+		),
 		config:     config,
 		factory:    &seedreamClientFactory{config: config},
 		httpClient: httpclient.New(seedreamAssetHTTPTimeout, logger),
 		logger:     logger,
-	}
-}
-
-func (t *seedreamVideoTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "video_generate",
-		Version:  "1.0.0",
-		Category: "design",
-		Tags:     []string{"video", "generation", "seedream", "seedance"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-			Produces: []string{"video/mp4", "image/png", "application/octet-stream"},
-		},
-	}
-}
-
-func (t *seedreamVideoTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "video_generate",
-		Description: fmt.Sprintf(
-			"Create short cinematic videos with the Doubao Seedance model. The tool will plan for an establishing first frame, honor the requested duration, and enforces the official %d-%d second clip window.",
-			seedanceMinDurationSeconds,
-			seedanceMaxDurationSeconds,
-		),
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"prompt": {
-					Type:        "string",
-					Description: "High-level creative direction for the video sequence.",
-				},
-				"duration_seconds": {
-					Type:        "integer",
-					Description: fmt.Sprintf("Target length of the generated video in seconds (%d-%d per official Seedance docs).", seedanceMinDurationSeconds, seedanceMaxDurationSeconds),
-				},
-				"first_frame_prompt": {
-					Type:        "string",
-					Description: "Optional prompt for the establishing first frame (defaults to prompt).",
-				},
-				"first_frame_url": {
-					Type:        "string",
-					Description: "Optional URL or data URI for the first frame reference.",
-				},
-				"first_frame_base64": {
-					Type:        "string",
-					Description: "Optional base64 payload for the first frame image.",
-				},
-				"first_frame_mime_type": {
-					Type:        "string",
-					Description: "Optional MIME type for first_frame_base64.",
-				},
-				"resolution": {
-					Type:        "string",
-					Description: "Requested output resolution (e.g. 1080p, 720p).",
-				},
-				"camera_fixed": {
-					Type:        "boolean",
-					Description: "Whether the camera should remain fixed during generation.",
-				},
-				"return_last_frame": {
-					Type:        "boolean",
-					Description: "Whether to include the last frame image in the response.",
-				},
-				"seed": {
-					Type:        "integer",
-					Description: "Random seed for reproducible generation.",
-				},
-				"poll_interval_seconds": {
-					Type:        "integer",
-					Description: "How frequently to poll for task completion (default 3).",
-				},
-				"max_wait_seconds": {
-					Type:        "integer",
-					Description: "Maximum time to wait for the task before timing out (default 300).",
-				},
-			},
-			Required: []string{"prompt", "duration_seconds"},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-			Produces: []string{"video/mp4", "image/png", "application/octet-stream"},
-		},
 	}
 }
 

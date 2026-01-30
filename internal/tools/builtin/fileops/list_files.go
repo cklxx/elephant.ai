@@ -12,11 +12,28 @@ import (
 )
 
 type listFiles struct {
+	shared.BaseTool
 }
 
 func NewListFiles(cfg shared.FileToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &listFiles{}
+	return &listFiles{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "list_files",
+				Description: "List files and directories",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"path": {Type: "string", Description: "Directory path (default: .)"},
+					},
+				},
+			},
+			ports.ToolMetadata{
+				Name: "list_files", Version: "1.0.0", Category: "file_operations",
+			},
+		),
+	}
 }
 
 func (t *listFiles) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -47,21 +64,3 @@ func (t *listFiles) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	return &ports.ToolResult{CallID: call.ID, Content: result.String()}, nil
 }
 
-func (t *listFiles) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "list_files",
-		Description: "List files and directories",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"path": {Type: "string", Description: "Directory path (default: .)"},
-			},
-		},
-	}
-}
-
-func (t *listFiles) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name: "list_files", Version: "1.0.0", Category: "file_operations",
-	}
-}

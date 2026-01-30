@@ -26,52 +26,49 @@ import (
 // - Delegating all execution to agent.AgentCoordinator interface
 // - Using appcontext.MarkSubagentContext to trigger registry filtering (RECURSION PREVENTION)
 type subagent struct {
+	shared.BaseTool
 	coordinator agent.AgentCoordinator
 }
 
 // NewSubAgent creates a subagent tool with coordinator injection
 func NewSubAgent(coordinator agent.AgentCoordinator, maxWorkers int) tools.ToolExecutor {
 	return &subagent{
-		coordinator: coordinator,
-	}
-}
-
-func (t *subagent) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "subagent",
-		Version:  "2.0.0",
-		Category: "agent",
-		Tags:     []string{"delegation", "orchestration"},
-	}
-}
-
-func (t *subagent) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "subagent",
-		Description: `Delegate complex work to dedicated subagents. Provide a single prompt or a list of tasks to run in parallel/serial. The subagent inherits the current tool access mode/preset and cannot spawn other subagents.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"prompt": {
-					Type:        "string",
-					Description: "Single task to delegate when tasks are not provided.",
-				},
-				"tasks": {
-					Type:        "array",
-					Description: "Optional list of subtasks to delegate to subagents.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"mode": {
-					Type:        "string",
-					Description: "Execution mode for multiple tasks (parallel or serial).",
-					Enum:        []any{"parallel", "serial"},
-				},
-				"max_parallel": {
-					Type:        "integer",
-					Description: "Maximum number of subtasks to run concurrently when mode=parallel.",
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "subagent",
+				Description: `Delegate complex work to dedicated subagents. Provide a single prompt or a list of tasks to run in parallel/serial. The subagent inherits the current tool access mode/preset and cannot spawn other subagents.`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"prompt": {
+							Type:        "string",
+							Description: "Single task to delegate when tasks are not provided.",
+						},
+						"tasks": {
+							Type:        "array",
+							Description: "Optional list of subtasks to delegate to subagents.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"mode": {
+							Type:        "string",
+							Description: "Execution mode for multiple tasks (parallel or serial).",
+							Enum:        []any{"parallel", "serial"},
+						},
+						"max_parallel": {
+							Type:        "integer",
+							Description: "Maximum number of subtasks to run concurrently when mode=parallel.",
+						},
+					},
 				},
 			},
-		},
+			ports.ToolMetadata{
+				Name:     "subagent",
+				Version:  "2.0.0",
+				Category: "agent",
+				Tags:     []string{"delegation", "orchestration"},
+			},
+		),
+		coordinator: coordinator,
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/jsonx"
+	"alex/internal/tools/builtin/shared"
 	"alex/internal/logging"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
@@ -16,6 +17,7 @@ import (
 )
 
 type seedreamImageTool struct {
+	shared.BaseTool
 	config  SeedreamConfig
 	factory *seedreamClientFactory
 	logger  logging.Logger
@@ -24,63 +26,59 @@ type seedreamImageTool struct {
 // NewSeedreamImageToImage returns a tool that performs image-to-image refinement.
 func NewSeedreamImageToImage(config SeedreamConfig) tools.ToolExecutor {
 	return &seedreamImageTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "image_to_image",
+				Description: "Transform or upscale reference art with Seedream image-to-image models. Provide a base64 string, HTTPS URL, or previously generated `[placeholder.png]` in `init_image` along with an optional prompt. The runtime automatically resolves placeholders into the required data URI.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"init_image": {
+							Type:        "string",
+							Description: "Base64 data URI or URL of the source image.",
+						},
+						"prompt": {
+							Type:        "string",
+							Description: "Optional guidance describing the target adjustments.",
+						},
+						"size": {
+							Type:        "string",
+							Description: "Output WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
+						},
+						"width": {
+							Type: "integer",
+						},
+						"height": {
+							Type: "integer",
+						},
+						"seed": {
+							Type: "integer",
+						},
+						"cfg_scale": {
+							Type: "number",
+						},
+					},
+					Required: []string{"init_image"},
+				},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+					Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "image_to_image",
+				Version:  "2.0.0",
+				Category: "design",
+				Tags:     []string{"image", "generation", "seedream", "image-to-image"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+					Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
+				},
+			},
+		),
 		config:  config,
 		factory: &seedreamClientFactory{config: config},
 		logger:  logging.NewComponentLogger("SeedreamImageToImage"),
-	}
-}
-
-func (t *seedreamImageTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "image_to_image",
-		Version:  "2.0.0",
-		Category: "design",
-		Tags:     []string{"image", "generation", "seedream", "image-to-image"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-		},
-	}
-}
-
-func (t *seedreamImageTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "image_to_image",
-		Description: "Transform or upscale reference art with Seedream image-to-image models. Provide a base64 string, HTTPS URL, or previously generated `[placeholder.png]` in `init_image` along with an optional prompt. The runtime automatically resolves placeholders into the required data URI.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"init_image": {
-					Type:        "string",
-					Description: "Base64 data URI or URL of the source image.",
-				},
-				"prompt": {
-					Type:        "string",
-					Description: "Optional guidance describing the target adjustments.",
-				},
-				"size": {
-					Type:        "string",
-					Description: "Output WxH string (e.g. 1920x1920). Defaults to 1920x1920.",
-				},
-				"width": {
-					Type: "integer",
-				},
-				"height": {
-					Type: "integer",
-				},
-				"seed": {
-					Type: "integer",
-				},
-				"cfg_scale": {
-					Type: "number",
-				},
-			},
-			Required: []string{"init_image"},
-		},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Consumes: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-			Produces: []string{"image/png", "image/jpeg", "image/webp", "image/gif"},
-		},
 	}
 }
 

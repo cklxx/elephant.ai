@@ -8,68 +8,68 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
 )
 
-type uiClarify struct{}
+type uiClarify struct {
+	shared.BaseTool
+}
 
 func NewClarify() tools.ToolExecutor {
-	return &uiClarify{}
-}
-
-func (t *uiClarify) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "clarify",
-		Version:  "1.0.0",
-		Category: "ui",
-		Tags:     []string{"ui", "orchestration"},
-	}
-}
-
-func (t *uiClarify) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "clarify",
-		Description: `UI tool: emit Level 2 task header before starting a unit of work.
+	return &uiClarify{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "clarify",
+				Description: `UI tool: emit Level 2 task header before starting a unit of work.
 
 Rules:
 - Required when plan(complexity="complex"): must be called once per task (task_id) before the task's first action tool call.
 - Optional when plan(complexity="simple"): only call it if you need to pause and ask the user for missing input.
 - When needs_user_input=true, provide question_to_user and the orchestrator should pause.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"run_id": {
-					Type:        "string",
-					Description: "Run identifier (must match the current run_id provided by the system).",
-				},
-				"branch_id": {
-					Type:        "string",
-					Description: "Optional branch identifier.",
-				},
-				"task_id": {
-					Type:        "string",
-					Description: "Task identifier within the run.",
-				},
-				"task_goal_ui": {
-					Type:        "string",
-					Description: "User-facing task header.",
-				},
-				"success_criteria": {
-					Type:        "array",
-					Description: "Optional string array of success criteria (UI hint).",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"needs_user_input": {
-					Type:        "boolean",
-					Description: "Set true to pause and ask the user a question.",
-				},
-				"question_to_user": {
-					Type:        "string",
-					Description: "Question shown to the user when needs_user_input=true.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"run_id": {
+							Type:        "string",
+							Description: "Run identifier (must match the current run_id provided by the system).",
+						},
+						"branch_id": {
+							Type:        "string",
+							Description: "Optional branch identifier.",
+						},
+						"task_id": {
+							Type:        "string",
+							Description: "Task identifier within the run.",
+						},
+						"task_goal_ui": {
+							Type:        "string",
+							Description: "User-facing task header.",
+						},
+						"success_criteria": {
+							Type:        "array",
+							Description: "Optional string array of success criteria (UI hint).",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"needs_user_input": {
+							Type:        "boolean",
+							Description: "Set true to pause and ask the user a question.",
+						},
+						"question_to_user": {
+							Type:        "string",
+							Description: "Question shown to the user when needs_user_input=true.",
+						},
+					},
+					Required: []string{"run_id", "task_id", "task_goal_ui"},
 				},
 			},
-			Required: []string{"run_id", "task_id", "task_goal_ui"},
-		},
+			ports.ToolMetadata{
+				Name:     "clarify",
+				Version:  "1.0.0",
+				Category: "ui",
+				Tags:     []string{"ui", "orchestration"},
+			},
+		),
 	}
 }
 

@@ -81,6 +81,7 @@ type TaskState struct {
 	FeedbackSignals        []FeedbackSignal
 	LatestGoalPrompt       string
 	LatestPlanPrompt       string
+	PlanReviewEnabled      bool
 }
 
 // AgentConfig exposes the subset of coordinator configuration required by tools.

@@ -25,6 +25,7 @@ type ACPExecutorConfig struct {
 }
 
 type acpExecutorTool struct {
+	shared.BaseTool
 	cfg      ACPExecutorConfig
 	logger   logging.Logger
 	mu       sync.Mutex
@@ -34,40 +35,36 @@ type acpExecutorTool struct {
 // NewACPExecutor creates the ACP executor tool.
 func NewACPExecutor(cfg ACPExecutorConfig) tools.ToolExecutor {
 	return &acpExecutorTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "acp_executor",
+				Description: "Dispatch a task package to an ACP-ready executor (Codex/Claude/Gemini CLI) and stream back execution events.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"instruction": {
+							Type:        "string",
+							Description: "Task instruction for the executor (context-first task package is built automatically).",
+						},
+						"attachment_names": {
+							Type:        "array",
+							Description: "Attachment names from the current context to send to the executor.",
+							Items:       &ports.Property{Type: "string"},
+						},
+					},
+					Required: []string{},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "acp_executor",
+				Version:  "1.0.0",
+				Category: "execution",
+				Tags:     []string{"acp", "executor", "cli"},
+			},
+		),
 		cfg:      cfg,
 		logger:   logging.NewComponentLogger("ACPExecutor"),
 		sessions: make(map[string]string),
-	}
-}
-
-func (t *acpExecutorTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "acp_executor",
-		Version:  "1.0.0",
-		Category: "execution",
-		Tags:     []string{"acp", "executor", "cli"},
-	}
-}
-
-func (t *acpExecutorTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "acp_executor",
-		Description: "Dispatch a task package to an ACP-ready executor (Codex/Claude/Gemini CLI) and stream back execution events.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"instruction": {
-					Type:        "string",
-					Description: "Task instruction for the executor (context-first task package is built automatically).",
-				},
-				"attachment_names": {
-					Type:        "array",
-					Description: "Attachment names from the current context to send to the executor.",
-					Items:       &ports.Property{Type: "string"},
-				},
-			},
-			Required: []string{},
-		},
 	}
 }
 

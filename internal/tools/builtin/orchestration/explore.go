@@ -7,64 +7,64 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	"alex/internal/tools/builtin/shared"
 )
 
 type explore struct {
+	shared.BaseTool
 	subagent tools.ToolExecutor
 }
 
 // NewExplore creates an explore tool that wraps the subagent executor.
 func NewExplore(subagent tools.ToolExecutor) tools.ToolExecutor {
-	return &explore{subagent: subagent}
-}
-
-func (e *explore) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "explore",
-		Description: "Plan and delegate multi-scope investigations while orchestrating the platform's complete exploration toolset. Automatically prepares local, web, and custom subtasks and synthesizes a concise summary of findings.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"objective": {
-					Type:        "string",
-					Description: "High-level goal to investigate.",
-				},
-				"local_scope": {
-					Type:        "array",
-					Description: "Specific local/codebase areas to inspect.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"web_scope": {
-					Type:        "array",
-					Description: "Web research focus areas.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"custom_tasks": {
-					Type:        "array",
-					Description: "Additional custom subtasks to run.",
-					Items:       &ports.Property{Type: "string"},
-				},
-				"notes": {
-					Type:        "string",
-					Description: "Context or constraints shared with every subtask.",
-				},
-				"mode": {
-					Type:        "string",
-					Description: "Delegation mode forwarded to subagent (parallel or serial).",
-					Enum:        []any{"parallel", "serial"},
+	return &explore{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "explore",
+				Description: "Plan and delegate multi-scope investigations while orchestrating the platform's complete exploration toolset. Automatically prepares local, web, and custom subtasks and synthesizes a concise summary of findings.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"objective": {
+							Type:        "string",
+							Description: "High-level goal to investigate.",
+						},
+						"local_scope": {
+							Type:        "array",
+							Description: "Specific local/codebase areas to inspect.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"web_scope": {
+							Type:        "array",
+							Description: "Web research focus areas.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"custom_tasks": {
+							Type:        "array",
+							Description: "Additional custom subtasks to run.",
+							Items:       &ports.Property{Type: "string"},
+						},
+						"notes": {
+							Type:        "string",
+							Description: "Context or constraints shared with every subtask.",
+						},
+						"mode": {
+							Type:        "string",
+							Description: "Delegation mode forwarded to subagent (parallel or serial).",
+							Enum:        []any{"parallel", "serial"},
+						},
+					},
+					Required: []string{"objective"},
 				},
 			},
-			Required: []string{"objective"},
-		},
-	}
-}
-
-func (e *explore) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "explore",
-		Version:  "1.0.0",
-		Category: "orchestration",
-		Tags:     []string{"planning", "delegation", "discovery"},
+			ports.ToolMetadata{
+				Name:     "explore",
+				Version:  "1.0.0",
+				Category: "orchestration",
+				Tags:     []string{"planning", "delegation", "discovery"},
+			},
+		),
+		subagent: subagent,
 	}
 }
 

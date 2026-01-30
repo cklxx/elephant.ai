@@ -14,9 +14,40 @@ import (
 )
 
 type todoUpdate struct {
+	shared.BaseTool
 	sessionsDir string
 	writeFile   func(string, []byte, fs.FileMode) error
 }
+
+var todoUpdateBaseTool = shared.NewBaseTool(
+	ports.ToolDefinition{
+		Name: "todo_update",
+		Description: `Update session todo list with structured format.
+
+Parameters:
+- todos: Array of {content, status, activeForm}
+  - content (required): Task description
+  - status (required): "pending", "in_progress", "completed"
+  - activeForm (optional): Present continuous form`,
+		Parameters: ports.ParameterSchema{
+			Type: "object",
+			Properties: map[string]ports.Property{
+				"todos": {
+					Type:        "array",
+					Description: "Array of todo items",
+					Items:       &ports.Property{Type: "object"},
+				},
+			},
+			Required: []string{"todos"},
+		},
+	},
+	ports.ToolMetadata{
+		Name:     "todo_update",
+		Version:  "1.0.0",
+		Category: "session",
+		Tags:     []string{"todo"},
+	},
+)
 
 func NewTodoUpdate() tools.ToolExecutor {
 	homeDir, _ := os.UserHomeDir()
@@ -40,41 +71,9 @@ func newTodoUpdate(sessionsDir string, writer func(string, []byte, fs.FileMode) 
 	}
 
 	return &todoUpdate{
+		BaseTool:    todoUpdateBaseTool,
 		sessionsDir: sessionsDir,
 		writeFile:   writer,
-	}
-}
-
-func (t *todoUpdate) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "todo_update",
-		Version:  "1.0.0",
-		Category: "session",
-		Tags:     []string{"todo"},
-	}
-}
-
-func (t *todoUpdate) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "todo_update",
-		Description: `Update session todo list with structured format.
-
-Parameters:
-- todos: Array of {content, status, activeForm}
-  - content (required): Task description
-  - status (required): "pending", "in_progress", "completed"
-  - activeForm (optional): Present continuous form`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"todos": {
-					Type:        "array",
-					Description: "Array of todo items",
-					Items:       &ports.Property{Type: "object"},
-				},
-			},
-			Required: []string{"todos"},
-		},
 	}
 }
 

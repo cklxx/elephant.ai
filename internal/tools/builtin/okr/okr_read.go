@@ -11,12 +11,32 @@ import (
 )
 
 type okrRead struct {
+	shared.BaseTool
 	store *GoalStore
 }
 
 // NewOKRRead creates the okr_read tool.
 func NewOKRRead(cfg OKRConfig) tools.ToolExecutor {
-	return &okrRead{store: NewGoalStore(cfg)}
+	return &okrRead{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "okr_read",
+				Description: "Read OKR goals. Without goal_id: lists all goals with status and KR progress summary. With goal_id: returns the full goal file content.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"goal_id": {Type: "string", Description: "Optional goal ID to read. Omit to list all goals."},
+					},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "okr_read",
+				Version:  "1.0.0",
+				Category: "okr",
+			},
+		),
+		store: NewGoalStore(cfg),
+	}
 }
 
 func (t *okrRead) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -93,27 +113,6 @@ func (t *okrRead) listAll(callID string) (*ports.ToolResult, error) {
 			"goal_ids": ids,
 		},
 	}, nil
-}
-
-func (t *okrRead) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "okr_read",
-		Description: "Read OKR goals. Without goal_id: lists all goals with status and KR progress summary. With goal_id: returns the full goal file content.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"goal_id": {Type: "string", Description: "Optional goal ID to read. Omit to list all goals."},
-			},
-		},
-	}
-}
-
-func (t *okrRead) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "okr_read",
-		Version:  "1.0.0",
-		Category: "okr",
-	}
 }
 
 // Store returns the underlying GoalStore for reuse by other components.

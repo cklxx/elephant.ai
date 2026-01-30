@@ -16,71 +16,68 @@ import (
 )
 
 type sandboxCodeExecuteTool struct {
+	shared.BaseTool
 	client   *sandbox.Client
 	uploader materialports.Migrator
 }
 
 func NewSandboxCodeExecute(cfg SandboxConfig) tools.ToolExecutor {
 	return &sandboxCodeExecuteTool{
-		client:   newSandboxClient(cfg),
-		uploader: cfg.AttachmentUploader,
-	}
-}
-
-func (t *sandboxCodeExecuteTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "execute_code",
-		Version:  "0.1.0",
-		Category: "execution",
-		Tags:     []string{"code", "execute", "run"},
-	}
-}
-
-func (t *sandboxCodeExecuteTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "execute_code",
-		Description: `Execute code using the available local runtimes.
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "execute_code",
+				Description: `Execute code using the available local runtimes.
 
 Supported languages: python, go, javascript/js, bash.
 Provide inline code or reference an existing file via code_path.
 Optionally fetch output files as attachments.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"language": {
-					Type:        "string",
-					Description: "Programming language to execute",
-					Enum:        []any{"python", "go", "javascript", "js", "bash"},
-				},
-				"code": {
-					Type:        "string",
-					Description: "Inline code to execute (ignored if code_path is provided).",
-				},
-				"code_path": {
-					Type:        "string",
-					Description: "Absolute path to an existing code file.",
-				},
-				"exec_dir": {
-					Type:        "string",
-					Description: "Absolute working directory.",
-				},
-				"timeout": {
-					Type:        "number",
-					Description: "Timeout in seconds.",
-				},
-				"attachments": {
-					Type:        "array",
-					Description: "Optional list of file paths or attachment specs to fetch after execution.",
-					Items:       &ports.Property{Type: "object"},
-				},
-				"output_files": {
-					Type:        "array",
-					Description: "Deprecated alias for attachments (array of absolute file paths).",
-					Items:       &ports.Property{Type: "string"},
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"language": {
+							Type:        "string",
+							Description: "Programming language to execute",
+							Enum:        []any{"python", "go", "javascript", "js", "bash"},
+						},
+						"code": {
+							Type:        "string",
+							Description: "Inline code to execute (ignored if code_path is provided).",
+						},
+						"code_path": {
+							Type:        "string",
+							Description: "Absolute path to an existing code file.",
+						},
+						"exec_dir": {
+							Type:        "string",
+							Description: "Absolute working directory.",
+						},
+						"timeout": {
+							Type:        "number",
+							Description: "Timeout in seconds.",
+						},
+						"attachments": {
+							Type:        "array",
+							Description: "Optional list of file paths or attachment specs to fetch after execution.",
+							Items:       &ports.Property{Type: "object"},
+						},
+						"output_files": {
+							Type:        "array",
+							Description: "Deprecated alias for attachments (array of absolute file paths).",
+							Items:       &ports.Property{Type: "string"},
+						},
+					},
+					Required: []string{"language"},
 				},
 			},
-			Required: []string{"language"},
-		},
+			ports.ToolMetadata{
+				Name:     "execute_code",
+				Version:  "0.1.0",
+				Category: "execution",
+				Tags:     []string{"code", "execute", "run"},
+			},
+		),
+		client:   newSandboxClient(cfg),
+		uploader: cfg.AttachmentUploader,
 	}
 }
 

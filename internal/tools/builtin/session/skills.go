@@ -11,48 +11,48 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/skills"
+	"alex/internal/tools/builtin/shared"
 )
 
-type skillsTool struct{}
+type skillsTool struct {
+	shared.BaseTool
+}
 
 func NewSkills() tools.ToolExecutor {
-	return &skillsTool{}
-}
-
-func (t *skillsTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "skills",
-		Version:  "1.0.0",
-		Category: "meta",
-		Tags:     []string{"skills", "playbook", "workflow", "guidance"},
-	}
-}
-
-func (t *skillsTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "skills",
-		Description: `Query reusable skill playbooks (Markdown guides).
+	return &skillsTool{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "skills",
+				Description: `Query reusable skill playbooks (Markdown guides).
 
 Use this to list available skills, search by keyword, or show a specific skill by name.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"action": {
-					Type:        "string",
-					Description: "list|show|search",
-					Enum:        []any{"list", "show", "search"},
-				},
-				"name": {
-					Type:        "string",
-					Description: "Skill name for action=show.",
-				},
-				"query": {
-					Type:        "string",
-					Description: "Search query for action=search.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"action": {
+							Type:        "string",
+							Description: "list|show|search",
+							Enum:        []any{"list", "show", "search"},
+						},
+						"name": {
+							Type:        "string",
+							Description: "Skill name for action=show.",
+						},
+						"query": {
+							Type:        "string",
+							Description: "Search query for action=search.",
+						},
+					},
+					Required: []string{"action"},
 				},
 			},
-			Required: []string{"action"},
-		},
+			ports.ToolMetadata{
+				Name:     "skills",
+				Version:  "1.0.0",
+				Category: "meta",
+				Tags:     []string{"skills", "playbook", "workflow", "guidance"},
+			},
+		),
 	}
 }
 

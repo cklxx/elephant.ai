@@ -8,38 +8,38 @@ import (
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/tools/builtin/shared"
 )
 
-type bgStatus struct{}
+type bgStatus struct {
+	shared.BaseTool
+}
 
 // NewBGStatus creates the bg_status tool for querying background task status.
 func NewBGStatus() *bgStatus {
-	return &bgStatus{}
-}
-
-func (t *bgStatus) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "bg_status",
-		Description: `Query the status of background tasks. Returns a grouped dashboard including pending, running, waiting-for-input, blocked, completed, failed, and cancelled tasks.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"task_ids": {
-					Type:        "array",
-					Description: "Optional list of task IDs to query. Omit to query all background tasks.",
-					Items:       &ports.Property{Type: "string"},
+	return &bgStatus{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "bg_status",
+				Description: `Query the status of background tasks. Returns a grouped dashboard including pending, running, waiting-for-input, blocked, completed, failed, and cancelled tasks.`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"task_ids": {
+							Type:        "array",
+							Description: "Optional list of task IDs to query. Omit to query all background tasks.",
+							Items:       &ports.Property{Type: "string"},
+						},
+					},
 				},
 			},
-		},
-	}
-}
-
-func (t *bgStatus) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "bg_status",
-		Version:  "1.0.0",
-		Category: "agent",
-		Tags:     []string{"background", "orchestration", "async"},
+			ports.ToolMetadata{
+				Name:     "bg_status",
+				Version:  "1.0.0",
+				Category: "agent",
+				Tags:     []string{"background", "orchestration", "async"},
+			},
+		),
 	}
 }
 

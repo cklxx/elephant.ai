@@ -7,43 +7,43 @@ import (
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/tools/builtin/shared"
 )
 
-type extMerge struct{}
+type extMerge struct {
+	shared.BaseTool
+}
 
 // NewExtMerge creates the ext_merge tool for merging external agent workspaces.
 func NewExtMerge() *extMerge {
-	return &extMerge{}
-}
-
-func (t *extMerge) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "ext_merge",
-		Description: `Merge an external agent's work branch back into the base branch.
+	return &extMerge{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "ext_merge",
+				Description: `Merge an external agent's work branch back into the base branch.
 Use after an external task completes to integrate its changes.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"task_id": {
-					Type:        "string",
-					Description: "The completed background task ID.",
-				},
-				"strategy": {
-					Type:        "string",
-					Description: `Merge strategy: "auto" (default), "squash", "rebase", or "review".`,
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"task_id": {
+							Type:        "string",
+							Description: "The completed background task ID.",
+						},
+						"strategy": {
+							Type:        "string",
+							Description: `Merge strategy: "auto" (default), "squash", "rebase", or "review".`,
+						},
+					},
+					Required: []string{"task_id"},
 				},
 			},
-			Required: []string{"task_id"},
-		},
-	}
-}
-
-func (t *extMerge) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "ext_merge",
-		Version:  "1.0.0",
-		Category: "agent",
-		Tags:     []string{"background", "orchestration", "external"},
+			ports.ToolMetadata{
+				Name:     "ext_merge",
+				Version:  "1.0.0",
+				Category: "agent",
+				Tags:     []string{"background", "orchestration", "external"},
+			},
+		),
 	}
 }
 

@@ -7,55 +7,55 @@ import (
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/tools/builtin/shared"
 )
 
-type extReply struct{}
+type extReply struct {
+	shared.BaseTool
+}
 
 // NewExtReply creates the ext_reply tool for responding to external input requests.
 func NewExtReply() *extReply {
-	return &extReply{}
-}
-
-func (t *extReply) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "ext_reply",
-		Description: `Reply to an input request from an external agent (Claude Code, Codex, etc).
+	return &extReply{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "ext_reply",
+				Description: `Reply to an input request from an external agent (Claude Code, Codex, etc).
 Use this when an external background task requests permission or clarification.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"task_id": {
-					Type:        "string",
-					Description: "The background task ID.",
-				},
-				"request_id": {
-					Type:        "string",
-					Description: "The input request ID from the notification.",
-				},
-				"approved": {
-					Type:        "boolean",
-					Description: "Whether to approve (for permission requests).",
-				},
-				"option_id": {
-					Type:        "string",
-					Description: "Selected option ID (if applicable).",
-				},
-				"message": {
-					Type:        "string",
-					Description: "Free-form response text (for clarification requests).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"task_id": {
+							Type:        "string",
+							Description: "The background task ID.",
+						},
+						"request_id": {
+							Type:        "string",
+							Description: "The input request ID from the notification.",
+						},
+						"approved": {
+							Type:        "boolean",
+							Description: "Whether to approve (for permission requests).",
+						},
+						"option_id": {
+							Type:        "string",
+							Description: "Selected option ID (if applicable).",
+						},
+						"message": {
+							Type:        "string",
+							Description: "Free-form response text (for clarification requests).",
+						},
+					},
+					Required: []string{"task_id", "request_id"},
 				},
 			},
-			Required: []string{"task_id", "request_id"},
-		},
-	}
-}
-
-func (t *extReply) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "ext_reply",
-		Version:  "1.0.0",
-		Category: "agent",
-		Tags:     []string{"background", "orchestration", "external"},
+			ports.ToolMetadata{
+				Name:     "ext_reply",
+				Version:  "1.0.0",
+				Category: "agent",
+				Tags:     []string{"background", "orchestration", "external"},
+			},
+		),
 	}
 }
 

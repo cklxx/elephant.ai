@@ -18,6 +18,7 @@ import (
 )
 
 type musicPlay struct {
+	shared.BaseTool
 	client  *http.Client
 	baseURL string
 }
@@ -51,52 +52,51 @@ func newMusicPlay(client *http.Client, baseURL string) *musicPlay {
 	if client == nil {
 		client = httpclient.New(20*time.Second, nil)
 	}
-	return &musicPlay{client: client, baseURL: strings.TrimRight(baseURL, "/")}
-}
-
-func (t *musicPlay) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "music_play",
-		Version:  "1.0.0",
-		Category: "media",
-		Tags:     []string{"music", "audio", "player"},
-		MaterialCapabilities: ports.ToolMaterialCapabilities{
-			Produces: []string{"text/html"},
-		},
-	}
-}
-
-func (t *musicPlay) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "music_play",
-		Description: `Recommend and play music previews by mood or request.
+	return &musicPlay{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "music_play",
+				Description: `Recommend and play music previews by mood or request.
 
 Uses:
 - Open-source player: APlayer (MIT) via CDN
 - Free API: iTunes Search API (no auth required)
 
 Returns a playable HTML playlist (APlayer) with preview URLs.`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"mood": {
-					Type:        "string",
-					Description: "User emotion or vibe, e.g. happy, sad, focus, relax, anxious.",
-				},
-				"request": {
-					Type:        "string",
-					Description: "Explicit user request (artist, genre, activity). Takes priority over mood.",
-				},
-				"limit": {
-					Type:        "integer",
-					Description: "Number of tracks to return (1-10, default 6).",
-				},
-				"country": {
-					Type:        "string",
-					Description: "iTunes storefront country code (default US).",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"mood": {
+							Type:        "string",
+							Description: "User emotion or vibe, e.g. happy, sad, focus, relax, anxious.",
+						},
+						"request": {
+							Type:        "string",
+							Description: "Explicit user request (artist, genre, activity). Takes priority over mood.",
+						},
+						"limit": {
+							Type:        "integer",
+							Description: "Number of tracks to return (1-10, default 6).",
+						},
+						"country": {
+							Type:        "string",
+							Description: "iTunes storefront country code (default US).",
+						},
+					},
 				},
 			},
-		},
+			ports.ToolMetadata{
+				Name:     "music_play",
+				Version:  "1.0.0",
+				Category: "media",
+				Tags:     []string{"music", "audio", "player"},
+				MaterialCapabilities: ports.ToolMaterialCapabilities{
+					Produces: []string{"text/html"},
+				},
+			},
+		),
+		client:  client,
+		baseURL: strings.TrimRight(baseURL, "/"),
 	}
 }
 

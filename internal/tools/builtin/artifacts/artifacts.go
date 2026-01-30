@@ -15,29 +15,85 @@ import (
 
 // artifactsWrite implements the artifacts_write tool which creates or updates
 // attachments and emits mutation metadata for the attachment registry.
-type artifactsWrite struct{}
+type artifactsWrite struct {
+	shared.BaseTool
+}
 
 // artifactsList implements the artifacts_list tool to surface attachments
 // available to the current task, optionally returning a specific payload.
-type artifactsList struct{}
+type artifactsList struct {
+	shared.BaseTool
+}
 
 // artifactsDelete implements the artifacts_delete tool that removes one or more
 // attachments via mutation metadata, leaving actual persistence to the engine.
-type artifactsDelete struct{}
+type artifactsDelete struct {
+	shared.BaseTool
+}
 
 // NewArtifactsWrite constructs the artifacts_write tool executor.
 func NewArtifactsWrite() tools.ToolExecutor {
-	return &artifactsWrite{}
+	return &artifactsWrite{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "artifacts_write",
+				Description: "Create or update an artifact attachment (use for HTML by setting media_type to text/html and format to html)",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"name":                  {Type: "string", Description: "Filename for the artifact (e.g., note.md or page.html)"},
+						"content":               {Type: "string", Description: "Raw text content to store (HTML is supported)"},
+						"media_type":            {Type: "string", Description: "MIME type (default: text/markdown); use text/html for HTML"},
+						"description":           {Type: "string", Description: "Optional description for context"},
+						"format":                {Type: "string", Description: "Normalized format such as markdown or html"},
+						"kind":                  {Type: "string", Description: "Attachment kind (attachment or artifact)"},
+						"retention_ttl_seconds": {Type: "integer", Description: "Override retention TTL in seconds"},
+					},
+					Required: []string{"name", "content"},
+				},
+			},
+			ports.ToolMetadata{Name: "artifacts_write", Version: "1.0.0", Category: "attachments"},
+		),
+	}
 }
 
 // NewArtifactsList constructs the artifacts_list tool executor.
 func NewArtifactsList() tools.ToolExecutor {
-	return &artifactsList{}
+	return &artifactsList{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "artifacts_list",
+				Description: "List attachments currently available to the agent",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"name": {Type: "string", Description: "Optional attachment name to return in full"},
+					},
+				},
+			},
+			ports.ToolMetadata{Name: "artifacts_list", Version: "1.0.0", Category: "attachments"},
+		),
+	}
 }
 
 // NewArtifactsDelete constructs the artifacts_delete tool executor.
 func NewArtifactsDelete() tools.ToolExecutor {
-	return &artifactsDelete{}
+	return &artifactsDelete{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "artifacts_delete",
+				Description: "Remove one or more attachments from the current task",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"name":  {Type: "string", Description: "Single attachment name to remove"},
+						"names": {Type: "array", Description: "List of attachment names to remove", Items: &ports.Property{Type: "string"}},
+					},
+				},
+			},
+			ports.ToolMetadata{Name: "artifacts_delete", Version: "1.0.0", Category: "attachments"},
+		),
+	}
 }
 
 func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -120,30 +176,6 @@ func (t *artifactsWrite) Execute(ctx context.Context, call ports.ToolCall) (*por
 		Attachments: attachments,
 	}
 	return result, nil
-}
-
-func (t *artifactsWrite) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "artifacts_write",
-		Description: "Create or update an artifact attachment (use for HTML by setting media_type to text/html and format to html)",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"name":                  {Type: "string", Description: "Filename for the artifact (e.g., note.md or page.html)"},
-				"content":               {Type: "string", Description: "Raw text content to store (HTML is supported)"},
-				"media_type":            {Type: "string", Description: "MIME type (default: text/markdown); use text/html for HTML"},
-				"description":           {Type: "string", Description: "Optional description for context"},
-				"format":                {Type: "string", Description: "Normalized format such as markdown or html"},
-				"kind":                  {Type: "string", Description: "Attachment kind (attachment or artifact)"},
-				"retention_ttl_seconds": {Type: "integer", Description: "Override retention TTL in seconds"},
-			},
-			Required: []string{"name", "content"},
-		},
-	}
-}
-
-func (t *artifactsWrite) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{Name: "artifacts_write", Version: "1.0.0", Category: "attachments"}
 }
 
 func deriveAttachmentDescription(name, content, mediaType, format string) string {
@@ -264,23 +296,6 @@ func (t *artifactsList) Execute(ctx context.Context, call ports.ToolCall) (*port
 	return &ports.ToolResult{CallID: call.ID, Content: builder.String()}, nil
 }
 
-func (t *artifactsList) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "artifacts_list",
-		Description: "List attachments currently available to the agent",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"name": {Type: "string", Description: "Optional attachment name to return in full"},
-			},
-		},
-	}
-}
-
-func (t *artifactsList) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{Name: "artifacts_list", Version: "1.0.0", Category: "attachments"}
-}
-
 func (t *artifactsDelete) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	names := shared.StringSliceArg(call.Arguments, "names")
 	if len(names) == 0 {
@@ -307,24 +322,6 @@ func (t *artifactsDelete) Execute(ctx context.Context, call ports.ToolCall) (*po
 		Content:  fmt.Sprintf("Removed %d attachment(s): %s", len(names), strings.Join(names, ", ")),
 		Metadata: mutations,
 	}, nil
-}
-
-func (t *artifactsDelete) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "artifacts_delete",
-		Description: "Remove one or more attachments from the current task",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"name":  {Type: "string", Description: "Single attachment name to remove"},
-				"names": {Type: "array", Description: "List of attachment names to remove", Items: &ports.Property{Type: "string"}},
-			},
-		},
-	}
-}
-
-func (t *artifactsDelete) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{Name: "artifacts_delete", Version: "1.0.0", Category: "attachments"}
 }
 
 func normalizeFormat(format string) string {

@@ -10,6 +10,7 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/config"
+	"alex/internal/tools/builtin/shared"
 )
 
 type appPlugin struct {
@@ -22,28 +23,12 @@ type appPlugin struct {
 }
 
 type appsTool struct {
+	shared.BaseTool
 	loadFileConfig func(...config.Option) (config.FileConfig, string, error)
 }
 
-func NewApps() tools.ToolExecutor {
-	return newAppsWithLoader(config.LoadFileConfig)
-}
-
-func newAppsWithLoader(loader func(...config.Option) (config.FileConfig, string, error)) tools.ToolExecutor {
-	return &appsTool{loadFileConfig: loader}
-}
-
-func (t *appsTool) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "apps",
-		Version:  "1.0.0",
-		Category: "apps",
-		Tags:     []string{"apps", "plugins", "open-source", "social", "news"},
-	}
-}
-
-func (t *appsTool) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
+var appsBaseTool = shared.NewBaseTool(
+	ports.ToolDefinition{
 		Name: "apps",
 		Description: `Manage built-in app plugins powered by open-source connectors.
 
@@ -67,7 +52,21 @@ in ~/.alex/config.yaml.`,
 				},
 			},
 		},
-	}
+	},
+	ports.ToolMetadata{
+		Name:     "apps",
+		Version:  "1.0.0",
+		Category: "apps",
+		Tags:     []string{"apps", "plugins", "open-source", "social", "news"},
+	},
+)
+
+func NewApps() tools.ToolExecutor {
+	return newAppsWithLoader(config.LoadFileConfig)
+}
+
+func newAppsWithLoader(loader func(...config.Option) (config.FileConfig, string, error)) tools.ToolExecutor {
+	return &appsTool{BaseTool: appsBaseTool, loadFileConfig: loader}
 }
 
 func (t *appsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {

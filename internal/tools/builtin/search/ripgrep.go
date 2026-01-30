@@ -12,11 +12,51 @@ import (
 )
 
 type ripgrep struct {
+	shared.BaseTool
 }
 
 func NewRipgrep(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &ripgrep{}
+	return &ripgrep{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "ripgrep",
+				Description: "Search for patterns in files using ripgrep (rg). Faster than grep. Limits results to maximum 100 matches, with each match line truncated to 200 characters. Exceeding limits will show truncated results with warnings.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"pattern": {
+							Type:        "string",
+							Description: "The pattern to search for",
+						},
+						"path": {
+							Type:        "string",
+							Description: "Path to search in (default: .)",
+						},
+						"file_type": {
+							Type:        "string",
+							Description: "File type to search (e.g., 'go', 'js', 'py')",
+						},
+						"ignore_case": {
+							Type:        "boolean",
+							Description: "Ignore case (default: false)",
+						},
+						"max_results": {
+							Type:        "number",
+							Description: "Maximum number of results to return (default: 100)",
+						},
+					},
+					Required: []string{"pattern"},
+				},
+			},
+			ports.ToolMetadata{
+				Name:     "ripgrep",
+				Version:  "1.0.0",
+				Category: "search",
+				Tags:     []string{"search", "files", "pattern"},
+			},
+		),
+	}
 }
 
 func (t *ripgrep) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -126,48 +166,6 @@ func (t *ripgrep) noMatchesResult(call ports.ToolCall, pattern, path string, ign
 			"ignore_case": ignoreCase,
 		},
 	}, nil
-}
-
-func (t *ripgrep) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "ripgrep",
-		Description: "Search for patterns in files using ripgrep (rg). Faster than grep. Limits results to maximum 100 matches, with each match line truncated to 200 characters. Exceeding limits will show truncated results with warnings.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"pattern": {
-					Type:        "string",
-					Description: "The pattern to search for",
-				},
-				"path": {
-					Type:        "string",
-					Description: "Path to search in (default: .)",
-				},
-				"file_type": {
-					Type:        "string",
-					Description: "File type to search (e.g., 'go', 'js', 'py')",
-				},
-				"ignore_case": {
-					Type:        "boolean",
-					Description: "Ignore case (default: false)",
-				},
-				"max_results": {
-					Type:        "number",
-					Description: "Maximum number of results to return (default: 100)",
-				},
-			},
-			Required: []string{"pattern"},
-		},
-	}
-}
-
-func (t *ripgrep) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "ripgrep",
-		Version:  "1.0.0",
-		Category: "search",
-		Tags:     []string{"search", "files", "pattern"},
-	}
 }
 
 func compileSearchPattern(pattern string, ignoreCase bool) (*regexp.Regexp, error) {

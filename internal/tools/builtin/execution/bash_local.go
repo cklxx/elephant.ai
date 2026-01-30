@@ -17,11 +17,29 @@ import (
 )
 
 type bash struct {
+	shared.BaseTool
 }
 
 func NewBash(cfg shared.ShellToolConfig) tools.ToolExecutor {
 	_ = cfg
-	return &bash{}
+	return &bash{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "bash",
+				Description: "Execute bash command",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"command": {Type: "string", Description: "Shell command"},
+					},
+					Required: []string{"command"},
+				},
+			},
+			ports.ToolMetadata{
+				Name: "bash", Version: "1.0.0", Category: "execution", Dangerous: true,
+			},
+		),
+	}
 }
 
 func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -118,26 +136,6 @@ func (t *bash) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolRes
 		Error:    runErr,
 		Metadata: metadata,
 	}, nil
-}
-
-func (t *bash) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "bash",
-		Description: "Execute bash command",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"command": {Type: "string", Description: "Shell command"},
-			},
-			Required: []string{"command"},
-		},
-	}
-}
-
-func (t *bash) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name: "bash", Version: "1.0.0", Category: "execution", Dangerous: true,
-	}
 }
 
 func countLines(output string) int {

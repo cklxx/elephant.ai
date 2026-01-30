@@ -12,41 +12,40 @@ import (
 	id "alex/internal/utils/id"
 )
 
-type attention struct{}
+type attention struct {
+	shared.BaseTool
+}
 
 // NewAttention constructs a tool to pin high-signal notes for later recall.
 func NewAttention() tools.ToolExecutor {
-	return &attention{}
-}
-
-func (t *attention) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "attention",
-		Version:  "0.1.0",
-		Category: "memory",
-		Tags:     []string{"important", "note", "session"},
-	}
-}
-
-func (t *attention) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name:        "attention",
-		Description: "Mark high-signal, user-personalized information so it persists across context compression. Use sparingly for identity, preferences, and commitments.",
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"content": {
-					Type:        "string",
-					Description: "The important note to keep across turns. Keep concise and specific to the user.",
-				},
-				"tags": {
-					Type:        "array",
-					Description: "Optional tags describing the note (e.g., preference, identity, constraint).",
-					Items:       &ports.Property{Type: "string"},
+	return &attention{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name:        "attention",
+				Description: "Mark high-signal, user-personalized information so it persists across context compression. Use sparingly for identity, preferences, and commitments.",
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"content": {
+							Type:        "string",
+							Description: "The important note to keep across turns. Keep concise and specific to the user.",
+						},
+						"tags": {
+							Type:        "array",
+							Description: "Optional tags describing the note (e.g., preference, identity, constraint).",
+							Items:       &ports.Property{Type: "string"},
+						},
+					},
+					Required: []string{"content"},
 				},
 			},
-			Required: []string{"content"},
-		},
+			ports.ToolMetadata{
+				Name:     "attention",
+				Version:  "0.1.0",
+				Category: "memory",
+				Tags:     []string{"important", "note", "session"},
+			},
+		),
 	}
 }
 

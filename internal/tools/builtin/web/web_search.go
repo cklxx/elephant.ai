@@ -14,10 +14,12 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/httpclient"
+	"alex/internal/tools/builtin/shared"
 	"golang.org/x/net/html"
 )
 
 type webSearch struct {
+	shared.BaseTool
 	client *http.Client
 	apiKey string
 }
@@ -36,47 +38,46 @@ func newWebSearch(apiKey string, client *http.Client) *webSearch {
 	if client == nil {
 		client = httpclient.NewWithCircuitBreaker(30*time.Second, nil, "web_search")
 	}
-	return &webSearch{client: client, apiKey: apiKey}
-}
-
-func (t *webSearch) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{
-		Name:     "web_search",
-		Version:  "1.0.0",
-		Category: "web",
-		Tags:     []string{"search", "web", "internet"},
-	}
-}
-
-func (t *webSearch) Definition() ports.ToolDefinition {
-	return ports.ToolDefinition{
-		Name: "web_search",
-		Description: `Search the web for current information using Tavily API.
+	return &webSearch{
+		BaseTool: shared.NewBaseTool(
+			ports.ToolDefinition{
+				Name: "web_search",
+				Description: `Search the web for current information using Tavily API.
 
 Returns relevant search results with summaries and URLs.
 
 Setup:
 1. Get API key from https://app.tavily.com/
 2. Set runtime.tavily_api_key in ~/.alex/config.yaml (you can reference ${TAVILY_API_KEY})`,
-		Parameters: ports.ParameterSchema{
-			Type: "object",
-			Properties: map[string]ports.Property{
-				"query": {
-					Type:        "string",
-					Description: "The search query to execute",
-				},
-				"max_results": {
-					Type:        "integer",
-					Description: "Maximum number of results (1-10, default 5)",
-				},
-				"search_depth": {
-					Type:        "string",
-					Description: "Search depth: basic or advanced",
-					Enum:        []any{"basic", "advanced"},
+				Parameters: ports.ParameterSchema{
+					Type: "object",
+					Properties: map[string]ports.Property{
+						"query": {
+							Type:        "string",
+							Description: "The search query to execute",
+						},
+						"max_results": {
+							Type:        "integer",
+							Description: "Maximum number of results (1-10, default 5)",
+						},
+						"search_depth": {
+							Type:        "string",
+							Description: "Search depth: basic or advanced",
+							Enum:        []any{"basic", "advanced"},
+						},
+					},
+					Required: []string{"query"},
 				},
 			},
-			Required: []string{"query"},
-		},
+			ports.ToolMetadata{
+				Name:     "web_search",
+				Version:  "1.0.0",
+				Category: "web",
+				Tags:     []string{"search", "web", "internet"},
+			},
+		),
+		client: client,
+		apiKey: apiKey,
 	}
 }
 
