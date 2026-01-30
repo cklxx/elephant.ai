@@ -63,7 +63,7 @@ When making decisions, prefer:
   * Aim to get it right the first time; avoid shallow answers and needless clarification.
   * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
   * Start with the most systematic view of the current project, then propose a reasonable plan.
-  * For any technical plan, use `claude -p` to discuss the plan with Claude ("claude -p 跟 cluade 讨论方案") before executing.
+  * For any technical plan, run `claude -p` in a background task to discuss the plan with Claude ("claude -p 跟 cluade 讨论方案，且要采用后台任务") before executing.
   * Absolute core: practice compounding engineering — record successful paths and failed experiences.
   * Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
   * Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
