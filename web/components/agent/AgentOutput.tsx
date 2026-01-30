@@ -12,6 +12,7 @@ interface AgentOutputProps {
   events: AnyAgentEvent[];
   isConnected: boolean;
   isReconnecting: boolean;
+  isSlowRetry?: boolean;
   error?: string | null;
   reconnectAttempts?: number;
   onReconnect?: () => void;
@@ -21,6 +22,7 @@ export function AgentOutput({
   events,
   isConnected,
   isReconnecting,
+  isSlowRetry,
   error,
   reconnectAttempts,
   onReconnect,
@@ -66,6 +68,7 @@ export function AgentOutput({
         <ConnectionStatus
           connected={isConnected}
           reconnecting={isReconnecting}
+          isSlowRetry={isSlowRetry}
           error={error}
           reconnectAttempts={reconnectAttempts}
           onReconnect={onReconnect}

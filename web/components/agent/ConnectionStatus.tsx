@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 interface ConnectionStatusProps {
   connected: boolean;
   reconnecting: boolean;
+  isSlowRetry?: boolean;
   reconnectAttempts?: number;
   error?: string | null;
   onReconnect?: () => void;
@@ -16,6 +17,7 @@ interface ConnectionStatusProps {
 export function ConnectionStatus({
   connected,
   reconnecting,
+  isSlowRetry,
   error,
   onReconnect,
 }: ConnectionStatusProps) {
@@ -26,10 +28,11 @@ export function ConnectionStatus({
   }
 
   if (reconnecting) {
+    const label = isSlowRetry ? t('connection.slowRetry') : t('connection.reconnecting');
     return (
       <Badge variant="outline" className="gap-2 text-[11px] font-medium">
-        <RefreshCw className="h-4 w-4 animate-spin" />
-        <span>{t('connection.reconnecting')}</span>
+        <RefreshCw className={`h-4 w-4 ${isSlowRetry ? 'animate-pulse' : 'animate-spin'}`} />
+        <span>{label}</span>
       </Badge>
     );
   }

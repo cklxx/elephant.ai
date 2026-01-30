@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/badge';
 interface ConnectionBannerProps {
   isConnected: boolean;
   isReconnecting: boolean;
+  isSlowRetry?: boolean;
+  activeRunId?: string | null;
   error: string | null;
   reconnectAttempts?: number;
   onReconnect: () => void;
@@ -21,6 +23,8 @@ interface ConnectionBannerProps {
 export function ConnectionBanner({
   isConnected,
   isReconnecting,
+  isSlowRetry,
+  activeRunId,
   error,
   reconnectAttempts,
   onReconnect,
@@ -30,16 +34,23 @@ export function ConnectionBanner({
     return null;
   }
 
+  const showSlowRetry = isReconnecting && isSlowRetry;
+  const statusMessage = showSlowRetry
+    ? activeRunId
+      ? 'Task still running on server. Auto-retrying…'
+      : 'Connection lost. Auto-retrying…'
+    : null;
+
   return (
     <Card className="mx-auto flex h-full max-w-md flex-col items-center justify-center text-center">
       <CardContent className="flex flex-col items-center justify-center gap-4 px-6 py-6">
         <div className="flex items-center gap-3 text-sm font-semibold text-foreground">
           {isReconnecting ? (
             <>
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <Loader2 className={`h-5 w-5 ${showSlowRetry ? 'animate-pulse' : 'animate-spin'}`} />
               <span>
-                Reconnecting
-                {typeof reconnectAttempts === 'number' && reconnectAttempts > 0 && (
+                {showSlowRetry ? 'Auto-retrying…' : 'Reconnecting'}
+                {!showSlowRetry && typeof reconnectAttempts === 'number' && reconnectAttempts > 0 && (
                   <span className="ml-1 text-xs font-medium text-muted-foreground">
                     ({reconnectAttempts})
                   </span>
@@ -53,6 +64,10 @@ export function ConnectionBanner({
             </>
           )}
         </div>
+
+        {statusMessage && (
+          <p className="text-xs text-muted-foreground">{statusMessage}</p>
+        )}
 
         {error && (
           <Badge
