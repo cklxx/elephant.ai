@@ -677,4 +677,11 @@ Tier 2 (HTTP middleware)       ← 无依赖，可并行
 - 2026-01-31: Tier 6 (DI Config) completed. Embedded channels.BaseConfig in bootstrap gateway configs, eliminating 16 duplicated field declarations.
 - 2026-01-31: Full validation passed: `go build ./...`, `go vet ./...`, `go test ./...` — all green, zero failures across 80+ packages.
 
+### Post-completion optimization (continued)
+
+- 2026-01-31: Extracted `doSandboxCall[T]` and `doSandboxRequest[T]` generic helpers in `sandbox_tools.go` — deduplicated 8 identical DoJSON+Success+nil-Data validation blocks across sandbox file/shell/code tools. Net **-36 lines** in sandbox package.
+- 2026-01-31: Replaced local `boolArg` in `web/html_edit.go` with `shared.BoolArgWithDefault`. Net **-23 lines**.
+- 2026-01-31: Fixed QF1003 lint (tagged switch) in `openai_responses_parse.go`.
+- 2026-01-31: Total additional reduction: **-58 lines** (commit `e2e6f7d0`).
+
 ## Status: COMPLETE
