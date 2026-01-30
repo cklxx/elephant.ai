@@ -82,13 +82,7 @@ func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResu
 	}
 
 	// Filter: only capture tasks that involved tool calls
-	captureMessages := h.captureMessages
-	if hasPolicy {
-		if !policy.CaptureMessages {
-			captureMessages = false
-		}
-	}
-	if !captureMessages && len(result.ToolCalls) < minToolCallsForCapture {
+	if len(result.ToolCalls) < minToolCallsForCapture {
 		return nil
 	}
 
@@ -104,7 +98,7 @@ func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResu
 
 	summary := buildCaptureSummary(result)
 	keywords := extractCaptureKeywords(result)
-	slots := buildCaptureSlots(result)
+	slots := buildCaptureSlots(ctx, result)
 
 	entry := memory.Entry{
 		UserID:   userID,
@@ -191,9 +185,11 @@ func extractCaptureKeywords(result TaskResultInfo) []string {
 }
 
 // buildCaptureSlots creates structured metadata slots for the captured memory.
-func buildCaptureSlots(result TaskResultInfo) map[string]string {
+func buildCaptureSlots(ctx context.Context, result TaskResultInfo) map[string]string {
 	slots := map[string]string{
 		"type":    "auto_capture",
+		"scope":   "user",
+		"source":  "memory_capture",
 		"outcome": result.StopReason,
 	}
 
@@ -208,6 +204,15 @@ func buildCaptureSlots(result TaskResultInfo) map[string]string {
 
 	if result.SessionID != "" {
 		slots["session_id"] = result.SessionID
+	}
+	if senderID := strings.TrimSpace(result.UserID); senderID != "" && senderID != "default" {
+		slots["sender_id"] = senderID
+	}
+	if channel := appcontext.ChannelFromContext(ctx); channel != "" {
+		slots["channel"] = channel
+	}
+	if chatID := appcontext.ChatIDFromContext(ctx); chatID != "" {
+		slots["chat_id"] = chatID
 	}
 
 	return slots
@@ -265,10 +270,24 @@ func (h *MemoryCaptureHook) captureWorkflowTrace(ctx context.Context, result Tas
 		Keywords: append([]string{"workflow_trace"}, trace.ToolNames()...),
 		Slots: map[string]string{
 			"type":    "workflow_trace",
+			"scope":   "user",
+			"source":  "memory_capture",
 			"task_id": result.RunID,
 			"outcome": result.StopReason,
 		},
 		CreatedAt: trace.CreatedAt,
+	}
+	if result.SessionID != "" {
+		entry.Slots["session_id"] = result.SessionID
+	}
+	if senderID := strings.TrimSpace(result.UserID); senderID != "" && senderID != "default" {
+		entry.Slots["sender_id"] = senderID
+	}
+	if channel := appcontext.ChannelFromContext(ctx); channel != "" {
+		entry.Slots["channel"] = channel
+	}
+	if chatID := appcontext.ChatIDFromContext(ctx); chatID != "" {
+		entry.Slots["chat_id"] = chatID
 	}
 
 	if _, err := h.memoryService.Save(ctx, entry); err != nil {

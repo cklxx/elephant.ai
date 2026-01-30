@@ -18,6 +18,7 @@ import (
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
 	ctxmgr "alex/internal/context"
+	"alex/internal/external"
 	"alex/internal/llm"
 	"alex/internal/logging"
 	"alex/internal/mcp"
@@ -127,6 +128,12 @@ func (b *containerBuilder) Build() (*Container, error) {
 		return nil, err
 	}
 
+	var externalExecutor agent.ExternalAgentExecutor
+	externalRegistry := external.NewRegistry(b.config.ExternalAgents, b.logger)
+	if len(externalRegistry.SupportedTypes()) > 0 {
+		externalExecutor = externalRegistry
+	}
+
 	mcpRegistry := mcp.NewRegistry()
 	tracker := newMCPInitializationTracker()
 
@@ -159,9 +166,12 @@ func (b *containerBuilder) Build() (*Container, error) {
 			ToolPreset:          b.config.ToolPreset,
 			ToolMode:            b.config.ToolMode,
 			EnvironmentSummary:  b.config.EnvironmentSummary,
+			SessionStaleAfter:   b.config.SessionStaleAfter,
 			Proactive:           b.config.Proactive,
 		},
 		agentcoordinator.WithHookRegistry(hookRegistry),
+		agentcoordinator.WithMemoryService(memoryService),
+		agentcoordinator.WithExternalExecutor(externalExecutor),
 	)
 
 	// Register subagent tool after coordinator is created.
@@ -430,9 +440,10 @@ func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hook
 	// Register memory recall hook (pre-task auto-recall)
 	if memoryService != nil && b.config.Proactive.Memory.Enabled {
 		recallHook := hooks.NewMemoryRecallHook(memoryService, b.logger, hooks.MemoryRecallConfig{
-			Enabled:    b.config.Proactive.Memory.Enabled,
-			AutoRecall: b.config.Proactive.Memory.AutoRecall,
-			MaxRecalls: b.config.Proactive.Memory.MaxRecalls,
+			Enabled:            b.config.Proactive.Memory.Enabled,
+			AutoRecall:         b.config.Proactive.Memory.AutoRecall,
+			MaxRecalls:         b.config.Proactive.Memory.MaxRecalls,
+			CaptureGroupMemory: b.config.Proactive.Memory.CaptureGroupMemory,
 		})
 		if b.config.Proactive.Memory.AutoRecall {
 			registry.Register(recallHook)
@@ -447,6 +458,16 @@ func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hook
 		})
 		if b.config.Proactive.Memory.AutoCapture {
 			registry.Register(captureHook)
+		}
+
+		if b.config.Proactive.Memory.AutoCapture && b.config.Proactive.Memory.CaptureMessages {
+			convHook := hooks.NewConversationCaptureHook(memoryService, b.logger, hooks.ConversationCaptureConfig{
+				Enabled:            b.config.Proactive.Memory.Enabled,
+				CaptureMessages:    b.config.Proactive.Memory.CaptureMessages,
+				CaptureGroupMemory: b.config.Proactive.Memory.CaptureGroupMemory,
+				DedupeThreshold:    b.config.Proactive.Memory.DedupeThreshold,
+			})
+			registry.Register(convHook)
 		}
 	}
 

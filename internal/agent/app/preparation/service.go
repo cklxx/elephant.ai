@@ -33,36 +33,38 @@ const (
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
-	LLMFactory     llm.LLMClientFactory
-	ToolRegistry   tools.ToolRegistry
-	SessionStore   storage.SessionStore
-	ContextMgr     agent.ContextManager
-	HistoryMgr     storage.HistoryManager
-	Parser         tools.FunctionCallParser
-	Config         appconfig.Config
-	Logger         agent.Logger
-	Clock          agent.Clock
-	CostDecorator  *cost.CostTrackingDecorator
-	PresetResolver *PresetResolver // Optional: if nil, one will be created
-	EventEmitter   agent.EventListener
-	CostTracker    storage.CostTracker
+	LLMFactory          llm.LLMClientFactory
+	ToolRegistry        tools.ToolRegistry
+	SessionStore        storage.SessionStore
+	ContextMgr          agent.ContextManager
+	HistoryMgr          storage.HistoryManager
+	Parser              tools.FunctionCallParser
+	Config              appconfig.Config
+	Logger              agent.Logger
+	Clock               agent.Clock
+	CostDecorator       *cost.CostTrackingDecorator
+	PresetResolver      *PresetResolver // Optional: if nil, one will be created
+	EventEmitter        agent.EventListener
+	CostTracker         storage.CostTracker
+	SessionStaleCapture func(ctx context.Context, session *storage.Session, userID string)
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
 type ExecutionPreparationService struct {
-	llmFactory     llm.LLMClientFactory
-	toolRegistry   tools.ToolRegistry
-	sessionStore   storage.SessionStore
-	contextMgr     agent.ContextManager
-	historyMgr     storage.HistoryManager
-	parser         tools.FunctionCallParser
-	config         appconfig.Config
-	logger         agent.Logger
-	clock          agent.Clock
-	costDecorator  *cost.CostTrackingDecorator
-	presetResolver *PresetResolver
-	eventEmitter   agent.EventListener
-	costTracker    storage.CostTracker
+	llmFactory          llm.LLMClientFactory
+	toolRegistry        tools.ToolRegistry
+	sessionStore        storage.SessionStore
+	contextMgr          agent.ContextManager
+	historyMgr          storage.HistoryManager
+	parser              tools.FunctionCallParser
+	config              appconfig.Config
+	logger              agent.Logger
+	clock               agent.Clock
+	costDecorator       *cost.CostTrackingDecorator
+	presetResolver      *PresetResolver
+	eventEmitter        agent.EventListener
+	costTracker         storage.CostTracker
+	sessionStaleCapture func(ctx context.Context, session *storage.Session, userID string)
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -96,19 +98,20 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	}
 
 	return &ExecutionPreparationService{
-		llmFactory:     deps.LLMFactory,
-		toolRegistry:   deps.ToolRegistry,
-		sessionStore:   deps.SessionStore,
-		contextMgr:     deps.ContextMgr,
-		historyMgr:     deps.HistoryMgr,
-		parser:         deps.Parser,
-		config:         deps.Config,
-		logger:         logger,
-		clock:          clock,
-		costDecorator:  costDecorator,
-		presetResolver: presetResolver,
-		eventEmitter:   eventEmitter,
-		costTracker:    deps.CostTracker,
+		llmFactory:          deps.LLMFactory,
+		toolRegistry:        deps.ToolRegistry,
+		sessionStore:        deps.SessionStore,
+		contextMgr:          deps.ContextMgr,
+		historyMgr:          deps.HistoryMgr,
+		parser:              deps.Parser,
+		config:              deps.Config,
+		logger:              logger,
+		clock:               clock,
+		costDecorator:       costDecorator,
+		presetResolver:      presetResolver,
+		eventEmitter:        eventEmitter,
+		costTracker:         deps.CostTracker,
+		sessionStaleCapture: deps.SessionStaleCapture,
 	}
 }
 

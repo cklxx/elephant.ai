@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -202,6 +204,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.CostDir = parsed.CostDir
 		meta.sources["cost_dir"] = SourceFile
 	}
+	if parsed.SessionStaleAfter != "" {
+		seconds, err := parseDurationSeconds(parsed.SessionStaleAfter)
+		if err != nil {
+			return fmt.Errorf("parse session_stale_after: %w", err)
+		}
+		cfg.SessionStaleAfterSeconds = seconds
+		meta.sources["session_stale_after_seconds"] = SourceFile
+	}
 	if parsed.AgentPreset != "" {
 		cfg.AgentPreset = parsed.AgentPreset
 		meta.sources["agent_preset"] = SourceFile
@@ -212,6 +222,24 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 	}
 	if parsed.Proactive != nil {
 		applyProactiveFileConfig(cfg, meta, parsed.Proactive)
+	}
+	if parsed.ExternalAgents != nil {
+		if err := applyExternalAgentsFileConfig(cfg, meta, parsed.ExternalAgents); err != nil {
+			return err
+		}
+	}
+
+	var fileCfg FileConfig
+	if err := yaml.Unmarshal(data, &fileCfg); err == nil {
+		fileCfg = expandFileConfigEnv(lookup, fileCfg)
+		if fileCfg.Agent != nil && strings.TrimSpace(fileCfg.Agent.SessionStaleAfter) != "" {
+			seconds, err := parseDurationSeconds(fileCfg.Agent.SessionStaleAfter)
+			if err != nil {
+				return fmt.Errorf("parse agent.session_stale_after: %w", err)
+			}
+			cfg.SessionStaleAfterSeconds = seconds
+			meta.sources["session_stale_after_seconds"] = SourceFile
+		}
 	}
 
 	return nil
@@ -260,10 +288,14 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.Environment = expandEnvValue(lookup, parsed.Environment)
 	parsed.SessionDir = expandEnvValue(lookup, parsed.SessionDir)
 	parsed.CostDir = expandEnvValue(lookup, parsed.CostDir)
+	parsed.SessionStaleAfter = expandEnvValue(lookup, parsed.SessionStaleAfter)
 	parsed.AgentPreset = expandEnvValue(lookup, parsed.AgentPreset)
 	parsed.ToolPreset = expandEnvValue(lookup, parsed.ToolPreset)
 	if parsed.Proactive != nil {
 		expandProactiveFileConfigEnv(lookup, parsed.Proactive)
+	}
+	if parsed.ExternalAgents != nil {
+		expandExternalAgentsFileConfigEnv(lookup, parsed.ExternalAgents)
 	}
 
 	if len(parsed.StopSequences) > 0 {
@@ -275,4 +307,168 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	}
 
 	return parsed
+}
+
+func parseDurationSeconds(value string) (int, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return 0, nil
+	}
+	if seconds, err := strconv.Atoi(trimmed); err == nil {
+		return seconds, nil
+	}
+	parsed, err := time.ParseDuration(trimmed)
+	if err != nil {
+		return 0, err
+	}
+	return int(parsed.Seconds()), nil
+}
+
+func parseDuration(value string) (time.Duration, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return 0, nil
+	}
+	if seconds, err := strconv.Atoi(trimmed); err == nil {
+		return time.Duration(seconds) * time.Second, nil
+	}
+	return time.ParseDuration(trimmed)
+}
+
+func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external *ExternalAgentsFileConfig) error {
+	if external == nil {
+		return nil
+	}
+	if external.ClaudeCode != nil {
+		cc := external.ClaudeCode
+		if cc.Enabled != nil {
+			cfg.ExternalAgents.ClaudeCode.Enabled = *cc.Enabled
+			meta.sources["external_agents.claude_code.enabled"] = SourceFile
+		}
+		if strings.TrimSpace(cc.Binary) != "" {
+			cfg.ExternalAgents.ClaudeCode.Binary = cc.Binary
+			meta.sources["external_agents.claude_code.binary"] = SourceFile
+		}
+		if strings.TrimSpace(cc.DefaultModel) != "" {
+			cfg.ExternalAgents.ClaudeCode.DefaultModel = cc.DefaultModel
+			meta.sources["external_agents.claude_code.default_model"] = SourceFile
+		}
+		if strings.TrimSpace(cc.DefaultMode) != "" {
+			cfg.ExternalAgents.ClaudeCode.DefaultMode = cc.DefaultMode
+			meta.sources["external_agents.claude_code.default_mode"] = SourceFile
+		}
+		if len(cc.AutonomousAllowedTools) > 0 {
+			cfg.ExternalAgents.ClaudeCode.AutonomousAllowedTools = append([]string(nil), cc.AutonomousAllowedTools...)
+			meta.sources["external_agents.claude_code.autonomous_allowed_tools"] = SourceFile
+		}
+		if cc.MaxBudgetUSD != nil {
+			cfg.ExternalAgents.ClaudeCode.MaxBudgetUSD = *cc.MaxBudgetUSD
+			meta.sources["external_agents.claude_code.max_budget_usd"] = SourceFile
+		}
+		if cc.MaxTurns != nil {
+			cfg.ExternalAgents.ClaudeCode.MaxTurns = *cc.MaxTurns
+			meta.sources["external_agents.claude_code.max_turns"] = SourceFile
+		}
+		if strings.TrimSpace(cc.Timeout) != "" {
+			timeout, err := parseDuration(cc.Timeout)
+			if err != nil {
+				return fmt.Errorf("parse external_agents.claude_code.timeout: %w", err)
+			}
+			cfg.ExternalAgents.ClaudeCode.Timeout = timeout
+			meta.sources["external_agents.claude_code.timeout"] = SourceFile
+		}
+		if len(cc.Env) > 0 {
+			cfg.ExternalAgents.ClaudeCode.Env = cloneStringMap(cc.Env)
+			meta.sources["external_agents.claude_code.env"] = SourceFile
+		}
+	}
+	if external.Codex != nil {
+		cx := external.Codex
+		if cx.Enabled != nil {
+			cfg.ExternalAgents.Codex.Enabled = *cx.Enabled
+			meta.sources["external_agents.codex.enabled"] = SourceFile
+		}
+		if strings.TrimSpace(cx.Binary) != "" {
+			cfg.ExternalAgents.Codex.Binary = cx.Binary
+			meta.sources["external_agents.codex.binary"] = SourceFile
+		}
+		if strings.TrimSpace(cx.DefaultModel) != "" {
+			cfg.ExternalAgents.Codex.DefaultModel = cx.DefaultModel
+			meta.sources["external_agents.codex.default_model"] = SourceFile
+		}
+		if strings.TrimSpace(cx.ApprovalPolicy) != "" {
+			cfg.ExternalAgents.Codex.ApprovalPolicy = cx.ApprovalPolicy
+			meta.sources["external_agents.codex.approval_policy"] = SourceFile
+		}
+		if strings.TrimSpace(cx.Sandbox) != "" {
+			cfg.ExternalAgents.Codex.Sandbox = cx.Sandbox
+			meta.sources["external_agents.codex.sandbox"] = SourceFile
+		}
+		if strings.TrimSpace(cx.Timeout) != "" {
+			timeout, err := parseDuration(cx.Timeout)
+			if err != nil {
+				return fmt.Errorf("parse external_agents.codex.timeout: %w", err)
+			}
+			cfg.ExternalAgents.Codex.Timeout = timeout
+			meta.sources["external_agents.codex.timeout"] = SourceFile
+		}
+		if len(cx.Env) > 0 {
+			cfg.ExternalAgents.Codex.Env = cloneStringMap(cx.Env)
+			meta.sources["external_agents.codex.env"] = SourceFile
+		}
+	}
+	return nil
+}
+
+func expandExternalAgentsFileConfigEnv(lookup EnvLookup, external *ExternalAgentsFileConfig) {
+	if external == nil {
+		return
+	}
+	if external.ClaudeCode != nil {
+		cc := external.ClaudeCode
+		cc.Binary = expandEnvValue(lookup, cc.Binary)
+		cc.DefaultModel = expandEnvValue(lookup, cc.DefaultModel)
+		cc.DefaultMode = expandEnvValue(lookup, cc.DefaultMode)
+		cc.Timeout = expandEnvValue(lookup, cc.Timeout)
+		if len(cc.AutonomousAllowedTools) > 0 {
+			tools := make([]string, 0, len(cc.AutonomousAllowedTools))
+			for _, tool := range cc.AutonomousAllowedTools {
+				tools = append(tools, expandEnvValue(lookup, tool))
+			}
+			cc.AutonomousAllowedTools = tools
+		}
+		if len(cc.Env) > 0 {
+			expanded := make(map[string]string, len(cc.Env))
+			for key, value := range cc.Env {
+				expanded[expandEnvValue(lookup, key)] = expandEnvValue(lookup, value)
+			}
+			cc.Env = expanded
+		}
+	}
+	if external.Codex != nil {
+		cx := external.Codex
+		cx.Binary = expandEnvValue(lookup, cx.Binary)
+		cx.DefaultModel = expandEnvValue(lookup, cx.DefaultModel)
+		cx.ApprovalPolicy = expandEnvValue(lookup, cx.ApprovalPolicy)
+		cx.Sandbox = expandEnvValue(lookup, cx.Sandbox)
+		cx.Timeout = expandEnvValue(lookup, cx.Timeout)
+		if len(cx.Env) > 0 {
+			expanded := make(map[string]string, len(cx.Env))
+			for key, value := range cx.Env {
+				expanded[expandEnvValue(lookup, key)] = expandEnvValue(lookup, value)
+			}
+			cx.Env = expanded
+		}
+	}
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/memory"
 )
 
@@ -143,11 +144,20 @@ func TestMemoryCaptureHook_SuccessfulCapture(t *testing.T) {
 	if entry.Slots["type"] != "auto_capture" {
 		t.Errorf("expected slot type='auto_capture', got %q", entry.Slots["type"])
 	}
+	if entry.Slots["scope"] != "user" {
+		t.Errorf("expected slot scope='user', got %q", entry.Slots["scope"])
+	}
+	if entry.Slots["source"] != "memory_capture" {
+		t.Errorf("expected slot source='memory_capture', got %q", entry.Slots["source"])
+	}
 	if entry.Slots["outcome"] != "complete" {
 		t.Errorf("expected slot outcome='complete', got %q", entry.Slots["outcome"])
 	}
 	if entry.Slots["session_id"] != "sess-123" {
 		t.Errorf("expected slot session_id='sess-123', got %q", entry.Slots["session_id"])
+	}
+	if entry.Slots["sender_id"] != "testuser" {
+		t.Errorf("expected slot sender_id='testuser', got %q", entry.Slots["sender_id"])
 	}
 
 	// Check tool sequence
@@ -236,9 +246,13 @@ func TestBuildCaptureSummary_TruncatesLongAnswer(t *testing.T) {
 }
 
 func TestBuildCaptureSlots(t *testing.T) {
+	ctx := context.Background()
+	ctx = appcontext.WithChannel(ctx, "lark")
+	ctx = appcontext.WithChatID(ctx, "oc_chat_123")
 	result := TaskResultInfo{
 		StopReason: "complete",
 		SessionID:  "sess-456",
+		UserID:     "ou_user",
 		ToolCalls: []ToolResultInfo{
 			{ToolName: "search"},
 			{ToolName: "fetch"},
@@ -246,16 +260,31 @@ func TestBuildCaptureSlots(t *testing.T) {
 		},
 	}
 
-	slots := buildCaptureSlots(result)
+	slots := buildCaptureSlots(ctx, result)
 
 	if slots["type"] != "auto_capture" {
 		t.Errorf("expected type='auto_capture', got %q", slots["type"])
+	}
+	if slots["scope"] != "user" {
+		t.Errorf("expected scope='user', got %q", slots["scope"])
+	}
+	if slots["source"] != "memory_capture" {
+		t.Errorf("expected source='memory_capture', got %q", slots["source"])
 	}
 	if slots["outcome"] != "complete" {
 		t.Errorf("expected outcome='complete', got %q", slots["outcome"])
 	}
 	if slots["session_id"] != "sess-456" {
 		t.Errorf("expected session_id, got %q", slots["session_id"])
+	}
+	if slots["sender_id"] != "ou_user" {
+		t.Errorf("expected sender_id 'ou_user', got %q", slots["sender_id"])
+	}
+	if slots["channel"] != "lark" {
+		t.Errorf("expected channel 'lark', got %q", slots["channel"])
+	}
+	if slots["chat_id"] != "oc_chat_123" {
+		t.Errorf("expected chat_id 'oc_chat_123', got %q", slots["chat_id"])
 	}
 	if slots["tool_sequence"] != "search→fetch→write" {
 		t.Errorf("expected tool_sequence 'search→fetch→write', got %q", slots["tool_sequence"])

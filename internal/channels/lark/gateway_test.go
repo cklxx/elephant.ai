@@ -400,6 +400,156 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	}
 }
 
+func TestHandleMessageSessionModeStable(t *testing.T) {
+	openID := "ou_sender_stable"
+	chatID := "oc_chat_stable"
+	msgID := "om_msg_stable"
+	content := `{"text":"hello stable"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	gw := &Gateway{
+		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", SessionMode: "stable", AllowDirect: true},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	expectedSessionID := gw.memoryIDForChat(chatID)
+	if executor.capturedSessionID != expectedSessionID {
+		t.Fatalf("expected sessionID %q, got %q", expectedSessionID, executor.capturedSessionID)
+	}
+	if got := id.SessionIDFromContext(executor.capturedCtx); got != expectedSessionID {
+		t.Fatalf("expected context sessionID %q, got %q", expectedSessionID, got)
+	}
+}
+
+func TestHandleMessageSessionModeFresh(t *testing.T) {
+	openID := "ou_sender_fresh"
+	chatID := "oc_chat_fresh"
+	msgID := "om_msg_fresh"
+	content := `{"text":"hello fresh"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	gw := &Gateway{
+		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", SessionMode: "fresh", AllowDirect: true},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	memoryID := gw.memoryIDForChat(chatID)
+	if executor.capturedSessionID == memoryID {
+		t.Fatalf("expected fresh sessionID to differ from memoryID %q", memoryID)
+	}
+	if !strings.HasPrefix(executor.capturedSessionID, "lark-") {
+		t.Fatalf("expected fresh sessionID to have lark- prefix, got %q", executor.capturedSessionID)
+	}
+	if got := id.SessionIDFromContext(executor.capturedCtx); got != executor.capturedSessionID {
+		t.Fatalf("expected context sessionID %q, got %q", executor.capturedSessionID, got)
+	}
+}
+
+func TestHandleMessageResetCommand(t *testing.T) {
+	openID := "ou_sender_reset"
+	chatID := "oc_chat_reset"
+	msgID := "om_msg_reset"
+	content := `{"text":"/reset"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &resetExecutor{}
+	gw := &Gateway{
+		cfg:    Config{AppID: "test", AppSecret: "secret", SessionPrefix: "lark", SessionMode: "stable", AllowDirect: true},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	if !executor.resetCalled {
+		t.Fatal("expected ResetSession to be called")
+	}
+	if executor.executeCalled {
+		t.Fatal("expected ExecuteTask to be skipped on /reset")
+	}
+	expectedSessionID := gw.memoryIDForChat(chatID)
+	if executor.resetSessionID != expectedSessionID {
+		t.Fatalf("expected reset sessionID %q, got %q", expectedSessionID, executor.resetSessionID)
+	}
+}
+
 // --- test helpers ---
 
 var errTest = fmt.Errorf("test error")
@@ -419,8 +569,10 @@ func (s *stubExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agen
 
 // capturingExecutor records the context and returns a configurable result.
 type capturingExecutor struct {
-	capturedCtx context.Context
-	result      *agent.TaskResult
+	capturedCtx       context.Context
+	capturedSessionID string
+	capturedTask      string
+	result            *agent.TaskResult
 }
 
 func (c *capturingExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
@@ -430,9 +582,35 @@ func (c *capturingExecutor) EnsureSession(_ context.Context, sessionID string) (
 	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
 }
 
-func (c *capturingExecutor) ExecuteTask(ctx context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+func (c *capturingExecutor) ExecuteTask(ctx context.Context, task string, sessionID string, _ agent.EventListener) (*agent.TaskResult, error) {
 	c.capturedCtx = ctx
+	c.capturedTask = task
+	c.capturedSessionID = sessionID
 	return c.result, nil
+}
+
+type resetExecutor struct {
+	resetCalled    bool
+	resetSessionID string
+	executeCalled  bool
+}
+
+func (r *resetExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	if sessionID == "" {
+		sessionID = "lark-session"
+	}
+	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+}
+
+func (r *resetExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	r.executeCalled = true
+	return nil, nil
+}
+
+func (r *resetExecutor) ResetSession(_ context.Context, sessionID string) error {
+	r.resetCalled = true
+	r.resetSessionID = sessionID
+	return nil
 }
 
 func TestBuildReplyThinkingFallback(t *testing.T) {

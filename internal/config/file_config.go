@@ -8,6 +8,7 @@ type FileConfig struct {
 	Channels    *ChannelsConfig    `json:"channels,omitempty" yaml:"channels"`
 	Server      *ServerConfig      `json:"server,omitempty" yaml:"server"`
 	Auth        *AuthConfig        `json:"auth,omitempty" yaml:"auth"`
+	Agent       *AgentConfig       `json:"agent,omitempty" yaml:"agent"`
 	Session     *SessionConfig     `json:"session,omitempty" yaml:"session"`
 	Analytics   *AnalyticsConfig   `json:"analytics,omitempty" yaml:"analytics"`
 	Attachments *AttachmentsConfig `json:"attachments,omitempty" yaml:"attachments"`
@@ -16,49 +17,79 @@ type FileConfig struct {
 
 // RuntimeFileConfig mirrors RuntimeConfig for YAML decoding (runtime section).
 type RuntimeFileConfig struct {
-	LLMProvider                string               `yaml:"llm_provider"`
-	LLMModel                   string               `yaml:"llm_model"`
-	LLMSmallProvider           string               `yaml:"llm_small_provider"`
-	LLMSmallModel              string               `yaml:"llm_small_model"`
-	LLMVisionModel             string               `yaml:"llm_vision_model"`
-	APIKey                     string               `yaml:"api_key"`
-	ArkAPIKey                  string               `yaml:"ark_api_key"`
-	BaseURL                    string               `yaml:"base_url"`
-	SandboxBaseURL             string               `yaml:"sandbox_base_url"`
-	ACPExecutorAddr            string               `yaml:"acp_executor_addr"`
-	ACPExecutorCWD             string               `yaml:"acp_executor_cwd"`
-	ACPExecutorMode            string               `yaml:"acp_executor_mode"`
-	ACPExecutorAutoApprove     *bool                `yaml:"acp_executor_auto_approve"`
-	ACPExecutorMaxCLICalls     *int                 `yaml:"acp_executor_max_cli_calls"`
-	ACPExecutorMaxDuration     *int                 `yaml:"acp_executor_max_duration_seconds"`
-	ACPExecutorRequireManifest *bool                `yaml:"acp_executor_require_manifest"`
-	TavilyAPIKey               string               `yaml:"tavily_api_key"`
-	SeedreamTextEndpointID     string               `yaml:"seedream_text_endpoint_id"`
-	SeedreamImageEndpointID    string               `yaml:"seedream_image_endpoint_id"`
-	SeedreamTextModel          string               `yaml:"seedream_text_model"`
-	SeedreamImageModel         string               `yaml:"seedream_image_model"`
-	SeedreamVisionModel        string               `yaml:"seedream_vision_model"`
-	SeedreamVideoModel         string               `yaml:"seedream_video_model"`
-	Environment                string               `yaml:"environment"`
-	Verbose                    *bool                `yaml:"verbose"`
-	DisableTUI                 *bool                `yaml:"disable_tui"`
-	FollowTranscript           *bool                `yaml:"follow_transcript"`
-	FollowStream               *bool                `yaml:"follow_stream"`
-	MaxIterations              *int                 `yaml:"max_iterations"`
-	MaxTokens                  *int                 `yaml:"max_tokens"`
-	ToolMaxConcurrent          *int                 `yaml:"tool_max_concurrent"`
-	LLMCacheSize               *int                 `yaml:"llm_cache_size"`
-	LLMCacheTTLSeconds         *int                 `yaml:"llm_cache_ttl_seconds"`
-	UserRateLimitRPS           *float64             `yaml:"user_rate_limit_rps"`
-	UserRateLimitBurst         *int                 `yaml:"user_rate_limit_burst"`
-	Temperature                *float64             `yaml:"temperature"`
-	TopP                       *float64             `yaml:"top_p"`
-	StopSequences              []string             `yaml:"stop_sequences"`
-	SessionDir                 string               `yaml:"session_dir"`
-	CostDir                    string               `yaml:"cost_dir"`
-	AgentPreset                string               `yaml:"agent_preset"`
-	ToolPreset                 string               `yaml:"tool_preset"`
-	Proactive                  *ProactiveFileConfig `yaml:"proactive"`
+	LLMProvider                string                    `yaml:"llm_provider"`
+	LLMModel                   string                    `yaml:"llm_model"`
+	LLMSmallProvider           string                    `yaml:"llm_small_provider"`
+	LLMSmallModel              string                    `yaml:"llm_small_model"`
+	LLMVisionModel             string                    `yaml:"llm_vision_model"`
+	APIKey                     string                    `yaml:"api_key"`
+	ArkAPIKey                  string                    `yaml:"ark_api_key"`
+	BaseURL                    string                    `yaml:"base_url"`
+	SandboxBaseURL             string                    `yaml:"sandbox_base_url"`
+	ACPExecutorAddr            string                    `yaml:"acp_executor_addr"`
+	ACPExecutorCWD             string                    `yaml:"acp_executor_cwd"`
+	ACPExecutorMode            string                    `yaml:"acp_executor_mode"`
+	ACPExecutorAutoApprove     *bool                     `yaml:"acp_executor_auto_approve"`
+	ACPExecutorMaxCLICalls     *int                      `yaml:"acp_executor_max_cli_calls"`
+	ACPExecutorMaxDuration     *int                      `yaml:"acp_executor_max_duration_seconds"`
+	ACPExecutorRequireManifest *bool                     `yaml:"acp_executor_require_manifest"`
+	TavilyAPIKey               string                    `yaml:"tavily_api_key"`
+	SeedreamTextEndpointID     string                    `yaml:"seedream_text_endpoint_id"`
+	SeedreamImageEndpointID    string                    `yaml:"seedream_image_endpoint_id"`
+	SeedreamTextModel          string                    `yaml:"seedream_text_model"`
+	SeedreamImageModel         string                    `yaml:"seedream_image_model"`
+	SeedreamVisionModel        string                    `yaml:"seedream_vision_model"`
+	SeedreamVideoModel         string                    `yaml:"seedream_video_model"`
+	Environment                string                    `yaml:"environment"`
+	Verbose                    *bool                     `yaml:"verbose"`
+	DisableTUI                 *bool                     `yaml:"disable_tui"`
+	FollowTranscript           *bool                     `yaml:"follow_transcript"`
+	FollowStream               *bool                     `yaml:"follow_stream"`
+	MaxIterations              *int                      `yaml:"max_iterations"`
+	MaxTokens                  *int                      `yaml:"max_tokens"`
+	ToolMaxConcurrent          *int                      `yaml:"tool_max_concurrent"`
+	LLMCacheSize               *int                      `yaml:"llm_cache_size"`
+	LLMCacheTTLSeconds         *int                      `yaml:"llm_cache_ttl_seconds"`
+	UserRateLimitRPS           *float64                  `yaml:"user_rate_limit_rps"`
+	UserRateLimitBurst         *int                      `yaml:"user_rate_limit_burst"`
+	Temperature                *float64                  `yaml:"temperature"`
+	TopP                       *float64                  `yaml:"top_p"`
+	StopSequences              []string                  `yaml:"stop_sequences"`
+	SessionDir                 string                    `yaml:"session_dir"`
+	CostDir                    string                    `yaml:"cost_dir"`
+	SessionStaleAfter          string                    `yaml:"session_stale_after"`
+	AgentPreset                string                    `yaml:"agent_preset"`
+	ToolPreset                 string                    `yaml:"tool_preset"`
+	Proactive                  *ProactiveFileConfig      `yaml:"proactive"`
+	ExternalAgents             *ExternalAgentsFileConfig `yaml:"external_agents"`
+}
+
+// ExternalAgentsFileConfig mirrors ExternalAgentsConfig for YAML decoding.
+type ExternalAgentsFileConfig struct {
+	ClaudeCode *ClaudeCodeFileConfig `yaml:"claude_code"`
+	Codex      *CodexFileConfig      `yaml:"codex"`
+}
+
+type ClaudeCodeFileConfig struct {
+	Enabled                *bool             `yaml:"enabled"`
+	Binary                 string            `yaml:"binary"`
+	DefaultModel           string            `yaml:"default_model"`
+	DefaultMode            string            `yaml:"default_mode"`
+	AutonomousAllowedTools []string          `yaml:"autonomous_allowed_tools"`
+	MaxBudgetUSD           *float64          `yaml:"max_budget_usd"`
+	MaxTurns               *int              `yaml:"max_turns"`
+	Timeout                string            `yaml:"timeout"`
+	Env                    map[string]string `yaml:"env"`
+}
+
+type CodexFileConfig struct {
+	Enabled        *bool             `yaml:"enabled"`
+	Binary         string            `yaml:"binary"`
+	DefaultModel   string            `yaml:"default_model"`
+	ApprovalPolicy string            `yaml:"approval_policy"`
+	Sandbox        string            `yaml:"sandbox"`
+	Timeout        string            `yaml:"timeout"`
+	Env            map[string]string `yaml:"env"`
 }
 
 // ProactiveFileConfig mirrors ProactiveConfig for YAML decoding.
@@ -72,16 +103,17 @@ type ProactiveFileConfig struct {
 }
 
 type MemoryFileConfig struct {
-	Enabled          *bool                   `yaml:"enabled"`
-	AutoRecall       *bool                   `yaml:"auto_recall"`
-	AutoCapture      *bool                   `yaml:"auto_capture"`
-	CaptureMessages  *bool                   `yaml:"capture_messages"`
-	MaxRecalls       *int                    `yaml:"max_recalls"`
-	RefreshInterval  *int                    `yaml:"refresh_interval"`
-	MaxRefreshTokens *int                    `yaml:"max_refresh_tokens"`
-	Store            string                  `yaml:"store"`
-	DedupeThreshold  *float64                `yaml:"dedupe_threshold"`
-	Hybrid           *MemoryHybridFileConfig `yaml:"hybrid"`
+	Enabled            *bool                   `yaml:"enabled"`
+	AutoRecall         *bool                   `yaml:"auto_recall"`
+	AutoCapture        *bool                   `yaml:"auto_capture"`
+	CaptureMessages    *bool                   `yaml:"capture_messages"`
+	CaptureGroupMemory *bool                   `yaml:"capture_group_memory"`
+	MaxRecalls         *int                    `yaml:"max_recalls"`
+	RefreshInterval    *int                    `yaml:"refresh_interval"`
+	MaxRefreshTokens   *int                    `yaml:"max_refresh_tokens"`
+	Store              string                  `yaml:"store"`
+	DedupeThreshold    *float64                `yaml:"dedupe_threshold"`
+	Hybrid             *MemoryHybridFileConfig `yaml:"hybrid"`
 }
 
 type MemoryHybridFileConfig struct {
@@ -190,6 +222,7 @@ type LarkChannelConfig struct {
 	AppSecret           string `json:"app_secret" yaml:"app_secret"`
 	BaseDomain          string `json:"base_domain" yaml:"base_domain"`
 	SessionPrefix       string `json:"session_prefix" yaml:"session_prefix"`
+	SessionMode         string `json:"session_mode" yaml:"session_mode"`
 	ReplyPrefix         string `json:"reply_prefix" yaml:"reply_prefix"`
 	AllowGroups         *bool  `json:"allow_groups" yaml:"allow_groups"`
 	AllowDirect         *bool  `json:"allow_direct" yaml:"allow_direct"`
@@ -237,6 +270,11 @@ type AuthConfig struct {
 	BootstrapEmail        string `yaml:"bootstrap_email"`
 	BootstrapPassword     string `yaml:"bootstrap_password"`
 	BootstrapDisplayName  string `yaml:"bootstrap_display_name"`
+}
+
+// AgentConfig captures agent-level behavioral settings.
+type AgentConfig struct {
+	SessionStaleAfter string `yaml:"session_stale_after"`
 }
 
 // SessionConfig captures session persistence configuration.

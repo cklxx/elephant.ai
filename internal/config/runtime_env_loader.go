@@ -260,6 +260,14 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.CostDir = value
 		meta.sources["cost_dir"] = SourceEnv
 	}
+	if value, ok := lookup("AGENT_SESSION_STALE_AFTER"); ok && value != "" {
+		seconds, err := parseDurationSeconds(value)
+		if err != nil {
+			return fmt.Errorf("parse AGENT_SESSION_STALE_AFTER: %w", err)
+		}
+		cfg.SessionStaleAfterSeconds = seconds
+		meta.sources["session_stale_after_seconds"] = SourceEnv
+	}
 
 	return nil
 }

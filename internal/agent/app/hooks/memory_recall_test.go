@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	appcontext "alex/internal/agent/app/context"
 	"alex/internal/memory"
 )
 
@@ -123,6 +124,33 @@ func TestMemoryRecallHook_OnTaskStart_NoResults(t *testing.T) {
 
 	if result != nil {
 		t.Errorf("expected nil injections for empty results, got %v", result)
+	}
+}
+
+func TestMemoryRecallHook_OnTaskStart_GroupRecall(t *testing.T) {
+	svc := &mockMemoryService{recallResult: []memory.Entry{{Key: "1", Content: "group memory"}}}
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{
+		Enabled:            true,
+		AutoRecall:         true,
+		MaxRecalls:         5,
+		CaptureGroupMemory: true,
+	})
+
+	ctx := context.Background()
+	ctx = appcontext.WithChannel(ctx, "lark")
+	ctx = appcontext.WithChatID(ctx, "oc_chat_123")
+	ctx = appcontext.WithIsGroup(ctx, true)
+
+	_ = hook.OnTaskStart(ctx, TaskInfo{TaskInput: "deploy the app", UserID: "ou_user"})
+
+	if svc.recallCalled != 2 {
+		t.Fatalf("expected 2 recalls (user + chat), got %d", svc.recallCalled)
+	}
+	if svc.lastQuery.UserID != "chat:lark:oc_chat_123" {
+		t.Fatalf("expected chat scoped user_id, got %q", svc.lastQuery.UserID)
+	}
+	if svc.lastQuery.Slots["scope"] != "chat" {
+		t.Fatalf("expected chat scope slot, got %q", svc.lastQuery.Slots["scope"])
 	}
 }
 

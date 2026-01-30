@@ -105,6 +105,7 @@ type Config struct {
 	SessionDir                   string // Directory for session storage (default: ~/.alex/sessions)
 	CostDir                      string // Directory for cost tracking (default: ~/.alex/costs)
 	MemoryDir                    string // Directory for file-based memory storage (default: ~/.alex/memory)
+	SessionStaleAfter            time.Duration
 	SessionDatabaseURL           string // Optional database URL for session persistence
 	SessionPoolMaxConns          int
 	SessionPoolMinConns          int
@@ -120,7 +121,8 @@ type Config struct {
 	// Feature Flags
 	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
 
-	Proactive runtimeconfig.ProactiveConfig
+	Proactive      runtimeconfig.ProactiveConfig
+	ExternalAgents runtimeconfig.ExternalAgentsConfig
 }
 
 // Start initializes heavy dependencies (MCP) based on feature flags

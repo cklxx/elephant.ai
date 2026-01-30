@@ -20,7 +20,6 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	toolports "alex/internal/agent/ports/tools"
 	"alex/internal/logging"
-	"alex/internal/memory"
 	artifacts "alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
@@ -53,7 +52,6 @@ type Gateway struct {
 	wsClient      *larkws.Client
 	sessionLocks  sync.Map
 	eventListener agent.EventListener
-	memoryMgr     *larkMemoryManager
 	dedupMu       sync.Mutex
 	dedupCache    *lru.Cache[string, time.Time]
 	now           func() time.Time
@@ -90,14 +88,6 @@ func (g *Gateway) SetEventListener(listener agent.EventListener) {
 		return
 	}
 	g.eventListener = listener
-}
-
-// SetMemoryManager enables automatic memory save/recall for the gateway.
-func (g *Gateway) SetMemoryManager(svc memory.Service) {
-	if g == nil || svc == nil {
-		return
-	}
-	g.memoryMgr = newLarkMemoryManager(svc, g.logger)
 }
 
 // Start creates the Lark SDK client, event dispatcher, and WebSocket client, then blocks.
@@ -214,11 +204,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		return nil
 	}
 
-	// Each message gets a fresh session (zero history). Memory recall
-	// injects relevant context instead of accumulating session messages.
 	senderID := extractSenderID(event)
 	memoryID := g.memoryIDForChat(chatID)
-	sessionID := fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
+	sessionID := memoryID
+	if strings.EqualFold(strings.TrimSpace(g.cfg.SessionMode), "fresh") {
+		sessionID = fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
+	}
 
 	lock := g.sessionLock(memoryID)
 	lock.Lock()
@@ -228,6 +219,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	execCtx = id.WithSessionID(execCtx, sessionID)
 	execCtx = id.WithUserID(execCtx, senderID)
 	execCtx, _ = id.EnsureLogID(execCtx, id.NewLogID)
+	execCtx = appcontext.WithChannel(execCtx, "lark")
+	execCtx = appcontext.WithChatID(execCtx, chatID)
+	execCtx = appcontext.WithIsGroup(execCtx, isGroup)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
 	if g.cfg.MemoryEnabled {
@@ -243,6 +237,23 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 			AutoRecall:  false,
 			AutoCapture: false,
 		})
+	}
+
+	if strings.TrimSpace(content) == "/reset" {
+		if resetter, ok := g.agent.(interface {
+			ResetSession(ctx context.Context, sessionID string) error
+		}); ok {
+			if err := resetter.ResetSession(execCtx, memoryID); err != nil {
+				g.logger.Warn("Lark session reset failed: %v", err)
+			}
+		}
+		reply := "已清空对话历史，下次对话将从零开始。"
+		if isGroup && messageID != "" {
+			g.replyMessage(execCtx, messageID, reply)
+		} else {
+			g.sendMessage(execCtx, chatID, reply)
+		}
+		return nil
 	}
 
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
@@ -301,7 +312,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	// Auto chat context: fetch recent messages from the Lark chat.
 	taskContent := content
-	if g.cfg.AutoChatContext && g.client != nil {
+	if g.cfg.AutoChatContext && g.client != nil && isGroup {
 		pageSize := g.cfg.AutoChatContextSize
 		if pageSize <= 0 {
 			pageSize = 20
@@ -564,7 +575,7 @@ func extractThinkingFallback(msgs []ports.Message) string {
 // This stable ID is used for memory save/recall across fresh sessions.
 func (g *Gateway) memoryIDForChat(chatID string) string {
 	hash := sha1.Sum([]byte(chatID))
-	return fmt.Sprintf("%s-%x", g.cfg.SessionPrefix, hash[:8])
+	return fmt.Sprintf("%s-%x", g.cfg.SessionPrefix, hash[:12])
 }
 
 // extractText parses the JSON content from a Lark text message.

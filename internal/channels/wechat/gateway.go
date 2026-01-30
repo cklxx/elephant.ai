@@ -174,6 +174,9 @@ func (g *Gateway) handleMessage(msg *openwechat.Message) {
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx = id.WithUserID(ctx, conversationKey)
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
+	ctx = appcontext.WithChannel(ctx, "wechat")
+	ctx = appcontext.WithChatID(ctx, conversationKey)
+	ctx = appcontext.WithIsGroup(ctx, isGroup)
 	if g.cfg.MemoryEnabled {
 		ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
 			Enabled:         true,

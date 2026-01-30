@@ -20,6 +20,55 @@ func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, se
 	if session == nil {
 		return nil
 	}
+	if s.config.SessionStaleAfter > 0 {
+		lastUpdated := session.UpdatedAt
+		if lastUpdated.IsZero() {
+			lastUpdated = session.CreatedAt
+		}
+		if !lastUpdated.IsZero() && s.clock.Now().Sub(lastUpdated) > s.config.SessionStaleAfter {
+			if s.logger != nil {
+				s.logger.Info("Session %s stale (last updated %v), clearing history", session.ID, lastUpdated)
+			}
+
+			var staleMessages []ports.Message
+			if s.historyMgr != nil {
+				history, err := s.historyMgr.Replay(ctx, session.ID, 0)
+				if err != nil && s.logger != nil {
+					s.logger.Warn("Failed to replay stale session history (session=%s): %v", session.ID, err)
+				} else if len(history) > 0 {
+					staleMessages = history
+				}
+			}
+			if len(staleMessages) == 0 {
+				staleMessages = session.Messages
+			}
+			if s.sessionStaleCapture != nil && len(staleMessages) > 0 {
+				captured := *session
+				captured.Messages = agent.CloneMessages(staleMessages)
+				s.sessionStaleCapture(ctx, &captured, id.UserIDFromContext(ctx))
+			}
+
+			session.Messages = nil
+			session.Metadata = nil
+			session.Attachments = nil
+			session.Important = nil
+			session.Todos = nil
+			session.UserPersona = nil
+			session.UpdatedAt = s.clock.Now()
+
+			if s.sessionStore != nil {
+				if err := s.sessionStore.Save(ctx, session); err != nil && s.logger != nil {
+					s.logger.Warn("Failed to persist stale session reset (session=%s): %v", session.ID, err)
+				}
+			}
+			if s.historyMgr != nil {
+				if err := s.historyMgr.ClearSession(ctx, session.ID); err != nil && s.logger != nil {
+					s.logger.Warn("Failed to clear stale session history (session=%s): %v", session.ID, err)
+				}
+			}
+			return nil
+		}
+	}
 	if s.historyMgr != nil {
 		history, err := s.historyMgr.Replay(ctx, session.ID, 0)
 		if err != nil {

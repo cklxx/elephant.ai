@@ -9,6 +9,7 @@ type Config struct {
 	AppSecret     string
 	BaseDomain    string
 	SessionPrefix string
+	SessionMode   string // "stable" (default) reuses chat session; "fresh" creates a new session per message.
 	ReplyPrefix   string
 	AllowGroups   bool
 	AllowDirect   bool

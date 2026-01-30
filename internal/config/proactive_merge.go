@@ -53,6 +53,9 @@ func mergeMemoryConfig(target *MemoryConfig, file *MemoryFileConfig) {
 	if file.CaptureMessages != nil {
 		target.CaptureMessages = *file.CaptureMessages
 	}
+	if file.CaptureGroupMemory != nil {
+		target.CaptureGroupMemory = *file.CaptureGroupMemory
+	}
 	if file.MaxRecalls != nil {
 		target.MaxRecalls = *file.MaxRecalls
 	}

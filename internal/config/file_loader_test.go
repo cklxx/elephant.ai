@@ -19,6 +19,8 @@ server:
 auth:
   jwt_secret: "${AUTH_JWT_SECRET}"
   access_token_ttl_minutes: "${AUTH_ACCESS_TOKEN_TTL_MINUTES}"
+agent:
+  session_stale_after: "${SESSION_STALE_AFTER}"
 session:
   database_url: "${SESSION_DB}"
 analytics:
@@ -49,6 +51,7 @@ channels:
 		"ORIGIN_HOST":                   "example.com",
 		"AUTH_JWT_SECRET":               "jwt-secret",
 		"AUTH_ACCESS_TOKEN_TTL_MINUTES": "20",
+		"SESSION_STALE_AFTER":           "48h",
 		"SESSION_DB":                    "postgres://localhost:5432/app",
 		"POSTHOG_API_KEY":               "ph-key",
 		"CF_ACCOUNT":                    "cf-account",
@@ -87,6 +90,9 @@ channels:
 	}
 	if cfg.Auth == nil || cfg.Auth.JWTSecret != "jwt-secret" || cfg.Auth.AccessTokenTTLMinutes != "20" {
 		t.Fatalf("expected auth config to expand, got %#v", cfg.Auth)
+	}
+	if cfg.Agent == nil || cfg.Agent.SessionStaleAfter != "48h" {
+		t.Fatalf("expected agent config to expand, got %#v", cfg.Agent)
 	}
 	if cfg.Session == nil || cfg.Session.DatabaseURL != "postgres://localhost:5432/app" {
 		t.Fatalf("expected session config to expand, got %#v", cfg.Session)

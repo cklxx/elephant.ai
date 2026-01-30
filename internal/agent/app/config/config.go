@@ -1,6 +1,10 @@
 package config
 
-import runtimeconfig "alex/internal/config"
+import (
+	"time"
+
+	runtimeconfig "alex/internal/config"
+)
 
 // Config captures runtime defaults for coordinator execution and preparation.
 type Config struct {
@@ -22,5 +26,6 @@ type Config struct {
 	ToolPreset          string // Tool access preset (full, read-only, safe, architect)
 	ToolMode            string // Tool access mode (web or cli)
 	EnvironmentSummary  string
+	SessionStaleAfter   time.Duration
 	Proactive           runtimeconfig.ProactiveConfig
 }

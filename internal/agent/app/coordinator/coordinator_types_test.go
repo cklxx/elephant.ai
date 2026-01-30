@@ -12,6 +12,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/llm"
+	id "alex/internal/utils/id"
 )
 
 type stubSessionStore struct {
@@ -64,6 +65,23 @@ func (s *stubSessionStore) Delete(ctx context.Context, id string) error {
 	if s.session != nil && s.session.ID == id {
 		s.session = nil
 	}
+	return nil
+}
+
+type stubHistoryManager struct {
+	clearedSessionID string
+}
+
+func (s *stubHistoryManager) AppendTurn(context.Context, string, []ports.Message) error {
+	return nil
+}
+
+func (s *stubHistoryManager) Replay(context.Context, string, int) ([]ports.Message, error) {
+	return nil, nil
+}
+
+func (s *stubHistoryManager) ClearSession(_ context.Context, sessionID string) error {
+	s.clearedSessionID = sessionID
 	return nil
 }
 
@@ -375,15 +393,26 @@ func TestResolveUserID(t *testing.T) {
 	coordinator := &AgentCoordinator{logger: agent.NoopLogger{}}
 
 	t.Run("nil session", func(t *testing.T) {
-		if got := coordinator.resolveUserID(nil); got != "" {
+		if got := coordinator.resolveUserID(context.Background(), nil); got != "" {
 			t.Fatalf("expected empty, got %q", got)
 		}
 	})
 
 	t.Run("nil metadata", func(t *testing.T) {
 		session := &storage.Session{ID: "test-session"}
-		if got := coordinator.resolveUserID(session); got != "" {
+		if got := coordinator.resolveUserID(context.Background(), session); got != "" {
 			t.Fatalf("expected empty, got %q", got)
+		}
+	})
+
+	t.Run("context user_id takes precedence", func(t *testing.T) {
+		ctx := id.WithUserID(context.Background(), "ctx-user")
+		session := &storage.Session{
+			ID:       "lark-abc123",
+			Metadata: map[string]string{"user_id": "meta-user"},
+		}
+		if got := coordinator.resolveUserID(ctx, session); got != "ctx-user" {
+			t.Fatalf("expected 'ctx-user', got %q", got)
 		}
 	})
 
@@ -392,7 +421,7 @@ func TestResolveUserID(t *testing.T) {
 			ID:       "lark-abc123",
 			Metadata: map[string]string{"user_id": "ou_user_42"},
 		}
-		if got := coordinator.resolveUserID(session); got != "ou_user_42" {
+		if got := coordinator.resolveUserID(context.Background(), session); got != "ou_user_42" {
 			t.Fatalf("expected 'ou_user_42', got %q", got)
 		}
 	})
@@ -402,7 +431,7 @@ func TestResolveUserID(t *testing.T) {
 			ID:       "lark-abc123",
 			Metadata: map[string]string{},
 		}
-		if got := coordinator.resolveUserID(session); got != "lark-abc123" {
+		if got := coordinator.resolveUserID(context.Background(), session); got != "lark-abc123" {
 			t.Fatalf("expected 'lark-abc123', got %q", got)
 		}
 	})
@@ -412,7 +441,7 @@ func TestResolveUserID(t *testing.T) {
 			ID:       "wechat-def456",
 			Metadata: map[string]string{},
 		}
-		if got := coordinator.resolveUserID(session); got != "wechat-def456" {
+		if got := coordinator.resolveUserID(context.Background(), session); got != "wechat-def456" {
 			t.Fatalf("expected 'wechat-def456', got %q", got)
 		}
 	})
@@ -422,7 +451,7 @@ func TestResolveUserID(t *testing.T) {
 			ID:       "lark:old-format",
 			Metadata: map[string]string{},
 		}
-		if got := coordinator.resolveUserID(session); got != "" {
+		if got := coordinator.resolveUserID(context.Background(), session); got != "" {
 			t.Fatalf("expected empty for 'lark:' prefix (wrong separator), got %q", got)
 		}
 	})
@@ -432,7 +461,7 @@ func TestResolveUserID(t *testing.T) {
 			ID:       "cli-session-xyz",
 			Metadata: map[string]string{},
 		}
-		if got := coordinator.resolveUserID(session); got != "" {
+		if got := coordinator.resolveUserID(context.Background(), session); got != "" {
 			t.Fatalf("expected empty for non-channel session, got %q", got)
 		}
 	})
@@ -442,10 +471,63 @@ func TestResolveUserID(t *testing.T) {
 			ID:       "lark-abc123",
 			Metadata: map[string]string{"user_id": "ou_real_user"},
 		}
-		if got := coordinator.resolveUserID(session); got != "ou_real_user" {
+		if got := coordinator.resolveUserID(context.Background(), session); got != "ou_real_user" {
 			t.Fatalf("expected 'ou_real_user', got %q", got)
 		}
 	})
+}
+
+func TestResetSessionClearsState(t *testing.T) {
+	session := &storage.Session{
+		ID:       "session-reset",
+		Messages: []ports.Message{{Role: "user", Content: "hello"}},
+		Metadata: map[string]string{"user_id": "ou_user"},
+		Todos:    []storage.Todo{{ID: "todo-1", Description: "check"}},
+		Attachments: map[string]ports.Attachment{
+			"file.txt": {Name: "file.txt"},
+		},
+		Important: map[string]ports.ImportantNote{
+			"note": {Content: "remember"},
+		},
+	}
+	store := &stubSessionStore{session: session}
+	history := &stubHistoryManager{}
+
+	coordinator := NewAgentCoordinator(
+		llm.NewFactory(),
+		stubToolRegistry{},
+		store,
+		stubContextManager{},
+		history,
+		stubParser{},
+		nil,
+		appconfig.Config{LLMProvider: "mock", LLMModel: "test-model", MaxIterations: 3},
+	)
+
+	if err := coordinator.ResetSession(context.Background(), session.ID); err != nil {
+		t.Fatalf("reset session failed: %v", err)
+	}
+	if store.session == nil {
+		t.Fatal("expected session to persist")
+	}
+	if len(store.session.Messages) != 0 {
+		t.Fatalf("expected messages cleared, got %d", len(store.session.Messages))
+	}
+	if store.session.Metadata != nil {
+		t.Fatalf("expected metadata cleared")
+	}
+	if store.session.Todos != nil {
+		t.Fatalf("expected todos cleared")
+	}
+	if store.session.Attachments != nil {
+		t.Fatalf("expected attachments cleared")
+	}
+	if store.session.Important != nil {
+		t.Fatalf("expected important notes cleared")
+	}
+	if history.clearedSessionID != session.ID {
+		t.Fatalf("expected history cleared for %q, got %q", session.ID, history.clearedSessionID)
+	}
 }
 
 // Ensure the coordinator continues to satisfy the AgentCoordinator port contract.

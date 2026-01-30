@@ -91,6 +91,9 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 		parsed.Auth.BootstrapPassword = expandEnvValue(lookup, parsed.Auth.BootstrapPassword)
 		parsed.Auth.BootstrapDisplayName = expandEnvValue(lookup, parsed.Auth.BootstrapDisplayName)
 	}
+	if parsed.Agent != nil {
+		parsed.Agent.SessionStaleAfter = expandEnvValue(lookup, parsed.Agent.SessionStaleAfter)
+	}
 	if parsed.Session != nil {
 		parsed.Session.DatabaseURL = expandEnvValue(lookup, parsed.Session.DatabaseURL)
 		parsed.Session.Dir = expandEnvValue(lookup, parsed.Session.Dir)

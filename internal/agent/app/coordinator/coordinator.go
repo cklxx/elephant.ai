@@ -33,17 +33,18 @@ import (
 
 // AgentCoordinator manages session lifecycle and delegates to domain
 type AgentCoordinator struct {
-	llmFactory    llm.LLMClientFactory
-	toolRegistry  tools.ToolRegistry
-	sessionStore  storage.SessionStore
-	contextMgr    agent.ContextManager
-	historyMgr    storage.HistoryManager
-	parser        tools.FunctionCallParser
-	costTracker   storage.CostTracker
-	config        appconfig.Config
-	logger        agent.Logger
-	clock         agent.Clock
-	memoryService memory.Service
+	llmFactory       llm.LLMClientFactory
+	toolRegistry     tools.ToolRegistry
+	sessionStore     storage.SessionStore
+	contextMgr       agent.ContextManager
+	historyMgr       storage.HistoryManager
+	parser           tools.FunctionCallParser
+	costTracker      storage.CostTracker
+	config           appconfig.Config
+	logger           agent.Logger
+	clock            agent.Clock
+	memoryService    memory.Service
+	externalExecutor agent.ExternalAgentExecutor
 
 	prepService        preparationService
 	costDecorator      *cost.CostTrackingDecorator
@@ -302,6 +303,15 @@ func (c *AgentCoordinator) ExecuteTask(
 			env.Session.Metadata["user_id"] = ctxUserID
 		}
 	}
+	// Propagate channel into session metadata for debug/diagnostic visibility.
+	if channel := appcontext.ChannelFromContext(ctx); channel != "" {
+		if env.Session.Metadata == nil {
+			env.Session.Metadata = make(map[string]string)
+		}
+		if env.Session.Metadata["channel"] == "" {
+			env.Session.Metadata["channel"] = channel
+		}
+	}
 	clilatency.PrintfWithContext(ctx,
 		"[latency] prepare_ms=%.2f session=%s\n",
 		float64(time.Since(prepareStarted))/float64(time.Millisecond),
@@ -338,7 +348,7 @@ func (c *AgentCoordinator) ExecuteTask(
 			TaskInput: task,
 			SessionID: env.Session.ID,
 			RunID:     ensuredRunID,
-			UserID:    c.resolveUserID(env.Session),
+			UserID:    c.resolveUserID(ctx, env.Session),
 		}
 		injections := c.hookRegistry.RunOnTaskStart(ctx, hookTask)
 		if len(injections) > 0 {
@@ -376,6 +386,7 @@ func (c *AgentCoordinator) ExecuteTask(
 			bgCtx = appcontext.MarkSubagentContext(bgCtx)
 			return c.ExecuteTask(bgCtx, prompt, sessionID, listener)
 		},
+		ExternalExecutor: c.externalExecutor,
 	})
 
 	if eventListener != nil {
@@ -448,7 +459,7 @@ func (c *AgentCoordinator) ExecuteTask(
 			Answer:     result.Answer,
 			SessionID:  env.Session.ID,
 			RunID:      ensuredRunID,
-			UserID:     c.resolveUserID(env.Session),
+			UserID:     c.resolveUserID(ctx, env.Session),
 			Iterations: result.Iterations,
 			StopReason: result.StopReason,
 			ToolCalls:  extractToolCallInfo(result),
@@ -555,18 +566,19 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 	}
 	logger := c.loggerFor(ctx)
 	prepService := preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:    c.llmFactory,
-		ToolRegistry:  c.toolRegistry,
-		SessionStore:  c.sessionStore,
-		ContextMgr:    c.contextMgr,
-		HistoryMgr:    c.historyMgr,
-		Parser:        c.parser,
-		Config:        c.config,
-		Logger:        logger,
-		Clock:         c.clock,
-		CostDecorator: cost.NewCostTrackingDecorator(c.costTracker, logger, c.clock),
-		EventEmitter:  listener,
-		CostTracker:   c.costTracker,
+		LLMFactory:          c.llmFactory,
+		ToolRegistry:        c.toolRegistry,
+		SessionStore:        c.sessionStore,
+		ContextMgr:          c.contextMgr,
+		HistoryMgr:          c.historyMgr,
+		Parser:              c.parser,
+		Config:              c.config,
+		Logger:              logger,
+		Clock:               c.clock,
+		CostDecorator:       cost.NewCostTrackingDecorator(c.costTracker, logger, c.clock),
+		EventEmitter:        listener,
+		CostTracker:         c.costTracker,
+		SessionStaleCapture: c.captureStaleSession,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }
@@ -671,6 +683,41 @@ func (c *AgentCoordinator) persistSessionSnapshot(
 	if err := c.SaveSessionAfterExecution(ctx, env.Session, result); err != nil {
 		logger.Error("Failed to persist session after failure: %v", err)
 	}
+}
+
+// ResetSession clears the session state and associated history snapshots.
+func (c *AgentCoordinator) ResetSession(ctx context.Context, sessionID string) error {
+	if sessionID == "" {
+		return fmt.Errorf("session id required")
+	}
+	session, err := c.sessionStore.Get(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, storage.ErrSessionNotFound) {
+			if c.historyMgr != nil {
+				_ = c.historyMgr.ClearSession(ctx, sessionID)
+			}
+			return nil
+		}
+		return err
+	}
+
+	session.Messages = nil
+	session.Metadata = nil
+	session.Attachments = nil
+	session.Important = nil
+	session.Todos = nil
+	session.UserPersona = nil
+	session.UpdatedAt = c.clock.Now()
+
+	if err := c.sessionStore.Save(ctx, session); err != nil {
+		return err
+	}
+	if c.historyMgr != nil {
+		if err := c.historyMgr.ClearSession(ctx, sessionID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // GetSession retrieves or creates a session (public method)
@@ -975,7 +1022,12 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 }
 
 // resolveUserID extracts a user identifier from the session metadata.
-func (c *AgentCoordinator) resolveUserID(session *storage.Session) string {
+func (c *AgentCoordinator) resolveUserID(ctx context.Context, session *storage.Session) string {
+	if ctx != nil {
+		if uid := id.UserIDFromContext(ctx); uid != "" {
+			return uid
+		}
+	}
 	if session == nil || session.Metadata == nil {
 		return ""
 	}
@@ -987,6 +1039,88 @@ func (c *AgentCoordinator) resolveUserID(session *storage.Session) string {
 		return session.ID
 	}
 	return ""
+}
+
+func (c *AgentCoordinator) captureStaleSession(ctx context.Context, session *storage.Session, userID string) {
+	if c == nil || c.memoryService == nil || session == nil || userID == "" {
+		return
+	}
+	if len(session.Messages) == 0 {
+		return
+	}
+	const maxMessages = 10
+	const maxContentLen = 1000
+
+	messages := session.Messages
+	if len(messages) > maxMessages {
+		messages = messages[len(messages)-maxMessages:]
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Stale session snapshot:\n")
+	for _, msg := range messages {
+		role := strings.ToLower(strings.TrimSpace(msg.Role))
+		if role == "" || role == "system" || msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceUserHistory {
+			continue
+		}
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			continue
+		}
+		sb.WriteString(role)
+		sb.WriteString(": ")
+		sb.WriteString(content)
+		sb.WriteString("\n")
+	}
+
+	content := smartTruncate(sb.String(), maxContentLen)
+	if strings.TrimSpace(content) == "" {
+		return
+	}
+
+	slots := map[string]string{
+		"type":       "chat_turn",
+		"scope":      "user",
+		"source":     "session_stale",
+		"session_id": session.ID,
+	}
+	if channel := appcontext.ChannelFromContext(ctx); channel != "" {
+		slots["channel"] = channel
+	}
+	if chatID := appcontext.ChatIDFromContext(ctx); chatID != "" {
+		slots["chat_id"] = chatID
+	}
+	if sender := id.UserIDFromContext(ctx); sender != "" {
+		slots["sender_id"] = sender
+	}
+
+	if _, err := c.memoryService.Save(ctx, memory.Entry{
+		UserID:  userID,
+		Content: content,
+		Slots:   slots,
+	}); err != nil && c.logger != nil {
+		c.logger.Warn("Session stale capture failed: %v", err)
+	}
+}
+
+func smartTruncate(value string, limit int) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" || limit <= 0 {
+		return ""
+	}
+	runes := []rune(trimmed)
+	if len(runes) <= limit {
+		return trimmed
+	}
+	if limit <= 10 {
+		return string(runes[:limit])
+	}
+	headLen := limit * 6 / 10
+	tailLen := limit - headLen - 5
+	if tailLen < 1 {
+		tailLen = 1
+	}
+	return string(runes[:headLen]) + " ... " + string(runes[len(runes)-tailLen:])
 }
 
 // extractToolCallInfo extracts tool call information from TaskResult messages.

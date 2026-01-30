@@ -162,6 +162,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.CostDir = *overrides.CostDir
 		meta.sources["cost_dir"] = SourceOverride
 	}
+	if overrides.SessionStaleAfterSeconds != nil {
+		cfg.SessionStaleAfterSeconds = *overrides.SessionStaleAfterSeconds
+		meta.sources["session_stale_after_seconds"] = SourceOverride
+	}
 	if overrides.AgentPreset != nil {
 		cfg.AgentPreset = *overrides.AgentPreset
 		meta.sources["agent_preset"] = SourceOverride

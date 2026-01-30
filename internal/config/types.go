@@ -38,50 +38,109 @@ const (
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
 type RuntimeConfig struct {
-	LLMProvider                string          `json:"llm_provider" yaml:"llm_provider"`
-	LLMModel                   string          `json:"llm_model" yaml:"llm_model"`
-	LLMSmallProvider           string          `json:"llm_small_provider" yaml:"llm_small_provider"`
-	LLMSmallModel              string          `json:"llm_small_model" yaml:"llm_small_model"`
-	LLMVisionModel             string          `json:"llm_vision_model" yaml:"llm_vision_model"`
-	APIKey                     string          `json:"api_key" yaml:"api_key"`
-	ArkAPIKey                  string          `json:"ark_api_key" yaml:"ark_api_key"`
-	BaseURL                    string          `json:"base_url" yaml:"base_url"`
-	SandboxBaseURL             string          `json:"sandbox_base_url" yaml:"sandbox_base_url"`
-	ACPExecutorAddr            string          `json:"acp_executor_addr" yaml:"acp_executor_addr"`
-	ACPExecutorCWD             string          `json:"acp_executor_cwd" yaml:"acp_executor_cwd"`
-	ACPExecutorMode            string          `json:"acp_executor_mode" yaml:"acp_executor_mode"`
-	ACPExecutorAutoApprove     bool            `json:"acp_executor_auto_approve" yaml:"acp_executor_auto_approve"`
-	ACPExecutorMaxCLICalls     int             `json:"acp_executor_max_cli_calls" yaml:"acp_executor_max_cli_calls"`
-	ACPExecutorMaxDuration     int             `json:"acp_executor_max_duration_seconds" yaml:"acp_executor_max_duration_seconds"`
-	ACPExecutorRequireManifest bool            `json:"acp_executor_require_manifest" yaml:"acp_executor_require_manifest"`
-	TavilyAPIKey               string          `json:"tavily_api_key" yaml:"tavily_api_key"`
-	SeedreamTextEndpointID     string          `json:"seedream_text_endpoint_id" yaml:"seedream_text_endpoint_id"`
-	SeedreamImageEndpointID    string          `json:"seedream_image_endpoint_id" yaml:"seedream_image_endpoint_id"`
-	SeedreamTextModel          string          `json:"seedream_text_model" yaml:"seedream_text_model"`
-	SeedreamImageModel         string          `json:"seedream_image_model" yaml:"seedream_image_model"`
-	SeedreamVisionModel        string          `json:"seedream_vision_model" yaml:"seedream_vision_model"`
-	SeedreamVideoModel         string          `json:"seedream_video_model" yaml:"seedream_video_model"`
-	Environment                string          `json:"environment" yaml:"environment"`
-	Verbose                    bool            `json:"verbose" yaml:"verbose"`
-	DisableTUI                 bool            `json:"disable_tui" yaml:"disable_tui"`
-	FollowTranscript           bool            `json:"follow_transcript" yaml:"follow_transcript"`
-	FollowStream               bool            `json:"follow_stream" yaml:"follow_stream"`
-	MaxIterations              int             `json:"max_iterations" yaml:"max_iterations"`
-	MaxTokens                  int             `json:"max_tokens" yaml:"max_tokens"`
-	ToolMaxConcurrent          int             `json:"tool_max_concurrent" yaml:"tool_max_concurrent"`
-	LLMCacheSize               int             `json:"llm_cache_size" yaml:"llm_cache_size"`
-	LLMCacheTTLSeconds         int             `json:"llm_cache_ttl_seconds" yaml:"llm_cache_ttl_seconds"`
-	UserRateLimitRPS           float64         `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
-	UserRateLimitBurst         int             `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
-	Temperature                float64         `json:"temperature" yaml:"temperature"`
-	TemperatureProvided        bool            `json:"temperature_provided" yaml:"temperature_provided"`
-	TopP                       float64         `json:"top_p" yaml:"top_p"`
-	StopSequences              []string        `json:"stop_sequences" yaml:"stop_sequences"`
-	SessionDir                 string          `json:"session_dir" yaml:"session_dir"`
-	CostDir                    string          `json:"cost_dir" yaml:"cost_dir"`
-	AgentPreset                string          `json:"agent_preset" yaml:"agent_preset"`
-	ToolPreset                 string          `json:"tool_preset" yaml:"tool_preset"`
-	Proactive                  ProactiveConfig `json:"proactive" yaml:"proactive"`
+	LLMProvider                string               `json:"llm_provider" yaml:"llm_provider"`
+	LLMModel                   string               `json:"llm_model" yaml:"llm_model"`
+	LLMSmallProvider           string               `json:"llm_small_provider" yaml:"llm_small_provider"`
+	LLMSmallModel              string               `json:"llm_small_model" yaml:"llm_small_model"`
+	LLMVisionModel             string               `json:"llm_vision_model" yaml:"llm_vision_model"`
+	APIKey                     string               `json:"api_key" yaml:"api_key"`
+	ArkAPIKey                  string               `json:"ark_api_key" yaml:"ark_api_key"`
+	BaseURL                    string               `json:"base_url" yaml:"base_url"`
+	SandboxBaseURL             string               `json:"sandbox_base_url" yaml:"sandbox_base_url"`
+	ACPExecutorAddr            string               `json:"acp_executor_addr" yaml:"acp_executor_addr"`
+	ACPExecutorCWD             string               `json:"acp_executor_cwd" yaml:"acp_executor_cwd"`
+	ACPExecutorMode            string               `json:"acp_executor_mode" yaml:"acp_executor_mode"`
+	ACPExecutorAutoApprove     bool                 `json:"acp_executor_auto_approve" yaml:"acp_executor_auto_approve"`
+	ACPExecutorMaxCLICalls     int                  `json:"acp_executor_max_cli_calls" yaml:"acp_executor_max_cli_calls"`
+	ACPExecutorMaxDuration     int                  `json:"acp_executor_max_duration_seconds" yaml:"acp_executor_max_duration_seconds"`
+	ACPExecutorRequireManifest bool                 `json:"acp_executor_require_manifest" yaml:"acp_executor_require_manifest"`
+	TavilyAPIKey               string               `json:"tavily_api_key" yaml:"tavily_api_key"`
+	SeedreamTextEndpointID     string               `json:"seedream_text_endpoint_id" yaml:"seedream_text_endpoint_id"`
+	SeedreamImageEndpointID    string               `json:"seedream_image_endpoint_id" yaml:"seedream_image_endpoint_id"`
+	SeedreamTextModel          string               `json:"seedream_text_model" yaml:"seedream_text_model"`
+	SeedreamImageModel         string               `json:"seedream_image_model" yaml:"seedream_image_model"`
+	SeedreamVisionModel        string               `json:"seedream_vision_model" yaml:"seedream_vision_model"`
+	SeedreamVideoModel         string               `json:"seedream_video_model" yaml:"seedream_video_model"`
+	Environment                string               `json:"environment" yaml:"environment"`
+	Verbose                    bool                 `json:"verbose" yaml:"verbose"`
+	DisableTUI                 bool                 `json:"disable_tui" yaml:"disable_tui"`
+	FollowTranscript           bool                 `json:"follow_transcript" yaml:"follow_transcript"`
+	FollowStream               bool                 `json:"follow_stream" yaml:"follow_stream"`
+	MaxIterations              int                  `json:"max_iterations" yaml:"max_iterations"`
+	MaxTokens                  int                  `json:"max_tokens" yaml:"max_tokens"`
+	ToolMaxConcurrent          int                  `json:"tool_max_concurrent" yaml:"tool_max_concurrent"`
+	LLMCacheSize               int                  `json:"llm_cache_size" yaml:"llm_cache_size"`
+	LLMCacheTTLSeconds         int                  `json:"llm_cache_ttl_seconds" yaml:"llm_cache_ttl_seconds"`
+	UserRateLimitRPS           float64              `json:"user_rate_limit_rps" yaml:"user_rate_limit_rps"`
+	UserRateLimitBurst         int                  `json:"user_rate_limit_burst" yaml:"user_rate_limit_burst"`
+	Temperature                float64              `json:"temperature" yaml:"temperature"`
+	TemperatureProvided        bool                 `json:"temperature_provided" yaml:"temperature_provided"`
+	TopP                       float64              `json:"top_p" yaml:"top_p"`
+	StopSequences              []string             `json:"stop_sequences" yaml:"stop_sequences"`
+	SessionDir                 string               `json:"session_dir" yaml:"session_dir"`
+	CostDir                    string               `json:"cost_dir" yaml:"cost_dir"`
+	SessionStaleAfterSeconds   int                  `json:"session_stale_after_seconds" yaml:"session_stale_after_seconds"`
+	AgentPreset                string               `json:"agent_preset" yaml:"agent_preset"`
+	ToolPreset                 string               `json:"tool_preset" yaml:"tool_preset"`
+	Proactive                  ProactiveConfig      `json:"proactive" yaml:"proactive"`
+	ExternalAgents             ExternalAgentsConfig `json:"external_agents" yaml:"external_agents"`
+}
+
+// ExternalAgentsConfig configures external agent executors.
+type ExternalAgentsConfig struct {
+	ClaudeCode ClaudeCodeConfig `json:"claude_code" yaml:"claude_code"`
+	Codex      CodexConfig      `json:"codex" yaml:"codex"`
+}
+
+type ClaudeCodeConfig struct {
+	Enabled                bool              `json:"enabled" yaml:"enabled"`
+	Binary                 string            `json:"binary" yaml:"binary"`
+	DefaultModel           string            `json:"default_model" yaml:"default_model"`
+	DefaultMode            string            `json:"default_mode" yaml:"default_mode"`
+	AutonomousAllowedTools []string          `json:"autonomous_allowed_tools" yaml:"autonomous_allowed_tools"`
+	MaxBudgetUSD           float64           `json:"max_budget_usd" yaml:"max_budget_usd"`
+	MaxTurns               int               `json:"max_turns" yaml:"max_turns"`
+	Timeout                time.Duration     `json:"timeout" yaml:"timeout"`
+	Env                    map[string]string `json:"env" yaml:"env"`
+}
+
+type CodexConfig struct {
+	Enabled        bool              `json:"enabled" yaml:"enabled"`
+	Binary         string            `json:"binary" yaml:"binary"`
+	DefaultModel   string            `json:"default_model" yaml:"default_model"`
+	ApprovalPolicy string            `json:"approval_policy" yaml:"approval_policy"`
+	Sandbox        string            `json:"sandbox" yaml:"sandbox"`
+	Timeout        time.Duration     `json:"timeout" yaml:"timeout"`
+	Env            map[string]string `json:"env" yaml:"env"`
+}
+
+// DefaultExternalAgentsConfig provides baseline defaults for external agents.
+func DefaultExternalAgentsConfig() ExternalAgentsConfig {
+	return ExternalAgentsConfig{
+		ClaudeCode: ClaudeCodeConfig{
+			Enabled:     false,
+			Binary:      "claude",
+			DefaultMode: "interactive",
+			MaxTurns:    50,
+			Timeout:     30 * time.Minute,
+			AutonomousAllowedTools: []string{
+				"Read",
+				"Edit",
+				"Glob",
+				"Grep",
+			},
+			Env: map[string]string{},
+		},
+		Codex: CodexConfig{
+			Enabled:        false,
+			Binary:         "codex",
+			DefaultModel:   "o3",
+			ApprovalPolicy: "on-request",
+			Sandbox:        "workspace-write",
+			Timeout:        30 * time.Minute,
+			Env:            map[string]string{},
+		},
+	}
 }
 
 // ProactiveConfig captures proactive behavior defaults.
@@ -96,16 +155,17 @@ type ProactiveConfig struct {
 
 // MemoryConfig drives automatic memory behavior.
 type MemoryConfig struct {
-	Enabled          bool               `json:"enabled" yaml:"enabled"`
-	AutoRecall       bool               `json:"auto_recall" yaml:"auto_recall"`
-	AutoCapture      bool               `json:"auto_capture" yaml:"auto_capture"`
-	CaptureMessages  bool               `json:"capture_messages" yaml:"capture_messages"`
-	MaxRecalls       int                `json:"max_recalls" yaml:"max_recalls"`
-	RefreshInterval  int                `json:"refresh_interval" yaml:"refresh_interval"`
-	MaxRefreshTokens int                `json:"max_refresh_tokens" yaml:"max_refresh_tokens"`
-	Store            string             `json:"store" yaml:"store"` // auto | file | postgres | hybrid
-	DedupeThreshold  float64            `json:"dedupe_threshold" yaml:"dedupe_threshold"`
-	Hybrid           MemoryHybridConfig `json:"hybrid" yaml:"hybrid"`
+	Enabled            bool               `json:"enabled" yaml:"enabled"`
+	AutoRecall         bool               `json:"auto_recall" yaml:"auto_recall"`
+	AutoCapture        bool               `json:"auto_capture" yaml:"auto_capture"`
+	CaptureMessages    bool               `json:"capture_messages" yaml:"capture_messages"`
+	CaptureGroupMemory bool               `json:"capture_group_memory" yaml:"capture_group_memory"`
+	MaxRecalls         int                `json:"max_recalls" yaml:"max_recalls"`
+	RefreshInterval    int                `json:"refresh_interval" yaml:"refresh_interval"`
+	MaxRefreshTokens   int                `json:"max_refresh_tokens" yaml:"max_refresh_tokens"`
+	Store              string             `json:"store" yaml:"store"` // auto | file | postgres | hybrid
+	DedupeThreshold    float64            `json:"dedupe_threshold" yaml:"dedupe_threshold"`
+	Hybrid             MemoryHybridConfig `json:"hybrid" yaml:"hybrid"`
 }
 
 // MemoryHybridConfig configures hybrid keyword + vector memory.
@@ -176,15 +236,16 @@ func DefaultProactiveConfig() ProactiveConfig {
 	return ProactiveConfig{
 		Enabled: true,
 		Memory: MemoryConfig{
-			Enabled:          true,
-			AutoRecall:       true,
-			AutoCapture:      true,
-			CaptureMessages:  false,
-			MaxRecalls:       5,
-			RefreshInterval:  3,
-			MaxRefreshTokens: 500,
-			Store:            "auto",
-			DedupeThreshold:  0.85,
+			Enabled:            true,
+			AutoRecall:         true,
+			AutoCapture:        true,
+			CaptureMessages:    false,
+			CaptureGroupMemory: false,
+			MaxRecalls:         5,
+			RefreshInterval:    3,
+			MaxRefreshTokens:   500,
+			Store:              "auto",
+			DedupeThreshold:    0.85,
 			Hybrid: MemoryHybridConfig{
 				Alpha:         0.6,
 				MinSimilarity: 0.7,
@@ -295,6 +356,7 @@ type Overrides struct {
 	StopSequences              *[]string        `json:"stop_sequences,omitempty" yaml:"stop_sequences,omitempty"`
 	SessionDir                 *string          `json:"session_dir,omitempty" yaml:"session_dir,omitempty"`
 	CostDir                    *string          `json:"cost_dir,omitempty" yaml:"cost_dir,omitempty"`
+	SessionStaleAfterSeconds   *int             `json:"session_stale_after_seconds,omitempty" yaml:"session_stale_after_seconds,omitempty"`
 	AgentPreset                *string          `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
 	ToolPreset                 *string          `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
 	Proactive                  *ProactiveConfig `json:"proactive,omitempty" yaml:"proactive,omitempty"`

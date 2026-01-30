@@ -20,6 +20,7 @@ const (
 type MemoryRecallHook struct {
 	memoryService memory.Service
 	maxRecalls    int
+	captureGroup  bool
 	enabled       bool
 	logger        logging.Logger
 }
@@ -29,6 +30,8 @@ type MemoryRecallConfig struct {
 	Enabled    bool // Enable auto recall
 	AutoRecall bool // Enable recall specifically
 	MaxRecalls int  // Maximum memories to recall (default: 5)
+	// CaptureGroupMemory enables recalling group-scoped memories when available.
+	CaptureGroupMemory bool
 }
 
 // NewMemoryRecallHook creates a new memory recall hook.
@@ -44,6 +47,7 @@ func NewMemoryRecallHook(svc memory.Service, logger logging.Logger, cfg MemoryRe
 	return &MemoryRecallHook{
 		memoryService: svc,
 		maxRecalls:    maxRecalls,
+		captureGroup:  cfg.CaptureGroupMemory,
 		enabled:       enabled,
 		logger:        logging.OrNop(logger),
 	}
@@ -83,6 +87,29 @@ func (h *MemoryRecallHook) OnTaskStart(ctx context.Context, task TaskInfo) []Inj
 		h.logger.Warn("Memory recall failed: %v", err)
 		return nil
 	}
+	if h.captureGroup && appcontext.IsGroupFromContext(ctx) {
+		if chatUserID := chatScopeUserID(ctx); chatUserID != "" {
+			groupLimit := h.maxRecalls
+			if groupLimit > 2 {
+				groupLimit = 2
+			}
+			if groupLimit > 0 {
+				groupEntries, err := h.memoryService.Recall(ctx, memory.Query{
+					UserID:   chatUserID,
+					Text:     task.TaskInput,
+					Keywords: keywords,
+					Slots:    map[string]string{"type": "chat_turn", "scope": "chat"},
+					Limit:    groupLimit,
+				})
+				if err != nil {
+					h.logger.Warn("Group memory recall failed: %v", err)
+				} else if len(groupEntries) > 0 {
+					entries = append(entries, groupEntries...)
+				}
+			}
+		}
+	}
+
 	if len(entries) == 0 {
 		return nil
 	}

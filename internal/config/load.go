@@ -50,7 +50,9 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		TopP:                       1.0,
 		SessionDir:                 "~/.alex/sessions",
 		CostDir:                    "~/.alex/costs",
+		SessionStaleAfterSeconds:   int((48 * time.Hour).Seconds()),
 		Proactive:                  DefaultProactiveConfig(),
+		ExternalAgents:             DefaultExternalAgentsConfig(),
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -125,6 +127,7 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.AgentPreset = strings.TrimSpace(cfg.AgentPreset)
 	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
 	normalizeProactiveConfig(&cfg.Proactive)
+	normalizeExternalAgentsConfig(&cfg.ExternalAgents)
 
 	if cfg.ToolMaxConcurrent <= 0 {
 		cfg.ToolMaxConcurrent = DefaultToolMaxConcurrent
@@ -134,6 +137,9 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	}
 	if cfg.LLMCacheTTLSeconds < 0 {
 		cfg.LLMCacheTTLSeconds = 0
+	}
+	if cfg.SessionStaleAfterSeconds < 0 {
+		cfg.SessionStaleAfterSeconds = 0
 	}
 
 	if len(cfg.StopSequences) > 0 {
@@ -152,6 +158,35 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 		}
 		cfg.StopSequences = filtered
 	}
+}
+
+func normalizeExternalAgentsConfig(cfg *ExternalAgentsConfig) {
+	if cfg == nil {
+		return
+	}
+	cfg.ClaudeCode.Binary = strings.TrimSpace(cfg.ClaudeCode.Binary)
+	cfg.ClaudeCode.DefaultModel = strings.TrimSpace(cfg.ClaudeCode.DefaultModel)
+	cfg.ClaudeCode.DefaultMode = strings.TrimSpace(cfg.ClaudeCode.DefaultMode)
+	if len(cfg.ClaudeCode.AutonomousAllowedTools) > 0 {
+		filtered := cfg.ClaudeCode.AutonomousAllowedTools[:0]
+		seen := make(map[string]struct{}, len(cfg.ClaudeCode.AutonomousAllowedTools))
+		for _, tool := range cfg.ClaudeCode.AutonomousAllowedTools {
+			trimmed := strings.TrimSpace(tool)
+			if trimmed == "" {
+				continue
+			}
+			if _, ok := seen[trimmed]; ok {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			filtered = append(filtered, trimmed)
+		}
+		cfg.ClaudeCode.AutonomousAllowedTools = filtered
+	}
+	cfg.Codex.Binary = strings.TrimSpace(cfg.Codex.Binary)
+	cfg.Codex.DefaultModel = strings.TrimSpace(cfg.Codex.DefaultModel)
+	cfg.Codex.ApprovalPolicy = strings.TrimSpace(cfg.Codex.ApprovalPolicy)
+	cfg.Codex.Sandbox = strings.TrimSpace(cfg.Codex.Sandbox)
 }
 
 func normalizeProactiveConfig(cfg *ProactiveConfig) {
