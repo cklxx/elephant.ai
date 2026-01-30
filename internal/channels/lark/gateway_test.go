@@ -503,6 +503,122 @@ func TestHandleMessageSessionModeFresh(t *testing.T) {
 	}
 }
 
+func TestHandleMessageInjectsPlanFeedback(t *testing.T) {
+	openID := "ou_sender_plan"
+	chatID := "oc_chat_plan"
+	msgID := "om_msg_plan"
+	content := `{"text":"请加一步验收"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	store := &stubPlanReviewStore{
+		has: true,
+		pending: PlanReviewPending{
+			UserID:        openID,
+			ChatID:        chatID,
+			RunID:         "run-1",
+			OverallGoalUI: "ship feature",
+			InternalPlan:  map[string]any{"steps": []any{"a", "b"}},
+		},
+	}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", PlanReviewEnabled: true},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	gw.SetPlanReviewStore(store)
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	if executor.capturedTask == "" {
+		t.Fatal("expected ExecuteTask to be called")
+	}
+	if !strings.Contains(executor.capturedTask, "<plan_feedback>") {
+		t.Fatalf("expected plan feedback block, got %q", executor.capturedTask)
+	}
+	if !store.cleared {
+		t.Fatal("expected pending store to be cleared")
+	}
+}
+
+func TestHandleMessageSavesPlanReviewPendingOnAwaitUserInput(t *testing.T) {
+	openID := "ou_sender_pending"
+	chatID := "oc_chat_pending"
+	msgID := "om_msg_pending"
+	content := `{"text":"继续"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{
+			StopReason: "await_user_input",
+			Messages: []ports.Message{{
+				Role:    "system",
+				Content: "<plan_review_pending>\nrun_id: run-9\noverall_goal_ui: goal-9\ninternal_plan: {\"steps\":[\"x\"]}\n</plan_review_pending>",
+			}},
+		},
+	}
+	store := &stubPlanReviewStore{}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", PlanReviewEnabled: true},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	gw.SetPlanReviewStore(store)
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	if len(store.saved) != 1 {
+		t.Fatalf("expected pending save, got %d", len(store.saved))
+	}
+	if store.saved[0].RunID != "run-9" || store.saved[0].OverallGoalUI != "goal-9" {
+		t.Fatalf("unexpected pending record: %+v", store.saved[0])
+	}
+}
+
 func TestHandleMessageResetCommand(t *testing.T) {
 	openID := "ou_sender_reset"
 	chatID := "oc_chat_reset"
@@ -615,6 +731,35 @@ func (r *resetExecutor) ResetSession(_ context.Context, sessionID string) error 
 	r.resetCalled = true
 	r.resetSessionID = sessionID
 	return nil
+}
+
+type stubPlanReviewStore struct {
+	pending PlanReviewPending
+	has     bool
+	loaded  int
+	cleared bool
+	saved   []PlanReviewPending
+	err     error
+}
+
+func (s *stubPlanReviewStore) EnsureSchema(_ context.Context) error { return nil }
+
+func (s *stubPlanReviewStore) SavePending(_ context.Context, pending PlanReviewPending) error {
+	s.saved = append(s.saved, pending)
+	return s.err
+}
+
+func (s *stubPlanReviewStore) GetPending(_ context.Context, _, _ string) (PlanReviewPending, bool, error) {
+	s.loaded++
+	if s.err != nil {
+		return PlanReviewPending{}, false, s.err
+	}
+	return s.pending, s.has, nil
+}
+
+func (s *stubPlanReviewStore) ClearPending(_ context.Context, _, _ string) error {
+	s.cleared = true
+	return s.err
 }
 
 func TestBuildReplyThinkingFallback(t *testing.T) {
