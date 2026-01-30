@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { formatDuration, cn, getToolIcon } from "@/lib/utils";
-import { Loader2 } from "lucide-react";
+import { ChevronRight, Loader2 } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { AttachmentPayload } from "@/lib/types";
 import { isDebugModeEnabled } from "@/lib/debugMode";
@@ -200,6 +200,13 @@ export function ToolOutputCard({
             </span>
           )}
         </div>
+
+        <ChevronRight
+          className={cn(
+            "h-3.5 w-3.5 text-muted-foreground/50 transition-transform duration-200",
+            isExpanded && "rotate-90",
+          )}
+        />
 
         <div className="min-w-0 overflow-hidden">
           <span
