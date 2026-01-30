@@ -9,12 +9,39 @@
 
 ## 实施进度（2026-01-30）
 
-- **已落地：Layer 1 自动记忆** — 通过 Hook Registry + MemoryPolicy 实现任务前自动召回 / 任务后自动捕获，统一在 Coordinator 层注入，配置集中在 `runtime.proactive`。
-- **已落地：Layer 2 RAG 融合基础** — 引入 `HybridStore`（关键词 + 向量搜索）与 RRF 融合、metadata 过滤与最小相似度阈值。
-- **已落地：Layer 2 自动技能体系基础** — Skill frontmatter 扩展 + Matcher + Chain 解析 + Cache + Feedback Store + 自动注入系统提示词。
-- **已落地：迭代间上下文刷新** — ReAct 迭代内注入 recall 结果并发出 `proactive.context.refresh` 事件。
-- **已落地：技能学习数据采集** — WorkflowTrace 写入记忆 + SkillLearner 生成建议技能模板。
-- **待补充：Layer 2/3 余项** — 记忆生命周期管理、Scheduler、PatternRecognizer、InitiativeEvaluator、AttentionEngine。
+- **已落地：Layer 1 自动记忆** — `MemoryRecallHook` + `MemoryCaptureHook` + `HookRegistry` 实现任务前召回/任务后捕获；`MemoryPolicy`（`internal/agent/app/context/memory_policy.go`）可按请求覆盖；注入点在 `coordinator.ExecuteTask()`（进入 ReAct 之前）；配置源为 `runtime.proactive.memory`（hook config = runtime defaults）。
+- **已落地：Layer 2 RAG 融合基础** — `internal/memory/hybrid_store.go` + RRF 融合 + metadata 过滤 + minSimilarity；在 DI 中通过 `runtime.proactive.memory.store=hybrid` 选择，并与 embedder/vector store 绑定。
+- **已落地：Layer 2 自动技能体系基础** — frontmatter 扩展 + matcher/chain/cache/feedback + 在 `context.composeSystemPrompt` 内按任务自动注入。
+- **已落地：迭代间上下文刷新** — ReAct 迭代内调用 memory service 注入 recall 结果并发出 `proactive.context.refresh`。
+- **已落地：技能学习数据采集** — WorkflowTrace 写入记忆；**待接入** SkillLearner 调用链（见“待补充项”）。
+- **待补充：Layer 2/3 余项** — LifecycleManager、Scheduler/Pattern/Initiative/Attention、SkillLearner 的触发与建议事件。
+
+## 方案与实态偏差校准（2026-01-30）
+
+本节以代码为准，修正文档描述（避免后续开发混淆）：
+
+1. **MemoryPolicy 已存在且可覆盖**：`MemoryPolicy` 是 per-request 覆盖，hook config 来源于 `runtime.proactive`，二者并存而非互斥。
+2. **注入层级是 Coordinator**：记忆召回注入发生在 `coordinator.ExecuteTask()`（进入 ReAct 前），不是 preparation 层。
+3. **runtime.proactive 已落地**：`internal/config/types.go`/`runtime_file_loader.go`/`configs/config.yaml` 已引入 `runtime.proactive`。
+4. **HybridStore 已实现并接入**：`internal/memory/hybrid_store.go` + DI 选择逻辑已落地。
+
+## 待补充项（按优先级排序）
+
+**P0**
+- 修正文档与实态偏差（本节已处理为准）。
+
+**P1**
+- **SkillLearner 接入调用链**：在 MemoryCaptureHook 或任务完成事件中按频率触发 AnalyzePatterns，生成建议事件（不自动写文件）。
+- **中文关键词提取提升**：小模型关键词抽取（与 pre-analysis 合并）或轻量分词引擎择一。
+
+**P2**
+- **Token 估算优化（CJK）**：区分 ASCII 与非 ASCII 的估算权重，提升技能注入预算准确度。
+- **多用户隔离**：cooldown/feedback 引入 userID 维度；FeedbackStore 支持 `{user_id}` 占位符。
+
+**P3**
+- **权重可配置化**：允许 skill frontmatter 覆盖信号权重（intent/tool/keyword/slot）。
+- **Scheduler 故障恢复**：missed-fire 策略、重试、leader election 设计。
+- **技能注入 A/B**：control_ratio 参数用于验证激活收益。
 
 ## 一、背景与现状分析
 
