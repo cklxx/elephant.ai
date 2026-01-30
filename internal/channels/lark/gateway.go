@@ -292,15 +292,18 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if listener == nil {
 		listener = agent.NoopEventListener{}
 	}
-	var emojiInterceptor *emojiReactionInterceptor
+	// Immediately react to the message for fast user feedback.
+	if messageID != "" && g.cfg.ReactEmoji != "" {
+		go g.addReaction(execCtx, messageID, g.cfg.ReactEmoji)
+	}
+
 	if messageID != "" {
-		emojiInterceptor = &emojiReactionInterceptor{
+		listener = &emojiReactionInterceptor{
 			delegate:  listener,
 			gateway:   g,
 			messageID: messageID,
 			ctx:       execCtx,
 		}
-		listener = emojiInterceptor
 	}
 	if g.cfg.ShowToolProgress {
 		sender := &larkProgressSender{gateway: g, chatID: chatID, messageID: messageID, isGroup: isGroup}
@@ -325,9 +328,6 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
-	if emojiInterceptor != nil {
-		emojiInterceptor.sendFallback()
-	}
 
 	reply := g.buildReply(result, execErr)
 	if reply == "" {
