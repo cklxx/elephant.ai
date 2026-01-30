@@ -200,6 +200,51 @@ channels:
     reply_timeout_seconds: 180
 ```
 
+#### channels.lark
+
+- `enabled`：是否启用 Lark 网关（默认 false）。
+- `app_id` / `app_secret`：Lark 应用凭证。
+- `base_domain`：Lark API 域名（默认 `https://open.larkoffice.com`）。
+- `session_prefix`：会话 ID 前缀（默认 `lark`）。
+- `session_mode`：`stable` / `fresh`（默认 `stable`）。
+- `reply_prefix`：回复前缀。
+- `allow_groups` / `allow_direct`：是否响应群聊/私聊。
+- `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode。
+- `reply_timeout_seconds`：单条消息执行超时（秒）。
+- `react_emoji`：收到消息后立即表情回应（如 `"SMILE"`）。
+- `memory_enabled`：启用记忆自动保存/召回。
+- `show_tool_progress`：是否在 Lark 显示工具执行进度。
+- `auto_chat_context` / `auto_chat_context_size`：自动拉取近期聊天上下文。
+- `plan_review_enabled`：启用 plan review（计划确认/反馈注入）。
+- `plan_review_require_confirmation`：回复中是否提示 “OK/修改意见”。
+- `plan_review_pending_ttl_minutes`：plan review pending 记录 TTL（分钟）。
+
+示例（YAML）：
+
+```yaml
+channels:
+  lark:
+    enabled: true
+    app_id: "cli_test"
+    app_secret: "secret"
+    session_prefix: "lark"
+    session_mode: "stable"
+    allow_groups: true
+    allow_direct: true
+    agent_preset: "default"
+    tool_preset: "full"
+    tool_mode: "cli"
+    reply_timeout_seconds: 180
+    react_emoji: "SMILE"
+    memory_enabled: true
+    show_tool_progress: true
+    auto_chat_context: true
+    auto_chat_context_size: 20
+    plan_review_enabled: true
+    plan_review_require_confirmation: true
+    plan_review_pending_ttl_minutes: 60
+```
+
 ### observability
 
 - 仍由 `internal/observability` 读取 `observability` 段（日志/metrics/tracing）。
