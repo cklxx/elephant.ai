@@ -652,13 +652,13 @@ function TurnMessagesViewer({
   turnSnapshot: Record<string, unknown>;
   sessionChannel: string | null;
 }) {
-  const messages = Array.isArray(turnSnapshot.messages)
-    ? (turnSnapshot.messages as Array<Record<string, unknown>>)
-    : [];
+  const messages = useMemo(() => {
+    const raw = turnSnapshot.messages;
+    return Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : [];
+  }, [turnSnapshot.messages]);
 
   const tokenStats = useMemo(() => {
-    let cumulative = 0;
-    return messages.map((msg) => {
+    return messages.reduce<Array<{ tokens: number; cumulative: number }>>((acc, msg) => {
       const content = typeof msg.content === "string" ? msg.content : "";
       const toolCalls = Array.isArray(msg.tool_calls)
         ? JSON.stringify(msg.tool_calls).length
@@ -667,9 +667,10 @@ function TurnMessagesViewer({
         ? JSON.stringify(msg.tool_results).length
         : 0;
       const tokens = estimateTokens(content) + Math.ceil(toolCalls / 4) + Math.ceil(toolResults / 4);
-      cumulative += tokens;
-      return { tokens, cumulative };
-    });
+      const prev = acc.length > 0 ? acc[acc.length - 1].cumulative : 0;
+      const cumulative = prev + tokens;
+      return [...acc, { tokens, cumulative }];
+    }, []);
   }, [messages]);
 
   const totalTokens = tokenStats.length > 0 ? tokenStats[tokenStats.length - 1].cumulative : 0;
