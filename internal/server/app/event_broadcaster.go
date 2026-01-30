@@ -51,14 +51,13 @@ const (
 	globalHighVolumeSessionID = "__global__"
 )
 
-// broadcasterMetrics tracks broadcaster performance metrics
+// broadcasterMetrics tracks broadcaster performance metrics using lock-free
+// atomic counters. All fields are updated via Add/Load — no mutex required.
 type broadcasterMetrics struct {
-	mu sync.RWMutex
-
-	totalEventsSent   int64
-	droppedEvents     int64 // Events dropped due to full buffers
-	totalConnections  int64 // Total connections ever made
-	activeConnections int64 // Currently active connections
+	totalEventsSent   atomic.Int64
+	droppedEvents     atomic.Int64 // Events dropped due to full buffers
+	totalConnections  atomic.Int64 // Total connections ever made
+	activeConnections atomic.Int64 // Currently active connections
 }
 
 // EventBroadcasterOption configures a broadcaster instance.
@@ -664,31 +663,14 @@ func (b *EventBroadcaster) clearHighVolumeCounter(sessionID string) {
 	b.highVolumeMu.Unlock()
 }
 
-// Metrics helper methods
-func (m *broadcasterMetrics) incrementEventsSent() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.totalEventsSent++
-}
-
-func (m *broadcasterMetrics) incrementDroppedEvents() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.droppedEvents++
-}
-
+// Metrics helper methods — lock-free via atomic.Int64.
+func (m *broadcasterMetrics) incrementEventsSent()   { m.totalEventsSent.Add(1) }
+func (m *broadcasterMetrics) incrementDroppedEvents() { m.droppedEvents.Add(1) }
 func (m *broadcasterMetrics) incrementConnections() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.totalConnections++
-	m.activeConnections++
+	m.totalConnections.Add(1)
+	m.activeConnections.Add(1)
 }
-
-func (m *broadcasterMetrics) decrementConnections() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.activeConnections--
-}
+func (m *broadcasterMetrics) decrementConnections() { m.activeConnections.Add(-1) }
 
 // BroadcasterMetrics represents broadcaster metrics for export
 type BroadcasterMetrics struct {
@@ -702,12 +684,10 @@ type BroadcasterMetrics struct {
 
 // GetMetrics returns current broadcaster metrics
 func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
-	b.metrics.mu.RLock()
-	totalEvents := b.metrics.totalEventsSent
-	droppedEvents := b.metrics.droppedEvents
-	totalConns := b.metrics.totalConnections
-	activeConns := b.metrics.activeConnections
-	b.metrics.mu.RUnlock()
+	totalEvents := b.metrics.totalEventsSent.Load()
+	droppedEvents := b.metrics.droppedEvents.Load()
+	totalConns := b.metrics.totalConnections.Load()
+	activeConns := b.metrics.activeConnections.Load()
 
 	clientsBySession := b.loadClients()
 
