@@ -280,12 +280,12 @@ func loadAntigravityGeminiOAuth(readFile func(string) ([]byte, error), home stri
 				payload = refreshed
 				token = strings.TrimSpace(payload.AccessToken)
 				_ = writeAntigravityOAuthFile(path, payload)
-			} else if expired {
-				continue
 			}
-		} else if expired {
-			continue
+			// When refresh fails, fall through with the existing token so the
+			// catalog can surface the provider with an auth error instead of
+			// silently hiding it.
 		}
+		_ = expired // expiry is handled by the refresh attempt above
 
 		if token == "" {
 			continue

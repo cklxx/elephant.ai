@@ -161,3 +161,40 @@ func TestLoadCLICredentialsRefreshesAntigravityOAuth(t *testing.T) {
 		t.Fatalf("expected updated expiry_date, got %v", payload["expiry_date"])
 	}
 }
+
+func TestLoadCLICredentialsFallsBackToExpiredAntigravityToken(t *testing.T) {
+	t.Parallel()
+	// Simulate a refresh failure by pointing token_uri at a server that returns 400.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+	}))
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	geminiDir := filepath.Join(tmp, ".gemini")
+	if err := os.MkdirAll(geminiDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	expired := time.Now().Add(-24 * time.Hour).UnixMilli()
+	oauth := fmt.Sprintf(`{"access_token":"ag-expired","refresh_token":"ag-refresh","expiry_date":%d,"token_uri":"%s","client_id":"c","client_secret":"s"}`, expired, srv.URL)
+	oauthPath := filepath.Join(geminiDir, "oauth_creds.json")
+	if err := os.WriteFile(oauthPath, []byte(oauth), 0o600); err != nil {
+		t.Fatalf("write oauth: %v", err)
+	}
+
+	creds := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	// The expired token should still be returned so the catalog can surface
+	// the provider with an auth error instead of silently hiding it.
+	if creds.Antigravity.APIKey != "ag-expired" {
+		t.Fatalf("expected expired token to be returned, got %q", creds.Antigravity.APIKey)
+	}
+	if creds.Antigravity.Provider != "antigravity" {
+		t.Fatalf("expected antigravity provider, got %q", creds.Antigravity.Provider)
+	}
+}
