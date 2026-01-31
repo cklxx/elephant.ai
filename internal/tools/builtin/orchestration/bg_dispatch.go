@@ -3,12 +3,15 @@ package orchestration
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/tools/builtin/shared"
 )
+
+var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
 
 type bgDispatch struct {
 	shared.BaseTool
@@ -26,7 +29,7 @@ func NewBGDispatch() *bgDispatch {
 					Properties: map[string]ports.Property{
 						"task_id": {
 							Type:        "string",
-							Description: "A unique identifier for this background task.",
+							Description: "Optional unique identifier for this background task. Auto-generated from description if omitted.",
 						},
 						"description": {
 							Type:        "string",
@@ -63,7 +66,7 @@ func NewBGDispatch() *bgDispatch {
 							Description: "Whether to prepend completed dependency results to the task prompt.",
 						},
 					},
-					Required: []string{"task_id", "description", "prompt"},
+					Required: []string{"description", "prompt"},
 				},
 			},
 			ports.ToolMetadata{
@@ -86,14 +89,18 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		}
 	}
 
-	taskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_id")
+	description, errResult := shared.RequireStringArg(call.Arguments, call.ID, "description")
 	if errResult != nil {
 		return errResult, nil
 	}
 
-	description, errResult := shared.RequireStringArg(call.Arguments, call.ID, "description")
-	if errResult != nil {
-		return errResult, nil
+	// task_id is optional; auto-generate from description slug or call.ID.
+	taskID := strings.TrimSpace(shared.StringArg(call.Arguments, "task_id"))
+	if taskID == "" {
+		taskID = slugFromDescription(description)
+	}
+	if taskID == "" {
+		taskID = "bg-" + call.ID
 	}
 
 	prompt, errResult := shared.RequireStringArg(call.Arguments, call.ID, "prompt")
@@ -168,6 +175,9 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: content,
+		Metadata: map[string]any{
+			"task_id": taskID,
+		},
 	}, nil
 }
 
@@ -223,5 +233,18 @@ func dedupe(items []string) []string {
 		out = append(out, item)
 	}
 	return out
+}
+
+// slugFromDescription generates a slug from a description string.
+// Lowercase, non-alphanumeric sequences replaced with hyphens, truncated to 32 chars.
+func slugFromDescription(desc string) string {
+	slug := strings.ToLower(strings.TrimSpace(desc))
+	slug = slugRe.ReplaceAllString(slug, "-")
+	slug = strings.Trim(slug, "-")
+	if len(slug) > 32 {
+		slug = slug[:32]
+		slug = strings.TrimRight(slug, "-")
+	}
+	return slug
 }
 
