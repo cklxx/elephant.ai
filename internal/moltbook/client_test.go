@@ -46,7 +46,9 @@ func TestCreatePost(t *testing.T) {
 			CreatedAt: time.Now(),
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	post, err := client.CreatePost(context.Background(), CreatePostRequest{
@@ -82,7 +84,9 @@ func TestGetFeed(t *testing.T) {
 			{ID: "p2", Title: "Second"},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(posts)
+		if err := json.NewEncoder(w).Encode(posts); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	posts, err := client.GetFeed(context.Background(), 2)
@@ -113,7 +117,9 @@ func TestCreateComment(t *testing.T) {
 			Author:  "test-agent",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(comment)
+		if err := json.NewEncoder(w).Encode(comment); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	comment, err := client.CreateComment(context.Background(), "post-42", CreateCommentRequest{
@@ -177,7 +183,9 @@ func TestSearch(t *testing.T) {
 			Agents: []AgentProfile{{Name: "agent-x"}},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		if err := json.NewEncoder(w).Encode(result); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	result, err := client.Search(context.Background(), "AI agents")
@@ -199,7 +207,9 @@ func TestGetProfile(t *testing.T) {
 		}
 		profile := AgentProfile{Name: "elephant", PostCount: 42}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(profile)
+		if err := json.NewEncoder(w).Encode(profile); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	profile, err := client.GetProfile(context.Background())
@@ -215,7 +225,9 @@ func TestAPIError(t *testing.T) {
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"message": "invalid api key"})
+		if err := json.NewEncoder(w).Encode(map[string]string{"message": "invalid api key"}); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	_, err := client.GetFeed(context.Background(), 1)
@@ -240,7 +252,9 @@ func TestRateLimitedClient_PostCooldown(t *testing.T) {
 		calls.Add(1)
 		post := Post{ID: "p1", Title: "ok"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(post)
+		if err := json.NewEncoder(w).Encode(post); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	}))
 	t.Cleanup(srv.Close)
 
@@ -269,7 +283,9 @@ func TestRateLimitedClient_CommentCooldown(t *testing.T) {
 		calls.Add(1)
 		comment := Comment{ID: "c1", PostID: "p1"}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(comment)
+		if err := json.NewEncoder(w).Encode(comment); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	}))
 	t.Cleanup(srv.Close)
 
@@ -299,7 +315,9 @@ func TestGetFeed_DefaultPage(t *testing.T) {
 			t.Errorf("expected page=1 for negative input, got %s", page)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]Post{})
+		if err := json.NewEncoder(w).Encode([]Post{}); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	_, err := client.GetFeed(context.Background(), -1)
