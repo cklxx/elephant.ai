@@ -61,6 +61,7 @@ type BackgroundTaskManager struct {
 	externalExecutor agent.ExternalAgentExecutor
 	inputExecutor    agent.InteractiveExternalExecutor
 	externalInputCh  chan agent.InputRequest
+	closeInputOnce   sync.Once
 	emitEvent        func(event agent.AgentEvent)
 	baseEvent        func(ctx context.Context) domain.BaseEvent
 
@@ -514,11 +515,11 @@ func (m *BackgroundTaskManager) forwardExternalInputRequests() {
 	for {
 		select {
 		case <-m.taskCtx.Done():
-			close(m.externalInputCh)
+			m.closeInputOnce.Do(func() { close(m.externalInputCh) })
 			return
 		case req, ok := <-inputs:
 			if !ok {
-				close(m.externalInputCh)
+				m.closeInputOnce.Do(func() { close(m.externalInputCh) })
 				return
 			}
 			if strings.TrimSpace(req.TaskID) != "" {
