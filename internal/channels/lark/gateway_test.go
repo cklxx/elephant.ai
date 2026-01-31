@@ -389,7 +389,7 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 	}
 }
 
-func TestHandleMessageSessionHistoryStable(t *testing.T) {
+func TestHandleMessageSessionHistoryAlwaysDisabled(t *testing.T) {
 	openID := "ou_sender_history"
 	chatID := "oc_chat_history"
 	msgID := "om_msg_history"
@@ -432,8 +432,8 @@ func TestHandleMessageSessionHistoryStable(t *testing.T) {
 		t.Fatal("expected ExecuteTask to be called")
 	}
 
-	if !appcontext.SessionHistoryEnabled(executor.capturedCtx) {
-		t.Fatalf("expected session history to be enabled for stable sessions")
+	if appcontext.SessionHistoryEnabled(executor.capturedCtx) {
+		t.Fatalf("expected session history to be disabled for lark")
 	}
 }
 
