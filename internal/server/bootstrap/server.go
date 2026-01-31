@@ -136,6 +136,7 @@ func RunServer(observabilityConfigPath string) error {
 	}
 	broadcaster := serverApp.NewEventBroadcaster(serverApp.WithEventHistoryStore(broadcasterHistoryStore))
 	taskStore := serverApp.NewInMemoryTaskStore()
+	defer taskStore.Close()
 	progressTracker := serverApp.NewTaskProgressTracker(taskStore)
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)
@@ -297,7 +298,7 @@ func RunServer(observabilityConfigPath string) error {
 		Addr:         ":" + config.Port,
 		Handler:      router,
 		ReadTimeout:  5 * time.Minute,
-		WriteTimeout: 0,
+		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
 

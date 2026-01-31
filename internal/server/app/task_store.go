@@ -12,16 +12,126 @@ import (
 	id "alex/internal/utils/id"
 )
 
-// InMemoryTaskStore implements TaskStore with in-memory storage
+const (
+	defaultTaskRetention   = 24 * time.Hour
+	defaultMaxTasks        = 10000
+	defaultEvictInterval   = 5 * time.Minute
+)
+
+// InMemoryTaskStore implements TaskStore with in-memory storage and TTL-based
+// eviction for terminal tasks (completed, failed, cancelled).
 type InMemoryTaskStore struct {
 	mu    sync.RWMutex
 	tasks map[string]*ports.Task
+
+	retention time.Duration // how long terminal tasks are kept
+	maxSize   int           // hard cap on total tasks
+
+	stopOnce sync.Once
+	stopCh   chan struct{}
 }
 
-// NewInMemoryTaskStore creates a new in-memory task store
-func NewInMemoryTaskStore() ports.TaskStore {
-	return &InMemoryTaskStore{
-		tasks: make(map[string]*ports.Task),
+// TaskStoreOption configures an InMemoryTaskStore.
+type TaskStoreOption func(*InMemoryTaskStore)
+
+// WithTaskRetention sets how long terminal tasks are retained before eviction.
+func WithTaskRetention(d time.Duration) TaskStoreOption {
+	return func(s *InMemoryTaskStore) { s.retention = d }
+}
+
+// WithMaxTasks sets the hard cap on total stored tasks.
+func WithMaxTasks(n int) TaskStoreOption {
+	return func(s *InMemoryTaskStore) { s.maxSize = n }
+}
+
+// NewInMemoryTaskStore creates a new in-memory task store with optional TTL
+// eviction. Call Close() to stop the background eviction goroutine.
+func NewInMemoryTaskStore(opts ...TaskStoreOption) *InMemoryTaskStore {
+	s := &InMemoryTaskStore{
+		tasks:     make(map[string]*ports.Task),
+		retention: defaultTaskRetention,
+		maxSize:   defaultMaxTasks,
+		stopCh:    make(chan struct{}),
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	go s.evictLoop()
+	return s
+}
+
+// Close stops the background eviction goroutine.
+func (s *InMemoryTaskStore) Close() {
+	s.stopOnce.Do(func() { close(s.stopCh) })
+}
+
+// evictLoop periodically removes expired terminal tasks.
+func (s *InMemoryTaskStore) evictLoop() {
+	ticker := time.NewTicker(defaultEvictInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-s.stopCh:
+			return
+		case <-ticker.C:
+			s.evictExpired()
+		}
+	}
+}
+
+// evictExpired removes terminal tasks older than retention, respecting maxSize.
+func (s *InMemoryTaskStore) evictExpired() {
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for taskID, task := range s.tasks {
+		if !isTerminalStatus(task.Status) {
+			continue
+		}
+		if task.CompletedAt != nil && now.Sub(*task.CompletedAt) > s.retention {
+			delete(s.tasks, taskID)
+		}
+	}
+
+	// If still over maxSize, evict oldest terminal tasks.
+	if len(s.tasks) <= s.maxSize {
+		return
+	}
+	s.evictOldestTerminalLocked()
+}
+
+// evictOldestTerminalLocked removes the oldest terminal tasks to bring the
+// store back under maxSize. Caller must hold s.mu.
+func (s *InMemoryTaskStore) evictOldestTerminalLocked() {
+	type candidate struct {
+		id          string
+		completedAt time.Time
+	}
+	var candidates []candidate
+	for taskID, task := range s.tasks {
+		if isTerminalStatus(task.Status) && task.CompletedAt != nil {
+			candidates = append(candidates, candidate{id: taskID, completedAt: *task.CompletedAt})
+		}
+	}
+	// Sort oldest first.
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].completedAt.Before(candidates[j].completedAt)
+	})
+
+	toRemove := len(s.tasks) - s.maxSize
+	for i := 0; i < toRemove && i < len(candidates); i++ {
+		delete(s.tasks, candidates[i].id)
+	}
+}
+
+func isTerminalStatus(status ports.TaskStatus) bool {
+	switch status {
+	case ports.TaskStatusCompleted, ports.TaskStatusFailed, ports.TaskStatusCancelled:
+		return true
+	default:
+		return false
 	}
 }
 
