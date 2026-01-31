@@ -216,6 +216,43 @@ describe("renderJsonRenderHtml", () => {
     expect(html).toContain("jr-stat");
   });
 
+  it("renders chart component", () => {
+    const payload = JSON.stringify({
+      type: "chart",
+      title: "Population Trend",
+      subtitle: "Projected decline",
+      data: {
+        values: [
+          { year: 2020, population_m: 1412, projected: false },
+          { year: 2021, population_m: 1413, projected: false },
+          { year: 2022, population_m: 1411, projected: false },
+          { year: 2023, population_m: 1409, projected: false },
+          { year: 2024, population_m: 1406.5, projected: true },
+          { year: 2025, population_m: 1404.0, projected: true },
+        ],
+      },
+      encoding: {
+        x: { field: "year", type: "temporal", title: "Year" },
+        y: { field: "population_m", type: "quantitative", title: "Population (M)" },
+        color: {
+          field: "projected",
+          type: "nominal",
+          scale: { domain: [true, false], range: ["#f39c12", "#2c3e50"] },
+        },
+      },
+      mark: { type: "line", point: true },
+    });
+
+    const tree = parseJsonRenderPayload(payload);
+    const html = renderJsonRenderHtml(tree);
+    expect(html).toContain("Population Trend");
+    expect(html).toContain("Projected decline");
+    expect(html).toContain("Population (M)");
+    expect(html).toContain("Year");
+    expect(html).toContain("jr-chart");
+    expect(html).toContain("<svg");
+  });
+
   it("renders empty timeline as fallback", () => {
     const payload = JSON.stringify({
       root: { type: "timeline", props: { items: [] } },
