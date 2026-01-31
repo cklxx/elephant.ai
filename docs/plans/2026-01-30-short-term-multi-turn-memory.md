@@ -17,7 +17,7 @@ LLM 看不到上一轮对话，无法做多轮追问、上下文引用、指代�
 当前靠 `AutoChatContext` 调 Lark API 拉最近 20 条原始聊天记录注入，但这有三个问题：
 1. **依赖外部 API** — 受 Lark API 限速和延迟影响
 2. **原始格式** — `[timestamp] sender: text` 纯文本，LLM 无法区分用户消息、助手回复、工具调用
-3. **不可复用** — 仅 Lark 可用，WeChat/Web/CLI 不走这条路
+3. **不可复用** — 仅 Lark 可用，Web/CLI 不走这条路
 
 ## 2. 各频道现状对比
 
@@ -27,22 +27,19 @@ LLM 看不到上一轮对话，无法做多轮追问、上下文引用、指代�
 │ Lark     │ lark-<随机UUID>       │ ❌ 每次从零开始   │ AutoChatContext      │
 │          │ 每条消息一个新session   │                  │ (Lark API拉20条)     │
 ├──────────┼───────────────────────┼──────────────────┼──────────────────────┤
-│ WeChat   │ wechat-<hash(convKey)>│ ✅ historyMgr    │ session.Messages     │
-│          │ 同一会话复用           │    自动追加Turn   │ + 超长时 LLM摘要     │
-├──────────┼───────────────────────┼──────────────────┼──────────────────────┤
 │ CLI      │ <UUID> 整个会话复用    │ ✅ session直接累积│ 完整上下文窗口        │
 ├──────────┼───────────────────────┼──────────────────┼──────────────────────┤
 │ Web/API  │ 客户端提供或新建       │ ✅ 客户端复用时累积│ 完整上下文窗口        │
 └──────────┴───────────────────────┴──────────────────┴──────────────────────┘
 ```
 
-WeChat/CLI/Web 已经有完整的多轮支持。**唯一缺失的是 Lark。**
+CLI/Web 已经有完整的多轮支持。**唯一缺失的是 Lark。**
 
 ## 3. 方案对比
 
 ### 方案 A: Lark 改用稳定 Session ID（推荐）
 
-将 Lark 的 sessionID 从随机 UUID 改为与 WeChat 一致的稳定 hash：
+将 Lark 的 sessionID 从随机 UUID 改为稳定 hash：
 
 ```go
 // 现在 (每条消息新session)
@@ -109,7 +106,7 @@ sessionID := g.memoryIDForChat(chatID)
 | `historyMgr.AppendTurn()` 支持同一 sessionID 多次追加 | 编写单元测试：连续 3 次 AppendTurn 同一 sessionID | 中 — 当前 Lark 从未触发此场景 |
 | **AppendTurn 前缀匹配不误清空** | 编写集成测试：连续两次 ExecuteTask，确保 history 未被清空 | 中 — system prompt/注入消息可能导致 prefix mismatch |
 | `loadSessionHistory()` 能恢复多轮历史 | 编写集成测试：save 2 轮 → 新请求 load → 验证 Messages 包含 2 轮 | 中 — 同上 |
-| session 持久化存储（file/postgres）支持更新已存在的 session | 检查 `sessionStore.Save()` 是 upsert 还是 insert-only | 低 — WeChat 已在使用此路径 |
+| session 持久化存储（file/postgres）支持更新已存在的 session | 检查 `sessionStore.Save()` 是 upsert 还是 insert-only | 低 — 已有通道在使用此路径 |
 | `session.UpdatedAt` 行为可靠 | 验证 Save 是否自动更新 UpdatedAt；新建 session 是否非零 | 中 — 过期逻辑依赖 UpdatedAt |
 
 **建议：在实施 Step 1 之前，先运行上述验证用例。如果任一失败，需先修复再改 session ID。**
@@ -195,7 +192,7 @@ composeHistorySummary()  →  LLM 压缩为 2-3 段摘要
 **关键设计决策：过期检测放在 preparation 层而非 gateway 层。**
 
 理由：
-- WeChat 也有稳定 session，同样需要过期处理
+- 其他稳定 session 的通道同样需要过期处理
 - 放在 gateway 层意味着每个 channel 各写一份
 - `preparation/service.go` 的 `loadSessionHistory()` 是所有 channel 加载历史的统一入口
 

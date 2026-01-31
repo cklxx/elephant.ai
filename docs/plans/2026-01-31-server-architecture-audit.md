@@ -115,7 +115,7 @@ b.updateTaskProgress(baseEvent)  // 同步调用
 - 事件历史存储
 - EventBroadcaster + TaskStore 创建
 - Analytics 客户端
-- WeChat / Lark 网关
+- Lark 网关
 - Scheduler
 - Session 迁移
 - 健康检查
@@ -130,7 +130,6 @@ b.updateTaskProgress(baseEvent)  // 同步调用
    - `container.Start()` 失败 → `logger.Warn()`，继续运行 (L54-56)
    - 附件存储初始化失败 → `logger.Warn()`，跳过附件功能 (L64-65)
    - 事件历史 schema 初始化失败 → `logger.Warn()`，继续 (L85-87)
-   - WeChat 网关启动失败 → `logger.Warn()`，服务禁用 (L128-131)
    - Lark 网关启动失败 → `logger.Warn()`，服务禁用 (L140-143)
    - Session 迁移失败 → `logger.Warn()` (L170-180)
    - 认证模块初始化失败 → `logger.Warn()`，鉴权禁用 (L187-193)

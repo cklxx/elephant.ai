@@ -309,7 +309,7 @@ mux.HandleFunc("/api/sessions/", h.requireMethod(http.MethodGet, h.HandleGetSess
 
 ```
 lark/gateway.go:41-44    — AgentExecutor interface 定义
-wechat/gateway.go:22-25  — 完全相同的 interface 定义
+other gateway:           — 完全相同的 interface 定义
 
 两者共享: sessionLocks sync.Map, cfg 校验, logger 初始化, session ID 哈希
 ```
@@ -365,7 +365,7 @@ type Gateway struct {
     ...
 }
 
-// wechat/gateway.go
+// other-gateway/gateway.go
 type Gateway struct {
     cfg      Config
     agent    base.AgentExecutor

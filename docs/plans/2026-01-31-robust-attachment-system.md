@@ -12,7 +12,7 @@
 
 附件系统承担两个关键职责:
 
-**职责 A — 内容交付**: 将 LLM/工具产出的文件(图片、文档、代码)交付给用户(Web/Lark/WeChat/CLI)。
+**职责 A — 内容交付**: 将 LLM/工具产出的文件(图片、文档、代码)交付给用户(Web/Lark/CLI)。
 
 **职责 B — 上下文卸载 (Context Offload)**: 将大块内容从 LLM 消息历史中抽离到外部存储,仅保留轻量引用,从而控制 context window 大小,降低 token 消耗。
 
@@ -30,7 +30,7 @@
        │                              │
        ▼                              ▼
   Token Budget                  Content Delivery
-  Controlled                    (SSE/Lark/WeChat)
+  Controlled                    (SSE/Lark)
 ```
 
 ### 1.2 附件生命周期总览
@@ -46,8 +46,7 @@ decorateFinalResult() → merge A2UI attachments
     ↓
 WorkflowResultFinalEvent { Attachments: map[string]ports.Attachment }
     ├─→ SSE Path:  normalizeAttachmentPayload() → CDN URL → 前端
-    ├─→ Lark Path: ResolveAttachmentBytes() → 解码 base64 → uploadImage/uploadFile → Lark API
-    └─→ WeChat:    ❌ 完全未实现
+    └─→ Lark Path: ResolveAttachmentBytes() → 解码 base64 → uploadImage/uploadFile → Lark API
 ```
 
 ### 1.3 当前上下文卸载机制 (分层)
@@ -138,7 +137,7 @@ type Attachment struct {
 
 ## 2. 已识别的问题
 
-### 2.1 🔴 P0 — 附件在总结阶段不下发 (Lark/WeChat 通道)
+### 2.1 🔴 P0 — 附件在总结阶段不下发 (Lark 通道)
 
 **根因链路**:
 
@@ -208,15 +207,10 @@ compactToolCallArguments 只压缩 call.Arguments,不触及 result.Attachments �
 
 影响:
 1. Lark 通道: 每次下发都要先解码 base64 再重新上传,浪费带宽和内存
-2. WeChat 通道: 未实现 (但同样会面临此问题)
-3. 事件序列化: 大量 base64 数据写入 Postgres,inflating 数据库
-4. SSE 流: 首次推送前附件以 base64 形式在内存中传递
+2. 事件序列化: 大量 base64 数据写入 Postgres,inflating 数据库
+3. SSE 流: 首次推送前附件以 base64 形式在内存中传递
 
-### 2.4 🟡 P1 — WeChat 通道完全无附件支持
-
-`internal/channels/wechat/gateway.go` 中没有任何附件处理逻辑。
-
-### 2.5 🟢 P2 — 附件在 SSE 流中间事件中缺失
+### 2.4 🟢 P2 — 附件在 SSE 流中间事件中缺失
 
 `emitFinalAnswerStream()` (`runtime.go:767-800`) 发送分块事件时不携带 Attachments:
 ```go
@@ -230,7 +224,7 @@ r.engine.emitEvent(&domain.WorkflowResultFinalEvent{
 
 仅最终的 `StreamFinished=true` 事件携带附件。如果前端在流式渲染过程中尝试展示附件,需要等到最终事件才能获取。目前这 **是设计意图**,但不够鲁棒。
 
-### 2.6 🟢 P2 — Presigned URL 过期
+### 2.5 🟢 P2 — Presigned URL 过期
 
 Cloudflare R2 Provider 使用 15分钟 TTL 的 Presigned URL。如果用户在页面上停留超过 15 分钟后点击附件,URL 已过期。
 
@@ -262,7 +256,6 @@ finalize() → result.Attachments 已经全是 URI 引用
     ↓
 ├─→ SSE:   直接推送 URI (无需 normalizeAttachmentPayload 做转换)
 ├─→ Lark:  HTTP GET URI → bytes → upload to Lark API
-├─→ WeChat: HTTP GET URI → bytes → upload to WeChat API
 └─→ CLI:   展示 URI / 按需下载
 ```
 
@@ -270,7 +263,7 @@ finalize() → result.Attachments 已经全是 URI 引用
 
 1. **Write-Through**: 附件一旦产生,立即持久化到 Store,后续全部以 URI 引用流转
 2. **Eager Offload**: 持久化后立即清空 `Data` 字段,释放内存 (小型文本附件可保留)
-3. **Uniform Reference**: 所有通道 (SSE/Lark/WeChat/CLI) 统一通过 URI 获取内容
+3. **Uniform Reference**: 所有通道 (SSE/Lark/CLI) 统一通过 URI 获取内容
 4. **Consolidate to Summary**: 所有附件统一汇总到最终总结事件,通道在总结消息中一并展示
 5. **Graceful Degradation**: Store 不可用时降级保留 base64,SSE 层 DataCache 兜底
 
@@ -282,7 +275,6 @@ finalize() → result.Attachments 已经全是 URI 引用
 |------|---------|---------|
 | **Web** | `WorkflowResultFinalEvent.Attachments` → `TaskCompleteCard` 渲染 | 保持不变,确保 force-include 不被类型断言拦截 |
 | **Lark** | 文本回复 + 单独 sendAttachments (分开发送) | 文本回复中追加附件汇总摘要 + 依次发送附件 |
-| **WeChat** | ❌ 未实现 | 同 Lark 模式 |
 | **CLI** | 仅文本 | 文本 + 附件 URI 列表 |
 
 关键链路:
@@ -296,7 +288,6 @@ WorkflowResultFinalEvent{Attachments: 完整附件集, StreamFinished: true}
     ↓
 ├── SSE: force-include all → 前端 TaskCompleteCard 一次性渲染
 ├── Lark: buildReply(result) 追加附件列表 + sendAttachments() 逐个发送
-├── WeChat: 同上
 └── CLI: 输出附件列表
 ```
 
@@ -594,21 +585,7 @@ uploadImage() / uploadFile() → Lark API
 
 进一步优化 (可选): 如果 Lark 支持从 URL 下载资源,可以直接传 CDN URL 避免中间下载。
 
-### 4.4 Phase 4 — WeChat 通道附件支持 (解决 P1)
-
-参照 Lark 通道的实现模式:
-```go
-func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskResult) {
-    for name, att := range result.Attachments {
-        // 1. 通过 URI 获取字节 (CDN-first)
-        // 2. 根据 MediaType 选择: 图片/文件/视频
-        // 3. 上传到 WeChat 临时素材 API
-        // 4. 发送消息
-    }
-}
-```
-
-### 4.5 Phase 5 — Presigned URL 续期 (解决 P2)
+### 4.4 Phase 4 — Presigned URL 续期 (解决 P2)
 
 #### 方案 A: 延长 TTL + 前端 lazy refresh (推荐)
 
@@ -660,8 +637,7 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
 
 ### Batch 6: 渠道优化
 1. Lark 通道: 验证 CDN URI 流程工作 (ResolveAttachmentBytes 自动适配)
-2. WeChat 通道: 实现附件下发
-3. E2E 测试: 全链路验证 (tool → persist → state → event → SSE/Lark)
+2. E2E 测试: 全链路验证 (tool → persist → state → event → SSE/Lark)
 
 ---
 
@@ -675,7 +651,6 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
               └── ToolResult.Attachments 也持有 base64 ┘  (双重驻留)
 
               → Lark: decode base64 → upload → Lark
-              → WeChat: ❌
               → 事件 Postgres: 存储完整 base64 JSONB
 ```
 
@@ -693,7 +668,6 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
                          └── compactToolResultAttachments: ToolResult/state.ToolResults 中也只有 URI
 
               → Lark: HTTP GET URI → bytes → upload → Lark
-              → WeChat: HTTP GET URI → bytes → upload → WeChat
               → CLI: 展示 URI / 按需下载
               → 事件 Postgres: 仅存储 URI 字符串 (~50 bytes vs ~13KB)
 ```
@@ -711,7 +685,7 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
 | 风险 | 降级策略 |
 |------|---------|
 | 存储不可用 | 保留 base64 Data 不清空, SSE 层 DataCache 兜底 |
-| CDN URL 不可达 | Lark/WeChat 通道 fallback 到 base64 解码 |
+| CDN URL 不可达 | Lark 通道 fallback 到 base64 解码 |
 | 迁移期新旧附件混合 | `normalizeAttachmentPayload` 保留对 base64 的处理能力 |
 | Presigned URL 过期 | `/api/attachments/` 代理端点重新生成 URL |
 | `/api/attachments/` 仅本地可读 | 通道侧统一用绝对 URL 或代理下载,避免跨进程/多节点不可达 |

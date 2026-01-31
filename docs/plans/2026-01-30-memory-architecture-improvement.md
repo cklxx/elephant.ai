@@ -61,7 +61,7 @@ elephant.ai 的记忆系统存在以下结构性问题：
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│              Channel Layer (Lark/WeChat/Web)            │
+│              Channel Layer (Lark/Web/CLI)              │
 │  handleMessage()                                        │
 │    ├─ id.WithUserID(ctx, senderID)                     │
 │    ├─ AutoChatContext (last 20-30 raw msgs)         [A] │
@@ -169,7 +169,7 @@ func smartTruncate(s string, maxLen int) string {
 |------|------|------|
 | `type` | 记忆类型（`chat_turn`/`auto_capture`/`workflow_trace`/`user_explicit`） | 必填 |
 | `scope` | 记忆归属（`user`/`chat`） | 必填 |
-| `channel` | `lark`/`wechat`/`cli`/`web` | 必填 |
+| `channel` | `lark`/`cli`/`web` | 必填 |
 | `chat_id` | 群聊/私聊 ID | 可空 |
 | `session_id` | 短期 session ID | 可空 |
 | `sender_id` | 当前发言者 | `scope=user` 时必填 |
@@ -232,9 +232,9 @@ if len(result.ToolCalls) > 0 {
 +            return uid
 +        }
 +    }
-     if strings.HasPrefix(session.ID, "lark-") || strings.HasPrefix(session.ID, "wechat-") {
-         return session.ID
-     }
+    if strings.HasPrefix(session.ID, "lark-") {
+        return session.ID
+    }
      return ""
  }
 ```

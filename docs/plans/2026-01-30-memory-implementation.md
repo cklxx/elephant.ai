@@ -11,7 +11,7 @@
 
 ## Plan
 1. **Context + config wiring**
-   - Add channel/chat/group context helpers and wire Lark/WeChat gateways.
+   - Add channel/chat/group context helpers and wire Lark gateways.
    - Extend config: `lark.session_mode`, `agent.session_stale_after`, `proactive.memory.capture_group_memory`.
    - Ensure server/bootstrap + DI propagate new config values.
 

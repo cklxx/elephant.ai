@@ -54,7 +54,7 @@ elephant.ai 已经具备成熟的 **被动执行** 基础设施：
 | ReAct 循环 (Think → Act → Observe) | ✅ 完成 | `internal/agent/domain/react/` |
 | 多 LLM 提供商 (OpenAI, Claude, ARK, DeepSeek, Ollama) | ✅ 完成 | `internal/llm/` |
 | 持久化记忆 (File/Postgres) | ✅ 完成 | `internal/memory/` |
-| 渠道集成 (Lark, WeChat, CLI, Web) | ✅ 完成 | `internal/channels/`, `internal/server/` |
+| 渠道集成 (Lark, CLI, Web) | ✅ 完成 | `internal/channels/`, `internal/server/` |
 | Markdown 驱动的技能系统 | ✅ 完成 | `internal/skills/`, `skills/` |
 | 审批门控与安全模式 | ✅ 完成 | `internal/toolregistry/`, `internal/agent/presets/` |
 | 上下文组装与窗口压缩 | ✅ 完成 | `internal/context/` |
@@ -1274,7 +1274,7 @@ type Trigger struct {
     Name     string        `yaml:"name"`
     Schedule string        `yaml:"schedule"`   // cron 表达式
     Task     string        `yaml:"task"`       // 任务模板
-    Channel  string        `yaml:"channel"`    // 输出渠道 (lark/wechat/web)
+    Channel  string        `yaml:"channel"`    // 输出渠道 (lark/web/cli)
     UserID   string        `yaml:"user_id"`    // 目标用户
     Enabled  bool          `yaml:"enabled"`
     ApprovalRequired bool  `yaml:"approval_required"` // 是否需要审批
@@ -1516,8 +1516,6 @@ attention:
     lark:
       enabled: true
       priority_boost: 0.1   # Lark 通知优先级加成
-    wechat:
-      enabled: false
 ```
 
 ---
