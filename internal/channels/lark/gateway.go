@@ -357,6 +357,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if reply == "" {
 		reply = "（无可用回复）"
 	}
+	if summary := buildAttachmentSummary(result); summary != "" {
+		reply += "\n\n" + summary
+	}
 
 	if isGroup && messageID != "" {
 		g.replyMessage(execCtx, messageID, reply)
@@ -872,6 +875,37 @@ func mergeAttachments(out map[string]ports.Attachment, incoming map[string]ports
 		}
 		out[name] = att
 	}
+}
+
+// buildAttachmentSummary creates a text summary of non-A2UI attachments
+// with CDN URLs appended to the reply. This consolidates attachment
+// references into the summary message so users see everything in one place.
+func buildAttachmentSummary(result *agent.TaskResult) string {
+	if result == nil {
+		return ""
+	}
+	attachments := result.Attachments
+	if len(attachments) == 0 {
+		return ""
+	}
+	names := sortedAttachmentNames(attachments)
+	var lines []string
+	for _, name := range names {
+		att := attachments[name]
+		if isA2UIAttachment(att) {
+			continue
+		}
+		uri := strings.TrimSpace(att.URI)
+		if uri == "" || strings.HasPrefix(strings.ToLower(uri), "data:") {
+			lines = append(lines, fmt.Sprintf("- %s", name))
+			continue
+		}
+		lines = append(lines, fmt.Sprintf("- %s: %s", name, uri))
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return "---\n[Attachments]\n" + strings.Join(lines, "\n")
 }
 
 func sortedAttachmentNames(attachments map[string]ports.Attachment) []string {

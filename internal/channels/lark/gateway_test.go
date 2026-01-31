@@ -1178,3 +1178,102 @@ func TestEmojiReactionInterceptorNoFallbackAfterDynamic(t *testing.T) {
 	// Fallback should be a no-op since dynamic already fired.
 	interceptor.sendFallback() // should not panic or send again
 }
+
+func TestBuildAttachmentSummaryNil(t *testing.T) {
+	if s := buildAttachmentSummary(nil); s != "" {
+		t.Fatalf("expected empty for nil result, got %q", s)
+	}
+}
+
+func TestBuildAttachmentSummaryEmpty(t *testing.T) {
+	result := &agent.TaskResult{}
+	if s := buildAttachmentSummary(result); s != "" {
+		t.Fatalf("expected empty for no attachments, got %q", s)
+	}
+}
+
+func TestBuildAttachmentSummaryWithURIs(t *testing.T) {
+	result := &agent.TaskResult{
+		Attachments: map[string]ports.Attachment{
+			"report.pdf": {
+				Name: "report.pdf",
+				URI:  "https://cdn.example.com/report.pdf",
+			},
+			"chart.png": {
+				Name: "chart.png",
+				URI:  "https://cdn.example.com/chart.png",
+			},
+		},
+	}
+	summary := buildAttachmentSummary(result)
+	if summary == "" {
+		t.Fatal("expected non-empty summary")
+	}
+	if !strings.Contains(summary, "chart.png: https://cdn.example.com/chart.png") {
+		t.Fatalf("expected chart.png URI in summary, got %q", summary)
+	}
+	if !strings.Contains(summary, "report.pdf: https://cdn.example.com/report.pdf") {
+		t.Fatalf("expected report.pdf URI in summary, got %q", summary)
+	}
+	if !strings.Contains(summary, "[Attachments]") {
+		t.Fatalf("expected [Attachments] header, got %q", summary)
+	}
+}
+
+func TestBuildAttachmentSummaryFiltersA2UI(t *testing.T) {
+	result := &agent.TaskResult{
+		Attachments: map[string]ports.Attachment{
+			"report.pdf": {
+				Name: "report.pdf",
+				URI:  "https://cdn.example.com/report.pdf",
+			},
+			"ui-widget": {
+				Name:   "ui-widget",
+				Format: "a2ui",
+			},
+		},
+	}
+	summary := buildAttachmentSummary(result)
+	if strings.Contains(summary, "ui-widget") {
+		t.Fatalf("expected a2ui attachment to be filtered, got %q", summary)
+	}
+	if !strings.Contains(summary, "report.pdf") {
+		t.Fatalf("expected report.pdf in summary, got %q", summary)
+	}
+}
+
+func TestBuildAttachmentSummaryNoURIFallback(t *testing.T) {
+	result := &agent.TaskResult{
+		Attachments: map[string]ports.Attachment{
+			"draft.txt": {
+				Name: "draft.txt",
+				Data: "aGVsbG8=",
+			},
+		},
+	}
+	summary := buildAttachmentSummary(result)
+	if !strings.Contains(summary, "- draft.txt") {
+		t.Fatalf("expected name-only entry, got %q", summary)
+	}
+	if strings.Contains(summary, "http") {
+		t.Fatalf("expected no URL for data-only attachment, got %q", summary)
+	}
+}
+
+func TestBuildAttachmentSummarySkipsDataURI(t *testing.T) {
+	result := &agent.TaskResult{
+		Attachments: map[string]ports.Attachment{
+			"inline.png": {
+				Name: "inline.png",
+				URI:  "data:image/png;base64,abc",
+			},
+		},
+	}
+	summary := buildAttachmentSummary(result)
+	if strings.Contains(summary, "data:") {
+		t.Fatalf("expected data: URI to be omitted, got %q", summary)
+	}
+	if !strings.Contains(summary, "- inline.png") {
+		t.Fatalf("expected name-only entry, got %q", summary)
+	}
+}
