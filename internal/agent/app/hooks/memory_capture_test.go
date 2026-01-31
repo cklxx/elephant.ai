@@ -11,14 +11,14 @@ import (
 )
 
 func TestMemoryCaptureHook_Name(t *testing.T) {
-	hook := NewMemoryCaptureHook(nil, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(nil, nil, MemoryCaptureConfig{})
 	if hook.Name() != "memory_capture" {
 		t.Errorf("expected name 'memory_capture', got %q", hook.Name())
 	}
 }
 
 func TestMemoryCaptureHook_OnTaskStart_Noop(t *testing.T) {
-	hook := NewMemoryCaptureHook(nil, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(nil, nil, MemoryCaptureConfig{})
 	result := hook.OnTaskStart(context.Background(), TaskInfo{TaskInput: "test"})
 	if result != nil {
 		t.Errorf("expected nil from OnTaskStart, got %v", result)
@@ -26,7 +26,7 @@ func TestMemoryCaptureHook_OnTaskStart_Noop(t *testing.T) {
 }
 
 func TestMemoryCaptureHook_NilService(t *testing.T) {
-	hook := NewMemoryCaptureHook(nil, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(nil, nil, MemoryCaptureConfig{})
 	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput: "test",
 		Answer:    "result",
@@ -39,7 +39,7 @@ func TestMemoryCaptureHook_NilService(t *testing.T) {
 
 func TestMemoryCaptureHook_SkipsNoToolCalls(t *testing.T) {
 	svc := &mockMemoryService{}
-	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{})
 
 	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput: "just a question",
@@ -57,7 +57,7 @@ func TestMemoryCaptureHook_SkipsNoToolCalls(t *testing.T) {
 
 func TestMemoryCaptureHook_SkipsEmptyAnswer(t *testing.T) {
 	svc := &mockMemoryService{}
-	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{})
 
 	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput: "test",
@@ -77,7 +77,7 @@ func TestMemoryCaptureHook_SuccessfulCapture(t *testing.T) {
 	svc := &mockMemoryService{
 		saveResult: memory.Entry{Key: "test-key"},
 	}
-	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{})
 
 	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput:  "deploy the new migration",
@@ -171,7 +171,7 @@ func TestMemoryCaptureHook_SaveError(t *testing.T) {
 	svc := &mockMemoryService{
 		saveErr: errors.New("disk full"),
 	}
-	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{})
 
 	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput:  "test task",
@@ -188,9 +188,9 @@ func TestMemoryCaptureHook_SaveError(t *testing.T) {
 	}
 }
 
-func TestMemoryCaptureHook_DefaultUserID(t *testing.T) {
+func TestMemoryCaptureHook_MissingUserID(t *testing.T) {
 	svc := &mockMemoryService{}
-	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{Enabled: true, AutoCapture: true})
+	hook := NewMemoryCaptureHook(svc, nil, MemoryCaptureConfig{})
 
 	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput:  "test",
@@ -203,8 +203,8 @@ func TestMemoryCaptureHook_DefaultUserID(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if svc.lastEntry.UserID != "default" {
-		t.Errorf("expected default userID, got %q", svc.lastEntry.UserID)
+	if svc.saveCalled != 0 {
+		t.Fatalf("expected capture to be skipped when userID missing, got %d", svc.saveCalled)
 	}
 }
 

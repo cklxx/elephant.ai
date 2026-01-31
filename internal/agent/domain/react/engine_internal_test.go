@@ -374,7 +374,7 @@ func TestObserveToolResultsPopulatesWorldDiffAndFeedback(t *testing.T) {
 			"reward": 0.75,
 		},
 	}}
-	engine.observeToolResults(state, 2, results)
+	engine.observeToolResults(context.Background(), state, 2, results)
 	if state.WorldDiff == nil {
 		t.Fatalf("expected world diff to be populated")
 	}
@@ -548,10 +548,10 @@ func TestRegisterMessageAttachmentsDetectsChanges(t *testing.T) {
 		},
 	}
 
-	if !registerMessageAttachments(state, msg) {
+	if !registerMessageAttachments(context.Background(), state, &msg, nil) {
 		t.Fatal("expected first registration to report changes")
 	}
-	if registerMessageAttachments(state, msg) {
+	if registerMessageAttachments(context.Background(), state, &msg, nil) {
 		t.Fatal("expected duplicate registration to report no changes")
 	}
 }
@@ -1247,5 +1247,69 @@ func TestOffloadMessageAttachmentDataPreservesWhenNoURI(t *testing.T) {
 	att := state.Messages[0].Attachments["img.png"]
 	if att.Data != "aWNvbg==" {
 		t.Fatalf("expected Data preserved when no URI, got %q", att.Data)
+	}
+}
+
+func TestCompactToolResultAttachmentsClearsStateToolResults(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		Attachments: map[string]ports.Attachment{
+			"report.pdf": {
+				Name: "report.pdf",
+				URI:  "https://cdn.example.com/old.pdf",
+				Data: "old",
+			},
+		},
+		ToolResults: []ToolResult{{
+			CallID: "call-1",
+			Attachments: map[string]ports.Attachment{
+				"report.pdf": {
+					Name:      "report.pdf",
+					MediaType: "application/pdf",
+					Data:      "aGVsbG8=",
+					URI:       "https://cdn.example.com/new.pdf",
+				},
+			},
+		}},
+		Messages: []Message{{
+			Role: "tool",
+			ToolResults: []ToolResult{{
+				CallID: "call-1",
+				Attachments: map[string]ports.Attachment{
+					"report.pdf": {
+						Name:      "report.pdf",
+						MediaType: "application/pdf",
+						Data:      "aGVsbG8=",
+						URI:       "https://cdn.example.com/new.pdf",
+					},
+				},
+			}},
+		}},
+	}
+	results := []ToolResult{{
+		CallID: "call-1",
+		Attachments: map[string]ports.Attachment{
+			"report.pdf": {
+				Name:      "report.pdf",
+				MediaType: "application/pdf",
+				Data:      "aGVsbG8=",
+				URI:       "https://cdn.example.com/new.pdf",
+			},
+		},
+	}}
+
+	engine.compactToolResultAttachments(context.Background(), state, results)
+
+	if results[0].Attachments["report.pdf"].Data != "" {
+		t.Fatalf("expected Data cleared from results")
+	}
+	if state.ToolResults[0].Attachments["report.pdf"].Data != "" {
+		t.Fatalf("expected Data cleared from state.ToolResults")
+	}
+	if state.Messages[0].ToolResults[0].Attachments["report.pdf"].Data != "" {
+		t.Fatalf("expected Data cleared from message tool results")
+	}
+	if results[0].Attachments["report.pdf"].URI != "https://cdn.example.com/new.pdf" {
+		t.Fatalf("expected URI preserved, got %q", results[0].Attachments["report.pdf"].URI)
 	}
 }

@@ -10,10 +10,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/textutil"
 	"alex/internal/jsonx"
-	"alex/internal/memory"
-	id "alex/internal/utils/id"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
@@ -51,8 +48,6 @@ type reactRuntime struct {
 	// External input requests from interactive external agents.
 	externalInputCh      <-chan agent.InputRequest
 	externalInputEmitted map[string]bool
-
-	memoryRefresh MemoryRefreshConfig
 }
 
 type reactIteration struct {
@@ -72,15 +67,14 @@ type toolExecutionPlan struct {
 
 func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, state *TaskState, services Services, prepare func()) *reactRuntime {
 	runtime := &reactRuntime{
-		engine:        engine,
-		ctx:           ctx,
-		task:          task,
-		state:         state,
-		services:      services,
-		tracker:       newReactWorkflow(engine.workflow),
-		startTime:     engine.clock.Now(),
-		prepare:       prepare,
-		memoryRefresh: engine.memoryRefresh,
+		engine:    engine,
+		ctx:       ctx,
+		task:      task,
+		state:     state,
+		services:  services,
+		tracker:   newReactWorkflow(engine.workflow),
+		startTime: engine.clock.Now(),
+		prepare:   prepare,
 	}
 	if state != nil {
 		runtime.runID = strings.TrimSpace(state.RunID)
@@ -180,7 +174,7 @@ func (r *reactRuntime) handleCancellation() (*TaskResult, bool, error) {
 
 func (r *reactRuntime) runIteration() (*TaskResult, bool, error) {
 	iteration := r.newIteration()
-	r.refreshContext(iteration.index)
+	r.applyIterationHook(iteration.index)
 
 	if err := iteration.think(); err != nil {
 		return nil, true, err
@@ -245,7 +239,7 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 				finalThought.Attachments = att
 			}
 			r.state.Messages = append(r.state.Messages, finalThought)
-			if registerMessageAttachments(r.state, finalThought) {
+			if registerMessageAttachments(r.ctx, r.state, &r.state.Messages[len(r.state.Messages)-1], r.engine.attachmentPersister) {
 				r.engine.updateAttachmentCatalogMessage(r.state)
 			}
 			finalResult.Answer = finalThought.Content
@@ -657,7 +651,7 @@ func (it *reactIteration) observeTools() {
 
 	state := it.runtime.state
 	state.ToolResults = append(state.ToolResults, it.toolResult...)
-	it.runtime.engine.observeToolResults(state, it.plan.iteration, it.toolResult)
+	it.runtime.engine.observeToolResults(it.runtime.ctx, state, it.plan.iteration, it.toolResult)
 	it.runtime.engine.updateGoalPlanPrompts(state, it.plan.calls, it.toolResult)
 
 	for i, res := range it.toolResult {
@@ -670,16 +664,18 @@ func (it *reactIteration) observeTools() {
 
 	toolMessages := it.runtime.engine.buildToolMessages(it.toolResult)
 	toolMessages = it.runtime.engine.appendGoalPlanReminder(state, toolMessages)
+	startIdx := len(state.Messages)
 	state.Messages = append(state.Messages, toolMessages...)
 	attachmentsChanged := false
-	for _, msg := range toolMessages {
-		if registerMessageAttachments(state, msg) {
+	for i := range toolMessages {
+		if registerMessageAttachments(it.runtime.ctx, state, &state.Messages[startIdx+i], it.runtime.engine.attachmentPersister) {
 			attachmentsChanged = true
 		}
 	}
 	if attachmentsChanged {
 		it.runtime.engine.updateAttachmentCatalogMessage(state)
 	}
+	offloadMessageAttachmentData(state)
 	it.runtime.engine.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
 
 	it.runtime.updateOrchestratorState(it.plan.calls, it.toolResult)
@@ -815,106 +811,17 @@ func extractLLMMetadata(metadata map[string]any) map[string]any {
 	return out
 }
 
-func (r *reactRuntime) refreshContext(iteration int) {
-	cfg := r.memoryRefresh
-	if !cfg.Enabled || cfg.Interval <= 0 || iteration == 0 || iteration%cfg.Interval != 0 {
+func (r *reactRuntime) applyIterationHook(iteration int) {
+	if r.engine.iterationHook == nil || iteration == 0 {
 		return
 	}
-	if r.engine.memoryService == nil {
+	result := r.engine.iterationHook.OnIteration(r.ctx, r.state, iteration)
+	if result.MemoriesInjected <= 0 {
 		return
 	}
-	userID := strings.TrimSpace(id.UserIDFromContext(r.ctx))
-	if userID == "" {
-		return
-	}
-
-	keywords := extractRecentKeywords(r.state.ToolResults, 5)
-	if len(keywords) == 0 {
-		return
-	}
-
-	memories, err := r.engine.memoryService.Recall(r.ctx, memory.Query{
-		UserID:   userID,
-		Text:     strings.Join(keywords, " "),
-		Keywords: keywords,
-		Limit:    3,
-	})
-	if err != nil || len(memories) == 0 {
-		return
-	}
-
-	content := formatRefreshMemories(memories, cfg.MaxTokens)
-	if strings.TrimSpace(content) == "" {
-		return
-	}
-
-	r.state.Messages = append(r.state.Messages, Message{
-		Role:    "system",
-		Content: content,
-		Source:  ports.MessageSourceProactive,
-	})
-
 	r.engine.emitEvent(&domain.ProactiveContextRefreshEvent{
 		BaseEvent:        r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
 		Iteration:        iteration,
-		MemoriesInjected: len(memories),
+		MemoriesInjected: result.MemoriesInjected,
 	})
-}
-
-func extractRecentKeywords(results []ToolResult, limit int) []string {
-	if limit <= 0 || len(results) == 0 {
-		return nil
-	}
-	start := len(results) - limit
-	if start < 0 {
-		start = 0
-	}
-	var tokens []string
-	for i := start; i < len(results); i++ {
-		res := results[i]
-		if res.Content != "" {
-			tokens = append(tokens, res.Content)
-		}
-	}
-	return textutil.ExtractKeywords(strings.Join(tokens, " "), textutil.KeywordOptions{})
-}
-
-func formatRefreshMemories(entries []memory.Entry, maxTokens int) string {
-	if len(entries) == 0 {
-		return ""
-	}
-	var sb strings.Builder
-	sb.WriteString("## Proactive Memory Refresh\n\n")
-	sb.WriteString("Additional context recalled from prior work:\n\n")
-	for i, entry := range entries {
-		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, strings.TrimSpace(entry.Content)))
-	}
-	text := sb.String()
-	if maxTokens <= 0 {
-		return text
-	}
-	if estimateTokenCount(text) <= maxTokens {
-		return text
-	}
-	return truncateToTokens(text, maxTokens)
-}
-
-func estimateTokenCount(text string) int {
-	trimmed := strings.TrimSpace(text)
-	if trimmed == "" {
-		return 0
-	}
-	return len([]rune(trimmed)) / 4
-}
-
-func truncateToTokens(text string, maxTokens int) string {
-	if maxTokens <= 0 {
-		return text
-	}
-	runes := []rune(text)
-	limit := maxTokens * 4
-	if limit <= 0 || limit >= len(runes) {
-		return text
-	}
-	return string(runes[:limit]) + "..."
 }

@@ -55,12 +55,15 @@ func BuildBaseContext(cfg BaseConfig, channel, sessionID, userID, chatID string,
 			AutoRecall:      true,
 			AutoCapture:     true,
 			CaptureMessages: true,
+			RefreshEnabled:  true,
 		})
 	} else {
 		ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
-			Enabled:     false,
-			AutoRecall:  false,
-			AutoCapture: false,
+			Enabled:         false,
+			AutoRecall:      false,
+			AutoCapture:     false,
+			CaptureMessages: false,
+			RefreshEnabled:  false,
 		})
 	}
 	return ctx

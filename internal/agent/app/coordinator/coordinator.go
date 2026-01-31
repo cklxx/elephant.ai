@@ -46,6 +46,7 @@ type AgentCoordinator struct {
 	clock            agent.Clock
 	memoryService    memory.Service
 	externalExecutor agent.ExternalAgentExecutor
+	iterationHook    agent.IterationHook
 
 	prepService         preparationService
 	costDecorator       *cost.CostTrackingDecorator
@@ -378,12 +379,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		AttachmentMigrator:  c.attachmentMigrator,
 		AttachmentPersister: c.attachmentPersister,
 		Workflow:            wf,
-		MemoryRefresh: react.MemoryRefreshConfig{
-			Enabled:   c.config.Proactive.Enabled && c.config.Proactive.Memory.Enabled && c.config.Proactive.Memory.AutoRecall,
-			Interval:  c.config.Proactive.Memory.RefreshInterval,
-			MaxTokens: c.config.Proactive.Memory.MaxRefreshTokens,
-		},
-		MemoryService: c.memoryService,
+		IterationHook:       c.iterationHook,
 		BackgroundExecutor: func(bgCtx context.Context, prompt, sessionID string,
 			listener agent.EventListener) (*agent.TaskResult, error) {
 			bgCtx = appcontext.MarkSubagentContext(bgCtx)
@@ -1052,8 +1048,8 @@ func (c *AgentCoordinator) resolveUserID(ctx context.Context, session *storage.S
 	if uid := strings.TrimSpace(session.Metadata["user_id"]); uid != "" {
 		return uid
 	}
-	// Fallback: use session ID prefix for Lark/WeChat sessions
-	if strings.HasPrefix(session.ID, "lark-") || strings.HasPrefix(session.ID, "wechat-") {
+	// Fallback: use session ID prefix for Lark sessions
+	if strings.HasPrefix(session.ID, "lark-") {
 		return session.ID
 	}
 	return ""

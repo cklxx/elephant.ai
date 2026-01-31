@@ -1,6 +1,7 @@
 package react
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 	agent "alex/internal/agent/ports/agent"
 )
 
-func (e *ReactEngine) observeToolResults(state *TaskState, iteration int, results []ToolResult) {
+func (e *ReactEngine) observeToolResults(ctx context.Context, state *TaskState, iteration int, results []ToolResult) {
 	if state == nil || len(results) == 0 {
 		return
 	}
@@ -25,8 +26,48 @@ func (e *ReactEngine) observeToolResults(state *TaskState, iteration int, result
 		"tool_results": updates,
 	}
 	e.compactToolCallHistory(state, results)
+	e.compactToolResultAttachments(ctx, state, results)
 	offloadMessageAttachmentData(state)
 	e.appendFeedbackSignals(state, results)
+}
+
+func (e *ReactEngine) compactToolResultAttachments(ctx context.Context, state *TaskState, results []ToolResult) {
+	if state == nil {
+		return
+	}
+	e.persistToolResultAttachments(ctx, results)
+	e.persistToolResultAttachments(ctx, state.ToolResults)
+	offloadToolResultAttachmentData(results)
+	offloadToolResultAttachmentData(state.ToolResults)
+	for idx := range state.Messages {
+		msg := &state.Messages[idx]
+		for j := range msg.ToolResults {
+			offloadAttachmentMap(msg.ToolResults[j].Attachments)
+		}
+	}
+}
+
+func (e *ReactEngine) persistToolResultAttachments(ctx context.Context, results []ToolResult) {
+	if e.attachmentPersister == nil || len(results) == 0 {
+		return
+	}
+	for i := range results {
+		if len(results[i].Attachments) == 0 {
+			continue
+		}
+		for name, att := range results[i].Attachments {
+			results[i].Attachments[name] = persistAttachmentIfNeeded(ctx, att, e.attachmentPersister)
+		}
+	}
+}
+
+func offloadToolResultAttachmentData(results []ToolResult) {
+	if len(results) == 0 {
+		return
+	}
+	for i := range results {
+		offloadAttachmentMap(results[i].Attachments)
+	}
 }
 
 func (e *ReactEngine) appendFeedbackSignals(state *TaskState, results []ToolResult) {

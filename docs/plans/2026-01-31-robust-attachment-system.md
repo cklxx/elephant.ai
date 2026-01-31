@@ -246,7 +246,7 @@ Cloudflare R2 Provider 使用 15分钟 TTL 的 Presigned URL。如果用户在�
 
 Tool 生成附件 (artifacts_write / sandbox / media)
     ↓
-Persist(att) → 立即写入 Store → 获得 CDN URI → 清空 Data
+Persist(ctx, att) → 立即写入 Store → 获得 CDN URI → 清空 Data
     ↓
 state.Attachments[name] = Attachment{URI: "https://cdn.../hash.png", Data: ""}
                                                                      ^^^^^^^^
@@ -254,7 +254,7 @@ state.Attachments[name] = Attachment{URI: "https://cdn.../hash.png", Data: ""}
     ↓
 buildAttachmentCatalogContent() → "1. report.md" (名称索引给 LLM) ← 轻量
     ↓
-compactToolResultAttachments() → result.Attachments 中的 Data 也被清空 ← 新增 L6
+compactToolResultAttachments() → ToolResult.Attachments / state.ToolResults 中的 Data 也被清空 ← 新增 L7
     ↓
 finalize() → result.Attachments 已经全是 URI 引用
     ↓
@@ -310,7 +310,7 @@ WorkflowResultFinalEvent{Attachments: 完整附件集, StreamFinished: true}
 | L4 | `AutoCompact()` | 全历史 → 压缩摘要 |
 | L5 | `buildAttachmentCatalogContent()` | 附件 → 名称索引 |
 | **L6** | **`persistAndOffload()`** (新增) | **附件 Data → Store URI, 清空 Data** |
-| **L7** | **`compactToolResultAttachments()`** (新增) | **ToolResult.Attachments Data → 清空** |
+| **L7** | **`compactToolResultAttachments()`** (新增) | **ToolResult/state.ToolResults Attachments Data → 清空** |
 
 L6+L7 补齐了唯一缺失的卸载环节,使内容从产生到消费的全链路上不再有 base64 膨胀。
 
@@ -335,7 +335,8 @@ type AttachmentPersister interface {
     // 返回更新后的附件 (URI 已填充, Data 已清空)。
     // 如果附件已有外部 URI 且无 inline 数据,原样返回。
     // 对于小型文本附件 (markdown/json <4KB), Data 可选保留用于前端快速预览。
-    Persist(att Attachment) (Attachment, error)
+    // ctx 必须带超时/取消,避免持久化阻塞主循环。
+    Persist(ctx context.Context, att Attachment) (Attachment, error)
 }
 ```
 
@@ -356,7 +357,7 @@ type ReactEngine struct {
 修改 `applyAttachmentMutations()` (`internal/agent/domain/react/attachments.go`),在 add/replace/update 操作时立即调用 `Persist`:
 
 ```go
-func (e *ReactEngine) persistAttachment(att ports.Attachment) ports.Attachment {
+func (e *ReactEngine) persistAttachment(ctx context.Context, att ports.Attachment) ports.Attachment {
     if e.attachmentPersister == nil {
         return att
     }
@@ -364,7 +365,8 @@ func (e *ReactEngine) persistAttachment(att ports.Attachment) ports.Attachment {
     if att.Data == "" && !strings.HasPrefix(att.URI, "data:") {
         return att
     }
-    persisted, err := e.attachmentPersister.Persist(att)
+    ctx = withAttachmentPersistTimeout(ctx, e.config.Attachments.PersistTimeout)
+    persisted, err := e.attachmentPersister.Persist(ctx, att)
     if err != nil {
         e.logger.Warn("attachment persist failed (%s): %v", att.Name, err)
         return att // 降级: 保留原始 base64
@@ -380,63 +382,83 @@ func (e *ReactEngine) persistAttachment(att ports.Attachment) ports.Attachment {
 - `attachmentMutations.apply()` 中的 add/replace/update 分支
 - 用户上传附件注入到 `state.PendingUserAttachments` 时
 - `prepareUserTaskContext()` 中 `registerMessageAttachments()` 时
+注意事项:
+- `Persist` 可能触发远程写入,务必确保不在附件锁内执行;如有锁,采用“快照 → 持久化 → 回填”三段式。
+- `PersistTimeout` 建议通过配置注入,默认 2-5s,失败则降级保留 base64。
+- `persistAttachment(ctx, ...)` 需要在调用链透传 ctx (runtime → observeTools/prepareUserTaskContext/applyAttachmentMutations)。
+- Phase 1 保持同步持久化 + 超时降级;如需彻底隔离网络抖动,可在后续引入异步队列。
 
 #### 4.1.4 ToolResult 附件卸载 (L7)
 
-在 `observeToolResults()` 中,除了现有的 `compactToolCallHistory()`,新增附件卸载:
+在 `observeToolResults(ctx, ...)` 中,除了现有的 `compactToolCallHistory()`,新增附件卸载:
 
 ```go
 // internal/agent/domain/react/observe.go — 新增
-func (e *ReactEngine) compactToolResultAttachments(state *TaskState, results []ToolResult) {
-    if e.attachmentPersister == nil || state == nil {
+func (e *ReactEngine) compactToolResultAttachments(ctx context.Context, state *TaskState, results []ToolResult) {
+    if state == nil {
         return
     }
-    // 对最新一批 ToolResult 中的附件:
-    // 如果 state.Attachments 已持有该附件的 URI 版本,
-    // 则清空 ToolResult.Attachments[name].Data,只保留 URI 引用。
-    // 这避免了同一份 base64 在 state.Attachments 和 ToolResult.Attachments 中双重驻留。
-    for i, result := range results {
-        if len(result.Attachments) == 0 {
-            continue
-        }
-        compacted := make(map[string]ports.Attachment, len(result.Attachments))
-        for name, att := range result.Attachments {
-            if stateAtt, ok := state.Attachments[name]; ok && stateAtt.URI != "" {
-                // state 中已有 URI 版本,ToolResult 中只保留引用
-                att.Data = ""
-                att.URI = stateAtt.URI
-            }
-            compacted[name] = att
-        }
-        results[i].Attachments = compacted
-    }
+    // 1) 对本轮 ToolResult 中的 inline 附件先持久化(含超时),确保有 URI。
+    // 2) 仅基于附件自身的 URI 清空 Data,避免按 name 复用旧 URI 导致错配。
+    // 3) 原地更新 map,不要只替换 results[i].Attachments;
+    //    results 与 state.ToolResults 共享旧 map 引用,需要同时处理。
+    persistToolResultAttachments(e, ctx, results)
+    persistToolResultAttachments(e, ctx, state.ToolResults)
+    offloadToolResultAttachmentData(results)
+    offloadToolResultAttachmentData(state.ToolResults)
     // 同样清理历史消息中的 ToolResult.Attachments
     for idx := range state.Messages {
         msg := &state.Messages[idx]
         for j := range msg.ToolResults {
-            tr := &msg.ToolResults[j]
-            for name, att := range tr.Attachments {
-                if stateAtt, ok := state.Attachments[name]; ok && stateAtt.URI != "" {
-                    att.Data = ""
-                    att.URI = stateAtt.URI
-                    tr.Attachments[name] = att
-                }
-            }
+            offloadAttachmentMap(msg.ToolResults[j].Attachments)
         }
     }
 }
 ```
 
-调用时机 — 在 `observeToolResults()` 末尾,紧接 `compactToolCallHistory()`:
+调用时机 — 在 `observeToolResults(ctx, ...)` 末尾,紧接 `compactToolCallHistory()`:
 
 ```go
-func (e *ReactEngine) observeToolResults(state *TaskState, iteration int, results []ToolResult) {
+func (e *ReactEngine) observeToolResults(ctx context.Context, state *TaskState, iteration int, results []ToolResult) {
     // ... 现有逻辑 ...
     e.compactToolCallHistory(state, results)
-    e.compactToolResultAttachments(state, results)  // 新增 L7
+    e.compactToolResultAttachments(ctx, state, results)  // 新增 L7
     e.appendFeedbackSignals(state, results)
 }
 ```
+
+实现要点:
+- `persistToolResultAttachments` 必须原地更新附件 map,不可创建新 map 仅替换 results,否则 state.ToolResults 仍指向旧 map。
+- `offloadToolResultAttachmentData` 只依据附件自身 URI 清理 Data,避免按 name 绑定旧 URI。
+- 由于 `registerMessageAttachments` 在 observe 之后执行,卸载逻辑不能依赖 `state.Attachments` 作为是否持久化的判定。
+- `state.ToolResults` 可能进入序列化/回放链路,按持久化对象处理,确保仅保留 URI。
+- 如需严格防止“同名替换”误用旧 URI,可为 Attachment 增加 `Fingerprint`(payload hash),
+  在持久化时写入并随附件流转;仅当 name+fingerprint 匹配才做引用替换。
+
+```go
+func persistToolResultAttachments(e *ReactEngine, ctx context.Context, results []ToolResult) {
+    if e.attachmentPersister == nil || len(results) == 0 {
+        return
+    }
+    ctx = withAttachmentPersistTimeout(ctx, e.config.Attachments.PersistTimeout)
+    for i := range results {
+        for name, att := range results[i].Attachments {
+            results[i].Attachments[name] = e.persistAttachment(ctx, att)
+        }
+    }
+}
+
+func offloadToolResultAttachmentData(results []ToolResult) {
+    for i := range results {
+        offloadAttachmentMap(results[i].Attachments)
+    }
+}
+```
+
+#### 4.1.4.1 同名附件替换语义 (P2)
+- 默认语义: `state.Attachments[name]` 始终指向最新版本,历史 ToolResult 保留各自 URI。
+- 同名但内容变化时,禁止按 name 回填旧 URI;仅在 name+fingerprint 匹配时才允许替换引用。
+- `Fingerprint` 建议为 payload 的 sha256(或 Store key hash),随附件流转并参与卸载判断。
 
 #### 4.1.5 `AttachmentPersister` 的基础设施实现
 
@@ -456,7 +478,7 @@ func NewStorePersister(store *Store) *StorePersister {
     return &StorePersister{store: store}
 }
 
-func (p *StorePersister) Persist(att ports.Attachment) (ports.Attachment, error) {
+func (p *StorePersister) Persist(ctx context.Context, att ports.Attachment) (ports.Attachment, error) {
     // 1. 如果已有外部 URI (非 data:) 且无 inline 数据 → 原样返回
     if att.Data == "" && !isDataURI(att.URI) && att.URI != "" {
         return att, nil
@@ -602,22 +624,28 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
 
 ## 5. 实施计划
 
+### Progress (2026-01-31)
+- ✅ Batch 1-3: AttachmentPersister ctx + 异步持久化队列 + L6/L7 卸载已实现
+- ✅ Batch 4-5: SSE 事件回放类型兼容 + normalizeAttachmentPayload 仅做 DataCache 兜底
+- ✅ 新增测试覆盖: Async persister、ToolResult/state.ToolResults 卸载、SSE 缓存行为
+
 ### Batch 1: 基础设施 — AttachmentPersister
-1. 创建 `internal/agent/ports/attachment_store.go` (端口定义)
-2. 创建 `internal/attachments/persister.go` (基础设施实现)
+1. 创建 `internal/agent/ports/attachment_store.go` (端口定义,签名含 ctx/timeout)
+2. 创建 `internal/attachments/persister.go` (基础设施实现,使用 ctx)
 3. 单元测试: 各种 payload 格式 (base64, data URI, 空, 超大), 降级场景
 
 ### Batch 2: 域层集成 — CDN-First 持久化 + L6 卸载
 1. `ReactEngine` 注入 `AttachmentPersister`
-2. `applyAttachmentMutations()` 中调用 `persistAttachment()` (L6)
+2. `applyAttachmentMutations()` 中调用 `persistAttachment(ctx, ...)` (L6)
 3. `prepareUserTaskContext()` 中用户上传注入时持久化
 4. 单元测试 + 集成测试: 验证 state.Attachments 中 Data 已清空, URI 已填充
 
 ### Batch 3: L7 卸载 — ToolResult 附件压缩
 1. 新增 `compactToolResultAttachments()` 函数
-2. 在 `observeToolResults()` 中调用
-3. 验证历史消息中 ToolResult.Attachments 的 Data 已被清空
-4. 单元测试: 多轮工具调用后内存中不残留 base64
+2. 在 `observeToolResults(ctx, ...)` 中调用并传入 runtime ctx,同时覆盖 `results`/`state.ToolResults`/`Message.ToolResults`
+3. 保证原地更新 attachment map,避免只替换 results map 导致旧引用残留
+4. 验证历史消息与 `state.ToolResults` 中 ToolResult.Attachments 的 Data 已被清空
+5. 单元测试: 多轮工具调用后内存中不残留 base64
 
 ### Batch 4: SSE 修复 — 事件回放类型安全
 1. 修复 `sse_render.go` 的 force-include 类型断言 (支持 `map[string]any`)
@@ -662,7 +690,7 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
 工具生成 → Persist → CDN URI in state (Data="") → URI in event → SSE: 直接传递
                          ↑ 内存释放 ✅                  ↑ DB 精简 ✅
                          │
-                         └── compactToolResultAttachments: ToolResult 中也只有 URI
+                         └── compactToolResultAttachments: ToolResult/state.ToolResults 中也只有 URI
 
               → Lark: HTTP GET URI → bytes → upload → Lark
               → WeChat: HTTP GET URI → bytes → upload → WeChat
@@ -686,6 +714,7 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
 | CDN URL 不可达 | Lark/WeChat 通道 fallback 到 base64 解码 |
 | 迁移期新旧附件混合 | `normalizeAttachmentPayload` 保留对 base64 的处理能力 |
 | Presigned URL 过期 | `/api/attachments/` 代理端点重新生成 URL |
+| `/api/attachments/` 仅本地可读 | 通道侧统一用绝对 URL 或代理下载,避免跨进程/多节点不可达 |
 
 ---
 
@@ -695,7 +724,9 @@ func (g *WeChatGateway) sendAttachments(ctx context.Context, result *agent.TaskR
 - **卸载验证测试**: 多轮 artifacts_write 后验证:
   - `state.Attachments[name].Data == ""` (L6 卸载生效)
   - `state.Attachments[name].URI` 指向有效 Store URI
-  - 历史 `Message.ToolResults[n].Attachments[name].Data == ""` (L7 卸载生效)
+  - `state.ToolResults[n].Attachments[name].Data == ""` (L7 覆盖 state.ToolResults)
+  - 历史 `Message.ToolResults[n].Attachments[name].Data == ""` (L7 覆盖历史消息)
+  - 同名替换场景: name 相同但内容不同,URI 不应被旧值覆盖
   - 事件序列化后的 JSONB 大小 (应仅包含 URI 字符串)
 - **内存基准测试**: 10 次 artifacts_write (每次 50KB) 后,state 的内存占用应稳定 (不随附件数量线性增长)
 - **集成测试**: 端到端附件流转 (tool → persist → state → event → SSE/Lark)

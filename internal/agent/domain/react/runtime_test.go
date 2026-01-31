@@ -10,8 +10,6 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
-	"alex/internal/memory"
-	id "alex/internal/utils/id"
 
 	"github.com/stretchr/testify/require"
 )
@@ -73,16 +71,12 @@ func (c *collectingListener) collected() []AgentEvent {
 	return append([]AgentEvent(nil), c.events...)
 }
 
-type stubMemoryService struct {
-	entries []memory.Entry
+type stubIterationHook struct {
+	memoriesInjected int
 }
 
-func (s *stubMemoryService) Save(_ context.Context, entry memory.Entry) (memory.Entry, error) {
-	return entry, nil
-}
-
-func (s *stubMemoryService) Recall(_ context.Context, _ memory.Query) ([]memory.Entry, error) {
-	return s.entries, nil
+func (s *stubIterationHook) OnIteration(_ context.Context, _ *TaskState, _ int) agent.IterationHookResult {
+	return agent.IterationHookResult{MemoriesInjected: s.memoriesInjected}
 }
 
 func TestReactRuntimeFinalizeResultDecoratesWorkflowOnce(t *testing.T) {
@@ -164,36 +158,22 @@ func TestReactRuntimeCancellationEmitsCompletionEvent(t *testing.T) {
 	require.Contains(t, tracker.started, workflowNodeFinalize)
 }
 
-func TestReactRuntimeRefreshContextInjectsMemories(t *testing.T) {
+func TestReactRuntimeIterationHookEmitsRefreshEvent(t *testing.T) {
 	listener := &collectingListener{}
-	memSvc := &stubMemoryService{
-		entries: []memory.Entry{{Content: "Prefer YAML-only config paths."}},
-	}
+	hook := &stubIterationHook{memoriesInjected: 1}
 	engine := NewReactEngine(ReactEngineConfig{
 		Logger:        agent.NoopLogger{},
 		EventListener: listener,
-		MemoryRefresh: MemoryRefreshConfig{
-			Enabled:   true,
-			Interval:  1,
-			MaxTokens: 200,
-		},
-		MemoryService: memSvc,
+		IterationHook: hook,
 	})
 
 	state := &TaskState{
-		SessionID:   "s1",
-		RunID:       "r1",
-		ToolResults: []ToolResult{{Content: "config normalization"}},
+		SessionID: "s1",
+		RunID:     "r1",
 	}
-	ctx := id.WithUserID(context.Background(), "u1")
-	runtime := newReactRuntime(engine, ctx, "demo", state, Services{}, nil)
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
 
-	runtime.refreshContext(1)
-
-	require.Len(t, state.Messages, 1)
-	require.Equal(t, "system", state.Messages[0].Role)
-	require.Equal(t, ports.MessageSourceProactive, state.Messages[0].Source)
-	require.Contains(t, state.Messages[0].Content, "Proactive Memory Refresh")
+	runtime.applyIterationHook(1)
 
 	events := listener.collected()
 	found := false

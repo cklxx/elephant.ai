@@ -1,6 +1,7 @@
 package react
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -9,7 +10,6 @@ import (
 
 	"alex/internal/agent/ports"
 )
-
 
 // snapshotAttachments clones the attachment store and returns per-attachment
 // iteration indices for later reconciliation.
@@ -84,6 +84,7 @@ func sortedAttachmentKeys(attachments map[string]ports.Attachment) []string {
 // When persister is non-nil, inline payloads are eagerly written to durable
 // storage so that state.Attachments holds URI references instead of base64.
 func applyAttachmentMutationsToState(
+	ctx context.Context,
 	state *TaskState,
 	merged map[string]ports.Attachment,
 	mutations *attachmentMutations,
@@ -104,7 +105,7 @@ func applyAttachmentMutationsToState(
 		state.AttachmentIterations = make(map[string]int, len(mutations.replace))
 		for key, att := range mutations.replace {
 			att.Source = coalesceAttachmentSource(att.Source, defaultSource)
-			att = persistAttachmentIfNeeded(att, persister)
+			att = persistAttachmentIfNeeded(ctx, att, persister)
 			state.Attachments[key] = att
 			state.AttachmentIterations[key] = state.Iterations
 		}
@@ -129,7 +130,7 @@ func applyAttachmentMutationsToState(
 
 	for key, att := range merged {
 		att.Source = coalesceAttachmentSource(att.Source, defaultSource)
-		att = persistAttachmentIfNeeded(att, persister)
+		att = persistAttachmentIfNeeded(ctx, att, persister)
 		state.Attachments[key] = att
 		if state.AttachmentIterations == nil {
 			state.AttachmentIterations = make(map[string]int)
@@ -141,14 +142,21 @@ func applyAttachmentMutationsToState(
 // persistAttachmentIfNeeded writes the attachment's inline payload to durable
 // storage when a persister is available. On failure the original attachment is
 // returned unchanged for graceful degradation.
-func persistAttachmentIfNeeded(att ports.Attachment, persister ports.AttachmentPersister) ports.Attachment {
+func persistAttachmentIfNeeded(ctx context.Context, att ports.Attachment, persister ports.AttachmentPersister) ports.Attachment {
 	if persister == nil {
 		return att
 	}
 	if att.Data == "" && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:") {
-		return att
+		if att.Fingerprint != "" {
+			return att
+		}
+		persisted, err := persister.Persist(ctx, att)
+		if err != nil {
+			return att
+		}
+		return persisted
 	}
-	persisted, err := persister.Persist(att)
+	persisted, err := persister.Persist(ctx, att)
 	if err != nil {
 		return att
 	}
@@ -355,8 +363,8 @@ func ensureAttachmentStore(state *TaskState) {
 
 // registerMessageAttachments pulls attachments from a message into the shared
 // task store, returning true when the catalog changed.
-func registerMessageAttachments(state *TaskState, msg Message) bool {
-	if len(msg.Attachments) == 0 {
+func registerMessageAttachments(ctx context.Context, state *TaskState, msg *Message, persister ports.AttachmentPersister) bool {
+	if msg == nil || len(msg.Attachments) == 0 {
 		return false
 	}
 	ensureAttachmentStore(state)
@@ -372,9 +380,13 @@ func registerMessageAttachments(state *TaskState, msg Message) bool {
 		if att.Name == "" {
 			att.Name = placeholder
 		}
+		att = persistAttachmentIfNeeded(ctx, att, persister)
 		if existing, ok := state.Attachments[placeholder]; !ok || !attachmentsEqual(existing, att) {
 			state.Attachments[placeholder] = att
 			changed = true
+		}
+		if !attachmentsEqual(msg.Attachments[key], att) {
+			msg.Attachments[key] = att
 		}
 		if state.AttachmentIterations == nil {
 			state.AttachmentIterations = make(map[string]int)
@@ -389,6 +401,7 @@ func attachmentsEqual(a, b ports.Attachment) bool {
 		a.MediaType != b.MediaType ||
 		a.Data != b.Data ||
 		a.URI != b.URI ||
+		a.Fingerprint != b.Fingerprint ||
 		a.Source != b.Source ||
 		a.Description != b.Description ||
 		a.Kind != b.Kind ||
@@ -821,4 +834,3 @@ func stripAttachmentPlaceholders(answer string) string {
 	replaced := contentPlaceholderPattern.ReplaceAllString(normalized, "")
 	return strings.TrimSpace(replaced)
 }
-

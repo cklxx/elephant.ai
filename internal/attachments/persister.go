@@ -1,8 +1,13 @@
 package attachments
 
 import (
+	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"net/http"
+	"net/url"
+	"path"
 	"regexp"
 	"strings"
 
@@ -29,19 +34,29 @@ func NewStorePersister(store *Store) *StorePersister {
 
 // Persist writes the inline payload to the backing Store and returns a copy
 // with URI populated and Data cleared (subject to inline retention rules).
-func (p *StorePersister) Persist(att ports.Attachment) (ports.Attachment, error) {
+func (p *StorePersister) Persist(ctx context.Context, att ports.Attachment) (ports.Attachment, error) {
 	if p == nil || p.store == nil {
 		return att, nil
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return att, ctx.Err()
 	}
 
 	// Already has an external URI and no inline data → nothing to do.
 	if att.Data == "" && !isDataURI(att.URI) && strings.TrimSpace(att.URI) != "" {
+		if att.Fingerprint == "" {
+			att.Fingerprint = fingerprintFromURI(att.URI)
+		}
 		return att, nil
 	}
 
 	payload, mediaType := decodeAttachmentInline(att)
 	if len(payload) == 0 {
 		return att, nil
+	}
+
+	if att.Fingerprint == "" {
+		att.Fingerprint = attachmentFingerprint(payload)
 	}
 
 	uri, err := p.store.StoreBytes(att.Name, mediaType, payload)
@@ -126,6 +141,37 @@ func decodeDataURIPayload(uri string) ([]byte, string) {
 
 func isDataURI(uri string) bool {
 	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(uri)), "data:")
+}
+
+func attachmentFingerprint(payload []byte) string {
+	if len(payload) == 0 {
+		return ""
+	}
+	sum := sha256.Sum256(payload)
+	return hex.EncodeToString(sum[:])
+}
+
+func fingerprintFromURI(uri string) string {
+	trimmed := strings.TrimSpace(uri)
+	if trimmed == "" || strings.HasPrefix(strings.ToLower(trimmed), "data:") {
+		return ""
+	}
+	parsed, err := url.Parse(trimmed)
+	pathValue := trimmed
+	if err == nil && parsed.Path != "" {
+		pathValue = parsed.Path
+	}
+	base := strings.ToLower(strings.TrimSpace(path.Base(pathValue)))
+	if base == "" {
+		return ""
+	}
+	if !attachmentFilePattern.MatchString(base) {
+		return ""
+	}
+	if idx := strings.IndexByte(base, '.'); idx > 0 {
+		base = base[:idx]
+	}
+	return base
 }
 
 // shouldRetainInline returns true when the decoded payload is small enough

@@ -64,7 +64,7 @@ func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
 }
 
 func (e *ReactEngine) applyToolAttachmentMutations(
-	_ context.Context,
+	ctx context.Context,
 	state *TaskState,
 	call ToolCall,
 	attachments map[string]ports.Attachment,
@@ -90,7 +90,7 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 		attachmentsMu.Lock()
 		defer attachmentsMu.Unlock()
 	}
-	applyAttachmentMutationsToState(state, merged, mutations, call.Name, e.attachmentPersister)
+	applyAttachmentMutationsToState(ctx, state, merged, mutations, call.Name, e.attachmentPersister)
 
 	// Return persisted versions from state so callers (result.Attachments,
 	// buildToolMessages) carry URI references instead of inline base64.

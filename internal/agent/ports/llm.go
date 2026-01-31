@@ -118,6 +118,9 @@ type Attachment struct {
 	// URI is an absolute or data URI that can be used by clients to render
 	// the attachment without additional decoding.
 	URI string `json:"uri,omitempty"`
+	// Fingerprint is a stable hash of the attachment payload used to
+	// disambiguate same-name replacements across iterations.
+	Fingerprint string `json:"fingerprint,omitempty"`
 	// Source identifies where the attachment originated (tool name,
 	// `user_upload`, etc.).
 	Source string `json:"source,omitempty"`

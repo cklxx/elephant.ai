@@ -69,13 +69,13 @@ func (e *stubSubtaskEvent) GetAgentLevel() agent.AgentLevel {
 	}
 	return agent.LevelSubagent
 }
-func (e *stubSubtaskEvent) GetSessionID() string      { return e.original.GetSessionID() }
-func (e *stubSubtaskEvent) GetRunID() string           { return e.original.GetRunID() }
-func (e *stubSubtaskEvent) GetParentRunID() string     { return e.original.GetParentRunID() }
-func (e *stubSubtaskEvent) GetCorrelationID() string   { return e.original.GetCorrelationID() }
-func (e *stubSubtaskEvent) GetCausationID() string     { return e.original.GetCausationID() }
-func (e *stubSubtaskEvent) GetEventID() string         { return e.original.GetEventID() }
-func (e *stubSubtaskEvent) GetSeq() uint64             { return e.original.GetSeq() }
+func (e *stubSubtaskEvent) GetSessionID() string     { return e.original.GetSessionID() }
+func (e *stubSubtaskEvent) GetRunID() string         { return e.original.GetRunID() }
+func (e *stubSubtaskEvent) GetParentRunID() string   { return e.original.GetParentRunID() }
+func (e *stubSubtaskEvent) GetCorrelationID() string { return e.original.GetCorrelationID() }
+func (e *stubSubtaskEvent) GetCausationID() string   { return e.original.GetCausationID() }
+func (e *stubSubtaskEvent) GetEventID() string       { return e.original.GetEventID() }
+func (e *stubSubtaskEvent) GetSeq() uint64           { return e.original.GetSeq() }
 func (e *stubSubtaskEvent) SubtaskDetails() agent.SubtaskMetadata {
 	return e.meta
 }
@@ -987,13 +987,9 @@ func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
 	}
 }
 
-func TestSanitizeAttachmentsForStreamPersistsHTMLToStore(t *testing.T) {
+func TestSanitizeAttachmentsForStreamCachesHTML(t *testing.T) {
 	cache := NewDataCache(4, time.Minute)
 	sent := newStringLRU(sseSentAttachmentCacheSize)
-	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("failed to create attachment store: %v", err)
-	}
 	attachments := map[string]ports.Attachment{
 		"game.html": {
 			Name:      "game.html",
@@ -1002,16 +998,16 @@ func TestSanitizeAttachmentsForStreamPersistsHTMLToStore(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, store, false)
+	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, nil, false)
 	if len(sanitized) != 1 {
 		t.Fatalf("expected 1 sanitized attachment, got %d", len(sanitized))
 	}
 	att := sanitized["game.html"]
-	if att.URI == "" || !strings.Contains(att.URI, "/api/attachments/") {
-		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", att.URI)
+	if att.URI == "" || !strings.Contains(att.URI, "/api/data/") {
+		t.Fatalf("expected cached URI pointing to data endpoint, got %q", att.URI)
 	}
-	if att.Data != "" {
-		t.Fatalf("expected data to be cleared after persistence")
+	if att.Data == "" {
+		t.Fatalf("expected inline data retained for HTML")
 	}
 	if att.PreviewProfile != "document.html" {
 		t.Fatalf("expected HTML preview profile, got %q", att.PreviewProfile)
@@ -1023,22 +1019,18 @@ func TestSanitizeAttachmentsForStreamPersistsHTMLToStore(t *testing.T) {
 
 func TestNormalizeAttachmentPayloadExternalizesHTML(t *testing.T) {
 	cache := NewDataCache(4, time.Minute)
-	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("failed to create attachment store: %v", err)
-	}
 	att := ports.Attachment{
 		Name:      "demo.html",
 		MediaType: "text/html",
 		Data:      base64.StdEncoding.EncodeToString([]byte("<html><body>ok</body></html>")),
 	}
 
-	out := normalizeAttachmentPayload(att, cache, store)
-	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
-		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", out.URI)
+	out := normalizeAttachmentPayload(att, cache, nil)
+	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
+		t.Fatalf("expected cached URI pointing to data endpoint, got %q", out.URI)
 	}
-	if out.Data != "" {
-		t.Fatalf("expected data to be cleared after persistence")
+	if out.Data == "" {
+		t.Fatalf("expected inline data retained for HTML")
 	}
 	if out.PreviewProfile != "document.html" {
 		t.Fatalf("expected HTML preview profile, got %q", out.PreviewProfile)
@@ -1158,12 +1150,8 @@ func TestBuildEventDataForceIncludesAttachmentsOnTerminalFinal(t *testing.T) {
 	}
 }
 
-func TestNormalizeAttachmentPayloadPersistsImageToStore(t *testing.T) {
+func TestNormalizeAttachmentPayloadCachesImagePayload(t *testing.T) {
 	cache := NewDataCache(4, time.Minute)
-	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("failed to create attachment store: %v", err)
-	}
 
 	pngData := []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A} // PNG header
 	att := ports.Attachment{
@@ -1172,24 +1160,20 @@ func TestNormalizeAttachmentPayloadPersistsImageToStore(t *testing.T) {
 		Data:      base64.StdEncoding.EncodeToString(pngData),
 	}
 
-	out := normalizeAttachmentPayload(att, cache, store)
-	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
-		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", out.URI)
+	out := normalizeAttachmentPayload(att, cache, nil)
+	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
+		t.Fatalf("expected cached URI pointing to data endpoint, got %q", out.URI)
 	}
 	if out.Data != "" {
-		t.Fatalf("expected binary data to be cleared after persistence, got non-empty")
+		t.Fatalf("expected binary data to be cleared after caching, got non-empty")
 	}
 	if out.MediaType != "image/png" {
 		t.Fatalf("expected media type to be preserved, got %q", out.MediaType)
 	}
 }
 
-func TestNormalizeAttachmentPayloadPersistsDataURIToStore(t *testing.T) {
+func TestNormalizeAttachmentPayloadCachesDataURI(t *testing.T) {
 	cache := NewDataCache(4, time.Minute)
-	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("failed to create attachment store: %v", err)
-	}
 
 	pdfData := []byte("%PDF-1.4 fake content")
 	dataURI := "data:application/pdf;base64," + base64.StdEncoding.EncodeToString(pdfData)
@@ -1198,12 +1182,12 @@ func TestNormalizeAttachmentPayloadPersistsDataURIToStore(t *testing.T) {
 		URI:  dataURI,
 	}
 
-	out := normalizeAttachmentPayload(att, cache, store)
-	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
-		t.Fatalf("expected stored URI pointing to attachments endpoint, got %q", out.URI)
+	out := normalizeAttachmentPayload(att, cache, nil)
+	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
+		t.Fatalf("expected cached URI pointing to data endpoint, got %q", out.URI)
 	}
 	if out.Data != "" {
-		t.Fatalf("expected data to be cleared after persistence")
+		t.Fatalf("expected data to be cleared after caching")
 	}
 	if out.MediaType != "application/pdf" {
 		t.Fatalf("expected media type to be set from data URI, got %q", out.MediaType)
@@ -1225,12 +1209,8 @@ func TestNormalizeAttachmentPayloadFallsBackToCacheWithoutStore(t *testing.T) {
 	}
 }
 
-func TestPersistToStoreRetainsInlineTextPayload(t *testing.T) {
-	store, err := NewAttachmentStore(attachments.StoreConfig{Dir: t.TempDir()})
-	if err != nil {
-		t.Fatalf("failed to create attachment store: %v", err)
-	}
-
+func TestNormalizeAttachmentPayloadRetainsInlineTextPayload(t *testing.T) {
+	cache := NewDataCache(4, time.Minute)
 	content := []byte("small text content")
 	att := ports.Attachment{
 		Name:      "notes.txt",
@@ -1238,12 +1218,9 @@ func TestPersistToStoreRetainsInlineTextPayload(t *testing.T) {
 		Data:      base64.StdEncoding.EncodeToString(content),
 	}
 
-	out, ok := persistToStore(att, store)
-	if !ok {
-		t.Fatalf("expected persistToStore to succeed")
-	}
-	if out.URI == "" || !strings.Contains(out.URI, "/api/attachments/") {
-		t.Fatalf("expected stored URI, got %q", out.URI)
+	out := normalizeAttachmentPayload(att, cache, nil)
+	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
+		t.Fatalf("expected cached URI, got %q", out.URI)
 	}
 	// Small text payloads should be retained inline.
 	if out.Data == "" {

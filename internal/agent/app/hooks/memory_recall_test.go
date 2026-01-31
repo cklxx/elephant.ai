@@ -37,14 +37,14 @@ func (m *mockMemoryService) Save(_ context.Context, entry memory.Entry) (memory.
 }
 
 func TestMemoryRecallHook_Name(t *testing.T) {
-	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{})
 	if hook.Name() != "memory_recall" {
 		t.Errorf("expected name 'memory_recall', got %q", hook.Name())
 	}
 }
 
 func TestMemoryRecallHook_OnTaskStart_NilService(t *testing.T) {
-	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+	hook := NewMemoryRecallHook(nil, nil, MemoryRecallConfig{})
 	result := hook.OnTaskStart(context.Background(), TaskInfo{TaskInput: "test"})
 	if result != nil {
 		t.Errorf("expected nil injections with nil service, got %v", result)
@@ -53,7 +53,7 @@ func TestMemoryRecallHook_OnTaskStart_NilService(t *testing.T) {
 
 func TestMemoryRecallHook_OnTaskStart_EmptyInput(t *testing.T) {
 	svc := &mockMemoryService{}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{TaskInput: ""})
 	if result != nil {
@@ -71,7 +71,7 @@ func TestMemoryRecallHook_OnTaskStart_SuccessfulRecall(t *testing.T) {
 			{Key: "2", Content: "Database migration plan", Keywords: []string{"database", "migration"}},
 		},
 	}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true, MaxRecalls: 3})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{MaxRecalls: 3})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "deploy the new database migration",
@@ -115,7 +115,7 @@ func TestMemoryRecallHook_OnTaskStart_SuccessfulRecall(t *testing.T) {
 
 func TestMemoryRecallHook_OnTaskStart_NoResults(t *testing.T) {
 	svc := &mockMemoryService{recallResult: []memory.Entry{}}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "test query",
@@ -130,8 +130,6 @@ func TestMemoryRecallHook_OnTaskStart_NoResults(t *testing.T) {
 func TestMemoryRecallHook_OnTaskStart_GroupRecall(t *testing.T) {
 	svc := &mockMemoryService{recallResult: []memory.Entry{{Key: "1", Content: "group memory"}}}
 	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{
-		Enabled:            true,
-		AutoRecall:         true,
 		MaxRecalls:         5,
 		CaptureGroupMemory: true,
 	})
@@ -156,7 +154,7 @@ func TestMemoryRecallHook_OnTaskStart_GroupRecall(t *testing.T) {
 
 func TestMemoryRecallHook_OnTaskStart_RecallError(t *testing.T) {
 	svc := &mockMemoryService{recallErr: errors.New("store unavailable")}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
 
 	result := hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "test query",
@@ -168,25 +166,25 @@ func TestMemoryRecallHook_OnTaskStart_RecallError(t *testing.T) {
 	}
 }
 
-func TestMemoryRecallHook_OnTaskStart_DefaultUserID(t *testing.T) {
+func TestMemoryRecallHook_OnTaskStart_MissingUserID(t *testing.T) {
 	svc := &mockMemoryService{recallResult: []memory.Entry{
 		{Key: "1", Content: "test memory"},
 	}}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
 
 	hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "some query",
 		UserID:    "", // empty user ID
 	})
 
-	if svc.lastQuery.UserID != "default" {
-		t.Errorf("expected default userID 'default', got %q", svc.lastQuery.UserID)
+	if svc.recallCalled != 0 {
+		t.Fatalf("expected recall to be skipped when userID missing, got %d", svc.recallCalled)
 	}
 }
 
 func TestMemoryRecallHook_OnTaskStart_RecallWithoutKeywords(t *testing.T) {
 	svc := &mockMemoryService{recallResult: []memory.Entry{{Key: "1", Content: "note"}}}
-	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{})
 
 	hook.OnTaskStart(context.Background(), TaskInfo{
 		TaskInput: "please help me with this",

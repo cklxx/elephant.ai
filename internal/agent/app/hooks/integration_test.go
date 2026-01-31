@@ -31,8 +31,8 @@ func TestIntegration_FullLifecycle(t *testing.T) {
 
 	// Build registry with both hooks
 	registry := hooks.NewRegistry(nil)
-	registry.Register(hooks.NewMemoryRecallHook(svc, nil, hooks.MemoryRecallConfig{Enabled: true, AutoRecall: true, MaxRecalls: 5}))
-	registry.Register(hooks.NewMemoryCaptureHook(svc, nil, hooks.MemoryCaptureConfig{Enabled: true, AutoCapture: true, DedupeThreshold: 0.99}))
+	registry.Register(hooks.NewMemoryRecallHook(svc, nil, hooks.MemoryRecallConfig{MaxRecalls: 5}))
+	registry.Register(hooks.NewMemoryCaptureHook(svc, nil, hooks.MemoryCaptureConfig{DedupeThreshold: 0.99}))
 
 	if registry.HookCount() != 2 {
 		t.Fatalf("expected 2 hooks, got %d", registry.HookCount())
@@ -135,7 +135,7 @@ func TestIntegration_CaptureSkipsConversationOnly(t *testing.T) {
 	svc := memory.NewService(store)
 
 	registry := hooks.NewRegistry(nil)
-	registry.Register(hooks.NewMemoryCaptureHook(svc, nil, hooks.MemoryCaptureConfig{Enabled: true, AutoCapture: true}))
+	registry.Register(hooks.NewMemoryCaptureHook(svc, nil, hooks.MemoryCaptureConfig{}))
 
 	// Complete a task with NO tool calls (pure conversation)
 	registry.RunOnTaskCompleted(context.Background(), hooks.TaskResultInfo{
@@ -172,7 +172,7 @@ func TestIntegration_RecallWithNoExistingMemories(t *testing.T) {
 	svc := memory.NewService(store)
 
 	registry := hooks.NewRegistry(nil)
-	registry.Register(hooks.NewMemoryRecallHook(svc, nil, hooks.MemoryRecallConfig{Enabled: true, AutoRecall: true, MaxRecalls: 5}))
+	registry.Register(hooks.NewMemoryRecallHook(svc, nil, hooks.MemoryRecallConfig{MaxRecalls: 5}))
 
 	injections := registry.RunOnTaskStart(context.Background(), hooks.TaskInfo{
 		TaskInput: "build a new feature",
@@ -210,7 +210,7 @@ func TestIntegration_MultipleHooksOrdering(t *testing.T) {
 	}
 
 	registry := hooks.NewRegistry(nil)
-	registry.Register(hooks.NewMemoryRecallHook(svc, nil, hooks.MemoryRecallConfig{Enabled: true, AutoRecall: true, MaxRecalls: 5}))
+	registry.Register(hooks.NewMemoryRecallHook(svc, nil, hooks.MemoryRecallConfig{MaxRecalls: 5}))
 	registry.Register(customHook)
 
 	injections := registry.RunOnTaskStart(context.Background(), hooks.TaskInfo{

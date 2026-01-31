@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"time"
 
 	core "alex/internal/agent/ports"
@@ -17,6 +18,17 @@ type ServiceBundle struct {
 	ToolLimiter  tools.ToolExecutionLimiter
 	Parser       tools.FunctionCallParser
 	Context      ContextManager
+}
+
+// IterationHook allows application-layer logic to run on each ReAct iteration.
+// Implementations may mutate task state and return metadata for event emission.
+type IterationHook interface {
+	OnIteration(ctx context.Context, state *TaskState, iteration int) IterationHookResult
+}
+
+// IterationHookResult reports side effects from an iteration hook.
+type IterationHookResult struct {
+	MemoriesInjected int
 }
 
 // ExecutionEnvironment contains the prepared state for running a task.

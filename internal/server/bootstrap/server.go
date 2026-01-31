@@ -83,7 +83,9 @@ func RunServer(observabilityConfigPath string) error {
 				attachmentStore = store
 				migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
 				container.AgentCoordinator.SetAttachmentMigrator(migrator)
-				container.AgentCoordinator.SetAttachmentPersister(attachments.NewStorePersister(store))
+				container.AgentCoordinator.SetAttachmentPersister(
+					attachments.NewAsyncStorePersister(store, attachments.WithAsyncPersistLogger(logger)),
+				)
 				return nil
 			},
 		},
@@ -176,17 +178,6 @@ func RunServer(observabilityConfigPath string) error {
 	defer subsystems.StopAll()
 
 	gatewayStages := []BootstrapStage{
-		{
-			Name: "wechat-gateway", Required: false,
-			Init: func() error {
-				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "wechat",
-					startFn: func(ctx context.Context) (func(), error) {
-						return startWeChatGateway(ctx, config, container, logger)
-					},
-				})
-			},
-		},
 		{
 			Name: "lark-gateway", Required: false,
 			Init: func() error {

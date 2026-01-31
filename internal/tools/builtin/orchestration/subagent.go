@@ -685,6 +685,7 @@ func attachmentsEqual(a, b ports.Attachment) bool {
 		a.MediaType != b.MediaType ||
 		a.Data != b.Data ||
 		a.URI != b.URI ||
+		a.Fingerprint != b.Fingerprint ||
 		a.Source != b.Source ||
 		a.Description != b.Description ||
 		a.Kind != b.Kind ||

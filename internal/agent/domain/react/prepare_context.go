@@ -9,13 +9,13 @@ import (
 // prepareUserTaskContext mutates the provided task state so it is ready for a new
 // user task turn: system prompt anchored, user task appended, and attachments
 // catalogued without rewriting existing history.
-func (e *ReactEngine) prepareUserTaskContext(_ context.Context, task string, state *TaskState) {
+func (e *ReactEngine) prepareUserTaskContext(ctx context.Context, task string, state *TaskState) {
 	ensureAttachmentStore(state)
 	offloadMessageThinking(state)
 
 	attachmentsChanged := false
 	for idx := range state.Messages {
-		if registerMessageAttachments(state, state.Messages[idx]) {
+		if registerMessageAttachments(ctx, state, &state.Messages[idx], e.attachmentPersister) {
 			attachmentsChanged = true
 		}
 	}
@@ -53,7 +53,7 @@ func (e *ReactEngine) prepareUserTaskContext(_ context.Context, task string, sta
 	}
 
 	state.Messages = append(state.Messages, userMessage)
-	if registerMessageAttachments(state, userMessage) {
+	if registerMessageAttachments(ctx, state, &state.Messages[len(state.Messages)-1], e.attachmentPersister) {
 		e.updateAttachmentCatalogMessage(state)
 	}
 }

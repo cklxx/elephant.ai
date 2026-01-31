@@ -64,3 +64,12 @@ func WithExternalExecutor(executor agent.ExternalAgentExecutor) CoordinatorOptio
 		}
 	}
 }
+
+// WithIterationHook provides an iteration hook for mid-loop behavior.
+func WithIterationHook(hook agent.IterationHook) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if hook != nil {
+			c.iterationHook = hook
+		}
+	}
+}

@@ -9,7 +9,6 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	tools "alex/internal/agent/ports/tools"
 	materialports "alex/internal/materials/ports"
-	"alex/internal/memory"
 )
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
@@ -24,8 +23,7 @@ type ReactEngine struct {
 	attachmentPersister ports.AttachmentPersister // Optional: eagerly persists inline attachment payloads
 	workflow            WorkflowTracker
 	seq                 domain.SeqCounter // Monotonic event sequence per run
-	memoryRefresh       MemoryRefreshConfig
-	memoryService       memory.Service
+	iterationHook       agent.IterationHook
 
 	// Background task support: executor closure for internal subagent delegation.
 	backgroundExecutor func(ctx context.Context, prompt, sessionID string,
@@ -86,13 +84,6 @@ type CompletionDefaults struct {
 	StopSequences []string
 }
 
-// MemoryRefreshConfig configures mid-loop memory refresh.
-type MemoryRefreshConfig struct {
-	Enabled   bool
-	Interval  int
-	MaxTokens int
-}
-
 // ReactEngineConfig captures the dependencies required to construct a ReactEngine.
 type ReactEngineConfig struct {
 	MaxIterations       int
@@ -104,6 +95,7 @@ type ReactEngineConfig struct {
 	AttachmentMigrator  materialports.Migrator
 	AttachmentPersister ports.AttachmentPersister // Optional: eagerly persists attachment payloads to a durable store.
 	Workflow            WorkflowTracker
+	IterationHook       agent.IterationHook
 
 	// BackgroundExecutor is a closure that delegates to coordinator.ExecuteTask
 	// for background subagent tasks. When nil, bg_dispatch is unavailable.
@@ -112,7 +104,4 @@ type ReactEngineConfig struct {
 	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
 	// Optional; when nil only "internal" agent type is supported.
 	ExternalExecutor agent.ExternalAgentExecutor
-
-	MemoryRefresh MemoryRefreshConfig
-	MemoryService memory.Service
 }

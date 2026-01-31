@@ -408,7 +408,7 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	if !ok {
 		t.Fatal("expected memory policy on context")
 	}
-	if !policy.Enabled || !policy.AutoRecall || !policy.AutoCapture {
+	if !policy.Enabled || !policy.AutoRecall || !policy.AutoCapture || !policy.CaptureMessages || !policy.RefreshEnabled {
 		t.Fatalf("expected memory policy enabled, got %+v", policy)
 	}
 }

@@ -1,6 +1,7 @@
 package attachments
 
 import (
+	"context"
 	"encoding/base64"
 	"os"
 	"path/filepath"
@@ -27,7 +28,7 @@ func TestStorePersister_AlreadyHasExternalURI(t *testing.T) {
 		MediaType: "image/png",
 		URI:       "https://cdn.example.com/abc.png",
 	}
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,13 +51,16 @@ func TestStorePersister_Base64Data(t *testing.T) {
 		Data:      encoded,
 	}
 
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	if got.URI == "" {
 		t.Fatal("URI should be populated after persist")
+	}
+	if got.Fingerprint == "" {
+		t.Fatal("Fingerprint should be populated after persist")
 	}
 	if !strings.HasPrefix(got.URI, "/api/attachments/") {
 		t.Errorf("URI should start with /api/attachments/, got %q", got.URI)
@@ -78,7 +82,7 @@ func TestStorePersister_DataURI(t *testing.T) {
 		URI:       "data:application/pdf;base64," + encoded,
 	}
 
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -102,7 +106,7 @@ func TestStorePersister_SmallTextRetainsData(t *testing.T) {
 		Data:      encoded,
 	}
 
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +136,7 @@ func TestStorePersister_LargeTextClearsData(t *testing.T) {
 		Data:      encoded,
 	}
 
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -152,7 +156,7 @@ func TestStorePersister_EmptyPayload(t *testing.T) {
 		MediaType: "text/plain",
 	}
 
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -170,7 +174,7 @@ func TestStorePersister_NilStore(t *testing.T) {
 		Data:      base64.StdEncoding.EncodeToString([]byte("test")),
 	}
 
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -192,7 +196,7 @@ func TestStorePersister_FileWritten(t *testing.T) {
 		Data:      encoded,
 	}
 
-	got, err := p.Persist(att)
+	got, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -220,13 +224,13 @@ func TestStorePersister_Idempotent(t *testing.T) {
 		Data:      encoded,
 	}
 
-	first, err := p.Persist(att)
+	first, err := p.Persist(context.Background(), att)
 	if err != nil {
 		t.Fatalf("first persist: %v", err)
 	}
 
 	// Persist the result again → should be a no-op (already has URI, no Data).
-	second, err := p.Persist(first)
+	second, err := p.Persist(context.Background(), first)
 	if err != nil {
 		t.Fatalf("second persist: %v", err)
 	}

@@ -22,15 +22,13 @@ type MemoryRecallHook struct {
 	memoryService memory.Service
 	maxRecalls    int
 	captureGroup  bool
-	enabled       bool
 	logger        logging.Logger
 }
 
 // MemoryRecallConfig configures the memory recall hook.
 type MemoryRecallConfig struct {
-	Enabled    bool // Enable auto recall
-	AutoRecall bool // Enable recall specifically
-	MaxRecalls int  // Maximum memories to recall (default: 5)
+	// MaxRecalls limits the number of memories to recall (default: 5).
+	MaxRecalls int
 	// CaptureGroupMemory enables recalling group-scoped memories when available.
 	CaptureGroupMemory bool
 }
@@ -41,15 +39,10 @@ func NewMemoryRecallHook(svc memory.Service, logger logging.Logger, cfg MemoryRe
 	if maxRecalls <= 0 {
 		maxRecalls = defaultMaxRecalls
 	}
-	enabled := true
-	if !cfg.Enabled || !cfg.AutoRecall {
-		enabled = false
-	}
 	return &MemoryRecallHook{
 		memoryService: svc,
 		maxRecalls:    maxRecalls,
 		captureGroup:  cfg.CaptureGroupMemory,
-		enabled:       enabled,
 		logger:        logging.OrNop(logger),
 	}
 }
@@ -58,7 +51,7 @@ func (h *MemoryRecallHook) Name() string { return memoryRecallHookName }
 
 // OnTaskStart recalls memories matching the task input and returns them as injections.
 func (h *MemoryRecallHook) OnTaskStart(ctx context.Context, task TaskInfo) []Injection {
-	if h.memoryService == nil || !h.enabled {
+	if h.memoryService == nil {
 		return nil
 	}
 	policy := appcontext.ResolveMemoryPolicy(ctx)
@@ -70,8 +63,9 @@ func (h *MemoryRecallHook) OnTaskStart(ctx context.Context, task TaskInfo) []Inj
 	}
 	trimmedInput := strings.TrimSpace(task.TaskInput)
 	userID := task.UserID
-	if userID == "" {
-		userID = "default"
+	if strings.TrimSpace(userID) == "" {
+		h.logger.Debug("Memory recall skipped: missing user_id")
+		return nil
 	}
 
 	keywords := extractKeywords(trimmedInput)

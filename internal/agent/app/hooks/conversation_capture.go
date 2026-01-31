@@ -21,7 +21,6 @@ const (
 // for pure conversational interactions (no tool calls).
 type ConversationCaptureHook struct {
 	memoryService      memory.Service
-	enabled            bool
 	captureGroupMemory bool
 	dedupeThreshold    float64
 	logger             logging.Logger
@@ -29,22 +28,18 @@ type ConversationCaptureHook struct {
 
 // ConversationCaptureConfig controls capture behavior for chat turns.
 type ConversationCaptureConfig struct {
-	Enabled            bool
-	CaptureMessages    bool
 	CaptureGroupMemory bool
 	DedupeThreshold    float64
 }
 
 // NewConversationCaptureHook creates a hook for conversation-only capture.
 func NewConversationCaptureHook(svc memory.Service, logger logging.Logger, cfg ConversationCaptureConfig) *ConversationCaptureHook {
-	enabled := cfg.Enabled && cfg.CaptureMessages
 	dedupe := cfg.DedupeThreshold
 	if dedupe <= 0 {
 		dedupe = 0.85
 	}
 	return &ConversationCaptureHook{
 		memoryService:      svc,
-		enabled:            enabled,
 		captureGroupMemory: cfg.CaptureGroupMemory,
 		dedupeThreshold:    dedupe,
 		logger:             logging.OrNop(logger),
@@ -60,7 +55,7 @@ func (h *ConversationCaptureHook) OnTaskStart(_ context.Context, _ TaskInfo) []I
 
 // OnTaskCompleted captures pure conversational turns as chat_turn memories.
 func (h *ConversationCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResultInfo) error {
-	if h.memoryService == nil || !h.enabled {
+	if h.memoryService == nil {
 		return nil
 	}
 	policy, hasPolicy := appcontext.MemoryPolicyFromContext(ctx)

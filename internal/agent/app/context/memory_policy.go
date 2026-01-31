@@ -6,10 +6,13 @@ type memoryPolicyKey struct{}
 
 // MemoryPolicy controls per-request memory behavior overrides.
 type MemoryPolicy struct {
-	Enabled         bool
-	AutoRecall      bool
-	AutoCapture     bool
-	CaptureMessages bool
+	Enabled          bool
+	AutoRecall       bool
+	AutoCapture      bool
+	CaptureMessages  bool
+	RefreshEnabled   bool
+	RefreshInterval  int
+	RefreshMaxTokens int
 }
 
 // WithMemoryPolicy attaches a MemoryPolicy to the context.
@@ -32,8 +35,10 @@ func ResolveMemoryPolicy(ctx context.Context) MemoryPolicy {
 		return policy
 	}
 	return MemoryPolicy{
-		Enabled:     true,
-		AutoRecall:  true,
-		AutoCapture: true,
+		Enabled:         true,
+		AutoRecall:      true,
+		AutoCapture:     true,
+		CaptureMessages: false,
+		RefreshEnabled:  true,
 	}
 }

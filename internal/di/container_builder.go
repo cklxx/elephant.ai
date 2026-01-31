@@ -140,6 +140,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	tracker := newMCPInitializationTracker()
 
 	hookRegistry := b.buildHookRegistry(memoryService)
+	iterationHook := b.buildIterationHook(memoryService)
 
 	coordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
@@ -172,6 +173,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 			Proactive:           b.config.Proactive,
 		},
 		agentcoordinator.WithHookRegistry(hookRegistry),
+		agentcoordinator.WithIterationHook(iterationHook),
 		agentcoordinator.WithMemoryService(memoryService),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 	)
@@ -470,46 +472,31 @@ func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) 
 func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hooks.Registry {
 	registry := hooks.NewRegistry(b.logger)
 	if !b.config.Proactive.Enabled {
-		b.logger.Info("Proactive hooks disabled by config")
-		return registry
+		b.logger.Info("Non-memory proactive hooks disabled by config")
 	}
 
-	// Register memory recall hook (pre-task auto-recall)
-	if memoryService != nil && b.config.Proactive.Memory.Enabled {
+	// Register memory hooks (behavior gated by MemoryPolicy, not config).
+	if memoryService != nil {
 		recallHook := hooks.NewMemoryRecallHook(memoryService, b.logger, hooks.MemoryRecallConfig{
-			Enabled:            b.config.Proactive.Memory.Enabled,
-			AutoRecall:         b.config.Proactive.Memory.AutoRecall,
 			MaxRecalls:         b.config.Proactive.Memory.MaxRecalls,
 			CaptureGroupMemory: b.config.Proactive.Memory.CaptureGroupMemory,
 		})
-		if b.config.Proactive.Memory.AutoRecall {
-			registry.Register(recallHook)
-		}
+		registry.Register(recallHook)
 
-		// Register memory capture hook (post-task auto-capture)
 		captureHook := hooks.NewMemoryCaptureHook(memoryService, b.logger, hooks.MemoryCaptureConfig{
-			Enabled:         b.config.Proactive.Memory.Enabled,
-			AutoCapture:     b.config.Proactive.Memory.AutoCapture,
-			CaptureMessages: b.config.Proactive.Memory.CaptureMessages,
 			DedupeThreshold: b.config.Proactive.Memory.DedupeThreshold,
 		})
-		if b.config.Proactive.Memory.AutoCapture {
-			registry.Register(captureHook)
-		}
+		registry.Register(captureHook)
 
-		if b.config.Proactive.Memory.AutoCapture && b.config.Proactive.Memory.CaptureMessages {
-			convHook := hooks.NewConversationCaptureHook(memoryService, b.logger, hooks.ConversationCaptureConfig{
-				Enabled:            b.config.Proactive.Memory.Enabled,
-				CaptureMessages:    b.config.Proactive.Memory.CaptureMessages,
-				CaptureGroupMemory: b.config.Proactive.Memory.CaptureGroupMemory,
-				DedupeThreshold:    b.config.Proactive.Memory.DedupeThreshold,
-			})
-			registry.Register(convHook)
-		}
+		convHook := hooks.NewConversationCaptureHook(memoryService, b.logger, hooks.ConversationCaptureConfig{
+			CaptureGroupMemory: b.config.Proactive.Memory.CaptureGroupMemory,
+			DedupeThreshold:    b.config.Proactive.Memory.DedupeThreshold,
+		})
+		registry.Register(convHook)
 	}
 
 	// Register OKR context hook (pre-task OKR injection)
-	if b.config.Proactive.OKR.Enabled {
+	if b.config.Proactive.Enabled && b.config.Proactive.OKR.Enabled {
 		okrCfg := okrtools.DefaultOKRConfig()
 		if goalsRoot := b.config.Proactive.OKR.GoalsRoot; goalsRoot != "" {
 			okrCfg.GoalsRoot = resolveStorageDir(goalsRoot, okrCfg.GoalsRoot)
@@ -524,6 +511,16 @@ func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hook
 
 	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())
 	return registry
+}
+
+func (b *containerBuilder) buildIterationHook(memoryService memory.Service) agent.IterationHook {
+	if memoryService == nil {
+		return nil
+	}
+	return hooks.NewIterationRefreshHook(memoryService, b.logger, hooks.IterationRefreshConfig{
+		DefaultInterval: b.config.Proactive.Memory.RefreshInterval,
+		MaxTokens:       b.config.Proactive.Memory.MaxRefreshTokens,
+	})
 }
 
 func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService memory.Service) (*toolregistry.Registry, error) {

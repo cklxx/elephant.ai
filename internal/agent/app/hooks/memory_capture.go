@@ -27,34 +27,23 @@ const (
 // tasks and writes them to the memory store for future recall.
 type MemoryCaptureHook struct {
 	memoryService   memory.Service
-	enabled         bool
-	captureMessages bool
 	dedupeThreshold float64
 	logger          logging.Logger
 }
 
 // MemoryCaptureConfig controls auto-capture behaviour.
 type MemoryCaptureConfig struct {
-	Enabled         bool
-	AutoCapture     bool
-	CaptureMessages bool
 	DedupeThreshold float64
 }
 
 // NewMemoryCaptureHook creates a new memory capture hook.
 func NewMemoryCaptureHook(svc memory.Service, logger logging.Logger, cfg MemoryCaptureConfig) *MemoryCaptureHook {
-	enabled := true
-	if !cfg.Enabled || !cfg.AutoCapture {
-		enabled = false
-	}
 	dedupe := cfg.DedupeThreshold
 	if dedupe <= 0 {
 		dedupe = 0.85
 	}
 	return &MemoryCaptureHook{
 		memoryService:   svc,
-		enabled:         enabled,
-		captureMessages: cfg.CaptureMessages,
 		dedupeThreshold: dedupe,
 		logger:          logging.OrNop(logger),
 	}
@@ -70,7 +59,7 @@ func (h *MemoryCaptureHook) OnTaskStart(_ context.Context, _ TaskInfo) []Injecti
 // OnTaskCompleted extracts a summary from the task result and writes it to memory.
 // Only tasks with tool calls are captured to avoid noise from pure conversations.
 func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResultInfo) error {
-	if h.memoryService == nil || !h.enabled {
+	if h.memoryService == nil {
 		return nil
 	}
 	policy, hasPolicy := appcontext.MemoryPolicyFromContext(ctx)
@@ -93,8 +82,9 @@ func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResu
 	}
 
 	userID := result.UserID
-	if userID == "" {
-		userID = "default"
+	if strings.TrimSpace(userID) == "" {
+		h.logger.Debug("Memory capture skipped: missing user_id")
+		return nil
 	}
 
 	summary := buildCaptureSummary(result)
@@ -206,7 +196,7 @@ func buildCaptureSlots(ctx context.Context, result TaskResultInfo) map[string]st
 	if result.SessionID != "" {
 		slots["session_id"] = result.SessionID
 	}
-	if senderID := strings.TrimSpace(result.UserID); senderID != "" && senderID != "default" {
+	if senderID := strings.TrimSpace(result.UserID); senderID != "" {
 		slots["sender_id"] = senderID
 	}
 	if channel := appcontext.ChannelFromContext(ctx); channel != "" {
@@ -281,7 +271,7 @@ func (h *MemoryCaptureHook) captureWorkflowTrace(ctx context.Context, result Tas
 	if result.SessionID != "" {
 		entry.Slots["session_id"] = result.SessionID
 	}
-	if senderID := strings.TrimSpace(result.UserID); senderID != "" && senderID != "default" {
+	if senderID := strings.TrimSpace(result.UserID); senderID != "" {
 		entry.Slots["sender_id"] = senderID
 	}
 	if channel := appcontext.ChannelFromContext(ctx); channel != "" {

@@ -9,7 +9,7 @@ import (
 
 func TestConversationCaptureHook_SkipsWithToolCalls(t *testing.T) {
 	svc := &mockMemoryService{}
-	hook := NewConversationCaptureHook(svc, nil, ConversationCaptureConfig{Enabled: true, CaptureMessages: true})
+	hook := NewConversationCaptureHook(svc, nil, ConversationCaptureConfig{})
 
 	ctx := context.Background()
 	ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
@@ -35,8 +35,6 @@ func TestConversationCaptureHook_SkipsWithToolCalls(t *testing.T) {
 func TestConversationCaptureHook_CapturesUserAndGroupScope(t *testing.T) {
 	svc := &mockMemoryService{}
 	hook := NewConversationCaptureHook(svc, nil, ConversationCaptureConfig{
-		Enabled:            true,
-		CaptureMessages:    true,
 		CaptureGroupMemory: true,
 	})
 
@@ -80,11 +78,17 @@ func TestConversationCaptureHook_CapturesUserAndGroupScope(t *testing.T) {
 	}
 }
 
-func TestConversationCaptureHook_SkipsWhenDisabled(t *testing.T) {
+func TestConversationCaptureHook_SkipsWhenPolicyDisabled(t *testing.T) {
 	svc := &mockMemoryService{}
-	hook := NewConversationCaptureHook(svc, nil, ConversationCaptureConfig{Enabled: false, CaptureMessages: true})
+	hook := NewConversationCaptureHook(svc, nil, ConversationCaptureConfig{})
 
-	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
+	ctx := context.Background()
+	ctx = appcontext.WithMemoryPolicy(ctx, appcontext.MemoryPolicy{
+		Enabled:         false,
+		AutoCapture:     false,
+		CaptureMessages: false,
+	})
+	err := hook.OnTaskCompleted(ctx, TaskResultInfo{
 		TaskInput: "test",
 		Answer:    "ok",
 		UserID:    "ou_user",
