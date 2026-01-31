@@ -9,7 +9,7 @@ import (
 
 var defaultEmojiPool = []string{
 	"WAVE",
-	"SMILE",
+	"Get",
 	"THINKING",
 	"MUSCLE",
 	"HEART",
