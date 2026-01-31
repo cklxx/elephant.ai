@@ -7,22 +7,23 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 )
 
-type recordingListener struct {
+type serialRecordingListener struct {
 	mu     sync.Mutex
 	events []agent.AgentEvent
 	wg     sync.WaitGroup
 }
 
-func (l *recordingListener) OnEvent(event agent.AgentEvent) {
+func (l *serialRecordingListener) OnEvent(event agent.AgentEvent) {
 	l.mu.Lock()
 	l.events = append(l.events, event)
 	l.mu.Unlock()
 	l.wg.Done()
 }
 
-func (l *recordingListener) collected() []agent.AgentEvent {
+func (l *serialRecordingListener) collected() []agent.AgentEvent {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return append([]agent.AgentEvent(nil), l.events...)
@@ -45,7 +46,7 @@ func (e stubEvent) GetEventID() string              { return "" }
 func (e stubEvent) GetSeq() uint64                  { return 0 }
 
 func TestSerializingEventListener_PerRunOrdering(t *testing.T) {
-	listener := &recordingListener{}
+	listener := &serialRecordingListener{}
 	listener.wg.Add(2)
 	wrapper := NewSerializingEventListener(listener)
 
@@ -63,7 +64,7 @@ func TestSerializingEventListener_PerRunOrdering(t *testing.T) {
 }
 
 func TestSerializingEventListener_TerminalEventClosesQueue(t *testing.T) {
-	listener := &recordingListener{}
+	listener := &serialRecordingListener{}
 	listener.wg.Add(1)
 	wrapper := NewSerializingEventListener(listener)
 
@@ -77,7 +78,7 @@ func TestSerializingEventListener_TerminalEventClosesQueue(t *testing.T) {
 }
 
 func TestSerializingEventListener_EnvelopeTerminalEvent(t *testing.T) {
-	listener := &recordingListener{}
+	listener := &serialRecordingListener{}
 	listener.wg.Add(1)
 	wrapper := NewSerializingEventListener(listener)
 
