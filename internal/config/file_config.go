@@ -253,6 +253,9 @@ type ServerConfig struct {
 	RateLimitBurst             *int     `yaml:"rate_limit_burst"`
 	NonStreamTimeoutSeconds    *int     `yaml:"non_stream_timeout_seconds"`
 	EventHistoryRetentionDays  *int     `yaml:"event_history_retention_days"`
+	EventHistoryMaxSessions    *int     `yaml:"event_history_max_sessions"`
+	EventHistorySessionTTL     *int     `yaml:"event_history_session_ttl_seconds"`
+	EventHistoryMaxEvents      *int     `yaml:"event_history_max_events"`
 }
 
 // AuthConfig captures authentication configuration stored in YAML.

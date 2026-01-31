@@ -61,6 +61,9 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("HTTP Rate Limit: %d rpm (burst=%d)", config.RateLimitRequestsPerMinute, config.RateLimitBurst)
 	logger.Info("HTTP Non-Stream Timeout: %s", config.NonStreamTimeout)
 	logger.Info("Event History Retention: %s", config.EventHistoryRetention)
+	logger.Info("Event History Max Sessions: %d", config.EventHistoryMaxSessions)
+	logger.Info("Event History Session TTL: %s", config.EventHistorySessionTTL)
+	logger.Info("Event History Max Events: %d", config.EventHistoryMaxEvents)
 	wechatCfg := config.Channels.WeChat
 	if wechatCfg.Enabled {
 		logger.Info(

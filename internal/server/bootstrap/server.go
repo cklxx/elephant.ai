@@ -134,7 +134,19 @@ func RunServer(observabilityConfigPath string) error {
 	if asyncHistoryStore != nil {
 		broadcasterHistoryStore = asyncHistoryStore
 	}
-	broadcaster := serverApp.NewEventBroadcaster(serverApp.WithEventHistoryStore(broadcasterHistoryStore))
+	broadcasterOpts := []serverApp.EventBroadcasterOption{
+		serverApp.WithEventHistoryStore(broadcasterHistoryStore),
+	}
+	if config.EventHistoryMaxEvents > 0 {
+		broadcasterOpts = append(broadcasterOpts, serverApp.WithMaxHistory(config.EventHistoryMaxEvents))
+	}
+	if config.EventHistoryMaxSessions > 0 {
+		broadcasterOpts = append(broadcasterOpts, serverApp.WithMaxSessions(config.EventHistoryMaxSessions))
+	}
+	if config.EventHistorySessionTTL > 0 {
+		broadcasterOpts = append(broadcasterOpts, serverApp.WithSessionTTL(config.EventHistorySessionTTL))
+	}
+	broadcaster := serverApp.NewEventBroadcaster(broadcasterOpts...)
 	taskStore := serverApp.NewInMemoryTaskStore()
 	defer taskStore.Close()
 	progressTracker := serverApp.NewTaskProgressTracker(taskStore)

@@ -10,9 +10,9 @@
 - [x] Ensure vector delete works by storing document id in metadata + tests.
 
 ## Iteration 2 — Event system correctness
-- [ ] Add event history session TTL/max sessions + tests.
-- [ ] SSE replay dedupe by event_id/seq (not timestamp) + tests.
-- [ ] Web subagent grouping strict on parent_run_id + tests.
+- [x] Add event history session TTL/max sessions + tests.
+- [x] SSE replay dedupe by event_id/seq (not timestamp) + tests.
+- [x] Web subagent grouping strict on parent_run_id + tests.
 
 ## Iteration 3 — Memory retention/recall
 - [ ] Add memory retention policy + TTL pruning across stores + tests.

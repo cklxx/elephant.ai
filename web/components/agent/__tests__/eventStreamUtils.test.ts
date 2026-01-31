@@ -120,6 +120,24 @@ describe('partitionEvents', () => {
     expect(result.pendingTools.has('session-1:call-1')).toBe(true);
   });
 
+  it('groups subagent events only by parent_run_id', () => {
+    const events: AnyAgentEvent[] = [
+      makeEvent({
+        event_type: 'workflow.tool.completed',
+        tool_name: 'web_search',
+        call_id: 'inner-call-1',
+        run_id: 'sub-run-1',
+        parent_run_id: 'parent-1',
+        causation_id: 'call-123',
+        agent_level: 'subagent',
+        result: 'done',
+      }),
+    ];
+
+    const result = partitionEvents(events, false);
+    expect(Array.from(result.subagentGroups.keys())).toEqual(['parent-1']);
+  });
+
   it('resolves paired tool start for completed events', () => {
     const started = makeEvent({
       event_type: 'workflow.tool.started',

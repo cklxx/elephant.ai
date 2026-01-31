@@ -33,6 +33,9 @@ type Config struct {
 	RateLimitBurst             int
 	NonStreamTimeout           time.Duration
 	EventHistoryRetention      time.Duration
+	EventHistoryMaxSessions    int
+	EventHistorySessionTTL     time.Duration
+	EventHistoryMaxEvents      int
 	Attachment                 attachments.StoreConfig
 }
 
@@ -118,6 +121,9 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		RateLimitBurst:             120,
 		NonStreamTimeout:           30 * time.Second,
 		EventHistoryRetention:      30 * 24 * time.Hour,
+		EventHistoryMaxSessions:    100,
+		EventHistorySessionTTL:     1 * time.Hour,
+		EventHistoryMaxEvents:      1000,
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex/sessions",
 		},
@@ -370,6 +376,27 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 			cfg.EventHistoryRetention = 0
 		} else {
 			cfg.EventHistoryRetention = time.Duration(days) * 24 * time.Hour
+		}
+	}
+	if file.Server.EventHistoryMaxSessions != nil {
+		if *file.Server.EventHistoryMaxSessions <= 0 {
+			cfg.EventHistoryMaxSessions = 0
+		} else {
+			cfg.EventHistoryMaxSessions = *file.Server.EventHistoryMaxSessions
+		}
+	}
+	if file.Server.EventHistorySessionTTL != nil {
+		if *file.Server.EventHistorySessionTTL <= 0 {
+			cfg.EventHistorySessionTTL = 0
+		} else {
+			cfg.EventHistorySessionTTL = time.Duration(*file.Server.EventHistorySessionTTL) * time.Second
+		}
+	}
+	if file.Server.EventHistoryMaxEvents != nil {
+		if *file.Server.EventHistoryMaxEvents <= 0 {
+			cfg.EventHistoryMaxEvents = 0
+		} else {
+			cfg.EventHistoryMaxEvents = *file.Server.EventHistoryMaxEvents
 		}
 	}
 	if file.Server.AllowedOrigins != nil {

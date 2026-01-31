@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,9 +29,11 @@ type EventBroadcaster struct {
 	highVolumeCounters map[string]int
 
 	// Event history for session replay
-	eventHistory map[string][]agent.AgentEvent // sessionID -> events
+	eventHistory map[string]*sessionHistory // sessionID -> events
 	historyMu    sync.RWMutex
 	maxHistory   int // Maximum events to keep per session
+	maxSessions  int
+	sessionTTL   time.Duration
 	historyStore EventHistoryStore
 
 	// Global events that apply to all sessions (e.g., diagnostics)
@@ -57,6 +60,11 @@ type broadcasterMetrics struct {
 	dropsPerSession   sync.Map     // sessionID -> *atomic.Int64
 }
 
+type sessionHistory struct {
+	events   []agent.AgentEvent
+	lastSeen time.Time
+}
+
 // EventBroadcasterOption configures a broadcaster instance.
 type EventBroadcasterOption func(*EventBroadcaster)
 
@@ -76,10 +84,28 @@ func WithMaxHistory(max int) EventBroadcasterOption {
 	}
 }
 
+// WithMaxSessions caps the number of sessions retained in memory (0 = unlimited).
+func WithMaxSessions(max int) EventBroadcasterOption {
+	return func(b *EventBroadcaster) {
+		if max >= 0 {
+			b.maxSessions = max
+		}
+	}
+}
+
+// WithSessionTTL configures how long to retain idle session history (0 = disabled).
+func WithSessionTTL(ttl time.Duration) EventBroadcasterOption {
+	return func(b *EventBroadcaster) {
+		if ttl >= 0 {
+			b.sessionTTL = ttl
+		}
+	}
+}
+
 // NewEventBroadcaster creates a new event broadcaster
 func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 	b := &EventBroadcaster{
-		eventHistory:       make(map[string][]agent.AgentEvent),
+		eventHistory:       make(map[string]*sessionHistory),
 		highVolumeCounters: make(map[string]int),
 		maxHistory:         1000, // Keep up to 1000 events per session
 		logger:             logging.NewComponentLogger("EventBroadcaster"),
@@ -305,19 +331,27 @@ func (b *EventBroadcaster) storeEventHistory(sessionID string, event agent.Agent
 		return
 	}
 
+	now := time.Now()
+
 	b.historyMu.Lock()
 	defer b.historyMu.Unlock()
 
+	b.pruneExpiredSessionsLocked(now)
+
 	history := b.eventHistory[sessionID]
-	history = append(history, event)
+	if history == nil {
+		history = &sessionHistory{}
+	}
+	history.events = append(history.events, event)
+	history.lastSeen = now
 
 	// Trim history if it exceeds max size
-	if len(history) > b.maxHistory {
-		// Keep only the most recent maxHistory events
-		history = history[len(history)-b.maxHistory:]
+	if b.maxHistory > 0 && len(history.events) > b.maxHistory {
+		history.events = history.events[len(history.events)-b.maxHistory:]
 	}
 
 	b.eventHistory[sessionID] = history
+	b.enforceMaxSessionsLocked()
 }
 
 func (b *EventBroadcaster) storeGlobalEvent(event agent.AgentEvent) {
@@ -408,9 +442,13 @@ func (b *EventBroadcaster) StreamHistory(ctx context.Context, filter EventHistor
 		history = append(history, b.globalHistory...)
 		b.globalMu.RUnlock()
 	} else {
-		b.historyMu.RLock()
-		history = append(history, b.eventHistory[filter.SessionID]...)
-		b.historyMu.RUnlock()
+		now := time.Now()
+		b.historyMu.Lock()
+		b.pruneExpiredSessionsLocked(now)
+		if entry := b.eventHistory[filter.SessionID]; entry != nil {
+			history = append(history, entry.events...)
+		}
+		b.historyMu.Unlock()
 	}
 	if len(history) == 0 {
 		return nil
@@ -484,6 +522,7 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 
 	delete(b.eventHistory, sessionID)
 	b.clearHighVolumeCounter(sessionID)
+	b.metrics.clearSessionDrops(sessionID)
 	b.logger.Info("Cleared event history for session: %s", sessionID)
 }
 
@@ -592,6 +631,54 @@ func (b *EventBroadcaster) clearHighVolumeCounter(sessionID string) {
 	b.highVolumeMu.Lock()
 	delete(b.highVolumeCounters, sessionID)
 	b.highVolumeMu.Unlock()
+}
+
+func (b *EventBroadcaster) pruneExpiredSessionsLocked(now time.Time) {
+	if b.sessionTTL <= 0 || len(b.eventHistory) == 0 {
+		return
+	}
+	for sessionID, history := range b.eventHistory {
+		if history == nil {
+			delete(b.eventHistory, sessionID)
+			continue
+		}
+		if now.Sub(history.lastSeen) > b.sessionTTL {
+			delete(b.eventHistory, sessionID)
+			b.clearHighVolumeCounter(sessionID)
+			b.metrics.clearSessionDrops(sessionID)
+		}
+	}
+}
+
+func (b *EventBroadcaster) enforceMaxSessionsLocked() {
+	if b.maxSessions <= 0 || len(b.eventHistory) <= b.maxSessions {
+		return
+	}
+
+	type sessionInfo struct {
+		id       string
+		lastSeen time.Time
+	}
+	sessions := make([]sessionInfo, 0, len(b.eventHistory))
+	for sessionID, history := range b.eventHistory {
+		lastSeen := time.Time{}
+		if history != nil {
+			lastSeen = history.lastSeen
+		}
+		sessions = append(sessions, sessionInfo{id: sessionID, lastSeen: lastSeen})
+	}
+
+	sort.Slice(sessions, func(i, j int) bool {
+		return sessions[i].lastSeen.Before(sessions[j].lastSeen)
+	})
+
+	toEvict := len(sessions) - b.maxSessions
+	for i := 0; i < toEvict; i++ {
+		sessionID := sessions[i].id
+		delete(b.eventHistory, sessionID)
+		b.clearHighVolumeCounter(sessionID)
+		b.metrics.clearSessionDrops(sessionID)
+	}
 }
 
 // Metrics helper methods — lock-free via atomic.Int64.

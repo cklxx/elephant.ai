@@ -139,6 +139,9 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
 	}
 
+	seenEventIDs := make(map[string]struct{})
+	lastSeqByRun := make(map[string]uint64)
+
 	sendEvent := func(event agent.AgentEvent) bool {
 		if !h.shouldStreamEvent(event, debugMode) {
 			return true
@@ -151,6 +154,10 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 			default:
 				return true
 			}
+		}
+
+		if !shouldSendEvent(event, seenEventIDs, lastSeqByRun) {
+			return true
 		}
 
 		data, err := h.serializeEvent(event, sentAttachments, finalAnswerCache)
@@ -178,13 +185,9 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		return true
 	}
 
-	var lastHistoryTime time.Time
-
 	if includeGlobalHistory {
 		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: ""}, func(event agent.AgentEvent) error {
-			if sendEvent(event) {
-				lastHistoryTime = event.Timestamp()
-			}
+			sendEvent(event)
 			return nil
 		}); err != nil {
 			logger.Warn("Failed to replay global events: %v", err)
@@ -194,9 +197,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	// Replay historical events for this session
 	if includeSessionHistory {
 		if err := h.broadcaster.StreamHistory(ctx, app.EventHistoryFilter{SessionID: sessionID}, func(event agent.AgentEvent) error {
-			if sendEvent(event) {
-				lastHistoryTime = event.Timestamp()
-			}
+			sendEvent(event)
 			return nil
 		}); err != nil {
 			logger.Warn("Failed to replay historical events for session %s: %v", sessionID, err)
@@ -209,11 +210,7 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case event := <-clientChan:
-			if lastHistoryTime.IsZero() || event.Timestamp().After(lastHistoryTime) {
-				if sendEvent(event) {
-					lastHistoryTime = event.Timestamp()
-				}
-			}
+			sendEvent(event)
 		default:
 			goto drainComplete
 		}
@@ -252,6 +249,28 @@ drainComplete:
 			return
 		}
 	}
+}
+
+func shouldSendEvent(event agent.AgentEvent, seenEventIDs map[string]struct{}, lastSeqByRun map[string]uint64) bool {
+	if event == nil {
+		return false
+	}
+	if seq := event.GetSeq(); seq > 0 {
+		runID := strings.TrimSpace(event.GetRunID())
+		if runID != "" {
+			if last, ok := lastSeqByRun[runID]; ok && seq <= last {
+				return false
+			}
+			lastSeqByRun[runID] = seq
+		}
+	}
+	if eventID := strings.TrimSpace(event.GetEventID()); eventID != "" {
+		if _, ok := seenEventIDs[eventID]; ok {
+			return false
+		}
+		seenEventIDs[eventID] = struct{}{}
+	}
+	return true
 }
 
 func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent, debugMode bool) bool {

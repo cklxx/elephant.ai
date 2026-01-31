@@ -189,3 +189,48 @@ func TestEventBroadcasterSkipsHighVolumeHistoryEvents(t *testing.T) {
 		})
 	}
 }
+
+func TestEventBroadcasterEvictsOldSessions(t *testing.T) {
+	broadcaster := NewEventBroadcaster(WithMaxSessions(2))
+
+	broadcaster.OnEvent(makeToolEnvelope("session-a", time.Now()))
+	time.Sleep(10 * time.Millisecond)
+	broadcaster.OnEvent(makeToolEnvelope("session-b", time.Now()))
+	time.Sleep(10 * time.Millisecond)
+	broadcaster.OnEvent(makeToolEnvelope("session-c", time.Now()))
+
+	if got := broadcaster.GetEventHistory("session-a"); got != nil {
+		t.Fatalf("expected oldest session history to be evicted")
+	}
+	if got := broadcaster.GetEventHistory("session-b"); got == nil {
+		t.Fatalf("expected session-b history to be retained")
+	}
+	if got := broadcaster.GetEventHistory("session-c"); got == nil {
+		t.Fatalf("expected session-c history to be retained")
+	}
+}
+
+func TestEventBroadcasterExpiresSessionsByTTL(t *testing.T) {
+	broadcaster := NewEventBroadcaster(WithSessionTTL(15 * time.Millisecond))
+
+	broadcaster.OnEvent(makeToolEnvelope("session-ttl", time.Now()))
+	time.Sleep(30 * time.Millisecond)
+
+	if got := broadcaster.GetEventHistory("session-ttl"); got != nil {
+		t.Fatalf("expected session history to expire by TTL")
+	}
+}
+
+func makeToolEnvelope(sessionID string, ts time.Time) *domain.WorkflowEventEnvelope {
+	return &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, "run-"+sessionID, "", ts),
+		Version:   1,
+		Event:     "workflow.tool.completed",
+		NodeKind:  "tool",
+		NodeID:    "bash:1",
+		Payload: map[string]any{
+			"tool_name": "bash",
+			"result":    "ok",
+		},
+	}
+}

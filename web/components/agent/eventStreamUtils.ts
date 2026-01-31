@@ -155,20 +155,6 @@ function getSubagentGroupKey(event: AnyAgentEvent): string | null {
   if (parentRunId.trim()) {
     return parentRunId.trim();
   }
-  const causationId =
-    "causation_id" in event && typeof event.causation_id === "string"
-      ? event.causation_id
-      : "";
-  if (causationId.trim()) {
-    return causationId.trim();
-  }
-  const callId =
-    "call_id" in event && typeof event.call_id === "string"
-      ? event.call_id
-      : "";
-  if (callId.trim()) {
-    return callId.trim();
-  }
   return null;
 }
 

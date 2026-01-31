@@ -118,6 +118,9 @@ apps:
 - `rate_limit_burst`：速率限制突发配额（默认 120）。
 - `non_stream_timeout_seconds`：非流式请求超时（秒，默认 30）。
 - `event_history_retention_days`：事件历史保留天数（默认 30；设置为 0 关闭自动清理）。
+- `event_history_max_sessions`：内存事件历史保留的最大会话数（默认 100；设置为 0 表示不限制）。
+- `event_history_session_ttl_seconds`：内存事件历史空闲 TTL（秒，默认 3600；设置为 0 表示不启用）。
+- `event_history_max_events`：单个会话内存事件历史最大条数（默认 1000；设置为 0 表示不限制）。
 
 ### auth
 

@@ -379,6 +379,75 @@ func TestSSEHandlerReplaysStepEventsAndFiltersLifecycle(t *testing.T) {
 	}
 }
 
+func TestSSEHandlerDedupesBySeqDuringReplay(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-dedupe"
+	runID := "run-dedupe"
+	now := time.Now()
+
+	primary := makeToolEnvelopeWithSeq(sessionID, runID, 1, now)
+	duplicate := makeToolEnvelopeWithSeq(sessionID, runID, 1, now.Add(5*time.Millisecond))
+
+	broadcaster.OnEvent(primary)
+	broadcaster.OnEvent(duplicate)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID, nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), "workflow.tool.completed") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	count := 0
+	for _, evt := range events {
+		if evt.event == "workflow.tool.completed" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected 1 workflow.tool.completed event after dedupe, got %d", count)
+	}
+}
+
+func makeToolEnvelopeWithSeq(sessionID, runID string, seq uint64, ts time.Time) *domain.WorkflowEventEnvelope {
+	env := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, runID, "", ts),
+		Version:   1,
+		Event:     "workflow.tool.completed",
+		NodeKind:  "tool",
+		NodeID:    "bash:1",
+		Payload: map[string]any{
+			"tool_name": "bash",
+			"result":    "ok",
+		},
+	}
+	env.SetSeq(seq)
+	return env
+}
+
 func TestSSEHandlerBlocksReactIterStepNodes(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)
