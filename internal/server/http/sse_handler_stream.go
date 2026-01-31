@@ -27,6 +27,13 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
+	// Clear the server-level WriteTimeout for this long-lived SSE connection.
+	// Without this, the 30s WriteTimeout would kill streaming connections.
+	rc := http.NewResponseController(w)
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+		logger.Warn("Failed to clear write deadline for SSE: %v (streaming may be affected)", err)
+	}
+
 	// Get session ID from query parameter
 	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
 	if err := validateSessionID(sessionID); err != nil {
