@@ -69,21 +69,6 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		switch callCount {
 		case 1:
 			return &ports.CompletionResponse{
-				Content: "执行一次工具调用并返回结果。",
-				ToolCalls: []ports.ToolCall{{
-					ID:   "call-plan",
-					Name: "plan",
-					Arguments: map[string]any{
-						"run_id":          "test-run",
-						"overall_goal_ui": "执行 echo 并返回结果。",
-						"complexity":      "simple",
-					},
-				}},
-				StopReason: "tool_calls",
-				Usage:      ports.TokenUsage{TotalTokens: 11},
-			}, nil
-		case 2:
-			return &ports.CompletionResponse{
 				Content: "I will call a tool",
 				ToolCalls: []ports.ToolCall{{
 					ID:   "call-1",
@@ -103,11 +88,6 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 	registry := &mocks.MockToolRegistry{
 		GetFunc: func(name string) (tools.ToolExecutor, error) {
 			switch name {
-			case "plan":
-				return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-					goal, _ := call.Arguments["overall_goal_ui"].(string)
-					return &ports.ToolResult{CallID: call.ID, Content: goal}, nil
-				}}, nil
 			case "echo":
 				return &mocks.MockToolExecutor{ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 					return &ports.ToolResult{
@@ -162,7 +142,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		nodes[node.ID] = node
 	}
 
-	for _, id := range []string{"prepare", "execute", "react:context", "react:iter:2:think", "react:iter:2:tools", "react:iter:2:tool:call-1", "react:finalize"} {
+	for _, id := range []string{"prepare", "execute", "react:context", "react:iter:1:think", "react:iter:1:tools", "react:iter:1:tool:call-1", "react:finalize"} {
 		if node, ok := nodes[id]; !ok || node.Status != workflow.NodeStatusSucceeded {
 			t.Fatalf("expected node %s to succeed (found=%v, status=%s)", id, ok, node.Status)
 		}
@@ -188,7 +168,7 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 		if stepDesc == "" {
 			stepDesc = env.NodeID
 		}
-		if strings.Contains(stepDesc, "react:iter:2:tool:call-1") {
+		if strings.Contains(stepDesc, "react:iter:1:tool:call-1") {
 			hasToolStep = true
 			rawWorkflow, ok := env.Payload["workflow"]
 			if !ok || rawWorkflow == nil {
@@ -207,8 +187,8 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 					iter = int(floatIter)
 				}
 			}
-			if iter != 2 {
-				t.Fatalf("expected iteration 2 on tool completion, got %d", iter)
+			if iter != 1 {
+				t.Fatalf("expected iteration 1 on tool completion, got %d", iter)
 			}
 		}
 	}

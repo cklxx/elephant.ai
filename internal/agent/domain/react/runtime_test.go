@@ -324,6 +324,54 @@ func TestRecordThoughtAppendsThinkingOnlyMessage(t *testing.T) {
 	require.Len(t, state.Messages[0].Thinking.Parts, 1)
 }
 
+func TestReactRuntimeAllowsActionWithoutPlan(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		RunID: "run-no-plan",
+	}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	// Simulate action tool calls without prior plan() — should not be blocked.
+	calls := []ToolCall{
+		{Name: "web_search", Arguments: map[string]any{"query": "test"}},
+		{Name: "file_read", Arguments: map[string]any{"path": "/tmp/test"}},
+	}
+
+	blocked, msg := runtime.enforceOrchestratorGates(calls)
+	require.False(t, blocked, "action tools should NOT be blocked without prior plan()")
+	require.Empty(t, msg)
+}
+
+func TestReactRuntimeBlocksParallelPlanCalls(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{RunID: "run-parallel"}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	calls := []ToolCall{
+		{Name: "plan", Arguments: map[string]any{"overall_goal_ui": "goal", "complexity": "simple"}},
+		{Name: "web_search", Arguments: map[string]any{"query": "test"}},
+	}
+
+	blocked, msg := runtime.enforceOrchestratorGates(calls)
+	require.True(t, blocked, "plan() in parallel with other tools should be blocked")
+	require.Contains(t, msg, "plan()")
+}
+
+func TestReactRuntimeBlocksParallelClarifyCalls(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{RunID: "run-parallel"}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	calls := []ToolCall{
+		{Name: "clarify", Arguments: map[string]any{"task_goal_ui": "sub"}},
+		{Name: "web_search", Arguments: map[string]any{"query": "test"}},
+	}
+
+	blocked, msg := runtime.enforceOrchestratorGates(calls)
+	require.True(t, blocked, "clarify() in parallel with other tools should be blocked")
+	require.Contains(t, msg, "clarify()")
+}
+
 func TestPlanReviewTriggersPauseAndMarker(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{

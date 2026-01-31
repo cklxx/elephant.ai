@@ -146,7 +146,7 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 	expectations := []string{
 		"a sharp coding partner who thinks fast and talks with a bit of flair",
 		"A few sentences beat a wall of text every time",
-		"Workflow Contract (Strict): Flow: Plan -> Clarify (when needed) -> ReAct -> Finalize.",
+		"Workflow Contract: Think -> Act -> Observe -> Finalize. plan() sets a visible goal header (optional). clarify() pauses for user input (optional).",
 		"Never execute destructive shell commands or delete data without explicit confirmation.",
 	}
 	for _, snippet := range expectations {

@@ -133,10 +133,8 @@ func TestBGDispatch_MissingRequired(t *testing.T) {
 		name string
 		args map[string]any
 	}{
-		{"missing task_id", map[string]any{"description": "d", "prompt": "p"}},
 		{"missing description", map[string]any{"task_id": "t", "prompt": "p"}},
 		{"missing prompt", map[string]any{"task_id": "t", "description": "d"}},
-		{"empty task_id", map[string]any{"task_id": "", "description": "d", "prompt": "p"}},
 	}
 
 	for _, tc := range tests {
@@ -150,6 +148,55 @@ func TestBGDispatch_MissingRequired(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBGDispatch_AutoTaskID(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGDispatch()
+
+	t.Run("auto-generate from description", func(t *testing.T) {
+		result, err := tool.Execute(ctx, ports.ToolCall{
+			ID: "call-auto",
+			Arguments: map[string]any{
+				"description": "Analyze Server Logs",
+				"prompt":      "Please analyze the server logs",
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Error != nil {
+			t.Fatalf("unexpected result error: %v", result.Error)
+		}
+		if len(d.dispatched) == 0 {
+			t.Fatal("expected dispatch call")
+		}
+		taskID := d.dispatched[len(d.dispatched)-1].Req.TaskID
+		if taskID != "analyze-server-logs" {
+			t.Errorf("expected task_id=analyze-server-logs, got %s", taskID)
+		}
+	})
+
+	t.Run("fallback to call ID", func(t *testing.T) {
+		result, err := tool.Execute(ctx, ports.ToolCall{
+			ID: "call-fb",
+			Arguments: map[string]any{
+				"description": "---",
+				"prompt":      "do something",
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Error != nil {
+			t.Fatalf("unexpected result error: %v", result.Error)
+		}
+		taskID := d.dispatched[len(d.dispatched)-1].Req.TaskID
+		if taskID != "bg-call-fb" {
+			t.Errorf("expected task_id=bg-call-fb, got %s", taskID)
+		}
+	})
 }
 
 func TestBGDispatch_NoDispatcher(t *testing.T) {
