@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 	"errors"
-	"reflect"
+	"fmt"
 	"sort"
 
 	"alex/internal/agent/ports"
@@ -197,7 +197,7 @@ func messagesEqual(a, b ports.Message) bool {
 		return false
 	}
 
-	if !reflect.DeepEqual(a.Thinking, b.Thinking) {
+	if !thinkingEqual(a.Thinking, b.Thinking) {
 		return false
 	}
 
@@ -209,7 +209,7 @@ func messagesEqual(a, b ports.Message) bool {
 		return false
 	}
 
-	if !reflect.DeepEqual(a.Metadata, b.Metadata) {
+	if !mapStringAnyEqual(a.Metadata, b.Metadata) {
 		return false
 	}
 
@@ -232,7 +232,7 @@ func toolCallsEqual(a, b []ports.ToolCall) bool {
 			a[i].ParentTaskID != b[i].ParentTaskID {
 			return false
 		}
-		if !reflect.DeepEqual(a[i].Arguments, b[i].Arguments) {
+		if !mapStringAnyEqual(a[i].Arguments, b[i].Arguments) {
 			return false
 		}
 	}
@@ -253,7 +253,7 @@ func toolResultsEqual(a, b []ports.ToolResult) bool {
 		if !errorsEqual(a[i].Error, b[i].Error) {
 			return false
 		}
-		if !reflect.DeepEqual(a[i].Metadata, b[i].Metadata) {
+		if !mapStringAnyEqual(a[i].Metadata, b[i].Metadata) {
 			return false
 		}
 	}
@@ -283,9 +283,107 @@ func attachmentsEqual(a, b map[string]ports.Attachment) bool {
 		if !ok {
 			return false
 		}
-		if !reflect.DeepEqual(va, vb) {
+		if !attachmentEqual(va, vb) {
 			return false
 		}
 	}
 	return true
+}
+
+func thinkingEqual(a, b ports.Thinking) bool {
+	if len(a.Parts) != len(b.Parts) {
+		return false
+	}
+	for i := range a.Parts {
+		if a.Parts[i] != b.Parts[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func attachmentEqual(a, b ports.Attachment) bool {
+	if a.Name != b.Name ||
+		a.MediaType != b.MediaType ||
+		a.Data != b.Data ||
+		a.URI != b.URI ||
+		a.Fingerprint != b.Fingerprint ||
+		a.Source != b.Source ||
+		a.Description != b.Description ||
+		a.Kind != b.Kind ||
+		a.Format != b.Format ||
+		a.PreviewProfile != b.PreviewProfile ||
+		a.RetentionTTLSeconds != b.RetentionTTLSeconds {
+		return false
+	}
+	if len(a.PreviewAssets) != len(b.PreviewAssets) {
+		return false
+	}
+	for i := range a.PreviewAssets {
+		if a.PreviewAssets[i] != b.PreviewAssets[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func mapStringAnyEqual(a, b map[string]any) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, va := range a {
+		vb, ok := b[k]
+		if !ok {
+			return false
+		}
+		if !anyValueEqual(va, vb) {
+			return false
+		}
+	}
+	return true
+}
+
+func anyValueEqual(a, b any) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	switch va := a.(type) {
+	case string:
+		vb, ok := b.(string)
+		return ok && va == vb
+	case float64:
+		vb, ok := b.(float64)
+		return ok && va == vb
+	case bool:
+		vb, ok := b.(bool)
+		return ok && va == vb
+	case int:
+		vb, ok := b.(int)
+		return ok && va == vb
+	case int64:
+		vb, ok := b.(int64)
+		return ok && va == vb
+	case []any:
+		vb, ok := b.([]any)
+		if !ok || len(va) != len(vb) {
+			return false
+		}
+		for i := range va {
+			if !anyValueEqual(va[i], vb[i]) {
+				return false
+			}
+		}
+		return true
+	case map[string]any:
+		vb, ok := b.(map[string]any)
+		if !ok {
+			return false
+		}
+		return mapStringAnyEqual(va, vb)
+	default:
+		return fmt.Sprint(a) == fmt.Sprint(b)
+	}
 }
