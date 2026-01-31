@@ -48,6 +48,17 @@ func TestNewGatewayDefaultsSessionPrefix(t *testing.T) {
 	}
 }
 
+func TestNewGatewayDefaultsToolPreset(t *testing.T) {
+	cfg := Config{AppID: "cli_test", AppSecret: "secret"}
+	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gw.cfg.ToolPreset != "full" {
+		t.Fatalf("expected default tool preset 'full', got %q", gw.cfg.ToolPreset)
+	}
+}
+
 func TestNewGatewayPreservesCustomPrefix(t *testing.T) {
 	cfg := Config{BaseConfig: channels.BaseConfig{SessionPrefix: "custom"}, AppID: "cli_test", AppSecret: "secret"}
 	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
@@ -500,6 +511,103 @@ func TestHandleMessageSessionModeFresh(t *testing.T) {
 	}
 	if got := id.SessionIDFromContext(executor.capturedCtx); got != executor.capturedSessionID {
 		t.Fatalf("expected context sessionID %q, got %q", executor.capturedSessionID, got)
+	}
+}
+
+func TestHandleMessageSessionModeDefaultFresh(t *testing.T) {
+	openID := "ou_sender_default"
+	chatID := "oc_chat_default"
+	msgID := "om_msg_default"
+	content := `{"text":"hello default"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	gw, err := NewGateway(Config{
+		BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+		AppID:      "test",
+		AppSecret:  "secret",
+	}, executor, logging.OrNop(nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	memoryID := gw.memoryIDForChat(chatID)
+	if executor.capturedSessionID == memoryID {
+		t.Fatalf("expected default sessionID to differ from memoryID %q", memoryID)
+	}
+	if !strings.HasPrefix(executor.capturedSessionID, "lark-") {
+		t.Fatalf("expected default sessionID to have lark- prefix, got %q", executor.capturedSessionID)
+	}
+}
+
+func TestHandleMessageDefaultsToolPresetFull(t *testing.T) {
+	openID := "ou_sender_preset"
+	chatID := "oc_chat_preset"
+	msgID := "om_msg_preset"
+	content := `{"text":"hello preset"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	gw, err := NewGateway(Config{
+		BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+		AppID:      "test",
+		AppSecret:  "secret",
+	}, executor, logging.OrNop(nil))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	presetRaw := executor.capturedCtx.Value(appcontext.PresetContextKey{})
+	preset, ok := presetRaw.(appcontext.PresetConfig)
+	if !ok {
+		t.Fatal("expected preset config on context")
+	}
+	if preset.ToolPreset != "full" {
+		t.Fatalf("expected tool preset 'full', got %q", preset.ToolPreset)
 	}
 }
 

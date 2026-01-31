@@ -68,6 +68,12 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if strings.TrimSpace(cfg.SessionPrefix) == "" {
 		cfg.SessionPrefix = "lark"
 	}
+	if strings.TrimSpace(cfg.SessionMode) == "" {
+		cfg.SessionMode = "fresh"
+	}
+	if strings.TrimSpace(cfg.ToolPreset) == "" {
+		cfg.ToolPreset = "full"
+	}
 	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("lark message deduper init: %w", err)

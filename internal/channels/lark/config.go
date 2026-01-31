@@ -13,7 +13,7 @@ type Config struct {
 	AppID                         string
 	AppSecret                     string
 	BaseDomain                    string
-	SessionMode                   string // "stable" (default) reuses chat session; "fresh" creates a new session per message.
+	SessionMode                   string // "fresh" (default) creates a new session per message; "stable" reuses chat session.
 	ReactEmoji                    string // Emoji reaction sent immediately on message receipt (e.g. "SMILE"). Empty disables.
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.
 	AutoChatContext               bool   // Automatically fetch recent chat messages as context. Default false.
