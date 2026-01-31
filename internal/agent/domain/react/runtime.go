@@ -48,6 +48,9 @@ type reactRuntime struct {
 	// External input requests from interactive external agents.
 	externalInputCh      <-chan agent.InputRequest
 	externalInputEmitted map[string]bool
+
+	// User input channel for live message injection from chat gateways.
+	userInputCh <-chan agent.UserInput
 }
 
 type reactIteration struct {
@@ -82,6 +85,7 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 	}
 	runtime.clarifyEmitted = make(map[string]bool)
 	runtime.nextTaskSeq = 1
+	runtime.userInputCh = agent.UserInputChFromContext(ctx)
 
 	// Initialize background task manager when executor is available.
 	if engine.backgroundExecutor != nil {
@@ -129,6 +133,7 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		// Inject background completion notifications before each iteration.
 		r.injectBackgroundNotifications()
 		r.injectExternalInputRequests()
+		r.injectUserInput()
 
 		if result, stop, err := r.handleCancellation(); stop || err != nil {
 			r.cleanupBackgroundTasks()
