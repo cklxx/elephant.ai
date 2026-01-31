@@ -205,7 +205,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 			}
 		}
 		reply := "已清空对话历史，下次对话将从零开始。"
-		g.dispatch(execCtx, chatID, replyTarget(isGroup, messageID), "text", textContent(reply))
+		g.dispatch(execCtx, chatID, replyTarget(messageID, true), "text", textContent(reply))
 		return nil
 	}
 
@@ -216,7 +216,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		if reply == "" {
 			reply = "（无可用回复）"
 		}
-		g.dispatch(execCtx, chatID, replyTarget(isGroup, deref(msg.MessageId)), "text", textContent(reply))
+		g.dispatch(execCtx, chatID, replyTarget(deref(msg.MessageId), true), "text", textContent(reply))
 		return nil
 	}
 	if session != nil && session.ID != "" && session.ID != sessionID {
@@ -307,7 +307,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		reply += "\n\n" + summary
 	}
 
-	g.dispatch(execCtx, chatID, replyTarget(isGroup, messageID), "text", textContent(reply))
+	g.dispatch(execCtx, chatID, replyTarget(messageID, true), "text", textContent(reply))
 	g.sendAttachments(execCtx, chatID, messageID, isGroup, result)
 
 	return nil
@@ -393,13 +393,13 @@ func (g *Gateway) dispatch(ctx context.Context, chatID, replyToID, msgType, cont
 	}
 }
 
-// replyTarget returns the message ID to reply to when in a group chat,
-// or empty string for direct messages (which creates a new message).
-func replyTarget(isGroup bool, messageID string) string {
-	if isGroup && messageID != "" {
-		return messageID
+// replyTarget returns the message ID to reply to when allowed.
+// An empty ID or disallowed replies indicates no reply target.
+func replyTarget(messageID string, allowReply bool) string {
+	if !allowReply || messageID == "" {
+		return ""
 	}
-	return ""
+	return messageID
 }
 
 // updateMessage updates an existing text message in-place using the Lark
@@ -689,7 +689,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 			continue
 		}
 
-		target := replyTarget(isGroup, messageID)
+		target := replyTarget(messageID, true)
 
 		if isImageAttachment(att, mediaType, name) {
 			imageKey, err := g.uploadImage(ctx, payload)

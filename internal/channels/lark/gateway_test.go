@@ -159,6 +159,26 @@ func TestAttachmentContentPayloads(t *testing.T) {
 	}
 }
 
+func TestReplyTarget(t *testing.T) {
+	tests := []struct {
+		name      string
+		messageID string
+		allow     bool
+		want      string
+	}{
+		{"allowed with message", "om_group", true, "om_group"},
+		{"allowed empty message", "", true, ""},
+		{"disallowed with message", "om_group", false, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := replyTarget(tt.messageID, tt.allow); got != tt.want {
+				t.Fatalf("replyTarget(%q, %v) = %q, want %q", tt.messageID, tt.allow, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCollectAttachmentsFromResult(t *testing.T) {
 	result := &agent.TaskResult{
 		Messages: []ports.Message{

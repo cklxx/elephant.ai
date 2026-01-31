@@ -54,6 +54,10 @@ func (m *mockNotifier) SendLark(_ context.Context, chatID string, content string
 	return nil
 }
 
+func (m *mockNotifier) SendMoltbook(_ context.Context, _ string) error {
+	return nil
+}
+
 func (m *mockNotifier) messageCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
