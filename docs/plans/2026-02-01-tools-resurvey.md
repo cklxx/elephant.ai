@@ -16,4 +16,4 @@
 
 ## Progress Updates
 - 2026-02-01: Plan created.
-- 2026-02-01: Collected registry tool list and produced classification + overlap matrix (no code changes).
+- 2026-02-01: Collected registry tool list and produced classification + overlap matrix in docs/reference/TOOLS.md.

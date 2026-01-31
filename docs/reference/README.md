@@ -1,6 +1,6 @@
 # Index: reference
 
-Updated: 2026-01-31
+Updated: 2026-02-01
 
 ## Files
 
@@ -13,5 +13,6 @@ Updated: 2026-01-31
 - [LOG_FILES.md](LOG_FILES.md)
 - [REPO_STRUCTURE_REVIEW.md](REPO_STRUCTURE_REVIEW.md)
 - [TASK_EXECUTION_FRAMEWORK.md](TASK_EXECUTION_FRAMEWORK.md)
+- [TOOLS.md](TOOLS.md)
 - [external-agents-codex-claude-code.md](external-agents-codex-claude-code.md)
 - [lark-web-agent-event-flow.md](lark-web-agent-event-flow.md)
