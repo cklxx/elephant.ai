@@ -9,8 +9,6 @@ import (
 func TestToolFormatterFormatToolCall(t *testing.T) {
 	tf := NewToolFormatter()
 
-	structuredThought := "Refine plan\nGoal: tighten feedback loop\nApproach: run tests"
-
 	cases := []struct {
 		name     string
 		toolName string
@@ -110,22 +108,6 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 				"url": "https://example.com/" + strings.Repeat("path", 20),
 			},
 			wants: []string{"web_fetch(url=https://example.com/"},
-		},
-		{
-			name:     "think structured",
-			toolName: "think",
-			args: map[string]any{
-				"thought": structuredThought,
-			},
-			wants: []string{"😈", "→", "⇢"},
-		},
-		{
-			name:     "think simple",
-			toolName: "think",
-			args: map[string]any{
-				"thought": "pondering",
-			},
-			wants: []string{"pondering"},
 		},
 		{
 			name:     "todo_update",
@@ -308,13 +290,6 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			success:  true,
 			content:  longFetch,
 			wants:    []string{"Fetched"},
-		},
-		{
-			name:     "think",
-			toolName: "think",
-			success:  true,
-			content:  strings.Repeat("thought", 20),
-			wants:    []string{"→"},
 		},
 		{
 			name:     "todo",

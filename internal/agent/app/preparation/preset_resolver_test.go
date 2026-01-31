@@ -108,7 +108,7 @@ func TestPresetResolver_ResolveToolRegistry_InvalidPreset(t *testing.T) {
 func TestPresetResolver_AllValidToolPresets(t *testing.T) {
 	resolver := NewPresetResolver(&testLogger{})
 	baseRegistry := &mockToolRegistry{
-		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}, {Name: "think"}},
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}},
 	}
 
 	validPresets := []string{"full", "read-only", "safe", "architect"}
@@ -183,7 +183,7 @@ func TestPresetResolver_EmitsWorkflowDiagnosticToolFilteringEvent(t *testing.T) 
 	})
 
 	baseRegistry := &mockToolRegistry{
-		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}, {Name: "think"}},
+		tools: []ports.ToolDefinition{{Name: "file_read"}, {Name: "file_write"}, {Name: "bash"}, {Name: "web_search"}},
 	}
 
 	ctx := context.WithValue(context.Background(), id.SessionContextKey{}, "test-session-123")

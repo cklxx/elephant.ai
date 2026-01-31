@@ -18,9 +18,9 @@ import (
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
 	"alex/internal/tools/builtin/larktools"
-	okrtools "alex/internal/tools/builtin/okr"
 	"alex/internal/tools/builtin/media"
 	memorytools "alex/internal/tools/builtin/memory"
+	okrtools "alex/internal/tools/builtin/okr"
 	"alex/internal/tools/builtin/orchestration"
 	"alex/internal/tools/builtin/sandbox"
 	"alex/internal/tools/builtin/search"
@@ -396,7 +396,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["clarify"] = ui.NewClarify()
 	r.static["memory_recall"] = memorytools.NewMemoryRecall(config.MemoryService)
 	r.static["memory_write"] = memorytools.NewMemoryWrite(config.MemoryService)
-	r.static["attention"] = ui.NewAttention()
 	r.static["request_user"] = ui.NewRequestUser()
 
 	// Web tools

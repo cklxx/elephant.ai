@@ -68,7 +68,7 @@ func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
 	}
 	engine := newReactEngineForTest(1)
 	state := &TaskState{
-		RunID:       "task-abc",
+		RunID:        "task-abc",
 		SystemPrompt: "Follow the user objective.",
 		Messages: []ports.Message{
 			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},
@@ -120,7 +120,7 @@ func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
 	}
 	engine := newReactEngineForTest(1)
 	state := &TaskState{
-		RunID:       "task-def",
+		RunID:        "task-def",
 		SystemPrompt: "Follow the user objective.",
 		Messages: []ports.Message{
 			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},
@@ -328,7 +328,7 @@ func TestReactEngine_SolveTask_MaxIterations(t *testing.T) {
 			return &ports.CompletionResponse{
 				Content: "Let me check another thing",
 				ToolCalls: []ports.ToolCall{
-					{ID: "call", Name: "think", Arguments: map[string]any{"thought": "workflow.node.output.delta"}},
+					{ID: "call", Name: "file_read", Arguments: map[string]any{"path": "README.md"}},
 				},
 				StopReason: "tool_calls",
 			}, nil

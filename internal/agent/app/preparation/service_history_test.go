@@ -584,7 +584,7 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 		Plans:                []agent.PlanNode{{ID: "plan-1", Title: "Investigate"}},
 		Beliefs:              []agent.Belief{{Statement: "Delegation works"}},
 		KnowledgeRefs:        []agent.KnowledgeReference{{ID: "rag-1", Description: "Docs"}},
-		WorldState:           map[string]any{"last_tool": "think"},
+		WorldState:           map[string]any{"last_tool": "file_read"},
 		WorldDiff:            map[string]any{"iteration": 2},
 		FeedbackSignals:      []agent.FeedbackSignal{{Kind: "info"}},
 	}
@@ -618,7 +618,7 @@ func TestPrepareUsesInheritedStateForSubagent(t *testing.T) {
 	if len(env.State.KnowledgeRefs) != 1 || env.State.KnowledgeRefs[0].ID != "rag-1" {
 		t.Fatalf("expected inherited knowledge references")
 	}
-	if env.State.WorldState["last_tool"] != "think" {
+	if env.State.WorldState["last_tool"] != "file_read" {
 		t.Fatalf("expected inherited world state")
 	}
 	if env.State.WorldDiff["iteration"] != 2 {

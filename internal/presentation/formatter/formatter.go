@@ -25,10 +25,6 @@ func NewToolFormatter() *ToolFormatter {
 
 // FormatToolCall formats a single tool call for display
 func (tf *ToolFormatter) FormatToolCall(name string, args map[string]any) string {
-	if name == "think" {
-		return tf.formatThinkCall(args)
-	}
-
 	presentation := tf.PrepareArgs(name, args)
 	return tf.renderToolCall(name, presentation)
 }
@@ -316,66 +312,6 @@ func pluralize(word string, count int) string {
 	return word + "s"
 }
 
-// formatThinkCall shows FULL thought - user needs to see agent's reasoning
-func (tf *ToolFormatter) formatThinkCall(args map[string]any) string {
-	thought := tf.getStringArg(args, "thought", "")
-
-	if thought == "" {
-		return fmt.Sprintf("%s think", tf.colorDot)
-	}
-
-	// Parse structured thought content
-	var output strings.Builder
-	dimStyle := "\033[90m"  // Gray
-	resetStyle := "\033[0m" // Reset
-
-	// Check if thought has structured format (Goal/Approach)
-	if strings.Contains(thought, "Goal:") && strings.Contains(thought, "Approach:") {
-		lines := strings.Split(thought, "\n")
-
-		// Find the task/title (first line before Goal)
-		var title string
-		for i, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed != "" && !strings.HasPrefix(trimmed, "Goal:") {
-				title = trimmed
-				lines = lines[i+1:] // Skip title line
-				break
-			}
-		}
-
-		// Format with devil emoji and compact layout
-		if title != "" {
-			output.WriteString(fmt.Sprintf("%s😈 %s%s\n", dimStyle, title, resetStyle))
-		} else {
-			output.WriteString(fmt.Sprintf("%s😈 Thinking...%s\n", dimStyle, resetStyle))
-		}
-
-		// Format Goal and Approach on same line, more compact
-		var goal, approach string
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if strings.HasPrefix(trimmed, "Goal:") {
-				goal = strings.TrimSpace(strings.TrimPrefix(trimmed, "Goal:"))
-			} else if strings.HasPrefix(trimmed, "Approach:") {
-				approach = strings.TrimSpace(strings.TrimPrefix(trimmed, "Approach:"))
-			}
-		}
-
-		if goal != "" {
-			output.WriteString(fmt.Sprintf("   %s→ %s%s\n", dimStyle, goal, resetStyle))
-		}
-		if approach != "" {
-			output.WriteString(fmt.Sprintf("   %s⇢ %s%s", dimStyle, approach, resetStyle))
-		}
-	} else {
-		// Simple unstructured thought
-		output.WriteString(fmt.Sprintf("%s😈 %s%s", dimStyle, thought, resetStyle))
-	}
-
-	return strings.TrimRight(output.String(), "\n")
-}
-
 // Helper functions to extract typed arguments
 func (tf *ToolFormatter) getStringArg(args map[string]any, key, defaultVal string) string {
 	if val, ok := args[key].(string); ok {
@@ -463,8 +399,6 @@ func (tf *ToolFormatter) FormatToolResult(name string, content string, success b
 		return tf.formatWebSearchResult(content)
 	case "web_fetch":
 		return tf.formatWebFetchResult(content)
-	case "think":
-		return tf.formatThinkResult(content)
 	case "todo_update", "todo_read":
 		return tf.formatTodoResult(content)
 	case "subagent":
@@ -676,15 +610,6 @@ func (tf *ToolFormatter) formatWebFetchResult(content string) string {
 	}
 
 	return fmt.Sprintf("  → Fetched %d lines (%dKB)", lines, chars/1024)
-}
-
-// formatThinkResult shows thought summary
-func (tf *ToolFormatter) formatThinkResult(content string) string {
-	preview := content
-	if len(preview) > 80 {
-		preview = preview[:80] + "..."
-	}
-	return fmt.Sprintf("  → %s", preview)
 }
 
 // formatSubagentResult shows task completion summary

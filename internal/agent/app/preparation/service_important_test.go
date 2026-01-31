@@ -14,14 +14,14 @@ func TestBuildImportantNotesMessageFormatsChronologically(t *testing.T) {
 		"n2": {
 			ID:        "n2",
 			Content:   "User prefers dark mode.",
-			Source:    "attention",
+			Source:    "memory",
 			Tags:      []string{"preference"},
 			CreatedAt: now.Add(2 * time.Minute),
 		},
 		"n1": {
 			ID:        "n1",
 			Content:   "Primary IDE: VS Code.",
-			Source:    "attention",
+			Source:    "memory",
 			Tags:      []string{"identity"},
 			CreatedAt: now.Add(time.Minute),
 		},

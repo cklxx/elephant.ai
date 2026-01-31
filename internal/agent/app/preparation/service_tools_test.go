@@ -18,7 +18,7 @@ import (
 func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -33,7 +33,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeCLI, service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
-	expected := []string{"file_read", "final", "subagent", "think", "todo_read", "todo_update"}
+	expected := []string{"file_read", "final", "subagent", "todo_read", "todo_update"}
 
 	if len(names) != len(expected) {
 		t.Fatalf("core agent should see %d tools from full preset, got %v", len(expected), names)
@@ -48,7 +48,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {
 func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "todo_read"}, {Name: "todo_update"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "core", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -63,7 +63,7 @@ func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeCLI, service.config.ToolPreset)
 
 	names := sortedToolNames(filtered.List())
-	expected := []string{"bash", "file_read", "final", "subagent", "think", "todo_read", "todo_update"}
+	expected := []string{"bash", "file_read", "final", "subagent", "todo_read", "todo_update"}
 
 	if len(names) != len(expected) {
 		t.Fatalf("core agent should default to full preset tools, got %v", names)
@@ -78,7 +78,7 @@ func TestSelectToolRegistryDefaultsToFullWhenUnset(t *testing.T) {
 func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "subagent"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "sub", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
@@ -105,7 +105,7 @@ func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 func TestSelectToolRegistryDoesNotStripExecutionToolsForSubagentsWhenPresetUnset(t *testing.T) {
 	deps := ExecutionPreparationDeps{
 		LLMFactory:    &fakeLLMFactory{client: fakeLLMClient{}},
-		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "think"}, {Name: "subagent"}, {Name: "explore"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
+		ToolRegistry:  &registryWithList{defs: []ports.ToolDefinition{{Name: "subagent"}, {Name: "explore"}, {Name: "final"}, {Name: "file_read"}, {Name: "bash"}}},
 		SessionStore:  &stubSessionStore{session: &storage.Session{ID: "sub", Metadata: map[string]string{}}},
 		ContextMgr:    stubContextManager{},
 		Parser:        stubParser{},
