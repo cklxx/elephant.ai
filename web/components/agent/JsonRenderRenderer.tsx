@@ -5,6 +5,8 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import type { ChartLayout, ChartSpec } from "@/lib/json-render-chart";
+import { buildChartLayout } from "@/lib/json-render-chart";
 import { cn } from "@/lib/utils";
 import { JsonRenderElement, JsonRenderTree } from "@/lib/json-render-model";
 
@@ -539,6 +541,13 @@ function renderElement(
         </div>
       );
     }
+    case "chart": {
+      const layout = buildChartLayout(props as ChartSpec);
+      if (!layout) {
+        return <Fallback key={key} message="Chart has no data." />;
+      }
+      return <ChartView key={key} layout={layout} />;
+    }
     default: {
       return <Fallback key={key} message={`Unsupported element: ${element.type}`} />;
     }
@@ -616,6 +625,151 @@ function toCssSize(value: any): string | undefined {
     return value;
   }
   return undefined;
+}
+
+function ChartView({ layout }: { layout: ChartLayout }) {
+  const xAxisY = layout.padding.top + layout.plotHeight;
+  const yAxisX = layout.padding.left;
+  const centerY = layout.padding.top + layout.plotHeight / 2;
+
+  return (
+    <div className="space-y-2">
+      {layout.title ? (
+        <div className="text-base font-semibold text-foreground">{layout.title}</div>
+      ) : null}
+      {layout.subtitle ? (
+        <div className="text-xs text-muted-foreground">{layout.subtitle}</div>
+      ) : null}
+      <div className="rounded-xl border border-border/60 bg-card p-3">
+        <svg
+          viewBox={`0 0 ${layout.width} ${layout.height}`}
+          className="h-auto w-full"
+          role="img"
+          aria-label={layout.title ?? "Chart"}
+        >
+          <g stroke="currentColor" className="text-muted-foreground">
+            {layout.yAxis.ticks.map((tick, index) => (
+              <line
+                key={`grid-${index}`}
+                x1={layout.padding.left}
+                y1={tick.pos}
+                x2={layout.padding.left + layout.plotWidth}
+                y2={tick.pos}
+                strokeOpacity={0.25}
+              />
+            ))}
+            <line
+              x1={layout.padding.left}
+              y1={xAxisY}
+              x2={layout.padding.left + layout.plotWidth}
+              y2={xAxisY}
+            />
+            <line
+              x1={yAxisX}
+              y1={layout.padding.top}
+              x2={yAxisX}
+              y2={layout.padding.top + layout.plotHeight}
+            />
+            {layout.xAxis.ticks.map((tick, index) => (
+              <line
+                key={`tick-${index}`}
+                x1={tick.pos}
+                y1={xAxisY}
+                x2={tick.pos}
+                y2={xAxisY + 4}
+              />
+            ))}
+          </g>
+          <g fill="currentColor" className="text-muted-foreground">
+            {layout.xAxis.ticks.map((tick, index) => (
+              <text
+                key={`tick-label-${index}`}
+                x={tick.pos}
+                y={xAxisY + 16}
+                textAnchor="middle"
+                className="text-[10px]"
+              >
+                {tick.label}
+              </text>
+            ))}
+            {layout.yAxis.ticks.map((tick, index) => (
+              <text
+                key={`y-label-${index}`}
+                x={layout.padding.left - 6}
+                y={tick.pos + 3}
+                textAnchor="end"
+                className="text-[10px]"
+              >
+                {tick.label}
+              </text>
+            ))}
+            {layout.xAxis.label ? (
+              <text
+                x={layout.padding.left + layout.plotWidth / 2}
+                y={layout.height - 8}
+                textAnchor="middle"
+                className="text-[11px]"
+              >
+                {layout.xAxis.label}
+              </text>
+            ) : null}
+            {layout.yAxis.label ? (
+              <text
+                x={12}
+                y={centerY}
+                textAnchor="middle"
+                transform={`rotate(-90 12 ${centerY})`}
+                className="text-[11px]"
+              >
+                {layout.yAxis.label}
+              </text>
+            ) : null}
+          </g>
+          {layout.showLine
+            ? layout.series.map((series) =>
+                series.path ? (
+                  <path
+                    key={`line-${series.key}`}
+                    d={series.path}
+                    fill="none"
+                    stroke={series.color}
+                    strokeWidth={2}
+                  />
+                ) : null,
+              )
+            : null}
+          {layout.showPoints
+            ? layout.series.flatMap((series) =>
+                series.points.map((point, index) => (
+                  <circle
+                    key={`point-${series.key}-${index}`}
+                    cx={point.x}
+                    cy={point.y}
+                    r={layout.pointRadius}
+                    fill={series.color}
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                  />
+                )),
+              )
+            : null}
+        </svg>
+      </div>
+      {layout.series.length > 1 ? (
+        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+          {layout.series.map((series) => (
+            <div key={`legend-${series.key}`} className="flex items-center gap-2">
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ backgroundColor: series.color }}
+              />
+              <span>{series.key}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function toCssColor(value: any): string | undefined {

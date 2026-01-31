@@ -1,3 +1,5 @@
+import { buildChartLayout } from "@/lib/json-render-chart";
+import type { ChartLayout, ChartSpec } from "@/lib/json-render-chart";
 import { JsonRenderElement, JsonRenderTree } from "@/lib/json-render-model";
 
 export function renderJsonRenderHtml(tree: JsonRenderTree): string {
@@ -378,6 +380,13 @@ function renderElement(element: JsonRenderElement, tree: JsonRenderTree): string
       output.push("</div>");
       return output.join("");
     }
+    case "chart": {
+      const layout = buildChartLayout(props as ChartSpec);
+      if (!layout) {
+        return renderFallback("Chart has no data.");
+      }
+      return renderChart(layout);
+    }
     default:
       return renderFallback(`Unsupported element: ${element.type}`);
   }
@@ -469,6 +478,105 @@ function normalizeKanbanItems(items: any): Array<{ title: string; subtitle: stri
     }
     return { title: String(item ?? ""), subtitle: "", meta: "" };
   });
+}
+
+function renderChart(layout: ChartLayout): string {
+  const output: string[] = [];
+  const chartTitle = layout.title ? escapeHtml(layout.title) : "";
+  const chartSubtitle = layout.subtitle ? escapeHtml(layout.subtitle) : "";
+  const xAxisLabel = layout.xAxis.label ? escapeHtml(layout.xAxis.label) : "";
+  const yAxisLabel = layout.yAxis.label ? escapeHtml(layout.yAxis.label) : "";
+  const xAxisY = layout.padding.top + layout.plotHeight;
+  const yAxisX = layout.padding.left;
+  const viewBox = `0 0 ${layout.width} ${layout.height}`;
+
+  output.push('<div class="jr-chart">');
+  if (chartTitle) {
+    output.push(`<div class="jr-chart-title">${chartTitle}</div>`);
+  }
+  if (chartSubtitle) {
+    output.push(`<div class="jr-chart-subtitle">${chartSubtitle}</div>`);
+  }
+  output.push('<div class="jr-chart-card">');
+  output.push(
+    `<svg class="jr-chart-svg" viewBox="${viewBox}" role="img" aria-label="${escapeAttribute(
+      chartTitle || "Chart",
+    )}" xmlns="http://www.w3.org/2000/svg">`,
+  );
+  layout.yAxis.ticks.forEach((tick) => {
+    output.push(
+      `<line class="jr-chart-grid" x1="${layout.padding.left}" y1="${tick.pos}" x2="${layout.padding.left + layout.plotWidth}" y2="${tick.pos}" />`,
+    );
+  });
+  output.push(
+    `<line class="jr-chart-axis" x1="${layout.padding.left}" y1="${xAxisY}" x2="${layout.padding.left + layout.plotWidth}" y2="${xAxisY}" />`,
+  );
+  output.push(
+    `<line class="jr-chart-axis" x1="${yAxisX}" y1="${layout.padding.top}" x2="${yAxisX}" y2="${layout.padding.top + layout.plotHeight}" />`,
+  );
+  layout.xAxis.ticks.forEach((tick) => {
+    output.push(
+      `<line class="jr-chart-axis" x1="${tick.pos}" y1="${xAxisY}" x2="${tick.pos}" y2="${xAxisY + 4}" />`,
+    );
+    output.push(
+      `<text class="jr-chart-tick" x="${tick.pos}" y="${xAxisY + 16}" text-anchor="middle">${escapeHtml(
+        tick.label,
+      )}</text>`,
+    );
+  });
+  layout.yAxis.ticks.forEach((tick) => {
+    output.push(
+      `<text class="jr-chart-tick" x="${layout.padding.left - 6}" y="${tick.pos + 3}" text-anchor="end">${escapeHtml(
+        tick.label,
+      )}</text>`,
+    );
+  });
+  if (xAxisLabel) {
+    output.push(
+      `<text class="jr-chart-axis-label" x="${layout.padding.left + layout.plotWidth / 2}" y="${layout.height - 8}" text-anchor="middle">${xAxisLabel}</text>`,
+    );
+  }
+  if (yAxisLabel) {
+    const centerY = layout.padding.top + layout.plotHeight / 2;
+    output.push(
+      `<text class="jr-chart-axis-label" x="12" y="${centerY}" text-anchor="middle" transform="rotate(-90 12 ${centerY})">${yAxisLabel}</text>`,
+    );
+  }
+  if (layout.showLine) {
+    layout.series.forEach((series) => {
+      if (!series.path) {
+        return;
+      }
+      output.push(
+        `<path class="jr-chart-line" d="${series.path}" stroke="${escapeAttribute(series.color)}" />`,
+      );
+    });
+  }
+  if (layout.showPoints) {
+    layout.series.forEach((series) => {
+      series.points.forEach((point) => {
+        output.push(
+          `<circle class="jr-chart-point" cx="${point.x}" cy="${point.y}" r="${layout.pointRadius}" fill="${escapeAttribute(
+            series.color,
+          )}" />`,
+        );
+      });
+    });
+  }
+  output.push("</svg></div>");
+  if (layout.series.length > 1) {
+    output.push('<div class="jr-chart-legend">');
+    layout.series.forEach((series) => {
+      output.push(
+        `<span class="jr-chart-legend-item"><span class="jr-chart-legend-swatch" style="background:${escapeAttribute(
+          series.color,
+        )}"></span>${escapeHtml(series.key)}</span>`,
+      );
+    });
+    output.push("</div>");
+  }
+  output.push("</div>");
+  return output.join("");
 }
 
 function isPlainObject(value: unknown): value is Record<string, any> {
@@ -822,4 +930,18 @@ const JR_STYLES = `
 .jr-stat-value { font-size: 24px; font-weight: 600; margin-top: 4px; }
 .jr-stat-unit { font-size: 13px; font-weight: 400; color: #64748b; margin-left: 4px; }
 .jr-stat-change, .jr-stat-desc { font-size: 11px; color: #64748b; margin-top: 2px; }
+.jr-chart { display: flex; flex-direction: column; gap: 8px; }
+.jr-chart-title { font-size: 15px; font-weight: 600; }
+.jr-chart-subtitle { font-size: 12px; color: #64748b; }
+.jr-chart-card { border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px; background: #ffffff; }
+.jr-chart-svg { width: 100%; height: auto; display: block; }
+.jr-chart-axis { stroke: #94a3b8; stroke-width: 1; }
+.jr-chart-grid { stroke: #e2e8f0; stroke-width: 1; }
+.jr-chart-tick { font-size: 10px; fill: #64748b; }
+.jr-chart-axis-label { font-size: 11px; fill: #64748b; }
+.jr-chart-line { fill: none; stroke-width: 2; }
+.jr-chart-point { stroke: #ffffff; stroke-width: 1; }
+.jr-chart-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 11px; color: #64748b; }
+.jr-chart-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.jr-chart-legend-swatch { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
 `;

@@ -10,6 +10,6 @@ Render `chart` elements in json-render payloads (line charts) in web UI and SSR.
 
 ## Steps
 1. Add SSR chart rendering test coverage (completed).
-2. Build shared chart layout helper (in progress).
-3. Implement chart rendering in SSR + React with styles (pending).
-4. Run full lint/tests, update memory timestamp, and refresh plan status (pending).
+2. Build shared chart layout helper (completed).
+3. Implement chart rendering in SSR + React with styles (completed).
+4. Run full lint/tests, update memory timestamp, and refresh plan status (completed).

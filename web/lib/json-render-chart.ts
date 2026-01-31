@@ -202,7 +202,8 @@ export function buildChartLayout(spec: ChartSpec): ChartLayout | null {
   const mark = spec.mark;
   const markType = typeof mark === "string" ? mark : mark?.type ?? "line";
   const showLine = markType === "line";
-  const showPoints = typeof mark === "object" ? Boolean(mark?.point) : false;
+  const showPoints =
+    markType === "point" || (typeof mark === "object" ? Boolean(mark?.point) : false);
 
   return {
     title: spec.title,
