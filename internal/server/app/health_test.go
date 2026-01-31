@@ -104,7 +104,7 @@ func TestMCPProbe(t *testing.T) {
 }
 
 func TestLLMFactoryProbe(t *testing.T) {
-	t.Run("always ready", func(t *testing.T) {
+	t.Run("ready when factory initialized", func(t *testing.T) {
 		config := di.Config{
 			LLMProvider: "mock",
 			LLMModel:    "test",
@@ -124,6 +124,21 @@ func TestLLMFactoryProbe(t *testing.T) {
 
 		if health.Status != ports.HealthStatusReady {
 			t.Errorf("Expected status 'ready', got '%s'", health.Status)
+		}
+	})
+
+	t.Run("not ready when factory missing", func(t *testing.T) {
+		// A bare Container without BuildContainer has no llmFactory.
+		container := &di.Container{}
+
+		probe := NewLLMFactoryProbe(container)
+		health := probe.Check(context.Background())
+
+		if health.Status != ports.HealthStatusNotReady {
+			t.Errorf("Expected status 'not_ready', got '%s'", health.Status)
+		}
+		if health.Message != "LLM factory not initialized" {
+			t.Errorf("Unexpected message: %s", health.Message)
 		}
 	})
 }

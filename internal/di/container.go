@@ -366,6 +366,11 @@ func resolveStorageDir(configured, defaultPath string) string {
 	return path
 }
 
+// HasLLMFactory reports whether the container holds an initialised LLM factory.
+func (c *Container) HasLLMFactory() bool {
+	return c != nil && c.llmFactory != nil
+}
+
 // SessionDir returns the resolved session directory backing file-based stores.
 func (c *Container) SessionDir() string {
 	if c == nil {

@@ -121,14 +121,16 @@ func NewLLMFactoryProbe(container *di.Container) *LLMFactoryProbe {
 
 // Check returns the health status of LLM factory
 func (p *LLMFactoryProbe) Check(ctx context.Context) ports.ComponentHealth {
-	// LLM factory is always available once container is built
-	// We don't test actual API calls here to avoid external dependencies in health checks
+	if !p.container.HasLLMFactory() {
+		return ports.ComponentHealth{
+			Name:    "llm_factory",
+			Status:  ports.HealthStatusNotReady,
+			Message: "LLM factory not initialized",
+		}
+	}
 	return ports.ComponentHealth{
 		Name:    "llm_factory",
 		Status:  ports.HealthStatusReady,
 		Message: "LLM factory initialized",
-		Details: map[string]interface{}{
-			"note": "API connectivity not tested in health check",
-		},
 	}
 }
