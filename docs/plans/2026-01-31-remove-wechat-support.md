@@ -1,6 +1,6 @@
 # Plan: Remove legacy channel support
 
-**Status**: In Progress
+**Status**: Completed
 **Date**: 2026-01-31
 
 ## Goals
@@ -22,3 +22,4 @@
 - 2026-01-31: Removed legacy channel code, config structs, auth endpoints, and web OAuth UI. Updated README/config docs and cleaned deps.
 - 2026-01-31: `./dev.sh lint` passed; `./dev.sh test` failed with a data race in coordinator tests (`TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope`, `TestExecuteTaskUsesEnsuredTaskIDForPrepareEnvelope`) plus macOS LC_DYSYMTAB linker warnings.
 - 2026-01-31: Cleaned historical docs to remove legacy channel references.
+- 2026-01-31: Re-ran `./dev.sh lint` + `./dev.sh test` (LC_DYSYMTAB linker warnings observed; tests passed).
