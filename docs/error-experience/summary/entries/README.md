@@ -1,0 +1,37 @@
+# Index: error-experience/summary/entries
+
+Updated: 2026-01-31
+
+## Files
+
+- [2026-01-08-git-index-lock-stale.md](2026-01-08-git-index-lock-stale.md)
+- [2026-01-08-sum-golang-502.md](2026-01-08-sum-golang-502.md)
+- [2026-01-09-auth-db-migration-file-not-in-container.md](2026-01-09-auth-db-migration-file-not-in-container.md)
+- [2026-01-09-auth-module-not-configured-local-postgres.md](2026-01-09-auth-module-not-configured-local-postgres.md)
+- [2026-01-09-dev-sh-auth-db-psql-gate.md](2026-01-09-dev-sh-auth-db-psql-gate.md)
+- [2026-01-09-git-fetch-timeout.md](2026-01-09-git-fetch-timeout.md)
+- [2026-01-09-git-merge-unrelated-histories.md](2026-01-09-git-merge-unrelated-histories.md)
+- [2026-01-09-github-api-rate-limit-package-version-server.md](2026-01-09-github-api-rate-limit-package-version-server.md)
+- [2026-01-09-gopls-install-missing-go-path.md](2026-01-09-gopls-install-missing-go-path.md)
+- [2026-01-09-mock-llm-fallback-missing-api-key-or-overrides.md](2026-01-09-mock-llm-fallback-missing-api-key-or-overrides.md)
+- [2026-01-09-zsh-ic-oh-my-zsh-hang.md](2026-01-09-zsh-ic-oh-my-zsh-hang.md)
+- [2026-01-21-acp-executor-cwd-switch-failed.md](2026-01-21-acp-executor-cwd-switch-failed.md)
+- [2026-01-21-acp-executor-host-path-operation-rejected.md](2026-01-21-acp-executor-host-path-operation-rejected.md)
+- [2026-01-21-acp-executor-missing-events.md](2026-01-21-acp-executor-missing-events.md)
+- [2026-01-22-attachment-uri-pptx-timeout.md](2026-01-22-attachment-uri-pptx-timeout.md)
+- [2026-01-22-attachments-mime-persist.md](2026-01-22-attachments-mime-persist.md)
+- [2026-01-22-cli-sandbox-shell-connection-refused.md](2026-01-22-cli-sandbox-shell-connection-refused.md)
+- [2026-01-22-workflow-events-missing-session.md](2026-01-22-workflow-events-missing-session.md)
+- [2026-01-23-web-next-build-hang.md](2026-01-23-web-next-build-hang.md)
+- [2026-01-24-playwright-e2e-missing-ui.md](2026-01-24-playwright-e2e-missing-ui.md)
+- [2026-01-25-golangci-lint-import-cycle.md](2026-01-25-golangci-lint-import-cycle.md)
+- [2026-01-26-tui-macos-input-failure.md](2026-01-26-tui-macos-input-failure.md)
+- [2026-01-27-dev-lint-test-cmd-alex-context.md](2026-01-27-dev-lint-test-cmd-alex-context.md)
+- [2026-01-27-dev-test-orchestration-explore-failure.md](2026-01-27-dev-test-orchestration-explore-failure.md)
+- [2026-01-27-dev-test-rag-invalid-openai-key.md](2026-01-27-dev-test-rag-invalid-openai-key.md)
+- [2026-01-27-refresh-summary-subagent-title.md](2026-01-27-refresh-summary-subagent-title.md)
+- [2026-01-28-dev-test-request-log-failures.md](2026-01-28-dev-test-request-log-failures.md)
+- [2026-01-28-session-history-truncation.md](2026-01-28-session-history-truncation.md)
+- [2026-01-30-dev-lint-errcheck-failures.md](2026-01-30-dev-lint-errcheck-failures.md)
+- [2026-01-30-memory-import-cycle.md](2026-01-30-memory-import-cycle.md)
+- [2026-01-31-dev-lint-unused-subsystem-test.md](2026-01-31-dev-lint-unused-subsystem-test.md)
