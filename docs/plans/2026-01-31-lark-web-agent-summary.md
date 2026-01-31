@@ -14,3 +14,4 @@
 
 ## Progress
 - 2026-01-31: Plan created; engineering practices reviewed.
+- 2026-01-31: Summary completed; ran `./dev.sh lint` and `./dev.sh test` (LC_DYSYMTAB linker warnings observed).
