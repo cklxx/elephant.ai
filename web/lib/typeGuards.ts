@@ -16,7 +16,7 @@ import { isEventType } from '@/lib/events/matching';
 
 /** Safe accessor for optional properties on narrowed event unions */
 function prop<T>(event: AnyAgentEvent, key: string): T | undefined {
-  return key in event ? (event as Record<string, unknown>)[key] as T : undefined;
+  return key in event ? (event as unknown as Record<string, unknown>)[key] as T : undefined;
 }
 
 // Iteration Start Event (iteration-level)

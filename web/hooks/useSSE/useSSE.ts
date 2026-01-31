@@ -100,9 +100,9 @@ export function useSSE(
 
       pendingEvents.forEach((event) => {
         // Extract active_run_id from connected events
-        if (event.event_type === "connected" && "active_run_id" in event) {
-          const runId = (event as Record<string, unknown>).active_run_id;
-          activeRunIdRef.current = typeof runId === "string" && runId !== "" ? runId : null;
+        if (event.event_type === "connected") {
+          const runId = event.active_run_id;
+          activeRunIdRef.current = runId && runId !== "" ? runId : null;
           setConnectionState((prev) => ({
             ...prev,
             activeRunId: activeRunIdRef.current,
@@ -526,20 +526,15 @@ function mergeDeltaEvent(
     return false;
   }
 
-  const lastRec = last as Record<string, unknown>;
-  const incomingRec = incoming as Record<string, unknown>;
-
-  const lastNodeId = typeof lastRec.node_id === "string" ? lastRec.node_id : "";
-  const incomingNodeId =
-    typeof incomingRec.node_id === "string" ? incomingRec.node_id : "";
+  const lastNodeId = last.node_id ?? "";
+  const incomingNodeId = incoming.node_id ?? "";
 
   if ((lastNodeId || incomingNodeId) && lastNodeId !== incomingNodeId) {
     return false;
   }
 
-  const lastSessionId = typeof last.session_id === "string" ? last.session_id : "";
-  const incomingSessionId =
-    typeof incoming.session_id === "string" ? incoming.session_id : "";
+  const lastSessionId = last.session_id ?? "";
+  const incomingSessionId = incoming.session_id ?? "";
   if (lastSessionId !== incomingSessionId) {
     return false;
   }
@@ -556,9 +551,8 @@ function mergeDeltaEvent(
     return false;
   }
 
-  const lastDelta = typeof lastRec.delta === "string" ? lastRec.delta : "";
-  const incomingDelta =
-    typeof incomingRec.delta === "string" ? incomingRec.delta : "";
+  const lastDelta = last.delta ?? "";
+  const incomingDelta = incoming.delta ?? "";
   const mergedDeltaRaw = incomingDelta ? `${lastDelta}${incomingDelta}` : lastDelta;
   // When merged delta exceeds the cap, discard history and keep only the
   // latest incoming chunk to avoid slicing in the middle of a markdown
@@ -568,12 +562,12 @@ function mergeDeltaEvent(
       ? incomingDelta || lastDelta
       : mergedDeltaRaw;
 
-  const merged = {
-    ...lastRec,
-    ...incomingRec,
+  const merged: AnyAgentEvent = {
+    ...last,
+    ...incoming,
     delta: mergedDelta,
     timestamp: incoming.timestamp ?? last.timestamp,
-  } as AnyAgentEvent;
+  };
 
   events[events.length - 1] = merged;
   return true;

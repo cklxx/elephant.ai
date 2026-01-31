@@ -134,7 +134,7 @@ export function useMarkdownComponents({
         if (matchedAttachment?.type === "video") {
           return (
             <VideoPreview
-              src={href}
+              src={href!}
               mimeType={matchedAttachment.mime || "video/mp4"}
               description={
                 matchedAttachment.description ||
@@ -227,7 +227,7 @@ export function useMarkdownComponents({
       },
       br: () => null,
       img: ({ src, alt, ...imgProps }: ImgHTMLAttributes<HTMLImageElement>) => {
-        if (src) {
+        if (typeof src === 'string') {
           const matchedAttachment = inlineAttachmentMap.get(src);
           if (matchedAttachment?.type === "video") {
             return (

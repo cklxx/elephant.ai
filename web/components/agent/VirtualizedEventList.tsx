@@ -457,7 +457,7 @@ function EventCard({
         <span className="text-sm font-semibold text-foreground">
           {t('events.iteration.progress', {
             iteration: event.iteration,
-            total: (event as Record<string, unknown>).total_iters,
+            total: event.total_iters ?? 0,
           })}
         </span>
       </div>
@@ -471,7 +471,7 @@ function EventCard({
           {t('events.iteration.complete', { iteration: event.iteration })}
         </Badge>
         <span className="text-muted-foreground">
-          {t('events.iteration.tokens', { count: (event as Record<string, unknown>).tokens_used })}
+          {t('events.iteration.tokens', { count: event.tokens_used ?? 0 })}
         </span>
       </div>,
     );
@@ -484,7 +484,7 @@ function EventCard({
         <span className="text-sm font-semibold text-foreground">
           {t('events.step.started', {
             index: event.step_index + 1,
-            description: (event as Record<string, unknown>).step_description,
+            description: event.step_description ?? '',
           })}
         </span>
       </div>,
@@ -497,7 +497,7 @@ function EventCard({
         <p className="text-sm font-semibold text-foreground">
           {t('events.step.completed', { index: event.step_index + 1 })}
         </p>
-        <p className="text-sm text-foreground/75">{(event as Record<string, unknown>).step_result as string}</p>
+        <p className="text-sm text-foreground/75">{String(event.step_result ?? '')}</p>
       </div>
     );
   }
