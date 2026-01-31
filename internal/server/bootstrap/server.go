@@ -232,6 +232,7 @@ func RunServer(observabilityConfigPath string) error {
 	healthChecker := serverApp.NewHealthChecker()
 	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
+	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(degraded))
 
 	authService, authCleanup, err := BuildAuthService(config, logger)
 	if err != nil {

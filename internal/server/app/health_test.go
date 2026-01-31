@@ -143,6 +143,56 @@ func TestLLMFactoryProbe(t *testing.T) {
 	})
 }
 
+func TestDegradedProbe(t *testing.T) {
+	t.Run("ready when no degraded components", func(t *testing.T) {
+		source := &mockDegradedSource{components: nil}
+		probe := NewDegradedProbe(source)
+		health := probe.Check(context.Background())
+
+		if health.Name != "bootstrap" {
+			t.Errorf("Expected name 'bootstrap', got '%s'", health.Name)
+		}
+		if health.Status != ports.HealthStatusReady {
+			t.Errorf("Expected status 'ready', got '%s'", health.Status)
+		}
+	})
+
+	t.Run("not ready when components degraded", func(t *testing.T) {
+		source := &mockDegradedSource{
+			components: map[string]string{
+				"event-history": "connection refused",
+				"analytics":     "invalid API key",
+			},
+		}
+		probe := NewDegradedProbe(source)
+		health := probe.Check(context.Background())
+
+		if health.Status != ports.HealthStatusNotReady {
+			t.Errorf("Expected status 'not_ready', got '%s'", health.Status)
+		}
+		details, ok := health.Details.(map[string]string)
+		if !ok {
+			t.Fatalf("Expected details map[string]string, got %T", health.Details)
+		}
+		if details["event-history"] != "connection refused" {
+			t.Errorf("Expected event-history detail, got %v", details)
+		}
+		if details["analytics"] != "invalid API key" {
+			t.Errorf("Expected analytics detail, got %v", details)
+		}
+	})
+
+	t.Run("ready when source is nil", func(t *testing.T) {
+		probe := NewDegradedProbe(nil)
+		health := probe.Check(context.Background())
+		if health.Status != ports.HealthStatusReady {
+			t.Errorf("Expected 'ready' for nil source, got '%s'", health.Status)
+		}
+	})
+}
+
+// --- test doubles ---
+
 // Mock probe for testing
 type mockHealthProbe struct {
 	health ports.ComponentHealth
@@ -150,4 +200,16 @@ type mockHealthProbe struct {
 
 func (m *mockHealthProbe) Check(ctx context.Context) ports.ComponentHealth {
 	return m.health
+}
+
+type mockDegradedSource struct {
+	components map[string]string
+}
+
+func (m *mockDegradedSource) Map() map[string]string {
+	return m.components
+}
+
+func (m *mockDegradedSource) IsEmpty() bool {
+	return len(m.components) == 0
 }

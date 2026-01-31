@@ -107,6 +107,42 @@ func (p *MCPProbe) Check(ctx context.Context) ports.ComponentHealth {
 	}
 }
 
+// DegradedComponentsSource provides a snapshot of degraded components.
+// Satisfied by bootstrap.DegradedComponents.
+type DegradedComponentsSource interface {
+	Map() map[string]string
+	IsEmpty() bool
+}
+
+// DegradedProbe reports bootstrap components that failed optional initialization.
+type DegradedProbe struct {
+	source DegradedComponentsSource
+}
+
+// NewDegradedProbe creates a probe that reports degraded bootstrap components.
+func NewDegradedProbe(source DegradedComponentsSource) *DegradedProbe {
+	return &DegradedProbe{source: source}
+}
+
+// Check returns one ComponentHealth entry per degraded component.
+// If nothing is degraded, returns a single "ready" entry.
+func (p *DegradedProbe) Check(ctx context.Context) ports.ComponentHealth {
+	if p.source == nil || p.source.IsEmpty() {
+		return ports.ComponentHealth{
+			Name:    "bootstrap",
+			Status:  ports.HealthStatusReady,
+			Message: "All optional components initialized",
+		}
+	}
+	degraded := p.source.Map()
+	return ports.ComponentHealth{
+		Name:    "bootstrap",
+		Status:  ports.HealthStatusNotReady,
+		Message: "Some optional components failed to initialize",
+		Details: degraded,
+	}
+}
+
 // LLMFactoryProbe checks LLM factory health
 type LLMFactoryProbe struct {
 	container *di.Container
