@@ -22,14 +22,6 @@ type HomeCopy = {
 };
 
 const copy: Record<HomeLang, HomeCopy> = {
-  zh: {
-    badge: "elephant.ai · Lark 原生主动代理",
-    title: "住在飞书里的主动性个人 Agent",
-    subtitle: "不需要切换应用、不需要特殊指令——在群聊和私信中自然对话，它主动理解上下文、记住一切、替你执行真实工作。",
-    actions: {
-      primary: "进入控制台",
-    },
-  },
   en: {
     badge: "elephant.ai · Lark-native proactive agent",
     title: "Your proactive personal agent, native to Lark",
@@ -37,6 +29,14 @@ const copy: Record<HomeLang, HomeCopy> = {
       "No app switching, no special commands — talk naturally in groups and DMs. It reads the room, remembers everything, and executes real work for you.",
     actions: {
       primary: "Open console",
+    },
+  },
+  zh: {
+    badge: "elephant.ai · 飞书原生主动代理",
+    title: "住在飞书里的主动性个人 Agent",
+    subtitle: "不需要切换应用、不需要特殊指令——在群聊和私信中自然对话，它主动理解上下文、记住一切、替你执行真实工作。",
+    actions: {
+      primary: "进入控制台",
     },
   },
 };
@@ -49,26 +49,6 @@ type HighlightCopy = {
 };
 
 const highlightCopy: Record<HomeLang, HighlightCopy[]> = {
-  zh: [
-    {
-      title: "住在飞书里",
-      body: "通过 WebSocket 常驻群聊和私信，像团队成员一样随时在线、随时响应。",
-      accent: "from-emerald-500/20 via-lime-500/20 to-amber-400/20",
-      icon: MessageSquare,
-    },
-    {
-      title: "主动理解上下文",
-      body: "自动获取近期聊天记录、跨会话记忆，不用你复述背景。",
-      accent: "from-orange-500/20 via-amber-400/20 to-rose-400/20",
-      icon: Sparkles,
-    },
-    {
-      title: "自主执行真实工作",
-      body: "搜索、写代码、生成文档、浏览网页——从一条飞书消息到可交付产出。",
-      accent: "from-teal-500/20 via-sky-400/20 to-emerald-400/20",
-      icon: Zap,
-    },
-  ],
   en: [
     {
       title: "Lives in Lark",
@@ -89,6 +69,26 @@ const highlightCopy: Record<HomeLang, HighlightCopy[]> = {
       icon: Zap,
     },
   ],
+  zh: [
+    {
+      title: "住在飞书里",
+      body: "通过 WebSocket 常驻群聊和私信，像团队成员一样随时在线、随时响应。",
+      accent: "from-emerald-500/20 via-lime-500/20 to-amber-400/20",
+      icon: MessageSquare,
+    },
+    {
+      title: "主动理解上下文",
+      body: "自动获取近期聊天记录、跨会话记忆，不用你复述背景。",
+      accent: "from-orange-500/20 via-amber-400/20 to-rose-400/20",
+      icon: Sparkles,
+    },
+    {
+      title: "自主执行真实工作",
+      body: "搜索、写代码、生成文档、浏览网页——从一条飞书消息到可交付产出。",
+      accent: "from-teal-500/20 via-sky-400/20 to-emerald-400/20",
+      icon: Zap,
+    },
+  ],
 };
 
 type ManifestoCopy = {
@@ -100,29 +100,6 @@ type ManifestoCopy = {
 };
 
 const manifestoCopy: Record<HomeLang, ManifestoCopy> = {
-  zh: {
-    badge: "为什么是 Lark 原生",
-    title: "别让 AI 在工作流之外",
-    lede: "大多数 AI 助手是另一个应用、另一个标签页、另一次上下文切换。elephant.ai 直接住在飞书里。",
-    points: [
-      {
-        title: "零切换成本",
-        body: "不需要打开新应用——在你已有的群聊和私信里直接对话。",
-        accent: "from-emerald-500 via-lime-500 to-amber-400",
-      },
-      {
-        title: "持续记忆",
-        body: "跨会话记住对话、决策和上下文，再也不用重复说明背景。",
-        accent: "from-orange-500 via-amber-400 to-rose-400",
-      },
-      {
-        title: "全程可观测",
-        body: "执行进度实时反馈、成本与 token 透明可查、每一步可追踪。",
-        accent: "from-teal-500 via-sky-400 to-emerald-400",
-      },
-    ],
-    closing: "工作流里的 AI，而不是工作流外的 AI。",
-  },
   en: {
     badge: "Why Lark-native",
     title: "Don't let AI live outside your workflow",
@@ -146,6 +123,29 @@ const manifestoCopy: Record<HomeLang, ManifestoCopy> = {
     ],
     closing: "AI inside your workflow, not outside it.",
   },
+  zh: {
+    badge: "为什么是飞书原生",
+    title: "别让 AI 在工作流之外",
+    lede: "大多数 AI 助手是另一个应用、另一个标签页、另一次上下文切换。elephant.ai 直接住在飞书里。",
+    points: [
+      {
+        title: "零切换成本",
+        body: "不需要打开新应用——在你已有的群聊和私信里直接对话。",
+        accent: "from-emerald-500 via-lime-500 to-amber-400",
+      },
+      {
+        title: "持续记忆",
+        body: "跨会话记住对话、决策和上下文，再也不用重复说明背景。",
+        accent: "from-orange-500 via-amber-400 to-rose-400",
+      },
+      {
+        title: "全程可观测",
+        body: "执行进度实时反馈、成本与 token 透明可查、每一步可追踪。",
+        accent: "from-teal-500 via-sky-400 to-emerald-400",
+      },
+    ],
+    closing: "工作流里的 AI，而不是工作流外的 AI。",
+  },
 };
 
 type SlogCopy = {
@@ -155,24 +155,6 @@ type SlogCopy = {
 };
 
 const slogCopy: Record<HomeLang, SlogCopy> = {
-  zh: {
-    badge: "内置能力 · 开箱即用",
-    title: "不只是聊天——是能做事的 Agent",
-    points: [
-      {
-        title: "深度研究",
-        body: "多步骤网络搜索与信息综合，自动生成研究报告。",
-      },
-      {
-        title: "技能驱动",
-        body: "会议纪要、邮件撰写、PPT 生成、视频制作——用自然语言触发。",
-      },
-      {
-        title: "工具丰富",
-        body: "代码执行、文件操作、浏览器自动化、MCP 扩展——能力持续增长。",
-      },
-    ],
-  },
   en: {
     badge: "Built-in capabilities",
     title: "Not just chat — an agent that gets things done",
@@ -191,6 +173,24 @@ const slogCopy: Record<HomeLang, SlogCopy> = {
       },
     ],
   },
+  zh: {
+    badge: "内置能力 · 开箱即用",
+    title: "不只是聊天——是能做事的 Agent",
+    points: [
+      {
+        title: "深度研究",
+        body: "多步骤网络搜索与信息综合，自动生成研究报告。",
+      },
+      {
+        title: "技能驱动",
+        body: "会议纪要、邮件撰写、PPT 生成、视频制作——用自然语言触发。",
+      },
+      {
+        title: "工具丰富",
+        body: "代码执行、文件操作、浏览器自动化、MCP 扩展——能力持续增长。",
+      },
+    ],
+  },
 };
 
 type VideoCopy = {
@@ -200,15 +200,15 @@ type VideoCopy = {
 };
 
 const videoCopy: Record<HomeLang, VideoCopy> = {
-  zh: {
-    title: "演示视频即将呈现",
-    body: "真实录屏展示：在飞书群里一条消息，触发完整的研究、执行和交付流程。",
-    note: "无模拟对话框——真实飞书群聊中的真实产出。",
-  },
   en: {
     title: "Demo video coming soon",
     body: "A real recording: one message in a Lark group triggers a full research, execution, and delivery workflow.",
     note: "No simulated chat — real output from a real Lark group.",
+  },
+  zh: {
+    title: "演示视频即将呈现",
+    body: "真实录屏展示：在飞书群里一条消息，触发完整的研究、执行和交付流程。",
+    note: "无模拟对话框——真实飞书群聊中的真实产出。",
   },
 };
 

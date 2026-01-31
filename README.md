@@ -10,6 +10,8 @@
 
 **Lark-native proactive personal agent.**
 
+[中文文档](README.zh.md)
+
 elephant.ai lives inside your Lark groups and DMs as a first-class participant — not a bot you have to summon. It reads the room, remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. CLI and web dashboard are there when you need them, but Lark is home.
 
 ---
@@ -20,10 +22,10 @@ Most AI assistants sit outside your workflow — a separate app, a separate tab,
 
 | Capability | How it works in Lark |
 |---|---|
-| **Always present** | Lives in your Lark groups and DMs via WebSocket. No `/slash` commands needed — just talk to it naturally. |
+| **Always present** | Lives in your Lark groups and DMs via WebSocket. No `/slash` commands — just talk naturally. |
 | **Reads the room** | Auto-fetches recent chat history as context. Understands the conversation before replying. |
-| **Persistent memory** | Remembers conversations, decisions, and context across sessions. Never ask "as I mentioned before" again. |
-| **Autonomous execution** | Runs a full Think → Act → Observe loop. Searches the web, writes code, generates documents, browses pages — all from a Lark message. |
+| **Persistent memory** | Remembers conversations, decisions, and context across sessions. Never repeat yourself. |
+| **Autonomous execution** | Full Think → Act → Observe loop. Web search, code, documents, browser — all from a Lark message. |
 | **Live progress** | Shows tool execution progress and emoji reactions in real time while working. |
 | **Built-in skills** | Deep research, meeting notes, email drafting, slide decks, video production — triggered by natural language. |
 | **Approval gates** | Knows when to ask before acting. Risky operations require explicit human approval right in the chat. |
