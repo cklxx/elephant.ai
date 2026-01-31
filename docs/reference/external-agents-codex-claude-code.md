@@ -9,7 +9,7 @@ Updated: 2026-01-31
 ## Quick start (external agents)
 1) Install CLI binaries
 - Codex CLI: `npm i -g @openai/codex`
-- Claude Code CLI: `npm install -g @anthropic-ai/claude-code` (requires Node.js 18+)
+- Claude Code CLI: prefer the native installer (see official docs). If you use npm (deprecated), run `npm install -g @anthropic-ai/claude-code` and ensure Node.js 18+ is installed.
 
 2) Enable external agents in `config.yaml`
 
@@ -168,4 +168,4 @@ runtime:
   - `https://developers.openai.com/codex/cli`
   - `https://developers.openai.com/codex/mcp`
 - Claude Code CLI:
-  - `https://docs.anthropic.com/en/docs/claude-code/getting-started`
+  - `https://code.claude.com/docs/en/getting-started`
