@@ -187,7 +187,7 @@ func (s *PostgresEventHistoryStore) EnsureSchema(ctx context.Context) error {
 
 	for _, stmt := range statements {
 		if _, err := s.pool.Exec(ctx, stmt); err != nil {
-			return err
+			return fmt.Errorf("execute schema statement: %w", err)
 		}
 	}
 
@@ -205,7 +205,7 @@ func (s *PostgresEventHistoryStore) Append(ctx context.Context, event agent.Agen
 
 	record, err := recordFromEventWithStore(event, s.attachmentStore)
 	if err != nil {
-		return err
+		return fmt.Errorf("marshal event record: %w", err)
 	}
 
 	var payloadParam any
@@ -242,7 +242,7 @@ INSERT INTO agent_session_events (
 		payloadParam,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("insert event: %w", err)
 	}
 	s.pruneIfNeeded()
 	return nil
@@ -265,7 +265,7 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []ag
 		}
 		record, err := recordFromEventWithStore(event, s.attachmentStore)
 		if err != nil {
-			return err
+			return fmt.Errorf("marshal event record: %w", err)
 		}
 		records = append(records, record)
 	}
@@ -329,7 +329,7 @@ func (s *PostgresEventHistoryStore) AppendBatch(ctx context.Context, events []ag
 
 	_, err := s.pool.Exec(ctxWithTimeout, sb.String(), args...)
 	if err != nil {
-		return err
+		return fmt.Errorf("insert event batch: %w", err)
 	}
 	s.pruneIfNeeded()
 	return nil
@@ -348,7 +348,7 @@ func (s *PostgresEventHistoryStore) Stream(ctx context.Context, filter EventHist
 	for {
 		records, err := s.fetchBatch(ctx, filter, afterID)
 		if err != nil {
-			return err
+			return fmt.Errorf("query session events: %w", err)
 		}
 		if len(records) == 0 {
 			break
@@ -386,7 +386,10 @@ func (s *PostgresEventHistoryStore) DeleteSession(ctx context.Context, sessionID
 	defer cancel()
 
 	_, err := s.pool.Exec(ctxWithTimeout, `DELETE FROM agent_session_events WHERE session_id = $1`, sessionID)
-	return err
+	if err != nil {
+		return fmt.Errorf("delete session events: %w", err)
+	}
+	return nil
 }
 
 // HasSessionEvents checks if session history exists.
@@ -400,7 +403,7 @@ func (s *PostgresEventHistoryStore) HasSessionEvents(ctx context.Context, sessio
 
 	err := s.pool.QueryRow(ctxWithTimeout, `SELECT EXISTS(SELECT 1 FROM agent_session_events WHERE session_id = $1)`, sessionID).Scan(&exists)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("check session events: %w", err)
 	}
 	return exists, nil
 }
@@ -438,7 +441,7 @@ WHERE session_id = $1 AND id > $2`
 
 	rows, err := s.pool.Query(ctxWithTimeout, query, args...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query session events: %w", err)
 	}
 	defer rows.Close()
 
@@ -467,7 +470,7 @@ WHERE session_id = $1 AND id > $2`
 			&rec.maxParallel,
 			&payload,
 		); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan event row: %w", err)
 		}
 		if len(payload) > 0 {
 			rec.payload = payload
@@ -475,7 +478,7 @@ WHERE session_id = $1 AND id > $2`
 		records = append(records, rec)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("iterate event rows: %w", err)
 	}
 	return records, nil
 }
@@ -534,7 +537,10 @@ WHERE id IN (
     ORDER BY event_ts ASC
     LIMIT $2
 )`, cutoff, batch)
-	return err
+	if err != nil {
+		return fmt.Errorf("prune expired events: %w", err)
+	}
+	return nil
 }
 
 func recordFromEvent(event agent.AgentEvent) (eventRecord, error) {
@@ -735,7 +741,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 		payload := map[string]any{}
 		if len(record.payload) > 0 {
 			if err := json.Unmarshal(record.payload, &payload); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("unmarshal envelope payload: %w", err)
 			}
 		}
 		return &domain.WorkflowEventEnvelope{
@@ -763,7 +769,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 		}
 		if len(record.payload) > 0 {
 			if err := json.Unmarshal(record.payload, &payload); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("unmarshal input event payload: %w", err)
 			}
 		}
 		return domain.NewWorkflowInputReceivedEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Task, payload.Attachments, record.eventTS), nil
@@ -777,7 +783,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 		}
 		if len(record.payload) > 0 {
 			if err := json.Unmarshal(record.payload, &payload); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("unmarshal diagnostic payload: %w", err)
 			}
 		}
 		return domain.NewWorkflowDiagnosticContextSnapshotEvent(level, record.sessionID, record.runID, record.parentRunID, payload.Iteration, payload.LLMTurnSeq, payload.RequestID, payload.Messages, payload.Excluded, record.eventTS), nil
@@ -785,7 +791,7 @@ func eventFromRecord(record eventRecord) (agent.AgentEvent, error) {
 		payload := map[string]any{}
 		if len(record.payload) > 0 {
 			if err := json.Unmarshal(record.payload, &payload); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("unmarshal event payload: %w", err)
 			}
 		}
 		return &domain.WorkflowEventEnvelope{
