@@ -239,6 +239,9 @@ func (c *AgentCoordinator) ExecuteTask(
 		}
 		eventListener = planTitleRecorder
 	}
+	if eventListener != nil {
+		eventListener = NewSerializingEventListener(eventListener)
+	}
 
 	ctx = id.WithSessionID(ctx, sessionID)
 	ctx, ensuredRunID := id.EnsureRunID(ctx, id.NewRunID)
