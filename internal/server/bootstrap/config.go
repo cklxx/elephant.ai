@@ -147,7 +147,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 					ReplyTimeout:  3 * time.Minute,
 				},
 				BaseDomain:          "https://open.larkoffice.com",
-				SessionMode:         "stable",
+				SessionMode:         "fresh",
 				ToolMode:            "cli",
 				ReactEmoji:          "SMILE",
 				AutoChatContext:     true,

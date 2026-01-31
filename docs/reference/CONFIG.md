@@ -206,7 +206,7 @@ channels:
 - `app_id` / `app_secret`：Lark 应用凭证。
 - `base_domain`：Lark API 域名（默认 `https://open.larkoffice.com`）。
 - `session_prefix`：会话 ID 前缀（默认 `lark`）。
-- `session_mode`：`stable` / `fresh`（默认 `stable`）。
+- `session_mode`：`stable` / `fresh`（默认 `fresh`）。
 - `reply_prefix`：回复前缀。
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
 - `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode。
@@ -228,7 +228,7 @@ channels:
     app_id: "cli_test"
     app_secret: "secret"
     session_prefix: "lark"
-    session_mode: "stable"
+    session_mode: "fresh"
     allow_groups: true
     allow_direct: true
     agent_preset: "default"
