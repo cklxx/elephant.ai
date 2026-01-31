@@ -26,3 +26,13 @@ These are the local engineering practices for this repo. Keep them short and act
 - Avoid unnecessary defensive code; trust invariants when guaranteed.
 - Keep naming consistent; follow local naming guidelines when present.
 - Be cautious with long parameter lists; if a function needs many inputs, prefer grouping into a struct or options pattern and document the boundary explicitly.
+
+## Go + OSS (Condensed)
+- Formatting/imports: always run `gofmt`; use `goimports` to manage imports.
+- Naming: package names are lowercase and avoid underscores/dashes; avoid redundant interface names (`storage.Interface` not `storage.StorageInterface`).
+- Comments: exported identifiers have full-sentence doc comments that start with the identifier name.
+- Context: pass `context.Context` explicitly (first param); never store it in structs.
+- Errors: check/handle errors; avoid `panic` for normal flow; wrap with context when returning.
+- Concurrency & tests: avoid fire-and-forget goroutines (make lifetimes explicit); prefer table-driven tests for multi-case coverage.
+
+Sources: [Effective Go](https://go.dev/doc/effective_go), [Go Code Review Comments](https://go.dev/wiki/CodeReviewComments), [Uber Go Style Guide](https://github.com/uber-go/guide/blob/master/style.md), [Kubernetes Coding Conventions](https://www.kubernetes.dev/docs/guide/coding-convention/).
