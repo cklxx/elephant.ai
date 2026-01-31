@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	agent "alex/internal/agent/ports/agent"
 	serverPorts "alex/internal/server/ports"
@@ -495,5 +496,106 @@ func TestInMemoryTaskStore_SetResult_SetsTerminationReason(t *testing.T) {
 	updated, _ := store.Get(ctx, task.ID)
 	if updated.TerminationReason != serverPorts.TerminationReasonCompleted {
 		t.Errorf("Expected termination reason 'completed', got '%s'", updated.TerminationReason)
+	}
+}
+
+// --- Eviction tests ---
+
+func TestInMemoryTaskStore_EvictExpired(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore(WithTaskRetention(50 * time.Millisecond))
+	defer store.Close()
+
+	// Create and complete a task.
+	task, _ := store.Create(ctx, "s1", "evict me", "", "")
+	_ = store.SetStatus(ctx, task.ID, serverPorts.TaskStatusCompleted)
+
+	// Task is still accessible immediately.
+	if _, err := store.Get(ctx, task.ID); err != nil {
+		t.Fatalf("task should exist before eviction: %v", err)
+	}
+
+	// Wait for retention to expire, then trigger eviction manually.
+	time.Sleep(80 * time.Millisecond)
+	store.evictExpired()
+
+	if _, err := store.Get(ctx, task.ID); err == nil {
+		t.Fatal("expected task to be evicted after retention period")
+	}
+}
+
+func TestInMemoryTaskStore_EvictExpiredSkipsRunning(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore(WithTaskRetention(10 * time.Millisecond))
+	defer store.Close()
+
+	task, _ := store.Create(ctx, "s1", "running task", "", "")
+	_ = store.SetStatus(ctx, task.ID, serverPorts.TaskStatusRunning)
+
+	time.Sleep(30 * time.Millisecond)
+	store.evictExpired()
+
+	if _, err := store.Get(ctx, task.ID); err != nil {
+		t.Fatal("running task should not be evicted")
+	}
+}
+
+func TestInMemoryTaskStore_EvictOldestWhenOverMaxSize(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore(
+		WithMaxTasks(2),
+		WithTaskRetention(1*time.Hour), // retention won't trigger
+	)
+	defer store.Close()
+
+	// Create 3 completed tasks with staggered completion times.
+	t1, _ := store.Create(ctx, "s1", "oldest", "", "")
+	_ = store.SetStatus(ctx, t1.ID, serverPorts.TaskStatusCompleted)
+	time.Sleep(5 * time.Millisecond)
+
+	t2, _ := store.Create(ctx, "s1", "middle", "", "")
+	_ = store.SetStatus(ctx, t2.ID, serverPorts.TaskStatusCompleted)
+	time.Sleep(5 * time.Millisecond)
+
+	t3, _ := store.Create(ctx, "s1", "newest", "", "")
+	_ = store.SetStatus(ctx, t3.ID, serverPorts.TaskStatusCompleted)
+
+	// Trigger eviction — should remove oldest to get back to maxSize=2.
+	store.evictExpired()
+
+	if _, err := store.Get(ctx, t1.ID); err == nil {
+		t.Fatal("oldest task should have been evicted")
+	}
+	if _, err := store.Get(ctx, t2.ID); err != nil {
+		t.Fatalf("middle task should still exist: %v", err)
+	}
+	if _, err := store.Get(ctx, t3.ID); err != nil {
+		t.Fatalf("newest task should still exist: %v", err)
+	}
+}
+
+func TestInMemoryTaskStore_CloseStopsEvictLoop(t *testing.T) {
+	store := NewInMemoryTaskStore()
+	// Close should not panic or block.
+	store.Close()
+	// Double-close should also be safe.
+	store.Close()
+}
+
+func TestIsTerminalStatus(t *testing.T) {
+	tests := []struct {
+		status   serverPorts.TaskStatus
+		terminal bool
+	}{
+		{serverPorts.TaskStatusPending, false},
+		{serverPorts.TaskStatusRunning, false},
+		{serverPorts.TaskStatusCompleted, true},
+		{serverPorts.TaskStatusFailed, true},
+		{serverPorts.TaskStatusCancelled, true},
+	}
+	for _, tt := range tests {
+		if got := isTerminalStatus(tt.status); got != tt.terminal {
+			t.Errorf("isTerminalStatus(%q) = %v, want %v", tt.status, got, tt.terminal)
+		}
 	}
 }
