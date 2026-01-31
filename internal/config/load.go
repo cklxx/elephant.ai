@@ -115,6 +115,8 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.ACPExecutorCWD = strings.TrimSpace(cfg.ACPExecutorCWD)
 	cfg.ACPExecutorMode = strings.TrimSpace(cfg.ACPExecutorMode)
 	cfg.TavilyAPIKey = strings.TrimSpace(cfg.TavilyAPIKey)
+	cfg.MoltbookAPIKey = strings.TrimSpace(cfg.MoltbookAPIKey)
+	cfg.MoltbookBaseURL = strings.TrimSpace(cfg.MoltbookBaseURL)
 	cfg.SeedreamTextEndpointID = strings.TrimSpace(cfg.SeedreamTextEndpointID)
 	cfg.SeedreamImageEndpointID = strings.TrimSpace(cfg.SeedreamImageEndpointID)
 	cfg.SeedreamTextModel = strings.TrimSpace(cfg.SeedreamTextModel)

@@ -28,6 +28,8 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		ACPExecutorMaxDuration:     runtime.ACPExecutorMaxDuration,
 		ACPExecutorRequireManifest: runtime.ACPExecutorRequireManifest,
 		TavilyAPIKey:               runtime.TavilyAPIKey,
+		MoltbookAPIKey:             runtime.MoltbookAPIKey,
+		MoltbookBaseURL:            runtime.MoltbookBaseURL,
 		SeedreamTextEndpointID:     runtime.SeedreamTextEndpointID,
 		SeedreamImageEndpointID:    runtime.SeedreamImageEndpointID,
 		SeedreamTextModel:          runtime.SeedreamTextModel,

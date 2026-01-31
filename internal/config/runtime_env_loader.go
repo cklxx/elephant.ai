@@ -92,6 +92,14 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.TavilyAPIKey = value
 		meta.sources["tavily_api_key"] = SourceEnv
 	}
+	if value, ok := lookup("MOLTBOOK_API_KEY"); ok && value != "" {
+		cfg.MoltbookAPIKey = value
+		meta.sources["moltbook_api_key"] = SourceEnv
+	}
+	if value, ok := lookup("MOLTBOOK_BASE_URL"); ok && value != "" {
+		cfg.MoltbookBaseURL = value
+		meta.sources["moltbook_base_url"] = SourceEnv
+	}
 	if value, ok := lookup("SEEDREAM_TEXT_ENDPOINT_ID"); ok && value != "" {
 		cfg.SeedreamTextEndpointID = value
 		meta.sources["seedream_text_endpoint_id"] = SourceEnv

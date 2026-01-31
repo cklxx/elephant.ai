@@ -34,6 +34,8 @@ type RuntimeFileConfig struct {
 	ACPExecutorMaxDuration     *int                      `yaml:"acp_executor_max_duration_seconds"`
 	ACPExecutorRequireManifest *bool                     `yaml:"acp_executor_require_manifest"`
 	TavilyAPIKey               string                    `yaml:"tavily_api_key"`
+	MoltbookAPIKey             string                    `yaml:"moltbook_api_key"`
+	MoltbookBaseURL            string                    `yaml:"moltbook_base_url"`
 	SeedreamTextEndpointID     string                    `yaml:"seedream_text_endpoint_id"`
 	SeedreamImageEndpointID    string                    `yaml:"seedream_image_endpoint_id"`
 	SeedreamTextModel          string                    `yaml:"seedream_text_model"`
@@ -98,8 +100,16 @@ type ProactiveFileConfig struct {
 	Memory    *MemoryFileConfig    `yaml:"memory"`
 	Skills    *SkillsFileConfig    `yaml:"skills"`
 	RAG       *RAGFileConfig       `yaml:"rag"`
+	OKR       *OKRFileConfig       `yaml:"okr"`
 	Scheduler *SchedulerFileConfig `yaml:"scheduler"`
 	Attention *AttentionFileConfig `yaml:"attention"`
+}
+
+// OKRFileConfig mirrors OKRProactiveConfig for YAML decoding.
+type OKRFileConfig struct {
+	Enabled    *bool  `yaml:"enabled"`
+	GoalsRoot  string `yaml:"goals_root"`
+	AutoInject *bool  `yaml:"auto_inject"`
 }
 
 type MemoryFileConfig struct {

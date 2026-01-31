@@ -69,6 +69,14 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.TavilyAPIKey = *overrides.TavilyAPIKey
 		meta.sources["tavily_api_key"] = SourceOverride
 	}
+	if overrides.MoltbookAPIKey != nil {
+		cfg.MoltbookAPIKey = *overrides.MoltbookAPIKey
+		meta.sources["moltbook_api_key"] = SourceOverride
+	}
+	if overrides.MoltbookBaseURL != nil {
+		cfg.MoltbookBaseURL = *overrides.MoltbookBaseURL
+		meta.sources["moltbook_base_url"] = SourceOverride
+	}
 	if overrides.SeedreamTextEndpointID != nil {
 		cfg.SeedreamTextEndpointID = *overrides.SeedreamTextEndpointID
 		meta.sources["seedream_text_endpoint_id"] = SourceOverride

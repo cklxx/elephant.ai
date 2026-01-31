@@ -111,6 +111,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.TavilyAPIKey = parsed.TavilyAPIKey
 		meta.sources["tavily_api_key"] = SourceFile
 	}
+	if parsed.MoltbookAPIKey != "" {
+		cfg.MoltbookAPIKey = parsed.MoltbookAPIKey
+		meta.sources["moltbook_api_key"] = SourceFile
+	}
+	if parsed.MoltbookBaseURL != "" {
+		cfg.MoltbookBaseURL = parsed.MoltbookBaseURL
+		meta.sources["moltbook_base_url"] = SourceFile
+	}
 	if parsed.SeedreamTextEndpointID != "" {
 		cfg.SeedreamTextEndpointID = parsed.SeedreamTextEndpointID
 		meta.sources["seedream_text_endpoint_id"] = SourceFile
@@ -279,6 +287,8 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.ACPExecutorCWD = expandEnvValue(lookup, parsed.ACPExecutorCWD)
 	parsed.ACPExecutorMode = expandEnvValue(lookup, parsed.ACPExecutorMode)
 	parsed.TavilyAPIKey = expandEnvValue(lookup, parsed.TavilyAPIKey)
+	parsed.MoltbookAPIKey = expandEnvValue(lookup, parsed.MoltbookAPIKey)
+	parsed.MoltbookBaseURL = expandEnvValue(lookup, parsed.MoltbookBaseURL)
 	parsed.SeedreamTextEndpointID = expandEnvValue(lookup, parsed.SeedreamTextEndpointID)
 	parsed.SeedreamImageEndpointID = expandEnvValue(lookup, parsed.SeedreamImageEndpointID)
 	parsed.SeedreamTextModel = expandEnvValue(lookup, parsed.SeedreamTextModel)

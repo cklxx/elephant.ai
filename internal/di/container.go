@@ -73,6 +73,8 @@ type Config struct {
 	ACPExecutorMaxDuration     int
 	ACPExecutorRequireManifest bool
 	TavilyAPIKey               string
+	MoltbookAPIKey             string
+	MoltbookBaseURL            string
 	SeedreamTextEndpointID     string
 	SeedreamImageEndpointID    string
 	SeedreamTextModel          string

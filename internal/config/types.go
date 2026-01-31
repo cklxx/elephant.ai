@@ -56,6 +56,8 @@ type RuntimeConfig struct {
 	ACPExecutorMaxDuration     int                  `json:"acp_executor_max_duration_seconds" yaml:"acp_executor_max_duration_seconds"`
 	ACPExecutorRequireManifest bool                 `json:"acp_executor_require_manifest" yaml:"acp_executor_require_manifest"`
 	TavilyAPIKey               string               `json:"tavily_api_key" yaml:"tavily_api_key"`
+	MoltbookAPIKey             string               `json:"moltbook_api_key" yaml:"moltbook_api_key"`
+	MoltbookBaseURL            string               `json:"moltbook_base_url" yaml:"moltbook_base_url"`
 	SeedreamTextEndpointID     string               `json:"seedream_text_endpoint_id" yaml:"seedream_text_endpoint_id"`
 	SeedreamImageEndpointID    string               `json:"seedream_image_endpoint_id" yaml:"seedream_image_endpoint_id"`
 	SeedreamTextModel          string               `json:"seedream_text_model" yaml:"seedream_text_model"`
@@ -300,7 +302,7 @@ func DefaultProactiveConfig() ProactiveConfig {
 			MinSimilarity: 0.7,
 		},
 		OKR: OKRProactiveConfig{
-			Enabled:    false,
+			Enabled:    true,
 			AutoInject: true,
 		},
 		Scheduler: SchedulerConfig{
@@ -368,6 +370,8 @@ type Overrides struct {
 	ACPExecutorMaxDuration     *int             `json:"acp_executor_max_duration_seconds,omitempty" yaml:"acp_executor_max_duration_seconds,omitempty"`
 	ACPExecutorRequireManifest *bool            `json:"acp_executor_require_manifest,omitempty" yaml:"acp_executor_require_manifest,omitempty"`
 	TavilyAPIKey               *string          `json:"tavily_api_key,omitempty" yaml:"tavily_api_key,omitempty"`
+	MoltbookAPIKey             *string          `json:"moltbook_api_key,omitempty" yaml:"moltbook_api_key,omitempty"`
+	MoltbookBaseURL            *string          `json:"moltbook_base_url,omitempty" yaml:"moltbook_base_url,omitempty"`
 	SeedreamTextEndpointID     *string          `json:"seedream_text_endpoint_id,omitempty" yaml:"seedream_text_endpoint_id,omitempty"`
 	SeedreamImageEndpointID    *string          `json:"seedream_image_endpoint_id,omitempty" yaml:"seedream_image_endpoint_id,omitempty"`
 	SeedreamTextModel          *string          `json:"seedream_text_model,omitempty" yaml:"seedream_text_model,omitempty"`

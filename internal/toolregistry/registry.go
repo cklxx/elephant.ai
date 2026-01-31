@@ -47,7 +47,9 @@ type filteredRegistry struct {
 }
 
 type Config struct {
-	TavilyAPIKey string
+	TavilyAPIKey    string
+	MoltbookAPIKey  string
+	MoltbookBaseURL string
 
 	ArkAPIKey                  string
 	SeedreamTextEndpointID     string

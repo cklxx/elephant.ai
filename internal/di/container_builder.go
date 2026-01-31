@@ -13,6 +13,7 @@ import (
 	agentcoordinator "alex/internal/agent/app/coordinator"
 	agentcost "alex/internal/agent/app/cost"
 	"alex/internal/agent/app/hooks"
+	"alex/internal/agent/app/preparation"
 	agent "alex/internal/agent/ports/agent"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
@@ -141,6 +142,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 
 	hookRegistry := b.buildHookRegistry(memoryService)
 	iterationHook := b.buildIterationHook(memoryService)
+	okrContextProvider := b.buildOKRContextProvider()
 
 	coordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
@@ -176,6 +178,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithIterationHook(iterationHook),
 		agentcoordinator.WithMemoryService(memoryService),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
+		agentcoordinator.WithOKRContextProvider(okrContextProvider),
 	)
 
 	// Register subagent tool after coordinator is created.
@@ -526,6 +529,8 @@ func (b *containerBuilder) buildIterationHook(memoryService memory.Service) agen
 func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService memory.Service) (*toolregistry.Registry, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:               b.config.TavilyAPIKey,
+		MoltbookAPIKey:             b.config.MoltbookAPIKey,
+		MoltbookBaseURL:            b.config.MoltbookBaseURL,
 		ArkAPIKey:                  b.config.ArkAPIKey,
 		LLMFactory:                 factory,
 		LLMProvider:                b.config.LLMProvider,
@@ -561,4 +566,17 @@ func (b *containerBuilder) resolveOKRGoalsRoot() string {
 		return resolveStorageDir(root, "")
 	}
 	return "" // Let OKR tools use their own default
+}
+
+func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvider {
+	if !b.config.Proactive.Enabled || !b.config.Proactive.OKR.Enabled {
+		return nil
+	}
+	okrCfg := okrtools.DefaultOKRConfig()
+	if goalsRoot := b.config.Proactive.OKR.GoalsRoot; goalsRoot != "" {
+		okrCfg.GoalsRoot = resolveStorageDir(goalsRoot, okrCfg.GoalsRoot)
+	}
+	store := okrtools.NewGoalStore(okrCfg)
+	b.logger.Info("OKR context provider enabled (goals_root=%s)", okrCfg.GoalsRoot)
+	return preparation.NewOKRContextProvider(store)
 }
