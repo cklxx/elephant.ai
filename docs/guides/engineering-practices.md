@@ -7,6 +7,7 @@ These are the local engineering practices for this repo. Keep them short and act
 - Make small, reviewable changes; avoid large rewrites unless explicitly needed.
 - Use TDD when touching logic; include edge cases.
 - Run full lint and tests before delivery.
+- On macOS, prefer `CGO_ENABLED=0` for Go tests with `-race` to avoid LC_DYSYMTAB linker warnings; set `CGO_ENABLED=1` when cgo is required.
 - Keep config examples in YAML only (no JSON configs).
 
 ## Planning & Records
