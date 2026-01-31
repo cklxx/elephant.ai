@@ -139,7 +139,8 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 		h.obs.Metrics.RecordSSEMessage(r.Context(), "connected", "ok", int64(len(initialPayload)))
 	}
 
-	seenEventIDs := make(map[string]struct{})
+	const sseSeenEventIDsCacheSize = 10000
+	seenEventIDs := newStringLRU(sseSeenEventIDsCacheSize)
 	lastSeqByRun := make(map[string]uint64)
 
 	sendEvent := func(event agent.AgentEvent) bool {
@@ -251,7 +252,7 @@ drainComplete:
 	}
 }
 
-func shouldSendEvent(event agent.AgentEvent, seenEventIDs map[string]struct{}, lastSeqByRun map[string]uint64) bool {
+func shouldSendEvent(event agent.AgentEvent, seenEventIDs *stringLRU, lastSeqByRun map[string]uint64) bool {
 	if event == nil {
 		return false
 	}
@@ -265,10 +266,10 @@ func shouldSendEvent(event agent.AgentEvent, seenEventIDs map[string]struct{}, l
 		}
 	}
 	if eventID := strings.TrimSpace(event.GetEventID()); eventID != "" {
-		if _, ok := seenEventIDs[eventID]; ok {
+		if _, ok := seenEventIDs.Get(eventID); ok {
 			return false
 		}
-		seenEventIDs[eventID] = struct{}{}
+		seenEventIDs.Set(eventID, "")
 	}
 	return true
 }
@@ -285,8 +286,7 @@ func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent, debugMode bool) b
 	// Context snapshots are stored for debugging and analytics but contain
 	// sensitive/internal details that don't need to be pushed to clients in
 	// real time.
-	contextSnapshotEventType := (&domain.WorkflowDiagnosticContextSnapshotEvent{}).EventType()
-	if base.EventType() == contextSnapshotEventType {
+	if base.EventType() == types.EventDiagnosticContextSnapshot {
 		return false
 	}
 
