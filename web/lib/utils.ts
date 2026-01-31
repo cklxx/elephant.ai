@@ -23,7 +23,6 @@ const TOOL_ICON_MAP: Record<string, string> = {
   find: '🔍',
   web_search: '🔎',
   web_fetch: '🌐',
-  think: '💭',
   task_boundary: '✨',
   notify_user: '🔔',
   text_to_image: '🎨',
@@ -112,10 +111,6 @@ export function getToolIcon(toolName: string): string {
 
 // Get tool category color
 export function getToolColor(toolName: string): string {
-  if (toolName === 'think') {
-    return 'text-muted-foreground border-border bg-muted';
-  }
-
   if (toolName === 'bash' || toolName === 'code_execute') {
     return 'text-amber-700 border-amber-200 bg-amber-50';
   }
@@ -199,7 +194,6 @@ const TOOL_NAME_MAP: Record<string, string> = {
   // Agent/Task
   'task_boundary': 'Task',
   'notify_user': 'Notify User',
-  'think': '内部处理',
   'todo_read': '查看待办',
   'todo_update': '更新待办',
 

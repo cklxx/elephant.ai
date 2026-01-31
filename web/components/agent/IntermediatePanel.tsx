@@ -246,10 +246,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
     });
 
     return {
-      toolCalls: Array.from(toolCallsMap.values()).filter((call) => {
-        if (debugMode) return true;
-        return call.toolName.toLowerCase().trim() !== "think";
-      }),
+      toolCalls: Array.from(toolCallsMap.values()),
       thinkStreamItems: Array.from(thinkStreams.values())
         .filter((item) => item.content.trim().length > 0)
         .sort(
@@ -257,7 +254,7 @@ export function IntermediatePanel({ events }: IntermediatePanelProps) {
             new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         ),
     };
-  }, [events, debugMode]);
+  }, [events]);
 
   const runningTools = useMemo(
     () => toolCalls.filter((call) => call.status === "running"),

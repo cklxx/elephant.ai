@@ -330,7 +330,7 @@ export function userFacingToolTitle(input: {
   const base = humanizeToolName(tool);
   const formatTitle = (hint?: string) => truncateToolTitle(base, hint);
 
-  if (!tool || tool === "think") {
+  if (!tool) {
     return formatTitle();
   }
 
@@ -497,10 +497,6 @@ export function userFacingToolSummary(input: {
       : input.error.trim();
   }
 
-  if (tool === "think") {
-    return "内部处理";
-  }
-
   if (tool === "browser_action") {
     const actions =
       input.metadata?.sandbox_browser?.actions ?? input.metadata?.actions ?? null;
@@ -560,10 +556,6 @@ export function userFacingToolResultText(input: {
 }): string {
   const tool = (input.toolName ?? "").toLowerCase().trim();
   const sanitized = stripSystemReminders(input.result ?? "");
-
-  if (tool === "think") {
-    return "";
-  }
 
   if (tool === "artifacts_write") {
     const names = summarizeAttachmentNames(input.attachments);
