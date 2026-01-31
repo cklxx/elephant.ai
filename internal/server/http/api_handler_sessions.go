@@ -82,15 +82,9 @@ type ShareSessionResponse struct {
 	UpdatedAt  string                   `json:"updated_at,omitempty"`
 }
 
-// HandleGetSession handles GET /api/sessions/:id
+// HandleGetSession handles GET /api/sessions/{session_id}
 func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
-	// Extract session ID from URL path
-	sessionID := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
@@ -108,10 +102,9 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleGetSessionPersona handles GET /api/sessions/:id/persona
+// HandleGetSessionPersona handles GET /api/sessions/{session_id}/persona
 func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Request) {
-	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/persona")
-	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, "Invalid session ID", err)
 		return
@@ -132,10 +125,9 @@ func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-// HandleUpdateSessionPersona handles PUT /api/sessions/:id/persona
+// HandleUpdateSessionPersona handles PUT /api/sessions/{session_id}/persona
 func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.Request) {
-	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/persona")
-	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, "Invalid session ID", err)
 		return
@@ -171,10 +163,6 @@ func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.R
 
 // HandleCreateSession handles POST /api/sessions
 func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
-
 	session, err := h.coordinator.CreateSession(r.Context())
 	if err != nil {
 		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create session")
@@ -188,14 +176,9 @@ func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// HandleCreateSessionShare handles POST /api/sessions/:id/share
+// HandleCreateSessionShare handles POST /api/sessions/{session_id}/share
 func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
-
-	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/share")
-	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
@@ -219,10 +202,6 @@ func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Req
 
 // HandleListSessions handles GET /api/sessions
 func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
 	limit := 50
 	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
 		parsed, err := strconv.Atoi(raw)
@@ -290,15 +269,9 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-// HandleDeleteSession handles DELETE /api/sessions/:id
+// HandleDeleteSession handles DELETE /api/sessions/{session_id}
 func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodDelete) {
-		return
-	}
-
-	// Extract session ID from URL path
-	sessionID := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
@@ -312,15 +285,9 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// HandleListSnapshots handles GET /api/sessions/:id/snapshots
+// HandleListSnapshots handles GET /api/sessions/{session_id}/snapshots
 func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
-	trimmed := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	trimmed = strings.TrimSuffix(trimmed, "/snapshots")
-	sessionID := strings.TrimSuffix(strings.TrimSpace(trimmed), "/")
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
@@ -363,28 +330,14 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// HandleGetTurnSnapshot handles GET /api/sessions/:id/turns/:turnID
+// HandleGetTurnSnapshot handles GET /api/sessions/{session_id}/turns/{turn_id}
 func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-	trimmed := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	parts := strings.Split(trimmed, "/turns/")
-	if len(parts) != 2 {
-		h.writeJSONError(w, http.StatusBadRequest, "Invalid snapshot path", fmt.Errorf("invalid path %s", r.URL.Path))
-		return
-	}
-	sessionID := strings.TrimSuffix(strings.TrimSpace(parts[0]), "/")
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
 	}
-	turnStr := parts[1]
-	if strings.Contains(turnStr, "/") {
-		h.writeJSONError(w, http.StatusBadRequest, "Invalid turn path", fmt.Errorf("invalid path segment %s", turnStr))
-		return
-	}
-	turnID, err := strconv.Atoi(strings.TrimSpace(turnStr))
+	turnID, err := strconv.Atoi(r.PathValue("turn_id"))
 	if err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, "turn_id must be numeric", err)
 		return
@@ -413,13 +366,9 @@ func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Reques
 	}
 }
 
-// HandleReplaySession handles POST /api/sessions/:id/replay
+// HandleReplaySession handles POST /api/sessions/{session_id}/replay
 func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
-	sessionID := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/sessions/"), "/replay")
-	sessionID = strings.TrimSuffix(strings.TrimSpace(sessionID), "/")
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
@@ -436,21 +385,9 @@ func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request)
 	})
 }
 
-// HandleForkSession handles POST /api/sessions/:id/fork
+// HandleForkSession handles POST /api/sessions/{session_id}/fork
 func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
-
-	// Extract session ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-	sessionID := strings.TrimSuffix(path, "/fork")
-	if sessionID == "" || sessionID == path {
-		h.writeJSONError(w, http.StatusBadRequest, "Session ID required", fmt.Errorf("invalid session id '%s'", sessionID))
-		return
-	}
-
-	sessionID = strings.TrimSpace(sessionID)
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return

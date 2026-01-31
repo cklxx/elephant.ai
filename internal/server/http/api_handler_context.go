@@ -1,9 +1,7 @@
 package http
 
 import (
-	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	core "alex/internal/agent/ports"
@@ -35,55 +33,14 @@ type ContextWindowPreviewResponse struct {
 	Window        agent.ContextWindow `json:"window"`
 }
 
-// HandleInternalSessionRequest routes internal session endpoints.
-func (h *APIHandler) HandleInternalSessionRequest(w http.ResponseWriter, r *http.Request) {
-	if !h.internalMode {
-		http.NotFound(w, r)
-		return
-	}
-
-	if strings.HasSuffix(r.URL.Path, "/context") {
-		h.HandleGetContextSnapshots(w, r)
-		return
-	}
-
-	http.NotFound(w, r)
-}
-
-// HandleDevSessionRequest routes development-only session endpoints.
-func (h *APIHandler) HandleDevSessionRequest(w http.ResponseWriter, r *http.Request) {
-	if !h.devMode {
-		http.NotFound(w, r)
-		return
-	}
-
-	if strings.HasSuffix(r.URL.Path, "/context-window") {
-		h.HandleGetContextWindowPreview(w, r)
-		return
-	}
-
-	http.NotFound(w, r)
-}
-
-// HandleGetContextWindowPreview handles GET /api/dev/sessions/:id/context-window.
+// HandleGetContextWindowPreview handles GET /api/dev/sessions/{session_id}/context-window.
 func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *http.Request) {
 	if !h.devMode {
 		http.NotFound(w, r)
 		return
 	}
 
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
-	path := strings.TrimPrefix(r.URL.Path, "/api/dev/sessions/")
-	path = strings.TrimSuffix(path, "/context-window")
-	sessionID := strings.Trim(path, "/")
-	if sessionID == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Session ID required", fmt.Errorf("invalid session id"))
-		return
-	}
-
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return
@@ -113,25 +70,14 @@ func (h *APIHandler) HandleGetContextWindowPreview(w http.ResponseWriter, r *htt
 	h.writeJSON(w, http.StatusOK, response)
 }
 
-// HandleGetContextSnapshots handles GET /api/internal/sessions/:id/context.
+// HandleGetContextSnapshots handles GET /api/internal/sessions/{session_id}/context.
 func (h *APIHandler) HandleGetContextSnapshots(w http.ResponseWriter, r *http.Request) {
 	if !h.internalMode {
 		http.NotFound(w, r)
 		return
 	}
 
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
-	path := strings.TrimPrefix(r.URL.Path, "/api/internal/sessions/")
-	path = strings.TrimSuffix(path, "/context")
-	sessionID := strings.Trim(path, "/")
-	if sessionID == "" {
-		h.writeJSONError(w, http.StatusBadRequest, "Session ID required", fmt.Errorf("invalid session id"))
-		return
-	}
-
+	sessionID := r.PathValue("session_id")
 	if err := validateSessionID(sessionID); err != nil {
 		h.writeJSONError(w, http.StatusBadRequest, err.Error(), err)
 		return

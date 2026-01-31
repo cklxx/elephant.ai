@@ -79,10 +79,6 @@ type workerResultSummary struct {
 
 // HandleStartEvaluation launches a new evaluation job accessible from the web console.
 func (h *APIHandler) HandleStartEvaluation(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
-
 	if h.evaluationSvc == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable", fmt.Errorf("evaluation service not configured"))
 		return
@@ -120,10 +116,6 @@ func (h *APIHandler) HandleStartEvaluation(w http.ResponseWriter, r *http.Reques
 
 // HandleListEvaluations enumerates known evaluation jobs and their summaries.
 func (h *APIHandler) HandleListEvaluations(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
 	if h.evaluationSvc == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable", fmt.Errorf("evaluation service not configured"))
 		return
@@ -166,18 +158,14 @@ func (h *APIHandler) HandleListEvaluations(w http.ResponseWriter, r *http.Reques
 
 // HandleGetEvaluation returns detailed metrics and instance summaries for a job.
 func (h *APIHandler) HandleGetEvaluation(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
 	if h.evaluationSvc == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable", fmt.Errorf("evaluation service not configured"))
 		return
 	}
 
-	jobID := strings.TrimPrefix(r.URL.Path, "/api/evaluations/")
-	if jobID == "" || strings.Contains(jobID, "/") {
-		h.writeJSONError(w, http.StatusBadRequest, "Invalid evaluation id", fmt.Errorf("invalid evaluation id '%s'", jobID))
+	jobID := r.PathValue("evaluation_id")
+	if jobID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid evaluation id", fmt.Errorf("evaluation id is empty"))
 		return
 	}
 
@@ -206,18 +194,14 @@ func (h *APIHandler) HandleGetEvaluation(w http.ResponseWriter, r *http.Request)
 
 // HandleDeleteEvaluation removes a persisted evaluation snapshot by job id.
 func (h *APIHandler) HandleDeleteEvaluation(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodDelete) {
-		return
-	}
-
 	if h.evaluationSvc == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable", fmt.Errorf("evaluation service not configured"))
 		return
 	}
 
-	jobID := strings.TrimPrefix(r.URL.Path, "/api/evaluations/")
-	if jobID == "" || strings.Contains(jobID, "/") {
-		h.writeJSONError(w, http.StatusBadRequest, "Invalid evaluation id", fmt.Errorf("invalid evaluation id '%s'", jobID))
+	jobID := r.PathValue("evaluation_id")
+	if jobID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid evaluation id", fmt.Errorf("evaluation id is empty"))
 		return
 	}
 
@@ -235,10 +219,6 @@ func (h *APIHandler) HandleDeleteEvaluation(w http.ResponseWriter, r *http.Reque
 
 // HandleListAgents returns all stored agent profiles.
 func (h *APIHandler) HandleListAgents(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
 	if h.evaluationSvc == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable", fmt.Errorf("evaluation service not configured"))
 		return
@@ -255,18 +235,14 @@ func (h *APIHandler) HandleListAgents(w http.ResponseWriter, r *http.Request) {
 
 // HandleGetAgent returns a single agent profile if present.
 func (h *APIHandler) HandleGetAgent(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
 	if h.evaluationSvc == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable", fmt.Errorf("evaluation service not configured"))
 		return
 	}
 
-	agentID := strings.TrimPrefix(r.URL.Path, "/api/agents/")
-	if agentID == "" || strings.Contains(agentID, "/") {
-		h.writeJSONError(w, http.StatusBadRequest, "Invalid agent id", fmt.Errorf("invalid agent id '%s'", agentID))
+	agentID := r.PathValue("agent_id")
+	if agentID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid agent id", fmt.Errorf("agent id is empty"))
 		return
 	}
 
@@ -285,20 +261,14 @@ func (h *APIHandler) HandleGetAgent(w http.ResponseWriter, r *http.Request) {
 
 // HandleListAgentEvaluations returns evaluation snapshots associated with a given agent.
 func (h *APIHandler) HandleListAgentEvaluations(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
 	if h.evaluationSvc == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable", fmt.Errorf("evaluation service not configured"))
 		return
 	}
 
-	path := strings.TrimPrefix(r.URL.Path, "/api/agents/")
-	agentID := strings.TrimSuffix(path, "/evaluations")
-	agentID = strings.TrimSuffix(agentID, "/")
-	if agentID == "" || strings.Contains(agentID, "/") {
-		h.writeJSONError(w, http.StatusBadRequest, "Invalid agent id", fmt.Errorf("invalid agent id '%s'", agentID))
+	agentID := r.PathValue("agent_id")
+	if agentID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Invalid agent id", fmt.Errorf("agent id is empty"))
 		return
 	}
 

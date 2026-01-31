@@ -17,9 +17,6 @@ func (h *APIHandler) HandleDevMemory(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
 	if h.memoryService == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "memory service not available", nil)
 		return

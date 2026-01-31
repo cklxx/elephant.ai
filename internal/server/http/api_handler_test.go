@@ -285,6 +285,7 @@ func TestSnapshotHandlers(t *testing.T) {
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/sessions/sess-1/snapshots", nil)
+	req.SetPathValue("session_id", "sess-1")
 	resp := httptest.NewRecorder()
 	handler.HandleListSnapshots(resp, req)
 	if resp.Code != http.StatusOK {
@@ -299,6 +300,8 @@ func TestSnapshotHandlers(t *testing.T) {
 	}
 
 	turnReq := httptest.NewRequest(http.MethodGet, "/api/sessions/sess-1/turns/1", nil)
+	turnReq.SetPathValue("session_id", "sess-1")
+	turnReq.SetPathValue("turn_id", "1")
 	turnResp := httptest.NewRecorder()
 	handler.HandleGetTurnSnapshot(turnResp, turnReq)
 	if turnResp.Code != http.StatusOK {
@@ -313,6 +316,7 @@ func TestSnapshotHandlers(t *testing.T) {
 	}
 
 	replayReq := httptest.NewRequest(http.MethodPost, "/api/sessions/sess-1/replay", nil)
+	replayReq.SetPathValue("session_id", "sess-1")
 	replayResp := httptest.NewRecorder()
 	handler.HandleReplaySession(replayResp, replayReq)
 	if replayResp.Code != http.StatusAccepted {
@@ -431,6 +435,7 @@ func TestHandleGetContextSnapshotsSanitizesDuplicateAttachments(t *testing.T) {
 	))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/internal/sessions/sess-ctx/context", nil)
+	req.SetPathValue("session_id", "sess-ctx")
 	resp := httptest.NewRecorder()
 	handler.HandleGetContextSnapshots(resp, req)
 
@@ -476,6 +481,7 @@ func TestHandleGetContextWindowPreviewReturnsWindow(t *testing.T) {
 	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithDevMode(true))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/sessions/dev-ctx/context-window", nil)
+	req.SetPathValue("session_id", "dev-ctx")
 	resp := httptest.NewRecorder()
 
 	handler.HandleGetContextWindowPreview(resp, req)
@@ -524,6 +530,7 @@ func TestHandleGetContextWindowPreviewDisabledOutsideDev(t *testing.T) {
 	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/dev/sessions/dev-ctx/context-window", nil)
+	req.SetPathValue("session_id", "dev-ctx")
 	resp := httptest.NewRecorder()
 
 	handler.HandleGetContextWindowPreview(resp, req)
@@ -545,10 +552,18 @@ func TestHandleWebVitalsAcceptsPayload(t *testing.T) {
 }
 
 func TestHandleWebVitalsRejectsBadMethod(t *testing.T) {
-	handler := NewAPIHandler(nil, app.NewHealthChecker(), false)
+	// Method enforcement is handled by Go 1.22+ method-specific route patterns.
+	// Test through the router to verify the mux returns 405 for wrong methods.
+	router := NewRouter(
+		RouterDeps{
+			Broadcaster:   app.NewEventBroadcaster(),
+			HealthChecker: app.NewHealthChecker(),
+		},
+		RouterConfig{Environment: "test"},
+	)
 	req := httptest.NewRequest(http.MethodGet, "/api/metrics/web-vitals", nil)
 	resp := httptest.NewRecorder()
-	handler.HandleWebVitals(resp, req)
+	router.ServeHTTP(resp, req)
 	if resp.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", resp.Code)
 	}

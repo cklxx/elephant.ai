@@ -26,9 +26,6 @@ type webVitalPayload struct {
 
 // HandleWebVitals ingests frontend performance signals.
 func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
 	var payload webVitalPayload
 	if !h.decodeJSONBody(w, r, &payload, maxWebVitalBodySize) {
 		return
@@ -46,9 +43,6 @@ func (h *APIHandler) HandleWebVitals(w http.ResponseWriter, r *http.Request) {
 
 // HandleSandboxBrowserInfo proxies sandbox browser info for the web console.
 func (h *APIHandler) HandleSandboxBrowserInfo(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
 	if h.sandboxClient == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Sandbox not configured", nil)
 		return
@@ -74,9 +68,6 @@ func (h *APIHandler) HandleSandboxBrowserInfo(w http.ResponseWriter, r *http.Req
 
 // HandleSandboxBrowserScreenshot proxies sandbox browser screenshots for the web console.
 func (h *APIHandler) HandleSandboxBrowserScreenshot(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
 	if h.sandboxClient == nil {
 		h.writeJSONError(w, http.StatusServiceUnavailable, "Sandbox not configured", nil)
 		return
@@ -99,9 +90,6 @@ func (h *APIHandler) HandleSandboxBrowserScreenshot(w http.ResponseWriter, r *ht
 func (h *APIHandler) HandleDevLogTrace(w http.ResponseWriter, r *http.Request) {
 	if !h.devMode {
 		http.NotFound(w, r)
-		return
-	}
-	if !h.requireMethod(w, r, http.MethodGet) {
 		return
 	}
 

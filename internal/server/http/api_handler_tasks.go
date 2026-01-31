@@ -57,10 +57,6 @@ type TaskStatusResponse = types.AgentTask
 
 // HandleCreateTask handles POST /api/tasks - creates and executes a new task
 func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
-
 	var req CreateTaskRequest
 	if !h.decodeJSONBody(w, r, &req, h.maxCreateTaskBodySize) {
 		return
@@ -217,16 +213,11 @@ func (h *APIHandler) parseAttachments(payloads []AttachmentPayload) ([]agentport
 	return attachments, nil
 }
 
-// HandleGetTask handles GET /api/tasks/:id
+// HandleGetTask handles GET /api/tasks/{task_id}
 func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
-	// Extract task ID from URL path
-	taskID := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
-	if taskID == "" || strings.Contains(taskID, "/") {
-		h.writeJSONError(w, http.StatusBadRequest, "Task ID required", fmt.Errorf("invalid task id '%s'", taskID))
+	taskID := r.PathValue("task_id")
+	if taskID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Task ID required", fmt.Errorf("task id is empty"))
 		return
 	}
 
@@ -259,10 +250,6 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 
 // HandleListTasks handles GET /api/tasks
 func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodGet) {
-		return
-	}
-
 	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
 	if sessionID != "" {
 		if err := validateSessionID(sessionID); err != nil {
@@ -350,17 +337,11 @@ func (h *APIHandler) HandleListTasks(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// HandleCancelTask handles POST /api/tasks/:id/cancel
+// HandleCancelTask handles POST /api/tasks/{task_id}/cancel
 func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
-	if !h.requireMethod(w, r, http.MethodPost) {
-		return
-	}
-
-	// Extract task ID from URL path
-	path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
-	taskID := strings.TrimSuffix(path, "/cancel")
-	if taskID == "" || taskID == path {
-		h.writeJSONError(w, http.StatusBadRequest, "Task ID required", fmt.Errorf("invalid task id '%s'", taskID))
+	taskID := r.PathValue("task_id")
+	if taskID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "Task ID required", fmt.Errorf("task id is empty"))
 		return
 	}
 

@@ -13,16 +13,6 @@ type apiErrorResponse struct {
 	Details string `json:"details,omitempty"`
 }
 
-// requireMethod validates that the request uses the expected HTTP method.
-// Returns true if the method matches; writes a 405 error and returns false otherwise.
-func (h *APIHandler) requireMethod(w http.ResponseWriter, r *http.Request, method string) bool {
-	if r.Method == method {
-		return true
-	}
-	h.writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed", fmt.Errorf("method %s not allowed", r.Method))
-	return false
-}
-
 // decodeJSONBody reads an HTTP request body (with an optional size limit), decodes
 // it into v using json.Decoder with DisallowUnknownFields, and validates that the
 // body contains exactly one JSON object. If maxSize > 0, the body is wrapped with

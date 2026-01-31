@@ -26,16 +26,10 @@ func NewShareHandler(coordinator *app.ServerCoordinator, sseHandler *SSEHandler)
 	}
 }
 
-// HandleSharedSession handles GET /api/share/sessions/:session_id
+// HandleSharedSession handles GET /api/share/sessions/{session_id}
 func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	sessionID := strings.TrimPrefix(r.URL.Path, "/api/share/sessions/")
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" || strings.Contains(sessionID, "/") {
+	sessionID := r.PathValue("session_id")
+	if sessionID == "" {
 		http.Error(w, "Invalid session path", http.StatusBadRequest)
 		return
 	}

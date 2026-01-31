@@ -12,6 +12,7 @@ import (
 )
 
 // NewRouter creates a new HTTP router with all endpoints.
+// Routes use Go 1.22+ method-specific patterns ("METHOD /path/{param}").
 func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
@@ -64,61 +65,49 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	// ── Internal / dev endpoints ──
 
-	mux.Handle("/api/internal/sessions/", routeHandler("/api/internal/sessions", http.HandlerFunc(apiHandler.HandleInternalSessionRequest)))
+	mux.Handle("GET /api/internal/sessions/{session_id}/context", routeHandler("/api/internal/sessions/:session_id/context", http.HandlerFunc(apiHandler.HandleGetContextSnapshots)))
 
 	if devMode {
-		devSessionHandler := routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleDevSessionRequest)))
-		mux.Handle("/api/dev/sessions", devSessionHandler)
-		mux.Handle("/api/dev/sessions/", devSessionHandler)
-		mux.Handle("/api/dev/logs", routeHandler("/api/dev/logs", wrap(http.HandlerFunc(apiHandler.HandleDevLogTrace))))
-		mux.Handle("/api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleDevMemory))))
+		mux.Handle("GET /api/dev/sessions/{session_id}/context-window", routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleGetContextWindowPreview))))
+		mux.Handle("GET /api/dev/logs", routeHandler("/api/dev/logs", wrap(http.HandlerFunc(apiHandler.HandleDevLogTrace))))
+		mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleDevMemory))))
 
 		contextConfigHandler := NewContextConfigHandler("")
 		if contextConfigHandler != nil {
-			devContextHandler := routeHandler("/api/dev/context-config", wrap(http.HandlerFunc(contextConfigHandler.HandleContextConfig)))
-			devContextPreviewHandler := routeHandler("/api/dev/context-config/preview", wrap(http.HandlerFunc(contextConfigHandler.HandleContextPreview)))
-			mux.Handle("/api/dev/context-config", devContextHandler)
-			mux.Handle("/api/dev/context-config/", devContextHandler)
-			mux.Handle("/api/dev/context-config/preview", devContextPreviewHandler)
-			mux.Handle("/api/dev/context-config/preview/", devContextPreviewHandler)
+			mux.Handle("GET /api/dev/context-config", routeHandler("/api/dev/context-config", wrap(http.HandlerFunc(contextConfigHandler.HandleGetContextConfig))))
+			mux.Handle("PUT /api/dev/context-config", routeHandler("/api/dev/context-config", wrap(http.HandlerFunc(contextConfigHandler.HandleUpdateContextConfig))))
+			mux.Handle("GET /api/dev/context-config/preview", routeHandler("/api/dev/context-config/preview", wrap(http.HandlerFunc(contextConfigHandler.HandleContextPreview))))
 		}
 	}
 
 	if (internalMode || devMode) && deps.ConfigHandler != nil {
-		runtimeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.Method {
-			case http.MethodGet:
-				deps.ConfigHandler.HandleGetRuntimeConfig(w, r)
-			case http.MethodPut:
-				deps.ConfigHandler.HandleUpdateRuntimeConfig(w, r)
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-		})
-		mux.Handle("/api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(runtimeHandler)))
-		mux.Handle("/api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(deps.ConfigHandler.HandleRuntimeStream))))
-		mux.Handle("/api/internal/config/runtime/models", routeHandler("/api/internal/config/runtime/models", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeModels))))
-		mux.Handle("/api/internal/subscription/catalog", routeHandler("/api/internal/subscription/catalog", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetSubscriptionCatalog))))
+		mux.Handle("GET /api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeConfig))))
+		mux.Handle("PUT /api/internal/config/runtime", routeHandler("/api/internal/config/runtime", wrap(http.HandlerFunc(deps.ConfigHandler.HandleUpdateRuntimeConfig))))
+		mux.Handle("GET /api/internal/config/runtime/stream", routeHandler("/api/internal/config/runtime/stream", wrap(http.HandlerFunc(deps.ConfigHandler.HandleRuntimeStream))))
+		mux.Handle("GET /api/internal/config/runtime/models", routeHandler("/api/internal/config/runtime/models", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeModels))))
+		mux.Handle("GET /api/internal/subscription/catalog", routeHandler("/api/internal/subscription/catalog", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetSubscriptionCatalog))))
 	}
 	if internalMode {
 		appsConfigHandler := NewAppsConfigHandler(config.LoadAppsConfig, config.SaveAppsConfig)
 		if appsConfigHandler != nil {
-			mux.Handle("/api/internal/config/apps", routeHandler("/api/internal/config/apps", wrap(http.HandlerFunc(appsConfigHandler.HandleAppsConfig))))
+			mux.Handle("GET /api/internal/config/apps", routeHandler("/api/internal/config/apps", wrap(http.HandlerFunc(appsConfigHandler.HandleGetAppsConfig))))
+			mux.Handle("PUT /api/internal/config/apps", routeHandler("/api/internal/config/apps", wrap(http.HandlerFunc(appsConfigHandler.HandleUpdateAppsConfig))))
 		}
 	}
 
 	// ── SSE / streaming ──
 
-	mux.Handle("/api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
-	mux.Handle("/api/share/sessions/", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))
+	mux.Handle("GET /api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
+	mux.Handle("GET /api/share/sessions/{session_id}", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))
 	if attachmentStore != nil {
 		mux.Handle("/api/attachments/", routeHandler("/api/attachments", attachmentStore.Handler()))
 	}
-	mux.Handle("/api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
-	mux.Handle("/api/sandbox/browser-info", routeHandler("/api/sandbox/browser-info", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserInfo))))
-	mux.Handle("/api/sandbox/browser-screenshot", routeHandler("/api/sandbox/browser-screenshot", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserScreenshot))))
+	mux.Handle("POST /api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
+	mux.Handle("GET /api/sandbox/browser-info", routeHandler("/api/sandbox/browser-info", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserInfo))))
+	mux.Handle("GET /api/sandbox/browser-screenshot", routeHandler("/api/sandbox/browser-screenshot", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserScreenshot))))
 
 	// ── Auth endpoints ──
+	// Auth handlers manage their own method constraints; registered without method prefix.
 
 	if deps.AuthHandler != nil {
 		mux.Handle("/api/auth/register", routeHandler("/api/auth/register", http.HandlerFunc(deps.AuthHandler.HandleRegister)))
@@ -163,170 +152,41 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	// ── Task endpoints ──
 
-	mux.Handle("/api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			apiHandler.HandleCreateTask(w, r)
-		case http.MethodGet:
-			apiHandler.HandleListTasks(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	}))))
-
-	mux.Handle("/api/tasks/", routeHandler("/api/tasks/:task_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/api/tasks/")
-
-		if strings.HasSuffix(path, "/cancel") {
-			annotateRequestRoute(r, "/api/tasks/:task_id/cancel")
-			apiHandler.HandleCancelTask(w, r)
-			return
-		}
-
-		if !strings.Contains(path, "/") {
-			annotateRequestRoute(r, "/api/tasks/:task_id")
-			apiHandler.HandleGetTask(w, r)
-			return
-		}
-
-		http.Error(w, "Not found", http.StatusNotFound)
-	}))))
+	mux.Handle("POST /api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(apiHandler.HandleCreateTask))))
+	mux.Handle("GET /api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(apiHandler.HandleListTasks))))
+	mux.Handle("GET /api/tasks/{task_id}", routeHandler("/api/tasks/:task_id", wrap(http.HandlerFunc(apiHandler.HandleGetTask))))
+	mux.Handle("POST /api/tasks/{task_id}/cancel", routeHandler("/api/tasks/:task_id/cancel", wrap(http.HandlerFunc(apiHandler.HandleCancelTask))))
 
 	// ── Evaluation endpoints ──
 
-	mux.Handle("/api/evaluations", routeHandler("/api/evaluations", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			apiHandler.HandleListEvaluations(w, r)
-		case http.MethodPost:
-			apiHandler.HandleStartEvaluation(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	}))))
-
-	mux.Handle("/api/evaluations/", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/api/evaluations/")
-		if strings.Contains(path, "/") {
-			http.Error(w, "Not found", http.StatusNotFound)
-			return
-		}
-
-		switch r.Method {
-		case http.MethodGet:
-			apiHandler.HandleGetEvaluation(w, r)
-		case http.MethodDelete:
-			apiHandler.HandleDeleteEvaluation(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	}))))
+	mux.Handle("GET /api/evaluations", routeHandler("/api/evaluations", wrap(http.HandlerFunc(apiHandler.HandleListEvaluations))))
+	mux.Handle("POST /api/evaluations", routeHandler("/api/evaluations", wrap(http.HandlerFunc(apiHandler.HandleStartEvaluation))))
+	mux.Handle("GET /api/evaluations/{evaluation_id}", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(apiHandler.HandleGetEvaluation))))
+	mux.Handle("DELETE /api/evaluations/{evaluation_id}", routeHandler("/api/evaluations/:evaluation_id", wrap(http.HandlerFunc(apiHandler.HandleDeleteEvaluation))))
 
 	// ── Agent catalog endpoints ──
 
-	mux.Handle("/api/agents", routeHandler("/api/agents", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodGet:
-			apiHandler.HandleListAgents(w, r)
-		default:
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	}))))
-
-	mux.Handle("/api/agents/", routeHandler("/api/agents/:agent_id/evaluations", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/api/agents/")
-
-		switch {
-		case strings.HasSuffix(path, "/evaluations"):
-			annotateRequestRoute(r, "/api/agents/:agent_id/evaluations")
-			apiHandler.HandleListAgentEvaluations(w, r)
-			return
-		case strings.Contains(path, "/"):
-			http.Error(w, "Not found", http.StatusNotFound)
-			return
-		default:
-			annotateRequestRoute(r, "/api/agents/:agent_id")
-			apiHandler.HandleGetAgent(w, r)
-			return
-		}
-	}))))
+	mux.Handle("GET /api/agents", routeHandler("/api/agents", wrap(http.HandlerFunc(apiHandler.HandleListAgents))))
+	mux.Handle("GET /api/agents/{agent_id}", routeHandler("/api/agents/:agent_id", wrap(http.HandlerFunc(apiHandler.HandleGetAgent))))
+	mux.Handle("GET /api/agents/{agent_id}/evaluations", routeHandler("/api/agents/:agent_id/evaluations", wrap(http.HandlerFunc(apiHandler.HandleListAgentEvaluations))))
 
 	// ── Session endpoints ──
 
-	sessionsHandler := routeHandler("/api/sessions", wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/sessions/" || r.URL.Path == "/api/sessions" {
-			annotateRequestRoute(r, "/api/sessions")
-			switch r.Method {
-			case http.MethodGet:
-				apiHandler.HandleListSessions(w, r)
-			case http.MethodPost:
-				apiHandler.HandleCreateSession(w, r)
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-			return
-		}
-
-		path := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
-		if strings.HasSuffix(path, "/persona") {
-			annotateRequestRoute(r, "/api/sessions/:session_id/persona")
-			switch r.Method {
-			case http.MethodGet:
-				apiHandler.HandleGetSessionPersona(w, r)
-			case http.MethodPut:
-				apiHandler.HandleUpdateSessionPersona(w, r)
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-			return
-		}
-		if strings.HasSuffix(path, "/snapshots") {
-			annotateRequestRoute(r, "/api/sessions/:session_id/snapshots")
-			apiHandler.HandleListSnapshots(w, r)
-			return
-		}
-		if strings.Contains(path, "/turns/") {
-			annotateRequestRoute(r, "/api/sessions/:session_id/turns/:turn_id")
-			apiHandler.HandleGetTurnSnapshot(w, r)
-			return
-		}
-		if strings.HasSuffix(path, "/replay") {
-			annotateRequestRoute(r, "/api/sessions/:session_id/replay")
-			apiHandler.HandleReplaySession(w, r)
-			return
-		}
-		if strings.HasSuffix(path, "/share") {
-			annotateRequestRoute(r, "/api/sessions/:session_id/share")
-			apiHandler.HandleCreateSessionShare(w, r)
-			return
-		}
-		if strings.HasSuffix(path, "/fork") {
-			annotateRequestRoute(r, "/api/sessions/:session_id/fork")
-			apiHandler.HandleForkSession(w, r)
-			return
-		}
-		if !strings.Contains(path, "/") {
-			switch r.Method {
-			case http.MethodGet:
-				annotateRequestRoute(r, "/api/sessions/:session_id")
-				apiHandler.HandleGetSession(w, r)
-			case http.MethodDelete:
-				annotateRequestRoute(r, "/api/sessions/:session_id")
-				apiHandler.HandleDeleteSession(w, r)
-			default:
-				http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			}
-			return
-		}
-
-		http.Error(w, "Not found", http.StatusNotFound)
-	})))
-	mux.Handle("/api/sessions", sessionsHandler)
-	mux.Handle("/api/sessions/", sessionsHandler)
+	mux.Handle("GET /api/sessions", routeHandler("/api/sessions", wrap(http.HandlerFunc(apiHandler.HandleListSessions))))
+	mux.Handle("POST /api/sessions", routeHandler("/api/sessions", wrap(http.HandlerFunc(apiHandler.HandleCreateSession))))
+	mux.Handle("GET /api/sessions/{session_id}", routeHandler("/api/sessions/:session_id", wrap(http.HandlerFunc(apiHandler.HandleGetSession))))
+	mux.Handle("DELETE /api/sessions/{session_id}", routeHandler("/api/sessions/:session_id", wrap(http.HandlerFunc(apiHandler.HandleDeleteSession))))
+	mux.Handle("GET /api/sessions/{session_id}/persona", routeHandler("/api/sessions/:session_id/persona", wrap(http.HandlerFunc(apiHandler.HandleGetSessionPersona))))
+	mux.Handle("PUT /api/sessions/{session_id}/persona", routeHandler("/api/sessions/:session_id/persona", wrap(http.HandlerFunc(apiHandler.HandleUpdateSessionPersona))))
+	mux.Handle("GET /api/sessions/{session_id}/snapshots", routeHandler("/api/sessions/:session_id/snapshots", wrap(http.HandlerFunc(apiHandler.HandleListSnapshots))))
+	mux.Handle("GET /api/sessions/{session_id}/turns/{turn_id}", routeHandler("/api/sessions/:session_id/turns/:turn_id", wrap(http.HandlerFunc(apiHandler.HandleGetTurnSnapshot))))
+	mux.Handle("POST /api/sessions/{session_id}/replay", routeHandler("/api/sessions/:session_id/replay", wrap(http.HandlerFunc(apiHandler.HandleReplaySession))))
+	mux.Handle("POST /api/sessions/{session_id}/share", routeHandler("/api/sessions/:session_id/share", wrap(http.HandlerFunc(apiHandler.HandleCreateSessionShare))))
+	mux.Handle("POST /api/sessions/{session_id}/fork", routeHandler("/api/sessions/:session_id/fork", wrap(http.HandlerFunc(apiHandler.HandleForkSession))))
 
 	// ── Health check ──
 
-	mux.Handle("/health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
+	mux.Handle("GET /health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
 
 	// ── Middleware stack ──
 
