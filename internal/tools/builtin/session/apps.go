@@ -209,6 +209,21 @@ func appPluginCatalog() []appPlugin {
 			},
 		},
 		{
+			ID:          "wechat",
+			Name:        "微信 (WeChat)",
+			Description: "聊天会话收发与消息列表管理。",
+			Capabilities: []string{
+				"接收消息",
+				"回复消息",
+				"消息列表/会话拉取",
+			},
+			IntegrationNote: "内置开源插件连接器，面向聊天场景，需登录授权。",
+			Sources: []string{
+				"https://github.com/wechaty/wechaty",
+				"https://github.com/eatmoreapple/openwechat",
+			},
+		},
+		{
 			ID:          "douyin",
 			Name:        "抖音 (Douyin)",
 			Description: "短视频热榜与话题趋势。",

@@ -13,6 +13,8 @@ const (
 	ProviderLocal ProviderType = "local"
 	// ProviderGoogle represents Google OAuth accounts.
 	ProviderGoogle ProviderType = "google"
+	// ProviderWeChat represents WeChat OAuth accounts.
+	ProviderWeChat ProviderType = "wechat"
 )
 
 // UserStatus represents the lifecycle state of an account.

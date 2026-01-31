@@ -126,6 +126,12 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		mux.Handle("/api/auth/google/callback", routeHandler("/api/auth/google/callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			deps.AuthHandler.HandleOAuthCallback(domain.ProviderGoogle, w, r)
 		})))
+		mux.Handle("/api/auth/wechat/login", routeHandler("/api/auth/wechat/login", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			deps.AuthHandler.HandleOAuthStart(domain.ProviderWeChat, w, r)
+		})))
+		mux.Handle("/api/auth/wechat/callback", routeHandler("/api/auth/wechat/callback", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			deps.AuthHandler.HandleOAuthCallback(domain.ProviderWeChat, w, r)
+		})))
 	} else {
 		authDisabled := func(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Authentication module not configured", http.StatusServiceUnavailable)
@@ -140,6 +146,8 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		mux.Handle("/api/auth/subscription", routeHandler("/api/auth/subscription", http.HandlerFunc(authDisabled)))
 		mux.Handle("/api/auth/google/login", routeHandler("/api/auth/google/login", http.HandlerFunc(authDisabled)))
 		mux.Handle("/api/auth/google/callback", routeHandler("/api/auth/google/callback", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/wechat/login", routeHandler("/api/auth/wechat/login", http.HandlerFunc(authDisabled)))
+		mux.Handle("/api/auth/wechat/callback", routeHandler("/api/auth/wechat/callback", http.HandlerFunc(authDisabled)))
 	}
 
 	// ── Task endpoints ──

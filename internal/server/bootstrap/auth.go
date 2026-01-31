@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/async"
 	authAdapters "alex/internal/auth/adapters"
 	authapp "alex/internal/auth/app"
 	authdomain "alex/internal/auth/domain"
 	authports "alex/internal/auth/ports"
+	"alex/internal/async"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -110,6 +110,11 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 	if googleUserInfoURL == "" {
 		googleUserInfoURL = "https://openidconnect.googleapis.com/v1/userinfo"
 	}
+	wechatAuthURL := strings.TrimSpace(authCfg.WeChatAuthURL)
+	if wechatAuthURL == "" {
+		wechatAuthURL = "https://open.weixin.qq.com/connect/qrconnect"
+	}
+
 	providers := []authports.OAuthProvider{}
 	if clientID := strings.TrimSpace(authCfg.GoogleClientID); clientID != "" {
 		secret := strings.TrimSpace(authCfg.GoogleClientSecret)
@@ -126,6 +131,16 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 			}))
 		}
 	}
+	if appID := strings.TrimSpace(authCfg.WeChatAppID); appID != "" {
+		providers = append(providers, authAdapters.NewPassthroughOAuthProvider(authAdapters.OAuthProviderConfig{
+			Provider:     authdomain.ProviderWeChat,
+			ClientID:     appID,
+			AuthURL:      wechatAuthURL,
+			RedirectURL:  trimmedBase + "/api/auth/wechat/callback",
+			DefaultScope: []string{"snsapi_login"},
+		}))
+	}
+
 	service := authapp.NewService(users, identities, sessions, tokenManager, states, providers, authapp.Config{
 		AccessTokenTTL:        accessTTL,
 		RefreshTokenTTL:       refreshTTL,

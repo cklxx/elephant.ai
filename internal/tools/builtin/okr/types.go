@@ -2,15 +2,15 @@ package okr
 
 // GoalMeta holds the YAML frontmatter of a goal file.
 type GoalMeta struct {
-	ID            string             `yaml:"id"`
-	Owner         string             `yaml:"owner"`
-	Created       string             `yaml:"created"`
-	Updated       string             `yaml:"updated"`
-	Status        string             `yaml:"status"` // active | completed | paused | abandoned
-	TimeWindow    TimeWindow         `yaml:"time_window"`
-	ReviewCadence string             `yaml:"review_cadence"` // cron expression
-	Notifications NotificationConfig `yaml:"notifications"`
-	KeyResults    map[string]KRMeta  `yaml:"key_results"`
+	ID            string               `yaml:"id"`
+	Owner         string               `yaml:"owner"`
+	Created       string               `yaml:"created"`
+	Updated       string               `yaml:"updated"`
+	Status        string               `yaml:"status"` // active | completed | paused | abandoned
+	TimeWindow    TimeWindow           `yaml:"time_window"`
+	ReviewCadence string               `yaml:"review_cadence"` // cron expression
+	Notifications NotificationConfig   `yaml:"notifications"`
+	KeyResults    map[string]KRMeta    `yaml:"key_results"`
 }
 
 // TimeWindow defines the start and end of the goal period.
@@ -21,7 +21,7 @@ type TimeWindow struct {
 
 // NotificationConfig describes how proactive results are delivered.
 type NotificationConfig struct {
-	Channel    string `yaml:"channel"`      // lark | web
+	Channel    string `yaml:"channel"`      // lark | wechat
 	LarkChatID string `yaml:"lark_chat_id"` // Lark chat_id for messages
 }
 

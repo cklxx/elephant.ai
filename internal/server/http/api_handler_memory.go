@@ -42,7 +42,7 @@ func (h *APIHandler) HandleDevMemory(w http.ResponseWriter, r *http.Request) {
 		userID = strings.TrimSpace(session.Metadata["user_id"])
 	}
 	if userID == "" {
-		if strings.HasPrefix(sessionID, "lark-") {
+		if strings.HasPrefix(sessionID, "lark-") || strings.HasPrefix(sessionID, "wechat-") {
 			userID = sessionID
 		}
 	}

@@ -41,7 +41,21 @@ type Config struct {
 
 // ChannelsConfig captures server-side channel gateways.
 type ChannelsConfig struct {
-	Lark LarkGatewayConfig
+	WeChat WeChatGatewayConfig
+	Lark   LarkGatewayConfig
+}
+
+// WeChatGatewayConfig captures the resolved WeChat gateway configuration.
+type WeChatGatewayConfig struct {
+	channels.BaseConfig
+	Enabled                bool
+	LoginMode              string
+	HotLogin               bool
+	HotLoginStoragePath    string
+	MentionOnly            bool
+	ReplyWithMention       bool
+	AllowedConversationIDs []string
+	ToolMode               string
 }
 
 // LarkGatewayConfig captures the resolved Lark gateway configuration.
@@ -114,6 +128,21 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 			Dir: "~/.alex/sessions",
 		},
 		Channels: ChannelsConfig{
+			WeChat: WeChatGatewayConfig{
+				BaseConfig: channels.BaseConfig{
+					SessionPrefix: "wechat",
+					AllowGroups:   true,
+					AllowDirect:   true,
+					AgentPreset:   string(presets.PresetDefault),
+					ToolPreset:    string(presets.ToolPresetFull),
+					ReplyTimeout:  2 * time.Minute,
+				},
+				LoginMode:           "desktop",
+				HotLoginStoragePath: "~/.alex/wechat/storage.json",
+				MentionOnly:         true,
+				ReplyWithMention:    true,
+				ToolMode:            "cli",
+			},
 			Lark: LarkGatewayConfig{
 				BaseConfig: channels.BaseConfig{
 					SessionPrefix: "lark",
@@ -168,12 +197,76 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if cfg == nil {
 		return
 	}
+	applyWeChatConfig(cfg, file)
 	applyLarkConfig(cfg, file)
 	applyServerHTTPConfig(cfg, file)
 	applyAuthConfig(cfg, file)
 	applySessionConfig(cfg, file)
 	applyAnalyticsConfig(cfg, file)
 	applyAttachmentConfig(cfg, file)
+}
+
+func applyWeChatConfig(cfg *Config, file runtimeconfig.FileConfig) {
+	if file.Channels == nil || file.Channels.WeChat == nil {
+		return
+	}
+	wechat := file.Channels.WeChat
+	if wechat.Enabled != nil {
+		cfg.Channels.WeChat.Enabled = *wechat.Enabled
+	}
+	if loginMode := strings.TrimSpace(wechat.LoginMode); loginMode != "" {
+		cfg.Channels.WeChat.LoginMode = loginMode
+	}
+	if wechat.HotLogin != nil {
+		cfg.Channels.WeChat.HotLogin = *wechat.HotLogin
+	}
+	if storage := strings.TrimSpace(wechat.HotLoginStoragePath); storage != "" {
+		cfg.Channels.WeChat.HotLoginStoragePath = storage
+	}
+	if prefix := strings.TrimSpace(wechat.SessionPrefix); prefix != "" {
+		cfg.Channels.WeChat.SessionPrefix = prefix
+	}
+	if replyPrefix := strings.TrimSpace(wechat.ReplyPrefix); replyPrefix != "" {
+		cfg.Channels.WeChat.ReplyPrefix = replyPrefix
+	}
+	if wechat.MentionOnly != nil {
+		cfg.Channels.WeChat.MentionOnly = *wechat.MentionOnly
+	}
+	if wechat.ReplyWithMention != nil {
+		cfg.Channels.WeChat.ReplyWithMention = *wechat.ReplyWithMention
+	}
+	if wechat.AllowGroups != nil {
+		cfg.Channels.WeChat.AllowGroups = *wechat.AllowGroups
+	}
+	if wechat.AllowDirect != nil {
+		cfg.Channels.WeChat.AllowDirect = *wechat.AllowDirect
+	}
+	if len(wechat.AllowedConversationIDs) > 0 {
+		ids := make([]string, 0, len(wechat.AllowedConversationIDs))
+		for _, value := range wechat.AllowedConversationIDs {
+			value = strings.TrimSpace(value)
+			if value == "" {
+				continue
+			}
+			ids = append(ids, value)
+		}
+		cfg.Channels.WeChat.AllowedConversationIDs = ids
+	}
+	if agentPreset := strings.TrimSpace(wechat.AgentPreset); agentPreset != "" {
+		cfg.Channels.WeChat.AgentPreset = agentPreset
+	}
+	if toolPreset := strings.TrimSpace(wechat.ToolPreset); toolPreset != "" {
+		cfg.Channels.WeChat.ToolPreset = toolPreset
+	}
+	if toolMode := strings.TrimSpace(wechat.ToolMode); toolMode != "" {
+		cfg.Channels.WeChat.ToolMode = toolMode
+	}
+	if wechat.ReplyTimeoutSeconds != nil && *wechat.ReplyTimeoutSeconds > 0 {
+		cfg.Channels.WeChat.ReplyTimeout = time.Duration(*wechat.ReplyTimeoutSeconds) * time.Second
+	}
+	if wechat.MemoryEnabled != nil {
+		cfg.Channels.WeChat.MemoryEnabled = *wechat.MemoryEnabled
+	}
 }
 
 func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
@@ -326,6 +419,8 @@ func applyAuthConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		GoogleAuthURL:         strings.TrimSpace(file.Auth.GoogleAuthURL),
 		GoogleTokenURL:        strings.TrimSpace(file.Auth.GoogleTokenURL),
 		GoogleUserInfoURL:     strings.TrimSpace(file.Auth.GoogleUserInfoURL),
+		WeChatAppID:           strings.TrimSpace(file.Auth.WeChatAppID),
+		WeChatAuthURL:         strings.TrimSpace(file.Auth.WeChatAuthURL),
 		DatabaseURL:           strings.TrimSpace(file.Auth.DatabaseURL),
 		BootstrapEmail:        strings.TrimSpace(file.Auth.BootstrapEmail),
 		BootstrapPassword:     file.Auth.BootstrapPassword,

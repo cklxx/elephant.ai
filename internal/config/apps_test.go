@@ -13,7 +13,7 @@ func TestSaveAndLoadAppsConfig(t *testing.T) {
 
 	input := AppsConfig{
 		Plugins: []AppPluginConfig{
-			{ID: "lark", Name: "Lark"},
+			{ID: "wechat", Name: "WeChat"},
 		},
 	}
 
@@ -32,7 +32,7 @@ func TestSaveAndLoadAppsConfig(t *testing.T) {
 	if loadedPath != path {
 		t.Fatalf("expected path %q, got %q", path, loadedPath)
 	}
-	if len(loaded.Plugins) != 1 || loaded.Plugins[0].ID != "lark" {
+	if len(loaded.Plugins) != 1 || loaded.Plugins[0].ID != "wechat" {
 		t.Fatalf("unexpected loaded plugins: %#v", loaded.Plugins)
 	}
 }
