@@ -253,7 +253,7 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 	}
 }
 
-func TestReactEngineBlocksMultipleToolCallsPerIteration(t *testing.T) {
+func TestReactEngineAllowsParallelRegularToolCalls(t *testing.T) {
 	tracker := newRecordingWorkflow()
 	callCount := 0
 	mockLLM := &mocks.MockLLMClient{
@@ -313,10 +313,14 @@ func TestReactEngineBlocksMultipleToolCallsPerIteration(t *testing.T) {
 		t.Fatalf("SolveTask returned error: %v", err)
 	}
 
+	// Regular tool calls in parallel should now succeed without plan gate.
 	expectedOrder := []string{
 		"react:context",
 		"react:iter:1:think",
 		"react:iter:1:plan",
+		"react:iter:1:tools",
+		"react:iter:1:tool:call-1",
+		"react:iter:1:tool:call-2",
 		"react:iter:2:think",
 		"react:iter:2:plan",
 		"react:finalize",
@@ -325,7 +329,7 @@ func TestReactEngineBlocksMultipleToolCallsPerIteration(t *testing.T) {
 	if got := tracker.orderSnapshot(); !reflect.DeepEqual(got, expectedOrder) {
 		t.Fatalf("unexpected workflow registration order: got %#v want %#v", got, expectedOrder)
 	}
-	if len(state.ToolResults) != 0 {
-		t.Fatalf("expected no tool results due to multi-tool gate, got %d", len(state.ToolResults))
+	if len(state.ToolResults) != 2 {
+		t.Fatalf("expected 2 tool results, got %d", len(state.ToolResults))
 	}
 }
