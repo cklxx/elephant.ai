@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -16,12 +17,32 @@ import (
 const (
 	codexCLIBaseURL        = "https://chatgpt.com/backend-api/codex"
 	antigravityDefaultBase = "https://cloudcode-pa.googleapis.com"
-	// From proxycast antigravity.rs (Antigravity CLI OAuth client) + Google OAuth token endpoint.
-	antigravityOAuthTokenURL     = "https://oauth2.googleapis.com/token"
-	antigravityOAuthClientID     = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-	antigravityOAuthClientSecret = "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"
-	antigravityOAuthRefreshSkew  = 5 * time.Minute
+
+	antigravityOAuthTokenURL    = "https://oauth2.googleapis.com/token"
+	antigravityOAuthRefreshSkew = 5 * time.Minute
 )
+
+// resolveGeminiOAuthClient returns the Gemini CLI/IDE OAuth client credentials,
+// loaded from environment variables GEMINI_OAUTH_CLIENT_ID / GEMINI_OAUTH_CLIENT_SECRET
+// with fallback to ANTIGRAVITY_OAUTH_CLIENT_ID / ANTIGRAVITY_OAUTH_CLIENT_SECRET.
+func resolveGeminiOAuthClient(envLookup EnvLookup) (clientID, clientSecret string) {
+	if envLookup == nil {
+		envLookup = DefaultEnvLookup
+	}
+	for _, key := range []string{"GEMINI_OAUTH_CLIENT_ID", "ANTIGRAVITY_OAUTH_CLIENT_ID"} {
+		if v, ok := envLookup(key); ok && strings.TrimSpace(v) != "" {
+			clientID = strings.TrimSpace(v)
+			break
+		}
+	}
+	for _, key := range []string{"GEMINI_OAUTH_CLIENT_SECRET", "ANTIGRAVITY_OAUTH_CLIENT_SECRET"} {
+		if v, ok := envLookup(key); ok && strings.TrimSpace(v) != "" {
+			clientSecret = strings.TrimSpace(v)
+			break
+		}
+	}
+	return clientID, clientSecret
+}
 
 type CLICredential struct {
 	Provider  string
@@ -234,7 +255,7 @@ func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, 
 	if readFile == nil {
 		return CLICredential{}
 	}
-	if cred := loadAntigravityGeminiOAuth(readFile, home); cred.APIKey != "" {
+	if cred := loadAntigravityGeminiOAuth(envLookup, readFile, home); cred.APIKey != "" {
 		return cred
 	}
 	for _, path := range antigravityCLIAuthPaths(envLookup, home) {
@@ -257,11 +278,12 @@ func loadAntigravityCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, 
 	return CLICredential{}
 }
 
-func loadAntigravityGeminiOAuth(readFile func(string) ([]byte, error), home string) CLICredential {
+func loadAntigravityGeminiOAuth(envLookup EnvLookup, readFile func(string) ([]byte, error), home string) CLICredential {
 	if readFile == nil || home == "" {
 		return CLICredential{}
 	}
 	now := time.Now()
+	envClientID, envClientSecret := resolveGeminiOAuthClient(envLookup)
 	for _, path := range antigravityOAuthPaths(home) {
 		data, err := readFile(path)
 		if err != nil {
@@ -270,6 +292,20 @@ func loadAntigravityGeminiOAuth(readFile func(string) ([]byte, error), home stri
 		payload, ok := parseAntigravityOAuthFile(data)
 		if !ok {
 			continue
+		}
+
+		// Inject OAuth client credentials from env when not embedded in the file.
+		if strings.TrimSpace(payload.ClientID) == "" && envClientID != "" {
+			payload.ClientID = envClientID
+		}
+		if strings.TrimSpace(payload.ClientSecret) == "" && envClientSecret != "" {
+			payload.ClientSecret = envClientSecret
+		}
+
+		// ~/.gemini/ files originate from the Gemini CLI/IDE.
+		source := SourceAntigravityCLI
+		if isGeminiOAuthPath(path, home) {
+			source = SourceAntigravityIDE
 		}
 
 		token := strings.TrimSpace(payload.AccessToken)
@@ -295,10 +331,21 @@ func loadAntigravityGeminiOAuth(readFile func(string) ([]byte, error), home stri
 			Provider: "antigravity",
 			APIKey:   token,
 			BaseURL:  antigravityDefaultBase,
-			Source:   SourceAntigravityCLI,
+			Source:   source,
 		}
 	}
 	return CLICredential{}
+}
+
+// isGeminiOAuthPath returns true when the credential file resides under
+// the ~/.gemini directory, indicating it was created by the Gemini CLI/IDE
+// rather than the Antigravity CLI.
+func isGeminiOAuthPath(path, home string) bool {
+	if home == "" {
+		return false
+	}
+	geminiDir := filepath.Join(home, ".gemini") + string(filepath.Separator)
+	return strings.HasPrefix(filepath.Clean(path)+string(filepath.Separator), geminiDir)
 }
 
 func antigravityOAuthPaths(home string) []string {
@@ -372,12 +419,12 @@ func refreshAntigravityOAuth(payload geminiOAuthFile) (geminiOAuthFile, error) {
 
 	clientID := strings.TrimSpace(payload.ClientID)
 	if clientID == "" {
-		clientID = antigravityOAuthClientID
+		return geminiOAuthFile{}, fmt.Errorf("OAuth client_id not configured; set GEMINI_OAUTH_CLIENT_ID or ANTIGRAVITY_OAUTH_CLIENT_ID")
 	}
 
 	clientSecret := strings.TrimSpace(payload.ClientSecret)
 	if clientSecret == "" {
-		clientSecret = antigravityOAuthClientSecret
+		return geminiOAuthFile{}, fmt.Errorf("OAuth client_secret not configured; set GEMINI_OAUTH_CLIENT_SECRET or ANTIGRAVITY_OAUTH_CLIENT_SECRET")
 	}
 
 	form := url.Values{}

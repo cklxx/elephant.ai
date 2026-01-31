@@ -69,6 +69,9 @@ func TestLoadCLICredentialsReadsGeminiOAuthForAntigravity(t *testing.T) {
 	if creds.Antigravity.BaseURL != "https://cloudcode-pa.googleapis.com" {
 		t.Fatalf("expected antigravity base url, got %q", creds.Antigravity.BaseURL)
 	}
+	if creds.Antigravity.Source != SourceAntigravityIDE {
+		t.Fatalf("expected antigravity_ide source for ~/.gemini/ credential, got %q", creds.Antigravity.Source)
+	}
 }
 
 func TestLoadCLICredentialsReadsAntigravityOAuthPath(t *testing.T) {
@@ -196,5 +199,97 @@ func TestLoadCLICredentialsFallsBackToExpiredAntigravityToken(t *testing.T) {
 	}
 	if creds.Antigravity.Provider != "antigravity" {
 		t.Fatalf("expected antigravity provider, got %q", creds.Antigravity.Provider)
+	}
+}
+
+func TestLoadCLICredentialsUsesGeminiClientForGeminiPath(t *testing.T) {
+	t.Parallel()
+	// When the credential is at ~/.gemini/ without embedded client_id/secret,
+	// the env-configured OAuth client should be injected for refresh.
+	const wantClientID = "test-gemini-client-id.apps.googleusercontent.com"
+	const wantClientSecret = "test-gemini-client-secret"
+
+	var gotClientID, gotClientSecret string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		values, _ := url.ParseQuery(string(body))
+		gotClientID = values.Get("client_id")
+		gotClientSecret = values.Get("client_secret")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"refreshed","expires_in":3600,"token_type":"Bearer"}`))
+	}))
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	geminiDir := filepath.Join(tmp, ".gemini")
+	if err := os.MkdirAll(geminiDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	expired := time.Now().Add(-time.Hour).UnixMilli()
+	// No client_id or client_secret in the file — simulates real Gemini CLI output.
+	oauth := fmt.Sprintf(`{"access_token":"old","refresh_token":"rt","expiry_date":%d,"token_uri":"%s"}`, expired, srv.URL)
+	if err := os.WriteFile(filepath.Join(geminiDir, "oauth_creds.json"), []byte(oauth), 0o600); err != nil {
+		t.Fatalf("write oauth: %v", err)
+	}
+
+	envLookup := func(key string) (string, bool) {
+		switch key {
+		case "GEMINI_OAUTH_CLIENT_ID":
+			return wantClientID, true
+		case "GEMINI_OAUTH_CLIENT_SECRET":
+			return wantClientSecret, true
+		default:
+			return "", false
+		}
+	}
+
+	creds := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(envLookup),
+	)
+
+	if creds.Antigravity.APIKey != "refreshed" {
+		t.Fatalf("expected refreshed token, got %q", creds.Antigravity.APIKey)
+	}
+	if creds.Antigravity.Source != SourceAntigravityIDE {
+		t.Fatalf("expected antigravity_ide source, got %q", creds.Antigravity.Source)
+	}
+	// Verify the env-configured client credentials were used.
+	if gotClientID != wantClientID {
+		t.Fatalf("expected env client_id %q, got %q", wantClientID, gotClientID)
+	}
+	if gotClientSecret != wantClientSecret {
+		t.Fatalf("expected env client_secret %q, got %q", wantClientSecret, gotClientSecret)
+	}
+}
+
+func TestLoadCLICredentialsFallsBackWhenNoOAuthClientConfigured(t *testing.T) {
+	t.Parallel()
+	// When the credential file has no embedded client_id/secret and no env
+	// vars are set, refresh should fail and the expired token should still
+	// be returned so the catalog can show the provider with an auth error.
+	tmp := t.TempDir()
+	geminiDir := filepath.Join(tmp, ".gemini")
+	if err := os.MkdirAll(geminiDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	expired := time.Now().Add(-time.Hour).UnixMilli()
+	oauth := fmt.Sprintf(`{"access_token":"stale","refresh_token":"rt","expiry_date":%d}`, expired)
+	if err := os.WriteFile(filepath.Join(geminiDir, "oauth_creds.json"), []byte(oauth), 0o600); err != nil {
+		t.Fatalf("write oauth: %v", err)
+	}
+
+	creds := LoadCLICredentials(
+		WithHomeDir(func() (string, error) { return tmp, nil }),
+		WithEnv(func(string) (string, bool) { return "", false }),
+	)
+
+	if creds.Antigravity.APIKey != "stale" {
+		t.Fatalf("expected stale expired token, got %q", creds.Antigravity.APIKey)
+	}
+	if creds.Antigravity.Source != SourceAntigravityIDE {
+		t.Fatalf("expected antigravity_ide source, got %q", creds.Antigravity.Source)
 	}
 }
