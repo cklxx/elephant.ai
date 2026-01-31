@@ -86,10 +86,10 @@ describe('attachments uri cache', () => {
   });
 
   it('refreshes presigned attachment urls when near expiry', async () => {
+    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8080';
     const { buildAttachmentUri } = await import('./uri');
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-01-31T00:00:00Z'));
-    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8080';
 
     const presigned =
       'https://r2.example.com/bucket/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.png' +

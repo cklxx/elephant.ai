@@ -13,7 +13,7 @@ const BLOB_URL_CACHE_LIMIT = (() => {
 })();
 const BLOB_URL_CACHE = new Map<string, string>();
 const PRESIGNED_REFRESH_WINDOW_MS = 5 * 60 * 1000;
-const PRESIGNED_FILENAME_PATTERN = /^[a-f0-9]{64}(\\.[a-z0-9]{1,10})?$/i;
+const PRESIGNED_FILENAME_PATTERN = /^[a-f0-9]{64}(\.[a-z0-9]{1,10})?$/i;
 
 function hashValue(value: string): string {
   let hash = 2166136261;
@@ -222,7 +222,7 @@ function refreshPresignedAttachmentUrl(uri: string): string | null {
 
 function parseAmzDate(value: string): number | null {
   const trimmed = value.trim();
-  const match = /^(\\d{4})(\\d{2})(\\d{2})T(\\d{2})(\\d{2})(\\d{2})Z$/.exec(
+  const match = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(
     trimmed,
   );
   if (!match) {
