@@ -1131,3 +1131,121 @@ func TestAppendGoalPlanReminderSkippedWhenDistanceSmall(t *testing.T) {
 		t.Fatalf("did not expect reminder when distance small, got %q", updated[0].Content)
 	}
 }
+
+func TestOffloadMessageAttachmentDataClearsInlineWhenURIExists(t *testing.T) {
+	state := &TaskState{
+		Messages: []Message{
+			{
+				Role: "tool",
+				Attachments: map[string]ports.Attachment{
+					"report.pdf": {
+						Name:      "report.pdf",
+						MediaType: "application/pdf",
+						Data:      "aGVsbG8=",
+						URI:       "https://cdn.example.com/report.pdf",
+					},
+				},
+				ToolResults: []ToolResult{{
+					CallID: "call-1",
+					Attachments: map[string]ports.Attachment{
+						"report.pdf": {
+							Name:      "report.pdf",
+							MediaType: "application/pdf",
+							Data:      "aGVsbG8=",
+							URI:       "https://cdn.example.com/report.pdf",
+						},
+					},
+				}},
+			},
+		},
+	}
+
+	offloadMessageAttachmentData(state)
+
+	att := state.Messages[0].Attachments["report.pdf"]
+	if att.Data != "" {
+		t.Fatalf("expected Data cleared from message attachment, got %q", att.Data)
+	}
+	if att.URI != "https://cdn.example.com/report.pdf" {
+		t.Fatalf("expected URI preserved, got %q", att.URI)
+	}
+
+	trAtt := state.Messages[0].ToolResults[0].Attachments["report.pdf"]
+	if trAtt.Data != "" {
+		t.Fatalf("expected Data cleared from tool result attachment, got %q", trAtt.Data)
+	}
+	if trAtt.URI != "https://cdn.example.com/report.pdf" {
+		t.Fatalf("expected URI preserved in tool result, got %q", trAtt.URI)
+	}
+}
+
+func TestOffloadMessageAttachmentDataPreservesDataURIOnly(t *testing.T) {
+	state := &TaskState{
+		Messages: []Message{
+			{
+				Role: "tool",
+				Attachments: map[string]ports.Attachment{
+					"icon.png": {
+						Name:      "icon.png",
+						MediaType: "image/png",
+						Data:      "aWNvbg==",
+						URI:       "data:image/png;base64,aWNvbg==",
+					},
+				},
+			},
+		},
+	}
+
+	offloadMessageAttachmentData(state)
+
+	att := state.Messages[0].Attachments["icon.png"]
+	if att.Data != "aWNvbg==" {
+		t.Fatalf("expected Data preserved when URI is data: URI, got %q", att.Data)
+	}
+}
+
+func TestOffloadMessageAttachmentDataSkipsNoData(t *testing.T) {
+	state := &TaskState{
+		Messages: []Message{
+			{
+				Role: "tool",
+				Attachments: map[string]ports.Attachment{
+					"doc.txt": {
+						Name: "doc.txt",
+						URI:  "https://cdn.example.com/doc.txt",
+					},
+				},
+			},
+		},
+	}
+
+	offloadMessageAttachmentData(state)
+
+	att := state.Messages[0].Attachments["doc.txt"]
+	if att.URI != "https://cdn.example.com/doc.txt" {
+		t.Fatalf("expected URI unchanged, got %q", att.URI)
+	}
+}
+
+func TestOffloadMessageAttachmentDataPreservesWhenNoURI(t *testing.T) {
+	state := &TaskState{
+		Messages: []Message{
+			{
+				Role: "tool",
+				Attachments: map[string]ports.Attachment{
+					"img.png": {
+						Name: "img.png",
+						Data: "aWNvbg==",
+					},
+				},
+			},
+		},
+	}
+
+	offloadMessageAttachmentData(state)
+
+	att := state.Messages[0].Attachments["img.png"]
+	if att.Data != "aWNvbg==" {
+		t.Fatalf("expected Data preserved when no URI, got %q", att.Data)
+	}
+}

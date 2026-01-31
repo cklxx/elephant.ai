@@ -1,8 +1,10 @@
 package react
 
 import (
+	"strings"
 	"time"
 
+	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 )
 
@@ -23,6 +25,7 @@ func (e *ReactEngine) observeToolResults(state *TaskState, iteration int, result
 		"tool_results": updates,
 	}
 	e.compactToolCallHistory(state, results)
+	offloadMessageAttachmentData(state)
 	e.appendFeedbackSignals(state, results)
 }
 
@@ -43,6 +46,44 @@ func (e *ReactEngine) appendFeedbackSignals(state *TaskState, results []ToolResu
 	if len(state.FeedbackSignals) > maxFeedbackSignals {
 		state.FeedbackSignals = state.FeedbackSignals[len(state.FeedbackSignals)-maxFeedbackSignals:]
 	}
+}
+
+// offloadMessageAttachmentData strips inline Data from message attachments
+// (both Message.Attachments and embedded ToolResult.Attachments) when a
+// durable URI already exists. This prevents base64 blobs from persisting in
+// the context window after L6 has already stored them.
+func offloadMessageAttachmentData(state *TaskState) {
+	if state == nil {
+		return
+	}
+	for idx := range state.Messages {
+		msg := &state.Messages[idx]
+		if offloadAttachmentMap(msg.Attachments) {
+			state.Messages[idx] = *msg
+		}
+		for i := range msg.ToolResults {
+			offloadAttachmentMap(msg.ToolResults[i].Attachments)
+		}
+	}
+}
+
+// offloadAttachmentMap clears the Data field from attachments that already
+// have a non-data-URI external reference. Returns true if any field changed.
+func offloadAttachmentMap(atts map[string]ports.Attachment) bool {
+	changed := false
+	for key, att := range atts {
+		if att.Data == "" {
+			continue
+		}
+		uri := strings.TrimSpace(att.URI)
+		if uri == "" || strings.HasPrefix(strings.ToLower(uri), "data:") {
+			continue
+		}
+		att.Data = ""
+		atts[key] = att
+		changed = true
+	}
+	return changed
 }
 
 func (e *ReactEngine) compactToolCallHistory(state *TaskState, results []ToolResult) {

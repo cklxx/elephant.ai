@@ -91,6 +91,18 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 		defer attachmentsMu.Unlock()
 	}
 	applyAttachmentMutationsToState(state, merged, mutations, call.Name, e.attachmentPersister)
+
+	// Return persisted versions from state so callers (result.Attachments,
+	// buildToolMessages) carry URI references instead of inline base64.
+	if state != nil && len(state.Attachments) > 0 && len(merged) > 0 {
+		persisted := make(map[string]ports.Attachment, len(merged))
+		for key := range merged {
+			if att, ok := state.Attachments[key]; ok {
+				persisted[key] = att
+			}
+		}
+		return persisted
+	}
 	return merged
 }
 
