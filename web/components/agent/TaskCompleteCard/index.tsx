@@ -24,6 +24,7 @@ interface StopReasonCopy {
 
 interface TaskCompleteCardProps {
   event: WorkflowResultFinalEvent;
+  hideAttachments?: boolean;
 }
 
 const INLINE_MEDIA_REGEX = /(data:image\/[^\s)]+|\/api\/data\/[A-Za-z0-9]+)/g;
@@ -73,7 +74,7 @@ function getStopReasonCopy(
   };
 }
 
-export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
+export function TaskCompleteCard({ event, hideAttachments = false }: TaskCompleteCardProps) {
   const t = useTranslation();
   const answer = event.final_answer ?? "";
   const markdownAnswer = convertInlineMediaToMarkdown(answer);
@@ -108,7 +109,7 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
     event.stream_finished === false ||
     (event.is_streaming === true && event.stream_finished !== true);
   const streamFinished = event.stream_finished === true;
-  const inlineAttachments = streamInProgress ? undefined : standardAttachments;
+  const inlineAttachments = streamInProgress || hideAttachments ? undefined : standardAttachments;
   const sanitizedAnswer = stripAttachmentPlaceholders(
     markdownAnswer,
     a2uiAttachments,
@@ -222,13 +223,15 @@ export function TaskCompleteCard({ event }: TaskCompleteCardProps) {
         streamingHint={t("events.taskComplete.streamingHint")}
       />
 
-      <TaskCompleteAttachments
-        streamInProgress={streamInProgress}
-        a2uiAttachments={a2uiAttachments}
-        unreferencedMediaSegments={unreferencedMediaSegments}
-        artifactSegments={artifactSegments}
-        hasMultipleArtifacts={hasMultipleArtifacts}
-      />
+      {!hideAttachments && (
+        <TaskCompleteAttachments
+          streamInProgress={streamInProgress}
+          a2uiAttachments={a2uiAttachments}
+          unreferencedMediaSegments={unreferencedMediaSegments}
+          artifactSegments={artifactSegments}
+          hasMultipleArtifacts={hasMultipleArtifacts}
+        />
+      )}
     </Card>
   );
 }

@@ -328,7 +328,10 @@ export const EventLine = React.memo(function EventLine({
         className={cn("py-2", isNested && "py-1")}
         data-testid="event-workflow.result.final"
       >
-        <TaskCompleteCard event={event as WorkflowResultFinalEvent} />
+        <TaskCompleteCard
+          event={event as WorkflowResultFinalEvent}
+          hideAttachments={isNested || isSubagentEvent}
+        />
       </div>,
     );
   }
@@ -395,7 +398,10 @@ export const EventLine = React.memo(function EventLine({
             )}
             data-testid="event-workflow.node.output.summary"
           >
-            <TaskCompleteCard event={mockWorkflowResultFinalEvent} />
+            <TaskCompleteCard
+              event={mockWorkflowResultFinalEvent}
+              hideAttachments={isNested || isSubagentEvent}
+            />
           </div>,
         );
       }
