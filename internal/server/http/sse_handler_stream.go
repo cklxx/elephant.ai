@@ -292,7 +292,9 @@ func (h *SSEHandler) shouldStreamEvent(event agent.AgentEvent, debugMode bool) b
 
 	// Only stream events that are meaningful to the frontend experience.
 	if !sseAllowlist[base.EventType()] {
-		return false
+		if !debugMode || !sseDebugAllowlist[base.EventType()] {
+			return false
+		}
 	}
 
 	// Only stream workflow envelopes and explicit user task submissions.

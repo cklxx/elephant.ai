@@ -18,28 +18,30 @@ const (
 // envelope not present here will be suppressed to keep the frontend stream
 // lean and avoid noisy system-level lifecycle spam.
 var sseAllowlist = map[string]bool{
-	types.EventNodeStarted:                  true,
-	types.EventNodeCompleted:                true,
-	types.EventNodeFailed:                   true,
-	types.EventNodeOutputDelta:              true,
-	types.EventNodeOutputSummary:            true,
-	types.EventToolStarted:                  true,
-	types.EventToolProgress:                 true,
-	types.EventToolCompleted:                true,
-	types.EventArtifactManifest:             true,
-	types.EventInputReceived:                true,
-	types.EventSubflowProgress:              true,
-	types.EventSubflowCompleted:             true,
-	types.EventResultFinal:                  true,
-	types.EventResultCancelled:              true,
+	types.EventNodeStarted:                   true,
+	types.EventNodeCompleted:                 true,
+	types.EventNodeFailed:                    true,
+	types.EventNodeOutputDelta:               true,
+	types.EventNodeOutputSummary:             true,
+	types.EventToolStarted:                   true,
+	types.EventToolProgress:                  true,
+	types.EventToolCompleted:                 true,
+	types.EventArtifactManifest:              true,
+	types.EventInputReceived:                 true,
+	types.EventSubflowProgress:               true,
+	types.EventSubflowCompleted:              true,
+	types.EventResultFinal:                   true,
+	types.EventResultCancelled:               true,
+	types.EventDiagnosticEnvironmentSnapshot: true,
+}
+
+// sseDebugAllowlist enumerates events that are only relevant in debug streams.
+// These are withheld unless the client explicitly requests debug=1.
+var sseDebugAllowlist = map[string]bool{
 	types.EventDiagnosticError:              true,
 	types.EventDiagnosticContextCompression: true,
 	types.EventDiagnosticToolFiltering:      true,
-	types.EventDiagnosticEnvironmentSnapshot: true,
-	types.EventExecutorUpdate:               true,
-	types.EventExecutorUserMessage:          true,
 	types.EventProactiveContextRefresh:      true,
-	types.EventStreamDropped:                true,
 }
 
 var blockedNodeIDs = map[string]bool{
