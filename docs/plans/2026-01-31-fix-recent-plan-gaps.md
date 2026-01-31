@@ -1,7 +1,7 @@
 # Fix recent plan gaps (attachments + Lark history + presigned refresh)
 
 **Date**: 2026-01-31
-**Status**: In Progress
+**Status**: Completed
 **Author**: cklxx
 
 ## Scope
@@ -18,3 +18,4 @@
 ## Progress Log
 - 2026-01-31: Plan created.
 - 2026-01-31: Updated Lark session history toggle, switched attachment persister to sync, added presigned refresh logic + tests.
+- 2026-01-31: Ran `./dev.sh lint` + `./dev.sh test` (LC_DYSYMTAB linker warnings observed).
