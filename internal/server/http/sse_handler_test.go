@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/attachments"
 	serverapp "alex/internal/server/app"
 	"alex/internal/testutil"
@@ -574,6 +576,120 @@ func TestSSEHandlerDebugModeStreamsReactIterStepNodes(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("react iter step node should be streamed in debug mode: %v", events)
+	}
+}
+
+func TestSSEHandlerFiltersDebugOnlyEventsByDefault(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-debug-only"
+	runID := "run-debug"
+	now := time.Now()
+
+	debugOnly := []string{
+		types.EventDiagnosticContextCompression,
+		types.EventDiagnosticToolFiltering,
+		types.EventProactiveContextRefresh,
+	}
+
+	for i, eventType := range debugOnly {
+		base := domain.NewBaseEvent(agent.LevelCore, sessionID, runID, "", now.Add(time.Duration(i)*time.Millisecond))
+		envelope := &domain.WorkflowEventEnvelope{
+			BaseEvent: base,
+			Event:     eventType,
+			Version:   1,
+			NodeKind:  "diagnostic",
+			NodeID:    fmt.Sprintf("debug-%d", i),
+			Payload:   map[string]any{"kind": eventType},
+		}
+		broadcaster.OnEvent(envelope)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID, nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), "connected") {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	for _, evt := range events {
+		for _, eventType := range debugOnly {
+			if evt.event == eventType {
+				t.Fatalf("debug-only event should be filtered without debug=1: %v", evt)
+			}
+		}
+	}
+
+	ctxDebug, cancelDebug := context.WithCancel(context.Background())
+	defer cancelDebug()
+
+	reqDebug := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID+"&debug=1", nil).WithContext(ctxDebug)
+	recDebug := newSSERecorder()
+
+	doneDebug := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(recDebug, reqDebug)
+		close(doneDebug)
+	}()
+
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		payload := recDebug.BodyString()
+		found := false
+		for _, eventType := range debugOnly {
+			if strings.Contains(payload, eventType) {
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancelDebug()
+
+	select {
+	case <-doneDebug:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	debugEvents := parseSSEStream(t, recDebug.BodyString())
+	for _, eventType := range debugOnly {
+		found := false
+		for _, evt := range debugEvents {
+			if evt.event == eventType {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Fatalf("expected debug-only event to stream with debug=1: %s", eventType)
+		}
 	}
 }
 
