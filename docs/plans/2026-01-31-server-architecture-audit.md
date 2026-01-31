@@ -22,6 +22,13 @@
 | 9 | 5.3 | WriteTimeout per-route handling | `f3f0f9df` | Done |
 | 10 | 5.4 | Event drop observability (per-session + stream.dropped) | `2c49a408` + `bb93bb17` | Done |
 
+**Phase 2** → See `2026-01-31-server-architecture-phase2.md`
+
+| 11 | P2.1 | Domain error types + HTTP error mapper | `fedd8802` | Done |
+| 12 | P2.2 | SessionService unit tests (24 tests) | `a59989d4` | Done |
+| 13 | P2.3 | DegradedProbe in /health endpoint | `1c8e8f9b` | Done |
+| 14 | P2.4 | Lint fix (unused isStarted) | `dcccf1bf` | Done |
+
 ---
 
 ## 1. 模块概览

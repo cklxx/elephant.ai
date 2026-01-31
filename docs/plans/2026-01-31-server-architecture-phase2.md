@@ -1,8 +1,17 @@
 # Server Architecture Phase 2 — Domain Error Types + Test Coverage + Health Enrichment
 
 **Created:** 2026-01-31
-**Status:** In Progress
+**Status:** Completed (All batches)
 **Prerequisite:** Phase 1 complete (all 10 batches)
+
+## Execution Summary
+
+| Batch | Description | Commit | Status |
+|-------|-------------|--------|--------|
+| 1 | Domain error types + HTTP error mapper | `fedd8802` | Done |
+| 2 | SessionService unit tests (24 tests) | `a59989d4` | Done |
+| 3 | DegradedProbe in /health endpoint | `1c8e8f9b` | Done |
+| 4 | Lint fix (unused isStarted) + validation | `dcccf1bf` | Done |
 
 ---
 
@@ -85,8 +94,8 @@ The existing health handler already computes `overallStatus = "degraded"` when c
 
 ## Verification Checklist (per batch)
 
-- [ ] `go build ./internal/server/...`
-- [ ] `go vet ./internal/server/...`
-- [ ] `go test ./internal/server/app/... -count=1`
-- [ ] `go test ./internal/server/http/... -count=1`
-- [ ] `go test ./internal/server/bootstrap/... -count=1`
+- [x] `go build ./internal/server/...`
+- [x] `go vet ./internal/server/...`
+- [x] `go test ./internal/server/app/... -count=1`
+- [x] `go test ./internal/server/http/... -count=1`
+- [x] `go test ./internal/server/bootstrap/... -count=1`
