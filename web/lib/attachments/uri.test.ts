@@ -32,6 +32,7 @@ describe('attachments uri cache', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     if (originalURL) {
       if (originalCreateObjectURL) {
         originalURL.createObjectURL = originalCreateObjectURL;
@@ -82,5 +83,48 @@ describe('attachments uri cache', () => {
     expect(urls.filter(Boolean)).toHaveLength(3);
     expect(createObjectURL).toHaveBeenCalledTimes(3);
     expect(revokeObjectURL).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes presigned attachment urls when near expiry', async () => {
+    const { buildAttachmentUri } = await import('./uri');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-31T00:00:00Z'));
+    process.env.NEXT_PUBLIC_API_URL = 'http://localhost:8080';
+
+    const presigned =
+      'https://r2.example.com/bucket/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.png' +
+      '?X-Amz-Date=20260131T000000Z&X-Amz-Expires=300';
+    const attachment: AttachmentPayload = {
+      name: 'diagram.png',
+      uri: presigned,
+      media_type: 'image/png',
+    };
+
+    const resolved = buildAttachmentUri(attachment);
+
+    expect(resolved).toBe(
+      'http://localhost:8080/api/attachments/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.png',
+    );
+
+    delete process.env.NEXT_PUBLIC_API_URL;
+  });
+
+  it('keeps presigned urls when expiry is not imminent', async () => {
+    const { buildAttachmentUri } = await import('./uri');
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-31T00:00:00Z'));
+
+    const presigned =
+      'https://r2.example.com/bucket/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef.pdf' +
+      '?X-Amz-Date=20260131T000000Z&X-Amz-Expires=7200';
+    const attachment: AttachmentPayload = {
+      name: 'report.pdf',
+      uri: presigned,
+      media_type: 'application/pdf',
+    };
+
+    const resolved = buildAttachmentUri(attachment);
+
+    expect(resolved).toBe(presigned);
   });
 });

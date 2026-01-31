@@ -12,6 +12,8 @@ const BLOB_URL_CACHE_LIMIT = (() => {
   return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_BLOB_URL_CACHE_LIMIT;
 })();
 const BLOB_URL_CACHE = new Map<string, string>();
+const PRESIGNED_REFRESH_WINDOW_MS = 5 * 60 * 1000;
+const PRESIGNED_FILENAME_PATTERN = /^[a-f0-9]{64}(\\.[a-z0-9]{1,10})?$/i;
 
 function hashValue(value: string): string {
   let hash = 2166136261;
@@ -171,17 +173,81 @@ function buildBlobUrlFromDataUri(dataUri: string): string | null {
 
 function normalizeAttachmentUri(uri: string): string {
   const trimmed = uri.trim();
-  if (
-    trimmed.startsWith("data:") ||
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://")
-  ) {
+  if (trimmed.startsWith("data:")) {
     return trimmed;
+  }
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    const refreshed = refreshPresignedAttachmentUrl(trimmed);
+    return refreshed ?? trimmed;
   }
   if (trimmed.startsWith("/")) {
     return buildApiUrl(trimmed);
   }
   return trimmed;
+}
+
+function refreshPresignedAttachmentUrl(uri: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(uri);
+  } catch {
+    return null;
+  }
+
+  const amzDate = getQueryParam(parsed, "x-amz-date");
+  const amzExpires = getQueryParam(parsed, "x-amz-expires");
+  if (!amzDate || !amzExpires) {
+    return null;
+  }
+  const expirySeconds = Number(amzExpires);
+  if (!Number.isFinite(expirySeconds) || expirySeconds <= 0) {
+    return null;
+  }
+  const issuedAt = parseAmzDate(amzDate);
+  if (issuedAt === null) {
+    return null;
+  }
+
+  const expiresAt = issuedAt + expirySeconds * 1000;
+  if (expiresAt - Date.now() > PRESIGNED_REFRESH_WINDOW_MS) {
+    return null;
+  }
+
+  const filename = parsed.pathname.split("/").filter(Boolean).pop();
+  if (!filename || !PRESIGNED_FILENAME_PATTERN.test(filename)) {
+    return null;
+  }
+  return buildApiUrl(`/api/attachments/${filename}`);
+}
+
+function parseAmzDate(value: string): number | null {
+  const trimmed = value.trim();
+  const match = /^(\\d{4})(\\d{2})(\\d{2})T(\\d{2})(\\d{2})(\\d{2})Z$/.exec(
+    trimmed,
+  );
+  if (!match) {
+    return null;
+  }
+  const [, year, month, day, hour, minute, second] = match;
+  const timestamp = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    Number(second),
+  );
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function getQueryParam(url: URL, key: string): string | null {
+  const normalized = key.toLowerCase();
+  for (const [paramKey, value] of url.searchParams.entries()) {
+    if (paramKey.toLowerCase() === normalized) {
+      return value;
+    }
+  }
+  return null;
 }
 
 function isPresentationAttachment(attachment: AttachmentPayload): boolean {
