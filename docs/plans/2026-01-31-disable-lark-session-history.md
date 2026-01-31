@@ -5,7 +5,7 @@
 **Author**: cklxx
 
 ## Scope
-- Disable session history injection for all Lark messages regardless of session_mode.
+- Disable session history injection for all Lark messages.
 - Update tests and docs to reflect chat-only context expectations.
 
 ## Plan
@@ -18,3 +18,4 @@
 - 2026-01-31: Plan created.
 - 2026-01-31: Disabled Lark session history injection, updated tests and CONFIG docs.
 - 2026-01-31: Ran `./dev.sh lint` + `./dev.sh test` (LC_DYSYMTAB linker warnings observed).
+- 2026-01-31: Follow-up: removed Lark session_mode config; chat-derived session IDs only.

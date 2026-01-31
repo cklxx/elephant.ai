@@ -76,11 +76,11 @@ Updated: 2026-01-31
 
 | 功能 | 说明 | 代码位置 |
 |---|---|---|
-| 会话与去重 | 仅处理 text；群/私聊开关；LRU+TTL 去重；session_mode(fresh/stable)；memoryID = SHA1(chatID)；按 memoryID 加锁串行 | `internal/channels/lark/gateway.go`, `internal/channels/base.go` |
+| 会话与去重 | 仅处理 text；群/私聊开关；LRU+TTL 去重；memoryID = SHA1(chatID) 作为 session ID；不注入 session history；按 memoryID 加锁串行 | `internal/channels/lark/gateway.go`, `internal/channels/base.go` |
 | 交互体验 | 开始/结束随机 emoji reaction；工具进度消息（单条持续更新，2s 频控）；群聊可拉取近期上下文拼接 | `internal/channels/lark/emoji_reactions.go`, `progress_listener.go`, `chat_context.go` |
 | 计划确认 | plan review 读取/保存 pending（Postgres）；await_user_input 输出计划确认；后续反馈以 `<plan_feedback>` 注入 | `internal/channels/lark/gateway.go`, `plan_review_store.go`, `plan_review_postgres.go` |
 | 回复与附件 | BuildReplyCore + thinking fallback；附件按图片/文件上传 Lark；A2UI 附件过滤；附件摘要追加正文 | `internal/channels/lark/gateway.go` |
-| 配置入口 | `channels.lark`（enabled/app_id/app_secret/session_mode/react_emoji/show_tool_progress/auto_chat_context/plan_review_*） | `docs/reference/CONFIG.md` |
+| 配置入口 | `channels.lark`（enabled/app_id/app_secret/react_emoji/show_tool_progress/auto_chat_context/plan_review_*） | `docs/reference/CONFIG.md` |
 
 ### 2.2 核心数据结构
 
