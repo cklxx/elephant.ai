@@ -108,12 +108,12 @@ Expected: FAIL (no refresh logic yet).
 
 ```go
 const (
-	antigravityOAuthTokenURL     = "https://oauth2.googleapis.com/token"
-	antigravityOAuthClientID     = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
-	antigravityOAuthClientSecret = "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"
+	antigravityOAuthTokenURL    = "https://oauth2.googleapis.com/token"
+	antigravityOAuthRefreshSkew = 5 * time.Minute
 )
-
-const antigravityOAuthRefreshSkew = 5 * time.Minute
+// OAuth client_id and client_secret are read from the credential file
+// (~/.gemini/oauth_creds.json) or env vars (GEMINI_OAUTH_CLIENT_ID,
+// GEMINI_OAUTH_CLIENT_SECRET).
 ```
 
 **Step 2: Add path helper**
