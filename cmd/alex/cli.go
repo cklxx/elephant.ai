@@ -55,15 +55,8 @@ func (c *CLI) Run(args []string) error {
 	case "cost", "costs":
 		return c.handleCostCommand(cmdArgs)
 
-	case "index":
-		return c.handleIndex(cmdArgs)
-
-	case "search":
-		if len(cmdArgs) == 0 {
-			return fmt.Errorf("usage: alex search <query>")
-		}
-		query := strings.Join(cmdArgs, " ")
-		return c.handleSearch(query)
+	case "model", "models":
+		return c.handleModel(cmdArgs)
 
 	case "mcp":
 		return c.handleMCP(cmdArgs)
@@ -102,9 +95,10 @@ Usage:
   alex config set <field> <value> Persist a managed override
   alex config clear <field>       Remove a managed override
   alex config path                Show the override file path
+  alex model                     List available subscription models
+  alex model use <p/m>           Select a subscription model (e.g. codex/gpt-5.2-codex)
+  alex model clear               Remove subscription selection
   alex cost                      Show cost tracking commands
-  alex index [--repo PATH]       Index repository for code search
-  alex search "query"            Search indexed code
   alex mcp                       MCP (Model Context Protocol) management
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets
   alex acp [--initial-message]        Run ACP (Agent Client Protocol) over stdio
@@ -129,7 +123,7 @@ Features:
   ✓ Color-coded tool status and icons
   ✓ Cost tracking and analytics
   ✓ Session management
-  ✓ Code search and indexing
+  ✓ Subscription model selection
 
 Architecture: Hexagonal (Ports & Adapters)
 Documentation: AGENTS.md + docs/reference/ARCHITECTURE_AGENT_FLOW.md + docs/reference/CONFIG.md

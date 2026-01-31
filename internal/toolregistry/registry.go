@@ -343,8 +343,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["grep"] = search.NewGrep(shellConfig)
 	r.static["ripgrep"] = search.NewRipgrep(shellConfig)
 	r.static["find"] = search.NewFind(shellConfig)
-	// TODO: full impl code search
-	// r.static["code_search"] = search.NewCodeSearch()
 
 	// Task management
 	r.static["todo_read"] = sessiontools.NewTodoRead()
