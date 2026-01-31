@@ -59,8 +59,6 @@ Step 4: request_user → 确认
 | `todo_read/update` | sessionID 从 context 获取（已无状态）| 无（ok）|
 | `okr_read/write` | goal_id 是业务标识（已无状态）| 无（ok）|
 | `request_user` tool | 无 ID 依赖 | 无（ok）|
-| `think` tool | 无状态 | 无（ok）|
-| `attention` tool | 无状态 | 无（ok）|
 
 ## 设计原则
 
@@ -128,7 +126,6 @@ Step 4: request_user → 确认
 - `todo_read/update`: sessionID 从 context 获取，已经是无状态设计
 - `okr_read/write`: goal_id 是业务标识符，不是会话状态
 - `request_user`: 无 ID 依赖，已经无状态
-- `think/attention`: 已经无状态
 - `bg_status/bg_collect`: 它们查询的 task_id 是 bg_dispatch 返回的标识，属于正常的引用关系
 - `subagent/explore`: 无 ID 依赖
 
@@ -137,7 +134,7 @@ Step 4: request_user → 确认
 | 风险 | 缓解 |
 |------|------|
 | 前端依赖 plan metadata 渲染 UI | plan 仍可被调用，metadata 格式不变；只是不强制 |
-| LLM 失去结构化思考 | think() 工具仍在；system prompt 鼓励但不强制 plan |
+| LLM 失去结构化思考 | system prompt 继续鼓励 plan/clarify，但不强制 |
 | Plan review 功能失效 | 保留 updateOrchestratorState，如果 LLM 调 plan(complex) 仍触发 review |
 | 测试覆盖 | 现有 plan 相关测试需调整，新增无 plan 直接执行的测试 |
 
