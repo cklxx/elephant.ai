@@ -738,16 +738,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 		return
 	}
 
-	// Only send attachments explicitly referenced in the final answer.
-	attachments := result.Attachments
-	if len(attachments) == 0 {
-		return
-	}
-	for name, att := range attachments {
-		if isA2UIAttachment(att) {
-			delete(attachments, name)
-		}
-	}
+	attachments := filterNonA2UIAttachments(result.Attachments)
 	if len(attachments) == 0 {
 		return
 	}
@@ -792,6 +783,23 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 			g.sendMessageTyped(ctx, chatID, "file", fileContent(fileKey))
 		}
 	}
+}
+
+func filterNonA2UIAttachments(attachments map[string]ports.Attachment) map[string]ports.Attachment {
+	if len(attachments) == 0 {
+		return nil
+	}
+	filtered := make(map[string]ports.Attachment, len(attachments))
+	for name, att := range attachments {
+		if isA2UIAttachment(att) {
+			continue
+		}
+		filtered[name] = att
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	return filtered
 }
 
 func collectAttachmentsFromResult(result *agent.TaskResult) map[string]ports.Attachment {

@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -190,6 +191,32 @@ func TestCollectAttachmentsFromResult(t *testing.T) {
 	}
 	if _, ok := attachments["report.pdf"]; !ok {
 		t.Fatalf("expected report.pdf attachment, got %#v", attachments)
+	}
+}
+
+func TestFilterNonA2UIAttachmentsDoesNotMutateInput(t *testing.T) {
+	input := map[string]ports.Attachment{
+		"ui.json": {
+			Name:      "ui.json",
+			MediaType: "application/a2ui+json",
+			Format:    "a2ui",
+		},
+		"report.pdf": {
+			Name:      "report.pdf",
+			MediaType: "application/pdf",
+		},
+	}
+	clone := ports.CloneAttachmentMap(input)
+
+	filtered := filterNonA2UIAttachments(input)
+	if len(filtered) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(filtered))
+	}
+	if _, ok := filtered["report.pdf"]; !ok {
+		t.Fatalf("expected report.pdf attachment, got %#v", filtered)
+	}
+	if !reflect.DeepEqual(input, clone) {
+		t.Fatalf("expected input attachments to remain unchanged")
 	}
 }
 
