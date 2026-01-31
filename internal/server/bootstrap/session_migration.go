@@ -93,12 +93,14 @@ func MigrateSessionsToDatabase(
 				destCount,
 				len(ids),
 			)
-			_ = writeSessionMigrationMarker(markerPath, sessionMigrationMarker{
+			if err := writeSessionMigrationMarker(markerPath, sessionMigrationMarker{
 				Version:        1,
 				CompletedAt:    time.Now().UTC(),
 				SourceSessions: len(ids),
 				DestSessions:   destCount,
-			})
+			}); err != nil {
+				logger.Warn("Failed to write session migration marker: %v", err)
+			}
 			return nil
 		}
 	}
@@ -194,12 +196,14 @@ func MigrateSessionsToDatabase(
 		failures,
 		elapsed.Truncate(time.Millisecond),
 	)
-	_ = writeSessionMigrationMarker(markerPath, sessionMigrationMarker{
+	if err := writeSessionMigrationMarker(markerPath, sessionMigrationMarker{
 		Version:        1,
 		CompletedAt:    time.Now().UTC(),
 		SourceSessions: len(ids),
 		DestSessions:   migratedCount,
-	})
+	}); err != nil {
+		logger.Warn("Failed to write session migration marker: %v", err)
+	}
 	return nil
 }
 

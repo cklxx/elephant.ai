@@ -210,7 +210,9 @@ func (s *AsyncEventHistoryStore) run() {
 	for {
 		select {
 		case <-s.done:
-			_ = flushBuffer()
+			if err := flushBuffer(); err != nil {
+				logging.OrNop(s.logger).Warn("Failed to flush event history on shutdown: %v", err)
+			}
 			return
 		case event := <-s.ch:
 			if event == nil {
