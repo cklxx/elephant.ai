@@ -96,6 +96,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		Messages:        window.Messages,
 		SessionID:       session.ID,
 		SkillsConfig:    cfg.Skills,
+		OKRContext:      cfg.OKRContext,
 	})
 	return window, nil
 }

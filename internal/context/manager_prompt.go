@@ -22,6 +22,7 @@ type systemPromptInput struct {
 	Messages        []ports.Message
 	SessionID       string
 	SkillsConfig    agent.SkillsConfig
+	OKRContext      string
 }
 
 func composeSystemPrompt(input systemPromptInput) string {
@@ -31,6 +32,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
 		buildKnowledgeSection(input.Static.Knowledge),
+		buildOKRSection(input.OKRContext),
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
 	}
 	if !input.OmitEnvironment {
@@ -279,6 +281,14 @@ func extractToolNameFromMetadata(metadata map[string]any) string {
 		}
 	}
 	return ""
+}
+
+func buildOKRSection(okrContext string) string {
+	trimmed := strings.TrimSpace(okrContext)
+	if trimmed == "" {
+		return ""
+	}
+	return "# OKR Goals\n" + trimmed
 }
 
 func buildIdentitySection(persona agent.PersonaProfile) string {

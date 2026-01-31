@@ -29,6 +29,9 @@ func mergeProactiveConfig(target *ProactiveConfig, file *ProactiveFileConfig) {
 	if file.RAG != nil {
 		mergeRAGConfig(&target.RAG, file.RAG)
 	}
+	if file.OKR != nil {
+		mergeOKRConfig(&target.OKR, file.OKR)
+	}
 	if file.Scheduler != nil {
 		mergeSchedulerConfig(&target.Scheduler, file.Scheduler)
 	}
@@ -244,6 +247,21 @@ func mergeAttentionConfig(target *AttentionConfig, file *AttentionFileConfig) {
 	}
 }
 
+func mergeOKRConfig(target *OKRProactiveConfig, file *OKRFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if strings.TrimSpace(file.GoalsRoot) != "" {
+		target.GoalsRoot = strings.TrimSpace(file.GoalsRoot)
+	}
+	if file.AutoInject != nil {
+		target.AutoInject = *file.AutoInject
+	}
+}
+
 func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	if file == nil {
 		return
@@ -269,6 +287,9 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 		file.RAG.Collection = expandEnvValue(lookup, file.RAG.Collection)
 		file.RAG.EmbedderModel = expandEnvValue(lookup, file.RAG.EmbedderModel)
 		file.RAG.EmbedderBaseURL = expandEnvValue(lookup, file.RAG.EmbedderBaseURL)
+	}
+	if file.OKR != nil {
+		file.OKR.GoalsRoot = expandEnvValue(lookup, file.OKR.GoalsRoot)
 	}
 	if file.Scheduler != nil {
 		for i := range file.Scheduler.Triggers {

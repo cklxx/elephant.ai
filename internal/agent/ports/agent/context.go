@@ -49,6 +49,7 @@ type ContextWindowConfig struct {
 	EnvironmentSummary string
 	TaskInput          string
 	Skills             SkillsConfig
+	OKRContext         string // Pre-rendered OKR goals section for system prompt injection
 }
 
 // ContextWindow exposes the layered context returned by the manager.
