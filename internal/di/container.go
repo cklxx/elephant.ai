@@ -167,6 +167,13 @@ func (c *Container) Shutdown() error {
 		logger.Info("MCP shutdown successfully")
 	}
 
+	if c.AgentCoordinator != nil {
+		if err := c.AgentCoordinator.Close(); err != nil {
+			logger.Error("Failed to close agent coordinator: %v", err)
+			return err
+		}
+	}
+
 	if c.SessionDB != nil {
 		c.SessionDB.Close()
 		c.SessionDB = nil

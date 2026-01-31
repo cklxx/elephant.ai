@@ -837,6 +837,17 @@ func (c *AgentCoordinator) SetAttachmentPersister(p ports.AttachmentPersister) {
 	c.attachmentPersister = p
 }
 
+// Close releases coordinator-owned resources such as background persisters.
+func (c *AgentCoordinator) Close() error {
+	if c == nil || c.attachmentPersister == nil {
+		return nil
+	}
+	if closer, ok := c.attachmentPersister.(interface{ Close() error }); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
 func sanitizeAttachmentForPersistence(att ports.Attachment) ports.Attachment {
 	uri := strings.TrimSpace(att.URI)
 	if uri != "" && !strings.HasPrefix(strings.ToLower(uri), "data:") {
