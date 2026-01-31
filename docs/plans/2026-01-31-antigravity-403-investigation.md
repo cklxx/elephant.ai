@@ -20,3 +20,4 @@
 - 2026-01-31 13:10: Traced model list flow: UI uses subscription catalog -> POST /v1internal:fetchAvailableModels (antigravity).
 - 2026-01-31 13:15: Reproduced 403 via direct POST; adding x-goog-user-project yields PERMISSION_DENIED with USER_PROJECT_DENIED details.
 - 2026-01-31 13:20: Probed request schema: fetchAvailableModels accepts `project` field; unknown fields (requestId/userAgent/requestType) are rejected with 400.
+- 2026-01-31 13:40: Reviewed public proxy repos + official Gemini CLI/Code Assist docs; proxies typically wrap Gemini CLI OAuth or Gemini API key, and Code Assist requires project + Service Usage Consumer access.
