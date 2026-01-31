@@ -123,7 +123,7 @@ func NewAgentCoordinator(
 }
 
 type planSessionTitleRecorder struct {
-	mu      sync.Mutex
+	mu      sync.RWMutex
 	title   string
 	sink    agent.EventListener
 	onTitle func(string)
@@ -157,8 +157,8 @@ func (r *planSessionTitleRecorder) OnEvent(event agent.AgentEvent) {
 }
 
 func (r *planSessionTitleRecorder) Title() string {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	return r.title
 }
 
@@ -577,7 +577,7 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 		Config:              c.config,
 		Logger:              logger,
 		Clock:               c.clock,
-		CostDecorator:       cost.NewCostTrackingDecorator(c.costTracker, logger, c.clock),
+		CostDecorator:       c.costDecorator,
 		EventEmitter:        listener,
 		CostTracker:         c.costTracker,
 		SessionStaleCapture: c.captureStaleSession,
@@ -1099,6 +1099,9 @@ func (c *AgentCoordinator) captureStaleSession(ctx context.Context, session *sto
 		sb.WriteString(": ")
 		sb.WriteString(content)
 		sb.WriteString("\n")
+		if sb.Len() >= maxContentLen {
+			break
+		}
 	}
 
 	content := textutil.SmartTruncate(sb.String(), maxContentLen)
@@ -1160,18 +1163,11 @@ func extractToolCallInfo(result *agent.TaskResult) []hooks.ToolResultInfo {
 			calls = append(calls, hooks.ToolResultInfo{
 				ToolName: name,
 				Success:  tr.Error == nil,
-				Output:   truncateString(tr.Content, 200),
+				Output:   textutil.TruncateWithEllipsis(tr.Content, 200),
 			})
 		}
 	}
 	return calls
-}
-
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
 }
 
 // performTaskPreAnalysis performs quick task analysis using LLM
