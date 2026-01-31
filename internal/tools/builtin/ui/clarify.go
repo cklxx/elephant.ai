@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -20,26 +19,21 @@ func NewClarify() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "clarify",
-				Description: `UI tool: emit Level 2 task header before starting a unit of work.
+				Description: `Optional UI tool: emit a task sub-header. Use needs_user_input=true to pause and ask the user a question.
 
 Rules:
-- Required when plan(complexity="complex"): must be called once per task (task_id) before the task's first action tool call.
-- Optional when plan(complexity="simple"): only call it if you need to pause and ask the user for missing input.
-- When needs_user_input=true, provide question_to_user and the orchestrator should pause.`,
+- Use to declare a sub-task header before starting a unit of work.
+- When needs_user_input=true, provide question_to_user and the orchestrator will pause for user input.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"run_id": {
-							Type:        "string",
-							Description: "Run identifier (must match the current run_id provided by the system).",
-						},
 						"branch_id": {
 							Type:        "string",
 							Description: "Optional branch identifier.",
 						},
 						"task_id": {
 							Type:        "string",
-							Description: "Task identifier within the run.",
+							Description: "Optional task identifier within the run. Auto-generated if omitted.",
 						},
 						"task_goal_ui": {
 							Type:        "string",
@@ -59,7 +53,7 @@ Rules:
 							Description: "Question shown to the user when needs_user_input=true.",
 						},
 					},
-					Required: []string{"run_id", "task_id", "task_goal_ui"},
+					Required: []string{"task_goal_ui"},
 				},
 			},
 			ports.ToolMetadata{
@@ -73,25 +67,13 @@ Rules:
 }
 
 func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	runID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "run_id")
-	if errResult != nil {
-		return errResult, nil
-	}
+	// Source run_id from context; ignore any LLM-supplied value.
+	runID := strings.TrimSpace(id.RunIDFromContext(ctx))
 
-	expected := strings.TrimSpace(id.RunIDFromContext(ctx))
-	if expected != "" && runID != expected {
-		err := errors.New("run_id does not match the active task")
-		return &ports.ToolResult{
-			CallID: call.ID,
-			Content: "Request does not match the active task. Please retry " +
-				"from the latest conversation turn.",
-			Error: err,
-		}, nil
-	}
-
-	taskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_id")
-	if errResult != nil {
-		return errResult, nil
+	// task_id is optional; auto-generate from call.ID if not provided.
+	taskID := shared.StringArg(call.Arguments, "task_id")
+	if strings.TrimSpace(taskID) == "" {
+		taskID = "task-" + call.ID
 	}
 
 	taskGoalUI, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_goal_ui")
@@ -152,6 +134,7 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	for key := range call.Arguments {
 		switch key {
 		case "run_id", "branch_id", "task_id", "task_goal_ui", "success_criteria", "needs_user_input", "question_to_user":
+			// run_id accepted but ignored (sourced from context).
 		default:
 			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}

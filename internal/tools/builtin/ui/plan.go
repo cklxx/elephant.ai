@@ -2,7 +2,6 @@ package ui
 
 import (
 	"context"
-	"errors"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -23,21 +22,15 @@ func NewPlan(memoryService memory.Service) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "plan",
-				Description: `UI tool: emit Level 1 goal and (optionally) attach a hidden internal plan for the orchestrator.
+				Description: `Optional UI tool: emit a visible goal header and (optionally) attach a hidden internal plan for the orchestrator. Not required before action tools.
 
 Rules:
-- Must be called before any non-plan/clarify tool call.
 - When complexity="simple", overall_goal_ui must be a single line.
-- overall_goal_ui must state the deliverable and a measurable acceptance signal (paths/tests/metrics).
-- When complexity="simple", you may proceed directly to the required action tool calls after plan(); do NOT call clarify() unless you need to pause for user input.
-- When complexity="complex", call clarify() before the first action tool call for each task.`,
+- overall_goal_ui should state the deliverable and a measurable acceptance signal (paths/tests/metrics).
+- When complexity="complex", use clarify() for sub-tasks if desired.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"run_id": {
-							Type:        "string",
-							Description: "Run identifier (must match the current run_id provided by the system).",
-						},
 						"session_title": {
 							Type:        "string",
 							Description: "Short session title used for session headers/lists (single-line).",
@@ -65,7 +58,7 @@ Rules:
 							Description: "Hidden internal plan object for orchestrator storage (must not be rendered).",
 						},
 					},
-					Required: []string{"run_id", "overall_goal_ui", "complexity"},
+					Required: []string{"overall_goal_ui", "complexity"},
 				},
 			},
 			ports.ToolMetadata{
@@ -80,10 +73,8 @@ Rules:
 }
 
 func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	runID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "run_id")
-	if errResult != nil {
-		return errResult, nil
-	}
+	// Source run_id from context; ignore any LLM-supplied value.
+	runID := strings.TrimSpace(id.RunIDFromContext(ctx))
 
 	complexityRaw, errResult := shared.RequireStringArg(call.Arguments, call.ID, "complexity")
 	if errResult != nil {
@@ -92,19 +83,6 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 	complexity := strings.ToLower(complexityRaw)
 	if complexity != "simple" && complexity != "complex" {
 		return shared.ToolError(call.ID, "complexity must be \"simple\" or \"complex\"")
-	}
-
-	if complexity != "simple" {
-		expected := strings.TrimSpace(id.RunIDFromContext(ctx))
-		if expected != "" && runID != expected {
-			err := errors.New("run_id does not match the active task")
-			return &ports.ToolResult{
-				CallID: call.ID,
-				Content: "Request does not match the active task. Please retry " +
-					"from the latest conversation turn.",
-				Error: err,
-			}, nil
-		}
 	}
 
 	goal, errResult := shared.RequireStringArg(call.Arguments, call.ID, "overall_goal_ui")
@@ -132,6 +110,7 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 	for key := range call.Arguments {
 		switch key {
 		case "run_id", "session_title", "overall_goal_ui", "complexity", "internal_plan", "memory_keywords", "memory_slots":
+			// run_id accepted but ignored (sourced from context).
 		default:
 			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}

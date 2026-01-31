@@ -28,7 +28,7 @@ const (
 	historySummaryMaxTokens    = 320
 	historySummaryLLMTimeout   = 4 * time.Second
 	historySummaryIntent       = "user_history_summary"
-	DefaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Follow Plan → (Clarify if needed) → ReAct → Finalize. Always call plan() before any action tool call. If plan(complexity=\"complex\"), call clarify() before each task's first action tool call. If plan(complexity=\"simple\"), skip clarify unless you need user input. Prefer browser_dom for browser work (selectors, click/fill/query); use browser_action only for coordinate-based actions or when DOM actions fail. Only capture screenshots when needed; screenshots return a vision summary for guidance. If you hit login/2FA/CAPTCHA or any auth gate, call request_user with clear steps for the user to log in, then wait before continuing. Avoid emojis in responses unless the user explicitly requests them."
+	DefaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Think → Act → Observe → Finalize. Use plan() to set a visible goal header (optional). Use clarify(needs_user_input=true) to pause and ask the user a question (optional). Prefer browser_dom for browser work (selectors, click/fill/query); use browser_action only for coordinate-based actions or when DOM actions fail. Only capture screenshots when needed; screenshots return a vision summary for guidance. If you hit login/2FA/CAPTCHA or any auth gate, call request_user with clear steps for the user to log in, then wait before continuing. Avoid emojis in responses unless the user explicitly requests them."
 )
 
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
@@ -244,13 +244,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 - Keep attachment placeholders out of the main body; list them at the end of the final answer.
 - If you want clients to render an attachment card, reference the file with a placeholder like [report.md].`)
 	}
-	if runID := strings.TrimSpace(ids.RunID); runID != "" {
-		systemPrompt = strings.TrimSpace(systemPrompt +
-			"\n\n## Runtime Identifiers\n" +
-			fmt.Sprintf("- run_id: %s\n", runID) +
-			"- Use this exact run_id for plan() (and clarify() if used).")
-	}
-
 	preloadedAttachments := collectSessionAttachments(session)
 	preloadedImportant := collectSessionImportant(session)
 	inheritedAttachments, inheritedIterations := appcontext.GetInheritedAttachments(ctx)
