@@ -24,6 +24,7 @@ export type WorkflowEventType =
   | 'workflow.diagnostic.tool_filtering'
   | 'workflow.diagnostic.environment_snapshot'
   | 'workflow.diagnostic.context_snapshot'
+  | 'workflow.stream.dropped'
   | 'proactive.context.refresh';
 
 export type WorkflowLifecycleUpdatedEventType =

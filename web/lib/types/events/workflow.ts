@@ -108,6 +108,15 @@ export type WorkflowInputReceivedEvent = WorkflowEvent<
   'workflow.input.received'
 >;
 
+export interface StreamDroppedPayload {
+  dropped_event_type: string;
+  total_drops: number;
+}
+export type WorkflowStreamDroppedEvent = WorkflowEvent<
+  StreamDroppedPayload,
+  'workflow.stream.dropped'
+>;
+
 export type AnyAgentEvent =
   | WorkflowLifecycleUpdatedEvent
   | WorkflowNodeStartedEvent
@@ -129,6 +138,7 @@ export type AnyAgentEvent =
   | WorkflowDiagnosticContextSnapshotEvent
   | WorkflowDiagnosticErrorEvent
   | WorkflowInputReceivedEvent
+  | WorkflowStreamDroppedEvent
   | ConnectedEvent;
 
 export type { AgentEventType, WorkflowEventType };
