@@ -205,6 +205,25 @@ func TestStreamingOutputHandlerPrintCompletionResetsStreamedContent(t *testing.T
 	require.False(t, handler.streamedContent)
 }
 
+func TestPayloadAttachmentsCoercesUntypedMap(t *testing.T) {
+	payload := map[string]any{
+		"attachments": map[string]any{
+			"report.pdf": map[string]any{
+				"uri":        "https://cdn.example.com/report.pdf",
+				"media_type": "application/pdf",
+			},
+		},
+	}
+
+	got := payloadAttachments(payload, "attachments")
+	require.Len(t, got, 1)
+
+	att := got["report.pdf"]
+	require.Equal(t, "report.pdf", att.Name)
+	require.Equal(t, "https://cdn.example.com/report.pdf", att.URI)
+	require.Equal(t, "application/pdf", att.MediaType)
+}
+
 func stripANSI(s string) string {
 	ansiRegexp := regexp.MustCompile("\x1b\\[[0-9;]*m")
 	return ansiRegexp.ReplaceAllString(s, "")

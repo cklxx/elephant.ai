@@ -880,19 +880,5 @@ func payloadAttachments(payload map[string]any, key string) map[string]ports.Att
 	if !ok || val == nil {
 		return nil
 	}
-	if attachments, ok := val.(map[string]ports.Attachment); ok {
-		return attachments
-	}
-	if generic, ok := val.(map[string]any); ok && len(generic) > 0 {
-		result := make(map[string]ports.Attachment)
-		for k, v := range generic {
-			if att, ok := v.(ports.Attachment); ok {
-				result[k] = att
-			}
-		}
-		if len(result) > 0 {
-			return result
-		}
-	}
-	return nil
+	return ports.CoerceAttachmentMap(val)
 }
