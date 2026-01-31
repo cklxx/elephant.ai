@@ -29,6 +29,7 @@ const SOURCE_LABELS: Record<string, string> = {
   codex_cli: "codex-cli",
   claude_cli: "claude-cli",
   antigravity_cli: "antigravity-cli",
+  antigravity_ide: "antigravity-ide",
   ollama: "ollama",
 };
 
