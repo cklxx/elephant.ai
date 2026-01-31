@@ -10,7 +10,7 @@
 
 **A proactive personal AI — your own dedicated AI agent.**
 
-elephant.ai is not another chatbot you have to ask. It is a proactive personal AI agent that embeds into your daily workflows — Lark, WeChat, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
+elephant.ai is not another chatbot you have to ask. It is a proactive personal AI agent that embeds into your daily workflows — Lark, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
 
 ---
 
@@ -19,7 +19,7 @@ elephant.ai is not another chatbot you have to ask. It is a proactive personal A
 | Capability | What it does |
 |---|---|
 | **Persistent memory** | Remembers conversations, decisions, and context across sessions. Retrieves relevant history automatically so you never repeat yourself. |
-| **Channel-native** | Lives inside Lark and WeChat as a first-class participant. Reads the room, responds in-thread, and acts on messages in real time. |
+| **Channel-native** | Lives inside Lark as a first-class participant. Reads the room, responds in-thread, and acts on messages in real time. |
 | **Autonomous execution** | Runs a full Think → Act → Observe loop. Searches the web, writes code, generates documents, and browses pages without hand-holding. |
 | **Built-in skills** | Ships with ready-to-use workflows: deep research, meeting notes, email drafting, slide decks, video production, and more. |
 | **Context-aware reasoning** | Assembles system policies, task goals, memory, and session history into a layered context — then reasons with extended thinking models (Claude, OpenAI o-series, DeepSeek). |
@@ -30,7 +30,7 @@ elephant.ai is not another chatbot you have to ask. It is a proactive personal A
 ## How it works
 
 ```
-You (Lark / WeChat / CLI / Web)
+You (Lark / CLI / Web)
         ↓
    elephant.ai runtime
         ↓
@@ -59,7 +59,6 @@ All surfaces share the same execution core, typed event stream, and observabilit
 ## Channels & surfaces
 
 - **Lark** — WebSocket gateway, auto-saves messages to memory, injects recent chat history as context, real-time tool progress display, emoji reactions, group and DM support.
-- **WeChat** — Bot integration via OpenWechat SDK.
 - **CLI / TUI** — Interactive terminal with streaming output and tool approval prompts.
 - **Web dashboard** — Next.js app with SSE streaming, artifact rendering, cost tracking, and session management.
 
@@ -131,7 +130,7 @@ Configuration reference: [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
 ## Architecture
 
 ```
-Delivery (CLI, Server, Web, Lark, WeChat)
+Delivery (CLI, Server, Web, Lark)
   → Agent Application Layer
   → Domain Ports (ReAct loop, events, approvals)
   → Infrastructure Adapters (LLM, tools, memory, storage, observability)

@@ -1,7 +1,7 @@
 # elephant.ai — Proactive AI Assistant (Repo Rules)
 
 ## Project snapshot
-- Proactive assistant across Lark/WeChat/CLI/Web with persistent memory + skills.
+- Proactive assistant across Lark/CLI/Web with persistent memory + skills.
 - Architecture: Delivery → App layer → Domain (ReAct loop, approvals, context) → Infra (LLM/tools/memory/observability).
 - Key packages: `internal/agent/`, `internal/llm/`, `internal/memory/`, `internal/tools/builtin/`, `internal/channels/`, `internal/observability/`, `web/`.
 
