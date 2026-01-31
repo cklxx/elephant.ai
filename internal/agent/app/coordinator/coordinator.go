@@ -53,6 +53,7 @@ type AgentCoordinator struct {
 	attachmentMigrator  materialports.Migrator
 	attachmentPersister ports.AttachmentPersister
 	hookRegistry        *hooks.Registry
+	okrContextProvider  preparation.OKRContextProvider
 }
 
 type preparationService interface {
@@ -100,17 +101,18 @@ func NewAgentCoordinator(
 	}
 
 	coordinator.prepService = preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:    llmFactory,
-		ToolRegistry:  toolRegistry,
-		SessionStore:  sessionStore,
-		ContextMgr:    contextMgr,
-		HistoryMgr:    historyManager,
-		Parser:        parser,
-		Config:        config,
-		Logger:        coordinator.logger,
-		Clock:         coordinator.clock,
-		CostDecorator: coordinator.costDecorator,
-		CostTracker:   coordinator.costTracker,
+		LLMFactory:         llmFactory,
+		ToolRegistry:       toolRegistry,
+		SessionStore:       sessionStore,
+		ContextMgr:         contextMgr,
+		HistoryMgr:         historyManager,
+		Parser:             parser,
+		Config:             config,
+		Logger:             coordinator.logger,
+		Clock:              coordinator.clock,
+		CostDecorator:      coordinator.costDecorator,
+		CostTracker:        coordinator.costTracker,
+		OKRContextProvider: coordinator.okrContextProvider,
 	})
 
 	if coordinator.contextMgr != nil {
@@ -581,6 +583,7 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 		EventEmitter:        listener,
 		CostTracker:         c.costTracker,
 		SessionStaleCapture: c.captureStaleSession,
+		OKRContextProvider:  c.okrContextProvider,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }

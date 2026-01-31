@@ -47,6 +47,7 @@ type ExecutionPreparationDeps struct {
 	EventEmitter        agent.EventListener
 	CostTracker         storage.CostTracker
 	SessionStaleCapture func(ctx context.Context, session *storage.Session, userID string)
+	OKRContextProvider  OKRContextProvider // Optional: provides OKR context for system prompt
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
@@ -65,6 +66,7 @@ type ExecutionPreparationService struct {
 	eventEmitter        agent.EventListener
 	costTracker         storage.CostTracker
 	sessionStaleCapture func(ctx context.Context, session *storage.Session, userID string)
+	okrContextProvider  OKRContextProvider
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -112,6 +114,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		eventEmitter:        eventEmitter,
 		costTracker:         deps.CostTracker,
 		sessionStaleCapture: deps.SessionStaleCapture,
+		okrContextProvider:  deps.OKRContextProvider,
 	}
 }
 
@@ -189,6 +192,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		} else {
 			originalCount := len(session.Messages)
 			windowStarted := time.Now()
+			var okrContext string
+			if s.okrContextProvider != nil {
+				okrContext = s.okrContextProvider()
+			}
 			var err error
 			window, err = s.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
 				TokenLimit:         s.config.MaxTokens,
@@ -198,6 +205,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				EnvironmentSummary: s.config.EnvironmentSummary,
 				TaskInput:          task,
 				Skills:             buildSkillsConfig(s.config.Proactive.Skills),
+				OKRContext:         okrContext,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)

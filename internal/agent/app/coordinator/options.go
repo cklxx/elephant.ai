@@ -3,6 +3,7 @@ package coordinator
 import (
 	"alex/internal/agent/app/cost"
 	"alex/internal/agent/app/hooks"
+	"alex/internal/agent/app/preparation"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/memory"
 )
@@ -70,6 +71,15 @@ func WithIterationHook(hook agent.IterationHook) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if hook != nil {
 			c.iterationHook = hook
+		}
+	}
+}
+
+// WithOKRContextProvider provides the OKR context provider for system prompt injection.
+func WithOKRContextProvider(provider preparation.OKRContextProvider) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if provider != nil {
+			c.okrContextProvider = provider
 		}
 	}
 }
