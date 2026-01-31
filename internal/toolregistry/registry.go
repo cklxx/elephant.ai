@@ -491,6 +491,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// Lark tools
 	r.static["lark_chat_history"] = larktools.NewLarkChatHistory()
+	r.static["lark_send_message"] = larktools.NewLarkSendMessage()
 
 	// OKR tools
 	okrCfg := okrtools.DefaultOKRConfig()
