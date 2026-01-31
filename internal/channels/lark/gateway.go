@@ -41,6 +41,14 @@ const (
 // AgentExecutor is an alias for the shared channel executor interface.
 type AgentExecutor = channels.AgentExecutor
 
+// sessionSlot tracks whether a task is active for a given session and holds
+// the user input channel used to inject follow-up messages into a running
+// ReAct loop.
+type sessionSlot struct {
+	mu      sync.Mutex
+	inputCh chan agent.UserInput // non-nil while a task is active
+}
+
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
 	channels.BaseGateway
@@ -55,6 +63,7 @@ type Gateway struct {
 	dedupCache      *lru.Cache[string, time.Time]
 	now             func() time.Time
 	planReviewStore PlanReviewStore
+	activeSlots     sync.Map // sessionID → *sessionSlot
 }
 
 // NewGateway constructs a Lark gateway instance.
@@ -102,6 +111,12 @@ func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) {
 		return
 	}
 	g.planReviewStore = store
+}
+
+// getOrCreateSlot returns the session slot for the given ID, creating one if needed.
+func (g *Gateway) getOrCreateSlot(sessionID string) *sessionSlot {
+	slot, _ := g.activeSlots.LoadOrStore(sessionID, &sessionSlot{})
+	return slot.(*sessionSlot)
 }
 
 // Start creates the Lark SDK client, event dispatcher, and WebSocket client, then blocks.
@@ -186,15 +201,40 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	memoryID := g.memoryIDForChat(chatID)
 	sessionID := memoryID
 
-	lock := g.SessionLock(memoryID)
-	lock.Lock()
-	defer lock.Unlock()
+	// Session slot: if a task is already running for this session, inject the
+	// new message into the running ReAct loop instead of blocking.
+	slot := g.getOrCreateSlot(sessionID)
+	slot.mu.Lock()
+	if slot.inputCh != nil {
+		// Task is active — inject the message into the running loop.
+		ch := slot.inputCh
+		slot.mu.Unlock()
+		select {
+		case ch <- agent.UserInput{Content: content, SenderID: senderID, MessageID: messageID}:
+			g.logger.Info("Injected user input into active session %s", sessionID)
+		default:
+			g.logger.Warn("User input channel full for session %s; message dropped", sessionID)
+		}
+		return nil
+	}
+	// No task running — create an input channel and start a new task.
+	inputCh := make(chan agent.UserInput, 16)
+	slot.inputCh = inputCh
+	slot.mu.Unlock()
+
+	defer func() {
+		slot.mu.Lock()
+		slot.inputCh = nil
+		slot.mu.Unlock()
+		g.drainAndReprocess(inputCh, chatID, sessionID, senderID)
+	}()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
 	execCtx = appcontext.WithSessionHistory(execCtx, false)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
+	execCtx = agent.WithUserInputCh(execCtx, inputCh)
 
 	if strings.TrimSpace(content) == "/reset" {
 		if resetter, ok := g.agent.(interface {
@@ -311,6 +351,59 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	g.sendAttachments(execCtx, chatID, messageID, result)
 
 	return nil
+}
+
+// drainAndReprocess drains any remaining messages from the input channel after
+// a task finishes and reprocesses each as a new task. This handles messages that
+// arrived between the last ReAct iteration drain and the task completion.
+func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, sessionID, senderID string) {
+	var remaining []agent.UserInput
+	for {
+		select {
+		case msg := <-ch:
+			remaining = append(remaining, msg)
+		default:
+			goto done
+		}
+	}
+done:
+	for _, msg := range remaining {
+		go g.reprocessMessage(chatID, sessionID, msg)
+	}
+}
+
+// reprocessMessage re-injects a drained user input as if it were a fresh Lark
+// message. This creates a synthetic P2MessageReceiveV1 event and feeds it back
+// through handleMessage so the full pipeline (dedup, session, execution) runs.
+func (g *Gateway) reprocessMessage(chatID, sessionID string, input agent.UserInput) {
+	msgID := input.MessageID
+	content := input.Content
+
+	g.logger.Info("Reprocessing drained message for session %s (msg_id=%s)", sessionID, msgID)
+
+	chatType := "p2p"
+	msgType := "text"
+	contentJSON := textContent(content)
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageId:   &msgID,
+				ChatId:      &chatID,
+				ChatType:    &chatType,
+				MessageType: &msgType,
+				Content:     &contentJSON,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &input.SenderID,
+				},
+			},
+		},
+	}
+	if err := g.handleMessage(context.Background(), event); err != nil {
+		g.logger.Warn("Reprocess message failed for session %s: %v", sessionID, err)
+	}
 }
 
 func (g *Gateway) isDuplicateMessage(messageID string) bool {
