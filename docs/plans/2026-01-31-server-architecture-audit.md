@@ -17,10 +17,10 @@
 | 5 | 1.1 | Split ServerCoordinator into 3 services | `7d0f2e07` | Done |
 | 6 | 2 | Router refactor (RouterDeps/RouterConfig) | `ff3d09d3` | Done |
 
-| 7 | 4.1 | InMemoryTaskStore TTL eviction | pending commit | Done |
-| 8 | 5.2 | LLM Health Probe actual detection | pending commit | Done |
-| 9 | 5.3 | WriteTimeout per-route handling | pending commit | Done |
-| 10 | 5.4 | Event drop observability (per-session) | pending commit | Done |
+| 7 | 4.1 | InMemoryTaskStore TTL eviction | `40d242c2` + `0e73c0f7` | Done |
+| 8 | 5.2 | LLM Health Probe actual detection | `35b152b3` | Done |
+| 9 | 5.3 | WriteTimeout per-route handling | `f3f0f9df` | Done |
+| 10 | 5.4 | Event drop observability (per-session + stream.dropped) | `2c49a408` + `bb93bb17` | Done |
 
 ---
 
