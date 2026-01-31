@@ -1,7 +1,7 @@
 # Plan: Remove think/attention tools
 
 **Created**: 2026-02-01
-**Status**: In Progress
+**Status**: Completed (2026-02-01)
 **Author**: cklxx + Codex
 
 ## Goals
@@ -29,3 +29,4 @@
 ## Progress Updates
 - 2026-02-01: Plan created.
 - 2026-02-01: Removed think/attention tool implementations + registry wiring; cleaned formatter/output/ui handling.
+- 2026-02-01: Ran `./dev.sh lint` and `./dev.sh test`.
