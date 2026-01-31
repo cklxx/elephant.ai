@@ -64,18 +64,17 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("Event History Max Sessions: %d", config.EventHistoryMaxSessions)
 	logger.Info("Event History Session TTL: %s", config.EventHistorySessionTTL)
 	logger.Info("Event History Max Events: %d", config.EventHistoryMaxEvents)
-	wechatCfg := config.Channels.WeChat
-	if wechatCfg.Enabled {
+	larkCfg := config.Channels.Lark
+	if larkCfg.Enabled {
 		logger.Info(
-			"WeChat Gateway: enabled (login_mode=%s, tool_mode=%s, tool_preset=%s, allow_groups=%t, mention_only=%t)",
-			wechatCfg.LoginMode,
-			wechatCfg.ToolMode,
-			wechatCfg.ToolPreset,
-			wechatCfg.AllowGroups,
-			wechatCfg.MentionOnly,
+			"Lark Gateway: enabled (session_mode=%s, tool_mode=%s, tool_preset=%s, allow_groups=%t)",
+			larkCfg.SessionMode,
+			larkCfg.ToolMode,
+			larkCfg.ToolPreset,
+			larkCfg.AllowGroups,
 		)
 	} else {
-		logger.Info("WeChat Gateway: disabled")
+		logger.Info("Lark Gateway: disabled")
 	}
 	logger.Info("===========================")
 }

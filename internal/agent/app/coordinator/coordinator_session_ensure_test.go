@@ -73,15 +73,15 @@ func (s *ensureSessionStore) Delete(_ context.Context, _ string) error {
 
 func TestAgentCoordinatorEnsureSessionReturnsExisting(t *testing.T) {
 	store := &ensureSessionStore{sessions: map[string]*storage.Session{}}
-	store.sessions["wechat-1"] = &storage.Session{ID: "wechat-1", Metadata: map[string]string{"ok": "true"}}
+	store.sessions["lark-1"] = &storage.Session{ID: "lark-1", Metadata: map[string]string{"ok": "true"}}
 
 	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
-	session, err := coordinator.EnsureSession(context.Background(), "wechat-1")
+	session, err := coordinator.EnsureSession(context.Background(), "lark-1")
 	if err != nil {
 		t.Fatalf("EnsureSession error = %v", err)
 	}
-	if session.ID != "wechat-1" {
-		t.Fatalf("expected session id wechat-1, got %q", session.ID)
+	if session.ID != "lark-1" {
+		t.Fatalf("expected session id lark-1, got %q", session.ID)
 	}
 	if store.saveCalls != 0 {
 		t.Fatalf("expected no Save calls, got %d", store.saveCalls)
@@ -96,12 +96,12 @@ func TestAgentCoordinatorEnsureSessionCreatesMissing(t *testing.T) {
 		return fixedTime
 	})))
 
-	session, err := coordinator.EnsureSession(context.Background(), "wechat-2")
+	session, err := coordinator.EnsureSession(context.Background(), "lark-2")
 	if err != nil {
 		t.Fatalf("EnsureSession error = %v", err)
 	}
-	if session.ID != "wechat-2" {
-		t.Fatalf("expected session id wechat-2, got %q", session.ID)
+	if session.ID != "lark-2" {
+		t.Fatalf("expected session id lark-2, got %q", session.ID)
 	}
 	if session.Metadata == nil {
 		t.Fatalf("expected metadata initialized")
@@ -137,7 +137,7 @@ func TestAgentCoordinatorEnsureSessionPropagatesErrors(t *testing.T) {
 	store := &ensureSessionStore{getErr: errors.New("boom")}
 	coordinator := NewAgentCoordinator(nil, nil, store, nil, nil, nil, nil, appconfig.Config{})
 
-	if _, err := coordinator.EnsureSession(context.Background(), "wechat-3"); err == nil {
+	if _, err := coordinator.EnsureSession(context.Background(), "lark-3"); err == nil {
 		t.Fatalf("expected error")
 	}
 }
