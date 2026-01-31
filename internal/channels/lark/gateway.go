@@ -308,7 +308,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	g.dispatch(execCtx, chatID, replyTarget(messageID, true), "text", textContent(reply))
-	g.sendAttachments(execCtx, chatID, messageID, isGroup, result)
+	g.sendAttachments(execCtx, chatID, messageID, result)
 
 	return nil
 }
@@ -666,7 +666,7 @@ func buildPlanFeedbackBlock(pending PlanReviewPending, userFeedback string) stri
 	return strings.TrimSpace(sb.String())
 }
 
-func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, isGroup bool, result *agent.TaskResult) {
+func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, result *agent.TaskResult) {
 	if result == nil || g.client == nil {
 		return
 	}
