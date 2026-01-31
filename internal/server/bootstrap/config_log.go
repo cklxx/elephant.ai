@@ -67,8 +67,7 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	larkCfg := config.Channels.Lark
 	if larkCfg.Enabled {
 		logger.Info(
-			"Lark Gateway: enabled (session_mode=%s, tool_mode=%s, tool_preset=%s, allow_groups=%t)",
-			larkCfg.SessionMode,
+			"Lark Gateway: enabled (tool_mode=%s, tool_preset=%s, allow_groups=%t)",
 			larkCfg.ToolMode,
 			larkCfg.ToolPreset,
 			larkCfg.AllowGroups,

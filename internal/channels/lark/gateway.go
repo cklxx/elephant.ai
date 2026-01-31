@@ -486,7 +486,7 @@ func extractThinkingFallback(msgs []ports.Message) string {
 }
 
 // memoryIDForChat derives a deterministic memory identity from a chat ID.
-// This stable ID is used for memory save/recall across fresh sessions.
+// This stable ID is used for memory save/recall and as the Lark session ID.
 func (g *Gateway) memoryIDForChat(chatID string) string {
 	hash := sha1.Sum([]byte(chatID))
 	return fmt.Sprintf("%s-%x", g.cfg.SessionPrefix, hash[:12])

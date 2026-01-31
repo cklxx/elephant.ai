@@ -51,7 +51,6 @@ type LarkGatewayConfig struct {
 	AppID                         string
 	AppSecret                     string
 	BaseDomain                    string
-	SessionMode                   string
 	ToolMode                      string
 	ReactEmoji                    string
 	ShowToolProgress              bool
@@ -123,9 +122,8 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 					ToolPreset:    string(presets.ToolPresetFull),
 					ReplyTimeout:  3 * time.Minute,
 				},
-				BaseDomain:          "https://open.larkoffice.com",
-				SessionMode:         "fresh",
-				ToolMode:            "cli",
+					BaseDomain:          "https://open.larkoffice.com",
+					ToolMode:            "cli",
 				ReactEmoji:          "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 				AutoChatContext:     true,
 				AutoChatContextSize: 20,
@@ -195,9 +193,6 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if prefix := strings.TrimSpace(larkCfg.SessionPrefix); prefix != "" {
 		cfg.Channels.Lark.SessionPrefix = prefix
-	}
-	if sessionMode := strings.TrimSpace(larkCfg.SessionMode); sessionMode != "" {
-		cfg.Channels.Lark.SessionMode = sessionMode
 	}
 	if replyPrefix := strings.TrimSpace(larkCfg.ReplyPrefix); replyPrefix != "" {
 		cfg.Channels.Lark.ReplyPrefix = replyPrefix

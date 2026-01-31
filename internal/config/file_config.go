@@ -212,7 +212,6 @@ type LarkChannelConfig struct {
 	AppSecret                     string `json:"app_secret" yaml:"app_secret"`
 	BaseDomain                    string `json:"base_domain" yaml:"base_domain"`
 	SessionPrefix                 string `json:"session_prefix" yaml:"session_prefix"`
-	SessionMode                   string `json:"session_mode" yaml:"session_mode"`
 	ReplyPrefix                   string `json:"reply_prefix" yaml:"reply_prefix"`
 	AllowGroups                   *bool  `json:"allow_groups" yaml:"allow_groups"`
 	AllowDirect                   *bool  `json:"allow_direct" yaml:"allow_direct"`

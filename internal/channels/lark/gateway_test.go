@@ -345,12 +345,12 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 	chatType := "p2p"
 
 	executor := &capturingExecutor{}
-	gw := &Gateway{
-		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "fresh"},
-		agent:  executor,
-		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
-	}
+		gw := &Gateway{
+			cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+			agent:  executor,
+			logger: logging.OrNop(nil),
+			now:    func() time.Time { return time.Now() },
+		}
 	// Initialize dedup cache.
 	cache, _ := lru.New[string, time.Time](16)
 	gw.dedupCache = cache
@@ -399,7 +399,7 @@ func TestHandleMessageSessionHistoryAlwaysDisabled(t *testing.T) {
 
 	executor := &capturingExecutor{}
 	gw := &Gateway{
-		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "stable"},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -488,7 +488,7 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	}
 }
 
-func TestHandleMessageSessionModeStable(t *testing.T) {
+func TestHandleMessageUsesChatSessionID(t *testing.T) {
 	openID := "ou_sender_stable"
 	chatID := "oc_chat_stable"
 	msgID := "om_msg_stable"
@@ -498,7 +498,7 @@ func TestHandleMessageSessionModeStable(t *testing.T) {
 
 	executor := &capturingExecutor{}
 	gw := &Gateway{
-		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "stable"},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -533,105 +533,6 @@ func TestHandleMessageSessionModeStable(t *testing.T) {
 	}
 	if got := id.SessionIDFromContext(executor.capturedCtx); got != expectedSessionID {
 		t.Fatalf("expected context sessionID %q, got %q", expectedSessionID, got)
-	}
-}
-
-func TestHandleMessageSessionModeFresh(t *testing.T) {
-	openID := "ou_sender_fresh"
-	chatID := "oc_chat_fresh"
-	msgID := "om_msg_fresh"
-	content := `{"text":"hello fresh"}`
-	msgType := "text"
-	chatType := "p2p"
-
-	executor := &capturingExecutor{}
-	gw := &Gateway{
-		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "fresh"},
-		agent:  executor,
-		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
-	}
-	cache, _ := lru.New[string, time.Time](16)
-	gw.dedupCache = cache
-
-	event := &larkim.P2MessageReceiveV1{
-		Event: &larkim.P2MessageReceiveV1Data{
-			Message: &larkim.EventMessage{
-				MessageType: &msgType,
-				ChatType:    &chatType,
-				ChatId:      &chatID,
-				MessageId:   &msgID,
-				Content:     &content,
-			},
-			Sender: &larkim.EventSender{
-				SenderId: &larkim.UserId{
-					OpenId: &openID,
-				},
-			},
-		},
-	}
-
-	if err := gw.handleMessage(context.Background(), event); err != nil {
-		t.Fatalf("handleMessage failed: %v", err)
-	}
-
-	memoryID := gw.memoryIDForChat(chatID)
-	if executor.capturedSessionID == memoryID {
-		t.Fatalf("expected fresh sessionID to differ from memoryID %q", memoryID)
-	}
-	if !strings.HasPrefix(executor.capturedSessionID, "lark-") {
-		t.Fatalf("expected fresh sessionID to have lark- prefix, got %q", executor.capturedSessionID)
-	}
-	if got := id.SessionIDFromContext(executor.capturedCtx); got != executor.capturedSessionID {
-		t.Fatalf("expected context sessionID %q, got %q", executor.capturedSessionID, got)
-	}
-}
-
-func TestHandleMessageSessionModeDefaultFresh(t *testing.T) {
-	openID := "ou_sender_default"
-	chatID := "oc_chat_default"
-	msgID := "om_msg_default"
-	content := `{"text":"hello default"}`
-	msgType := "text"
-	chatType := "p2p"
-
-	executor := &capturingExecutor{}
-	gw, err := NewGateway(Config{
-		BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
-		AppID:      "test",
-		AppSecret:  "secret",
-	}, executor, logging.OrNop(nil))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	event := &larkim.P2MessageReceiveV1{
-		Event: &larkim.P2MessageReceiveV1Data{
-			Message: &larkim.EventMessage{
-				MessageType: &msgType,
-				ChatType:    &chatType,
-				ChatId:      &chatID,
-				MessageId:   &msgID,
-				Content:     &content,
-			},
-			Sender: &larkim.EventSender{
-				SenderId: &larkim.UserId{
-					OpenId: &openID,
-				},
-			},
-		},
-	}
-
-	if err := gw.handleMessage(context.Background(), event); err != nil {
-		t.Fatalf("handleMessage failed: %v", err)
-	}
-
-	memoryID := gw.memoryIDForChat(chatID)
-	if executor.capturedSessionID == memoryID {
-		t.Fatalf("expected default sessionID to differ from memoryID %q", memoryID)
-	}
-	if !strings.HasPrefix(executor.capturedSessionID, "lark-") {
-		t.Fatalf("expected default sessionID to have lark- prefix, got %q", executor.capturedSessionID)
 	}
 }
 
@@ -810,7 +711,7 @@ func TestHandleMessageResetCommand(t *testing.T) {
 
 	executor := &resetExecutor{}
 	gw := &Gateway{
-		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "stable"},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
