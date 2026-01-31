@@ -21,3 +21,6 @@
 - 2026-01-31 13:15: Reproduced 403 via direct POST; adding x-goog-user-project yields PERMISSION_DENIED with USER_PROJECT_DENIED details.
 - 2026-01-31 13:20: Probed request schema: fetchAvailableModels accepts `project` field; unknown fields (requestId/userAgent/requestType) are rejected with 400.
 - 2026-01-31 13:40: Reviewed public proxy repos + official Gemini CLI/Code Assist docs; proxies typically wrap Gemini CLI OAuth or Gemini API key, and Code Assist requires project + Service Usage Consumer access.
+- 2026-01-31 13:50: Located Antigravity IDE logs under `~/Library/Application Support/Antigravity/logs/*/window*/exthost/google.antigravity/Antigravity.log`.
+- 2026-01-31 13:50: Logs show IDE uses `https://daily-cloudcode-pa.googleapis.com` and logs URLs for `v1internal:streamGenerateContent`, but not `fetchAvailableModels` at info level.
+- 2026-01-31 13:55: Verified built-in Antigravity extension bundled at `/Applications/Antigravity.app/Contents/Resources/app/extensions/antigravity` with `language_server_macos_arm` binary (likely HTTP client; respects standard HTTP(S)_PROXY).
