@@ -21,6 +21,7 @@ Updated: 2026-01-31 12:00
 ### Performance Patterns
 - Event dedup, LRU caps, RAF buffering, deferred markdown parsing keep streaming UI responsive.
 - Precompile hot-path regex, cap response reads, apply retention/backpressure to prevent unbounded growth.
+- Memory retention defaults: 90d global TTL; auto_capture 30d; chat_turn 14d; workflow_trace 30d; prune on start + recall (configurable).
 
 ### Project Conventions
 - Config: YAML only, `.yaml` paths.
