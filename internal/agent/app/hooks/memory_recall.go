@@ -13,6 +13,7 @@ import (
 const (
 	memoryRecallHookName = "memory_recall"
 	defaultMaxRecalls    = 5
+	minRecallTextLen     = 12
 )
 
 // MemoryRecallHook automatically recalls relevant memories before task execution
@@ -67,19 +68,20 @@ func (h *MemoryRecallHook) OnTaskStart(ctx context.Context, task TaskInfo) []Inj
 	if strings.TrimSpace(task.TaskInput) == "" {
 		return nil
 	}
+	trimmedInput := strings.TrimSpace(task.TaskInput)
 	userID := task.UserID
 	if userID == "" {
 		userID = "default"
 	}
 
-	keywords := extractKeywords(task.TaskInput)
-	if len(keywords) == 0 {
+	keywords := extractKeywords(trimmedInput)
+	if len(keywords) == 0 && len([]rune(trimmedInput)) < minRecallTextLen {
 		return nil
 	}
 
 	entries, err := h.memoryService.Recall(ctx, memory.Query{
 		UserID:   userID,
-		Text:     task.TaskInput,
+		Text:     trimmedInput,
 		Keywords: keywords,
 		Limit:    h.maxRecalls,
 	})
@@ -96,7 +98,7 @@ func (h *MemoryRecallHook) OnTaskStart(ctx context.Context, task TaskInfo) []Inj
 			if groupLimit > 0 {
 				groupEntries, err := h.memoryService.Recall(ctx, memory.Query{
 					UserID:   chatUserID,
-					Text:     task.TaskInput,
+					Text:     trimmedInput,
 					Keywords: keywords,
 					Slots:    map[string]string{"type": "chat_turn", "scope": "chat"},
 					Limit:    groupLimit,

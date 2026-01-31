@@ -29,10 +29,10 @@ func NewFileStore(dir string) *FileStore {
 
 // frontmatter is the YAML structure written between --- delimiters.
 type frontmatter struct {
-	User     string   `yaml:"user"`
-	Tags     []string `yaml:"tags,omitempty"`
-	Created  string   `yaml:"created"`
-	Slots    map[string]string `yaml:"slots,omitempty"`
+	User    string            `yaml:"user"`
+	Tags    []string          `yaml:"tags,omitempty"`
+	Created string            `yaml:"created"`
+	Slots   map[string]string `yaml:"slots,omitempty"`
 }
 
 // EnsureSchema creates the memory directory if it does not exist.
@@ -122,6 +122,61 @@ func (s *FileStore) Search(_ context.Context, query Query) ([]Entry, error) {
 		}
 	}
 	return results, nil
+}
+
+// Delete removes entries by key.
+func (s *FileStore) Delete(_ context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, key := range keys {
+		trimmed := strings.TrimSpace(key)
+		if trimmed == "" {
+			continue
+		}
+		filename := filepath.Join(s.dir, trimmed+".md")
+		if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("delete memory file: %w", err)
+		}
+	}
+	return nil
+}
+
+// Prune removes expired entries based on the retention policy.
+func (s *FileStore) Prune(_ context.Context, policy RetentionPolicy) ([]string, error) {
+	if !policy.HasRules() {
+		return nil, nil
+	}
+
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	entries, err := s.readAll()
+	if err != nil {
+		return nil, err
+	}
+
+	var deleted []string
+	for _, entry := range entries {
+		if !policy.IsExpired(entry, now) {
+			continue
+		}
+		if entry.Key == "" {
+			continue
+		}
+		filename := filepath.Join(s.dir, entry.Key+".md")
+		if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
+			return deleted, fmt.Errorf("delete memory file: %w", err)
+		}
+		deleted = append(deleted, entry.Key)
+	}
+	return deleted, nil
 }
 
 // matchesKeywords checks if any of the entry's stored keywords appear in the query term set.

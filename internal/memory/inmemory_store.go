@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 )
 
 // InMemoryStore implements Store for tests and local demos.
@@ -66,6 +67,74 @@ func (s *InMemoryStore) Search(_ context.Context, query Query) ([]Entry, error) 
 	}
 
 	return results, nil
+}
+
+// Delete removes entries by key across all users.
+func (s *InMemoryStore) Delete(_ context.Context, keys []string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+	keySet := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		if strings.TrimSpace(key) == "" {
+			continue
+		}
+		keySet[key] = struct{}{}
+	}
+	if len(keySet) == 0 {
+		return nil
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for userID, entries := range s.records {
+		filtered := entries[:0]
+		for _, entry := range entries {
+			if _, ok := keySet[entry.Key]; ok {
+				continue
+			}
+			filtered = append(filtered, entry)
+		}
+		if len(filtered) == 0 {
+			delete(s.records, userID)
+		} else {
+			s.records[userID] = filtered
+		}
+	}
+	return nil
+}
+
+// Prune removes expired entries based on the retention policy.
+func (s *InMemoryStore) Prune(_ context.Context, policy RetentionPolicy) ([]string, error) {
+	if !policy.HasRules() {
+		return nil, nil
+	}
+	now := time.Now()
+	var deleted []string
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for userID, entries := range s.records {
+		filtered := entries[:0]
+		for _, entry := range entries {
+			if policy.IsExpired(entry, now) {
+				if entry.Key != "" {
+					deleted = append(deleted, entry.Key)
+				}
+				continue
+			}
+			filtered = append(filtered, entry)
+		}
+		if len(filtered) == 0 {
+			delete(s.records, userID)
+		} else {
+			s.records[userID] = filtered
+		}
+	}
+
+	return deleted, nil
 }
 
 func matchesTerms(entryTerms []string, query map[string]bool) bool {

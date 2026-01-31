@@ -38,6 +38,8 @@ type Store interface {
 	EnsureSchema(ctx context.Context) error
 	Insert(ctx context.Context, entry Entry) (Entry, error)
 	Search(ctx context.Context, query Query) ([]Entry, error)
+	Delete(ctx context.Context, keys []string) error
+	Prune(ctx context.Context, policy RetentionPolicy) ([]string, error)
 }
 
 // Service provides higher-level memory operations such as tokenization.
@@ -47,12 +49,18 @@ type Service interface {
 }
 
 type service struct {
-	store Store
+	store     Store
+	retention RetentionPolicy
 }
 
 // NewService constructs a memory service with the provided store.
 func NewService(store Store) Service {
-	return &service{store: store}
+	return NewServiceWithRetention(store, RetentionPolicy{})
+}
+
+// NewServiceWithRetention constructs a memory service with a retention policy.
+func NewServiceWithRetention(store Store, retention RetentionPolicy) Service {
+	return &service{store: store, retention: retention}
 }
 
 // Save persists a memory entry after normalizing keywords, slots, and tokens.
@@ -74,6 +82,12 @@ func (s *service) Save(ctx context.Context, entry Entry) (Entry, error) {
 	entry.Keywords = normalizeKeywords(entry.Keywords)
 	entry.Slots = normalizeSlots(entry.Slots)
 	entry.Terms = collectTerms(entry.Content, entry.Keywords, entry.Slots)
+	if entry.Slots == nil {
+		entry.Slots = map[string]string{}
+	}
+	if strings.TrimSpace(entry.Slots["type"]) == "" {
+		entry.Slots["type"] = "manual"
+	}
 
 	if entry.Key == "" {
 		entry.Key = ksuid.New().String()
@@ -104,7 +118,39 @@ func (s *service) Recall(ctx context.Context, query Query) ([]Entry, error) {
 		query.Limit = defaultRecallLimit
 	}
 
-	return s.store.Search(ctx, query)
+	results, err := s.store.Search(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return s.filterExpiredEntries(ctx, results), nil
+}
+
+func (s *service) filterExpiredEntries(ctx context.Context, entries []Entry) []Entry {
+	if s == nil || s.store == nil || len(entries) == 0 {
+		return entries
+	}
+	if !s.retention.HasRules() {
+		return entries
+	}
+
+	now := time.Now()
+	var filtered []Entry
+	var expiredKeys []string
+	for _, entry := range entries {
+		if s.retention.IsExpired(entry, now) {
+			if entry.Key != "" {
+				expiredKeys = append(expiredKeys, entry.Key)
+			}
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+
+	if s.retention.PruneOnRecall && len(expiredKeys) > 0 {
+		_ = s.store.Delete(ctx, expiredKeys)
+	}
+
+	return filtered
 }
 
 func normalizeKeywords(values []string) []string {

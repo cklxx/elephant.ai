@@ -15,14 +15,14 @@
 - [x] Web subagent grouping strict on parent_run_id + tests.
 
 ## Iteration 3 — Memory retention/recall
-- [ ] Add memory retention policy + TTL pruning across stores + tests.
-- [ ] Allow memory recall with no extracted keywords + tests.
-- [ ] Add `query` to memory_recall tool + tests.
-- [ ] Hybrid store tolerant vector failures (configurable) + tests.
+- [x] Add memory retention policy + TTL pruning across stores + tests.
+- [x] Allow memory recall with no extracted keywords + tests.
+- [x] Add `query` to memory_recall tool + tests.
+- [x] Hybrid store tolerant vector failures (configurable) + tests.
 
 ## Validation
-- [ ] `./dev.sh lint`
-- [ ] `./dev.sh test`
+- [x] `./dev.sh lint`
+- [x] `./dev.sh test`
 
 ## Notes
 - Follow TDD and keep agent/ports free of memory/RAG deps.

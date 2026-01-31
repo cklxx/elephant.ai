@@ -13,6 +13,7 @@ const (
 	SourceCodexCLI       ValueSource = "codex_cli"
 	SourceClaudeCLI      ValueSource = "claude_cli"
 	SourceAntigravityCLI ValueSource = "antigravity_cli"
+	SourceAntigravityIDE ValueSource = "antigravity_ide"
 )
 
 // Seedream defaults target the public Volcano Engine Ark deployment in mainland China.
@@ -145,45 +146,57 @@ func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 
 // ProactiveConfig captures proactive behavior defaults.
 type ProactiveConfig struct {
-	Enabled   bool            `json:"enabled" yaml:"enabled"`
-	Memory    MemoryConfig    `json:"memory" yaml:"memory"`
-	Skills    SkillsConfig    `json:"skills" yaml:"skills"`
-	RAG       RAGConfig       `json:"rag" yaml:"rag"`
+	Enabled   bool               `json:"enabled" yaml:"enabled"`
+	Memory    MemoryConfig       `json:"memory" yaml:"memory"`
+	Skills    SkillsConfig       `json:"skills" yaml:"skills"`
+	RAG       RAGConfig          `json:"rag" yaml:"rag"`
 	OKR       OKRProactiveConfig `json:"okr" yaml:"okr"`
-	Scheduler SchedulerConfig `json:"scheduler" yaml:"scheduler"`
-	Attention AttentionConfig `json:"attention" yaml:"attention"`
+	Scheduler SchedulerConfig    `json:"scheduler" yaml:"scheduler"`
+	Attention AttentionConfig    `json:"attention" yaml:"attention"`
 }
 
 // OKRProactiveConfig configures OKR goal management behavior.
 type OKRProactiveConfig struct {
 	Enabled    bool   `json:"enabled" yaml:"enabled"`
-	GoalsRoot  string `json:"goals_root" yaml:"goals_root"`  // default: ~/.alex/goals
+	GoalsRoot  string `json:"goals_root" yaml:"goals_root"`   // default: ~/.alex/goals
 	AutoInject bool   `json:"auto_inject" yaml:"auto_inject"` // inject OKR context into tasks
 }
 
 // MemoryConfig drives automatic memory behavior.
 type MemoryConfig struct {
-	Enabled            bool               `json:"enabled" yaml:"enabled"`
-	AutoRecall         bool               `json:"auto_recall" yaml:"auto_recall"`
-	AutoCapture        bool               `json:"auto_capture" yaml:"auto_capture"`
-	CaptureMessages    bool               `json:"capture_messages" yaml:"capture_messages"`
-	CaptureGroupMemory bool               `json:"capture_group_memory" yaml:"capture_group_memory"`
-	MaxRecalls         int                `json:"max_recalls" yaml:"max_recalls"`
-	RefreshInterval    int                `json:"refresh_interval" yaml:"refresh_interval"`
-	MaxRefreshTokens   int                `json:"max_refresh_tokens" yaml:"max_refresh_tokens"`
-	Store              string             `json:"store" yaml:"store"` // auto | file | postgres | hybrid
-	DedupeThreshold    float64            `json:"dedupe_threshold" yaml:"dedupe_threshold"`
-	Hybrid             MemoryHybridConfig `json:"hybrid" yaml:"hybrid"`
+	Enabled            bool                  `json:"enabled" yaml:"enabled"`
+	AutoRecall         bool                  `json:"auto_recall" yaml:"auto_recall"`
+	AutoCapture        bool                  `json:"auto_capture" yaml:"auto_capture"`
+	CaptureMessages    bool                  `json:"capture_messages" yaml:"capture_messages"`
+	CaptureGroupMemory bool                  `json:"capture_group_memory" yaml:"capture_group_memory"`
+	MaxRecalls         int                   `json:"max_recalls" yaml:"max_recalls"`
+	RefreshInterval    int                   `json:"refresh_interval" yaml:"refresh_interval"`
+	MaxRefreshTokens   int                   `json:"max_refresh_tokens" yaml:"max_refresh_tokens"`
+	Store              string                `json:"store" yaml:"store"` // auto | file | postgres | hybrid
+	DedupeThreshold    float64               `json:"dedupe_threshold" yaml:"dedupe_threshold"`
+	Hybrid             MemoryHybridConfig    `json:"hybrid" yaml:"hybrid"`
+	Retention          MemoryRetentionConfig `json:"retention" yaml:"retention"`
 }
 
 // MemoryHybridConfig configures hybrid keyword + vector memory.
 type MemoryHybridConfig struct {
-	Alpha           float64 `json:"alpha" yaml:"alpha"`
-	MinSimilarity   float64 `json:"min_similarity" yaml:"min_similarity"`
-	PersistDir      string  `json:"persist_dir" yaml:"persist_dir"`
-	Collection      string  `json:"collection" yaml:"collection"`
-	EmbedderModel   string  `json:"embedder_model" yaml:"embedder_model"`
-	EmbedderBaseURL string  `json:"embedder_base_url" yaml:"embedder_base_url"`
+	Alpha               float64 `json:"alpha" yaml:"alpha"`
+	MinSimilarity       float64 `json:"min_similarity" yaml:"min_similarity"`
+	PersistDir          string  `json:"persist_dir" yaml:"persist_dir"`
+	Collection          string  `json:"collection" yaml:"collection"`
+	EmbedderModel       string  `json:"embedder_model" yaml:"embedder_model"`
+	EmbedderBaseURL     string  `json:"embedder_base_url" yaml:"embedder_base_url"`
+	AllowVectorFailures bool    `json:"allow_vector_failures" yaml:"allow_vector_failures"`
+}
+
+// MemoryRetentionConfig defines TTL-based cleanup for memory entries.
+type MemoryRetentionConfig struct {
+	DefaultDays       int  `json:"default_days" yaml:"default_days"`
+	AutoCaptureDays   int  `json:"auto_capture_days" yaml:"auto_capture_days"`
+	ChatTurnDays      int  `json:"chat_turn_days" yaml:"chat_turn_days"`
+	WorkflowTraceDays int  `json:"workflow_trace_days" yaml:"workflow_trace_days"`
+	PruneOnStart      bool `json:"prune_on_start" yaml:"prune_on_start"`
+	PruneOnRecall     bool `json:"prune_on_recall" yaml:"prune_on_recall"`
 }
 
 // SkillsConfig controls skill activation and feedback.
@@ -256,9 +269,18 @@ func DefaultProactiveConfig() ProactiveConfig {
 			Store:              "auto",
 			DedupeThreshold:    0.85,
 			Hybrid: MemoryHybridConfig{
-				Alpha:         0.6,
-				MinSimilarity: 0.7,
-				Collection:    "memory",
+				Alpha:               0.6,
+				MinSimilarity:       0.7,
+				Collection:          "memory",
+				AllowVectorFailures: false,
+			},
+			Retention: MemoryRetentionConfig{
+				DefaultDays:       90,
+				AutoCaptureDays:   30,
+				ChatTurnDays:      14,
+				WorkflowTraceDays: 30,
+				PruneOnStart:      true,
+				PruneOnRecall:     true,
 			},
 		},
 		Skills: SkillsConfig{

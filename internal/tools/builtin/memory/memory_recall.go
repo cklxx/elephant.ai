@@ -30,6 +30,10 @@ func NewMemoryRecall(service memory.Service) tools.ToolExecutor {
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
+						"query": {
+							Type:        "string",
+							Description: "Free-form query text for memory recall.",
+						},
 						"keywords": {
 							Type:        "array",
 							Description: "Keywords to match memories.",
@@ -71,8 +75,10 @@ func (t *memoryRecall) Execute(ctx context.Context, call ports.ToolCall) (*ports
 
 	keywords := shared.StringSliceArg(call.Arguments, "keywords")
 	slots := shared.StringMapArg(call.Arguments, "slots")
-	if len(keywords) == 0 && len(slots) == 0 {
-		err := fmt.Errorf("provide keywords or slots for recall")
+	queryText, _ := call.Arguments["query"].(string)
+	queryText = strings.TrimSpace(queryText)
+	if len(keywords) == 0 && len(slots) == 0 && queryText == "" {
+		err := fmt.Errorf("provide query, keywords, or slots for recall")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
@@ -92,6 +98,7 @@ func (t *memoryRecall) Execute(ctx context.Context, call ports.ToolCall) (*ports
 
 	entries, err := t.service.Recall(ctx, memory.Query{
 		UserID:   userID,
+		Text:     queryText,
 		Keywords: keywords,
 		Slots:    slots,
 		Limit:    limit,

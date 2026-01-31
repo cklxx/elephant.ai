@@ -74,6 +74,9 @@ func mergeMemoryConfig(target *MemoryConfig, file *MemoryFileConfig) {
 	if file.Hybrid != nil {
 		mergeMemoryHybridConfig(&target.Hybrid, file.Hybrid)
 	}
+	if file.Retention != nil {
+		mergeMemoryRetentionConfig(&target.Retention, file.Retention)
+	}
 }
 
 func mergeMemoryHybridConfig(target *MemoryHybridConfig, file *MemoryHybridFileConfig) {
@@ -97,6 +100,33 @@ func mergeMemoryHybridConfig(target *MemoryHybridConfig, file *MemoryHybridFileC
 	}
 	if strings.TrimSpace(file.EmbedderBaseURL) != "" {
 		target.EmbedderBaseURL = strings.TrimSpace(file.EmbedderBaseURL)
+	}
+	if file.AllowVectorFailures != nil {
+		target.AllowVectorFailures = *file.AllowVectorFailures
+	}
+}
+
+func mergeMemoryRetentionConfig(target *MemoryRetentionConfig, file *MemoryRetentionFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.DefaultDays != nil {
+		target.DefaultDays = *file.DefaultDays
+	}
+	if file.AutoCaptureDays != nil {
+		target.AutoCaptureDays = *file.AutoCaptureDays
+	}
+	if file.ChatTurnDays != nil {
+		target.ChatTurnDays = *file.ChatTurnDays
+	}
+	if file.WorkflowTraceDays != nil {
+		target.WorkflowTraceDays = *file.WorkflowTraceDays
+	}
+	if file.PruneOnStart != nil {
+		target.PruneOnStart = *file.PruneOnStart
+	}
+	if file.PruneOnRecall != nil {
+		target.PruneOnRecall = *file.PruneOnRecall
 	}
 }
 

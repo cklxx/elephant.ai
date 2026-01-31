@@ -184,6 +184,23 @@ func TestMemoryRecallHook_OnTaskStart_DefaultUserID(t *testing.T) {
 	}
 }
 
+func TestMemoryRecallHook_OnTaskStart_RecallWithoutKeywords(t *testing.T) {
+	svc := &mockMemoryService{recallResult: []memory.Entry{{Key: "1", Content: "note"}}}
+	hook := NewMemoryRecallHook(svc, nil, MemoryRecallConfig{Enabled: true, AutoRecall: true})
+
+	hook.OnTaskStart(context.Background(), TaskInfo{
+		TaskInput: "please help me with this",
+		UserID:    "user-1",
+	})
+
+	if svc.recallCalled != 1 {
+		t.Fatalf("expected recall to be called once, got %d", svc.recallCalled)
+	}
+	if svc.lastQuery.Text == "" {
+		t.Fatalf("expected query text to be populated when keywords are empty")
+	}
+}
+
 func TestExtractKeywords(t *testing.T) {
 	tests := []struct {
 		name     string

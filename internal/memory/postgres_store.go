@@ -209,6 +209,99 @@ LIMIT $%d
 	return scanMemoryRows(rows)
 }
 
+// Delete removes entries by key.
+func (s *PostgresStore) Delete(ctx context.Context, keys []string) error {
+	if s == nil || s.pool == nil {
+		return fmt.Errorf("memory store not initialized")
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	_, err := s.pool.Exec(ctx, `DELETE FROM user_memories WHERE key = ANY($1)`, keys)
+	return err
+}
+
+// Prune removes expired entries based on the retention policy.
+func (s *PostgresStore) Prune(ctx context.Context, policy RetentionPolicy) ([]string, error) {
+	if s == nil || s.pool == nil {
+		return nil, fmt.Errorf("memory store not initialized")
+	}
+	if !policy.HasRules() {
+		return nil, nil
+	}
+
+	now := time.Now()
+	var deleted []string
+
+	typeKeys := make([]string, 0, len(policy.TypeTTL))
+	for typ, ttl := range policy.TypeTTL {
+		if ttl <= 0 {
+			continue
+		}
+		typeKeys = append(typeKeys, typ)
+		cutoff := now.Add(-ttl)
+		rows, err := s.pool.Query(ctx, `
+DELETE FROM user_memories
+WHERE slots->>'type' = $1 AND created_at < $2
+RETURNING key
+`, typ, cutoff)
+		if err != nil {
+			return deleted, err
+		}
+		for rows.Next() {
+			var key string
+			if err := rows.Scan(&key); err != nil {
+				rows.Close()
+				return deleted, err
+			}
+			deleted = append(deleted, key)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return deleted, err
+		}
+		rows.Close()
+	}
+
+	if policy.DefaultTTL > 0 {
+		cutoff := now.Add(-policy.DefaultTTL)
+		var rows pgx.Rows
+		var err error
+		if len(typeKeys) > 0 {
+			rows, err = s.pool.Query(ctx, `
+DELETE FROM user_memories
+WHERE (slots->>'type' IS NULL OR slots->>'type' = '' OR NOT (slots->>'type' = ANY($1)))
+  AND created_at < $2
+RETURNING key
+`, typeKeys, cutoff)
+		} else {
+			rows, err = s.pool.Query(ctx, `
+DELETE FROM user_memories
+WHERE created_at < $1
+RETURNING key
+`, cutoff)
+		}
+		if err != nil {
+			return deleted, err
+		}
+		for rows.Next() {
+			var key string
+			if err := rows.Scan(&key); err != nil {
+				rows.Close()
+				return deleted, err
+			}
+			deleted = append(deleted, key)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return deleted, err
+		}
+		rows.Close()
+	}
+
+	return deleted, nil
+}
+
 func scanMemoryRows(rows pgx.Rows) ([]Entry, error) {
 	defer rows.Close()
 	var results []Entry

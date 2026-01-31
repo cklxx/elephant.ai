@@ -2,6 +2,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -30,11 +31,15 @@ func (s *stubKeywordStore) Search(_ context.Context, query Query) ([]Entry, erro
 	s.lastQuery = query
 	return s.searchResults, nil
 }
+func (s *stubKeywordStore) Delete(_ context.Context, _ []string) error { return nil }
+func (s *stubKeywordStore) Prune(_ context.Context, _ RetentionPolicy) ([]string, error) {
+	return nil, nil
+}
 
 type stubVectorStore struct {
-	addedDocs    []rag.Document
+	addedDocs     []rag.Document
 	searchResults []rag.SearchResult
-	lastFilter   map[string]string
+	lastFilter    map[string]string
 }
 
 func (s *stubVectorStore) Add(_ context.Context, docs []rag.Document) error {
@@ -49,12 +54,14 @@ func (s *stubVectorStore) SearchByText(_ context.Context, _ string, _ int, _ flo
 	return s.searchResults, nil
 }
 func (s *stubVectorStore) Delete(_ context.Context, _ []string) error { return nil }
-func (s *stubVectorStore) Count() int { return 0 }
-func (s *stubVectorStore) Close() error { return nil }
+func (s *stubVectorStore) Count() int                                 { return 0 }
+func (s *stubVectorStore) Close() error                               { return nil }
 
 type stubEmbedder struct{}
 
-func (s stubEmbedder) Embed(_ context.Context, _ string) ([]float32, error) { return []float32{0.1, 0.2}, nil }
+func (s stubEmbedder) Embed(_ context.Context, _ string) ([]float32, error) {
+	return []float32{0.1, 0.2}, nil
+}
 func (s stubEmbedder) EmbedBatch(_ context.Context, _ []string) ([][]float32, error) {
 	return [][]float32{{0.1, 0.2}}, nil
 }
@@ -63,7 +70,7 @@ func (s stubEmbedder) Dimensions() int { return 2 }
 func TestHybridStoreInsertAddsVectorDoc(t *testing.T) {
 	keywordStore := &stubKeywordStore{}
 	vectorStore := &stubVectorStore{}
-	store := NewHybridStore(keywordStore, vectorStore, stubEmbedder{}, 0.5, 0.7)
+	store := NewHybridStore(keywordStore, vectorStore, stubEmbedder{}, 0.5, 0.7, false)
 
 	entry, err := store.Insert(context.Background(), Entry{
 		Key:      "mem-1",
@@ -105,7 +112,7 @@ func TestHybridStoreSearchMergesResults(t *testing.T) {
 			{Document: rag.Document{ID: "a", Content: "vector a", Metadata: map[string]string{"user_id": "user-1"}}},
 		},
 	}
-	store := NewHybridStore(keywordStore, vectorStore, stubEmbedder{}, 0.5, 0.2)
+	store := NewHybridStore(keywordStore, vectorStore, stubEmbedder{}, 0.5, 0.2, false)
 
 	results, err := store.Search(context.Background(), Query{
 		UserID:   "user-1",
@@ -124,5 +131,35 @@ func TestHybridStoreSearchMergesResults(t *testing.T) {
 	}
 	if vectorStore.lastFilter["user_id"] != "user-1" {
 		t.Fatalf("expected vector filter user_id, got %+v", vectorStore.lastFilter)
+	}
+}
+
+type failingVectorStore struct{}
+
+func (s failingVectorStore) Add(_ context.Context, _ []rag.Document) error {
+	return fmt.Errorf("vector add failed")
+}
+func (s failingVectorStore) Search(_ context.Context, _ []float32, _ int, _ float32, _ map[string]string) ([]rag.SearchResult, error) {
+	return nil, nil
+}
+func (s failingVectorStore) SearchByText(_ context.Context, _ string, _ int, _ float32, _ map[string]string) ([]rag.SearchResult, error) {
+	return nil, nil
+}
+func (s failingVectorStore) Delete(_ context.Context, _ []string) error { return nil }
+func (s failingVectorStore) Count() int                                 { return 0 }
+func (s failingVectorStore) Close() error                               { return nil }
+
+func TestHybridStoreInsertAllowsVectorFailures(t *testing.T) {
+	keywordStore := &stubKeywordStore{}
+	vectorStore := failingVectorStore{}
+	store := NewHybridStore(keywordStore, vectorStore, stubEmbedder{}, 0.5, 0.7, true)
+
+	_, err := store.Insert(context.Background(), Entry{
+		Key:     "mem-1",
+		UserID:  "user-1",
+		Content: "deployment notes",
+	})
+	if err != nil {
+		t.Fatalf("expected insert to succeed when vector failures allowed: %v", err)
 	}
 }

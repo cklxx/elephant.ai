@@ -67,3 +67,34 @@ func TestMemoryRecallReturnsEntries(t *testing.T) {
 		t.Fatalf("expected memories in metadata, got %#v", result.Metadata["memories"])
 	}
 }
+
+func TestMemoryRecallSupportsQueryText(t *testing.T) {
+	store := memory.NewInMemoryStore()
+	service := memory.NewService(store)
+	ctx := id.WithUserID(context.Background(), "user-1")
+
+	_, err := service.Save(ctx, memory.Entry{
+		UserID:   "user-1",
+		Content:  "alpha project kickoff notes",
+		Keywords: []string{"alpha"},
+	})
+	if err != nil {
+		t.Fatalf("save memory: %v", err)
+	}
+
+	tool := NewMemoryRecall(service)
+	call := ports.ToolCall{
+		ID: "call-query",
+		Arguments: map[string]any{
+			"query": "alpha project",
+		},
+	}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("Execute returned unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected tool error: %v", result.Error)
+	}
+}

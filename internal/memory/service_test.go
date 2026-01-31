@@ -154,3 +154,102 @@ func TestServiceRecallMatchesCJKSubstringsViaInvertedTerms(t *testing.T) {
 		t.Fatalf("expected recall by internal CJK term to return saved entry")
 	}
 }
+
+func TestServiceRecallPrunesExpiredEntries(t *testing.T) {
+	store := NewInMemoryStore()
+	policy := RetentionPolicy{
+		DefaultTTL:    10 * time.Millisecond,
+		PruneOnRecall: true,
+	}
+	svc := NewServiceWithRetention(store, policy)
+
+	now := time.Now()
+	_, err := svc.Save(context.Background(), Entry{
+		UserID:    "user-1",
+		Content:   "expired note",
+		Keywords:  []string{"note"},
+		CreatedAt: now.Add(-time.Hour),
+		Slots:     map[string]string{"type": "auto_capture"},
+	})
+	if err != nil {
+		t.Fatalf("save expired entry: %v", err)
+	}
+	_, err = svc.Save(context.Background(), Entry{
+		UserID:    "user-1",
+		Content:   "fresh note",
+		Keywords:  []string{"note"},
+		CreatedAt: now,
+		Slots:     map[string]string{"type": "auto_capture"},
+	})
+	if err != nil {
+		t.Fatalf("save fresh entry: %v", err)
+	}
+
+	results, err := svc.Recall(context.Background(), Query{
+		UserID:   "user-1",
+		Keywords: []string{"note"},
+	})
+	if err != nil {
+		t.Fatalf("recall failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result after pruning, got %d", len(results))
+	}
+	if results[0].Content != "fresh note" {
+		t.Fatalf("expected fresh entry, got %q", results[0].Content)
+	}
+
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	if len(store.records["user-1"]) != 1 {
+		t.Fatalf("expected expired entry to be deleted from store")
+	}
+}
+
+func TestServiceRecallRespectsTypeTTL(t *testing.T) {
+	store := NewInMemoryStore()
+	policy := RetentionPolicy{
+		DefaultTTL:    24 * time.Hour,
+		PruneOnRecall: true,
+		TypeTTL: map[string]time.Duration{
+			"chat_turn": 30 * time.Minute,
+		},
+	}
+	svc := NewServiceWithRetention(store, policy)
+
+	now := time.Now()
+	_, err := svc.Save(context.Background(), Entry{
+		UserID:    "user-1",
+		Content:   "old chat",
+		Keywords:  []string{"chat"},
+		CreatedAt: now.Add(-2 * time.Hour),
+		Slots:     map[string]string{"type": "chat_turn"},
+	})
+	if err != nil {
+		t.Fatalf("save chat entry: %v", err)
+	}
+	_, err = svc.Save(context.Background(), Entry{
+		UserID:    "user-1",
+		Content:   "old capture",
+		Keywords:  []string{"chat"},
+		CreatedAt: now.Add(-2 * time.Hour),
+		Slots:     map[string]string{"type": "auto_capture"},
+	})
+	if err != nil {
+		t.Fatalf("save capture entry: %v", err)
+	}
+
+	results, err := svc.Recall(context.Background(), Query{
+		UserID:   "user-1",
+		Keywords: []string{"chat"},
+	})
+	if err != nil {
+		t.Fatalf("recall failed: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Content != "old capture" {
+		t.Fatalf("expected non-expired entry, got %q", results[0].Content)
+	}
+}

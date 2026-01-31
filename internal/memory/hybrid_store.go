@@ -15,15 +15,16 @@ const defaultRRFK = 60.0
 
 // HybridStore combines keyword-based memory search with vector similarity search.
 type HybridStore struct {
-	keywordStore  Store
-	vectorStore   rag.VectorStore
-	embedder      rag.Embedder
-	alpha         float64
-	minSimilarity float32
+	keywordStore        Store
+	vectorStore         rag.VectorStore
+	embedder            rag.Embedder
+	alpha               float64
+	minSimilarity       float32
+	allowVectorFailures bool
 }
 
 // NewHybridStore constructs a HybridStore.
-func NewHybridStore(keyword Store, vector rag.VectorStore, embedder rag.Embedder, alpha float64, minSimilarity float32) *HybridStore {
+func NewHybridStore(keyword Store, vector rag.VectorStore, embedder rag.Embedder, alpha float64, minSimilarity float32, allowVectorFailures bool) *HybridStore {
 	if alpha < 0 {
 		alpha = 0
 	}
@@ -34,11 +35,12 @@ func NewHybridStore(keyword Store, vector rag.VectorStore, embedder rag.Embedder
 		minSimilarity = 0
 	}
 	return &HybridStore{
-		keywordStore:  keyword,
-		vectorStore:   vector,
-		embedder:      embedder,
-		alpha:         alpha,
-		minSimilarity: minSimilarity,
+		keywordStore:        keyword,
+		vectorStore:         vector,
+		embedder:            embedder,
+		alpha:               alpha,
+		minSimilarity:       minSimilarity,
+		allowVectorFailures: allowVectorFailures,
 	}
 }
 
@@ -88,9 +90,45 @@ func (s *HybridStore) Insert(ctx context.Context, entry Entry) (Entry, error) {
 	}
 
 	if err := s.vectorStore.Add(ctx, []rag.Document{doc}); err != nil {
+		if s.allowVectorFailures {
+			return saved, nil
+		}
 		return saved, fmt.Errorf("index memory: %w", err)
 	}
 	return saved, nil
+}
+
+// Delete removes entries from both keyword and vector stores.
+func (s *HybridStore) Delete(ctx context.Context, keys []string) error {
+	if s.keywordStore == nil {
+		return fmt.Errorf("hybrid memory store missing keyword store")
+	}
+	if err := s.keywordStore.Delete(ctx, keys); err != nil {
+		return err
+	}
+	if s.vectorStore != nil && len(keys) > 0 {
+		if err := s.vectorStore.Delete(ctx, keys); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Prune removes expired entries and mirrors deletions to the vector store.
+func (s *HybridStore) Prune(ctx context.Context, policy RetentionPolicy) ([]string, error) {
+	if s.keywordStore == nil {
+		return nil, fmt.Errorf("hybrid memory store missing keyword store")
+	}
+	keys, err := s.keywordStore.Prune(ctx, policy)
+	if err != nil {
+		return nil, err
+	}
+	if s.vectorStore != nil && len(keys) > 0 {
+		if err := s.vectorStore.Delete(ctx, keys); err != nil {
+			return keys, err
+		}
+	}
+	return keys, nil
 }
 
 // Search performs hybrid keyword + semantic search using reciprocal rank fusion.

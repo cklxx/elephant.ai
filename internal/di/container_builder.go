@@ -14,10 +14,10 @@ import (
 	agentcost "alex/internal/agent/app/cost"
 	"alex/internal/agent/app/hooks"
 	agent "alex/internal/agent/ports/agent"
-	okrtools "alex/internal/tools/builtin/okr"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
+	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/external"
 	"alex/internal/llm"
@@ -31,6 +31,7 @@ import (
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
+	okrtools "alex/internal/tools/builtin/okr"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/time/rate"
@@ -342,7 +343,17 @@ func (b *containerBuilder) buildMemoryService(resources sessionResources) (memor
 	if err := store.EnsureSchema(context.Background()); err != nil {
 		b.logger.Warn("Failed to initialize memory store schema: %v", err)
 	}
-	return memory.NewService(store), nil
+
+	retentionPolicy := buildMemoryRetentionPolicy(b.config.Proactive.Memory.Retention)
+	if b.config.Proactive.Memory.Retention.PruneOnStart && retentionPolicy.HasRules() {
+		if deleted, err := store.Prune(context.Background(), retentionPolicy); err != nil {
+			b.logger.Warn("Failed to prune memory store: %v", err)
+		} else if len(deleted) > 0 {
+			b.logger.Info("Pruned %d expired memories on startup", len(deleted))
+		}
+	}
+
+	return memory.NewServiceWithRetention(store, retentionPolicy), nil
 }
 
 func (b *containerBuilder) buildMemoryStore(resources sessionResources) (memory.Store, error) {
@@ -410,7 +421,32 @@ func (b *containerBuilder) buildHybridMemoryStore(resources sessionResources) (m
 		return nil, fmt.Errorf("init memory vector store: %w", err)
 	}
 
-	return memory.NewHybridStore(keywordStore, vectorStore, embedder, hybridCfg.Alpha, float32(hybridCfg.MinSimilarity)), nil
+	return memory.NewHybridStore(keywordStore, vectorStore, embedder, hybridCfg.Alpha, float32(hybridCfg.MinSimilarity), hybridCfg.AllowVectorFailures), nil
+}
+
+func buildMemoryRetentionPolicy(cfg runtimeconfig.MemoryRetentionConfig) memory.RetentionPolicy {
+	policy := memory.RetentionPolicy{
+		PruneOnRecall: cfg.PruneOnRecall,
+	}
+	if cfg.DefaultDays > 0 {
+		policy.DefaultTTL = time.Duration(cfg.DefaultDays) * 24 * time.Hour
+	}
+
+	typeTTL := map[string]time.Duration{}
+	if cfg.AutoCaptureDays > 0 {
+		typeTTL["auto_capture"] = time.Duration(cfg.AutoCaptureDays) * 24 * time.Hour
+	}
+	if cfg.ChatTurnDays > 0 {
+		typeTTL["chat_turn"] = time.Duration(cfg.ChatTurnDays) * 24 * time.Hour
+	}
+	if cfg.WorkflowTraceDays > 0 {
+		typeTTL["workflow_trace"] = time.Duration(cfg.WorkflowTraceDays) * 24 * time.Hour
+	}
+	if len(typeTTL) > 0 {
+		policy.TypeTTL = typeTTL
+	}
+
+	return policy
 }
 
 func (b *containerBuilder) buildJournalWriter() journal.Writer {

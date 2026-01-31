@@ -1,5 +1,5 @@
 # ALEX 配置参考
-> Last updated: 2025-12-14
+> Last updated: 2026-01-31
 
 本文档是 **ALEX 主配置文件（`~/.alex/config.yaml`）** 的说明，覆盖 runtime 以及 server/auth/session/analytics/attachments 等段。`alex` CLI 与 `alex-server` 共享 runtime 配置；`alex-server` 额外读取其他段完成服务侧配置。
 
@@ -326,6 +326,60 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `session_dir`：会话存储目录（支持 `~` 与 `$ENV` 展开）。
 - `cost_dir`：cost 存储目录（支持 `~` 与 `$ENV` 展开）。
 - `tool_max_concurrent`：工具调用最大并发数（默认 8）。
+
+### Proactive 记忆（proactive.memory）
+
+- `proactive.enabled`：总开关（默认 true）。
+- `proactive.memory.enabled`：记忆模块开关。
+- `proactive.memory.auto_recall`：自动召回（任务开始前）。
+- `proactive.memory.auto_capture`：自动保存（任务完成后）。
+- `proactive.memory.capture_messages`：保存对话消息到记忆。
+- `proactive.memory.capture_group_memory`：群聊记忆开关。
+- `proactive.memory.max_recalls`：单次召回最多条数。
+- `proactive.memory.refresh_interval` / `proactive.memory.max_refresh_tokens`：记忆刷新周期/令牌上限。
+- `proactive.memory.store`：`auto` / `file` / `postgres` / `hybrid`。
+- `proactive.memory.dedupe_threshold`：记忆去重阈值（默认 0.85）。
+
+#### proactive.memory.hybrid
+
+- `proactive.memory.hybrid.alpha`：关键词/向量检索融合权重（0-1）。
+- `proactive.memory.hybrid.min_similarity`：向量最小相似度。
+- `proactive.memory.hybrid.persist_dir`：向量索引目录。
+- `proactive.memory.hybrid.collection`：向量集合名。
+- `proactive.memory.hybrid.embedder_model`：向量模型名。
+- `proactive.memory.hybrid.embedder_base_url`：向量模型 base URL。
+- `proactive.memory.hybrid.allow_vector_failures`：允许向量索引失败时继续写入关键词记忆。
+
+#### proactive.memory.retention
+
+- `proactive.memory.retention.default_days`：默认保留天数（0 表示不启用）。
+- `proactive.memory.retention.auto_capture_days`：自动捕获记忆保留天数。
+- `proactive.memory.retention.chat_turn_days`：对话记忆保留天数。
+- `proactive.memory.retention.workflow_trace_days`：workflow trace 记忆保留天数。
+- `proactive.memory.retention.prune_on_start`：启动时清理过期记忆。
+- `proactive.memory.retention.prune_on_recall`：召回时清理过期记忆。
+
+示例（YAML）：
+
+```yaml
+runtime:
+  proactive:
+    enabled: true
+    memory:
+      enabled: true
+      auto_recall: true
+      auto_capture: true
+      store: "hybrid"
+      hybrid:
+        allow_vector_failures: false
+      retention:
+        default_days: 90
+        auto_capture_days: 30
+        chat_turn_days: 14
+        workflow_trace_days: 30
+        prune_on_start: true
+        prune_on_recall: true
+```
 
 ### ACP 执行器配置（executor 适配层）
 
