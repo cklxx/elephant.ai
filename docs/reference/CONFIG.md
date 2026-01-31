@@ -238,7 +238,7 @@ channels:
     tool_preset: "full"
     tool_mode: "cli"
     reply_timeout_seconds: 180
-    react_emoji: "WAVE, SMILE, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM"
+    react_emoji: "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM"
     memory_enabled: true
     show_tool_progress: true
     auto_chat_context: true
