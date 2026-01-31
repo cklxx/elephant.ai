@@ -278,6 +278,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 `llm_provider: auto` 会优先读取 env key（含 Claude OAuth），若缺失再回退到 CLI 登录。`llm_provider: cli` 则优先读取 CLI 登录，再回退到 env key。CLI 订阅优先级：Codex → Antigravity → Claude → OpenAI。`*_BASE_URL` 可覆盖基座地址。
 
+参见：`docs/reference/external-agents-codex-claude-code.md`（Codex/Claude Code 外部代理与 CLI 调用说明）。
+
 ### 工具与运行体验
 
 - `tool_preset`：工具权限预设：`sandbox` / `safe` / `read-only` / `full` / `architect`。Web 模式下如显式配置会生效（默认不配置则保持 Web 模式默认允许集）。

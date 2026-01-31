@@ -16,3 +16,4 @@
 - 2026-01-31: Plan created; engineering practices reviewed.
 - 2026-01-31: Added external agent call flow + tables in `docs/reference/external-agents-codex-claude-code.md`.
 - 2026-01-31: Ran `./dev.sh lint` and `./dev.sh test` (LC_DYSYMTAB linker warnings observed).
+- 2026-01-31: Linked official Codex/Claude Code docs and clarified CLI requirements.
