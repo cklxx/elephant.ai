@@ -85,3 +85,39 @@ func TestChunker_CountTokens(t *testing.T) {
 		}
 	}
 }
+
+func TestChunker_MetadataIsolation(t *testing.T) {
+	chunker, err := NewChunker(ChunkerConfig{
+		ChunkSize:    10,
+		ChunkOverlap: 0,
+	})
+	if err != nil {
+		t.Fatalf("failed to create chunker: %v", err)
+	}
+
+	text := ""
+	for i := 0; i < 40; i++ {
+		text += "line one two three four five\n"
+	}
+
+	metadata := map[string]string{
+		"file_path": "test.go",
+		"language":  "go",
+	}
+
+	chunks, err := chunker.ChunkText(text, metadata)
+	if err != nil {
+		t.Fatalf("failed to chunk text: %v", err)
+	}
+	if len(chunks) < 2 {
+		t.Fatalf("expected at least 2 chunks, got %d", len(chunks))
+	}
+
+	chunks[0].Metadata["file_path"] = "mutated.go"
+	if chunks[1].Metadata["file_path"] != "test.go" {
+		t.Fatalf("chunk metadata should be isolated; got %q", chunks[1].Metadata["file_path"])
+	}
+	if metadata["file_path"] != "test.go" {
+		t.Fatalf("original metadata map should not be mutated; got %q", metadata["file_path"])
+	}
+}

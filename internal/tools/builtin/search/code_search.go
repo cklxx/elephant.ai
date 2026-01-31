@@ -6,6 +6,8 @@ import (
 	"alex/internal/config"
 	"alex/internal/rag"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -142,12 +144,12 @@ func (t *codeSearch) getOrCreateRetriever(ctx context.Context, repoPath string) 
 
 // getRepoHash generates a unique hash for the repository path
 func getRepoHash(repoPath string) string {
-	// Simple hash: use absolute path basename
 	absPath, err := filepath.Abs(repoPath)
 	if err != nil {
 		absPath = repoPath
 	}
-	return filepath.Base(absPath)
+	sum := sha256.Sum256([]byte(absPath))
+	return hex.EncodeToString(sum[:])
 }
 
 // Definition returns the tool definition

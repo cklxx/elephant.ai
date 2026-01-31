@@ -109,11 +109,18 @@ func (s *chromemStore) Add(ctx context.Context, docs []Document) error {
 
 	// Add documents one by one (chromem-go API)
 	for _, doc := range docs {
+		metadata := doc.Metadata
+		if metadata == nil {
+			metadata = map[string]string{}
+		}
+		if _, ok := metadata["id"]; !ok && doc.ID != "" {
+			metadata["id"] = doc.ID
+		}
 		err := s.collection.AddDocument(ctx, chromem.Document{
 			ID:        doc.ID,
 			Content:   doc.Content,
 			Embedding: doc.Embedding,
-			Metadata:  doc.Metadata,
+			Metadata:  metadata,
 		})
 		if err != nil {
 			return fmt.Errorf("add document %s: %w", doc.ID, err)
@@ -175,7 +182,7 @@ func (s *chromemStore) Delete(ctx context.Context, ids []string) error {
 
 	// Delete from collection
 	for _, id := range ids {
-		err := s.collection.Delete(ctx, nil, map[string]string{"id": id})
+		err := s.collection.Delete(ctx, nil, nil, id)
 		if err != nil {
 			return fmt.Errorf("delete document %s: %w", id, err)
 		}

@@ -86,7 +86,7 @@ func (c *recursiveChunker) ChunkText(text string, metadata map[string]string) ([
 					Text:      currentChunk.String(),
 					StartLine: currentStartLine,
 					EndLine:   lineNum - 1,
-					Metadata:  metadata,
+					Metadata:  cloneMetadata(metadata),
 				})
 				currentChunk.Reset()
 				currentTokens = 0
@@ -106,7 +106,7 @@ func (c *recursiveChunker) ChunkText(text string, metadata map[string]string) ([
 				Text:      currentChunk.String(),
 				StartLine: currentStartLine,
 				EndLine:   lineNum - 1,
-				Metadata:  metadata,
+				Metadata:  cloneMetadata(metadata),
 			})
 
 			// Start new chunk with overlap
@@ -134,7 +134,7 @@ func (c *recursiveChunker) ChunkText(text string, metadata map[string]string) ([
 			Text:      currentChunk.String(),
 			StartLine: currentStartLine,
 			EndLine:   len(lines) - 1,
-			Metadata:  metadata,
+			Metadata:  cloneMetadata(metadata),
 		})
 	}
 
@@ -159,11 +159,22 @@ func (c *recursiveChunker) splitLongLine(line string, lineNum int, metadata map[
 			Text:      chunkText,
 			StartLine: lineNum,
 			EndLine:   lineNum,
-			Metadata:  metadata,
+			Metadata:  cloneMetadata(metadata),
 		})
 	}
 
 	return chunks
+}
+
+func cloneMetadata(src map[string]string) map[string]string {
+	if len(src) == 0 {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(src))
+	for key, value := range src {
+		out[key] = value
+	}
+	return out
 }
 
 // getOverlap returns overlap text from previous chunk
