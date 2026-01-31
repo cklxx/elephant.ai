@@ -126,6 +126,42 @@ func TestBroadcastDropNotificationDeliveredWhenBufferDrainsConcurrently(t *testi
 	}
 }
 
+func TestUnregisterClientDoesNotCorruptOriginalMap(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+
+	ch1 := make(chan agent.AgentEvent, 10)
+	ch2 := make(chan agent.AgentEvent, 10)
+	ch3 := make(chan agent.AgentEvent, 10)
+	broadcaster.RegisterClient("s1", ch1)
+	broadcaster.RegisterClient("s1", ch2)
+	broadcaster.RegisterClient("s1", ch3)
+
+	// Snapshot the client map before unregister
+	beforeClients := broadcaster.loadClients()["s1"]
+	if len(beforeClients) != 3 {
+		t.Fatalf("expected 3 clients before unregister, got %d", len(beforeClients))
+	}
+
+	// Unregister the middle client
+	broadcaster.UnregisterClient("s1", ch2)
+
+	// The original snapshot should still have 3 entries (COW safety)
+	if len(beforeClients) != 3 {
+		t.Fatalf("expected original snapshot to retain 3 clients, got %d (COW violated)", len(beforeClients))
+	}
+
+	// The new map should have 2 entries
+	afterClients := broadcaster.loadClients()["s1"]
+	if len(afterClients) != 2 {
+		t.Fatalf("expected 2 clients after unregister, got %d", len(afterClients))
+	}
+
+	// Remaining clients should be ch1 and ch3
+	if afterClients[0] != ch1 || afterClients[1] != ch3 {
+		t.Fatalf("unexpected remaining clients after unregister")
+	}
+}
+
 func TestStreamDroppedEnvelopeFields(t *testing.T) {
 	env := newStreamDroppedEnvelope("session-42", types.EventToolProgress, 7)
 

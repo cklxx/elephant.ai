@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	llm "alex/internal/agent/ports/llm"
 	storage "alex/internal/agent/ports/storage"
@@ -163,4 +164,103 @@ func (stubCoordinator) GetContextManager() agent.ContextManager {
 
 func (stubCoordinator) GetSystemPrompt() string {
 	return ""
+}
+
+func TestGetReturnsPreWrappedTools(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	tool, err := registry.Get("file_read")
+	if err != nil {
+		t.Fatalf("failed to get file_read: %v", err)
+	}
+
+	// The tool should already be wrapped with idAwareExecutor
+	if _, ok := tool.(*idAwareExecutor); !ok {
+		t.Fatalf("expected tool to be *idAwareExecutor, got %T", tool)
+	}
+
+	// Calling Get twice should return the same pre-wrapped instance
+	tool2, err := registry.Get("file_read")
+	if err != nil {
+		t.Fatalf("failed to get file_read second time: %v", err)
+	}
+	if tool != tool2 {
+		t.Fatalf("expected Get to return the same pre-wrapped instance")
+	}
+}
+
+func TestEnsureApprovalWrapperDoesNotMutateInput(t *testing.T) {
+	inner := &stubExecutor{name: "test_tool"}
+	wrapped := &idAwareExecutor{delegate: inner}
+
+	// Capture original delegate
+	originalDelegate := wrapped.delegate
+
+	result := ensureApprovalWrapper(wrapped)
+
+	// The original idAwareExecutor should not be mutated
+	if wrapped.delegate != originalDelegate {
+		t.Fatalf("ensureApprovalWrapper mutated the input's delegate field")
+	}
+
+	// Result should be a new idAwareExecutor wrapping an approvalExecutor
+	newWrapper, ok := result.(*idAwareExecutor)
+	if !ok {
+		t.Fatalf("expected *idAwareExecutor, got %T", result)
+	}
+	if _, ok := newWrapper.delegate.(*approvalExecutor); !ok {
+		t.Fatalf("expected delegate to be *approvalExecutor, got %T", newWrapper.delegate)
+	}
+}
+
+func TestListCachingWithDirtyFlag(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	// First call builds the cache
+	defs1 := registry.List()
+	if len(defs1) == 0 {
+		t.Fatalf("expected non-empty definitions list")
+	}
+
+	// Second call should return cached result (same slice)
+	defs2 := registry.List()
+	if len(defs1) != len(defs2) {
+		t.Fatalf("expected same length from cached List()")
+	}
+
+	// Registering a new tool should invalidate cache
+	registry.Register(&stubExecutor{name: "custom_test_tool"})
+	defs3 := registry.List()
+	if len(defs3) != len(defs1)+1 {
+		t.Fatalf("expected one more definition after Register, got %d vs %d", len(defs3), len(defs1)+1)
+	}
+
+	// Unregistering should invalidate cache
+	registry.Unregister("custom_test_tool")
+	defs4 := registry.List()
+	if len(defs4) != len(defs1) {
+		t.Fatalf("expected original count after Unregister, got %d vs %d", len(defs4), len(defs1))
+	}
+}
+
+type stubExecutor struct {
+	name string
+}
+
+func (s *stubExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	return &ports.ToolResult{CallID: call.ID}, nil
+}
+
+func (s *stubExecutor) Definition() ports.ToolDefinition {
+	return ports.ToolDefinition{Name: s.name, Description: "test tool"}
+}
+
+func (s *stubExecutor) Metadata() ports.ToolMetadata {
+	return ports.ToolMetadata{Name: s.name}
 }
