@@ -176,12 +176,14 @@ func TestMemoryCaptureHook_SaveError(t *testing.T) {
 	err := hook.OnTaskCompleted(context.Background(), TaskResultInfo{
 		TaskInput:  "test task",
 		Answer:     "test answer",
+		UserID:     "testuser",
 		StopReason: "complete",
 		ToolCalls:  []ToolResultInfo{{ToolName: "bash", Success: true}},
 	})
 
 	if err == nil {
 		t.Error("expected error on save failure")
+		return
 	}
 	if !contains(err.Error(), "memory capture") {
 		t.Errorf("expected wrapped error, got %v", err)
