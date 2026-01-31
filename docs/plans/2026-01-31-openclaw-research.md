@@ -20,3 +20,5 @@
 - 2026-01-31: Collected OpenClaw docs on memory, hooks, cron, tools, plugins, and macOS companion.
 - 2026-02-01: Updated long-term memory timestamp.
 - 2026-02-01: Ran `./dev.sh lint` (pass) and `./dev.sh test` (fails: data race in `internal/mcp` `TestProcessManagerReinitializesStopChan`).
+- 2026-02-01: Added detailed OpenClaw proactive/memory/tools/macOS analysis from official docs.
+- 2026-02-01: Re-ran `./dev.sh lint` and `./dev.sh test` (both pass; race not reproduced).
