@@ -69,10 +69,6 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.SessionPrefix == "" {
 		cfg.SessionPrefix = "lark"
 	}
-	cfg.SessionMode = strings.TrimSpace(strings.ToLower(cfg.SessionMode))
-	if cfg.SessionMode == "" {
-		cfg.SessionMode = "fresh"
-	}
 	cfg.ToolPreset = strings.TrimSpace(strings.ToLower(cfg.ToolPreset))
 	if cfg.ToolPreset == "" {
 		cfg.ToolPreset = "full"
@@ -189,9 +185,6 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	senderID := extractSenderID(event)
 	memoryID := g.memoryIDForChat(chatID)
 	sessionID := memoryID
-	if g.cfg.SessionMode == "fresh" {
-		sessionID = fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
-	}
 
 	lock := g.SessionLock(memoryID)
 	lock.Lock()
@@ -212,11 +205,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 			}
 		}
 		reply := "已清空对话历史，下次对话将从零开始。"
-		if isGroup && messageID != "" {
-			g.replyMessage(execCtx, messageID, reply)
-		} else {
-			g.sendMessage(execCtx, chatID, reply)
-		}
+		g.dispatch(execCtx, chatID, replyTarget(isGroup, messageID), "text", textContent(reply))
 		return nil
 	}
 
@@ -227,12 +216,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		if reply == "" {
 			reply = "（无可用回复）"
 		}
-		messageID := deref(msg.MessageId)
-		if isGroup && messageID != "" {
-			g.replyMessage(execCtx, messageID, reply)
-		} else {
-			g.sendMessage(execCtx, chatID, reply)
-		}
+		g.dispatch(execCtx, chatID, replyTarget(isGroup, deref(msg.MessageId)), "text", textContent(reply))
 		return nil
 	}
 	if session != nil && session.ID != "" && session.ID != sessionID {
@@ -323,11 +307,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		reply += "\n\n" + summary
 	}
 
-	if isGroup && messageID != "" {
-		g.replyMessage(execCtx, messageID, reply)
-	} else {
-		g.sendMessage(execCtx, chatID, reply)
-	}
+	g.dispatch(execCtx, chatID, replyTarget(isGroup, messageID), "text", textContent(reply))
 	g.sendAttachments(execCtx, chatID, messageID, isGroup, result)
 
 	return nil
@@ -356,66 +336,35 @@ func (g *Gateway) isDuplicateMessage(messageID string) bool {
 	return false
 }
 
-// sendMessage sends a new message to the given chat (used for P2P).
-func (g *Gateway) sendMessage(ctx context.Context, chatID, text string) {
-	g.sendMessageTyped(ctx, chatID, "text", textContent(text))
-}
-
-// replyMessage replies to a specific message (used for group chats).
-func (g *Gateway) replyMessage(ctx context.Context, messageID, text string) {
-	g.replyMessageTyped(ctx, messageID, "text", textContent(text))
-}
-
-func (g *Gateway) sendMessageTyped(ctx context.Context, chatID, msgType, content string) {
-	if g.client == nil {
-		return
-	}
-	req := larkim.NewCreateMessageReqBuilder().
-		ReceiveIdType("chat_id").
-		Body(larkim.NewCreateMessageReqBodyBuilder().
-			ReceiveId(chatID).
-			MsgType(msgType).
-			Content(content).
-			Build()).
-		Build()
-
-	resp, err := g.client.Im.Message.Create(ctx, req)
-	if err != nil {
-		g.logger.Warn("Lark send message failed: %v", err)
-		return
-	}
-	if !resp.Success() {
-		g.logger.Warn("Lark send message error: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-}
-
-func (g *Gateway) replyMessageTyped(ctx context.Context, messageID, msgType, content string) {
-	if g.client == nil {
-		return
-	}
-	req := larkim.NewReplyMessageReqBuilder().
-		MessageId(messageID).
-		Body(larkim.NewReplyMessageReqBodyBuilder().
-			MsgType(msgType).
-			Content(content).
-			Build()).
-		Build()
-
-	resp, err := g.client.Im.Message.Reply(ctx, req)
-	if err != nil {
-		g.logger.Warn("Lark reply message failed: %v", err)
-		return
-	}
-	if !resp.Success() {
-		g.logger.Warn("Lark reply message error: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-}
-
-// sendMessageTypedWithID sends a new message and returns the message ID.
-func (g *Gateway) sendMessageTypedWithID(ctx context.Context, chatID, msgType, content string) (string, error) {
+// dispatchMessage sends a message to a Lark chat. When replyToID is non-empty
+// the message is sent as a reply to that message; otherwise a new message is
+// created in the chat identified by chatID. Returns the new message ID.
+func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgType, content string) (string, error) {
 	if g.client == nil {
 		return "", fmt.Errorf("lark client not initialized")
 	}
+
+	if replyToID != "" {
+		req := larkim.NewReplyMessageReqBuilder().
+			MessageId(replyToID).
+			Body(larkim.NewReplyMessageReqBodyBuilder().
+				MsgType(msgType).
+				Content(content).
+				Build()).
+			Build()
+		resp, err := g.client.Im.Message.Reply(ctx, req)
+		if err != nil {
+			return "", err
+		}
+		if !resp.Success() {
+			return "", fmt.Errorf("lark reply message error: code=%d msg=%s", resp.Code, resp.Msg)
+		}
+		if resp.Data == nil || resp.Data.MessageId == nil {
+			return "", nil
+		}
+		return *resp.Data.MessageId, nil
+	}
+
 	req := larkim.NewCreateMessageReqBuilder().
 		ReceiveIdType("chat_id").
 		Body(larkim.NewCreateMessageReqBodyBuilder().
@@ -424,7 +373,6 @@ func (g *Gateway) sendMessageTypedWithID(ctx context.Context, chatID, msgType, c
 			Content(content).
 			Build()).
 		Build()
-
 	resp, err := g.client.Im.Message.Create(ctx, req)
 	if err != nil {
 		return "", err
@@ -433,35 +381,25 @@ func (g *Gateway) sendMessageTypedWithID(ctx context.Context, chatID, msgType, c
 		return "", fmt.Errorf("lark send message error: code=%d msg=%s", resp.Code, resp.Msg)
 	}
 	if resp.Data == nil || resp.Data.MessageId == nil {
-		return "", fmt.Errorf("lark send message missing message_id")
+		return "", nil
 	}
 	return *resp.Data.MessageId, nil
 }
 
-// replyMessageTypedWithID replies to a message and returns the new message ID.
-func (g *Gateway) replyMessageTypedWithID(ctx context.Context, messageID, msgType, content string) (string, error) {
-	if g.client == nil {
-		return "", fmt.Errorf("lark client not initialized")
+// dispatch is a fire-and-forget wrapper around dispatchMessage that logs errors.
+func (g *Gateway) dispatch(ctx context.Context, chatID, replyToID, msgType, content string) {
+	if _, err := g.dispatchMessage(ctx, chatID, replyToID, msgType, content); err != nil {
+		g.logger.Warn("Lark dispatch message failed: %v", err)
 	}
-	req := larkim.NewReplyMessageReqBuilder().
-		MessageId(messageID).
-		Body(larkim.NewReplyMessageReqBodyBuilder().
-			MsgType(msgType).
-			Content(content).
-			Build()).
-		Build()
+}
 
-	resp, err := g.client.Im.Message.Reply(ctx, req)
-	if err != nil {
-		return "", err
+// replyTarget returns the message ID to reply to when in a group chat,
+// or empty string for direct messages (which creates a new message).
+func replyTarget(isGroup bool, messageID string) string {
+	if isGroup && messageID != "" {
+		return messageID
 	}
-	if !resp.Success() {
-		return "", fmt.Errorf("lark reply message error: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-	if resp.Data == nil || resp.Data.MessageId == nil {
-		return "", fmt.Errorf("lark reply message missing message_id")
-	}
-	return *resp.Data.MessageId, nil
+	return ""
 }
 
 // updateMessage updates an existing text message in-place using the Lark
@@ -751,17 +689,15 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 			continue
 		}
 
+		target := replyTarget(isGroup, messageID)
+
 		if isImageAttachment(att, mediaType, name) {
 			imageKey, err := g.uploadImage(ctx, payload)
 			if err != nil {
 				g.logger.Warn("Lark image upload failed (%s): %v", name, err)
 				continue
 			}
-			if isGroup && messageID != "" {
-				g.replyMessageTyped(ctx, messageID, "image", imageContent(imageKey))
-			} else {
-				g.sendMessageTyped(ctx, chatID, "image", imageContent(imageKey))
-			}
+			g.dispatch(ctx, chatID, target, "image", imageContent(imageKey))
 			continue
 		}
 
@@ -772,11 +708,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 			g.logger.Warn("Lark file upload failed (%s): %v", name, err)
 			continue
 		}
-		if isGroup && messageID != "" {
-			g.replyMessageTyped(ctx, messageID, "file", fileContent(fileKey))
-		} else {
-			g.sendMessageTyped(ctx, chatID, "file", fileContent(fileKey))
-		}
+		g.dispatch(ctx, chatID, target, "file", fileContent(fileKey))
 	}
 }
 

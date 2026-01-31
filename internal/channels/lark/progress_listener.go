@@ -260,10 +260,7 @@ type larkProgressSender struct {
 }
 
 func (s *larkProgressSender) SendProgress(ctx context.Context, text string) (string, error) {
-	if s.isGroup && s.messageID != "" {
-		return s.gateway.replyMessageTypedWithID(ctx, s.messageID, "text", textContent(text))
-	}
-	return s.gateway.sendMessageTypedWithID(ctx, s.chatID, "text", textContent(text))
+	return s.gateway.dispatchMessage(ctx, s.chatID, replyTarget(s.isGroup, s.messageID), "text", textContent(text))
 }
 
 func (s *larkProgressSender) UpdateProgress(ctx context.Context, messageID, text string) error {
