@@ -32,10 +32,12 @@ import (
 
 // Registry implements ToolRegistry with three-tier caching
 type Registry struct {
-	static  map[string]tools.ToolExecutor
-	dynamic map[string]tools.ToolExecutor
-	mcp     map[string]tools.ToolExecutor
-	mu      sync.RWMutex
+	static     map[string]tools.ToolExecutor
+	dynamic    map[string]tools.ToolExecutor
+	mcp        map[string]tools.ToolExecutor
+	mu         sync.RWMutex
+	cachedDefs []ports.ToolDefinition
+	defsDirty  bool
 }
 
 // filteredRegistry wraps a parent registry and excludes certain tools
@@ -75,9 +77,10 @@ type Config struct {
 
 func NewRegistry(config Config) (*Registry, error) {
 	r := &Registry{
-		static:  make(map[string]tools.ToolExecutor),
-		dynamic: make(map[string]tools.ToolExecutor),
-		mcp:     make(map[string]tools.ToolExecutor),
+		static:    make(map[string]tools.ToolExecutor),
+		dynamic:   make(map[string]tools.ToolExecutor),
+		mcp:       make(map[string]tools.ToolExecutor),
+		defsDirty: true,
 	}
 
 	if config.MemoryService == nil {
@@ -100,11 +103,13 @@ func (r *Registry) Register(tool tools.ToolExecutor) error {
 	}
 
 	// Check if this is an MCP tool (tools with mcp__ prefix go to mcp map)
+	wrapped := wrapWithIDPropagation(tool)
 	if len(name) > 5 && name[:5] == "mcp__" {
-		r.mcp[name] = tool
+		r.mcp[name] = wrapped
 	} else {
-		r.dynamic[name] = tool
+		r.dynamic[name] = wrapped
 	}
+	r.defsDirty = true
 	return nil
 }
 
@@ -112,13 +117,13 @@ func (r *Registry) Get(name string) (tools.ToolExecutor, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	if tool, ok := r.static[name]; ok {
-		return wrapWithIDPropagation(tool), nil
+		return tool, nil
 	}
 	if tool, ok := r.dynamic[name]; ok {
-		return wrapWithIDPropagation(tool), nil
+		return tool, nil
 	}
 	if tool, ok := r.mcp[name]; ok {
-		return wrapWithIDPropagation(tool), nil
+		return tool, nil
 	}
 	return nil, fmt.Errorf("tool not found: %s", name)
 }
@@ -177,8 +182,7 @@ func ensureApprovalWrapper(tool tools.ToolExecutor) tools.ToolExecutor {
 		if _, ok := typed.delegate.(*approvalExecutor); ok {
 			return tool
 		}
-		typed.delegate = &approvalExecutor{delegate: typed.delegate}
-		return tool
+		return &idAwareExecutor{delegate: &approvalExecutor{delegate: typed.delegate}}
 	default:
 		return &approvalExecutor{delegate: tool}
 	}
@@ -298,8 +302,20 @@ func (f *filteredRegistry) Unregister(name string) error {
 
 func (r *Registry) List() []ports.ToolDefinition {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
-	var defs []ports.ToolDefinition
+	if !r.defsDirty && r.cachedDefs != nil {
+		defs := r.cachedDefs
+		r.mu.RUnlock()
+		return defs
+	}
+	r.mu.RUnlock()
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	// Double-check after acquiring write lock.
+	if !r.defsDirty && r.cachedDefs != nil {
+		return r.cachedDefs
+	}
+	defs := make([]ports.ToolDefinition, 0, len(r.static)+len(r.dynamic)+len(r.mcp))
 	for _, tool := range r.static {
 		defs = append(defs, tool.Definition())
 	}
@@ -312,6 +328,8 @@ func (r *Registry) List() []ports.ToolDefinition {
 	sort.Slice(defs, func(i, j int) bool {
 		return defs[i].Name < defs[j].Name
 	})
+	r.cachedDefs = defs
+	r.defsDirty = false
 	return defs
 }
 
@@ -323,6 +341,7 @@ func (r *Registry) Unregister(name string) error {
 	}
 	delete(r.dynamic, name)
 	delete(r.mcp, name)
+	r.defsDirty = true
 	return nil
 }
 
@@ -478,6 +497,11 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["okr_read"] = okrtools.NewOKRRead(okrCfg)
 	r.static["okr_write"] = okrtools.NewOKRWrite(okrCfg)
 
+	// Pre-wrap all static tools with ID propagation and approval wrappers.
+	for name, tool := range r.static {
+		r.static[name] = wrapWithIDPropagation(tool)
+	}
+
 	return nil
 }
 
@@ -491,19 +515,21 @@ func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 
 	if _, exists := r.static["subagent"]; exists {
 		if _, ok := r.static["explore"]; !ok {
-			r.static["explore"] = orchestration.NewExplore(r.static["subagent"])
+			r.static["explore"] = wrapWithIDPropagation(orchestration.NewExplore(r.static["subagent"]))
+			r.defsDirty = true
 		}
 		return
 	}
 
 	subTool := orchestration.NewSubAgent(coordinator, 3)
-	r.static["subagent"] = subTool
-	r.static["explore"] = orchestration.NewExplore(subTool)
+	r.static["subagent"] = wrapWithIDPropagation(subTool)
+	r.static["explore"] = wrapWithIDPropagation(orchestration.NewExplore(subTool))
 
 	// Register background task tools (dispatcher injected via context at runtime).
-	r.static["bg_dispatch"] = orchestration.NewBGDispatch()
-	r.static["bg_status"] = orchestration.NewBGStatus()
-	r.static["bg_collect"] = orchestration.NewBGCollect()
-	r.static["ext_reply"] = orchestration.NewExtReply()
-	r.static["ext_merge"] = orchestration.NewExtMerge()
+	r.static["bg_dispatch"] = wrapWithIDPropagation(orchestration.NewBGDispatch())
+	r.static["bg_status"] = wrapWithIDPropagation(orchestration.NewBGStatus())
+	r.static["bg_collect"] = wrapWithIDPropagation(orchestration.NewBGCollect())
+	r.static["ext_reply"] = wrapWithIDPropagation(orchestration.NewExtReply())
+	r.static["ext_merge"] = wrapWithIDPropagation(orchestration.NewExtMerge())
+	r.defsDirty = true
 }
