@@ -20,4 +20,4 @@
 ## Progress Log
 - 2026-01-31: Plan created; WeChat references enumerated; execution started.
 - 2026-01-31: Removed WeChat channel code, config structs, auth endpoints, and web OAuth UI. Updated README/config docs and cleaned deps.
-- 2026-01-31: `./dev.sh lint` passed; `./dev.sh test` failed on a pre-existing data race in `internal/agent/app/coordinator` (SerializingEventListener). WeChat removal changes compiled but full suite still blocked.
+- 2026-01-31: `./dev.sh lint` passed; `./dev.sh test` failed with a data race in coordinator tests (`TestExecuteTaskPropagatesSessionIDToWorkflowEnvelope`, `TestExecuteTaskUsesEnsuredTaskIDForPrepareEnvelope`) plus macOS LC_DYSYMTAB linker warnings.
