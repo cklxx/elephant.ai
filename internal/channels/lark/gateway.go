@@ -65,13 +65,16 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if strings.TrimSpace(cfg.AppID) == "" || strings.TrimSpace(cfg.AppSecret) == "" {
 		return nil, fmt.Errorf("lark gateway requires app_id and app_secret")
 	}
-	if strings.TrimSpace(cfg.SessionPrefix) == "" {
+	cfg.SessionPrefix = strings.TrimSpace(cfg.SessionPrefix)
+	if cfg.SessionPrefix == "" {
 		cfg.SessionPrefix = "lark"
 	}
-	if strings.TrimSpace(cfg.SessionMode) == "" {
+	cfg.SessionMode = strings.TrimSpace(strings.ToLower(cfg.SessionMode))
+	if cfg.SessionMode == "" {
 		cfg.SessionMode = "fresh"
 	}
-	if strings.TrimSpace(cfg.ToolPreset) == "" {
+	cfg.ToolPreset = strings.TrimSpace(strings.ToLower(cfg.ToolPreset))
+	if cfg.ToolPreset == "" {
 		cfg.ToolPreset = "full"
 	}
 	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
@@ -185,12 +188,8 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	senderID := extractSenderID(event)
 	memoryID := g.memoryIDForChat(chatID)
-	mode := strings.TrimSpace(g.cfg.SessionMode)
-	if mode == "" {
-		mode = "fresh"
-	}
 	sessionID := memoryID
-	if strings.EqualFold(mode, "fresh") {
+	if g.cfg.SessionMode == "fresh" {
 		sessionID = fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
 	}
 
@@ -199,7 +198,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	defer lock.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
-	historyEnabled := !strings.EqualFold(mode, "fresh")
+	historyEnabled := g.cfg.SessionMode != "fresh"
 	execCtx = appcontext.WithSessionHistory(execCtx, historyEnabled)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
@@ -341,14 +340,6 @@ func (g *Gateway) isDuplicateMessage(messageID string) bool {
 	}
 	g.dedupMu.Lock()
 	defer g.dedupMu.Unlock()
-
-	if g.dedupCache == nil {
-		cache, err := lru.New[string, time.Time](messageDedupCacheSize)
-		if err != nil {
-			return false
-		}
-		g.dedupCache = cache
-	}
 
 	nowFn := g.now
 	if nowFn == nil {
