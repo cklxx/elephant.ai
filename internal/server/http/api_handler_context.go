@@ -117,7 +117,7 @@ func sanitizeMessagesForDelivery(messages []core.Message, sentAttachments *strin
 	sanitized := make([]core.Message, 0, len(messages))
 	for _, msg := range messages {
 		cloned := msg
-		if sanitizedAttachments := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments, nil, nil, false); len(sanitizedAttachments) > 0 {
+		if sanitizedAttachments := sanitizeAttachmentsForStream(msg.Attachments, sentAttachments, nil, false); len(sanitizedAttachments) > 0 {
 			cloned.Attachments = sanitizedAttachments
 		} else {
 			cloned.Attachments = nil

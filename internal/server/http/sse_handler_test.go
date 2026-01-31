@@ -873,7 +873,7 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 		},
 	}
 
-	first := sanitizeAttachmentsForStream(attachments, sent, cache, nil, false)
+	first := sanitizeAttachmentsForStream(attachments, sent, cache, false)
 	if first == nil || len(first) != 1 {
 		t.Fatalf("expected initial attachments to be forwarded, got %#v", first)
 	}
@@ -882,7 +882,7 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 	}
 
 	// Re-sending the same attachment payload should be suppressed.
-	if dup := sanitizeAttachmentsForStream(attachments, sent, cache, nil, false); dup != nil {
+	if dup := sanitizeAttachmentsForStream(attachments, sent, cache, false); dup != nil {
 		t.Fatalf("expected duplicate attachments to be filtered: %#v", dup)
 	}
 
@@ -894,7 +894,7 @@ func TestSanitizeAttachmentsForStreamResendsUpdates(t *testing.T) {
 		},
 	}
 
-	resent := sanitizeAttachmentsForStream(updated, sent, cache, nil, false)
+	resent := sanitizeAttachmentsForStream(updated, sent, cache, false)
 	if resent == nil || len(resent) != 1 {
 		t.Fatalf("expected updated attachment to be forwarded, got %#v", resent)
 	}
@@ -925,7 +925,7 @@ func TestSanitizeWorkflowEnvelopePayloadStripsStepResultMessages(t *testing.T) {
 		},
 	}
 
-	payload := sanitizeWorkflowEnvelopePayload(env, newStringLRU(sseSentAttachmentCacheSize), cache, nil)
+	payload := sanitizeWorkflowEnvelopePayload(env, newStringLRU(sseSentAttachmentCacheSize), cache)
 	res, ok := payload["result"].(map[string]any)
 	if !ok {
 		t.Fatalf("expected sanitized result map, got %T", payload["result"])
@@ -962,7 +962,7 @@ func TestSanitizeEnvelopePayloadStripsInlineAttachments(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeEnvelopePayload(raw, newStringLRU(sseSentAttachmentCacheSize), cache, nil)
+	sanitized := sanitizeEnvelopePayload(raw, newStringLRU(sseSentAttachmentCacheSize), cache)
 	if sanitized == nil {
 		t.Fatalf("expected sanitized payload")
 	}
@@ -998,7 +998,7 @@ func TestSanitizeAttachmentsForStreamCachesHTML(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, nil, false)
+	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, false)
 	if len(sanitized) != 1 {
 		t.Fatalf("expected 1 sanitized attachment, got %d", len(sanitized))
 	}
@@ -1025,7 +1025,7 @@ func TestNormalizeAttachmentPayloadExternalizesHTML(t *testing.T) {
 		Data:      base64.StdEncoding.EncodeToString([]byte("<html><body>ok</body></html>")),
 	}
 
-	out := normalizeAttachmentPayload(att, cache, nil)
+	out := normalizeAttachmentPayload(att, cache)
 	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
 		t.Fatalf("expected cached URI pointing to data endpoint, got %q", out.URI)
 	}
@@ -1053,7 +1053,7 @@ func TestSanitizeEnvelopePayloadRetainsInlineMarkdown(t *testing.T) {
 		},
 	}
 
-	sanitized := sanitizeEnvelopePayload(raw, newStringLRU(sseSentAttachmentCacheSize), cache, nil)
+	sanitized := sanitizeEnvelopePayload(raw, newStringLRU(sseSentAttachmentCacheSize), cache)
 	attachments, ok := sanitized["attachments"].(map[string]ports.Attachment)
 	if !ok {
 		t.Fatalf("expected attachments map, got %T", sanitized["attachments"])
@@ -1160,7 +1160,7 @@ func TestNormalizeAttachmentPayloadCachesImagePayload(t *testing.T) {
 		Data:      base64.StdEncoding.EncodeToString(pngData),
 	}
 
-	out := normalizeAttachmentPayload(att, cache, nil)
+	out := normalizeAttachmentPayload(att, cache)
 	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
 		t.Fatalf("expected cached URI pointing to data endpoint, got %q", out.URI)
 	}
@@ -1182,7 +1182,7 @@ func TestNormalizeAttachmentPayloadCachesDataURI(t *testing.T) {
 		URI:  dataURI,
 	}
 
-	out := normalizeAttachmentPayload(att, cache, nil)
+	out := normalizeAttachmentPayload(att, cache)
 	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
 		t.Fatalf("expected cached URI pointing to data endpoint, got %q", out.URI)
 	}
@@ -1203,7 +1203,7 @@ func TestNormalizeAttachmentPayloadFallsBackToCacheWithoutStore(t *testing.T) {
 		Data:      base64.StdEncoding.EncodeToString([]byte("fake-jpeg")),
 	}
 
-	out := normalizeAttachmentPayload(att, cache, nil)
+	out := normalizeAttachmentPayload(att, cache)
 	if out.URI == "" || !strings.HasPrefix(out.URI, "/api/data/") {
 		t.Fatalf("expected data cache URI, got %q", out.URI)
 	}
@@ -1218,7 +1218,7 @@ func TestNormalizeAttachmentPayloadRetainsInlineTextPayload(t *testing.T) {
 		Data:      base64.StdEncoding.EncodeToString(content),
 	}
 
-	out := normalizeAttachmentPayload(att, cache, nil)
+	out := normalizeAttachmentPayload(att, cache)
 	if out.URI == "" || !strings.Contains(out.URI, "/api/data/") {
 		t.Fatalf("expected cached URI, got %q", out.URI)
 	}

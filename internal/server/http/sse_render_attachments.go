@@ -11,14 +11,14 @@ import (
 	"alex/internal/agent/ports"
 )
 
-func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent *stringLRU, cache *DataCache, store *AttachmentStore, forceInclude bool) map[string]ports.Attachment {
+func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent *stringLRU, cache *DataCache, forceInclude bool) map[string]ports.Attachment {
 	if len(attachments) == 0 {
 		return nil
 	}
 
 	sanitized := make(map[string]ports.Attachment, len(attachments))
 	for name, attachment := range attachments {
-		sanitized[name] = normalizeAttachmentPayload(attachment, cache, store)
+		sanitized[name] = normalizeAttachmentPayload(attachment, cache)
 	}
 
 	if forceInclude {
@@ -116,7 +116,7 @@ func shouldRetainInlinePayload(mediaType string, size int) bool {
 
 // normalizeAttachmentPayload converts inline payloads (Data or data URIs) into cache-backed URLs
 // or persistent attachment store entries so SSE streams do not push large base64 blobs to the client.
-func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache, store *AttachmentStore) ports.Attachment {
+func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache) ports.Attachment {
 	// Already points to an external or cached resource.
 	if att.Data == "" && att.URI != "" && !strings.HasPrefix(att.URI, "data:") {
 		return ensureHTMLPreview(att)
@@ -175,10 +175,10 @@ func normalizeAttachmentPayload(att ports.Attachment, cache *DataCache, store *A
 	return ensureHTMLPreview(att)
 }
 
-func sanitizeUntypedAttachments(value any, sent *stringLRU, cache *DataCache, store *AttachmentStore) any {
+func sanitizeUntypedAttachments(value any, sent *stringLRU, cache *DataCache) any {
 	raw, ok := value.(map[string]any)
 	if !ok {
-		return sanitizeEnvelopeValue(value, sent, cache, store)
+		return sanitizeEnvelopeValue(value, sent, cache)
 	}
 
 	attachments := make(map[string]ports.Attachment)
@@ -195,10 +195,10 @@ func sanitizeUntypedAttachments(value any, sent *stringLRU, cache *DataCache, st
 	}
 
 	if len(attachments) == 0 {
-		return sanitizeEnvelopePayload(raw, sent, cache, store)
+		return sanitizeEnvelopePayload(raw, sent, cache)
 	}
 
-	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, store, false)
+	sanitized := sanitizeAttachmentsForStream(attachments, sent, cache, false)
 	if len(sanitized) == 0 {
 		return nil
 	}

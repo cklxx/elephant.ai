@@ -102,7 +102,7 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 
 	// Allow direct user input events if they have not been wrapped yet.
 	if input, ok := event.(*domain.WorkflowInputReceivedEvent); ok {
-		if sanitized := sanitizeAttachmentsForStream(input.Attachments, sentAttachments, h.dataCache, h.attachmentStore, false); len(sanitized) > 0 {
+		if sanitized := sanitizeAttachmentsForStream(input.Attachments, sentAttachments, h.dataCache, false); len(sanitized) > 0 {
 			data["attachments"] = sanitized
 		}
 		data["task"] = input.Task
@@ -143,7 +143,7 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 		data["max_parallel"] = envelope.MaxParallel
 	}
 
-	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache, h.attachmentStore)
+	payload := sanitizeWorkflowEnvelopePayload(envelope, sentAttachments, h.dataCache)
 
 	// Force-include all attachments on the terminal workflow.result.final event
 	// so the frontend always receives the full attachment set in the completion
@@ -153,7 +153,7 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 		if finished, _ := envelope.Payload["stream_finished"].(bool); finished {
 			if rawAtts, ok := envelope.Payload["attachments"]; ok {
 				if typedAtts := coerceAttachmentMap(rawAtts); len(typedAtts) > 0 {
-					forced := sanitizeAttachmentsForStream(typedAtts, sentAttachments, h.dataCache, h.attachmentStore, true)
+					forced := sanitizeAttachmentsForStream(typedAtts, sentAttachments, h.dataCache, true)
 					if len(forced) > 0 {
 						if payload == nil {
 							payload = make(map[string]any)

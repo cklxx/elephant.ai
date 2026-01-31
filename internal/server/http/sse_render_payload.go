@@ -9,34 +9,34 @@ import (
 	"alex/internal/workflow"
 )
 
-func sanitizeEnvelopePayload(payload map[string]any, sent *stringLRU, cache *DataCache, store *AttachmentStore) map[string]any {
+func sanitizeEnvelopePayload(payload map[string]any, sent *stringLRU, cache *DataCache) map[string]any {
 	if len(payload) == 0 {
 		return nil
 	}
 	sanitized := make(map[string]any, len(payload))
 	for key, value := range payload {
 		if key == "attachments" {
-			sanitized[key] = sanitizeUntypedAttachments(value, sent, cache, store)
+			sanitized[key] = sanitizeUntypedAttachments(value, sent, cache)
 			continue
 		}
 		if key == "result" && cache != nil {
 			clean := sanitizeStepResultValue(value)
-			sanitized[key] = sanitizeEnvelopeValue(clean, sent, cache, store)
+			sanitized[key] = sanitizeEnvelopeValue(clean, sent, cache)
 			continue
 		}
-		sanitized[key] = sanitizeEnvelopeValue(value, sent, cache, store)
+		sanitized[key] = sanitizeEnvelopeValue(value, sent, cache)
 	}
 	return sanitized
 }
 
-func sanitizeEnvelopeValue(value any, sent *stringLRU, cache *DataCache, store *AttachmentStore) any {
+func sanitizeEnvelopeValue(value any, sent *stringLRU, cache *DataCache) any {
 	switch v := value.(type) {
 	case nil:
 		return nil
 	case map[string]ports.Attachment:
-		return sanitizeAttachmentsForStream(v, sent, cache, store, false)
+		return sanitizeAttachmentsForStream(v, sent, cache, false)
 	case ports.Attachment:
-		if sanitized := sanitizeAttachmentsForStream(map[string]ports.Attachment{"attachment": v}, sent, cache, store, false); len(sanitized) > 0 {
+		if sanitized := sanitizeAttachmentsForStream(map[string]ports.Attachment{"attachment": v}, sent, cache, false); len(sanitized) > 0 {
 			return sanitized["attachment"]
 		}
 		return nil
@@ -61,7 +61,7 @@ func sanitizeEnvelopeValue(value any, sent *stringLRU, cache *DataCache, store *
 		sanitized := make(map[string]any, len(v))
 		for key, val := range v {
 			if key == "attachments" {
-				sanitized[key] = sanitizeUntypedAttachments(val, sent, cache, store)
+				sanitized[key] = sanitizeUntypedAttachments(val, sent, cache)
 				continue
 			}
 			if key == "nodes" {
@@ -70,13 +70,13 @@ func sanitizeEnvelopeValue(value any, sent *stringLRU, cache *DataCache, store *
 			if key == "messages" || key == "attachment_iterations" {
 				continue
 			}
-			sanitized[key] = sanitizeEnvelopeValue(val, sent, cache, store)
+			sanitized[key] = sanitizeEnvelopeValue(val, sent, cache)
 		}
 		return sanitized
 	case []any:
 		out := make([]any, len(v))
 		for i, entry := range v {
-			out[i] = sanitizeEnvelopeValue(entry, sent, cache, store)
+			out[i] = sanitizeEnvelopeValue(entry, sent, cache)
 		}
 		return out
 	default:
@@ -84,7 +84,7 @@ func sanitizeEnvelopeValue(value any, sent *stringLRU, cache *DataCache, store *
 	}
 }
 
-func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent *stringLRU, cache *DataCache, store *AttachmentStore) map[string]any {
+func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent *stringLRU, cache *DataCache) map[string]any {
 	if env == nil {
 		return nil
 	}
@@ -94,7 +94,7 @@ func sanitizeWorkflowEnvelopePayload(env *domain.WorkflowEventEnvelope, sent *st
 		payload = scrubStepPayload(payload)
 	}
 
-	return sanitizeEnvelopePayload(payload, sent, cache, store)
+	return sanitizeEnvelopePayload(payload, sent, cache)
 }
 
 func sanitizeStepResultValue(value any) any {
