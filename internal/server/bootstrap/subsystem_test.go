@@ -38,12 +38,6 @@ func (f *fakeSubsystem) Stop() {
 	f.mu.Unlock()
 }
 
-func (f *fakeSubsystem) isStarted() bool {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return f.started
-}
-
 func (f *fakeSubsystem) isStopped() bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
