@@ -909,6 +909,9 @@ cmd_logs() {
 
 cmd_test() {
   log_info "Running Go tests (CI parity)..."
+  if [[ "$(uname -s)" == "Darwin" && -z "${CGO_ENABLED:-}" ]]; then
+    export CGO_ENABLED=0
+  fi
   "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" test -race -covermode=atomic -coverprofile=coverage.out ./...
   log_success "Go tests passed"
 }
