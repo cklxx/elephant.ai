@@ -35,6 +35,7 @@ type EventBroadcaster struct {
 	maxSessions  int
 	sessionTTL   time.Duration
 	historyStore EventHistoryStore
+	pruneCounter atomic.Int64
 
 	// Global events that apply to all sessions (e.g., diagnostics)
 	globalHistory []agent.AgentEvent
@@ -48,6 +49,7 @@ const (
 	assistantMessageEventType = types.EventNodeOutputDelta
 	assistantMessageLogBatch  = 10
 	globalHighVolumeSessionID = "__global__"
+	pruneEveryN               = 100
 )
 
 // broadcasterMetrics tracks broadcaster performance metrics using lock-free
@@ -130,7 +132,7 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 		return
 	}
 
-	if b.shouldSuppressHighVolumeLogs(baseEvent) {
+	if b.isHighVolumeEvent(baseEvent) {
 		b.trackHighVolumeEvent(baseEvent)
 	}
 
@@ -288,9 +290,11 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agent.Agen
 	clients := current[sessionID]
 	for i, client := range clients {
 		if client == ch {
-			// Remove client from list
+			// Clone first, then operate on the cloned slice to avoid
+			// mutating the original slice's backing array.
 			updated := cloneClientMap(current)
-			updated[sessionID] = append(clients[:i], clients[i+1:]...)
+			clonedClients := updated[sessionID]
+			updated[sessionID] = append(clonedClients[:i], clonedClients[i+1:]...)
 			b.metrics.decrementConnections()
 			b.logger.Info("Client unregistered from session %s (remaining: %d)", sessionID, len(updated[sessionID]))
 
@@ -336,7 +340,9 @@ func (b *EventBroadcaster) storeEventHistory(sessionID string, event agent.Agent
 	b.historyMu.Lock()
 	defer b.historyMu.Unlock()
 
-	b.pruneExpiredSessionsLocked(now)
+	if b.pruneCounter.Add(1)%pruneEveryN == 0 {
+		b.pruneExpiredSessionsLocked(now)
+	}
 
 	history := b.eventHistory[sessionID]
 	if history == nil {
@@ -443,12 +449,13 @@ func (b *EventBroadcaster) StreamHistory(ctx context.Context, filter EventHistor
 		b.globalMu.RUnlock()
 	} else {
 		now := time.Now()
-		b.historyMu.Lock()
-		b.pruneExpiredSessionsLocked(now)
+		b.historyMu.RLock()
 		if entry := b.eventHistory[filter.SessionID]; entry != nil {
-			history = append(history, entry.events...)
+			if b.sessionTTL <= 0 || now.Sub(entry.lastSeen) <= b.sessionTTL {
+				history = append(history, entry.events...)
+			}
 		}
-		b.historyMu.Unlock()
+		b.historyMu.RUnlock()
 	}
 	if len(history) == 0 {
 		return nil
@@ -592,19 +599,14 @@ func isStreamingHistoryEnvelope(payload map[string]any) bool {
 	return false
 }
 
-// shouldSuppressHighVolumeLogs determines whether verbose logs should be
-// suppressed for the provided event type. Assistant streaming events are very
-// high volume and can flood the logs, so we only log these events in batches.
-func (b *EventBroadcaster) shouldSuppressHighVolumeLogs(event agent.AgentEvent) bool {
-	base := BaseAgentEvent(event)
-	if base == nil {
-		return false
-	}
-	return base.EventType() == assistantMessageEventType
+// isHighVolumeEvent reports whether the event type is high-volume (e.g.
+// assistant streaming deltas) and should be tracked in batches to avoid
+// flooding the logs.
+func (b *EventBroadcaster) isHighVolumeEvent(base agent.AgentEvent) bool {
+	return base != nil && base.EventType() == assistantMessageEventType
 }
 
-func (b *EventBroadcaster) trackHighVolumeEvent(event agent.AgentEvent) {
-	base := BaseAgentEvent(event)
+func (b *EventBroadcaster) trackHighVolumeEvent(base agent.AgentEvent) {
 	if base == nil {
 		return
 	}
