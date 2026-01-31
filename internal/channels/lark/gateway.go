@@ -185,8 +185,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 
 	senderID := extractSenderID(event)
 	memoryID := g.memoryIDForChat(chatID)
+	mode := strings.TrimSpace(g.cfg.SessionMode)
+	if mode == "" {
+		mode = "fresh"
+	}
 	sessionID := memoryID
-	if strings.EqualFold(strings.TrimSpace(g.cfg.SessionMode), "fresh") {
+	if strings.EqualFold(mode, "fresh") {
 		sessionID = fmt.Sprintf("%s-%s", g.cfg.SessionPrefix, id.NewLogID())
 	}
 
@@ -195,7 +199,8 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	defer lock.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
-	execCtx = appcontext.WithSessionHistory(execCtx, false)
+	historyEnabled := !strings.EqualFold(mode, "fresh")
+	execCtx = appcontext.WithSessionHistory(execCtx, historyEnabled)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)

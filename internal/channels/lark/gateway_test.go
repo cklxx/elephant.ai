@@ -346,7 +346,7 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 
 	executor := &capturingExecutor{}
 	gw := &Gateway{
-		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "fresh"},
 		agent:  executor,
 		logger: logging.OrNop(nil),
 		now:    func() time.Time { return time.Now() },
@@ -386,6 +386,54 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 	}
 	if appcontext.SessionHistoryEnabled(executor.capturedCtx) {
 		t.Fatalf("expected session history to be disabled for lark")
+	}
+}
+
+func TestHandleMessageSessionHistoryStable(t *testing.T) {
+	openID := "ou_sender_history"
+	chatID := "oc_chat_history"
+	msgID := "om_msg_history"
+	content := `{"text":"hello history"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret", SessionMode: "stable"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	if executor.capturedCtx == nil {
+		t.Fatal("expected ExecuteTask to be called")
+	}
+
+	if !appcontext.SessionHistoryEnabled(executor.capturedCtx) {
+		t.Fatalf("expected session history to be enabled for stable sessions")
 	}
 }
 
