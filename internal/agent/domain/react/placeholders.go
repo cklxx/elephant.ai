@@ -106,21 +106,22 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 	return merged
 }
 
-func (e *ReactEngine) applyImportantNotes(state *TaskState, call ToolCall, metadata map[string]any) {
-	if state == nil || len(metadata) == 0 {
-		return
+// extractImportantNotes normalizes and enriches important notes from tool
+// metadata. This is a pure function that does not touch shared state, so it
+// can safely run outside any lock.
+func (e *ReactEngine) extractImportantNotes(call ToolCall, metadata map[string]any) []ports.ImportantNote {
+	if len(metadata) == 0 {
+		return nil
 	}
 	raw, ok := metadata["important_notes"]
 	if !ok {
-		return
+		return nil
 	}
 	notes := normalizeImportantNotes(raw, e.clock)
 	if len(notes) == 0 {
-		return
+		return nil
 	}
-	if state.Important == nil {
-		state.Important = make(map[string]ports.ImportantNote)
-	}
+	enriched := notes[:0]
 	for _, note := range notes {
 		if strings.TrimSpace(note.Content) == "" {
 			continue
@@ -134,6 +135,21 @@ func (e *ReactEngine) applyImportantNotes(state *TaskState, call ToolCall, metad
 		if note.Source == "" {
 			note.Source = call.Name
 		}
+		enriched = append(enriched, note)
+	}
+	return enriched
+}
+
+// mergeImportantNotes writes pre-extracted notes into the shared task state.
+// Caller must hold stateMu.
+func (e *ReactEngine) mergeImportantNotes(state *TaskState, notes []ports.ImportantNote) {
+	if state == nil || len(notes) == 0 {
+		return
+	}
+	if state.Important == nil {
+		state.Important = make(map[string]ports.ImportantNote)
+	}
+	for _, note := range notes {
 		state.Important[note.ID] = note
 	}
 }

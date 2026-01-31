@@ -99,9 +99,14 @@ func (b *toolCallBatch) execute() []ToolResult {
 }
 
 func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
-	tc.SessionID = b.state.SessionID
-	tc.TaskID = b.state.RunID
-	tc.ParentTaskID = b.state.ParentRunID
+	// Cache shared-state IDs once to avoid repeated cross-goroutine reads.
+	sessionID := b.state.SessionID
+	runID := b.state.RunID
+	parentRunID := b.state.ParentRunID
+
+	tc.SessionID = sessionID
+	tc.TaskID = runID
+	tc.ParentTaskID = parentRunID
 
 	nodeID := ""
 	if b.tracker != nil {
@@ -128,7 +133,7 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 			return
 		}
 		b.engine.emitEvent(&domain.WorkflowToolProgressEvent{
-			BaseEvent:  b.engine.newBaseEvent(b.ctx, b.state.SessionID, b.state.RunID, b.state.ParentRunID),
+			BaseEvent:  b.engine.newBaseEvent(b.ctx, sessionID, runID, parentRunID),
 			CallID:     tc.ID,
 			Chunk:      chunk,
 			IsComplete: isComplete,
@@ -167,9 +172,13 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		&b.attachmentsMu,
 	)
 	if len(result.Metadata) > 0 {
-		b.stateMu.Lock()
-		b.engine.applyImportantNotes(b.state, tc, result.Metadata)
-		b.stateMu.Unlock()
+		// Extract and normalize notes outside the lock (pure computation).
+		notes := b.engine.extractImportantNotes(tc, result.Metadata)
+		if len(notes) > 0 {
+			b.stateMu.Lock()
+			b.engine.mergeImportantNotes(b.state, notes)
+			b.stateMu.Unlock()
+		}
 	}
 
 	b.finalize(idx, tc, nodeID, *result, startTime)
