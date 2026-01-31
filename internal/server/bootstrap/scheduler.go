@@ -8,6 +8,7 @@ import (
 	"alex/internal/async"
 	"alex/internal/di"
 	"alex/internal/logging"
+	"alex/internal/moltbook"
 	"alex/internal/scheduler"
 	okrtools "alex/internal/tools/builtin/okr"
 )
@@ -20,15 +21,33 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 	// Resolve OKR goals root
 	goalsRoot := resolveGoalsRoot(cfg)
 
-	// Build notifier
-	var notifier scheduler.Notifier
+	// Build notifier(s)
+	var notifiers []scheduler.Notifier
+
 	larkCfg := cfg.Channels.Lark
 	if larkCfg.Enabled && larkCfg.AppID != "" && larkCfg.AppSecret != "" {
-		notifier = scheduler.NewLarkNotifier(larkCfg.AppID, larkCfg.AppSecret, logger)
+		notifiers = append(notifiers, scheduler.NewLarkNotifier(larkCfg.AppID, larkCfg.AppSecret, logger))
 		logger.Info("Scheduler: Lark notifier initialized")
-	} else {
+	}
+
+	if cfg.Runtime.MoltbookAPIKey != "" {
+		moltbookClient := moltbook.NewRateLimitedClient(moltbook.Config{
+			BaseURL: cfg.Runtime.MoltbookBaseURL,
+			APIKey:  cfg.Runtime.MoltbookAPIKey,
+		})
+		notifiers = append(notifiers, scheduler.NewMoltbookNotifier(moltbookClient, logger))
+		logger.Info("Scheduler: Moltbook notifier initialized")
+	}
+
+	var notifier scheduler.Notifier
+	switch len(notifiers) {
+	case 0:
 		notifier = scheduler.NopNotifier{}
-		logger.Info("Scheduler: notifications disabled (no Lark config)")
+		logger.Info("Scheduler: notifications disabled (no channel config)")
+	case 1:
+		notifier = notifiers[0]
+	default:
+		notifier = scheduler.NewCompositeNotifier(notifiers...)
 	}
 
 	schedCfg := scheduler.Config{
