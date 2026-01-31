@@ -204,7 +204,7 @@ describe("authClient.waitForOAuthSession", () => {
 
     const controller = new AbortController();
 
-    const promise = authClient.waitForOAuthSession("wechat", {
+    const promise = authClient.waitForOAuthSession("google", {
       signal: controller.signal,
       timeoutMs: 5000,
       pollIntervalMs: 250,

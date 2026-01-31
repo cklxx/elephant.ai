@@ -1142,7 +1142,6 @@ export default function ConversationDebugPage() {
     const metadata = meta?.metadata as Record<string, string> | undefined;
     if (metadata?.channel) return metadata.channel;
     if (sessionId.startsWith("lark-")) return "lark";
-    if (sessionId.startsWith("wechat-")) return "wechat";
     return null;
   }, [sessionSnapshot, sessionId]);
 

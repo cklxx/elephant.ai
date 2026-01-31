@@ -191,7 +191,7 @@ export default function AppsConfigPage() {
                             onChange={(event) =>
                               updatePlugin(index, { id: event.target.value })
                             }
-                            placeholder="wechat"
+                            placeholder="lark"
                           />
                         </div>
                         <div className="grid gap-2">
@@ -201,7 +201,7 @@ export default function AppsConfigPage() {
                             onChange={(event) =>
                               updatePlugin(index, { name: event.target.value })
                             }
-                            placeholder="WeChat"
+                            placeholder="Lark"
                           />
                         </div>
                       </div>

@@ -1,34 +1,23 @@
 "use client";
 
 import clsx from "clsx";
-import { Chrome, MessageCircle } from "lucide-react";
+import { Chrome } from "lucide-react";
 import {
   FormEvent,
   Suspense,
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import QRCode from "qrcode";
 
 import type { OAuthProvider } from "@/lib/auth/client";
 import { useAuth } from "@/lib/auth/context";
 import { useI18n } from "@/lib/i18n";
 
 type AuthMode = "login" | "register";
-
-type WeChatStatus =
-  | "idle"
-  | "initializing"
-  | "waiting"
-  | "refreshing"
-  | "expired"
-  | "error";
 
 function resolveNextTarget(raw: string | null): string {
   if (!raw) {
@@ -52,8 +41,6 @@ function LoginPageContent() {
     login,
     register,
     loginWithProvider,
-    startOAuth,
-    awaitOAuthSession,
   } = useAuth();
   const { t } = useI18n();
   const [email, setEmail] = useState("");
@@ -66,13 +53,6 @@ function LoginPageContent() {
     resolveAuthMode(searchParams.get("mode")),
   );
   const [oauthPending, setOauthPending] = useState<OAuthProvider | null>(null);
-  const [wechatModalOpen, setWeChatModalOpen] = useState(false);
-  const [wechatAuthUrl, setWeChatAuthUrl] = useState<string | null>(null);
-  const [wechatQrDataUrl, setWeChatQrDataUrl] = useState<string | null>(null);
-  const [wechatQrError, setWeChatQrError] = useState<string | null>(null);
-  const [wechatGenerating, setWeChatGenerating] = useState(false);
-  const [wechatStatus, setWeChatStatus] = useState<WeChatStatus>("idle");
-  const wechatAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const nextMode = resolveAuthMode(searchParams.get("mode"));
@@ -161,24 +141,6 @@ function LoginPageContent() {
   const isBusy =
     submitting || oauthPending !== null || status === "loading";
 
-  const resetWeChatState = () => {
-    setWeChatModalOpen(false);
-    setWeChatAuthUrl(null);
-    setWeChatQrDataUrl(null);
-    setWeChatQrError(null);
-    setWeChatGenerating(false);
-    setWeChatStatus("idle");
-  };
-
-  const cancelWeChatLogin = () => {
-    if (wechatAbortRef.current) {
-      wechatAbortRef.current.abort();
-      wechatAbortRef.current = null;
-    }
-    setOauthPending(null);
-    resetWeChatState();
-  };
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
@@ -204,112 +166,6 @@ function LoginPageContent() {
 
   const handleOAuth = async (provider: OAuthProvider) => {
     setError(null);
-
-    if (provider === "wechat") {
-      if (wechatAbortRef.current) {
-        wechatAbortRef.current.abort();
-        wechatAbortRef.current = null;
-      }
-      resetWeChatState();
-      const controller = new AbortController();
-      wechatAbortRef.current = controller;
-      setOauthPending("wechat");
-      setWeChatModalOpen(true);
-
-      const MAX_ATTEMPTS = 3;
-      const REFRESH_DELAY_MS = 1500;
-      const SESSION_TIMEOUT_MS = 70_000;
-      let succeeded = false;
-
-      try {
-        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
-          if (controller.signal.aborted) {
-            throw new Error("OAuth login cancelled");
-          }
-
-          setWeChatStatus(attempt === 0 ? "initializing" : "refreshing");
-          setWeChatQrError(null);
-          setWeChatQrDataUrl(null);
-          setWeChatAuthUrl(null);
-          setWeChatGenerating(true);
-
-          let url: string;
-          try {
-            ({ url } = await startOAuth("wechat"));
-          } catch (err) {
-            if (controller.signal.aborted) {
-              throw err;
-            }
-            setWeChatStatus("error");
-            setWeChatQrError(translateError(err, "oauth"));
-            setWeChatAuthUrl(null);
-            setWeChatGenerating(false);
-            throw err;
-          }
-
-          if (controller.signal.aborted) {
-            throw new Error("OAuth login cancelled");
-          }
-
-          setWeChatAuthUrl(url);
-
-          try {
-            await awaitOAuthSession("wechat", {
-              signal: controller.signal,
-              timeoutMs: SESSION_TIMEOUT_MS,
-              pollIntervalMs: 1000,
-            });
-            succeeded = true;
-            router.replace(nextTarget);
-            return;
-          } catch (err) {
-            if (controller.signal.aborted) {
-              throw err;
-            }
-
-            const message =
-              err instanceof Error ? err.message.toLowerCase() : "";
-            const isTimeout = message.includes("timed out");
-            const isCancelled =
-              message.includes("cancel") || message.includes("closed");
-
-            if (isCancelled) {
-              throw err;
-            }
-
-            if (attempt === MAX_ATTEMPTS - 1 || !isTimeout) {
-              setWeChatStatus("error");
-              setWeChatQrError(translateError(err, "oauth"));
-              setWeChatAuthUrl(null);
-              setWeChatGenerating(false);
-              throw err;
-            }
-
-            setWeChatStatus("expired");
-            setWeChatAuthUrl(null);
-            setWeChatGenerating(false);
-
-            await new Promise<void>((resolve) => {
-              window.setTimeout(resolve, REFRESH_DELAY_MS);
-            });
-          }
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          setError(translateError(err, "oauth"));
-        }
-      } finally {
-        if (wechatAbortRef.current === controller) {
-          wechatAbortRef.current = null;
-        }
-        setOauthPending(null);
-        if (controller.signal.aborted || succeeded) {
-          resetWeChatState();
-        }
-      }
-      return;
-    }
-
     setOauthPending(provider);
     try {
       await loginWithProvider(provider);
@@ -320,85 +176,6 @@ function LoginPageContent() {
       setOauthPending(null);
     }
   };
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!wechatModalOpen) {
-      setWeChatQrDataUrl(null);
-      setWeChatQrError(null);
-      setWeChatGenerating(false);
-      return;
-    }
-
-    if (!wechatAuthUrl) {
-      setWeChatQrDataUrl(null);
-      setWeChatQrError(null);
-      return;
-    }
-
-    setWeChatGenerating(true);
-    setWeChatQrDataUrl(null);
-    setWeChatQrError(null);
-
-    QRCode.toDataURL(wechatAuthUrl, {
-      margin: 1,
-      scale: 6,
-      width: 240,
-      color: {
-        dark: "#0f172a",
-        light: "#ffffff",
-      },
-    })
-      .then((dataUrl) => {
-        if (!cancelled) {
-          setWeChatQrDataUrl(dataUrl);
-          setWeChatStatus("waiting");
-        }
-      })
-      .catch((error) => {
-        console.warn("[LoginPage] Failed to render WeChat QR code", error);
-        if (!cancelled) {
-          setWeChatQrError(t("auth.oauth.wechat.qrError"));
-          setWeChatStatus("error");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setWeChatGenerating(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [t, wechatAuthUrl, wechatModalOpen]);
-
-  useEffect(() => {
-    return () => {
-      if (wechatAbortRef.current) {
-        wechatAbortRef.current.abort();
-        wechatAbortRef.current = null;
-      }
-    };
-  }, []);
-
-  const wechatStatusLabel = useMemo(() => {
-    switch (wechatStatus) {
-      case "initializing":
-        return t("auth.oauth.wechat.status.initializing");
-      case "waiting":
-        return t("auth.oauth.wechat.status.waiting");
-      case "refreshing":
-        return t("auth.oauth.wechat.status.refreshing");
-      case "expired":
-        return t("auth.oauth.wechat.status.expired");
-      case "error":
-        return t("auth.oauth.wechat.status.error");
-      default:
-        return null;
-    }
-  }, [t, wechatStatus]);
 
   return (
     <>
@@ -479,17 +256,6 @@ function LoginPageContent() {
                 {oauthPending === "google"
                   ? t("auth.oauth.pending")
                   : t("auth.oauth.google")}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOAuth("wechat")}
-                className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-900 transition-transform hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-60 backdrop-blur"
-                disabled={isBusy}
-              >
-                <MessageCircle className="h-4 w-4" aria-hidden="true" />
-                {oauthPending === "wechat"
-                  ? t("auth.oauth.pending")
-                  : t("auth.oauth.wechat")}
               </button>
             </div>
 
@@ -661,52 +427,6 @@ function LoginPageContent() {
       </div>
       </div>
 
-      {wechatModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-8">
-          <div className="w-full max-w-sm space-y-6 rounded-[32px] bg-white/10 p-6 text-[hsl(var(--foreground))] backdrop-blur">
-            <div className="space-y-2 text-center">
-              <h2 className="text-xl font-semibold">{t("auth.oauth.wechat.title")}</h2>
-              <p className="text-sm text-gray-600">{t("auth.oauth.wechat.subtitle")}</p>
-            </div>
-            <div className="flex justify-center">
-              {wechatQrDataUrl ? (
-                <Image
-                  src={wechatQrDataUrl}
-                  alt={t("auth.oauth.wechat.alt")}
-                  width={192}
-                  height={192}
-                  unoptimized
-                  className="h-48 w-48 rounded-[24px] bg-white/80 p-3"
-                />
-              ) : wechatGenerating ? (
-                <div className="flex h-48 w-48 items-center justify-center rounded-[24px] bg-white/50 px-4 text-center text-sm text-gray-700">
-                  {t("auth.oauth.wechat.generating")}
-                </div>
-              ) : wechatStatus === "error" ? (
-                <div className="flex h-48 w-48 items-center justify-center rounded-[24px] bg-rose-500/15 px-4 text-center text-sm text-rose-700">
-                  {wechatQrError ?? t("auth.oauth.wechat.qrError")}
-                </div>
-              ) : (
-                <div className="flex h-48 w-48 items-center justify-center rounded-[24px] bg-white/60 px-4 text-center text-sm text-gray-700">
-                  {wechatStatus === "expired"
-                    ? t("auth.oauth.wechat.status.expired")
-                    : t("auth.oauth.wechat.generating")}
-                </div>
-              )}
-            </div>
-            {wechatStatusLabel && (
-              <p className="text-center text-xs text-gray-600">{wechatStatusLabel}</p>
-            )}
-            <button
-              type="button"
-              onClick={cancelWeChatLogin}
-              className="w-full rounded-[24px] bg-white/15 px-4 py-3 text-sm font-semibold text-[hsl(var(--foreground))] transition-transform hover:-translate-y-0.5"
-            >
-              {t("auth.oauth.wechat.cancel")}
-            </button>
-          </div>
-        </div>
-      )}
     </>
   );
 }

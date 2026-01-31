@@ -35,7 +35,7 @@ type OAuthStartResponse = {
   state?: string;
 };
 
-export type OAuthProvider = "google" | "wechat";
+export type OAuthProvider = "google";
 
 export interface OAuthSessionOptions {
   popup?: Window | null;
