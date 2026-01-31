@@ -707,3 +707,21 @@ uploadImage() / uploadFile() → Lark API
 - **回归测试**: 现有 SSE 附件推送行为不变 (normalizeAttachmentPayload 降级路径)
 - **类型安全测试**: 事件 JSON 序列化/反序列化后类型断言验证 (attachmentsFromUntypedMap)
 - **降级测试**: Store 不可用时,base64 保留、SSE DataCache 兜底
+
+---
+
+## 9. Review & Optimization Addendum (2026-01-31)
+
+### 9.1 变更摘要
+- **SSE DataCache 线路补齐**: 路由层注入 DataCache，并注册 `/api/data/` 端点，确保 SSE 的 inline 降级路径可访问。
+- **CLI 回放附件类型兼容**: CLI 解析 `map[string]any` 形式的 attachments，保证回放时仍能显示附件。
+- **Lark 附件过滤不再修改原 map**: sendAttachments 使用过滤副本，避免修改 `TaskResult.Attachments`。
+- **关闭异步持久化**: AgentCoordinator/Container shutdown 时关闭 `AsyncStorePersister`，避免 goroutine 泄漏。
+- **Presign TTL 默认提升**: 无 public base URL 时默认 TTL 提升到 4h，并在文档中提示。
+
+### 9.2 验收标准
+- `/api/data/<id>` 在路由层可用，SSE 降级附件可被前端访问。
+- CLI 回放事件时，attachments 仍可解析为 `map[string]ports.Attachment`。
+- Lark sendAttachments 不会从 `result.Attachments` 删除 A2UI 项。
+- 服务退出时异步 persister 被正常关闭。
+- 文档说明 presign_ttl 的推荐值与默认行为一致。
