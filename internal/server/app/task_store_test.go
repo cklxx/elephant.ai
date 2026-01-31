@@ -80,6 +80,9 @@ func TestInMemoryTaskStore_Get(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for non-existent task")
 	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("Expected ErrNotFound sentinel, got: %v", err)
+	}
 }
 
 func TestInMemoryTaskStore_SetStatus(t *testing.T) {
@@ -381,6 +384,9 @@ func TestInMemoryTaskStore_Delete(t *testing.T) {
 	err = store.Delete(ctx, "non-existent")
 	if err == nil {
 		t.Error("Expected error when deleting non-existent task")
+	}
+	if !errors.Is(err, ErrNotFound) {
+		t.Errorf("Expected ErrNotFound sentinel, got: %v", err)
 	}
 }
 

@@ -232,7 +232,7 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.coordinator.GetTask(r.Context(), taskID)
 	if err != nil {
-		h.writeMappedError(w, err, http.StatusNotFound, "Task not found")
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to retrieve task")
 		return
 	}
 

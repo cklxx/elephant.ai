@@ -172,7 +172,7 @@ func (s *InMemoryTaskStore) Get(ctx context.Context, taskID string) (*ports.Task
 
 	task, exists := s.tasks[taskID]
 	if !exists {
-		return nil, fmt.Errorf("task not found: %s", taskID)
+		return nil, NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
 
 	// Return a copy to prevent concurrent access issues
@@ -186,7 +186,7 @@ func (s *InMemoryTaskStore) Update(ctx context.Context, task *ports.Task) error 
 	defer s.mu.Unlock()
 
 	if _, exists := s.tasks[task.ID]; !exists {
-		return fmt.Errorf("task not found: %s", task.ID)
+		return NotFoundError(fmt.Sprintf("task %s", task.ID))
 	}
 
 	s.tasks[task.ID] = task
@@ -253,7 +253,7 @@ func (s *InMemoryTaskStore) Delete(ctx context.Context, taskID string) error {
 	defer s.mu.Unlock()
 
 	if _, exists := s.tasks[taskID]; !exists {
-		return fmt.Errorf("task not found: %s", taskID)
+		return NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
 
 	delete(s.tasks, taskID)
@@ -267,7 +267,7 @@ func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status
 
 	task, exists := s.tasks[taskID]
 	if !exists {
-		return fmt.Errorf("task not found: %s", taskID)
+		return NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
 
 	task.Status = status
@@ -312,7 +312,7 @@ func (s *InMemoryTaskStore) SetError(ctx context.Context, taskID string, err err
 
 	task, exists := s.tasks[taskID]
 	if !exists {
-		return fmt.Errorf("task not found: %s", taskID)
+		return NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
 
 	task.Error = err.Error()
@@ -331,7 +331,7 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 
 	task, exists := s.tasks[taskID]
 	if !exists {
-		return fmt.Errorf("task not found: %s", taskID)
+		return NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
 
 	task.Result = result
@@ -364,7 +364,7 @@ func (s *InMemoryTaskStore) UpdateProgress(ctx context.Context, taskID string, i
 
 	task, exists := s.tasks[taskID]
 	if !exists {
-		return fmt.Errorf("task not found: %s", taskID)
+		return NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
 
 	task.CurrentIteration = iteration
@@ -380,7 +380,7 @@ func (s *InMemoryTaskStore) SetTerminationReason(ctx context.Context, taskID str
 
 	task, exists := s.tasks[taskID]
 	if !exists {
-		return fmt.Errorf("task not found: %s", taskID)
+		return NotFoundError(fmt.Sprintf("task %s", taskID))
 	}
 
 	task.TerminationReason = reason
