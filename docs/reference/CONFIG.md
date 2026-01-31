@@ -214,7 +214,7 @@ channels:
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
 - `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode。
 - `reply_timeout_seconds`：单条消息执行超时（秒）。
-- `react_emoji`：收到消息后立即表情回应（如 `"SMILE"`）。
+- `react_emoji`：随机表情池（逗号/空格分隔）。同一次请求会在开始/结束分别随机挑选不同表情；少于 2 个时会回退默认池。
 - `memory_enabled`：启用记忆自动保存/召回。
 - `show_tool_progress`：是否在 Lark 显示工具执行进度。
 - `auto_chat_context` / `auto_chat_context_size`：自动拉取近期聊天上下文。
@@ -238,7 +238,7 @@ channels:
     tool_preset: "full"
     tool_mode: "cli"
     reply_timeout_seconds: 180
-    react_emoji: "SMILE"
+    react_emoji: "WAVE, SMILE, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM"
     memory_enabled: true
     show_tool_progress: true
     auto_chat_context: true
