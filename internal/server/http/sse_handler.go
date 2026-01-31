@@ -39,6 +39,7 @@ var sseAllowlist = map[string]bool{
 	types.EventExecutorUpdate:               true,
 	types.EventExecutorUserMessage:          true,
 	types.EventProactiveContextRefresh:      true,
+	types.EventStreamDropped:                true,
 }
 
 var blockedNodeIDs = map[string]bool{

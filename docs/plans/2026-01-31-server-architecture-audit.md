@@ -1,7 +1,7 @@
 # internal/server 架构审计与优化计划
 
 **Created:** 2026-01-31
-**Status:** Completed (Batches 1-6)
+**Status:** Completed (All phases)
 **Author:** cklxx + AI
 
 ---
@@ -17,11 +17,10 @@
 | 5 | 1.1 | Split ServerCoordinator into 3 services | `7d0f2e07` | Done |
 | 6 | 2 | Router refactor (RouterDeps/RouterConfig) | `ff3d09d3` | Done |
 
-### Remaining items (not in scope for this round)
-- Phase 4.1: InMemoryTaskStore TTL eviction
-- Phase 5.2: LLM Health Probe actual detection
-- Phase 5.3: WriteTimeout per-route handling
-- Phase 5.4: Event drop observability & backpressure
+| 7 | 4.1 | InMemoryTaskStore TTL eviction | pending commit | Done |
+| 8 | 5.2 | LLM Health Probe actual detection | pending commit | Done |
+| 9 | 5.3 | WriteTimeout per-route handling | pending commit | Done |
+| 10 | 5.4 | Event drop observability (per-session) | pending commit | Done |
 
 ---
 

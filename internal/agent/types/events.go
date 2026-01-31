@@ -49,4 +49,7 @@ const (
 	// Background tasks
 	EventBackgroundTaskDispatched = "background.task.dispatched"
 	EventBackgroundTaskCompleted  = "background.task.completed"
+
+	// Stream infrastructure (synthesized by EventBroadcaster, not by agent)
+	EventStreamDropped = "workflow.stream.dropped"
 )

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"alex/internal/agent/domain"
 	core "alex/internal/agent/ports"
@@ -53,6 +54,7 @@ type broadcasterMetrics struct {
 	droppedEvents     atomic.Int64 // Events dropped due to full buffers
 	totalConnections  atomic.Int64 // Total connections ever made
 	activeConnections atomic.Int64 // Currently active connections
+	dropsPerSession   sync.Map     // sessionID -> *atomic.Int64
 }
 
 // EventBroadcasterOption configures a broadcaster instance.
@@ -157,9 +159,37 @@ func (b *EventBroadcaster) broadcastToClients(sessionID string, clients []chan a
 				continue
 			}
 			// Client buffer full, skip this event to avoid blocking
-			b.logger.Warn("Client buffer full for session %s, dropping event (client %d/%d)", sessionID, i+1, len(clients))
-			b.metrics.incrementDroppedEvents()
+			b.logger.Warn("Client buffer full for session %s, dropping event %s (client %d/%d)", sessionID, event.EventType(), i+1, len(clients))
+			dropCount := b.metrics.incrementDroppedEvents(sessionID)
+
+			// Notify the client about the drop so the frontend can display a gap indicator.
+			// We only send this notification periodically (powers of 2) to avoid flooding
+			// an already-saturated channel.
+			if dropCount&(dropCount-1) == 0 { // power of 2: 1, 2, 4, 8, ...
+				droppedNotice := newStreamDroppedEnvelope(sessionID, event.EventType(), dropCount)
+				select {
+				case ch <- droppedNotice:
+					b.metrics.incrementEventsSent()
+				default:
+					// Channel still full — don't block on the notification itself.
+				}
+			}
 		}
+	}
+}
+
+// newStreamDroppedEnvelope creates a synthetic event notifying the client that
+// events were dropped due to buffer saturation.
+func newStreamDroppedEnvelope(sessionID, droppedEventType string, totalDrops int64) *domain.WorkflowEventEnvelope {
+	return &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, "", "", time.Now()),
+		Version:   1,
+		Event:     types.EventStreamDropped,
+		NodeKind:  "system",
+		Payload: map[string]any{
+			"dropped_event_type": droppedEventType,
+			"total_drops":        totalDrops,
+		},
 	}
 }
 
@@ -242,6 +272,7 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agent.Agen
 			if len(updated[sessionID]) == 0 {
 				delete(updated, sessionID)
 				b.clearHighVolumeCounter(sessionID)
+				b.metrics.clearSessionDrops(sessionID)
 			}
 			b.clients.Store(updated)
 			break
@@ -564,22 +595,32 @@ func (b *EventBroadcaster) clearHighVolumeCounter(sessionID string) {
 }
 
 // Metrics helper methods — lock-free via atomic.Int64.
-func (m *broadcasterMetrics) incrementEventsSent()   { m.totalEventsSent.Add(1) }
-func (m *broadcasterMetrics) incrementDroppedEvents() { m.droppedEvents.Add(1) }
+func (m *broadcasterMetrics) incrementEventsSent()                  { m.totalEventsSent.Add(1) }
+func (m *broadcasterMetrics) incrementDroppedEvents(sessionID string) int64 {
+	m.droppedEvents.Add(1)
+	counter, _ := m.dropsPerSession.LoadOrStore(sessionID, &atomic.Int64{})
+	return counter.(*atomic.Int64).Add(1)
+}
 func (m *broadcasterMetrics) incrementConnections() {
 	m.totalConnections.Add(1)
 	m.activeConnections.Add(1)
 }
 func (m *broadcasterMetrics) decrementConnections() { m.activeConnections.Add(-1) }
 
+// clearSessionDrops removes the per-session drop counter (called on client unregister).
+func (m *broadcasterMetrics) clearSessionDrops(sessionID string) {
+	m.dropsPerSession.Delete(sessionID)
+}
+
 // BroadcasterMetrics represents broadcaster metrics for export
 type BroadcasterMetrics struct {
-	TotalEventsSent   int64          `json:"total_events_sent"`
-	DroppedEvents     int64          `json:"dropped_events"`
-	TotalConnections  int64          `json:"total_connections"`
-	ActiveConnections int64          `json:"active_connections"`
-	BufferDepth       map[string]int `json:"buffer_depth"` // Per-session buffer depth
-	SessionCount      int            `json:"session_count"`
+	TotalEventsSent   int64            `json:"total_events_sent"`
+	DroppedEvents     int64            `json:"dropped_events"`
+	DropsPerSession   map[string]int64 `json:"drops_per_session,omitempty"` // Per-session drop counts
+	TotalConnections  int64            `json:"total_connections"`
+	ActiveConnections int64            `json:"active_connections"`
+	BufferDepth       map[string]int   `json:"buffer_depth"` // Per-session buffer depth
+	SessionCount      int              `json:"session_count"`
 }
 
 // GetMetrics returns current broadcaster metrics
@@ -603,9 +644,20 @@ func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
 		}
 	}
 
+	// Collect per-session drop counts.
+	var dropsPerSession map[string]int64
+	b.metrics.dropsPerSession.Range(func(key, value any) bool {
+		if dropsPerSession == nil {
+			dropsPerSession = make(map[string]int64)
+		}
+		dropsPerSession[key.(string)] = value.(*atomic.Int64).Load()
+		return true
+	})
+
 	return BroadcasterMetrics{
 		TotalEventsSent:   totalEvents,
 		DroppedEvents:     droppedEvents,
+		DropsPerSession:   dropsPerSession,
 		TotalConnections:  totalConns,
 		ActiveConnections: activeConns,
 		BufferDepth:       bufferDepth,
