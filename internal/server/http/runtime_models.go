@@ -18,7 +18,7 @@ import (
 func parseModelList(raw []byte) ([]string, error) {
 	var payload any
 	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unmarshal model list: %w", err)
 	}
 
 	models := map[string]struct{}{}
@@ -90,7 +90,7 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target modelF
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("build model list request: %w", err)
 	}
 
 	if target.AccountID != "" {
@@ -110,7 +110,7 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target modelF
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch model list: %w", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -120,7 +120,7 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target modelF
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("read model list response: %w", err)
 	}
 
 	return parseModelList(body)

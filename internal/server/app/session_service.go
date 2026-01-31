@@ -74,11 +74,11 @@ func (svc *SessionService) UpdateSessionPersona(ctx context.Context, sessionID s
 	}
 	session, err := svc.sessionStore.Get(ctx, sessionID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get session: %w", err)
 	}
 	session.UserPersona = persona
 	if err := svc.sessionStore.Save(ctx, session); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("save session persona: %w", err)
 	}
 	return session, nil
 }
@@ -165,7 +165,7 @@ func (svc *SessionService) EnsureSessionShareToken(ctx context.Context, sessionI
 
 	session, err := svc.sessionStore.Get(ctx, trimmedID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get session: %w", err)
 	}
 
 	metadata := session.Metadata
@@ -189,7 +189,7 @@ func (svc *SessionService) EnsureSessionShareToken(ctx context.Context, sessionI
 	metadata[shareEnabledMetadataKey] = "true"
 
 	if err := svc.sessionStore.Save(ctx, session); err != nil {
-		return "", err
+		return "", fmt.Errorf("save share token: %w", err)
 	}
 
 	return token, nil
@@ -209,7 +209,7 @@ func (svc *SessionService) ValidateShareToken(ctx context.Context, sessionID str
 
 	session, err := svc.sessionStore.Get(ctx, trimmedID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get session: %w", err)
 	}
 
 	expected := ""

@@ -48,7 +48,7 @@ func NewEvaluationService(baseOutputDir string) (*EvaluationService, error) {
 	}
 	baseOutputDir = filepath.Clean(baseOutputDir)
 	if err := ensureSafeBaseDir(baseOutputDir); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("validate base output dir: %w", err)
 	}
 	baseOutputDir = canonicalizePath(baseOutputDir)
 
@@ -91,16 +91,16 @@ func (s *EvaluationService) Start(ctx context.Context, options *agent_eval.Evalu
 
 	config := s.mergeOptions(options)
 	if err := agent_eval.ValidateConfig(config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("validate evaluation config: %w", err)
 	}
 	if err := s.ensureOutputDir(config.OutputDir); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("ensure output dir: %w", err)
 	}
 
 	if config.DatasetPath != "" {
 		safePath, err := s.safeDatasetPath(config.DatasetPath)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resolve dataset path: %w", err)
 		}
 		config.DatasetPath = safePath
 	}
