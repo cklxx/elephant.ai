@@ -44,22 +44,28 @@ export function sortEventsBySeq(events: AnyAgentEvent[]): AnyAgentEvent[] {
   const normalized = events.map((event, index) => ({
     event,
     index,
-    seq: "seq" in event && typeof event.seq === "number" ? event.seq : null,
+    // seq=0 means "unassigned" (ReactEngine's SeqCounter starts at 1)
+    seq: "seq" in event && typeof event.seq === "number" && event.seq > 0 ? event.seq : null,
     ts: parseEventTimestamp(event) ?? Number.MAX_SAFE_INTEGER,
   }));
 
   normalized.sort((a, b) => {
+    // Both have valid seq → use seq as primary sort key
     if (a.seq !== null && b.seq !== null) {
       if (a.seq !== b.seq) {
         return a.seq - b.seq;
       }
       return a.index - b.index;
     }
-    if (a.seq !== null || b.seq !== null) {
-      return a.seq !== null ? -1 : 1;
-    }
+    // At least one has no seq → fall back to timestamp so that
+    // multi-turn input events are interleaved correctly
     if (a.ts !== b.ts) {
       return a.ts - b.ts;
+    }
+    // Same timestamp: event without seq (e.g. input) precedes events
+    // with seq (the reactions it triggers)
+    if (a.seq !== null || b.seq !== null) {
+      return a.seq !== null ? 1 : -1;
     }
     return a.index - b.index;
   });
@@ -114,7 +120,18 @@ function shouldDisplayInMainStream(event: AnyAgentEvent, isRunning: boolean): bo
 
   if (isEventType(event, "workflow.node.output.summary")) return true;
 
-  if (isEventType(event, "workflow.result.final", "workflow.result.cancelled")) return true;
+  if (isEventType(event, "workflow.result.final")) {
+    // await_user_input is just a turn boundary marker, not a real completion
+    const stopReason =
+      "stop_reason" in event && typeof event.stop_reason === "string"
+        ? event.stop_reason
+        : "";
+    if (stopReason === "await_user_input") {
+      return false;
+    }
+    return true;
+  }
+  if (isEventType(event, "workflow.result.cancelled")) return true;
 
   if (isEventType(event, "workflow.tool.started")) {
     return isSubagentToolEvent(event, "workflow.tool.started");

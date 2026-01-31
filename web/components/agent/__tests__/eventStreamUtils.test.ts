@@ -33,15 +33,52 @@ describe('sortEventsBySeq', () => {
     expect((sorted[2] as any).seq).toBe(3);
   });
 
-  it('puts events with seq before events without seq', () => {
+  it('treats seq=0 as unassigned and falls back to timestamp', () => {
     const events = [
-      makeEvent({ event_type: 'workflow.input.received' }),
-      makeEvent({ event_type: 'workflow.input.received', seq: 1 }),
+      makeEvent({ event_type: 'workflow.input.received', seq: 0, timestamp: '2026-01-30T12:00:00Z' }),
+      makeEvent({ event_type: 'workflow.tool.started', seq: 1, timestamp: '2026-01-30T12:00:01Z' }),
     ];
 
     const sorted = sortEventsBySeq(events);
-    expect((sorted[0] as any).seq).toBe(1);
-    expect((sorted[1] as any).seq).toBeUndefined();
+    // seq=0 is treated as "no seq", so timestamp ordering is used;
+    // input (T+0) comes before tool.started (T+1)
+    expect(sorted[0].event_type).toBe('workflow.input.received');
+    expect(sorted[1].event_type).toBe('workflow.tool.started');
+  });
+
+  it('places events without seq before same-timestamp events with seq', () => {
+    const ts = '2026-01-30T12:00:00Z';
+    const events = [
+      makeEvent({ event_type: 'workflow.tool.started', seq: 1, timestamp: ts }),
+      makeEvent({ event_type: 'workflow.input.received', timestamp: ts }),
+    ];
+
+    const sorted = sortEventsBySeq(events);
+    // Same timestamp: event without seq (input) precedes event with seq
+    expect(sorted[0].event_type).toBe('workflow.input.received');
+    expect(sorted[1].event_type).toBe('workflow.tool.started');
+  });
+
+  it('orders multi-turn events chronologically by timestamp', () => {
+    const events = [
+      makeEvent({ event_type: 'workflow.input.received', seq: 0, timestamp: '2026-01-30T12:00:00Z' }),
+      makeEvent({ event_type: 'workflow.tool.started', seq: 1, timestamp: '2026-01-30T12:00:01Z' }),
+      makeEvent({ event_type: 'workflow.result.final', seq: 2, timestamp: '2026-01-30T12:00:02Z' }),
+      makeEvent({ event_type: 'workflow.input.received', seq: 0, timestamp: '2026-01-30T12:00:03Z' }),
+      makeEvent({ event_type: 'workflow.tool.started', seq: 1, timestamp: '2026-01-30T12:00:04Z' }),
+      makeEvent({ event_type: 'workflow.result.final', seq: 2, timestamp: '2026-01-30T12:00:05Z' }),
+    ];
+
+    const sorted = sortEventsBySeq(events);
+    // All events should maintain chronological order across turns
+    expect(sorted.map(e => e.event_type)).toEqual([
+      'workflow.input.received',
+      'workflow.tool.started',
+      'workflow.result.final',
+      'workflow.input.received',
+      'workflow.tool.started',
+      'workflow.result.final',
+    ]);
   });
 
   it('falls back to timestamp when no seq', () => {
@@ -182,6 +219,37 @@ describe('partitionEvents', () => {
     const result = partitionEvents(events, true);
     expect(result.pendingTools.size).toBe(1);
     expect(result.pendingTools.has('session-1:search-call')).toBe(true);
+  });
+
+  it('filters workflow.result.final with stop_reason=await_user_input from main stream', () => {
+    const events: AnyAgentEvent[] = [
+      makeEvent({ event_type: 'workflow.input.received', task: 'test' }),
+      makeEvent({
+        event_type: 'workflow.result.final',
+        stop_reason: 'await_user_input',
+        final_answer: '',
+        total_iterations: 1,
+        total_tokens: 0,
+        duration: 100,
+      }),
+      makeEvent({ event_type: 'workflow.input.received', task: 'follow-up' }),
+      makeEvent({
+        event_type: 'workflow.result.final',
+        stop_reason: 'final_answer',
+        final_answer: 'done',
+        total_iterations: 2,
+        total_tokens: 100,
+        duration: 200,
+      }),
+    ];
+
+    const result = partitionEvents(events, false);
+    // await_user_input should be filtered; only inputs + real final remain
+    expect(result.mainStream).toHaveLength(3);
+    expect(result.mainStream[0].event_type).toBe('workflow.input.received');
+    expect(result.mainStream[1].event_type).toBe('workflow.input.received');
+    expect(result.mainStream[2].event_type).toBe('workflow.result.final');
+    expect((result.mainStream[2] as any).stop_reason).toBe('final_answer');
   });
 
   it('filters workflow.node.started/completed from main stream', () => {
