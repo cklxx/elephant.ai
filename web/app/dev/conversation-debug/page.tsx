@@ -781,7 +781,11 @@ export default function ConversationDebugPage() {
   const [memoryError, setMemoryError] = useState<string | null>(null);
 
   const { currentSessionId, sessionHistory } = useSessionStore();
-  const { data: sessionsData } = useSessions();
+  const {
+    data: sessionsData,
+    refetch: refetchSessions,
+    isFetching: isSessionsFetching,
+  } = useSessions({ refetchInterval: SESSION_REFRESH_MS });
 
   const larkSessions = useMemo(() => {
     if (!sessionsData?.sessions) return [];
@@ -1539,6 +1543,17 @@ export default function ConversationDebugPage() {
                     </option>
                   ))}
                 </select>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void refetchSessions();
+                  }}
+                  disabled={isSessionsFetching}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4${isSessionsFetching ? " animate-spin" : ""}`} />
+                  Refresh
+                </Button>
                 <Badge variant="outline" className="text-[10px]">
                   {larkSessions.length} Lark
                 </Badge>

@@ -102,10 +102,17 @@ export const useSessionStore = create<SessionState>()(
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 
-export function useSessions() {
+type UseSessionsOptions = {
+  refetchInterval?: number | false;
+  enabled?: boolean;
+};
+
+export function useSessions(options: UseSessionsOptions = {}) {
   return useQuery({
     queryKey: ['sessions'],
     queryFn: () => apiClient.listSessions(),
+    refetchInterval: options.refetchInterval,
+    enabled: options.enabled ?? true,
   });
 }
 
