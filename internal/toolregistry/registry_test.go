@@ -235,14 +235,18 @@ func TestListCachingWithDirtyFlag(t *testing.T) {
 	}
 
 	// Registering a new tool should invalidate cache
-	registry.Register(&stubExecutor{name: "custom_test_tool"})
+	if err := registry.Register(&stubExecutor{name: "custom_test_tool"}); err != nil {
+		t.Fatalf("register tool: %v", err)
+	}
 	defs3 := registry.List()
 	if len(defs3) != len(defs1)+1 {
 		t.Fatalf("expected one more definition after Register, got %d vs %d", len(defs3), len(defs1)+1)
 	}
 
 	// Unregistering should invalidate cache
-	registry.Unregister("custom_test_tool")
+	if err := registry.Unregister("custom_test_tool"); err != nil {
+		t.Fatalf("unregister tool: %v", err)
+	}
 	defs4 := registry.List()
 	if len(defs4) != len(defs1) {
 		t.Fatalf("expected original count after Unregister, got %d vs %d", len(defs4), len(defs1))
