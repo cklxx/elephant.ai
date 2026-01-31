@@ -83,6 +83,7 @@ func RunServer(observabilityConfigPath string) error {
 				attachmentStore = store
 				migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
 				container.AgentCoordinator.SetAttachmentMigrator(migrator)
+				container.AgentCoordinator.SetAttachmentPersister(attachments.NewStorePersister(store))
 				return nil
 			},
 		},

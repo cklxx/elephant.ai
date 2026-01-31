@@ -81,11 +81,14 @@ func sortedAttachmentKeys(attachments map[string]ports.Attachment) []string {
 
 // applyAttachmentMutationsToState merges incoming attachment mutations with
 // the task state, ensuring delete/update/replace semantics stay consistent.
+// When persister is non-nil, inline payloads are eagerly written to durable
+// storage so that state.Attachments holds URI references instead of base64.
 func applyAttachmentMutationsToState(
 	state *TaskState,
 	merged map[string]ports.Attachment,
 	mutations *attachmentMutations,
 	defaultSource string,
+	persister ports.AttachmentPersister,
 ) {
 	if state == nil {
 		return
@@ -101,6 +104,7 @@ func applyAttachmentMutationsToState(
 		state.AttachmentIterations = make(map[string]int, len(mutations.replace))
 		for key, att := range mutations.replace {
 			att.Source = coalesceAttachmentSource(att.Source, defaultSource)
+			att = persistAttachmentIfNeeded(att, persister)
 			state.Attachments[key] = att
 			state.AttachmentIterations[key] = state.Iterations
 		}
@@ -125,12 +129,30 @@ func applyAttachmentMutationsToState(
 
 	for key, att := range merged {
 		att.Source = coalesceAttachmentSource(att.Source, defaultSource)
+		att = persistAttachmentIfNeeded(att, persister)
 		state.Attachments[key] = att
 		if state.AttachmentIterations == nil {
 			state.AttachmentIterations = make(map[string]int)
 		}
 		state.AttachmentIterations[key] = state.Iterations
 	}
+}
+
+// persistAttachmentIfNeeded writes the attachment's inline payload to durable
+// storage when a persister is available. On failure the original attachment is
+// returned unchanged for graceful degradation.
+func persistAttachmentIfNeeded(att ports.Attachment, persister ports.AttachmentPersister) ports.Attachment {
+	if persister == nil {
+		return att
+	}
+	if att.Data == "" && !strings.HasPrefix(strings.ToLower(strings.TrimSpace(att.URI)), "data:") {
+		return att
+	}
+	persisted, err := persister.Persist(att)
+	if err != nil {
+		return att
+	}
+	return persisted
 }
 
 func coalesceAttachmentSource(source, fallback string) string {

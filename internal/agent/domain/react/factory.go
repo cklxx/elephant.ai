@@ -28,18 +28,19 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	memoryRefresh := cfg.MemoryRefresh
 
 	return &ReactEngine{
-		maxIterations:      maxIterations,
-		stopReasons:        stopReasons,
-		logger:             logger,
-		clock:              clock,
-		eventListener:      cfg.EventListener,
-		completion:         completion,
-		attachmentMigrator: cfg.AttachmentMigrator,
-		workflow:           cfg.Workflow,
-		memoryRefresh:      memoryRefresh,
-		memoryService:      cfg.MemoryService,
-		backgroundExecutor: cfg.BackgroundExecutor,
-		externalExecutor:   cfg.ExternalExecutor,
+		maxIterations:       maxIterations,
+		stopReasons:         stopReasons,
+		logger:              logger,
+		clock:               clock,
+		eventListener:       cfg.EventListener,
+		completion:          completion,
+		attachmentMigrator:  cfg.AttachmentMigrator,
+		attachmentPersister: cfg.AttachmentPersister,
+		workflow:            cfg.Workflow,
+		memoryRefresh:       memoryRefresh,
+		memoryService:       cfg.MemoryService,
+		backgroundExecutor:  cfg.BackgroundExecutor,
+		externalExecutor:    cfg.ExternalExecutor,
 	}
 }
 

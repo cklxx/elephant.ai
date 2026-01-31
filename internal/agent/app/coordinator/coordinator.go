@@ -47,10 +47,11 @@ type AgentCoordinator struct {
 	memoryService    memory.Service
 	externalExecutor agent.ExternalAgentExecutor
 
-	prepService        preparationService
-	costDecorator      *cost.CostTrackingDecorator
-	attachmentMigrator materialports.Migrator
-	hookRegistry       *hooks.Registry
+	prepService         preparationService
+	costDecorator       *cost.CostTrackingDecorator
+	attachmentMigrator  materialports.Migrator
+	attachmentPersister ports.AttachmentPersister
+	hookRegistry        *hooks.Registry
 }
 
 type preparationService interface {
@@ -370,12 +371,13 @@ func (c *AgentCoordinator) ExecuteTask(
 	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
 
 	reactEngine := react.NewReactEngine(react.ReactEngineConfig{
-		MaxIterations:      c.config.MaxIterations,
-		Logger:             logger,
-		Clock:              c.clock,
-		CompletionDefaults: completionDefaults,
-		AttachmentMigrator: c.attachmentMigrator,
-		Workflow:           wf,
+		MaxIterations:       c.config.MaxIterations,
+		Logger:              logger,
+		Clock:               c.clock,
+		CompletionDefaults:  completionDefaults,
+		AttachmentMigrator:  c.attachmentMigrator,
+		AttachmentPersister: c.attachmentPersister,
+		Workflow:            wf,
 		MemoryRefresh: react.MemoryRefreshConfig{
 			Enabled:   c.config.Proactive.Enabled && c.config.Proactive.Memory.Enabled && c.config.Proactive.Memory.AutoRecall,
 			Interval:  c.config.Proactive.Memory.RefreshInterval,
@@ -826,6 +828,14 @@ func (c *AgentCoordinator) SetEnvironmentSummary(summary string) {
 // Agent state keeps inline payloads; CDN rewriting happens at HTTP/SSE boundaries.
 func (c *AgentCoordinator) SetAttachmentMigrator(migrator materialports.Migrator) {
 	c.attachmentMigrator = migrator
+}
+
+// SetAttachmentPersister wires an eager persister that writes inline attachment
+// payloads to durable storage during the ReAct loop, replacing base64 Data with
+// stable URIs.  This offloads attachment content from memory and reduces event
+// serialization size.
+func (c *AgentCoordinator) SetAttachmentPersister(p ports.AttachmentPersister) {
+	c.attachmentPersister = p
 }
 
 func sanitizeAttachmentForPersistence(att ports.Attachment) ports.Attachment {

@@ -90,7 +90,7 @@ func (e *ReactEngine) applyToolAttachmentMutations(
 		attachmentsMu.Lock()
 		defer attachmentsMu.Unlock()
 	}
-	applyAttachmentMutationsToState(state, merged, mutations, call.Name)
+	applyAttachmentMutationsToState(state, merged, mutations, call.Name, e.attachmentPersister)
 	return merged
 }
 

@@ -14,17 +14,18 @@ import (
 
 // ReactEngine orchestrates the Think-Act-Observe cycle
 type ReactEngine struct {
-	maxIterations      int
-	stopReasons        []string
-	logger             agent.Logger
-	clock              agent.Clock
-	eventListener      EventListener // Optional event listener for TUI
-	completion         completionConfig
-	attachmentMigrator materialports.Migrator
-	workflow           WorkflowTracker
-	seq                domain.SeqCounter // Monotonic event sequence per run
-	memoryRefresh      MemoryRefreshConfig
-	memoryService      memory.Service
+	maxIterations       int
+	stopReasons         []string
+	logger              agent.Logger
+	clock               agent.Clock
+	eventListener       EventListener // Optional event listener for TUI
+	completion          completionConfig
+	attachmentMigrator  materialports.Migrator
+	attachmentPersister ports.AttachmentPersister // Optional: eagerly persists inline attachment payloads
+	workflow            WorkflowTracker
+	seq                 domain.SeqCounter // Monotonic event sequence per run
+	memoryRefresh       MemoryRefreshConfig
+	memoryService       memory.Service
 
 	// Background task support: executor closure for internal subagent delegation.
 	backgroundExecutor func(ctx context.Context, prompt, sessionID string,
@@ -94,14 +95,15 @@ type MemoryRefreshConfig struct {
 
 // ReactEngineConfig captures the dependencies required to construct a ReactEngine.
 type ReactEngineConfig struct {
-	MaxIterations      int
-	StopReasons        []string
-	Logger             agent.Logger
-	Clock              agent.Clock
-	EventListener      EventListener
-	CompletionDefaults CompletionDefaults
-	AttachmentMigrator materialports.Migrator
-	Workflow           WorkflowTracker
+	MaxIterations       int
+	StopReasons         []string
+	Logger              agent.Logger
+	Clock               agent.Clock
+	EventListener       EventListener
+	CompletionDefaults  CompletionDefaults
+	AttachmentMigrator  materialports.Migrator
+	AttachmentPersister ports.AttachmentPersister // Optional: eagerly persists attachment payloads to a durable store.
+	Workflow            WorkflowTracker
 
 	// BackgroundExecutor is a closure that delegates to coordinator.ExecuteTask
 	// for background subagent tasks. When nil, bg_dispatch is unavailable.
