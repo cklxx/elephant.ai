@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"alex/internal/attachments"
 	"alex/internal/auth/domain"
@@ -29,8 +30,19 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	}
 	normalizedEnv := strings.TrimSpace(cfg.Environment)
 
+	dataCache := deps.DataCache
+	if dataCache == nil {
+		dataCache = NewDataCache(512, 30*time.Minute)
+	}
+
 	// Create handlers
-	sseHandler := NewSSEHandler(deps.Broadcaster, WithSSEObservability(deps.Obs), WithSSEAttachmentStore(attachmentStore), WithSSERunTracker(deps.RunTracker))
+	sseHandler := NewSSEHandler(
+		deps.Broadcaster,
+		WithSSEObservability(deps.Obs),
+		WithSSEAttachmentStore(attachmentStore),
+		WithSSEDataCache(dataCache),
+		WithSSERunTracker(deps.RunTracker),
+	)
 	shareHandler := NewShareHandler(deps.Coordinator, sseHandler)
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
@@ -101,6 +113,9 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	mux.Handle("GET /api/share/sessions/{session_id}", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))
 	if attachmentStore != nil {
 		mux.Handle("/api/attachments/", routeHandler("/api/attachments", attachmentStore.Handler()))
+	}
+	if dataCache != nil {
+		mux.Handle("/api/data/", routeHandler("/api/data", dataCache.Handler()))
 	}
 	mux.Handle("POST /api/metrics/web-vitals", routeHandler("/api/metrics/web-vitals", http.HandlerFunc(apiHandler.HandleWebVitals)))
 	mux.Handle("GET /api/sandbox/browser-info", routeHandler("/api/sandbox/browser-info", wrap(http.HandlerFunc(apiHandler.HandleSandboxBrowserInfo))))

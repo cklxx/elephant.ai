@@ -24,6 +24,7 @@ type RouterDeps struct {
 	MemoryService  memory.Service
 	AttachmentCfg  attachments.StoreConfig
 	SandboxBaseURL string
+	DataCache      *DataCache
 }
 
 // RouterConfig holds configuration values for the HTTP router.
