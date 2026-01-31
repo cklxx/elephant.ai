@@ -250,6 +250,9 @@ func (r *reactRuntime) handleMaxIterations() (*TaskResult, error) {
 	return r.finalizeResult("max_iterations", finalResult, true, nil), nil
 }
 
+// enforceOrchestratorGates prevents plan/clarify/request_user from being
+// called in parallel with other tools (they must be sole calls in a batch).
+// No longer enforces mandatory plan→clarify ordering.
 func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string) {
 	if len(calls) == 0 {
 		return false, ""
@@ -270,84 +273,17 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 		}
 	}
 
-	if hasPlan {
-		if len(calls) > 1 {
-			return true, "plan() 必须单独调用。请移除同轮其它工具调用并重试。"
-		}
-		return false, ""
+	if hasPlan && len(calls) > 1 {
+		return true, "plan() 必须单独调用。请移除同轮其它工具调用并重试。"
+	}
+	if hasClarify && len(calls) > 1 {
+		return true, "clarify() 必须单独调用。请移除同轮其它工具调用并重试。"
+	}
+	if hasRequestUser && len(calls) > 1 {
+		return true, "request_user() 必须单独调用。请移除同轮其它工具调用并重试。"
 	}
 
-	if hasClarify {
-		if len(calls) > 1 {
-			return true, "clarify() 必须单独调用。请移除同轮其它工具调用并重试。"
-		}
-		if !r.planEmitted {
-			return true, r.planGatePrompt()
-		}
-		return false, ""
-	}
-
-	if hasRequestUser {
-		if len(calls) > 1 {
-			return true, "request_user() 必须单独调用。请移除同轮其它工具调用并重试。"
-		}
-		if !r.planEmitted {
-			return true, r.planGatePrompt()
-		}
-		return false, ""
-	}
-
-	if !r.planEmitted {
-		return true, r.planGatePrompt()
-	}
-
-	if strings.EqualFold(strings.TrimSpace(r.planComplexity), "simple") {
-		return false, ""
-	}
-	if r.currentTaskID == "" || !r.clarifyEmitted[r.currentTaskID] {
-		return true, r.clarifyGatePrompt()
-	}
 	return false, ""
-}
-
-func (r *reactRuntime) planGatePrompt() string {
-	runID := strings.TrimSpace(r.runID)
-	if runID == "" {
-		runID = "<run_id>"
-	}
-	return strings.TrimSpace(fmt.Sprintf(`你在调用动作工具前必须先调用 plan()。
-请先调用 plan()（仅此一个工具调用），并满足：
-- run_id: %q
-- complexity: "simple" 或 "complex"
-- session_title: (可选) 会话短标题（单行，≤32字）；默认由小模型预分析生成，通常留空
-- overall_goal_ui: 目标/范围描述，写清交付状态和可量化验收信号（complex 可多行；simple 必须单行）
-- internal_plan: (可选) 仅放结构化计划，不要在 overall_goal_ui 列任务清单；如有验证路径/证据可在此补充
-- complexity="simple" 时：plan() 后可直接调用动作工具；无需 clarify()（除非需要用户补充信息并暂停）。
-- complexity="complex" 时：在每个任务的首个动作工具调用前必须 clarify()。
-plan() 成功后再继续。`, runID))
-}
-
-func (r *reactRuntime) clarifyGatePrompt() string {
-	runID := strings.TrimSpace(r.runID)
-	if runID == "" {
-		runID = "<run_id>"
-	}
-
-	taskID := strings.TrimSpace(r.pendingTaskID)
-	if taskID == "" {
-		taskID = fmt.Sprintf("task-%d", r.nextTaskSeq)
-		r.pendingTaskID = taskID
-		r.nextTaskSeq++
-	}
-
-	return strings.TrimSpace(fmt.Sprintf(`在调用动作工具前必须先调用 clarify() 声明当前任务。
-请先调用 clarify()（仅此一个工具调用），并满足：
-- run_id: %q
-- task_id: %q
-- task_goal_ui: 描述你接下来要做的具体任务
-- success_criteria: (可选) 字符串数组
-如需用户补充信息：needs_user_input=true 并提供 question_to_user。
-clarify() 成功后再继续。`, runID, taskID))
 }
 
 func (r *reactRuntime) injectOrchestratorCorrection(content string) {

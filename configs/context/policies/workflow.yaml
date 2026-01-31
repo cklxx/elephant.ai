@@ -1,3 +1,3 @@
 id: Standard Workflow
 hard_constraints:
-  - "Workflow Contract (Strict): Flow: Plan -> Clarify (when needed) -> ReAct -> Finalize."
+  - "Workflow Contract: Think -> Act -> Observe -> Finalize. plan() sets a visible goal header (optional). clarify() pauses for user input (optional)."
