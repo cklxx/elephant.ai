@@ -155,7 +155,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 				BaseDomain:          "https://open.larkoffice.com",
 				SessionMode:         "fresh",
 				ToolMode:            "cli",
-				ReactEmoji:          "SMILE",
+				ReactEmoji:          "WAVE, SMILE, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 				AutoChatContext:     true,
 				AutoChatContextSize: 20,
 			},

@@ -14,7 +14,6 @@ import (
 	"time"
 
 	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/domain"
 	ports "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
@@ -51,6 +50,7 @@ type Gateway struct {
 	client          *lark.Client
 	wsClient        *larkws.Client
 	eventListener   agent.EventListener
+	emojiPicker     *emojiPicker
 	dedupMu         sync.Mutex
 	dedupCache      *lru.Cache[string, time.Time]
 	now             func() time.Time
@@ -80,11 +80,12 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	}
 	logger = logging.OrNop(logger)
 	return &Gateway{
-		cfg:        cfg,
-		agent:      agent,
-		logger:     logger,
-		dedupCache: dedupCache,
-		now:        time.Now,
+		cfg:         cfg,
+		agent:       agent,
+		logger:      logger,
+		emojiPicker: newEmojiPicker(time.Now().UnixNano(), resolveEmojiPool(cfg.ReactEmoji)),
+		dedupCache:  dedupCache,
+		now:         time.Now,
 	}, nil
 }
 
@@ -141,42 +142,6 @@ func (g *Gateway) Start(ctx context.Context) error {
 // cancelling the context passed to Start is the primary shutdown mechanism.
 func (g *Gateway) Stop() {
 	// The Lark WS client is stopped by cancelling its context.
-}
-
-// emojiReactionInterceptor wraps an EventListener to intercept emoji events
-// and send a Lark reaction before delegating to the original listener.
-type emojiReactionInterceptor struct {
-	delegate  agent.EventListener
-	gateway   *Gateway
-	messageID string
-	ctx       context.Context
-	once      sync.Once
-	fired     bool
-}
-
-func (i *emojiReactionInterceptor) OnEvent(event agent.AgentEvent) {
-	if emojiEvent, ok := event.(*domain.WorkflowPreAnalysisEmojiEvent); ok && emojiEvent.ReactEmoji != "" {
-		i.once.Do(func() {
-			i.fired = true
-			i.gateway.addReaction(i.ctx, i.messageID, emojiEvent.ReactEmoji)
-		})
-	}
-	i.delegate.OnEvent(event)
-}
-
-// sendFallback sends the config-level fallback emoji if no dynamic emoji was received.
-func (i *emojiReactionInterceptor) sendFallback() {
-	if i.fired {
-		return
-	}
-	fallback := i.gateway.cfg.ReactEmoji
-	if fallback == "" {
-		return
-	}
-	i.once.Do(func() {
-		i.fired = true
-		i.gateway.addReaction(i.ctx, i.messageID, fallback)
-	})
 }
 
 // handleMessage is the P2MessageReceiveV1 event handler.
@@ -280,18 +245,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if listener == nil {
 		listener = agent.NoopEventListener{}
 	}
-	// Immediately react to the message for fast user feedback.
-	if messageID != "" && g.cfg.ReactEmoji != "" {
-		go g.addReaction(execCtx, messageID, g.cfg.ReactEmoji)
-	}
-
-	if messageID != "" {
-		listener = &emojiReactionInterceptor{
-			delegate:  listener,
-			gateway:   g,
-			messageID: messageID,
-			ctx:       execCtx,
-		}
+	startEmoji, endEmoji := g.pickReactionEmojis()
+	if messageID != "" && startEmoji != "" {
+		go g.addReaction(execCtx, messageID, startEmoji)
 	}
 	if g.cfg.ShowToolProgress {
 		sender := &larkProgressSender{gateway: g, chatID: chatID, messageID: messageID, isGroup: isGroup}
@@ -333,6 +289,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
+	if messageID != "" && endEmoji != "" {
+		go g.addReaction(execCtx, messageID, endEmoji)
+	}
 
 	reply := ""
 	if execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") && g.cfg.PlanReviewEnabled {
