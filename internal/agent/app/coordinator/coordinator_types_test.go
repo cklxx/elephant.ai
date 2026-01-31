@@ -439,16 +439,6 @@ func TestResolveUserID(t *testing.T) {
 		}
 	})
 
-	t.Run("wechat- prefix fallback", func(t *testing.T) {
-		session := &storage.Session{
-			ID:       "wechat-def456",
-			Metadata: map[string]string{},
-		}
-		if got := coordinator.resolveUserID(context.Background(), session); got != "wechat-def456" {
-			t.Fatalf("expected 'wechat-def456', got %q", got)
-		}
-	})
-
 	t.Run("lark colon prefix no longer matches", func(t *testing.T) {
 		session := &storage.Session{
 			ID:       "lark:old-format",

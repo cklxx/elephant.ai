@@ -7,7 +7,7 @@ type chatIDKey struct{}
 type isGroupKey struct{}
 
 // WithChannel annotates the request context with its channel identifier
-// (e.g., lark/wechat/cli/web).
+// (e.g., lark/cli/web).
 func WithChannel(ctx context.Context, channel string) context.Context {
 	return context.WithValue(ctx, channelKey{}, channel)
 }

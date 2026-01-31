@@ -200,30 +200,9 @@ type AppPluginConfig struct {
 	Sources         []string `json:"sources,omitempty" yaml:"sources"`
 }
 
-// ChannelsConfig captures channel integrations (e.g., WeChat, Lark).
+// ChannelsConfig captures channel integrations (e.g., Lark).
 type ChannelsConfig struct {
-	WeChat *WeChatChannelConfig `json:"wechat,omitempty" yaml:"wechat"`
-	Lark   *LarkChannelConfig   `json:"lark,omitempty" yaml:"lark"`
-}
-
-// WeChatChannelConfig captures WeChat gateway settings in YAML.
-type WeChatChannelConfig struct {
-	Enabled                *bool    `json:"enabled" yaml:"enabled"`
-	LoginMode              string   `json:"login_mode" yaml:"login_mode"`
-	HotLogin               *bool    `json:"hot_login" yaml:"hot_login"`
-	HotLoginStoragePath    string   `json:"hot_login_storage_path" yaml:"hot_login_storage_path"`
-	SessionPrefix          string   `json:"session_prefix" yaml:"session_prefix"`
-	ReplyPrefix            string   `json:"reply_prefix" yaml:"reply_prefix"`
-	MentionOnly            *bool    `json:"mention_only" yaml:"mention_only"`
-	ReplyWithMention       *bool    `json:"reply_with_mention" yaml:"reply_with_mention"`
-	AllowGroups            *bool    `json:"allow_groups" yaml:"allow_groups"`
-	AllowDirect            *bool    `json:"allow_direct" yaml:"allow_direct"`
-	AllowedConversationIDs []string `json:"allowed_conversation_ids" yaml:"allowed_conversation_ids"`
-	AgentPreset            string   `json:"agent_preset" yaml:"agent_preset"`
-	ToolPreset             string   `json:"tool_preset" yaml:"tool_preset"`
-	ToolMode               string   `json:"tool_mode" yaml:"tool_mode"`
-	ReplyTimeoutSeconds    *int     `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
-	MemoryEnabled          *bool    `json:"memory_enabled" yaml:"memory_enabled"`
+	Lark *LarkChannelConfig `json:"lark,omitempty" yaml:"lark"`
 }
 
 // LarkChannelConfig captures Lark gateway settings in YAML.
@@ -281,8 +260,6 @@ type AuthConfig struct {
 	GoogleAuthURL         string `yaml:"google_auth_url"`
 	GoogleTokenURL        string `yaml:"google_token_url"`
 	GoogleUserInfoURL     string `yaml:"google_userinfo_url"`
-	WeChatAppID           string `yaml:"wechat_app_id"`
-	WeChatAuthURL         string `yaml:"wechat_auth_url"`
 	DatabaseURL           string `yaml:"database_url"`
 	BootstrapEmail        string `yaml:"bootstrap_email"`
 	BootstrapPassword     string `yaml:"bootstrap_password"`

@@ -14,7 +14,7 @@ func TestAppsConfigHandlerGet(t *testing.T) {
 	handler := NewAppsConfigHandler(
 		func(...config.Option) (config.AppsConfig, string, error) {
 			return config.AppsConfig{
-				Plugins: []config.AppPluginConfig{{ID: "wechat", Name: "WeChat"}},
+				Plugins: []config.AppPluginConfig{{ID: "lark", Name: "Lark"}},
 			}, "/tmp/config.yaml", nil
 		},
 		func(config.AppsConfig, ...config.Option) (string, error) {
@@ -33,7 +33,7 @@ func TestAppsConfigHandlerGet(t *testing.T) {
 	if err := json.NewDecoder(rr.Body).Decode(&payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if len(payload.Apps.Plugins) != 1 || payload.Apps.Plugins[0].ID != "wechat" {
+	if len(payload.Apps.Plugins) != 1 || payload.Apps.Plugins[0].ID != "lark" {
 		t.Fatalf("unexpected payload: %#v", payload.Apps.Plugins)
 	}
 }
@@ -83,12 +83,12 @@ func TestAppsConfigHandlerUpdateSavesNormalizedPlugins(t *testing.T) {
 		Apps: config.AppsConfig{
 			Plugins: []config.AppPluginConfig{
 				{
-					ID:              " WeChat ",
-					Name:            " WeChat ",
+					ID:              " Lark ",
+					Name:            " Lark ",
 					Description:     " Chat ",
 					IntegrationNote: " Note ",
 					Capabilities:    []string{" receive ", " ", "reply"},
-					Sources:         []string{" https://github.com/wechaty/wechaty ", ""},
+					Sources:         []string{" https://open.larksuite.com/ ", ""},
 				},
 			},
 		},
@@ -109,16 +109,16 @@ func TestAppsConfigHandlerUpdateSavesNormalizedPlugins(t *testing.T) {
 		t.Fatalf("expected 1 plugin saved, got %#v", saved.Plugins)
 	}
 	plugin := saved.Plugins[0]
-	if plugin.ID != "wechat" {
+	if plugin.ID != "lark" {
 		t.Fatalf("expected normalized id, got %q", plugin.ID)
 	}
-	if plugin.Name != "WeChat" || plugin.Description != "Chat" || plugin.IntegrationNote != "Note" {
+	if plugin.Name != "Lark" || plugin.Description != "Chat" || plugin.IntegrationNote != "Note" {
 		t.Fatalf("expected trimmed fields, got %#v", plugin)
 	}
 	if len(plugin.Capabilities) != 2 || plugin.Capabilities[0] != "receive" || plugin.Capabilities[1] != "reply" {
 		t.Fatalf("unexpected capabilities: %#v", plugin.Capabilities)
 	}
-	if len(plugin.Sources) != 1 || plugin.Sources[0] != "https://github.com/wechaty/wechaty" {
+	if len(plugin.Sources) != 1 || plugin.Sources[0] != "https://open.larksuite.com/" {
 		t.Fatalf("unexpected sources: %#v", plugin.Sources)
 	}
 }
