@@ -92,9 +92,12 @@ attachments:
   cloudflare_secret_access_key: "${CLOUDFLARE_SECRET_ACCESS_KEY}"
   cloudflare_bucket: "${CLOUDFLARE_BUCKET}"
   cloudflare_public_base_url: "${CLOUDFLARE_PUBLIC_BASE_URL}"
+  presign_ttl: "4h"
 ```
 
 > 登录服务在生产模式下默认开启。启动栈之前，请先通过 `psql "$AUTH_DATABASE_URL" -f migrations/auth/001_init.sql` 初始化认证表，并确保证书/Secret 能够持久化保存刷新令牌。
+
+> 未配置 `cloudflare_public_base_url` 时建议设置较长的 `presign_ttl`（如 `4h`），避免用户在会话内点击附件时 URL 过期。
 
 ### 2. 构建和启动
 

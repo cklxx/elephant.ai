@@ -156,7 +156,7 @@ apps:
 - `dir`：本地存储目录（provider=local 时必填）
 - `cloudflare_account_id` / `cloudflare_access_key_id` / `cloudflare_secret_access_key`
 - `cloudflare_bucket` / `cloudflare_public_base_url` / `cloudflare_key_prefix`
-- `presign_ttl`：预签名 TTL（例如 `15m`）
+- `presign_ttl`：预签名 TTL（未配置 `cloudflare_public_base_url` 时建议 `4h`，例如 `4h`）
 
 ### web
 

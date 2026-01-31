@@ -71,7 +71,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	}
 
 	if store.presignTTL <= 0 {
-		store.presignTTL = 15 * time.Minute
+		store.presignTTL = 4 * time.Hour
 	}
 
 	switch provider {
