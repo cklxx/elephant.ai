@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 
 	appconfig "alex/internal/agent/app/config"
@@ -34,11 +35,20 @@ func (f stubLLMFactory) GetIsolatedClient(provider, model string, cfg llm.LLMCon
 
 func (f stubLLMFactory) DisableRetry() {}
 
-type capturingListener struct{ events []agent.AgentEvent }
+type capturingListener struct {
+	mu     sync.Mutex
+	events []agent.AgentEvent
+}
 
-func (c *capturingListener) OnEvent(evt agent.AgentEvent) { c.events = append(c.events, evt) }
+func (c *capturingListener) OnEvent(evt agent.AgentEvent) {
+	c.mu.Lock()
+	c.events = append(c.events, evt)
+	c.mu.Unlock()
+}
 
 func (c *capturingListener) envelopes(eventName string) []*domain.WorkflowEventEnvelope {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	var out []*domain.WorkflowEventEnvelope
 	for _, evt := range c.events {
 		env, ok := evt.(*domain.WorkflowEventEnvelope)

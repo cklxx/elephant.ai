@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,10 +18,13 @@ import (
 )
 
 type stubSessionStore struct {
+	mu      sync.Mutex
 	session *storage.Session
 }
 
 func (s *stubSessionStore) Create(ctx context.Context) (*storage.Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	sess := &storage.Session{
 		ID:        "session-stub",
 		Messages:  nil,
@@ -33,6 +37,8 @@ func (s *stubSessionStore) Create(ctx context.Context) (*storage.Session, error)
 }
 
 func (s *stubSessionStore) Get(ctx context.Context, id string) (*storage.Session, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if id == "" {
 		return s.Create(ctx)
 	}
@@ -51,11 +57,15 @@ func (s *stubSessionStore) Get(ctx context.Context, id string) (*storage.Session
 }
 
 func (s *stubSessionStore) Save(ctx context.Context, session *storage.Session) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.session = session
 	return nil
 }
 
 func (s *stubSessionStore) List(ctx context.Context, limit int, offset int) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.session == nil {
 		return []string{}, nil
 	}
@@ -63,6 +73,8 @@ func (s *stubSessionStore) List(ctx context.Context, limit int, offset int) ([]s
 }
 
 func (s *stubSessionStore) Delete(ctx context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.session != nil && s.session.ID == id {
 		s.session = nil
 	}
@@ -70,11 +82,14 @@ func (s *stubSessionStore) Delete(ctx context.Context, id string) error {
 }
 
 type stubHistoryManager struct {
+	mu              sync.Mutex
 	clearedSessionID string
 	appendCalled     bool
 }
 
 func (s *stubHistoryManager) AppendTurn(context.Context, string, []ports.Message) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.appendCalled = true
 	return nil
 }
@@ -84,6 +99,8 @@ func (s *stubHistoryManager) Replay(context.Context, string, int) ([]ports.Messa
 }
 
 func (s *stubHistoryManager) ClearSession(_ context.Context, sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.clearedSessionID = sessionID
 	return nil
 }

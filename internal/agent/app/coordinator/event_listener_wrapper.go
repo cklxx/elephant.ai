@@ -25,6 +25,7 @@ type SerializingEventListener struct {
 
 type eventQueue struct {
 	ch   chan agent.AgentEvent
+	done chan struct{}
 	once sync.Once
 }
 
@@ -50,7 +51,15 @@ func (s *SerializingEventListener) OnEvent(event agent.AgentEvent) {
 		runID = "unknown"
 	}
 	queue := s.getQueue(runID)
-	queue.ch <- event
+	select {
+	case <-queue.done:
+		return
+	default:
+	}
+	select {
+	case queue.ch <- event:
+	case <-queue.done:
+	}
 }
 
 func (s *SerializingEventListener) getQueue(runID string) *eventQueue {
@@ -60,6 +69,7 @@ func (s *SerializingEventListener) getQueue(runID string) *eventQueue {
 		return queue
 	}
 	queue := &eventQueue{ch: make(chan agent.AgentEvent, defaultEventQueueSize)}
+	queue.done = make(chan struct{})
 	s.queues[runID] = queue
 	go s.runQueue(runID, queue)
 	return queue
@@ -104,7 +114,7 @@ func (q *eventQueue) close() {
 		return
 	}
 	q.once.Do(func() {
-		close(q.ch)
+		close(q.done)
 	})
 }
 

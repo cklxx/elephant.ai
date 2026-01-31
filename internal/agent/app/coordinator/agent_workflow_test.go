@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -10,14 +11,19 @@ import (
 )
 
 type recordingListener struct {
+	mu     sync.Mutex
 	events []agent.AgentEvent
 }
 
 func (r *recordingListener) OnEvent(event agent.AgentEvent) {
+	r.mu.Lock()
 	r.events = append(r.events, event)
+	r.mu.Unlock()
 }
 
 func (r *recordingListener) snapshot() []agent.AgentEvent {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	cp := make([]agent.AgentEvent, len(r.events))
 	copy(cp, r.events)
 	return cp
