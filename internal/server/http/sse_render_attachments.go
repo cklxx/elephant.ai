@@ -370,6 +370,36 @@ func attachmentFromMap(entry map[string]any) ports.Attachment {
 	return att
 }
 
+// coerceAttachmentMap converts a raw payload value into a typed attachment map.
+// Live events carry map[string]ports.Attachment directly; events replayed from
+// Postgres (JSON round-trip) arrive as map[string]any where each value is a
+// map[string]any matching the Attachment struct fields.
+func coerceAttachmentMap(raw any) map[string]ports.Attachment {
+	if typed, ok := raw.(map[string]ports.Attachment); ok {
+		return typed
+	}
+	untyped, ok := raw.(map[string]any)
+	if !ok || len(untyped) == 0 {
+		return nil
+	}
+	result := make(map[string]ports.Attachment, len(untyped))
+	for key, entry := range untyped {
+		entryMap, ok := entry.(map[string]any)
+		if !ok || !isAttachmentRecord(entryMap) {
+			continue
+		}
+		att := attachmentFromMap(entryMap)
+		if att.Name == "" {
+			att.Name = key
+		}
+		result[key] = att
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
 func attachmentDigest(att ports.Attachment) string {
 	encoded, err := json.Marshal(att)
 	if err != nil {

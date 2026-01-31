@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 )
 
@@ -153,7 +152,7 @@ func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *str
 	if envelope.Event == "workflow.result.final" {
 		if finished, _ := envelope.Payload["stream_finished"].(bool); finished {
 			if rawAtts, ok := envelope.Payload["attachments"]; ok {
-				if typedAtts, ok := rawAtts.(map[string]ports.Attachment); ok && len(typedAtts) > 0 {
+				if typedAtts := coerceAttachmentMap(rawAtts); len(typedAtts) > 0 {
 					forced := sanitizeAttachmentsForStream(typedAtts, sentAttachments, h.dataCache, h.attachmentStore, true)
 					if len(forced) > 0 {
 						if payload == nil {

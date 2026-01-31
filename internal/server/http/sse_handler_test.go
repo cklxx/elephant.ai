@@ -1250,3 +1250,71 @@ func TestPersistToStoreRetainsInlineTextPayload(t *testing.T) {
 		t.Fatalf("expected small text payload to be retained inline")
 	}
 }
+
+func TestCoerceAttachmentMapTyped(t *testing.T) {
+	typed := map[string]ports.Attachment{
+		"img.png": {Name: "img.png", URI: "https://cdn/img.png"},
+	}
+	result := coerceAttachmentMap(typed)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(result))
+	}
+	if result["img.png"].URI != "https://cdn/img.png" {
+		t.Fatalf("expected URI preserved, got %q", result["img.png"].URI)
+	}
+}
+
+func TestCoerceAttachmentMapUntyped(t *testing.T) {
+	// Simulates JSON round-trip through Postgres: map[string]any with map[string]any values.
+	untyped := map[string]any{
+		"report.pdf": map[string]any{
+			"name":       "report.pdf",
+			"media_type": "application/pdf",
+			"uri":        "https://cdn/report.pdf",
+			"source":     "artifacts_write",
+		},
+	}
+	result := coerceAttachmentMap(untyped)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(result))
+	}
+	att := result["report.pdf"]
+	if att.Name != "report.pdf" {
+		t.Fatalf("expected name report.pdf, got %q", att.Name)
+	}
+	if att.MediaType != "application/pdf" {
+		t.Fatalf("expected media_type application/pdf, got %q", att.MediaType)
+	}
+	if att.URI != "https://cdn/report.pdf" {
+		t.Fatalf("expected URI https://cdn/report.pdf, got %q", att.URI)
+	}
+}
+
+func TestCoerceAttachmentMapNilAndEmpty(t *testing.T) {
+	if result := coerceAttachmentMap(nil); result != nil {
+		t.Fatalf("expected nil for nil input, got %v", result)
+	}
+	if result := coerceAttachmentMap("not-a-map"); result != nil {
+		t.Fatalf("expected nil for string input, got %v", result)
+	}
+	if result := coerceAttachmentMap(map[string]any{}); result != nil {
+		t.Fatalf("expected nil for empty map, got %v", result)
+	}
+}
+
+func TestCoerceAttachmentMapFallsBackToKey(t *testing.T) {
+	// When name is missing, the map key should be used.
+	untyped := map[string]any{
+		"chart.svg": map[string]any{
+			"media_type": "image/svg+xml",
+			"uri":        "https://cdn/chart.svg",
+		},
+	}
+	result := coerceAttachmentMap(untyped)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 attachment, got %d", len(result))
+	}
+	if result["chart.svg"].Name != "chart.svg" {
+		t.Fatalf("expected name from key, got %q", result["chart.svg"].Name)
+	}
+}
