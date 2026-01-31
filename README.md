@@ -8,35 +8,39 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/cklxx/Alex-Code)](https://goreportcard.com/report/github.com/cklxx/Alex-Code)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**A proactive personal AI — your own dedicated AI agent.**
+**Lark-native proactive personal agent.**
 
-elephant.ai is not another chatbot you have to ask. It is a proactive personal AI agent that embeds into your daily workflows — Lark, CLI, and web — remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. One runtime, every surface, always ready.
+elephant.ai lives inside your Lark groups and DMs as a first-class participant — not a bot you have to summon. It reads the room, remembers context across conversations, takes initiative with built-in skills, and executes real work autonomously. CLI and web dashboard are there when you need them, but Lark is home.
 
 ---
 
-## What makes it proactive
+## Why Lark-native
 
-| Capability | What it does |
+Most AI assistants sit outside your workflow — a separate app, a separate tab, a separate context switch. elephant.ai is different:
+
+| Capability | How it works in Lark |
 |---|---|
-| **Persistent memory** | Remembers conversations, decisions, and context across sessions. Retrieves relevant history automatically so you never repeat yourself. |
-| **Channel-native** | Lives inside Lark as a first-class participant. Reads the room, responds in-thread, and acts on messages in real time. |
-| **Autonomous execution** | Runs a full Think → Act → Observe loop. Searches the web, writes code, generates documents, and browses pages without hand-holding. |
-| **Built-in skills** | Ships with ready-to-use workflows: deep research, meeting notes, email drafting, slide decks, video production, and more. |
-| **Context-aware reasoning** | Assembles system policies, task goals, memory, and session history into a layered context — then reasons with extended thinking models (Claude, OpenAI o-series, DeepSeek). |
-| **Approval gates** | Knows when to ask before acting. Risky operations require explicit human approval via CLI, web, or chat. |
+| **Always present** | Lives in your Lark groups and DMs via WebSocket. No `/slash` commands needed — just talk to it naturally. |
+| **Reads the room** | Auto-fetches recent chat history as context. Understands the conversation before replying. |
+| **Persistent memory** | Remembers conversations, decisions, and context across sessions. Never ask "as I mentioned before" again. |
+| **Autonomous execution** | Runs a full Think → Act → Observe loop. Searches the web, writes code, generates documents, browses pages — all from a Lark message. |
+| **Live progress** | Shows tool execution progress and emoji reactions in real time while working. |
+| **Built-in skills** | Deep research, meeting notes, email drafting, slide decks, video production — triggered by natural language. |
+| **Approval gates** | Knows when to ask before acting. Risky operations require explicit human approval right in the chat. |
 
 ---
 
 ## How it works
 
 ```
-You (Lark / CLI / Web)
+You (Lark group / DM)
         ↓
    elephant.ai runtime
         ↓
   ┌─────────────────────────────────┐
   │  Context Assembly               │
-  │  (memory + history + policies)  │
+  │  (chat history + memory +       │
+  │   policies + session state)     │
   ├─────────────────────────────────┤
   │  ReAct Agent Loop               │
   │  Think → Act → Observe          │
@@ -49,24 +53,22 @@ You (Lark / CLI / Web)
   │  (traces, metrics, cost)        │
   └─────────────────────────────────┘
         ↓
-  Response delivered to your channel
+  Reply delivered back to Lark
 ```
-
-All surfaces share the same execution core, typed event stream, and observability pipeline. A conversation started in Lark renders identically in the web dashboard.
 
 ---
 
-## Channels & surfaces
+## Surfaces
 
-- **Lark** — WebSocket gateway, auto-saves messages to memory, injects recent chat history as context, real-time tool progress display, emoji reactions, group and DM support.
-- **CLI / TUI** — Interactive terminal with streaming output and tool approval prompts.
-- **Web dashboard** — Next.js app with SSE streaming, artifact rendering, cost tracking, and session management.
+- **Lark** (primary) — WebSocket gateway, auto-saves messages to memory, injects recent chat history as context, real-time tool progress, emoji reactions, group and DM support, plan review and approval flows.
+- **Web dashboard** — Next.js app with SSE streaming, artifact rendering, cost tracking, session management. Useful for reviewing past conversations and complex outputs.
+- **CLI / TUI** — Interactive terminal with streaming output and tool approval prompts. For developers who prefer the command line.
 
 ---
 
 ## Built-in skills
 
-Skills are markdown-driven workflows the assistant can execute on demand:
+Skills are markdown-driven workflows the agent executes on demand — just describe what you need in Lark:
 
 | Skill | Description |
 |---|---|
@@ -106,10 +108,16 @@ export OPENAI_API_KEY="sk-..."
 # or: ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, CODEX_API_KEY, ANTIGRAVITY_API_KEY
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
-# 2. Run backend + web together
+# 2. Configure Lark bot credentials in config.yaml
+#    lark:
+#      enabled: true
+#      app_id: "cli_xxx"
+#      app_secret: "xxx"
+
+# 3. Run backend + web together
 ./dev.sh
 
-# 3. Or build the CLI
+# 4. Or build the CLI
 make build
 ./alex
 ./alex "summarize the last 3 Lark conversations and draft follow-up emails"
@@ -130,7 +138,7 @@ Configuration reference: [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
 ## Architecture
 
 ```
-Delivery (CLI, Server, Web, Lark)
+Delivery (Lark, Web, CLI)
   → Agent Application Layer
   → Domain Ports (ReAct loop, events, approvals)
   → Infrastructure Adapters (LLM, tools, memory, storage, observability)
@@ -138,7 +146,7 @@ Delivery (CLI, Server, Web, Lark)
 
 | Layer | Key packages |
 |---|---|
-| Delivery | `cmd/alex`, `cmd/alex-server`, `web/`, `internal/channels/` |
+| Delivery | `internal/channels/lark/`, `cmd/alex-server`, `web/`, `cmd/alex` |
 | Agent core | `internal/agent/{app,domain,ports}` — ReAct loop, typed events, approval gates |
 | Tools | `internal/tools/builtin/` — search, code execution, browser, files, artifacts, media |
 | Memory | `internal/memory/` — persistent store (Postgres, file, in-memory) with tokenization |
@@ -151,9 +159,7 @@ Delivery (CLI, Server, Web, Lark)
 
 ---
 
-## Tools the assistant can use
-
-The assistant has access to a rich set of built-in tools:
+## Tools the agent can use
 
 - **Web search & browsing** — Search engines and full browser automation via ChromeDP
 - **Code execution** — Sandboxed code runner for multiple languages

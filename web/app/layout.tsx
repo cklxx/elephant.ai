@@ -21,7 +21,7 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "elephant.ai",
   description:
-    "Build controllable, auditable agents with Plan + Clarify + ReAct.",
+    "Lark-native proactive personal agent — lives in your groups and DMs, remembers context, executes real work autonomously.",
   icons: {
     icon: "/elephant.jpg",
   },
