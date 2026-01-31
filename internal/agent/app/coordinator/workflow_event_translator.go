@@ -179,7 +179,8 @@ func buildArtifactManifestPayload(e *domain.WorkflowToolCompletedEvent) map[stri
 	if e == nil {
 		return nil
 	}
-	if strings.EqualFold(strings.TrimSpace(e.ToolName), "acp_executor") {
+	toolName := strings.ToLower(strings.TrimSpace(e.ToolName))
+	if toolName == "acp_executor" {
 		return nil
 	}
 	attachments := e.Attachments
@@ -195,7 +196,7 @@ func buildArtifactManifestPayload(e *domain.WorkflowToolCompletedEvent) map[stri
 			return payload
 		}
 	}
-	if strings.EqualFold(strings.TrimSpace(e.ToolName), "artifact_manifest") {
+	if toolName == "artifact_manifest" {
 		payload := map[string]any{
 			"result":      e.Result,
 			"source_tool": e.ToolName,
@@ -209,8 +210,8 @@ func buildArtifactManifestPayload(e *domain.WorkflowToolCompletedEvent) map[stri
 		return nil
 	}
 	for _, att := range attachments {
-		if strings.EqualFold(strings.TrimSpace(att.Format), "manifest") ||
-			strings.Contains(strings.ToLower(att.Name), "manifest") {
+		format := strings.ToLower(strings.TrimSpace(att.Format))
+		if format == "manifest" || strings.Contains(strings.ToLower(att.Name), "manifest") {
 			return map[string]any{
 				"attachments": attachments,
 				"source_tool": e.ToolName,
@@ -630,31 +631,21 @@ func sanitizeWorkflowSnapshot(snapshot *workflow.WorkflowSnapshot) *workflow.Wor
 		return nil
 	}
 
+	// Single pass: filter nodes and build a retained-ID set simultaneously.
 	filteredNodes := make([]workflow.NodeSnapshot, 0, len(snapshot.Nodes))
-	filteredOrder := make([]string, 0, len(snapshot.Order))
-	for _, n := range snapshot.Nodes {
-		if isToolRecorderNodeID(n.ID) {
-			continue
-		}
-		filteredNodes = append(filteredNodes, n)
-	}
-	orderSet := make(map[string]bool, len(filteredNodes))
-	for _, n := range filteredNodes {
-		orderSet[n.ID] = true
-	}
-	for _, id := range snapshot.Order {
-		if orderSet[id] {
-			filteredOrder = append(filteredOrder, id)
-		}
-	}
-
+	retained := make(map[string]struct{}, len(snapshot.Nodes))
 	summary := map[string]int64{
 		"pending":   0,
 		"running":   0,
 		"succeeded": 0,
 		"failed":    0,
 	}
-	for _, n := range filteredNodes {
+	for _, n := range snapshot.Nodes {
+		if isToolRecorderNodeID(n.ID) {
+			continue
+		}
+		filteredNodes = append(filteredNodes, n)
+		retained[n.ID] = struct{}{}
 		switch n.Status {
 		case workflow.NodeStatusPending:
 			summary["pending"]++
@@ -664,6 +655,13 @@ func sanitizeWorkflowSnapshot(snapshot *workflow.WorkflowSnapshot) *workflow.Wor
 			summary["succeeded"]++
 		case workflow.NodeStatusFailed:
 			summary["failed"]++
+		}
+	}
+
+	filteredOrder := make([]string, 0, len(filteredNodes))
+	for _, id := range snapshot.Order {
+		if _, ok := retained[id]; ok {
+			filteredOrder = append(filteredOrder, id)
 		}
 	}
 
@@ -830,6 +828,11 @@ func (t *subflowStatsTracker) snapshot(event agent.SubtaskWrapper, details agent
 	}
 	if snapshot.total < snapshot.completed {
 		snapshot.total = snapshot.completed
+	}
+
+	// Reclaim memory once all tasks in a subflow have finished.
+	if snapshot.total > 0 && snapshot.completed >= snapshot.total {
+		delete(t.flows, key)
 	}
 
 	return snapshot
