@@ -2,7 +2,6 @@ package http
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 
 	core "alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
 )
 
 const (
@@ -100,7 +98,7 @@ func (h *APIHandler) HandleGetSession(w http.ResponseWriter, r *http.Request) {
 
 	session, err := h.coordinator.GetSession(r.Context(), sessionID)
 	if err != nil {
-		h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
+		h.writeMappedError(w, err, http.StatusNotFound, "Session not found")
 		return
 	}
 
@@ -121,7 +119,7 @@ func (h *APIHandler) HandleGetSessionPersona(w http.ResponseWriter, r *http.Requ
 
 	session, err := h.coordinator.GetSession(r.Context(), sessionID)
 	if err != nil {
-		h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
+		h.writeMappedError(w, err, http.StatusNotFound, "Session not found")
 		return
 	}
 
@@ -158,7 +156,7 @@ func (h *APIHandler) HandleUpdateSessionPersona(w http.ResponseWriter, r *http.R
 
 	session, err := h.coordinator.UpdateSessionPersona(r.Context(), sessionID, req.UserPersona)
 	if err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to update persona", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to update persona")
 		return
 	}
 
@@ -179,7 +177,7 @@ func (h *APIHandler) HandleCreateSession(w http.ResponseWriter, r *http.Request)
 
 	session, err := h.coordinator.CreateSession(r.Context())
 	if err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create session", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create session")
 		return
 	}
 
@@ -205,11 +203,7 @@ func (h *APIHandler) HandleCreateSessionShare(w http.ResponseWriter, r *http.Req
 
 	shareToken, err := h.coordinator.EnsureSessionShareToken(r.Context(), sessionID, false)
 	if err != nil {
-		if errors.Is(err, storage.ErrSessionNotFound) {
-			h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
-			return
-		}
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create share token", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create share token")
 		return
 	}
 
@@ -311,7 +305,7 @@ func (h *APIHandler) HandleDeleteSession(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.coordinator.DeleteSession(r.Context(), sessionID); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to delete session", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to delete session")
 		return
 	}
 
@@ -347,7 +341,7 @@ func (h *APIHandler) HandleListSnapshots(w http.ResponseWriter, r *http.Request)
 	cursor := strings.TrimSpace(r.URL.Query().Get("cursor"))
 	items, nextCursor, err := h.coordinator.ListSnapshots(r.Context(), sessionID, cursor, limit)
 	if err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list snapshots", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to list snapshots")
 		return
 	}
 	responseItems := make([]SessionSnapshotItem, 0, len(items))
@@ -397,7 +391,7 @@ func (h *APIHandler) HandleGetTurnSnapshot(w http.ResponseWriter, r *http.Reques
 	}
 	snapshot, err := h.coordinator.GetSnapshot(r.Context(), sessionID, turnID)
 	if err != nil {
-		h.writeJSONError(w, http.StatusNotFound, "Snapshot not found", err)
+		h.writeMappedError(w, err, http.StatusNotFound, "Snapshot not found")
 		return
 	}
 	resp := TurnSnapshotResponse{
@@ -431,7 +425,7 @@ func (h *APIHandler) HandleReplaySession(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := h.coordinator.ReplaySession(r.Context(), sessionID); err != nil {
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to schedule replay", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to schedule replay")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -464,7 +458,7 @@ func (h *APIHandler) HandleForkSession(w http.ResponseWriter, r *http.Request) {
 
 	newSession, err := h.coordinator.ForkSession(r.Context(), sessionID)
 	if err != nil {
-		h.writeJSONError(w, http.StatusBadRequest, "Failed to fork session", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to fork session")
 		return
 	}
 

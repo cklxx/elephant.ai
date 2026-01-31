@@ -70,7 +70,7 @@ func (svc *SessionService) GetSession(ctx context.Context, id string) (*storage.
 // UpdateSessionPersona updates the user persona profile for a session.
 func (svc *SessionService) UpdateSessionPersona(ctx context.Context, sessionID string, persona *ports.UserPersonaProfile) (*storage.Session, error) {
 	if persona == nil {
-		return nil, fmt.Errorf("user persona is required")
+		return nil, ValidationError("user persona is required")
 	}
 	session, err := svc.sessionStore.Get(ctx, sessionID)
 	if err != nil {
@@ -91,7 +91,7 @@ func (svc *SessionService) ListSessions(ctx context.Context, limit int, offset i
 // CreateSession creates a new session record without executing a task.
 func (svc *SessionService) CreateSession(ctx context.Context) (*storage.Session, error) {
 	if svc.agentCoordinator == nil {
-		return nil, fmt.Errorf("agent coordinator not initialized")
+		return nil, UnavailableError("agent coordinator not initialized")
 	}
 	logger := logging.FromContext(ctx, svc.logger)
 	session, err := svc.agentCoordinator.GetSession(ctx, "")
@@ -160,7 +160,7 @@ func (svc *SessionService) ForkSession(ctx context.Context, sessionID string) (*
 func (svc *SessionService) EnsureSessionShareToken(ctx context.Context, sessionID string, reset bool) (string, error) {
 	trimmedID := strings.TrimSpace(sessionID)
 	if trimmedID == "" {
-		return "", fmt.Errorf("session id required")
+		return "", ValidationError("session id required")
 	}
 
 	session, err := svc.sessionStore.Get(ctx, trimmedID)
@@ -199,7 +199,7 @@ func (svc *SessionService) EnsureSessionShareToken(ctx context.Context, sessionI
 func (svc *SessionService) ValidateShareToken(ctx context.Context, sessionID string, token string) (*storage.Session, error) {
 	trimmedID := strings.TrimSpace(sessionID)
 	if trimmedID == "" {
-		return nil, fmt.Errorf("session id required")
+		return nil, ValidationError("session id required")
 	}
 
 	trimmedToken := strings.TrimSpace(token)

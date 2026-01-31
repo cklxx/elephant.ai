@@ -143,8 +143,8 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 
 	if svc.broadcaster == nil {
 		logger.Error("[TaskExecutionService] Broadcaster is nil!")
-		_ = svc.taskStore.SetError(ctx, taskRecord.ID, fmt.Errorf("broadcaster not initialized"))
-		return taskRecord, fmt.Errorf("broadcaster not initialized")
+		_ = svc.taskStore.SetError(ctx, taskRecord.ID, UnavailableError("broadcaster not initialized"))
+		return taskRecord, UnavailableError("broadcaster not initialized")
 	}
 
 	taskCtx, cancelFunc := context.WithCancelCause(context.WithoutCancel(ctx))
@@ -208,7 +208,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(ctx context.Context, ta
 		errMsg := fmt.Sprintf("[Background] CRITICAL: agentCoordinator is nil (taskID=%s)", taskID)
 		logger.Error("%s", errMsg)
 		fmt.Fprintf(os.Stderr, "ERROR: %s\n", errMsg)
-		err := fmt.Errorf("agent coordinator not initialized")
+		err := UnavailableError("agent coordinator not initialized")
 		spanErr = err
 		status = "error"
 		_ = svc.taskStore.SetError(ctx, taskID, err)
@@ -472,7 +472,7 @@ func (svc *TaskExecutionService) CancelTask(ctx context.Context, taskID string) 
 	logger := logging.FromContext(ctx, svc.logger)
 
 	if task.Status != serverPorts.TaskStatusPending && task.Status != serverPorts.TaskStatusRunning {
-		return fmt.Errorf("cannot cancel task in status: %s", task.Status)
+		return ConflictError(fmt.Sprintf("cannot cancel task in status: %s", task.Status))
 	}
 
 	svc.cancelMu.RLock()

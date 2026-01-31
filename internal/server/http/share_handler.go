@@ -2,12 +2,10 @@ package http
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	storage "alex/internal/agent/ports/storage"
 	"alex/internal/logging"
 	"alex/internal/server/app"
 )
@@ -49,12 +47,8 @@ func (h *ShareHandler) HandleSharedSession(w http.ResponseWriter, r *http.Reques
 	token := strings.TrimSpace(r.URL.Query().Get("token"))
 	session, err := h.coordinator.ValidateShareToken(r.Context(), sessionID, token)
 	if err != nil {
-		if errors.Is(err, app.ErrShareTokenInvalid) {
-			http.Error(w, "Invalid share token", http.StatusForbidden)
-			return
-		}
-		if errors.Is(err, storage.ErrSessionNotFound) {
-			http.Error(w, "Session not found", http.StatusNotFound)
+		if status, msg := mapDomainError(err); status != 0 {
+			http.Error(w, msg, status)
 			return
 		}
 		h.logger.Error("Failed to validate share token: %v", err)

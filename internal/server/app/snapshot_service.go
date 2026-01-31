@@ -61,7 +61,7 @@ func WithSnapshotJournalReader(reader journal.Reader) SnapshotServiceOption {
 // ListSnapshots returns paginated session snapshots.
 func (svc *SnapshotService) ListSnapshots(ctx context.Context, sessionID string, cursor string, limit int) ([]sessionstate.SnapshotMetadata, string, error) {
 	if svc.stateStore == nil {
-		return nil, "", fmt.Errorf("state store not configured")
+		return nil, "", UnavailableError("state store not configured")
 	}
 	return svc.stateStore.ListSnapshots(ctx, sessionID, cursor, limit)
 }
@@ -69,7 +69,7 @@ func (svc *SnapshotService) ListSnapshots(ctx context.Context, sessionID string,
 // GetSnapshot fetches a specific turn snapshot.
 func (svc *SnapshotService) GetSnapshot(ctx context.Context, sessionID string, turnID int) (sessionstate.Snapshot, error) {
 	if svc.stateStore == nil {
-		return sessionstate.Snapshot{}, fmt.Errorf("state store not configured")
+		return sessionstate.Snapshot{}, UnavailableError("state store not configured")
 	}
 	return svc.stateStore.GetSnapshot(ctx, sessionID, turnID)
 }
@@ -77,13 +77,13 @@ func (svc *SnapshotService) GetSnapshot(ctx context.Context, sessionID string, t
 // ReplaySession rehydrates the snapshot store from persisted turn journal entries.
 func (svc *SnapshotService) ReplaySession(ctx context.Context, sessionID string) error {
 	if sessionID == "" {
-		return fmt.Errorf("session id required")
+		return ValidationError("session id required")
 	}
 	if svc.journalReader == nil {
-		return fmt.Errorf("journal reader not configured")
+		return UnavailableError("journal reader not configured")
 	}
 	if svc.stateStore == nil {
-		return fmt.Errorf("state store not configured")
+		return UnavailableError("state store not configured")
 	}
 	var snapshots []sessionstate.Snapshot
 	streamErr := svc.journalReader.Stream(ctx, sessionID, func(entry journal.TurnJournalEntry) error {
@@ -115,7 +115,7 @@ func (svc *SnapshotService) ReplaySession(ctx context.Context, sessionID string)
 		return fmt.Errorf("replay journal: %w", streamErr)
 	}
 	if len(snapshots) == 0 {
-		return fmt.Errorf("no journal entries for session %s", sessionID)
+		return NotFoundError(fmt.Sprintf("no journal entries for session %s", sessionID))
 	}
 	if err := svc.stateStore.ClearSession(ctx, sessionID); err != nil {
 		return fmt.Errorf("clear state store: %w", err)
@@ -136,7 +136,7 @@ func (svc *SnapshotService) ReplaySession(ctx context.Context, sessionID string)
 // PreviewContextWindow returns the constructed context window for a session.
 func (svc *SnapshotService) PreviewContextWindow(ctx context.Context, sessionID string) (agent.ContextWindowPreview, error) {
 	if svc.agentCoordinator == nil {
-		return agent.ContextWindowPreview{}, fmt.Errorf("agent coordinator not configured")
+		return agent.ContextWindowPreview{}, UnavailableError("agent coordinator not configured")
 	}
 	return svc.agentCoordinator.PreviewContextWindow(ctx, sessionID)
 }

@@ -3,7 +3,6 @@ package http
 import (
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -12,7 +11,6 @@ import (
 
 	appcontext "alex/internal/agent/app/context"
 	agentports "alex/internal/agent/ports"
-	storage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/types"
 	serverPorts "alex/internal/server/ports"
 	"alex/internal/subscription"
@@ -105,11 +103,7 @@ func (h *APIHandler) HandleCreateTask(w http.ResponseWriter, r *http.Request) {
 	// Background goroutine will handle actual execution and update status
 	task, err := h.coordinator.ExecuteTaskAsync(ctx, req.Task, req.SessionID, req.AgentPreset, req.ToolPreset)
 	if err != nil {
-		if errors.Is(err, storage.ErrSessionNotFound) {
-			h.writeJSONError(w, http.StatusNotFound, "Session not found", err)
-			return
-		}
-		h.writeJSONError(w, http.StatusInternalServerError, "Failed to create task", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to create task")
 		return
 	}
 
@@ -238,7 +232,7 @@ func (h *APIHandler) HandleGetTask(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.coordinator.GetTask(r.Context(), taskID)
 	if err != nil {
-		h.writeJSONError(w, http.StatusNotFound, "Task not found", err)
+		h.writeMappedError(w, err, http.StatusNotFound, "Task not found")
 		return
 	}
 
@@ -371,7 +365,7 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.coordinator.CancelTask(r.Context(), taskID); err != nil {
-		h.writeJSONError(w, http.StatusBadRequest, "Failed to cancel task", err)
+		h.writeMappedError(w, err, http.StatusInternalServerError, "Failed to cancel task")
 		return
 	}
 
