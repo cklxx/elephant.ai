@@ -1,12 +1,12 @@
 # Long-Term Memory
 
-Updated: 2026-02-01 22:00
+Updated: 2026-02-02 00:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
 
-## Active Memory (2026-02-01)
+## Active Memory (2026-02-02)
 - Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
 - Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
 - Use `CGO_ENABLED=0` for `go test -race` on darwin CLT to avoid LC_DYSYMTAB warnings.
