@@ -64,11 +64,12 @@ When making decisions, prefer:
   * Provide periodic summaries, and abstract/refactor when appropriate to improve long-term maintainability.
   * Start with the most systematic view of the current project, then propose a reasonable plan.
   * Absolute core: practice compounding engineering — record successful paths and failed experiences.
-  * Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
-  * Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
-  * Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.
-  * Run full lint and test validation after changes.
-  * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
+* Record execution plans, progress, and notable issues in planning docs; log important incidents in error-experience entries.
+* Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
+* Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.
+* Run full lint and test validation after changes.
+* After completing code changes, restart the project with `./dev.sh down && ./dev.sh`.
+* Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
   * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.
 
 ---
@@ -89,6 +90,7 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * Before each task, review engineering practices under `docs/`; if missing, search and add them.
 * Record notable incidents in error-experience entries; keep index files index-only.
 * Use TDD when touching logic; run full lint + tests before delivery.
+* After completing code changes, restart the project with `./dev.sh down && ./dev.sh`.
 * After completing changes, always commit. Split one solution into incremental batches and commit each batch separately — one solution, multiple commits.
 * Avoid unnecessary defensive code; trust invariants when guaranteed.
 
