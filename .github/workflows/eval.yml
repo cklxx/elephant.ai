@@ -1,0 +1,57 @@
+name: Optional Eval Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: "Why is this evaluation run being triggered?"
+        required: false
+        type: string
+  push:
+    tags:
+      - "eval/**"
+
+permissions:
+  contents: read
+  actions: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GO_VERSION: "1.24.11"
+
+concurrency:
+  group: eval-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  eval-quick:
+    name: Optional Agent Eval (Quick)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run quick agent eval
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
+        run: |
+          bash scripts/eval-quick.sh
+
+      - name: Upload evaluation results
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-results
+          path: evaluation_results
+          if-no-files-found: error
