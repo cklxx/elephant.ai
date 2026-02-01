@@ -109,6 +109,77 @@ func DefaultToolPolicyConfig() ToolPolicyConfig {
 	}
 }
 
+// DefaultPolicyRules returns the built-in policy rules for elephant.ai's
+// tool ecosystem. These are applied unless overridden by user configuration.
+//
+// Rule order matters — first match wins:
+//  1. media-generation: long timeout for image/video generation
+//  2. lark-write-ops: short timeout for Lark API mutations
+//  3. web-tools: moderate timeout + retries for network calls
+//  4. execution-long: long timeout for code execution
+//  5. dangerous-no-retry: catch-all suppressing retries for any dangerous tool
+func DefaultPolicyRules() []PolicyRule {
+	t30 := 30 * time.Second
+	t60 := 60 * time.Second
+	t300 := 300 * time.Second
+
+	webRetry := ToolRetryConfig{
+		MaxRetries:     3,
+		InitialBackoff: 2 * time.Second,
+		MaxBackoff:     30 * time.Second,
+		BackoffFactor:  2.0,
+	}
+
+	mediaRetry := ToolRetryConfig{
+		MaxRetries:     2,
+		InitialBackoff: 5 * time.Second,
+		MaxBackoff:     60 * time.Second,
+		BackoffFactor:  2.0,
+	}
+
+	noRetry := ToolRetryConfig{MaxRetries: 0}
+	dangerousTrue := true
+
+	return []PolicyRule{
+		{
+			Name:    "media-generation",
+			Match:   PolicySelector{Categories: []string{"design"}},
+			Timeout: &t300,
+			Retry:   &mediaRetry,
+		},
+		{
+			Name:    "lark-write-ops",
+			Match:   PolicySelector{Categories: []string{"lark"}, Dangerous: &dangerousTrue},
+			Timeout: &t30,
+			Retry:   &noRetry,
+		},
+		{
+			Name:    "web-tools",
+			Match:   PolicySelector{Categories: []string{"web"}},
+			Timeout: &t60,
+			Retry:   &webRetry,
+		},
+		{
+			Name:    "execution-long",
+			Match:   PolicySelector{Tools: []string{"code_execute", "shell_exec", "execute_code", "bash"}},
+			Timeout: &t300,
+		},
+		{
+			Name:  "dangerous-no-retry",
+			Match: PolicySelector{Dangerous: &dangerousTrue},
+			Retry: &noRetry,
+		},
+	}
+}
+
+// DefaultToolPolicyConfigWithRules returns a ToolPolicyConfig pre-loaded
+// with both sensible global defaults and the built-in policy rules.
+func DefaultToolPolicyConfigWithRules() ToolPolicyConfig {
+	cfg := DefaultToolPolicyConfig()
+	cfg.Rules = DefaultPolicyRules()
+	return cfg
+}
+
 // ---------------------------------------------------------------------------
 // ToolPolicy interface + implementation
 // ---------------------------------------------------------------------------

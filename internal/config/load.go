@@ -54,7 +54,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		CostDir:                    "~/.alex/costs",
 		SessionStaleAfterSeconds:   int((48 * time.Hour).Seconds()),
 		HTTPLimits:                 DefaultHTTPLimitsConfig(),
-		ToolPolicy:                 toolspolicy.DefaultToolPolicyConfig(),
+		ToolPolicy:                 toolspolicy.DefaultToolPolicyConfigWithRules(),
 		Proactive:                  DefaultProactiveConfig(),
 		ExternalAgents:             DefaultExternalAgentsConfig(),
 	}

@@ -209,6 +209,133 @@ func TestResolve_ANDLogicAcrossFields(t *testing.T) {
 	}
 }
 
+// ---------------------------------------------------------------------------
+// Default policy rules tests
+// ---------------------------------------------------------------------------
+
+func TestDefaultPolicyRules_MediaGeneration(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+
+	result := p.Resolve(ToolCallContext{ToolName: "text_to_image", Category: "design"})
+	if result.Timeout != 300*time.Second {
+		t.Errorf("media timeout = %v, want 300s", result.Timeout)
+	}
+	if result.Retry.MaxRetries != 2 {
+		t.Errorf("media retries = %d, want 2", result.Retry.MaxRetries)
+	}
+}
+
+func TestDefaultPolicyRules_LarkWriteOps(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+
+	result := p.Resolve(ToolCallContext{
+		ToolName:  "lark_calendar_create",
+		Category:  "lark",
+		Dangerous: true,
+	})
+	if result.Timeout != 30*time.Second {
+		t.Errorf("lark write timeout = %v, want 30s", result.Timeout)
+	}
+	if result.Retry.MaxRetries != 0 {
+		t.Errorf("lark write retries = %d, want 0", result.Retry.MaxRetries)
+	}
+}
+
+func TestDefaultPolicyRules_LarkReadOps(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+
+	// Lark read (not dangerous) should NOT match lark-write-ops rule
+	result := p.Resolve(ToolCallContext{
+		ToolName:  "lark_calendar_query",
+		Category:  "lark",
+		Dangerous: false,
+	})
+	// Falls through to default 120s (no rule matches lark+safe)
+	if result.Timeout != 120*time.Second {
+		t.Errorf("lark read timeout = %v, want 120s", result.Timeout)
+	}
+	if result.Retry.MaxRetries != 2 {
+		t.Errorf("lark read retries = %d, want 2", result.Retry.MaxRetries)
+	}
+}
+
+func TestDefaultPolicyRules_WebTools(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+
+	result := p.Resolve(ToolCallContext{ToolName: "web_search", Category: "web"})
+	if result.Timeout != 60*time.Second {
+		t.Errorf("web timeout = %v, want 60s", result.Timeout)
+	}
+	if result.Retry.MaxRetries != 3 {
+		t.Errorf("web retries = %d, want 3", result.Retry.MaxRetries)
+	}
+}
+
+func TestDefaultPolicyRules_ExecutionLong(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+
+	for _, tool := range []string{"code_execute", "shell_exec", "execute_code", "bash"} {
+		result := p.Resolve(ToolCallContext{ToolName: tool, Category: "execution", Dangerous: true})
+		if result.Timeout != 300*time.Second {
+			t.Errorf("%s timeout = %v, want 300s", tool, result.Timeout)
+		}
+	}
+}
+
+func TestDefaultPolicyRules_DangerousCatchAll(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+
+	// file_write: dangerous, category=file_operations — no earlier rule matches
+	result := p.Resolve(ToolCallContext{
+		ToolName:  "file_write",
+		Category:  "file_operations",
+		Dangerous: true,
+	})
+	if result.Retry.MaxRetries != 0 {
+		t.Errorf("dangerous catch-all retries = %d, want 0", result.Retry.MaxRetries)
+	}
+	// Timeout should be default 120s (catch-all only sets retry)
+	if result.Timeout != 120*time.Second {
+		t.Errorf("dangerous catch-all timeout = %v, want 120s", result.Timeout)
+	}
+}
+
+func TestDefaultPolicyRules_SafeToolFallsThrough(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+
+	// A safe tool in an unmatched category uses global defaults
+	result := p.Resolve(ToolCallContext{
+		ToolName: "memory_recall",
+		Category: "memory",
+	})
+	if result.Timeout != 120*time.Second {
+		t.Errorf("safe fallthrough timeout = %v, want 120s", result.Timeout)
+	}
+	if result.Retry.MaxRetries != 2 {
+		t.Errorf("safe fallthrough retries = %d, want 2", result.Retry.MaxRetries)
+	}
+	if !result.Enabled {
+		t.Error("safe tool should be enabled")
+	}
+}
+
+func TestDefaultPolicyRules_Count(t *testing.T) {
+	rules := DefaultPolicyRules()
+	if len(rules) != 5 {
+		t.Errorf("DefaultPolicyRules() has %d rules, want 5", len(rules))
+	}
+}
+
+func TestDefaultToolPolicyConfigWithRules(t *testing.T) {
+	cfg := DefaultToolPolicyConfigWithRules()
+	if len(cfg.Rules) == 0 {
+		t.Error("DefaultToolPolicyConfigWithRules should have rules")
+	}
+	if cfg.Timeout.Default != 120*time.Second {
+		t.Errorf("default timeout = %v, want 120s", cfg.Timeout.Default)
+	}
+}
+
 func TestMatchesAnyGlob(t *testing.T) {
 	tests := []struct {
 		patterns []string
