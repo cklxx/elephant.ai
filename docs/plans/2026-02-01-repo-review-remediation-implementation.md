@@ -14,4 +14,4 @@ Updated: 2026-02-01 16:00
 - [x] Phase 4：EventBroadcaster 缺失 session 处理
 - [x] Phase 5：SSE LRU / FileStore ctx / Attachment ctx
 - [x] 测试：新增/更新单测，跑 `./dev.sh lint` 与 `./dev.sh test`
-- [ ] 提交：按 phase 拆分提交
+- [x] 提交：按 phase 拆分提交
