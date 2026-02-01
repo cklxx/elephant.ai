@@ -353,10 +353,12 @@ func TestGetFeed_DefaultPage(t *testing.T) {
 func TestEnvelope_SuccessFalse(t *testing.T) {
 	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		if err := json.NewEncoder(w).Encode(map[string]any{
 			"success": false,
 			"error":   "Search failed",
-		})
+		}); err != nil {
+			t.Errorf("encode response: %v", err)
+		}
 	})
 
 	_, err := client.GetFeed(context.Background(), 1)

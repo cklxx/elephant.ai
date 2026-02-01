@@ -1,4 +1,4 @@
-# Track 1: 推理与 Agent 核心循环 — 详细 ROADMAP
+# Track 1: 推理与 Agent 核心循环 — OKR-First ROADMAP
 
 > **Parent:** `docs/roadmap/roadmap-lark-native-proactive-assistant.md`
 > **Owner:** cklxx
@@ -7,27 +7,61 @@
 
 ---
 
-## 概述
+## Objective & Key Results (O1)
 
-Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct 执行循环、LLM 推理引擎、上下文工程、记忆系统四大模块。
+**Objective (O1):** 提升规划与上下文可靠性，使任务执行更准确、更可恢复（支撑 Calendar + Tasks 闭环）。
 
-**关键路径：** `internal/agent/` · `internal/llm/` · `internal/context/` · `internal/memory/` · `internal/rag/`
+**Key Results:**
+- **KR1.1** Replan + 子目标分解在高失败率任务上可用
+- **KR1.2** 主动上下文注入 + 记忆结构化提升召回质量
+- **KR1.3** 关键决策具备置信度/证据与澄清路径
 
 ---
 
-## 1. ReAct 核心循环
+## Roadmap (OKR-driven)
+
+### M0: 可靠性基线（支撑 KR1.1 / KR1.2）
+
+- **ReAct 可靠性**：异常路径全覆盖、断点快照、重启续跑
+- **上下文基线**：四层拼装 + 动态压缩稳定
+- **记忆基线**：对话持久化 + 基础召回链路可用
+
+### M1: 智能规划与主动上下文（支撑 KR1.1 / KR1.2）
+
+- **Replan 机制** + 子目标分解（DAG）
+- **主动上下文注入** + Memory Flush-before-Compaction (D3)
+- **记忆结构化 (D5)**：entries/daily/MEMORY.md 分层
+
+### M2: 多 Agent 协作与置信度（支撑 KR1.3）
+
+- **多 Agent 协作**：消息通道、任务分配、冲突仲裁
+- **高级推理**：多路径采样投票 + 置信度建模
+
+### M3: 主动知识管理（支撑 KR1.3）
+
+- 记忆从被动存储 → 主动知识管理
+- 置信度与证据覆盖所有关键决策
+
+---
+
+## Baseline & Gaps (Current State)
+
+**关键路径：** `internal/agent/` · `internal/llm/` · `internal/context/` · `internal/memory/` · `internal/rag/`
+
+### 1. ReAct 核心循环
 
 > `internal/agent/domain/react/`
 
-### 现状
-
+**现状**
 - Think → Act → Observe 基础循环已实现
 - 状态机管理执行阶段（prepare → execute → summarize → persist）
 - 并行工具调用 + 结果去重 + 超时控制
 - 结构化事件流（强类型 domain events）
-- 基础子 Agent 委派（subagent 工具）
+- 基础子 Agent 委派
 
-### M0: 循环可靠性
+**Milestones (initiatives)**
+
+#### M0: 循环可靠性
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -37,7 +71,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 优雅退出 | SIGTERM 时完成当前工具调用、保存状态、通知用户 | ❌ 待实现 | `react/runtime.go` |
 | 事件一致性 | 事件 ID 全局唯一 + 幂等消费，断线重连不丢事件 | ✅ 已实现 | `internal/agent/domain/events.go` |
 
-### M1: 智能规划
+#### M1: 智能规划
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -47,7 +81,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 计划可视化 | 将执行计划结构化输出给前端展示（步骤/依赖/状态） | ❌ 待实现 | `react/workflow.go` |
 | 用户干预点 | 计划生成后暂停等用户确认，支持修改后再执行 | ✅ 已实现 | `react/runtime_user_input.go`, `react/runtime.go:maybeTriggerPlanReview()` |
 
-### M2: 多 Agent 协作
+#### M2: 多 Agent 协作
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -59,19 +93,20 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 
 ---
 
-## 2. LLM 推理引擎
+### 2. LLM 推理引擎
 
 > `internal/llm/`
 
-### 现状
-
+**现状**
 - 5 个 client 实现（Anthropic/OpenAI-compatible/OpenAI-Responses/ARK-Antigravity/Ollama），通过 OpenAI-compatible 覆盖 DeepSeek/OpenRouter 等 7+ 提供商
 - Extended Thinking（Claude）、Reasoning Effort（ARK o-series）
 - 全提供商 SSE 流式输出
 - 指数退避重试 + 速率限制
 - 自动工厂选择最佳可用提供商
 
-### M0: 基础稳固
+**Milestones (initiatives)**
+
+#### M0: 基础稳固
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -80,7 +115,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 重试与降级 | 指数退避、速率限制、provider 级降级 | ✅ 已实现 | `internal/llm/retry_client.go` |
 | Extended Thinking | Claude extended thinking 支持 | ✅ 已实现 | `internal/llm/anthropic_client.go` |
 
-### M1: 智能路由
+#### M1: 智能路由
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -90,7 +125,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 成本核算增强 | 实时按模型/任务/用户维度统计成本 | ⚙️ 部分 | `internal/observability/` |
 | 提供商健康检测 | 实时探测提供商可用性，不可用时自动切换 | ❌ 待实现 | `internal/llm/health.go` |
 
-### M2: 高级推理
+#### M2: 高级推理
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -101,19 +136,20 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 
 ---
 
-## 3. 上下文工程
+### 3. 上下文工程
 
 > `internal/context/`
 
-### 现状
-
+**现状**
 - System/Policy/Task/Memory 四层上下文分层拼装
 - 动态摘要与压缩（超出 token 预算时自动压缩）
 - Token 预算滑动窗口
 - SOP 解析器（基于任务类型加载标准操作流程）
 - Lark 聊天历史作为上下文注入
 
-### M0: 基础完备
+**Milestones (initiatives)**
+
+#### M0: 基础完备
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -122,7 +158,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | Token 预算窗口 | 滑动窗口管理上下文大小 | ✅ 已实现 | `manager_window.go` |
 | SOP 解析 | 任务类型 → 标准操作流程 | ✅ 已实现 | `sop_resolver.go` |
 
-### M1: 智能上下文
+#### M1: 智能上下文
 
 | 项目 | 描述 | 状态 | 路径 | OpenClaw Delta |
 |------|------|------|------|------|
@@ -133,7 +169,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 成本感知裁剪 | Token 预算驱动的上下文裁剪策略，优先保留高价值内容 | ❌ 待实现 | `manager_window.go` | |
 | 跨会话上下文共享 | 相关会话间共享上下文片段 | ❌ 待实现 | `manager.go` | |
 
-### M2: 上下文自治
+#### M2: 上下文自治
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -143,19 +179,20 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 
 ---
 
-## 4. 记忆系统
+### 4. 记忆系统
 
 > `internal/memory/` · `internal/rag/`
 
-### 现状
-
+**现状**
 - Postgres + 文件双存储（hybrid fallback）
-- RAG 语义搜索（embedding + pgvector） + BM25 混合排序
-- 自动 token 计数（tiktoken）
+- RAG 语义搜索（chromem-go cosine similarity）；无 pgvector/BM25
+- 自动 token 计数（粗估）
 - 保留策略（自动过期清理）
 - 基础 Lark/WeChat 消息自动入库
 
-### M0: 记忆基线
+**Milestones (initiatives)**
+
+#### M0: 记忆基线
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -164,7 +201,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 保留策略 | 过期自动清理 | ✅ 已实现 | `memory/retention.go` |
 | 消息自动入库 | Lark 群聊消息自动存储 | ⚙️ 部分 | `internal/channels/lark/` |
 
-### M1: 主动记忆
+#### M1: 主动记忆
 
 | 项目 | 描述 | 状态 | 路径 | OpenClaw Delta |
 |------|------|------|------|------|
@@ -178,7 +215,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 记忆质量评估 | 检测过时/矛盾/冗余记忆，标记待清理 | ❌ 待实现 | `memory/quality.go` | |
 | Lark 消息全量入库 | 所有监听群的消息自动结构化存储 | ⚙️ 部分 | `internal/channels/lark/` | |
 
-### M2: 学习型记忆
+#### M2: 学习型记忆
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -187,7 +224,7 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 记忆纠错 | 用户反馈驱动的记忆修正与遗忘 | ❌ 待实现 | `memory/correction.go` |
 | 知识蒸馏 | 从大量对话记忆中蒸馏出结构化知识 | ❌ 待实现 | `memory/distill.go` |
 
-### M3: 主动知识管理
+#### M3: 主动知识管理
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
@@ -204,3 +241,4 @@ Online Agent 的推理引擎，是整个系统的心脏。本 Track 覆盖 ReAct
 | 2026-02-01 | All | Track 1 详细 ROADMAP 创建。ReAct 循环和 LLM 引擎基础已实现，主要缺口在 replan、智能路由、多 Agent 协作。 |
 | 2026-02-01 | All | 实现审计修正：LLM providers 描述更新（5 client 覆盖 7+ 提供商）；事件一致性 ⚙️→✅；用户干预点 ⚙️→✅；向量检索 ✅→⚙️（chromem-go，无 BM25/pgvector）。 |
 | 2026-02-01 | 上下文/记忆 | OpenClaw D3 集成：§3 M1 新增 Memory Flush-before-Compaction 项。D5 集成：§4 M1 新增记忆目录结构化四项（LayeredFileStore + 日汇总 + 长期事实提炼 + 旧格式迁移）。 |
+| 2026-02-01 | All | Roadmap 重构为 OKR-First，围绕 O1/KR1.* 重新组织章节。 |

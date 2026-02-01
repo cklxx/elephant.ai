@@ -4,6 +4,16 @@
 > **审计范围:** 全部四条 Track + 共享基础设施
 > **方法:** 逐文件核实代码实现，对照 Roadmap 标注
 
+## OKR-First 说明
+
+该审计报告基于原始功能拆解维度，但与当前 OKR-First Roadmap 保持一致：
+- Track 1 → O1/KR1.*
+- Track 2 → O2/KR2.*
+- Track 3 → O3/KR3.*
+- Track 4 → O4/KR4.*
+
+如需按 OKR 维度追踪进展，可直接按 Track 对照本报告。
+
 ---
 
 ## 审计摘要

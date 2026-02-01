@@ -45,8 +45,15 @@ runtime:
       collection: "rag"
       min_similarity: 0.7
     scheduler:
-      enabled: false
-      triggers: []
+      enabled: true
+      trigger_timeout_seconds: 900
+      concurrency_policy: "skip"
+      triggers:
+        - name: "daily_briefing"
+          schedule: "0 9,12,15,18 * * *"
+          task: "生成今日工作简报：总结待办事项、OKR 进展和需要关注的事项，输出简洁的状态看板。"
+          channel: "web"
+          user_id: "cklxx"
     attention:
       max_daily_notifications: 5
       min_interval_seconds: 1800

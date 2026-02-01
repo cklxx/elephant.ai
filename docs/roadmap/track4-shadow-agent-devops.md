@@ -1,4 +1,4 @@
-# Track 4: 自主迭代升级 — 影子 Agent DevOps — 详细 ROADMAP
+# Track 4: 自主迭代升级 — 影子 Agent DevOps — OKR-First ROADMAP
 
 > **Parent:** `docs/roadmap/roadmap-lark-native-proactive-assistant.md`
 > **Owner:** cklxx
@@ -7,115 +7,46 @@
 
 ---
 
-## 概述
+## Objective & Key Results (O4)
 
-**核心理念：用当前的 Agent 来监督 Coding Agent 写代码、合代码、测试、发版本。**
+**Objective (O4):** 自我迭代闭环可用，但发布必须人工审批。
 
-这不是传统 CI/CD。这是一个 **Agent-in-the-loop 的软件交付系统**，由三个 Agent 角色协作完成系统的持续进化。Shadow Agent 是这条 Track 的主角 — 它是 elephant.ai 实现自我进化的关键基础设施。
-
-**关键路径：** `internal/devops/` (新增) · `internal/coding/` (Track 2 共享) · `evaluation/`
+**Key Results:**
+- **KR4.1** Shadow Agent 能驱动编码/验证/评测链路
+- **KR4.2** 发布默认人工审批 + 回滚阈值
+- **KR4.3** 评测基线与对照报告可用
 
 ---
 
-## 三 Agent 架构详解
+## Roadmap (OKR-driven)
 
-### 角色定义
+### M0: 评测基础
+- 评测套件 CI 自动化
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        Online Agent (在线助手)                        │
-│                                                                     │
-│  角色：服务用户请求的稳定版本                                           │
-│  生命周期：7×24 常驻运行                                               │
-│  职责：                                                              │
-│    · 接收并执行用户请求（Lark/Web/CLI）                                 │
-│    · 收集隐式信号（失败轨迹、重试、放弃、超时）                           │
-│    · 收集显式反馈（满意度评分、纠错）                                    │
-│    · 定期导出信号给 Shadow Agent                                      │
-│  输出：反馈信号流、失败轨迹日志、使用模式统计                             │
-├─────────────────────────────────────────────────────────────────────┤
-│                        Shadow Agent (影子 Agent)                     │
-│                                                                     │
-│  角色：系统的 "开发者"，驱动代码迭代                                     │
-│  生命周期：按需唤醒（手动触发或定时 cron）                                │
-│  职责：                                                              │
-│    · 消费 Online Agent 的反馈信号                                     │
-│    · 分析 → 识别改进方向 → 生成 Issue/需求                              │
-│    · 拆解需求为编码子任务                                               │
-│    · 调度 Coding Agent (Codex/Claude Code/Kimi) 执行编码               │
-│    · 验收：build → test → lint → diff review                        │
-│    · 代码合并：PR → CI → 修复 → merge                                │
-│    · 版本发布：semver → changelog → build → deploy                   │
-│    · 部署新版本到 Test Agent 环境                                      │
-│    · 对比评测结果，决策是否晋升                                         │
-│  输出：PR、Release、评测报告、晋升决策                                  │
-├─────────────────────────────────────────────────────────────────────┤
-│                        Test Agent (被测 Agent)                       │
-│                                                                     │
-│  角色：Shadow Agent 产出的候选版本                                     │
-│  生命周期：Shadow Agent 触发后临时运行                                  │
-│  职责：                                                              │
-│    · 在隔离环境中运行 Shadow Agent 构建的新版本                          │
-│    · 执行完整评测套件（SWE-Bench / Agent Eval / 自定义场景）             │
-│    · 多维度打分：推理质量、工具可靠性、交互体验、成本效率                   │
-│    · 可选：接收小流量真实请求（灰度验证）                                 │
-│    · 与 Online Agent 基线对比，生成评测报告                              │
-│  输出：评测报告（通过/未通过 + 分维度得分 + 基线对比）                    │
-└─────────────────────────────────────────────────────────────────────┘
-```
+### M1: 信号采集与评测自动化
+- 失败轨迹/反馈/使用模式采集
+- 评测分维度 + 基线管理 + Benchmark 看板
 
-### 完整迭代循环
+### M2: Shadow Agent 原型（强门禁）
+- 编码/验证/评测链路闭环
+- **发布必须人工审批**（默认门禁）
+- Test Agent 评测与晋升条件
 
-```
-  ┌─── Online Agent (生产环境) ◄──────────────────────────────────┐
-  │                                                               │
-  │  收集信号                                                      │
-  │  · 失败轨迹 (tool failures, LLM errors, wrong answers)         │
-  │  · 用户反馈 (thumbs up/down, corrections)                      │
-  │  · 使用模式 (popular tools, common tasks, pain points)         │
-  │                                                               │
-  ▼                                                               │
-  Shadow Agent (唤醒)                                              │
-  │                                                               │
-  ├── 1. 分析信号                                                  │
-  │     · 聚合失败模式 → 识别 top-N 改进方向                         │
-  │     · 检查 issue backlog → 选择高优先级需求                      │
-  │                                                               │
-  ├── 2. 拆解为编码任务                                             │
-  │     · 需求 → 子任务序列（含依赖关系）                             │
-  │     · 每个子任务包含：目标、约束、验收标准                         │
-  │                                                               │
-  ├── 3. 调度 Coding Agent                                        │
-  │     · 选择最优 agent (Claude Code / Codex / Kimi)              │
-  │     · 传递上下文（项目结构、相关文件、编码规范）                    │
-  │     · 流式监控执行过程                                          │
-  │                                                               │
-  ├── 4. 增量验收                                                  │
-  │     · build → test → lint → diff review                       │
-  │     · 失败 → 注入错误信息 → Coding Agent 修复 → 再验证           │
-  │     · 最多 N 轮重试，超限则标记失败并记录                         │
-  │                                                               │
-  ├── 5. 代码合并                                                  │
-  │     · 创建 PR + 生成描述                                       │
-  │     · CI 监控 → 失败自动修复 → 重推                             │
-  │     · 可选：人工审批门禁（关键变更）                              │
-  │     · Merge                                                   │
-  │                                                               │
-  ├── 6. 版本发布                                                  │
-  │     · semver 计算（patch/minor/major）                         │
-  │     · Changelog 生成                                          │
-  │     · 多平台构建 + 产物归档                                     │
-  │     · 部署到 Test Agent 隔离环境                                │
-  │                                                               │
-  ├── 7. Test Agent 评测                                          │
-  │     · 运行完整评测套件                                          │
-  │     · 多维度打分 + 基线对比                                     │
-  │     · 可选灰度：小流量真实请求路由到 Test Agent                   │
-  │                                                               │
-  └── 8. 晋升决策                                                  │
-        · 评测通过 → Test Agent 晋升为新 Online Agent ──────────────┘
-        · 评测未通过 → 记录失败原因 → 回到步骤 1
-```
+### M3: 受控自进化
+- 自改代码闭环
+- A/B 与自愈运维
+
+---
+
+## Baseline & Gaps (Current State)
+
+**关键路径：** `internal/devops/` (新增) · `internal/coding/` (Track 2 共享) · `evaluation/`
+
+### 三 Agent 架构
+
+- Online Agent：稳定生产
+- Shadow Agent：需求 → 编码 → 验收 → PR → 发布 → 评测
+- Test Agent：隔离评测 + 晋升
 
 ---
 
@@ -148,7 +79,7 @@
 
 > `internal/devops/shadow/`
 
-### M2: Shadow Agent 原型
+### M2: Shadow Agent 原型（强门禁）
 
 > **依赖：** Track 2 M1（Coding Agent Gateway 全链路） + Track 3 M1（Lark 卡片/审批） + Track 4 M1（信号采集体系）
 
@@ -163,6 +94,7 @@
 | 修复循环编排 | 验证失败 → 注入错误信息 → Coding Agent 重试 → 再验证（最多 N 轮） | ❌ 待实现 | `devops/shadow/fix_loop.go` |
 | 执行监控 | 流式监控 Coding Agent 执行过程 | ❌ 待实现 | `devops/shadow/monitor.go` |
 | Lark 进度推送 | 通过 Lark 卡片推送当前步骤/变更文件/验证状态 | ❌ 待实现 | `devops/shadow/notify.go` |
+| **人工审批门禁** | 发布与晋升默认人工审批（不可绕过） | ❌ 待实现 | `devops/shadow/approval.go` |
 
 ### M3: Shadow Agent 完善
 
@@ -178,15 +110,7 @@
 
 ## 3. 增量验收 (→ Track 2 `coding/verify`)
 
-> **本模块的验证能力实现位于 Track 2 `coding/verify`。** Shadow Agent 作为消费者调用验证接口，仅在 `devops/shadow/verify_orchestrator.go` 和 `devops/shadow/fix_loop.go` 中编排重试策略与决策逻辑。
->
-> 详见 `docs/roadmap/track2-system-interaction.md` § 3 Coding Agent Gateway:
-> - M0: `coding/verify_build.go` — 构建验证
-> - M1: `coding/verify_test.go` — 测试运行 + 结果解析
-> - M1: `coding/verify_diff.go` — Diff 审查
-> - M2: `coding/fix_loop.go` — 修复循环（验证失败 → 错误注入 → agent 修复 → 再验证）
->
-> **Track 4 在本模块的职责仅限于：** 编排验证调用的顺序（build → test → lint → diff review）、决定是否触发修复循环、决定最大重试次数和失败处理策略。这些编排逻辑在 Shadow Agent 核心（Section 2）中实现。
+> **验证能力实现位于 Track 2 `coding/verify`。** Shadow Agent 作为消费者调用验证接口，仅编排重试策略与决策逻辑。
 
 ---
 
@@ -202,7 +126,7 @@
 | PR 描述生成 | 从 diff + commit + issue 自动生成描述 | ❌ 待实现 | `devops/merge/pr_description.go` |
 | CI 监控 | 推送后监控 CI 流水线结果 | ❌ 待实现 | `devops/merge/ci_monitor.go` |
 | CI 失败修复 | CI 失败 → 分析原因 → Coding Agent 修复 → 重推 | ❌ 待实现 | `devops/merge/ci_fix.go` |
-| 人工审批门禁 | 关键变更暂停等 Lark 审批 | ❌ 待实现 | `devops/merge/approval.go` |
+| **人工审批门禁** | 关键变更暂停等 Lark 审批 | ❌ 待实现 | `devops/merge/approval.go` |
 | Review 通知 | 通过 Lark 通知 reviewer 并跟踪进度 | ❌ 待实现 | `devops/merge/notify.go` |
 
 ### M3: 智能合并
@@ -280,8 +204,6 @@
 
 ### M0: 可观测基础 (→ 共享基础设施)
 
-> **可观测性属于跨 Track 共享基础设施**（`internal/observability/`），不归属任何单一 Track。以下列出当前状态仅供参考。
-
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
 | OpenTelemetry Traces | 全链路追踪 | ✅ 已实现 | `internal/observability/` |
@@ -346,5 +268,6 @@
 | 日期 | 模块 | 更新 |
 |------|------|------|
 | 2026-02-01 | All | Track 4 详细 ROADMAP 创建。评测套件和可观测基础已实现，核心缺口在 Shadow Agent 框架、信号采集、验收循环和自动化发布流水线。 |
-| 2026-02-01 | Shadow/Verify | Review 优化：Shadow Agent 从 M1 调整到 M2（依赖 T2.M1 + T3.M1）；增量验收改为引用 Track 2 `coding/verify`（去重）；可观测性标注为共享基础设施。 |
-| 2026-02-01 | All | 实现审计：评测套件 ✅ 确认、共享基础设施（Observability/Config/Auth/Errors/Storage/DI）✅ 确认。`internal/devops/` 尚未创建（M2 范畴）。无需修正标注。 |
+| 2026-02-01 | Shadow/Verify | Review 优化：Shadow Agent 从 M1 调整到 M2；增量验收改为引用 Track 2 `coding/verify`；可观测性标注为共享基础设施。 |
+| 2026-02-01 | All | 实现审计：评测套件 ✅ 确认、共享基础设施（Observability/Config/Auth/Errors/Storage/DI）✅ 确认。`internal/devops/` 尚未创建（M2 范畴）。 |
+| 2026-02-01 | All | Roadmap 重构为 OKR-First，围绕 O4/KR4.* 重新组织章节并明确人工审批门禁。 |
