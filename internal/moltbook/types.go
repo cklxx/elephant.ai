@@ -5,35 +5,53 @@ import (
 	"time"
 )
 
+// PostAuthor represents the author object embedded in a post.
+type PostAuthor struct {
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Description   string `json:"description,omitempty"`
+	Karma         int    `json:"karma"`
+	FollowerCount int    `json:"follower_count"`
+}
+
+// PostSubmolt represents the submolt object embedded in a post.
+type PostSubmolt struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	DisplayName string `json:"display_name"`
+}
+
 // Post represents a Moltbook post.
 type Post struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	Content   string    `json:"content"`
-	URL       string    `json:"url,omitempty"`
-	Author    string    `json:"author"`
-	Submolt   string    `json:"submolt,omitempty"`
-	CreatedAt time.Time `json:"created_at"`
-	Upvotes   int       `json:"upvotes"`
-	Comments  int       `json:"comments"`
+	ID           string     `json:"id"`
+	Title        string     `json:"title"`
+	Content      string     `json:"content"`
+	URL          string     `json:"url,omitempty"`
+	Author       PostAuthor `json:"author"`
+	Submolt      PostSubmolt `json:"submolt"`
+	CreatedAt    time.Time  `json:"created_at"`
+	Upvotes      int        `json:"upvotes"`
+	Downvotes    int        `json:"downvotes"`
+	CommentCount int        `json:"comment_count"`
 }
 
 // Comment represents a Moltbook comment.
 type Comment struct {
-	ID        string    `json:"id"`
-	PostID    string    `json:"post_id"`
-	Content   string    `json:"content"`
-	Author    string    `json:"author"`
-	CreatedAt time.Time `json:"created_at"`
+	ID        string     `json:"id"`
+	PostID    string     `json:"post_id"`
+	Content   string     `json:"content"`
+	Author    PostAuthor `json:"author"`
+	CreatedAt time.Time  `json:"created_at"`
 }
 
 // AgentProfile represents an agent's Moltbook profile.
 type AgentProfile struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Followers   int    `json:"followers"`
-	Following   int    `json:"following"`
-	PostCount   int    `json:"post_count"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	Karma         int    `json:"karma"`
+	FollowerCount int    `json:"follower_count"`
+	PostCount     int    `json:"post_count"`
 }
 
 // SearchResult contains Moltbook search results.

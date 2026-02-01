@@ -27,7 +27,10 @@ func TestMoltbookPost_Execute(t *testing.T) {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(moltbookclient.Post{ID: "p1", Title: "Test"})
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"post":    moltbookclient.Post{ID: "p1", Title: "Test"},
+		})
 	})
 
 	tool := NewMoltbookPost(client)
@@ -81,13 +84,15 @@ func TestMoltbookFeed_Execute(t *testing.T) {
 		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/feed" {
 			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
 		}
-		posts := []moltbookclient.Post{
-			{ID: "p1", Title: "First"},
-			{ID: "p2", Title: "Second"},
-			{ID: "p3", Title: "Third"},
-		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(posts)
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"posts": []moltbookclient.Post{
+				{ID: "p1", Title: "First"},
+				{ID: "p2", Title: "Second"},
+				{ID: "p3", Title: "Third"},
+			},
+		})
 	})
 
 	tool := NewMoltbookFeed(client)
@@ -123,7 +128,10 @@ func TestMoltbookComment_Execute(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(moltbookclient.Comment{ID: "c1", PostID: "post-42"})
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"comment": moltbookclient.Comment{ID: "c1", PostID: "post-42"},
+		})
 	})
 
 	tool := NewMoltbookComment(client)
@@ -243,9 +251,10 @@ func TestMoltbookSearch_Execute(t *testing.T) {
 			t.Errorf("unexpected query: %s", r.URL.Query().Get("q"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(moltbookclient.SearchResult{
-			Posts:  []moltbookclient.Post{{ID: "s1"}},
-			Agents: []moltbookclient.AgentProfile{{Name: "bot"}},
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"posts":   []moltbookclient.Post{{ID: "s1"}},
+			"agents":  []moltbookclient.AgentProfile{{Name: "bot"}},
 		})
 	})
 

@@ -38,12 +38,16 @@ func TestCreatePost(t *testing.T) {
 			t.Error("expected non-empty title")
 		}
 
-		resp := Post{
-			ID:        "post-1",
-			Title:     req.Title,
-			Content:   req.Content,
-			Author:    "test-agent",
-			CreatedAt: time.Now(),
+		resp := map[string]any{
+			"success": true,
+			"message": "Post created",
+			"post": Post{
+				ID:        "post-1",
+				Title:     req.Title,
+				Content:   req.Content,
+				Author:    PostAuthor{ID: "a1", Name: "test-agent"},
+				CreatedAt: time.Now(),
+			},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
@@ -79,12 +83,15 @@ func TestGetFeed(t *testing.T) {
 			t.Errorf("expected page=2, got %s", page)
 		}
 
-		posts := []Post{
-			{ID: "p1", Title: "First"},
-			{ID: "p2", Title: "Second"},
+		resp := map[string]any{
+			"success": true,
+			"posts": []Post{
+				{ID: "p1", Title: "First"},
+				{ID: "p2", Title: "Second"},
+			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(posts); err != nil {
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			t.Errorf("encode response: %v", err)
 		}
 	})
@@ -110,14 +117,17 @@ func TestCreateComment(t *testing.T) {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
 
-		comment := Comment{
-			ID:      "c1",
-			PostID:  "post-42",
-			Content: "Nice post!",
-			Author:  "test-agent",
+		resp := map[string]any{
+			"success": true,
+			"comment": Comment{
+				ID:      "c1",
+				PostID:  "post-42",
+				Content: "Nice post!",
+				Author:  PostAuthor{ID: "a1", Name: "test-agent"},
+			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(comment); err != nil {
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			t.Errorf("encode response: %v", err)
 		}
 	})
@@ -178,12 +188,13 @@ func TestSearch(t *testing.T) {
 			t.Errorf("expected query 'AI agents', got %s", q)
 		}
 
-		result := SearchResult{
-			Posts:  []Post{{ID: "s1", Title: "AI Agents Rock"}},
-			Agents: []AgentProfile{{Name: "agent-x"}},
+		resp := map[string]any{
+			"success": true,
+			"posts":   []Post{{ID: "s1", Title: "AI Agents Rock"}},
+			"agents":  []AgentProfile{{Name: "agent-x"}},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(result); err != nil {
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			t.Errorf("encode response: %v", err)
 		}
 	})
@@ -205,9 +216,12 @@ func TestGetProfile(t *testing.T) {
 		if r.URL.Path != "/api/v1/agents/me" {
 			t.Errorf("unexpected path: %s", r.URL.Path)
 		}
-		profile := AgentProfile{Name: "elephant", PostCount: 42}
+		resp := map[string]any{
+			"success": true,
+			"agent":   AgentProfile{Name: "elephant", PostCount: 42},
+		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(profile); err != nil {
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			t.Errorf("encode response: %v", err)
 		}
 	})
@@ -250,9 +264,12 @@ func TestRateLimitedClient_PostCooldown(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		post := Post{ID: "p1", Title: "ok"}
+		resp := map[string]any{
+			"success": true,
+			"post":    Post{ID: "p1", Title: "ok"},
+		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(post); err != nil {
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			t.Errorf("encode response: %v", err)
 		}
 	}))
@@ -281,9 +298,12 @@ func TestRateLimitedClient_CommentCooldown(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		comment := Comment{ID: "c1", PostID: "p1"}
+		resp := map[string]any{
+			"success": true,
+			"comment": Comment{ID: "c1", PostID: "p1"},
+		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(comment); err != nil {
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			t.Errorf("encode response: %v", err)
 		}
 	}))
@@ -314,8 +334,12 @@ func TestGetFeed_DefaultPage(t *testing.T) {
 		if page != "1" {
 			t.Errorf("expected page=1 for negative input, got %s", page)
 		}
+		resp := map[string]any{
+			"success": true,
+			"posts":   []Post{},
+		}
 		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode([]Post{}); err != nil {
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			t.Errorf("encode response: %v", err)
 		}
 	})
@@ -323,5 +347,23 @@ func TestGetFeed_DefaultPage(t *testing.T) {
 	_, err := client.GetFeed(context.Background(), -1)
 	if err != nil {
 		t.Fatalf("GetFeed: %v", err)
+	}
+}
+
+func TestEnvelope_SuccessFalse(t *testing.T) {
+	_, client := newTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": false,
+			"error":   "Search failed",
+		})
+	})
+
+	_, err := client.GetFeed(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected error for success=false")
+	}
+	if got := err.Error(); got != "moltbook: API error: Search failed" {
+		t.Errorf("unexpected error message: %s", got)
 	}
 }
