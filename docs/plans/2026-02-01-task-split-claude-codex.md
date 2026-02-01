@@ -1,7 +1,7 @@
 # Task Split: Claude Code vs Codex
 
 Created: 2026-02-01
-Updated: 2026-02-01 22:30
+Updated: 2026-02-01 23:30
 
 ## Splitting Principle
 
@@ -177,6 +177,41 @@ Phase 6 — P3:
 ---
 
 ## Codex Prompt Template
+
+---
+
+## Execution Status
+
+| Task | Status | Commit |
+|------|--------|--------|
+| C1 | DONE | Lark API client interface + directory |
+| C2 | DONE | Auth token management |
+| C3 | DONE | Calendar API wrapper |
+| C4 | DONE | Task API wrapper |
+| C5 | DONE | Calendar CRUD tools |
+| C6 | DONE | Task CRUD tools |
+| C7 | DONE | Tool registration wiring |
+| C8 | DONE | Approval gate extension |
+| C9 | DONE | Unit tests for C5-C6 |
+| C10 | DONE | Calendar trigger in scheduler |
+| C11 | DONE | `ceba6d70` checkpoint schema |
+| C12 | BLOCKED | Waiting on Codex X2 |
+| C13 | DONE | `be5bbc01` tool policy config |
+| C14 | BLOCKED | Waiting on Codex X3 |
+| C15 | DONE | `953ddd80` drainable interface |
+| C16 | DONE | `8f123f6f` drain wiring |
+| C17 | DONE | `f209cf5f` NSM metric stubs |
+| C18 | DONE | `7e6f9148` tiktoken token counting |
+| C19 | DONE | `f68e75a5` policy schema + rules |
+| C20 | DONE | `ba058157` default policy rules |
+| C21 | DONE | `774b398a` JobStore + FileJobStore |
+| C22 | BLOCKED | Waiting on Codex X7 |
+| C23 | DONE | `741509dd` batch ops + multi-calendar |
+| C24 | DONE | `1c0b2735` calendar conflict detection |
+| C25 | DONE | `b7315928` calendar summary builder |
+| C26 | DONE | `74b6b963` reminder pipeline |
+
+**Claude Code: 23/26 done** (3 blocked by Codex X2, X3, X7)
 
 ```
 Context: elephant.ai Go project.
