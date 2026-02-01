@@ -19,6 +19,7 @@ import (
 	"alex/internal/agent/presets"
 	"alex/internal/async"
 	runtimeconfig "alex/internal/config"
+	toolspolicy "alex/internal/tools"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
@@ -62,6 +63,7 @@ type ExecutionPreparationService struct {
 	logger              agent.Logger
 	clock               agent.Clock
 	costDecorator       *cost.CostTrackingDecorator
+	toolPolicy          toolspolicy.ToolPolicy
 	presetResolver      *PresetResolver
 	eventEmitter        agent.EventListener
 	costTracker         storage.CostTracker
@@ -99,6 +101,8 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		})
 	}
 
+	toolPolicy := toolspolicy.NewToolPolicy(deps.Config.ToolPolicy)
+
 	return &ExecutionPreparationService{
 		llmFactory:          deps.LLMFactory,
 		toolRegistry:        deps.ToolRegistry,
@@ -110,6 +114,7 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 		logger:              logger,
 		clock:               clock,
 		costDecorator:       costDecorator,
+		toolPolicy:          toolPolicy,
 		presetResolver:      presetResolver,
 		eventEmitter:        eventEmitter,
 		costTracker:         deps.CostTracker,

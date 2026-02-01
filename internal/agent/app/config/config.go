@@ -4,6 +4,7 @@ import (
 	"time"
 
 	runtimeconfig "alex/internal/config"
+	toolspolicy "alex/internal/tools"
 )
 
 // Config captures runtime defaults for coordinator execution and preparation.
@@ -28,4 +29,5 @@ type Config struct {
 	EnvironmentSummary  string
 	SessionStaleAfter   time.Duration
 	Proactive           runtimeconfig.ProactiveConfig
+	ToolPolicy          toolspolicy.ToolPolicyConfig
 }

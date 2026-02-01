@@ -59,6 +59,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		CostDir:                    runtime.CostDir,
 		SessionStaleAfter:          time.Duration(runtime.SessionStaleAfterSeconds) * time.Second,
 		HTTPLimits:                 runtime.HTTPLimits,
+		ToolPolicy:                 runtime.ToolPolicy,
 		Proactive:                  runtime.Proactive,
 		ExternalAgents:             runtime.ExternalAgents,
 	}

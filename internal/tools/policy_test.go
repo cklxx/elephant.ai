@@ -184,6 +184,42 @@ func TestResolve_FirstMatchWins(t *testing.T) {
 	}
 }
 
+func TestResolve_FieldLevelOverrides(t *testing.T) {
+	t30 := 30 * time.Second
+	retry := ToolRetryConfig{MaxRetries: 4, InitialBackoff: 2 * time.Second, MaxBackoff: 20 * time.Second, BackoffFactor: 2.0}
+	disabled := false
+	cfg := DefaultToolPolicyConfig()
+	cfg.Rules = []PolicyRule{
+		{
+			Name:    "timeout-only",
+			Match:   PolicySelector{Tools: []string{"*"}},
+			Timeout: &t30,
+		},
+		{
+			Name:  "retry-only",
+			Match: PolicySelector{Tools: []string{"*"}},
+			Retry: &retry,
+		},
+		{
+			Name:    "disable-only",
+			Match:   PolicySelector{Tools: []string{"*"}},
+			Enabled: &disabled,
+		},
+	}
+	p := NewToolPolicy(cfg)
+
+	result := p.Resolve(ToolCallContext{ToolName: "anything"})
+	if result.Timeout != 30*time.Second {
+		t.Errorf("Timeout = %v, want 30s", result.Timeout)
+	}
+	if result.Retry.MaxRetries != 4 {
+		t.Errorf("Retry.MaxRetries = %d, want 4", result.Retry.MaxRetries)
+	}
+	if result.Enabled {
+		t.Error("Enabled = true, want false")
+	}
+}
+
 func TestResolve_ANDLogicAcrossFields(t *testing.T) {
 	timeout := 5 * time.Second
 	cfg := DefaultToolPolicyConfig()

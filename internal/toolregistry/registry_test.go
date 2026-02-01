@@ -12,6 +12,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/memory"
+	toolspolicy "alex/internal/tools"
 )
 
 func newTestMemoryService() memory.Service {
@@ -192,27 +193,33 @@ func TestGetReturnsPreWrappedTools(t *testing.T) {
 	}
 }
 
-func TestEnsureApprovalWrapperDoesNotMutateInput(t *testing.T) {
+func TestWrapToolDoesNotMutateInput(t *testing.T) {
 	inner := &stubExecutor{name: "test_tool"}
 	wrapped := &idAwareExecutor{delegate: inner}
 
 	// Capture original delegate
 	originalDelegate := wrapped.delegate
 
-	result := ensureApprovalWrapper(wrapped)
+	policy := toolspolicy.NewToolPolicy(toolspolicy.DefaultToolPolicyConfig())
+	breakers := newCircuitBreakerStore(normalizeCircuitBreakerConfig(CircuitBreakerConfig{}))
+	result := wrapTool(wrapped, policy, breakers)
 
 	// The original idAwareExecutor should not be mutated
 	if wrapped.delegate != originalDelegate {
-		t.Fatalf("ensureApprovalWrapper mutated the input's delegate field")
+		t.Fatalf("wrapTool mutated the input's delegate field")
 	}
 
-	// Result should be a new idAwareExecutor wrapping an approvalExecutor
+	// Result should be a new idAwareExecutor wrapping a retry executor.
 	newWrapper, ok := result.(*idAwareExecutor)
 	if !ok {
 		t.Fatalf("expected *idAwareExecutor, got %T", result)
 	}
-	if _, ok := newWrapper.delegate.(*approvalExecutor); !ok {
-		t.Fatalf("expected delegate to be *approvalExecutor, got %T", newWrapper.delegate)
+	retry, ok := newWrapper.delegate.(*retryExecutor)
+	if !ok {
+		t.Fatalf("expected delegate to be *retryExecutor, got %T", newWrapper.delegate)
+	}
+	if _, ok := retry.delegate.(*approvalExecutor); !ok {
+		t.Fatalf("expected retry delegate to be *approvalExecutor, got %T", retry.delegate)
 	}
 }
 

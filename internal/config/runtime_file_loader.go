@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	toolspolicy "alex/internal/tools"
 	"gopkg.in/yaml.v3"
 )
 
@@ -228,6 +229,9 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolPreset = parsed.ToolPreset
 		meta.sources["tool_preset"] = SourceFile
 	}
+	if parsed.ToolPolicy != nil {
+		applyToolPolicyFileConfig(cfg, meta, parsed.ToolPolicy)
+	}
 	if parsed.HTTPLimits != nil {
 		applyHTTPLimitsFileConfig(cfg, meta, parsed.HTTPLimits)
 	}
@@ -433,6 +437,44 @@ func applyExternalAgentsFileConfig(cfg *RuntimeConfig, meta *Metadata, external 
 	return nil
 }
 
+func applyToolPolicyFileConfig(cfg *RuntimeConfig, meta *Metadata, policy *ToolPolicyFileConfig) {
+	if policy == nil {
+		return
+	}
+	if policy.Timeout != nil {
+		if policy.Timeout.Default != nil {
+			cfg.ToolPolicy.Timeout.Default = *policy.Timeout.Default
+			meta.sources["tool_policy.timeout.default"] = SourceFile
+		}
+		if policy.Timeout.PerTool != nil {
+			cfg.ToolPolicy.Timeout.PerTool = cloneDurationMap(policy.Timeout.PerTool)
+			meta.sources["tool_policy.timeout.per_tool"] = SourceFile
+		}
+	}
+	if policy.Retry != nil {
+		if policy.Retry.MaxRetries != nil {
+			cfg.ToolPolicy.Retry.MaxRetries = *policy.Retry.MaxRetries
+			meta.sources["tool_policy.retry.max_retries"] = SourceFile
+		}
+		if policy.Retry.InitialBackoff != nil {
+			cfg.ToolPolicy.Retry.InitialBackoff = *policy.Retry.InitialBackoff
+			meta.sources["tool_policy.retry.initial_backoff"] = SourceFile
+		}
+		if policy.Retry.MaxBackoff != nil {
+			cfg.ToolPolicy.Retry.MaxBackoff = *policy.Retry.MaxBackoff
+			meta.sources["tool_policy.retry.max_backoff"] = SourceFile
+		}
+		if policy.Retry.BackoffFactor != nil {
+			cfg.ToolPolicy.Retry.BackoffFactor = *policy.Retry.BackoffFactor
+			meta.sources["tool_policy.retry.backoff_factor"] = SourceFile
+		}
+	}
+	if policy.Rules != nil {
+		cfg.ToolPolicy.Rules = append([]toolspolicy.PolicyRule(nil), policy.Rules...)
+		meta.sources["tool_policy.rules"] = SourceFile
+	}
+}
+
 func expandExternalAgentsFileConfigEnv(lookup EnvLookup, external *ExternalAgentsFileConfig) {
 	if external == nil {
 		return
@@ -480,6 +522,17 @@ func cloneStringMap(in map[string]string) map[string]string {
 		return nil
 	}
 	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
+func cloneDurationMap(in map[string]time.Duration) map[string]time.Duration {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]time.Duration, len(in))
 	for key, value := range in {
 		out[key] = value
 	}

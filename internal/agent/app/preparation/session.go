@@ -8,6 +8,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/agent/presets"
+	toolspolicy "alex/internal/tools"
 )
 
 func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*storage.Session, error) {
@@ -39,11 +40,10 @@ func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, to
 	if appcontext.IsSubagentContext(ctx) {
 		registry = s.getRegistryWithoutSubagent()
 		s.logger.Debug("Using filtered registry (subagent excluded) for nested call")
-
-		// Apply preset configured for subagents (context overrides allowed)
-		return s.presetResolver.ResolveToolRegistry(ctx, registry, toolMode, configPreset)
 	}
+	registry = s.applyToolPolicy(ctx, registry)
 
+	// Apply preset configured for subagents (context overrides allowed)
 	return s.presetResolver.ResolveToolRegistry(ctx, registry, toolMode, configPreset)
 }
 
@@ -57,4 +57,18 @@ func (s *ExecutionPreparationService) getRegistryWithoutSubagent() tools.ToolReg
 	}
 
 	return s.toolRegistry
+}
+
+func (s *ExecutionPreparationService) applyToolPolicy(ctx context.Context, registry tools.ToolRegistry) tools.ToolRegistry {
+	if registry == nil || s.toolPolicy == nil {
+		return registry
+	}
+	type policyWrapper interface {
+		WithPolicy(policy toolspolicy.ToolPolicy, channel string) tools.ToolRegistry
+	}
+	if wrapper, ok := registry.(policyWrapper); ok {
+		channel := strings.TrimSpace(appcontext.ChannelFromContext(ctx))
+		return wrapper.WithPolicy(s.toolPolicy, channel)
+	}
+	return registry
 }

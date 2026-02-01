@@ -14,6 +14,7 @@ import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/llm"
 	"alex/internal/memory"
+	toolspolicy "alex/internal/tools"
 
 	"alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/execution"
@@ -41,6 +42,8 @@ type Registry struct {
 	mu         sync.RWMutex
 	cachedDefs []ports.ToolDefinition
 	defsDirty  bool
+	policy     toolspolicy.ToolPolicy
+	breakers   *circuitBreakerStore
 }
 
 // filteredRegistry wraps a parent registry and excludes certain tools
@@ -77,14 +80,24 @@ type Config struct {
 	MemoryService memory.Service
 	OKRGoalsRoot  string
 	HTTPLimits    runtimeconfig.HTTPLimitsConfig
+	ToolPolicy    toolspolicy.ToolPolicy
+	BreakerConfig CircuitBreakerConfig
 }
 
 func NewRegistry(config Config) (*Registry, error) {
+	policy := config.ToolPolicy
+	if policy == nil {
+		policy = toolspolicy.NewToolPolicy(toolspolicy.DefaultToolPolicyConfigWithRules())
+	}
+	breakers := newCircuitBreakerStore(normalizeCircuitBreakerConfig(config.BreakerConfig))
+
 	r := &Registry{
 		static:    make(map[string]tools.ToolExecutor),
 		dynamic:   make(map[string]tools.ToolExecutor),
 		mcp:       make(map[string]tools.ToolExecutor),
 		defsDirty: true,
+		policy:    policy,
+		breakers:  breakers,
 	}
 
 	if config.MemoryService == nil {
@@ -107,7 +120,7 @@ func (r *Registry) Register(tool tools.ToolExecutor) error {
 	}
 
 	// Check if this is an MCP tool (tools with mcp__ prefix go to mcp map)
-	wrapped := wrapWithIDPropagation(tool)
+	wrapped := wrapTool(tool, r.policy, r.breakers)
 	if len(name) > 5 && name[:5] == "mcp__" {
 		r.mcp[name] = wrapped
 	} else {
@@ -132,16 +145,30 @@ func (r *Registry) Get(name string) (tools.ToolExecutor, error) {
 	return nil, fmt.Errorf("tool not found: %s", name)
 }
 
-// wrapWithIDPropagation ensures that tool results always include the originating call's lineage identifiers.
-func wrapWithIDPropagation(tool tools.ToolExecutor) tools.ToolExecutor {
+// wrapTool ensures tools are wrapped with approval, retry, and ID propagation.
+func wrapTool(tool tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *circuitBreakerStore) tools.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
-	tool = ensureApprovalWrapper(tool)
-	if _, ok := tool.(*idAwareExecutor); ok {
-		return tool
+	base := unwrapTool(tool)
+	approval := &approvalExecutor{delegate: base}
+	retry := newRetryExecutor(approval, policy, breakers)
+	return &idAwareExecutor{delegate: retry}
+}
+
+func unwrapTool(tool tools.ToolExecutor) tools.ToolExecutor {
+	for {
+		switch typed := tool.(type) {
+		case *idAwareExecutor:
+			tool = typed.delegate
+		case *retryExecutor:
+			tool = typed.delegate
+		case *approvalExecutor:
+			tool = typed.delegate
+		default:
+			return tool
+		}
 	}
-	return &idAwareExecutor{delegate: tool}
 }
 
 type idAwareExecutor struct {
@@ -173,23 +200,6 @@ func (w *idAwareExecutor) Definition() ports.ToolDefinition {
 
 func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
-}
-
-func ensureApprovalWrapper(tool tools.ToolExecutor) tools.ToolExecutor {
-	if tool == nil {
-		return nil
-	}
-	switch typed := tool.(type) {
-	case *approvalExecutor:
-		return tool
-	case *idAwareExecutor:
-		if _, ok := typed.delegate.(*approvalExecutor); ok {
-			return tool
-		}
-		return &idAwareExecutor{delegate: &approvalExecutor{delegate: typed.delegate}}
-	default:
-		return &approvalExecutor{delegate: tool}
-	}
 }
 
 type approvalExecutor struct {
@@ -522,9 +532,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 	// Moltbook interaction is skill-driven (see skills/moltbook-posting/SKILL.md).
 	// The agent uses shell curl commands guided by the skill's API reference.
 
-	// Pre-wrap all static tools with ID propagation and approval wrappers.
+	// Pre-wrap all static tools with approval, retry, and ID propagation.
 	for name, tool := range r.static {
-		r.static[name] = wrapWithIDPropagation(tool)
+		r.static[name] = wrapTool(tool, r.policy, r.breakers)
 	}
 
 	return nil
@@ -540,21 +550,21 @@ func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 
 	if _, exists := r.static["subagent"]; exists {
 		if _, ok := r.static["explore"]; !ok {
-			r.static["explore"] = wrapWithIDPropagation(orchestration.NewExplore(r.static["subagent"]))
+			r.static["explore"] = wrapTool(orchestration.NewExplore(r.static["subagent"]), r.policy, r.breakers)
 			r.defsDirty = true
 		}
 		return
 	}
 
 	subTool := orchestration.NewSubAgent(coordinator, 3)
-	r.static["subagent"] = wrapWithIDPropagation(subTool)
-	r.static["explore"] = wrapWithIDPropagation(orchestration.NewExplore(subTool))
+	r.static["subagent"] = wrapTool(subTool, r.policy, r.breakers)
+	r.static["explore"] = wrapTool(orchestration.NewExplore(subTool), r.policy, r.breakers)
 
 	// Register background task tools (dispatcher injected via context at runtime).
-	r.static["bg_dispatch"] = wrapWithIDPropagation(orchestration.NewBGDispatch())
-	r.static["bg_status"] = wrapWithIDPropagation(orchestration.NewBGStatus())
-	r.static["bg_collect"] = wrapWithIDPropagation(orchestration.NewBGCollect())
-	r.static["ext_reply"] = wrapWithIDPropagation(orchestration.NewExtReply())
-	r.static["ext_merge"] = wrapWithIDPropagation(orchestration.NewExtMerge())
+	r.static["bg_dispatch"] = wrapTool(orchestration.NewBGDispatch(), r.policy, r.breakers)
+	r.static["bg_status"] = wrapTool(orchestration.NewBGStatus(), r.policy, r.breakers)
+	r.static["bg_collect"] = wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers)
+	r.static["ext_reply"] = wrapTool(orchestration.NewExtReply(), r.policy, r.breakers)
+	r.static["ext_merge"] = wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers)
 	r.defsDirty = true
 }

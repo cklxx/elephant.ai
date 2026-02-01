@@ -19,6 +19,7 @@ import (
 	"alex/internal/memory"
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/toolregistry"
+	toolspolicy "alex/internal/tools"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -120,6 +121,7 @@ type Config struct {
 	SessionPoolHealthCheckPeriod time.Duration
 	SessionPoolConnectTimeout    time.Duration
 	SessionCacheSize             *int
+	ToolPolicy                   toolspolicy.ToolPolicyConfig
 
 	// RequireSessionDatabase enforces Postgres-backed session persistence when true.
 	RequireSessionDatabase bool

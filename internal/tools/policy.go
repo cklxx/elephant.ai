@@ -51,11 +51,11 @@ type ToolTimeoutConfig struct {
 //	    retry:
 //	      max_retries: 3
 type PolicyRule struct {
-	Name    string          `yaml:"name" json:"name"`
-	Match   PolicySelector  `yaml:"match" json:"match"`
-	Timeout *time.Duration  `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+	Name    string           `yaml:"name" json:"name"`
+	Match   PolicySelector   `yaml:"match" json:"match"`
+	Timeout *time.Duration   `yaml:"timeout,omitempty" json:"timeout,omitempty"`
 	Retry   *ToolRetryConfig `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Enabled *bool           `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	Enabled *bool            `yaml:"enabled,omitempty" json:"enabled,omitempty"`
 }
 
 // PolicySelector determines whether a rule applies. All non-empty fields
@@ -249,21 +249,29 @@ func (p *configToolPolicy) Resolve(ctx ToolCallContext) ResolvedPolicy {
 		Retry:   p.RetryConfigFor(ctx.ToolName, ctx.Dangerous),
 		Enabled: true,
 	}
+	timeoutSet := false
+	retrySet := false
+	enabledSet := false
 
 	for _, rule := range p.cfg.Rules {
 		if !matchesSelector(rule.Match, ctx) {
 			continue
 		}
-		if rule.Timeout != nil {
+		if rule.Timeout != nil && !timeoutSet {
 			result.Timeout = *rule.Timeout
+			timeoutSet = true
 		}
-		if rule.Retry != nil {
+		if rule.Retry != nil && !retrySet {
 			result.Retry = *rule.Retry
+			retrySet = true
 		}
-		if rule.Enabled != nil {
+		if rule.Enabled != nil && !enabledSet {
 			result.Enabled = *rule.Enabled
+			enabledSet = true
 		}
-		break // first match wins
+		if timeoutSet && retrySet && enabledSet {
+			break
+		}
 	}
 
 	return result

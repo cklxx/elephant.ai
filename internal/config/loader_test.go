@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type envMap map[string]string
@@ -132,6 +133,16 @@ runtime:
   session_dir: "~/sessions"
   agent_preset: "designer"
   tool_preset: "safe"
+  tool_policy:
+    timeout:
+      default: 45s
+    retry:
+      max_retries: 1
+    rules:
+      - name: "deny-web-search"
+        match:
+          tools: ["web_search"]
+        enabled: false
 `)
 	cfg, meta, err := Load(
 		WithEnv(envMap{}.Lookup),
@@ -207,6 +218,18 @@ runtime:
 	if cfg.ToolPreset != "safe" {
 		t.Fatalf("expected tool preset from file, got %q", cfg.ToolPreset)
 	}
+	if cfg.ToolPolicy.Timeout.Default != 45*time.Second {
+		t.Fatalf("expected tool policy timeout default 45s, got %v", cfg.ToolPolicy.Timeout.Default)
+	}
+	if cfg.ToolPolicy.Retry.MaxRetries != 1 {
+		t.Fatalf("expected tool policy max retries 1, got %d", cfg.ToolPolicy.Retry.MaxRetries)
+	}
+	if len(cfg.ToolPolicy.Rules) != 1 || cfg.ToolPolicy.Rules[0].Name != "deny-web-search" {
+		t.Fatalf("expected tool policy rules from file, got %#v", cfg.ToolPolicy.Rules)
+	}
+	if cfg.ToolPolicy.Rules[0].Enabled == nil || *cfg.ToolPolicy.Rules[0].Enabled {
+		t.Fatalf("expected tool policy rule to disable tool, got %v", cfg.ToolPolicy.Rules[0].Enabled)
+	}
 	if meta.Source("tavily_api_key") != SourceFile {
 		t.Fatalf("expected tavily key source from file, got %s", meta.Source("tavily_api_key"))
 	}
@@ -224,6 +247,15 @@ runtime:
 	}
 	if meta.Source("agent_preset") != SourceFile || meta.Source("tool_preset") != SourceFile {
 		t.Fatalf("expected preset sources from file")
+	}
+	if meta.Source("tool_policy.timeout.default") != SourceFile {
+		t.Fatalf("expected tool_policy.timeout.default source to be file, got %s", meta.Source("tool_policy.timeout.default"))
+	}
+	if meta.Source("tool_policy.retry.max_retries") != SourceFile {
+		t.Fatalf("expected tool_policy.retry.max_retries source to be file, got %s", meta.Source("tool_policy.retry.max_retries"))
+	}
+	if meta.Source("tool_policy.rules") != SourceFile {
+		t.Fatalf("expected tool_policy.rules source to be file, got %s", meta.Source("tool_policy.rules"))
 	}
 	if meta.Source("temperature") != SourceFile {
 		t.Fatalf("expected temperature source to be file, got %s", meta.Source("temperature"))

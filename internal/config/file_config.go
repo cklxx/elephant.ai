@@ -1,5 +1,11 @@
 package config
 
+import (
+	"time"
+
+	toolspolicy "alex/internal/tools"
+)
+
 // FileConfig captures the on-disk YAML configuration sections.
 type FileConfig struct {
 	Runtime     *RuntimeFileConfig `json:"runtime,omitempty" yaml:"runtime"`
@@ -62,9 +68,31 @@ type RuntimeFileConfig struct {
 	SessionStaleAfter          string                    `yaml:"session_stale_after"`
 	AgentPreset                string                    `yaml:"agent_preset"`
 	ToolPreset                 string                    `yaml:"tool_preset"`
+	ToolPolicy                 *ToolPolicyFileConfig     `yaml:"tool_policy"`
 	HTTPLimits                 *HTTPLimitsFileConfig     `yaml:"http_limits"`
 	Proactive                  *ProactiveFileConfig      `yaml:"proactive"`
 	ExternalAgents             *ExternalAgentsFileConfig `yaml:"external_agents"`
+}
+
+// ToolPolicyFileConfig mirrors ToolPolicyConfig for YAML decoding with partial overrides.
+type ToolPolicyFileConfig struct {
+	Timeout *ToolTimeoutFileConfig   `yaml:"timeout"`
+	Retry   *ToolRetryFileConfig     `yaml:"retry"`
+	Rules   []toolspolicy.PolicyRule `yaml:"rules,omitempty"`
+}
+
+// ToolTimeoutFileConfig mirrors ToolTimeoutConfig for YAML decoding.
+type ToolTimeoutFileConfig struct {
+	Default *time.Duration           `yaml:"default"`
+	PerTool map[string]time.Duration `yaml:"per_tool"`
+}
+
+// ToolRetryFileConfig mirrors ToolRetryConfig for YAML decoding.
+type ToolRetryFileConfig struct {
+	MaxRetries     *int           `yaml:"max_retries"`
+	InitialBackoff *time.Duration `yaml:"initial_backoff"`
+	MaxBackoff     *time.Duration `yaml:"max_backoff"`
+	BackoffFactor  *float64       `yaml:"backoff_factor"`
 }
 
 // HTTPLimitsFileConfig mirrors HTTPLimitsConfig for YAML decoding.

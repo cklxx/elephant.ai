@@ -32,6 +32,7 @@ import (
 	sessionstate "alex/internal/session/state_store"
 	"alex/internal/storage"
 	toolregistry "alex/internal/toolregistry"
+	toolspolicy "alex/internal/tools"
 	okrtools "alex/internal/tools/builtin/okr"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -173,6 +174,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 			EnvironmentSummary:  b.config.EnvironmentSummary,
 			SessionStaleAfter:   b.config.SessionStaleAfter,
 			Proactive:           b.config.Proactive,
+			ToolPolicy:          b.config.ToolPolicy,
 		},
 		agentcoordinator.WithHookRegistry(hookRegistry),
 		agentcoordinator.WithIterationHook(iterationHook),
@@ -553,6 +555,7 @@ func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService
 		MemoryService:              memoryService,
 		OKRGoalsRoot:               b.resolveOKRGoalsRoot(),
 		HTTPLimits:                 b.config.HTTPLimits,
+		ToolPolicy:                 toolspolicy.NewToolPolicy(b.config.ToolPolicy),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)
