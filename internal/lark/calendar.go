@@ -3,6 +3,8 @@ package lark
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -240,7 +242,13 @@ func parseCalendarEvent(item *larkcalendar.CalendarEvent) CalendarEvent {
 }
 
 func parseTimestamp(ts string) time.Time {
-	var sec int64
-	fmt.Sscanf(ts, "%d", &sec)
+	trimmed := strings.TrimSpace(ts)
+	if trimmed == "" {
+		return time.Time{}
+	}
+	sec, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil {
+		return time.Time{}
+	}
 	return time.Unix(sec, 0)
 }
