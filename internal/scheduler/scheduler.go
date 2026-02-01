@@ -151,6 +151,40 @@ func (s *Scheduler) Done() <-chan struct{} {
 	return s.stopped
 }
 
+// Name returns the subsystem name for lifecycle management.
+func (s *Scheduler) Name() string {
+	return "scheduler"
+}
+
+// Drain gracefully stops the scheduler, waiting for in-flight triggers to
+// complete. The provided context carries a deadline that Drain respects:
+// if the deadline expires before all triggers finish, Drain returns a
+// context error.
+func (s *Scheduler) Drain(ctx context.Context) error {
+	s.logger.Info("Scheduler draining...")
+
+	// Stop the cron runner; this prevents new triggers from firing and
+	// returns a context that completes when all running jobs finish.
+	cronDone := s.cron.Stop()
+
+	select {
+	case <-cronDone.Done():
+		// All in-flight triggers completed.
+		s.stopOnce.Do(func() {
+			close(s.stopped)
+		})
+		s.logger.Info("Scheduler drained successfully")
+		return nil
+	case <-ctx.Done():
+		// Deadline exceeded while waiting for in-flight triggers.
+		s.stopOnce.Do(func() {
+			close(s.stopped)
+		})
+		s.logger.Warn("Scheduler drain timed out: %v", ctx.Err())
+		return fmt.Errorf("scheduler drain: %w", ctx.Err())
+	}
+}
+
 // registerTrigger adds a single trigger to the cron scheduler.
 // Must be called with s.mu held.
 func (s *Scheduler) registerTrigger(trigger Trigger) error {
