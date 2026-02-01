@@ -46,7 +46,10 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	shareHandler := NewShareHandler(deps.Coordinator, sseHandler)
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
-	sandboxClient := sandbox.NewClient(sandbox.Config{BaseURL: deps.SandboxBaseURL})
+	sandboxClient := sandbox.NewClient(sandbox.Config{
+		BaseURL:          deps.SandboxBaseURL,
+		MaxResponseBytes: deps.SandboxMaxResponseBytes,
+	})
 	apiHandler := NewAPIHandler(
 		deps.Coordinator,
 		deps.HealthChecker,

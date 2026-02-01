@@ -554,6 +554,7 @@ func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService
 		SeedreamVideoModel:         b.config.SeedreamVideoModel,
 		MemoryService:              memoryService,
 		OKRGoalsRoot:               b.resolveOKRGoalsRoot(),
+		HTTPLimits:                 b.config.HTTPLimits,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)

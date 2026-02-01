@@ -41,7 +41,7 @@ func TestMusicPlayUsesRequestQuery(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tool := newMusicPlay(server.Client(), server.URL)
+	tool := newMusicPlay(server.Client(), server.URL, MusicPlayConfig{})
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "call-1",
 		Arguments: map[string]any{
@@ -80,7 +80,7 @@ func TestMusicPlayFallsBackToMood(t *testing.T) {
 	}))
 	defer server.Close()
 
-	tool := newMusicPlay(server.Client(), server.URL)
+	tool := newMusicPlay(server.Client(), server.URL, MusicPlayConfig{})
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "call-2",
 		Arguments: map[string]any{

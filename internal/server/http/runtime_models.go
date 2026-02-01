@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"strings"
 
 	runtimeconfig "alex/internal/config"
+	"alex/internal/httpclient"
 )
 
 func parseModelList(raw []byte) ([]string, error) {
@@ -79,7 +79,7 @@ type modelFetchTarget struct {
 	Source        string
 }
 
-func fetchProviderModels(ctx context.Context, client *http.Client, target modelFetchTarget) ([]string, error) {
+func fetchProviderModels(ctx context.Context, client *http.Client, target modelFetchTarget, maxResponseBytes int) ([]string, error) {
 	endpoint := strings.TrimRight(target.BaseURL, "/") + "/models"
 	if target.Provider == "codex" && strings.TrimSpace(target.ClientVersion) != "" {
 		separator := "?"
@@ -118,8 +118,11 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target modelF
 		return nil, fmt.Errorf("model list request failed: %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return nil, fmt.Errorf("model list response exceeds %d bytes", maxResponseBytes)
+		}
 		return nil, fmt.Errorf("read model list response: %w", err)
 	}
 
@@ -134,7 +137,7 @@ func isAnthropicOAuthToken(token string) bool {
 	return !strings.HasPrefix(strings.ToLower(token), "sk-")
 }
 
-func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client) []runtimeModelProvider {
+func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client, maxResponseBytes int) []runtimeModelProvider {
 	var targets []runtimeModelProvider
 
 	if creds.Codex.APIKey != "" {
@@ -176,7 +179,7 @@ func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, 
 			AccountID:     pickAccountID(creds, target.Provider),
 			ClientVersion: cliClientVersion(target.Source),
 			Source:        target.Source,
-		})
+		}, maxResponseBytes)
 		if err != nil {
 			target.Error = err.Error()
 			continue

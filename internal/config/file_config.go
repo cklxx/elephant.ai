@@ -62,8 +62,19 @@ type RuntimeFileConfig struct {
 	SessionStaleAfter          string                    `yaml:"session_stale_after"`
 	AgentPreset                string                    `yaml:"agent_preset"`
 	ToolPreset                 string                    `yaml:"tool_preset"`
+	HTTPLimits                 *HTTPLimitsFileConfig     `yaml:"http_limits"`
 	Proactive                  *ProactiveFileConfig      `yaml:"proactive"`
 	ExternalAgents             *ExternalAgentsFileConfig `yaml:"external_agents"`
+}
+
+// HTTPLimitsFileConfig mirrors HTTPLimitsConfig for YAML decoding.
+type HTTPLimitsFileConfig struct {
+	DefaultMaxResponseBytes     *int `yaml:"default_max_response_bytes"`
+	WebFetchMaxResponseBytes    *int `yaml:"web_fetch_max_response_bytes"`
+	WebSearchMaxResponseBytes   *int `yaml:"web_search_max_response_bytes"`
+	MusicSearchMaxResponseBytes *int `yaml:"music_search_max_response_bytes"`
+	ModelListMaxResponseBytes   *int `yaml:"model_list_max_response_bytes"`
+	SandboxMaxResponseBytes     *int `yaml:"sandbox_max_response_bytes"`
 }
 
 // ExternalAgentsFileConfig mirrors ExternalAgentsConfig for YAML decoding.

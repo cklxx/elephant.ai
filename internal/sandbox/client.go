@@ -18,14 +18,16 @@ const defaultSandboxBaseURL = "http://localhost:18086"
 const sandboxSessionTTL = 10 * time.Minute
 
 type Config struct {
-	BaseURL string
-	Timeout time.Duration
+	BaseURL          string
+	Timeout          time.Duration
+	MaxResponseBytes int
 }
 
 type Client struct {
-	baseURL    string
-	httpClient *http.Client
-	cache      *sessionCache
+	baseURL          string
+	httpClient       *http.Client
+	cache            *sessionCache
+	maxResponseBytes int
 }
 
 type sessionCache struct {
@@ -47,11 +49,16 @@ func NewClient(cfg Config) *Client {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
+	maxResponseBytes := cfg.MaxResponseBytes
+	if maxResponseBytes <= 0 {
+		maxResponseBytes = 8 * 1024 * 1024
+	}
 
 	return &Client{
-		baseURL:    baseURL,
-		httpClient: httpclient.NewWithCircuitBreaker(timeout, nil, "sandbox"),
-		cache:      sessionCacheFor(baseURL),
+		baseURL:          baseURL,
+		httpClient:       httpclient.NewWithCircuitBreaker(timeout, nil, "sandbox"),
+		cache:            sessionCacheFor(baseURL),
+		maxResponseBytes: maxResponseBytes,
 	}
 }
 
@@ -80,14 +87,27 @@ func (c *Client) DoJSON(ctx context.Context, method, path string, payload any, s
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		data, _ := io.ReadAll(resp.Body)
+		data, err := httpclient.ReadAllWithLimit(resp.Body, int64(c.maxResponseBytes))
+		if err != nil {
+			if httpclient.IsResponseTooLarge(err) {
+				return fmt.Errorf("sandbox response exceeds %d bytes", c.maxResponseBytes)
+			}
+			return fmt.Errorf("sandbox request failed: %w", err)
+		}
 		return fmt.Errorf("sandbox request failed: %s", strings.TrimSpace(string(data)))
 	}
 
 	if out == nil {
 		return nil
 	}
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	data, err := httpclient.ReadAllWithLimit(resp.Body, int64(c.maxResponseBytes))
+	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return fmt.Errorf("sandbox response exceeds %d bytes", c.maxResponseBytes)
+		}
+		return fmt.Errorf("read sandbox response: %w", err)
+	}
+	if err := json.Unmarshal(data, out); err != nil {
 		return fmt.Errorf("decode sandbox response: %w", err)
 	}
 	return nil
@@ -106,12 +126,15 @@ func (c *Client) GetBytes(ctx context.Context, path string, sessionID string) ([
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		data, _ := io.ReadAll(resp.Body)
+		data, _ := httpclient.ReadAllWithLimit(resp.Body, int64(c.maxResponseBytes))
 		return nil, fmt.Errorf("sandbox request failed: %s", strings.TrimSpace(string(data)))
 	}
 
-	payload, err := io.ReadAll(resp.Body)
+	payload, err := httpclient.ReadAllWithLimit(resp.Body, int64(c.maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return nil, fmt.Errorf("sandbox response exceeds %d bytes", c.maxResponseBytes)
+		}
 		return nil, fmt.Errorf("read sandbox response: %w", err)
 	}
 	return payload, nil

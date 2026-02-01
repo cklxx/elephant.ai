@@ -14,13 +14,13 @@ import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/llm"
 	"alex/internal/memory"
+	"alex/internal/moltbook"
 	"alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
 	"alex/internal/tools/builtin/larktools"
 	"alex/internal/tools/builtin/media"
 	memorytools "alex/internal/tools/builtin/memory"
-	"alex/internal/moltbook"
 	moltbooktools "alex/internal/tools/builtin/moltbook"
 	okrtools "alex/internal/tools/builtin/okr"
 	"alex/internal/tools/builtin/orchestration"
@@ -77,6 +77,7 @@ type Config struct {
 	BaseURL       string
 	MemoryService memory.Service
 	OKRGoalsRoot  string
+	HTTPLimits    runtimeconfig.HTTPLimitsConfig
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -352,6 +353,7 @@ func (r *Registry) Unregister(name string) error {
 func (r *Registry) registerBuiltins(config Config) error {
 	fileConfig := shared.FileToolConfig{}
 	shellConfig := shared.ShellToolConfig{}
+	httpLimits := config.HTTPLimits
 
 	// File operations
 	r.static["file_read"] = fileops.NewFileRead(fileConfig)
@@ -372,7 +374,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["todo_update"] = sessiontools.NewTodoUpdate()
 	r.static["skills"] = sessiontools.NewSkills()
 	r.static["apps"] = sessiontools.NewApps()
-	r.static["music_play"] = media.NewMusicPlay()
+	r.static["music_play"] = media.NewMusicPlayWithConfig(media.MusicPlayConfig{
+		MaxResponseBytes: httpLimits.MusicSearchMaxResponseBytes,
+	})
 
 	// Attachment and artifact operations
 	r.static["artifacts_write"] = artifacts.NewArtifactsWrite()
@@ -403,7 +407,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["request_user"] = ui.NewRequestUser()
 
 	// Web tools
-	r.static["web_search"] = web.NewWebSearch(config.TavilyAPIKey)
+	r.static["web_search"] = web.NewWebSearch(config.TavilyAPIKey, web.WebSearchConfig{
+		MaxResponseBytes: httpLimits.WebSearchMaxResponseBytes,
+	})
 	writeLLM := llm.NewMockClient()
 	provider := strings.TrimSpace(config.LLMProvider)
 	model := strings.TrimSpace(config.LLMModel)
@@ -423,9 +429,11 @@ func (r *Registry) registerBuiltins(config Config) error {
 		}
 		writeLLM = client
 	}
-	r.static["html_edit"] = web.NewHTMLEdit(writeLLM)
+	r.static["html_edit"] = web.NewHTMLEdit(writeLLM, web.HTMLEditConfig{
+		MaxResponseBytes: httpLimits.DefaultMaxResponseBytes,
+	})
 	r.static["web_fetch"] = web.NewWebFetch(shared.WebFetchConfig{
-		// Reserved for future config.
+		MaxResponseBytes: httpLimits.WebFetchMaxResponseBytes,
 	})
 	r.static["douyin_hot"] = web.NewDouyinHot()
 	// Document generation
@@ -472,9 +480,10 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["video_generate"] = media.NewSeedreamVideoGenerate(videoConfig)
 	}
 	sandboxConfig := sandbox.SandboxConfig{
-		BaseURL:      config.SandboxBaseURL,
-		VisionTool:   visionTool,
-		VisionPrompt: "",
+		BaseURL:          config.SandboxBaseURL,
+		VisionTool:       visionTool,
+		VisionPrompt:     "",
+		MaxResponseBytes: httpLimits.SandboxMaxResponseBytes,
 	}
 	r.static["browser_action"] = sandbox.NewSandboxBrowser(sandboxConfig)
 	r.static["browser_info"] = sandbox.NewSandboxBrowserInfo(sandboxConfig)

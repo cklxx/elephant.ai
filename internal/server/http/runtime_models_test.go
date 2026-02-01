@@ -35,7 +35,7 @@ func TestFetchProviderModelsUsesBearerAuth(t *testing.T) {
 		Provider: "codex",
 		BaseURL:  srv.URL,
 		APIKey:   "tok-abc",
-	})
+	}, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestFetchProviderModelsUsesAnthropicOAuthHeaders(t *testing.T) {
 		Provider: "anthropic",
 		BaseURL:  srv.URL,
 		APIKey:   "oauth-token",
-	})
+	}, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestFetchProviderModelsUsesCodexModelsPath(t *testing.T) {
 		BaseURL:       srv.URL + "/codex",
 		APIKey:        "tok-abc",
 		ClientVersion: "0.86.0",
-	})
+	}, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestFetchProviderModelsSetsChatGPTAccountIDHeader(t *testing.T) {
 		BaseURL:   srv.URL,
 		APIKey:    "tok-abc",
 		AccountID: "acct-123",
-	})
+	}, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestListRuntimeModelsUsesCodexCLIFallback(t *testing.T) {
 		},
 	}
 
-	providers := listRuntimeModels(context.Background(), creds, client)
+	providers := listRuntimeModels(context.Background(), creds, client, runtimeconfig.DefaultHTTPMaxResponse)
 	if len(providers) != 1 {
 		t.Fatalf("expected one provider, got %d", len(providers))
 	}

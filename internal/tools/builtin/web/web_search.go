@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,8 +19,9 @@ import (
 
 type webSearch struct {
 	shared.BaseTool
-	client *http.Client
-	apiKey string
+	client           *http.Client
+	apiKey           string
+	maxResponseBytes int
 }
 
 type webSearchResult struct {
@@ -30,13 +30,24 @@ type webSearchResult struct {
 	Content string
 }
 
-func NewWebSearch(apiKey string) tools.ToolExecutor {
-	return newWebSearch(apiKey, nil)
+// WebSearchConfig controls response limits for web_search.
+type WebSearchConfig struct {
+	MaxResponseBytes int
 }
 
-func newWebSearch(apiKey string, client *http.Client) *webSearch {
+const defaultWebSearchMaxResponseBytes = 1 << 20
+
+func NewWebSearch(apiKey string, cfg WebSearchConfig) tools.ToolExecutor {
+	return newWebSearch(apiKey, nil, cfg)
+}
+
+func newWebSearch(apiKey string, client *http.Client, cfg WebSearchConfig) *webSearch {
 	if client == nil {
 		client = httpclient.NewWithCircuitBreaker(30*time.Second, nil, "web_search")
+	}
+	maxResponseBytes := cfg.MaxResponseBytes
+	if maxResponseBytes <= 0 {
+		maxResponseBytes = defaultWebSearchMaxResponseBytes
 	}
 	return &webSearch{
 		BaseTool: shared.NewBaseTool(
@@ -76,8 +87,9 @@ Setup:
 				Tags:     []string{"search", "web", "internet"},
 			},
 		),
-		client: client,
-		apiKey: apiKey,
+		client:           client,
+		apiKey:           apiKey,
+		maxResponseBytes: maxResponseBytes,
 	}
 }
 
@@ -147,8 +159,11 @@ func (t *webSearch) searchTavily(ctx context.Context, query string, maxResults i
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(t.maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return nil, fmt.Errorf("response exceeds %d bytes", t.maxResponseBytes)
+		}
 		return nil, err
 	}
 
@@ -211,8 +226,11 @@ func (t *webSearch) searchFallback(ctx context.Context, callID string, query str
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(t.maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			err = fmt.Errorf("response exceeds %d bytes", t.maxResponseBytes)
+		}
 		return &ports.ToolResult{CallID: callID, Content: fmt.Sprintf("Error reading fallback response: %v", err), Error: err}, nil
 	}
 

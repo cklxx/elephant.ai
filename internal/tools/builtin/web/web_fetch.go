@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	neturl "net/url"
 	"strings"
@@ -15,24 +14,25 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
 	llm "alex/internal/agent/ports/llm"
+	tools "alex/internal/agent/ports/tools"
 	alexerrors "alex/internal/errors"
 	"alex/internal/httpclient"
 	"alex/internal/utils"
 	id "alex/internal/utils/id"
 
-	"github.com/PuerkitoBio/goquery"
 	"alex/internal/tools/builtin/shared"
+	"github.com/PuerkitoBio/goquery"
 )
 
 // webFetch implements web content fetching with caching and optional LLM processing
 type webFetch struct {
 	shared.BaseTool
-	httpClient      *http.Client
-	llmClient       llm.LLMClient // Optional LLM for content analysis
-	cache           *fetchCache
-	maxContentBytes int
+	httpClient       *http.Client
+	llmClient        llm.LLMClient // Optional LLM for content analysis
+	cache            *fetchCache
+	maxContentBytes  int
+	maxResponseBytes int
 }
 
 type llmCallMeta struct {
@@ -79,6 +79,10 @@ func NewWebFetchWithLLM(llmClient llm.LLMClient, cfg shared.WebFetchConfig) tool
 	maxContentBytes := cfg.CacheMaxContentBytes
 	if maxContentBytes <= 0 {
 		maxContentBytes = 2 * 1024 * 1024
+	}
+	maxResponseBytes := cfg.MaxResponseBytes
+	if maxResponseBytes <= 0 {
+		maxResponseBytes = 2 * 1024 * 1024
 	}
 	cache := &fetchCache{
 		entries:    make(map[string]*cacheEntry),
@@ -133,10 +137,11 @@ Usage:
 				},
 			},
 		),
-		httpClient:      sharedWebFetchClient(),
-		llmClient:       llmClient,
-		cache:           cache,
-		maxContentBytes: maxContentBytes,
+		httpClient:       sharedWebFetchClient(),
+		llmClient:        llmClient,
+		cache:            cache,
+		maxContentBytes:  maxContentBytes,
+		maxResponseBytes: maxResponseBytes,
 	}
 
 	return tool
@@ -258,8 +263,11 @@ func (t *webFetch) fetchContent(ctx context.Context, urlStr string) (string, str
 		return "", "", fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(t.maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return "", "", fmt.Errorf("response exceeds %d bytes", t.maxResponseBytes)
+		}
 		return "", "", fmt.Errorf("read response: %w", err)
 	}
 

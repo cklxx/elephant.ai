@@ -228,6 +228,9 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolPreset = parsed.ToolPreset
 		meta.sources["tool_preset"] = SourceFile
 	}
+	if parsed.HTTPLimits != nil {
+		applyHTTPLimitsFileConfig(cfg, meta, parsed.HTTPLimits)
+	}
 	if parsed.Proactive != nil {
 		applyProactiveFileConfig(cfg, meta, parsed.Proactive)
 	}

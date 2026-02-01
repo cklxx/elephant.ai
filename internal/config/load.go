@@ -51,6 +51,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		SessionDir:                 "~/.alex/sessions",
 		CostDir:                    "~/.alex/costs",
 		SessionStaleAfterSeconds:   int((48 * time.Hour).Seconds()),
+		HTTPLimits:                 DefaultHTTPLimitsConfig(),
 		Proactive:                  DefaultProactiveConfig(),
 		ExternalAgents:             DefaultExternalAgentsConfig(),
 	}
@@ -130,6 +131,7 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
 	normalizeProactiveConfig(&cfg.Proactive)
 	normalizeExternalAgentsConfig(&cfg.ExternalAgents)
+	normalizeHTTPLimits(&cfg.HTTPLimits)
 
 	if cfg.ToolMaxConcurrent <= 0 {
 		cfg.ToolMaxConcurrent = DefaultToolMaxConcurrent
@@ -189,6 +191,30 @@ func normalizeExternalAgentsConfig(cfg *ExternalAgentsConfig) {
 	cfg.Codex.DefaultModel = strings.TrimSpace(cfg.Codex.DefaultModel)
 	cfg.Codex.ApprovalPolicy = strings.TrimSpace(cfg.Codex.ApprovalPolicy)
 	cfg.Codex.Sandbox = strings.TrimSpace(cfg.Codex.Sandbox)
+}
+
+func normalizeHTTPLimits(cfg *HTTPLimitsConfig) {
+	if cfg == nil {
+		return
+	}
+	if cfg.DefaultMaxResponseBytes <= 0 {
+		cfg.DefaultMaxResponseBytes = DefaultHTTPMaxResponse
+	}
+	if cfg.WebFetchMaxResponseBytes <= 0 {
+		cfg.WebFetchMaxResponseBytes = 2 * DefaultHTTPMaxResponse
+	}
+	if cfg.WebSearchMaxResponseBytes <= 0 {
+		cfg.WebSearchMaxResponseBytes = DefaultHTTPMaxResponse
+	}
+	if cfg.MusicSearchMaxResponseBytes <= 0 {
+		cfg.MusicSearchMaxResponseBytes = DefaultHTTPMaxResponse
+	}
+	if cfg.ModelListMaxResponseBytes <= 0 {
+		cfg.ModelListMaxResponseBytes = 512 * 1024
+	}
+	if cfg.SandboxMaxResponseBytes <= 0 {
+		cfg.SandboxMaxResponseBytes = 8 * 1024 * 1024
+	}
 }
 
 func normalizeProactiveConfig(cfg *ProactiveConfig) {

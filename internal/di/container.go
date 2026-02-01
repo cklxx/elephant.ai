@@ -123,6 +123,7 @@ type Config struct {
 	// Feature Flags
 	EnableMCP bool // Enable MCP tool registration (requires external dependencies)
 
+	HTTPLimits     runtimeconfig.HTTPLimitsConfig
 	Proactive      runtimeconfig.ProactiveConfig
 	ExternalAgents runtimeconfig.ExternalAgentsConfig
 }

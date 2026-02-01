@@ -13,4 +13,5 @@ type WebFetchConfig struct {
 	CacheTTL             time.Duration `yaml:"cache_ttl"`
 	CacheMaxEntries      int           `yaml:"cache_max_entries"`
 	CacheMaxContentBytes int           `yaml:"cache_max_content_bytes"`
+	MaxResponseBytes     int           `yaml:"max_response_bytes"`
 }

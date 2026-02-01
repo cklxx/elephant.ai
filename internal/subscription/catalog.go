@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"sort"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	runtimeconfig "alex/internal/config"
+	"alex/internal/httpclient"
 )
 
 func parseModelList(raw []byte) ([]string, error) {
@@ -88,14 +88,24 @@ func WithOllamaTargetResolver(resolver func(context.Context) (OllamaTarget, bool
 	}
 }
 
+// WithMaxResponseBytes sets the response size limit for provider model fetches.
+func WithMaxResponseBytes(limit int) CatalogOption {
+	return func(service *CatalogService) {
+		if limit > 0 {
+			service.maxResponseBytes = limit
+		}
+	}
+}
+
 type CatalogService struct {
-	loadCreds      func() runtimeconfig.CLICredentials
-	client         *http.Client
-	ttl            time.Duration
-	mu             sync.Mutex
-	cached         Catalog
-	cachedAt       time.Time
-	ollamaResolver func(context.Context) (OllamaTarget, bool)
+	loadCreds        func() runtimeconfig.CLICredentials
+	client           *http.Client
+	ttl              time.Duration
+	mu               sync.Mutex
+	cached           Catalog
+	cachedAt         time.Time
+	ollamaResolver   func(context.Context) (OllamaTarget, bool)
+	maxResponseBytes int
 }
 
 func NewCatalogService(loadCreds func() runtimeconfig.CLICredentials, client *http.Client, ttl time.Duration, opts ...CatalogOption) *CatalogService {
@@ -105,9 +115,10 @@ func NewCatalogService(loadCreds func() runtimeconfig.CLICredentials, client *ht
 		}
 	}
 	service := &CatalogService{
-		loadCreds: loadCreds,
-		client:    client,
-		ttl:       ttl,
+		loadCreds:        loadCreds,
+		client:           client,
+		ttl:              ttl,
+		maxResponseBytes: runtimeconfig.DefaultHTTPMaxResponse,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -126,10 +137,10 @@ func (s *CatalogService) Catalog(ctx context.Context) Catalog {
 	}
 
 	creds := s.loadCreds()
-	providers := listProviders(ctx, creds, s.client)
+	providers := listProviders(ctx, creds, s.client, s.maxResponseBytes)
 	if s.ollamaResolver != nil {
 		if target, ok := s.ollamaResolver(ctx); ok {
-			providers = append(providers, buildOllamaProvider(ctx, s.client, target))
+			providers = append(providers, buildOllamaProvider(ctx, s.client, target, s.maxResponseBytes))
 		}
 	}
 	catalog := Catalog{Providers: providers}
@@ -139,7 +150,7 @@ func (s *CatalogService) Catalog(ctx context.Context) Catalog {
 	return catalog
 }
 
-func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client) []CatalogProvider {
+func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, client *http.Client, maxResponseBytes int) []CatalogProvider {
 	var targets []CatalogProvider
 
 	if creds.Codex.APIKey != "" {
@@ -179,7 +190,7 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 			baseURL:   target.BaseURL,
 			apiKey:    pickAPIKey(creds, target.Provider),
 			accountID: pickAccountID(creds, target.Provider),
-		})
+		}, maxResponseBytes)
 		if err != nil {
 			target.Error = err.Error()
 			continue
@@ -237,7 +248,7 @@ func containsModel(models []string, value string) bool {
 
 const defaultOllamaBaseURL = "http://localhost:11434"
 
-func buildOllamaProvider(ctx context.Context, client *http.Client, target OllamaTarget) CatalogProvider {
+func buildOllamaProvider(ctx context.Context, client *http.Client, target OllamaTarget, maxResponseBytes int) CatalogProvider {
 	baseURL := normalizeOllamaBaseURL(target.BaseURL)
 	source := strings.TrimSpace(target.Source)
 	if source == "" {
@@ -252,7 +263,7 @@ func buildOllamaProvider(ctx context.Context, client *http.Client, target Ollama
 	ollamaCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
-	models, err := fetchOllamaModels(ollamaCtx, client, baseURL)
+	models, err := fetchOllamaModels(ollamaCtx, client, baseURL, maxResponseBytes)
 	if err != nil {
 		provider.Error = err.Error()
 		return provider
@@ -269,7 +280,7 @@ func normalizeOllamaBaseURL(baseURL string) string {
 	return strings.TrimRight(base, "/")
 }
 
-func fetchOllamaModels(ctx context.Context, client *http.Client, baseURL string) ([]string, error) {
+func fetchOllamaModels(ctx context.Context, client *http.Client, baseURL string, maxResponseBytes int) ([]string, error) {
 	endpoint := ollamaTagsEndpoint(baseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -286,8 +297,11 @@ func fetchOllamaModels(ctx context.Context, client *http.Client, baseURL string)
 		return nil, fmt.Errorf("ollama model list request failed: %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return nil, fmt.Errorf("ollama model list response exceeds %d bytes", maxResponseBytes)
+		}
 		return nil, err
 	}
 
@@ -342,9 +356,9 @@ type fetchTarget struct {
 	accountID string
 }
 
-func fetchProviderModels(ctx context.Context, client *http.Client, target fetchTarget) ([]string, error) {
+func fetchProviderModels(ctx context.Context, client *http.Client, target fetchTarget, maxResponseBytes int) ([]string, error) {
 	if target.provider == "antigravity" {
-		return fetchAntigravityModels(ctx, client, target)
+		return fetchAntigravityModels(ctx, client, target, maxResponseBytes)
 	}
 	endpoint := strings.TrimRight(target.baseURL, "/") + "/models"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -377,15 +391,18 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target fetchT
 		return nil, fmt.Errorf("model list request failed: %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return nil, fmt.Errorf("model list response exceeds %d bytes", maxResponseBytes)
+		}
 		return nil, err
 	}
 
 	return parseModelList(body)
 }
 
-func fetchAntigravityModels(ctx context.Context, client *http.Client, target fetchTarget) ([]string, error) {
+func fetchAntigravityModels(ctx context.Context, client *http.Client, target fetchTarget, maxResponseBytes int) ([]string, error) {
 	endpoint := strings.TrimRight(target.baseURL, "/") + "/v1internal:fetchAvailableModels"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(`{}`))
 	if err != nil {
@@ -407,8 +424,11 @@ func fetchAntigravityModels(ctx context.Context, client *http.Client, target fet
 		return nil, fmt.Errorf("model list request failed: %s", resp.Status)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return nil, fmt.Errorf("model list response exceeds %d bytes", maxResponseBytes)
+		}
 		return nil, err
 	}
 

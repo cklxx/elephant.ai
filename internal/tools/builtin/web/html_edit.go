@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -22,10 +21,22 @@ import (
 
 type htmlEdit struct {
 	shared.BaseTool
-	llm portsllm.LLMClient
+	llm              portsllm.LLMClient
+	maxResponseBytes int
 }
 
-func NewHTMLEdit(client portsllm.LLMClient) tools.ToolExecutor {
+// HTMLEditConfig controls outbound fetch limits used by html_edit.
+type HTMLEditConfig struct {
+	MaxResponseBytes int
+}
+
+const defaultHTMLEditMaxResponseBytes = 1 << 20
+
+func NewHTMLEdit(client portsllm.LLMClient, cfg HTMLEditConfig) tools.ToolExecutor {
+	maxResponseBytes := cfg.MaxResponseBytes
+	if maxResponseBytes <= 0 {
+		maxResponseBytes = defaultHTMLEditMaxResponseBytes
+	}
 	if client == nil {
 		client = internalllm.NewMockClient()
 	}
@@ -74,7 +85,8 @@ func NewHTMLEdit(client portsllm.LLMClient) tools.ToolExecutor {
 				},
 			},
 		),
-		llm: client,
+		llm:              client,
+		maxResponseBytes: maxResponseBytes,
 	}
 }
 
@@ -106,7 +118,7 @@ func (t *htmlEdit) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("unsupported action: %s", action)}, nil
 	}
 
-	sourceHTML, sourceName, err := resolveHTMLInput(ctx, name, rawHTML)
+	sourceHTML, sourceName, err := resolveHTMLInput(ctx, name, rawHTML, t.maxResponseBytes)
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
@@ -305,7 +317,7 @@ func buildHTMLResultSummary(action, name string, errorCount, warningCount int) s
 	return fmt.Sprintf("%s HTML: %s (errors: %d, warnings: %d)", verb, name, errorCount, warningCount)
 }
 
-func resolveHTMLInput(ctx context.Context, name, rawHTML string) (string, string, error) {
+func resolveHTMLInput(ctx context.Context, name, rawHTML string, maxResponseBytes int) (string, string, error) {
 	if rawHTML != "" {
 		if decoded, ok := decodeHTMLDataURI(rawHTML); ok {
 			return string(decoded), name, nil
@@ -326,7 +338,7 @@ func resolveHTMLInput(ctx context.Context, name, rawHTML string) (string, string
 		return "", name, fmt.Errorf("attachment not found: %s", name)
 	}
 
-	html, err := decodeHTMLAttachment(ctx, att)
+	html, err := decodeHTMLAttachment(ctx, att, maxResponseBytes)
 	if err != nil {
 		return "", canonical, err
 	}
@@ -346,7 +358,7 @@ func lookupAttachmentByName(attachments map[string]ports.Attachment, name string
 	return ports.Attachment{}, "", false
 }
 
-func decodeHTMLAttachment(ctx context.Context, att ports.Attachment) (string, error) {
+func decodeHTMLAttachment(ctx context.Context, att ports.Attachment, maxResponseBytes int) (string, error) {
 	if data := strings.TrimSpace(att.Data); data != "" {
 		if decoded, ok := decodeHTMLDataURI(data); ok {
 			return string(decoded), nil
@@ -362,14 +374,14 @@ func decodeHTMLAttachment(ctx context.Context, att ports.Attachment) (string, er
 			return string(decoded), nil
 		}
 		if strings.HasPrefix(uri, "http://") || strings.HasPrefix(uri, "https://") {
-			return fetchHTML(ctx, uri)
+			return fetchHTML(ctx, uri, maxResponseBytes)
 		}
 	}
 
 	return "", fmt.Errorf("no inline HTML payload available for %s", att.Name)
 }
 
-func fetchHTML(ctx context.Context, uri string) (string, error) {
+func fetchHTML(ctx context.Context, uri string, maxResponseBytes int) (string, error) {
 	opts := httpclient.DefaultURLValidationOptions()
 	if shared.AllowLocalFetch(ctx) {
 		opts.AllowLocalhost = true
@@ -393,8 +405,11 @@ func fetchHTML(ctx context.Context, uri string) (string, error) {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", fmt.Errorf("fetch failed with status %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return "", fmt.Errorf("response exceeds %d bytes", maxResponseBytes)
+		}
 		return "", err
 	}
 	return string(body), nil
@@ -477,4 +492,3 @@ func buildHTMLAttachment(name, html, source string) ports.Attachment {
 		},
 	}
 }
-

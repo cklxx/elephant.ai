@@ -35,6 +35,7 @@ const (
 	DefaultACPHost           = "127.0.0.1"
 	DefaultACPPort           = 9000
 	DefaultACPPortFile       = ".pids/acp.port"
+	DefaultHTTPMaxResponse   = 1 << 20
 )
 
 // RuntimeConfig captures user-configurable settings shared across binaries.
@@ -85,8 +86,19 @@ type RuntimeConfig struct {
 	SessionStaleAfterSeconds   int                  `json:"session_stale_after_seconds" yaml:"session_stale_after_seconds"`
 	AgentPreset                string               `json:"agent_preset" yaml:"agent_preset"`
 	ToolPreset                 string               `json:"tool_preset" yaml:"tool_preset"`
+	HTTPLimits                 HTTPLimitsConfig     `json:"http_limits" yaml:"http_limits"`
 	Proactive                  ProactiveConfig      `json:"proactive" yaml:"proactive"`
 	ExternalAgents             ExternalAgentsConfig `json:"external_agents" yaml:"external_agents"`
+}
+
+// HTTPLimitsConfig controls maximum response sizes for outbound HTTP calls.
+type HTTPLimitsConfig struct {
+	DefaultMaxResponseBytes     int `json:"default_max_response_bytes" yaml:"default_max_response_bytes"`
+	WebFetchMaxResponseBytes    int `json:"web_fetch_max_response_bytes" yaml:"web_fetch_max_response_bytes"`
+	WebSearchMaxResponseBytes   int `json:"web_search_max_response_bytes" yaml:"web_search_max_response_bytes"`
+	MusicSearchMaxResponseBytes int `json:"music_search_max_response_bytes" yaml:"music_search_max_response_bytes"`
+	ModelListMaxResponseBytes   int `json:"model_list_max_response_bytes" yaml:"model_list_max_response_bytes"`
+	SandboxMaxResponseBytes     int `json:"sandbox_max_response_bytes" yaml:"sandbox_max_response_bytes"`
 }
 
 // ExternalAgentsConfig configures external agent executors.
@@ -143,6 +155,18 @@ func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 			Timeout:        30 * time.Minute,
 			Env:            map[string]string{},
 		},
+	}
+}
+
+// DefaultHTTPLimitsConfig provides baseline HTTP response size limits.
+func DefaultHTTPLimitsConfig() HTTPLimitsConfig {
+	return HTTPLimitsConfig{
+		DefaultMaxResponseBytes:     DefaultHTTPMaxResponse,
+		WebFetchMaxResponseBytes:    2 * DefaultHTTPMaxResponse,
+		WebSearchMaxResponseBytes:   DefaultHTTPMaxResponse,
+		MusicSearchMaxResponseBytes: DefaultHTTPMaxResponse,
+		ModelListMaxResponseBytes:   512 * 1024,
+		SandboxMaxResponseBytes:     8 * 1024 * 1024,
 	}
 }
 
@@ -353,52 +377,63 @@ func (m Metadata) LoadedAt() time.Time {
 
 // Overrides conveys caller-specified values that should win over env/file sources.
 type Overrides struct {
-	LLMProvider                *string          `json:"llm_provider,omitempty" yaml:"llm_provider,omitempty"`
-	LLMModel                   *string          `json:"llm_model,omitempty" yaml:"llm_model,omitempty"`
-	LLMSmallProvider           *string          `json:"llm_small_provider,omitempty" yaml:"llm_small_provider,omitempty"`
-	LLMSmallModel              *string          `json:"llm_small_model,omitempty" yaml:"llm_small_model,omitempty"`
-	LLMVisionModel             *string          `json:"llm_vision_model,omitempty" yaml:"llm_vision_model,omitempty"`
-	APIKey                     *string          `json:"api_key,omitempty" yaml:"api_key,omitempty"`
-	ArkAPIKey                  *string          `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
-	BaseURL                    *string          `json:"base_url,omitempty" yaml:"base_url,omitempty"`
-	SandboxBaseURL             *string          `json:"sandbox_base_url,omitempty" yaml:"sandbox_base_url,omitempty"`
-	ACPExecutorAddr            *string          `json:"acp_executor_addr,omitempty" yaml:"acp_executor_addr,omitempty"`
-	ACPExecutorCWD             *string          `json:"acp_executor_cwd,omitempty" yaml:"acp_executor_cwd,omitempty"`
-	ACPExecutorMode            *string          `json:"acp_executor_mode,omitempty" yaml:"acp_executor_mode,omitempty"`
-	ACPExecutorAutoApprove     *bool            `json:"acp_executor_auto_approve,omitempty" yaml:"acp_executor_auto_approve,omitempty"`
-	ACPExecutorMaxCLICalls     *int             `json:"acp_executor_max_cli_calls,omitempty" yaml:"acp_executor_max_cli_calls,omitempty"`
-	ACPExecutorMaxDuration     *int             `json:"acp_executor_max_duration_seconds,omitempty" yaml:"acp_executor_max_duration_seconds,omitempty"`
-	ACPExecutorRequireManifest *bool            `json:"acp_executor_require_manifest,omitempty" yaml:"acp_executor_require_manifest,omitempty"`
-	TavilyAPIKey               *string          `json:"tavily_api_key,omitempty" yaml:"tavily_api_key,omitempty"`
-	MoltbookAPIKey             *string          `json:"moltbook_api_key,omitempty" yaml:"moltbook_api_key,omitempty"`
-	MoltbookBaseURL            *string          `json:"moltbook_base_url,omitempty" yaml:"moltbook_base_url,omitempty"`
-	SeedreamTextEndpointID     *string          `json:"seedream_text_endpoint_id,omitempty" yaml:"seedream_text_endpoint_id,omitempty"`
-	SeedreamImageEndpointID    *string          `json:"seedream_image_endpoint_id,omitempty" yaml:"seedream_image_endpoint_id,omitempty"`
-	SeedreamTextModel          *string          `json:"seedream_text_model,omitempty" yaml:"seedream_text_model,omitempty"`
-	SeedreamImageModel         *string          `json:"seedream_image_model,omitempty" yaml:"seedream_image_model,omitempty"`
-	SeedreamVisionModel        *string          `json:"seedream_vision_model,omitempty" yaml:"seedream_vision_model,omitempty"`
-	SeedreamVideoModel         *string          `json:"seedream_video_model,omitempty" yaml:"seedream_video_model,omitempty"`
-	Environment                *string          `json:"environment,omitempty" yaml:"environment,omitempty"`
-	Verbose                    *bool            `json:"verbose,omitempty" yaml:"verbose,omitempty"`
-	DisableTUI                 *bool            `json:"disable_tui,omitempty" yaml:"disable_tui,omitempty"`
-	FollowTranscript           *bool            `json:"follow_transcript,omitempty" yaml:"follow_transcript,omitempty"`
-	FollowStream               *bool            `json:"follow_stream,omitempty" yaml:"follow_stream,omitempty"`
-	MaxIterations              *int             `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
-	MaxTokens                  *int             `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
-	ToolMaxConcurrent          *int             `json:"tool_max_concurrent,omitempty" yaml:"tool_max_concurrent,omitempty"`
-	LLMCacheSize               *int             `json:"llm_cache_size,omitempty" yaml:"llm_cache_size,omitempty"`
-	LLMCacheTTLSeconds         *int             `json:"llm_cache_ttl_seconds,omitempty" yaml:"llm_cache_ttl_seconds,omitempty"`
-	UserRateLimitRPS           *float64         `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
-	UserRateLimitBurst         *int             `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
-	Temperature                *float64         `json:"temperature,omitempty" yaml:"temperature,omitempty"`
-	TopP                       *float64         `json:"top_p,omitempty" yaml:"top_p,omitempty"`
-	StopSequences              *[]string        `json:"stop_sequences,omitempty" yaml:"stop_sequences,omitempty"`
-	SessionDir                 *string          `json:"session_dir,omitempty" yaml:"session_dir,omitempty"`
-	CostDir                    *string          `json:"cost_dir,omitempty" yaml:"cost_dir,omitempty"`
-	SessionStaleAfterSeconds   *int             `json:"session_stale_after_seconds,omitempty" yaml:"session_stale_after_seconds,omitempty"`
-	AgentPreset                *string          `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
-	ToolPreset                 *string          `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
-	Proactive                  *ProactiveConfig `json:"proactive,omitempty" yaml:"proactive,omitempty"`
+	LLMProvider                *string              `json:"llm_provider,omitempty" yaml:"llm_provider,omitempty"`
+	LLMModel                   *string              `json:"llm_model,omitempty" yaml:"llm_model,omitempty"`
+	LLMSmallProvider           *string              `json:"llm_small_provider,omitempty" yaml:"llm_small_provider,omitempty"`
+	LLMSmallModel              *string              `json:"llm_small_model,omitempty" yaml:"llm_small_model,omitempty"`
+	LLMVisionModel             *string              `json:"llm_vision_model,omitempty" yaml:"llm_vision_model,omitempty"`
+	APIKey                     *string              `json:"api_key,omitempty" yaml:"api_key,omitempty"`
+	ArkAPIKey                  *string              `json:"ark_api_key,omitempty" yaml:"ark_api_key,omitempty"`
+	BaseURL                    *string              `json:"base_url,omitempty" yaml:"base_url,omitempty"`
+	SandboxBaseURL             *string              `json:"sandbox_base_url,omitempty" yaml:"sandbox_base_url,omitempty"`
+	ACPExecutorAddr            *string              `json:"acp_executor_addr,omitempty" yaml:"acp_executor_addr,omitempty"`
+	ACPExecutorCWD             *string              `json:"acp_executor_cwd,omitempty" yaml:"acp_executor_cwd,omitempty"`
+	ACPExecutorMode            *string              `json:"acp_executor_mode,omitempty" yaml:"acp_executor_mode,omitempty"`
+	ACPExecutorAutoApprove     *bool                `json:"acp_executor_auto_approve,omitempty" yaml:"acp_executor_auto_approve,omitempty"`
+	ACPExecutorMaxCLICalls     *int                 `json:"acp_executor_max_cli_calls,omitempty" yaml:"acp_executor_max_cli_calls,omitempty"`
+	ACPExecutorMaxDuration     *int                 `json:"acp_executor_max_duration_seconds,omitempty" yaml:"acp_executor_max_duration_seconds,omitempty"`
+	ACPExecutorRequireManifest *bool                `json:"acp_executor_require_manifest,omitempty" yaml:"acp_executor_require_manifest,omitempty"`
+	TavilyAPIKey               *string              `json:"tavily_api_key,omitempty" yaml:"tavily_api_key,omitempty"`
+	MoltbookAPIKey             *string              `json:"moltbook_api_key,omitempty" yaml:"moltbook_api_key,omitempty"`
+	MoltbookBaseURL            *string              `json:"moltbook_base_url,omitempty" yaml:"moltbook_base_url,omitempty"`
+	SeedreamTextEndpointID     *string              `json:"seedream_text_endpoint_id,omitempty" yaml:"seedream_text_endpoint_id,omitempty"`
+	SeedreamImageEndpointID    *string              `json:"seedream_image_endpoint_id,omitempty" yaml:"seedream_image_endpoint_id,omitempty"`
+	SeedreamTextModel          *string              `json:"seedream_text_model,omitempty" yaml:"seedream_text_model,omitempty"`
+	SeedreamImageModel         *string              `json:"seedream_image_model,omitempty" yaml:"seedream_image_model,omitempty"`
+	SeedreamVisionModel        *string              `json:"seedream_vision_model,omitempty" yaml:"seedream_vision_model,omitempty"`
+	SeedreamVideoModel         *string              `json:"seedream_video_model,omitempty" yaml:"seedream_video_model,omitempty"`
+	Environment                *string              `json:"environment,omitempty" yaml:"environment,omitempty"`
+	Verbose                    *bool                `json:"verbose,omitempty" yaml:"verbose,omitempty"`
+	DisableTUI                 *bool                `json:"disable_tui,omitempty" yaml:"disable_tui,omitempty"`
+	FollowTranscript           *bool                `json:"follow_transcript,omitempty" yaml:"follow_transcript,omitempty"`
+	FollowStream               *bool                `json:"follow_stream,omitempty" yaml:"follow_stream,omitempty"`
+	MaxIterations              *int                 `json:"max_iterations,omitempty" yaml:"max_iterations,omitempty"`
+	MaxTokens                  *int                 `json:"max_tokens,omitempty" yaml:"max_tokens,omitempty"`
+	ToolMaxConcurrent          *int                 `json:"tool_max_concurrent,omitempty" yaml:"tool_max_concurrent,omitempty"`
+	LLMCacheSize               *int                 `json:"llm_cache_size,omitempty" yaml:"llm_cache_size,omitempty"`
+	LLMCacheTTLSeconds         *int                 `json:"llm_cache_ttl_seconds,omitempty" yaml:"llm_cache_ttl_seconds,omitempty"`
+	UserRateLimitRPS           *float64             `json:"user_rate_limit_rps,omitempty" yaml:"user_rate_limit_rps,omitempty"`
+	UserRateLimitBurst         *int                 `json:"user_rate_limit_burst,omitempty" yaml:"user_rate_limit_burst,omitempty"`
+	Temperature                *float64             `json:"temperature,omitempty" yaml:"temperature,omitempty"`
+	TopP                       *float64             `json:"top_p,omitempty" yaml:"top_p,omitempty"`
+	StopSequences              *[]string            `json:"stop_sequences,omitempty" yaml:"stop_sequences,omitempty"`
+	SessionDir                 *string              `json:"session_dir,omitempty" yaml:"session_dir,omitempty"`
+	CostDir                    *string              `json:"cost_dir,omitempty" yaml:"cost_dir,omitempty"`
+	SessionStaleAfterSeconds   *int                 `json:"session_stale_after_seconds,omitempty" yaml:"session_stale_after_seconds,omitempty"`
+	AgentPreset                *string              `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
+	ToolPreset                 *string              `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
+	HTTPLimits                 *HTTPLimitsOverrides `json:"http_limits,omitempty" yaml:"http_limits,omitempty"`
+	Proactive                  *ProactiveConfig     `json:"proactive,omitempty" yaml:"proactive,omitempty"`
+}
+
+// HTTPLimitsOverrides allows partial HTTP limit overrides.
+type HTTPLimitsOverrides struct {
+	DefaultMaxResponseBytes     *int `json:"default_max_response_bytes,omitempty" yaml:"default_max_response_bytes,omitempty"`
+	WebFetchMaxResponseBytes    *int `json:"web_fetch_max_response_bytes,omitempty" yaml:"web_fetch_max_response_bytes,omitempty"`
+	WebSearchMaxResponseBytes   *int `json:"web_search_max_response_bytes,omitempty" yaml:"web_search_max_response_bytes,omitempty"`
+	MusicSearchMaxResponseBytes *int `json:"music_search_max_response_bytes,omitempty" yaml:"music_search_max_response_bytes,omitempty"`
+	ModelListMaxResponseBytes   *int `json:"model_list_max_response_bytes,omitempty" yaml:"model_list_max_response_bytes,omitempty"`
+	SandboxMaxResponseBytes     *int `json:"sandbox_max_response_bytes,omitempty" yaml:"sandbox_max_response_bytes,omitempty"`
 }
 
 // EnvLookup resolves the value for an environment variable.

@@ -15,10 +15,14 @@ type SandboxConfig struct {
 	VisionTool         tools.ToolExecutor
 	VisionPrompt       string
 	AttachmentUploader materialports.Migrator
+	MaxResponseBytes   int
 }
 
 func newSandboxClient(cfg SandboxConfig) *sandbox.Client {
-	return sandbox.NewClient(sandbox.Config{BaseURL: cfg.BaseURL})
+	return sandbox.NewClient(sandbox.Config{
+		BaseURL:          cfg.BaseURL,
+		MaxResponseBytes: cfg.MaxResponseBytes,
+	})
 }
 
 // doSandboxCall executes a sandbox API request and validates the response.

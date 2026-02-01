@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -19,8 +18,9 @@ import (
 
 type musicPlay struct {
 	shared.BaseTool
-	client  *http.Client
-	baseURL string
+	client           *http.Client
+	baseURL          string
+	maxResponseBytes int
 }
 
 type itunesSearchResponse struct {
@@ -44,13 +44,28 @@ type musicTrack struct {
 	ArtworkURL string `json:"artwork_url"`
 }
 
-func NewMusicPlay() tools.ToolExecutor {
-	return newMusicPlay(nil, "https://itunes.apple.com")
+// MusicPlayConfig controls response limits for music_play.
+type MusicPlayConfig struct {
+	MaxResponseBytes int
 }
 
-func newMusicPlay(client *http.Client, baseURL string) *musicPlay {
+const defaultMusicPlayMaxResponseBytes = 1 << 20
+
+func NewMusicPlay() tools.ToolExecutor {
+	return NewMusicPlayWithConfig(MusicPlayConfig{})
+}
+
+func NewMusicPlayWithConfig(cfg MusicPlayConfig) tools.ToolExecutor {
+	return newMusicPlay(nil, "https://itunes.apple.com", cfg)
+}
+
+func newMusicPlay(client *http.Client, baseURL string, cfg MusicPlayConfig) *musicPlay {
 	if client == nil {
 		client = httpclient.New(20*time.Second, nil)
+	}
+	maxResponseBytes := cfg.MaxResponseBytes
+	if maxResponseBytes <= 0 {
+		maxResponseBytes = defaultMusicPlayMaxResponseBytes
 	}
 	return &musicPlay{
 		BaseTool: shared.NewBaseTool(
@@ -95,8 +110,9 @@ Returns a playable HTML playlist (APlayer) with preview URLs.`,
 				},
 			},
 		),
-		client:  client,
-		baseURL: strings.TrimRight(baseURL, "/"),
+		client:           client,
+		baseURL:          strings.TrimRight(baseURL, "/"),
+		maxResponseBytes: maxResponseBytes,
 	}
 }
 
@@ -142,8 +158,11 @@ func (t *musicPlay) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(t.maxResponseBytes))
 	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			err = fmt.Errorf("response exceeds %d bytes", t.maxResponseBytes)
+		}
 		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
 	}
 	if resp.StatusCode != http.StatusOK {

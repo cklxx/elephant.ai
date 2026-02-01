@@ -27,7 +27,7 @@ func TestWebSearchMissingAPIKey(t *testing.T) {
 			Header:     make(http.Header),
 		}, nil
 	})}
-	tool := newWebSearch("", client)
+	tool := newWebSearch("", client, WebSearchConfig{})
 
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID:        "call-1",
@@ -90,7 +90,7 @@ func TestWebSearchExecutesWithAPIKey(t *testing.T) {
 		}, nil
 	})}
 
-	tool := newWebSearch("token", client)
+	tool := newWebSearch("token", client, WebSearchConfig{})
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "call-2",
 		Arguments: map[string]any{

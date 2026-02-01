@@ -83,9 +83,9 @@ func RunServer(observabilityConfigPath string) error {
 				attachmentStore = store
 				migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
 				container.AgentCoordinator.SetAttachmentMigrator(migrator)
-					container.AgentCoordinator.SetAttachmentPersister(
-						attachments.NewStorePersister(store),
-					)
+				container.AgentCoordinator.SetAttachmentPersister(
+					attachments.NewStorePersister(store),
+				)
 				return nil
 			},
 		},
@@ -260,18 +260,19 @@ func RunServer(observabilityConfigPath string) error {
 	}
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
-			Coordinator:    serverCoordinator,
-			Broadcaster:    broadcaster,
-			RunTracker:     progressTracker,
-			HealthChecker:  healthChecker,
-			AuthHandler:    authHandler,
-			AuthService:    authService,
-			ConfigHandler:  configHandler,
-			Evaluation:     evaluationService,
-			Obs:            obs,
-			MemoryService:  container.MemoryService,
-			AttachmentCfg:  config.Attachment,
-			SandboxBaseURL: config.Runtime.SandboxBaseURL,
+			Coordinator:             serverCoordinator,
+			Broadcaster:             broadcaster,
+			RunTracker:              progressTracker,
+			HealthChecker:           healthChecker,
+			AuthHandler:             authHandler,
+			AuthService:             authService,
+			ConfigHandler:           configHandler,
+			Evaluation:              evaluationService,
+			Obs:                     obs,
+			MemoryService:           container.MemoryService,
+			AttachmentCfg:           config.Attachment,
+			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
+			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
 		},
 		serverHTTP.RouterConfig{
 			Environment:      config.Runtime.Environment,

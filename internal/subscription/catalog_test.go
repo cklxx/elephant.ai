@@ -35,7 +35,7 @@ func TestFetchProviderModelsUsesBearerAuth(t *testing.T) {
 		provider: "codex",
 		baseURL:  srv.URL,
 		apiKey:   "tok-abc",
-	})
+	}, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestFetchProviderModelsUsesAnthropicOAuthHeaders(t *testing.T) {
 		provider: "anthropic",
 		baseURL:  srv.URL,
 		apiKey:   "oauth-token",
-	})
+	}, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestFetchProviderModelsUsesAntigravityEndpoint(t *testing.T) {
 		provider: "antigravity",
 		baseURL:  srv.URL,
 		apiKey:   "tok-abc",
-	})
+	}, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}
@@ -136,7 +136,7 @@ func TestFetchOllamaModelsUsesTagsEndpoint(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	models, err := fetchOllamaModels(context.Background(), srv.Client(), srv.URL)
+	models, err := fetchOllamaModels(context.Background(), srv.Client(), srv.URL, runtimeconfig.DefaultHTTPMaxResponse)
 	if err != nil {
 		t.Fatalf("fetch error: %v", err)
 	}

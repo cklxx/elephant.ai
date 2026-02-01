@@ -176,33 +176,43 @@ func (h *ConfigHandler) HandleGetSubscriptionCatalog(w http.ResponseWriter, r *h
 func defaultCatalogService(resolver RuntimeConfigResolver) SubscriptionCatalogService {
 	logger := logging.NewComponentLogger("SubscriptionCatalog")
 	client := httpclient.New(20*time.Second, logger)
-	return subscription.NewCatalogService(func() runtimeconfig.CLICredentials {
-		return runtimeconfig.LoadCLICredentials()
-	}, client, 15*time.Second, subscription.WithOllamaTargetResolver(func(ctx context.Context) (subscription.OllamaTarget, bool) {
-		if resolver == nil {
-			return subscription.OllamaTarget{}, false
-		}
-		cfg, meta, err := resolver(ctx)
-		if err == nil {
-			provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
-			if provider == "ollama" {
-				baseURL := strings.TrimSpace(cfg.BaseURL)
-				source := string(meta.Source("base_url"))
-				if baseURL == "" {
-					baseURL = "http://localhost:11434"
-					if source == "" {
-						source = string(runtimeconfig.SourceDefault)
-					}
-				}
-				return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
+	maxResponseBytes := runtimeconfig.DefaultHTTPMaxResponse
+	if resolver != nil {
+		if cfg, _, err := resolver(context.Background()); err == nil {
+			if cfg.HTTPLimits.ModelListMaxResponseBytes > 0 {
+				maxResponseBytes = cfg.HTTPLimits.ModelListMaxResponseBytes
 			}
 		}
+	}
+	return subscription.NewCatalogService(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.LoadCLICredentials()
+	}, client, 15*time.Second,
+		subscription.WithMaxResponseBytes(maxResponseBytes),
+		subscription.WithOllamaTargetResolver(func(ctx context.Context) (subscription.OllamaTarget, bool) {
+			if resolver == nil {
+				return subscription.OllamaTarget{}, false
+			}
+			cfg, meta, err := resolver(ctx)
+			if err == nil {
+				provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+				if provider == "ollama" {
+					baseURL := strings.TrimSpace(cfg.BaseURL)
+					source := string(meta.Source("base_url"))
+					if baseURL == "" {
+						baseURL = "http://localhost:11434"
+						if source == "" {
+							source = string(runtimeconfig.SourceDefault)
+						}
+					}
+					return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
+				}
+			}
 
-		if baseURL, source := resolveOllamaEnvTarget(); baseURL != "" {
-			return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
-		}
-		return subscription.OllamaTarget{Source: string(runtimeconfig.SourceDefault)}, true
-	}))
+			if baseURL, source := resolveOllamaEnvTarget(); baseURL != "" {
+				return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
+			}
+			return subscription.OllamaTarget{Source: string(runtimeconfig.SourceDefault)}, true
+		}))
 }
 
 func resolveOllamaEnvTarget() (string, string) {
