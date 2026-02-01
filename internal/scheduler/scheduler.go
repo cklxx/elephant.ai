@@ -19,6 +19,7 @@ type Config struct {
 	Enabled           bool
 	StaticTriggers    []config.SchedulerTriggerConfig
 	OKRGoalsRoot      string // path to scan for OKR-derived triggers
+	CalendarReminder  config.CalendarReminderConfig
 	TriggerTimeout    time.Duration
 	ConcurrencyPolicy string
 }
@@ -106,7 +107,10 @@ func (s *Scheduler) Start(ctx context.Context) error {
 	// 2. Scan OKR goals and register dynamic triggers
 	s.syncOKRTriggersLocked()
 
-	// 3. Start periodic OKR trigger sync (every 5 min)
+	// 3. Register calendar reminder trigger
+	s.registerCalendarTrigger()
+
+	// 4. Start periodic OKR trigger sync (every 5 min)
 	if s.goalStore != nil {
 		syncEntryID, err := s.cron.AddFunc("*/5 * * * *", func() {
 			s.syncOKRTriggers()
@@ -118,7 +122,7 @@ func (s *Scheduler) Start(ctx context.Context) error {
 		}
 	}
 
-	// 4. Start cron
+	// 5. Start cron
 	s.cron.Start()
 	s.logger.Info("Scheduler started with %d triggers", len(s.entryIDs))
 

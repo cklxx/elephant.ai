@@ -261,6 +261,17 @@ type SchedulerConfig struct {
 	Triggers              []SchedulerTriggerConfig `json:"triggers" yaml:"triggers"`
 	TriggerTimeoutSeconds int                      `json:"trigger_timeout_seconds" yaml:"trigger_timeout_seconds"`
 	ConcurrencyPolicy     string                   `json:"concurrency_policy" yaml:"concurrency_policy"`
+	CalendarReminder      CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
+}
+
+// CalendarReminderConfig configures the periodic calendar reminder trigger.
+type CalendarReminderConfig struct {
+	Enabled           bool   `json:"enabled" yaml:"enabled"`
+	Schedule          string `json:"schedule" yaml:"schedule"`                       // cron expression, default "*/15 * * * *"
+	LookAheadMinutes  int    `json:"look_ahead_minutes" yaml:"look_ahead_minutes"`   // default 120
+	Channel           string `json:"channel" yaml:"channel"`                         // delivery channel: lark | moltbook
+	UserID            string `json:"user_id" yaml:"user_id"`
+	ChatID            string `json:"chat_id" yaml:"chat_id"`
 }
 
 type SchedulerTriggerConfig struct {
@@ -344,6 +355,11 @@ func DefaultProactiveConfig() ProactiveConfig {
 			Enabled:               false,
 			TriggerTimeoutSeconds: 900,
 			ConcurrencyPolicy:     "skip",
+			CalendarReminder: CalendarReminderConfig{
+				Enabled:          false,
+				Schedule:         "*/15 * * * *",
+				LookAheadMinutes: 120,
+			},
 		},
 		Timer: TimerConfig{
 			Enabled:            true,

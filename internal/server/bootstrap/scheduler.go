@@ -55,6 +55,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		Enabled:           true,
 		StaticTriggers:    cfg.Runtime.Proactive.Scheduler.Triggers,
 		OKRGoalsRoot:      goalsRoot,
+		CalendarReminder:  cfg.Runtime.Proactive.Scheduler.CalendarReminder,
 		TriggerTimeout:    time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
 		ConcurrencyPolicy: cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
 	}
