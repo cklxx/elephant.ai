@@ -23,7 +23,8 @@ const (
 	ProviderLocal      = "local"
 	ProviderCloudflare = "cloudflare"
 
-	defaultPathPrefix = "/api/attachments/"
+	defaultPathPrefix   = "/api/attachments/"
+	defaultCloudTimeout = 15 * time.Second
 )
 
 var attachmentFilePattern = regexp.MustCompile(`^[a-f0-9]{64}(\.[a-z0-9]{1,10})?$`)
@@ -55,6 +56,7 @@ type Store struct {
 	cloudKeyPrefix  string
 	cloudPublicBase string
 	presignTTL      time.Duration
+	cloudTimeout    time.Duration
 }
 
 // NewStore constructs an attachment store from the supplied config.
@@ -73,6 +75,7 @@ func NewStore(cfg StoreConfig) (*Store, error) {
 	if store.presignTTL <= 0 {
 		store.presignTTL = 4 * time.Hour
 	}
+	store.cloudTimeout = defaultCloudTimeout
 
 	switch provider {
 	case ProviderLocal:
@@ -231,7 +234,9 @@ func (s *Store) storeCloudflare(filename, mediaType string, data []byte) (string
 	}
 
 	reader := bytes.NewReader(data)
-	_, err := s.cloudClient.PutObject(context.Background(), s.cloudBucket, key, reader, int64(len(data)), minio.PutObjectOptions{ContentType: contentType})
+	ctx, cancel := withTimeout(context.Background(), s.cloudTimeout)
+	defer cancel()
+	_, err := s.cloudClient.PutObject(ctx, s.cloudBucket, key, reader, int64(len(data)), minio.PutObjectOptions{ContentType: contentType})
 	if err != nil {
 		return "", fmt.Errorf("store attachment in cloudflare: %w", err)
 	}
@@ -246,7 +251,9 @@ func (s *Store) buildCloudURI(key string) string {
 	if s.cloudClient == nil {
 		return ""
 	}
-	url, err := s.cloudClient.PresignedGetObject(context.Background(), s.cloudBucket, objectKey("", key), s.presignTTL, nil)
+	ctx, cancel := withTimeout(context.Background(), s.cloudTimeout)
+	defer cancel()
+	url, err := s.cloudClient.PresignedGetObject(ctx, s.cloudBucket, objectKey("", key), s.presignTTL, nil)
 	if err != nil {
 		return ""
 	}
@@ -261,14 +268,26 @@ func (s *Store) objectFetchURL(ctx context.Context, key string) string {
 	if s.cloudClient == nil {
 		return ""
 	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx, cancel := withTimeout(ctx, s.cloudTimeout)
+	defer cancel()
 	url, err := s.cloudClient.PresignedGetObject(ctx, s.cloudBucket, clean, s.presignTTL, nil)
 	if err != nil {
 		return ""
 	}
 	return url.String()
+}
+
+func withTimeout(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if timeout <= 0 {
+		return ctx, func() {}
+	}
+	if _, ok := ctx.Deadline(); ok {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, timeout)
 }
 
 func (s *Store) buildURI(filename string) string {

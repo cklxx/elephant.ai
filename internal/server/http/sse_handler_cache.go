@@ -84,3 +84,69 @@ func (c *stringLRU) evictOldest() {
 	}
 	c.order.Remove(oldest)
 }
+
+type runSeqEntry struct {
+	key string
+	seq uint64
+}
+
+type runSeqLRU struct {
+	capacity int
+	items    map[string]*list.Element
+	order    *list.List
+}
+
+func newRunSeqLRU(capacity int) *runSeqLRU {
+	if capacity <= 0 {
+		return &runSeqLRU{capacity: 0}
+	}
+	return &runSeqLRU{
+		capacity: capacity,
+		items:    make(map[string]*list.Element),
+		order:    list.New(),
+	}
+}
+
+func (c *runSeqLRU) Get(key string) (uint64, bool) {
+	if c == nil || c.capacity <= 0 {
+		return 0, false
+	}
+	entry, ok := c.items[key]
+	if !ok {
+		return 0, false
+	}
+	c.order.MoveToFront(entry)
+	val, _ := entry.Value.(runSeqEntry)
+	return val.seq, true
+}
+
+func (c *runSeqLRU) Set(key string, seq uint64) {
+	if c == nil || c.capacity <= 0 {
+		return
+	}
+	if entry, ok := c.items[key]; ok {
+		entry.Value = runSeqEntry{key: key, seq: seq}
+		c.order.MoveToFront(entry)
+		return
+	}
+	element := c.order.PushFront(runSeqEntry{key: key, seq: seq})
+	c.items[key] = element
+	for len(c.items) > c.capacity {
+		c.evictOldest()
+	}
+}
+
+func (c *runSeqLRU) evictOldest() {
+	if c == nil || c.capacity <= 0 || c.order == nil {
+		return
+	}
+	oldest := c.order.Back()
+	if oldest == nil {
+		return
+	}
+	entry, ok := oldest.Value.(runSeqEntry)
+	if ok {
+		delete(c.items, entry.key)
+	}
+	c.order.Remove(oldest)
+}

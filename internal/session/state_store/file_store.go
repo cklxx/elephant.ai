@@ -88,9 +88,12 @@ func (s *FileStore) LatestSnapshot(ctx context.Context, sessionID string) (Snaps
 }
 
 // GetSnapshot returns the snapshot for a given turn.
-func (s *FileStore) GetSnapshot(_ context.Context, sessionID string, turnID int) (Snapshot, error) {
+func (s *FileStore) GetSnapshot(ctx context.Context, sessionID string, turnID int) (Snapshot, error) {
 	if sessionID == "" {
 		return Snapshot{}, fmt.Errorf("session id required")
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return Snapshot{}, ctx.Err()
 	}
 	path := filepath.Join(s.sessionDir(sessionID), s.filename(turnID))
 	data, err := os.ReadFile(path)
@@ -108,9 +111,12 @@ func (s *FileStore) GetSnapshot(_ context.Context, sessionID string, turnID int)
 }
 
 // ListSnapshots returns metadata sorted by newest turn first.
-func (s *FileStore) ListSnapshots(_ context.Context, sessionID string, cursor string, limit int) ([]SnapshotMetadata, string, error) {
+func (s *FileStore) ListSnapshots(ctx context.Context, sessionID string, cursor string, limit int) ([]SnapshotMetadata, string, error) {
 	if sessionID == "" {
 		return nil, "", fmt.Errorf("session id required")
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return nil, "", ctx.Err()
 	}
 	entries, err := os.ReadDir(s.sessionDir(sessionID))
 	if err != nil {
@@ -155,7 +161,10 @@ func (s *FileStore) ListSnapshots(_ context.Context, sessionID string, cursor st
 		end = len(turnIDs)
 	}
 	for _, turnID := range turnIDs[startIdx:end] {
-		snapshot, err := s.GetSnapshot(context.Background(), sessionID, turnID)
+		if ctx != nil && ctx.Err() != nil {
+			return nil, "", ctx.Err()
+		}
+		snapshot, err := s.GetSnapshot(ctx, sessionID, turnID)
 		if err != nil {
 			return nil, "", err
 		}

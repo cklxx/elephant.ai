@@ -140,8 +140,9 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	const sseSeenEventIDsCacheSize = 10000
+	const sseRunSeqCacheSize = 2048
 	seenEventIDs := newStringLRU(sseSeenEventIDsCacheSize)
-	lastSeqByRun := make(map[string]uint64)
+	lastSeqByRun := newRunSeqLRU(sseRunSeqCacheSize)
 
 	sendEvent := func(event agent.AgentEvent) bool {
 		if !h.shouldStreamEvent(event, debugMode) {
@@ -252,17 +253,17 @@ drainComplete:
 	}
 }
 
-func shouldSendEvent(event agent.AgentEvent, seenEventIDs *stringLRU, lastSeqByRun map[string]uint64) bool {
+func shouldSendEvent(event agent.AgentEvent, seenEventIDs *stringLRU, lastSeqByRun *runSeqLRU) bool {
 	if event == nil {
 		return false
 	}
 	if seq := event.GetSeq(); seq > 0 {
 		runID := strings.TrimSpace(event.GetRunID())
 		if runID != "" {
-			if last, ok := lastSeqByRun[runID]; ok && seq <= last {
+			if last, ok := lastSeqByRun.Get(runID); ok && seq <= last {
 				return false
 			}
-			lastSeqByRun[runID] = seq
+			lastSeqByRun.Set(runID, seq)
 		}
 	}
 	if eventID := strings.TrimSpace(event.GetEventID()); eventID != "" {

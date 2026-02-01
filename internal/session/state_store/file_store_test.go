@@ -2,6 +2,7 @@ package state_store
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -64,5 +65,18 @@ func TestFileStoreLifecycle(t *testing.T) {
 	path := filepath.Join(dir, sessionID, "turn_000001.json")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("expected snapshot file to exist: %v", err)
+	}
+}
+
+func TestFileStoreListSnapshotsRespectsContext(t *testing.T) {
+	dir := t.TempDir()
+	store := NewFileStore(dir)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, _, err := store.ListSnapshots(ctx, "sess-test", "", 10)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
