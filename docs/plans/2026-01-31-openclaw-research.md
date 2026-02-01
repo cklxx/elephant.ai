@@ -14,6 +14,7 @@
 5. Update `docs/memory/long-term.md` timestamp and plan progress.
 6. Run full lint + tests.
 7. Commit changes in incremental steps.
+8. Write an OpenClaw-inspired adoption plan tailored to elephant.ai.
 
 ## Progress
 - 2026-01-31: Plan created; engineering practices reviewed.
@@ -24,3 +25,6 @@
 - 2026-02-01: Re-ran `./dev.sh lint` and `./dev.sh test` (both pass; race not reproduced).
 - 2026-02-01: Wrote detailed research doc in `docs/research/2026-02-01-openclaw-proactivity-memory-tools.md` and updated index.
 - 2026-02-01: Ran `./dev.sh lint` and `./dev.sh test` (both pass).
+- 2026-02-01: Started OpenClaw-inspired adoption plan for elephant.ai.
+- 2026-02-01: Added `docs/research/2026-02-01-openclaw-adoption-plan.md` and updated research index.
+- 2026-02-01: Expanded adoption plan with detailed architecture, configs, and rollout criteria.
