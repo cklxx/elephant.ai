@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	runtimeconfig "alex/internal/config"
 )
@@ -23,7 +25,9 @@ func main() {
 		shutdownOnce.Do(func() {
 			cancelCLIBaseContext()
 			if container != nil {
-				if err := container.Shutdown(); err != nil {
+				drainCtx, drainCancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer drainCancel()
+				if err := container.Drain(drainCtx); err != nil {
 					fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
 				}
 			}

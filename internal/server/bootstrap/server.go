@@ -50,8 +50,10 @@ func RunServer(observabilityConfigPath string) error {
 		return fmt.Errorf("build container: %w", err)
 	}
 	defer func() {
-		if err := container.Shutdown(); err != nil {
-			logger.Warn("Failed to shutdown container: %v", err)
+		drainCtx, drainCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer drainCancel()
+		if err := container.Drain(drainCtx); err != nil {
+			logger.Warn("Failed to drain/shutdown container: %v", err)
 		}
 	}()
 
@@ -202,6 +204,7 @@ func RunServer(observabilityConfigPath string) error {
 						if sched == nil {
 							return nil, fmt.Errorf("scheduler init returned nil")
 						}
+						container.Drainables = append(container.Drainables, sched)
 						return sched.Stop, nil
 					},
 				})

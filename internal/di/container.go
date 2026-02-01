@@ -12,6 +12,7 @@ import (
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/async"
 	runtimeconfig "alex/internal/config"
+	"alex/internal/lifecycle"
 	"alex/internal/llm"
 	"alex/internal/logging"
 	"alex/internal/mcp"
@@ -34,6 +35,9 @@ type Container struct {
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
 	SessionDB        *pgxpool.Pool
+
+	// Drainables holds subsystems that support graceful drain.
+	Drainables []lifecycle.Drainable
 
 	// Lazy initialization state
 	config       Config
@@ -146,6 +150,26 @@ func (c *Container) Start() error {
 
 	logger.Info("Container lifecycle started")
 	return nil
+}
+
+// drainTimeout is the per-subsystem timeout for graceful drain.
+const drainTimeout = 5 * time.Second
+
+// Drain gracefully drains all registered Drainable subsystems (with a
+// per-subsystem timeout), then performs the hard shutdown of remaining
+// resources. If the parent context expires, drain still attempts Shutdown.
+func (c *Container) Drain(ctx context.Context) error {
+	logger := logging.NewComponentLogger("DI")
+
+	if len(c.Drainables) > 0 {
+		logger.Info("Draining %d subsystem(s)...", len(c.Drainables))
+		errs := lifecycle.DrainAll(ctx, drainTimeout, c.Drainables...)
+		for _, err := range errs {
+			logger.Warn("Drain error: %v", err)
+		}
+	}
+
+	return c.Shutdown()
 }
 
 // Shutdown gracefully shuts down all resources
