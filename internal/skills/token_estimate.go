@@ -1,21 +1,9 @@
 package skills
 
-import "strings"
+import "alex/internal/tokenutil"
 
-// EstimateTokens provides a lightweight token estimate for budget enforcement.
+// EstimateTokens returns a token count using tiktoken (cl100k_base) when
+// available, falling back to a character-based heuristic.
 func EstimateTokens(text string) int {
-	trimmed := strings.TrimSpace(text)
-	if trimmed == "" {
-		return 0
-	}
-	runes := len([]rune(trimmed))
-	words := len(strings.Fields(trimmed))
-	estimate := runes / 4
-	if estimate < words {
-		estimate = words
-	}
-	if estimate == 0 {
-		estimate = 1
-	}
-	return estimate
+	return tokenutil.CountTokens(text)
 }

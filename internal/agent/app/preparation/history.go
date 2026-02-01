@@ -11,6 +11,7 @@ import (
 	llm "alex/internal/agent/ports/llm"
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/textutil"
+	"alex/internal/tokenutil"
 	id "alex/internal/utils/id"
 )
 
@@ -326,7 +327,7 @@ func (s *ExecutionPreparationService) estimateHistoryTokens(messages []ports.Mes
 	}
 	total := 0
 	for _, msg := range messages {
-		total += len(msg.Content) / 4
+		total += tokenutil.CountTokens(msg.Content)
 	}
 	return total
 }

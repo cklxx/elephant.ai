@@ -11,6 +11,7 @@ import (
 	"alex/internal/agent/textutil"
 	"alex/internal/logging"
 	"alex/internal/memory"
+	"alex/internal/tokenutil"
 	id "alex/internal/utils/id"
 )
 
@@ -176,21 +177,9 @@ func insertProactiveSystemMessage(state *agent.TaskState, content string) {
 }
 
 func estimateTokenCount(text string) int {
-	trimmed := strings.TrimSpace(text)
-	if trimmed == "" {
-		return 0
-	}
-	return len([]rune(trimmed)) / 4
+	return tokenutil.CountTokens(text)
 }
 
 func truncateToTokens(text string, maxTokens int) string {
-	if maxTokens <= 0 {
-		return text
-	}
-	runes := []rune(text)
-	limit := maxTokens * 4
-	if limit <= 0 || limit >= len(runes) {
-		return text
-	}
-	return string(runes[:limit]) + "..."
+	return tokenutil.TruncateToTokens(text, maxTokens)
 }

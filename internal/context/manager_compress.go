@@ -6,13 +6,14 @@ import (
 
 	"alex/internal/agent/ports"
 	"alex/internal/logging"
+	"alex/internal/tokenutil"
 )
 
-// EstimateTokens approximates token usage by dividing rune count.
+// EstimateTokens counts tokens using tiktoken (cl100k_base).
 func (m *manager) EstimateTokens(messages []ports.Message) int {
 	count := 0
 	for _, msg := range messages {
-		count += len(msg.Content) / 4
+		count += tokenutil.CountTokens(msg.Content)
 	}
 	return count
 }
