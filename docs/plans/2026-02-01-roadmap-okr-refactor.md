@@ -13,4 +13,4 @@ Rewrite all roadmap documents in `docs/roadmap/` so OKR structure is the primary
 - [completed] Refactor track roadmaps to OKR-first structure; preserve existing content as initiatives/milestones.
 - [completed] Update implementation audit with a brief OKR mapping note.
 - [completed] Run lint/tests and restart dev services.
-- [in_progress] Commit changes in incremental steps.
+- [completed] Commit changes in incremental steps.
