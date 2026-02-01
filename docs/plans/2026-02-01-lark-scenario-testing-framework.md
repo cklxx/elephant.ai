@@ -1,8 +1,8 @@
 # Agent 自主测试与迭代方案 — Lark 完整体验
 
-> Status: **P1-P3 Done** (P4-P5 Planned)
+> Status: **P1-P5 All Done**
 > Created: 2026-02-01
-> Updated: 2026-02-01 17:00
+> Updated: 2026-02-01 19:00
 > Author: cklxx + Claude
 
 ## Progress
@@ -34,29 +34,50 @@
   group_not_allowed, direct_not_allowed
 - **11 total scenarios** covering all identified Lark gateway functional paths
 
-### P4: Self-Test Skill + Iteration Loop [PLANNED]
-- `skills/self-test.md` skill definition
-- Auto-categorized fix tiers (test → skill → prod)
-- Max 3 auto-iteration rounds
-- Error experience integration
+### P4: Self-Test Skill + Iteration Loop [DONE]
+- **commit**: `0395f58f` — Add self-test skill, JSON/Markdown report generation, and fix classification
+- `skills/self-test/SKILL.md`: self-test skill with 6-phase workflow
+  (execute → analyze → classify → fix-tier → iterate → report)
+- `internal/channels/lark/testing/report.go`: TestReport, ReportSummary, ScenarioReport types
+  with JSON/Markdown output, fix tier classification (1-4), allowed file patterns per tier
+- `internal/channels/lark/testing/report_test.go`: tests for BuildReport, ToJSON, ToMarkdown,
+  ClassifyFixTier, FilesForTier
+- `runner.go`: added `RunAll(ctx, scenarioDir)` for batch execution
 
-### P5: Conversation Recorder + Scenario Mining [PLANNED]
-- `ConversationRecorder` wrapper
-- Trace → Scenario YAML converter
-- Coverage analysis integration
+### P5: Conversation Recorder + Scenario Mining [DONE]
+- **commit**: `e17c16d1` — Add ConversationRecorder and Trace-to-Scenario converter
+- `internal/channels/lark/testing/recorder.go`:
+  - `ConversationTrace`: thread-safe trace buffer (Append/Entries/Reset)
+  - `TracingMessenger`: LarkMessenger decorator that records all outbound calls
+  - `RecordingEventListener`: EventListener decorator that records domain events
+- `internal/channels/lark/testing/converter.go`:
+  - `TraceToScenario()`: converts recorded traces to Scenario with ID anonymization
+  - `ScenarioToYAML()`: serializes scenarios to YAML
+  - `AnonymizeID()`: deterministic hash-based ID anonymization
+  - `extractKeywords()` / `deduplicateAssertions()`: smart assertion generation
+- `internal/channels/lark/testing/recorder_test.go`: trace, tracing messenger, event listener tests
+- `internal/channels/lark/testing/converter_test.go`: 12 tests covering TraceToScenario
+  (basic, anonymization, multi-turn, orphaned outbound, assertions, mock responses),
+  ScenarioToYAML, AnonymizeID, extractTextFromContent, extractKeywords, deduplicateAssertions
 
 ## Architecture
 
 ```
+Production conversation recording:
+    TracingMessenger → ConversationTrace → TraceToScenario → YAML
+    RecordingEventListener ↗
+
 tests/scenarios/lark/*.yaml          ← 11 declarative scenarios
     ↓
-internal/channels/lark/testing/      ← Runner + Assertions
+internal/channels/lark/testing/      ← Runner + Assertions + Reports
     ↓
 internal/channels/lark/              ← Gateway + LarkMessenger
     messenger.go                     ← interface
     sdk_messenger.go                 ← production (real SDK)
     recording_messenger.go           ← test double
     gateway.go                       ← InjectMessage() entry point
+
+skills/self-test/SKILL.md            ← Agent self-test workflow
 ```
 
 ## File Map
@@ -69,8 +90,15 @@ internal/channels/lark/              ← Gateway + LarkMessenger
 | `internal/channels/lark/recording_messenger_test.go` | RecordingMessenger unit tests |
 | `internal/channels/lark/inject_message_test.go` | InjectMessage integration tests |
 | `internal/channels/lark/testing/scenario.go` | YAML schema + loader |
-| `internal/channels/lark/testing/runner.go` | ScenarioRunner |
+| `internal/channels/lark/testing/runner.go` | ScenarioRunner + RunAll + multiMockExecutor |
 | `internal/channels/lark/testing/assertions.go` | Assertion engine |
 | `internal/channels/lark/testing/assertions_test.go` | Assertion unit tests |
-| `internal/channels/lark/testing/scenario_test.go` | Test entry point (loads YAML) |
+| `internal/channels/lark/testing/report.go` | TestReport + fix tier classification |
+| `internal/channels/lark/testing/report_test.go` | Report unit tests |
+| `internal/channels/lark/testing/recorder.go` | ConversationTrace + TracingMessenger + RecordingEventListener |
+| `internal/channels/lark/testing/recorder_test.go` | Recorder unit tests |
+| `internal/channels/lark/testing/converter.go` | TraceToScenario + anonymization |
+| `internal/channels/lark/testing/converter_test.go` | Converter unit tests |
+| `internal/channels/lark/testing/scenario_test.go` | Test entry point (loads YAML scenarios) |
+| `skills/self-test/SKILL.md` | Self-test skill definition |
 | `tests/scenarios/lark/*.yaml` | 11 scenario files |
