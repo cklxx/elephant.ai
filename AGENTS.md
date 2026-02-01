@@ -13,6 +13,7 @@
 - Practices: review `docs/guides/engineering-practices.md` before tasks; add missing practices if needed.
 - Records: error/win entries live in `docs/error-experience/entries/` and `docs/good-experience/entries/`; summaries in `.../summary/entries/`; index files are index-only.
 - Testing: use TDD when touching logic; run full lint + tests before delivery.
+- After completing code changes, restart the project with `./dev.sh down && ./dev.sh`.
 - Commits: always commit; split one solution into multiple incremental commits.
 - Safety: avoid destructive operations/history rewrites unless explicitly requested.
 - Architecture guardrails: keep `agent/ports` free of memory/RAG deps to avoid import cycles.
