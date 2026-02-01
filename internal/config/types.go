@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	toolspolicy "alex/internal/tools"
+)
 
 // ValueSource describes where a configuration value originated from.
 type ValueSource string
@@ -86,9 +90,10 @@ type RuntimeConfig struct {
 	SessionStaleAfterSeconds   int                  `json:"session_stale_after_seconds" yaml:"session_stale_after_seconds"`
 	AgentPreset                string               `json:"agent_preset" yaml:"agent_preset"`
 	ToolPreset                 string               `json:"tool_preset" yaml:"tool_preset"`
-	HTTPLimits                 HTTPLimitsConfig     `json:"http_limits" yaml:"http_limits"`
-	Proactive                  ProactiveConfig      `json:"proactive" yaml:"proactive"`
-	ExternalAgents             ExternalAgentsConfig `json:"external_agents" yaml:"external_agents"`
+	HTTPLimits                 HTTPLimitsConfig              `json:"http_limits" yaml:"http_limits"`
+	ToolPolicy                 toolspolicy.ToolPolicyConfig  `json:"tool_policy" yaml:"tool_policy"`
+	Proactive                  ProactiveConfig               `json:"proactive" yaml:"proactive"`
+	ExternalAgents             ExternalAgentsConfig          `json:"external_agents" yaml:"external_agents"`
 }
 
 // HTTPLimitsConfig controls maximum response sizes for outbound HTTP calls.

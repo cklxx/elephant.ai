@@ -4,6 +4,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	toolspolicy "alex/internal/tools"
 )
 
 func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
@@ -52,6 +54,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		CostDir:                    "~/.alex/costs",
 		SessionStaleAfterSeconds:   int((48 * time.Hour).Seconds()),
 		HTTPLimits:                 DefaultHTTPLimitsConfig(),
+		ToolPolicy:                 toolspolicy.DefaultToolPolicyConfig(),
 		Proactive:                  DefaultProactiveConfig(),
 		ExternalAgents:             DefaultExternalAgentsConfig(),
 	}
@@ -132,6 +135,7 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	normalizeProactiveConfig(&cfg.Proactive)
 	normalizeExternalAgentsConfig(&cfg.ExternalAgents)
 	normalizeHTTPLimits(&cfg.HTTPLimits)
+	normalizeToolPolicy(&cfg.ToolPolicy)
 
 	if cfg.ToolMaxConcurrent <= 0 {
 		cfg.ToolMaxConcurrent = DefaultToolMaxConcurrent
@@ -296,5 +300,31 @@ func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func normalizeToolPolicy(cfg *toolspolicy.ToolPolicyConfig) {
+	if cfg == nil {
+		return
+	}
+	defaults := toolspolicy.DefaultToolPolicyConfig()
+	if cfg.Timeout.Default <= 0 {
+		cfg.Timeout.Default = defaults.Timeout.Default
+	}
+	if cfg.Timeout.PerTool == nil {
+		cfg.Timeout.PerTool = map[string]time.Duration{}
+	}
+	if cfg.Retry.InitialBackoff <= 0 {
+		cfg.Retry.InitialBackoff = defaults.Retry.InitialBackoff
+	}
+	if cfg.Retry.MaxBackoff <= 0 {
+		cfg.Retry.MaxBackoff = defaults.Retry.MaxBackoff
+	}
+	if cfg.Retry.BackoffFactor <= 0 {
+		cfg.Retry.BackoffFactor = defaults.Retry.BackoffFactor
+	}
+	// MaxRetries == 0 is a valid value (no retries), so we only fix negative.
+	if cfg.Retry.MaxRetries < 0 {
+		cfg.Retry.MaxRetries = 0
 	}
 }
