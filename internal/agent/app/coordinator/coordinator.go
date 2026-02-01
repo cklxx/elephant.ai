@@ -48,6 +48,7 @@ type AgentCoordinator struct {
 	memoryService    memory.Service
 	externalExecutor agent.ExternalAgentExecutor
 	iterationHook    agent.IterationHook
+	checkpointStore  react.CheckpointStore
 
 	prepService         preparationService
 	costDecorator       *cost.CostTrackingDecorator
@@ -388,6 +389,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		CompletionDefaults:  completionDefaults,
 		AttachmentMigrator:  c.attachmentMigrator,
 		AttachmentPersister: c.attachmentPersister,
+		CheckpointStore:     c.checkpointStore,
 		Workflow:            wf,
 		IterationHook:       c.iterationHook,
 		BackgroundExecutor: func(bgCtx context.Context, prompt, sessionID string,

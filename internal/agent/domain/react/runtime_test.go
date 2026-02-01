@@ -2,6 +2,7 @@ package react
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -407,4 +408,79 @@ func TestPlanReviewTriggersPauseAndMarker(t *testing.T) {
 		}
 	}
 	require.True(t, found, "expected plan review marker in messages")
+}
+
+func TestClarifyCreatesPlanNode(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{RunID: "run-plan"}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	calls := []ToolCall{{Name: "clarify"}}
+	results := []ToolResult{{
+		Metadata: map[string]any{
+			"task_id":          "task-1",
+			"task_goal_ui":     "Ship feature",
+			"success_criteria": []string{"tests pass", "docs updated"},
+		},
+	}}
+
+	runtime.updateOrchestratorState(calls, results)
+
+	require.Len(t, state.Plans, 1)
+	require.Equal(t, "task-1", state.Plans[0].ID)
+	require.Equal(t, "Ship feature", state.Plans[0].Title)
+	require.Equal(t, planStatusInProgress, state.Plans[0].Status)
+	require.Contains(t, state.Plans[0].Description, "tests pass")
+}
+
+func TestClarifyCompletesPreviousPlanNode(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{RunID: "run-plan"}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+
+	runtime.updateOrchestratorState([]ToolCall{{Name: "clarify"}}, []ToolResult{{
+		Metadata: map[string]any{
+			"task_id":      "task-1",
+			"task_goal_ui": "First task",
+		},
+	}})
+
+	runtime.updateOrchestratorState([]ToolCall{{Name: "clarify"}}, []ToolResult{{
+		Metadata: map[string]any{
+			"task_id":      "task-2",
+			"task_goal_ui": "Second task",
+		},
+	}})
+
+	require.Len(t, state.Plans, 2)
+	require.Equal(t, planStatusCompleted, state.Plans[0].Status)
+	require.Equal(t, planStatusInProgress, state.Plans[1].Status)
+}
+
+func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	state := &TaskState{
+		RunID: "run-plan",
+		Plans: []agent.PlanNode{{
+			ID:     "task-1",
+			Title:  "Failure task",
+			Status: planStatusInProgress,
+		}},
+	}
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+	runtime.currentTaskID = "task-1"
+
+	runtime.updateOrchestratorState([]ToolCall{{Name: "web_search"}}, []ToolResult{{
+		Error: errors.New("boom"),
+	}})
+
+	require.Equal(t, planStatusBlocked, state.Plans[0].Status)
+	found := false
+	for _, msg := range state.Messages {
+		if strings.Contains(msg.Content, "重新规划") {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected replan prompt to be injected")
 }

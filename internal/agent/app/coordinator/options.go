@@ -4,6 +4,7 @@ import (
 	"alex/internal/agent/app/cost"
 	"alex/internal/agent/app/hooks"
 	"alex/internal/agent/app/preparation"
+	react "alex/internal/agent/domain/react"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/memory"
 )
@@ -71,6 +72,15 @@ func WithIterationHook(hook agent.IterationHook) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if hook != nil {
 			c.iterationHook = hook
+		}
+	}
+}
+
+// WithCheckpointStore provides a checkpoint store for ReAct recovery.
+func WithCheckpointStore(store react.CheckpointStore) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if store != nil {
+			c.checkpointStore = store
 		}
 	}
 }

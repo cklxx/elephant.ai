@@ -21,6 +21,7 @@ type ReactEngine struct {
 	completion          completionConfig
 	attachmentMigrator  materialports.Migrator
 	attachmentPersister ports.AttachmentPersister // Optional: eagerly persists inline attachment payloads
+	checkpointStore     CheckpointStore           // Optional: persists execution checkpoints
 	workflow            WorkflowTracker
 	seq                 domain.SeqCounter // Monotonic event sequence per run
 	iterationHook       agent.IterationHook
@@ -94,6 +95,7 @@ type ReactEngineConfig struct {
 	CompletionDefaults  CompletionDefaults
 	AttachmentMigrator  materialports.Migrator
 	AttachmentPersister ports.AttachmentPersister // Optional: eagerly persists attachment payloads to a durable store.
+	CheckpointStore     CheckpointStore           // Optional: persists execution checkpoints.
 	Workflow            WorkflowTracker
 	IterationHook       agent.IterationHook
 

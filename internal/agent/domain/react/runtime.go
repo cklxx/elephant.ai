@@ -40,6 +40,7 @@ type reactRuntime struct {
 	pendingTaskID         string
 	nextTaskSeq           int
 	pauseRequested        bool
+	replanRequested       bool
 
 	// Background task manager for async subagent execution.
 	bgManager *BackgroundTaskManager
@@ -52,6 +53,15 @@ type reactRuntime struct {
 	// User input channel for live message injection from chat gateways.
 	userInputCh <-chan agent.UserInput
 }
+
+const (
+	planStatusPending    = "pending"
+	planStatusInProgress = "in_progress"
+	planStatusBlocked    = "blocked"
+	planStatusCompleted  = "completed"
+)
+
+const replanPrompt = "工具执行失败，请重新规划并在继续前调用 plan() 或 clarify()。"
 
 type reactIteration struct {
 	runtime    *reactRuntime
@@ -122,7 +132,15 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 
 func (r *reactRuntime) run() (*TaskResult, error) {
 	r.tracker.startContext(r.task)
-	r.prepareContext()
+	resumed, err := r.engine.ResumeFromCheckpoint(r.ctx, r.state.SessionID, r.state, r.services)
+	if err != nil {
+		r.engine.logger.Warn("Failed to resume from checkpoint: %v", err)
+	}
+	if resumed {
+		r.tracker.completeContext(workflowContextOutput(r.state))
+	} else {
+		r.prepareContext()
+	}
 
 	// Set background dispatcher in context for tools.
 	if r.bgManager != nil {
@@ -196,6 +214,7 @@ func (r *reactRuntime) runIteration() (*TaskResult, bool, error) {
 
 	iteration.executeTools()
 	iteration.observeTools()
+	r.engine.saveCheckpoint(r.ctx, r.state, nil)
 	iteration.finish()
 	if r.pauseRequested {
 		finalResult := r.finalizeResult("await_user_input", nil, true, nil)
@@ -319,6 +338,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 		call := calls[i]
 		result := results[i]
 		if result.Error != nil {
+			r.handleToolError(call, result)
 			continue
 		}
 
@@ -327,6 +347,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 		case "plan":
 			r.planEmitted = true
 			r.planVersion++
+			r.replanRequested = false
 			if raw, ok := call.Arguments["complexity"].(string); ok {
 				complexity := strings.ToLower(strings.TrimSpace(raw))
 				if complexity == "simple" || complexity == "complex" {
@@ -342,25 +363,143 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 			}
 			r.maybeTriggerPlanReview(call, result)
 		case "clarify":
-			if result.Metadata == nil {
-				continue
-			}
-			taskID, _ := result.Metadata["task_id"].(string)
-			taskID = strings.TrimSpace(taskID)
-			if taskID == "" {
-				continue
-			}
-			r.currentTaskID = taskID
-			r.clarifyEmitted[taskID] = true
-			r.pendingTaskID = ""
-
-			if needs, ok := result.Metadata["needs_user_input"].(bool); ok && needs {
-				r.pauseRequested = true
+			r.handleClarifyResult(result)
+			if result.Metadata != nil {
+				if needs, ok := result.Metadata["needs_user_input"].(bool); ok && needs {
+					r.pauseRequested = true
+				}
 			}
 		case "request_user":
 			r.pauseRequested = true
 		}
 	}
+}
+
+func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
+	if r == nil || r.state == nil {
+		return
+	}
+	targetID := strings.TrimSpace(r.currentTaskID)
+	if targetID == "" && len(r.state.Plans) > 0 {
+		targetID = strings.TrimSpace(r.state.Plans[len(r.state.Plans)-1].ID)
+	}
+	if targetID != "" {
+		r.updatePlanStatus(targetID, planStatusBlocked, false)
+	}
+	if !r.replanRequested {
+		r.injectOrchestratorCorrection(replanPrompt)
+		r.replanRequested = true
+	}
+}
+
+func (r *reactRuntime) handleClarifyResult(result ToolResult) {
+	if r == nil || r.state == nil || result.Metadata == nil {
+		return
+	}
+	taskID, _ := result.Metadata["task_id"].(string)
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return
+	}
+	taskGoal, _ := result.Metadata["task_goal_ui"].(string)
+	taskGoal = strings.TrimSpace(taskGoal)
+
+	if r.currentTaskID != "" && r.currentTaskID != taskID {
+		r.updatePlanStatus(r.currentTaskID, planStatusCompleted, true)
+	}
+
+	node := agent.PlanNode{
+		ID:          taskID,
+		Title:       taskGoal,
+		Status:      planStatusInProgress,
+		Description: strings.Join(extractSuccessCriteria(result.Metadata), "\n"),
+	}
+	r.upsertPlanNode(node)
+
+	r.currentTaskID = taskID
+	r.clarifyEmitted[taskID] = true
+	r.pendingTaskID = ""
+	r.replanRequested = false
+}
+
+func extractSuccessCriteria(metadata map[string]any) []string {
+	if metadata == nil {
+		return nil
+	}
+	if raw, ok := metadata["success_criteria"].([]string); ok {
+		return append([]string(nil), raw...)
+	}
+	raw, ok := metadata["success_criteria"].([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, item := range raw {
+		text, ok := item.(string)
+		if !ok {
+			continue
+		}
+		trimmed := strings.TrimSpace(text)
+		if trimmed == "" {
+			continue
+		}
+		out = append(out, trimmed)
+	}
+	return out
+}
+
+func (r *reactRuntime) upsertPlanNode(node agent.PlanNode) {
+	if r == nil || r.state == nil {
+		return
+	}
+	if strings.TrimSpace(node.ID) == "" {
+		return
+	}
+	if updatePlanNode(r.state.Plans, node) {
+		return
+	}
+	r.state.Plans = append(r.state.Plans, node)
+}
+
+func updatePlanNode(nodes []agent.PlanNode, node agent.PlanNode) bool {
+	for i := range nodes {
+		if strings.TrimSpace(nodes[i].ID) == strings.TrimSpace(node.ID) {
+			nodes[i].Title = node.Title
+			nodes[i].Description = node.Description
+			nodes[i].Status = node.Status
+			return true
+		}
+		if updatePlanNode(nodes[i].Children, node) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *reactRuntime) updatePlanStatus(id string, status string, skipIfBlocked bool) bool {
+	if r == nil || r.state == nil {
+		return false
+	}
+	return updatePlanStatus(r.state.Plans, strings.TrimSpace(id), status, skipIfBlocked)
+}
+
+func updatePlanStatus(nodes []agent.PlanNode, id string, status string, skipIfBlocked bool) bool {
+	if strings.TrimSpace(id) == "" {
+		return false
+	}
+	for i := range nodes {
+		if strings.TrimSpace(nodes[i].ID) == id {
+			if skipIfBlocked && nodes[i].Status == planStatusBlocked {
+				return true
+			}
+			nodes[i].Status = status
+			return true
+		}
+		if updatePlanStatus(nodes[i].Children, id, status, skipIfBlocked) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r *reactRuntime) maybeTriggerPlanReview(call ToolCall, result ToolResult) {
@@ -573,6 +712,7 @@ func (it *reactIteration) executeTools() {
 		return
 	}
 
+	it.runtime.engine.saveCheckpoint(it.runtime.ctx, it.runtime.state, pendingToolStates(it.plan.calls))
 	it.toolResult = newToolCallBatch(
 		it.runtime.engine,
 		it.runtime.ctx,
