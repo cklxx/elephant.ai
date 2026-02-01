@@ -1,0 +1,44 @@
+name: plan_review
+description: "Plan review flow: agent proposes plan, user provides feedback"
+tags: [plan-review, multi-turn]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+    plan_review_enabled: true
+  llm_mode: mock
+
+turns:
+  # Turn 1: User asks a question, agent returns await_user_input with plan marker.
+  - sender_id: "ou_user_plan"
+    chat_id: "oc_chat_plan"
+    message_id: "om_msg_plan_001"
+    content: "帮我重构认证模块"
+
+    mock_response:
+      answer: ""
+      stop_reason: "await_user_input"
+      system_messages:
+        - "<plan_review_pending>\nrun_id: run-plan-1\noverall_goal_ui: 重构认证模块\ninternal_plan: {\"steps\":[\"分析现有代码\",\"设计新架构\"]}\n</plan_review_pending>"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["计划确认", "重构认证模块"]
+
+  # Turn 2: User provides feedback, plan feedback block should be injected.
+  - sender_id: "ou_user_plan"
+    chat_id: "oc_chat_plan"
+    message_id: "om_msg_plan_002"
+    content: "请加一步单元测试"
+
+    mock_response:
+      answer: "好的，已添加单元测试步骤。"
+
+    assertions:
+      executor:
+        task_contains: ["<plan_feedback>", "请加一步单元测试"]
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["单元测试"]
