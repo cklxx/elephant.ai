@@ -21,20 +21,24 @@ type larkTaskManage struct {
 	shared.BaseTool
 }
 
-// NewLarkTaskManage constructs a tool for listing and creating tasks.
+// NewLarkTaskManage constructs a tool for listing, creating, updating, and deleting tasks.
 func NewLarkTaskManage() tools.ToolExecutor {
 	return &larkTaskManage{
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_task_manage",
-				Description: "List or create Lark tasks. Write actions require approval.",
+				Description: "List, create, update, or delete Lark tasks. Write actions (create, update, delete) require approval.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
 						"action": {
 							Type:        "string",
-							Description: "Action to perform: list or create.",
-							Enum:        []any{"list", "create"},
+							Description: "Action to perform: list, create, update, or delete.",
+							Enum:        []any{"list", "create", "update", "delete"},
+						},
+						"task_id": {
+							Type:        "string",
+							Description: "Task GUID for update or delete.",
 						},
 						"page_size": {
 							Type:        "integer",
@@ -54,11 +58,11 @@ func NewLarkTaskManage() tools.ToolExecutor {
 						},
 						"summary": {
 							Type:        "string",
-							Description: "Task summary for create.",
+							Description: "Task summary for create or update.",
 						},
 						"description": {
 							Type:        "string",
-							Description: "Task description for create.",
+							Description: "Task description for create or update.",
 						},
 						"due_at": {
 							Type:        "string",
@@ -67,6 +71,10 @@ func NewLarkTaskManage() tools.ToolExecutor {
 						"due_date": {
 							Type:        "string",
 							Description: "Due date (YYYY-MM-DD) for all-day tasks.",
+						},
+						"due_time": {
+							Type:        "string",
+							Description: "Due time as Unix seconds for update.",
 						},
 						"assignee_ids": {
 							Type:        "array",
@@ -132,6 +140,10 @@ func (t *larkTaskManage) Execute(ctx context.Context, call ports.ToolCall) (*por
 		return t.listTasks(ctx, client, call)
 	case "create":
 		return t.createTask(ctx, client, call)
+	case "update":
+		return t.updateTask(ctx, client, call)
+	case "delete":
+		return t.deleteTask(ctx, client, call)
 	default:
 		err := fmt.Errorf("unsupported action: %s", action)
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
@@ -266,6 +278,120 @@ func (t *larkTaskManage) createTask(ctx context.Context, client *lark.Client, ca
 		Content: "Task created successfully.",
 		Metadata: map[string]any{
 			"task_id": guid,
+		},
+	}, nil
+}
+
+func (t *larkTaskManage) updateTask(ctx context.Context, client *lark.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	if approvalErr := requireActionApproval(ctx, call, "lark_task_update"); approvalErr != nil {
+		return approvalErr, nil
+	}
+
+	taskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	input := &larktask.InputTask{}
+	var updateFields []string
+
+	if summary := shared.StringArg(call.Arguments, "summary"); summary != "" {
+		input.Summary = &summary
+		updateFields = append(updateFields, "summary")
+	}
+	if description := shared.StringArg(call.Arguments, "description"); description != "" {
+		input.Description = &description
+		updateFields = append(updateFields, "description")
+	}
+	if dueTimeRaw := shared.StringArg(call.Arguments, "due_time"); dueTimeRaw != "" {
+		seconds, err := parseUnixSecondsString(dueTimeRaw)
+		if err != nil {
+			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+		}
+		ms := seconds * 1000
+		value := fmt.Sprintf("%d", ms)
+		input.Due = &larktask.Due{Timestamp: &value}
+		updateFields = append(updateFields, "due")
+	}
+
+	if len(updateFields) == 0 {
+		err := fmt.Errorf("update requires at least one field to change (summary, description, or due_time)")
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
+
+	body := larktask.NewPatchTaskReqBodyBuilder().
+		Task(input).
+		UpdateFields(updateFields).
+		Build()
+
+	builder := larktask.NewPatchTaskReqBuilder().
+		TaskGuid(taskID).
+		Body(body)
+	if userIDType := shared.StringArg(call.Arguments, "user_id_type"); userIDType != "" {
+		builder.UserIdType(userIDType)
+	}
+
+	options := taskRequestOptions(call.Arguments)
+	resp, err := client.Task.V2.Task.Patch(ctx, builder.Build(), options...)
+	if err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_task_manage(update): API call failed: %v", err),
+			Error:   fmt.Errorf("lark API call failed: %w", err),
+		}, nil
+	}
+	if !resp.Success() {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_task_manage(update): API error code=%d msg=%s", resp.Code, resp.Msg),
+			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
+		}, nil
+	}
+
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: "Task updated successfully.",
+		Metadata: map[string]any{
+			"task_id":        taskID,
+			"updated_fields": updateFields,
+		},
+	}, nil
+}
+
+func (t *larkTaskManage) deleteTask(ctx context.Context, client *lark.Client, call ports.ToolCall) (*ports.ToolResult, error) {
+	if approvalErr := requireActionApproval(ctx, call, "lark_task_delete"); approvalErr != nil {
+		return approvalErr, nil
+	}
+
+	taskID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "task_id")
+	if errResult != nil {
+		return errResult, nil
+	}
+
+	builder := larktask.NewDeleteTaskReqBuilder().TaskGuid(taskID)
+
+	options := taskRequestOptions(call.Arguments)
+	resp, err := client.Task.V2.Task.Delete(ctx, builder.Build(), options...)
+	if err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_task_manage(delete): API call failed: %v", err),
+			Error:   fmt.Errorf("lark API call failed: %w", err),
+		}, nil
+	}
+	if !resp.Success() {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_task_manage(delete): API error code=%d msg=%s", resp.Code, resp.Msg),
+			Error:   fmt.Errorf("lark API error: code=%d msg=%s", resp.Code, resp.Msg),
+		}, nil
+	}
+
+	return &ports.ToolResult{
+		CallID:  call.ID,
+		Content: "Task deleted successfully.",
+		Metadata: map[string]any{
+			"task_id": taskID,
 		},
 	}, nil
 }
