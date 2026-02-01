@@ -26,11 +26,21 @@ func (s *Scheduler) executeTrigger(trigger Trigger) {
 		ctx = id.WithUserID(ctx, trigger.UserID)
 	}
 
-	sessionID := fmt.Sprintf("scheduler-%s", trigger.Name)
+	runID := id.NewRunID()
+	sessionID := fmt.Sprintf("scheduler-%s-%s", trigger.Name, runID)
+	ctx = id.WithSessionID(ctx, sessionID)
+	ctx = id.WithRunID(ctx, runID)
 
 	s.logger.Info("Scheduler: executing trigger %q (schedule=%s)", trigger.Name, trigger.Schedule)
 
-	result, err := s.coordinator.ExecuteTask(ctx, trigger.Task, sessionID, nil)
+	taskCtx := ctx
+	if s.config.TriggerTimeout > 0 {
+		var cancel context.CancelFunc
+		taskCtx, cancel = context.WithTimeout(ctx, s.config.TriggerTimeout)
+		defer cancel()
+	}
+
+	result, err := s.coordinator.ExecuteTask(taskCtx, trigger.Task, sessionID, nil)
 
 	content := formatResult(trigger, result, err)
 

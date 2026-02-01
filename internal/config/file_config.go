@@ -185,8 +185,10 @@ type RAGFileConfig struct {
 }
 
 type SchedulerFileConfig struct {
-	Enabled  *bool                        `yaml:"enabled"`
-	Triggers []SchedulerTriggerFileConfig `yaml:"triggers"`
+	Enabled               *bool                        `yaml:"enabled"`
+	Triggers              []SchedulerTriggerFileConfig `yaml:"triggers"`
+	TriggerTimeoutSeconds *int                         `yaml:"trigger_timeout_seconds"`
+	ConcurrencyPolicy     string                       `yaml:"concurrency_policy"`
 }
 
 type SchedulerTriggerFileConfig struct {

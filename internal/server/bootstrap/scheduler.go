@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"time"
 
 	"alex/internal/async"
 	"alex/internal/di"
@@ -51,9 +52,11 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 	}
 
 	schedCfg := scheduler.Config{
-		Enabled:        true,
-		StaticTriggers: cfg.Runtime.Proactive.Scheduler.Triggers,
-		OKRGoalsRoot:   goalsRoot,
+		Enabled:           true,
+		StaticTriggers:    cfg.Runtime.Proactive.Scheduler.Triggers,
+		OKRGoalsRoot:      goalsRoot,
+		TriggerTimeout:    time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
+		ConcurrencyPolicy: cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
 	}
 
 	sched := scheduler.New(schedCfg, container.AgentCoordinator, notifier, logger)

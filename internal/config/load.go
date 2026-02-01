@@ -272,6 +272,12 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg.RAG.Collection == "" {
 		cfg.RAG.Collection = "rag"
 	}
+	if strings.TrimSpace(cfg.Scheduler.ConcurrencyPolicy) == "" {
+		cfg.Scheduler.ConcurrencyPolicy = "skip"
+	}
+	if cfg.Scheduler.TriggerTimeoutSeconds <= 0 {
+		cfg.Scheduler.TriggerTimeoutSeconds = 900
+	}
 }
 
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {

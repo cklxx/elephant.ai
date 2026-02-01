@@ -3,7 +3,9 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"alex/internal/config"
 	"alex/internal/logging"
@@ -14,9 +16,11 @@ import (
 
 // Config holds scheduler configuration.
 type Config struct {
-	Enabled        bool
-	StaticTriggers []config.SchedulerTriggerConfig
-	OKRGoalsRoot   string // path to scan for OKR-derived triggers
+	Enabled           bool
+	StaticTriggers    []config.SchedulerTriggerConfig
+	OKRGoalsRoot      string // path to scan for OKR-derived triggers
+	TriggerTimeout    time.Duration
+	ConcurrencyPolicy string
 }
 
 // Scheduler manages time-based proactive triggers using robfig/cron.
@@ -43,7 +47,7 @@ func New(cfg Config, coordinator AgentCoordinator, notifier Notifier, logger log
 	}
 
 	return &Scheduler{
-		cron:        cron.New(cron.WithParser(cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow))),
+		cron:        newCron(cfg, logger),
 		coordinator: coordinator,
 		notifier:    notifier,
 		goalStore:   goalStore,
@@ -52,6 +56,26 @@ func New(cfg Config, coordinator AgentCoordinator, notifier Notifier, logger log
 		entryIDs:    make(map[string]cron.EntryID),
 		stopped:     make(chan struct{}),
 	}
+}
+
+func newCron(cfg Config, logger logging.Logger) *cron.Cron {
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	options := []cron.Option{cron.WithParser(parser)}
+	policy := strings.ToLower(strings.TrimSpace(cfg.ConcurrencyPolicy))
+	var wrapper cron.JobWrapper
+	switch policy {
+	case "delay":
+		wrapper = cron.DelayIfStillRunning(cron.DefaultLogger)
+	case "skip", "":
+		wrapper = cron.SkipIfStillRunning(cron.DefaultLogger)
+	default:
+		logger.Warn("Scheduler: unknown concurrency policy %q, defaulting to skip", policy)
+		wrapper = cron.SkipIfStillRunning(cron.DefaultLogger)
+	}
+	if wrapper != nil {
+		options = append(options, cron.WithChain(wrapper))
+	}
+	return cron.New(options...)
 }
 
 // Start registers all triggers and starts the cron scheduler.

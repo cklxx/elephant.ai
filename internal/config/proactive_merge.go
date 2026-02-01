@@ -209,6 +209,12 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
+	if file.TriggerTimeoutSeconds != nil {
+		target.TriggerTimeoutSeconds = *file.TriggerTimeoutSeconds
+	}
+	if strings.TrimSpace(file.ConcurrencyPolicy) != "" {
+		target.ConcurrencyPolicy = strings.TrimSpace(file.ConcurrencyPolicy)
+	}
 	if len(file.Triggers) > 0 {
 		triggers := make([]SchedulerTriggerConfig, 0, len(file.Triggers))
 		for _, trigger := range file.Triggers {

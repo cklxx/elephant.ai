@@ -14,16 +14,18 @@ import (
 
 // mockCoordinator records calls to ExecuteTask.
 type mockCoordinator struct {
-	mu      sync.Mutex
-	calls   []string
-	answer  string
-	err     error
+	mu       sync.Mutex
+	calls    []string
+	sessions []string
+	answer   string
+	err      error
 }
 
 func (m *mockCoordinator) ExecuteTask(_ context.Context, task string, sessionID string, _ agent.EventListener) (*agent.TaskResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.calls = append(m.calls, task)
+	m.sessions = append(m.sessions, sessionID)
 	if m.err != nil {
 		return nil, m.err
 	}
@@ -254,6 +256,56 @@ key_results: {}
 		if n == "okr:prune-test" {
 			t.Error("okr:prune-test should have been pruned")
 		}
+	}
+}
+
+func TestSchedulerExecuteTriggerUsesUniqueSessionID(t *testing.T) {
+	coord := &mockCoordinator{answer: "done"}
+	sched := New(Config{Enabled: true}, coord, nil, nil)
+
+	trigger := Trigger{
+		Name:     "test-trigger",
+		Schedule: "* * * * *",
+		Task:     "Test task",
+	}
+
+	sched.executeTrigger(trigger)
+	sched.executeTrigger(trigger)
+
+	if len(coord.sessions) != 2 {
+		t.Fatalf("expected 2 sessions, got %d", len(coord.sessions))
+	}
+	if coord.sessions[0] == coord.sessions[1] {
+		t.Fatalf("expected unique session IDs, got %q", coord.sessions[0])
+	}
+	for _, sessionID := range coord.sessions {
+		if !strings.HasPrefix(sessionID, "scheduler-test-trigger-") {
+			t.Fatalf("unexpected session ID %q", sessionID)
+		}
+	}
+}
+
+type timeoutCoordinator struct {
+	seenDeadline bool
+}
+
+func (t *timeoutCoordinator) ExecuteTask(ctx context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	_, ok := ctx.Deadline()
+	t.seenDeadline = ok
+	return &agent.TaskResult{Answer: "ok"}, nil
+}
+
+func TestSchedulerExecuteTriggerAppliesTimeout(t *testing.T) {
+	coord := &timeoutCoordinator{}
+	sched := New(Config{
+		Enabled:        true,
+		TriggerTimeout: 2 * time.Second,
+	}, coord, nil, nil)
+
+	sched.executeTrigger(Trigger{Name: "timeout-test", Schedule: "* * * * *", Task: "Task"})
+
+	if !coord.seenDeadline {
+		t.Fatal("expected trigger timeout to set deadline")
 	}
 }
 

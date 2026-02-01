@@ -256,8 +256,10 @@ type RAGConfig struct {
 
 // SchedulerConfig configures time-based proactive triggers.
 type SchedulerConfig struct {
-	Enabled  bool                     `json:"enabled" yaml:"enabled"`
-	Triggers []SchedulerTriggerConfig `json:"triggers" yaml:"triggers"`
+	Enabled               bool                     `json:"enabled" yaml:"enabled"`
+	Triggers              []SchedulerTriggerConfig `json:"triggers" yaml:"triggers"`
+	TriggerTimeoutSeconds int                      `json:"trigger_timeout_seconds" yaml:"trigger_timeout_seconds"`
+	ConcurrencyPolicy     string                   `json:"concurrency_policy" yaml:"concurrency_policy"`
 }
 
 type SchedulerTriggerConfig struct {
@@ -330,7 +332,9 @@ func DefaultProactiveConfig() ProactiveConfig {
 			AutoInject: true,
 		},
 		Scheduler: SchedulerConfig{
-			Enabled: false,
+			Enabled:               false,
+			TriggerTimeoutSeconds: 900,
+			ConcurrencyPolicy:     "skip",
 		},
 		Attention: AttentionConfig{
 			MaxDailyNotifications: 5,
