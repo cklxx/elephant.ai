@@ -17,6 +17,7 @@
 #   SANDBOX_PORT=18086          # Sandbox port override (default 18086)
 #   SANDBOX_IMAGE=...           # Sandbox image override
 #   SANDBOX_BASE_URL=...        # Sandbox base URL override (default http://localhost:18086)
+#   SANDBOX_AUTO_INSTALL_CLI=1  # Auto-install Codex/Claude Code in sandbox (default 1)
 #   START_ACP_WITH_SANDBOX=1    # Start ACP serve alongside sandbox (default 1)
 #   ACP_RUN_MODE=sandbox|host   # Run ACP in sandbox container or on host (default sandbox)
 #   ACP_PORT=0                  # ACP port override (0 = auto-pick)
@@ -52,6 +53,7 @@ SANDBOX_PORT="${SANDBOX_PORT:-${DEFAULT_SANDBOX_PORT}}"
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
 SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
 SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
+SANDBOX_AUTO_INSTALL_CLI="${SANDBOX_AUTO_INSTALL_CLI:-1}"
 START_ACP_WITH_SANDBOX="${START_ACP_WITH_SANDBOX:-1}"
 ACP_RUN_MODE="${ACP_RUN_MODE:-sandbox}"
 ACP_PORT="${ACP_PORT:-0}"
@@ -585,6 +587,7 @@ start_sandbox() {
     else
       log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
       wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
+      ensure_sandbox_cli_tools
       if [[ "$run_acp_in_sandbox" == "1" ]]; then
         start_acp_daemon_in_sandbox
       else
@@ -619,6 +622,7 @@ start_sandbox() {
   fi
 
   wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
+  ensure_sandbox_cli_tools
   if [[ "$run_acp_in_sandbox" == "1" ]]; then
     start_acp_daemon_in_sandbox
   else

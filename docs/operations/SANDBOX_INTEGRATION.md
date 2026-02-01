@@ -97,6 +97,7 @@ runtime:
 - `SANDBOX_PORT`：本地映射端口（默认 `18086`）
 - `SANDBOX_IMAGE`：Sandbox 镜像（默认 `ghcr.io/agent-infra/sandbox:latest`）
 - `SANDBOX_BASE_URL`：已部署的 Sandbox 地址（若指向非本地地址，将跳过本地容器启动，仅做健康检查）
+- `SANDBOX_AUTO_INSTALL_CLI`：启动时自动安装 Codex/Claude Code（默认 `1`，依赖 sandbox 内部 `npm`）
 
 在腾讯云环境中，建议先将镜像推送到 TCR，再通过 `SANDBOX_IMAGE` 指向 TCR 镜像，以避免 ghcr.io 拉取失败。
 

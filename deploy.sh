@@ -39,6 +39,7 @@ SANDBOX_PORT="${SANDBOX_PORT:-${DEFAULT_SANDBOX_PORT}}"
 SANDBOX_IMAGE="${SANDBOX_IMAGE:-${DEFAULT_SANDBOX_IMAGE}}"
 SANDBOX_BASE_URL="${SANDBOX_BASE_URL:-http://localhost:${SANDBOX_PORT}}"
 SANDBOX_CONTAINER_NAME="${SANDBOX_CONTAINER_NAME:-alex-sandbox}"
+SANDBOX_AUTO_INSTALL_CLI="${SANDBOX_AUTO_INSTALL_CLI:-1}"
 START_ACP_WITH_SANDBOX="${START_ACP_WITH_SANDBOX:-1}"
 ACP_PORT="${ACP_PORT:-0}"
 ACP_HOST="${ACP_HOST:-${DEFAULT_ACP_HOST}}"
@@ -115,6 +116,7 @@ start_sandbox() {
     if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
         log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
         wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "Sandbox"
+        ensure_sandbox_cli_tools
         log_info "ACP server injected at ${acp_addr}"
         return $?
     fi
@@ -134,6 +136,7 @@ start_sandbox() {
     fi
 
     wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "Sandbox"
+    ensure_sandbox_cli_tools
     log_info "ACP server injected at ${acp_addr}"
 }
 

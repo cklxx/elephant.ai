@@ -1,6 +1,6 @@
 # Index: error-experience/entries
 
-Updated: 2026-01-31
+Updated: 2026-02-02
 
 ## Files
 
@@ -20,3 +20,4 @@ Updated: 2026-01-31
 - [2026-01-30-dev-lint-errcheck-failures.md](2026-01-30-dev-lint-errcheck-failures.md)
 - [2026-01-30-memory-import-cycle.md](2026-01-30-memory-import-cycle.md)
 - [2026-01-31-dev-lint-unused-subsystem-test.md](2026-01-31-dev-lint-unused-subsystem-test.md)
+- [2026-02-02-dev-sh-sandbox-env-flags-unbound.md](2026-02-02-dev-sh-sandbox-env-flags-unbound.md)
