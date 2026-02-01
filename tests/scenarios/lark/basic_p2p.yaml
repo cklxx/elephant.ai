@@ -1,0 +1,25 @@
+name: basic_p2p
+description: "Basic p2p conversation — user sends a question, agent replies"
+tags: [basic, p2p]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_001"
+    chat_id: "oc_chat_001"
+    message_id: "om_msg_001"
+    content: "今天天气怎么样？"
+
+    mock_response:
+      answer: "今天北京晴，气温 5°C，适合户外活动。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["北京", "5°C"]
+      executor:
+        task_contains: ["今天天气怎么样"]

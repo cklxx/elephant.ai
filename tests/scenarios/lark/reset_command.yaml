@@ -1,0 +1,22 @@
+name: reset_command
+description: "/reset clears session and replies with confirmation, no ExecuteTask"
+tags: [reset, command]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_direct: true
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_004"
+    chat_id: "oc_chat_004"
+    message_id: "om_msg_reset_001"
+    content: "/reset"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["清空对话历史"]
+      executor:
+        called: false

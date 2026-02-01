@@ -1,0 +1,26 @@
+name: basic_group
+description: "Group chat message — agent replies in group context"
+tags: [basic, group]
+
+setup:
+  config:
+    session_prefix: "test-lark"
+    allow_groups: true
+  llm_mode: mock
+
+turns:
+  - sender_id: "ou_user_002"
+    chat_id: "oc_group_001"
+    chat_type: "group"
+    message_id: "om_msg_grp_001"
+    content: "帮我查一下项目进度"
+
+    mock_response:
+      answer: "当前项目完成 75%，剩余 3 个任务待处理。"
+
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          content_contains: ["75%"]
+      executor:
+        task_contains: ["项目进度"]
