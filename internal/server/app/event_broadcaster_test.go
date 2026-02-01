@@ -181,3 +181,50 @@ func TestStreamDroppedEnvelopeFields(t *testing.T) {
 		t.Fatalf("expected NodeKind 'system', got %s", env.NodeKind)
 	}
 }
+
+func TestEventBroadcasterDropsMissingSessionID(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+	ch := make(chan agent.AgentEvent, 1)
+	broadcaster.RegisterClient("s1", ch)
+
+	event := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "", "task-1", "", time.Now()),
+		Version:   1,
+		Event:     types.EventNodeStarted,
+	}
+
+	broadcaster.OnEvent(event)
+
+	select {
+	case <-ch:
+		t.Fatal("expected no event to be delivered for missing session ID")
+	default:
+	}
+}
+
+func TestEventBroadcasterBroadcastsExplicitGlobalSession(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+	ch1 := make(chan agent.AgentEvent, 1)
+	ch2 := make(chan agent.AgentEvent, 1)
+	broadcaster.RegisterClient("s1", ch1)
+	broadcaster.RegisterClient("s2", ch2)
+
+	event := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, globalHighVolumeSessionID, "task-1", "", time.Now()),
+		Version:   1,
+		Event:     types.EventNodeStarted,
+	}
+
+	broadcaster.OnEvent(event)
+
+	for idx, ch := range []chan agent.AgentEvent{ch1, ch2} {
+		select {
+		case got := <-ch:
+			if got != event {
+				t.Fatalf("client %d: expected event to be delivered", idx+1)
+			}
+		default:
+			t.Fatalf("client %d: expected global event", idx+1)
+		}
+	}
+}

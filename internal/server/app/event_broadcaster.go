@@ -138,8 +138,9 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 
 	// Store event in history for session replay
 	sessionID := baseEvent.GetSessionID()
+	isGlobal := isGlobalSessionID(sessionID)
 	if shouldPersistToHistory(baseEvent) {
-		if sessionID != "" {
+		if sessionID != "" && !isGlobal {
 			b.storeEventHistory(sessionID, event)
 		} else {
 			b.storeGlobalEvent(event)
@@ -149,8 +150,11 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 	clientsBySession := b.loadClients()
 
 	if sessionID == "" {
-		// Broadcast to all sessions if no session ID
-		b.logger.Warn("[OnEvent] No sessionID in event, broadcasting to all %d sessions", len(clientsBySession))
+		b.logger.Warn("[OnEvent] No sessionID in event, dropping event %s", event.EventType())
+		return
+	}
+
+	if isGlobal {
 		for sid, clients := range clientsBySession {
 			b.broadcastToClients(sid, clients, event)
 		}
@@ -164,6 +168,10 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 	}
 
 	b.broadcastToClients(sessionID, clients, event)
+}
+
+func isGlobalSessionID(sessionID string) bool {
+	return sessionID == globalHighVolumeSessionID
 }
 
 // getSessionIDs returns list of session IDs for debugging
@@ -684,7 +692,7 @@ func (b *EventBroadcaster) enforceMaxSessionsLocked() {
 }
 
 // Metrics helper methods — lock-free via atomic.Int64.
-func (m *broadcasterMetrics) incrementEventsSent()                  { m.totalEventsSent.Add(1) }
+func (m *broadcasterMetrics) incrementEventsSent() { m.totalEventsSent.Add(1) }
 func (m *broadcasterMetrics) incrementDroppedEvents(sessionID string) int64 {
 	m.droppedEvents.Add(1)
 	counter, _ := m.dropsPerSession.LoadOrStore(sessionID, &atomic.Int64{})
