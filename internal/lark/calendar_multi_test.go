@@ -10,7 +10,7 @@ func TestListCalendars_SinglePage(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		hasMore := false
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
 			"has_more":   hasMore,
 			"page_token": "",
 			"calendar_list": []map[string]interface{}{
@@ -29,7 +29,9 @@ func TestListCalendars_SinglePage(t *testing.T) {
 					"role":        "reader",
 				},
 			},
-		}))
+		})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -78,7 +80,7 @@ func TestListCalendars_MultiPage(t *testing.T) {
 		case 1:
 			// First page: return 1 calendar with has_more=true.
 			hasMore := true
-			w.Write(jsonResponse(0, "ok", map[string]interface{}{
+			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
 				"has_more":   hasMore,
 				"page_token": "page-2",
 				"calendar_list": []map[string]interface{}{
@@ -88,11 +90,13 @@ func TestListCalendars_MultiPage(t *testing.T) {
 						"type":        "primary",
 					},
 				},
-			}))
+			})); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 		default:
 			// Second page: return 1 calendar with has_more=false.
 			hasMore := false
-			w.Write(jsonResponse(0, "ok", map[string]interface{}{
+			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
 				"has_more":   hasMore,
 				"page_token": "",
 				"calendar_list": []map[string]interface{}{
@@ -102,7 +106,9 @@ func TestListCalendars_MultiPage(t *testing.T) {
 						"type":        "shared",
 					},
 				},
-			}))
+			})); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 		}
 	})
 	defer srv.Close()
@@ -126,11 +132,13 @@ func TestListCalendars_Empty(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		hasMore := false
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
 			"has_more":      hasMore,
 			"page_token":    "",
 			"calendar_list": []map[string]interface{}{},
-		}))
+		})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -146,7 +154,9 @@ func TestListCalendars_Empty(t *testing.T) {
 func TestListCalendars_APIError(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(403001, "no permission", nil))
+		if _, err := w.Write(jsonResponse(403001, "no permission", nil)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -167,7 +177,7 @@ func TestListCalendarsPage_Basic(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		hasMore := true
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
 			"has_more":   hasMore,
 			"page_token": "next-page",
 			"calendar_list": []map[string]interface{}{
@@ -179,7 +189,9 @@ func TestListCalendarsPage_Basic(t *testing.T) {
 					"role":        "owner",
 				},
 			},
-		}))
+		})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 

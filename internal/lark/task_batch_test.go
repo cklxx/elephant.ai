@@ -14,7 +14,9 @@ func TestBatchCreateTasks_AllSuccess(t *testing.T) {
 		n := cnt.next()
 		w.Header().Set("Content-Type", "application/json")
 		task := taskJSON(fmt.Sprintf("task-%d", n), fmt.Sprintf("Task %d", n), "")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task}))
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -54,11 +56,15 @@ func TestBatchCreateTasks_MixedSuccessFailure(t *testing.T) {
 		n := cnt.next()
 		w.Header().Set("Content-Type", "application/json")
 		if n == 2 {
-			w.Write(jsonResponse(400100, "invalid task", nil))
+			if _, err := w.Write(jsonResponse(400100, "invalid task", nil)); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 			return
 		}
 		task := taskJSON(fmt.Sprintf("task-%d", n), fmt.Sprintf("Task %d", n), "")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task}))
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -115,7 +121,9 @@ func TestBatchCompleteTasks_AllSuccess(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		// The Patch response includes the updated task.
 		task := taskJSON("any-id", "any-summary", "1706745600000")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task}))
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -136,11 +144,15 @@ func TestBatchCompleteTasks_MixedSuccessFailure(t *testing.T) {
 		n := cnt.next()
 		w.Header().Set("Content-Type", "application/json")
 		if n == 1 {
-			w.Write(jsonResponse(404001, "task not found", nil))
+			if _, err := w.Write(jsonResponse(404001, "task not found", nil)); err != nil {
+				t.Errorf("write response: %v", err)
+			}
 			return
 		}
 		task := taskJSON("any", "any", "1706745600000")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task}))
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -177,7 +189,9 @@ func TestBatchCompleteTasks_SetsCompletedAt(t *testing.T) {
 			}
 		}
 		task := taskJSON("task-1", "Test", "1706745600000")
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task}))
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{"task": task})); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -190,7 +204,9 @@ func TestBatchCompleteTasks_SetsCompletedAt(t *testing.T) {
 func TestBatchCreateTasks_AllFailure(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(500000, "internal error", nil))
+		if _, err := w.Write(jsonResponse(500000, "internal error", nil)); err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 

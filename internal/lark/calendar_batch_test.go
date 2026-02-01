@@ -19,7 +19,9 @@ func TestBatchCreateEvents_AllSuccess(t *testing.T) {
 			base().Unix(),
 			base().Add(1*time.Hour).Unix(),
 		)
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{"event": ev}))
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{"event": ev})); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -56,7 +58,9 @@ func TestBatchCreateEvents_MixedSuccessFailure(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		if n == 2 {
 			// Simulate failure on the second event.
-			w.Write(jsonResponse(400100, "invalid event", nil))
+			if _, err := w.Write(jsonResponse(400100, "invalid event", nil)); err != nil {
+				t.Fatalf("write response: %v", err)
+			}
 			return
 		}
 		ev := calendarEventJSON(
@@ -65,7 +69,9 @@ func TestBatchCreateEvents_MixedSuccessFailure(t *testing.T) {
 			base().Unix(),
 			base().Add(1*time.Hour).Unix(),
 		)
-		w.Write(jsonResponse(0, "ok", map[string]interface{}{"event": ev}))
+		if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{"event": ev})); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -124,7 +130,9 @@ func TestBatchCreateEvents_Empty(t *testing.T) {
 func TestBatchDeleteEvents_AllSuccess(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(0, "ok", nil))
+		if _, err := w.Write(jsonResponse(0, "ok", nil)); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -145,10 +153,14 @@ func TestBatchDeleteEvents_MixedSuccessFailure(t *testing.T) {
 		n := cnt.next()
 		w.Header().Set("Content-Type", "application/json")
 		if n == 2 {
-			w.Write(jsonResponse(404001, "event not found", nil))
+			if _, err := w.Write(jsonResponse(404001, "event not found", nil)); err != nil {
+				t.Fatalf("write response: %v", err)
+			}
 			return
 		}
-		w.Write(jsonResponse(0, "ok", nil))
+		if _, err := w.Write(jsonResponse(0, "ok", nil)); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 
@@ -180,7 +192,9 @@ func TestBatchDeleteEvents_Empty(t *testing.T) {
 func TestBatchCreateEvents_AllFailure(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write(jsonResponse(500000, "internal error", nil))
+		if _, err := w.Write(jsonResponse(500000, "internal error", nil)); err != nil {
+			t.Fatalf("write response: %v", err)
+		}
 	})
 	defer srv.Close()
 

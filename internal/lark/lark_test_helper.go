@@ -22,11 +22,13 @@ func testServer(handler http.HandlerFunc) (*httptest.Server, *Client) {
 		if strings.Contains(r.URL.Path, "tenant_access_token") ||
 			strings.Contains(r.URL.Path, "app_access_token") {
 			w.Header().Set("Content-Type", "application/json")
-			w.Write(jsonResponse(0, "ok", map[string]interface{}{
+			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
 				"tenant_access_token": "test-token",
 				"app_access_token":    "test-token",
 				"expire":              7200,
-			}))
+			})); err != nil {
+				panic(err)
+			}
 			return
 		}
 		handler(w, r)
@@ -49,20 +51,6 @@ func jsonResponse(code int, msg string, data interface{}) []byte {
 	}
 	b, _ := json.Marshal(resp)
 	return b
-}
-
-// routeMux returns an http.HandlerFunc that routes requests by matching
-// path substrings to specific handlers. If no match is found, 404 is returned.
-func routeMux(routes map[string]http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		for pattern, handler := range routes {
-			if strings.Contains(r.URL.Path, pattern) {
-				handler(w, r)
-				return
-			}
-		}
-		http.NotFound(w, r)
-	}
 }
 
 // readBody reads and closes the request body.
