@@ -14,14 +14,14 @@ import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/llm"
 	"alex/internal/memory"
-	"alex/internal/moltbook"
+
 	"alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
 	"alex/internal/tools/builtin/larktools"
 	"alex/internal/tools/builtin/media"
 	memorytools "alex/internal/tools/builtin/memory"
-	moltbooktools "alex/internal/tools/builtin/moltbook"
+
 	okrtools "alex/internal/tools/builtin/okr"
 	"alex/internal/tools/builtin/orchestration"
 	"alex/internal/tools/builtin/sandbox"
@@ -50,9 +50,7 @@ type filteredRegistry struct {
 }
 
 type Config struct {
-	TavilyAPIKey    string
-	MoltbookAPIKey  string
-	MoltbookBaseURL string
+	TavilyAPIKey string
 
 	ArkAPIKey                  string
 	SeedreamTextEndpointID     string
@@ -521,18 +519,8 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["list_timers"] = timertools.NewListTimers()
 	r.static["cancel_timer"] = timertools.NewCancelTimer()
 
-	// Moltbook tools
-	if config.MoltbookAPIKey != "" {
-		moltbookClient := moltbook.NewRateLimitedClient(moltbook.Config{
-			BaseURL: config.MoltbookBaseURL,
-			APIKey:  config.MoltbookAPIKey,
-		})
-		r.static["moltbook_post"] = moltbooktools.NewMoltbookPost(moltbookClient)
-		r.static["moltbook_feed"] = moltbooktools.NewMoltbookFeed(moltbookClient)
-		r.static["moltbook_comment"] = moltbooktools.NewMoltbookComment(moltbookClient)
-		r.static["moltbook_vote"] = moltbooktools.NewMoltbookVote(moltbookClient)
-		r.static["moltbook_search"] = moltbooktools.NewMoltbookSearch(moltbookClient)
-	}
+	// Moltbook interaction is skill-driven (see skills/moltbook-posting/SKILL.md).
+	// The agent uses shell curl commands guided by the skill's API reference.
 
 	// Pre-wrap all static tools with ID propagation and approval wrappers.
 	for name, tool := range r.static {

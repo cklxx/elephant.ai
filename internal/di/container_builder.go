@@ -529,8 +529,6 @@ func (b *containerBuilder) buildIterationHook(memoryService memory.Service) agen
 func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService memory.Service) (*toolregistry.Registry, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:               b.config.TavilyAPIKey,
-		MoltbookAPIKey:             b.config.MoltbookAPIKey,
-		MoltbookBaseURL:            b.config.MoltbookBaseURL,
 		ArkAPIKey:                  b.config.ArkAPIKey,
 		LLMFactory:                 factory,
 		LLMProvider:                b.config.LLMProvider,
