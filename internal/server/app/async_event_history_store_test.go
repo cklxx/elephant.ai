@@ -96,6 +96,52 @@ func (s *batchHistoryStore) AppendBatch(_ context.Context, events []agent.AgentE
 	return nil
 }
 
+type failAfterStore struct {
+	mu        sync.Mutex
+	events    []agent.AgentEvent
+	failAt    int
+	callCount int
+	failErr   error
+}
+
+func (s *failAfterStore) Append(_ context.Context, event agent.AgentEvent) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.callCount++
+	if s.failAt > 0 && s.callCount == s.failAt {
+		if s.failErr == nil {
+			s.failErr = errors.New("append failed")
+		}
+		return s.failErr
+	}
+	s.events = append(s.events, event)
+	return nil
+}
+
+func (s *failAfterStore) Stream(_ context.Context, _ EventHistoryFilter, fn func(agent.AgentEvent) error) error {
+	s.mu.Lock()
+	snapshot := append([]agent.AgentEvent(nil), s.events...)
+	s.mu.Unlock()
+	for _, e := range snapshot {
+		if err := fn(e); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *failAfterStore) DeleteSession(_ context.Context, _ string) error { return nil }
+
+func (s *failAfterStore) HasSessionEvents(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+
+func (s *failAfterStore) eventCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.events)
+}
+
 // ── helpers ──
 
 func makeTestEvent(sessionID string) agent.AgentEvent {
@@ -634,5 +680,64 @@ func TestAsyncBatchAppendErrorPropagates(t *testing.T) {
 	}
 	if !errors.Is(err, batchErr) {
 		t.Fatalf("expected batch error, got %v", err)
+	}
+}
+
+func TestAsyncFlushRetainsBufferOnFailure(t *testing.T) {
+	inner := &failAfterStore{failAt: 2, failErr: errors.New("append failed")}
+	store := NewAsyncEventHistoryStore(inner,
+		WithAsyncHistoryFlushInterval(time.Hour),
+	)
+	defer store.Close()
+
+	for i := 0; i < 3; i++ {
+		if err := store.Append(context.Background(), makeTestEvent("s1")); err != nil {
+			t.Fatalf("append %d error: %v", i, err)
+		}
+	}
+
+	err := store.flush(context.Background())
+	if err == nil {
+		t.Fatal("expected flush error")
+	}
+	if got := inner.eventCount(); got != 1 {
+		t.Fatalf("expected 1 event after failed flush, got %d", got)
+	}
+
+	inner.failAt = 0
+	inner.failErr = nil
+
+	if err := store.flush(context.Background()); err != nil {
+		t.Fatalf("flush retry error: %v", err)
+	}
+	if got := inner.eventCount(); got != 3 {
+		t.Fatalf("expected 3 events after retry, got %d", got)
+	}
+}
+
+func TestAsyncFlushBackoffSkipsRetries(t *testing.T) {
+	inner := &inMemoryHistoryStore{appendErr: errors.New("append failed")}
+	store := NewAsyncEventHistoryStore(inner,
+		WithAsyncHistoryFlushInterval(5*time.Millisecond),
+	)
+	defer store.Close()
+
+	if err := store.Append(context.Background(), makeTestEvent("s1")); err != nil {
+		t.Fatalf("append error: %v", err)
+	}
+
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for inner.appendCallCount.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	firstCount := inner.appendCallCount.Load()
+	if firstCount == 0 {
+		t.Fatal("expected at least one flush attempt")
+	}
+
+	time.Sleep(50 * time.Millisecond)
+	if got := inner.appendCallCount.Load(); got != firstCount {
+		t.Fatalf("expected backoff to suppress retries, got %d then %d", firstCount, got)
 	}
 }

@@ -183,6 +183,17 @@ func (s *AsyncEventHistoryStore) run() {
 	defer ticker.Stop()
 
 	buffer := make([]agent.AgentEvent, 0, s.batchSize)
+	minBackoff := 250 * time.Millisecond
+	maxBackoff := 5 * time.Second
+	baseBackoff := s.flushInterval
+	if baseBackoff <= 0 {
+		baseBackoff = minBackoff
+	}
+	if baseBackoff < minBackoff {
+		baseBackoff = minBackoff
+	}
+	var failureCount int
+	var nextFlush time.Time
 
 	flushBuffer := func() error {
 		if len(buffer) == 0 {
@@ -192,19 +203,54 @@ func (s *AsyncEventHistoryStore) run() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		var err error
 		if batcher, ok := s.inner.(batchEventAppender); ok {
-			err = batcher.AppendBatch(ctx, buffer)
-		} else {
-			for _, event := range buffer {
-				if appendErr := s.inner.Append(ctx, event); appendErr != nil {
-					err = appendErr
-					break
-				}
+			if err := batcher.AppendBatch(ctx, buffer); err != nil {
+				return err
+			}
+			buffer = buffer[:0]
+			return nil
+		}
+
+		for i, event := range buffer {
+			if appendErr := s.inner.Append(ctx, event); appendErr != nil {
+				buffer = buffer[i:]
+				return appendErr
 			}
 		}
 		buffer = buffer[:0]
-		return err
+		return nil
+	}
+
+	applyBackoff := func() {
+		failureCount++
+		backoff := baseBackoff
+		for i := 1; i < failureCount && backoff < maxBackoff; i++ {
+			backoff *= 2
+			if backoff >= maxBackoff {
+				backoff = maxBackoff
+				break
+			}
+		}
+		nextFlush = time.Now().Add(backoff)
+	}
+
+	resetBackoff := func() {
+		failureCount = 0
+		nextFlush = time.Time{}
+	}
+
+	tryFlush := func(force bool) error {
+		if !force && !nextFlush.IsZero() && time.Now().Before(nextFlush) {
+			return nil
+		}
+		if err := flushBuffer(); err != nil {
+			applyBackoff()
+			return err
+		}
+		if failureCount > 0 {
+			resetBackoff()
+		}
+		return nil
 	}
 
 	for {
@@ -220,7 +266,7 @@ func (s *AsyncEventHistoryStore) run() {
 			}
 			buffer = append(buffer, event)
 			if len(buffer) >= s.batchSize {
-				if err := flushBuffer(); err != nil {
+				if err := tryFlush(false); err != nil {
 					logging.OrNop(s.logger).Warn("Failed to flush event history batch: %v", err)
 				}
 			}
@@ -233,7 +279,7 @@ func (s *AsyncEventHistoryStore) run() {
 						buffer = append(buffer, event)
 					}
 					if len(buffer) >= s.batchSize {
-						if err := flushBuffer(); err != nil {
+						if err := tryFlush(false); err != nil {
 							logging.OrNop(s.logger).Warn("Failed to flush event history batch: %v", err)
 						}
 					}
@@ -242,9 +288,9 @@ func (s *AsyncEventHistoryStore) run() {
 				}
 			}
 		drained:
-			resp <- flushBuffer()
+			resp <- tryFlush(true)
 		case <-ticker.C:
-			if err := flushBuffer(); err != nil {
+			if err := tryFlush(false); err != nil {
 				logging.OrNop(s.logger).Warn("Failed to flush event history batch: %v", err)
 			}
 		}
