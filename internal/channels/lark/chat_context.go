@@ -7,16 +7,15 @@ import (
 	"strings"
 	"time"
 
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
-// fetchRecentChatMessages retrieves recent messages from a Lark chat and
-// returns them formatted as chronological "[timestamp] sender: content" lines.
-// This is used for auto chat context injection before task execution.
-func fetchRecentChatMessages(ctx context.Context, client *lark.Client, chatID string, pageSize int) (string, error) {
-	if client == nil {
-		return "", fmt.Errorf("lark client is nil")
+// fetchRecentChatMessages retrieves recent messages from a Lark chat via the
+// gateway's messenger and returns them formatted as chronological
+// "[timestamp] sender: content" lines.
+func (g *Gateway) fetchRecentChatMessages(ctx context.Context, chatID string, pageSize int) (string, error) {
+	if g.messenger == nil {
+		return "", fmt.Errorf("lark messenger is nil")
 	}
 	if chatID == "" {
 		return "", fmt.Errorf("chat_id is empty")
@@ -28,25 +27,15 @@ func fetchRecentChatMessages(ctx context.Context, client *lark.Client, chatID st
 		pageSize = 50
 	}
 
-	req := larkim.NewListMessageReqBuilder().
-		ContainerIdType("chat").
-		ContainerId(chatID).
-		SortType("ByCreateTimeDesc").
-		PageSize(pageSize).
-		Build()
-
-	resp, err := client.Im.Message.List(ctx, req)
+	items, err := g.messenger.ListMessages(ctx, chatID, pageSize)
 	if err != nil {
-		return "", fmt.Errorf("lark chat history API call failed: %w", err)
+		return "", err
 	}
-	if !resp.Success() {
-		return "", fmt.Errorf("lark chat history API error: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-	if resp.Data == nil || len(resp.Data.Items) == 0 {
+	if len(items) == 0 {
 		return "", nil
 	}
 
-	return formatChatMessages(resp.Data.Items), nil
+	return formatChatMessages(items), nil
 }
 
 // formatChatMessages converts Lark message items (descending order from API)

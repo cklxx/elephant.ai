@@ -1,7 +1,6 @@
 package lark
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/json"
@@ -57,6 +56,7 @@ type Gateway struct {
 	logger          logging.Logger
 	client          *lark.Client
 	wsClient        *larkws.Client
+	messenger       LarkMessenger
 	eventListener   agent.EventListener
 	emojiPicker     *emojiPicker
 	dedupMu         sync.Mutex
@@ -113,6 +113,15 @@ func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) {
 	g.planReviewStore = store
 }
 
+// SetMessenger replaces the default SDK messenger with a custom implementation.
+// This is the primary injection point for testing.
+func (g *Gateway) SetMessenger(m LarkMessenger) {
+	if g == nil {
+		return
+	}
+	g.messenger = m
+}
+
 // getOrCreateSlot returns the session slot for the given ID, creating one if needed.
 func (g *Gateway) getOrCreateSlot(sessionID string) *sessionSlot {
 	slot, _ := g.activeSlots.LoadOrStore(sessionID, &sessionSlot{})
@@ -134,6 +143,11 @@ func (g *Gateway) Start(ctx context.Context) error {
 		clientOpts = append(clientOpts, lark.WithOpenBaseUrl(domain))
 	}
 	g.client = lark.NewClient(g.cfg.AppID, g.cfg.AppSecret, clientOpts...)
+
+	// Initialize the messenger if not already set (e.g. by tests).
+	if g.messenger == nil {
+		g.messenger = newSDKMessenger(g.client)
+	}
 
 	// Build the event dispatcher and register the message handler.
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")
@@ -299,12 +313,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 			}
 		}
 	}
-	if g.cfg.AutoChatContext && g.client != nil && isGroup {
+	if g.cfg.AutoChatContext && g.messenger != nil && isGroup {
 		pageSize := g.cfg.AutoChatContextSize
 		if pageSize <= 0 {
 			pageSize = 20
 		}
-		if chatHistory, err := fetchRecentChatMessages(execCtx, g.client, chatID, pageSize); err != nil {
+		if chatHistory, err := g.fetchRecentChatMessages(execCtx, chatID, pageSize); err != nil {
 			g.logger.Warn("Lark auto chat context fetch failed: %v", err)
 		} else if chatHistory != "" {
 			if hasPending {
@@ -372,6 +386,36 @@ done:
 	}
 }
 
+// InjectMessage constructs a synthetic P2MessageReceiveV1 event and feeds it
+// through handleMessage. This is the primary entry point for scenario tests:
+// it exercises the full pipeline (dedup, session, context, execution, reply)
+// without requiring a WebSocket connection.
+func (g *Gateway) InjectMessage(ctx context.Context, chatID, chatType, senderID, messageID, text string) error {
+	msgType := "text"
+	contentJSON := textContent(text)
+	if chatType == "" {
+		chatType = "p2p"
+	}
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageId:   &messageID,
+				ChatId:      &chatID,
+				ChatType:    &chatType,
+				MessageType: &msgType,
+				Content:     &contentJSON,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &senderID,
+				},
+			},
+		},
+	}
+	return g.handleMessage(ctx, event)
+}
+
 // reprocessMessage re-injects a drained user input as if it were a fresh Lark
 // message. This creates a synthetic P2MessageReceiveV1 event and feeds it back
 // through handleMessage so the full pipeline (dedup, session, execution) runs.
@@ -433,50 +477,14 @@ func (g *Gateway) isDuplicateMessage(messageID string) bool {
 // the message is sent as a reply to that message; otherwise a new message is
 // created in the chat identified by chatID. Returns the new message ID.
 func (g *Gateway) dispatchMessage(ctx context.Context, chatID, replyToID, msgType, content string) (string, error) {
-	if g.client == nil {
-		return "", fmt.Errorf("lark client not initialized")
+	if g.messenger == nil {
+		return "", fmt.Errorf("lark messenger not initialized")
 	}
 
 	if replyToID != "" {
-		req := larkim.NewReplyMessageReqBuilder().
-			MessageId(replyToID).
-			Body(larkim.NewReplyMessageReqBodyBuilder().
-				MsgType(msgType).
-				Content(content).
-				Build()).
-			Build()
-		resp, err := g.client.Im.Message.Reply(ctx, req)
-		if err != nil {
-			return "", err
-		}
-		if !resp.Success() {
-			return "", fmt.Errorf("lark reply message error: code=%d msg=%s", resp.Code, resp.Msg)
-		}
-		if resp.Data == nil || resp.Data.MessageId == nil {
-			return "", nil
-		}
-		return *resp.Data.MessageId, nil
+		return g.messenger.ReplyMessage(ctx, replyToID, msgType, content)
 	}
-
-	req := larkim.NewCreateMessageReqBuilder().
-		ReceiveIdType("chat_id").
-		Body(larkim.NewCreateMessageReqBodyBuilder().
-			ReceiveId(chatID).
-			MsgType(msgType).
-			Content(content).
-			Build()).
-		Build()
-	resp, err := g.client.Im.Message.Create(ctx, req)
-	if err != nil {
-		return "", err
-	}
-	if !resp.Success() {
-		return "", fmt.Errorf("lark send message error: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-	if resp.Data == nil || resp.Data.MessageId == nil {
-		return "", nil
-	}
-	return *resp.Data.MessageId, nil
+	return g.messenger.SendMessage(ctx, chatID, msgType, content)
 }
 
 // dispatch is a fire-and-forget wrapper around dispatchMessage that logs errors.
@@ -495,52 +503,22 @@ func replyTarget(messageID string, allowReply bool) string {
 	return messageID
 }
 
-// updateMessage updates an existing text message in-place using the Lark
-// im/v1/messages/:message_id (PUT) API.
+// updateMessage updates an existing text message in-place.
 func (g *Gateway) updateMessage(ctx context.Context, messageID, text string) error {
-	if g.client == nil {
-		return fmt.Errorf("lark client not initialized")
+	if g.messenger == nil {
+		return fmt.Errorf("lark messenger not initialized")
 	}
-	req := larkim.NewUpdateMessageReqBuilder().
-		MessageId(messageID).
-		Body(larkim.NewUpdateMessageReqBodyBuilder().
-			MsgType("text").
-			Content(textContent(text)).
-			Build()).
-		Build()
-
-	resp, err := g.client.Im.Message.Update(ctx, req)
-	if err != nil {
-		return err
-	}
-	if !resp.Success() {
-		return fmt.Errorf("lark update message error: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-	return nil
+	return g.messenger.UpdateMessage(ctx, messageID, "text", textContent(text))
 }
 
 // addReaction adds an emoji reaction to the specified message.
 func (g *Gateway) addReaction(ctx context.Context, messageID, emojiType string) {
-	if g.client == nil || messageID == "" || emojiType == "" {
-		g.logger.Warn("Lark add reaction failed: client=%v messageID=%q emojiType=%q", g.client, messageID, emojiType)
+	if g.messenger == nil || messageID == "" || emojiType == "" {
+		g.logger.Warn("Lark add reaction skipped: messenger=%v messageID=%q emojiType=%q", g.messenger != nil, messageID, emojiType)
 		return
 	}
-	req := larkim.NewCreateMessageReactionReqBuilder().
-		MessageId(messageID).
-		Body(larkim.NewCreateMessageReactionReqBodyBuilder().
-			ReactionType(larkim.NewEmojiBuilder().
-				EmojiType(emojiType).
-				Build()).
-			Build()).
-		Build()
-
-	resp, err := g.client.Im.V1.MessageReaction.Create(ctx, req)
-	if err != nil {
+	if err := g.messenger.AddReaction(ctx, messageID, emojiType); err != nil {
 		g.logger.Warn("Lark add reaction failed: %v", err)
-		return
-	}
-	if !resp.Success() {
-		g.logger.Warn("Lark add reaction error: code=%d msg=%s", resp.Code, resp.Msg)
 	}
 }
 
@@ -760,7 +738,7 @@ func buildPlanFeedbackBlock(pending PlanReviewPending, userFeedback string) stri
 }
 
 func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, result *agent.TaskResult) {
-	if result == nil || g.client == nil {
+	if result == nil || g.messenger == nil {
 		return
 	}
 
@@ -982,52 +960,17 @@ func extensionForMediaType(mediaType string) string {
 }
 
 func (g *Gateway) uploadImage(ctx context.Context, payload []byte) (string, error) {
-	if g.client == nil {
-		return "", fmt.Errorf("lark client not initialized")
+	if g.messenger == nil {
+		return "", fmt.Errorf("lark messenger not initialized")
 	}
-	req := larkim.NewCreateImageReqBuilder().
-		Body(larkim.NewCreateImageReqBodyBuilder().
-			ImageType("message").
-			Image(bytes.NewReader(payload)).
-			Build()).
-		Build()
-
-	resp, err := g.client.Im.V1.Image.Create(ctx, req)
-	if err != nil {
-		return "", err
-	}
-	if !resp.Success() {
-		return "", fmt.Errorf("lark image upload failed: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-	if resp.Data == nil || resp.Data.ImageKey == nil || strings.TrimSpace(*resp.Data.ImageKey) == "" {
-		return "", fmt.Errorf("lark image upload missing image_key")
-	}
-	return *resp.Data.ImageKey, nil
+	return g.messenger.UploadImage(ctx, payload)
 }
 
 func (g *Gateway) uploadFile(ctx context.Context, payload []byte, fileName, fileType string) (string, error) {
-	if g.client == nil {
-		return "", fmt.Errorf("lark client not initialized")
+	if g.messenger == nil {
+		return "", fmt.Errorf("lark messenger not initialized")
 	}
-	req := larkim.NewCreateFileReqBuilder().
-		Body(larkim.NewCreateFileReqBodyBuilder().
-			FileType(fileType).
-			FileName(fileName).
-			File(bytes.NewReader(payload)).
-			Build()).
-		Build()
-
-	resp, err := g.client.Im.V1.File.Create(ctx, req)
-	if err != nil {
-		return "", err
-	}
-	if !resp.Success() {
-		return "", fmt.Errorf("lark file upload failed: code=%d msg=%s", resp.Code, resp.Msg)
-	}
-	if resp.Data == nil || resp.Data.FileKey == nil || strings.TrimSpace(*resp.Data.FileKey) == "" {
-		return "", fmt.Errorf("lark file upload missing file_key")
-	}
-	return *resp.Data.FileKey, nil
+	return g.messenger.UploadFile(ctx, payload, fileName, fileType)
 }
 
 // extractSenderID extracts the sender open_id from a Lark message event.

@@ -165,15 +165,17 @@ func TestExtractChatTextContent(t *testing.T) {
 	}
 }
 
-func TestFetchRecentChatMessages_NilClient(t *testing.T) {
-	_, err := fetchRecentChatMessages(context.Background(), nil, "oc_123", 20)
+func TestFetchRecentChatMessages_NilMessenger(t *testing.T) {
+	gw := &Gateway{}
+	_, err := gw.fetchRecentChatMessages(context.Background(), "oc_123", 20)
 	if err == nil {
-		t.Fatal("expected error for nil client")
+		t.Fatal("expected error for nil messenger")
 	}
 }
 
 func TestFetchRecentChatMessages_EmptyChatID(t *testing.T) {
-	_, err := fetchRecentChatMessages(context.Background(), nil, "", 20)
+	gw := &Gateway{messenger: NewRecordingMessenger()}
+	_, err := gw.fetchRecentChatMessages(context.Background(), "", 20)
 	if err == nil {
 		t.Fatal("expected error for empty chat_id")
 	}
