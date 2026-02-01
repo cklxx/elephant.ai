@@ -504,6 +504,8 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["lark_send_message"] = larktools.NewLarkSendMessage()
 	r.static["lark_calendar_query"] = larktools.NewLarkCalendarQuery()
 	r.static["lark_calendar_create"] = larktools.NewLarkCalendarCreate()
+	r.static["lark_calendar_update"] = larktools.NewLarkCalendarUpdate()
+	r.static["lark_calendar_delete"] = larktools.NewLarkCalendarDelete()
 	r.static["lark_task_manage"] = larktools.NewLarkTaskManage()
 
 	// OKR tools
