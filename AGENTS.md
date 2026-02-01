@@ -9,7 +9,7 @@
 - Assist **cklxx**; address as “cklxx” first; assume senior backend/db engineer.
 - Prefer correctness/maintainability; start with a systematic view and a reasonable plan.
 - Config examples: YAML only, use `.yaml` paths.
-- Plans: non‑trivial work requires a plan file under `docs/plans/` and updates as work progresses. For any technical plan, run `claude -p` in the background before execution.
+- Plans: non‑trivial work requires a plan file under `docs/plans/` and updates as work progresses.
 - Practices: review `docs/guides/engineering-practices.md` before tasks; add missing practices if needed.
 - Records: error/win entries live in `docs/error-experience/entries/` and `docs/good-experience/entries/`; summaries in `.../summary/entries/`; index files are index-only.
 - Testing: use TDD when touching logic; run full lint + tests before delivery.

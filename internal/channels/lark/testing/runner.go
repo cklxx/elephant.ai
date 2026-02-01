@@ -42,6 +42,21 @@ func NewRunner(logger logging.Logger) *Runner {
 	return &Runner{logger: logging.OrNop(logger)}
 }
 
+// RunAll loads all scenarios from a directory and returns a full TestReport.
+func (r *Runner) RunAll(ctx context.Context, scenarioDir string) (*TestReport, error) {
+	scenarios, err := LoadScenariosFromDir(scenarioDir)
+	if err != nil {
+		return nil, err
+	}
+
+	var results []*ScenarioResult
+	for _, s := range scenarios {
+		results = append(results, r.Run(ctx, s))
+	}
+
+	return BuildReport(results), nil
+}
+
 // Run executes a single scenario and returns the result. A single Gateway is
 // created for the entire scenario so that dedup cache and session slots persist
 // across turns. The mock executor cycles through per-turn responses.
