@@ -10,4 +10,4 @@ Deliver the Codex-assigned end-to-end test that exercises the Lark calendar flow
 - [completed] Survey current Lark tools, scheduler trigger, and approval plumbing for test placement.
 - [completed] Implement E2E test scaffolding (mock Lark API + approver + coordinator wrapper + scheduler trigger).
 - [completed] Verify tool results, approval requests, and scheduler notification output.
-- [in progress] Run lint/tests, restart dev services, and commit in incremental steps.
+- [completed] Run lint/tests, restart dev services, and commit in incremental steps.
