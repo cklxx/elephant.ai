@@ -69,7 +69,7 @@ Use these when turning roadmap items into issues. Each slice is sized for a focu
 - [ ] Cross-process orchestration (MVP: resume from persisted state on server restart) — `internal/session/state_store`, `internal/agent/app`.
 - [ ] Planner replan (MVP: replan after tool failure + emit a replan event) — `internal/agent/domain/react_runtime.go`, `internal/agent/domain/events.go`.
 - [ ] Tool SLA profiles (MVP: record per-tool latency/cost in registry + surface via event stream) — `internal/toolregistry`, `internal/agent/domain/events.go`, `web/lib/events`.
-- [ ] Eval gate automation (MVP: CI task to run `./dev.sh test` and summarize failures) — `scripts/`, `.github/workflows/`.
+- [x] Eval gate automation (MVP: optional `workflow_dispatch` + `eval/` tag quick eval via `scripts/eval-quick.sh`) — `.github/workflows/eval.yml`, `scripts/eval-quick.sh`.
 
 Suggested labels: `good first issue`, `help wanted`, `mvp-slice`.
 

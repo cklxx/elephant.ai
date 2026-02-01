@@ -68,7 +68,7 @@
 | 异常路径全覆盖 | LLM 超时、工具失败、上下文溢出、token limit 每条路径有明确恢复策略 | ⚙️ 基础实现 | `react/runtime.go`, `react/engine.go` |
 | 断点快照 | 可序列化的循环状态快照，支持持久化到磁盘/DB | ⚙️ 部分 | `internal/session/state_store` |
 | 重启自动续跑 | 进程重启后从最近快照恢复执行，无需用户重新发送请求 | ❌ 待实现 | `internal/agent/app/coordinator.go` |
-| 优雅退出 | SIGTERM 时完成当前工具调用、保存状态、通知用户 | ❌ 待实现 | `react/runtime.go` |
+| 优雅退出 | SIGTERM 时完成当前工具调用、保存状态、通知用户 | ✅ 已实现 | `cmd/alex/main.go`, `cmd/alex/cli_context.go` |
 | 事件一致性 | 事件 ID 全局唯一 + 幂等消费，断线重连不丢事件 | ✅ 已实现 | `internal/agent/domain/events.go` |
 
 #### M1: 智能规划
@@ -242,3 +242,7 @@
 | 2026-02-01 | All | 实现审计修正：LLM providers 描述更新（5 client 覆盖 7+ 提供商）；事件一致性 ⚙️→✅；用户干预点 ⚙️→✅；向量检索 ✅→⚙️（chromem-go，无 BM25/pgvector）。 |
 | 2026-02-01 | 上下文/记忆 | OpenClaw D3 集成：§3 M1 新增 Memory Flush-before-Compaction 项。D5 集成：§4 M1 新增记忆目录结构化四项（LayeredFileStore + 日汇总 + 长期事实提炼 + 旧格式迁移）。 |
 | 2026-02-01 | All | Roadmap 重构为 OKR-First，围绕 O1/KR1.* 重新组织章节。 |
+
+## TODO/DONE（2026-02-01 后续）
+
+- [x] 优雅退出（CLI SIGTERM 处理落地）
