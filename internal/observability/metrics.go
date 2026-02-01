@@ -54,6 +54,11 @@ type MetricsCollector struct {
 	// Frontend performance metrics
 	webVital metric.Float64Histogram
 
+	// NSM (North Star Metrics)
+	nsmWTCR      metric.Float64Histogram // Willing-To-Come-back Rate (0-1)
+	nsmTimeSaved metric.Float64Histogram // Estimated seconds saved per interaction
+	nsmAccuracy  metric.Float64Histogram // Correctness score (0-1) per action
+
 	// Server for Prometheus scraping
 	prometheusServer *http.Server
 
@@ -267,6 +272,34 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		return nil, fmt.Errorf("failed to create web_vital histogram: %w", err)
 	}
 
+	// NSM (North Star Metrics)
+	nsmWTCR, err := meter.Float64Histogram(
+		"alex.nsm.wtcr",
+		metric.WithDescription("Willing-To-Come-back Rate per session (0-1)"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create nsm_wtcr histogram: %w", err)
+	}
+
+	nsmTimeSaved, err := meter.Float64Histogram(
+		"alex.nsm.time_saved",
+		metric.WithDescription("Estimated time saved per interaction in seconds"),
+		metric.WithUnit("s"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create nsm_time_saved histogram: %w", err)
+	}
+
+	nsmAccuracy, err := meter.Float64Histogram(
+		"alex.nsm.accuracy",
+		metric.WithDescription("Correctness score per action (0-1)"),
+		metric.WithUnit("1"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create nsm_accuracy histogram: %w", err)
+	}
+
 	collector := &MetricsCollector{
 		meter:                 meter,
 		llmRequests:           llmRequests,
@@ -287,6 +320,9 @@ func NewMetricsCollector(config MetricsConfig) (*MetricsCollector, error) {
 		taskExecutions:        taskExecutions,
 		taskDuration:          taskDuration,
 		webVital:              webVital,
+		nsmWTCR:               nsmWTCR,
+		nsmTimeSaved:          nsmTimeSaved,
+		nsmAccuracy:           nsmAccuracy,
 	}
 
 	// Start Prometheus HTTP server
@@ -490,6 +526,38 @@ func (m *MetricsCollector) RecordWebVital(ctx context.Context, name, label, page
 		attrs = append(attrs, attribute.Float64("delta", delta))
 	}
 	m.webVital.Record(ctx, value, metric.WithAttributes(attrs...))
+}
+
+// RecordNSMWTCR records a Willing-To-Come-back Rate observation for a session.
+// value should be in [0, 1].
+func (m *MetricsCollector) RecordNSMWTCR(ctx context.Context, sessionID string, value float64) {
+	if m == nil || m.nsmWTCR == nil {
+		return
+	}
+	m.nsmWTCR.Record(ctx, value, metric.WithAttributes(
+		attribute.String("session_id", sessionID),
+	))
+}
+
+// RecordNSMTimeSaved records estimated time saved (seconds) for an interaction.
+func (m *MetricsCollector) RecordNSMTimeSaved(ctx context.Context, taskType string, seconds float64) {
+	if m == nil || m.nsmTimeSaved == nil {
+		return
+	}
+	m.nsmTimeSaved.Record(ctx, seconds, metric.WithAttributes(
+		attribute.String("task_type", taskType),
+	))
+}
+
+// RecordNSMAccuracy records a correctness score for a completed action.
+// value should be in [0, 1].
+func (m *MetricsCollector) RecordNSMAccuracy(ctx context.Context, toolName string, value float64) {
+	if m == nil || m.nsmAccuracy == nil {
+		return
+	}
+	m.nsmAccuracy.Record(ctx, value, metric.WithAttributes(
+		attribute.String("tool_name", toolName),
+	))
 }
 
 // EstimateCost estimates the cost of an LLM request (simplified)
