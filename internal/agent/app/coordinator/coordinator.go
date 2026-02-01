@@ -28,6 +28,7 @@ import (
 	"alex/internal/logging"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/memory"
+	"alex/internal/tools/builtin/shared"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
@@ -54,6 +55,7 @@ type AgentCoordinator struct {
 	attachmentPersister ports.AttachmentPersister
 	hookRegistry        *hooks.Registry
 	okrContextProvider  preparation.OKRContextProvider
+	timerManager        interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 }
 
 type preparationService interface {
@@ -246,6 +248,9 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	ctx = id.WithSessionID(ctx, sessionID)
+	if c.timerManager != nil {
+		ctx = shared.WithTimerManager(ctx, c.timerManager)
+	}
 	ctx, ensuredRunID := id.EnsureRunID(ctx, id.NewRunID)
 	if ensuredRunID == "" {
 		ensuredRunID = id.RunIDFromContext(ctx)
@@ -838,6 +843,12 @@ func (c *AgentCoordinator) SetAttachmentMigrator(migrator materialports.Migrator
 // serialization size.
 func (c *AgentCoordinator) SetAttachmentPersister(p ports.AttachmentPersister) {
 	c.attachmentPersister = p
+}
+
+// SetTimerManager wires the agent timer manager so tools can create/list/cancel
+// timers during execution.
+func (c *AgentCoordinator) SetTimerManager(mgr interface{}) {
+	c.timerManager = mgr
 }
 
 // Close releases coordinator-owned resources such as background persisters.

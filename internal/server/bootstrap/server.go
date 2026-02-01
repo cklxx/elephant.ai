@@ -207,6 +207,24 @@ func RunServer(observabilityConfigPath string) error {
 				})
 			},
 		},
+		{
+			Name: "timer-manager", Required: false,
+			Init: func() error {
+				if !config.Runtime.Proactive.Timer.Enabled {
+					return nil
+				}
+				return subsystems.Start(context.Background(), &gatewaySubsystem{
+					name: "timer-manager",
+					startFn: func(ctx context.Context) (func(), error) {
+						mgr := startTimerManager(ctx, config, container, logger)
+						if mgr == nil {
+							return nil, fmt.Errorf("timer-manager init returned nil")
+						}
+						return mgr.Stop, nil
+					},
+				})
+			},
+		},
 	}
 
 	if err := RunStages(gatewayStages, degraded, logger); err != nil {
