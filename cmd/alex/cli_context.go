@@ -2,11 +2,33 @@ package main
 
 import (
 	"context"
+	"sync"
 
 	id "alex/internal/utils/id"
 )
 
+var (
+	cliBaseOnce   sync.Once
+	cliBaseCtx    context.Context
+	cliBaseCancel context.CancelFunc
+)
+
 func cliBaseContext() context.Context {
-	ctx, _ := id.EnsureLogID(context.Background(), id.NewLogID)
+	cliBaseOnce.Do(initCLIBaseContext)
+	ctx := cliBaseCtx
+	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 	return ctx
+}
+
+func cancelCLIBaseContext() {
+	cliBaseOnce.Do(initCLIBaseContext)
+	if cliBaseCancel != nil {
+		cliBaseCancel()
+	}
+}
+
+func initCLIBaseContext() {
+	ctx, cancel := context.WithCancel(context.Background())
+	cliBaseCtx = ctx
+	cliBaseCancel = cancel
 }

@@ -4,6 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"sync"
+	"syscall"
 
 	runtimeconfig "alex/internal/config"
 )
@@ -13,6 +16,18 @@ func main() {
 
 	if err := runtimeconfig.LoadDotEnv(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: failed to load .env: %v\n", err)
+	}
+
+	var shutdownOnce sync.Once
+	shutdown := func(container *Container) {
+		shutdownOnce.Do(func() {
+			cancelCLIBaseContext()
+			if container != nil {
+				if err := container.Shutdown(); err != nil {
+					fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
+				}
+			}
+		})
 	}
 
 	if handled, exitCode := handleStandaloneArgs(args); handled {
@@ -28,20 +43,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Handle SIGTERM/SIGINT for graceful shutdown in CLI mode.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(quit)
+	go func() {
+		<-quit
+		shutdown(container)
+		os.Exit(130)
+	}()
+
 	// Start the container (initializes MCP, Git tools, etc.)
 	if err := container.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to start container: %v\n", err)
 		os.Exit(1)
 	}
 
-	cleanup := func() {
-		if err := container.Shutdown(); err != nil {
-			fmt.Fprintf(os.Stderr, "Shutdown error: %v\n", err)
-		}
-	}
-	defer func() {
-		cleanup()
-	}()
+	cleanup := func() { shutdown(container) }
+	defer cleanup()
 
 	// No arguments: enter interactive mode
 	if len(args) == 0 {
