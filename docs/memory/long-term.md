@@ -1,10 +1,21 @@
 # Long-Term Memory
 
-Updated: 2026-02-01 15:00
+Updated: 2026-02-01 16:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
+
+## Active Memory (2026-02-01)
+- Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
+- Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
+- Use `CGO_ENABLED=0` for `go test -race` on darwin CLT to avoid LC_DYSYMTAB warnings.
+- Apply response-size caps + retention/backpressure to prevent unbounded growth.
+- Streaming UI performance: dedup events, cap with LRU, RAF buffer, defer markdown parsing.
+- Proactive hooks: hook registry + per-request MemoryPolicy; cache skills + precompile regex.
+- Event partitioning: groupKey uses `parent_run_id`; subagent detection is `parent_run_id != run_id`.
+- Tool event rules: only subagent `workflow.tool.started` hits main stream; others go pending/merged.
+- Memory retention defaults: 90d global TTL; auto_capture 30d; chat_turn 14d; workflow_trace 30d.
 
 ## Items
 

@@ -1,6 +1,6 @@
 # 仓库 review 修复方案
 
-Updated: 2026-02-01 01:00
+Updated: 2026-02-01 16:00
 
 ## 目标
 - 消除外部响应读取的内存风险。
@@ -25,8 +25,9 @@ Updated: 2026-02-01 01:00
 
 ### 方案
 - 在工具层统一引入 `max_response_bytes` 并默认启用。
-- 对 “内容分析/网页抓取/第三方搜索/媒体查询/模型列表”等路径进行 `io.LimitReader`。
-- 超限时返回明确错误并记录指标。
+- 使用统一的 `ReadAllWithLimit` 帮助函数做响应上限校验。
+- 对 “内容分析/网页抓取/第三方搜索/媒体查询/模型列表/沙箱接口”等路径设置上限。
+- 超限时返回明确错误并记录日志（可选接入 metrics）。
 
 ### 涉及模块
 - `internal/tools/builtin/web/*`
@@ -44,6 +45,7 @@ http_limits:
   web_search_max_response_bytes: 1048576
   music_search_max_response_bytes: 1048576
   model_list_max_response_bytes: 524288
+  sandbox_max_response_bytes: 8388608
 ```
 
 ### 风险与取舍
@@ -55,9 +57,9 @@ http_limits:
 ## Phase 2 — AsyncEventHistoryStore 可靠性提升
 
 ### 方案
-- `flushBuffer` 失败时 **保留 buffer** 并指数退避重试。
-- 超过重试阈值后将事件写入本地死信（可选）或警报。
-- 对 `Stream/Delete/HasSessionEvents` 的 flush 失败路径增加 metrics。
+- `flushBuffer` 失败时 **保留 buffer** 并指数退避重试（min 250ms, max 5s）。
+- `Stream/Delete/HasSessionEvents` 的 flush 失败路径直接返回错误并保留 buffer。
+- 对重复失败记录日志（可选接入 metrics / dead-letter）。
 
 ### 设计要点
 - 保持现有异步队列与 append timeout，不影响实时链路。
@@ -86,7 +88,7 @@ scheduler:
 ## Phase 4 — EventBroadcaster session 缺失处理
 
 ### 方案
-- 将“全局事件”与“缺失 sessionID”分离：仅明确标记的 global 事件允许广播。
+- 将“全局事件”与“缺失 sessionID”分离：仅明确标记的 `__global__` 事件允许广播。
 - 对缺失 sessionID 的事件改为告警 + drop。
 
 ### 影响
@@ -98,14 +100,14 @@ scheduler:
 ## Phase 5 — 长连接与存储路径优化
 
 ### SSE 连接
-- 对 `lastSeqByRun` 设上限（LRU 或基于时间清理）。
+- 对 `lastSeqByRun` 设上限（LRU，默认 2048）。
 
 ### FileStore 列表
 - 列表读取改用调用方 ctx。
 - 增加轻量索引或仅读取元信息字段。
 
 ### Attachment 存储
-- Cloudflare 操作使用调用方 ctx 或统一超时。
+- Cloudflare 操作使用统一超时（默认 10s），可继承调用方 ctx。
 
 ---
 
@@ -114,6 +116,8 @@ scheduler:
   - HTTP 限制触发路径（超限返回错误）。
   - AsyncEventHistoryStore 失败时 buffer 保留与重试。
   - Scheduler 并发策略与 sessionID 生成规则。
+  - EventBroadcaster 缺失 session 与全局广播行为。
+  - SSE LRU 驱逐与 FileStore ctx 取消。
 - 运行全量 `./dev.sh lint` 与 `./dev.sh test`。
 
 ## 发布与回滚

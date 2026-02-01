@@ -14,9 +14,9 @@ Reviewer: Codex (for cklxx)
 - 验证：运行 `./dev.sh lint` 与 `./dev.sh test`。
 
 ## 结论摘要
-- **P0/P1 风险**主要集中在外部 HTTP 响应读取无上限与异步事件历史持久化失败导致的静默丢失。
-- **P2 风险**集中在调度器并发执行策略与事件广播的 session 缺失处理。
-- **P3 风险**为长期连接/快照列表中的内存增长与可取消性不足。
+- 已为外部 HTTP 响应读取引入统一上限配置（含 web/媒体/模型列表/沙箱），P1 内存放大风险已消除。
+- AsyncEventHistoryStore 已改为失败保留 + 退避重试，避免历史事件静默丢失。
+- 调度器并发策略/超时与 EventBroadcaster session 处理已规范化；SSE/FileStore/Attachment 可取消性已增强。
 
 ## 发现清单（按严重度排序）
 
@@ -148,8 +148,8 @@ Scheduler 使用 `context.Background()` 启动任务，且 `sessionID = schedule
 - EventHistory 支持 TTL/MaxSessions/MaxHistory 配置，具备容量控制基础。
 
 ## 测试/验证
-- `./dev.sh lint`：**失败**，staticcheck 报告 `internal/agent/domain/react/runtime_user_input_test.go:122`（nil context）。
-- `./dev.sh test`：**通过**。
+- `./dev.sh lint`：通过。
+- `./dev.sh test`：通过。
 
 ## 建议优先级
 1. 为所有外部 HTTP 读取引入统一的响应体大小上限与配置化策略（P1）。
@@ -157,3 +157,10 @@ Scheduler 使用 `context.Background()` 启动任务，且 `sessionID = schedule
 3. Scheduler 执行引入并发策略与唯一 sessionID（P2）。
 4. 收敛 EventBroadcaster 缺失 sessionID 的广播行为（P2）。
 5. SSE/LRU 与 FileStore/Attachment ctx 改造（P3）。
+
+## 修复状态（2026-02-01）
+- P1 外部 HTTP 上限：已新增 `http_limits` 统一配置并覆盖 web_fetch/web_search/html_edit/music_play/runtime_models/subscription/sandbox 路径。
+- P1 AsyncEventHistoryStore：失败保留 buffer，指数退避重试（min 250ms / max 5s）。
+- P2 Scheduler：唯一 sessionID（`scheduler-<name>-<run_id>`）+ 并发策略（skip|delay）+ trigger 超时配置。
+- P2 EventBroadcaster：缺失 session 直接 drop；`__global__` 明确全局广播。
+- P3 SSE/FileStore/Attachment：lastSeqByRun LRU（默认 2048）+ 列表 ctx 传递 + Cloudflare 统一超时。
