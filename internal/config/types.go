@@ -178,6 +178,7 @@ type ProactiveConfig struct {
 	RAG       RAGConfig          `json:"rag" yaml:"rag"`
 	OKR       OKRProactiveConfig `json:"okr" yaml:"okr"`
 	Scheduler SchedulerConfig    `json:"scheduler" yaml:"scheduler"`
+	Timer     TimerConfig        `json:"timer" yaml:"timer"`
 	Attention AttentionConfig    `json:"attention" yaml:"attention"`
 }
 
@@ -273,6 +274,14 @@ type SchedulerTriggerConfig struct {
 	Risk             string `json:"risk" yaml:"risk"`
 }
 
+// TimerConfig configures agent-initiated dynamic timers.
+type TimerConfig struct {
+	Enabled            bool   `json:"enabled" yaml:"enabled"`
+	StorePath          string `json:"store_path" yaml:"store_path"`                     // default: ~/.alex/timers
+	MaxTimers          int    `json:"max_timers" yaml:"max_timers"`                     // default: 100
+	TaskTimeoutSeconds int    `json:"task_timeout_seconds" yaml:"task_timeout_seconds"` // default: 900
+}
+
 // AttentionConfig throttles proactive notifications.
 type AttentionConfig struct {
 	MaxDailyNotifications int     `json:"max_daily_notifications" yaml:"max_daily_notifications"`
@@ -335,6 +344,12 @@ func DefaultProactiveConfig() ProactiveConfig {
 			Enabled:               false,
 			TriggerTimeoutSeconds: 900,
 			ConcurrencyPolicy:     "skip",
+		},
+		Timer: TimerConfig{
+			Enabled:            true,
+			StorePath:          "~/.alex/timers",
+			MaxTimers:          100,
+			TaskTimeoutSeconds: 900,
 		},
 		Attention: AttentionConfig{
 			MaxDailyNotifications: 5,
