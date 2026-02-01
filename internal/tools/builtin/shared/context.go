@@ -18,6 +18,7 @@ const (
 	AutoApproveKey   toolContextKey = "auto_approve"
 	larkClientKey    toolContextKey = "lark_client"
 	larkChatIDKey    toolContextKey = "lark_chat_id"
+	timerManagerKey  toolContextKey = "timer_manager"
 )
 
 type parentListenerKey struct{}
@@ -142,4 +143,18 @@ func LarkChatIDFromContext(ctx context.Context) string {
 		return chatID
 	}
 	return ""
+}
+
+// WithTimerManager sets the timer manager in context. Typed as interface{} to
+// avoid importing the timer package in the shared package.
+func WithTimerManager(ctx context.Context, mgr interface{}) context.Context {
+	return context.WithValue(ctx, timerManagerKey, mgr)
+}
+
+// TimerManagerFromContext retrieves the timer manager from context.
+func TimerManagerFromContext(ctx context.Context) interface{} {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Value(timerManagerKey)
 }

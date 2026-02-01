@@ -28,6 +28,7 @@ import (
 	"alex/internal/tools/builtin/search"
 	sessiontools "alex/internal/tools/builtin/session"
 	"alex/internal/tools/builtin/shared"
+	timertools "alex/internal/tools/builtin/timer"
 	"alex/internal/tools/builtin/ui"
 	"alex/internal/tools/builtin/web"
 )
@@ -512,6 +513,11 @@ func (r *Registry) registerBuiltins(config Config) error {
 	}
 	r.static["okr_read"] = okrtools.NewOKRRead(okrCfg)
 	r.static["okr_write"] = okrtools.NewOKRWrite(okrCfg)
+
+	// Timer tools (stateless; TimerManager injected via context at runtime)
+	r.static["set_timer"] = timertools.NewSetTimer()
+	r.static["list_timers"] = timertools.NewListTimers()
+	r.static["cancel_timer"] = timertools.NewCancelTimer()
 
 	// Moltbook tools
 	if config.MoltbookAPIKey != "" {
