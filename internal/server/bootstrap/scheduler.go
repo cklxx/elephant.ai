@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"alex/internal/async"
@@ -51,13 +52,36 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 		notifier = scheduler.NewCompositeNotifier(notifiers...)
 	}
 
+	var jobStore scheduler.JobStore
+	jobStorePath := strings.TrimSpace(cfg.Runtime.Proactive.Scheduler.JobStorePath)
+	if jobStorePath != "" {
+		jobStorePath = expandHome(jobStorePath)
+		jobStore = scheduler.NewFileJobStore(jobStorePath)
+		logger.Info("Scheduler: job store initialized at %s", jobStorePath)
+	}
+
+	cooldown := time.Duration(cfg.Runtime.Proactive.Scheduler.CooldownSeconds) * time.Second
+	if cooldown < 0 {
+		cooldown = 0
+	}
+
+	maxConcurrent := cfg.Runtime.Proactive.Scheduler.MaxConcurrent
+
+	recoveryMaxRetries := cfg.Runtime.Proactive.Scheduler.RecoveryMaxRetries
+	recoveryBackoff := time.Duration(cfg.Runtime.Proactive.Scheduler.RecoveryBackoffSeconds) * time.Second
+
 	schedCfg := scheduler.Config{
-		Enabled:           true,
-		StaticTriggers:    cfg.Runtime.Proactive.Scheduler.Triggers,
-		OKRGoalsRoot:      goalsRoot,
-		CalendarReminder:  cfg.Runtime.Proactive.Scheduler.CalendarReminder,
-		TriggerTimeout:    time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
-		ConcurrencyPolicy: cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
+		Enabled:            true,
+		StaticTriggers:     cfg.Runtime.Proactive.Scheduler.Triggers,
+		OKRGoalsRoot:       goalsRoot,
+		CalendarReminder:   cfg.Runtime.Proactive.Scheduler.CalendarReminder,
+		TriggerTimeout:     time.Duration(cfg.Runtime.Proactive.Scheduler.TriggerTimeoutSeconds) * time.Second,
+		ConcurrencyPolicy:  cfg.Runtime.Proactive.Scheduler.ConcurrencyPolicy,
+		JobStore:           jobStore,
+		Cooldown:           cooldown,
+		MaxConcurrent:      maxConcurrent,
+		RecoveryMaxRetries: recoveryMaxRetries,
+		RecoveryBackoff:    recoveryBackoff,
 	}
 
 	sched := scheduler.New(schedCfg, container.AgentCoordinator, notifier, logger)

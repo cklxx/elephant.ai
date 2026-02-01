@@ -357,7 +357,9 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 		ChatID:   "oc_chat",
 	}
 
-	sched.executeTrigger(trigger)
+	if err := sched.executeTrigger(trigger); err != nil {
+		t.Fatalf("execute trigger: %v", err)
+	}
 
 	result, execErr := injecting.snapshot()
 	if execErr != nil {

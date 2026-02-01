@@ -48,6 +48,11 @@ runtime:
       enabled: true
       trigger_timeout_seconds: 900
       concurrency_policy: "skip"
+      job_store_path: "${ALEX_SCHEDULER_JOB_STORE_PATH}"
+      cooldown_seconds: 0
+      max_concurrent: 1
+      recovery_max_retries: 0
+      recovery_backoff_seconds: 60
       triggers:
         - name: "daily_briefing"
           schedule: "0 9,12,15,18 * * *"

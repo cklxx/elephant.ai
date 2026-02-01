@@ -213,10 +213,15 @@ type RAGFileConfig struct {
 }
 
 type SchedulerFileConfig struct {
-	Enabled               *bool                        `yaml:"enabled"`
-	Triggers              []SchedulerTriggerFileConfig `yaml:"triggers"`
-	TriggerTimeoutSeconds *int                         `yaml:"trigger_timeout_seconds"`
-	ConcurrencyPolicy     string                       `yaml:"concurrency_policy"`
+	Enabled                *bool                        `yaml:"enabled"`
+	Triggers               []SchedulerTriggerFileConfig `yaml:"triggers"`
+	TriggerTimeoutSeconds  *int                         `yaml:"trigger_timeout_seconds"`
+	ConcurrencyPolicy      string                       `yaml:"concurrency_policy"`
+	JobStorePath           string                       `yaml:"job_store_path"`
+	CooldownSeconds        *int                         `yaml:"cooldown_seconds"`
+	MaxConcurrent          *int                         `yaml:"max_concurrent"`
+	RecoveryMaxRetries     *int                         `yaml:"recovery_max_retries"`
+	RecoveryBackoffSeconds *int                         `yaml:"recovery_backoff_seconds"`
 }
 
 type SchedulerTriggerFileConfig struct {

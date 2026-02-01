@@ -282,6 +282,19 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg.Scheduler.TriggerTimeoutSeconds <= 0 {
 		cfg.Scheduler.TriggerTimeoutSeconds = 900
 	}
+	if cfg.Scheduler.CooldownSeconds < 0 {
+		cfg.Scheduler.CooldownSeconds = 0
+	}
+	if cfg.Scheduler.MaxConcurrent <= 0 {
+		cfg.Scheduler.MaxConcurrent = 1
+	}
+	if cfg.Scheduler.RecoveryMaxRetries < 0 {
+		cfg.Scheduler.RecoveryMaxRetries = 0
+	}
+	if cfg.Scheduler.RecoveryBackoffSeconds <= 0 {
+		cfg.Scheduler.RecoveryBackoffSeconds = 60
+	}
+	cfg.Scheduler.JobStorePath = strings.TrimSpace(cfg.Scheduler.JobStorePath)
 }
 
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {

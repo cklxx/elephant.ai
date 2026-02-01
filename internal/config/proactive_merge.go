@@ -215,6 +215,21 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if strings.TrimSpace(file.ConcurrencyPolicy) != "" {
 		target.ConcurrencyPolicy = strings.TrimSpace(file.ConcurrencyPolicy)
 	}
+	if strings.TrimSpace(file.JobStorePath) != "" {
+		target.JobStorePath = strings.TrimSpace(file.JobStorePath)
+	}
+	if file.CooldownSeconds != nil {
+		target.CooldownSeconds = *file.CooldownSeconds
+	}
+	if file.MaxConcurrent != nil {
+		target.MaxConcurrent = *file.MaxConcurrent
+	}
+	if file.RecoveryMaxRetries != nil {
+		target.RecoveryMaxRetries = *file.RecoveryMaxRetries
+	}
+	if file.RecoveryBackoffSeconds != nil {
+		target.RecoveryBackoffSeconds = *file.RecoveryBackoffSeconds
+	}
 	if len(file.Triggers) > 0 {
 		triggers := make([]SchedulerTriggerConfig, 0, len(file.Triggers))
 		for _, trigger := range file.Triggers {

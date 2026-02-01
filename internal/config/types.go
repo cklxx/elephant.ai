@@ -262,21 +262,26 @@ type RAGConfig struct {
 
 // SchedulerConfig configures time-based proactive triggers.
 type SchedulerConfig struct {
-	Enabled               bool                     `json:"enabled" yaml:"enabled"`
-	Triggers              []SchedulerTriggerConfig `json:"triggers" yaml:"triggers"`
-	TriggerTimeoutSeconds int                      `json:"trigger_timeout_seconds" yaml:"trigger_timeout_seconds"`
-	ConcurrencyPolicy     string                   `json:"concurrency_policy" yaml:"concurrency_policy"`
-	CalendarReminder      CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
+	Enabled                bool                     `json:"enabled" yaml:"enabled"`
+	Triggers               []SchedulerTriggerConfig `json:"triggers" yaml:"triggers"`
+	TriggerTimeoutSeconds  int                      `json:"trigger_timeout_seconds" yaml:"trigger_timeout_seconds"`
+	ConcurrencyPolicy      string                   `json:"concurrency_policy" yaml:"concurrency_policy"`
+	JobStorePath           string                   `json:"job_store_path" yaml:"job_store_path"`
+	CooldownSeconds        int                      `json:"cooldown_seconds" yaml:"cooldown_seconds"`
+	MaxConcurrent          int                      `json:"max_concurrent" yaml:"max_concurrent"`
+	RecoveryMaxRetries     int                      `json:"recovery_max_retries" yaml:"recovery_max_retries"`
+	RecoveryBackoffSeconds int                      `json:"recovery_backoff_seconds" yaml:"recovery_backoff_seconds"`
+	CalendarReminder       CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
 }
 
 // CalendarReminderConfig configures the periodic calendar reminder trigger.
 type CalendarReminderConfig struct {
-	Enabled           bool   `json:"enabled" yaml:"enabled"`
-	Schedule          string `json:"schedule" yaml:"schedule"`                       // cron expression, default "*/15 * * * *"
-	LookAheadMinutes  int    `json:"look_ahead_minutes" yaml:"look_ahead_minutes"`   // default 120
-	Channel           string `json:"channel" yaml:"channel"`                         // delivery channel: lark | moltbook
-	UserID            string `json:"user_id" yaml:"user_id"`
-	ChatID            string `json:"chat_id" yaml:"chat_id"`
+	Enabled          bool   `json:"enabled" yaml:"enabled"`
+	Schedule         string `json:"schedule" yaml:"schedule"`                     // cron expression, default "*/15 * * * *"
+	LookAheadMinutes int    `json:"look_ahead_minutes" yaml:"look_ahead_minutes"` // default 120
+	Channel          string `json:"channel" yaml:"channel"`                       // delivery channel: lark | moltbook
+	UserID           string `json:"user_id" yaml:"user_id"`
+	ChatID           string `json:"chat_id" yaml:"chat_id"`
 }
 
 type SchedulerTriggerConfig struct {
@@ -357,9 +362,13 @@ func DefaultProactiveConfig() ProactiveConfig {
 			AutoInject: true,
 		},
 		Scheduler: SchedulerConfig{
-			Enabled:               false,
-			TriggerTimeoutSeconds: 900,
-			ConcurrencyPolicy:     "skip",
+			Enabled:                false,
+			TriggerTimeoutSeconds:  900,
+			ConcurrencyPolicy:      "skip",
+			CooldownSeconds:        0,
+			MaxConcurrent:          1,
+			RecoveryMaxRetries:     0,
+			RecoveryBackoffSeconds: 60,
 			CalendarReminder: CalendarReminderConfig{
 				Enabled:          false,
 				Schedule:         "*/15 * * * *",

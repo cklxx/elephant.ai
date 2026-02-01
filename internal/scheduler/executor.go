@@ -20,7 +20,7 @@ type Notifier interface {
 }
 
 // executeTrigger runs a trigger's task via the agent coordinator and routes the result.
-func (s *Scheduler) executeTrigger(trigger Trigger) {
+func (s *Scheduler) executeTrigger(trigger Trigger) error {
 	ctx := context.Background()
 	if trigger.UserID != "" {
 		ctx = id.WithUserID(ctx, trigger.UserID)
@@ -58,6 +58,8 @@ func (s *Scheduler) executeTrigger(trigger Trigger) {
 			}
 		}
 	}
+
+	return err
 }
 
 // formatResult produces a human-readable summary of the trigger execution.

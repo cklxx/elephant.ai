@@ -51,6 +51,12 @@ type Job struct {
 	LastRun time.Time `json:"last_run,omitempty"`
 	// NextRun is the computed next execution time.
 	NextRun time.Time `json:"next_run,omitempty"`
+	// FailureCount is the number of consecutive failed executions.
+	FailureCount int `json:"failure_count,omitempty"`
+	// LastFailure is the time the job most recently failed.
+	LastFailure time.Time `json:"last_failure,omitempty"`
+	// LastError is the most recent failure message.
+	LastError string `json:"last_error,omitempty"`
 	// CreatedAt is when the job was first persisted.
 	CreatedAt time.Time `json:"created_at"`
 	// UpdatedAt is when the job was last modified.

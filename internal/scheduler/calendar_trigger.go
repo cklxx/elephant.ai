@@ -1,16 +1,19 @@
 package scheduler
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 const (
-	calendarTriggerName    = "calendar:reminder"
+	calendarTriggerName     = "calendar:reminder"
 	defaultCalendarSchedule = "*/15 * * * *"
 	defaultLookAheadMinutes = 120
 )
 
 // registerCalendarTrigger creates and registers the calendar reminder trigger
 // if enabled in config. Must be called with s.mu held.
-func (s *Scheduler) registerCalendarTrigger() {
+func (s *Scheduler) registerCalendarTrigger(ctx context.Context) {
 	cfg := s.config.CalendarReminder
 	if !cfg.Enabled {
 		return
@@ -40,7 +43,7 @@ func (s *Scheduler) registerCalendarTrigger() {
 		ChatID:   cfg.ChatID,
 	}
 
-	if err := s.registerTrigger(trigger); err != nil {
+	if err := s.registerTriggerLocked(ctx, trigger); err != nil {
 		s.logger.Warn("Scheduler: failed to register calendar reminder trigger: %v", err)
 	}
 }

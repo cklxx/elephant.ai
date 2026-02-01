@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -36,6 +37,40 @@ func (m *mockCoordinator) callCount() int {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return len(m.calls)
+}
+
+type blockingCoordinator struct {
+	mu        sync.Mutex
+	calls     int
+	started   chan struct{}
+	release   chan struct{}
+	done      chan struct{}
+	startOnce sync.Once
+	doneOnce  sync.Once
+}
+
+func newBlockingCoordinator() *blockingCoordinator {
+	return &blockingCoordinator{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+		done:    make(chan struct{}),
+	}
+}
+
+func (b *blockingCoordinator) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	b.mu.Lock()
+	b.calls++
+	b.mu.Unlock()
+	b.startOnce.Do(func() { close(b.started) })
+	<-b.release
+	b.doneOnce.Do(func() { close(b.done) })
+	return &agent.TaskResult{Answer: "ok"}, nil
+}
+
+func (b *blockingCoordinator) callCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.calls
 }
 
 // mockNotifier records Lark messages.
@@ -269,8 +304,12 @@ func TestSchedulerExecuteTriggerUsesUniqueSessionID(t *testing.T) {
 		Task:     "Test task",
 	}
 
-	sched.executeTrigger(trigger)
-	sched.executeTrigger(trigger)
+	if err := sched.executeTrigger(trigger); err != nil {
+		t.Fatalf("executeTrigger: %v", err)
+	}
+	if err := sched.executeTrigger(trigger); err != nil {
+		t.Fatalf("executeTrigger: %v", err)
+	}
 
 	if len(coord.sessions) != 2 {
 		t.Fatalf("expected 2 sessions, got %d", len(coord.sessions))
@@ -302,7 +341,9 @@ func TestSchedulerExecuteTriggerAppliesTimeout(t *testing.T) {
 		TriggerTimeout: 2 * time.Second,
 	}, coord, nil, nil)
 
-	sched.executeTrigger(Trigger{Name: "timeout-test", Schedule: "* * * * *", Task: "Task"})
+	if err := sched.executeTrigger(Trigger{Name: "timeout-test", Schedule: "* * * * *", Task: "Task"}); err != nil {
+		t.Fatalf("executeTrigger: %v", err)
+	}
 
 	if !coord.seenDeadline {
 		t.Fatal("expected trigger timeout to set deadline")
@@ -323,7 +364,9 @@ func TestScheduler_ExecuteTrigger(t *testing.T) {
 		UserID:  "user-1",
 	}
 
-	sched.executeTrigger(trigger)
+	if err := sched.executeTrigger(trigger); err != nil {
+		t.Fatalf("executeTrigger: %v", err)
+	}
 
 	if coord.callCount() != 1 {
 		t.Errorf("expected 1 coordinator call, got %d", coord.callCount())
@@ -358,7 +401,9 @@ func TestScheduler_ExecuteTrigger_NoNotifier(t *testing.T) {
 	}
 
 	// Should not panic with nil notifier
-	sched.executeTrigger(trigger)
+	if err := sched.executeTrigger(trigger); err != nil {
+		t.Fatalf("executeTrigger: %v", err)
+	}
 	if coord.callCount() != 1 {
 		t.Errorf("expected 1 coordinator call, got %d", coord.callCount())
 	}
@@ -433,4 +478,170 @@ func TestScheduler_RapidCronExecution(t *testing.T) {
 	cancel()
 	// Give a moment for the goroutine to catch the cancel
 	time.Sleep(50 * time.Millisecond)
+}
+
+func TestScheduler_JobStoreLoadsPersistedJobs(t *testing.T) {
+	store := NewFileJobStore(t.TempDir())
+	payload, err := payloadFromTrigger(Trigger{Channel: "lark", UserID: "user-1", ChatID: "chat-1"})
+	if err != nil {
+		t.Fatalf("payloadFromTrigger: %v", err)
+	}
+	job := Job{
+		ID:       "persisted",
+		Name:     "Persisted",
+		CronExpr: "* * * * *",
+		Trigger:  "Persisted task",
+		Payload:  payload,
+		Status:   JobStatusActive,
+	}
+	if err := store.Save(context.Background(), job); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	sched := New(Config{Enabled: true, JobStore: store}, &mockCoordinator{answer: "ok"}, nil, nil)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	found := false
+	for _, name := range sched.TriggerNames() {
+		if name == "persisted" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected persisted job to be registered")
+	}
+}
+
+func TestScheduler_CooldownSkipsRuns(t *testing.T) {
+	coord := &mockCoordinator{answer: "ok"}
+	sched := New(Config{
+		Enabled:  true,
+		Cooldown: 200 * time.Millisecond,
+	}, coord, nil, nil)
+
+	sched.mu.Lock()
+	if err := sched.registerTriggerLocked(context.Background(), Trigger{Name: "cooldown", Schedule: "* * * * *", Task: "Task"}); err != nil {
+		sched.mu.Unlock()
+		t.Fatalf("registerTriggerLocked: %v", err)
+	}
+	sched.mu.Unlock()
+
+	if !sched.runJob("cooldown", jobRunOptions{}) {
+		t.Fatal("expected first run to execute")
+	}
+	if sched.runJob("cooldown", jobRunOptions{}) {
+		t.Fatal("expected cooldown to skip execution")
+	}
+	if coord.callCount() != 1 {
+		t.Fatalf("expected 1 call, got %d", coord.callCount())
+	}
+}
+
+func TestScheduler_ConcurrencyLimitSkips(t *testing.T) {
+	coord := newBlockingCoordinator()
+	sched := New(Config{
+		Enabled:       true,
+		MaxConcurrent: 1,
+	}, coord, nil, nil)
+
+	sched.mu.Lock()
+	if err := sched.registerTriggerLocked(context.Background(), Trigger{Name: "concurrent", Schedule: "* * * * *", Task: "Task"}); err != nil {
+		sched.mu.Unlock()
+		t.Fatalf("registerTriggerLocked: %v", err)
+	}
+	sched.mu.Unlock()
+
+	go sched.runJob("concurrent", jobRunOptions{})
+
+	waitFor(t, 500*time.Millisecond, func() bool {
+		select {
+		case <-coord.started:
+			return true
+		default:
+			return false
+		}
+	})
+
+	if sched.runJob("concurrent", jobRunOptions{}) {
+		t.Fatal("expected concurrency limit to skip execution")
+	}
+
+	close(coord.release)
+
+	waitFor(t, 500*time.Millisecond, func() bool {
+		select {
+		case <-coord.done:
+			return true
+		default:
+			return false
+		}
+	})
+
+	if coord.callCount() != 1 {
+		t.Fatalf("expected 1 call, got %d", coord.callCount())
+	}
+}
+
+func TestScheduler_RecoveryRetriesAndPauses(t *testing.T) {
+	coord := &mockCoordinator{err: errors.New("boom")}
+	sched := New(Config{
+		Enabled:            true,
+		RecoveryMaxRetries: 1,
+		RecoveryBackoff:    10 * time.Millisecond,
+	}, coord, nil, nil)
+	t.Cleanup(sched.Stop)
+
+	sched.mu.Lock()
+	if err := sched.registerTriggerLocked(context.Background(), Trigger{Name: "recover", Schedule: "* * * * *", Task: "Task"}); err != nil {
+		sched.mu.Unlock()
+		t.Fatalf("registerTriggerLocked: %v", err)
+	}
+	sched.mu.Unlock()
+
+	if !sched.runJob("recover", jobRunOptions{}) {
+		t.Fatal("expected first run to execute")
+	}
+
+	waitFor(t, 500*time.Millisecond, func() bool {
+		return coord.callCount() >= 2
+	})
+
+	sched.mu.Lock()
+	job := sched.jobs["recover"]
+	sched.mu.Unlock()
+
+	if job == nil {
+		t.Fatal("expected job to exist")
+	}
+	if job.FailureCount < 2 {
+		t.Fatalf("expected failure count >= 2, got %d", job.FailureCount)
+	}
+	if job.Status != JobStatusPaused {
+		t.Fatalf("expected job to be paused after retries, got %s", job.Status)
+	}
+}
+
+func waitFor(t *testing.T, timeout time.Duration, fn func() bool) {
+	t.Helper()
+	deadline := time.After(timeout)
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if fn() {
+			return
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("timeout waiting for condition")
+		case <-ticker.C:
+		}
+	}
 }

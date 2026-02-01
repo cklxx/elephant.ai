@@ -131,8 +131,12 @@ func TestFileJobStore_SaveAndLoad(t *testing.T) {
 	}
 	// Compare payload semantically (MarshalIndent may reformat whitespace)
 	var origPayload, loadedPayload map[string]any
-	json.Unmarshal([]byte(`{"key":"value"}`), &origPayload)
-	json.Unmarshal(loaded.Payload, &loadedPayload)
+	if err := json.Unmarshal([]byte(`{"key":"value"}`), &origPayload); err != nil {
+		t.Fatalf("Unmarshal orig payload: %v", err)
+	}
+	if err := json.Unmarshal(loaded.Payload, &loadedPayload); err != nil {
+		t.Fatalf("Unmarshal loaded payload: %v", err)
+	}
 	if fmt.Sprint(origPayload) != fmt.Sprint(loadedPayload) {
 		t.Errorf("Payload mismatch: got %s", loaded.Payload)
 	}
@@ -411,8 +415,12 @@ func TestFileJobStore_UpdateStatusPreservesFields(t *testing.T) {
 		t.Errorf("Trigger = %q, want okr_review", loaded.Trigger)
 	}
 	var origP, loadedP map[string]any
-	json.Unmarshal([]byte(`{"goal_id":"q1"}`), &origP)
-	json.Unmarshal(loaded.Payload, &loadedP)
+	if err := json.Unmarshal([]byte(`{"goal_id":"q1"}`), &origP); err != nil {
+		t.Fatalf("Unmarshal orig payload: %v", err)
+	}
+	if err := json.Unmarshal(loaded.Payload, &loadedP); err != nil {
+		t.Fatalf("Unmarshal loaded payload: %v", err)
+	}
 	if fmt.Sprint(origP) != fmt.Sprint(loadedP) {
 		t.Errorf("Payload changed after UpdateStatus: got %s", loaded.Payload)
 	}
@@ -582,8 +590,12 @@ func TestFileJobStore_JSONRoundTrip(t *testing.T) {
 
 	// Payload must survive round-trip exactly
 	var orig, got map[string]any
-	json.Unmarshal(job.Payload, &orig)
-	json.Unmarshal(loaded.Payload, &got)
+	if err := json.Unmarshal(job.Payload, &orig); err != nil {
+		t.Fatalf("unmarshal payload orig: %v", err)
+	}
+	if err := json.Unmarshal(loaded.Payload, &got); err != nil {
+		t.Fatalf("unmarshal payload loaded: %v", err)
+	}
 	if len(orig) != len(got) {
 		t.Errorf("Payload mismatch: orig=%v got=%v", orig, got)
 	}
