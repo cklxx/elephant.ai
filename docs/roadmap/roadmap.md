@@ -22,12 +22,13 @@ Items that must ship before the calendar + tasks loop works end-to-end.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Lark API client layer | No wrapper for Calendar/Tasks/Docs APIs exists | **Not started** | Codex X1 | `internal/lark/` (to create) |
-| Calendar read/write tools | Can't query or create calendar events | **In progress** | Claude C1 | `internal/tools/builtin/larktools/calendar_*.go` |
-| Tasks read/write tools | Can't query or manage tasks | **In progress** | Claude C2 | `internal/tools/builtin/larktools/task_manage.go` |
-| Write-op approval gate | Calendar/task writes need explicit user confirmation | **Partial** | Claude C4 | `internal/agent/domain/react/approval.go` (extend) |
-| Scheduler reminders | No proactive nudges for upcoming events/deadlines | **Not started** | Claude C7 | `internal/scheduler/` (extend) |
-| Tool registration for new Lark tools | New tools must be wired into the registry | **In progress** | Claude C3 | `internal/toolregistry/registry.go` |
+| Lark API client layer | No wrapper for Calendar/Tasks/Docs APIs exists | **Not started** | Claude C1-C4 | `internal/lark/` (to create) |
+| Calendar read/write tools | Can't query or create calendar events | **In progress** | Claude C5 | `internal/tools/builtin/larktools/calendar_*.go` |
+| Tasks read/write tools | Can't query or manage tasks | **In progress** | Claude C6 | `internal/tools/builtin/larktools/task_manage.go` |
+| Write-op approval gate | Calendar/task writes need explicit user confirmation | **Partial** | Claude C8 | `internal/agent/domain/react/approval.go` (extend) |
+| Scheduler reminders | No proactive nudges for upcoming events/deadlines | **Not started** | Claude C10 | `internal/scheduler/` (extend) |
+| Tool registration for new Lark tools | New tools must be wired into the registry | **In progress** | Claude C7 | `internal/toolregistry/registry.go` |
+| E2E integration test | Validate full calendar flow end-to-end | **Not started** | Codex X1 | multi-package |
 
 ## P1: M0 Quality
 
@@ -35,11 +36,11 @@ Items that don't block MVP but are required for production reliability.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Not started** | Codex X2 | `internal/agent/domain/react/` |
-| Graceful shutdown | SIGTERM handling added but needs drain logic | **Partial** | Codex X6 | `cmd/elephant/main.go` |
-| Global tool timeout/retry | No unified timeout or retry strategy across tools | **Not started** | Codex X3 | `internal/tools/` |
-| NSM metric collection | WTCR/TimeSaved/Accuracy not instrumented | **Not started** | Claude C6 + Codex X7 | `internal/observability/` |
-| Token counting precision | Current approximation (len/4) is unreliable | **Not started** | Codex X5 | `internal/llm/` |
+| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Not started** | Claude C11 + Codex X2 | `internal/agent/domain/react/` |
+| Graceful shutdown | SIGTERM handling added but needs drain logic | **Partial** | Claude C15-C16 | `cmd/elephant/main.go` |
+| Global tool timeout/retry | No unified timeout or retry strategy across tools | **Not started** | Claude C13-C14 + Codex X3 | `internal/tools/` |
+| NSM metric collection | WTCR/TimeSaved/Accuracy not instrumented | **Not started** | Claude C17 | `internal/observability/` |
+| Token counting precision | Current approximation (len/4) is unreliable | **Not started** | Claude C18 | `internal/llm/` |
 
 ## P2: Next Wave (M1)
 
@@ -47,13 +48,13 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Replan + sub-goal decomposition | Complex tasks need dynamic replanning | **Not started** | Codex X10 | `internal/agent/domain/react/` |
-| Memory restructuring (D5) | Layered FileStore + daily summaries + long-term extraction | **Not started** | Codex X8 | `internal/memory/` |
-| Tool policy framework (D1) | Allow/deny rules per tool per context | **Not started** | Codex X9 | `internal/tools/` |
-| Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control | **Not started** | Codex X11 | `internal/scheduler/` |
-| Calendar/Tasks full CRUD | Update, delete, conflict detection, multi-calendar | **Not started** | Claude C11 | `internal/tools/builtin/larktools/` |
-| Proactive reminders + suggestions | Intent extraction -> draft -> confirm flow | **Not started** | Claude C12 | `internal/agent/` |
-| Proactive context injection | Auto-inject recent chat/calendar context before user asks | **Not started** | Claude C10 | `internal/context/` |
+| Replan + sub-goal decomposition | Complex tasks need dynamic replanning | **Not started** | Codex X6 | `internal/agent/domain/react/` |
+| Memory restructuring (D5) | Layered FileStore + daily summaries + long-term extraction | **Not started** | Codex X4 | `internal/memory/` |
+| Tool policy framework (D1) | Allow/deny rules per tool per context | **Not started** | Claude C19-C20 + Codex X5 | `internal/tools/` |
+| Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control | **Not started** | Claude C21-C22 + Codex X7 | `internal/scheduler/` |
+| Calendar/Tasks full CRUD | Update, delete, conflict detection, multi-calendar | **Not started** | Claude C23 | `internal/tools/builtin/larktools/` |
+| Proactive reminders + suggestions | Intent extraction -> draft -> confirm flow | **Not started** | Claude C26 | `internal/agent/` |
+| Proactive context injection | Auto-inject recent chat/calendar context before user asks | **Not started** | Claude C25 | `internal/context/` |
 
 ## P3: Future (M2+)
 
@@ -61,8 +62,8 @@ Larger bets that depend on M0+M1 foundations.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Coding Agent Gateway | Full code-gen pipeline: plan, generate, test, fix | **Not started** | Codex X12 | `internal/coding/` (to create) |
-| Shadow Agent | Self-iteration with mandatory human approval gates | **Not started** | Codex X13 | `internal/devops/` (to create) |
+| Coding Agent Gateway | Full code-gen pipeline: plan, generate, test, fix | **Not started** | Codex X8 | `internal/coding/` (to create) |
+| Shadow Agent | Self-iteration with mandatory human approval gates | **Not started** | Codex X9 | `internal/devops/` (to create) |
 | macOS Companion (D6) | Native app + Node Host Gateway for desktop integration | **Not started** | TBD | TBD |
 | Multi-agent collaboration | Parallel agent execution with shared context | **Not started** | TBD | `internal/agent/` |
 | Deep Lark ecosystem | Docs, Sheets, Wiki, Approval workflow integration | **Not started** | TBD | `internal/tools/builtin/larktools/` |

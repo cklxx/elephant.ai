@@ -1,103 +1,177 @@
 # Task Split: Claude Code vs Codex
 
 Created: 2026-02-01
-Updated: 2026-02-01 22:00
+Updated: 2026-02-01 22:30
 
 ## Splitting Principle
 
-- **Claude Code** (interactive): 快速任务、架构设计与规划、前端任务、轻量多文件串联、快速验证迭代。强在即时反馈和快速周转。
-- **Codex** (deep batch): 复杂实现、疑难 debug、大规模重构、需要深度推理的跨包实现。强在深度思考和一次性高质量交付。
+- **Claude Code**: 快速任务、架构设计与规划、前端、拆解后的子步骤、需要交互反馈的迭代。也能做特定复杂任务（尤其是架构设计、跨文件串联、前端）。
+- **Codex**: 不可拆的深度实现，需要长时间推理和一次性正确交付的核心引擎改造。
+- **核心策略**: 能拆则拆，拆成子步骤给 Claude Code 快速迭代；只有真正不可拆的原子复杂任务才留给 Codex。
 
 ---
 
 ## P0: Blocks North Star
 
-### Codex Tasks (complex, needs deep reasoning)
+### Lark API Client Layer — 拆解
 
-| # | Task | Why Codex | Touches |
-|---|------|-----------|---------|
-| X1 | Design & implement `internal/lark/` API client layer | 架构决策多（thin wrapper vs facade、错误映射、token 刷新、限流），需要深度推理一次做对 | `internal/lark/`, `internal/channels/lark/`, config |
-| X2 | ReAct checkpoint + resume | 核心引擎改造：序列化状态、定义恢复点、处理 tool-in-flight。逻辑复杂，需要完整思考 | `internal/agent/domain/react/` |
-| X3 | Global tool timeout/retry strategy | 跨切面设计：retry policy、circuit breaker、timeout 继承。需要考虑所有 tool 的边界情况 | `internal/tools/`, `internal/toolregistry/` |
-| X4 | Integration test: full calendar flow E2E | 需要 mock Lark client、approval 流程模拟、scheduler trigger → tool 执行 → 结果验证，多包协调 | `internal/tools/builtin/larktools/`, `internal/toolregistry/`, `internal/scheduler/` |
-| X5 | Token counting: replace len/4 with tiktoken-go | 需要理解各 provider 的 tokenizer 差异，选择正确的 encoding，处理 fallback | `internal/llm/` |
-| X6 | Graceful shutdown drain logic | 需要理解所有 in-flight 资源（tool 执行、SSE 连接、scheduler job），设计 drain 顺序 | `cmd/elephant/main.go`, 多个子系统 |
+原任务 "Design & implement `internal/lark/`" 拆为 4 步:
 
-### Claude Code Tasks (quick, architectural guidance, wiring)
+| # | Sub-task | Owner | Why |
+|---|----------|-------|-----|
+| C1 | 设计 Lark API client 接口 + 目录结构 | Claude Code | 架构决策，需要交互讨论 |
+| C2 | 实现 auth token 管理 (app_access_token 获取/缓存/刷新) | Claude Code | 模式固定 (HTTP call + cache)，快速 |
+| C3 | 实现 Calendar API wrapper (list/get/create/patch/delete) | Claude Code | 按 Lark Open API 文档逐个包装，模式重复 |
+| C4 | 实现 Task API wrapper (list/get/create/patch/delete) | Claude Code | 同上 |
 
-| # | Task | Why Claude Code | Touches |
-|---|------|-----------------|---------|
-| C1 | Calendar CRUD tools (update/delete) | 模式固定（照抄 calendar_create.go），快速出活 | `internal/tools/builtin/larktools/` |
-| C2 | Task CRUD tools (update/delete) | 同上，模式固定 | `internal/tools/builtin/larktools/` |
-| C3 | Tool registration wiring | 在 registry.go 加几行注册代码，快速 | `internal/toolregistry/registry.go` |
-| C4 | Extend approval gate for new tools | 已有 Dangerous flag 机制，按现有模式扩展 | `internal/toolregistry/` |
-| C5 | Unit tests for C1-C2 | 照抄现有 test pattern，快速覆盖 | `*_test.go` |
-| C6 | NSM metric stubs | 在 MetricsCollector 加 3 个 counter/histogram 定义，机械操作 | `internal/observability/metrics.go` |
-| C7 | Wire scheduler reminders (basic) | 在现有 OKR trigger 模式上加 calendar trigger，模式清晰 | `internal/scheduler/` |
+### Calendar & Task Tools — Claude Code
 
----
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| C5 | Calendar CRUD tools (update/delete) | Claude Code | 照抄 calendar_create.go 模式 |
+| C6 | Task CRUD tools (update/delete) | Claude Code | 照抄 task_manage.go 模式 |
+| C7 | Tool registration wiring | Claude Code | registry.go 加几行 |
+| C8 | Extend approval gate for new tools | Claude Code | Dangerous flag 按现有模式 |
+| C9 | Unit tests for C5-C6 | Claude Code | 照抄现有 test pattern |
 
-## P1: Quality
+### Scheduler Reminders — Claude Code
 
-### Codex Tasks
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| C10 | Wire calendar trigger into scheduler | Claude Code | 在现有 OKR trigger 模式上加，模式清晰 |
 
-| # | Task | Why Codex |
-|---|------|-----------|
-| X7 | NSM metric collection wiring | 度量点分布在多个包（task 完成时算 WTCR、用户反馈算 Accuracy），需要全局思考 |
-| X8 | Memory restructuring (D5) | 架构改造：layered FileStore、daily summary pipeline、long-term extraction。跨 memory/context/agent |
-| X9 | Tool policy framework (D1) | 需要设计 allow/deny 规则、per-context 过滤、policy 评估引擎。新子系统 |
+### E2E Integration Test — Codex
 
-### Claude Code Tasks
-
-| # | Task | Why Claude Code |
-|---|------|-----------------|
-| C8 | Scheduler enhancement: job persistence config | 配置层面的改动 + 存储后端选择，快速决策 |
-| C9 | Calendar conflict detection util | 纯函数：给定时间范围查冲突，逻辑简单 |
-| C10 | Proactive context injection: calendar summary builder | 纯函数：今日事件 → markdown 摘要，快速实现 |
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| X1 | Full calendar flow E2E test | Codex | mock Lark client + approval 流程 + scheduler trigger + 结果验证，需要一次性把所有 mock 和断言想清楚 |
 
 ---
 
-## P2: Next Wave
+## P1: M0 Quality
 
-### Codex Tasks
+### ReAct Checkpoint + Resume — 拆解
 
-| # | Task | Why Codex |
-|---|------|-----------|
-| X10 | Replan + sub-goal decomposition | ReAct 核心扩展：何时触发 replan、子目标分解策略、状态管理。需要深度设计 |
-| X11 | Scheduler enhancement (D4) full | Job 持久化、cooldown、并发控制。需要考虑故障恢复和状态一致性 |
-| X12 | Coding Agent Gateway | 全新子系统：plan → generate → test → fix pipeline。从零设计 |
-| X13 | Shadow Agent framework | 自迭代框架 + mandatory approval gates。复杂度高 |
+原任务不可完全拆，但可以分阶段:
 
-### Claude Code Tasks
+| # | Sub-task | Owner | Why |
+|---|----------|-------|-----|
+| C11 | 定义 checkpoint schema (JSON/protobuf) + state 序列化接口 | Claude Code | 架构设计 + 接口定义，需要讨论 |
+| X2 | 实现 checkpoint 写入/恢复 + tool-in-flight recovery | Codex | 核心引擎改造，状态机逻辑复杂，需要深度推理一次做对 |
+| C12 | Checkpoint 集成测试 + CLI resume 命令 | Claude Code | 基于 X2 的接口写测试和 CLI 入口，快速 |
 
-| # | Task | Why Claude Code |
-|---|------|-----------------|
-| C11 | Calendar/Tasks full CRUD 补全 | P0 基础上补 batch 操作、multi-calendar 支持 |
-| C12 | Proactive reminders: intent → draft → confirm UI | 串联前后端，快速迭代 |
+### Global Tool Timeout/Retry — 拆解
+
+| # | Sub-task | Owner | Why |
+|---|----------|-------|-----|
+| C13 | 定义 timeout/retry config schema + ToolPolicy 接口 | Claude Code | 配置设计 |
+| X3 | 实现 retry middleware (exponential backoff + circuit breaker + context propagation) | Codex | 边界情况多（partial failure、context cancel、nested timeout），需要深度推理 |
+| C14 | 集成到 registry wrapper chain + 配置加载 | Claude Code | 接线工作 |
+
+### Graceful Shutdown — 拆解
+
+| # | Sub-task | Owner | Why |
+|---|----------|-------|-----|
+| C15 | 定义 Drainable 接口 + 各子系统实现 drain() | Claude Code | 每个子系统加一个方法，模式固定 |
+| C16 | main.go 中按顺序调用 drain + 超时兜底 | Claude Code | 逻辑简单：for each drainable, drain with timeout |
+
+### Other P1 — Claude Code
+
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| C17 | NSM metric stubs (WTCR/TimeSaved/Accuracy counters) | Claude Code | MetricsCollector 加定义 |
+| C18 | Token counting: integrate tiktoken-go | Claude Code | 替换 len/4，单文件改动，provider→encoding 映射表 |
+
+---
+
+## P2: Next Wave (M1)
+
+### Memory Restructuring (D5) — Codex
+
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| X4 | Memory D5: layered FileStore + daily summary + long-term extraction | Codex | 跨 memory/context/agent 的架构改造，需要完整设计数据流和迁移策略 |
+
+### Tool Policy Framework (D1) — 拆解
+
+| # | Sub-task | Owner | Why |
+|---|----------|-------|-----|
+| C19 | 设计 policy schema (YAML rules, per-context scoping) | Claude Code | 配置格式设计 |
+| X5 | 实现 policy evaluation engine + registry integration | Codex | 规则匹配逻辑、优先级冲突解决、性能要求，需要深度推理 |
+| C20 | Default policies + 文档 | Claude Code | 快速 |
+
+### Replan + Sub-goal Decomposition — Codex
+
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| X6 | Replan trigger detection + sub-goal state machine | Codex | ReAct 核心扩展，何时 replan、如何分解、子目标状态管理，不可拆 |
+
+### Scheduler Enhancement (D4) — 拆解
+
+| # | Sub-task | Owner | Why |
+|---|----------|-------|-----|
+| C21 | Job persistence: 选择存储后端 + schema 设计 | Claude Code | 架构决策 |
+| X7 | 实现 JobStore + cooldown + concurrency control + 故障恢复 | Codex | 状态一致性和并发逻辑复杂 |
+| C22 | 集成测试 + config wiring | Claude Code | 快速 |
+
+### Other P2 — Claude Code
+
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| C23 | Calendar/Tasks full CRUD 补全 (batch, multi-calendar) | Claude Code | P0 模式扩展 |
+| C24 | Calendar conflict detection util | Claude Code | 纯函数 |
+| C25 | Proactive context injection: calendar summary builder | Claude Code | 纯函数 |
+| C26 | Proactive reminders: intent → draft → confirm flow | Claude Code | 串联前后端 |
+
+---
+
+## P3: Future (M2+)
+
+| # | Task | Owner | Why |
+|---|------|-------|-----|
+| X8 | Coding Agent Gateway | Codex | 全新子系统从零设计 |
+| X9 | Shadow Agent framework | Codex | 全新子系统 + mandatory approval gates |
+
+---
+
+## Summary
+
+| Owner | Count | 任务类型 |
+|-------|-------|---------|
+| Claude Code | 26 | 架构设计、接口定义、模式复制、接线、测试、配置、前端、纯函数 |
+| Codex | 9 | 核心引擎改造、复杂状态机、跨包深度实现、全新子系统 |
+
+**拆解效果**: 原 13 个 Codex 任务 → 9 个，其中 4 个被拆解后大部分子步骤转给 Claude Code。
 
 ---
 
 ## Execution Order
 
 ```
-Phase 1 (now):
-  Codex:  X1 (Lark API client layer)
-  Claude: C1,C2,C3,C4,C5 (CRUD tools + tests + wiring)
+Phase 1 — P0 Core (parallel):
+  Claude: C1→C2→C3,C4 (Lark client layer, sequential)
+          C5,C6,C7,C8,C9 (CRUD tools + wiring, parallel)
+          C10 (scheduler reminders)
 
-Phase 2 (after X1 lands):
-  Codex:  X4 (E2E integration test)
-  Claude: C6,C7 (metrics stubs + scheduler reminders)
+Phase 2 — P0 Validation:
+  Codex:  X1 (E2E integration test, after Phase 1)
 
-Phase 3 (P1):
-  Codex:  X2,X3,X5,X6 (checkpoint, timeout, token, shutdown)
-  Claude: C8,C9,C10 (scheduler config, conflict detection, summary builder)
+Phase 3 — P1 (parallel):
+  Claude: C11 (checkpoint schema) → C13 (timeout config) → C15,C16 (shutdown)
+          C17,C18 (metrics, token counting)
+  Codex:  X2 (checkpoint engine, after C11)
+          X3 (retry middleware, after C13)
 
-Phase 4 (P1 continued):
-  Codex:  X7,X8,X9 (NSM wiring, memory D5, tool policy D1)
+Phase 4 — P1 Integration:
+  Claude: C12 (checkpoint test + CLI), C14 (retry wiring)
 
-Phase 5 (P2):
-  Codex:  X10,X11,X12,X13 (replan, scheduler D4, coding gateway, shadow agent)
-  Claude: C11,C12 (CRUD 补全, proactive UI)
+Phase 5 — P2 (parallel):
+  Claude: C19 (policy schema) → C20, C21 (scheduler schema) → C22
+          C23,C24,C25,C26 (CRUD, conflict, summary, reminders)
+  Codex:  X4 (memory D5), X5 (policy engine), X6 (replan), X7 (scheduler D4)
+
+Phase 6 — P3:
+  Codex:  X8 (coding gateway), X9 (shadow agent)
 ```
 
 ---
@@ -114,13 +188,17 @@ Codebase references (read these first):
 
 Task: [specific deliverable]
 
+Pre-work done by Claude Code:
+- [interface/schema already defined at path]
+- [config structure at path]
+
 Requirements:
 - [concrete specs with types, API calls, error handling]
 - [test coverage expectations]
 - [integration points to respect]
 
 Constraints:
-- Follow existing patterns exactly (BaseTool, ports.ToolDefinition, shared.LarkClientFromContext)
+- Follow existing patterns exactly
 - Run `go vet ./...` and `go test ./...` before delivering
 - No unnecessary defensive code; trust context invariants
 ```
