@@ -356,7 +356,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 // drainAndReprocess drains any remaining messages from the input channel after
 // a task finishes and reprocesses each as a new task. This handles messages that
 // arrived between the last ReAct iteration drain and the task completion.
-func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, sessionID, senderID string) {
+func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, sessionID, _ string) {
 	var remaining []agent.UserInput
 	for {
 		select {

@@ -119,5 +119,5 @@ func TestInjectUserInput_ContextHelper(t *testing.T) {
 }
 
 func TestInjectUserInput_ContextHelperNilContext(t *testing.T) {
-	require.Nil(t, agent.UserInputChFromContext(nil))
+	require.Nil(t, agent.UserInputChFromContext(context.TODO()))
 }
