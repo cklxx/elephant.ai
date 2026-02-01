@@ -1,13 +1,19 @@
-# Plan: Review docs/roadmap overall proposal
+# Plan: Roadmap Review (Importance/80-20)
 
-## Goal
-Provide a structured review of the overall roadmap in `docs/roadmap`, highlighting strengths, gaps, risks, sequencing issues, and concrete improvements.
+Created: 2026-02-01
+Updated: 2026-02-01 22:00
 
 ## Scope
-- In scope: `docs/roadmap/*` and any directly referenced context needed for review.
-- Out of scope: implementing changes; this is review/feedback only.
+- Review `docs/roadmap/roadmap.md` against drafts + audit notes.
+- Prioritize items by north-star impact (Calendar + Tasks closed loop).
+- Produce a review with top priorities and suggested deprioritization.
 
 ## Plan
-- [completed] Read roadmap documents and note goals, milestones, dependencies, and assumptions.
-- [completed] Synthesize cross-track alignment, risks, missing deliverables, and success metrics.
-- [completed] Deliver review with prioritized recommendations and clarifying questions.
+1. Read roadmap + draft + audit; list gaps/mismatches that affect priority.
+2. Apply 80/20 prioritization to identify the smallest set that unlocks the closed loop.
+3. Draft review output with ordered priorities, risks, and defer list.
+
+## Progress
+- [x] Step 1: Source review completed.
+- [x] Step 2: 80/20 priority set defined.
+- [x] Step 3: Review output prepared.
