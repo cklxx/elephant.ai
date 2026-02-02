@@ -289,6 +289,7 @@ type LarkChannelConfig struct {
 	ReactEmoji                    string             `json:"react_emoji" yaml:"react_emoji"`
 	MemoryEnabled                 *bool              `json:"memory_enabled" yaml:"memory_enabled"`
 	ShowToolProgress              *bool              `json:"show_tool_progress" yaml:"show_tool_progress"`
+	ShowPlanClarifyMessages       *bool              `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
 	AutoChatContext               *bool              `json:"auto_chat_context" yaml:"auto_chat_context"`
 	AutoChatContextSize           *int               `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
 	PlanReviewEnabled             *bool              `json:"plan_review_enabled" yaml:"plan_review_enabled"`

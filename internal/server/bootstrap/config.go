@@ -65,6 +65,7 @@ type LarkGatewayConfig struct {
 	ToolMode                      string
 	ReactEmoji                    string
 	ShowToolProgress              bool
+	ShowPlanClarifyMessages       bool
 	AutoChatContext               bool
 	AutoChatContextSize           int
 	PlanReviewEnabled             bool
@@ -301,6 +302,9 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if larkCfg.ShowToolProgress != nil {
 		cfg.Channels.Lark.ShowToolProgress = *larkCfg.ShowToolProgress
+	}
+	if larkCfg.ShowPlanClarifyMessages != nil {
+		cfg.Channels.Lark.ShowPlanClarifyMessages = *larkCfg.ShowPlanClarifyMessages
 	}
 	if larkCfg.AutoChatContext != nil {
 		cfg.Channels.Lark.AutoChatContext = *larkCfg.AutoChatContext

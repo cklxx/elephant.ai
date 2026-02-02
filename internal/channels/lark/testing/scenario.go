@@ -23,18 +23,19 @@ type Scenario struct {
 
 // SetupConfig declares gateway and LLM configuration for the scenario.
 type SetupConfig struct {
-	Config    GatewayConfig `yaml:"config"`
-	LLMMode  string        `yaml:"llm_mode"` // "mock" (default) or "real"
+	Config  GatewayConfig `yaml:"config"`
+	LLMMode string        `yaml:"llm_mode"` // "mock" (default) or "real"
 }
 
 // GatewayConfig is the subset of lark.Config that scenarios can override.
 type GatewayConfig struct {
-	SessionPrefix    string `yaml:"session_prefix"`
-	AllowDirect      bool   `yaml:"allow_direct"`
-	AllowGroups      bool   `yaml:"allow_groups"`
-	ShowToolProgress bool   `yaml:"show_tool_progress"`
-	ReactEmoji       string `yaml:"react_emoji"`
-	PlanReviewEnabled bool  `yaml:"plan_review_enabled"`
+	SessionPrefix     string `yaml:"session_prefix"`
+	AllowDirect       bool   `yaml:"allow_direct"`
+	AllowGroups       bool   `yaml:"allow_groups"`
+	ShowToolProgress  bool   `yaml:"show_tool_progress"`
+	ShowPlanClarify   bool   `yaml:"show_plan_clarify_messages"`
+	ReactEmoji        string `yaml:"react_emoji"`
+	PlanReviewEnabled bool   `yaml:"plan_review_enabled"`
 	AutoChatContext   bool   `yaml:"auto_chat_context"`
 	MemoryEnabled     bool   `yaml:"memory_enabled"`
 }
@@ -67,7 +68,7 @@ type MockResponse struct {
 // TurnAssertions declares all checks for a single turn.
 type TurnAssertions struct {
 	Messenger []MessengerAssertion `yaml:"messenger"`
-	NoCall    []string             `yaml:"no_call"`  // methods that must NOT be called
+	NoCall    []string             `yaml:"no_call"` // methods that must NOT be called
 	Executor  *ExecutorAssertion   `yaml:"executor"`
 	Timing    *TimingAssertion     `yaml:"timing"`
 }

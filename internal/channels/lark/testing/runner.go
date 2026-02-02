@@ -74,12 +74,13 @@ func (r *Runner) Run(ctx context.Context, scenario *Scenario) *ScenarioResult {
 			AllowGroups:   scenario.Setup.Config.AllowGroups,
 			MemoryEnabled: scenario.Setup.Config.MemoryEnabled,
 		},
-		AppID:             "test_scenario",
-		AppSecret:         "secret_scenario",
-		ShowToolProgress:  scenario.Setup.Config.ShowToolProgress,
-		ReactEmoji:        scenario.Setup.Config.ReactEmoji,
-		PlanReviewEnabled: scenario.Setup.Config.PlanReviewEnabled,
-		AutoChatContext:   scenario.Setup.Config.AutoChatContext,
+		AppID:                   "test_scenario",
+		AppSecret:               "secret_scenario",
+		ShowToolProgress:        scenario.Setup.Config.ShowToolProgress,
+		ShowPlanClarifyMessages: scenario.Setup.Config.ShowPlanClarify,
+		ReactEmoji:              scenario.Setup.Config.ReactEmoji,
+		PlanReviewEnabled:       scenario.Setup.Config.PlanReviewEnabled,
+		AutoChatContext:         scenario.Setup.Config.AutoChatContext,
 	}
 	if cfg.SessionPrefix == "" {
 		cfg.SessionPrefix = "test-lark"

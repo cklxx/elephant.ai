@@ -26,6 +26,7 @@ type Config struct {
 	Browser                       BrowserConfig
 	ReactEmoji                    string // Random emoji pool for start/end reactions (comma/space separated).
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.
+	ShowPlanClarifyMessages       bool   // Send plan/clarify tool outputs as chat messages. Default false.
 	AutoChatContext               bool   // Automatically fetch recent chat messages as context. Default false.
 	AutoChatContextSize           int    // Number of recent messages to fetch for auto chat context. Default 20.
 	PlanReviewEnabled             bool
