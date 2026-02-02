@@ -12,7 +12,7 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 
 ## Current State (2026-02-02)
 
-M0 is ~95% complete. Lark API client layer (auth, Calendar, Tasks), CRUD tools, approval gates, scheduler reminders, and E2E wiring are all done. P1 quality layer (checkpoint schema, graceful shutdown, tool policy, NSM metrics, token counting) is complete. P2 batch ops, conflict detection, calendar summary, job persistence, and reminder pipeline are implemented. **Remaining gaps**: Codex X2 (checkpoint engine), X3 (retry middleware), X7 (scheduler concurrency) — prompts prepared. Coding Agent Gateway and Shadow Agent are future.
+M0 is ~95% complete. Lark API client layer (auth, Calendar, Tasks), CRUD tools, approval gates, scheduler reminders, and E2E wiring are done. P1 quality is mostly complete (checkpoint schema/runtime, graceful shutdown, tool policy-driven timeout/retry, NSM metrics, token counting). P2 batch ops, conflict detection, calendar summary, job persistence, and reminder pipeline are implemented; evaluation suites exist and CI eval gating is partial. **Remaining gaps**: Codex X2 (checkpoint persistence wiring/ops), tool SLA baselining, and evaluation set construction (baseline gate + challenge evals). Coding Agent Gateway and Shadow Agent remain future.
 
 ---
 
@@ -36,9 +36,9 @@ Items that don't block MVP but are required for production reliability.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Schema done, engine blocked** | Claude C11 + Codex X2 | `internal/agent/domain/react/` |
+| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Runtime done, wiring pending** | Claude C11 + Codex X2 | `internal/agent/domain/react/` |
 | Graceful shutdown | SIGTERM handling + drain logic | **Done** | Claude C15-C16 | `cmd/elephant/main.go`, `internal/lifecycle/` |
-| Global tool timeout/retry | Unified timeout/retry + policy rules | **Schema done, middleware blocked** | Claude C13-C14 + Codex X3 | `internal/tools/`, `internal/toolregistry/` |
+| Global tool timeout/retry | Unified timeout/retry + policy rules | **Done** | Claude C13-C14 + Codex X3 | `internal/tools/`, `internal/toolregistry/` |
 | NSM metric collection | WTCR/TimeSaved/Accuracy counters | **Done** | Claude C17 | `internal/observability/` |
 | Token counting precision | tiktoken-go integration | **Done** | Claude C18 | `internal/llm/` |
 | Tool SLA baseline collection | Per-tool latency/cost/reliability/success-rate metrics | **Not started** | Claude | `internal/tools/sla.go` |
@@ -62,10 +62,10 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Tool policy framework (D1) | Allow/deny rules per tool per context | **Schema + rules done, engine blocked** | Claude C19-C20 + Codex X5 | `internal/tools/` |
-| Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control, failure recovery | **JobStore done, enhancement blocked** | Claude C21-C22 + Codex X7 | `internal/scheduler/` |
+| Tool policy framework (D1) | Allow/deny rules per tool per context | **Done** | Claude C19-C20 + Codex X5 | `internal/tools/` |
+| Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control, failure recovery | **Done** | Claude C21-C22 + Codex X7 | `internal/scheduler/` |
 | Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Not started** | Claude | `internal/tools/builtin/session/scheduler_tool.go` |
-| Scheduler startup recovery | Reload persisted jobs from JobStore on restart, auto-register cron | **Not started** | Claude | `internal/scheduler/scheduler.go` |
+| Scheduler startup recovery | Reload persisted jobs from JobStore on restart, auto-register cron | **Done** | Claude C21 | `internal/scheduler/job_runtime.go` |
 | Tool SLA profile + dynamic routing | Build per-tool performance profiles; auto-select tool chain based on SLA | **Not started** | Claude → Codex | `internal/tools/router.go` |
 | Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Not started** | Claude | `internal/tools/fallback.go` |
 | Tool result caching | Semantic dedup — same query doesn't re-execute | **Not started** | Claude | `internal/tools/cache.go` |
@@ -95,6 +95,7 @@ Enhancements after the core loop is stable.
 |------|-----|--------|-------|-----------|
 | Signal collection framework | Failure trajectories, user feedback (thumbs/text), implicit signals (retries/abandons), usage patterns | **Not started** | Claude → Codex | `internal/devops/signals/` |
 | Evaluation automation | Dimensional scoring (reasoning/tools/UX/cost), baseline management, benchmark dashboard | **Not started** | Claude → Codex | `internal/devops/evaluation/` |
+| Evaluation set construction (评测集构建) | 分层评测：基础任务准出评测 + 引导模块升级优化的挑战性评测 | **Not started** | Claude → Codex | `evaluation/` |
 | CI evaluation gating | Manual + tag-triggered quick eval with result archiving | **Partial** | Claude | `.github/workflows/eval.yml` |
 
 ## P3: Future (M2+)
@@ -182,6 +183,71 @@ Larger bets that depend on M0+M1 foundations.
 
 ---
 
+## 共享基础设施 (Cross-Track)
+
+以下模块不归属任何单一 Track，为所有 Track 提供基础能力：
+
+| 模块 | 包路径 | 说明 | OpenClaw Delta |
+|------|--------|------|------|
+| **Event Bus** | `internal/events/` | 统一 pub/sub 事件总线，task/session/system 三级事件，现有 Hook 平滑迁移为 subscriber | **D2** |
+| **Observability** | `internal/observability/` | 全链路 Trace、Prometheus Metrics、结构化日志、成本核算 | |
+| **Config** | `internal/config/` | YAML 配置管理、环境变量覆盖 | |
+| **Auth** | `internal/auth/` | OAuth/Token、路由鉴权 | |
+| **Errors** | `internal/errors/` | 错误分类、重试策略 | |
+| **Storage** | `internal/storage/` | 通用持久化 | |
+| **DI** | `internal/di/` | 依赖注入、服务装配 | |
+
+---
+
+## 跨 Track 边界约定 (OKR 对齐)
+
+| 边界点 | 约定 |
+|--------|------|
+| **Event Bus** _(D2)_ | `internal/events/` 是共享基础设施；为 KR-S1 提供事件能力。 |
+| **验证逻辑** | 统一在 Track 2 的 `coding/verify` 包中实现（Build/Test/Lint/DiffReview）；Track 4 仅编排与审批。 |
+| **Coding Agent Gateway** | Track 2 构建能力，Track 4 构建工作流；Gateway 同时服务 Online/Shadow。 |
+| **Lark 工具封装** | Track 2 提供工具注册端口，Track 3 提供 Lark 工具实现。 |
+| **Node Host** _(D6)_ | Track 2 负责 proxy executor，Track 3 负责 macOS companion app。 |
+| **审批门禁** | Shadow Agent 发布**必须人工审批**；写操作在 Lark 侧需审批。 |
+
+---
+
+## 跨 Track 依赖关系 (OKR 驱动)
+
+```
+O0 (日程+任务闭环)
+├── O1 (规划与记忆) ────── 提升准确率与可恢复性
+├── O2 (工具与执行) ────── 提升可靠性与可路由性
+├── O3 (Lark 生态) ─────── 交互面闭环 + 审批门禁
+└── O4 (Shadow DevOps) ─── 自我迭代但强审批
+```
+
+---
+
+## 子 ROADMAP 索引
+
+| Track | 子 ROADMAP 文件 | 内容 |
+|-------|----------------|------|
+| Track 1 | `docs/roadmap/draft/track1-agent-core.md` | ReAct 循环、LLM 路由、上下文工程、记忆系统的 OKR 拆解 |
+| Track 2 | `docs/roadmap/draft/track2-system-interaction.md` | 工具引擎、沙箱、Coding Agent Gateway、数据处理、技能系统的 OKR 拆解 |
+| Track 3 | `docs/roadmap/draft/track3-lark-ecosystem.md` | Calendar/Tasks 优先的 Lark 生态 OKR 拆解 |
+| Track 4 | `docs/roadmap/draft/track4-shadow-agent-devops.md` | 影子 Agent DevOps OKR 拆解（强人工审批） |
+| Master | `docs/roadmap/draft/roadmap-lark-native-proactive-assistant.md` | OKR-First 总体草案 |
+
+---
+
+## 进度追踪
+
+| 日期 | 里程碑 | Track | 更新 |
+|------|--------|-------|------|
+| 2026-02-01 | M0 | All | Roadmap 创建。M0 大部分基础能力已实现（ReAct、69+ 工具、三端交互、可观测性）。主要缺口：断点续跑、Coding Agent Gateway、Lark API client 封装、CI 评测门禁。 |
+| 2026-02-01 | M0 | All | Review 优化：更新产品定位为"开箱即用个人 AI"；修正跨 Track 边界；Shadow Agent 从 M1 移至 M2；新增渐进式能力解锁和本地 CLI 自动探测。 |
+| 2026-02-01 | M0 | All | 实现审计：对照代码库校验 Roadmap 标注。修正工具数 83→69+、权限预设三档→五档、技能数 13→12、向量检索 ✅→⚙️（chromem-go，无 pgvector/BM25）、事件一致性 ⚙️→✅、用户干预点 ⚙️→✅、群聊自动感知 ❌→✅、消息引用回复 ❌→✅、定时提醒 ❌→⚙️、超时重试限流 ✅→⚙️。详见 `docs/roadmap/draft/implementation-audit-2026-02-01.md`。 |
+| 2026-02-01 | M0-M3 | All | **Roadmap 重构为 OKR-First。** 北极星切片聚焦"日程+任务"闭环，NSM 以 WTCR + TimeSaved + Accuracy 为核心。 |
+| 2026-02-02 | M0 | All | Roadmap 复查：对齐 tool policy/timeout-retry 与 scheduler D4 状态；新增评测集构建（基础准出 + 挑战性评测）；补充跨 Track 结构与索引。 |
+
+---
+
 ## Completed (Reference)
 
 | Capability | Code path |
@@ -198,7 +264,7 @@ Larger bets that depend on M0+M1 foundations.
 | CLI: TUI, approval flow, session persistence | `cmd/elephant/` |
 | Observability: traces, metrics, cost accounting | `internal/observability/` |
 | SIGTERM handling + cancelable base context | `cmd/elephant/main.go` |
-| Evaluation suite (SWE-Bench, Agent Eval) | `internal/eval/` |
+| Evaluation suite (SWE-Bench, Agent Eval) | `evaluation/` |
 
 ---
 
