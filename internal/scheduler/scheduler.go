@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/config"
 	"alex/internal/logging"
+	"alex/internal/schedulerapi"
 	"alex/internal/tools/builtin/okr"
 
 	"github.com/robfig/cron/v3"
@@ -318,6 +319,121 @@ func (s *Scheduler) pruneStaleOKRTriggers(ctx context.Context, activeGoalIDs map
 			delete(s.recoveryTimers, name)
 		}
 		s.logger.Info("Scheduler: pruned stale OKR trigger %q", name)
+	}
+}
+
+// RegisterDynamicTrigger registers a new trigger at runtime (e.g. from an
+// agent tool call). It creates the corresponding Job, persists it, and
+// schedules it in the cron runner. Returns a schedulerapi.Job DTO so callers
+// can inspect the computed NextRun time without importing this package.
+func (s *Scheduler) RegisterDynamicTrigger(ctx context.Context, name, schedule, task, channel string) (*schedulerapi.Job, error) {
+	trigger := Trigger{
+		Name:     name,
+		Schedule: schedule,
+		Task:     task,
+		Channel:  channel,
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if trigger.Name == "" {
+		return nil, fmt.Errorf("trigger has no name")
+	}
+	if trigger.Schedule == "" {
+		return nil, fmt.Errorf("trigger %q has no schedule", trigger.Name)
+	}
+
+	job, err := s.ensureJobForTriggerLocked(ctx, trigger)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.registerJobLocked(ctx, job); err != nil {
+		return nil, err
+	}
+	return jobToDTO(job), nil
+}
+
+// UnregisterTrigger removes a trigger (and its associated Job) by name. The
+// cron entry is removed, the in-memory job map is cleaned, any pending
+// recovery timer is cancelled, and the persisted job is deleted from the
+// store.
+func (s *Scheduler) UnregisterTrigger(ctx context.Context, name string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if entryID, ok := s.entryIDs[name]; ok {
+		s.cron.Remove(entryID)
+		delete(s.entryIDs, name)
+	}
+
+	delete(s.jobs, name)
+
+	if timer := s.recoveryTimers[name]; timer != nil {
+		timer.Stop()
+		delete(s.recoveryTimers, name)
+	}
+
+	if s.jobStore != nil {
+		if err := s.jobStore.Delete(ctx, name); err != nil {
+			return err
+		}
+	}
+
+	s.logger.Info("Scheduler: unregistered trigger %q", name)
+	return nil
+}
+
+// ListJobs returns all persisted jobs as DTOs. Returns an error if no store
+// is configured.
+func (s *Scheduler) ListJobs(ctx context.Context) ([]schedulerapi.Job, error) {
+	if s.jobStore == nil {
+		return nil, fmt.Errorf("job store not configured")
+	}
+	jobs, err := s.jobStore.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dtos := make([]schedulerapi.Job, len(jobs))
+	for i := range jobs {
+		dtos[i] = *jobToDTO(&jobs[i])
+	}
+	return dtos, nil
+}
+
+// LoadJob loads a single job by ID from the job store as a DTO.
+func (s *Scheduler) LoadJob(ctx context.Context, id string) (*schedulerapi.Job, error) {
+	if s.jobStore == nil {
+		return nil, fmt.Errorf("job store not configured")
+	}
+	job, err := s.jobStore.Load(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return jobToDTO(job), nil
+}
+
+// CronParser returns the scheduler's cron parser for external validation.
+func (s *Scheduler) CronParser() cron.Parser {
+	return s.parser
+}
+
+// jobToDTO converts an internal Job to a schedulerapi.Job DTO.
+func jobToDTO(j *Job) *schedulerapi.Job {
+	return &schedulerapi.Job{
+		ID:           j.ID,
+		Name:         j.Name,
+		CronExpr:     j.CronExpr,
+		Trigger:      j.Trigger,
+		Payload:      j.Payload,
+		Status:       string(j.Status),
+		LastRun:      j.LastRun,
+		NextRun:      j.NextRun,
+		FailureCount: j.FailureCount,
+		LastFailure:  j.LastFailure,
+		LastError:    j.LastError,
+		CreatedAt:    j.CreatedAt,
+		UpdatedAt:    j.UpdatedAt,
 	}
 }
 

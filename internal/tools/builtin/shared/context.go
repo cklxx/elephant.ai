@@ -19,6 +19,7 @@ const (
 	larkClientKey    toolContextKey = "lark_client"
 	larkChatIDKey    toolContextKey = "lark_chat_id"
 	timerManagerKey  toolContextKey = "timer_manager"
+	schedulerKey     toolContextKey = "scheduler"
 )
 
 type parentListenerKey struct{}
@@ -157,4 +158,18 @@ func TimerManagerFromContext(ctx context.Context) interface{} {
 		return nil
 	}
 	return ctx.Value(timerManagerKey)
+}
+
+// WithScheduler sets the scheduler in context. Typed as interface{} to avoid
+// importing the scheduler package in the shared package.
+func WithScheduler(ctx context.Context, sched interface{}) context.Context {
+	return context.WithValue(ctx, schedulerKey, sched)
+}
+
+// SchedulerFromContext retrieves the scheduler from context.
+func SchedulerFromContext(ctx context.Context) interface{} {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Value(schedulerKey)
 }
