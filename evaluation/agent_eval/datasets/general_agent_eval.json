@@ -11,7 +11,11 @@
       "Call out the top three risks with specific mitigations and validation steps"
     ],
     "expected_output": "A markdown table with week, owner, milestone, risk, mitigation, and verification signals, followed by a concise narrative of critical dependencies.",
-    "skills": ["planning", "risk_management", "program_management"],
+    "skills": [
+      "planning",
+      "risk_management",
+      "program_management"
+    ],
     "difficulty": "medium",
     "domain": "program_management",
     "surface": "web"
@@ -28,13 +32,16 @@
       "Propose one lightweight experiment to validate the cause within one hour"
     ],
     "expected_output": "A ranked list of two or three hypotheses with supporting evidence from the logs and a single quick experiment to confirm the top hypothesis.",
-    "skills": ["log_analysis", "hypothesis_generation", "debugging"],
+    "skills": [
+      "log_analysis",
+      "hypothesis_generation",
+      "debugging"
+    ],
     "difficulty": "medium",
     "domain": "operations",
     "surface": "web"
   },
   {
-    "id": "ga-data-003",
     "id": "ga-api-005",
     "title": "Design a minimal incident export API",
     "goal": "Specify a small but complete HTTP API that lets customers export incidents in NDJSON.",
@@ -46,7 +53,11 @@
       "Show how clients resume from an offset or cursor"
     ],
     "expected_output": "Endpoint specification including method, path, parameters, response schema, and an example success and error payload.",
-    "skills": ["api_design", "specification", "communication"],
+    "skills": [
+      "api_design",
+      "specification",
+      "communication"
+    ],
     "difficulty": "medium",
     "domain": "architecture",
     "surface": "web"
@@ -63,7 +74,11 @@
       "Keep the output under 12 bullet points"
     ],
     "expected_output": "A concise list of threats (spoofing, tampering, replay, abuse) with paired mitigations and any monitoring hooks.",
-    "skills": ["security_review", "threat_modeling", "risk_management"],
+    "skills": [
+      "security_review",
+      "threat_modeling",
+      "risk_management"
+    ],
     "difficulty": "hard",
     "domain": "security",
     "surface": "web"
@@ -80,7 +95,11 @@
       "Recommend one metrics slice or log query to confirm"
     ],
     "expected_output": "A short narrative identifying the likeliest bottleneck and one verification step.",
-    "skills": ["observability", "hypothesis_generation", "debugging"],
+    "skills": [
+      "observability",
+      "hypothesis_generation",
+      "debugging"
+    ],
     "difficulty": "medium",
     "domain": "observability",
     "surface": "web"
@@ -97,7 +116,11 @@
       "Keep the plan to three or fewer new tests"
     ],
     "expected_output": "A numbered list of new tests with their purpose and the failure they guard against.",
-    "skills": ["testing_strategy", "resilience", "system_design"],
+    "skills": [
+      "testing_strategy",
+      "resilience",
+      "system_design"
+    ],
     "difficulty": "medium",
     "domain": "quality",
     "surface": "web"
@@ -114,7 +137,11 @@
       "Include at least one measurement to track success"
     ],
     "expected_output": "A task list with owners, expected outcomes, and metrics to watch.",
-    "skills": ["requirements_analysis", "planning", "communication"],
+    "skills": [
+      "requirements_analysis",
+      "planning",
+      "communication"
+    ],
     "difficulty": "medium",
     "domain": "product",
     "surface": "web"
@@ -131,9 +158,289 @@
       "Address runaway or repeated actions with rate limits or circuit breakers"
     ],
     "expected_output": "A short policy with allowed tools, required approvals, audit expectations, and safeguards against repeated actions.",
-    "skills": ["governance", "policy_design", "risk_management"],
+    "skills": [
+      "governance",
+      "policy_design",
+      "risk_management"
+    ],
     "difficulty": "hard",
     "domain": "governance",
+    "surface": "web"
+  },
+  {
+    "id": "ga-program-013",
+    "title": "Multi-region compliance cutover",
+    "goal": "Deliver a phased cutover plan for migrating EU customers to a new region under a regulatory deadline while minimizing downtime.",
+    "context": "EU data residency rules require EU tenants to move by September 30. The platform team is upgrading storage, and support must notify customers. Legal requires signed DPAs before any cutover.",
+    "input": "Stakeholders: Program Lead (Ari), Platform (Jin), Legal (Priya), Support (Lena). Current risks: storage migration scripts untested at scale, DPA collection at 60%, and no rollback criteria.",
+    "constraints": [
+      "Include decision gates with go/no-go criteria and owner sign-off",
+      "Highlight the critical path and parallel workstreams",
+      "List the top three dependencies with mitigations and validation steps"
+    ],
+    "expected_output": "A phased cutover plan with timeline, owners, decision gates, dependencies, and rollback triggers, followed by a short risk register.",
+    "skills": [
+      "planning",
+      "risk_management",
+      "stakeholder_management",
+      "program_management"
+    ],
+    "difficulty": "hard",
+    "domain": "program_management",
+    "surface": "web"
+  },
+  {
+    "id": "ga-ops-014",
+    "title": "Stabilize cascading queue backlog",
+    "goal": "Produce an incident response plan to stop a growing queue backlog and protect downstream databases.",
+    "context": "During peak traffic, queue depth rises from 50k to 400k in 20 minutes. Auto-scaling workers increases DB write latency and retries, amplifying the backlog.",
+    "input": "Constraints: cannot add new infrastructure today. Known levers: pause non-critical consumers, lower retry rate, enable write batching, and temporarily shed low-priority events.",
+    "constraints": [
+      "Prioritize actions that can be executed within 30 minutes",
+      "Include one rollback or exit criterion per action",
+      "Specify the single most important metric to watch for stabilization"
+    ],
+    "expected_output": "A prioritized action list with rationale, rollback criteria, and the stabilization metric, plus a short note on follow-up remediation.",
+    "skills": [
+      "incident_response",
+      "troubleshooting",
+      "capacity_management",
+      "operations"
+    ],
+    "difficulty": "hard",
+    "domain": "operations",
+    "surface": "web"
+  },
+  {
+    "id": "ga-arch-015",
+    "title": "Tenant isolation with per-tenant encryption",
+    "goal": "Design a multi-tenant storage architecture with per-tenant encryption keys and strong isolation guarantees.",
+    "context": "Regulated customers will share a cluster, but require cryptographic isolation and per-tenant access controls. The current system uses a shared Postgres schema and a shared S3 bucket.",
+    "input": "Requirements: enforce data isolation at query and storage layers; support tenant key rotation without downtime; keep p95 latency impact under 10%.",
+    "constraints": [
+      "Describe data model changes and request flow at a high level",
+      "Include a migration plan from the current shared schema",
+      "Call out at least two failure modes and how they are detected"
+    ],
+    "expected_output": "A concise architecture proposal with components, data flow, migration steps, and a short list of risks plus observability hooks.",
+    "skills": [
+      "system_design",
+      "data_architecture",
+      "security_design",
+      "migration_planning"
+    ],
+    "difficulty": "hard",
+    "domain": "architecture",
+    "surface": "web"
+  },
+  {
+    "id": "ga-security-016",
+    "title": "Secure CLI device authorization flow",
+    "goal": "Review a proposed OAuth device authorization flow for a CLI and recommend controls.",
+    "context": "The CLI uses device codes to log in to the web app. Tokens are stored locally and used for API calls.",
+    "input": "Details: device codes expire in 15 minutes; tokens are refreshable and stored in ~/.app/credentials. The backend currently logs full token responses for debugging.",
+    "constraints": [
+      "Identify the top three risks with concrete mitigations",
+      "Recommend low-effort logging and storage changes",
+      "Keep the response under 10 bullet points"
+    ],
+    "expected_output": "A prioritized list of risks and fixes, covering token handling, logging, and expiry controls.",
+    "skills": [
+      "security_review",
+      "oauth",
+      "risk_management"
+    ],
+    "difficulty": "medium",
+    "domain": "security",
+    "surface": "web"
+  },
+  {
+    "id": "ga-observability-017",
+    "title": "Define SLOs and alerts for multi-region API",
+    "goal": "Create SLOs and alerting for a multi-region API using the provided metrics.",
+    "context": "The service exposes region-level metrics for latency, error rate, and request volume. Customers want clear uptime and latency commitments.",
+    "input": "Metrics available: http_request_duration_p95, http_5xx_rate, request_count per region; business target: 99.9% monthly availability.",
+    "constraints": [
+      "Propose one availability SLO and one latency SLO with numeric targets",
+      "Include a burn-rate alert strategy with at least two windows",
+      "Reference only the provided metrics"
+    ],
+    "expected_output": "A brief SLO spec (SLI, target, window) and alert definitions, plus a dashboard outline.",
+    "skills": [
+      "observability",
+      "slo_design",
+      "monitoring"
+    ],
+    "difficulty": "hard",
+    "domain": "observability",
+    "surface": "web"
+  },
+  {
+    "id": "ga-quality-018",
+    "title": "Test plan for distributed saga with retries",
+    "goal": "Design a test plan for a saga workflow that coordinates billing, provisioning, and notifications with retries and compensation.",
+    "context": "The saga orchestrator retries each step up to three times and triggers compensation if any step fails after retries. Flaky network errors have caused inconsistent state.",
+    "input": "Current coverage: unit tests for individual steps only. No end-to-end or failure injection tests exist.",
+    "constraints": [
+      "Define at least three new tests, including one compensation path",
+      "Specify how to make failures deterministic",
+      "Focus on tests rather than code changes"
+    ],
+    "expected_output": "A concise test plan listing new tests, the failure injection approach, and expected assertions.",
+    "skills": [
+      "testing_strategy",
+      "reliability",
+      "distributed_systems"
+    ],
+    "difficulty": "hard",
+    "domain": "quality",
+    "surface": "web"
+  },
+  {
+    "id": "ga-product-019",
+    "title": "MVP scope for enterprise audit exports",
+    "goal": "Define MVP scope and success metrics for an enterprise audit export feature with limited engineering capacity.",
+    "context": "Sales has two enterprise deals blocked on audit export capability. Engineering can only allocate one backend and one frontend engineer for six weeks.",
+    "input": "Requirements gathered: export must include admin actions and access logs; customers want CSV and API access; legal requires data retention rules to be honored.",
+    "constraints": [
+      "Propose a phased scope with explicit tradeoffs",
+      "Include success metrics and a rollout or feedback plan",
+      "Keep the MVP within six weeks of work"
+    ],
+    "expected_output": "An MVP scope proposal with phased milestones, success metrics, and key risks.",
+    "skills": [
+      "product_strategy",
+      "prioritization",
+      "stakeholder_management"
+    ],
+    "difficulty": "hard",
+    "domain": "product",
+    "surface": "web"
+  },
+  {
+    "id": "ga-governance-020",
+    "title": "Policy for agent log retention",
+    "goal": "Draft a lightweight governance policy for retaining agent execution logs.",
+    "context": "The platform stores tool calls, prompts, and outputs for debugging. Security wants retention limits and access controls.",
+    "input": "Constraints: storage cost is rising; some logs contain PII; audit teams need 90 days of access.",
+    "constraints": [
+      "Specify default retention and exceptions",
+      "Define approval and access control requirements",
+      "Include a simple enforcement mechanism"
+    ],
+    "expected_output": "A short policy outline with retention tiers, access rules, and enforcement steps.",
+    "skills": [
+      "governance",
+      "policy_design",
+      "data_retention"
+    ],
+    "difficulty": "medium",
+    "domain": "governance",
+    "surface": "web"
+  },
+  {
+    "id": "ga-finance-021",
+    "title": "Explain cloud budget variance",
+    "goal": "Analyze monthly cloud spend variance and propose concrete cost controls.",
+    "context": "Finance reports a 28% spend increase after a new analytics pipeline launched. Leadership needs a clear explanation and immediate mitigation options.",
+    "input": "Last month spend: $420k. This month spend: $538k. Top services by increase: object storage +$52k, data transfer +$36k, managed ETL +$18k. Usage notes: export jobs doubled; 3 new regions enabled.",
+    "constraints": [
+      "Use only the provided data and context",
+      "Identify the top three drivers with a short rationale",
+      "Recommend two actions that can be executed within two weeks"
+    ],
+    "expected_output": "A brief variance summary with a ranked driver list and two mitigation actions with expected impact.",
+    "skills": [
+      "financial_analysis",
+      "cost_optimization",
+      "communication"
+    ],
+    "difficulty": "medium",
+    "domain": "finance",
+    "surface": "web"
+  },
+  {
+    "id": "ga-legal-022",
+    "title": "Summarize MSA redlines",
+    "goal": "Summarize contract redlines and highlight risks and negotiation positions.",
+    "context": "A vendor returned a Master Services Agreement with edits to liability, indemnity, and data processing terms.",
+    "input": "Key redlines: liability cap changed from 12 months fees to 3 months fees; vendor removed IP infringement indemnity; vendor added 30-day termination for convenience; DPA references removed.",
+    "constraints": [
+      "Highlight deviations from standard positions",
+      "Assign a risk level to each redline (low/medium/high)",
+      "Provide a recommended counter position for each item"
+    ],
+    "expected_output": "A concise table of redlines with risk level and recommended counter language or stance.",
+    "skills": [
+      "contract_analysis",
+      "risk_assessment",
+      "summarization"
+    ],
+    "difficulty": "medium",
+    "domain": "legal",
+    "surface": "web"
+  },
+  {
+    "id": "ga-support-023",
+    "title": "Triage a VIP support escalation",
+    "goal": "Create a rapid triage plan and customer response for a high-priority support escalation.",
+    "context": "A top-tier customer reports their weekly export is missing data for the last 48 hours. The account is up for renewal next month.",
+    "input": "Details: export job ran at 02:00 UTC; logs show success status but the output file size is 10% of normal. Customer impact: finance team cannot close month-end.",
+    "constraints": [
+      "Prioritize actions that can be done in the next 2 hours",
+      "List the minimum data needed to diagnose",
+      "Draft a customer update that sets expectations without overpromising"
+    ],
+    "expected_output": "A short triage checklist, required diagnostic data, and a customer-facing update message.",
+    "skills": [
+      "incident_triage",
+      "customer_communication",
+      "prioritization"
+    ],
+    "difficulty": "medium",
+    "domain": "customer_support",
+    "surface": "web"
+  },
+  {
+    "id": "ga-data-024",
+    "title": "Runbook for data backfill",
+    "goal": "Draft a safe, repeatable runbook for a 90-day data backfill.",
+    "context": "A schema fix requires backfilling events for the last 90 days into a new table. Production load is already high during business hours.",
+    "input": "Constraints: backfill must run in off-peak hours; rate limit at 2k rows/sec; failure retries must be idempotent.",
+    "constraints": [
+      "Include pre-checks and post-checks",
+      "Define abort or rollback criteria",
+      "Specify monitoring signals during the run"
+    ],
+    "expected_output": "A step-by-step runbook with guardrails, monitoring, and verification steps.",
+    "skills": [
+      "data_operations",
+      "runbook_authoring",
+      "risk_management"
+    ],
+    "difficulty": "medium",
+    "domain": "data_platform",
+    "surface": "web"
+  },
+  {
+    "id": "ga-marketing-025",
+    "title": "Activation email experiment brief",
+    "goal": "Define a concise experiment brief to improve activation via onboarding emails.",
+    "context": "Trial-to-activated conversion is 14%. Growth wants a short-term experiment to improve activation with a series of onboarding emails.",
+    "input": "Audience: B2B admins with >50 seats. Current email open rate 32%, click-through 4%.",
+    "constraints": [
+      "Keep the experiment within two weeks",
+      "Define primary and secondary metrics",
+      "Specify a control and one variant with a clear hypothesis"
+    ],
+    "expected_output": "An experiment brief with hypothesis, audience, variants, metrics, and decision criteria.",
+    "skills": [
+      "growth_experiments",
+      "copy_strategy",
+      "analytics"
+    ],
+    "difficulty": "medium",
+    "domain": "marketing",
     "surface": "web"
   }
 ]
