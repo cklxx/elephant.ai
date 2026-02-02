@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse, type MemoryEntry } from "@/lib/api";
+import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -749,7 +750,7 @@ function TurnMessagesViewer({
 
 export default function ConversationDebugPage() {
   const [sessionIdInput, setSessionIdInput] = useState("");
-  const [replayMode, setReplayMode] = useState<SSEReplayMode>("full");
+  const [replayMode, setReplayMode] = useState<SSEReplayMode>("session");
   const [events, setEvents] = useState<SSEDebugEvent[]>([]);
   const [maxEvents, setMaxEvents] = useState(DEFAULT_MAX_EVENTS);
   const [maxEventsInput, setMaxEventsInput] = useState(String(DEFAULT_MAX_EVENTS));
@@ -798,6 +799,11 @@ export default function ConversationDebugPage() {
   const listEndRef = useRef<HTMLDivElement | null>(null);
   const idRef = useRef(0);
   const autoSeededRef = useRef(false);
+  const lastConnectionRef = useRef<{ sessionId: string; replayMode: SSEReplayMode } | null>(
+    null,
+  );
+  const sessionSnapshotGateRef = useRef(createRequestGate());
+  const turnSnapshotGateRef = useRef(createRequestGate());
 
   const sessionId = sessionIdInput.trim();
   const logId = logIdInput.trim();
@@ -863,6 +869,12 @@ export default function ConversationDebugPage() {
       return;
     }
 
+    const previous = lastConnectionRef.current;
+    if (!previous || previous.sessionId !== sessionId || previous.replayMode !== replayMode) {
+      clearEvents();
+    }
+    lastConnectionRef.current = { sessionId, replayMode };
+
     disconnect();
     setError(null);
     setIsConnected(false);
@@ -890,7 +902,7 @@ export default function ConversationDebugPage() {
 
     source.onmessage = (event) => handleIncomingEvent("message", event);
     eventSourceRef.current = source;
-  }, [disconnect, handleIncomingEvent, replayMode, sessionId]);
+  }, [clearEvents, disconnect, handleIncomingEvent, replayMode, sessionId]);
 
   const loadSessionSnapshot = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -902,6 +914,7 @@ export default function ConversationDebugPage() {
         return;
       }
 
+      const requestId = sessionSnapshotGateRef.current.next();
       if (!options?.silent) {
         setSessionSnapshotLoading(true);
       }
@@ -909,14 +922,20 @@ export default function ConversationDebugPage() {
 
       try {
         const snapshot = await apiClient.getSessionRaw(sessionId);
+        if (!sessionSnapshotGateRef.current.isLatest(requestId)) {
+          return;
+        }
         setSessionSnapshot(snapshot);
         setSessionSnapshotUpdatedAt(new Date().toISOString());
       } catch (err) {
+        if (!sessionSnapshotGateRef.current.isLatest(requestId)) {
+          return;
+        }
         setSessionSnapshotError(
           err instanceof Error ? err.message : "Failed to load session data.",
         );
       } finally {
-        if (!options?.silent) {
+        if (!options?.silent && sessionSnapshotGateRef.current.isLatest(requestId)) {
           setSessionSnapshotLoading(false);
         }
       }
@@ -935,6 +954,7 @@ export default function ConversationDebugPage() {
         return;
       }
 
+      const requestId = turnSnapshotGateRef.current.next();
       if (!options?.silent) {
         setTurnSnapshotLoading(true);
       }
@@ -942,6 +962,9 @@ export default function ConversationDebugPage() {
 
       try {
         const snapshots = await apiClient.listSessionSnapshots(sessionId, 1);
+        if (!turnSnapshotGateRef.current.isLatest(requestId)) {
+          return;
+        }
         if (!snapshots.items || snapshots.items.length === 0) {
           setTurnSnapshotMeta(null);
           setTurnSnapshot(null);
@@ -952,14 +975,20 @@ export default function ConversationDebugPage() {
         const latest = snapshots.items[0];
         setTurnSnapshotMeta(latest);
         const snapshot = await apiClient.getSessionTurnSnapshot(sessionId, latest.turn_id);
+        if (!turnSnapshotGateRef.current.isLatest(requestId)) {
+          return;
+        }
         setTurnSnapshot(snapshot);
         setTurnSnapshotUpdatedAt(new Date().toISOString());
       } catch (err) {
+        if (!turnSnapshotGateRef.current.isLatest(requestId)) {
+          return;
+        }
         setTurnSnapshotError(
           err instanceof Error ? err.message : "Failed to load turn snapshot.",
         );
       } finally {
-        if (!options?.silent) {
+        if (!options?.silent && turnSnapshotGateRef.current.isLatest(requestId)) {
           setTurnSnapshotLoading(false);
         }
       }
@@ -1069,6 +1098,8 @@ export default function ConversationDebugPage() {
 
   useEffect(() => {
     if (!sessionId) {
+      sessionSnapshotGateRef.current.reset();
+      turnSnapshotGateRef.current.reset();
       setSessionSnapshot(null);
       setSessionSnapshotError(null);
       setSessionSnapshotUpdatedAt(null);
