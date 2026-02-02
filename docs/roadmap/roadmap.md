@@ -12,7 +12,7 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 
 ## Current State (2026-02-02)
 
-**M0 is complete. M1 (P2) is ~80% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM infrastructure (provider health, token budget), and CI eval gating are all implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), dynamic model selection, signal collection, evaluation automation, and evaluation set construction. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+**M0 is complete. M1 (P2) is ~80% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing, evaluation automation, and evaluation set construction. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
 
 ---
 

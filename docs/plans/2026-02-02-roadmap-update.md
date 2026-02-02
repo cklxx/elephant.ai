@@ -10,5 +10,6 @@ Review roadmap completion status, merge draft roadmap structure/details into `do
 - [x] Review current roadmap + draft materials; identify completion/status deltas to reflect.
 - [x] Update `docs/roadmap/roadmap.md` with draft sections (cross-track, dependencies, progress log) and new evaluation-set item.
 - [x] Re-review roadmap settings and adjust wording/statuses for accuracy.
-- [x] Run full lint + tests, restart dev environment.
+- [ ] Run full lint + tests (lint failed on existing issues; `make test` terminated after extended run).
+- [x] Restart dev environment (`./dev.sh down && ./dev.sh`).
 - [ ] Commit in incremental steps.
