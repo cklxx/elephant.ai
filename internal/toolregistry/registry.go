@@ -29,6 +29,7 @@ import (
 	"alex/internal/tools/builtin/search"
 	sessiontools "alex/internal/tools/builtin/session"
 	"alex/internal/tools/builtin/shared"
+	schedulertools "alex/internal/tools/builtin/scheduler"
 	timertools "alex/internal/tools/builtin/timer"
 	"alex/internal/tools/builtin/ui"
 	"alex/internal/tools/builtin/web"
@@ -36,14 +37,15 @@ import (
 
 // Registry implements ToolRegistry with three-tier caching
 type Registry struct {
-	static     map[string]tools.ToolExecutor
-	dynamic    map[string]tools.ToolExecutor
-	mcp        map[string]tools.ToolExecutor
-	mu         sync.RWMutex
-	cachedDefs []ports.ToolDefinition
-	defsDirty  bool
-	policy     toolspolicy.ToolPolicy
-	breakers   *circuitBreakerStore
+	static       map[string]tools.ToolExecutor
+	dynamic      map[string]tools.ToolExecutor
+	mcp          map[string]tools.ToolExecutor
+	mu           sync.RWMutex
+	cachedDefs   []ports.ToolDefinition
+	defsDirty    bool
+	policy       toolspolicy.ToolPolicy
+	breakers     *circuitBreakerStore
+	SLACollector *toolspolicy.SLACollector
 }
 
 // filteredRegistry wraps a parent registry and excludes certain tools
@@ -82,6 +84,7 @@ type Config struct {
 	HTTPLimits    runtimeconfig.HTTPLimitsConfig
 	ToolPolicy    toolspolicy.ToolPolicy
 	BreakerConfig CircuitBreakerConfig
+	SLACollector  *toolspolicy.SLACollector
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -92,12 +95,13 @@ func NewRegistry(config Config) (*Registry, error) {
 	breakers := newCircuitBreakerStore(normalizeCircuitBreakerConfig(config.BreakerConfig))
 
 	r := &Registry{
-		static:    make(map[string]tools.ToolExecutor),
-		dynamic:   make(map[string]tools.ToolExecutor),
-		mcp:       make(map[string]tools.ToolExecutor),
-		defsDirty: true,
-		policy:    policy,
-		breakers:  breakers,
+		static:       make(map[string]tools.ToolExecutor),
+		dynamic:      make(map[string]tools.ToolExecutor),
+		mcp:          make(map[string]tools.ToolExecutor),
+		defsDirty:    true,
+		policy:       policy,
+		breakers:     breakers,
+		SLACollector: config.SLACollector,
 	}
 
 	if config.MemoryService == nil {
@@ -120,7 +124,7 @@ func (r *Registry) Register(tool tools.ToolExecutor) error {
 	}
 
 	// Check if this is an MCP tool (tools with mcp__ prefix go to mcp map)
-	wrapped := wrapTool(tool, r.policy, r.breakers)
+	wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
 	if len(name) > 5 && name[:5] == "mcp__" {
 		r.mcp[name] = wrapped
 	} else {
@@ -145,20 +149,28 @@ func (r *Registry) Get(name string) (tools.ToolExecutor, error) {
 	return nil, fmt.Errorf("tool not found: %s", name)
 }
 
-// wrapTool ensures tools are wrapped with approval, retry, and ID propagation.
-func wrapTool(tool tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *circuitBreakerStore) tools.ToolExecutor {
+// wrapTool ensures tools are wrapped with approval, retry, ID propagation,
+// and optional SLA measurement. The SLA executor is the outermost layer so
+// it measures total time including retries and approval.
+func wrapTool(tool tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *circuitBreakerStore, sla *toolspolicy.SLACollector) tools.ToolExecutor {
 	if tool == nil {
 		return nil
 	}
 	base := unwrapTool(tool)
 	approval := &approvalExecutor{delegate: base}
 	retry := newRetryExecutor(approval, policy, breakers)
-	return &idAwareExecutor{delegate: retry}
+	id := &idAwareExecutor{delegate: retry}
+	if sla == nil {
+		return id
+	}
+	return toolspolicy.NewSLAExecutor(id, sla)
 }
 
 func unwrapTool(tool tools.ToolExecutor) tools.ToolExecutor {
 	for {
 		switch typed := tool.(type) {
+		case *toolspolicy.SLAExecutor:
+			tool = typed.Delegate()
 		case *idAwareExecutor:
 			tool = typed.delegate
 		case *retryExecutor:
@@ -529,12 +541,17 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["list_timers"] = timertools.NewListTimers()
 	r.static["cancel_timer"] = timertools.NewCancelTimer()
 
+	// Scheduler tools (stateless; Scheduler injected via context at runtime)
+	r.static["scheduler_create_job"] = schedulertools.NewSchedulerCreate()
+	r.static["scheduler_list_jobs"] = schedulertools.NewSchedulerList()
+	r.static["scheduler_delete_job"] = schedulertools.NewSchedulerDelete()
+
 	// Moltbook interaction is skill-driven (see skills/moltbook-posting/SKILL.md).
 	// The agent uses shell curl commands guided by the skill's API reference.
 
-	// Pre-wrap all static tools with approval, retry, and ID propagation.
+	// Pre-wrap all static tools with approval, retry, ID propagation, and SLA.
 	for name, tool := range r.static {
-		r.static[name] = wrapTool(tool, r.policy, r.breakers)
+		r.static[name] = wrapTool(tool, r.policy, r.breakers, r.SLACollector)
 	}
 
 	return nil
@@ -550,21 +567,21 @@ func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 
 	if _, exists := r.static["subagent"]; exists {
 		if _, ok := r.static["explore"]; !ok {
-			r.static["explore"] = wrapTool(orchestration.NewExplore(r.static["subagent"]), r.policy, r.breakers)
+			r.static["explore"] = wrapTool(orchestration.NewExplore(r.static["subagent"]), r.policy, r.breakers, r.SLACollector)
 			r.defsDirty = true
 		}
 		return
 	}
 
 	subTool := orchestration.NewSubAgent(coordinator, 3)
-	r.static["subagent"] = wrapTool(subTool, r.policy, r.breakers)
-	r.static["explore"] = wrapTool(orchestration.NewExplore(subTool), r.policy, r.breakers)
+	r.static["subagent"] = wrapTool(subTool, r.policy, r.breakers, r.SLACollector)
+	r.static["explore"] = wrapTool(orchestration.NewExplore(subTool), r.policy, r.breakers, r.SLACollector)
 
 	// Register background task tools (dispatcher injected via context at runtime).
-	r.static["bg_dispatch"] = wrapTool(orchestration.NewBGDispatch(), r.policy, r.breakers)
-	r.static["bg_status"] = wrapTool(orchestration.NewBGStatus(), r.policy, r.breakers)
-	r.static["bg_collect"] = wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers)
-	r.static["ext_reply"] = wrapTool(orchestration.NewExtReply(), r.policy, r.breakers)
-	r.static["ext_merge"] = wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers)
+	r.static["bg_dispatch"] = wrapTool(orchestration.NewBGDispatch(), r.policy, r.breakers, r.SLACollector)
+	r.static["bg_status"] = wrapTool(orchestration.NewBGStatus(), r.policy, r.breakers, r.SLACollector)
+	r.static["bg_collect"] = wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers, r.SLACollector)
+	r.static["ext_reply"] = wrapTool(orchestration.NewExtReply(), r.policy, r.breakers, r.SLACollector)
+	r.static["ext_merge"] = wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers, r.SLACollector)
 	r.defsDirty = true
 }

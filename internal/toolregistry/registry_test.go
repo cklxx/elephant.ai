@@ -202,7 +202,7 @@ func TestWrapToolDoesNotMutateInput(t *testing.T) {
 
 	policy := toolspolicy.NewToolPolicy(toolspolicy.DefaultToolPolicyConfig())
 	breakers := newCircuitBreakerStore(normalizeCircuitBreakerConfig(CircuitBreakerConfig{}))
-	result := wrapTool(wrapped, policy, breakers)
+	result := wrapTool(wrapped, policy, breakers, nil)
 
 	// The original idAwareExecutor should not be mutated
 	if wrapped.delegate != originalDelegate {
