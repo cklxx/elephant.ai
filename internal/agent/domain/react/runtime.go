@@ -835,6 +835,7 @@ func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emi
 			})
 		}
 
+		r.engine.clearCheckpoint(r.ctx, r.state.SessionID)
 		r.finishWorkflow(stopReason, result, workflowErr)
 	})
 

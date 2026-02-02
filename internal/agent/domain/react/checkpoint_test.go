@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,9 +14,38 @@ import (
 	tools "alex/internal/agent/ports/tools"
 )
 
+type recordingCheckpointStore struct {
+	mu      sync.Mutex
+	saves   int
+	deletes int
+}
+
+func (s *recordingCheckpointStore) Save(_ context.Context, _ *Checkpoint) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.saves++
+	return nil
+}
+
+func (s *recordingCheckpointStore) Load(_ context.Context, _ string) (*Checkpoint, error) {
+	return nil, nil
+}
+
+func (s *recordingCheckpointStore) Delete(_ context.Context, _ string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deletes++
+	return nil
+}
+
+func (s *recordingCheckpointStore) counts() (int, int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.saves, s.deletes
+}
+
 func TestCheckpointWriteAfterObserve(t *testing.T) {
-	dir := t.TempDir()
-	store := NewFileCheckpointStore(dir)
+	store := &recordingCheckpointStore{}
 
 	callCount := 0
 	mockLLM := &mocks.MockLLMClient{
@@ -67,9 +97,12 @@ func TestCheckpointWriteAfterObserve(t *testing.T) {
 		t.Fatalf("SolveTask returned error: %v", err)
 	}
 
-	path := filepath.Join(dir, "session-checkpoint.json")
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("expected checkpoint file, got error: %v", err)
+	saves, deletes := store.counts()
+	if saves == 0 {
+		t.Fatalf("expected checkpoint saves, got %d", saves)
+	}
+	if deletes != 1 {
+		t.Fatalf("expected checkpoint to be cleared after completion, got %d deletes", deletes)
 	}
 }
 

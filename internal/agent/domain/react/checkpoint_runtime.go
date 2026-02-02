@@ -268,3 +268,16 @@ func (e *ReactEngine) saveCheckpoint(ctx context.Context, state *TaskState, pend
 		e.logger.Warn("Failed to save checkpoint: %v", err)
 	}
 }
+
+func (e *ReactEngine) clearCheckpoint(ctx context.Context, sessionID string) {
+	if e == nil || e.checkpointStore == nil {
+		return
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return
+	}
+	if err := e.checkpointStore.Delete(ctx, sessionID); err != nil {
+		e.logger.Warn("Failed to delete checkpoint after completion: %v", err)
+	}
+}
