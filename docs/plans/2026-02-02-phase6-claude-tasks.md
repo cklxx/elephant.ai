@@ -58,7 +58,14 @@ Purpose: Execute remaining Claude-owned P1/P2 tasks from expanded roadmap.
 | C34 | DONE | 8c7f0e1f |
 | C35 | DONE | 1650cee8 |
 | C36 | DONE | 75e939cb |
-| C37 | IN PROGRESS | |
-| C38 | IN PROGRESS | |
-| C39 | IN PROGRESS | |
-| C40 | IN PROGRESS | |
+| C37 | DONE | 29e31dc0 |
+| C38 | DONE | bbc5a38c |
+| C39 | DONE | d8f3fc12 |
+| C40 | DONE | 27849e69 |
+
+---
+
+## Summary
+
+All 14 Claude-owned tasks (C27-C40) completed across 3 batches.
+3 tasks remain blocked on Codex: C12, C14, C22.
