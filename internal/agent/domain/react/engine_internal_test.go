@@ -1104,6 +1104,78 @@ func TestBuildToolMessagesDoesNotInjectPlaceholders(t *testing.T) {
 	}
 }
 
+func TestTruncateToolResultContentUnderLimit(t *testing.T) {
+	content := "short content"
+	got := truncateToolResultContent(content, 8000)
+	if got != content {
+		t.Fatalf("expected content unchanged, got %q", got)
+	}
+}
+
+func TestTruncateToolResultContentOverLimit(t *testing.T) {
+	// Build content with 200 lines of 50 chars each (~10200 chars total).
+	var b strings.Builder
+	for i := 1; i <= 200; i++ {
+		fmt.Fprintf(&b, "line %03d: %s\n", i, strings.Repeat("x", 40))
+	}
+	content := b.String()
+	if len(content) <= 8000 {
+		t.Fatalf("test setup: content should exceed 8000 chars, got %d", len(content))
+	}
+
+	got := truncateToolResultContent(content, 8000)
+
+	// Must be truncated.
+	if len(got) >= len(content) {
+		t.Fatalf("expected truncation, got len=%d (original=%d)", len(got), len(content))
+	}
+	// Must contain the hint.
+	if !strings.Contains(got, "[Content truncated:") {
+		t.Fatalf("expected truncation hint, got %q", got[len(got)-200:])
+	}
+	if !strings.Contains(got, "offset/limit or line_start/line_end") {
+		t.Fatalf("expected line-range hint, got %q", got[len(got)-200:])
+	}
+	// The hint must show total lines (200 lines + trailing newline = 201).
+	if !strings.Contains(got, "/201 lines") {
+		t.Fatalf("expected total line count in hint, got %q", got[len(got)-200:])
+	}
+}
+
+func TestTruncateToolResultContentCutsAtLineBoundary(t *testing.T) {
+	// 3 lines: 4000 + 4000 + 4000 chars.
+	line := strings.Repeat("a", 3999) + "\n"
+	content := line + line + line
+	got := truncateToolResultContent(content, 8000)
+
+	// Should cut at the end of line 2 (8000 chars), not mid-line 3.
+	lines := strings.Split(strings.TrimRight(got[:strings.Index(got, "[Content truncated:")], "\n"), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 lines before hint, got %d", len(lines))
+	}
+}
+
+func TestBuildToolMessagesTruncatesLargeResult(t *testing.T) {
+	engine := NewReactEngine(ReactEngineConfig{})
+	bigContent := strings.Repeat("x", maxToolResultContentChars+1000)
+	results := []ToolResult{{
+		CallID:  "call-1",
+		Content: bigContent,
+	}}
+
+	messages := engine.buildToolMessages(results)
+	if len(messages) != 1 {
+		t.Fatalf("expected one tool message, got %d", len(messages))
+	}
+	if !strings.Contains(messages[0].Content, "[Content truncated:") {
+		t.Fatalf("expected truncation hint in message content")
+	}
+	// Original result preserved in ToolResults.
+	if messages[0].ToolResults[0].Content != bigContent {
+		t.Fatalf("expected original content preserved in ToolResults")
+	}
+}
+
 func TestAppendGoalPlanReminderSkippedWhenDistanceSmall(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{}

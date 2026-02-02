@@ -75,6 +75,34 @@ func (e *ReactEngine) parseToolCalls(msg Message, parser tools.FunctionCallParse
 	return calls
 }
 
+// truncateToolResultContent caps content at maxToolResultContentChars,
+// cutting at the nearest preceding line boundary to avoid splitting a line
+// in half.  When truncation occurs, a hint is appended telling the LLM to
+// use offset/limit or line_start/line_end to view the remaining content.
+func truncateToolResultContent(content string, limit int) string {
+	if len(content) <= limit {
+		return content
+	}
+
+	totalLines := strings.Count(content, "\n") + 1
+
+	// Find the last newline at or before the limit so we cut at a line boundary.
+	cut := strings.LastIndex(content[:limit], "\n")
+	if cut <= 0 {
+		cut = limit
+	}
+
+	shownLines := strings.Count(content[:cut], "\n") + 1
+
+	truncated := content[:cut]
+	truncated += fmt.Sprintf(
+		"\n\n[Content truncated: showing %d/%d lines (%d/%d chars). "+
+			"Use offset/limit or line_start/line_end parameters to view remaining content.]",
+		shownLines, totalLines, cut, len(content),
+	)
+	return truncated
+}
+
 // buildToolMessages converts tool results into messages sent back to the LLM.
 func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 	messages := make([]Message, 0, len(results))
@@ -90,6 +118,7 @@ func (e *ReactEngine) buildToolMessages(results []ToolResult) []Message {
 		}
 
 		content = strings.TrimSpace(content)
+		content = truncateToolResultContent(content, maxToolResultContentChars)
 
 		msg := Message{
 			Role:        "tool",

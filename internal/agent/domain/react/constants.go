@@ -33,4 +33,9 @@ const (
 	attachmentMatchGeneric         = "generic_alias"
 
 	snapshotSummaryLimit = 160
+
+	// maxToolResultContentChars caps the content sent to the LLM for a
+	// single tool result.  When exceeded, content is truncated at the
+	// nearest preceding line boundary and a hint is appended.
+	maxToolResultContentChars = 8000
 )
