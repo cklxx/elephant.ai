@@ -171,6 +171,10 @@ Suggested labels: `good first issue`, `help wanted`, `mvp-slice`.
   - [x] 过程可视化、SSE 流、可打断（stop/cancel，`web`, `internal/server/http`）
   - [x] 敏感动作提示/订阅管理（`internal/auth/app`, web 订阅 UI）
   - [ ] 用户纠错/改目标的回传与重试入口
+  - [ ] 飞书/Feishu 交互卡片体系（cards）
+    - [ ] 卡片模板库与 schema builder（进度/审批/结果/错误等基础卡片）
+    - [ ] 交互回调处理（button/select/form 提交 → agent 回流）
+    - [ ] 设计规范（版式/颜色/层级/空状态/错误态/多语言）
 
 ---
 
