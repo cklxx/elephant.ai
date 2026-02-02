@@ -11,7 +11,12 @@
 
 旧版 `browser` 工具依赖 Playwright 本地运行，稳定性和可重复性受环境影响较大（浏览器安装、依赖缺失、运行时状态漂移等）。AIO Sandbox 提供 **统一、隔离、可复用** 的浏览器环境，同时支持 VNC/CDP/MCP 访问，便于多工具协作。
 
-### 1.2 新旧工具映射
+### 1.2 通道差异（重要）
+
+- **Web/CLI**：继续使用 Sandbox 工具（`browser_*`, `read_file`, `write_file` 等）。
+- **Lark**：不注册 Sandbox 工具，改用本地工具（本地 Chrome/CDP、本地文件读写/执行）。请在 `channels.lark` 配置 `workspace_dir` 与 `browser`，并依赖 `auto_upload_files` 上传新建/更新文件。
+
+### 1.3 新旧工具映射
 
 | 旧工具 | 新工具 | 变化说明 |
 | --- | --- | --- |

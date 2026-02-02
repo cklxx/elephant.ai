@@ -172,7 +172,12 @@ apps:
 - `session_prefix`：会话 ID 前缀（默认 `lark`），用于派生稳定的 chat session ID；Lark 不注入 session history，多轮聊天依赖 `auto_chat_context` 与 memory。
 - `reply_prefix`：回复前缀。
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
-- `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode。
+- `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: lark-local`）。
+- `workspace_dir`：Lark 本地工具工作区根目录（默认进程 working dir）。
+- `auto_upload_files`：本地文件写入/替换后自动上传附件（默认 true）。
+- `auto_upload_max_bytes`：自动上传单文件大小上限（默认 2MB）。
+- `auto_upload_allow_ext`：自动上传允许扩展名白名单（默认常见文档/图片）。
+- `browser`：本地浏览器配置（`cdp_url` / `chrome_path` / `headless` / `user_data_dir` / `timeout_seconds`）。
 - `reply_timeout_seconds`：单条消息执行超时（秒）。
 - `react_emoji`：随机表情池（逗号/空格分隔）。同一次请求会在开始/结束分别随机挑选不同表情；少于 2 个时会回退默认池。
 - `memory_enabled`：启用记忆自动保存/召回。
@@ -194,8 +199,18 @@ channels:
     allow_groups: true
     allow_direct: true
     agent_preset: "default"
-    tool_preset: "full"
+    tool_preset: "lark-local"
     tool_mode: "cli"
+    workspace_dir: "/Users/bytedance/code/elephant.ai"
+    auto_upload_files: true
+    auto_upload_max_bytes: 2097152
+    auto_upload_allow_ext: [".txt", ".md", ".json", ".yaml", ".yml", ".csv", ".log", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".docx", ".xlsx", ".pptx"]
+    browser:
+      cdp_url: ""
+      chrome_path: ""
+      headless: true
+      user_data_dir: "~/.alex/chrome"
+      timeout_seconds: 60
     reply_timeout_seconds: 180
     react_emoji: "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM"
     memory_enabled: true

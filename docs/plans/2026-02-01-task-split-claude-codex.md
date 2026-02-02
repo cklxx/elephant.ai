@@ -1,7 +1,7 @@
 # Task Split: Claude Code vs Codex
 
 Created: 2026-02-01
-Updated: 2026-02-01 23:30
+Updated: 2026-02-02 22:00
 
 ## Splitting Principle
 
@@ -195,7 +195,7 @@ Phase 6 — P3:
 | C9 | DONE | Unit tests for C5-C6 |
 | C10 | DONE | Calendar trigger in scheduler |
 | C11 | DONE | `ceba6d70` checkpoint schema |
-| C12 | TODO | Checkpoint integration test + CLI resume not implemented yet |
+| C12 | DONE | `624869e4` checkpoint integration test + CLI resume |
 | C13 | DONE | `be5bbc01` tool policy config |
 | C14 | DONE | `25030852` retry wiring + config load |
 | C15 | DONE | `953ddd80` drainable interface |
@@ -211,7 +211,12 @@ Phase 6 — P3:
 | C25 | DONE | `b7315928` calendar summary builder |
 | C26 | DONE | `74b6b963` reminder pipeline |
 
-**Claude Code: 25/26 done** (C12 pending: checkpoint integration test + CLI resume)
+**Claude Code: 26/26 done** (C12 completed: checkpoint integration test + CLI resume)
+
+## Review Notes (2026-02-02)
+
+- C12 已补齐并通过测试（见 commit `624869e4`）。
+- 其余 Claude Code 任务未发现明显缺口；当前评估基于测试通过与关键路径抽样检查。
 
 ```
 Context: elephant.ai Go project.

@@ -1,7 +1,7 @@
 # Plan: Lark 模式本地工具替换 Sandbox + 工作区限制 + 自动附件上传
 
 **Date:** 2026-02-02
-**Status:** planned
+**Status:** done
 **Owner:** cklxx
 
 ## Goal
@@ -87,3 +87,6 @@
 - 运行环境可访问本地 Chrome（或提供 `cdp_url`）。
 - 附件存储已配置（本地或云端）以承接自动上传。
 - Lark 默认 tool_mode 继续为 `cli`，仅 tool_preset 切换为 `lark-local`。
+
+## Result
+- Implemented in `94bece4d`.

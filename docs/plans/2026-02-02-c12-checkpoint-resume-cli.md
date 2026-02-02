@@ -49,3 +49,6 @@
 
 ## Assumptions
 - File-based checkpoints under session dir are acceptable for CLI usage.
+
+## Result
+- Implemented in `624869e4`.
