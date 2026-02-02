@@ -8,7 +8,7 @@ capabilities:
   - context metrics emitters (token + cost)
 limits:
   - "External network calls restricted unless tools explicitly allow."
-  - "All shell access is audited; destructive commands require confirmation."
+  - "All shell access is audited."
 cost_model:
   - "LLM usage tracked per session; call out spikes."
   - "Prefer deterministic local analysis before expensive remote calls."
