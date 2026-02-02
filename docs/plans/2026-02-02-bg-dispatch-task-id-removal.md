@@ -1,7 +1,7 @@
 # Plan: bg_dispatch task_id removal + main-agent linkage
 
 **Created**: 2026-02-02
-**Status**: In Progress
+**Status**: Completed (2026-02-02)
 **Author**: cklxx + Codex
 
 ## Goals
@@ -15,4 +15,4 @@
 - [x] Update `bg_dispatch` implementation (schema, validation, ID generation, metadata).
 - [x] Update external agent docs to remove `task_id` input and explain returned IDs.
 - [x] Run full lint + tests.
-- [ ] Commit in incremental steps.
+- [x] Commit in incremental steps.
