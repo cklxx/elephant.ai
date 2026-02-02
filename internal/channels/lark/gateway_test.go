@@ -90,8 +90,7 @@ func TestMemoryIDForChatDistinct(t *testing.T) {
 	}
 }
 
-func TestExtractText(t *testing.T) {
-	gw := &Gateway{cfg: Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}}, logger: logging.OrNop(nil)}
+func TestExtractTextContent(t *testing.T) {
 	tests := []struct {
 		name     string
 		raw      string
@@ -101,14 +100,14 @@ func TestExtractText(t *testing.T) {
 		{"empty text", `{"text":""}`, ""},
 		{"whitespace text", `{"text":"  "}`, ""},
 		{"empty raw", "", ""},
-		{"invalid json", "not json", ""},
+		{"invalid json", "not json", "not json"},
 		{"no text field", `{"other":"value"}`, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := gw.extractText(tt.raw)
+			got := extractTextContent(tt.raw)
 			if got != tt.expected {
-				t.Fatalf("extractText(%q) = %q, want %q", tt.raw, got, tt.expected)
+				t.Fatalf("extractTextContent(%q) = %q, want %q", tt.raw, got, tt.expected)
 			}
 		})
 	}
@@ -365,12 +364,12 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 	chatType := "p2p"
 
 	executor := &capturingExecutor{}
-		gw := &Gateway{
-			cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
-			agent:  executor,
-			logger: logging.OrNop(nil),
-			now:    func() time.Time { return time.Now() },
-		}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
 	// Initialize dedup cache.
 	cache, _ := lru.New[string, time.Time](16)
 	gw.dedupCache = cache
@@ -454,6 +453,59 @@ func TestHandleMessageSessionHistoryAlwaysDisabled(t *testing.T) {
 
 	if appcontext.SessionHistoryEnabled(executor.capturedCtx) {
 		t.Fatalf("expected session history to be disabled for lark")
+	}
+}
+
+func TestHandleMessagePostContent(t *testing.T) {
+	openID := "ou_sender_post"
+	chatID := "oc_chat_post"
+	msgID := "om_msg_post"
+	content := `{"title":"Weekly Update","content":[[{"tag":"text","text":"Line 1 "},{"tag":"at","user_name":"alex"}],[{"tag":"text","text":"Line 2"}]]}`
+	msgType := "post"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	if executor.capturedTask == "" {
+		t.Fatal("expected post content to be extracted")
+	}
+	if !strings.Contains(executor.capturedTask, "Weekly Update") {
+		t.Fatalf("expected title to be included, got %q", executor.capturedTask)
+	}
+	if !strings.Contains(executor.capturedTask, "Line 1 @alex") {
+		t.Fatalf("expected text + mention to be included, got %q", executor.capturedTask)
+	}
+	if !strings.Contains(executor.capturedTask, "Line 2") {
+		t.Fatalf("expected second line to be included, got %q", executor.capturedTask)
 	}
 }
 

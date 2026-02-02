@@ -180,8 +180,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 	msg := event.Event.Message
 
-	// Only handle text messages.
-	if deref(msg.MessageType) != "text" {
+	msgType := strings.ToLower(strings.TrimSpace(deref(msg.MessageType)))
+	// Only handle text-like messages.
+	if msgType != "text" && msgType != "post" {
 		return nil
 	}
 
@@ -195,7 +196,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	// Extract text from JSON content.
-	content := g.extractText(deref(msg.Content))
+	content := g.extractMessageContent(msgType, deref(msg.Content))
 	if content == "" {
 		return nil
 	}
@@ -580,9 +581,21 @@ func (g *Gateway) memoryIDForChat(chatID string) string {
 	return fmt.Sprintf("%s-%x", g.cfg.SessionPrefix, hash[:12])
 }
 
-// extractText parses the JSON content from a Lark text message.
-// The content field is a JSON string like: {"text":"hello"}
-func (g *Gateway) extractText(raw string) string {
+// extractMessageContent parses the JSON content from a Lark message.
+// Supports "text" and "post" message types, returning a trimmed string.
+func (g *Gateway) extractMessageContent(msgType, raw string) string {
+	switch msgType {
+	case "text":
+		return extractTextContent(raw)
+	case "post":
+		return extractPostContent(raw)
+	default:
+		return ""
+	}
+}
+
+// extractTextContent parses a Lark text message content JSON: {"text":"..."}.
+func extractTextContent(raw string) string {
 	if raw == "" {
 		return ""
 	}
@@ -590,10 +603,65 @@ func (g *Gateway) extractText(raw string) string {
 		Text string `json:"text"`
 	}
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
-		g.logger.Warn("Lark message content parse failed: %v", err)
-		return ""
+		return strings.TrimSpace(raw)
 	}
 	return strings.TrimSpace(parsed.Text)
+}
+
+// extractPostContent parses a Lark post message content JSON and flattens text.
+// The content field is a JSON string like:
+// {"title":"...","content":[[{"tag":"text","text":"..."}]]}
+func extractPostContent(raw string) string {
+	if raw == "" {
+		return ""
+	}
+
+	type postElement struct {
+		Tag      string `json:"tag"`
+		Text     string `json:"text"`
+		UserID   string `json:"user_id"`
+		UserName string `json:"user_name"`
+	}
+	type postPayload struct {
+		Title   string          `json:"title"`
+		Content [][]postElement `json:"content"`
+	}
+
+	var parsed postPayload
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		return strings.TrimSpace(raw)
+	}
+
+	var sb strings.Builder
+	if title := strings.TrimSpace(parsed.Title); title != "" {
+		sb.WriteString(title)
+	}
+	for _, line := range parsed.Content {
+		if sb.Len() > 0 {
+			sb.WriteByte('\n')
+		}
+		for _, el := range line {
+			switch el.Tag {
+			case "text":
+				sb.WriteString(el.Text)
+			case "at":
+				name := strings.TrimSpace(el.UserName)
+				if name == "" {
+					name = strings.TrimSpace(el.UserID)
+				}
+				if name != "" {
+					sb.WriteString("@")
+					sb.WriteString(name)
+				}
+			default:
+				if el.Text != "" {
+					sb.WriteString(el.Text)
+				}
+			}
+		}
+	}
+
+	return strings.TrimSpace(sb.String())
 }
 
 // textContent builds the JSON content payload for a Lark text message.
