@@ -64,7 +64,6 @@ export interface KnowledgeReference {
   id?: string;
   description?: string;
   sop_refs?: string[];
-  rag_collections?: string[];
   memory_keys?: string[];
 }
 

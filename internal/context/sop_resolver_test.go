@@ -290,7 +290,6 @@ func TestBuildKnowledgeSectionRendersResolvedContent(t *testing.T) {
 		ResolvedSOPContent: map[string]string{
 			"docs/ref/sop.md#section-one": "## Section One\n\nResolved content here.",
 		},
-		RAGCollections: []string{"my-collection"},
 		MemoryKeys:     []string{"key1"},
 	}}
 
@@ -305,10 +304,7 @@ func TestBuildKnowledgeSectionRendersResolvedContent(t *testing.T) {
 	if strings.Contains(section, "SOP refs:") {
 		t.Fatalf("should not contain raw SOP refs when resolved, got %q", section)
 	}
-	// RAG and memory keys should still be present.
-	if !strings.Contains(section, "RAG collections: my-collection") {
-		t.Fatalf("expected RAG collections, got %q", section)
-	}
+	// Memory keys should still be present.
 	if !strings.Contains(section, "Memory keys: key1") {
 		t.Fatalf("expected memory keys, got %q", section)
 	}

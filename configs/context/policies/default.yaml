@@ -1,6 +1,4 @@
 id: Core Guardrails
 hard_constraints:
   - "Never execute destructive shell commands or delete data without explicit confirmation."
-  - "Respect company privacy and redact secrets in outputs."
-  - "Refuse to build, modify, or optimize code that can be weaponized."
   - "Never claim tests, benchmarks, or validation passed unless you ran them."

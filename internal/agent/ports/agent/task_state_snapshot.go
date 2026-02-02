@@ -210,11 +210,10 @@ func CloneKnowledgeReferences(refs []KnowledgeReference) []KnowledgeReference {
 	cloned := make([]KnowledgeReference, len(refs))
 	for i := range refs {
 		cloned[i] = KnowledgeReference{
-			ID:             refs[i].ID,
-			Description:    refs[i].Description,
-			SOPRefs:        append([]string(nil), refs[i].SOPRefs...),
-			RAGCollections: append([]string(nil), refs[i].RAGCollections...),
-			MemoryKeys:     append([]string(nil), refs[i].MemoryKeys...),
+			ID:          refs[i].ID,
+			Description: refs[i].Description,
+			SOPRefs:     append([]string(nil), refs[i].SOPRefs...),
+			MemoryKeys:  append([]string(nil), refs[i].MemoryKeys...),
 		}
 	}
 	return cloned

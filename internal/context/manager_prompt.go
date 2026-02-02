@@ -389,9 +389,6 @@ func buildKnowledgeSection(knowledge []agent.KnowledgeReference) string {
 			lines = append(lines, fmt.Sprintf("  - SOP refs: %s", strings.Join(ref.SOPRefs, ", ")))
 		}
 
-		if len(ref.RAGCollections) > 0 {
-			lines = append(lines, fmt.Sprintf("  - RAG collections: %s", strings.Join(ref.RAGCollections, ", ")))
-		}
 		if len(ref.MemoryKeys) > 0 {
 			lines = append(lines, fmt.Sprintf("  - Memory keys: %s", strings.Join(ref.MemoryKeys, ", ")))
 		}

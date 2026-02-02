@@ -131,11 +131,10 @@ type PolicyRule struct {
 
 // KnowledgeReference references SOP or RAG collections.
 type KnowledgeReference struct {
-	ID             string   `json:"id" yaml:"id"`
-	Description    string   `json:"description" yaml:"description"`
-	SOPRefs        []string `json:"sop_refs" yaml:"sop_refs"`
-	RAGCollections []string `json:"rag_collections" yaml:"rag_collections"`
-	MemoryKeys     []string `json:"memory_keys" yaml:"memory_keys"`
+	ID          string   `json:"id" yaml:"id"`
+	Description string   `json:"description" yaml:"description"`
+	SOPRefs     []string `json:"sop_refs" yaml:"sop_refs"`
+	MemoryKeys  []string `json:"memory_keys" yaml:"memory_keys"`
 
 	// ResolvedSOPContent holds the resolved markdown content for each SOP ref.
 	// Populated at runtime by SOPResolver; never read from config.
