@@ -442,5 +442,110 @@
     "difficulty": "medium",
     "domain": "marketing",
     "surface": "web"
+  },
+  {
+    "id": "ga-privacy-026",
+    "title": "Data minimization plan for analytics SDK",
+    "goal": "Create a data minimization plan that reduces PII collected by a product analytics SDK.",
+    "context": "The SDK currently captures full URLs, user email, and IP address for every event. Privacy counsel requests minimization aligned with GDPR and CCPA.",
+    "input": "Business needs: cohort analysis, funnel tracking, and error correlation. Engineering can implement hashing and sampling but cannot remove event tracking entirely.",
+    "constraints": [
+      "Map each current data element to keep, transform, or drop",
+      "Propose at least two technical controls (e.g., hashing, truncation, sampling)",
+      "Include a rollout and validation plan"
+    ],
+    "expected_output": "A table of data elements with disposition plus a short rollout and validation checklist.",
+    "skills": [
+      "privacy_design",
+      "data_governance",
+      "risk_management"
+    ],
+    "difficulty": "hard",
+    "domain": "privacy",
+    "surface": "web"
+  },
+  {
+    "id": "ga-mlops-027",
+    "title": "Rollback strategy for fraud model release",
+    "goal": "Design a safe release and rollback strategy for a new fraud detection model.",
+    "context": "Model v3 is expected to reduce false negatives by 12% but has uncertain impact on chargebacks. Releases are currently manual and risky.",
+    "input": "Constraints: must keep false positives below +5%; can run shadow mode for up to two weeks; limited to two model deployments per month.",
+    "constraints": [
+      "Define release stages with success criteria",
+      "Specify monitoring metrics and rollback triggers",
+      "Include a post-release validation step"
+    ],
+    "expected_output": "A staged rollout plan with metrics, gates, and explicit rollback criteria.",
+    "skills": [
+      "mlops",
+      "release_management",
+      "risk_management"
+    ],
+    "difficulty": "hard",
+    "domain": "ml_ops",
+    "surface": "web"
+  },
+  {
+    "id": "ga-sales-028",
+    "title": "Territory realignment with minimal churn",
+    "goal": "Propose a territory realignment approach that balances coverage and minimizes customer churn.",
+    "context": "Sales leadership is redefining segments by ARR bands. Existing account ownership should change as little as possible while improving pipeline coverage.",
+    "input": "Current: 6 AEs, 420 accounts. New segments: SMB < $25k ARR, Mid $25k-$250k, Enterprise > $250k. Churn risk highest for accounts with recent renewals.",
+    "constraints": [
+      "Provide an assignment rule or algorithm",
+      "Include a fairness or load-balancing principle",
+      "Define success metrics for the transition"
+    ],
+    "expected_output": "A realignment proposal with assignment rules, transition steps, and metrics to monitor.",
+    "skills": [
+      "sales_operations",
+      "optimization",
+      "change_management"
+    ],
+    "difficulty": "hard",
+    "domain": "sales_ops",
+    "surface": "web"
+  },
+  {
+    "id": "ga-hr-029",
+    "title": "Compensation calibration plan",
+    "goal": "Create a compensation calibration process for mid-year adjustments under a fixed budget.",
+    "context": "Engineering and product teams report pay inequities and retention risk. Finance caps the adjustment pool at 2.5% of total payroll.",
+    "input": "Constraints: must address equity gaps, avoid manager bias, and deliver final adjustments within four weeks.",
+    "constraints": [
+      "Define the calibration workflow and decision gates",
+      "Specify data inputs and bias checks",
+      "Include a communication plan for managers and employees"
+    ],
+    "expected_output": "A step-by-step calibration plan with data requirements, review gates, and communication milestones.",
+    "skills": [
+      "people_operations",
+      "policy_design",
+      "change_management"
+    ],
+    "difficulty": "hard",
+    "domain": "hr",
+    "surface": "web"
+  },
+  {
+    "id": "ga-compliance-030",
+    "title": "SOC 2 evidence collection sprint",
+    "goal": "Plan a focused evidence collection sprint for an upcoming SOC 2 audit.",
+    "context": "The audit begins in six weeks. Evidence is needed from infrastructure, application security, and people operations.",
+    "input": "Known gaps: access reviews incomplete, incident response drills not documented, and change management tickets missing approvals.",
+    "constraints": [
+      "Assign owners and due dates",
+      "List required artifacts by control area",
+      "Include dependencies and escalation paths"
+    ],
+    "expected_output": "A two-week sprint plan with an evidence checklist, owners, and dependency tracking.",
+    "skills": [
+      "compliance",
+      "project_planning",
+      "risk_management"
+    ],
+    "difficulty": "hard",
+    "domain": "compliance",
+    "surface": "web"
   }
 ]
