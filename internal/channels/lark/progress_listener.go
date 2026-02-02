@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/logging"
 )
 
@@ -44,11 +45,11 @@ type progressListener struct {
 	now    func() time.Time
 
 	mu        sync.Mutex
-	tools     []*toolStatus       // ordered by arrival
+	tools     []*toolStatus          // ordered by arrival
 	toolIndex map[string]*toolStatus // callID → status
-	messageID string              // set after first send
-	dirty     bool                // pending changes since last flush
-	timer     *time.Timer         // rate-limit timer
+	messageID string                 // set after first send
+	dirty     bool                   // pending changes since last flush
+	timer     *time.Timer            // rate-limit timer
 	lastFlush time.Time
 	closed    bool
 }
@@ -78,6 +79,8 @@ func (p *progressListener) OnEvent(event agent.AgentEvent) {
 		p.onToolStarted(e)
 	case *domain.WorkflowToolCompletedEvent:
 		p.onToolCompleted(e)
+	case *domain.WorkflowEventEnvelope:
+		p.onEnvelope(e)
 	}
 }
 
@@ -122,6 +125,143 @@ func (p *progressListener) onToolCompleted(e *domain.WorkflowToolCompletedEvent)
 	ts.duration = e.Duration
 	p.dirty = true
 	p.scheduleFlush()
+}
+
+func (p *progressListener) onEnvelope(e *domain.WorkflowEventEnvelope) {
+	if e == nil {
+		return
+	}
+	switch strings.TrimSpace(e.Event) {
+	case types.EventToolStarted:
+		p.onEnvelopeToolStarted(e)
+	case types.EventToolCompleted:
+		p.onEnvelopeToolCompleted(e)
+	}
+}
+
+func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed {
+		return
+	}
+	callID := envelopeCallID(e)
+	if callID == "" {
+		return
+	}
+	if _, exists := p.toolIndex[callID]; exists {
+		return
+	}
+	toolName := envelopeToolName(e)
+	if toolName == "" {
+		toolName = "tool"
+	}
+
+	ts := &toolStatus{
+		callID:   callID,
+		toolName: toolName,
+		started:  p.clock(),
+	}
+	p.tools = append(p.tools, ts)
+	p.toolIndex[callID] = ts
+	p.dirty = true
+	p.scheduleFlush()
+}
+
+func (p *progressListener) onEnvelopeToolCompleted(e *domain.WorkflowEventEnvelope) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed {
+		return
+	}
+	callID := envelopeCallID(e)
+	if callID == "" {
+		return
+	}
+	ts, ok := p.toolIndex[callID]
+	if !ok {
+		return
+	}
+
+	ts.done = true
+	ts.errored = envelopeHasError(e)
+	if dur, ok := envelopeDuration(e); ok {
+		ts.duration = dur
+	} else {
+		ts.duration = p.clock().Sub(ts.started)
+	}
+	p.dirty = true
+	p.scheduleFlush()
+}
+
+func envelopeCallID(e *domain.WorkflowEventEnvelope) string {
+	if e == nil {
+		return ""
+	}
+	if id := strings.TrimSpace(e.NodeID); id != "" {
+		return id
+	}
+	raw, ok := e.Payload["call_id"]
+	if !ok {
+		return ""
+	}
+	if value, ok := raw.(string); ok {
+		return strings.TrimSpace(value)
+	}
+	return ""
+}
+
+func envelopeToolName(e *domain.WorkflowEventEnvelope) string {
+	if e == nil || e.Payload == nil {
+		return ""
+	}
+	raw, ok := e.Payload["tool_name"]
+	if !ok {
+		return ""
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(value)
+}
+
+func envelopeHasError(e *domain.WorkflowEventEnvelope) bool {
+	if e == nil || e.Payload == nil {
+		return false
+	}
+	raw, ok := e.Payload["error"]
+	if !ok || raw == nil {
+		return false
+	}
+	switch value := raw.(type) {
+	case string:
+		return strings.TrimSpace(value) != ""
+	default:
+		return true
+	}
+}
+
+func envelopeDuration(e *domain.WorkflowEventEnvelope) (time.Duration, bool) {
+	if e == nil || e.Payload == nil {
+		return 0, false
+	}
+	raw, ok := e.Payload["duration"]
+	if !ok || raw == nil {
+		return 0, false
+	}
+	switch value := raw.(type) {
+	case int64:
+		return time.Duration(value) * time.Millisecond, true
+	case int:
+		return time.Duration(value) * time.Millisecond, true
+	case float64:
+		return time.Duration(value) * time.Millisecond, true
+	default:
+		return 0, false
+	}
 }
 
 // scheduleFlush arranges a flush after the rate-limit interval.

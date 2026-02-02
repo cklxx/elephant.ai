@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/logging"
 )
 
@@ -51,24 +52,17 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 		p.inner.OnEvent(event)
 	}
 
-	e, ok := event.(*domain.WorkflowToolCompletedEvent)
-	if !ok {
-		return
-	}
-	if e == nil || e.Error != nil {
-		return
-	}
-	message, needsInput := planClarifyMessage(e)
-	if message == "" {
+	message, needsInput, callID := p.extractMessage(event)
+	if message == "" || callID == "" {
 		return
 	}
 
 	p.mu.Lock()
-	if _, exists := p.seenCalls[e.CallID]; exists {
+	if _, exists := p.seenCalls[callID]; exists {
 		p.mu.Unlock()
 		return
 	}
-	p.seenCalls[e.CallID] = struct{}{}
+	p.seenCalls[callID] = struct{}{}
 	p.mu.Unlock()
 
 	if p.gateway == nil || p.gateway.messenger == nil {
@@ -82,6 +76,22 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 	}
 	if needsInput && p.tracker != nil {
 		p.tracker.MarkSent()
+	}
+}
+
+func (p *planClarifyListener) extractMessage(event agent.AgentEvent) (string, bool, string) {
+	switch e := event.(type) {
+	case *domain.WorkflowToolCompletedEvent:
+		if e == nil || e.Error != nil {
+			return "", false, ""
+		}
+		message, needsInput := planClarifyMessage(e)
+		return message, needsInput, e.CallID
+	case *domain.WorkflowEventEnvelope:
+		message, needsInput := planClarifyMessageFromEnvelope(e)
+		return message, needsInput, envelopeCallID(e)
+	default:
+		return "", false, ""
 	}
 }
 
@@ -102,6 +112,36 @@ func planClarifyMessage(e *domain.WorkflowToolCompletedEvent) (string, bool) {
 			return msg, needsInput
 		}
 		return strings.TrimSpace(e.Result), needsInput
+	default:
+		return "", false
+	}
+}
+
+func planClarifyMessageFromEnvelope(e *domain.WorkflowEventEnvelope) (string, bool) {
+	if e == nil || strings.TrimSpace(e.Event) != types.EventToolCompleted || e.Payload == nil {
+		return "", false
+	}
+	if envelopeHasError(e) {
+		return "", false
+	}
+	name := strings.ToLower(strings.TrimSpace(envelopeToolName(e)))
+	metadata, _ := e.Payload["metadata"].(map[string]any)
+	result, _ := e.Payload["result"].(string)
+	switch name {
+	case "plan":
+		if msg := stringMeta(metadata, "overall_goal_ui"); msg != "" {
+			return msg, false
+		}
+		return strings.TrimSpace(result), false
+	case "clarify":
+		needsInput := boolMeta(metadata, "needs_user_input")
+		if msg := stringMeta(metadata, "question_to_user"); msg != "" {
+			return msg, needsInput
+		}
+		if msg := stringMeta(metadata, "task_goal_ui"); msg != "" {
+			return msg, needsInput
+		}
+		return strings.TrimSpace(result), needsInput
 	default:
 		return "", false
 	}

@@ -10,6 +10,7 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 )
 
 // --- test helpers ---
@@ -136,6 +137,36 @@ func makeToolCompleted(callID, toolName string, dur time.Duration, err error) *d
 	}
 }
 
+func makeEnvelopeToolStarted(callID, toolName string) *domain.WorkflowEventEnvelope {
+	return &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Event:     types.EventToolStarted,
+		NodeID:    callID,
+		Payload: map[string]any{
+			"call_id":   callID,
+			"tool_name": toolName,
+		},
+	}
+}
+
+func makeEnvelopeToolCompleted(callID, toolName string, dur time.Duration, err error) *domain.WorkflowEventEnvelope {
+	payload := map[string]any{
+		"call_id":   callID,
+		"tool_name": toolName,
+		"duration":  dur.Milliseconds(),
+		"result":    "ok",
+	}
+	if err != nil {
+		payload["error"] = err.Error()
+	}
+	return &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Event:     types.EventToolCompleted,
+		NodeID:    callID,
+		Payload:   payload,
+	}
+}
+
 // --- tests ---
 
 func TestProgressListenerForwardsEvents(t *testing.T) {
@@ -219,6 +250,31 @@ func TestProgressListenerToolLifecycle(t *testing.T) {
 	}
 
 	pl.Close()
+}
+
+func TestProgressListenerEnvelopeLifecycle(t *testing.T) {
+	clk := newTestClock(time.Date(2026, 1, 29, 12, 0, 0, 0, time.UTC))
+	sender := &spySender{nextID: "om_progress"}
+	pl := newProgressListener(context.Background(), nil, sender, nil)
+	pl.now = clk.Now
+
+	pl.OnEvent(makeEnvelopeToolStarted("call-1", "web_search"))
+	time.Sleep(100 * time.Millisecond)
+
+	if sender.sendCount() != 1 {
+		t.Fatalf("expected 1 send after tool start, got %d", sender.sendCount())
+	}
+
+	clk.Advance(3 * time.Second)
+	pl.OnEvent(makeEnvelopeToolCompleted("call-1", "web_search", 1200*time.Millisecond, nil))
+	time.Sleep(100 * time.Millisecond)
+
+	if sender.updateCount() != 1 {
+		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
+	}
+	if text := sender.lastUpdateText(); !strings.Contains(text, "[done 1.2s]") {
+		t.Fatalf("expected done status, got %q", text)
+	}
 }
 
 func TestProgressListenerErroredTool(t *testing.T) {

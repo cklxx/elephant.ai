@@ -3,8 +3,11 @@ package lark
 import (
 	"context"
 	"testing"
+	"time"
 
 	"alex/internal/agent/domain"
+	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 )
 
 func TestPlanClarifyListenerPlanMessage(t *testing.T) {
@@ -57,5 +60,33 @@ func TestPlanClarifyListenerClarifyQuestionMarksSent(t *testing.T) {
 	}
 	if !tracker.Sent() {
 		t.Fatal("expected tracker marked sent")
+	}
+}
+
+func TestPlanClarifyListenerEnvelopePlan(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{messenger: recorder}
+	listener := newPlanClarifyListener(context.Background(), nil, gw, "oc_chat", "om_reply", nil)
+
+	event := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Event:     types.EventToolCompleted,
+		NodeID:    "call-3",
+		Payload: map[string]any{
+			"tool_name": "plan",
+			"metadata": map[string]any{
+				"overall_goal_ui": "Launch build",
+			},
+			"result": "ignored",
+		},
+	}
+	listener.OnEvent(event)
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		t.Fatal("expected reply message")
+	}
+	if got := extractTextContent(calls[0].Content); got != "Launch build" {
+		t.Fatalf("expected goal message, got %q", got)
 	}
 }
