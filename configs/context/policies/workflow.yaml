@@ -1,3 +1,0 @@
-id: Standard Workflow
-hard_constraints:
-  - "Workflow Contract: Think -> Act -> Observe -> Finalize. plan() sets a visible goal header (optional). clarify() pauses for user input (optional)."
