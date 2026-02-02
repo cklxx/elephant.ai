@@ -90,7 +90,7 @@ func (r *MessageRanker) RankMessages(messages []ports.Message) []RankedMessage {
 			priority = 0.0
 		}
 
-		reason := buildReason(msg.Source, base, recency, content)
+		reason := buildReason(msg.Source, recency, content)
 		ranked[i] = RankedMessage{
 			Message:  msg,
 			Priority: priority,
@@ -187,7 +187,7 @@ func containsErrorSignal(content string) bool {
 	return false
 }
 
-func buildReason(source ports.MessageSource, base, recency, content float64) string {
+func buildReason(source ports.MessageSource, recency, content float64) string {
 	var parts []string
 	parts = append(parts, "base="+sourceLabel(source))
 	if recency > 0 {
