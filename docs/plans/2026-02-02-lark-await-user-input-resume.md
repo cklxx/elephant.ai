@@ -39,3 +39,7 @@ Ensure Lark handles `question_to_user` (clarify/request_user) correctly:
 
 ## Progress
 - 2026-02-02: Plan created.
+- 2026-02-02: Added await-user-input extraction helper + tests.
+- 2026-02-02: Lark gateway now replies with question and seeds pending input channel.
+- 2026-02-02: Coordinator now persists await-user-input metadata on session save.
+- 2026-02-02: Ran `./dev.sh lint` and `./dev.sh test`.
