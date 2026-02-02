@@ -41,6 +41,7 @@ func RunServer(observabilityConfigPath string) error {
 	}
 
 	LogServerConfiguration(logger, config)
+	ensureSkillsDirFromWorkspace(config.Channels.Lark.WorkspaceDir, logger)
 
 	hostEnv, hostSummary := CaptureHostEnvironment(20)
 	config.EnvironmentSummary = hostSummary
