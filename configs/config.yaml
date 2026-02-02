@@ -17,18 +17,6 @@ runtime:
       auto_inject: true
     memory:
       enabled: true
-      auto_recall: true
-      auto_capture: true
-      capture_messages: false
-      max_recalls: 5
-      refresh_interval: 3
-      max_refresh_tokens: 500
-      store: "auto"
-      dedupe_threshold: 0.85
-      hybrid:
-        alpha: 0.6
-        min_similarity: 0.7
-        collection: "memory"
     skills:
       auto_activation:
         enabled: true

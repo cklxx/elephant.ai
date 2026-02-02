@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse, type MemoryEntry } from "@/lib/api";
+import { apiClient, type SSEReplayMode, type SessionSnapshotsResponse, type MemorySnapshot } from "@/lib/api";
 import { createRequestGate } from "@/lib/requestGate";
 import { type LogTraceBundle, type WorkflowEventType } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -777,7 +777,7 @@ export default function ConversationDebugPage() {
   const [logTraceError, setLogTraceError] = useState<string | null>(null);
   const [logTraceLoading, setLogTraceLoading] = useState(false);
   const [llmDetailCache, setLlmDetailCache] = useState<LLMDetailCache>(new Map());
-  const [memoryEntries, setMemoryEntries] = useState<MemoryEntry[]>([]);
+  const [memorySnapshot, setMemorySnapshot] = useState<MemorySnapshot | null>(null);
   const [memoryLoading, setMemoryLoading] = useState(false);
   const [memoryError, setMemoryError] = useState<string | null>(null);
 
@@ -1197,13 +1197,13 @@ export default function ConversationDebugPage() {
       }));
   }, [events]);
 
-  const loadMemoryEntries = useCallback(async () => {
+  const loadMemorySnapshot = useCallback(async () => {
     if (!sessionId) return;
     setMemoryLoading(true);
     setMemoryError(null);
     try {
-      const entries = await apiClient.getMemoryEntries(sessionId);
-      setMemoryEntries(entries ?? []);
+      const snapshot = await apiClient.getMemorySnapshot(sessionId);
+      setMemorySnapshot(snapshot ?? null);
     } catch (err) {
       setMemoryError(err instanceof Error ? err.message : "Failed to load memories.");
     } finally {
@@ -1887,7 +1887,7 @@ export default function ConversationDebugPage() {
                 <CardHeader>
                   <CardTitle className="text-base">Memory</CardTitle>
                   <CardDescription>
-                    Proactive memory: recalled context injected into the LLM, refresh events, and stored entries.
+                    Proactive context signals plus Markdown-based memory snapshot (long-term + daily logs).
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1958,73 +1958,83 @@ export default function ConversationDebugPage() {
                   {/* Section C: Memory store entries from API */}
                   <div className="space-y-2">
                     <p className="text-[11px] font-semibold text-muted-foreground">
-                      Memory store
+                      Memory store (Markdown)
                     </p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => void loadMemoryEntries()}
+                        onClick={() => void loadMemorySnapshot()}
                         disabled={!sessionId || memoryLoading}
                       >
-                        Load memories
+                        Load memory
                       </Button>
                       {memoryLoading && <Badge variant="warning">Loading</Badge>}
-                      {memoryEntries.length > 0 && (
-                        <Badge variant="outline">{memoryEntries.length} entries</Badge>
+                      {memorySnapshot?.user_id && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          user: {memorySnapshot.user_id}
+                        </Badge>
                       )}
+                      {memorySnapshot?.daily?.length ? (
+                        <Badge variant="outline">{memorySnapshot.daily.length} daily files</Badge>
+                      ) : null}
                     </div>
                     {memoryError && (
                       <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
                         {memoryError}
                       </div>
                     )}
-                    {memoryEntries.length > 0 && (
-                      <ScrollArea className="h-[300px]">
-                        <div className="space-y-2 pr-3">
-                          {memoryEntries.map((entry) => (
-                            <details
-                              key={entry.key}
-                              className="rounded-md border border-border/60 bg-muted/10"
-                            >
-                              <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-xs">
-                                <div className="flex min-w-0 items-center gap-2">
-                                  <span className="font-medium text-foreground">
-                                    {entry.content.slice(0, 60)}{entry.content.length > 60 ? "..." : ""}
-                                  </span>
-                                  {entry.slots?.type && (
-                                    <Badge variant="secondary" className="text-[10px]">
-                                      {entry.slots.type}
-                                    </Badge>
-                                  )}
-                                </div>
-                                <span className="whitespace-nowrap text-muted-foreground">
-                                  {entry.created_at ? formatTimestamp(entry.created_at) : "—"}
-                                </span>
-                              </summary>
-                              <div className="space-y-2 border-t border-border/40 px-3 py-2">
-                                <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
-                                  {entry.content}
-                                </pre>
-                                {entry.keywords && entry.keywords.length > 0 && (
-                                  <div className="flex flex-wrap gap-1">
-                                    {entry.keywords.map((kw) => (
-                                      <Badge key={kw} variant="outline" className="text-[10px]">
-                                        {kw}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                )}
-                                {entry.slots && Object.keys(entry.slots).length > 0 && (
-                                  <div className="text-[11px] text-muted-foreground">
-                                    Slots: {Object.entries(entry.slots).map(([k, v]) => `${k}=${v}`).join(", ")}
-                                  </div>
-                                )}
-                              </div>
-                            </details>
-                          ))}
+                    {memorySnapshot ? (
+                      <div className="space-y-3">
+                        <div className="rounded-md border border-border/60 bg-muted/10">
+                          <div className="border-b border-border/40 px-3 py-2 text-xs font-semibold">
+                            Long-term memory (MEMORY.md)
+                          </div>
+                          {memorySnapshot.long_term ? (
+                            <ScrollArea className="h-[200px]">
+                              <pre className="whitespace-pre-wrap break-words px-3 py-2 text-xs text-foreground/80">
+                                {memorySnapshot.long_term}
+                              </pre>
+                            </ScrollArea>
+                          ) : (
+                            <p className="px-3 py-2 text-xs text-muted-foreground">
+                              No long-term memory stored yet.
+                            </p>
+                          )}
                         </div>
-                      </ScrollArea>
+
+                        <div className="space-y-2">
+                          <p className="text-[11px] font-semibold text-muted-foreground">
+                            Daily logs
+                          </p>
+                          {memorySnapshot.daily?.length ? (
+                            <ScrollArea className="h-[240px]">
+                              <div className="space-y-2 pr-3">
+                                {memorySnapshot.daily.map((entry) => (
+                                  <details
+                                    key={entry.path}
+                                    className="rounded-md border border-border/60 bg-muted/10"
+                                  >
+                                    <summary className="flex cursor-pointer items-center justify-between gap-2 px-3 py-2 text-xs">
+                                      <span className="font-medium text-foreground">{entry.date}</span>
+                                      <span className="text-muted-foreground">{entry.path}</span>
+                                    </summary>
+                                    <div className="border-t border-border/40 px-3 py-2">
+                                      <pre className="whitespace-pre-wrap break-words text-xs text-foreground/80">
+                                        {entry.content}
+                                      </pre>
+                                    </div>
+                                  </details>
+                                ))}
+                              </div>
+                            </ScrollArea>
+                          ) : (
+                            <p className="text-xs text-muted-foreground">No daily logs found.</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">No memory snapshot loaded.</p>
                     )}
                   </div>
                 </CardContent>

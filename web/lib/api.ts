@@ -505,25 +505,21 @@ export async function getLogTrace(logId: string): Promise<LogTraceBundle> {
 
 // Dev memory query
 
-export type MemoryEntry = {
-  key: string;
-  user_id: string;
+export type MemoryDailyEntry = {
+  date: string;
+  path: string;
   content: string;
-  keywords: string[];
-  slots: Record<string, string>;
-  terms?: string[];
-  created_at: string;
 };
 
-export async function getMemoryEntries(
-  sessionId: string,
-  limit = 20,
-): Promise<MemoryEntry[]> {
-  const params = new URLSearchParams({
-    session_id: sessionId,
-    limit: String(limit),
-  });
-  return fetchAPI<MemoryEntry[]>(`/api/dev/memory?${params.toString()}`);
+export type MemorySnapshot = {
+  user_id: string;
+  long_term: string;
+  daily: MemoryDailyEntry[];
+};
+
+export async function getMemorySnapshot(sessionId: string): Promise<MemorySnapshot> {
+  const params = new URLSearchParams({ session_id: sessionId });
+  return fetchAPI<MemorySnapshot>(`/api/dev/memory?${params.toString()}`);
 }
 
 // SSE Connection
@@ -585,7 +581,7 @@ export const apiClient = {
   getSessionTurnSnapshot,
   deleteSession,
   getLogTrace,
-  getMemoryEntries,
+  getMemorySnapshot,
   createSessionShare,
   getSharedSession,
   getContextWindowPreview,
