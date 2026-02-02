@@ -23,6 +23,7 @@ type manager struct {
 
 	static      *staticRegistry
 	sopResolver *SOPResolver
+	flushHook   FlushBeforeCompactionHook
 	preloadOnce sync.Once
 	preloadErr  error
 }
@@ -90,6 +91,16 @@ func WithMetrics(metrics *observability.ContextMetrics) Option {
 func WithSOPResolver(resolver *SOPResolver) Option {
 	return func(m *manager) {
 		m.sopResolver = resolver
+	}
+}
+
+// WithFlushHook attaches a hook that is called before context compaction to
+// persist key information from the about-to-be-compressed messages.
+func WithFlushHook(hook FlushBeforeCompactionHook) Option {
+	return func(m *manager) {
+		if hook != nil {
+			m.flushHook = hook
+		}
 	}
 }
 

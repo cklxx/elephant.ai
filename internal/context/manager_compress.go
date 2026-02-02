@@ -1,6 +1,7 @@
 package context
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -33,6 +34,23 @@ func (m *manager) ShouldCompress(messages []ports.Message, limit int) bool {
 func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Message, bool) {
 	if !m.ShouldCompress(messages, limit) {
 		return messages, false
+	}
+
+	// Collect compressible messages (same logic as Compress) so the flush hook
+	// receives exactly the messages that will be summarized away.
+	if m.flushHook != nil {
+		var compressible []ports.Message
+		for _, msg := range messages {
+			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
+				continue
+			}
+			compressible = append(compressible, msg)
+		}
+		if len(compressible) > 0 {
+			if err := m.flushHook.OnBeforeCompaction(context.Background(), compressible); err != nil {
+				logging.OrNop(m.logger).Warn("Flush-before-compaction hook failed: %v", err)
+			}
+		}
 	}
 
 	threshold := m.compressionThreshold()
