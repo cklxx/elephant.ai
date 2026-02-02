@@ -562,12 +562,23 @@ function mergeDeltaEvent(
       ? incomingDelta || lastDelta
       : mergedDeltaRaw;
 
+  // Preserve identity fields (event_id, seq) from the first event in the
+  // merge chain so that getEventKey() returns a stable React key.  Without
+  // this, each incoming delta overwrites event_id/seq, causing the
+  // EventLine component to unmount/remount on every chunk — which resets
+  // the streaming animation to displayedLength=0 and causes visible
+  // flickering.
+  const preservedEventId = "event_id" in last ? last.event_id : incoming.event_id;
+  const preservedSeq = "seq" in last ? last.seq : incoming.seq;
+
   const merged: AnyAgentEvent = {
     ...last,
     ...incoming,
     delta: mergedDelta,
     timestamp: incoming.timestamp ?? last.timestamp,
-  };
+    event_id: preservedEventId,
+    seq: preservedSeq,
+  } as AnyAgentEvent;
 
   events[events.length - 1] = merged;
   return true;
