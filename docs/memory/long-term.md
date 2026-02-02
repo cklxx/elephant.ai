@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-02 16:00
+Updated: 2026-02-02 19:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -9,6 +9,7 @@ Updated: 2026-02-02 16:00
 ## Active Memory (2026-02-02)
 - Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
 - Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
+- Use TDD when touching logic; run full lint + tests before delivery.
 - Use `CGO_ENABLED=0` for `go test -race` on darwin CLT to avoid LC_DYSYMTAB warnings.
 - Apply response-size caps + retention/backpressure to prevent unbounded growth.
 - Streaming UI performance: dedup events, cap with LRU, RAF buffer, defer markdown parsing.
