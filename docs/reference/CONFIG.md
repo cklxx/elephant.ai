@@ -257,6 +257,7 @@ channels:
 - `CODEX_BASE_URL`：Responses / Codex base URL override
 - `ANTIGRAVITY_BASE_URL`：Antigravity base URL override
 - `ALEX_CLI_AUTH_PATH`：CLI auth.json 路径覆盖
+- `ALEX_SKILLS_DIR`：Skills 根目录（包含各技能目录/文件的 `skills/` 路径）
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
 - `AUTH_JWT_SECRET` / `AUTH_DATABASE_URL`
