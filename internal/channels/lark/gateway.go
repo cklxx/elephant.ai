@@ -251,7 +251,6 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
-	execCtx = appcontext.WithSessionHistory(execCtx, false)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
