@@ -24,6 +24,7 @@ const (
 	ToolPresetSafe      ToolPreset = "safe"
 	ToolPresetSandbox   ToolPreset = "sandbox"
 	ToolPresetArchitect ToolPreset = "architect"
+	ToolPresetLarkLocal ToolPreset = "lark-local"
 )
 
 // ToolConfig contains tool access configuration for a preset
@@ -35,8 +36,8 @@ type ToolConfig struct {
 }
 
 var (
-	cliDeniedTools = func() map[string]bool {
-		tools := map[string]bool{
+	cliRestrictedTools = func() map[string]bool {
+		return map[string]bool{
 			"artifacts_write":  true,
 			"artifacts_list":   true,
 			"artifacts_delete": true,
@@ -50,7 +51,15 @@ var (
 			"video_generate":   true,
 			"pptx_from_images": true,
 		}
+	}()
+	cliDeniedTools = func() map[string]bool {
+		tools := cloneToolSet(cliRestrictedTools)
 		addSandboxTools(tools)
+		return tools
+	}()
+	larkLocalDeniedTools = func() map[string]bool {
+		tools := cloneToolSet(cliRestrictedTools)
+		tools["write_attachment"] = true
 		return tools
 	}()
 	webDeniedTools = map[string]bool{
@@ -102,7 +111,7 @@ var (
 	}
 	architectAllowedToolsCLI = map[string]bool{
 		"plan":         true,
-		"clarify":     true,
+		"clarify":      true,
 		"web_search":   true,
 		"web_fetch":    true,
 		"request_user": true,
@@ -174,6 +183,13 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				AllowedTools: nil,
 				DeniedTools:  cloneToolSet(webDeniedTools),
 			}, nil
+		case ToolPresetLarkLocal:
+			return &ToolConfig{
+				Name:         "Lark Local",
+				Description:  "Lark-local tools (local browser/file aliases, no sandbox attachments)",
+				AllowedTools: nil,
+				DeniedTools:  cloneToolSet(larkLocalDeniedTools),
+			}, nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
 		}
@@ -216,6 +232,13 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 				Description:  "Architect-only tools (search/plan/clarify + executor dispatch)",
 				AllowedTools: cloneToolSet(architectAllowedToolsCLI),
 				DeniedTools:  cloneToolSet(cliDeniedTools),
+			}, nil
+		case ToolPresetLarkLocal:
+			return &ToolConfig{
+				Name:         "Lark Local",
+				Description:  "Lark-local tools (local browser/file aliases, no sandbox attachments)",
+				AllowedTools: nil,
+				DeniedTools:  cloneToolSet(larkLocalDeniedTools),
 			}, nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
@@ -308,13 +331,14 @@ func GetAllToolPresets() []ToolPreset {
 		ToolPresetSafe,
 		ToolPresetSandbox,
 		ToolPresetArchitect,
+		ToolPresetLarkLocal,
 	}
 }
 
 // IsValidToolPreset checks if a tool preset is valid
 func IsValidToolPreset(preset string) bool {
 	switch ToolPreset(preset) {
-	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox, ToolPresetArchitect:
+	case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox, ToolPresetArchitect, ToolPresetLarkLocal:
 		return true
 	default:
 		return false

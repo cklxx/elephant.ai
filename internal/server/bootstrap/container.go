@@ -7,6 +7,7 @@ import (
 
 	"alex/internal/agent/presets"
 	"alex/internal/di"
+	"alex/internal/toolregistry"
 )
 
 // BuildContainer wires the shared DI container using the server runtime configuration.
@@ -15,6 +16,15 @@ func BuildContainer(config Config) (*di.Container, error) {
 }
 
 func buildContainerWithToolMode(config Config, toolMode presets.ToolMode) (*di.Container, error) {
+	return buildContainerWithToolModeAndToolset(config, toolMode, toolregistry.ToolsetDefault, toolregistry.BrowserConfig{})
+}
+
+func buildContainerWithToolModeAndToolset(
+	config Config,
+	toolMode presets.ToolMode,
+	toolset toolregistry.Toolset,
+	browserCfg toolregistry.BrowserConfig,
+) (*di.Container, error) {
 	diConfig := di.ConfigFromRuntimeConfig(config.Runtime)
 	diConfig.EnableMCP = config.EnableMCP
 	diConfig.EnvironmentSummary = config.EnvironmentSummary
@@ -60,5 +70,9 @@ func buildContainerWithToolMode(config Config, toolMode presets.ToolMode) (*di.C
 		toolMode = presets.ToolModeWeb
 	}
 	diConfig.ToolMode = string(toolMode)
+	if toolset != "" {
+		diConfig.Toolset = toolset
+	}
+	diConfig.BrowserConfig = browserCfg
 	return di.BuildContainer(diConfig)
 }

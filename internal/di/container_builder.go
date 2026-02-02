@@ -560,6 +560,8 @@ func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService
 		OKRGoalsRoot:               b.resolveOKRGoalsRoot(),
 		HTTPLimits:                 b.config.HTTPLimits,
 		ToolPolicy:                 toolspolicy.NewToolPolicy(b.config.ToolPolicy),
+		Toolset:                    b.config.Toolset,
+		BrowserConfig:              b.config.BrowserConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)

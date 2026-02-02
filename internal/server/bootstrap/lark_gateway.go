@@ -12,6 +12,7 @@ import (
 	"alex/internal/di"
 	"alex/internal/logging"
 	serverApp "alex/internal/server/app"
+	"alex/internal/toolregistry"
 )
 
 func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {
@@ -31,34 +32,51 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	if toolMode == "" {
 		toolMode = string(presets.ToolModeCLI)
 	}
-	agentContainer := container
-	var extraContainer *di.Container
-	switch toolMode {
-	case string(presets.ToolModeCLI):
-		var err error
-		extraContainer, err = buildContainerWithToolMode(cfg, presets.ToolModeCLI)
-		if err != nil {
-			return nil, fmt.Errorf("build lark gateway container: %w", err)
-		}
-		if err := extraContainer.Start(); err != nil {
-			logger.Warn("Lark container start failed: %v (continuing)", err)
-		}
-		if summary := cfg.EnvironmentSummary; summary != "" {
-			extraContainer.AgentCoordinator.SetEnvironmentSummary(summary)
-		}
-		agentContainer = extraContainer
-	case string(presets.ToolModeWeb):
-		agentContainer = container
-	default:
+	if toolMode != string(presets.ToolModeCLI) && toolMode != string(presets.ToolModeWeb) {
 		return nil, fmt.Errorf("lark tool_mode must be cli or web, got %q", larkCfg.ToolMode)
 	}
 
+	browserCfg := toolregistry.BrowserConfig{
+		CDPURL:      larkCfg.Browser.CDPURL,
+		ChromePath:  larkCfg.Browser.ChromePath,
+		Headless:    larkCfg.Browser.Headless,
+		UserDataDir: larkCfg.Browser.UserDataDir,
+		Timeout:     larkCfg.Browser.Timeout,
+	}
+	extraContainer, err := buildContainerWithToolModeAndToolset(
+		cfg,
+		presets.ToolMode(toolMode),
+		toolregistry.ToolsetLarkLocal,
+		browserCfg,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("build lark gateway container: %w", err)
+	}
+	if err := extraContainer.Start(); err != nil {
+		logger.Warn("Lark container start failed: %v (continuing)", err)
+	}
+	if summary := cfg.EnvironmentSummary; summary != "" {
+		extraContainer.AgentCoordinator.SetEnvironmentSummary(summary)
+	}
+	agentContainer := extraContainer
+
 	gatewayCfg := lark.Config{
-		BaseConfig:                    larkCfg.BaseConfig,
-		Enabled:                       larkCfg.Enabled,
-		AppID:                         larkCfg.AppID,
-		AppSecret:                     larkCfg.AppSecret,
-		BaseDomain:                    larkCfg.BaseDomain,
+		BaseConfig:         larkCfg.BaseConfig,
+		Enabled:            larkCfg.Enabled,
+		AppID:              larkCfg.AppID,
+		AppSecret:          larkCfg.AppSecret,
+		BaseDomain:         larkCfg.BaseDomain,
+		WorkspaceDir:       larkCfg.WorkspaceDir,
+		AutoUploadFiles:    larkCfg.AutoUploadFiles,
+		AutoUploadMaxBytes: larkCfg.AutoUploadMaxBytes,
+		AutoUploadAllowExt: append([]string(nil), larkCfg.AutoUploadAllowExt...),
+		Browser: lark.BrowserConfig{
+			CDPURL:      larkCfg.Browser.CDPURL,
+			ChromePath:  larkCfg.Browser.ChromePath,
+			Headless:    larkCfg.Browser.Headless,
+			UserDataDir: larkCfg.Browser.UserDataDir,
+			Timeout:     larkCfg.Browser.Timeout,
+		},
 		ReactEmoji:                    larkCfg.ReactEmoji,
 		ShowToolProgress:              larkCfg.ShowToolProgress,
 		AutoChatContext:               larkCfg.AutoChatContext,

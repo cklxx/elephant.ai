@@ -13,6 +13,11 @@ type Config struct {
 	AppID                         string
 	AppSecret                     string
 	BaseDomain                    string
+	WorkspaceDir                  string
+	AutoUploadFiles               bool
+	AutoUploadMaxBytes            int
+	AutoUploadAllowExt            []string
+	Browser                       BrowserConfig
 	ReactEmoji                    string // Random emoji pool for start/end reactions (comma/space separated).
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.
 	AutoChatContext               bool   // Automatically fetch recent chat messages as context. Default false.
@@ -20,4 +25,13 @@ type Config struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
+}
+
+// BrowserConfig captures local browser settings for Lark tool execution.
+type BrowserConfig struct {
+	CDPURL      string
+	ChromePath  string
+	Headless    bool
+	UserDataDir string
+	Timeout     time.Duration
 }

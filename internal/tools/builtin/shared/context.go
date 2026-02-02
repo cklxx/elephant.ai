@@ -20,6 +20,7 @@ const (
 	larkChatIDKey    toolContextKey = "lark_chat_id"
 	timerManagerKey  toolContextKey = "timer_manager"
 	schedulerKey     toolContextKey = "scheduler"
+	autoUploadKey    toolContextKey = "auto_upload_config"
 )
 
 type parentListenerKey struct{}
@@ -172,4 +173,27 @@ func SchedulerFromContext(ctx context.Context) interface{} {
 		return nil
 	}
 	return ctx.Value(schedulerKey)
+}
+
+// AutoUploadConfig controls automatic attachment uploads for local tools.
+type AutoUploadConfig struct {
+	Enabled   bool
+	MaxBytes  int
+	AllowExts []string
+}
+
+// WithAutoUploadConfig stores auto upload configuration in context.
+func WithAutoUploadConfig(ctx context.Context, cfg AutoUploadConfig) context.Context {
+	return context.WithValue(ctx, autoUploadKey, cfg)
+}
+
+// GetAutoUploadConfig retrieves auto upload configuration from context.
+func GetAutoUploadConfig(ctx context.Context) AutoUploadConfig {
+	if ctx == nil {
+		return AutoUploadConfig{}
+	}
+	if cfg, ok := ctx.Value(autoUploadKey).(AutoUploadConfig); ok {
+		return cfg
+	}
+	return AutoUploadConfig{}
 }

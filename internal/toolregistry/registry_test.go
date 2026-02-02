@@ -30,6 +30,26 @@ func TestNewRegistryRegistersBuiltins(t *testing.T) {
 	}
 }
 
+func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
+	registry, err := NewRegistry(Config{
+		MemoryService: newTestMemoryService(),
+		Toolset:       ToolsetLarkLocal,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	if _, err := registry.Get("read_file"); err != nil {
+		t.Fatalf("failed to get read_file: %v", err)
+	}
+	if _, err := registry.Get("browser_action"); err != nil {
+		t.Fatalf("failed to get browser_action: %v", err)
+	}
+	if _, err := registry.Get("write_attachment"); err == nil {
+		t.Fatalf("expected write_attachment to be absent for lark-local toolset")
+	}
+}
+
 func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
 	registry, err := NewRegistry(Config{
 		MemoryService:      newTestMemoryService(),

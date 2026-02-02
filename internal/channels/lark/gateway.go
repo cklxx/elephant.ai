@@ -21,6 +21,7 @@ import (
 	"alex/internal/jsonx"
 	"alex/internal/logging"
 	artifacts "alex/internal/tools/builtin/artifacts"
+	"alex/internal/tools/builtin/pathutil"
 	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
 
@@ -249,6 +250,22 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
 	execCtx = agent.WithUserInputCh(execCtx, inputCh)
+	workspaceDir := strings.TrimSpace(g.cfg.WorkspaceDir)
+	if workspaceDir == "" {
+		workspaceDir = pathutil.DefaultWorkingDir()
+	}
+	if workspaceDir != "" {
+		execCtx = pathutil.WithWorkingDir(execCtx, workspaceDir)
+	}
+	autoUploadMaxBytes := g.cfg.AutoUploadMaxBytes
+	if autoUploadMaxBytes <= 0 {
+		autoUploadMaxBytes = 2 * 1024 * 1024
+	}
+	execCtx = shared.WithAutoUploadConfig(execCtx, shared.AutoUploadConfig{
+		Enabled:   g.cfg.AutoUploadFiles,
+		MaxBytes:  autoUploadMaxBytes,
+		AllowExts: normalizeExtensions(g.cfg.AutoUploadAllowExt),
+	})
 
 	if strings.TrimSpace(content) == "/reset" {
 		if resetter, ok := g.agent.(interface {
@@ -987,4 +1004,27 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+func normalizeExtensions(exts []string) []string {
+	if len(exts) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(exts))
+	normalized := make([]string, 0, len(exts))
+	for _, raw := range exts {
+		trimmed := strings.TrimSpace(strings.ToLower(raw))
+		if trimmed == "" {
+			continue
+		}
+		if !strings.HasPrefix(trimmed, ".") {
+			trimmed = "." + trimmed
+		}
+		if _, ok := seen[trimmed]; ok {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	return normalized
 }

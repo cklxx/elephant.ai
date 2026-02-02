@@ -16,7 +16,9 @@ import (
 	"alex/internal/memory"
 	toolspolicy "alex/internal/tools"
 
+	"alex/internal/tools/builtin/aliases"
 	"alex/internal/tools/builtin/artifacts"
+	"alex/internal/tools/builtin/browser"
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
 	"alex/internal/tools/builtin/larktools"
@@ -26,10 +28,10 @@ import (
 	okrtools "alex/internal/tools/builtin/okr"
 	"alex/internal/tools/builtin/orchestration"
 	"alex/internal/tools/builtin/sandbox"
+	schedulertools "alex/internal/tools/builtin/scheduler"
 	"alex/internal/tools/builtin/search"
 	sessiontools "alex/internal/tools/builtin/session"
 	"alex/internal/tools/builtin/shared"
-	schedulertools "alex/internal/tools/builtin/scheduler"
 	timertools "alex/internal/tools/builtin/timer"
 	"alex/internal/tools/builtin/ui"
 	"alex/internal/tools/builtin/web"
@@ -85,6 +87,8 @@ type Config struct {
 	ToolPolicy    toolspolicy.ToolPolicy
 	BreakerConfig CircuitBreakerConfig
 	SLACollector  *toolspolicy.SLACollector
+	Toolset       Toolset
+	BrowserConfig BrowserConfig
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -375,6 +379,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	fileConfig := shared.FileToolConfig{}
 	shellConfig := shared.ShellToolConfig{}
 	httpLimits := config.HTTPLimits
+	toolset := NormalizeToolset(string(config.Toolset))
 
 	// File operations
 	r.static["file_read"] = fileops.NewFileRead(fileConfig)
@@ -500,24 +505,48 @@ func (r *Registry) registerBuiltins(config Config) error {
 		videoConfig.ModelEnvVar = "SEEDREAM_VIDEO_MODEL"
 		r.static["video_generate"] = media.NewSeedreamVideoGenerate(videoConfig)
 	}
-	sandboxConfig := sandbox.SandboxConfig{
-		BaseURL:          config.SandboxBaseURL,
-		VisionTool:       visionTool,
-		VisionPrompt:     "",
-		MaxResponseBytes: httpLimits.SandboxMaxResponseBytes,
+	switch toolset {
+	case ToolsetLarkLocal:
+		browserCfg := browser.Config{
+			CDPURL:      config.BrowserConfig.CDPURL,
+			ChromePath:  config.BrowserConfig.ChromePath,
+			Headless:    config.BrowserConfig.Headless,
+			UserDataDir: config.BrowserConfig.UserDataDir,
+			Timeout:     config.BrowserConfig.Timeout,
+			VisionTool:  visionTool,
+		}
+		browserMgr := browser.NewManager(browserCfg)
+		r.static["browser_action"] = browser.NewBrowserAction(browserMgr)
+		r.static["browser_info"] = browser.NewBrowserInfo(browserMgr)
+		r.static["browser_screenshot"] = browser.NewBrowserScreenshot(browserMgr)
+		r.static["browser_dom"] = browser.NewBrowserDOM(browserMgr)
+		r.static["read_file"] = aliases.NewReadFile(fileConfig)
+		r.static["write_file"] = aliases.NewWriteFile(fileConfig)
+		r.static["list_dir"] = aliases.NewListDir(fileConfig)
+		r.static["search_file"] = aliases.NewSearchFile(fileConfig)
+		r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)
+		r.static["shell_exec"] = aliases.NewShellExec(shellConfig)
+		r.static["execute_code"] = aliases.NewExecuteCode(shellConfig)
+	default:
+		sandboxConfig := sandbox.SandboxConfig{
+			BaseURL:          config.SandboxBaseURL,
+			VisionTool:       visionTool,
+			VisionPrompt:     "",
+			MaxResponseBytes: httpLimits.SandboxMaxResponseBytes,
+		}
+		r.static["browser_action"] = sandbox.NewSandboxBrowser(sandboxConfig)
+		r.static["browser_info"] = sandbox.NewSandboxBrowserInfo(sandboxConfig)
+		r.static["browser_screenshot"] = sandbox.NewSandboxBrowserScreenshot(sandboxConfig)
+		r.static["browser_dom"] = sandbox.NewSandboxBrowserDOM(sandboxConfig)
+		r.static["read_file"] = sandbox.NewSandboxFileRead(sandboxConfig)
+		r.static["write_file"] = sandbox.NewSandboxFileWrite(sandboxConfig)
+		r.static["list_dir"] = sandbox.NewSandboxFileList(sandboxConfig)
+		r.static["search_file"] = sandbox.NewSandboxFileSearch(sandboxConfig)
+		r.static["replace_in_file"] = sandbox.NewSandboxFileReplace(sandboxConfig)
+		r.static["shell_exec"] = sandbox.NewSandboxShellExec(sandboxConfig)
+		r.static["execute_code"] = sandbox.NewSandboxCodeExecute(sandboxConfig)
+		r.static["write_attachment"] = sandbox.NewSandboxWriteAttachment(sandboxConfig)
 	}
-	r.static["browser_action"] = sandbox.NewSandboxBrowser(sandboxConfig)
-	r.static["browser_info"] = sandbox.NewSandboxBrowserInfo(sandboxConfig)
-	r.static["browser_screenshot"] = sandbox.NewSandboxBrowserScreenshot(sandboxConfig)
-	r.static["browser_dom"] = sandbox.NewSandboxBrowserDOM(sandboxConfig)
-	r.static["read_file"] = sandbox.NewSandboxFileRead(sandboxConfig)
-	r.static["write_file"] = sandbox.NewSandboxFileWrite(sandboxConfig)
-	r.static["list_dir"] = sandbox.NewSandboxFileList(sandboxConfig)
-	r.static["search_file"] = sandbox.NewSandboxFileSearch(sandboxConfig)
-	r.static["replace_in_file"] = sandbox.NewSandboxFileReplace(sandboxConfig)
-	r.static["shell_exec"] = sandbox.NewSandboxShellExec(sandboxConfig)
-	r.static["execute_code"] = sandbox.NewSandboxCodeExecute(sandboxConfig)
-	r.static["write_attachment"] = sandbox.NewSandboxWriteAttachment(sandboxConfig)
 
 	// Lark tools
 	r.static["lark_chat_history"] = larktools.NewLarkChatHistory()

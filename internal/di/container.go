@@ -102,6 +102,7 @@ type Config struct {
 	AgentPreset                string
 	ToolPreset                 string
 	ToolMode                   string
+	Toolset                    toolregistry.Toolset
 	Environment                string
 	Verbose                    bool
 	DisableTUI                 bool
@@ -124,6 +125,7 @@ type Config struct {
 	SessionPoolConnectTimeout    time.Duration
 	SessionCacheSize             *int
 	ToolPolicy                   toolspolicy.ToolPolicyConfig
+	BrowserConfig                toolregistry.BrowserConfig
 
 	// RequireSessionDatabase enforces Postgres-backed session persistence when true.
 	RequireSessionDatabase bool

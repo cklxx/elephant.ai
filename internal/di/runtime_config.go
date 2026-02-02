@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"alex/internal/agent/presets"
+	"alex/internal/toolregistry"
 )
 
 // ConfigFromRuntimeConfig maps the shared RuntimeConfig into the dependency
@@ -50,6 +51,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		AgentPreset:                runtime.AgentPreset,
 		ToolPreset:                 runtime.ToolPreset,
 		ToolMode:                   string(presets.ToolModeCLI),
+		Toolset:                    toolregistry.ToolsetDefault,
 		Environment:                runtime.Environment,
 		Verbose:                    runtime.Verbose,
 		DisableTUI:                 runtime.DisableTUI,

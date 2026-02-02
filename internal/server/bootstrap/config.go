@@ -51,6 +51,11 @@ type LarkGatewayConfig struct {
 	AppID                         string
 	AppSecret                     string
 	BaseDomain                    string
+	WorkspaceDir                  string
+	AutoUploadFiles               bool
+	AutoUploadMaxBytes            int
+	AutoUploadAllowExt            []string
+	Browser                       LarkBrowserConfig
 	ToolMode                      string
 	ReactEmoji                    string
 	ShowToolProgress              bool
@@ -59,6 +64,15 @@ type LarkGatewayConfig struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
+}
+
+// LarkBrowserConfig captures local browser settings for Lark.
+type LarkBrowserConfig struct {
+	CDPURL      string
+	ChromePath  string
+	Headless    bool
+	UserDataDir string
+	Timeout     time.Duration
 }
 
 var defaultAllowedOrigins = []string{
@@ -119,11 +133,18 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 					AllowGroups:   true,
 					AllowDirect:   true,
 					AgentPreset:   string(presets.PresetDefault),
-					ToolPreset:    string(presets.ToolPresetFull),
+					ToolPreset:    string(presets.ToolPresetLarkLocal),
 					ReplyTimeout:  3 * time.Minute,
 				},
-					BaseDomain:          "https://open.larkoffice.com",
-					ToolMode:            "cli",
+				BaseDomain:         "https://open.larkoffice.com",
+				ToolMode:           "cli",
+				AutoUploadFiles:    true,
+				AutoUploadMaxBytes: 2 * 1024 * 1024,
+				AutoUploadAllowExt: []string{".txt", ".md", ".json", ".yaml", ".yml", ".csv", ".log", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".docx", ".xlsx", ".pptx"},
+				Browser: LarkBrowserConfig{
+					Headless: true,
+					Timeout:  60 * time.Second,
+				},
 				ReactEmoji:          "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 				AutoChatContext:     true,
 				AutoChatContextSize: 20,
@@ -190,6 +211,35 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if baseDomain := strings.TrimSpace(larkCfg.BaseDomain); baseDomain != "" {
 		cfg.Channels.Lark.BaseDomain = baseDomain
+	}
+	if workspaceDir := strings.TrimSpace(larkCfg.WorkspaceDir); workspaceDir != "" {
+		cfg.Channels.Lark.WorkspaceDir = workspaceDir
+	}
+	if larkCfg.AutoUploadFiles != nil {
+		cfg.Channels.Lark.AutoUploadFiles = *larkCfg.AutoUploadFiles
+	}
+	if larkCfg.AutoUploadMaxBytes != nil && *larkCfg.AutoUploadMaxBytes > 0 {
+		cfg.Channels.Lark.AutoUploadMaxBytes = *larkCfg.AutoUploadMaxBytes
+	}
+	if len(larkCfg.AutoUploadAllowExt) > 0 {
+		cfg.Channels.Lark.AutoUploadAllowExt = append([]string(nil), larkCfg.AutoUploadAllowExt...)
+	}
+	if larkCfg.Browser != nil {
+		if cdpURL := strings.TrimSpace(larkCfg.Browser.CDPURL); cdpURL != "" {
+			cfg.Channels.Lark.Browser.CDPURL = cdpURL
+		}
+		if chromePath := strings.TrimSpace(larkCfg.Browser.ChromePath); chromePath != "" {
+			cfg.Channels.Lark.Browser.ChromePath = chromePath
+		}
+		if larkCfg.Browser.Headless != nil {
+			cfg.Channels.Lark.Browser.Headless = *larkCfg.Browser.Headless
+		}
+		if userDataDir := strings.TrimSpace(larkCfg.Browser.UserDataDir); userDataDir != "" {
+			cfg.Channels.Lark.Browser.UserDataDir = userDataDir
+		}
+		if larkCfg.Browser.TimeoutSeconds != nil && *larkCfg.Browser.TimeoutSeconds > 0 {
+			cfg.Channels.Lark.Browser.Timeout = time.Duration(*larkCfg.Browser.TimeoutSeconds) * time.Second
+		}
 	}
 	if prefix := strings.TrimSpace(larkCfg.SessionPrefix); prefix != "" {
 		cfg.Channels.Lark.SessionPrefix = prefix

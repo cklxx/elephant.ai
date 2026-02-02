@@ -102,6 +102,12 @@ func TestGetToolConfig(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "lark-local preset",
+			mode:    ToolModeCLI,
+			preset:  ToolPresetLarkLocal,
+			wantErr: false,
+		},
+		{
 			name:    "web mode default",
 			mode:    ToolModeWeb,
 			preset:  ToolPreset(""),
@@ -111,6 +117,12 @@ func TestGetToolConfig(t *testing.T) {
 			name:    "web mode architect preset",
 			mode:    ToolModeWeb,
 			preset:  ToolPresetArchitect,
+			wantErr: false,
+		},
+		{
+			name:    "web mode lark-local preset",
+			mode:    ToolModeWeb,
+			preset:  ToolPresetLarkLocal,
 			wantErr: false,
 		},
 		{
@@ -177,6 +189,7 @@ func TestIsValidToolPreset(t *testing.T) {
 		{"safe", "safe", true},
 		{"sandbox", "sandbox", true},
 		{"architect", "architect", true},
+		{"lark-local", "lark-local", true},
 		{"invalid", "invalid", false},
 		{"empty", "", false},
 	}
@@ -339,6 +352,27 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: false,
 		},
 		{
+			name:      "lark-local allows read_file",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetLarkLocal,
+			toolName:  "read_file",
+			wantAllow: true,
+		},
+		{
+			name:      "lark-local allows browser_action",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetLarkLocal,
+			toolName:  "browser_action",
+			wantAllow: true,
+		},
+		{
+			name:      "lark-local blocks write_attachment",
+			mode:      ToolModeCLI,
+			preset:    ToolPresetLarkLocal,
+			toolName:  "write_attachment",
+			wantAllow: false,
+		},
+		{
 			name:      "web mode blocks file_read",
 			mode:      ToolModeWeb,
 			preset:    ToolPresetFull,
@@ -456,8 +490,8 @@ func TestGetAllPresets(t *testing.T) {
 
 func TestGetAllToolPresets(t *testing.T) {
 	presets := GetAllToolPresets()
-	if len(presets) != 5 {
-		t.Errorf("GetAllToolPresets() returned %d presets, want 5", len(presets))
+	if len(presets) != 6 {
+		t.Errorf("GetAllToolPresets() returned %d presets, want 6", len(presets))
 	}
 
 	// Check all expected presets are present
@@ -467,6 +501,7 @@ func TestGetAllToolPresets(t *testing.T) {
 		ToolPresetSafe:      false,
 		ToolPresetSandbox:   false,
 		ToolPresetArchitect: false,
+		ToolPresetLarkLocal: false,
 	}
 
 	for _, preset := range presets {
