@@ -7,17 +7,16 @@ import (
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/memory"
-	toolmemory "alex/internal/tools/builtin/memory"
 	"alex/internal/tools/builtin/shared"
 	id "alex/internal/utils/id"
 )
 
 type uiPlan struct {
 	shared.BaseTool
-	memory memory.Service
+	memory memory.Engine
 }
 
-func NewPlan(memoryService memory.Service) tools.ToolExecutor {
+func NewPlan(memoryEngine memory.Engine) tools.ToolExecutor {
 	return &uiPlan{
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
@@ -68,7 +67,7 @@ Rules:
 				Tags:     []string{"ui", "orchestration"},
 			},
 		),
-		memory: memoryService,
+		memory: memoryEngine,
 	}
 }
 
@@ -140,13 +139,23 @@ func (t *uiPlan) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolR
 	if t.memory != nil && (len(memoryKeywords) > 0 || len(memorySlots) > 0) {
 		userID := id.UserIDFromContext(ctx)
 		if strings.TrimSpace(userID) != "" {
-			memories, err := t.memory.Recall(ctx, memory.Query{
-				UserID:   userID,
-				Keywords: memoryKeywords,
-				Slots:    memorySlots,
-			})
-			if err == nil && len(memories) > 0 {
-				metadata["memory_recall"] = toolmemory.SerializeMemories(memories)
+			query := strings.Join(memoryKeywords, " ")
+			if len(memorySlots) > 0 {
+				var parts []string
+				for key, value := range memorySlots {
+					if key != "" && value != "" {
+						parts = append(parts, key+":"+value)
+					}
+				}
+				if len(parts) > 0 {
+					query = strings.TrimSpace(strings.TrimSpace(query) + " " + strings.Join(parts, " "))
+				}
+			}
+			if query != "" {
+				results, err := t.memory.Search(ctx, userID, query, 5, 0.35)
+				if err == nil && len(results) > 0 {
+					metadata["memory_search"] = results
+				}
 			}
 		}
 	}

@@ -1,13 +1,18 @@
 package toolregistry
 
 import (
+	"context"
 	"testing"
 
 	"alex/internal/memory"
 )
 
 func TestRegistry_FindToolRegistered(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryService: memory.NewService(memory.NewInMemoryStore())})
+	engine := memory.NewMarkdownEngine(t.TempDir())
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+	registry, err := NewRegistry(Config{MemoryEngine: engine})
 	if err != nil {
 		t.Fatalf("failed to build registry: %v", err)
 	}

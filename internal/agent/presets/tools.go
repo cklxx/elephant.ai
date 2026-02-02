@@ -43,8 +43,8 @@ var (
 			"artifacts_delete": true,
 			"acp_executor":     true,
 			// Memory tools (Web UI only)
-			"memory_write":  true,
-			"memory_recall": true,
+			"memory_search": true,
+			"memory_get":    true,
 			// Media generation tools (Web UI only)
 			"text_to_image":    true,
 			"image_to_image":   true,
@@ -58,8 +58,13 @@ var (
 		return tools
 	}()
 	larkLocalDeniedTools = func() map[string]bool {
-		tools := cloneToolSet(cliRestrictedTools)
-		tools["write_attachment"] = true
+		tools := map[string]bool{
+			"write_attachment": true,
+			"acp_executor":     true,
+			"artifacts_write":  true,
+			"artifacts_list":   true,
+			"artifacts_delete": true,
+		}
 		return tools
 	}()
 	webDeniedTools = map[string]bool{

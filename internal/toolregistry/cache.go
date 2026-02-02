@@ -43,7 +43,8 @@ func DefaultCacheConfig() CacheConfig {
 			"bash",
 			"code_execute",
 			"execute_code",
-			"memory_write",
+			"memory_search",
+			"memory_get",
 			"todo_update",
 			"lark_send_message",
 			"lark_calendar_create",
@@ -58,9 +59,9 @@ func DefaultCacheConfig() CacheConfig {
 
 // cacheEntry holds a cached tool result along with the timestamp it was stored.
 type cacheEntry struct {
-	content   string
-	metadata  map[string]any
-	storedAt  time.Time
+	content  string
+	metadata map[string]any
+	storedAt time.Time
 }
 
 // cacheExecutor is a ToolExecutor wrapper that caches tool results keyed by

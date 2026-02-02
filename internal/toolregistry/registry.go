@@ -81,7 +81,7 @@ type Config struct {
 	LLMModel      string
 	APIKey        string
 	BaseURL       string
-	MemoryService memory.Service
+	MemoryEngine  memory.Engine
 	OKRGoalsRoot  string
 	HTTPLimits    runtimeconfig.HTTPLimitsConfig
 	ToolPolicy    toolspolicy.ToolPolicy
@@ -108,8 +108,8 @@ func NewRegistry(config Config) (*Registry, error) {
 		SLACollector: config.SLACollector,
 	}
 
-	if config.MemoryService == nil {
-		return nil, fmt.Errorf("memory service is required")
+	if config.MemoryEngine == nil {
+		return nil, fmt.Errorf("memory engine is required")
 	}
 
 	if err := r.registerBuiltins(config); err != nil {
@@ -426,10 +426,10 @@ func (r *Registry) registerBuiltins(config Config) error {
 	})
 
 	// UI orchestration
-	r.static["plan"] = ui.NewPlan(config.MemoryService)
+	r.static["plan"] = ui.NewPlan(config.MemoryEngine)
 	r.static["clarify"] = ui.NewClarify()
-	r.static["memory_recall"] = memorytools.NewMemoryRecall(config.MemoryService)
-	r.static["memory_write"] = memorytools.NewMemoryWrite(config.MemoryService)
+	r.static["memory_search"] = memorytools.NewMemorySearch(config.MemoryEngine)
+	r.static["memory_get"] = memorytools.NewMemoryGet(config.MemoryEngine)
 	r.static["request_user"] = ui.NewRequestUser()
 
 	// Web tools

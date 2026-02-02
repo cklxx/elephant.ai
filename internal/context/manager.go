@@ -1,6 +1,7 @@
 package context
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -9,6 +10,7 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/analytics/journal"
 	"alex/internal/logging"
+	"alex/internal/memory"
 	"alex/internal/observability"
 	sessionstate "alex/internal/session/state_store"
 )
@@ -21,11 +23,13 @@ type manager struct {
 	metrics    *observability.ContextMetrics
 	journal    journal.Writer
 
-	static      *staticRegistry
-	sopResolver *SOPResolver
-	flushHook   FlushBeforeCompactionHook
-	preloadOnce sync.Once
-	preloadErr  error
+	static       *staticRegistry
+	sopResolver  *SOPResolver
+	flushHook    FlushBeforeCompactionHook
+	memoryEngine memory.Engine
+	memoryGate   MemoryGate
+	preloadOnce  sync.Once
+	preloadErr   error
 }
 
 func (m *manager) compressionThreshold() float64 {
@@ -43,6 +47,9 @@ const (
 
 // Option configures the context manager.
 type Option func(*manager)
+
+// MemoryGate controls whether persistent memory should be loaded for this request.
+type MemoryGate func(context.Context) bool
 
 // WithConfigRoot overrides the directory used for static context files.
 func WithConfigRoot(root string) Option {
@@ -100,6 +107,24 @@ func WithFlushHook(hook FlushBeforeCompactionHook) Option {
 	return func(m *manager) {
 		if hook != nil {
 			m.flushHook = hook
+		}
+	}
+}
+
+// WithMemoryEngine injects a Markdown-based memory engine.
+func WithMemoryEngine(engine memory.Engine) Option {
+	return func(m *manager) {
+		if engine != nil {
+			m.memoryEngine = engine
+		}
+	}
+}
+
+// WithMemoryGate sets the memory gating function.
+func WithMemoryGate(gate MemoryGate) Option {
+	return func(m *manager) {
+		if gate != nil {
+			m.memoryGate = gate
 		}
 	}
 }

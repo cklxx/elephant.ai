@@ -9,7 +9,7 @@ import (
 )
 
 func TestPolicyAwareRegistry_DeniesByName(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestPolicyAwareRegistry_DeniesByName(t *testing.T) {
 }
 
 func TestPolicyAwareRegistry_ChannelMatch(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}

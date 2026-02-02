@@ -225,24 +225,6 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg == nil {
 		return
 	}
-	if cfg.Memory.MaxRecalls <= 0 {
-		cfg.Memory.MaxRecalls = 5
-	}
-	if cfg.Memory.RefreshInterval < 0 {
-		cfg.Memory.RefreshInterval = 0
-	}
-	if cfg.Memory.MaxRefreshTokens < 0 {
-		cfg.Memory.MaxRefreshTokens = 0
-	}
-	if cfg.Memory.DedupeThreshold <= 0 {
-		cfg.Memory.DedupeThreshold = 0.85
-	}
-	if cfg.Memory.Hybrid.Alpha <= 0 {
-		cfg.Memory.Hybrid.Alpha = 0.6
-	}
-	if cfg.Memory.Hybrid.MinSimilarity <= 0 {
-		cfg.Memory.Hybrid.MinSimilarity = 0.7
-	}
 	if cfg.Skills.AutoActivation.MaxActivated <= 0 {
 		cfg.Skills.AutoActivation.MaxActivated = 3
 	}
@@ -266,12 +248,6 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	}
 	if cfg.Attention.QuietHours[0] == 0 && cfg.Attention.QuietHours[1] == 0 {
 		cfg.Attention.QuietHours = [2]int{22, 8}
-	}
-	if cfg.Memory.Store == "" {
-		cfg.Memory.Store = "auto"
-	}
-	if cfg.Memory.Hybrid.Collection == "" {
-		cfg.Memory.Hybrid.Collection = "memory"
 	}
 	if cfg.RAG.Collection == "" {
 		cfg.RAG.Collection = "rag"

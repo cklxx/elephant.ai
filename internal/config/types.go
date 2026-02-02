@@ -194,41 +194,9 @@ type OKRProactiveConfig struct {
 	AutoInject bool   `json:"auto_inject" yaml:"auto_inject"` // inject OKR context into tasks
 }
 
-// MemoryConfig drives automatic memory behavior.
+// MemoryConfig controls loading persistent Markdown memory.
 type MemoryConfig struct {
-	Enabled            bool                  `json:"enabled" yaml:"enabled"`
-	AutoRecall         bool                  `json:"auto_recall" yaml:"auto_recall"`
-	AutoCapture        bool                  `json:"auto_capture" yaml:"auto_capture"`
-	CaptureMessages    bool                  `json:"capture_messages" yaml:"capture_messages"`
-	CaptureGroupMemory bool                  `json:"capture_group_memory" yaml:"capture_group_memory"`
-	MaxRecalls         int                   `json:"max_recalls" yaml:"max_recalls"`
-	RefreshInterval    int                   `json:"refresh_interval" yaml:"refresh_interval"`
-	MaxRefreshTokens   int                   `json:"max_refresh_tokens" yaml:"max_refresh_tokens"`
-	Store              string                `json:"store" yaml:"store"` // auto | file | postgres | hybrid
-	DedupeThreshold    float64               `json:"dedupe_threshold" yaml:"dedupe_threshold"`
-	Hybrid             MemoryHybridConfig    `json:"hybrid" yaml:"hybrid"`
-	Retention          MemoryRetentionConfig `json:"retention" yaml:"retention"`
-}
-
-// MemoryHybridConfig configures hybrid keyword + vector memory.
-type MemoryHybridConfig struct {
-	Alpha               float64 `json:"alpha" yaml:"alpha"`
-	MinSimilarity       float64 `json:"min_similarity" yaml:"min_similarity"`
-	PersistDir          string  `json:"persist_dir" yaml:"persist_dir"`
-	Collection          string  `json:"collection" yaml:"collection"`
-	EmbedderModel       string  `json:"embedder_model" yaml:"embedder_model"`
-	EmbedderBaseURL     string  `json:"embedder_base_url" yaml:"embedder_base_url"`
-	AllowVectorFailures bool    `json:"allow_vector_failures" yaml:"allow_vector_failures"`
-}
-
-// MemoryRetentionConfig defines TTL-based cleanup for memory entries.
-type MemoryRetentionConfig struct {
-	DefaultDays       int  `json:"default_days" yaml:"default_days"`
-	AutoCaptureDays   int  `json:"auto_capture_days" yaml:"auto_capture_days"`
-	ChatTurnDays      int  `json:"chat_turn_days" yaml:"chat_turn_days"`
-	WorkflowTraceDays int  `json:"workflow_trace_days" yaml:"workflow_trace_days"`
-	PruneOnStart      bool `json:"prune_on_start" yaml:"prune_on_start"`
-	PruneOnRecall     bool `json:"prune_on_recall" yaml:"prune_on_recall"`
+	Enabled bool `json:"enabled" yaml:"enabled"`
 }
 
 // SkillsConfig controls skill activation and feedback.
@@ -316,30 +284,7 @@ func DefaultProactiveConfig() ProactiveConfig {
 	return ProactiveConfig{
 		Enabled: true,
 		Memory: MemoryConfig{
-			Enabled:            true,
-			AutoRecall:         true,
-			AutoCapture:        true,
-			CaptureMessages:    false,
-			CaptureGroupMemory: false,
-			MaxRecalls:         5,
-			RefreshInterval:    3,
-			MaxRefreshTokens:   500,
-			Store:              "auto",
-			DedupeThreshold:    0.85,
-			Hybrid: MemoryHybridConfig{
-				Alpha:               0.6,
-				MinSimilarity:       0.7,
-				Collection:          "memory",
-				AllowVectorFailures: false,
-			},
-			Retention: MemoryRetentionConfig{
-				DefaultDays:       90,
-				AutoCaptureDays:   30,
-				ChatTurnDays:      14,
-				WorkflowTraceDays: 30,
-				PruneOnStart:      true,
-				PruneOnRecall:     true,
-			},
+			Enabled: true,
 		},
 		Skills: SkillsConfig{
 			AutoActivation: SkillsAutoActivationConfig{

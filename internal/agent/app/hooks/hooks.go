@@ -13,12 +13,10 @@ import (
 type InjectionType string
 
 const (
-	InjectionMemoryRecall   InjectionType = "memory_recall"
-	InjectionMemoryCapture  InjectionType = "memory_capture"
 	InjectionSkillActivation InjectionType = "skill_activation"
-	InjectionSuggestion     InjectionType = "suggestion"
-	InjectionWarning        InjectionType = "warning"
-	InjectionOKRContext     InjectionType = "okr_context"
+	InjectionSuggestion      InjectionType = "suggestion"
+	InjectionWarning         InjectionType = "warning"
+	InjectionOKRContext      InjectionType = "okr_context"
 )
 
 // Injection describes content to be injected into the agent context.
@@ -68,7 +66,7 @@ type ProactiveHook interface {
 	OnTaskStart(ctx context.Context, task TaskInfo) []Injection
 
 	// OnTaskCompleted is called after task execution finishes.
-	// Used for post-processing like memory capture.
+	// Used for post-processing such as audit or metrics.
 	OnTaskCompleted(ctx context.Context, result TaskResultInfo) error
 }
 

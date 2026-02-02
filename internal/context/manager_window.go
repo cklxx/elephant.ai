@@ -63,6 +63,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 	}
 
 	meta := deriveHistoryAwareMeta(messages, persona.ID)
+	memorySnapshot := m.loadMemorySnapshot(ctx, session)
 
 	window := agent.ContextWindow{
 		SessionID: session.ID,
@@ -91,6 +92,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		Static:          window.Static,
 		Dynamic:         window.Dynamic,
 		Meta:            window.Meta,
+		Memory:          memorySnapshot,
 		OmitEnvironment: omitEnvironment,
 		TaskInput:       cfg.TaskInput,
 		Messages:        window.Messages,

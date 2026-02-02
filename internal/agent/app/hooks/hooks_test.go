@@ -66,7 +66,7 @@ func TestRunOnTaskStart_AggregatesAndSorts(t *testing.T) {
 	r.Register(&testHook{
 		name: "high-priority",
 		startResult: []Injection{
-			{Type: InjectionMemoryRecall, Content: "memory", Source: "high-priority", Priority: 10},
+			{Type: InjectionSuggestion, Content: "memory", Source: "high-priority", Priority: 10},
 		},
 	})
 
@@ -143,7 +143,7 @@ func TestRunOnTaskCompleted_ErrorDoesNotStopOthers(t *testing.T) {
 
 func TestFormatInjectionsAsContext(t *testing.T) {
 	injections := []Injection{
-		{Type: InjectionMemoryRecall, Content: "You discussed X before", Source: "memory_recall_hook", Priority: 10},
+		{Type: InjectionSuggestion, Content: "You discussed X before", Source: "memory_recall_hook", Priority: 10},
 		{Type: InjectionSuggestion, Content: "Consider Y", Source: "suggestion_hook", Priority: 5},
 	}
 
@@ -156,7 +156,7 @@ func TestFormatInjectionsAsContext(t *testing.T) {
 	// Verify structure
 	expectedFragments := []string{
 		"## Proactive Context",
-		"### memory_recall",
+		"### suggestion",
 		"from memory_recall_hook",
 		"You discussed X before",
 		"### suggestion",

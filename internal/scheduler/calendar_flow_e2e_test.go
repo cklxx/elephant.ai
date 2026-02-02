@@ -312,10 +312,9 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 		}
 	}}
 
-	memSvc := memory.NewService(memory.NewInMemoryStore())
 	registry, err := toolregistry.NewRegistry(toolregistry.Config{
-		MemoryService: memSvc,
-		HTTPLimits:    config.DefaultHTTPLimitsConfig(),
+		MemoryEngine: memory.NewMarkdownEngine(t.TempDir()),
+		HTTPLimits:   config.DefaultHTTPLimitsConfig(),
 	})
 	if err != nil {
 		t.Fatalf("new registry: %v", err)

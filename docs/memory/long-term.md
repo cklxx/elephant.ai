@@ -1,12 +1,12 @@
 # Long-Term Memory
 
-Updated: 2026-02-02 21:00
+Updated: 2026-02-03 00:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
 
-## Active Memory (2026-02-02)
+## Active Memory (2026-02-03)
 - Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
 - Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
 - Use TDD when touching logic; run full lint + tests before delivery.
@@ -17,7 +17,7 @@ Updated: 2026-02-02 21:00
 - Event partitioning: groupKey uses `parent_run_id`; subagent detection is `parent_run_id != run_id`.
 - Tool event rules: only subagent `workflow.tool.started` hits main stream; others go pending/merged.
 - Subagent snapshot pruning must also drop tool outputs for the pruned call IDs to avoid dangling function_call_output errors.
-- Memory retention defaults: 90d global TTL; auto_capture 30d; chat_turn 14d; workflow_trace 30d.
+- Memory system is Markdown-only: `~/.alex/memory/MEMORY.md` + `~/.alex/memory/memory/YYYY-MM-DD.md`.
 - Bash scripts under `set -u` must guard array expansions (avoid unbound variable errors).
 
 ## Items
@@ -35,7 +35,7 @@ Updated: 2026-02-02 21:00
 ### Performance Patterns
 - Event dedup, LRU caps, RAF buffering, deferred markdown parsing keep streaming UI responsive.
 - Precompile hot-path regex, cap response reads, apply retention/backpressure to prevent unbounded growth.
-- Memory retention defaults: 90d global TTL; auto_capture 30d; chat_turn 14d; workflow_trace 30d; prune on start + recall (configurable).
+- Markdown memory is durable; avoid bloating logs and keep long-term notes concise.
 
 ### Project Conventions
 - Config: YAML only, `.yaml` paths.

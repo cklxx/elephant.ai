@@ -47,90 +47,6 @@ func mergeMemoryConfig(target *MemoryConfig, file *MemoryFileConfig) {
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
-	if file.AutoRecall != nil {
-		target.AutoRecall = *file.AutoRecall
-	}
-	if file.AutoCapture != nil {
-		target.AutoCapture = *file.AutoCapture
-	}
-	if file.CaptureMessages != nil {
-		target.CaptureMessages = *file.CaptureMessages
-	}
-	if file.CaptureGroupMemory != nil {
-		target.CaptureGroupMemory = *file.CaptureGroupMemory
-	}
-	if file.MaxRecalls != nil {
-		target.MaxRecalls = *file.MaxRecalls
-	}
-	if file.RefreshInterval != nil {
-		target.RefreshInterval = *file.RefreshInterval
-	}
-	if file.MaxRefreshTokens != nil {
-		target.MaxRefreshTokens = *file.MaxRefreshTokens
-	}
-	if strings.TrimSpace(file.Store) != "" {
-		target.Store = strings.TrimSpace(file.Store)
-	}
-	if file.DedupeThreshold != nil {
-		target.DedupeThreshold = *file.DedupeThreshold
-	}
-	if file.Hybrid != nil {
-		mergeMemoryHybridConfig(&target.Hybrid, file.Hybrid)
-	}
-	if file.Retention != nil {
-		mergeMemoryRetentionConfig(&target.Retention, file.Retention)
-	}
-}
-
-func mergeMemoryHybridConfig(target *MemoryHybridConfig, file *MemoryHybridFileConfig) {
-	if target == nil || file == nil {
-		return
-	}
-	if file.Alpha != nil {
-		target.Alpha = *file.Alpha
-	}
-	if file.MinSimilarity != nil {
-		target.MinSimilarity = *file.MinSimilarity
-	}
-	if strings.TrimSpace(file.PersistDir) != "" {
-		target.PersistDir = strings.TrimSpace(file.PersistDir)
-	}
-	if strings.TrimSpace(file.Collection) != "" {
-		target.Collection = strings.TrimSpace(file.Collection)
-	}
-	if strings.TrimSpace(file.EmbedderModel) != "" {
-		target.EmbedderModel = strings.TrimSpace(file.EmbedderModel)
-	}
-	if strings.TrimSpace(file.EmbedderBaseURL) != "" {
-		target.EmbedderBaseURL = strings.TrimSpace(file.EmbedderBaseURL)
-	}
-	if file.AllowVectorFailures != nil {
-		target.AllowVectorFailures = *file.AllowVectorFailures
-	}
-}
-
-func mergeMemoryRetentionConfig(target *MemoryRetentionConfig, file *MemoryRetentionFileConfig) {
-	if target == nil || file == nil {
-		return
-	}
-	if file.DefaultDays != nil {
-		target.DefaultDays = *file.DefaultDays
-	}
-	if file.AutoCaptureDays != nil {
-		target.AutoCaptureDays = *file.AutoCaptureDays
-	}
-	if file.ChatTurnDays != nil {
-		target.ChatTurnDays = *file.ChatTurnDays
-	}
-	if file.WorkflowTraceDays != nil {
-		target.WorkflowTraceDays = *file.WorkflowTraceDays
-	}
-	if file.PruneOnStart != nil {
-		target.PruneOnStart = *file.PruneOnStart
-	}
-	if file.PruneOnRecall != nil {
-		target.PruneOnRecall = *file.PruneOnRecall
-	}
 }
 
 func mergeSkillsConfig(target *SkillsConfig, file *SkillsFileConfig) {
@@ -286,17 +202,6 @@ func mergeOKRConfig(target *OKRProactiveConfig, file *OKRFileConfig) {
 func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	if file == nil {
 		return
-	}
-	if file.Memory != nil {
-		if strings.TrimSpace(file.Memory.Store) != "" {
-			file.Memory.Store = expandEnvValue(lookup, file.Memory.Store)
-		}
-		if file.Memory.Hybrid != nil {
-			file.Memory.Hybrid.PersistDir = expandEnvValue(lookup, file.Memory.Hybrid.PersistDir)
-			file.Memory.Hybrid.Collection = expandEnvValue(lookup, file.Memory.Hybrid.Collection)
-			file.Memory.Hybrid.EmbedderModel = expandEnvValue(lookup, file.Memory.Hybrid.EmbedderModel)
-			file.Memory.Hybrid.EmbedderBaseURL = expandEnvValue(lookup, file.Memory.Hybrid.EmbedderBaseURL)
-		}
 	}
 	if file.Skills != nil {
 		if file.Skills.Feedback != nil {

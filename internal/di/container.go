@@ -33,7 +33,7 @@ type Container struct {
 	HistoryStore     sessionstate.Store
 	HistoryManager   agentstorage.HistoryManager
 	CostTracker      agentstorage.CostTracker
-	MemoryService    memory.Service
+	MemoryEngine     memory.Engine
 	CheckpointStore  react.CheckpointStore
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker

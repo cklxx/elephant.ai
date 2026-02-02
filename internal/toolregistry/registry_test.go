@@ -15,12 +15,17 @@ import (
 	toolspolicy "alex/internal/tools"
 )
 
-func newTestMemoryService() memory.Service {
-	return memory.NewService(memory.NewInMemoryStore())
+func newTestMemoryEngine(t *testing.T) memory.Engine {
+	t.Helper()
+	engine := memory.NewMarkdownEngine(t.TempDir())
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+	return engine
 }
 
 func TestNewRegistryRegistersBuiltins(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
@@ -32,8 +37,8 @@ func TestNewRegistryRegistersBuiltins(t *testing.T) {
 
 func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 	registry, err := NewRegistry(Config{
-		MemoryService: newTestMemoryService(),
-		Toolset:       ToolsetLarkLocal,
+		MemoryEngine: newTestMemoryEngine(t),
+		Toolset:      ToolsetLarkLocal,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
@@ -52,7 +57,7 @@ func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 
 func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
 	registry, err := NewRegistry(Config{
-		MemoryService:      newTestMemoryService(),
+		MemoryEngine:       newTestMemoryEngine(t),
 		ArkAPIKey:          "test",
 		SeedreamVideoModel: "",
 	})
@@ -66,7 +71,7 @@ func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
 
 func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
 	registry, err := NewRegistry(Config{
-		MemoryService:      newTestMemoryService(),
+		MemoryEngine:       newTestMemoryEngine(t),
 		ArkAPIKey:          "test",
 		SeedreamVideoModel: " custom-video-model ",
 	})
@@ -103,7 +108,7 @@ func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
 }
 
 func TestToolDefinitionsArrayItems(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
@@ -123,7 +128,7 @@ func TestToolDefinitionsArrayItems(t *testing.T) {
 
 func TestToolDefinitionsArrayItemsIncludesOptionalTools(t *testing.T) {
 	registry, err := NewRegistry(Config{
-		MemoryService:       newTestMemoryService(),
+		MemoryEngine:        newTestMemoryEngine(t),
 		SeedreamVisionModel: "seedream-vision",
 	})
 	if err != nil {
@@ -188,7 +193,7 @@ func (stubCoordinator) GetSystemPrompt() string {
 }
 
 func TestGetReturnsPreWrappedTools(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
@@ -244,7 +249,7 @@ func TestWrapToolDoesNotMutateInput(t *testing.T) {
 }
 
 func TestListCachingWithDirtyFlag(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryService: newTestMemoryService()})
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}

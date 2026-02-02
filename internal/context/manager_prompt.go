@@ -17,6 +17,7 @@ type systemPromptInput struct {
 	Static          agent.StaticContext
 	Dynamic         agent.DynamicContext
 	Meta            agent.MetaContext
+	Memory          string
 	OmitEnvironment bool
 	TaskInput       string
 	Messages        []ports.Message
@@ -32,6 +33,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
 		buildKnowledgeSection(input.Static.Knowledge),
+		buildMemorySection(input.Memory),
 		buildOKRSection(input.OKRContext),
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
 	}
@@ -46,6 +48,14 @@ func composeSystemPrompt(input systemPromptInput) string {
 		}
 	}
 	return strings.Join(compact, "\n\n")
+}
+
+func buildMemorySection(snapshot string) string {
+	trimmed := strings.TrimSpace(snapshot)
+	if trimmed == "" {
+		return ""
+	}
+	return formatSection("# Persistent Memory (Markdown)", []string{trimmed})
 }
 
 func buildUserPersonaSection(profile *ports.UserPersonaProfile) string {

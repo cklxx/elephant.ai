@@ -154,7 +154,7 @@ func TestResolve_MatchByTags(t *testing.T) {
 	}
 	p := NewToolPolicy(cfg)
 
-	result := p.Resolve(ToolCallContext{ToolName: "memory_recall", Tags: []string{"memory", "fast"}})
+	result := p.Resolve(ToolCallContext{ToolName: "memory_search", Tags: []string{"memory", "fast"}})
 	if result.Timeout != 10*time.Second {
 		t.Errorf("Timeout = %v, want 10s", result.Timeout)
 	}
@@ -341,7 +341,7 @@ func TestDefaultPolicyRules_SafeToolFallsThrough(t *testing.T) {
 
 	// A safe tool in an unmatched category uses global defaults
 	result := p.Resolve(ToolCallContext{
-		ToolName: "memory_recall",
+		ToolName: "memory_search",
 		Category: "memory",
 	})
 	if result.Timeout != 120*time.Second {

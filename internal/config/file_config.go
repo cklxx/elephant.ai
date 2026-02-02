@@ -152,37 +152,7 @@ type OKRFileConfig struct {
 }
 
 type MemoryFileConfig struct {
-	Enabled            *bool                      `yaml:"enabled"`
-	AutoRecall         *bool                      `yaml:"auto_recall"`
-	AutoCapture        *bool                      `yaml:"auto_capture"`
-	CaptureMessages    *bool                      `yaml:"capture_messages"`
-	CaptureGroupMemory *bool                      `yaml:"capture_group_memory"`
-	MaxRecalls         *int                       `yaml:"max_recalls"`
-	RefreshInterval    *int                       `yaml:"refresh_interval"`
-	MaxRefreshTokens   *int                       `yaml:"max_refresh_tokens"`
-	Store              string                     `yaml:"store"`
-	DedupeThreshold    *float64                   `yaml:"dedupe_threshold"`
-	Hybrid             *MemoryHybridFileConfig    `yaml:"hybrid"`
-	Retention          *MemoryRetentionFileConfig `yaml:"retention"`
-}
-
-type MemoryHybridFileConfig struct {
-	Alpha               *float64 `yaml:"alpha"`
-	MinSimilarity       *float64 `yaml:"min_similarity"`
-	PersistDir          string   `yaml:"persist_dir"`
-	Collection          string   `yaml:"collection"`
-	EmbedderModel       string   `yaml:"embedder_model"`
-	EmbedderBaseURL     string   `yaml:"embedder_base_url"`
-	AllowVectorFailures *bool    `yaml:"allow_vector_failures"`
-}
-
-type MemoryRetentionFileConfig struct {
-	DefaultDays       *int  `yaml:"default_days"`
-	AutoCaptureDays   *int  `yaml:"auto_capture_days"`
-	ChatTurnDays      *int  `yaml:"chat_turn_days"`
-	WorkflowTraceDays *int  `yaml:"workflow_trace_days"`
-	PruneOnStart      *bool `yaml:"prune_on_start"`
-	PruneOnRecall     *bool `yaml:"prune_on_recall"`
+	Enabled *bool `yaml:"enabled"`
 }
 
 type SkillsFileConfig struct {
