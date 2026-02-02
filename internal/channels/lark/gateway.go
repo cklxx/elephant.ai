@@ -299,6 +299,12 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		sessionID = session.ID
 		execCtx = id.WithSessionID(execCtx, sessionID)
 	}
+	awaitUserInput := false
+	if session != nil && session.Metadata != nil {
+		if raw := strings.TrimSpace(session.Metadata["await_user_input"]); raw != "" {
+			awaitUserInput = strings.EqualFold(raw, "true")
+		}
+	}
 
 	execCtx = channels.ApplyPresets(execCtx, g.cfg.BaseConfig)
 	execCtx, cancelTimeout := channels.ApplyTimeout(execCtx, g.cfg.BaseConfig)
@@ -335,7 +341,16 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 			}
 		}
 	}
-	if g.cfg.AutoChatContext && g.messenger != nil && isGroup {
+	if awaitUserInput && !hasPending {
+		select {
+		case inputCh <- agent.UserInput{Content: content, SenderID: senderID, MessageID: messageID}:
+			g.logger.Info("Seeded pending user input for session %s", sessionID)
+		default:
+			g.logger.Warn("Pending user input channel full for session %s; message dropped", sessionID)
+		}
+		taskContent = ""
+	}
+	if taskContent != "" && g.cfg.AutoChatContext && g.messenger != nil && isGroup {
 		pageSize := g.cfg.AutoChatContextSize
 		if pageSize <= 0 {
 			pageSize = 20
@@ -386,6 +401,13 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		}
 	}
 	if replyContent == "" {
+		if reply == "" && execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") {
+			if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok {
+				reply = question
+			} else {
+				reply = "需要你补充信息后继续。"
+			}
+		}
 		if reply == "" {
 			reply = g.buildReply(result, execErr)
 		}

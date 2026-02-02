@@ -773,6 +773,124 @@ func TestHandleMessageSavesPlanReviewPendingOnAwaitUserInput(t *testing.T) {
 	}
 }
 
+func TestHandleMessageAwaitUserInputRepliesWithQuestion(t *testing.T) {
+	openID := "ou_sender_question"
+	chatID := "oc_chat_question"
+	msgID := "om_msg_question"
+	content := `{"text":"继续"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{
+			StopReason: "await_user_input",
+			Messages: []ports.Message{{
+				Role: "tool",
+				ToolResults: []ports.ToolResult{{
+					CallID:  "call-1",
+					Content: "goal\nWhich env?",
+					Metadata: map[string]any{
+						"needs_user_input": true,
+						"question_to_user": "Which env?",
+					},
+				}},
+			}},
+		},
+	}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg:       Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		calls = recorder.CallsByMethod("SendMessage")
+	}
+	if len(calls) == 0 {
+		t.Fatal("expected a reply message")
+	}
+	if got := extractTextContent(calls[0].Content); got != "Which env?" {
+		t.Fatalf("expected question reply, got %q", got)
+	}
+}
+
+func TestHandleMessageSeedsPendingUserInput(t *testing.T) {
+	openID := "ou_sender_pending_input"
+	chatID := "oc_chat_pending_input"
+	msgID := "om_msg_pending_input"
+	content := `{"text":"next step"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &awaitInputExecutor{}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	if executor.capturedTask != "" {
+		t.Fatalf("expected empty task when pending user input, got %q", executor.capturedTask)
+	}
+	if executor.capturedInput == nil {
+		t.Fatal("expected pending user input to be seeded")
+	}
+	if executor.capturedInput.Content != "next step" {
+		t.Fatalf("expected pending input content, got %q", executor.capturedInput.Content)
+	}
+}
+
 func TestHandleMessageSendsPlanReviewCardWhenEnabled(t *testing.T) {
 	openID := "ou_sender_card"
 	chatID := "oc_chat_card"
@@ -992,6 +1110,33 @@ func (c *capturingExecutor) ExecuteTask(ctx context.Context, task string, sessio
 	c.capturedTask = task
 	c.capturedSessionID = sessionID
 	return c.result, nil
+}
+
+type awaitInputExecutor struct {
+	capturedTask  string
+	capturedInput *agent.UserInput
+}
+
+func (a *awaitInputExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	if sessionID == "" {
+		sessionID = "lark-session"
+	}
+	return &storage.Session{
+		ID:       sessionID,
+		Metadata: map[string]string{"await_user_input": "true"},
+	}, nil
+}
+
+func (a *awaitInputExecutor) ExecuteTask(ctx context.Context, task string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	a.capturedTask = task
+	if ch := agent.UserInputChFromContext(ctx); ch != nil {
+		select {
+		case input := <-ch:
+			a.capturedInput = &input
+		default:
+		}
+	}
+	return &agent.TaskResult{Answer: "ok"}, nil
 }
 
 type resetExecutor struct {

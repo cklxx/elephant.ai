@@ -642,6 +642,7 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	if session.Metadata == nil {
 		session.Metadata = make(map[string]string)
 	}
+	updateAwaitUserInputMetadata(session, result)
 	if result.SessionID != "" {
 		session.Metadata["session_id"] = result.SessionID
 	}
@@ -930,6 +931,30 @@ func stripUserHistoryMessages(messages []ports.Message) []ports.Message {
 		return nil
 	}
 	return trimmed
+}
+
+func updateAwaitUserInputMetadata(session *storage.Session, result *agent.TaskResult) {
+	if session == nil {
+		return
+	}
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]string)
+	}
+
+	stopReason := ""
+	if result != nil {
+		stopReason = strings.TrimSpace(result.StopReason)
+	}
+	if strings.EqualFold(stopReason, "await_user_input") {
+		if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok && strings.TrimSpace(question) != "" {
+			session.Metadata["await_user_input"] = "true"
+			session.Metadata["await_user_input_question"] = question
+			return
+		}
+	}
+
+	delete(session.Metadata, "await_user_input")
+	delete(session.Metadata, "await_user_input_question")
 }
 
 // obfuscateSessionID masks session identifiers when logging to avoid leaking
