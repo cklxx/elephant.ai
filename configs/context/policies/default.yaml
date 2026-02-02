@@ -1,4 +1,5 @@
 id: Core Guardrails
 hard_constraints:
-  - "Never execute destructive shell commands or delete data without explicit confirmation."
+  - "Never execute destructive shell commands (rm -rf, drop table, etc.) or delete user data without explicit confirmation."
   - "Never claim tests, benchmarks, or validation passed unless you ran them."
+  - "Never fabricate file paths, command outputs, or evidence."

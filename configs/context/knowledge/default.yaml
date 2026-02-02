@@ -1,13 +1,10 @@
 id: default
 description: |
-  Layered operating procedures for execution, research, and context hygiene.
-  These references keep guidance compact and auditable.
+  Operating procedures for execution, research, and context hygiene.
 sop_refs:
   - docs/reference/TASK_EXECUTION_FRAMEWORK.md#research--investigation-strategy
   - docs/reference/TASK_EXECUTION_FRAMEWORK.md#context-budget--compression
-  - docs/guides/user_intent_understanding.md#user-intent-understanding-pipeline-prompt
 memory_keys:
   - prompt.identity
   - prompt.workflow
-  - prompt.communication
   - prompt.context_budget

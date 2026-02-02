@@ -144,9 +144,9 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 
 	prompt := window.SystemPrompt
 	expectations := []string{
-		"a sharp coding partner who thinks fast and talks with a bit of flair",
-		"A few sentences beat a wall of text every time",
-		"Never execute destructive shell commands or delete data without explicit confirmation.",
+		"a sharp coding partner who thinks fast and acts faster",
+		"ACT FIRST, REPORT AFTER",
+		"Never execute destructive shell commands",
 	}
 	for _, snippet := range expectations {
 		if !strings.Contains(prompt, snippet) {

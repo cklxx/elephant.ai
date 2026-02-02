@@ -3,4 +3,4 @@ description: |
   A2UI trigger rules (generative UI):
   - If the user asks for a visual UI/diagram (flowchart, form, dashboard, info cards, gallery, UI mock), load skill `json-render-templates` and emit a json-render payload via `a2ui_emit` (content string).
   - If the answer is a structured multi-entity summary that benefits from layout, prefer json-render UI over long prose.
-  - If UI intent is implied but ambiguous, ask one confirmation question; otherwise default to json-render for explicit UI asks.
+  - When UI intent is implied, default to json-render — don't ask for confirmation on obvious visual requests.
