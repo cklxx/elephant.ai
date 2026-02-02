@@ -12,7 +12,7 @@ Design and implement evaluation set structure, rubric, and automation flow for b
 - [x] Define automation flow: data ingestion → execution → auto-judging → agent-judging → report/baseline comparison.
 - [x] Implement/update docs + config/templates needed for the evaluation set.
 - [ ] Add tests or validation hooks for the new evaluation pipeline; run full lint/tests.
-- [ ] Restart dev services; commit in incremental steps.
+- [x] Restart dev services; commit in incremental steps.
 
 ## Notes
 - `./dev.sh lint` currently fails in unrelated files (`internal/memory/decision_test.go`, `internal/memory/preferences_test.go`, `internal/skills/custom.go`, `evaluation/gate/gate.go`).
