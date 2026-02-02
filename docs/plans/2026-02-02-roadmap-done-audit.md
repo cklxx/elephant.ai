@@ -9,5 +9,5 @@
 1. [x] Extract "Done" items and referenced code paths from the roadmap.
 2. [x] Spot-check code paths + tests for those items; record any missing coverage or partial wiring.
 3. [x] Run `./alex` with a minimal task to validate the local CLI path.
-4. [ ] Run full lint + tests.
-5. [ ] Summarize findings and update this plan with status.
+4. [x] Run full lint + tests.
+5. [x] Summarize findings and update this plan with status.
