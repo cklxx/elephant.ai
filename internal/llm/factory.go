@@ -26,6 +26,7 @@ type Factory struct {
 	userRateLimit        rate.Limit
 	userRateBurst        int
 	toolCallParser       tools.FunctionCallParser
+	HealthRegistry       *HealthRegistry
 }
 
 type cacheEntry struct {
@@ -145,6 +146,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	cacheTTL := f.cacheTTL
 	userRateLimit := f.userRateLimit
 	userRateBurst := f.userRateBurst
+	healthRegistry := f.HealthRegistry
 	f.mu.RUnlock()
 
 	// Check cache if enabled
@@ -187,7 +189,11 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 
 	// Wrap with retry logic if enabled
 	if enableRetry {
-		client = WrapWithRetry(client, retryConfig, circuitBreakerConfig)
+		if healthRegistry != nil {
+			client = WrapWithRetryAndHealth(client, retryConfig, circuitBreakerConfig, healthRegistry, provider, model)
+		} else {
+			client = WrapWithRetry(client, retryConfig, circuitBreakerConfig)
+		}
 	}
 
 	if userRateLimit > 0 {
@@ -210,6 +216,19 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 	}
 
 	return client, nil
+}
+
+// GetProviderHealth returns health snapshots for all registered providers.
+// Returns nil if no HealthRegistry is configured.
+func (f *Factory) GetProviderHealth() []ProviderHealth {
+	f.mu.RLock()
+	hr := f.HealthRegistry
+	f.mu.RUnlock()
+
+	if hr == nil {
+		return nil
+	}
+	return hr.GetAllHealth()
 }
 
 type Config struct {

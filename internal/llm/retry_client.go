@@ -18,6 +18,9 @@ type retryClient struct {
 	retryConfig    alexerrors.RetryConfig
 	circuitBreaker *alexerrors.CircuitBreaker
 	logger         logging.Logger
+	healthRegistry *HealthRegistry
+	provider       string
+	model          string
 }
 
 var _ portsllm.StreamingLLMClient = (*retryClient)(nil)
@@ -29,6 +32,19 @@ func NewRetryClient(client portsllm.LLMClient, retryConfig alexerrors.RetryConfi
 		retryConfig:    retryConfig,
 		circuitBreaker: circuitBreaker,
 		logger:         logging.NewComponentLogger("llm-retry"),
+	}
+}
+
+// newRetryClientWithHealth wraps an LLM client with retry, circuit breaker, and health recording.
+func newRetryClientWithHealth(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreaker *alexerrors.CircuitBreaker, hr *HealthRegistry, provider, model string) portsllm.LLMClient {
+	return &retryClient{
+		underlying:     client,
+		retryConfig:    retryConfig,
+		circuitBreaker: circuitBreaker,
+		logger:         logging.NewComponentLogger("llm-retry"),
+		healthRegistry: hr,
+		provider:       provider,
+		model:          model,
 	}
 }
 
@@ -52,6 +68,7 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	duration := time.Since(startTime)
 
 	if err != nil {
+		c.recordHealthError(err)
 		c.logger.Warn("LLM request failed after retries (took %v): %v", duration, err)
 
 		// Check if it's a degraded error (circuit breaker open)
@@ -64,6 +81,8 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 		formattedErr := c.formatRetryError(err, duration)
 		return nil, fmt.Errorf("%s", formattedErr)
 	}
+
+	c.recordHealthLatency(duration)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM request succeeded after %v", duration)
@@ -123,12 +142,15 @@ func (c *retryClient) StreamComplete(
 	duration := time.Since(startTime)
 
 	if err != nil {
+		c.recordHealthError(err)
 		if alexerrors.IsDegraded(err) {
 			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
 		}
 		formattedErr := c.formatStreamingError(err, duration)
 		return nil, fmt.Errorf("%s", formattedErr)
 	}
+
+	c.recordHealthLatency(duration)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM streaming request succeeded after %v", duration)
@@ -246,6 +268,20 @@ func (c *retryClient) formatStreamingError(err error, duration time.Duration) st
 	return fmt.Sprintf("%s Streaming request failed after %v.", llmMessage, duration.Round(time.Second))
 }
 
+// recordHealthLatency records a successful call latency if a HealthRegistry is attached.
+func (c *retryClient) recordHealthLatency(d time.Duration) {
+	if c.healthRegistry != nil {
+		c.healthRegistry.RecordLatency(c.provider, c.model, d)
+	}
+}
+
+// recordHealthError records a failed call if a HealthRegistry is attached.
+func (c *retryClient) recordHealthError(err error) {
+	if c.healthRegistry != nil {
+		c.healthRegistry.RecordError(c.provider, c.model, err)
+	}
+}
+
 // WrapWithRetry wraps an existing LLM client with retry logic using provided configuration
 func WrapWithRetry(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) portsllm.LLMClient {
 	// Create circuit breaker for this client
@@ -255,6 +291,21 @@ func WrapWithRetry(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig
 	)
 
 	return NewRetryClient(client, retryConfig, circuitBreaker)
+}
+
+// WrapWithRetryAndHealth wraps an LLM client with retry, circuit breaker, and health tracking.
+// The circuit breaker is automatically registered with the HealthRegistry.
+func WrapWithRetryAndHealth(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig, hr *HealthRegistry, provider, model string) portsllm.LLMClient {
+	circuitBreaker := alexerrors.NewCircuitBreaker(
+		fmt.Sprintf("llm-%s", client.Model()),
+		circuitBreakerConfig,
+	)
+
+	if hr != nil {
+		hr.Register(provider, model, circuitBreaker)
+	}
+
+	return newRetryClientWithHealth(client, retryConfig, circuitBreaker, hr, provider, model)
 }
 
 // HTTPStatusError represents an HTTP error with status code
