@@ -41,12 +41,15 @@ const (
 // AgentExecutor is an alias for the shared channel executor interface.
 type AgentExecutor = channels.AgentExecutor
 
-// sessionSlot tracks whether a task is active for a given session and holds
+// sessionSlot tracks whether a task is active for a given chat and holds
 // the user input channel used to inject follow-up messages into a running
-// ReAct loop.
+// ReAct loop, plus the pending session state for await-user-input handoffs.
 type sessionSlot struct {
-	mu      sync.Mutex
-	inputCh chan agent.UserInput // non-nil while a task is active
+	mu            sync.Mutex
+	inputCh       chan agent.UserInput // non-nil while a task is active
+	sessionID     string
+	lastSessionID string
+	awaitingInput bool
 }
 
 // Gateway bridges Lark bot messages into the agent runtime.
@@ -64,7 +67,7 @@ type Gateway struct {
 	dedupCache      *lru.Cache[string, time.Time]
 	now             func() time.Time
 	planReviewStore PlanReviewStore
-	activeSlots     sync.Map // sessionID → *sessionSlot
+	activeSlots     sync.Map // chatID → *sessionSlot
 }
 
 type awaitQuestionTracker struct {
@@ -151,9 +154,9 @@ func (g *Gateway) SetMessenger(m LarkMessenger) {
 	g.messenger = m
 }
 
-// getOrCreateSlot returns the session slot for the given ID, creating one if needed.
-func (g *Gateway) getOrCreateSlot(sessionID string) *sessionSlot {
-	slot, _ := g.activeSlots.LoadOrStore(sessionID, &sessionSlot{})
+// getOrCreateSlot returns the session slot for the given chat, creating one if needed.
+func (g *Gateway) getOrCreateSlot(chatID string) *sessionSlot {
+	slot, _ := g.activeSlots.LoadOrStore(chatID, &sessionSlot{})
 	return slot.(*sessionSlot)
 }
 
@@ -242,35 +245,78 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	senderID := extractSenderID(event)
-	memoryID := g.memoryIDForChat(chatID)
-	sessionID := memoryID
 
-	// Session slot: if a task is already running for this session, inject the
+	// Session slot: if a task is already running for this chat, inject the
 	// new message into the running ReAct loop instead of blocking.
-	slot := g.getOrCreateSlot(sessionID)
+	slot := g.getOrCreateSlot(chatID)
 	slot.mu.Lock()
 	if slot.inputCh != nil {
 		// Task is active — inject the message into the running loop.
 		ch := slot.inputCh
+		activeSessionID := slot.sessionID
 		slot.mu.Unlock()
 		select {
 		case ch <- agent.UserInput{Content: content, SenderID: senderID, MessageID: messageID}:
-			g.logger.Info("Injected user input into active session %s", sessionID)
+			g.logger.Info("Injected user input into active session %s", activeSessionID)
 		default:
-			g.logger.Warn("User input channel full for session %s; message dropped", sessionID)
+			g.logger.Warn("User input channel full for session %s; message dropped", activeSessionID)
 		}
 		return nil
+	}
+	// No task running — allow /reset to target the last or pending session.
+	if strings.TrimSpace(content) == "/reset" {
+		resetSessionID := slot.sessionID
+		if resetSessionID == "" {
+			resetSessionID = slot.lastSessionID
+		}
+		if resetSessionID == "" {
+			resetSessionID = g.memoryIDForChat(chatID)
+		}
+		slot.sessionID = ""
+		slot.lastSessionID = ""
+		slot.awaitingInput = false
+		slot.mu.Unlock()
+
+		execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", resetSessionID, senderID, chatID, isGroup)
+		execCtx = shared.WithLarkClient(execCtx, g.client)
+		execCtx = shared.WithLarkChatID(execCtx, chatID)
+		if resetter, ok := g.agent.(interface {
+			ResetSession(ctx context.Context, sessionID string) error
+		}); ok {
+			if err := resetter.ResetSession(execCtx, resetSessionID); err != nil {
+				g.logger.Warn("Lark session reset failed: %v", err)
+			}
+		}
+		reply := "已清空对话历史，下次对话将从零开始。"
+		g.dispatch(execCtx, chatID, replyTarget(messageID, true), "text", textContent(reply))
+		return nil
+	}
+
+	sessionID := slot.sessionID
+	if !slot.awaitingInput || sessionID == "" {
+		sessionID = g.newSessionID()
 	}
 	// No task running — create an input channel and start a new task.
 	inputCh := make(chan agent.UserInput, 16)
 	slot.inputCh = inputCh
+	slot.sessionID = sessionID
+	slot.lastSessionID = sessionID
+	slot.awaitingInput = false
 	slot.mu.Unlock()
 
+	awaitingInputOnComplete := false
 	defer func() {
 		slot.mu.Lock()
 		slot.inputCh = nil
+		if awaitingInputOnComplete {
+			slot.awaitingInput = true
+			slot.lastSessionID = slot.sessionID
+		} else {
+			slot.awaitingInput = false
+			slot.sessionID = ""
+		}
 		slot.mu.Unlock()
-		g.drainAndReprocess(inputCh, chatID, sessionID, senderID)
+		g.drainAndReprocess(inputCh, chatID)
 	}()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
@@ -295,19 +341,6 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		MaxBytes:  autoUploadMaxBytes,
 		AllowExts: normalizeExtensions(g.cfg.AutoUploadAllowExt),
 	})
-
-	if strings.TrimSpace(content) == "/reset" {
-		if resetter, ok := g.agent.(interface {
-			ResetSession(ctx context.Context, sessionID string) error
-		}); ok {
-			if err := resetter.ResetSession(execCtx, memoryID); err != nil {
-				g.logger.Warn("Lark session reset failed: %v", err)
-			}
-		}
-		reply := "已清空对话历史，下次对话将从零开始。"
-		g.dispatch(execCtx, chatID, replyTarget(messageID, true), "text", textContent(reply))
-		return nil
-	}
 
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
 	if err != nil {
@@ -394,6 +427,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
+	awaitingInputOnComplete = execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input")
 	if messageID != "" && endEmoji != "" {
 		go g.addReaction(execCtx, messageID, endEmoji)
 	}
@@ -472,7 +506,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 // drainAndReprocess drains any remaining messages from the input channel after
 // a task finishes and reprocesses each as a new task. This handles messages that
 // arrived between the last ReAct iteration drain and the task completion.
-func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, sessionID, _ string) {
+func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID string) {
 	var remaining []agent.UserInput
 	for {
 		select {
@@ -484,7 +518,7 @@ func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, sessionID, 
 	}
 done:
 	for _, msg := range remaining {
-		go g.reprocessMessage(chatID, sessionID, msg)
+		go g.reprocessMessage(chatID, msg)
 	}
 }
 
@@ -521,11 +555,11 @@ func (g *Gateway) InjectMessage(ctx context.Context, chatID, chatType, senderID,
 // reprocessMessage re-injects a drained user input as if it were a fresh Lark
 // message. This creates a synthetic P2MessageReceiveV1 event and feeds it back
 // through handleMessage so the full pipeline (dedup, session, execution) runs.
-func (g *Gateway) reprocessMessage(chatID, sessionID string, input agent.UserInput) {
+func (g *Gateway) reprocessMessage(chatID string, input agent.UserInput) {
 	msgID := input.MessageID
 	content := input.Content
 
-	g.logger.Info("Reprocessing drained message for session %s (msg_id=%s)", sessionID, msgID)
+	g.logger.Info("Reprocessing drained message for chat %s (msg_id=%s)", chatID, msgID)
 
 	chatType := "p2p"
 	msgType := "text"
@@ -548,7 +582,7 @@ func (g *Gateway) reprocessMessage(chatID, sessionID string, input agent.UserInp
 		},
 	}
 	if err := g.handleMessage(context.Background(), event); err != nil {
-		g.logger.Warn("Reprocess message failed for session %s: %v", sessionID, err)
+		g.logger.Warn("Reprocess message failed for chat %s: %v", chatID, err)
 	}
 }
 
@@ -658,8 +692,17 @@ func extractThinkingFallback(msgs []ports.Message) string {
 	return ""
 }
 
+// newSessionID generates a fresh session identifier for a new Lark task.
+func (g *Gateway) newSessionID() string {
+	prefix := strings.TrimSpace(g.cfg.SessionPrefix)
+	if prefix == "" {
+		prefix = "lark"
+	}
+	return fmt.Sprintf("%s-%s", prefix, id.NewKSUID())
+}
+
 // memoryIDForChat derives a deterministic memory identity from a chat ID.
-// This stable ID is used for memory save/recall and as the Lark session ID.
+// This stable ID is used as a fallback reset target for the chat.
 func (g *Gateway) memoryIDForChat(chatID string) string {
 	hash := sha1.Sum([]byte(chatID))
 	return fmt.Sprintf("%s-%x", g.cfg.SessionPrefix, hash[:12])
