@@ -61,15 +61,21 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	agentContainer := extraContainer
 
 	gatewayCfg := lark.Config{
-		BaseConfig:         larkCfg.BaseConfig,
-		Enabled:            larkCfg.Enabled,
-		AppID:              larkCfg.AppID,
-		AppSecret:          larkCfg.AppSecret,
-		BaseDomain:         larkCfg.BaseDomain,
-		WorkspaceDir:       larkCfg.WorkspaceDir,
-		AutoUploadFiles:    larkCfg.AutoUploadFiles,
-		AutoUploadMaxBytes: larkCfg.AutoUploadMaxBytes,
-		AutoUploadAllowExt: append([]string(nil), larkCfg.AutoUploadAllowExt...),
+		BaseConfig:                    larkCfg.BaseConfig,
+		Enabled:                       larkCfg.Enabled,
+		AppID:                         larkCfg.AppID,
+		AppSecret:                     larkCfg.AppSecret,
+		BaseDomain:                    larkCfg.BaseDomain,
+		WorkspaceDir:                  larkCfg.WorkspaceDir,
+		CardsEnabled:                  larkCfg.CardsEnabled,
+		CardsPlanReview:               larkCfg.CardsPlanReview,
+		CardsResults:                  larkCfg.CardsResults,
+		CardsErrors:                   larkCfg.CardsErrors,
+		CardCallbackVerificationToken: larkCfg.CardCallbackVerificationToken,
+		CardCallbackEncryptKey:        larkCfg.CardCallbackEncryptKey,
+		AutoUploadFiles:               larkCfg.AutoUploadFiles,
+		AutoUploadMaxBytes:            larkCfg.AutoUploadMaxBytes,
+		AutoUploadAllowExt:            append([]string(nil), larkCfg.AutoUploadAllowExt...),
 		Browser: lark.BrowserConfig{
 			CDPURL:      larkCfg.Browser.CDPURL,
 			ChromePath:  larkCfg.Browser.ChromePath,
@@ -117,6 +123,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		}
 		return nil, err
 	}
+	container.LarkGateway = gateway
 	if broadcaster != nil {
 		gateway.SetEventListener(broadcaster)
 	}
@@ -131,6 +138,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 
 	cleanup := func() {
 		gateway.Stop()
+		if container.LarkGateway == gateway {
+			container.LarkGateway = nil
+		}
 		if extraContainer != nil {
 			if err := extraContainer.Shutdown(); err != nil {
 				logger.Warn("Lark container shutdown failed: %v", err)

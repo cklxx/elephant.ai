@@ -115,6 +115,10 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 #      enabled: true
 #      app_id: "cli_xxx"
 #      app_secret: "xxx"
+#      cards_enabled: true
+#      card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
+#      card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
+#    callback endpoint: /api/lark/card/callback
 
 # 3. Run backend + web together
 ./dev.sh

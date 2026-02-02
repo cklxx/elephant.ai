@@ -62,6 +62,15 @@ func (b Button) WithValue(key, val string) Button {
 	return b
 }
 
+// InputConfig configures a card input element.
+type InputConfig struct {
+	Name        string
+	Label       string
+	Placeholder string
+	Value       string
+	Required    bool
+}
+
 // --- Element types (internal JSON shapes) ---
 
 type element = map[string]any
@@ -100,6 +109,34 @@ func (c *Card) AddPlainTextSection(content string) *Card {
 			"content": content,
 		},
 	})
+	return c
+}
+
+// AddInput appends a form input element (returned in callback form_value).
+func (c *Card) AddInput(cfg InputConfig) *Card {
+	input := element{
+		"tag":  "input",
+		"name": cfg.Name,
+	}
+	if cfg.Label != "" {
+		input["label"] = map[string]string{
+			"tag":     "plain_text",
+			"content": cfg.Label,
+		}
+	}
+	if cfg.Placeholder != "" {
+		input["placeholder"] = map[string]string{
+			"tag":     "plain_text",
+			"content": cfg.Placeholder,
+		}
+	}
+	if cfg.Value != "" {
+		input["value"] = cfg.Value
+	}
+	if cfg.Required {
+		input["required"] = true
+	}
+	c.elements = append(c.elements, input)
 	return c
 }
 

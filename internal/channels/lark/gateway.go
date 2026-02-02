@@ -83,6 +83,11 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	if cfg.ToolPreset == "" {
 		cfg.ToolPreset = "full"
 	}
+	if cfg.CardsEnabled && !cfg.CardsPlanReview && !cfg.CardsResults && !cfg.CardsErrors {
+		cfg.CardsPlanReview = true
+		cfg.CardsResults = true
+		cfg.CardsErrors = true
+	}
 	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("lark message deduper init: %w", err)
@@ -353,9 +358,21 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	reply := ""
+	replyMsgType := "text"
+	replyContent := ""
 	if execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") && g.cfg.PlanReviewEnabled {
 		if marker, ok := extractPlanReviewMarker(result.Messages); ok {
-			reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
+			if g.cfg.CardsEnabled && g.cfg.CardsPlanReview {
+				if card, err := g.buildPlanReviewCard(marker); err == nil {
+					replyMsgType = "interactive"
+					replyContent = card
+				} else {
+					g.logger.Warn("Lark plan review card build failed: %v", err)
+				}
+			}
+			if replyContent == "" {
+				reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
+			}
 			if g.planReviewStore != nil {
 				if err := g.planReviewStore.SavePending(execCtx, PlanReviewPending{
 					UserID:        senderID,
@@ -369,17 +386,30 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 			}
 		}
 	}
-	if reply == "" {
-		reply = g.buildReply(result, execErr)
-	}
-	if reply == "" {
-		reply = "（无可用回复）"
-	}
-	if summary := buildAttachmentSummary(result); summary != "" {
-		reply += "\n\n" + summary
+	if replyContent == "" {
+		if reply == "" {
+			reply = g.buildReply(result, execErr)
+		}
+		if reply == "" {
+			reply = "（无可用回复）"
+		}
+		if g.cfg.CardsEnabled && ((execErr != nil && g.cfg.CardsErrors) || (execErr == nil && g.cfg.CardsResults)) {
+			if card, err := g.buildCardReply(reply, result, execErr); err == nil {
+				replyMsgType = "interactive"
+				replyContent = card
+			} else {
+				g.logger.Warn("Lark card reply build failed: %v", err)
+			}
+		}
+		if replyContent == "" {
+			if summary := buildAttachmentSummary(result); summary != "" {
+				reply += "\n\n" + summary
+			}
+			replyContent = textContent(reply)
+		}
 	}
 
-	g.dispatch(execCtx, chatID, replyTarget(messageID, true), "text", textContent(reply))
+	g.dispatch(execCtx, chatID, replyTarget(messageID, true), replyMsgType, replyContent)
 	g.sendAttachments(execCtx, chatID, messageID, result)
 
 	return nil

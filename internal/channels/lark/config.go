@@ -14,6 +14,12 @@ type Config struct {
 	AppSecret                     string
 	BaseDomain                    string
 	WorkspaceDir                  string
+	CardsEnabled                  bool
+	CardsPlanReview               bool
+	CardsResults                  bool
+	CardsErrors                   bool
+	CardCallbackVerificationToken string
+	CardCallbackEncryptKey        string
 	AutoUploadFiles               bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string

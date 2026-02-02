@@ -112,6 +112,10 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	// ── SSE / streaming ──
 
+	if deps.LarkCardHandler != nil {
+		mux.Handle("POST /api/lark/card/callback", routeHandler("/api/lark/card/callback", deps.LarkCardHandler))
+	}
+
 	mux.Handle("GET /api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
 	mux.Handle("GET /api/share/sessions/{session_id}", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))
 	if attachmentStore != nil {

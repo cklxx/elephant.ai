@@ -773,6 +773,137 @@ func TestHandleMessageSavesPlanReviewPendingOnAwaitUserInput(t *testing.T) {
 	}
 }
 
+func TestHandleMessageSendsPlanReviewCardWhenEnabled(t *testing.T) {
+	openID := "ou_sender_card"
+	chatID := "oc_chat_card"
+	msgID := "om_msg_card"
+	content := `{"text":"继续"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{
+			StopReason: "await_user_input",
+			Messages: []ports.Message{{
+				Role:    "system",
+				Content: "<plan_review_pending>\nrun_id: run-9\noverall_goal_ui: goal-9\ninternal_plan: {\"steps\":[\"x\"]}\n</plan_review_pending>",
+			}},
+		},
+	}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig:        channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:             "test",
+			AppSecret:         "secret",
+			PlanReviewEnabled: true,
+			CardsEnabled:      true,
+			CardsPlanReview:   true,
+		},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		calls = recorder.CallsByMethod("SendMessage")
+	}
+	if len(calls) == 0 {
+		t.Fatal("expected a reply message")
+	}
+	if calls[0].MsgType != "interactive" {
+		t.Fatalf("expected interactive card reply, got %q", calls[0].MsgType)
+	}
+}
+
+func TestHandleMessageSendsResultCardWhenEnabled(t *testing.T) {
+	openID := "ou_sender_result"
+	chatID := "oc_chat_result"
+	msgID := "om_msg_result"
+	content := `{"text":"hello"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{
+			Answer: "done",
+		},
+	}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:        "test",
+			AppSecret:    "secret",
+			CardsEnabled: true,
+			CardsResults: true,
+		},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		calls = recorder.CallsByMethod("SendMessage")
+	}
+	if len(calls) == 0 {
+		t.Fatal("expected a reply message")
+	}
+	if calls[0].MsgType != "interactive" {
+		t.Fatalf("expected interactive card reply, got %q", calls[0].MsgType)
+	}
+}
+
 func TestHandleMessageResetCommand(t *testing.T) {
 	openID := "ou_sender_reset"
 	chatID := "oc_chat_reset"

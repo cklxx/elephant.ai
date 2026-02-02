@@ -72,6 +72,14 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 			larkCfg.ToolPreset,
 			larkCfg.AllowGroups,
 		)
+		logger.Info(
+			"Lark Cards: enabled=%t plan_review=%t results=%t errors=%t callback_configured=%t",
+			larkCfg.CardsEnabled,
+			larkCfg.CardsPlanReview,
+			larkCfg.CardsResults,
+			larkCfg.CardsErrors,
+			strings.TrimSpace(larkCfg.CardCallbackVerificationToken) != "",
+		)
 	} else {
 		logger.Info("Lark Gateway: disabled")
 	}

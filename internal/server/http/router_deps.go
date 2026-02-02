@@ -1,6 +1,7 @@
 package http
 
 import (
+	"net/http"
 	"time"
 
 	"alex/internal/attachments"
@@ -26,6 +27,7 @@ type RouterDeps struct {
 	SandboxBaseURL          string
 	SandboxMaxResponseBytes int
 	DataCache               *DataCache
+	LarkCardHandler         http.Handler
 }
 
 // RouterConfig holds configuration values for the HTTP router.

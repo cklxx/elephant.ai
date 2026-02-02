@@ -110,6 +110,43 @@ func TestAddPlainTextSection(t *testing.T) {
 	}
 }
 
+func TestAddInput(t *testing.T) {
+	raw, err := NewCard(CardConfig{Title: "Input"}).
+		AddInput(InputConfig{
+			Name:        "plan_feedback",
+			Label:       "修改意见",
+			Placeholder: "请输入",
+			Required:    true,
+		}).
+		Build()
+	if err != nil {
+		t.Fatalf("Build failed: %v", err)
+	}
+	m := mustParse(t, raw)
+	elems := elements(t, m)
+	if len(elems) != 1 {
+		t.Fatalf("expected 1 element, got %d", len(elems))
+	}
+	input := elems[0].(map[string]any)
+	if input["tag"] != "input" {
+		t.Fatalf("expected input tag, got %v", input["tag"])
+	}
+	if input["name"] != "plan_feedback" {
+		t.Fatalf("expected input name, got %v", input["name"])
+	}
+	label := input["label"].(map[string]any)
+	if label["content"] != "修改意见" {
+		t.Fatalf("expected label content, got %v", label["content"])
+	}
+	placeholder := input["placeholder"].(map[string]any)
+	if placeholder["content"] != "请输入" {
+		t.Fatalf("expected placeholder content, got %v", placeholder["content"])
+	}
+	if input["required"] != true {
+		t.Fatalf("expected required true, got %v", input["required"])
+	}
+}
+
 func TestAddDivider(t *testing.T) {
 	raw, err := NewCard(CardConfig{Title: "Div"}).
 		AddDivider().
@@ -201,6 +238,75 @@ func TestAddNote(t *testing.T) {
 	ne := noteElems[0].(map[string]any)
 	if ne["content"] != "This is a footer" {
 		t.Errorf("unexpected note content: %v", ne["content"])
+	}
+}
+
+func TestPlanReviewCard(t *testing.T) {
+	raw, err := PlanReviewCard(PlanReviewParams{
+		Goal:                 "ship feature",
+		PlanMarkdown:         "- step1\n- step2",
+		RunID:                "run-1",
+		RequireConfirmation:  true,
+		IncludeFeedbackInput: true,
+	})
+	if err != nil {
+		t.Fatalf("PlanReviewCard failed: %v", err)
+	}
+	m := mustParse(t, raw)
+	elems := elements(t, m)
+	if len(elems) < 2 {
+		t.Fatalf("expected at least 2 elements, got %d", len(elems))
+	}
+	foundApprove := false
+	foundInput := false
+	for _, elem := range elems {
+		e := elem.(map[string]any)
+		switch e["tag"] {
+		case "input":
+			foundInput = true
+		case "action":
+			actions := e["actions"].([]any)
+			for _, a := range actions {
+				action := a.(map[string]any)
+				if action["action_tag"] == "plan_review_approve" {
+					foundApprove = true
+				}
+			}
+		}
+	}
+	if !foundInput {
+		t.Fatal("expected feedback input element")
+	}
+	if !foundApprove {
+		t.Fatal("expected approve action_tag")
+	}
+}
+
+func TestResultCard(t *testing.T) {
+	raw, err := ResultCard(ResultParams{
+		Title:   "完成",
+		Summary: "ok",
+		Footer:  "footer",
+	})
+	if err != nil {
+		t.Fatalf("ResultCard failed: %v", err)
+	}
+	m := mustParse(t, raw)
+	header := m["header"].(map[string]any)
+	if header["template"] != "green" {
+		t.Fatalf("expected green template, got %v", header["template"])
+	}
+}
+
+func TestErrorCard(t *testing.T) {
+	raw, err := ErrorCard("失败", "boom")
+	if err != nil {
+		t.Fatalf("ErrorCard failed: %v", err)
+	}
+	m := mustParse(t, raw)
+	header := m["header"].(map[string]any)
+	if header["template"] != "red" {
+		t.Fatalf("expected red template, got %v", header["template"])
 	}
 }
 

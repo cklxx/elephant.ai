@@ -14,6 +14,7 @@ import (
 	"alex/internal/analytics"
 	"alex/internal/async"
 	"alex/internal/attachments"
+	"alex/internal/channels/lark"
 	"alex/internal/diagnostics"
 	"alex/internal/logging"
 	"alex/internal/materials"
@@ -279,6 +280,10 @@ func RunServer(observabilityConfigPath string) error {
 	if err != nil {
 		logger.Warn("Evaluation service disabled: %v", err)
 	}
+	var larkCardHandler http.Handler
+	if container.LarkGateway != nil {
+		larkCardHandler = lark.NewCardCallbackHandler(container.LarkGateway, logger)
+	}
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
 			Coordinator:             serverCoordinator,
@@ -294,6 +299,7 @@ func RunServer(observabilityConfigPath string) error {
 			AttachmentCfg:           config.Attachment,
 			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
 			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
+			LarkCardHandler:         larkCardHandler,
 		},
 		serverHTTP.RouterConfig{
 			Environment:      config.Runtime.Environment,

@@ -12,6 +12,7 @@ import (
 	agentstorage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/async"
+	"alex/internal/channels/lark"
 	runtimeconfig "alex/internal/config"
 	"alex/internal/lifecycle"
 	"alex/internal/llm"
@@ -38,6 +39,7 @@ type Container struct {
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
 	SessionDB        *pgxpool.Pool
+	LarkGateway      *lark.Gateway
 
 	// Drainables holds subsystems that support graceful drain.
 	Drainables []lifecycle.Drainable

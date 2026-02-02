@@ -174,6 +174,9 @@ apps:
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
 - `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: lark-local`）。
 - `workspace_dir`：Lark 本地工具工作区根目录（默认进程 working dir）。
+- `cards_enabled`：是否启用 Lark 交互卡片（默认 true）。
+- `cards_plan_review` / `cards_results` / `cards_errors`：分别控制计划确认/结果/错误卡片发送。
+- `card_callback_verification_token` / `card_callback_encrypt_key`：卡片交互回调配置（用于 `/api/lark/card/callback` 回调校验/解密）。
 - `auto_upload_files`：本地文件写入/替换后自动上传附件（默认 true）。
 - `auto_upload_max_bytes`：自动上传单文件大小上限（默认 2MB）。
 - `auto_upload_allow_ext`：自动上传允许扩展名白名单（默认常见文档/图片）。
@@ -202,6 +205,12 @@ channels:
     tool_preset: "lark-local"
     tool_mode: "cli"
     workspace_dir: "/Users/bytedance/code/elephant.ai"
+    cards_enabled: true
+    cards_plan_review: true
+    cards_results: true
+    cards_errors: true
+    card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
+    card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
     auto_upload_files: true
     auto_upload_max_bytes: 2097152
     auto_upload_allow_ext: [".txt", ".md", ".json", ".yaml", ".yml", ".csv", ".log", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".docx", ".xlsx", ".pptx"]

@@ -52,6 +52,12 @@ type LarkGatewayConfig struct {
 	AppSecret                     string
 	BaseDomain                    string
 	WorkspaceDir                  string
+	CardsEnabled                  bool
+	CardsPlanReview               bool
+	CardsResults                  bool
+	CardsErrors                   bool
+	CardCallbackVerificationToken string
+	CardCallbackEncryptKey        string
 	AutoUploadFiles               bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
@@ -148,6 +154,10 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 				ReactEmoji:          "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 				AutoChatContext:     true,
 				AutoChatContextSize: 20,
+				CardsEnabled:        true,
+				CardsPlanReview:     true,
+				CardsResults:        true,
+				CardsErrors:         true,
 			},
 		},
 		Attachment: attachments.StoreConfig{
@@ -214,6 +224,24 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if workspaceDir := strings.TrimSpace(larkCfg.WorkspaceDir); workspaceDir != "" {
 		cfg.Channels.Lark.WorkspaceDir = workspaceDir
+	}
+	if larkCfg.CardsEnabled != nil {
+		cfg.Channels.Lark.CardsEnabled = *larkCfg.CardsEnabled
+	}
+	if larkCfg.CardsPlanReview != nil {
+		cfg.Channels.Lark.CardsPlanReview = *larkCfg.CardsPlanReview
+	}
+	if larkCfg.CardsResults != nil {
+		cfg.Channels.Lark.CardsResults = *larkCfg.CardsResults
+	}
+	if larkCfg.CardsErrors != nil {
+		cfg.Channels.Lark.CardsErrors = *larkCfg.CardsErrors
+	}
+	if token := strings.TrimSpace(larkCfg.CardCallbackVerificationToken); token != "" {
+		cfg.Channels.Lark.CardCallbackVerificationToken = token
+	}
+	if encryptKey := strings.TrimSpace(larkCfg.CardCallbackEncryptKey); encryptKey != "" {
+		cfg.Channels.Lark.CardCallbackEncryptKey = encryptKey
 	}
 	if larkCfg.AutoUploadFiles != nil {
 		cfg.Channels.Lark.AutoUploadFiles = *larkCfg.AutoUploadFiles

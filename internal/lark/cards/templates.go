@@ -14,6 +14,25 @@ type ProgressStep struct {
 	Status string // "pending", "active", or "done".
 }
 
+// PlanReviewParams controls the plan review card output.
+type PlanReviewParams struct {
+	Title                string
+	Goal                 string
+	PlanMarkdown         string
+	RunID                string
+	RequireConfirmation  bool
+	IncludeFeedbackInput bool
+}
+
+// ResultParams controls the summary/result card output.
+type ResultParams struct {
+	Title         string
+	Summary       string
+	Footer        string
+	TitleColor    string
+	EnableForward bool
+}
+
 // --- Pre-built card templates ---
 
 // ApprovalCard builds a card with Approve and Reject buttons.
@@ -59,6 +78,72 @@ func ProgressCard(title string, steps []ProgressStep, currentStep int) (string, 
 	card.AddNote(progress)
 
 	return card.Build()
+}
+
+// PlanReviewCard builds a card used for plan review approvals.
+func PlanReviewCard(params PlanReviewParams) (string, error) {
+	title := strings.TrimSpace(params.Title)
+	if title == "" {
+		title = "计划确认"
+	}
+	card := NewCard(CardConfig{Title: title, TitleColor: "orange", EnableForward: false})
+
+	var lines []string
+	if goal := strings.TrimSpace(params.Goal); goal != "" {
+		lines = append(lines, fmt.Sprintf("**目标**: %s", goal))
+	}
+	if plan := strings.TrimSpace(params.PlanMarkdown); plan != "" {
+		lines = append(lines, fmt.Sprintf("**计划**:\n%s", plan))
+	}
+	if len(lines) > 0 {
+		card.AddMarkdownSection(strings.Join(lines, "\n\n"))
+	}
+	if params.RequireConfirmation {
+		card.AddNote("请确认执行或提交修改意见。")
+	}
+	if params.IncludeFeedbackInput {
+		card.AddInput(InputConfig{
+			Name:        "plan_feedback",
+			Label:       "修改意见",
+			Placeholder: "如需调整计划，请填写修改点（可选）",
+		})
+	}
+	card.AddDivider()
+	card.AddActionButtons(
+		NewPrimaryButton("确认执行", "plan_review_approve").WithValue("run_id", params.RunID),
+		NewButton("提交修改", "plan_review_request_changes").WithValue("run_id", params.RunID),
+	)
+
+	return card.Build()
+}
+
+// ResultCard builds a completion summary card.
+func ResultCard(params ResultParams) (string, error) {
+	title := strings.TrimSpace(params.Title)
+	if title == "" {
+		title = "任务完成"
+	}
+	color := strings.TrimSpace(params.TitleColor)
+	if color == "" {
+		color = "green"
+	}
+	card := NewCard(CardConfig{Title: title, TitleColor: color, EnableForward: params.EnableForward})
+	if summary := strings.TrimSpace(params.Summary); summary != "" {
+		card.AddMarkdownSection(summary)
+	}
+	if footer := strings.TrimSpace(params.Footer); footer != "" {
+		card.AddNote(footer)
+	}
+	return card.Build()
+}
+
+// ErrorCard builds a failure summary card.
+func ErrorCard(title, summary string) (string, error) {
+	return ResultCard(ResultParams{
+		Title:      title,
+		Summary:    summary,
+		TitleColor: "red",
+	})
 }
 
 // SummaryCard builds a card with key-value sections.
