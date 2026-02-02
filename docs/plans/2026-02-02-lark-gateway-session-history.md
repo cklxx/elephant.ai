@@ -18,3 +18,4 @@ Restore Lark gateway session history usage so prior chat context and memory are 
 - 2026-02-02: Updated Lark gateway tests to expect session history enabled.
 - 2026-02-02: Removed Lark session history disablement in gateway context.
 - 2026-02-02: Ran `./dev.sh lint` and `./dev.sh test` (failed: pre-existing typecheck errors in agent ports/container code).
+- 2026-02-02 19:10: Finalized gateway fix and test updates.
