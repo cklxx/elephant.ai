@@ -195,9 +195,9 @@ Phase 6 — P3:
 | C9 | DONE | Unit tests for C5-C6 |
 | C10 | DONE | Calendar trigger in scheduler |
 | C11 | DONE | `ceba6d70` checkpoint schema |
-| C12 | BLOCKED | Waiting on Codex X2 |
+| C12 | TODO | Checkpoint integration test + CLI resume not implemented yet |
 | C13 | DONE | `be5bbc01` tool policy config |
-| C14 | BLOCKED | Waiting on Codex X3 |
+| C14 | DONE | `25030852` retry wiring + config load |
 | C15 | DONE | `953ddd80` drainable interface |
 | C16 | DONE | `8f123f6f` drain wiring |
 | C17 | DONE | `f209cf5f` NSM metric stubs |
@@ -205,13 +205,13 @@ Phase 6 — P3:
 | C19 | DONE | `f68e75a5` policy schema + rules |
 | C20 | DONE | `ba058157` default policy rules |
 | C21 | DONE | `774b398a` JobStore + FileJobStore |
-| C22 | BLOCKED | Waiting on Codex X7 |
+| C22 | DONE | `e4f7517d` scheduler integration tests + config wiring |
 | C23 | DONE | `741509dd` batch ops + multi-calendar |
 | C24 | DONE | `1c0b2735` calendar conflict detection |
 | C25 | DONE | `b7315928` calendar summary builder |
 | C26 | DONE | `74b6b963` reminder pipeline |
 
-**Claude Code: 23/26 done** (3 blocked by Codex X2, X3, X7)
+**Claude Code: 25/26 done** (C12 pending: checkpoint integration test + CLI resume)
 
 ```
 Context: elephant.ai Go project.
