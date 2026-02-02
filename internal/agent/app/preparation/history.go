@@ -33,24 +33,6 @@ func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, se
 				s.logger.Info("Session %s stale (last updated %v), clearing history", session.ID, lastUpdated)
 			}
 
-			var staleMessages []ports.Message
-			if s.historyMgr != nil {
-				history, err := s.historyMgr.Replay(ctx, session.ID, 0)
-				if err != nil && s.logger != nil {
-					s.logger.Warn("Failed to replay stale session history (session=%s): %v", session.ID, err)
-				} else if len(history) > 0 {
-					staleMessages = history
-				}
-			}
-			if len(staleMessages) == 0 {
-				staleMessages = session.Messages
-			}
-			if s.sessionStaleCapture != nil && len(staleMessages) > 0 {
-				captured := *session
-				captured.Messages = agent.CloneMessages(staleMessages)
-				s.sessionStaleCapture(ctx, &captured, id.UserIDFromContext(ctx))
-			}
-
 			session.Messages = nil
 			session.Metadata = nil
 			session.Attachments = nil

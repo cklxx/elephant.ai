@@ -10,7 +10,6 @@ import (
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
-	id "alex/internal/utils/id"
 )
 
 type stubHistoryManager struct {
@@ -43,24 +42,15 @@ func TestLoadSessionHistoryClearsStaleSession(t *testing.T) {
 	store := &stubSessionStore{session: session}
 	history := &stubHistoryManager{replayMessages: []ports.Message{{Role: "assistant", Content: "history"}}}
 
-	var capturedUserID string
-	capturedMessages := 0
-	captureFn := func(_ context.Context, sess *storage.Session, userID string) {
-		capturedUserID = userID
-		capturedMessages = len(sess.Messages)
-	}
-
 	service := NewExecutionPreparationService(ExecutionPreparationDeps{
-		SessionStore:        store,
-		HistoryMgr:          history,
-		Config:              appconfig.Config{SessionStaleAfter: 48 * time.Hour},
-		Logger:              agent.NoopLogger{},
-		Clock:               agent.ClockFunc(func() time.Time { return now }),
-		SessionStaleCapture: captureFn,
+		SessionStore: store,
+		HistoryMgr:   history,
+		Config:       appconfig.Config{SessionStaleAfter: 48 * time.Hour},
+		Logger:       agent.NoopLogger{},
+		Clock:        agent.ClockFunc(func() time.Time { return now }),
 	})
 
-	ctx := id.WithUserID(context.Background(), "ou_user")
-	historyMessages := service.loadSessionHistory(ctx, session)
+	historyMessages := service.loadSessionHistory(context.Background(), session)
 	if len(historyMessages) != 0 {
 		t.Fatalf("expected stale session to return empty history, got %d", len(historyMessages))
 	}
@@ -72,12 +62,6 @@ func TestLoadSessionHistoryClearsStaleSession(t *testing.T) {
 	}
 	if store.session.Metadata != nil {
 		t.Fatalf("expected metadata cleared")
-	}
-	if capturedUserID != "ou_user" {
-		t.Fatalf("expected capture to receive user id, got %q", capturedUserID)
-	}
-	if capturedMessages == 0 {
-		t.Fatalf("expected capture to receive stale messages")
 	}
 }
 

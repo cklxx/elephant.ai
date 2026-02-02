@@ -6,7 +6,6 @@ import (
 
 	"alex/internal/attachments"
 	authapp "alex/internal/auth/app"
-	"alex/internal/memory"
 	"alex/internal/observability"
 	"alex/internal/server/app"
 )
@@ -22,7 +21,6 @@ type RouterDeps struct {
 	ConfigHandler           *ConfigHandler
 	Evaluation              *app.EvaluationService
 	Obs                     *observability.Observability
-	MemoryService           memory.Service
 	AttachmentCfg           attachments.StoreConfig
 	SandboxBaseURL          string
 	SandboxMaxResponseBytes int

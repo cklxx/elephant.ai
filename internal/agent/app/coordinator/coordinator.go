@@ -27,7 +27,6 @@ import (
 	"alex/internal/async"
 	"alex/internal/logging"
 	materialports "alex/internal/materials/ports"
-	"alex/internal/memory"
 	"alex/internal/tools/builtin/shared"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
@@ -45,7 +44,6 @@ type AgentCoordinator struct {
 	config           appconfig.Config
 	logger           agent.Logger
 	clock            agent.Clock
-	memoryService    memory.Service
 	externalExecutor agent.ExternalAgentExecutor
 	iterationHook    agent.IterationHook
 	checkpointStore  react.CheckpointStore
@@ -308,7 +306,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		sessionID = env.Session.ID
 	}
 	// Propagate context user_id into session metadata so resolveUserID
-	// can find it for proactive hooks and memory operations.
+	// can find it for proactive hooks.
 	if ctxUserID := id.UserIDFromContext(ctx); ctxUserID != "" {
 		if env.Session.Metadata == nil {
 			env.Session.Metadata = make(map[string]string)
@@ -356,7 +354,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	wf.succeed(stagePrepare, prepareOutput)
 	ctx = id.WithSessionID(ctx, env.Session.ID)
 
-	// Run proactive hooks (pre-task memory recall, etc.)
+	// Run proactive hooks (pre-task OKR injections, etc.)
 	if c.hookRegistry != nil && !appcontext.IsSubagentContext(ctx) {
 		hookTask := hooks.TaskInfo{
 			TaskInput: task,
@@ -463,7 +461,7 @@ func (c *AgentCoordinator) ExecuteTask(
 		}
 	}
 
-	// Run proactive hooks (post-task memory capture, etc.)
+	// Run proactive hooks (post-task processing, etc.)
 	if c.hookRegistry != nil && !appcontext.IsSubagentContext(ctx) && executionErr == nil {
 		hookResult := hooks.TaskResultInfo{
 			TaskInput:  task,
@@ -577,20 +575,19 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 	}
 	logger := c.loggerFor(ctx)
 	prepService := preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:          c.llmFactory,
-		ToolRegistry:        c.toolRegistry,
-		SessionStore:        c.sessionStore,
-		ContextMgr:          c.contextMgr,
-		HistoryMgr:          c.historyMgr,
-		Parser:              c.parser,
-		Config:              c.config,
-		Logger:              logger,
-		Clock:               c.clock,
-		CostDecorator:       c.costDecorator,
-		EventEmitter:        listener,
-		CostTracker:         c.costTracker,
-		SessionStaleCapture: c.captureStaleSession,
-		OKRContextProvider:  c.okrContextProvider,
+		LLMFactory:         c.llmFactory,
+		ToolRegistry:       c.toolRegistry,
+		SessionStore:       c.sessionStore,
+		ContextMgr:         c.contextMgr,
+		HistoryMgr:         c.historyMgr,
+		Parser:             c.parser,
+		Config:             c.config,
+		Logger:             logger,
+		Clock:              c.clock,
+		CostDecorator:      c.costDecorator,
+		EventEmitter:       listener,
+		CostTracker:        c.costTracker,
+		OKRContextProvider: c.okrContextProvider,
 	})
 	return prepService.Prepare(ctx, task, sessionID)
 }
@@ -1108,71 +1105,6 @@ func (c *AgentCoordinator) resolveUserID(ctx context.Context, session *storage.S
 		return session.ID
 	}
 	return ""
-}
-
-func (c *AgentCoordinator) captureStaleSession(ctx context.Context, session *storage.Session, userID string) {
-	if c == nil || c.memoryService == nil || session == nil || userID == "" {
-		return
-	}
-	if len(session.Messages) == 0 {
-		return
-	}
-	const maxMessages = 10
-	const maxContentLen = 1000
-
-	messages := session.Messages
-	if len(messages) > maxMessages {
-		messages = messages[len(messages)-maxMessages:]
-	}
-
-	var sb strings.Builder
-	sb.WriteString("Stale session snapshot:\n")
-	for _, msg := range messages {
-		role := strings.ToLower(strings.TrimSpace(msg.Role))
-		if role == "" || role == "system" || msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceUserHistory {
-			continue
-		}
-		content := strings.TrimSpace(msg.Content)
-		if content == "" {
-			continue
-		}
-		sb.WriteString(role)
-		sb.WriteString(": ")
-		sb.WriteString(content)
-		sb.WriteString("\n")
-		if sb.Len() >= maxContentLen {
-			break
-		}
-	}
-
-	content := textutil.SmartTruncate(sb.String(), maxContentLen)
-	if strings.TrimSpace(content) == "" {
-		return
-	}
-
-	slots := map[string]string{
-		"type":       "chat_turn",
-		"scope":      "user",
-		"source":     "session_stale",
-		"session_id": session.ID,
-	}
-	if channel := appcontext.ChannelFromContext(ctx); channel != "" {
-		slots["channel"] = channel
-	}
-	if chatID := appcontext.ChatIDFromContext(ctx); chatID != "" {
-		slots["chat_id"] = chatID
-	}
-	if sender := id.UserIDFromContext(ctx); sender != "" {
-		slots["sender_id"] = sender
-	}
-
-	if _, err := c.memoryService.Save(ctx, memory.Entry{
-		UserID:  userID,
-		Content: content,
-		Slots:   slots,
-	}); err != nil && c.logger != nil {
-		c.logger.Warn("Session stale capture failed: %v", err)
-	}
 }
 
 // extractToolCallInfo extracts tool call information from TaskResult messages.

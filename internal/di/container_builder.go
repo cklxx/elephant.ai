@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	appconfig "alex/internal/agent/app/config"
+	appcontext "alex/internal/agent/app/context"
 	agentcoordinator "alex/internal/agent/app/coordinator"
 	agentcost "alex/internal/agent/app/cost"
 	"alex/internal/agent/app/hooks"
@@ -19,7 +19,6 @@ import (
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
-	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/external"
 	"alex/internal/llm"
@@ -27,7 +26,6 @@ import (
 	"alex/internal/mcp"
 	"alex/internal/memory"
 	"alex/internal/parser"
-	"alex/internal/rag"
 	"alex/internal/session/filestore"
 	"alex/internal/session/postgresstore"
 	sessionstate "alex/internal/session/state_store"
@@ -110,15 +108,20 @@ func (b *containerBuilder) Build() (*Container, error) {
 		return nil, err
 	}
 
-	memoryService, err := b.buildMemoryService(resources)
+	memoryEngine, err := b.buildMemoryEngine()
 	if err != nil {
 		return nil, err
 	}
 	journalWriter := b.buildJournalWriter()
-	contextMgr := ctxmgr.NewManager(
+	contextOptions := []ctxmgr.Option{
 		ctxmgr.WithStateStore(resources.stateStore),
 		ctxmgr.WithJournalWriter(journalWriter),
-	)
+	}
+	if memoryEngine != nil {
+		contextOptions = append(contextOptions, ctxmgr.WithMemoryEngine(memoryEngine))
+		contextOptions = append(contextOptions, ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)))
+	}
+	contextMgr := ctxmgr.NewManager(contextOptions...)
 	historyMgr := ctxmgr.NewHistoryManager(resources.historyStore, b.logger, agent.SystemClock{})
 	parserImpl := parser.New()
 	llmFactory.EnableToolCallParsing(parserImpl)
@@ -128,7 +131,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		return nil, err
 	}
 
-	toolRegistry, err := b.buildToolRegistry(llmFactory, memoryService)
+	toolRegistry, err := b.buildToolRegistry(llmFactory, memoryEngine)
 	if err != nil {
 		return nil, err
 	}
@@ -142,8 +145,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	mcpRegistry := mcp.NewRegistry()
 	tracker := newMCPInitializationTracker()
 
-	hookRegistry := b.buildHookRegistry(memoryService)
-	iterationHook := b.buildIterationHook(memoryService)
+	hookRegistry := b.buildHookRegistry()
 	okrContextProvider := b.buildOKRContextProvider()
 	checkpointStore := react.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
 
@@ -179,8 +181,6 @@ func (b *containerBuilder) Build() (*Container, error) {
 			ToolPolicy:          b.config.ToolPolicy,
 		},
 		agentcoordinator.WithHookRegistry(hookRegistry),
-		agentcoordinator.WithIterationHook(iterationHook),
-		agentcoordinator.WithMemoryService(memoryService),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
 		agentcoordinator.WithCheckpointStore(checkpointStore),
@@ -198,7 +198,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		HistoryStore:     resources.historyStore,
 		HistoryManager:   historyMgr,
 		CostTracker:      costTracker,
-		MemoryService:    memoryService,
+		MemoryEngine:     memoryEngine,
 		CheckpointStore:  checkpointStore,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
@@ -346,118 +346,13 @@ func applySessionPoolOptions(poolConfig *pgxpool.Config, options sessionPoolOpti
 	poolConfig.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
 }
 
-func (b *containerBuilder) buildMemoryService(resources sessionResources) (memory.Service, error) {
-	store, err := b.buildMemoryStore(resources)
-	if err != nil {
-		return nil, err
+func (b *containerBuilder) buildMemoryEngine() (memory.Engine, error) {
+	root := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
+	engine := memory.NewMarkdownEngine(root)
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		b.logger.Warn("Failed to initialize memory root: %v", err)
 	}
-	if err := store.EnsureSchema(context.Background()); err != nil {
-		b.logger.Warn("Failed to initialize memory store schema: %v", err)
-	}
-
-	retentionPolicy := buildMemoryRetentionPolicy(b.config.Proactive.Memory.Retention)
-	if b.config.Proactive.Memory.Retention.PruneOnStart && retentionPolicy.HasRules() {
-		if deleted, err := store.Prune(context.Background(), retentionPolicy); err != nil {
-			b.logger.Warn("Failed to prune memory store: %v", err)
-		} else if len(deleted) > 0 {
-			b.logger.Info("Pruned %d expired memories on startup", len(deleted))
-		}
-	}
-
-	return memory.NewServiceWithRetention(store, retentionPolicy), nil
-}
-
-func (b *containerBuilder) buildMemoryStore(resources sessionResources) (memory.Store, error) {
-	mode := strings.ToLower(strings.TrimSpace(b.config.Proactive.Memory.Store))
-	if mode == "" || mode == "auto" {
-		return b.buildAutoMemoryStore(resources)
-	}
-	switch mode {
-	case "file":
-		return memory.NewFileStore(resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")), nil
-	case "postgres":
-		if resources.sessionDB == nil {
-			return nil, fmt.Errorf("memory store postgres requires session database")
-		}
-		return memory.NewPostgresStore(resources.sessionDB), nil
-	case "hybrid":
-		return b.buildHybridMemoryStore(resources)
-	default:
-		return nil, fmt.Errorf("unknown memory store %q", mode)
-	}
-}
-
-func (b *containerBuilder) buildAutoMemoryStore(resources sessionResources) (memory.Store, error) {
-	if resources.sessionDB != nil {
-		return memory.NewPostgresStore(resources.sessionDB), nil
-	}
-	return memory.NewFileStore(resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")), nil
-}
-
-func (b *containerBuilder) buildHybridMemoryStore(resources sessionResources) (memory.Store, error) {
-	keywordStore, err := b.buildAutoMemoryStore(resources)
-	if err != nil {
-		return nil, err
-	}
-
-	hybridCfg := b.config.Proactive.Memory.Hybrid
-	persistDir := strings.TrimSpace(hybridCfg.PersistDir)
-	if persistDir == "" {
-		persistDir = filepath.Join(resolveStorageDir(b.config.MemoryDir, "~/.alex/memory"), "vector")
-	}
-	if err := os.MkdirAll(persistDir, 0o755); err != nil {
-		b.logger.Warn("Failed to create memory vector dir: %v", err)
-	}
-
-	baseURL := strings.TrimSpace(hybridCfg.EmbedderBaseURL)
-	if baseURL == "" {
-		baseURL = strings.TrimSpace(b.config.BaseURL)
-	}
-	embedder, err := rag.NewEmbedder(rag.EmbedderConfig{
-		Provider:  "openai",
-		Model:     strings.TrimSpace(hybridCfg.EmbedderModel),
-		APIKey:    b.config.APIKey,
-		BaseURL:   baseURL,
-		CacheSize: 10000,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init memory embedder: %w", err)
-	}
-
-	vectorStore, err := rag.NewVectorStore(rag.StoreConfig{
-		PersistPath: persistDir,
-		Collection:  strings.TrimSpace(hybridCfg.Collection),
-	}, embedder)
-	if err != nil {
-		return nil, fmt.Errorf("init memory vector store: %w", err)
-	}
-
-	return memory.NewHybridStore(keywordStore, vectorStore, embedder, hybridCfg.Alpha, float32(hybridCfg.MinSimilarity), hybridCfg.AllowVectorFailures), nil
-}
-
-func buildMemoryRetentionPolicy(cfg runtimeconfig.MemoryRetentionConfig) memory.RetentionPolicy {
-	policy := memory.RetentionPolicy{
-		PruneOnRecall: cfg.PruneOnRecall,
-	}
-	if cfg.DefaultDays > 0 {
-		policy.DefaultTTL = time.Duration(cfg.DefaultDays) * 24 * time.Hour
-	}
-
-	typeTTL := map[string]time.Duration{}
-	if cfg.AutoCaptureDays > 0 {
-		typeTTL["auto_capture"] = time.Duration(cfg.AutoCaptureDays) * 24 * time.Hour
-	}
-	if cfg.ChatTurnDays > 0 {
-		typeTTL["chat_turn"] = time.Duration(cfg.ChatTurnDays) * 24 * time.Hour
-	}
-	if cfg.WorkflowTraceDays > 0 {
-		typeTTL["workflow_trace"] = time.Duration(cfg.WorkflowTraceDays) * 24 * time.Hour
-	}
-	if len(typeTTL) > 0 {
-		policy.TypeTTL = typeTTL
-	}
-
-	return policy
+	return engine, nil
 }
 
 func (b *containerBuilder) buildJournalWriter() journal.Writer {
@@ -478,30 +373,10 @@ func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) 
 	return agentcost.NewCostTracker(costStore), nil
 }
 
-func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hooks.Registry {
+func (b *containerBuilder) buildHookRegistry() *hooks.Registry {
 	registry := hooks.NewRegistry(b.logger)
 	if !b.config.Proactive.Enabled {
 		b.logger.Info("Non-memory proactive hooks disabled by config")
-	}
-
-	// Register memory hooks (behavior gated by MemoryPolicy, not config).
-	if memoryService != nil {
-		recallHook := hooks.NewMemoryRecallHook(memoryService, b.logger, hooks.MemoryRecallConfig{
-			MaxRecalls:         b.config.Proactive.Memory.MaxRecalls,
-			CaptureGroupMemory: b.config.Proactive.Memory.CaptureGroupMemory,
-		})
-		registry.Register(recallHook)
-
-		captureHook := hooks.NewMemoryCaptureHook(memoryService, b.logger, hooks.MemoryCaptureConfig{
-			DedupeThreshold: b.config.Proactive.Memory.DedupeThreshold,
-		})
-		registry.Register(captureHook)
-
-		convHook := hooks.NewConversationCaptureHook(memoryService, b.logger, hooks.ConversationCaptureConfig{
-			CaptureGroupMemory: b.config.Proactive.Memory.CaptureGroupMemory,
-			DedupeThreshold:    b.config.Proactive.Memory.DedupeThreshold,
-		})
-		registry.Register(convHook)
 	}
 
 	// Register OKR context hook (pre-task OKR injection)
@@ -522,17 +397,7 @@ func (b *containerBuilder) buildHookRegistry(memoryService memory.Service) *hook
 	return registry
 }
 
-func (b *containerBuilder) buildIterationHook(memoryService memory.Service) agent.IterationHook {
-	if memoryService == nil {
-		return nil
-	}
-	return hooks.NewIterationRefreshHook(memoryService, b.logger, hooks.IterationRefreshConfig{
-		DefaultInterval: b.config.Proactive.Memory.RefreshInterval,
-		MaxTokens:       b.config.Proactive.Memory.MaxRefreshTokens,
-	})
-}
-
-func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService memory.Service) (*toolregistry.Registry, error) {
+func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryEngine memory.Engine) (*toolregistry.Registry, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:               b.config.TavilyAPIKey,
 		ArkAPIKey:                  b.config.ArkAPIKey,
@@ -556,7 +421,7 @@ func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryService
 		SeedreamImageModel:         b.config.SeedreamImageModel,
 		SeedreamVisionModel:        b.config.SeedreamVisionModel,
 		SeedreamVideoModel:         b.config.SeedreamVideoModel,
-		MemoryService:              memoryService,
+		MemoryEngine:               memoryEngine,
 		OKRGoalsRoot:               b.resolveOKRGoalsRoot(),
 		HTTPLimits:                 b.config.HTTPLimits,
 		ToolPolicy:                 toolspolicy.NewToolPolicy(b.config.ToolPolicy),
@@ -587,4 +452,14 @@ func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvi
 	store := okrtools.NewGoalStore(okrCfg)
 	b.logger.Info("OKR context provider enabled (goals_root=%s)", okrCfg.GoalsRoot)
 	return preparation.NewOKRContextProvider(store)
+}
+
+func memoryGateFunc(enabled bool) func(context.Context) bool {
+	return func(ctx context.Context) bool {
+		if !enabled {
+			return false
+		}
+		policy := appcontext.ResolveMemoryPolicy(ctx)
+		return policy.Enabled
+	}
 }

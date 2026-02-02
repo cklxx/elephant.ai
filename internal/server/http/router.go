@@ -60,7 +60,6 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		WithSandboxClient(sandboxClient),
 		WithDevMode(devMode),
 		WithMaxCreateTaskBodySize(taskBodyLimit),
-		WithMemoryService(deps.MemoryService),
 	)
 
 	var authMiddleware func(http.Handler) http.Handler
@@ -85,7 +84,6 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	if devMode {
 		mux.Handle("GET /api/dev/sessions/{session_id}/context-window", routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleGetContextWindowPreview))))
 		mux.Handle("GET /api/dev/logs", routeHandler("/api/dev/logs", wrap(http.HandlerFunc(apiHandler.HandleDevLogTrace))))
-		mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleDevMemory))))
 
 		contextConfigHandler := NewContextConfigHandler("")
 		if contextConfigHandler != nil {

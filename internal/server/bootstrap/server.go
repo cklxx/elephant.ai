@@ -296,7 +296,6 @@ func RunServer(observabilityConfigPath string) error {
 			ConfigHandler:           configHandler,
 			Evaluation:              evaluationService,
 			Obs:                     obs,
-			MemoryService:           container.MemoryService,
 			AttachmentCfg:           config.Attachment,
 			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
 			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,

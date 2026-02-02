@@ -121,7 +121,7 @@ func truncateSnippet(content string, limit int) string {
 	return strings.TrimSpace(string(runes[:limit])) + "..."
 }
 
-// NoopFlushHook is the default hook when no memory service is configured.
+// NoopFlushHook is the default hook when no flush handler is configured.
 // It performs no work.
 type NoopFlushHook struct{}
 

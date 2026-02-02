@@ -6,7 +6,6 @@ import (
 	"alex/internal/agent/app/preparation"
 	react "alex/internal/agent/domain/react"
 	agent "alex/internal/agent/ports/agent"
-	"alex/internal/memory"
 )
 
 // CoordinatorOption configures optional dependencies for the agent coordinator.
@@ -45,15 +44,6 @@ func WithHookRegistry(registry *hooks.Registry) CoordinatorOption {
 	return func(c *AgentCoordinator) {
 		if registry != nil {
 			c.hookRegistry = registry
-		}
-	}
-}
-
-// WithMemoryService provides the memory service for proactive features.
-func WithMemoryService(svc memory.Service) CoordinatorOption {
-	return func(c *AgentCoordinator) {
-		if svc != nil {
-			c.memoryService = svc
 		}
 	}
 }
