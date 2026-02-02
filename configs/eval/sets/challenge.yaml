@@ -1,0 +1,14 @@
+version: "1.0.0"
+name: "challenge"
+description: "Challenge eval set for high-risk tasks (hard difficulty)."
+mode: "challenge"
+dataset:
+  type: general_agent
+  path: evaluation/agent_eval/datasets/general_agent_eval.json
+  limit: 0
+filters:
+  difficulty: ["hard"]
+composition_rules:
+  - difficulty: "hard"
+    min_count: 1
+rubric_path: configs/eval/rubrics/challenge.yaml

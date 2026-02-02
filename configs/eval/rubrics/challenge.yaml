@@ -1,0 +1,45 @@
+version: "1.0"
+name: "challenge"
+description: "Challenge rubric emphasizing correctness, tradeoffs, and risk handling."
+pass_threshold: 0.85
+fail_on_zero:
+  - completion
+  - format
+  - constraints
+  - correctness
+dimensions:
+  - id: completion
+    name: Completion
+    weight: 0.10
+    auto: true
+    guidance: "Completed => 2, timeout/failed => 0."
+  - id: format
+    name: Format adherence
+    weight: 0.15
+    auto: true
+    guidance: "Matches expected output format."
+  - id: constraints
+    name: Constraint coverage
+    weight: 0.20
+    auto: true
+    guidance: ">=80% constraints covered => 2; >=50% => 1."
+  - id: correctness
+    name: Technical correctness
+    weight: 0.20
+    auto: false
+    guidance: "No major factual/logic errors."
+  - id: actionability
+    name: Actionability
+    weight: 0.15
+    auto: false
+    guidance: "Actionable steps and verification."
+  - id: prioritization
+    name: Prioritization
+    weight: 0.10
+    auto: false
+    guidance: "Risks/hypotheses ranked with clear rationale."
+  - id: tradeoffs
+    name: Tradeoff reasoning
+    weight: 0.10
+    auto: false
+    guidance: "Explicit tradeoffs and alternative paths."
