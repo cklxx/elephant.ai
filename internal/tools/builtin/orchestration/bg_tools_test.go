@@ -9,6 +9,7 @@ import (
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/utils/id"
 )
 
 // mockDispatcher implements agent.BackgroundTaskDispatcher for tool tests.
@@ -72,7 +73,6 @@ func TestBGDispatch_Success(t *testing.T) {
 	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID: "call-1",
 		Arguments: map[string]any{
-			"task_id":     "t1",
 			"description": "analyze logs",
 			"prompt":      "Please analyze the logs",
 		},
@@ -87,8 +87,12 @@ func TestBGDispatch_Success(t *testing.T) {
 	if len(d.dispatched) != 1 {
 		t.Fatalf("expected 1 dispatch call, got %d", len(d.dispatched))
 	}
-	if d.dispatched[0].Req.TaskID != "t1" {
-		t.Errorf("expected task_id=t1, got %s", d.dispatched[0].Req.TaskID)
+	taskID := d.dispatched[0].Req.TaskID
+	if taskID == "" {
+		t.Fatal("expected generated task_id")
+	}
+	if !strings.HasPrefix(taskID, "bg-") {
+		t.Errorf("expected task_id to start with bg-, got %s", taskID)
 	}
 	if d.dispatched[0].Req.AgentType != "internal" {
 		t.Errorf("expected default agent_type=internal, got %s", d.dispatched[0].Req.AgentType)
@@ -106,7 +110,6 @@ func TestBGDispatch_CustomAgentType(t *testing.T) {
 	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID: "call-2",
 		Arguments: map[string]any{
-			"task_id":     "ext-1",
 			"description": "external task",
 			"prompt":      "do work",
 			"agent_type":  "claude_code",
@@ -124,6 +127,41 @@ func TestBGDispatch_CustomAgentType(t *testing.T) {
 	}
 }
 
+func TestBGDispatch_MetadataIncludesRunIDs(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	ctx = id.WithSessionID(ctx, "session-1")
+	ctx = id.WithRunID(ctx, "run-main")
+	ctx = id.WithParentRunID(ctx, "run-parent")
+	tool := NewBGDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-meta",
+		Arguments: map[string]any{
+			"description": "metadata test",
+			"prompt":      "do work",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if result.Metadata == nil {
+		t.Fatal("expected metadata to be present")
+	}
+	if result.Metadata["run_id"] != "run-main" {
+		t.Fatalf("expected run_id=run-main, got %v", result.Metadata["run_id"])
+	}
+	if result.Metadata["parent_run_id"] != "run-parent" {
+		t.Fatalf("expected parent_run_id=run-parent, got %v", result.Metadata["parent_run_id"])
+	}
+	if result.Metadata["session_id"] != "session-1" {
+		t.Fatalf("expected session_id=session-1, got %v", result.Metadata["session_id"])
+	}
+}
+
 func TestBGDispatch_MissingRequired(t *testing.T) {
 	d := &mockDispatcher{}
 	ctx := ctxWithDispatcher(d)
@@ -133,8 +171,8 @@ func TestBGDispatch_MissingRequired(t *testing.T) {
 		name string
 		args map[string]any
 	}{
-		{"missing description", map[string]any{"task_id": "t", "prompt": "p"}},
-		{"missing prompt", map[string]any{"task_id": "t", "description": "d"}},
+		{"missing description", map[string]any{"prompt": "p"}},
+		{"missing prompt", map[string]any{"description": "d"}},
 	}
 
 	for _, tc := range tests {
@@ -155,48 +193,29 @@ func TestBGDispatch_AutoTaskID(t *testing.T) {
 	ctx := ctxWithDispatcher(d)
 	tool := NewBGDispatch()
 
-	t.Run("auto-generate from description", func(t *testing.T) {
-		result, err := tool.Execute(ctx, ports.ToolCall{
-			ID: "call-auto",
-			Arguments: map[string]any{
-				"description": "Analyze Server Logs",
-				"prompt":      "Please analyze the server logs",
-			},
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Error != nil {
-			t.Fatalf("unexpected result error: %v", result.Error)
-		}
-		if len(d.dispatched) == 0 {
-			t.Fatal("expected dispatch call")
-		}
-		taskID := d.dispatched[len(d.dispatched)-1].Req.TaskID
-		if taskID != "analyze-server-logs" {
-			t.Errorf("expected task_id=analyze-server-logs, got %s", taskID)
-		}
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-auto",
+		Arguments: map[string]any{
+			"description": "Analyze Server Logs",
+			"prompt":      "Please analyze the server logs",
+		},
 	})
-
-	t.Run("fallback to call ID", func(t *testing.T) {
-		result, err := tool.Execute(ctx, ports.ToolCall{
-			ID: "call-fb",
-			Arguments: map[string]any{
-				"description": "---",
-				"prompt":      "do something",
-			},
-		})
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if result.Error != nil {
-			t.Fatalf("unexpected result error: %v", result.Error)
-		}
-		taskID := d.dispatched[len(d.dispatched)-1].Req.TaskID
-		if taskID != "bg-call-fb" {
-			t.Errorf("expected task_id=bg-call-fb, got %s", taskID)
-		}
-	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if len(d.dispatched) == 0 {
+		t.Fatal("expected dispatch call")
+	}
+	taskID := d.dispatched[len(d.dispatched)-1].Req.TaskID
+	if taskID == "" {
+		t.Fatal("expected generated task_id")
+	}
+	if !strings.HasPrefix(taskID, "bg-") {
+		t.Errorf("expected task_id to start with bg-, got %s", taskID)
+	}
 }
 
 func TestBGDispatch_NoDispatcher(t *testing.T) {
@@ -204,7 +223,6 @@ func TestBGDispatch_NoDispatcher(t *testing.T) {
 	result, err := tool.Execute(context.Background(), ports.ToolCall{
 		ID: "c",
 		Arguments: map[string]any{
-			"task_id":     "t",
 			"description": "d",
 			"prompt":      "p",
 		},
@@ -224,7 +242,7 @@ func TestBGDispatch_DispatchError(t *testing.T) {
 
 	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID:        "c",
-		Arguments: map[string]any{"task_id": "t", "description": "d", "prompt": "p"},
+		Arguments: map[string]any{"description": "d", "prompt": "p"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -241,13 +259,37 @@ func TestBGDispatch_UnsupportedParam(t *testing.T) {
 
 	result, err := tool.Execute(ctx, ports.ToolCall{
 		ID:        "c",
-		Arguments: map[string]any{"task_id": "t", "description": "d", "prompt": "p", "unknown": "x"},
+		Arguments: map[string]any{"description": "d", "prompt": "p", "unknown": "x"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if result.Error == nil {
 		t.Fatal("expected error for unsupported parameter")
+	}
+}
+
+func TestBGDispatch_TaskIDRejected(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "c",
+		Arguments: map[string]any{
+			"task_id":     "t1",
+			"description": "d",
+			"prompt":      "p",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error when task_id is provided")
+	}
+	if !strings.Contains(result.Content, "task_id") {
+		t.Fatalf("expected task_id error, got: %s", result.Content)
 	}
 }
 

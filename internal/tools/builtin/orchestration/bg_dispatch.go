@@ -3,15 +3,13 @@ package orchestration
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/tools/builtin/shared"
+	"alex/internal/utils/id"
 )
-
-var slugRe = regexp.MustCompile(`[^a-z0-9]+`)
 
 type bgDispatch struct {
 	shared.BaseTool
@@ -23,14 +21,10 @@ func NewBGDispatch() *bgDispatch {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "bg_dispatch",
-				Description: `Dispatch a task to run in the background. The task executes asynchronously while you continue working. Use bg_status to check progress and bg_collect to retrieve results.`,
+				Description: `Dispatch a task to run in the background. The task executes asynchronously while you continue working. Task IDs are auto-generated and returned in the response metadata. Use bg_status to check progress and bg_collect to retrieve results.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"task_id": {
-							Type:        "string",
-							Description: "Optional unique identifier for this background task. Auto-generated from description if omitted.",
-						},
 						"description": {
 							Type:        "string",
 							Description: "A short human-readable description of the task.",
@@ -83,7 +77,7 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	// Validate parameters.
 	for key := range call.Arguments {
 		switch key {
-		case "task_id", "description", "prompt", "agent_type", "config", "depends_on", "workspace_mode", "file_scope", "inherit_context":
+		case "description", "prompt", "agent_type", "config", "depends_on", "workspace_mode", "file_scope", "inherit_context":
 		default:
 			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
@@ -94,14 +88,8 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		return errResult, nil
 	}
 
-	// task_id is optional; auto-generate from description slug or call.ID.
-	taskID := strings.TrimSpace(shared.StringArg(call.Arguments, "task_id"))
-	if taskID == "" {
-		taskID = slugFromDescription(description)
-	}
-	if taskID == "" {
-		taskID = "bg-" + call.ID
-	}
+	// task_id is always system-generated.
+	taskID := "bg-" + id.NewKSUID()
 
 	prompt, errResult := shared.RequireStringArg(call.Arguments, call.ID, "prompt")
 	if errResult != nil {
@@ -175,9 +163,7 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	return &ports.ToolResult{
 		CallID:  call.ID,
 		Content: content,
-		Metadata: map[string]any{
-			"task_id": taskID,
-		},
+		Metadata: buildDispatchMetadata(ctx, taskID),
 	}, nil
 }
 
@@ -235,16 +221,19 @@ func dedupe(items []string) []string {
 	return out
 }
 
-// slugFromDescription generates a slug from a description string.
-// Lowercase, non-alphanumeric sequences replaced with hyphens, truncated to 32 chars.
-func slugFromDescription(desc string) string {
-	slug := strings.ToLower(strings.TrimSpace(desc))
-	slug = slugRe.ReplaceAllString(slug, "-")
-	slug = strings.Trim(slug, "-")
-	if len(slug) > 32 {
-		slug = slug[:32]
-		slug = strings.TrimRight(slug, "-")
+func buildDispatchMetadata(ctx context.Context, taskID string) map[string]any {
+	metadata := map[string]any{
+		"task_id": taskID,
 	}
-	return slug
+	ids := id.IDsFromContext(ctx)
+	if ids.SessionID != "" {
+		metadata["session_id"] = ids.SessionID
+	}
+	if ids.RunID != "" {
+		metadata["run_id"] = ids.RunID
+	}
+	if ids.ParentRunID != "" {
+		metadata["parent_run_id"] = ids.ParentRunID
+	}
+	return metadata
 }
-
