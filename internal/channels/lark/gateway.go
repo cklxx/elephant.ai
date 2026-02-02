@@ -67,6 +67,29 @@ type Gateway struct {
 	activeSlots     sync.Map // sessionID → *sessionSlot
 }
 
+type awaitQuestionTracker struct {
+	mu   sync.Mutex
+	sent bool
+}
+
+func (t *awaitQuestionTracker) MarkSent() {
+	if t == nil {
+		return
+	}
+	t.mu.Lock()
+	t.sent = true
+	t.mu.Unlock()
+}
+
+func (t *awaitQuestionTracker) Sent() bool {
+	if t == nil {
+		return false
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.sent
+}
+
 // NewGateway constructs a Lark gateway instance.
 func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gateway, error) {
 	if agent == nil {
@@ -251,6 +274,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
+	awaitTracker := &awaitQuestionTracker{}
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, chatID)
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
@@ -323,6 +347,9 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		progressLn := newProgressListener(execCtx, listener, sender, g.logger)
 		defer progressLn.Close()
 		listener = progressLn
+	}
+	if g.cfg.ShowPlanClarifyMessages {
+		listener = newPlanClarifyListener(execCtx, listener, g, chatID, replyTarget(messageID, true), awaitTracker)
 	}
 	execCtx = shared.WithParentListener(execCtx, listener)
 
@@ -400,7 +427,11 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 			}
 		}
 	}
-	if replyContent == "" {
+	skipReply := false
+	if execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") && awaitTracker.Sent() {
+		skipReply = true
+	}
+	if replyContent == "" && !skipReply {
 		if reply == "" && execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") {
 			if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok {
 				reply = question
@@ -430,8 +461,10 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		}
 	}
 
-	g.dispatch(execCtx, chatID, replyTarget(messageID, true), replyMsgType, replyContent)
-	g.sendAttachments(execCtx, chatID, messageID, result)
+	if !skipReply {
+		g.dispatch(execCtx, chatID, replyTarget(messageID, true), replyMsgType, replyContent)
+		g.sendAttachments(execCtx, chatID, messageID, result)
+	}
 
 	return nil
 }
