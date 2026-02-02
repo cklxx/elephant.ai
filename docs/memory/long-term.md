@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-02 13:00
+Updated: 2026-02-02 14:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -16,6 +16,7 @@ Updated: 2026-02-02 13:00
 - Event partitioning: groupKey uses `parent_run_id`; subagent detection is `parent_run_id != run_id`.
 - Tool event rules: only subagent `workflow.tool.started` hits main stream; others go pending/merged.
 - Memory retention defaults: 90d global TTL; auto_capture 30d; chat_turn 14d; workflow_trace 30d.
+- Bash scripts under `set -u` must guard array expansions (avoid unbound variable errors).
 
 ## Items
 

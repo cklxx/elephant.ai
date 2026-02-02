@@ -10,9 +10,38 @@ North-star metrics: **WTCR** (Weighted Task Completion Rate), **TimeSaved**, **A
 
 The primary vertical slice: the assistant reads your calendar and tasks, reminds you proactively, creates/updates events and tasks on your behalf (with approval), and learns from your patterns over time.
 
+## North Star Metrics (Definitions)
+
+- **WTCR (Weighted Task Completion Rate):** weighted by task difficulty.
+- **TimeSaved:** baseline_time − actual_time (track p50/p90).
+- **Accuracy:** auto-verification + user confirmation.
+
+**Task difficulty levels (suggested):**
+- **L1:** single-step / low risk (retrieval, simple answers).
+- **L2:** multi-step / write operations (Doc edits, spreadsheet updates, calendar/task changes).
+- **L3:** cross-system / high risk (multi-agent flows, code changes, approval chains).
+
+## OKR Tree (Global)
+
+- **O0 (Product NSM):** complete the Calendar + Tasks closed loop, improve WTCR + TimeSaved.
+- **O1 (Agent Core):** planning reliability + proactive context + memory structure.
+- **O2 (System Interaction):** tool SLA baseline + routing + scheduler reliability.
+- **O3 (Lark Ecosystem):** Calendar/Tasks CRUD + approval gate + proactive follow-up.
+- **O4 (Shadow DevOps):** eval/baseline/reporting + human-gated release loop.
+- **OS (Shared Infra):** event bus + observability + config/auth/error handling.
+
 ## Current State (2026-02-02)
 
-**M0 is complete. M1 (P2) is ~80% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing, evaluation automation, and evaluation set construction. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+**M0 is complete. M1 (P2) is ~80% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing. **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+
+## Implementation Audit Notes (2026-02-01)
+
+Snapshot from `docs/roadmap/draft/implementation-audit-2026-02-01.md` (verify against current code):
+- Tool registry counted **69+ tools**; permission presets were **5** (Full/ReadOnly/Safe/Sandbox/Architect).
+- Skill count recorded **12** (see draft for list).
+- RAG used **chromem-go cosine similarity** (no pgvector/BM25); token estimation used **÷4 heuristic**.
+- Lark IM auto-sense (all group messages) and reply-to support were already implemented at audit time.
+- Lark Docs/Sheets/Wiki remained unimplemented at audit time.
 
 ---
 
@@ -94,8 +123,8 @@ Enhancements after the core loop is stable.
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
 | Signal collection framework | Failure trajectories, user feedback (thumbs/text), implicit signals (retries/abandons), usage patterns | **Done** | Claude C43 | `internal/signals/` |
-| Evaluation automation | Dimensional scoring (reasoning/tools/UX/cost), baseline management, benchmark dashboard | **Not started** | Claude → Codex | `internal/devops/evaluation/` |
-| Evaluation set construction (评测集构建) | 分层评测：基础任务准出评测 + 引导模块升级优化的挑战性评测 | **Not started** | Claude → Codex | `evaluation/` |
+| Evaluation automation | Dimensional scoring (reasoning/tools/UX/cost), baseline management, benchmark dashboard | **In progress** | Claude → Codex | `internal/devops/evaluation/` |
+| Evaluation set construction (评测集构建) | 分层评测：基础任务准出评测 + 引导模块升级优化的挑战性评测 | **In progress** | Claude → Codex | `evaluation/` |
 | CI evaluation gating | Manual + tag-triggered quick eval with PR gate + result archiving | **Done** | Claude C40 | `evaluation/gate/`, `.github/workflows/eval.yml` |
 
 ## P3: Future (M2+)
