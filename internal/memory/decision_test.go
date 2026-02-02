@@ -19,11 +19,11 @@ func TestRecordDecisionStoresAndReturnsWithID(t *testing.T) {
 	ctx := context.Background()
 
 	entry, err := store.RecordDecision(ctx, DecisionEntry{
-		UserID:    "user-1",
-		SessionID: "sess-1",
-		Decision:  "Use PostgreSQL for persistence",
-		Rationale: "ACID compliance needed",
-		Context:   "Choosing a database for user data",
+		UserID:       "user-1",
+		SessionID:    "sess-1",
+		Decision:     "Use PostgreSQL for persistence",
+		Rationale:    "ACID compliance needed",
+		Context:      "Choosing a database for user data",
 		Alternatives: []string{"MongoDB", "SQLite"},
 		Tags:         []string{"architecture", "database"},
 	})
@@ -433,7 +433,7 @@ func TestDecisionEmptyStoreReturnsEmptyResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RecentDecisions on empty store: %v", err)
 	}
-	if results != nil && len(results) != 0 {
+	if len(results) != 0 {
 		t.Fatalf("expected empty results on empty store, got %d", len(results))
 	}
 
@@ -444,7 +444,7 @@ func TestDecisionEmptyStoreReturnsEmptyResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchDecisions on empty store: %v", err)
 	}
-	if searchResults != nil && len(searchResults) != 0 {
+	if len(searchResults) != 0 {
 		t.Fatalf("expected empty search results on empty store, got %d", len(searchResults))
 	}
 }

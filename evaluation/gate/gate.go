@@ -177,8 +177,8 @@ func (g *EvalGate) FormatSummary(result *GateResult) string {
 		sb.WriteString("## Eval Gate: FAILED\n\n")
 	}
 
-	sb.WriteString(fmt.Sprintf("| Metric | Value |\n"))
-	sb.WriteString(fmt.Sprintf("|--------|-------|\n"))
+	sb.WriteString("| Metric | Value |\n")
+	sb.WriteString("|--------|-------|\n")
 	sb.WriteString(fmt.Sprintf("| Score  | %.1f%% |\n", result.Score*100))
 	sb.WriteString(fmt.Sprintf("| Grade  | %s    |\n", result.Grade))
 	if result.Duration > 0 {
