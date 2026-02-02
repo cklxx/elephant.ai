@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -560,11 +561,13 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	}
 }
 
-func TestHandleMessageUsesChatSessionID(t *testing.T) {
+func TestHandleMessageCreatesNewSessionPerMessage(t *testing.T) {
 	openID := "ou_sender_stable"
 	chatID := "oc_chat_stable"
 	msgID := "om_msg_stable"
+	msgID2 := "om_msg_stable_2"
 	content := `{"text":"hello stable"}`
+	content2 := `{"text":"hello stable again"}`
 	msgType := "text"
 	chatType := "p2p"
 
@@ -599,13 +602,211 @@ func TestHandleMessageUsesChatSessionID(t *testing.T) {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
 
-	expectedSessionID := gw.memoryIDForChat(chatID)
-	if executor.capturedSessionID != expectedSessionID {
-		t.Fatalf("expected sessionID %q, got %q", expectedSessionID, executor.capturedSessionID)
+	firstSessionID := executor.capturedSessionID
+	if firstSessionID == "" || !strings.HasPrefix(firstSessionID, "lark-") {
+		t.Fatalf("expected lark session id, got %q", firstSessionID)
 	}
-	if got := id.SessionIDFromContext(executor.capturedCtx); got != expectedSessionID {
-		t.Fatalf("expected context sessionID %q, got %q", expectedSessionID, got)
+
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
 	}
+
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	secondSessionID := executor.capturedSessionID
+	if secondSessionID == "" || !strings.HasPrefix(secondSessionID, "lark-") {
+		t.Fatalf("expected lark session id, got %q", secondSessionID)
+	}
+	if secondSessionID == firstSessionID {
+		t.Fatalf("expected new session id, got same id %q", secondSessionID)
+	}
+	if got := id.SessionIDFromContext(executor.capturedCtx); got != secondSessionID {
+		t.Fatalf("expected context sessionID %q, got %q", secondSessionID, got)
+	}
+}
+
+func TestHandleMessageReusesAwaitingSession(t *testing.T) {
+	openID := "ou_sender_await"
+	chatID := "oc_chat_await"
+	msgID := "om_msg_await"
+	msgID2 := "om_msg_await_2"
+	content := `{"text":"first"}`
+	content2 := `{"text":"second"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{StopReason: "await_user_input"},
+	}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	firstSessionID := executor.capturedSessionID
+	if firstSessionID == "" {
+		t.Fatal("expected first session id")
+	}
+
+	executor.result = &agent.TaskResult{Answer: "done"}
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	secondSessionID := executor.capturedSessionID
+	if secondSessionID != firstSessionID {
+		t.Fatalf("expected awaiting session reuse (%q), got %q", firstSessionID, secondSessionID)
+	}
+}
+
+func TestHandleMessageReusesInFlightSession(t *testing.T) {
+	openID := "ou_sender_inflight"
+	chatID := "oc_chat_inflight"
+	msgID := "om_msg_inflight"
+	msgID2 := "om_msg_inflight_2"
+	content := `{"text":"first"}`
+	content2 := `{"text":"second"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &blockingExecutor{
+		started: make(chan struct{}),
+		finish:  make(chan struct{}),
+	}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := gw.handleMessage(context.Background(), event); err != nil {
+			t.Errorf("handleMessage failed: %v", err)
+		}
+	}()
+
+	<-executor.started
+	executor.mu.Lock()
+	inputCh := executor.inputCh
+	executor.mu.Unlock()
+	if inputCh == nil {
+		t.Fatal("expected input channel")
+	}
+
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	executor.mu.Lock()
+	callCount := executor.callCount
+	executor.mu.Unlock()
+	if callCount != 1 {
+		t.Fatalf("expected ExecuteTask once, got %d", callCount)
+	}
+
+	select {
+	case input := <-inputCh:
+		if input.Content != "second" {
+			t.Fatalf("expected injected input, got %q", input.Content)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for injected input")
+	}
+
+	close(executor.finish)
+	wg.Wait()
 }
 
 func TestHandleMessageDefaultsToolPresetFull(t *testing.T) {
@@ -1161,6 +1362,36 @@ func (r *resetExecutor) ResetSession(_ context.Context, sessionID string) error 
 	r.resetCalled = true
 	r.resetSessionID = sessionID
 	return nil
+}
+
+type blockingExecutor struct {
+	mu          sync.Mutex
+	started     chan struct{}
+	finish      chan struct{}
+	startedOnce sync.Once
+	inputCh     <-chan agent.UserInput
+	sessionID   string
+	callCount   int
+}
+
+func (b *blockingExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	if sessionID == "" {
+		sessionID = "lark-session"
+	}
+	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+}
+
+func (b *blockingExecutor) ExecuteTask(ctx context.Context, _ string, sessionID string, _ agent.EventListener) (*agent.TaskResult, error) {
+	b.mu.Lock()
+	b.callCount++
+	b.sessionID = sessionID
+	b.inputCh = agent.UserInputChFromContext(ctx)
+	b.mu.Unlock()
+	b.startedOnce.Do(func() {
+		close(b.started)
+	})
+	<-b.finish
+	return &agent.TaskResult{Answer: "done"}, nil
 }
 
 type stubPlanReviewStore struct {
