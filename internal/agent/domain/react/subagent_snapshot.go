@@ -31,21 +31,16 @@ func removeSubagentToolCallMessage(messages []ports.Message, toolCallID string) 
 		return nil
 	}
 
-	targetIdx := -1
-	for i := len(messages) - 1; i >= 0; i-- {
-		if containsSubagentToolCall(messages[i].ToolCalls, toolCallID) {
-			targetIdx = i
-			break
+	pruned := make([]ports.Message, 0, len(messages))
+	for _, msg := range messages {
+		if containsSubagentToolCall(msg.ToolCalls, toolCallID) {
+			continue
 		}
+		if toolCallID != "" && isToolResultForCall(msg, toolCallID) {
+			continue
+		}
+		pruned = append(pruned, msg)
 	}
-
-	if targetIdx == -1 {
-		return messages
-	}
-
-	pruned := make([]ports.Message, 0, len(messages)-1)
-	pruned = append(pruned, messages[:targetIdx]...)
-	pruned = append(pruned, messages[targetIdx+1:]...)
 	return pruned
 }
 
@@ -58,6 +53,19 @@ func containsSubagentToolCall(calls []ports.ToolCall, toolCallID string) bool {
 			continue
 		}
 		if toolCallID == "" || call.ID == toolCallID {
+			return true
+		}
+	}
+	return false
+}
+
+func isToolResultForCall(msg ports.Message, toolCallID string) bool {
+	if strings.EqualFold(strings.TrimSpace(msg.Role), "tool") &&
+		strings.TrimSpace(msg.ToolCallID) == toolCallID {
+		return true
+	}
+	for _, result := range msg.ToolResults {
+		if strings.TrimSpace(result.CallID) == toolCallID {
 			return true
 		}
 	}
