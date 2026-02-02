@@ -1,7 +1,7 @@
 # Lark session per message with in-flight reuse
 
 **Date**: 2026-02-02
-**Status**: In Progress
+**Status**: Completed (tests failed: TestNoUnapprovedGetenv)
 **Author**: cklxx
 
 ## Scope
