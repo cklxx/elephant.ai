@@ -12,4 +12,4 @@ Review roadmap completion status, merge draft roadmap structure/details into `do
 - [x] Re-review roadmap settings and adjust wording/statuses for accuracy.
 - [ ] Run full lint + tests (lint failed on existing issues; `make test` terminated after extended run).
 - [x] Restart dev environment (`./dev.sh down && ./dev.sh`).
-- [ ] Commit in incremental steps.
+- [x] Commit in incremental steps.
