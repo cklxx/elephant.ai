@@ -30,10 +30,10 @@ Purpose: Complete remaining Claude-owned P2 gaps identified after Phase 6.
 
 | Task | Status | Commit |
 |------|--------|--------|
-| C41 | | |
-| C42 | | |
-| C43 | | |
-| C44 | | |
+| C41 | DONE | 96fca902 |
+| C42 | DONE | 9c9993d3 |
+| C43 | DONE | 82b7bf2a |
+| C44 | DONE | 1e425605 |
 | C45 | | |
 | C46 | | |
 | C47 | | |

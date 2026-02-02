@@ -85,7 +85,7 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Dynamic model selection | Auto-select model based on task type/complexity/context length | **Not started** | Claude → Codex | `internal/llm/router.go` |
+| Dynamic model selection | Auto-select model based on task type/complexity/context length | **Done** | Claude C44 | `internal/llm/router/` |
 | Provider health detection | Real-time probe provider availability, auto-switch on failure | **Done** | Claude C30 | `internal/llm/health/` |
 | Token budget management | Per-task/session token budget; auto-downgrade model on overspend | **Done** | Claude C34 | `internal/context/budget/` |
 
@@ -93,7 +93,7 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Signal collection framework | Failure trajectories, user feedback (thumbs/text), implicit signals (retries/abandons), usage patterns | **Not started** | Claude → Codex | `internal/devops/signals/` |
+| Signal collection framework | Failure trajectories, user feedback (thumbs/text), implicit signals (retries/abandons), usage patterns | **Done** | Claude C43 | `internal/signals/` |
 | Evaluation automation | Dimensional scoring (reasoning/tools/UX/cost), baseline management, benchmark dashboard | **Not started** | Claude → Codex | `internal/devops/evaluation/` |
 | Evaluation set construction (评测集构建) | 分层评测：基础任务准出评测 + 引导模块升级优化的挑战性评测 | **Not started** | Claude → Codex | `evaluation/` |
 | CI evaluation gating | Manual + tag-triggered quick eval with PR gate + result archiving | **Done** | Claude C40 | `evaluation/gate/`, `.github/workflows/eval.yml` |
@@ -134,8 +134,8 @@ Larger bets that depend on M0+M1 foundations.
 | Multi-agent collaboration | Inter-agent messaging, task dispatch by capability profile, conflict arbitration | **Not started** | Codex | `internal/agent/orchestration/` |
 | Multi-path sampling + voting | Critical decisions: sample multiple times + vote for reliability | **Not started** | Codex | `internal/agent/domain/react/voting.go` |
 | Confidence modeling | Conclusions bound to evidence + confidence score; low confidence triggers clarification | **Not started** | Codex | `internal/agent/domain/confidence.go` |
-| Decision memory | Record key decisions (what + why + context) for future reference | **Not started** | Claude | `internal/memory/decision_store.go` |
-| Entity memory | Extract people/projects/concepts from conversations, build entity relations | **Not started** | Claude → Codex | `internal/memory/entity.go` |
+| Decision memory | Record key decisions (what + why + context) for future reference | **Done** | Claude C41 | `internal/memory/decision.go` |
+| Entity memory | Extract people/projects/concepts from conversations, build entity relations | **Done** | Claude C42 | `internal/memory/entity.go` |
 | User preference learning | Extract preferences (language/format/tools/style) from interaction patterns | **Not started** | Claude → Codex | `internal/memory/preferences.go` |
 
 ### Deep Lark Ecosystem
