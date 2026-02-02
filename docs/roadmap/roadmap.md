@@ -66,11 +66,11 @@ Items that don't block MVP but are required for production reliability.
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
 | ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Runtime done, wiring pending** | Claude C11 + Codex X2 | `internal/agent/domain/react/` |
-| Graceful shutdown | SIGTERM handling + drain logic | **Done** | Claude C15-C16 | `cmd/elephant/main.go`, `internal/lifecycle/` |
+| Graceful shutdown | SIGTERM handling + drain logic | **Done** | Claude C15-C16 | `cmd/alex/main.go`, `internal/lifecycle/` |
 | Global tool timeout/retry | Unified timeout/retry + policy rules | **Done** | Claude C13-C14 + Codex X3 | `internal/tools/`, `internal/toolregistry/` |
 | NSM metric collection | WTCR/TimeSaved/Accuracy counters | **Done** | Claude C17 | `internal/observability/` |
 | Token counting precision | tiktoken-go integration | **Done** | Claude C18 | `internal/llm/` |
-| Tool SLA baseline collection | Per-tool latency/cost/reliability/success-rate metrics | **Done** | Claude C27 | `internal/toolregistry/sla.go` |
+| Tool SLA baseline collection | Per-tool latency/cost/reliability/success-rate metrics | **Done** | Claude C27 | `internal/tools/sla.go` |
 
 ## P2: Next Wave (M1)
 
@@ -93,7 +93,7 @@ Enhancements after the core loop is stable.
 |------|-----|--------|-------|-----------|
 | Tool policy framework (D1) | Allow/deny rules per tool per context | **Done** | Claude C19-C20 + Codex X5 | `internal/tools/` |
 | Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control, failure recovery | **Done** | Claude C21-C22 + Codex X7 | `internal/scheduler/` |
-| Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Done** | Claude C29 | `internal/tools/builtin/session/scheduler_tool.go` |
+| Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Done** | Claude C29 | `internal/tools/builtin/scheduler/` |
 | Scheduler startup recovery | Reload persisted jobs from JobStore on restart, auto-register cron | **Done** | Claude C21 | `internal/scheduler/job_runtime.go` |
 | Tool SLA profile + dynamic routing | Build per-tool performance profiles; auto-select tool chain based on SLA | **Not started** | Claude → Codex | `internal/tools/router.go` |
 | Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Done** | Claude C39 | `internal/toolregistry/degradation.go` |
@@ -106,7 +106,7 @@ Enhancements after the core loop is stable.
 | Calendar/Tasks full CRUD | Batch ops, conflict detection, multi-calendar | **Done** | Claude C23-C24 | `internal/lark/` |
 | Proactive reminders + suggestions | Intent extraction → draft → confirm flow | **Done** | Claude C26 | `internal/reminder/` |
 | Lark smart card interaction | Interactive Cards with buttons for approval/selection/feedback | **Done** | Claude C35 | `internal/lark/cards/` |
-| Lark Approval API | Query pending approvals, submit approval requests, track status changes | **Done** | Claude C31 | `internal/lark/approval/` |
+| Lark Approval API | Query pending approvals, submit approval requests, track status changes | **Done** | Claude C31 | `internal/lark/approval.go` |
 | Proactive group summary | Auto-summarize long group discussions (by message count / time window) | **Done** | Claude C36 | `internal/lark/summary/` |
 | Message type enrichment | Send tables, code blocks, rendered Markdown messages | **Done** | Claude C37 | `internal/channels/lark/richcontent/` |
 
@@ -115,7 +115,7 @@ Enhancements after the core loop is stable.
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
 | Dynamic model selection | Auto-select model based on task type/complexity/context length | **Done** | Claude C44 | `internal/llm/router/` |
-| Provider health detection | Real-time probe provider availability, auto-switch on failure | **Done** | Claude C30 | `internal/llm/health/` |
+| Provider health detection | Real-time probe provider availability, auto-switch on failure | **Done** | Claude C30 | `internal/llm/health.go` |
 | Token budget management | Per-task/session token budget; auto-downgrade model on overspend | **Done** | Claude C34 | `internal/context/budget/` |
 
 ### DevOps Foundations
@@ -187,7 +187,7 @@ Larger bets that depend on M0+M1 foundations.
 | Cross-surface session sync | Seamless Lark/Web/CLI handoff for the same session | **Not started** | Codex | `internal/session/` |
 | Unified notification center | Push to user's preferred channel | **Not started** | Claude | `internal/notification/` |
 | Web execution replay | Step-by-step replay of agent execution + Gantt-style timeline | **Not started** | Claude | `web/components/agent/` |
-| CLI pipe mode + daemon | stdin/stdout pipe integration with shell toolchain; background service mode | **Not started** | Claude | `cmd/elephant/` |
+| CLI pipe mode + daemon | stdin/stdout pipe integration with shell toolchain; background service mode | **Not started** | Claude | `cmd/alex/` |
 
 ### Data Processing
 
@@ -291,15 +291,15 @@ O0 (日程+任务闭环)
 | 4-layer context assembly + dynamic compression | `internal/context/` |
 | Memory: conversation persistence + vector retrieval (chromem-go) | `internal/memory/` |
 | Web dashboard: SSE streaming, conversations, cost tracking | `web/` |
-| CLI: TUI, approval flow, session persistence | `cmd/elephant/` |
+| CLI: TUI, approval flow, session persistence | `cmd/alex/` |
 | Observability: traces, metrics, cost accounting | `internal/observability/` |
-| SIGTERM handling + cancelable base context | `cmd/elephant/main.go` |
+| SIGTERM handling + cancelable base context | `cmd/alex/main.go` |
 | Evaluation suite (SWE-Bench, Agent Eval) | `evaluation/` |
-| Tool SLA metrics (latency/error-rate/call-count) | `internal/toolregistry/sla.go` |
+| Tool SLA metrics (latency/error-rate/call-count) | `internal/tools/sla.go` |
 | Memory flush before compaction (D3) | `internal/context/`, `internal/memory/` |
-| Dynamic scheduler job tools | `internal/tools/builtin/session/scheduler_tool.go` |
-| Provider health detection (circuit breaker) | `internal/llm/health/` |
-| Lark Approval API | `internal/lark/approval/` |
+| Dynamic scheduler job tools | `internal/tools/builtin/scheduler/` |
+| Provider health detection (circuit breaker) | `internal/llm/health.go` |
+| Lark Approval API | `internal/lark/approval.go` |
 | Context priority sorting + cost-aware trimming | `internal/context/priority.go`, `internal/context/trimmer.go` |
 | Token budget management | `internal/context/budget/` |
 | Lark smart cards (interactive) | `internal/lark/cards/` |
