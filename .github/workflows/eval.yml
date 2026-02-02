@@ -1,4 +1,4 @@
-name: Optional Eval Gate
+name: Eval Gate
 
 on:
   workflow_dispatch:
@@ -10,10 +10,13 @@ on:
   push:
     tags:
       - "eval/**"
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
   actions: write
+  pull-requests: write
 
 defaults:
   run:
@@ -29,6 +32,7 @@ concurrency:
 jobs:
   eval-quick:
     name: Optional Agent Eval (Quick)
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
@@ -55,3 +59,112 @@ jobs:
           name: evaluation-results
           path: evaluation_results
           if-no-files-found: error
+
+  eval-quick-gate:
+    name: PR Eval Gate (Quick)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: Run quick eval gate
+        id: eval
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ARK_API_KEY: ${{ secrets.ARK_API_KEY }}
+        run: |
+          bash scripts/eval-quick.sh 2>&1 | tee eval-output.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload evaluation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-gate-results
+          path: evaluation_results
+          if-no-files-found: warn
+
+      - name: Comment PR with eval results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let output = '';
+            try {
+              output = fs.readFileSync('eval-output.txt', 'utf8');
+            } catch (e) {
+              output = 'No evaluation output captured.';
+            }
+
+            const exitCode = '${{ steps.eval.outputs.exit_code }}' || 'unknown';
+            const passed = exitCode === '0';
+            const status = passed ? 'PASSED' : 'FAILED';
+            const emoji = passed ? ':white_check_mark:' : ':x:';
+
+            // Truncate output if too long for a PR comment.
+            const maxLen = 8000;
+            let truncated = output;
+            if (truncated.length > maxLen) {
+              truncated = truncated.substring(0, maxLen) + '\n\n... (truncated)';
+            }
+
+            const body = [
+              `## ${emoji} Eval Gate: ${status}`,
+              '',
+              '| Metric | Value |',
+              '|--------|-------|',
+              `| Status | ${status} |`,
+              `| Exit Code | ${exitCode} |`,
+              '',
+              '<details>',
+              '<summary>Evaluation Output</summary>',
+              '',
+              '```',
+              truncated,
+              '```',
+              '',
+              '</details>',
+              '',
+              '> **Note:** This is a soft gate (`continue-on-error: true`). Failures are informational only.',
+            ].join('\n');
+
+            // Find and update existing comment or create new one.
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const marker = '## :white_check_mark: Eval Gate:';
+            const markerAlt = '## :x: Eval Gate:';
+            const existing = comments.find(c =>
+              c.body.startsWith(marker) || c.body.startsWith(markerAlt)
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: body,
+              });
+            }
