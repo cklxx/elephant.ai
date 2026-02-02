@@ -67,6 +67,8 @@ func (c *CLI) Run(args []string) error {
 		return c.handleACP(cmdArgs)
 	case "mcp-permission-server":
 		return runMCPPermissionServer(cmdArgs)
+	case "resume":
+		return c.handleResume(cmdArgs)
 
 	default:
 		// Default: treat as task and run with stream output
@@ -86,6 +88,7 @@ elephant.ai - Fragment-to-Fabric Agent Console (v%s)
 
 Usage:
   alex <task>                    Execute a task with streaming output
+  alex resume <session-id>       Resume a session from the latest checkpoint
   alex help                      Show this help message
   alex version                   Show version
   alex sessions                  List all sessions
@@ -128,6 +131,32 @@ Features:
 Architecture: Hexagonal (Ports & Adapters)
 Documentation: AGENTS.md + docs/reference/ARCHITECTURE_AGENT_FLOW.md + docs/reference/CONFIG.md
 `, appVersion(), configLine)
+}
+
+func (c *CLI) handleResume(args []string) error {
+	if c == nil || c.container == nil {
+		return fmt.Errorf("container not initialized")
+	}
+	if len(args) == 0 || strings.TrimSpace(args[0]) == "" {
+		return fmt.Errorf("usage: alex resume <session-id>")
+	}
+	sessionID := strings.TrimSpace(args[0])
+
+	store := c.container.CheckpointStore
+	if store == nil {
+		return fmt.Errorf("checkpoint store not configured")
+	}
+
+	ctx := cliBaseContext()
+	cp, err := store.Load(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("load checkpoint: %w", err)
+	}
+	if cp == nil {
+		return fmt.Errorf("no checkpoint found for session %s", sessionID)
+	}
+
+	return RunTaskWithStreamOutput(c.container, "", sessionID)
 }
 
 func configUsageLine() string {

@@ -14,6 +14,7 @@ import (
 	agentcost "alex/internal/agent/app/cost"
 	"alex/internal/agent/app/hooks"
 	"alex/internal/agent/app/preparation"
+	react "alex/internal/agent/domain/react"
 	agent "alex/internal/agent/ports/agent"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
@@ -144,6 +145,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	hookRegistry := b.buildHookRegistry(memoryService)
 	iterationHook := b.buildIterationHook(memoryService)
 	okrContextProvider := b.buildOKRContextProvider()
+	checkpointStore := react.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
 
 	coordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
@@ -181,6 +183,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithMemoryService(memoryService),
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
+		agentcoordinator.WithCheckpointStore(checkpointStore),
 	)
 
 	// Register subagent tool after coordinator is created.
@@ -196,6 +199,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		HistoryManager:   historyMgr,
 		CostTracker:      costTracker,
 		MemoryService:    memoryService,
+		CheckpointStore:  checkpointStore,
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
 		SessionDB:        resources.sessionDB,

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	agentcoordinator "alex/internal/agent/app/coordinator"
+	react "alex/internal/agent/domain/react"
 	agentstorage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/async"
@@ -32,6 +33,7 @@ type Container struct {
 	HistoryManager   agentstorage.HistoryManager
 	CostTracker      agentstorage.CostTracker
 	MemoryService    memory.Service
+	CheckpointStore  react.CheckpointStore
 	MCPRegistry      *mcp.Registry
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
