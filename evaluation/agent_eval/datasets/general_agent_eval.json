@@ -547,5 +547,131 @@
     "difficulty": "hard",
     "domain": "compliance",
     "surface": "web"
+  },
+  {
+    "id": "ga-analytics-031",
+    "title": "Define a north star metric for marketplace growth",
+    "goal": "Select a north star metric and supporting metrics to align product, growth, and customer success.",
+    "context": "A B2B integrations marketplace launched last quarter and leadership wants a single metric to guide prioritization.",
+    "input": "Available data: weekly active buyers, weekly active sellers, completed transactions, average order value, refund rate, activation-to-first-transaction within 14 days.",
+    "constraints": [
+      "Pick one north star metric and justify why it reflects durable value",
+      "Define three to five supporting metrics with formulas",
+      "Include a validation plan using existing data from the last quarter"
+    ],
+    "expected_output": "A short proposal naming the north star metric, supporting metric formulas, and a validation checklist.",
+    "skills": [
+      "metrics_definition",
+      "analytics",
+      "communication"
+    ],
+    "difficulty": "medium",
+    "domain": "analytics",
+    "surface": "web"
+  },
+  {
+    "id": "ga-sre-032",
+    "title": "Region failover runbook with data consistency checks",
+    "goal": "Create a failover runbook for a partial region outage under strict RTO/RPO constraints.",
+    "context": "The service runs active-active in us-east-1 and eu-west-1 with async replication and per-region traffic routing.",
+    "input": "SLA targets: RTO 30 minutes, RPO 5 minutes. Last drill showed stale reads and 20% of traffic stuck after DNS cutover.",
+    "constraints": [
+      "Use only existing levers: DNS weight shifts, write freeze, read-only mode, and replication catch-up",
+      "Include decision gates with explicit RTO/RPO checks",
+      "Define verification steps for traffic, replication lag, and customer impact"
+    ],
+    "expected_output": "A step-by-step runbook with decision gates, rollback criteria, and verification checks.",
+    "skills": [
+      "incident_response",
+      "reliability_engineering",
+      "runbook_authoring"
+    ],
+    "difficulty": "hard",
+    "domain": "reliability",
+    "surface": "web"
+  },
+  {
+    "id": "ga-procurement-033",
+    "title": "Vendor consolidation analysis for observability tooling",
+    "goal": "Recommend whether to consolidate three observability vendors into a single contract.",
+    "context": "The company uses Vendor A for logs, Vendor B for metrics, and Vendor C for tracing with renewals in 90 days.",
+    "input": "Annual costs: A $220k, B $180k, C $140k. Team size: 25 engineers. Pain points: duplicate alerts, inconsistent retention, and training overhead. Vendor A offers a 20% bundle discount if expanded.",
+    "constraints": [
+      "Use only the provided data",
+      "Present two options with pros/cons and a recommendation",
+      "Include two to three negotiation points and a decision deadline"
+    ],
+    "expected_output": "A short memo with options, recommendation, and a negotiation checklist.",
+    "skills": [
+      "vendor_management",
+      "cost_analysis",
+      "decision_making"
+    ],
+    "difficulty": "medium",
+    "domain": "procurement",
+    "surface": "web"
+  },
+  {
+    "id": "ga-ai-034",
+    "title": "Safety review for automated customer summaries",
+    "goal": "Assess risks and safeguards for deploying automated weekly customer summaries.",
+    "context": "A summarization model drafts weekly support summaries that are sent to enterprise customers.",
+    "input": "Model inputs: ticket text, agent notes, timestamps. Known issues: occasional hallucinated deadlines; tickets may include sensitive data.",
+    "constraints": [
+      "Identify the top five risks with severity (low/medium/high)",
+      "Propose mitigations and a monitoring plan",
+      "Include a rollout strategy with a human-in-the-loop stage"
+    ],
+    "expected_output": "A risk register table with mitigations and a rollout plan.",
+    "skills": [
+      "ai_safety",
+      "risk_management",
+      "policy_design"
+    ],
+    "difficulty": "hard",
+    "domain": "ai_safety",
+    "surface": "web"
+  },
+  {
+    "id": "ga-research-035",
+    "title": "Research plan for mid-market churn drivers",
+    "goal": "Design a lightweight research plan to identify churn drivers for mid-market customers.",
+    "context": "Quarterly churn rose from 6% to 9% among 200-500 seat accounts.",
+    "input": "Signals: NPS dropped from 32 to 18; support tickets cite reporting speed and admin permissions.",
+    "constraints": [
+      "Limit to four weeks and no more than 12 interviews",
+      "Include qualitative and quantitative methods",
+      "Define how findings will be prioritized into roadmap items"
+    ],
+    "expected_output": "A research plan with methods, participant criteria, timeline, and synthesis approach.",
+    "skills": [
+      "user_research",
+      "product_strategy",
+      "analysis"
+    ],
+    "difficulty": "medium",
+    "domain": "user_research",
+    "surface": "web"
+  },
+  {
+    "id": "ga-customer-036",
+    "title": "Recovery plan for stalled enterprise onboarding",
+    "goal": "Create a recovery plan to rescue a stalled enterprise onboarding with executive visibility.",
+    "context": "A new enterprise customer is 45 days into onboarding without completing SSO or data import.",
+    "input": "Stakeholders: Customer IT (Ava), Customer Success (Mia), Solutions Eng (Omar). Blockers: SSO config errors, missing data mapping, and unclear ownership.",
+    "constraints": [
+      "Provide a two-week recovery plan with owners and daily checkpoints",
+      "Include escalation criteria and a customer communication cadence",
+      "Define success metrics for the recovery window"
+    ],
+    "expected_output": "A recovery plan with tasks, owners, checkpoints, and a customer update template.",
+    "skills": [
+      "customer_success",
+      "project_management",
+      "communication"
+    ],
+    "difficulty": "hard",
+    "domain": "customer_success",
+    "surface": "web"
   }
 ]
