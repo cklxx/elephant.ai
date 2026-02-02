@@ -204,20 +204,93 @@ func (g *Gateway) Stop() {
 	// The Lark WS client is stopped by cancelling its context.
 }
 
+// incomingMessage holds the parsed fields from a Lark message event.
+type incomingMessage struct {
+	chatID    string
+	messageID string
+	senderID  string
+	content   string
+	isGroup   bool
+}
+
+// isResultAwaitingInput reports whether the task result indicates an
+// await_user_input stop reason.
+func isResultAwaitingInput(result *agent.TaskResult) bool {
+	return result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input")
+}
+
 // handleMessage is the P2MessageReceiveV1 event handler.
 func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+	msg := g.parseIncomingMessage(event)
+	if msg == nil {
+		return nil
+	}
+
+	slot := g.getOrCreateSlot(msg.chatID)
+	slot.mu.Lock()
+
+	// If a task is already running for this chat, inject the new message
+	// into the running ReAct loop instead of starting a new task.
+	if slot.inputCh != nil {
+		ch := slot.inputCh
+		activeSessionID := slot.sessionID
+		slot.mu.Unlock()
+		g.injectUserInput(ch, activeSessionID, msg)
+		return nil
+	}
+
+	// Handle /reset outside of a running task.
+	if strings.TrimSpace(msg.content) == "/reset" {
+		g.handleResetCommand(slot, msg) // releases slot.mu
+		return nil
+	}
+
+	// Resolve session ID and acquire the slot for a new task.
+	sessionID := slot.sessionID
+	if !slot.awaitingInput || sessionID == "" {
+		sessionID = g.newSessionID()
+	}
+	inputCh := make(chan agent.UserInput, 16)
+	slot.inputCh = inputCh
+	slot.sessionID = sessionID
+	slot.lastSessionID = sessionID
+	slot.awaitingInput = false
+	slot.mu.Unlock()
+
+	awaitingInput := false
+	defer func() {
+		slot.mu.Lock()
+		slot.inputCh = nil
+		if awaitingInput {
+			slot.awaitingInput = true
+			slot.lastSessionID = slot.sessionID
+		} else {
+			slot.awaitingInput = false
+			slot.sessionID = ""
+		}
+		slot.mu.Unlock()
+		g.drainAndReprocess(inputCh, msg.chatID)
+	}()
+
+	awaitingInput = g.runNewTask(msg, sessionID, inputCh)
+	return nil
+}
+
+// parseIncomingMessage validates the event and extracts key fields.
+// Returns nil if the message should be skipped (unsupported type, disallowed
+// chat, empty content, duplicate, etc.).
+func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1) *incomingMessage {
 	if event == nil || event.Event == nil || event.Event.Message == nil {
 		return nil
 	}
-	msg := event.Event.Message
+	raw := event.Event.Message
 
-	msgType := strings.ToLower(strings.TrimSpace(deref(msg.MessageType)))
-	// Only handle text-like messages.
+	msgType := strings.ToLower(strings.TrimSpace(deref(raw.MessageType)))
 	if msgType != "text" && msgType != "post" {
 		return nil
 	}
 
-	chatType := deref(msg.ChatType)
+	chatType := deref(raw.ChatType)
 	isGroup := chatType == "group"
 	if isGroup && !g.cfg.AllowGroups {
 		return nil
@@ -226,105 +299,128 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		return nil
 	}
 
-	// Extract text from JSON content.
-	content := g.extractMessageContent(msgType, deref(msg.Content))
+	content := g.extractMessageContent(msgType, deref(raw.Content))
 	if content == "" {
 		return nil
 	}
 
-	chatID := deref(msg.ChatId)
+	chatID := deref(raw.ChatId)
 	if chatID == "" {
 		g.logger.Warn("Lark message has empty chat_id; skipping")
 		return nil
 	}
 
-	messageID := deref(msg.MessageId)
+	messageID := deref(raw.MessageId)
 	if messageID != "" && g.isDuplicateMessage(messageID) {
 		g.logger.Debug("Lark duplicate message skipped: %s", messageID)
 		return nil
 	}
 
-	senderID := extractSenderID(event)
-
-	// Session slot: if a task is already running for this chat, inject the
-	// new message into the running ReAct loop instead of blocking.
-	slot := g.getOrCreateSlot(chatID)
-	slot.mu.Lock()
-	if slot.inputCh != nil {
-		// Task is active — inject the message into the running loop.
-		ch := slot.inputCh
-		activeSessionID := slot.sessionID
-		slot.mu.Unlock()
-		select {
-		case ch <- agent.UserInput{Content: content, SenderID: senderID, MessageID: messageID}:
-			g.logger.Info("Injected user input into active session %s", activeSessionID)
-		default:
-			g.logger.Warn("User input channel full for session %s; message dropped", activeSessionID)
-		}
-		return nil
+	return &incomingMessage{
+		chatID:    chatID,
+		messageID: messageID,
+		senderID:  extractSenderID(event),
+		content:   content,
+		isGroup:   isGroup,
 	}
-	// No task running — allow /reset to target the last or pending session.
-	if strings.TrimSpace(content) == "/reset" {
-		resetSessionID := slot.sessionID
-		if resetSessionID == "" {
-			resetSessionID = slot.lastSessionID
-		}
-		if resetSessionID == "" {
-			resetSessionID = g.memoryIDForChat(chatID)
-		}
-		slot.sessionID = ""
-		slot.lastSessionID = ""
-		slot.awaitingInput = false
-		slot.mu.Unlock()
+}
 
-		execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", resetSessionID, senderID, chatID, isGroup)
-		execCtx = shared.WithLarkClient(execCtx, g.client)
-		execCtx = shared.WithLarkChatID(execCtx, chatID)
-		if resetter, ok := g.agent.(interface {
-			ResetSession(ctx context.Context, sessionID string) error
-		}); ok {
-			if err := resetter.ResetSession(execCtx, resetSessionID); err != nil {
-				g.logger.Warn("Lark session reset failed: %v", err)
-			}
-		}
-		reply := "已清空对话历史，下次对话将从零开始。"
-		g.dispatch(execCtx, chatID, replyTarget(messageID, true), "text", textContent(reply))
-		return nil
+// injectUserInput forwards a message into a running task's input channel.
+func (g *Gateway) injectUserInput(ch chan agent.UserInput, activeSessionID string, msg *incomingMessage) {
+	select {
+	case ch <- agent.UserInput{Content: msg.content, SenderID: msg.senderID, MessageID: msg.messageID}:
+		g.logger.Info("Injected user input into active session %s", activeSessionID)
+	default:
+		g.logger.Warn("User input channel full for session %s; message dropped", activeSessionID)
 	}
+}
 
-	sessionID := slot.sessionID
-	if !slot.awaitingInput || sessionID == "" {
-		sessionID = g.newSessionID()
+// handleResetCommand processes a /reset message, clearing session state and
+// notifying the user. The caller must hold slot.mu; this method releases it.
+func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
+	resetSessionID := slot.sessionID
+	if resetSessionID == "" {
+		resetSessionID = slot.lastSessionID
 	}
-	// No task running — create an input channel and start a new task.
-	inputCh := make(chan agent.UserInput, 16)
-	slot.inputCh = inputCh
-	slot.sessionID = sessionID
-	slot.lastSessionID = sessionID
+	if resetSessionID == "" {
+		resetSessionID = g.memoryIDForChat(msg.chatID)
+	}
+	slot.sessionID = ""
+	slot.lastSessionID = ""
 	slot.awaitingInput = false
 	slot.mu.Unlock()
 
-	awaitingInputOnComplete := false
-	defer func() {
-		slot.mu.Lock()
-		slot.inputCh = nil
-		if awaitingInputOnComplete {
-			slot.awaitingInput = true
-			slot.lastSessionID = slot.sessionID
-		} else {
-			slot.awaitingInput = false
-			slot.sessionID = ""
-		}
-		slot.mu.Unlock()
-		g.drainAndReprocess(inputCh, chatID)
-	}()
-
-	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, senderID, chatID, isGroup)
-	awaitTracker := &awaitQuestionTracker{}
+	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", resetSessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
-	execCtx = shared.WithLarkChatID(execCtx, chatID)
+	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
+	if resetter, ok := g.agent.(interface {
+		ResetSession(ctx context.Context, sessionID string) error
+	}); ok {
+		if err := resetter.ResetSession(execCtx, resetSessionID); err != nil {
+			g.logger.Warn("Lark session reset failed: %v", err)
+		}
+	}
+	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("已清空对话历史，下次对话将从零开始。"))
+}
+
+// runNewTask executes a full task lifecycle: context setup, session ensure,
+// listener wiring, content preparation, execution, and reply dispatch.
+// Returns true if the result indicates await_user_input.
+func (g *Gateway) runNewTask(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) bool {
+	execCtx := g.buildExecContext(msg, sessionID, inputCh)
+
+	session, err := g.agent.EnsureSession(execCtx, sessionID)
+	if err != nil {
+		g.logger.Warn("Lark ensure session failed: %v", err)
+		reply := g.buildReply(nil, fmt.Errorf("ensure session: %w", err))
+		if reply == "" {
+			reply = "（无可用回复）"
+		}
+		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
+		return false
+	}
+	if session != nil && session.ID != "" && session.ID != sessionID {
+		sessionID = session.ID
+		execCtx = id.WithSessionID(execCtx, sessionID)
+	}
+
+	awaitUserInput := sessionHasAwaitFlag(session)
+
+	execCtx = channels.ApplyPresets(execCtx, g.cfg.BaseConfig)
+	execCtx, cancelTimeout := channels.ApplyTimeout(execCtx, g.cfg.BaseConfig)
+	defer cancelTimeout()
+
+	awaitTracker := &awaitQuestionTracker{}
+	listener, cleanupListeners := g.setupListeners(execCtx, msg, awaitTracker)
+	defer cleanupListeners()
+	execCtx = shared.WithParentListener(execCtx, listener)
+
+	taskContent := g.prepareTaskContent(execCtx, session, msg, inputCh, sessionID, awaitUserInput)
+
+	startEmoji, endEmoji := g.pickReactionEmojis()
+	if msg.messageID != "" && startEmoji != "" {
+		go g.addReaction(execCtx, msg.messageID, startEmoji)
+	}
+
+	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
+
+	if msg.messageID != "" && endEmoji != "" {
+		go g.addReaction(execCtx, msg.messageID, endEmoji)
+	}
+
+	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker)
+
+	return execErr == nil && isResultAwaitingInput(result)
+}
+
+// buildExecContext constructs the fully-configured execution context for a task.
+func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) context.Context {
+	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
+	execCtx = shared.WithLarkClient(execCtx, g.client)
+	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
 	execCtx = agent.WithUserInputCh(execCtx, inputCh)
+
 	workspaceDir := strings.TrimSpace(g.cfg.WorkspaceDir)
 	if workspaceDir == "" {
 		workspaceDir = pathutil.DefaultWorkingDir()
@@ -332,6 +428,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if workspaceDir != "" {
 		execCtx = pathutil.WithWorkingDir(execCtx, workspaceDir)
 	}
+
 	autoUploadMaxBytes := g.cfg.AutoUploadMaxBytes
 	if autoUploadMaxBytes <= 0 {
 		autoUploadMaxBytes = 2 * 1024 * 1024
@@ -342,80 +439,81 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		AllowExts: normalizeExtensions(g.cfg.AutoUploadAllowExt),
 	})
 
-	session, err := g.agent.EnsureSession(execCtx, sessionID)
-	if err != nil {
-		g.logger.Warn("Lark ensure session failed: %v", err)
-		reply := g.buildReply(nil, fmt.Errorf("ensure session: %w", err))
-		if reply == "" {
-			reply = "（无可用回复）"
-		}
-		g.dispatch(execCtx, chatID, replyTarget(deref(msg.MessageId), true), "text", textContent(reply))
-		return nil
-	}
-	if session != nil && session.ID != "" && session.ID != sessionID {
-		sessionID = session.ID
-		execCtx = id.WithSessionID(execCtx, sessionID)
-	}
-	awaitUserInput := false
-	if session != nil && session.Metadata != nil {
-		if raw := strings.TrimSpace(session.Metadata["await_user_input"]); raw != "" {
-			awaitUserInput = strings.EqualFold(raw, "true")
-		}
-	}
+	return execCtx
+}
 
-	execCtx = channels.ApplyPresets(execCtx, g.cfg.BaseConfig)
-	execCtx, cancelTimeout := channels.ApplyTimeout(execCtx, g.cfg.BaseConfig)
-	defer cancelTimeout()
+// sessionHasAwaitFlag checks whether a session's metadata indicates a pending
+// await_user_input state.
+func sessionHasAwaitFlag(session *storage.Session) bool {
+	if session == nil || session.Metadata == nil {
+		return false
+	}
+	return strings.EqualFold(strings.TrimSpace(session.Metadata["await_user_input"]), "true")
+}
 
+// setupListeners configures the event listener chain (progress, plan clarify)
+// and returns the composed listener plus a cleanup function.
+func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, awaitTracker *awaitQuestionTracker) (agent.EventListener, func()) {
 	listener := g.eventListener
 	if listener == nil {
 		listener = agent.NoopEventListener{}
 	}
-	startEmoji, endEmoji := g.pickReactionEmojis()
-	if messageID != "" && startEmoji != "" {
-		go g.addReaction(execCtx, messageID, startEmoji)
-	}
+
+	var cleanups []func()
+
 	if g.cfg.ShowToolProgress {
-		sender := &larkProgressSender{gateway: g, chatID: chatID, messageID: messageID, isGroup: isGroup}
+		sender := &larkProgressSender{gateway: g, chatID: msg.chatID, messageID: msg.messageID, isGroup: msg.isGroup}
 		progressLn := newProgressListener(execCtx, listener, sender, g.logger)
-		defer progressLn.Close()
+		cleanups = append(cleanups, progressLn.Close)
 		listener = progressLn
 	}
 	if g.cfg.ShowPlanClarifyMessages {
-		listener = newPlanClarifyListener(execCtx, listener, g, chatID, replyTarget(messageID, true), awaitTracker)
+		listener = newPlanClarifyListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), awaitTracker)
 	}
-	execCtx = shared.WithParentListener(execCtx, listener)
 
-	// Auto chat context: fetch recent messages from the Lark chat.
-	taskContent := content
-	var pending PlanReviewPending
+	cleanup := func() {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i]()
+		}
+	}
+	return listener, cleanup
+}
+
+// prepareTaskContent resolves plan review state, seeds pending user input, and
+// fetches auto chat context to build the final task content string.
+func (g *Gateway) prepareTaskContent(execCtx context.Context, session *storage.Session, msg *incomingMessage, inputCh chan agent.UserInput, sessionID string, awaitUserInput bool) string {
+	taskContent := msg.content
 	hasPending := false
+
 	if g.cfg.PlanReviewEnabled {
-		pending, hasPending = g.loadPlanReviewPending(execCtx, session, senderID, chatID)
+		pending, ok := g.loadPlanReviewPending(execCtx, session, msg.senderID, msg.chatID)
+		hasPending = ok
 		if hasPending {
-			taskContent = buildPlanFeedbackBlock(pending, content)
+			taskContent = buildPlanFeedbackBlock(pending, msg.content)
 			if g.planReviewStore != nil {
-				if err := g.planReviewStore.ClearPending(execCtx, senderID, chatID); err != nil {
+				if err := g.planReviewStore.ClearPending(execCtx, msg.senderID, msg.chatID); err != nil {
 					g.logger.Warn("Lark plan review pending clear failed: %v", err)
 				}
 			}
 		}
 	}
+
 	if awaitUserInput && !hasPending {
 		select {
-		case inputCh <- agent.UserInput{Content: content, SenderID: senderID, MessageID: messageID}:
+		case inputCh <- agent.UserInput{Content: msg.content, SenderID: msg.senderID, MessageID: msg.messageID}:
 			g.logger.Info("Seeded pending user input for session %s", sessionID)
 		default:
 			g.logger.Warn("Pending user input channel full for session %s; message dropped", sessionID)
 		}
 		taskContent = ""
 	}
-	if taskContent != "" && g.cfg.AutoChatContext && g.messenger != nil && isGroup {
+
+	if taskContent != "" && g.messenger != nil && msg.isGroup {
 		pageSize := g.cfg.AutoChatContextSize
 		if pageSize <= 0 {
 			pageSize = 20
 		}
-		if chatHistory, err := g.fetchRecentChatMessages(execCtx, chatID, pageSize); err != nil {
+		if chatHistory, err := g.fetchRecentChatMessages(execCtx, msg.chatID, pageSize); err != nil {
 			g.logger.Warn("Lark auto chat context fetch failed: %v", err)
 		} else if chatHistory != "" {
 			if hasPending {
@@ -426,47 +524,26 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 		}
 	}
 
-	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
-	awaitingInputOnComplete = execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input")
-	if messageID != "" && endEmoji != "" {
-		go g.addReaction(execCtx, messageID, endEmoji)
-	}
+	return taskContent
+}
+
+// dispatchResult builds the reply from the execution result and sends it to
+// the Lark chat, including any attachments.
+func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker) {
+	isAwait := execErr == nil && isResultAwaitingInput(result)
 
 	reply := ""
 	replyMsgType := "text"
 	replyContent := ""
-	if execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") && g.cfg.PlanReviewEnabled {
-		if marker, ok := extractPlanReviewMarker(result.Messages); ok {
-			if g.cfg.CardsEnabled && g.cfg.CardsPlanReview {
-				if card, err := g.buildPlanReviewCard(marker); err == nil {
-					replyMsgType = "interactive"
-					replyContent = card
-				} else {
-					g.logger.Warn("Lark plan review card build failed: %v", err)
-				}
-			}
-			if replyContent == "" {
-				reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
-			}
-			if g.planReviewStore != nil {
-				if err := g.planReviewStore.SavePending(execCtx, PlanReviewPending{
-					UserID:        senderID,
-					ChatID:        chatID,
-					RunID:         marker.RunID,
-					OverallGoalUI: marker.OverallGoalUI,
-					InternalPlan:  marker.InternalPlan,
-				}); err != nil {
-					g.logger.Warn("Lark plan review pending save failed: %v", err)
-				}
-			}
-		}
+
+	if isAwait && g.cfg.PlanReviewEnabled {
+		reply, replyMsgType, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
 	}
-	skipReply := false
-	if execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") && awaitTracker.Sent() {
-		skipReply = true
-	}
+
+	skipReply := isAwait && awaitTracker.Sent()
+
 	if replyContent == "" && !skipReply {
-		if reply == "" && execErr == nil && result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") {
+		if reply == "" && isAwait {
 			if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok {
 				reply = question
 			} else {
@@ -496,11 +573,46 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	}
 
 	if !skipReply {
-		g.dispatch(execCtx, chatID, replyTarget(messageID, true), replyMsgType, replyContent)
-		g.sendAttachments(execCtx, chatID, messageID, result)
+		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
+		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
+	}
+}
+
+// buildPlanReviewReplyContent handles plan review marker extraction, card
+// building, pending store save, and returns the reply text, message type,
+// and content payload.
+func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult) (reply, msgType, content string) {
+	marker, ok := extractPlanReviewMarker(result.Messages)
+	if !ok {
+		return "", "", ""
 	}
 
-	return nil
+	msgType = "text"
+	if g.cfg.CardsEnabled && g.cfg.CardsPlanReview {
+		if card, err := g.buildPlanReviewCard(marker); err == nil {
+			msgType = "interactive"
+			content = card
+		} else {
+			g.logger.Warn("Lark plan review card build failed: %v", err)
+		}
+	}
+	if content == "" {
+		reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
+	}
+
+	if g.planReviewStore != nil {
+		if err := g.planReviewStore.SavePending(execCtx, PlanReviewPending{
+			UserID:        msg.senderID,
+			ChatID:        msg.chatID,
+			RunID:         marker.RunID,
+			OverallGoalUI: marker.OverallGoalUI,
+			InternalPlan:  marker.InternalPlan,
+		}); err != nil {
+			g.logger.Warn("Lark plan review pending save failed: %v", err)
+		}
+	}
+
+	return reply, msgType, content
 }
 
 // drainAndReprocess drains any remaining messages from the input channel after

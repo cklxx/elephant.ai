@@ -1567,37 +1567,15 @@ func TestExtractSenderID(t *testing.T) {
 	})
 }
 
-func TestAutoChatContextConfigDefaults(t *testing.T) {
-	cfg := Config{
-		AppID:     "cli_test",
-		AppSecret: "secret",
-	}
-	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// AutoChatContext and AutoChatContextSize should be zero-value (not set by NewGateway).
-	if gw.cfg.AutoChatContext {
-		t.Fatal("expected AutoChatContext to default to false in Config")
-	}
-	if gw.cfg.AutoChatContextSize != 0 {
-		t.Fatalf("expected AutoChatContextSize to default to 0, got %d", gw.cfg.AutoChatContextSize)
-	}
-}
-
-func TestAutoChatContextConfigEnabled(t *testing.T) {
+func TestAutoChatContextSizeConfig(t *testing.T) {
 	cfg := Config{
 		AppID:               "cli_test",
 		AppSecret:           "secret",
-		AutoChatContext:     true,
 		AutoChatContextSize: 30,
 	}
 	gw, err := NewGateway(cfg, &stubExecutor{}, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if !gw.cfg.AutoChatContext {
-		t.Fatal("expected AutoChatContext to be true")
 	}
 	if gw.cfg.AutoChatContextSize != 30 {
 		t.Fatalf("expected AutoChatContextSize 30, got %d", gw.cfg.AutoChatContextSize)

@@ -80,7 +80,6 @@ func (r *Runner) Run(ctx context.Context, scenario *Scenario) *ScenarioResult {
 		ShowPlanClarifyMessages: scenario.Setup.Config.ShowPlanClarify,
 		ReactEmoji:              scenario.Setup.Config.ReactEmoji,
 		PlanReviewEnabled:       scenario.Setup.Config.PlanReviewEnabled,
-		AutoChatContext:         scenario.Setup.Config.AutoChatContext,
 	}
 	if cfg.SessionPrefix == "" {
 		cfg.SessionPrefix = "test-lark"

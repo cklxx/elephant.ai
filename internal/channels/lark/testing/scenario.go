@@ -36,7 +36,6 @@ type GatewayConfig struct {
 	ShowPlanClarify   bool   `yaml:"show_plan_clarify_messages"`
 	ReactEmoji        string `yaml:"react_emoji"`
 	PlanReviewEnabled bool   `yaml:"plan_review_enabled"`
-	AutoChatContext   bool   `yaml:"auto_chat_context"`
 	MemoryEnabled     bool   `yaml:"memory_enabled"`
 }
 

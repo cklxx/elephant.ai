@@ -66,7 +66,6 @@ type LarkGatewayConfig struct {
 	ReactEmoji                    string
 	ShowToolProgress              bool
 	ShowPlanClarifyMessages       bool
-	AutoChatContext               bool
 	AutoChatContextSize           int
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
@@ -153,7 +152,6 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 					Timeout:  60 * time.Second,
 				},
 				ReactEmoji:          "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
-				AutoChatContext:     true,
 				AutoChatContextSize: 20,
 				CardsEnabled:        true,
 				CardsPlanReview:     true,
@@ -305,9 +303,6 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if larkCfg.ShowPlanClarifyMessages != nil {
 		cfg.Channels.Lark.ShowPlanClarifyMessages = *larkCfg.ShowPlanClarifyMessages
-	}
-	if larkCfg.AutoChatContext != nil {
-		cfg.Channels.Lark.AutoChatContext = *larkCfg.AutoChatContext
 	}
 	if larkCfg.AutoChatContextSize != nil && *larkCfg.AutoChatContextSize > 0 {
 		cfg.Channels.Lark.AutoChatContextSize = *larkCfg.AutoChatContextSize
