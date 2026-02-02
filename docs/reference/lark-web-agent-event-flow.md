@@ -195,7 +195,7 @@ type RouterDeps struct {
     ConfigHandler  *ConfigHandler
     Evaluation     *app.EvaluationService
     Obs            *observability.Observability
-    MemoryService  memory.Service
+    MemoryEngine   memory.Engine
     AttachmentCfg  attachments.StoreConfig
     SandboxBaseURL string
     DataCache      *DataCache
@@ -368,7 +368,7 @@ type AgentCoordinator struct {
     config              appconfig.Config
     logger              agent.Logger
     clock               agent.Clock
-    memoryService       memory.Service
+    memoryEngine        memory.Engine
     externalExecutor    agent.ExternalAgentExecutor
     iterationHook       agent.IterationHook
     prepService         preparationService
@@ -813,7 +813,7 @@ RunTaskWithStreamOutput
 | `tools.Approver` | 工具 ↔ 审批 UI | `internal/agent/ports/tools/` |
 | `llm.LLMClient` | ReAct engine ↔ LLM providers | `internal/llm/` |
 | `storage.SessionStore` | coordinator ↔ 持久化 | `internal/agent/ports/storage/` |
-| `memory.Service` | coordinator ↔ 记忆存储 | `internal/memory/` |
+| `memory.Engine` | coordinator ↔ Markdown 记忆存储 | `internal/memory/` |
 | `domain.WorkflowTracker` | ReAct domain ↔ workflow 基础设施 | `internal/agent/domain/` |
 
 ---

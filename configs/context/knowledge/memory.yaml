@@ -1,0 +1,10 @@
+id: memory-system
+description: |
+  Markdown-only memory system: where to write memories and how to retrieve them.
+sop_refs:
+  - docs/reference/MEMORY_SYSTEM.md#writing-memory
+  - docs/reference/MEMORY_SYSTEM.md#searching-memory
+memory_keys:
+  - memory.layout
+  - memory.writing
+  - memory.search

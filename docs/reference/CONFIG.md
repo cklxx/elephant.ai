@@ -169,7 +169,7 @@ apps:
 - `enabled`：是否启用 Lark 网关（默认 false）。
 - `app_id` / `app_secret`：Lark 应用凭证。
 - `base_domain`：Lark API 域名（默认 `https://open.larkoffice.com`）。
-- `session_prefix`：会话 ID 前缀（默认 `lark`），用于派生稳定的 chat session ID；Lark 不注入 session history，多轮聊天依赖 `auto_chat_context` 与 memory。
+- `session_prefix`：会话 ID 前缀（默认 `lark`），用于派生稳定的 chat session ID；Lark 不注入 session history，多轮聊天依赖 `auto_chat_context` 与 Markdown 记忆加载。
 - `reply_prefix`：回复前缀。
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
 - `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: lark-local`）。
@@ -183,7 +183,7 @@ apps:
 - `browser`：本地浏览器配置（`cdp_url` / `chrome_path` / `headless` / `user_data_dir` / `timeout_seconds`）。
 - `reply_timeout_seconds`：单条消息执行超时（秒）。
 - `react_emoji`：随机表情池（逗号/空格分隔）。同一次请求会在开始/结束分别随机挑选不同表情；少于 2 个时会回退默认池。
-- `memory_enabled`：启用记忆自动保存/召回。
+- `memory_enabled`：启用 Markdown 记忆加载（MEMORY.md + daily logs）。
 - `show_tool_progress`：是否在 Lark 显示工具执行进度。
 - `auto_chat_context` / `auto_chat_context_size`：自动拉取近期聊天上下文。
 - `plan_review_enabled`：启用 plan review（计划确认/反馈注入）。
@@ -316,34 +316,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 ### Proactive 记忆（proactive.memory）
 
 - `proactive.enabled`：总开关（默认 true）。
-- `proactive.memory.enabled`：记忆模块开关。
-- `proactive.memory.auto_recall`：自动召回（任务开始前）。
-- `proactive.memory.auto_capture`：自动保存（任务完成后）。
-- `proactive.memory.capture_messages`：保存对话消息到记忆。
-- `proactive.memory.capture_group_memory`：群聊记忆开关。
-- `proactive.memory.max_recalls`：单次召回最多条数。
-- `proactive.memory.refresh_interval` / `proactive.memory.max_refresh_tokens`：记忆刷新周期/令牌上限。
-- `proactive.memory.store`：`auto` / `file` / `postgres` / `hybrid`。
-- `proactive.memory.dedupe_threshold`：记忆去重阈值（默认 0.85）。
-
-#### proactive.memory.hybrid
-
-- `proactive.memory.hybrid.alpha`：关键词/向量检索融合权重（0-1）。
-- `proactive.memory.hybrid.min_similarity`：向量最小相似度。
-- `proactive.memory.hybrid.persist_dir`：向量索引目录。
-- `proactive.memory.hybrid.collection`：向量集合名。
-- `proactive.memory.hybrid.embedder_model`：向量模型名。
-- `proactive.memory.hybrid.embedder_base_url`：向量模型 base URL。
-- `proactive.memory.hybrid.allow_vector_failures`：允许向量索引失败时继续写入关键词记忆。
-
-#### proactive.memory.retention
-
-- `proactive.memory.retention.default_days`：默认保留天数（0 表示不启用）。
-- `proactive.memory.retention.auto_capture_days`：自动捕获记忆保留天数。
-- `proactive.memory.retention.chat_turn_days`：对话记忆保留天数。
-- `proactive.memory.retention.workflow_trace_days`：workflow trace 记忆保留天数。
-- `proactive.memory.retention.prune_on_start`：启动时清理过期记忆。
-- `proactive.memory.retention.prune_on_recall`：召回时清理过期记忆。
+- `proactive.memory.enabled`：Markdown 记忆加载开关（从 `~/.alex/memory/` 读取 `MEMORY.md` 与 `memory/YYYY-MM-DD.md`）。
 
 示例（YAML）：
 
@@ -353,18 +326,6 @@ runtime:
     enabled: true
     memory:
       enabled: true
-      auto_recall: true
-      auto_capture: true
-      store: "hybrid"
-      hybrid:
-        allow_vector_failures: false
-      retention:
-        default_days: 90
-        auto_capture_days: 30
-        chat_turn_days: 14
-        workflow_trace_days: 30
-        prune_on_start: true
-        prune_on_recall: true
 ```
 
 ### ACP 执行器配置（executor 适配层）

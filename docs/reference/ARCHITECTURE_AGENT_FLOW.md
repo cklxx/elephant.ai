@@ -37,7 +37,7 @@ It complements the deeper dives in `AGENTS.md`, `docs/reference/CONFIG.md`, and 
 - Key packages: `internal/agent/domain`, `internal/agent/ports`, `internal/agent/types`
 
 **Infrastructure Layer**
-- Concrete adapters for LLMs, tools, MCP, sessions, memory, storage, and telemetry.
+- Concrete adapters for LLMs, tools, MCP, sessions, Markdown memory, storage, and telemetry.
 - Key packages: `internal/llm`, `internal/tools`, `internal/toolregistry`, `internal/mcp`,
   `internal/session`, `internal/context`, `internal/memory`, `internal/rag`,
   `internal/storage`, `internal/observability`, `internal/logging`
@@ -59,7 +59,7 @@ It complements the deeper dives in `AGENTS.md`, `docs/reference/CONFIG.md`, and 
 | Agent domain | ReAct loop, events, policies, approvals | `internal/agent/domain`, `internal/agent/ports`, `internal/agent/presets` |
 | LLM integration | Provider SDKs, retries, streaming, cost tracking | `internal/llm`, `internal/subscription` |
 | Tools + MCP | Built-in tools, MCP tools, registry | `internal/tools`, `internal/toolregistry`, `internal/mcp` |
-| Context + memory | Short-term context, long-term RAG, session state | `internal/context`, `internal/memory`, `internal/rag`, `internal/session` |
+| Context + memory | Short-term context, Markdown memory, session state | `internal/context`, `internal/memory`, `internal/session` |
 | Observability + storage | Logs, metrics, tracing, cost storage | `internal/logging`, `internal/observability`, `internal/storage` |
 | Config + env | Config merge, env snapshot | `internal/config`, `internal/environment` |
 
@@ -84,7 +84,7 @@ flowchart TD
     C --> D[internal/agent/app/coordinator.AgentCoordinator]
     C --> E[internal/llm + internal/subscription]
     C --> F[internal/toolregistry + internal/tools + internal/mcp]
-    C --> G[internal/session + internal/context + internal/memory + internal/rag]
+    C --> G[internal/session + internal/context + internal/memory]
     C --> H[internal/storage + internal/observability]
     D --> I[internal/output + internal/server]
     I --> J[Terminal | HTTP/SSE | Web UI]
@@ -110,7 +110,7 @@ Each step emits typed events which are rendered by delivery adapters.
 ### Memory & Sessions
 
 - Session state and transcript persistence live in `internal/session` and `internal/context`.
-- Retrieval and long-running memory live in `internal/rag` and the memory stores wired in `internal/di`.
+- Retrieval and long-running memory live in Markdown files via `internal/memory` (wired in `internal/di`).
 - Compression and context windowing happens before each loop iteration to keep prompts bounded.
 
 ![Agent Execution Flow Diagram](images/agent_execution_flow.png)
