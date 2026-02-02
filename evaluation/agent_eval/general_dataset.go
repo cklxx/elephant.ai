@@ -30,26 +30,9 @@ type GeneralAgentTask struct {
 }
 
 func loadGeneralAgentDataset(path string, limit int) ([]swe_bench.Instance, error) {
-	var tasks []GeneralAgentTask
-
-	if strings.TrimSpace(path) == "" {
-		if err := decodeGeneralDataset(bytes.NewReader(embeddedGeneralDataset), &tasks); err != nil {
-			return nil, fmt.Errorf("decode embedded general agent dataset: %w", err)
-		}
-	} else {
-		file, err := os.Open(path)
-		if err != nil {
-			return nil, fmt.Errorf("open general agent dataset: %w", err)
-		}
-		defer file.Close()
-
-		if err := decodeGeneralDataset(file, &tasks); err != nil {
-			return nil, err
-		}
-	}
-
-	if limit > 0 && limit < len(tasks) {
-		tasks = tasks[:limit]
+	tasks, err := loadGeneralAgentTasks(path, limit)
+	if err != nil {
+		return nil, err
 	}
 
 	instances := make([]swe_bench.Instance, 0, len(tasks))
@@ -114,6 +97,32 @@ func formatConstraints(constraints []string) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func loadGeneralAgentTasks(path string, limit int) ([]GeneralAgentTask, error) {
+	var tasks []GeneralAgentTask
+
+	if strings.TrimSpace(path) == "" {
+		if err := decodeGeneralDataset(bytes.NewReader(embeddedGeneralDataset), &tasks); err != nil {
+			return nil, fmt.Errorf("decode embedded general agent dataset: %w", err)
+		}
+	} else {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open general agent dataset: %w", err)
+		}
+		defer file.Close()
+
+		if err := decodeGeneralDataset(file, &tasks); err != nil {
+			return nil, err
+		}
+	}
+
+	if limit > 0 && limit < len(tasks) {
+		tasks = tasks[:limit]
+	}
+
+	return tasks, nil
 }
 
 func decodeGeneralDataset(reader io.Reader, tasks *[]GeneralAgentTask) error {

@@ -13,6 +13,8 @@ type EvaluationResults struct {
 	Config     *EvaluationConfig        `json:"config,omitempty"`
 	Results    []swe_bench.WorkerResult `json:"results"`
 	AutoScores []AutoScore              `json:"auto_scores,omitempty"`
+	Judgements *JudgementSummary        `json:"judgements,omitempty"`
+	JudgeRuns  []JudgementResult        `json:"judgement_results,omitempty"`
 	Metrics    *EvaluationMetrics       `json:"metrics"`
 	Analysis   *AnalysisResult          `json:"analysis"`
 	Agent      *AgentProfile            `json:"agent,omitempty"`

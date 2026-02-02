@@ -142,14 +142,14 @@ func (em *EvaluationManager) executeEvaluation(ctx context.Context, job *Evaluat
 	}()
 
 	// 1. 加载数据集
-	instances, err := em.loadDataset(ctx, job.Config)
+	bundle, err := em.loadDataset(ctx, job.Config)
 	if err != nil {
 		em.setJobError(job.ID, fmt.Errorf("failed to load dataset: %w", err))
 		return
 	}
 
 	// 2. 执行评估（基于现有SWE-Bench处理器）
-	results, err := em.runEvaluation(ctx, instances, job.Config)
+	results, err := em.runEvaluation(ctx, bundle.instances, job.Config)
 	if err != nil {
 		em.setJobError(job.ID, fmt.Errorf("failed to run evaluation: %w", err))
 		return
@@ -163,6 +163,16 @@ func (em *EvaluationManager) executeEvaluation(ctx context.Context, job *Evaluat
 		Results:    results,
 		AutoScores: autoScores,
 		Timestamp:  time.Now(),
+	}
+
+	if bundle.evalSet != nil && bundle.rubric != nil {
+		summary, judgeRuns, err := RunJudgementPipeline(ctx, bundle.evalSet, results, *bundle.rubric, NoopAgentJudge{})
+		if err != nil {
+			log.Printf("Warning: Failed to run judgement pipeline: %v", err)
+		} else {
+			evaluation.Judgements = summary
+			evaluation.JudgeRuns = judgeRuns
+		}
 	}
 
 	metrics, metricsErr := em.collectMetrics(ctx, results)
@@ -215,7 +225,13 @@ func (em *EvaluationManager) executeEvaluation(ctx context.Context, job *Evaluat
 }
 
 // loadDataset 加载数据集
-func (em *EvaluationManager) loadDataset(ctx context.Context, config *EvaluationConfig) ([]swe_bench.Instance, error) {
+type datasetBundle struct {
+	instances []swe_bench.Instance
+	evalSet   *EvalSet
+	rubric    *JudgeRubric
+}
+
+func (em *EvaluationManager) loadDataset(ctx context.Context, config *EvaluationConfig) (*datasetBundle, error) {
 	datasetType := normalizeDatasetType(config.DatasetType)
 	if datasetType == "" {
 		datasetType = "file"
@@ -231,8 +247,33 @@ func (em *EvaluationManager) loadDataset(ctx context.Context, config *Evaluation
 		datasetPath = safePath
 	}
 
+	if datasetType == "eval_set" {
+		def, err := LoadEvalSetDefinition(datasetPath)
+		if err != nil {
+			return nil, err
+		}
+		set, instances, err := BuildEvalSetFromDefinition(def)
+		if err != nil {
+			return nil, err
+		}
+
+		var rubric *JudgeRubric
+		if strings.TrimSpace(def.RubricPath) != "" {
+			loaded, err := LoadJudgeRubric(def.RubricPath)
+			if err != nil {
+				return nil, err
+			}
+			rubric = loaded
+		}
+
+		return &datasetBundle{instances: instances, evalSet: set, rubric: rubric}, nil
+	}
 	if datasetType == "general_agent" {
-		return loadGeneralAgentDataset(datasetPath, config.InstanceLimit)
+		instances, err := loadGeneralAgentDataset(datasetPath, config.InstanceLimit)
+		if err != nil {
+			return nil, err
+		}
+		return &datasetBundle{instances: instances}, nil
 	}
 	// 基于现有SWE-Bench加载器
 	loader := swe_bench.NewDatasetLoader()
@@ -248,7 +289,12 @@ func (em *EvaluationManager) loadDataset(ctx context.Context, config *Evaluation
 		InstanceLimit: config.InstanceLimit,
 	}
 
-	return loader.LoadInstances(ctx, datasetConfig)
+	instances, err := loader.LoadInstances(ctx, datasetConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &datasetBundle{instances: instances}, nil
 }
 
 // sanitizeDatasetPath normalizes and validates a dataset path to prevent directory traversal.
