@@ -12,7 +12,7 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 
 ## Current State (2026-02-02)
 
-M0 is ~95% complete. Lark API client layer (auth, Calendar, Tasks), CRUD tools, approval gates, scheduler reminders, and E2E wiring are done. P1 quality is mostly complete (checkpoint schema/runtime, graceful shutdown, tool policy-driven timeout/retry, NSM metrics, token counting). P2 batch ops, conflict detection, calendar summary, job persistence, and reminder pipeline are implemented; evaluation suites exist and CI eval gating is partial. **Remaining gaps**: Codex X2 (checkpoint persistence wiring/ops), tool SLA baselining, and evaluation set construction (baseline gate + challenge evals). Coding Agent Gateway and Shadow Agent remain future.
+**M0 is complete. M1 (P2) is ~80% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM infrastructure (provider health, token budget), and CI eval gating are all implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), dynamic model selection, signal collection, evaluation automation, and evaluation set construction. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
 
 ---
 
@@ -41,7 +41,7 @@ Items that don't block MVP but are required for production reliability.
 | Global tool timeout/retry | Unified timeout/retry + policy rules | **Done** | Claude C13-C14 + Codex X3 | `internal/tools/`, `internal/toolregistry/` |
 | NSM metric collection | WTCR/TimeSaved/Accuracy counters | **Done** | Claude C17 | `internal/observability/` |
 | Token counting precision | tiktoken-go integration | **Done** | Claude C18 | `internal/llm/` |
-| Tool SLA baseline collection | Per-tool latency/cost/reliability/success-rate metrics | **Not started** | Claude | `internal/tools/sla.go` |
+| Tool SLA baseline collection | Per-tool latency/cost/reliability/success-rate metrics | **Done** | Claude C27 | `internal/toolregistry/sla.go` |
 
 ## P2: Next Wave (M1)
 
@@ -53,9 +53,9 @@ Enhancements after the core loop is stable.
 |------|-----|--------|-------|-----------|
 | Replan + sub-goal decomposition | Complex tasks need dynamic replanning (DAG) | **Not started** | Codex X6 | `internal/agent/domain/react/`, `internal/agent/planner/` |
 | Memory restructuring (D5) | Layered FileStore (entries/daily/MEMORY.md) + daily summaries + long-term extraction + migration | **Not started** | Codex X4 | `internal/memory/` |
-| Memory Flush-before-Compaction (D3) | Save context before compression — `AutoCompact` fires event, MemoryFlushHook extracts key info to disk | **Not started** | Claude | `internal/context/`, `internal/memory/` |
-| Context priority sorting | Rank context fragments by relevance/freshness/importance instead of fixed layer order | **Not started** | Claude | `internal/context/manager.go` |
-| Cost-aware context trimming | Token budget drives which context to keep; prefer high-value content | **Not started** | Claude | `internal/context/manager_window.go` |
+| Memory Flush-before-Compaction (D3) | Save context before compression — `AutoCompact` fires event, MemoryFlushHook extracts key info to disk | **Done** | Claude C28 | `internal/context/`, `internal/memory/` |
+| Context priority sorting | Rank context fragments by relevance/freshness/importance instead of fixed layer order | **Done** | Claude C32 | `internal/context/priority.go` |
+| Cost-aware context trimming | Token budget drives which context to keep; prefer high-value content | **Done** | Claude C33 | `internal/context/trimmer.go` |
 | Proactive context injection | Calendar summary builder for context assembly | **Done** | Claude C25 | `internal/context/` |
 
 ### Tool Chain & Scheduler
@@ -64,11 +64,11 @@ Enhancements after the core loop is stable.
 |------|-----|--------|-------|-----------|
 | Tool policy framework (D1) | Allow/deny rules per tool per context | **Done** | Claude C19-C20 + Codex X5 | `internal/tools/` |
 | Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control, failure recovery | **Done** | Claude C21-C22 + Codex X7 | `internal/scheduler/` |
-| Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Not started** | Claude | `internal/tools/builtin/session/scheduler_tool.go` |
+| Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Done** | Claude C29 | `internal/tools/builtin/session/scheduler_tool.go` |
 | Scheduler startup recovery | Reload persisted jobs from JobStore on restart, auto-register cron | **Done** | Claude C21 | `internal/scheduler/job_runtime.go` |
 | Tool SLA profile + dynamic routing | Build per-tool performance profiles; auto-select tool chain based on SLA | **Not started** | Claude → Codex | `internal/tools/router.go` |
-| Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Not started** | Claude | `internal/tools/fallback.go` |
-| Tool result caching | Semantic dedup — same query doesn't re-execute | **Not started** | Claude | `internal/tools/cache.go` |
+| Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Done** | Claude C39 | `internal/toolregistry/degradation.go` |
+| Tool result caching | Semantic dedup — same query doesn't re-execute | **Done** | Claude C38 | `internal/toolregistry/cache.go` |
 
 ### Calendar/Tasks & Lark
 
@@ -76,18 +76,18 @@ Enhancements after the core loop is stable.
 |------|-----|--------|-------|-----------|
 | Calendar/Tasks full CRUD | Batch ops, conflict detection, multi-calendar | **Done** | Claude C23-C24 | `internal/lark/` |
 | Proactive reminders + suggestions | Intent extraction → draft → confirm flow | **Done** | Claude C26 | `internal/reminder/` |
-| Lark smart card interaction | Interactive Cards with buttons for approval/selection/feedback | **Not started** | Claude | `internal/channels/lark/cards/` |
-| Lark Approval API | Query pending approvals, submit approval requests, track status changes | **Not started** | Claude | `internal/lark/approval/` |
-| Proactive group summary | Auto-summarize long group discussions (by message count / time window) | **Not started** | Claude | `internal/channels/lark/proactive.go` |
-| Message type enrichment | Send tables, code blocks, rendered Markdown messages | **Not started** | Claude | `internal/channels/lark/` |
+| Lark smart card interaction | Interactive Cards with buttons for approval/selection/feedback | **Done** | Claude C35 | `internal/lark/cards/` |
+| Lark Approval API | Query pending approvals, submit approval requests, track status changes | **Done** | Claude C31 | `internal/lark/approval/` |
+| Proactive group summary | Auto-summarize long group discussions (by message count / time window) | **Done** | Claude C36 | `internal/lark/summary/` |
+| Message type enrichment | Send tables, code blocks, rendered Markdown messages | **Done** | Claude C37 | `internal/channels/lark/richcontent/` |
 
 ### LLM Intelligence
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
 | Dynamic model selection | Auto-select model based on task type/complexity/context length | **Not started** | Claude → Codex | `internal/llm/router.go` |
-| Provider health detection | Real-time probe provider availability, auto-switch on failure | **Not started** | Claude | `internal/llm/health.go` |
-| Token budget management | Per-task/session token budget; auto-downgrade model on overspend | **Not started** | Claude | `internal/llm/budget.go` |
+| Provider health detection | Real-time probe provider availability, auto-switch on failure | **Done** | Claude C30 | `internal/llm/health/` |
+| Token budget management | Per-task/session token budget; auto-downgrade model on overspend | **Done** | Claude C34 | `internal/context/budget/` |
 
 ### DevOps Foundations
 
@@ -96,7 +96,7 @@ Enhancements after the core loop is stable.
 | Signal collection framework | Failure trajectories, user feedback (thumbs/text), implicit signals (retries/abandons), usage patterns | **Not started** | Claude → Codex | `internal/devops/signals/` |
 | Evaluation automation | Dimensional scoring (reasoning/tools/UX/cost), baseline management, benchmark dashboard | **Not started** | Claude → Codex | `internal/devops/evaluation/` |
 | Evaluation set construction (评测集构建) | 分层评测：基础任务准出评测 + 引导模块升级优化的挑战性评测 | **Not started** | Claude → Codex | `evaluation/` |
-| CI evaluation gating | Manual + tag-triggered quick eval with result archiving | **Partial** | Claude | `.github/workflows/eval.yml` |
+| CI evaluation gating | Manual + tag-triggered quick eval with PR gate + result archiving | **Done** | Claude C40 | `evaluation/gate/`, `.github/workflows/eval.yml` |
 
 ## P3: Future (M2+)
 
@@ -245,6 +245,7 @@ O0 (日程+任务闭环)
 | 2026-02-01 | M0 | All | 实现审计：对照代码库校验 Roadmap 标注。修正工具数 83→69+、权限预设三档→五档、技能数 13→12、向量检索 ✅→⚙️（chromem-go，无 pgvector/BM25）、事件一致性 ⚙️→✅、用户干预点 ⚙️→✅、群聊自动感知 ❌→✅、消息引用回复 ❌→✅、定时提醒 ❌→⚙️、超时重试限流 ✅→⚙️。详见 `docs/roadmap/draft/implementation-audit-2026-02-01.md`。 |
 | 2026-02-01 | M0-M3 | All | **Roadmap 重构为 OKR-First。** 北极星切片聚焦"日程+任务"闭环，NSM 以 WTCR + TimeSaved + Accuracy 为核心。 |
 | 2026-02-02 | M0 | All | Roadmap 复查：对齐 tool policy/timeout-retry 与 scheduler D4 状态；新增评测集构建（基础准出 + 挑战性评测）；补充跨 Track 结构与索引。 |
+| 2026-02-02 | M1 | All | **Phase 6 complete (C27-C40).** 14 tasks across 3 batches: Tool SLA, memory flush, scheduler tools, provider health, Lark approval, context engineering (priority/trimming/budget), Lark ecosystem (cards/summary/rich content), tool chain (caching/degradation), CI eval gating. All P0+P1 done, P2 ~85% complete. |
 
 ---
 
@@ -265,6 +266,19 @@ O0 (日程+任务闭环)
 | Observability: traces, metrics, cost accounting | `internal/observability/` |
 | SIGTERM handling + cancelable base context | `cmd/elephant/main.go` |
 | Evaluation suite (SWE-Bench, Agent Eval) | `evaluation/` |
+| Tool SLA metrics (latency/error-rate/call-count) | `internal/toolregistry/sla.go` |
+| Memory flush before compaction (D3) | `internal/context/`, `internal/memory/` |
+| Dynamic scheduler job tools | `internal/tools/builtin/session/scheduler_tool.go` |
+| Provider health detection (circuit breaker) | `internal/llm/health/` |
+| Lark Approval API | `internal/lark/approval/` |
+| Context priority sorting + cost-aware trimming | `internal/context/priority.go`, `internal/context/trimmer.go` |
+| Token budget management | `internal/context/budget/` |
+| Lark smart cards (interactive) | `internal/lark/cards/` |
+| Proactive group summary | `internal/lark/summary/` |
+| Rich content (posts, tables, Markdown) | `internal/channels/lark/richcontent/` |
+| Tool result caching (semantic dedup) | `internal/toolregistry/cache.go` |
+| Auto degradation chain (fallback executor) | `internal/toolregistry/degradation.go` |
+| CI eval gating (PR soft gate) | `evaluation/gate/`, `.github/workflows/eval.yml` |
 
 ---
 
