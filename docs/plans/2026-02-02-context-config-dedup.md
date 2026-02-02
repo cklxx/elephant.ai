@@ -14,3 +14,13 @@
 - [x] Inspect and trim redundant context guidance.
 - [x] Update models/types/tests for the trimmed config.
 - [x] Lint and tests green.
+
+## Follow-up
+1. Remove redundant workflow policy config.
+2. Update context loader docs to reflect policy/knowledge trims.
+3. Re-run lint + tests.
+
+## Follow-up Progress
+- [x] Remove redundant workflow policy config.
+- [x] Update context loader docs to reflect policy/knowledge trims.
+- [x] Lint and tests green.
