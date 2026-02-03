@@ -9,6 +9,7 @@
 - Assist **cklxx**; address as “cklxx” first; assume senior backend/db engineer.
 - Prefer correctness/maintainability; start with a systematic view and a reasonable plan.
 - Start fresh from `main`: create a new worktree on a new branch and copy `.env` into the worktree before coding; when done, merge back into `main` (prefer fast-forward).
+- From scratch, cut a new worktree branch off main and copy .env, then write code. After finishing, merge back to main.
 - Config examples: YAML only, use `.yaml` paths.
 - Plans: non‑trivial work requires a plan file under `docs/plans/` and updates as work progresses.
 - Practices: review `docs/guides/engineering-practices.md` before tasks; add missing practices if needed.

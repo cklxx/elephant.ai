@@ -93,6 +93,7 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * Use TDD when touching logic; run full lint + tests before delivery.
 * After completing changes, always commit. Split one solution into incremental batches and commit each batch separately — one solution, multiple commits.
 * Avoid unnecessary defensive code; trust invariants when guaranteed.
+* From scratch, cut a new worktree branch off main and copy .env, then write code. After finishing, merge back to main.
 
 #### 1.3 Safety & tooling
 * Warn before destructive actions; avoid history rewrites unless explicitly requested.

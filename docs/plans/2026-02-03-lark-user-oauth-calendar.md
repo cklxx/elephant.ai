@@ -40,10 +40,9 @@ Date: 2026-02-03
    - Run `./dev.sh lint && ./dev.sh test`.
 
 ## Progress
-- [ ] Add plan + scaffolding.
-- [ ] Implement OAuth token + state storage.
-- [ ] Implement server HTTP OAuth handler + routes.
-- [ ] Wire provider into Lark gateway context.
-- [ ] Update calendar tools to remove `calendar_id` and require user OAuth.
-- [ ] Run `./dev.sh lint && ./dev.sh test`; commit.
-
+- [x] Add plan + scaffolding.
+- [x] Implement OAuth token + state storage.
+- [x] Implement server HTTP OAuth handler + routes.
+- [x] Wire provider into Lark gateway context.
+- [x] Update calendar tools to remove `calendar_id` and require user OAuth.
+- [x] Run `./dev.sh lint && ./dev.sh test`; commit.
