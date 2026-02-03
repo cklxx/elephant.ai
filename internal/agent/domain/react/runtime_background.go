@@ -104,27 +104,6 @@ func (r *reactRuntime) emitBackgroundDispatchedEvent(ctx context.Context, taskID
 	})
 }
 
-// emitBackgroundCompletedEvent emits a BackgroundTaskCompletedEvent.
-func (r *reactRuntime) emitBackgroundCompletedEvent(s agent.BackgroundTaskSummary) {
-	results := r.bgManager.Collect([]string{s.ID}, false, 0)
-	if len(results) == 0 {
-		return
-	}
-	result := results[0]
-
-	r.engine.emitEvent(&domain.BackgroundTaskCompletedEvent{
-		BaseEvent:   r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
-		TaskID:      result.ID,
-		Description: result.Description,
-		Status:      string(result.Status),
-		Answer:      result.Answer,
-		Error:       result.Error,
-		Duration:    result.Duration,
-		Iterations:  result.Iterations,
-		TokensUsed:  result.TokensUsed,
-	})
-}
-
 func (r *reactRuntime) hasBackgroundCompletionEmitted(taskID string) bool {
 	if r.bgCompletionEmitted == nil {
 		return false
