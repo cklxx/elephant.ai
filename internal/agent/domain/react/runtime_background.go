@@ -89,8 +89,6 @@ func (r *reactRuntime) injectBackgroundNotifications() {
 
 		r.engine.logger.Info("Injected background notification for task %q (status=%s)", taskID, s.Status)
 
-		// Emit domain event.
-		r.emitBackgroundCompletedEvent(s)
 		r.markBackgroundCompletionEmitted(taskID)
 	}
 }
@@ -162,7 +160,6 @@ func (r *reactRuntime) cleanupBackgroundTasks() {
 		}
 		switch s.Status {
 		case agent.BackgroundTaskStatusCompleted, agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
-			r.emitBackgroundCompletedEvent(s)
 			r.markBackgroundCompletionEmitted(s.ID)
 		}
 	}

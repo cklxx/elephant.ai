@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
 )
 
@@ -316,6 +317,10 @@ func TestTaskDependenciesInheritContext(t *testing.T) {
 	var mu sync.Mutex
 	var prompts []string
 	executor := func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		// Keep task "b" in blocked state long enough to observe it.
+		if strings.TrimSpace(prompt) == "alpha" {
+			time.Sleep(50 * time.Millisecond)
+		}
 		mu.Lock()
 		prompts = append(prompts, prompt)
 		mu.Unlock()
@@ -386,6 +391,125 @@ func TestTaskDependenciesInheritContext(t *testing.T) {
 	}
 }
 
+func TestExternalProgressEventIncludesArgsAndActivity(t *testing.T) {
+	var mu sync.Mutex
+	var events []agent.AgentEvent
+
+	ext := &progressingExternalExecutor{
+		progress: agent.ExternalAgentProgress{
+			TokensUsed:   10,
+			CurrentTool:  "Bash",
+			CurrentArgs:  "ls -la",
+			FilesTouched: []string{"a.txt"},
+			LastActivity: time.Now().Add(-time.Second),
+		},
+		result: &agent.ExternalAgentResult{Answer: "ok"},
+	}
+
+	mgr := newBackgroundTaskManager(
+		context.Background(),
+		agent.NoopLogger{},
+		testClock{},
+		blockingExecutor(10*time.Millisecond, "internal"),
+		ext,
+		func(event agent.AgentEvent) {
+			mu.Lock()
+			defer mu.Unlock()
+			events = append(events, event)
+		},
+		func(ctx context.Context) domain.BaseEvent {
+			return domain.NewBaseEvent(agent.LevelCore, "s1", "r1", "", time.Now())
+		},
+		"test-session",
+		nil,
+	)
+	defer mgr.Shutdown()
+
+	if err := dispatchTask(mgr, "ext-1", "desc", "prompt", "codex", ""); err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+
+	mgr.AwaitAll(2 * time.Second)
+
+	mu.Lock()
+	defer mu.Unlock()
+	found := false
+	for _, evt := range events {
+		progressEvt, ok := evt.(*domain.ExternalAgentProgressEvent)
+		if !ok {
+			continue
+		}
+		found = true
+		if progressEvt.CurrentTool != "Bash" {
+			t.Fatalf("unexpected tool: %q", progressEvt.CurrentTool)
+		}
+		if progressEvt.CurrentArgs != "ls -la" {
+			t.Fatalf("unexpected args: %q", progressEvt.CurrentArgs)
+		}
+		if progressEvt.LastActivity.IsZero() {
+			t.Fatalf("expected last activity")
+		}
+		if len(progressEvt.FilesTouched) != 1 || progressEvt.FilesTouched[0] != "a.txt" {
+			t.Fatalf("unexpected files touched: %#v", progressEvt.FilesTouched)
+		}
+	}
+	if !found {
+		t.Fatalf("expected ExternalAgentProgressEvent")
+	}
+}
+
+func TestManagerEmitsCompletionEventImmediately(t *testing.T) {
+	var mu sync.Mutex
+	var events []agent.AgentEvent
+
+	mgr := newBackgroundTaskManager(
+		context.Background(),
+		agent.NoopLogger{},
+		testClock{},
+		blockingExecutor(10*time.Millisecond, "result-1"),
+		nil,
+		func(event agent.AgentEvent) {
+			mu.Lock()
+			defer mu.Unlock()
+			events = append(events, event)
+		},
+		func(ctx context.Context) domain.BaseEvent {
+			return domain.NewBaseEvent(agent.LevelCore, "s1", "r1", "", time.Now())
+		},
+		"test-session",
+		nil,
+	)
+	defer mgr.Shutdown()
+
+	if err := dispatchTask(mgr, "task-1", "desc", "prompt", "internal", ""); err != nil {
+		t.Fatalf("dispatch failed: %v", err)
+	}
+	mgr.AwaitAll(2 * time.Second)
+
+	mu.Lock()
+	defer mu.Unlock()
+	found := false
+	for _, evt := range events {
+		completed, ok := evt.(*domain.BackgroundTaskCompletedEvent)
+		if !ok {
+			continue
+		}
+		found = true
+		if completed.TaskID != "task-1" {
+			t.Fatalf("unexpected task id: %q", completed.TaskID)
+		}
+		if completed.Status != "completed" {
+			t.Fatalf("unexpected status: %q", completed.Status)
+		}
+		if completed.Answer != "result-1" {
+			t.Fatalf("unexpected answer: %q", completed.Answer)
+		}
+	}
+	if !found {
+		t.Fatalf("expected BackgroundTaskCompletedEvent")
+	}
+}
+
 // mockExternalExecutor implements agent.ExternalAgentExecutor for testing.
 type mockExternalExecutor struct {
 	result *agent.ExternalAgentResult
@@ -401,4 +525,20 @@ func (m *mockExternalExecutor) Execute(ctx context.Context, req agent.ExternalAg
 
 func (m *mockExternalExecutor) SupportedTypes() []string {
 	return []string{"claude_code", "cursor"}
+}
+
+type progressingExternalExecutor struct {
+	progress agent.ExternalAgentProgress
+	result   *agent.ExternalAgentResult
+}
+
+func (p *progressingExternalExecutor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
+	if req.OnProgress != nil {
+		req.OnProgress(p.progress)
+	}
+	return p.result, nil
+}
+
+func (p *progressingExternalExecutor) SupportedTypes() []string {
+	return []string{"codex"}
 }

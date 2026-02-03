@@ -33,14 +33,17 @@ func (e *ExternalInputResponseEvent) EventType() string {
 // ExternalAgentProgressEvent is emitted periodically for external agent progress.
 type ExternalAgentProgressEvent struct {
 	BaseEvent
-	TaskID      string
-	AgentType   string
-	Iteration   int
-	MaxIter     int
-	TokensUsed  int
-	CostUSD     float64
-	CurrentTool string
-	Elapsed     time.Duration
+	TaskID       string
+	AgentType    string
+	Iteration    int
+	MaxIter      int
+	TokensUsed   int
+	CostUSD      float64
+	CurrentTool  string
+	CurrentArgs  string
+	FilesTouched []string
+	LastActivity time.Time
+	Elapsed      time.Duration
 }
 
 func (e *ExternalAgentProgressEvent) EventType() string {
