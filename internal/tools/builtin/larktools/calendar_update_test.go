@@ -78,7 +78,7 @@ func TestCalendarUpdate_NoFieldsToUpdate(t *testing.T) {
 	}
 }
 
-func TestCalendarUpdate_MissingOAuthToken_ShowsAuthURL(t *testing.T) {
+func TestCalendarUpdate_MissingOAuthToken_RequiresTenantCalendarID(t *testing.T) {
 	tool := NewLarkCalendarUpdate()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret")
 	oauthSvc := &fakeLarkOAuth{
@@ -102,8 +102,8 @@ func TestCalendarUpdate_MissingOAuthToken_ShowsAuthURL(t *testing.T) {
 	if result.Error == nil {
 		t.Fatal("expected error for missing OAuth token")
 	}
-	if !strings.Contains(result.Content, oauthSvc.startURL) {
-		t.Fatalf("expected auth url in content, got %q", result.Content)
+	if !strings.Contains(result.Content, "tenant_calendar_id") {
+		t.Fatalf("expected tenant_calendar_id guidance, got %q", result.Content)
 	}
 }
 
