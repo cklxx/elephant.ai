@@ -3,6 +3,7 @@ package larktools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"alex/internal/agent/ports"
+	larkoauth "alex/internal/lark/oauth"
 	"alex/internal/tools/builtin/shared"
 	"alex/internal/utils/id"
 
@@ -38,6 +40,26 @@ func tokenResponse(token string, expire int) []byte {
 	}
 	b, _ := json.Marshal(resp)
 	return b
+}
+
+type fakeLarkOAuth struct {
+	token    string
+	err      error
+	startURL string
+
+	gotOpenID string
+}
+
+func (f *fakeLarkOAuth) UserAccessToken(ctx context.Context, openID string) (string, error) {
+	f.gotOpenID = openID
+	if f.err != nil {
+		return "", f.err
+	}
+	return f.token, nil
+}
+
+func (f *fakeLarkOAuth) StartURL() string {
+	return f.startURL
 }
 
 func TestCalendarCreate_NoLarkClient(t *testing.T) {
@@ -73,9 +95,8 @@ func TestCalendarCreate_MissingSummary(t *testing.T) {
 	ctx := shared.WithLarkClient(context.Background(), larkClient)
 
 	call := ports.ToolCall{ID: "test-3", Name: "lark_calendar_create", Arguments: map[string]any{
-		"calendar_id": "cal_123",
-		"start_time":  "1700000000",
-		"end_time":    "1700003600",
+		"start_time": "1700000000",
+		"end_time":   "1700003600",
 	}}
 
 	result, err := tool.Execute(ctx, call)
@@ -87,112 +108,58 @@ func TestCalendarCreate_MissingSummary(t *testing.T) {
 	}
 }
 
-func TestCalendarCreate_PrimaryCalendarIDResolves(t *testing.T) {
-	var mu sync.Mutex
-	var gotCalendarID string
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle token requests so the SDK can authenticate.
-		if strings.Contains(r.URL.Path, "tenant_access_token") || strings.Contains(r.URL.Path, "app_access_token") {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(tokenResponse("test-token", 7200))
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars/primarys"):
-			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
-				"calendars": []map[string]interface{}{
-					{
-						"user_id": "ou_123",
-						"calendar": map[string]interface{}{
-							"calendar_id": "cal-primary",
-							"type":        "primary",
-							"role":        "owner",
-						},
-					},
-				},
-			}))
-			return
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/calendar/v4/calendars/") && strings.Contains(r.URL.Path, "/events"):
-			parts := strings.Split(r.URL.Path, "/calendar/v4/calendars/")
-			if len(parts) != 2 {
-				t.Fatalf("unexpected create path: %s", r.URL.Path)
-			}
-			rest := parts[1]
-			calID := strings.TrimSuffix(rest, "/events")
-			mu.Lock()
-			gotCalendarID = calID
-			mu.Unlock()
-
-			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
-				"event": map[string]interface{}{
-					"event_id": "evt_123",
-				},
-			}))
-			return
-		default:
-			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	defer srv.Close()
-
+func TestCalendarCreate_MissingOAuthToken_ShowsAuthURL(t *testing.T) {
 	tool := NewLarkCalendarCreate()
-	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
-	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	larkClient := lark.NewClient("test_app_id", "test_app_secret")
+	oauthSvc := &fakeLarkOAuth{
+		err:      &larkoauth.NeedUserAuthError{AuthURL: "http://localhost:8080/api/lark/oauth/start"},
+		startURL: "http://localhost:8080/api/lark/oauth/start",
+	}
+
+	ctx := id.WithUserID(context.Background(), "ou_123")
+	ctx = shared.WithLarkClient(ctx, larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
 
 	call := ports.ToolCall{ID: "test-4", Name: "lark_calendar_create", Arguments: map[string]any{
-		"calendar_id": "primary",
-		"summary":     "Test",
-		"start_time":  "1700000000",
-		"end_time":    "1700003600",
+		"summary":    "Test",
+		"start_time": "1700000000",
+		"end_time":   "1700003600",
 	}}
 
 	result, err := tool.Execute(ctx, call)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.Error != nil {
-		t.Fatalf("expected success, got error: %v", result.Error)
+	if result.Error == nil {
+		t.Fatal("expected error when OAuth token is missing")
 	}
-	if result.Metadata["calendar_id"] != "cal-primary" {
-		t.Fatalf("metadata calendar_id = %v, want %q", result.Metadata["calendar_id"], "cal-primary")
+	if !strings.Contains(result.Content, oauthSvc.startURL) {
+		t.Fatalf("expected auth url in content, got %q", result.Content)
 	}
-	mu.Lock()
-	defer mu.Unlock()
-	if gotCalendarID != "cal-primary" {
-		t.Fatalf("create used calendar_id=%q, want %q", gotCalendarID, "cal-primary")
+	var need *larkoauth.NeedUserAuthError
+	if !errors.As(result.Error, &need) {
+		t.Fatalf("expected NeedUserAuthError, got %T", result.Error)
 	}
 }
 
-func TestCalendarCreate_PrimaryCalendarIDResolvesForOwner(t *testing.T) {
+func TestCalendarCreate_PrimaryCalendarIDResolves(t *testing.T) {
 	var mu sync.Mutex
 	var gotCalendarID string
 	var gotAuth string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Handle token requests so the SDK can authenticate.
-		if strings.Contains(r.URL.Path, "tenant_access_token") || strings.Contains(r.URL.Path, "app_access_token") {
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write(tokenResponse("test-token", 7200))
-			return
-		}
-
 		w.Header().Set("Content-Type", "application/json")
 		switch {
-		case strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars/primarys"):
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars"):
 			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
-				"calendars": []map[string]interface{}{
+				"calendar_list": []map[string]interface{}{
 					{
-						"user_id": "ou_target",
-						"calendar": map[string]interface{}{
-							"calendar_id": "cal-target",
-							"type":        "primary",
-							"role":        "owner",
-						},
+						"calendar_id": "cal-primary",
+						"type":        "primary",
+						"role":        "owner",
 					},
 				},
+				"has_more": false,
 			}))
 			return
 		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/calendar/v4/calendars/") && strings.Contains(r.URL.Path, "/events"):
@@ -221,16 +188,14 @@ func TestCalendarCreate_PrimaryCalendarIDResolvesForOwner(t *testing.T) {
 
 	tool := NewLarkCalendarCreate()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
-	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_sender"), larkClient)
+	oauthSvc := &fakeLarkOAuth{token: "user-token", startURL: "http://localhost:8080/api/lark/oauth/start"}
+	ctx := shared.WithLarkClient(id.WithUserID(context.Background(), "ou_123"), larkClient)
+	ctx = shared.WithLarkOAuth(ctx, oauthSvc)
 
-	call := ports.ToolCall{ID: "test-5", Name: "lark_calendar_create", Arguments: map[string]any{
-		"calendar_id":            "primary",
-		"calendar_owner_id":      "ou_target",
-		"calendar_owner_id_type": "open_id",
-		"user_access_token":      "user-token",
-		"summary":                "Test",
-		"start_time":             "1700000000",
-		"end_time":               "1700003600",
+	call := ports.ToolCall{ID: "test-4", Name: "lark_calendar_create", Arguments: map[string]any{
+		"summary":    "Test",
+		"start_time": "1700000000",
+		"end_time":   "1700003600",
 	}}
 
 	result, err := tool.Execute(ctx, call)
@@ -240,16 +205,18 @@ func TestCalendarCreate_PrimaryCalendarIDResolvesForOwner(t *testing.T) {
 	if result.Error != nil {
 		t.Fatalf("expected success, got error: %v", result.Error)
 	}
-	if result.Metadata["calendar_id"] != "cal-target" {
-		t.Fatalf("metadata calendar_id = %v, want %q", result.Metadata["calendar_id"], "cal-target")
+	if result.Metadata["calendar_id"] != "cal-primary" {
+		t.Fatalf("metadata calendar_id = %v, want %q", result.Metadata["calendar_id"], "cal-primary")
 	}
-
 	mu.Lock()
 	defer mu.Unlock()
-	if gotCalendarID != "cal-target" {
-		t.Fatalf("create used calendar_id=%q, want %q", gotCalendarID, "cal-target")
+	if gotCalendarID != "cal-primary" {
+		t.Fatalf("create used calendar_id=%q, want %q", gotCalendarID, "cal-primary")
 	}
-	if gotAuth != "Bearer test-token" {
-		t.Fatalf("expected tenant token auth, got %q", gotAuth)
+	if gotAuth != "Bearer user-token" {
+		t.Fatalf("expected user token auth, got %q", gotAuth)
+	}
+	if oauthSvc.gotOpenID != "ou_123" {
+		t.Fatalf("oauth service received open_id=%q, want %q", oauthSvc.gotOpenID, "ou_123")
 	}
 }

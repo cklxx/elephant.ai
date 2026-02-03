@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,6 +27,16 @@ import (
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
+
+type staticLarkOAuth struct {
+	token string
+}
+
+func (s *staticLarkOAuth) UserAccessToken(_ context.Context, _ string) (string, error) {
+	return s.token, nil
+}
+
+func (s *staticLarkOAuth) StartURL() string { return "" }
 
 type calendarRequestRecorder struct {
 	mu      sync.Mutex
@@ -95,6 +106,7 @@ func (a *recordingApprover) last() *tools.ApprovalRequest {
 type injectingCoordinator struct {
 	inner      *agentcoordinator.AgentCoordinator
 	larkClient *lark.Client
+	oauth      interface{}
 	approver   tools.Approver
 
 	mu         sync.Mutex
@@ -104,6 +116,9 @@ type injectingCoordinator struct {
 
 func (c *injectingCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 	ctx = shared.WithLarkClient(ctx, c.larkClient)
+	if c.oauth != nil {
+		ctx = shared.WithLarkOAuth(ctx, c.oauth)
+	}
 	ctx = shared.WithApprover(ctx, c.approver)
 	ctx = agent.WithOutputContext(ctx, &agent.OutputContext{Level: agent.LevelCore})
 	result, err := c.inner.ExecuteTask(ctx, task, sessionID, listener)
@@ -254,29 +269,52 @@ func (s *inMemorySessionStore) Delete(_ context.Context, sessionID string) error
 func TestSchedulerCalendarFlowE2E(t *testing.T) {
 	recorder := &calendarRequestRecorder{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		recorder.record(r)
-		if recorder.err != nil {
-			http.Error(w, recorder.err.Error(), http.StatusBadRequest)
-			return
-		}
-		resp := map[string]any{
-			"code": 0,
-			"msg":  "ok",
-			"data": map[string]any{
-				"event": map[string]any{
-					"event_id": "evt_123",
-					"summary":  recorder.summary,
-					"start_time": map[string]any{
-						"timestamp": recorder.start,
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars"):
+			resp := map[string]any{
+				"code": 0,
+				"msg":  "ok",
+				"data": map[string]any{
+					"calendar_list": []map[string]any{
+						{
+							"calendar_id": "cal-primary",
+							"type":        "primary",
+							"role":        "owner",
+						},
 					},
-					"end_time": map[string]any{
-						"timestamp": recorder.end,
+					"has_more": false,
+				},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/calendar/v4/calendars/") && strings.HasSuffix(r.URL.Path, "/events"):
+			recorder.record(r)
+			if recorder.err != nil {
+				http.Error(w, recorder.err.Error(), http.StatusBadRequest)
+				return
+			}
+			resp := map[string]any{
+				"code": 0,
+				"msg":  "ok",
+				"data": map[string]any{
+					"event": map[string]any{
+						"event_id": "evt_123",
+						"summary":  recorder.summary,
+						"start_time": map[string]any{
+							"timestamp": recorder.start,
+						},
+						"end_time": map[string]any{
+							"timestamp": recorder.end,
+						},
 					},
 				},
-			},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	defer server.Close()
 
@@ -293,11 +331,9 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 					ID:   "call-1",
 					Name: "lark_calendar_create",
 					Arguments: map[string]any{
-						"calendar_id":       "cal_123",
-						"summary":           "Team sync",
-						"start_time":        "1700000000",
-						"end_time":          "1700003600",
-						"user_access_token": "user-token",
+						"summary":    "Team sync",
+						"start_time": "1700000000",
+						"end_time":   "1700003600",
 					},
 				}},
 				StopReason: "tool_calls",
@@ -341,6 +377,7 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 	injecting := &injectingCoordinator{
 		inner:      coord,
 		larkClient: larkClient,
+		oauth:      &staticLarkOAuth{token: "user-token"},
 		approver:   approver,
 	}
 
@@ -352,7 +389,7 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 		Schedule: "* * * * *",
 		Task:     "Create a calendar event for the next team sync.",
 		Channel:  "lark",
-		UserID:   "user-1",
+		UserID:   "ou_123",
 		ChatID:   "oc_chat",
 	}
 
@@ -385,7 +422,7 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 	if recorder.method != http.MethodPost {
 		t.Fatalf("expected POST request, got %s", recorder.method)
 	}
-	if recorder.path != "/open-apis/calendar/v4/calendars/cal_123/events" {
+	if recorder.path != "/open-apis/calendar/v4/calendars/cal-primary/events" {
 		t.Fatalf("unexpected request path: %s", recorder.path)
 	}
 	if recorder.auth != "Bearer user-token" {
@@ -413,7 +450,7 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 	if eventID, ok := toolResult.Metadata["event_id"].(string); !ok || eventID != "evt_123" {
 		t.Fatalf("expected event_id metadata, got %v", toolResult.Metadata["event_id"])
 	}
-	if calendarID, ok := toolResult.Metadata["calendar_id"].(string); !ok || calendarID != "cal_123" {
+	if calendarID, ok := toolResult.Metadata["calendar_id"].(string); !ok || calendarID != "cal-primary" {
 		t.Fatalf("expected calendar_id metadata, got %v", toolResult.Metadata["calendar_id"])
 	}
 

@@ -120,7 +120,7 @@ func TestScheduler_StaticTriggerRegistration(t *testing.T) {
 				Schedule: "0 9 * * 1",
 				Task:     "Test task",
 				Channel:  "lark",
-				UserID:   "user-1",
+				UserID:   "ou_test",
 				ChatID:   "oc_test",
 			},
 		},
@@ -361,7 +361,7 @@ func TestScheduler_ExecuteTrigger(t *testing.T) {
 		Task:    "Execute this",
 		Channel: "lark",
 		ChatID:  "oc_exec",
-		UserID:  "user-1",
+		UserID:  "ou_exec",
 	}
 
 	if err := sched.executeTrigger(trigger); err != nil {
@@ -388,6 +388,32 @@ func TestScheduler_ExecuteTrigger(t *testing.T) {
 	}
 }
 
+func TestScheduler_ExecuteTrigger_LarkRequiresOpenID(t *testing.T) {
+	coord := &mockCoordinator{answer: "task result"}
+	notifier := &mockNotifier{}
+
+	sched := New(Config{Enabled: true}, coord, notifier, nil)
+
+	trigger := Trigger{
+		Name:    "exec-test",
+		Task:    "Execute this",
+		Channel: "lark",
+		ChatID:  "oc_exec",
+		UserID:  "user-1",
+	}
+
+	if err := sched.executeTrigger(trigger); err == nil {
+		t.Fatal("expected error for non-open_id user_id")
+	}
+
+	if coord.callCount() != 0 {
+		t.Errorf("expected coordinator not called, got %d", coord.callCount())
+	}
+	if notifier.messageCount() != 0 {
+		t.Fatalf("expected no notifier messages, got %d", notifier.messageCount())
+	}
+}
+
 func TestScheduler_ExecuteTrigger_NoNotifier(t *testing.T) {
 	coord := &mockCoordinator{answer: "done"}
 
@@ -398,6 +424,7 @@ func TestScheduler_ExecuteTrigger_NoNotifier(t *testing.T) {
 		Task:    "Run this",
 		Channel: "lark",
 		ChatID:  "oc_test",
+		UserID:  "ou_no_notify",
 	}
 
 	// Should not panic with nil notifier
@@ -460,6 +487,7 @@ func TestScheduler_RapidCronExecution(t *testing.T) {
 				Task:     "Rapid task",
 				Channel:  "lark",
 				ChatID:   "oc_rapid",
+				UserID:   "ou_rapid",
 			},
 		},
 	}, coord, notifier, nil)
@@ -482,7 +510,7 @@ func TestScheduler_RapidCronExecution(t *testing.T) {
 
 func TestScheduler_JobStoreLoadsPersistedJobs(t *testing.T) {
 	store := NewFileJobStore(t.TempDir())
-	payload, err := payloadFromTrigger(Trigger{Channel: "lark", UserID: "user-1", ChatID: "chat-1"})
+	payload, err := payloadFromTrigger(Trigger{Channel: "lark", UserID: "ou_job", ChatID: "chat-1"})
 	if err != nil {
 		t.Fatalf("payloadFromTrigger: %v", err)
 	}
