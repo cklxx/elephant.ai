@@ -243,7 +243,7 @@ run_cycle() {
     return 1
   fi
 
-  if ! merge_into_main_ff_only "${base_sha}"; then
+  if merge_into_main_ff_only "${base_sha}"; then
     append_log "[merge] success"
   else
     local rc=$?
@@ -306,4 +306,3 @@ case "${cmd}" in
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;
 esac
-
