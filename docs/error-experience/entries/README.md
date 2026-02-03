@@ -20,5 +20,8 @@ Updated: 2026-02-03
 - [2026-01-30-dev-lint-errcheck-failures.md](2026-01-30-dev-lint-errcheck-failures.md)
 - [2026-01-30-memory-import-cycle.md](2026-01-30-memory-import-cycle.md)
 - [2026-01-31-dev-lint-unused-subsystem-test.md](2026-01-31-dev-lint-unused-subsystem-test.md)
+- [2026-02-01-darwin-ld-dysymtab-warning.md](2026-02-01-darwin-ld-dysymtab-warning.md)
 - [2026-02-02-dev-sh-sandbox-env-flags-unbound.md](2026-02-02-dev-sh-sandbox-env-flags-unbound.md)
+- [2026-02-02-subagent-dangling-tool-output.md](2026-02-02-subagent-dangling-tool-output.md)
+- [2026-02-03-codex-o3-chatgpt-subscription.md](2026-02-03-codex-o3-chatgpt-subscription.md)
 - [2026-02-03-subagent-parallel-burst-upstream-rejection.md](2026-02-03-subagent-parallel-burst-upstream-rejection.md)
