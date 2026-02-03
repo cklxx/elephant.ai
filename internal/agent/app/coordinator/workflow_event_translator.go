@@ -145,6 +145,59 @@ func (t *workflowEventTranslator) translate(evt agent.AgentEvent) []*domain.Work
 			"memories_injected": e.MemoriesInjected,
 		})
 
+	case *domain.BackgroundTaskDispatchedEvent:
+		return t.singleEnvelope(evt, types.EventBackgroundTaskDispatched, "background", e.TaskID, map[string]any{
+			"task_id":     e.TaskID,
+			"description": e.Description,
+			"prompt":      e.Prompt,
+			"agent_type":  e.AgentType,
+		})
+
+	case *domain.BackgroundTaskCompletedEvent:
+		return t.singleEnvelope(evt, types.EventBackgroundTaskCompleted, "background", e.TaskID, map[string]any{
+			"task_id":     e.TaskID,
+			"description": e.Description,
+			"status":      e.Status,
+			"answer":      e.Answer,
+			"error":       e.Error,
+			"duration":    e.Duration.Milliseconds(),
+			"iterations":  e.Iterations,
+			"tokens_used": e.TokensUsed,
+		})
+
+	case *domain.ExternalAgentProgressEvent:
+		return t.singleEnvelope(evt, types.EventExternalAgentProgress, "external_agent", e.TaskID, map[string]any{
+			"task_id":       e.TaskID,
+			"agent_type":    e.AgentType,
+			"iteration":     e.Iteration,
+			"max_iter":      e.MaxIter,
+			"tokens_used":   e.TokensUsed,
+			"cost_usd":      e.CostUSD,
+			"current_tool":  e.CurrentTool,
+			"current_args":  e.CurrentArgs,
+			"files_touched": e.FilesTouched,
+			"last_activity": e.LastActivity,
+			"elapsed":       e.Elapsed.Milliseconds(),
+		})
+
+	case *domain.ExternalInputRequestEvent:
+		return t.singleEnvelope(evt, types.EventExternalInputRequested, "external_input", e.TaskID, map[string]any{
+			"task_id":    e.TaskID,
+			"agent_type": e.AgentType,
+			"request_id": e.RequestID,
+			"type":       e.Type,
+			"summary":    e.Summary,
+		})
+
+	case *domain.ExternalInputResponseEvent:
+		return t.singleEnvelope(evt, types.EventExternalInputResponded, "external_input", e.TaskID, map[string]any{
+			"task_id":    e.TaskID,
+			"request_id": e.RequestID,
+			"approved":   e.Approved,
+			"option_id":  e.OptionID,
+			"message":    e.Message,
+		})
+
 	case agent.SubtaskWrapper:
 		return t.translateSubtaskEvent(e)
 	default:
