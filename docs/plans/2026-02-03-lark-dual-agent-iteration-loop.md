@@ -44,6 +44,24 @@ Author: cklxx
 
 ## Implemented Interfaces
 
+### 统一入口（推荐）
+
+只记两个命令：
+
+- `./lark.sh ma ...`：主 agent（main worktree 的 server + 本地 auth DB）
+- `./lark.sh ta ...`：副 agent（test worktree 自愈 loop watcher；会自动确保 `.worktrees/test` + 同步 `.env`）
+
+用法：
+
+```bash
+./lark.sh ma start
+./lark.sh ta start
+```
+
+对应关系（想看细节时再用）：
+- `./lark.sh ma <cmd>` → `scripts/lark/main.sh <cmd>`
+- `./lark.sh ta <cmd>` → `scripts/lark/loop-agent.sh <cmd>`（启动前会 `worktree.sh ensure`）
+
 ### Worktree 管理
 
 - `scripts/lark/worktree.sh ensure`
@@ -56,12 +74,14 @@ Author: cklxx
   - 在主 worktree 启动/重启 `alex-server`（并确保本地 auth DB 已启动）
   - 通过 `http://127.0.0.1:${MAIN_PORT:-8080}/health` 做健康检查
 
+- `scripts/lark/loop-agent.sh start|stop|restart|status|logs`
+  - 启动/管理副 agent 的 loop（`scripts/lark/loop.sh watch`）
+
+（可选）如果你需要单独起一个 test worktree 的 server（用于手动验证/对比配置），用：
+
 - `scripts/lark/test.sh start|stop|restart|status|logs|build`
   - 在 `.worktrees/test` 启动/重启 `alex-server`（并确保本地 auth DB 已启动 + `.env` 已同步）
   - 默认读取 `~/.alex/test.yaml`（也可指定绝对路径，如 `/Users/bytedance/.alex/test.yaml`）
-
-- `scripts/lark/loop-agent.sh start|stop|restart|status|logs`
-  - 启动/管理副 agent 的 loop（`scripts/lark/loop.sh watch`）
 
 ### 副 agent 自愈闭环
 
@@ -110,17 +130,18 @@ alex lark scenario run \
 ## How To Run
 
 1) 确保 `.env` 已准备好（参考 `.env.example`）
-2) 启动主 agent：
+2) 安装 web 依赖（slow gate 会跑 web lint；main/test worktree 都需要）
 ```bash
-./scripts/lark/main.sh start
+cd web && pnpm install
+cd -
+./scripts/lark/worktree.sh ensure
+cd .worktrees/test/web && pnpm install
+cd -
 ```
-3) 启动 test server（读取 `~/.alex/test.yaml`）：
+3) 启动主/副 agent：
 ```bash
-./scripts/lark/test.sh start
-```
-4) 启动副 agent loop：
-```bash
-./scripts/lark/loop-agent.sh start
+./lark.sh ma start
+./lark.sh ta start
 ```
 
 ---
