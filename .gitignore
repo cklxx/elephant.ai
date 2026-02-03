@@ -105,6 +105,7 @@ npm/*/bin/alex.exe
 
 # Local configuration and runtime artifacts
 .deep-coding-config.json
+.worktrees/
 .env.local
 .env*.local
 *.pid
