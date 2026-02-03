@@ -4,11 +4,9 @@ Updated: 2026-02-03
 
 ## Overview
 - Memory is Markdown-only; Markdown files are the single source of truth under `~/.alex/memory/`.
-- A local SQLite index (sqlite-vec + FTS5) is derived for faster retrieval; it can be rebuilt at any time.
-- Memory stays local and user-controlled; edits are transparent and versionable.
 - Long-term memory is curated in `MEMORY.md`.
 - Daily notes are append-only in `memory/YYYY-MM-DD.md`.
-- Search is performed with `memory_search`, and reads are done with `memory_get`.
+- Search with `memory_search`, then read exact lines with `memory_get`.
 - There is no dedicated `memory_write` tool; write memories via normal file tools.
 
 ## Context vs Memory
@@ -17,14 +15,7 @@ Updated: 2026-02-03
 
 ## Storage Layout
 
-```
-
-## Indexing & Search
-- Index database: `~/.alex/memory/index.sqlite` (per-user indices live under `~/.alex/memory/users/<user-id>/index.sqlite`).
-- Chunking: ~400 tokens per chunk with 80-token overlap (configurable).
-- Embeddings: local Ollama embedding model (default `nomic-embed-text`).
-- Hybrid ranking: `final = 0.7 * vectorScore + 0.3 * bm25Score` with `minScore = 0.35`.
-- If the index is unavailable, memory search falls back to Markdown file scanning.
+```text
 ~/.alex/memory/
 ├── MEMORY.md
 └── memory/
@@ -107,7 +98,7 @@ Guidelines:
 
 Example:
 ```json
-{ "query": "API decision REST vs GraphQL", "maxResults": 6, "minScore": 0.35 }
+{ "query": "API decision REST vs GraphQL" }
 ```
 
 ## Compaction Safety

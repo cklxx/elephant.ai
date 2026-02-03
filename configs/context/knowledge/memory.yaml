@@ -1,10 +1,9 @@
 id: memory-system
 description: |
-  Markdown memory system aligned to Clawdbot: session boot, write via files, hybrid search with local index, read with memory_get.
+  Markdown memory system aligned to Clawdbot: session boot, write via files, retrieve with memory_search + memory_get.
 sop_refs:
   - docs/reference/MEMORY_SYSTEM.md#session-boot-sequence
   - docs/reference/MEMORY_SYSTEM.md#writing-memory
-  - docs/reference/MEMORY_SYSTEM.md#indexing--search
   - docs/reference/MEMORY_SYSTEM.md#retrieval-workflow
   - docs/reference/MEMORY_SYSTEM.md#compaction-safety
 memory_keys:
