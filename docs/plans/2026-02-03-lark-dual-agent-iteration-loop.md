@@ -18,6 +18,7 @@ Author: cklxx
   - 通过后 **ff-only 合入 `main`**
   - 触发主 agent 重启/更新部署
 - `.env` 是本地事实来源：worktree 创建/每轮测试前自动复制到 `.worktrees/test/.env`
+- 日志按 worktree 隔离：主/副进程启动时都会设置 `ALEX_LOG_DIR`，因此内部 `alex-service/llm/latency` 日志落在各自 worktree 的 `logs/` 下。
 
 这套设计允许主 agent “乱搞”，但副 agent 的闭环必须以**明确的 `main@SHA`**为测试对象，否则测试结果没有语义。
 
@@ -80,6 +81,7 @@ Author: cklxx
 - `scripts/lark/test.sh start|stop|restart|status|logs|build`
   - 在 `.worktrees/test` 启动/重启 `alex-server`（并确保本地 auth DB 已启动 + `.env` 已同步）
   - 默认读取 `~/.alex/test.yaml`（也可指定绝对路径，如 `/Users/bytedance/.alex/test.yaml`）
+  - 内部日志目录：默认写到 `.worktrees/test/logs`（可通过 `ALEX_LOG_DIR` 覆盖）
 
 ### 副 agent 自愈闭环
 
@@ -143,18 +145,39 @@ cd -
 ./lark.sh ta start
 ```
 
+4) 让 test bot 的工作目录指向 test worktree（避免修复落在 main）：
+
+```yaml
+channels:
+  lark:
+    workspace_dir: /Users/bytedance/code/elephant.ai/.worktrees/test
+```
+
 ---
 
 ## Logs / Artifacts
 
 - main worktree（repo root）：
-  - `logs/lark-main.log`：主 agent server 日志
+  - `logs/lark-main.log`：主 agent server stdout/stderr（nohup 重定向）
+  - `logs/alex-service.log`：主 agent 内部服务日志（含 Lark gateway、任务执行）
+  - `logs/alex-llm.log`：主 agent LLM 调用日志
+  - `logs/alex-latency.log`：主 agent latency 日志
 - test worktree（`.worktrees/test`）：
-  - `logs/lark-test.log`：test server 日志
+  - `logs/lark-test.log`：test server stdout/stderr（nohup 重定向）
+  - `logs/alex-service.log`：test server 内部服务日志（含 `Lark message received ...`）
+  - `logs/alex-llm.log`：test server LLM 调用日志
+  - `logs/alex-latency.log`：test server latency 日志
   - `logs/lark-loop-agent.log`：loop watcher 进程日志（watch 输出）
   - `logs/lark-loop.log`：自愈循环总日志
   - `logs/lark-loop.fail.txt`：失败摘要（tail 200）
   - `logs/lark-scenarios.json` / `logs/lark-scenarios.md`：场景评测报告
+
+---
+
+## Note: 手动场景默认跳过
+
+`alex lark scenario run` 默认 **跳过** `tags: ["manual"]` 的场景（除非显式 `--tag manual`），
+避免 loop 被“专门留给自愈的故障场景”干扰。
 
 ---
 

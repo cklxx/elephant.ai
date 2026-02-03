@@ -242,6 +242,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 	if msg == nil {
 		return nil
 	}
+	g.logger.Info("Lark message received: chat_id=%s msg_id=%s sender=%s group=%t len=%d", msg.chatID, msg.messageID, msg.senderID, msg.isGroup, len(msg.content))
 
 	slot := g.getOrCreateSlot(msg.chatID)
 	slot.mu.Lock()
