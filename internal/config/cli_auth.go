@@ -3,6 +3,7 @@ package config
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,6 +21,9 @@ const (
 
 	antigravityOAuthTokenURL    = "https://oauth2.googleapis.com/token"
 	antigravityOAuthRefreshSkew = 5 * time.Minute
+
+	codexOAuthTokenURL    = "https://auth.openai.com/oauth/token"
+	codexOAuthRefreshSkew = 5 * time.Minute
 )
 
 // resolveGeminiOAuthClient returns the Gemini CLI/IDE OAuth client credentials,
@@ -104,10 +108,15 @@ func resolveHomeDir(homeDir func() (string, error)) string {
 }
 
 type codexAuthFile struct {
-	Tokens struct {
-		AccessToken string `json:"access_token"`
-		AccountID   string `json:"account_id"`
+	OpenAIAPIKey *string `json:"OPENAI_API_KEY"`
+	Tokens       struct {
+		IDToken      string `json:"id_token"`
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		AccountID    string `json:"account_id"`
 	} `json:"tokens"`
+	LastRefresh string `json:"last_refresh"`
+	TokenURL    string `json:"token_url,omitempty"` // override for testing; defaults to codexOAuthTokenURL
 }
 
 type geminiOAuthFile struct {
@@ -128,7 +137,8 @@ func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) CLICre
 	if readFile == nil || home == "" {
 		return CLICredential{}
 	}
-	data, err := readFile(filepath.Join(home, ".codex", "auth.json"))
+	path := filepath.Join(home, ".codex", "auth.json")
+	data, err := readFile(path)
 	if err != nil {
 		return CLICredential{}
 	}
@@ -142,6 +152,21 @@ func loadCodexCLIAuth(readFile func(string) ([]byte, error), home string) CLICre
 		return CLICredential{}
 	}
 	accountID := strings.TrimSpace(payload.Tokens.AccountID)
+
+	// Check if the access token needs refresh.
+	now := time.Now()
+	if needsRefresh, _ := codexOAuthNeedsRefresh(token, now); needsRefresh {
+		if strings.TrimSpace(payload.Tokens.RefreshToken) != "" {
+			refreshed, err := refreshCodexOAuth(payload)
+			if err == nil {
+				payload = refreshed
+				token = strings.TrimSpace(payload.Tokens.AccessToken)
+				_ = writeCodexAuthFile(path, payload)
+			}
+			// On failure, fall through with the existing token so the
+			// provider surfaces with an auth error instead of hiding.
+		}
+	}
 
 	model := strings.TrimSpace(loadCodexCLIModel(readFile, home))
 
@@ -194,6 +219,139 @@ func parseTomlStringValue(data []byte, key string) string {
 		}
 	}
 	return ""
+}
+
+// parseJWTExpiry decodes the JWT payload (without signature verification)
+// and returns the expiration time from the "exp" claim.
+func parseJWTExpiry(token string) (time.Time, bool) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return time.Time{}, false
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return time.Time{}, false
+	}
+	var claims struct {
+		Exp int64 `json:"exp"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil || claims.Exp <= 0 {
+		return time.Time{}, false
+	}
+	return time.Unix(claims.Exp, 0), true
+}
+
+// parseJWTClientID extracts the client_id claim from a JWT payload.
+func parseJWTClientID(token string) string {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return ""
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return ""
+	}
+	var claims struct {
+		ClientID string `json:"client_id"`
+	}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(claims.ClientID)
+}
+
+func codexOAuthNeedsRefresh(token string, now time.Time) (bool, bool) {
+	expiry, ok := parseJWTExpiry(token)
+	if !ok {
+		return false, false
+	}
+	if expiry.Before(now) {
+		return true, true
+	}
+	if expiry.Before(now.Add(codexOAuthRefreshSkew)) {
+		return true, false
+	}
+	return false, false
+}
+
+func refreshCodexOAuth(payload codexAuthFile) (codexAuthFile, error) {
+	refreshToken := strings.TrimSpace(payload.Tokens.RefreshToken)
+	if refreshToken == "" {
+		return codexAuthFile{}, io.ErrUnexpectedEOF
+	}
+
+	tokenURL := strings.TrimSpace(payload.TokenURL)
+	if tokenURL == "" {
+		tokenURL = codexOAuthTokenURL
+	}
+
+	clientID := parseJWTClientID(payload.Tokens.AccessToken)
+	if clientID == "" {
+		return codexAuthFile{}, fmt.Errorf("cannot extract client_id from Codex JWT")
+	}
+
+	form := url.Values{}
+	form.Set("client_id", clientID)
+	form.Set("refresh_token", refreshToken)
+	form.Set("grant_type", "refresh_token")
+
+	req, err := http.NewRequest(http.MethodPost, tokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return codexAuthFile{}, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return codexAuthFile{}, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return codexAuthFile{}, fmt.Errorf("codex token refresh failed: %s", resp.Status)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return codexAuthFile{}, err
+	}
+	var refreshed struct {
+		AccessToken  string `json:"access_token"`
+		RefreshToken string `json:"refresh_token"`
+		IDToken      string `json:"id_token"`
+		ExpiresIn    int64  `json:"expires_in"`
+		TokenType    string `json:"token_type"`
+	}
+	if err := json.Unmarshal(body, &refreshed); err != nil {
+		return codexAuthFile{}, err
+	}
+	if strings.TrimSpace(refreshed.AccessToken) == "" {
+		return codexAuthFile{}, io.ErrUnexpectedEOF
+	}
+
+	updated := payload
+	updated.Tokens.AccessToken = strings.TrimSpace(refreshed.AccessToken)
+	if strings.TrimSpace(refreshed.RefreshToken) != "" {
+		updated.Tokens.RefreshToken = strings.TrimSpace(refreshed.RefreshToken)
+	}
+	if strings.TrimSpace(refreshed.IDToken) != "" {
+		updated.Tokens.IDToken = strings.TrimSpace(refreshed.IDToken)
+	}
+	updated.LastRefresh = time.Now().UTC().Format(time.RFC3339Nano)
+
+	return updated, nil
+}
+
+func writeCodexAuthFile(path string, payload codexAuthFile) error {
+	if path == "" {
+		return io.ErrUnexpectedEOF
+	}
+	data, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o600)
 }
 
 func loadClaudeCLIAuth(envLookup EnvLookup, readFile func(string) ([]byte, error), home string) CLICredential {
