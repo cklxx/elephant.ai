@@ -204,41 +204,13 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 	}
 
 	if autoCfg.FallbackToIndex {
-		remaining := filterSkills(library.List(), matches)
-		if len(remaining) > 0 {
-			sb.WriteString("# Other Available Skills\n\n")
-			sb.WriteString("Use the `skills` tool to load any of the following playbooks:\n\n")
-			for _, skill := range remaining {
-				desc := strings.TrimSpace(skill.Description)
-				if desc == "" {
-					desc = "(no description)"
-				}
-				sb.WriteString(fmt.Sprintf("- `%s` — %s\n", skill.Name, desc))
-			}
-		}
+		sb.WriteString("# Skill Discovery\n\n")
+		sb.WriteString("Use the `skills` tool to load playbooks on demand (action=list|search|show).\n")
 	} else if len(matches) == 0 {
-		return skills.IndexMarkdown(library)
+		return strings.TrimSpace("# Skill Discovery\n\nUse the `skills` tool to load playbooks on demand (action=list|search|show).")
 	}
 
 	return strings.TrimSpace(sb.String())
-}
-
-func filterSkills(all []skills.Skill, matches []skills.MatchResult) []skills.Skill {
-	if len(matches) == 0 {
-		return all
-	}
-	selected := make(map[string]bool, len(matches))
-	for _, match := range matches {
-		selected[skills.NormalizeName(match.Skill.Name)] = true
-	}
-	out := make([]skills.Skill, 0, len(all))
-	for _, skill := range all {
-		if selected[skills.NormalizeName(skill.Name)] {
-			continue
-		}
-		out = append(out, skill)
-	}
-	return out
 }
 
 func extractRecentTools(messages []ports.Message, limit int) []string {
