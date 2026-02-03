@@ -24,20 +24,23 @@ After a conversation completes, upload images/files and send a single rich media
      - `image_key` for images,
      - `file_key` for documents.
    - Keep all Lark-specific file typing in `larkFileType`.
+   - Apply `auto_upload_max_bytes` / `auto_upload_allow_ext` before uploading.
 
 3) **Card payload**
    - Add a new card template: `internal/lark/cards/templates.go`.
    - Fields:
      - Title: session title / task goal.
      - Summary: trimmed answer or extracted highlights.
-     - Assets: list of buttons (open file/image) with labels.
-   - Optional: include a “Download all” link when multiple files exist.
+     - Assets: list of buttons (click to send file/image) with labels.
+     - Preview: inline only first 3 images (remaining image assets are buttons only).
+   - Card action: `attachment_send` → bot replies with image/file message by key.
 
 4) **Dispatch**
    - In `Gateway.dispatchResult`, when attachments exist:
      - build the card JSON,
      - send `interactive` card after uploads,
-     - fall back to text if card creation fails.
+     - fall back to text + existing attachment sending if card creation fails.
+    - When the attachment card succeeds: do not send separate image/file messages.
 
 ## Tests
 - Upload helper returns keys and handles unsupported extensions.
@@ -48,3 +51,9 @@ After a conversation completes, upload images/files and send a single rich media
 - One Lark message contains a rich card with preview + attachment buttons.
 - Attachments are uploaded once and referenced by keys.
 - Fallback to text-only reply works when card rendering fails.
+
+## Progress
+- [x] 更新方案决策（单卡片 + 按钮发送 + 预览上限）。
+- [x] 卡片模板与回调处理实现。
+- [x] Gateway 发送逻辑与附件上传策略实现。
+- [x] 测试 + 文档更新 + 草稿清理。

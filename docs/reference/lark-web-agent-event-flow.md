@@ -79,7 +79,7 @@ Updated: 2026-01-31
 | 会话与去重 | 仅处理 text；群/私聊开关；LRU+TTL 去重；memoryID = SHA1(chatID) 作为 session ID；不注入 session history；按 memoryID 加锁串行 | `internal/channels/lark/gateway.go`, `internal/channels/base.go` |
 | 交互体验 | 开始/结束随机 emoji reaction；工具进度消息（单条持续更新，2s 频控）；群聊可拉取近期上下文拼接 | `internal/channels/lark/emoji_reactions.go`, `progress_listener.go`, `chat_context.go` |
 | 计划确认 | plan review 读取/保存 pending（Postgres）；await_user_input 输出计划确认；后续反馈以 `<plan_feedback>` 注入 | `internal/channels/lark/gateway.go`, `plan_review_store.go`, `plan_review_postgres.go` |
-| 回复与附件 | BuildReplyCore + thinking fallback；附件按图片/文件上传 Lark；A2UI 附件过滤；附件摘要追加正文 | `internal/channels/lark/gateway.go` |
+| 回复与附件 | BuildReplyCore + thinking fallback；结果卡片启用时附件合并为单条附件卡（前 3 张图预览 + 按钮发送附件）；失败回退为文本 + 独立附件消息；A2UI 附件过滤 | `internal/channels/lark/gateway.go` |
 | 配置入口 | `channels.lark`（enabled/app_id/app_secret/react_emoji/show_tool_progress/auto_chat_context/plan_review_*） | `docs/reference/CONFIG.md` |
 
 ### 2.2 核心数据结构
@@ -157,7 +157,7 @@ sequenceDiagram
 | 8 | Session + Presets | `EnsureSession` + `ApplyPresets` + `ApplyTimeout` | `gateway.go` |
 | 9 | 执行任务 | `ExecuteTask` 进入 Coordinator → ReAct 循环 | `gateway.go` |
 | 10 | 进度/表情 | progress listener 更新一条消息(2s 频控)；start/end emoji reaction | `progress_listener.go`, `emoji_reactions.go` |
-| 11 | 回复与附件 | `buildReply` + text 回复；图片/文件分别上传 Lark API | `gateway.go` |
+| 11 | 回复与附件 | `buildReply` + text 回复；附件存在时优先发送附件卡（点击按钮发送文件/图片），失败则按图片/文件分别上传 | `gateway.go` |
 
 ### 2.5 并发模型
 
