@@ -30,9 +30,9 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 - **O4 (Shadow DevOps):** eval/baseline/reporting + human-gated release loop.
 - **OS (Shared Infra):** event bus + observability + config/auth/error handling.
 
-## Current State (2026-02-02)
+## Current State (2026-02-03)
 
-**M0 is complete. M1 (P2) is ~80% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing. **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+**M0 is complete. M1 (P2) is ~85% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing. **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
 
 ## Implementation Audit Notes (2026-02-01)
 
@@ -65,7 +65,7 @@ Items that don't block MVP but are required for production reliability.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Runtime done, wiring pending** | Claude C11 + Codex X2 | `internal/agent/domain/react/` |
+| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Done** | Claude C11 + Codex X2 | `internal/agent/domain/react/` |
 | Graceful shutdown | SIGTERM handling + drain logic | **Done** | Claude C15-C16 | `cmd/alex/main.go`, `internal/lifecycle/` |
 | Global tool timeout/retry | Unified timeout/retry + policy rules | **Done** | Claude C13-C14 + Codex X3 | `internal/tools/`, `internal/toolregistry/` |
 | NSM metric collection | WTCR/TimeSaved/Accuracy counters | **Done** | Claude C17 | `internal/observability/` |
@@ -174,9 +174,9 @@ Larger bets that depend on M0+M1 foundations.
 | Lark Docs read/write | Read doc content (Docx → Markdown), create/edit/comment, permission management | **Not started** | Claude | `internal/lark/docs/` |
 | Lark Sheets/Bitable | Read/write cells/records, data analysis, chart generation | **Not started** | Claude | `internal/lark/sheets/`, `internal/lark/bitable/` |
 | Lark Wiki | Browse spaces, read/search/create/update pages, auto-knowledge sedimentation | **Not started** | Claude | `internal/lark/wiki/` |
-| Meeting preparation assistant | Auto-summarize related docs, previous minutes, and TODOs before meetings | **Not started** | Claude | `internal/lark/calendar/` |
-| Meeting notes auto-generation | Post-meeting: auto-generate and push minutes | **Not started** | Claude | `skills/meeting-notes/` |
-| Calendar suggestions | Suggest meeting times based on historical patterns | **Not started** | Claude | `internal/lark/calendar/` |
+| Meeting preparation assistant | Auto-summarize related docs, previous minutes, and TODOs before meetings | **Library done, wiring pending** | Claude | `internal/lark/calendar/meetingprep/` |
+| Meeting notes auto-generation | Post-meeting: auto-generate and push minutes | **Skill done, automation pending** | Claude | `skills/meeting-notes/` |
+| Calendar suggestions | Suggest meeting times based on historical patterns | **Library done, wiring pending** | Claude | `internal/lark/calendar/suggestions/` |
 
 ### Platform & Interaction
 
@@ -275,6 +275,7 @@ O0 (日程+任务闭环)
 | 2026-02-01 | M0-M3 | All | **Roadmap 重构为 OKR-First。** 北极星切片聚焦"日程+任务"闭环，NSM 以 WTCR + TimeSaved + Accuracy 为核心。 |
 | 2026-02-02 | M0 | All | Roadmap 复查：对齐 tool policy/timeout-retry 与 scheduler D4 状态；新增评测集构建（基础准出 + 挑战性评测）；补充跨 Track 结构与索引。 |
 | 2026-02-02 | M1 | All | **Phase 6 complete (C27-C40).** 14 tasks across 3 batches: Tool SLA, memory flush, scheduler tools, provider health, Lark approval, context engineering (priority/trimming/budget), Lark ecosystem (cards/summary/rich content), tool chain (caching/degradation), CI eval gating. All P0+P1 done, P2 ~85% complete. |
+| 2026-02-03 | M1 | All | Roadmap 更新：修正 P1 checkpoint+resume 标记；补齐 Deep Lark 的“库已实现/未接入”状态（meeting prep/suggestions、meeting notes skill）。 |
 
 ---
 

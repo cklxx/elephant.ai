@@ -12,4 +12,4 @@ Steps:
 
 Progress log:
 - 2026-02-03: plan created; audit completed.
-
+- 2026-02-03: synced docs (`docs/roadmap/roadmap.md`, Track 3 draft) and updated README (EN/ZH); validated via `./dev.sh lint` + `./dev.sh test`.
