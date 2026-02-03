@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	agent "alex/internal/agent/ports/agent"
@@ -26,6 +27,16 @@ type Config struct {
 type Executor struct {
 	cfg    Config
 	logger logging.Logger
+}
+
+type progressState struct {
+	mu           sync.Mutex
+	tokensUsed   int
+	currentTool  string
+	currentArgs  string
+	filesTouched []string
+	lastActivity time.Time
+	lastEmit     time.Time
 }
 
 func New(cfg Config) *Executor {
@@ -71,6 +82,14 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	})
 	client := mcp.NewClient("codex", process)
 
+	state := &progressState{}
+	client.SetNotificationHandler(func(method string, params map[string]any) {
+		if method != "codex/event" {
+			return
+		}
+		e.handleCodexEvent(req, state, params)
+	})
+
 	if err := client.Start(ctx); err != nil {
 		return nil, err
 	}
@@ -97,12 +116,31 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		return nil, err
 	}
 	if result.IsError {
-		return &agent.ExternalAgentResult{Error: "codex tool error"}, nil
+		msg := strings.TrimSpace(extractContent(result.Content))
+		if msg == "" {
+			msg = "codex tool error"
+		}
+		return &agent.ExternalAgentResult{Error: msg}, nil
 	}
 	answer := extractContent(result.Content)
-	return &agent.ExternalAgentResult{
+	out := &agent.ExternalAgentResult{
 		Answer: answer,
-	}, nil
+	}
+
+	state.mu.Lock()
+	out.TokensUsed = state.tokensUsed
+	state.mu.Unlock()
+
+	if result.StructuredContent != nil {
+		out.Metadata = map[string]any{
+			"structured_content": result.StructuredContent,
+		}
+		if threadID, ok := result.StructuredContent["thread_id"].(string); ok && strings.TrimSpace(threadID) != "" {
+			out.Metadata["thread_id"] = threadID
+		}
+	}
+
+	return out, nil
 }
 
 func extractContent(content []mcp.ContentBlock) string {
@@ -113,6 +151,131 @@ func extractContent(content []mcp.ContentBlock) string {
 		}
 	}
 	return sb.String()
+}
+
+func (e *Executor) handleCodexEvent(req agent.ExternalAgentRequest, state *progressState, params map[string]any) {
+	if req.OnProgress == nil {
+		return
+	}
+
+	rawMsg, _ := params["msg"].(map[string]any)
+	if rawMsg == nil {
+		return
+	}
+	msgType, _ := rawMsg["type"].(string)
+	if msgType == "" {
+		return
+	}
+
+	// Drop noisy raw template payloads.
+	if msgType == "raw_response_item" || msgType == "mcp_startup_update" {
+		return
+	}
+
+	now := time.Now()
+	updated := false
+
+	state.mu.Lock()
+	switch msgType {
+	case "token_count":
+		if tokens := extractTotalTokens(rawMsg); tokens > 0 && tokens != state.tokensUsed {
+			state.tokensUsed = tokens
+			updated = true
+		}
+		state.lastActivity = now
+	case "agent_message_delta":
+		if delta := extractDelta(rawMsg); delta != "" {
+			state.currentTool = "assistant_output"
+			state.currentArgs = truncate(delta, 200)
+			state.lastActivity = now
+			updated = true
+		}
+	case "agent_message":
+		if text := extractDelta(rawMsg); text != "" {
+			state.currentTool = "assistant_output"
+			state.currentArgs = truncate(text, 200)
+			state.lastActivity = now
+			updated = true
+		}
+	case "task_started":
+		state.currentTool = "task_started"
+		state.currentArgs = ""
+		state.lastActivity = now
+		updated = true
+	case "task_complete":
+		state.currentTool = "task_complete"
+		state.currentArgs = ""
+		state.lastActivity = now
+		updated = true
+	default:
+		// Best-effort: surface unknown events without payloads.
+		if strings.Contains(msgType, "tool") {
+			state.currentTool = msgType
+			state.currentArgs = ""
+			state.lastActivity = now
+			updated = true
+		}
+	}
+
+	shouldEmit := updated && (state.lastEmit.IsZero() || now.Sub(state.lastEmit) >= 250*time.Millisecond)
+	if shouldEmit {
+		state.lastEmit = now
+	}
+	snapshot := agent.ExternalAgentProgress{
+		TokensUsed:   state.tokensUsed,
+		CurrentTool:  state.currentTool,
+		CurrentArgs:  state.currentArgs,
+		FilesTouched: append([]string(nil), state.filesTouched...),
+		LastActivity: state.lastActivity,
+	}
+	state.mu.Unlock()
+
+	if shouldEmit {
+		req.OnProgress(snapshot)
+	}
+}
+
+func extractTotalTokens(msg map[string]any) int {
+	info, _ := msg["info"].(map[string]any)
+	if info == nil {
+		return 0
+	}
+	totalUsage, _ := info["total_token_usage"].(map[string]any)
+	if totalUsage == nil {
+		return 0
+	}
+	switch v := totalUsage["total_tokens"].(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	case int64:
+		return int(v)
+	}
+	return 0
+}
+
+func extractDelta(msg map[string]any) string {
+	if v, ok := msg["delta"].(string); ok && strings.TrimSpace(v) != "" {
+		return v
+	}
+	if v, ok := msg["text"].(string); ok && strings.TrimSpace(v) != "" {
+		return v
+	}
+	if v, ok := msg["content"].(string); ok && strings.TrimSpace(v) != "" {
+		return v
+	}
+	return ""
+}
+
+func truncate(s string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	if len(s) <= max {
+		return s
+	}
+	return s[:max]
 }
 
 func pickString(config map[string]string, key string, fallback string) string {
