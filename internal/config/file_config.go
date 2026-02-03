@@ -249,6 +249,8 @@ type LarkChannelConfig struct {
 	AppID                         string             `json:"app_id" yaml:"app_id"`
 	AppSecret                     string             `json:"app_secret" yaml:"app_secret"`
 	TenantAccessToken             string             `json:"tenant_access_token" yaml:"tenant_access_token"`
+	TenantTokenMode               string             `json:"tenant_token_mode" yaml:"tenant_token_mode"`
+	TenantCalendarID              string             `json:"tenant_calendar_id" yaml:"tenant_calendar_id"`
 	BaseDomain                    string             `json:"base_domain" yaml:"base_domain"`
 	WorkspaceDir                  string             `json:"workspace_dir" yaml:"workspace_dir"`
 	CardsEnabled                  *bool              `json:"cards_enabled" yaml:"cards_enabled"`
