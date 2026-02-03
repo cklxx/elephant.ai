@@ -2,9 +2,12 @@ package codex
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os/exec"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	agent "alex/internal/agent/ports/agent"
@@ -91,7 +94,8 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 	})
 
 	if err := client.Start(ctx); err != nil {
-		return nil, err
+		errMsg := formatProcessError(req.AgentType, err, process.StderrTail())
+		return nil, errors.New(maybeAppendAuthHintCodex(errMsg, process.StderrTail()))
 	}
 	defer func() { _ = client.Stop() }()
 
@@ -113,7 +117,8 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 
 	result, err := client.CallTool(ctx, "codex", args)
 	if err != nil {
-		return nil, err
+		errMsg := formatProcessError(req.AgentType, err, process.StderrTail())
+		return nil, errors.New(maybeAppendAuthHintCodex(errMsg, process.StderrTail()))
 	}
 	if result.IsError {
 		msg := strings.TrimSpace(extractContent(result.Content))
@@ -297,4 +302,78 @@ func cloneStringMap(in map[string]string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+func formatProcessError(agentName string, err error, stderrTail string) string {
+	name := strings.TrimSpace(agentName)
+	if name == "" {
+		name = "external agent"
+	}
+	msg := fmt.Sprintf("%s exited: %v", name, err)
+	if detail := exitDetail(err); detail != "" {
+		msg = fmt.Sprintf("%s (%s)", msg, detail)
+	}
+	if tail := compactTail(stderrTail, 400); tail != "" {
+		msg = fmt.Sprintf("%s | stderr tail: %s", msg, tail)
+	}
+	return msg
+}
+
+func maybeAppendAuthHintCodex(msg string, stderrTail string) string {
+	if !containsAny(stderrTail, []string{"api key", "unauthorized", "authentication"}) {
+		return msg
+	}
+	return fmt.Sprintf("%s Hint: ensure Codex has a valid login or API key configured.", msg)
+}
+
+func containsAny(input string, needles []string) bool {
+	lower := strings.ToLower(input)
+	for _, needle := range needles {
+		if needle == "" {
+			continue
+		}
+		if strings.Contains(lower, strings.ToLower(needle)) {
+			return true
+		}
+	}
+	return false
+}
+
+func compactTail(tail string, limit int) string {
+	trimmed := strings.TrimSpace(tail)
+	if trimmed == "" {
+		return ""
+	}
+	compact := strings.Join(strings.Fields(trimmed), " ")
+	if limit > 0 && len(compact) > limit {
+		return compact[:limit]
+	}
+	return compact
+}
+
+type exitCoder interface {
+	ExitCode() int
+}
+
+func exitDetail(err error) string {
+	if err == nil {
+		return ""
+	}
+	detail := ""
+	var exitErr exitCoder
+	if errors.As(err, &exitErr) {
+		if code := exitErr.ExitCode(); code >= 0 {
+			detail = fmt.Sprintf("exit=%d", code)
+		}
+	}
+	if execErr := new(exec.ExitError); errors.As(err, &execErr) {
+		if status, ok := execErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+			if detail == "" {
+				detail = fmt.Sprintf("signal=%s", status.Signal())
+			} else {
+				detail = fmt.Sprintf("%s signal=%s", detail, status.Signal())
+			}
+		}
+	}
+	return detail
 }

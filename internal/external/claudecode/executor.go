@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	agent "alex/internal/agent/ports/agent"
@@ -34,16 +37,17 @@ type Config struct {
 
 // Executor implements agent.InteractiveExternalExecutor for Claude Code CLI.
 type Executor struct {
-	cfg              Config
-	inputCh          chan agent.InputRequest
-	pending          sync.Map
-	logger           logging.Logger
+	cfg               Config
+	inputCh           chan agent.InputRequest
+	pending           sync.Map
+	logger            logging.Logger
 	subprocessFactory func(subprocess.Config) subprocessRunner
 }
 
 type subprocessRunner interface {
 	Start(ctx context.Context) error
 	Stdout() io.ReadCloser
+	StderrTail() string
 	Wait() error
 	Stop() error
 }
@@ -194,7 +198,8 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		return result, err
 	}
 	if err := proc.Wait(); err != nil {
-		return result, err
+		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
+		return result, errors.New(maybeAppendClaudeAuthHint(errMsg, proc.StderrTail()))
 	}
 	return result, nil
 }
@@ -300,6 +305,80 @@ func truncate(input string, limit int) string {
 		return input
 	}
 	return input[:limit]
+}
+
+func formatProcessError(agentName string, err error, stderrTail string) string {
+	name := strings.TrimSpace(agentName)
+	if name == "" {
+		name = "external agent"
+	}
+	msg := fmt.Sprintf("%s exited: %v", name, err)
+	if detail := exitDetail(err); detail != "" {
+		msg = fmt.Sprintf("%s (%s)", msg, detail)
+	}
+	if tail := compactTail(stderrTail, 400); tail != "" {
+		msg = fmt.Sprintf("%s | stderr tail: %s", msg, tail)
+	}
+	return msg
+}
+
+func maybeAppendClaudeAuthHint(msg string, stderrTail string) string {
+	if !containsAny(stderrTail, []string{"not logged", "unauthorized"}) {
+		return msg
+	}
+	return fmt.Sprintf("%s Hint: ensure the Claude CLI is logged in (e.g. run `claude login`).", msg)
+}
+
+func containsAny(input string, needles []string) bool {
+	lower := strings.ToLower(input)
+	for _, needle := range needles {
+		if needle == "" {
+			continue
+		}
+		if strings.Contains(lower, strings.ToLower(needle)) {
+			return true
+		}
+	}
+	return false
+}
+
+func compactTail(tail string, limit int) string {
+	trimmed := strings.TrimSpace(tail)
+	if trimmed == "" {
+		return ""
+	}
+	compact := strings.Join(strings.Fields(trimmed), " ")
+	if limit > 0 && len(compact) > limit {
+		return compact[:limit]
+	}
+	return compact
+}
+
+type exitCoder interface {
+	ExitCode() int
+}
+
+func exitDetail(err error) string {
+	if err == nil {
+		return ""
+	}
+	detail := ""
+	var exitErr exitCoder
+	if errors.As(err, &exitErr) {
+		if code := exitErr.ExitCode(); code >= 0 {
+			detail = fmt.Sprintf("exit=%d", code)
+		}
+	}
+	if execErr := new(exec.ExitError); errors.As(err, &execErr) {
+		if status, ok := execErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+			if detail == "" {
+				detail = fmt.Sprintf("signal=%s", status.Signal())
+			} else {
+				detail = fmt.Sprintf("%s signal=%s", detail, status.Signal())
+			}
+		}
+	}
+	return detail
 }
 
 func costFromResult(msg StreamMessage) float64 {

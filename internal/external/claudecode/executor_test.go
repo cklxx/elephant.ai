@@ -12,14 +12,16 @@ import (
 )
 
 type fakeSubprocess struct {
-	stdout  io.ReadCloser
-	waitErr error
+	stdout     io.ReadCloser
+	waitErr    error
+	stderrTail string
 }
 
 func (f *fakeSubprocess) Start(ctx context.Context) error { return nil }
 func (f *fakeSubprocess) Stdout() io.ReadCloser           { return f.stdout }
 func (f *fakeSubprocess) Wait() error                     { return f.waitErr }
 func (f *fakeSubprocess) Stop() error                     { return nil }
+func (f *fakeSubprocess) StderrTail() string              { return f.stderrTail }
 
 func TestExecutor_Execute_ParsesProgressAndUsage(t *testing.T) {
 	exec := New(Config{DefaultMode: "autonomous", Timeout: 2 * time.Second})
@@ -69,5 +71,42 @@ func TestExecutor_Execute_ParsesProgressAndUsage(t *testing.T) {
 	}
 	if progress[0].LastActivity.IsZero() {
 		t.Fatalf("expected last activity")
+	}
+}
+
+type fakeExitError struct {
+	code int
+}
+
+func (f fakeExitError) Error() string { return "process exit" }
+func (f fakeExitError) ExitCode() int { return f.code }
+
+func TestExecutor_Execute_IncludesStderrTailOnFailure(t *testing.T) {
+	exec := New(Config{DefaultMode: "autonomous", Timeout: 2 * time.Second})
+	exec.subprocessFactory = func(cfg subprocess.Config) subprocessRunner {
+		return &fakeSubprocess{
+			stdout:     io.NopCloser(strings.NewReader("")),
+			waitErr:    fakeExitError{code: 2},
+			stderrTail: "not logged in",
+		}
+	}
+
+	_, err := exec.Execute(context.Background(), agent.ExternalAgentRequest{
+		TaskID:    "t2",
+		AgentType: "claude_code",
+		Prompt:    "hello",
+	})
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "stderr tail") {
+		t.Fatalf("expected stderr tail in error, got %q", msg)
+	}
+	if !strings.Contains(msg, "exit=2") {
+		t.Fatalf("expected exit code in error, got %q", msg)
+	}
+	if !strings.Contains(strings.ToLower(msg), "claude login") {
+		t.Fatalf("expected auth hint in error, got %q", msg)
 	}
 }
