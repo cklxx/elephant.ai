@@ -22,15 +22,16 @@ type Config struct {
 
 // Subprocess manages the lifecycle of a single external agent process.
 type Subprocess struct {
-	cfg    Config
-	cmd    *exec.Cmd
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	stderr io.ReadCloser
-	done   chan struct{}
-	err    error
-	pgid   int
-	mu     sync.Mutex
+	cfg        Config
+	cmd        *exec.Cmd
+	stdin      io.WriteCloser
+	stdout     io.ReadCloser
+	stderr     io.ReadCloser
+	stderrTail *tailBuffer
+	done       chan struct{}
+	err        error
+	pgid       int
+	mu         sync.Mutex
 }
 
 // New creates a new Subprocess from the given config.
@@ -82,6 +83,7 @@ func (s *Subprocess) Start(ctx context.Context) error {
 	s.stdin = stdin
 	s.stdout = stdout
 	s.stderr = stderr
+	s.stderrTail = newTailBuffer(defaultStderrTail)
 	s.done = make(chan struct{})
 
 	go func() {
@@ -90,6 +92,13 @@ func (s *Subprocess) Start(ctx context.Context) error {
 		s.err = err
 		close(s.done)
 		s.mu.Unlock()
+	}()
+
+	go func() {
+		if stderr == nil {
+			return
+		}
+		_, _ = io.Copy(s.stderrTail, stderr)
 	}()
 
 	if s.cfg.Timeout > 0 {
@@ -131,6 +140,15 @@ func (s *Subprocess) Stderr() io.ReadCloser {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.stderr
+}
+
+func (s *Subprocess) StderrTail() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stderrTail == nil {
+		return ""
+	}
+	return s.stderrTail.String()
 }
 
 func (s *Subprocess) Wait() error {
@@ -177,4 +195,50 @@ func (s *Subprocess) PID() int {
 		return s.cmd.Process.Pid
 	}
 	return 0
+}
+
+const defaultStderrTail = 8 * 1024
+
+type tailBuffer struct {
+	mu  sync.Mutex
+	max int
+	buf []byte
+}
+
+func newTailBuffer(max int) *tailBuffer {
+	if max <= 0 {
+		max = defaultStderrTail
+	}
+	return &tailBuffer{max: max}
+}
+
+func (t *tailBuffer) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if len(p) >= t.max {
+		t.buf = append(t.buf[:0], p[len(p)-t.max:]...)
+		return len(p), nil
+	}
+
+	if len(t.buf)+len(p) > t.max {
+		excess := len(t.buf) + len(p) - t.max
+		t.buf = t.buf[excess:]
+	}
+	t.buf = append(t.buf, p...)
+	return len(p), nil
+}
+
+func (t *tailBuffer) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.buf) == 0 {
+		return ""
+	}
+	copyBuf := make([]byte, len(t.buf))
+	copy(copyBuf, t.buf)
+	return string(copyBuf)
 }

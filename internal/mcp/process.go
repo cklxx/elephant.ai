@@ -17,19 +17,20 @@ import (
 
 // ProcessManager manages an MCP server process lifecycle
 type ProcessManager struct {
-	command     string
-	args        []string
+	command      string
+	args         []string
 	envOverrides map[string]string
-	process     *exec.Cmd
-	stdin       io.WriteCloser
-	stdout      io.ReadCloser
-	stderr      io.ReadCloser
-	logger      logging.Logger
-	mu          sync.Mutex
-	running     bool
-	restartChan chan struct{}
-	stopChan    chan struct{}
-	waitDone    chan error
+	process      *exec.Cmd
+	stdin        io.WriteCloser
+	stdout       io.ReadCloser
+	stderr       io.ReadCloser
+	stderrTail   *tailBuffer
+	logger       logging.Logger
+	mu           sync.Mutex
+	running      bool
+	restartChan  chan struct{}
+	stopChan     chan struct{}
+	waitDone     chan error
 }
 
 // ProcessConfig configures the MCP server process
@@ -47,6 +48,7 @@ func NewProcessManager(config ProcessConfig) *ProcessManager {
 		logger:      logging.NewComponentLogger(fmt.Sprintf("ProcessManager[%s]", config.Command)),
 		restartChan: make(chan struct{}, 1),
 		stopChan:    make(chan struct{}),
+		stderrTail:  newTailBuffer(defaultStderrTail),
 	}
 
 	// Preserve a copy of the overrides. We'll merge with the parent environment at Start().
@@ -305,13 +307,27 @@ func (pm *ProcessManager) GetStdout() io.ReadCloser {
 	return pm.stdout
 }
 
+// StderrTail returns the most recent stderr output, capped by the tail buffer size.
+func (pm *ProcessManager) StderrTail() string {
+	if pm.stderrTail == nil {
+		return ""
+	}
+	return pm.stderrTail.String()
+}
+
 // monitorStderr logs stderr output from the process
 func (pm *ProcessManager) monitorStderr() {
 	if pm.stderr == nil {
 		return
 	}
 
-	scanner := bufio.NewScanner(pm.stderr)
+	reader := io.Reader(pm.stderr)
+	if pm.stderrTail != nil {
+		reader = io.TeeReader(reader, pm.stderrTail)
+	}
+	scanner := bufio.NewScanner(reader)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 2*1024*1024)
 	for scanner.Scan() {
 		select {
 		case <-pm.stopChan:
@@ -363,4 +379,50 @@ func (pm *ProcessManager) monitorExit() {
 // RestartChannel returns the restart notification channel
 func (pm *ProcessManager) RestartChannel() <-chan struct{} {
 	return pm.restartChan
+}
+
+const defaultStderrTail = 8 * 1024
+
+type tailBuffer struct {
+	mu  sync.Mutex
+	max int
+	buf []byte
+}
+
+func newTailBuffer(max int) *tailBuffer {
+	if max <= 0 {
+		max = defaultStderrTail
+	}
+	return &tailBuffer{max: max}
+}
+
+func (t *tailBuffer) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if len(p) >= t.max {
+		t.buf = append(t.buf[:0], p[len(p)-t.max:]...)
+		return len(p), nil
+	}
+
+	if len(t.buf)+len(p) > t.max {
+		excess := len(t.buf) + len(p) - t.max
+		t.buf = t.buf[excess:]
+	}
+	t.buf = append(t.buf, p...)
+	return len(p), nil
+}
+
+func (t *tailBuffer) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if len(t.buf) == 0 {
+		return ""
+	}
+	copyBuf := make([]byte, len(t.buf))
+	copy(copyBuf, t.buf)
+	return string(copyBuf)
 }
