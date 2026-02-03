@@ -7,10 +7,12 @@ toolchain go1.24.12
 require (
 	github.com/PuerkitoBio/goquery v1.10.3
 	github.com/alecthomas/chroma/v2 v2.14.0
+	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/charmbracelet/x/ansi v0.10.1
 	github.com/chromedp/cdproto v0.0.0-20240801214329-3f85d328b335
 	github.com/chromedp/chromedp v0.10.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/goccy/go-json v0.10.3
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
@@ -18,6 +20,7 @@ require (
 	github.com/jackc/pgx/v5 v5.7.6
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/larksuite/oapi-sdk-go/v3 v3.5.3
+	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/minio/minio-go/v7 v7.0.73
 	github.com/muesli/termenv v0.16.0
 	github.com/peterh/liner v1.2.2
@@ -46,7 +49,6 @@ require (
 
 require (
 	github.com/andybalholm/cascadia v1.3.3 // indirect
-	github.com/asg017/sqlite-vec-go-bindings v0.1.6 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
@@ -59,7 +61,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -81,7 +82,6 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/mattn/go-sqlite3 v1.14.33 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/openzipkin/zipkin-go v0.4.3 // indirect
