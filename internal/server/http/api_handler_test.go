@@ -7,6 +7,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -18,6 +20,7 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/analytics/journal"
 	runtimeconfig "alex/internal/config"
+	"alex/internal/memory"
 	"alex/internal/server/app"
 	"alex/internal/session/filestore"
 	sessionstate "alex/internal/session/state_store"
@@ -537,6 +540,82 @@ func TestHandleGetContextWindowPreviewDisabledOutsideDev(t *testing.T) {
 
 	if resp.Code != http.StatusNotFound {
 		t.Fatalf("expected 404 when dev mode disabled, got %d", resp.Code)
+	}
+}
+
+func TestHandleGetMemorySnapshot(t *testing.T) {
+	ctx := context.Background()
+	memoryRoot := t.TempDir()
+	engine := memory.NewMarkdownEngine(memoryRoot)
+	if err := engine.EnsureSchema(ctx); err != nil {
+		t.Fatalf("ensure schema: %v", err)
+	}
+
+	userID := "user-1"
+	userRoot := memory.ResolveUserRoot(memoryRoot, userID)
+	if err := os.MkdirAll(userRoot, 0o755); err != nil {
+		t.Fatalf("mkdir user root: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userRoot, "MEMORY.md"), []byte("long-term note"), 0o644); err != nil {
+		t.Fatalf("write long term: %v", err)
+	}
+	_, err := engine.AppendDaily(ctx, userID, memory.DailyEntry{
+		Title:     "Note",
+		Content:   "daily note",
+		CreatedAt: time.Date(2026, 2, 3, 10, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("append daily: %v", err)
+	}
+
+	sessionStore := filestore.New(t.TempDir())
+	session := &storage.Session{
+		ID:        "sess-1",
+		Messages:  []core.Message{},
+		Metadata:  map[string]string{"user_id": userID},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	if err := sessionStore.Save(ctx, session); err != nil {
+		t.Fatalf("save session: %v", err)
+	}
+
+	coordinator := app.NewServerCoordinator(
+		storeBackedAgentCoordinator{store: sessionStore},
+		app.NewEventBroadcaster(),
+		sessionStore,
+		app.NewInMemoryTaskStore(),
+		nil,
+	)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false, WithDevMode(true), WithMemoryEngine(engine))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/dev/memory?session_id=sess-1", nil)
+	resp := httptest.NewRecorder()
+
+	handler.HandleGetMemorySnapshot(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", resp.Code, resp.Body.String())
+	}
+
+	var body MemorySnapshot
+	if err := json.Unmarshal(resp.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.UserID != userID {
+		t.Fatalf("expected user_id %q, got %q", userID, body.UserID)
+	}
+	if body.LongTerm != "long-term note" {
+		t.Fatalf("unexpected long-term content: %q", body.LongTerm)
+	}
+	if len(body.Daily) != 1 {
+		t.Fatalf("expected 1 daily entry, got %d", len(body.Daily))
+	}
+	if body.Daily[0].Date != "2026-02-03" {
+		t.Fatalf("unexpected daily date: %q", body.Daily[0].Date)
+	}
+	if !strings.Contains(body.Daily[0].Content, "daily note") {
+		t.Fatalf("unexpected daily content: %q", body.Daily[0].Content)
 	}
 }
 
