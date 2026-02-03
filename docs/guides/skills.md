@@ -21,10 +21,10 @@ description: Extract text and tables from PDFs.
 1) `ALEX_SKILLS_DIR` (absolute or relative path)
 2) A `skills/` directory discovered upward from the working directory or the binary path
 
-Both flat Markdown files and folder-based `SKILL.md` layouts are supported. Only skills with valid frontmatter are loaded; duplicate names are rejected.
+Only folder-based `SKILL.md` layouts are supported. Skills with missing frontmatter are rejected; duplicate names are rejected.
 
 ## Prompt metadata
-At startup we parse frontmatter to build a compact catalog for prompts and the `skills` tool. A Claude-style example based on the Agent Skills guide:
+At startup we parse frontmatter to build a compact catalog for prompts and the `skills` tool. The system prompt injects the metadata using the Agent Skills `<available_skills>` XML format. A Claude-style example based on the Agent Skills guide:
 
 ```xml
 <available_skills>

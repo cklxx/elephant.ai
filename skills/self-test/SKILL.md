@@ -54,7 +54,7 @@ CGO_ENABLED=0 go test ./internal/channels/lark/testing/ -v -json 2>&1
 | Tier | 范围 | 权限 | 安全门 |
 |------|------|------|--------|
 | **Tier 1** 自主修复 | `tests/scenarios/*.yaml`, `internal/channels/lark/testing/` | 无需审批 | 重跑场景验证 |
-| **Tier 2** 轻量审批 | `skills/*.md` (prompt/技能) | 自主修复 + diff 记录 | 修改前后 diff + 重跑全部相关场景 |
+| **Tier 2** 轻量审批 | `skills/*/SKILL.md` or `skills/*/SKILL.mdx` (prompt/技能) | 自主修复 + diff 记录 | 修改前后 diff + 重跑全部相关场景 |
 | **Tier 3** Plan Review | `internal/` (生产代码) | 需人工确认 | 完整 diff → plan review → 全量 lint+test |
 | **Tier 4** 仅报告 | 架构变更、安全敏感、LLM 限制 | 人工决策 | 生成诊断报告 + 修复建议 |
 

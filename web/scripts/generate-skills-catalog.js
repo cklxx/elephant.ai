@@ -67,11 +67,6 @@ function extractTitle(markdownBody) {
   return '';
 }
 
-function isMarkdown(name) {
-  const lowered = name.toLowerCase();
-  return lowered.endsWith('.md') || lowered.endsWith('.mdx');
-}
-
 async function discoverSkillFiles(skillsDir) {
   const entries = await fs.readdir(skillsDir, { withFileTypes: true });
   const files = [];
@@ -89,9 +84,6 @@ async function discoverSkillFiles(skillsDir) {
       continue;
     }
 
-    if (entry.isFile() && isMarkdown(entry.name)) {
-      files.push(path.join(skillsDir, entry.name));
-    }
   }
 
   return files.sort((a, b) => a.localeCompare(b));

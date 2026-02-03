@@ -172,8 +172,8 @@ func FilesForTier(tier int) []string {
 		}
 	case 2:
 		return []string{
-			"skills/*.md",
 			"skills/*/SKILL.md",
+			"skills/*/SKILL.mdx",
 		}
 	case 3:
 		return []string{
