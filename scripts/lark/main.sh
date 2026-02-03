@@ -77,10 +77,21 @@ infer_port_from_config() {
   ' "${config_path}"
 }
 
+sanitize_port() {
+  local port="$1"
+  if [[ "${port}" =~ ^[0-9]+$ ]]; then
+    echo "${port}"
+  fi
+}
+
 resolve_health_url() {
   local inferred_port health_port
   inferred_port="$(infer_port_from_config "${MAIN_CONFIG}" || true)"
-  health_port="${MAIN_PORT:-${inferred_port:-8080}}"
+  inferred_port="$(sanitize_port "${inferred_port}")"
+  health_port="$(sanitize_port "${MAIN_PORT:-}")"
+  if [[ -z "${health_port}" ]]; then
+    health_port="${inferred_port:-8080}"
+  fi
   echo "http://127.0.0.1:${health_port}/health"
 }
 
