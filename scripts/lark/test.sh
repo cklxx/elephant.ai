@@ -19,7 +19,8 @@ Behavior:
 
 Env:
   TEST_CONFIG          Config path (default: ~/.alex/test.yaml)
-  TEST_PORT            Healthcheck port override (default: 8080)
+  TEST_PORT            Healthcheck port override (default: from config; fallback 8080)
+  ALEX_LOG_DIR         Internal log dir override (default: <repo>/.worktrees/test/logs)
   SKIP_LOCAL_AUTH_DB=1 Skip local auth DB auto-setup (default: 0)
 EOF
 }
@@ -46,6 +47,7 @@ BIN="${TEST_ROOT}/alex-server"
 PID_FILE="${TEST_ROOT}/.pids/lark-test.pid"
 LOG_FILE="${TEST_ROOT}/logs/lark-test.log"
 TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
+ALEX_LOG_DIR="${ALEX_LOG_DIR:-${TEST_ROOT}/logs}"
 
 maybe_setup_auth_db() {
   if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
@@ -113,11 +115,57 @@ build() {
   log_success "Built ${BIN}"
 }
 
+resolve_health_url() {
+  local inferred_port health_port
+  inferred_port="$(infer_port_from_config "${TEST_CONFIG}" || true)"
+  health_port="${TEST_PORT:-${inferred_port:-8080}}"
+  echo "http://127.0.0.1:${health_port}/health"
+}
+
+discover_alex_server_pid_by_port() {
+  local health_url port pid cmd
+  health_url="$(resolve_health_url)"
+  port="${health_url##*:}"
+  port="${port%/health}"
+
+  pid="$(lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true)"
+  [[ -n "${pid}" ]] || return 0
+  cmd="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+  if echo "${cmd}" | grep -q "alex-server"; then
+    echo "${pid}"
+  fi
+}
+
+adopt_pid_if_missing() {
+  local pid health_url
+  pid="$(read_pid "${PID_FILE}" || true)"
+  if is_process_running "${pid}"; then
+    return 0
+  fi
+
+  health_url="$(resolve_health_url)"
+  if curl -sf "${health_url}" >/dev/null 2>&1; then
+    pid="$(discover_alex_server_pid_by_port || true)"
+    if [[ -n "${pid}" ]]; then
+      echo "${pid}" > "${PID_FILE}"
+      log_success "Adopted running test server PID: ${pid}"
+    fi
+  fi
+}
+
 start() {
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
 
   maybe_setup_auth_db
   ensure_worktree
+
+  local health_url
+  health_url="$(resolve_health_url)"
+  if curl -sf "${health_url}" >/dev/null 2>&1; then
+    adopt_pid_if_missing || true
+    log_success "Test server already healthy: ${health_url}"
+    return 0
+  fi
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
@@ -128,13 +176,8 @@ start() {
 
   build
 
-  local inferred_port health_port health_url
-  inferred_port="$(infer_port_from_config "${TEST_CONFIG}" || true)"
-  health_port="${TEST_PORT:-${inferred_port:-8080}}"
-  health_url="http://127.0.0.1:${health_port}/health"
-
   log_info "Starting test server..."
-  (cd "${TEST_ROOT}" && ALEX_CONFIG_PATH="${TEST_CONFIG}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 & echo "$!" > "${PID_FILE}")
+  (cd "${TEST_ROOT}" && ALEX_CONFIG_PATH="${TEST_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 & echo "$!" > "${PID_FILE}")
 
   pid="$(read_pid "${PID_FILE}" || true)"
   local i
@@ -156,20 +199,29 @@ start() {
 
 stop() {
   ensure_worktree
+  adopt_pid_if_missing || true
   stop_service "Test server" "${PID_FILE}"
 }
 
 status() {
   ensure_worktree
-  local inferred_port health_port health_url
-  inferred_port="$(infer_port_from_config "${TEST_CONFIG}" || true)"
-  health_port="${TEST_PORT:-${inferred_port:-8080}}"
-  health_url="http://127.0.0.1:${health_port}/health"
+  local health_url pid
+  health_url="$(resolve_health_url)"
 
-  local pid
+  adopt_pid_if_missing || true
   pid="$(read_pid "${PID_FILE}" || true)"
+
+  if curl -sf "${health_url}" >/dev/null 2>&1; then
+    if is_process_running "${pid}"; then
+      log_success "Test server healthy (PID: ${pid}) ${health_url}"
+    else
+      log_success "Test server healthy ${health_url}"
+    fi
+    return 0
+  fi
+
   if is_process_running "${pid}"; then
-    log_success "Test server running (PID: ${pid}) ${health_url}"
+    log_warn "Test server running but healthcheck failing (PID: ${pid}) ${health_url}"
   else
     log_warn "Test server not running"
   fi
@@ -185,7 +237,12 @@ case "${cmd}" in
   status) status ;;
   logs)
     ensure_worktree
-    tail -n 200 -f "${LOG_FILE}"
+    touch "${LOG_FILE}" "${ALEX_LOG_DIR}/alex-service.log" "${ALEX_LOG_DIR}/alex-llm.log" "${ALEX_LOG_DIR}/alex-latency.log"
+    tail -n 200 -f \
+      "${LOG_FILE}" \
+      "${ALEX_LOG_DIR}/alex-service.log" \
+      "${ALEX_LOG_DIR}/alex-llm.log" \
+      "${ALEX_LOG_DIR}/alex-latency.log"
     ;;
   build) build ;;
   help|-h|--help) usage ;;

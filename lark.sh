@@ -54,10 +54,16 @@ case "${mode}" in
         mkdir -p "${test_root}/logs"
         touch \
           "${test_root}/logs/lark-test.log" \
+          "${test_root}/logs/alex-service.log" \
+          "${test_root}/logs/alex-llm.log" \
+          "${test_root}/logs/alex-latency.log" \
           "${test_root}/logs/lark-loop.log" \
           "${test_root}/logs/lark-loop-agent.log"
         tail -n 200 -f \
           "${test_root}/logs/lark-test.log" \
+          "${test_root}/logs/alex-service.log" \
+          "${test_root}/logs/alex-llm.log" \
+          "${test_root}/logs/alex-latency.log" \
           "${test_root}/logs/lark-loop.log" \
           "${test_root}/logs/lark-loop-agent.log"
         ;;

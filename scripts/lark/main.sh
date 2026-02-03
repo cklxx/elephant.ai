@@ -14,7 +14,8 @@ Usage:
 
 Env:
   MAIN_CONFIG   Config path (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
-  MAIN_PORT     Healthcheck port (default: 8080)
+  MAIN_PORT     Healthcheck port override (default: from config; fallback 8080)
+  ALEX_LOG_DIR  Internal log dir override (default: <repo>/logs)
   SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
 EOF
 }
@@ -37,10 +38,82 @@ BIN="${ROOT}/alex-server"
 PID_FILE="${ROOT}/.pids/lark-main.pid"
 LOG_FILE="${ROOT}/logs/lark-main.log"
 MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
-MAIN_PORT="${MAIN_PORT:-8080}"
-HEALTH_URL="http://127.0.0.1:${MAIN_PORT}/health"
+MAIN_PORT="${MAIN_PORT:-}"
+ALEX_LOG_DIR="${ALEX_LOG_DIR:-${ROOT}/logs}"
 
-mkdir -p "${ROOT}/.pids" "${ROOT}/logs"
+mkdir -p "${ROOT}/.pids" "${ROOT}/logs" "${ALEX_LOG_DIR}"
+
+infer_port_from_config() {
+  local config_path="$1"
+  [[ -f "${config_path}" ]] || return 0
+
+  # Best-effort YAML parse:
+  # - Look for top-level "server:" and read the first nested "port:".
+  awk '
+    function ltrim(s){sub(/^[ \t]+/, "", s); return s}
+    function indent(s){match(s, /^[ \t]*/); return RLENGTH}
+    BEGIN{server_indent=-1}
+    {
+      if ($0 ~ /^[ \t]*server:[ \t]*$/) {
+        server_indent = indent($0)
+        next
+      }
+      if (server_indent >= 0) {
+        if (indent($0) <= server_indent && $0 ~ /^[ \t]*[A-Za-z0-9_-]+:[ \t]*/) {
+          server_indent = -1
+          next
+        }
+        if ($0 ~ /^[ \t]*port:[ \t]*/) {
+          line = ltrim($0)
+          sub(/^port:[ \t]*/, "", line)
+          sub(/[ \t]#.*/, "", line)
+          gsub(/^[\"\047]/, "", line)
+          gsub(/[\"\047]$/, "", line)
+          print line
+          exit
+        }
+      }
+    }
+  ' "${config_path}"
+}
+
+resolve_health_url() {
+  local inferred_port health_port
+  inferred_port="$(infer_port_from_config "${MAIN_CONFIG}" || true)"
+  health_port="${MAIN_PORT:-${inferred_port:-8080}}"
+  echo "http://127.0.0.1:${health_port}/health"
+}
+
+discover_alex_server_pid_by_port() {
+  local health_url port pid cmd
+  health_url="$(resolve_health_url)"
+  port="${health_url##*:}"
+  port="${port%/health}"
+
+  pid="$(lsof -nP -iTCP:"${port}" -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true)"
+  [[ -n "${pid}" ]] || return 0
+  cmd="$(ps -p "${pid}" -o command= 2>/dev/null || true)"
+  if echo "${cmd}" | grep -q "alex-server"; then
+    echo "${pid}"
+  fi
+}
+
+adopt_pid_if_missing() {
+  local pid health_url
+  pid="$(read_pid "${PID_FILE}" || true)"
+  if is_process_running "${pid}"; then
+    return 0
+  fi
+
+  health_url="$(resolve_health_url)"
+  if curl -sf "${health_url}" >/dev/null 2>&1; then
+    pid="$(discover_alex_server_pid_by_port || true)"
+    if [[ -n "${pid}" ]]; then
+      echo "${pid}" > "${PID_FILE}"
+      log_success "Adopted running main agent PID: ${pid}"
+    fi
+  fi
+}
 
 maybe_setup_auth_db() {
   if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
@@ -69,6 +142,14 @@ start() {
 
   maybe_setup_auth_db
 
+  local health_url
+  health_url="$(resolve_health_url)"
+  if curl -sf "${health_url}" >/dev/null 2>&1; then
+    adopt_pid_if_missing || true
+    log_success "Main agent already healthy: ${health_url}"
+    return 0
+  fi
+
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
   if is_process_running "${pid}"; then
@@ -78,7 +159,7 @@ start() {
 
   build
   log_info "Starting main agent..."
-  ALEX_CONFIG_PATH="${MAIN_CONFIG}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 &
+  ALEX_CONFIG_PATH="${MAIN_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 &
   echo "$!" > "${PID_FILE}"
 
   local i
@@ -88,8 +169,8 @@ start() {
       log_error "Main agent exited early (see ${LOG_FILE})"
       return 1
     fi
-    if curl -sf "${HEALTH_URL}" >/dev/null 2>&1; then
-      log_success "Main agent healthy: ${HEALTH_URL}"
+    if curl -sf "${health_url}" >/dev/null 2>&1; then
+      log_success "Main agent healthy: ${health_url}"
       return 0
     fi
     sleep 1
@@ -100,14 +181,28 @@ start() {
 }
 
 stop() {
+  adopt_pid_if_missing || true
   stop_service "Main agent" "${PID_FILE}"
 }
 
 status() {
-  local pid
+  local health_url pid
+  health_url="$(resolve_health_url)"
+
+  adopt_pid_if_missing || true
   pid="$(read_pid "${PID_FILE}" || true)"
+
+  if curl -sf "${health_url}" >/dev/null 2>&1; then
+    if is_process_running "${pid}"; then
+      log_success "Main agent healthy (PID: ${pid}) ${health_url}"
+    else
+      log_success "Main agent healthy ${health_url}"
+    fi
+    return 0
+  fi
+
   if is_process_running "${pid}"; then
-    log_success "Main agent running (PID: ${pid}) ${HEALTH_URL}"
+    log_warn "Main agent running but healthcheck failing (PID: ${pid}) ${health_url}"
   else
     log_warn "Main agent not running"
   fi
@@ -121,7 +216,14 @@ case "${cmd}" in
   stop) stop ;;
   restart) stop; start ;;
   status) status ;;
-  logs) tail -n 200 -f "${LOG_FILE}" ;;
+  logs)
+    touch "${LOG_FILE}" "${ALEX_LOG_DIR}/alex-service.log" "${ALEX_LOG_DIR}/alex-llm.log" "${ALEX_LOG_DIR}/alex-latency.log"
+    tail -n 200 -f \
+      "${LOG_FILE}" \
+      "${ALEX_LOG_DIR}/alex-service.log" \
+      "${ALEX_LOG_DIR}/alex-llm.log" \
+      "${ALEX_LOG_DIR}/alex-latency.log"
+    ;;
   build) build ;;
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;
