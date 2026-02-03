@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -33,10 +34,18 @@ type Config struct {
 
 // Executor implements agent.InteractiveExternalExecutor for Claude Code CLI.
 type Executor struct {
-	cfg     Config
-	inputCh chan agent.InputRequest
-	pending sync.Map
-	logger  logging.Logger
+	cfg              Config
+	inputCh          chan agent.InputRequest
+	pending          sync.Map
+	logger           logging.Logger
+	subprocessFactory func(subprocess.Config) subprocessRunner
+}
+
+type subprocessRunner interface {
+	Start(ctx context.Context) error
+	Stdout() io.ReadCloser
+	Wait() error
+	Stop() error
 }
 
 func New(cfg Config) *Executor {
@@ -47,9 +56,10 @@ func New(cfg Config) *Executor {
 		cfg.DefaultMode = "interactive"
 	}
 	return &Executor{
-		cfg:     cfg,
-		inputCh: make(chan agent.InputRequest, 32),
-		logger:  logging.NewComponentLogger("ClaudeCodeExecutor"),
+		cfg:               cfg,
+		inputCh:           make(chan agent.InputRequest, 32),
+		logger:            logging.NewComponentLogger("ClaudeCodeExecutor"),
+		subprocessFactory: func(cfg subprocess.Config) subprocessRunner { return subprocess.New(cfg) },
 	}
 }
 
@@ -130,7 +140,7 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		env["ANTHROPIC_API_KEY"] = e.cfg.APIKey
 	}
 
-	proc := subprocess.New(subprocess.Config{
+	proc := e.subprocessFactory(subprocess.Config{
 		Command:    e.cfg.BinaryPath,
 		Args:       args,
 		Env:        env,

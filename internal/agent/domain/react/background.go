@@ -314,6 +314,7 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 	}
 	bt.mu.Unlock()
 
+	m.emitCompletionEvent(ctx, bt)
 	m.signalCompletion(bt.id)
 }
 
@@ -568,17 +569,65 @@ func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgro
 			}
 		}
 		m.emitEvent(&domain.ExternalAgentProgressEvent{
-			BaseEvent:   m.baseEvent(ctx),
-			TaskID:      bt.id,
-			AgentType:   bt.agentType,
-			Iteration:   p.Iteration,
-			MaxIter:     p.MaxIter,
-			TokensUsed:  p.TokensUsed,
-			CostUSD:     p.CostUSD,
-			CurrentTool: p.CurrentTool,
-			Elapsed:     elapsed,
+			BaseEvent:    m.baseEvent(ctx),
+			TaskID:       bt.id,
+			AgentType:    bt.agentType,
+			Iteration:    p.Iteration,
+			MaxIter:      p.MaxIter,
+			TokensUsed:   p.TokensUsed,
+			CostUSD:      p.CostUSD,
+			CurrentTool:  p.CurrentTool,
+			CurrentArgs:  p.CurrentArgs,
+			FilesTouched: append([]string(nil), p.FilesTouched...),
+			LastActivity: p.LastActivity,
+			Elapsed:      elapsed,
 		})
 	}
+}
+
+func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *backgroundTask) {
+	if m.emitEvent == nil || m.baseEvent == nil {
+		return
+	}
+
+	bt.mu.Lock()
+	description := bt.description
+	status := bt.status
+	startedAt := bt.startedAt
+	completedAt := bt.completedAt
+	answer := ""
+	iterations := 0
+	tokensUsed := 0
+	if bt.result != nil {
+		answer = bt.result.Answer
+		iterations = bt.result.Iterations
+		tokensUsed = bt.result.TokensUsed
+	}
+	errMsg := ""
+	if bt.err != nil {
+		errMsg = bt.err.Error()
+	}
+	bt.mu.Unlock()
+
+	duration := time.Duration(0)
+	if !startedAt.IsZero() && !completedAt.IsZero() {
+		duration = completedAt.Sub(startedAt)
+		if duration < 0 {
+			duration = 0
+		}
+	}
+
+	m.emitEvent(&domain.BackgroundTaskCompletedEvent{
+		BaseEvent:   m.baseEvent(ctx),
+		TaskID:      bt.id,
+		Description: description,
+		Status:      string(status),
+		Answer:      answer,
+		Error:       errMsg,
+		Duration:    duration,
+		Iterations:  iterations,
+		TokensUsed:  tokensUsed,
+	})
 }
 
 func (m *BackgroundTaskManager) buildContextEnrichedPrompt(bt *backgroundTask) string {

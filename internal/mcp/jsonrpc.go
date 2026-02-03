@@ -70,8 +70,8 @@ func NewRequestIDGenerator() *RequestIDGenerator {
 }
 
 // Next generates the next request ID
-func (g *RequestIDGenerator) Next() int64 {
-	return g.counter.Add(1)
+func (g *RequestIDGenerator) Next() string {
+	return fmt.Sprintf("%d", g.counter.Add(1))
 }
 
 // NewRequest creates a new JSON-RPC request

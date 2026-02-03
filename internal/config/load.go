@@ -78,6 +78,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	applyOverrides(&cfg, &meta, options.overrides)
 
 	normalizeRuntimeConfig(&cfg)
+	autoEnableExternalAgents(&cfg, &meta)
 	cliCreds := CLICredentials{}
 	if shouldLoadCLICredentials(cfg) {
 		cliCreds = LoadCLICredentials(

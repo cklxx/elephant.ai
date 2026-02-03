@@ -117,6 +117,10 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		cfg.CardsResults = true
 		cfg.CardsErrors = true
 	}
+	if cfg.BackgroundProgressEnabled == nil {
+		enabled := true
+		cfg.BackgroundProgressEnabled = &enabled
+	}
 	dedupCache, err := lru.New[string, time.Time](messageDedupCacheSize)
 	if err != nil {
 		return nil, fmt.Errorf("lark message deduper init: %w", err)
@@ -469,6 +473,16 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 		progressLn := newProgressListener(execCtx, listener, sender, g.logger)
 		cleanups = append(cleanups, progressLn.Close)
 		listener = progressLn
+	}
+	backgroundEnabled := true
+	if g.cfg.BackgroundProgressEnabled != nil {
+		backgroundEnabled = *g.cfg.BackgroundProgressEnabled
+	}
+	if backgroundEnabled {
+		replyTo := replyTarget(msg.messageID, msg.isGroup)
+		bgLn := newBackgroundProgressListener(execCtx, listener, g, msg.chatID, replyTo, g.logger, g.cfg.BackgroundProgressInterval, g.cfg.BackgroundProgressWindow)
+		cleanups = append(cleanups, bgLn.Close)
+		listener = bgLn
 	}
 	if g.cfg.ShowPlanClarifyMessages {
 		listener = newPlanClarifyListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), awaitTracker)

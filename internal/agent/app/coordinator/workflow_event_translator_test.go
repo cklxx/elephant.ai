@@ -8,6 +8,7 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	"alex/internal/agent/types"
 	"alex/internal/workflow"
 )
 
@@ -430,5 +431,97 @@ func TestWorkflowEventTranslatorEmitsArtifactManifestEvent(t *testing.T) {
 	}
 	if env.NodeKind != "artifact" {
 		t.Fatalf("expected artifact node kind, got %q", env.NodeKind)
+	}
+}
+
+func TestWorkflowEventTranslator_EnvelopesBackgroundTaskEvents(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	ts := time.Unix(1710001000, 0)
+	translator.OnEvent(&domain.BackgroundTaskDispatchedEvent{
+		BaseEvent:   domain.NewBaseEvent(agent.LevelCore, "sess", "run", "parent", ts),
+		TaskID:      "bg-1",
+		Description: "desc",
+		Prompt:      "prompt",
+		AgentType:   "codex",
+	})
+
+	translator.OnEvent(&domain.BackgroundTaskCompletedEvent{
+		BaseEvent:   domain.NewBaseEvent(agent.LevelCore, "sess", "run", "parent", ts),
+		TaskID:      "bg-1",
+		Description: "desc",
+		Status:      "completed",
+		Answer:      "answer",
+		Duration:    1500 * time.Millisecond,
+		Iterations:  2,
+		TokensUsed:  10,
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 2 {
+		t.Fatalf("expected 2 events, got %d", got)
+	}
+
+	first, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+	if first.Event != types.EventBackgroundTaskDispatched {
+		t.Fatalf("unexpected event type %q", first.Event)
+	}
+	if first.NodeKind != "background" || first.NodeID != "bg-1" {
+		t.Fatalf("unexpected node metadata: kind=%q id=%q", first.NodeKind, first.NodeID)
+	}
+
+	second, ok := events[1].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[1])
+	}
+	if second.Event != types.EventBackgroundTaskCompleted {
+		t.Fatalf("unexpected event type %q", second.Event)
+	}
+	if second.NodeKind != "background" || second.NodeID != "bg-1" {
+		t.Fatalf("unexpected node metadata: kind=%q id=%q", second.NodeKind, second.NodeID)
+	}
+	if second.Payload["status"] != "completed" {
+		t.Fatalf("unexpected payload status: %#v", second.Payload["status"])
+	}
+}
+
+func TestWorkflowEventTranslator_EnvelopesExternalAgentEvents(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	ts := time.Unix(1710002000, 0)
+	translator.OnEvent(&domain.ExternalAgentProgressEvent{
+		BaseEvent:    domain.NewBaseEvent(agent.LevelCore, "sess", "run", "parent", ts),
+		TaskID:       "bg-1",
+		AgentType:    "codex",
+		TokensUsed:   42,
+		CurrentTool:  "assistant_output",
+		CurrentArgs:  "hello",
+		FilesTouched: []string{"a.txt"},
+		LastActivity: ts,
+		Elapsed:      2 * time.Second,
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected 1 event, got %d", got)
+	}
+
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+	if env.Event != types.EventExternalAgentProgress {
+		t.Fatalf("unexpected event type %q", env.Event)
+	}
+	if env.NodeKind != "external_agent" || env.NodeID != "bg-1" {
+		t.Fatalf("unexpected node metadata: kind=%q id=%q", env.NodeKind, env.NodeID)
+	}
+	if env.Payload["current_args"] != "hello" {
+		t.Fatalf("unexpected payload args: %#v", env.Payload["current_args"])
 	}
 }

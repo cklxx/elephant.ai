@@ -29,12 +29,12 @@ const (
 	EventResultCancelled = "workflow.result.cancelled"
 
 	// Diagnostics
-	EventDiagnosticError              = "workflow.diagnostic.error"
-	EventDiagnosticPreanalysisEmoji   = "workflow.diagnostic.preanalysis_emoji"
-	EventDiagnosticContextCompression = "workflow.diagnostic.context_compression"
-	EventDiagnosticContextSnapshot    = "workflow.diagnostic.context_snapshot"
+	EventDiagnosticError               = "workflow.diagnostic.error"
+	EventDiagnosticPreanalysisEmoji    = "workflow.diagnostic.preanalysis_emoji"
+	EventDiagnosticContextCompression  = "workflow.diagnostic.context_compression"
+	EventDiagnosticContextSnapshot     = "workflow.diagnostic.context_snapshot"
 	EventDiagnosticEnvironmentSnapshot = "workflow.diagnostic.environment_snapshot"
-	EventDiagnosticToolFiltering      = "workflow.diagnostic.tool_filtering"
+	EventDiagnosticToolFiltering       = "workflow.diagnostic.tool_filtering"
 
 	// Artifact
 	EventArtifactManifest = "workflow.artifact.manifest"
@@ -49,6 +49,11 @@ const (
 	// Background tasks
 	EventBackgroundTaskDispatched = "background.task.dispatched"
 	EventBackgroundTaskCompleted  = "background.task.completed"
+
+	// External agent execution
+	EventExternalAgentProgress  = "external.agent.progress"
+	EventExternalInputRequested = "external.input.requested"
+	EventExternalInputResponded = "external.input.responded"
 
 	// Stream infrastructure (synthesized by EventBroadcaster, not by agent)
 	EventStreamDropped = "workflow.stream.dropped"

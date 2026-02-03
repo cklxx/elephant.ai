@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -18,7 +19,7 @@ import (
 type ProcessManager struct {
 	command     string
 	args        []string
-	env         []string
+	envOverrides map[string]string
 	process     *exec.Cmd
 	stdin       io.WriteCloser
 	stdout      io.ReadCloser
@@ -48,11 +49,11 @@ func NewProcessManager(config ProcessConfig) *ProcessManager {
 		stopChan:    make(chan struct{}),
 	}
 
-	// Convert env map to []string format
+	// Preserve a copy of the overrides. We'll merge with the parent environment at Start().
 	if config.Env != nil {
-		pm.env = make([]string, 0, len(config.Env))
+		pm.envOverrides = make(map[string]string, len(config.Env))
 		for k, v := range config.Env {
-			pm.env = append(pm.env, fmt.Sprintf("%s=%s", k, v))
+			pm.envOverrides[k] = v
 		}
 	}
 
@@ -80,7 +81,9 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 
 	// Create command with context
 	pm.process = exec.CommandContext(ctx, resolved, pm.args...)
-	pm.process.Env = pm.env
+	if pm.envOverrides != nil {
+		pm.process.Env = mergeEnviron(pm.envOverrides)
+	}
 
 	// Setup pipes
 	pm.stdin, err = pm.process.StdinPipe()
@@ -117,6 +120,25 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	})
 
 	return nil
+}
+
+func mergeEnviron(overrides map[string]string) []string {
+	env := make(map[string]string)
+	for _, kv := range os.Environ() {
+		k, v, ok := strings.Cut(kv, "=")
+		if !ok {
+			continue
+		}
+		env[k] = v
+	}
+	for k, v := range overrides {
+		env[k] = v
+	}
+	out := make([]string, 0, len(env))
+	for k, v := range env {
+		out = append(out, fmt.Sprintf("%s=%s", k, v))
+	}
+	return out
 }
 
 func resolveExecutable(command string) (string, error) {

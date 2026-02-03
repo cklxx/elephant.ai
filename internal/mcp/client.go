@@ -17,15 +17,16 @@ const MCPProtocolVersion = "2024-11-05"
 
 // Client implements MCP client over stdio transport
 type Client struct {
-	serverName   string
-	process      *ProcessManager
-	idGen        *RequestIDGenerator
-	pendingCalls map[any]chan *Response
-	mu           sync.RWMutex
-	logger       logging.Logger
-	initialized  bool
-	serverInfo   *ServerInfo
-	capabilities *ServerCapabilities
+	serverName          string
+	process             *ProcessManager
+	idGen               *RequestIDGenerator
+	pendingCalls        map[string]chan *Response
+	notificationHandler NotificationHandler
+	mu                  sync.RWMutex
+	logger              logging.Logger
+	initialized         bool
+	serverInfo          *ServerInfo
+	capabilities        *ServerCapabilities
 }
 
 // ClientInfo represents the client information sent during initialize
@@ -85,8 +86,9 @@ type ToolCallParams struct {
 
 // ToolCallResult is the result of calling a tool
 type ToolCallResult struct {
-	Content []ContentBlock `json:"content"`
-	IsError bool           `json:"isError,omitempty"`
+	Content           []ContentBlock `json:"content"`
+	IsError           bool           `json:"isError,omitempty"`
+	StructuredContent map[string]any `json:"structuredContent,omitempty"`
 }
 
 // ContentBlock represents a piece of content in the result
@@ -97,13 +99,21 @@ type ContentBlock struct {
 	MimeType string `json:"mimeType,omitempty"`
 }
 
+type NotificationHandler func(method string, params map[string]any)
+
+func (c *Client) SetNotificationHandler(h NotificationHandler) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.notificationHandler = h
+}
+
 // NewClient creates a new MCP client
 func NewClient(serverName string, process *ProcessManager) *Client {
 	return &Client{
 		serverName:   serverName,
 		process:      process,
 		idGen:        NewRequestIDGenerator(),
-		pendingCalls: make(map[any]chan *Response),
+		pendingCalls: make(map[string]chan *Response),
 		logger:       logging.NewComponentLogger(fmt.Sprintf("MCPClient[%s]", serverName)),
 	}
 }
@@ -148,6 +158,8 @@ func (c *Client) initialize(ctx context.Context) error {
 			Name:    "alex",
 			Version: "0.1.0",
 		},
+		// Codex MCP requires this field, even if empty.
+		"capabilities": map[string]any{},
 	}
 
 	result, err := c.call(ctx, "initialize", params)
@@ -283,8 +295,6 @@ func (c *Client) call(ctx context.Context, method string, params map[string]any)
 		return resp.Result, nil
 	case <-ctx.Done():
 		return nil, fmt.Errorf("request cancelled: %w", ctx.Err())
-	case <-time.After(30 * time.Second):
-		return nil, fmt.Errorf("request timeout after 30s")
 	}
 }
 
@@ -304,6 +314,94 @@ func (c *Client) notify(ctx context.Context, method string, params map[string]an
 	return c.process.Write(data)
 }
 
+type wireMessage struct {
+	JSONRPC string         `json:"jsonrpc"`
+	ID      any            `json:"id,omitempty"`
+	Method  string         `json:"method,omitempty"`
+	Params  map[string]any `json:"params,omitempty"`
+	Result  any            `json:"result,omitempty"`
+	Error   *RPCError      `json:"error,omitempty"`
+}
+
+func normalizeRPCID(id any) (string, bool) {
+	if id == nil {
+		return "", false
+	}
+	switch v := id.(type) {
+	case string:
+		if v == "" {
+			return "", false
+		}
+		return v, true
+	case json.Number:
+		s := v.String()
+		if s == "" {
+			return "", false
+		}
+		return s, true
+	default:
+		return fmt.Sprint(v), true
+	}
+}
+
+func (c *Client) handleLine(line []byte) {
+	var msg wireMessage
+	if err := json.Unmarshal(line, &msg); err != nil {
+		c.logger.Error("Failed to unmarshal message: %v", err)
+		return
+	}
+
+	if msg.JSONRPC != JSONRPCVersion {
+		c.logger.Error("Invalid JSON-RPC version: %s", msg.JSONRPC)
+		return
+	}
+
+	// Notification: JSON-RPC request with method and without ID.
+	if msg.Method != "" {
+		if msg.ID != nil {
+			c.logger.Warn("Unsupported server request: method=%s, id=%v", msg.Method, msg.ID)
+			return
+		}
+
+		c.mu.RLock()
+		handler := c.notificationHandler
+		c.mu.RUnlock()
+
+		if handler != nil {
+			handler(msg.Method, msg.Params)
+		}
+		return
+	}
+
+	// Response.
+	normalizedID, ok := normalizeRPCID(msg.ID)
+	if !ok {
+		c.logger.Warn("Received response without id")
+		return
+	}
+	resp := &Response{
+		JSONRPC: msg.JSONRPC,
+		ID:      msg.ID,
+		Result:  msg.Result,
+		Error:   msg.Error,
+	}
+
+	c.mu.RLock()
+	ch, ok := c.pendingCalls[normalizedID]
+	c.mu.RUnlock()
+
+	if ok {
+		select {
+		case ch <- resp:
+			c.logger.Debug("Routed response to caller: id=%s", normalizedID)
+		default:
+			c.logger.Warn("Response channel full, dropping response: id=%s", normalizedID)
+		}
+	} else {
+		c.logger.Warn("No pending call found for response: id=%s", normalizedID)
+	}
+}
+
 // readLoop continuously reads responses from the server
 func (c *Client) readLoop() {
 	c.logger.Debug("Starting read loop")
@@ -311,34 +409,10 @@ func (c *Client) readLoop() {
 
 	// Increase buffer size for large responses
 	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024) // 1MB max
+	scanner.Buffer(buf, 16*1024*1024) // 16MB max
 
 	for scanner.Scan() {
-		line := scanner.Bytes()
-		c.logger.Debug("Received response: %d bytes", len(line))
-
-		// Parse response
-		resp, err := UnmarshalResponse(line)
-		if err != nil {
-			c.logger.Error("Failed to unmarshal response: %v", err)
-			continue
-		}
-
-		// Route response to waiting caller
-		c.mu.RLock()
-		ch, ok := c.pendingCalls[resp.ID]
-		c.mu.RUnlock()
-
-		if ok {
-			select {
-			case ch <- resp:
-				c.logger.Debug("Routed response to caller: id=%v", resp.ID)
-			default:
-				c.logger.Warn("Response channel full, dropping response: id=%v", resp.ID)
-			}
-		} else {
-			c.logger.Warn("No pending call found for response: id=%v", resp.ID)
-		}
+		c.handleLine(scanner.Bytes())
 	}
 
 	if err := scanner.Err(); err != nil {
