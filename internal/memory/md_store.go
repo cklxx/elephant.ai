@@ -12,9 +12,6 @@ import (
 )
 
 const (
-	dailyDirName          = "memory"
-	memoryFileName        = "MEMORY.md"
-	userDirName           = "users"
 	defaultSearchMax      = 6
 	defaultSearchMinScore = 0.35
 	chunkTokenSize        = 400
@@ -92,6 +89,9 @@ func (e *MarkdownEngine) EnsureSchema(_ context.Context) error {
 		return fmt.Errorf("memory root directory is required")
 	}
 	if err := os.MkdirAll(root, 0o755); err != nil {
+		return err
+	}
+	if err := migrateLegacyUsers(root); err != nil {
 		return err
 	}
 	return nil

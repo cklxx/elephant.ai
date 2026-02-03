@@ -354,10 +354,10 @@ func (i *Indexer) addWatchRoots() error {
 		return err
 	}
 	_ = i.addWatchDir(filepath.Join(i.rootDir, dailyDirName))
-	usersDir := filepath.Join(i.rootDir, userDirName)
-	_ = i.addWatchDir(usersDir)
+	legacyUsersDir := filepath.Join(i.rootDir, legacyUserDirName)
+	_ = i.addWatchDir(legacyUsersDir)
 
-	entries, err := os.ReadDir(usersDir)
+	entries, err := os.ReadDir(i.rootDir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -368,7 +368,29 @@ func (i *Indexer) addWatchRoots() error {
 		if !entry.IsDir() {
 			continue
 		}
-		userPath := filepath.Join(usersDir, entry.Name())
+		name := entry.Name()
+		if name == legacyUserDirName {
+			legacyEntries, err := os.ReadDir(filepath.Join(i.rootDir, legacyUserDirName))
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return err
+			}
+			for _, legacyEntry := range legacyEntries {
+				if !legacyEntry.IsDir() {
+					continue
+				}
+				userPath := filepath.Join(legacyUsersDir, legacyEntry.Name())
+				_ = i.addWatchDir(userPath)
+				_ = i.addWatchDir(filepath.Join(userPath, dailyDirName))
+			}
+			continue
+		}
+		if isReservedUserDirName(name) {
+			continue
+		}
+		userPath := filepath.Join(i.rootDir, name)
 		_ = i.addWatchDir(userPath)
 		_ = i.addWatchDir(filepath.Join(userPath, dailyDirName))
 	}
@@ -392,7 +414,7 @@ func (i *Indexer) addWatchDir(path string) error {
 func (i *Indexer) storeForUser(userID string) (*IndexStore, error) {
 	key := strings.TrimSpace(userID)
 	if key != "" {
-		key = sanitizeSegment(key)
+		key = normalizeUserDirName(key)
 	}
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -401,7 +423,7 @@ func (i *Indexer) storeForUser(userID string) (*IndexStore, error) {
 	}
 	path := i.cfg.DBPath
 	if key != "" {
-		path = filepath.Join(i.rootDir, userDirName, key, "index.sqlite")
+		path = filepath.Join(i.rootDir, key, indexFileName)
 	}
 	store, err := OpenIndexStore(path)
 	if err != nil {
@@ -471,12 +493,25 @@ func isMemoryFile(path string) bool {
 }
 
 func isUserDir(root, path string) bool {
-	rel, err := filepath.Rel(filepath.Join(root, userDirName), path)
+	rel, err := filepath.Rel(root, path)
 	if err != nil {
 		return false
 	}
 	rel = filepath.Clean(rel)
-	return rel != "." && !strings.Contains(rel, string(filepath.Separator))
+	if rel == "." || rel == "" {
+		return false
+	}
+	parts := strings.Split(rel, string(filepath.Separator))
+	if len(parts) == 1 {
+		if parts[0] == legacyUserDirName || isReservedUserDirName(parts[0]) {
+			return false
+		}
+		return true
+	}
+	if len(parts) == 2 && parts[0] == legacyUserDirName {
+		return true
+	}
+	return false
 }
 
 func resolveUserPath(root, path string) (userID, userRoot, relPath string, ok bool) {
@@ -490,9 +525,12 @@ func resolveUserPath(root, path string) (userID, userRoot, relPath string, ok bo
 		return "", "", "", false
 	}
 	parts := strings.Split(rel, string(os.PathSeparator))
-	if len(parts) >= 2 && parts[0] == userDirName {
+	if len(parts) >= 2 && parts[0] == legacyUserDirName {
 		userID = parts[1]
-		userRoot = filepath.Join(root, userDirName, userID)
+		userRoot = filepath.Join(root, legacyUserDirName, userID)
+	} else if len(parts) >= 2 && !isReservedUserDirName(parts[0]) {
+		userID = parts[0]
+		userRoot = filepath.Join(root, userID)
 	} else {
 		userRoot = root
 	}
@@ -511,8 +549,7 @@ func collectAllMemoryFiles(root string) ([]string, error) {
 	}
 	paths = append(paths, base...)
 
-	usersDir := filepath.Join(root, userDirName)
-	entries, err := os.ReadDir(usersDir)
+	entries, err := os.ReadDir(root)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return paths, nil
@@ -523,7 +560,32 @@ func collectAllMemoryFiles(root string) ([]string, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		userRoot := filepath.Join(usersDir, entry.Name())
+		name := entry.Name()
+		if name == legacyUserDirName {
+			legacyEntries, err := os.ReadDir(filepath.Join(root, legacyUserDirName))
+			if err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return nil, err
+			}
+			for _, legacyEntry := range legacyEntries {
+				if !legacyEntry.IsDir() {
+					continue
+				}
+				userRoot := filepath.Join(root, legacyUserDirName, legacyEntry.Name())
+				userPaths, err := collectMemoryFilesForRoot(userRoot)
+				if err != nil {
+					continue
+				}
+				paths = append(paths, userPaths...)
+			}
+			continue
+		}
+		if isReservedUserDirName(name) {
+			continue
+		}
+		userRoot := filepath.Join(root, name)
 		userPaths, err := collectMemoryFilesForRoot(userRoot)
 		if err != nil {
 			continue

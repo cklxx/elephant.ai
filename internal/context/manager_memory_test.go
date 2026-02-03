@@ -38,7 +38,7 @@ func TestLoadMemorySnapshotIncludesLongTermAndDaily(t *testing.T) {
 		t.Fatalf("AppendDaily yesterday: %v", err)
 	}
 
-	userDir := filepath.Join(root, "users", userID)
+	userDir := filepath.Join(root, userID)
 	if err := os.MkdirAll(userDir, 0o755); err != nil {
 		t.Fatalf("mkdir user dir: %v", err)
 	}

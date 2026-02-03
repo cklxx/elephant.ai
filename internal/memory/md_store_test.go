@@ -60,7 +60,7 @@ func TestMarkdownEngineSearchAndGetLines(t *testing.T) {
 	}
 
 	// Add MEMORY.md
-	memDir := filepath.Join(dir, "users", "user-1")
+	memDir := filepath.Join(dir, "user-1")
 	if err := os.MkdirAll(memDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

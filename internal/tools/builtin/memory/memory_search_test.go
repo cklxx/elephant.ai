@@ -81,7 +81,7 @@ func TestMemoryGetReadsLines(t *testing.T) {
 		t.Fatalf("EnsureSchema: %v", err)
 	}
 
-	userRoot := filepath.Join(root, "users", "user-1")
+	userRoot := filepath.Join(root, "user-1")
 	if err := os.MkdirAll(userRoot, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
