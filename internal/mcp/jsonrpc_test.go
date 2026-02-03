@@ -12,14 +12,14 @@ func TestRequestIDGenerator(t *testing.T) {
 	id2 := gen.Next()
 	id3 := gen.Next()
 
-	if id1 != 1 {
-		t.Errorf("Expected first ID to be 1, got %d", id1)
+	if id1 != "1" {
+		t.Errorf("Expected first ID to be 1, got %q", id1)
 	}
-	if id2 != 2 {
-		t.Errorf("Expected second ID to be 2, got %d", id2)
+	if id2 != "2" {
+		t.Errorf("Expected second ID to be 2, got %q", id2)
 	}
-	if id3 != 3 {
-		t.Errorf("Expected third ID to be 3, got %d", id3)
+	if id3 != "3" {
+		t.Errorf("Expected third ID to be 3, got %q", id3)
 	}
 }
 
