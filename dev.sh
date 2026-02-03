@@ -25,6 +25,7 @@
 #   AUTO_STOP_CONFLICTING_PORTS=1 # Auto-stop our backend/web conflicts (default 1)
 #   AUTH_JWT_SECRET=...         # Auth secret (default: dev-secret-change-me)
 #   SKIP_LOCAL_AUTH_DB=1        # Skip local auth DB auto-setup (default 0)
+#   ALEX_CGO_MODE=auto|on|off    # Auto-select CGO for builds (default auto)
 ###############################################################################
 
 set -euo pipefail
@@ -65,6 +66,7 @@ source "${SCRIPT_DIR}/scripts/lib/common/process.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/ports.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/http.sh"
 source "${SCRIPT_DIR}/scripts/lib/common/sandbox.sh"
+source "${SCRIPT_DIR}/scripts/lib/common/cgo.sh"
 source "${SCRIPT_DIR}/scripts/lib/acp_host.sh"
 
 load_dotenv() {
@@ -729,6 +731,12 @@ cleanup_next_dev_lock() {
 
 build_server() {
   log_info "Building backend (./cmd/alex-server)..."
+  cgo_apply_mode
+  if [[ "${CGO_ENABLED:-}" == "1" ]]; then
+    log_info "CGO enabled for build (ALEX_CGO_MODE=$(cgo_mode))"
+  else
+    log_info "CGO disabled for build (ALEX_CGO_MODE=$(cgo_mode))"
+  fi
   "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" build -o "${SCRIPT_DIR}/alex-server" ./cmd/alex-server
   [[ -x "${SCRIPT_DIR}/alex-server" ]] || die "Backend build succeeded but ./alex-server is not executable"
   log_success "Backend built: ./alex-server"
@@ -913,11 +921,21 @@ cmd_logs() {
 
 cmd_test() {
   log_info "Running Go tests (CI parity)..."
-  if [[ "$(uname -s)" == "Darwin" && -z "${CGO_ENABLED:-}" ]]; then
-    export CGO_ENABLED=0
+  if [[ -z "${CGO_ENABLED:-}" ]]; then
+    if [[ "${ALEX_CGO_MODE:-auto}" == "on" ]]; then
+      export CGO_ENABLED=1
+    elif [[ "$(uname -s)" == "Darwin" ]]; then
+      export CGO_ENABLED=0
+    else
+      cgo_apply_mode
+    fi
   fi
   "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" test -race -covermode=atomic -coverprofile=coverage.out ./...
   log_success "Go tests passed"
+}
+
+cmd_setup_cgo() {
+  "${SCRIPT_DIR}/scripts/setup_cgo_sqlite.sh"
 }
 
 cmd_lint() {
@@ -944,6 +962,7 @@ Commands:
   logs       Tail logs (optional: server|web)
   test       Run Go tests (CI parity)
   lint       Run Go + web lint
+  setup-cgo  Install CGO sqlite dependencies
 EOF
 }
 
@@ -957,6 +976,7 @@ case "$cmd" in
   logs) cmd_logs "${@:-all}" ;;
   test) cmd_test ;;
   lint) cmd_lint ;;
+  setup-cgo) cmd_setup_cgo ;;
   help|-h|--help) usage ;;
   *) die "Unknown command: ${cmd} (run ./dev.sh help)" ;;
 esac
