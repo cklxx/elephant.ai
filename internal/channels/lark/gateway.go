@@ -236,9 +236,17 @@ func isResultAwaitingInput(result *agent.TaskResult) bool {
 	return result != nil && strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input")
 }
 
+type messageProcessingOptions struct {
+	skipDedup bool
+}
+
 // handleMessage is the P2MessageReceiveV1 event handler.
 func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
-	msg := g.parseIncomingMessage(event)
+	return g.handleMessageWithOptions(ctx, event, messageProcessingOptions{})
+}
+
+func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2MessageReceiveV1, opts messageProcessingOptions) error {
+	msg := g.parseIncomingMessage(event, opts)
 	if msg == nil {
 		return nil
 	}
@@ -297,7 +305,7 @@ func (g *Gateway) handleMessage(ctx context.Context, event *larkim.P2MessageRece
 // parseIncomingMessage validates the event and extracts key fields.
 // Returns nil if the message should be skipped (unsupported type, disallowed
 // chat, empty content, duplicate, etc.).
-func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1) *incomingMessage {
+func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts messageProcessingOptions) *incomingMessage {
 	if event == nil || event.Event == nil || event.Event.Message == nil {
 		return nil
 	}
@@ -329,7 +337,7 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1) *incomi
 	}
 
 	messageID := deref(raw.MessageId)
-	if messageID != "" && g.isDuplicateMessage(messageID) {
+	if messageID != "" && !opts.skipDedup && g.isDuplicateMessage(messageID) {
 		g.logger.Debug("Lark duplicate message skipped: %s", messageID)
 		return nil
 	}
@@ -745,7 +753,7 @@ func (g *Gateway) reprocessMessage(chatID string, input agent.UserInput) {
 			},
 		},
 	}
-	if err := g.handleMessage(context.Background(), event); err != nil {
+	if err := g.handleMessageWithOptions(context.Background(), event, messageProcessingOptions{skipDedup: true}); err != nil {
 		g.logger.Warn("Reprocess message failed for chat %s: %v", chatID, err)
 	}
 }

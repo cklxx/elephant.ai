@@ -780,12 +780,6 @@ func TestHandleMessageReusesInFlightSession(t *testing.T) {
 	}()
 
 	<-executor.started
-	executor.mu.Lock()
-	inputCh := executor.inputCh
-	executor.mu.Unlock()
-	if inputCh == nil {
-		t.Fatal("expected input channel")
-	}
 
 	event2 := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
@@ -813,17 +807,25 @@ func TestHandleMessageReusesInFlightSession(t *testing.T) {
 		t.Fatalf("expected ExecuteTask once, got %d", callCount)
 	}
 
-	select {
-	case input := <-inputCh:
-		if input.Content != "second" {
-			t.Fatalf("expected injected input, got %q", input.Content)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for injected input")
-	}
-
 	close(executor.finish)
 	wg.Wait()
+
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		executor.mu.Lock()
+		callCount := executor.callCount
+		executor.mu.Unlock()
+		if callCount >= 2 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected ExecuteTask to be called again for reprocessed message, got %d", callCount)
+		case <-ticker.C:
+		}
+	}
 }
 
 func TestHandleMessageDefaultsToolPresetFull(t *testing.T) {
