@@ -1,12 +1,18 @@
 # Markdown Memory System
 
-Updated: 2026-02-02
+Updated: 2026-02-03
 
 ## Overview
 - Memory is Markdown-only (no database). Files live under `~/.alex/memory/`.
+- Memory stays local and user-controlled; edits are transparent and versionable.
 - Long-term memory is curated in `MEMORY.md`.
 - Daily notes are append-only in `memory/YYYY-MM-DD.md`.
 - Search is performed with `memory_search`, and reads are done with `memory_get`.
+- There is no dedicated `memory_write` tool; write memories via normal file tools.
+
+## Context vs Memory
+- **Context**: system prompt + project context + conversation history + tool outputs + current message. It is transient and bounded by the model window.
+- **Memory**: durable Markdown files on disk (`MEMORY.md` + `memory/*.md`). It is persistent, cheap to store, and searchable.
 
 ## Storage Layout
 
@@ -17,9 +23,30 @@ Updated: 2026-02-02
     ├── 2026-02-02.md
     ├── 2026-02-01.md
     └── ...
+
+~/.alex/memory/users/<user-id>/
+├── MEMORY.md
+└── memory/
+    ├── 2026-02-02.md
+    └── ...
 ```
 
+## Session Boot Sequence
+**Identity-critical (must not be skipped):**
+1. **[IDENTITY]** Read `SOUL.md` — who you are.
+2. **[IDENTITY]** Read `USER.md` — who you are helping.
+
+**Memory context (before doing anything else):**
+3. **[RECENT]** Read `memory/YYYY-MM-DD.md` for **today** and **yesterday**.
+4. **[MAIN]** If this is the **main session** (direct with the human), also read `MEMORY.md`.
+
+Rule: do this automatically; do not ask for permission.
+
 ## Writing Memory
+### When to write
+- If the user says “记下来 / remember this”, write it.
+- If a decision, preference, constraint, or contact will matter later, write it.
+- Prefer the daily log first; promote to `MEMORY.md` only when the fact is durable.
 
 ### Daily Log (`memory/YYYY-MM-DD.md`)
 Use the daily log for short, time-stamped notes that were learned during the session.
@@ -36,6 +63,7 @@ Guidelines:
 - Append only; do not rewrite history.
 - Prefer short, high-signal notes (decisions, constraints, preferences).
 - Include exact identifiers (IDs, URLs, config keys) when they matter.
+- If unsure about durability, keep it here and do not promote.
 
 ### Long-Term Memory (`MEMORY.md`)
 Use long-term memory for durable facts that should persist across sessions.
@@ -53,15 +81,21 @@ Guidelines:
 - Keep entries compact and stable (avoid transient states).
 - Group by topic (preferences, decisions, contacts, project facts).
 - Remove outdated facts rather than piling on contradictory notes.
+- Promote durable daily entries here; delete outdated facts.
 
-## Searching Memory
-- Use `memory_search` with a natural-language query.
-- Use `memory_get` with the `path` and line range returned by search.
+## Retrieval Workflow
+1. Run `memory_search` before answering questions about prior work, decisions, dates, people, or preferences.
+2. Use `memory_get` to read the exact lines from the top results.
+3. If nothing relevant is found, say so instead of guessing.
 
 Example:
 ```json
 { "query": "API decision REST vs GraphQL", "maxResults": 6, "minScore": 0.35 }
 ```
+
+## Compaction Safety
+- Before context compression, store high-signal facts in the daily log.
+- Compression summaries are lossy; durable facts must live in Markdown.
 
 ## System Prompt Injection
 - When enabled, the system prompt loads:
