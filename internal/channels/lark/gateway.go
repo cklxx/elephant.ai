@@ -401,7 +401,7 @@ func (g *Gateway) runNewTask(msg *incomingMessage, sessionID string, inputCh cha
 
 	startEmoji, endEmoji := g.pickReactionEmojis()
 	if msg.messageID != "" && startEmoji != "" {
-		go g.addReaction(execCtx, msg.messageID, startEmoji)
+		go g.addReaction(execCtx, msg.messageID, "Get")
 	}
 
 	result, execErr := g.agent.ExecuteTask(execCtx, taskContent, sessionID, listener)
