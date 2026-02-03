@@ -33,6 +33,26 @@ type ResultParams struct {
 	EnableForward bool
 }
 
+// AttachmentAsset describes an uploaded asset for attachment cards.
+type AttachmentAsset struct {
+	Name        string
+	Kind        string // "image" or "file"
+	ImageKey    string
+	FileKey     string
+	FileName    string
+	ButtonTag   string
+	ShowPreview bool
+}
+
+// AttachmentCardParams controls the attachment card output.
+type AttachmentCardParams struct {
+	Title      string
+	Summary    string
+	Footer     string
+	TitleColor string
+	Assets     []AttachmentAsset
+}
+
 // --- Pre-built card templates ---
 
 // ApprovalCard builds a card with Approve and Reject buttons.
@@ -144,6 +164,53 @@ func ErrorCard(title, summary string) (string, error) {
 		Summary:    summary,
 		TitleColor: "red",
 	})
+}
+
+// AttachmentCard builds a completion summary card with attachment buttons.
+func AttachmentCard(params AttachmentCardParams) (string, error) {
+	title := strings.TrimSpace(params.Title)
+	if title == "" {
+		title = "任务完成"
+	}
+	color := strings.TrimSpace(params.TitleColor)
+	if color == "" {
+		color = "green"
+	}
+	card := NewCard(CardConfig{Title: title, TitleColor: color, EnableForward: true})
+	if summary := strings.TrimSpace(params.Summary); summary != "" {
+		card.AddMarkdownSection(summary)
+	}
+	if len(params.Assets) > 0 {
+		card.AddDivider()
+		card.AddMarkdownSection("**附件**")
+		for _, asset := range params.Assets {
+			name := strings.TrimSpace(asset.Name)
+			if name == "" {
+				name = strings.TrimSpace(asset.FileName)
+			}
+			if name == "" {
+				name = "attachment"
+			}
+			if asset.Kind == "image" && asset.ImageKey != "" && asset.ShowPreview {
+				card.AddImage(asset.ImageKey, name)
+			}
+			buttonLabel := "发送 " + name
+			buttonTag := strings.TrimSpace(asset.ButtonTag)
+			if buttonTag == "" {
+				buttonTag = "attachment_send"
+			}
+			card.AddActionButtons(NewButton(buttonLabel, buttonTag).
+				WithValue("attachment_name", name).
+				WithValue("attachment_kind", asset.Kind).
+				WithValue("image_key", asset.ImageKey).
+				WithValue("file_key", asset.FileKey).
+				WithValue("file_name", asset.FileName))
+		}
+	}
+	if footer := strings.TrimSpace(params.Footer); footer != "" {
+		card.AddNote(footer)
+	}
+	return card.Build()
 }
 
 // SummaryCard builds a card with key-value sections.

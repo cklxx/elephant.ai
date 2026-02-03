@@ -112,6 +112,22 @@ func (c *Card) AddPlainTextSection(content string) *Card {
 	return c
 }
 
+// AddImage appends an image element using a Lark image key.
+func (c *Card) AddImage(imgKey, alt string) *Card {
+	if alt == "" {
+		alt = "image"
+	}
+	c.elements = append(c.elements, element{
+		"tag":     "img",
+		"img_key": imgKey,
+		"alt": map[string]string{
+			"tag":     "plain_text",
+			"content": alt,
+		},
+	})
+	return c
+}
+
 // AddInput appends a form input element (returned in callback form_value).
 func (c *Card) AddInput(cfg InputConfig) *Card {
 	input := element{
