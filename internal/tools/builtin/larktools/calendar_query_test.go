@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -67,6 +68,77 @@ func TestCalendarQuery_MissingOAuthToken_ShowsAuthURL(t *testing.T) {
 	}
 	if !strings.Contains(result.Content, oauthSvc.startURL) {
 		t.Fatalf("expected auth url in content, got %q", result.Content)
+	}
+}
+
+func TestCalendarQuery_UsesTenantTokenWhenConfigured(t *testing.T) {
+	var mu sync.Mutex
+	var listAuth string
+	var queryAuth string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/tenant_access_token/internal"):
+			_, _ = w.Write(tokenResponse("app-token", 7200))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/app_access_token/internal"):
+			_, _ = w.Write(tokenResponse("app-token", 7200))
+			return
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars"):
+			mu.Lock()
+			listAuth = r.Header.Get("Authorization")
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"calendar_list": []map[string]interface{}{
+					{
+						"calendar_id": "cal-primary",
+						"type":        "primary",
+						"role":        "owner",
+					},
+				},
+				"has_more": false,
+			}))
+			return
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/calendar/v4/calendars/") && strings.HasSuffix(r.URL.Path, "/events"):
+			mu.Lock()
+			queryAuth = r.Header.Get("Authorization")
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"items":    []map[string]interface{}{},
+				"has_more": false,
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkCalendarQuery()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+	ctx = shared.WithLarkTenantToken(ctx, "tenant-token")
+
+	call := ports.ToolCall{ID: "test-tenant", Name: "lark_calendar_query", Arguments: map[string]any{
+		"start_time": "1700000000",
+		"end_time":   "1700003600",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if listAuth != "Bearer tenant-token" {
+		t.Fatalf("expected tenant token for list calendars, got %q", listAuth)
+	}
+	if queryAuth != "Bearer tenant-token" {
+		t.Fatalf("expected tenant token for list events, got %q", queryAuth)
 	}
 }
 

@@ -70,11 +70,12 @@ func (t *larkCalendarDelete) Execute(ctx context.Context, call ports.ToolCall) (
 		return errResult, nil
 	}
 
-	userToken, errResult := requireLarkUserAccessToken(ctx, call.ID)
+	auth, errResult := resolveLarkCalendarAuth(ctx, call.ID)
 	if errResult != nil {
 		return errResult, nil
 	}
-	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", larkapi.WithUserToken(userToken))
+	callOpt, reqOpt := buildLarkAuthOptions(auth)
+	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", callOpt)
 	if err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
@@ -87,7 +88,7 @@ func (t *larkCalendarDelete) Execute(ctx context.Context, call ports.ToolCall) (
 		CalendarId(calendarID).
 		EventId(eventID)
 
-	options := []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(userToken)}
+	options := []larkcore.RequestOptionFunc{reqOpt}
 	resp, err := client.Calendar.CalendarEvent.Delete(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{
