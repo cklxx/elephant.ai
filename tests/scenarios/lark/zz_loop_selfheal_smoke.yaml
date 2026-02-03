@@ -1,0 +1,19 @@
+name: loop-selfheal-smoke
+setup:
+  config:
+    session_prefix: "loop-selfheal"
+    allow_direct: true
+  llm_mode: mock
+turns:
+  - sender_id: "ou_user_001"
+    chat_id: "oc_chat_001"
+    message_id: "om_msg_001"
+    content: "hi"
+    mock_response:
+      answer: "ok"
+    assertions:
+      messenger:
+        - method: ReplyMessage
+          # Intentionally wrong expectation: used to validate the self-heal loop can fix it.
+          content_contains: ["NOT_OK"]
+

@@ -106,3 +106,34 @@ func TestExpandProactiveFileConfigEnv_OKR(t *testing.T) {
 		t.Errorf("expected expanded GoalsRoot '/from/env/goals', got %q", file.OKR.GoalsRoot)
 	}
 }
+
+func TestExpandProactiveFileConfigEnv_MemoryIndex(t *testing.T) {
+	lookup := func(key string) (string, bool) {
+		switch key {
+		case "MEMORY_INDEX_DB":
+			return "/from/env/index.sqlite", true
+		case "EMBED_MODEL":
+			return "nomic-embed-text", true
+		default:
+			return "", false
+		}
+	}
+
+	file := &ProactiveFileConfig{
+		Memory: &MemoryFileConfig{
+			Index: &MemoryIndexFileConfig{
+				DBPath:        "${MEMORY_INDEX_DB}",
+				EmbedderModel: "${EMBED_MODEL}",
+			},
+		},
+	}
+
+	expandProactiveFileConfigEnv(lookup, file)
+
+	if file.Memory.Index.DBPath != "/from/env/index.sqlite" {
+		t.Errorf("expected expanded DBPath '/from/env/index.sqlite', got %q", file.Memory.Index.DBPath)
+	}
+	if file.Memory.Index.EmbedderModel != "nomic-embed-text" {
+		t.Errorf("expected expanded EmbedderModel 'nomic-embed-text', got %q", file.Memory.Index.EmbedderModel)
+	}
+}

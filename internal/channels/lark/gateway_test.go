@@ -511,6 +511,22 @@ func TestHandleMessagePostContent(t *testing.T) {
 	}
 }
 
+func TestExtractTextContent_MentionRendersUserID(t *testing.T) {
+	raw := `{"text":"Hi <at user_id=\"ou_123\">Bob</at>"}`
+	got := extractTextContent(raw)
+	if !strings.Contains(got, "@Bob(ou_123)") {
+		t.Fatalf("expected mention to include user id, got %q", got)
+	}
+}
+
+func TestExtractPostContent_MentionRendersUserID(t *testing.T) {
+	raw := `{"title":"t","content":[[{"tag":"text","text":"Hi "},{"tag":"at","user_id":"ou_123","user_name":"Bob"}]]}`
+	got := extractPostContent(raw)
+	if !strings.Contains(got, "@Bob(ou_123)") {
+		t.Fatalf("expected mention to include user id, got %q", got)
+	}
+}
+
 func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	openID := "ou_sender_xyz"
 	chatID := "oc_chat_456"

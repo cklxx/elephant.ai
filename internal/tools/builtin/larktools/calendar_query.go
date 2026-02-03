@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
 	"alex/internal/tools/builtin/shared"
+	"alex/internal/utils/id"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -36,7 +38,15 @@ func NewLarkCalendarQuery() tools.ToolExecutor {
 					Properties: map[string]ports.Property{
 						"calendar_id": {
 							Type:        "string",
-							Description: "Calendar ID to query.",
+							Description: "Calendar ID to query. Use \"primary\" to auto-resolve a user's primary calendar ID (see calendar_owner_id).",
+						},
+						"calendar_owner_id": {
+							Type:        "string",
+							Description: "Optional calendar owner user ID. When calendar_id is \"primary\", resolve this user's primary calendar_id (e.g. open_id from @mention).",
+						},
+						"calendar_owner_id_type": {
+							Type:        "string",
+							Description: "Type of calendar_owner_id (open_id, user_id, union_id). Default open_id.",
 						},
 						"start_time": {
 							Type:        "string",
@@ -111,6 +121,12 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
+	calendarID = resolvedID
+
 	builder := larkcalendar.NewListCalendarEventReqBuilder().
 		CalendarId(calendarID).
 		StartTime(startTime).
@@ -127,7 +143,7 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		builder.UserIdType(userIDType)
 	}
 
-	options := calendarRequestOptions(call.Arguments)
+	options := calendarRequestOptions(ctx, call.Arguments)
 	resp, err := client.Calendar.CalendarEvent.List(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{
@@ -180,17 +196,17 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 }
 
 type calendarEventSummary struct {
-	EventID            string `json:"event_id"`
-	Summary            string `json:"summary,omitempty"`
-	StartTime          string `json:"start_time,omitempty"`
-	EndTime            string `json:"end_time,omitempty"`
-	OrganizerCalendar  string `json:"organizer_calendar_id,omitempty"`
-	Status             string `json:"status,omitempty"`
-	HasAttendees       bool   `json:"has_attendees,omitempty"`
-	HasMoreAttendees   bool   `json:"has_more_attendee,omitempty"`
-	NeedNotification   *bool  `json:"need_notification,omitempty"`
-	FreeBusyStatus     string `json:"free_busy_status,omitempty"`
-	Visibility         string `json:"visibility,omitempty"`
+	EventID           string `json:"event_id"`
+	Summary           string `json:"summary,omitempty"`
+	StartTime         string `json:"start_time,omitempty"`
+	EndTime           string `json:"end_time,omitempty"`
+	OrganizerCalendar string `json:"organizer_calendar_id,omitempty"`
+	Status            string `json:"status,omitempty"`
+	HasAttendees      bool   `json:"has_attendees,omitempty"`
+	HasMoreAttendees  bool   `json:"has_more_attendee,omitempty"`
+	NeedNotification  *bool  `json:"need_notification,omitempty"`
+	FreeBusyStatus    string `json:"free_busy_status,omitempty"`
+	Visibility        string `json:"visibility,omitempty"`
 }
 
 func summarizeCalendarEvents(items []*larkcalendar.CalendarEvent) []calendarEventSummary {
@@ -316,10 +332,23 @@ func parseUnixSecondsValue(callID, key string, raw any) (string, int64, *ports.T
 	return value, parsed, nil
 }
 
-func calendarRequestOptions(args map[string]any) []larkcore.RequestOptionFunc {
+func calendarRequestOptions(ctx context.Context, args map[string]any) []larkcore.RequestOptionFunc {
 	token := shared.StringArg(args, "user_access_token")
 	if token == "" {
 		return nil
 	}
+
+	// If the tool targets someone else's calendar (calendar_owner_id), do not
+	// blindly apply the caller's user token: it likely belongs to the initiator
+	// and may not have permission to operate on the owner's calendar. In that
+	// case prefer tenant-scoped calls.
+	ownerID := strings.TrimSpace(shared.StringArg(args, "calendar_owner_id"))
+	if ownerID != "" {
+		ctxUserID := strings.TrimSpace(id.UserIDFromContext(ctx))
+		if ctxUserID == "" || ownerID != ctxUserID {
+			return nil
+		}
+	}
+
 	return []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(token)}
 }

@@ -152,7 +152,19 @@ type OKRFileConfig struct {
 }
 
 type MemoryFileConfig struct {
-	Enabled *bool `yaml:"enabled"`
+	Enabled *bool                  `yaml:"enabled"`
+	Index   *MemoryIndexFileConfig `yaml:"index"`
+}
+
+type MemoryIndexFileConfig struct {
+	Enabled            *bool    `yaml:"enabled"`
+	DBPath             string   `yaml:"db_path"`
+	ChunkTokens        *int     `yaml:"chunk_tokens"`
+	ChunkOverlap       *int     `yaml:"chunk_overlap"`
+	MinScore           *float64 `yaml:"min_score"`
+	FusionWeightVector *float64 `yaml:"fusion_weight_vector"`
+	FusionWeightBM25   *float64 `yaml:"fusion_weight_bm25"`
+	EmbedderModel      string   `yaml:"embedder_model"`
 }
 
 type SkillsFileConfig struct {

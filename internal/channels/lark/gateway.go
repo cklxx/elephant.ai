@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"mime"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -878,7 +879,33 @@ func extractTextContent(raw string) string {
 	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
 		return strings.TrimSpace(raw)
 	}
-	return strings.TrimSpace(parsed.Text)
+	return strings.TrimSpace(renderTextMentions(parsed.Text))
+}
+
+var larkMentionTag = regexp.MustCompile(`<at\s+user_id="([^"]+)"\s*>([^<]*)</at>`)
+
+func renderTextMentions(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return text
+	}
+	return larkMentionTag.ReplaceAllStringFunc(text, func(m string) string {
+		sub := larkMentionTag.FindStringSubmatch(m)
+		if len(sub) != 3 {
+			return m
+		}
+		userID := strings.TrimSpace(sub[1])
+		name := strings.TrimSpace(sub[2])
+		if name == "" {
+			name = userID
+		}
+		if userID == "" || name == "" {
+			return m
+		}
+		if userID == name {
+			return "@" + name
+		}
+		return "@" + name + "(" + userID + ")"
+	})
 }
 
 // extractPostContent parses a Lark post message content JSON and flattens text.
@@ -925,6 +952,12 @@ func extractPostContent(raw string) string {
 				if name != "" {
 					sb.WriteString("@")
 					sb.WriteString(name)
+					userID := strings.TrimSpace(el.UserID)
+					if userID != "" && userID != name {
+						sb.WriteString("(")
+						sb.WriteString(userID)
+						sb.WriteString(")")
+					}
 				}
 			default:
 				if el.Text != "" {

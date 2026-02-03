@@ -32,7 +32,15 @@ func NewLarkCalendarUpdate() tools.ToolExecutor {
 						},
 						"calendar_id": {
 							Type:        "string",
-							Description: "Calendar ID (defaults to \"primary\").",
+							Description: "Calendar ID (or \"primary\" to auto-resolve). Defaults to \"primary\".",
+						},
+						"calendar_owner_id": {
+							Type:        "string",
+							Description: "Optional calendar owner user ID. When calendar_id is \"primary\", resolve this user's primary calendar_id (e.g. open_id from @mention).",
+						},
+						"calendar_owner_id_type": {
+							Type:        "string",
+							Description: "Type of calendar_owner_id (open_id, user_id, union_id). Default open_id.",
 						},
 						"summary": {
 							Type:        "string",
@@ -136,6 +144,12 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
+	calendarID = resolvedID
+
 	builder := larkcalendar.NewPatchCalendarEventReqBuilder().
 		CalendarId(calendarID).
 		EventId(eventID).
@@ -145,7 +159,7 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 		builder.UserIdType(userIDType)
 	}
 
-	options := calendarRequestOptions(call.Arguments)
+	options := calendarRequestOptions(ctx, call.Arguments)
 	resp, err := client.Calendar.CalendarEvent.Patch(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{

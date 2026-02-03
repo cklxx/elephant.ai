@@ -24,6 +24,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		".cache":       {},
 		".git":         {},
 		".toolchains":  {},
+		".worktrees":   {},
 		"logs":         {},
 		"node_modules": {},
 		"vendor":       {},
