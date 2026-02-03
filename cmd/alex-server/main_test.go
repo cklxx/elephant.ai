@@ -15,7 +15,7 @@ func TestLoadConfigWithMockProvider(t *testing.T) {
 	}
 	t.Setenv("ALEX_CONFIG_PATH", path)
 
-	cfg, _, _, err := serverBootstrap.LoadConfig()
+	cfg, _, _, _, err := serverBootstrap.LoadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

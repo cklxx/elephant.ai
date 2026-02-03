@@ -100,6 +100,34 @@ func (m *Manager) UpdateOverrides(ctx context.Context, overrides runtimeconfig.O
 	return nil
 }
 
+// RefreshOverrides reloads overrides from the store and notifies subscribers.
+func (m *Manager) RefreshOverrides(ctx context.Context) (runtimeconfig.Overrides, error) {
+	if m == nil {
+		return runtimeconfig.Overrides{}, nil
+	}
+	overrides, err := m.store.LoadOverrides(ctx)
+	if err != nil {
+		return runtimeconfig.Overrides{}, err
+	}
+	m.mu.Lock()
+	m.cache = overrides
+	m.cachedAt = time.Now()
+	m.hasCache = true
+	subs := make([]chan runtimeconfig.Overrides, 0, len(m.subscribers))
+	for ch := range m.subscribers {
+		subs = append(subs, ch)
+	}
+	m.mu.Unlock()
+
+	for _, ch := range subs {
+		select {
+		case ch <- overrides:
+		default:
+		}
+	}
+	return overrides, nil
+}
+
 // Subscribe returns a channel that receives override updates and an unsubscribe func.
 func (m *Manager) Subscribe() (<-chan runtimeconfig.Overrides, func()) {
 	if m == nil {

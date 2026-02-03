@@ -91,7 +91,7 @@ var defaultAllowedOrigins = []string{
 	"https://alex.yourdomain.com",
 }
 
-func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error), error) {
+func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error), *runtimeconfig.RuntimeConfigCache, error) {
 	envLookup := runtimeconfig.DefaultEnvLookup
 
 	storePath := configadmin.ResolveStorePath(envLookup)
@@ -105,16 +105,30 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	store := configadmin.NewFileStore(storePath)
 	managedOverrides, err := store.LoadOverrides(ctx)
 	if err != nil {
-		return Config{}, nil, nil, err
+		return Config{}, nil, nil, nil, err
 	}
 	manager := configadmin.NewManager(store, managedOverrides, configadmin.WithCacheTTL(cacheTTL))
 
-	runtimeCfg, runtimeMeta, err := runtimeconfig.Load(
-		runtimeconfig.WithEnv(envLookup),
-		runtimeconfig.WithOverrides(managedOverrides),
-	)
+	loader := func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		overrides, err := manager.CurrentOverrides(ctx)
+		if err != nil {
+			return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, err
+		}
+		return runtimeconfig.Load(
+			runtimeconfig.WithEnv(envLookup),
+			runtimeconfig.WithOverrides(overrides),
+		)
+	}
+	runtimeCache, err := runtimeconfig.NewRuntimeConfigCache(loader)
 	if err != nil {
-		return Config{}, nil, nil, err
+		return Config{}, nil, nil, nil, err
+	}
+	runtimeCfg, runtimeMeta, err := runtimeCache.Resolve(context.Background())
+	if err != nil {
+		return Config{}, nil, nil, nil, err
 	}
 
 	cfg := Config{
@@ -172,29 +186,17 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 
 	fileCfg, _, err := runtimeconfig.LoadFileConfig(runtimeconfig.WithEnv(envLookup))
 	if err != nil {
-		return Config{}, nil, nil, err
+		return Config{}, nil, nil, nil, err
 	}
 	applyServerFileConfig(&cfg, fileCfg)
 
 	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
-		return Config{}, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
+		return Config{}, nil, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
 
-	resolver := func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		overrides, err := manager.CurrentOverrides(ctx)
-		if err != nil {
-			return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, err
-		}
-		return runtimeconfig.Load(
-			runtimeconfig.WithEnv(envLookup),
-			runtimeconfig.WithOverrides(overrides),
-		)
-	}
+	resolver := runtimeCache.Resolve
 
-	return cfg, manager, resolver, nil
+	return cfg, manager, resolver, runtimeCache, nil
 }
 
 func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {

@@ -25,7 +25,7 @@ func TestHandleGetSubscriptionCatalogUsesCatalogService(t *testing.T) {
 		return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, nil
 	}
 
-	handler := NewConfigHandler(manager, resolver)
+	handler := NewConfigHandler(manager, resolver, nil, nil)
 	handler.catalogService = &stubCatalogService{catalog: subscription.Catalog{Providers: []subscription.CatalogProvider{{Provider: "codex"}}}}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/internal/subscription/catalog", nil)

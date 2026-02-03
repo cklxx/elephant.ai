@@ -181,3 +181,63 @@ func TestManagerCurrentOverridesPropagatesStoreErrors(t *testing.T) {
 		t.Fatalf("expected error %v, got %v", expectedErr, err)
 	}
 }
+
+func TestManagerRefreshOverridesReloadsAndNotifies(t *testing.T) {
+	t.Parallel()
+
+	var loads atomic.Int64
+	store := &stubStore{
+		loadFn: func(context.Context) (runtimeconfig.Overrides, error) {
+			loads.Add(1)
+			value := "refreshed"
+			return runtimeconfig.Overrides{LLMProvider: &value}, nil
+		},
+	}
+
+	manager := NewManager(store, runtimeconfig.Overrides{}, WithCacheTTL(time.Hour))
+	ch, unsubscribe := manager.Subscribe()
+	defer unsubscribe()
+
+	got, err := manager.RefreshOverrides(context.Background())
+	if err != nil {
+		t.Fatalf("RefreshOverrides returned error: %v", err)
+	}
+	if got.LLMProvider == nil || *got.LLMProvider != "refreshed" {
+		t.Fatalf("expected refreshed overrides, got %#v", got.LLMProvider)
+	}
+	if loads.Load() != 1 {
+		t.Fatalf("expected store load once, got %d", loads.Load())
+	}
+
+	current, err := manager.CurrentOverrides(context.Background())
+	if err != nil {
+		t.Fatalf("CurrentOverrides returned error: %v", err)
+	}
+	if current.LLMProvider == nil || *current.LLMProvider != "refreshed" {
+		t.Fatalf("expected cache to be updated, got %#v", current.LLMProvider)
+	}
+
+	select {
+	case <-time.After(time.Second):
+		t.Fatal("expected subscriber to receive refresh notification")
+	case update := <-ch:
+		if update.LLMProvider == nil || *update.LLMProvider != "refreshed" {
+			t.Fatalf("subscriber received unexpected overrides: %#v", update)
+		}
+	}
+}
+
+func TestManagerRefreshOverridesPropagatesErrors(t *testing.T) {
+	t.Parallel()
+
+	store := &stubStore{
+		loadFn: func(context.Context) (runtimeconfig.Overrides, error) {
+			return runtimeconfig.Overrides{}, errors.New("load failed")
+		},
+	}
+	manager := NewManager(store, runtimeconfig.Overrides{})
+
+	if _, err := manager.RefreshOverrides(context.Background()); err == nil {
+		t.Fatalf("expected refresh error")
+	}
+}

@@ -19,20 +19,29 @@ type RuntimeConfigResolver func(context.Context) (runtimeconfig.RuntimeConfig, r
 
 // ConfigHandler serves internal runtime configuration APIs.
 type ConfigHandler struct {
-	manager        *configadmin.Manager
-	resolver       RuntimeConfigResolver
-	catalogService SubscriptionCatalogService
+	manager         *configadmin.Manager
+	resolver        RuntimeConfigResolver
+	catalogService  SubscriptionCatalogService
+	runtimeUpdates  <-chan struct{}
+	runtimeReloader func(context.Context) error
 }
 
 // NewConfigHandler constructs a handler when a manager is available.
-func NewConfigHandler(manager *configadmin.Manager, resolver RuntimeConfigResolver) *ConfigHandler {
+func NewConfigHandler(
+	manager *configadmin.Manager,
+	resolver RuntimeConfigResolver,
+	runtimeUpdates <-chan struct{},
+	runtimeReloader func(context.Context) error,
+) *ConfigHandler {
 	if manager == nil || resolver == nil {
 		return nil
 	}
 	return &ConfigHandler{
-		manager:        manager,
-		resolver:       resolver,
-		catalogService: nil,
+		manager:         manager,
+		resolver:        resolver,
+		catalogService:  nil,
+		runtimeUpdates:  runtimeUpdates,
+		runtimeReloader: runtimeReloader,
 	}
 }
 
@@ -99,6 +108,12 @@ func (h *ConfigHandler) HandleUpdateRuntimeConfig(w http.ResponseWriter, r *http
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if h.runtimeReloader != nil {
+		if err := h.runtimeReloader(r.Context()); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	payload, err := h.snapshot(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -142,12 +157,20 @@ func (h *ConfigHandler) HandleRuntimeStream(w http.ResponseWriter, r *http.Reque
 
 	updates, unsubscribe := h.manager.Subscribe()
 	defer unsubscribe()
+	runtimeUpdates := h.runtimeUpdates
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-updates:
+			if runtimeUpdates != nil {
+				continue
+			}
+			if err := sendSnapshot(); err != nil {
+				return
+			}
+		case <-runtimeUpdates:
 			if err := sendSnapshot(); err != nil {
 				return
 			}
