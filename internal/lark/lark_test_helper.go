@@ -22,11 +22,8 @@ func testServer(handler http.HandlerFunc) (*httptest.Server, *Client) {
 		if strings.Contains(r.URL.Path, "tenant_access_token") ||
 			strings.Contains(r.URL.Path, "app_access_token") {
 			w.Header().Set("Content-Type", "application/json")
-			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
-				"tenant_access_token": "test-token",
-				"app_access_token":    "test-token",
-				"expire":              7200,
-			})); err != nil {
+			// auth/v3 token endpoints are not wrapped in the standard {"data": ...} envelope.
+			if _, err := w.Write(tokenResponse("test-token", 7200)); err != nil {
 				panic(err)
 			}
 			return
@@ -48,6 +45,19 @@ func jsonResponse(code int, msg string, data interface{}) []byte {
 	}
 	if data != nil {
 		resp["data"] = data
+	}
+	b, _ := json.Marshal(resp)
+	return b
+}
+
+// tokenResponse builds an auth/v3 token response body (top-level token fields).
+func tokenResponse(token string, expire int) []byte {
+	resp := map[string]interface{}{
+		"code":                0,
+		"msg":                 "ok",
+		"tenant_access_token": token,
+		"app_access_token":    token,
+		"expire":              expire,
 	}
 	b, _ := json.Marshal(resp)
 	return b
