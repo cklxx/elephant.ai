@@ -6,6 +6,7 @@ import (
 
 	"alex/internal/attachments"
 	authapp "alex/internal/auth/app"
+	"alex/internal/memory"
 	"alex/internal/observability"
 	"alex/internal/server/app"
 )
@@ -26,6 +27,7 @@ type RouterDeps struct {
 	SandboxMaxResponseBytes int
 	DataCache               *DataCache
 	LarkCardHandler         http.Handler
+	MemoryEngine            memory.Engine
 }
 
 // RouterConfig holds configuration values for the HTTP router.

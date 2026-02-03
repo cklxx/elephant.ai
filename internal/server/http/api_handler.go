@@ -3,6 +3,7 @@ package http
 import (
 	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
+	"alex/internal/memory"
 	"alex/internal/observability"
 	"alex/internal/sandbox"
 	"alex/internal/server/app"
@@ -26,6 +27,7 @@ type APIHandler struct {
 	sandboxClient         *sandbox.Client
 	maxCreateTaskBodySize int64
 	selectionResolver     *subscription.SelectionResolver
+	memoryEngine          memory.Engine
 }
 
 // APIHandlerOption configures API handler behavior.
@@ -64,6 +66,13 @@ func WithSandboxClient(client *sandbox.Client) APIHandlerOption {
 func WithSelectionResolver(resolver *subscription.SelectionResolver) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.selectionResolver = resolver
+	}
+}
+
+// WithMemoryEngine wires a memory engine for dev memory snapshots.
+func WithMemoryEngine(engine memory.Engine) APIHandlerOption {
+	return func(handler *APIHandler) {
+		handler.memoryEngine = engine
 	}
 }
 

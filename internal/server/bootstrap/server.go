@@ -300,6 +300,7 @@ func RunServer(observabilityConfigPath string) error {
 			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
 			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
 			LarkCardHandler:         larkCardHandler,
+			MemoryEngine:            container.MemoryEngine,
 		},
 		serverHTTP.RouterConfig{
 			Environment:      config.Runtime.Environment,

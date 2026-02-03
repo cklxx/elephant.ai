@@ -289,16 +289,7 @@ func (e *MarkdownEngine) LoadLongTerm(_ context.Context, userID string) (string,
 }
 
 func (e *MarkdownEngine) userRoot(userID string) string {
-	root := strings.TrimSpace(e.rootDir)
-	if root == "" {
-		return ""
-	}
-	userID = strings.TrimSpace(userID)
-	if userID == "" {
-		return root
-	}
-	safe := sanitizeSegment(userID)
-	return filepath.Join(root, userDirName, safe)
+	return ResolveUserRoot(e.rootDir, userID)
 }
 
 func sanitizeSegment(input string) string {
