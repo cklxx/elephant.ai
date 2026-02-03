@@ -32,9 +32,8 @@ Date: 2026-02-03
 - Run full lint + tests.
 
 ## Progress
-- [ ] Update skills prompt rendering
-- [ ] Split memory docs + update knowledge refs
-- [ ] Add/adjust tests
-- [ ] gofmt + full lint/tests
+- [x] Update skills prompt rendering
+- [x] Split memory docs + update knowledge refs
+- [x] Add/adjust tests
+- [x] gofmt + full lint/tests
 - [ ] Commit (incremental) + merge back to `main`
-
