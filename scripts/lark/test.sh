@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=../lib/common/build.sh
+source "${SCRIPT_DIR}/../lib/common/build.sh"
 
 usage() {
   cat <<'EOF'
@@ -45,6 +47,7 @@ SETUP_DB_SH="${ROOT}/scripts/setup_local_auth_db.sh"
 TEST_ROOT="${ROOT}/.worktrees/test"
 BIN="${TEST_ROOT}/alex-server"
 PID_FILE="${TEST_ROOT}/.pids/lark-test.pid"
+BUILD_STAMP="${TEST_ROOT}/.pids/lark-test.build"
 LOG_FILE="${TEST_ROOT}/logs/lark-test.log"
 TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${TEST_ROOT}/logs}"
@@ -112,6 +115,7 @@ build() {
   git -C "${TEST_ROOT}" reset --hard main >/dev/null 2>&1 || true
   log_info "Building alex-server (test worktree)..."
   (cd "${TEST_ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
+  write_build_stamp "${BUILD_STAMP}" "$(build_ref_fingerprint "${ROOT}" "refs/heads/main")"
   log_success "Built ${BIN}"
 }
 
@@ -170,12 +174,17 @@ start() {
   maybe_setup_auth_db
   ensure_worktree
 
-  local health_url
+  local health_url current_fingerprint
   health_url="$(resolve_health_url)"
+  current_fingerprint="$(build_ref_fingerprint "${ROOT}" "refs/heads/main")"
   if curl -sf "${health_url}" >/dev/null 2>&1; then
     adopt_pid_if_missing || true
-    log_success "Test server already healthy: ${health_url}"
-    return 0
+    if ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+      log_success "Test server already healthy: ${health_url}"
+      return 0
+    fi
+    log_info "Main updated; rebuilding and restarting test server..."
+    stop
   fi
 
   local pid
@@ -185,7 +194,16 @@ start() {
     return 0
   fi
 
-  build
+  local needs_build=1
+  if [[ -x "${BIN}" ]] && ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+    needs_build=0
+  fi
+
+  if [[ "${needs_build}" == "1" ]]; then
+    build
+  else
+    log_info "Reusing existing build (no changes detected)."
+  fi
 
   log_info "Starting test server..."
   (cd "${TEST_ROOT}" && ALEX_CONFIG_PATH="${TEST_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 & echo "$!" > "${PID_FILE}")

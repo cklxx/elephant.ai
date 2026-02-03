@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=../lib/common/build.sh
+source "${SCRIPT_DIR}/../lib/common/build.sh"
 
 usage() {
   cat <<'EOF'
@@ -36,6 +38,7 @@ fi
 
 BIN="${ROOT}/alex-server"
 PID_FILE="${ROOT}/.pids/lark-main.pid"
+BUILD_STAMP="${ROOT}/.pids/lark-main.build"
 LOG_FILE="${ROOT}/logs/lark-main.log"
 MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
 MAIN_PORT="${MAIN_PORT:-}"
@@ -145,6 +148,7 @@ maybe_setup_auth_db() {
 build() {
   log_info "Building alex-server (main)..."
   (cd "${ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
+  write_build_stamp "${BUILD_STAMP}" "$(build_fingerprint "${ROOT}")"
   log_success "Built ${BIN}"
 }
 
@@ -153,12 +157,17 @@ start() {
 
   maybe_setup_auth_db
 
-  local health_url
+  local health_url current_fingerprint
   health_url="$(resolve_health_url)"
+  current_fingerprint="$(build_fingerprint "${ROOT}")"
   if curl -sf "${health_url}" >/dev/null 2>&1; then
     adopt_pid_if_missing || true
-    log_success "Main agent already healthy: ${health_url}"
-    return 0
+    if ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+      log_success "Main agent already healthy: ${health_url}"
+      return 0
+    fi
+    log_info "Source changes detected; rebuilding and restarting main agent..."
+    stop
   fi
 
   local pid
@@ -168,7 +177,16 @@ start() {
     return 0
   fi
 
-  build
+  local needs_build=1
+  if [[ -x "${BIN}" ]] && ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+    needs_build=0
+  fi
+
+  if [[ "${needs_build}" == "1" ]]; then
+    build
+  else
+    log_info "Reusing existing build (no changes detected)."
+  fi
   log_info "Starting main agent..."
   ALEX_CONFIG_PATH="${MAIN_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 &
   echo "$!" > "${PID_FILE}"
