@@ -23,6 +23,32 @@ parse_version() {
   printf "%s %s\n" "$major" "$minor"
 }
 
+append_cgo_flag() {
+  local var_name="$1"
+  local flag="$2"
+  local current="${!var_name:-}"
+  if [[ "$current" == *"$flag"* ]]; then
+    return 0
+  fi
+  if [[ -n "$current" ]]; then
+    export "${var_name}=${current} ${flag}"
+  else
+    export "${var_name}=${flag}"
+  fi
+}
+
+# Set ALEX_DARWIN_CGO_SUPPRESS_DEPRECATIONS=0 to retain warnings on macOS.
+maybe_suppress_darwin_deprecations() {
+  local mode="${ALEX_DARWIN_CGO_SUPPRESS_DEPRECATIONS:-1}"
+  if [[ "$mode" != "1" ]]; then
+    return 0
+  fi
+  if [[ "$(uname -s)" != "Darwin" ]]; then
+    return 0
+  fi
+  append_cgo_flag CGO_CFLAGS "-Wno-deprecated-declarations"
+}
+
 detect_toolchain_requirement() {
   local requirement=""
   if [[ -f "$GO_MOD" ]]; then
@@ -144,6 +170,9 @@ if [[ -n "${GONOSUMDB:-}" ]]; then
 else
   export GONOSUMDB="golang.org/toolchain"
 fi
+
+# Suppress macOS deprecated-declarations warnings unless explicitly disabled.
+maybe_suppress_darwin_deprecations
 
 "$GO_BIN" "$@"
 status=$?
