@@ -1,4 +1,5 @@
 name: loop-selfheal-smoke
+tags: ["manual"]
 setup:
   config:
     session_prefix: "loop-selfheal"
@@ -16,4 +17,3 @@ turns:
         - method: ReplyMessage
           # Intentionally wrong expectation: used to validate the self-heal loop can fix it.
           content_contains: ["NOT_OK"]
-

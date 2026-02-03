@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -35,6 +36,9 @@ func TestScenarios(t *testing.T) {
 	for _, s := range scenarios {
 		s := s
 		t.Run(s.Name, func(t *testing.T) {
+			if hasTag(s.Tags, "manual") {
+				t.Skipf("scenario %q is tagged manual", s.Name)
+			}
 			result := runner.Run(context.Background(), s)
 			for _, tr := range result.Turns {
 				for _, e := range tr.Errors {
@@ -46,4 +50,13 @@ func TestScenarios(t *testing.T) {
 			}
 		})
 	}
+}
+
+func hasTag(tags []string, needle string) bool {
+	for _, tag := range tags {
+		if strings.EqualFold(strings.TrimSpace(tag), needle) {
+			return true
+		}
+	}
+	return false
 }
