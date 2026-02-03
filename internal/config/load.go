@@ -225,6 +225,21 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg == nil {
 		return
 	}
+	cfg.Memory.Index.DBPath = strings.TrimSpace(cfg.Memory.Index.DBPath)
+	cfg.Memory.Index.EmbedderModel = strings.TrimSpace(cfg.Memory.Index.EmbedderModel)
+	if cfg.Memory.Index.ChunkTokens <= 0 {
+		cfg.Memory.Index.ChunkTokens = 400
+	}
+	if cfg.Memory.Index.ChunkOverlap < 0 {
+		cfg.Memory.Index.ChunkOverlap = 0
+	}
+	if cfg.Memory.Index.MinScore <= 0 {
+		cfg.Memory.Index.MinScore = 0.35
+	}
+	if cfg.Memory.Index.FusionWeightVector == 0 && cfg.Memory.Index.FusionWeightBM25 == 0 {
+		cfg.Memory.Index.FusionWeightVector = 0.7
+		cfg.Memory.Index.FusionWeightBM25 = 0.3
+	}
 	if cfg.Skills.AutoActivation.MaxActivated <= 0 {
 		cfg.Skills.AutoActivation.MaxActivated = 3
 	}

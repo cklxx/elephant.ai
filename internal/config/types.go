@@ -196,7 +196,20 @@ type OKRProactiveConfig struct {
 
 // MemoryConfig controls loading persistent Markdown memory.
 type MemoryConfig struct {
-	Enabled bool `json:"enabled" yaml:"enabled"`
+	Enabled bool              `json:"enabled" yaml:"enabled"`
+	Index   MemoryIndexConfig `json:"index" yaml:"index"`
+}
+
+// MemoryIndexConfig controls local vector indexing for Markdown memory.
+type MemoryIndexConfig struct {
+	Enabled            bool    `json:"enabled" yaml:"enabled"`
+	DBPath             string  `json:"db_path" yaml:"db_path"`
+	ChunkTokens        int     `json:"chunk_tokens" yaml:"chunk_tokens"`
+	ChunkOverlap       int     `json:"chunk_overlap" yaml:"chunk_overlap"`
+	MinScore           float64 `json:"min_score" yaml:"min_score"`
+	FusionWeightVector float64 `json:"fusion_weight_vector" yaml:"fusion_weight_vector"`
+	FusionWeightBM25   float64 `json:"fusion_weight_bm25" yaml:"fusion_weight_bm25"`
+	EmbedderModel      string  `json:"embedder_model" yaml:"embedder_model"`
 }
 
 // SkillsConfig controls skill activation and feedback.
@@ -285,6 +298,16 @@ func DefaultProactiveConfig() ProactiveConfig {
 		Enabled: true,
 		Memory: MemoryConfig{
 			Enabled: true,
+			Index: MemoryIndexConfig{
+				Enabled:            true,
+				DBPath:             "~/.alex/memory/index.sqlite",
+				ChunkTokens:        400,
+				ChunkOverlap:       80,
+				MinScore:           0.35,
+				FusionWeightVector: 0.7,
+				FusionWeightBM25:   0.3,
+				EmbedderModel:      "nomic-embed-text",
+			},
 		},
 		Skills: SkillsConfig{
 			AutoActivation: SkillsAutoActivationConfig{

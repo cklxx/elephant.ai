@@ -47,6 +47,39 @@ func mergeMemoryConfig(target *MemoryConfig, file *MemoryFileConfig) {
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
+	if file.Index != nil {
+		mergeMemoryIndexConfig(&target.Index, file.Index)
+	}
+}
+
+func mergeMemoryIndexConfig(target *MemoryIndexConfig, file *MemoryIndexFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if strings.TrimSpace(file.DBPath) != "" {
+		target.DBPath = strings.TrimSpace(file.DBPath)
+	}
+	if file.ChunkTokens != nil {
+		target.ChunkTokens = *file.ChunkTokens
+	}
+	if file.ChunkOverlap != nil {
+		target.ChunkOverlap = *file.ChunkOverlap
+	}
+	if file.MinScore != nil {
+		target.MinScore = *file.MinScore
+	}
+	if file.FusionWeightVector != nil {
+		target.FusionWeightVector = *file.FusionWeightVector
+	}
+	if file.FusionWeightBM25 != nil {
+		target.FusionWeightBM25 = *file.FusionWeightBM25
+	}
+	if strings.TrimSpace(file.EmbedderModel) != "" {
+		target.EmbedderModel = strings.TrimSpace(file.EmbedderModel)
+	}
 }
 
 func mergeSkillsConfig(target *SkillsConfig, file *SkillsFileConfig) {
@@ -213,6 +246,10 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 		file.RAG.Collection = expandEnvValue(lookup, file.RAG.Collection)
 		file.RAG.EmbedderModel = expandEnvValue(lookup, file.RAG.EmbedderModel)
 		file.RAG.EmbedderBaseURL = expandEnvValue(lookup, file.RAG.EmbedderBaseURL)
+	}
+	if file.Memory != nil && file.Memory.Index != nil {
+		file.Memory.Index.DBPath = expandEnvValue(lookup, file.Memory.Index.DBPath)
+		file.Memory.Index.EmbedderModel = expandEnvValue(lookup, file.Memory.Index.EmbedderModel)
 	}
 	if file.OKR != nil {
 		file.OKR.GoalsRoot = expandEnvValue(lookup, file.OKR.GoalsRoot)

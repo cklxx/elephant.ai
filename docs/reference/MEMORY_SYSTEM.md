@@ -3,7 +3,8 @@
 Updated: 2026-02-03
 
 ## Overview
-- Memory is Markdown-only (no database). Files live under `~/.alex/memory/`.
+- Memory is Markdown-only; Markdown files are the single source of truth under `~/.alex/memory/`.
+- A local SQLite index (sqlite-vec + FTS5) is derived for faster retrieval; it can be rebuilt at any time.
 - Memory stays local and user-controlled; edits are transparent and versionable.
 - Long-term memory is curated in `MEMORY.md`.
 - Daily notes are append-only in `memory/YYYY-MM-DD.md`.
@@ -17,6 +18,13 @@ Updated: 2026-02-03
 ## Storage Layout
 
 ```
+
+## Indexing & Search
+- Index database: `~/.alex/memory/index.sqlite` (per-user indices live under `~/.alex/memory/users/<user-id>/index.sqlite`).
+- Chunking: ~400 tokens per chunk with 80-token overlap (configurable).
+- Embeddings: local Ollama embedding model (default `nomic-embed-text`).
+- Hybrid ranking: `final = 0.7 * vectorScore + 0.3 * bm25Score` with `minScore = 0.35`.
+- If the index is unavailable, memory search falls back to Markdown file scanning.
 ~/.alex/memory/
 ├── MEMORY.md
 └── memory/
@@ -41,6 +49,15 @@ Updated: 2026-02-03
 4. **[MAIN]** If this is the **main session** (direct with the human), also read `MEMORY.md`.
 
 Rule: do this automatically; do not ask for permission.
+
+## 每次会话（身份信息必须优先）
+在干别的事之前：
+1. 读 `SOUL.md` —— 这是「你是谁」
+2. 读 `USER.md` —— 这是「你在帮谁」
+3. 读 `memory/YYYY-MM-DD.md`（今天和昨天的）以此获取最近的上下文
+4. 如果是在主会话（MAIN SESSION）（直接跟人类聊天），还要读 `MEMORY.md`
+
+别问许可，直接干就完了。
 
 ## Writing Memory
 ### When to write

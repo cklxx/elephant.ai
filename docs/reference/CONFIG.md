@@ -317,6 +317,14 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 - `proactive.enabled`：总开关（默认 true）。
 - `proactive.memory.enabled`：Markdown 记忆加载开关（从 `~/.alex/memory/` 读取 `MEMORY.md` 与 `memory/YYYY-MM-DD.md`）。
+- `proactive.memory.index.enabled`：本地向量索引开关（SQLite + sqlite-vec）。
+- `proactive.memory.index.db_path`：索引数据库路径（默认 `~/.alex/memory/index.sqlite`；用户隔离路径会落在 `~/.alex/memory/users/<user-id>/index.sqlite`）。
+- `proactive.memory.index.chunk_tokens`：分块 token 上限（默认 400）。
+- `proactive.memory.index.chunk_overlap`：分块重叠 token 数（默认 80）。
+- `proactive.memory.index.min_score`：检索最小分数阈值（默认 0.35）。
+- `proactive.memory.index.fusion_weight_vector`：向量检索权重（默认 0.7）。
+- `proactive.memory.index.fusion_weight_bm25`：BM25 权重（默认 0.3）。
+- `proactive.memory.index.embedder_model`：Ollama embedding 模型（默认 `nomic-embed-text`）。
 
 示例（YAML）：
 
@@ -326,6 +334,15 @@ runtime:
     enabled: true
     memory:
       enabled: true
+      index:
+        enabled: true
+        db_path: "~/.alex/memory/index.sqlite"
+        chunk_tokens: 400
+        chunk_overlap: 80
+        min_score: 0.35
+        fusion_weight_vector: 0.7
+        fusion_weight_bm25: 0.3
+        embedder_model: "nomic-embed-text"
 ```
 
 ### ACP 执行器配置（executor 适配层）
