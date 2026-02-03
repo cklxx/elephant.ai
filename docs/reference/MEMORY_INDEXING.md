@@ -6,7 +6,7 @@ This document captures **implementation details** for the Markdown memory index 
 
 ## Index storage
 - Default DB: `~/.alex/memory/index.sqlite`
-- Per-user DB: `~/.alex/memory/users/<user-id>/index.sqlite`
+- Per-user DB: `~/.alex/memory/<user-id>/index.sqlite`
 
 ## Chunking
 - Target chunk size: ~400 tokens per chunk
@@ -22,4 +22,3 @@ This document captures **implementation details** for the Markdown memory index 
 
 ## Fallback behavior
 - If the index is unavailable, memory search falls back to scanning Markdown files directly.
-

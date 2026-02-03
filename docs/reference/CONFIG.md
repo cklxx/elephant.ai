@@ -318,7 +318,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `proactive.enabled`：总开关（默认 true）。
 - `proactive.memory.enabled`：Markdown 记忆加载开关（从 `~/.alex/memory/` 读取 `MEMORY.md` 与 `memory/YYYY-MM-DD.md`）。
 - `proactive.memory.index.enabled`：本地向量索引开关（SQLite + sqlite-vec）。
-- `proactive.memory.index.db_path`：索引数据库路径（默认 `~/.alex/memory/index.sqlite`；用户隔离路径会落在 `~/.alex/memory/users/<user-id>/index.sqlite`）。
+- `proactive.memory.index.db_path`：索引数据库路径（默认 `~/.alex/memory/index.sqlite`；用户隔离路径会落在 `~/.alex/memory/<user-id>/index.sqlite`）。
 - `proactive.memory.index.chunk_tokens`：分块 token 上限（默认 400）。
 - `proactive.memory.index.chunk_overlap`：分块重叠 token 数（默认 80）。
 - `proactive.memory.index.min_score`：检索最小分数阈值（默认 0.35）。

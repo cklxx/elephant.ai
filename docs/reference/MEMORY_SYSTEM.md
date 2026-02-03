@@ -23,7 +23,7 @@ Updated: 2026-02-03
     ├── 2026-02-01.md
     └── ...
 
-~/.alex/memory/users/<user-id>/
+~/.alex/memory/<user-id>/
 ├── MEMORY.md
 └── memory/
     ├── 2026-02-02.md
@@ -38,6 +38,9 @@ Updated: 2026-02-03
 **Memory context (before doing anything else):**
 3. **[RECENT]** Read `memory/YYYY-MM-DD.md` for **today** and **yesterday**.
 4. **[MAIN]** If this is the **main session** (direct with the human), also read `MEMORY.md`.
+
+Note: If `user_id` is missing, the agent reads/writes directly under `~/.alex/memory/` (no per-user subdir).
+If `user_id` collides with reserved names (`memory`, `MEMORY.md`, `index.sqlite`, `users`), it is stored under `user-<user_id>` to avoid conflicts.
 
 Rule: do this automatically; do not ask for permission.
 
@@ -55,6 +58,7 @@ Rule: do this automatically; do not ask for permission.
 - If the user says “记下来 / remember this”, write it.
 - If a decision, preference, constraint, or contact will matter later, write it.
 - Prefer the daily log first; promote to `MEMORY.md` only when the fact is durable.
+- On successful tasks, auto-capture 1-3 short memory bullets into the daily log (LLM summary with rule-based fallback).
 
 ### Daily Log (`memory/YYYY-MM-DD.md`)
 Use the daily log for short, time-stamped notes that were learned during the session.

@@ -4,13 +4,15 @@ Updated: 2026-02-02
 
 ## Summary
 - The memory system is now Markdown-only: `~/.alex/memory/MEMORY.md` (long-term) and `~/.alex/memory/memory/YYYY-MM-DD.md` (daily logs).
+- Per-user memory uses `~/.alex/memory/<user-id>/...` (no `users/` layer). Legacy `~/.alex/memory/users/<user-id>/` is auto-migrated on startup.
 - There is no database-backed memory store; all durable memory is stored as plain `.md` files.
 
 ## Manual Steps (Only If Needed)
 1. Stop the server.
 2. If you had old memory entries elsewhere, move relevant content into:
-   - `~/.alex/memory/MEMORY.md` for durable long-term facts.
-   - `~/.alex/memory/memory/YYYY-MM-DD.md` for daily notes.
+- `~/.alex/memory/MEMORY.md` for durable long-term facts.
+- `~/.alex/memory/memory/YYYY-MM-DD.md` for daily notes.
+- `~/.alex/memory/<user-id>/` for per-user long-term + daily memory (auto-migrated from legacy paths).
 3. Restart the server; memory search and loading will read the Markdown files directly.
 
 ## Notes

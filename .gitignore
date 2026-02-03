@@ -115,6 +115,7 @@ npm/*/bin/alex.exe
 .bin/
 tmp/
 temp/
+/memory/
 test_results/
 verified_test_results/
 debug-logs
