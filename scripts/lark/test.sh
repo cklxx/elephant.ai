@@ -46,8 +46,6 @@ BIN="${TEST_ROOT}/alex-server"
 PID_FILE="${ROOT}/.pids/lark-test.pid"
 LOG_FILE="${ROOT}/logs/lark-test.log"
 TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
-TEST_PORT="${TEST_PORT:-8080}"
-HEALTH_URL="http://127.0.0.1:${TEST_PORT}/health"
 
 mkdir -p "${ROOT}/.pids" "${ROOT}/logs"
 
@@ -72,6 +70,40 @@ ensure_worktree() {
   "${WORKTREE_SH}" ensure
 }
 
+infer_port_from_config() {
+  local config_path="$1"
+  [[ -f "${config_path}" ]] || return 0
+
+  # Best-effort YAML parse:
+  # - Look for top-level "server:" and read the first nested "port:".
+  awk '
+    function ltrim(s){sub(/^[ \t]+/, "", s); return s}
+    function indent(s){match(s, /^[ \t]*/); return RLENGTH}
+    BEGIN{server_indent=-1}
+    {
+      if ($0 ~ /^[ \t]*server:[ \t]*$/) {
+        server_indent = indent($0)
+        next
+      }
+      if (server_indent >= 0) {
+        if (indent($0) <= server_indent && $0 ~ /^[ \t]*[A-Za-z0-9_-]+:[ \t]*/) {
+          server_indent = -1
+          next
+        }
+        if ($0 ~ /^[ \t]*port:[ \t]*/) {
+          line = ltrim($0)
+          sub(/^port:[ \t]*/, "", line)
+          sub(/[ \t]#.*/, "", line)
+          gsub(/^[\"\047]/, "", line)
+          gsub(/[\"\047]$/, "", line)
+          print line
+          exit
+        }
+      }
+    }
+  ' "${config_path}"
+}
+
 build() {
   ensure_worktree
   log_info "Building alex-server (test worktree)..."
@@ -92,6 +124,12 @@ start() {
   fi
 
   build
+
+  local inferred_port health_port health_url
+  inferred_port="$(infer_port_from_config "${TEST_CONFIG}" || true)"
+  health_port="${TEST_PORT:-${inferred_port:-8080}}"
+  health_url="http://127.0.0.1:${health_port}/health"
+
   log_info "Starting test server..."
   (cd "${TEST_ROOT}" && ALEX_CONFIG_PATH="${TEST_CONFIG}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 & echo "$!" > "${PID_FILE}")
 
@@ -102,8 +140,8 @@ start() {
       log_error "Test server exited early (see ${LOG_FILE})"
       return 1
     fi
-    if curl -sf "${HEALTH_URL}" >/dev/null 2>&1; then
-      log_success "Test server healthy: ${HEALTH_URL}"
+    if curl -sf "${health_url}" >/dev/null 2>&1; then
+      log_success "Test server healthy: ${health_url}"
       return 0
     fi
     sleep 1
@@ -118,10 +156,15 @@ stop() {
 }
 
 status() {
+  local inferred_port health_port health_url
+  inferred_port="$(infer_port_from_config "${TEST_CONFIG}" || true)"
+  health_port="${TEST_PORT:-${inferred_port:-8080}}"
+  health_url="http://127.0.0.1:${health_port}/health"
+
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
   if is_process_running "${pid}"; then
-    log_success "Test server running (PID: ${pid}) ${HEALTH_URL}"
+    log_success "Test server running (PID: ${pid}) ${health_url}"
   else
     log_warn "Test server not running"
   fi
@@ -140,4 +183,3 @@ case "${cmd}" in
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;
 esac
-
