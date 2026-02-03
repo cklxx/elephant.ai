@@ -44,7 +44,7 @@ func TestLoadConfig_DefaultLarkCardsErrorsOnly(t *testing.T) {
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
 	t.Setenv("LLM_PROVIDER", "mock")
 
-	cfg, _, _, err := LoadConfig()
+	cfg, _, _, _, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}

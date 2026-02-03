@@ -15,6 +15,7 @@ import (
 	"alex/internal/async"
 	"alex/internal/attachments"
 	"alex/internal/channels/lark"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/diagnostics"
 	"alex/internal/logging"
 	"alex/internal/materials"
@@ -35,13 +36,35 @@ func RunServer(observabilityConfigPath string) error {
 		defer cleanupObs()
 	}
 
-	config, configManager, resolver, err := LoadConfig()
+	config, configManager, resolver, runtimeCache, err := LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
 	LogServerConfiguration(logger, config)
 	ensureSkillsDirFromWorkspace(config.Channels.Lark.WorkspaceDir, logger)
+
+	if runtimeCache != nil {
+		configPath, _ := runtimeconfig.ResolveConfigPath(runtimeconfig.DefaultEnvLookup, nil)
+		if strings.TrimSpace(configPath) != "" {
+			configWatcher, err := runtimeconfig.NewRuntimeConfigWatcher(
+				configPath,
+				runtimeCache,
+				runtimeconfig.WithConfigWatchLogger(logger),
+				runtimeconfig.WithConfigWatchBeforeReload(func(ctx context.Context) error {
+					_, err := configManager.RefreshOverrides(ctx)
+					return err
+				}),
+			)
+			if err != nil {
+				logger.Warn("Config watcher disabled: %v", err)
+			} else if err := configWatcher.Start(context.Background()); err != nil {
+				logger.Warn("Config watcher failed to start: %v", err)
+			} else {
+				defer configWatcher.Stop()
+			}
+		}
+	}
 
 	hostEnv, hostSummary := CaptureHostEnvironment(20)
 	config.EnvironmentSummary = hostSummary
@@ -276,7 +299,13 @@ func RunServer(observabilityConfigPath string) error {
 		logger.Info("Authentication module initialized")
 	}
 
-	configHandler := serverHTTP.NewConfigHandler(configManager, resolver)
+	var runtimeUpdates <-chan struct{}
+	var runtimeReloader func(context.Context) error
+	if runtimeCache != nil {
+		runtimeUpdates = runtimeCache.Updates()
+		runtimeReloader = runtimeCache.Reload
+	}
+	configHandler := serverHTTP.NewConfigHandler(configManager, resolver, runtimeUpdates, runtimeReloader)
 	evaluationService, err := serverApp.NewEvaluationService("./evaluation_results")
 	if err != nil {
 		logger.Warn("Evaluation service disabled: %v", err)

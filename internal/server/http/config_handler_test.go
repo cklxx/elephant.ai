@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,7 +40,7 @@ func TestConfigHandlerHandleGetRuntimeConfig(t *testing.T) {
 		return cfg, meta, nil
 	}
 
-	handler := NewConfigHandler(manager, resolver)
+	handler := NewConfigHandler(manager, resolver, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/internal/config/runtime", nil)
 	rr := httptest.NewRecorder()
@@ -73,7 +74,7 @@ func TestConfigHandlerHandleUpdateRuntimeConfig(t *testing.T) {
 		return cfg, meta, nil
 	}
 
-	handler := NewConfigHandler(manager, resolver)
+	handler := NewConfigHandler(manager, resolver, nil, nil)
 
 	body := runtimeConfigOverridesPayload{Overrides: runtimeconfig.Overrides{LLMProvider: ptrString("openrouter")}}
 	data, _ := json.Marshal(body)
@@ -114,7 +115,7 @@ func TestConfigHandlerHandleRuntimeStreamSendsSnapshots(t *testing.T) {
 		return cfg, meta, nil
 	}
 
-	handler := NewConfigHandler(manager, resolver)
+	handler := NewConfigHandler(manager, resolver, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/internal/config/runtime/stream", nil)
 	ctx, cancel := context.WithCancel(req.Context())
@@ -157,7 +158,7 @@ func TestConfigHandlerHandleGetRuntimeModels(t *testing.T) {
 		return runtimeconfig.RuntimeConfig{}, runtimeconfig.Metadata{}, nil
 	}
 
-	handler := NewConfigHandler(manager, resolver)
+	handler := NewConfigHandler(manager, resolver, nil, nil)
 	handler.catalogService = &stubCatalogService{
 		catalog: subscription.Catalog{
 			Providers: []subscription.CatalogProvider{
@@ -181,6 +182,51 @@ func TestConfigHandlerHandleGetRuntimeModels(t *testing.T) {
 	}
 	if len(payload.Providers) != 1 || payload.Providers[0].Provider != "codex" {
 		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
+func TestConfigHandlerHandleRuntimeStreamHandlesRuntimeUpdates(t *testing.T) {
+	t.Parallel()
+
+	manager := configadmin.NewManager(&memoryStore{}, runtimeconfig.Overrides{})
+	provider := atomic.Value{}
+	provider.Store("initial")
+	resolver := func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
+		cfg := runtimeconfig.RuntimeConfig{LLMProvider: provider.Load().(string)}
+		return cfg, runtimeconfig.Metadata{}, nil
+	}
+	updates := make(chan struct{}, 1)
+
+	handler := NewConfigHandler(manager, resolver, updates, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/internal/config/runtime/stream", nil)
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+	req = req.WithContext(ctx)
+	writer := &sseRecorder{header: http.Header{}}
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleRuntimeStream(writer, req)
+		close(done)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	provider.Store("updated")
+	updates <- struct{}{}
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	<-done
+
+	payloads := writer.payloads()
+	if len(payloads) < 2 {
+		t.Fatalf("expected at least two SSE payloads, got %d", len(payloads))
+	}
+	if !strings.Contains(payloads[len(payloads)-1], "updated") {
+		t.Fatalf("expected SSE stream to include updated runtime config, got %q", payloads)
 	}
 }
 
