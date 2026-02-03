@@ -25,8 +25,14 @@ func validSkillContent(name, description string) string {
 func TestLoadCustomSkills_ValidFiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	writeSkillFile(t, dir, "greeting.md", validSkillContent("greeting", "A greeting skill"))
-	writeSkillFile(t, dir, "farewell.md", validSkillContent("farewell", "A farewell skill"))
+	if err := os.Mkdir(filepath.Join(dir, "greeting"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "farewell"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(dir, "greeting"), "SKILL.md", validSkillContent("greeting", "A greeting skill"))
+	writeSkillFile(t, filepath.Join(dir, "farewell"), "SKILL.md", validSkillContent("farewell", "A farewell skill"))
 
 	config := CustomSkillConfig{UserDir: dir}
 	lib, verrs := LoadCustomSkills(config)
@@ -49,11 +55,17 @@ func TestLoadCustomSkills_ValidFiles(t *testing.T) {
 func TestLoadCustomSkills_SkipsInvalidSkills(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "good-skill"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "bad-skill"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
 	// Valid skill.
-	writeSkillFile(t, dir, "good.md", validSkillContent("good-skill", "A good skill"))
+	writeSkillFile(t, filepath.Join(dir, "good-skill"), "SKILL.md", validSkillContent("good-skill", "A good skill"))
 	// Invalid: no name.
-	writeSkillFile(t, dir, "bad.md", "---\ndescription: missing name\n---\n# Bad\n\nBody.\n")
+	writeSkillFile(t, filepath.Join(dir, "bad-skill"), "SKILL.md", "---\ndescription: missing name\n---\n# Bad\n\nBody.\n")
 
 	config := CustomSkillConfig{UserDir: dir}
 	lib, verrs := LoadCustomSkills(config)
@@ -122,10 +134,13 @@ func TestLoadCustomSkills_EmptyUserDir(t *testing.T) {
 func TestLoadCustomSkills_FileSizeLimit(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "big-skill"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
 	// Create a skill file that exceeds the size limit.
 	content := "---\nname: big-skill\ndescription: Too big.\n---\n# Big\n\n" + strings.Repeat("x", 200)
-	writeSkillFile(t, dir, "big.md", content)
+	writeSkillFile(t, filepath.Join(dir, "big-skill"), "SKILL.md", content)
 
 	config := CustomSkillConfig{
 		UserDir:      dir,
@@ -159,7 +174,10 @@ func TestLoadCustomSkills_NonRecursive(t *testing.T) {
 	if err := os.Mkdir(subDir, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	writeSkillFile(t, subDir, "nested.md", validSkillContent("nested", "Nested skill"))
+	if err := os.Mkdir(filepath.Join(subDir, "nested"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(subDir, "nested"), "SKILL.md", validSkillContent("nested", "Nested skill"))
 
 	config := CustomSkillConfig{UserDir: dir}
 	lib, verrs := LoadCustomSkills(config)
@@ -175,9 +193,15 @@ func TestLoadCustomSkills_NonRecursive(t *testing.T) {
 func TestLoadCustomSkills_DuplicateNames(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "dupe-a"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "dupe-b"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
-	writeSkillFile(t, dir, "a.md", validSkillContent("dupe", "First dupe"))
-	writeSkillFile(t, dir, "b.md", validSkillContent("dupe", "Second dupe"))
+	writeSkillFile(t, filepath.Join(dir, "dupe-a"), "SKILL.md", validSkillContent("dupe", "First dupe"))
+	writeSkillFile(t, filepath.Join(dir, "dupe-b"), "SKILL.md", validSkillContent("dupe", "Second dupe"))
 
 	config := CustomSkillConfig{UserDir: dir}
 	lib, verrs := LoadCustomSkills(config)
@@ -200,9 +224,12 @@ func TestLoadCustomSkills_DuplicateNames(t *testing.T) {
 func TestLoadCustomSkills_SanitizesBody(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "sanitize-test"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
 	content := "---\nname: sanitize-test\ndescription: Test sanitization.\n---\n# Test\n\n<script>alert('xss')</script>\n\nSafe content.\n"
-	writeSkillFile(t, dir, "sanitize.md", content)
+	writeSkillFile(t, filepath.Join(dir, "sanitize-test"), "SKILL.md", content)
 
 	config := CustomSkillConfig{UserDir: dir}
 	lib, verrs := LoadCustomSkills(config)
@@ -225,6 +252,9 @@ func TestLoadCustomSkills_SanitizesBody(t *testing.T) {
 func TestLoadCustomSkills_AllowedTriggers(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "trigger-test"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
 	content := `---
 name: trigger-test
@@ -239,7 +269,7 @@ triggers:
 
 Body.
 `
-	writeSkillFile(t, dir, "trigger.md", content)
+	writeSkillFile(t, filepath.Join(dir, "trigger-test"), "SKILL.md", content)
 
 	// Only allow context_signals — intent_patterns and tool_signals should fail.
 	config := CustomSkillConfig{
@@ -423,16 +453,28 @@ func TestMergeLibraries_NoOverride(t *testing.T) {
 	t.Parallel()
 
 	builtinDir := t.TempDir()
-	writeSkillFile(t, builtinDir, "alpha.md", validSkillContent("alpha", "Built-in alpha"))
-	writeSkillFile(t, builtinDir, "beta.md", validSkillContent("beta", "Built-in beta"))
+	if err := os.Mkdir(filepath.Join(builtinDir, "alpha"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(builtinDir, "beta"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(builtinDir, "alpha"), "SKILL.md", validSkillContent("alpha", "Built-in alpha"))
+	writeSkillFile(t, filepath.Join(builtinDir, "beta"), "SKILL.md", validSkillContent("beta", "Built-in beta"))
 	builtin, err := Load(builtinDir)
 	if err != nil {
 		t.Fatalf("load builtin: %v", err)
 	}
 
 	customDir := t.TempDir()
-	writeSkillFile(t, customDir, "beta.md", validSkillContent("beta", "Custom beta"))
-	writeSkillFile(t, customDir, "gamma.md", validSkillContent("gamma", "Custom gamma"))
+	if err := os.Mkdir(filepath.Join(customDir, "beta"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(customDir, "gamma"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(customDir, "beta"), "SKILL.md", validSkillContent("beta", "Custom beta"))
+	writeSkillFile(t, filepath.Join(customDir, "gamma"), "SKILL.md", validSkillContent("gamma", "Custom gamma"))
 	custom, verrs := LoadCustomSkills(CustomSkillConfig{UserDir: customDir})
 	if len(verrs) != 0 {
 		t.Fatalf("unexpected validation errors: %v", verrs)
@@ -458,16 +500,28 @@ func TestMergeLibraries_WithOverride(t *testing.T) {
 	t.Parallel()
 
 	builtinDir := t.TempDir()
-	writeSkillFile(t, builtinDir, "alpha.md", validSkillContent("alpha", "Built-in alpha"))
-	writeSkillFile(t, builtinDir, "beta.md", validSkillContent("beta", "Built-in beta"))
+	if err := os.Mkdir(filepath.Join(builtinDir, "alpha"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(builtinDir, "beta"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(builtinDir, "alpha"), "SKILL.md", validSkillContent("alpha", "Built-in alpha"))
+	writeSkillFile(t, filepath.Join(builtinDir, "beta"), "SKILL.md", validSkillContent("beta", "Built-in beta"))
 	builtin, err := Load(builtinDir)
 	if err != nil {
 		t.Fatalf("load builtin: %v", err)
 	}
 
 	customDir := t.TempDir()
-	writeSkillFile(t, customDir, "beta.md", validSkillContent("beta", "Custom beta override"))
-	writeSkillFile(t, customDir, "gamma.md", validSkillContent("gamma", "Custom gamma"))
+	if err := os.Mkdir(filepath.Join(customDir, "beta"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(customDir, "gamma"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(customDir, "beta"), "SKILL.md", validSkillContent("beta", "Custom beta override"))
+	writeSkillFile(t, filepath.Join(customDir, "gamma"), "SKILL.md", validSkillContent("gamma", "Custom gamma"))
 	custom, verrs := LoadCustomSkills(CustomSkillConfig{UserDir: customDir})
 	if len(verrs) != 0 {
 		t.Fatalf("unexpected validation errors: %v", verrs)
@@ -502,15 +556,24 @@ func TestMergeLibraries_Sorted(t *testing.T) {
 	t.Parallel()
 
 	builtinDir := t.TempDir()
-	writeSkillFile(t, builtinDir, "charlie.md", validSkillContent("charlie", "C"))
-	writeSkillFile(t, builtinDir, "alpha.md", validSkillContent("alpha", "A"))
+	if err := os.Mkdir(filepath.Join(builtinDir, "charlie"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(builtinDir, "alpha"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(builtinDir, "charlie"), "SKILL.md", validSkillContent("charlie", "C"))
+	writeSkillFile(t, filepath.Join(builtinDir, "alpha"), "SKILL.md", validSkillContent("alpha", "A"))
 	builtin, err := Load(builtinDir)
 	if err != nil {
 		t.Fatalf("load builtin: %v", err)
 	}
 
 	customDir := t.TempDir()
-	writeSkillFile(t, customDir, "bravo.md", validSkillContent("bravo", "B"))
+	if err := os.Mkdir(filepath.Join(customDir, "bravo"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(customDir, "bravo"), "SKILL.md", validSkillContent("bravo", "B"))
 	custom, verrs := LoadCustomSkills(CustomSkillConfig{UserDir: customDir})
 	if len(verrs) != 0 {
 		t.Fatalf("unexpected validation errors: %v", verrs)
@@ -668,6 +731,9 @@ func TestCustomSkillConfig_EffectiveMaxSize(t *testing.T) {
 func TestLoadCustomSkills_WithTriggers(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "search-skill"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
 	content := `---
 name: search-skill
@@ -687,7 +753,7 @@ max_tokens: 3000
 
 Search body.
 `
-	writeSkillFile(t, dir, "search.md", content)
+	writeSkillFile(t, filepath.Join(dir, "search-skill"), "SKILL.md", content)
 
 	config := CustomSkillConfig{UserDir: dir}
 	lib, verrs := LoadCustomSkills(config)
@@ -717,8 +783,10 @@ Search body.
 func TestLoadCustomSkills_IgnoresNonMarkdownFiles(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-
-	writeSkillFile(t, dir, "skill.md", validSkillContent("real-skill", "A real skill"))
+	if err := os.Mkdir(filepath.Join(dir, "real-skill"), 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	writeSkillFile(t, filepath.Join(dir, "real-skill"), "SKILL.md", validSkillContent("real-skill", "A real skill"))
 	writeSkillFile(t, dir, "notes.txt", "not a skill")
 	writeSkillFile(t, dir, "data.json", `{"key": "value"}`)
 
@@ -729,7 +797,7 @@ func TestLoadCustomSkills_IgnoresNonMarkdownFiles(t *testing.T) {
 		t.Fatalf("expected no errors, got %v", verrs)
 	}
 	if len(lib.List()) != 1 {
-		t.Fatalf("expected 1 skill (only .md), got %d", len(lib.List()))
+		t.Fatalf("expected 1 skill (skill dir only), got %d", len(lib.List()))
 	}
 }
 

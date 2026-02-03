@@ -9,6 +9,14 @@ import (
 
 func TestResolveChain(t *testing.T) {
 	dir := t.TempDir()
+	stepOneDir := filepath.Join(dir, "step-one")
+	if err := os.Mkdir(stepOneDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	stepTwoDir := filepath.Join(dir, "step-two")
+	if err := os.Mkdir(stepTwoDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 	step1 := `---
 name: step-one
 description: first step
@@ -23,10 +31,10 @@ description: second step
 # Step Two
 do the second thing
 `
-	if err := os.WriteFile(filepath.Join(dir, "one.md"), []byte(step1), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stepOneDir, "SKILL.md"), []byte(step1), 0o644); err != nil {
 		t.Fatalf("write step1: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "two.md"), []byte(step2), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stepTwoDir, "SKILL.md"), []byte(step2), 0o644); err != nil {
 		t.Fatalf("write step2: %v", err)
 	}
 	lib, err := Load(dir)

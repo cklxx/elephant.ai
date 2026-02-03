@@ -1,7 +1,9 @@
 package skills
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -17,7 +19,7 @@ var namePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_-]*$`)
 
 // CustomSkillConfig controls how user-defined custom skills are loaded.
 type CustomSkillConfig struct {
-	// UserDir is the path to the directory containing user skill Markdown files.
+	// UserDir is the path to the directory containing user skill folders.
 	UserDir string
 	// AllowOverride controls whether user skills can override built-in skill names.
 	AllowOverride bool
@@ -52,10 +54,10 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("field %q: %s", e.Field, e.Message)
 }
 
-// LoadCustomSkills scans UserDir for .md files, parses them using the same
-// YAML frontmatter format as built-in skills, validates each skill, and returns
-// the loaded library together with any validation errors. Invalid skills are
-// skipped (soft errors).
+// LoadCustomSkills scans UserDir for skill directories that contain SKILL.md
+// (or SKILL.mdx), parses them using the same YAML frontmatter format as built-in
+// skills, validates each skill, and returns the loaded library together with
+// any validation errors. Invalid skills are skipped (soft errors).
 func LoadCustomSkills(config CustomSkillConfig) (Library, []ValidationError) {
 	dir := strings.TrimSpace(config.UserDir)
 	if dir == "" {
@@ -84,30 +86,47 @@ func LoadCustomSkills(config CustomSkillConfig) (Library, []ValidationError) {
 	maxSize := config.effectiveMaxSize()
 
 	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if !isMarkdownFile(entry.Name()) {
+		if !entry.IsDir() {
 			continue
 		}
 
-		path := filepath.Join(dir, entry.Name())
+		skillDir := filepath.Join(dir, entry.Name())
+		var path string
+		var info fs.FileInfo
+		var statErr error
+		for _, candidate := range []string{"SKILL.md", "SKILL.mdx"} {
+			candidatePath := filepath.Join(skillDir, candidate)
+			fi, err := os.Stat(candidatePath)
+			if err != nil {
+				if !errors.Is(err, fs.ErrNotExist) {
+					statErr = err
+				}
+				continue
+			}
+			if fi.IsDir() {
+				continue
+			}
+			path = candidatePath
+			info = fi
+			break
+		}
+		if path == "" {
+			if statErr != nil {
+				allErrors = append(allErrors, ValidationError{
+					SkillName: entry.Name(),
+					Field:     "file",
+					Message:   fmt.Sprintf("cannot stat skill file: %v", statErr),
+				})
+			}
+			continue
+		}
 
 		// Check file size before reading.
-		fi, err := entry.Info()
-		if err != nil {
-			allErrors = append(allErrors, ValidationError{
-				SkillName: entry.Name(),
-				Field:     "file",
-				Message:   fmt.Sprintf("cannot stat file: %v", err),
-			})
-			continue
-		}
-		if fi.Size() > maxSize {
+		if info.Size() > maxSize {
 			allErrors = append(allErrors, ValidationError{
 				SkillName: entry.Name(),
 				Field:     "file_size",
-				Message:   fmt.Sprintf("file size %d exceeds limit %d", fi.Size(), maxSize),
+				Message:   fmt.Sprintf("file size %d exceeds limit %d", info.Size(), maxSize),
 			})
 			continue
 		}

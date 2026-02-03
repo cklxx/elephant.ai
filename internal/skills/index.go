@@ -31,3 +31,48 @@ func IndexMarkdown(library Library) string {
 	}
 	return strings.TrimSpace(builder.String())
 }
+
+// AvailableSkillsXML renders skills metadata in the Agent Skills XML format.
+func AvailableSkillsXML(library Library) string {
+	skills := library.List()
+	if len(skills) == 0 {
+		return ""
+	}
+
+	var builder strings.Builder
+	builder.WriteString("<available_skills>\n")
+	for _, skill := range skills {
+		desc := strings.TrimSpace(skill.Description)
+		if desc == "" {
+			desc = "(no description)"
+		}
+		builder.WriteString("  <skill>\n")
+		builder.WriteString(fmt.Sprintf("    <name>%s</name>\n", escapeXML(skill.Name)))
+		builder.WriteString(fmt.Sprintf("    <description>%s</description>\n", escapeXML(desc)))
+		builder.WriteString(fmt.Sprintf("    <location>%s</location>\n", escapeXML(skill.SourcePath)))
+		builder.WriteString("  </skill>\n")
+	}
+	builder.WriteString("</available_skills>")
+	return strings.TrimSpace(builder.String())
+}
+
+func escapeXML(value string) string {
+	var builder strings.Builder
+	for _, r := range value {
+		switch r {
+		case '&':
+			builder.WriteString("&amp;")
+		case '<':
+			builder.WriteString("&lt;")
+		case '>':
+			builder.WriteString("&gt;")
+		case '"':
+			builder.WriteString("&quot;")
+		case '\'':
+			builder.WriteString("&apos;")
+		default:
+			builder.WriteRune(r)
+		}
+	}
+	return builder.String()
+}

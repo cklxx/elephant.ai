@@ -11,6 +11,10 @@ func TestLoadParsesFrontMatterAndTitle(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "video-production")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 	content := `---
 name: video-production
 description: Create a video from brief to export.
@@ -19,7 +23,7 @@ description: Create a video from brief to export.
 
 Some body text.
 `
-	if err := os.WriteFile(filepath.Join(dir, "video.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
 
@@ -86,11 +90,15 @@ func TestLoadRejectsMissingFrontMatter(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "bad-skill")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 	content := `# Untitled
 
 No front matter here.
 `
-	if err := os.WriteFile(filepath.Join(dir, "bad.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
 
@@ -99,10 +107,39 @@ No front matter here.
 	}
 }
 
+func TestLoadIgnoresFlatMarkdownFiles(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	content := `---
+name: flat-skill
+description: Flat file should be ignored.
+---
+# Flat Skill
+
+Body.
+`
+	if err := os.WriteFile(filepath.Join(dir, "flat.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(lib.List()) != 0 {
+		t.Fatalf("expected no skills loaded from flat files, got %d", len(lib.List()))
+	}
+}
+
 func TestIndexMarkdownIncludesSkillList(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "ppt-deck")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 	content := `---
 name: ppt-deck
 description: Build a PPT deck playbook.
@@ -111,7 +148,7 @@ description: Build a PPT deck playbook.
 
 Body.
 `
-	if err := os.WriteFile(filepath.Join(dir, "ppt.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
 
@@ -126,5 +163,45 @@ Body.
 	}
 	if !strings.Contains(index, "`ppt-deck`") {
 		t.Fatalf("expected skill name in index, got %q", index)
+	}
+}
+
+func TestAvailableSkillsXMLIncludesMetadata(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "alpha")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	content := `---
+name: alpha
+description: A & B workflow.
+---
+# Alpha
+
+Body.
+`
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
+		t.Fatalf("write skill: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	xml := AvailableSkillsXML(lib)
+	if !strings.Contains(xml, "<available_skills>") {
+		t.Fatalf("expected available skills wrapper, got %q", xml)
+	}
+	if !strings.Contains(xml, "<name>alpha</name>") {
+		t.Fatalf("expected skill name in xml, got %q", xml)
+	}
+	if !strings.Contains(xml, "<description>A &amp; B workflow.</description>") {
+		t.Fatalf("expected escaped description in xml, got %q", xml)
+	}
+	if !strings.Contains(xml, "SKILL.md") {
+		t.Fatalf("expected location to include SKILL.md, got %q", xml)
 	}
 }

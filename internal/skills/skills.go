@@ -154,10 +154,6 @@ func discoverSkillFiles(root string) ([]string, error) {
 			}
 			continue
 		}
-
-		if isMarkdownFile(name) {
-			paths = append(paths, filepath.Join(root, name))
-		}
 	}
 
 	sort.Strings(paths)
@@ -249,11 +245,6 @@ func extractMarkdownTitle(body string) string {
 		break
 	}
 	return ""
-}
-
-func isMarkdownFile(name string) bool {
-	lower := strings.ToLower(name)
-	return strings.HasSuffix(lower, ".md") || strings.HasSuffix(lower, ".mdx")
 }
 
 // NormalizeName normalizes a skill name for lookups.

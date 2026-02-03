@@ -13,6 +13,10 @@ import (
 func TestSkillsToolListAndShow(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ALEX_SKILLS_DIR", dir)
+	skillDir := filepath.Join(dir, "sample_skill")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
 	content := `---
 name: sample_skill
@@ -22,7 +26,7 @@ description: Sample description.
 
 Hello world.
 `
-	if err := os.WriteFile(filepath.Join(dir, "sample.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
 
@@ -65,6 +69,10 @@ Hello world.
 func TestSkillsToolSearch(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("ALEX_SKILLS_DIR", dir)
+	skillDir := filepath.Join(dir, "ppt-deck")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 
 	content := `---
 name: ppt-deck
@@ -74,7 +82,7 @@ description: Presentation playbook.
 
 Body.
 `
-	if err := os.WriteFile(filepath.Join(dir, "ppt.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
 

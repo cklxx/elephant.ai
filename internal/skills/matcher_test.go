@@ -8,6 +8,10 @@ import (
 
 func TestSkillMatcherIntentPattern(t *testing.T) {
 	dir := t.TempDir()
+	skillDir := filepath.Join(dir, "deploy-skill")
+	if err := os.Mkdir(skillDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 	content := `---
 name: deploy-skill
 description: Deploy workflow.
@@ -19,7 +23,7 @@ priority: 5
 ---
 # Deploy Skill
 `
-	if err := os.WriteFile(filepath.Join(dir, "deploy.md"), []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o644); err != nil {
 		t.Fatalf("write skill: %v", err)
 	}
 
@@ -44,6 +48,14 @@ priority: 5
 
 func TestSkillMatcherExclusiveGroup(t *testing.T) {
 	dir := t.TempDir()
+	skillADir := filepath.Join(dir, "skill-a")
+	if err := os.Mkdir(skillADir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
+	skillBDir := filepath.Join(dir, "skill-b")
+	if err := os.Mkdir(skillBDir, 0o755); err != nil {
+		t.Fatalf("mkdir skill dir: %v", err)
+	}
 	skillA := `---
 name: skill-a
 description: A
@@ -66,10 +78,10 @@ exclusive_group: reports
 ---
 # Skill B
 `
-	if err := os.WriteFile(filepath.Join(dir, "a.md"), []byte(skillA), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillADir, "SKILL.md"), []byte(skillA), 0o644); err != nil {
 		t.Fatalf("write skill A: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "b.md"), []byte(skillB), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(skillBDir, "SKILL.md"), []byte(skillB), 0o644); err != nil {
 		t.Fatalf("write skill B: %v", err)
 	}
 
