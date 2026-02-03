@@ -1,9 +1,10 @@
 # Index: plans
 
-Updated: 2026-02-02
+Updated: 2026-02-03
 
 ## Files
 
+- [2026-02-03-lark-scenario-run-skip-manual.md](2026-02-03-lark-scenario-run-skip-manual.md)
 - [2026-02-02-lark-session-per-message.md](2026-02-02-lark-session-per-message.md)
 - [2026-01-18-antigravity-gemini-oauth.md](2026-01-18-antigravity-gemini-oauth.md)
 - [2026-01-18-llm-indicator-model-selection-design.md](2026-01-18-llm-indicator-model-selection-design.md)
