@@ -84,9 +84,8 @@ func (g *Gateway) handleCardAction(_ context.Context, event *callback.CardAction
 		return cardToast("无效操作"), nil
 	}
 	action := event.Event.Action
-	input := cardActionToUserInput(action)
-	if strings.TrimSpace(input) == "" {
-		return cardToast("暂不支持的操作"), nil
+	if action == nil {
+		return cardToast("无效操作"), nil
 	}
 
 	chatID := ""
@@ -95,6 +94,33 @@ func (g *Gateway) handleCardAction(_ context.Context, event *callback.CardAction
 		chatID = strings.TrimSpace(event.Event.Context.OpenChatID)
 		messageID = strings.TrimSpace(event.Event.Context.OpenMessageID)
 	}
+	tag := strings.ToLower(strings.TrimSpace(action.Tag))
+	if tag == "attachment_send" {
+		if chatID == "" {
+			return cardToast("缺少会话信息"), nil
+		}
+		imageKey := extractActionValue(action, "image_key")
+		fileKey := extractActionValue(action, "file_key")
+		if imageKey == "" && fileKey == "" {
+			return cardToast("附件信息缺失"), nil
+		}
+		go func() {
+			ctx := context.Background()
+			target := replyTarget(messageID, true)
+			if imageKey != "" {
+				g.dispatch(ctx, chatID, target, "image", imageContent(imageKey))
+				return
+			}
+			g.dispatch(ctx, chatID, target, "file", fileContent(fileKey))
+		}()
+		return cardToast("附件已发送"), nil
+	}
+
+	input := cardActionToUserInput(action)
+	if strings.TrimSpace(input) == "" {
+		return cardToast("暂不支持的操作"), nil
+	}
+
 	senderID := ""
 	if event.Event.Operator != nil {
 		senderID = strings.TrimSpace(event.Event.Operator.OpenID)

@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"strings"
@@ -1220,6 +1221,91 @@ func TestHandleMessageSendsResultCardWhenEnabled(t *testing.T) {
 	}
 	if calls[0].MsgType != "interactive" {
 		t.Fatalf("expected interactive card reply, got %q", calls[0].MsgType)
+	}
+}
+
+func TestHandleMessageSendsAttachmentCardWhenAttachmentsPresent(t *testing.T) {
+	openID := "ou_sender_attach"
+	chatID := "oc_chat_attach"
+	msgID := "om_msg_attach"
+	content := `{"text":"hello"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	imagePayload := base64.StdEncoding.EncodeToString([]byte("fake-image"))
+	filePayload := base64.StdEncoding.EncodeToString([]byte("fake-file"))
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{
+			Answer: "done",
+			Attachments: map[string]ports.Attachment{
+				"photo.png":  {Name: "photo.png", MediaType: "image/png", Data: imagePayload},
+				"report.pdf": {Name: "report.pdf", MediaType: "application/pdf", Data: filePayload},
+			},
+		},
+	}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig:      channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:           "test",
+			AppSecret:       "secret",
+			CardsEnabled:    true,
+			CardsResults:    true,
+			AutoUploadFiles: true,
+		},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	msgCalls := 0
+	for _, call := range recorder.Calls() {
+		if call.Method != "ReplyMessage" && call.Method != "SendMessage" {
+			continue
+		}
+		msgCalls++
+		if call.MsgType != "interactive" {
+			t.Fatalf("expected interactive card reply, got %q", call.MsgType)
+		}
+	}
+	if msgCalls != 1 {
+		t.Fatalf("expected 1 reply message, got %d", msgCalls)
+	}
+	for _, call := range recorder.Calls() {
+		if call.MsgType == "image" || call.MsgType == "file" {
+			t.Fatalf("expected no image/file message dispatches, got %q", call.MsgType)
+		}
+	}
+	if len(recorder.CallsByMethod("UploadImage")) != 1 {
+		t.Fatalf("expected image upload, got %#v", recorder.CallsByMethod("UploadImage"))
+	}
+	if len(recorder.CallsByMethod("UploadFile")) != 1 {
+		t.Fatalf("expected file upload, got %#v", recorder.CallsByMethod("UploadFile"))
 	}
 }
 

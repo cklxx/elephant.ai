@@ -19,6 +19,7 @@ import (
 	toolports "alex/internal/agent/ports/tools"
 	"alex/internal/channels"
 	"alex/internal/jsonx"
+	larkcards "alex/internal/lark/cards"
 	"alex/internal/logging"
 	artifacts "alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/pathutil"
@@ -36,6 +37,7 @@ import (
 const (
 	messageDedupCacheSize = 2048
 	messageDedupTTL       = 10 * time.Minute
+	maxAttachmentCardImgs = 3
 )
 
 // AgentExecutor is an alias for the shared channel executor interface.
@@ -535,6 +537,13 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	reply := ""
 	replyMsgType := "text"
 	replyContent := ""
+	attachmentCardSent := false
+
+	attachments := map[string]ports.Attachment(nil)
+	if result != nil && len(result.Attachments) > 0 {
+		attachments = filterNonA2UIAttachments(result.Attachments)
+	}
+	hasAttachments := len(attachments) > 0
 
 	if isAwait && g.cfg.PlanReviewEnabled {
 		reply, replyMsgType, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
@@ -556,7 +565,16 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		if reply == "" {
 			reply = "（无可用回复）"
 		}
-		if g.cfg.CardsEnabled && ((execErr != nil && g.cfg.CardsErrors) || (execErr == nil && g.cfg.CardsResults)) {
+		if g.cfg.CardsEnabled && execErr == nil && g.cfg.CardsResults && hasAttachments && !isAwait {
+			if card, err := g.buildAttachmentCard(execCtx, reply, result); err == nil {
+				replyMsgType = "interactive"
+				replyContent = card
+				attachmentCardSent = true
+			} else {
+				g.logger.Warn("Lark attachment card build failed: %v", err)
+			}
+		}
+		if !attachmentCardSent && g.cfg.CardsEnabled && ((execErr != nil && g.cfg.CardsErrors) || (execErr == nil && g.cfg.CardsResults)) {
 			if card, err := g.buildCardReply(reply, result, execErr); err == nil {
 				replyMsgType = "interactive"
 				replyContent = card
@@ -574,7 +592,9 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 
 	if !skipReply {
 		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
-		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
+		if !attachmentCardSent {
+			g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
+		}
 	}
 }
 
@@ -1061,6 +1081,98 @@ func buildPlanFeedbackBlock(pending PlanReviewPending, userFeedback string) stri
 	return strings.TrimSpace(sb.String())
 }
 
+func (g *Gateway) buildAttachmentCard(ctx context.Context, reply string, result *agent.TaskResult) (string, error) {
+	summary := strings.TrimSpace(reply)
+	if summary == "" {
+		return "", fmt.Errorf("empty reply")
+	}
+	if len(summary) > maxCardReplyChars {
+		return "", fmt.Errorf("reply too long for card")
+	}
+	summary = truncateCardText(summary, maxCardReplyChars)
+
+	assets, err := g.uploadCardAttachments(ctx, result)
+	if err != nil {
+		return "", err
+	}
+	if len(assets) == 0 {
+		return "", fmt.Errorf("no attachments to display")
+	}
+
+	return larkcards.AttachmentCard(larkcards.AttachmentCardParams{
+		Title:      "任务完成",
+		Summary:    summary,
+		Footer:     "点击按钮发送附件。",
+		TitleColor: "green",
+		Assets:     assets,
+	})
+}
+
+func (g *Gateway) uploadCardAttachments(ctx context.Context, result *agent.TaskResult) ([]larkcards.AttachmentAsset, error) {
+	if result == nil || g.messenger == nil {
+		return nil, fmt.Errorf("attachments unavailable")
+	}
+	attachments := filterNonA2UIAttachments(result.Attachments)
+	if len(attachments) == 0 {
+		return nil, fmt.Errorf("attachments unavailable")
+	}
+
+	ctx = shared.WithAllowLocalFetch(ctx)
+	ctx = toolports.WithAttachmentContext(ctx, attachments, nil)
+	client := artifacts.NewAttachmentHTTPClient(artifacts.AttachmentFetchTimeout, "LarkAttachmentCard")
+	maxBytes, allowExts := autoUploadLimits(ctx)
+
+	names := sortedAttachmentNames(attachments)
+	assets := make([]larkcards.AttachmentAsset, 0, len(names))
+	previewed := 0
+	for _, name := range names {
+		att := attachments[name]
+		payload, mediaType, err := artifacts.ResolveAttachmentBytes(ctx, "["+name+"]", client)
+		if err != nil {
+			return nil, err
+		}
+		if maxBytes > 0 && len(payload) > maxBytes {
+			return nil, fmt.Errorf("attachment %s exceeds max size %d bytes", name, maxBytes)
+		}
+
+		fileName := fileNameForAttachment(att, name)
+		if !allowExtension(filepath.Ext(fileName), allowExts) {
+			return nil, fmt.Errorf("attachment %s blocked by allowlist", fileName)
+		}
+
+		asset := larkcards.AttachmentAsset{
+			Name:      fileName,
+			FileName:  fileName,
+			ButtonTag: "attachment_send",
+		}
+
+		if isImageAttachment(att, mediaType, name) {
+			imageKey, err := g.uploadImage(ctx, payload)
+			if err != nil {
+				return nil, err
+			}
+			asset.Kind = "image"
+			asset.ImageKey = imageKey
+			if previewed < maxAttachmentCardImgs {
+				asset.ShowPreview = true
+				previewed++
+			}
+		} else {
+			fileType := larkFileType(fileTypeForAttachment(fileName, mediaType))
+			fileKey, err := g.uploadFile(ctx, payload, fileName, fileType)
+			if err != nil {
+				return nil, err
+			}
+			asset.Kind = "file"
+			asset.FileKey = fileKey
+		}
+
+		assets = append(assets, asset)
+	}
+
+	return assets, nil
+}
+
 func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, result *agent.TaskResult) {
 	if result == nil || g.messenger == nil {
 		return
@@ -1074,6 +1186,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 	ctx = shared.WithAllowLocalFetch(ctx)
 	ctx = toolports.WithAttachmentContext(ctx, attachments, nil)
 	client := artifacts.NewAttachmentHTTPClient(artifacts.AttachmentFetchTimeout, "LarkAttachment")
+	maxBytes, allowExts := autoUploadLimits(ctx)
 
 	names := sortedAttachmentNames(attachments)
 	for _, name := range names {
@@ -1081,6 +1194,16 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 		payload, mediaType, err := artifacts.ResolveAttachmentBytes(ctx, "["+name+"]", client)
 		if err != nil {
 			g.logger.Warn("Lark attachment %s resolve failed: %v", name, err)
+			continue
+		}
+
+		fileName := fileNameForAttachment(att, name)
+		if !allowExtension(filepath.Ext(fileName), allowExts) {
+			g.logger.Warn("Lark attachment %s blocked by allowlist", fileName)
+			continue
+		}
+		if maxBytes > 0 && len(payload) > maxBytes {
+			g.logger.Warn("Lark attachment %s exceeds max size %d bytes", fileName, maxBytes)
 			continue
 		}
 
@@ -1096,7 +1219,6 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 			continue
 		}
 
-		fileName := fileNameForAttachment(att, name)
 		fileType := larkFileType(fileTypeForAttachment(fileName, mediaType))
 		fileKey, err := g.uploadFile(ctx, payload, fileName, fileType)
 		if err != nil {
@@ -1105,6 +1227,31 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 		}
 		g.dispatch(ctx, chatID, target, "file", fileContent(fileKey))
 	}
+}
+
+func autoUploadLimits(ctx context.Context) (int, []string) {
+	cfg := shared.GetAutoUploadConfig(ctx)
+	maxBytes := cfg.MaxBytes
+	if maxBytes <= 0 {
+		maxBytes = 2 * 1024 * 1024
+	}
+	return maxBytes, normalizeExtensions(cfg.AllowExts)
+}
+
+func allowExtension(ext string, allowlist []string) bool {
+	if len(allowlist) == 0 {
+		return true
+	}
+	ext = strings.ToLower(strings.TrimSpace(ext))
+	if ext == "" {
+		return false
+	}
+	for _, item := range allowlist {
+		if strings.ToLower(strings.TrimSpace(item)) == ext {
+			return true
+		}
+	}
+	return false
 }
 
 func filterNonA2UIAttachments(attachments map[string]ports.Attachment) map[string]ports.Attachment {
