@@ -96,11 +96,12 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	userToken, errResult := requireLarkUserAccessToken(ctx, call.ID)
+	auth, errResult := resolveLarkCalendarAuth(ctx, call.ID)
 	if errResult != nil {
 		return errResult, nil
 	}
-	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", larkapi.WithUserToken(userToken))
+	callOpt, reqOpt := buildLarkAuthOptions(auth)
+	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", callOpt)
 	if err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
@@ -122,7 +123,7 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		builder.PageToken(pageToken)
 	}
 
-	options := []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(userToken)}
+	options := []larkcore.RequestOptionFunc{reqOpt}
 	resp, err := client.Calendar.CalendarEvent.List(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{
@@ -311,5 +312,6 @@ func parseUnixSecondsValue(callID, key string, raw any) (string, int64, *ports.T
 	return value, parsed, nil
 }
 
-// calendarRequestOptions was intentionally removed: calendar tools in the Lark
-// toolset are user-scoped and always operate on the caller's primary calendar.
+// calendarRequestOptions was intentionally removed: calendar tools default to
+// user-scoped access and the caller's primary calendar, with tenant-token
+// fallback only when user OAuth is unavailable.

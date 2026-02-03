@@ -12,6 +12,7 @@ type Config struct {
 	Enabled                       bool
 	AppID                         string
 	AppSecret                     string
+	TenantAccessToken             string
 	BaseDomain                    string
 	WorkspaceDir                  string
 	CardsEnabled                  bool

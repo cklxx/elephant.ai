@@ -45,7 +45,7 @@ func (c *Client) Task() *TaskService {
 
 // --- Shared helpers ---
 
-// CallOption configures a single API call (e.g. user access token).
+// CallOption configures a single API call (e.g. user or tenant access token).
 type CallOption func(*callOptions)
 
 type callOptions struct {
@@ -57,6 +57,15 @@ func WithUserToken(token string) CallOption {
 	return func(o *callOptions) {
 		if token != "" {
 			o.reqOpts = append(o.reqOpts, larkcore.WithUserAccessToken(token))
+		}
+	}
+}
+
+// WithTenantToken sets a tenant access token for the call.
+func WithTenantToken(token string) CallOption {
+	return func(o *callOptions) {
+		if token != "" {
+			o.reqOpts = append(o.reqOpts, larkcore.WithTenantAccessToken(token))
 		}
 	}
 }

@@ -142,6 +142,80 @@ func TestCalendarCreate_MissingOAuthToken_ShowsAuthURL(t *testing.T) {
 	}
 }
 
+func TestCalendarCreate_UsesTenantTokenWhenConfigured(t *testing.T) {
+	var mu sync.Mutex
+	var listAuth string
+	var createAuth string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/tenant_access_token/internal"):
+			_, _ = w.Write(tokenResponse("app-token", 7200))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/app_access_token/internal"):
+			_, _ = w.Write(tokenResponse("app-token", 7200))
+			return
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars"):
+			mu.Lock()
+			listAuth = r.Header.Get("Authorization")
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"calendar_list": []map[string]interface{}{
+					{
+						"calendar_id": "cal-primary",
+						"type":        "primary",
+						"role":        "owner",
+					},
+				},
+				"has_more": false,
+			}))
+			return
+		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/calendar/v4/calendars/") && strings.Contains(r.URL.Path, "/events"):
+			mu.Lock()
+			createAuth = r.Header.Get("Authorization")
+			mu.Unlock()
+			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"event": map[string]interface{}{
+					"event_id": "evt_123",
+				},
+			}))
+			return
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	tool := NewLarkCalendarCreate()
+	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
+	ctx := shared.WithLarkClient(context.Background(), larkClient)
+	ctx = shared.WithLarkTenantToken(ctx, "tenant-token")
+
+	call := ports.ToolCall{ID: "test-tenant", Name: "lark_calendar_create", Arguments: map[string]any{
+		"summary":    "Test",
+		"start_time": "1700000000",
+		"end_time":   "1700003600",
+	}}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("expected success, got error: %v", result.Error)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if listAuth != "Bearer tenant-token" {
+		t.Fatalf("expected tenant token for list calendars, got %q", listAuth)
+	}
+	if createAuth != "Bearer tenant-token" {
+		t.Fatalf("expected tenant token for create event, got %q", createAuth)
+	}
+}
+
 func TestCalendarCreate_PrimaryCalendarIDResolves(t *testing.T) {
 	var mu sync.Mutex
 	var gotCalendarID string

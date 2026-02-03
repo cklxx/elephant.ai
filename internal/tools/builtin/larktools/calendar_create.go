@@ -111,11 +111,12 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 	timezone := shared.StringArg(call.Arguments, "timezone")
 	needNotification, hasNeedNotification := boolArg(call.Arguments, "need_notification")
 
-	userToken, errResult := requireLarkUserAccessToken(ctx, call.ID)
+	auth, errResult := resolveLarkCalendarAuth(ctx, call.ID)
 	if errResult != nil {
 		return errResult, nil
 	}
-	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", larkapi.WithUserToken(userToken))
+	callOpt, reqOpt := buildLarkAuthOptions(auth)
+	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", callOpt)
 	if err != nil {
 		return &ports.ToolResult{
 			CallID:  call.ID,
@@ -151,7 +152,7 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 		builder.IdempotencyKey(idempotencyKey)
 	}
 
-	options := []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(userToken)}
+	options := []larkcore.RequestOptionFunc{reqOpt}
 	resp, err := client.Calendar.CalendarEvent.Create(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{
