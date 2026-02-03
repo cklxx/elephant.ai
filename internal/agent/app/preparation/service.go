@@ -32,41 +32,49 @@ const (
 	DefaultSystemPrompt        = "You are ALEX, a helpful AI coding assistant. Use plan() to set a visible goal header (optional). Use clarify(needs_user_input=true) to pause and ask the user a question (optional). Prefer browser_dom for browser work (selectors, click/fill/query); use browser_action only for coordinate-based actions or when DOM actions fail. Only capture screenshots when needed; screenshots return a vision summary for guidance. If you hit login/2FA/CAPTCHA or any auth gate, call request_user with clear steps for the user to log in, then wait before continuing. Avoid emojis in responses unless the user explicitly requests them."
 )
 
+// CredentialRefresher resolves fresh API credentials for a given LLM provider.
+// Returns the api key, base URL, and whether resolution succeeded.
+// Used by long-running servers (e.g. Lark) to re-resolve CLI credentials
+// that may have been refreshed since startup.
+type CredentialRefresher func(provider string) (apiKey, baseURL string, ok bool)
+
 // ExecutionPreparationDeps enumerates the dependencies required by the preparation service.
 type ExecutionPreparationDeps struct {
-	LLMFactory         llm.LLMClientFactory
-	ToolRegistry       tools.ToolRegistry
-	SessionStore       storage.SessionStore
-	ContextMgr         agent.ContextManager
-	HistoryMgr         storage.HistoryManager
-	Parser             tools.FunctionCallParser
-	Config             appconfig.Config
-	Logger             agent.Logger
-	Clock              agent.Clock
-	CostDecorator      *cost.CostTrackingDecorator
-	PresetResolver     *PresetResolver // Optional: if nil, one will be created
-	EventEmitter       agent.EventListener
-	CostTracker        storage.CostTracker
-	OKRContextProvider OKRContextProvider // Optional: provides OKR context for system prompt
+	LLMFactory          llm.LLMClientFactory
+	ToolRegistry        tools.ToolRegistry
+	SessionStore        storage.SessionStore
+	ContextMgr          agent.ContextManager
+	HistoryMgr          storage.HistoryManager
+	Parser              tools.FunctionCallParser
+	Config              appconfig.Config
+	Logger              agent.Logger
+	Clock               agent.Clock
+	CostDecorator       *cost.CostTrackingDecorator
+	PresetResolver      *PresetResolver // Optional: if nil, one will be created
+	EventEmitter        agent.EventListener
+	CostTracker         storage.CostTracker
+	OKRContextProvider  OKRContextProvider  // Optional: provides OKR context for system prompt
+	CredentialRefresher CredentialRefresher // Optional: re-resolves CLI credentials at task time
 }
 
 // ExecutionPreparationService prepares everything needed before executing a task.
 type ExecutionPreparationService struct {
-	llmFactory         llm.LLMClientFactory
-	toolRegistry       tools.ToolRegistry
-	sessionStore       storage.SessionStore
-	contextMgr         agent.ContextManager
-	historyMgr         storage.HistoryManager
-	parser             tools.FunctionCallParser
-	config             appconfig.Config
-	logger             agent.Logger
-	clock              agent.Clock
-	costDecorator      *cost.CostTrackingDecorator
-	toolPolicy         toolspolicy.ToolPolicy
-	presetResolver     *PresetResolver
-	eventEmitter       agent.EventListener
-	costTracker        storage.CostTracker
-	okrContextProvider OKRContextProvider
+	llmFactory          llm.LLMClientFactory
+	toolRegistry        tools.ToolRegistry
+	sessionStore        storage.SessionStore
+	contextMgr          agent.ContextManager
+	historyMgr          storage.HistoryManager
+	parser              tools.FunctionCallParser
+	config              appconfig.Config
+	logger              agent.Logger
+	clock               agent.Clock
+	costDecorator       *cost.CostTrackingDecorator
+	toolPolicy          toolspolicy.ToolPolicy
+	presetResolver      *PresetResolver
+	eventEmitter        agent.EventListener
+	costTracker         storage.CostTracker
+	okrContextProvider  OKRContextProvider
+	credentialRefresher CredentialRefresher
 }
 
 // NewExecutionPreparationService creates a service instance.
@@ -102,21 +110,22 @@ func NewExecutionPreparationService(deps ExecutionPreparationDeps) *ExecutionPre
 	toolPolicy := toolspolicy.NewToolPolicy(deps.Config.ToolPolicy)
 
 	return &ExecutionPreparationService{
-		llmFactory:         deps.LLMFactory,
-		toolRegistry:       deps.ToolRegistry,
-		sessionStore:       deps.SessionStore,
-		contextMgr:         deps.ContextMgr,
-		historyMgr:         deps.HistoryMgr,
-		parser:             deps.Parser,
-		config:             deps.Config,
-		logger:             logger,
-		clock:              clock,
-		costDecorator:      costDecorator,
-		toolPolicy:         toolPolicy,
-		presetResolver:     presetResolver,
-		eventEmitter:       eventEmitter,
-		costTracker:        deps.CostTracker,
-		okrContextProvider: deps.OKRContextProvider,
+		llmFactory:          deps.LLMFactory,
+		toolRegistry:        deps.ToolRegistry,
+		sessionStore:        deps.SessionStore,
+		contextMgr:          deps.ContextMgr,
+		historyMgr:          deps.HistoryMgr,
+		parser:              deps.Parser,
+		config:              deps.Config,
+		logger:              logger,
+		clock:               clock,
+		costDecorator:       costDecorator,
+		toolPolicy:          toolPolicy,
+		presetResolver:      presetResolver,
+		eventEmitter:        eventEmitter,
+		costTracker:         deps.CostTracker,
+		okrContextProvider:  deps.OKRContextProvider,
+		credentialRefresher: deps.CredentialRefresher,
 	}
 }
 
@@ -364,6 +373,17 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	llmConfig := llm.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
+	}
+	// Re-resolve CLI credentials at task time for providers that support
+	// token refresh (e.g. Codex, Antigravity). This keeps long-running
+	// servers (Lark) working even after the initial startup token expires.
+	if !selectionPinned && s.credentialRefresher != nil {
+		if apiKey, baseURL, ok := s.credentialRefresher(effectiveProvider); ok {
+			llmConfig.APIKey = apiKey
+			if baseURL != "" {
+				llmConfig.BaseURL = baseURL
+			}
+		}
 	}
 	if selectionPinned {
 		llmConfig.APIKey = selection.APIKey

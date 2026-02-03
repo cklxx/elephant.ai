@@ -83,3 +83,14 @@ func WithOKRContextProvider(provider preparation.OKRContextProvider) Coordinator
 		}
 	}
 }
+
+// WithCredentialRefresher provides a function that re-resolves CLI credentials
+// at task execution time. This keeps long-running servers (e.g. Lark) working
+// when startup tokens expire and need OAuth refresh.
+func WithCredentialRefresher(fn preparation.CredentialRefresher) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if fn != nil {
+			c.credentialRefresher = fn
+		}
+	}
+}

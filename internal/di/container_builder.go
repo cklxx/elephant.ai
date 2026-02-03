@@ -19,6 +19,7 @@ import (
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
+	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/external"
 	"alex/internal/llm"
@@ -148,6 +149,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	hookRegistry := b.buildHookRegistry()
 	okrContextProvider := b.buildOKRContextProvider()
 	checkpointStore := react.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
+	credentialRefresher := buildCredentialRefresher()
 
 	coordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
@@ -184,6 +186,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithExternalExecutor(externalExecutor),
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
 		agentcoordinator.WithCheckpointStore(checkpointStore),
+		agentcoordinator.WithCredentialRefresher(credentialRefresher),
 	)
 
 	// Register subagent tool after coordinator is created.
@@ -461,5 +464,30 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 		}
 		policy := appcontext.ResolveMemoryPolicy(ctx)
 		return policy.Enabled
+	}
+}
+
+// buildCredentialRefresher creates a function that re-resolves CLI credentials
+// at task execution time. This ensures long-running servers (e.g. Lark) use
+// fresh tokens even after the startup token expires (Codex, Antigravity).
+func buildCredentialRefresher() preparation.CredentialRefresher {
+	return func(provider string) (string, string, bool) {
+		provider = strings.ToLower(strings.TrimSpace(provider))
+		creds := runtimeconfig.LoadCLICredentials()
+		switch provider {
+		case "codex", "openai-responses", "responses":
+			if creds.Codex.APIKey != "" {
+				return creds.Codex.APIKey, creds.Codex.BaseURL, true
+			}
+		case "antigravity":
+			if creds.Antigravity.APIKey != "" {
+				return creds.Antigravity.APIKey, creds.Antigravity.BaseURL, true
+			}
+		case "anthropic", "claude":
+			if creds.Claude.APIKey != "" {
+				return creds.Claude.APIKey, creds.Claude.BaseURL, true
+			}
+		}
+		return "", "", false
 	}
 }

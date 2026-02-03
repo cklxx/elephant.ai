@@ -48,13 +48,14 @@ type AgentCoordinator struct {
 	iterationHook    agent.IterationHook
 	checkpointStore  react.CheckpointStore
 
-	prepService         preparationService
-	costDecorator       *cost.CostTrackingDecorator
-	attachmentMigrator  materialports.Migrator
-	attachmentPersister ports.AttachmentPersister
-	hookRegistry        *hooks.Registry
-	okrContextProvider  preparation.OKRContextProvider
-	timerManager        interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+	prepService          preparationService
+	costDecorator        *cost.CostTrackingDecorator
+	attachmentMigrator   materialports.Migrator
+	attachmentPersister  ports.AttachmentPersister
+	hookRegistry         *hooks.Registry
+	okrContextProvider   preparation.OKRContextProvider
+	credentialRefresher  preparation.CredentialRefresher
+	timerManager         interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 }
 
 type preparationService interface {
@@ -102,18 +103,19 @@ func NewAgentCoordinator(
 	}
 
 	coordinator.prepService = preparation.NewExecutionPreparationService(preparation.ExecutionPreparationDeps{
-		LLMFactory:         llmFactory,
-		ToolRegistry:       toolRegistry,
-		SessionStore:       sessionStore,
-		ContextMgr:         contextMgr,
-		HistoryMgr:         historyManager,
-		Parser:             parser,
-		Config:             config,
-		Logger:             coordinator.logger,
-		Clock:              coordinator.clock,
-		CostDecorator:      coordinator.costDecorator,
-		CostTracker:        coordinator.costTracker,
-		OKRContextProvider: coordinator.okrContextProvider,
+		LLMFactory:          llmFactory,
+		ToolRegistry:        toolRegistry,
+		SessionStore:        sessionStore,
+		ContextMgr:          contextMgr,
+		HistoryMgr:          historyManager,
+		Parser:              parser,
+		Config:              config,
+		Logger:              coordinator.logger,
+		Clock:               coordinator.clock,
+		CostDecorator:       coordinator.costDecorator,
+		CostTracker:         coordinator.costTracker,
+		OKRContextProvider:  coordinator.okrContextProvider,
+		CredentialRefresher: coordinator.credentialRefresher,
 	})
 
 	if coordinator.contextMgr != nil {
