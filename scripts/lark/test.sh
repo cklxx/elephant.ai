@@ -105,6 +105,9 @@ infer_port_from_config() {
 
 build() {
   ensure_worktree
+  # Keep the test worktree aligned with the latest main snapshot before building.
+  git -C "${TEST_ROOT}" switch test >/dev/null 2>&1 || true
+  git -C "${TEST_ROOT}" reset --hard main >/dev/null 2>&1 || true
   log_info "Building alex-server (test worktree)..."
   (cd "${TEST_ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
   log_success "Built ${BIN}"
