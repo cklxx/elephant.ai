@@ -203,11 +203,21 @@ func buildSkillsSection(logger logging.Logger, taskInput string, messages []port
 		}
 	}
 
-	if autoCfg.FallbackToIndex {
+	metadata := strings.TrimSpace(skills.AvailableSkillsXML(library))
+	if metadata != "" {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
+		sb.WriteString("# Available Skills\n\n")
+		sb.WriteString(metadata)
+	}
+
+	if autoCfg.FallbackToIndex || len(matches) == 0 {
+		if sb.Len() > 0 {
+			sb.WriteString("\n\n")
+		}
 		sb.WriteString("# Skill Discovery\n\n")
 		sb.WriteString("Use the `skills` tool to load playbooks on demand (action=list|search|show).\n")
-	} else if len(matches) == 0 {
-		return strings.TrimSpace("# Skill Discovery\n\nUse the `skills` tool to load playbooks on demand (action=list|search|show).")
 	}
 
 	return strings.TrimSpace(sb.String())

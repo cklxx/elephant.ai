@@ -39,14 +39,11 @@ triggers:
 	if out == "" {
 		t.Fatalf("expected non-empty skills section")
 	}
-	if strings.Contains(out, "Other Available Skills") {
-		t.Fatalf("did not expect catalog header, got %q", out)
+	if !strings.Contains(out, "<available_skills>") {
+		t.Fatalf("expected available skills metadata, got %q", out)
 	}
-	if strings.Contains(out, "Skills Catalog") {
-		t.Fatalf("did not expect catalog index, got %q", out)
-	}
-	if strings.Contains(out, "`bar-skill`") || strings.Contains(out, "bar-skill —") {
-		t.Fatalf("did not expect non-activated skills to be listed, got %q", out)
+	if !strings.Contains(out, "<name>foo-skill</name>") || !strings.Contains(out, "<name>bar-skill</name>") {
+		t.Fatalf("expected all skill names in metadata, got %q", out)
 	}
 	if !strings.Contains(out, "# Activated Skills") {
 		t.Fatalf("expected activated skills section, got %q", out)
@@ -84,11 +81,11 @@ func TestBuildSkillsSection_NoMatchStillAvoidsCatalog(t *testing.T) {
 	if out == "" {
 		t.Fatalf("expected non-empty skills section")
 	}
-	if strings.Contains(out, "Other Available Skills") || strings.Contains(out, "Skills Catalog") {
-		t.Fatalf("did not expect catalog content, got %q", out)
+	if !strings.Contains(out, "<available_skills>") {
+		t.Fatalf("expected available skills metadata, got %q", out)
 	}
-	if strings.Contains(out, "sample-skill") {
-		t.Fatalf("did not expect skills to be enumerated, got %q", out)
+	if strings.Contains(out, "## Skill: sample-skill") || strings.Contains(out, "# Activated Skills") {
+		t.Fatalf("did not expect activated skills to be rendered, got %q", out)
 	}
 	if !strings.Contains(out, "# Skill Discovery") {
 		t.Fatalf("expected skill discovery hint, got %q", out)
