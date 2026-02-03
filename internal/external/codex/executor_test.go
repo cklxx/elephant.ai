@@ -16,7 +16,7 @@ import (
 const testCodexMCPEnv = "ALEX_TEST_CODEX_MCP_SERVER"
 
 func init() {
-	if os.Getenv(testCodexMCPEnv) == "1" {
+	if v, ok := os.LookupEnv(testCodexMCPEnv); ok && v == "1" {
 		runFakeCodexMCPServer()
 		os.Exit(0)
 	}
@@ -116,8 +116,8 @@ func runFakeCodexMCPServer() {
 func notify(w *bufio.Writer, method string, params map[string]any) {
 	payload := map[string]any{
 		"jsonrpc": "2.0",
-		"method": method,
-		"params": params,
+		"method":  method,
+		"params":  params,
 	}
 	writeJSONLine(w, payload)
 }
