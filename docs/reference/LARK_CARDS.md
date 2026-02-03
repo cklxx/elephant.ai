@@ -4,9 +4,9 @@ This document describes the Lark/Feishu interactive card integration used by ele
 
 ## What we send
 
-- **Plan review card**: triggered when the agent stops with `await_user_input` and plan review is enabled. Includes goal, plan JSON, and action buttons.
-- **Result card**: sent on success when cards are enabled (summary + attachments).
-- **Error card**: sent on failure when cards are enabled.
+- **Plan review card**: triggered when the agent stops with `await_user_input` and plan review cards are enabled. Includes goal, plan JSON, and action buttons.
+- **Result card**: sent on success when result cards are enabled (summary + attachments).
+- **Error card**: sent on failure when error cards are enabled (default on).
 
 ## Callback endpoint
 
@@ -20,8 +20,8 @@ Cards are interactive; button clicks invoke a callback endpoint. Configure your 
 channels:
   lark:
     cards_enabled: true
-    cards_plan_review: true
-    cards_results: true
+    cards_plan_review: false
+    cards_results: false
     cards_errors: true
     card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
     card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
