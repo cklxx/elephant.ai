@@ -36,7 +36,7 @@ func NewLarkCalendarQuery() tools.ToolExecutor {
 					Properties: map[string]ports.Property{
 						"calendar_id": {
 							Type:        "string",
-							Description: "Calendar ID to query.",
+							Description: "Calendar ID to query. Use \"primary\" to auto-resolve your primary calendar ID.",
 						},
 						"start_time": {
 							Type:        "string",
@@ -111,6 +111,12 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
+	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
+	calendarID = resolvedID
+
 	builder := larkcalendar.NewListCalendarEventReqBuilder().
 		CalendarId(calendarID).
 		StartTime(startTime).
@@ -180,17 +186,17 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 }
 
 type calendarEventSummary struct {
-	EventID            string `json:"event_id"`
-	Summary            string `json:"summary,omitempty"`
-	StartTime          string `json:"start_time,omitempty"`
-	EndTime            string `json:"end_time,omitempty"`
-	OrganizerCalendar  string `json:"organizer_calendar_id,omitempty"`
-	Status             string `json:"status,omitempty"`
-	HasAttendees       bool   `json:"has_attendees,omitempty"`
-	HasMoreAttendees   bool   `json:"has_more_attendee,omitempty"`
-	NeedNotification   *bool  `json:"need_notification,omitempty"`
-	FreeBusyStatus     string `json:"free_busy_status,omitempty"`
-	Visibility         string `json:"visibility,omitempty"`
+	EventID           string `json:"event_id"`
+	Summary           string `json:"summary,omitempty"`
+	StartTime         string `json:"start_time,omitempty"`
+	EndTime           string `json:"end_time,omitempty"`
+	OrganizerCalendar string `json:"organizer_calendar_id,omitempty"`
+	Status            string `json:"status,omitempty"`
+	HasAttendees      bool   `json:"has_attendees,omitempty"`
+	HasMoreAttendees  bool   `json:"has_more_attendee,omitempty"`
+	NeedNotification  *bool  `json:"need_notification,omitempty"`
+	FreeBusyStatus    string `json:"free_busy_status,omitempty"`
+	Visibility        string `json:"visibility,omitempty"`
 }
 
 func summarizeCalendarEvents(items []*larkcalendar.CalendarEvent) []calendarEventSummary {

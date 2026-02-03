@@ -29,7 +29,7 @@ func NewLarkCalendarCreate() tools.ToolExecutor {
 					Properties: map[string]ports.Property{
 						"calendar_id": {
 							Type:        "string",
-							Description: "Calendar ID to create the event in.",
+							Description: "Calendar ID to create the event in. Use \"primary\" to auto-resolve your primary calendar ID.",
 						},
 						"summary": {
 							Type:        "string",
@@ -124,6 +124,12 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 	description := shared.StringArg(call.Arguments, "description")
 	timezone := shared.StringArg(call.Arguments, "timezone")
 	needNotification, hasNeedNotification := boolArg(call.Arguments, "need_notification")
+
+	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
+	calendarID = resolvedID
 
 	startInfo := &larkcalendar.TimeInfo{Timestamp: &startTime}
 	endInfo := &larkcalendar.TimeInfo{Timestamp: &endTime}

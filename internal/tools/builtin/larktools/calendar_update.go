@@ -32,7 +32,7 @@ func NewLarkCalendarUpdate() tools.ToolExecutor {
 						},
 						"calendar_id": {
 							Type:        "string",
-							Description: "Calendar ID (defaults to \"primary\").",
+							Description: "Calendar ID (or \"primary\" to auto-resolve). Defaults to \"primary\".",
 						},
 						"summary": {
 							Type:        "string",
@@ -135,6 +135,12 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 		err := fmt.Errorf("at least one field to update must be provided (summary, description, start_time, end_time)")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
+
+	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
+	calendarID = resolvedID
 
 	builder := larkcalendar.NewPatchCalendarEventReqBuilder().
 		CalendarId(calendarID).

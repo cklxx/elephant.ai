@@ -32,7 +32,7 @@ func NewLarkCalendarDelete() tools.ToolExecutor {
 						},
 						"calendar_id": {
 							Type:        "string",
-							Description: "Calendar ID (defaults to \"primary\").",
+							Description: "Calendar ID (or \"primary\" to auto-resolve). Defaults to \"primary\".",
 						},
 						"user_access_token": {
 							Type:        "string",
@@ -80,6 +80,12 @@ func (t *larkCalendarDelete) Execute(ctx context.Context, call ports.ToolCall) (
 	if calendarID == "" {
 		calendarID = "primary"
 	}
+
+	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	if errResult != nil {
+		return errResult, nil
+	}
+	calendarID = resolvedID
 
 	builder := larkcalendar.NewDeleteCalendarEventReqBuilder().
 		CalendarId(calendarID).
