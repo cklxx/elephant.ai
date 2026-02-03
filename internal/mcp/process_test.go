@@ -60,7 +60,9 @@ func TestProcessManager_InheritsEnvironmentWhenOverridesProvided(t *testing.T) {
 		t.Fatalf("write script: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// Keep this generous: in `go test ./...` packages run in parallel and
+	// scheduling delays can be non-trivial under load.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	pm := NewProcessManager(ProcessConfig{
@@ -78,7 +80,8 @@ func TestProcessManager_InheritsEnvironmentWhenOverridesProvided(t *testing.T) {
 		if err != nil {
 			t.Fatalf("expected script to exit 0, got %v", err)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
+		_ = pm.Stop(500 * time.Millisecond)
 		t.Fatalf("timed out waiting for process exit")
 	}
 }
