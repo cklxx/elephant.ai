@@ -6,7 +6,6 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
-	larkapi "alex/internal/lark"
 	"alex/internal/tools/builtin/shared"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
@@ -155,13 +154,9 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 		return errResult, nil
 	}
 	callOpt, reqOpt := buildLarkAuthOptions(auth)
-	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", callOpt)
-	if err != nil {
-		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: fmt.Sprintf("lark_calendar_update: failed to resolve primary calendar_id: %v", err),
-			Error:   fmt.Errorf("resolve primary calendar id: %w", err),
-		}, nil
+	calendarID, errResult := resolveCalendarID(ctx, call.ID, client, auth, callOpt, "lark_calendar_update")
+	if errResult != nil {
+		return errResult, nil
 	}
 
 	builder := larkcalendar.NewPatchCalendarEventReqBuilder().
