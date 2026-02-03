@@ -124,8 +124,12 @@ func runLarkScenarioRun(args []string) error {
 
 func filterScenarios(all []*larktesting.Scenario, name string, tags []string) []*larktesting.Scenario {
 	var out []*larktesting.Scenario
+	manualRequested := hasTag(tags, "manual")
 	for _, s := range all {
 		if name != "" && s.Name != name {
+			continue
+		}
+		if hasTag(s.Tags, "manual") && name == "" && !manualRequested {
 			continue
 		}
 		if len(tags) > 0 && !scenarioHasAnyTag(s, tags) {
@@ -134,6 +138,15 @@ func filterScenarios(all []*larktesting.Scenario, name string, tags []string) []
 		out = append(out, s)
 	}
 	return out
+}
+
+func hasTag(tags []string, needle string) bool {
+	for _, tag := range tags {
+		if strings.EqualFold(strings.TrimSpace(tag), needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func scenarioHasAnyTag(s *larktesting.Scenario, tags []string) bool {
