@@ -84,6 +84,44 @@ func TestBackgroundProgressListener_DispatchAndTickUpdate(t *testing.T) {
 	}
 }
 
+func TestBackgroundProgressListener_CodeAgentUsesThreeMinuteInterval(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	g := &Gateway{messenger: recorder}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		30*time.Minute,
+		10*time.Minute,
+	)
+	defer ln.Close()
+
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskDispatched,
+		NodeKind:  "background",
+		NodeID:    "bg-1",
+		Payload: map[string]any{
+			"task_id":     "bg-1",
+			"description": "desc",
+			"agent_type":  "codex",
+		},
+	})
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 reply message, got %d", len(calls))
+	}
+	if !strings.Contains(calls[0].Content, "每3分钟") {
+		t.Fatalf("expected 3-minute interval for code agent, got %q", calls[0].Content)
+	}
+}
+
 func TestBackgroundProgressListener_CompletionUpdatesImmediatelyAndStops(t *testing.T) {
 	recorder := NewRecordingMessenger()
 	g := &Gateway{messenger: recorder}

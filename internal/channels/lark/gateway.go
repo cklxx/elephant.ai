@@ -444,8 +444,26 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
-	if token := strings.TrimSpace(g.cfg.TenantAccessToken); token != "" {
-		execCtx = shared.WithLarkTenantToken(execCtx, token)
+	tenantMode := strings.ToLower(strings.TrimSpace(g.cfg.TenantTokenMode))
+	if tenantMode == "" {
+		tenantMode = "auto"
+	}
+	switch tenantMode {
+	case "auto", "static":
+	default:
+		g.logger.Warn("Invalid lark tenant_token_mode %q; defaulting to auto", tenantMode)
+		tenantMode = "auto"
+	}
+	execCtx = shared.WithLarkTenantTokenMode(execCtx, tenantMode)
+	if calendarID := strings.TrimSpace(g.cfg.TenantCalendarID); calendarID != "" {
+		execCtx = shared.WithLarkTenantCalendarID(execCtx, calendarID)
+	}
+	if tenantMode == "static" {
+		if token := strings.TrimSpace(g.cfg.TenantAccessToken); token != "" {
+			execCtx = shared.WithLarkTenantToken(execCtx, token)
+		} else {
+			g.logger.Warn("Lark tenant_token_mode=static but tenant_access_token is empty")
+		}
 	}
 	if g.oauth != nil {
 		execCtx = shared.WithLarkOAuth(execCtx, g.oauth)

@@ -12,17 +12,19 @@ import (
 type toolContextKey string
 
 const (
-	ApproverKey      toolContextKey = "approver"
-	BackupManagerKey toolContextKey = "backup_manager"
-	ToolSessionIDKey toolContextKey = "tool_session_id"
-	AutoApproveKey   toolContextKey = "auto_approve"
-	larkClientKey    toolContextKey = "lark_client"
-	larkChatIDKey    toolContextKey = "lark_chat_id"
-	larkOAuthKey     toolContextKey = "lark_oauth"
-	larkTenantKey    toolContextKey = "lark_tenant_token"
-	timerManagerKey  toolContextKey = "timer_manager"
-	schedulerKey     toolContextKey = "scheduler"
-	autoUploadKey    toolContextKey = "auto_upload_config"
+	ApproverKey       toolContextKey = "approver"
+	BackupManagerKey  toolContextKey = "backup_manager"
+	ToolSessionIDKey  toolContextKey = "tool_session_id"
+	AutoApproveKey    toolContextKey = "auto_approve"
+	larkClientKey     toolContextKey = "lark_client"
+	larkChatIDKey     toolContextKey = "lark_chat_id"
+	larkOAuthKey      toolContextKey = "lark_oauth"
+	larkTenantKey     toolContextKey = "lark_tenant_token"
+	larkTenantModeKey toolContextKey = "lark_tenant_token_mode"
+	larkTenantCalKey  toolContextKey = "lark_tenant_calendar_id"
+	timerManagerKey   toolContextKey = "timer_manager"
+	schedulerKey      toolContextKey = "scheduler"
+	autoUploadKey     toolContextKey = "auto_upload_config"
 )
 
 type parentListenerKey struct{}
@@ -175,6 +177,38 @@ func LarkTenantTokenFromContext(ctx context.Context) string {
 	}
 	if token, ok := ctx.Value(larkTenantKey).(string); ok {
 		return token
+	}
+	return ""
+}
+
+// WithLarkTenantTokenMode stores the Lark tenant token mode in context.
+func WithLarkTenantTokenMode(ctx context.Context, mode string) context.Context {
+	return context.WithValue(ctx, larkTenantModeKey, mode)
+}
+
+// LarkTenantTokenModeFromContext retrieves the Lark tenant token mode from context.
+func LarkTenantTokenModeFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if mode, ok := ctx.Value(larkTenantModeKey).(string); ok {
+		return mode
+	}
+	return ""
+}
+
+// WithLarkTenantCalendarID stores the Lark tenant calendar ID in context.
+func WithLarkTenantCalendarID(ctx context.Context, calendarID string) context.Context {
+	return context.WithValue(ctx, larkTenantCalKey, calendarID)
+}
+
+// LarkTenantCalendarIDFromContext retrieves the Lark tenant calendar ID from context.
+func LarkTenantCalendarIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if calendarID, ok := ctx.Value(larkTenantCalKey).(string); ok {
+		return calendarID
 	}
 	return ""
 }
