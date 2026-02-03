@@ -32,6 +32,19 @@ Most AI assistants sit outside your workflow — a separate app, a separate tab,
 
 ---
 
+## North Star: Calendar + Tasks closed loop (M0)
+
+The core vertical slice lives entirely in Lark: **read calendar/tasks → propose actions → write with approval → proactively follow up**.
+
+Implemented building blocks:
+- **Calendar tools:** query/create/update/delete events (`lark_calendar_*`)
+- **Task tools:** list/create/update/delete tasks (`lark_task_manage`)
+- **Proactive reminders:** scheduler trigger that checks upcoming events/tasks and messages you in Lark
+
+See `docs/roadmap/roadmap.md` for the current M0/M1 status and `docs/reference/CONFIG.md` for config details.
+
+---
+
 ## How it works
 
 ```
@@ -110,15 +123,29 @@ export OPENAI_API_KEY="sk-..."
 # or: ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, CODEX_API_KEY, ANTIGRAVITY_API_KEY
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
-# 2. Configure Lark bot credentials in config.yaml
-#    lark:
-#      enabled: true
-#      app_id: "cli_xxx"
-#      app_secret: "xxx"
-#      cards_enabled: true
-#      card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
-#      card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
+# 2. Configure Lark bot credentials in ~/.alex/config.yaml
+#    channels:
+#      lark:
+#        enabled: true
+#        app_id: "cli_xxx"
+#        app_secret: "xxx"
+#        cards_enabled: true
+#        card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
+#        card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
 #    callback endpoint: /api/lark/card/callback
+#
+# Optional: enable proactive calendar/task reminders (scheduler)
+#    runtime:
+#      proactive:
+#        scheduler:
+#          enabled: true
+#          calendar_reminder:
+#            enabled: true
+#            schedule: "*/15 * * * *"
+#            look_ahead_minutes: 120
+#            channel: "lark"
+#            user_id: "ou_xxx"
+#            chat_id: "oc_xxx"
 
 # 3. Run backend + web together
 ./dev.sh
@@ -172,7 +199,7 @@ Delivery (Lark, Web, CLI)
 - **File operations** — Read, write, and manage files
 - **Artifact generation** — PDFs, images, and structured outputs
 - **Media processing** — Image, audio, and video handling
-- **Lark integration** — Send messages, fetch chat history, manage conversations
+- **Lark integration** — Send messages, fetch chat history, and manage Calendar/Tasks
 - **Memory management** — Store and recall information across sessions
 - **MCP servers** — Connect any external tool via the Model Context Protocol
 

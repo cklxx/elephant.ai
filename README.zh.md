@@ -32,6 +32,19 @@ elephant.ai 作为一等成员常驻在你的飞书群聊和私信中——不�
 
 ---
 
+## 北极星：日程 + 任务闭环（M0）
+
+核心切片完全在飞书内闭环：**读取日程/待办 → 提出行动建议 → 审批后执行写入 → 到期主动提醒/跟进**。
+
+已具备的基础能力：
+- **日历工具：** 查询/创建/更新/删除日程（`lark_calendar_*`）
+- **任务工具：** 列出/创建/更新/删除任务（`lark_task_manage`）
+- **主动提醒：** scheduler 定时检查未来日程/任务并在飞书内提醒
+
+状态以 `docs/roadmap/roadmap.md` 为准；配置细节见 `docs/reference/CONFIG.md`。
+
+---
+
 ## 工作原理
 
 ```
@@ -110,11 +123,29 @@ export OPENAI_API_KEY="sk-..."
 # 或: ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, CODEX_API_KEY, ANTIGRAVITY_API_KEY
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
-# 2. 在 config.yaml 中配置飞书机器人凭据
-#    lark:
-#      enabled: true
-#      app_id: "cli_xxx"
-#      app_secret: "xxx"
+# 2. 在 ~/.alex/config.yaml 中配置飞书机器人凭据
+#    channels:
+#      lark:
+#        enabled: true
+#        app_id: "cli_xxx"
+#        app_secret: "xxx"
+#        cards_enabled: true
+#        card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
+#        card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
+#    回调地址: /api/lark/card/callback
+#
+# 可选：开启日程/任务主动提醒（scheduler）
+#    runtime:
+#      proactive:
+#        scheduler:
+#          enabled: true
+#          calendar_reminder:
+#            enabled: true
+#            schedule: "*/15 * * * *"
+#            look_ahead_minutes: 120
+#            channel: "lark"
+#            user_id: "ou_xxx"
+#            chat_id: "oc_xxx"
 
 # 3. 一起启动后端和前端
 ./dev.sh
@@ -168,7 +199,7 @@ make build
 - **文件操作** — 读、写、管理文件
 - **产物生成** — PDF、图片和结构化输出
 - **媒体处理** — 图片、音频和视频处理
-- **飞书集成** — 发送消息、获取聊天记录、管理对话
+- **飞书集成** — 发送消息、获取聊天记录、管理对话、日程与任务
 - **记忆管理** — 跨会话存储和召回信息
 - **MCP 服务器** — 通过 Model Context Protocol 连接任意外部工具
 
