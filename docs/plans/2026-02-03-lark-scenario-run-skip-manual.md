@@ -1,7 +1,7 @@
 # Lark scenario runner skips manual scenarios by default
 
 **Date**: 2026-02-03
-**Status**: In Progress
+**Status**: Completed
 **Author**: cklxx
 
 ## Context
@@ -18,4 +18,5 @@ Make `alex lark scenario run` skip `manual` scenarios by default (consistent wit
 
 ## Progress Log
 - 2026-02-03: Plan created.
-
+- 2026-02-03: Skipped `manual` scenarios by default in `alex lark scenario run` and added unit tests for default skip + explicit run.
+- 2026-02-03: Ran `./dev.sh lint` and `./dev.sh test` (pass).
