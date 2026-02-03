@@ -53,10 +53,14 @@ Author: cklxx
 ### 主/副进程管理
 
 - `scripts/lark/main.sh start|stop|restart|status|logs|build`
-  - 在主 worktree 启动/重启 `alex-server`
+  - 在主 worktree 启动/重启 `alex-server`（并确保本地 auth DB 已启动）
   - 通过 `http://127.0.0.1:${MAIN_PORT:-8080}/health` 做健康检查
 
-- `scripts/lark/test.sh start|stop|restart|status|logs`
+- `scripts/lark/test.sh start|stop|restart|status|logs|build`
+  - 在 `.worktrees/test` 启动/重启 `alex-server`（并确保本地 auth DB 已启动 + `.env` 已同步）
+  - 默认读取 `~/.alex/test.yaml`（也可指定绝对路径，如 `/Users/bytedance/.alex/test.yaml`）
+
+- `scripts/lark/loop-agent.sh start|stop|restart|status|logs`
   - 启动/管理副 agent 的 loop（`scripts/lark/loop.sh watch`）
 
 ### 副 agent 自愈闭环
@@ -110,9 +114,13 @@ alex lark scenario run \
 ```bash
 ./scripts/lark/main.sh start
 ```
-3) 启动副 agent loop：
+3) 启动 test server（读取 `~/.alex/test.yaml`）：
 ```bash
 ./scripts/lark/test.sh start
+```
+4) 启动副 agent loop：
+```bash
+./scripts/lark/loop-agent.sh start
 ```
 
 ---
@@ -129,7 +137,7 @@ alex lark scenario run \
 
 - [x] 常驻 worktree：`.worktrees/test` + `.env` 自动同步
 - [x] 主进程管理：`scripts/lark/main.sh`
-- [x] 副循环进程：`scripts/lark/test.sh` + `scripts/lark/loop.sh`
+- [x] test worktree server：`scripts/lark/test.sh`
+- [x] 副循环进程：`scripts/lark/loop-agent.sh` + `scripts/lark/loop.sh`
 - [x] CLI 场景评测：`alex lark scenario run`
 - [ ] （可选）将 loop 的进度/失败摘要推送回 Lark（目前写本地 logs）
-
