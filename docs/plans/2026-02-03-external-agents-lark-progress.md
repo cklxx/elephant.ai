@@ -39,3 +39,6 @@ Out of scope:
 ## Notes
 - Keep changes isolated: only commit our work (explicit path staging).
 - Prefer reply-to-original-message in group chats; update one message to avoid spam.
+
+## Status
+- Implemented end-to-end; unit tests and lint are green (`CGO_ENABLED=0 go test ./...`, `./scripts/run-golangci-lint.sh run ./...`).
