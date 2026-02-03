@@ -83,6 +83,12 @@ func main() {
 			cleanup()
 			os.Exit(130)
 		}
+		var exitErr *ExitCodeError
+		if errors.As(err, &exitErr) && exitErr.Code != 0 {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			cleanup()
+			os.Exit(exitErr.Code)
+		}
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		cleanup()
 		os.Exit(1)
@@ -111,7 +117,21 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 			return true, 1
 		}
 		return true, 0
+	case "lark":
+		if err := runLarkCommand(args[1:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return true, exitCodeFromError(err)
+		}
+		return true, 0
 	}
 
 	return false, 0
+}
+
+func exitCodeFromError(err error) int {
+	var exitErr *ExitCodeError
+	if errors.As(err, &exitErr) && exitErr.Code != 0 {
+		return exitErr.Code
+	}
+	return 1
 }
