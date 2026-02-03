@@ -29,7 +29,15 @@ func NewLarkCalendarCreate() tools.ToolExecutor {
 					Properties: map[string]ports.Property{
 						"calendar_id": {
 							Type:        "string",
-							Description: "Calendar ID to create the event in. Use \"primary\" to auto-resolve your primary calendar ID.",
+							Description: "Calendar ID to create the event in. Use \"primary\" to auto-resolve a user's primary calendar ID (see calendar_owner_id).",
+						},
+						"calendar_owner_id": {
+							Type:        "string",
+							Description: "Optional calendar owner user ID. When calendar_id is \"primary\", resolve this user's primary calendar_id (e.g. open_id from @mention).",
+						},
+						"calendar_owner_id_type": {
+							Type:        "string",
+							Description: "Type of calendar_owner_id (open_id, user_id, union_id). Default open_id.",
 						},
 						"summary": {
 							Type:        "string",
@@ -161,7 +169,7 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 		builder.IdempotencyKey(idempotencyKey)
 	}
 
-	options := calendarRequestOptions(call.Arguments)
+	options := calendarRequestOptions(ctx, call.Arguments)
 	resp, err := client.Calendar.CalendarEvent.Create(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{
