@@ -11,7 +11,7 @@
 - Repo defaults and config/docs examples set `runtime.external_agents.codex.default_model: "o3"`, but Codex CLI subscription auth does not support `o3`.
 
 ## Remediation
-- Switch the default model to `gpt-5-codex` in:
+- Switch the default model to `gpt-5.2-codex` in:
   - baseline defaults (`internal/config/types.go`)
   - example config (`configs/config.yaml`)
   - docs (`docs/reference/external-agents-codex-claude-code.md`)
@@ -19,4 +19,3 @@
 
 ## Status
 - fixed
-

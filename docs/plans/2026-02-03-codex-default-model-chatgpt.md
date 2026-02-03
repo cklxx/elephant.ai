@@ -34,3 +34,4 @@ requiring users to override `default_model`, while keeping the model configurabl
 - Default model changed from `o3` → `gpt-5-codex` (code + example config + docs).
 - Regression test added to pin the default.
 - Error-experience entry + summary captured for the incident.
+- Follow-up: default model later updated to `gpt-5.2-codex` (see `2026-02-03-codex-default-model-gpt-5-2.md`).

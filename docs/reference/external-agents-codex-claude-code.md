@@ -14,7 +14,7 @@ Updated: 2026-02-02
 2) Enable external agents in `config.yaml`
 
 > Note: If Codex CLI is authenticated via ChatGPT subscription, use a Codex-supported model
-> like `gpt-5-codex` (default) / `codex-mini-latest`. `o3` is not supported in that auth mode.
+> like `gpt-5.2-codex` (default) / `gpt-5-codex` / `codex-mini-latest`. `o3` is not supported in that auth mode.
 
 ```yaml
 runtime:
@@ -37,7 +37,7 @@ runtime:
     codex:
       enabled: true
       binary: "codex"
-      default_model: "gpt-5-codex"
+      default_model: "gpt-5.2-codex"
       approval_policy: "on-request"
       sandbox: "workspace-write"
       timeout: "30m"
