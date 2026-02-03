@@ -11,12 +11,11 @@ Usage:
 
 Meaning:
   ma = main agent (alex-server + local auth DB)
-  ta = test agent (local self-heal loop watcher)
+  ta = test agent (alex-server + local auth DB + local self-heal loop watcher)
 
 Notes:
   - ta will ensure the persistent test worktree exists at .worktrees/test and sync .env
-  - If you also want to start the test server (optional), use:
-      ./scripts/lark/test.sh start
+  - ta uses config at ~/.alex/test.yaml by default (override with TEST_CONFIG=/abs/path.yaml)
 EOF
 }
 
@@ -28,9 +27,44 @@ case "${mode}" in
     exec "${ROOT}/scripts/lark/main.sh" "${cmd}"
     ;;
   ta)
-    # Ensure test worktree + .env exist before starting the loop.
+    # Ensure test worktree + .env exist before starting any test-side processes.
     "${ROOT}/scripts/lark/worktree.sh" ensure >/dev/null
-    exec "${ROOT}/scripts/lark/loop-agent.sh" "${cmd}"
+
+    case "${cmd}" in
+      start)
+        "${ROOT}/scripts/lark/test.sh" start
+        exec "${ROOT}/scripts/lark/loop-agent.sh" start
+        ;;
+      stop)
+        "${ROOT}/scripts/lark/loop-agent.sh" stop || true
+        exec "${ROOT}/scripts/lark/test.sh" stop || true
+        ;;
+      restart)
+        "${ROOT}/scripts/lark/loop-agent.sh" stop || true
+        "${ROOT}/scripts/lark/test.sh" stop || true
+        "${ROOT}/scripts/lark/test.sh" start
+        exec "${ROOT}/scripts/lark/loop-agent.sh" start
+        ;;
+      status)
+        "${ROOT}/scripts/lark/test.sh" status || true
+        exec "${ROOT}/scripts/lark/loop-agent.sh" status || true
+        ;;
+      logs)
+        test_root="${ROOT}/.worktrees/test"
+        mkdir -p "${test_root}/logs"
+        touch \
+          "${test_root}/logs/lark-test.log" \
+          "${test_root}/logs/lark-loop.log" \
+          "${test_root}/logs/lark-loop-agent.log"
+        tail -n 200 -f \
+          "${test_root}/logs/lark-test.log" \
+          "${test_root}/logs/lark-loop.log" \
+          "${test_root}/logs/lark-loop-agent.log"
+        ;;
+      *)
+        exec "${ROOT}/scripts/lark/loop-agent.sh" "${cmd}"
+        ;;
+    esac
     ;;
   help|-h|--help|"")
     usage
@@ -42,4 +76,3 @@ case "${mode}" in
     exit 2
     ;;
 esac
-

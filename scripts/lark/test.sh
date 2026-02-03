@@ -43,11 +43,9 @@ SETUP_DB_SH="${ROOT}/scripts/setup_local_auth_db.sh"
 
 TEST_ROOT="${ROOT}/.worktrees/test"
 BIN="${TEST_ROOT}/alex-server"
-PID_FILE="${ROOT}/.pids/lark-test.pid"
-LOG_FILE="${ROOT}/logs/lark-test.log"
+PID_FILE="${TEST_ROOT}/.pids/lark-test.pid"
+LOG_FILE="${TEST_ROOT}/logs/lark-test.log"
 TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
-
-mkdir -p "${ROOT}/.pids" "${ROOT}/logs"
 
 maybe_setup_auth_db() {
   if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
@@ -68,6 +66,7 @@ maybe_setup_auth_db() {
 ensure_worktree() {
   [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
   "${WORKTREE_SH}" ensure
+  mkdir -p "${TEST_ROOT}/.pids" "${TEST_ROOT}/logs"
 }
 
 infer_port_from_config() {
@@ -115,6 +114,7 @@ start() {
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
 
   maybe_setup_auth_db
+  ensure_worktree
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
@@ -152,10 +152,12 @@ start() {
 }
 
 stop() {
+  ensure_worktree
   stop_service "Test server" "${PID_FILE}"
 }
 
 status() {
+  ensure_worktree
   local inferred_port health_port health_url
   inferred_port="$(infer_port_from_config "${TEST_CONFIG}" || true)"
   health_port="${TEST_PORT:-${inferred_port:-8080}}"
@@ -178,7 +180,10 @@ case "${cmd}" in
   stop) stop ;;
   restart) stop; start ;;
   status) status ;;
-  logs) tail -n 200 -f "${LOG_FILE}" ;;
+  logs)
+    ensure_worktree
+    tail -n 200 -f "${LOG_FILE}"
+    ;;
   build) build ;;
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;

@@ -12,9 +12,11 @@ Usage:
   scripts/lark/loop.sh run --base-sha <sha>
 
 Env:
-  SLEEP_SECONDS       Watch poll interval (default: 2)
+  SLEEP_SECONDS       Watch poll interval (default: 10)
   MAX_CYCLES          Max auto-fix cycles for fast gate (default: 5)
   MAX_CYCLES_SLOW     Max auto-fix cycles for slow gate (default: 2)
+  FAST_GO_TEST_P      go test -p value for fast gate (default: 2)
+  SLOW_GO_TEST_P      go test -p value for slow gate (default: 2)
   MAIN_PORT           Main agent health port for restart verification (default: 8080)
 EOF
 }
@@ -37,22 +39,40 @@ TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
 WORKTREE_SH="${MAIN_ROOT}/scripts/lark/worktree.sh"
 MAIN_SH="${MAIN_ROOT}/scripts/lark/main.sh"
 
-SLEEP_SECONDS="${SLEEP_SECONDS:-2}"
+SLEEP_SECONDS="${SLEEP_SECONDS:-10}"
 MAX_CYCLES="${MAX_CYCLES:-5}"
 MAX_CYCLES_SLOW="${MAX_CYCLES_SLOW:-2}"
+FAST_GO_TEST_P="${FAST_GO_TEST_P:-2}"
+SLOW_GO_TEST_P="${SLOW_GO_TEST_P:-2}"
 MAIN_PORT="${MAIN_PORT:-8080}"
 
-LOG_DIR="${MAIN_ROOT}/logs"
-TMP_DIR="${MAIN_ROOT}/tmp"
-LOCK_DIR="${TMP_DIR}/lark-loop.lock"
-LAST_FILE="${TMP_DIR}/lark-loop.last"
+# Initialized by init_test_paths (stored in the test worktree to keep logs per worktree).
+LOG_DIR=""
+TMP_DIR=""
+LOCK_DIR=""
+LAST_FILE=""
 
-mkdir -p "${LOG_DIR}" "${TMP_DIR}"
+LOOP_LOG=""
+FAIL_SUMMARY=""
+SCENARIO_JSON=""
+SCENARIO_MD=""
 
-LOOP_LOG="${LOG_DIR}/lark-loop.log"
-FAIL_SUMMARY="${LOG_DIR}/lark-loop.fail.txt"
-SCENARIO_JSON="${LOG_DIR}/lark-scenarios.json"
-SCENARIO_MD="${LOG_DIR}/lark-scenarios.md"
+init_test_paths() {
+  [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
+  "${WORKTREE_SH}" ensure
+
+  LOG_DIR="${TEST_ROOT}/logs"
+  TMP_DIR="${TEST_ROOT}/tmp"
+  LOCK_DIR="${TMP_DIR}/lark-loop.lock"
+  LAST_FILE="${TMP_DIR}/lark-loop.last"
+
+  LOOP_LOG="${LOG_DIR}/lark-loop.log"
+  FAIL_SUMMARY="${LOG_DIR}/lark-loop.fail.txt"
+  SCENARIO_JSON="${LOG_DIR}/lark-scenarios.json"
+  SCENARIO_MD="${LOG_DIR}/lark-scenarios.md"
+
+  mkdir -p "${LOG_DIR}" "${TMP_DIR}"
+}
 
 acquire_lock() {
   if mkdir "${LOCK_DIR}" 2>/dev/null; then
@@ -98,7 +118,7 @@ run_fast_gate() {
     run_scenario_suite
     scenario_rc=$?
     echo "[go test] running"
-    (cd "${TEST_ROOT}" && CGO_ENABLED=0 go test ./... -count=1)
+    (cd "${TEST_ROOT}" && CGO_ENABLED=0 go test ./... -count=1 -p "${FAST_GO_TEST_P}")
     go_rc=$?
   } >> "${LOOP_LOG}" 2>&1
   local rc=0
@@ -124,7 +144,8 @@ run_slow_gate() {
     echo "---------------------"
     (cd "${TEST_ROOT}" && ./dev.sh lint)
     lint_rc=$?
-    (cd "${TEST_ROOT}" && ./dev.sh test)
+    # Limit package-level parallelism to reduce memory pressure (-race is expensive).
+    (cd "${TEST_ROOT}" && GOFLAGS="${GOFLAGS:-} -p=${SLOW_GO_TEST_P}" ./dev.sh test)
     test_rc=$?
   } >> "${LOOP_LOG}" 2>&1
   local rc=0
@@ -165,7 +186,8 @@ EOF
   append_log "[auto-fix] phase=${phase} starting"
 
   if command -v codex >/dev/null 2>&1; then
-    (cd "${TEST_ROOT}" && codex --approval-policy auto-edit --quiet "${prompt}") >> "${LOOP_LOG}" 2>&1 || true
+    # Use codex exec so the loop is non-interactive and can auto-edit the worktree.
+    (cd "${TEST_ROOT}" && printf '%s' "${prompt}" | codex exec --dangerously-bypass-approvals-and-sandbox -) >> "${LOOP_LOG}" 2>&1 || true
   elif command -v claude >/dev/null 2>&1; then
     # Claude Code fallback (autonomous mode).
     (cd "${TEST_ROOT}" && claude -p --dangerously-skip-permissions --allowedTools "Read,Edit,Bash(git *)" -- "${prompt}") >> "${LOOP_LOG}" 2>&1 || true
@@ -216,6 +238,7 @@ run_cycle() {
   local base_sha="$1"
 
   require_tools
+  init_test_paths
 
   if ! acquire_lock; then
     log_warn "Loop already running (lock: ${LOCK_DIR})"
@@ -225,7 +248,7 @@ run_cycle() {
 
   append_log "=== CYCLE START base_sha=${base_sha} ==="
 
-  "${WORKTREE_SH}" ensure >> "${LOOP_LOG}" 2>&1
+  "${WORKTREE_SH}" ensure >> "${LOOP_LOG}" 2>&1 || true
 
   # Reset test branch to the chosen base SHA (main snapshot).
   git -C "${TEST_ROOT}" switch test >> "${LOOP_LOG}" 2>&1
@@ -285,6 +308,7 @@ run_cycle() {
 
 watch() {
   require_tools
+  init_test_paths
 
   log_info "Watching main commits (poll=${SLEEP_SECONDS}s)..."
 
@@ -295,7 +319,13 @@ watch() {
 
     if [[ "${main_sha}" != "${last_sha}" ]]; then
       log_info "Detected new main SHA: ${main_sha:0:8} (last: ${last_sha:0:8})"
-      run_cycle "${main_sha}" || log_warn "Cycle failed for ${main_sha:0:8} (see ${LOOP_LOG})"
+      if run_cycle "${main_sha}"; then
+        :
+      else
+        log_warn "Cycle failed for ${main_sha:0:8} (see ${LOOP_LOG})"
+        # Prevent tight re-runs on the same broken SHA; wait for main to advance.
+        printf '%s\n' "${main_sha}" > "${LAST_FILE}"
+      fi
     fi
 
     sleep "${SLEEP_SECONDS}"

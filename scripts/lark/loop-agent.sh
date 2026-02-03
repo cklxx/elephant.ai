@@ -31,13 +31,22 @@ if [[ -z "${ROOT}" ]]; then
 fi
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
-PID_FILE="${ROOT}/.pids/lark-loop.pid"
-LOG_FILE="${ROOT}/logs/lark-loop-agent.log"
+WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
+TEST_ROOT="${ROOT}/.worktrees/test"
+
+PID_FILE="${TEST_ROOT}/.pids/lark-loop.pid"
+LOG_FILE="${TEST_ROOT}/logs/lark-loop-agent.log"
 LOOP_SH="${ROOT}/scripts/lark/loop.sh"
 
-mkdir -p "${ROOT}/.pids" "${ROOT}/logs"
+ensure_worktree() {
+  [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
+  "${WORKTREE_SH}" ensure >/dev/null
+}
 
 start() {
+  ensure_worktree
+  mkdir -p "${TEST_ROOT}/.pids" "${TEST_ROOT}/logs"
+
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
   if is_process_running "${pid}"; then
@@ -54,10 +63,12 @@ start() {
 }
 
 stop() {
+  ensure_worktree
   stop_service "Loop agent" "${PID_FILE}"
 }
 
 status() {
+  ensure_worktree
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
   if is_process_running "${pid}"; then
@@ -75,8 +86,10 @@ case "${cmd}" in
   stop) stop ;;
   restart) stop; start ;;
   status) status ;;
-  logs) tail -n 200 -f "${LOG_FILE}" ;;
+  logs)
+    ensure_worktree
+    tail -n 200 -f "${LOG_FILE}"
+    ;;
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;
 esac
-

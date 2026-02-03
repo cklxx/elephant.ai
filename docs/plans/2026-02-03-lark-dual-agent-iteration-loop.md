@@ -49,7 +49,7 @@ Author: cklxx
 只记两个命令：
 
 - `./lark.sh ma ...`：主 agent（main worktree 的 server + 本地 auth DB）
-- `./lark.sh ta ...`：副 agent（test worktree 自愈 loop watcher；会自动确保 `.worktrees/test` + 同步 `.env`）
+- `./lark.sh ta ...`：副 agent（test worktree 的 server + 自愈 loop watcher；会自动确保 `.worktrees/test` + 同步 `.env`）
 
 用法：
 
@@ -60,7 +60,7 @@ Author: cklxx
 
 对应关系（想看细节时再用）：
 - `./lark.sh ma <cmd>` → `scripts/lark/main.sh <cmd>`
-- `./lark.sh ta <cmd>` → `scripts/lark/loop-agent.sh <cmd>`（启动前会 `worktree.sh ensure`）
+- `./lark.sh ta <cmd>` → `scripts/lark/test.sh <cmd>` + `scripts/lark/loop-agent.sh <cmd>`（启动前会 `worktree.sh ensure`）
 
 ### Worktree 管理
 
@@ -77,8 +77,6 @@ Author: cklxx
 - `scripts/lark/loop-agent.sh start|stop|restart|status|logs`
   - 启动/管理副 agent 的 loop（`scripts/lark/loop.sh watch`）
 
-（可选）如果你需要单独起一个 test worktree 的 server（用于手动验证/对比配置），用：
-
 - `scripts/lark/test.sh start|stop|restart|status|logs|build`
   - 在 `.worktrees/test` 启动/重启 `alex-server`（并确保本地 auth DB 已启动 + `.env` 已同步）
   - 默认读取 `~/.alex/test.yaml`（也可指定绝对路径，如 `/Users/bytedance/.alex/test.yaml`）
@@ -86,8 +84,9 @@ Author: cklxx
 ### 副 agent 自愈闭环
 
 - `scripts/lark/loop.sh watch`
-  - 每 `SLEEP_SECONDS`（默认 2s）轮询 `main` 的 SHA
+  - 每 `SLEEP_SECONDS`（默认 10s）轮询 `main` 的 SHA
   - 若发现新 SHA 且无锁，则触发一轮 `run_cycle(base_sha)`
+  - 若某次循环 exhaust（修不动/门禁持续失败），会记录 `last_sha`，避免对同一个 SHA 紧密重跑（等 main 前进再跑）
 
 - `scripts/lark/loop.sh run --base-sha <sha>`
   - 手动触发一次闭环（便于 debug）
@@ -148,9 +147,14 @@ cd -
 
 ## Logs / Artifacts
 
-- `logs/lark-loop.log`：自愈循环总日志
-- `logs/lark-loop.fail.txt`：失败摘要（tail 200）
-- `logs/lark-scenarios.json` / `logs/lark-scenarios.md`：场景评测报告
+- main worktree（repo root）：
+  - `logs/lark-main.log`：主 agent server 日志
+- test worktree（`.worktrees/test`）：
+  - `logs/lark-test.log`：test server 日志
+  - `logs/lark-loop-agent.log`：loop watcher 进程日志（watch 输出）
+  - `logs/lark-loop.log`：自愈循环总日志
+  - `logs/lark-loop.fail.txt`：失败摘要（tail 200）
+  - `logs/lark-scenarios.json` / `logs/lark-scenarios.md`：场景评测报告
 
 ---
 
