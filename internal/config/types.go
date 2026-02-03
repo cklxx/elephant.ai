@@ -261,7 +261,7 @@ type CalendarReminderConfig struct {
 	Schedule         string `json:"schedule" yaml:"schedule"`                     // cron expression, default "*/15 * * * *"
 	LookAheadMinutes int    `json:"look_ahead_minutes" yaml:"look_ahead_minutes"` // default 120
 	Channel          string `json:"channel" yaml:"channel"`                       // delivery channel: lark | moltbook
-	UserID           string `json:"user_id" yaml:"user_id"`
+	UserID           string `json:"user_id" yaml:"user_id"`                       // for channel=lark, this must be Lark open_id (ou_*)
 	ChatID           string `json:"chat_id" yaml:"chat_id"`
 }
 
@@ -270,7 +270,7 @@ type SchedulerTriggerConfig struct {
 	Schedule         string `json:"schedule" yaml:"schedule"`
 	Task             string `json:"task" yaml:"task"`
 	Channel          string `json:"channel" yaml:"channel"`
-	UserID           string `json:"user_id" yaml:"user_id"`
+	UserID           string `json:"user_id" yaml:"user_id"` // for channel=lark, this must be Lark open_id (ou_*)
 	ChatID           string `json:"chat_id" yaml:"chat_id"` // channel-specific chat ID for notifications
 	ApprovalRequired bool   `json:"approval_required" yaml:"approval_required"`
 	Risk             string `json:"risk" yaml:"risk"`

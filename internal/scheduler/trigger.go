@@ -6,7 +6,7 @@ type Trigger struct {
 	Schedule string // cron expression
 	Task     string // task text for agent execution
 	Channel  string // delivery channel: lark | web
-	UserID   string // internal user_id
+	UserID   string // for channel=lark, this must be Lark open_id (ou_*)
 	ChatID   string // channel-specific chat_id for notifications
 	GoalID   string // non-empty for OKR-derived triggers
 }

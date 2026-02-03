@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	agent "alex/internal/agent/ports/agent"
 	id "alex/internal/utils/id"
@@ -21,6 +22,19 @@ type Notifier interface {
 
 // executeTrigger runs a trigger's task via the agent coordinator and routes the result.
 func (s *Scheduler) executeTrigger(trigger Trigger) error {
+	if strings.EqualFold(trigger.Channel, "lark") {
+		if strings.TrimSpace(trigger.UserID) == "" {
+			err := fmt.Errorf("lark trigger requires user_id as open_id")
+			s.logger.Warn("Scheduler: %v (trigger=%q)", err, trigger.Name)
+			return err
+		}
+		if !strings.HasPrefix(strings.TrimSpace(trigger.UserID), "ou_") {
+			err := fmt.Errorf("lark trigger user_id must be open_id (ou_ prefix), got %q", trigger.UserID)
+			s.logger.Warn("Scheduler: %v (trigger=%q)", err, trigger.Name)
+			return err
+		}
+	}
+
 	ctx := context.Background()
 	if trigger.UserID != "" {
 		ctx = id.WithUserID(ctx, trigger.UserID)
