@@ -25,11 +25,53 @@ const (
 // MarkdownEngine implements Engine using Markdown files on disk.
 type MarkdownEngine struct {
 	rootDir string
+	indexer *Indexer
+
+	chunkTokens  int
+	chunkOverlap int
 }
 
 // NewMarkdownEngine constructs a Markdown engine rooted at dir.
 func NewMarkdownEngine(dir string) *MarkdownEngine {
-	return &MarkdownEngine{rootDir: dir}
+	return &MarkdownEngine{
+		rootDir:      dir,
+		chunkTokens:  chunkTokenSize,
+		chunkOverlap: chunkTokenOverlap,
+	}
+}
+
+// SetIndexer attaches an indexer for hybrid memory search.
+func (e *MarkdownEngine) SetIndexer(indexer *Indexer) {
+	if e == nil {
+		return
+	}
+	e.indexer = indexer
+}
+
+// Name identifies the drainable memory subsystem.
+func (e *MarkdownEngine) Name() string {
+	return "memory-indexer"
+}
+
+// Drain stops the indexer if it is running.
+func (e *MarkdownEngine) Drain(ctx context.Context) error {
+	if e == nil || e.indexer == nil {
+		return nil
+	}
+	return e.indexer.Drain(ctx)
+}
+
+// SetChunkConfig overrides the default chunking configuration.
+func (e *MarkdownEngine) SetChunkConfig(tokens, overlap int) {
+	if e == nil {
+		return
+	}
+	if tokens > 0 {
+		e.chunkTokens = tokens
+	}
+	if overlap >= 0 {
+		e.chunkOverlap = overlap
+	}
 }
 
 // RootDir returns the configured root directory.
@@ -111,7 +153,7 @@ func (e *MarkdownEngine) AppendDaily(_ context.Context, userID string, entry Dai
 }
 
 // Search scans MEMORY.md + daily logs for the query and returns ranked hits.
-func (e *MarkdownEngine) Search(_ context.Context, userID, query string, maxResults int, minScore float64) ([]SearchHit, error) {
+func (e *MarkdownEngine) Search(ctx context.Context, userID, query string, maxResults int, minScore float64) ([]SearchHit, error) {
 	if e == nil {
 		return nil, fmt.Errorf("memory engine not initialized")
 	}
@@ -130,6 +172,13 @@ func (e *MarkdownEngine) Search(_ context.Context, userID, query string, maxResu
 	if root == "" {
 		return nil, fmt.Errorf("memory root directory is required")
 	}
+
+	if e.indexer != nil {
+		results, err := e.indexer.Search(ctx, userID, query, maxResults, minScore)
+		if err == nil {
+			return results, nil
+		}
+	}
 	paths, err := e.collectMemoryFiles(root)
 	if err != nil {
 		return nil, err
@@ -146,7 +195,7 @@ func (e *MarkdownEngine) Search(_ context.Context, userID, query string, maxResu
 
 	var hits []SearchHit
 	for _, file := range paths {
-		h, err := searchFile(file, root, queryTerms, queryLower, minScore)
+		h, err := searchFile(file, root, queryTerms, queryLower, minScore, e.chunkTokens, e.chunkOverlap)
 		if err != nil {
 			continue
 		}
@@ -291,6 +340,10 @@ func (e *MarkdownEngine) resolvePath(userID, path string) (string, error) {
 }
 
 func (e *MarkdownEngine) collectMemoryFiles(root string) ([]string, error) {
+	return collectMemoryFilesForRoot(root)
+}
+
+func collectMemoryFilesForRoot(root string) ([]string, error) {
 	var paths []string
 	memoryPath := filepath.Join(root, memoryFileName)
 	if _, err := os.Stat(memoryPath); err == nil {
@@ -354,7 +407,7 @@ func needsLeadingNewline(path string) bool {
 	return buf[0] != '\n'
 }
 
-func searchFile(path, root string, queryTerms map[string]struct{}, queryLower string, minScore float64) ([]SearchHit, error) {
+func searchFile(path, root string, queryTerms map[string]struct{}, queryLower string, minScore float64, chunkTokens, chunkOverlap int) ([]SearchHit, error) {
 	lines, err := readLines(path)
 	if err != nil {
 		return nil, err
@@ -372,9 +425,15 @@ func searchFile(path, root string, queryTerms map[string]struct{}, queryLower st
 	}
 
 	var hits []SearchHit
+	if chunkTokens <= 0 {
+		chunkTokens = chunkTokenSize
+	}
+	if chunkOverlap < 0 {
+		chunkOverlap = 0
+	}
 	start := 0
 	for start < len(lines) {
-		end, _ := nextChunkEnd(start, lineCounts, chunkTokenSize)
+		end, _ := nextChunkEnd(start, lineCounts, chunkTokens)
 		if end <= start {
 			break
 		}
@@ -400,7 +459,7 @@ func searchFile(path, root string, queryTerms map[string]struct{}, queryLower st
 				Source:    source,
 			})
 		}
-		start = nextChunkStart(start, end, lineCounts, chunkTokenOverlap)
+		start = nextChunkStart(start, end, lineCounts, chunkOverlap)
 		if start <= 0 {
 			break
 		}

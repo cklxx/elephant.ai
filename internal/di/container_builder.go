@@ -22,6 +22,7 @@ import (
 	runtimeconfig "alex/internal/config"
 	ctxmgr "alex/internal/context"
 	"alex/internal/external"
+	"alex/internal/lifecycle"
 	"alex/internal/llm"
 	"alex/internal/logging"
 	"alex/internal/mcp"
@@ -118,10 +119,8 @@ func (b *containerBuilder) Build() (*Container, error) {
 		ctxmgr.WithStateStore(resources.stateStore),
 		ctxmgr.WithJournalWriter(journalWriter),
 	}
-	if memoryEngine != nil {
-		contextOptions = append(contextOptions, ctxmgr.WithMemoryEngine(memoryEngine))
-		contextOptions = append(contextOptions, ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)))
-	}
+	contextOptions = append(contextOptions, ctxmgr.WithMemoryEngine(memoryEngine))
+	contextOptions = append(contextOptions, ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)))
 	contextMgr := ctxmgr.NewManager(contextOptions...)
 	historyMgr := ctxmgr.NewHistoryManager(resources.historyStore, b.logger, agent.SystemClock{})
 	parserImpl := parser.New()
@@ -194,7 +193,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 
 	b.logger.Info("Container built successfully (heavy initialization deferred to Start())")
 
-	return &Container{
+	container := &Container{
 		AgentCoordinator: coordinator,
 		SessionStore:     resources.sessionStore,
 		StateStore:       resources.stateStore,
@@ -210,7 +209,11 @@ func (b *containerBuilder) Build() (*Container, error) {
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,
 		mcpStarted:       false,
-	}, nil
+	}
+	if drainable, ok := memoryEngine.(lifecycle.Drainable); ok {
+		container.Drainables = append(container.Drainables, drainable)
+	}
+	return container, nil
 }
 
 func (b *containerBuilder) buildLLMFactory() *llm.Factory {
@@ -352,6 +355,33 @@ func applySessionPoolOptions(poolConfig *pgxpool.Config, options sessionPoolOpti
 func (b *containerBuilder) buildMemoryEngine() (memory.Engine, error) {
 	root := resolveStorageDir(b.config.MemoryDir, "~/.alex/memory")
 	engine := memory.NewMarkdownEngine(root)
+	indexCfg := b.config.Proactive.Memory.Index
+	if indexCfg.ChunkTokens > 0 || indexCfg.ChunkOverlap >= 0 {
+		engine.SetChunkConfig(indexCfg.ChunkTokens, indexCfg.ChunkOverlap)
+	}
+	if indexCfg.Enabled {
+		dbPath := resolveStorageDir(indexCfg.DBPath, filepath.Join(root, "index.sqlite"))
+		baseURL := ""
+		if value, ok := runtimeconfig.DefaultEnvLookup("OLLAMA_BASE_URL"); ok {
+			baseURL = value
+		}
+		embedder := memory.NewOllamaEmbedder(indexCfg.EmbedderModel, baseURL)
+		indexer, err := memory.NewIndexer(root, memory.IndexerConfig{
+			DBPath:             dbPath,
+			ChunkTokens:        indexCfg.ChunkTokens,
+			ChunkOverlap:       indexCfg.ChunkOverlap,
+			MinScore:           indexCfg.MinScore,
+			FusionWeightVector: indexCfg.FusionWeightVector,
+			FusionWeightBM25:   indexCfg.FusionWeightBM25,
+		}, embedder, logging.NewComponentLogger("MemoryIndex"))
+		if err != nil {
+			b.logger.Warn("Failed to initialize memory indexer: %v", err)
+		} else if err := indexer.Start(context.Background()); err != nil {
+			b.logger.Warn("Failed to start memory indexer: %v", err)
+		} else {
+			engine.SetIndexer(indexer)
+		}
+	}
 	if err := engine.EnsureSchema(context.Background()); err != nil {
 		b.logger.Warn("Failed to initialize memory root: %v", err)
 	}
