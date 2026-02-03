@@ -3,7 +3,17 @@
 > **Parent:** `docs/roadmap/roadmap-lark-native-proactive-assistant.md`
 > **Owner:** cklxx
 > **Created:** 2026-02-01
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-03
+
+> **NOTE (2026-02-03):** This draft was written before the implementation audit and is **partially outdated**.
+> For the authoritative, up-to-date implementation status, see `docs/roadmap/roadmap.md` (tracks M0/M1/P0+).
+>
+> Quick status snapshot:
+> - ✅ Calendar/Tasks tools + registration: `internal/tools/builtin/larktools/` + `internal/toolregistry/registry.go`
+> - ✅ Typed Lark API layer: `internal/lark/` (calendar/tasks/approval/cards)
+> - ✅ Lark interactive cards + rich content: `internal/lark/cards/`, `internal/channels/lark/richcontent/`
+> - ✅ Proactive scheduler reminder trigger + E2E: `internal/scheduler/`
+> - ❌ Deep Lark (Docs/Sheets/Wiki) remains pending: `internal/lark/docs/`, `internal/lark/sheets/`, `internal/lark/wiki/`
 
 ---
 
