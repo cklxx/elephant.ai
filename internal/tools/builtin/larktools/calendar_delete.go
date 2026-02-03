@@ -6,9 +6,11 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	larkapi "alex/internal/lark"
 	"alex/internal/tools/builtin/shared"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkcalendar "github.com/larksuite/oapi-sdk-go/v3/service/calendar/v4"
 )
 
@@ -22,29 +24,13 @@ func NewLarkCalendarDelete() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_calendar_delete",
-				Description: "Delete a calendar event",
+				Description: "Delete a calendar event from the caller's primary calendar. Requires approval.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
 						"event_id": {
 							Type:        "string",
 							Description: "The ID of the event to delete.",
-						},
-						"calendar_id": {
-							Type:        "string",
-							Description: "Calendar ID (or \"primary\" to auto-resolve). Defaults to \"primary\".",
-						},
-						"calendar_owner_id": {
-							Type:        "string",
-							Description: "Optional calendar owner user ID. When calendar_id is \"primary\", resolve this user's primary calendar_id (e.g. open_id from @mention).",
-						},
-						"calendar_owner_id_type": {
-							Type:        "string",
-							Description: "Type of calendar_owner_id (open_id, user_id, union_id). Default open_id.",
-						},
-						"user_access_token": {
-							Type:        "string",
-							Description: "Optional user access token for user-scoped calendar deletion.",
 						},
 					},
 					Required: []string{"event_id"},
@@ -84,22 +70,24 @@ func (t *larkCalendarDelete) Execute(ctx context.Context, call ports.ToolCall) (
 		return errResult, nil
 	}
 
-	calendarID := shared.StringArg(call.Arguments, "calendar_id")
-	if calendarID == "" {
-		calendarID = "primary"
-	}
-
-	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	userToken, errResult := requireLarkUserAccessToken(ctx, call.ID)
 	if errResult != nil {
 		return errResult, nil
 	}
-	calendarID = resolvedID
+	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", larkapi.WithUserToken(userToken))
+	if err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_calendar_delete: failed to resolve primary calendar_id: %v", err),
+			Error:   fmt.Errorf("resolve primary calendar id: %w", err),
+		}, nil
+	}
 
 	builder := larkcalendar.NewDeleteCalendarEventReqBuilder().
 		CalendarId(calendarID).
 		EventId(eventID)
 
-	options := calendarRequestOptions(ctx, call.Arguments)
+	options := []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(userToken)}
 	resp, err := client.Calendar.CalendarEvent.Delete(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{

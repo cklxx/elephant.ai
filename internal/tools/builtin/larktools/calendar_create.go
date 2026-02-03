@@ -7,9 +7,11 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	larkapi "alex/internal/lark"
 	"alex/internal/tools/builtin/shared"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkcalendar "github.com/larksuite/oapi-sdk-go/v3/service/calendar/v4"
 )
 
@@ -23,22 +25,10 @@ func NewLarkCalendarCreate() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_calendar_create",
-				Description: "Create a calendar event by calendar_id, summary, start_time, and end_time (Unix seconds). Requires approval.",
+				Description: "Create a calendar event in the caller's primary calendar by summary, start_time, and end_time (Unix seconds). Requires approval.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"calendar_id": {
-							Type:        "string",
-							Description: "Calendar ID to create the event in. Use \"primary\" to auto-resolve a user's primary calendar ID (see calendar_owner_id).",
-						},
-						"calendar_owner_id": {
-							Type:        "string",
-							Description: "Optional calendar owner user ID. When calendar_id is \"primary\", resolve this user's primary calendar_id (e.g. open_id from @mention).",
-						},
-						"calendar_owner_id_type": {
-							Type:        "string",
-							Description: "Type of calendar_owner_id (open_id, user_id, union_id). Default open_id.",
-						},
 						"summary": {
 							Type:        "string",
 							Description: "Event title.",
@@ -63,20 +53,12 @@ func NewLarkCalendarCreate() tools.ToolExecutor {
 							Type:        "boolean",
 							Description: "Whether to notify attendees (default true).",
 						},
-						"user_id_type": {
-							Type:        "string",
-							Description: "User ID type (open_id, user_id, union_id).",
-						},
-						"user_access_token": {
-							Type:        "string",
-							Description: "Optional user access token for user-scoped calendar creation.",
-						},
 						"idempotency_key": {
 							Type:        "string",
 							Description: "Optional idempotency key for safe retries.",
 						},
 					},
-					Required: []string{"calendar_id", "summary", "start_time", "end_time"},
+					Required: []string{"summary", "start_time", "end_time"},
 				},
 			},
 			ports.ToolMetadata{
@@ -108,10 +90,6 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 		}, nil
 	}
 
-	calendarID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "calendar_id")
-	if errResult != nil {
-		return errResult, nil
-	}
 	summary, errResult := shared.RequireStringArg(call.Arguments, call.ID, "summary")
 	if errResult != nil {
 		return errResult, nil
@@ -133,11 +111,18 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 	timezone := shared.StringArg(call.Arguments, "timezone")
 	needNotification, hasNeedNotification := boolArg(call.Arguments, "need_notification")
 
-	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	userToken, errResult := requireLarkUserAccessToken(ctx, call.ID)
 	if errResult != nil {
 		return errResult, nil
 	}
-	calendarID = resolvedID
+	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", larkapi.WithUserToken(userToken))
+	if err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_calendar_create: failed to resolve primary calendar_id: %v", err),
+			Error:   fmt.Errorf("resolve primary calendar id: %w", err),
+		}, nil
+	}
 
 	startInfo := &larkcalendar.TimeInfo{Timestamp: &startTime}
 	endInfo := &larkcalendar.TimeInfo{Timestamp: &endTime}
@@ -162,14 +147,11 @@ func (t *larkCalendarCreate) Execute(ctx context.Context, call ports.ToolCall) (
 		CalendarId(calendarID).
 		CalendarEvent(event)
 
-	if userIDType := shared.StringArg(call.Arguments, "user_id_type"); userIDType != "" {
-		builder.UserIdType(userIDType)
-	}
 	if idempotencyKey := shared.StringArg(call.Arguments, "idempotency_key"); idempotencyKey != "" {
 		builder.IdempotencyKey(idempotencyKey)
 	}
 
-	options := calendarRequestOptions(ctx, call.Arguments)
+	options := []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(userToken)}
 	resp, err := client.Calendar.CalendarEvent.Create(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{

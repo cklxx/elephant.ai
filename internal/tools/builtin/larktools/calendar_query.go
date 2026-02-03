@@ -5,12 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	larkapi "alex/internal/lark"
 	"alex/internal/tools/builtin/shared"
-	"alex/internal/utils/id"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
@@ -32,22 +31,10 @@ func NewLarkCalendarQuery() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_calendar_query",
-				Description: "Query calendar events by calendar_id and time range. Requires calendar_id, start_time, and end_time (Unix seconds).",
+				Description: "Query calendar events in the caller's primary calendar by time range (Unix seconds).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"calendar_id": {
-							Type:        "string",
-							Description: "Calendar ID to query. Use \"primary\" to auto-resolve a user's primary calendar ID (see calendar_owner_id).",
-						},
-						"calendar_owner_id": {
-							Type:        "string",
-							Description: "Optional calendar owner user ID. When calendar_id is \"primary\", resolve this user's primary calendar_id (e.g. open_id from @mention).",
-						},
-						"calendar_owner_id_type": {
-							Type:        "string",
-							Description: "Type of calendar_owner_id (open_id, user_id, union_id). Default open_id.",
-						},
 						"start_time": {
 							Type:        "string",
 							Description: "Start time as Unix timestamp in seconds.",
@@ -64,16 +51,8 @@ func NewLarkCalendarQuery() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Pagination token from previous response.",
 						},
-						"user_id_type": {
-							Type:        "string",
-							Description: "User ID type (open_id, user_id, union_id).",
-						},
-						"user_access_token": {
-							Type:        "string",
-							Description: "Optional user access token for user-scoped calendar queries.",
-						},
 					},
-					Required: []string{"calendar_id", "start_time", "end_time"},
+					Required: []string{"start_time", "end_time"},
 				},
 			},
 			ports.ToolMetadata{
@@ -104,10 +83,6 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		}, nil
 	}
 
-	calendarID, errResult := shared.RequireStringArg(call.Arguments, call.ID, "calendar_id")
-	if errResult != nil {
-		return errResult, nil
-	}
 	startTime, startUnix, errResult := requireUnixSeconds(call.Arguments, call.ID, "start_time")
 	if errResult != nil {
 		return errResult, nil
@@ -121,11 +96,18 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
 
-	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	userToken, errResult := requireLarkUserAccessToken(ctx, call.ID)
 	if errResult != nil {
 		return errResult, nil
 	}
-	calendarID = resolvedID
+	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", larkapi.WithUserToken(userToken))
+	if err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_calendar_query: failed to resolve primary calendar_id: %v", err),
+			Error:   fmt.Errorf("resolve primary calendar id: %w", err),
+		}, nil
+	}
 
 	builder := larkcalendar.NewListCalendarEventReqBuilder().
 		CalendarId(calendarID).
@@ -139,11 +121,8 @@ func (t *larkCalendarQuery) Execute(ctx context.Context, call ports.ToolCall) (*
 	if pageToken := shared.StringArg(call.Arguments, "page_token"); pageToken != "" {
 		builder.PageToken(pageToken)
 	}
-	if userIDType := shared.StringArg(call.Arguments, "user_id_type"); userIDType != "" {
-		builder.UserIdType(userIDType)
-	}
 
-	options := calendarRequestOptions(ctx, call.Arguments)
+	options := []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(userToken)}
 	resp, err := client.Calendar.CalendarEvent.List(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{
@@ -332,23 +311,5 @@ func parseUnixSecondsValue(callID, key string, raw any) (string, int64, *ports.T
 	return value, parsed, nil
 }
 
-func calendarRequestOptions(ctx context.Context, args map[string]any) []larkcore.RequestOptionFunc {
-	token := shared.StringArg(args, "user_access_token")
-	if token == "" {
-		return nil
-	}
-
-	// If the tool targets someone else's calendar (calendar_owner_id), do not
-	// blindly apply the caller's user token: it likely belongs to the initiator
-	// and may not have permission to operate on the owner's calendar. In that
-	// case prefer tenant-scoped calls.
-	ownerID := strings.TrimSpace(shared.StringArg(args, "calendar_owner_id"))
-	if ownerID != "" {
-		ctxUserID := strings.TrimSpace(id.UserIDFromContext(ctx))
-		if ctxUserID == "" || ownerID != ctxUserID {
-			return nil
-		}
-	}
-
-	return []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(token)}
-}
+// calendarRequestOptions was intentionally removed: calendar tools in the Lark
+// toolset are user-scoped and always operate on the caller's primary calendar.

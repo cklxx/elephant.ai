@@ -6,9 +6,11 @@ import (
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
+	larkapi "alex/internal/lark"
 	"alex/internal/tools/builtin/shared"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkcalendar "github.com/larksuite/oapi-sdk-go/v3/service/calendar/v4"
 )
 
@@ -22,25 +24,13 @@ func NewLarkCalendarUpdate() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_calendar_update",
-				Description: "Update an existing calendar event",
+				Description: "Update an existing calendar event in the caller's primary calendar. Requires approval.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
 						"event_id": {
 							Type:        "string",
 							Description: "The ID of the event to update.",
-						},
-						"calendar_id": {
-							Type:        "string",
-							Description: "Calendar ID (or \"primary\" to auto-resolve). Defaults to \"primary\".",
-						},
-						"calendar_owner_id": {
-							Type:        "string",
-							Description: "Optional calendar owner user ID. When calendar_id is \"primary\", resolve this user's primary calendar_id (e.g. open_id from @mention).",
-						},
-						"calendar_owner_id_type": {
-							Type:        "string",
-							Description: "Type of calendar_owner_id (open_id, user_id, union_id). Default open_id.",
 						},
 						"summary": {
 							Type:        "string",
@@ -58,9 +48,9 @@ func NewLarkCalendarUpdate() tools.ToolExecutor {
 							Type:        "string",
 							Description: "New end time as Unix timestamp in seconds.",
 						},
-						"user_access_token": {
+						"timezone": {
 							Type:        "string",
-							Description: "Optional user access token for user-scoped calendar update.",
+							Description: "Optional IANA timezone (defaults to Lark settings).",
 						},
 					},
 					Required: []string{"event_id"},
@@ -100,19 +90,19 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 		return errResult, nil
 	}
 
-	calendarID := shared.StringArg(call.Arguments, "calendar_id")
-	if calendarID == "" {
-		calendarID = "primary"
-	}
-
 	summary := shared.StringArg(call.Arguments, "summary")
 	description := shared.StringArg(call.Arguments, "description")
 	startTimeStr := shared.StringArg(call.Arguments, "start_time")
 	endTimeStr := shared.StringArg(call.Arguments, "end_time")
+	timezone := shared.StringArg(call.Arguments, "timezone")
 
 	// Build a CalendarEvent with only the fields that are provided.
 	event := &larkcalendar.CalendarEvent{}
 	hasFields := false
+	var startUnix int64
+	var endUnix int64
+	hasStart := false
+	hasEnd := false
 
 	if summary != "" {
 		event.Summary = &summary
@@ -123,19 +113,31 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 		hasFields = true
 	}
 	if startTimeStr != "" {
-		startTime, _, errResult := parseUnixSecondsValue(call.ID, "start_time", startTimeStr)
+		startTime, parsed, errResult := parseUnixSecondsValue(call.ID, "start_time", startTimeStr)
 		if errResult != nil {
 			return errResult, nil
 		}
-		event.StartTime = &larkcalendar.TimeInfo{Timestamp: &startTime}
+		startUnix = parsed
+		hasStart = true
+		startInfo := &larkcalendar.TimeInfo{Timestamp: &startTime}
+		if timezone != "" {
+			startInfo.Timezone = &timezone
+		}
+		event.StartTime = startInfo
 		hasFields = true
 	}
 	if endTimeStr != "" {
-		endTime, _, errResult := parseUnixSecondsValue(call.ID, "end_time", endTimeStr)
+		endTime, parsed, errResult := parseUnixSecondsValue(call.ID, "end_time", endTimeStr)
 		if errResult != nil {
 			return errResult, nil
 		}
-		event.EndTime = &larkcalendar.TimeInfo{Timestamp: &endTime}
+		endUnix = parsed
+		hasEnd = true
+		endInfo := &larkcalendar.TimeInfo{Timestamp: &endTime}
+		if timezone != "" {
+			endInfo.Timezone = &timezone
+		}
+		event.EndTime = endInfo
 		hasFields = true
 	}
 
@@ -143,23 +145,30 @@ func (t *larkCalendarUpdate) Execute(ctx context.Context, call ports.ToolCall) (
 		err := fmt.Errorf("at least one field to update must be provided (summary, description, start_time, end_time)")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
+	if hasStart && hasEnd && endUnix <= startUnix {
+		err := fmt.Errorf("end_time must be greater than start_time")
+		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
+	}
 
-	resolvedID, errResult := resolveCalendarID(ctx, client, call.ID, calendarID, call.Arguments)
+	userToken, errResult := requireLarkUserAccessToken(ctx, call.ID)
 	if errResult != nil {
 		return errResult, nil
 	}
-	calendarID = resolvedID
+	calendarID, err := larkapi.Wrap(client).Calendar().ResolveCalendarID(ctx, "primary", larkapi.WithUserToken(userToken))
+	if err != nil {
+		return &ports.ToolResult{
+			CallID:  call.ID,
+			Content: fmt.Sprintf("lark_calendar_update: failed to resolve primary calendar_id: %v", err),
+			Error:   fmt.Errorf("resolve primary calendar id: %w", err),
+		}, nil
+	}
 
 	builder := larkcalendar.NewPatchCalendarEventReqBuilder().
 		CalendarId(calendarID).
 		EventId(eventID).
 		CalendarEvent(event)
 
-	if userIDType := shared.StringArg(call.Arguments, "user_id_type"); userIDType != "" {
-		builder.UserIdType(userIDType)
-	}
-
-	options := calendarRequestOptions(ctx, call.Arguments)
+	options := []larkcore.RequestOptionFunc{larkcore.WithUserAccessToken(userToken)}
 	resp, err := client.Calendar.CalendarEvent.Patch(ctx, builder.Build(), options...)
 	if err != nil {
 		return &ports.ToolResult{
