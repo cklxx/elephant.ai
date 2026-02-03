@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-03 00:00
+Updated: 2026-02-03 11:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -16,7 +16,7 @@ Updated: 2026-02-03 00:00
 - Proactive hooks: hook registry + per-request MemoryPolicy; cache skills + precompile regex.
 - Event partitioning: groupKey uses `parent_run_id`; subagent detection is `parent_run_id != run_id`.
 - Tool event rules: only subagent `workflow.tool.started` hits main stream; others go pending/merged.
-- Subagent snapshot pruning must also drop tool outputs for the pruned call IDs to avoid dangling function_call_output errors.
+- Subagent: snapshot pruning must drop tool outputs for pruned call IDs; cap default parallelism (`maxWorkers`) and stagger starts to reduce upstream rejections.
 - Memory system is Markdown-only: `~/.alex/memory/MEMORY.md` + `~/.alex/memory/memory/YYYY-MM-DD.md`.
 - Bash scripts under `set -u` must guard array expansions (avoid unbound variable errors).
 

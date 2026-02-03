@@ -1,6 +1,6 @@
 # Index: error-experience/summary/entries
 
-Updated: 2026-02-02
+Updated: 2026-02-03
 
 ## Files
 
@@ -36,3 +36,4 @@ Updated: 2026-02-02
 - [2026-01-30-memory-import-cycle.md](2026-01-30-memory-import-cycle.md)
 - [2026-01-31-dev-lint-unused-subsystem-test.md](2026-01-31-dev-lint-unused-subsystem-test.md)
 - [2026-02-02-dev-sh-sandbox-env-flags-unbound.md](2026-02-02-dev-sh-sandbox-env-flags-unbound.md)
+- [2026-02-03-subagent-parallel-burst-upstream-rejection.md](2026-02-03-subagent-parallel-burst-upstream-rejection.md)
