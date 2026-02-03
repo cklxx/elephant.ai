@@ -50,6 +50,7 @@ type LarkGatewayConfig struct {
 	Enabled                       bool
 	AppID                         string
 	AppSecret                     string
+	TenantAccessToken             string
 	BaseDomain                    string
 	WorkspaceDir                  string
 	CardsEnabled                  bool
@@ -217,6 +218,9 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if appSecret := strings.TrimSpace(larkCfg.AppSecret); appSecret != "" {
 		cfg.Channels.Lark.AppSecret = appSecret
+	}
+	if tenantToken := strings.TrimSpace(larkCfg.TenantAccessToken); tenantToken != "" {
+		cfg.Channels.Lark.TenantAccessToken = tenantToken
 	}
 	if baseDomain := strings.TrimSpace(larkCfg.BaseDomain); baseDomain != "" {
 		cfg.Channels.Lark.BaseDomain = baseDomain

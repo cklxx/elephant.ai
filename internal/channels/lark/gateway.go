@@ -436,6 +436,9 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
+	if token := strings.TrimSpace(g.cfg.TenantAccessToken); token != "" {
+		execCtx = shared.WithLarkTenantToken(execCtx, token)
+	}
 	if g.oauth != nil {
 		execCtx = shared.WithLarkOAuth(execCtx, g.oauth)
 	}

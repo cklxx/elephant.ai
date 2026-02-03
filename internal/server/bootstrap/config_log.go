@@ -72,6 +72,12 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 			larkCfg.ToolPreset,
 			larkCfg.AllowGroups,
 		)
+		logger.Info("Lark Base Domain: %s", larkCfg.BaseDomain)
+		if strings.TrimSpace(larkCfg.TenantAccessToken) != "" {
+			logger.Info("Lark Tenant Access Token: (set)")
+		} else {
+			logger.Info("Lark Tenant Access Token: (not set)")
+		}
 		logger.Info(
 			"Lark Cards: enabled=%t plan_review=%t results=%t errors=%t callback_configured=%t",
 			larkCfg.CardsEnabled,

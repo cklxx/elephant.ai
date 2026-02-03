@@ -19,6 +19,7 @@ const (
 	larkClientKey    toolContextKey = "lark_client"
 	larkChatIDKey    toolContextKey = "lark_chat_id"
 	larkOAuthKey     toolContextKey = "lark_oauth"
+	larkTenantKey    toolContextKey = "lark_tenant_token"
 	timerManagerKey  toolContextKey = "timer_manager"
 	schedulerKey     toolContextKey = "scheduler"
 	autoUploadKey    toolContextKey = "auto_upload_config"
@@ -160,6 +161,22 @@ func LarkOAuthFromContext(ctx context.Context) interface{} {
 		return nil
 	}
 	return ctx.Value(larkOAuthKey)
+}
+
+// WithLarkTenantToken stores the Lark tenant access token in context.
+func WithLarkTenantToken(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, larkTenantKey, token)
+}
+
+// LarkTenantTokenFromContext retrieves the Lark tenant access token from context.
+func LarkTenantTokenFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if token, ok := ctx.Value(larkTenantKey).(string); ok {
+		return token
+	}
+	return ""
 }
 
 // WithTimerManager sets the timer manager in context. Typed as interface{} to
