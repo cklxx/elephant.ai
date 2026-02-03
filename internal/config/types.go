@@ -154,7 +154,7 @@ func DefaultExternalAgentsConfig() ExternalAgentsConfig {
 		Codex: CodexConfig{
 			Enabled:        false,
 			Binary:         "codex",
-			DefaultModel:   "o3",
+			DefaultModel:   "gpt-5-codex",
 			ApprovalPolicy: "on-request",
 			Sandbox:        "workspace-write",
 			Timeout:        30 * time.Minute,

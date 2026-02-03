@@ -69,7 +69,7 @@ runtime:
     codex:
       enabled: false
       binary: "codex"
-      default_model: "o3"
+      default_model: "gpt-5-codex"
       approval_policy: "on-request"
       sandbox: "workspace-write"
       timeout: "30m"
