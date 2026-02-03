@@ -1,7 +1,7 @@
 # Codex External Agent Default Model (ChatGPT Subscription)
 
 **Date:** 2026-02-03
-**Status:** In Progress
+**Status:** Complete
 
 ## Problem
 
@@ -29,3 +29,8 @@ requiring users to override `default_model`, while keeping the model configurabl
 3) Update `configs/config.yaml` and docs to match the new default.
 4) Run full lint + tests; ship as small incremental commits.
 
+## Done
+
+- Default model changed from `o3` → `gpt-5-codex` (code + example config + docs).
+- Regression test added to pin the default.
+- Error-experience entry + summary captured for the incident.
