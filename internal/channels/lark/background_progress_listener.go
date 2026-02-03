@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"sync"
@@ -12,6 +13,12 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/types"
 	"alex/internal/logging"
+)
+
+const (
+	defaultBackgroundProgressInterval = 10 * time.Minute
+	defaultBackgroundProgressWindow   = 10 * time.Minute
+	codeBackgroundProgressInterval    = 3 * time.Minute
 )
 
 type progressRecord struct {
@@ -34,6 +41,9 @@ type bgTaskTracker struct {
 	status         string
 	progressMsgID  string
 	pendingSummary string
+
+	interval time.Duration
+	window   time.Duration
 
 	lastProgress progressRecord
 	recent       []progressRecord
@@ -78,10 +88,10 @@ type backgroundProgressListener struct {
 
 func newBackgroundProgressListener(ctx context.Context, inner agent.EventListener, g *Gateway, chatID, replyToID string, logger logging.Logger, interval, window time.Duration) *backgroundProgressListener {
 	if interval <= 0 {
-		interval = 10 * time.Minute
+		interval = defaultBackgroundProgressInterval
 	}
 	if window <= 0 {
-		window = 10 * time.Minute
+		window = defaultBackgroundProgressWindow
 	}
 	return &backgroundProgressListener{
 		inner:     inner,
@@ -174,6 +184,8 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 		agentType:   agentType,
 		startedAt:   startedAt,
 		status:      "running",
+		interval:    l.taskInterval(agentType),
+		window:      l.taskWindow(agentType),
 		stopCh:      make(chan struct{}),
 		doneCh:      make(chan struct{}),
 	}
@@ -181,7 +193,9 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 	l.mu.Unlock()
 
 	// Send initial message (reply to original message when replyToID is provided).
-	text := l.buildHeader(tracker, "[后台任务进行中]") + "\n\n" + "已启动，未结束前每10分钟自动更新一次（最近10分钟窗口）。"
+	intervalLabel := formatMinutes(tracker.interval)
+	windowLabel := formatMinutes(tracker.window)
+	text := l.buildHeader(tracker, "[后台任务进行中]") + "\n\n" + fmt.Sprintf("已启动，未结束前每%s自动更新一次（最近%s窗口）。", intervalLabel, windowLabel)
 	msgID, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(text))
 	if err != nil {
 		l.logger.Warn("Lark background progress initial send failed: %v", err)
@@ -197,7 +211,11 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 func (l *backgroundProgressListener) runTicker(t *bgTaskTracker) {
 	defer close(t.doneCh)
 
-	ticker := time.NewTicker(l.interval)
+	interval := t.interval
+	if interval <= 0 {
+		interval = l.interval
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -246,7 +264,11 @@ func (l *backgroundProgressListener) onExternalProgress(env *domain.WorkflowEven
 	}
 	t.lastProgress = rec
 	t.recent = append(t.recent, rec)
-	cutoff := l.clock().Add(-l.window)
+	window := t.window
+	if window <= 0 {
+		window = l.window
+	}
+	cutoff := l.clock().Add(-window)
 	idx := 0
 	for idx < len(t.recent) {
 		if !t.recent[idx].ts.Before(cutoff) {
@@ -344,6 +366,7 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	pending := t.pendingSummary
 	last := t.lastProgress
 	recent := append([]progressRecord(nil), t.recent...)
+	window := t.window
 	t.mu.Unlock()
 
 	if messageID == "" {
@@ -385,7 +408,10 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		b.WriteString(pending)
 		b.WriteString("\n")
 	} else {
-		windowStart := now.Add(-l.window)
+		if window <= 0 {
+			window = l.window
+		}
+		windowStart := now.Add(-window)
 		windowRecords := make([]progressRecord, 0, len(recent))
 		for _, r := range recent {
 			if !r.ts.Before(windowStart) {
@@ -393,7 +419,9 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 			}
 		}
 
-		b.WriteString("\n最近10分钟：\n")
+		b.WriteString("\n最近")
+		b.WriteString(formatMinutes(window))
+		b.WriteString("：\n")
 		if len(windowRecords) == 0 {
 			b.WriteString("- 无新增进展\n")
 		} else {
@@ -490,6 +518,24 @@ func (l *backgroundProgressListener) clock() time.Time {
 		return l.now()
 	}
 	return time.Now()
+}
+
+func (l *backgroundProgressListener) taskInterval(agentType string) time.Duration {
+	interval := l.interval
+	if isCodeAgentType(agentType) {
+		interval = minDuration(interval, codeBackgroundProgressInterval)
+	}
+	if interval <= 0 {
+		return defaultBackgroundProgressInterval
+	}
+	return interval
+}
+
+func (l *backgroundProgressListener) taskWindow(_ string) time.Duration {
+	if l.window <= 0 {
+		return defaultBackgroundProgressWindow
+	}
+	return l.window
 }
 
 func nonEmpty(v, fallback string) string {
@@ -600,4 +646,37 @@ func truncateForLark(s string, max int) string {
 		return s
 	}
 	return s[:max]
+}
+
+func minDuration(a, b time.Duration) time.Duration {
+	if a <= 0 {
+		return b
+	}
+	if b <= 0 {
+		return a
+	}
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func formatMinutes(d time.Duration) string {
+	if d <= 0 {
+		return "1分钟"
+	}
+	mins := int(math.Ceil(d.Minutes()))
+	if mins <= 0 {
+		mins = 1
+	}
+	return fmt.Sprintf("%d分钟", mins)
+}
+
+func isCodeAgentType(agentType string) bool {
+	switch strings.ToLower(strings.TrimSpace(agentType)) {
+	case "codex", "claude_code":
+		return true
+	default:
+		return false
+	}
 }
