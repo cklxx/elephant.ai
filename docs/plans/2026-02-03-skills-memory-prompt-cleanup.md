@@ -36,4 +36,4 @@ Date: 2026-02-03
 - [x] Split memory docs + update knowledge refs
 - [x] Add/adjust tests
 - [x] gofmt + full lint/tests
-- [ ] Commit (incremental) + merge back to `main`
+- [x] Commit (incremental) + merge back to `main`
