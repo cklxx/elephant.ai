@@ -29,7 +29,7 @@ type CalendarEvent struct {
 
 // ListEventsRequest defines parameters for listing calendar events.
 type ListEventsRequest struct {
-	CalendarID string // default "primary"
+	CalendarID string // default "primary" (alias resolved to real calendar_id)
 	StartTime  time.Time
 	EndTime    time.Time
 	PageSize   int
@@ -45,9 +45,9 @@ type ListEventsResponse struct {
 
 // ListEvents returns calendar events within a time range.
 func (s *CalendarService) ListEvents(ctx context.Context, req ListEventsRequest, opts ...CallOption) (*ListEventsResponse, error) {
-	calID := req.CalendarID
-	if calID == "" {
-		calID = "primary"
+	calID, err := s.ResolveCalendarID(ctx, req.CalendarID, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("resolve calendar id: %w", err)
 	}
 	pageSize := req.PageSize
 	if pageSize <= 0 {
@@ -104,9 +104,9 @@ type CreateEventRequest struct {
 
 // CreateEvent creates a new calendar event.
 func (s *CalendarService) CreateEvent(ctx context.Context, req CreateEventRequest, opts ...CallOption) (*CalendarEvent, error) {
-	calID := req.CalendarID
-	if calID == "" {
-		calID = "primary"
+	calID, err := s.ResolveCalendarID(ctx, req.CalendarID, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("resolve calendar id: %w", err)
 	}
 
 	eventBuilder := larkcalendar.NewCalendarEventBuilder().
@@ -148,9 +148,9 @@ type PatchEventRequest struct {
 
 // PatchEvent updates an existing calendar event. Only non-nil fields are patched.
 func (s *CalendarService) PatchEvent(ctx context.Context, req PatchEventRequest, opts ...CallOption) (*CalendarEvent, error) {
-	calID := req.CalendarID
-	if calID == "" {
-		calID = "primary"
+	calID, err := s.ResolveCalendarID(ctx, req.CalendarID, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("resolve calendar id: %w", err)
 	}
 
 	eventBuilder := larkcalendar.NewCalendarEventBuilder()
@@ -191,12 +191,13 @@ func (s *CalendarService) PatchEvent(ctx context.Context, req PatchEventRequest,
 
 // DeleteEvent deletes a calendar event.
 func (s *CalendarService) DeleteEvent(ctx context.Context, calendarID, eventID string, opts ...CallOption) error {
-	if calendarID == "" {
-		calendarID = "primary"
+	resolvedID, err := s.ResolveCalendarID(ctx, calendarID, opts...)
+	if err != nil {
+		return fmt.Errorf("resolve calendar id: %w", err)
 	}
 
 	req := larkcalendar.NewDeleteCalendarEventReqBuilder().
-		CalendarId(calendarID).
+		CalendarId(resolvedID).
 		EventId(eventID).
 		Build()
 

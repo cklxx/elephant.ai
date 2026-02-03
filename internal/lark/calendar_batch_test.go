@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 )
@@ -11,8 +12,21 @@ import (
 func TestBatchCreateEvents_AllSuccess(t *testing.T) {
 	cnt := &counter{}
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
-		n := cnt.next()
 		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars") {
+			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"has_more":   false,
+				"page_token": "",
+				"calendar_list": []map[string]interface{}{
+					{"calendar_id": "cal-primary", "type": "primary", "role": "owner"},
+				},
+			})); err != nil {
+				t.Fatalf("write response: %v", err)
+			}
+			return
+		}
+
+		n := cnt.next()
 		ev := calendarEventJSON(
 			fmt.Sprintf("ev-%d", n),
 			fmt.Sprintf("Event %d", n),
@@ -130,6 +144,18 @@ func TestBatchCreateEvents_Empty(t *testing.T) {
 func TestBatchDeleteEvents_AllSuccess(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars") {
+			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"has_more":   false,
+				"page_token": "",
+				"calendar_list": []map[string]interface{}{
+					{"calendar_id": "cal-primary", "type": "primary", "role": "owner"},
+				},
+			})); err != nil {
+				t.Fatalf("write response: %v", err)
+			}
+			return
+		}
 		if _, err := w.Write(jsonResponse(0, "ok", nil)); err != nil {
 			t.Fatalf("write response: %v", err)
 		}
@@ -150,8 +176,21 @@ func TestBatchDeleteEvents_AllSuccess(t *testing.T) {
 func TestBatchDeleteEvents_MixedSuccessFailure(t *testing.T) {
 	cnt := &counter{}
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
-		n := cnt.next()
 		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars") {
+			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"has_more":   false,
+				"page_token": "",
+				"calendar_list": []map[string]interface{}{
+					{"calendar_id": "cal-primary", "type": "primary", "role": "owner"},
+				},
+			})); err != nil {
+				t.Fatalf("write response: %v", err)
+			}
+			return
+		}
+
+		n := cnt.next()
 		if n == 2 {
 			if _, err := w.Write(jsonResponse(404001, "event not found", nil)); err != nil {
 				t.Fatalf("write response: %v", err)
@@ -192,6 +231,18 @@ func TestBatchDeleteEvents_Empty(t *testing.T) {
 func TestBatchCreateEvents_AllFailure(t *testing.T) {
 	srv, client := testServer(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars") {
+			if _, err := w.Write(jsonResponse(0, "ok", map[string]interface{}{
+				"has_more":   false,
+				"page_token": "",
+				"calendar_list": []map[string]interface{}{
+					{"calendar_id": "cal-primary", "type": "primary", "role": "owner"},
+				},
+			})); err != nil {
+				t.Fatalf("write response: %v", err)
+			}
+			return
+		}
 		if _, err := w.Write(jsonResponse(500000, "internal error", nil)); err != nil {
 			t.Fatalf("write response: %v", err)
 		}
