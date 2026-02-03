@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"alex/internal/async"
 	"alex/internal/channels/lark"
 	"alex/internal/di"
+	larkoauth "alex/internal/lark/oauth"
 	"alex/internal/logging"
 	serverApp "alex/internal/server/app"
 	"alex/internal/toolregistry"
@@ -123,6 +125,14 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		return nil, err
 	}
 	container.LarkGateway = gateway
+
+	// Lark calendar operations require user-scoped OAuth tokens to access a user's
+	// primary calendar. Provide an OAuth service to tools via the gateway context.
+	if oauthSvc := buildLarkOAuthService(ctx, cfg, container, logger); oauthSvc != nil {
+		container.LarkOAuth = oauthSvc
+		gateway.SetOAuthService(oauthSvc)
+	}
+
 	if broadcaster != nil {
 		gateway.SetEventListener(broadcaster)
 	}
@@ -148,4 +158,64 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	return cleanup, nil
+}
+
+func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger) *larkoauth.Service {
+	logger = logging.OrNop(logger)
+	if container == nil {
+		return nil
+	}
+	larkCfg := cfg.Channels.Lark
+	if !larkCfg.Enabled {
+		return nil
+	}
+	if strings.TrimSpace(larkCfg.AppID) == "" || strings.TrimSpace(larkCfg.AppSecret) == "" {
+		return nil
+	}
+
+	redirectBase := strings.TrimSpace(cfg.Auth.RedirectBaseURL)
+	if redirectBase == "" {
+		port := strings.TrimPrefix(cfg.Port, ":")
+		if port == "" {
+			port = "8080"
+		}
+		redirectBase = fmt.Sprintf("http://localhost:%s", port)
+	}
+	if !strings.HasPrefix(redirectBase, "http://") && !strings.HasPrefix(redirectBase, "https://") {
+		redirectBase = "https://" + redirectBase
+	}
+	redirectBase = strings.TrimRight(redirectBase, "/")
+
+	var tokenStore larkoauth.TokenStore
+	if container.SessionDB != nil {
+		store := larkoauth.NewPostgresTokenStore(container.SessionDB)
+		if err := store.EnsureSchema(ctx); err != nil {
+			logger.Warn("Lark OAuth token store init failed (Postgres): %v", err)
+		} else {
+			tokenStore = store
+			logger.Info("Lark OAuth token store backed by Postgres")
+		}
+	}
+	if tokenStore == nil {
+		dir := filepath.Join(container.SessionDir(), "_lark_oauth")
+		store, err := larkoauth.NewFileTokenStore(dir)
+		if err != nil {
+			logger.Warn("Lark OAuth token store init failed (file): %v", err)
+			return nil
+		}
+		tokenStore = store
+		logger.Info("Lark OAuth token store backed by file: %s", dir)
+	}
+
+	svc, err := larkoauth.NewService(larkoauth.ServiceConfig{
+		AppID:        larkCfg.AppID,
+		AppSecret:    larkCfg.AppSecret,
+		BaseDomain:   larkCfg.BaseDomain,
+		RedirectBase: redirectBase,
+	}, tokenStore, larkoauth.NewMemoryStateStore())
+	if err != nil {
+		logger.Warn("Lark OAuth service init failed: %v", err)
+		return nil
+	}
+	return svc
 }

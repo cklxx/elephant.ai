@@ -18,6 +18,7 @@ const (
 	AutoApproveKey   toolContextKey = "auto_approve"
 	larkClientKey    toolContextKey = "lark_client"
 	larkChatIDKey    toolContextKey = "lark_chat_id"
+	larkOAuthKey     toolContextKey = "lark_oauth"
 	timerManagerKey  toolContextKey = "timer_manager"
 	schedulerKey     toolContextKey = "scheduler"
 	autoUploadKey    toolContextKey = "auto_upload_config"
@@ -145,6 +146,20 @@ func LarkChatIDFromContext(ctx context.Context) string {
 		return chatID
 	}
 	return ""
+}
+
+// WithLarkOAuth stores the Lark OAuth service in context. Typed as interface{}
+// to avoid importing the OAuth package at this shared boundary.
+func WithLarkOAuth(ctx context.Context, svc interface{}) context.Context {
+	return context.WithValue(ctx, larkOAuthKey, svc)
+}
+
+// LarkOAuthFromContext retrieves the Lark OAuth service from context.
+func LarkOAuthFromContext(ctx context.Context) interface{} {
+	if ctx == nil {
+		return nil
+	}
+	return ctx.Value(larkOAuthKey)
 }
 
 // WithTimerManager sets the timer manager in context. Typed as interface{} to

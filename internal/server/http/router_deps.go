@@ -27,6 +27,7 @@ type RouterDeps struct {
 	SandboxMaxResponseBytes int
 	DataCache               *DataCache
 	LarkCardHandler         http.Handler
+	LarkOAuthHandler        *LarkOAuthHandler
 	MemoryEngine            memory.Engine
 }
 

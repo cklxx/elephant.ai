@@ -285,6 +285,10 @@ func RunServer(observabilityConfigPath string) error {
 	if container.LarkGateway != nil {
 		larkCardHandler = lark.NewCardCallbackHandler(container.LarkGateway, logger)
 	}
+	var larkOAuthHandler *serverHTTP.LarkOAuthHandler
+	if container.LarkOAuth != nil {
+		larkOAuthHandler = serverHTTP.NewLarkOAuthHandler(container.LarkOAuth, logger)
+	}
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
 			Coordinator:             serverCoordinator,
@@ -300,6 +304,7 @@ func RunServer(observabilityConfigPath string) error {
 			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
 			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
 			LarkCardHandler:         larkCardHandler,
+			LarkOAuthHandler:        larkOAuthHandler,
 			MemoryEngine:            container.MemoryEngine,
 		},
 		serverHTTP.RouterConfig{

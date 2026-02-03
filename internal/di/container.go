@@ -14,6 +14,7 @@ import (
 	"alex/internal/async"
 	"alex/internal/channels/lark"
 	runtimeconfig "alex/internal/config"
+	larkoauth "alex/internal/lark/oauth"
 	"alex/internal/lifecycle"
 	"alex/internal/llm"
 	"alex/internal/logging"
@@ -40,6 +41,7 @@ type Container struct {
 	mcpInitCancel    context.CancelFunc
 	SessionDB        *pgxpool.Pool
 	LarkGateway      *lark.Gateway
+	LarkOAuth        *larkoauth.Service
 
 	// Drainables holds subsystems that support graceful drain.
 	Drainables []lifecycle.Drainable

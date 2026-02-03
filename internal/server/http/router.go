@@ -115,6 +115,10 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	if deps.LarkCardHandler != nil {
 		mux.Handle("POST /api/lark/card/callback", routeHandler("/api/lark/card/callback", deps.LarkCardHandler))
 	}
+	if deps.LarkOAuthHandler != nil {
+		mux.Handle("GET /api/lark/oauth/start", routeHandler("/api/lark/oauth/start", http.HandlerFunc(deps.LarkOAuthHandler.HandleStart)))
+		mux.Handle("GET /api/lark/oauth/callback", routeHandler("/api/lark/oauth/callback", http.HandlerFunc(deps.LarkOAuthHandler.HandleCallback)))
+	}
 
 	mux.Handle("GET /api/sse", routeHandler("/api/sse", wrap(http.HandlerFunc(sseHandler.HandleSSEStream))))
 	mux.Handle("GET /api/share/sessions/{session_id}", routeHandler("/api/share/sessions/:session_id", http.HandlerFunc(shareHandler.HandleSharedSession)))

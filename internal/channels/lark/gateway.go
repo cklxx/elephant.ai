@@ -21,6 +21,7 @@ import (
 	"alex/internal/channels"
 	"alex/internal/jsonx"
 	larkcards "alex/internal/lark/cards"
+	larkoauth "alex/internal/lark/oauth"
 	"alex/internal/logging"
 	artifacts "alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/pathutil"
@@ -70,6 +71,7 @@ type Gateway struct {
 	dedupCache      *lru.Cache[string, time.Time]
 	now             func() time.Time
 	planReviewStore PlanReviewStore
+	oauth           *larkoauth.Service
 	activeSlots     sync.Map // chatID → *sessionSlot
 }
 
@@ -150,6 +152,14 @@ func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) {
 		return
 	}
 	g.planReviewStore = store
+}
+
+// SetOAuthService configures the Lark user OAuth service used for user-scoped API calls.
+func (g *Gateway) SetOAuthService(svc *larkoauth.Service) {
+	if g == nil {
+		return
+	}
+	g.oauth = svc
 }
 
 // SetMessenger replaces the default SDK messenger with a custom implementation.
@@ -425,6 +435,9 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
+	if g.oauth != nil {
+		execCtx = shared.WithLarkOAuth(execCtx, g.oauth)
+	}
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
 	execCtx = agent.WithUserInputCh(execCtx, inputCh)
 
