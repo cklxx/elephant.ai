@@ -1,10 +1,15 @@
 id: memory-system
 description: |
-  Markdown-only memory system: where to write memories and how to retrieve them.
+  Markdown-only memory system aligned to Clawdbot: session boot, write via files, search with memory_search, read with memory_get.
 sop_refs:
+  - docs/reference/MEMORY_SYSTEM.md#session-boot-sequence
   - docs/reference/MEMORY_SYSTEM.md#writing-memory
-  - docs/reference/MEMORY_SYSTEM.md#searching-memory
+  - docs/reference/MEMORY_SYSTEM.md#retrieval-workflow
+  - docs/reference/MEMORY_SYSTEM.md#compaction-safety
 memory_keys:
+  - memory.identity
   - memory.layout
+  - memory.session_boot
   - memory.writing
   - memory.search
+  - memory.compaction
