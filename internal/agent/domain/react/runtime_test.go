@@ -310,6 +310,47 @@ func TestCleanupSkipsAlreadyEmittedBackgroundCompletions(t *testing.T) {
 	require.Len(t, completed, 1)
 }
 
+func TestSharedBackgroundManagerDoesNotCancelOnCleanup(t *testing.T) {
+	mgr := newBackgroundTaskManager(
+		context.Background(),
+		agent.NoopLogger{},
+		testClock{},
+		blockingExecutor(2*time.Second, "late"),
+		nil,
+		nil,
+		nil,
+		"s1",
+		nil,
+	)
+	engine := NewReactEngine(ReactEngineConfig{
+		Logger:             agent.NoopLogger{},
+		Clock:              testClock{},
+		BackgroundExecutor: blockingExecutor(2*time.Second, "late"),
+		BackgroundManager:  mgr,
+	})
+	state := &TaskState{
+		SessionID: "s1",
+		RunID:     "t1",
+	}
+
+	runtime := newReactRuntime(engine, context.Background(), "demo", state, Services{}, nil)
+	require.NotNil(t, runtime.bgManager)
+
+	err := runtime.bgManager.Dispatch(context.Background(), agent.BackgroundDispatchRequest{
+		TaskID:      "task-1",
+		Description: "desc",
+		Prompt:      "prompt",
+		AgentType:   "internal",
+	})
+	require.NoError(t, err)
+
+	runtime.cleanupBackgroundTasks()
+
+	summaries := runtime.bgManager.Status([]string{"task-1"})
+	require.Len(t, summaries, 1)
+	require.NotEqual(t, agent.BackgroundTaskStatusCancelled, summaries[0].Status)
+}
+
 func TestRecordThoughtAppendsThinkingOnlyMessage(t *testing.T) {
 	engine := NewReactEngine(ReactEngineConfig{})
 	state := &TaskState{}

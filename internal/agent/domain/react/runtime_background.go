@@ -124,6 +124,9 @@ func (r *reactRuntime) cleanupBackgroundTasks() {
 	if r.bgManager == nil {
 		return
 	}
+	if !r.bgManagerOwned {
+		return
+	}
 	if r.bgManager.TaskCount() == 0 {
 		r.bgManager.Shutdown()
 		return

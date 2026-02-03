@@ -43,7 +43,8 @@ type reactRuntime struct {
 	replanRequested       bool
 
 	// Background task manager for async subagent execution.
-	bgManager *BackgroundTaskManager
+	bgManager      *BackgroundTaskManager
+	bgManagerOwned bool
 	// Track emitted completion events to avoid duplicates.
 	bgCompletionEmitted map[string]bool
 	// External input requests from interactive external agents.
@@ -98,7 +99,7 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 	runtime.userInputCh = agent.UserInputChFromContext(ctx)
 
 	// Initialize background task manager when executor is available.
-	if engine.backgroundExecutor != nil {
+	if engine.backgroundExecutor != nil || engine.backgroundManager != nil {
 		sessionID := ""
 		runID := ""
 		parentRunID := ""
@@ -107,21 +108,34 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 			runID = state.RunID
 			parentRunID = state.ParentRunID
 		}
-		runtime.bgManager = newBackgroundTaskManager(
-			ctx,
-			engine.logger,
-			engine.clock,
-			engine.backgroundExecutor,
-			engine.externalExecutor,
-			engine.emitEvent,
-			func(ctx context.Context) domain.BaseEvent {
-				return engine.newBaseEvent(ctx, sessionID, runID, parentRunID)
-			},
-			sessionID,
-			engine.eventListener,
-		)
+		if engine.backgroundManager != nil {
+			runtime.bgManager = engine.backgroundManager
+			runtime.bgManagerOwned = false
+		} else {
+			runtime.bgManager = newBackgroundTaskManager(
+				ctx,
+				engine.logger,
+				engine.clock,
+				engine.backgroundExecutor,
+				engine.externalExecutor,
+				engine.emitEvent,
+				func(ctx context.Context) domain.BaseEvent {
+					return engine.newBaseEvent(ctx, sessionID, runID, parentRunID)
+				},
+				sessionID,
+				engine.eventListener,
+			)
+			runtime.bgManagerOwned = true
+		}
 		runtime.bgCompletionEmitted = make(map[string]bool)
 		if runtime.bgManager != nil {
+			runtime.ctx = withBackgroundEventSink(runtime.ctx, backgroundEventSink{
+				emitEvent: engine.emitEvent,
+				baseEvent: func(ctx context.Context) domain.BaseEvent {
+					return engine.newBaseEvent(ctx, sessionID, runID, parentRunID)
+				},
+				parentListener: engine.eventListener,
+			})
 			runtime.externalInputCh = runtime.bgManager.InputRequests()
 			runtime.externalInputEmitted = make(map[string]bool)
 		}

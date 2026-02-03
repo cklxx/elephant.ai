@@ -29,6 +29,10 @@ type backgroundTask struct {
 	result      *agent.TaskResult
 	err         error
 
+	emitEvent      func(agent.AgentEvent)
+	baseEvent      func(context.Context) domain.BaseEvent
+	parentListener agent.EventListener
+
 	progress         *agent.ExternalAgentProgress
 	pendingInput     *agent.InputRequestSummary
 	lastProgressEmit time.Time
@@ -67,6 +71,16 @@ type BackgroundTaskManager struct {
 
 	sessionID      string
 	parentListener agent.EventListener
+}
+
+// BackgroundManagerConfig configures a shared background task manager.
+type BackgroundManagerConfig struct {
+	RunContext       context.Context
+	Logger           agent.Logger
+	Clock            agent.Clock
+	ExecuteTask      func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
+	ExternalExecutor agent.ExternalAgentExecutor
+	SessionID        string
 }
 
 // newBackgroundTaskManager creates a new manager bound to the current run context.
@@ -129,6 +143,21 @@ func newBackgroundTaskManager(
 	return manager
 }
 
+// NewBackgroundTaskManager creates a background task manager intended for reuse (e.g., per session).
+func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManager {
+	return newBackgroundTaskManager(
+		cfg.RunContext,
+		cfg.Logger,
+		cfg.Clock,
+		cfg.ExecuteTask,
+		cfg.ExternalExecutor,
+		nil,
+		nil,
+		cfg.SessionID,
+		nil,
+	)
+}
+
 // Dispatch starts a background task. Returns an error if the task ID is already in use.
 func (m *BackgroundTaskManager) Dispatch(
 	ctx context.Context,
@@ -160,6 +189,12 @@ func (m *BackgroundTaskManager) Dispatch(
 		return fmt.Errorf("invalid workspace_mode: %s", workspaceMode)
 	}
 
+	sink := resolveBackgroundEventSink(ctx, backgroundEventSink{
+		emitEvent:      m.emitEvent,
+		baseEvent:      m.baseEvent,
+		parentListener: m.parentListener,
+	})
+
 	m.mu.Lock()
 	if _, exists := m.tasks[taskID]; exists {
 		m.mu.Unlock()
@@ -174,6 +209,9 @@ func (m *BackgroundTaskManager) Dispatch(
 		causationID:    req.CausationID,
 		status:         agent.BackgroundTaskStatusPending,
 		startedAt:      m.clock.Now(),
+		emitEvent:      sink.emitEvent,
+		baseEvent:      sink.baseEvent,
+		parentListener: sink.parentListener,
 		dependsOn:      append([]string(nil), req.DependsOn...),
 		inheritContext: req.InheritContext,
 		fileScope:      append([]string(nil), req.FileScope...),
@@ -204,7 +242,11 @@ func (m *BackgroundTaskManager) Dispatch(
 
 	// Build detached context preserving causal chain values from the run context.
 	taskCtx := m.taskCtx
-	ids := id.IDsFromContext(m.runCtx)
+	ids := id.IDsFromContext(ctx)
+	if ids.SessionID == "" && ids.RunID == "" && ids.ParentRunID == "" &&
+		ids.LogID == "" && ids.CorrelationID == "" && ids.CausationID == "" {
+		ids = id.IDsFromContext(m.runCtx)
+	}
 	if ids.SessionID != "" {
 		taskCtx = id.WithSessionID(taskCtx, ids.SessionID)
 	}
@@ -264,7 +306,11 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 
 	switch agentType {
 	case "", "internal":
-		result, err = m.executeTask(ctx, prompt, m.sessionID, m.parentListener)
+		listener := bt.parentListener
+		if listener == nil {
+			listener = m.parentListener
+		}
+		result, err = m.executeTask(ctx, prompt, m.sessionID, listener)
 	default:
 		if m.externalExecutor == nil {
 			err = fmt.Errorf("external agent executor not configured for type %q", agentType)
@@ -467,15 +513,20 @@ func (m *BackgroundTaskManager) ReplyExternalInput(ctx context.Context, resp age
 			bt.mu.Unlock()
 		}
 	}
-	if m.emitEvent != nil && m.baseEvent != nil {
-		m.emitEvent(&domain.ExternalInputResponseEvent{
-			BaseEvent: m.baseEvent(ctx),
-			TaskID:    resp.TaskID,
-			RequestID: resp.RequestID,
-			Approved:  resp.Approved,
-			OptionID:  resp.OptionID,
-			Message:   resp.Text,
-		})
+	if strings.TrimSpace(resp.TaskID) != "" {
+		m.mu.RLock()
+		bt := m.tasks[resp.TaskID]
+		m.mu.RUnlock()
+		if bt != nil && bt.emitEvent != nil && bt.baseEvent != nil {
+			bt.emitEvent(&domain.ExternalInputResponseEvent{
+				BaseEvent: bt.baseEvent(ctx),
+				TaskID:    resp.TaskID,
+				RequestID: resp.RequestID,
+				Approved:  resp.Approved,
+				OptionID:  resp.OptionID,
+				Message:   resp.Text,
+			})
+		}
 	}
 	return nil
 }
@@ -552,7 +603,7 @@ func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgro
 	shouldEmit := false
 	bt.mu.Lock()
 	bt.progress = &p
-	if m.emitEvent != nil && m.baseEvent != nil {
+	if bt.emitEvent != nil && bt.baseEvent != nil {
 		if bt.lastProgressEmit.IsZero() || now.Sub(bt.lastProgressEmit) >= 2*time.Second {
 			bt.lastProgressEmit = now
 			shouldEmit = true
@@ -568,8 +619,8 @@ func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgro
 				elapsed = 0
 			}
 		}
-		m.emitEvent(&domain.ExternalAgentProgressEvent{
-			BaseEvent:    m.baseEvent(ctx),
+		bt.emitEvent(&domain.ExternalAgentProgressEvent{
+			BaseEvent:    bt.baseEvent(ctx),
 			TaskID:       bt.id,
 			AgentType:    bt.agentType,
 			Iteration:    p.Iteration,
@@ -586,7 +637,7 @@ func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgro
 }
 
 func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *backgroundTask) {
-	if m.emitEvent == nil || m.baseEvent == nil {
+	if bt.emitEvent == nil || bt.baseEvent == nil {
 		return
 	}
 
@@ -617,8 +668,8 @@ func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *bac
 		}
 	}
 
-	m.emitEvent(&domain.BackgroundTaskCompletedEvent{
-		BaseEvent:   m.baseEvent(ctx),
+	bt.emitEvent(&domain.BackgroundTaskCompletedEvent{
+		BaseEvent:   bt.baseEvent(ctx),
 		TaskID:      bt.id,
 		Description: description,
 		Status:      string(status),
@@ -773,6 +824,23 @@ func (m *BackgroundTaskManager) signalCompletion(taskID string) {
 	default:
 		m.logger.Warn("background completions channel full, dropping signal for task %q", taskID)
 	}
+}
+
+func resolveBackgroundEventSink(ctx context.Context, fallback backgroundEventSink) backgroundEventSink {
+	sink, ok := getBackgroundEventSink(ctx)
+	if !ok {
+		return fallback
+	}
+	if sink.emitEvent == nil {
+		sink.emitEvent = fallback.emitEvent
+	}
+	if sink.baseEvent == nil {
+		sink.baseEvent = fallback.baseEvent
+	}
+	if sink.parentListener == nil {
+		sink.parentListener = fallback.parentListener
+	}
+	return sink
 }
 
 func cloneStringMap(in map[string]string) map[string]string {

@@ -39,6 +39,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		workflow:            cfg.Workflow,
 		iterationHook:       cfg.IterationHook,
 		backgroundExecutor:  cfg.BackgroundExecutor,
+		backgroundManager:   cfg.BackgroundManager,
 		externalExecutor:    cfg.ExternalExecutor,
 	}
 }

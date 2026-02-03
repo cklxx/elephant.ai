@@ -29,6 +29,8 @@ type ReactEngine struct {
 	// Background task support: executor closure for internal subagent delegation.
 	backgroundExecutor func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error)
+	// Optional shared background manager (e.g., per-session pool).
+	backgroundManager *BackgroundTaskManager
 	// Optional external agent executor for non-internal agent types.
 	externalExecutor agent.ExternalAgentExecutor
 }
@@ -103,6 +105,8 @@ type ReactEngineConfig struct {
 	// for background subagent tasks. When nil, bg_dispatch is unavailable.
 	BackgroundExecutor func(ctx context.Context, prompt, sessionID string,
 		listener agent.EventListener) (*agent.TaskResult, error)
+	// BackgroundManager optionally supplies a shared background task manager.
+	BackgroundManager *BackgroundTaskManager
 	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
 	// Optional; when nil only "internal" agent type is supported.
 	ExternalExecutor agent.ExternalAgentExecutor
