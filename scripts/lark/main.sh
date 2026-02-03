@@ -15,6 +15,7 @@ Usage:
 Env:
   MAIN_CONFIG   Config path (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   MAIN_PORT     Healthcheck port (default: 8080)
+  SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
 EOF
 }
 
@@ -41,6 +42,22 @@ HEALTH_URL="http://127.0.0.1:${MAIN_PORT}/health"
 
 mkdir -p "${ROOT}/.pids" "${ROOT}/logs"
 
+maybe_setup_auth_db() {
+  if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
+    log_info "Skipping local auth DB auto-setup (SKIP_LOCAL_AUTH_DB=1)"
+    return 0
+  fi
+
+  if [[ -x "${ROOT}/scripts/setup_local_auth_db.sh" ]]; then
+    log_info "Ensuring local auth DB is ready..."
+    "${ROOT}/scripts/setup_local_auth_db.sh"
+    return 0
+  fi
+
+  log_warn "Missing ${ROOT}/scripts/setup_local_auth_db.sh; skipping DB setup"
+  return 0
+}
+
 build() {
   log_info "Building alex-server (main)..."
   (cd "${ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
@@ -49,6 +66,8 @@ build() {
 
 start() {
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
+
+  maybe_setup_auth_db
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
@@ -63,7 +82,12 @@ start() {
   echo "$!" > "${PID_FILE}"
 
   local i
+  pid="$(read_pid "${PID_FILE}" || true)"
   for i in $(seq 1 30); do
+    if ! is_process_running "${pid}"; then
+      log_error "Main agent exited early (see ${LOG_FILE})"
+      return 1
+    fi
     if curl -sf "${HEALTH_URL}" >/dev/null 2>&1; then
       log_success "Main agent healthy: ${HEALTH_URL}"
       return 0
@@ -102,4 +126,3 @@ case "${cmd}" in
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;
 esac
-
