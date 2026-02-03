@@ -86,6 +86,8 @@ run_scenario_suite() {
 
 run_fast_gate() {
   set +e
+  local scenario_rc=0
+  local go_rc=0
   {
     echo ""
     echo "===== FAST GATE ====="
@@ -94,16 +96,26 @@ run_fast_gate() {
     echo "---------------------"
     echo "[scenario] running"
     run_scenario_suite
+    scenario_rc=$?
     echo "[go test] running"
     (cd "${TEST_ROOT}" && CGO_ENABLED=0 go test ./... -count=1)
+    go_rc=$?
   } >> "${LOOP_LOG}" 2>&1
-  local rc=$?
+  local rc=0
+  if [[ ${scenario_rc} -ne 0 ]]; then
+    rc=${scenario_rc}
+  fi
+  if [[ ${go_rc} -ne 0 ]]; then
+    rc=${go_rc}
+  fi
   set -e
   return "${rc}"
 }
 
 run_slow_gate() {
   set +e
+  local lint_rc=0
+  local test_rc=0
   {
     echo ""
     echo "===== SLOW GATE (CI PARITY) ====="
@@ -111,9 +123,17 @@ run_slow_gate() {
     echo "worktree=${TEST_ROOT}"
     echo "---------------------"
     (cd "${TEST_ROOT}" && ./dev.sh lint)
+    lint_rc=$?
     (cd "${TEST_ROOT}" && ./dev.sh test)
+    test_rc=$?
   } >> "${LOOP_LOG}" 2>&1
-  local rc=$?
+  local rc=0
+  if [[ ${lint_rc} -ne 0 ]]; then
+    rc=${lint_rc}
+  fi
+  if [[ ${test_rc} -ne 0 ]]; then
+    rc=${test_rc}
+  fi
   set -e
   return "${rc}"
 }
