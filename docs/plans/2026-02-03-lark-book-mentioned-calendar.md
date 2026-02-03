@@ -26,7 +26,7 @@ Date: 2026-02-03
 - [x] Implement primary calendar lookup by user IDs.
 - [x] Extend calendar tools with calendar owner params.
 - [x] Expose mention IDs in extracted content.
-- [ ] Run `make fmt && make test`; commit.
+- [x] Run `./dev.sh lint && ./dev.sh test`; commit.
 
 ## Result
 - `lark_calendar_create` supports booking an @mentioned user's primary calendar by using:
