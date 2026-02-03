@@ -27,7 +27,9 @@ import (
 // - Using appcontext.MarkSubagentContext to trigger registry filtering (RECURSION PREVENTION)
 type subagent struct {
 	shared.BaseTool
-	coordinator agent.AgentCoordinator
+	coordinator  agent.AgentCoordinator
+	maxWorkers   int
+	startStagger time.Duration
 }
 
 // NewSubAgent creates a subagent tool with coordinator injection
@@ -68,7 +70,9 @@ func NewSubAgent(coordinator agent.AgentCoordinator, maxWorkers int) tools.ToolE
 				Tags:     []string{"delegation", "orchestration"},
 			},
 		),
-		coordinator: coordinator,
+		coordinator:  coordinator,
+		maxWorkers:   maxWorkers,
+		startStagger: 25 * time.Millisecond,
 	}
 }
 
@@ -139,7 +143,11 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 	results := make([]SubtaskResult, len(tasks))
 	collector := newAttachmentCollector(sharedAttachments)
-	parallelism := resolveParallelism(mode, len(tasks), maxParallel)
+	effectiveMaxParallel := maxParallel
+	if effectiveMaxParallel <= 0 && t.maxWorkers > 0 {
+		effectiveMaxParallel = t.maxWorkers
+	}
+	parallelism := resolveParallelism(mode, len(tasks), effectiveMaxParallel)
 	if parallelism <= 1 {
 		for i, task := range tasks {
 			results[i] = t.executeSubtask(ctx, task, i, len(tasks), parentListener, parallelism, sharedAttachments, sharedIterations, collector)
@@ -160,6 +168,9 @@ func (t *subagent) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 
 		for i := range tasks {
 			jobs <- i
+			if t.startStagger > 0 && i < len(tasks)-1 {
+				time.Sleep(t.startStagger)
+			}
 		}
 		close(jobs)
 		wg.Wait()

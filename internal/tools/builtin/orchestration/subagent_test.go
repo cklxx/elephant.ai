@@ -120,7 +120,7 @@ func (r *sessionIDRecorder) SaveSessionAfterExecution(ctx context.Context, _ *st
 func (r *sessionIDRecorder) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
 	return nil, nil
 }
-func (r *sessionIDRecorder) GetConfig() agent.AgentConfig           { return agent.AgentConfig{} }
+func (r *sessionIDRecorder) GetConfig() agent.AgentConfig         { return agent.AgentConfig{} }
 func (r *sessionIDRecorder) GetLLMClient() (llm.LLMClient, error) { return nil, nil }
 func (r *sessionIDRecorder) GetToolRegistryWithoutSubagent() tools.ToolRegistry {
 	return nil
@@ -168,7 +168,7 @@ func (*workflowRecordingCoordinator) ListSessions(ctx context.Context, limit int
 	return nil, nil
 }
 func (*workflowRecordingCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
-func (*workflowRecordingCoordinator) GetLLMClient() (llm.LLMClient, error)             { return nil, nil }
+func (*workflowRecordingCoordinator) GetLLMClient() (llm.LLMClient, error)               { return nil, nil }
 func (*workflowRecordingCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
 func (*workflowRecordingCoordinator) GetParser() tools.FunctionCallParser                { return nil }
 func (*workflowRecordingCoordinator) GetContextManager() agent.ContextManager            { return nil }
@@ -199,11 +199,56 @@ func (*attachmentCoordinator) ListSessions(ctx context.Context, limit int, offse
 	return nil, nil
 }
 func (*attachmentCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
-func (*attachmentCoordinator) GetLLMClient() (llm.LLMClient, error)             { return nil, nil }
+func (*attachmentCoordinator) GetLLMClient() (llm.LLMClient, error)               { return nil, nil }
 func (*attachmentCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
 func (*attachmentCoordinator) GetParser() tools.FunctionCallParser                { return nil }
 func (*attachmentCoordinator) GetContextManager() agent.ContextManager            { return nil }
 func (*attachmentCoordinator) GetSystemPrompt() string                            { return "" }
+
+type concurrencyCoordinator struct {
+	mu        sync.Mutex
+	inFlight  int
+	maxFlight int
+
+	started chan struct{}
+	block   chan struct{}
+}
+
+func (c *concurrencyCoordinator) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	c.mu.Lock()
+	c.inFlight++
+	if c.inFlight > c.maxFlight {
+		c.maxFlight = c.inFlight
+	}
+	c.mu.Unlock()
+
+	c.started <- struct{}{}
+	<-c.block
+
+	c.mu.Lock()
+	c.inFlight--
+	c.mu.Unlock()
+
+	return &agent.TaskResult{Answer: "ok"}, nil
+}
+
+func (*concurrencyCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
+	return nil, nil
+}
+
+func (*concurrencyCoordinator) SaveSessionAfterExecution(ctx context.Context, _ *storage.Session, _ *agent.TaskResult) error {
+	return nil
+}
+
+func (*concurrencyCoordinator) ListSessions(ctx context.Context, limit int, offset int) ([]string, error) {
+	return nil, nil
+}
+func (*concurrencyCoordinator) GetConfig() agent.AgentConfig                       { return agent.AgentConfig{} }
+func (*concurrencyCoordinator) GetLLMClient() (llm.LLMClient, error)               { return nil, nil }
+func (*concurrencyCoordinator) GetToolRegistryWithoutSubagent() tools.ToolRegistry { return nil }
+func (*concurrencyCoordinator) GetParser() tools.FunctionCallParser                { return nil }
+func (*concurrencyCoordinator) GetContextManager() agent.ContextManager            { return nil }
+func (*concurrencyCoordinator) GetSystemPrompt() string                            { return "" }
 
 func TestSubagentUsesParentSessionID(t *testing.T) {
 	recorder := &sessionIDRecorder{}
@@ -231,6 +276,61 @@ func TestSubagentUsesParentSessionID(t *testing.T) {
 
 	if recorder.ctxIDs.SessionID != sessionID {
 		t.Fatalf("expected context to retain session id %s, got %s", sessionID, recorder.ctxIDs.SessionID)
+	}
+}
+
+func TestSubagentDefaultsParallelismToMaxWorkers(t *testing.T) {
+	coordinator := &concurrencyCoordinator{
+		started: make(chan struct{}, 10),
+		block:   make(chan struct{}),
+	}
+	tool := NewSubAgent(coordinator, 2).(*subagent)
+	tool.startStagger = 0
+
+	call := ports.ToolCall{
+		ID:   "call-1",
+		Name: "subagent",
+		Arguments: map[string]any{
+			"tasks": []any{"a", "b", "c", "d", "e"},
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := tool.Execute(context.Background(), call)
+		done <- err
+	}()
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-coordinator.started:
+		case <-time.After(500 * time.Millisecond):
+			t.Fatalf("timed out waiting for subtask %d to start", i+1)
+		}
+	}
+
+	select {
+	case <-coordinator.started:
+		t.Fatalf("expected parallelism to default to maxWorkers=2, but observed >2 concurrent starts")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	coordinator.mu.Lock()
+	maxFlight := coordinator.maxFlight
+	coordinator.mu.Unlock()
+	if maxFlight != 2 {
+		t.Fatalf("expected max in-flight to be 2, got %d", maxFlight)
+	}
+
+	close(coordinator.block)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("subagent execute failed: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for subagent execute to complete")
 	}
 }
 
