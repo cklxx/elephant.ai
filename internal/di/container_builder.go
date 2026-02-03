@@ -16,6 +16,7 @@ import (
 	"alex/internal/agent/app/preparation"
 	react "alex/internal/agent/domain/react"
 	agent "alex/internal/agent/ports/agent"
+	portsllm "alex/internal/agent/ports/llm"
 	agentstorage "alex/internal/agent/ports/storage"
 	"alex/internal/agent/presets"
 	"alex/internal/analytics/journal"
@@ -145,7 +146,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	mcpRegistry := mcp.NewRegistry()
 	tracker := newMCPInitializationTracker()
 
-	hookRegistry := b.buildHookRegistry()
+	hookRegistry := b.buildHookRegistry(memoryEngine, llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
 	checkpointStore := react.NewFileCheckpointStore(filepath.Join(b.sessionDir, "checkpoints"))
 	credentialRefresher := buildCredentialRefresher()
@@ -406,7 +407,7 @@ func (b *containerBuilder) buildCostTracker() (agentstorage.CostTracker, error) 
 	return agentcost.NewCostTracker(costStore), nil
 }
 
-func (b *containerBuilder) buildHookRegistry() *hooks.Registry {
+func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFactory portsllm.LLMClientFactory) *hooks.Registry {
 	registry := hooks.NewRegistry(b.logger)
 	if !b.config.Proactive.Enabled {
 		b.logger.Info("Non-memory proactive hooks disabled by config")
@@ -424,6 +425,19 @@ func (b *containerBuilder) buildHookRegistry() *hooks.Registry {
 			AutoInject: b.config.Proactive.OKR.AutoInject,
 		})
 		registry.Register(okrHook)
+	}
+
+	if b.config.Proactive.Enabled && b.config.Proactive.Memory.Enabled && memoryEngine != nil && llmFactory != nil {
+		memHook := hooks.NewMemoryCaptureHook(memoryEngine, llmFactory, b.logger, hooks.MemoryCaptureConfig{
+			Enabled:       b.config.Proactive.Memory.Enabled,
+			Provider:      b.config.LLMProvider,
+			Model:         b.config.LLMModel,
+			SmallProvider: b.config.LLMSmallProvider,
+			SmallModel:    b.config.LLMSmallModel,
+			APIKey:        b.config.APIKey,
+			BaseURL:       b.config.BaseURL,
+		})
+		registry.Register(memHook)
 	}
 
 	b.logger.Info("Hook registry built with %d hooks", registry.HookCount())
