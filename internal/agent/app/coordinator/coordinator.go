@@ -45,17 +45,18 @@ type AgentCoordinator struct {
 	logger           agent.Logger
 	clock            agent.Clock
 	externalExecutor agent.ExternalAgentExecutor
+	bgRegistry       *backgroundTaskRegistry
 	iterationHook    agent.IterationHook
 	checkpointStore  react.CheckpointStore
 
-	prepService          preparationService
-	costDecorator        *cost.CostTrackingDecorator
-	attachmentMigrator   materialports.Migrator
-	attachmentPersister  ports.AttachmentPersister
-	hookRegistry         *hooks.Registry
-	okrContextProvider   preparation.OKRContextProvider
-	credentialRefresher  preparation.CredentialRefresher
-	timerManager         interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+	prepService         preparationService
+	costDecorator       *cost.CostTrackingDecorator
+	attachmentMigrator  materialports.Migrator
+	attachmentPersister ports.AttachmentPersister
+	hookRegistry        *hooks.Registry
+	okrContextProvider  preparation.OKRContextProvider
+	credentialRefresher preparation.CredentialRefresher
+	timerManager        interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 }
 
 type preparationService interface {
@@ -91,6 +92,7 @@ func NewAgentCoordinator(
 		config:       config,
 		logger:       logging.NewComponentLogger("Coordinator"),
 		clock:        agent.SystemClock{},
+		bgRegistry:   newBackgroundTaskRegistry(),
 	}
 
 	for _, opt := range opts {
@@ -382,6 +384,24 @@ func (c *AgentCoordinator) ExecuteTask(
 	logger.Info("Delegating to ReactEngine...")
 	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
 
+	backgroundExecutor := func(bgCtx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+		bgCtx = appcontext.MarkSubagentContext(bgCtx)
+		return c.ExecuteTask(bgCtx, prompt, sessionID, listener)
+	}
+	var bgManager *react.BackgroundTaskManager
+	if c.bgRegistry != nil && env != nil && env.Session != nil {
+		bgManager = c.bgRegistry.Get(env.Session.ID, func() *react.BackgroundTaskManager {
+			return react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
+				RunContext:       ctx,
+				Logger:           logger,
+				Clock:            c.clock,
+				ExecuteTask:      backgroundExecutor,
+				ExternalExecutor: c.externalExecutor,
+				SessionID:        env.Session.ID,
+			})
+		})
+	}
+
 	reactEngine := react.NewReactEngine(react.ReactEngineConfig{
 		MaxIterations:       c.config.MaxIterations,
 		Logger:              logger,
@@ -392,12 +412,9 @@ func (c *AgentCoordinator) ExecuteTask(
 		CheckpointStore:     c.checkpointStore,
 		Workflow:            wf,
 		IterationHook:       c.iterationHook,
-		BackgroundExecutor: func(bgCtx context.Context, prompt, sessionID string,
-			listener agent.EventListener) (*agent.TaskResult, error) {
-			bgCtx = appcontext.MarkSubagentContext(bgCtx)
-			return c.ExecuteTask(bgCtx, prompt, sessionID, listener)
-		},
-		ExternalExecutor: c.externalExecutor,
+		BackgroundExecutor:  backgroundExecutor,
+		BackgroundManager:   bgManager,
+		ExternalExecutor:    c.externalExecutor,
 	})
 
 	if eventListener != nil {
