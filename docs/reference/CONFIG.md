@@ -174,6 +174,7 @@ apps:
 - `reply_prefix`：回复前缀。
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
 - `allow_groups` 说明：代码侧“收到就响应”，但 **平台侧是否投递群消息** 取决于应用权限/订阅能力。若只开通“获取用户在群组中@机器人的消息”，机器人只能收到 @ 它的群消息；要接收群内所有消息需额外权限“获取群组中所有消息”。（平台不投递的消息，代码无法补救。）
+- 备注：Lark 的 `chat_type` 可能是 `group` 或 `topic_group`（话题群）；本项目均按“群聊”处理（受 `allow_groups` 控制）。
 - `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: lark-local`）。
 - `workspace_dir`：Lark 本地工具工作区根目录（默认进程 working dir）。
 - `cards_enabled`：是否启用 Lark 交互卡片（默认 true，仅错误卡片开启）。
@@ -187,6 +188,7 @@ apps:
 - `react_emoji`：随机表情池（逗号/空格分隔）。同一次请求会在开始/结束分别随机挑选不同表情；少于 2 个时会回退默认池。
 - `injection_ack_react_emoji`：任务执行中收到“插入消息”时的 ACK 表情（默认 `THINKING`；仅在成功入队时 ACK）。
 - `final_answer_review_react_emoji`：触发 Final Answer 复查轮时对原消息的提示表情（默认 `GLANCE`）。
+- 备注：以上 reaction 依赖 Lark “消息表情回复（Message Reaction）”相关权限；若未开通，代码会继续执行但客户端看不到表情（日志会提示 add reaction failed）。
 - `memory_enabled`：启用 Markdown 记忆加载（MEMORY.md + daily logs）。
 - `show_tool_progress`：是否在 Lark 显示工具执行进度。
 - `auto_chat_context` / `auto_chat_context_size`：自动拉取近期聊天上下文。
