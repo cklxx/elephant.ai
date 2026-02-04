@@ -37,6 +37,10 @@ type Config struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
+	// AIChatBotIDs is a list of bot IDs that participate in coordinated multi-bot chats.
+	// When multiple bots from this list are mentioned in a group message, they will
+	 // take turns responding instead of all responding simultaneously.
+	AIChatBotIDs []string
 }
 
 // BrowserConfig captures local browser settings for Lark tool execution.

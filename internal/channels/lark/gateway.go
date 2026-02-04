@@ -73,6 +73,7 @@ type Gateway struct {
 	planReviewStore PlanReviewStore
 	oauth           *larkoauth.Service
 	activeSlots     sync.Map // chatID → *sessionSlot
+	aiCoordinator   *AIChatCoordinator // coordinates multi-bot chat sessions
 }
 
 type awaitQuestionTracker struct {
@@ -128,13 +129,21 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		return nil, fmt.Errorf("lark message deduper init: %w", err)
 	}
 	logger = logging.OrNop(logger)
+
+	// Initialize AI chat coordinator if bot IDs are configured
+	var aiCoordinator *AIChatCoordinator
+	if len(cfg.AIChatBotIDs) > 0 {
+		aiCoordinator = NewAIChatCoordinator(logger, cfg.AIChatBotIDs)
+	}
+
 	return &Gateway{
-		cfg:         cfg,
-		agent:       agent,
-		logger:      logger,
-		emojiPicker: newEmojiPicker(time.Now().UnixNano(), resolveEmojiPool(cfg.ReactEmoji)),
-		dedupCache:  dedupCache,
-		now:         time.Now,
+		cfg:           cfg,
+		agent:         agent,
+		logger:        logger,
+		emojiPicker:   newEmojiPicker(time.Now().UnixNano(), resolveEmojiPool(cfg.ReactEmoji)),
+		dedupCache:    dedupCache,
+		now:           time.Now,
+		aiCoordinator:   aiCoordinator,
 	}, nil
 }
 
@@ -169,6 +178,14 @@ func (g *Gateway) SetMessenger(m LarkMessenger) {
 		return
 	}
 	g.messenger = m
+}
+
+// SetAIChatCoordinator configures the AI chat coordinator for multi-bot conversations.
+func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) {
+	if g == nil {
+		return
+	}
+	g.aiCoordinator = coordinator
 }
 
 // getOrCreateSlot returns the session slot for the given chat, creating one if needed.
@@ -223,13 +240,14 @@ func (g *Gateway) Stop() {
 
 // incomingMessage holds the parsed fields from a Lark message event.
 type incomingMessage struct {
-	chatID    string
-	chatType  string
-	messageID string
-	senderID  string
-	content   string
-	isGroup   bool
-	isFromBot bool
+	chatID             string
+	chatType           string
+	messageID          string
+	senderID           string
+	content            string
+	isGroup            bool
+	isFromBot          bool
+	aiChatSessionActive bool // true if this message is part of an AI chat session
 }
 
 // isResultAwaitingInput reports whether the task result indicates an
@@ -253,6 +271,32 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 	g.logger.Info("Lark message received: chat_id=%s msg_id=%s sender=%s group=%t len=%d", msg.chatID, msg.messageID, msg.senderID, msg.isGroup, len(msg.content))
+
+	// AI Chat Coordination: Check if this is a multi-bot chat scenario
+	if g.aiCoordinator != nil && msg.isGroup {
+		// Skip processing if this is a message from another bot in an active AI chat session
+		// to prevent infinite loops
+		if msg.isFromBot && g.aiCoordinator.IsMessageFromParticipantBot(msg.chatID, msg.senderID) {
+			g.logger.Info("Skipping message from participant bot in AI chat session: chat=%s sender=%s", msg.chatID, msg.senderID)
+			return nil
+		}
+
+		// Check if this should trigger or participate in an AI chat session
+		mentions := extractMentions(event)
+		shouldParticipate, waitForTurn := g.aiCoordinator.DetectAndStartSession(
+			msg.chatID, msg.messageID, msg.senderID, mentions, g.cfg.AppID,
+		)
+
+		if shouldParticipate {
+			if waitForTurn {
+				g.logger.Info("AI chat: waiting for turn in chat=%s", msg.chatID)
+				return nil
+			}
+			// It's our turn to respond
+			g.logger.Info("AI chat: our turn to respond in chat=%s", msg.chatID)
+			msg.aiChatSessionActive = true
+		}
+	}
 
 	slot := g.getOrCreateSlot(msg.chatID)
 	slot.mu.Lock()
@@ -301,6 +345,17 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	}()
 
 	awaitingInput = g.runNewTask(msg, sessionID, inputCh)
+
+	// After responding, advance the turn in AI chat session if applicable
+	if g.aiCoordinator != nil && !awaitingInput && msg.aiChatSessionActive {
+		nextBot, shouldContinue := g.aiCoordinator.AdvanceTurn(msg.chatID, g.cfg.AppID)
+		if shouldContinue && nextBot != "" {
+			g.logger.Info("AI chat: advanced turn, next bot=%s", nextBot)
+			// Trigger the next bot to respond by sending a mention
+			go g.triggerNextBotResponse(context.Background(), msg.chatID, nextBot)
+		}
+	}
+
 	return nil
 }
 
@@ -454,6 +509,16 @@ func (g *Gateway) runNewTask(msg *incomingMessage, sessionID string, inputCh cha
 	}
 
 	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker)
+
+	// Notify AI chat coordinator that this bot's turn is complete
+	if g.aiCoordinator != nil && msg.aiChatSessionActive {
+		if nextBotID, shouldContinue := g.aiCoordinator.AdvanceTurn(msg.chatID, g.cfg.AppID); shouldContinue {
+			g.logger.Info("AI chat: advancing to next bot %s in chat %s", nextBotID, msg.chatID)
+			// Optionally trigger the next bot here if needed
+		} else {
+			g.logger.Info("AI chat: session ended for chat %s", msg.chatID)
+		}
+	}
 
 	return execErr == nil && isResultAwaitingInput(result)
 }
@@ -1712,6 +1777,34 @@ func extractSenderID(event *larkim.P2MessageReceiveV1) string {
 	return deref(event.Event.Sender.SenderId.OpenId)
 }
 
+// extractMentions extracts mentioned user IDs from a Lark message event.
+func extractMentions(event *larkim.P2MessageReceiveV1) []string {
+	if event == nil || event.Event == nil || event.Event.Message == nil {
+		return nil
+	}
+	mentions := event.Event.Message.Mentions
+	if len(mentions) == 0 {
+		return nil
+	}
+	var ids []string
+	for _, m := range mentions {
+		if m == nil || m.Id == nil {
+			continue
+		}
+		id := deref(m.Id.OpenId)
+		if id == "" {
+			id = deref(m.Id.UserId)
+		}
+		if id == "" {
+			id = deref(m.Id.UnionId)
+		}
+		if id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 // isBotSender checks if the message sender is a bot (app).
 func isBotSender(event *larkim.P2MessageReceiveV1) bool {
 	if event == nil || event.Event == nil || event.Event.Sender == nil {
@@ -1726,6 +1819,32 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
+}
+
+// triggerNextBotResponse triggers the next bot in an AI chat session to respond.
+func (g *Gateway) triggerNextBotResponse(ctx context.Context, chatID, chatType string) {
+	if g.aiCoordinator == nil {
+		return
+	}
+
+	nextBotID, shouldContinue := g.aiCoordinator.AdvanceTurn(chatID, g.cfg.AppID)
+	if !shouldContinue {
+		return
+	}
+
+	g.logger.Info("AI chat: triggering next bot %s in chat %s", nextBotID, chatID)
+
+	// Send a message mentioning the next bot to trigger its response
+	triggerMsg := fmt.Sprintf("@%s(%s) 轮到你了，继续我们的讨论吧", nextBotID, nextBotID)
+	content := textContent(triggerMsg)
+
+	replyTo := ""
+	if chatType != "p2p" {
+		// In group chats, don't reply to a specific message to keep the flow natural
+		replyTo = ""
+	}
+
+	g.dispatch(ctx, chatID, replyTo, "text", content)
 }
 
 func normalizeExtensions(exts []string) []string {
