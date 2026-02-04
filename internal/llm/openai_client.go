@@ -480,7 +480,12 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 			continue
 		}
 		entry := map[string]any{"role": msg.Role}
-		entry["content"] = buildMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
+		content := buildMessageContent(msg, shouldEmbedAttachmentsInContent(msg))
+		entry["content"] = content
+		// Kimi rejects empty user messages.
+		if isKimi && msg.Role == "user" && isEmptyContent(content) {
+			continue
+		}
 		if msg.ToolCallID != "" {
 			entry["tool_call_id"] = msg.ToolCallID
 		}
@@ -496,6 +501,20 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 		result = append(result, entry)
 	}
 	return result
+}
+
+// isEmptyContent checks if the message content is empty (string or array).
+func isEmptyContent(content any) bool {
+	switch v := content.(type) {
+	case string:
+		return strings.TrimSpace(v) == ""
+	case []map[string]any:
+		return len(v) == 0
+	case nil:
+		return true
+	default:
+		return false
+	}
 }
 
 func extractRequestID(metadata map[string]any) string {
