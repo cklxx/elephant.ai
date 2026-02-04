@@ -202,6 +202,53 @@ func TestPrepareUploadCandidate_PathMode(t *testing.T) {
 	}
 }
 
+func TestPrepareUploadCandidate_PathMode_AllowsTempDir(t *testing.T) {
+	tmpDir := os.TempDir()
+	if strings.TrimSpace(tmpDir) == "" {
+		t.Skip("os.TempDir is empty")
+	}
+	file, err := os.CreateTemp(tmpDir, "lark-upload-temp-*.txt")
+	if err != nil {
+		t.Skipf("failed to create temp file: %v", err)
+	}
+	path := file.Name()
+	if _, err := file.WriteString("hello"); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		t.Skipf("failed to write temp file: %v", err)
+	}
+	_ = file.Close()
+	t.Cleanup(func() {
+		_ = os.Remove(path)
+	})
+
+	cand, errResult := prepareUploadCandidate(context.Background(), "call-1", map[string]any{"path": path}, defaultMaxBytes)
+	if errResult != nil {
+		t.Fatalf("unexpected error: %v", errResult.Error)
+	}
+	if cand.cleanup == nil {
+		t.Fatal("expected cleanup for path mode")
+	}
+	cand.cleanup()
+
+	if cand.fileName != filepath.Base(path) {
+		t.Fatalf("unexpected fileName: %s", cand.fileName)
+	}
+	if cand.size != int64(len("hello")) {
+		t.Fatalf("unexpected size: %d", cand.size)
+	}
+	if cand.fileType != "stream" {
+		t.Fatalf("unexpected fileType: %s", cand.fileType)
+	}
+	expected, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		t.Fatalf("failed to normalize expected path: %v", err)
+	}
+	if got := cand.meta["resolved_path"]; got != expected {
+		t.Fatalf("unexpected resolved_path: %v", got)
+	}
+}
+
 func TestPrepareUploadCandidate_AttachmentMode(t *testing.T) {
 	payload := []byte("hello")
 	encoded := base64.StdEncoding.EncodeToString(payload)

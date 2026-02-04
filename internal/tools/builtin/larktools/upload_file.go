@@ -54,7 +54,7 @@ func NewLarkUploadFile() tools.ToolExecutor {
 					Properties: map[string]ports.Property{
 						"path": {
 							Type:        "string",
-							Description: "Local file path (must stay within the working directory). Provide exactly one of path or attachment_name.",
+							Description: "Local file path (must stay within the working directory or a temp directory, e.g. /tmp, $TMPDIR). Provide exactly one of path or attachment_name.",
 						},
 						"attachment_name": {
 							Type:        "string",
@@ -260,7 +260,7 @@ func prepareUploadCandidate(ctx context.Context, callID string, args map[string]
 }
 
 func preparePathCandidate(ctx context.Context, callID, rawPath, fileNameOverride string, maxBytes int) (uploadCandidate, *ports.ToolResult) {
-	resolved, err := pathutil.ResolveLocalPath(ctx, rawPath)
+	resolved, err := pathutil.ResolveLocalPathOrTemp(ctx, rawPath)
 	if err != nil {
 		err := fmt.Errorf("%s: %w", rawPath, err)
 		return uploadCandidate{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}

@@ -112,7 +112,7 @@ func buildAttachmentsFromSpecs(ctx context.Context, specs []attachmentSpec, cfg 
 }
 
 func buildAttachmentFromPath(ctx context.Context, spec attachmentSpec, cfg shared.AutoUploadConfig) (ports.Attachment, error) {
-	resolved, err := pathutil.ResolveLocalPath(ctx, spec.Path)
+	resolved, err := pathutil.ResolveLocalPathOrTemp(ctx, spec.Path)
 	if err != nil {
 		return ports.Attachment{}, fmt.Errorf("%s: %w", spec.Path, err)
 	}
