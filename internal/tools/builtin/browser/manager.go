@@ -79,8 +79,12 @@ func (m *Manager) newSession(sessionID string) (*session, error) {
 	var allocCtx context.Context
 	var allocCancel context.CancelFunc
 
-	if strings.TrimSpace(m.cfg.CDPURL) != "" {
-		allocCtx, allocCancel = chromedp.NewRemoteAllocator(baseCtx, m.cfg.CDPURL)
+	if rawCDPURL := strings.TrimSpace(m.cfg.CDPURL); rawCDPURL != "" {
+		cdpURL, err := resolveCDPURL(baseCtx, rawCDPURL)
+		if err != nil {
+			return nil, fmt.Errorf("resolve cdp_url %q: %w", rawCDPURL, err)
+		}
+		allocCtx, allocCancel = chromedp.NewRemoteAllocator(baseCtx, cdpURL)
 	} else {
 		opts := append(chromedp.DefaultExecAllocatorOptions[:],
 			chromedp.Flag("headless", m.cfg.Headless),
