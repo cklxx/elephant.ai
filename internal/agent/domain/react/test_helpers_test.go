@@ -7,5 +7,9 @@ func newReactEngineForTest(maxIterations int) *ReactEngine {
 		MaxIterations: maxIterations,
 		Logger:        agent.NoopLogger{},
 		Clock:         agent.SystemClock{},
+		FinalAnswerReview: FinalAnswerReviewConfig{
+			Enabled:            true,
+			MaxExtraIterations: 1,
+		},
 	})
 }
