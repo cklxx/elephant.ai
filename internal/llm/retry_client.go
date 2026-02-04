@@ -104,10 +104,11 @@ func (c *retryClient) SetUsageCallback(callback func(usage ports.TokenUsage, mod
 }
 
 // StreamComplete proxies streaming requests to the underlying client when supported.
-// Unlike Complete, streaming requests are not retried to avoid duplicating partial
-// responses when an upstream error occurs mid-stream. We still leverage the circuit
-// breaker for protection and fall back to non-streaming completion when the
-// underlying client lacks native streaming support.
+// Unlike Complete, streaming requests are not fully retried to avoid duplicating partial
+// responses when an upstream error occurs mid-stream. However, pre-stream errors like
+// rate limits (429) are retried since they occur before any data is sent.
+// We still leverage the circuit breaker for protection and fall back to non-streaming
+// completion when the underlying client lacks native streaming support.
 func (c *retryClient) StreamComplete(
 	ctx context.Context,
 	req ports.CompletionRequest,
@@ -131,13 +132,40 @@ func (c *retryClient) StreamComplete(
 
 	startTime := time.Now()
 
-	resp, err := alexerrors.ExecuteFunc(c.circuitBreaker, ctx, func(ctx context.Context) (*ports.CompletionResponse, error) {
-		response, streamErr := streamingClient.StreamComplete(ctx, req, callbacks)
-		if streamErr != nil {
-			return nil, c.classifyLLMError(streamErr)
+	// Retry loop for pre-stream errors (e.g., rate limits).
+	// These errors occur before any streaming data is sent, so they're safe to retry.
+	maxAttempts := c.retryConfig.MaxAttempts + 1
+	var resp *ports.CompletionResponse
+	var err error
+
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		resp, err = alexerrors.ExecuteFunc(c.circuitBreaker, ctx, func(ctx context.Context) (*ports.CompletionResponse, error) {
+			response, streamErr := streamingClient.StreamComplete(ctx, req, callbacks)
+			if streamErr != nil {
+				return nil, c.classifyLLMError(streamErr)
+			}
+			return response, nil
+		})
+
+		if err == nil {
+			break
 		}
-		return response, nil
-	})
+
+		// Only retry on rate limit errors (pre-stream errors).
+		if !c.isRateLimitError(err) {
+			break
+		}
+
+		if attempt < maxAttempts-1 {
+			delay := c.calculateBackoff(attempt)
+			c.logger.Debug("Rate limited, retrying in %v (attempt %d/%d)", delay, attempt+1, maxAttempts)
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+	}
 
 	duration := time.Since(startTime)
 
@@ -157,6 +185,43 @@ func (c *retryClient) StreamComplete(
 	}
 
 	return resp, nil
+}
+
+// isRateLimitError checks if the error is a rate limit (429) error.
+func (c *retryClient) isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := strings.ToLower(err.Error())
+	return strings.Contains(errStr, "429") || strings.Contains(errStr, "rate limit")
+}
+
+// calculateBackoff returns the delay for the given retry attempt using exponential backoff with jitter.
+func (c *retryClient) calculateBackoff(attempt int) time.Duration {
+	baseDelay := c.retryConfig.BaseDelay
+	if baseDelay == 0 {
+		baseDelay = time.Second
+	}
+	maxDelay := c.retryConfig.MaxDelay
+	if maxDelay == 0 {
+		maxDelay = 30 * time.Second
+	}
+	jitter := c.retryConfig.JitterFactor
+	if jitter == 0 {
+		jitter = 0.25
+	}
+
+	// Exponential backoff: baseDelay * 2^attempt
+	delay := float64(baseDelay) * float64(int(1)<<attempt)
+	if delay > float64(maxDelay) {
+		delay = float64(maxDelay)
+	}
+
+	// Add jitter: ±jitter%
+	jitterRange := delay * jitter
+	delay = delay - jitterRange + (2 * jitterRange * float64(time.Now().UnixNano()%1000) / 1000)
+
+	return time.Duration(delay)
 }
 
 func (c *retryClient) streamingClient() portsllm.StreamingLLMClient {
