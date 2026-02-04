@@ -29,4 +29,4 @@ Out of scope:
 - [x] Emit `workflow.tool.started/completed` for `final_answer_review` in ReAct runtime.
 - [x] Add/extend tests for injection ACK + final review events + Lark reaction listener.
 - [x] Update docs for group message permissions + @mention syntax.
-- [ ] Run `go test ./...` + `make fmt` + `make vet`, then merge back to `main` (ff preferred).
+- [x] Run `go test ./...` + `make fmt` + `make vet`, then merge back to `main` (ff preferred).
