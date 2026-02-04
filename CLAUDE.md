@@ -69,6 +69,7 @@ When making decisions, prefer:
   * Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.
   * Run full lint and test validation after changes.
   * Start each task from a clean slate: create a new worktree on a new branch based on `main`, copy `.env` into the worktree, implement changes there, then merge back into `main` (prefer fast-forward).
+  * After finishing and merging back, delete the temporary worktree (and optionally delete the branch) to keep the repo clean.
   * After completing code changes, restart the project with `./dev.sh down && ./dev.sh`.
   * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
   * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.

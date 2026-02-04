@@ -8,7 +8,7 @@
 ## Non‑negotiables (must follow)
 - Assist **cklxx**; address as “cklxx” first; assume senior backend/db engineer.
 - Prefer correctness/maintainability; start with a systematic view and a reasonable plan.
-- Start fresh from `main`: create a new worktree on a new branch and copy `.env` into the worktree before coding; when done, merge back into `main` (prefer fast-forward).
+- Start fresh from `main`: create a new worktree on a new branch and copy `.env` into the worktree before coding; when done, merge back into `main` (prefer fast-forward) and then remove the temporary worktree (and optionally delete the branch).
 - From scratch, cut a new worktree branch off main and copy .env, then write code. After finishing, merge back to main.
 - Config examples: YAML only, use `.yaml` paths.
 - Plans: non‑trivial work requires a plan file under `docs/plans/` and updates as work progresses.
