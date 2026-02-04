@@ -25,8 +25,8 @@ Out of scope:
 ## Checklist / Progress
 
 - [x] Add `channels.lark.injection_ack_react_emoji` and use it for injected-message ACK reaction.
-- [ ] Add `channels.lark.final_answer_review_react_emoji` and react when final review triggers.
+- [x] Add `channels.lark.final_answer_review_react_emoji` and react when final review triggers.
 - [x] Emit `workflow.tool.started/completed` for `final_answer_review` in ReAct runtime.
-- [ ] Add/extend tests for injection ACK + final review events + Lark reaction listener.
+- [x] Add/extend tests for injection ACK + final review events + Lark reaction listener.
 - [ ] Update docs for group message permissions + @mention syntax.
 - [ ] Run `go test ./...` + `make fmt` + `make vet`, then merge back to `main` (ff preferred).
