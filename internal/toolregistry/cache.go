@@ -47,6 +47,7 @@ func DefaultCacheConfig() CacheConfig {
 			"memory_get",
 			"todo_update",
 			"lark_send_message",
+			"lark_upload_file",
 			"lark_calendar_create",
 			"lark_calendar_update",
 			"lark_calendar_delete",
