@@ -237,6 +237,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	// consumers receive workflow event envelopes.
 	eventListener := wrapWithWorkflowEnvelope(listener, nil)
 	var planTitleRecorder *planSessionTitleRecorder
+	var serializingListener *SerializingEventListener
 	if eventListener != nil && !appcontext.IsSubagentContext(ctx) {
 		planTitleRecorder = &planSessionTitleRecorder{
 			sink: eventListener,
@@ -247,7 +248,8 @@ func (c *AgentCoordinator) ExecuteTask(
 		eventListener = planTitleRecorder
 	}
 	if eventListener != nil {
-		eventListener = NewSerializingEventListener(eventListener)
+		serializingListener = NewSerializingEventListener(eventListener)
+		eventListener = serializingListener
 	}
 
 	ctx = id.WithSessionID(ctx, sessionID)
@@ -259,6 +261,13 @@ func (c *AgentCoordinator) ExecuteTask(
 		ensuredRunID = id.RunIDFromContext(ctx)
 	}
 	parentRunID := id.ParentRunIDFromContext(ctx)
+	if serializingListener != nil {
+		defer func() {
+			flushCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			serializingListener.Flush(flushCtx, ensuredRunID)
+		}()
+	}
 
 	// Core run: set correlation_id = own run_id as root of the causal chain.
 	// Subagent runs inherit this via subagent.executeSubtask.
