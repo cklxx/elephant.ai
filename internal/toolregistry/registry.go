@@ -552,6 +552,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	// Lark tools
 	r.static["lark_chat_history"] = larktools.NewLarkChatHistory()
 	r.static["lark_send_message"] = larktools.NewLarkSendMessage()
+	r.static["lark_upload_file"] = larktools.NewLarkUploadFile()
 	r.static["lark_calendar_query"] = larktools.NewLarkCalendarQuery()
 	r.static["lark_calendar_create"] = larktools.NewLarkCalendarCreate()
 	r.static["lark_calendar_update"] = larktools.NewLarkCalendarUpdate()
