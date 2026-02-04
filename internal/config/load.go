@@ -226,6 +226,9 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg == nil {
 		return
 	}
+	if cfg.FinalAnswerReview.MaxExtraIterations <= 0 {
+		cfg.FinalAnswerReview.MaxExtraIterations = 1
+	}
 	cfg.Memory.Index.DBPath = strings.TrimSpace(cfg.Memory.Index.DBPath)
 	cfg.Memory.Index.EmbedderModel = strings.TrimSpace(cfg.Memory.Index.EmbedderModel)
 	if cfg.Memory.Index.ChunkTokens <= 0 {
