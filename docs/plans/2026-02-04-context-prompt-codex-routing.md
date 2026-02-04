@@ -14,4 +14,5 @@
 
 ## Progress Log
 - 2026-02-04: Plan created.
-
+- 2026-02-04: Updated default policy to delegate coding/planning to Codex first; added regression test verifying prompt includes `bg_dispatch(agent_type=codex)`.
+- 2026-02-04: Ran `make fmt` and `make test`.
