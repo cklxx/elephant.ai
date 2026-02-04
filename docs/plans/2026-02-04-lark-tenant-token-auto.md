@@ -33,4 +33,4 @@ Date: 2026-02-04
 - [x] Update docs/examples.
 - [x] Update long-term memory timestamp.
 - [ ] Run full lint + tests (Go tests passed; web lint failed: eslint not found).
-- [ ] Merge to main and record plan updates.
+- [x] Merge to main and record plan updates.
