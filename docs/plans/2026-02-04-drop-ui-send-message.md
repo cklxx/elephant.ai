@@ -12,11 +12,11 @@
 - Keep `lark_send_message` semantics unchanged (reply target derived from Lark context; no `reply_to_message_id` parameter).
 
 ## Checklist
-- [ ] Remove tool + registry wiring
-- [ ] Update docs + default policy
-- [ ] Run full lint + tests
+- [x] Remove tool + registry wiring
+- [x] Update docs + default policy
+- [x] Run full lint + tests
 - [ ] Commit in small steps and merge to `main`
 
 ## Progress Log
 - 2026-02-04: Plan created.
-
+- 2026-02-04: Dropped UI `send_message`; updated docs/policy; ran lint+tests.
