@@ -1,5 +1,5 @@
 # ALEX 配置参考
-> Last updated: 2026-01-31
+> Last updated: 2026-02-04
 
 本文档是 **ALEX 主配置文件（`~/.alex/config.yaml`）** 的说明，覆盖 runtime 以及 server/auth/session/analytics/attachments 等段。`alex` CLI 与 `alex-server` 共享 runtime 配置；`alex-server` 额外读取其他段完成服务侧配置。
 
@@ -315,12 +315,27 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 ### 工具与运行体验
 
 - `tool_preset`：工具权限预设：`sandbox` / `safe` / `read-only` / `full` / `architect`。Web 模式下如显式配置会生效（默认不配置则保持 Web 模式默认允许集）。
-- 运行时工具模式由入口决定：`alex` 为 CLI 模式、`alex-server` 为 Web 模式（默认禁用本地文件/命令）。
+- `toolset`：内置工具实现选择：`default`（使用 sandbox 工具实现）/ `local`（别名 `lark-local`，使用本地工具实现：本地文件/命令/浏览器）。
+- 运行时工具模式由入口决定：`alex` 为 CLI 模式、`alex-server` 为 Web 模式（Web 默认使用 sandbox 工具；如显式设置 `toolset: local` 则会启用本地实现）。
 - `agent_preset`：agent 预设（按项目内 presets 定义）。
 - `verbose`：verbose 模式（CLI/Server 的输出更详细）。
 - `session_dir`：会话存储目录（支持 `~` 与 `$ENV` 展开）。
 - `cost_dir`：cost 存储目录（支持 `~` 与 `$ENV` 展开）。
 - `tool_max_concurrent`：工具调用最大并发数（默认 8）。
+- `browser.cdp_url`：本地浏览器 CDP URL；支持 `ws://...`（webSocketDebuggerUrl）或 `http://127.0.0.1:<port>`（DevTools HTTP endpoint，会自动解析到 websocket）。
+- `browser.chrome_path`：本地启动 Chrome 的路径（未配置 `browser.cdp_url` 时生效）。
+- `browser.headless`：是否 headless（未配置 `browser.cdp_url` 时生效）。
+- `browser.user_data_dir`：本地 Chrome user-data-dir 根目录（未配置 `browser.cdp_url` 时生效）。
+- `browser.timeout_seconds`：本地浏览器工具超时（秒）。
+
+示例（YAML）：
+
+```yaml
+runtime:
+  toolset: "local"
+  browser:
+    cdp_url: "http://127.0.0.1:9222"
+```
 
 ### Proactive 记忆（proactive.memory）
 

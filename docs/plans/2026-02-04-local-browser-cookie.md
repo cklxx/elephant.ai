@@ -29,13 +29,12 @@
    - 说明：要复用默认 Cookie，通常需要先退出已有 Chrome 实例再启动带远程调试的实例。
 
 ## Milestones
-- [ ] 配置 schema + loader + 文档（runtime.toolset/runtime.browser）
-- [ ] CDP URL 解析逻辑 + 单测
-- [ ] 启动脚本（Chrome/Atlas）+ 使用文档
+- [x] 配置 schema + loader + 文档（runtime.toolset/runtime.browser）
+- [x] CDP URL 解析逻辑 + 单测
+- [x] 启动脚本（Chrome/Atlas）+ 使用文档
 - [ ] 全量 lint + test
 
 ## Acceptance Criteria
 - 可在 `config.yaml` 里启用本地 toolset，并通过 `runtime.browser.cdp_url` 连接到本机 Chrome/Atlas 的远程调试端口。
 - `browser_action/browser_dom/browser_screenshot/browser_info` 在 CLI/Web 模式可用并能操作已登录页面。
 - 单测覆盖 `cdp_url` 解析分支；`./dev.sh lint` 与 `./dev.sh test` 通过。
-
