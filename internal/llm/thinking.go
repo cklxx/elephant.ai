@@ -45,6 +45,23 @@ func appendThinkingToText(content string, thinking ports.Thinking) string {
 	return content + "\n\n" + extra
 }
 
+// extractThinkingText returns the raw reasoning content from Thinking parts,
+// concatenated with newlines. Used for providers like Kimi that require
+// reasoning_content in message history.
+func extractThinkingText(thinking ports.Thinking) string {
+	if len(thinking.Parts) == 0 {
+		return ""
+	}
+	var lines []string
+	for _, part := range thinking.Parts {
+		text := strings.TrimSpace(part.Text)
+		if text != "" {
+			lines = append(lines, text)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
 func appendThinkingPart(thinking *ports.Thinking, part ports.ThinkingPart) {
 	if thinking == nil {
 		return

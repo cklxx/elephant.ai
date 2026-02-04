@@ -97,6 +97,10 @@ func (c *baseClient) doPost(ctx context.Context, endpoint string, body []byte) (
 	if c.maxRetries > 0 {
 		httpReq.Header.Set("X-Retry-Limit", strconv.Itoa(c.maxRetries))
 	}
+	// Kimi For Coding requires a recognized coding agent User-Agent header.
+	if strings.Contains(c.baseURL, "kimi.com") {
+		httpReq.Header.Set("User-Agent", "KimiCLI/1.3")
+	}
 	for k, v := range c.headers {
 		httpReq.Header.Set(k, v)
 	}
