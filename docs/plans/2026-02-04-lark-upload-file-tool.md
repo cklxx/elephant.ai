@@ -6,7 +6,7 @@
 - Only available inside a Lark chat context (`*lark.Client` + `chat_id` must be present in tool context).
 - Reply target is derived from the current Lark message context (no explicit `reply_to_message_id` parameter).
 - Accept exactly one input source:
-  - a local filesystem `path` (must stay within working directory), **or**
+  - a local filesystem `path` (must stay within working directory or temp dirs), **or**
   - an `attachment_name` from the current task attachment context.
 - After uploading, send a `msg_type="file"` message to the current chat.
 - Enforce size cap only (no extension allowlist):
@@ -17,7 +17,7 @@
 ## Plan
 1) Add tool skeleton + wire it into the tool registry.
 2) Implement upload + send logic:
-   - local path mode (within working dir)
+   - local path mode (within working dir or temp dirs)
    - attachment mode (resolve bytes via attachment resolver)
 3) Add unit tests for argument validation and candidate preparation.
 4) Run full lint + tests.
