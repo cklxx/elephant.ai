@@ -48,7 +48,7 @@ func NewLarkUploadFile() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_upload_file",
-				Description: "Upload a file (from local path or task attachment) and send it to the current Lark chat as a file message. Only available inside a Lark chat context.",
+				Description: "Upload a file (from local path or task attachment) and send it to the current Lark chat as a file message. Replies to the current message thread when message_id is available in context. Only available inside a Lark chat context.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -63,10 +63,6 @@ func NewLarkUploadFile() tools.ToolExecutor {
 						"file_name": {
 							Type:        "string",
 							Description: "Optional override for the uploaded file name.",
-						},
-						"reply_to_message_id": {
-							Type:        "string",
-							Description: "Optional message ID to reply to (threaded reply).",
 						},
 						"max_bytes": {
 							Type:        "integer",
@@ -156,7 +152,7 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 		}, nil
 	}
 
-	replyToID := strings.TrimSpace(shared.StringArg(call.Arguments, "reply_to_message_id"))
+	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
 	msgContent := fileContent(fileKey)
 
 	messageID, errResult := sendFileMessage(ctx, client, call.ID, chatID, replyToID, msgContent)

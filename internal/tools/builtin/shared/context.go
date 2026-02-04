@@ -18,6 +18,7 @@ const (
 	AutoApproveKey   toolContextKey = "auto_approve"
 	larkClientKey    toolContextKey = "lark_client"
 	larkChatIDKey    toolContextKey = "lark_chat_id"
+	larkMessageIDKey toolContextKey = "lark_message_id"
 	larkOAuthKey     toolContextKey = "lark_oauth"
 	larkTenantCalKey toolContextKey = "lark_tenant_calendar_id"
 	timerManagerKey  toolContextKey = "timer_manager"
@@ -145,6 +146,22 @@ func LarkChatIDFromContext(ctx context.Context) string {
 	}
 	if chatID, ok := ctx.Value(larkChatIDKey).(string); ok {
 		return chatID
+	}
+	return ""
+}
+
+// WithLarkMessageID sets the Lark message ID in context.
+func WithLarkMessageID(ctx context.Context, messageID string) context.Context {
+	return context.WithValue(ctx, larkMessageIDKey, messageID)
+}
+
+// LarkMessageIDFromContext retrieves the Lark message ID from context.
+func LarkMessageIDFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	if messageID, ok := ctx.Value(larkMessageIDKey).(string); ok {
+		return messageID
 	}
 	return ""
 }

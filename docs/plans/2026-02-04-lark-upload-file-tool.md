@@ -4,11 +4,11 @@
 
 ## Requirements
 - Only available inside a Lark chat context (`*lark.Client` + `chat_id` must be present in tool context).
+- Reply target is derived from the current Lark message context (no explicit `reply_to_message_id` parameter).
 - Accept exactly one input source:
   - a local filesystem `path` (must stay within working directory), **or**
   - an `attachment_name` from the current task attachment context.
 - After uploading, send a `msg_type="file"` message to the current chat.
-- Optional threaded reply via `reply_to_message_id`.
 - Enforce size cap only (no extension allowlist):
   - default `max_bytes` = 20 MiB
   - allow per-call override via `max_bytes`

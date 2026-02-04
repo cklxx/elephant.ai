@@ -444,6 +444,7 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = shared.WithLarkClient(execCtx, g.client)
 	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = shared.WithLarkMessageID(execCtx, msg.messageID)
 	if calendarID := strings.TrimSpace(g.cfg.TenantCalendarID); calendarID != "" {
 		execCtx = shared.WithLarkTenantCalendarID(execCtx, calendarID)
 	}
