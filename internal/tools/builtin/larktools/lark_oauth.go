@@ -28,41 +28,18 @@ const (
 	larkTokenTenant
 )
 
-type larkTenantTokenMode string
-
-const (
-	larkTenantTokenAuto   larkTenantTokenMode = "auto"
-	larkTenantTokenStatic larkTenantTokenMode = "static"
-)
-
 type larkAccessToken struct {
 	token      string
 	kind       larkTokenKind
-	tenantMode larkTenantTokenMode
 	calendarID string
 }
 
 func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToken, *ports.ToolResult) {
-	tenantToken := strings.TrimSpace(shared.LarkTenantTokenFromContext(ctx))
 	tenantCalendarID := strings.TrimSpace(shared.LarkTenantCalendarIDFromContext(ctx))
-	tenantMode := normalizeTenantTokenMode(shared.LarkTenantTokenModeFromContext(ctx))
 
 	buildTenantAuth := func() (larkAccessToken, *ports.ToolResult) {
-		if tenantMode == larkTenantTokenStatic {
-			if tenantToken == "" {
-				err := fmt.Errorf("tenant token mode is static but channels.lark.tenant_access_token is empty")
-				return larkAccessToken{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
-			}
-			return larkAccessToken{
-				token:      tenantToken,
-				kind:       larkTokenTenant,
-				tenantMode: tenantMode,
-				calendarID: tenantCalendarID,
-			}, nil
-		}
 		return larkAccessToken{
 			kind:       larkTokenTenant,
-			tenantMode: larkTenantTokenAuto,
 			calendarID: tenantCalendarID,
 		}, nil
 	}
@@ -138,11 +115,6 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 
 func buildLarkAuthOptions(auth larkAccessToken) (larkapi.CallOption, larkcore.RequestOptionFunc) {
 	if auth.kind == larkTokenTenant {
-		if auth.tenantMode == larkTenantTokenStatic {
-			// Use user token slot to bypass the SDK tenant-token cache and send the
-			// provided tenant token directly as the Authorization header.
-			return larkapi.WithUserToken(auth.token), larkcore.WithUserAccessToken(auth.token)
-		}
 		return larkapi.WithTenantToken(""), larkcore.WithTenantAccessToken("")
 	}
 	return larkapi.WithUserToken(auth.token), larkcore.WithUserAccessToken(auth.token)
@@ -152,7 +124,7 @@ func resolveCalendarID(ctx context.Context, callID string, client *lark.Client, 
 	if auth.kind == larkTokenTenant {
 		calendarID := strings.TrimSpace(auth.calendarID)
 		if calendarID == "" {
-			err := fmt.Errorf("%s: tenant token mode requires channels.lark.tenant_calendar_id or user OAuth", toolName)
+			err := fmt.Errorf("%s: tenant token requires channels.lark.tenant_calendar_id or user OAuth", toolName)
 			return "", &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
 		}
 		return calendarID, nil
@@ -167,16 +139,4 @@ func resolveCalendarID(ctx context.Context, callID string, client *lark.Client, 
 		}
 	}
 	return calendarID, nil
-}
-
-func normalizeTenantTokenMode(mode string) larkTenantTokenMode {
-	trimmed := strings.ToLower(strings.TrimSpace(mode))
-	switch trimmed {
-	case "static":
-		return larkTenantTokenStatic
-	case "auto", "":
-		return larkTenantTokenAuto
-	default:
-		return larkTenantTokenAuto
-	}
 }

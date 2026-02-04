@@ -175,7 +175,6 @@ func TestCalendarCreate_TenantAutoSharedCalendar(t *testing.T) {
 	tool := NewLarkCalendarCreate()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
 	ctx := shared.WithLarkClient(context.Background(), larkClient)
-	ctx = shared.WithLarkTenantTokenMode(ctx, "auto")
 	ctx = shared.WithLarkTenantCalendarID(ctx, "cal-shared")
 
 	call := ports.ToolCall{ID: "test-tenant-auto", Name: "lark_calendar_create", Arguments: map[string]any{
@@ -202,69 +201,10 @@ func TestCalendarCreate_TenantAutoSharedCalendar(t *testing.T) {
 	}
 }
 
-func TestCalendarCreate_TenantStaticSharedCalendar(t *testing.T) {
-	var mu sync.Mutex
-	var gotAuth string
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/auth/v3/tenant_access_token/internal"):
-			t.Fatalf("unexpected tenant token auto-refresh: %s %s", r.Method, r.URL.Path)
-		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/calendar/v4/calendars"):
-			t.Fatalf("unexpected calendar list request: %s %s", r.Method, r.URL.Path)
-		case r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/calendar/v4/calendars/") && strings.Contains(r.URL.Path, "/events"):
-			if !strings.Contains(r.URL.Path, "/calendar/v4/calendars/cal-shared/") {
-				t.Fatalf("unexpected calendar_id in path: %s", r.URL.Path)
-			}
-			mu.Lock()
-			gotAuth = r.Header.Get("Authorization")
-			mu.Unlock()
-			_, _ = w.Write(jsonResponse(0, "ok", map[string]interface{}{
-				"event": map[string]interface{}{
-					"event_id": "evt_123",
-				},
-			}))
-			return
-		default:
-			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
-		}
-	}))
-	defer srv.Close()
-
-	tool := NewLarkCalendarCreate()
-	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
-	ctx := shared.WithLarkClient(context.Background(), larkClient)
-	ctx = shared.WithLarkTenantTokenMode(ctx, "static")
-	ctx = shared.WithLarkTenantToken(ctx, "tenant-token")
-	ctx = shared.WithLarkTenantCalendarID(ctx, "cal-shared")
-
-	call := ports.ToolCall{ID: "test-tenant-static", Name: "lark_calendar_create", Arguments: map[string]any{
-		"summary":    "Test",
-		"start_time": "1700000000",
-		"end_time":   "1700003600",
-	}}
-
-	result, err := tool.Execute(ctx, call)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.Error != nil {
-		t.Fatalf("expected success, got error: %v", result.Error)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	if gotAuth != "Bearer tenant-token" {
-		t.Fatalf("expected tenant token auth, got %q", gotAuth)
-	}
-}
-
 func TestCalendarCreate_TenantModeMissingCalendarID(t *testing.T) {
 	tool := NewLarkCalendarCreate()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret")
 	ctx := shared.WithLarkClient(context.Background(), larkClient)
-	ctx = shared.WithLarkTenantTokenMode(ctx, "auto")
 
 	call := ports.ToolCall{ID: "test-tenant-missing", Name: "lark_calendar_create", Arguments: map[string]any{
 		"summary":    "Test",

@@ -12,8 +12,6 @@ type Config struct {
 	Enabled                       bool
 	AppID                         string
 	AppSecret                     string
-	TenantAccessToken             string
-	TenantTokenMode               string
 	TenantCalendarID              string
 	BaseDomain                    string
 	WorkspaceDir                  string

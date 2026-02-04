@@ -108,7 +108,6 @@ func TestCalendarQuery_TenantAutoSharedCalendar(t *testing.T) {
 	tool := NewLarkCalendarQuery()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret", lark.WithOpenBaseUrl(srv.URL))
 	ctx := shared.WithLarkClient(context.Background(), larkClient)
-	ctx = shared.WithLarkTenantTokenMode(ctx, "auto")
 	ctx = shared.WithLarkTenantCalendarID(ctx, "cal-shared")
 
 	call := ports.ToolCall{ID: "test-tenant-auto", Name: "lark_calendar_query", Arguments: map[string]any{
@@ -134,7 +133,6 @@ func TestCalendarQuery_TenantModeMissingCalendarID(t *testing.T) {
 	tool := NewLarkCalendarQuery()
 	larkClient := lark.NewClient("test_app_id", "test_app_secret")
 	ctx := shared.WithLarkClient(context.Background(), larkClient)
-	ctx = shared.WithLarkTenantTokenMode(ctx, "auto")
 
 	call := ports.ToolCall{ID: "test-tenant-missing", Name: "lark_calendar_query", Arguments: map[string]any{
 		"start_time": "1700000000",
