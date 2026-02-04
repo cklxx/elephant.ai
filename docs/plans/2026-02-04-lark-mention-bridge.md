@@ -28,4 +28,4 @@ Out of scope:
 - [x] Resolve incoming `@_user_n` placeholders via `event.message.mentions[]` (text + post) with tests.
 - [x] Render outgoing `@Name(ou_...)` into `<at user_id="ou_...">Name</at>` (gateway + tool) with tests.
 - [x] Update `docs/reference/LARK_MENTIONS.md` with the correct protocols and steps to @ another bot.
-- [ ] Run `go test ./...` + repo lint targets, then merge back to `main` (ff preferred).
+- [x] Run `go test ./...` + repo lint targets, then merge back to `main` (ff preferred).
