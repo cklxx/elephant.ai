@@ -15,3 +15,5 @@
 
 ## Progress
 - 2026-02-04: Plan created.
+- 2026-02-04: Added web lint dependency preflight to install eslint when missing.
+- 2026-02-04: Ran `./dev.sh lint` and `./dev.sh test`.
