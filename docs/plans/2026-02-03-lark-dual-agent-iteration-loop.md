@@ -82,6 +82,9 @@ Author: cklxx
   - 在 `.worktrees/test` 启动/重启 `alex-server`（并确保本地 auth DB 已启动 + `.env` 已同步）
   - 默认读取 `~/.alex/test.yaml`（也可指定绝对路径，如 `/Users/bytedance/.alex/test.yaml`）
   - 内部日志目录：默认写到 `.worktrees/test/logs`（可通过 `ALEX_LOG_DIR` 覆盖）
+  - `alex-server` **总是以当前 test worktree 的代码**运行（即 `git -C .worktrees/test rev-parse HEAD`）
+    - test 分支如何对齐到 `main@SHA`：由 loop 负责（`scripts/lark/loop.sh` 在每轮 cycle 开始会 `reset --hard base_sha`）
+  - `FORCE_REBUILD=1` 默认开启：每次 start/restart 都会重新编译（避免“看起来没编译”的误判）
 
 ### 副 agent 自愈闭环
 
@@ -89,6 +92,9 @@ Author: cklxx
   - 每 `SLEEP_SECONDS`（默认 10s）轮询 `main` 的 SHA
   - 若发现新 SHA 且无锁，则触发一轮 `run_cycle(base_sha)`
   - 若某次循环 exhaust（修不动/门禁持续失败），会记录 `last_sha`，避免对同一个 SHA 紧密重跑（等 main 前进再跑）
+  - 每轮 cycle 会重启 test bot 两次：
+    1) `git reset --hard base_sha` 之后（让 test bot 跑在要验证的快照上）
+    2) fast+slow gate 全部通过之后（让 test bot 跑在最终 candidate commit 上）
 
 - `scripts/lark/loop.sh run --base-sha <sha>`
   - 手动触发一次闭环（便于 debug）
@@ -171,6 +177,15 @@ channels:
   - `logs/lark-loop.log`：自愈循环总日志
   - `logs/lark-loop.fail.txt`：失败摘要（tail 200）
   - `logs/lark-scenarios.json` / `logs/lark-scenarios.md`：场景评测报告
+
+---
+
+## Note: main agent “莫名其妙没了” 的常见原因（已规避）
+
+loop 在合入 `main` 后会尝试重启主 agent 以加载新代码。为了避免误伤 `dev.sh` 启动的服务：
+
+- loop **只会**在检测到 `${MAIN_ROOT}/.pids/lark-main.pid` 存在时才重启主 agent
+- 推荐主 agent 统一使用 `./lark.sh ma start` 启动（而不是 `./dev.sh`），避免端口占用/进程接管的歧义
 
 ---
 
