@@ -944,7 +944,12 @@ cmd_lint() {
   log_success "Go lint passed"
 
   log_info "Running web lint..."
-  npm --prefix "${SCRIPT_DIR}/web" run lint
+  local web_dir="${SCRIPT_DIR}/web"
+  if [[ ! -x "${web_dir}/node_modules/.bin/eslint" ]]; then
+    log_warn "web/node_modules missing or eslint not found; installing web deps..."
+    npm --prefix "${web_dir}" ci
+  fi
+  npm --prefix "${web_dir}" run lint
   log_success "Web lint passed"
 }
 
