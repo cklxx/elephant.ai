@@ -11,8 +11,10 @@ import (
 	appcontext "alex/internal/agent/app/context"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
+	portsllm "alex/internal/agent/ports/llm"
 	storage "alex/internal/agent/ports/storage"
 	tools "alex/internal/agent/ports/tools"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/llm"
 	id "alex/internal/utils/id"
 )
@@ -82,7 +84,7 @@ func (s *stubSessionStore) Delete(ctx context.Context, id string) error {
 }
 
 type stubHistoryManager struct {
-	mu              sync.Mutex
+	mu               sync.Mutex
 	clearedSessionID string
 	appendCalled     bool
 }
@@ -138,6 +140,33 @@ type stubParser struct{}
 func (stubParser) Parse(content string) ([]ports.ToolCall, error)                      { return nil, nil }
 func (stubParser) Validate(call ports.ToolCall, definition ports.ToolDefinition) error { return nil }
 
+type recordingLLMFactory struct {
+	mu       sync.Mutex
+	provider string
+	model    string
+}
+
+func (f *recordingLLMFactory) GetClient(provider, model string, config portsllm.LLMConfig) (portsllm.LLMClient, error) {
+	return f.GetIsolatedClient(provider, model, config)
+}
+
+func (f *recordingLLMFactory) GetIsolatedClient(provider, model string, config portsllm.LLMConfig) (portsllm.LLMClient, error) {
+	f.mu.Lock()
+	f.provider = provider
+	f.model = model
+	f.mu.Unlock()
+	_ = config
+	return llm.NewMockClient(), nil
+}
+
+func (f *recordingLLMFactory) DisableRetry() {}
+
+func (f *recordingLLMFactory) Last() (string, string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.provider, f.model
+}
+
 func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
 	llmFactory := llm.NewFactory()
 	sessionStore := &stubSessionStore{}
@@ -173,6 +202,49 @@ func TestPrepareExecutionReturnsTypedEnvironment(t *testing.T) {
 
 	if len(env.Session.Messages) != 1 {
 		t.Fatalf("expected session messages to be copied, got %d", len(env.Session.Messages))
+	}
+}
+
+func TestPrepareExecutionUsesRuntimeConfigResolver(t *testing.T) {
+	llmFactory := &recordingLLMFactory{}
+	sessionStore := &stubSessionStore{}
+	coordinator := NewAgentCoordinator(
+		llmFactory,
+		stubToolRegistry{},
+		sessionStore,
+		stubContextManager{},
+		nil,
+		stubParser{},
+		nil,
+		appconfig.Config{
+			LLMProvider:       "mock",
+			LLMModel:          "old-model",
+			LLMSmallModel:     "",
+			MaxIterations:     5,
+			SessionStaleAfter: 0,
+		},
+	)
+	coordinator.SetRuntimeConfigResolver(func(ctx context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {
+		_ = ctx
+		return runtimeconfig.RuntimeConfig{
+			LLMProvider:   "mock",
+			LLMModel:      "new-model",
+			LLMSmallModel: "",
+			MaxIterations: 5,
+			MaxTokens:     2048,
+		}, runtimeconfig.Metadata{}, nil
+	})
+
+	if _, err := coordinator.PrepareExecution(context.Background(), "hi", ""); err != nil {
+		t.Fatalf("prepare execution failed: %v", err)
+	}
+
+	gotProvider, gotModel := llmFactory.Last()
+	if gotProvider != "mock" {
+		t.Fatalf("expected provider mock, got %q", gotProvider)
+	}
+	if gotModel != "new-model" {
+		t.Fatalf("expected model new-model, got %q", gotModel)
 	}
 }
 
