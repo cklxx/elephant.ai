@@ -129,6 +129,7 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 #        enabled: true
 #        app_id: "cli_xxx"
 #        app_secret: "xxx"
+#        tenant_calendar_id: "cal_xxx" # 租户 token 回退使用的共享日历
 #        cards_enabled: true
 #        card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
 #        card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"

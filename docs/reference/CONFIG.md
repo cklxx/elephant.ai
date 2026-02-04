@@ -168,6 +168,7 @@ apps:
 
 - `enabled`：是否启用 Lark 网关（默认 false）。
 - `app_id` / `app_secret`：Lark 应用凭证。
+- `tenant_calendar_id`：当用户 OAuth 不可用时，日历工具会使用租户 token（SDK 自动获取，无需手动配置 token），需要提供共享日历的 calendar_id。
 - `base_domain`：Lark API 域名（默认 `https://open.larkoffice.com`）。
 - `session_prefix`：会话 ID 前缀（默认 `lark`），用于派生稳定的 chat session ID；Lark 不注入 session history，多轮聊天依赖 `auto_chat_context` 与 Markdown 记忆加载。
 - `reply_prefix`：回复前缀。
@@ -198,6 +199,7 @@ channels:
     enabled: true
     app_id: "cli_test"
     app_secret: "secret"
+    tenant_calendar_id: "cal_shared"
     session_prefix: "lark"
     allow_groups: true
     allow_direct: true
