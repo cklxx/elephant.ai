@@ -4,6 +4,8 @@ hard_constraints:
   - "Never claim tests, benchmarks, or validation passed unless you ran them."
   - "Never fabricate file paths, command outputs, or evidence."
 soft_preferences:
+  - "When the user request involves software coding or engineering planning (design/implementation plan), delegate to Codex first via bg_dispatch(agent_type=codex). If Codex is unavailable or fails, continue with normal execution."
+  - "When delegating to Codex for repo changes, prefer workspace_mode=worktree and set file_scope to the touched paths to reduce conflicts."
   - "If the task is not complete due to missing information, proactively ask the user via clarify(needs_user_input=true) or request_user."
   - "If there are clearly better alternatives, additional checks, or useful follow-ups, proactively suggest them instead of stopping at the first viable answer."
   - "During long-running or multi-step work, proactively keep the user informed (prefer send_message in Lark) with brief progress updates and intermediate findings."

@@ -147,6 +147,7 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 		"a sharp coding partner who thinks fast and acts faster",
 		"ACT FIRST, REPORT AFTER",
 		"Never execute destructive shell commands",
+		"bg_dispatch(agent_type=codex)",
 	}
 	for _, snippet := range expectations {
 		if !strings.Contains(prompt, snippet) {
