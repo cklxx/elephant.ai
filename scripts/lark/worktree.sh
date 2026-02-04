@@ -33,15 +33,6 @@ fi
 
 test_root="${main_root}/.worktrees/test"
 
-sync_env() {
-  local src="${main_root}/.env"
-  local dst="${test_root}/.env"
-  [[ -f "${src}" ]] || die "Missing ${src} (create it from .env.example)"
-  [[ -d "${test_root}" ]] || die "Missing test worktree at ${test_root} (run: $0 ensure)"
-
-  cp -f "${src}" "${dst}"
-  log_success "Synced .env -> ${dst}"
-}
 
 is_git_worktree_dir() {
   local path="$1"
@@ -109,7 +100,6 @@ ensure() {
     fi
   fi
 
-  sync_env
 }
 
 cmd="${1:-ensure}"
@@ -117,7 +107,6 @@ shift || true
 
 case "${cmd}" in
   ensure) ensure ;;
-  sync-env) sync_env ;;
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;
 esac
