@@ -86,6 +86,10 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	if c.maxRetries > 0 {
 		httpReq.Header.Set("X-Retry-Limit", fmt.Sprintf("%d", c.maxRetries))
 	}
+	// Kimi For Coding requires a recognized coding agent User-Agent header.
+	if strings.Contains(c.baseURL, "kimi.com") {
+		httpReq.Header.Set("User-Agent", "KimiCLI/1.3")
+	}
 	for k, v := range c.headers {
 		httpReq.Header.Set(k, v)
 	}
