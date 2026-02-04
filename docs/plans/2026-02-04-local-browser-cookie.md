@@ -1,7 +1,7 @@
 # Plan: 本机浏览器接管（复用 Cookie / 已登录态）
 
 **Date:** 2026-02-04  
-**Status:** in progress  
+**Status:** done  
 **Owner:** cklxx
 
 ## Goal
@@ -32,7 +32,7 @@
 - [x] 配置 schema + loader + 文档（runtime.toolset/runtime.browser）
 - [x] CDP URL 解析逻辑 + 单测
 - [x] 启动脚本（Chrome/Atlas）+ 使用文档
-- [ ] 全量 lint + test
+- [x] 全量 lint + test
 
 ## Acceptance Criteria
 - 可在 `config.yaml` 里启用本地 toolset，并通过 `runtime.browser.cdp_url` 连接到本机 Chrome/Atlas 的远程调试端口。
