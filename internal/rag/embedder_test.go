@@ -3,18 +3,22 @@ package rag
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 )
 
 func TestEmbedder_Integration(t *testing.T) {
-	// Skip if no API key or invalid OpenAI key format
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
 		t.Skip("OPENAI_API_KEY not set, skipping integration test")
 	}
-	// OpenAI API keys typically start with "sk-"
-	// Skip if this looks like a different provider's key (e.g., ByteDance Ark uses UUIDs)
-	if len(apiKey) < 20 || apiKey[0:3] != "sk-" {
+	// Skip if this is a different provider's key (Moonshot/Kimi uses `sk-kimi-...`).
+	// `./dev.sh test` loads `.env`, so local non-OpenAI keys can accidentally enable this test.
+	if strings.HasPrefix(apiKey, "sk-kimi-") {
+		t.Skip("OPENAI_API_KEY appears to be a non-OpenAI sk-kimi key, skipping integration test")
+	}
+	// OpenAI API keys typically start with "sk-". Skip if it doesn't look like one.
+	if len(apiKey) < 20 || !strings.HasPrefix(apiKey, "sk-") {
 		t.Skip("OPENAI_API_KEY does not appear to be a valid OpenAI key, skipping integration test")
 	}
 
