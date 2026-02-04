@@ -66,6 +66,7 @@ type LarkGatewayConfig struct {
 	ToolMode                      string
 	ReactEmoji                    string
 	InjectionAckReactEmoji        string
+	FinalAnswerReviewReactEmoji   string
 	ShowToolProgress              bool
 	ShowPlanClarifyMessages       bool
 	AutoChatContextSize           int
@@ -304,6 +305,9 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if emoji := strings.TrimSpace(larkCfg.InjectionAckReactEmoji); emoji != "" {
 		cfg.Channels.Lark.InjectionAckReactEmoji = emoji
+	}
+	if emoji := strings.TrimSpace(larkCfg.FinalAnswerReviewReactEmoji); emoji != "" {
+		cfg.Channels.Lark.FinalAnswerReviewReactEmoji = emoji
 	}
 	if larkCfg.MemoryEnabled != nil {
 		cfg.Channels.Lark.MemoryEnabled = *larkCfg.MemoryEnabled

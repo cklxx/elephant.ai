@@ -277,6 +277,7 @@ type LarkChannelConfig struct {
 	ReplyTimeoutSeconds           *int               `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
 	ReactEmoji                    string             `json:"react_emoji" yaml:"react_emoji"`
 	InjectionAckReactEmoji        string             `json:"injection_ack_react_emoji" yaml:"injection_ack_react_emoji"`
+	FinalAnswerReviewReactEmoji   string             `json:"final_answer_review_react_emoji" yaml:"final_answer_review_react_emoji"`
 	MemoryEnabled                 *bool              `json:"memory_enabled" yaml:"memory_enabled"`
 	ShowToolProgress              *bool              `json:"show_tool_progress" yaml:"show_tool_progress"`
 	ShowPlanClarifyMessages       *bool              `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`

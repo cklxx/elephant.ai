@@ -27,6 +27,7 @@ type Config struct {
 	Browser                       BrowserConfig
 	ReactEmoji                    string // Random emoji pool for start/end reactions (comma/space separated).
 	InjectionAckReactEmoji        string // Emoji reaction for injected user messages while a task is running. Default THINKING.
+	FinalAnswerReviewReactEmoji   string // Emoji reaction when final_answer_review triggers. Default GLANCE.
 	ShowToolProgress              bool   // Show real-time tool progress in chat. Default false.
 	ShowPlanClarifyMessages       bool   // Send plan/clarify tool outputs as chat messages. Default false.
 	AutoChatContextSize           int    // Number of recent messages to fetch for auto chat context. Default 20.
