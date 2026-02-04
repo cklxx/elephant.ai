@@ -11,7 +11,6 @@ import (
 	"alex/internal/channels"
 	runtimeconfig "alex/internal/config"
 	configadmin "alex/internal/config/admin"
-	"alex/internal/logging"
 )
 
 // Config holds server configuration.
@@ -51,8 +50,6 @@ type LarkGatewayConfig struct {
 	Enabled                       bool
 	AppID                         string
 	AppSecret                     string
-	TenantAccessToken             string
-	TenantTokenMode               string
 	TenantCalendarID              string
 	BaseDomain                    string
 	WorkspaceDir                  string
@@ -160,7 +157,6 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 					ToolPreset:    string(presets.ToolPresetLarkLocal),
 					ReplyTimeout:  3 * time.Minute,
 				},
-				TenantTokenMode:    "auto",
 				BaseDomain:         "https://open.larkoffice.com",
 				ToolMode:           "cli",
 				AutoUploadFiles:    true,
@@ -224,20 +220,6 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if appSecret := strings.TrimSpace(larkCfg.AppSecret); appSecret != "" {
 		cfg.Channels.Lark.AppSecret = appSecret
-	}
-	if tenantToken := strings.TrimSpace(larkCfg.TenantAccessToken); tenantToken != "" {
-		cfg.Channels.Lark.TenantAccessToken = tenantToken
-	}
-	if tenantMode := strings.TrimSpace(larkCfg.TenantTokenMode); tenantMode != "" {
-		normalized, ok := normalizeLarkTenantTokenMode(tenantMode)
-		if !ok {
-			logging.NewComponentLogger("config").Warn(
-				"Invalid lark tenant_token_mode %q; defaulting to %q",
-				tenantMode,
-				normalized,
-			)
-		}
-		cfg.Channels.Lark.TenantTokenMode = normalized
 	}
 	if calendarID := strings.TrimSpace(larkCfg.TenantCalendarID); calendarID != "" {
 		cfg.Channels.Lark.TenantCalendarID = calendarID
@@ -504,18 +486,6 @@ func applyAttachmentConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		if parsed, err := time.ParseDuration(ttlRaw); err == nil && parsed > 0 {
 			cfg.Attachment.PresignTTL = parsed
 		}
-	}
-}
-
-func normalizeLarkTenantTokenMode(mode string) (string, bool) {
-	trimmed := strings.ToLower(strings.TrimSpace(mode))
-	switch trimmed {
-	case "", "auto":
-		return "auto", true
-	case "static":
-		return "static", true
-	default:
-		return "auto", false
 	}
 }
 
