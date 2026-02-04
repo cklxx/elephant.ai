@@ -42,6 +42,10 @@ type reactRuntime struct {
 	pauseRequested        bool
 	replanRequested       bool
 	finalReviewAttempts   int
+	finalReviewCallID     string
+	finalReviewStartedAt  time.Time
+	finalReviewInFlight   bool
+	finalReviewAttempt    int
 
 	// Background task manager for async subagent execution.
 	bgManager      *BackgroundTaskManager
@@ -378,11 +382,69 @@ func (r *reactRuntime) shouldTriggerFinalAnswerReview() bool {
 	return true
 }
 
+func (r *reactRuntime) startFinalAnswerReviewToolEvent(callID string, attempt int) {
+	if r == nil || r.engine == nil || r.state == nil {
+		return
+	}
+	callID = strings.TrimSpace(callID)
+	if callID == "" {
+		return
+	}
+
+	if r.finalReviewInFlight {
+		r.completeFinalAnswerReviewToolEvent("superseded by another review attempt")
+	}
+
+	r.finalReviewCallID = callID
+	r.finalReviewStartedAt = r.engine.clock.Now()
+	r.finalReviewInFlight = true
+	r.finalReviewAttempt = attempt
+
+	r.engine.emitEvent(&domain.WorkflowToolStartedEvent{
+		BaseEvent: r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		Iteration: r.state.Iterations,
+		CallID:    callID,
+		ToolName:  "final_answer_review",
+		Arguments: map[string]any{"attempt": attempt},
+	})
+}
+
+func (r *reactRuntime) completeFinalAnswerReviewToolEvent(result string) {
+	if r == nil || r.engine == nil || r.state == nil {
+		return
+	}
+	if !r.finalReviewInFlight {
+		return
+	}
+	callID := strings.TrimSpace(r.finalReviewCallID)
+	if callID == "" {
+		return
+	}
+
+	duration := r.engine.clock.Now().Sub(r.finalReviewStartedAt)
+	r.engine.emitEvent(&domain.WorkflowToolCompletedEvent{
+		BaseEvent: r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+		CallID:    callID,
+		ToolName:  "final_answer_review",
+		Result:    strings.TrimSpace(result),
+		Duration:  duration,
+		Metadata:  map[string]any{"attempt": r.finalReviewAttempt},
+	})
+
+	r.finalReviewInFlight = false
+	r.finalReviewCallID = ""
+	r.finalReviewAttempt = 0
+	r.finalReviewStartedAt = time.Time{}
+}
+
 func (r *reactRuntime) injectFinalAnswerReviewPrompt() {
 	if r == nil || r.state == nil {
 		return
 	}
-	r.finalReviewAttempts++
+	attempt := r.finalReviewAttempts + 1
+	r.finalReviewAttempts = attempt
+	callID := fmt.Sprintf("final_answer_review:%d", attempt)
+	r.startFinalAnswerReviewToolEvent(callID, attempt)
 	r.state.Messages = append(r.state.Messages, Message{
 		Role:    "system",
 		Content: finalAnswerReviewPrompt,
@@ -882,6 +944,8 @@ func (it *reactIteration) recordThought(thought *Message) {
 
 func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emitCompletionEvent bool, workflowErr error) *TaskResult {
 	r.finalizer.Do(func() {
+		r.completeFinalAnswerReviewToolEvent("review complete")
+
 		if result == nil {
 			result = r.engine.finalize(r.state, stopReason, r.engine.clock.Now().Sub(r.startTime))
 		} else {
