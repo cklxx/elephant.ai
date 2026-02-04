@@ -33,10 +33,6 @@ func NewSendMessage() tools.ToolExecutor {
 							Type:        "string",
 							Description: "The message text to send.",
 						},
-						"reply_to_message_id": {
-							Type:        "string",
-							Description: "Optional message ID to reply to, creating a threaded reply.",
-						},
 					},
 					Required: []string{"content"},
 				},
@@ -54,7 +50,7 @@ func NewSendMessage() tools.ToolExecutor {
 func (t *uiSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	for key := range call.Arguments {
 		switch key {
-		case "content", "reply_to_message_id":
+		case "content":
 		default:
 			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
@@ -91,7 +87,7 @@ func (t *uiSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*port
 		return errResult, nil
 	}
 
-	replyToID := strings.TrimSpace(shared.StringArg(call.Arguments, "reply_to_message_id"))
+	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
 	payload := textPayload(content)
 
 	if replyToID != "" {
@@ -173,7 +169,7 @@ func (t *uiSendMessage) replyMessage(ctx context.Context, client *lark.Client, c
 
 	return &ports.ToolResult{
 		CallID:  callID,
-		Content: "Reply sent successfully.",
+		Content: "Message sent successfully.",
 		Metadata: map[string]any{
 			"message_id":          messageID,
 			"chat_id":             chatID,
@@ -186,4 +182,3 @@ func textPayload(text string) string {
 	payload, _ := json.Marshal(map[string]string{"text": text})
 	return string(payload)
 }
-

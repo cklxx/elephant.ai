@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"alex/internal/agent/ports"
 	tools "alex/internal/agent/ports/tools"
@@ -31,10 +32,6 @@ func NewLarkSendMessage() tools.ToolExecutor {
 							Type:        "string",
 							Description: "The message text to send.",
 						},
-						"reply_to_message_id": {
-							Type:        "string",
-							Description: "Optional message ID to reply to, creating a threaded reply.",
-						},
 					},
 					Required: []string{"content"},
 				},
@@ -50,6 +47,14 @@ func NewLarkSendMessage() tools.ToolExecutor {
 }
 
 func (t *larkSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	for key := range call.Arguments {
+		switch key {
+		case "content":
+		default:
+			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
+		}
+	}
+
 	rawClient := shared.LarkClientFromContext(ctx)
 	if rawClient == nil {
 		return &ports.ToolResult{
@@ -81,7 +86,7 @@ func (t *larkSendMessage) Execute(ctx context.Context, call ports.ToolCall) (*po
 		return errResult, nil
 	}
 
-	replyToID := shared.StringArg(call.Arguments, "reply_to_message_id")
+	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
 	payload := textPayload(content)
 
 	if replyToID != "" {
@@ -163,7 +168,7 @@ func (t *larkSendMessage) replyMessage(ctx context.Context, client *lark.Client,
 
 	return &ports.ToolResult{
 		CallID:  callID,
-		Content: "Reply sent successfully.",
+		Content: "Message sent successfully.",
 		Metadata: map[string]any{
 			"message_id":          messageID,
 			"chat_id":             chatID,

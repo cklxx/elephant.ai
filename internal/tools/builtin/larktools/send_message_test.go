@@ -31,6 +31,30 @@ func TestSendMessage_NoLarkClient(t *testing.T) {
 	}
 }
 
+func TestSendMessage_UnsupportedParameter(t *testing.T) {
+	tool := NewLarkSendMessage()
+	ctx := context.Background()
+	call := ports.ToolCall{
+		ID:   "call-unsupported",
+		Name: "lark_send_message",
+		Arguments: map[string]any{
+			"content":             "hello",
+			"reply_to_message_id": "om_mock",
+		},
+	}
+
+	result, err := tool.Execute(ctx, call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error in result for unsupported parameter")
+	}
+	if result.Content != "unsupported parameter: reply_to_message_id" {
+		t.Errorf("unexpected content: %s", result.Content)
+	}
+}
+
 func TestSendMessage_InvalidClientType(t *testing.T) {
 	tool := NewLarkSendMessage()
 	ctx := shared.WithLarkClient(context.Background(), "not-a-lark-client")
@@ -131,8 +155,8 @@ func TestSendMessage_Definition(t *testing.T) {
 	if _, ok := def.Parameters.Properties["content"]; !ok {
 		t.Error("missing content parameter")
 	}
-	if _, ok := def.Parameters.Properties["reply_to_message_id"]; !ok {
-		t.Error("missing reply_to_message_id parameter")
+	if _, ok := def.Parameters.Properties["reply_to_message_id"]; ok {
+		t.Error("unexpected reply_to_message_id parameter")
 	}
 	if len(def.Parameters.Required) != 1 || def.Parameters.Required[0] != "content" {
 		t.Errorf("unexpected required params: %v", def.Parameters.Required)
