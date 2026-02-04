@@ -14,6 +14,7 @@ Meaning:
   ta = test agent (alex-server + local auth DB + local self-heal loop watcher)
 
 Notes:
+  - For ma/ta, "start" always performs a restart (stop + start).
   - ta will ensure the persistent test worktree exists at .worktrees/test and sync .env
   - ta uses config at ~/.alex/test.yaml by default (override with TEST_CONFIG=/abs/path.yaml)
 EOF
@@ -21,6 +22,13 @@ EOF
 
 mode="${1:-}"
 cmd="${2:-start}"
+
+# For lark.sh, we always restart ma/ta on "start" (and default invocation).
+if [[ "${cmd}" == "start" ]]; then
+  case "${mode}" in
+    ma|ta) cmd="restart" ;;
+  esac
+fi
 
 case "${mode}" in
   ma)
