@@ -19,7 +19,7 @@ EOF
 
 git_worktree_path_for_branch() {
   local want_branch_ref="$1" # e.g. refs/heads/main
-  git worktree list --porcelain | awk -v want="${want_branch_ref}" '
+  git -C "${SCRIPT_DIR}" worktree list --porcelain | awk -v want="${want_branch_ref}" '
     $1=="worktree"{p=$2}
     $1=="branch" && $2==want {print p; exit}
   '
@@ -27,7 +27,7 @@ git_worktree_path_for_branch() {
 
 main_root="$(git_worktree_path_for_branch "refs/heads/main" || true)"
 if [[ -z "${main_root}" ]]; then
-  main_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+  main_root="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null || true)"
 fi
 [[ -n "${main_root}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
@@ -43,15 +43,48 @@ sync_env() {
   log_success "Synced .env -> ${dst}"
 }
 
+is_git_worktree_dir() {
+  local path="$1"
+  git -C "${path}" rev-parse --is-inside-work-tree >/dev/null 2>&1
+}
+
 ensure() {
   mkdir -p "${main_root}/.worktrees"
 
+  local has_worktree=0
+  local backup_root=""
+
   if git -C "${main_root}" worktree list --porcelain | awk -v p="${test_root}" '$1=="worktree" && $2==p {found=1} END{exit found?0:1}'; then
-    log_info "Test worktree exists: ${test_root}"
-  else
+    has_worktree=1
+  fi
+
+  if [[ ${has_worktree} -eq 1 ]]; then
+    if is_git_worktree_dir "${test_root}"; then
+      log_info "Test worktree exists: ${test_root}"
+    else
+      log_warn "Stale test worktree entry detected; pruning: ${test_root}"
+      git -C "${main_root}" worktree prune || true
+      has_worktree=0
+    fi
+  fi
+
+  if [[ ${has_worktree} -eq 0 ]]; then
+    if [[ -d "${test_root}" ]]; then
+      backup_root="${main_root}/.worktrees/test-orphan-$(date -u +%Y%m%d%H%M%S)"
+      log_warn "Non-worktree directory at ${test_root}; moving to ${backup_root}"
+      mv "${test_root}" "${backup_root}"
+    fi
     log_info "Creating test worktree: ${test_root}"
     # -B ensures "test" exists and points to main without failing if it already exists.
     git -C "${main_root}" worktree add -B test "${test_root}" main
+    if [[ -n "${backup_root}" ]]; then
+      if [[ -d "${backup_root}/logs" && ! -e "${test_root}/logs" ]]; then
+        mv "${backup_root}/logs" "${test_root}/logs"
+      fi
+      if [[ -d "${backup_root}/tmp" && ! -e "${test_root}/tmp" ]]; then
+        mv "${backup_root}/tmp" "${test_root}/tmp"
+      fi
+    fi
   fi
 
   sync_env
@@ -66,4 +99,3 @@ case "${cmd}" in
   help|-h|--help) usage ;;
   *) usage; die "Unknown command: ${cmd}" ;;
 esac
-

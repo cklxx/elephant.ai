@@ -1,7 +1,7 @@
 # Fix lark worktree ensure for non-worktree directories
 
 **Date**: 2026-02-04
-**Status**: In Progress
+**Status**: Completed
 **Author**: cklxx
 
 ## Context
@@ -17,3 +17,5 @@ Make `scripts/lark/worktree.sh ensure` robust when `.worktrees/test` exists but 
 
 ## Progress Log
 - 2026-02-04: Plan created.
+- 2026-02-04: Made `worktree.sh ensure` recover from stale/non-worktree test roots and preserve `logs/` + `tmp/`.
+- 2026-02-04: Ran `./dev.sh lint` and `./dev.sh test`.
