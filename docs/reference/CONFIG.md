@@ -173,6 +173,7 @@ apps:
 - `session_prefix`：会话 ID 前缀（默认 `lark`），用于派生稳定的 chat session ID；Lark 不注入 session history，多轮聊天依赖 `auto_chat_context` 与 Markdown 记忆加载。
 - `reply_prefix`：回复前缀。
 - `allow_groups` / `allow_direct`：是否响应群聊/私聊。
+- `allow_groups` 说明：代码侧“收到就响应”，但 **平台侧是否投递群消息** 取决于应用权限/订阅能力。若只开通“获取用户在群组中@机器人的消息”，机器人只能收到 @ 它的群消息；要接收群内所有消息需额外权限“获取群组中所有消息”。（平台不投递的消息，代码无法补救。）
 - `agent_preset` / `tool_preset` / `tool_mode`：通道级 preset/mode（Lark 默认 `tool_preset: lark-local`）。
 - `workspace_dir`：Lark 本地工具工作区根目录（默认进程 working dir）。
 - `cards_enabled`：是否启用 Lark 交互卡片（默认 true，仅错误卡片开启）。
@@ -184,6 +185,8 @@ apps:
 - `browser`：本地浏览器配置（`cdp_url` / `chrome_path` / `headless` / `user_data_dir` / `timeout_seconds`）。
 - `reply_timeout_seconds`：单条消息执行超时（秒）。
 - `react_emoji`：随机表情池（逗号/空格分隔）。同一次请求会在开始/结束分别随机挑选不同表情；少于 2 个时会回退默认池。
+- `injection_ack_react_emoji`：任务执行中收到“插入消息”时的 ACK 表情（默认 `THINKING`；仅在成功入队时 ACK）。
+- `final_answer_review_react_emoji`：触发 Final Answer 复查轮时对原消息的提示表情（默认 `GLANCE`）。
 - `memory_enabled`：启用 Markdown 记忆加载（MEMORY.md + daily logs）。
 - `show_tool_progress`：是否在 Lark 显示工具执行进度。
 - `auto_chat_context` / `auto_chat_context_size`：自动拉取近期聊天上下文。
@@ -224,6 +227,8 @@ channels:
       timeout_seconds: 60
     reply_timeout_seconds: 180
     react_emoji: "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM"
+    injection_ack_react_emoji: "THINKING"
+    final_answer_review_react_emoji: "GLANCE"
     memory_enabled: true
     show_tool_progress: true
     auto_chat_context: true
