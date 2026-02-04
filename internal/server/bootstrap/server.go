@@ -45,8 +45,7 @@ func RunServer(observabilityConfigPath string) error {
 	ensureSkillsDirFromWorkspace(config.Channels.Lark.WorkspaceDir, logger)
 
 	if runtimeCache != nil {
-		configPath, _ := runtimeconfig.ResolveConfigPath(runtimeconfig.DefaultEnvLookup, nil)
-		if strings.TrimSpace(configPath) != "" {
+		for _, configPath := range runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil) {
 			configWatcher, err := runtimeconfig.NewRuntimeConfigWatcher(
 				configPath,
 				runtimeCache,
@@ -57,12 +56,14 @@ func RunServer(observabilityConfigPath string) error {
 				}),
 			)
 			if err != nil {
-				logger.Warn("Config watcher disabled: %v", err)
-			} else if err := configWatcher.Start(context.Background()); err != nil {
-				logger.Warn("Config watcher failed to start: %v", err)
-			} else {
-				defer configWatcher.Stop()
+				logger.Warn("Config watcher disabled for %s: %v", configPath, err)
+				continue
 			}
+			if err := configWatcher.Start(context.Background()); err != nil {
+				logger.Warn("Config watcher failed to start for %s: %v", configPath, err)
+				continue
+			}
+			defer configWatcher.Stop()
 		}
 	}
 

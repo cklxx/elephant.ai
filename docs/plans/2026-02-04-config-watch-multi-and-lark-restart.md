@@ -15,6 +15,6 @@
 
 ## Progress
 - [x] Add `DefaultRuntimeConfigWatchPaths` helper + tests.
-- [ ] Watch both config files in server bootstrap.
+- [x] Watch both config files in server bootstrap.
 - [ ] Force lark.sh ma/ta to always restart.
 - [ ] Run `./dev.sh lint` and `./dev.sh test`.
