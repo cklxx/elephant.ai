@@ -1,6 +1,6 @@
 # Plan: 双配置文件监控异步热更新 + lark.sh 永远重启
 
-## Status: In Progress
+## Status: Completed
 ## Date: 2026-02-04
 
 ## Problem
@@ -17,4 +17,4 @@
 - [x] Add `DefaultRuntimeConfigWatchPaths` helper + tests.
 - [x] Watch both config files in server bootstrap.
 - [x] Force lark.sh ma/ta to always restart.
-- [ ] Run `./dev.sh lint` and `./dev.sh test`.
+- [x] Run `./dev.sh lint` and `./dev.sh test`.
