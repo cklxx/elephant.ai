@@ -9,12 +9,12 @@
 - Exclude `send_message` from tool result cache.
 
 ## Checklist
-- [ ] Update `send_message` tool implementation + tests
-- [ ] Update `lark_send_message` tool implementation + tests
-- [ ] Update tool cache exclusion list
-- [ ] Run full lint + tests
+- [x] Update `send_message` tool implementation + tests
+- [x] Update `lark_send_message` tool implementation + tests
+- [x] Update tool cache exclusion list
+- [x] Run full lint + tests
 - [ ] Commit in small steps and merge back to `main`
 
 ## Progress Log
 - 2026-02-04: Plan created.
-
+- 2026-02-04: Removed `reply_to_message_id` param; derive reply target from context; added tests; updated cache exclude; ran lint+tests.
