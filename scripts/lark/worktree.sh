@@ -48,6 +48,19 @@ is_git_worktree_dir() {
   git -C "${path}" rev-parse --is-inside-work-tree >/dev/null 2>&1
 }
 
+is_valid_test_worktree() {
+  is_git_worktree_dir "${test_root}" && [[ -f "${test_root}/go.mod" ]]
+}
+
+stale_test_admin_dir() {
+  local git_common_dir
+  git_common_dir="$(git -C "${main_root}" rev-parse --git-common-dir)"
+  if [[ "${git_common_dir}" != /* ]]; then
+    git_common_dir="${main_root}/${git_common_dir}"
+  fi
+  printf '%s/worktrees/test' "${git_common_dir}"
+}
+
 ensure() {
   mkdir -p "${main_root}/.worktrees"
 
@@ -59,11 +72,17 @@ ensure() {
   fi
 
   if [[ ${has_worktree} -eq 1 ]]; then
-    if is_git_worktree_dir "${test_root}"; then
+    if is_valid_test_worktree; then
       log_info "Test worktree exists: ${test_root}"
     else
-      log_warn "Stale test worktree entry detected; pruning: ${test_root}"
+      log_warn "Stale/partial test worktree detected; pruning: ${test_root}"
       git -C "${main_root}" worktree prune || true
+      local admin_dir
+      admin_dir="$(stale_test_admin_dir)"
+      if [[ -d "${admin_dir}" ]]; then
+        log_warn "Removing stale worktree admin dir: ${admin_dir}"
+        rm -rf "${admin_dir}"
+      fi
       has_worktree=0
     fi
   fi
@@ -77,6 +96,9 @@ ensure() {
     log_info "Creating test worktree: ${test_root}"
     # -B ensures "test" exists and points to main without failing if it already exists.
     git -C "${main_root}" worktree add -B test "${test_root}" main
+    if ! is_valid_test_worktree; then
+      die "Test worktree missing go.mod after create: ${test_root}"
+    fi
     if [[ -n "${backup_root}" ]]; then
       if [[ -d "${backup_root}/logs" && ! -e "${test_root}/logs" ]]; then
         mv "${backup_root}/logs" "${test_root}/logs"
