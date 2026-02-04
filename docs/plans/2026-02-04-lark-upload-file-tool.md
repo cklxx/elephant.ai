@@ -24,3 +24,4 @@
 
 ## Progress Log
 - 2026-02-04: Planned `lark_upload_file` tool implementation.
+- 2026-02-04: Wired tool registry + cache exclusion; implemented upload+send logic; added unit tests; ran `make fmt`, `make vet`, `make test`.
