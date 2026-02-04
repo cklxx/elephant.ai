@@ -77,6 +77,40 @@ func TestUploadFile_NoChatID(t *testing.T) {
 	}
 }
 
+func TestUploadFile_Metadata(t *testing.T) {
+	tool := NewLarkUploadFile()
+	meta := tool.Metadata()
+	if meta.Name != "lark_upload_file" {
+		t.Fatalf("unexpected name: %s", meta.Name)
+	}
+	if meta.Category != "lark" {
+		t.Fatalf("unexpected category: %s", meta.Category)
+	}
+}
+
+func TestUploadFile_Definition(t *testing.T) {
+	tool := NewLarkUploadFile()
+	def := tool.Definition()
+	if def.Name != "lark_upload_file" {
+		t.Fatalf("unexpected name: %s", def.Name)
+	}
+	if _, ok := def.Parameters.Properties["path"]; !ok {
+		t.Fatalf("missing path parameter")
+	}
+	if _, ok := def.Parameters.Properties["attachment_name"]; !ok {
+		t.Fatalf("missing attachment_name parameter")
+	}
+	if _, ok := def.Parameters.Properties["file_name"]; !ok {
+		t.Fatalf("missing file_name parameter")
+	}
+	if _, ok := def.Parameters.Properties["max_bytes"]; !ok {
+		t.Fatalf("missing max_bytes parameter")
+	}
+	if _, ok := def.Parameters.Properties["reply_to_message_id"]; ok {
+		t.Fatalf("unexpected reply_to_message_id parameter")
+	}
+}
+
 func TestPrepareUploadCandidate_SourceValidation(t *testing.T) {
 	_, errResult := prepareUploadCandidate(context.Background(), "call-1", map[string]any{}, defaultMaxBytes)
 	if errResult == nil || errResult.Error == nil {
