@@ -229,6 +229,32 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolPreset = parsed.ToolPreset
 		meta.sources["tool_preset"] = SourceFile
 	}
+	if parsed.Toolset != "" {
+		cfg.Toolset = parsed.Toolset
+		meta.sources["toolset"] = SourceFile
+	}
+	if parsed.Browser != nil {
+		if cdpURL := strings.TrimSpace(parsed.Browser.CDPURL); cdpURL != "" {
+			cfg.Browser.CDPURL = cdpURL
+			meta.sources["browser.cdp_url"] = SourceFile
+		}
+		if chromePath := strings.TrimSpace(parsed.Browser.ChromePath); chromePath != "" {
+			cfg.Browser.ChromePath = chromePath
+			meta.sources["browser.chrome_path"] = SourceFile
+		}
+		if parsed.Browser.Headless != nil {
+			cfg.Browser.Headless = *parsed.Browser.Headless
+			meta.sources["browser.headless"] = SourceFile
+		}
+		if userDataDir := strings.TrimSpace(parsed.Browser.UserDataDir); userDataDir != "" {
+			cfg.Browser.UserDataDir = userDataDir
+			meta.sources["browser.user_data_dir"] = SourceFile
+		}
+		if parsed.Browser.TimeoutSeconds != nil && *parsed.Browser.TimeoutSeconds > 0 {
+			cfg.Browser.TimeoutSeconds = *parsed.Browser.TimeoutSeconds
+			meta.sources["browser.timeout_seconds"] = SourceFile
+		}
+	}
 	if parsed.ToolPolicy != nil {
 		applyToolPolicyFileConfig(cfg, meta, parsed.ToolPolicy)
 	}
@@ -308,6 +334,12 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.SessionStaleAfter = expandEnvValue(lookup, parsed.SessionStaleAfter)
 	parsed.AgentPreset = expandEnvValue(lookup, parsed.AgentPreset)
 	parsed.ToolPreset = expandEnvValue(lookup, parsed.ToolPreset)
+	parsed.Toolset = expandEnvValue(lookup, parsed.Toolset)
+	if parsed.Browser != nil {
+		parsed.Browser.CDPURL = expandEnvValue(lookup, parsed.Browser.CDPURL)
+		parsed.Browser.ChromePath = expandEnvValue(lookup, parsed.Browser.ChromePath)
+		parsed.Browser.UserDataDir = expandEnvValue(lookup, parsed.Browser.UserDataDir)
+	}
 	if parsed.Proactive != nil {
 		expandProactiveFileConfigEnv(lookup, parsed.Proactive)
 	}

@@ -90,10 +90,21 @@ type RuntimeConfig struct {
 	SessionStaleAfterSeconds   int                          `json:"session_stale_after_seconds" yaml:"session_stale_after_seconds"`
 	AgentPreset                string                       `json:"agent_preset" yaml:"agent_preset"`
 	ToolPreset                 string                       `json:"tool_preset" yaml:"tool_preset"`
+	Toolset                    string                       `json:"toolset" yaml:"toolset"`
+	Browser                    BrowserConfig                `json:"browser" yaml:"browser"`
 	HTTPLimits                 HTTPLimitsConfig             `json:"http_limits" yaml:"http_limits"`
 	ToolPolicy                 toolspolicy.ToolPolicyConfig `json:"tool_policy" yaml:"tool_policy"`
 	Proactive                  ProactiveConfig              `json:"proactive" yaml:"proactive"`
 	ExternalAgents             ExternalAgentsConfig         `json:"external_agents" yaml:"external_agents"`
+}
+
+// BrowserConfig configures local browser tooling when sandbox is disabled.
+type BrowserConfig struct {
+	CDPURL         string `json:"cdp_url" yaml:"cdp_url"`
+	ChromePath     string `json:"chrome_path" yaml:"chrome_path"`
+	Headless       bool   `json:"headless" yaml:"headless"`
+	UserDataDir    string `json:"user_data_dir" yaml:"user_data_dir"`
+	TimeoutSeconds int    `json:"timeout_seconds" yaml:"timeout_seconds"`
 }
 
 // HTTPLimitsConfig controls maximum response sizes for outbound HTTP calls.
@@ -177,15 +188,15 @@ func DefaultHTTPLimitsConfig() HTTPLimitsConfig {
 
 // ProactiveConfig captures proactive behavior defaults.
 type ProactiveConfig struct {
-	Enabled   bool               `json:"enabled" yaml:"enabled"`
-	Memory    MemoryConfig       `json:"memory" yaml:"memory"`
-	Skills    SkillsConfig       `json:"skills" yaml:"skills"`
-	RAG       RAGConfig          `json:"rag" yaml:"rag"`
-	OKR       OKRProactiveConfig `json:"okr" yaml:"okr"`
-	Scheduler SchedulerConfig    `json:"scheduler" yaml:"scheduler"`
-	Timer     TimerConfig        `json:"timer" yaml:"timer"`
+	Enabled           bool                    `json:"enabled" yaml:"enabled"`
+	Memory            MemoryConfig            `json:"memory" yaml:"memory"`
+	Skills            SkillsConfig            `json:"skills" yaml:"skills"`
+	RAG               RAGConfig               `json:"rag" yaml:"rag"`
+	OKR               OKRProactiveConfig      `json:"okr" yaml:"okr"`
+	Scheduler         SchedulerConfig         `json:"scheduler" yaml:"scheduler"`
+	Timer             TimerConfig             `json:"timer" yaml:"timer"`
 	FinalAnswerReview FinalAnswerReviewConfig `json:"final_answer_review" yaml:"final_answer_review"`
-	Attention AttentionConfig    `json:"attention" yaml:"attention"`
+	Attention         AttentionConfig         `json:"attention" yaml:"attention"`
 }
 
 // OKRProactiveConfig configures OKR goal management behavior.
@@ -451,8 +462,19 @@ type Overrides struct {
 	SessionStaleAfterSeconds   *int                 `json:"session_stale_after_seconds,omitempty" yaml:"session_stale_after_seconds,omitempty"`
 	AgentPreset                *string              `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
 	ToolPreset                 *string              `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
+	Toolset                    *string              `json:"toolset,omitempty" yaml:"toolset,omitempty"`
+	Browser                    *BrowserOverrides    `json:"browser,omitempty" yaml:"browser,omitempty"`
 	HTTPLimits                 *HTTPLimitsOverrides `json:"http_limits,omitempty" yaml:"http_limits,omitempty"`
 	Proactive                  *ProactiveConfig     `json:"proactive,omitempty" yaml:"proactive,omitempty"`
+}
+
+// BrowserOverrides allows partial browser config overrides.
+type BrowserOverrides struct {
+	CDPURL         *string `json:"cdp_url,omitempty" yaml:"cdp_url,omitempty"`
+	ChromePath     *string `json:"chrome_path,omitempty" yaml:"chrome_path,omitempty"`
+	Headless       *bool   `json:"headless,omitempty" yaml:"headless,omitempty"`
+	UserDataDir    *string `json:"user_data_dir,omitempty" yaml:"user_data_dir,omitempty"`
+	TimeoutSeconds *int    `json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"`
 }
 
 // HTTPLimitsOverrides allows partial HTTP limit overrides.

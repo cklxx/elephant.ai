@@ -133,6 +133,13 @@ runtime:
   session_dir: "~/sessions"
   agent_preset: "designer"
   tool_preset: "safe"
+  toolset: "local"
+  browser:
+    cdp_url: "http://127.0.0.1:9222"
+    chrome_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+    headless: false
+    user_data_dir: "~/.config/google-chrome"
+    timeout_seconds: 90
   tool_policy:
     timeout:
       default: 45s
@@ -218,6 +225,24 @@ runtime:
 	if cfg.ToolPreset != "safe" {
 		t.Fatalf("expected tool preset from file, got %q", cfg.ToolPreset)
 	}
+	if cfg.Toolset != "local" {
+		t.Fatalf("expected toolset from file, got %q", cfg.Toolset)
+	}
+	if cfg.Browser.CDPURL != "http://127.0.0.1:9222" {
+		t.Fatalf("expected browser.cdp_url from file, got %q", cfg.Browser.CDPURL)
+	}
+	if cfg.Browser.ChromePath != "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" {
+		t.Fatalf("expected browser.chrome_path from file, got %q", cfg.Browser.ChromePath)
+	}
+	if cfg.Browser.Headless {
+		t.Fatalf("expected browser.headless=false from file, got true")
+	}
+	if cfg.Browser.UserDataDir != "~/.config/google-chrome" {
+		t.Fatalf("expected browser.user_data_dir from file, got %q", cfg.Browser.UserDataDir)
+	}
+	if cfg.Browser.TimeoutSeconds != 90 {
+		t.Fatalf("expected browser.timeout_seconds=90 from file, got %d", cfg.Browser.TimeoutSeconds)
+	}
 	if cfg.ToolPolicy.Timeout.Default != 45*time.Second {
 		t.Fatalf("expected tool policy timeout default 45s, got %v", cfg.ToolPolicy.Timeout.Default)
 	}
@@ -247,6 +272,16 @@ runtime:
 	}
 	if meta.Source("agent_preset") != SourceFile || meta.Source("tool_preset") != SourceFile {
 		t.Fatalf("expected preset sources from file")
+	}
+	if meta.Source("toolset") != SourceFile {
+		t.Fatalf("expected toolset source from file, got %s", meta.Source("toolset"))
+	}
+	if meta.Source("browser.cdp_url") != SourceFile ||
+		meta.Source("browser.chrome_path") != SourceFile ||
+		meta.Source("browser.headless") != SourceFile ||
+		meta.Source("browser.user_data_dir") != SourceFile ||
+		meta.Source("browser.timeout_seconds") != SourceFile {
+		t.Fatalf("expected browser sources from file")
 	}
 	if meta.Source("tool_policy.timeout.default") != SourceFile {
 		t.Fatalf("expected tool_policy.timeout.default source to be file, got %s", meta.Source("tool_policy.timeout.default"))
@@ -669,6 +704,12 @@ runtime:
 			"ALEX_REASONING_STREAM":             "true",
 			"AGENT_PRESET":                      "designer",
 			"TOOL_PRESET":                       "full",
+			"ALEX_TOOLSET":                      "local",
+			"ALEX_BROWSER_CDP_URL":              "http://127.0.0.1:9555",
+			"ALEX_BROWSER_CHROME_PATH":          "/tmp/chrome",
+			"ALEX_BROWSER_HEADLESS":             "true",
+			"ALEX_BROWSER_USER_DATA_DIR":        "/tmp/profile",
+			"ALEX_BROWSER_TIMEOUT_SECONDS":      "30",
 		}.Lookup),
 	)
 	if err != nil {
@@ -716,6 +757,24 @@ runtime:
 	if cfg.AgentPreset != "designer" || cfg.ToolPreset != "full" {
 		t.Fatalf("expected presets from env, got %q/%q", cfg.AgentPreset, cfg.ToolPreset)
 	}
+	if cfg.Toolset != "local" {
+		t.Fatalf("expected toolset from env, got %q", cfg.Toolset)
+	}
+	if cfg.Browser.CDPURL != "http://127.0.0.1:9555" {
+		t.Fatalf("expected browser.cdp_url from env, got %q", cfg.Browser.CDPURL)
+	}
+	if cfg.Browser.ChromePath != "/tmp/chrome" {
+		t.Fatalf("expected browser.chrome_path from env, got %q", cfg.Browser.ChromePath)
+	}
+	if !cfg.Browser.Headless {
+		t.Fatalf("expected browser.headless=true from env, got false")
+	}
+	if cfg.Browser.UserDataDir != "/tmp/profile" {
+		t.Fatalf("expected browser.user_data_dir from env, got %q", cfg.Browser.UserDataDir)
+	}
+	if cfg.Browser.TimeoutSeconds != 30 {
+		t.Fatalf("expected browser.timeout_seconds=30 from env, got %d", cfg.Browser.TimeoutSeconds)
+	}
 	if meta.Source("tavily_api_key") != SourceEnv {
 		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
@@ -755,6 +814,16 @@ runtime:
 	if meta.Source("agent_preset") != SourceEnv || meta.Source("tool_preset") != SourceEnv {
 		t.Fatalf("expected env source for presets")
 	}
+	if meta.Source("toolset") != SourceEnv {
+		t.Fatalf("expected env source for toolset, got %s", meta.Source("toolset"))
+	}
+	if meta.Source("browser.cdp_url") != SourceEnv ||
+		meta.Source("browser.chrome_path") != SourceEnv ||
+		meta.Source("browser.headless") != SourceEnv ||
+		meta.Source("browser.user_data_dir") != SourceEnv ||
+		meta.Source("browser.timeout_seconds") != SourceEnv {
+		t.Fatalf("expected env source for browser config")
+	}
 }
 
 func TestLoadNormalizesRuntimeConfig(t *testing.T) {
@@ -765,6 +834,12 @@ func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 		StopSequences: ptrStringSlice([]string{" STOP ", "STOP", " ", "", "\nDONE\n", "DONE"}),
 		AgentPreset:   ptrString(" coder "),
 		ToolPreset:    ptrString(" safe "),
+		Toolset:       ptrString(" local "),
+		Browser: &BrowserOverrides{
+			CDPURL:      ptrString(" http://127.0.0.1:9222 "),
+			ChromePath:  ptrString(" /tmp/chrome "),
+			UserDataDir: ptrString(" /tmp/profile "),
+		},
 	}
 
 	cfg, _, err := Load(
@@ -787,6 +862,18 @@ func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 	}
 	if cfg.AgentPreset != "coder" || cfg.ToolPreset != "safe" {
 		t.Fatalf("expected trimmed presets, got agent=%q tool=%q", cfg.AgentPreset, cfg.ToolPreset)
+	}
+	if cfg.Toolset != "local" {
+		t.Fatalf("expected trimmed toolset, got %q", cfg.Toolset)
+	}
+	if cfg.Browser.CDPURL != "http://127.0.0.1:9222" {
+		t.Fatalf("expected trimmed browser.cdp_url, got %q", cfg.Browser.CDPURL)
+	}
+	if cfg.Browser.ChromePath != "/tmp/chrome" {
+		t.Fatalf("expected trimmed browser.chrome_path, got %q", cfg.Browser.ChromePath)
+	}
+	if cfg.Browser.UserDataDir != "/tmp/profile" {
+		t.Fatalf("expected trimmed browser.user_data_dir, got %q", cfg.Browser.UserDataDir)
 	}
 	if len(cfg.StopSequences) != 2 || cfg.StopSequences[0] != "STOP" || cfg.StopSequences[1] != "DONE" {
 		t.Fatalf("expected cleaned stop sequences, got %#v", cfg.StopSequences)
@@ -811,6 +898,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideFollowStream := false
 	overrideAgentPreset := "designer"
 	overrideToolPreset := "read-only"
+	overrideToolset := "local"
+	overrideBrowserCDPURL := "http://127.0.0.1:9444"
+	overrideBrowserHeadless := true
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
@@ -831,6 +921,11 @@ func TestOverridesTakePriority(t *testing.T) {
 			FollowStream:            &overrideFollowStream,
 			AgentPreset:             &overrideAgentPreset,
 			ToolPreset:              &overrideToolPreset,
+			Toolset:                 &overrideToolset,
+			Browser: &BrowserOverrides{
+				CDPURL:   &overrideBrowserCDPURL,
+				Headless: &overrideBrowserHeadless,
+			},
 		}),
 	)
 	if err != nil {
@@ -869,6 +964,15 @@ func TestOverridesTakePriority(t *testing.T) {
 	if cfg.AgentPreset != overrideAgentPreset || cfg.ToolPreset != overrideToolPreset {
 		t.Fatalf("expected override presets, got %q/%q", cfg.AgentPreset, cfg.ToolPreset)
 	}
+	if cfg.Toolset != overrideToolset {
+		t.Fatalf("expected override toolset, got %q", cfg.Toolset)
+	}
+	if cfg.Browser.CDPURL != overrideBrowserCDPURL {
+		t.Fatalf("expected override browser.cdp_url, got %q", cfg.Browser.CDPURL)
+	}
+	if cfg.Browser.Headless != overrideBrowserHeadless {
+		t.Fatalf("expected override browser.headless, got %v", cfg.Browser.Headless)
+	}
 	if meta.Source("tavily_api_key") != SourceOverride {
 		t.Fatalf("expected override source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
@@ -889,6 +993,12 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("follow_stream") != SourceOverride {
 		t.Fatalf("expected override source for follow_stream, got %s", meta.Source("follow_stream"))
+	}
+	if meta.Source("toolset") != SourceOverride {
+		t.Fatalf("expected override source for toolset, got %s", meta.Source("toolset"))
+	}
+	if meta.Source("browser.cdp_url") != SourceOverride || meta.Source("browser.headless") != SourceOverride {
+		t.Fatalf("expected override sources for browser config")
 	}
 	if meta.Source("ark_api_key") != SourceOverride {
 		t.Fatalf("expected override source for ark api key")

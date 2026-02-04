@@ -132,6 +132,38 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.ToolPreset = value
 		meta.sources["tool_preset"] = SourceEnv
 	}
+	if value, ok := lookup("ALEX_TOOLSET"); ok && value != "" {
+		cfg.Toolset = value
+		meta.sources["toolset"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_BROWSER_CDP_URL"); ok && value != "" {
+		cfg.Browser.CDPURL = value
+		meta.sources["browser.cdp_url"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_BROWSER_CHROME_PATH"); ok && value != "" {
+		cfg.Browser.ChromePath = value
+		meta.sources["browser.chrome_path"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_BROWSER_HEADLESS"); ok && value != "" {
+		parsed, err := parseBoolEnv(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_BROWSER_HEADLESS: %w", err)
+		}
+		cfg.Browser.Headless = parsed
+		meta.sources["browser.headless"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_BROWSER_USER_DATA_DIR"); ok && value != "" {
+		cfg.Browser.UserDataDir = value
+		meta.sources["browser.user_data_dir"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_BROWSER_TIMEOUT_SECONDS"); ok && value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil {
+			return fmt.Errorf("parse ALEX_BROWSER_TIMEOUT_SECONDS: %w", err)
+		}
+		cfg.Browser.TimeoutSeconds = parsed
+		meta.sources["browser.timeout_seconds"] = SourceEnv
+	}
 	if value, ok := lookup("ALEX_ENV"); ok && value != "" {
 		cfg.Environment = value
 		meta.sources["environment"] = SourceEnv

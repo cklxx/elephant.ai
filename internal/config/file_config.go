@@ -68,10 +68,21 @@ type RuntimeFileConfig struct {
 	SessionStaleAfter          string                    `yaml:"session_stale_after"`
 	AgentPreset                string                    `yaml:"agent_preset"`
 	ToolPreset                 string                    `yaml:"tool_preset"`
+	Toolset                    string                    `yaml:"toolset"`
+	Browser                    *RuntimeBrowserConfig     `yaml:"browser"`
 	ToolPolicy                 *ToolPolicyFileConfig     `yaml:"tool_policy"`
 	HTTPLimits                 *HTTPLimitsFileConfig     `yaml:"http_limits"`
 	Proactive                  *ProactiveFileConfig      `yaml:"proactive"`
 	ExternalAgents             *ExternalAgentsFileConfig `yaml:"external_agents"`
+}
+
+// RuntimeBrowserConfig captures local browser settings in YAML (runtime section).
+type RuntimeBrowserConfig struct {
+	CDPURL         string `json:"cdp_url" yaml:"cdp_url"`
+	ChromePath     string `json:"chrome_path" yaml:"chrome_path"`
+	Headless       *bool  `json:"headless" yaml:"headless"`
+	UserDataDir    string `json:"user_data_dir" yaml:"user_data_dir"`
+	TimeoutSeconds *int   `json:"timeout_seconds" yaml:"timeout_seconds"`
 }
 
 // ToolPolicyFileConfig mirrors ToolPolicyConfig for YAML decoding with partial overrides.
@@ -135,14 +146,14 @@ type CodexFileConfig struct {
 
 // ProactiveFileConfig mirrors ProactiveConfig for YAML decoding.
 type ProactiveFileConfig struct {
-	Enabled   *bool                `yaml:"enabled"`
-	Memory    *MemoryFileConfig    `yaml:"memory"`
-	Skills    *SkillsFileConfig    `yaml:"skills"`
-	RAG       *RAGFileConfig       `yaml:"rag"`
-	OKR       *OKRFileConfig       `yaml:"okr"`
-	Scheduler *SchedulerFileConfig `yaml:"scheduler"`
+	Enabled           *bool                        `yaml:"enabled"`
+	Memory            *MemoryFileConfig            `yaml:"memory"`
+	Skills            *SkillsFileConfig            `yaml:"skills"`
+	RAG               *RAGFileConfig               `yaml:"rag"`
+	OKR               *OKRFileConfig               `yaml:"okr"`
+	Scheduler         *SchedulerFileConfig         `yaml:"scheduler"`
 	FinalAnswerReview *FinalAnswerReviewFileConfig `yaml:"final_answer_review"`
-	Attention *AttentionFileConfig `yaml:"attention"`
+	Attention         *AttentionFileConfig         `yaml:"attention"`
 }
 
 type FinalAnswerReviewFileConfig struct {

@@ -16,7 +16,7 @@ const (
 // NormalizeToolset coerces a raw string into a supported toolset.
 func NormalizeToolset(value string) Toolset {
 	switch strings.ToLower(strings.TrimSpace(value)) {
-	case string(ToolsetLarkLocal):
+	case string(ToolsetLarkLocal), "local":
 		return ToolsetLarkLocal
 	case string(ToolsetDefault), "":
 		return ToolsetDefault

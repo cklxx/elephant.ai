@@ -53,6 +53,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		SessionDir:                 "~/.alex/sessions",
 		CostDir:                    "~/.alex/costs",
 		SessionStaleAfterSeconds:   int((48 * time.Hour).Seconds()),
+		Toolset:                    "default",
 		HTTPLimits:                 DefaultHTTPLimitsConfig(),
 		ToolPolicy:                 toolspolicy.DefaultToolPolicyConfigWithRules(),
 		Proactive:                  DefaultProactiveConfig(),
@@ -133,6 +134,10 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.CostDir = strings.TrimSpace(cfg.CostDir)
 	cfg.AgentPreset = strings.TrimSpace(cfg.AgentPreset)
 	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
+	cfg.Toolset = strings.TrimSpace(cfg.Toolset)
+	cfg.Browser.CDPURL = strings.TrimSpace(cfg.Browser.CDPURL)
+	cfg.Browser.ChromePath = strings.TrimSpace(cfg.Browser.ChromePath)
+	cfg.Browser.UserDataDir = strings.TrimSpace(cfg.Browser.UserDataDir)
 	normalizeProactiveConfig(&cfg.Proactive)
 	normalizeExternalAgentsConfig(&cfg.ExternalAgents)
 	normalizeHTTPLimits(&cfg.HTTPLimits)
@@ -149,6 +154,9 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	}
 	if cfg.SessionStaleAfterSeconds < 0 {
 		cfg.SessionStaleAfterSeconds = 0
+	}
+	if cfg.Browser.TimeoutSeconds < 0 {
+		cfg.Browser.TimeoutSeconds = 0
 	}
 
 	if len(cfg.StopSequences) > 0 {

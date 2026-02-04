@@ -16,7 +16,7 @@ func BuildContainer(config Config) (*di.Container, error) {
 }
 
 func buildContainerWithToolMode(config Config, toolMode presets.ToolMode) (*di.Container, error) {
-	return buildContainerWithToolModeAndToolset(config, toolMode, toolregistry.ToolsetDefault, toolregistry.BrowserConfig{})
+	return buildContainerWithToolModeAndToolset(config, toolMode, "", toolregistry.BrowserConfig{})
 }
 
 func buildContainerWithToolModeAndToolset(
@@ -72,7 +72,9 @@ func buildContainerWithToolModeAndToolset(
 	diConfig.ToolMode = string(toolMode)
 	if toolset != "" {
 		diConfig.Toolset = toolset
+		diConfig.BrowserConfig = browserCfg
+	} else if browserCfg != (toolregistry.BrowserConfig{}) {
+		diConfig.BrowserConfig = browserCfg
 	}
-	diConfig.BrowserConfig = browserCfg
 	return di.BuildContainer(diConfig)
 }

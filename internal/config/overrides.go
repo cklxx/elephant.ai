@@ -182,6 +182,32 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.ToolPreset = *overrides.ToolPreset
 		meta.sources["tool_preset"] = SourceOverride
 	}
+	if overrides.Toolset != nil {
+		cfg.Toolset = *overrides.Toolset
+		meta.sources["toolset"] = SourceOverride
+	}
+	if overrides.Browser != nil {
+		if overrides.Browser.CDPURL != nil {
+			cfg.Browser.CDPURL = *overrides.Browser.CDPURL
+			meta.sources["browser.cdp_url"] = SourceOverride
+		}
+		if overrides.Browser.ChromePath != nil {
+			cfg.Browser.ChromePath = *overrides.Browser.ChromePath
+			meta.sources["browser.chrome_path"] = SourceOverride
+		}
+		if overrides.Browser.Headless != nil {
+			cfg.Browser.Headless = *overrides.Browser.Headless
+			meta.sources["browser.headless"] = SourceOverride
+		}
+		if overrides.Browser.UserDataDir != nil {
+			cfg.Browser.UserDataDir = *overrides.Browser.UserDataDir
+			meta.sources["browser.user_data_dir"] = SourceOverride
+		}
+		if overrides.Browser.TimeoutSeconds != nil {
+			cfg.Browser.TimeoutSeconds = *overrides.Browser.TimeoutSeconds
+			meta.sources["browser.timeout_seconds"] = SourceOverride
+		}
+	}
 	if overrides.HTTPLimits != nil {
 		applyHTTPLimitsOverrides(cfg, meta, overrides.HTTPLimits)
 	}
