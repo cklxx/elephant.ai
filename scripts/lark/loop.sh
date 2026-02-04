@@ -17,7 +17,6 @@ Env:
   MAX_CYCLES_SLOW     Max auto-fix cycles for slow gate (default: 2)
   FAST_GO_TEST_P      go test -p value for fast gate (default: 2)
   SLOW_GO_TEST_P      go test -p value for slow gate (default: 2)
-  MAIN_PORT           Main agent health port for restart verification (default: 8080)
 EOF
 }
 
@@ -38,13 +37,13 @@ fi
 TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
 WORKTREE_SH="${MAIN_ROOT}/scripts/lark/worktree.sh"
 MAIN_SH="${MAIN_ROOT}/scripts/lark/main.sh"
+TEST_SH="${MAIN_ROOT}/scripts/lark/test.sh"
 
 SLEEP_SECONDS="${SLEEP_SECONDS:-10}"
 MAX_CYCLES="${MAX_CYCLES:-5}"
 MAX_CYCLES_SLOW="${MAX_CYCLES_SLOW:-2}"
 FAST_GO_TEST_P="${FAST_GO_TEST_P:-2}"
 SLOW_GO_TEST_P="${SLOW_GO_TEST_P:-2}"
-MAIN_PORT="${MAIN_PORT:-8080}"
 
 # Initialized by init_test_paths (stored in the test worktree to keep logs per worktree).
 LOG_DIR=""
@@ -97,6 +96,12 @@ require_tools() {
   command -v curl >/dev/null 2>&1 || die "curl not found"
   [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
   [[ -x "${MAIN_SH}" ]] || die "Missing ${MAIN_SH}"
+  [[ -x "${TEST_SH}" ]] || die "Missing ${TEST_SH}"
+}
+
+restart_test_agent() {
+  append_log "[test] restart"
+  "${TEST_SH}" restart >> "${LOOP_LOG}" 2>&1
 }
 
 run_scenario_suite() {
@@ -217,21 +222,17 @@ merge_into_main_ff_only() {
 }
 
 restart_main_agent() {
+  # Only restart the main agent when it's managed via scripts/lark/main.sh.
+  #
+  # This avoids accidentally taking over/stopping a dev.sh-managed process that
+  # happens to listen on the same port.
+  if [[ ! -f "${MAIN_ROOT}/.pids/lark-main.pid" ]]; then
+    append_log "[main] skip restart (missing ${MAIN_ROOT}/.pids/lark-main.pid)"
+    return 0
+  fi
+
   append_log "[main] restart"
   "${MAIN_SH}" restart >> "${LOOP_LOG}" 2>&1
-
-  local health_url="http://127.0.0.1:${MAIN_PORT}/health"
-  local i
-  for i in $(seq 1 30); do
-    if curl -sf "${health_url}" >/dev/null 2>&1; then
-      append_log "[main] healthy ${health_url}"
-      return 0
-    fi
-    sleep 1
-  done
-
-  append_log "[main] restart timed out (health not ready)"
-  return 1
 }
 
 run_cycle() {
@@ -253,6 +254,9 @@ run_cycle() {
   # Reset test branch to the chosen base SHA (main snapshot).
   git -C "${TEST_ROOT}" switch test >> "${LOOP_LOG}" 2>&1
   git -C "${TEST_ROOT}" reset --hard "${base_sha}" >> "${LOOP_LOG}" 2>&1
+
+  # Ensure the live test bot runs the same code snapshot we're validating.
+  restart_test_agent
 
   local i
   for i in $(seq 1 "${MAX_CYCLES}"); do
@@ -285,6 +289,9 @@ run_cycle() {
     append_log "[slow] exhausted; giving up"
     return 1
   fi
+
+  # Gates passed: restart test bot to the final candidate commit (base + fixes).
+  restart_test_agent
 
   if merge_into_main_ff_only "${base_sha}"; then
     append_log "[merge] success"

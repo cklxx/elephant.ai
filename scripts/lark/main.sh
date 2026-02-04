@@ -18,6 +18,7 @@ Env:
   MAIN_CONFIG   Config path (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   MAIN_PORT     Healthcheck port override (default: from config; fallback 8080)
   ALEX_LOG_DIR  Internal log dir override (default: <repo>/logs)
+  FORCE_REBUILD=1  Force rebuild on start (default: 0)
   SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
 EOF
 }
@@ -43,6 +44,7 @@ LOG_FILE="${ROOT}/logs/lark-main.log"
 MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
 MAIN_PORT="${MAIN_PORT:-}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${ROOT}/logs}"
+FORCE_REBUILD="${FORCE_REBUILD:-0}"
 
 mkdir -p "${ROOT}/.pids" "${ROOT}/logs" "${ALEX_LOG_DIR}"
 
@@ -157,16 +159,23 @@ start() {
 
   maybe_setup_auth_db
 
-  local health_url current_fingerprint
+  local health_url current_fingerprint needs_build
   health_url="$(resolve_health_url)"
   current_fingerprint="$(build_fingerprint "${ROOT}")"
+  needs_build=0
+  if [[ "${FORCE_REBUILD}" == "1" ]] || [[ ! -x "${BIN}" ]] || is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+    needs_build=1
+  fi
   if curl -sf "${health_url}" >/dev/null 2>&1; then
     adopt_pid_if_missing || true
-    if ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+    if [[ "${needs_build}" == "0" ]]; then
       log_success "Main agent already healthy: ${health_url}"
       return 0
     fi
     log_info "Source changes detected; rebuilding and restarting main agent..."
+    # Build first so we don't take down a healthy agent if compilation fails.
+    build
+    needs_build=0
     stop
   fi
 
@@ -175,11 +184,6 @@ start() {
   if is_process_running "${pid}"; then
     log_success "Main agent already running (PID: ${pid})"
     return 0
-  fi
-
-  local needs_build=1
-  if [[ -x "${BIN}" ]] && ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
-    needs_build=0
   fi
 
   if [[ "${needs_build}" == "1" ]]; then
@@ -214,6 +218,15 @@ stop() {
   stop_service "Main agent" "${PID_FILE}"
 }
 
+restart() {
+  [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
+
+  maybe_setup_auth_db
+  build
+  stop
+  FORCE_REBUILD=0 start
+}
+
 status() {
   local health_url pid
   health_url="$(resolve_health_url)"
@@ -243,7 +256,7 @@ shift || true
 case "${cmd}" in
   start) start ;;
   stop) stop ;;
-  restart) stop; start ;;
+  restart) restart ;;
   status) status ;;
   logs)
     touch "${LOG_FILE}" "${ALEX_LOG_DIR}/alex-service.log" "${ALEX_LOG_DIR}/alex-llm.log" "${ALEX_LOG_DIR}/alex-latency.log"

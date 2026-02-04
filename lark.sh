@@ -49,8 +49,7 @@ case "${mode}" in
         ;;
       restart)
         "${ROOT}/scripts/lark/loop-agent.sh" stop || true
-        "${ROOT}/scripts/lark/test.sh" stop || true
-        "${ROOT}/scripts/lark/test.sh" start
+        "${ROOT}/scripts/lark/test.sh" restart
         exec "${ROOT}/scripts/lark/loop-agent.sh" start
         ;;
       status)

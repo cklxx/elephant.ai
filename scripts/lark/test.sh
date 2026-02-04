@@ -23,6 +23,7 @@ Env:
   TEST_CONFIG          Config path (default: ~/.alex/test.yaml)
   TEST_PORT            Healthcheck port override (default: from config; fallback 8080)
   ALEX_LOG_DIR         Internal log dir override (default: <repo>/.worktrees/test/logs)
+  FORCE_REBUILD=1      Force rebuild on start (default: 1)
   SKIP_LOCAL_AUTH_DB=1 Skip local auth DB auto-setup (default: 0)
 EOF
 }
@@ -51,6 +52,7 @@ BUILD_STAMP="${TEST_ROOT}/.pids/lark-test.build"
 LOG_FILE="${TEST_ROOT}/logs/lark-test.log"
 TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${TEST_ROOT}/logs}"
+FORCE_REBUILD="${FORCE_REBUILD:-1}"
 
 maybe_setup_auth_db() {
   if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
@@ -110,12 +112,10 @@ infer_port_from_config() {
 
 build() {
   ensure_worktree
-  # Keep the test worktree aligned with the latest main snapshot before building.
   git -C "${TEST_ROOT}" switch test >/dev/null 2>&1 || true
-  git -C "${TEST_ROOT}" reset --hard main >/dev/null 2>&1 || true
   log_info "Building alex-server (test worktree)..."
   (cd "${TEST_ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
-  write_build_stamp "${BUILD_STAMP}" "$(build_ref_fingerprint "${ROOT}" "refs/heads/main")"
+  write_build_stamp "${BUILD_STAMP}" "$(build_fingerprint "${TEST_ROOT}")"
   log_success "Built ${BIN}"
 }
 
@@ -174,16 +174,23 @@ start() {
   maybe_setup_auth_db
   ensure_worktree
 
-  local health_url current_fingerprint
+  local health_url current_fingerprint needs_build
   health_url="$(resolve_health_url)"
-  current_fingerprint="$(build_ref_fingerprint "${ROOT}" "refs/heads/main")"
+  current_fingerprint="$(build_fingerprint "${TEST_ROOT}")"
+  needs_build=0
+  if [[ "${FORCE_REBUILD}" == "1" ]] || [[ ! -x "${BIN}" ]] || is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+    needs_build=1
+  fi
   if curl -sf "${health_url}" >/dev/null 2>&1; then
     adopt_pid_if_missing || true
-    if ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
+    if [[ "${needs_build}" == "0" ]]; then
       log_success "Test server already healthy: ${health_url}"
       return 0
     fi
-    log_info "Main updated; rebuilding and restarting test server..."
+    log_info "Source changes detected; rebuilding and restarting test server..."
+    # Build first so we don't take down a healthy server if compilation fails.
+    build
+    needs_build=0
     stop
   fi
 
@@ -192,11 +199,6 @@ start() {
   if is_process_running "${pid}"; then
     log_success "Test server already running (PID: ${pid})"
     return 0
-  fi
-
-  local needs_build=1
-  if [[ -x "${BIN}" ]] && ! is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
-    needs_build=0
   fi
 
   if [[ "${needs_build}" == "1" ]]; then
@@ -232,6 +234,16 @@ stop() {
   stop_service "Test server" "${PID_FILE}"
 }
 
+restart() {
+  [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
+
+  maybe_setup_auth_db
+  ensure_worktree
+  build
+  stop
+  FORCE_REBUILD=0 start
+}
+
 status() {
   ensure_worktree
   local health_url pid
@@ -262,7 +274,7 @@ shift || true
 case "${cmd}" in
   start) start ;;
   stop) stop ;;
-  restart) stop; start ;;
+  restart) restart ;;
   status) status ;;
   logs)
     ensure_worktree
