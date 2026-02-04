@@ -16,7 +16,7 @@ Fix “看起来没实现”的 Lark 主动性体验问题，聚焦三件事：
 - [x] Fix drain/reprocess to preserve chat_type for group chats
 - [x] Add/adjust tests for group + drain/reprocess
 - [x] Update docs: required Lark permissions for reactions + group delivery notes
-- [ ] Run `go test ./...` and repo lint, then merge back to `main`
+- [x] Run `go test ./...` and repo lint, then merge back to `main`
 
 ## Acceptance
 - 在群聊/话题群中，消息不被错误当成 direct 丢弃，且 `isGroup` 标记正确（用于上下文/自动拉取群历史等）。
