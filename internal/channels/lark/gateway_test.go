@@ -885,6 +885,104 @@ func TestHandleMessageReusesInFlightSession(t *testing.T) {
 	}
 }
 
+func TestHandleMessageReprocessPreservesGroupChatType(t *testing.T) {
+	openID := "ou_sender_inflight_group"
+	chatID := "oc_chat_inflight_group"
+	msgID := "om_msg_inflight_group"
+	msgID2 := "om_msg_inflight_group_2"
+	content := `{"text":"first"}`
+	content2 := `{"text":"second"}`
+	msgType := "text"
+	chatType := "group"
+
+	executor := &blockingExecutor{
+		started: make(chan struct{}),
+		finish:  make(chan struct{}),
+	}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowGroups: true, AllowDirect: false}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := gw.handleMessage(context.Background(), event); err != nil {
+			t.Errorf("handleMessage failed: %v", err)
+		}
+	}()
+
+	<-executor.started
+
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	executor.mu.Lock()
+	callCount := executor.callCount
+	executor.mu.Unlock()
+	if callCount != 1 {
+		t.Fatalf("expected ExecuteTask once, got %d", callCount)
+	}
+
+	close(executor.finish)
+	wg.Wait()
+
+	deadline := time.After(2 * time.Second)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		executor.mu.Lock()
+		callCount := executor.callCount
+		executor.mu.Unlock()
+		if callCount >= 2 {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("expected ExecuteTask to be called again for reprocessed group message, got %d", callCount)
+		case <-ticker.C:
+		}
+	}
+}
+
 func TestHandleMessageDefaultsToolPresetFull(t *testing.T) {
 	openID := "ou_sender_preset"
 	chatID := "oc_chat_preset"
