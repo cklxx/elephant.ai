@@ -11,11 +11,11 @@ Fix “看起来没实现”的 Lark 主动性体验问题，聚焦三件事：
 3) Final Answer Review 的额外迭代在 Lark 侧可见（reaction），并补齐权限/订阅差异文档，避免“功能没生效”的误判。
 
 ## Checklist
-- [ ] Read current gateway/runtime implementation and reproduce with tests
-- [ ] Fix chat_type classification (`group` + `topic_group`)
-- [ ] Fix drain/reprocess to preserve chat_type for group chats
-- [ ] Add/adjust tests for group + drain/reprocess
-- [ ] Update docs: required Lark permissions for reactions + group delivery notes
+- [x] Read current gateway/runtime implementation and reproduce with tests
+- [x] Fix chat_type classification (`group` + `topic_group`)
+- [x] Fix drain/reprocess to preserve chat_type for group chats
+- [x] Add/adjust tests for group + drain/reprocess
+- [x] Update docs: required Lark permissions for reactions + group delivery notes
 - [ ] Run `go test ./...` and repo lint, then merge back to `main`
 
 ## Acceptance
@@ -23,4 +23,3 @@ Fix “看起来没实现”的 Lark 主动性体验问题，聚焦三件事：
 - task 运行期间插入消息成功入队后，对该消息加 reaction（默认 `THINKING`）。
 - task 结束 drain/reprocess 的消息保留原 chat_type，群聊消息不会因为 `p2p` 伪造而被过滤。
 - Final Answer Review 触发时对原消息加 reaction（默认 `GLANCE`）；若权限不足，文档可指导快速定位原因。
-
