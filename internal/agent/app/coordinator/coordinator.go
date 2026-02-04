@@ -25,12 +25,15 @@ import (
 	"alex/internal/agent/presets"
 	"alex/internal/agent/textutil"
 	"alex/internal/async"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/tools/builtin/shared"
 	"alex/internal/utils/clilatency"
 	id "alex/internal/utils/id"
 )
+
+type RuntimeConfigResolver func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error)
 
 // AgentCoordinator manages session lifecycle and delegates to domain
 type AgentCoordinator struct {
@@ -42,6 +45,7 @@ type AgentCoordinator struct {
 	parser           tools.FunctionCallParser
 	costTracker      storage.CostTracker
 	config           appconfig.Config
+	runtimeResolver  RuntimeConfigResolver
 	logger           agent.Logger
 	clock            agent.Clock
 	externalExecutor agent.ExternalAgentExecutor
@@ -57,6 +61,56 @@ type AgentCoordinator struct {
 	okrContextProvider  preparation.OKRContextProvider
 	credentialRefresher preparation.CredentialRefresher
 	timerManager        interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+}
+
+func (c *AgentCoordinator) SetRuntimeConfigResolver(resolver RuntimeConfigResolver) {
+	if c == nil {
+		return
+	}
+	c.runtimeResolver = resolver
+}
+
+func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config {
+	cfg := c.config
+	resolver := c.runtimeResolver
+	if resolver == nil {
+		return cfg
+	}
+
+	runtimeCfg, _, err := resolver(ctx)
+	if err != nil {
+		logger := c.loggerFor(ctx)
+		if logger != nil {
+			logger.Warn("Runtime config resolve failed: %v", err)
+		}
+		return cfg
+	}
+
+	cfg.LLMProvider = runtimeCfg.LLMProvider
+	cfg.LLMModel = runtimeCfg.LLMModel
+	cfg.LLMSmallProvider = runtimeCfg.LLMSmallProvider
+	cfg.LLMSmallModel = runtimeCfg.LLMSmallModel
+	cfg.LLMVisionModel = runtimeCfg.LLMVisionModel
+	cfg.APIKey = runtimeCfg.APIKey
+	cfg.BaseURL = runtimeCfg.BaseURL
+	cfg.MaxTokens = runtimeCfg.MaxTokens
+	cfg.MaxIterations = runtimeCfg.MaxIterations
+	cfg.ToolMaxConcurrent = runtimeCfg.ToolMaxConcurrent
+	cfg.Temperature = runtimeCfg.Temperature
+	cfg.TemperatureProvided = runtimeCfg.TemperatureProvided
+	cfg.TopP = runtimeCfg.TopP
+	cfg.StopSequences = append([]string(nil), runtimeCfg.StopSequences...)
+	if strings.TrimSpace(runtimeCfg.AgentPreset) != "" {
+		cfg.AgentPreset = runtimeCfg.AgentPreset
+	}
+	if strings.TrimSpace(runtimeCfg.ToolPreset) != "" {
+		cfg.ToolPreset = runtimeCfg.ToolPreset
+	}
+	cfg.SessionStaleAfter = time.Duration(runtimeCfg.SessionStaleAfterSeconds) * time.Second
+	cfg.Proactive = runtimeCfg.Proactive
+	cfg.ToolPolicy = runtimeCfg.ToolPolicy
+
+	return cfg
 }
 
 type preparationService interface {
@@ -309,8 +363,10 @@ func (c *AgentCoordinator) ExecuteTask(
 		return attachWorkflowSnapshot(result, wf, session, ensuredRunID, parentRunID)
 	}
 
+	effectiveCfg := c.effectiveConfig(ctx)
+
 	// Prepare execution environment with event listener support
-	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, eventListener)
+	env, err := c.prepareExecutionWithListener(ctx, task, sessionID, eventListener, effectiveCfg)
 	if err != nil {
 		wf.fail(stagePrepare, err)
 		return attachWorkflow(nil, env), err
@@ -391,7 +447,7 @@ func (c *AgentCoordinator) ExecuteTask(
 
 	// Create ReactEngine and configure listener
 	logger.Info("Delegating to ReactEngine...")
-	completionDefaults := buildCompletionDefaultsFromConfig(c.config)
+	completionDefaults := buildCompletionDefaultsFromConfig(effectiveCfg)
 
 	backgroundExecutor := func(bgCtx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 		bgCtx = appcontext.MarkSubagentContext(bgCtx)
@@ -412,13 +468,13 @@ func (c *AgentCoordinator) ExecuteTask(
 	}
 
 	reactEngine := react.NewReactEngine(react.ReactEngineConfig{
-		MaxIterations:       c.config.MaxIterations,
-		Logger:              logger,
-		Clock:               c.clock,
-		CompletionDefaults:  completionDefaults,
+		MaxIterations:      effectiveCfg.MaxIterations,
+		Logger:             logger,
+		Clock:              c.clock,
+		CompletionDefaults: completionDefaults,
 		FinalAnswerReview: react.FinalAnswerReviewConfig{
-			Enabled:            c.config.Proactive.FinalAnswerReview.Enabled,
-			MaxExtraIterations: c.config.Proactive.FinalAnswerReview.MaxExtraIterations,
+			Enabled:            effectiveCfg.Proactive.FinalAnswerReview.Enabled,
+			MaxExtraIterations: effectiveCfg.Proactive.FinalAnswerReview.MaxExtraIterations,
 		},
 		AttachmentMigrator:  c.attachmentMigrator,
 		AttachmentPersister: c.attachmentPersister,
@@ -594,11 +650,11 @@ func (c *AgentCoordinator) loggerFor(ctx context.Context) agent.Logger {
 
 // PrepareExecution prepares the execution environment without running the task
 func (c *AgentCoordinator) PrepareExecution(ctx context.Context, task string, sessionID string) (*agent.ExecutionEnvironment, error) {
-	return c.prepareExecutionWithListener(ctx, task, sessionID, nil)
+	return c.prepareExecutionWithListener(ctx, task, sessionID, nil, c.effectiveConfig(ctx))
 }
 
 // prepareExecutionWithListener prepares execution with event emission support
-func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.ExecutionEnvironment, error) {
+func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, task string, sessionID string, listener agent.EventListener, cfg appconfig.Config) (*agent.ExecutionEnvironment, error) {
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 	if listener == nil {
 		if _, ok := c.prepService.(*preparation.ExecutionPreparationService); !ok && c.prepService != nil {
@@ -613,7 +669,7 @@ func (c *AgentCoordinator) prepareExecutionWithListener(ctx context.Context, tas
 		ContextMgr:         c.contextMgr,
 		HistoryMgr:         c.historyMgr,
 		Parser:             c.parser,
-		Config:             c.config,
+		Config:             cfg,
 		Logger:             logger,
 		Clock:              c.clock,
 		CostDecorator:      c.costDecorator,
@@ -1003,9 +1059,10 @@ func obfuscateSessionID(id string) string {
 
 // GetLLMClient returns an LLM client
 func (c *AgentCoordinator) GetLLMClient() (llm.LLMClient, error) {
-	client, err := c.llmFactory.GetClient(c.config.LLMProvider, c.config.LLMModel, llm.LLMConfig{
-		APIKey:  c.config.APIKey,
-		BaseURL: c.config.BaseURL,
+	cfg := c.effectiveConfig(context.Background())
+	client, err := c.llmFactory.GetClient(cfg.LLMProvider, cfg.LLMModel, llm.LLMConfig{
+		APIKey:  cfg.APIKey,
+		BaseURL: cfg.BaseURL,
 	})
 	if err != nil {
 		return nil, err
@@ -1033,37 +1090,39 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 		return preview, fmt.Errorf("context manager not configured")
 	}
 
+	cfg := c.effectiveConfig(ctx)
+
 	session, err := c.GetSession(ctx, sessionID)
 	if err != nil {
 		return preview, err
 	}
 
-	toolMode := presets.ToolMode(strings.TrimSpace(c.config.ToolMode))
+	toolMode := presets.ToolMode(strings.TrimSpace(cfg.ToolMode))
 	if toolMode == "" {
 		toolMode = presets.ToolModeCLI
 	}
-	toolPreset := strings.TrimSpace(c.config.ToolPreset)
+	toolPreset := strings.TrimSpace(cfg.ToolPreset)
 	if c.prepService != nil {
 		if resolved := c.prepService.ResolveToolPreset(ctx, toolPreset); resolved != "" {
 			toolPreset = resolved
 		}
-		if resolved := c.prepService.ResolveAgentPreset(ctx, c.config.AgentPreset); resolved != "" {
+		if resolved := c.prepService.ResolveAgentPreset(ctx, cfg.AgentPreset); resolved != "" {
 			preview.PersonaKey = resolved
 		}
 	}
 	if preview.PersonaKey == "" {
-		preview.PersonaKey = c.config.AgentPreset
+		preview.PersonaKey = cfg.AgentPreset
 	}
 	if toolMode == presets.ToolModeCLI && toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
 
 	window, err := c.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
-		TokenLimit:         c.config.MaxTokens,
+		TokenLimit:         cfg.MaxTokens,
 		PersonaKey:         preview.PersonaKey,
 		ToolMode:           string(toolMode),
 		ToolPreset:         toolPreset,
-		EnvironmentSummary: c.config.EnvironmentSummary,
+		EnvironmentSummary: cfg.EnvironmentSummary,
 	})
 	if err != nil {
 		return preview, fmt.Errorf("build context window: %w", err)
@@ -1071,7 +1130,7 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 
 	preview.Window = window
 	preview.TokenEstimate = c.contextMgr.EstimateTokens(window.Messages)
-	preview.TokenLimit = c.config.MaxTokens
+	preview.TokenLimit = cfg.MaxTokens
 	preview.ToolMode = string(toolMode)
 	preview.ToolPreset = toolPreset
 

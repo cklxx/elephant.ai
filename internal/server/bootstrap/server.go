@@ -75,6 +75,9 @@ func RunServer(observabilityConfigPath string) error {
 	if err != nil {
 		return fmt.Errorf("build container: %w", err)
 	}
+	if resolver != nil && container != nil && container.AgentCoordinator != nil {
+		container.AgentCoordinator.SetRuntimeConfigResolver(resolver)
+	}
 	defer func() {
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer drainCancel()
