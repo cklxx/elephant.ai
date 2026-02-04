@@ -9,10 +9,9 @@ Branch: `eli/proactive-send-message-final-review`
 - Update default policy + docs to encourage proactive messaging and tool exploration.
 
 ## Work Items (tracked)
-- [ ] Add `send_message` tool + tests; register in registry; document in TOOLS catalog.
-- [ ] Add `runtime.proactive.final_answer_review` config + merge + docs.
-- [ ] Wire config into ReactEngine and implement runtime heuristic + tests.
-- [ ] Update `configs/context/policies/default.yaml` soft preferences.
-- [ ] Run `go test ./...` and repo lint; fix only relevant failures.
+- [x] Add `send_message` tool + tests; register in registry; document in TOOLS catalog.
+- [x] Add `runtime.proactive.final_answer_review` config + merge + docs.
+- [x] Wire config into ReactEngine and implement runtime heuristic + tests.
+- [x] Update `configs/context/policies/default.yaml` soft preferences.
+- [x] Run `go test ./...` and repo lint; fix only relevant failures.
 - [ ] Merge back to `main` (prefer fast-forward).
-
