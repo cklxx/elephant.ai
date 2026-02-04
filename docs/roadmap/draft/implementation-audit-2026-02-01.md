@@ -159,7 +159,7 @@
 | 主动摘要 | ❌ | ❌ | 未实现 |
 | 定时提醒 | ❌ | ⚙️ | `internal/scheduler/` cron + LarkNotifier 基础设施存在；无聊天提取 |
 | 智能卡片交互 | ❌ | ❌ | 只识别 interactive 消息类型，无卡片构建能力 |
-| **消息引用回复** | ❌ 待实现 | **✅ 已实现** | `sdk_messenger.go:ReplyMessage()` + `lark_send_message` reply_to 参数 |
+| **消息引用回复** | ❌ 待实现 | **✅ 已实现** | `sdk_messenger.go:ReplyMessage()` + `lark_send_message` 从消息上下文派生 reply target（无显式 reply_to 参数） |
 | 消息类型丰富化 | ❌ | ❌ | 仅文本消息 |
 
 ### 3.2 Lark Open API 封装层
@@ -187,7 +187,7 @@
 
 | 工具名 | Roadmap | 实际 | 说明 |
 |--------|---------|------|------|
-| `lark_send_message` | ✅ | ✅ | send_message.go + reply_to 支持 |
+| `lark_send_message` | ✅ | ✅ | send_message.go + reply target 从消息上下文派生（无显式 reply_to 参数） |
 | `lark_chat_history` | ✅ | ✅ | chat_history.go + 分页/时间过滤 |
 | `lark_doc_read` | ❌ | ❌ | |
 | `lark_doc_write` | ❌ | ❌ | |

@@ -10,7 +10,7 @@ This catalog lists **currently registered** builtin tools; availability is condi
 
 | 层级 | 目的 | 工具 |
 | --- | --- | --- |
-| L0 编排/协议 | 任务拆分、并行/后台执行、用户交互门控 | `plan`, `clarify`, `request_user`, `send_message`, `subagent`, `explore`, `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge` |
+| L0 编排/协议 | 任务拆分、并行/后台执行、用户交互门控 | `plan`, `clarify`, `request_user`, `subagent`, `explore`, `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge` |
 | L1 会话/知识 | 待办、技能、应用清单、记忆检索/读取 | `todo_read`, `todo_update`, `skills`, `apps`, `memory_search`, `memory_get` |
 | L2 业务域 | OKR 读写 | `okr_read`, `okr_write` |
 | L3 本地资源 | 本地文件/搜索 | `file_read`, `file_write`, `file_edit`, `list_files`, `grep`, `ripgrep`, `find` |
@@ -23,7 +23,7 @@ This catalog lists **currently registered** builtin tools; availability is condi
 
 ## 分类（功能视角）
 
-- **编排/交互**：`plan`, `clarify`, `request_user`, `send_message`, `subagent`, `explore`, `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge`
+- **编排/交互**：`plan`, `clarify`, `request_user`, `subagent`, `explore`, `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge`
 - **会话/记忆**：`todo_read`, `todo_update`, `skills`, `apps`, `memory_search`, `memory_get`
 - **业务域**：`okr_read`, `okr_write`
 - **本地文件/搜索**：`file_read`, `file_write`, `file_edit`, `list_files`, `grep`, `ripgrep`, `find`
