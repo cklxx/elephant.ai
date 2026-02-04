@@ -474,6 +474,7 @@ func (c *openaiClient) detectProvider() string {
 
 func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 	result := make([]map[string]any, 0, len(msgs))
+	isKimi := strings.Contains(c.baseURL, "kimi.com")
 	for _, msg := range msgs {
 		if msg.Source == ports.MessageSourceDebug || msg.Source == ports.MessageSourceEvaluation {
 			continue
@@ -485,6 +486,12 @@ func (c *openaiClient) convertMessages(msgs []ports.Message) []map[string]any {
 		}
 		if len(msg.ToolCalls) > 0 {
 			entry["tool_calls"] = buildToolCallHistory(msg.ToolCalls)
+		}
+		// Kimi requires reasoning_content in assistant messages with tool_calls when thinking is enabled.
+		if isKimi && msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			if reasoningContent := extractThinkingText(msg.Thinking); reasoningContent != "" {
+				entry["reasoning_content"] = reasoningContent
+			}
 		}
 		result = append(result, entry)
 	}
