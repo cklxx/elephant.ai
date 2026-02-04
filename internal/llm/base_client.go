@@ -99,7 +99,7 @@ func (c *baseClient) doPost(ctx context.Context, endpoint string, body []byte) (
 	}
 	// Kimi For Coding requires a recognized coding agent User-Agent header.
 	if strings.Contains(c.baseURL, "kimi.com") {
-		httpReq.Header.Set("User-Agent", "KimiCLI/1.3")
+		httpReq.Header.Set("User-Agent", "ClaudeCode/1.0")
 	}
 	for k, v := range c.headers {
 		httpReq.Header.Set(k, v)
