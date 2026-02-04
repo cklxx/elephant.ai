@@ -66,6 +66,32 @@ func TestInjectMessageGroupChat(t *testing.T) {
 	}
 }
 
+func TestInjectMessageTopicGroupChatTreatedAsGroup(t *testing.T) {
+	rec := NewRecordingMessenger()
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{Answer: "topic reply"},
+	}
+	gw := newTestGatewayWithMessenger(executor, rec, channels.BaseConfig{
+		SessionPrefix: "test",
+		AllowGroups:   true,
+		AllowDirect:   false,
+	})
+
+	err := gw.InjectMessage(context.Background(), "oc_topic_group_1", "topic_group", "ou_user_1", "om_msg_1", "question")
+	if err != nil {
+		t.Fatalf("InjectMessage failed: %v", err)
+	}
+
+	if executor.capturedTask != "question" {
+		t.Fatalf("expected task 'question', got %q", executor.capturedTask)
+	}
+
+	replies := rec.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected at least one ReplyMessage call")
+	}
+}
+
 func TestInjectMessageDefaultsChatType(t *testing.T) {
 	rec := NewRecordingMessenger()
 	executor := &capturingExecutor{
@@ -179,13 +205,13 @@ func TestInjectMessageResetCommand(t *testing.T) {
 func newTestGatewayWithMessenger(exec AgentExecutor, messenger LarkMessenger, baseCfg channels.BaseConfig) *Gateway {
 	cache, _ := lru.New[string, time.Time](16)
 	return &Gateway{
-		cfg:        Config{BaseConfig: baseCfg, AppID: "test", AppSecret: "secret"},
-		agent:      exec,
-		logger:     logging.OrNop(nil),
-		messenger:  messenger,
+		cfg:         Config{BaseConfig: baseCfg, AppID: "test", AppSecret: "secret"},
+		agent:       exec,
+		logger:      logging.OrNop(nil),
+		messenger:   messenger,
 		emojiPicker: newEmojiPicker(0, resolveEmojiPool("")),
-		dedupCache: cache,
-		now:        func() time.Time { return time.Now() },
+		dedupCache:  cache,
+		now:         func() time.Time { return time.Now() },
 	}
 }
 

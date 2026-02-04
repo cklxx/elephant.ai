@@ -223,12 +223,13 @@ func (g *Gateway) Stop() {
 
 // incomingMessage holds the parsed fields from a Lark message event.
 type incomingMessage struct {
-	chatID     string
-	messageID  string
-	senderID   string
-	content    string
-	isGroup    bool
-	isFromBot  bool
+	chatID    string
+	chatType  string
+	messageID string
+	senderID  string
+	content   string
+	isGroup   bool
+	isFromBot bool
 }
 
 // isResultAwaitingInput reports whether the task result indicates an
@@ -296,7 +297,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 			slot.sessionID = ""
 		}
 		slot.mu.Unlock()
-		g.drainAndReprocess(inputCh, msg.chatID)
+		g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
 	}()
 
 	awaitingInput = g.runNewTask(msg, sessionID, inputCh)
@@ -317,8 +318,8 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 		return nil
 	}
 
-	chatType := deref(raw.ChatType)
-	isGroup := chatType == "group"
+	chatType := strings.ToLower(strings.TrimSpace(deref(raw.ChatType)))
+	isGroup := chatType != "" && chatType != "p2p"
 	if isGroup && !g.cfg.AllowGroups {
 		return nil
 	}
@@ -345,6 +346,7 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 
 	return &incomingMessage{
 		chatID:    chatID,
+		chatType:  chatType,
 		messageID: messageID,
 		senderID:  extractSenderID(event),
 		content:   content,
@@ -707,7 +709,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 // drainAndReprocess drains any remaining messages from the input channel after
 // a task finishes and reprocesses each as a new task. This handles messages that
 // arrived between the last ReAct iteration drain and the task completion.
-func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID string) {
+func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, chatType string) {
 	var remaining []agent.UserInput
 	for {
 		select {
@@ -719,7 +721,7 @@ func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID string) {
 	}
 done:
 	for _, msg := range remaining {
-		go g.reprocessMessage(chatID, msg)
+		go g.reprocessMessage(chatID, chatType, msg)
 	}
 }
 
@@ -756,13 +758,16 @@ func (g *Gateway) InjectMessage(ctx context.Context, chatID, chatType, senderID,
 // reprocessMessage re-injects a drained user input as if it were a fresh Lark
 // message. This creates a synthetic P2MessageReceiveV1 event and feeds it back
 // through handleMessage so the full pipeline (dedup, session, execution) runs.
-func (g *Gateway) reprocessMessage(chatID string, input agent.UserInput) {
+func (g *Gateway) reprocessMessage(chatID, chatType string, input agent.UserInput) {
 	msgID := input.MessageID
 	content := input.Content
 
 	g.logger.Info("Reprocessing drained message for chat %s (msg_id=%s)", chatID, msgID)
 
-	chatType := "p2p"
+	chatType = strings.ToLower(strings.TrimSpace(chatType))
+	if chatType == "" {
+		chatType = "p2p"
+	}
 	msgType := "text"
 	contentJSON := textContent(content)
 
