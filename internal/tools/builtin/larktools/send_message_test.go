@@ -2,6 +2,8 @@ package larktools
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"alex/internal/agent/ports"
@@ -167,6 +169,19 @@ func TestTextPayload(t *testing.T) {
 	got := textPayload("hello world")
 	if got != `{"text":"hello world"}` {
 		t.Errorf("unexpected payload: %s", got)
+	}
+}
+
+func TestTextPayload_RendersOutgoingMention(t *testing.T) {
+	got := textPayload("hi @Bob(ou_123)")
+	var parsed struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
+		t.Fatalf("failed to parse payload json: %v", err)
+	}
+	if !strings.Contains(parsed.Text, `<at user_id="ou_123">Bob</at>`) {
+		t.Errorf("expected outgoing mention to render, got %s", parsed.Text)
 	}
 }
 

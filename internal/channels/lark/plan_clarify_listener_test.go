@@ -29,7 +29,7 @@ func TestPlanClarifyListenerPlanMessage(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected reply message")
 	}
-	if got := extractTextContent(calls[0].Content); got != "Ship feature" {
+	if got := extractTextContent(calls[0].Content, nil); got != "Ship feature" {
 		t.Fatalf("expected goal message, got %q", got)
 	}
 }
@@ -55,7 +55,7 @@ func TestPlanClarifyListenerClarifyQuestionMarksSent(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected reply message")
 	}
-	if got := extractTextContent(calls[0].Content); got != "Which env?" {
+	if got := extractTextContent(calls[0].Content, nil); got != "Which env?" {
 		t.Fatalf("expected question message, got %q", got)
 	}
 	if !tracker.Sent() {
@@ -86,7 +86,7 @@ func TestPlanClarifyListenerEnvelopePlan(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected reply message")
 	}
-	if got := extractTextContent(calls[0].Content); got != "Launch build" {
+	if got := extractTextContent(calls[0].Content, nil); got != "Launch build" {
 		t.Fatalf("expected goal message, got %q", got)
 	}
 }

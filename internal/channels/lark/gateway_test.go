@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -107,11 +108,29 @@ func TestExtractTextContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := extractTextContent(tt.raw)
+			got := extractTextContent(tt.raw, nil)
 			if got != tt.expected {
 				t.Fatalf("extractTextContent(%q) = %q, want %q", tt.raw, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestExtractTextContent_MentionPlaceholderFromEventMentions(t *testing.T) {
+	raw := `{"text":"hi @_user_1"}`
+	key := "@_user_1"
+	name := "Bob"
+	openID := "ou_123"
+	mentions := []*larkim.MentionEvent{
+		{
+			Key:  &key,
+			Name: &name,
+			Id:   &larkim.UserId{OpenId: &openID},
+		},
+	}
+	got := extractTextContent(raw, mentions)
+	if !strings.Contains(got, "@Bob(ou_123)") {
+		t.Fatalf("expected placeholder mention to resolve, got %q", got)
 	}
 }
 
@@ -146,6 +165,19 @@ func TestTextContent(t *testing.T) {
 	got := textContent("hello")
 	if !strings.Contains(got, `"text":"hello"`) {
 		t.Fatalf("expected json text content, got %q", got)
+	}
+}
+
+func TestTextContent_RendersOutgoingAtTag(t *testing.T) {
+	got := textContent("hi @Bob(ou_123)")
+	var parsed struct {
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal([]byte(got), &parsed); err != nil {
+		t.Fatalf("failed to parse content json: %v", err)
+	}
+	if !strings.Contains(parsed.Text, `<at user_id="ou_123">Bob</at>`) {
+		t.Fatalf("expected outgoing mention tag, got %q", parsed.Text)
 	}
 }
 
@@ -513,7 +545,7 @@ func TestHandleMessagePostContent(t *testing.T) {
 
 func TestExtractTextContent_MentionRendersUserID(t *testing.T) {
 	raw := `{"text":"Hi <at user_id=\"ou_123\">Bob</at>"}`
-	got := extractTextContent(raw)
+	got := extractTextContent(raw, nil)
 	if !strings.Contains(got, "@Bob(ou_123)") {
 		t.Fatalf("expected mention to include user id, got %q", got)
 	}
@@ -521,9 +553,34 @@ func TestExtractTextContent_MentionRendersUserID(t *testing.T) {
 
 func TestExtractPostContent_MentionRendersUserID(t *testing.T) {
 	raw := `{"title":"t","content":[[{"tag":"text","text":"Hi "},{"tag":"at","user_id":"ou_123","user_name":"Bob"}]]}`
-	got := extractPostContent(raw)
+	got := extractPostContent(raw, nil)
 	if !strings.Contains(got, "@Bob(ou_123)") {
 		t.Fatalf("expected mention to include user id, got %q", got)
+	}
+}
+
+func TestExtractPostContent_MentionPlaceholderFromEventMentions(t *testing.T) {
+	raw := `{"title":"t","content":[[{"tag":"text","text":"Hi "},{"tag":"at","user_id":"@_user_1","user_name":""}]]}`
+	key := "@_user_1"
+	name := "Bob"
+	openID := "ou_123"
+	mentions := []*larkim.MentionEvent{
+		{
+			Key:  &key,
+			Name: &name,
+			Id:   &larkim.UserId{OpenId: &openID},
+		},
+	}
+
+	got := extractPostContent(raw, mentions)
+	if strings.Contains(got, "@@_user_1") {
+		t.Fatalf("expected no double @ placeholder, got %q", got)
+	}
+	if strings.Contains(got, "@_user_1") {
+		t.Fatalf("expected placeholder to be resolved, got %q", got)
+	}
+	if !strings.Contains(got, "@Bob(ou_123)") {
+		t.Fatalf("expected mention to resolve, got %q", got)
 	}
 }
 
@@ -1056,7 +1113,7 @@ func TestHandleMessageAwaitUserInputRepliesWithQuestion(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected a reply message")
 	}
-	if got := extractTextContent(calls[0].Content); got != "Which env?" {
+	if got := extractTextContent(calls[0].Content, nil); got != "Which env?" {
 		t.Fatalf("expected question reply, got %q", got)
 	}
 }

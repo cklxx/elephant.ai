@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"alex/internal/agent/ports"
@@ -179,6 +180,33 @@ func (t *larkSendMessage) replyMessage(ctx context.Context, client *lark.Client,
 
 // textPayload builds the JSON content payload for a Lark text message.
 func textPayload(text string) string {
+	text = renderOutgoingMentions(text)
 	payload, _ := json.Marshal(map[string]string{"text": text})
 	return string(payload)
+}
+
+var outgoingMentionPattern = regexp.MustCompile(`@([^@()<>\n\r\t]+)\((ou_[A-Za-z0-9]+|all)\)`)
+
+func renderOutgoingMentions(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return text
+	}
+	return outgoingMentionPattern.ReplaceAllStringFunc(text, func(raw string) string {
+		sub := outgoingMentionPattern.FindStringSubmatch(raw)
+		if len(sub) != 3 {
+			return raw
+		}
+		name := strings.TrimSpace(sub[1])
+		userID := strings.TrimSpace(sub[2])
+		if userID == "" {
+			return raw
+		}
+		if userID == "all" && (name == "" || strings.EqualFold(name, "all")) {
+			name = "所有人"
+		}
+		if name == "" {
+			return raw
+		}
+		return `<at user_id="` + userID + `">` + name + `</at>`
+	})
 }
