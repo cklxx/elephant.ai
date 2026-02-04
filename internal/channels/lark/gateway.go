@@ -353,9 +353,24 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 
 // injectUserInput forwards a message into a running task's input channel.
 func (g *Gateway) injectUserInput(ch chan agent.UserInput, activeSessionID string, msg *incomingMessage) {
+	if msg == nil {
+		return
+	}
 	select {
 	case ch <- agent.UserInput{Content: msg.content, SenderID: msg.senderID, MessageID: msg.messageID}:
 		g.logger.Info("Injected user input into active session %s", activeSessionID)
+		if msg.messageID != "" {
+			emojiType := strings.TrimSpace(g.cfg.InjectionAckReactEmoji)
+			if emojiType == "" {
+				emojiType = "THINKING"
+			}
+			go func() {
+				ackCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", activeSessionID, msg.senderID, msg.chatID, msg.isGroup)
+				ackCtx, cancel := context.WithTimeout(ackCtx, 2*time.Second)
+				defer cancel()
+				g.addReaction(ackCtx, msg.messageID, emojiType)
+			}()
+		}
 	default:
 		g.logger.Warn("User input channel full for session %s; message dropped", activeSessionID)
 	}
