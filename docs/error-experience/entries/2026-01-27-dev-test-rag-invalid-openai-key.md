@@ -15,3 +15,6 @@
 
 ## Resolution (This Run)
 - Not resolved; tests failed due to invalid API key.
+
+## Follow-up (2026-02-04)
+- `TestEmbedder_Integration` now skips `sk-kimi-...` keys so `./dev.sh test` (CI parity) doesn't accidentally run OpenAI integration calls with non-OpenAI credentials.
