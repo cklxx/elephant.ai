@@ -41,6 +41,7 @@ type reactRuntime struct {
 	nextTaskSeq           int
 	pauseRequested        bool
 	replanRequested       bool
+	finalReviewAttempts   int
 
 	// Background task manager for async subagent execution.
 	bgManager      *BackgroundTaskManager
@@ -63,6 +64,18 @@ const (
 )
 
 const replanPrompt = "工具执行失败，请重新规划并在继续前调用 plan() 或 clarify()。"
+
+const finalAnswerReviewPrompt = `<final_answer_review>
+Before finalizing, do a quick review pass:
+- Confirm the user goal is fully satisfied and the answer is correct.
+- If any required information is missing, ask the user via clarify(needs_user_input=true, question_to_user=...) or request_user(...), then stop.
+- If additional tool usage would materially improve correctness or completeness, call the relevant tools now.
+- If an external CLI tool is required (e.g., ffmpeg):
+  1) Use bash to check availability: command -v ffmpeg
+  2) If missing and on macOS with Homebrew: brew install ffmpeg
+  3) If install fails or brew is unavailable: ask the user with clear manual steps and wait.
+- If everything is complete, provide the final answer (no tool calls).
+</final_answer_review>`
 
 type reactIteration struct {
 	runtime    *reactRuntime
@@ -335,6 +348,44 @@ func (r *reactRuntime) injectOrchestratorCorrection(content string) {
 	r.state.Messages = append(r.state.Messages, Message{
 		Role:    "system",
 		Content: trimmed,
+		Source:  ports.MessageSourceSystemPrompt,
+	})
+}
+
+func (r *reactRuntime) shouldTriggerFinalAnswerReview() bool {
+	if r == nil || r.state == nil || r.engine == nil {
+		return false
+	}
+	cfg := r.engine.finalAnswerReview
+	if !cfg.Enabled {
+		return false
+	}
+	maxExtra := cfg.MaxExtraIterations
+	if maxExtra <= 0 {
+		maxExtra = 1
+	}
+	if r.finalReviewAttempts >= maxExtra {
+		return false
+	}
+	// Only trigger for non-trivial runs (at least one tool executed).
+	if len(r.state.ToolResults) == 0 {
+		return false
+	}
+	// Need at least one remaining iteration to perform the review.
+	if r.state.Iterations >= r.engine.maxIterations {
+		return false
+	}
+	return true
+}
+
+func (r *reactRuntime) injectFinalAnswerReviewPrompt() {
+	if r == nil || r.state == nil {
+		return
+	}
+	r.finalReviewAttempts++
+	r.state.Messages = append(r.state.Messages, Message{
+		Role:    "system",
+		Content: finalAnswerReviewPrompt,
 		Source:  ports.MessageSourceSystemPrompt,
 	})
 }
@@ -799,6 +850,12 @@ func (it *reactIteration) handleNoTools() (*TaskResult, bool, error) {
 	trimmed := strings.TrimSpace(it.thought.Content)
 	if trimmed == "" {
 		it.runtime.engine.logger.Warn("No tool calls and empty content - continuing loop")
+		return nil, false, nil
+	}
+
+	if it.runtime.shouldTriggerFinalAnswerReview() {
+		it.runtime.engine.logger.Info("Triggering final answer review iteration (attempt=%d)", it.runtime.finalReviewAttempts+1)
+		it.runtime.injectFinalAnswerReviewPrompt()
 		return nil, false, nil
 	}
 

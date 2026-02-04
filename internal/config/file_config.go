@@ -141,7 +141,13 @@ type ProactiveFileConfig struct {
 	RAG       *RAGFileConfig       `yaml:"rag"`
 	OKR       *OKRFileConfig       `yaml:"okr"`
 	Scheduler *SchedulerFileConfig `yaml:"scheduler"`
+	FinalAnswerReview *FinalAnswerReviewFileConfig `yaml:"final_answer_review"`
 	Attention *AttentionFileConfig `yaml:"attention"`
+}
+
+type FinalAnswerReviewFileConfig struct {
+	Enabled            *bool `yaml:"enabled"`
+	MaxExtraIterations *int  `yaml:"max_extra_iterations"`
 }
 
 // OKRFileConfig mirrors OKRProactiveConfig for YAML decoding.

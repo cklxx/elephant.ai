@@ -7,6 +7,10 @@ runtime:
   base_url: "https://api.openai.com/v1"
   sandbox_base_url: "http://localhost:18086"
   tool_preset: "safe"
+  # proactive:
+  #   final_answer_review:
+  #     enabled: true
+  #     max_extra_iterations: 1
   # tool_max_concurrent: 8
   # user_rate_limit_rps: 1.0
   # user_rate_limit_burst: 3

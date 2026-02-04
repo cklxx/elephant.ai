@@ -184,6 +184,7 @@ type ProactiveConfig struct {
 	OKR       OKRProactiveConfig `json:"okr" yaml:"okr"`
 	Scheduler SchedulerConfig    `json:"scheduler" yaml:"scheduler"`
 	Timer     TimerConfig        `json:"timer" yaml:"timer"`
+	FinalAnswerReview FinalAnswerReviewConfig `json:"final_answer_review" yaml:"final_answer_review"`
 	Attention AttentionConfig    `json:"attention" yaml:"attention"`
 }
 
@@ -284,6 +285,13 @@ type TimerConfig struct {
 	TaskTimeoutSeconds int    `json:"task_timeout_seconds" yaml:"task_timeout_seconds"` // default: 900
 }
 
+// FinalAnswerReviewConfig controls whether to insert an additional ReAct iteration
+// before finalizing when the model returns a plain final answer (no tool calls).
+type FinalAnswerReviewConfig struct {
+	Enabled            bool `json:"enabled" yaml:"enabled"`
+	MaxExtraIterations int  `json:"max_extra_iterations" yaml:"max_extra_iterations"`
+}
+
 // AttentionConfig throttles proactive notifications.
 type AttentionConfig struct {
 	MaxDailyNotifications int     `json:"max_daily_notifications" yaml:"max_daily_notifications"`
@@ -348,6 +356,10 @@ func DefaultProactiveConfig() ProactiveConfig {
 			StorePath:          "~/.alex/timers",
 			MaxTimers:          100,
 			TaskTimeoutSeconds: 900,
+		},
+		FinalAnswerReview: FinalAnswerReviewConfig{
+			Enabled:            true,
+			MaxExtraIterations: 1,
 		},
 		Attention: AttentionConfig{
 			MaxDailyNotifications: 5,

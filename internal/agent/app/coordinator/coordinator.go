@@ -416,6 +416,10 @@ func (c *AgentCoordinator) ExecuteTask(
 		Logger:              logger,
 		Clock:               c.clock,
 		CompletionDefaults:  completionDefaults,
+		FinalAnswerReview: react.FinalAnswerReviewConfig{
+			Enabled:            c.config.Proactive.FinalAnswerReview.Enabled,
+			MaxExtraIterations: c.config.Proactive.FinalAnswerReview.MaxExtraIterations,
+		},
 		AttachmentMigrator:  c.attachmentMigrator,
 		AttachmentPersister: c.attachmentPersister,
 		CheckpointStore:     c.checkpointStore,

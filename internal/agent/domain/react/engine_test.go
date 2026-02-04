@@ -254,8 +254,8 @@ func TestReactEngine_SolveTask_WithToolCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 3 {
-		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
+	if result.Iterations != 4 {
+		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
 	}
 	if len(state.ToolResults) != 2 {
 		t.Errorf("Expected 2 tool results, got %d", len(state.ToolResults))

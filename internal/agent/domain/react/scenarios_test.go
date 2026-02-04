@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"alex/internal/agent/ports"
 	"alex/internal/agent/ports/mocks"
 )
 
@@ -25,8 +26,8 @@ func TestReactEngine_FileReadScenario(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
-	if result.Iterations != 3 {
-		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
+	if result.Iterations != 4 {
+		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
 	}
 	if len(state.ToolResults) != 2 {
 		t.Errorf("Expected 2 tool results (plan, file_read), got %d", len(state.ToolResults))
@@ -59,9 +60,9 @@ func TestReactEngine_MultipleToolCallsScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Should have 6 iterations: plan + clarify + 3 tool calls + final answer
-	if result.Iterations != 6 {
-		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
+	// Should have 7 iterations: plan + clarify + 3 tool calls + review + final answer
+	if result.Iterations != 7 {
+		t.Errorf("Expected 7 iterations, got %d", result.Iterations)
 	}
 
 	// Should have 5 tool results: plan, clarify, file_read, ripgrep, bash
@@ -102,9 +103,9 @@ func TestReactEngine_ParallelToolCallsScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 5 iterations: plan + 3 file reads + final answer
-	if result.Iterations != 5 {
-		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
+	// 6 iterations: plan + 3 file reads + review + final answer
+	if result.Iterations != 6 {
+		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
 	}
 
 	// Should have 4 tool results
@@ -135,9 +136,9 @@ func TestReactEngine_WebSearchScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 4 iterations: plan, web_search, web_fetch, final reasoning
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
+	// 5 iterations: plan, web_search, web_fetch, review, final reasoning
+	if result.Iterations != 5 {
+		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 3 {
@@ -164,9 +165,9 @@ func TestReactEngine_CodeEditScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 6 iterations: plan, clarify, file_read, file_edit, bash (test), final answer
-	if result.Iterations != 6 {
-		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
+	// 7 iterations: plan, clarify, file_read, file_edit, bash (test), review, final answer
+	if result.Iterations != 7 {
+		t.Errorf("Expected 7 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 5 {
@@ -220,6 +221,58 @@ func TestReactEngine_ToolErrorScenario(t *testing.T) {
 	}
 }
 
+func TestReactEngine_FinalAnswerReviewNotTriggeredWithoutTools(t *testing.T) {
+	services := Services{
+		LLM: &mocks.MockLLMClient{
+			CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+				return &ports.CompletionResponse{
+					Content:    "hello",
+					StopReason: "stop",
+					Usage:      ports.TokenUsage{PromptTokens: 10, CompletionTokens: 5, TotalTokens: 15},
+				}, nil
+			},
+		},
+		ToolExecutor: &mocks.MockToolRegistry{},
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+
+	engine := newReactEngineForTest(10)
+	state := &TaskState{}
+
+	result, err := engine.SolveTask(context.Background(), "hello", state, services)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if result.Iterations != 1 {
+		t.Errorf("Expected 1 iteration, got %d", result.Iterations)
+	}
+	if len(state.ToolResults) != 0 {
+		t.Errorf("Expected 0 tool results, got %d", len(state.ToolResults))
+	}
+}
+
+func TestReactEngine_FinalAnswerReviewNotTriggeredWhenNoIterationBudget(t *testing.T) {
+	scenario := mocks.NewFileReadScenario()
+	services := Services{
+		LLM:          scenario.LLM,
+		ToolExecutor: scenario.Registry,
+		Parser:       &mocks.MockParser{},
+		Context:      &mocks.MockContextManager{},
+	}
+
+	engine := newReactEngineForTest(3)
+	state := &TaskState{}
+
+	result, err := engine.SolveTask(context.Background(), "What is the API endpoint?", state, services)
+	if err != nil {
+		t.Fatalf("Expected no error, got: %v", err)
+	}
+	if result.Iterations != 3 {
+		t.Errorf("Expected 3 iterations, got %d", result.Iterations)
+	}
+}
+
 func TestReactEngine_TodoManagementScenario(t *testing.T) {
 	scenario := mocks.NewTodoManagementScenario()
 
@@ -239,9 +292,9 @@ func TestReactEngine_TodoManagementScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 5 iterations: plan, todo_read, todo_update (add), todo_update (complete), final answer
-	if result.Iterations != 5 {
-		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
+	// 6 iterations: plan, todo_read, todo_update (add), todo_update (complete), review, final answer
+	if result.Iterations != 6 {
+		t.Errorf("Expected 6 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 4 {
@@ -268,9 +321,9 @@ func TestReactEngine_SubagentDelegationScenario(t *testing.T) {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// 4 iterations: plan, clarify, subagent call, final answer
-	if result.Iterations != 4 {
-		t.Errorf("Expected 4 iterations, got %d", result.Iterations)
+	// 5 iterations: plan, clarify, subagent call, review, final answer
+	if result.Iterations != 5 {
+		t.Errorf("Expected 5 iterations, got %d", result.Iterations)
 	}
 
 	if len(state.ToolResults) != 3 {

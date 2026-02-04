@@ -19,6 +19,7 @@ type ReactEngine struct {
 	clock               agent.Clock
 	eventListener       EventListener // Optional event listener for TUI
 	completion          completionConfig
+	finalAnswerReview   FinalAnswerReviewConfig
 	attachmentMigrator  materialports.Migrator
 	attachmentPersister ports.AttachmentPersister // Optional: eagerly persists inline attachment payloads
 	checkpointStore     CheckpointStore           // Optional: persists execution checkpoints
@@ -95,6 +96,7 @@ type ReactEngineConfig struct {
 	Clock               agent.Clock
 	EventListener       EventListener
 	CompletionDefaults  CompletionDefaults
+	FinalAnswerReview   FinalAnswerReviewConfig
 	AttachmentMigrator  materialports.Migrator
 	AttachmentPersister ports.AttachmentPersister // Optional: eagerly persists attachment payloads to a durable store.
 	CheckpointStore     CheckpointStore           // Optional: persists execution checkpoints.
@@ -110,4 +112,9 @@ type ReactEngineConfig struct {
 	// ExternalExecutor handles external code agents (e.g., Claude Code CLI).
 	// Optional; when nil only "internal" agent type is supported.
 	ExternalExecutor agent.ExternalAgentExecutor
+}
+
+type FinalAnswerReviewConfig struct {
+	Enabled            bool
+	MaxExtraIterations int
 }

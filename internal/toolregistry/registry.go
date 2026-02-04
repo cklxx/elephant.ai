@@ -431,6 +431,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["memory_search"] = memorytools.NewMemorySearch(config.MemoryEngine)
 	r.static["memory_get"] = memorytools.NewMemoryGet(config.MemoryEngine)
 	r.static["request_user"] = ui.NewRequestUser()
+	r.static["send_message"] = ui.NewSendMessage()
 
 	// Web tools
 	r.static["web_search"] = web.NewWebSearch(config.TavilyAPIKey, web.WebSearchConfig{
