@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -44,6 +45,17 @@ func (e stubEvent) GetCorrelationID() string        { return "" }
 func (e stubEvent) GetCausationID() string          { return "" }
 func (e stubEvent) GetEventID() string              { return "" }
 func (e stubEvent) GetSeq() uint64                  { return 0 }
+
+type blockingEventListener struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (l *blockingEventListener) OnEvent(event agent.AgentEvent) {
+	l.once.Do(func() { close(l.started) })
+	<-l.release
+}
 
 func TestSerializingEventListener_PerRunOrdering(t *testing.T) {
 	listener := &serialRecordingListener{}
@@ -90,6 +102,44 @@ func TestSerializingEventListener_EnvelopeTerminalEvent(t *testing.T) {
 	events := listener.collected()
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+}
+
+func TestSerializingEventListener_FlushWaitsForInFlightEvents(t *testing.T) {
+	bl := &blockingEventListener{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+
+	wrapper := NewSerializingEventListener(bl)
+	wrapper.OnEvent(stubEvent{runID: "r-flush", eventType: "a"})
+
+	select {
+	case <-bl.started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for event to start processing")
+	}
+
+	flushed := make(chan struct{})
+	go func() {
+		defer close(flushed)
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		wrapper.Flush(ctx, "r-flush")
+	}()
+
+	select {
+	case <-flushed:
+		t.Fatal("flush returned while event processing was blocked")
+	case <-time.After(50 * time.Millisecond):
+	}
+
+	close(bl.release)
+
+	select {
+	case <-flushed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for flush to return")
 	}
 }
 
