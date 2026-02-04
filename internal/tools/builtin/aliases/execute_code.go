@@ -132,11 +132,13 @@ func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		execPath = resolved
 		provenance = "file"
 	} else {
-		tempDir := execDir
-		if tempDir == "" {
-			tempDir = os.TempDir()
-		}
-		tmpDir, err := os.MkdirTemp(tempDir, "alex-exec-*")
+		// Use system temp dir for inline snippets.
+		//
+		// Historically we created these under execDir so the script file lived next
+		// to the working directory. That makes cleanup failures (process kill/crash)
+		// leave behind alex-exec-* folders in the repo, which is noisy and confusing.
+		// Running with cmd.Dir=execDir is sufficient for most relative-path needs.
+		tmpDir, err := os.MkdirTemp("", "alex-exec-")
 		if err != nil {
 			return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 		}
