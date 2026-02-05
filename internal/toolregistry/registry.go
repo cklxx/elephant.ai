@@ -21,6 +21,7 @@ import (
 	"alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/browser"
 	"alex/internal/tools/builtin/chromebridge"
+	"alex/internal/tools/builtin/diagram"
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
 	"alex/internal/tools/builtin/larktools"
@@ -523,6 +524,12 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["browser_info"] = browser.NewBrowserInfo(browserMgr)
 		r.static["browser_screenshot"] = browser.NewBrowserScreenshot(browserMgr)
 		r.static["browser_dom"] = browser.NewBrowserDOM(browserMgr)
+		r.static["diagram_render"] = diagram.NewDiagramRenderLocal(diagram.LocalConfig{
+			ChromePath:  config.BrowserConfig.ChromePath,
+			Headless:    config.BrowserConfig.Headless,
+			UserDataDir: config.BrowserConfig.UserDataDir,
+			Timeout:     config.BrowserConfig.Timeout,
+		})
 		if strings.EqualFold(strings.TrimSpace(config.BrowserConfig.Connector), "chrome_extension") {
 			bridge := chromebridge.New(chromebridge.Config{
 				ListenAddr: config.BrowserConfig.BridgeListenAddr,
@@ -557,6 +564,10 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["browser_info"] = sandbox.NewSandboxBrowserInfo(sandboxConfig)
 		r.static["browser_screenshot"] = sandbox.NewSandboxBrowserScreenshot(sandboxConfig)
 		r.static["browser_dom"] = sandbox.NewSandboxBrowserDOM(sandboxConfig)
+		r.static["diagram_render"] = diagram.NewDiagramRenderSandbox(diagram.SandboxConfig{
+			BaseURL:          config.SandboxBaseURL,
+			MaxResponseBytes: httpLimits.SandboxMaxResponseBytes,
+		})
 		r.static["read_file"] = sandbox.NewSandboxFileRead(sandboxConfig)
 		r.static["write_file"] = sandbox.NewSandboxFileWrite(sandboxConfig)
 		r.static["list_dir"] = sandbox.NewSandboxFileList(sandboxConfig)
