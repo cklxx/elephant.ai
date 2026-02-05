@@ -51,5 +51,5 @@ Behavior:
 ## Progress log
 - [x] Docs + plan file landed
 - [x] Tool implemented + unit tests
-- [ ] Registry wiring + capability probe
+- [x] Registry wiring + capability probe
 - [ ] `make fmt && make vet && make test` green

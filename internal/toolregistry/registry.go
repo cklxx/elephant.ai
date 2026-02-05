@@ -3,6 +3,7 @@ package toolregistry
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -27,6 +28,7 @@ import (
 
 	okrtools "alex/internal/tools/builtin/okr"
 	"alex/internal/tools/builtin/orchestration"
+	peekabootools "alex/internal/tools/builtin/peekaboo"
 	"alex/internal/tools/builtin/sandbox"
 	schedulertools "alex/internal/tools/builtin/scheduler"
 	"alex/internal/tools/builtin/search"
@@ -527,6 +529,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)
 		r.static["shell_exec"] = aliases.NewShellExec(shellConfig)
 		r.static["execute_code"] = aliases.NewExecuteCode(shellConfig)
+		if runtime.GOOS == "darwin" {
+			r.static["peekaboo_exec"] = peekabootools.NewPeekabooExec()
+		}
 	default:
 		sandboxConfig := sandbox.SandboxConfig{
 			BaseURL:          config.SandboxBaseURL,

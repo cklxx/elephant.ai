@@ -19,6 +19,7 @@ var capabilityChecks = []struct {
 }{
 	{Program: "git", Args: []string{"--version"}},
 	{Program: "go", Args: []string{"version"}},
+	{Program: "peekaboo", Args: []string{"--version"}},
 	{Program: "node", Args: []string{"--version"}},
 	{Program: "npm", Args: []string{"--version"}},
 	{Program: "python3", Args: []string{"--version"}},

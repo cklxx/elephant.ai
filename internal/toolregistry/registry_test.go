@@ -2,6 +2,7 @@ package toolregistry
 
 import (
 	"context"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -49,6 +50,15 @@ func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 	}
 	if _, err := registry.Get("browser_action"); err != nil {
 		t.Fatalf("failed to get browser_action: %v", err)
+	}
+	if runtime.GOOS == "darwin" {
+		if _, err := registry.Get("peekaboo_exec"); err != nil {
+			t.Fatalf("expected peekaboo_exec to be registered on darwin: %v", err)
+		}
+	} else {
+		if _, err := registry.Get("peekaboo_exec"); err == nil {
+			t.Fatalf("expected peekaboo_exec to be absent on non-darwin platforms")
+		}
 	}
 	if _, err := registry.Get("write_attachment"); err == nil {
 		t.Fatalf("expected write_attachment to be absent for lark-local toolset")
