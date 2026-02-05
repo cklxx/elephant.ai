@@ -15,7 +15,7 @@ Branch: `eli/diagram-render` (worktree)
 - [x] Unit tests
 - [x] Skill (`skills/diagram-to-image/SKILL.md`)
 - [x] Full lint + tests
-- [ ] Merge back to `main` + cleanup worktree
+- [x] Merge back to `main` + cleanup worktree
 
 ## Implementation outline (decision complete)
 1) Embed Mermaid JS offline (`internal/tools/builtin/diagram/assets/mermaid.min.js`) + asset README.
