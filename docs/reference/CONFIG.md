@@ -1,5 +1,5 @@
 # ALEX 配置参考
-> Last updated: 2026-02-04
+> Last updated: 2026-02-05
 
 本文档是 **ALEX 主配置文件（`~/.alex/config.yaml`）** 的说明，覆盖 runtime 以及 server/auth/session/analytics/attachments 等段。`alex` CLI 与 `alex-server` 共享 runtime 配置；`alex-server` 额外读取其他段完成服务侧配置。
 
@@ -295,7 +295,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 
 ### LLM 相关
 
-- `llm_provider`：provider 选择；默认 `openai`（当 `api_key` 为空时会自动降级为 `mock`，但 `ollama` 不需要密钥）。支持 `openai` / `openai-responses` / `codex` / `openrouter` / `deepseek` / `anthropic` / `antigravity` / `ollama` / `mock` / `auto` / `cli`。
+- `llm_provider`：provider 选择；默认 `openai`（当 `api_key` 为空时会自动降级为 `mock`，但 `ollama` / `llama.cpp` 不需要密钥）。支持 `openai` / `openai-responses` / `codex` / `openrouter` / `deepseek` / `anthropic` / `antigravity` / `ollama` / `llama.cpp` / `mock` / `auto` / `cli`。
 - `llm_model`：默认模型。
 - `llm_vision_model`：vision 模型；当检测到图片附件时优先使用（见下节）。
 - `api_key`：API key（生产建议用 env 注入，不要提交到 git）。
@@ -311,6 +311,14 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 `llm_provider: auto` 会优先读取 env key（含 Claude OAuth），若缺失再回退到 CLI 登录。`llm_provider: cli` 则优先读取 CLI 登录，再回退到 env key。CLI 订阅优先级：Codex → Antigravity → Claude → OpenAI。`*_BASE_URL` 可覆盖基座地址。
 
 参见：`docs/reference/external-agents-codex-claude-code.md`（Codex/Claude Code 外部代理与 CLI 调用说明）。
+
+#### 本地推理：llama.cpp（llama-server）
+
+`llm_provider: "llama.cpp"` 走 llama.cpp 的 OpenAI-compatible HTTP API（通常是 `llama-server`）。
+
+- `base_url`：推荐 `http://127.0.0.1:8080/v1`；若留空则会使用 provider 默认值（同上）。
+- 权重下载（GGUF）：`alex llama-cpp pull <hf_repo> <gguf_file>`（可用 `HUGGINGFACE_TOKEN` 访问私有模型）。
+- 启动示例：`llama-server -m "<path/to/model.gguf>" --port 8080`
 
 ### 工具与运行体验
 
