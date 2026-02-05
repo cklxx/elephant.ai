@@ -1,12 +1,12 @@
 # Long-Term Memory
 
-Updated: 2026-02-04 15:00
+Updated: 2026-02-05 10:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
 
-## Active Memory (2026-02-04)
+## Active Memory (2026-02-05)
 - Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
 - Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
 - Use TDD when touching logic; run full lint + tests before delivery.
@@ -19,6 +19,7 @@ Updated: 2026-02-04 15:00
 - Subagent: snapshot pruning must drop tool outputs for pruned call IDs; cap default parallelism (`maxWorkers`) and stagger starts to reduce upstream rejections.
 - Memory system is Markdown-only: `~/.alex/memory/MEMORY.md` + `~/.alex/memory/memory/YYYY-MM-DD.md`.
 - Bash scripts under `set -u` must guard array expansions (avoid unbound variable errors).
+- Subscription model selection should remain request-scoped (web/local) and avoid mutating managed overrides YAML; persist pins in non-YAML state when needed.
 
 ## Items
 
