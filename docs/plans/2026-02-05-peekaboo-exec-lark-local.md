@@ -52,4 +52,4 @@ Behavior:
 - [x] Docs + plan file landed
 - [x] Tool implemented + unit tests
 - [x] Registry wiring + capability probe
-- [ ] `make fmt && make vet && make test` green
+- [x] `make fmt && make vet && make test` green
