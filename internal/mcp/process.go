@@ -25,6 +25,7 @@ type ProcessManager struct {
 	stdout       io.ReadCloser
 	stderr       io.ReadCloser
 	stderrTail   *tailBuffer
+	stderrDone   chan struct{}
 	logger       logging.Logger
 	mu           sync.Mutex
 	running      bool
@@ -73,6 +74,7 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 
 	pm.stopChan = make(chan struct{})
 	pm.waitDone = make(chan error, 1)
+	pm.stderrDone = make(chan struct{})
 
 	pm.logger.Info("Starting MCP server: %s %v", pm.command, pm.args)
 
@@ -111,14 +113,21 @@ func (pm *ProcessManager) Start(ctx context.Context) error {
 	pm.running = true
 	pm.logger.Info("MCP server started with PID: %d", pm.process.Process.Pid)
 
+	process := pm.process
+	stderr := pm.stderr
+	stderrTail := pm.stderrTail
+	stopChan := pm.stopChan
+	waitDone := pm.waitDone
+	stderrDone := pm.stderrDone
+
 	// Monitor stderr in background
 	async.Go(pm.logger, "mcp.monitorStderr", func() {
-		pm.monitorStderr()
+		pm.monitorStderr(stderr, stderrTail, stopChan, stderrDone)
 	})
 
 	// Monitor process exit
 	async.Go(pm.logger, "mcp.monitorExit", func() {
-		pm.monitorExit()
+		pm.monitorExit(process, waitDone, stderrDone)
 	})
 
 	return nil
@@ -316,21 +325,25 @@ func (pm *ProcessManager) StderrTail() string {
 }
 
 // monitorStderr logs stderr output from the process
-func (pm *ProcessManager) monitorStderr() {
-	if pm.stderr == nil {
+func (pm *ProcessManager) monitorStderr(stderr io.Reader, stderrTail io.Writer, stopChan <-chan struct{}, done chan<- struct{}) {
+	if done != nil {
+		defer close(done)
+	}
+
+	if stderr == nil {
 		return
 	}
 
-	reader := io.Reader(pm.stderr)
-	if pm.stderrTail != nil {
-		reader = io.TeeReader(reader, pm.stderrTail)
+	reader := stderr
+	if stderrTail != nil {
+		reader = io.TeeReader(reader, stderrTail)
 	}
 	scanner := bufio.NewScanner(reader)
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, 2*1024*1024)
 	for scanner.Scan() {
 		select {
-		case <-pm.stopChan:
+		case <-stopChan:
 			return
 		default:
 			line := scanner.Text()
@@ -344,19 +357,29 @@ func (pm *ProcessManager) monitorStderr() {
 }
 
 // monitorExit monitors when the process exits unexpectedly
-func (pm *ProcessManager) monitorExit() {
-	if pm.process == nil {
+func (pm *ProcessManager) monitorExit(process *exec.Cmd, waitDone chan<- error, stderrDone <-chan struct{}) {
+	if process == nil {
 		return
 	}
 
-	err := pm.process.Wait()
+	err := process.Wait()
 
-	select {
-	case pm.waitDone <- err:
-	default:
+	if stderrDone != nil {
+		<-stderrDone
+	}
+
+	if waitDone != nil {
+		select {
+		case waitDone <- err:
+		default:
+		}
 	}
 
 	pm.mu.Lock()
+	if pm.process != process {
+		pm.mu.Unlock()
+		return
+	}
 	wasRunning := pm.running
 	pm.running = false
 	pm.mu.Unlock()
