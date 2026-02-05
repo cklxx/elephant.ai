@@ -153,11 +153,14 @@ runtime:
   tool_preset: "safe"
   toolset: "local"
   browser:
+    connector: "chrome_extension"
     cdp_url: "http://127.0.0.1:9222"
     chrome_path: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
     headless: false
     user_data_dir: "~/.config/google-chrome"
     timeout_seconds: 90
+    bridge_listen_addr: "127.0.0.1:17333"
+    bridge_token: "file-token"
   tool_policy:
     timeout:
       default: 45s
@@ -246,6 +249,9 @@ runtime:
 	if cfg.Toolset != "local" {
 		t.Fatalf("expected toolset from file, got %q", cfg.Toolset)
 	}
+	if cfg.Browser.Connector != "chrome_extension" {
+		t.Fatalf("expected browser.connector from file, got %q", cfg.Browser.Connector)
+	}
 	if cfg.Browser.CDPURL != "http://127.0.0.1:9222" {
 		t.Fatalf("expected browser.cdp_url from file, got %q", cfg.Browser.CDPURL)
 	}
@@ -260,6 +266,12 @@ runtime:
 	}
 	if cfg.Browser.TimeoutSeconds != 90 {
 		t.Fatalf("expected browser.timeout_seconds=90 from file, got %d", cfg.Browser.TimeoutSeconds)
+	}
+	if cfg.Browser.BridgeListen != "127.0.0.1:17333" {
+		t.Fatalf("expected browser.bridge_listen_addr from file, got %q", cfg.Browser.BridgeListen)
+	}
+	if cfg.Browser.BridgeToken != "file-token" {
+		t.Fatalf("expected browser.bridge_token from file, got %q", cfg.Browser.BridgeToken)
 	}
 	if cfg.ToolPolicy.Timeout.Default != 45*time.Second {
 		t.Fatalf("expected tool policy timeout default 45s, got %v", cfg.ToolPolicy.Timeout.Default)
@@ -295,8 +307,11 @@ runtime:
 		t.Fatalf("expected toolset source from file, got %s", meta.Source("toolset"))
 	}
 	if meta.Source("browser.cdp_url") != SourceFile ||
+		meta.Source("browser.connector") != SourceFile ||
 		meta.Source("browser.chrome_path") != SourceFile ||
 		meta.Source("browser.headless") != SourceFile ||
+		meta.Source("browser.bridge_listen_addr") != SourceFile ||
+		meta.Source("browser.bridge_token") != SourceFile ||
 		meta.Source("browser.user_data_dir") != SourceFile ||
 		meta.Source("browser.timeout_seconds") != SourceFile {
 		t.Fatalf("expected browser sources from file")
@@ -723,11 +738,14 @@ runtime:
 			"AGENT_PRESET":                      "designer",
 			"TOOL_PRESET":                       "full",
 			"ALEX_TOOLSET":                      "local",
+			"ALEX_BROWSER_CONNECTOR":            "chrome_extension",
 			"ALEX_BROWSER_CDP_URL":              "http://127.0.0.1:9555",
 			"ALEX_BROWSER_CHROME_PATH":          "/tmp/chrome",
 			"ALEX_BROWSER_HEADLESS":             "true",
 			"ALEX_BROWSER_USER_DATA_DIR":        "/tmp/profile",
 			"ALEX_BROWSER_TIMEOUT_SECONDS":      "30",
+			"ALEX_BROWSER_BRIDGE_LISTEN_ADDR":   "127.0.0.1:18000",
+			"ALEX_BROWSER_BRIDGE_TOKEN":         "env-token",
 		}.Lookup),
 	)
 	if err != nil {
@@ -778,6 +796,9 @@ runtime:
 	if cfg.Toolset != "local" {
 		t.Fatalf("expected toolset from env, got %q", cfg.Toolset)
 	}
+	if cfg.Browser.Connector != "chrome_extension" {
+		t.Fatalf("expected browser.connector from env, got %q", cfg.Browser.Connector)
+	}
 	if cfg.Browser.CDPURL != "http://127.0.0.1:9555" {
 		t.Fatalf("expected browser.cdp_url from env, got %q", cfg.Browser.CDPURL)
 	}
@@ -792,6 +813,12 @@ runtime:
 	}
 	if cfg.Browser.TimeoutSeconds != 30 {
 		t.Fatalf("expected browser.timeout_seconds=30 from env, got %d", cfg.Browser.TimeoutSeconds)
+	}
+	if cfg.Browser.BridgeListen != "127.0.0.1:18000" {
+		t.Fatalf("expected browser.bridge_listen_addr from env, got %q", cfg.Browser.BridgeListen)
+	}
+	if cfg.Browser.BridgeToken != "env-token" {
+		t.Fatalf("expected browser.bridge_token from env, got %q", cfg.Browser.BridgeToken)
 	}
 	if meta.Source("tavily_api_key") != SourceEnv {
 		t.Fatalf("expected env source for tavily key, got %s", meta.Source("tavily_api_key"))
@@ -836,8 +863,11 @@ runtime:
 		t.Fatalf("expected env source for toolset, got %s", meta.Source("toolset"))
 	}
 	if meta.Source("browser.cdp_url") != SourceEnv ||
+		meta.Source("browser.connector") != SourceEnv ||
 		meta.Source("browser.chrome_path") != SourceEnv ||
 		meta.Source("browser.headless") != SourceEnv ||
+		meta.Source("browser.bridge_listen_addr") != SourceEnv ||
+		meta.Source("browser.bridge_token") != SourceEnv ||
 		meta.Source("browser.user_data_dir") != SourceEnv ||
 		meta.Source("browser.timeout_seconds") != SourceEnv {
 		t.Fatalf("expected env source for browser config")
@@ -854,9 +884,12 @@ func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 		ToolPreset:    ptrString(" safe "),
 		Toolset:       ptrString(" local "),
 		Browser: &BrowserOverrides{
-			CDPURL:      ptrString(" http://127.0.0.1:9222 "),
-			ChromePath:  ptrString(" /tmp/chrome "),
-			UserDataDir: ptrString(" /tmp/profile "),
+			Connector:    ptrString(" chrome_extension "),
+			CDPURL:       ptrString(" http://127.0.0.1:9222 "),
+			ChromePath:   ptrString(" /tmp/chrome "),
+			UserDataDir:  ptrString(" /tmp/profile "),
+			BridgeListen: ptrString(" 127.0.0.1:17333 "),
+			BridgeToken:  ptrString(" token "),
 		},
 	}
 
@@ -884,6 +917,9 @@ func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 	if cfg.Toolset != "local" {
 		t.Fatalf("expected trimmed toolset, got %q", cfg.Toolset)
 	}
+	if cfg.Browser.Connector != "chrome_extension" {
+		t.Fatalf("expected trimmed browser.connector, got %q", cfg.Browser.Connector)
+	}
 	if cfg.Browser.CDPURL != "http://127.0.0.1:9222" {
 		t.Fatalf("expected trimmed browser.cdp_url, got %q", cfg.Browser.CDPURL)
 	}
@@ -892,6 +928,12 @@ func TestLoadNormalizesRuntimeConfig(t *testing.T) {
 	}
 	if cfg.Browser.UserDataDir != "/tmp/profile" {
 		t.Fatalf("expected trimmed browser.user_data_dir, got %q", cfg.Browser.UserDataDir)
+	}
+	if cfg.Browser.BridgeListen != "127.0.0.1:17333" {
+		t.Fatalf("expected trimmed browser.bridge_listen_addr, got %q", cfg.Browser.BridgeListen)
+	}
+	if cfg.Browser.BridgeToken != "token" {
+		t.Fatalf("expected trimmed browser.bridge_token, got %q", cfg.Browser.BridgeToken)
 	}
 	if len(cfg.StopSequences) != 2 || cfg.StopSequences[0] != "STOP" || cfg.StopSequences[1] != "DONE" {
 		t.Fatalf("expected cleaned stop sequences, got %#v", cfg.StopSequences)
@@ -919,6 +961,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	overrideToolset := "local"
 	overrideBrowserCDPURL := "http://127.0.0.1:9444"
 	overrideBrowserHeadless := true
+	overrideBrowserConnector := "chrome_extension"
+	overrideBrowserBridgeListen := "127.0.0.1:19999"
+	overrideBrowserBridgeToken := "override-token"
 	cfg, meta, err := Load(
 		WithEnv(envMap{"LLM_MODEL": "env-model"}.Lookup),
 		WithOverrides(Overrides{
@@ -941,8 +986,11 @@ func TestOverridesTakePriority(t *testing.T) {
 			ToolPreset:              &overrideToolPreset,
 			Toolset:                 &overrideToolset,
 			Browser: &BrowserOverrides{
-				CDPURL:   &overrideBrowserCDPURL,
-				Headless: &overrideBrowserHeadless,
+				Connector:    &overrideBrowserConnector,
+				CDPURL:       &overrideBrowserCDPURL,
+				Headless:     &overrideBrowserHeadless,
+				BridgeListen: &overrideBrowserBridgeListen,
+				BridgeToken:  &overrideBrowserBridgeToken,
 			},
 		}),
 	)
@@ -991,6 +1039,15 @@ func TestOverridesTakePriority(t *testing.T) {
 	if cfg.Browser.Headless != overrideBrowserHeadless {
 		t.Fatalf("expected override browser.headless, got %v", cfg.Browser.Headless)
 	}
+	if cfg.Browser.Connector != "chrome_extension" {
+		t.Fatalf("expected override browser.connector, got %q", cfg.Browser.Connector)
+	}
+	if cfg.Browser.BridgeListen != overrideBrowserBridgeListen {
+		t.Fatalf("expected override browser.bridge_listen_addr, got %q", cfg.Browser.BridgeListen)
+	}
+	if cfg.Browser.BridgeToken != overrideBrowserBridgeToken {
+		t.Fatalf("expected override browser.bridge_token, got %q", cfg.Browser.BridgeToken)
+	}
 	if meta.Source("tavily_api_key") != SourceOverride {
 		t.Fatalf("expected override source for tavily key, got %s", meta.Source("tavily_api_key"))
 	}
@@ -1017,6 +1074,9 @@ func TestOverridesTakePriority(t *testing.T) {
 	}
 	if meta.Source("browser.cdp_url") != SourceOverride || meta.Source("browser.headless") != SourceOverride {
 		t.Fatalf("expected override sources for browser config")
+	}
+	if meta.Source("browser.connector") != SourceOverride || meta.Source("browser.bridge_listen_addr") != SourceOverride || meta.Source("browser.bridge_token") != SourceOverride {
+		t.Fatalf("expected override sources for browser extension bridge config")
 	}
 	if meta.Source("ark_api_key") != SourceOverride {
 		t.Fatalf("expected override source for ark api key")

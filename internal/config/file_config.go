@@ -78,11 +78,14 @@ type RuntimeFileConfig struct {
 
 // RuntimeBrowserConfig captures local browser settings in YAML (runtime section).
 type RuntimeBrowserConfig struct {
+	Connector      string `json:"connector" yaml:"connector"`
 	CDPURL         string `json:"cdp_url" yaml:"cdp_url"`
 	ChromePath     string `json:"chrome_path" yaml:"chrome_path"`
 	Headless       *bool  `json:"headless" yaml:"headless"`
 	UserDataDir    string `json:"user_data_dir" yaml:"user_data_dir"`
 	TimeoutSeconds *int   `json:"timeout_seconds" yaml:"timeout_seconds"`
+	BridgeListen   string `json:"bridge_listen_addr" yaml:"bridge_listen_addr"`
+	BridgeToken    string `json:"bridge_token" yaml:"bridge_token"`
 }
 
 // ToolPolicyFileConfig mirrors ToolPolicyConfig for YAML decoding with partial overrides.

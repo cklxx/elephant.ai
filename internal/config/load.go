@@ -54,10 +54,14 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		CostDir:                    "~/.alex/costs",
 		SessionStaleAfterSeconds:   int((48 * time.Hour).Seconds()),
 		Toolset:                    "default",
-		HTTPLimits:                 DefaultHTTPLimitsConfig(),
-		ToolPolicy:                 toolspolicy.DefaultToolPolicyConfigWithRules(),
-		Proactive:                  DefaultProactiveConfig(),
-		ExternalAgents:             DefaultExternalAgentsConfig(),
+		Browser: BrowserConfig{
+			Connector:    "cdp",
+			BridgeListen: "127.0.0.1:17333",
+		},
+		HTTPLimits:     DefaultHTTPLimitsConfig(),
+		ToolPolicy:     toolspolicy.DefaultToolPolicyConfigWithRules(),
+		Proactive:      DefaultProactiveConfig(),
+		ExternalAgents: DefaultExternalAgentsConfig(),
 	}
 
 	// Helper to set provenance only when a value actually changes precedence.
@@ -137,8 +141,11 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.ToolPreset = strings.TrimSpace(cfg.ToolPreset)
 	cfg.Toolset = strings.TrimSpace(cfg.Toolset)
 	cfg.Browser.CDPURL = strings.TrimSpace(cfg.Browser.CDPURL)
+	cfg.Browser.Connector = strings.TrimSpace(cfg.Browser.Connector)
 	cfg.Browser.ChromePath = strings.TrimSpace(cfg.Browser.ChromePath)
 	cfg.Browser.UserDataDir = strings.TrimSpace(cfg.Browser.UserDataDir)
+	cfg.Browser.BridgeListen = strings.TrimSpace(cfg.Browser.BridgeListen)
+	cfg.Browser.BridgeToken = strings.TrimSpace(cfg.Browser.BridgeToken)
 	normalizeProactiveConfig(&cfg.Proactive)
 	normalizeExternalAgentsConfig(&cfg.ExternalAgents)
 	normalizeHTTPLimits(&cfg.HTTPLimits)
@@ -158,6 +165,12 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	}
 	if cfg.Browser.TimeoutSeconds < 0 {
 		cfg.Browser.TimeoutSeconds = 0
+	}
+	if cfg.Browser.Connector == "" {
+		cfg.Browser.Connector = "cdp"
+	}
+	if cfg.Browser.BridgeListen == "" {
+		cfg.Browser.BridgeListen = "127.0.0.1:17333"
 	}
 
 	if len(cfg.StopSequences) > 0 {

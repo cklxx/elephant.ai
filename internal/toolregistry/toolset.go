@@ -27,9 +27,12 @@ func NormalizeToolset(value string) Toolset {
 
 // BrowserConfig configures local browser tooling when sandbox is disabled.
 type BrowserConfig struct {
-	CDPURL      string
-	ChromePath  string
-	Headless    bool
-	UserDataDir string
-	Timeout     time.Duration
+	Connector        string
+	CDPURL           string
+	ChromePath       string
+	Headless         bool
+	UserDataDir      string
+	Timeout          time.Duration
+	BridgeListenAddr string
+	BridgeToken      string
 }

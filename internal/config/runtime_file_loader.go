@@ -234,6 +234,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		meta.sources["toolset"] = SourceFile
 	}
 	if parsed.Browser != nil {
+		if connector := strings.TrimSpace(parsed.Browser.Connector); connector != "" {
+			cfg.Browser.Connector = connector
+			meta.sources["browser.connector"] = SourceFile
+		}
 		if cdpURL := strings.TrimSpace(parsed.Browser.CDPURL); cdpURL != "" {
 			cfg.Browser.CDPURL = cdpURL
 			meta.sources["browser.cdp_url"] = SourceFile
@@ -253,6 +257,14 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		if parsed.Browser.TimeoutSeconds != nil && *parsed.Browser.TimeoutSeconds > 0 {
 			cfg.Browser.TimeoutSeconds = *parsed.Browser.TimeoutSeconds
 			meta.sources["browser.timeout_seconds"] = SourceFile
+		}
+		if bridgeListen := strings.TrimSpace(parsed.Browser.BridgeListen); bridgeListen != "" {
+			cfg.Browser.BridgeListen = bridgeListen
+			meta.sources["browser.bridge_listen_addr"] = SourceFile
+		}
+		if bridgeToken := strings.TrimSpace(parsed.Browser.BridgeToken); bridgeToken != "" {
+			cfg.Browser.BridgeToken = bridgeToken
+			meta.sources["browser.bridge_token"] = SourceFile
 		}
 	}
 	if parsed.ToolPolicy != nil {

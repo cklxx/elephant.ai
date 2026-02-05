@@ -100,11 +100,14 @@ type RuntimeConfig struct {
 
 // BrowserConfig configures local browser tooling when sandbox is disabled.
 type BrowserConfig struct {
+	Connector      string `json:"connector" yaml:"connector"`
 	CDPURL         string `json:"cdp_url" yaml:"cdp_url"`
 	ChromePath     string `json:"chrome_path" yaml:"chrome_path"`
 	Headless       bool   `json:"headless" yaml:"headless"`
 	UserDataDir    string `json:"user_data_dir" yaml:"user_data_dir"`
 	TimeoutSeconds int    `json:"timeout_seconds" yaml:"timeout_seconds"`
+	BridgeListen   string `json:"bridge_listen_addr" yaml:"bridge_listen_addr"`
+	BridgeToken    string `json:"bridge_token" yaml:"bridge_token"`
 }
 
 // HTTPLimitsConfig controls maximum response sizes for outbound HTTP calls.
@@ -470,11 +473,14 @@ type Overrides struct {
 
 // BrowserOverrides allows partial browser config overrides.
 type BrowserOverrides struct {
+	Connector      *string `json:"connector,omitempty" yaml:"connector,omitempty"`
 	CDPURL         *string `json:"cdp_url,omitempty" yaml:"cdp_url,omitempty"`
 	ChromePath     *string `json:"chrome_path,omitempty" yaml:"chrome_path,omitempty"`
 	Headless       *bool   `json:"headless,omitempty" yaml:"headless,omitempty"`
 	UserDataDir    *string `json:"user_data_dir,omitempty" yaml:"user_data_dir,omitempty"`
 	TimeoutSeconds *int    `json:"timeout_seconds,omitempty" yaml:"timeout_seconds,omitempty"`
+	BridgeListen   *string `json:"bridge_listen_addr,omitempty" yaml:"bridge_listen_addr,omitempty"`
+	BridgeToken    *string `json:"bridge_token,omitempty" yaml:"bridge_token,omitempty"`
 }
 
 // HTTPLimitsOverrides allows partial HTTP limit overrides.

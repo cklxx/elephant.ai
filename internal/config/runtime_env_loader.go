@@ -136,6 +136,10 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.Toolset = value
 		meta.sources["toolset"] = SourceEnv
 	}
+	if value, ok := lookup("ALEX_BROWSER_CONNECTOR"); ok && value != "" {
+		cfg.Browser.Connector = value
+		meta.sources["browser.connector"] = SourceEnv
+	}
 	if value, ok := lookup("ALEX_BROWSER_CDP_URL"); ok && value != "" {
 		cfg.Browser.CDPURL = value
 		meta.sources["browser.cdp_url"] = SourceEnv
@@ -163,6 +167,14 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		}
 		cfg.Browser.TimeoutSeconds = parsed
 		meta.sources["browser.timeout_seconds"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_BROWSER_BRIDGE_LISTEN_ADDR"); ok && value != "" {
+		cfg.Browser.BridgeListen = value
+		meta.sources["browser.bridge_listen_addr"] = SourceEnv
+	}
+	if value, ok := lookup("ALEX_BROWSER_BRIDGE_TOKEN"); ok && value != "" {
+		cfg.Browser.BridgeToken = value
+		meta.sources["browser.bridge_token"] = SourceEnv
 	}
 	if value, ok := lookup("ALEX_ENV"); ok && value != "" {
 		cfg.Environment = value

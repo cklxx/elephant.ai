@@ -187,6 +187,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		meta.sources["toolset"] = SourceOverride
 	}
 	if overrides.Browser != nil {
+		if overrides.Browser.Connector != nil {
+			cfg.Browser.Connector = *overrides.Browser.Connector
+			meta.sources["browser.connector"] = SourceOverride
+		}
 		if overrides.Browser.CDPURL != nil {
 			cfg.Browser.CDPURL = *overrides.Browser.CDPURL
 			meta.sources["browser.cdp_url"] = SourceOverride
@@ -206,6 +210,14 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		if overrides.Browser.TimeoutSeconds != nil {
 			cfg.Browser.TimeoutSeconds = *overrides.Browser.TimeoutSeconds
 			meta.sources["browser.timeout_seconds"] = SourceOverride
+		}
+		if overrides.Browser.BridgeListen != nil {
+			cfg.Browser.BridgeListen = *overrides.Browser.BridgeListen
+			meta.sources["browser.bridge_listen_addr"] = SourceOverride
+		}
+		if overrides.Browser.BridgeToken != nil {
+			cfg.Browser.BridgeToken = *overrides.Browser.BridgeToken
+			meta.sources["browser.bridge_token"] = SourceOverride
 		}
 	}
 	if overrides.HTTPLimits != nil {
