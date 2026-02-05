@@ -14,7 +14,7 @@ CI intermittently fails `TestProcessManager_StderrTailCapturesOutput` because `p
 
 ## Progress
 - [x] Create worktree and plan.
-- [ ] Confirm root cause and desired ordering guarantees.
-- [ ] Implement fix and keep regression coverage (existing test).
+- [x] Confirm root cause and desired ordering guarantees.
+- [x] Implement fix and keep regression coverage (existing test).
 - [ ] Run lint + tests.
 - [ ] Merge back to `main` and cleanup worktree.
