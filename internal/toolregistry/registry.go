@@ -20,6 +20,7 @@ import (
 	"alex/internal/tools/builtin/aliases"
 	"alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/browser"
+	"alex/internal/tools/builtin/chromebridge"
 	"alex/internal/tools/builtin/execution"
 	"alex/internal/tools/builtin/fileops"
 	"alex/internal/tools/builtin/larktools"
@@ -522,6 +523,19 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["browser_info"] = browser.NewBrowserInfo(browserMgr)
 		r.static["browser_screenshot"] = browser.NewBrowserScreenshot(browserMgr)
 		r.static["browser_dom"] = browser.NewBrowserDOM(browserMgr)
+		if strings.EqualFold(strings.TrimSpace(config.BrowserConfig.Connector), "chrome_extension") {
+			bridge := chromebridge.New(chromebridge.Config{
+				ListenAddr: config.BrowserConfig.BridgeListenAddr,
+				Token:      config.BrowserConfig.BridgeToken,
+				Timeout:    config.BrowserConfig.Timeout,
+			})
+			if err := bridge.Start(); err != nil {
+				return fmt.Errorf("chrome extension bridge: %w", err)
+			}
+			r.static["browser_session_status"] = chromebridge.NewBrowserSessionStatus(bridge)
+			r.static["browser_cookies"] = chromebridge.NewBrowserCookies(bridge)
+			r.static["browser_storage_local"] = chromebridge.NewBrowserStorageLocal(bridge)
+		}
 		r.static["read_file"] = aliases.NewReadFile(fileConfig)
 		r.static["write_file"] = aliases.NewWriteFile(fileConfig)
 		r.static["list_dir"] = aliases.NewListDir(fileConfig)
