@@ -12,7 +12,7 @@ Branch: `eli/diagram-render` (worktree)
 - [x] Worktree created; `.env` copied
 - [x] Tool implementation (`internal/tools/builtin/diagram/`)
 - [x] Tool registered (`internal/toolregistry/registry.go`)
-- [ ] Unit tests
+- [x] Unit tests
 - [x] Skill (`skills/diagram-to-image/SKILL.md`)
 - [ ] Full lint + tests
 - [ ] Merge back to `main` + cleanup worktree
