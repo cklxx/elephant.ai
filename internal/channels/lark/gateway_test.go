@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -16,7 +17,9 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	storage "alex/internal/agent/ports/storage"
 	"alex/internal/channels"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/logging"
+	"alex/internal/subscription"
 	id "alex/internal/utils/id"
 
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -1530,6 +1533,90 @@ func TestHandleMessageResetCommand(t *testing.T) {
 	expectedSessionID := gw.memoryIDForChat(chatID)
 	if executor.resetSessionID != expectedSessionID {
 		t.Fatalf("expected reset sessionID %q, got %q", expectedSessionID, executor.resetSessionID)
+	}
+}
+
+func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
+	openID := "ou_sender_model"
+	chatID := "oc_chat_model"
+	msgID1 := "om_msg_model_1"
+	msgID2 := "om_msg_model_2"
+	msgType := "text"
+	chatType := "p2p"
+
+	tmp := t.TempDir()
+	storePath := filepath.Join(tmp, "llm_selection.json")
+
+	executor := &capturingExecutor{result: &agent.TaskResult{Answer: "ok"}}
+	gw := &Gateway{
+		cfg:           Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:         executor,
+		logger:        logging.OrNop(nil),
+		now:           func() time.Time { return time.Now() },
+		llmSelections: subscription.NewSelectionStore(storePath),
+		llmResolver: subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
+			return runtimeconfig.CLICredentials{}
+		}),
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	content1 := `{"text":"/model use ollama/llama3:latest"}`
+	event1 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID1,
+				Content:     &content1,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), event1); err != nil {
+		t.Fatalf("handleMessage(/model use) failed: %v", err)
+	}
+	if executor.capturedCtx != nil {
+		t.Fatalf("expected /model command to skip ExecuteTask")
+	}
+
+	content2 := `{"text":"hello"}`
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage(task) failed: %v", err)
+	}
+	if executor.capturedCtx == nil {
+		t.Fatalf("expected task to call ExecuteTask")
+	}
+
+	selection, ok := appcontext.GetLLMSelection(executor.capturedCtx)
+	if !ok {
+		t.Fatalf("expected pinned LLM selection on context")
+	}
+	if selection.Provider != "ollama" {
+		t.Fatalf("expected provider 'ollama', got %q", selection.Provider)
+	}
+	if selection.Model != "llama3:latest" {
+		t.Fatalf("expected model 'llama3:latest', got %q", selection.Model)
+	}
+	if !selection.Pinned {
+		t.Fatalf("expected pinned selection")
 	}
 }
 

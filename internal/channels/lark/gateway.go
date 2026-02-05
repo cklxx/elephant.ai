@@ -19,10 +19,12 @@ import (
 	storage "alex/internal/agent/ports/storage"
 	toolports "alex/internal/agent/ports/tools"
 	"alex/internal/channels"
+	runtimeconfig "alex/internal/config"
 	"alex/internal/jsonx"
 	larkcards "alex/internal/lark/cards"
 	larkoauth "alex/internal/lark/oauth"
 	"alex/internal/logging"
+	"alex/internal/subscription"
 	artifacts "alex/internal/tools/builtin/artifacts"
 	"alex/internal/tools/builtin/pathutil"
 	"alex/internal/tools/builtin/shared"
@@ -72,7 +74,9 @@ type Gateway struct {
 	now             func() time.Time
 	planReviewStore PlanReviewStore
 	oauth           *larkoauth.Service
-	activeSlots     sync.Map // chatID → *sessionSlot
+	llmSelections   *subscription.SelectionStore
+	llmResolver     *subscription.SelectionResolver
+	activeSlots     sync.Map           // chatID → *sessionSlot
 	aiCoordinator   *AIChatCoordinator // coordinates multi-bot chat sessions
 }
 
@@ -136,6 +140,7 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		aiCoordinator = NewAIChatCoordinator(logger, cfg.AIChatBotIDs)
 	}
 
+	selectionPath := subscription.ResolveSelectionStorePath(runtimeconfig.DefaultEnvLookup, nil)
 	return &Gateway{
 		cfg:           cfg,
 		agent:         agent,
@@ -143,7 +148,11 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		emojiPicker:   newEmojiPicker(time.Now().UnixNano(), resolveEmojiPool(cfg.ReactEmoji)),
 		dedupCache:    dedupCache,
 		now:           time.Now,
-		aiCoordinator:   aiCoordinator,
+		llmSelections: subscription.NewSelectionStore(selectionPath),
+		llmResolver: subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
+			return runtimeconfig.LoadCLICredentials()
+		}),
+		aiCoordinator: aiCoordinator,
 	}, nil
 }
 
@@ -240,13 +249,13 @@ func (g *Gateway) Stop() {
 
 // incomingMessage holds the parsed fields from a Lark message event.
 type incomingMessage struct {
-	chatID             string
-	chatType           string
-	messageID          string
-	senderID           string
-	content            string
-	isGroup            bool
-	isFromBot          bool
+	chatID              string
+	chatType            string
+	messageID           string
+	senderID            string
+	content             string
+	isGroup             bool
+	isFromBot           bool
 	aiChatSessionActive bool // true if this message is part of an AI chat session
 }
 
@@ -314,6 +323,11 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	// Handle /reset outside of a running task.
 	if strings.TrimSpace(msg.content) == "/reset" {
 		g.handleResetCommand(slot, msg) // releases slot.mu
+		return nil
+	}
+	if strings.HasPrefix(strings.TrimSpace(msg.content), "/model") || strings.HasPrefix(strings.TrimSpace(msg.content), "/models") {
+		slot.mu.Unlock()
+		g.handleModelCommand(msg)
 		return nil
 	}
 
@@ -555,6 +569,8 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 		MaxBytes:  autoUploadMaxBytes,
 		AllowExts: normalizeExtensions(g.cfg.AutoUploadAllowExt),
 	})
+
+	execCtx = g.applyPinnedLarkLLMSelection(execCtx, msg)
 
 	return execCtx
 }
