@@ -500,18 +500,29 @@ func parseIconBlockItems(raw any) ([]IconBlockItem, error) {
 		if !ok {
 			return nil, fmt.Errorf("items[%d] must be an object", i)
 		}
-		icon := strings.TrimSpace(fmt.Sprint(m["icon"]))
-		title := strings.TrimSpace(fmt.Sprint(m["title"]))
+		icon := strings.TrimSpace(fmt.Sprint(coalesceMapValue(m, "icon")))
+		title := strings.TrimSpace(fmt.Sprint(coalesceMapValue(m, "title")))
 		if icon == "" {
 			return nil, fmt.Errorf("items[%d].icon is required", i)
 		}
 		if title == "" {
 			return nil, fmt.Errorf("items[%d].title is required", i)
 		}
-		desc := strings.TrimSpace(fmt.Sprint(m["description"]))
+		desc := strings.TrimSpace(fmt.Sprint(coalesceMapValue(m, "description")))
 		items = append(items, IconBlockItem{Icon: icon, Title: title, Description: desc})
 	}
 	return items, nil
+}
+
+func coalesceMapValue(m map[string]any, key string) any {
+	if m == nil {
+		return ""
+	}
+	value, ok := m[key]
+	if !ok || value == nil {
+		return ""
+	}
+	return value
 }
 
 func waitForDiagramStatus(ctx context.Context, timeout time.Duration) (status string, diagErr string, err error) {
