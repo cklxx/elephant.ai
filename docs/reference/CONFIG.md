@@ -196,6 +196,27 @@ apps:
 - `plan_review_require_confirmation`：回复中是否提示 “OK/修改意见”。
 - `plan_review_pending_ttl_minutes`：plan review pending 记录 TTL（分钟）。
 
+##### Peekaboo（macOS 桌面自动化，非 MCP）
+
+当 `tool_preset: lark-local` 时，ALEX 可以在 **macOS** 上通过内置工具 `peekaboo_exec` 直接调用 Peekaboo CLI，实现桌面截图/识别/点击等自动化（不走 MCP）。
+
+要求与注意事项：
+
+- **仅支持 macOS 15+**（Peekaboo 依赖 Sequoia API）。
+- 需要为运行 `alex-server` / Lark gateway 的进程授予权限：
+  - System Settings → Privacy & Security → **Screen & System Audio Recording**
+  - System Settings → Privacy & Security → **Accessibility**
+- Lark bot 必须运行在 **有 GUI 的已登录用户会话**（例如 Mac mini + LaunchAgent），否则 ScreenCaptureKit / AX 可能失败。
+
+安装与权限检查（示例）：
+
+```bash
+brew install steipete/tap/peekaboo
+peekaboo permissions check
+peekaboo permissions request screen-recording
+peekaboo permissions request accessibility
+```
+
 示例（YAML）：
 
 ```yaml
