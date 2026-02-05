@@ -313,7 +313,11 @@ func (t *diagramRender) render(ctx context.Context, call ports.ToolCall, args di
 		return renderOutput{}, "", "", err
 	}
 
-	status, diagErr, err = waitForDiagramStatus(chromeCtx, 18*time.Second)
+	statusTimeout := timeout - 2*time.Second
+	if statusTimeout < 3*time.Second {
+		statusTimeout = 3 * time.Second
+	}
+	status, diagErr, err = waitForDiagramStatus(chromeCtx, statusTimeout)
 	if err != nil {
 		return renderOutput{}, status, diagErr, err
 	}
@@ -363,9 +367,22 @@ func sanitizeOutputBase(name string, format string) string {
 	}
 	trimmed = strings.TrimSpace(trimmed)
 	if trimmed == "" {
+		switch format {
+		case "icon_blocks":
+			return "icons"
+		default:
+			return "diagram"
+		}
+	}
+	if sanitized := sanitizeFilenameComponent(trimmed); sanitized != "" {
+		return sanitized
+	}
+	switch format {
+	case "icon_blocks":
+		return "icons"
+	default:
 		return "diagram"
 	}
-	return sanitizeFilenameComponent(trimmed)
 }
 
 func sanitizeFilenameComponent(value string) string {
@@ -389,9 +406,6 @@ func sanitizeFilenameComponent(value string) string {
 		}
 	}
 	out := strings.Trim(b.String(), "-")
-	if out == "" {
-		return "diagram"
-	}
 	return out
 }
 
