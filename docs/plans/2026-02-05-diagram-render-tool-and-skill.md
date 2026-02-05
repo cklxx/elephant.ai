@@ -10,10 +10,10 @@ Branch: `eli/diagram-render` (worktree)
 
 ## Status
 - [x] Worktree created; `.env` copied
-- [ ] Tool implementation (`internal/tools/builtin/diagram/`)
-- [ ] Tool registered (`internal/toolregistry/registry.go`)
+- [x] Tool implementation (`internal/tools/builtin/diagram/`)
+- [x] Tool registered (`internal/toolregistry/registry.go`)
 - [ ] Unit tests
-- [ ] Skill (`skills/diagram-to-image/SKILL.md`)
+- [x] Skill (`skills/diagram-to-image/SKILL.md`)
 - [ ] Full lint + tests
 - [ ] Merge back to `main` + cleanup worktree
 
@@ -34,4 +34,3 @@ Branch: `eli/diagram-render` (worktree)
 - Defaults: `theme=light`, `output=png`, `width=1200`, `height=800`, `scale=1.0`, `padding=32`.
 - Avoid data URLs for HTML; use `page.SetDocumentContent`.
 - Prefer element screenshot (`chromedp.Screenshot("#capture", ...)`) for tight crop.
-
