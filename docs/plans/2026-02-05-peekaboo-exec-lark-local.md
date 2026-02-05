@@ -49,8 +49,7 @@ Behavior:
 3. In Lark: run a task that uses `peekaboo_exec` to produce an image under the tool's temp cwd and confirm it arrives as an attachment.
 
 ## Progress log
-- [ ] Docs + plan file landed
-- [ ] Tool implemented + unit tests
+- [x] Docs + plan file landed
+- [x] Tool implemented + unit tests
 - [ ] Registry wiring + capability probe
 - [ ] `make fmt && make vet && make test` green
-
