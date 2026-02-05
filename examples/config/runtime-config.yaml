@@ -10,7 +10,10 @@ runtime:
   # toolset: "local" # alias: "lark-local" (enables local browser/file/exec tools)
   # browser:
   #   # can be ws://... (webSocketDebuggerUrl) OR http://127.0.0.1:<port> (DevTools HTTP endpoint)
-  #   cdp_url: "http://127.0.0.1:9222"
+  #   connector: "cdp" # or "chrome_extension" (reuse existing Chrome via extension bridge)
+  #   # cdp_url: "http://127.0.0.1:9222"
+  #   # bridge_listen_addr: "127.0.0.1:17333"
+  #   # bridge_token: "${ALEX_BROWSER_BRIDGE_TOKEN}"
   #   headless: false
   #   timeout_seconds: 60
   # proactive:

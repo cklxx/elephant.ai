@@ -351,11 +351,16 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `session_dir`：会话存储目录（支持 `~` 与 `$ENV` 展开）。
 - `cost_dir`：cost 存储目录（支持 `~` 与 `$ENV` 展开）。
 - `tool_max_concurrent`：工具调用最大并发数（默认 8）。
+- `browser.connector`：本地浏览器连接方式：`cdp` / `chrome_extension`（默认 `cdp`）。
+  - `cdp`：走 DevTools remote debugging（见 `browser.cdp_url` / `scripts/browser/start-cdp.sh`）。
+  - `chrome_extension`：复用你日常 Chrome 的登录态（cookies/localStorage），需要安装扩展 `tools/chrome-extension/elephant-bridge/`，并会启用工具 `browser_session_status` / `browser_cookies` / `browser_storage_local`。
 - `browser.cdp_url`：本地浏览器 CDP URL；支持 `ws://...`（webSocketDebuggerUrl）或 `http://127.0.0.1:<port>`（DevTools HTTP endpoint，会自动解析到 websocket）。
 - `browser.chrome_path`：本地启动 Chrome 的路径（未配置 `browser.cdp_url` 时生效）。
 - `browser.headless`：是否 headless（未配置 `browser.cdp_url` 时生效）。
 - `browser.user_data_dir`：本地 Chrome user-data-dir 根目录（未配置 `browser.cdp_url` 时生效）。
 - `browser.timeout_seconds`：本地浏览器工具超时（秒）。
+- `browser.bridge_listen_addr`：Chrome Extension Bridge 监听地址（仅允许 loopback；默认 `127.0.0.1:17333`）。
+- `browser.bridge_token`：Chrome Extension Bridge token（可选，建议设置；extension options 中填同一个）。
 
 示例（YAML）：
 
@@ -363,7 +368,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 runtime:
   toolset: "local"
   browser:
-    cdp_url: "http://127.0.0.1:9222"
+    connector: "chrome_extension"
+    bridge_listen_addr: "127.0.0.1:17333"
 ```
 
 ### Proactive 记忆（proactive.memory）
