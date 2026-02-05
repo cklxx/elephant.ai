@@ -144,25 +144,17 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 		return fmt.Errorf("no subscription credential found for %q", provider)
 	}
 
-	overrides, err := loadManagedOverrides(envLookup)
-	if err != nil {
-		return fmt.Errorf("load overrides: %w", err)
+	path := subscription.ResolveSelectionStorePath(envLookup, nil)
+	store := subscription.NewSelectionStore(path)
+	selection := subscription.Selection{
+		Mode:     "cli",
+		Provider: provider,
+		Model:    model,
+		Source:   string(cred.Source),
 	}
-
-	overrides.LLMProvider = stringPtr(provider)
-	overrides.LLMModel = stringPtr(model)
-	if cred.BaseURL != "" {
-		overrides.BaseURL = stringPtr(cred.BaseURL)
+	if err := store.Set(cliBaseContext(), subscription.SelectionScope{Channel: "cli"}, selection); err != nil {
+		return fmt.Errorf("save selection: %w", err)
 	}
-	if cred.APIKey != "" {
-		overrides.APIKey = stringPtr(cred.APIKey)
-	}
-
-	if err := saveManagedOverrides(envLookup, overrides); err != nil {
-		return fmt.Errorf("save overrides: %w", err)
-	}
-
-	path := managedOverridesPath(envLookup)
 	if _, err := fmt.Fprintf(out, "Switched to %s/%s (%s)\n", provider, model, cred.Source); err != nil {
 		return err
 	}
@@ -171,7 +163,7 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 			return err
 		}
 	}
-	if _, err := fmt.Fprintf(out, "  Config:   %s\n", path); err != nil {
+	if _, err := fmt.Fprintf(out, "  Selection: %s\n", path); err != nil {
 		return err
 	}
 	return nil
@@ -182,21 +174,13 @@ func clearModel(out io.Writer) error {
 }
 
 func clearModelWith(out io.Writer, envLookup runtimeconfig.EnvLookup) error {
-	overrides, err := loadManagedOverrides(envLookup)
-	if err != nil {
-		return fmt.Errorf("load overrides: %w", err)
+	path := subscription.ResolveSelectionStorePath(envLookup, nil)
+	store := subscription.NewSelectionStore(path)
+	if err := store.Clear(cliBaseContext(), subscription.SelectionScope{Channel: "cli"}); err != nil {
+		return fmt.Errorf("clear selection: %w", err)
 	}
 
-	overrides.LLMProvider = nil
-	overrides.LLMModel = nil
-	overrides.BaseURL = nil
-	overrides.APIKey = nil
-
-	if err := saveManagedOverrides(envLookup, overrides); err != nil {
-		return fmt.Errorf("save overrides: %w", err)
-	}
-
-	if _, err := fmt.Fprintln(out, "Subscription selection cleared; reverted to YAML defaults."); err != nil {
+	if _, err := fmt.Fprintln(out, "Subscription selection cleared; reverted to config defaults."); err != nil {
 		return err
 	}
 	return nil

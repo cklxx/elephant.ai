@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	runtimeconfig "alex/internal/config"
+	"alex/internal/subscription"
 )
 
 func TestModelListShowsProviders(t *testing.T) {
@@ -82,10 +83,11 @@ func TestModelListShowsErrors(t *testing.T) {
 	}
 }
 
-func TestUseModelSetsOverrides(t *testing.T) {
+func TestUseModelPersistsSelectionWithoutYAML(t *testing.T) {
 	t.Parallel()
 	tmp := t.TempDir()
 	overridesFile := filepath.Join(tmp, "overrides.yaml")
+	selectionFile := filepath.Join(tmp, "llm_selection.json")
 
 	envLookup := func(key string) (string, bool) {
 		if key == "ALEX_CONFIG_PATH" {
@@ -111,16 +113,23 @@ func TestUseModelSetsOverrides(t *testing.T) {
 		t.Fatalf("useModel error: %v", err)
 	}
 
-	data, err := os.ReadFile(overridesFile)
+	if _, err := os.Stat(overridesFile); err == nil {
+		t.Fatalf("expected managed overrides yaml to remain untouched")
+	}
+
+	data, err := os.ReadFile(selectionFile)
 	if err != nil {
-		t.Fatalf("read overrides: %v", err)
+		t.Fatalf("read selection store: %v", err)
 	}
 	content := string(data)
 	if !strings.Contains(content, "codex") {
-		t.Fatalf("expected codex in overrides, got:\n%s", content)
+		t.Fatalf("expected codex in selection store, got:\n%s", content)
 	}
 	if !strings.Contains(content, "gpt-5.2-codex") {
-		t.Fatalf("expected model in overrides, got:\n%s", content)
+		t.Fatalf("expected model in selection store, got:\n%s", content)
+	}
+	if got := subscription.ResolveSelectionStorePath(envLookup, nil); got != selectionFile {
+		t.Fatalf("expected selection store path %q, got %q", selectionFile, got)
 	}
 }
 
@@ -145,10 +154,11 @@ func TestUseModelRejectsMissingCredential(t *testing.T) {
 	}
 }
 
-func TestClearModelRemovesOverrides(t *testing.T) {
+func TestClearModelRemovesSelection(t *testing.T) {
 	t.Parallel()
 	tmp := t.TempDir()
 	overridesFile := filepath.Join(tmp, "overrides.yaml")
+	selectionFile := filepath.Join(tmp, "llm_selection.json")
 
 	envLookup := func(key string) (string, bool) {
 		if key == "ALEX_CONFIG_PATH" {
@@ -180,16 +190,8 @@ func TestClearModelRemovesOverrides(t *testing.T) {
 		t.Fatalf("clearModel error: %v", err)
 	}
 
-	data, err := os.ReadFile(overridesFile)
-	if err != nil {
-		t.Fatalf("read overrides: %v", err)
-	}
-	content := string(data)
-	if strings.Contains(content, "codex") {
-		t.Fatalf("expected codex to be cleared, got:\n%s", content)
-	}
-	if strings.Contains(content, "gpt-5.2") {
-		t.Fatalf("expected model to be cleared, got:\n%s", content)
+	if _, err := os.Stat(selectionFile); err == nil {
+		t.Fatalf("expected selection store to be removed after clear")
 	}
 
 	output := buf.String()
