@@ -22,6 +22,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 
 	skipDirs := map[string]struct{}{
 		".cache":       {},
+		".elephant":    {},
 		".git":         {},
 		".toolchains":  {},
 		".worktrees":   {},
