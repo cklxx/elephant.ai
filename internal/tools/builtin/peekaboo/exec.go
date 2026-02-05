@@ -76,6 +76,7 @@ func newPeekabooExec(binary string, runner runner) *peekabooExec {
 
 Notes:
 - macOS 15+ only.
+- Peekaboo can: capture the screen/window, locate UI elements, click/drag/type, run accessibility queries, and export annotated images.
 - The tool runs Peekaboo in a working directory (temp dir by default) and embeds any images generated in that directory as tool attachments.
 - Prefer relative paths (or omit --path) so outputs land in the working directory and can be attached.`,
 				Parameters: ports.ParameterSchema{
