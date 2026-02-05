@@ -35,7 +35,8 @@ func DeriveReadinessTasks(cfg runtimeconfig.RuntimeConfig) []ReadinessTask {
 	apiKey := strings.TrimSpace(cfg.APIKey)
 	tavilyKey := strings.TrimSpace(cfg.TavilyAPIKey)
 
-	providerNeedsKey := provider != "" && provider != "mock" && provider != "ollama"
+	providerLower := strings.ToLower(strings.TrimSpace(provider))
+	providerNeedsKey := providerLower != "" && providerLower != "mock" && providerLower != "ollama" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp"
 
 	if provider == "" {
 		tasks = append(tasks, ReadinessTask{
@@ -59,7 +60,7 @@ func DeriveReadinessTasks(cfg runtimeconfig.RuntimeConfig) []ReadinessTask {
 		tasks = append(tasks, ReadinessTask{
 			ID:       "llm-api-key",
 			Label:    "提供对应的 API Key",
-			Hint:     "未配置密钥时所有请求都会失败，可以暂时切换为 mock/ollama 以继续调试。",
+			Hint:     "未配置密钥时所有请求都会失败，可以暂时切换为 mock/ollama/llama.cpp 以继续调试。",
 			Severity: TaskSeverityCritical,
 		})
 	}

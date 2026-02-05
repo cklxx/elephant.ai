@@ -188,7 +188,8 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	}
 	applyServerFileConfig(&cfg, fileCfg)
 
-	if cfg.Runtime.APIKey == "" && cfg.Runtime.LLMProvider != "ollama" && cfg.Runtime.LLMProvider != "mock" {
+	providerLower := strings.ToLower(strings.TrimSpace(cfg.Runtime.LLMProvider))
+	if cfg.Runtime.APIKey == "" && providerLower != "ollama" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
 		return Config{}, nil, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
 

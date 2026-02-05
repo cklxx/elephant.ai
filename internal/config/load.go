@@ -90,8 +90,9 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	}
 	resolveAutoProvider(&cfg, &meta, options.envLookup, cliCreds)
 	resolveProviderCredentials(&cfg, &meta, options.envLookup, cliCreds)
-	// If API key remains unset, default to mock provider (unless ollama).
-	if cfg.APIKey == "" && cfg.LLMProvider != "mock" && cfg.LLMProvider != "ollama" {
+	// If API key remains unset, default to mock provider (unless keyless providers).
+	providerLower := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
+	if cfg.APIKey == "" && providerLower != "mock" && providerLower != "ollama" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
 		cfg.LLMProvider = "mock"
 		if cfg.LLMSmallProvider != "mock" {
 			cfg.LLMSmallProvider = "mock"

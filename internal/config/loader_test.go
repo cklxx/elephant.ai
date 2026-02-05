@@ -94,6 +94,24 @@ func TestLoadDefaultsUsesACPPortFile(t *testing.T) {
 	}
 }
 
+func TestLoadKeepsLlamaCppProviderWithoutAPIKey(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "llama.cpp"
+  llm_model: "local-model"
+`)
+	cfg, _, err := Load(
+		WithEnv(envMap{}.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "llama.cpp" {
+		t.Fatalf("expected provider to remain llama.cpp without api key, got %q", cfg.LLMProvider)
+	}
+}
+
 func TestLoadFromFile(t *testing.T) {
 	fileData := []byte(`
 runtime:

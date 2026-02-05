@@ -218,6 +218,9 @@ func FormatForLLM(err error) string {
 		if strings.Contains(lowerErr, "11434") || strings.Contains(lowerErr, "ollama") {
 			return "Ollama server is not running. Please start it with: ollama serve"
 		}
+		if strings.Contains(lowerErr, "8080") || strings.Contains(lowerErr, "llama") {
+			return "llama.cpp server is not running. Please start it with: llama-server -m <model.gguf> --port 8080 (or update runtime.base_url)"
+		}
 		return "Service is not running. Please check if the required service is started."
 	}
 

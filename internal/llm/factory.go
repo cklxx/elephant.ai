@@ -175,6 +175,8 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		client, err = NewAnthropicClient(model, config)
 	case "ollama":
 		client, err = NewOllamaClient(model, config)
+	case "llama.cpp", "llama-cpp", "llamacpp":
+		client, err = NewLlamaCppClient(model, config)
 	case "mock":
 		client = NewMockClient()
 	default:
