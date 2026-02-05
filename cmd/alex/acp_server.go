@@ -364,7 +364,7 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 	promptCtx = shared.WithApprover(promptCtx, newACPApprover(s, sessionID))
 	promptCtx = shared.WithAutoApprove(promptCtx, false)
 	if session.cwd != "" {
-			promptCtx = pathutil.WithWorkingDir(promptCtx, session.cwd)
+		promptCtx = pathutil.WithWorkingDir(promptCtx, session.cwd)
 	}
 	if len(parsed.Attachments) > 0 {
 		promptCtx = appcontext.WithUserAttachments(promptCtx, parsed.Attachments)
@@ -372,6 +372,7 @@ func (s *acpServer) handleSessionPrompt(ctx context.Context, req *mcp.Request) *
 	if preset := toolPresetForMode(session.modeID); preset != "" {
 		promptCtx = context.WithValue(promptCtx, appcontext.PresetContextKey{}, appcontext.PresetConfig{ToolPreset: preset})
 	}
+	promptCtx = applyPinnedCLILLMSelection(promptCtx, runtimeEnvLookup(), s.logger)
 
 	var oldCwd string
 	if session.cwd != "" {

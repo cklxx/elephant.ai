@@ -248,6 +248,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	var forceExit atomic.Bool
 
 	logger := logging.FromContext(ctx, logging.NewComponentLogger("CLIStreamOutput"))
+	ctx = applyPinnedCLILLMSelection(ctx, runtimeEnvLookup(), logger)
 	async.Go(logger, "cli.signal-handler", func() {
 		interrupted := false
 		for {
