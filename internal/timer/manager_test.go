@@ -516,6 +516,9 @@ func TestManagerSessionIDPassedThrough(t *testing.T) {
 
 	coord.waitForCall(t, 5*time.Second)
 
+	// Wait for fireTimer to complete store update.
+	time.Sleep(100 * time.Millisecond)
+
 	calls := coord.getCalls()
 	if len(calls) == 0 {
 		t.Fatal("expected ExecuteTask call")
