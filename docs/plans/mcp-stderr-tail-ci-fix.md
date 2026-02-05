@@ -1,6 +1,6 @@
 # Plan: MCP ProcessManager stderr tail CI fix
 
-## Status: In Progress
+## Status: Completed
 ## Date: 2026-02-05
 
 ## Problem
@@ -17,4 +17,4 @@ CI intermittently fails `TestProcessManager_StderrTailCapturesOutput` because `p
 - [x] Confirm root cause and desired ordering guarantees.
 - [x] Implement fix and keep regression coverage (existing test).
 - [x] Run lint + tests.
-- [ ] Merge back to `main` and cleanup worktree.
+- [x] Merge back to `main` and cleanup worktree.
