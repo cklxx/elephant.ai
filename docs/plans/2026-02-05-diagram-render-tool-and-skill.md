@@ -14,7 +14,7 @@ Branch: `eli/diagram-render` (worktree)
 - [x] Tool registered (`internal/toolregistry/registry.go`)
 - [x] Unit tests
 - [x] Skill (`skills/diagram-to-image/SKILL.md`)
-- [ ] Full lint + tests
+- [x] Full lint + tests
 - [ ] Merge back to `main` + cleanup worktree
 
 ## Implementation outline (decision complete)
