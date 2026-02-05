@@ -225,6 +225,7 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 		{"anthropic", true},
 		{"antigravity", true},
 		{"ollama", true},
+		{"llama.cpp", true},
 		{"unknown", false},
 	}
 

@@ -58,6 +58,9 @@ func (c *CLI) Run(args []string) error {
 	case "model", "models":
 		return c.handleModel(cmdArgs)
 
+	case "llama-cpp", "llamacpp":
+		return c.handleLlamaCpp(cmdArgs)
+
 	case "mcp":
 		return c.handleMCP(cmdArgs)
 
@@ -102,6 +105,7 @@ Usage:
   alex model                     List available subscription models
   alex model use <p/m>           Select a subscription model (e.g. codex/gpt-5.2-codex)
   alex model clear               Remove subscription selection
+  alex llama-cpp pull <repo> <file>  Download GGUF weights from Hugging Face
   alex cost                      Show cost tracking commands
   alex mcp                       MCP (Model Context Protocol) management
   alex eval [options]            Run local agent evaluation against SWE-Bench datasets

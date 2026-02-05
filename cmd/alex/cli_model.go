@@ -139,6 +139,11 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 	provider := strings.ToLower(strings.TrimSpace(parts[0]))
 	model := strings.TrimSpace(parts[1])
 
+	switch provider {
+	case "llamacpp", "llama-cpp":
+		provider = "llama.cpp"
+	}
+
 	cred, ok := matchCredential(creds, provider)
 	if !ok {
 		return fmt.Errorf("no subscription credential found for %q", provider)
@@ -205,6 +210,11 @@ func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runti
 			Provider: "ollama",
 			Source:   "ollama",
 		}, true
+	case "llama.cpp":
+		return runtimeconfig.CLICredential{
+			Provider: "llama.cpp",
+			Source:   "llama.cpp",
+		}, true
 	}
 	return runtimeconfig.CLICredential{}, false
 }
@@ -222,6 +232,7 @@ func printModelUsage(out io.Writer) {
 		"  alex model use antigravity/gemini-3-pro-high",
 		"  alex model use anthropic/claude-sonnet-4-20250514",
 		"  alex model use ollama/llama3:latest",
+		"  alex model use llama.cpp/local-model",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(out, line); err != nil {
