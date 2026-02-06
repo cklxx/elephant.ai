@@ -683,6 +683,58 @@ restart_with_backoff() {
   return 1
 }
 
+maybe_upgrade_for_sha_drift() {
+  # Auto-restart healthy components whose deployed SHA differs from the latest
+  # main SHA. This ensures code changes are picked up without manual intervention.
+  local now_epoch
+  now_epoch="$(date +%s)"
+
+  # Skip during cooldown.
+  if (( now_epoch < COOLDOWN_UNTIL )); then
+    return 0
+  fi
+
+  # Upgrade main if deployed SHA differs and process is healthy.
+  if [[ "${OBS_MAIN_HEALTH}" == "healthy" \
+     && "${OBS_MAIN_DEPLOYED_SHA}" != "unknown" \
+     && "${OBS_MAIN_SHA}" != "unknown" \
+     && "${OBS_MAIN_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
+    local count
+    count="$(record_restart_attempt "main" "${now_epoch}")"
+    if (( count > RESTART_MAX_IN_WINDOW )); then
+      set_cooldown "main" "${count}"
+      return 0
+    fi
+    append_log "[upgrade] main deployed=${OBS_MAIN_DEPLOYED_SHA:0:8} latest=${OBS_MAIN_SHA:0:8}; restarting"
+    if restart_component "main"; then
+      append_log "[upgrade] main restart success"
+    else
+      append_log "[upgrade] main restart failed"
+    fi
+    observe_states
+  fi
+
+  # Upgrade test if deployed SHA differs and process is healthy.
+  if [[ "${OBS_TEST_HEALTH}" == "healthy" \
+     && "${OBS_TEST_DEPLOYED_SHA}" != "unknown" \
+     && "${OBS_MAIN_SHA}" != "unknown" \
+     && "${OBS_TEST_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
+    local count
+    count="$(record_restart_attempt "test" "${now_epoch}")"
+    if (( count > RESTART_MAX_IN_WINDOW )); then
+      set_cooldown "test" "${count}"
+      return 0
+    fi
+    append_log "[upgrade] test deployed=${OBS_TEST_DEPLOYED_SHA:0:8} latest=${OBS_MAIN_SHA:0:8}; restarting"
+    if restart_component "test"; then
+      append_log "[upgrade] test restart success"
+    else
+      append_log "[upgrade] test restart failed"
+    fi
+    observe_states
+  fi
+}
+
 run_tick() {
   observe_states
 
@@ -692,6 +744,7 @@ run_tick() {
   observe_states
   restart_with_backoff "loop" "${OBS_LOOP_HEALTH}" || true
   observe_states
+  maybe_upgrade_for_sha_drift
   handle_autofix_success_restart
   observe_states
 
@@ -776,10 +829,10 @@ report_children_health() {
   echo "  main  deployed: ${OBS_MAIN_DEPLOYED_SHA:0:8}  latest: ${OBS_MAIN_SHA:0:8}"
   echo "  test  deployed: ${OBS_TEST_DEPLOYED_SHA:0:8}  latest: ${OBS_MAIN_SHA:0:8}"
   if [[ "${OBS_MAIN_DEPLOYED_SHA:0:8}" != "${OBS_MAIN_SHA:0:8}" ]]; then
-    log_warn "  main is behind latest — restart recommended"
+    log_warn "  main is behind latest — will auto-upgrade on next tick"
   fi
   if [[ "${OBS_TEST_DEPLOYED_SHA:0:8}" != "${OBS_MAIN_SHA:0:8}" ]]; then
-    log_warn "  test is behind latest — restart recommended"
+    log_warn "  test is behind latest — will auto-upgrade on next tick"
   fi
   if (( degraded )); then
     log_warn "Supervisor is running but some components are down (use './lark.sh logs' to investigate)"

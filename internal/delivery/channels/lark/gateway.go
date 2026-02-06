@@ -232,9 +232,12 @@ func (g *Gateway) Start(ctx context.Context) error {
 		g.messenger = newSDKMessenger(g.client)
 	}
 
-	// Build the event dispatcher and register the message handler.
+	// Build the event dispatcher and register event handlers.
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")
 	eventDispatcher.OnP2MessageReceiveV1(g.handleMessage)
+	eventDispatcher.OnP2MessageReactionCreatedV1(func(_ context.Context, _ *larkim.P2MessageReactionCreatedV1) error {
+		return nil
+	})
 
 	// Build and start the WebSocket client.
 	var wsOpts []larkws.ClientOption
