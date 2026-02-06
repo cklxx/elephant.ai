@@ -42,7 +42,6 @@ func RunServer(observabilityConfigPath string) error {
 	}
 
 	LogServerConfiguration(logger, config)
-	ensureSkillsDirFromWorkspace(config.Channels.Lark.WorkspaceDir, logger)
 
 	if runtimeCache != nil {
 		for _, configPath := range runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil) {

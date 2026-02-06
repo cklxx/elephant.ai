@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('node:fs/promises');
+const os = require('node:os');
 const path = require('node:path');
 
 function stripQuotes(value) {
@@ -89,6 +90,79 @@ async function discoverSkillFiles(skillsDir) {
   return files.sort((a, b) => a.localeCompare(b));
 }
 
+async function statPath(targetPath) {
+  return fs.stat(targetPath).catch(() => null);
+}
+
+async function hasSkillDefinition(skillDir) {
+  for (const candidate of ['SKILL.md', 'SKILL.mdx']) {
+    const candidatePath = path.join(skillDir, candidate);
+    const stat = await statPath(candidatePath);
+    if (stat?.isFile()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function copyDirectory(sourceDir, targetDir) {
+  await fs.mkdir(targetDir, { recursive: true });
+  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const sourcePath = path.join(sourceDir, entry.name);
+    const targetPath = path.join(targetDir, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirectory(sourcePath, targetPath);
+      continue;
+    }
+    if (entry.isFile()) {
+      await fs.copyFile(sourcePath, targetPath);
+    }
+  }
+}
+
+async function copyMissingSkills(repoSkillsDir, homeSkillsDir) {
+  const entries = await fs.readdir(repoSkillsDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const sourceSkillDir = path.join(repoSkillsDir, entry.name);
+    if (!(await hasSkillDefinition(sourceSkillDir))) continue;
+
+    const targetSkillDir = path.join(homeSkillsDir, entry.name);
+    const targetStat = await statPath(targetSkillDir);
+    if (targetStat) continue;
+
+    await copyDirectory(sourceSkillDir, targetSkillDir);
+  }
+}
+
+async function ensureHomeSkills(repoRoot, homeSkillsDir) {
+  await fs.mkdir(homeSkillsDir, { recursive: true });
+
+  const repoSkillsDir = path.join(repoRoot, 'skills');
+  const repoStat = await statPath(repoSkillsDir);
+  if (!repoStat?.isDirectory()) {
+    return;
+  }
+  await copyMissingSkills(repoSkillsDir, homeSkillsDir);
+}
+
+async function resolveSkillsDir(repoRoot) {
+  const envSkillsDir = stripQuotes(process.env.ALEX_SKILLS_DIR || '');
+  if (envSkillsDir) {
+    return path.resolve(envSkillsDir);
+  }
+
+  const homeDir = os.homedir();
+  if (!homeDir) {
+    return path.join(repoRoot, 'skills');
+  }
+
+  const homeSkillsDir = path.join(homeDir, '.alex', 'skills');
+  await ensureHomeSkills(repoRoot, homeSkillsDir);
+  return homeSkillsDir;
+}
+
 async function loadSkills(skillsDir, repoRoot) {
   const skillFiles = await discoverSkillFiles(skillsDir);
   const skills = [];
@@ -121,9 +195,7 @@ async function loadSkills(skillsDir, repoRoot) {
 
 async function main() {
   const repoRoot = path.resolve(__dirname, '..', '..');
-  const skillsDir = process.env.ALEX_SKILLS_DIR
-    ? path.resolve(process.env.ALEX_SKILLS_DIR)
-    : path.join(repoRoot, 'skills');
+  const skillsDir = await resolveSkillsDir(repoRoot);
 
   const outputDir = path.join(repoRoot, 'web', 'lib', 'generated');
   const outputFile = path.join(outputDir, 'skillsCatalog.json');

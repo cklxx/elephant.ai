@@ -19,7 +19,12 @@ description: Extract text and tables from PDFs.
 ## Discovery
 `alex` searches for skills in this order:
 1) `ALEX_SKILLS_DIR` (absolute or relative path)
-2) A `skills/` directory discovered upward from the working directory or the binary path
+2) `~/.alex/skills`
+
+When `ALEX_SKILLS_DIR` is not set, runtime and web catalog generation both use `~/.alex/skills` and run a one-way sync from repository `skills/`:
+- copy only missing skill directories to `~/.alex/skills`
+- never overwrite existing user skills with the same name
+- never delete files from `~/.alex/skills`
 
 Only folder-based `SKILL.md` layouts are supported. Skills with missing frontmatter are rejected; duplicate names are rejected.
 

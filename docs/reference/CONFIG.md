@@ -287,7 +287,7 @@ channels:
 - `CODEX_BASE_URL`：Responses / Codex base URL override
 - `ANTIGRAVITY_BASE_URL`：Antigravity base URL override
 - `ALEX_CLI_AUTH_PATH`：CLI auth.json 路径覆盖
-- `ALEX_SKILLS_DIR`：Skills 根目录（包含各技能目录/文件的 `skills/` 路径）
+- `ALEX_SKILLS_DIR`：Skills 根目录（设置后仅使用该路径，不触发自动复制）
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
 - `AUTH_JWT_SECRET` / `AUTH_DATABASE_URL`
@@ -296,6 +296,12 @@ channels:
 - `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_ACCESS_KEY_ID` / `CLOUDFLARE_SECRET_ACCESS_KEY`
 
 > 插值规则：`${VAR}` 会被替换为环境变量值；如需字面量 `$`，可写成 `$$`。
+
+### Skills 默认目录与自动复制
+
+- 当未设置 `ALEX_SKILLS_DIR` 时，默认使用 `~/.alex/skills`。
+- CLI / server / web skills catalog 会执行同一策略：从仓库 `skills/` 复制缺失 skill 到 `~/.alex/skills`。
+- 冲突策略是“用户优先”：`~/.alex/skills` 已存在同名目录时跳过，不覆盖、不删除。
 
 ### 网络与代理（非 RuntimeConfig 字段）
 
