@@ -19,6 +19,7 @@
 - Safety: avoid destructive operations/history rewrites unless explicitly requested.
 - Architecture guardrails: keep `agent/ports` free of memory/RAG deps to avoid import cycles.
 - Coding: avoid unnecessary defensive code; trust guaranteed invariants; no compatibility shims—refactor cleanly.
+- Prefer using subagents for parallelizable tasks to improve execution speed.
 
 ## Memory loading (minimal, repeatable)
 - First run in repo: read latest 3–5 items from error/good entries + summaries + `docs/memory/long-term.md`, rank by recency/frequency/relevance, keep top 8–12 as active memory.
