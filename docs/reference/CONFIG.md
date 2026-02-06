@@ -459,6 +459,35 @@ runtime:
 
 ---
 
+## Lark 本地自治脚本（`lark.sh`）环境变量
+
+`lark.sh` 是本地自治迭代的唯一入口（`up|down|restart|status|logs|doctor|cycle`）。  
+脚本运行时支持以下可选环境变量：
+
+- `LARK_SUPERVISOR_TICK_SECONDS`：supervisor 轮询周期（秒，默认 `5`）。
+- `LARK_RESTART_MAX_IN_WINDOW`：重启窗口内允许的最大重启次数（默认 `5`）。
+- `LARK_RESTART_WINDOW_SECONDS`：重启窗口大小（秒，默认 `600`）。
+- `LARK_COOLDOWN_SECONDS`：触发重启风暴后熔断冷却时长（秒，默认 `300`）。
+- `MAIN_CONFIG`：main 进程配置文件路径（默认 `$ALEX_CONFIG_PATH` 或 `~/.alex/config.yaml`）。
+- `TEST_CONFIG`：test 进程配置文件路径（默认 `~/.alex/test.yaml`）。
+
+结构化状态文件（聊天侧可读）：
+
+- `.worktrees/test/tmp/lark-supervisor.status.json`
+- `.worktrees/test/tmp/lark-loop.state.json`
+
+`lark-supervisor.status.json` 最小字段：
+
+- `ts_utc`
+- `mode`（`healthy|degraded|cooldown`）
+- `main_pid`, `test_pid`, `loop_pid`
+- `main_health`, `test_health`, `loop_alive`
+- `main_sha`, `last_processed_sha`
+- `cycle_phase`, `cycle_result`, `last_error`
+- `restart_count_window`
+
+---
+
 ## 多模态（Vision）配置与行为
 
 - 当 **用户消息携带图片附件**（或 task 文本引用图片占位符）时：

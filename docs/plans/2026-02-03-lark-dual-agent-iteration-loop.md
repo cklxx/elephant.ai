@@ -1,7 +1,7 @@
 # 本地双 Worktree 双进程自我迭代闭环（main/test 常驻）
 
 Date: 2026-02-03  
-Status: Implemented (scripts + CLI)  
+Status: Implemented (v2 单入口 supervisor 已上线)  
 Author: cklxx
 
 ---
@@ -21,6 +21,8 @@ Author: cklxx
 - 日志按 worktree 隔离：主/副进程启动时都会设置 `ALEX_LOG_DIR`，因此内部 `alex-service/llm/latency` 日志落在各自 worktree 的 `logs/` 下。
 
 这套设计允许主 agent “乱搞”，但副 agent 的闭环必须以**明确的 `main@SHA`**为测试对象，否则测试结果没有语义。
+
+> 2026-02-06 更新：用户入口已收敛为 `./lark.sh` 单入口（`up|down|restart|status|logs|doctor|cycle`）。`ma/ta` 只保留一个迭代周期的弃用转发，不再作为正式控制面。
 
 ---
 
@@ -47,21 +49,25 @@ Author: cklxx
 
 ### 统一入口（推荐）
 
-只记两个命令：
+只记一个入口脚本 + 一组子命令：
 
-- `./lark.sh ma ...`：主 agent（main worktree 的 server + 本地 auth DB）
-- `./lark.sh ta ...`：副 agent（test worktree 的 server + 自愈 loop watcher；会自动确保 `.worktrees/test` + 同步 `.env`）
+- `./lark.sh up`：ensure worktree + 启动 supervisor（托管 main/test/loop）
+- `./lark.sh down`：停止 supervisor 与子进程
+- `./lark.sh restart`：完整重启
+- `./lark.sh status`：聚合状态（进程、health、SHA、最近 cycle）
+- `./lark.sh logs`：聚合日志
+- `./lark.sh doctor`：只读诊断
+- `./lark.sh cycle --base-sha <sha>`：手工单轮调试
 
 用法：
 
 ```bash
-./lark.sh ma start
-./lark.sh ta start
+./lark.sh up
+./lark.sh status
 ```
 
-对应关系（想看细节时再用）：
-- `./lark.sh ma <cmd>` → `scripts/lark/main.sh <cmd>`
-- `./lark.sh ta <cmd>` → `scripts/lark/test.sh <cmd>` + `scripts/lark/loop-agent.sh <cmd>`（启动前会 `worktree.sh ensure`）
+兼容窗口（一个迭代周期）：
+- `./lark.sh ma ...` / `./lark.sh ta ...` 会打印 deprecation，并转发到新语义。
 
 ### Worktree 管理
 
@@ -69,14 +75,20 @@ Author: cklxx
   - 确保 `.worktrees/test` worktree 常驻（分支 `test`）
   - 强制同步 `.env` -> `.worktrees/test/.env`
 
-### 主/副进程管理
+### 主/副进程管理（内部实现）
+
+- `scripts/lark/supervisor.sh start|stop|restart|status|logs|doctor|run-once|run`
+  - 负责拉起并守护 main/test/loop
+  - 健康检查（main/test `/health` + PID；loop PID）
+  - 指数退避 + 重启风暴熔断 + 单实例锁
+  - 写入 `.worktrees/test/tmp/lark-supervisor.status.json`
 
 - `scripts/lark/main.sh start|stop|restart|status|logs|build`
   - 在主 worktree 启动/重启 `alex-server`（并确保本地 auth DB 已启动）
   - 通过 `http://127.0.0.1:${MAIN_PORT:-8080}/health` 做健康检查
 
 - `scripts/lark/loop-agent.sh start|stop|restart|status|logs`
-  - 启动/管理副 agent 的 loop（`scripts/lark/loop.sh watch`）
+  - 兼容壳，仅供 supervisor 内部调用（不再对用户暴露）
 
 - `scripts/lark/test.sh start|stop|restart|status|logs|build`
   - 在 `.worktrees/test` 启动/重启 `alex-server`（并确保本地 auth DB 已启动 + `.env` 已同步）
@@ -98,6 +110,7 @@ Author: cklxx
 
 - `scripts/lark/loop.sh run --base-sha <sha>`
   - 手动触发一次闭环（便于 debug）
+- 会写 `.worktrees/test/tmp/lark-loop.state.json`，供 supervisor/chat 侧读取最近 cycle 状态
 
 并发互斥：
 - 使用 `tmp/lark-loop.lock/`（`mkdir` 原子锁）避免重复循环
@@ -145,10 +158,9 @@ cd -
 cd .worktrees/test/web && pnpm install
 cd -
 ```
-3) 启动主/副 agent：
+3) 启动自治守护：
 ```bash
-./lark.sh ma start
-./lark.sh ta start
+./lark.sh up
 ```
 
 4) 让 test bot 的工作目录指向 test worktree（避免修复落在 main）：
@@ -185,7 +197,7 @@ channels:
 loop 在合入 `main` 后会尝试重启主 agent 以加载新代码。为了避免误伤 `dev.sh` 启动的服务：
 
 - loop **只会**在检测到 `${MAIN_ROOT}/.pids/lark-main.pid` 存在时才重启主 agent
-- 推荐主 agent 统一使用 `./lark.sh ma start` 启动（而不是 `./dev.sh`），避免端口占用/进程接管的歧义
+- 推荐统一使用 `./lark.sh up` 管理全流程（而不是 `./dev.sh` / 手工多脚本启动），避免端口占用/进程接管歧义
 
 ---
 
@@ -201,6 +213,8 @@ loop 在合入 `main` 后会尝试重启主 agent 以加载新代码。为了避
 - [x] 常驻 worktree：`.worktrees/test` + `.env` 自动同步
 - [x] 主进程管理：`scripts/lark/main.sh`
 - [x] test worktree server：`scripts/lark/test.sh`
-- [x] 副循环进程：`scripts/lark/loop-agent.sh` + `scripts/lark/loop.sh`
+- [x] 单入口 `lark.sh` + `supervisor` 守护编排
+- [x] 副循环进程：`scripts/lark/loop.sh`（`loop-agent.sh` 仅内部兼容壳）
+- [x] 结构化状态：`lark-supervisor.status.json` + `lark-loop.state.json`
 - [x] CLI 场景评测：`alex lark scenario run`
 - [ ] （可选）将 loop 的进度/失败摘要推送回 Lark（目前写本地 logs）
