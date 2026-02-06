@@ -103,6 +103,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		SkillsConfig:    cfg.Skills,
 		OKRContext:      cfg.OKRContext,
 		StewardState:    dyn.StewardState,
+		StewardMode:     cfg.StewardMode,
 	})
 	return window, nil
 }

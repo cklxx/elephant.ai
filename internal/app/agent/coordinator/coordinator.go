@@ -1142,6 +1142,7 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 		ToolMode:           string(toolMode),
 		ToolPreset:         toolPreset,
 		EnvironmentSummary: cfg.EnvironmentSummary,
+		StewardMode:        cfg.Steward.Enabled,
 	})
 	if err != nil {
 		return preview, fmt.Errorf("build context window: %w", err)
@@ -1184,6 +1185,7 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		ToolMode:           toolMode,
 		ToolPreset:         toolPreset,
 		EnvironmentSummary: c.config.EnvironmentSummary,
+		StewardMode:        c.config.Steward.Enabled,
 	})
 	if err != nil {
 		if c.logger != nil {

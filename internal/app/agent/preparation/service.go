@@ -217,6 +217,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				TaskInput:          task,
 				Skills:             buildSkillsConfig(s.config.Proactive.Skills),
 				OKRContext:         okrContext,
+				StewardMode:        s.config.Steward.Enabled,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)
