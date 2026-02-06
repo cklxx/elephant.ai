@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	agentports "alex/internal/domain/agent/ports/agent"
+
 	"golang.org/x/term"
 )
 
@@ -18,7 +20,8 @@ type lineChatLoop struct {
 	prompter linePrompter
 	out      io.Writer
 	errOut   io.Writer
-	runTask  func(task string) error
+	runTask  func(task string) (*agentports.TaskResult, error)
+	selectUI func(question string, options []string) (string, bool, error)
 	clear    func()
 	header   func()
 
@@ -69,7 +72,10 @@ func runLineChatUI(container *Container, in io.Reader, out io.Writer, errOut io.
 		prompter: prompter,
 		out:      out,
 		errOut:   errOut,
-		runTask:  func(task string) error { return RunTaskWithStreamOutput(container, task, session.ID) },
+		runTask: func(task string) (*agentports.TaskResult, error) {
+			return RunTaskWithStreamOutputResult(container, task, session.ID)
+		},
+		selectUI: newAwaitChoiceSelector(in, out, interactive).Select,
 		clear:    clear,
 		header:   header,
 	}
@@ -157,15 +163,49 @@ func (l *lineChatLoop) runCommand(task string) error {
 	if l.runTask == nil {
 		return nil
 	}
-	if err := l.runTask(task); err != nil {
-		if errors.Is(err, ErrForceExit) {
+
+	pending := task
+	for {
+		result, err := l.runTask(pending)
+		if err != nil {
+			if errors.Is(err, ErrForceExit) {
+				return err
+			}
+			if l.errOut != nil {
+				fmt.Fprintf(l.errOut, "%s %v\n", styleError.Render("Error:"), err)
+			}
+			return nil
+		}
+		prompt, ok := extractAwaitPrompt(result)
+		if !ok || len(prompt.Options) == 0 || l.selectUI == nil {
+			return nil
+		}
+
+		selection, selected, err := l.selectUI(prompt.Question, prompt.Options)
+		if err != nil {
+			if errors.Is(err, errPromptAborted) {
+				if l.errOut != nil {
+					fmt.Fprintln(l.errOut, styleGray.Render("Selection cancelled."))
+				}
+				return nil
+			}
 			return err
 		}
-		if l.errOut != nil {
-			fmt.Fprintf(l.errOut, "%s %v\n", styleError.Render("Error:"), err)
+		if !selected {
+			return nil
+		}
+		pending = selection
+		if l.prompter != nil {
+			l.prompter.AppendHistory(selection)
 		}
 	}
-	return nil
+}
+
+func extractAwaitPrompt(result *agentports.TaskResult) (agentports.AwaitUserInputPrompt, bool) {
+	if result == nil || !strings.EqualFold(strings.TrimSpace(result.StopReason), "await_user_input") {
+		return agentports.AwaitUserInputPrompt{}, false
+	}
+	return agentports.ExtractAwaitUserInputPrompt(result.Messages)
 }
 
 func readLine(reader *bufio.Reader) (string, bool, error) {

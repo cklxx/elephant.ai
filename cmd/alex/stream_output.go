@@ -192,6 +192,13 @@ func (h *StreamingOutputHandler) SetOutputWriter(w io.Writer) {
 
 // RunTaskWithStreamOutput executes a task with inline streaming output
 func RunTaskWithStreamOutput(container *Container, task string, sessionID string) error {
+	_, err := RunTaskWithStreamOutputResult(container, task, sessionID)
+	return err
+}
+
+// RunTaskWithStreamOutputResult executes a task with inline streaming output
+// and returns the final task result.
+func RunTaskWithStreamOutputResult(container *Container, task string, sessionID string) (*agent.TaskResult, error) {
 	// Start execution with stream handler
 	baseCtx := cliBaseContext()
 	ctx, cancel := context.WithCancel(baseCtx)
@@ -200,7 +207,7 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	if sessionID == "" {
 		session, err := container.SessionStore.Create(ctx)
 		if err != nil {
-			return fmt.Errorf("create session: %w", err)
+			return nil, fmt.Errorf("create session: %w", err)
 		}
 		sessionID = session.ID
 	}
@@ -274,21 +281,21 @@ func RunTaskWithStreamOutput(container *Container, task string, sessionID string
 	if err != nil {
 		if forceExit.Load() {
 			handler.consumeTaskCompletion()
-			return ErrForceExit
+			return nil, ErrForceExit
 		}
 		if errors.Is(err, context.Canceled) {
 			completion := handler.consumeTaskCompletion()
 			handler.printCancellation(completion)
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("task execution failed: %w", err)
+		return nil, fmt.Errorf("task execution failed: %w", err)
 	}
 
 	// Print completion summary
 	handler.printCompletion(domainResult)
 	handler.consumeTaskCompletion()
 
-	return nil
+	return domainResult, nil
 }
 
 // StreamEventBridge converts domain events to stream output

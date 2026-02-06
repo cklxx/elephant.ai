@@ -5,6 +5,9 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	ports "alex/internal/domain/agent/ports"
+	agentports "alex/internal/domain/agent/ports/agent"
 )
 
 type fakePrompter struct {
@@ -41,9 +44,9 @@ func TestLineChatLoopQuit(t *testing.T) {
 	loop := &lineChatLoop{
 		prompter: prompter,
 		out:      io.Discard,
-		runTask: func(task string) error {
+		runTask: func(task string) (*agentports.TaskResult, error) {
 			t.Fatalf("runTask should not be called, got %q", task)
-			return nil
+			return nil, nil
 		},
 	}
 
@@ -63,9 +66,9 @@ func TestLineChatLoopRunsCommandsAndClear(t *testing.T) {
 		prompter: prompter,
 		out:      io.Discard,
 		errOut:   io.Discard,
-		runTask: func(task string) error {
+		runTask: func(task string) (*agentports.TaskResult, error) {
 			tasks = append(tasks, task)
-			return nil
+			return &agentports.TaskResult{}, nil
 		},
 		clear: func() {
 			cleared++
@@ -94,11 +97,11 @@ func TestLineChatLoopPropagatesForceExit(t *testing.T) {
 		prompter: prompter,
 		out:      io.Discard,
 		errOut:   io.Discard,
-		runTask: func(task string) error {
+		runTask: func(task string) (*agentports.TaskResult, error) {
 			if task != "run" {
 				t.Fatalf("unexpected task: %q", task)
 			}
-			return ErrForceExit
+			return nil, ErrForceExit
 		},
 	}
 
@@ -121,6 +124,58 @@ func TestLineChatLoopPromptAbort(t *testing.T) {
 
 	if err := loop.run(); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLineChatLoopAwaitOptionsAutoSelect(t *testing.T) {
+	t.Parallel()
+
+	var tasks []string
+	selectionCalls := 0
+
+	prompter := &fakePrompter{lines: []string{"deploy", "/quit"}}
+	loop := &lineChatLoop{
+		prompter: prompter,
+		out:      io.Discard,
+		errOut:   io.Discard,
+		runTask: func(task string) (*agentports.TaskResult, error) {
+			tasks = append(tasks, task)
+			if len(tasks) == 1 {
+				return &agentports.TaskResult{
+					StopReason: "await_user_input",
+					Messages: []ports.Message{{
+						ToolResults: []ports.ToolResult{{
+							Metadata: map[string]any{
+								"needs_user_input": true,
+								"question_to_user": "Select env",
+								"options":          []string{"dev", "staging"},
+							},
+						}},
+					}},
+				}, nil
+			}
+			return &agentports.TaskResult{StopReason: "completed"}, nil
+		},
+		selectUI: func(question string, options []string) (string, bool, error) {
+			selectionCalls++
+			if question != "Select env" {
+				t.Fatalf("unexpected question: %q", question)
+			}
+			if len(options) != 2 || options[1] != "staging" {
+				t.Fatalf("unexpected options: %#v", options)
+			}
+			return "staging", true, nil
+		},
+	}
+
+	if err := loop.run(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if selectionCalls != 1 {
+		t.Fatalf("expected one selection call, got %d", selectionCalls)
+	}
+	if len(tasks) != 2 || tasks[0] != "deploy" || tasks[1] != "staging" {
+		t.Fatalf("expected two tasks [deploy staging], got %#v", tasks)
 	}
 }
 
