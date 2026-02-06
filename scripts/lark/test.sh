@@ -116,6 +116,7 @@ build() {
   log_info "Building alex-server (test worktree)..."
   (cd "${TEST_ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
   write_build_stamp "${BUILD_STAMP}" "$(build_fingerprint "${TEST_ROOT}")"
+  git -C "${TEST_ROOT}" rev-parse HEAD > "${TEST_ROOT}/.pids/lark-test.sha" 2>/dev/null || true
   log_success "Built ${BIN}"
 }
 
