@@ -8,7 +8,7 @@
 - [x] Locate memory capture prompt(s) and trigger points.
 - [x] Trace write path for daily and long-term memory.
 - [x] Confirm whether prompts include preference/habit capture.
-- [ ] Summarize path map + propose minimal changes.
+- [x] Summarize path map + propose minimal changes.
 
 ## Status
-- [ ] In progress
+- [x] Completed
