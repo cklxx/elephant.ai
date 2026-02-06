@@ -57,6 +57,9 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		snap, err := m.stateStore.LatestSnapshot(ctx, session.ID)
 		if err == nil {
 			dyn = convertSnapshotToDynamic(snap)
+			if cfg.StewardMode && snap.StewardState != nil {
+				dyn.StewardState = snap.StewardState
+			}
 		} else if !errors.Is(err, sessionstate.ErrSnapshotNotFound) && m.logger != nil {
 			m.logger.Warn("State snapshot read failed: %v", err)
 		}
@@ -99,6 +102,7 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		SessionID:       session.ID,
 		SkillsConfig:    cfg.Skills,
 		OKRContext:      cfg.OKRContext,
+		StewardState:    dyn.StewardState,
 	})
 	return window, nil
 }
@@ -121,6 +125,7 @@ func (m *manager) RecordTurn(ctx context.Context, record agent.ContextTurnRecord
 			Messages:      record.Messages,
 			Feedback:      record.Feedback,
 			KnowledgeRefs: record.KnowledgeRefs,
+			StewardState:  record.StewardState,
 		}
 		if snapshot.CreatedAt.IsZero() {
 			snapshot.CreatedAt = time.Now()
@@ -171,6 +176,7 @@ func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) agent.DynamicConte
 		WorldState:        snapshot.World,
 		Feedback:          snapshot.Feedback,
 		SnapshotTimestamp: snapshot.CreatedAt,
+		StewardState:      snapshot.StewardState,
 	}
 }
 

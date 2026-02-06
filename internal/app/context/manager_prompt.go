@@ -24,6 +24,7 @@ type systemPromptInput struct {
 	SessionID       string
 	SkillsConfig    agent.SkillsConfig
 	OKRContext      string
+	StewardState    *agent.StewardState
 }
 
 func composeSystemPrompt(input systemPromptInput) string {
@@ -41,6 +42,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 	if !input.OmitEnvironment {
 		sections = append(sections, buildEnvironmentSection(input.Static))
 	}
+	sections = append(sections, buildStewardReminderSection(input.StewardState))
 	sections = append(sections, buildDynamicSection(input.Dynamic), buildMetaSection(input.Meta))
 	var compact []string
 	for _, section := range sections {
@@ -401,6 +403,17 @@ func buildKnowledgeSection(knowledge []agent.KnowledgeReference) string {
 		}
 	}
 	return formatSection("# Knowledge & Experience", lines)
+}
+
+func buildStewardReminderSection(state *agent.StewardState) string {
+	if state == nil {
+		return ""
+	}
+	rendered := agent.RenderAsReminder(state)
+	if rendered == "" {
+		return ""
+	}
+	return fmt.Sprintf("# SYSTEM_REMINDER (STATE v%d)\n%s", state.Version, rendered)
 }
 
 func buildEnvironmentSection(static agent.StaticContext) string {
