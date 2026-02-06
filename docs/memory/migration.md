@@ -4,8 +4,8 @@ Updated: 2026-02-02
 
 ## Summary
 - The memory system is now Markdown-only: `~/.alex/memory/MEMORY.md` (long-term) and `~/.alex/memory/memory/YYYY-MM-DD.md` (daily logs).
-- Runtime memory now uses a flat root layout under `~/.alex/memory/` (no `<user-id>/` layer).
-- Legacy `~/.alex/memory/users/<user-id>/` and `~/.alex/memory/<user-id>/` data are auto-migrated into the root layout on startup.
+- Runtime memory now uses a flat root layout under `~/.alex/memory/` (no user subdirectory layer).
+- Legacy user-scoped folders (`~/.alex/memory/users/*/` and `~/.alex/memory/*/`) are auto-migrated into the root layout on startup.
 - There is no database-backed memory store; all durable memory is stored as plain `.md` files.
 
 ## Manual Steps (Only If Needed)
