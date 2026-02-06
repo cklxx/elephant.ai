@@ -12,13 +12,13 @@ It complements the deeper dives in `AGENTS.md`, `docs/reference/CONFIG.md`, and 
 - CLI/TUI: `cmd/alex`
 - Server (SSE/HTTP): `cmd/alex-server`
 - Web UI: `web/` (consumes the server event stream)
-- ACP (Agent Client Protocol): `internal/acp` (stdio + HTTP/SSE for external clients)
+- ACP (Agent Client Protocol): `internal/infra/acp` (stdio + HTTP/SSE for external clients)
 
 **External dependencies (pluggable):**
-- LLM providers (OpenAI-compatible, Claude, etc.) via `internal/llm`
-- MCP servers (tooling over JSON-RPC) via `internal/mcp`
-- Storage backends (sessions, cost, telemetry) via `internal/storage`
-- Observability sinks (logs, metrics, traces) via `internal/observability`
+- LLM providers (OpenAI-compatible, Claude, etc.) via `internal/infra/llm`
+- MCP servers (tooling over JSON-RPC) via `internal/infra/mcp`
+- Storage backends (sessions, cost, telemetry) via `internal/infra/storage`
+- Observability sinks (logs, metrics, traces) via `internal/infra/observability`
 
 ---
 
@@ -26,25 +26,25 @@ It complements the deeper dives in `AGENTS.md`, `docs/reference/CONFIG.md`, and 
 
 **Delivery Layer**
 - Adapters that render events to CLI/TUI, HTTP/SSE, and web.
-- Key packages: `internal/output`, `internal/server`, `web/`
+- Key packages: `internal/delivery/output`, `internal/delivery/server`, `internal/delivery/channels`, `web/`
 
 **Application Layer**
 - Coordinates use cases and orchestrates the agent loop.
-- Key packages: `internal/agent/app/coordinator`
+- Key packages: `internal/app/agent/coordinator`, `internal/app/context`, `internal/app/toolregistry`
 
 **Domain Layer**
 - Think -> Act -> Observe loop, events, and policies.
-- Key packages: `internal/agent/domain`, `internal/agent/ports`, `internal/agent/types`
+- Key packages: `internal/domain/agent`, `internal/domain/agent/ports`, `internal/domain/agent/types`, `internal/domain/workflow`
 
 **Infrastructure Layer**
 - Concrete adapters for LLMs, tools, MCP, sessions, Markdown memory, storage, and telemetry.
-- Key packages: `internal/llm`, `internal/tools`, `internal/toolregistry`, `internal/mcp`,
-  `internal/session`, `internal/context`, `internal/memory`, `internal/rag`,
-  `internal/storage`, `internal/observability`, `internal/logging`
+- Key packages: `internal/infra/llm`, `internal/infra/tools`, `internal/infra/mcp`,
+  `internal/infra/session`, `internal/infra/memory`,
+  `internal/infra/storage`, `internal/infra/observability`, `internal/shared/logging`
 
 **Wiring and bootstrap**
-- Dependency injection container: `internal/di`
-- Configuration and environment: `internal/config`, `internal/environment`
+- Dependency injection container: `internal/app/di`
+- Configuration and environment: `internal/shared/config`, `internal/infra/environment`
 
 ![Architecture Layers](images/architecture_layers_gen.png)
 
@@ -54,39 +54,39 @@ It complements the deeper dives in `AGENTS.md`, `docs/reference/CONFIG.md`, and 
 
 | Area | Responsibility | Primary Packages |
 | --- | --- | --- |
-| Delivery surfaces | CLI/TUI, server handlers, SSE streaming, web UI | `cmd/`, `internal/output`, `internal/server`, `web/` |
-| Agent application | Use case orchestration, session commands, streaming results | `internal/agent/app/coordinator` |
-| Agent domain | ReAct loop, events, policies, approvals | `internal/agent/domain`, `internal/agent/ports`, `internal/agent/presets` |
-| LLM integration | Provider SDKs, retries, streaming, cost tracking | `internal/llm`, `internal/subscription` |
-| Tools + MCP | Built-in tools, MCP tools, registry | `internal/tools`, `internal/toolregistry`, `internal/mcp` |
-| Context + memory | Short-term context, Markdown memory, session state | `internal/context`, `internal/memory`, `internal/session` |
-| Observability + storage | Logs, metrics, tracing, cost storage | `internal/logging`, `internal/observability`, `internal/storage` |
-| Config + env | Config merge, env snapshot | `internal/config`, `internal/environment` |
+| Delivery surfaces | CLI/TUI, server handlers, SSE streaming, web UI | `cmd/`, `internal/delivery/output`, `internal/delivery/server`, `web/` |
+| Agent application | Use case orchestration, session commands, streaming results | `internal/app/agent/coordinator` |
+| Agent domain | ReAct loop, events, policies, approvals | `internal/domain/agent`, `internal/domain/agent/ports`, `internal/shared/agent/presets` |
+| LLM integration | Provider SDKs, retries, streaming, cost tracking | `internal/infra/llm`, `internal/app/subscription` |
+| Tools + MCP | Built-in tools, MCP tools, registry | `internal/infra/tools`, `internal/app/toolregistry`, `internal/infra/mcp` |
+| Context + memory | Short-term context, Markdown memory, session state | `internal/app/context`, `internal/infra/memory`, `internal/infra/session` |
+| Observability + storage | Logs, metrics, tracing, cost storage | `internal/shared/logging`, `internal/infra/observability`, `internal/infra/storage` |
+| Config + env | Config merge, env snapshot | `internal/shared/config`, `internal/infra/environment` |
 
 ---
 
 ## 4) Startup Flow (Runtime Boot Sequence)
 
 At startup each delivery surface follows the same skeleton:
-1) Load configuration from YAML + env + flags (`internal/config`).
-2) Snapshot environment and runtime metadata (`internal/environment`).
-3) Build the DI container (`internal/di`) and register core adapters.
+1) Load configuration from YAML + env + flags (`internal/shared/config`).
+2) Snapshot environment and runtime metadata (`internal/infra/environment`).
+3) Build the DI container (`internal/app/di`) and register core adapters.
 4) Wire LLM providers, tool registry, MCP supervisor, storage, observability.
-5) Resolve the agent coordinator (`internal/agent/app/coordinator`).
+5) Resolve the agent coordinator (`internal/app/agent/coordinator`).
 6) Attach delivery renderers (CLI/TUI, SSE, web).
 
 ![Startup Flow Diagram](images/startup_flow.png)
 
 ```mermaid
 flowchart TD
-    A[CLI/TUI | Server | ACP | Web] --> B[internal/config + internal/environment]
-    B --> C[internal/di Container]
-    C --> D[internal/agent/app/coordinator.AgentCoordinator]
-    C --> E[internal/llm + internal/subscription]
-    C --> F[internal/toolregistry + internal/tools + internal/mcp]
-    C --> G[internal/session + internal/context + internal/memory]
-    C --> H[internal/storage + internal/observability]
-    D --> I[internal/output + internal/server]
+    A[CLI/TUI | Server | ACP | Web] --> B[internal/shared/config + internal/infra/environment]
+    B --> C[internal/app/di Container]
+    C --> D[internal/app/agent/coordinator.AgentCoordinator]
+    C --> E[internal/infra/llm + internal/app/subscription]
+    C --> F[internal/app/toolregistry + internal/infra/tools + internal/infra/mcp]
+    C --> G[internal/infra/session + internal/app/context + internal/infra/memory]
+    C --> H[internal/infra/storage + internal/infra/observability]
+    D --> I[internal/delivery/output + internal/delivery/server]
     I --> J[Terminal | HTTP/SSE | Web UI]
 ```
 
@@ -109,8 +109,8 @@ Each step emits typed events which are rendered by delivery adapters.
 
 ### Memory & Sessions
 
-- Session state and transcript persistence live in `internal/session` and `internal/context`.
-- Retrieval and long-running memory live in Markdown files via `internal/memory` (wired in `internal/di`).
+- Session state and transcript persistence live in `internal/infra/session` and `internal/app/context`.
+- Retrieval and long-running memory live in Markdown files via `internal/infra/memory` (wired in `internal/app/di`).
 - Compression and context windowing happens before each loop iteration to keep prompts bounded.
 
 ![Agent Execution Flow Diagram](images/agent_execution_flow.png)
@@ -136,13 +136,13 @@ flowchart TD
 
 ## 6) Event Stream & Observability
 
-- Domain emits typed events (`internal/agent/domain/events.go`).
+- Domain emits typed events (`internal/domain/agent/events.go`).
 - Output adapters stream them to:
-  - CLI/TUI (`internal/output`)
-  - HTTP/SSE (`internal/server`)
+  - CLI/TUI (`internal/delivery/output`)
+  - HTTP/SSE (`internal/delivery/server`)
   - Web UI (`web/`)
 - Observability attaches metrics and traces to LLM calls and tool invocations
-  via `internal/observability` and `internal/logging`.
+  via `internal/infra/observability` and `internal/shared/logging`.
 
 ![Event and Observability Pipeline](images/event_pipeline_gen.png)
 
@@ -151,11 +151,11 @@ flowchart TD
 ## 7) Execution Modes and Safety
 
 - Session tool modes (full/read-only/safe/sandbox) are enforced via presets in
-  `internal/agent/presets`.
-- Tool approvals are mediated via `internal/agent/ports` and enforced by the
-  tool registry (`internal/toolregistry`) with delivery-specific approvers for
+  `internal/shared/agent/presets`.
+- Tool approvals are mediated via `internal/domain/agent/ports` and enforced by the
+  tool registry (`internal/app/toolregistry`) with delivery-specific approvers for
   CLI/TUI, web, and ACP.
-- Sandbox execution (when enabled) is routed through `internal/sandbox` adapters.
+- Sandbox execution (when enabled) is routed through `internal/infra/sandbox` adapters.
 
 ---
 

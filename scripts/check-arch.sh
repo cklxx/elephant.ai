@@ -4,22 +4,13 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-TARGET_DIR="internal/agent/domain"
+TARGET_DIR="internal/domain"
 echo "Checking architecture boundaries in ${TARGET_DIR}..."
 
 declare -a banned_imports=(
-  "alex/internal/agent/app"
+  "alex/internal/app"
+  "alex/internal/delivery"
   "alex/internal/infra"
-  "alex/internal/server"
-  "alex/internal/channels"
-  "alex/internal/llm"
-  "alex/internal/memory"
-  "alex/internal/async"
-  "alex/internal/jsonx"
-  "alex/internal/external/workspace"
-  "alex/internal/tools/builtin/pathutil"
-  "alex/internal/utils/id"
-  "alex/internal/utils/clilatency"
 )
 
 violations=""

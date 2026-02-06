@@ -115,7 +115,7 @@ Suggested labels: `good first issue`, `help wanted`, `mvp-slice`.
   - [x] 事件/附件可追溯（`internal/analytics`, `internal/server/app`）
   - [ ] 结论必须绑定证据的置信度控制
 - 检索与知识层（RAG / KB）
-  - [x] 向量/切片化嵌入与检索管线（`internal/rag`）
+  - [x] RAG 模块下线与清理（删除 `internal/rag`，统一走 memory/context 路径）
   - [ ] 检索冲突消解与多源合并策略
 - 记忆系统（Memory）
   - [x] 用户/对话情景记忆服务（`internal/memory`）
@@ -309,7 +309,7 @@ Suggested labels: `good first issue`, `help wanted`, `mvp-slice`.
 
 - **长期记忆与学习**
   - [x] 基础记忆系统（`internal/memory`）
-  - [x] 向量存储与检索（`internal/rag`）
+  - [x] RAG 模块移除（`internal/rag` 已删除）
   - [ ] 用户偏好学习与个性化
   - [ ] 任务模式识别与复用
   - [ ] 错误模式学习与避免

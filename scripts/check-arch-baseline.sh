@@ -17,4 +17,4 @@ find internal cmd -type f -name '*.go' -print0 \
   | head -n 10
 
 echo "[baseline] domain imports requiring inversion"
-rg -n "internal/(utils/id|utils/clilatency|jsonx|async|external/workspace|tools/builtin/pathutil)" internal/agent/domain -S || true
+rg -n "internal/(app|delivery|infra)" internal/domain -S || true

@@ -180,16 +180,16 @@ make build
 
 | 层级 | 核心包 |
 |---|---|
-| 交付层 | `internal/channels/lark/`, `cmd/alex-server`, `web/`, `cmd/alex` |
-| 代理核心 | `internal/agent/{app,domain,ports}` — ReAct 循环、类型化事件、审批门控 |
-| 工具 | `internal/tools/builtin/` — 搜索、代码执行、浏览器、文件、产物、媒体 |
-| 记忆 | `internal/memory/` — 持久化存储（Postgres、文件、内存）含分词 |
-| 上下文 | `internal/context/`, `internal/rag/` — 分层检索与摘要 |
-| 模型 | `internal/llm/` — 多供应商自动选择与流式传输 |
-| MCP | `internal/mcp/` — JSON-RPC 工具服务器，用于外部集成 |
-| 可观测性 | `internal/observability/` — OpenTelemetry 追踪、Prometheus 指标、成本核算 |
-| 存储 | `internal/storage/`, `internal/session/` — 会话持久化与历史 |
-| 依赖注入 | `internal/di/` — 所有界面共享的依赖注入 |
+| 交付层 | `internal/delivery/channels/lark/`, `cmd/alex-server`, `web/`, `cmd/alex` |
+| 代理核心 | `internal/{app,domain}/agent` — ReAct 循环、类型化事件、审批门控 |
+| 工具 | `internal/infra/tools/builtin/` — 搜索、代码执行、浏览器、文件、产物、媒体 |
+| 记忆 | `internal/infra/memory/` — 持久化存储（Postgres、文件、内存）含分词 |
+| 上下文 | `internal/app/context/` — 分层上下文筛选与摘要 |
+| 模型 | `internal/infra/llm/` — 多供应商自动选择与流式传输 |
+| MCP | `internal/infra/mcp/` — JSON-RPC 工具服务器，用于外部集成 |
+| 可观测性 | `internal/infra/observability/` — OpenTelemetry 追踪、Prometheus 指标、成本核算 |
+| 存储 | `internal/infra/storage/`, `internal/infra/session/` — 会话持久化与历史 |
+| 依赖注入 | `internal/app/di/` — 所有界面共享的依赖注入 |
 
 ---
 

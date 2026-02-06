@@ -1,6 +1,6 @@
 .PHONY: \
 	help build clean fmt vet dev demo run install test test-domain test-app \
-	check-deps check-arch bench docs npm-copy-binaries npm-publish npm-test-install \
+	check-deps check-arch check-arch-policy bench docs npm-copy-binaries npm-publish npm-test-install \
 	build-all release-npm server-build server-run server-test \
 	server-test-integration deploy deploy-docker deploy-test deploy-status \
 	deploy-down
@@ -21,10 +21,10 @@ test: ## Run all tests
 	@$(GO) test ./... -v
 
 test-domain: ## Run domain layer tests (fast, mocked)
-	@$(GO) test ./internal/agent/domain/... -v
+	@$(GO) test ./internal/domain/... -v
 
 test-app: ## Run application layer tests
-	@$(GO) test ./internal/agent/app/... -v
+	@$(GO) test ./internal/app/... -v
 
 clean: ## Clean build artifacts
 	@rm -f alex
@@ -54,10 +54,13 @@ install: build ## Install alex to $GOPATH/bin
 # Architecture validation
 check-deps: ## Check that domain has zero infrastructure deps
 	@echo "Checking domain layer dependencies..."
-	@$(GO) list -f '{{.Imports}}' ./internal/agent/domain/... | grep -v ports | grep -E 'alex/internal/(llm|tools|session|context|messaging|parser)' && echo "❌ Domain layer has infrastructure dependencies!" || echo "✓ Domain layer is clean (only depends on ports)"
+	@$(GO) list -f '{{.Imports}}' ./internal/domain/... | grep -v ports | grep -E 'alex/internal/(infra|delivery|app)' && echo "❌ Domain layer has forbidden dependencies!" || echo "✓ Domain layer is clean (only depends on domain/shared)"
 
 check-arch: ## Enforce architecture import boundaries
 	@./scripts/check-arch.sh
+
+check-arch-policy: ## Enforce layered architecture policy and thresholds
+	@./scripts/arch/check-graph.sh
 
 # Performance
 bench: ## Run benchmarks
@@ -119,7 +122,7 @@ server-run: server-build ## Run alex-server
 
 server-test: ## Run server tests
 	@echo "Running server tests..."
-	@$(GO) test ./internal/server/... -v
+	@$(GO) test ./internal/delivery/server/... -v
 
 server-test-integration: server-build ## Run integration tests with test script
 	@echo "Running SSE server integration tests..."

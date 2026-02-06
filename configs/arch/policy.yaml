@@ -1,0 +1,29 @@
+version: 1
+
+layers:
+  delivery:
+    - delivery
+    - app
+    - domain
+    - shared
+  app:
+    - app
+    - domain
+    - shared
+  domain:
+    - domain
+    - shared
+  infra:
+    - infra
+    - domain
+    - shared
+  shared:
+    - shared
+
+thresholds:
+  max_fanout: 40
+  max_file_loc: 2200
+  max_package_files: 60
+
+report:
+  path: artifacts/arch-report.json

@@ -10,12 +10,12 @@
 ## 目标与原则（只有一个 config）
 
 - **唯一主配置文件**：`~/.alex/config.yaml`（或 `ALEX_CONFIG_PATH`）。
-- **运行时 schema**：`internal/config.RuntimeConfig`（runtime 快照）。
+- **运行时 schema**：`internal/shared/config.RuntimeConfig`（runtime 快照）。
 - **加载入口**：
-  - runtime：`internal/config.Load`（defaults → file(runtime) → overrides）。
-  - server 侧：`internal/config.LoadFileConfig`（读取 server/auth/session/analytics/attachments 等段）。
-- **唯一“可持久化覆盖层”**：`internal/config/admin`（managed overrides；CLI `alex config set/clear` 与 server 共用，写入同一 YAML）。
-- 工程侧通过测试 `internal/config/env_usage_guard_test.go` 限制新增 `os.Getenv` 的散落使用，避免出现“第二套配置系统”。
+  - runtime：`internal/shared/config.Load`（defaults → file(runtime) → overrides）。
+  - server 侧：`internal/shared/config.LoadFileConfig`（读取 server/auth/session/analytics/attachments 等段）。
+- **唯一“可持久化覆盖层”**：`internal/shared/config/admin`（managed overrides；CLI `alex config set/clear` 与 server 共用，写入同一 YAML）。
+- 工程侧通过测试 `internal/shared/config/env_usage_guard_test.go` 限制新增 `os.Getenv` 的散落使用，避免出现“第二套配置系统”。
 
 ---
 

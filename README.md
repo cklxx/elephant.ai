@@ -180,16 +180,16 @@ Delivery (Lark, Web, CLI)
 
 | Layer | Key packages |
 |---|---|
-| Delivery | `internal/channels/lark/`, `cmd/alex-server`, `web/`, `cmd/alex` |
-| Agent core | `internal/agent/{app,domain,ports}` — ReAct loop, typed events, approval gates |
-| Tools | `internal/tools/builtin/` — search, code execution, browser, files, artifacts, media |
-| Memory | `internal/memory/` — persistent store (Postgres, file, in-memory) with tokenization |
-| Context | `internal/context/`, `internal/rag/` — layered retrieval and summarization |
-| LLM | `internal/llm/` — multi-provider with auto-selection and streaming |
-| MCP | `internal/mcp/` — JSON-RPC tool servers for external integrations |
-| Observability | `internal/observability/` — OpenTelemetry traces, Prometheus metrics, cost accounting |
-| Storage | `internal/storage/`, `internal/session/` — session persistence and history |
-| DI | `internal/di/` — shared dependency injection across all surfaces |
+| Delivery | `internal/delivery/channels/lark/`, `cmd/alex-server`, `web/`, `cmd/alex` |
+| Agent core | `internal/{app,domain}/agent` — ReAct loop, typed events, approval gates |
+| Tools | `internal/infra/tools/builtin/` — search, code execution, browser, files, artifacts, media |
+| Memory | `internal/infra/memory/` — persistent store (Postgres, file, in-memory) with tokenization |
+| Context | `internal/app/context/` — layered context selection and summarization |
+| LLM | `internal/infra/llm/` — multi-provider with auto-selection and streaming |
+| MCP | `internal/infra/mcp/` — JSON-RPC tool servers for external integrations |
+| Observability | `internal/infra/observability/` — OpenTelemetry traces, Prometheus metrics, cost accounting |
+| Storage | `internal/infra/storage/`, `internal/infra/session/` — session persistence and history |
+| DI | `internal/app/di/` — shared dependency injection across all surfaces |
 
 ---
 
