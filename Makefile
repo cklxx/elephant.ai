@@ -1,6 +1,6 @@
 .PHONY: \
 	help build clean fmt vet dev demo run install test test-domain test-app \
-	check-deps bench docs npm-copy-binaries npm-publish npm-test-install \
+	check-deps check-arch bench docs npm-copy-binaries npm-publish npm-test-install \
 	build-all release-npm server-build server-run server-test \
 	server-test-integration deploy deploy-docker deploy-test deploy-status \
 	deploy-down
@@ -55,6 +55,9 @@ install: build ## Install alex to $GOPATH/bin
 check-deps: ## Check that domain has zero infrastructure deps
 	@echo "Checking domain layer dependencies..."
 	@$(GO) list -f '{{.Imports}}' ./internal/agent/domain/... | grep -v ports | grep -E 'alex/internal/(llm|tools|session|context|messaging|parser)' && echo "❌ Domain layer has infrastructure dependencies!" || echo "✓ Domain layer is clean (only depends on ports)"
+
+check-arch: ## Enforce architecture import boundaries
+	@./scripts/check-arch.sh
 
 # Performance
 bench: ## Run benchmarks

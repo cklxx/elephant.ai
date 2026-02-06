@@ -34,3 +34,6 @@
 
 ## Progress Log
 - 2026-02-06 09:20: Plan file created, baseline phase started.
+- 2026-02-06 10:05: Skills home phase completed (`ALEX_SKILLS_DIR` or `~/.alex/skills`), repo-to-home missing-only sync added, server workspace injection removed, web catalog aligned.
+- 2026-02-06 10:35: Domain dependency inversion completed for ID/context, latency reporter, JSON codec, async runner, working-dir resolver, workspace manager factory.
+- 2026-02-06 10:45: Architecture guardrail added (`scripts/check-arch.sh`, `make check-arch`, CI lint job gate).

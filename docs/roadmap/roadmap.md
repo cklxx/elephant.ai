@@ -127,6 +127,15 @@ Enhancements after the core loop is stable.
 | Evaluation set construction (评测集构建) | 分层评测：基础任务准出评测 + 引导模块升级优化的挑战性评测 | **In progress** | Claude → Codex | `evaluation/` |
 | CI evaluation gating | Manual + tag-triggered quick eval with PR gate + result archiving | **Done** | Claude C40 | `evaluation/gate/`, `.github/workflows/eval.yml` |
 
+### Architecture Simplification（持续优化轨道）
+
+| Item | Why | Status | Owner | Code path |
+|------|-----|--------|-------|-----------|
+| Skills root unification (`ALEX_SKILLS_DIR` or `~/.alex/skills`) | 统一 runtime/web 行为，降低配置歧义 | **Done** | Codex | `internal/skills/`, `web/scripts/generate-skills-catalog.js` |
+| Domain dependency inversion (ID/context/latency/json/async/workspace) | 清除 domain→infra 直连，提升可测试性与可演进性 | **Done** | Codex | `internal/agent/domain/react/`, `internal/agent/ports/agent/`, `internal/infra/runtime/` |
+| Architecture CI gate (`make check-arch`) | 防止边界回归，保障后续分层迁移 | **Done** | Codex | `scripts/check-arch.sh`, `Makefile`, `.github/workflows/ci.yml` |
+| Directory layering migration (`delivery/app/domain/infra/shared`) | 进一步简化结构、明确职责与演进路径 | **Planned** | Codex | `internal/` |
+
 ## P3: Future (M2+)
 
 Larger bets that depend on M0+M1 foundations.
