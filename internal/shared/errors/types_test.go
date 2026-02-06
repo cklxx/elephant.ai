@@ -219,7 +219,7 @@ func TestFormatForLLM(t *testing.T) {
 		},
 		{
 			name:     "llama.cpp connection refused",
-			err:      fmt.Errorf("dial tcp 127.0.0.1:8080: connect: connection refused"),
+			err:      fmt.Errorf("dial tcp 127.0.0.1:8082: connect: connection refused"),
 			contains: "llama.cpp server is not running",
 		},
 		{

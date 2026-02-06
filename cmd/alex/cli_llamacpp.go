@@ -89,7 +89,7 @@ func pullLlamaCppWeights(out io.Writer, args []string, envLookup runtimeconfig.E
 	if _, err := fmt.Fprintf(out, "Downloaded: %s\n", path); err != nil {
 		return err
 	}
-	if _, err := fmt.Fprintf(out, "Start llama-server (example): llama-server -m %q --port 8080\n", path); err != nil {
+	if _, err := fmt.Fprintf(out, "Start llama-server (example): llama-server -m %q --port 8082\n", path); err != nil {
 		return err
 	}
 	return nil

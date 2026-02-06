@@ -8,7 +8,7 @@ import (
 	"alex/internal/shared/utils"
 )
 
-const defaultLlamaCppBaseURL = "http://127.0.0.1:8080/v1"
+const defaultLlamaCppBaseURL = "http://127.0.0.1:8082/v1"
 
 var (
 	_ portsllm.StreamingLLMClient  = (*llamaCppClient)(nil)

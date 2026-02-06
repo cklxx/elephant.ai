@@ -60,7 +60,7 @@ func TestResolveSelectionForOllama(t *testing.T) {
 }
 
 func TestResolveSelectionForLlamaServer(t *testing.T) {
-	t.Setenv("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8080/v1")
+	t.Setenv("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8082/v1")
 	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials { return runtimeconfig.CLICredentials{} })
 
 	selection := Selection{Mode: "cli", Provider: "llama_server", Model: "local-llama", Source: "llama_server"}
@@ -71,7 +71,7 @@ func TestResolveSelectionForLlamaServer(t *testing.T) {
 	if resolved.Provider != "llama.cpp" || resolved.Model != "local-llama" {
 		t.Fatalf("unexpected resolution: %#v", resolved)
 	}
-	if resolved.BaseURL != "http://127.0.0.1:8080/v1" {
+	if resolved.BaseURL != "http://127.0.0.1:8082/v1" {
 		t.Fatalf("expected base url from env, got %q", resolved.BaseURL)
 	}
 	if resolved.Source != "llama_server" {

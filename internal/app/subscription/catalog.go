@@ -261,7 +261,7 @@ func containsModel(models []string, value string) bool {
 }
 
 const defaultOllamaBaseURL = "http://localhost:11434"
-const defaultLlamaServerBaseURL = "http://127.0.0.1:8080/v1"
+const defaultLlamaServerBaseURL = "http://127.0.0.1:8082/v1"
 
 func buildOllamaProvider(ctx context.Context, client *http.Client, target OllamaTarget, maxResponseBytes int) CatalogProvider {
 	baseURL := normalizeOllamaBaseURL(target.BaseURL)

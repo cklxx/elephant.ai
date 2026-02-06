@@ -153,5 +153,5 @@ func resolveLlamaServerBaseURL(lookup runtimeconfig.EnvLookup) string {
 		}
 		return "http://" + host
 	}
-	return "http://127.0.0.1:8080/v1"
+	return "http://127.0.0.1:8082/v1"
 }

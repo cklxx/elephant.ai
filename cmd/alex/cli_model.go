@@ -87,7 +87,7 @@ func listModelsFromWith(
 			"  Codex:       ~/.codex/auth.json",
 			"  Claude:      ~/.claude/credentials.json 或 CLAUDE_CODE_OAUTH_TOKEN 环境变量",
 			"  Ollama:      OLLAMA_BASE_URL 或 OLLAMA_HOST（可选）",
-			"  LlamaServer: LLAMA_SERVER_BASE_URL（默认 http://127.0.0.1:8080/v1）",
+			"  LlamaServer: LLAMA_SERVER_BASE_URL（默认 http://127.0.0.1:8082/v1）",
 		}
 		for _, line := range lines {
 			if _, err := fmt.Fprintln(out, line); err != nil {
