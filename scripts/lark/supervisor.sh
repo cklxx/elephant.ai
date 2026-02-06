@@ -115,6 +115,7 @@ OBS_MAIN_HEALTH="down"
 OBS_TEST_HEALTH="down"
 OBS_LOOP_HEALTH="down"
 OBS_MAIN_SHA="unknown"
+OBS_TEST_SHA="unknown"
 OBS_LAST_PROCESSED_SHA=""
 OBS_CYCLE_PHASE="idle"
 OBS_CYCLE_RESULT="unknown"
@@ -546,6 +547,7 @@ observe_states() {
   OBS_LOOP_HEALTH="$(loop_health_state)"
 
   OBS_MAIN_SHA="$(git -C "${MAIN_ROOT}" rev-parse main 2>/dev/null || echo "unknown")"
+  OBS_TEST_SHA="$(git -C "${TEST_ROOT}" rev-parse HEAD 2>/dev/null || echo "unknown")"
   OBS_LAST_PROCESSED_SHA="$(cat "${LAST_PROCESSED_FILE}" 2>/dev/null || true)"
 
   OBS_CYCLE_PHASE="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_phase" || echo "idle")"
@@ -600,6 +602,7 @@ write_status_file() {
   "test_health": "${OBS_TEST_HEALTH}",
   "loop_alive": ${loop_alive},
   "main_sha": "${OBS_MAIN_SHA}",
+  "test_sha": "${OBS_TEST_SHA}",
   "last_processed_sha": "${OBS_LAST_PROCESSED_SHA}",
   "cycle_phase": "${OBS_CYCLE_PHASE}",
   "cycle_result": "${OBS_CYCLE_RESULT}",
@@ -764,6 +767,11 @@ report_children_health() {
   else
     log_success "  loop: alive (pid=${OBS_LOOP_PID})"
   fi
+  echo "  main_sha: ${OBS_MAIN_SHA:0:8} (${OBS_MAIN_SHA})"
+  echo "  test_sha: ${OBS_TEST_SHA:0:8} (${OBS_TEST_SHA})"
+  if [[ -n "${OBS_LAST_PROCESSED_SHA}" ]]; then
+    echo "  last_processed_sha: ${OBS_LAST_PROCESSED_SHA:0:8}"
+  fi
   if (( degraded )); then
     log_warn "Supervisor is running but some components are down (use './lark.sh logs' to investigate)"
     return 1
@@ -854,6 +862,7 @@ status() {
   echo "test: ${OBS_TEST_HEALTH} pid=${OBS_TEST_PID}"
   echo "loop: ${OBS_LOOP_HEALTH} pid=${OBS_LOOP_PID}"
   echo "main_sha: ${OBS_MAIN_SHA}"
+  echo "test_sha: ${OBS_TEST_SHA}"
   echo "last_processed_sha: ${OBS_LAST_PROCESSED_SHA}"
   echo "cycle_phase: ${OBS_CYCLE_PHASE}"
   echo "cycle_result: ${OBS_CYCLE_RESULT}"
