@@ -1,4 +1,4 @@
-import { ElementType, ReactNode } from "react";
+import { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -80,7 +80,7 @@ export function SectionHeader({
   title: string;
   description?: string;
   actions?: ReactNode;
-  titleElement?: ElementType;
+  titleElement?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
   className?: string;
 }) {
   return (

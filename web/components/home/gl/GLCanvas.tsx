@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 import { Canvas } from "@react-three/fiber";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { getGLCapabilities, type GLCapabilities } from "@/lib/webgl";
@@ -52,25 +52,15 @@ function Scene({ caps }: { caps: GLCapabilities }) {
 }
 
 // ── Main GLCanvas component ─────────────────────────────────
+//
+// This component is loaded via `dynamic({ ssr: false })` in HomeGLPage,
+// so it always runs client-side. We use lazy state initialization to
+// detect WebGL capabilities synchronously on first render.
 
 export function GLCanvas() {
-  const [caps, setCaps] = useState<GLCapabilities | null>(null);
+  // Safe: this module is never imported during SSR (dynamic ssr:false).
+  const caps = getGLCapabilities();
 
-  useEffect(() => {
-    setCaps(getGLCapabilities());
-  }, []);
-
-  // SSR: render nothing until client-side detection
-  if (caps === null) {
-    return (
-      <div
-        className="fixed inset-0"
-        style={{ background: "#080810" }}
-      />
-    );
-  }
-
-  // No WebGL: CSS fallback
   if (!caps.webgl) {
     return <CSSFallback />;
   }

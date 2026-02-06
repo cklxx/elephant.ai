@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useCallback } from "react";
+import { useRef, useMemo, useCallback, useEffect } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import {
@@ -97,6 +97,54 @@ function getNeighborCells(cx: number, cy: number, cz: number): string[] {
   return cells;
 }
 
+// ── Particle data initialization (deterministic via hash, no Math.random) ──
+
+interface ParticleData {
+  offsets: Float32Array;
+  baseOffsets: Float32Array;
+  scales: Float32Array;
+  colors: Float32Array;
+}
+
+/**
+ * Generate particle data deterministically using hash-based pseudo-random.
+ * Avoids Math.random() to satisfy React render purity rules.
+ */
+function createParticleData(count: number): ParticleData {
+  const offsets = new Float32Array(count * 3);
+  const baseOffsets = new Float32Array(count * 3);
+  const scales = new Float32Array(count);
+  const colors = new Float32Array(count * 3);
+  const tmpColor = new THREE.Color();
+
+  for (let i = 0; i < count; i++) {
+    // Deterministic pseudo-random values from particle index
+    const r1 = hash(i, 0, 7919);
+    const r2 = hash(i, 1, 7919);
+    const r3 = hash(i, 2, 7919);
+    const r4 = hash(i, 3, 7919);
+    const r5 = hash(i, 4, 7919);
+
+    const x = (r1 - 0.5) * SPREAD;
+    const y = (r2 - 0.5) * SPREAD;
+    const z = (r3 - 0.5) * SPREAD * 0.6;
+    offsets[i * 3] = x;
+    offsets[i * 3 + 1] = y;
+    offsets[i * 3 + 2] = z;
+    baseOffsets[i * 3] = x;
+    baseOffsets[i * 3 + 1] = y;
+    baseOffsets[i * 3 + 2] = z;
+
+    scales[i] = 1.5 + r4 * 2.5;
+
+    tmpColor.copy(COLOR_A).lerp(COLOR_B, r5);
+    colors[i * 3] = tmpColor.r;
+    colors[i * 3 + 1] = tmpColor.g;
+    colors[i * 3 + 2] = tmpColor.b;
+  }
+  return { offsets, baseOffsets, scales, colors };
+}
+
 // ── Component ────────────────────────────────────────────────
 
 interface ParticleFieldProps {
@@ -110,42 +158,11 @@ export function ParticleField({ count }: ParticleFieldProps) {
   const mouse3d = useRef(new THREE.Vector3(9999, 9999, 0));
   const { camera, size } = useThree();
 
-  // Initialize particle data
-  const { offsets, baseOffsets, scales, colors, velocities } = useMemo(() => {
-    const off = new Float32Array(count * 3);
-    const base = new Float32Array(count * 3);
-    const sc = new Float32Array(count);
-    const col = new Float32Array(count * 3);
-    const vel = new Float32Array(count * 3);
-    const tmpColor = new THREE.Color();
-
-    for (let i = 0; i < count; i++) {
-      const x = (Math.random() - 0.5) * SPREAD;
-      const y = (Math.random() - 0.5) * SPREAD;
-      const z = (Math.random() - 0.5) * SPREAD * 0.6; // slightly flatter z
-      off[i * 3] = x;
-      off[i * 3 + 1] = y;
-      off[i * 3 + 2] = z;
-      base[i * 3] = x;
-      base[i * 3 + 1] = y;
-      base[i * 3 + 2] = z;
-
-      sc[i] = 1.5 + Math.random() * 2.5;
-
-      // Lerp between emerald and teal
-      const t = Math.random();
-      tmpColor.copy(COLOR_A).lerp(COLOR_B, t);
-      col[i * 3] = tmpColor.r;
-      col[i * 3 + 1] = tmpColor.g;
-      col[i * 3 + 2] = tmpColor.b;
-
-      // Random initial velocity direction (very slow)
-      vel[i * 3] = (Math.random() - 0.5) * 0.01;
-      vel[i * 3 + 1] = (Math.random() - 0.5) * 0.01;
-      vel[i * 3 + 2] = (Math.random() - 0.5) * 0.01;
-    }
-    return { offsets: off, baseOffsets: base, scales: sc, colors: col, velocities: vel };
-  }, [count]);
+  // Deterministic initialization — pure function, safe in useMemo
+  const { offsets, baseOffsets, scales, colors } = useMemo(
+    () => createParticleData(count),
+    [count],
+  );
 
   // Shader material for particles
   const shaderMaterial = useMemo(
@@ -179,7 +196,6 @@ export function ParticleField({ count }: ParticleFieldProps) {
     geo.setAttribute("instanceOffset", new THREE.BufferAttribute(offsets, 3));
     geo.setAttribute("instanceScale", new THREE.BufferAttribute(scales, 1));
     geo.setAttribute("instanceColor", new THREE.BufferAttribute(colors, 3));
-    // Dummy position attribute (required by Points)
     geo.setAttribute(
       "position",
       new THREE.BufferAttribute(new Float32Array(count * 3), 3),
@@ -190,7 +206,7 @@ export function ParticleField({ count }: ParticleFieldProps) {
   // Geometry for connection lines (pre-allocated buffer)
   const lineGeometry = useMemo(() => {
     const geo = new THREE.BufferGeometry();
-    const positions = new Float32Array(MAX_LINES * 6); // 2 vertices * 3 components per line
+    const positions = new Float32Array(MAX_LINES * 6);
     const lineColors = new Float32Array(MAX_LINES * 6);
     geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
     geo.setAttribute("color", new THREE.BufferAttribute(lineColors, 3));
@@ -217,11 +233,9 @@ export function ParticleField({ count }: ParticleFieldProps) {
   );
 
   // Attach/detach pointer listener
-  useMemo(() => {
-    if (typeof window === "undefined") return;
+  useEffect(() => {
     window.addEventListener("pointermove", handlePointerMove);
     return () => window.removeEventListener("pointermove", handlePointerMove);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [handlePointerMove]);
 
   // Animation loop
@@ -287,16 +301,16 @@ export function ParticleField({ count }: ParticleFieldProps) {
         const bucket = grid.get(cellKey);
         if (!bucket) continue;
         for (const j of bucket) {
-          if (j <= i) continue; // avoid duplicates
+          if (j <= i) continue;
           const pairKey = `${i}-${j}`;
           if (visited.has(pairKey)) continue;
 
-          const dx = posArray[i * 3] - posArray[j * 3];
-          const dy = posArray[i * 3 + 1] - posArray[j * 3 + 1];
-          const dz = posArray[i * 3 + 2] - posArray[j * 3 + 2];
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const ddx = posArray[i * 3] - posArray[j * 3];
+          const ddy = posArray[i * 3 + 1] - posArray[j * 3 + 1];
+          const ddz = posArray[i * 3 + 2] - posArray[j * 3 + 2];
+          const d = Math.sqrt(ddx * ddx + ddy * ddy + ddz * ddz);
 
-          if (dist < CONNECTION_DIST) {
+          if (d < CONNECTION_DIST) {
             visited.add(pairKey);
             const idx = lineCount * 6;
             lp[idx] = posArray[i * 3];
@@ -306,8 +320,7 @@ export function ParticleField({ count }: ParticleFieldProps) {
             lp[idx + 4] = posArray[j * 3 + 1];
             lp[idx + 5] = posArray[j * 3 + 2];
 
-            // Fade line color based on distance
-            const fade = 1 - dist / CONNECTION_DIST;
+            const fade = 1 - d / CONNECTION_DIST;
             const r = COLOR_A.r * fade;
             const g = COLOR_A.g * fade;
             const b = COLOR_A.b * fade;

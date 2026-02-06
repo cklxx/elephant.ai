@@ -1,5 +1,5 @@
-import { HomeManifestoPage } from "@/components/home/HomeManifestoPage";
+import { HomeGLPage } from "@/components/home/HomeGLPage";
 
 export default function HomePageZh() {
-  return <HomeManifestoPage lang="zh" />;
+  return <HomeGLPage lang="zh" />;
 }
