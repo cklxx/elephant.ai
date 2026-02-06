@@ -180,7 +180,9 @@ apps:
 - `cards_enabled`：是否启用 Lark 交互卡片（默认 true，仅错误卡片开启）。
 - `cards_plan_review` / `cards_results` / `cards_errors`：分别控制计划确认/结果/错误卡片发送（默认 `false / false / true`）。结果卡片在存在附件时会升级为“附件卡片”（仅一条卡片，按钮点击后发送文件/图片）；若卡片构建失败则回退为文本回复 + 原有附件发送。
 - 说明：`/model` / `/model list` 在 `cards_enabled=true` 时会优先返回“模型选择卡片”，可直接点击按钮完成 `/model use <provider>/<model>`；若卡片构建失败则自动回退文本列表。
-- `card_callback_verification_token` / `card_callback_encrypt_key`：卡片交互回调配置（用于 `/api/lark/card/callback` 回调校验/解密）。
+- `card_callback_verification_token` / `card_callback_encrypt_key`：卡片交互回调配置（用于 `/api/lark/card/callback` 回调校验/解密）。`channels.lark` 段支持 `${ENV}` 插值；当 YAML 未配置时，服务会尝试从环境变量兜底读取：
+  - verification token：`LARK_CARD_CALLBACK_VERIFICATION_TOKEN` / `LARK_VERIFICATION_TOKEN` / `FEISHU_CARD_CALLBACK_VERIFICATION_TOKEN` / `FEISHU_VERIFICATION_TOKEN` / `CARD_CALLBACK_VERIFICATION_TOKEN`
+  - encrypt key：`LARK_CARD_CALLBACK_ENCRYPT_KEY` / `LARK_ENCRYPT_KEY` / `FEISHU_CARD_CALLBACK_ENCRYPT_KEY` / `FEISHU_ENCRYPT_KEY` / `CARD_CALLBACK_ENCRYPT_KEY`
 - `auto_upload_files`：本地文件写入/替换后自动上传附件（默认 true）。
 - `auto_upload_max_bytes`：自动上传单文件大小上限（默认 2MB）。
 - `auto_upload_allow_ext`：自动上传允许扩展名白名单（默认常见文档/图片）。

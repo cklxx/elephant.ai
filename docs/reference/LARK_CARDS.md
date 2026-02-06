@@ -30,6 +30,9 @@ channels:
 
 - `card_callback_verification_token` is the verification token from the Lark app settings.
 - `card_callback_encrypt_key` is optional when callback encryption is disabled.
+- `channels.lark` supports `${ENV}` interpolation. If these fields are omitted in YAML, server fallback env keys are also supported:
+  - verification token: `LARK_CARD_CALLBACK_VERIFICATION_TOKEN`, `LARK_VERIFICATION_TOKEN`, `FEISHU_CARD_CALLBACK_VERIFICATION_TOKEN`, `FEISHU_VERIFICATION_TOKEN`, `CARD_CALLBACK_VERIFICATION_TOKEN`
+  - encrypt key: `LARK_CARD_CALLBACK_ENCRYPT_KEY`, `LARK_ENCRYPT_KEY`, `FEISHU_CARD_CALLBACK_ENCRYPT_KEY`, `FEISHU_ENCRYPT_KEY`, `CARD_CALLBACK_ENCRYPT_KEY`
 
 ## Action tags and behavior
 
@@ -50,4 +53,5 @@ When the user submits via the **提交修改** button, the input value is passed
 ## Notes
 
 - Card callbacks are handled asynchronously; the endpoint returns immediately with a toast, and the action is injected into the Lark gateway as a normal user message.
+- When verification token is missing, callback route still stays active for action events, but URL verification challenge may fail until token is configured.
 - If callbacks are not configured, cards still render but button clicks will not trigger actions; users can respond manually via text.

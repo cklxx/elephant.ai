@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-06 16:00
+Updated: 2026-02-06 17:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -22,6 +22,7 @@ Updated: 2026-02-06 16:00
 - Subscription model selection should remain request-scoped (web/local) and avoid mutating managed overrides YAML; persist pins in non-YAML state when needed.
 - Skills resolution rule: `ALEX_SKILLS_DIR` overrides all; otherwise default `~/.alex/skills` with repo `skills/` missing-only sync and user-copy preservation.
 - Keep `make check-arch` green to enforce domain import boundaries and prevent infra leakage regressions.
+- Lark callbacks: `channels.lark` supports `${ENV}` expansion; callback token/encrypt key also have env fallback keys in bootstrap to avoid silent callback disablement.
 
 ## Items
 
