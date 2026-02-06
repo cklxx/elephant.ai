@@ -235,7 +235,14 @@ func (g *Gateway) Start(ctx context.Context) error {
 	// Build the event dispatcher and register event handlers.
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")
 	eventDispatcher.OnP2MessageReceiveV1(g.handleMessage)
+	eventDispatcher.OnP2CardActionTrigger(g.handleCardAction)
 	eventDispatcher.OnP2MessageReactionCreatedV1(func(_ context.Context, _ *larkim.P2MessageReactionCreatedV1) error {
+		return nil
+	})
+	eventDispatcher.OnP2ChatAccessEventBotP2pChatEnteredV1(func(_ context.Context, _ *larkim.P2ChatAccessEventBotP2pChatEnteredV1) error {
+		return nil
+	})
+	eventDispatcher.OnP2MessageReadV1(func(_ context.Context, _ *larkim.P2MessageReadV1) error {
 		return nil
 	})
 
