@@ -55,8 +55,8 @@ export function getGLCapabilities(): GLCapabilities {
   const dpr = Math.min(rawDpr, 2);
 
   if (mobile) {
-    return { webgl: true, tier: "low", particleCount: 200, bloom: false, dpr };
+    return { webgl: true, tier: "low", particleCount: 150, bloom: false, dpr: Math.min(dpr, 1.5) };
   }
 
-  return { webgl: true, tier: "high", particleCount: 500, bloom: true, dpr };
+  return { webgl: true, tier: "high", particleCount: 350, bloom: true, dpr: Math.min(dpr, 1.5) };
 }

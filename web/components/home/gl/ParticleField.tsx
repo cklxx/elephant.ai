@@ -14,12 +14,13 @@ import {
 
 const SPREAD = 40; // spatial extent of particle cloud
 const CONNECTION_DIST = 5; // max distance for connection lines
-const MAX_LINES = 2000;
+const MAX_LINES = 1200;
 const MOUSE_RADIUS = 6;
 const MOUSE_FORCE = 0.3;
 const NOISE_SPEED = 0.08;
 const NOISE_AMPLITUDE = 0.02;
 const CELL_SIZE = CONNECTION_DIST; // spatial hash cell size
+const LINE_UPDATE_INTERVAL = 3; // only rebuild lines every N frames
 
 // Emerald (#34d399) → Teal (#2dd4bf) color range
 const COLOR_A = new THREE.Color("#34d399");
@@ -67,14 +68,22 @@ function noise3d(x: number, y: number, z: number): number {
 }
 
 // ── Spatial hash grid for O(N*k) neighbor queries ────────────
+// Uses numeric keys to avoid per-frame string allocation / GC pressure.
+
+const HASH_PRIME_Y = 73856093;
+const HASH_PRIME_Z = 83492791;
+
+function cellKey(cx: number, cy: number, cz: number): number {
+  return (cx * 92837111 + cy * HASH_PRIME_Y + cz * HASH_PRIME_Z) | 0;
+}
 
 function buildSpatialHash(positions: Float32Array, count: number) {
-  const grid = new Map<string, number[]>();
+  const grid = new Map<number, number[]>();
   for (let i = 0; i < count; i++) {
     const cx = Math.floor(positions[i * 3] / CELL_SIZE);
     const cy = Math.floor(positions[i * 3 + 1] / CELL_SIZE);
     const cz = Math.floor(positions[i * 3 + 2] / CELL_SIZE);
-    const key = `${cx},${cy},${cz}`;
+    const key = cellKey(cx, cy, cz);
     const bucket = grid.get(key);
     if (bucket) {
       bucket.push(i);
@@ -85,16 +94,18 @@ function buildSpatialHash(positions: Float32Array, count: number) {
   return grid;
 }
 
-function getNeighborCells(cx: number, cy: number, cz: number): string[] {
-  const cells: string[] = [];
+/** Collect numeric keys for 27 neighbor cells. Reuses a static array. */
+const _neighborKeys = new Int32Array(27);
+function getNeighborKeys(cx: number, cy: number, cz: number): Int32Array {
+  let idx = 0;
   for (let dx = -1; dx <= 1; dx++) {
     for (let dy = -1; dy <= 1; dy++) {
       for (let dz = -1; dz <= 1; dz++) {
-        cells.push(`${cx + dx},${cy + dy},${cz + dz}`);
+        _neighborKeys[idx++] = cellKey(cx + dx, cy + dy, cz + dz);
       }
     }
   }
-  return cells;
+  return _neighborKeys;
 }
 
 // ── Particle data initialization (deterministic via hash, no Math.random) ──
@@ -238,13 +249,17 @@ export function ParticleField({ count }: ParticleFieldProps) {
     return () => window.removeEventListener("pointermove", handlePointerMove);
   }, [handlePointerMove]);
 
+  // Frame counter for throttled updates
+  const frameCount = useRef(0);
+
   // Animation loop
   useFrame(({ clock }) => {
     const time = clock.getElapsedTime();
+    const frame = frameCount.current++;
     const offsetAttr = pointsGeometry.getAttribute("instanceOffset") as THREE.BufferAttribute;
     const posArray = offsetAttr.array as Float32Array;
 
-    // Update particle positions
+    // Update particle positions (every frame — cheap)
     for (let i = 0; i < count; i++) {
       const i3 = i * 3;
 
@@ -281,7 +296,9 @@ export function ParticleField({ count }: ParticleFieldProps) {
     }
     offsetAttr.needsUpdate = true;
 
-    // Update connection lines via spatial hash
+    // Update connection lines only every N frames (expensive)
+    if (frame % LINE_UPDATE_INTERVAL !== 0) return;
+
     const grid = buildSpatialHash(posArray, count);
     const linePos = lineGeometry.getAttribute("position") as THREE.BufferAttribute;
     const lineCol = lineGeometry.getAttribute("color") as THREE.BufferAttribute;
@@ -289,20 +306,21 @@ export function ParticleField({ count }: ParticleFieldProps) {
     const lc = lineCol.array as Float32Array;
     let lineCount = 0;
 
-    const visited = new Set<string>();
+    // Use numeric pair key (i * count + j) instead of string to avoid GC
+    const visited = new Set<number>();
 
     for (let i = 0; i < count && lineCount < MAX_LINES; i++) {
       const cx = Math.floor(posArray[i * 3] / CELL_SIZE);
       const cy = Math.floor(posArray[i * 3 + 1] / CELL_SIZE);
       const cz = Math.floor(posArray[i * 3 + 2] / CELL_SIZE);
-      const neighbors = getNeighborCells(cx, cy, cz);
+      const neighborKeys = getNeighborKeys(cx, cy, cz);
 
-      for (const cellKey of neighbors) {
-        const bucket = grid.get(cellKey);
+      for (let n = 0; n < 27; n++) {
+        const bucket = grid.get(neighborKeys[n]);
         if (!bucket) continue;
         for (const j of bucket) {
           if (j <= i) continue;
-          const pairKey = `${i}-${j}`;
+          const pairKey = i * count + j;
           if (visited.has(pairKey)) continue;
 
           const ddx = posArray[i * 3] - posArray[j * 3];

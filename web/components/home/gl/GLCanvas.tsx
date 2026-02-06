@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
 import { getGLCapabilities, type GLCapabilities } from "@/lib/webgl";
@@ -51,15 +51,23 @@ function Scene({ caps }: { caps: GLCapabilities }) {
   );
 }
 
+// ── Visibility hook: pause Canvas when tab is hidden ─────────
+
+function usePageVisible() {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    const onChange = () => setVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onChange);
+    return () => document.removeEventListener("visibilitychange", onChange);
+  }, []);
+  return visible;
+}
+
 // ── Main GLCanvas component ─────────────────────────────────
-//
-// This component is loaded via `dynamic({ ssr: false })` in HomeGLPage,
-// so it always runs client-side. We use lazy state initialization to
-// detect WebGL capabilities synchronously on first render.
 
 export function GLCanvas() {
-  // Safe: this module is never imported during SSR (dynamic ssr:false).
   const caps = getGLCapabilities();
+  const visible = usePageVisible();
 
   if (!caps.webgl) {
     return <CSSFallback />;
@@ -73,8 +81,9 @@ export function GLCanvas() {
         gl={{
           alpha: false,
           antialias: false,
-          powerPreference: "high-performance",
+          powerPreference: "default",
         }}
+        frameloop={visible ? "always" : "never"}
         style={{ background: "#080810" }}
       >
         <Suspense fallback={null}>
