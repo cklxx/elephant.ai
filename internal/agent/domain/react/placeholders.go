@@ -9,7 +9,6 @@ import (
 
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
-	id "alex/internal/utils/id"
 )
 
 func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {
@@ -127,7 +126,7 @@ func (e *ReactEngine) extractImportantNotes(call ToolCall, metadata map[string]a
 			continue
 		}
 		if note.ID == "" {
-			note.ID = id.NewKSUID()
+			note.ID = e.idGenerator.NewKSUID()
 		}
 		if note.CreatedAt.IsZero() && e.clock != nil {
 			note.CreatedAt = e.clock.Now()

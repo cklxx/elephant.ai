@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"alex/internal/agent/ports"
-	id "alex/internal/utils/id"
+	agent "alex/internal/agent/ports/agent"
 )
 
-func checkpointFromState(state *TaskState, pending []ToolCallState) *Checkpoint {
+func checkpointFromState(state *TaskState, pending []ToolCallState, idGenerator agent.IDGenerator) *Checkpoint {
 	if state == nil {
 		return nil
 	}
@@ -23,7 +23,7 @@ func checkpointFromState(state *TaskState, pending []ToolCallState) *Checkpoint 
 	}
 
 	cp := &Checkpoint{
-		ID:            id.NewUUIDv7(),
+		ID:            idGenerator.NewUUIDv7(),
 		SessionID:     state.SessionID,
 		Iteration:     state.Iterations,
 		Messages:      messages,
@@ -253,7 +253,7 @@ func (e *ReactEngine) saveCheckpoint(ctx context.Context, state *TaskState, pend
 	if e == nil || e.checkpointStore == nil {
 		return
 	}
-	cp := checkpointFromState(state, pending)
+	cp := checkpointFromState(state, pending, e.idGenerator)
 	if cp == nil {
 		return
 	}
@@ -261,7 +261,7 @@ func (e *ReactEngine) saveCheckpoint(ctx context.Context, state *TaskState, pend
 	cp.CreatedAt = e.clock.Now()
 	cp.Version = CheckpointVersion
 	if cp.ID == "" {
-		cp.ID = id.NewUUIDv7()
+		cp.ID = e.idGenerator.NewUUIDv7()
 	}
 
 	if err := e.checkpointStore.Save(ctx, cp); err != nil {

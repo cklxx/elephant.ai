@@ -8,8 +8,6 @@ import (
 
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
-	"alex/internal/utils/clilatency"
-	id "alex/internal/utils/id"
 )
 
 // SolveTask is the main ReAct loop - pure business logic
@@ -41,7 +39,7 @@ func (e *ReactEngine) think(
 ) (Message, error) {
 
 	tools := services.ToolExecutor.List()
-	requestID := id.NewRequestIDWithLogID(id.LogIDFromContext(ctx))
+	requestID := e.idGenerator.NewRequestIDWithLogID(e.idContextReader.LogIDFromContext(ctx))
 	filteredMessages, excluded := splitMessagesForLLM(state.Messages)
 
 	e.logger.Debug(
@@ -140,7 +138,7 @@ func (e *ReactEngine) think(
 	}
 	resp, err := services.LLM.StreamComplete(ctx, req, callbacks)
 	llmDuration := time.Since(llmCallStarted)
-	clilatency.PrintfWithContext(ctx,
+	e.latencyReporter.PrintfWithContext(ctx,
 		"[latency] llm_complete_ms=%.2f iteration=%d model=%s request_id=%s\n",
 		float64(llmDuration)/float64(time.Millisecond),
 		state.Iterations,

@@ -1,6 +1,9 @@
 package react
 
-import agent "alex/internal/agent/ports/agent"
+import (
+	"alex/internal/agent/domain"
+	agent "alex/internal/agent/ports/agent"
+)
 
 // NewReactEngine creates a new ReAct engine with injected infrastructure dependencies.
 func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
@@ -12,6 +15,34 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	clock := cfg.Clock
 	if clock == nil {
 		clock = agent.SystemClock{}
+	}
+	idGenerator := cfg.IDGenerator
+	if idGenerator == nil {
+		idGenerator = defaultIDGenerator{}
+	}
+	idContextReader := cfg.IDContextReader
+	if idContextReader == nil {
+		idContextReader = defaultIDContextReader{}
+	}
+	latencyReporter := cfg.LatencyReporter
+	if latencyReporter == nil {
+		latencyReporter = defaultLatencyReporter{}
+	}
+	jsonCodec := cfg.JSONCodec
+	if jsonCodec == nil {
+		jsonCodec = defaultJSONCodec{}
+	}
+	goRunner := cfg.GoRunner
+	if goRunner == nil {
+		goRunner = defaultGoRunner{}
+	}
+	workingDirResolver := cfg.WorkingDirResolver
+	if workingDirResolver == nil {
+		workingDirResolver = defaultWorkingDirResolver{}
+	}
+	workspaceMgrFactory := cfg.WorkspaceMgrFactory
+	if workspaceMgrFactory == nil {
+		workspaceMgrFactory = defaultWorkspaceManagerFactory{}
 	}
 
 	stopReasons := cfg.StopReasons
@@ -30,12 +61,20 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 	if finalReview.MaxExtraIterations <= 0 {
 		finalReview.MaxExtraIterations = 1
 	}
+	domain.SetEventIDGenerator(idGenerator)
 
 	return &ReactEngine{
 		maxIterations:       maxIterations,
 		stopReasons:         stopReasons,
 		logger:              logger,
 		clock:               clock,
+		idGenerator:         idGenerator,
+		idContextReader:     idContextReader,
+		latencyReporter:     latencyReporter,
+		jsonCodec:           jsonCodec,
+		goRunner:            goRunner,
+		workingDirResolver:  workingDirResolver,
+		workspaceMgrFactory: workspaceMgrFactory,
 		eventListener:       cfg.EventListener,
 		completion:          completion,
 		finalAnswerReview:   finalReview,

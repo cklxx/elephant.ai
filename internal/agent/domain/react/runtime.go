@@ -10,7 +10,6 @@ import (
 	"alex/internal/agent/domain"
 	"alex/internal/agent/ports"
 	agent "alex/internal/agent/ports/agent"
-	"alex/internal/jsonx"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
@@ -129,10 +128,15 @@ func newReactRuntime(engine *ReactEngine, ctx context.Context, task string, stat
 			runtime.bgManager = engine.backgroundManager
 			runtime.bgManagerOwned = false
 		} else {
-			runtime.bgManager = newBackgroundTaskManager(
+			runtime.bgManager = newBackgroundTaskManagerWithDeps(
 				ctx,
 				engine.logger,
 				engine.clock,
+				engine.idGenerator,
+				engine.idContextReader,
+				engine.goRunner,
+				engine.workingDirResolver,
+				engine.workspaceMgrFactory,
 				engine.backgroundExecutor,
 				engine.externalExecutor,
 				engine.emitEvent,
@@ -683,7 +687,7 @@ func (r *reactRuntime) injectPlanReviewMarker(goal string, internalPlan any, run
 
 	planText := ""
 	if internalPlan != nil {
-		if data, err := jsonx.Marshal(internalPlan); err == nil {
+		if data, err := r.engine.jsonCodec.Marshal(internalPlan); err == nil {
 			planText = string(data)
 		}
 	}

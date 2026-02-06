@@ -9,10 +9,6 @@ import (
 
 	"alex/internal/agent/domain"
 	agent "alex/internal/agent/ports/agent"
-	"alex/internal/async"
-	"alex/internal/external/workspace"
-	"alex/internal/tools/builtin/pathutil"
-	id "alex/internal/utils/id"
 )
 
 // backgroundTask tracks an individual background task.
@@ -55,7 +51,10 @@ type BackgroundTaskManager struct {
 	cancelAll    context.CancelFunc
 	runCtx       context.Context // for value inheritance (IDs, etc.)
 	workingDir   string
-	workspaceMgr *workspace.Manager
+	workspaceMgr agent.WorkspaceManager
+	idGenerator  agent.IDGenerator
+	idContext    agent.IDContextReader
+	goRunner     agent.GoRunner
 
 	// executeTask delegates to coordinator.ExecuteTask for internal subagents.
 	executeTask func(ctx context.Context, prompt, sessionID string,
@@ -75,12 +74,17 @@ type BackgroundTaskManager struct {
 
 // BackgroundManagerConfig configures a shared background task manager.
 type BackgroundManagerConfig struct {
-	RunContext       context.Context
-	Logger           agent.Logger
-	Clock            agent.Clock
-	ExecuteTask      func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
-	ExternalExecutor agent.ExternalAgentExecutor
-	SessionID        string
+	RunContext          context.Context
+	Logger              agent.Logger
+	Clock               agent.Clock
+	IDGenerator         agent.IDGenerator
+	IDContextReader     agent.IDContextReader
+	GoRunner            agent.GoRunner
+	WorkingDirResolver  agent.WorkingDirResolver
+	WorkspaceMgrFactory agent.WorkspaceManagerFactory
+	ExecuteTask         func(ctx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
+	ExternalExecutor    agent.ExternalAgentExecutor
+	SessionID           string
 }
 
 // newBackgroundTaskManager creates a new manager bound to the current run context.
@@ -96,11 +100,65 @@ func newBackgroundTaskManager(
 	sessionID string,
 	parentListener agent.EventListener,
 ) *BackgroundTaskManager {
+	return newBackgroundTaskManagerWithDeps(
+		runCtx,
+		logger,
+		clock,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		executeTask,
+		externalExecutor,
+		emitEvent,
+		baseEvent,
+		sessionID,
+		parentListener,
+	)
+}
+
+func newBackgroundTaskManagerWithDeps(
+	runCtx context.Context,
+	logger agent.Logger,
+	clock agent.Clock,
+	idGenerator agent.IDGenerator,
+	idContextReader agent.IDContextReader,
+	goRunner agent.GoRunner,
+	workingDirResolver agent.WorkingDirResolver,
+	workspaceMgrFactory agent.WorkspaceManagerFactory,
+	executeTask func(ctx context.Context, prompt, sessionID string,
+		listener agent.EventListener) (*agent.TaskResult, error),
+	externalExecutor agent.ExternalAgentExecutor,
+	emitEvent func(event agent.AgentEvent),
+	baseEvent func(ctx context.Context) domain.BaseEvent,
+	sessionID string,
+	parentListener agent.EventListener,
+) *BackgroundTaskManager {
+	if idGenerator == nil {
+		idGenerator = defaultIDGenerator{}
+	}
+	if idContextReader == nil {
+		idContextReader = defaultIDContextReader{}
+	}
+	if goRunner == nil {
+		goRunner = defaultGoRunner{}
+	}
+	if workingDirResolver == nil {
+		workingDirResolver = defaultWorkingDirResolver{}
+	}
+	if workspaceMgrFactory == nil {
+		workspaceMgrFactory = defaultWorkspaceManagerFactory{}
+	}
+
 	taskCtx, cancel := context.WithCancel(context.Background())
-	workingDir := pathutil.GetPathResolverFromContext(runCtx).ResolvePath(".")
-	var workspaceMgr *workspace.Manager
-	if workingDir != "" {
-		workspaceMgr = workspace.NewManager(workingDir, logger)
+	workingDir := ""
+	if workingDirResolver != nil {
+		workingDir = strings.TrimSpace(workingDirResolver.ResolveWorkingDir(runCtx))
+	}
+	var workspaceMgr agent.WorkspaceManager
+	if workspaceMgrFactory != nil && workingDir != "" {
+		workspaceMgr = workspaceMgrFactory.NewWorkspaceManager(workingDir, logger)
 	}
 
 	var inputExecutor agent.InteractiveExternalExecutor
@@ -124,6 +182,9 @@ func newBackgroundTaskManager(
 		runCtx:           runCtx,
 		workingDir:       workingDir,
 		workspaceMgr:     workspaceMgr,
+		idGenerator:      idGenerator,
+		idContext:        idContextReader,
+		goRunner:         goRunner,
 		executeTask:      executeTask,
 		externalExecutor: externalExecutor,
 		inputExecutor:    inputExecutor,
@@ -135,7 +196,7 @@ func newBackgroundTaskManager(
 	}
 
 	if inputExecutor != nil && externalInputCh != nil {
-		async.Go(logger, "bg.externalInput", func() {
+		goRunner.Go(logger, "bg.externalInput", func() {
 			manager.forwardExternalInputRequests()
 		})
 	}
@@ -145,10 +206,15 @@ func newBackgroundTaskManager(
 
 // NewBackgroundTaskManager creates a background task manager intended for reuse (e.g., per session).
 func NewBackgroundTaskManager(cfg BackgroundManagerConfig) *BackgroundTaskManager {
-	return newBackgroundTaskManager(
+	return newBackgroundTaskManagerWithDeps(
 		cfg.RunContext,
 		cfg.Logger,
 		cfg.Clock,
+		cfg.IDGenerator,
+		cfg.IDContextReader,
+		cfg.GoRunner,
+		cfg.WorkingDirResolver,
+		cfg.WorkspaceMgrFactory,
 		cfg.ExecuteTask,
 		cfg.ExternalExecutor,
 		nil,
@@ -242,31 +308,31 @@ func (m *BackgroundTaskManager) Dispatch(
 
 	// Build detached context preserving causal chain values from the run context.
 	taskCtx := m.taskCtx
-	ids := id.IDsFromContext(ctx)
+	ids := m.idContext.IDsFromContext(ctx)
 	if ids.SessionID == "" && ids.RunID == "" && ids.ParentRunID == "" &&
 		ids.LogID == "" && ids.CorrelationID == "" && ids.CausationID == "" {
-		ids = id.IDsFromContext(m.runCtx)
+		ids = m.idContext.IDsFromContext(m.runCtx)
 	}
 	if ids.SessionID != "" {
-		taskCtx = id.WithSessionID(taskCtx, ids.SessionID)
+		taskCtx = m.idContext.WithSessionID(taskCtx, ids.SessionID)
 	}
 	if ids.RunID != "" {
-		taskCtx = id.WithParentRunID(taskCtx, ids.RunID)
+		taskCtx = m.idContext.WithParentRunID(taskCtx, ids.RunID)
 	}
-	taskCtx = id.WithRunID(taskCtx, id.NewRunID())
+	taskCtx = m.idContext.WithRunID(taskCtx, m.idGenerator.NewRunID())
 	if ids.CorrelationID != "" {
-		taskCtx = id.WithCorrelationID(taskCtx, ids.CorrelationID)
+		taskCtx = m.idContext.WithCorrelationID(taskCtx, ids.CorrelationID)
 	} else if ids.RunID != "" {
-		taskCtx = id.WithCorrelationID(taskCtx, ids.RunID)
+		taskCtx = m.idContext.WithCorrelationID(taskCtx, ids.RunID)
 	}
 	if bt.causationID != "" {
-		taskCtx = id.WithCausationID(taskCtx, bt.causationID)
+		taskCtx = m.idContext.WithCausationID(taskCtx, bt.causationID)
 	}
 	if ids.LogID != "" {
-		taskCtx = id.WithLogID(taskCtx, fmt.Sprintf("%s:bg:%s", ids.LogID, id.NewLogID()))
+		taskCtx = m.idContext.WithLogID(taskCtx, fmt.Sprintf("%s:bg:%s", ids.LogID, m.idGenerator.NewLogID()))
 	}
 
-	async.Go(m.logger, "bg-task:"+taskID, func() {
+	m.goRunner.Go(m.logger, "bg-task:"+taskID, func() {
 		m.runTask(taskCtx, bt, agentType)
 	})
 

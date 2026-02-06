@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -8,7 +10,6 @@ import (
 	agent "alex/internal/agent/ports/agent"
 	"alex/internal/agent/ports/storage"
 	"alex/internal/agent/types"
-	"alex/internal/utils/id"
 	"alex/internal/workflow"
 )
 
@@ -58,6 +59,31 @@ type SeqCounter struct {
 	counter atomic.Uint64
 }
 
+type eventIDProvider interface {
+	NewEventID() string
+}
+
+type defaultEventIDProvider struct{}
+
+func (defaultEventIDProvider) NewEventID() string {
+	return fmt.Sprintf("evt-%d", time.Now().UnixNano())
+}
+
+var (
+	eventIDProviderMu sync.RWMutex
+	currentEventIDGen eventIDProvider = defaultEventIDProvider{}
+)
+
+// SetEventIDGenerator installs the event ID generator used by domain events.
+func SetEventIDGenerator(generator agent.IDGenerator) {
+	if generator == nil {
+		return
+	}
+	eventIDProviderMu.Lock()
+	currentEventIDGen = generator
+	eventIDProviderMu.Unlock()
+}
+
 // Next returns the next sequence number.
 func (s *SeqCounter) Next() uint64 {
 	return s.counter.Add(1)
@@ -65,7 +91,7 @@ func (s *SeqCounter) Next() uint64 {
 
 func newBaseEventWithIDs(level agent.AgentLevel, sessionID, runID, parentRunID string, ts time.Time) BaseEvent {
 	return BaseEvent{
-		eventID:     id.NewEventID(),
+		eventID:     nextEventID(),
 		timestamp:   ts,
 		agentLevel:  level,
 		sessionID:   sessionID,
@@ -84,7 +110,7 @@ func NewBaseEvent(level agent.AgentLevel, sessionID, runID, parentRunID string, 
 // NewBaseEventFull constructs a BaseEvent with all fields including causal chain.
 func NewBaseEventFull(level agent.AgentLevel, sessionID, runID, parentRunID, correlationID, causationID string, seq uint64, ts time.Time) BaseEvent {
 	return BaseEvent{
-		eventID:       id.NewEventID(),
+		eventID:       nextEventID(),
 		seq:           seq,
 		timestamp:     ts,
 		agentLevel:    level,
@@ -239,6 +265,16 @@ type WorkflowToolCompletedEvent struct {
 }
 
 func (e *WorkflowToolCompletedEvent) EventType() string { return types.EventToolCompleted }
+
+func nextEventID() string {
+	eventIDProviderMu.RLock()
+	generator := currentEventIDGen
+	eventIDProviderMu.RUnlock()
+	if generator == nil {
+		return defaultEventIDProvider{}.NewEventID()
+	}
+	return generator.NewEventID()
+}
 
 // GetAttachments exposes tool result attachments for attachment-aware listeners.
 func (e *WorkflowToolCompletedEvent) GetAttachments() map[string]ports.Attachment {

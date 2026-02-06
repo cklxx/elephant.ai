@@ -17,6 +17,13 @@ type ReactEngine struct {
 	stopReasons         []string
 	logger              agent.Logger
 	clock               agent.Clock
+	idGenerator         agent.IDGenerator
+	idContextReader     agent.IDContextReader
+	latencyReporter     agent.LatencyReporter
+	jsonCodec           agent.JSONCodec
+	goRunner            agent.GoRunner
+	workingDirResolver  agent.WorkingDirResolver
+	workspaceMgrFactory agent.WorkspaceManagerFactory
 	eventListener       EventListener // Optional event listener for TUI
 	completion          completionConfig
 	finalAnswerReview   FinalAnswerReviewConfig
@@ -94,6 +101,13 @@ type ReactEngineConfig struct {
 	StopReasons         []string
 	Logger              agent.Logger
 	Clock               agent.Clock
+	IDGenerator         agent.IDGenerator
+	IDContextReader     agent.IDContextReader
+	LatencyReporter     agent.LatencyReporter
+	JSONCodec           agent.JSONCodec
+	GoRunner            agent.GoRunner
+	WorkingDirResolver  agent.WorkingDirResolver
+	WorkspaceMgrFactory agent.WorkspaceManagerFactory
 	EventListener       EventListener
 	CompletionDefaults  CompletionDefaults
 	FinalAnswerReview   FinalAnswerReviewConfig

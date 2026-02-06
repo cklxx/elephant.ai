@@ -26,6 +26,7 @@ import (
 	"alex/internal/agent/textutil"
 	"alex/internal/async"
 	runtimeconfig "alex/internal/config"
+	infraruntime "alex/internal/infra/runtime"
 	"alex/internal/logging"
 	materialports "alex/internal/materials/ports"
 	"alex/internal/tools/builtin/shared"
@@ -448,6 +449,12 @@ func (c *AgentCoordinator) ExecuteTask(
 	// Create ReactEngine and configure listener
 	logger.Info("Delegating to ReactEngine...")
 	completionDefaults := buildCompletionDefaultsFromConfig(effectiveCfg)
+	idAdapter := infraruntime.IDsAdapter{}
+	latencyReporter := infraruntime.LatencyAdapter{}
+	jsonCodec := infraruntime.JSONCodecAdapter{}
+	goRunner := infraruntime.GoRunnerAdapter{}
+	workingDirResolver := infraruntime.WorkingDirResolverAdapter{}
+	workspaceMgrFactory := infraruntime.WorkspaceManagerFactoryAdapter{}
 
 	backgroundExecutor := func(bgCtx context.Context, prompt, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
 		bgCtx = appcontext.MarkSubagentContext(bgCtx)
@@ -457,21 +464,33 @@ func (c *AgentCoordinator) ExecuteTask(
 	if c.bgRegistry != nil && env != nil && env.Session != nil {
 		bgManager = c.bgRegistry.Get(env.Session.ID, func() *react.BackgroundTaskManager {
 			return react.NewBackgroundTaskManager(react.BackgroundManagerConfig{
-				RunContext:       ctx,
-				Logger:           logger,
-				Clock:            c.clock,
-				ExecuteTask:      backgroundExecutor,
-				ExternalExecutor: c.externalExecutor,
-				SessionID:        env.Session.ID,
+				RunContext:          ctx,
+				Logger:              logger,
+				Clock:               c.clock,
+				IDGenerator:         idAdapter,
+				IDContextReader:     idAdapter,
+				GoRunner:            goRunner,
+				WorkingDirResolver:  workingDirResolver,
+				WorkspaceMgrFactory: workspaceMgrFactory,
+				ExecuteTask:         backgroundExecutor,
+				ExternalExecutor:    c.externalExecutor,
+				SessionID:           env.Session.ID,
 			})
 		})
 	}
 
 	reactEngine := react.NewReactEngine(react.ReactEngineConfig{
-		MaxIterations:      effectiveCfg.MaxIterations,
-		Logger:             logger,
-		Clock:              c.clock,
-		CompletionDefaults: completionDefaults,
+		MaxIterations:       effectiveCfg.MaxIterations,
+		Logger:              logger,
+		Clock:               c.clock,
+		IDGenerator:         idAdapter,
+		IDContextReader:     idAdapter,
+		LatencyReporter:     latencyReporter,
+		JSONCodec:           jsonCodec,
+		GoRunner:            goRunner,
+		WorkingDirResolver:  workingDirResolver,
+		WorkspaceMgrFactory: workspaceMgrFactory,
+		CompletionDefaults:  completionDefaults,
 		FinalAnswerReview: react.FinalAnswerReviewConfig{
 			Enabled:            effectiveCfg.Proactive.FinalAnswerReview.Enabled,
 			MaxExtraIterations: effectiveCfg.Proactive.FinalAnswerReview.MaxExtraIterations,
