@@ -139,7 +139,20 @@ func RunServer(observabilityConfigPath string) error {
 					return err
 				}
 				historyStore = pgHistory
-				asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory)
+				asyncHistoryOpts := []serverApp.AsyncEventHistoryStoreOption{}
+				if config.EventHistoryAsyncBatchSize > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryBatchSize(config.EventHistoryAsyncBatchSize))
+				}
+				if config.EventHistoryAsyncFlushInterval > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryFlushInterval(config.EventHistoryAsyncFlushInterval))
+				}
+				if config.EventHistoryAsyncAppendTimeout > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryAppendTimeout(config.EventHistoryAsyncAppendTimeout))
+				}
+				if config.EventHistoryAsyncQueueCapacity > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryQueueCapacity(config.EventHistoryAsyncQueueCapacity))
+				}
+				asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory, asyncHistoryOpts...)
 				return nil
 			},
 		},

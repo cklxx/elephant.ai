@@ -36,6 +36,10 @@ runtime:
 #   rate_limit_burst: 120
 #   non_stream_timeout_seconds: 30
 #   event_history_retention_days: 30
+#   event_history_async_batch_size: 200
+#   event_history_async_flush_interval_ms: 250
+#   event_history_async_append_timeout_ms: 50
+#   event_history_async_queue_capacity: 8192
 #   allowed_origins:
 #     - "http://localhost:3000"
 # auth:

@@ -233,6 +233,11 @@ func TestAsyncAppendQueueFullReturnsError(t *testing.T) {
 	if !errors.Is(err, ErrAsyncHistoryQueueFull) {
 		t.Fatalf("expected ErrAsyncHistoryQueueFull, got %v", err)
 	}
+
+	stats := store.Stats()
+	if stats.QueueFullEvents != 1 {
+		t.Fatalf("expected queue_full_events=1, got %d", stats.QueueFullEvents)
+	}
 }
 
 func TestAsyncAppendContextCancellation(t *testing.T) {
@@ -542,6 +547,7 @@ func TestAsyncOptionsApplied(t *testing.T) {
 		WithAsyncHistoryBatchSize(50),
 		WithAsyncHistoryFlushInterval(500*time.Millisecond),
 		WithAsyncHistoryAppendTimeout(100*time.Millisecond),
+		WithAsyncHistoryQueueCapacity(1024),
 	)
 	defer store.Close()
 
@@ -554,6 +560,12 @@ func TestAsyncOptionsApplied(t *testing.T) {
 	if store.appendTimeout != 100*time.Millisecond {
 		t.Fatalf("expected appendTimeout 100ms, got %v", store.appendTimeout)
 	}
+	if store.queueCapacity != 1024 {
+		t.Fatalf("expected queueCapacity 1024, got %d", store.queueCapacity)
+	}
+	if cap(store.ch) != 1024 {
+		t.Fatalf("expected channel capacity 1024, got %d", cap(store.ch))
+	}
 }
 
 func TestAsyncOptionsIgnoreInvalid(t *testing.T) {
@@ -565,19 +577,27 @@ func TestAsyncOptionsIgnoreInvalid(t *testing.T) {
 		WithAsyncHistoryFlushInterval(-1),
 		WithAsyncHistoryAppendTimeout(0),
 		WithAsyncHistoryAppendTimeout(-1),
+		WithAsyncHistoryQueueCapacity(0),
+		WithAsyncHistoryQueueCapacity(-1),
 		nil, // nil option should not panic
 	)
 	defer store.Close()
 
 	// Defaults should remain.
-	if store.batchSize != 200 {
-		t.Fatalf("expected default batchSize 200, got %d", store.batchSize)
+	if store.batchSize != DefaultAsyncHistoryBatchSize {
+		t.Fatalf("expected default batchSize %d, got %d", DefaultAsyncHistoryBatchSize, store.batchSize)
 	}
-	if store.flushInterval != 250*time.Millisecond {
-		t.Fatalf("expected default flushInterval 250ms, got %v", store.flushInterval)
+	if store.flushInterval != DefaultAsyncHistoryFlushInterval {
+		t.Fatalf("expected default flushInterval %s, got %v", DefaultAsyncHistoryFlushInterval, store.flushInterval)
 	}
-	if store.appendTimeout != 50*time.Millisecond {
-		t.Fatalf("expected default appendTimeout 50ms, got %v", store.appendTimeout)
+	if store.appendTimeout != DefaultAsyncHistoryAppendTimeout {
+		t.Fatalf("expected default appendTimeout %s, got %v", DefaultAsyncHistoryAppendTimeout, store.appendTimeout)
+	}
+	if store.queueCapacity != DefaultAsyncHistoryQueueCapacity {
+		t.Fatalf("expected default queueCapacity %d, got %d", DefaultAsyncHistoryQueueCapacity, store.queueCapacity)
+	}
+	if cap(store.ch) != DefaultAsyncHistoryQueueCapacity {
+		t.Fatalf("expected channel capacity %d, got %d", DefaultAsyncHistoryQueueCapacity, cap(store.ch))
 	}
 }
 
@@ -739,5 +759,69 @@ func TestAsyncFlushBackoffSkipsRetries(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	if got := inner.appendCallCount.Load(); got != firstCount {
 		t.Fatalf("expected backoff to suppress retries, got %d then %d", firstCount, got)
+	}
+}
+
+func TestAsyncStatsTracksFlushesAndFailures(t *testing.T) {
+	appendErr := errors.New("append failed")
+	inner := &inMemoryHistoryStore{appendErr: appendErr}
+	store := NewAsyncEventHistoryStore(inner,
+		WithAsyncHistoryFlushInterval(time.Hour),
+		WithAsyncHistoryBatchSize(1),
+	)
+	defer store.Close()
+
+	if err := store.Append(context.Background(), makeTestEvent("s1")); err != nil {
+		t.Fatalf("append error: %v", err)
+	}
+
+	err := store.flush(context.Background())
+	if !errors.Is(err, appendErr) {
+		t.Fatalf("expected append error, got %v", err)
+	}
+
+	stats := store.Stats()
+	if stats.EnqueuedEvents != 1 {
+		t.Fatalf("expected enqueued_events=1, got %d", stats.EnqueuedEvents)
+	}
+	if stats.FlushFailures < 1 {
+		t.Fatalf("expected flush_failures>=1, got %d", stats.FlushFailures)
+	}
+	if stats.FlushBatches != 0 {
+		t.Fatalf("expected flush_batches=0 on failed flush, got %d", stats.FlushBatches)
+	}
+}
+
+func TestAsyncStatsTracksSuccessfulFlush(t *testing.T) {
+	inner := &inMemoryHistoryStore{}
+	store := NewAsyncEventHistoryStore(inner,
+		WithAsyncHistoryBatchSize(2),
+		WithAsyncHistoryFlushInterval(time.Hour),
+		WithAsyncHistoryQueueCapacity(8),
+	)
+	defer store.Close()
+
+	if err := store.Append(context.Background(), makeTestEvent("s1")); err != nil {
+		t.Fatalf("append error: %v", err)
+	}
+	if err := store.Append(context.Background(), makeTestEvent("s1")); err != nil {
+		t.Fatalf("append error: %v", err)
+	}
+	if err := store.flush(context.Background()); err != nil {
+		t.Fatalf("flush error: %v", err)
+	}
+
+	stats := store.Stats()
+	if stats.EnqueuedEvents != 2 {
+		t.Fatalf("expected enqueued_events=2, got %d", stats.EnqueuedEvents)
+	}
+	if stats.FlushBatches != 1 {
+		t.Fatalf("expected flush_batches=1, got %d", stats.FlushBatches)
+	}
+	if stats.FlushedEvents != 2 {
+		t.Fatalf("expected flushed_events=2, got %d", stats.FlushedEvents)
+	}
+	if stats.FlushFailures != 0 {
+		t.Fatalf("expected flush_failures=0, got %d", stats.FlushFailures)
 	}
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
@@ -32,7 +33,14 @@ type AsyncEventHistoryStore struct {
 	batchSize     int
 	flushInterval time.Duration
 	appendTimeout time.Duration
+	queueCapacity int
 	logger        logging.Logger
+
+	enqueuedEvents  atomic.Int64
+	queueFullEvents atomic.Int64
+	flushBatches    atomic.Int64
+	flushFailures   atomic.Int64
+	flushedEvents   atomic.Int64
 }
 
 type AsyncEventHistoryStoreOption func(*AsyncEventHistoryStore)
@@ -61,17 +69,30 @@ func WithAsyncHistoryAppendTimeout(timeout time.Duration) AsyncEventHistoryStore
 	}
 }
 
+func WithAsyncHistoryQueueCapacity(capacity int) AsyncEventHistoryStoreOption {
+	return func(s *AsyncEventHistoryStore) {
+		if capacity > 0 {
+			s.queueCapacity = capacity
+		}
+	}
+}
+
 var ErrAsyncHistoryQueueFull = errors.New("async event history queue full")
+
+const (
+	DefaultAsyncHistoryBatchSize     = 200
+	DefaultAsyncHistoryFlushInterval = 250 * time.Millisecond
+	DefaultAsyncHistoryAppendTimeout = 50 * time.Millisecond
+	DefaultAsyncHistoryQueueCapacity = 8192
+)
 
 func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistoryStoreOption) *AsyncEventHistoryStore {
 	store := &AsyncEventHistoryStore{
 		inner:         inner,
-		ch:            make(chan agent.AgentEvent, 8192),
-		flushRequests: make(chan chan error, 16),
-		done:          make(chan struct{}),
-		batchSize:     200,
-		flushInterval: 250 * time.Millisecond,
-		appendTimeout: 50 * time.Millisecond,
+		batchSize:     DefaultAsyncHistoryBatchSize,
+		flushInterval: DefaultAsyncHistoryFlushInterval,
+		appendTimeout: DefaultAsyncHistoryAppendTimeout,
+		queueCapacity: DefaultAsyncHistoryQueueCapacity,
 		logger:        logging.NewComponentLogger("AsyncEventHistoryStore"),
 	}
 	for _, opt := range opts {
@@ -80,6 +101,9 @@ func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistor
 		}
 		opt(store)
 	}
+	store.ch = make(chan agent.AgentEvent, store.queueCapacity)
+	store.flushRequests = make(chan chan error, 16)
+	store.done = make(chan struct{})
 	if inner != nil {
 		async.Go(store.logger, "eventHistory.asyncStore", func() {
 			store.run()
@@ -95,22 +119,28 @@ func (s *AsyncEventHistoryStore) Append(ctx context.Context, event agent.AgentEv
 
 	select {
 	case s.ch <- event:
+		s.enqueuedEvents.Add(1)
 		return nil
 	default:
 		// Avoid blocking latency-sensitive streaming paths. If the queue is full,
 		// fall back to a short context-aware wait and surface backpressure.
 		timeout := s.appendTimeout
 		if timeout <= 0 {
-			timeout = 50 * time.Millisecond
+			timeout = DefaultAsyncHistoryAppendTimeout
 		}
 		timer := time.NewTimer(timeout)
 		defer timer.Stop()
 		select {
 		case s.ch <- event:
+			s.enqueuedEvents.Add(1)
 			return nil
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-timer.C:
+			count := s.queueFullEvents.Add(1)
+			if shouldSampleCounter(count) {
+				logging.OrNop(s.logger).Warn("Async event history queue full (count=%d depth=%d cap=%d)", count, len(s.ch), cap(s.ch))
+			}
 			return ErrAsyncHistoryQueueFull
 		}
 	}
@@ -199,6 +229,7 @@ func (s *AsyncEventHistoryStore) run() {
 		if len(buffer) == 0 {
 			return nil
 		}
+		batchLen := len(buffer)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -208,6 +239,8 @@ func (s *AsyncEventHistoryStore) run() {
 				return err
 			}
 			buffer = buffer[:0]
+			s.flushBatches.Add(1)
+			s.flushedEvents.Add(int64(batchLen))
 			return nil
 		}
 
@@ -218,6 +251,8 @@ func (s *AsyncEventHistoryStore) run() {
 			}
 		}
 		buffer = buffer[:0]
+		s.flushBatches.Add(1)
+		s.flushedEvents.Add(int64(batchLen))
 		return nil
 	}
 
@@ -245,6 +280,10 @@ func (s *AsyncEventHistoryStore) run() {
 		}
 		if err := flushBuffer(); err != nil {
 			applyBackoff()
+			count := s.flushFailures.Add(1)
+			if shouldSampleCounter(count) {
+				logging.OrNop(s.logger).Warn("Failed to flush async event history batch (count=%d depth=%d pending=%d): %v", count, len(s.ch), len(buffer), err)
+			}
 			return err
 		}
 		if failureCount > 0 {
@@ -257,7 +296,10 @@ func (s *AsyncEventHistoryStore) run() {
 		select {
 		case <-s.done:
 			if err := flushBuffer(); err != nil {
-				logging.OrNop(s.logger).Warn("Failed to flush event history on shutdown: %v", err)
+				count := s.flushFailures.Add(1)
+				if shouldSampleCounter(count) {
+					logging.OrNop(s.logger).Warn("Failed to flush async event history on shutdown (count=%d depth=%d pending=%d): %v", count, len(s.ch), len(buffer), err)
+				}
 			}
 			return
 		case event := <-s.ch:
@@ -266,9 +308,7 @@ func (s *AsyncEventHistoryStore) run() {
 			}
 			buffer = append(buffer, event)
 			if len(buffer) >= s.batchSize {
-				if err := tryFlush(false); err != nil {
-					logging.OrNop(s.logger).Warn("Failed to flush event history batch: %v", err)
-				}
+				_ = tryFlush(false)
 			}
 		case resp := <-s.flushRequests:
 			// Drain any queued events before fulfilling the flush request.
@@ -279,9 +319,7 @@ func (s *AsyncEventHistoryStore) run() {
 						buffer = append(buffer, event)
 					}
 					if len(buffer) >= s.batchSize {
-						if err := tryFlush(false); err != nil {
-							logging.OrNop(s.logger).Warn("Failed to flush event history batch: %v", err)
-						}
+						_ = tryFlush(false)
 					}
 				default:
 					goto drained
@@ -290,9 +328,38 @@ func (s *AsyncEventHistoryStore) run() {
 		drained:
 			resp <- tryFlush(true)
 		case <-ticker.C:
-			if err := tryFlush(false); err != nil {
-				logging.OrNop(s.logger).Warn("Failed to flush event history batch: %v", err)
-			}
+			_ = tryFlush(false)
 		}
+	}
+}
+
+type AsyncEventHistoryStats struct {
+	QueueDepth      int   `json:"queue_depth"`
+	QueueCapacity   int   `json:"queue_capacity"`
+	EnqueuedEvents  int64 `json:"enqueued_events"`
+	QueueFullEvents int64 `json:"queue_full_events"`
+	FlushBatches    int64 `json:"flush_batches"`
+	FlushFailures   int64 `json:"flush_failures"`
+	FlushedEvents   int64 `json:"flushed_events"`
+}
+
+func (s *AsyncEventHistoryStore) Stats() AsyncEventHistoryStats {
+	if s == nil {
+		return AsyncEventHistoryStats{}
+	}
+	depth := 0
+	capacity := 0
+	if s.ch != nil {
+		depth = len(s.ch)
+		capacity = cap(s.ch)
+	}
+	return AsyncEventHistoryStats{
+		QueueDepth:      depth,
+		QueueCapacity:   capacity,
+		EnqueuedEvents:  s.enqueuedEvents.Load(),
+		QueueFullEvents: s.queueFullEvents.Load(),
+		FlushBatches:    s.flushBatches.Load(),
+		FlushFailures:   s.flushFailures.Load(),
+		FlushedEvents:   s.flushedEvents.Load(),
 	}
 }

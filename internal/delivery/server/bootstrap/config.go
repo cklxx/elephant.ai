@@ -15,28 +15,32 @@ import (
 
 // Config holds server configuration.
 type Config struct {
-	Runtime                    runtimeconfig.RuntimeConfig
-	RuntimeMeta                runtimeconfig.Metadata
-	Port                       string
-	EnableMCP                  bool
-	EnvironmentSummary         string
-	Auth                       runtimeconfig.AuthConfig
-	Session                    runtimeconfig.SessionConfig
-	Analytics                  runtimeconfig.AnalyticsConfig
-	Channels                   ChannelsConfig
-	AllowedOrigins             []string
-	MaxTaskBodyBytes           int64
-	StreamMaxDuration          time.Duration
-	StreamMaxBytes             int64
-	StreamMaxConcurrent        int
-	RateLimitRequestsPerMinute int
-	RateLimitBurst             int
-	NonStreamTimeout           time.Duration
-	EventHistoryRetention      time.Duration
-	EventHistoryMaxSessions    int
-	EventHistorySessionTTL     time.Duration
-	EventHistoryMaxEvents      int
-	Attachment                 attachments.StoreConfig
+	Runtime                        runtimeconfig.RuntimeConfig
+	RuntimeMeta                    runtimeconfig.Metadata
+	Port                           string
+	EnableMCP                      bool
+	EnvironmentSummary             string
+	Auth                           runtimeconfig.AuthConfig
+	Session                        runtimeconfig.SessionConfig
+	Analytics                      runtimeconfig.AnalyticsConfig
+	Channels                       ChannelsConfig
+	AllowedOrigins                 []string
+	MaxTaskBodyBytes               int64
+	StreamMaxDuration              time.Duration
+	StreamMaxBytes                 int64
+	StreamMaxConcurrent            int
+	RateLimitRequestsPerMinute     int
+	RateLimitBurst                 int
+	NonStreamTimeout               time.Duration
+	EventHistoryRetention          time.Duration
+	EventHistoryMaxSessions        int
+	EventHistorySessionTTL         time.Duration
+	EventHistoryMaxEvents          int
+	EventHistoryAsyncBatchSize     int
+	EventHistoryAsyncFlushInterval time.Duration
+	EventHistoryAsyncAppendTimeout time.Duration
+	EventHistoryAsyncQueueCapacity int
+	Attachment                     attachments.StoreConfig
 }
 
 // ChannelsConfig captures server-side channel gateways.
@@ -131,21 +135,25 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	}
 
 	cfg := Config{
-		Runtime:                    runtimeCfg,
-		RuntimeMeta:                runtimeMeta,
-		Port:                       "8080",
-		EnableMCP:                  true, // Default: enabled
-		AllowedOrigins:             append([]string(nil), defaultAllowedOrigins...),
-		StreamMaxDuration:          2 * time.Hour,
-		StreamMaxBytes:             64 * 1024 * 1024,
-		StreamMaxConcurrent:        128,
-		RateLimitRequestsPerMinute: 600,
-		RateLimitBurst:             120,
-		NonStreamTimeout:           30 * time.Second,
-		EventHistoryRetention:      30 * 24 * time.Hour,
-		EventHistoryMaxSessions:    100,
-		EventHistorySessionTTL:     1 * time.Hour,
-		EventHistoryMaxEvents:      1000,
+		Runtime:                        runtimeCfg,
+		RuntimeMeta:                    runtimeMeta,
+		Port:                           "8080",
+		EnableMCP:                      true, // Default: enabled
+		AllowedOrigins:                 append([]string(nil), defaultAllowedOrigins...),
+		StreamMaxDuration:              2 * time.Hour,
+		StreamMaxBytes:                 64 * 1024 * 1024,
+		StreamMaxConcurrent:            128,
+		RateLimitRequestsPerMinute:     600,
+		RateLimitBurst:                 120,
+		NonStreamTimeout:               30 * time.Second,
+		EventHistoryRetention:          30 * 24 * time.Hour,
+		EventHistoryMaxSessions:        100,
+		EventHistorySessionTTL:         1 * time.Hour,
+		EventHistoryMaxEvents:          1000,
+		EventHistoryAsyncBatchSize:     200,
+		EventHistoryAsyncFlushInterval: 250 * time.Millisecond,
+		EventHistoryAsyncAppendTimeout: 50 * time.Millisecond,
+		EventHistoryAsyncQueueCapacity: 8192,
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex/sessions",
 		},
@@ -442,6 +450,18 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		} else {
 			cfg.EventHistoryMaxEvents = *file.Server.EventHistoryMaxEvents
 		}
+	}
+	if file.Server.EventHistoryAsyncBatchSize != nil && *file.Server.EventHistoryAsyncBatchSize > 0 {
+		cfg.EventHistoryAsyncBatchSize = *file.Server.EventHistoryAsyncBatchSize
+	}
+	if file.Server.EventHistoryAsyncFlushMS != nil && *file.Server.EventHistoryAsyncFlushMS > 0 {
+		cfg.EventHistoryAsyncFlushInterval = time.Duration(*file.Server.EventHistoryAsyncFlushMS) * time.Millisecond
+	}
+	if file.Server.EventHistoryAsyncAppendMS != nil && *file.Server.EventHistoryAsyncAppendMS > 0 {
+		cfg.EventHistoryAsyncAppendTimeout = time.Duration(*file.Server.EventHistoryAsyncAppendMS) * time.Millisecond
+	}
+	if file.Server.EventHistoryAsyncQueueSize != nil && *file.Server.EventHistoryAsyncQueueSize > 0 {
+		cfg.EventHistoryAsyncQueueCapacity = *file.Server.EventHistoryAsyncQueueSize
 	}
 	if file.Server.AllowedOrigins != nil {
 		cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)

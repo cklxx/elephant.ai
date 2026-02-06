@@ -121,6 +121,10 @@ apps:
 - `event_history_max_sessions`：内存事件历史保留的最大会话数（默认 100；设置为 0 表示不限制）。
 - `event_history_session_ttl_seconds`：内存事件历史空闲 TTL（秒，默认 3600；设置为 0 表示不启用）。
 - `event_history_max_events`：单个会话内存事件历史最大条数（默认 1000；设置为 0 表示不限制）。
+- `event_history_async_batch_size`：异步事件历史落盘批大小（默认 200）。
+- `event_history_async_flush_interval_ms`：异步事件历史定时 flush 间隔（毫秒，默认 250）。
+- `event_history_async_append_timeout_ms`：异步事件历史队列满时 append 等待超时（毫秒，默认 50）。
+- `event_history_async_queue_capacity`：异步事件历史队列容量（默认 8192）。
 
 ### auth
 

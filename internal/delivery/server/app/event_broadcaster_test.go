@@ -200,6 +200,14 @@ func TestEventBroadcasterDropsMissingSessionID(t *testing.T) {
 		t.Fatal("expected no event to be delivered for missing session ID")
 	default:
 	}
+
+	metrics := broadcaster.GetMetrics()
+	if metrics.NoClientEvents != 1 {
+		t.Fatalf("expected no-client events=1, got %d", metrics.NoClientEvents)
+	}
+	if metrics.NoClientBySession[missingSessionIDKey] != 1 {
+		t.Fatalf("expected missing-session counter=1, got %d", metrics.NoClientBySession[missingSessionIDKey])
+	}
 }
 
 func TestEventBroadcasterBroadcastsExplicitGlobalSession(t *testing.T) {
@@ -225,6 +233,44 @@ func TestEventBroadcasterBroadcastsExplicitGlobalSession(t *testing.T) {
 			}
 		default:
 			t.Fatalf("client %d: expected global event", idx+1)
+		}
+	}
+}
+
+func TestEventBroadcasterTracksNoClientSessionMetrics(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+	event := &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "orphan-session", "task-1", "", time.Now()),
+		Version:   1,
+		Event:     types.EventNodeStarted,
+	}
+
+	broadcaster.OnEvent(event)
+
+	metrics := broadcaster.GetMetrics()
+	if metrics.NoClientEvents != 1 {
+		t.Fatalf("expected no-client events=1, got %d", metrics.NoClientEvents)
+	}
+	if metrics.NoClientBySession["orphan-session"] != 1 {
+		t.Fatalf("expected orphan-session counter=1, got %d", metrics.NoClientBySession["orphan-session"])
+	}
+
+	broadcaster.ClearEventHistory("orphan-session")
+	metrics = broadcaster.GetMetrics()
+	if _, ok := metrics.NoClientBySession["orphan-session"]; ok {
+		t.Fatalf("expected orphan-session counter to be cleared")
+	}
+}
+
+func TestShouldSampleCounterPowerOfTwo(t *testing.T) {
+	for _, count := range []int64{1, 2, 4, 8, 16, 32} {
+		if !shouldSampleCounter(count) {
+			t.Fatalf("expected count=%d to be sampled", count)
+		}
+	}
+	for _, count := range []int64{0, 3, 5, 6, 7, 9, 10} {
+		if shouldSampleCounter(count) {
+			t.Fatalf("expected count=%d to be skipped", count)
 		}
 	}
 }

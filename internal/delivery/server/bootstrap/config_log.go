@@ -64,6 +64,10 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Info("Event History Max Sessions: %d", config.EventHistoryMaxSessions)
 	logger.Info("Event History Session TTL: %s", config.EventHistorySessionTTL)
 	logger.Info("Event History Max Events: %d", config.EventHistoryMaxEvents)
+	logger.Info("Event History Async Batch Size: %d", config.EventHistoryAsyncBatchSize)
+	logger.Info("Event History Async Flush Interval: %s", config.EventHistoryAsyncFlushInterval)
+	logger.Info("Event History Async Append Timeout: %s", config.EventHistoryAsyncAppendTimeout)
+	logger.Info("Event History Async Queue Capacity: %d", config.EventHistoryAsyncQueueCapacity)
 	larkCfg := config.Channels.Lark
 	if larkCfg.Enabled {
 		logger.Info(

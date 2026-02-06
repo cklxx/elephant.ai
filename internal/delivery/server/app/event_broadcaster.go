@@ -49,6 +49,7 @@ const (
 	assistantMessageEventType = types.EventNodeOutputDelta
 	assistantMessageLogBatch  = 10
 	globalHighVolumeSessionID = "__global__"
+	missingSessionIDKey       = "__missing__"
 	pruneEveryN               = 100
 )
 
@@ -57,9 +58,11 @@ const (
 type broadcasterMetrics struct {
 	totalEventsSent   atomic.Int64
 	droppedEvents     atomic.Int64 // Events dropped due to full buffers
+	noClientEvents    atomic.Int64 // Events dropped because no SSE client was subscribed
 	totalConnections  atomic.Int64 // Total connections ever made
 	activeConnections atomic.Int64 // Currently active connections
 	dropsPerSession   sync.Map     // sessionID -> *atomic.Int64
+	noClientBySession sync.Map     // sessionID -> *atomic.Int64
 }
 
 type sessionHistory struct {
@@ -150,7 +153,10 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 	clientsBySession := b.loadClients()
 
 	if sessionID == "" {
-		b.logger.Warn("[OnEvent] No sessionID in event, dropping event %s", event.EventType())
+		count := b.metrics.incrementNoClientEvents(missingSessionIDKey)
+		if shouldSampleCounter(count) {
+			b.logger.Warn("[OnEvent] No sessionID in event, dropping event %s (count=%d)", event.EventType(), count)
+		}
 		return
 	}
 
@@ -163,7 +169,10 @@ func (b *EventBroadcaster) OnEvent(event agent.AgentEvent) {
 
 	clients := clientsBySession[sessionID]
 	if len(clients) == 0 {
-		b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event: %s). Available sessions: %v", sessionID, event.EventType(), b.getSessionIDs())
+		count := b.metrics.incrementNoClientEvents(sessionID)
+		if shouldSampleCounter(count) {
+			b.logger.Warn("[OnEvent] No clients found for sessionID='%s' (event=%s count=%d). Available sessions: %v", sessionID, event.EventType(), count, b.getSessionIDs())
+		}
 		return
 	}
 
@@ -311,6 +320,7 @@ func (b *EventBroadcaster) UnregisterClient(sessionID string, ch chan agent.Agen
 				delete(updated, sessionID)
 				b.clearHighVolumeCounter(sessionID)
 				b.metrics.clearSessionDrops(sessionID)
+				b.metrics.clearSessionNoClient(sessionID)
 			}
 			b.clients.Store(updated)
 			break
@@ -538,6 +548,7 @@ func (b *EventBroadcaster) ClearEventHistory(sessionID string) {
 	delete(b.eventHistory, sessionID)
 	b.clearHighVolumeCounter(sessionID)
 	b.metrics.clearSessionDrops(sessionID)
+	b.metrics.clearSessionNoClient(sessionID)
 	b.logger.Info("Cleared event history for session: %s", sessionID)
 }
 
@@ -656,6 +667,7 @@ func (b *EventBroadcaster) pruneExpiredSessionsLocked(now time.Time) {
 			delete(b.eventHistory, sessionID)
 			b.clearHighVolumeCounter(sessionID)
 			b.metrics.clearSessionDrops(sessionID)
+			b.metrics.clearSessionNoClient(sessionID)
 		}
 	}
 }
@@ -688,6 +700,7 @@ func (b *EventBroadcaster) enforceMaxSessionsLocked() {
 		delete(b.eventHistory, sessionID)
 		b.clearHighVolumeCounter(sessionID)
 		b.metrics.clearSessionDrops(sessionID)
+		b.metrics.clearSessionNoClient(sessionID)
 	}
 }
 
@@ -696,6 +709,14 @@ func (m *broadcasterMetrics) incrementEventsSent() { m.totalEventsSent.Add(1) }
 func (m *broadcasterMetrics) incrementDroppedEvents(sessionID string) int64 {
 	m.droppedEvents.Add(1)
 	counter, _ := m.dropsPerSession.LoadOrStore(sessionID, &atomic.Int64{})
+	return counter.(*atomic.Int64).Add(1)
+}
+func (m *broadcasterMetrics) incrementNoClientEvents(sessionID string) int64 {
+	if sessionID == "" {
+		sessionID = missingSessionIDKey
+	}
+	m.noClientEvents.Add(1)
+	counter, _ := m.noClientBySession.LoadOrStore(sessionID, &atomic.Int64{})
 	return counter.(*atomic.Int64).Add(1)
 }
 func (m *broadcasterMetrics) incrementConnections() {
@@ -709,11 +730,22 @@ func (m *broadcasterMetrics) clearSessionDrops(sessionID string) {
 	m.dropsPerSession.Delete(sessionID)
 }
 
+func (m *broadcasterMetrics) clearSessionNoClient(sessionID string) {
+	m.noClientBySession.Delete(sessionID)
+}
+
+func shouldSampleCounter(count int64) bool {
+	// Sample at powers of two (1,2,4,8...) to cap log volume while preserving signal.
+	return count > 0 && count&(count-1) == 0
+}
+
 // BroadcasterMetrics represents broadcaster metrics for export
 type BroadcasterMetrics struct {
 	TotalEventsSent   int64            `json:"total_events_sent"`
 	DroppedEvents     int64            `json:"dropped_events"`
 	DropsPerSession   map[string]int64 `json:"drops_per_session,omitempty"` // Per-session drop counts
+	NoClientEvents    int64            `json:"no_client_events"`
+	NoClientBySession map[string]int64 `json:"no_client_by_session,omitempty"`
 	TotalConnections  int64            `json:"total_connections"`
 	ActiveConnections int64            `json:"active_connections"`
 	BufferDepth       map[string]int   `json:"buffer_depth"` // Per-session buffer depth
@@ -724,6 +756,7 @@ type BroadcasterMetrics struct {
 func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
 	totalEvents := b.metrics.totalEventsSent.Load()
 	droppedEvents := b.metrics.droppedEvents.Load()
+	noClientEvents := b.metrics.noClientEvents.Load()
 	totalConns := b.metrics.totalConnections.Load()
 	activeConns := b.metrics.activeConnections.Load()
 
@@ -750,11 +783,21 @@ func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
 		dropsPerSession[key.(string)] = value.(*atomic.Int64).Load()
 		return true
 	})
+	var noClientBySession map[string]int64
+	b.metrics.noClientBySession.Range(func(key, value any) bool {
+		if noClientBySession == nil {
+			noClientBySession = make(map[string]int64)
+		}
+		noClientBySession[key.(string)] = value.(*atomic.Int64).Load()
+		return true
+	})
 
 	return BroadcasterMetrics{
 		TotalEventsSent:   totalEvents,
 		DroppedEvents:     droppedEvents,
 		DropsPerSession:   dropsPerSession,
+		NoClientEvents:    noClientEvents,
+		NoClientBySession: noClientBySession,
 		TotalConnections:  totalConns,
 		ActiveConnections: activeConns,
 		BufferDepth:       bufferDepth,

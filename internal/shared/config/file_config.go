@@ -316,6 +316,10 @@ type ServerConfig struct {
 	EventHistoryMaxSessions    *int     `yaml:"event_history_max_sessions"`
 	EventHistorySessionTTL     *int     `yaml:"event_history_session_ttl_seconds"`
 	EventHistoryMaxEvents      *int     `yaml:"event_history_max_events"`
+	EventHistoryAsyncBatchSize *int     `yaml:"event_history_async_batch_size"`
+	EventHistoryAsyncFlushMS   *int     `yaml:"event_history_async_flush_interval_ms"`
+	EventHistoryAsyncAppendMS  *int     `yaml:"event_history_async_append_timeout_ms"`
+	EventHistoryAsyncQueueSize *int     `yaml:"event_history_async_queue_capacity"`
 }
 
 // AuthConfig captures authentication configuration stored in YAML.
