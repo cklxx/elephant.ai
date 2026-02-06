@@ -55,10 +55,11 @@ func NewLarkCalendarQuery() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "lark_calendar_query",
-				Version:  "0.1.0",
-				Category: "lark",
-				Tags:     []string{"lark", "calendar", "query"},
+				Name:        "lark_calendar_query",
+				Version:     "0.1.0",
+				Category:    "lark",
+				Tags:        []string{"lark", "calendar", "query"},
+				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}

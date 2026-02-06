@@ -90,11 +90,12 @@ Safety:
 
 func codeExecuteMetadata() ports.ToolMetadata {
 	return ports.ToolMetadata{
-		Name:      "code_execute",
-		Version:   "1.0.0",
-		Category:  "execution",
-		Tags:      []string{"code", "execute"},
-		Dangerous: true,
+		Name:        "code_execute",
+		Version:     "1.0.0",
+		Category:    "execution",
+		Tags:        []string{"code", "execute"},
+		Dangerous:   true,
+		SafetyLevel: ports.SafetyLevelHighImpact,
 	}
 }
 

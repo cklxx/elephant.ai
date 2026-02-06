@@ -36,11 +36,12 @@ func NewLarkCalendarDelete() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:      "lark_calendar_delete",
-				Version:   "0.1.0",
-				Category:  "lark",
-				Tags:      []string{"lark", "calendar", "delete"},
-				Dangerous: true,
+				Name:        "lark_calendar_delete",
+				Version:     "0.1.0",
+				Category:    "lark",
+				Tags:        []string{"lark", "calendar", "delete"},
+				Dangerous:   true,
+				SafetyLevel: ports.SafetyLevelIrreversible,
 			},
 		),
 	}

@@ -4,14 +4,17 @@ import "context"
 
 // ApprovalRequest contains information for requesting user approval
 type ApprovalRequest struct {
-	Operation   string // "file_edit", "file_write", "file_delete"
-	FilePath    string
-	Diff        string
-	Summary     string
-	AutoApprove bool
-	ToolCallID  string
-	ToolName    string
-	Arguments   map[string]any
+	Operation       string // "file_edit", "file_write", "file_delete"
+	FilePath        string
+	Diff            string
+	Summary         string
+	AutoApprove     bool
+	ToolCallID      string
+	ToolName        string
+	Arguments       map[string]any
+	SafetyLevel     int    `json:"safety_level,omitempty"`     // L1-L4; 0=unset
+	RollbackSteps   string `json:"rollback_steps,omitempty"`   // how to undo (L3+)
+	AlternativePlan string `json:"alternative_plan,omitempty"` // safer alternative (L4)
 }
 
 // ApprovalResponse contains the user's approval decision

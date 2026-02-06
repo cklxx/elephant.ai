@@ -50,10 +50,11 @@ func NewRipgrep(cfg shared.ShellToolConfig) tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "ripgrep",
-				Version:  "1.0.0",
-				Category: "search",
-				Tags:     []string{"search", "files", "pattern"},
+				Name:        "ripgrep",
+				Version:     "1.0.0",
+				Category:    "search",
+				Tags:        []string{"search", "files", "pattern"},
+				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}

@@ -62,21 +62,23 @@ type PolicyRule struct {
 // must match (AND logic). Within a slice field (e.g. Tools), any match is
 // sufficient (OR logic). Glob patterns with '*' are supported in Tools.
 type PolicySelector struct {
-	Tools      []string `yaml:"tools,omitempty" json:"tools,omitempty"`           // tool name globs
-	Categories []string `yaml:"categories,omitempty" json:"categories,omitempty"` // ToolMetadata.Category
-	Tags       []string `yaml:"tags,omitempty" json:"tags,omitempty"`             // any ToolMetadata.Tag
-	Channels   []string `yaml:"channels,omitempty" json:"channels,omitempty"`     // delivery channel (cli, web, lark, wechat)
-	Dangerous  *bool    `yaml:"dangerous,omitempty" json:"dangerous,omitempty"`   // ToolMetadata.Dangerous
+	Tools        []string `yaml:"tools,omitempty" json:"tools,omitempty"`                 // tool name globs
+	Categories   []string `yaml:"categories,omitempty" json:"categories,omitempty"`       // ToolMetadata.Category
+	Tags         []string `yaml:"tags,omitempty" json:"tags,omitempty"`                   // any ToolMetadata.Tag
+	Channels     []string `yaml:"channels,omitempty" json:"channels,omitempty"`           // delivery channel (cli, web, lark, wechat)
+	Dangerous    *bool    `yaml:"dangerous,omitempty" json:"dangerous,omitempty"`         // ToolMetadata.Dangerous
+	SafetyLevels []int    `yaml:"safety_levels,omitempty" json:"safety_levels,omitempty"` // match by safety level (L1-L4)
 }
 
 // ToolCallContext carries runtime context about the current tool invocation
 // so the policy engine can evaluate per-context selectors.
 type ToolCallContext struct {
-	ToolName  string
-	Category  string
-	Tags      []string
-	Dangerous bool
-	Channel   string // cli, web, lark, wechat
+	ToolName    string
+	Category    string
+	Tags        []string
+	Dangerous   bool
+	Channel     string // cli, web, lark, wechat
+	SafetyLevel int    // effective safety level (1-4; 0=unset)
 }
 
 // ---------------------------------------------------------------------------
@@ -113,11 +115,13 @@ func DefaultToolPolicyConfig() ToolPolicyConfig {
 // tool ecosystem. These are applied unless overridden by user configuration.
 //
 // Rule order matters — first match wins:
-//  1. media-generation: long timeout for image/video generation
-//  2. lark-write-ops: short timeout for Lark API mutations
-//  3. web-tools: moderate timeout + retries for network calls
-//  4. execution-long: long timeout for code execution
-//  5. dangerous-no-retry: catch-all suppressing retries for any dangerous tool
+//  1. l4-irreversible: no retries for L4 tools (requires confirmation + alternative plan)
+//  2. l3-high-impact: no retries for L3 tools (requires confirmation + rollback steps)
+//  3. media-generation: long timeout for image/video generation
+//  4. lark-write-ops: short timeout for Lark API mutations
+//  5. web-tools: moderate timeout + retries for network calls
+//  6. execution-long: long timeout for code execution
+//  7. dangerous-no-retry: catch-all suppressing retries for any dangerous tool
 func DefaultPolicyRules() []PolicyRule {
 	t30 := 30 * time.Second
 	t60 := 60 * time.Second
@@ -141,6 +145,18 @@ func DefaultPolicyRules() []PolicyRule {
 	dangerousTrue := true
 
 	return []PolicyRule{
+		{
+			Name:    "l4-irreversible",
+			Match:   PolicySelector{SafetyLevels: []int{4}},
+			Retry:   &noRetry,
+			Timeout: &t60,
+		},
+		{
+			Name:    "l3-high-impact",
+			Match:   PolicySelector{SafetyLevels: []int{3}},
+			Retry:   &noRetry,
+			Timeout: &t60,
+		},
 		{
 			Name:    "media-generation",
 			Match:   PolicySelector{Categories: []string{"design"}},
@@ -201,9 +217,10 @@ type ToolPolicy interface {
 // ResolvedPolicy is the final, flattened result of evaluating all policy
 // rules for a specific tool call.
 type ResolvedPolicy struct {
-	Timeout time.Duration
-	Retry   ToolRetryConfig
-	Enabled bool // false = tool call blocked by policy
+	Timeout     time.Duration
+	Retry       ToolRetryConfig
+	Enabled     bool // false = tool call blocked by policy
+	SafetyLevel int  // effective safety level from context (1-4; 0=unset)
 }
 
 // configToolPolicy implements ToolPolicy backed by ToolPolicyConfig.
@@ -245,9 +262,10 @@ func (p *configToolPolicy) RetryConfigFor(toolName string, dangerous bool) ToolR
 // The first matching rule's non-nil fields override the defaults.
 func (p *configToolPolicy) Resolve(ctx ToolCallContext) ResolvedPolicy {
 	result := ResolvedPolicy{
-		Timeout: p.TimeoutFor(ctx.ToolName),
-		Retry:   p.RetryConfigFor(ctx.ToolName, ctx.Dangerous),
-		Enabled: true,
+		Timeout:     p.TimeoutFor(ctx.ToolName),
+		Retry:       p.RetryConfigFor(ctx.ToolName, ctx.Dangerous),
+		Enabled:     true,
+		SafetyLevel: ctx.SafetyLevel,
 	}
 	timeoutSet := false
 	retrySet := false
@@ -297,6 +315,9 @@ func matchesSelector(sel PolicySelector, ctx ToolCallContext) bool {
 	if sel.Dangerous != nil && *sel.Dangerous != ctx.Dangerous {
 		return false
 	}
+	if len(sel.SafetyLevels) > 0 && !containsInt(sel.SafetyLevels, ctx.SafetyLevel) {
+		return false
+	}
 	return true
 }
 
@@ -320,6 +341,15 @@ func containsCI(haystack []string, needle string) bool {
 	lower := strings.ToLower(needle)
 	for _, h := range haystack {
 		if strings.ToLower(h) == lower {
+			return true
+		}
+	}
+	return false
+}
+
+func containsInt(haystack []int, needle int) bool {
+	for _, h := range haystack {
+		if h == needle {
 			return true
 		}
 	}

@@ -46,10 +46,11 @@ func NewSchedulerCreate() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "scheduler_create_job",
-				Version:  "1.0.0",
-				Category: "scheduler",
-				Tags:     []string{"scheduler", "cron", "automation"},
+				Name:        "scheduler_create_job",
+				Version:     "1.0.0",
+				Category:    "scheduler",
+				Tags:        []string{"scheduler", "cron", "automation"},
+				SafetyLevel: ports.SafetyLevelReversible,
 			},
 		),
 	}

@@ -126,6 +126,15 @@ type ToolDefinition struct {
 	MaterialCapabilities ToolMaterialCapabilities `json:"material_capabilities,omitempty"`
 }
 
+// Safety levels for tool classification (L1=read-only, L4=high-impact irreversible).
+const (
+	SafetyLevelUnset       = 0 // Use Dangerous flag fallback: false→L1, true→L3
+	SafetyLevelReadOnly    = 1 // L1: read-only operations
+	SafetyLevelReversible  = 2 // L2: reversible write operations
+	SafetyLevelHighImpact  = 3 // L3: high-impact but reversible (requires confirmation)
+	SafetyLevelIrreversible = 4 // L4: high-impact irreversible (requires confirmation + alternative plan)
+)
+
 // ToolMetadata contains tool information
 type ToolMetadata struct {
 	Name                 string                   `json:"name"`
@@ -133,7 +142,20 @@ type ToolMetadata struct {
 	Category             string                   `json:"category"`
 	Tags                 []string                 `json:"tags"`
 	Dangerous            bool                     `json:"dangerous"`
+	SafetyLevel          int                      `json:"safety_level,omitempty"`
 	MaterialCapabilities ToolMaterialCapabilities `json:"material_capabilities,omitempty"`
+}
+
+// EffectiveSafetyLevel returns the safety level, falling back to Dangerous flag
+// when SafetyLevel is unset.
+func (m ToolMetadata) EffectiveSafetyLevel() int {
+	if m.SafetyLevel > 0 {
+		return m.SafetyLevel
+	}
+	if m.Dangerous {
+		return SafetyLevelHighImpact
+	}
+	return SafetyLevelReadOnly
 }
 
 // ParameterSchema defines tool parameters (JSON Schema format)

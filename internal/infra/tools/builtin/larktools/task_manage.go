@@ -102,10 +102,11 @@ func NewLarkTaskManage() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "lark_task_manage",
-				Version:  "0.1.0",
-				Category: "lark",
-				Tags:     []string{"lark", "tasks"},
+				Name:        "lark_task_manage",
+				Version:     "0.1.0",
+				Category:    "lark",
+				Tags:        []string{"lark", "tasks"},
+				SafetyLevel: ports.SafetyLevelReversible,
 			},
 		),
 	}

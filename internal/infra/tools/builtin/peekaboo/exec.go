@@ -108,11 +108,12 @@ Notes:
 				},
 			},
 			ports.ToolMetadata{
-				Name:      "peekaboo_exec",
-				Version:   "0.1.0",
-				Category:  "automation",
-				Tags:      []string{"peekaboo", "macos", "gui", "automation"},
-				Dangerous: true,
+				Name:        "peekaboo_exec",
+				Version:     "0.1.0",
+				Category:    "automation",
+				Tags:        []string{"peekaboo", "macos", "gui", "automation"},
+				Dangerous:   true,
+				SafetyLevel: ports.SafetyLevelHighImpact,
 				MaterialCapabilities: ports.ToolMaterialCapabilities{
 					Produces:          []string{"text/plain"},
 					ProducesArtifacts: []string{"image/png", "image/jpeg", "image/gif", "image/webp"},

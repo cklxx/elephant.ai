@@ -56,11 +56,12 @@ func NewLarkCalendarUpdate() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:      "lark_calendar_update",
-				Version:   "0.1.0",
-				Category:  "lark",
-				Tags:      []string{"lark", "calendar", "update"},
-				Dangerous: true,
+				Name:        "lark_calendar_update",
+				Version:     "0.1.0",
+				Category:    "lark",
+				Tags:        []string{"lark", "calendar", "update"},
+				Dangerous:   true,
+				SafetyLevel: ports.SafetyLevelHighImpact,
 			},
 		),
 	}

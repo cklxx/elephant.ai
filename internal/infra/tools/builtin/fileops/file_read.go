@@ -30,7 +30,7 @@ func NewFileRead(cfg shared.FileToolConfig) tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name: "file_read", Version: "1.0.0", Category: "file_operations",
+				Name: "file_read", Version: "1.0.0", Category: "file_operations", SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}

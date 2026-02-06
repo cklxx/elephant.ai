@@ -32,7 +32,7 @@ func NewGrep(cfg shared.ShellToolConfig) tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name: "grep", Version: "1.0.0", Category: "search",
+				Name: "grep", Version: "1.0.0", Category: "search", SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}

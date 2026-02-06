@@ -34,11 +34,12 @@ func NewSchedulerDelete() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:      "scheduler_delete_job",
-				Version:   "1.0.0",
-				Category:  "scheduler",
-				Tags:      []string{"scheduler", "cron", "automation"},
-				Dangerous: true,
+				Name:        "scheduler_delete_job",
+				Version:     "1.0.0",
+				Category:    "scheduler",
+				Tags:        []string{"scheduler", "cron", "automation"},
+				Dangerous:   true,
+				SafetyLevel: ports.SafetyLevelIrreversible,
 			},
 		),
 	}

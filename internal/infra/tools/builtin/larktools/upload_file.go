@@ -72,10 +72,11 @@ func NewLarkUploadFile() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "lark_upload_file",
-				Version:  "0.1.0",
-				Category: "lark",
-				Tags:     []string{"lark", "chat", "upload", "file"},
+				Name:        "lark_upload_file",
+				Version:     "0.1.0",
+				Category:    "lark",
+				Tags:        []string{"lark", "chat", "upload", "file"},
+				SafetyLevel: ports.SafetyLevelReversible,
 			},
 		),
 	}

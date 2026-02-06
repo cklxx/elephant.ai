@@ -48,10 +48,11 @@ func NewFind(cfg shared.ShellToolConfig) tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "find",
-				Version:  "1.0.0",
-				Category: "search",
-				Tags:     []string{"filesystem", "search", "files"},
+				Name:        "find",
+				Version:     "1.0.0",
+				Category:    "search",
+				Tags:        []string{"filesystem", "search", "files"},
+				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}

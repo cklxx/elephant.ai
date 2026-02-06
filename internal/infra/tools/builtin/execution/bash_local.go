@@ -36,7 +36,7 @@ func NewBash(cfg shared.ShellToolConfig) tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name: "bash", Version: "1.0.0", Category: "execution", Dangerous: true,
+				Name: "bash", Version: "1.0.0", Category: "execution", Dangerous: true, SafetyLevel: ports.SafetyLevelHighImpact,
 			},
 		),
 	}

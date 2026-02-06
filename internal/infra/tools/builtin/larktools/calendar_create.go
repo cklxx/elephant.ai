@@ -61,11 +61,12 @@ func NewLarkCalendarCreate() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:      "lark_calendar_create",
-				Version:   "0.1.0",
-				Category:  "lark",
-				Tags:      []string{"lark", "calendar", "create"},
-				Dangerous: true,
+				Name:        "lark_calendar_create",
+				Version:     "0.1.0",
+				Category:    "lark",
+				Tags:        []string{"lark", "calendar", "create"},
+				Dangerous:   true,
+				SafetyLevel: ports.SafetyLevelHighImpact,
 			},
 		),
 	}

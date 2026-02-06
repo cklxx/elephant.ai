@@ -76,11 +76,12 @@ Example workflow:
 				},
 			},
 			ports.ToolMetadata{
-				Name:      "file_edit",
-				Version:   "1.0.0",
-				Category:  "file_operations",
-				Tags:      []string{"file", "edit", "replace", "diff"},
-				Dangerous: true,
+				Name:        "file_edit",
+				Version:     "1.0.0",
+				Category:    "file_operations",
+				Tags:        []string{"file", "edit", "replace", "diff"},
+				Dangerous:   true,
+				SafetyLevel: ports.SafetyLevelReversible,
 			},
 		),
 	}

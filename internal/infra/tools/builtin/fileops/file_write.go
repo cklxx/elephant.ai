@@ -34,7 +34,7 @@ func NewFileWrite(cfg shared.FileToolConfig) tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name: "file_write", Version: "1.0.0", Category: "file_operations", Dangerous: true,
+				Name: "file_write", Version: "1.0.0", Category: "file_operations", Dangerous: true, SafetyLevel: ports.SafetyLevelReversible,
 			},
 		),
 	}

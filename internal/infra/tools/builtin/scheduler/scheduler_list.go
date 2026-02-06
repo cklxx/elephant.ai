@@ -35,10 +35,11 @@ func NewSchedulerList() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "scheduler_list_jobs",
-				Version:  "1.0.0",
-				Category: "scheduler",
-				Tags:     []string{"scheduler", "cron", "automation"},
+				Name:        "scheduler_list_jobs",
+				Version:     "1.0.0",
+				Category:    "scheduler",
+				Tags:        []string{"scheduler", "cron", "automation"},
+				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}

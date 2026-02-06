@@ -50,10 +50,11 @@ func NewLarkChatHistory() tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name:     "lark_chat_history",
-				Version:  "0.1.0",
-				Category: "lark",
-				Tags:     []string{"lark", "chat", "history"},
+				Name:        "lark_chat_history",
+				Version:     "0.1.0",
+				Category:    "lark",
+				Tags:        []string{"lark", "chat", "history"},
+				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}

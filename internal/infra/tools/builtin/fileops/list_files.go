@@ -30,7 +30,7 @@ func NewListFiles(cfg shared.FileToolConfig) tools.ToolExecutor {
 				},
 			},
 			ports.ToolMetadata{
-				Name: "list_files", Version: "1.0.0", Category: "file_operations",
+				Name: "list_files", Version: "1.0.0", Category: "file_operations", SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 	}
