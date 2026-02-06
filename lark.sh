@@ -3,81 +3,128 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+SUPERVISOR_SH="${ROOT}/scripts/lark/supervisor.sh"
+WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
+LOOP_SH="${ROOT}/scripts/lark/loop.sh"
+
 usage() {
   cat <<'EOF'
 Usage:
-  ./lark.sh ma [start|stop|restart|status|logs|build]
-  ./lark.sh ta [start|stop|restart|status|logs]
+  ./lark.sh up
+  ./lark.sh down
+  ./lark.sh restart
+  ./lark.sh status
+  ./lark.sh logs
+  ./lark.sh doctor
+  ./lark.sh cycle --base-sha <sha>
 
-Meaning:
-  ma = main agent (alex-server + local auth DB)
-  ta = test agent (alex-server + local auth DB + local self-heal loop watcher)
+Aliases:
+  ./lark.sh start   -> up
+  ./lark.sh stop    -> down
 
 Notes:
-  - For ma/ta, "start" always performs a restart (stop + start).
-  - ta will ensure the persistent test worktree exists at .worktrees/test and sync .env
-  - ta uses config at ~/.alex/test.yaml by default (override with TEST_CONFIG=/abs/path.yaml)
+  - This is the only supported entrypoint for local lark autonomous iteration.
+  - up does exactly two things: ensure test worktree/.env, then start supervisor.
+  - Deprecated (compat for one cycle): ./lark.sh ma ..., ./lark.sh ta ...
 EOF
 }
 
-mode="${1:-}"
-cmd="${2:-start}"
+ensure_worktree() {
+  "${WORKTREE_SH}" ensure >/dev/null
+}
 
-# For lark.sh, we always restart ma/ta on "start" (and default invocation).
-if [[ "${cmd}" == "start" ]]; then
-  case "${mode}" in
-    ma|ta) cmd="restart" ;;
-  esac
-fi
-
-case "${mode}" in
-  ma)
-    exec "${ROOT}/scripts/lark/main.sh" "${cmd}"
-    ;;
-  ta)
-    # Ensure test worktree + .env exist before starting any test-side processes.
-    "${ROOT}/scripts/lark/worktree.sh" ensure >/dev/null
-
-    case "${cmd}" in
-      start)
-        "${ROOT}/scripts/lark/test.sh" start
-        exec "${ROOT}/scripts/lark/loop-agent.sh" start
-        ;;
-      stop)
-        "${ROOT}/scripts/lark/loop-agent.sh" stop || true
-        exec "${ROOT}/scripts/lark/test.sh" stop || true
-        ;;
-      restart)
-        "${ROOT}/scripts/lark/loop-agent.sh" stop || true
-        "${ROOT}/scripts/lark/test.sh" restart
-        exec "${ROOT}/scripts/lark/loop-agent.sh" start
-        ;;
-      status)
-        "${ROOT}/scripts/lark/test.sh" status || true
-        exec "${ROOT}/scripts/lark/loop-agent.sh" status || true
-        ;;
-      logs)
-        test_root="${ROOT}/.worktrees/test"
-        mkdir -p "${test_root}/logs"
-        touch \
-          "${test_root}/logs/lark-test.log" \
-          "${test_root}/logs/alex-service.log" \
-          "${test_root}/logs/alex-llm.log" \
-          "${test_root}/logs/alex-latency.log" \
-          "${test_root}/logs/lark-loop.log" \
-          "${test_root}/logs/lark-loop-agent.log"
-        tail -n 200 -f \
-          "${test_root}/logs/lark-test.log" \
-          "${test_root}/logs/alex-service.log" \
-          "${test_root}/logs/alex-llm.log" \
-          "${test_root}/logs/alex-latency.log" \
-          "${test_root}/logs/lark-loop.log" \
-          "${test_root}/logs/lark-loop-agent.log"
+run_cycle() {
+  local base_sha=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --base-sha)
+        base_sha="${2:-}"
+        shift 2
         ;;
       *)
-        exec "${ROOT}/scripts/lark/loop-agent.sh" "${cmd}"
+        usage
+        echo "Unknown cycle arg: $1" >&2
+        exit 2
         ;;
     esac
+  done
+  if [[ -z "${base_sha}" ]]; then
+    usage
+    echo "--base-sha is required for cycle" >&2
+    exit 2
+  fi
+  ensure_worktree
+  exec "${LOOP_SH}" run --base-sha "${base_sha}"
+}
+
+forward_deprecated() {
+  local mode="$1"
+  shift || true
+  local cmd="${1:-start}"
+  if [[ $# -gt 0 ]]; then
+    shift
+  fi
+  echo "[DEPRECATED] ./lark.sh ${mode} ... is deprecated. Use ./lark.sh up|down|restart|status|logs|doctor|cycle." >&2
+
+  case "${cmd}" in
+    start|up)
+      exec "${ROOT}/lark.sh" up "$@"
+      ;;
+    stop|down)
+      exec "${ROOT}/lark.sh" down "$@"
+      ;;
+    restart)
+      exec "${ROOT}/lark.sh" restart "$@"
+      ;;
+    status)
+      exec "${ROOT}/lark.sh" status "$@"
+      ;;
+    logs)
+      exec "${ROOT}/lark.sh" logs "$@"
+      ;;
+    doctor)
+      exec "${ROOT}/lark.sh" doctor "$@"
+      ;;
+    cycle)
+      exec "${ROOT}/lark.sh" cycle "$@"
+      ;;
+    *)
+      usage
+      echo "Deprecated alias ./lark.sh ${mode} supports: start|stop|restart|status|logs|doctor|cycle" >&2
+      exit 2
+      ;;
+  esac
+}
+
+cmd="${1:-up}"
+shift || true
+
+case "${cmd}" in
+  up|start)
+    ensure_worktree
+    exec "${SUPERVISOR_SH}" start
+    ;;
+  down|stop)
+    exec "${SUPERVISOR_SH}" stop
+    ;;
+  restart)
+    ensure_worktree
+    exec "${SUPERVISOR_SH}" restart
+    ;;
+  status)
+    exec "${SUPERVISOR_SH}" status
+    ;;
+  logs)
+    exec "${SUPERVISOR_SH}" logs
+    ;;
+  doctor)
+    exec "${SUPERVISOR_SH}" doctor
+    ;;
+  cycle)
+    run_cycle "$@"
+    ;;
+  ma|ta)
+    forward_deprecated "${cmd}" "$@"
     ;;
   help|-h|--help|"")
     usage
@@ -85,7 +132,7 @@ case "${mode}" in
     ;;
   *)
     usage
-    echo "Unknown mode: ${mode}" >&2
+    echo "Unknown command: ${cmd}" >&2
     exit 2
     ;;
 esac

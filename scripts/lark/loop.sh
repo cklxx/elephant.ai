@@ -55,6 +55,7 @@ LOOP_LOG=""
 FAIL_SUMMARY=""
 SCENARIO_JSON=""
 SCENARIO_MD=""
+LOOP_STATE=""
 
 init_test_paths() {
   [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
@@ -69,6 +70,7 @@ init_test_paths() {
   FAIL_SUMMARY="${LOG_DIR}/lark-loop.fail.txt"
   SCENARIO_JSON="${LOG_DIR}/lark-scenarios.json"
   SCENARIO_MD="${LOG_DIR}/lark-scenarios.md"
+  LOOP_STATE="${TMP_DIR}/lark-loop.state.json"
 
   mkdir -p "${LOG_DIR}" "${TMP_DIR}"
 }
@@ -88,6 +90,39 @@ release_lock() {
 append_log() {
   # shellcheck disable=SC2129
   echo "[$(date -u +%Y-%m-%dT%H:%M:%SZ)] $*" >> "${LOOP_LOG}"
+}
+
+json_escape() {
+  printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+write_loop_state() {
+  local base_sha="$1"
+  local cycle_phase="$2"
+  local cycle_result="$3"
+  local last_error="${4:-}"
+  local now_utc current_main_sha last_processed_sha
+
+  [[ -n "${LOOP_STATE}" ]] || return 0
+
+  now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  current_main_sha="$(git -C "${MAIN_ROOT}" rev-parse main 2>/dev/null || true)"
+  last_processed_sha="$(cat "${LAST_FILE}" 2>/dev/null || true)"
+
+  local tmp_file
+  tmp_file="${LOOP_STATE}.tmp"
+  cat > "${tmp_file}" <<EOF
+{
+  "ts_utc": "${now_utc}",
+  "base_sha": "${base_sha}",
+  "cycle_phase": "${cycle_phase}",
+  "cycle_result": "${cycle_result}",
+  "main_sha": "${current_main_sha}",
+  "last_processed_sha": "${last_processed_sha}",
+  "last_error": "$(json_escape "${last_error}")"
+}
+EOF
+  mv "${tmp_file}" "${LOOP_STATE}"
 }
 
 require_tools() {
@@ -248,6 +283,7 @@ run_cycle() {
   trap release_lock EXIT
 
   append_log "=== CYCLE START base_sha=${base_sha} ==="
+  write_loop_state "${base_sha}" "start" "running" ""
 
   "${WORKTREE_SH}" ensure >> "${LOOP_LOG}" 2>&1 || true
 
@@ -271,6 +307,7 @@ run_cycle() {
 
   if ! run_fast_gate "${base_sha}"; then
     append_log "[fast] exhausted; giving up"
+    write_loop_state "${base_sha}" "fast_gate" "failed" "fast gate exhausted"
     return 1
   fi
 
@@ -287,6 +324,7 @@ run_cycle() {
 
   if ! run_slow_gate "${base_sha}"; then
     append_log "[slow] exhausted; giving up"
+    write_loop_state "${base_sha}" "slow_gate" "failed" "slow gate exhausted"
     return 1
   fi
 
@@ -299,9 +337,11 @@ run_cycle() {
     local rc=$?
     if [[ ${rc} -eq 2 ]]; then
       # main moved; do not update last file so watch will retry on latest.
+      write_loop_state "${base_sha}" "merge" "skipped" "main moved during cycle"
       return 0
     fi
     append_log "[merge] failed"
+    write_loop_state "${base_sha}" "merge" "failed" "ff-only merge failed"
     return 1
   fi
 
@@ -311,11 +351,13 @@ run_cycle() {
   new_main_sha="$(git -C "${MAIN_ROOT}" rev-parse main)"
   printf '%s\n' "${new_main_sha}" > "${LAST_FILE}"
   append_log "=== CYCLE DONE main_sha=${new_main_sha} ==="
+  write_loop_state "${base_sha}" "done" "passed" ""
 }
 
 watch() {
   require_tools
   init_test_paths
+  write_loop_state "" "watch" "idle" ""
 
   log_info "Watching main commits (poll=${SLEEP_SECONDS}s)..."
 
@@ -332,6 +374,7 @@ watch() {
         log_warn "Cycle failed for ${main_sha:0:8} (see ${LOOP_LOG})"
         # Prevent tight re-runs on the same broken SHA; wait for main to advance.
         printf '%s\n' "${main_sha}" > "${LAST_FILE}"
+        write_loop_state "${main_sha}" "watch" "failed" "cycle failed"
       fi
     fi
 
