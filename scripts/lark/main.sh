@@ -19,7 +19,7 @@ Env:
   MAIN_PORT     Healthcheck port override (default: from config; fallback 8080)
   ALEX_LOG_DIR  Internal log dir override (default: <repo>/logs)
   FORCE_REBUILD=1  Force rebuild on start (default: 0)
-  SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
+  SKIP_LOCAL_AUTH_DB=0  Enable local auth DB auto-setup (default: 1, skip)
 EOF
 }
 
@@ -132,7 +132,7 @@ adopt_pid_if_missing() {
 }
 
 maybe_setup_auth_db() {
-  if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
+  if [[ "${SKIP_LOCAL_AUTH_DB:-1}" == "1" ]]; then
     log_info "Skipping local auth DB auto-setup (SKIP_LOCAL_AUTH_DB=1)"
     return 0
   fi
