@@ -3,7 +3,7 @@
 > **Parent:** `docs/roadmap/roadmap-lark-native-proactive-assistant.md`
 > **Owner:** cklxx
 > **Created:** 2026-02-01
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-06
 
 ---
 
@@ -15,6 +15,7 @@
 - **KR1.1** Replan + 子目标分解在高失败率任务上可用
 - **KR1.2** 主动上下文注入 + 记忆结构化提升召回质量
 - **KR1.3** 关键决策具备置信度/证据与澄清路径
+- **KR1.4** (Steward) 跨轮结构化状态闭环可用（基础完成，生产化缺口 3 项）
 
 ---
 
@@ -119,11 +120,11 @@
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| 动态模型选择 | 基于任务类型/复杂度/上下文长度自动选择最优模型 | ❌ 待实现 | `internal/llm/router.go` |
-| Token 预算管理 | 按任务/会话维度的 token 预算，超预算自动降级模型 | ❌ 待实现 | `internal/llm/budget.go` |
+| 动态模型选择 | 基于任务类型/复杂度/上下文长度自动选择最优模型 | ✅ 已实现 | `internal/llm/router/` |
+| Token 预算管理 | 按任务/会话维度的 token 预算，超预算自动降级模型 | ✅ 已实现 | `internal/context/budget/` |
 | 温度/采样策略 | 按任务类型调整采样参数（创意高温 vs 精确低温） | ❌ 待实现 | `internal/llm/sampling.go` |
-| 成本核算增强 | 实时按模型/任务/用户维度统计成本 | ⚙️ 部分 | `internal/observability/` |
-| 提供商健康检测 | 实时探测提供商可用性，不可用时自动切换 | ❌ 待实现 | `internal/llm/health.go` |
+| 成本核算增强 | 实时按模型/任务/用户维度统计成本 | ✅ 已实现 | `internal/observability/` |
+| 提供商健康检测 | 实时探测提供商可用性，不可用时自动切换 | ✅ 已实现 | `internal/llm/health.go` |
 
 #### M2: 高级推理
 
@@ -164,10 +165,24 @@
 |------|------|------|------|------|
 | 主动上下文注入 | 自动检测当前话题，主动从记忆中加载相关上下文 | ⚙️ 部分 | `manager_prompt.go` | |
 | Lark 聊天历史注入 | 群最近 N 条消息自动加载 | ✅ 已实现 | `internal/channels/lark/chat_context.go` | |
-| **Memory Flush-before-Compaction** | `AutoCompact` 前发布 `context.compact` 事件，触发 MemoryFlushHook 将即将压缩的对话提取关键信息落盘 | ❌ 待实现 | `manager_compress.go` → `events/` → `hooks/memory_flush.go` | **D3** |
-| 上下文优先级排序 | 按相关性/新鲜度/重要性对上下文片段排序 | ❌ 待实现 | `manager.go` | |
-| 成本感知裁剪 | Token 预算驱动的上下文裁剪策略，优先保留高价值内容 | ❌ 待实现 | `manager_window.go` | |
+| **Memory Flush-before-Compaction** | `AutoCompact` 前发布 `context.compact` 事件，触发 MemoryFlushHook 将即将压缩的对话提取关键信息落盘 | ✅ 已实现 | `internal/context/`, `internal/memory/` | **D3** |
+| 上下文优先级排序 | 按相关性/新鲜度/重要性对上下文片段排序 | ✅ 已实现 | `internal/context/priority.go` | |
+| 成本感知裁剪 | Token 预算驱动的上下文裁剪策略，优先保留高价值内容 | ✅ 已实现 | `internal/context/trimmer.go` | |
 | 跨会话上下文共享 | 相关会话间共享上下文片段 | ❌ 待实现 | `manager.go` | |
+
+#### M1: Steward AI 上下文增强
+
+| 项目 | 描述 | 状态 | 路径 |
+|------|------|------|------|
+| StewardState 领域类型 | 跨轮结构化状态 (version/goal/plan/task_graph/decisions/evidence_index/risks/artifacts) | ✅ 已实现 | `ports/agent/steward_state.go` |
+| SYSTEM_REMINDER 注入 | StewardState 渲染为系统提示并注入 | ✅ 已实现 | `app/context/manager_prompt.go` |
+| NEW_STATE 解析器 | 从模型输出提取 <NEW_STATE> JSON 块 | ✅ 已实现 | `react/steward_state_parser.go` |
+| 三级上下文预算 | 70% 压缩信号 / 85% 激进裁剪 / STATE 字符上限 | ✅ 已实现 | `app/context/manager_compress.go` |
+| Steward persona + policy | YAML 配置 (persona/policy) | ✅ 已实现 | `configs/context/{personas,policies}/steward.yaml` |
+| Steward 模式激活配置 | StewardConfig (enabled/max_state_chars/thresholds) | ✅ 已实现 | `app/agent/config/config.go` |
+| 状态压缩溢出处理 | STATE 超限时自动压缩低优先级条目 | ❌ 待实现 | `react/steward_state_parser.go` |
+| 证据引用强制检查 | observe 阶段检测 decisions 缺 ref 时注入反馈 | ❌ 待实现 | `react/observe.go` |
+| Steward 模式自动激活 | 按 session/channel 配置自动启用 | ❌ 待实现 | `app/agent/coordinator/coordinator.go` |
 
 #### M2: 上下文自治
 
@@ -242,6 +257,7 @@
 | 2026-02-01 | All | 实现审计修正：LLM providers 描述更新（5 client 覆盖 7+ 提供商）；事件一致性 ⚙️→✅；用户干预点 ⚙️→✅；向量检索 ✅→⚙️（chromem-go，无 BM25/pgvector）。 |
 | 2026-02-01 | 上下文/记忆 | OpenClaw D3 集成：§3 M1 新增 Memory Flush-before-Compaction 项。D5 集成：§4 M1 新增记忆目录结构化四项（LayeredFileStore + 日汇总 + 长期事实提炼 + 旧格式迁移）。 |
 | 2026-02-01 | All | Roadmap 重构为 OKR-First，围绕 O1/KR1.* 重新组织章节。 |
+| 2026-02-06 | 上下文/Steward | Steward AI Phases 1-7 完成。StewardState + NEW_STATE + SYSTEM_REMINDER + 三级预算 + 40 测试。上下文优先级/成本裁剪/Memory Flush (D3) 标记 ✅。动态模型选择/Token 预算/提供商健康检测标记 ✅。 |
 
 ## TODO/DONE（2026-02-01 后续）
 

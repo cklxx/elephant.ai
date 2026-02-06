@@ -329,3 +329,51 @@
 - [x] 优雅退出（CLI SIGTERM 处理，主进程取消上下文并 shutdown）
 - [x] 评测 CI 门禁（manual + `eval/` tag 触发，quick eval 脚本）
 - [ ] 全局工具超时/重试：本轮暂缓（待决策）
+
+---
+
+## Steward AI Implementation Audit (2026-02-06)
+
+> **审计日期:** 2026-02-06
+> **审计范围:** Steward AI Phases 1-7 (跨轮结构化状态、输出协议、上下文注入、工具安全分级、上下文预算、激活集成、单元测试)
+
+### 审计摘要
+
+| 维度 | 状态 | 说明 |
+|------|------|------|
+| 领域类型 | ✅ 完成 | StewardState 含 version/goal/plan/task_graph/decisions/evidence_index/risks/artifacts |
+| 输出协议 | ✅ 完成 | NEW_STATE XML 分隔 + JSON 提取 + 校验 + 持久化 |
+| 上下文注入 | ✅ 完成 | SYSTEM_REMINDER 每轮自动注入 |
+| 工具安全分级 | ✅ 完成 | L1-L4 替代 Dangerous bool，45+ 工具已标注 |
+| 上下文预算 | ✅ 完成 | 三级阈值 (70%/85%/STATE 字符上限) |
+| 激活集成 | ✅ 完成 | Coordinator 闭环 + persona/policy YAML |
+| 测试覆盖 | ✅ 完成 | 40+ 单元测试覆盖所有组件 |
+
+### 组件详细审计
+
+| 组件 | 文件 | 状态 | 说明 |
+|------|------|------|------|
+| StewardState 领域类型 | `internal/domain/agent/ports/agent/steward_state.go` | ✅ | 含 Validate + Render 方法 |
+| NEW_STATE 解析器 | `internal/domain/agent/react/steward_state_parser.go` | ✅ | JSON 解析 + 校验 + 版本递增 |
+| SYSTEM_REMINDER 注入 | `internal/app/context/manager_prompt.go` | ✅ | buildStewardReminderSection 渲染 |
+| 三级上下文预算 | `internal/app/context/manager_compress.go` | ✅ | StewardBudgetCheck + AggressiveTrim |
+| L1-L4 安全分级 | `internal/infra/tools/policy.go` | ✅ | SafetyLevel 匹配 + 默认规则 |
+| 45+ 工具标注 | `internal/infra/tools/builtin/**` | ✅ | 全部标注 SafetyLevel |
+| Coordinator 集成 | `internal/app/agent/coordinator/coordinator.go` | ✅ | StewardMode 闭环 |
+| DynamicContext 扩展 | `internal/domain/agent/ports/agent/context.go` | ✅ | StewardState 字段 |
+| TaskState 扩展 | `internal/domain/agent/ports/agent/types.go` | ✅ | StewardState 字段 |
+| Snapshot 扩展 | `internal/infra/session/state_store/store.go` | ✅ | StewardState 字段 |
+| StewardConfig | `internal/app/agent/config/config.go` | ✅ | Enabled + 阈值配置 |
+| Steward persona | `configs/context/personas/steward.yaml` | ✅ | 总管型人格定义 |
+| Steward policy | `configs/context/policies/steward.yaml` | ✅ | 3 hard + 3 soft 规则 |
+| 单元测试 (40+) | 4 个测试文件 | ✅ | 覆盖解析/校验/渲染/预算/策略 |
+
+### 生产化缺口
+
+| 缺口 | 影响 | 优先级 |
+|------|------|--------|
+| Steward 模式自动激活 | 需手动配置，无法按 channel/session 自动启用 | P2 |
+| 证据引用强制检查 | decisions 中可能缺少 evidence_ref，降低可追溯性 | P2 |
+| STATE 溢出自动压缩 | 长对话中 STATE 可能超限被截断 | P2 |
+| Safety level 审批 UX | L3/L4 审批卡片未展示回滚步骤和替代方案 | P3 |
+| Steward 专属评测场景 | 无自动化评测验证 steward 闭环 | P3 |

@@ -1,4 +1,4 @@
-# Roadmap: Pending or Unverified (2026-02-02)
+# Roadmap: Pending or Unverified (2026-02-06)
 
 ## Scope
 - Source: `docs/roadmap/roadmap.md`.
@@ -8,12 +8,6 @@
 
 ## Pending
 
-### P1: M0 Quality
-
-| Item | Status | Code path |
-|------|--------|-----------|
-| ReAct checkpoint + resume | **Runtime done, wiring pending** | `internal/agent/domain/react/` |
-
 ### P2: Next Wave (M1)
 
 #### Agent Core & Memory
@@ -22,12 +16,16 @@
 |------|--------|-----------|
 | Replan + sub-goal decomposition | **Not started** | `internal/agent/domain/react/`, `internal/agent/planner/` |
 | Memory restructuring (D5) | **Not started** | `internal/memory/` |
+| Steward mode activation enforcement | **Not started** | `internal/app/agent/coordinator/coordinator.go` |
+| Evidence ref enforcement loop | **Not started** | `internal/domain/agent/react/observe.go` |
+| State compression on overflow | **Not started** | `internal/domain/agent/react/steward_state_parser.go` |
 
 #### Tool Chain & Scheduler
 
 | Item | Status | Code path |
 |------|--------|-----------|
 | Tool SLA profile + dynamic routing | **Not started** | `internal/tools/router.go` |
+| Safety level approval UX | **Not started** | `internal/domain/agent/ports/tools/approval.go` |
 
 #### DevOps Foundations
 
@@ -79,9 +77,9 @@
 | Lark Docs read/write | **Not started** | `internal/lark/docs/` |
 | Lark Sheets/Bitable | **Not started** | `internal/lark/sheets/`, `internal/lark/bitable/` |
 | Lark Wiki | **Not started** | `internal/lark/wiki/` |
-| Meeting preparation assistant | **Not started** | `internal/lark/calendar/` |
-| Meeting notes auto-generation | **Not started** | `skills/meeting-notes/` |
-| Calendar suggestions | **Not started** | `internal/lark/calendar/` |
+| Meeting preparation assistant | **Library done, wiring pending** | `internal/lark/calendar/meetingprep/` |
+| Meeting notes auto-generation | **Skill done, automation pending** | `skills/meeting-notes/` |
+| Calendar suggestions | **Library done, wiring pending** | `internal/lark/calendar/suggestions/` |
 
 #### Platform & Interaction
 
@@ -120,3 +118,21 @@
 | Item | Evidence | Code path |
 |------|----------|-----------|
 | Graceful shutdown | No local `*_test.go` found under `internal/lifecycle/` | `cmd/alex/main.go`, `internal/lifecycle/` |
+
+## Changes from 2026-02-02 snapshot
+
+**Removed (now Done):**
+- P1: ReAct checkpoint + resume
+- P2: Memory Flush-before-Compaction (D3), Context priority sorting, Cost-aware context trimming
+- P2: Dynamic model selection, Provider health detection, Token budget management, Cost accounting
+- P2: Tool policy framework (D1) — all 4 items, Scheduler D4 — all 8 items
+- P2: Auto degradation chain, Tool result caching, SLA baseline collection
+- P2: Signal collection framework, CI evaluation gating
+- P2: Lark smart card interaction, Proactive group summary, Message type enrichment
+- P2: Lark API Client M0, Calendar/Tasks M0, Approval M0
+
+**Added (Steward AI production gaps):**
+- Steward mode activation enforcement
+- Evidence ref enforcement loop
+- State compression on overflow
+- Safety level approval UX

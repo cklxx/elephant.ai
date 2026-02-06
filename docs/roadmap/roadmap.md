@@ -25,14 +25,17 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 
 - **O0 (Product NSM):** complete the Calendar + Tasks closed loop, improve WTCR + TimeSaved.
 - **O1 (Agent Core):** planning reliability + proactive context + memory structure.
+  - **KR1.4** (Steward) 跨轮结构化状态闭环可用（STATE 注入 → 解析 → 持久化 → 再注入）
 - **O2 (System Interaction):** tool SLA baseline + routing + scheduler reliability.
 - **O3 (Lark Ecosystem):** Calendar/Tasks CRUD + approval gate + proactive follow-up.
 - **O4 (Shadow DevOps):** eval/baseline/reporting + human-gated release loop.
 - **OS (Shared Infra):** event bus + observability + config/auth/error handling.
 
-## Current State (2026-02-03)
+## Current State (2026-02-06)
 
-**M0 is complete. M1 (P2) is ~85% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing. **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+**M0 is complete. M1 (P2) is ~95% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing. **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+
+**Steward AI foundation is complete (Phases 1-7, merged 2026-02-06).** Cross-turn structured state (StewardState), NEW_STATE output protocol, SYSTEM_REMINDER context injection, L1-L4 tool safety levels, three-tier context budget, steward persona/policy configs, and 40+ unit tests are all merged to main. Remaining gaps: activation enforcement loop, evidence ref enforcement, state compression on overflow, safety level approval UX, steward-specific eval scenarios.
 
 ## Implementation Audit Notes (2026-02-01)
 
@@ -86,6 +89,16 @@ Enhancements after the core loop is stable.
 | Context priority sorting | Rank context fragments by relevance/freshness/importance instead of fixed layer order | **Done** | Claude C32 | `internal/context/priority.go` |
 | Cost-aware context trimming | Token budget drives which context to keep; prefer high-value content | **Done** | Claude C33 | `internal/context/trimmer.go` |
 | Proactive context injection | Calendar summary builder for context assembly | **Done** | Claude C25 | `internal/context/` |
+| Steward cross-turn state (StewardState) | 跨轮结构化状态文档 | **Done** | Claude | `internal/domain/agent/ports/agent/steward_state.go` |
+| NEW_STATE output protocol + parser | 模型输出解析→持久化闭环 | **Done** | Claude | `internal/domain/agent/react/steward_state_parser.go` |
+| SYSTEM_REMINDER injection | StewardState 渲染为系统提示 | **Done** | Claude | `internal/app/context/manager_prompt.go` |
+| Tool safety levels L1-L4 | 细粒度工具安全分级 | **Done** | Claude | `internal/infra/tools/policy.go` |
+| Steward context budget (3-tier) | 70%/85% 阈值 + STATE 字符上限 | **Done** | Claude | `internal/app/context/manager_compress.go` |
+| Steward persona + policy configs | steward.yaml persona + policy | **Done** | Claude | `configs/context/personas/steward.yaml`, `configs/context/policies/steward.yaml` |
+| Steward mode activation enforcement | 按 session/channel 自动启用 steward | **Not started** | Claude | `internal/app/agent/coordinator/coordinator.go` |
+| Evidence ref enforcement loop | observe 阶段检查 decisions 缺 ref 时注入反馈 | **Not started** | Claude | `internal/domain/agent/react/observe.go` |
+| State compression on overflow | STATE 超限时自动压缩低优先级条目 | **Not started** | Claude | `internal/domain/agent/react/steward_state_parser.go` |
+| Safety level approval UX | L3/L4 审批卡片展示回滚步骤和替代方案 | **Not started** | Claude | `internal/domain/agent/ports/tools/approval.go` |
 
 ### Tool Chain & Scheduler
 
@@ -284,7 +297,8 @@ O0 (日程+任务闭环)
 | 2026-02-01 | M0-M3 | All | **Roadmap 重构为 OKR-First。** 北极星切片聚焦"日程+任务"闭环，NSM 以 WTCR + TimeSaved + Accuracy 为核心。 |
 | 2026-02-02 | M0 | All | Roadmap 复查：对齐 tool policy/timeout-retry 与 scheduler D4 状态；新增评测集构建（基础准出 + 挑战性评测）；补充跨 Track 结构与索引。 |
 | 2026-02-02 | M1 | All | **Phase 6 complete (C27-C40).** 14 tasks across 3 batches: Tool SLA, memory flush, scheduler tools, provider health, Lark approval, context engineering (priority/trimming/budget), Lark ecosystem (cards/summary/rich content), tool chain (caching/degradation), CI eval gating. All P0+P1 done, P2 ~85% complete. |
-| 2026-02-03 | M1 | All | Roadmap 更新：修正 P1 checkpoint+resume 标记；补齐 Deep Lark 的“库已实现/未接入”状态（meeting prep/suggestions、meeting notes skill）。 |
+| 2026-02-03 | M1 | All | Roadmap 更新：修正 P1 checkpoint+resume 标记；补齐 Deep Lark 的"库已实现/未接入"状态（meeting prep/suggestions、meeting notes skill）。 |
+| 2026-02-06 | M1 | T1 | **Steward AI foundation complete (Phases 1-7).** StewardState 领域类型、NEW_STATE 解析器、SYSTEM_REMINDER 注入、L1-L4 安全分级、三级上下文预算、steward persona/policy、40+ 单元测试。M1 进度 ~85% → ~95%。 |
 
 ---
 
@@ -318,6 +332,12 @@ O0 (日程+任务闭环)
 | Tool result caching (semantic dedup) | `internal/toolregistry/cache.go` |
 | Auto degradation chain (fallback executor) | `internal/toolregistry/degradation.go` |
 | CI eval gating (PR soft gate) | `evaluation/gate/`, `.github/workflows/eval.yml` |
+| Steward cross-turn state (StewardState) | `internal/domain/agent/ports/agent/steward_state.go` |
+| NEW_STATE output protocol + parser | `internal/domain/agent/react/steward_state_parser.go` |
+| SYSTEM_REMINDER context injection | `internal/app/context/manager_prompt.go` |
+| Tool safety levels L1-L4 | `internal/infra/tools/policy.go` |
+| Steward context budget (3-tier) | `internal/app/context/manager_compress.go` |
+| Steward persona + policy configs | `configs/context/{personas,policies}/steward.yaml` |
 
 ---
 

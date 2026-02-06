@@ -3,7 +3,7 @@
 > **Parent:** `docs/roadmap/roadmap-lark-native-proactive-assistant.md`
 > **Owner:** cklxx
 > **Created:** 2026-02-01
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-06
 
 ---
 
@@ -58,7 +58,7 @@
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| 失败轨迹记录 | 工具失败、LLM 错误、答案纠错等自动记录 | ⚙️ 部分 | `internal/observability/` |
+| 失败轨迹记录 | 工具失败、LLM 错误、答案纠错等自动记录 | ✅ 已实现 | `internal/signals/` |
 | 用户显式反馈 | 满意度评分 / thumbs up/down / 文字纠错 | ❌ 待实现 | `devops/signals/feedback.go` |
 | 隐式信号采集 | 用户重试、放弃、修改目标等行为信号 | ❌ 待实现 | `devops/signals/implicit.go` |
 | 使用模式统计 | 高频工具、常见任务类型、痛点 | ❌ 待实现 | `devops/signals/usage.go` |
@@ -180,7 +180,7 @@
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| CI 评测门禁 | 手动/Tag 触发快速评测 + 结果存档（非每次变更） | ⚙️ 部分 | `.github/workflows/eval.yml`, `scripts/eval-quick.sh` |
+| CI 评测门禁 | 手动/Tag 触发快速评测 + 结果存档（非每次变更） | ✅ 已实现 | `evaluation/gate/`, `.github/workflows/eval.yml` |
 | 分维度评分 | 推理质量 / 工具可靠性 / 交互体验 / 成本效率 | ❌ 待实现 | `devops/evaluation/scorer.go` |
 | 基线管理 | 维护 Online Agent 的评测基线分数 | ❌ 待实现 | `devops/evaluation/baseline.go` |
 | 评测报告生成 | 结构化报告（通过/未通过 + 分数 + 基线对比） | ❌ 待实现 | `devops/evaluation/report.go` |
@@ -271,7 +271,9 @@
 | 2026-02-01 | Shadow/Verify | Review 优化：Shadow Agent 从 M1 调整到 M2；增量验收改为引用 Track 2 `coding/verify`；可观测性标注为共享基础设施。 |
 | 2026-02-01 | All | 实现审计：评测套件 ✅ 确认、共享基础设施（Observability/Config/Auth/Errors/Storage/DI）✅ 确认。`internal/devops/` 尚未创建（M2 范畴）。 |
 | 2026-02-01 | All | Roadmap 重构为 OKR-First，围绕 O4/KR4.* 重新组织章节并明确人工审批门禁。 |
+| 2026-02-06 | Signals/Eval | Signal collection framework 完成; CI eval gating 完成。评测自动化 in progress。 |
 
 ## TODO/DONE（2026-02-01 后续）
 
 - [x] CI 评测门禁（可选）：manual + `eval/` tag 快速评测
+- [x] Signal collection framework（失败轨迹、用户反馈、隐式信号、使用模式）

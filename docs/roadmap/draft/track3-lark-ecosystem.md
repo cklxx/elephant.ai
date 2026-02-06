@@ -3,16 +3,19 @@
 > **Parent:** `docs/roadmap/roadmap-lark-native-proactive-assistant.md`
 > **Owner:** cklxx
 > **Created:** 2026-02-01
-> **Last Updated:** 2026-02-03
+> **Last Updated:** 2026-02-06
 
-> **NOTE (2026-02-03):** This draft was written before the implementation audit and is **partially outdated**.
+> **NOTE (2026-02-06):** This draft was written before the implementation audit and is **partially outdated**.
 > For the authoritative, up-to-date implementation status, see `docs/roadmap/roadmap.md` (tracks M0/M1/P0+).
 >
-> Quick status snapshot:
+> Quick status snapshot (2026-02-06):
 > - ✅ Calendar/Tasks tools + registration: `internal/tools/builtin/larktools/` + `internal/toolregistry/registry.go`
 > - ✅ Typed Lark API layer: `internal/lark/` (calendar/tasks/approval/cards)
 > - ✅ Lark interactive cards + rich content: `internal/lark/cards/`, `internal/channels/lark/richcontent/`
+> - ✅ Proactive group summary: `internal/lark/summary/`
+> - ✅ Message type enrichment (posts, tables, Markdown): `internal/channels/lark/richcontent/`
 > - ✅ Proactive scheduler reminder trigger + E2E: `internal/scheduler/`
+> - ✅ Lark Approval API: `internal/lark/approval.go`
 > - ❌ Deep Lark (Docs/Sheets/Wiki) remains pending: `internal/lark/docs/`, `internal/lark/sheets/`, `internal/lark/wiki/`
 
 ---
@@ -70,11 +73,11 @@
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
 | 群聊消息自动感知 | 监听所有消息（不只 @mention），理解群聊动态 | ✅ 已实现 | `channels/lark/gateway.go` |
-| 主动摘要 | 群聊长讨论后（按消息量/时间窗口触发）主动提供摘要 | ❌ 待实现 | `channels/lark/proactive.go` |
+| 主动摘要 | 群聊长讨论后（按消息量/时间窗口触发）主动提供摘要 | ✅ 已实现 | `internal/lark/summary/` |
 | 定时提醒 | 从对话中提取 deadline/约定，到期主动提醒 | ⚙️ 部分 | `internal/scheduler/` |
-| 智能卡片交互 | Interactive Card 展示结构化结果 + 按钮操作（审批/选择/反馈） | ❌ 待实现 | `channels/lark/cards/` |
+| 智能卡片交互 | Interactive Card 展示结构化结果 + 按钮操作（审批/选择/反馈） | ✅ 已实现 | `internal/lark/cards/` |
 | 消息引用回复 | 引用特定消息回复，保持讨论上下文连贯 | ✅ 已实现 | `channels/lark/` |
-| 消息类型丰富化 | 支持发送表格、代码块、Markdown 渲染消息 | ❌ 待实现 | `channels/lark/` |
+| 消息类型丰富化 | 支持发送表格、代码块、Markdown 渲染消息 | ✅ 已实现 | `internal/channels/lark/richcontent/` |
 
 ---
 
@@ -88,11 +91,11 @@
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| Lark API Client | 统一的 HTTP client，处理 tenant_access_token 刷新 | ❌ 待实现 | `lark/client.go` |
-| 认证管理 | App credentials 管理 + token 自动刷新 | ❌ 待实现 | `lark/auth.go` |
-| 限流与重试 | Lark API 限流感知 + 指数退避重试 | ❌ 待实现 | `lark/ratelimit.go` |
-| 错误码映射 | Lark 错误码 → 结构化错误 | ❌ 待实现 | `lark/errors.go` |
-| 权限声明 | 所需 Lark 权限的声明式管理 | ❌ 待实现 | `lark/permissions.go` |
+| Lark API Client | 统一的 HTTP client，处理 tenant_access_token 刷新 | ✅ 已实现 | `internal/lark/client.go` |
+| 认证管理 | App credentials 管理 + token 自动刷新 | ✅ 已实现 | `internal/lark/auth.go` |
+| 限流与重试 | Lark API 限流感知 + 指数退避重试 | ✅ 已实现 | `internal/lark/ratelimit.go` |
+| 错误码映射 | Lark 错误码 → 结构化错误 | ✅ 已实现 | `internal/lark/errors.go` |
+| 权限声明 | 所需 Lark 权限的声明式管理 | ✅ 已实现 | `internal/lark/permissions.go` |
 
 ---
 
@@ -106,19 +109,19 @@
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| 日程查询 | 查询用户日程（今天/本周/指定范围） | ❌ 待实现 | `lark/calendar/reader.go` |
-| 日程创建 | 创建会议/事件，邀请参与者，设置提醒 | ❌ 待实现 | `lark/calendar/writer.go` |
-| 日程修改/取消 | 修改时间/地点/参与者，或取消 | ❌ 待实现 | `lark/calendar/writer.go` |
-| 空闲时间查找 | 查找多人共同可用时间段 | ❌ 待实现 | `lark/calendar/finder.go` |
+| 日程查询 | 查询用户日程（今天/本周/指定范围） | ✅ 已实现 | `lark/calendar/reader.go` |
+| 日程创建 | 创建会议/事件，邀请参与者，设置提醒 | ✅ 已实现 | `lark/calendar/writer.go` |
+| 日程修改/取消 | 修改时间/地点/参与者，或取消 | ✅ 已实现 | `lark/calendar/writer.go` |
+| 空闲时间查找 | 查找多人共同可用时间段 | ✅ 已实现 | `lark/calendar/finder.go` |
 
 #### M2: 日历智能
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| 会议准备助手 | 会议前自动汇总相关文档、上次纪要、待办 | ❌ 待实现 | `lark/calendar/` |
-| 会议纪要自动生成 | 会议结束后主动生成并推送纪要 | ❌ 待实现 | `skills/meeting-notes/` |
+| 会议准备助手 | 会议前自动汇总相关文档、上次纪要、待办 | **Library done** | `internal/lark/calendar/meetingprep/` |
+| 会议纪要自动生成 | 会议结束后主动生成并推送纪要 | **Skill done** | `skills/meeting-notes/` |
 | 日程冲突预警 | 检测并提醒日程冲突 | ❌ 待实现 | `lark/calendar/` |
-| 日程建议 | 基于历史模式建议会议时间 | ❌ 待实现 | `lark/calendar/` |
+| 日程建议 | 基于历史模式建议会议时间 | **Library done** | `internal/lark/calendar/suggestions/` |
 
 ---
 
@@ -132,18 +135,18 @@
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| 任务查询 | 查询待办/已完成任务列表 | ❌ 待实现 | `lark/tasks/reader.go` |
-| 任务创建 | 创建任务 + 指派负责人 + 截止日期 | ❌ 待实现 | `lark/tasks/writer.go` |
-| 任务更新 | 标记完成、修改截止日期、添加评论 | ❌ 待实现 | `lark/tasks/writer.go` |
-| 逾期跟进 | 逾期/即将到期任务主动 Lark 提醒 | ❌ 待实现 | `lark/tasks/` |
+| 任务查询 | 查询待办/已完成任务列表 | ✅ 已实现 | `lark/tasks/reader.go` |
+| 任务创建 | 创建任务 + 指派负责人 + 截止日期 | ✅ 已实现 | `lark/tasks/writer.go` |
+| 任务更新 | 标记完成、修改截止日期、添加评论 | ✅ 已实现 | `lark/tasks/writer.go` |
+| 逾期跟进 | 逾期/即将到期任务主动 Lark 提醒 | ✅ 已实现 | `lark/tasks/` |
 
 #### M0: 审批流
 
 | 项目 | 描述 | 状态 | 路径 |
 |------|------|------|------|
-| 审批查询 | 查询待审批/已审批记录 | ❌ 待实现 | `lark/approval/reader.go` |
-| 发起审批 | 通过 Approval API 发起审批流程 | ❌ 待实现 | `lark/approval/writer.go` |
-| 状态追踪 | 监听审批状态变更，通知发起人 | ❌ 待实现 | `lark/approval/tracker.go` |
+| 审批查询 | 查询待审批/已审批记录 | ✅ 已实现 | `lark/approval/reader.go` |
+| 发起审批 | 通过 Approval API 发起审批流程 | ✅ 已实现 | `lark/approval/writer.go` |
+| 状态追踪 | 监听审批状态变更，通知发起人 | ✅ 已实现 | `lark/approval/tracker.go` |
 
 ---
 
@@ -257,10 +260,10 @@
 | `lark_sheet_write` | 写入电子表格/多维表格 | ❌ 待实现 |
 | `lark_wiki_search` | 搜索知识库内容 | ❌ 待实现 |
 | `lark_wiki_write` | 创建/修改知识库页面 | ❌ 待实现 |
-| `lark_calendar_query` | 查询日程安排 | ❌ 待实现 |
-| `lark_calendar_create` | 创建日程/会议 | ❌ 待实现 |
-| `lark_task_manage` | 创建/查询/更新任务 | ❌ 待实现 |
-| `lark_approval_submit` | 发起审批流程 | ❌ 待实现 |
+| `lark_calendar_query` | 查询日程安排 | ✅ 已实现 |
+| `lark_calendar_create` | 创建日程/会议 | ✅ 已实现 |
+| `lark_task_manage` | 创建/查询/更新任务 | ✅ 已实现 |
+| `lark_approval_submit` | 发起审批流程 | ✅ 已实现 |
 
 ---
 
@@ -363,3 +366,4 @@
 | 2026-02-01 | Lark IM | 实现审计修正：群聊消息自动感知 ❌→✅（已支持非 @mention 监听）；消息引用回复 ❌→✅；定时提醒 ❌→⚙️（scheduler 基础实现）。 |
 | 2026-02-01 | macOS | OpenClaw D6 集成：新增 §12 macOS Companion App + 本地 Node Host 章节。Gateway 侧协议定义 M1，Companion App MVP + 完整工具集 M2。 |
 | 2026-02-01 | All | Roadmap 重构为 OKR-First，围绕 O3/KR3.* 重新组织章节并优先 Calendar+Tasks。 |
+| 2026-02-06 | Lark IM/API | 智能卡片交互、主动摘要、消息丰富化标记 ✅; Lark API Client 基础封装 ✅; Calendar/Tasks/Approval M0 全部 ✅; 工具注册更新。 |

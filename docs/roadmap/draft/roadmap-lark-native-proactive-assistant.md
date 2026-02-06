@@ -2,7 +2,7 @@
 
 > **Owner:** cklxx
 > **Created:** 2026-02-01
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-06
 
 ---
 
@@ -54,6 +54,7 @@
 - KR1.1：Replan + 子目标分解在高失败率任务上可用
 - KR1.2：主动上下文注入与记忆结构化提升召回质量
 - KR1.3：关键决策具备置信度/证据与澄清路径
+- KR1.4：(Steward) 跨轮结构化状态闭环可用 — STATE 自动注入 + 解析 + 持久化 + 再注入
 
 ### O2 Track 2 — 系统交互层
 **工具链稳定、可度量、可路由，支撑“日程+任务”闭环。**
@@ -114,7 +115,7 @@
 - KR2.1 工具 SLA 画像 + 路由/降级策略可用
 
 **Initiatives by Track:**
-- **T1:** Replan 机制 + 子目标分解 + 记忆结构化（D3/D5）
+- **T1:** Replan 机制 + 子目标分解 + 记忆结构化（D3/D5）+ Steward AI 基础（跨轮状态、NEW_STATE 协议、L1-L4 安全分级、三级预算）
 - **T2:** Tool allow/deny policy (D1) + Scheduler 增强 (D4)
 - **T3:** Calendar/Tasks 完整 CRUD + 主动提醒
 - **T4:** 信号采集体系 + 分维度评测 + 基线管理
@@ -257,3 +258,5 @@ O0 (日程+任务闭环)
 | 2026-02-01 | M0 | All | Review 优化：更新产品定位为"开箱即用个人 AI"；修正跨 Track 边界；Shadow Agent 从 M1 移至 M2；新增渐进式能力解锁和本地 CLI 自动探测。 |
 | 2026-02-01 | M0 | All | 实现审计：对照代码库校验 Roadmap 标注。修正工具数 83→69+、权限预设三档→五档、技能数 13→12、向量检索 ✅→⚙️（chromem-go，无 pgvector/BM25）、事件一致性 ⚙️→✅、用户干预点 ⚙️→✅、群聊自动感知 ❌→✅、消息引用回复 ❌→✅、定时提醒 ❌→⚙️、超时重试限流 ✅→⚙️。详见 `docs/roadmap/implementation-audit-2026-02-01.md`。 |
 | 2026-02-01 | M0-M3 | All | **Roadmap 重构为 OKR-First。** 北极星切片聚焦"日程+任务"闭环，NSM 以 WTCR + TimeSaved + Accuracy 为核心。 |
+| 2026-02-02 | M1 | All | **Phase 6 complete (C27-C40).** 14 tasks across 3 batches. All P0+P1 done, P2 ~85% complete. |
+| 2026-02-06 | M1 | T1 | **Steward AI foundation complete (Phases 1-7).** StewardState + NEW_STATE 协议 + SYSTEM_REMINDER + L1-L4 安全分级 + 三级预算 + 40+ 测试。M1 ~85% → ~95%。 |

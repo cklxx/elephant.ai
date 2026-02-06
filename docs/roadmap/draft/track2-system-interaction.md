@@ -3,7 +3,7 @@
 > **Parent:** `docs/roadmap/roadmap-lark-native-proactive-assistant.md`
 > **Owner:** cklxx
 > **Created:** 2026-02-01
-> **Last Updated:** 2026-02-01
+> **Last Updated:** 2026-02-06
 
 ---
 
@@ -66,21 +66,31 @@
 | 权限预设 | Full/ReadOnly/Safe/Sandbox/Architect 五档 | ✅ 已实现 | `internal/agent/domain/presets/` |
 | 并发执行 | 批量工具调用 + 去重 | ✅ 已实现 | `react/tool_batch.go` |
 | 超时/重试/限流 | 超时控制已实现；通用重试/限流部分实现 | ⚙️ 部分 | `internal/errors/retry.go` |
-| SLA 基线采集 | 每个工具的延迟/成本/可靠性/成功率指标采集 | ❌ 待实现 | `tools/sla.go` |
+| SLA 基线采集 | 每个工具的延迟/成本/可靠性/成功率指标采集 | ✅ 已实现 | `tools/sla.go` |
 
 #### M1: 智能工具路由 + 工具治理
 
 | 项目 | 描述 | 状态 | 路径 | OpenClaw Delta |
 |------|------|------|------|------|
-| **Tool allow/deny policy** | `ToolPolicy` deny-first 语义，支持按 group/tool 粒度的 allow/deny 规则 | ❌ 待实现 | `toolregistry/policy.go` | **D1** |
-| **policyAwareRegistry** | 仿照 `filteredRegistry` 模式，在 `List()`/`Get()` 中加 policy 过滤层 | ❌ 待实现 | `toolregistry/registry.go` | **D1** |
-| **Group tags 补充** | 所有 builtin tools 的 `Metadata().Tags` 补充 `group:` 前缀标签 | ❌ 待实现 | 各 `builtin/*/` tool 文件 | **D1** |
-| **Profile-based policy** | `PolicyProfile` 按 channel/role/session 维度选择策略；默认 default/lark_user/web_sandbox 三档 | ❌ 待实现 | `toolregistry/policy.go` + `configs/tools/policy.yaml` | **D1** |
+| **Tool allow/deny policy** | `ToolPolicy` deny-first 语义，支持按 group/tool 粒度的 allow/deny 规则 | ✅ 已实现 | `toolregistry/policy.go` | **D1** |
+| **policyAwareRegistry** | 仿照 `filteredRegistry` 模式，在 `List()`/`Get()` 中加 policy 过滤层 | ✅ 已实现 | `toolregistry/registry.go` | **D1** |
+| **Group tags 补充** | 所有 builtin tools 的 `Metadata().Tags` 补充 `group:` 前缀标签 | ✅ 已实现 | 各 `builtin/*/` tool 文件 | **D1** |
+| **Profile-based policy** | `PolicyProfile` 按 channel/role/session 维度选择策略；默认 default/lark_user/web_sandbox 三档 | ✅ 已实现 | `toolregistry/policy.go` + `configs/tools/policy.yaml` | **D1** |
 | 工具 SLA 画像 | 从采集数据构建每个工具的性能画像 | ❌ 待实现 | `tools/sla.go` | |
 | 动态路由 | 基于 SLA 画像 + 当前任务需求自动选择工具链 | ❌ 待实现 | `tools/router.go` | |
-| 自动降级链 | 缓存命中 → 弱工具 → 提示用户，按链路依次尝试 | ❌ 待实现 | `tools/fallback.go` | |
-| 结果缓存 | 工具结果缓存 + 语义去重（相同查询不重复执行） | ❌ 待实现 | `tools/cache.go` | |
+| 自动降级链 | 缓存命中 → 弱工具 → 提示用户，按链路依次尝试 | ✅ 已实现 | `toolregistry/degradation.go` | |
+| 结果缓存 | 工具结果缓存 + 语义去重（相同查询不重复执行） | ✅ 已实现 | `toolregistry/cache.go` | |
 | 工具热加载 | 运行时注册新工具，无需重启 | ❌ 待实现 | `tools/registry.go` | |
+
+#### M1: 工具安全分级 (L1-L4)
+
+| 项目 | 描述 | 状态 | 路径 |
+|------|------|------|------|
+| SafetyLevel 元数据扩展 | ToolMetadata 新增 SafetyLevel int (0=未设置, 1-4) | ✅ 已实现 | `tools.go` |
+| PolicySelector 安全分级匹配 | 按 SafetyLevel 匹配策略规则 | ✅ 已实现 | `policy.go` |
+| L3/L4 默认确认规则 | L3 require_confirm + 回滚步骤; L4 + 替代方案 | ✅ 已实现 | `policy.go` |
+| 45+ 工具标注 | 所有 builtin 工具标注 SafetyLevel | ✅ 已实现 | `builtin/` |
+| Safety level 审批 UX | 审批卡片展示 SafetyLevel + 回滚步骤 + 替代方案 | ❌ 待实现 | `ports/tools/approval.go` |
 
 #### M2: 工具自治
 
@@ -262,14 +272,14 @@
 
 | 项目 | 描述 | 状态 | 路径 | OpenClaw Delta |
 |------|------|------|------|------|
-| **JobStore** | 文件化 Job 持久化（`~/.alex/scheduler/jobs/<id>.yaml`），YAML 原子写入 | ❌ 待实现 | `scheduler/job_store.go` | **D4** |
-| **执行状态跟踪** | 每次触发更新 `last_run_at`/`last_run_status`/`consec_failures` | ❌ 待实现 | `scheduler/executor.go` | **D4** |
-| **冷却控制** | `cooldown_seconds` 防止同一 job 在冷却期内重复触发 | ❌ 待实现 | `scheduler/executor.go` | **D4** |
-| **并发控制** | `max_concurrency` + tryAcquire/release mutex 防重叠执行 | ❌ 待实现 | `scheduler/executor.go` | **D4** |
-| **连续失败自动暂停** | consec_failures ≥ 阈值 → status=error 自动暂停 | ❌ 待实现 | `scheduler/executor.go` | **D4** |
-| **动态 Job 创建工具** | `scheduler_create/list/delete/pause` 对话式工具，Agent 可在对话中创建定时任务 | ❌ 待实现 | `builtin/session/scheduler_tool.go` | **D4** |
-| **isolated 模式** | `mode: isolated` job 创建独立 session 执行，不绑定已有会话 | ❌ 待实现 | `scheduler/scheduler.go` | **D4** |
-| **启动恢复** | 重启时从 JobStore 加载持久化 jobs，自动恢复 cron 注册 | ❌ 待实现 | `scheduler/scheduler.go` | **D4** |
+| **JobStore** | 文件化 Job 持久化（`~/.alex/scheduler/jobs/<id>.yaml`），YAML 原子写入 | ✅ 已实现 | `scheduler/job_store.go` | **D4** |
+| **执行状态跟踪** | 每次触发更新 `last_run_at`/`last_run_status`/`consec_failures` | ✅ 已实现 | `scheduler/executor.go` | **D4** |
+| **冷却控制** | `cooldown_seconds` 防止同一 job 在冷却期内重复触发 | ✅ 已实现 | `scheduler/executor.go` | **D4** |
+| **并发控制** | `max_concurrency` + tryAcquire/release mutex 防重叠执行 | ✅ 已实现 | `scheduler/executor.go` | **D4** |
+| **连续失败自动暂停** | consec_failures ≥ 阈值 → status=error 自动暂停 | ✅ 已实现 | `scheduler/executor.go` | **D4** |
+| **动态 Job 创建工具** | `scheduler_create/list/delete/pause` 对话式工具，Agent 可在对话中创建定时任务 | ✅ 已实现 | `builtin/session/scheduler_tool.go` | **D4** |
+| **isolated 模式** | `mode: isolated` job 创建独立 session 执行，不绑定已有会话 | ✅ 已实现 | `scheduler/scheduler.go` | **D4** |
+| **启动恢复** | 重启时从 JobStore 加载持久化 jobs，自动恢复 cron 注册 | ✅ 已实现 | `scheduler/scheduler.go` | **D4** |
 
 ---
 
@@ -295,3 +305,4 @@
 | 2026-02-01 | 工具引擎 | OpenClaw D1 集成：§1 M1 新增 Tool allow/deny policy 四项（ToolPolicy + policyAwareRegistry + group tags + profile config）。 |
 | 2026-02-01 | Scheduler | OpenClaw D4 集成：新增 §6 Scheduler 增强章节（JobStore + 状态跟踪 + 冷却/并发 + 动态 Job 工具 + isolated 模式）。 |
 | 2026-02-01 | All | Roadmap 重构为 OKR-First，围绕 O2/KR2.* 重新组织章节。 |
+| 2026-02-06 | 工具引擎/Scheduler | Tool policy D1 全部完成; Scheduler D4 全部完成; SLA 基线采集完成; 降级链+缓存完成; L1-L4 安全分级完成 (45+ 工具标注)。 |
