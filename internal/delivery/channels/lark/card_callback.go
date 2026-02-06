@@ -76,22 +76,12 @@ func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	disp := h.plaintextDispatcher
-	if isEncryptedCallbackPayload(body) && h.encryptedDispatcher != nil {
-		if hasLarkCallbackSignatureHeaders(r.Header) {
-			disp = h.encryptedDispatcher
-		} else if h.encryptedNoSignDispatcher != nil {
-			h.logger.Warn("Lark card callback missing signature headers; fallback to skip-sign verification")
-			disp = h.encryptedNoSignDispatcher
-		}
-	}
-
 	req := &larkevent.EventReq{
 		Header:     r.Header,
 		Body:       body,
 		RequestURI: r.RequestURI,
 	}
-	resp := disp.Handle(r.Context(), req)
+	resp := h.handleEventRequest(r.Context(), req, body, r.Header)
 	if resp == nil {
 		http.Error(w, "empty response", http.StatusInternalServerError)
 		return
@@ -103,6 +93,35 @@ func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = w.Write(resp.Body)
+}
+
+func (h *cardCallbackHandler) handleEventRequest(
+	ctx context.Context,
+	req *larkevent.EventReq,
+	body []byte,
+	header http.Header,
+) *larkevent.EventResp {
+	if h == nil || h.plaintextDispatcher == nil {
+		return nil
+	}
+	if !isEncryptedCallbackPayload(body) || h.encryptedDispatcher == nil {
+		return h.plaintextDispatcher.Handle(ctx, req)
+	}
+
+	if hasLarkCallbackSignatureHeaders(header) {
+		resp := h.encryptedDispatcher.Handle(ctx, req)
+		if h.encryptedNoSignDispatcher != nil && isSignatureVerificationFailureResponse(resp) {
+			h.logger.Warn("Lark card callback signature verification failed; fallback to skip-sign verification")
+			return h.encryptedNoSignDispatcher.Handle(ctx, req)
+		}
+		return resp
+	}
+
+	if h.encryptedNoSignDispatcher != nil {
+		h.logger.Warn("Lark card callback missing signature headers; fallback to skip-sign verification")
+		return h.encryptedNoSignDispatcher.Handle(ctx, req)
+	}
+	return h.encryptedDispatcher.Handle(ctx, req)
 }
 
 func isEncryptedCallbackPayload(body []byte) bool {
@@ -123,6 +142,17 @@ func hasLarkCallbackSignatureHeaders(header http.Header) bool {
 	timestamp := strings.TrimSpace(header.Get(larkevent.EventRequestTimestamp))
 	nonce := strings.TrimSpace(header.Get(larkevent.EventRequestNonce))
 	return signature != "" && timestamp != "" && nonce != ""
+}
+
+func isSignatureVerificationFailureResponse(resp *larkevent.EventResp) bool {
+	if resp == nil || resp.StatusCode == http.StatusOK {
+		return false
+	}
+	body := strings.ToLower(strings.TrimSpace(string(resp.Body)))
+	if body == "" {
+		return false
+	}
+	return strings.Contains(body, "signature verification failed")
 }
 
 func (g *Gateway) handleCardAction(_ context.Context, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {
