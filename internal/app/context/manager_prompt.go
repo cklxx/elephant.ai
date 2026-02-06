@@ -29,6 +29,7 @@ type systemPromptInput struct {
 func composeSystemPrompt(input systemPromptInput) string {
 	sections := []string{
 		buildUserPersonaSection(input.Static.UserPersona),
+		buildHabitStewardshipSection(),
 		buildIdentitySection(input.Static.Persona),
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
@@ -146,6 +147,15 @@ func buildUserPersonaSection(profile *ports.UserPersonaProfile) string {
 	}
 
 	return formatSection("# User Persona Core (Highest Priority)", lines)
+}
+
+func buildHabitStewardshipSection() string {
+	return formatSection("# Habit Stewardship", []string{
+		"Record stable user habits, preferences, and recurring workflow defaults as durable memory notes.",
+		"Prioritize explicit user statements first, then repeated behavior observed across turns.",
+		"Keep each habit note actionable: trigger/context -> preferred response -> confidence.",
+		"Do not invent habits; ask a focused clarification when the signal is ambiguous.",
+	})
 }
 
 func buildSkillsSection(logger logging.Logger, taskInput string, messages []ports.Message, sessionID string, cfg agent.SkillsConfig) string {
