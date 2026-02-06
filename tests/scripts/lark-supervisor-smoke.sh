@@ -14,6 +14,7 @@ run_supervisor() {
     MAIN_SH="${main_root}/scripts/lark/main.sh" \
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
+    AUTOFIX_SH="${main_root}/scripts/lark/autofix.sh" \
     MAIN_CONFIG="${main_root}/config-main.yaml" \
     TEST_CONFIG="${main_root}/config-test.yaml" \
     LARK_SUPERVISOR_SKIP_HEALTHCHECK=1 \
@@ -118,7 +119,13 @@ EOF
 make_stub "${main_root}/scripts/lark/main.sh" ".pids/lark-main.pid"
 make_stub "${main_root}/scripts/lark/test.sh" ".worktrees/test/.pids/lark-test.pid"
 make_stub "${main_root}/scripts/lark/loop-agent.sh" ".worktrees/test/.pids/lark-loop.pid"
+cat > "${main_root}/scripts/lark/autofix.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exit 0
+EOF
 chmod +x "${main_root}/scripts/lark/worktree.sh"
+chmod +x "${main_root}/scripts/lark/autofix.sh"
 
 cat > "${main_root}/config-main.yaml" <<'EOF'
 server:
@@ -143,7 +150,7 @@ run_supervisor run-once >/dev/null
 
 status_file="${main_root}/.worktrees/test/tmp/lark-supervisor.status.json"
 [[ -f "${status_file}" ]] || { echo "missing status file: ${status_file}" >&2; exit 1; }
-for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha cycle_phase cycle_result last_error restart_count_window; do
+for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha cycle_phase cycle_result last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window; do
   grep -q "\"${key}\"" "${status_file}" || { echo "missing key in status: ${key}" >&2; exit 1; }
 done
 grep -q '"mode": "healthy"' "${status_file}" || { echo "expected healthy mode after run-once" >&2; exit 1; }
