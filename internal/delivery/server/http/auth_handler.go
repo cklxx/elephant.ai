@@ -11,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	authapp "alex/internal/auth/app"
-	"alex/internal/auth/domain"
-	"alex/internal/logging"
+	authapp "alex/internal/app/auth"
+	"alex/internal/domain/auth"
+	"alex/internal/shared/logging"
 )
 
 const (

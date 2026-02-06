@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/logging"
-	id "alex/internal/utils/id"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 
 	"github.com/robfig/cron/v3"
 )

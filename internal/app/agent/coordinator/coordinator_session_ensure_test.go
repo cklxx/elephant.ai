@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
+	appconfig "alex/internal/app/agent/config"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 type ensureSessionStore struct {

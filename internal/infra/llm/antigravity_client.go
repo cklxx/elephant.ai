@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	alexerrors "alex/internal/errors"
-	"alex/internal/jsonx"
-	"alex/internal/utils"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
 )
 
 const antigravityBaseURL = "https://cloudcode-pa.googleapis.com"

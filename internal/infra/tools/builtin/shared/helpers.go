@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/jsonx"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/json"
 )
 
 // StringArg fetches a string-like argument from the tool call map, returning an

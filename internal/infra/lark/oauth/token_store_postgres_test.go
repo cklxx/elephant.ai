@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/testutil"
+	"alex/internal/shared/testutil"
 )
 
 func TestPostgresTokenStore_CRUD(t *testing.T) {

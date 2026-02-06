@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"alex/internal/coding"
-	"alex/internal/external/codex"
+	"alex/internal/infra/coding"
+	"alex/internal/infra/external/codex"
 )
 
 // CodexAdapter wraps the Codex external executor.

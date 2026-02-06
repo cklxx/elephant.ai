@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/tokenutil"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/token"
 )
 
 // helper: build a message with the given source and content.
@@ -331,15 +331,15 @@ func TestDefaultModelProfiles(t *testing.T) {
 
 func TestSourcePriority(t *testing.T) {
 	ordered := []ports.MessageSource{
-		ports.MessageSourceDebug,         // 1
-		ports.MessageSourceEvaluation,    // 1
-		ports.MessageSourceUserHistory,   // 2
-		ports.MessageSourceToolResult,    // 3
+		ports.MessageSourceDebug,          // 1
+		ports.MessageSourceEvaluation,     // 1
+		ports.MessageSourceUserHistory,    // 2
+		ports.MessageSourceToolResult,     // 3
 		ports.MessageSourceAssistantReply, // 4
-		ports.MessageSourceProactive,     // 5
-		ports.MessageSourceUserInput,     // 6
-		ports.MessageSourceImportant,     // 7
-		ports.MessageSourceSystemPrompt,  // 8
+		ports.MessageSourceProactive,      // 5
+		ports.MessageSourceUserInput,      // 6
+		ports.MessageSourceImportant,      // 7
+		ports.MessageSourceSystemPrompt,   // 8
 	}
 
 	for i := 1; i < len(ordered); i++ {

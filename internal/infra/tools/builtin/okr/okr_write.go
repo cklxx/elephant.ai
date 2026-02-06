@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type okrWrite struct {
@@ -83,11 +83,10 @@ func (t *okrWrite) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolR
 		CallID:  call.ID,
 		Content: fmt.Sprintf("Goal '%s' %s successfully (updated: %s).", goalID, action, goal.Meta.Updated),
 		Metadata: map[string]any{
-			"goal_id": goalID,
-			"status":  goal.Meta.Status,
-			"updated": goal.Meta.Updated,
+			"goal_id":  goalID,
+			"status":   goal.Meta.Status,
+			"updated":  goal.Meta.Updated,
 			"kr_count": len(goal.Meta.KeyResults),
 		},
 	}, nil
 }
-

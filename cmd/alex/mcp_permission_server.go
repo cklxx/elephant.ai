@@ -10,8 +10,8 @@ import (
 	"os"
 	"strings"
 
-	"alex/internal/logging"
-	"alex/internal/mcp"
+	"alex/internal/infra/mcp"
+	"alex/internal/shared/logging"
 )
 
 type permissionServer struct {

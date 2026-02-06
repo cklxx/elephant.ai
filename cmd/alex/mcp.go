@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"alex/internal/mcp"
+	"alex/internal/infra/mcp"
 )
 
 // handleMCP handles all MCP subcommands

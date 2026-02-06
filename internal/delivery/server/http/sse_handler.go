@@ -1,11 +1,11 @@
 package http
 
 import (
-	"alex/internal/agent/types"
-	"alex/internal/logging"
-	"alex/internal/observability"
-	"alex/internal/presentation/formatter"
-	"alex/internal/server/app"
+	"alex/internal/delivery/presentation/formatter"
+	"alex/internal/delivery/server/app"
+	"alex/internal/domain/agent/types"
+	"alex/internal/infra/observability"
+	"alex/internal/shared/logging"
 )
 
 const (

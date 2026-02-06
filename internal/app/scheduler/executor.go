@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	agent "alex/internal/agent/ports/agent"
-	id "alex/internal/utils/id"
+	agent "alex/internal/domain/agent/ports/agent"
+	id "alex/internal/shared/utils/id"
 )
 
 // AgentCoordinator is the subset of the coordinator interface needed by the scheduler.

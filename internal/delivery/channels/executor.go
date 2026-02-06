@@ -3,8 +3,8 @@ package channels
 import (
 	"context"
 
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 // AgentExecutor captures the agent execution surface needed by channel gateways.

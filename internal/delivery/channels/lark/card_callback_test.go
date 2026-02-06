@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 )

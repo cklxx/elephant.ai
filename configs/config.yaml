@@ -27,11 +27,6 @@ runtime:
         enabled: false
         store_path: "${ALEX_SKILL_FEEDBACK_PATH}"
       cache_ttl_seconds: 300
-    rag:
-      enabled: false
-      persist_dir: "${ALEX_RAG_DIR}"
-      collection: "rag"
-      min_similarity: 0.7
     scheduler:
       enabled: true
       trigger_timeout_seconds: 900

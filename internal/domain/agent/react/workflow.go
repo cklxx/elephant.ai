@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func newWorkflowRecorder(tracker WorkflowTracker) *workflowRecorder {

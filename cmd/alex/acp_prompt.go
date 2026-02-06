@@ -7,7 +7,7 @@ import (
 	"path"
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 type acpPromptInput struct {

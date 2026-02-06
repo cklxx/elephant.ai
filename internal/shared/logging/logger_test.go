@@ -3,7 +3,7 @@ package logging
 import (
 	"testing"
 
-	"alex/internal/utils"
+	"alex/internal/shared/utils"
 )
 
 func TestOrNopHandlesTypedNilPointers(t *testing.T) {

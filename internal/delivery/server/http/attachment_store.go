@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"alex/internal/attachments"
+	"alex/internal/infra/attachments"
 )
 
 // AttachmentStore persists decoded attachment payloads and serves them via a stable URL.

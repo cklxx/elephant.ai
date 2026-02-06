@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // Writer persists structured turn journal entries so downstream analytics and

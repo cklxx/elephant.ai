@@ -5,8 +5,8 @@
 package scheduler
 
 import (
-	"alex/internal/schedulerapi"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/delivery/schedulerapi"
+	"alex/internal/infra/tools/builtin/shared"
 	"context"
 )
 

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
 )
 
 // SolveTask is the main ReAct loop - pure business logic

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/jsonx"
-	larkcards "alex/internal/lark/cards"
+	agent "alex/internal/domain/agent/ports/agent"
+	larkcards "alex/internal/infra/lark/cards"
+	"alex/internal/shared/json"
 )
 
 const maxCardReplyChars = 1200

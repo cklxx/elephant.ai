@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 // AIChatCoordinator manages multi-bot chat sessions to prevent infinite loops
@@ -21,15 +21,15 @@ type AIChatCoordinator struct {
 
 // aiChatSession tracks the state of a multi-bot chat
 type aiChatSession struct {
-	chatID          string
-	participants    []string // ordered list of bot IDs participating
-	currentTurn     int      // index of whose turn it is
-	lastActivity    time.Time
-	userMessageID   string   // original user message that triggered the session
-	userSenderID    string   // original user who initiated the chat
-	messageCount    int      // number of messages exchanged
-	maxMessages     int      // safety limit to prevent infinite loops
-	isActive        bool
+	chatID        string
+	participants  []string // ordered list of bot IDs participating
+	currentTurn   int      // index of whose turn it is
+	lastActivity  time.Time
+	userMessageID string // original user message that triggered the session
+	userSenderID  string // original user who initiated the chat
+	messageCount  int    // number of messages exchanged
+	maxMessages   int    // safety limit to prevent infinite loops
+	isActive      bool
 }
 
 // NewAIChatCoordinator creates a new coordinator for managing multi-bot chats.

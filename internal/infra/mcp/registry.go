@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/async"
-	"alex/internal/logging"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 // Registry manages MCP servers and their tools

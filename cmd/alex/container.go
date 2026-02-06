@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"os"
 
-	"alex/internal/di"
-	"alex/internal/environment"
-	"alex/internal/utils"
+	"alex/internal/app/di"
+	"alex/internal/infra/environment"
+	"alex/internal/shared/utils"
 )
 
 // Container wraps the DI container for CLI use

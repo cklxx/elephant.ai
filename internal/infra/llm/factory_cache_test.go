@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	portsllm "alex/internal/agent/ports/llm"
+	portsllm "alex/internal/domain/agent/ports/llm"
 )
 
 func TestFactoryCacheEvictsLRU(t *testing.T) {

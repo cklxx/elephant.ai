@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/sandbox"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/sandbox"
+	"alex/internal/infra/tools/builtin/shared"
 
 	"github.com/chromedp/cdproto/target"
 	"github.com/chromedp/chromedp"

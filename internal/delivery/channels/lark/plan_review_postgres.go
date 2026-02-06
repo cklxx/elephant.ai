@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"alex/internal/jsonx"
-	"alex/internal/logging"
+	"alex/internal/shared/json"
+	"alex/internal/shared/logging"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

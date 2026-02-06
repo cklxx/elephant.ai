@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/tools/builtin/okr"
+	"alex/internal/infra/tools/builtin/okr"
 )
 
 func TestNewOKRContextProvider_NoGoals(t *testing.T) {

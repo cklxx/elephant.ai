@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/logging"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
 )
 
 // Manager handles workspace allocation and cleanup for external agent tasks.

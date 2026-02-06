@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/tools/builtin/okr"
+	"alex/internal/infra/tools/builtin/okr"
 )
 
 // OKRContextProvider generates pre-rendered OKR context for system prompt injection.

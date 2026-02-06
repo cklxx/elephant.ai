@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	agentstorage "alex/internal/agent/ports/storage"
+	agentstorage "alex/internal/domain/agent/ports/storage"
 )
 
 // handleCostCommand handles all cost-related subcommands

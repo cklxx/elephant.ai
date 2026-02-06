@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	larkgw "alex/internal/channels/lark"
+	larkgw "alex/internal/delivery/channels/lark"
 )
 
 func TestBuildReport(t *testing.T) {

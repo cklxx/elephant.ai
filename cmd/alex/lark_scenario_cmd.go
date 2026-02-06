@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	larktesting "alex/internal/channels/lark/testing"
+	larktesting "alex/internal/delivery/channels/lark/testing"
 )
 
 func runLarkCommand(args []string) error {

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	toolspolicy "alex/internal/tools"
+	toolspolicy "alex/internal/infra/tools"
 	"gopkg.in/yaml.v3"
 )
 

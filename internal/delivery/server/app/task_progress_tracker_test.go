@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	serverPorts "alex/internal/server/ports"
+	serverPorts "alex/internal/delivery/server/ports"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 )
 
 func newTestTracker(t *testing.T) (*TaskProgressTracker, serverPorts.TaskStore) {

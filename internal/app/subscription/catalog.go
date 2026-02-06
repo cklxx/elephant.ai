@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	runtimeconfig "alex/internal/config"
-	"alex/internal/httpclient"
+	"alex/internal/infra/httpclient"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func parseModelList(raw []byte) ([]string, error) {

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	alexerrors "alex/internal/errors"
-	"alex/internal/jsonx"
-	"alex/internal/utils"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 // OpenAI API compatible client
@@ -558,7 +558,7 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 		}
 		hasImage = true
 		parts = append(parts, map[string]any{
-			"type": "image_url",
+			"type":      "image_url",
 			"image_url": map[string]any{"url": url},
 		})
 		return true
@@ -574,7 +574,7 @@ func buildMessageContent(msg ports.Message, embedAttachments bool) any {
 			appendText("[" + key + "]")
 			hasImage = true
 			parts = append(parts, map[string]any{
-				"type": "image_url",
+				"type":      "image_url",
 				"image_url": map[string]any{"url": url},
 			})
 			return true

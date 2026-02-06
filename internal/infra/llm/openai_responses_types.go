@@ -1,6 +1,6 @@
 package llm
 
-import "alex/internal/jsonx"
+import "alex/internal/shared/json"
 
 type responsesResponse struct {
 	ID         string                 `json:"id"`
@@ -28,7 +28,7 @@ type responseOutputItem struct {
 	ID        string              `json:"id"`
 	Role      string              `json:"role"`
 	Name      string              `json:"name"`
-	Arguments jsonx.RawMessage     `json:"arguments"`
+	Arguments jsonx.RawMessage    `json:"arguments"`
 	Content   []responseContent   `json:"content"`
 	ToolCalls []responseToolCall  `json:"tool_calls"`
 	Metadata  map[string]any      `json:"metadata"`

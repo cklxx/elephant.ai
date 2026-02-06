@@ -5,10 +5,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"alex/internal/attachments"
-	"alex/internal/di"
-	"alex/internal/server/app"
-	"alex/internal/server/ports"
+	"alex/internal/app/di"
+	"alex/internal/delivery/server/app"
+	"alex/internal/delivery/server/ports"
+	"alex/internal/infra/attachments"
 )
 
 func TestHealthEndpoint_Integration(t *testing.T) {

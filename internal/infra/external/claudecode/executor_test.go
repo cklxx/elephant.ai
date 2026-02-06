@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/external/subprocess"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/external/subprocess"
 )
 
 type fakeSubprocess struct {

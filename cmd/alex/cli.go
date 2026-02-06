@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	runtimeconfig "alex/internal/config"
-	configadmin "alex/internal/config/admin"
-	sessionstate "alex/internal/session/state_store"
+	sessionstate "alex/internal/infra/session/state_store"
+	runtimeconfig "alex/internal/shared/config"
+	configadmin "alex/internal/shared/config/admin"
 )
 
 type CLI struct {

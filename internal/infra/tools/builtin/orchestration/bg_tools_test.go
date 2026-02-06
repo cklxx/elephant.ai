@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/utils/id"
 )
 
 // mockDispatcher implements agent.BackgroundTaskDispatcher for tool tests.

@@ -8,15 +8,15 @@ import (
 	"sync"
 	"testing"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	llm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/observability"
-	"alex/internal/tools/builtin/orchestration"
-	id "alex/internal/utils/id"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	llm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/observability"
+	"alex/internal/infra/tools/builtin/orchestration"
+	id "alex/internal/shared/utils/id"
 )
 
 type recordingCoordinator struct {
@@ -48,12 +48,12 @@ func (r *recordingCoordinator) ExecuteTask(ctx context.Context, task string, ses
 	r.logger.InfoContext(ctx, "executing subtask", "task", task)
 
 	return &agent.TaskResult{
-		Answer:       "subtask complete",
-		Iterations:   1,
-		TokensUsed:   42,
-		SessionID:    ids.SessionID,
-		RunID:        id.RunIDFromContext(ctx),
-		ParentRunID:  id.ParentRunIDFromContext(ctx),
+		Answer:      "subtask complete",
+		Iterations:  1,
+		TokensUsed:  42,
+		SessionID:   ids.SessionID,
+		RunID:       id.RunIDFromContext(ctx),
+		ParentRunID: id.ParentRunIDFromContext(ctx),
 	}, nil
 }
 

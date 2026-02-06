@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	portsllm "alex/internal/agent/ports/llm"
-	tools "alex/internal/agent/ports/tools"
-	alexerrors "alex/internal/errors"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	tools "alex/internal/domain/agent/ports/tools"
+	alexerrors "alex/internal/shared/errors"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/time/rate"

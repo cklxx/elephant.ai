@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strconv"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 	"gopkg.in/yaml.v3"
 )
 

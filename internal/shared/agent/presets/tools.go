@@ -3,8 +3,8 @@ package presets
 import (
 	"fmt"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 // ToolMode defines the runtime surface the agent runs under.

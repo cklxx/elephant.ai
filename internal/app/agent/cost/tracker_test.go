@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	storage "alex/internal/agent/ports/storage"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 // mockCostStore is a mock implementation of CostStore for testing

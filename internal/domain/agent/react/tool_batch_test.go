@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/ports/mocks"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/ports/mocks"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 type stubToolLimiter struct {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // finalize creates the final task result
@@ -24,17 +24,17 @@ func (e *ReactEngine) finalize(state *TaskState, stopReason string, duration tim
 	finalAnswer = stripAttachmentPlaceholders(finalAnswer)
 
 	return &TaskResult{
-		Answer:       finalAnswer,
-		Messages:     state.Messages,
-		Iterations:   state.Iterations,
-		TokensUsed:   state.TokenCount,
-		StopReason:   stopReason,
-		SessionID:    state.SessionID,
+		Answer:      finalAnswer,
+		Messages:    state.Messages,
+		Iterations:  state.Iterations,
+		TokensUsed:  state.TokenCount,
+		StopReason:  stopReason,
+		SessionID:   state.SessionID,
 		RunID:       state.RunID,
 		ParentRunID: state.ParentRunID,
-		Important:    ports.CloneImportantNotes(state.Important),
-		Duration:     duration,
-		Attachments:  attachments,
+		Important:   ports.CloneImportantNotes(state.Important),
+		Duration:    duration,
+		Attachments: attachments,
 	}
 }
 

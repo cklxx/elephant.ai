@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"testing"
 
-	appconfig "alex/internal/agent/app/config"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/llm"
-	"alex/internal/workflow"
+	appconfig "alex/internal/app/agent/config"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/domain/workflow"
+	"alex/internal/infra/llm"
 )
 
 type stubPreparationService struct {

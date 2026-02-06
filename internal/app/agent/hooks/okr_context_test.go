@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/logging"
-	"alex/internal/tools/builtin/okr"
+	"alex/internal/infra/tools/builtin/okr"
+	"alex/internal/shared/logging"
 )
 
 const testGoalContent = `---

@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/testutil"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/testutil"
 )
 
 func TestRecordFromEventStripsAttachmentData(t *testing.T) {

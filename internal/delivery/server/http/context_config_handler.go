@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	ctxconfig "alex/internal/context"
+	ctxconfig "alex/internal/app/context"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
 	"gopkg.in/yaml.v3"
 )
 

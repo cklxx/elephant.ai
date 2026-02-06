@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/logging"
-	"alex/internal/server/app"
+	"alex/internal/delivery/server/app"
+	"alex/internal/shared/logging"
 )
 
 // ShareHandler serves read-only share endpoints.

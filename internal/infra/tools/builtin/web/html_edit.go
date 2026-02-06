@@ -9,14 +9,14 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/httpclient"
-	internalllm "alex/internal/llm"
-	toolartifacts "alex/internal/tools/builtin/artifacts"
-	"alex/internal/tools/builtin/shared"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/httpclient"
+	internalllm "alex/internal/infra/llm"
+	toolartifacts "alex/internal/infra/tools/builtin/artifacts"
+	"alex/internal/infra/tools/builtin/shared"
+	id "alex/internal/shared/utils/id"
 )
 
 type htmlEdit struct {

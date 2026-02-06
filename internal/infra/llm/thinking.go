@@ -3,7 +3,7 @@ package llm
 import (
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 const thinkingPromptHeader = "Thinking (previous):"

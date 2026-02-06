@@ -16,10 +16,10 @@ import (
 	"syscall"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/external/subprocess"
-	"alex/internal/logging"
-	id "alex/internal/utils/id"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/external/subprocess"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 )
 
 // Config configures the Claude Code executor.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 func TestTaskStateSnapshotRoundTrip(t *testing.T) {

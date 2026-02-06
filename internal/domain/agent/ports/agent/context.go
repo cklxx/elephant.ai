@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	core "alex/internal/agent/ports"
-	"alex/internal/agent/ports/storage"
+	core "alex/internal/domain/agent/ports"
+	"alex/internal/domain/agent/ports/storage"
 )
 
 // ContextManager handles layered context orchestration across static, dynamic and

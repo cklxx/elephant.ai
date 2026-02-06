@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/domain"
-	"alex/internal/tools/builtin/orchestration"
+	"alex/internal/domain/agent"
+	"alex/internal/infra/tools/builtin/orchestration"
 )
 
 func TestSubagentDisplaySuccess(t *testing.T) {

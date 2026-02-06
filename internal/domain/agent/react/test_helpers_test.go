@@ -1,6 +1,6 @@
 package react
 
-import agent "alex/internal/agent/ports/agent"
+import agent "alex/internal/domain/agent/ports/agent"
 
 func newReactEngineForTest(maxIterations int) *ReactEngine {
 	return NewReactEngine(ReactEngineConfig{

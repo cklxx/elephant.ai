@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/auth/domain"
-	"alex/internal/auth/ports"
+	"alex/internal/domain/auth"
+	"alex/internal/domain/auth/ports"
 )
 
 // OAuthProviderConfig configures the simple OAuth provider stub.

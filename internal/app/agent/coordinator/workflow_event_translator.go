@@ -6,10 +6,10 @@ import (
 	"strings"
 	"sync"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	"alex/internal/workflow"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/domain/workflow"
 )
 
 // wrapWithWorkflowEnvelope decorates the provided listener with a translator that

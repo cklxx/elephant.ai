@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestAnthropicClientCompleteSuccess(t *testing.T) {

@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	runtimeconfig "alex/internal/config"
-	configadmin "alex/internal/config/admin"
-	"alex/internal/subscription"
+	"alex/internal/app/subscription"
+	runtimeconfig "alex/internal/shared/config"
+	configadmin "alex/internal/shared/config/admin"
 )
 
 type stubCatalogService struct {

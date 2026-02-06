@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/tools/builtin/pathutil"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/tools/builtin/pathutil"
 )
 
 func TestListFilesIncludesDirsAndFiles(t *testing.T) {

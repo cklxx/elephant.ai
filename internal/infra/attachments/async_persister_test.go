@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestAsyncStorePersister_PersistsInBackground(t *testing.T) {

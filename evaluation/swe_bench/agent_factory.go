@@ -6,7 +6,7 @@ import (
 	"log"
 	"strings"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // AlexAgentFactory implements the AgentFactory interface using real Alex agent

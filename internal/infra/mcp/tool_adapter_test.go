@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // MockClient is a mock MCP client for testing

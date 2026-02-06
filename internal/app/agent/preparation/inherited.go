@@ -3,9 +3,9 @@ package preparation
 import (
 	"strings"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func (s *ExecutionPreparationService) applyInheritedStateSnapshot(state *domain.TaskState, inherited *agent.TaskState) {

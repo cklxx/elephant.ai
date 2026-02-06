@@ -1,6 +1,6 @@
 package agent
 
-import core "alex/internal/agent/ports"
+import core "alex/internal/domain/agent/ports"
 
 // AttachmentCarrier exposes attachments on events without coupling to concrete types.
 type AttachmentCarrier interface {

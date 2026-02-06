@@ -10,8 +10,8 @@ import (
 	"strings"
 	"sync"
 
-	runtimeconfig "alex/internal/config"
-	"alex/internal/jsonx"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/json"
 )
 
 const (

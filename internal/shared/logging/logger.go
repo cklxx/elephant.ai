@@ -3,7 +3,7 @@ package logging
 import (
 	"reflect"
 
-	"alex/internal/utils"
+	"alex/internal/shared/utils"
 )
 
 // Logger defines a minimal, printf-style logging contract.

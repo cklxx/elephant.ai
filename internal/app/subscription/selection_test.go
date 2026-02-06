@@ -3,7 +3,7 @@ package subscription
 import (
 	"testing"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestResolveSelectionForCodexCLI(t *testing.T) {

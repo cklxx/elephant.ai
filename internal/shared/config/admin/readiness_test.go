@@ -3,7 +3,7 @@ package admin
 import (
 	"testing"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestDeriveReadinessTasks(t *testing.T) {

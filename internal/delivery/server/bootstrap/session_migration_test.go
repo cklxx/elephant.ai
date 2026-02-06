@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	"alex/internal/logging"
-	serverapp "alex/internal/server/app"
-	"alex/internal/session/filestore"
-	"alex/internal/session/postgresstore"
-	sessionstate "alex/internal/session/state_store"
-	"alex/internal/testutil"
+	serverapp "alex/internal/delivery/server/app"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/session/filestore"
+	"alex/internal/infra/session/postgresstore"
+	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/shared/logging"
+	"alex/internal/shared/testutil"
 )
 
 func TestMigrateSessionsToDatabase(t *testing.T) {

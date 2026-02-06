@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	materialapi "alex/internal/materials/api"
+	materialapi "alex/internal/domain/materials/api"
 )
 
 // EventPublisher publishes newly registered materials onto an external event bus.

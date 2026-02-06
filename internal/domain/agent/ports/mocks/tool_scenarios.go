@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 // ToolScenario represents a complete tool calling scenario for testing

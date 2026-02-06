@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 type ContextSnapshotItem struct {
@@ -24,12 +24,12 @@ type ContextSnapshotResponse struct {
 }
 
 type ContextWindowPreviewResponse struct {
-	SessionID     string                   `json:"session_id"`
-	TokenEstimate int                      `json:"token_estimate"`
-	TokenLimit    int                      `json:"token_limit"`
-	PersonaKey    string                   `json:"persona_key,omitempty"`
-	ToolMode      string                   `json:"tool_mode,omitempty"`
-	ToolPreset    string                   `json:"tool_preset,omitempty"`
+	SessionID     string              `json:"session_id"`
+	TokenEstimate int                 `json:"token_estimate"`
+	TokenLimit    int                 `json:"token_limit"`
+	PersonaKey    string              `json:"persona_key,omitempty"`
+	ToolMode      string              `json:"tool_mode,omitempty"`
+	ToolPreset    string              `json:"tool_preset,omitempty"`
 	Window        agent.ContextWindow `json:"window"`
 }
 

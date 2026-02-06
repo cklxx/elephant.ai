@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"strings"
 
-	"alex/internal/jsonx"
+	"alex/internal/shared/json"
 )
 
 func boolArgOptional(args map[string]any, key string) (bool, bool) {

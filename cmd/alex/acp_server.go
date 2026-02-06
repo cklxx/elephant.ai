@@ -10,15 +10,15 @@ import (
 	"strings"
 	"sync"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/presets"
-	"alex/internal/async"
-	"alex/internal/logging"
-	"alex/internal/mcp"
-	"alex/internal/tools/builtin/pathutil"
-	"alex/internal/tools/builtin/shared"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/mcp"
+	"alex/internal/infra/tools/builtin/pathutil"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/agent/presets"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 type acpServer struct {

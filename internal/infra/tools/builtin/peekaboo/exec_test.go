@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 type recordingRunner struct {
@@ -176,4 +176,3 @@ func keys(m map[string]ports.Attachment) []string {
 	}
 	return out
 }
-

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	id "alex/internal/shared/utils/id"
 
 	"golang.org/x/time/rate"
 )

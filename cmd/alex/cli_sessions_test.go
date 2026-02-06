@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/di"
-	sessionstate "alex/internal/session/state_store"
+	"alex/internal/app/di"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 func TestPullSessionSnapshotByTurn(t *testing.T) {

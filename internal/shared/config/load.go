@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	toolspolicy "alex/internal/tools"
+	toolspolicy "alex/internal/infra/tools"
 )
 
 func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
@@ -289,9 +289,6 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	}
 	if cfg.Attention.QuietHours[0] == 0 && cfg.Attention.QuietHours[1] == 0 {
 		cfg.Attention.QuietHours = [2]int{22, 8}
-	}
-	if cfg.RAG.Collection == "" {
-		cfg.RAG.Collection = "rag"
 	}
 	if strings.TrimSpace(cfg.Scheduler.ConcurrencyPolicy) == "" {
 		cfg.Scheduler.ConcurrencyPolicy = "skip"

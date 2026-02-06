@@ -1,6 +1,6 @@
 package tools
 
-import "alex/internal/agent/ports"
+import "alex/internal/domain/agent/ports"
 
 // FunctionCallParser extracts tool calls from LLM responses
 type FunctionCallParser interface {

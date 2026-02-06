@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	runtimeconfig "alex/internal/config"
-	"alex/internal/logging"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 // LogServerConfiguration prints a safe, redacted snapshot of the server runtime configuration.

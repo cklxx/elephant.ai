@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/session/postgresstore"
-	sessionstate "alex/internal/session/state_store"
-	"alex/internal/testutil"
+	"alex/internal/infra/session/postgresstore"
+	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/shared/testutil"
 )
 
 func TestResolveStorageDir(t *testing.T) {

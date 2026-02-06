@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/testutil"
+	"alex/internal/shared/testutil"
 )
 
 func TestPlanReviewPostgresStore_SaveGetClear(t *testing.T) {

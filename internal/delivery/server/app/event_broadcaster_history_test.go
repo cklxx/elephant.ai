@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 type capturingHistoryStore struct {

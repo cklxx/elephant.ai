@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"alex/internal/agent/domain/react"
+	"alex/internal/domain/agent/react"
 )
 
 type backgroundTaskRegistry struct {

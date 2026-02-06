@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 type stubStore struct {

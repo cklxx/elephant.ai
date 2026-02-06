@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/coding"
+	"alex/internal/infra/coding"
 )
 
 type stubGateway struct {

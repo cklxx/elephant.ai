@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	materialports "alex/internal/materials/ports"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	materialports "alex/internal/domain/materials/ports"
 )
 
 func TestCollectGeneratedAttachmentsIncludesAllGeneratedUpToIteration(t *testing.T) {

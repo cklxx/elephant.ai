@@ -6,10 +6,10 @@ import (
 	"sync"
 	"testing"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/ports/mocks"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/ports/mocks"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 type recordingWorkflow struct {
@@ -170,7 +170,7 @@ func TestReactEngineEmitsWorkflowTransitions(t *testing.T) {
 
 	state := &TaskState{
 		SessionID: "sess",
-		RunID:    "task",
+		RunID:     "task",
 		PendingUserAttachments: map[string]ports.Attachment{
 			"note.txt": {Name: "note.txt", MediaType: "text/plain"},
 		},

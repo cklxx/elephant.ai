@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 // New returns an http.Client configured for outbound requests.

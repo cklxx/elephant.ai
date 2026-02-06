@@ -8,11 +8,11 @@ import (
 	"net/http"
 	"strings"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/sandbox"
-	"alex/internal/tools/builtin/artifacts"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/sandbox"
+	"alex/internal/infra/tools/builtin/artifacts"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type sandboxWriteAttachmentTool struct {

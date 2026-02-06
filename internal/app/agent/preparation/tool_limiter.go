@@ -1,6 +1,6 @@
 package preparation
 
-import tools "alex/internal/agent/ports/tools"
+import tools "alex/internal/domain/agent/ports/tools"
 
 type toolConcurrencyLimiter struct {
 	limit int

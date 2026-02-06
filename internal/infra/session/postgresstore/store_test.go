@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/testutil"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/testutil"
 )
 
 func TestPostgresStore_CrossInstanceReadWrite(t *testing.T) {

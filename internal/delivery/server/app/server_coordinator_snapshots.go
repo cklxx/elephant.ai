@@ -1,7 +1,7 @@
 package app
 
 import (
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func cloneMessages(messages []ports.Message) []ports.Message {

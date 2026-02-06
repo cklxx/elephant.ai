@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	"alex/internal/logging"
-	"alex/internal/observability"
-	"alex/internal/server/app"
-	id "alex/internal/utils/id"
+	"alex/internal/delivery/server/app"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/infra/observability"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 
 	"go.opentelemetry.io/otel/attribute"
 )

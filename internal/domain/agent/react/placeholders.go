@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func (e *ReactEngine) ensureSystemPromptMessage(state *TaskState) {

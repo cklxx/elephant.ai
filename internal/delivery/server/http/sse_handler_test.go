@@ -12,14 +12,14 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	"alex/internal/attachments"
-	serverapp "alex/internal/server/app"
-	"alex/internal/testutil"
-	"alex/internal/workflow"
+	serverapp "alex/internal/delivery/server/app"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/domain/workflow"
+	"alex/internal/infra/attachments"
+	"alex/internal/shared/testutil"
 )
 
 // sseResponseRecorder captures streamed SSE payloads without buffering or flushing semantics.

@@ -1,8 +1,8 @@
 package domain
 
 import (
-	"alex/internal/agent/ports"
-	"alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/domain/agent/ports/agent"
 )
 
 // Re-export port contracts to keep domain API stable while sharing DTOs.

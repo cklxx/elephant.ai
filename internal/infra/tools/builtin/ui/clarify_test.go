@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	id "alex/internal/shared/utils/id"
 )
 
 func TestClarifyExecuteSourcesRunIDFromContext(t *testing.T) {

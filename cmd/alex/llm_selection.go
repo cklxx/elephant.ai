@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 
-	appcontext "alex/internal/agent/app/context"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/logging"
-	"alex/internal/subscription"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/subscription"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 func applyPinnedCLILLMSelection(ctx context.Context, envLookup runtimeconfig.EnvLookup, logger logging.Logger) context.Context {

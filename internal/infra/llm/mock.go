@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
 )
 
 // Ensure the mock client satisfies the streaming interfaces used by the agent.

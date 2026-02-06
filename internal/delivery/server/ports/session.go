@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	agentstorage "alex/internal/agent/ports/storage"
+	agentstorage "alex/internal/domain/agent/ports/storage"
 )
 
 // ServerSessionManager extends the basic session store with server-specific operations

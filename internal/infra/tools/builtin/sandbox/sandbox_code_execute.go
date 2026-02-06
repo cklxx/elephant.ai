@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	materialports "alex/internal/materials/ports"
-	"alex/internal/sandbox"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	materialports "alex/internal/domain/materials/ports"
+	"alex/internal/infra/sandbox"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type sandboxCodeExecuteTool struct {

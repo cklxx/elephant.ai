@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/async"
-	authAdapters "alex/internal/auth/adapters"
-	authapp "alex/internal/auth/app"
-	authdomain "alex/internal/auth/domain"
-	authports "alex/internal/auth/ports"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/logging"
+	authapp "alex/internal/app/auth"
+	authdomain "alex/internal/domain/auth"
+	authports "alex/internal/domain/auth/ports"
+	authAdapters "alex/internal/infra/auth/adapters"
+	"alex/internal/shared/async"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

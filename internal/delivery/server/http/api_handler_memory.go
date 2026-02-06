@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"alex/internal/memory"
+	"alex/internal/infra/memory"
 )
 
 type MemoryDailyEntry struct {

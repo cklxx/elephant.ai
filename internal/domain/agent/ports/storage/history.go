@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 // HistoryManager persists and replays session turns without reordering.

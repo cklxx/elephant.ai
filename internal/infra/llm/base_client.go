@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	"alex/internal/httpclient"
-	"alex/internal/logging"
-	"alex/internal/utils"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/httpclient"
+	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
 )
 
 // baseClient holds fields and helpers shared by HTTP-based LLM clients

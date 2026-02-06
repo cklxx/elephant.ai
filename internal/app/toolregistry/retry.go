@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	ports "alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	alexerrors "alex/internal/errors"
-	toolspolicy "alex/internal/tools"
+	appcontext "alex/internal/app/agent/context"
+	ports "alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	toolspolicy "alex/internal/infra/tools"
+	alexerrors "alex/internal/shared/errors"
 )
 
 const retryJitterFactor = 0.25

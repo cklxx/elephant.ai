@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"alex/internal/logging"
-	"alex/internal/observability"
+	"alex/internal/infra/observability"
+	"alex/internal/shared/logging"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"

@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"alex/internal/async"
-	"alex/internal/di"
-	"alex/internal/logging"
-	"alex/internal/moltbook"
-	"alex/internal/scheduler"
-	"alex/internal/timer"
+	"alex/internal/app/di"
+	"alex/internal/app/scheduler"
+	"alex/internal/infra/moltbook"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
+	"alex/internal/shared/timer"
 )
 
 // startTimerManager creates and starts the agent timer manager.

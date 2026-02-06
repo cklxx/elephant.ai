@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 // ToolExecutor executes a single tool call.

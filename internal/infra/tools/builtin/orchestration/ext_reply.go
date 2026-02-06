@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type extReply struct {

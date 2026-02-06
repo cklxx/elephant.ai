@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/sandbox"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/sandbox"
 )
 
 func TestSandboxCodeExecuteWritesAndRuns(t *testing.T) {

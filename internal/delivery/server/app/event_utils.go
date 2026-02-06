@@ -1,6 +1,6 @@
 package app
 
-import agent "alex/internal/agent/ports/agent"
+import agent "alex/internal/domain/agent/ports/agent"
 
 // BaseAgentEvent unwraps any subtask wrapper to expose the underlying event so
 // downstream handlers (history, metrics, streaming) can behave consistently for

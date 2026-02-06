@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	ports "alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	ports "alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 // SLAExecutor wraps a ToolExecutor and records execution metrics via an

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/logging"
-	materialports "alex/internal/materials/ports"
+	"alex/internal/domain/agent/ports"
+	materialports "alex/internal/domain/materials/ports"
+	"alex/internal/shared/logging"
 )
 
 type recordingStore struct {

@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 var sseJSONBufferPool = sync.Pool{
@@ -47,16 +47,16 @@ func marshalSSEPayload(data map[string]interface{}) (string, error) {
 // workflow.* envelopes.
 func (h *SSEHandler) buildEventData(event agent.AgentEvent, sentAttachments *stringLRU, finalAnswerCache *stringLRU, streamDeltas bool) (map[string]interface{}, error) {
 	data := map[string]interface{}{
-		"event_id":        event.GetEventID(),
-		"event_type":      event.EventType(),
-		"seq":             event.GetSeq(),
-		"timestamp":       event.Timestamp().Format(time.RFC3339Nano),
-		"agent_level":     event.GetAgentLevel(),
-		"session_id":      event.GetSessionID(),
-		"run_id":          event.GetRunID(),
-		"parent_run_id":   event.GetParentRunID(),
-		"correlation_id":  event.GetCorrelationID(),
-		"causation_id":    event.GetCausationID(),
+		"event_id":       event.GetEventID(),
+		"event_type":     event.EventType(),
+		"seq":            event.GetSeq(),
+		"timestamp":      event.Timestamp().Format(time.RFC3339Nano),
+		"agent_level":    event.GetAgentLevel(),
+		"session_id":     event.GetSessionID(),
+		"run_id":         event.GetRunID(),
+		"parent_run_id":  event.GetParentRunID(),
+		"correlation_id": event.GetCorrelationID(),
+		"causation_id":   event.GetCausationID(),
 	}
 	if withLogID, ok := event.(interface{ GetLogID() string }); ok {
 		if logID := strings.TrimSpace(withLogID.GetLogID()); logID != "" {

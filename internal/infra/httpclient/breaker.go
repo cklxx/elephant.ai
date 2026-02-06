@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	alexerrors "alex/internal/errors"
-	"alex/internal/logging"
+	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/logging"
 )
 
 type circuitBreakerRoundTripper struct {

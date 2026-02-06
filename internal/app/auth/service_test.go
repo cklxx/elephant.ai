@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/auth/adapters"
-	authapp "alex/internal/auth/app"
-	"alex/internal/auth/domain"
-	"alex/internal/auth/ports"
+	authapp "alex/internal/app/auth"
+	"alex/internal/domain/auth"
+	"alex/internal/domain/auth/ports"
+	"alex/internal/infra/auth/adapters"
 )
 
 func TestRegisterAndLogin(t *testing.T) {

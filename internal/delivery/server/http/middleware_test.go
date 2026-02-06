@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	authAdapters "alex/internal/auth/adapters"
-	authapp "alex/internal/auth/app"
-	"alex/internal/observability"
-	"alex/internal/utils"
-	id "alex/internal/utils/id"
+	authapp "alex/internal/app/auth"
+	authAdapters "alex/internal/infra/auth/adapters"
+	"alex/internal/infra/observability"
+	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
 )
 
 func TestCORSMiddlewareHonorsEnvironment(t *testing.T) {

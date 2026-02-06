@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/attachments"
-	serverapp "alex/internal/server/app"
+	serverapp "alex/internal/delivery/server/app"
+	"alex/internal/infra/attachments"
 )
 
 func TestRouterRegistersAuthEndpointsWhenDisabled(t *testing.T) {

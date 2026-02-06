@@ -13,15 +13,15 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/ports"
-	llm "alex/internal/agent/ports/llm"
-	tools "alex/internal/agent/ports/tools"
-	alexerrors "alex/internal/errors"
-	"alex/internal/httpclient"
-	"alex/internal/utils"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	llm "alex/internal/domain/agent/ports/llm"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/httpclient"
+	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/utils"
+	id "alex/internal/shared/utils/id"
 
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/infra/tools/builtin/shared"
 	"github.com/PuerkitoBio/goquery"
 )
 

@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 // Subsystem represents a long-running server component with a managed lifecycle.

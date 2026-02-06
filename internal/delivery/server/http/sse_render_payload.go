@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	"alex/internal/workflow"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/domain/workflow"
 )
 
 func sanitizeEnvelopePayload(payload map[string]any, sent *stringLRU, cache *DataCache) map[string]any {

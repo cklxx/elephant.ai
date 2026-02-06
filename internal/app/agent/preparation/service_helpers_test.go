@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 // historySummaryResponse provides a shared stubbed summary string so history-aware

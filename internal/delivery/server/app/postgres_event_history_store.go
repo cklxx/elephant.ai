@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/async"
-	"alex/internal/attachments"
-	"alex/internal/logging"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/attachments"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

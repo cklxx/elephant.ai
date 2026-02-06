@@ -8,12 +8,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/agent/domain"
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	"alex/internal/logging"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 )
 
 type clientMap map[string][]chan agent.AgentEvent

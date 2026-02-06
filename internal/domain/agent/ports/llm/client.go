@@ -3,7 +3,7 @@ package llm
 import (
 	"context"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 // LLMClient represents any LLM provider.

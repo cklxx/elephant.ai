@@ -4,8 +4,8 @@ import (
 	"regexp"
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/jsonx"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/json"
 )
 
 var validToolNamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_-]*$`)

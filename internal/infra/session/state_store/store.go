@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // ErrSnapshotNotFound is returned when a specific turn snapshot cannot be located.

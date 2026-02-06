@@ -11,9 +11,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"alex/internal/auth/crypto"
-	"alex/internal/auth/domain"
-	"alex/internal/auth/ports"
+	"alex/internal/domain/auth"
+	"alex/internal/domain/auth/ports"
+	"alex/internal/infra/auth/crypto"
 )
 
 // Config controls token expirations and OAuth behaviour.

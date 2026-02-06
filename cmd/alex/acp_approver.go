@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	tools "alex/internal/agent/ports/tools"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 type acpApprover struct {

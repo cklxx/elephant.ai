@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"alex/internal/agent/domain"
+	"alex/internal/domain/agent"
 )
 
 // ToolFormatter formats tool calls for display output

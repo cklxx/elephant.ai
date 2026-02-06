@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	runtimeconfig "alex/internal/config"
-	"alex/internal/subscription"
+	"alex/internal/app/subscription"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestModelListShowsProviders(t *testing.T) {

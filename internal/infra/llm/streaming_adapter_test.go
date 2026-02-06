@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
 )
 
 type nonStreamingClient struct {

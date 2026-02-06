@@ -4,8 +4,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"alex/internal/analytics/journal"
-	"alex/internal/logging"
+	"alex/internal/infra/analytics/journal"
+	"alex/internal/shared/logging"
 )
 
 func BuildJournalReader(sessionDir string, logger logging.Logger) journal.Reader {

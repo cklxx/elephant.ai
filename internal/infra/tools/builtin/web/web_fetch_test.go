@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	"alex/internal/utils"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/utils"
 )
 
 func TestWebFetchBuildResultCreatesAttachment(t *testing.T) {

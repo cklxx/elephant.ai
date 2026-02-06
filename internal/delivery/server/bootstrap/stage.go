@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"sync"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 // BootstrapStage represents a single initialization step during server startup.
 type BootstrapStage struct {
-	Name     string           // Human-readable stage name (e.g., "observability", "config")
-	Required bool             // If true, failure aborts startup; otherwise recorded as degraded
-	Init     func() error     // Initialization function
+	Name     string       // Human-readable stage name (e.g., "observability", "config")
+	Required bool         // If true, failure aborts startup; otherwise recorded as degraded
+	Init     func() error // Initialization function
 }
 
 // DegradedComponents tracks components that failed optional initialization

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func newTestStore(t *testing.T) *Store {

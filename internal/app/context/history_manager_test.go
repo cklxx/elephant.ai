@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	sessionstate "alex/internal/session/state_store"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 func TestHistoryManagerAppendAndReplayOrder(t *testing.T) {

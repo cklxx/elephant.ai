@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	toolspolicy "alex/internal/tools"
+	toolspolicy "alex/internal/infra/tools"
 )
 
 // FileConfig captures the on-disk YAML configuration sections.
@@ -152,7 +152,6 @@ type ProactiveFileConfig struct {
 	Enabled           *bool                        `yaml:"enabled"`
 	Memory            *MemoryFileConfig            `yaml:"memory"`
 	Skills            *SkillsFileConfig            `yaml:"skills"`
-	RAG               *RAGFileConfig               `yaml:"rag"`
 	OKR               *OKRFileConfig               `yaml:"okr"`
 	Scheduler         *SchedulerFileConfig         `yaml:"scheduler"`
 	FinalAnswerReview *FinalAnswerReviewFileConfig `yaml:"final_answer_review"`
@@ -203,15 +202,6 @@ type SkillsAutoActivationFileConfig struct {
 type SkillsFeedbackFileConfig struct {
 	Enabled   *bool  `yaml:"enabled"`
 	StorePath string `yaml:"store_path"`
-}
-
-type RAGFileConfig struct {
-	Enabled         *bool    `yaml:"enabled"`
-	PersistDir      string   `yaml:"persist_dir"`
-	Collection      string   `yaml:"collection"`
-	MinSimilarity   *float64 `yaml:"min_similarity"`
-	EmbedderModel   string   `yaml:"embedder_model"`
-	EmbedderBaseURL string   `yaml:"embedder_base_url"`
 }
 
 type SchedulerFileConfig struct {

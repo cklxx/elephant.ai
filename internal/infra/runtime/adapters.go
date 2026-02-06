@@ -4,13 +4,13 @@ import (
 	"context"
 	"strings"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/async"
-	"alex/internal/external/workspace"
-	"alex/internal/jsonx"
-	"alex/internal/tools/builtin/pathutil"
-	"alex/internal/utils/clilatency"
-	id "alex/internal/utils/id"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/external/workspace"
+	"alex/internal/infra/tools/builtin/pathutil"
+	"alex/internal/shared/async"
+	"alex/internal/shared/json"
+	"alex/internal/shared/utils/clilatency"
+	id "alex/internal/shared/utils/id"
 )
 
 // IDsAdapter bridges runtime context/id utilities into domain-facing ports.

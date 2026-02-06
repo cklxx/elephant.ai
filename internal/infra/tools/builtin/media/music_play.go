@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/httpclient"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/httpclient"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type musicPlay struct {

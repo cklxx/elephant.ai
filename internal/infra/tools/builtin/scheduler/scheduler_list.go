@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/schedulerapi"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/delivery/schedulerapi"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type schedulerList struct {

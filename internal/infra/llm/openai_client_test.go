@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	alexerrors "alex/internal/errors"
-	"alex/internal/utils"
+	"alex/internal/domain/agent/ports"
+	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/utils"
 )
 
 func TestOpenAIClientCompleteSuccess(t *testing.T) {

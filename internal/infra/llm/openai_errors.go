@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	alexerrors "alex/internal/errors"
+	alexerrors "alex/internal/shared/errors"
 )
 
 func wrapRequestError(err error) error {

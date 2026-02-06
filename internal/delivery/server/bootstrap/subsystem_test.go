@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 type fakeSubsystem struct {
@@ -89,9 +89,9 @@ type orderTrackingSubsystem struct {
 	onStop func()
 }
 
-func (o *orderTrackingSubsystem) Name() string                    { return o.name }
-func (o *orderTrackingSubsystem) Start(_ context.Context) error   { return nil }
-func (o *orderTrackingSubsystem) Stop()                           { o.onStop() }
+func (o *orderTrackingSubsystem) Name() string                  { return o.name }
+func (o *orderTrackingSubsystem) Start(_ context.Context) error { return nil }
+func (o *orderTrackingSubsystem) Stop()                         { o.onStop() }
 
 func TestSubsystemManagerCancelsContextOnStop(t *testing.T) {
 	logger := logging.NewComponentLogger("test")

@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 // attachmentsCtxKey stores attachment snapshots in a context so tools can

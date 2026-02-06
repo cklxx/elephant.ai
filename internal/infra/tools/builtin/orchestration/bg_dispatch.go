@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/tools/builtin/shared"
-	"alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils/id"
 )
 
 type bgDispatch struct {
@@ -161,8 +161,8 @@ func (t *bgDispatch) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 	}
 
 	return &ports.ToolResult{
-		CallID:  call.ID,
-		Content: content,
+		CallID:   call.ID,
+		Content:  content,
 		Metadata: buildDispatchMetadata(ctx, taskID),
 	}, nil
 }

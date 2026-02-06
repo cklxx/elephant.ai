@@ -3,7 +3,7 @@ package app
 import (
 	"context"
 
-	agent "alex/internal/agent/ports/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // EventHistoryFilter selects persisted events for replay.

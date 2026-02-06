@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports/agent"
-	"alex/internal/logging"
-	"alex/internal/skills"
+	"alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/skills"
+	"alex/internal/shared/logging"
 )
 
 func TestBuildSkillsSection_FallbackDoesNotInjectCatalog(t *testing.T) {

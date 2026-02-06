@@ -3,7 +3,7 @@ package swe_bench
 import (
 	"time"
 
-	"alex/internal/workflow"
+	"alex/internal/domain/workflow"
 )
 
 // Instance represents a single SWE-Bench problem instance

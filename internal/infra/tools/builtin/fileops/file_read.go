@@ -1,10 +1,10 @@
 package fileops
 
 import (
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/tools/builtin/pathutil"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/pathutil"
+	"alex/internal/infra/tools/builtin/shared"
 	"context"
 	"fmt"
 	"os"
@@ -53,4 +53,3 @@ func (t *fileRead) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}
 	return &ports.ToolResult{CallID: call.ID, Content: string(content)}, nil
 }
-

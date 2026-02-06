@@ -7,17 +7,17 @@ import (
 	"sync"
 	"testing"
 
-	appconfig "alex/internal/agent/app/config"
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	llm "alex/internal/agent/ports/llm"
-	"alex/internal/agent/ports/mocks"
-	storage "alex/internal/agent/ports/storage"
-	tools "alex/internal/agent/ports/tools"
-	materialports "alex/internal/materials/ports"
-	"alex/internal/utils/id"
-	"alex/internal/workflow"
+	appconfig "alex/internal/app/agent/config"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	llm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/domain/agent/ports/mocks"
+	storage "alex/internal/domain/agent/ports/storage"
+	tools "alex/internal/domain/agent/ports/tools"
+	materialports "alex/internal/domain/materials/ports"
+	"alex/internal/domain/workflow"
+	"alex/internal/shared/utils/id"
 )
 
 type stubLLMFactory struct{ client llm.LLMClient }

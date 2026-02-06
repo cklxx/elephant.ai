@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 	"github.com/fsnotify/fsnotify"
 )
 

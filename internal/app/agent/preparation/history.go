@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strings"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	llm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/agent/textutil"
-	"alex/internal/tokenutil"
-	id "alex/internal/utils/id"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	llm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/agent/textutil"
+	"alex/internal/shared/token"
+	id "alex/internal/shared/utils/id"
 )
 
 type historyRecall struct {

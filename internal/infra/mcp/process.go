@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/async"
-	"alex/internal/logging"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 // ProcessManager manages an MCP server process lifecycle

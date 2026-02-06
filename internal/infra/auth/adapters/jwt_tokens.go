@@ -10,9 +10,9 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
-	"alex/internal/auth/crypto"
-	"alex/internal/auth/domain"
-	"alex/internal/auth/ports"
+	"alex/internal/domain/auth"
+	"alex/internal/domain/auth/ports"
+	"alex/internal/infra/auth/crypto"
 )
 
 // JWTTokenManager issues JWT access tokens and hashes refresh tokens using Argon2id.

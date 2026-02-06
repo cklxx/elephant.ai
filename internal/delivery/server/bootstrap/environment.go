@@ -1,7 +1,7 @@
 package bootstrap
 
 import (
-	"alex/internal/environment"
+	"alex/internal/infra/environment"
 )
 
 func CaptureHostEnvironment(maxFileEntries int) (map[string]string, string) {

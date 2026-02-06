@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 
 	larkevent "github.com/larksuite/oapi-sdk-go/v3/event"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"

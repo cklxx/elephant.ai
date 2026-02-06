@@ -6,16 +6,16 @@ import (
 	"testing"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/domain"
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/analytics"
-	"alex/internal/analytics/journal"
-	"alex/internal/observability"
-	serverPorts "alex/internal/server/ports"
-	sessionstate "alex/internal/session/state_store"
+	appcontext "alex/internal/app/agent/context"
+	serverPorts "alex/internal/delivery/server/ports"
+	"alex/internal/domain/agent"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/analytics"
+	"alex/internal/infra/analytics/journal"
+	"alex/internal/infra/observability"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 // Mock implementations for testing

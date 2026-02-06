@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	id "alex/internal/utils/id"
+	id "alex/internal/shared/utils/id"
 )
 
 func Enabled() bool {

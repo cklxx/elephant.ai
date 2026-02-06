@@ -7,12 +7,12 @@ import (
 	"sync"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/analytics/journal"
-	"alex/internal/logging"
-	"alex/internal/memory"
-	"alex/internal/observability"
-	sessionstate "alex/internal/session/state_store"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/analytics/journal"
+	"alex/internal/infra/memory"
+	"alex/internal/infra/observability"
+	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/shared/logging"
 )
 
 type manager struct {

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestOKRWrite_Create(t *testing.T) {

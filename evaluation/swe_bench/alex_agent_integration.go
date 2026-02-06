@@ -8,12 +8,12 @@ import (
 	"strings"
 	"time"
 
-	agentcoordinator "alex/internal/agent/app/coordinator"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/di"
-	"alex/internal/workflow"
+	agentcoordinator "alex/internal/app/agent/coordinator"
+	"alex/internal/app/di"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/workflow"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // AlexAgent implements the Agent interface using the new hexagonal architecture

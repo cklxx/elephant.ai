@@ -8,10 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	toolports "alex/internal/agent/ports/tools"
-	"alex/internal/tools/builtin/pathutil"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	toolports "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/pathutil"
+	"alex/internal/infra/tools/builtin/shared"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 )

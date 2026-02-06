@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestDouyinHotReturnsKeywords(t *testing.T) {

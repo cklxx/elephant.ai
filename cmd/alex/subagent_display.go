@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"alex/internal/agent/domain"
-	"alex/internal/output"
-	"alex/internal/tools/builtin/orchestration"
+	"alex/internal/delivery/output"
+	"alex/internal/domain/agent"
+	"alex/internal/infra/tools/builtin/orchestration"
 
 	"github.com/charmbracelet/lipgloss"
 )

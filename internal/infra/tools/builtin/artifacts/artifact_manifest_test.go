@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestArtifactManifestRequiresItems(t *testing.T) {

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	ports "alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	toolspolicy "alex/internal/tools"
+	ports "alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	toolspolicy "alex/internal/infra/tools"
 )
 
 // WithPolicy returns a registry wrapper that enforces tool policy rules.

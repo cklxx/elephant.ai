@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	storage "alex/internal/agent/ports/storage"
+	"alex/internal/domain/agent/ports"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 func collectSessionAttachments(session *storage.Session) map[string]ports.Attachment {

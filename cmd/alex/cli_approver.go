@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	tools "alex/internal/agent/ports/tools"
+	tools "alex/internal/domain/agent/ports/tools"
 
 	"golang.org/x/term"
 )

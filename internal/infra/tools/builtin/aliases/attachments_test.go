@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 func TestBuildAttachmentsFromSpecs_AllowsTempDir(t *testing.T) {

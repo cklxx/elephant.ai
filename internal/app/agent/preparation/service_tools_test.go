@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/app/cost"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/agent/presets"
+	appconfig "alex/internal/app/agent/config"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/agent/cost"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/agent/presets"
 )
 
 func TestSelectToolRegistryUsesConfiguredPresetForCoreAgent(t *testing.T) {

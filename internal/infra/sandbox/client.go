@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/httpclient"
+	"alex/internal/infra/httpclient"
 )
 
 const defaultSandboxBaseURL = "http://localhost:18086"

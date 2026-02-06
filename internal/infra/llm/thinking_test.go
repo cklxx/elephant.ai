@@ -3,7 +3,7 @@ package llm
 import (
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestIsArkEndpoint(t *testing.T) {

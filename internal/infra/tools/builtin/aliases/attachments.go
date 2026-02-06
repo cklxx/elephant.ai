@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/tools/builtin/pathutil"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/tools/builtin/pathutil"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type attachmentSpec struct {

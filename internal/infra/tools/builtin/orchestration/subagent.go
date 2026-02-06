@@ -8,14 +8,14 @@ import (
 	"sync"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/async"
-	"alex/internal/tools/builtin/shared"
-	id "alex/internal/utils/id"
-	"alex/internal/workflow"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/domain/workflow"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/async"
+	id "alex/internal/shared/utils/id"
 )
 
 // subagent implements parallel task delegation via the coordinator interface

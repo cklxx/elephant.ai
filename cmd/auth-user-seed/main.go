@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	authadapters "alex/internal/auth/adapters"
-	authcrypto "alex/internal/auth/crypto"
-	authdomain "alex/internal/auth/domain"
-	"alex/internal/config"
+	authdomain "alex/internal/domain/auth"
+	authadapters "alex/internal/infra/auth/adapters"
+	authcrypto "alex/internal/infra/auth/crypto"
+	"alex/internal/shared/config"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )

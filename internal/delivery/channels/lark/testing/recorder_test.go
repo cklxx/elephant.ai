@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	larkgw "alex/internal/channels/lark"
+	larkgw "alex/internal/delivery/channels/lark"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func TestConversationTraceAppendAndEntries(t *testing.T) {
@@ -105,13 +105,13 @@ func TestRecordingEventListenerRecordsEvents(t *testing.T) {
 // testAgentEvent is a minimal AgentEvent implementation for testing.
 type testAgentEvent struct{}
 
-func (e *testAgentEvent) EventType() string            { return "test_event" }
-func (e *testAgentEvent) Timestamp() time.Time         { return time.Now() }
+func (e *testAgentEvent) EventType() string               { return "test_event" }
+func (e *testAgentEvent) Timestamp() time.Time            { return time.Now() }
 func (e *testAgentEvent) GetAgentLevel() agent.AgentLevel { return agent.LevelCore }
-func (e *testAgentEvent) GetSessionID() string         { return "session-1" }
-func (e *testAgentEvent) GetRunID() string             { return "run-1" }
-func (e *testAgentEvent) GetParentRunID() string       { return "" }
-func (e *testAgentEvent) GetCorrelationID() string     { return "" }
-func (e *testAgentEvent) GetCausationID() string       { return "" }
-func (e *testAgentEvent) GetEventID() string           { return "evt-1" }
-func (e *testAgentEvent) GetSeq() uint64               { return 0 }
+func (e *testAgentEvent) GetSessionID() string            { return "session-1" }
+func (e *testAgentEvent) GetRunID() string                { return "run-1" }
+func (e *testAgentEvent) GetParentRunID() string          { return "" }
+func (e *testAgentEvent) GetCorrelationID() string        { return "" }
+func (e *testAgentEvent) GetCausationID() string          { return "" }
+func (e *testAgentEvent) GetEventID() string              { return "evt-1" }
+func (e *testAgentEvent) GetSeq() uint64                  { return 0 }

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	react "alex/internal/agent/domain/react"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/ports/mocks"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/ports/mocks"
+	react "alex/internal/domain/agent/react"
 )
 
 // Example_basicScenario demonstrates basic usage of a mock scenario

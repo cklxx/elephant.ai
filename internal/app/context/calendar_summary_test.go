@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/lark"
+	"alex/internal/infra/lark"
 )
 
 func refTime() time.Time {

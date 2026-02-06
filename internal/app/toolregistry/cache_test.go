@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	ports "alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	ports "alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 // ---------------------------------------------------------------------------

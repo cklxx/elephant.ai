@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // WorkflowEventEnvelope standardizes the streaming contract across backends and frontends.

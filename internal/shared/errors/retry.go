@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"time"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 // RetryConfig configures retry behavior

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	runtimeconfig "alex/internal/config"
-	"alex/internal/llamacpp"
+	"alex/internal/infra/llamacpp"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func (c *CLI) handleLlamaCpp(args []string) error {
@@ -115,4 +115,3 @@ func printLlamaCppUsage(out io.Writer) {
 		}
 	}
 }
-

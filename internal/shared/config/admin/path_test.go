@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestResolveStorePathDefaultsToHomeWhenUnset(t *testing.T) {

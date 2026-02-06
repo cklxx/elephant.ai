@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/logging"
-	"alex/internal/tokenutil"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/logging"
+	"alex/internal/shared/token"
 )
 
 // EstimateTokens counts tokens using tiktoken (cl100k_base).

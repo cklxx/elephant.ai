@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 // Pre-compiled regexes for hot path performance (avoid recompilation per call)

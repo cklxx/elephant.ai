@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/workflow"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/workflow"
 )
 
 const (

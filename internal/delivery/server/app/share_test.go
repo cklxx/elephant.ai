@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	core "alex/internal/agent/ports"
-	storage "alex/internal/agent/ports/storage"
+	core "alex/internal/domain/agent/ports"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 type shareSessionStore struct {

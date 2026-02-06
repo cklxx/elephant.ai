@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	larkgw "alex/internal/channels/lark"
+	larkgw "alex/internal/delivery/channels/lark"
 )
 
 // evaluateAssertions checks all assertions for a turn and returns error messages.

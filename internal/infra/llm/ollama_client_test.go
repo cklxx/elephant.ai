@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
 )
 
 func TestOllamaClientComplete(t *testing.T) {

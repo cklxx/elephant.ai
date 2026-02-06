@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type bgCollect struct {
@@ -20,7 +20,7 @@ func NewBGCollect() *bgCollect {
 	return &bgCollect{
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
-				Name: "bg_collect",
+				Name:        "bg_collect",
 				Description: `Collect full results from background tasks. By default returns immediately with whatever status tasks are in. Set wait=true to block until tasks complete (with optional timeout).`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",

@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	agentdomain "alex/internal/agent/domain"
-	"alex/internal/analytics"
-	"alex/internal/async"
-	"alex/internal/attachments"
-	"alex/internal/channels/lark"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/diagnostics"
-	"alex/internal/logging"
-	"alex/internal/materials"
-	serverApp "alex/internal/server/app"
-	serverHTTP "alex/internal/server/http"
+	"alex/internal/delivery/channels/lark"
+	serverApp "alex/internal/delivery/server/app"
+	serverHTTP "alex/internal/delivery/server/http"
+	agentdomain "alex/internal/domain/agent"
+	"alex/internal/domain/materials"
+	"alex/internal/infra/analytics"
+	"alex/internal/infra/attachments"
+	"alex/internal/infra/diagnostics"
+	"alex/internal/shared/async"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 // RunServer starts the HTTP API server and blocks until a shutdown signal is received.

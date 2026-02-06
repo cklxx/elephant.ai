@@ -9,8 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 func TestHTMLEditValidateOnlyInline(t *testing.T) {

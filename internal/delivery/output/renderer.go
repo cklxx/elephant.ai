@@ -3,8 +3,8 @@ package output
 import (
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/types"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/types"
 )
 
 // OutputTarget represents different output destinations

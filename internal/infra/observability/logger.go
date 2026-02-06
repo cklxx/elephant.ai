@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	id "alex/internal/utils/id"
+	id "alex/internal/shared/utils/id"
 )
 
 // Logger wraps slog for structured logging

@@ -10,16 +10,16 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/domain"
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	agentstorage "alex/internal/agent/ports/storage"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/logging"
-	serverapp "alex/internal/server/app"
-	serverports "alex/internal/server/ports"
-	"alex/internal/session/filestore"
-	sessionstate "alex/internal/session/state_store"
+	serverapp "alex/internal/delivery/server/app"
+	serverports "alex/internal/delivery/server/ports"
+	"alex/internal/domain/agent"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	agentstorage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/session/filestore"
+	sessionstate "alex/internal/infra/session/state_store"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 const (

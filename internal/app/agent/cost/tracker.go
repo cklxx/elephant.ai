@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports/storage"
-	"alex/internal/logging"
+	"alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/logging"
 )
 
 // costTracker implements the CostTracker interface

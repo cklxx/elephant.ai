@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 type fallbackContextKey string

@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/async"
-	"alex/internal/di"
-	"alex/internal/logging"
-	"alex/internal/moltbook"
-	"alex/internal/scheduler"
-	okrtools "alex/internal/tools/builtin/okr"
+	"alex/internal/app/di"
+	"alex/internal/app/scheduler"
+	"alex/internal/infra/moltbook"
+	okrtools "alex/internal/infra/tools/builtin/okr"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 // startScheduler creates and starts the proactive scheduler.

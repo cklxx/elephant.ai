@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	sessionstate "alex/internal/session/state_store"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 // --- Test doubles ---
@@ -117,9 +117,9 @@ func (s *stubAgentExecutor) PreviewContextWindow(ctx context.Context, sessionID 
 
 type spyStateStore struct {
 	sessionstate.Store
-	initCalls    []string
-	clearCalls   []string
-	initErr      error
+	initCalls  []string
+	clearCalls []string
+	initErr    error
 }
 
 func newSpyStateStore() *spyStateStore {

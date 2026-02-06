@@ -3,9 +3,9 @@ package llm
 import (
 	"context"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	"alex/internal/utils"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/shared/utils"
 )
 
 const defaultLlamaCppBaseURL = "http://127.0.0.1:8080/v1"
@@ -76,4 +76,3 @@ func (c *llamaCppClient) fireUsageCallback(resp *ports.CompletionResponse) {
 	}
 	c.usageCallback(resp.Usage, c.Model(), "llama.cpp")
 }
-

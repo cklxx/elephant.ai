@@ -3,8 +3,8 @@ package react
 import (
 	"strings"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func buildSubagentStateSnapshot(state *TaskState, call ToolCall) *agent.TaskState {

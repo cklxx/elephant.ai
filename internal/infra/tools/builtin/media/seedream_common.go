@@ -8,10 +8,10 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/httpclient"
-	"alex/internal/jsonx"
-	"alex/internal/logging"
-	"alex/internal/utils"
+	"alex/internal/infra/httpclient"
+	"alex/internal/shared/json"
+	"alex/internal/shared/logging"
+	"alex/internal/shared/utils"
 
 	"github.com/volcengine/volcengine-go-sdk/service/arkruntime"
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	ports "alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	ports "alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 )

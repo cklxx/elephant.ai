@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/auth/adapters"
-	authapp "alex/internal/auth/app"
-	"alex/internal/auth/domain"
-	"alex/internal/auth/ports"
-	serverhttp "alex/internal/server/http"
+	authapp "alex/internal/app/auth"
+	serverhttp "alex/internal/delivery/server/http"
+	"alex/internal/domain/auth"
+	"alex/internal/domain/auth/ports"
+	"alex/internal/infra/auth/adapters"
 )
 
 type userResponse struct {

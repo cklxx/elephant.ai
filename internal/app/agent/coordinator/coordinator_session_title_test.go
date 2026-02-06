@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 type titleUpdateStore struct {

@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)

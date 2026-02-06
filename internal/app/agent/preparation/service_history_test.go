@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/app/cost"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	llm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
-	tools "alex/internal/agent/ports/tools"
+	appconfig "alex/internal/app/agent/config"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/agent/cost"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	llm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 func TestPrepareInjectsUserHistoryRecall(t *testing.T) {

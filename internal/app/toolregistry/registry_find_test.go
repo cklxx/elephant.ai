@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/memory"
+	"alex/internal/infra/memory"
 )
 
 func TestRegistry_FindToolRegistered(t *testing.T) {

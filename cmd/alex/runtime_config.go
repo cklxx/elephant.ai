@@ -1,8 +1,8 @@
 package main
 
 import (
-	runtimeconfig "alex/internal/config"
-	configadmin "alex/internal/config/admin"
+	runtimeconfig "alex/internal/shared/config"
+	configadmin "alex/internal/shared/config/admin"
 )
 
 func loadRuntimeConfigSnapshot() (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error) {

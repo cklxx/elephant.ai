@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/jsonx"
+	"alex/internal/shared/json"
 )
 
 // FileStore persists snapshots as JSON documents on disk for local dev usage.

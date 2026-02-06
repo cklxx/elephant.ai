@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 type explore struct {
@@ -114,8 +114,8 @@ func (e *explore) Execute(ctx context.Context, call ports.ToolCall) (*ports.Tool
 	}
 
 	delegationCall := ports.ToolCall{
-		ID:        call.ID + ":explore",
-		Name:      "subagent",
+		ID:   call.ID + ":explore",
+		Name: "subagent",
 		Arguments: func() map[string]any {
 			args := map[string]any{"tasks": subtasks}
 			if mode != "" {

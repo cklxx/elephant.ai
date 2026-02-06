@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	alexerrors "alex/internal/errors"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	alexerrors "alex/internal/shared/errors"
 	"github.com/stretchr/testify/require"
 )
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 // ErrSessionNotFound indicates a session lookup failed.

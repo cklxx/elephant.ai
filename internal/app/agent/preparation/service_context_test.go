@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	"alex/internal/agent/app/cost"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
+	appconfig "alex/internal/app/agent/config"
+	"alex/internal/app/agent/cost"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 func TestPrepareSeedsPlanBeliefAndKnowledgeRefs(t *testing.T) {

@@ -1,6 +1,6 @@
 package ports
 
-import agent "alex/internal/agent/ports/agent"
+import agent "alex/internal/domain/agent/ports/agent"
 
 // SSEBroadcaster manages client connections and broadcasts events
 type SSEBroadcaster interface {

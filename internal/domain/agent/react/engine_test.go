@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/agent/ports/mocks"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/domain/agent/ports/mocks"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 func TestReactEngine_SolveTask_SingleIteration(t *testing.T) {
@@ -54,7 +54,7 @@ func TestReactEngine_SolveTask_SingleIteration(t *testing.T) {
 	}
 }
 
-func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
+func TestReactEngine_AppendsContextPreloadAfterUserInput(t *testing.T) {
 	mockLLM := &mocks.MockLLMClient{
 		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 			return &ports.CompletionResponse{Content: "Done.", StopReason: "stop"}, nil
@@ -72,7 +72,7 @@ func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
 		SystemPrompt: "Follow the user objective.",
 		Messages: []ports.Message{
 			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},
-			{Role: "assistant", Content: "Context loader output", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-abc"}},
+			{Role: "assistant", Content: "Context loader output", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"context_preload": true, "context_preload_task_id": "task-abc"}},
 		},
 	}
 
@@ -81,32 +81,32 @@ func TestReactEngine_AppendsRAGContextAfterUserInput(t *testing.T) {
 	}
 
 	userIdx := -1
-	ragIdx := -1
+	contextIdx := -1
 	for idx, msg := range state.Messages {
 		if msg.Source == ports.MessageSourceUserInput && msg.Content == "analyze repo" {
 			userIdx = idx
 		}
 		if msg.Metadata != nil {
-			if flagged, ok := msg.Metadata["rag_preload"].(bool); ok && flagged {
-				ragIdx = idx
+			if flagged, ok := msg.Metadata["context_preload"].(bool); ok && flagged {
+				contextIdx = idx
 			}
 		}
 	}
 	if userIdx == -1 {
 		t.Fatalf("expected user input message to be recorded: %+v", state.Messages)
 	}
-	if ragIdx == -1 {
+	if contextIdx == -1 {
 		t.Fatalf("expected preloaded message to remain present: %+v", state.Messages)
 	}
-	if ragIdx >= userIdx {
-		t.Fatalf("expected preloaded context to remain before user input, userIdx=%d ragIdx=%d", userIdx, ragIdx)
+	if contextIdx >= userIdx {
+		t.Fatalf("expected preloaded context to remain before user input, userIdx=%d contextIdx=%d", userIdx, contextIdx)
 	}
 	if state.Messages[0].Source != ports.MessageSourceSystemPrompt {
 		t.Fatalf("expected system prompt to remain first, got source %q", state.Messages[0].Source)
 	}
 }
 
-func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
+func TestReactEngine_PreservesHistoricalContextPreload(t *testing.T) {
 	mockLLM := &mocks.MockLLMClient{
 		CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 			return &ports.CompletionResponse{Content: "Done.", StopReason: "stop"}, nil
@@ -125,9 +125,9 @@ func TestReactEngine_PreservesHistoricalPreloadedContext(t *testing.T) {
 		Messages: []ports.Message{
 			{Role: "system", Content: "History", Source: ports.MessageSourceUserHistory},
 			{Role: "user", Content: "previous question", Source: ports.MessageSourceUserInput},
-			{Role: "assistant", Content: "old context", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-old"}},
-			{Role: "assistant", Content: "fresh context 1", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-def"}},
-			{Role: "assistant", Content: "fresh context 2", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"rag_preload": true, "rag_preload_task_id": "task-def"}},
+			{Role: "assistant", Content: "old context", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"context_preload": true, "context_preload_task_id": "task-old"}},
+			{Role: "assistant", Content: "fresh context 1", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"context_preload": true, "context_preload_task_id": "task-def"}},
+			{Role: "assistant", Content: "fresh context 2", Source: ports.MessageSourceToolResult, Metadata: map[string]any{"context_preload": true, "context_preload_task_id": "task-def"}},
 		},
 	}
 

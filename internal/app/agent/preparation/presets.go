@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"alex/internal/agent/presets"
+	"alex/internal/shared/agent/presets"
 )
 
 // SetEnvironmentSummary updates the environment summary used when preparing prompts.

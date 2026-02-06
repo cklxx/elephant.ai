@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	id "alex/internal/utils/id"
+	id "alex/internal/shared/utils/id"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -151,8 +151,8 @@ const (
 // Common attribute keys
 const (
 	AttrSessionID    = "alex.session_id"
-	AttrRunID       = "alex.run_id"
-	AttrParentRunID = "alex.parent_run_id"
+	AttrRunID        = "alex.run_id"
+	AttrParentRunID  = "alex.parent_run_id"
 	AttrToolName     = "alex.tool_name"
 	AttrModel        = "alex.llm.model"
 	AttrTokenCount   = "alex.llm.token_count"

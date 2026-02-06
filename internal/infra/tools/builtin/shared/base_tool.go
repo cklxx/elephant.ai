@@ -1,6 +1,6 @@
 package shared
 
-import "alex/internal/agent/ports"
+import "alex/internal/domain/agent/ports"
 
 // BaseTool provides default Definition() and Metadata() implementations.
 // Tool structs embed BaseTool to avoid repeating these two getter methods.

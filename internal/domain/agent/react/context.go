@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/textutil"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/agent/textutil"
 )
 
 // snapshotSummaryFromMessages builds a short textual digest of the message

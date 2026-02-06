@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	tmr "alex/internal/timer"
-	"alex/internal/tools/builtin/shared"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
+	tmr "alex/internal/shared/timer"
+	id "alex/internal/shared/utils/id"
 )
 
 type listTimers struct {

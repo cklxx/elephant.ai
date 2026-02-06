@@ -1,6 +1,6 @@
 package main
 
-import runtimeconfig "alex/internal/config"
+import runtimeconfig "alex/internal/shared/config"
 
 type appConfig = runtimeconfig.RuntimeConfig
 

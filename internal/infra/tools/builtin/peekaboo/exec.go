@@ -14,15 +14,15 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 const (
-	defaultTimeoutSeconds  = 120
-	defaultMaxAttachments  = 8
-	tempDirPrefix          = "alex-peekaboo-"
+	defaultTimeoutSeconds   = 120
+	defaultMaxAttachments   = 8
+	tempDirPrefix           = "alex-peekaboo-"
 	peekabooInstallHintBrew = "brew install steipete/tap/peekaboo"
 )
 

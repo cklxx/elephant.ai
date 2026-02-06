@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"alex/internal/config"
+	"alex/internal/shared/config"
 )
 
 // AppsConfigHandler serves internal apps configuration APIs.

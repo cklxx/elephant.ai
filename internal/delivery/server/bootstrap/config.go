@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/presets"
-	"alex/internal/attachments"
-	"alex/internal/channels"
-	runtimeconfig "alex/internal/config"
-	configadmin "alex/internal/config/admin"
+	"alex/internal/delivery/channels"
+	"alex/internal/infra/attachments"
+	"alex/internal/shared/agent/presets"
+	runtimeconfig "alex/internal/shared/config"
+	configadmin "alex/internal/shared/config/admin"
 )
 
 // Config holds server configuration.

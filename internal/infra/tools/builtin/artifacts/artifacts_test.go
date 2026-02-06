@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 func TestArtifactsWriteAddsOrUpdatesAttachments(t *testing.T) {

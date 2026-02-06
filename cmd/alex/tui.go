@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"alex/internal/output"
+	"alex/internal/delivery/output"
 )
 
 // RunNativeChatUI starts the interactive chat UI using native line-mode.

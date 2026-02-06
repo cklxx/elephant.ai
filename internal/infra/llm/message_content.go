@@ -3,7 +3,7 @@ package llm
 import (
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func shouldEmbedAttachmentsInContent(msg ports.Message) bool {

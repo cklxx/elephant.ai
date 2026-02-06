@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	runtimeconfig "alex/internal/config"
-	configadmin "alex/internal/config/admin"
+	runtimeconfig "alex/internal/shared/config"
+	configadmin "alex/internal/shared/config/admin"
 )
 
 func TestLoadConfigDefaultTemperatureUsesPresetButNotMarkedSet(t *testing.T) {

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/analytics/journal"
-	sessionstate "alex/internal/session/state_store"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/analytics/journal"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 func (m *manager) Preload(ctx context.Context) error {

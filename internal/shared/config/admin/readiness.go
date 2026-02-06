@@ -3,7 +3,7 @@ package admin
 import (
 	"strings"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // TaskSeverity indicates the urgency of a readiness task.

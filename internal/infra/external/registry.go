@@ -6,11 +6,11 @@ import (
 	"strings"
 	"sync"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/config"
-	"alex/internal/external/claudecode"
-	"alex/internal/external/codex"
-	"alex/internal/logging"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/external/claudecode"
+	"alex/internal/infra/external/codex"
+	"alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 // Registry routes external agent requests to the appropriate executor.

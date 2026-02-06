@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	"alex/internal/memory"
-	id "alex/internal/utils/id"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/infra/memory"
+	id "alex/internal/shared/utils/id"
 )
 
 type stubLLMClient struct {

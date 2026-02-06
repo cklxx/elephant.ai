@@ -3,7 +3,7 @@ package agent
 import (
 	"context"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 type taskStateSnapshotKey struct{}

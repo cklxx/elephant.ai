@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tools "alex/internal/agent/ports/tools"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 func TestCLIApproverApproveAll(t *testing.T) {

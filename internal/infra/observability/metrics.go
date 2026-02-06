@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"alex/internal/async"
-	"alex/internal/logging"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 
 	promclient "github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"

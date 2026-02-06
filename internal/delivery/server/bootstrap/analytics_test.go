@@ -3,7 +3,7 @@ package bootstrap
 import (
 	"testing"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestBuildAnalyticsClient_NoKeyUsesNoop(t *testing.T) {

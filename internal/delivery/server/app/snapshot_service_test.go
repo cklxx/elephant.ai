@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/analytics/journal"
-	sessionstate "alex/internal/session/state_store"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/analytics/journal"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 // ── test doubles ──

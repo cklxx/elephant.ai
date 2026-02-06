@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	appcontext "alex/internal/agent/app/context"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/subscription"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/subscription"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestApplyPinnedCLILLMSelectionAttachesResolvedSelection(t *testing.T) {

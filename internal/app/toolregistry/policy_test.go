@@ -4,8 +4,8 @@ import (
 	"slices"
 	"testing"
 
-	ports "alex/internal/agent/ports"
-	toolspolicy "alex/internal/tools"
+	ports "alex/internal/domain/agent/ports"
+	toolspolicy "alex/internal/infra/tools"
 )
 
 func TestPolicyAwareRegistry_DeniesByName(t *testing.T) {

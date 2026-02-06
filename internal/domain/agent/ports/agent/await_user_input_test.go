@@ -3,7 +3,7 @@ package agent
 import (
 	"testing"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 func TestExtractAwaitUserInputQuestion(t *testing.T) {

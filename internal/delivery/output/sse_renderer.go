@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/presentation/formatter"
-	"alex/internal/agent/types"
+	"alex/internal/delivery/presentation/formatter"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/types"
 )
 
 // SSERenderer renders output for SSE (Server-Sent Events) streaming
@@ -43,14 +43,14 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 		Type:      "workflow.tool.started",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"tool":           toolName,
-			"args":           args,
-			"category":       string(CategorizeToolName(toolName)),
-			"level":          string(ctx.Level),
-			"agent_id":       ctx.AgentID,
-			"session_id":     ctx.SessionID,
-			"run_id":         ctx.TaskID,
-			"parent_run_id":  ctx.ParentTaskID,
+			"tool":          toolName,
+			"args":          args,
+			"category":      string(CategorizeToolName(toolName)),
+			"level":         string(ctx.Level),
+			"agent_id":      ctx.AgentID,
+			"session_id":    ctx.SessionID,
+			"run_id":        ctx.TaskID,
+			"parent_run_id": ctx.ParentTaskID,
 		},
 	}
 
@@ -67,14 +67,14 @@ func (r *SSERenderer) RenderToolCallStart(ctx *types.OutputContext, toolName str
 // RenderToolCallComplete renders tool call completion as SSE event with hierarchy
 func (r *SSERenderer) RenderToolCallComplete(ctx *types.OutputContext, toolName string, result string, err error, duration time.Duration) string {
 	data := map[string]interface{}{
-		"tool":           toolName,
-		"category":       string(CategorizeToolName(toolName)),
-		"duration":       duration.Milliseconds(),
-		"level":          string(ctx.Level),
-		"agent_id":       ctx.AgentID,
-		"session_id":     ctx.SessionID,
-		"run_id":         ctx.TaskID,
-		"parent_run_id":  ctx.ParentTaskID,
+		"tool":          toolName,
+		"category":      string(CategorizeToolName(toolName)),
+		"duration":      duration.Milliseconds(),
+		"level":         string(ctx.Level),
+		"agent_id":      ctx.AgentID,
+		"session_id":    ctx.SessionID,
+		"run_id":        ctx.TaskID,
+		"parent_run_id": ctx.ParentTaskID,
 	}
 
 	if err != nil {
@@ -97,15 +97,15 @@ func (r *SSERenderer) RenderTaskComplete(ctx *types.OutputContext, result *domai
 		Type:      "workflow.result.final",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"answer":         result.Answer,
-			"iterations":     result.Iterations,
-			"tokens":         result.TokensUsed,
-			"stop_reason":    result.StopReason,
-			"level":          string(ctx.Level),
-			"agent_id":       ctx.AgentID,
-			"session_id":     ctx.SessionID,
-			"run_id":         ctx.TaskID,
-			"parent_run_id":  ctx.ParentTaskID,
+			"answer":        result.Answer,
+			"iterations":    result.Iterations,
+			"tokens":        result.TokensUsed,
+			"stop_reason":   result.StopReason,
+			"level":         string(ctx.Level),
+			"agent_id":      ctx.AgentID,
+			"session_id":    ctx.SessionID,
+			"run_id":        ctx.TaskID,
+			"parent_run_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -117,13 +117,13 @@ func (r *SSERenderer) RenderError(ctx *types.OutputContext, phase string, err er
 		Type:      "workflow.node.failed",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"phase":          phase,
-			"error":          err.Error(),
-			"level":          string(ctx.Level),
-			"agent_id":       ctx.AgentID,
-			"session_id":     ctx.SessionID,
-			"run_id":         ctx.TaskID,
-			"parent_run_id":  ctx.ParentTaskID,
+			"phase":         phase,
+			"error":         err.Error(),
+			"level":         string(ctx.Level),
+			"agent_id":      ctx.AgentID,
+			"session_id":    ctx.SessionID,
+			"run_id":        ctx.TaskID,
+			"parent_run_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -135,14 +135,14 @@ func (r *SSERenderer) RenderSubagentProgress(ctx *types.OutputContext, completed
 		Type:      "workflow.subflow.progress",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"completed":      completed,
-			"total":          total,
-			"tokens":         tokens,
-			"tool_calls":     toolCalls,
-			"agent_id":       ctx.AgentID,
-			"session_id":     ctx.SessionID,
-			"run_id":         ctx.TaskID,
-			"parent_run_id":  ctx.ParentTaskID,
+			"completed":     completed,
+			"total":         total,
+			"tokens":        tokens,
+			"tool_calls":    toolCalls,
+			"agent_id":      ctx.AgentID,
+			"session_id":    ctx.SessionID,
+			"run_id":        ctx.TaskID,
+			"parent_run_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)
@@ -154,15 +154,15 @@ func (r *SSERenderer) RenderSubagentComplete(ctx *types.OutputContext, total, su
 		Type:      "workflow.subflow.completed",
 		Timestamp: time.Now(),
 		Data: map[string]interface{}{
-			"total":          total,
-			"success":        success,
-			"failed":         failed,
-			"tokens":         tokens,
-			"tool_calls":     toolCalls,
-			"agent_id":       ctx.AgentID,
-			"session_id":     ctx.SessionID,
-			"run_id":         ctx.TaskID,
-			"parent_run_id":  ctx.ParentTaskID,
+			"total":         total,
+			"success":       success,
+			"failed":        failed,
+			"tokens":        tokens,
+			"tool_calls":    toolCalls,
+			"agent_id":      ctx.AgentID,
+			"session_id":    ctx.SessionID,
+			"run_id":        ctx.TaskID,
+			"parent_run_id": ctx.ParentTaskID,
 		},
 	}
 	return r.toSSE(sseEvent)

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	agent "alex/internal/agent/ports/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func TestParseSOPRef(t *testing.T) {
@@ -290,7 +290,7 @@ func TestBuildKnowledgeSectionRendersResolvedContent(t *testing.T) {
 		ResolvedSOPContent: map[string]string{
 			"docs/ref/sop.md#section-one": "## Section One\n\nResolved content here.",
 		},
-		MemoryKeys:     []string{"key1"},
+		MemoryKeys: []string{"key1"},
 	}}
 
 	section := buildKnowledgeSection(refs)

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 func TestRunStagesFailsOnRequired(t *testing.T) {

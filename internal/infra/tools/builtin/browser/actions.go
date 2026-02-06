@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
 
 	"github.com/chromedp/cdproto/input"
 	"github.com/chromedp/chromedp"

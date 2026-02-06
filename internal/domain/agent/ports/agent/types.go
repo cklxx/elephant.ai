@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	core "alex/internal/agent/ports"
-	"alex/internal/agent/ports/llm"
-	"alex/internal/agent/ports/storage"
-	"alex/internal/agent/ports/tools"
-	"alex/internal/workflow"
+	core "alex/internal/domain/agent/ports"
+	"alex/internal/domain/agent/ports/llm"
+	"alex/internal/domain/agent/ports/storage"
+	"alex/internal/domain/agent/ports/tools"
+	"alex/internal/domain/workflow"
 )
 
 // ServiceBundle contains all dependencies required by the domain engine.

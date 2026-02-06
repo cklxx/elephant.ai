@@ -9,7 +9,7 @@ import (
 	"time"
 
 	agent_eval "alex/evaluation/agent_eval"
-	"alex/internal/utils"
+	"alex/internal/shared/utils"
 )
 
 // EvaluationService runs and tracks agent evaluation jobs for the web surface.

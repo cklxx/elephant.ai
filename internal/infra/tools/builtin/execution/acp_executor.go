@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/acp"
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/logging"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/acp"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/logging"
 )
 
 type ACPExecutorConfig struct {

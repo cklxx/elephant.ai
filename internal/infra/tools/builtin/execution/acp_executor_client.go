@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/acp"
-	jsonrpc "alex/internal/mcp"
+	"alex/internal/infra/acp"
+	jsonrpc "alex/internal/infra/mcp"
 )
 
 const (

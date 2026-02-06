@@ -1,13 +1,13 @@
 package http
 
 import (
-	runtimeconfig "alex/internal/config"
-	"alex/internal/logging"
-	"alex/internal/memory"
-	"alex/internal/observability"
-	"alex/internal/sandbox"
-	"alex/internal/server/app"
-	"alex/internal/subscription"
+	"alex/internal/app/subscription"
+	"alex/internal/delivery/server/app"
+	"alex/internal/infra/memory"
+	"alex/internal/infra/observability"
+	"alex/internal/infra/sandbox"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 const (

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 func (e *ReactEngine) normalizeToolResult(tc ToolCall, state *TaskState, result ToolResult) ToolResult {

@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	"alex/internal/httpclient"
-	"alex/internal/jsonx"
-	"alex/internal/logging"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/infra/httpclient"
+	"alex/internal/shared/json"
+	"alex/internal/shared/logging"
 )
 
 var _ portsllm.StreamingLLMClient = (*ollamaClient)(nil)

@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 type toolCallParsingClient struct {

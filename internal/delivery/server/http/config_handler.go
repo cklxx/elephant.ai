@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	runtimeconfig "alex/internal/config"
-	configadmin "alex/internal/config/admin"
-	"alex/internal/httpclient"
-	"alex/internal/logging"
-	"alex/internal/subscription"
+	"alex/internal/app/subscription"
+	"alex/internal/infra/httpclient"
+	runtimeconfig "alex/internal/shared/config"
+	configadmin "alex/internal/shared/config/admin"
+	"alex/internal/shared/logging"
 )
 
 // RuntimeConfigResolver resolves the latest runtime configuration snapshot.

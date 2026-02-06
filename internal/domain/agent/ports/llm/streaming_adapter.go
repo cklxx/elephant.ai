@@ -3,7 +3,7 @@ package llm
 import (
 	"context"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 // streamingAdapter wraps an LLMClient that lacks native streaming support and

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/logging"
-	"alex/internal/tools/builtin/okr"
+	"alex/internal/infra/tools/builtin/okr"
+	"alex/internal/shared/logging"
 )
 
 // OKRContextConfig configures the OKR context injection hook.
@@ -17,9 +17,9 @@ type OKRContextConfig struct {
 
 // OKRContextHook scans active goals and injects OKR context before task execution.
 type OKRContextHook struct {
-	store   *okr.GoalStore
-	config  OKRContextConfig
-	logger  logging.Logger
+	store  *okr.GoalStore
+	config OKRContextConfig
+	logger logging.Logger
 }
 
 // NewOKRContextHook creates a new OKR context injection hook.

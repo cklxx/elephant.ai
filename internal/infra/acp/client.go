@@ -16,11 +16,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/async"
-	alexerrors "alex/internal/errors"
-	"alex/internal/logging"
-	jsonrpc "alex/internal/mcp"
-	"alex/internal/utils/id"
+	jsonrpc "alex/internal/infra/mcp"
+	"alex/internal/shared/async"
+	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/logging"
+	"alex/internal/shared/utils/id"
 )
 
 // NotificationHandler handles ACP notifications and requests.

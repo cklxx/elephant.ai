@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/attachments"
+	"alex/internal/infra/attachments"
 )
 
 func TestParseAttachmentsPreservesInlineBase64ForImages(t *testing.T) {

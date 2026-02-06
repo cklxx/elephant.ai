@@ -6,12 +6,12 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	llm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/utils/clilatency"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	llm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/utils/clilatency"
+	id "alex/internal/shared/utils/id"
 )
 
 func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, session *storage.Session, task string) (*agent.TaskAnalysis, bool) {

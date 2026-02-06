@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 	"gopkg.in/yaml.v3"
 )
 

@@ -25,7 +25,6 @@ require (
 	github.com/minio/minio-go/v7 v7.0.73
 	github.com/muesli/termenv v0.16.0
 	github.com/peterh/liner v1.2.2
-	github.com/philippgille/chromem-go v0.7.0
 	github.com/pkoukk/tiktoken-go v0.1.8
 	github.com/posthog/posthog-go v1.6.12
 	github.com/prometheus/client_golang v1.23.2

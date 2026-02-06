@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // mockCoordinator records calls to ExecuteTask.

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the

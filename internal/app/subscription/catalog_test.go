@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestParseModelListHandlesDataObjects(t *testing.T) {

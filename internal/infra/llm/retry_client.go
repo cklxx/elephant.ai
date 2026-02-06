@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	alexerrors "alex/internal/errors"
-	"alex/internal/logging"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	alexerrors "alex/internal/shared/errors"
+	"alex/internal/shared/logging"
 )
 
 // retryClient wraps an LLM client with retry logic and circuit breaker

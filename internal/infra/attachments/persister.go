@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // inlineRetentionLimit is the maximum decoded payload size (bytes) for which

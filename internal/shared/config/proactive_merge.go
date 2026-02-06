@@ -26,9 +26,6 @@ func mergeProactiveConfig(target *ProactiveConfig, file *ProactiveFileConfig) {
 	if file.Skills != nil {
 		mergeSkillsConfig(&target.Skills, file.Skills)
 	}
-	if file.RAG != nil {
-		mergeRAGConfig(&target.RAG, file.RAG)
-	}
 	if file.OKR != nil {
 		mergeOKRConfig(&target.OKR, file.OKR)
 	}
@@ -142,30 +139,6 @@ func mergeFinalAnswerReviewConfig(target *FinalAnswerReviewConfig, file *FinalAn
 	}
 }
 
-func mergeRAGConfig(target *RAGConfig, file *RAGFileConfig) {
-	if target == nil || file == nil {
-		return
-	}
-	if file.Enabled != nil {
-		target.Enabled = *file.Enabled
-	}
-	if strings.TrimSpace(file.PersistDir) != "" {
-		target.PersistDir = strings.TrimSpace(file.PersistDir)
-	}
-	if strings.TrimSpace(file.Collection) != "" {
-		target.Collection = strings.TrimSpace(file.Collection)
-	}
-	if file.MinSimilarity != nil {
-		target.MinSimilarity = *file.MinSimilarity
-	}
-	if strings.TrimSpace(file.EmbedderModel) != "" {
-		target.EmbedderModel = strings.TrimSpace(file.EmbedderModel)
-	}
-	if strings.TrimSpace(file.EmbedderBaseURL) != "" {
-		target.EmbedderBaseURL = strings.TrimSpace(file.EmbedderBaseURL)
-	}
-}
-
 func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if target == nil || file == nil {
 		return
@@ -255,12 +228,6 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 		if file.Skills.Feedback != nil {
 			file.Skills.Feedback.StorePath = expandEnvValue(lookup, file.Skills.Feedback.StorePath)
 		}
-	}
-	if file.RAG != nil {
-		file.RAG.PersistDir = expandEnvValue(lookup, file.RAG.PersistDir)
-		file.RAG.Collection = expandEnvValue(lookup, file.RAG.Collection)
-		file.RAG.EmbedderModel = expandEnvValue(lookup, file.RAG.EmbedderModel)
-		file.RAG.EmbedderBaseURL = expandEnvValue(lookup, file.RAG.EmbedderBaseURL)
 	}
 	if file.Memory != nil && file.Memory.Index != nil {
 		file.Memory.Index.DBPath = expandEnvValue(lookup, file.Memory.Index.DBPath)

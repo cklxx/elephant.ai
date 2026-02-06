@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	alexerrors "alex/internal/errors"
+	alexerrors "alex/internal/shared/errors"
 )
 
 // HealthState represents the health status of a provider.
@@ -26,20 +26,20 @@ type LatencyStats struct {
 
 // ProviderHealth is a point-in-time snapshot of a provider's health.
 type ProviderHealth struct {
-	Provider     string      `json:"provider"`
-	Model        string      `json:"model"`
-	State        HealthState `json:"state"`
-	LastError    string      `json:"last_error,omitempty"`
-	FailureCount int         `json:"failure_count"`
-	LastChecked  time.Time   `json:"last_checked"`
+	Provider     string       `json:"provider"`
+	Model        string       `json:"model"`
+	State        HealthState  `json:"state"`
+	LastError    string       `json:"last_error,omitempty"`
+	FailureCount int          `json:"failure_count"`
+	LastChecked  time.Time    `json:"last_checked"`
 	Latency      LatencyStats `json:"latency"`
 }
 
 const (
-	latencyWindowSize      = 100
-	errorRateWindowSize    = 100
-	errorRateHealthy       = 0.05 // < 5%
-	errorRateDegraded      = 0.20 // 5-20%
+	latencyWindowSize   = 100
+	errorRateWindowSize = 100
+	errorRateHealthy    = 0.05 // < 5%
+	errorRateDegraded   = 0.20 // 5-20%
 )
 
 // providerEntry stores per-provider tracking state.
@@ -50,15 +50,15 @@ type providerEntry struct {
 
 	// Latency ring buffer (last latencyWindowSize measurements).
 	latencies [latencyWindowSize]time.Duration
-	latCount  int  // total recorded (used to determine fill level)
-	latIdx    int  // next write index
+	latCount  int // total recorded (used to determine fill level)
+	latIdx    int // next write index
 
 	// Error rate tracking (rolling window of success/failure outcomes).
 	outcomes     [errorRateWindowSize]bool // true = error
 	outcomeCount int
 	outcomeIdx   int
 
-	lastError   string
+	lastError    string
 	failureCount int
 }
 

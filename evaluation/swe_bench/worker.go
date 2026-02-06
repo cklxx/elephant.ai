@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/async"
+	"alex/internal/shared/async"
 )
 
 // WorkerPoolImpl implements the WorkerPool interface

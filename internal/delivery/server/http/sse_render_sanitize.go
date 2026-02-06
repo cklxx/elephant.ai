@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"time"
 
-	"alex/internal/workflow"
+	"alex/internal/domain/workflow"
 )
 
 func sanitizeWorkflowNode(node workflow.NodeSnapshot) map[string]interface{} {

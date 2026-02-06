@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"alex/internal/agent/domain"
+	"alex/internal/domain/agent"
 )
 
 func deriveFeedbackValue(result ToolResult) float64 {

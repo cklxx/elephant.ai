@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"time"
 
-	"alex/internal/attachments"
-	authapp "alex/internal/auth/app"
-	"alex/internal/memory"
-	"alex/internal/observability"
-	"alex/internal/server/app"
+	authapp "alex/internal/app/auth"
+	"alex/internal/delivery/server/app"
+	"alex/internal/infra/attachments"
+	"alex/internal/infra/memory"
+	"alex/internal/infra/observability"
 )
 
 // RouterDeps holds all service dependencies needed to construct the HTTP router.

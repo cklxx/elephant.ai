@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestMusicPlayUsesRequestQuery(t *testing.T) {

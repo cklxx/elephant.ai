@@ -1,11 +1,11 @@
 package di
 
 import (
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 	"time"
 
-	"alex/internal/agent/presets"
-	"alex/internal/toolregistry"
+	"alex/internal/app/toolregistry"
+	"alex/internal/shared/agent/presets"
 )
 
 // ConfigFromRuntimeConfig maps the shared RuntimeConfig into the dependency

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	id "alex/internal/utils/id"
+	agent "alex/internal/domain/agent/ports/agent"
+	id "alex/internal/shared/utils/id"
 )
 
 type permissionRelay struct {

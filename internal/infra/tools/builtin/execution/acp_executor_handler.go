@@ -11,14 +11,14 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/acp"
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	"alex/internal/logging"
-	jsonrpc "alex/internal/mcp"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/infra/acp"
+	jsonrpc "alex/internal/infra/mcp"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/logging"
 )
 
 type executorToolState struct {

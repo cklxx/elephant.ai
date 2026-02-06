@@ -6,11 +6,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/ports/storage"
-	"alex/internal/agent/types"
-	"alex/internal/workflow"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/ports/storage"
+	"alex/internal/domain/agent/types"
+	"alex/internal/domain/workflow"
 )
 
 // Re-export the event listener contract defined at the port layer.

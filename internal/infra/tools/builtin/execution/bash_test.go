@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 func TestBashExecuteSuccess(t *testing.T) {

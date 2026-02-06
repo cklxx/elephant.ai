@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	agentports "alex/internal/agent/ports"
-	"alex/internal/agent/types"
-	serverPorts "alex/internal/server/ports"
-	"alex/internal/subscription"
-	id "alex/internal/utils/id"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/subscription"
+	serverPorts "alex/internal/delivery/server/ports"
+	agentports "alex/internal/domain/agent/ports"
+	"alex/internal/domain/agent/types"
+	id "alex/internal/shared/utils/id"
 )
 
 const (

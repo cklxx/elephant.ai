@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/testutil"
+	"alex/internal/shared/testutil"
 )
 
 func TestPostgresStore_CrossInstanceSnapshotAccess(t *testing.T) {

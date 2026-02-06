@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestAntigravityClientBuildsGeminiPayload(t *testing.T) {

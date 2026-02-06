@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestBuildImportantNotesMessageFormatsChronologically(t *testing.T) {

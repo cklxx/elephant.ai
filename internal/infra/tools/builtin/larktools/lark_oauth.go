@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	larkapi "alex/internal/lark"
-	larkoauth "alex/internal/lark/oauth"
-	"alex/internal/tools/builtin/shared"
-	"alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	larkapi "alex/internal/infra/lark"
+	larkoauth "alex/internal/infra/lark/oauth"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/utils/id"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"

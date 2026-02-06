@@ -5,8 +5,8 @@ import (
 	nethttp "net/http"
 	"strings"
 
-	larkoauth "alex/internal/lark/oauth"
-	"alex/internal/logging"
+	larkoauth "alex/internal/infra/lark/oauth"
+	"alex/internal/shared/logging"
 )
 
 type LarkOAuthHandler struct {

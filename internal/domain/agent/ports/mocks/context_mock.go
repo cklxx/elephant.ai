@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/ports"
-	"alex/internal/agent/ports/storage"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/ports/storage"
 )
 
 type MockContextManager struct {

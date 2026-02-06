@@ -6,12 +6,12 @@ import (
 	"sync"
 	"time"
 
-	ports "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/channels"
-	larkgw "alex/internal/channels/lark"
-	"alex/internal/logging"
+	"alex/internal/delivery/channels"
+	larkgw "alex/internal/delivery/channels/lark"
+	ports "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/logging"
 )
 
 // TurnResult captures the outcome of a single scenario turn.

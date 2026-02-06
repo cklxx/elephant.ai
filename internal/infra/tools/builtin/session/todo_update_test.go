@@ -1,7 +1,7 @@
 package session
 
 import (
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 	"context"
 	"errors"
 	"io/fs"
@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/infra/tools/builtin/shared"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

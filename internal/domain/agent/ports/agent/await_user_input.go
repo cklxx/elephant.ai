@@ -3,7 +3,7 @@ package agent
 import (
 	"strings"
 
-	core "alex/internal/agent/ports"
+	core "alex/internal/domain/agent/ports"
 )
 
 const (

@@ -3,7 +3,7 @@ package browser
 import (
 	"time"
 
-	tools "alex/internal/agent/ports/tools"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 // Config configures local browser tooling.

@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"alex/internal/utils/id"
+	"alex/internal/shared/utils/id"
 )
 
 // TimerType distinguishes one-shot from recurring timers.

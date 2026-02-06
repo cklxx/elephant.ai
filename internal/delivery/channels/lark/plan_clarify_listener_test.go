@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 )
 
 func TestPlanClarifyListenerPlanMessage(t *testing.T) {

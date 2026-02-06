@@ -7,10 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/config"
-	"alex/internal/logging"
-	"alex/internal/schedulerapi"
-	"alex/internal/tools/builtin/okr"
+	"alex/internal/delivery/schedulerapi"
+	"alex/internal/infra/tools/builtin/okr"
+	"alex/internal/shared/config"
+	"alex/internal/shared/logging"
 
 	"github.com/robfig/cron/v3"
 )

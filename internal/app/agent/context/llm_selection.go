@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 
-	"alex/internal/subscription"
+	"alex/internal/app/subscription"
 )
 
 type llmSelectionKey struct{}

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func checkpointFromState(state *TaskState, pending []ToolCallState, idGenerator agent.IDGenerator) *Checkpoint {

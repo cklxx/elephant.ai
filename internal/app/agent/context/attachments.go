@@ -3,7 +3,7 @@ package context
 import (
 	"context"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 type userAttachmentsKey struct{}

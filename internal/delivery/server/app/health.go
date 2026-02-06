@@ -4,8 +4,8 @@ import (
 	"context"
 	"sync"
 
-	"alex/internal/di"
-	"alex/internal/server/ports"
+	"alex/internal/app/di"
+	"alex/internal/delivery/server/ports"
 )
 
 // HealthCheckerImpl aggregates health probes for all components

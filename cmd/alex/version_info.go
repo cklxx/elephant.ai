@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"alex/internal/config"
+	"alex/internal/shared/config"
 )
 
 var (

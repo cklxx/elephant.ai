@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/logging"
-	"alex/internal/mcp"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/mcp"
+	"alex/internal/shared/logging"
 )
 
 // Config configures the Codex executor.

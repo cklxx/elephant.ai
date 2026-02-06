@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"alex/internal/coding"
-	"alex/internal/external/claudecode"
+	"alex/internal/infra/coding"
+	"alex/internal/infra/external/claudecode"
 )
 
 // ClaudeCodeAdapter wraps the Claude Code executor.

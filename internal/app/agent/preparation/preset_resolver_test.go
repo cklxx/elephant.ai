@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/agent/presets"
-	id "alex/internal/utils/id"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/shared/agent/presets"
+	id "alex/internal/shared/utils/id"
 )
 
 func TestPresetResolver_ResolveToolRegistry_DefaultBehavior(t *testing.T) {

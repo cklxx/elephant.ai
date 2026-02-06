@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	llm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
+	"alex/internal/domain/agent/ports"
+	llm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 // mockLLMClient implements llm.LLMClient for testing

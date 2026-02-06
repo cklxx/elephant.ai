@@ -9,14 +9,14 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	llm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
-	tools "alex/internal/agent/ports/tools"
-	id "alex/internal/utils/id"
-	"alex/internal/workflow"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	llm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/domain/workflow"
+	id "alex/internal/shared/utils/id"
 )
 
 type stubEvent struct{}

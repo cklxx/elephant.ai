@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/types"
+	"alex/internal/domain/agent/types"
 )
 
 func decodeSSEPayload(t *testing.T, raw string) SSEEvent {

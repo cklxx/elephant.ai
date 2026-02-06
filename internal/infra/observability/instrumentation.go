@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	llm "alex/internal/agent/ports/llm"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	llm "alex/internal/domain/agent/ports/llm"
+	tools "alex/internal/domain/agent/ports/tools"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"

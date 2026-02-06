@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	authapp "alex/internal/auth/app"
-	authdomain "alex/internal/auth/domain"
+	authapp "alex/internal/app/auth"
+	authdomain "alex/internal/domain/auth"
 )
 
 // AuthMiddleware enforces bearer token authentication on protected routes.

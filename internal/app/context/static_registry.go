@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/logging"
-	"alex/internal/observability"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/observability"
+	"alex/internal/shared/logging"
 	"gopkg.in/yaml.v3"
 )
 

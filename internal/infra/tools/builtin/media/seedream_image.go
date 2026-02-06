@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/jsonx"
-	"alex/internal/tools/builtin/shared"
-	"alex/internal/logging"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/json"
+	"alex/internal/shared/logging"
 
 	arkm "github.com/volcengine/volcengine-go-sdk/service/arkruntime/model"
 	"github.com/volcengine/volcengine-go-sdk/volcengine"

@@ -1,6 +1,6 @@
 package react
 
-import "alex/internal/agent/ports"
+import "alex/internal/domain/agent/ports"
 
 type attachmentMutations struct {
 	replace map[string]ports.Attachment

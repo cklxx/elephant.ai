@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/di"
-	"alex/internal/server/ports"
+	"alex/internal/app/di"
+	"alex/internal/delivery/server/ports"
 )
 
 func TestHealthChecker(t *testing.T) {

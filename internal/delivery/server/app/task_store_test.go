@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	serverPorts "alex/internal/server/ports"
-	id "alex/internal/utils/id"
+	serverPorts "alex/internal/delivery/server/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	id "alex/internal/shared/utils/id"
 )
 
 func TestInMemoryTaskStore_Create(t *testing.T) {

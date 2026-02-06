@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 // Config represents the MCP configuration file structure

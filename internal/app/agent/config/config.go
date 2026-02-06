@@ -3,8 +3,8 @@ package config
 import (
 	"time"
 
-	runtimeconfig "alex/internal/config"
-	toolspolicy "alex/internal/tools"
+	toolspolicy "alex/internal/infra/tools"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // Config captures runtime defaults for coordinator execution and preparation.

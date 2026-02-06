@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	tools "alex/internal/agent/ports/tools"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 // RequireApproval enforces manual approval for shadow agent execution.

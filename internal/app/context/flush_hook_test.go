@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestMemoryFlushHook_ExtractsKeyInfo(t *testing.T) {

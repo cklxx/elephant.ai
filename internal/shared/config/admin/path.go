@@ -1,7 +1,7 @@
 package admin
 
 import (
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // ResolveStorePath determines the managed override store path for the current environment.

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/channels"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/subscription"
-	"alex/internal/tools/builtin/shared"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/subscription"
+	"alex/internal/delivery/channels"
+	"alex/internal/infra/tools/builtin/shared"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func (g *Gateway) applyPinnedLarkLLMSelection(ctx context.Context, msg *incomingMessage) context.Context {

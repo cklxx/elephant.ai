@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 var attachmentPlaceholderPattern = regexp.MustCompile(`\[([^\[\]]+)\]`)

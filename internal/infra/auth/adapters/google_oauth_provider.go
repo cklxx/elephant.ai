@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/auth/domain"
-	"alex/internal/auth/ports"
-	"alex/internal/httpclient"
+	"alex/internal/domain/auth"
+	"alex/internal/domain/auth/ports"
+	"alex/internal/infra/httpclient"
 )
 
 type GoogleOAuthConfig struct {

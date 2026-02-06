@@ -3,9 +3,9 @@ package agent
 import (
 	"context"
 
-	"alex/internal/agent/ports/llm"
-	"alex/internal/agent/ports/storage"
-	"alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports/llm"
+	"alex/internal/domain/agent/ports/storage"
+	"alex/internal/domain/agent/ports/tools"
 )
 
 // AgentCoordinator represents the main agent coordinator for subagent delegation.

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/async"
-	"alex/internal/logging"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 // MCP Protocol version

@@ -11,10 +11,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/tools/builtin/orchestration"
-	"alex/internal/utils/id"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/tools/builtin/orchestration"
+	"alex/internal/shared/utils/id"
 )
 
 func TestHandleSubtaskEventTracksProgress(t *testing.T) {

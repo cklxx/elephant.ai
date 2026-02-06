@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/logging"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/logging"
 )
 
 // MCPClient defines the interface for calling MCP tools

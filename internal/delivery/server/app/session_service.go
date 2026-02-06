@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/logging"
-	sessionstate "alex/internal/session/state_store"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	storage "alex/internal/domain/agent/ports/storage"
+	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 )
 
 // SessionService handles session CRUD and share token operations.

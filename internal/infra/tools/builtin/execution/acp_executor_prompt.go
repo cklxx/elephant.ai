@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	tools "alex/internal/domain/agent/ports/tools"
 
 	"gopkg.in/yaml.v3"
 )

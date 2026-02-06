@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
+	appconfig "alex/internal/app/agent/config"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 type stubHistoryManager struct {

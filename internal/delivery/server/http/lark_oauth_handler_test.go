@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	larkoauth "alex/internal/lark/oauth"
-	"alex/internal/logging"
+	larkoauth "alex/internal/infra/lark/oauth"
+	"alex/internal/shared/logging"
 )
 
 func TestLarkOAuthHandler_StartRedirects(t *testing.T) {

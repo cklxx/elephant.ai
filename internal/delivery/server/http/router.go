@@ -5,11 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/attachments"
-	"alex/internal/auth/domain"
-	"alex/internal/config"
-	"alex/internal/logging"
-	"alex/internal/sandbox"
+	"alex/internal/domain/auth"
+	"alex/internal/infra/attachments"
+	"alex/internal/infra/sandbox"
+	"alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 // NewRouter creates a new HTTP router with all endpoints.

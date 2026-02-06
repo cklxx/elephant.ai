@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	agentcoordinator "alex/internal/agent/app/coordinator"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/analytics"
-	"alex/internal/analytics/journal"
-	"alex/internal/observability"
-	serverPorts "alex/internal/server/ports"
-	sessionstate "alex/internal/session/state_store"
+	agentcoordinator "alex/internal/app/agent/coordinator"
+	serverPorts "alex/internal/delivery/server/ports"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/analytics"
+	"alex/internal/infra/analytics/journal"
+	"alex/internal/infra/observability"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 // AgentExecutor defines the interface for agent task execution
@@ -37,7 +37,10 @@ type ServerCoordinator struct {
 
 	// cancelFuncs is exposed for test access (TestNoCancelFunctionLeak).
 	cancelFuncs map[string]context.CancelCauseFunc
-	cancelMu    interface{ RLock(); RUnlock() }
+	cancelMu    interface {
+		RLock()
+		RUnlock()
+	}
 }
 
 // ContextSnapshotRecord captures a snapshot of the messages sent to the LLM.

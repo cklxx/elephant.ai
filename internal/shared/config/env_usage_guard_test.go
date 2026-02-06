@@ -16,8 +16,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 	allowed := newStringSet(t,
 		"cmd/auth-user-seed/main.go",
 		"cmd/alex-server/main.go",
-		"internal/rag/embedder_test.go",
-		"internal/utils/logger.go",
+		"internal/shared/utils/logger.go",
 	)
 
 	skipDirs := map[string]struct{}{
@@ -51,7 +50,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		if rel == "internal/config/env_usage_guard_test.go" {
+		if rel == "internal/shared/config/env_usage_guard_test.go" {
 			return nil
 		}
 		data, err := os.ReadFile(path)
@@ -72,7 +71,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 	}
 
 	if len(violations) > 0 {
-		t.Fatalf("os.Getenv usage is restricted to config-managed code; add allowlist entry or migrate to internal/config loader: %s", strings.Join(violations, ", "))
+		t.Fatalf("os.Getenv usage is restricted to config-managed code; add allowlist entry or migrate to internal/shared/config loader: %s", strings.Join(violations, ", "))
 	}
 }
 

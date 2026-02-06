@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/sandbox"
+	"alex/internal/infra/sandbox"
 )
 
 func TestParseSandboxAttachmentSpecs(t *testing.T) {

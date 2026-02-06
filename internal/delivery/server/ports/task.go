@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // TaskStatus represents the state of a task
@@ -31,17 +31,17 @@ const (
 
 // Task represents a task execution
 type Task struct {
-	ID                string                 `json:"task_id"`
-	SessionID         string                 `json:"session_id"`
-	ParentTaskID      string                 `json:"parent_task_id,omitempty"`
-	Status            TaskStatus             `json:"status"`
-	Description       string                 `json:"task"`
-	CreatedAt         time.Time              `json:"created_at"`
-	StartedAt         *time.Time             `json:"started_at,omitempty"`
-	CompletedAt       *time.Time             `json:"completed_at,omitempty"`
-	Error             string                 `json:"error,omitempty"`
+	ID                string            `json:"task_id"`
+	SessionID         string            `json:"session_id"`
+	ParentTaskID      string            `json:"parent_task_id,omitempty"`
+	Status            TaskStatus        `json:"status"`
+	Description       string            `json:"task"`
+	CreatedAt         time.Time         `json:"created_at"`
+	StartedAt         *time.Time        `json:"started_at,omitempty"`
+	CompletedAt       *time.Time        `json:"completed_at,omitempty"`
+	Error             string            `json:"error,omitempty"`
 	Result            *agent.TaskResult `json:"result,omitempty"`
-	TerminationReason TerminationReason      `json:"termination_reason,omitempty"`
+	TerminationReason TerminationReason `json:"termination_reason,omitempty"`
 
 	// Progress tracking
 	CurrentIteration int `json:"current_iteration"` // Current iteration during execution (no omitempty - always show)

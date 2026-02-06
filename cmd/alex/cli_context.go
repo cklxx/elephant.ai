@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	id "alex/internal/utils/id"
+	id "alex/internal/shared/utils/id"
 )
 
 var (

@@ -3,7 +3,7 @@ package shared
 import (
 	"context"
 
-	id "alex/internal/utils/id"
+	id "alex/internal/shared/utils/id"
 )
 
 // WithSessionID adds a session ID to the context using the shared SessionContextKey

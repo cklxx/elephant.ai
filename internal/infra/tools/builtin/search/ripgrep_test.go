@@ -1,8 +1,8 @@
 package search
 
 import (
-	"alex/internal/agent/ports"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/tools/builtin/shared"
 	"context"
 	"strings"
 	"testing"

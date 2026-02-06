@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/memory"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/memory"
 )
 
 func TestLoadMemorySnapshotIncludesLongTermAndDaily(t *testing.T) {

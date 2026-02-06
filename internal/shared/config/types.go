@@ -3,7 +3,7 @@ package config
 import (
 	"time"
 
-	toolspolicy "alex/internal/tools"
+	toolspolicy "alex/internal/infra/tools"
 )
 
 // ValueSource describes where a configuration value originated from.
@@ -194,7 +194,6 @@ type ProactiveConfig struct {
 	Enabled           bool                    `json:"enabled" yaml:"enabled"`
 	Memory            MemoryConfig            `json:"memory" yaml:"memory"`
 	Skills            SkillsConfig            `json:"skills" yaml:"skills"`
-	RAG               RAGConfig               `json:"rag" yaml:"rag"`
 	OKR               OKRProactiveConfig      `json:"okr" yaml:"okr"`
 	Scheduler         SchedulerConfig         `json:"scheduler" yaml:"scheduler"`
 	Timer             TimerConfig             `json:"timer" yaml:"timer"`
@@ -244,16 +243,6 @@ type SkillsAutoActivationConfig struct {
 type SkillsFeedbackConfig struct {
 	Enabled   bool   `json:"enabled" yaml:"enabled"`
 	StorePath string `json:"store_path" yaml:"store_path"`
-}
-
-// RAGConfig configures standalone RAG behavior.
-type RAGConfig struct {
-	Enabled         bool    `json:"enabled" yaml:"enabled"`
-	PersistDir      string  `json:"persist_dir" yaml:"persist_dir"`
-	Collection      string  `json:"collection" yaml:"collection"`
-	MinSimilarity   float64 `json:"min_similarity" yaml:"min_similarity"`
-	EmbedderModel   string  `json:"embedder_model" yaml:"embedder_model"`
-	EmbedderBaseURL string  `json:"embedder_base_url" yaml:"embedder_base_url"`
 }
 
 // SchedulerConfig configures time-based proactive triggers.
@@ -342,10 +331,6 @@ func DefaultProactiveConfig() ProactiveConfig {
 				Enabled: false,
 			},
 			CacheTTLSeconds: 300,
-		},
-		RAG: RAGConfig{
-			Enabled:       false,
-			MinSimilarity: 0.7,
 		},
 		OKR: OKRProactiveConfig{
 			Enabled:    true,

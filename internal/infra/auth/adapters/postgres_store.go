@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"alex/internal/auth/domain"
+	"alex/internal/domain/auth"
 )
 
 type PostgresUserRepo struct {

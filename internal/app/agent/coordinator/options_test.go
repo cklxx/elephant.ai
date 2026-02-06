@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	"alex/internal/agent/app/cost"
-	"alex/internal/llm"
+	appconfig "alex/internal/app/agent/config"
+	"alex/internal/app/agent/cost"
+	"alex/internal/infra/llm"
 )
 
 // Mock logger for testing

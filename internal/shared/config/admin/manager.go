@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 // Manager coordinates cached access to configuration overrides and propagates updates.

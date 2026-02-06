@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/config"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/config"
 )
 
 func TestAppsToolListAndShow(t *testing.T) {

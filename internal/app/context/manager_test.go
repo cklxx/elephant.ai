@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/analytics/journal"
-	sessionstate "alex/internal/session/state_store"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/analytics/journal"
+	sessionstate "alex/internal/infra/session/state_store"
 )
 
 func TestSelectWorldPrefersExplicitKey(t *testing.T) {
@@ -634,7 +634,7 @@ cost_model:
 
 func resolveDefaultConfigRoot(t *testing.T) string {
 	t.Helper()
-	root := filepath.Clean(filepath.Join("..", "..", "configs", "context"))
+	root := filepath.Clean(filepath.Join("..", "..", "..", "configs", "context"))
 	if _, err := os.Stat(root); err != nil {
 		t.Fatalf("default context root missing: %v", err)
 	}

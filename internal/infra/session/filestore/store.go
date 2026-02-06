@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/jsonx"
-	"alex/internal/logging"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	storage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/shared/json"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 )
 
 type store struct {

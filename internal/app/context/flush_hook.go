@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // FlushBeforeCompactionHook is called before context compression to allow

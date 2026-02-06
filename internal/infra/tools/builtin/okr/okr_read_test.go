@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestOKRRead_ListEmpty(t *testing.T) {

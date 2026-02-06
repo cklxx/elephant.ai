@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/async"
+	"alex/internal/shared/async"
 )
 
 // ProgressReporterImpl implements the ProgressReporter interface

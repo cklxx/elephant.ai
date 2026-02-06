@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestNewLlamaCppClientDefaultBaseURL(t *testing.T) {
@@ -81,4 +81,3 @@ func TestLlamaCppClientUsageCallbackProvider(t *testing.T) {
 		t.Fatalf("unexpected provider: %q", gotProvider)
 	}
 }
-

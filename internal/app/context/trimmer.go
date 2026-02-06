@@ -1,8 +1,8 @@
 package context
 
 import (
-	"alex/internal/agent/ports"
-	"alex/internal/tokenutil"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/token"
 )
 
 // ModelCostProfile captures per-model pricing and context-window limits used for
@@ -17,8 +17,8 @@ type ModelCostProfile struct {
 // DefaultModelProfiles provides cost profiles for commonly used models. Prices
 // are expressed as USD per 1 000 input/output tokens.
 var DefaultModelProfiles = map[string]ModelCostProfile{
-	"gpt-4":          {Name: "gpt-4", InputCostPer1K: 0.03, OutputCostPer1K: 0.06, ContextWindow: 8192},
-	"gpt-3.5-turbo":  {Name: "gpt-3.5-turbo", InputCostPer1K: 0.0005, OutputCostPer1K: 0.0015, ContextWindow: 16384},
+	"gpt-4":           {Name: "gpt-4", InputCostPer1K: 0.03, OutputCostPer1K: 0.06, ContextWindow: 8192},
+	"gpt-3.5-turbo":   {Name: "gpt-3.5-turbo", InputCostPer1K: 0.0005, OutputCostPer1K: 0.0015, ContextWindow: 16384},
 	"claude-3-opus":   {Name: "claude-3-opus", InputCostPer1K: 0.015, OutputCostPer1K: 0.075, ContextWindow: 200000},
 	"claude-3-sonnet": {Name: "claude-3-sonnet", InputCostPer1K: 0.003, OutputCostPer1K: 0.015, ContextWindow: 200000},
 	"deepseek-chat":   {Name: "deepseek-chat", InputCostPer1K: 0.0014, OutputCostPer1K: 0.0028, ContextWindow: 128000},

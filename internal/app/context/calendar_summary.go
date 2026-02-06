@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/lark"
+	"alex/internal/infra/lark"
 )
 
 const calendarSummaryMaxChars = 500

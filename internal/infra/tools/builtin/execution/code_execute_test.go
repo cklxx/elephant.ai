@@ -3,8 +3,8 @@
 package execution
 
 import (
-	"alex/internal/agent/ports"
-	"alex/internal/tools/builtin/pathutil"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/tools/builtin/pathutil"
 	"context"
 	"encoding/base64"
 	"fmt"

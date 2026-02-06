@@ -3,9 +3,9 @@ package bootstrap
 import (
 	"strings"
 
-	"alex/internal/analytics"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/logging"
+	"alex/internal/infra/analytics"
+	runtimeconfig "alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 func BuildAnalyticsClient(cfg runtimeconfig.AnalyticsConfig, logger logging.Logger) (analytics.Client, func()) {

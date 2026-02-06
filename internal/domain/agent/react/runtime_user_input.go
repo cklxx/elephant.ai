@@ -1,7 +1,7 @@
 package react
 
 import (
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // injectUserInput drains the user input channel and appends each message as a

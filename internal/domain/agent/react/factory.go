@@ -1,8 +1,8 @@
 package react
 
 import (
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 // NewReactEngine creates a new ReAct engine with injected infrastructure dependencies.

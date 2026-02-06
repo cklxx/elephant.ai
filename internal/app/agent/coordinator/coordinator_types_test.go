@@ -7,16 +7,16 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	portsllm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
-	tools "alex/internal/agent/ports/tools"
-	runtimeconfig "alex/internal/config"
-	"alex/internal/llm"
-	id "alex/internal/utils/id"
+	appconfig "alex/internal/app/agent/config"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/llm"
+	runtimeconfig "alex/internal/shared/config"
+	id "alex/internal/shared/utils/id"
 )
 
 type stubSessionStore struct {

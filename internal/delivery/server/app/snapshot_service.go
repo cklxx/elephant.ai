@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/analytics/journal"
-	"alex/internal/logging"
-	sessionstate "alex/internal/session/state_store"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/analytics/journal"
+	sessionstate "alex/internal/infra/session/state_store"
+	"alex/internal/shared/logging"
 )
 
 // SnapshotService handles snapshot listing, retrieval, replay, and context

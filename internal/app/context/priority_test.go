@@ -3,7 +3,7 @@ package context
 import (
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // simpleTokenEstimator counts words as a rough token proxy (test-only).
@@ -247,11 +247,11 @@ func TestSelectTopN_PreservesChronologicalOrder(t *testing.T) {
 func TestSelectTopN_PrefersHigherPriority(t *testing.T) {
 	ranker := NewMessageRanker(nil)
 	messages := []ports.Message{
-		{Role: "system", Content: "x", Source: ports.MessageSourceDebug},                 // low priority
-		{Role: "system", Content: "x", Source: ports.MessageSourceSystemPrompt},          // high priority
-		{Role: "system", Content: "x", Source: ports.MessageSourceImportant},             // high priority
-		{Role: "user", Content: "x", Source: ports.MessageSourceUserInput},               // medium
-		{Role: "assistant", Content: "x", Source: ports.MessageSourceAssistantReply},     // medium-low
+		{Role: "system", Content: "x", Source: ports.MessageSourceDebug},                  // low priority
+		{Role: "system", Content: "x", Source: ports.MessageSourceSystemPrompt},           // high priority
+		{Role: "system", Content: "x", Source: ports.MessageSourceImportant},              // high priority
+		{Role: "user", Content: "x", Source: ports.MessageSourceUserInput},                // medium
+		{Role: "assistant", Content: "x", Source: ports.MessageSourceAssistantReply},      // medium-low
 		{Role: "system", Content: "x extra words here", Source: ports.MessageSourceDebug}, // low priority, more tokens
 	}
 	ranked := ranker.RankMessages(messages)
@@ -364,7 +364,7 @@ func TestSelectTopN_SkipsLargeMessages(t *testing.T) {
 	ranker := NewMessageRanker(nil)
 	messages := []ports.Message{
 		{Role: "system", Content: "a b c d e f g h i j", Source: ports.MessageSourceSystemPrompt}, // 10 tokens
-		{Role: "user", Content: "x", Source: ports.MessageSourceUserInput},                         // 1 token
+		{Role: "user", Content: "x", Source: ports.MessageSourceUserInput},                        // 1 token
 	}
 	ranked := ranker.RankMessages(messages)
 

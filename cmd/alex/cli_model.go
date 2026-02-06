@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	runtimeconfig "alex/internal/config"
-	"alex/internal/subscription"
+	"alex/internal/app/subscription"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func (c *CLI) handleModel(args []string) error {

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"alex/internal/logging"
-	"alex/internal/observability"
+	"alex/internal/infra/observability"
+	"alex/internal/shared/logging"
 )
 
 // InitObservability best-effort initializes observability and returns a cleanup hook.

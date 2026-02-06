@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/types"
-	"alex/internal/presentation/formatter"
+	"alex/internal/delivery/presentation/formatter"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/types"
 
 	"github.com/charmbracelet/lipgloss"
 )

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/config"
-	"alex/internal/tools/builtin/okr"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/tools/builtin/okr"
+	"alex/internal/shared/config"
 )
 
 // mockCoordinator records calls to ExecuteTask.

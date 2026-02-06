@@ -6,7 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"alex/internal/agent/types"
+	"alex/internal/domain/agent/types"
 
 	"github.com/charmbracelet/lipgloss"
 )

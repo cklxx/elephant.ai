@@ -1,7 +1,7 @@
 package mocks
 
 import (
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 type MockParser struct {

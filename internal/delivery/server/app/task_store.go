@@ -7,15 +7,15 @@ import (
 	"sync"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/server/ports"
-	id "alex/internal/utils/id"
+	"alex/internal/delivery/server/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	id "alex/internal/shared/utils/id"
 )
 
 const (
-	defaultTaskRetention   = 24 * time.Hour
-	defaultMaxTasks        = 10000
-	defaultEvictInterval   = 5 * time.Minute
+	defaultTaskRetention = 24 * time.Hour
+	defaultMaxTasks      = 10000
+	defaultEvictInterval = 5 * time.Minute
 )
 
 // InMemoryTaskStore implements TaskStore with in-memory storage and TTL-based

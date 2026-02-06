@@ -3,12 +3,12 @@ package preparation
 import (
 	"context"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/agent/presets"
-	id "alex/internal/utils/id"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/shared/agent/presets"
+	id "alex/internal/shared/utils/id"
 )
 
 // PresetResolver handles preset resolution for both agent and tool presets.

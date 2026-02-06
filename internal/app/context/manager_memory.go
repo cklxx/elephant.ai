@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	storage "alex/internal/agent/ports/storage"
-	id "alex/internal/utils/id"
+	storage "alex/internal/domain/agent/ports/storage"
+	id "alex/internal/shared/utils/id"
 )
 
 const (

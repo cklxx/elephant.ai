@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // snapshotAttachments clones the attachment store and returns per-attachment

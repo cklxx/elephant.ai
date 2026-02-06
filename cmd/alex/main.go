@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func main() {

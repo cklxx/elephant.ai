@@ -5,8 +5,8 @@ import (
 	"sort"
 	"sync"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/logging"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
 )
 
 // InjectionType classifies the kind of content being injected into context.

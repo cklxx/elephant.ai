@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func sanitizeAttachmentsForStream(attachments map[string]ports.Attachment, sent *stringLRU, cache *DataCache, forceInclude bool) map[string]ports.Attachment {

@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
 )
 
 func ensureWorldStateMap(state *TaskState) {

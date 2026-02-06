@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/jsonx"
-	"alex/internal/utils"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {

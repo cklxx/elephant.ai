@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	agent "alex/internal/agent/ports/agent"
-	id "alex/internal/utils/id"
+	appcontext "alex/internal/app/agent/context"
+	agent "alex/internal/domain/agent/ports/agent"
+	id "alex/internal/shared/utils/id"
 )
 
 // BaseConfig holds the config fields shared by every channel gateway.

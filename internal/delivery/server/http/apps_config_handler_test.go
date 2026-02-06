@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"alex/internal/config"
+	"alex/internal/shared/config"
 )
 
 func TestAppsConfigHandlerGet(t *testing.T) {

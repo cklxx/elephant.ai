@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/auth/domain"
+	"alex/internal/domain/auth"
 )
 
 // NewMemoryStores creates repositories backed by in-memory maps.

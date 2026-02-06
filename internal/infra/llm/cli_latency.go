@@ -1,7 +1,7 @@
 package llm
 
 import (
-	"alex/internal/utils/clilatency"
+	"alex/internal/shared/utils/clilatency"
 )
 
 func logCLILatencyf(format string, args ...any) {

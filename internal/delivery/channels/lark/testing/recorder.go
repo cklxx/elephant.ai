@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	larkgw "alex/internal/channels/lark"
+	larkgw "alex/internal/delivery/channels/lark"
+	agent "alex/internal/domain/agent/ports/agent"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 

@@ -4,11 +4,11 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/attachments"
-	"alex/internal/config"
-	"alex/internal/httpclient"
-	"alex/internal/logging"
-	"alex/internal/materials"
+	"alex/internal/domain/materials"
+	"alex/internal/infra/attachments"
+	"alex/internal/infra/httpclient"
+	"alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 // BuildAttachmentStoreMigrator creates a migrator that persists inline attachments.

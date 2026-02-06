@@ -1,6 +1,6 @@
 package app
 
-import agent "alex/internal/agent/ports/agent"
+import agent "alex/internal/domain/agent/ports/agent"
 
 // MultiEventListener fans out events to multiple listeners.
 type MultiEventListener struct {

@@ -3,9 +3,9 @@ package shared
 import (
 	"context"
 
-	agent "alex/internal/agent/ports/agent"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/backup"
+	agent "alex/internal/domain/agent/ports/agent"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/backup"
 )
 
 // Context keys for tool dependencies

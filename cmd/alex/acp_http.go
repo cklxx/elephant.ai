@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/async"
-	"alex/internal/logging"
-	jsonrpc "alex/internal/mcp"
+	jsonrpc "alex/internal/infra/mcp"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 type acpHTTPServer struct {

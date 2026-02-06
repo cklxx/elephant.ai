@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/tools/builtin/execution"
-	"alex/internal/tools/builtin/pathutil"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/tools/builtin/execution"
+	"alex/internal/infra/tools/builtin/pathutil"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 func TestExecuteCodeInlineUsesSystemTempDir(t *testing.T) {

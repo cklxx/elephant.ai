@@ -1,6 +1,6 @@
 package react
 
-import "alex/internal/agent/ports"
+import "alex/internal/domain/agent/ports"
 
 // splitMessagesForLLM separates messages that are safe for the model from
 // system-only entries (e.g., attachment catalogs) while deep-cloning them.

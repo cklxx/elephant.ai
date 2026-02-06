@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 )
 
 // finalAnswerReviewReactionListener reacts to the original inbound Lark message
@@ -85,4 +85,3 @@ func (l *finalAnswerReviewReactionListener) maybeReact(event agent.AgentEvent) {
 		l.gateway.addReaction(ctx, l.messageID, l.emojiType)
 	}()
 }
-

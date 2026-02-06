@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/agent/ports/mocks"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/domain/agent/ports/mocks"
 )
 
 func TestReactEngine_FileReadScenario(t *testing.T) {

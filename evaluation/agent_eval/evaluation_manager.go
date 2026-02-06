@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"alex/internal/async"
+	"alex/internal/shared/async"
 
 	"alex/evaluation/swe_bench"
 )

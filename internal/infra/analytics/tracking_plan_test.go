@@ -22,7 +22,7 @@ func TestTrackingPlanMatchesImplementedEvents(t *testing.T) {
 		t.Fatalf("failed to determine working directory: %v", err)
 	}
 
-	repoRoot := filepath.Clean(filepath.Join(wd, "..", ".."))
+	repoRoot := filepath.Clean(filepath.Join(wd, "..", "..", ".."))
 
 	planPath := filepath.Join(repoRoot, "docs", "analytics", "tracking-plan.yaml")
 	planData, err := os.ReadFile(planPath)

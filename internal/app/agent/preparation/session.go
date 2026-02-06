@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	appcontext "alex/internal/agent/app/context"
-	storage "alex/internal/agent/ports/storage"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/agent/presets"
-	toolspolicy "alex/internal/tools"
+	appcontext "alex/internal/app/agent/context"
+	storage "alex/internal/domain/agent/ports/storage"
+	tools "alex/internal/domain/agent/ports/tools"
+	toolspolicy "alex/internal/infra/tools"
+	"alex/internal/shared/agent/presets"
 )
 
 func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string) (*storage.Session, error) {

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	id "alex/internal/utils/id"
+	id "alex/internal/shared/utils/id"
 )
 
 func stringParam(m map[string]any, key string) string {

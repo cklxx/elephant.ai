@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/async"
-	"alex/internal/logging"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 // CircuitState represents the state of a circuit breaker

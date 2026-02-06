@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/server/app"
+	"alex/internal/delivery/server/app"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 // mapDomainError translates a domain/service error into an HTTP status code

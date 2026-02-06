@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/channels"
+	"alex/internal/delivery/channels"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 func TestGatewayInjectUserInput_AcksWithReactionOnSuccess(t *testing.T) {
@@ -77,4 +77,3 @@ func TestGatewayInjectUserInput_NoAckWhenChannelFull(t *testing.T) {
 		t.Fatalf("expected no reactions when injection is dropped, got %d", len(reactions))
 	}
 }
-

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	tmr "alex/internal/timer"
-	"alex/internal/tools/builtin/shared"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/tools/builtin/shared"
+	tmr "alex/internal/shared/timer"
+	id "alex/internal/shared/utils/id"
 )
 
 func newTestManager(t *testing.T) *tmr.TimerManager {

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/coding"
-	"alex/internal/logging"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/coding"
+	"alex/internal/shared/logging"
 )
 
 // Agent coordinates shadow agent execution with mandatory approvals.

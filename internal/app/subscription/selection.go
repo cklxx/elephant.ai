@@ -3,7 +3,7 @@ package subscription
 import (
 	"strings"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 type Selection struct {

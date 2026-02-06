@@ -1,11 +1,11 @@
 package coordinator
 
 import (
-	"alex/internal/agent/app/cost"
-	"alex/internal/agent/app/hooks"
-	"alex/internal/agent/app/preparation"
-	react "alex/internal/agent/domain/react"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/app/agent/cost"
+	"alex/internal/app/agent/hooks"
+	"alex/internal/app/agent/preparation"
+	agent "alex/internal/domain/agent/ports/agent"
+	react "alex/internal/domain/agent/react"
 )
 
 // CoordinatorOption configures optional dependencies for the agent coordinator.

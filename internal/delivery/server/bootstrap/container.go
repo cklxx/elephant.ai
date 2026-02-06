@@ -5,9 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/presets"
-	"alex/internal/di"
-	"alex/internal/toolregistry"
+	"alex/internal/app/di"
+	"alex/internal/app/toolregistry"
+	"alex/internal/shared/agent/presets"
 )
 
 // BuildContainer wires the shared DI container using the server runtime configuration.

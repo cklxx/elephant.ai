@@ -12,7 +12,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	jsonrpc "alex/internal/mcp"
+	jsonrpc "alex/internal/infra/mcp"
 )
 
 type rpcConn struct {

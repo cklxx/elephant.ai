@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/agent/ports"
-	"alex/internal/memory"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/memory"
+	id "alex/internal/shared/utils/id"
 )
 
 func TestMemorySearchRequiresUserID(t *testing.T) {

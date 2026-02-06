@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	ports "alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	alexerrors "alex/internal/errors"
-	toolspolicy "alex/internal/tools"
+	ports "alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	toolspolicy "alex/internal/infra/tools"
+	alexerrors "alex/internal/shared/errors"
 )
 
 type retryStubTool struct {

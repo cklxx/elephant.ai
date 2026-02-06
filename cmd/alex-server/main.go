@@ -4,8 +4,8 @@ import (
 	"log"
 	"os"
 
-	runtimeconfig "alex/internal/config"
-	serverBootstrap "alex/internal/server/bootstrap"
+	serverBootstrap "alex/internal/delivery/server/bootstrap"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func main() {

@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	agentstorage "alex/internal/agent/ports/storage"
+	agentstorage "alex/internal/domain/agent/ports/storage"
 )
 
 // fileCostStore implements CostStore using file-based storage

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	core "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	core "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 )
 
 const (

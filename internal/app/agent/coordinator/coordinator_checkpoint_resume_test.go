@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	appconfig "alex/internal/agent/app/config"
-	react "alex/internal/agent/domain/react"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/ports/mocks"
-	tools "alex/internal/agent/ports/tools"
+	appconfig "alex/internal/app/agent/config"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/ports/mocks"
+	tools "alex/internal/domain/agent/ports/tools"
+	react "alex/internal/domain/agent/react"
 )
 
 func TestCoordinatorResumeFromCheckpoint(t *testing.T) {

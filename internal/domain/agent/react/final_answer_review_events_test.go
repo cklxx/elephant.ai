@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	"alex/internal/agent/ports/mocks"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/domain/agent/ports/mocks"
 )
 
 type recordingListener struct {
@@ -108,4 +108,3 @@ func TestReactEngine_FinalAnswerReview_DoesNotEmitToolEventsWithoutTools(t *test
 		}
 	}
 }
-

@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/memory"
-	"alex/internal/tools/builtin/shared"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/memory"
+	"alex/internal/infra/tools/builtin/shared"
+	id "alex/internal/shared/utils/id"
 )
 
 type uiPlan struct {

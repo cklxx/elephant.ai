@@ -3,8 +3,8 @@ package logging
 import (
 	"context"
 
-	"alex/internal/utils"
-	"alex/internal/utils/id"
+	"alex/internal/shared/utils"
+	"alex/internal/shared/utils/id"
 )
 
 type logIDCapable interface {

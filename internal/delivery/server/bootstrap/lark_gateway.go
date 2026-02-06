@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/presets"
-	"alex/internal/async"
-	"alex/internal/channels/lark"
-	"alex/internal/di"
-	larkoauth "alex/internal/lark/oauth"
-	"alex/internal/logging"
-	serverApp "alex/internal/server/app"
-	"alex/internal/toolregistry"
+	"alex/internal/app/di"
+	"alex/internal/app/toolregistry"
+	"alex/internal/delivery/channels/lark"
+	serverApp "alex/internal/delivery/server/app"
+	larkoauth "alex/internal/infra/lark/oauth"
+	"alex/internal/shared/agent/presets"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger, broadcaster *serverApp.EventBroadcaster) (func(), error) {

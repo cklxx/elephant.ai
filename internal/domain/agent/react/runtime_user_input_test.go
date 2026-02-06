@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
 
 	"github.com/stretchr/testify/require"
 )

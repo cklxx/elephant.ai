@@ -3,8 +3,8 @@ package llm
 import (
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/jsonx"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/json"
 )
 
 func parseResponsesOutput(resp responsesResponse) (string, []ports.ToolCall, ports.Thinking) {

@@ -11,11 +11,11 @@ import (
 	"time"
 	"unicode"
 
-	"alex/internal/agent/ports"
-	"alex/internal/attachments"
-	"alex/internal/httpclient"
-	"alex/internal/logging"
-	materialports "alex/internal/materials/ports"
+	"alex/internal/domain/agent/ports"
+	materialports "alex/internal/domain/materials/ports"
+	"alex/internal/infra/attachments"
+	"alex/internal/infra/httpclient"
+	"alex/internal/shared/logging"
 )
 
 type AttachmentStorer interface {

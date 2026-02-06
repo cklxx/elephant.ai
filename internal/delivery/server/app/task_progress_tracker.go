@@ -4,12 +4,12 @@ import (
 	"context"
 	"sync"
 
-	"alex/internal/agent/domain"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	"alex/internal/logging"
-	serverPorts "alex/internal/server/ports"
-	id "alex/internal/utils/id"
+	serverPorts "alex/internal/delivery/server/ports"
+	"alex/internal/domain/agent"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 )
 
 // RunTracker checks if a session has an active run.

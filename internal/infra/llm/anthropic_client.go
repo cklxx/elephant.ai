@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	"alex/internal/jsonx"
-	"alex/internal/utils"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/shared/json"
+	"alex/internal/shared/utils"
 )
 
 const (

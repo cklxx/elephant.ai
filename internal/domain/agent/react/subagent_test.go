@@ -3,7 +3,7 @@ package react
 import (
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestBuildSubagentStateSnapshotRemovesCurrentCallAndAppendsPrompt(t *testing.T) {

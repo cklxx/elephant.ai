@@ -1,7 +1,7 @@
 package fileops
 
 import (
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 	"context"
 	"testing"
 )

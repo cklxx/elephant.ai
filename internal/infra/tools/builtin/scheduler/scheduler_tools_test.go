@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	tools "alex/internal/agent/ports/tools"
-	sched "alex/internal/scheduler"
-	"alex/internal/tools/builtin/shared"
+	sched "alex/internal/app/scheduler"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 // noopCoordinator satisfies the scheduler.AgentCoordinator interface.
@@ -225,8 +225,8 @@ func TestListJobs_WithFilter(t *testing.T) {
 
 	// No filter — should return both.
 	result, err := listTool.Execute(ctx, ports.ToolCall{
-		ID:   "call-list-all",
-		Name: "scheduler_list_jobs",
+		ID:        "call-list-all",
+		Name:      "scheduler_list_jobs",
 		Arguments: map[string]any{},
 	})
 	if err != nil {

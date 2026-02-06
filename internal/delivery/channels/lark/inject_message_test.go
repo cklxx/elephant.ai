@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/channels"
-	"alex/internal/logging"
+	"alex/internal/delivery/channels"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 )

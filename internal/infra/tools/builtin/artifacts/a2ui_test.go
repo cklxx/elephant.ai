@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 func TestA2UIEmitStoresAttachment(t *testing.T) {

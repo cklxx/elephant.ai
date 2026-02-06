@@ -1,6 +1,6 @@
 package skills
 
-import "alex/internal/tokenutil"
+import "alex/internal/shared/token"
 
 // EstimateTokens returns a token count using tiktoken (cl100k_base) when
 // available, falling back to a character-based heuristic.

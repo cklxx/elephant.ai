@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	"alex/internal/parser"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/shared/parser"
 )
 
 type stubLLMClient struct {

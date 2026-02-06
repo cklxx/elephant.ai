@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	id "alex/internal/utils/id"
+	id "alex/internal/shared/utils/id"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

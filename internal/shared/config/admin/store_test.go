@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	runtimeconfig "alex/internal/config"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func TestFileStoreLoadMissingFileReturnsEmpty(t *testing.T) {

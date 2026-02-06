@@ -3,7 +3,7 @@ package react
 import (
 	"context"
 
-	"alex/internal/agent/ports"
+	"alex/internal/domain/agent/ports"
 )
 
 // prepareUserTaskContext mutates the provided task state so it is ready for a new

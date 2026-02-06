@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	appcontext "alex/internal/agent/app/context"
-	"alex/internal/agent/ports"
-	portsllm "alex/internal/agent/ports/llm"
-	"alex/internal/logging"
-	"alex/internal/memory"
+	appcontext "alex/internal/app/agent/context"
+	"alex/internal/domain/agent/ports"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	"alex/internal/infra/memory"
+	"alex/internal/shared/logging"
 )
 
 const (

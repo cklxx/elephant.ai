@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"alex/internal/logging"
-	"alex/internal/sandbox"
+	"alex/internal/infra/sandbox"
+	"alex/internal/shared/logging"
 )
 
 const maxWebVitalBodySize = 1 << 14

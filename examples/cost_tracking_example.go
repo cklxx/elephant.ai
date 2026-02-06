@@ -7,9 +7,9 @@ import (
 	"os"
 	"time"
 
-	"alex/internal/agent/app/cost"
-	agentstorage "alex/internal/agent/ports/storage"
-	"alex/internal/storage"
+	"alex/internal/app/agent/cost"
+	agentstorage "alex/internal/domain/agent/ports/storage"
+	"alex/internal/infra/storage"
 )
 
 // Example: Cost Tracking Integration

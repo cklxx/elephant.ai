@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"alex/internal/agent/ports"
-	"alex/internal/sandbox"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/infra/sandbox"
 
 	"github.com/chromedp/chromedp"
 )

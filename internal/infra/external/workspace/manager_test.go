@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/logging"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
 )
 
 func TestAllocateShared(t *testing.T) {

@@ -9,8 +9,8 @@ import (
 	"sort"
 	"strings"
 
-	"alex/internal/async"
-	"alex/internal/logging"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 var capabilityChecks = []struct {

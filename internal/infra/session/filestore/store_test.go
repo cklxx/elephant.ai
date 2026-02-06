@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"alex/internal/agent/ports"
-	storage "alex/internal/agent/ports/storage"
+	"alex/internal/domain/agent/ports"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 func TestStore_SavePersistsParentTaskMetadata(t *testing.T) {

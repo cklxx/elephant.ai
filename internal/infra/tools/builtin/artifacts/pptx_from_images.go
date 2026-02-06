@@ -16,12 +16,12 @@ import (
 	"strings"
 	"time"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 
 	_ "embed"
 
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/infra/tools/builtin/shared"
 	"github.com/jung-kurt/gofpdf"
 )
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"alex/internal/auth/domain"
+	"alex/internal/domain/auth"
 )
 
 func TestMemoryStateStorePurgeExpired(t *testing.T) {

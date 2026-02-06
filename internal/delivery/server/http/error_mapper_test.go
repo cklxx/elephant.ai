@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	storage "alex/internal/agent/ports/storage"
-	"alex/internal/server/app"
+	"alex/internal/delivery/server/app"
+	storage "alex/internal/domain/agent/ports/storage"
 )
 
 func TestMapDomainError(t *testing.T) {

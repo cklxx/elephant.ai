@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"alex/internal/agent/ports"
-	id "alex/internal/utils/id"
+	"alex/internal/domain/agent/ports"
+	id "alex/internal/shared/utils/id"
 )
 
 func TestPlanExecuteSourcesRunIDFromContext(t *testing.T) {

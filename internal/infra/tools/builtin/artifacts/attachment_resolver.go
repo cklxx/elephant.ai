@@ -16,14 +16,14 @@ import (
 	"time"
 	"unicode"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/attachments"
-	"alex/internal/config"
-	"alex/internal/httpclient"
-	"alex/internal/logging"
-	"alex/internal/tools/builtin/pathutil"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/attachments"
+	"alex/internal/infra/httpclient"
+	"alex/internal/infra/tools/builtin/pathutil"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/config"
+	"alex/internal/shared/logging"
 )
 
 const (

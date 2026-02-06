@@ -3,8 +3,8 @@ package llm
 import (
 	"testing"
 
-	"alex/internal/agent/ports"
-	"alex/internal/jsonx"
+	"alex/internal/domain/agent/ports"
+	"alex/internal/shared/json"
 )
 
 func TestConvertToolsNormalizesSchema(t *testing.T) {

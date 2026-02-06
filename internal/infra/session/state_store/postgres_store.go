@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"alex/internal/jsonx"
+	"alex/internal/shared/json"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

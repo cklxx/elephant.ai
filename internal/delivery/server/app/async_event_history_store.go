@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/async"
-	"alex/internal/logging"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
 )
 
 type batchEventAppender interface {

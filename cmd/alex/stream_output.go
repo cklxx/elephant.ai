@@ -14,16 +14,16 @@ import (
 	"syscall"
 	"time"
 
-	"alex/internal/agent/domain"
-	"alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/agent/types"
-	"alex/internal/async"
-	"alex/internal/logging"
-	"alex/internal/output"
-	"alex/internal/tools/builtin/orchestration"
-	"alex/internal/tools/builtin/shared"
-	id "alex/internal/utils/id"
+	"alex/internal/delivery/output"
+	"alex/internal/domain/agent"
+	"alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
+	"alex/internal/infra/tools/builtin/orchestration"
+	"alex/internal/infra/tools/builtin/shared"
+	"alex/internal/shared/async"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 )
 
 // ToolInfo stores information about an active tool call

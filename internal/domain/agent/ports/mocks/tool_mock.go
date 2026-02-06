@@ -3,8 +3,8 @@ package mocks
 import (
 	"context"
 
-	"alex/internal/agent/ports"
-	tools "alex/internal/agent/ports/tools"
+	"alex/internal/domain/agent/ports"
+	tools "alex/internal/domain/agent/ports/tools"
 )
 
 type MockToolRegistry struct {

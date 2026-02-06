@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"alex/internal/auth/domain"
+	"alex/internal/domain/auth"
 )
 
 // UserRepository abstracts persistence for user records.

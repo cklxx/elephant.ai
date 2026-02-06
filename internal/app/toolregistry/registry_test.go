@@ -7,13 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	ports "alex/internal/agent/ports"
-	agent "alex/internal/agent/ports/agent"
-	llm "alex/internal/agent/ports/llm"
-	storage "alex/internal/agent/ports/storage"
-	tools "alex/internal/agent/ports/tools"
-	"alex/internal/memory"
-	toolspolicy "alex/internal/tools"
+	ports "alex/internal/domain/agent/ports"
+	agent "alex/internal/domain/agent/ports/agent"
+	llm "alex/internal/domain/agent/ports/llm"
+	storage "alex/internal/domain/agent/ports/storage"
+	tools "alex/internal/domain/agent/ports/tools"
+	"alex/internal/infra/memory"
+	toolspolicy "alex/internal/infra/tools"
 )
 
 func newTestMemoryEngine(t *testing.T) memory.Engine {

@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/logging"
+	"alex/internal/shared/logging"
 )
 
 const proxyModeEnv = "ALEX_PROXY_MODE"

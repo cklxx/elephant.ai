@@ -11,12 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"alex/internal/agent/ports"
-	materialapi "alex/internal/materials/api"
-	materialports "alex/internal/materials/ports"
-	"alex/internal/sandbox"
-	"alex/internal/tools/builtin/artifacts"
-	"alex/internal/tools/builtin/shared"
+	"alex/internal/domain/agent/ports"
+	materialapi "alex/internal/domain/materials/api"
+	materialports "alex/internal/domain/materials/ports"
+	"alex/internal/infra/sandbox"
+	"alex/internal/infra/tools/builtin/artifacts"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 const sandboxAssetHTTPTimeout = 45 * time.Second

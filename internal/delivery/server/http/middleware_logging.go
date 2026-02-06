@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"alex/internal/logging"
-	id "alex/internal/utils/id"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
 )
 
 func resolveLogID(r *http.Request) string {

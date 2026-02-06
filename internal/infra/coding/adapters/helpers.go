@@ -1,8 +1,8 @@
 package adapters
 
 import (
-	agent "alex/internal/agent/ports/agent"
-	"alex/internal/coding"
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/coding"
 )
 
 func toExternalRequest(req coding.TaskRequest, progress func(agent.ExternalAgentProgress)) agent.ExternalAgentRequest {

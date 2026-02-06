@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	serverBootstrap "alex/internal/server/bootstrap"
+	serverBootstrap "alex/internal/delivery/server/bootstrap"
 )
 
 func TestLoadConfigWithMockProvider(t *testing.T) {
