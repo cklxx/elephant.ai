@@ -300,6 +300,11 @@ func buildIdentitySection(persona agent.PersonaProfile) string {
 		builder.WriteString("\n")
 		builder.WriteString(meta)
 	}
+	builder.WriteString("\n")
+	builder.WriteString(formatBulletList([]string{
+		"SOUL.md: ~/.alex/memory/SOUL.md (canonical source: configs/context/personas/default.yaml)",
+		"USER.md: ~/.alex/memory/<user-id>/USER.md (fallback: ~/.alex/memory/USER.md when user_id is empty)",
+	}))
 	return strings.TrimSpace(builder.String())
 }
 

@@ -64,6 +64,73 @@ func TestLoadMemorySnapshotIncludesLongTermAndDaily(t *testing.T) {
 	}
 }
 
+func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
+	root := t.TempDir()
+	engine := memory.NewMarkdownEngine(root)
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+
+	now := time.Now()
+	userID := "user-identity"
+	if _, err := engine.AppendDaily(context.Background(), userID, memory.DailyEntry{
+		Title:     "Today",
+		Content:   "Daily content.",
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("AppendDaily: %v", err)
+	}
+
+	userDir := filepath.Join(root, userID)
+	if err := os.MkdirAll(userDir, 0o755); err != nil {
+		t.Fatalf("mkdir user dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(userDir, "MEMORY.md"), []byte("# Long-Term\n\nPersistent fact."), 0o644); err != nil {
+		t.Fatalf("write MEMORY.md: %v", err)
+	}
+
+	mgr := &manager{memoryEngine: engine}
+	snapshot := mgr.loadMemorySnapshot(context.Background(), &storage.Session{
+		ID:       "sess-identity",
+		Metadata: map[string]string{"user_id": userID},
+	})
+
+	soulPath := filepath.Join(root, "SOUL.md")
+	userPath := filepath.Join(userDir, "USER.md")
+	if _, err := os.Stat(soulPath); err != nil {
+		t.Fatalf("expected SOUL.md to be created at %s: %v", soulPath, err)
+	}
+	if _, err := os.Stat(userPath); err != nil {
+		t.Fatalf("expected USER.md to be created at %s: %v", userPath, err)
+	}
+
+	soulBytes, err := os.ReadFile(soulPath)
+	if err != nil {
+		t.Fatalf("read SOUL.md: %v", err)
+	}
+	if !strings.Contains(string(soulBytes), "configs/context/personas/default.yaml") {
+		t.Fatalf("expected SOUL.md to reference persona source path, got: %s", string(soulBytes))
+	}
+
+	if !strings.Contains(snapshot, "Identity (SOUL.md") {
+		t.Fatalf("expected SOUL section in snapshot, got: %s", snapshot)
+	}
+	if !strings.Contains(snapshot, "Identity (USER.md") {
+		t.Fatalf("expected USER section in snapshot, got: %s", snapshot)
+	}
+
+	soulIdx := strings.Index(snapshot, "Identity (SOUL.md")
+	userIdx := strings.Index(snapshot, "Identity (USER.md")
+	todayIdx := strings.Index(snapshot, "Daily Log ("+now.Format("2006-01-02")+")")
+	memoryIdx := strings.Index(snapshot, "Long-term Memory (MEMORY.md)")
+	if soulIdx == -1 || userIdx == -1 || todayIdx == -1 || memoryIdx == -1 {
+		t.Fatalf("expected identity/daily/memory sections in snapshot, got: %s", snapshot)
+	}
+	if !(soulIdx < userIdx && userIdx < todayIdx && todayIdx < memoryIdx) {
+		t.Fatalf("expected SOUL -> USER -> daily -> long-term order, got: %s", snapshot)
+	}
+}
+
 func TestLoadMemorySnapshotRespectsGate(t *testing.T) {
 	engine := memory.NewMarkdownEngine(t.TempDir())
 	mgr := &manager{
