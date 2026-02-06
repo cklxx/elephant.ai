@@ -2,6 +2,7 @@ package lark
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,18 +32,26 @@ func NewCardCallbackHandler(gateway *Gateway, logger logging.Logger) http.Handle
 		logging.OrNop(logger).Warn("Lark card callback verification token missing: url verification challenge may fail")
 	}
 	encryptKey := strings.TrimSpace(cfg.CardCallbackEncryptKey)
-	disp := dispatcher.NewEventDispatcher(verificationToken, encryptKey)
-	disp.OnP2CardActionTrigger(gateway.handleCardAction)
+	plainDispatcher := dispatcher.NewEventDispatcher(verificationToken, "")
+	plainDispatcher.OnP2CardActionTrigger(gateway.handleCardAction)
+
+	var encryptedDispatcher *dispatcher.EventDispatcher
+	if encryptKey != "" {
+		encryptedDispatcher = dispatcher.NewEventDispatcher(verificationToken, encryptKey)
+		encryptedDispatcher.OnP2CardActionTrigger(gateway.handleCardAction)
+	}
 
 	return &cardCallbackHandler{
-		dispatcher: disp,
-		logger:     logging.OrNop(logger),
+		plaintextDispatcher: plainDispatcher,
+		encryptedDispatcher: encryptedDispatcher,
+		logger:              logging.OrNop(logger),
 	}
 }
 
 type cardCallbackHandler struct {
-	dispatcher *dispatcher.EventDispatcher
-	logger     logging.Logger
+	plaintextDispatcher *dispatcher.EventDispatcher
+	encryptedDispatcher *dispatcher.EventDispatcher
+	logger              logging.Logger
 }
 
 func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -50,7 +59,7 @@ func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if h == nil || h.dispatcher == nil {
+	if h == nil || h.plaintextDispatcher == nil {
 		http.Error(w, "handler not ready", http.StatusServiceUnavailable)
 		return
 	}
@@ -59,12 +68,18 @@ func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, fmt.Sprintf("read body: %v", err), http.StatusBadRequest)
 		return
 	}
+
+	disp := h.plaintextDispatcher
+	if isEncryptedCallbackPayload(body) && h.encryptedDispatcher != nil {
+		disp = h.encryptedDispatcher
+	}
+
 	req := &larkevent.EventReq{
 		Header:     r.Header,
 		Body:       body,
 		RequestURI: r.RequestURI,
 	}
-	resp := h.dispatcher.Handle(r.Context(), req)
+	resp := disp.Handle(r.Context(), req)
 	if resp == nil {
 		http.Error(w, "empty response", http.StatusInternalServerError)
 		return
@@ -76,6 +91,16 @@ func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = w.Write(resp.Body)
+}
+
+func isEncryptedCallbackPayload(body []byte) bool {
+	var envelope struct {
+		Encrypt string `json:"encrypt"`
+	}
+	if err := json.Unmarshal(body, &envelope); err != nil {
+		return false
+	}
+	return strings.TrimSpace(envelope.Encrypt) != ""
 }
 
 func (g *Gateway) handleCardAction(_ context.Context, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {

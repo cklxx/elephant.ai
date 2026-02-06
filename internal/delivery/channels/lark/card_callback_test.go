@@ -2,6 +2,10 @@ package lark
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +19,41 @@ func TestNewCardCallbackHandlerEnabledWithoutVerificationToken(t *testing.T) {
 	handler := NewCardCallbackHandler(gw, logging.OrNop(nil))
 	if handler == nil {
 		t.Fatal("expected callback handler to be available even without verification token")
+	}
+}
+
+func TestCardCallbackHandlerPlainURLVerificationWithEncryptKeyConfigured(t *testing.T) {
+	gw := &Gateway{
+		cfg: Config{
+			CardsEnabled:                  true,
+			CardCallbackVerificationToken: "verify_token",
+			CardCallbackEncryptKey:        "encrypt_key",
+		},
+	}
+	handler := NewCardCallbackHandler(gw, logging.OrNop(nil))
+	if handler == nil {
+		t.Fatal("expected callback handler")
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/lark/card/callback", strings.NewReader(`{
+		"type":"url_verification",
+		"challenge":"challenge_plain",
+		"token":"verify_token"
+	}`))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Challenge string `json:"challenge"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v, body=%q", err, rec.Body.String())
+	}
+	if payload.Challenge != "challenge_plain" {
+		t.Fatalf("expected challenge_plain, got %q", payload.Challenge)
 	}
 }
 
@@ -184,6 +223,21 @@ func TestHandleCardActionAttachmentSendMissingKey(t *testing.T) {
 	calls := waitForMessengerCalls(t, recorder, 1)
 	if len(calls) != 0 {
 		t.Fatalf("expected no dispatch calls, got %#v", calls)
+	}
+}
+
+func TestIsEncryptedCallbackPayload(t *testing.T) {
+	if !isEncryptedCallbackPayload([]byte(`{"encrypt":"ciphertext"}`)) {
+		t.Fatal("expected encrypted payload")
+	}
+	if isEncryptedCallbackPayload([]byte(`{"encrypt":"   "}`)) {
+		t.Fatal("expected blank encrypt to be treated as plaintext payload")
+	}
+	if isEncryptedCallbackPayload([]byte(`{"token":"x"}`)) {
+		t.Fatal("expected plaintext payload")
+	}
+	if isEncryptedCallbackPayload([]byte(`not-json`)) {
+		t.Fatal("expected invalid json to be treated as plaintext payload")
 	}
 }
 
