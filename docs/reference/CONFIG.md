@@ -468,6 +468,13 @@ runtime:
 - `LARK_RESTART_MAX_IN_WINDOW`：重启窗口内允许的最大重启次数（默认 `5`）。
 - `LARK_RESTART_WINDOW_SECONDS`：重启窗口大小（秒，默认 `600`）。
 - `LARK_COOLDOWN_SECONDS`：触发重启风暴后熔断冷却时长（秒，默认 `300`）。
+- `LARK_SUPERVISOR_AUTOFIX_ENABLED`：是否启用 cooldown 后自动修复（默认 `1`）。
+- `LARK_SUPERVISOR_AUTOFIX_TRIGGER`：自动修复触发策略（默认 `cooldown`）。
+- `LARK_SUPERVISOR_AUTOFIX_TIMEOUT_SECONDS`：单次 Codex 执行超时（秒，默认 `1800`）。
+- `LARK_SUPERVISOR_AUTOFIX_MAX_IN_WINDOW`：窗口内自动修复最大执行次数（默认 `3`）。
+- `LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS`：自动修复窗口大小（秒，默认 `3600`）。
+- `LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS`：自动修复限流冷却（秒，默认 `900`）。
+- `LARK_SUPERVISOR_AUTOFIX_SCOPE`：修复范围提示（默认 `repo`，允许全仓库改动）。
 - `MAIN_CONFIG`：main 进程配置文件路径（默认 `$ALEX_CONFIG_PATH` 或 `~/.alex/config.yaml`）。
 - `TEST_CONFIG`：test 进程配置文件路径（默认 `~/.alex/test.yaml`）。
 
@@ -485,6 +492,13 @@ runtime:
 - `main_sha`, `last_processed_sha`
 - `cycle_phase`, `cycle_result`, `last_error`
 - `restart_count_window`
+- `autofix_state`（`idle|running|succeeded|failed|cooldown`）
+- `autofix_incident_id`
+- `autofix_last_reason`
+- `autofix_last_started_at`
+- `autofix_last_finished_at`
+- `autofix_last_commit`
+- `autofix_runs_window`
 
 ---
 
