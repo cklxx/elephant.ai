@@ -728,15 +728,76 @@ run_supervisor() {
   done
 }
 
+is_supervisor_process() {
+  local pid="$1"
+  [[ -n "${pid}" ]] || return 1
+  local cmd
+  cmd="$(ps -p "${pid}" -o args= 2>/dev/null || true)"
+  [[ "${cmd}" == *"supervisor.sh run"* ]]
+}
+
+clean_stale_supervisor() {
+  local pid="$1"
+  log_warn "Stale supervisor PID ${pid}; cleaning up"
+  rm -f "${PID_FILE}"
+  rm -rf "${LOCK_DIR}" 2>/dev/null || true
+}
+
+report_children_health() {
+  observe_states
+  local degraded=0
+  if [[ "${OBS_MAIN_HEALTH}" != "healthy" ]]; then
+    log_warn "  main: ${OBS_MAIN_HEALTH} (pid=${OBS_MAIN_PID:-none})"
+    degraded=1
+  else
+    log_success "  main: healthy (pid=${OBS_MAIN_PID})"
+  fi
+  if [[ "${OBS_TEST_HEALTH}" != "healthy" ]]; then
+    log_warn "  test: ${OBS_TEST_HEALTH} (pid=${OBS_TEST_PID:-none})"
+    degraded=1
+  else
+    log_success "  test: healthy (pid=${OBS_TEST_PID})"
+  fi
+  if [[ "${OBS_LOOP_HEALTH}" != "alive" ]]; then
+    log_warn "  loop: ${OBS_LOOP_HEALTH} (pid=${OBS_LOOP_PID:-none})"
+    degraded=1
+  else
+    log_success "  loop: alive (pid=${OBS_LOOP_PID})"
+  fi
+  if (( degraded )); then
+    log_warn "Supervisor is running but some components are down (use './lark.sh logs' to investigate)"
+    return 1
+  fi
+  return 0
+}
+
 start() {
   ensure_worktree
   ensure_dirs
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
-  if is_process_running "${pid}"; then
-    log_success "Supervisor already running (PID: ${pid})"
-    return 0
+
+  if [[ -n "${pid}" ]] && is_process_running "${pid}"; then
+    if ! is_supervisor_process "${pid}"; then
+      clean_stale_supervisor "${pid}"
+    else
+      log_success "Supervisor already running (PID: ${pid})"
+      report_children_health || true
+      return 0
+    fi
+  elif [[ -n "${pid}" ]]; then
+    clean_stale_supervisor "${pid}"
+  fi
+
+  # Clean orphaned lock from a previous unclean exit
+  if [[ -d "${LOCK_DIR}" ]]; then
+    local lock_pid
+    lock_pid="$(awk -F= '/^pid=/{print $2}' "${LOCK_DIR}/owner" 2>/dev/null || true)"
+    if [[ -z "${lock_pid}" ]] || ! is_process_running "${lock_pid}"; then
+      log_warn "Removing orphaned lock (previous pid=${lock_pid:-unknown})"
+      rm -rf "${LOCK_DIR}"
+    fi
   fi
 
   nohup "${SCRIPT_DIR}/supervisor.sh" run >> "${LOG_FILE}" 2>&1 &
