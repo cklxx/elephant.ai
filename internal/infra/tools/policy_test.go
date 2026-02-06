@@ -357,8 +357,8 @@ func TestDefaultPolicyRules_SafeToolFallsThrough(t *testing.T) {
 
 func TestDefaultPolicyRules_Count(t *testing.T) {
 	rules := DefaultPolicyRules()
-	if len(rules) != 5 {
-		t.Errorf("DefaultPolicyRules() has %d rules, want 5", len(rules))
+	if len(rules) != 7 {
+		t.Errorf("DefaultPolicyRules() has %d rules, want 7", len(rules))
 	}
 }
 
@@ -369,6 +369,114 @@ func TestDefaultToolPolicyConfigWithRules(t *testing.T) {
 	}
 	if cfg.Timeout.Default != 120*time.Second {
 		t.Errorf("default timeout = %v, want 120s", cfg.Timeout.Default)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Safety level tests
+// ---------------------------------------------------------------------------
+
+func TestResolve_MatchBySafetyLevel(t *testing.T) {
+	timeout := 45 * time.Second
+	cfg := DefaultToolPolicyConfig()
+	cfg.Rules = []PolicyRule{
+		{
+			Name:    "l4-rule",
+			Match:   PolicySelector{SafetyLevels: []int{4}},
+			Timeout: &timeout,
+		},
+	}
+	p := NewToolPolicy(cfg)
+
+	// L4 tool should match.
+	result := p.Resolve(ToolCallContext{ToolName: "delete_all", SafetyLevel: 4})
+	if result.Timeout != 45*time.Second {
+		t.Errorf("L4 Timeout = %v, want 45s", result.Timeout)
+	}
+
+	// L3 tool should NOT match.
+	result2 := p.Resolve(ToolCallContext{ToolName: "exec_code", SafetyLevel: 3})
+	if result2.Timeout != 120*time.Second {
+		t.Errorf("L3 Timeout = %v, want 120s (no match)", result2.Timeout)
+	}
+
+	// L0 (unset) tool should NOT match.
+	result3 := p.Resolve(ToolCallContext{ToolName: "unknown"})
+	if result3.Timeout != 120*time.Second {
+		t.Errorf("L0 Timeout = %v, want 120s (no match)", result3.Timeout)
+	}
+}
+
+func TestResolve_SafetyLevelInResult(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfig())
+	result := p.Resolve(ToolCallContext{ToolName: "bash", SafetyLevel: 3})
+	if result.SafetyLevel != 3 {
+		t.Errorf("SafetyLevel = %d, want 3", result.SafetyLevel)
+	}
+}
+
+func TestResolve_SafetyLevelANDWithCategory(t *testing.T) {
+	noRetry := ToolRetryConfig{MaxRetries: 0}
+	cfg := DefaultToolPolicyConfig()
+	cfg.Rules = []PolicyRule{
+		{
+			Name:  "l3-lark",
+			Match: PolicySelector{SafetyLevels: []int{3}, Categories: []string{"lark"}},
+			Retry: &noRetry,
+		},
+	}
+	p := NewToolPolicy(cfg)
+
+	// L3 + lark → matches.
+	result := p.Resolve(ToolCallContext{ToolName: "lark_create", Category: "lark", SafetyLevel: 3})
+	if result.Retry.MaxRetries != 0 {
+		t.Errorf("L3+lark retries = %d, want 0", result.Retry.MaxRetries)
+	}
+
+	// L3 + web → no match.
+	result2 := p.Resolve(ToolCallContext{ToolName: "web_action", Category: "web", SafetyLevel: 3})
+	if result2.Retry.MaxRetries != 2 {
+		t.Errorf("L3+web retries = %d, want 2 (no match)", result2.Retry.MaxRetries)
+	}
+}
+
+func TestDefaultPolicyRules_L4Irreversible(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+	result := p.Resolve(ToolCallContext{
+		ToolName:    "lark_calendar_delete",
+		SafetyLevel: 4,
+	})
+	if result.Retry.MaxRetries != 0 {
+		t.Errorf("L4 retries = %d, want 0", result.Retry.MaxRetries)
+	}
+	if result.Timeout != 60*time.Second {
+		t.Errorf("L4 timeout = %v, want 60s", result.Timeout)
+	}
+}
+
+func TestDefaultPolicyRules_L3HighImpact(t *testing.T) {
+	p := NewToolPolicy(DefaultToolPolicyConfigWithRules())
+	result := p.Resolve(ToolCallContext{
+		ToolName:    "bash",
+		SafetyLevel: 3,
+	})
+	if result.Retry.MaxRetries != 0 {
+		t.Errorf("L3 retries = %d, want 0", result.Retry.MaxRetries)
+	}
+	if result.Timeout != 60*time.Second {
+		t.Errorf("L3 timeout = %v, want 60s", result.Timeout)
+	}
+}
+
+func TestContainsInt(t *testing.T) {
+	if !containsInt([]int{1, 2, 3}, 2) {
+		t.Error("expected true for 2 in [1,2,3]")
+	}
+	if containsInt([]int{1, 2, 3}, 4) {
+		t.Error("expected false for 4 in [1,2,3]")
+	}
+	if containsInt(nil, 1) {
+		t.Error("expected false for nil slice")
 	}
 }
 
