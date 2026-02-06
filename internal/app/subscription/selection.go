@@ -97,6 +97,14 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 			Source:   "ollama",
 			Pinned:   true,
 		}, true
+	case "llama_server":
+		return ResolvedSelection{
+			Provider: "llama.cpp",
+			Model:    model,
+			BaseURL:  resolveLlamaServerBaseURL(runtimeconfig.DefaultEnvLookup),
+			Source:   "llama_server",
+			Pinned:   true,
+		}, true
 	default:
 		return ResolvedSelection{}, false
 	}
@@ -123,4 +131,27 @@ func resolveOllamaBaseURL(lookup runtimeconfig.EnvLookup) string {
 		return "http://" + host
 	}
 	return ""
+}
+
+func resolveLlamaServerBaseURL(lookup runtimeconfig.EnvLookup) string {
+	if lookup == nil {
+		lookup = runtimeconfig.DefaultEnvLookup
+	}
+	if base, ok := lookup("LLAMA_SERVER_BASE_URL"); ok {
+		base = strings.TrimSpace(base)
+		if base != "" {
+			return base
+		}
+	}
+	if host, ok := lookup("LLAMA_SERVER_HOST"); ok {
+		host = strings.TrimSpace(host)
+		if host == "" {
+			return ""
+		}
+		if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+			return host
+		}
+		return "http://" + host
+	}
+	return "http://127.0.0.1:8080/v1"
 }

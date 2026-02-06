@@ -78,12 +78,25 @@ type OllamaTarget struct {
 	Source  string
 }
 
+type LlamaServerTarget struct {
+	BaseURL string
+	Source  string
+}
+
 type CatalogOption func(*CatalogService)
 
 func WithOllamaTargetResolver(resolver func(context.Context) (OllamaTarget, bool)) CatalogOption {
 	return func(service *CatalogService) {
 		if resolver != nil {
 			service.ollamaResolver = resolver
+		}
+	}
+}
+
+func WithLlamaServerTargetResolver(resolver func(context.Context) (LlamaServerTarget, bool)) CatalogOption {
+	return func(service *CatalogService) {
+		if resolver != nil {
+			service.llamaServerResolver = resolver
 		}
 	}
 }
@@ -98,14 +111,15 @@ func WithMaxResponseBytes(limit int) CatalogOption {
 }
 
 type CatalogService struct {
-	loadCreds        func() runtimeconfig.CLICredentials
-	client           *http.Client
-	ttl              time.Duration
-	mu               sync.Mutex
-	cached           Catalog
-	cachedAt         time.Time
-	ollamaResolver   func(context.Context) (OllamaTarget, bool)
-	maxResponseBytes int
+	loadCreds           func() runtimeconfig.CLICredentials
+	client              *http.Client
+	ttl                 time.Duration
+	mu                  sync.Mutex
+	cached              Catalog
+	cachedAt            time.Time
+	ollamaResolver      func(context.Context) (OllamaTarget, bool)
+	llamaServerResolver func(context.Context) (LlamaServerTarget, bool)
+	maxResponseBytes    int
 }
 
 func NewCatalogService(loadCreds func() runtimeconfig.CLICredentials, client *http.Client, ttl time.Duration, opts ...CatalogOption) *CatalogService {
@@ -143,6 +157,13 @@ func (s *CatalogService) Catalog(ctx context.Context) Catalog {
 			providers = append(providers, buildOllamaProvider(ctx, s.client, target, s.maxResponseBytes))
 		}
 	}
+	if s.llamaServerResolver != nil {
+		if target, ok := s.llamaServerResolver(ctx); ok {
+			if provider, ok := buildLlamaServerProvider(ctx, s.client, target, s.maxResponseBytes); ok {
+				providers = append(providers, provider)
+			}
+		}
+	}
 	catalog := Catalog{Providers: providers}
 
 	s.cached = catalog
@@ -158,13 +179,6 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 			Provider: creds.Codex.Provider,
 			Source:   string(creds.Codex.Source),
 			BaseURL:  creds.Codex.BaseURL,
-		})
-	}
-	if creds.Antigravity.APIKey != "" {
-		targets = append(targets, CatalogProvider{
-			Provider: creds.Antigravity.Provider,
-			Source:   string(creds.Antigravity.Source),
-			BaseURL:  creds.Antigravity.BaseURL,
 		})
 	}
 	if creds.Claude.APIKey != "" {
@@ -247,6 +261,7 @@ func containsModel(models []string, value string) bool {
 }
 
 const defaultOllamaBaseURL = "http://localhost:11434"
+const defaultLlamaServerBaseURL = "http://127.0.0.1:8080/v1"
 
 func buildOllamaProvider(ctx context.Context, client *http.Client, target OllamaTarget, maxResponseBytes int) CatalogProvider {
 	baseURL := normalizeOllamaBaseURL(target.BaseURL)
@@ -272,12 +287,47 @@ func buildOllamaProvider(ctx context.Context, client *http.Client, target Ollama
 	return provider
 }
 
+func buildLlamaServerProvider(ctx context.Context, client *http.Client, target LlamaServerTarget, maxResponseBytes int) (CatalogProvider, bool) {
+	baseURL := normalizeLlamaServerBaseURL(target.BaseURL)
+	source := strings.TrimSpace(target.Source)
+	if source == "" {
+		source = "llama_server"
+	}
+	provider := CatalogProvider{
+		Provider: "llama_server",
+		Source:   source,
+		BaseURL:  baseURL,
+	}
+
+	llamaCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	models, err := fetchLlamaServerModels(llamaCtx, client, baseURL, maxResponseBytes)
+	if err != nil {
+		return CatalogProvider{}, false
+	}
+	provider.Models = models
+	return provider, true
+}
+
 func normalizeOllamaBaseURL(baseURL string) string {
 	base := strings.TrimSpace(baseURL)
 	if base == "" {
 		base = defaultOllamaBaseURL
 	}
 	return strings.TrimRight(base, "/")
+}
+
+func normalizeLlamaServerBaseURL(baseURL string) string {
+	base := strings.TrimSpace(baseURL)
+	if base == "" {
+		base = defaultLlamaServerBaseURL
+	}
+	base = strings.TrimRight(base, "/")
+	if strings.HasSuffix(base, "/v1") {
+		return base
+	}
+	return base + "/v1"
 }
 
 func fetchOllamaModels(ctx context.Context, client *http.Client, baseURL string, maxResponseBytes int) ([]string, error) {
@@ -308,12 +358,44 @@ func fetchOllamaModels(ctx context.Context, client *http.Client, baseURL string,
 	return parseOllamaModelList(body)
 }
 
+func fetchLlamaServerModels(ctx context.Context, client *http.Client, baseURL string, maxResponseBytes int) ([]string, error) {
+	endpoint := llamaServerModelsEndpoint(baseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("llama_server model list request failed: %s", resp.Status)
+	}
+
+	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
+	if err != nil {
+		if httpclient.IsResponseTooLarge(err) {
+			return nil, fmt.Errorf("llama_server model list response exceeds %d bytes", maxResponseBytes)
+		}
+		return nil, err
+	}
+
+	return parseModelList(body)
+}
+
 func ollamaTagsEndpoint(baseURL string) string {
 	base := normalizeOllamaBaseURL(baseURL)
 	if strings.HasSuffix(base, "/api") {
 		return base + "/tags"
 	}
 	return base + "/api/tags"
+}
+
+func llamaServerModelsEndpoint(baseURL string) string {
+	return normalizeLlamaServerBaseURL(baseURL) + "/models"
 }
 
 func parseOllamaModelList(raw []byte) ([]string, error) {

@@ -113,6 +113,20 @@ func TestFetchProviderModelsUsesAntigravityEndpoint(t *testing.T) {
 	}
 }
 
+func TestListProvidersSkipsAntigravityCredential(t *testing.T) {
+	providers := listProviders(context.Background(), runtimeconfig.CLICredentials{
+		Antigravity: runtimeconfig.CLICredential{
+			Provider: "antigravity",
+			APIKey:   "ag-abc",
+			BaseURL:  "https://cloudcode-pa.googleapis.com",
+			Source:   runtimeconfig.SourceAntigravityIDE,
+		},
+	}, nil, runtimeconfig.DefaultHTTPMaxResponse)
+	if len(providers) != 0 {
+		t.Fatalf("expected antigravity provider to be skipped, got %#v", providers)
+	}
+}
+
 func TestParseOllamaModelList(t *testing.T) {
 	input := []byte(`{"models":[{"name":"llama3:latest"},{"model":"phi3"},"mistral"]}`)
 	models, err := parseOllamaModelList(input)
@@ -184,5 +198,56 @@ func TestCatalogServiceUsesCodexFallbackWithoutNetwork(t *testing.T) {
 	}
 	if len(got.Models) == 0 || got.Models[0] == "" {
 		t.Fatalf("expected fallback models, got %#v", got.Models)
+	}
+}
+
+func TestCatalogServiceIncludesLlamaServerWhenAvailable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("expected /v1/models path, got %q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[{"id":"llama-3.2-local"}]}`))
+	}))
+	defer srv.Close()
+
+	svc := NewCatalogService(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{}
+	}, srv.Client(), 0, WithLlamaServerTargetResolver(func(context.Context) (LlamaServerTarget, bool) {
+		return LlamaServerTarget{
+			BaseURL: srv.URL,
+			Source:  "llama_server",
+		}, true
+	}))
+
+	catalog := svc.Catalog(context.Background())
+	if len(catalog.Providers) != 1 {
+		t.Fatalf("expected 1 provider, got %d", len(catalog.Providers))
+	}
+	got := catalog.Providers[0]
+	if got.Provider != "llama_server" {
+		t.Fatalf("expected llama_server provider, got %#v", got)
+	}
+	if got.Source != "llama_server" {
+		t.Fatalf("expected llama_server source, got %#v", got)
+	}
+	if len(got.Models) != 1 || got.Models[0] != "llama-3.2-local" {
+		t.Fatalf("unexpected models: %#v", got.Models)
+	}
+}
+
+func TestCatalogServiceSkipsLlamaServerWhenUnavailable(t *testing.T) {
+	svc := NewCatalogService(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{}
+	}, &http.Client{}, 0, WithLlamaServerTargetResolver(func(context.Context) (LlamaServerTarget, bool) {
+		return LlamaServerTarget{
+			BaseURL: "http://127.0.0.1:1",
+			Source:  "llama_server",
+		}, true
+	}))
+
+	catalog := svc.Catalog(context.Background())
+	if len(catalog.Providers) != 0 {
+		t.Fatalf("expected no providers when llama server is unavailable, got %#v", catalog.Providers)
 	}
 }
