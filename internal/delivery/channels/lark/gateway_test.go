@@ -1219,6 +1219,83 @@ func TestHandleMessageAwaitUserInputRepliesWithQuestion(t *testing.T) {
 	}
 }
 
+func TestHandleMessageAwaitUserInputRepliesWithOptionCard(t *testing.T) {
+	openID := "ou_sender_question_card"
+	chatID := "oc_chat_question_card"
+	msgID := "om_msg_question_card"
+	content := `{"text":"继续"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{
+		result: &agent.TaskResult{
+			StopReason: "await_user_input",
+			Messages: []ports.Message{{
+				Role: "tool",
+				ToolResults: []ports.ToolResult{{
+					CallID:  "call-1",
+					Content: "goal\nWhich env?",
+					Metadata: map[string]any{
+						"needs_user_input": true,
+						"question_to_user": "Which env?",
+						"options":          []string{"dev", "staging"},
+					},
+				}},
+			}},
+		},
+	}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:        "test",
+			AppSecret:    "secret",
+			CardsEnabled: true,
+		},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		calls = recorder.CallsByMethod("SendMessage")
+	}
+	if len(calls) == 0 {
+		t.Fatal("expected a reply message")
+	}
+	if calls[0].MsgType != "interactive" {
+		t.Fatalf("expected interactive message, got %q", calls[0].MsgType)
+	}
+	if !strings.Contains(calls[0].Content, `"action_tag":"await_choice_select"`) {
+		t.Fatalf("expected await choice action tag, got %s", calls[0].Content)
+	}
+}
+
 func TestHandleMessageSeedsPendingUserInput(t *testing.T) {
 	openID := "ou_sender_pending_input"
 	chatID := "oc_chat_pending_input"

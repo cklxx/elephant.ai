@@ -53,6 +53,57 @@ type AttachmentCardParams struct {
 	Assets     []AttachmentAsset
 }
 
+// AwaitChoiceCard builds a user-input selection card for await_user_input prompts.
+func AwaitChoiceCard(question string, options []string) (string, error) {
+	trimmedQuestion := strings.TrimSpace(question)
+	if trimmedQuestion == "" {
+		return "", fmt.Errorf("question is required")
+	}
+
+	uniqueOptions := make([]string, 0, len(options))
+	seen := make(map[string]struct{})
+	for _, raw := range options {
+		option := strings.TrimSpace(raw)
+		if option == "" {
+			continue
+		}
+		if _, exists := seen[option]; exists {
+			continue
+		}
+		seen[option] = struct{}{}
+		uniqueOptions = append(uniqueOptions, option)
+	}
+	if len(uniqueOptions) == 0 {
+		return "", fmt.Errorf("at least one option is required")
+	}
+
+	card := NewCard(CardConfig{
+		Title:         "请选择方案",
+		TitleColor:    "orange",
+		EnableForward: false,
+	})
+	card.AddMarkdownSection(trimmedQuestion)
+	card.AddDivider()
+
+	row := make([]Button, 0, 3)
+	for _, option := range uniqueOptions {
+		label := option
+		if len(label) > 32 {
+			label = label[:29] + "..."
+		}
+		row = append(row, NewButton(label, "await_choice_select").WithValue("text", option))
+		if len(row) == 3 {
+			card.AddActionButtons(row...)
+			row = make([]Button, 0, 3)
+		}
+	}
+	if len(row) > 0 {
+		card.AddActionButtons(row...)
+	}
+	card.AddNote("点击一个选项继续。")
+	return card.Build()
+}
+
 // --- Pre-built card templates ---
 
 // ApprovalCard builds a card with Approve and Reject buttons.

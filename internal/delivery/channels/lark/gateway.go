@@ -693,6 +693,10 @@ func (g *Gateway) prepareTaskContent(execCtx context.Context, session *storage.S
 // the Lark chat, including any attachments.
 func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker) {
 	isAwait := execErr == nil && isResultAwaitingInput(result)
+	awaitPrompt, hasAwaitPrompt := agent.AwaitUserInputPrompt{}, false
+	if isAwait && result != nil {
+		awaitPrompt, hasAwaitPrompt = agent.ExtractAwaitUserInputPrompt(result.Messages)
+	}
 
 	reply := ""
 	replyMsgType := "text"
@@ -713,8 +717,8 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 
 	if replyContent == "" && !skipReply {
 		if reply == "" && isAwait {
-			if question, ok := agent.ExtractAwaitUserInputQuestion(result.Messages); ok {
-				reply = question
+			if hasAwaitPrompt {
+				reply = awaitPrompt.Question
 			} else {
 				reply = "需要你补充信息后继续。"
 			}
@@ -727,7 +731,15 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		}
 		// Skip cards when the message is from another bot to avoid card loops in bot-to-bot chats.
 		if !msg.isFromBot {
-			if g.cfg.CardsEnabled && execErr == nil && g.cfg.CardsResults && hasAttachments && !isAwait {
+			if isAwait && g.cfg.CardsEnabled && hasAwaitPrompt && len(awaitPrompt.Options) > 0 {
+				if card, err := larkcards.AwaitChoiceCard(awaitPrompt.Question, awaitPrompt.Options); err == nil {
+					replyMsgType = "interactive"
+					replyContent = card
+				} else {
+					g.logger.Warn("Lark await choice card build failed: %v", err)
+				}
+			}
+			if replyContent == "" && g.cfg.CardsEnabled && execErr == nil && g.cfg.CardsResults && hasAttachments && !isAwait {
 				if card, err := g.buildAttachmentCard(execCtx, reply, result); err == nil {
 					replyMsgType = "interactive"
 					replyContent = card
@@ -736,7 +748,7 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 					g.logger.Warn("Lark attachment card build failed: %v", err)
 				}
 			}
-			if !attachmentCardSent && g.cfg.CardsEnabled && ((execErr != nil && g.cfg.CardsErrors) || (execErr == nil && g.cfg.CardsResults)) {
+			if replyContent == "" && !attachmentCardSent && g.cfg.CardsEnabled && ((execErr != nil && g.cfg.CardsErrors) || (execErr == nil && g.cfg.CardsResults)) {
 				if card, err := g.buildCardReply(reply, result, execErr); err == nil {
 					replyMsgType = "interactive"
 					replyContent = card

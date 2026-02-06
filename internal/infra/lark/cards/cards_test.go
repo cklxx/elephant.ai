@@ -411,6 +411,47 @@ func TestApprovalCard(t *testing.T) {
 	}
 }
 
+func TestAwaitChoiceCard(t *testing.T) {
+	raw, err := AwaitChoiceCard("请选择部署环境", []string{"dev", "staging", "prod"})
+	if err != nil {
+		t.Fatalf("AwaitChoiceCard failed: %v", err)
+	}
+
+	m := mustParse(t, raw)
+	elems := elements(t, m)
+	foundQuestion := false
+	foundAction := false
+	for _, elem := range elems {
+		e, ok := elem.(map[string]any)
+		if !ok {
+			continue
+		}
+		if e["tag"] == "div" {
+			if text, ok := e["text"].(map[string]any); ok && text["content"] == "请选择部署环境" {
+				foundQuestion = true
+			}
+		}
+		if e["tag"] == "action" {
+			actions, _ := e["actions"].([]any)
+			for _, item := range actions {
+				action, _ := item.(map[string]any)
+				if action["action_tag"] == "await_choice_select" {
+					value, _ := action["value"].(map[string]any)
+					if value["text"] != "" {
+						foundAction = true
+					}
+				}
+			}
+		}
+	}
+	if !foundQuestion {
+		t.Fatal("expected question section")
+	}
+	if !foundAction {
+		t.Fatal("expected await_choice_select action button")
+	}
+}
+
 func TestConfirmationCard(t *testing.T) {
 	raw, err := ConfirmationCard("Delete file?", "This cannot be undone.", "Delete", "Keep")
 	if err != nil {

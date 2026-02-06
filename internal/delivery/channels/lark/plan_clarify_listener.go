@@ -6,8 +6,10 @@ import (
 	"sync"
 
 	"alex/internal/domain/agent"
+	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
+	larkcards "alex/internal/infra/lark/cards"
 	"alex/internal/shared/logging"
 )
 
@@ -52,8 +54,8 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 		p.inner.OnEvent(event)
 	}
 
-	message, needsInput, callID := p.extractMessage(event)
-	if message == "" || callID == "" {
+	payload, callID := p.extractMessage(event)
+	if payload.message == "" || callID == "" {
 		return
 	}
 
@@ -68,61 +70,88 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 	if p.gateway == nil || p.gateway.messenger == nil {
 		return
 	}
-	if _, err := p.gateway.dispatchMessage(p.ctx, p.chatID, p.replyTo, "text", textContent(message)); err != nil {
+
+	msgType := "text"
+	content := textContent(payload.message)
+	if payload.needsInput && len(payload.options) > 0 && p.gateway.cfg.CardsEnabled {
+		card, err := larkcards.AwaitChoiceCard(payload.message, payload.options)
+		if err != nil {
+			if p.logger != nil {
+				p.logger.Warn("Lark await choice card build failed: %v", err)
+			}
+		} else {
+			msgType = "interactive"
+			content = card
+		}
+	}
+
+	if _, err := p.gateway.dispatchMessage(p.ctx, p.chatID, p.replyTo, msgType, content); err != nil {
 		if p.logger != nil {
 			p.logger.Warn("Lark plan/clarify dispatch failed: %v", err)
 		}
 		return
 	}
-	if needsInput && p.tracker != nil {
+	if payload.needsInput && p.tracker != nil {
 		p.tracker.MarkSent()
 	}
 }
 
-func (p *planClarifyListener) extractMessage(event agent.AgentEvent) (string, bool, string) {
+type planClarifyPayload struct {
+	message    string
+	needsInput bool
+	options    []string
+}
+
+func (p *planClarifyListener) extractMessage(event agent.AgentEvent) (planClarifyPayload, string) {
 	switch e := event.(type) {
 	case *domain.WorkflowToolCompletedEvent:
 		if e == nil || e.Error != nil {
-			return "", false, ""
+			return planClarifyPayload{}, ""
 		}
-		message, needsInput := planClarifyMessage(e)
-		return message, needsInput, e.CallID
+		payload := planClarifyMessage(e)
+		return payload, e.CallID
 	case *domain.WorkflowEventEnvelope:
-		message, needsInput := planClarifyMessageFromEnvelope(e)
-		return message, needsInput, envelopeCallID(e)
+		payload := planClarifyMessageFromEnvelope(e)
+		return payload, envelopeCallID(e)
 	default:
-		return "", false, ""
+		return planClarifyPayload{}, ""
 	}
 }
 
-func planClarifyMessage(e *domain.WorkflowToolCompletedEvent) (string, bool) {
+func planClarifyMessage(e *domain.WorkflowToolCompletedEvent) planClarifyPayload {
 	name := strings.ToLower(strings.TrimSpace(e.ToolName))
 	switch name {
 	case "plan":
 		if msg := stringMeta(e.Metadata, "overall_goal_ui"); msg != "" {
-			return msg, false
+			return planClarifyPayload{message: msg}
 		}
-		return strings.TrimSpace(e.Result), false
+		return planClarifyPayload{message: strings.TrimSpace(e.Result)}
 	case "clarify":
 		needsInput := boolMeta(e.Metadata, "needs_user_input")
-		if msg := stringMeta(e.Metadata, "question_to_user"); msg != "" {
-			return msg, needsInput
+		if needsInput {
+			if prompt, ok := awaitPromptFromResult(e.Result, e.Metadata); ok {
+				return planClarifyPayload{
+					message:    prompt.Question,
+					needsInput: true,
+					options:    prompt.Options,
+				}
+			}
 		}
 		if msg := stringMeta(e.Metadata, "task_goal_ui"); msg != "" {
-			return msg, needsInput
+			return planClarifyPayload{message: msg, needsInput: needsInput}
 		}
-		return strings.TrimSpace(e.Result), needsInput
+		return planClarifyPayload{message: strings.TrimSpace(e.Result), needsInput: needsInput}
 	default:
-		return "", false
+		return planClarifyPayload{}
 	}
 }
 
-func planClarifyMessageFromEnvelope(e *domain.WorkflowEventEnvelope) (string, bool) {
+func planClarifyMessageFromEnvelope(e *domain.WorkflowEventEnvelope) planClarifyPayload {
 	if e == nil || strings.TrimSpace(e.Event) != types.EventToolCompleted || e.Payload == nil {
-		return "", false
+		return planClarifyPayload{}
 	}
 	if envelopeHasError(e) {
-		return "", false
+		return planClarifyPayload{}
 	}
 	name := strings.ToLower(strings.TrimSpace(envelopeToolName(e)))
 	metadata, _ := e.Payload["metadata"].(map[string]any)
@@ -130,21 +159,37 @@ func planClarifyMessageFromEnvelope(e *domain.WorkflowEventEnvelope) (string, bo
 	switch name {
 	case "plan":
 		if msg := stringMeta(metadata, "overall_goal_ui"); msg != "" {
-			return msg, false
+			return planClarifyPayload{message: msg}
 		}
-		return strings.TrimSpace(result), false
+		return planClarifyPayload{message: strings.TrimSpace(result)}
 	case "clarify":
 		needsInput := boolMeta(metadata, "needs_user_input")
-		if msg := stringMeta(metadata, "question_to_user"); msg != "" {
-			return msg, needsInput
+		if needsInput {
+			if prompt, ok := awaitPromptFromResult(result, metadata); ok {
+				return planClarifyPayload{
+					message:    prompt.Question,
+					needsInput: true,
+					options:    prompt.Options,
+				}
+			}
 		}
 		if msg := stringMeta(metadata, "task_goal_ui"); msg != "" {
-			return msg, needsInput
+			return planClarifyPayload{message: msg, needsInput: needsInput}
 		}
-		return strings.TrimSpace(result), needsInput
+		return planClarifyPayload{message: strings.TrimSpace(result), needsInput: needsInput}
 	default:
-		return "", false
+		return planClarifyPayload{}
 	}
+}
+
+func awaitPromptFromResult(result string, metadata map[string]any) (agent.AwaitUserInputPrompt, bool) {
+	messages := []ports.Message{{
+		ToolResults: []ports.ToolResult{{
+			Content:  result,
+			Metadata: metadata,
+		}},
+	}}
+	return agent.ExtractAwaitUserInputPrompt(messages)
 }
 
 func stringMeta(metadata map[string]any, key string) string {

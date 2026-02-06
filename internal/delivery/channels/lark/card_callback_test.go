@@ -245,6 +245,18 @@ func TestCardActionToUserInputFallbackToTextValue(t *testing.T) {
 	}
 }
 
+func TestCardActionToUserInputAwaitChoice(t *testing.T) {
+	input := cardActionToUserInput(&callback.CallBackAction{
+		Tag: "await_choice_select",
+		Value: map[string]interface{}{
+			"text": "staging",
+		},
+	})
+	if input != "staging" {
+		t.Fatalf("expected option text, got %q", input)
+	}
+}
+
 func TestHandleCardActionAttachmentSendImage(t *testing.T) {
 	recorder := NewRecordingMessenger()
 	gw := &Gateway{messenger: recorder, logger: logging.OrNop(nil)}
