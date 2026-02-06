@@ -32,8 +32,12 @@ Updated: 2026-02-03
 
 ## Session Boot Sequence
 **Identity-critical (must not be skipped):**
-1. **[IDENTITY]** Read `SOUL.md` — who you are.
-2. **[IDENTITY]** Read `USER.md` — who you are helping.
+1. **[IDENTITY]** Read `SOUL.md` (`~/.alex/memory/SOUL.md`) — who you are.
+   - Canonical source: `configs/context/personas/default.yaml` (default persona).
+   - If missing, auto-create from persona source.
+2. **[IDENTITY]** Read `USER.md` (`~/.alex/memory/<user-id>/USER.md`) — who you are helping.
+   - If `user_id` is empty, use `~/.alex/memory/USER.md`.
+   - If missing, auto-create a scaffold file before continuing.
 
 **Memory context (before doing anything else):**
 3. **[RECENT]** Read `memory/YYYY-MM-DD.md` for **today** and **yesterday**.
@@ -46,8 +50,12 @@ Rule: do this automatically; do not ask for permission.
 
 ## 每次会话（身份信息必须优先）
 在干别的事之前：
-1. 读 `SOUL.md` —— 这是「你是谁」
-2. 读 `USER.md` —— 这是「你在帮谁」
+1. 读 `SOUL.md`（`~/.alex/memory/SOUL.md`）—— 这是「你是谁」
+   - 默认来源是 `configs/context/personas/default.yaml`。
+   - 文件不存在就按来源自动补齐再继续。
+2. 读 `USER.md`（`~/.alex/memory/<user-id>/USER.md`）—— 这是「你在帮谁」
+   - 如果没有 `user_id`，就读/写 `~/.alex/memory/USER.md`。
+   - 文件不存在就先自动创建模板文件。
 3. 读 `memory/YYYY-MM-DD.md`（今天和昨天的）以此获取最近的上下文
 4. 如果是在主会话（MAIN SESSION）（直接跟人类聊天），还要读 `MEMORY.md`
 
