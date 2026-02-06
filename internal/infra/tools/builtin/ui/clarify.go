@@ -23,7 +23,8 @@ func NewClarify() tools.ToolExecutor {
 
 Rules:
 - Use to declare a sub-task header before starting a unit of work.
-- When needs_user_input=true, provide question_to_user and the orchestrator will pause for user input.`,
+- When needs_user_input=true, provide question_to_user and the orchestrator will pause for user input.
+- When waiting for user input, provide options to let channels render a selection UI.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -51,6 +52,11 @@ Rules:
 						"question_to_user": {
 							Type:        "string",
 							Description: "Question shown to the user when needs_user_input=true.",
+						},
+						"options": {
+							Type:        "array",
+							Description: "Optional selectable options shown to the user for question_to_user.",
+							Items:       &ports.Property{Type: "string"},
 						},
 					},
 					Required: []string{"task_goal_ui"},
@@ -129,11 +135,18 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	if needsUserInput && questionToUser == "" {
 		return shared.ToolError(call.ID, "question_to_user is required when needs_user_input=true")
 	}
+	options, errResult := parseOptionsArg(call)
+	if errResult != nil {
+		return errResult, nil
+	}
+	if len(options) > 0 && !needsUserInput {
+		return shared.ToolError(call.ID, "options requires needs_user_input=true")
+	}
 
 	// Reject unexpected parameters to keep the protocol strict.
 	for key := range call.Arguments {
 		switch key {
-		case "run_id", "branch_id", "task_id", "task_goal_ui", "success_criteria", "needs_user_input", "question_to_user":
+		case "run_id", "branch_id", "task_id", "task_goal_ui", "success_criteria", "needs_user_input", "question_to_user", "options":
 			// run_id accepted but ignored (sourced from context).
 		default:
 			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
@@ -152,6 +165,9 @@ func (t *uiClarify) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 	if needsUserInput {
 		metadata["needs_user_input"] = true
 		metadata["question_to_user"] = questionToUser
+		if len(options) > 0 {
+			metadata["options"] = append([]string(nil), options...)
+		}
 	}
 
 	content := taskGoalUI

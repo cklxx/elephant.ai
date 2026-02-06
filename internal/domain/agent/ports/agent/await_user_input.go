@@ -10,14 +10,21 @@ const (
 	awaitUserInputKey       = "needs_user_input"
 	awaitUserQuestionKey    = "question_to_user"
 	awaitUserMessageKey     = "message"
+	awaitUserOptionsKey     = "options"
 	awaitUserInputTrueValue = "true"
 )
 
-// ExtractAwaitUserInputQuestion scans messages for the most recent tool result
-// that signals awaiting user input and returns the question/message to ask.
-func ExtractAwaitUserInputQuestion(messages []core.Message) (string, bool) {
+// AwaitUserInputPrompt captures the extracted await-user-input payload.
+type AwaitUserInputPrompt struct {
+	Question string
+	Options  []string
+}
+
+// ExtractAwaitUserInputPrompt scans messages for the most recent tool result
+// that signals awaiting user input and returns a structured prompt.
+func ExtractAwaitUserInputPrompt(messages []core.Message) (AwaitUserInputPrompt, bool) {
 	if len(messages) == 0 {
-		return "", false
+		return AwaitUserInputPrompt{}, false
 	}
 	for i := len(messages) - 1; i >= 0; i-- {
 		msg := messages[i]
@@ -29,19 +36,34 @@ func ExtractAwaitUserInputQuestion(messages []core.Message) (string, bool) {
 			if !toolResultNeedsUserInput(result) {
 				continue
 			}
-			if question := toolResultStringMeta(result, awaitUserQuestionKey); question != "" {
-				return question, true
+
+			question := toolResultStringMeta(result, awaitUserQuestionKey)
+			if question == "" {
+				question = toolResultStringMeta(result, awaitUserMessageKey)
 			}
-			if message := toolResultStringMeta(result, awaitUserMessageKey); message != "" {
-				return message, true
+			if question == "" {
+				question = strings.TrimSpace(result.Content)
 			}
-			if content := strings.TrimSpace(result.Content); content != "" {
-				return content, true
+			if question == "" {
+				return AwaitUserInputPrompt{}, false
 			}
-			return "", false
+			return AwaitUserInputPrompt{
+				Question: question,
+				Options:  toolResultOptionsMeta(result, awaitUserOptionsKey),
+			}, true
 		}
 	}
-	return "", false
+	return AwaitUserInputPrompt{}, false
+}
+
+// ExtractAwaitUserInputQuestion scans messages for the most recent tool result
+// that signals awaiting user input and returns the question/message to ask.
+func ExtractAwaitUserInputQuestion(messages []core.Message) (string, bool) {
+	prompt, ok := ExtractAwaitUserInputPrompt(messages)
+	if !ok {
+		return "", false
+	}
+	return prompt.Question, true
 }
 
 func toolResultNeedsUserInput(result core.ToolResult) bool {
@@ -75,4 +97,68 @@ func toolResultStringMeta(result core.ToolResult, key string) string {
 		return ""
 	}
 	return strings.TrimSpace(value)
+}
+
+func toolResultOptionsMeta(result core.ToolResult, key string) []string {
+	if result.Metadata == nil {
+		return nil
+	}
+	raw, ok := result.Metadata[key]
+	if !ok {
+		return nil
+	}
+
+	out := make([]string, 0, 4)
+	seen := make(map[string]struct{})
+	appendOption := func(value string) {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return
+		}
+		if _, exists := seen[trimmed]; exists {
+			return
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, trimmed)
+	}
+
+	appendFromObject := func(v map[string]any) {
+		if label, ok := v["label"].(string); ok {
+			appendOption(label)
+			return
+		}
+		if text, ok := v["text"].(string); ok {
+			appendOption(text)
+			return
+		}
+		if value, ok := v["value"].(string); ok {
+			appendOption(value)
+			return
+		}
+	}
+
+	switch v := raw.(type) {
+	case []string:
+		for _, item := range v {
+			appendOption(item)
+		}
+	case []any:
+		for _, item := range v {
+			switch option := item.(type) {
+			case string:
+				appendOption(option)
+			case map[string]any:
+				appendFromObject(option)
+			}
+		}
+	case []map[string]any:
+		for _, item := range v {
+			appendFromObject(item)
+		}
+	}
+
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }

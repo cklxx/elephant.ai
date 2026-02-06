@@ -110,6 +110,7 @@ func TestClarifyExecuteNeedsUserInput(t *testing.T) {
 			"task_goal_ui":     "Need input",
 			"needs_user_input": true,
 			"question_to_user": "What color?",
+			"options":          []any{"red", "blue"},
 		},
 	})
 	if err != nil {
@@ -122,7 +123,34 @@ func TestClarifyExecuteNeedsUserInput(t *testing.T) {
 	if needs, ok := result.Metadata["needs_user_input"].(bool); !ok || !needs {
 		t.Fatalf("expected needs_user_input=true in metadata")
 	}
+	options, ok := result.Metadata["options"].([]string)
+	if !ok || len(options) != 2 || options[0] != "red" || options[1] != "blue" {
+		t.Fatalf("expected options in metadata, got %#v", result.Metadata["options"])
+	}
 	if !strings.Contains(result.Content, "What color?") {
 		t.Fatalf("expected question in content, got %q", result.Content)
+	}
+}
+
+func TestClarifyExecuteRejectsInvalidOptionsType(t *testing.T) {
+	tool := NewClarify()
+
+	result, err := tool.Execute(context.Background(), ports.ToolCall{
+		ID: "call-8",
+		Arguments: map[string]any{
+			"task_goal_ui":     "Need input",
+			"needs_user_input": true,
+			"question_to_user": "What color?",
+			"options":          "red",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result == nil || result.Error == nil {
+		t.Fatalf("expected tool error result, got %#v", result)
+	}
+	if !strings.Contains(result.Error.Error(), "options must be an array") {
+		t.Fatalf("unexpected error: %v", result.Error)
 	}
 }

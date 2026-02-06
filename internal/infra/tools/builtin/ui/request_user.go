@@ -35,6 +35,11 @@ func NewRequestUser() tools.ToolExecutor {
 							Type:        "string",
 							Description: "Optional reason or context for the request.",
 						},
+						"options": {
+							Type:        "array",
+							Description: "Optional selectable options shown to the user.",
+							Items:       &ports.Property{Type: "string"},
+						},
 					},
 					Required: []string{"message"},
 				},
@@ -72,10 +77,14 @@ func (t *uiRequestUser) Execute(_ context.Context, call ports.ToolCall) (*ports.
 		}
 		reason = strings.TrimSpace(value)
 	}
+	options, errResult := parseOptionsArg(call)
+	if errResult != nil {
+		return errResult, nil
+	}
 
 	for key := range call.Arguments {
 		switch key {
-		case "message", "title", "reason":
+		case "message", "title", "reason", "options":
 		default:
 			return shared.ToolError(call.ID, "unsupported parameter: %s", key)
 		}
@@ -95,6 +104,9 @@ func (t *uiRequestUser) Execute(_ context.Context, call ports.ToolCall) (*ports.
 	}
 	if reason != "" {
 		metadata["reason"] = reason
+	}
+	if len(options) > 0 {
+		metadata["options"] = append([]string(nil), options...)
 	}
 
 	return &ports.ToolResult{
