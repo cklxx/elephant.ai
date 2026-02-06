@@ -56,6 +56,18 @@ func TestCardActionToUserInputFallbackToInputValue(t *testing.T) {
 	}
 }
 
+func TestCardActionToUserInputFallbackToTextValue(t *testing.T) {
+	input := cardActionToUserInput(&callback.CallBackAction{
+		Tag: "model_use",
+		Value: map[string]interface{}{
+			"text": "/model use codex/gpt-5.2-codex",
+		},
+	})
+	if input != "/model use codex/gpt-5.2-codex" {
+		t.Fatalf("expected text value, got %q", input)
+	}
+}
+
 func TestHandleCardActionAttachmentSendImage(t *testing.T) {
 	recorder := NewRecordingMessenger()
 	gw := &Gateway{messenger: recorder, logger: logging.OrNop(nil)}

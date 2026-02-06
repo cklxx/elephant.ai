@@ -1620,6 +1620,80 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	}
 }
 
+func TestHandleMessageModelListUsesInteractiveCardWhenCardsEnabled(t *testing.T) {
+	openID := "ou_sender_model_card"
+	chatID := "oc_chat_model_card"
+	msgID := "om_msg_model_card"
+	msgType := "text"
+	chatType := "p2p"
+
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:        "test",
+			AppSecret:    "secret",
+			CardsEnabled: true,
+		},
+		logger:    logging.OrNop(nil),
+		now:       func() time.Time { return time.Now() },
+		messenger: recorder,
+		cliCredsLoader: func() runtimeconfig.CLICredentials {
+			return runtimeconfig.CLICredentials{
+				Codex: runtimeconfig.CLICredential{
+					Provider: "codex",
+					APIKey:   "tok",
+					BaseURL:  "https://chatgpt.com/backend-api/codex",
+					Model:    "gpt-5.2-codex",
+					Source:   runtimeconfig.SourceCodexCLI,
+				},
+			}
+		},
+		llamaResolver: func(context.Context) (subscription.LlamaServerTarget, bool) {
+			return subscription.LlamaServerTarget{}, false
+		},
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	content := `{"text":"/model list"}`
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage(/model list) failed: %v", err)
+	}
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		calls = recorder.CallsByMethod("SendMessage")
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one outbound model list reply, got %#v", calls)
+	}
+	if calls[0].MsgType != "interactive" {
+		t.Fatalf("expected interactive card reply, got %q", calls[0].MsgType)
+	}
+	if !strings.Contains(calls[0].Content, `"action_tag":"model_use"`) {
+		t.Fatalf("expected model_use action in card, got: %s", calls[0].Content)
+	}
+	if !strings.Contains(calls[0].Content, `/model use codex/gpt-5.2-codex`) {
+		t.Fatalf("expected model command payload in card, got: %s", calls[0].Content)
+	}
+}
+
 // --- test helpers ---
 
 var errTest = fmt.Errorf("test error")
