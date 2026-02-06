@@ -147,7 +147,7 @@ func (i *Indexer) Name() string {
 }
 
 // Search performs hybrid (vector + BM25) retrieval.
-func (i *Indexer) Search(ctx context.Context, userID, query string, maxResults int, minScore float64) ([]SearchHit, error) {
+func (i *Indexer) Search(ctx context.Context, _ string, query string, maxResults int, minScore float64) ([]SearchHit, error) {
 	if i == nil {
 		return nil, fmt.Errorf("indexer not initialized")
 	}
@@ -268,7 +268,7 @@ func (i *Indexer) indexPath(ctx context.Context, path string) error {
 	if !isMemoryFile(path) {
 		return nil
 	}
-	_, _, relPath, ok := resolveUserPath(i.rootDir, path)
+	relPath, ok := resolveUserPath(i.rootDir, path)
 	if !ok {
 		return nil
 	}
@@ -411,20 +411,14 @@ func (i *Indexer) addWatchDir(path string) error {
 	return i.watcher.Add(path)
 }
 
-func (i *Indexer) storeForUser(userID string) (*IndexStore, error) {
-	key := strings.TrimSpace(userID)
-	if key != "" {
-		key = normalizeUserDirName(key)
-	}
+func (i *Indexer) storeForUser() (*IndexStore, error) {
+	const key = "root"
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	if store, ok := i.stores[key]; ok {
 		return store, nil
 	}
 	path := i.cfg.DBPath
-	if key != "" {
-		path = filepath.Join(i.rootDir, key, indexFileName)
-	}
 	store, err := OpenIndexStore(path)
 	if err != nil {
 		return nil, err
@@ -514,31 +508,34 @@ func isUserDir(root, path string) bool {
 	return false
 }
 
-func resolveUserPath(root, path string) (userID, userRoot, relPath string, ok bool) {
+func resolveUserPath(root, path string) (relPath string, ok bool) {
 	root = filepath.Clean(root)
 	path = filepath.Clean(path)
 	if !strings.HasPrefix(path, root+string(os.PathSeparator)) && path != root {
-		return "", "", "", false
+		return "", false
 	}
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
-		return "", "", "", false
+		return "", false
 	}
 	parts := strings.Split(rel, string(os.PathSeparator))
 	if len(parts) >= 2 && parts[0] == legacyUserDirName {
-		userID = parts[1]
-		userRoot = filepath.Join(root, legacyUserDirName, userID)
-	} else if len(parts) >= 2 && !isReservedUserDirName(parts[0]) {
-		userID = parts[0]
-		userRoot = filepath.Join(root, userID)
-	} else {
-		userRoot = root
+		return flattenLegacyRelativePath(parts[2:])
 	}
-	relPath, err = filepath.Rel(userRoot, path)
-	if err != nil {
-		return "", "", "", false
+	if len(parts) >= 2 && !isReservedUserDirName(parts[0]) {
+		return flattenLegacyRelativePath(parts[1:])
 	}
-	return userID, userRoot, relPath, true
+	return filepath.Clean(rel), true
+}
+
+func flattenLegacyRelativePath(parts []string) (string, bool) {
+	if len(parts) == 1 && parts[0] == memoryFileName {
+		return memoryFileName, true
+	}
+	if len(parts) >= 2 && parts[0] == dailyDirName {
+		return filepath.Clean(filepath.Join(parts...)), true
+	}
+	return "", false
 }
 
 func collectAllMemoryFiles(root string) ([]string, error) {

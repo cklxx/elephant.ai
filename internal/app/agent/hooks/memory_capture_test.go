@@ -116,7 +116,7 @@ func TestMemoryCaptureHook_RespectsPolicy(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("OnTaskCompleted: %v", err)
 	}
-	dailyDir := filepath.Join(root, "user-1", "memory")
+	dailyDir := filepath.Join(root, "memory")
 	entries, err := os.ReadDir(dailyDir)
 	if err == nil && len(entries) > 0 {
 		t.Fatalf("expected no daily log written when auto capture disabled")

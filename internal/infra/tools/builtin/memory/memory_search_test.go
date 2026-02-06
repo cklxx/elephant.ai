@@ -81,11 +81,7 @@ func TestMemoryGetReadsLines(t *testing.T) {
 		t.Fatalf("EnsureSchema: %v", err)
 	}
 
-	userRoot := filepath.Join(root, "user-1")
-	if err := os.MkdirAll(userRoot, 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	path := filepath.Join(userRoot, "MEMORY.md")
+	path := filepath.Join(root, "MEMORY.md")
 	if err := os.WriteFile(path, []byte("# Memory\n\n- Alpha\n- Beta\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
 	}

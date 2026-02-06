@@ -60,11 +60,7 @@ func TestMarkdownEngineSearchAndGetLines(t *testing.T) {
 	}
 
 	// Add MEMORY.md
-	memDir := filepath.Join(dir, "user-1")
-	if err := os.MkdirAll(memDir, 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	memoryPath := filepath.Join(memDir, "MEMORY.md")
+	memoryPath := filepath.Join(dir, "MEMORY.md")
 	if err := os.WriteFile(memoryPath, []byte("# Long-Term Memory\n\n- Prefer TypeScript\n"), 0o644); err != nil {
 		t.Fatalf("write MEMORY.md: %v", err)
 	}

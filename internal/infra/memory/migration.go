@@ -9,36 +9,45 @@ import (
 )
 
 func migrateLegacyUsers(root string) error {
-	legacyRoot := filepath.Join(root, legacyUserDirName)
-	entries, err := os.ReadDir(legacyRoot)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
 	var errs []string
-	for _, entry := range entries {
+	legacyRoot := filepath.Join(root, legacyUserDirName)
+	legacyEntries, err := os.ReadDir(legacyRoot)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		legacyEntries = nil
+	}
+	for _, entry := range legacyEntries {
 		if !entry.IsDir() {
 			continue
 		}
 		legacyUserID := entry.Name()
 		legacyPath := filepath.Join(legacyRoot, legacyUserID)
-		newUserID := normalizeUserDirName(legacyUserID)
-		newPath := filepath.Join(root, newUserID)
-		if _, err := os.Stat(newPath); os.IsNotExist(err) {
-			if err := os.Rename(legacyPath, newPath); err != nil {
-				errs = append(errs, fmt.Sprintf("move %s: %v", legacyUserID, err))
-				continue
-			}
-			continue
-		}
-		if err := mergeLegacyUserDir(newPath, legacyPath); err != nil {
-			errs = append(errs, fmt.Sprintf("merge %s: %v", legacyUserID, err))
+		if err := mergeLegacyUserDir(root, legacyPath); err != nil {
+			errs = append(errs, fmt.Sprintf("merge users/%s: %v", legacyUserID, err))
 		}
 	}
 	if err := removeIfEmpty(legacyRoot); err != nil {
 		errs = append(errs, err.Error())
+	}
+
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if isReservedUserDirName(name) {
+			continue
+		}
+		sourcePath := filepath.Join(root, name)
+		if err := mergeLegacyUserDir(root, sourcePath); err != nil {
+			errs = append(errs, fmt.Sprintf("merge %s: %v", name, err))
+		}
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("legacy memory migration errors: %s", strings.Join(errs, "; "))
@@ -46,28 +55,31 @@ func migrateLegacyUsers(root string) error {
 	return nil
 }
 
-func mergeLegacyUserDir(newRoot, legacyRoot string) error {
-	if err := os.MkdirAll(newRoot, 0o755); err != nil {
+func mergeLegacyUserDir(root, legacyRoot string) error {
+	if err := os.MkdirAll(root, 0o755); err != nil {
 		return err
 	}
-	if err := mergeLegacyMemoryFile(newRoot, legacyRoot); err != nil {
+	if err := mergeLegacyMarkdownFile(root, legacyRoot, memoryFileName); err != nil {
 		return err
 	}
-	if err := mergeLegacyDailyLogs(newRoot, legacyRoot); err != nil {
+	if err := mergeLegacyMarkdownFile(root, legacyRoot, userFileName); err != nil {
+		return err
+	}
+	if err := mergeLegacyDailyLogs(root, legacyRoot); err != nil {
 		return err
 	}
 	return os.RemoveAll(legacyRoot)
 }
 
-func mergeLegacyMemoryFile(newRoot, legacyRoot string) error {
-	legacyPath := filepath.Join(legacyRoot, memoryFileName)
+func mergeLegacyMarkdownFile(root, sourceRoot, fileName string) error {
+	legacyPath := filepath.Join(sourceRoot, fileName)
 	if _, err := os.Stat(legacyPath); err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return err
 	}
-	newPath := filepath.Join(newRoot, memoryFileName)
+	newPath := filepath.Join(root, fileName)
 	if _, err := os.Stat(newPath); os.IsNotExist(err) {
 		return os.Rename(legacyPath, newPath)
 	}

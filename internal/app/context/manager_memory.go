@@ -10,7 +10,6 @@ import (
 
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
-	"alex/internal/infra/memory"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
 	"gopkg.in/yaml.v3"
@@ -86,11 +85,7 @@ func (m *manager) loadIdentitySnapshot(userID string) (soul string, user string,
 	}
 
 	soulPath = filepath.Join(root, soulFileName)
-	userRoot := memory.ResolveUserRoot(root, userID)
-	if strings.TrimSpace(userRoot) == "" {
-		userRoot = root
-	}
-	userPath = filepath.Join(userRoot, userFileName)
+	userPath = filepath.Join(root, userFileName)
 
 	if err := ensureMarkdownFileIfMissing(soulPath, m.renderSoulTemplate); err != nil {
 		logging.OrNop(m.logger).Warn("Failed to bootstrap SOUL.md: %v", err)
@@ -192,7 +187,7 @@ func renderUserTemplate(userID string) string {
 		"This file defines who the assistant is helping.",
 		"",
 		fmt.Sprintf("- User ID: %s", displayUserID),
-		"- Location: `~/.alex/memory/<user-id>/USER.md` (falls back to `~/.alex/memory/USER.md` when user_id is empty).",
+		"- Location: `~/.alex/memory/USER.md`.",
 		"- Bootstrap behavior: if missing, this file is auto-created at session boot.",
 		"",
 		"## Working Profile",

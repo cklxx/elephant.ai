@@ -38,11 +38,7 @@ func TestLoadMemorySnapshotIncludesLongTermAndDaily(t *testing.T) {
 		t.Fatalf("AppendDaily yesterday: %v", err)
 	}
 
-	userDir := filepath.Join(root, userID)
-	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		t.Fatalf("mkdir user dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(userDir, "MEMORY.md"), []byte("# Long-Term\n\nPrefers Go."), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "MEMORY.md"), []byte("# Long-Term\n\nPrefers Go."), 0o644); err != nil {
 		t.Fatalf("write MEMORY.md: %v", err)
 	}
 
@@ -81,11 +77,7 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 		t.Fatalf("AppendDaily: %v", err)
 	}
 
-	userDir := filepath.Join(root, userID)
-	if err := os.MkdirAll(userDir, 0o755); err != nil {
-		t.Fatalf("mkdir user dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(userDir, "MEMORY.md"), []byte("# Long-Term\n\nPersistent fact."), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(root, "MEMORY.md"), []byte("# Long-Term\n\nPersistent fact."), 0o644); err != nil {
 		t.Fatalf("write MEMORY.md: %v", err)
 	}
 
@@ -96,7 +88,7 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 	})
 
 	soulPath := filepath.Join(root, "SOUL.md")
-	userPath := filepath.Join(userDir, "USER.md")
+	userPath := filepath.Join(root, "USER.md")
 	if _, err := os.Stat(soulPath); err != nil {
 		t.Fatalf("expected SOUL.md to be created at %s: %v", soulPath, err)
 	}
