@@ -99,9 +99,9 @@ Model command usage:
 
 Examples:
   /model use codex/gpt-5.2-codex
-  /model use antigravity/gemini-3-pro-high
   /model use anthropic/claude-sonnet-4-20250514
   /model use ollama/llama3:latest
+  /model use llama_server/local-model
 `)
 }
 
@@ -233,14 +233,15 @@ func matchSubscriptionCredential(creds runtimeconfig.CLICredentials, provider st
 		if creds.Claude.APIKey != "" {
 			return creds.Claude, true
 		}
-	case creds.Antigravity.Provider:
-		if creds.Antigravity.APIKey != "" {
-			return creds.Antigravity, true
-		}
 	case "ollama":
 		return runtimeconfig.CLICredential{
 			Provider: "ollama",
 			Source:   "ollama",
+		}, true
+	case "llama_server":
+		return runtimeconfig.CLICredential{
+			Provider: "llama_server",
+			Source:   "llama_server",
 		}, true
 	}
 	return runtimeconfig.CLICredential{}, false

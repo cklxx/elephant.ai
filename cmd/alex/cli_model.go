@@ -47,13 +47,31 @@ func listModels(out io.Writer) error {
 }
 
 func listModelsFrom(out io.Writer, creds runtimeconfig.CLICredentials) error {
+	client := &http.Client{Timeout: 20 * time.Second}
+	return listModelsFromWith(out, creds, client, func(context.Context) (subscription.LlamaServerTarget, bool) {
+		return resolveLlamaServerTarget()
+	})
+}
+
+func listModelsFromWith(
+	out io.Writer,
+	creds runtimeconfig.CLICredentials,
+	client *http.Client,
+	llamaResolver func(context.Context) (subscription.LlamaServerTarget, bool),
+) error {
 	ctx, cancel := context.WithTimeout(cliBaseContext(), 30*time.Second)
 	defer cancel()
 
-	client := &http.Client{Timeout: 20 * time.Second}
+	if client == nil {
+		client = &http.Client{Timeout: 20 * time.Second}
+	}
+	opts := []subscription.CatalogOption{}
+	if llamaResolver != nil {
+		opts = append(opts, subscription.WithLlamaServerTargetResolver(llamaResolver))
+	}
 	svc := subscription.NewCatalogService(
 		func() runtimeconfig.CLICredentials { return creds },
-		client, 0,
+		client, 0, opts...,
 	)
 
 	catalog := svc.Catalog(ctx)
@@ -68,7 +86,8 @@ func listModelsFrom(out io.Writer, creds runtimeconfig.CLICredentials) error {
 			"支持的凭证路径:",
 			"  Codex:       ~/.codex/auth.json",
 			"  Claude:      ~/.claude/credentials.json 或 CLAUDE_CODE_OAUTH_TOKEN 环境变量",
-			"  Antigravity: ~/.gemini/oauth_creds.json 或 ~/.antigravity/oauth_creds.json",
+			"  Ollama:      OLLAMA_BASE_URL 或 OLLAMA_HOST（可选）",
+			"  LlamaServer: LLAMA_SERVER_BASE_URL（默认 http://127.0.0.1:8080/v1）",
 		}
 		for _, line := range lines {
 			if _, err := fmt.Fprintln(out, line); err != nil {
@@ -139,11 +158,6 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 	provider := strings.ToLower(strings.TrimSpace(parts[0]))
 	model := strings.TrimSpace(parts[1])
 
-	switch provider {
-	case "llamacpp", "llama-cpp":
-		provider = "llama.cpp"
-	}
-
 	cred, ok := matchCredential(creds, provider)
 	if !ok {
 		return fmt.Errorf("no subscription credential found for %q", provider)
@@ -201,19 +215,15 @@ func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runti
 		if creds.Claude.APIKey != "" {
 			return creds.Claude, true
 		}
-	case creds.Antigravity.Provider:
-		if creds.Antigravity.APIKey != "" {
-			return creds.Antigravity, true
-		}
 	case "ollama":
 		return runtimeconfig.CLICredential{
 			Provider: "ollama",
 			Source:   "ollama",
 		}, true
-	case "llama.cpp":
+	case "llama_server":
 		return runtimeconfig.CLICredential{
-			Provider: "llama.cpp",
-			Source:   "llama.cpp",
+			Provider: "llama_server",
+			Source:   "llama_server",
 		}, true
 	}
 	return runtimeconfig.CLICredential{}, false
@@ -229,14 +239,43 @@ func printModelUsage(out io.Writer) {
 		"",
 		"Examples:",
 		"  alex model use codex/gpt-5.2-codex",
-		"  alex model use antigravity/gemini-3-pro-high",
 		"  alex model use anthropic/claude-sonnet-4-20250514",
 		"  alex model use ollama/llama3:latest",
-		"  alex model use llama.cpp/local-model",
+		"  alex model use llama_server/local-model",
 	}
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(out, line); err != nil {
 			return
 		}
 	}
+}
+
+func resolveLlamaServerTarget() (subscription.LlamaServerTarget, bool) {
+	lookup := runtimeconfig.DefaultEnvLookup
+
+	baseURL := ""
+	source := ""
+	if value, ok := lookup("LLAMA_SERVER_BASE_URL"); ok {
+		baseURL = strings.TrimSpace(value)
+		if baseURL != "" {
+			source = string(runtimeconfig.SourceEnv)
+		}
+	}
+	if baseURL == "" {
+		if host, ok := lookup("LLAMA_SERVER_HOST"); ok {
+			host = strings.TrimSpace(host)
+			if host != "" {
+				if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+					baseURL = host
+				} else {
+					baseURL = "http://" + host
+				}
+				source = string(runtimeconfig.SourceEnv)
+			}
+		}
+	}
+	if baseURL == "" {
+		source = "llama_server"
+	}
+	return subscription.LlamaServerTarget{BaseURL: baseURL, Source: source}, true
 }

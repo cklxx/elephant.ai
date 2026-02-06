@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,13 +23,15 @@ func TestModelListShowsProviders(t *testing.T) {
 	defer srv.Close()
 
 	var buf bytes.Buffer
-	if err := listModelsFrom(&buf, runtimeconfig.CLICredentials{
+	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{
 		Codex: runtimeconfig.CLICredential{
 			Provider: "codex",
 			APIKey:   "tok-abc",
 			BaseURL:  srv.URL,
 			Source:   runtimeconfig.SourceCodexCLI,
 		},
+	}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
+		return subscription.LlamaServerTarget{}, false
 	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
 	}
@@ -45,7 +48,9 @@ func TestModelListShowsProviders(t *testing.T) {
 func TestModelListShowsEmpty(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
-	if err := listModelsFrom(&buf, runtimeconfig.CLICredentials{}); err != nil {
+	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, &http.Client{}, func(context.Context) (subscription.LlamaServerTarget, bool) {
+		return subscription.LlamaServerTarget{}, false
+	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
 	}
 
@@ -63,23 +68,55 @@ func TestModelListShowsErrors(t *testing.T) {
 	defer srv.Close()
 
 	var buf bytes.Buffer
-	if err := listModelsFrom(&buf, runtimeconfig.CLICredentials{
-		Antigravity: runtimeconfig.CLICredential{
-			Provider: "antigravity",
+	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{
+		Claude: runtimeconfig.CLICredential{
+			Provider: "anthropic",
 			APIKey:   "expired-token",
 			BaseURL:  srv.URL,
-			Source:   runtimeconfig.SourceAntigravityCLI,
+			Source:   runtimeconfig.SourceEnv,
 		},
+	}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
+		return subscription.LlamaServerTarget{}, false
 	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
 	}
 
 	out := buf.String()
-	if !strings.Contains(out, "antigravity") {
-		t.Fatalf("expected antigravity provider in output, got:\n%s", out)
+	if !strings.Contains(out, "anthropic") {
+		t.Fatalf("expected anthropic provider in output, got:\n%s", out)
 	}
 	if !strings.Contains(out, "Error:") {
 		t.Fatalf("expected error in output, got:\n%s", out)
+	}
+}
+
+func TestModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
+	t.Parallel()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/models" {
+			t.Fatalf("expected /v1/models path, got %q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[{"id":"llama-3.2-local"}]}`))
+	}))
+	defer srv.Close()
+
+	var buf bytes.Buffer
+	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
+		return subscription.LlamaServerTarget{
+			BaseURL: srv.URL,
+			Source:  "llama_server",
+		}, true
+	}); err != nil {
+		t.Fatalf("listModels error: %v", err)
+	}
+
+	out := buf.String()
+	if !strings.Contains(out, "llama_server (llama_server)") {
+		t.Fatalf("expected llama server provider in output, got:\n%s", out)
+	}
+	if !strings.Contains(out, "llama-3.2-local") {
+		t.Fatalf("expected llama server model in output, got:\n%s", out)
 	}
 }
 
@@ -211,22 +248,20 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 			Provider: "anthropic",
 			APIKey:   "sk-abc",
 		},
-		Antigravity: runtimeconfig.CLICredential{
-			Provider: "antigravity",
-			APIKey:   "ag-abc",
-		},
 	}
 
 	tests := []struct {
-		provider string
-		wantOK   bool
+		provider     string
+		wantOK       bool
+		wantProvider string
 	}{
-		{"codex", true},
-		{"anthropic", true},
-		{"antigravity", true},
-		{"ollama", true},
-		{"llama.cpp", true},
-		{"unknown", false},
+		{"codex", true, "codex"},
+		{"anthropic", true, "anthropic"},
+		{"antigravity", false, ""},
+		{"ollama", true, "ollama"},
+		{"llama.cpp", false, ""},
+		{"llama_server", true, "llama_server"},
+		{"unknown", false, ""},
 	}
 
 	for _, tt := range tests {
@@ -234,8 +269,8 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 		if ok != tt.wantOK {
 			t.Errorf("matchCredential(%q): got ok=%v, want %v", tt.provider, ok, tt.wantOK)
 		}
-		if ok && cred.Provider != tt.provider {
-			t.Errorf("matchCredential(%q): got provider=%q", tt.provider, cred.Provider)
+		if ok && cred.Provider != tt.wantProvider {
+			t.Errorf("matchCredential(%q): got provider=%q want=%q", tt.provider, cred.Provider, tt.wantProvider)
 		}
 	}
 }
