@@ -7,6 +7,27 @@ import (
 	runtimeconfig "alex/internal/shared/config"
 )
 
+// StewardConfig controls the steward AI mode where a structured state document
+// is maintained across turns and injected as a SYSTEM_REMINDER.
+type StewardConfig struct {
+	Enabled                   bool    `yaml:"enabled"`
+	MaxStateChars             int     `yaml:"max_state_chars"`              // default 1400
+	StateCompressionThreshold float64 `yaml:"state_compression_threshold"`  // default 0.70
+	AggressiveTrimThreshold   float64 `yaml:"aggressive_trim_threshold"`    // default 0.85
+	MaxTurnRetention          int     `yaml:"max_turn_retention"`           // default 6
+}
+
+// DefaultStewardConfig returns sensible defaults for steward mode.
+func DefaultStewardConfig() StewardConfig {
+	return StewardConfig{
+		Enabled:                   false,
+		MaxStateChars:             1400,
+		StateCompressionThreshold: 0.70,
+		AggressiveTrimThreshold:   0.85,
+		MaxTurnRetention:          6,
+	}
+}
+
 // Config captures runtime defaults for coordinator execution and preparation.
 type Config struct {
 	LLMProvider         string
@@ -30,4 +51,5 @@ type Config struct {
 	SessionStaleAfter   time.Duration
 	Proactive           runtimeconfig.ProactiveConfig
 	ToolPolicy          toolspolicy.ToolPolicyConfig
+	Steward             StewardConfig
 }

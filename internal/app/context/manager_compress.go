@@ -41,7 +41,7 @@ func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Mess
 	if m.flushHook != nil {
 		var compressible []ports.Message
 		for _, msg := range messages {
-			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
+			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceStewardReminder {
 				continue
 			}
 			compressible = append(compressible, msg)
@@ -85,7 +85,7 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	)
 
 	for _, msg := range messages {
-		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
+		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceStewardReminder {
 			compressed = append(compressed, msg)
 			continue
 		}
@@ -183,4 +183,102 @@ func buildCompressionSnippet(content string, limit int) string {
 		return trimmed
 	}
 	return strings.TrimSpace(string(runes[:limit])) + "…"
+}
+
+// ---------------------------------------------------------------------------
+// Steward-mode budget helpers
+// ---------------------------------------------------------------------------
+
+// StewardBudgetSignal indicates which steward-mode budget threshold was crossed.
+type StewardBudgetSignal int
+
+const (
+	StewardBudgetOK           StewardBudgetSignal = iota // under all thresholds
+	StewardBudgetCompress                                // 70% — suggest STATE compression
+	StewardBudgetAggressiveTrim                          // 85% — aggressive trim needed
+)
+
+// StewardBudgetCheck evaluates the steward-mode three-tier budget thresholds
+// and returns the appropriate signal. The caller should inject feedback signals
+// or perform aggressive trimming based on the result.
+func StewardBudgetCheck(tokenCount, limit int, compressionThreshold, aggressiveTrimThreshold float64) StewardBudgetSignal {
+	if limit <= 0 {
+		return StewardBudgetOK
+	}
+	ratio := float64(tokenCount) / float64(limit)
+	if ratio >= aggressiveTrimThreshold {
+		return StewardBudgetAggressiveTrim
+	}
+	if ratio >= compressionThreshold {
+		return StewardBudgetCompress
+	}
+	return StewardBudgetOK
+}
+
+// StewardAggressiveTrim retains only the most recent maxTurns user+assistant
+// exchanges plus all system, important, and steward_reminder messages.
+func StewardAggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
+	if maxTurns <= 0 {
+		maxTurns = 6
+	}
+
+	// Separate preserved messages from conversation turns.
+	var preserved, conversation []ports.Message
+	for _, msg := range messages {
+		switch msg.Source {
+		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceStewardReminder:
+			preserved = append(preserved, msg)
+		default:
+			conversation = append(conversation, msg)
+		}
+	}
+
+	// Count turns from the end (a "turn" = one user message + following assistant/tool messages).
+	kept := keepRecentTurns(conversation, maxTurns)
+
+	result := make([]ports.Message, 0, len(preserved)+len(kept))
+	result = append(result, preserved...)
+	if len(kept) > 0 {
+		summary := buildCompressionSummary(conversation[:len(conversation)-len(kept)])
+		if summary != "" {
+			result = append(result, ports.Message{
+				Role:    "system",
+				Content: summary,
+				Source:  ports.MessageSourceSystemPrompt,
+			})
+		}
+		result = append(result, kept...)
+	}
+	return result
+}
+
+// keepRecentTurns returns the last N user-initiated turns from a conversation
+// slice. A turn starts with a user message and includes all following
+// assistant/tool messages until the next user message.
+func keepRecentTurns(messages []ports.Message, maxTurns int) []ports.Message {
+	if len(messages) == 0 || maxTurns <= 0 {
+		return nil
+	}
+
+	// Find turn boundaries (indices of user messages).
+	var turnStarts []int
+	for i, msg := range messages {
+		if strings.EqualFold(strings.TrimSpace(msg.Role), "user") {
+			turnStarts = append(turnStarts, i)
+		}
+	}
+
+	if len(turnStarts) == 0 {
+		return messages // no user messages — keep everything
+	}
+
+	// Keep the last maxTurns.
+	start := 0
+	if len(turnStarts) > maxTurns {
+		start = turnStarts[len(turnStarts)-maxTurns]
+	} else {
+		start = turnStarts[0]
+	}
+
+	return messages[start:]
 }
