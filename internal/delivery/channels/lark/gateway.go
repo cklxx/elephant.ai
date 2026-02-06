@@ -76,6 +76,8 @@ type Gateway struct {
 	oauth           *larkoauth.Service
 	llmSelections   *subscription.SelectionStore
 	llmResolver     *subscription.SelectionResolver
+	cliCredsLoader  func() runtimeconfig.CLICredentials
+	llamaResolver   func(context.Context) (subscription.LlamaServerTarget, bool)
 	activeSlots     sync.Map           // chatID → *sessionSlot
 	aiCoordinator   *AIChatCoordinator // coordinates multi-bot chat sessions
 }
@@ -152,6 +154,12 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		llmResolver: subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
 			return runtimeconfig.LoadCLICredentials()
 		}),
+		cliCredsLoader: func() runtimeconfig.CLICredentials {
+			return runtimeconfig.LoadCLICredentials()
+		},
+		llamaResolver: func(context.Context) (subscription.LlamaServerTarget, bool) {
+			return resolveLlamaServerTarget(runtimeconfig.DefaultEnvLookup)
+		},
 		aiCoordinator: aiCoordinator,
 	}, nil
 }

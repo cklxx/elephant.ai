@@ -147,10 +147,23 @@ func (g *Gateway) buildModelList(ctx context.Context, msg *incomingMessage) stri
 	defer cancel()
 
 	client := &http.Client{Timeout: 20 * time.Second}
+	loadCreds := func() runtimeconfig.CLICredentials {
+		return runtimeconfig.LoadCLICredentials()
+	}
+	if g != nil && g.cliCredsLoader != nil {
+		loadCreds = g.cliCredsLoader
+	}
+	llamaResolver := func(context.Context) (subscription.LlamaServerTarget, bool) {
+		return resolveLlamaServerTarget(runtimeconfig.DefaultEnvLookup)
+	}
+	if g != nil && g.llamaResolver != nil {
+		llamaResolver = g.llamaResolver
+	}
 	svc := subscription.NewCatalogService(
-		func() runtimeconfig.CLICredentials { return runtimeconfig.LoadCLICredentials() },
+		func() runtimeconfig.CLICredentials { return loadCreds() },
 		client,
 		0,
+		subscription.WithLlamaServerTargetResolver(llamaResolver),
 	)
 	catalog := svc.Catalog(ctx)
 	if len(catalog.Providers) == 0 {
@@ -221,6 +234,41 @@ func (g *Gateway) clearModelSelection(ctx context.Context, msg *incomingMessage)
 		return fmt.Errorf("selection store not available")
 	}
 	return g.llmSelections.Clear(ctx, g.modelSelectionScope(msg))
+}
+
+func resolveLlamaServerTarget(lookup runtimeconfig.EnvLookup) (subscription.LlamaServerTarget, bool) {
+	if lookup == nil {
+		lookup = runtimeconfig.DefaultEnvLookup
+	}
+
+	baseURL := ""
+	source := ""
+	if value, ok := lookup("LLAMA_SERVER_BASE_URL"); ok {
+		baseURL = strings.TrimSpace(value)
+		if baseURL != "" {
+			source = string(runtimeconfig.SourceEnv)
+		}
+	}
+	if baseURL == "" {
+		if host, ok := lookup("LLAMA_SERVER_HOST"); ok {
+			host = strings.TrimSpace(host)
+			if host != "" {
+				if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+					baseURL = host
+				} else {
+					baseURL = "http://" + host
+				}
+				source = string(runtimeconfig.SourceEnv)
+			}
+		}
+	}
+	if source == "" {
+		source = "llama_server"
+	}
+	return subscription.LlamaServerTarget{
+		BaseURL: baseURL,
+		Source:  source,
+	}, true
 }
 
 func matchSubscriptionCredential(creds runtimeconfig.CLICredentials, provider string) (runtimeconfig.CLICredential, bool) {
