@@ -12,6 +12,7 @@ import {
   AttachmentPayload,
 } from './types';
 import { isEventType } from '@/lib/events/matching';
+import { appendBoundedToolStreamChunk } from '@/lib/events/toolStreamBounds';
 
 /**
  * Aggregated tool call - combines start, stream chunks, and completion
@@ -91,7 +92,7 @@ export function aggregateToolCalls(events: AnyAgentEvent[]): Map<string, Aggrega
       const existing = toolCallMap.get(streamEvent.call_id);
       if (existing) {
         existing.status = 'streaming';
-        existing.stream_chunks.push(streamEvent.chunk);
+        appendBoundedToolStreamChunk(existing.stream_chunks, streamEvent.chunk);
         existing.last_stream_at = streamEvent.timestamp;
       }
     } else if (isEventType(event, 'workflow.tool.completed')) {
@@ -388,20 +389,26 @@ export function extractResearchSteps(events: AnyAgentEvent[]): ResearchStep[] {
  */
 export class EventLRUCache {
   private maxSize: number;
-  private events: AnyAgentEvent[] = [];
+  private head = 0;
+  private count = 0;
+  private buffer: Array<AnyAgentEvent | undefined>;
 
   constructor(maxSize: number = 1000) {
-    this.maxSize = maxSize;
+    this.maxSize = maxSize > 0 ? maxSize : 1;
+    this.buffer = new Array(this.maxSize);
   }
 
   add(event: AnyAgentEvent): void {
-    this.events.push(event);
-
-    // Evict oldest events if over limit
-    if (this.events.length > this.maxSize) {
-      const evictCount = this.events.length - this.maxSize;
-      this.events.splice(0, evictCount);
+    if (this.count < this.maxSize) {
+      const writeIndex = (this.head + this.count) % this.maxSize;
+      this.buffer[writeIndex] = event;
+      this.count += 1;
+      return;
     }
+
+    // Ring overwrite of oldest slot.
+    this.buffer[this.head] = event;
+    this.head = (this.head + 1) % this.maxSize;
   }
 
   /**
@@ -412,9 +419,13 @@ export class EventLRUCache {
    * @returns true if a replacement occurred, false otherwise
    */
   replaceLastIf(predicate: (event: AnyAgentEvent) => boolean, replacement: AnyAgentEvent): boolean {
-    const lastIndex = this.events.length - 1;
-    if (lastIndex >= 0 && predicate(this.events[lastIndex])) {
-      this.events[lastIndex] = replacement;
+    if (this.count === 0) {
+      return false;
+    }
+    const lastIndex = (this.head + this.count - 1) % this.maxSize;
+    const current = this.buffer[lastIndex];
+    if (current && predicate(current)) {
+      this.buffer[lastIndex] = replacement;
       return true;
     }
 
@@ -422,8 +433,9 @@ export class EventLRUCache {
   }
 
   peekLast(): AnyAgentEvent | undefined {
-    if (this.events.length === 0) return undefined;
-    return this.events[this.events.length - 1];
+    if (this.count === 0) return undefined;
+    const lastIndex = (this.head + this.count - 1) % this.maxSize;
+    return this.buffer[lastIndex];
   }
 
   addMany(events: AnyAgentEvent[]): void {
@@ -431,22 +443,31 @@ export class EventLRUCache {
   }
 
   getAll(): AnyAgentEvent[] {
-    return this.events.slice();
+    if (this.count === 0) {
+      return [];
+    }
+    const out = new Array<AnyAgentEvent>(this.count);
+    for (let i = 0; i < this.count; i++) {
+      out[i] = this.buffer[(this.head + i) % this.maxSize]!;
+    }
+    return out;
   }
 
   clear(): void {
-    this.events = [];
+    this.head = 0;
+    this.count = 0;
+    this.buffer = new Array(this.maxSize);
   }
 
   size(): number {
-    return this.events.length;
+    return this.count;
   }
 
   getMemoryUsage(): { eventCount: number; estimatedBytes: number } {
     // Rough estimation: ~500 bytes per event on average
-    const estimatedBytes = this.events.length * 500;
+    const estimatedBytes = this.count * 500;
     return {
-      eventCount: this.events.length,
+      eventCount: this.count,
       estimatedBytes,
     };
   }

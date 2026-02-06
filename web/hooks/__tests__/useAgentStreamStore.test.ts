@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { act } from '@testing-library/react';
 import { useAgentStreamStore } from '../useAgentStreamStore';
 import { AnyAgentEvent } from '@/lib/types';
+import { MAX_TOOL_STREAM_BYTES, MAX_TOOL_STREAM_CHUNKS } from '@/lib/events/toolStreamBounds';
 
 describe('useAgentStreamStore', () => {
   beforeEach(() => {
@@ -116,6 +117,44 @@ describe('useAgentStreamStore', () => {
       const toolCall = updatedState.toolCalls.get('call-123');
       expect(toolCall?.status).toBe('done');
       expect(toolCall?.stream_chunks).toHaveLength(1);
+    });
+
+    it('should cap tool progress chunks in aggregated state', () => {
+      const callId = 'call-stream-cap';
+      const startEvent: AnyAgentEvent = {
+        event_type: 'workflow.tool.started',
+        timestamp: new Date().toISOString(),
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: callId,
+        tool_name: 'bash',
+        arguments: { command: 'npm test' },
+      };
+
+      const streamEvents: AnyAgentEvent[] = Array.from(
+        { length: MAX_TOOL_STREAM_CHUNKS + 80 },
+        (_, i) => ({
+          event_type: 'workflow.tool.progress',
+          timestamp: new Date().toISOString(),
+          session_id: 'test-123',
+          agent_level: 'core',
+          call_id: callId,
+          chunk: `line-${i}-` + 'x'.repeat(512),
+        }),
+      );
+
+      act(() => {
+        const store = useAgentStreamStore.getState();
+        store.addEvent(startEvent);
+        store.addEvents(streamEvents);
+      });
+
+      const toolCall = useAgentStreamStore.getState().toolCalls.get(callId);
+      expect(toolCall).toBeDefined();
+      expect(toolCall!.stream_chunks.length).toBeLessThanOrEqual(MAX_TOOL_STREAM_CHUNKS);
+      const retainedBytes = toolCall!.stream_chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      expect(retainedBytes).toBeLessThanOrEqual(MAX_TOOL_STREAM_BYTES);
     });
   });
 

@@ -7,6 +7,7 @@ import {
   buildToolCallSummaries,
 } from '../eventAggregation';
 import { AnyAgentEvent } from '../types';
+import { MAX_TOOL_STREAM_BYTES, MAX_TOOL_STREAM_CHUNKS } from '../events/toolStreamBounds';
 
 describe('EventLRUCache', () => {
   let cache: EventLRUCache;
@@ -132,6 +133,29 @@ describe('EventLRUCache', () => {
       const allEvents = cache.getAll();
       expect((allEvents[0] as any).iteration).toBe(500);
       expect((allEvents[999] as any).iteration).toBe(1499);
+    });
+
+    it('should replace last event correctly after ring wraparound', () => {
+      const smallCache = new EventLRUCache(3);
+      const makeEvent = (iteration: number): AnyAgentEvent => ({
+        event_type: 'workflow.node.output.delta',
+        timestamp: `2025-01-01T10:00:0${iteration}Z`,
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration,
+      });
+
+      smallCache.addMany([makeEvent(1), makeEvent(2), makeEvent(3), makeEvent(4)]);
+      const replaced = smallCache.replaceLastIf(
+        (event) => event.iteration === 4,
+        makeEvent(40),
+      );
+
+      expect(replaced).toBe(true);
+      const allEvents = smallCache.getAll();
+      expect(allEvents).toHaveLength(3);
+      expect((allEvents[0] as any).iteration).toBe(2);
+      expect((allEvents[2] as any).iteration).toBe(40);
     });
   });
 
@@ -296,6 +320,37 @@ describe('aggregateToolCalls', () => {
     expect(toolCall?.status).toBe('streaming');
     expect(toolCall?.stream_chunks).toEqual(['file1.txt\n', 'file2.txt\n']);
     expect(toolCall?.last_stream_at).toBe('2025-01-01T10:00:02Z');
+  });
+
+  it('should cap aggregated streaming chunks by count and bytes', () => {
+    const callId = 'call-cap';
+    const events: AnyAgentEvent[] = [
+      {
+        event_type: 'workflow.tool.started',
+        timestamp: '2025-01-01T10:00:00Z',
+        session_id: 'test-123',
+        agent_level: 'core',
+        iteration: 1,
+        call_id: callId,
+        tool_name: 'bash',
+        arguments: { command: 'ls' },
+      },
+      ...Array.from({ length: MAX_TOOL_STREAM_CHUNKS + 50 }, (_, i) => ({
+        event_type: 'workflow.tool.progress' as const,
+        timestamp: `2025-01-01T10:00:${String((i % 59) + 1).padStart(2, '0')}Z`,
+        session_id: 'test-123',
+        agent_level: 'core' as const,
+        call_id: callId,
+        chunk: `chunk-${i}-` + 'x'.repeat(512),
+      })),
+    ];
+
+    const result = aggregateToolCalls(events);
+    const toolCall = result.get(callId);
+    expect(toolCall).toBeDefined();
+    expect(toolCall!.stream_chunks.length).toBeLessThanOrEqual(MAX_TOOL_STREAM_CHUNKS);
+    const retainedBytes = toolCall!.stream_chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    expect(retainedBytes).toBeLessThanOrEqual(MAX_TOOL_STREAM_BYTES);
   });
 
   it('should complete tool calls', () => {

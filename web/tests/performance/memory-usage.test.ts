@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { act } from '@testing-library/react';
 import { useAgentStreamStore } from '@/hooks/useAgentStreamStore';
 import { AnyAgentEvent } from '@/lib/types';
+import { MAX_TOOL_STREAM_BYTES, MAX_TOOL_STREAM_CHUNKS } from '@/lib/events/toolStreamBounds';
 
 describe('Memory Usage Tests', () => {
   beforeEach(() => {
@@ -180,10 +181,13 @@ describe('Memory Usage Tests', () => {
       addEvent(completeEvent);
     });
 
-    // Should aggregate into single tool call with all chunks
+    // Should aggregate into single tool call with bounded chunk retention
     const toolCall = useAgentStreamStore.getState().toolCalls.get(callId);
     expect(toolCall).toBeDefined();
-    expect(toolCall?.stream_chunks.length).toBe(500);
+    expect(toolCall?.stream_chunks.length).toBeLessThanOrEqual(MAX_TOOL_STREAM_CHUNKS);
+    const retainedBytes =
+      toolCall?.stream_chunks.reduce((sum, chunk) => sum + chunk.length, 0) ?? 0;
+    expect(retainedBytes).toBeLessThanOrEqual(MAX_TOOL_STREAM_BYTES);
 
     // Total events should be capped by LRU
     const rawEvents = useAgentStreamStore.getState().eventCache.getAll();

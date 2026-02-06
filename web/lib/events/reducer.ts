@@ -15,6 +15,7 @@ import {
   isIterationNodeCompletedEvent,
   isIterationNodeStartedEvent,
 } from "@/lib/typeGuards";
+import { appendBoundedToolStreamChunk } from "@/lib/events/toolStreamBounds";
 import type {
   AgentStreamData,
   IterationState,
@@ -165,7 +166,7 @@ const applyToolCallStream = (
   const existing = draft.toolCalls.get(event.call_id);
   if (!existing) return;
   existing.status = "streaming";
-  existing.stream_chunks.push(event.chunk);
+  appendBoundedToolStreamChunk(existing.stream_chunks, event.chunk);
   existing.last_stream_at = event.timestamp;
 };
 
