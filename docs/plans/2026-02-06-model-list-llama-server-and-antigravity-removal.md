@@ -29,3 +29,4 @@
 - 2026-02-06 15: 完成实现链路定位（`cmd/alex/cli_model.go` + `internal/app/subscription/catalog.go` + 对应测试）。
 - 2026-02-06 15: 按新要求将对外 provider 统一为 `llama_server`，移除 `llama.cpp` 暴露与 antigravity 列表输出。
 - 2026-02-06 15: `go test ./internal/app/subscription` 通过；`go test ./cmd/alex` 与 `go test ./internal/delivery/channels/lark` 被仓库现有 `internal/infra/tools/builtin/pathutil` 编译错误阻塞。
+- 2026-02-06 15: 已执行 `./dev.sh lint` 与 `./dev.sh test`，均被同一批 `pathutil` 既有编译错误阻塞（非本次改动引入）。
