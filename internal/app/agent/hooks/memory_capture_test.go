@@ -162,6 +162,42 @@ func TestMemoryCaptureHook_FallbackOnLLMError(t *testing.T) {
 	}
 }
 
+func TestMemoryCaptureHook_FallbackIncludesHabitSignals(t *testing.T) {
+	root := t.TempDir()
+	engine := memory.NewMarkdownEngine(root)
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+	llm := &stubLLMClient{err: errors.New("boom")}
+	factory := &stubLLMFactory{client: llm}
+	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
+		Enabled:  true,
+		Provider: "mock",
+		Model:    "small",
+	})
+	fixed := time.Date(2026, 2, 3, 12, 30, 0, 0, time.UTC)
+	hook.clock = func() time.Time { return fixed }
+	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
+		Enabled:     true,
+		AutoCapture: true,
+	})
+	ctx = id.WithUserID(ctx, "user-habit-fallback")
+	if err := hook.OnTaskCompleted(ctx, TaskResultInfo{
+		TaskInput: "I usually review alerts before implementation work",
+		Answer:    "Handled this using your usual risk-first workflow.",
+		UserID:    "user-habit-fallback",
+	}); err != nil {
+		t.Fatalf("OnTaskCompleted: %v", err)
+	}
+	content, err := engine.LoadDaily(ctx, "user-habit-fallback", fixed)
+	if err != nil {
+		t.Fatalf("LoadDaily: %v", err)
+	}
+	if !strings.Contains(content, "Habits:") {
+		t.Fatalf("expected fallback to persist habit signals, got: %s", content)
+	}
+}
+
 func TestMemoryCaptureHook_PrefersSmallModel(t *testing.T) {
 	root := t.TempDir()
 	engine := memory.NewMarkdownEngine(root)
@@ -192,5 +228,38 @@ func TestMemoryCaptureHook_PrefersSmallModel(t *testing.T) {
 	}
 	if factory.lastProvider != "main-provider" {
 		t.Fatalf("expected provider to fall back to main-provider, got %q", factory.lastProvider)
+	}
+}
+
+func TestMemoryCaptureHook_PromptPrioritizesUserHabits(t *testing.T) {
+	root := t.TempDir()
+	engine := memory.NewMarkdownEngine(root)
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+	llm := &stubLLMClient{response: "- Prefers concise status updates"}
+	factory := &stubLLMFactory{client: llm}
+	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
+		Enabled:  true,
+		Provider: "mock",
+		Model:    "small",
+	})
+	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
+		Enabled:     true,
+		AutoCapture: true,
+	})
+	ctx = id.WithUserID(ctx, "user-4")
+	if err := hook.OnTaskCompleted(ctx, TaskResultInfo{
+		TaskInput: "我通常先看风险，再看实现细节",
+		Answer:    "已按你的习惯先列风险再给方案。",
+		UserID:    "user-4",
+	}); err != nil {
+		t.Fatalf("OnTaskCompleted: %v", err)
+	}
+	if len(llm.lastReq.Messages) == 0 {
+		t.Fatalf("expected LLM request messages to be populated")
+	}
+	if !strings.Contains(strings.ToLower(llm.lastReq.Messages[0].Content), "habit") {
+		t.Fatalf("expected memory capture prompt to mention habits, got %q", llm.lastReq.Messages[0].Content)
 	}
 }

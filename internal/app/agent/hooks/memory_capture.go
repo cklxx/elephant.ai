@@ -18,9 +18,25 @@ const (
 	defaultCaptureTimeout   = 5 * time.Second
 	defaultCaptureMaxTokens = 200
 	maxCaptureLines         = 3
+	maxHabitSignals         = 2
 	maxPromptChars          = 2000
 	maxLineChars            = 240
 )
+
+var habitSignalKeywords = []string{
+	"habit",
+	"prefer",
+	"preference",
+	"usually",
+	"always",
+	"normally",
+	"default",
+	"routine",
+	"workflow",
+	"tend to",
+	"every day",
+	"every week",
+}
 
 // MemoryCaptureConfig controls LLM-driven memory capture behavior.
 type MemoryCaptureConfig struct {
@@ -125,7 +141,8 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 			{
 				Role: "system",
 				Content: "You extract durable memory facts. Output 1-3 bullet points only, no preamble. " +
-					"Each bullet should be a short, reusable fact, decision, preference, or constraint that matters later.",
+					"Prioritize user habits, preferences, and recurring workflows when present. " +
+					"Each bullet should be a short, reusable fact, decision, preference, habit, or constraint that matters later.",
 			},
 			{
 				Role:    "user",
@@ -166,10 +183,12 @@ func buildMemoryCapturePrompt(result TaskResultInfo) string {
 		return ""
 	}
 	var b strings.Builder
+	habitInputs := []string{result.TaskInput, result.Answer}
 	appendField(&b, "Task", result.TaskInput, 600)
 	appendField(&b, "Answer", result.Answer, 800)
 	if len(result.ToolCalls) > 0 {
 		var toolLines []string
+		var toolOutputs []string
 		for _, tool := range result.ToolCalls {
 			out := truncateText(tool.Output, 200)
 			status := "ok"
@@ -178,6 +197,7 @@ func buildMemoryCapturePrompt(result TaskResultInfo) string {
 			}
 			if out != "" {
 				toolLines = append(toolLines, fmt.Sprintf("%s (%s): %s", tool.ToolName, status, out))
+				toolOutputs = append(toolOutputs, out)
 			} else {
 				toolLines = append(toolLines, fmt.Sprintf("%s (%s)", tool.ToolName, status))
 			}
@@ -186,6 +206,11 @@ func buildMemoryCapturePrompt(result TaskResultInfo) string {
 			}
 		}
 		appendField(&b, "Tools", strings.Join(toolLines, "\n"), 600)
+		habitInputs = append(habitInputs, toolOutputs...)
+	}
+	habitSignals := extractHabitSignals(habitInputs...)
+	if len(habitSignals) > 0 {
+		appendField(&b, "Habit Signals", strings.Join(habitSignals, "\n"), 500)
 	}
 	prompt := strings.TrimSpace(b.String())
 	if len(prompt) > maxPromptChars {
@@ -271,6 +296,9 @@ func (h *MemoryCaptureHook) fallbackLines(result TaskResultInfo) []string {
 	if task := truncateText(result.TaskInput, 200); task != "" {
 		lines = append(lines, "- Task: "+task)
 	}
+	if signals := extractHabitSignals(result.TaskInput, result.Answer); len(signals) > 0 {
+		lines = append(lines, "- Habits: "+strings.Join(signals, "; "))
+	}
 	if answer := truncateText(result.Answer, 260); answer != "" {
 		lines = append(lines, "- Outcome: "+answer)
 	}
@@ -294,4 +322,61 @@ func (h *MemoryCaptureHook) fallbackLines(result TaskResultInfo) []string {
 		lines = lines[:maxCaptureLines]
 	}
 	return lines
+}
+
+func extractHabitSignals(inputs ...string) []string {
+	seen := map[string]bool{}
+	var signals []string
+	for _, input := range inputs {
+		for _, segment := range splitPromptSegments(input) {
+			if !containsHabitKeyword(segment) {
+				continue
+			}
+			normalized := truncateText(segment, 120)
+			if normalized == "" {
+				continue
+			}
+			key := strings.ToLower(normalized)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			signals = append(signals, normalized)
+			if len(signals) >= maxHabitSignals {
+				return signals
+			}
+		}
+	}
+	return signals
+}
+
+func splitPromptSegments(input string) []string {
+	fields := strings.FieldsFunc(input, func(r rune) bool {
+		switch r {
+		case '\n', '\r', '.', ',', ';', '!', '?':
+			return true
+		default:
+			return false
+		}
+	})
+	var segments []string
+	for _, field := range fields {
+		if trimmed := strings.TrimSpace(field); trimmed != "" {
+			segments = append(segments, trimmed)
+		}
+	}
+	return segments
+}
+
+func containsHabitKeyword(segment string) bool {
+	lower := strings.ToLower(strings.TrimSpace(segment))
+	if lower == "" {
+		return false
+	}
+	for _, keyword := range habitSignalKeywords {
+		if strings.Contains(lower, keyword) {
+			return true
+		}
+	}
+	return false
 }
