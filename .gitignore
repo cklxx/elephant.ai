@@ -148,3 +148,5 @@ logs/requests/llm.jsonl
 logs/requests/t.json
 alex-exec-*/*
 EOF
+.next/
+.tmp/
