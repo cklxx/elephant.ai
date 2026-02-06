@@ -52,6 +52,7 @@ type Registry struct {
 	policy       toolspolicy.ToolPolicy
 	breakers     *circuitBreakerStore
 	SLACollector *toolspolicy.SLACollector
+	browserMgr   *browser.Manager
 }
 
 // filteredRegistry wraps a parent registry and excludes certain tools
@@ -367,6 +368,17 @@ func (r *Registry) List() []ports.ToolDefinition {
 	return defs
 }
 
+// Close releases managed resources (e.g. the shared Chrome process).
+func (r *Registry) Close() {
+	if r == nil {
+		return
+	}
+	if r.browserMgr != nil {
+		r.browserMgr.Close()
+		r.browserMgr = nil
+	}
+}
+
 func (r *Registry) Unregister(name string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -520,6 +532,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 			VisionTool:  visionTool,
 		}
 		browserMgr := browser.NewManager(browserCfg)
+		r.browserMgr = browserMgr
 		r.static["browser_action"] = browser.NewBrowserAction(browserMgr)
 		r.static["browser_info"] = browser.NewBrowserInfo(browserMgr)
 		r.static["browser_screenshot"] = browser.NewBrowserScreenshot(browserMgr)
@@ -529,7 +542,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 			Headless:    config.BrowserConfig.Headless,
 			UserDataDir: config.BrowserConfig.UserDataDir,
 			Timeout:     config.BrowserConfig.Timeout,
-		})
+		}, browserMgr)
 		if strings.EqualFold(strings.TrimSpace(config.BrowserConfig.Connector), "chrome_extension") {
 			bridge := chromebridge.New(chromebridge.Config{
 				ListenAddr: config.BrowserConfig.BridgeListenAddr,

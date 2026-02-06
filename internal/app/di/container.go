@@ -211,6 +211,10 @@ func (c *Container) Shutdown() error {
 		}
 	}
 
+	if c.toolRegistry != nil {
+		c.toolRegistry.Close()
+	}
+
 	if c.SessionDB != nil {
 		c.SessionDB.Close()
 		c.SessionDB = nil

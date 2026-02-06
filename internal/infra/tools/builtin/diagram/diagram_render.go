@@ -12,6 +12,7 @@ import (
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/sandbox"
+	"alex/internal/infra/tools/builtin/browser"
 	"alex/internal/infra/tools/builtin/shared"
 
 	"github.com/chromedp/cdproto/emulation"
@@ -36,6 +37,7 @@ type diagramRender struct {
 
 	mode          string
 	localConfig   LocalConfig
+	browserMgr    *browser.Manager
 	sandboxCfg    SandboxConfig
 	sandboxClient *sandbox.Client
 }
@@ -67,7 +69,7 @@ type diagramRenderArgs struct {
 	Padding int
 }
 
-func NewDiagramRenderLocal(cfg LocalConfig) tools.ToolExecutor {
+func NewDiagramRenderLocal(cfg LocalConfig, mgr *browser.Manager) tools.ToolExecutor {
 	timeout := cfg.Timeout
 	if timeout <= 0 {
 		timeout = defaultTimeout
@@ -88,6 +90,7 @@ func NewDiagramRenderLocal(cfg LocalConfig) tools.ToolExecutor {
 		),
 		mode:        "local",
 		localConfig: cfg,
+		browserMgr:  mgr,
 	}
 }
 

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"alex/internal/domain/agent/ports"
@@ -18,7 +16,7 @@ import (
 func (t *diagramRender) newChromeContext(ctx context.Context, call ports.ToolCall) (context.Context, func(), error) {
 	switch t.mode {
 	case "local":
-		return t.newLocalChromeContext(ctx, call.SessionID)
+		return t.newLocalChromeContext(ctx)
 	case "sandbox":
 		return t.newSandboxChromeContext(ctx, call.SessionID)
 	default:
@@ -26,31 +24,11 @@ func (t *diagramRender) newChromeContext(ctx context.Context, call ports.ToolCal
 	}
 }
 
-func (t *diagramRender) newLocalChromeContext(ctx context.Context, sessionID string) (context.Context, func(), error) {
-	opts := append(chromedp.DefaultExecAllocatorOptions[:],
-		chromedp.Flag("headless", t.localConfig.Headless),
-		chromedp.Flag("disable-gpu", t.localConfig.Headless),
-	)
-	if path := strings.TrimSpace(t.localConfig.ChromePath); path != "" {
-		opts = append(opts, chromedp.ExecPath(path))
+func (t *diagramRender) newLocalChromeContext(ctx context.Context) (context.Context, func(), error) {
+	if t.browserMgr == nil {
+		return nil, nil, errors.New("browser manager not configured for diagram render")
 	}
-	if dir := strings.TrimSpace(t.localConfig.UserDataDir); dir != "" {
-		if strings.TrimSpace(sessionID) == "" {
-			sessionID = "default"
-		}
-		userDataDir := filepath.Join(dir, sessionID)
-		if err := os.MkdirAll(userDataDir, 0o755); err == nil {
-			opts = append(opts, chromedp.UserDataDir(userDataDir))
-		}
-	}
-
-	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx, opts...)
-	chromeCtx, chromeCancel := chromedp.NewContext(allocCtx)
-	closeFn := func() {
-		chromeCancel()
-		allocCancel()
-	}
-	return chromeCtx, closeFn, nil
+	return t.browserMgr.NewTemporaryContext(ctx)
 }
 
 func (t *diagramRender) newSandboxChromeContext(ctx context.Context, sessionID string) (context.Context, func(), error) {
