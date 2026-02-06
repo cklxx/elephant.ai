@@ -936,6 +936,23 @@ func (it *reactIteration) recordThought(thought *Message) {
 	}
 
 	state := it.runtime.state
+
+	// Extract and persist steward state from assistant output when steward mode is active.
+	if state.StewardState != nil && strings.Contains(thought.Content, "<NEW_STATE>") {
+		newState, cleaned, err := ExtractNewState(thought.Content)
+		if newState != nil {
+			state.StewardState = newState
+			thought.Content = cleaned
+			it.runtime.engine.logger.Info("Steward state updated to v%d", newState.Version)
+		} else if IsStewardStateOversize(err) {
+			it.runtime.engine.logger.Warn("Steward state oversize, requesting compression")
+			thought.Content = cleaned
+		} else if err != nil {
+			it.runtime.engine.logger.Warn("Failed to parse <NEW_STATE>: %v", err)
+			thought.Content = cleaned
+		}
+	}
+
 	if att := resolveContentAttachments(thought.Content, state); len(att) > 0 {
 		thought.Attachments = att
 	}

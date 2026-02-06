@@ -66,5 +66,6 @@ func buildContextTurnRecord(state *agent.TaskState, messages []ports.Message, ti
 	record.World = agent.CloneMapAny(state.WorldState)
 	record.Diff = agent.CloneMapAny(state.WorldDiff)
 	record.Feedback = agent.CloneFeedbackSignals(state.FeedbackSignals)
+	record.StewardState = state.StewardState
 	return record
 }
