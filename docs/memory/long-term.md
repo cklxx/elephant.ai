@@ -22,6 +22,7 @@ Updated: 2026-02-06 11:00
 - Subscription model selection should remain request-scoped (web/local) and avoid mutating managed overrides YAML; persist pins in non-YAML state when needed.
 - Skills resolution rule: `ALEX_SKILLS_DIR` overrides all; otherwise default `~/.alex/skills` with repo `skills/` missing-only sync and user-copy preservation.
 - Keep `make check-arch` green to enforce domain import boundaries and prevent infra leakage regressions.
+- Keep `internal/` layered under `delivery/app/domain/infra/shared`; enforce with `make check-arch-policy` and expiring exceptions only.
 
 ## Items
 
