@@ -108,3 +108,48 @@ func TestLoadFileConfigMissingFileReturnsEmpty(t *testing.T) {
 		t.Fatalf("expected empty config, got %#v", cfg)
 	}
 }
+
+func TestLoadFileConfigExpandsLarkChannelEnv(t *testing.T) {
+	data := []byte(`
+channels:
+  lark:
+    app_id: "${LARK_APP_ID}"
+    app_secret: "${LARK_APP_SECRET}"
+    card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
+    card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
+`)
+
+	env := envMap{
+		"LARK_APP_ID":             "cli_test_app_id",
+		"LARK_APP_SECRET":         "secret_test",
+		"LARK_VERIFICATION_TOKEN": "verify_token_test",
+		"LARK_ENCRYPT_KEY":        "encrypt_key_test",
+	}
+
+	cfg, _, err := LoadFileConfig(
+		WithEnv(env.Lookup),
+		WithFileReader(func(string) ([]byte, error) { return data, nil }),
+		WithConfigPath("/tmp/config.yaml"),
+	)
+	if err != nil {
+		t.Fatalf("LoadFileConfig error: %v", err)
+	}
+	if cfg.Channels == nil || cfg.Channels.Lark == nil {
+		t.Fatalf("expected lark channel config, got %#v", cfg.Channels)
+	}
+	if cfg.Channels.Lark.AppID != "cli_test_app_id" {
+		t.Fatalf("expected app_id expansion, got %q", cfg.Channels.Lark.AppID)
+	}
+	if cfg.Channels.Lark.AppSecret != "secret_test" {
+		t.Fatalf("expected app_secret expansion, got %q", cfg.Channels.Lark.AppSecret)
+	}
+	if cfg.Channels.Lark.CardCallbackVerificationToken != "verify_token_test" {
+		t.Fatalf(
+			"expected verification token expansion, got %q",
+			cfg.Channels.Lark.CardCallbackVerificationToken,
+		)
+	}
+	if cfg.Channels.Lark.CardCallbackEncryptKey != "encrypt_key_test" {
+		t.Fatalf("expected encrypt key expansion, got %q", cfg.Channels.Lark.CardCallbackEncryptKey)
+	}
+}

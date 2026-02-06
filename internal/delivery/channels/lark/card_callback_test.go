@@ -10,6 +10,22 @@ import (
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 )
 
+func TestNewCardCallbackHandlerEnabledWithoutVerificationToken(t *testing.T) {
+	gw := &Gateway{cfg: Config{CardsEnabled: true}}
+	handler := NewCardCallbackHandler(gw, logging.OrNop(nil))
+	if handler == nil {
+		t.Fatal("expected callback handler to be available even without verification token")
+	}
+}
+
+func TestNewCardCallbackHandlerDisabledWhenCardsDisabled(t *testing.T) {
+	gw := &Gateway{cfg: Config{CardsEnabled: false, CardCallbackVerificationToken: "token"}}
+	handler := NewCardCallbackHandler(gw, logging.OrNop(nil))
+	if handler != nil {
+		t.Fatal("expected nil callback handler when cards are disabled")
+	}
+}
+
 func TestCardActionToUserInputApprove(t *testing.T) {
 	input := cardActionToUserInput(&callback.CallBackAction{Tag: "plan_review_approve"})
 	if input != "OK" {

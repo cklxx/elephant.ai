@@ -17,7 +17,7 @@ import (
 const maxCardCallbackBodyBytes = 1 << 20
 
 // NewCardCallbackHandler returns an HTTP handler for Lark card callbacks.
-// It returns nil when cards are disabled or required config is missing.
+// It returns nil only when cards are disabled.
 func NewCardCallbackHandler(gateway *Gateway, logger logging.Logger) http.Handler {
 	if gateway == nil {
 		return nil
@@ -28,8 +28,7 @@ func NewCardCallbackHandler(gateway *Gateway, logger logging.Logger) http.Handle
 	}
 	verificationToken := strings.TrimSpace(cfg.CardCallbackVerificationToken)
 	if verificationToken == "" {
-		logging.OrNop(logger).Warn("Lark card callback disabled: verification token missing")
-		return nil
+		logging.OrNop(logger).Warn("Lark card callback verification token missing: url verification challenge may fail")
 	}
 	encryptKey := strings.TrimSpace(cfg.CardCallbackEncryptKey)
 	disp := dispatcher.NewEventDispatcher(verificationToken, encryptKey)

@@ -1,6 +1,7 @@
 package bootstrap
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -60,5 +61,58 @@ func TestLoadConfig_DefaultLarkCardsErrorsOnly(t *testing.T) {
 	}
 	if !cfg.Channels.Lark.CardsErrors {
 		t.Errorf("expected CardsErrors true by default")
+	}
+}
+
+func TestLoadConfig_LarkCardCallbackTokenFromEnvFallback(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    enabled: true
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("LARK_VERIFICATION_TOKEN", "verify_token_from_env")
+
+	cfg, _, _, _, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if got := cfg.Channels.Lark.CardCallbackVerificationToken; got != "verify_token_from_env" {
+		t.Fatalf("expected env fallback token, got %q", got)
+	}
+}
+
+func TestLoadConfig_LarkCardCallbackTokenKeepsYamlValue(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    enabled: true
+    card_callback_verification_token: "verify_token_from_yaml"
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("LARK_VERIFICATION_TOKEN", "verify_token_from_env")
+
+	cfg, _, _, _, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if got := cfg.Channels.Lark.CardCallbackVerificationToken; got != "verify_token_from_yaml" {
+		t.Fatalf("expected yaml token to take precedence, got %q", got)
 	}
 }

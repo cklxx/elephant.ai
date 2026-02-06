@@ -187,6 +187,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 		return Config{}, nil, nil, nil, err
 	}
 	applyServerFileConfig(&cfg, fileCfg)
+	applyLarkEnvFallback(&cfg, envLookup)
 
 	providerLower := strings.ToLower(strings.TrimSpace(cfg.Runtime.LLMProvider))
 	if cfg.Runtime.APIKey == "" && providerLower != "ollama" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
@@ -208,6 +209,55 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applySessionConfig(cfg, file)
 	applyAnalyticsConfig(cfg, file)
 	applyAttachmentConfig(cfg, file)
+}
+
+func applyLarkEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
+	if cfg == nil {
+		return
+	}
+	if lookup == nil {
+		lookup = runtimeconfig.DefaultEnvLookup
+	}
+
+	if strings.TrimSpace(cfg.Channels.Lark.CardCallbackVerificationToken) == "" {
+		if token := lookupFirstNonEmptyEnv(
+			lookup,
+			"LARK_CARD_CALLBACK_VERIFICATION_TOKEN",
+			"LARK_VERIFICATION_TOKEN",
+			"FEISHU_CARD_CALLBACK_VERIFICATION_TOKEN",
+			"FEISHU_VERIFICATION_TOKEN",
+			"CARD_CALLBACK_VERIFICATION_TOKEN",
+		); token != "" {
+			cfg.Channels.Lark.CardCallbackVerificationToken = token
+		}
+	}
+	if strings.TrimSpace(cfg.Channels.Lark.CardCallbackEncryptKey) == "" {
+		if key := lookupFirstNonEmptyEnv(
+			lookup,
+			"LARK_CARD_CALLBACK_ENCRYPT_KEY",
+			"LARK_ENCRYPT_KEY",
+			"FEISHU_CARD_CALLBACK_ENCRYPT_KEY",
+			"FEISHU_ENCRYPT_KEY",
+			"CARD_CALLBACK_ENCRYPT_KEY",
+		); key != "" {
+			cfg.Channels.Lark.CardCallbackEncryptKey = key
+		}
+	}
+}
+
+func lookupFirstNonEmptyEnv(lookup runtimeconfig.EnvLookup, keys ...string) string {
+	if lookup == nil {
+		return ""
+	}
+	for _, key := range keys {
+		if value, ok := lookup(key); ok {
+			trimmed := strings.TrimSpace(value)
+			if trimmed != "" {
+				return trimmed
+			}
+		}
+	}
+	return ""
 }
 
 func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {

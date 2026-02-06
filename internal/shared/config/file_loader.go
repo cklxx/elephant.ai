@@ -55,6 +55,10 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 		expanded := expandRuntimeFileConfigEnv(lookup, *parsed.Runtime)
 		parsed.Runtime = &expanded
 	}
+	if parsed.Channels != nil {
+		expanded := expandChannelsConfigEnv(lookup, *parsed.Channels)
+		parsed.Channels = &expanded
+	}
 	if parsed.Apps != nil {
 		expanded := expandAppsConfigEnv(lookup, *parsed.Apps)
 		parsed.Apps = &expanded
@@ -111,6 +115,44 @@ func expandFileConfigEnv(lookup EnvLookup, parsed FileConfig) FileConfig {
 		parsed.Web.APIURL = expandEnvValue(lookup, parsed.Web.APIURL)
 	}
 
+	return parsed
+}
+
+func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsConfig {
+	if parsed.Lark == nil {
+		return parsed
+	}
+	expanded := *parsed.Lark
+	expanded.AppID = expandEnvValue(lookup, expanded.AppID)
+	expanded.AppSecret = expandEnvValue(lookup, expanded.AppSecret)
+	expanded.TenantCalendarID = expandEnvValue(lookup, expanded.TenantCalendarID)
+	expanded.BaseDomain = expandEnvValue(lookup, expanded.BaseDomain)
+	expanded.WorkspaceDir = expandEnvValue(lookup, expanded.WorkspaceDir)
+	expanded.CardCallbackVerificationToken = expandEnvValue(lookup, expanded.CardCallbackVerificationToken)
+	expanded.CardCallbackEncryptKey = expandEnvValue(lookup, expanded.CardCallbackEncryptKey)
+	expanded.SessionPrefix = expandEnvValue(lookup, expanded.SessionPrefix)
+	expanded.ReplyPrefix = expandEnvValue(lookup, expanded.ReplyPrefix)
+	expanded.AgentPreset = expandEnvValue(lookup, expanded.AgentPreset)
+	expanded.ToolPreset = expandEnvValue(lookup, expanded.ToolPreset)
+	expanded.ToolMode = expandEnvValue(lookup, expanded.ToolMode)
+	expanded.ReactEmoji = expandEnvValue(lookup, expanded.ReactEmoji)
+	expanded.InjectionAckReactEmoji = expandEnvValue(lookup, expanded.InjectionAckReactEmoji)
+	expanded.FinalAnswerReviewReactEmoji = expandEnvValue(lookup, expanded.FinalAnswerReviewReactEmoji)
+	if len(expanded.AutoUploadAllowExt) > 0 {
+		allowExt := make([]string, 0, len(expanded.AutoUploadAllowExt))
+		for _, ext := range expanded.AutoUploadAllowExt {
+			allowExt = append(allowExt, expandEnvValue(lookup, ext))
+		}
+		expanded.AutoUploadAllowExt = allowExt
+	}
+	if expanded.Browser != nil {
+		browser := *expanded.Browser
+		browser.CDPURL = expandEnvValue(lookup, browser.CDPURL)
+		browser.ChromePath = expandEnvValue(lookup, browser.ChromePath)
+		browser.UserDataDir = expandEnvValue(lookup, browser.UserDataDir)
+		expanded.Browser = &browser
+	}
+	parsed.Lark = &expanded
 	return parsed
 }
 
