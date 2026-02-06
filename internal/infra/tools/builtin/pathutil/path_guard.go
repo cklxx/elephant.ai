@@ -10,13 +10,14 @@ import (
 	"strings"
 )
 
-// ResolveLocalPath resolves a local path and ensures it stays within the working directory.
+// ResolveLocalPath resolves a local path and ensures it stays within the working directory
+// or an allowed extra root (e.g. memory store).
 func ResolveLocalPath(ctx context.Context, raw string) (string, error) {
 	return SanitizePathWithinBase(ctx, raw)
 }
 
 // ResolveLocalPathOrTemp resolves a local path and ensures it stays within the
-// working directory or a temp directory (os.TempDir, /tmp, /var/tmp, ...).
+// working directory, an allowed extra root, or a temp directory (os.TempDir, /tmp, /var/tmp, ...).
 //
 // This is intended for cases where callers need to read artifacts generated in
 // system temp directories while keeping the default local-path guard strict.
@@ -51,6 +52,10 @@ func ResolveLocalPathOrTemp(ctx context.Context, raw string) (string, error) {
 		return safe, nil
 	}
 
+	if ok := pathWithinAllowedRoots(candidateAbs, allowedExtraRoots()); ok {
+		return candidateAbs, nil
+	}
+
 	for _, root := range allowedTempRoots() {
 		if root == "" {
 			continue
@@ -63,7 +68,8 @@ func ResolveLocalPathOrTemp(ctx context.Context, raw string) (string, error) {
 	return "", fmt.Errorf("path must stay within the working directory or a temp directory")
 }
 
-// SanitizePathWithinBase validates that a path stays within the working directory.
+// SanitizePathWithinBase validates that a path stays within the working directory
+// or an allowed extra root (e.g. memory store).
 func SanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
@@ -93,11 +99,14 @@ func SanitizePathWithinBase(ctx context.Context, raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if !ok {
-		return "", fmt.Errorf("path must stay within the working directory")
+	if ok {
+		return safe, nil
+	}
+	if ok := pathWithinAllowedRoots(candidateAbs, allowedExtraRoots()); ok {
+		return candidateAbs, nil
 	}
 
-	return safe, nil
+	return "", fmt.Errorf("path must stay within the working directory")
 }
 
 func sanitizeWithinBase(baseAbs, candidateAbs string) (string, bool, error) {
@@ -155,42 +164,41 @@ func PathWithinBase(base, target string) bool {
 	return pathWithinBase(base, target)
 }
 
-func pathWithinBase(base, target string) bool {
-	baseClean, err := filepath.Abs(filepath.Clean(base))
-	if err != nil {
-		return false
+func pathWithinAllowedRoots(candidate string, roots []string) bool {
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		if pathWithinBase(root, candidate) {
+			return true
+		}
 	}
-	targetClean, err := filepath.Abs(filepath.Clean(target))
-	if err != nil {
-		return false
+	return false
+}
+
+func allowedExtraRoots() []string {
+	seen := make(map[string]struct{}, 4)
+	var roots []string
+
+	add := func(value string) {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			return
+		}
+		clean := filepath.Clean(value)
+		if clean == "" || clean == "." {
+			return
+		}
+		if _, ok := seen[clean]; ok {
+			return
+		}
+		seen[clean] = struct{}{}
+		roots = append(roots, clean)
 	}
 
-	baseResolved, err := filepath.EvalSymlinks(baseClean)
-	if err != nil {
-		return false
-	}
-	targetResolved, err := filepath.EvalSymlinks(targetClean)
-	if err != nil {
-		if !errors.Is(err, fs.ErrNotExist) {
-			return false
-		}
-		parent := filepath.Dir(targetClean)
-		parentResolved, err := filepath.EvalSymlinks(parent)
-		if err != nil {
-			return false
-		}
-		targetResolved = filepath.Join(parentResolved, filepath.Base(targetClean))
+	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+		add(filepath.Join(home, ".alex", "memory"))
 	}
 
-	rel, err := filepath.Rel(baseResolved, targetResolved)
-	if err != nil {
-		return false
-	}
-	if rel == "." {
-		return true
-	}
-	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
-		return false
-	}
-	return true
+	return roots
 }

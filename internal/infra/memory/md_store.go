@@ -98,7 +98,7 @@ func (e *MarkdownEngine) EnsureSchema(_ context.Context) error {
 }
 
 // AppendDaily appends a record to the daily memory log.
-func (e *MarkdownEngine) AppendDaily(_ context.Context, userID string, entry DailyEntry) (string, error) {
+func (e *MarkdownEngine) AppendDaily(_ context.Context, _ string, entry DailyEntry) (string, error) {
 	if e == nil {
 		return "", fmt.Errorf("memory engine not initialized")
 	}
@@ -110,7 +110,7 @@ func (e *MarkdownEngine) AppendDaily(_ context.Context, userID string, entry Dai
 	if createdAt.IsZero() {
 		createdAt = time.Now()
 	}
-	root := e.userRoot(userID)
+	root := e.userRoot()
 	if root == "" {
 		return "", fmt.Errorf("memory root directory is required")
 	}
@@ -153,7 +153,7 @@ func (e *MarkdownEngine) AppendDaily(_ context.Context, userID string, entry Dai
 }
 
 // Search scans MEMORY.md + daily logs for the query and returns ranked hits.
-func (e *MarkdownEngine) Search(ctx context.Context, userID, query string, maxResults int, minScore float64) ([]SearchHit, error) {
+func (e *MarkdownEngine) Search(ctx context.Context, _ string, query string, maxResults int, minScore float64) ([]SearchHit, error) {
 	if e == nil {
 		return nil, fmt.Errorf("memory engine not initialized")
 	}
@@ -168,13 +168,13 @@ func (e *MarkdownEngine) Search(ctx context.Context, userID, query string, maxRe
 		minScore = defaultSearchMinScore
 	}
 
-	root := e.userRoot(userID)
+	root := e.userRoot()
 	if root == "" {
 		return nil, fmt.Errorf("memory root directory is required")
 	}
 
 	if e.indexer != nil {
-		results, err := e.indexer.Search(ctx, userID, query, maxResults, minScore)
+		results, err := e.indexer.Search(ctx, "", query, maxResults, minScore)
 		if err == nil {
 			return results, nil
 		}
@@ -210,14 +210,14 @@ func (e *MarkdownEngine) Search(ctx context.Context, userID, query string, maxRe
 }
 
 // GetLines returns a slice of lines from the given memory path.
-func (e *MarkdownEngine) GetLines(_ context.Context, userID, path string, fromLine, lineCount int) (string, error) {
+func (e *MarkdownEngine) GetLines(_ context.Context, _ string, path string, fromLine, lineCount int) (string, error) {
 	if e == nil {
 		return "", fmt.Errorf("memory engine not initialized")
 	}
 	if strings.TrimSpace(e.rootDir) == "" {
 		return "", fmt.Errorf("memory root directory is required")
 	}
-	absPath, err := e.resolvePath(userID, path)
+	absPath, err := e.resolvePath(path)
 	if err != nil {
 		return "", err
 	}
@@ -247,7 +247,7 @@ func (e *MarkdownEngine) GetLines(_ context.Context, userID, path string, fromLi
 }
 
 // LoadDaily reads the daily log for the given day (local time).
-func (e *MarkdownEngine) LoadDaily(_ context.Context, userID string, day time.Time) (string, error) {
+func (e *MarkdownEngine) LoadDaily(_ context.Context, _ string, day time.Time) (string, error) {
 	if e == nil {
 		return "", fmt.Errorf("memory engine not initialized")
 	}
@@ -258,7 +258,7 @@ func (e *MarkdownEngine) LoadDaily(_ context.Context, userID string, day time.Ti
 		day = time.Now()
 	}
 	dateStr := day.Format("2006-01-02")
-	path := filepath.Join(e.userRoot(userID), dailyDirName, dateStr+".md")
+	path := filepath.Join(e.userRoot(), dailyDirName, dateStr+".md")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -270,14 +270,14 @@ func (e *MarkdownEngine) LoadDaily(_ context.Context, userID string, day time.Ti
 }
 
 // LoadLongTerm reads MEMORY.md for the user.
-func (e *MarkdownEngine) LoadLongTerm(_ context.Context, userID string) (string, error) {
+func (e *MarkdownEngine) LoadLongTerm(_ context.Context, _ string) (string, error) {
 	if e == nil {
 		return "", fmt.Errorf("memory engine not initialized")
 	}
 	if strings.TrimSpace(e.rootDir) == "" {
 		return "", fmt.Errorf("memory root directory is required")
 	}
-	path := filepath.Join(e.userRoot(userID), memoryFileName)
+	path := filepath.Join(e.userRoot(), memoryFileName)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -288,36 +288,16 @@ func (e *MarkdownEngine) LoadLongTerm(_ context.Context, userID string) (string,
 	return strings.TrimSpace(string(data)), nil
 }
 
-func (e *MarkdownEngine) userRoot(userID string) string {
-	return ResolveUserRoot(e.rootDir, userID)
+func (e *MarkdownEngine) userRoot() string {
+	return ResolveUserRoot(e.rootDir, "")
 }
 
-func sanitizeSegment(input string) string {
-	if input == "" {
-		return "user"
-	}
-	var b strings.Builder
-	b.Grow(len(input))
-	for _, r := range input {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '@' {
-			b.WriteRune(r)
-			continue
-		}
-		b.WriteByte('_')
-	}
-	out := strings.Trim(b.String(), "._-")
-	if out == "" {
-		return "user"
-	}
-	return out
-}
-
-func (e *MarkdownEngine) resolvePath(userID, path string) (string, error) {
+func (e *MarkdownEngine) resolvePath(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", fmt.Errorf("path is required")
 	}
-	root := e.userRoot(userID)
+	root := e.userRoot()
 	var abs string
 	if filepath.IsAbs(path) {
 		abs = filepath.Clean(path)

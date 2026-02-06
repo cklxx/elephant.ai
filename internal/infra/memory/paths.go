@@ -1,9 +1,6 @@
 package memory
 
-import (
-	"path/filepath"
-	"strings"
-)
+import "strings"
 
 var reservedUserDirNames = map[string]struct{}{
 	strings.ToLower(dailyDirName):      {},
@@ -21,27 +18,12 @@ func isReservedUserDirName(name string) bool {
 	return ok
 }
 
-func normalizeUserDirName(userID string) string {
-	safe := sanitizeSegment(userID)
-	if safe == "" {
-		return "user"
-	}
-	if isReservedUserDirName(safe) {
-		return "user-" + safe
-	}
-	return safe
-}
-
 // ResolveUserRoot resolves the memory root for a specific user.
-func ResolveUserRoot(rootDir, userID string) string {
+// Local agents share a single memory root; userID is ignored.
+func ResolveUserRoot(rootDir, _ string) string {
 	root := strings.TrimSpace(rootDir)
 	if root == "" {
 		return ""
 	}
-	userID = strings.TrimSpace(userID)
-	if userID == "" {
-		return root
-	}
-	safe := normalizeUserDirName(userID)
-	return filepath.Join(root, safe)
+	return root
 }

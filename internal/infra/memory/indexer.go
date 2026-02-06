@@ -162,7 +162,7 @@ func (i *Indexer) Search(ctx context.Context, userID, query string, maxResults i
 		minScore = i.cfg.MinScore
 	}
 
-	store, err := i.storeForUser(userID)
+	store, err := i.storeForUser()
 	if err != nil {
 		return nil, err
 	}
@@ -268,11 +268,11 @@ func (i *Indexer) indexPath(ctx context.Context, path string) error {
 	if !isMemoryFile(path) {
 		return nil
 	}
-	userID, _, relPath, ok := resolveUserPath(i.rootDir, path)
+	_, _, relPath, ok := resolveUserPath(i.rootDir, path)
 	if !ok {
 		return nil
 	}
-	store, err := i.storeForUser(userID)
+	store, err := i.storeForUser()
 	if err != nil {
 		return err
 	}

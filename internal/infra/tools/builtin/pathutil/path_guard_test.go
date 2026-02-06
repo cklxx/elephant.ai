@@ -65,6 +65,35 @@ func TestResolveLocalPathRejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
+func TestResolveLocalPathAllowsMemoryRoot(t *testing.T) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get cwd: %v", err)
+	}
+	base, err := os.MkdirTemp(cwd, "path-guard-")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(base)
+	})
+
+	home, err := os.UserHomeDir()
+	if err != nil || strings.TrimSpace(home) == "" {
+		t.Skip("user home dir unavailable")
+	}
+	memoryRoot := filepath.Join(home, ".alex", "memory")
+
+	ctx := WithWorkingDir(context.Background(), base)
+	resolved, err := ResolveLocalPath(ctx, memoryRoot)
+	if err != nil {
+		t.Fatalf("expected memory root to resolve, got error: %v", err)
+	}
+	if resolved != filepath.Clean(memoryRoot) {
+		t.Fatalf("expected resolved path %q, got %q", filepath.Clean(memoryRoot), resolved)
+	}
+}
+
 func TestResolveLocalPathOrTemp_AllowsOsTempDirFile(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {

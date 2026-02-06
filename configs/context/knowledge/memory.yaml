@@ -1,6 +1,6 @@
 id: memory-system
 description: |
-  Markdown memory system aligned to Clawdbot: session boot, write via files, retrieve with memory_search + memory_get. Per-user memory lives under ~/.alex/memory/<user-id>/.
+  Markdown memory system aligned to Clawdbot: session boot, write via files, retrieve with memory_search + memory_get. Per-user memory lives under ~/.alex/memory/.
 sop_refs:
   - docs/reference/MEMORY_SYSTEM.md#session-boot-sequence
   - docs/reference/MEMORY_SYSTEM.md#writing-memory
