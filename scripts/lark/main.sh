@@ -168,15 +168,29 @@ start() {
   fi
   if curl -sf "${health_url}" >/dev/null 2>&1; then
     adopt_pid_if_missing || true
-    if [[ "${needs_build}" == "0" ]]; then
-      log_success "Main agent already healthy: ${health_url}"
-      return 0
+    local adopted_pid
+    adopted_pid="$(read_pid "${PID_FILE}" || true)"
+    if is_process_running "${adopted_pid}"; then
+      if [[ "${needs_build}" == "0" ]]; then
+        log_success "Main agent already healthy: ${health_url}"
+        return 0
+      fi
+      log_info "Source changes detected; rebuilding and restarting main agent..."
+      # Build first so we don't take down a healthy agent if compilation fails.
+      build
+      needs_build=0
+      stop
+    else
+      # Health endpoint responds but it is NOT alex-server (port conflict).
+      local foreign_port foreign_pid foreign_cmd
+      foreign_port="${health_url##*:}"
+      foreign_port="${foreign_port%%/*}"
+      foreign_pid="$(lsof -nP -iTCP:"${foreign_port}" -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true)"
+      foreign_cmd="$(ps -p "${foreign_pid:-0}" -o command= 2>/dev/null || true)"
+      log_error "Port ${foreign_port} is occupied by another process (PID: ${foreign_pid:-?}, cmd: ${foreign_cmd:-?})"
+      log_error "Kill it or change the main agent port to resolve the conflict"
+      return 1
     fi
-    log_info "Source changes detected; rebuilding and restarting main agent..."
-    # Build first so we don't take down a healthy agent if compilation fails.
-    build
-    needs_build=0
-    stop
   fi
 
   local pid
