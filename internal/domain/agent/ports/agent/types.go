@@ -94,6 +94,7 @@ type TaskState struct {
 	LatestGoalPrompt       string
 	LatestPlanPrompt       string
 	PlanReviewEnabled      bool
+	StewardState           *StewardState
 }
 
 // AgentConfig exposes the subset of coordinator configuration required by tools.

@@ -38,6 +38,7 @@ type Snapshot struct {
 	Messages      []ports.Message            `json:"messages"`
 	Feedback      []agent.FeedbackSignal     `json:"feedback"`
 	KnowledgeRefs []agent.KnowledgeReference `json:"knowledge_refs"`
+	StewardState  *agent.StewardState        `json:"steward_state,omitempty"`
 }
 
 // SnapshotMetadata provides lightweight info for pagination listings.
