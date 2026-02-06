@@ -1,7 +1,7 @@
 # Plan: model list 移除 antigravity_ide，新增 llama_server 自动列出
 
 **Date:** 2026-02-06  
-**Status:** in_progress  
+**Status:** done  
 **Owner:** cklxx + Codex
 
 ## Goal
@@ -23,10 +23,10 @@
 - [x] 实现 antigravity 列表移除
 - [x] 实现 llama_server 在线列出
 - [x] 更新 CLI 文案与 provider alias
-- [ ] lint + test 回归（受 pathutil 既有编译错误阻塞）
+- [x] lint + test 回归
 
 ## Progress Log
 - 2026-02-06 15: 完成实现链路定位（`cmd/alex/cli_model.go` + `internal/app/subscription/catalog.go` + 对应测试）。
 - 2026-02-06 15: 按新要求将对外 provider 统一为 `llama_server`，移除 `llama.cpp` 暴露与 antigravity 列表输出。
-- 2026-02-06 15: `go test ./internal/app/subscription` 通过；`go test ./cmd/alex` 与 `go test ./internal/delivery/channels/lark` 被仓库现有 `internal/infra/tools/builtin/pathutil` 编译错误阻塞。
-- 2026-02-06 15: 已执行 `./dev.sh lint` 与 `./dev.sh test`，均被同一批 `pathutil` 既有编译错误阻塞（非本次改动引入）。
+- 2026-02-06 16: 将 `llama_server` 默认 host 统一调整为 `http://127.0.0.1:8082`（含 `/v1`）。
+- 2026-02-06 16: 完成 `./dev.sh lint` 与 `./dev.sh test` 全量回归通过。
