@@ -22,6 +22,13 @@ Env:
   LARK_RESTART_MAX_IN_WINDOW     Max restarts per component in window (default: 5)
   LARK_RESTART_WINDOW_SECONDS    Restart counting window seconds (default: 600)
   LARK_COOLDOWN_SECONDS          Cooldown seconds after restart storm (default: 300)
+  LARK_SUPERVISOR_AUTOFIX_ENABLED            Enable autofix runner (default: 1)
+  LARK_SUPERVISOR_AUTOFIX_TRIGGER            Trigger policy (default: cooldown)
+  LARK_SUPERVISOR_AUTOFIX_TIMEOUT_SECONDS    Codex timeout seconds (default: 1800)
+  LARK_SUPERVISOR_AUTOFIX_MAX_IN_WINDOW      Max autofix runs in window (default: 3)
+  LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS     Autofix counting window (default: 3600)
+  LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS   Autofix cooldown seconds (default: 900)
+  LARK_SUPERVISOR_AUTOFIX_SCOPE              Prompt scope hint (default: repo)
   MAIN_CONFIG                    Main config path override (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   TEST_CONFIG                    Test config path override (default: ~/.alex/test.yaml)
   LARK_MAIN_ROOT                 Main root override (tests only)
@@ -50,6 +57,7 @@ WORKTREE_SH="${WORKTREE_SH:-${MAIN_ROOT}/scripts/lark/worktree.sh}"
 MAIN_SH="${MAIN_SH:-${MAIN_ROOT}/scripts/lark/main.sh}"
 TEST_SH="${TEST_SH:-${MAIN_ROOT}/scripts/lark/test.sh}"
 LOOP_AGENT_SH="${LOOP_AGENT_SH:-${MAIN_ROOT}/scripts/lark/loop-agent.sh}"
+AUTOFIX_SH="${AUTOFIX_SH:-${MAIN_ROOT}/scripts/lark/autofix.sh}"
 
 TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
 PID_DIR="${TEST_ROOT}/.pids"
@@ -62,6 +70,11 @@ LOCK_DIR="${TMP_DIR}/lark-supervisor.lock"
 STATUS_FILE="${TMP_DIR}/lark-supervisor.status.json"
 LOOP_STATE_FILE="${TMP_DIR}/lark-loop.state.json"
 LAST_PROCESSED_FILE="${TMP_DIR}/lark-loop.last"
+AUTOFIX_STATE_FILE="${TMP_DIR}/lark-autofix.state.json"
+AUTOFIX_LOCK_DIR="${TMP_DIR}/lark-autofix.lock"
+AUTOFIX_HISTORY_FILE="${TMP_DIR}/lark-autofix.history"
+AUTOFIX_LAST_SIGNATURE_FILE="${TMP_DIR}/lark-autofix.last-signature"
+AUTOFIX_APPLIED_INCIDENT_FILE="${TMP_DIR}/lark-autofix.applied"
 
 MAIN_PID_FILE="${MAIN_ROOT}/.pids/lark-main.pid"
 TEST_PID_FILE="${TEST_ROOT}/.pids/lark-test.pid"
@@ -75,6 +88,13 @@ RESTART_MAX_IN_WINDOW="${LARK_RESTART_MAX_IN_WINDOW:-5}"
 RESTART_WINDOW_SECONDS="${LARK_RESTART_WINDOW_SECONDS:-600}"
 COOLDOWN_SECONDS="${LARK_COOLDOWN_SECONDS:-300}"
 SKIP_HEALTHCHECK="${LARK_SUPERVISOR_SKIP_HEALTHCHECK:-0}"
+AUTOFIX_ENABLED="${LARK_SUPERVISOR_AUTOFIX_ENABLED:-1}"
+AUTOFIX_TRIGGER="${LARK_SUPERVISOR_AUTOFIX_TRIGGER:-cooldown}"
+AUTOFIX_TIMEOUT_SECONDS="${LARK_SUPERVISOR_AUTOFIX_TIMEOUT_SECONDS:-1800}"
+AUTOFIX_MAX_IN_WINDOW="${LARK_SUPERVISOR_AUTOFIX_MAX_IN_WINDOW:-3}"
+AUTOFIX_WINDOW_SECONDS="${LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS:-3600}"
+AUTOFIX_COOLDOWN_SECONDS="${LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS:-900}"
+AUTOFIX_SCOPE="${LARK_SUPERVISOR_AUTOFIX_SCOPE:-repo}"
 
 MODE="degraded"
 COOLDOWN_UNTIL=0
@@ -100,6 +120,15 @@ OBS_CYCLE_PHASE="idle"
 OBS_CYCLE_RESULT="unknown"
 OBS_LOOP_ERROR=""
 OBS_RESTART_COUNT_WINDOW=0
+OBS_AUTOFIX_STATE="idle"
+OBS_AUTOFIX_INCIDENT_ID=""
+OBS_AUTOFIX_LAST_REASON=""
+OBS_AUTOFIX_LAST_STARTED_AT=""
+OBS_AUTOFIX_LAST_FINISHED_AT=""
+OBS_AUTOFIX_LAST_COMMIT=""
+OBS_AUTOFIX_RESTART_REQUIRED="false"
+OBS_AUTOFIX_RUNS_WINDOW=0
+AUTOFIX_COOLDOWN_UNTIL=0
 
 json_escape() {
   printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
@@ -279,6 +308,136 @@ history_count() {
   echo "${count}"
 }
 
+autofix_runs_window_count() {
+  local now_epoch="$1"
+  local cutoff_epoch count ts out
+  cutoff_epoch=$((now_epoch - AUTOFIX_WINDOW_SECONDS))
+  count=0
+  out=""
+  if [[ -f "${AUTOFIX_HISTORY_FILE}" ]]; then
+    while IFS= read -r ts; do
+      [[ -n "${ts}" ]] || continue
+      if [[ "${ts}" =~ ^[0-9]+$ ]] && (( ts >= cutoff_epoch )); then
+        out+="${ts}"$'\n'
+        count=$((count + 1))
+      fi
+    done < "${AUTOFIX_HISTORY_FILE}"
+  fi
+  printf '%s' "${out}" > "${AUTOFIX_HISTORY_FILE}"
+  echo "${count}"
+}
+
+record_autofix_run() {
+  local now_epoch="$1"
+  mkdir -p "${TMP_DIR}"
+  printf '%s\n' "${now_epoch}" >> "${AUTOFIX_HISTORY_FILE}"
+  autofix_runs_window_count "${now_epoch}"
+}
+
+observe_autofix_state() {
+  OBS_AUTOFIX_STATE="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_state" || echo "idle")"
+  OBS_AUTOFIX_INCIDENT_ID="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_incident_id" || true)"
+  OBS_AUTOFIX_LAST_REASON="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_last_reason" || true)"
+  OBS_AUTOFIX_LAST_STARTED_AT="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_last_started_at" || true)"
+  OBS_AUTOFIX_LAST_FINISHED_AT="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_last_finished_at" || true)"
+  OBS_AUTOFIX_LAST_COMMIT="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_last_commit" || true)"
+  OBS_AUTOFIX_RESTART_REQUIRED="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_restart_required" || echo "false")"
+  OBS_AUTOFIX_RUNS_WINDOW="$(autofix_runs_window_count "$(date +%s)")"
+}
+
+trigger_autofix() {
+  local component="$1"
+  local reason="$2"
+  local now_epoch signature previous_signature incident_id runs_in_window started_at
+
+  if [[ "${AUTOFIX_ENABLED}" != "1" ]]; then
+    return 0
+  fi
+  if [[ "${AUTOFIX_TRIGGER}" != "cooldown" ]]; then
+    return 0
+  fi
+  if [[ ! -x "${AUTOFIX_SH}" ]]; then
+    append_log "[autofix] disabled: missing executable ${AUTOFIX_SH}"
+    return 0
+  fi
+
+  now_epoch="$(date +%s)"
+  if (( now_epoch < AUTOFIX_COOLDOWN_UNTIL )); then
+    OBS_AUTOFIX_STATE="cooldown"
+    return 0
+  fi
+
+  runs_in_window="$(autofix_runs_window_count "${now_epoch}")"
+  if (( runs_in_window >= AUTOFIX_MAX_IN_WINDOW )); then
+    AUTOFIX_COOLDOWN_UNTIL=$((now_epoch + AUTOFIX_COOLDOWN_SECONDS))
+    OBS_AUTOFIX_STATE="cooldown"
+    OBS_AUTOFIX_RUNS_WINDOW="${runs_in_window}"
+    append_log "[autofix] run limit reached (${runs_in_window}/${AUTOFIX_MAX_IN_WINDOW}), cooldown ${AUTOFIX_COOLDOWN_SECONDS}s"
+    return 0
+  fi
+
+  signature="${component}|${reason}|${OBS_MAIN_SHA}"
+  previous_signature="$(cat "${AUTOFIX_LAST_SIGNATURE_FILE}" 2>/dev/null || true)"
+  if [[ "${signature}" == "${previous_signature}" ]]; then
+    append_log "[autofix] duplicate signature, skip trigger"
+    return 0
+  fi
+
+  if [[ -d "${AUTOFIX_LOCK_DIR}" ]]; then
+    OBS_AUTOFIX_STATE="running"
+    append_log "[autofix] existing autofix lock, skip trigger"
+    return 0
+  fi
+
+  incident_id="afx-$(date -u +%Y%m%dT%H%M%SZ)-${component}-${OBS_MAIN_SHA:0:8}"
+  started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf '%s\n' "${signature}" > "${AUTOFIX_LAST_SIGNATURE_FILE}"
+  runs_in_window="$(record_autofix_run "${now_epoch}")"
+
+  OBS_AUTOFIX_STATE="running"
+  OBS_AUTOFIX_INCIDENT_ID="${incident_id}"
+  OBS_AUTOFIX_LAST_REASON="${reason}"
+  OBS_AUTOFIX_LAST_STARTED_AT="${started_at}"
+  OBS_AUTOFIX_LAST_FINISHED_AT=""
+  OBS_AUTOFIX_LAST_COMMIT=""
+  OBS_AUTOFIX_RESTART_REQUIRED="false"
+  OBS_AUTOFIX_RUNS_WINDOW="${runs_in_window}"
+
+  append_log "[autofix] trigger incident=${incident_id} reason=${reason}"
+  nohup env \
+    LARK_SUPERVISOR_AUTOFIX_TIMEOUT_SECONDS="${AUTOFIX_TIMEOUT_SECONDS}" \
+    LARK_SUPERVISOR_AUTOFIX_SCOPE="${AUTOFIX_SCOPE}" \
+    "${AUTOFIX_SH}" trigger \
+      --incident-id "${incident_id}" \
+      --reason "${reason}" \
+      --signature "${signature}" \
+      --main-sha "${OBS_MAIN_SHA}" >> "${LOG_FILE}" 2>&1 &
+}
+
+handle_autofix_success_restart() {
+  local applied_incident
+  if [[ "${OBS_AUTOFIX_STATE}" != "succeeded" ]]; then
+    return 0
+  fi
+  if [[ "${OBS_AUTOFIX_RESTART_REQUIRED}" != "true" ]]; then
+    return 0
+  fi
+  if [[ -z "${OBS_AUTOFIX_INCIDENT_ID}" ]]; then
+    return 0
+  fi
+
+  applied_incident="$(cat "${AUTOFIX_APPLIED_INCIDENT_FILE}" 2>/dev/null || true)"
+  if [[ "${applied_incident}" == "${OBS_AUTOFIX_INCIDENT_ID}" ]]; then
+    return 0
+  fi
+
+  append_log "[autofix] applying post-success restart for incident=${OBS_AUTOFIX_INCIDENT_ID}"
+  restart_component "main" || true
+  restart_component "test" || true
+  restart_component "loop" || true
+  printf '%s\n' "${OBS_AUTOFIX_INCIDENT_ID}" > "${AUTOFIX_APPLIED_INCIDENT_FILE}"
+}
+
 restart_history_for_component() {
   local component="$1"
   case "${component}" in
@@ -392,6 +551,7 @@ observe_states() {
   OBS_CYCLE_PHASE="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_phase" || echo "idle")"
   OBS_CYCLE_RESULT="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_result" || echo "unknown")"
   OBS_LOOP_ERROR="$(extract_json_string "${LOOP_STATE_FILE}" "last_error" || true)"
+  observe_autofix_state
 }
 
 current_mode() {
@@ -444,7 +604,14 @@ write_status_file() {
   "cycle_phase": "${OBS_CYCLE_PHASE}",
   "cycle_result": "${OBS_CYCLE_RESULT}",
   "last_error": "$(json_escape "${last_error}")",
-  "restart_count_window": ${restart_count}
+  "restart_count_window": ${restart_count},
+  "autofix_state": "${OBS_AUTOFIX_STATE}",
+  "autofix_incident_id": "$(json_escape "${OBS_AUTOFIX_INCIDENT_ID}")",
+  "autofix_last_reason": "$(json_escape "${OBS_AUTOFIX_LAST_REASON}")",
+  "autofix_last_started_at": "${OBS_AUTOFIX_LAST_STARTED_AT}",
+  "autofix_last_finished_at": "${OBS_AUTOFIX_LAST_FINISHED_AT}",
+  "autofix_last_commit": "${OBS_AUTOFIX_LAST_COMMIT}",
+  "autofix_runs_window": ${OBS_AUTOFIX_RUNS_WINDOW}
 }
 EOF
   mv "${tmp_file}" "${STATUS_FILE}"
@@ -459,6 +626,7 @@ set_cooldown() {
   LAST_ERROR="restart storm detected for ${component} (${count} in ${RESTART_WINDOW_SECONDS}s), cooldown ${COOLDOWN_SECONDS}s"
   MODE="cooldown"
   append_log "[supervisor] ${LAST_ERROR}"
+  trigger_autofix "${component}" "${LAST_ERROR}" || true
 }
 
 restart_with_backoff() {
@@ -515,6 +683,8 @@ run_tick() {
   observe_states
   restart_with_backoff "loop" "${OBS_LOOP_HEALTH}" || true
   observe_states
+  handle_autofix_success_restart
+  observe_states
 
   write_status_file
 }
@@ -550,6 +720,7 @@ run_supervisor() {
   trap cleanup EXIT INT TERM
   echo "$$" > "${PID_FILE}"
   append_log "[supervisor] start tick=${TICK_SECONDS}s window=${RESTART_WINDOW_SECONDS}s max=${RESTART_MAX_IN_WINDOW} cooldown=${COOLDOWN_SECONDS}s"
+  append_log "[supervisor] autofix enabled=${AUTOFIX_ENABLED} trigger=${AUTOFIX_TRIGGER} timeout=${AUTOFIX_TIMEOUT_SECONDS}s max=${AUTOFIX_MAX_IN_WINDOW}/${AUTOFIX_WINDOW_SECONDS}s cooldown=${AUTOFIX_COOLDOWN_SECONDS}s scope=${AUTOFIX_SCOPE}"
 
   while true; do
     run_tick
@@ -626,6 +797,11 @@ status() {
   echo "cycle_phase: ${OBS_CYCLE_PHASE}"
   echo "cycle_result: ${OBS_CYCLE_RESULT}"
   echo "restart_count_window: ${OBS_RESTART_COUNT_WINDOW}"
+  echo "autofix_state: ${OBS_AUTOFIX_STATE}"
+  echo "autofix_incident_id: ${OBS_AUTOFIX_INCIDENT_ID}"
+  echo "autofix_last_reason: ${OBS_AUTOFIX_LAST_REASON}"
+  echo "autofix_last_commit: ${OBS_AUTOFIX_LAST_COMMIT}"
+  echo "autofix_runs_window: ${OBS_AUTOFIX_RUNS_WINDOW}"
   echo "status_file: ${STATUS_FILE}"
 }
 
@@ -664,7 +840,7 @@ doctor() {
     fi
   done
 
-  for script in "${WORKTREE_SH}" "${MAIN_SH}" "${TEST_SH}" "${LOOP_AGENT_SH}"; do
+  for script in "${WORKTREE_SH}" "${MAIN_SH}" "${TEST_SH}" "${LOOP_AGENT_SH}" "${AUTOFIX_SH}"; do
     if [[ -x "${script}" ]]; then
       echo "[ok] script: ${script}"
     else
@@ -672,6 +848,15 @@ doctor() {
       failures=$((failures + 1))
     fi
   done
+
+  if [[ "${AUTOFIX_ENABLED}" == "1" ]]; then
+    if command_exists codex; then
+      echo "[ok] command: codex"
+    else
+      echo "[warn] codex not found in PATH (autofix may fail)"
+      warnings=$((warnings + 1))
+    fi
+  fi
 
   if git -C "${MAIN_ROOT}" worktree list --porcelain | awk -v p="${TEST_ROOT}" '$1=="worktree" && $2==p {found=1} END{exit found?0:1}'; then
     echo "[ok] test worktree registered"
