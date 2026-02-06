@@ -36,22 +36,29 @@ func NewCardCallbackHandler(gateway *Gateway, logger logging.Logger) http.Handle
 	plainDispatcher.OnP2CardActionTrigger(gateway.handleCardAction)
 
 	var encryptedDispatcher *dispatcher.EventDispatcher
+	var encryptedNoSignDispatcher *dispatcher.EventDispatcher
 	if encryptKey != "" {
 		encryptedDispatcher = dispatcher.NewEventDispatcher(verificationToken, encryptKey)
 		encryptedDispatcher.OnP2CardActionTrigger(gateway.handleCardAction)
+
+		encryptedNoSignDispatcher = dispatcher.NewEventDispatcher(verificationToken, encryptKey)
+		encryptedNoSignDispatcher.InitConfig(larkevent.WithSkipSignVerify(true))
+		encryptedNoSignDispatcher.OnP2CardActionTrigger(gateway.handleCardAction)
 	}
 
 	return &cardCallbackHandler{
-		plaintextDispatcher: plainDispatcher,
-		encryptedDispatcher: encryptedDispatcher,
-		logger:              logging.OrNop(logger),
+		plaintextDispatcher:       plainDispatcher,
+		encryptedDispatcher:       encryptedDispatcher,
+		encryptedNoSignDispatcher: encryptedNoSignDispatcher,
+		logger:                    logging.OrNop(logger),
 	}
 }
 
 type cardCallbackHandler struct {
-	plaintextDispatcher *dispatcher.EventDispatcher
-	encryptedDispatcher *dispatcher.EventDispatcher
-	logger              logging.Logger
+	plaintextDispatcher       *dispatcher.EventDispatcher
+	encryptedDispatcher       *dispatcher.EventDispatcher
+	encryptedNoSignDispatcher *dispatcher.EventDispatcher
+	logger                    logging.Logger
 }
 
 func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -71,7 +78,12 @@ func (h *cardCallbackHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 
 	disp := h.plaintextDispatcher
 	if isEncryptedCallbackPayload(body) && h.encryptedDispatcher != nil {
-		disp = h.encryptedDispatcher
+		if hasLarkCallbackSignatureHeaders(r.Header) {
+			disp = h.encryptedDispatcher
+		} else if h.encryptedNoSignDispatcher != nil {
+			h.logger.Warn("Lark card callback missing signature headers; fallback to skip-sign verification")
+			disp = h.encryptedNoSignDispatcher
+		}
 	}
 
 	req := &larkevent.EventReq{
@@ -101,6 +113,16 @@ func isEncryptedCallbackPayload(body []byte) bool {
 		return false
 	}
 	return strings.TrimSpace(envelope.Encrypt) != ""
+}
+
+func hasLarkCallbackSignatureHeaders(header http.Header) bool {
+	if header == nil {
+		return false
+	}
+	signature := strings.TrimSpace(header.Get(larkevent.EventSignature))
+	timestamp := strings.TrimSpace(header.Get(larkevent.EventRequestTimestamp))
+	nonce := strings.TrimSpace(header.Get(larkevent.EventRequestNonce))
+	return signature != "" && timestamp != "" && nonce != ""
 }
 
 func (g *Gateway) handleCardAction(_ context.Context, event *callback.CardActionTriggerEvent) (*callback.CardActionTriggerResponse, error) {

@@ -11,6 +11,7 @@ import (
 
 	"alex/internal/shared/logging"
 
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher/callback"
 )
 
@@ -54,6 +55,64 @@ func TestCardCallbackHandlerPlainURLVerificationWithEncryptKeyConfigured(t *test
 	}
 	if payload.Challenge != "challenge_plain" {
 		t.Fatalf("expected challenge_plain, got %q", payload.Challenge)
+	}
+}
+
+func TestCardCallbackHandlerEncryptedEventWithoutSignatureHeaders(t *testing.T) {
+	gw := &Gateway{
+		cfg: Config{
+			CardsEnabled:                  true,
+			CardCallbackVerificationToken: "verify_token",
+			CardCallbackEncryptKey:        "encrypt_key",
+		},
+	}
+	handler := NewCardCallbackHandler(gw, logging.OrNop(nil))
+	if handler == nil {
+		t.Fatal("expected callback handler")
+	}
+
+	plainEvent := map[string]interface{}{
+		"schema": "2.0",
+		"header": map[string]interface{}{
+			"event_id":    "evt-1",
+			"event_type":  "card.action.trigger",
+			"app_id":      "app",
+			"tenant_key":  "tenant",
+			"create_time": "1760000000000",
+			"token":       "verify_token",
+		},
+		"event": map[string]interface{}{
+			"action": map[string]interface{}{
+				"tag": "confirm_yes",
+			},
+		},
+	}
+	encrypt, err := larkcore.EncryptedEventMsg(context.Background(), plainEvent, "encrypt_key")
+	if err != nil {
+		t.Fatalf("encrypt event: %v", err)
+	}
+	body, err := json.Marshal(map[string]string{"encrypt": encrypt})
+	if err != nil {
+		t.Fatalf("marshal encrypted payload: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/lark/card/callback", strings.NewReader(string(body)))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d with body %q", rec.Code, rec.Body.String())
+	}
+	var payload struct {
+		Toast *struct {
+			Content string `json:"content"`
+		} `json:"toast"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("unmarshal response: %v, body=%q", err, rec.Body.String())
+	}
+	if payload.Toast == nil || payload.Toast.Content != "缺少会话信息" {
+		t.Fatalf("expected toast content 缺少会话信息, got %#v", payload.Toast)
 	}
 }
 
@@ -238,6 +297,24 @@ func TestIsEncryptedCallbackPayload(t *testing.T) {
 	}
 	if isEncryptedCallbackPayload([]byte(`not-json`)) {
 		t.Fatal("expected invalid json to be treated as plaintext payload")
+	}
+}
+
+func TestHasLarkCallbackSignatureHeaders(t *testing.T) {
+	header := http.Header{}
+	if hasLarkCallbackSignatureHeaders(header) {
+		t.Fatal("expected false without signature headers")
+	}
+
+	header.Set("X-Lark-Signature", "sig")
+	header.Set("X-Lark-Request-Timestamp", "123")
+	if hasLarkCallbackSignatureHeaders(header) {
+		t.Fatal("expected false without nonce header")
+	}
+
+	header.Set("X-Lark-Request-Nonce", "nonce")
+	if !hasLarkCallbackSignatureHeaders(header) {
+		t.Fatal("expected true with signature, timestamp and nonce headers")
 	}
 }
 
