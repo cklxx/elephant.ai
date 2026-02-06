@@ -7,6 +7,7 @@ This document describes the Lark/Feishu interactive card integration used by ele
 - **Plan review card**: triggered when the agent stops with `await_user_input` and plan review cards are enabled. Includes goal, plan JSON, and action buttons.
 - **Result card**: sent on success when result cards are enabled (summary + attachments).
 - **Error card**: sent on failure when error cards are enabled (default on).
+- **Model selection card**: sent by `/model` / `/model list` when cards are enabled; users can click a model button directly.
 
 ## Callback endpoint
 
@@ -36,6 +37,7 @@ channels:
 - `plan_review_request_changes` → injects the `plan_feedback` form value when provided, otherwise injects `需要修改`.
 - `confirm_yes` → injects `OK`.
 - `confirm_no` → injects `取消`.
+- `model_use` → injects `/model use <provider>/<model>` from `action.value.text`.
 
 ## Card input fields
 

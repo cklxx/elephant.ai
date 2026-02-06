@@ -179,6 +179,7 @@ apps:
 - `workspace_dir`：Lark 本地工具工作区根目录（默认进程 working dir）。
 - `cards_enabled`：是否启用 Lark 交互卡片（默认 true，仅错误卡片开启）。
 - `cards_plan_review` / `cards_results` / `cards_errors`：分别控制计划确认/结果/错误卡片发送（默认 `false / false / true`）。结果卡片在存在附件时会升级为“附件卡片”（仅一条卡片，按钮点击后发送文件/图片）；若卡片构建失败则回退为文本回复 + 原有附件发送。
+- 说明：`/model` / `/model list` 在 `cards_enabled=true` 时会优先返回“模型选择卡片”，可直接点击按钮完成 `/model use <provider>/<model>`；若卡片构建失败则自动回退文本列表。
 - `card_callback_verification_token` / `card_callback_encrypt_key`：卡片交互回调配置（用于 `/api/lark/card/callback` 回调校验/解密）。
 - `auto_upload_files`：本地文件写入/替换后自动上传附件（默认 true）。
 - `auto_upload_max_bytes`：自动上传单文件大小上限（默认 2MB）。
