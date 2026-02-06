@@ -164,6 +164,46 @@ func PathWithinBase(base, target string) bool {
 	return pathWithinBase(base, target)
 }
 
+func pathWithinBase(base, target string) bool {
+	baseClean, err := filepath.Abs(filepath.Clean(base))
+	if err != nil {
+		return false
+	}
+	targetClean, err := filepath.Abs(filepath.Clean(target))
+	if err != nil {
+		return false
+	}
+
+	baseResolved, err := filepath.EvalSymlinks(baseClean)
+	if err != nil {
+		return false
+	}
+	targetResolved, err := filepath.EvalSymlinks(targetClean)
+	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			return false
+		}
+		parent := filepath.Dir(targetClean)
+		parentResolved, err := filepath.EvalSymlinks(parent)
+		if err != nil {
+			return false
+		}
+		targetResolved = filepath.Join(parentResolved, filepath.Base(targetClean))
+	}
+
+	rel, err := filepath.Rel(baseResolved, targetResolved)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	if strings.HasPrefix(rel, ".."+string(filepath.Separator)) || rel == ".." {
+		return false
+	}
+	return true
+}
+
 func pathWithinAllowedRoots(candidate string, roots []string) bool {
 	for _, root := range roots {
 		if root == "" {
