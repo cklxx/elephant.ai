@@ -47,49 +47,61 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 	}
 
 	creds := r.loadCreds()
-	switch provider {
-	case creds.Codex.Provider:
-		if creds.Codex.APIKey == "" {
-			return ResolvedSelection{}, false
-		}
+
+	// matchProvider checks both the dynamic credential provider name and the
+	// hardcoded known name. When credentials are empty (e.g. expired token),
+	// creds.XXX.Provider is "", so the dynamic match fails. The hardcoded
+	// fallback ensures the stored selection is still recognised.
+	matchProvider := func(credProvider, knownName string) bool {
+		return provider == credProvider || (credProvider == "" && provider == knownName)
+	}
+
+	switch {
+	case matchProvider(creds.Codex.Provider, "codex"):
 		headers := map[string]string{}
 		if creds.Codex.AccountID != "" {
 			headers["ChatGPT-Account-Id"] = creds.Codex.AccountID
+		}
+		baseURL := creds.Codex.BaseURL
+		if baseURL == "" {
+			baseURL = "https://chatgpt.com/backend-api/codex"
 		}
 		return ResolvedSelection{
 			Provider: provider,
 			Model:    model,
 			APIKey:   creds.Codex.APIKey,
-			BaseURL:  creds.Codex.BaseURL,
+			BaseURL:  baseURL,
 			Headers:  headers,
 			Source:   string(creds.Codex.Source),
 			Pinned:   true,
 		}, true
-	case creds.Claude.Provider:
-		if creds.Claude.APIKey == "" {
-			return ResolvedSelection{}, false
+	case matchProvider(creds.Claude.Provider, "anthropic"):
+		baseURL := creds.Claude.BaseURL
+		if baseURL == "" {
+			baseURL = "https://api.anthropic.com/v1"
 		}
 		return ResolvedSelection{
 			Provider: provider,
 			Model:    model,
 			APIKey:   creds.Claude.APIKey,
-			BaseURL:  creds.Claude.BaseURL,
+			BaseURL:  baseURL,
 			Source:   string(creds.Claude.Source),
 			Pinned:   true,
 		}, true
-	case creds.Antigravity.Provider:
-		if creds.Antigravity.APIKey == "" {
-			return ResolvedSelection{}, false
+	case matchProvider(creds.Antigravity.Provider, "antigravity"):
+		baseURL := creds.Antigravity.BaseURL
+		if baseURL == "" {
+			baseURL = "https://cloudcode-pa.googleapis.com"
 		}
 		return ResolvedSelection{
 			Provider: provider,
 			Model:    model,
 			APIKey:   creds.Antigravity.APIKey,
-			BaseURL:  creds.Antigravity.BaseURL,
+			BaseURL:  baseURL,
 			Source:   string(creds.Antigravity.Source),
 			Pinned:   true,
 		}, true
-	case "ollama":
+	case provider == "ollama":
 		return ResolvedSelection{
 			Provider: provider,
 			Model:    model,
@@ -97,7 +109,7 @@ func (r *SelectionResolver) Resolve(selection Selection) (ResolvedSelection, boo
 			Source:   "ollama",
 			Pinned:   true,
 		}, true
-	case "llama_server":
+	case provider == "llama_server":
 		return ResolvedSelection{
 			Provider: "llama.cpp",
 			Model:    model,

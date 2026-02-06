@@ -59,6 +59,78 @@ func TestResolveSelectionForOllama(t *testing.T) {
 	}
 }
 
+func TestResolveSelectionCodexEmptyCreds(t *testing.T) {
+	// When CLI credentials are empty (e.g. expired token), Resolve should
+	// still return a partial selection with Pinned=true and fallback BaseURL
+	// so that the downstream credential refresher can fill in the API key.
+	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{} // all empty
+	})
+
+	selection := Selection{Mode: "cli", Provider: "codex", Model: "gpt-5.2-codex"}
+	resolved, ok := resolver.Resolve(selection)
+	if !ok {
+		t.Fatalf("expected selection to resolve even with empty creds")
+	}
+	if resolved.Provider != "codex" || resolved.Model != "gpt-5.2-codex" {
+		t.Fatalf("unexpected resolution: %#v", resolved)
+	}
+	if resolved.APIKey != "" {
+		t.Fatalf("expected empty api key, got %q", resolved.APIKey)
+	}
+	if resolved.BaseURL != "https://chatgpt.com/backend-api/codex" {
+		t.Fatalf("expected fallback base url, got %q", resolved.BaseURL)
+	}
+	if !resolved.Pinned {
+		t.Fatal("expected Pinned=true")
+	}
+}
+
+func TestResolveSelectionClaudeEmptyCreds(t *testing.T) {
+	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{}
+	})
+
+	selection := Selection{Mode: "cli", Provider: "anthropic", Model: "claude-sonnet-4-20250514"}
+	resolved, ok := resolver.Resolve(selection)
+	if !ok {
+		t.Fatalf("expected selection to resolve even with empty creds")
+	}
+	if resolved.Provider != "anthropic" || resolved.Model != "claude-sonnet-4-20250514" {
+		t.Fatalf("unexpected resolution: %#v", resolved)
+	}
+	if resolved.APIKey != "" {
+		t.Fatalf("expected empty api key, got %q", resolved.APIKey)
+	}
+	if resolved.BaseURL != "https://api.anthropic.com/v1" {
+		t.Fatalf("expected fallback base url, got %q", resolved.BaseURL)
+	}
+	if !resolved.Pinned {
+		t.Fatal("expected Pinned=true")
+	}
+}
+
+func TestResolveSelectionAntigravityEmptyCreds(t *testing.T) {
+	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials {
+		return runtimeconfig.CLICredentials{}
+	})
+
+	selection := Selection{Mode: "cli", Provider: "antigravity", Model: "gemini-3-pro"}
+	resolved, ok := resolver.Resolve(selection)
+	if !ok {
+		t.Fatalf("expected selection to resolve even with empty creds")
+	}
+	if resolved.APIKey != "" {
+		t.Fatalf("expected empty api key, got %q", resolved.APIKey)
+	}
+	if resolved.BaseURL != "https://cloudcode-pa.googleapis.com" {
+		t.Fatalf("expected fallback base url, got %q", resolved.BaseURL)
+	}
+	if !resolved.Pinned {
+		t.Fatal("expected Pinned=true")
+	}
+}
+
 func TestResolveSelectionForLlamaServer(t *testing.T) {
 	t.Setenv("LLAMA_SERVER_BASE_URL", "http://127.0.0.1:8082/v1")
 	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials { return runtimeconfig.CLICredentials{} })

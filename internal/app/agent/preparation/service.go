@@ -391,6 +391,17 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		if len(selection.Headers) > 0 {
 			llmConfig.Headers = selection.Headers
 		}
+		// When the pinned selection resolved with an empty API key (e.g.
+		// expired CLI token), try the credential refresher for the selected
+		// provider so that long-running Lark servers can recover automatically.
+		if llmConfig.APIKey == "" && s.credentialRefresher != nil {
+			if apiKey, baseURL, ok := s.credentialRefresher(effectiveProvider); ok {
+				llmConfig.APIKey = apiKey
+				if baseURL != "" {
+					llmConfig.BaseURL = baseURL
+				}
+			}
+		}
 	}
 	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, llmConfig)
 	clilatency.PrintfWithContext(ctx,
