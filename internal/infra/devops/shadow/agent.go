@@ -60,10 +60,34 @@ func (a *Agent) Run(ctx context.Context, task Task) (*Result, error) {
 		return nil, fmt.Errorf("shadow agent returned no result")
 	}
 
-	return &Result{
+	verifyPlan := coding.ResolveVerificationPlan(task.Config)
+	if verifyPlan.Enabled {
+		result.Verify = coding.VerifyAll(ctx, request.WorkingDir, nil, coding.VerificationPlan{
+			Enabled: true,
+			Build:   verifyPlan.Build,
+			Test:    verifyPlan.Test,
+			Lint:    verifyPlan.Lint,
+		})
+		if result.Metadata == nil {
+			result.Metadata = make(map[string]any)
+		}
+		result.Metadata["verification"] = result.Verify
+	}
+
+	finalResult := &Result{
 		TaskID:   task.ID,
 		Answer:   result.Answer,
 		Error:    result.Error,
 		Metadata: result.Metadata,
-	}, nil
+		Verify:   result.Verify,
+	}
+
+	if err := coding.VerifyError(result.Verify); err != nil {
+		if strings.TrimSpace(finalResult.Error) == "" {
+			finalResult.Error = err.Error()
+		}
+		return finalResult, err
+	}
+
+	return finalResult, nil
 }

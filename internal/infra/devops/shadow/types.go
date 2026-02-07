@@ -1,5 +1,7 @@
 package shadow
 
+import "alex/internal/infra/coding"
+
 // Task defines a shadow agent coding task.
 type Task struct {
 	ID          string
@@ -18,4 +20,5 @@ type Result struct {
 	Answer   string
 	Error    string
 	Metadata map[string]any
+	Verify   *coding.VerifyResult
 }
