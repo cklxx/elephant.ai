@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"alex/evaluation/rl"
 	serverApp "alex/internal/delivery/server/app"
 	evalHTTP "alex/internal/delivery/eval/http"
 )
@@ -30,14 +31,23 @@ func RunEvalServer(configPath string) error {
 	}
 	log.Printf("[eval-server] evaluation service ready (output=%s)", cfg.EvalOutputDir)
 
-	// Phase 2: Ensure RL output dir exists
-	if err := os.MkdirAll(cfg.RLOutputDir, 0o755); err != nil {
-		return fmt.Errorf("create rl output dir: %w", err)
+	// Phase 2: Create RL pipeline components
+	rlStorage, err := rl.NewStorage(cfg.RLOutputDir)
+	if err != nil {
+		return fmt.Errorf("init rl storage: %w", err)
 	}
+	rlExtractor := rl.NewExtractor()
+	rlConfig := rl.DefaultQualityConfig()
+	qualityGate := rl.NewQualityGate(rlConfig, nil)
+	log.Printf("[eval-server] RL pipeline ready (output=%s)", cfg.RLOutputDir)
 
 	// Phase 3: Wire HTTP router
 	router := evalHTTP.NewEvalRouter(evalHTTP.EvalRouterDeps{
-		Evaluation: evalSvc,
+		Evaluation:  evalSvc,
+		RLStorage:   rlStorage,
+		RLExtractor: rlExtractor,
+		QualityGate: qualityGate,
+		RLConfig:    rlConfig,
 	}, evalHTTP.EvalRouterConfig{
 		Environment:    cfg.Environment,
 		AllowedOrigins: cfg.AllowedOrigins,

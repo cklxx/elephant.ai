@@ -8,13 +8,18 @@ import (
 	"time"
 
 	agent_eval "alex/evaluation/agent_eval"
+	"alex/evaluation/rl"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
 )
 
 // EvalRouterDeps holds dependencies for the eval-server router.
 type EvalRouterDeps struct {
-	Evaluation *serverApp.EvaluationService
+	Evaluation  *serverApp.EvaluationService
+	RLStorage   *rl.Storage
+	RLExtractor *rl.Extractor
+	QualityGate *rl.QualityGate
+	RLConfig    rl.QualityConfig
 }
 
 // EvalRouterConfig holds configuration for the eval-server router.
@@ -46,6 +51,20 @@ func NewEvalRouter(deps EvalRouterDeps, cfg EvalRouterConfig) http.Handler {
 	mux.HandleFunc("GET /api/agents", handler.handleListAgents)
 	mux.HandleFunc("GET /api/agents/{agent_id}", handler.handleGetAgent)
 	mux.HandleFunc("GET /api/agents/{agent_id}/evaluations", handler.handleListAgentEvaluations)
+
+	// RL data pipeline
+	rlH := &rlHandler{
+		storage:     deps.RLStorage,
+		extractor:   deps.RLExtractor,
+		qualityGate: deps.QualityGate,
+		config:      deps.RLConfig,
+	}
+	mux.HandleFunc("GET /api/rl/stats", rlH.handleGetStats)
+	mux.HandleFunc("GET /api/rl/trajectories", rlH.handleListTrajectories)
+	mux.HandleFunc("GET /api/rl/trajectories/{trajectory_id}", rlH.handleGetTrajectory)
+	mux.HandleFunc("GET /api/rl/config", rlH.handleGetConfig)
+	mux.HandleFunc("PUT /api/rl/config", rlH.handleUpdateConfig)
+	mux.HandleFunc("GET /api/rl/export", rlH.handleExport)
 
 	// Middleware stack (lightweight — no auth, no streaming guards)
 	var root http.Handler = mux
