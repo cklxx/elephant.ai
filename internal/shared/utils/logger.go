@@ -12,6 +12,7 @@ import (
 )
 
 const logDirEnvVar = "ALEX_LOG_DIR"
+const logLevelEnvVar = "ALEX_LOG_LEVEL"
 
 // LogLevel represents the severity of a log message
 type LogLevel int
@@ -78,10 +79,26 @@ func NewCategorizedLogger(category LogCategory, component string) *Logger {
 	}
 }
 
+// resolveLogLevel reads ALEX_LOG_LEVEL from the environment.
+// Supported values: DEBUG, INFO (default), WARN/WARNING, ERROR.
+func resolveLogLevel() LogLevel {
+	raw := strings.TrimSpace(os.Getenv(logLevelEnvVar))
+	switch strings.ToUpper(raw) {
+	case "DEBUG":
+		return DEBUG
+	case "WARN", "WARNING":
+		return WARN
+	case "ERROR":
+		return ERROR
+	default:
+		return INFO
+	}
+}
+
 func getOrCreateCategoryLogger(category LogCategory) *Logger {
 	if category == LogCategoryService {
 		loggerOnce.Do(func() {
-			loggerInstance = newLogger("", DEBUG, true, category)
+			loggerInstance = newLogger("", resolveLogLevel(), true, category)
 		})
 		return loggerInstance
 	}
@@ -93,7 +110,7 @@ func getOrCreateCategoryLogger(category LogCategory) *Logger {
 		return logger
 	}
 
-	logger := newLogger("", DEBUG, true, category)
+	logger := newLogger("", resolveLogLevel(), true, category)
 	categoryLoggers[category] = logger
 	return logger
 }
