@@ -11,6 +11,7 @@
 #   ./dev.sh down|stop          # Stop backend + web
 #   ./dev.sh status             # Show status + ports
 #   ./dev.sh logs [server|web]  # Tail logs
+#   ./dev.sh logs-ui            # Start services and open log analyzer page
 #   ./dev.sh test               # Go tests (CI parity)
 #   ./dev.sh lint               # Go + web lint
 #
@@ -973,6 +974,23 @@ cmd_logs() {
   esac
 }
 
+cmd_logs_ui() {
+  cmd_up
+
+  local url="http://localhost:${WEB_PORT}/dev/log-analyzer"
+  log_success "Log analyzer ready: ${url}"
+
+  if command_exists open; then
+    open "${url}" >/dev/null 2>&1 || true
+    return 0
+  fi
+  if command_exists xdg-open; then
+    xdg-open "${url}" >/dev/null 2>&1 || true
+    return 0
+  fi
+  log_info "Open this URL in your browser: ${url}"
+}
+
 cmd_test() {
   log_info "Running Go tests (CI parity)..."
   if [[ -z "${CGO_ENABLED:-}" ]]; then
@@ -1022,6 +1040,7 @@ Commands:
   down|stop      Stop backend + web
   status         Show status + ports
   logs           Tail logs (optional: server|web)
+  logs-ui        Start services and open the log analyzer page
   test           Run Go tests (CI parity)
   lint           Run Go + web lint
   setup-cgo      Install CGO sqlite dependencies
@@ -1039,6 +1058,7 @@ case "$cmd" in
   down|stop) cmd_down ;;
   status) cmd_status ;;
   logs) cmd_logs "${@:-all}" ;;
+  logs-ui|log-ui|analyze-logs) cmd_logs_ui ;;
   test) cmd_test ;;
   lint) cmd_lint ;;
   setup-cgo) cmd_setup_cgo ;;
