@@ -267,6 +267,7 @@ type LarkChannelConfig struct {
 	CardsErrors                   *bool              `json:"cards_errors" yaml:"cards_errors"`
 	CardCallbackVerificationToken string             `json:"card_callback_verification_token" yaml:"card_callback_verification_token"`
 	CardCallbackEncryptKey        string             `json:"card_callback_encrypt_key" yaml:"card_callback_encrypt_key"`
+	CardCallbackPort              string             `json:"card_callback_port" yaml:"card_callback_port"`
 	AutoUploadFiles               *bool              `json:"auto_upload_files" yaml:"auto_upload_files"`
 	AutoUploadMaxBytes            *int               `json:"auto_upload_max_bytes" yaml:"auto_upload_max_bytes"`
 	AutoUploadAllowExt            []string           `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`

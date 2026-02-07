@@ -63,6 +63,7 @@ type LarkGatewayConfig struct {
 	CardsErrors                   bool
 	CardCallbackVerificationToken string
 	CardCallbackEncryptKey        string
+	CardCallbackPort              string
 	AutoUploadFiles               bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
@@ -251,6 +252,14 @@ func applyLarkEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
 			cfg.Channels.Lark.CardCallbackEncryptKey = key
 		}
 	}
+	if strings.TrimSpace(cfg.Channels.Lark.CardCallbackPort) == "" {
+		if port := lookupFirstNonEmptyEnv(lookup,
+			"LARK_CARD_CALLBACK_PORT",
+			"FEISHU_CARD_CALLBACK_PORT",
+		); port != "" {
+			cfg.Channels.Lark.CardCallbackPort = port
+		}
+	}
 }
 
 func lookupFirstNonEmptyEnv(lookup runtimeconfig.EnvLookup, keys ...string) string {
@@ -308,6 +317,9 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if encryptKey := strings.TrimSpace(larkCfg.CardCallbackEncryptKey); encryptKey != "" {
 		cfg.Channels.Lark.CardCallbackEncryptKey = encryptKey
+	}
+	if port := strings.TrimSpace(larkCfg.CardCallbackPort); port != "" {
+		cfg.Channels.Lark.CardCallbackPort = port
 	}
 	if larkCfg.AutoUploadFiles != nil {
 		cfg.Channels.Lark.AutoUploadFiles = *larkCfg.AutoUploadFiles

@@ -118,6 +118,85 @@ channels:
 	}
 }
 
+func TestLoadConfig_LarkCardCallbackPortFromYAML(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    enabled: true
+    card_callback_port: "9393"
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cfg, _, _, _, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if got := cfg.Channels.Lark.CardCallbackPort; got != "9393" {
+		t.Fatalf("expected card_callback_port from YAML, got %q", got)
+	}
+}
+
+func TestLoadConfig_LarkCardCallbackPortFromEnvFallback(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    enabled: true
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("LARK_CARD_CALLBACK_PORT", "9494")
+
+	cfg, _, _, _, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if got := cfg.Channels.Lark.CardCallbackPort; got != "9494" {
+		t.Fatalf("expected card_callback_port from env fallback, got %q", got)
+	}
+}
+
+func TestLoadConfig_LarkCardCallbackPortYAMLOverridesEnv(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    enabled: true
+    card_callback_port: "9595"
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("LARK_CARD_CALLBACK_PORT", "9494")
+
+	cfg, _, _, _, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if got := cfg.Channels.Lark.CardCallbackPort; got != "9595" {
+		t.Fatalf("expected YAML port to take precedence, got %q", got)
+	}
+}
+
 func TestLoadConfig_EventHistoryAsyncDefaults(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	t.Setenv("ALEX_CONFIG_PATH", configPath)

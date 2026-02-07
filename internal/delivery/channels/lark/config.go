@@ -21,6 +21,7 @@ type Config struct {
 	CardsErrors                   bool
 	CardCallbackVerificationToken string
 	CardCallbackEncryptKey        string
+	CardCallbackPort              string
 	AutoUploadFiles               bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
