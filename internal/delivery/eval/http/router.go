@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	agent_eval "alex/evaluation/agent_eval"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
 )
@@ -35,7 +36,7 @@ func NewEvalRouter(deps EvalRouterDeps, cfg EvalRouterConfig) http.Handler {
 	// Health check
 	mux.HandleFunc("GET /health", handler.handleHealth)
 
-	// Evaluation endpoints (delegate to existing server handlers via our thin wrapper)
+	// Evaluation endpoints
 	mux.HandleFunc("GET /api/evaluations", handler.handleListEvaluations)
 	mux.HandleFunc("POST /api/evaluations", handler.handleStartEvaluation)
 	mux.HandleFunc("GET /api/evaluations/{evaluation_id}", handler.handleGetEvaluation)
@@ -67,7 +68,7 @@ func (h *evalHandler) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
-func (h *evalHandler) handleListEvaluations(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandler) handleListEvaluations(w http.ResponseWriter, _ *http.Request) {
 	if h.evaluation == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable")
 		return
@@ -76,12 +77,55 @@ func (h *evalHandler) handleListEvaluations(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]any{"evaluations": jobs})
 }
 
+type startEvalRequest struct {
+	DatasetPath   string `json:"dataset_path"`
+	InstanceLimit int    `json:"instance_limit"`
+	MaxWorkers    int    `json:"max_workers"`
+	TimeoutSec    int64  `json:"timeout_seconds"`
+	OutputDir     string `json:"output_dir"`
+	ReportFormat  string `json:"report_format"`
+	EnableMetrics *bool  `json:"enable_metrics,omitempty"`
+	AgentID       string `json:"agent_id,omitempty"`
+}
+
 func (h *evalHandler) handleStartEvaluation(w http.ResponseWriter, r *http.Request) {
 	if h.evaluation == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable")
 		return
 	}
-	writeJSONError(w, http.StatusNotImplemented, "Start evaluation via eval-server: coming in Batch 2")
+
+	var req startEvalRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<18)).Decode(&req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	enableMetrics := true
+	if req.EnableMetrics != nil {
+		enableMetrics = *req.EnableMetrics
+	}
+
+	options := &agent_eval.EvaluationOptions{
+		DatasetPath:    req.DatasetPath,
+		InstanceLimit:  req.InstanceLimit,
+		MaxWorkers:     req.MaxWorkers,
+		TimeoutPerTask: time.Duration(req.TimeoutSec) * time.Second,
+		OutputDir:      req.OutputDir,
+		AgentID:        req.AgentID,
+		EnableMetrics:  enableMetrics,
+		ReportFormat:   req.ReportFormat,
+	}
+
+	job, err := h.evaluation.Start(r.Context(), options)
+	if err != nil {
+		writeJSONError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]any{
+		"id":     job.ID,
+		"status": string(job.Status),
+	})
 }
 
 func (h *evalHandler) handleGetEvaluation(w http.ResponseWriter, r *http.Request) {
@@ -120,7 +164,7 @@ func (h *evalHandler) handleDeleteEvaluation(w http.ResponseWriter, r *http.Requ
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": jobID})
 }
 
-func (h *evalHandler) handleListAgents(w http.ResponseWriter, r *http.Request) {
+func (h *evalHandler) handleListAgents(w http.ResponseWriter, _ *http.Request) {
 	if h.evaluation == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "Evaluation service unavailable")
 		return
