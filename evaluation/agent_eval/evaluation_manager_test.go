@@ -1,7 +1,9 @@
 package agent_eval
 
 import (
+	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -252,5 +254,66 @@ func TestQueryEvaluationsFiltersByTagsThroughManager(t *testing.T) {
 
 	if len(results) != 1 || results[0].JobID != "job-bench" {
 		t.Fatalf("expected only tagged evaluation to be returned, got %v", results)
+	}
+}
+
+func TestGenerateReportReturnsNormalizedArtifactPath(t *testing.T) {
+	dir := t.TempDir()
+	em := NewEvaluationManager(&EvaluationConfig{OutputDir: dir})
+
+	metrics := &EvaluationMetrics{
+		TotalTasks: 1,
+		Performance: PerformanceMetrics{
+			SuccessRate:      1,
+			AvgExecutionTime: time.Second,
+			MedianTime:       time.Second,
+			P95Time:          time.Second,
+		},
+		Quality: QualityMetrics{
+			SolutionQuality:    0.9,
+			ErrorRecoveryRate:  1,
+			ConsistencyScore:   0.9,
+			ComplexityHandling: 0.9,
+		},
+		Resources: ResourceMetrics{
+			AvgTokensUsed:  10,
+			TotalTokens:    10,
+			AvgCostPerTask: 0.01,
+			TotalCost:      0.01,
+			MemoryUsage:    16,
+		},
+		Behavior: BehaviorMetrics{
+			AvgToolCalls:     1,
+			ToolUsagePattern: map[string]int{"bash": 1},
+			CommonFailures:   map[string]int{},
+		},
+	}
+
+	evaluation := &EvaluationResults{
+		JobID:   "job-report",
+		Metrics: metrics,
+		Analysis: &AnalysisResult{
+			Summary: AnalysisSummary{
+				OverallScore:     0.9,
+				PerformanceGrade: "A",
+				RiskLevel:        "low",
+			},
+		},
+		Results:   []swe_bench.WorkerResult{{TaskID: "task-1", Status: swe_bench.StatusCompleted}},
+		Timestamp: time.Now(),
+	}
+
+	reportPath, err := em.generateReport(context.Background(), evaluation, &EvaluationConfig{
+		OutputDir:    dir,
+		ReportFormat: "markdown",
+	})
+	if err != nil {
+		t.Fatalf("generate report: %v", err)
+	}
+	if !filepath.IsAbs(reportPath) {
+		t.Fatalf("expected absolute report path, got %q", reportPath)
+	}
+	if _, err := os.Stat(reportPath); err != nil {
+		t.Fatalf("expected report artifact to exist: %v", err)
 	}
 }

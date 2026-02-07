@@ -56,8 +56,12 @@ func TestTaskStore_ListTasks(t *testing.T) {
 	}
 
 	now := time.Now()
-	store.SaveTask(&EvalTaskDefinition{ID: "older", Name: "Older", CreatedAt: now.Add(-time.Hour), UpdatedAt: now})
-	store.SaveTask(&EvalTaskDefinition{ID: "newer", Name: "Newer", CreatedAt: now, UpdatedAt: now})
+	if err := store.SaveTask(&EvalTaskDefinition{ID: "older", Name: "Older", CreatedAt: now.Add(-time.Hour), UpdatedAt: now}); err != nil {
+		t.Fatalf("save older task: %v", err)
+	}
+	if err := store.SaveTask(&EvalTaskDefinition{ID: "newer", Name: "Newer", CreatedAt: now, UpdatedAt: now}); err != nil {
+		t.Fatalf("save newer task: %v", err)
+	}
 
 	tasks, err := store.ListTasks()
 	if err != nil {
@@ -78,7 +82,9 @@ func TestTaskStore_DeleteTask(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	store.SaveTask(&EvalTaskDefinition{ID: "to-delete", Name: "Delete Me"})
+	if err := store.SaveTask(&EvalTaskDefinition{ID: "to-delete", Name: "Delete Me"}); err != nil {
+		t.Fatalf("save task: %v", err)
+	}
 
 	if err := store.DeleteTask("to-delete"); err != nil {
 		t.Fatalf("delete: %v", err)
@@ -112,9 +118,15 @@ func TestTaskStore_Runs(t *testing.T) {
 	run2 := &BatchRun{ID: "run-2", TaskID: "task-1", Status: RunStatusRunning, StartedAt: now}
 	run3 := &BatchRun{ID: "run-3", TaskID: "task-2", Status: RunStatusPending, StartedAt: now}
 
-	store.SaveRun(run1)
-	store.SaveRun(run2)
-	store.SaveRun(run3)
+	if err := store.SaveRun(run1); err != nil {
+		t.Fatalf("save run1: %v", err)
+	}
+	if err := store.SaveRun(run2); err != nil {
+		t.Fatalf("save run2: %v", err)
+	}
+	if err := store.SaveRun(run3); err != nil {
+		t.Fatalf("save run3: %v", err)
+	}
 
 	runs, err := store.ListRunsForTask("task-1")
 	if err != nil {

@@ -8,17 +8,27 @@ import (
 
 // EvaluationResults 评估结果
 type EvaluationResults struct {
-	JobID      string                   `json:"job_id"`
-	AgentID    string                   `json:"agent_id,omitempty"`
-	Config     *EvaluationConfig        `json:"config,omitempty"`
-	Results    []swe_bench.WorkerResult `json:"results"`
-	AutoScores []AutoScore              `json:"auto_scores,omitempty"`
-	Judgements *JudgementSummary        `json:"judgements,omitempty"`
-	JudgeRuns  []JudgementResult        `json:"judgement_results,omitempty"`
-	Metrics    *EvaluationMetrics       `json:"metrics"`
-	Analysis   *AnalysisResult          `json:"analysis"`
-	Agent      *AgentProfile            `json:"agent,omitempty"`
-	Timestamp  time.Time                `json:"timestamp"`
+	JobID           string                   `json:"job_id"`
+	AgentID         string                   `json:"agent_id,omitempty"`
+	Config          *EvaluationConfig        `json:"config,omitempty"`
+	Results         []swe_bench.WorkerResult `json:"results"`
+	AutoScores      []AutoScore              `json:"auto_scores,omitempty"`
+	Judgements      *JudgementSummary        `json:"judgements,omitempty"`
+	JudgeRuns       []JudgementResult        `json:"judgement_results,omitempty"`
+	Metrics         *EvaluationMetrics       `json:"metrics"`
+	Analysis        *AnalysisResult          `json:"analysis"`
+	Agent           *AgentProfile            `json:"agent,omitempty"`
+	ReportPath      string                   `json:"report_path,omitempty"`
+	ReportArtifacts []EvaluationArtifact     `json:"report_artifacts,omitempty"`
+	Timestamp       time.Time                `json:"timestamp"`
+}
+
+// EvaluationArtifact describes a generated artifact for an evaluation run.
+type EvaluationArtifact struct {
+	Type   string `json:"type"`
+	Format string `json:"format,omitempty"`
+	Name   string `json:"name"`
+	Path   string `json:"path"`
 }
 
 // EvaluationQuery 描述查询评估记录的过滤器

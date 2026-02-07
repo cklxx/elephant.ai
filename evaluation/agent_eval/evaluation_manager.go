@@ -195,8 +195,20 @@ func (em *EvaluationManager) executeEvaluation(ctx context.Context, job *Evaluat
 		evaluation.Agent = em.buildAgentProfile(job.Config.AgentID, evaluation.Metrics, autoScores, results)
 
 		if job.Config.EnableMetrics {
-			if err := em.generateReport(ctx, evaluation, job.Config); err != nil {
+			reportPath, err := em.generateReport(ctx, evaluation, job.Config)
+			if err != nil {
 				log.Printf("Warning: Failed to generate report: %v", err)
+			} else {
+				format := normalizeReportFormat(job.Config.ReportFormat)
+				evaluation.ReportPath = reportPath
+				evaluation.ReportArtifacts = []EvaluationArtifact{
+					{
+						Type:   "evaluation_report",
+						Format: format,
+						Name:   filepath.Base(reportPath),
+						Path:   reportPath,
+					},
+				}
 			}
 		}
 	}
@@ -354,9 +366,28 @@ func (em *EvaluationManager) collectMetrics(ctx context.Context, results []swe_b
 }
 
 // generateReport 生成报告
-func (em *EvaluationManager) generateReport(ctx context.Context, report *EvaluationResults, config *EvaluationConfig) error {
+func (em *EvaluationManager) generateReport(ctx context.Context, report *EvaluationResults, config *EvaluationConfig) (string, error) {
 	outputPath := filepath.Join(config.OutputDir, fmt.Sprintf("report_%s.md", report.JobID))
-	return em.reporter.GenerateReport(report, outputPath, config.OutputDir)
+	if err := em.reporter.GenerateReport(report, outputPath, config.OutputDir); err != nil {
+		return "", err
+	}
+	return normalizeReportArtifactPath(outputPath), nil
+}
+
+func normalizeReportArtifactPath(path string) string {
+	cleaned := filepath.Clean(path)
+	if abs, err := filepath.Abs(cleaned); err == nil {
+		return abs
+	}
+	return cleaned
+}
+
+func normalizeReportFormat(format string) string {
+	normalized := strings.ToLower(strings.TrimSpace(format))
+	if normalized == "" {
+		return string(ReportFormatMarkdown)
+	}
+	return normalized
 }
 
 // scoreResults 基于状态、耗时和错误为每个任务生成自动评分

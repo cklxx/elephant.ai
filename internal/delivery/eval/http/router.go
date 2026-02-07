@@ -176,7 +176,12 @@ func (h *evalHandler) handleGetEvaluation(w http.ResponseWriter, r *http.Request
 		return
 	}
 	results, _ := h.evaluation.GetJobResults(jobID)
-	writeJSON(w, http.StatusOK, map[string]any{"evaluation": job, "results": results})
+	payload := map[string]any{"evaluation": job, "results": results}
+	if results != nil {
+		payload["report_path"] = results.ReportPath
+		payload["report_artifacts"] = results.ReportArtifacts
+	}
+	writeJSON(w, http.StatusOK, payload)
 }
 
 func (h *evalHandler) handleDeleteEvaluation(w http.ResponseWriter, r *http.Request) {

@@ -110,11 +110,6 @@ func (h *rlHandler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h.config)
 }
 
-type exportRequest struct {
-	Tier  string `json:"tier"`
-	After string `json:"after,omitempty"`
-}
-
 func (h *rlHandler) handleExport(w http.ResponseWriter, r *http.Request) {
 	if h.storage == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "RL storage not configured")
@@ -145,6 +140,8 @@ func (h *rlHandler) handleExport(w http.ResponseWriter, r *http.Request) {
 
 	enc := json.NewEncoder(w)
 	for _, traj := range trajectories {
-		enc.Encode(traj)
+		if err := enc.Encode(traj); err != nil {
+			return
+		}
 	}
 }

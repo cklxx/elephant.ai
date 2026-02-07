@@ -116,9 +116,13 @@ func TestStorage_Stats(t *testing.T) {
 
 	now := time.Now()
 	for i := 0; i < 3; i++ {
-		store.Append(&RLTrajectory{ID: "g" + string(rune('0'+i)), QualityTier: TierGold, ExtractedAt: now})
+		if err := store.Append(&RLTrajectory{ID: "g" + string(rune('0'+i)), QualityTier: TierGold, ExtractedAt: now}); err != nil {
+			t.Fatalf("append gold trajectory %d: %v", i, err)
+		}
 	}
-	store.Append(&RLTrajectory{ID: "s1", QualityTier: TierSilver, ExtractedAt: now})
+	if err := store.Append(&RLTrajectory{ID: "s1", QualityTier: TierSilver, ExtractedAt: now}); err != nil {
+		t.Fatalf("append silver trajectory: %v", err)
+	}
 
 	manifest, err := store.Stats()
 	if err != nil {

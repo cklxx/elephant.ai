@@ -50,8 +50,13 @@ func TestTaskManager_CreateEmptyName(t *testing.T) {
 func TestTaskManager_GetAndList(t *testing.T) {
 	mgr := newTestManager(t)
 
-	task1, _ := mgr.Create(CreateTaskRequest{Name: "Task 1"})
-	mgr.Create(CreateTaskRequest{Name: "Task 2"})
+	task1, err := mgr.Create(CreateTaskRequest{Name: "Task 1"})
+	if err != nil {
+		t.Fatalf("create task1: %v", err)
+	}
+	if _, err := mgr.Create(CreateTaskRequest{Name: "Task 2"}); err != nil {
+		t.Fatalf("create task2: %v", err)
+	}
 
 	got, err := mgr.Get(task1.ID)
 	if err != nil {
@@ -73,10 +78,13 @@ func TestTaskManager_GetAndList(t *testing.T) {
 func TestTaskManager_Update(t *testing.T) {
 	mgr := newTestManager(t)
 
-	task, _ := mgr.Create(CreateTaskRequest{
-		Name: "Original",
+	task, err := mgr.Create(CreateTaskRequest{
+		Name:   "Original",
 		Config: TaskConfig{InstanceLimit: 5},
 	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
 
 	newName := "Updated Name"
 	newStatus := TaskStatusArchived
@@ -112,12 +120,15 @@ func TestTaskManager_UpdateNonexistent(t *testing.T) {
 func TestTaskManager_Delete(t *testing.T) {
 	mgr := newTestManager(t)
 
-	task, _ := mgr.Create(CreateTaskRequest{Name: "To Delete"})
+	task, err := mgr.Create(CreateTaskRequest{Name: "To Delete"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
 	if err := mgr.Delete(task.ID); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 
-	_, err := mgr.Get(task.ID)
+	_, err = mgr.Get(task.ID)
 	if err == nil {
 		t.Fatal("expected error after deletion")
 	}
@@ -126,7 +137,10 @@ func TestTaskManager_Delete(t *testing.T) {
 func TestTaskManager_RecordRun(t *testing.T) {
 	mgr := newTestManager(t)
 
-	task, _ := mgr.Create(CreateTaskRequest{Name: "Runner"})
+	task, err := mgr.Create(CreateTaskRequest{Name: "Runner"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
 	run, err := mgr.RecordRun(task.ID, "eval-job-123")
 	if err != nil {
 		t.Fatalf("record run: %v", err)
@@ -162,10 +176,13 @@ func TestTaskManager_RecordRunNonexistentTask(t *testing.T) {
 func TestTaskManager_UpdateMetadataMerge(t *testing.T) {
 	mgr := newTestManager(t)
 
-	task, _ := mgr.Create(CreateTaskRequest{
+	task, err := mgr.Create(CreateTaskRequest{
 		Name:     "Metadata Test",
 		Metadata: map[string]string{"key1": "val1"},
 	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
 
 	updated, err := mgr.Update(task.ID, UpdateTaskRequest{
 		Metadata: map[string]string{"key2": "val2"},
