@@ -2,17 +2,22 @@ package utils
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const logDirEnvVar = "ALEX_LOG_DIR"
 const logLevelEnvVar = "ALEX_LOG_LEVEL"
+const logMaxSizeEnvVar = "ALEX_LOG_MAX_SIZE_MB"
 
 // LogLevel represents the severity of a log message
 type LogLevel int
@@ -39,9 +44,10 @@ var (
 	categoryLoggers = make(map[LogCategory]*Logger)
 )
 
-// Logger provides structured logging to alex-debug.log
+// Logger provides structured logging to categorized log files with rotation.
 type Logger struct {
 	file       *os.File
+	writer     io.WriteCloser
 	logger     *log.Logger
 	level      LogLevel
 	mu         sync.Mutex
@@ -71,6 +77,7 @@ func NewCategorizedLogger(category LogCategory, component string) *Logger {
 	base := getOrCreateCategoryLogger(category)
 	return &Logger{
 		file:       base.file,
+		writer:     base.writer,
 		logger:     base.logger,
 		level:      base.level,
 		component:  component,
@@ -115,7 +122,7 @@ func getOrCreateCategoryLogger(category LogCategory) *Logger {
 	return logger
 }
 
-// newLogger creates a new Logger instance
+// newLogger creates a new Logger instance with log rotation via lumberjack.
 func newLogger(component string, level LogLevel, enableFile bool, category LogCategory) *Logger {
 	l := &Logger{
 		level:      level,
@@ -136,17 +143,32 @@ func newLogger(component string, level LogLevel, enableFile bool, category LogCa
 		}
 
 		logPath := filepath.Join(logDir, logFileName(category))
-		file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			log.Printf("Failed to open log file: %v", err)
-			return l
+		logWriter := &lumberjack.Logger{
+			Filename:   logPath,
+			MaxSize:    resolveLogMaxSizeMB(),
+			MaxBackups: 3,
+			MaxAge:     7,
+			Compress:   true,
 		}
 
-		l.file = file
-		l.logger = log.New(file, "", 0) // We'll format ourselves
+		l.writer = logWriter
+		l.logger = log.New(logWriter, "", 0) // We format ourselves
 	}
 
 	return l
+}
+
+// resolveLogMaxSizeMB reads ALEX_LOG_MAX_SIZE_MB from the environment.
+// Default: 100 (MB).
+func resolveLogMaxSizeMB() int {
+	raw := strings.TrimSpace(os.Getenv(logMaxSizeEnvVar))
+	if raw == "" {
+		return 100
+	}
+	if v, err := strconv.Atoi(raw); err == nil && v > 0 {
+		return v
+	}
+	return 100
 }
 
 func resolveLogDirectory() (string, error) {
@@ -192,8 +214,11 @@ func (l *Logger) SetLevel(level LogLevel) {
 	l.level = level
 }
 
-// Close closes the log file
+// Close closes the log writer.
 func (l *Logger) Close() error {
+	if l.writer != nil {
+		return l.writer.Close()
+	}
 	if l.file != nil {
 		return l.file.Close()
 	}
@@ -210,6 +235,7 @@ func (l *Logger) WithLogID(logID string) *Logger {
 	}
 	return &Logger{
 		file:       l.file,
+		writer:     l.writer,
 		logger:     l.logger,
 		level:      l.level,
 		component:  l.component,

@@ -101,6 +101,27 @@ func TestLoggerDebugLevelShowsDebug(t *testing.T) {
 	}
 }
 
+func TestResolveLogMaxSizeMB_Default(t *testing.T) {
+	t.Setenv(logMaxSizeEnvVar, "")
+	if got := resolveLogMaxSizeMB(); got != 100 {
+		t.Fatalf("expected 100, got %d", got)
+	}
+}
+
+func TestResolveLogMaxSizeMB_Custom(t *testing.T) {
+	t.Setenv(logMaxSizeEnvVar, "50")
+	if got := resolveLogMaxSizeMB(); got != 50 {
+		t.Fatalf("expected 50, got %d", got)
+	}
+}
+
+func TestResolveLogMaxSizeMB_Invalid(t *testing.T) {
+	t.Setenv(logMaxSizeEnvVar, "abc")
+	if got := resolveLogMaxSizeMB(); got != 100 {
+		t.Fatalf("expected fallback 100, got %d", got)
+	}
+}
+
 func TestLoggerUsesOverriddenLogDirectory(t *testing.T) {
 	tempDir := t.TempDir()
 	t.Setenv(logDirEnvVar, tempDir)
