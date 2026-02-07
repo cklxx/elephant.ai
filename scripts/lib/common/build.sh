@@ -10,7 +10,9 @@ build_untracked_hash() {
   local root="$1"
   (
     cd "${root}"
-    git ls-files --others --exclude-standard -z | xargs -0 cksum
+    git ls-files --others --exclude-standard -z \
+      | grep -zv -e '^logs/' -e '^\.pids/' -e '^eval-server/' -e '^\.worktrees/' \
+      | xargs -0 cksum 2>/dev/null
   ) | hash_stdin
 }
 

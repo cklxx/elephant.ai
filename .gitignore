@@ -99,6 +99,7 @@ CHANGELOG.ignore.md
 build/
 /alex
 /alex-server
+/eval-server
 
 # Go workspace files
 go.work
