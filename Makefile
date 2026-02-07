@@ -3,7 +3,7 @@
 	check-deps check-arch check-arch-policy bench docs npm-copy-binaries npm-publish npm-test-install \
 	build-all release-npm server-build server-run server-test \
 	server-test-integration deploy deploy-docker deploy-test deploy-status \
-	deploy-down
+	deploy-down eval-server-build eval-server-run eval-server-test
 
 GO ?= scripts/go-with-toolchain.sh
 
@@ -146,3 +146,20 @@ deploy-status: ## Show deployment status
 
 deploy-down: ## Stop all deployments
 	@./deploy.sh down
+
+## ========================================
+## Eval Server Targets
+## ========================================
+
+eval-server-build: ## Build eval-server binary
+	@echo "Building eval-server..."
+	@$(GO) build -o eval-server ./cmd/eval-server/
+	@echo "✓ Eval server build complete: ./eval-server"
+
+eval-server-run: eval-server-build ## Run eval-server
+	@echo "Starting eval-server on port 8081..."
+	@./eval-server
+
+eval-server-test: ## Run eval-server + RL + task_mgmt tests
+	@echo "Running eval-server tests..."
+	@$(GO) test ./evaluation/rl/... ./evaluation/task_mgmt/... ./internal/delivery/eval/... -v
