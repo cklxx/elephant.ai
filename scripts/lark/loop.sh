@@ -50,6 +50,7 @@ LOG_DIR=""
 TMP_DIR=""
 LOCK_DIR=""
 LAST_FILE=""
+LAST_VALIDATED_FILE=""
 
 LOOP_LOG=""
 FAIL_SUMMARY=""
@@ -65,6 +66,7 @@ init_test_paths() {
   TMP_DIR="${TEST_ROOT}/tmp"
   LOCK_DIR="${TMP_DIR}/lark-loop.lock"
   LAST_FILE="${TMP_DIR}/lark-loop.last"
+  LAST_VALIDATED_FILE="${TMP_DIR}/lark-loop.last-validated"
 
   LOOP_LOG="${LOG_DIR}/lark-loop.log"
   FAIL_SUMMARY="${LOG_DIR}/lark-loop.fail.txt"
@@ -108,6 +110,8 @@ write_loop_state() {
   now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   current_main_sha="$(git -C "${MAIN_ROOT}" rev-parse main 2>/dev/null || true)"
   last_processed_sha="$(cat "${LAST_FILE}" 2>/dev/null || true)"
+  local last_validated_sha
+  last_validated_sha="$(cat "${LAST_VALIDATED_FILE}" 2>/dev/null || true)"
 
   local tmp_file
   tmp_file="${LOOP_STATE}.tmp"
@@ -119,6 +123,8 @@ write_loop_state() {
   "cycle_result": "${cycle_result}",
   "main_sha": "${current_main_sha}",
   "last_processed_sha": "${last_processed_sha}",
+  "last_validated_sha": "${last_validated_sha}",
+  "validating_sha": "${base_sha}",
   "last_error": "$(json_escape "${last_error}")"
 }
 EOF
@@ -136,6 +142,24 @@ require_tools() {
 restart_test_agent() {
   append_log "[test] restart"
   "${TEST_SH}" restart >> "${LOOP_LOG}" 2>&1
+}
+
+stop_test_agent() {
+  append_log "[test] stop for validation"
+  "${TEST_SH}" stop >> "${LOOP_LOG}" 2>&1 || true
+}
+
+restore_test_to_validated() {
+  local validated_sha
+  validated_sha="$(cat "${LAST_VALIDATED_FILE}" 2>/dev/null || true)"
+  if [[ -z "${validated_sha}" ]]; then
+    append_log "[restore] no last_validated_sha; test bot stays down"
+    return 0
+  fi
+  append_log "[restore] restoring test to last_validated_sha=${validated_sha:0:8}"
+  git -C "${TEST_ROOT}" switch test >> "${LOOP_LOG}" 2>&1 || true
+  git -C "${TEST_ROOT}" reset --hard "${validated_sha}" >> "${LOOP_LOG}" 2>&1
+  restart_test_agent
 }
 
 run_scenario_suite() {
@@ -283,13 +307,16 @@ run_cycle() {
 
   "${WORKTREE_SH}" ensure >> "${LOOP_LOG}" 2>&1 || true
 
+  # Stop the test bot so users never see unvalidated code.
+  stop_test_agent
+  write_loop_state "${base_sha}" "validating" "running" ""
+
   # Reset test branch to the chosen base SHA (main snapshot).
   git -C "${TEST_ROOT}" switch test >> "${LOOP_LOG}" 2>&1
   git -C "${TEST_ROOT}" reset --hard "${base_sha}" >> "${LOOP_LOG}" 2>&1
 
-  # Ensure the live test bot runs the same code snapshot we're validating.
-  restart_test_agent
-
+  # --- FAST GATE ---
+  write_loop_state "${base_sha}" "fast_gate" "running" ""
   local i
   for i in $(seq 1 "${MAX_CYCLES}"); do
     append_log "[fast] attempt ${i}/${MAX_CYCLES}"
@@ -304,9 +331,13 @@ run_cycle() {
   if ! run_fast_gate "${base_sha}"; then
     append_log "[fast] exhausted; giving up"
     write_loop_state "${base_sha}" "fast_gate" "failed" "fast gate exhausted"
+    restore_test_to_validated
+    write_loop_state "${base_sha}" "failed" "failed" "fast gate exhausted"
     return 1
   fi
 
+  # --- SLOW GATE ---
+  write_loop_state "${base_sha}" "slow_gate" "running" ""
   local j
   for j in $(seq 1 "${MAX_CYCLES_SLOW}"); do
     append_log "[slow] attempt ${j}/${MAX_CYCLES_SLOW}"
@@ -321,31 +352,40 @@ run_cycle() {
   if ! run_slow_gate "${base_sha}"; then
     append_log "[slow] exhausted; giving up"
     write_loop_state "${base_sha}" "slow_gate" "failed" "slow gate exhausted"
+    restore_test_to_validated
+    write_loop_state "${base_sha}" "failed" "failed" "slow gate exhausted"
     return 1
   fi
 
-  # Gates passed: restart test bot to the final candidate commit (base + fixes).
-  restart_test_agent
+  # --- PROMOTE: merge first, then deploy ---
+  write_loop_state "${base_sha}" "promoting" "running" ""
 
   if merge_into_main_ff_only "${base_sha}"; then
     append_log "[merge] success"
   else
     local rc=$?
     if [[ ${rc} -eq 2 ]]; then
-      # main moved; do not update last file so watch will retry on latest.
+      # main moved; restore test bot, retry on next watch tick.
+      append_log "[merge] main moved; restoring test bot"
+      restore_test_to_validated
       write_loop_state "${base_sha}" "merge" "skipped" "main moved during cycle"
       return 0
     fi
     append_log "[merge] failed"
+    restore_test_to_validated
     write_loop_state "${base_sha}" "merge" "failed" "ff-only merge failed"
     return 1
   fi
 
+  # All gates passed and merge succeeded — deploy validated code.
+  write_loop_state "${base_sha}" "deployed" "running" ""
+  restart_test_agent
   restart_main_agent
 
   local new_main_sha
   new_main_sha="$(git -C "${MAIN_ROOT}" rev-parse main)"
   printf '%s\n' "${new_main_sha}" > "${LAST_FILE}"
+  printf '%s\n' "${new_main_sha}" > "${LAST_VALIDATED_FILE}"
   append_log "=== CYCLE DONE main_sha=${new_main_sha} ==="
   write_loop_state "${base_sha}" "done" "passed" ""
 }
