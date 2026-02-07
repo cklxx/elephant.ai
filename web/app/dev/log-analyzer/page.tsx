@@ -19,6 +19,18 @@ function countEntries(snippet?: LogFileSnippet): number {
   return snippet?.entries?.length ?? 0;
 }
 
+function formatLoadError(err: unknown, fallback: string): string {
+  const message = err instanceof Error ? err.message : fallback;
+  const lowered = message.toLowerCase();
+  if (lowered.includes("404")) {
+    return "API /api/dev/logs/index is unavailable (backend may be stale or not in development mode). Run ./dev.sh logs-ui to auto-restart services.";
+  }
+  if (lowered.includes("401") || lowered.includes("unauthorized")) {
+    return "Authentication required. Please sign in again and refresh.";
+  }
+  return message || fallback;
+}
+
 function SnippetView({ title, snippet }: { title: string; snippet?: LogFileSnippet }) {
   const entries = snippet?.entries ?? [];
   return (
@@ -60,7 +72,7 @@ export default function LogAnalyzerPage() {
       const payload = await apiClient.getLogIndex(120);
       setEntries(payload.entries ?? []);
     } catch (err) {
-      setIndexError(err instanceof Error ? err.message : "Failed to load log index.");
+      setIndexError(formatLoadError(err, "Failed to load log index."));
     } finally {
       setIndexLoading(false);
     }
@@ -79,7 +91,7 @@ export default function LogAnalyzerPage() {
       setTrace(bundle);
     } catch (err) {
       setTrace(null);
-      setTraceError(err instanceof Error ? err.message : "Failed to load trace.");
+      setTraceError(formatLoadError(err, "Failed to load trace."));
     } finally {
       setTraceLoading(false);
     }

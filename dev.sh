@@ -974,8 +974,67 @@ cmd_logs() {
   esac
 }
 
+probe_http_status() {
+  local url="$1"
+  if ! command_exists curl; then
+    return 1
+  fi
+  curl -sS --noproxy '*' -o /dev/null -w '%{http_code}' "$url" 2>/dev/null || true
+}
+
+dev_logs_index_ready() {
+  local status
+  status="$(probe_http_status "http://localhost:${SERVER_PORT}/api/dev/logs/index?limit=1")"
+  case "$status" in
+    200|401)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+dev_logs_ui_ready() {
+  local status
+  status="$(probe_http_status "http://localhost:${WEB_PORT}/dev/log-analyzer")"
+  case "$status" in
+    200|301|302|307|308)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 cmd_logs_ui() {
   cmd_up
+
+  if command_exists curl; then
+    if ! dev_logs_index_ready; then
+      log_warn "Dev log index endpoint unavailable; restarting backend to refresh routes..."
+      stop_service "Backend" "${SERVER_PID_FILE}"
+      stop_alex_server_listeners "$SERVER_PORT"
+      start_server
+    fi
+
+    if ! dev_logs_index_ready; then
+      die "Dev log index is still unavailable at http://localhost:${SERVER_PORT}/api/dev/logs/index (expected 200/401). Ensure runtime environment is development."
+    fi
+
+    if ! dev_logs_ui_ready; then
+      log_warn "Log analyzer page unavailable; restarting web..."
+      stop_service "Web" "${WEB_PID_FILE}"
+      cleanup_next_dev_lock
+      if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]] && ! is_port_available "$WEB_PORT"; then
+        stop_port_listeners "$WEB_PORT" "web"
+      fi
+      start_web
+    fi
+  else
+    log_warn "curl not found; skipping logs-ui readiness probes"
+  fi
 
   local url="http://localhost:${WEB_PORT}/dev/log-analyzer"
   log_success "Log analyzer ready: ${url}"
