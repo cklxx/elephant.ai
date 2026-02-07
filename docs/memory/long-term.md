@@ -1,12 +1,12 @@
 # Long-Term Memory
 
-Updated: 2026-02-07 23:00
+Updated: 2026-02-08 01:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
 
-## Active Memory (2026-02-07)
+## Active Memory (2026-02-08)
 - Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
 - Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
 - Use TDD when touching logic; run full lint + tests before delivery.
