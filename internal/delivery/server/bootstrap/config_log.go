@@ -33,41 +33,41 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 
 	logger.Info("LLM Provider: %s (source=%s)", runtimeCfg.LLMProvider, config.RuntimeMeta.Source("llm_provider"))
 	logger.Info("LLM Model: %s (source=%s)", runtimeCfg.LLMModel, config.RuntimeMeta.Source("llm_model"))
-	logger.Info("LLM Small Provider: %s (source=%s)", runtimeCfg.LLMSmallProvider, config.RuntimeMeta.Source("llm_small_provider"))
-	logger.Info("LLM Small Model: %s (source=%s)", runtimeCfg.LLMSmallModel, config.RuntimeMeta.Source("llm_small_model"))
-	logger.Info("Base URL: %s (source=%s)", runtimeCfg.BaseURL, config.RuntimeMeta.Source("base_url"))
+	logger.Debug("LLM Small Provider: %s (source=%s)", runtimeCfg.LLMSmallProvider, config.RuntimeMeta.Source("llm_small_provider"))
+	logger.Debug("LLM Small Model: %s (source=%s)", runtimeCfg.LLMSmallModel, config.RuntimeMeta.Source("llm_small_model"))
+	logger.Debug("Base URL: %s (source=%s)", runtimeCfg.BaseURL, config.RuntimeMeta.Source("base_url"))
 	if strings.TrimSpace(runtimeCfg.APIKey) != "" {
-		logger.Info("API Key: (set; source=%s)", config.RuntimeMeta.Source("api_key"))
+		logger.Debug("API Key: (set; source=%s)", config.RuntimeMeta.Source("api_key"))
 	} else {
-		logger.Info("API Key: (not set; source=%s)", config.RuntimeMeta.Source("api_key"))
+		logger.Debug("API Key: (not set; source=%s)", config.RuntimeMeta.Source("api_key"))
 	}
 
 	sessionDBURL := strings.TrimSpace(config.Session.DatabaseURL)
 	authDBURL := strings.TrimSpace(config.Auth.DatabaseURL)
 	switch {
 	case sessionDBURL != "":
-		logger.Info("Session DB: (set; source=session.database_url)")
+		logger.Debug("Session DB: (set; source=session.database_url)")
 	case authDBURL != "":
-		logger.Info("Session DB: (fallback to auth.database_url)")
+		logger.Debug("Session DB: (fallback to auth.database_url)")
 	default:
-		logger.Info("Session DB: (not set)")
+		logger.Debug("Session DB: (not set)")
 	}
 
-	logger.Info("Max Tokens: %d (source=%s)", runtimeCfg.MaxTokens, config.RuntimeMeta.Source("max_tokens"))
-	logger.Info("Max Iterations: %d (source=%s)", runtimeCfg.MaxIterations, config.RuntimeMeta.Source("max_iterations"))
-	logger.Info("Temperature: %.2f (provided=%t; source=%s)", runtimeCfg.Temperature, runtimeCfg.TemperatureProvided, config.RuntimeMeta.Source("temperature"))
+	logger.Debug("Max Tokens: %d (source=%s)", runtimeCfg.MaxTokens, config.RuntimeMeta.Source("max_tokens"))
+	logger.Debug("Max Iterations: %d (source=%s)", runtimeCfg.MaxIterations, config.RuntimeMeta.Source("max_iterations"))
+	logger.Debug("Temperature: %.2f (provided=%t; source=%s)", runtimeCfg.Temperature, runtimeCfg.TemperatureProvided, config.RuntimeMeta.Source("temperature"))
 	logger.Info("Environment: %s (source=%s)", runtimeCfg.Environment, config.RuntimeMeta.Source("environment"))
 	logger.Info("Port: %s", config.Port)
-	logger.Info("HTTP Rate Limit: %d rpm (burst=%d)", config.RateLimitRequestsPerMinute, config.RateLimitBurst)
-	logger.Info("HTTP Non-Stream Timeout: %s", config.NonStreamTimeout)
-	logger.Info("Event History Retention: %s", config.EventHistoryRetention)
-	logger.Info("Event History Max Sessions: %d", config.EventHistoryMaxSessions)
-	logger.Info("Event History Session TTL: %s", config.EventHistorySessionTTL)
-	logger.Info("Event History Max Events: %d", config.EventHistoryMaxEvents)
-	logger.Info("Event History Async Batch Size: %d", config.EventHistoryAsyncBatchSize)
-	logger.Info("Event History Async Flush Interval: %s", config.EventHistoryAsyncFlushInterval)
-	logger.Info("Event History Async Append Timeout: %s", config.EventHistoryAsyncAppendTimeout)
-	logger.Info("Event History Async Queue Capacity: %d", config.EventHistoryAsyncQueueCapacity)
+	logger.Debug("HTTP Rate Limit: %d rpm (burst=%d)", config.RateLimitRequestsPerMinute, config.RateLimitBurst)
+	logger.Debug("HTTP Non-Stream Timeout: %s", config.NonStreamTimeout)
+	logger.Debug("Event History Retention: %s", config.EventHistoryRetention)
+	logger.Debug("Event History Max Sessions: %d", config.EventHistoryMaxSessions)
+	logger.Debug("Event History Session TTL: %s", config.EventHistorySessionTTL)
+	logger.Debug("Event History Max Events: %d", config.EventHistoryMaxEvents)
+	logger.Debug("Event History Async Batch Size: %d", config.EventHistoryAsyncBatchSize)
+	logger.Debug("Event History Async Flush Interval: %s", config.EventHistoryAsyncFlushInterval)
+	logger.Debug("Event History Async Append Timeout: %s", config.EventHistoryAsyncAppendTimeout)
+	logger.Debug("Event History Async Queue Capacity: %d", config.EventHistoryAsyncQueueCapacity)
 	larkCfg := config.Channels.Lark
 	if larkCfg.Enabled {
 		logger.Info(
@@ -76,12 +76,12 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 			larkCfg.ToolPreset,
 			larkCfg.AllowGroups,
 		)
-		logger.Info("Lark Base Domain: %s", larkCfg.BaseDomain)
-		logger.Info("Lark Tenant Token: auto (app_id/app_secret)")
+		logger.Debug("Lark Base Domain: %s", larkCfg.BaseDomain)
+		logger.Debug("Lark Tenant Token: auto (app_id/app_secret)")
 		if strings.TrimSpace(larkCfg.TenantCalendarID) != "" {
-			logger.Info("Lark Tenant Calendar ID: (set)")
+			logger.Debug("Lark Tenant Calendar ID: (set)")
 		} else {
-			logger.Info("Lark Tenant Calendar ID: (not set)")
+			logger.Debug("Lark Tenant Calendar ID: (not set)")
 		}
 		cardPort := strings.TrimSpace(larkCfg.CardCallbackPort)
 		if cardPort == "" {
