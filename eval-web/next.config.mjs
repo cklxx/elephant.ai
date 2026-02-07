@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  output: 'export',
+  // No static export — eval-web has dynamic routes (e.g., /evaluations/[id])
   images: {
     unoptimized: true,
   },
