@@ -128,7 +128,6 @@ EOF
 require_tools() {
   command -v git >/dev/null 2>&1 || die "git not found"
   command -v go >/dev/null 2>&1 || die "go not found"
-  command -v curl >/dev/null 2>&1 || die "curl not found"
   [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
   [[ -x "${MAIN_SH}" ]] || die "Missing ${MAIN_SH}"
   [[ -x "${TEST_SH}" ]] || die "Missing ${TEST_SH}"
@@ -258,9 +257,6 @@ merge_into_main_ff_only() {
 
 restart_main_agent() {
   # Only restart the main agent when it's managed via scripts/lark/main.sh.
-  #
-  # This avoids accidentally taking over/stopping a dev.sh-managed process that
-  # happens to listen on the same port.
   if [[ ! -f "${MAIN_ROOT}/.pids/lark-main.pid" ]]; then
     append_log "[main] skip restart (missing ${MAIN_ROOT}/.pids/lark-main.pid)"
     return 0

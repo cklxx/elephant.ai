@@ -87,7 +87,6 @@ TICK_SECONDS="${LARK_SUPERVISOR_TICK_SECONDS:-5}"
 RESTART_MAX_IN_WINDOW="${LARK_RESTART_MAX_IN_WINDOW:-5}"
 RESTART_WINDOW_SECONDS="${LARK_RESTART_WINDOW_SECONDS:-600}"
 COOLDOWN_SECONDS="${LARK_COOLDOWN_SECONDS:-300}"
-SKIP_HEALTHCHECK="${LARK_SUPERVISOR_SKIP_HEALTHCHECK:-0}"
 AUTOFIX_ENABLED="${LARK_SUPERVISOR_AUTOFIX_ENABLED:-1}"
 AUTOFIX_TRIGGER="${LARK_SUPERVISOR_AUTOFIX_TRIGGER:-cooldown}"
 AUTOFIX_TIMEOUT_SECONDS="${LARK_SUPERVISOR_AUTOFIX_TIMEOUT_SECONDS:-1800}"
@@ -152,61 +151,6 @@ ensure_worktree() {
   ensure_dirs
 }
 
-sanitize_port() {
-  local port="$1"
-  if [[ "${port}" =~ ^[0-9]+$ ]]; then
-    echo "${port}"
-  fi
-}
-
-infer_port_from_config() {
-  local config_path="$1"
-  [[ -f "${config_path}" ]] || return 0
-
-  awk '
-    function ltrim(s){sub(/^[ \t]+/, "", s); return s}
-    function indent(s){match(s, /^[ \t]*/); return RLENGTH}
-    BEGIN{server_indent=-1}
-    {
-      if ($0 ~ /^[ \t]*server:[ \t]*$/) {
-        server_indent = indent($0)
-        next
-      }
-      if (server_indent >= 0) {
-        if (indent($0) <= server_indent && $0 ~ /^[ \t]*[A-Za-z0-9_-]+:[ \t]*/) {
-          server_indent = -1
-          next
-        }
-        if ($0 ~ /^[ \t]*port:[ \t]*/) {
-          line = ltrim($0)
-          sub(/^port:[ \t]*/, "", line)
-          sub(/[ \t]#.*/, "", line)
-          gsub(/^[\"\047]/, "", line)
-          gsub(/[\"\047]$/, "", line)
-          print line
-          exit
-        }
-      }
-    }
-  ' "${config_path}"
-}
-
-main_health_url() {
-  local inferred port
-  inferred="$(sanitize_port "$(infer_port_from_config "${MAIN_CONFIG_PATH}" || true)")"
-  port="${MAIN_PORT:-${inferred:-8080}}"
-  port="$(sanitize_port "${port}")"
-  echo "http://127.0.0.1:${port:-8080}/health"
-}
-
-test_health_url() {
-  local inferred port
-  inferred="$(sanitize_port "$(infer_port_from_config "${TEST_CONFIG_PATH}" || true)")"
-  port="${TEST_PORT:-${inferred:-8080}}"
-  port="$(sanitize_port "${port}")"
-  echo "http://127.0.0.1:${port:-8080}/health"
-}
-
 read_pid_if_running() {
   local pid_file="$1"
   local pid
@@ -219,36 +163,20 @@ read_pid_if_running() {
 main_health_state() {
   local pid
   pid="$(read_pid_if_running "${MAIN_PID_FILE}")"
-  if [[ -z "${pid}" ]]; then
-    echo "down"
-    return
-  fi
-  if [[ "${SKIP_HEALTHCHECK}" == "1" ]]; then
-    echo "healthy"
-    return
-  fi
-  if curl -sf "$(main_health_url)" >/dev/null 2>&1; then
+  if [[ -n "${pid}" ]]; then
     echo "healthy"
   else
-    echo "unhealthy"
+    echo "down"
   fi
 }
 
 test_health_state() {
   local pid
   pid="$(read_pid_if_running "${TEST_PID_FILE}")"
-  if [[ -z "${pid}" ]]; then
-    echo "down"
-    return
-  fi
-  if [[ "${SKIP_HEALTHCHECK}" == "1" ]]; then
-    echo "healthy"
-    return
-  fi
-  if curl -sf "$(test_health_url)" >/dev/null 2>&1; then
+  if [[ -n "${pid}" ]]; then
     echo "healthy"
   else
-    echo "unhealthy"
+    echo "down"
   fi
 }
 
@@ -957,7 +885,7 @@ logs() {
 }
 
 doctor() {
-  local failures warnings pid port
+  local failures warnings pid
   failures=0
   warnings=0
 
@@ -965,7 +893,7 @@ doctor() {
   echo "main_root: ${MAIN_ROOT}"
   echo "test_root: ${TEST_ROOT}"
 
-  for cmd in git go curl lsof; do
+  for cmd in git go; do
     if command_exists "${cmd}"; then
       echo "[ok] command: ${cmd}"
     else
@@ -1013,9 +941,6 @@ doctor() {
     warnings=$((warnings + 1))
   fi
 
-  echo "[info] main health URL: $(main_health_url)"
-  echo "[info] test health URL: $(test_health_url)"
-
   for pid_file in "${PID_FILE}" "${MAIN_PID_FILE}" "${TEST_PID_FILE}" "${LOOP_PID_FILE}"; do
     pid="$(read_pid "${pid_file}" || true)"
     if [[ -z "${pid}" ]]; then
@@ -1030,26 +955,6 @@ doctor() {
       warnings=$((warnings + 1))
     fi
   done
-
-  port="$(main_health_url)"
-  port="${port##*:}"
-  port="${port%/health}"
-  if lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "[ok] main port listening: ${port}"
-  else
-    echo "[warn] main port not listening: ${port}"
-    warnings=$((warnings + 1))
-  fi
-
-  port="$(test_health_url)"
-  port="${port##*:}"
-  port="${port%/health}"
-  if lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "[ok] test port listening: ${port}"
-  else
-    echo "[warn] test port not listening: ${port}"
-    warnings=$((warnings + 1))
-  fi
 
   echo "summary: failures=${failures} warnings=${warnings}"
   if (( failures > 0 )); then
