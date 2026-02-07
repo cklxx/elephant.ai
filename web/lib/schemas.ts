@@ -184,6 +184,18 @@ const WorkflowToolProgressEventSchema = BaseAgentEventSchema.extend({
   is_complete: z.boolean().optional(),
 });
 
+const ToolSLAPayloadSchema = z.object({
+  tool_name: z.string(),
+  p50_latency_ms: z.number(),
+  p95_latency_ms: z.number(),
+  p99_latency_ms: z.number(),
+  error_rate: z.number(),
+  call_count: z.number(),
+  success_rate: z.number(),
+  cost_usd_total: z.number(),
+  cost_usd_avg: z.number(),
+});
+
 const WorkflowToolCompletedEventSchema = BaseAgentEventSchema.extend({
   event_type: z.literal('workflow.tool.completed'),
   call_id: z.string(),
@@ -193,6 +205,15 @@ const WorkflowToolCompletedEventSchema = BaseAgentEventSchema.extend({
   duration: z.number().default(0),
   metadata: z.record(z.string(), z.unknown()).optional(),
   attachments: z.record(z.string(), AttachmentPayloadSchema).nullable().optional(),
+  tool_sla: ToolSLAPayloadSchema.optional(),
+});
+
+const WorkflowReplanRequestedEventSchema = BaseAgentEventSchema.extend({
+  event_type: z.literal('workflow.replan.requested'),
+  call_id: z.string().optional(),
+  tool_name: z.string().optional(),
+  reason: z.string().optional(),
+  error: z.string().optional(),
 });
 
 const WorkflowArtifactManifestEventSchema = BaseAgentEventSchema.extend({
@@ -305,6 +326,7 @@ const EventSchemas = [
   WorkflowToolStartedEventSchema,
   WorkflowToolProgressEventSchema,
   WorkflowToolCompletedEventSchema,
+  WorkflowReplanRequestedEventSchema,
   WorkflowArtifactManifestEventSchema,
   WorkflowResultFinalEventSchema,
   WorkflowResultCancelledEventSchema,

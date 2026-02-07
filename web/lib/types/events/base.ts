@@ -13,6 +13,7 @@ export type WorkflowEventType =
   | 'workflow.tool.started'
   | 'workflow.tool.progress'
   | 'workflow.tool.completed'
+  | 'workflow.replan.requested'
   | 'workflow.artifact.manifest'
   | 'workflow.input.received'
   | 'workflow.subflow.progress'

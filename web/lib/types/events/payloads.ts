@@ -82,6 +82,18 @@ export interface WorkflowToolProgressPayload {
   is_complete?: boolean;
 }
 
+export interface ToolSLAPayload {
+  tool_name: string;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  p99_latency_ms: number;
+  error_rate: number;
+  call_count: number;
+  success_rate: number;
+  cost_usd_total: number;
+  cost_usd_avg: number;
+}
+
 export interface WorkflowToolCompletedPayload {
   call_id: string;
   tool_name: string;
@@ -90,6 +102,14 @@ export interface WorkflowToolCompletedPayload {
   duration: number;
   metadata?: Record<string, any>;
   attachments?: Record<string, AttachmentPayload> | null;
+  tool_sla?: ToolSLAPayload;
+}
+
+export interface WorkflowReplanRequestedPayload {
+  call_id?: string;
+  tool_name?: string;
+  reason?: string;
+  error?: string;
 }
 
 export interface WorkflowArtifactManifestPayload {

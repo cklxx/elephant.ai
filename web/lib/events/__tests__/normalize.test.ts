@@ -44,6 +44,51 @@ describe('normalizeAgentEvent', () => {
     expect(result.event.tool_name).toBe('web_search');
   });
 
+  it('accepts workflow.replan.requested events', () => {
+    const raw = {
+      event_type: 'workflow.replan.requested',
+      timestamp: '2024-01-02T00:00:00Z',
+      agent_level: 'core',
+      session_id: 'session-replan',
+      reason: 'orchestrator tool failure triggered replan injection',
+      error: 'boom',
+    };
+
+    const result = normalizeAgentEvent(raw);
+
+    expect(result.status).toBe('valid');
+    expect(result.event?.event_type).toBe('workflow.replan.requested');
+  });
+
+  it('accepts workflow.tool.completed events with tool_sla payload', () => {
+    const raw = {
+      event_type: 'workflow.tool.completed',
+      timestamp: '2024-01-02T00:00:00Z',
+      agent_level: 'core',
+      session_id: 'session-valid',
+      call_id: 'call-3',
+      tool_name: 'bash',
+      result: 'ok',
+      duration: 20,
+      tool_sla: {
+        tool_name: 'bash',
+        p50_latency_ms: 10,
+        p95_latency_ms: 20,
+        p99_latency_ms: 30,
+        error_rate: 0,
+        call_count: 1,
+        success_rate: 1,
+        cost_usd_total: 0.1,
+        cost_usd_avg: 0.1,
+      },
+    };
+
+    const result = normalizeAgentEvent(raw);
+
+    expect(result.status).toBe('valid');
+    expect(result.event?.tool_sla?.tool_name).toBe('bash');
+  });
+
   it('flags invalid events when event_type is missing', () => {
     const result = normalizeAgentEvent({ payload: { tool_name: 'bash' } });
 
