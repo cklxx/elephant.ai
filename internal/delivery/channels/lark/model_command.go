@@ -23,8 +23,7 @@ func (g *Gateway) applyPinnedLarkLLMSelection(ctx context.Context, msg *incoming
 		return ctx
 	}
 
-	scope := subscription.SelectionScope{Channel: "lark", ChatID: msg.chatID, UserID: msg.senderID}
-	selection, ok, err := g.llmSelections.Get(ctx, scope)
+	selection, _, ok, err := g.llmSelections.GetWithFallback(ctx, chatScope(msg), channelScope())
 	if err != nil {
 		g.logger.Warn("Lark LLM selection load failed: %v", err)
 		return ctx
@@ -111,7 +110,13 @@ Examples:
 `)
 }
 
-func (g *Gateway) modelSelectionScope(msg *incomingMessage) subscription.SelectionScope {
+// channelScope returns the agent-global (Lark channel-level) selection scope.
+func channelScope() subscription.SelectionScope {
+	return subscription.SelectionScope{Channel: "lark"}
+}
+
+// chatScope returns the per-chat override selection scope.
+func chatScope(msg *incomingMessage) subscription.SelectionScope {
 	return subscription.SelectionScope{Channel: "lark", ChatID: strings.TrimSpace(msg.chatID), UserID: strings.TrimSpace(msg.senderID)}
 }
 
@@ -119,14 +124,19 @@ func (g *Gateway) buildModelStatus(ctx context.Context, msg *incomingMessage) st
 	if g == nil || msg == nil || g.llmSelections == nil {
 		return "（模型选择不可用）"
 	}
-	scope := g.modelSelectionScope(msg)
-	selection, ok, err := g.llmSelections.Get(ctx, scope)
+	selection, matchedScope, ok, err := g.llmSelections.GetWithFallback(ctx, chatScope(msg), channelScope())
 	if err != nil {
 		return fmt.Sprintf("读取失败：%v", err)
 	}
 	if !ok {
 		return "当前未设置订阅模型选择；后续将使用配置默认值。"
 	}
+
+	scopeLabel := "[全局]"
+	if matchedScope.ChatID != "" {
+		scopeLabel = "[当前会话]"
+	}
+
 	if g.llmResolver != nil {
 		if resolved, ok := g.llmResolver.Resolve(selection); ok {
 			source := strings.TrimSpace(resolved.Source)
@@ -134,15 +144,15 @@ func (g *Gateway) buildModelStatus(ctx context.Context, msg *incomingMessage) st
 				source = strings.TrimSpace(selection.Source)
 			}
 			if source != "" {
-				return fmt.Sprintf("当前订阅模型选择：%s/%s (%s)", resolved.Provider, resolved.Model, source)
+				return fmt.Sprintf("当前订阅模型选择 %s：%s/%s (%s)", scopeLabel, resolved.Provider, resolved.Model, source)
 			}
-			return fmt.Sprintf("当前订阅模型选择：%s/%s", resolved.Provider, resolved.Model)
+			return fmt.Sprintf("当前订阅模型选择 %s：%s/%s", scopeLabel, resolved.Provider, resolved.Model)
 		}
 	}
 	if strings.TrimSpace(selection.Provider) == "" || strings.TrimSpace(selection.Model) == "" {
 		return "当前订阅模型选择无效；请重新设置或清除。"
 	}
-	return fmt.Sprintf("当前订阅模型选择：%s/%s", selection.Provider, selection.Model)
+	return fmt.Sprintf("当前订阅模型选择 %s：%s/%s", scopeLabel, selection.Provider, selection.Model)
 }
 
 func (g *Gateway) buildModelList(ctx context.Context, msg *incomingMessage) string {
@@ -319,14 +329,14 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 		Model:    model,
 		Source:   string(cred.Source),
 	}
-	return g.llmSelections.Set(ctx, g.modelSelectionScope(msg), selection)
+	return g.llmSelections.Set(ctx, channelScope(), selection)
 }
 
 func (g *Gateway) clearModelSelection(ctx context.Context, msg *incomingMessage) error {
 	if g == nil || msg == nil || g.llmSelections == nil {
 		return fmt.Errorf("selection store not available")
 	}
-	return g.llmSelections.Clear(ctx, g.modelSelectionScope(msg))
+	return g.llmSelections.Clear(ctx, channelScope())
 }
 
 func resolveLlamaServerTarget(lookup runtimeconfig.EnvLookup) (subscription.LlamaServerTarget, bool) {
