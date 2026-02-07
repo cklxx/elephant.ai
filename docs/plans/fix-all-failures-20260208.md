@@ -32,8 +32,8 @@ Resolve all currently known validation failures so full delivery gates are green
 ### 4. Finish
 - [x] Update this plan to `done`.
 - [x] Add error/good experience records if new patterns are discovered.
-- [ ] Commit incremental fixes and merge back into `main`.
-- [ ] Remove temporary worktree (and optional branch cleanup).
+- [x] Commit incremental fixes and merge back into `main`.
+- [x] Remove temporary worktree (and optional branch cleanup).
 
 ## Validation Notes
 
