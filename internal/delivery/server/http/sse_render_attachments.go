@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -329,10 +328,37 @@ func coerceAttachmentMap(raw any) map[string]ports.Attachment {
 }
 
 func attachmentDigest(att ports.Attachment) string {
-	encoded, err := json.Marshal(att)
-	if err != nil {
-		return att.Name
+	signature := attachmentSignature(att)
+	if att.Data == "" {
+		return signature
 	}
-	sum := sha256.Sum256(encoded)
+	sum := sha256.Sum256([]byte(signature + "\x00" + att.Data))
 	return hex.EncodeToString(sum[:])
+}
+
+func attachmentSignature(att ports.Attachment) string {
+	var builder strings.Builder
+	builder.Grow(128 + len(att.Name) + len(att.MediaType) + len(att.URI) + len(att.Fingerprint))
+	appendSignaturePart(&builder, att.Name)
+	appendSignaturePart(&builder, att.MediaType)
+	appendSignaturePart(&builder, att.URI)
+	appendSignaturePart(&builder, att.Fingerprint)
+	appendSignaturePart(&builder, att.Source)
+	appendSignaturePart(&builder, att.Description)
+	appendSignaturePart(&builder, att.Kind)
+	appendSignaturePart(&builder, att.Format)
+	appendSignaturePart(&builder, att.PreviewProfile)
+	for _, asset := range att.PreviewAssets {
+		appendSignaturePart(&builder, asset.AssetID)
+		appendSignaturePart(&builder, asset.Label)
+		appendSignaturePart(&builder, asset.MimeType)
+		appendSignaturePart(&builder, asset.CDNURL)
+		appendSignaturePart(&builder, asset.PreviewType)
+	}
+	return builder.String()
+}
+
+func appendSignaturePart(builder *strings.Builder, value string) {
+	builder.WriteString(strings.TrimSpace(value))
+	builder.WriteByte('|')
 }
