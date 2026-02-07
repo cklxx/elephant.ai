@@ -197,6 +197,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	}
 	applyServerFileConfig(&cfg, fileCfg)
 	applyLarkEnvFallback(&cfg, envLookup)
+	applyAuthEnvFallback(&cfg, envLookup)
 
 	providerLower := strings.ToLower(strings.TrimSpace(cfg.Runtime.LLMProvider))
 	if cfg.Runtime.APIKey == "" && providerLower != "ollama" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
@@ -499,6 +500,60 @@ func applyAuthConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		BootstrapEmail:        strings.TrimSpace(file.Auth.BootstrapEmail),
 		BootstrapPassword:     file.Auth.BootstrapPassword,
 		BootstrapDisplayName:  strings.TrimSpace(file.Auth.BootstrapDisplayName),
+	}
+}
+
+func applyAuthEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
+	if cfg == nil {
+		return
+	}
+	if lookup == nil {
+		lookup = runtimeconfig.DefaultEnvLookup
+	}
+
+	if strings.TrimSpace(cfg.Auth.JWTSecret) == "" {
+		cfg.Auth.JWTSecret = lookupFirstNonEmptyEnv(lookup, "AUTH_JWT_SECRET", "JWT_SECRET")
+	}
+	if strings.TrimSpace(cfg.Auth.AccessTokenTTLMinutes) == "" {
+		cfg.Auth.AccessTokenTTLMinutes = lookupFirstNonEmptyEnv(lookup, "AUTH_ACCESS_TOKEN_TTL_MINUTES")
+	}
+	if strings.TrimSpace(cfg.Auth.RefreshTokenTTLDays) == "" {
+		cfg.Auth.RefreshTokenTTLDays = lookupFirstNonEmptyEnv(lookup, "AUTH_REFRESH_TOKEN_TTL_DAYS")
+	}
+	if strings.TrimSpace(cfg.Auth.StateTTLMinutes) == "" {
+		cfg.Auth.StateTTLMinutes = lookupFirstNonEmptyEnv(lookup, "AUTH_STATE_TTL_MINUTES")
+	}
+	if strings.TrimSpace(cfg.Auth.RedirectBaseURL) == "" {
+		cfg.Auth.RedirectBaseURL = lookupFirstNonEmptyEnv(lookup, "AUTH_REDIRECT_BASE_URL")
+	}
+	if strings.TrimSpace(cfg.Auth.GoogleClientID) == "" {
+		cfg.Auth.GoogleClientID = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_CLIENT_ID")
+	}
+	if strings.TrimSpace(cfg.Auth.GoogleClientSecret) == "" {
+		cfg.Auth.GoogleClientSecret = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_CLIENT_SECRET")
+	}
+	if strings.TrimSpace(cfg.Auth.GoogleAuthURL) == "" {
+		cfg.Auth.GoogleAuthURL = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_AUTH_URL")
+	}
+	if strings.TrimSpace(cfg.Auth.GoogleTokenURL) == "" {
+		cfg.Auth.GoogleTokenURL = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_TOKEN_URL")
+	}
+	if strings.TrimSpace(cfg.Auth.GoogleUserInfoURL) == "" {
+		cfg.Auth.GoogleUserInfoURL = lookupFirstNonEmptyEnv(lookup, "AUTH_GOOGLE_USERINFO_URL")
+	}
+	if strings.TrimSpace(cfg.Auth.DatabaseURL) == "" {
+		cfg.Auth.DatabaseURL = lookupFirstNonEmptyEnv(lookup, "AUTH_DATABASE_URL")
+	}
+	if strings.TrimSpace(cfg.Auth.BootstrapEmail) == "" {
+		cfg.Auth.BootstrapEmail = lookupFirstNonEmptyEnv(lookup, "AUTH_BOOTSTRAP_EMAIL")
+	}
+	if strings.TrimSpace(cfg.Auth.BootstrapDisplayName) == "" {
+		cfg.Auth.BootstrapDisplayName = lookupFirstNonEmptyEnv(lookup, "AUTH_BOOTSTRAP_DISPLAY_NAME")
+	}
+	if strings.TrimSpace(cfg.Auth.BootstrapPassword) == "" {
+		if value, ok := lookup("AUTH_BOOTSTRAP_PASSWORD"); ok && strings.TrimSpace(value) != "" {
+			cfg.Auth.BootstrapPassword = value
+		}
 	}
 }
 

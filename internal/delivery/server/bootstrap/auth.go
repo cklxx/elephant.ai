@@ -22,10 +22,16 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 	logger = logging.OrNop(logger)
 	runtimeCfg := cfg.Runtime
 	authCfg := cfg.Auth
+	allowDevelopmentFallback := isAuthDevelopmentFallbackEnvironment(runtimeCfg.Environment)
 
 	secret := strings.TrimSpace(authCfg.JWTSecret)
 	if secret == "" {
-		return nil, nil, fmt.Errorf("auth.jwt_secret not configured")
+		if allowDevelopmentFallback {
+			secret = "dev-secret-change-me"
+			logger.Warn("auth.jwt_secret not configured; using development fallback secret")
+		} else {
+			return nil, nil, fmt.Errorf("auth.jwt_secret not configured")
+		}
 	}
 
 	accessTTL := 15 * time.Minute
@@ -71,21 +77,29 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 		defer cancel()
 		pool, err := pgxpool.New(ctx, dbURL)
 		if err != nil {
-			return nil, nil, fmt.Errorf("create auth db pool: %w", err)
+			if !allowDevelopmentFallback {
+				return nil, nil, fmt.Errorf("create auth db pool: %w", err)
+			}
+			logger.Warn("Auth DB pool init failed; falling back to memory stores: %v", err)
+		} else {
+			if err := pool.Ping(ctx); err != nil {
+				pool.Close()
+				if !allowDevelopmentFallback {
+					return nil, nil, fmt.Errorf("ping auth db: %w", err)
+				}
+				logger.Warn("Auth DB ping failed; falling back to memory stores: %v", err)
+			} else {
+				usersRepo, identitiesRepo, sessionsRepo, statesRepo := authAdapters.NewPostgresStores(pool)
+				users = usersRepo
+				identities = identitiesRepo
+				sessions = sessionsRepo
+				states = statesRepo
+				cleanupFuncs = append(cleanupFuncs, func() {
+					pool.Close()
+				})
+				logger.Info("Authentication repositories backed by Postgres")
+			}
 		}
-		if err := pool.Ping(ctx); err != nil {
-			pool.Close()
-			return nil, nil, fmt.Errorf("ping auth db: %w", err)
-		}
-		usersRepo, identitiesRepo, sessionsRepo, statesRepo := authAdapters.NewPostgresStores(pool)
-		users = usersRepo
-		identities = identitiesRepo
-		sessions = sessionsRepo
-		states = statesRepo
-		cleanupFuncs = append(cleanupFuncs, func() {
-			pool.Close()
-		})
-		logger.Info("Authentication repositories backed by Postgres")
 	}
 
 	redirectBase := strings.TrimSpace(authCfg.RedirectBaseURL)
@@ -192,6 +206,15 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 	}
 
 	return service, cleanup, nil
+}
+
+func isAuthDevelopmentFallbackEnvironment(environment string) bool {
+	env := strings.TrimSpace(environment)
+	return strings.EqualFold(env, "development") ||
+		strings.EqualFold(env, "dev") ||
+		strings.EqualFold(env, "internal") ||
+		strings.EqualFold(env, "evaluation") ||
+		env == ""
 }
 
 func bootstrapAuthUser(service *authapp.Service, cfg runtimeconfig.AuthConfig, logger logging.Logger) error {

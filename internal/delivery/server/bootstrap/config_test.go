@@ -221,6 +221,52 @@ func TestLoadConfig_EventHistoryAsyncDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_AuthJWTSecretFromEnvFallback(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("AUTH_JWT_SECRET", "env-auth-secret")
+
+	cfg, _, _, _, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Auth.JWTSecret != "env-auth-secret" {
+		t.Fatalf("expected auth jwt secret from env fallback, got %q", cfg.Auth.JWTSecret)
+	}
+}
+
+func TestLoadConfig_AuthYAMLOverridesEnvFallback(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+auth:
+  jwt_secret: "yaml-auth-secret"
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("AUTH_JWT_SECRET", "env-auth-secret")
+
+	cfg, _, _, _, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Auth.JWTSecret != "yaml-auth-secret" {
+		t.Fatalf("expected yaml jwt secret to take precedence, got %q", cfg.Auth.JWTSecret)
+	}
+}
+
 func TestLoadConfig_ServerEventHistoryAsyncOverride(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`
