@@ -64,11 +64,13 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	closeReason := "client_closed"
 	var spanEnd func(error)
+	var spanSetAttributes func(...attribute.KeyValue)
 	if h.obs != nil && h.obs.Tracer != nil {
 		ctx, span := h.obs.Tracer.StartSpan(ctx, observability.SpanSSEConnection,
 			attribute.String("http.route", "/api/sse"),
 		)
 		span.SetAttributes(attribute.String(observability.AttrSessionID, sessionID))
+		spanSetAttributes = span.SetAttributes
 		r = r.WithContext(ctx)
 		spanEnd = func(err error) {
 			if err != nil {
@@ -116,10 +118,17 @@ func (h *SSEHandler) HandleSSEStream(w http.ResponseWriter, r *http.Request) {
 	if h.runTracker != nil {
 		activeRunID = h.runTracker.GetActiveRunID(sessionID)
 	}
+	if spanSetAttributes != nil && activeRunID != "" {
+		spanSetAttributes(attribute.String(observability.AttrRunID, activeRunID))
+	}
+	streamRunID := id.RunIDFromContext(r.Context())
+	if streamRunID == "" {
+		streamRunID = activeRunID
+	}
 	initialPayload := fmt.Sprintf(
 		"event: connected\ndata: {\"session_id\":\"%s\",\"run_id\":\"%s\",\"parent_run_id\":\"%s\",\"active_run_id\":\"%s\"}\n\n",
 		sessionID,
-		id.RunIDFromContext(r.Context()),
+		streamRunID,
 		id.ParentRunIDFromContext(r.Context()),
 		activeRunID,
 	)

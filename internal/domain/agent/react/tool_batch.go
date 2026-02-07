@@ -10,6 +10,9 @@ import (
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func newToolCallBatch(
@@ -107,6 +110,15 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	tc.TaskID = runID
 	tc.ParentTaskID = parentRunID
 
+	spanCtx, toolSpan := startReactSpan(
+		b.ctx,
+		traceSpanToolExecute,
+		b.state,
+		attribute.Int(traceAttrIteration, b.iteration),
+		attribute.String(traceAttrToolName, tc.Name),
+		attribute.String("alex.tool.call_id", tc.ID),
+	)
+
 	nodeID := ""
 	if b.tracker != nil {
 		nodeID = b.callNodes[idx]
@@ -122,11 +134,11 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	tool, err := b.registry.Get(tc.Name)
 	if err != nil {
 		missing := fmt.Errorf("tool not found: %s", tc.Name)
-		b.finalize(idx, tc, nodeID, ToolResult{Error: missing}, startTime)
+		b.finalize(idx, tc, nodeID, ToolResult{Error: missing}, startTime, toolSpan)
 		return
 	}
 
-	toolCtx := tools.WithAttachmentContext(b.ctx, b.attachments, b.attachmentIterations)
+	toolCtx := tools.WithAttachmentContext(spanCtx, b.attachments, b.attachmentIterations)
 	toolCtx = tools.WithToolProgressEmitter(toolCtx, func(chunk string, isComplete bool) {
 		if chunk == "" && !isComplete {
 			return
@@ -153,12 +165,12 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 	b.engine.logger.Debug("Tool %d: Executing '%s' with args: %s", idx, tc.Name, formattedArgs)
 	result, execErr := tool.Execute(toolCtx, ports.ToolCall(tc))
 	if execErr != nil {
-		b.finalize(idx, tc, nodeID, ToolResult{Error: execErr}, startTime)
+		b.finalize(idx, tc, nodeID, ToolResult{Error: execErr}, startTime, toolSpan)
 		return
 	}
 
 	if result == nil {
-		b.finalize(idx, tc, nodeID, ToolResult{Error: fmt.Errorf("tool %s returned no result", tc.Name)}, startTime)
+		b.finalize(idx, tc, nodeID, ToolResult{Error: fmt.Errorf("tool %s returned no result", tc.Name)}, startTime, toolSpan)
 		return
 	}
 
@@ -180,14 +192,22 @@ func (b *toolCallBatch) runCall(idx int, tc ToolCall) {
 		}
 	}
 
-	b.finalize(idx, tc, nodeID, *result, startTime)
+	b.finalize(idx, tc, nodeID, *result, startTime, toolSpan)
 }
 
-func (b *toolCallBatch) finalize(idx int, tc ToolCall, nodeID string, result ToolResult, startTime time.Time) {
+func (b *toolCallBatch) finalize(idx int, tc ToolCall, nodeID string, result ToolResult, startTime time.Time, span trace.Span) {
 	normalized := b.engine.normalizeToolResult(tc, b.state, result)
 	b.results[idx] = normalized
 
 	duration := b.engine.clock.Now().Sub(startTime)
+	if span != nil {
+		span.SetAttributes(
+			attribute.Int64("alex.tool.duration_ms", duration.Milliseconds()),
+			attribute.Int("alex.tool.result_chars", len(normalized.Content)),
+		)
+		markSpanResult(span, normalized.Error)
+		span.End()
+	}
 	b.engine.emitWorkflowToolCompletedEvent(b.ctx, b.state, tc, normalized, duration)
 
 	if b.tracker != nil {

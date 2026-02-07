@@ -8,6 +8,8 @@ import (
 
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // SolveTask is the main ReAct loop - pure business logic
@@ -97,9 +99,29 @@ func (e *ReactEngine) think(
 	if services.LLM != nil {
 		modelName = services.LLM.Model()
 	}
+	if modelName == "" {
+		modelName = "unknown"
+	}
+
+	ctx, llmSpan := startReactSpan(
+		ctx,
+		traceSpanLLMGenerate,
+		state,
+		attribute.Int(traceAttrIteration, state.Iterations),
+		attribute.String(traceAttrModel, modelName),
+		attribute.String("alex.llm.request_id", requestID),
+		attribute.Int("alex.llm.filtered_messages", len(filteredMessages)),
+		attribute.Int("alex.llm.tools", len(tools)),
+		attribute.Bool("alex.llm.streaming", true),
+	)
+	var llmErr error
+	defer func() {
+		markSpanResult(llmSpan, llmErr)
+		llmSpan.End()
+	}()
 
 	llmCallStarted := time.Now()
-	const streamChunkMinChars = 1
+	const streamChunkMinChars = 64
 	var streamBuffer strings.Builder
 	streamedContent := false
 	callbacks := ports.CompletionStreamCallbacks{
@@ -138,6 +160,7 @@ func (e *ReactEngine) think(
 	}
 	resp, err := services.LLM.StreamComplete(ctx, req, callbacks)
 	llmDuration := time.Since(llmCallStarted)
+	llmSpan.SetAttributes(attribute.Int64("alex.llm.duration_ms", llmDuration.Milliseconds()))
 	e.latencyReporter.PrintfWithContext(ctx,
 		"[latency] llm_complete_ms=%.2f iteration=%d model=%s request_id=%s\n",
 		float64(llmDuration)/float64(time.Millisecond),
@@ -147,13 +170,22 @@ func (e *ReactEngine) think(
 	)
 
 	if err != nil {
+		llmErr = err
 		e.logger.Error("LLM call failed (request_id=%s): %v", requestID, err)
 		return Message{}, fmt.Errorf("LLM call failed: %w", err)
 	}
 	if resp == nil {
+		llmErr = fmt.Errorf("LLM call failed: nil response")
 		e.logger.Error("LLM call returned nil response (request_id=%s)", requestID)
 		return Message{}, fmt.Errorf("LLM call failed: nil response")
 	}
+
+	llmSpan.SetAttributes(
+		attribute.Int("alex.llm.input_tokens", resp.Usage.PromptTokens),
+		attribute.Int("alex.llm.output_tokens", resp.Usage.CompletionTokens),
+		attribute.Int("alex.llm.token_count", resp.Usage.TotalTokens),
+		attribute.String("alex.llm.stop_reason", strings.TrimSpace(resp.StopReason)),
+	)
 
 	if streamBuffer.Len() > 0 {
 		chunk := streamBuffer.String()

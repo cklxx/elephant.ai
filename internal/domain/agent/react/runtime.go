@@ -10,6 +10,8 @@ import (
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // reactRuntime wraps the ReAct loop with explicit lifecycle bookkeeping so the
@@ -230,16 +232,37 @@ func (r *reactRuntime) handleCancellation() (*TaskResult, bool, error) {
 	return finalResult, true, r.ctx.Err()
 }
 
-func (r *reactRuntime) runIteration() (*TaskResult, bool, error) {
+func (r *reactRuntime) runIteration() (_ *TaskResult, _ bool, err error) {
 	iteration := r.newIteration()
+	prevCtx := r.ctx
+	spanCtx, span := startReactSpan(
+		r.ctx,
+		traceSpanReactIteration,
+		r.state,
+		attribute.Int(traceAttrIteration, iteration.index),
+		attribute.Int("alex.message_count", len(r.state.Messages)),
+	)
+	r.ctx = spanCtx
+	defer func() {
+		span.SetAttributes(
+			attribute.Int("alex.tool_result_count", len(iteration.toolResult)),
+			attribute.Int("alex.token_count", r.state.TokenCount),
+		)
+		markSpanResult(span, err)
+		span.End()
+		r.ctx = prevCtx
+	}()
+
 	r.applyIterationHook(iteration.index)
 
-	if err := iteration.think(); err != nil {
+	if thinkErr := iteration.think(); thinkErr != nil {
+		err = thinkErr
 		return nil, true, err
 	}
 
-	result, done, err := iteration.planTools()
-	if done || err != nil {
+	result, done, planErr := iteration.planTools()
+	if done || planErr != nil {
+		err = planErr
 		return result, done, err
 	}
 
