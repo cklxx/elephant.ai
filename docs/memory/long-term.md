@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-08 01:00
+Updated: 2026-02-08 02:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -29,6 +29,7 @@ Updated: 2026-02-08 01:00
 - Full-chain performance tracing should include ReAct iteration + LLM generate + tool execute spans, keyed by `alex.session_id`/`alex.run_id` for cross-request correlation.
 - SSE attachment dedupe must avoid `json.Marshal`-based whole-object hashing on hot paths; prefer lightweight signatures and hash payload only when needed.
 - One-click local observability flows (`logs-ui`) should include endpoint/page readiness probes and targeted self-heal restart to avoid stale-process false alarms.
+- Server auth config should support env fallback for JWT/OAuth fields; in development-like environments auth DB failures should degrade to memory stores instead of disabling the whole auth module.
 
 ## Items
 
