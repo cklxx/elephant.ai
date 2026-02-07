@@ -1,0 +1,29 @@
+# Unified test configuration for Alex lark test worktree.
+# This file mirrors runtime-config.yaml but binds server port to 8081
+# to avoid collision with the main server default (8080).
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o-mini"
+  llm_vision_model: "gpt-4o-mini"
+  api_key: "${OPENAI_API_KEY}"
+  base_url: "https://api.openai.com/v1"
+  sandbox_base_url: "http://localhost:18086"
+  tool_preset: "safe"
+  # toolset: "local" # alias: "lark-local" (enables local browser/file/exec tools)
+  # browser:
+  #   connector: "cdp"
+  #   # cdp_url: "http://127.0.0.1:9222"
+  #   # bridge_listen_addr: "127.0.0.1:17333"
+  #   # bridge_token: "${ALEX_BROWSER_BRIDGE_TOKEN}"
+  #   headless: false
+  #   timeout_seconds: 60
+  # proactive:
+  #   final_answer_review:
+  #     enabled: true
+  #     max_extra_iterations: 1
+  # tool_max_concurrent: 8
+  # user_rate_limit_rps: 1.0
+  # user_rate_limit_burst: 3
+
+server:
+  port: "8081"
