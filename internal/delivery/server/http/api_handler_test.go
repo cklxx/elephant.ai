@@ -363,6 +363,112 @@ func TestHandleCreateSession(t *testing.T) {
 	}
 }
 
+func TestHandleListSessionsIncludesTaskSummaryFields(t *testing.T) {
+	sessionStore := filestore.New(t.TempDir())
+	stateStore := sessionstate.NewInMemoryStore()
+	broadcaster := app.NewEventBroadcaster()
+	taskStore := app.NewInMemoryTaskStore()
+	defer taskStore.Close()
+	coordinator := app.NewServerCoordinator(
+		storeBackedAgentCoordinator{store: sessionStore},
+		broadcaster,
+		sessionStore,
+		taskStore,
+		stateStore,
+	)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+
+	ctx := context.Background()
+	sessionA, err := sessionStore.Create(ctx)
+	if err != nil {
+		t.Fatalf("create session A: %v", err)
+	}
+	sessionA.Metadata["title"] = "Session A"
+	if err := sessionStore.Save(ctx, sessionA); err != nil {
+		t.Fatalf("save session A: %v", err)
+	}
+
+	sessionB, err := sessionStore.Create(ctx)
+	if err != nil {
+		t.Fatalf("create session B: %v", err)
+	}
+	sessionB.Metadata["title"] = "Session B"
+	if err := sessionStore.Save(ctx, sessionB); err != nil {
+		t.Fatalf("save session B: %v", err)
+	}
+
+	sessionC, err := sessionStore.Create(ctx)
+	if err != nil {
+		t.Fatalf("create session C: %v", err)
+	}
+	sessionC.Metadata["title"] = "Session C"
+	if err := sessionStore.Save(ctx, sessionC); err != nil {
+		t.Fatalf("save session C: %v", err)
+	}
+
+	if _, err := taskStore.Create(ctx, sessionA.ID, "session A old", "", ""); err != nil {
+		t.Fatalf("create task A old: %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if _, err := taskStore.Create(ctx, sessionA.ID, "session A latest", "", ""); err != nil {
+		t.Fatalf("create task A latest: %v", err)
+	}
+	if _, err := taskStore.Create(ctx, sessionB.ID, "session B only", "", ""); err != nil {
+		t.Fatalf("create task B only: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sessions?limit=10&offset=0", nil)
+	resp := httptest.NewRecorder()
+	handler.HandleListSessions(resp, req)
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200 got %d", resp.Code)
+	}
+
+	var payload SessionListResponse
+	if err := json.Unmarshal(resp.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+
+	byID := make(map[string]SessionResponse, len(payload.Sessions))
+	for _, sess := range payload.Sessions {
+		byID[sess.ID] = sess
+	}
+
+	summaryA, ok := byID[sessionA.ID]
+	if !ok {
+		t.Fatalf("session A missing from response")
+	}
+	if summaryA.TaskCount != 2 {
+		t.Fatalf("expected session A task_count=2, got %d", summaryA.TaskCount)
+	}
+	if summaryA.LastTask != "session A latest" {
+		t.Fatalf("expected session A last_task 'session A latest', got %q", summaryA.LastTask)
+	}
+
+	summaryB, ok := byID[sessionB.ID]
+	if !ok {
+		t.Fatalf("session B missing from response")
+	}
+	if summaryB.TaskCount != 1 {
+		t.Fatalf("expected session B task_count=1, got %d", summaryB.TaskCount)
+	}
+	if summaryB.LastTask != "session B only" {
+		t.Fatalf("expected session B last_task 'session B only', got %q", summaryB.LastTask)
+	}
+
+	summaryC, ok := byID[sessionC.ID]
+	if !ok {
+		t.Fatalf("session C missing from response")
+	}
+	if summaryC.TaskCount != 0 {
+		t.Fatalf("expected session C task_count=0, got %d", summaryC.TaskCount)
+	}
+	if summaryC.LastTask != "" {
+		t.Fatalf("expected session C last_task empty, got %q", summaryC.LastTask)
+	}
+}
+
 type staticJournalReader struct {
 	entries []journal.TurnJournalEntry
 }

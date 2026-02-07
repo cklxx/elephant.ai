@@ -270,6 +270,57 @@ func (s *InMemoryTaskStore) ListBySession(ctx context.Context, sessionID string)
 	return tasks, nil
 }
 
+// SummarizeSessionTasks returns task_count/last_task for each requested
+// session ID in one pass over the in-memory task map.
+func (s *InMemoryTaskStore) SummarizeSessionTasks(ctx context.Context, sessionIDs []string) (map[string]SessionTaskSummary, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	summaries := make(map[string]SessionTaskSummary, len(sessionIDs))
+	targetSessions := make(map[string]struct{}, len(sessionIDs))
+	lastCreatedAt := make(map[string]time.Time, len(sessionIDs))
+	lastTaskID := make(map[string]string, len(sessionIDs))
+
+	for _, sessionID := range sessionIDs {
+		if sessionID == "" {
+			continue
+		}
+		if _, exists := targetSessions[sessionID]; exists {
+			continue
+		}
+		targetSessions[sessionID] = struct{}{}
+		summaries[sessionID] = SessionTaskSummary{}
+	}
+
+	if len(targetSessions) == 0 {
+		return summaries, nil
+	}
+
+	for _, task := range s.tasks {
+		if _, interested := targetSessions[task.SessionID]; !interested {
+			continue
+		}
+
+		summary := summaries[task.SessionID]
+		summary.TaskCount++
+
+		lastAt, hasLast := lastCreatedAt[task.SessionID]
+		shouldUpdateLast := !hasLast || task.CreatedAt.After(lastAt)
+		if !shouldUpdateLast && task.CreatedAt.Equal(lastAt) {
+			shouldUpdateLast = task.ID > lastTaskID[task.SessionID]
+		}
+		if shouldUpdateLast {
+			summary.LastTask = task.Description
+			lastCreatedAt[task.SessionID] = task.CreatedAt
+			lastTaskID[task.SessionID] = task.ID
+		}
+
+		summaries[task.SessionID] = summary
+	}
+
+	return summaries, nil
+}
+
 // ListByStatus returns tasks for the provided status filters.
 func (s *InMemoryTaskStore) ListByStatus(ctx context.Context, statuses ...ports.TaskStatus) ([]*ports.Task, error) {
 	s.mu.RLock()

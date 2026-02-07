@@ -364,6 +364,42 @@ func TestInMemoryTaskStore_ListBySession(t *testing.T) {
 	}
 }
 
+func TestInMemoryTaskStore_SummarizeSessionTasks(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+	defer store.Close()
+
+	if _, err := store.Create(ctx, "session-1", "old task", "", ""); err != nil {
+		t.Fatalf("create session-1 old task: %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if _, err := store.Create(ctx, "session-2", "session-2 task", "", ""); err != nil {
+		t.Fatalf("create session-2 task: %v", err)
+	}
+	time.Sleep(2 * time.Millisecond)
+	if _, err := store.Create(ctx, "session-1", "latest task", "", ""); err != nil {
+		t.Fatalf("create session-1 latest task: %v", err)
+	}
+
+	summaries, err := store.SummarizeSessionTasks(ctx, []string{"session-1", "session-2", "session-3", "session-1"})
+	if err != nil {
+		t.Fatalf("summarize session tasks: %v", err)
+	}
+
+	if got := summaries["session-1"]; got.TaskCount != 2 || got.LastTask != "latest task" {
+		t.Fatalf("session-1 summary mismatch: %+v", got)
+	}
+	if got := summaries["session-2"]; got.TaskCount != 1 || got.LastTask != "session-2 task" {
+		t.Fatalf("session-2 summary mismatch: %+v", got)
+	}
+	if got := summaries["session-3"]; got.TaskCount != 0 || got.LastTask != "" {
+		t.Fatalf("session-3 summary mismatch: %+v", got)
+	}
+	if len(summaries) != 3 {
+		t.Fatalf("expected summaries for 3 unique session IDs, got %d", len(summaries))
+	}
+}
+
 func TestInMemoryTaskStore_ListByStatus(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()

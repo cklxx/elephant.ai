@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"alex/internal/delivery/server/app"
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 )
@@ -231,6 +232,12 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	taskSummaries, err := h.coordinator.SummarizeSessionTasks(r.Context(), sessionIDs)
+	if err != nil {
+		h.logger.Warn("failed to summarize session tasks: %v", err)
+		taskSummaries = map[string]app.SessionTaskSummary{}
+	}
+
 	// Convert session IDs to full session objects
 	sessions := make([]SessionResponse, 0, len(sessionIDs))
 	for _, id := range sessionIDs {
@@ -239,22 +246,15 @@ func (h *APIHandler) HandleListSessions(w http.ResponseWriter, r *http.Request) 
 			continue // Skip sessions that can't be loaded
 		}
 
-		// Get tasks for this session to populate task_count and last_task
-		tasks, _ := h.coordinator.ListSessionTasks(r.Context(), id)
-		taskCount := len(tasks)
-		lastTask := ""
-		if taskCount > 0 {
-			// Tasks are sorted newest first
-			lastTask = tasks[0].Description
-		}
+		summary := taskSummaries[id]
 
 		sessions = append(sessions, SessionResponse{
 			ID:        session.ID,
 			Title:     strings.TrimSpace(session.Metadata["title"]),
 			CreatedAt: session.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: session.UpdatedAt.Format(time.RFC3339),
-			TaskCount: taskCount,
-			LastTask:  lastTask,
+			TaskCount: summary.TaskCount,
+			LastTask:  summary.LastTask,
 		})
 	}
 

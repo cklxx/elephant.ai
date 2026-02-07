@@ -42,6 +42,18 @@ type TaskExecutionService struct {
 	cancelMu    sync.RWMutex
 }
 
+// SessionTaskSummary captures task_count/last_task style metadata for a session.
+type SessionTaskSummary struct {
+	TaskCount int
+	LastTask  string
+}
+
+// sessionTaskSummaryStore is an optional optimization interface implemented by
+// task stores that can summarize multiple sessions in one pass.
+type sessionTaskSummaryStore interface {
+	SummarizeSessionTasks(ctx context.Context, sessionIDs []string) (map[string]SessionTaskSummary, error)
+}
+
 // NewTaskExecutionService creates a new task execution service.
 func NewTaskExecutionService(
 	agentCoordinator AgentExecutor,
@@ -461,6 +473,44 @@ func (svc *TaskExecutionService) ListTasks(ctx context.Context, limit int, offse
 // ListSessionTasks returns all tasks for a session.
 func (svc *TaskExecutionService) ListSessionTasks(ctx context.Context, sessionID string) ([]*serverPorts.Task, error) {
 	return svc.taskStore.ListBySession(ctx, sessionID)
+}
+
+// SummarizeSessionTasks returns task_count/last_task for each requested session.
+// It uses an optional batched task-store capability when available.
+func (svc *TaskExecutionService) SummarizeSessionTasks(ctx context.Context, sessionIDs []string) (map[string]SessionTaskSummary, error) {
+	summaries := make(map[string]SessionTaskSummary, len(sessionIDs))
+	if len(sessionIDs) == 0 {
+		return summaries, nil
+	}
+
+	if batchStore, ok := svc.taskStore.(sessionTaskSummaryStore); ok {
+		return batchStore.SummarizeSessionTasks(ctx, sessionIDs)
+	}
+
+	seen := make(map[string]struct{}, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		if sessionID == "" {
+			continue
+		}
+		if _, exists := seen[sessionID]; exists {
+			continue
+		}
+		seen[sessionID] = struct{}{}
+
+		tasks, err := svc.taskStore.ListBySession(ctx, sessionID)
+		if err != nil {
+			return nil, err
+		}
+
+		summary := SessionTaskSummary{TaskCount: len(tasks)}
+		if len(tasks) > 0 {
+			// ListBySession returns tasks sorted newest-first.
+			summary.LastTask = tasks[0].Description
+		}
+		summaries[sessionID] = summary
+	}
+
+	return summaries, nil
 }
 
 // ResumePendingTasks re-dispatches persisted pending/running tasks after restart.
