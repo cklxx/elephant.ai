@@ -30,23 +30,24 @@ type reactRuntime struct {
 	prepare   func()
 
 	// UI orchestration state (Plan → Clarify → ReAct → Finalize).
-	runID                 string
-	planEmitted           bool
-	planVersion           int
-	planComplexity        string
-	planReviewEnabled     bool
-	lastPlanReviewVersion int
-	currentTaskID         string
-	clarifyEmitted        map[string]bool
-	pendingTaskID         string
-	nextTaskSeq           int
-	pauseRequested        bool
-	replanRequested       bool
-	finalReviewAttempts   int
-	finalReviewCallID     string
-	finalReviewStartedAt  time.Time
-	finalReviewInFlight   bool
-	finalReviewAttempt    int
+	runID                    string
+	planEmitted              bool
+	planVersion              int
+	planComplexity           string
+	planReviewEnabled        bool
+	lastPlanReviewVersion    int
+	currentTaskID            string
+	clarifyEmitted           map[string]bool
+	pendingTaskID            string
+	nextTaskSeq              int
+	pauseRequested           bool
+	replanRequested          bool
+	finalReviewAttempts      int
+	finalReviewCallID        string
+	finalReviewStartedAt     time.Time
+	finalReviewInFlight      bool
+	finalReviewAttempt       int
+	stewardCorrectionPending bool
 
 	// Background task manager for async subagent execution.
 	bgManager      *BackgroundTaskManager
@@ -69,6 +70,8 @@ const (
 )
 
 const replanPrompt = "工具执行失败，请重新规划并在继续前调用 plan() 或 clarify()。"
+const stewardEvidencePromptPrefix = "Steward STATE validation failed. Please regenerate <NEW_STATE> with valid evidence references:"
+const stewardCompressionPrompt = "Steward STATE exceeded size limit. Compress low-value entries and output a smaller <NEW_STATE> block."
 
 const finalAnswerReviewPrompt = `<final_answer_review>
 Before finalizing, do a quick review pass:
@@ -948,6 +951,12 @@ func (it *reactIteration) finish() {
 }
 
 func (it *reactIteration) handleNoTools() (*TaskResult, bool, error) {
+	if it.runtime.stewardCorrectionPending {
+		it.runtime.engine.logger.Info("Steward correction pending; continuing loop before final answer")
+		it.runtime.stewardCorrectionPending = false
+		return nil, false, nil
+	}
+
 	trimmed := strings.TrimSpace(it.thought.Content)
 	if trimmed == "" {
 		it.runtime.engine.logger.Warn("No tool calls and empty content - continuing loop")
@@ -973,18 +982,40 @@ func (it *reactIteration) recordThought(thought *Message) {
 	state := it.runtime.state
 
 	// Extract and persist steward state from assistant output when steward mode is active.
-	if state.StewardState != nil && strings.Contains(thought.Content, "<NEW_STATE>") {
+	if state.StewardMode && strings.Contains(thought.Content, "<NEW_STATE>") {
 		newState, cleaned, err := ExtractNewState(thought.Content)
-		if newState != nil {
-			state.StewardState = newState
-			thought.Content = cleaned
-			it.runtime.engine.logger.Info("Steward state updated to v%d", newState.Version)
-		} else if IsStewardStateOversize(err) {
-			it.runtime.engine.logger.Warn("Steward state oversize, requesting compression")
-			thought.Content = cleaned
-		} else if err != nil {
+		thought.Content = cleaned
+		switch {
+		case newState != nil && err == nil:
+			issues := ValidateStewardEvidenceRefs(newState)
+			if len(issues) > 0 {
+				it.runtime.engine.logger.Warn("Steward evidence validation failed: %v", issues)
+				it.runtime.injectOrchestratorCorrection(buildStewardEvidenceCorrectionPrompt(issues))
+				it.runtime.stewardCorrectionPending = true
+			} else {
+				state.StewardState = newState
+				it.runtime.stewardCorrectionPending = false
+				it.runtime.engine.logger.Info("Steward state updated to v%d", newState.Version)
+			}
+		case IsStewardStateOversize(err):
+			it.runtime.engine.logger.Warn("Steward state oversize, attempting auto-compression")
+			compressed, ok := CompressStewardStateForLimit(newState, agent.MaxStewardStateChars)
+			if ok && compressed != nil {
+				issues := ValidateStewardEvidenceRefs(compressed)
+				if len(issues) > 0 {
+					it.runtime.injectOrchestratorCorrection(buildStewardEvidenceCorrectionPrompt(issues))
+					it.runtime.stewardCorrectionPending = true
+				} else {
+					state.StewardState = compressed
+					it.runtime.stewardCorrectionPending = false
+					it.runtime.engine.logger.Info("Steward state compressed and updated to v%d", compressed.Version)
+				}
+			} else {
+				it.runtime.injectOrchestratorCorrection(stewardCompressionPrompt)
+				it.runtime.stewardCorrectionPending = true
+			}
+		case err != nil:
 			it.runtime.engine.logger.Warn("Failed to parse <NEW_STATE>: %v", err)
-			thought.Content = cleaned
 		}
 	}
 
@@ -996,6 +1027,21 @@ func (it *reactIteration) recordThought(thought *Message) {
 		state.Messages = append(state.Messages, *thought)
 	}
 	it.runtime.engine.logger.Debug("LLM response: content_length=%d, tool_calls=%d", len(thought.Content), len(thought.ToolCalls))
+}
+
+func buildStewardEvidenceCorrectionPrompt(issues []string) string {
+	trimmed := make([]string, 0, len(issues))
+	for _, issue := range issues {
+		text := strings.TrimSpace(issue)
+		if text == "" {
+			continue
+		}
+		trimmed = append(trimmed, "- "+text)
+	}
+	if len(trimmed) == 0 {
+		return stewardEvidencePromptPrefix
+	}
+	return stewardEvidencePromptPrefix + "\n" + strings.Join(trimmed, "\n")
 }
 
 func (r *reactRuntime) finalizeResult(stopReason string, result *TaskResult, emitCompletionEvent bool, workflowErr error) *TaskResult {

@@ -106,11 +106,96 @@ func TestExtractNewState_Oversize(t *testing.T) {
 	if !IsStewardStateOversize(err) {
 		t.Errorf("expected stewardStateOversizeError, got %T: %v", err, err)
 	}
-	if state != nil {
-		t.Error("expected nil state for oversize")
+	if state == nil {
+		t.Fatal("expected parsed state for oversize content")
 	}
 	if strings.Contains(cleaned, "NEW_STATE") {
 		t.Errorf("cleaned should not contain NEW_STATE tags: %q", cleaned)
+	}
+}
+
+func TestValidateStewardEvidenceRefs(t *testing.T) {
+	valid := &agent.StewardState{
+		Decisions: []agent.Decision{
+			{Conclusion: "Choose path A", EvidenceRef: "ref-1"},
+		},
+		EvidenceIndex: []agent.EvidenceRef{
+			{Ref: "ref-1", Source: "tool://web_search", Summary: "source"},
+		},
+	}
+	if issues := ValidateStewardEvidenceRefs(valid); len(issues) != 0 {
+		t.Fatalf("expected no validation issues, got %v", issues)
+	}
+
+	invalid := &agent.StewardState{
+		Decisions: []agent.Decision{
+			{Conclusion: "No ref"},
+			{Conclusion: "Bad ref", EvidenceRef: "missing"},
+		},
+		EvidenceIndex: []agent.EvidenceRef{
+			{Ref: "ref-ok", Source: "tool://x", Summary: "x"},
+		},
+	}
+	issues := ValidateStewardEvidenceRefs(invalid)
+	if len(issues) != 2 {
+		t.Fatalf("expected 2 validation issues, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestCompressStewardStateForLimit(t *testing.T) {
+	state := &agent.StewardState{
+		Version: 1,
+		Goal:    strings.Repeat("目标", 220),
+		Context: strings.Repeat("上下文", 260),
+		Plan: []agent.StewardAction{
+			{Input: "a", Tool: "t1"},
+			{Input: "b", Tool: "t2"},
+			{Input: "c", Tool: "t3"},
+			{Input: "d", Tool: "t4"},
+		},
+		TaskGraph: []agent.TaskGraphNode{
+			{ID: "1", Title: "done-1", Status: "done"},
+			{ID: "2", Title: "done-2", Status: "done"},
+			{ID: "3", Title: "in-progress", Status: "in_progress"},
+			{ID: "4", Title: "pending-1", Status: "pending"},
+			{ID: "5", Title: "pending-2", Status: "pending"},
+			{ID: "6", Title: "pending-3", Status: "pending"},
+			{ID: "7", Title: "pending-4", Status: "pending"},
+		},
+		Decisions: []agent.Decision{
+			{Conclusion: "d1", EvidenceRef: "r1", Alternatives: strings.Repeat("alt", 120)},
+			{Conclusion: "d2", EvidenceRef: "r2", Alternatives: strings.Repeat("alt", 120)},
+			{Conclusion: "d3", EvidenceRef: "r3", Alternatives: strings.Repeat("alt", 120)},
+			{Conclusion: "d4", EvidenceRef: "r4", Alternatives: strings.Repeat("alt", 120)},
+			{Conclusion: "d5", EvidenceRef: "r5", Alternatives: strings.Repeat("alt", 120)},
+		},
+		Artifacts: []agent.ArtifactRef{
+			{ID: "a1", Type: "md"}, {ID: "a2", Type: "md"}, {ID: "a3", Type: "md"}, {ID: "a4", Type: "md"}, {ID: "a5", Type: "md"},
+		},
+		Risks: []agent.Risk{
+			{Trigger: "t1", Action: "a1"}, {Trigger: "t2", Action: "a2"}, {Trigger: "t3", Action: "a3"}, {Trigger: "t4", Action: "a4"}, {Trigger: "t5", Action: "a5"},
+		},
+		EvidenceIndex: []agent.EvidenceRef{
+			{Ref: "r1"}, {Ref: "r2"}, {Ref: "r3"}, {Ref: "r4"}, {Ref: "r5"},
+			{Ref: "x1"}, {Ref: "x2"}, {Ref: "x3"},
+		},
+	}
+
+	// Use a tighter limit than default to force compression behavior.
+	limit := 500
+	compressed, ok := CompressStewardStateForLimit(state, limit)
+	if !ok {
+		t.Fatalf("expected compression to succeed under limit=%d", limit)
+	}
+	if compressed == nil {
+		t.Fatal("compressed state should not be nil")
+	}
+	rendered := agent.RenderAsReminder(compressed)
+	if len([]rune(rendered)) > limit {
+		t.Fatalf("expected rendered chars <= %d, got %d", limit, len([]rune(rendered)))
+	}
+	if len(compressed.Plan) > 3 {
+		t.Fatalf("expected plan to be capped, got %d", len(compressed.Plan))
 	}
 }
 

@@ -1137,6 +1137,11 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 	if toolMode == presets.ToolModeCLI && toolPreset == "" {
 		toolPreset = string(presets.ToolPresetFull)
 	}
+	channel := ""
+	if session != nil && session.Metadata != nil {
+		channel = strings.TrimSpace(session.Metadata["channel"])
+	}
+	stewardMode := appconfig.ResolveStewardMode(cfg.Steward.Enabled, preview.PersonaKey, session.ID, channel)
 
 	window, err := c.contextMgr.BuildWindow(ctx, session, agent.ContextWindowConfig{
 		TokenLimit:         cfg.MaxTokens,
@@ -1144,7 +1149,7 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 		ToolMode:           string(toolMode),
 		ToolPreset:         toolPreset,
 		EnvironmentSummary: cfg.EnvironmentSummary,
-		StewardMode:        cfg.Steward.Enabled,
+		StewardMode:        stewardMode,
 	})
 	if err != nil {
 		return preview, fmt.Errorf("build context window: %w", err)
@@ -1181,13 +1186,14 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		toolPreset = string(presets.ToolPresetFull)
 	}
 	session := &storage.Session{ID: "", Messages: nil}
+	stewardMode := appconfig.ResolveStewardMode(c.config.Steward.Enabled, personaKey, "", "")
 	window, err := c.contextMgr.BuildWindow(context.Background(), session, agent.ContextWindowConfig{
 		TokenLimit:         c.config.MaxTokens,
 		PersonaKey:         personaKey,
 		ToolMode:           toolMode,
 		ToolPreset:         toolPreset,
 		EnvironmentSummary: c.config.EnvironmentSummary,
-		StewardMode:        c.config.Steward.Enabled,
+		StewardMode:        stewardMode,
 	})
 	if err != nil {
 		if c.logger != nil {

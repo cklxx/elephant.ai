@@ -94,6 +94,7 @@ type TaskState struct {
 	LatestGoalPrompt       string
 	LatestPlanPrompt       string
 	PlanReviewEnabled      bool
+	StewardMode            bool
 	StewardState           *StewardState
 }
 
