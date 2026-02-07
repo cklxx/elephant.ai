@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -362,6 +364,50 @@ func TestInMemoryTaskStore_ListBySession(t *testing.T) {
 	}
 }
 
+func TestInMemoryTaskStore_ListByStatus(t *testing.T) {
+	ctx := context.Background()
+	store := NewInMemoryTaskStore()
+	defer store.Close()
+
+	pendingTask, _ := store.Create(ctx, "session-1", "Task pending", "", "")
+	runningTask, _ := store.Create(ctx, "session-1", "Task running", "", "")
+	completedTask, _ := store.Create(ctx, "session-1", "Task completed", "", "")
+
+	if err := store.SetStatus(ctx, runningTask.ID, serverPorts.TaskStatusRunning); err != nil {
+		t.Fatalf("Failed to set running status: %v", err)
+	}
+	if err := store.SetStatus(ctx, completedTask.ID, serverPorts.TaskStatusCompleted); err != nil {
+		t.Fatalf("Failed to set completed status: %v", err)
+	}
+
+	tasks, err := store.ListByStatus(ctx, serverPorts.TaskStatusPending, serverPorts.TaskStatusRunning)
+	if err != nil {
+		t.Fatalf("Failed to list tasks by status: %v", err)
+	}
+
+	if len(tasks) != 2 {
+		t.Fatalf("Expected 2 tasks, got %d", len(tasks))
+	}
+
+	taskIDs := map[string]bool{
+		pendingTask.ID: false,
+		runningTask.ID: false,
+	}
+	for _, task := range tasks {
+		if _, ok := taskIDs[task.ID]; ok {
+			taskIDs[task.ID] = true
+		}
+		if task.Status != serverPorts.TaskStatusPending && task.Status != serverPorts.TaskStatusRunning {
+			t.Fatalf("Unexpected status in filtered list: %s", task.Status)
+		}
+	}
+	for taskID, seen := range taskIDs {
+		if !seen {
+			t.Fatalf("Expected task %s in filtered list", taskID)
+		}
+	}
+}
+
 func TestInMemoryTaskStore_Delete(t *testing.T) {
 	ctx := context.Background()
 	store := NewInMemoryTaskStore()
@@ -586,6 +632,76 @@ func TestInMemoryTaskStore_CloseStopsEvictLoop(t *testing.T) {
 	store.Close()
 	// Double-close should also be safe.
 	store.Close()
+}
+
+func TestInMemoryTaskStore_PersistenceSaveAndLoad(t *testing.T) {
+	ctx := context.Background()
+	persistencePath := filepath.Join(t.TempDir(), "tasks.json")
+
+	store := NewInMemoryTaskStore(WithTaskPersistenceFile(persistencePath))
+
+	task, err := store.Create(ctx, "session-1", "Persist me", "planner", "safe")
+	if err != nil {
+		t.Fatalf("Failed to create task: %v", err)
+	}
+	if err := store.SetStatus(ctx, task.ID, serverPorts.TaskStatusRunning); err != nil {
+		t.Fatalf("Failed to set status: %v", err)
+	}
+	if err := store.UpdateProgress(ctx, task.ID, 2, 42); err != nil {
+		t.Fatalf("Failed to update progress: %v", err)
+	}
+	store.Close()
+
+	loaded := NewInMemoryTaskStore(WithTaskPersistenceFile(persistencePath))
+	defer loaded.Close()
+
+	recovered, err := loaded.Get(ctx, task.ID)
+	if err != nil {
+		t.Fatalf("Expected persisted task to be loaded: %v", err)
+	}
+	if recovered.Description != "Persist me" {
+		t.Fatalf("Expected description 'Persist me', got %q", recovered.Description)
+	}
+	if recovered.Status != serverPorts.TaskStatusRunning {
+		t.Fatalf("Expected status running, got %s", recovered.Status)
+	}
+	if recovered.CurrentIteration != 2 || recovered.TokensUsed != 42 {
+		t.Fatalf("Expected progress iteration=2 tokens=42, got iteration=%d tokens=%d", recovered.CurrentIteration, recovered.TokensUsed)
+	}
+	if recovered.AgentPreset != "planner" || recovered.ToolPreset != "safe" {
+		t.Fatalf("Expected presets to persist, got agent=%q tool=%q", recovered.AgentPreset, recovered.ToolPreset)
+	}
+
+	contents, err := os.ReadFile(persistencePath)
+	if err != nil {
+		t.Fatalf("Expected persistence file to exist: %v", err)
+	}
+	if len(contents) == 0 {
+		t.Fatal("Expected persistence file to contain data")
+	}
+}
+
+func TestInMemoryTaskStore_PersistenceInvalidFileIsIgnored(t *testing.T) {
+	ctx := context.Background()
+	persistencePath := filepath.Join(t.TempDir(), "tasks.json")
+	if err := os.WriteFile(persistencePath, []byte("{invalid-json"), 0o600); err != nil {
+		t.Fatalf("Failed to write invalid persistence file: %v", err)
+	}
+
+	store := NewInMemoryTaskStore(WithTaskPersistenceFile(persistencePath))
+	defer store.Close()
+
+	tasks, total, err := store.List(ctx, 10, 0)
+	if err != nil {
+		t.Fatalf("List failed: %v", err)
+	}
+	if total != 0 || len(tasks) != 0 {
+		t.Fatalf("Expected empty store after invalid load, total=%d len=%d", total, len(tasks))
+	}
+
+	if _, err := store.Create(ctx, "session-1", "new task", "", ""); err != nil {
+		t.Fatalf("Create should still succeed after invalid load: %v", err)
+	}
 }
 
 func TestIsTerminalStatus(t *testing.T) {

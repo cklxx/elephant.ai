@@ -463,6 +463,95 @@ func (svc *TaskExecutionService) ListSessionTasks(ctx context.Context, sessionID
 	return svc.taskStore.ListBySession(ctx, sessionID)
 }
 
+// ResumePendingTasks re-dispatches persisted pending/running tasks after restart.
+func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, error) {
+	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
+	logger := logging.FromContext(ctx, svc.logger)
+	if svc.agentCoordinator == nil {
+		return 0, UnavailableError("agent coordinator not initialized")
+	}
+	if svc.broadcaster == nil {
+		return 0, UnavailableError("broadcaster not initialized")
+	}
+
+	tasks, err := svc.taskStore.ListByStatus(ctx, serverPorts.TaskStatusPending, serverPorts.TaskStatusRunning)
+	if err != nil {
+		return 0, fmt.Errorf("list resumable tasks: %w", err)
+	}
+	if len(tasks) == 0 {
+		logger.Info("[Resume] no pending/running tasks to resume")
+		return 0, nil
+	}
+
+	resumed := 0
+	skipped := 0
+	for _, task := range tasks {
+		if task == nil || task.ID == "" {
+			skipped++
+			continue
+		}
+		if task.Description == "" {
+			logger.Warn("[Resume] skipping task %s: empty description", task.ID)
+			skipped++
+			continue
+		}
+		if task.SessionID == "" {
+			logger.Warn("[Resume] skipping task %s: empty session_id", task.ID)
+			skipped++
+			continue
+		}
+
+		session, err := svc.agentCoordinator.GetSession(ctx, task.SessionID)
+		if err != nil {
+			logger.Warn("[Resume] skipping task %s: failed to load session %s: %v", task.ID, task.SessionID, err)
+			skipped++
+			continue
+		}
+		if svc.stateStore != nil {
+			if err := svc.stateStore.Init(ctx, session.ID); err != nil {
+				logger.Warn("[Resume] state store init failed for session %s: %v", session.ID, err)
+			}
+		}
+
+		svc.cancelMu.RLock()
+		_, alreadyRunning := svc.cancelFuncs[task.ID]
+		svc.cancelMu.RUnlock()
+		if alreadyRunning {
+			logger.Warn("[Resume] skipping task %s: already has active cancel function", task.ID)
+			skipped++
+			continue
+		}
+
+		taskCtx := id.WithIDs(context.Background(), id.IDs{
+			SessionID:   session.ID,
+			RunID:       task.ID,
+			ParentRunID: task.ParentTaskID,
+		})
+		taskCtx, _ = id.EnsureLogID(taskCtx, id.NewLogID)
+		taskCtx = context.WithoutCancel(taskCtx)
+
+		cancelCtx, cancelFunc := context.WithCancelCause(taskCtx)
+		svc.cancelMu.Lock()
+		svc.cancelFuncs[task.ID] = cancelFunc
+		svc.cancelMu.Unlock()
+
+		taskID := task.ID
+		description := task.Description
+		agentPreset := task.AgentPreset
+		toolPreset := task.ToolPreset
+		resumeSessionID := session.ID
+		async.Go(svc.logger, "server.resumeTask", func() {
+			svc.executeTaskInBackground(cancelCtx, taskID, description, resumeSessionID, agentPreset, toolPreset)
+		})
+
+		logger.Info("[Resume] resumed task taskID=%s sessionID=%s", taskID, resumeSessionID)
+		resumed++
+	}
+
+	logger.Info("[Resume] complete: total=%d resumed=%d skipped=%d", len(tasks), resumed, skipped)
+	return resumed, nil
+}
+
 // CancelTask cancels a running task.
 func (svc *TaskExecutionService) CancelTask(ctx context.Context, taskID string) error {
 	task, err := svc.taskStore.Get(ctx, taskID)

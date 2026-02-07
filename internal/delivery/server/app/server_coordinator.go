@@ -186,6 +186,11 @@ func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error
 	return s.Tasks.CancelTask(ctx, taskID)
 }
 
+// ResumePendingTasks delegates to TaskExecutionService.
+func (s *ServerCoordinator) ResumePendingTasks(ctx context.Context) (int, error) {
+	return s.Tasks.ResumePendingTasks(ctx)
+}
+
 // GetSession delegates to SessionService.
 func (s *ServerCoordinator) GetSession(ctx context.Context, id string) (*storage.Session, error) {
 	return s.Sessions.GetSession(ctx, id)

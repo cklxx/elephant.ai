@@ -2,13 +2,18 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
 	"alex/internal/delivery/server/ports"
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
 )
 
@@ -26,6 +31,9 @@ type InMemoryTaskStore struct {
 
 	retention time.Duration // how long terminal tasks are kept
 	maxSize   int           // hard cap on total tasks
+	logger    logging.Logger
+
+	persistencePath string
 
 	stopOnce sync.Once
 	stopCh   chan struct{}
@@ -44,6 +52,11 @@ func WithMaxTasks(n int) TaskStoreOption {
 	return func(s *InMemoryTaskStore) { s.maxSize = n }
 }
 
+// WithTaskPersistenceFile enables task store persistence in the specified file.
+func WithTaskPersistenceFile(path string) TaskStoreOption {
+	return func(s *InMemoryTaskStore) { s.persistencePath = strings.TrimSpace(path) }
+}
+
 // NewInMemoryTaskStore creates a new in-memory task store with optional TTL
 // eviction. Call Close() to stop the background eviction goroutine.
 func NewInMemoryTaskStore(opts ...TaskStoreOption) *InMemoryTaskStore {
@@ -51,11 +64,13 @@ func NewInMemoryTaskStore(opts ...TaskStoreOption) *InMemoryTaskStore {
 		tasks:     make(map[string]*ports.Task),
 		retention: defaultTaskRetention,
 		maxSize:   defaultMaxTasks,
+		logger:    logging.NewComponentLogger("InMemoryTaskStore"),
 		stopCh:    make(chan struct{}),
 	}
 	for _, opt := range opts {
 		opt(s)
 	}
+	s.loadFromDisk()
 	go s.evictLoop()
 	return s
 }
@@ -86,20 +101,26 @@ func (s *InMemoryTaskStore) evictExpired() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	changed := false
 	for taskID, task := range s.tasks {
 		if !isTerminalStatus(task.Status) {
 			continue
 		}
 		if task.CompletedAt != nil && now.Sub(*task.CompletedAt) > s.retention {
 			delete(s.tasks, taskID)
+			changed = true
 		}
 	}
 
 	// If still over maxSize, evict oldest terminal tasks.
 	if len(s.tasks) <= s.maxSize {
+		if changed {
+			s.persistLocked()
+		}
 		return
 	}
 	s.evictOldestTerminalLocked()
+	s.persistLocked()
 }
 
 // evictOldestTerminalLocked removes the oldest terminal tasks to bring the
@@ -159,6 +180,7 @@ func (s *InMemoryTaskStore) Create(ctx context.Context, sessionID string, descri
 	}
 
 	s.tasks[taskID] = task
+	s.persistLocked()
 
 	// Return a copy to prevent callers from sharing references with the store.
 	taskCopy := *task
@@ -190,6 +212,7 @@ func (s *InMemoryTaskStore) Update(ctx context.Context, task *ports.Task) error 
 	}
 
 	s.tasks[task.ID] = task
+	s.persistLocked()
 	return nil
 }
 
@@ -247,6 +270,36 @@ func (s *InMemoryTaskStore) ListBySession(ctx context.Context, sessionID string)
 	return tasks, nil
 }
 
+// ListByStatus returns tasks for the provided status filters.
+func (s *InMemoryTaskStore) ListByStatus(ctx context.Context, statuses ...ports.TaskStatus) ([]*ports.Task, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(statuses) == 0 {
+		return []*ports.Task{}, nil
+	}
+
+	statusSet := make(map[ports.TaskStatus]struct{}, len(statuses))
+	for _, status := range statuses {
+		statusSet[status] = struct{}{}
+	}
+
+	tasks := make([]*ports.Task, 0)
+	for _, task := range s.tasks {
+		if _, ok := statusSet[task.Status]; !ok {
+			continue
+		}
+		taskCopy := *task
+		tasks = append(tasks, &taskCopy)
+	}
+
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].CreatedAt.After(tasks[j].CreatedAt)
+	})
+
+	return tasks, nil
+}
+
 // Delete removes a task
 func (s *InMemoryTaskStore) Delete(ctx context.Context, taskID string) error {
 	s.mu.Lock()
@@ -257,6 +310,7 @@ func (s *InMemoryTaskStore) Delete(ctx context.Context, taskID string) error {
 	}
 
 	delete(s.tasks, taskID)
+	s.persistLocked()
 	return nil
 }
 
@@ -302,6 +356,7 @@ func (s *InMemoryTaskStore) SetStatus(ctx context.Context, taskID string, status
 		}
 	}
 
+	s.persistLocked()
 	return nil
 }
 
@@ -321,6 +376,7 @@ func (s *InMemoryTaskStore) SetError(ctx context.Context, taskID string, err err
 	now := time.Now()
 	task.CompletedAt = &now
 
+	s.persistLocked()
 	return nil
 }
 
@@ -354,6 +410,7 @@ func (s *InMemoryTaskStore) SetResult(ctx context.Context, taskID string, result
 		task.ParentTaskID = result.ParentRunID
 	}
 
+	s.persistLocked()
 	return nil
 }
 
@@ -370,6 +427,7 @@ func (s *InMemoryTaskStore) UpdateProgress(ctx context.Context, taskID string, i
 	task.CurrentIteration = iteration
 	task.TokensUsed = tokensUsed
 
+	s.persistLocked()
 	return nil
 }
 
@@ -385,5 +443,78 @@ func (s *InMemoryTaskStore) SetTerminationReason(ctx context.Context, taskID str
 
 	task.TerminationReason = reason
 
+	s.persistLocked()
 	return nil
+}
+
+type persistedTaskStore struct {
+	Version int           `json:"version"`
+	Tasks   []*ports.Task `json:"tasks"`
+}
+
+func (s *InMemoryTaskStore) loadFromDisk() {
+	if s.persistencePath == "" {
+		return
+	}
+	data, err := os.ReadFile(s.persistencePath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			s.logger.Warn("failed to load task persistence file %s: %v", s.persistencePath, err)
+		}
+		return
+	}
+
+	var persisted persistedTaskStore
+	if err := json.Unmarshal(data, &persisted); err != nil {
+		s.logger.Warn("failed to parse task persistence file %s: %v", s.persistencePath, err)
+		return
+	}
+
+	loaded := make(map[string]*ports.Task, len(persisted.Tasks))
+	for _, task := range persisted.Tasks {
+		if task == nil || strings.TrimSpace(task.ID) == "" {
+			continue
+		}
+		taskCopy := *task
+		loaded[task.ID] = &taskCopy
+	}
+	s.tasks = loaded
+}
+
+func (s *InMemoryTaskStore) persistLocked() {
+	if s.persistencePath == "" {
+		return
+	}
+
+	snapshot := make([]*ports.Task, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		taskCopy := *task
+		snapshot = append(snapshot, &taskCopy)
+	}
+
+	payload := persistedTaskStore{
+		Version: 1,
+		Tasks:   snapshot,
+	}
+
+	data, err := json.Marshal(payload)
+	if err != nil {
+		s.logger.Warn("failed to encode task persistence payload: %v", err)
+		return
+	}
+
+	if err := os.MkdirAll(filepath.Dir(s.persistencePath), 0o755); err != nil {
+		s.logger.Warn("failed to create task persistence directory for %s: %v", s.persistencePath, err)
+		return
+	}
+
+	tmpPath := fmt.Sprintf("%s.tmp-%d", s.persistencePath, time.Now().UnixNano())
+	if err := os.WriteFile(tmpPath, data, 0o600); err != nil {
+		s.logger.Warn("failed to write task persistence temp file %s: %v", tmpPath, err)
+		return
+	}
+	if err := os.Rename(tmpPath, s.persistencePath); err != nil {
+		_ = os.Remove(tmpPath)
+		s.logger.Warn("failed to atomically persist task store to %s: %v", s.persistencePath, err)
+	}
 }

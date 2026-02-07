@@ -74,6 +74,9 @@ type TaskStore interface {
 	// ListBySession returns tasks for a specific session
 	ListBySession(ctx context.Context, sessionID string) ([]*Task, error)
 
+	// ListByStatus returns tasks filtered by one or more statuses
+	ListByStatus(ctx context.Context, statuses ...TaskStatus) ([]*Task, error)
+
 	// Delete removes a task
 	Delete(ctx context.Context, taskID string) error
 

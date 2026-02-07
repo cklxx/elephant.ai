@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -193,7 +194,11 @@ func RunServer(observabilityConfigPath string) error {
 		broadcasterOpts = append(broadcasterOpts, serverApp.WithSessionTTL(config.EventHistorySessionTTL))
 	}
 	broadcaster := serverApp.NewEventBroadcaster(broadcasterOpts...)
-	taskStore := serverApp.NewInMemoryTaskStore()
+	taskStoreOpts := []serverApp.TaskStoreOption{}
+	if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
+		taskStoreOpts = append(taskStoreOpts, serverApp.WithTaskPersistenceFile(filepath.Join(sessionDir, "_server", "tasks.json")))
+	}
+	taskStore := serverApp.NewInMemoryTaskStore(taskStoreOpts...)
 	defer taskStore.Close()
 	progressTracker := serverApp.NewTaskProgressTracker(taskStore)
 
@@ -214,6 +219,11 @@ func RunServer(observabilityConfigPath string) error {
 		serverApp.WithHistoryStore(container.HistoryStore),
 		serverApp.WithProgressTracker(progressTracker),
 	)
+	if resumed, err := serverCoordinator.ResumePendingTasks(context.Background()); err != nil {
+		logger.Warn("[Bootstrap] Failed to resume pending/running tasks: %v", err)
+	} else if resumed > 0 {
+		logger.Info("[Bootstrap] Resumed %d pending/running tasks", resumed)
+	}
 
 	// ── Phase 3: Subsystems (gateways, scheduler — managed lifecycle) ──
 
