@@ -1,6 +1,6 @@
 # Plan: Restructure Lark Loop — Validate Before Deploy
 
-**Status:** in-progress
+**Status:** done
 **Branch:** feat/validate-before-deploy
 **Created:** 2026-02-08
 
