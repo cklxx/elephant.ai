@@ -99,6 +99,40 @@ func (s *SelectionStore) Get(ctx context.Context, scope SelectionScope) (Selecti
 	return selection, ok, nil
 }
 
+// GetWithFallback tries each scope in order and returns the first match.
+// A single lock acquisition and file read is used for all lookups.
+func (s *SelectionStore) GetWithFallback(ctx context.Context, scopes ...SelectionScope) (Selection, SelectionScope, bool, error) {
+	if s == nil || len(scopes) == 0 {
+		return Selection{}, SelectionScope{}, false, nil
+	}
+	if ctx != nil && ctx.Err() != nil {
+		return Selection{}, SelectionScope{}, false, ctx.Err()
+	}
+
+	keys := make([]string, len(scopes))
+	for i, scope := range scopes {
+		k, err := scope.key()
+		if err != nil {
+			return Selection{}, SelectionScope{}, false, err
+		}
+		keys[i] = k
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	doc, err := s.loadDocLocked(ctx)
+	if err != nil {
+		return Selection{}, SelectionScope{}, false, err
+	}
+	for i, k := range keys {
+		if sel, ok := doc.Selections[k]; ok {
+			return sel, scopes[i], true, nil
+		}
+	}
+	return Selection{}, SelectionScope{}, false, nil
+}
+
 func (s *SelectionStore) Set(ctx context.Context, scope SelectionScope, selection Selection) error {
 	if s == nil || s.path == "" {
 		return fmt.Errorf("selection store not configured")
