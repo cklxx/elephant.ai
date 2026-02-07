@@ -24,6 +24,7 @@
 - 2026-02-07: Loaded engineering practices and active memory guidance.
 - 2026-02-07: Synced with worker-A changes and verified SLA-aware degradation hooks are present (`SLARouter`, `PreRouteWhenPrimaryUnhealthy`, fallback call-name rewrite).
 - 2026-02-07: Validated regression coverage in `degradation_test.go` for SLA-ranked fallback order, unhealthy-primary pre-route, and fallback `call.Name` rewrite.
+- 2026-02-07: Tightened metadata assertions (`degraded_from` / `degraded_to`) in SLA-ranked and call-rewrite regression cases.
 
 ## Validation
 - `gofmt -w internal/app/toolregistry/degradation_test.go`: passed.

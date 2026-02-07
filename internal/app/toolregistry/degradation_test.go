@@ -483,12 +483,18 @@ func TestDegradation_FallbackRewritesCallName(t *testing.T) {
 	config.FallbackMap["primary_tool"] = []string{"fb1"}
 
 	exec := NewDegradationExecutor(primary, makeLookup(map[string]tools.ToolExecutor{"fb1": fb1}), config)
-	_, err := exec.Execute(context.Background(), baseCall())
+	res, err := exec.Execute(context.Background(), baseCall())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if fb1.lastCall.Name != "fb1" {
 		t.Fatalf("expected fallback call.Name rewritten to 'fb1', got %q", fb1.lastCall.Name)
+	}
+	if res.Metadata["degraded_from"] != "primary_tool" {
+		t.Fatalf("expected degraded_from=primary_tool, got %#v", res.Metadata)
+	}
+	if res.Metadata["degraded_to"] != "fb1" {
+		t.Fatalf("expected degraded_to=fb1, got %#v", res.Metadata)
 	}
 }
 
@@ -538,6 +544,12 @@ func TestDegradation_SLAAwareOrdering_SelectsHealthiestFallbackFirst(t *testing.
 	}
 	if fbSlow.callCount != 0 {
 		t.Fatalf("expected fb_slow skipped due SLA ordering and maxAttempts=1, got %d", fbSlow.callCount)
+	}
+	if res.Metadata["degraded_from"] != "primary_tool" {
+		t.Fatalf("expected degraded_from=primary_tool, got %#v", res.Metadata)
+	}
+	if res.Metadata["degraded_to"] != "fb_fast" {
+		t.Fatalf("expected degraded_to=fb_fast, got %#v", res.Metadata)
 	}
 }
 
