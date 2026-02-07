@@ -57,6 +57,7 @@ func (g *Gateway) handleModelCommand(msg *incomingMessage) {
 	if len(fields) > 1 {
 		sub = strings.ToLower(strings.TrimSpace(fields[1]))
 	}
+	chatOnly := hasFlag(fields, "--chat")
 
 	var reply string
 	replyMsgType := "text"
@@ -69,13 +70,18 @@ func (g *Gateway) handleModelCommand(msg *incomingMessage) {
 			reply = modelCommandUsage()
 			break
 		}
-		if err := g.setModelSelection(execCtx, msg, strings.TrimSpace(fields[2])); err != nil {
+		spec := firstNonFlag(fields[2:])
+		if spec == "" {
+			reply = modelCommandUsage()
+			break
+		}
+		if err := g.setModelSelection(execCtx, msg, spec, chatOnly); err != nil {
 			reply = fmt.Sprintf("设置失败：%v\n\n%s", err, modelCommandUsage())
 			break
 		}
 		reply = g.buildModelStatus(execCtx, msg)
 	case "clear", "reset":
-		if err := g.clearModelSelection(execCtx, msg); err != nil {
+		if err := g.clearModelSelection(execCtx, msg, chatOnly); err != nil {
 			reply = fmt.Sprintf("清除失败：%v\n\n%s", err, modelCommandUsage())
 			break
 		}
@@ -97,17 +103,39 @@ func (g *Gateway) handleModelCommand(msg *incomingMessage) {
 func modelCommandUsage() string {
 	return strings.TrimSpace(`
 Model command usage:
-  /model                         List available subscription models
-  /model use <provider>/<model>  Select a subscription model (pinned)
-  /model status                  Show current pinned selection
-  /model clear                   Clear pinned selection, revert to defaults
+  /model                                List available subscription models
+  /model use <provider>/<model>         Select globally (all Lark chats)
+  /model use <provider>/<model> --chat  Select for this chat only (override)
+  /model status                         Show current pinned selection
+  /model clear                          Clear global selection
+  /model clear --chat                   Clear this chat's override only
 
 Examples:
   /model use codex/gpt-5.2-codex
-  /model use anthropic/claude-sonnet-4-20250514
+  /model use anthropic/claude-sonnet-4-20250514 --chat
   /model use ollama/llama3:latest
   /model use llama_server/local-model
 `)
+}
+
+// hasFlag checks whether a flag like "--chat" appears in the fields slice.
+func hasFlag(fields []string, flag string) bool {
+	for _, f := range fields {
+		if strings.EqualFold(f, flag) {
+			return true
+		}
+	}
+	return false
+}
+
+// firstNonFlag returns the first field that doesn't start with "--".
+func firstNonFlag(fields []string) string {
+	for _, f := range fields {
+		if !strings.HasPrefix(f, "--") {
+			return strings.TrimSpace(f)
+		}
+	}
+	return ""
 }
 
 // channelScope returns the agent-global (Lark channel-level) selection scope.
@@ -269,7 +297,7 @@ func buildModelSelectionCard(status string, catalog subscription.Catalog) (strin
 	if !hasButton {
 		return "", fmt.Errorf("no selectable models")
 	}
-	card.AddNote("点击模型按钮即可切换当前会话订阅模型。")
+	card.AddNote("点击模型按钮即可全局切换订阅模型（所有 Lark 会话生效）。")
 	return card.Build()
 }
 
@@ -303,7 +331,7 @@ func (g *Gateway) loadModelCatalog(ctx context.Context) subscription.Catalog {
 	return svc.Catalog(ctx)
 }
 
-func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, spec string) error {
+func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, spec string, chatOnly bool) error {
 	if g == nil || msg == nil || g.llmSelections == nil {
 		return fmt.Errorf("selection store not available")
 	}
@@ -329,14 +357,22 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 		Model:    model,
 		Source:   string(cred.Source),
 	}
-	return g.llmSelections.Set(ctx, channelScope(), selection)
+	scope := channelScope()
+	if chatOnly {
+		scope = chatScope(msg)
+	}
+	return g.llmSelections.Set(ctx, scope, selection)
 }
 
-func (g *Gateway) clearModelSelection(ctx context.Context, msg *incomingMessage) error {
+func (g *Gateway) clearModelSelection(ctx context.Context, msg *incomingMessage, chatOnly bool) error {
 	if g == nil || msg == nil || g.llmSelections == nil {
 		return fmt.Errorf("selection store not available")
 	}
-	return g.llmSelections.Clear(ctx, channelScope())
+	scope := channelScope()
+	if chatOnly {
+		scope = chatScope(msg)
+	}
+	return g.llmSelections.Clear(ctx, scope)
 }
 
 func resolveLlamaServerTarget(lookup runtimeconfig.EnvLookup) (subscription.LlamaServerTarget, bool) {

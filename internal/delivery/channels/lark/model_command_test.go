@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -178,5 +179,219 @@ func TestBuildModelListReplyFallsBackToTextWhenCardsDisabled(t *testing.T) {
 	}
 	if !strings.Contains(content, "可用的订阅模型") {
 		t.Fatalf("expected text model list payload, got:\n%s", content)
+	}
+}
+
+// newTestGatewayWithStore creates a Gateway with a real SelectionStore for scope tests.
+func newTestGatewayWithStore(t *testing.T) *Gateway {
+	t.Helper()
+	storePath := filepath.Join(t.TempDir(), "llm_selection.json")
+	return &Gateway{
+		logger:         logging.OrNop(nil),
+		llmSelections:  subscription.NewSelectionStore(storePath),
+		llmResolver:    subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials { return runtimeconfig.CLICredentials{} }),
+		cliCredsLoader: func() runtimeconfig.CLICredentials { return runtimeconfig.CLICredentials{} },
+	}
+}
+
+func TestApplyPinnedFallsBackToChannelLevel(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+
+	// Set at channel level (global).
+	sel := subscription.Selection{Mode: "cli", Provider: "ollama", Model: "llama3:latest", Source: "ollama"}
+	if err := gw.llmSelections.Set(ctx, channelScope(), sel); err != nil {
+		t.Fatalf("Set: %v", err)
+	}
+
+	// Apply from a different chat — should fall back to channel scope.
+	msg := &incomingMessage{chatID: "oc_other", senderID: "ou_user"}
+	newCtx := gw.applyPinnedLarkLLMSelection(ctx, msg)
+	if newCtx == ctx {
+		t.Fatal("expected context to be enriched with LLM selection")
+	}
+}
+
+func TestApplyPinnedPrefersChatSpecific(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+
+	// Set channel-level.
+	channelSel := subscription.Selection{Mode: "cli", Provider: "ollama", Model: "channel-model", Source: "ollama"}
+	if err := gw.llmSelections.Set(ctx, channelScope(), channelSel); err != nil {
+		t.Fatalf("Set channel: %v", err)
+	}
+	// Set chat-specific.
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+	chatSel := subscription.Selection{Mode: "cli", Provider: "ollama", Model: "chat-model", Source: "ollama"}
+	if err := gw.llmSelections.Set(ctx, chatScope(msg), chatSel); err != nil {
+		t.Fatalf("Set chat: %v", err)
+	}
+
+	newCtx := gw.applyPinnedLarkLLMSelection(ctx, msg)
+	if newCtx == ctx {
+		t.Fatal("expected context to be enriched")
+	}
+	// The chat-specific model should win. We verify via buildModelStatus.
+	status := gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "chat-model") {
+		t.Fatalf("expected chat-model in status, got: %s", status)
+	}
+	if !strings.Contains(status, "[当前会话]") {
+		t.Fatalf("expected [当前会话] scope label, got: %s", status)
+	}
+}
+
+func TestSetModelDefaultsToChannelScope(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	if err := gw.setModelSelection(ctx, msg, "ollama/llama3:latest", false); err != nil {
+		t.Fatalf("setModelSelection: %v", err)
+	}
+
+	// Should be visible from a different chat.
+	otherMsg := &incomingMessage{chatID: "oc_other", senderID: "ou_user"}
+	status := gw.buildModelStatus(ctx, otherMsg)
+	if !strings.Contains(status, "llama3:latest") {
+		t.Fatalf("expected model in status from other chat, got: %s", status)
+	}
+	if !strings.Contains(status, "[全局]") {
+		t.Fatalf("expected [全局] scope label, got: %s", status)
+	}
+}
+
+func TestSetModelWithChatFlag(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	if err := gw.setModelSelection(ctx, msg, "ollama/chat-only-model", true); err != nil {
+		t.Fatalf("setModelSelection: %v", err)
+	}
+
+	// Should be visible in the same chat with [当前会话] label.
+	status := gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "chat-only-model") {
+		t.Fatalf("expected chat-only-model in status, got: %s", status)
+	}
+	if !strings.Contains(status, "[当前会话]") {
+		t.Fatalf("expected [当前会话], got: %s", status)
+	}
+
+	// Should NOT be visible from a different chat.
+	otherMsg := &incomingMessage{chatID: "oc_other", senderID: "ou_user"}
+	otherStatus := gw.buildModelStatus(ctx, otherMsg)
+	if strings.Contains(otherStatus, "chat-only-model") {
+		t.Fatalf("chat-specific model should not leak to other chats, got: %s", otherStatus)
+	}
+}
+
+func TestBuildModelStatusShowsScopeLabel(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	// No selection → default message.
+	status := gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "当前未设置") {
+		t.Fatalf("expected default message, got: %s", status)
+	}
+
+	// Set global.
+	if err := gw.setModelSelection(ctx, msg, "ollama/global-model", false); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	status = gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "[全局]") {
+		t.Fatalf("expected [全局], got: %s", status)
+	}
+
+	// Override per-chat.
+	if err := gw.setModelSelection(ctx, msg, "ollama/override-model", true); err != nil {
+		t.Fatalf("set chat: %v", err)
+	}
+	status = gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "[当前会话]") {
+		t.Fatalf("expected [当前会话] after override, got: %s", status)
+	}
+	if !strings.Contains(status, "override-model") {
+		t.Fatalf("expected override-model, got: %s", status)
+	}
+}
+
+func TestClearChannelLevel(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	if err := gw.setModelSelection(ctx, msg, "ollama/model-x", false); err != nil {
+		t.Fatalf("set: %v", err)
+	}
+	if err := gw.clearModelSelection(ctx, msg, false); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	status := gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "当前未设置") {
+		t.Fatalf("expected cleared status, got: %s", status)
+	}
+}
+
+func TestClearChatOnly(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	// Set both levels.
+	if err := gw.setModelSelection(ctx, msg, "ollama/global-model", false); err != nil {
+		t.Fatalf("set global: %v", err)
+	}
+	if err := gw.setModelSelection(ctx, msg, "ollama/chat-model", true); err != nil {
+		t.Fatalf("set chat: %v", err)
+	}
+
+	// Clear only the chat override.
+	if err := gw.clearModelSelection(ctx, msg, true); err != nil {
+		t.Fatalf("clear chat: %v", err)
+	}
+
+	// Should fall back to global.
+	status := gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "global-model") {
+		t.Fatalf("expected global model after chat clear, got: %s", status)
+	}
+	if !strings.Contains(status, "[全局]") {
+		t.Fatalf("expected [全局] after chat clear, got: %s", status)
+	}
+}
+
+func TestHasFlag(t *testing.T) {
+	t.Parallel()
+	if !hasFlag([]string{"/model", "use", "ollama/llama3", "--chat"}, "--chat") {
+		t.Fatal("expected --chat to be found")
+	}
+	if hasFlag([]string{"/model", "use", "ollama/llama3"}, "--chat") {
+		t.Fatal("expected --chat NOT to be found")
+	}
+}
+
+func TestFirstNonFlag(t *testing.T) {
+	t.Parallel()
+	if got := firstNonFlag([]string{"ollama/llama3", "--chat"}); got != "ollama/llama3" {
+		t.Fatalf("expected ollama/llama3, got %q", got)
+	}
+	if got := firstNonFlag([]string{"--chat", "ollama/llama3"}); got != "ollama/llama3" {
+		t.Fatalf("expected ollama/llama3, got %q", got)
+	}
+	if got := firstNonFlag([]string{"--chat"}); got != "" {
+		t.Fatalf("expected empty, got %q", got)
 	}
 }
