@@ -14,6 +14,7 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
+	"alex/internal/infra/tools/builtin/shared"
 )
 
 func newTestMemoryEngine(t *testing.T) memory.Engine {
@@ -334,7 +335,9 @@ func TestListCachingWithDirtyFlag(t *testing.T) {
 }
 
 type stubExecutor struct {
-	name string
+	name        string
+	dangerous   bool
+	safetyLevel int
 }
 
 func (s *stubExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
@@ -346,5 +349,56 @@ func (s *stubExecutor) Definition() ports.ToolDefinition {
 }
 
 func (s *stubExecutor) Metadata() ports.ToolMetadata {
-	return ports.ToolMetadata{Name: s.name}
+	return ports.ToolMetadata{Name: s.name, Dangerous: s.dangerous, SafetyLevel: s.safetyLevel}
+}
+
+type captureApprover struct {
+	request *tools.ApprovalRequest
+}
+
+func (c *captureApprover) RequestApproval(_ context.Context, req *tools.ApprovalRequest) (*tools.ApprovalResponse, error) {
+	c.request = req
+	return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
+}
+
+func TestApprovalExecutor_EnrichesSafetyContext(t *testing.T) {
+	executor := &approvalExecutor{
+		delegate: &stubExecutor{
+			name:        "file_delete",
+			dangerous:   true,
+			safetyLevel: ports.SafetyLevelIrreversible,
+		},
+	}
+	approver := &captureApprover{}
+	ctx := shared.WithApprover(context.Background(), approver)
+
+	_, err := executor.Execute(ctx, ports.ToolCall{
+		ID:   "call-1",
+		Name: "file_delete",
+		Arguments: map[string]any{
+			"path": "/tmp/demo.txt",
+			"mode": "force",
+		},
+	})
+	if err != nil {
+		t.Fatalf("execute: %v", err)
+	}
+	if approver.request == nil {
+		t.Fatal("expected approval request to be captured")
+	}
+	if approver.request.SafetyLevel != ports.SafetyLevelIrreversible {
+		t.Fatalf("expected safety level L4, got %d", approver.request.SafetyLevel)
+	}
+	if approver.request.RollbackSteps == "" {
+		t.Fatal("expected rollback steps for high-impact operations")
+	}
+	if approver.request.AlternativePlan == "" {
+		t.Fatal("expected alternative plan for irreversible operations")
+	}
+	if !strings.Contains(approver.request.Summary, "L4") {
+		t.Fatalf("expected summary to include safety level, got %q", approver.request.Summary)
+	}
+	if !strings.Contains(approver.request.Summary, "args=") {
+		t.Fatalf("expected summary to include argument keys, got %q", approver.request.Summary)
+	}
 }

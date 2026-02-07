@@ -282,11 +282,18 @@ func (a *approvalExecutor) Execute(ctx context.Context, call ports.ToolCall) (*p
 	req := &tools.ApprovalRequest{
 		Operation:   meta.Name,
 		FilePath:    extractFilePath(call.Arguments),
-		Summary:     fmt.Sprintf("Approval required for %s", meta.Name),
+		Summary:     buildApprovalSummary(meta, call),
 		AutoApprove: shared.GetAutoApproveFromContext(ctx),
 		ToolCallID:  call.ID,
 		ToolName:    call.Name,
 		Arguments:   call.Arguments,
+		SafetyLevel: meta.EffectiveSafetyLevel(),
+	}
+	if req.SafetyLevel >= ports.SafetyLevelHighImpact {
+		req.RollbackSteps = buildRollbackSteps(meta, req.FilePath)
+	}
+	if req.SafetyLevel >= ports.SafetyLevelIrreversible {
+		req.AlternativePlan = buildAlternativePlan(meta)
 	}
 	resp, err := approver.RequestApproval(ctx, req)
 	if err != nil {
@@ -317,6 +324,53 @@ func extractFilePath(args map[string]any) string {
 		}
 	}
 	return ""
+}
+
+func buildApprovalSummary(meta ports.ToolMetadata, call ports.ToolCall) string {
+	parts := []string{fmt.Sprintf("Approval required for %s (L%d)", meta.Name, meta.EffectiveSafetyLevel())}
+	if filePath := extractFilePath(call.Arguments); filePath != "" {
+		parts = append(parts, fmt.Sprintf("path=%s", filePath))
+	}
+	if keys := extractArgumentKeys(call.Arguments); len(keys) > 0 {
+		parts = append(parts, fmt.Sprintf("args=%s", strings.Join(keys, ", ")))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func extractArgumentKeys(args map[string]any) []string {
+	if len(args) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		keys = append(keys, key)
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Strings(keys)
+	if len(keys) > 8 {
+		keys = append(keys[:8], "...")
+	}
+	return keys
+}
+
+func buildRollbackSteps(meta ports.ToolMetadata, filePath string) string {
+	if filePath != "" {
+		return fmt.Sprintf("If outcome is incorrect, restore %s from VCS/backups and rerun the last known-good step.", filePath)
+	}
+	return fmt.Sprintf("If outcome is incorrect, revert the %s operation via VCS/rollback tooling and rerun the last known-good step.", meta.Name)
+}
+
+func buildAlternativePlan(meta ports.ToolMetadata) string {
+	if strings.Contains(strings.ToLower(meta.Name), "delete") {
+		return "Prefer archive/disable first; verify impact in read-only mode before irreversible deletion."
+	}
+	return "Run a read-only or dry-run check first, then apply the smallest reversible change."
 }
 
 // WithoutSubagent returns a filtered registry that excludes the subagent tool

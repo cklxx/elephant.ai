@@ -62,6 +62,19 @@ func (a *acpApprover) RequestApproval(ctx context.Context, request *tools.Approv
 	if request.FilePath != "" {
 		toolCall["locations"] = []map[string]any{{"path": request.FilePath}}
 	}
+	if request.SafetyLevel > 0 {
+		toolCall["safetyLevel"] = request.SafetyLevel
+	}
+	if request.RollbackSteps != "" || request.AlternativePlan != "" {
+		hints := map[string]any{}
+		if request.RollbackSteps != "" {
+			hints["rollbackSteps"] = request.RollbackSteps
+		}
+		if request.AlternativePlan != "" {
+			hints["alternativePlan"] = request.AlternativePlan
+		}
+		toolCall["approvalHints"] = hints
+	}
 
 	options := []map[string]any{
 		{

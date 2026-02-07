@@ -97,6 +97,15 @@ func approvalPrompt(request *tools.ApprovalRequest) string {
 	if request.Summary != "" {
 		fmt.Fprintf(&b, "\nSummary: %s", request.Summary)
 	}
+	if request.SafetyLevel > 0 {
+		fmt.Fprintf(&b, "\nSafety: L%d", request.SafetyLevel)
+	}
+	if request.RollbackSteps != "" {
+		fmt.Fprintf(&b, "\nRollback: %s", request.RollbackSteps)
+	}
+	if request.AlternativePlan != "" {
+		fmt.Fprintf(&b, "\nAlternative: %s", request.AlternativePlan)
+	}
 	b.WriteString("\nAllow? [y]es / [a]ll (session) / [n]o: ")
 	return b.String()
 }

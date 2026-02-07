@@ -47,3 +47,23 @@ func TestCLIApproverStoreReusesSession(t *testing.T) {
 		t.Fatalf("expected same approver for session")
 	}
 }
+
+func TestApprovalPromptIncludesSafetyContext(t *testing.T) {
+	prompt := approvalPrompt(&tools.ApprovalRequest{
+		ToolName:        "file_delete",
+		Summary:         "Delete stale artifact",
+		SafetyLevel:     4,
+		RollbackSteps:   "Restore from backup",
+		AlternativePlan: "Archive first",
+	})
+
+	for _, fragment := range []string{
+		"Safety: L4",
+		"Rollback: Restore from backup",
+		"Alternative: Archive first",
+	} {
+		if !strings.Contains(prompt, fragment) {
+			t.Fatalf("expected prompt to include %q, got %q", fragment, prompt)
+		}
+	}
+}
