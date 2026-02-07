@@ -150,7 +150,7 @@ run_supervisor run-once >/dev/null
 
 status_file="${main_root}/.worktrees/test/tmp/lark-supervisor.status.json"
 [[ -f "${status_file}" ]] || { echo "missing status file: ${status_file}" >&2; exit 1; }
-for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha cycle_phase cycle_result last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window; do
+for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha last_validated_sha cycle_phase cycle_result last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window; do
   grep -q "\"${key}\"" "${status_file}" || { echo "missing key in status: ${key}" >&2; exit 1; }
 done
 grep -q '"mode": "healthy"' "${status_file}" || { echo "expected healthy mode after run-once" >&2; exit 1; }
@@ -191,5 +191,73 @@ for pid_file in \
     exit 1
   fi
 done
+
+# --- Validation-phase suppression test ---
+# Start all components, then simulate a validation phase and kill the test
+# process.  run-once should NOT restart test because the phase is active.
+loop_state_file="${main_root}/.worktrees/test/tmp/lark-loop.state.json"
+
+# Start components fresh.
+run_supervisor run-once >/dev/null
+
+# Verify test is alive before we test suppression.
+test_pid="$(cat "${main_root}/.worktrees/test/.pids/lark-test.pid" 2>/dev/null || true)"
+kill -0 "${test_pid}" 2>/dev/null || { echo "expected test pid alive before suppression test" >&2; exit 1; }
+
+# Simulate a validation phase by writing loop state with cycle_phase=fast_gate.
+cat > "${loop_state_file}" <<JSEOF
+{
+  "ts_utc": "2026-01-01T00:00:00Z",
+  "base_sha": "abc1234",
+  "cycle_phase": "fast_gate",
+  "cycle_result": "running",
+  "main_sha": "",
+  "last_processed_sha": "",
+  "last_validated_sha": "",
+  "validating_sha": "abc1234",
+  "last_error": ""
+}
+JSEOF
+
+# Kill the test process to simulate it being down during validation.
+kill "${test_pid}" 2>/dev/null || true
+wait "${test_pid}" 2>/dev/null || true
+rm -f "${main_root}/.worktrees/test/.pids/lark-test.pid"
+
+# Run a supervisor tick — it should NOT restart test because validation is active.
+run_supervisor run-once >/dev/null
+
+# Check: test should still be down (no pid file or stale pid).
+if [[ -f "${main_root}/.worktrees/test/.pids/lark-test.pid" ]]; then
+  suppressed_pid="$(cat "${main_root}/.worktrees/test/.pids/lark-test.pid" 2>/dev/null || true)"
+  if [[ -n "${suppressed_pid}" ]] && kill -0 "${suppressed_pid}" 2>/dev/null; then
+    echo "expected test NOT restarted during validation phase, but got pid=${suppressed_pid}" >&2
+    exit 1
+  fi
+fi
+
+# Clean up: reset loop state to idle so final stop works.
+cat > "${loop_state_file}" <<JSEOF
+{
+  "ts_utc": "2026-01-01T00:00:00Z",
+  "base_sha": "",
+  "cycle_phase": "idle",
+  "cycle_result": "unknown",
+  "main_sha": "",
+  "last_processed_sha": "",
+  "last_validated_sha": "",
+  "validating_sha": "",
+  "last_error": ""
+}
+JSEOF
+
+# Verify the log contains the skip message.
+supervisor_log="${main_root}/.worktrees/test/logs/lark-supervisor.log"
+if [[ -f "${supervisor_log}" ]]; then
+  if ! grep -q "skip test restart during validation" "${supervisor_log}"; then
+    echo "expected 'skip test restart during validation' in supervisor log" >&2
+    exit 1
+  fi
+fi
 
 echo "ok"
