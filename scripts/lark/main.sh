@@ -17,9 +17,11 @@ Usage:
 Runs alex-server in standalone Lark WebSocket mode (no HTTP server).
 
 Env:
-  MAIN_CONFIG    Config path (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
-  ALEX_LOG_DIR   Internal log dir override (default: <repo>/logs)
+  MAIN_CONFIG   Config path (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
+  ALEX_LOG_DIR  Internal log dir override (default: <repo>/logs)
   FORCE_REBUILD=1  Force rebuild on start (default: 0)
+  SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
+  LARK_REQUIRE_DOCKER=1  Ensure docker sandbox is running before startup (default: 1)
 EOF
 }
 
@@ -44,11 +46,59 @@ LOG_FILE="${ROOT}/logs/lark-main.log"
 MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${ROOT}/logs}"
 FORCE_REBUILD="${FORCE_REBUILD:-0}"
+LARK_REQUIRE_DOCKER="${LARK_REQUIRE_DOCKER:-1}"
+DEV_SH="${ROOT}/dev.sh"
+BOOTSTRAP_SH="${ROOT}/scripts/setup_local_runtime.sh"
 
 # Readiness: grep for this log line to confirm the gateway has started.
 READY_LOG_PATTERN="Lark gateway connecting"
 
 mkdir -p "${ROOT}/.pids" "${ROOT}/logs" "${ALEX_LOG_DIR}"
+
+load_dotenv() {
+  local env_file="${ROOT}/.env"
+  if [[ ! -f "${env_file}" ]]; then
+    return 0
+  fi
+
+  set -a
+  # shellcheck source=/dev/null
+  source "${env_file}"
+  set +a
+}
+
+ensure_local_bootstrap() {
+  [[ -x "${BOOTSTRAP_SH}" ]] || die "Missing ${BOOTSTRAP_SH}"
+  MAIN_CONFIG="${MAIN_CONFIG}" \
+    TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}" \
+    "${BOOTSTRAP_SH}" >/dev/null
+}
+
+ensure_lark_sandbox() {
+  if [[ "${LARK_REQUIRE_DOCKER}" != "1" ]]; then
+    return 0
+  fi
+  command -v docker >/dev/null 2>&1 || die "docker not found but Lark mode requires sandbox Docker (set LARK_REQUIRE_DOCKER=0 to bypass)"
+  [[ -x "${DEV_SH}" ]] || die "Missing ${DEV_SH}"
+  log_info "Ensuring docker sandbox for lark mode..."
+  (cd "${ROOT}" && "${DEV_SH}" sandbox-up)
+}
+
+maybe_setup_auth_db() {
+  if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
+    log_info "Skipping local auth DB auto-setup (SKIP_LOCAL_AUTH_DB=1)"
+    return 0
+  fi
+
+  if [[ -x "${ROOT}/scripts/setup_local_auth_db.sh" ]]; then
+    log_info "Ensuring local auth DB is ready..."
+    "${ROOT}/scripts/setup_local_auth_db.sh"
+    return 0
+  fi
+
+  log_warn "Missing ${ROOT}/scripts/setup_local_auth_db.sh; skipping DB setup"
+  return 0
+}
 
 build() {
   log_info "Building alex-server (main)..."
@@ -59,7 +109,12 @@ build() {
 }
 
 start() {
+  load_dotenv
+  ensure_local_bootstrap
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
+  ensure_lark_sandbox
+
+  maybe_setup_auth_db
 
   local current_fingerprint needs_build pid
   current_fingerprint="$(build_fingerprint "${ROOT}")"
@@ -113,7 +168,11 @@ stop() {
 }
 
 restart() {
+  load_dotenv
+  ensure_local_bootstrap
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
+
+  maybe_setup_auth_db
   build
   stop
   FORCE_REBUILD=0 start

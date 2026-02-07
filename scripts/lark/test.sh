@@ -16,10 +16,17 @@ Usage:
 
 Runs alex-server in standalone Lark WebSocket mode from the test worktree.
 
+Behavior:
+  - Ensures local auth DB is running (docker, migrations)
+  - Ensures persistent test worktree exists at .worktrees/test and syncs .env
+  - Builds and starts alex-server from the test worktree
+
 Env:
-  TEST_CONFIG      Config path (default: ~/.alex/test.yaml)
-  ALEX_LOG_DIR     Internal log dir override (default: <repo>/.worktrees/test/logs)
-  FORCE_REBUILD=1  Force rebuild on start (default: 1)
+  TEST_CONFIG          Config path (default: ~/.alex/test.yaml)
+  ALEX_LOG_DIR         Internal log dir override (default: <repo>/.worktrees/test/logs)
+  FORCE_REBUILD=1      Force rebuild on start (default: 1)
+  SKIP_LOCAL_AUTH_DB=1 Skip local auth DB auto-setup (default: 0)
+  LARK_REQUIRE_DOCKER=1 Ensure docker sandbox is running before startup (default: 1)
 EOF
 }
 
@@ -38,6 +45,7 @@ fi
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
 WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
+SETUP_DB_SH="${ROOT}/scripts/setup_local_auth_db.sh"
 
 TEST_ROOT="${ROOT}/.worktrees/test"
 BIN="${TEST_ROOT}/alex-server"
@@ -47,9 +55,57 @@ LOG_FILE="${TEST_ROOT}/logs/lark-test.log"
 TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${TEST_ROOT}/logs}"
 FORCE_REBUILD="${FORCE_REBUILD:-1}"
+LARK_REQUIRE_DOCKER="${LARK_REQUIRE_DOCKER:-1}"
+DEV_SH="${ROOT}/dev.sh"
+BOOTSTRAP_SH="${ROOT}/scripts/setup_local_runtime.sh"
 
 # Readiness: grep for this log line to confirm the gateway has started.
 READY_LOG_PATTERN="Lark gateway connecting"
+
+load_dotenv() {
+  local env_file="${ROOT}/.env"
+  if [[ ! -f "${env_file}" ]]; then
+    return 0
+  fi
+
+  set -a
+  # shellcheck source=/dev/null
+  source "${env_file}"
+  set +a
+}
+
+ensure_local_bootstrap() {
+  [[ -x "${BOOTSTRAP_SH}" ]] || die "Missing ${BOOTSTRAP_SH}"
+  MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}" \
+    TEST_CONFIG="${TEST_CONFIG}" \
+    "${BOOTSTRAP_SH}" >/dev/null
+}
+
+ensure_lark_sandbox() {
+  if [[ "${LARK_REQUIRE_DOCKER}" != "1" ]]; then
+    return 0
+  fi
+  command -v docker >/dev/null 2>&1 || die "docker not found but Lark mode requires sandbox Docker (set LARK_REQUIRE_DOCKER=0 to bypass)"
+  [[ -x "${DEV_SH}" ]] || die "Missing ${DEV_SH}"
+  log_info "Ensuring docker sandbox for lark mode..."
+  (cd "${ROOT}" && "${DEV_SH}" sandbox-up)
+}
+
+maybe_setup_auth_db() {
+  if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
+    log_info "Skipping local auth DB auto-setup (SKIP_LOCAL_AUTH_DB=1)"
+    return 0
+  fi
+
+  if [[ -x "${SETUP_DB_SH}" ]]; then
+    log_info "Ensuring local auth DB is ready..."
+    "${SETUP_DB_SH}"
+    return 0
+  fi
+
+  log_warn "Missing ${SETUP_DB_SH}; skipping DB setup"
+  return 0
+}
 
 ensure_worktree() {
   [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
@@ -68,8 +124,12 @@ build() {
 }
 
 start() {
+  load_dotenv
+  ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
+  ensure_lark_sandbox
 
+  maybe_setup_auth_db
   ensure_worktree
 
   local current_fingerprint needs_build pid
@@ -124,7 +184,11 @@ stop() {
 }
 
 restart() {
+  load_dotenv
+  ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
+
+  maybe_setup_auth_db
   ensure_worktree
   build
   stop
