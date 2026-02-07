@@ -27,7 +27,7 @@
 - [x] 补充/更新测试（优先覆盖新逻辑与回归路径）。
 - [x] 运行 lint + 全量测试并修复问题（全量 lint 暴露仓库既有问题，见下方说明）。
 - [x] 更新计划与经验记录，提交增量 commits。
-- [ ] 合并回 main 并清理临时 worktree/分支。
+- [x] 合并回 main 并清理临时 worktree/分支。
 
 ## 风险与约束
 - 埋点不能引入行为变更；默认以可观测属性增强为主。
@@ -38,3 +38,4 @@
 - `go test ./...` 通过。
 - `./scripts/run-golangci-lint.sh run ./internal/domain/agent/react/... ./internal/delivery/server/http/...` 通过。
 - `./scripts/run-golangci-lint.sh run ./...` 失败，存在仓库既有问题（`evaluation/*` 与 `internal/delivery/eval/http/api_handler_rl.go` 的 `errcheck/unused`），与本次改动无关。
+- 已 fast-forward 合并回 `main` 并清理临时 worktree；本地策略限制导致分支删除命令被阻止（分支保留不影响代码状态）。
