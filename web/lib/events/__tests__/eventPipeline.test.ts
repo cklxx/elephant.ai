@@ -5,6 +5,22 @@ import { AgentEventBus } from '../eventBus';
 import { EventRegistry } from '../eventRegistry';
 import type { AnyAgentEvent } from '@/lib/types';
 
+const DEDUPE_MAX_ENTRIES = 4000;
+const BASE_TIMESTAMP = Date.parse('2024-05-01T00:00:00.000Z');
+
+function buildFinalEnvelope(index: number) {
+  return {
+    event_type: 'workflow.result.final' as const,
+    session_id: 's-evict',
+    run_id: 't-evict',
+    timestamp: new Date(BASE_TIMESTAMP + index * 1000).toISOString(),
+    final_answer: `answer-${index}`,
+    payload: {
+      final_answer: `answer-${index}`,
+    },
+  };
+}
+
 describe('EventPipeline deduplication', () => {
   let bus: AgentEventBus;
   let registry: EventRegistry;
@@ -147,5 +163,31 @@ describe('EventPipeline deduplication', () => {
       'plan',
       'clarify',
     ]);
+  });
+
+  it('evicts the oldest signature once the dedupe window exceeds max entries', () => {
+    for (let i = 0; i <= DEDUPE_MAX_ENTRIES; i += 1) {
+      pipeline.process(buildFinalEnvelope(i));
+    }
+
+    pipeline.process(buildFinalEnvelope(0));
+    pipeline.process(buildFinalEnvelope(DEDUPE_MAX_ENTRIES));
+
+    expect(received).toHaveLength(DEDUPE_MAX_ENTRIES + 2);
+    expect(received.at(-1)?.final_answer).toBe('answer-0');
+  });
+
+  it('keeps duplicate suppression correct after ring wrap-around', () => {
+    const totalUniqueEvents = DEDUPE_MAX_ENTRIES * 2 + 5;
+    for (let i = 0; i < totalUniqueEvents; i += 1) {
+      pipeline.process(buildFinalEnvelope(i));
+    }
+
+    pipeline.process(buildFinalEnvelope(totalUniqueEvents - 1));
+    pipeline.process(buildFinalEnvelope(DEDUPE_MAX_ENTRIES + 4));
+    pipeline.process(buildFinalEnvelope(DEDUPE_MAX_ENTRIES + 4));
+
+    expect(received).toHaveLength(totalUniqueEvents + 1);
+    expect(received.at(-1)?.final_answer).toBe(`answer-${DEDUPE_MAX_ENTRIES + 4}`);
   });
 });

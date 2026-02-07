@@ -13,3 +13,4 @@ Identify unoptimized runtime hotspots in session list APIs and web SSE streaming
 - [x] Step 2: Trace SSE streaming/render paths in the web frontend and event pipeline.
 - [x] Step 3: Summarize hotspots, propose safe optimizations, and outline tests to add.
 - [x] Backend optimization: Removed session-list task-store N+1 via batched session task summaries in app/API path.
+- [x] Frontend optimization: Replaced event-pipeline dedupe eviction with O(1) ring-buffer operations and added wrap-around eviction coverage.

@@ -14,9 +14,11 @@ export class EventPipeline {
   private bus: AgentEventBus;
   private registry: EventRegistry;
   private onInvalidEvent?: (raw: unknown, error: unknown) => void;
-  private seen: Set<string> = new Set();
-  private order: string[] = [];
   private readonly maxEntries = 4000;
+  private seen: Set<string> = new Set();
+  private order: string[] = new Array(this.maxEntries);
+  private orderHead = 0;
+  private orderSize = 0;
 
   constructor(options: EventPipelineOptions) {
     this.bus = options.bus;
@@ -26,7 +28,22 @@ export class EventPipeline {
 
   reset() {
     this.seen.clear();
-    this.order = [];
+    this.orderHead = 0;
+    this.orderSize = 0;
+  }
+
+  private rememberSignature(signature: string) {
+    if (this.orderSize < this.maxEntries) {
+      const insertIndex = (this.orderHead + this.orderSize) % this.maxEntries;
+      this.order[insertIndex] = signature;
+      this.orderSize += 1;
+      return;
+    }
+
+    const oldest = this.order[this.orderHead]!;
+    this.seen.delete(oldest);
+    this.order[this.orderHead] = signature;
+    this.orderHead = (this.orderHead + 1) % this.maxEntries;
   }
 
   private isDuplicate(event: AnyAgentEvent): boolean {
@@ -36,13 +53,7 @@ export class EventPipeline {
     }
 
     this.seen.add(signature);
-    this.order.push(signature);
-    if (this.order.length > this.maxEntries) {
-      const oldest = this.order.shift();
-      if (oldest) {
-        this.seen.delete(oldest);
-      }
-    }
+    this.rememberSignature(signature);
 
     return false;
   }
