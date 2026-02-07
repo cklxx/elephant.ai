@@ -11,9 +11,6 @@ import (
 const (
 	stewardStateOpenTag  = "<NEW_STATE>"
 	stewardStateCloseTag = "</NEW_STATE>"
-
-	// maxStewardStateBytes is a generous upper bound (~1400 CJK chars × 3 bytes).
-	maxStewardStateBytes = 4200
 )
 
 // ExtractNewState scans content for a <NEW_STATE>...</NEW_STATE> block, parses
