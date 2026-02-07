@@ -116,9 +116,9 @@ describe("getGLCapabilities", () => {
 
     const caps = getGLCapabilities();
     expect(caps.tier).toBe("low");
-    expect(caps.particleCount).toBe(200);
+    expect(caps.particleCount).toBe(150);
     expect(caps.bloom).toBe(false);
-    expect(caps.dpr).toBe(2); // capped at 2
+    expect(caps.dpr).toBe(1.5); // capped at 1.5
   });
 
   it("returns high tier for desktop devices", () => {
@@ -134,8 +134,8 @@ describe("getGLCapabilities", () => {
 
     const caps = getGLCapabilities();
     expect(caps.tier).toBe("high");
-    expect(caps.particleCount).toBe(500);
+    expect(caps.particleCount).toBe(350);
     expect(caps.bloom).toBe(true);
-    expect(caps.dpr).toBe(2);
+    expect(caps.dpr).toBe(1.5);
   });
 });
