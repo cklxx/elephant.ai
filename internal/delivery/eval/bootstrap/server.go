@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"alex/evaluation/rl"
+	"alex/evaluation/task_mgmt"
 	serverApp "alex/internal/delivery/server/app"
 	evalHTTP "alex/internal/delivery/eval/http"
 )
@@ -41,13 +43,23 @@ func RunEvalServer(configPath string) error {
 	qualityGate := rl.NewQualityGate(rlConfig, nil)
 	log.Printf("[eval-server] RL pipeline ready (output=%s)", cfg.RLOutputDir)
 
-	// Phase 3: Wire HTTP router
+	// Phase 3: Create task management
+	taskStoreDir := filepath.Join(cfg.EvalOutputDir, "task_mgmt")
+	taskStore, err := task_mgmt.NewTaskStore(taskStoreDir)
+	if err != nil {
+		return fmt.Errorf("init task store: %w", err)
+	}
+	taskMgr := task_mgmt.NewTaskManager(taskStore)
+	log.Printf("[eval-server] task management ready (store=%s)", taskStoreDir)
+
+	// Phase 4: Wire HTTP router
 	router := evalHTTP.NewEvalRouter(evalHTTP.EvalRouterDeps{
 		Evaluation:  evalSvc,
 		RLStorage:   rlStorage,
 		RLExtractor: rlExtractor,
 		QualityGate: qualityGate,
 		RLConfig:    rlConfig,
+		TaskManager: taskMgr,
 	}, evalHTTP.EvalRouterConfig{
 		Environment:    cfg.Environment,
 		AllowedOrigins: cfg.AllowedOrigins,

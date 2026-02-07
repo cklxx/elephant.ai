@@ -9,6 +9,7 @@ import (
 
 	agent_eval "alex/evaluation/agent_eval"
 	"alex/evaluation/rl"
+	"alex/evaluation/task_mgmt"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
 )
@@ -20,6 +21,7 @@ type EvalRouterDeps struct {
 	RLExtractor *rl.Extractor
 	QualityGate *rl.QualityGate
 	RLConfig    rl.QualityConfig
+	TaskManager *task_mgmt.TaskManager
 }
 
 // EvalRouterConfig holds configuration for the eval-server router.
@@ -65,6 +67,15 @@ func NewEvalRouter(deps EvalRouterDeps, cfg EvalRouterConfig) http.Handler {
 	mux.HandleFunc("GET /api/rl/config", rlH.handleGetConfig)
 	mux.HandleFunc("PUT /api/rl/config", rlH.handleUpdateConfig)
 	mux.HandleFunc("GET /api/rl/export", rlH.handleExport)
+
+	// Eval task management
+	taskH := &taskMgmtHandler{manager: deps.TaskManager}
+	mux.HandleFunc("GET /api/eval-tasks", taskH.handleListTasks)
+	mux.HandleFunc("POST /api/eval-tasks", taskH.handleCreateTask)
+	mux.HandleFunc("GET /api/eval-tasks/{task_id}", taskH.handleGetTask)
+	mux.HandleFunc("PUT /api/eval-tasks/{task_id}", taskH.handleUpdateTask)
+	mux.HandleFunc("DELETE /api/eval-tasks/{task_id}", taskH.handleDeleteTask)
+	mux.HandleFunc("POST /api/eval-tasks/{task_id}/run", taskH.handleRunTask)
 
 	// Middleware stack (lightweight — no auth, no streaming guards)
 	var root http.Handler = mux
