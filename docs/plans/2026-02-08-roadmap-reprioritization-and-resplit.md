@@ -27,7 +27,7 @@
 - [x] Publish new pending backlog file with re-split executable batches.
 - [x] Refresh long-term memory timestamp/date for first load of day.
 - [x] Run lint + tests.
-- [ ] Commit in incremental steps.
+- [x] Commit in incremental steps.
 - [ ] Merge branch back to `main` (fast-forward) and remove temporary worktree.
 
 ## Notes
