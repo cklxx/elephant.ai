@@ -17,13 +17,15 @@ const (
 
 // ToolSLA is a point-in-time snapshot of a tool's service level metrics.
 type ToolSLA struct {
-	ToolName    string
-	P50Latency  time.Duration
-	P95Latency  time.Duration
-	P99Latency  time.Duration
-	ErrorRate   float64
-	CallCount   int64
-	SuccessRate float64
+	ToolName     string
+	P50Latency   time.Duration
+	P95Latency   time.Duration
+	P99Latency   time.Duration
+	ErrorRate    float64
+	CallCount    int64
+	SuccessRate  float64
+	CostUSDTotal float64
+	CostUSDAvg   float64
 }
 
 // SLACollector records per-tool latency, error rate, and call count via
@@ -47,6 +49,7 @@ type slidingWindow struct {
 	pos       int
 	full      bool
 	total     int64
+	costTotal float64
 }
 
 func newSlidingWindow(size int) *slidingWindow {
@@ -56,7 +59,7 @@ func newSlidingWindow(size int) *slidingWindow {
 	}
 }
 
-func (w *slidingWindow) record(success bool, d time.Duration) {
+func (w *slidingWindow) record(success bool, d time.Duration, costUSD float64) {
 	w.outcomes[w.pos] = success
 	w.latencies[w.pos] = d
 	w.pos = (w.pos + 1) % len(w.outcomes)
@@ -64,6 +67,7 @@ func (w *slidingWindow) record(success bool, d time.Duration) {
 		w.full = true
 	}
 	w.total++
+	w.costTotal += costUSD
 }
 
 func (w *slidingWindow) count() int {
@@ -146,7 +150,10 @@ func NewSLACollector(registerer prometheus.Registerer) *SLACollector {
 		Help:      "Sliding window success rate per tool (last 100 calls).",
 	}, []string{"tool_name"})
 
-	registerer.MustRegister(toolLatency, toolErrors, toolCalls, toolSuccessRate)
+	toolLatency = registerHistogramVec(registerer, toolLatency)
+	toolErrors = registerCounterVec(registerer, toolErrors)
+	toolCalls = registerCounterVec(registerer, toolCalls)
+	toolSuccessRate = registerGaugeVec(registerer, toolSuccessRate)
 
 	return &SLACollector{
 		toolLatency:     toolLatency,
@@ -160,6 +167,12 @@ func NewSLACollector(registerer prometheus.Registerer) *SLACollector {
 // RecordExecution records a single tool execution's duration and outcome.
 // It is safe to call on a nil receiver (no-op).
 func (c *SLACollector) RecordExecution(toolName string, duration time.Duration, err error) {
+	c.RecordExecutionWithCost(toolName, duration, err, 0)
+}
+
+// RecordExecutionWithCost records a single tool execution including optional
+// per-call cost in USD.
+func (c *SLACollector) RecordExecutionWithCost(toolName string, duration time.Duration, err error, costUSD float64) {
 	if c == nil {
 		return
 	}
@@ -185,7 +198,7 @@ func (c *SLACollector) RecordExecution(toolName string, duration time.Duration, 
 		w = newSlidingWindow(slidingWindowSize)
 		c.windows[toolName] = w
 	}
-	w.record(err == nil, duration)
+	w.record(err == nil, duration, costUSD)
 	rate := w.successRate()
 	c.mu.Unlock()
 
@@ -208,14 +221,62 @@ func (c *SLACollector) GetSLA(toolName string) ToolSLA {
 	}
 
 	return ToolSLA{
-		ToolName:    toolName,
-		P50Latency:  w.percentile(50),
-		P95Latency:  w.percentile(95),
-		P99Latency:  w.percentile(99),
-		ErrorRate:   w.errorRate(),
-		CallCount:   w.total,
-		SuccessRate: w.successRate(),
+		ToolName:     toolName,
+		P50Latency:   w.percentile(50),
+		P95Latency:   w.percentile(95),
+		P99Latency:   w.percentile(99),
+		ErrorRate:    w.errorRate(),
+		CallCount:    w.total,
+		SuccessRate:  w.successRate(),
+		CostUSDTotal: w.costTotal,
+		CostUSDAvg:   averageCostUSD(w.total, w.costTotal),
 	}
+}
+
+func averageCostUSD(calls int64, total float64) float64 {
+	if calls <= 0 {
+		return 0
+	}
+	return total / float64(calls)
+}
+
+func registerHistogramVec(registerer prometheus.Registerer, collector *prometheus.HistogramVec) *prometheus.HistogramVec {
+	if err := registerer.Register(collector); err != nil {
+		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			if existing, castOK := already.ExistingCollector.(*prometheus.HistogramVec); castOK {
+				return existing
+			}
+			panic(err)
+		}
+		panic(err)
+	}
+	return collector
+}
+
+func registerCounterVec(registerer prometheus.Registerer, collector *prometheus.CounterVec) *prometheus.CounterVec {
+	if err := registerer.Register(collector); err != nil {
+		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			if existing, castOK := already.ExistingCollector.(*prometheus.CounterVec); castOK {
+				return existing
+			}
+			panic(err)
+		}
+		panic(err)
+	}
+	return collector
+}
+
+func registerGaugeVec(registerer prometheus.Registerer, collector *prometheus.GaugeVec) *prometheus.GaugeVec {
+	if err := registerer.Register(collector); err != nil {
+		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			if existing, castOK := already.ExistingCollector.(*prometheus.GaugeVec); castOK {
+				return existing
+			}
+			panic(err)
+		}
+		panic(err)
+	}
+	return collector
 }
 
 // classifyError returns a short error-type label for Prometheus.

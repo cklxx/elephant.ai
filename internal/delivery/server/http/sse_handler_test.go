@@ -693,6 +693,69 @@ func TestSSEHandlerFiltersDebugOnlyEventsByDefault(t *testing.T) {
 	}
 }
 
+func TestSSEHandlerStreamsReplanRequestedEvent(t *testing.T) {
+	broadcaster := serverapp.NewEventBroadcaster()
+	handler := NewSSEHandler(broadcaster)
+
+	sessionID := "session-replan"
+	runID := "run-replan"
+	now := time.Now()
+
+	base := domain.NewBaseEvent(agent.LevelCore, sessionID, runID, "", now)
+	envelope := &domain.WorkflowEventEnvelope{
+		BaseEvent: base,
+		Event:     types.EventReplanRequested,
+		Version:   1,
+		NodeKind:  "orchestrator",
+		NodeID:    "replan",
+		Payload: map[string]any{
+			"tool_name": "web_search",
+			"reason":    "orchestrator tool failure triggered replan injection",
+			"error":     "boom",
+		},
+	}
+	broadcaster.OnEvent(envelope)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/sse?session_id="+sessionID, nil).WithContext(ctx)
+	rec := newSSERecorder()
+
+	done := make(chan struct{})
+	go func() {
+		handler.HandleSSEStream(rec, req)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(rec.BodyString(), types.EventReplanRequested) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not terminate after context cancellation")
+	}
+
+	events := parseSSEStream(t, rec.BodyString())
+	found := false
+	for _, evt := range events {
+		if evt.event == types.EventReplanRequested {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected replan requested event to be streamed: %v", events)
+	}
+}
+
 func TestSSEHandlerStreamsSubtaskEvents(t *testing.T) {
 	broadcaster := serverapp.NewEventBroadcaster()
 	handler := NewSSEHandler(broadcaster)

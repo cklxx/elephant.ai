@@ -26,6 +26,7 @@ var sseAllowlist = map[string]bool{
 	types.EventToolStarted:                   true,
 	types.EventToolProgress:                  true,
 	types.EventToolCompleted:                 true,
+	types.EventReplanRequested:               true,
 	types.EventArtifactManifest:              true,
 	types.EventInputReceived:                 true,
 	types.EventSubflowProgress:               true,

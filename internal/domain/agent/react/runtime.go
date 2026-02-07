@@ -506,7 +506,7 @@ func (r *reactRuntime) updateOrchestratorState(calls []ToolCall, results []ToolR
 	}
 }
 
-func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
+func (r *reactRuntime) handleToolError(call ToolCall, result ToolResult) {
 	if r == nil || r.state == nil {
 		return
 	}
@@ -519,6 +519,18 @@ func (r *reactRuntime) handleToolError(_ ToolCall, _ ToolResult) {
 	}
 	if !r.replanRequested {
 		r.injectOrchestratorCorrection(replanPrompt)
+		reason := "orchestrator tool failure triggered replan injection"
+		errMsg := "tool execution failed"
+		if result.Error != nil {
+			errMsg = result.Error.Error()
+		}
+		r.engine.emitEvent(&domain.WorkflowReplanRequestedEvent{
+			BaseEvent: r.engine.newBaseEvent(r.ctx, r.state.SessionID, r.state.RunID, r.state.ParentRunID),
+			CallID:    call.ID,
+			ToolName:  call.Name,
+			Reason:    reason,
+			Error:     errMsg,
+		})
 		r.replanRequested = true
 	}
 }

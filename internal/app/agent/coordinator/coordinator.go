@@ -24,6 +24,7 @@ import (
 	react "alex/internal/domain/agent/react"
 	materialports "alex/internal/domain/materials/ports"
 	infraruntime "alex/internal/infra/runtime"
+	toolspolicy "alex/internal/infra/tools"
 	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/agent/presets"
 	"alex/internal/shared/agent/textutil"
@@ -62,6 +63,7 @@ type AgentCoordinator struct {
 	okrContextProvider  preparation.OKRContextProvider
 	credentialRefresher preparation.CredentialRefresher
 	timerManager        interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+	toolSLACollector    *toolspolicy.SLACollector
 }
 
 func (c *AgentCoordinator) SetRuntimeConfigResolver(resolver RuntimeConfigResolver) {
@@ -290,7 +292,7 @@ func (c *AgentCoordinator) ExecuteTask(
 	prepareStarted := time.Now()
 	// Decorate the listener with the workflow envelope translator so downstream
 	// consumers receive workflow event envelopes.
-	eventListener := wrapWithWorkflowEnvelope(listener, nil)
+	eventListener := wrapWithWorkflowEnvelope(listener, nil, c.toolSLACollector)
 	var planTitleRecorder *planSessionTitleRecorder
 	var serializingListener *SerializingEventListener
 	if eventListener != nil && !appcontext.IsSubagentContext(ctx) {

@@ -10,6 +10,9 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
 	"alex/internal/domain/workflow"
+	toolspolicy "alex/internal/infra/tools"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 type recordingAgentListener struct {
@@ -291,6 +294,99 @@ func TestWorkflowEventTranslatorAddsCallIDToToolPayload(t *testing.T) {
 	callID, ok := env.Payload["call_id"].(string)
 	if !ok || callID != "call-123" {
 		t.Fatalf("expected call_id in payload, got %#v", env.Payload["call_id"])
+	}
+}
+
+func TestWorkflowEventTranslatorAddsToolSLAOnToolCompletedWhenCollectorConfigured(t *testing.T) {
+	sink := &recordingAgentListener{}
+	collector := toolspolicy.NewSLACollector(prometheus.NewRegistry())
+	collector.RecordExecutionWithCost("bash", 120*time.Millisecond, nil, 0.42)
+	translator := wrapWithWorkflowEnvelope(sink, nil, collector)
+
+	translator.OnEvent(&domain.WorkflowToolCompletedEvent{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
+		CallID:    "call-123",
+		ToolName:  "bash",
+		Result:    "ok",
+		Duration:  120 * time.Millisecond,
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected one workflow envelope, got %d", got)
+	}
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+	raw, ok := env.Payload["tool_sla"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected tool_sla payload, got %#v", env.Payload["tool_sla"])
+	}
+	if raw["tool_name"] != "bash" {
+		t.Fatalf("expected tool name in tool_sla, got %#v", raw["tool_name"])
+	}
+	if raw["call_count"] != int64(1) {
+		t.Fatalf("expected call_count=1, got %#v", raw["call_count"])
+	}
+	if raw["cost_usd_total"] != 0.42 {
+		t.Fatalf("expected cost_usd_total=0.42, got %#v", raw["cost_usd_total"])
+	}
+}
+
+func TestWorkflowEventTranslatorOmitsToolSLAWhenCollectorNotConfigured(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	translator.OnEvent(&domain.WorkflowToolCompletedEvent{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000003, 0)),
+		CallID:    "call-123",
+		ToolName:  "bash",
+		Result:    "ok",
+		Duration:  120 * time.Millisecond,
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected one workflow envelope, got %d", got)
+	}
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+	if _, exists := env.Payload["tool_sla"]; exists {
+		t.Fatalf("did not expect tool_sla payload when collector is nil")
+	}
+}
+
+func TestWorkflowEventTranslatorEmitsReplanRequestedEnvelope(t *testing.T) {
+	sink := &recordingAgentListener{}
+	translator := wrapWithWorkflowEnvelope(sink, nil)
+
+	translator.OnEvent(&domain.WorkflowReplanRequestedEvent{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "task", "parent", time.Unix(1710000004, 0)),
+		CallID:    "call-789",
+		ToolName:  "web_search",
+		Reason:    "orchestrator tool failure triggered replan injection",
+		Error:     "boom",
+	})
+
+	events := sink.snapshot()
+	if got := len(events); got != 1 {
+		t.Fatalf("expected one workflow envelope, got %d", got)
+	}
+	env, ok := events[0].(*domain.WorkflowEventEnvelope)
+	if !ok {
+		t.Fatalf("expected workflow envelope, got %T", events[0])
+	}
+	if env.Event != types.EventReplanRequested {
+		t.Fatalf("unexpected event type %q", env.Event)
+	}
+	if env.NodeKind != "orchestrator" {
+		t.Fatalf("unexpected node kind %q", env.NodeKind)
+	}
+	if env.Payload["tool_name"] != "web_search" || env.Payload["error"] != "boom" {
+		t.Fatalf("unexpected payload %#v", env.Payload)
 	}
 }
 

@@ -132,7 +132,9 @@ func (b *containerBuilder) Build() (*Container, error) {
 		return nil, err
 	}
 
-	toolRegistry, err := b.buildToolRegistry(llmFactory, memoryEngine)
+	toolSLACollector := toolspolicy.NewSLACollector(nil)
+
+	toolRegistry, err := b.buildToolRegistry(llmFactory, memoryEngine, toolSLACollector)
 	if err != nil {
 		return nil, err
 	}
@@ -187,6 +189,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		agentcoordinator.WithOKRContextProvider(okrContextProvider),
 		agentcoordinator.WithCheckpointStore(checkpointStore),
 		agentcoordinator.WithCredentialRefresher(credentialRefresher),
+		agentcoordinator.WithToolSLACollector(toolSLACollector),
 	)
 
 	// Register subagent tool after coordinator is created.
@@ -444,7 +447,7 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 	return registry
 }
 
-func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryEngine memory.Engine) (*toolregistry.Registry, error) {
+func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryEngine memory.Engine, slaCollector *toolspolicy.SLACollector) (*toolregistry.Registry, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
 		TavilyAPIKey:               b.config.TavilyAPIKey,
 		ArkAPIKey:                  b.config.ArkAPIKey,
@@ -472,6 +475,7 @@ func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryEngine 
 		OKRGoalsRoot:               b.resolveOKRGoalsRoot(),
 		HTTPLimits:                 b.config.HTTPLimits,
 		ToolPolicy:                 toolspolicy.NewToolPolicy(b.config.ToolPolicy),
+		SLACollector:               slaCollector,
 		Toolset:                    b.config.Toolset,
 		BrowserConfig:              b.config.BrowserConfig,
 	})

@@ -6,6 +6,7 @@ import (
 	"alex/internal/app/agent/preparation"
 	agent "alex/internal/domain/agent/ports/agent"
 	react "alex/internal/domain/agent/react"
+	toolspolicy "alex/internal/infra/tools"
 )
 
 // CoordinatorOption configures optional dependencies for the agent coordinator.
@@ -91,6 +92,16 @@ func WithCredentialRefresher(fn preparation.CredentialRefresher) CoordinatorOpti
 	return func(c *AgentCoordinator) {
 		if fn != nil {
 			c.credentialRefresher = fn
+		}
+	}
+}
+
+// WithToolSLACollector provides the runtime tool SLA collector used for
+// translator payload enrichment.
+func WithToolSLACollector(collector *toolspolicy.SLACollector) CoordinatorOption {
+	return func(c *AgentCoordinator) {
+		if collector != nil {
+			c.toolSLACollector = collector
 		}
 	}
 }

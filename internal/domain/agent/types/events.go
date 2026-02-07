@@ -16,9 +16,10 @@ const (
 	EventNodeOutputSummary = "workflow.node.output.summary"
 
 	// Tool lifecycle
-	EventToolStarted   = "workflow.tool.started"
-	EventToolProgress  = "workflow.tool.progress"
-	EventToolCompleted = "workflow.tool.completed"
+	EventToolStarted     = "workflow.tool.started"
+	EventToolProgress    = "workflow.tool.progress"
+	EventToolCompleted   = "workflow.tool.completed"
+	EventReplanRequested = "workflow.replan.requested"
 
 	// Subflow (subtask delegation)
 	EventSubflowProgress  = "workflow.subflow.progress"

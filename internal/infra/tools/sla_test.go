@@ -77,6 +77,27 @@ func TestSLACollector_RecordExecution(t *testing.T) {
 	if sla.ErrorRate != 0.5 {
 		t.Fatalf("expected ErrorRate=0.5, got %f", sla.ErrorRate)
 	}
+	if sla.CostUSDTotal != 0 {
+		t.Fatalf("expected CostUSDTotal=0, got %f", sla.CostUSDTotal)
+	}
+}
+
+func TestSLACollector_RecordExecutionWithCost(t *testing.T) {
+	c := newTestCollector(t)
+
+	c.RecordExecutionWithCost("cost_tool", 100*time.Millisecond, nil, 0.25)
+	c.RecordExecutionWithCost("cost_tool", 200*time.Millisecond, fmt.Errorf("timeout"), 0.75)
+
+	sla := c.GetSLA("cost_tool")
+	if sla.CallCount != 2 {
+		t.Fatalf("expected CallCount=2, got %d", sla.CallCount)
+	}
+	if sla.CostUSDTotal != 1.0 {
+		t.Fatalf("expected CostUSDTotal=1.0, got %f", sla.CostUSDTotal)
+	}
+	if sla.CostUSDAvg != 0.5 {
+		t.Fatalf("expected CostUSDAvg=0.5, got %f", sla.CostUSDAvg)
+	}
 }
 
 // --- TestSLACollector_GetSLA ------------------------------------------------
@@ -237,6 +258,36 @@ func TestSLAExecutor_RecordsResultError(t *testing.T) {
 	sla := c.GetSLA("result_err_tool")
 	if sla.SuccessRate != 0.0 {
 		t.Fatalf("expected SuccessRate=0.0 for result-error, got %f", sla.SuccessRate)
+	}
+}
+
+func TestSLAExecutor_RecordsCostFromMetadata(t *testing.T) {
+	c := newTestCollector(t)
+
+	stub := &stubToolExecutor{
+		name: "cost_exec_tool",
+		execFn: func(_ context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+			return &ports.ToolResult{
+				CallID:   call.ID,
+				Content:  "ok",
+				Metadata: map[string]any{"cost_usd": 1.25},
+			}, nil
+		},
+	}
+	exec := NewSLAExecutor(stub, c)
+
+	call := ports.ToolCall{ID: "call-cost", Name: "cost_exec_tool"}
+	_, err := exec.Execute(context.Background(), call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	sla := c.GetSLA("cost_exec_tool")
+	if sla.CostUSDTotal != 1.25 {
+		t.Fatalf("expected CostUSDTotal=1.25, got %f", sla.CostUSDTotal)
+	}
+	if sla.CostUSDAvg != 1.25 {
+		t.Fatalf("expected CostUSDAvg=1.25, got %f", sla.CostUSDAvg)
 	}
 }
 
@@ -417,5 +468,18 @@ func TestSLAExecutor_FallsBackToMetadataName(t *testing.T) {
 	sla := c.GetSLA("meta_tool")
 	if sla.CallCount != 1 {
 		t.Fatalf("expected metric recorded under 'meta_tool', got CallCount=%d", sla.CallCount)
+	}
+}
+
+func TestNewSLACollector_RepeatedRegisterSameRegistryDoesNotPanic(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	first := NewSLACollector(reg)
+	if first == nil {
+		t.Fatal("expected first collector to be created")
+	}
+
+	second := NewSLACollector(reg)
+	if second == nil {
+		t.Fatal("expected second collector to be created")
 	}
 }

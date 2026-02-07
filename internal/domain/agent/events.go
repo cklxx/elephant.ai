@@ -281,6 +281,18 @@ func (e *WorkflowToolCompletedEvent) GetAttachments() map[string]ports.Attachmen
 	return ports.CloneAttachmentMap(e.Attachments)
 }
 
+// WorkflowReplanRequestedEvent - emitted when orchestrator requests replanning
+// after a tool failure.
+type WorkflowReplanRequestedEvent struct {
+	BaseEvent
+	CallID   string
+	ToolName string
+	Reason   string
+	Error    string
+}
+
+func (e *WorkflowReplanRequestedEvent) EventType() string { return types.EventReplanRequested }
+
 // WorkflowResultFinalEvent - emitted when entire task finishes
 type WorkflowResultFinalEvent struct {
 	BaseEvent

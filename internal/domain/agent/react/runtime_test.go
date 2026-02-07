@@ -499,7 +499,8 @@ func TestClarifyCompletesPreviousPlanNode(t *testing.T) {
 }
 
 func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
-	engine := NewReactEngine(ReactEngineConfig{})
+	listener := &collectingListener{}
+	engine := NewReactEngine(ReactEngineConfig{EventListener: listener})
 	state := &TaskState{
 		RunID: "run-plan",
 		Plans: []agent.PlanNode{{
@@ -524,4 +525,16 @@ func TestToolErrorBlocksPlanNodeAndRequestsReplan(t *testing.T) {
 		}
 	}
 	require.True(t, found, "expected replan prompt to be injected")
+
+	replanEvents := 0
+	for _, event := range listener.collected() {
+		replan, ok := event.(*domain.WorkflowReplanRequestedEvent)
+		if !ok {
+			continue
+		}
+		replanEvents++
+		require.Equal(t, "web_search", replan.ToolName)
+		require.Equal(t, "boom", replan.Error)
+	}
+	require.Equal(t, 1, replanEvents, "expected one replan requested event")
 }

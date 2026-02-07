@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
+	"strconv"
 	"time"
 
 	ports "alex/internal/domain/agent/ports"
@@ -48,7 +50,7 @@ func (e *SLAExecutor) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 		toolName = e.delegate.Metadata().Name
 	}
 
-	e.collector.RecordExecution(toolName, duration, recordErr)
+	e.collector.RecordExecutionWithCost(toolName, duration, recordErr, extractCostUSD(result))
 	return result, err
 }
 
@@ -66,6 +68,48 @@ func (e *SLAExecutor) Metadata() ports.ToolMetadata {
 // registry to peel off layers when re-wrapping a tool.
 func (e *SLAExecutor) Delegate() tools.ToolExecutor {
 	return e.delegate
+}
+
+func extractCostUSD(result *ports.ToolResult) float64 {
+	if result == nil || result.Metadata == nil {
+		return 0
+	}
+	raw, ok := result.Metadata["cost_usd"]
+	if !ok || raw == nil {
+		return 0
+	}
+	switch typed := raw.(type) {
+	case float64:
+		return typed
+	case float32:
+		return float64(typed)
+	case int:
+		return float64(typed)
+	case int64:
+		return float64(typed)
+	case int32:
+		return float64(typed)
+	case uint:
+		return float64(typed)
+	case uint64:
+		return float64(typed)
+	case uint32:
+		return float64(typed)
+	case json.Number:
+		v, err := typed.Float64()
+		if err != nil {
+			return 0
+		}
+		return v
+	case string:
+		v, err := strconv.ParseFloat(typed, 64)
+		if err != nil {
+			return 0
+		}
+		return v
+	default:
+		return 0
+	}
 }
 
 // Verify interface compliance at compile time.
