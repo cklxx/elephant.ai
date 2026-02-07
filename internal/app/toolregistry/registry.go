@@ -51,6 +51,7 @@ type Registry struct {
 	defsDirty    bool
 	policy       toolspolicy.ToolPolicy
 	breakers     *circuitBreakerStore
+	degradation  DegradationConfig
 	SLACollector *toolspolicy.SLACollector
 	browserMgr   *browser.Manager
 }
@@ -92,8 +93,11 @@ type Config struct {
 	ToolPolicy    toolspolicy.ToolPolicy
 	BreakerConfig CircuitBreakerConfig
 	SLACollector  *toolspolicy.SLACollector
-	Toolset       Toolset
-	BrowserConfig BrowserConfig
+	// DegradationConfig, when provided, overrides the registry defaults.
+	// When nil, DefaultRegistryDegradationConfig is used.
+	DegradationConfig *DegradationConfig
+	Toolset           Toolset
+	BrowserConfig     BrowserConfig
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -102,6 +106,19 @@ func NewRegistry(config Config) (*Registry, error) {
 		policy = toolspolicy.NewToolPolicy(toolspolicy.DefaultToolPolicyConfigWithRules())
 	}
 	breakers := newCircuitBreakerStore(normalizeCircuitBreakerConfig(config.BreakerConfig))
+	degradation := DefaultRegistryDegradationConfig()
+	if config.DegradationConfig != nil {
+		degradation = *config.DegradationConfig
+		if degradation.FallbackMap == nil {
+			degradation.FallbackMap = make(map[string][]string)
+		}
+		if degradation.MaxFallbackAttempts <= 0 {
+			degradation.MaxFallbackAttempts = defaultMaxFallbackAttempts
+		}
+	}
+	if degradation.SLARouter == nil && config.SLACollector != nil {
+		degradation.SLARouter = toolspolicy.NewSLARouter(config.SLACollector, toolspolicy.DefaultSLARouterConfig())
+	}
 
 	r := &Registry{
 		static:       make(map[string]tools.ToolExecutor),
@@ -110,6 +127,7 @@ func NewRegistry(config Config) (*Registry, error) {
 		defsDirty:    true,
 		policy:       policy,
 		breakers:     breakers,
+		degradation:  degradation,
 		SLACollector: config.SLACollector,
 	}
 
@@ -134,6 +152,7 @@ func (r *Registry) Register(tool tools.ToolExecutor) error {
 
 	// Check if this is an MCP tool (tools with mcp__ prefix go to mcp map)
 	wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
+	wrapped = r.wrapDegradation(name, wrapped)
 	if len(name) > 5 && name[:5] == "mcp__" {
 		r.mcp[name] = wrapped
 	} else {
@@ -178,6 +197,8 @@ func wrapTool(tool tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *
 func unwrapTool(tool tools.ToolExecutor) tools.ToolExecutor {
 	for {
 		switch typed := tool.(type) {
+		case *degradationExecutor:
+			tool = typed.delegate
 		case *toolspolicy.SLAExecutor:
 			tool = typed.Delegate()
 		case *idAwareExecutor:
@@ -190,6 +211,24 @@ func unwrapTool(tool tools.ToolExecutor) tools.ToolExecutor {
 			return tool
 		}
 	}
+}
+
+func (r *Registry) wrapDegradation(toolName string, tool tools.ToolExecutor) tools.ToolExecutor {
+	if tool == nil {
+		return nil
+	}
+	fallbacks, ok := r.degradation.FallbackMap[toolName]
+	if !ok || len(fallbacks) == 0 {
+		return tool
+	}
+	lookup := func(name string) (tools.ToolExecutor, bool) {
+		executor, err := r.Get(name)
+		if err != nil {
+			return nil, false
+		}
+		return executor, true
+	}
+	return NewDegradationExecutor(tool, lookup, r.degradation)
 }
 
 type idAwareExecutor struct {
@@ -624,7 +663,8 @@ func (r *Registry) registerBuiltins(config Config) error {
 
 	// Pre-wrap all static tools with approval, retry, ID propagation, and SLA.
 	for name, tool := range r.static {
-		r.static[name] = wrapTool(tool, r.policy, r.breakers, r.SLACollector)
+		wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
+		r.static[name] = r.wrapDegradation(name, wrapped)
 	}
 
 	return nil
@@ -640,21 +680,24 @@ func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
 
 	if _, exists := r.static["subagent"]; exists {
 		if _, ok := r.static["explore"]; !ok {
-			r.static["explore"] = wrapTool(orchestration.NewExplore(r.static["subagent"]), r.policy, r.breakers, r.SLACollector)
+			wrapped := wrapTool(orchestration.NewExplore(r.static["subagent"]), r.policy, r.breakers, r.SLACollector)
+			r.static["explore"] = r.wrapDegradation("explore", wrapped)
 			r.defsDirty = true
 		}
 		return
 	}
 
 	subTool := orchestration.NewSubAgent(coordinator, 3)
-	r.static["subagent"] = wrapTool(subTool, r.policy, r.breakers, r.SLACollector)
-	r.static["explore"] = wrapTool(orchestration.NewExplore(subTool), r.policy, r.breakers, r.SLACollector)
+	subWrapped := wrapTool(subTool, r.policy, r.breakers, r.SLACollector)
+	r.static["subagent"] = r.wrapDegradation("subagent", subWrapped)
+	exploreWrapped := wrapTool(orchestration.NewExplore(subTool), r.policy, r.breakers, r.SLACollector)
+	r.static["explore"] = r.wrapDegradation("explore", exploreWrapped)
 
 	// Register background task tools (dispatcher injected via context at runtime).
-	r.static["bg_dispatch"] = wrapTool(orchestration.NewBGDispatch(), r.policy, r.breakers, r.SLACollector)
-	r.static["bg_status"] = wrapTool(orchestration.NewBGStatus(), r.policy, r.breakers, r.SLACollector)
-	r.static["bg_collect"] = wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers, r.SLACollector)
-	r.static["ext_reply"] = wrapTool(orchestration.NewExtReply(), r.policy, r.breakers, r.SLACollector)
-	r.static["ext_merge"] = wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers, r.SLACollector)
+	r.static["bg_dispatch"] = r.wrapDegradation("bg_dispatch", wrapTool(orchestration.NewBGDispatch(), r.policy, r.breakers, r.SLACollector))
+	r.static["bg_status"] = r.wrapDegradation("bg_status", wrapTool(orchestration.NewBGStatus(), r.policy, r.breakers, r.SLACollector))
+	r.static["bg_collect"] = r.wrapDegradation("bg_collect", wrapTool(orchestration.NewBGCollect(), r.policy, r.breakers, r.SLACollector))
+	r.static["ext_reply"] = r.wrapDegradation("ext_reply", wrapTool(orchestration.NewExtReply(), r.policy, r.breakers, r.SLACollector))
+	r.static["ext_merge"] = r.wrapDegradation("ext_merge", wrapTool(orchestration.NewExtMerge(), r.policy, r.breakers, r.SLACollector))
 	r.defsDirty = true
 }

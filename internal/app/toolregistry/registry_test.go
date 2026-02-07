@@ -258,6 +258,44 @@ func TestWrapToolDoesNotMutateInput(t *testing.T) {
 	}
 }
 
+func TestWrapToolUnwrapsExistingDegradationLayer(t *testing.T) {
+	base := &stubExecutor{name: "grep"}
+	degCfg := DefaultDegradationConfig()
+	degCfg.FallbackMap["grep"] = []string{"ripgrep"}
+	degraded := NewDegradationExecutor(base, makeLookup(nil), degCfg)
+
+	policy := toolspolicy.NewToolPolicy(toolspolicy.DefaultToolPolicyConfig())
+	breakers := newCircuitBreakerStore(normalizeCircuitBreakerConfig(CircuitBreakerConfig{}))
+	result := wrapTool(degraded, policy, breakers, nil)
+
+	if got := unwrapTool(result); got != base {
+		t.Fatalf("expected wrapTool to unwrap degradation layer before re-wrapping")
+	}
+}
+
+func TestRegistry_DefaultDegradationWrapsMappedToolsOnly(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	grepTool, err := registry.Get("grep")
+	if err != nil {
+		t.Fatalf("failed to get grep: %v", err)
+	}
+	if _, ok := grepTool.(*degradationExecutor); !ok {
+		t.Fatalf("expected grep to be wrapped by degradationExecutor, got %T", grepTool)
+	}
+
+	fileRead, err := registry.Get("file_read")
+	if err != nil {
+		t.Fatalf("failed to get file_read: %v", err)
+	}
+	if _, ok := fileRead.(*degradationExecutor); ok {
+		t.Fatalf("expected file_read not to be wrapped by degradationExecutor")
+	}
+}
+
 func TestListCachingWithDirtyFlag(t *testing.T) {
 	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
