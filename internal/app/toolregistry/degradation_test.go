@@ -4,9 +4,13 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	ports "alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
+	toolspolicy "alex/internal/infra/tools"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // ---------------------------------------------------------------------------
@@ -20,10 +24,12 @@ type mockExecutor struct {
 	meta   ports.ToolMetadata
 	// callCount tracks how many times Execute has been invoked.
 	callCount int
+	lastCall  ports.ToolCall
 }
 
 func (m *mockExecutor) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
 	m.callCount++
+	m.lastCall = call
 	if m.result != nil && m.result.CallID == "" {
 		m.result.CallID = call.ID
 	}
@@ -461,5 +467,122 @@ func TestDegradation_ZeroMaxFallbackAttempts_UsesDefault(t *testing.T) {
 	}
 	if res.Content != "fb1-ok" {
 		t.Fatalf("expected 'fb1-ok', got %q", res.Content)
+	}
+}
+
+func TestDegradation_FallbackRewritesCallName(t *testing.T) {
+	primary := &mockExecutor{
+		err:  fmt.Errorf("primary failure"),
+		meta: ports.ToolMetadata{Name: "primary_tool"},
+	}
+	fb1 := &mockExecutor{
+		result: &ports.ToolResult{Content: "fb1-result"},
+		meta:   ports.ToolMetadata{Name: "fb1"},
+	}
+	config := DefaultDegradationConfig()
+	config.FallbackMap["primary_tool"] = []string{"fb1"}
+
+	exec := NewDegradationExecutor(primary, makeLookup(map[string]tools.ToolExecutor{"fb1": fb1}), config)
+	_, err := exec.Execute(context.Background(), baseCall())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if fb1.lastCall.Name != "fb1" {
+		t.Fatalf("expected fallback call.Name rewritten to 'fb1', got %q", fb1.lastCall.Name)
+	}
+}
+
+func TestDegradation_SLAAwareOrdering_SelectsHealthiestFallbackFirst(t *testing.T) {
+	primary := &mockExecutor{
+		err:  fmt.Errorf("primary failure"),
+		meta: ports.ToolMetadata{Name: "primary_tool"},
+	}
+	fbSlow := &mockExecutor{
+		result: &ports.ToolResult{Content: "slow"},
+		meta:   ports.ToolMetadata{Name: "fb_slow"},
+	}
+	fbFast := &mockExecutor{
+		result: &ports.ToolResult{Content: "fast"},
+		meta:   ports.ToolMetadata{Name: "fb_fast"},
+	}
+
+	reg := prometheus.NewRegistry()
+	collector := toolspolicy.NewSLACollector(reg)
+	router := toolspolicy.NewSLARouter(collector, toolspolicy.DefaultSLARouterConfig())
+
+	for i := 0; i < 20; i++ {
+		collector.RecordExecution("fb_slow", 6*time.Second, fmt.Errorf("slow err"))
+		collector.RecordExecution("fb_fast", 20*time.Millisecond, nil)
+	}
+
+	config := DefaultDegradationConfig()
+	config.FallbackMap["primary_tool"] = []string{"fb_slow", "fb_fast"}
+	config.SLARouter = router
+	config.MaxFallbackAttempts = 1
+
+	lookup := makeLookup(map[string]tools.ToolExecutor{
+		"fb_slow": fbSlow,
+		"fb_fast": fbFast,
+	})
+	exec := NewDegradationExecutor(primary, lookup, config)
+
+	res, err := exec.Execute(context.Background(), baseCall())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Content != "fast" {
+		t.Fatalf("expected healthiest fallback result 'fast', got %q", res.Content)
+	}
+	if fbFast.callCount != 1 {
+		t.Fatalf("expected fb_fast called once, got %d", fbFast.callCount)
+	}
+	if fbSlow.callCount != 0 {
+		t.Fatalf("expected fb_slow skipped due SLA ordering and maxAttempts=1, got %d", fbSlow.callCount)
+	}
+}
+
+func TestDegradation_PreRouteWhenPrimaryUnhealthy(t *testing.T) {
+	primary := &mockExecutor{
+		result: &ports.ToolResult{Content: "primary-ok"},
+		meta:   ports.ToolMetadata{Name: "primary_tool"},
+	}
+	fb1 := &mockExecutor{
+		result: &ports.ToolResult{Content: "fb-ok"},
+		meta:   ports.ToolMetadata{Name: "fb1"},
+	}
+
+	reg := prometheus.NewRegistry()
+	collector := toolspolicy.NewSLACollector(reg)
+	router := toolspolicy.NewSLARouter(collector, toolspolicy.DefaultSLARouterConfig())
+	for i := 0; i < 20; i++ {
+		collector.RecordExecution("primary_tool", 8*time.Second, fmt.Errorf("primary err"))
+		collector.RecordExecution("fb1", 40*time.Millisecond, nil)
+	}
+
+	config := DefaultDegradationConfig()
+	config.FallbackMap = map[string][]string{"primary_tool": {"fb1"}}
+	config.SLARouter = router
+	config.PreRouteWhenPrimaryUnhealthy = true
+
+	exec := NewDegradationExecutor(primary, makeLookup(map[string]tools.ToolExecutor{"fb1": fb1}), config)
+
+	res, err := exec.Execute(context.Background(), baseCall())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Content != "fb-ok" {
+		t.Fatalf("expected pre-routed fallback result, got %q", res.Content)
+	}
+	if primary.callCount != 0 {
+		t.Fatalf("expected primary skipped during pre-route, got callCount=%d", primary.callCount)
+	}
+	if fb1.callCount != 1 {
+		t.Fatalf("expected fallback called once, got callCount=%d", fb1.callCount)
+	}
+	if res.Metadata["degraded_from"] != "primary_tool" {
+		t.Fatalf("expected degraded_from metadata, got %#v", res.Metadata)
+	}
+	if res.Metadata["degraded_to"] != "fb1" {
+		t.Fatalf("expected degraded_to metadata, got %#v", res.Metadata)
 	}
 }
