@@ -5,6 +5,9 @@
 # Usage:
 #   ./dev.sh                    # Start backend + web (background)
 #   ./dev.sh up|start           # Same as default
+#   ./dev.sh sandbox-up         # Start sandbox + ACP only
+#   ./dev.sh sandbox-down       # Stop sandbox + ACP only
+#   ./dev.sh sandbox-status     # Show sandbox + ACP status only
 #   ./dev.sh down|stop          # Stop backend + web
 #   ./dev.sh status             # Show status + ports
 #   ./dev.sh logs [server|web]  # Tail logs
@@ -84,6 +87,16 @@ load_dotenv() {
 load_dotenv
 
 export AUTH_JWT_SECRET="${AUTH_JWT_SECRET:-dev-secret-change-me}"
+
+ensure_local_bootstrap() {
+  local bootstrap_sh="${SCRIPT_DIR}/scripts/setup_local_runtime.sh"
+  if [[ ! -x "${bootstrap_sh}" ]]; then
+    die "Missing bootstrap script: ${bootstrap_sh}"
+  fi
+  MAIN_CONFIG="${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}" \
+    TEST_CONFIG="${ALEX_TEST_CONFIG_PATH:-$HOME/.alex/test.yaml}" \
+    "${bootstrap_sh}" >/dev/null
+}
 
 ensure_playwright_browsers() {
   log_info "Ensuring Playwright browsers..."
@@ -823,11 +836,52 @@ start_web() {
 }
 
 cmd_up() {
+  ensure_local_bootstrap
   start_sandbox
   maybe_setup_auth_db
   start_server
   start_web
   log_success "Dev services are running: backend=http://localhost:${SERVER_PORT} web=http://localhost:${WEB_PORT} sandbox=${SANDBOX_BASE_URL}"
+}
+
+cmd_sandbox_up() {
+  ensure_local_bootstrap
+  start_sandbox
+  log_success "Sandbox ready: ${SANDBOX_BASE_URL}"
+}
+
+cmd_sandbox_down() {
+  stop_sandbox
+  log_success "Sandbox stopped"
+}
+
+cmd_sandbox_status() {
+  if sandbox_ready; then
+    log_success "Sandbox: ready ${SANDBOX_BASE_URL}"
+  else
+    log_warn "Sandbox: unavailable ${SANDBOX_BASE_URL}"
+  fi
+
+  local acp_pid acp_port
+  acp_pid="$(read_pid "$ACP_PID_FILE" || true)"
+  acp_port="$(cat "$ACP_PORT_FILE" 2>/dev/null || true)"
+  if acp_should_run_in_sandbox; then
+    if docker ps --format '{{.Names}}' | grep -qx "${SANDBOX_CONTAINER_NAME}"; then
+      if docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'test -f /tmp/acp.pid && kill -0 $(cat /tmp/acp.pid) 2>/dev/null'; then
+        log_success "ACP: running (sandbox) http://localhost:${acp_port}"
+      else
+        log_warn "ACP: stopped (sandbox)"
+      fi
+    else
+      log_warn "ACP: sandbox container not running"
+    fi
+  else
+    if is_process_running "$acp_pid"; then
+      log_success "ACP: running (PID: ${acp_pid}) ${ACP_HOST}:${acp_port}"
+    else
+      log_warn "ACP: stopped"
+    fi
+  fi
 }
 
 cmd_down() {
@@ -961,13 +1015,16 @@ Usage:
   ./dev.sh [command]
 
 Commands:
-  up|start   Start backend + web (background)
-  down|stop  Stop backend + web
-  status     Show status + ports
-  logs       Tail logs (optional: server|web)
-  test       Run Go tests (CI parity)
-  lint       Run Go + web lint
-  setup-cgo  Install CGO sqlite dependencies
+  up|start       Start backend + web (background)
+  sandbox-up     Start sandbox + ACP only
+  sandbox-down   Stop sandbox + ACP only
+  sandbox-status Show sandbox + ACP status
+  down|stop      Stop backend + web
+  status         Show status + ports
+  logs           Tail logs (optional: server|web)
+  test           Run Go tests (CI parity)
+  lint           Run Go + web lint
+  setup-cgo      Install CGO sqlite dependencies
 EOF
 }
 
@@ -976,6 +1033,9 @@ shift || true
 
 case "$cmd" in
   up|start) cmd_up ;;
+  sandbox-up) cmd_sandbox_up ;;
+  sandbox-down) cmd_sandbox_down ;;
+  sandbox-status) cmd_sandbox_status ;;
   down|stop) cmd_down ;;
   status) cmd_status ;;
   logs) cmd_logs "${@:-all}" ;;
