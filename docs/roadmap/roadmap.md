@@ -31,9 +31,9 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 - **O4 (Shadow DevOps):** eval/baseline/reporting + human-gated release loop.
 - **OS (Shared Infra):** event bus + observability + config/auth/error handling.
 
-## Current State (2026-02-06)
+## Current State (2026-02-07)
 
-**M0 is complete. M1 (P2) is ~95% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, result caching, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex), tool SLA profile + dynamic routing. **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+**M0 is complete. M1 (P2) is ~95% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, SLA-profile routing, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex). **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
 
 **Steward AI foundation is complete (Phases 1-7, merged 2026-02-06).** Cross-turn structured state (StewardState), NEW_STATE output protocol, SYSTEM_REMINDER context injection, L1-L4 tool safety levels, three-tier context budget, steward persona/policy configs, and 40+ unit tests are all merged to main. Remaining gaps: activation enforcement loop, evidence ref enforcement, state compression on overflow, safety level approval UX, steward-specific eval scenarios.
 
@@ -108,9 +108,9 @@ Enhancements after the core loop is stable.
 | Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control, failure recovery | **Done** | Claude C21-C22 + Codex X7 | `internal/scheduler/` |
 | Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Done** | Claude C29 | `internal/tools/builtin/scheduler/` |
 | Scheduler startup recovery | Reload persisted jobs from JobStore on restart, auto-register cron | **Done** | Claude C21 | `internal/scheduler/job_runtime.go` |
-| Tool SLA profile + dynamic routing | Build per-tool performance profiles; auto-select tool chain based on SLA | **Not started** | Claude → Codex | `internal/tools/router.go` |
-| Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Done** | Claude C39 | `internal/toolregistry/degradation.go` |
-| Tool result caching | Semantic dedup — same query doesn't re-execute | **Done** | Claude C38 | `internal/toolregistry/cache.go` |
+| Tool SLA profile + dynamic routing | Build per-tool performance profiles; auto-select tool chain based on SLA | **Done** | Claude → Codex | `internal/infra/tools/sla_router.go`, `internal/app/toolregistry/degradation.go` |
+| Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Done** | Claude C39 | `internal/app/toolregistry/degradation.go` |
+| Tool result caching | Semantic dedup — same query doesn't re-execute | **Removed (de-scoped)** | Claude C38 → Codex | Removed per performance decision (2026-02-07) |
 
 ### Calendar/Tasks & Lark
 
@@ -329,8 +329,9 @@ O0 (日程+任务闭环)
 | Lark smart cards (interactive) | `internal/lark/cards/` |
 | Proactive group summary | `internal/lark/summary/` |
 | Rich content (posts, tables, Markdown) | `internal/channels/lark/richcontent/` |
-| Tool result caching (semantic dedup) | `internal/toolregistry/cache.go` |
-| Auto degradation chain (fallback executor) | `internal/toolregistry/degradation.go` |
+| Tool SLA profile + dynamic routing | `internal/infra/tools/sla_router.go`, `internal/app/toolregistry/degradation.go` |
+| Tool result caching (semantic dedup) | Removed per performance decision (2026-02-07) |
+| Auto degradation chain (fallback executor) | `internal/app/toolregistry/degradation.go` |
 | CI eval gating (PR soft gate) | `evaluation/gate/`, `.github/workflows/eval.yml` |
 | Steward cross-turn state (StewardState) | `internal/domain/agent/ports/agent/steward_state.go` |
 | NEW_STATE output protocol + parser | `internal/domain/agent/react/steward_state_parser.go` |
