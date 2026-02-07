@@ -76,7 +76,8 @@ export default function RLCatalogPage() {
                 <th className="px-3 py-2 font-medium text-muted-foreground">ID</th>
                 <th className="px-3 py-2 font-medium text-muted-foreground">Task</th>
                 <th className="px-3 py-2 font-medium text-muted-foreground">Tier</th>
-                <th className="px-3 py-2 font-medium text-muted-foreground">Score</th>
+                <th className="px-3 py-2 font-medium text-muted-foreground">Auto Score</th>
+                <th className="px-3 py-2 font-medium text-muted-foreground">Judge</th>
                 <th className="px-3 py-2 font-medium text-muted-foreground">Steps</th>
                 <th className="px-3 py-2 font-medium text-muted-foreground">Outcome</th>
                 <th className="px-3 py-2 font-medium text-muted-foreground">Extracted</th>
@@ -89,6 +90,13 @@ export default function RLCatalogPage() {
                   <td className="px-3 py-2 text-xs">{traj.task_id}</td>
                   <td className="px-3 py-2"><StatusPill status={traj.quality_tier} /></td>
                   <td className="px-3 py-2 text-xs">{traj.auto_score.toFixed(1)}</td>
+                  <td className="px-3 py-2 text-xs">
+                    {traj.judge_score != null ? (
+                      <span className="text-primary">{traj.judge_score.toFixed(1)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-xs">{traj.metadata.total_steps}</td>
                   <td className="px-3 py-2"><StatusPill status={traj.metadata.outcome} /></td>
                   <td className="px-3 py-2 text-xs">

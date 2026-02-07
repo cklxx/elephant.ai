@@ -41,14 +41,20 @@ export const api = {
   getAgentEvaluations: (id: string) =>
     request<{ evaluations: any[] }>(`/api/agents/${id}/evaluations`),
 
-  // RL Data (stubs for Batch 3)
+  // RL Data
   getRLStats: () => request<any>("/api/rl/stats"),
   listTrajectories: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
     return request<any>(`/api/rl/trajectories${qs}`);
   },
+  getRLConfig: () => request<any>("/api/rl/config"),
+  updateRLConfig: (config: any) =>
+    request<any>("/api/rl/config", {
+      method: "PUT",
+      body: JSON.stringify(config),
+    }),
 
-  // Eval Tasks (stubs for Batch 4)
+  // Eval Tasks
   listEvalTasks: () => request<{ tasks: any[] }>("/api/eval-tasks"),
   getEvalTask: (id: string) => request<any>(`/api/eval-tasks/${id}`),
 };

@@ -15,6 +15,18 @@ type EvalServerConfig struct {
 	EvalOutputDir  string   `yaml:"eval_output_dir"`
 	RLOutputDir    string   `yaml:"rl_output_dir"`
 	SessionDir     string   `yaml:"session_dir"`
+
+	// Judge configuration for RL quality gate
+	Judge JudgeConfig `yaml:"judge"`
+}
+
+// JudgeConfig holds LLM judge provider settings.
+type JudgeConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	Provider string `yaml:"provider"`
+	Model    string `yaml:"model"`
+	APIKey   string `yaml:"api_key"`
+	BaseURL  string `yaml:"base_url"`
 }
 
 // DefaultConfig returns a config with sensible defaults.

@@ -21,6 +21,7 @@ type EvalRouterDeps struct {
 	RLExtractor *rl.Extractor
 	QualityGate *rl.QualityGate
 	RLConfig    rl.QualityConfig
+	RLJudge     rl.Judge // may be nil
 	TaskManager *task_mgmt.TaskManager
 }
 
@@ -60,6 +61,7 @@ func NewEvalRouter(deps EvalRouterDeps, cfg EvalRouterConfig) http.Handler {
 		extractor:   deps.RLExtractor,
 		qualityGate: deps.QualityGate,
 		config:      deps.RLConfig,
+		judge:       deps.RLJudge,
 	}
 	mux.HandleFunc("GET /api/rl/stats", rlH.handleGetStats)
 	mux.HandleFunc("GET /api/rl/trajectories", rlH.handleListTrajectories)

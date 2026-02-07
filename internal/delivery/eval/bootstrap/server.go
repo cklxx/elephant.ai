@@ -15,6 +15,8 @@ import (
 	"alex/evaluation/task_mgmt"
 	serverApp "alex/internal/delivery/server/app"
 	evalHTTP "alex/internal/delivery/eval/http"
+	portsllm "alex/internal/domain/agent/ports/llm"
+	llminfra "alex/internal/infra/llm"
 )
 
 // RunEvalServer is the main entry point for the evaluation server.
@@ -40,7 +42,22 @@ func RunEvalServer(configPath string) error {
 	}
 	rlExtractor := rl.NewExtractor()
 	rlConfig := rl.DefaultQualityConfig()
-	qualityGate := rl.NewQualityGate(rlConfig, nil)
+
+	// Wire LLM judge if configured
+	var judge rl.Judge
+	if cfg.Judge.Enabled {
+		judge, err = createLLMJudge(cfg.Judge)
+		if err != nil {
+			log.Printf("[eval-server] WARNING: LLM judge init failed, running without judge: %v", err)
+		} else {
+			rlConfig.JudgeEnabled = true
+			rlConfig.JudgeProvider = cfg.Judge.Provider
+			rlConfig.JudgeModel = cfg.Judge.Model
+			log.Printf("[eval-server] LLM judge enabled (provider=%s, model=%s)", cfg.Judge.Provider, cfg.Judge.Model)
+		}
+	}
+
+	qualityGate := rl.NewQualityGate(rlConfig, judge)
 	log.Printf("[eval-server] RL pipeline ready (output=%s)", cfg.RLOutputDir)
 
 	// Phase 3: Create task management
@@ -59,6 +76,7 @@ func RunEvalServer(configPath string) error {
 		RLExtractor: rlExtractor,
 		QualityGate: qualityGate,
 		RLConfig:    rlConfig,
+		RLJudge:     judge,
 		TaskManager: taskMgr,
 	}, evalHTTP.EvalRouterConfig{
 		Environment:    cfg.Environment,
@@ -105,6 +123,18 @@ func RunEvalServer(configPath string) error {
 
 	log.Println("[eval-server] stopped")
 	return nil
+}
+
+func createLLMJudge(cfg JudgeConfig) (rl.Judge, error) {
+	factory := llminfra.NewFactory()
+	client, err := factory.GetClient(cfg.Provider, cfg.Model, portsllm.LLMConfig{
+		APIKey:  cfg.APIKey,
+		BaseURL: cfg.BaseURL,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create LLM client: %w", err)
+	}
+	return rl.NewLLMJudge(client), nil
 }
 
 func resolveConfig(path string) (*EvalServerConfig, error) {

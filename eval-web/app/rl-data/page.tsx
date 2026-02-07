@@ -5,17 +5,23 @@ import { PageShell } from "@/components/layout/page-shell";
 import { StatBlock } from "@/components/eval/stat-block";
 import { StatusPill } from "@/components/eval/status-pill";
 import { api } from "@/lib/api";
-import type { RLStats, QualityTier } from "@/lib/types/rl";
+import type { RLStats, QualityConfig, QualityTier } from "@/lib/types/rl";
 
 export default function RLDataPage() {
   const [stats, setStats] = useState<RLStats | null>(null);
+  const [config, setConfig] = useState<QualityConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api
-      .getRLStats()
-      .then((data) => setStats(data as RLStats))
-      .catch((err: any) => setError(err.message));
+    Promise.allSettled([
+      api.getRLStats().then((data) => setStats(data as RLStats)),
+      api.getRLConfig().then((data) => setConfig(data as QualityConfig)),
+    ]).then((results) => {
+      const failed = results.find((r) => r.status === "rejected");
+      if (failed && failed.status === "rejected") {
+        setError(failed.reason?.message ?? "Failed to load data");
+      }
+    });
   }, []);
 
   const tiers: QualityTier[] = ["gold", "silver", "bronze", "reject"];
@@ -53,6 +59,50 @@ export default function RLDataPage() {
           );
         })}
       </div>
+
+      {config && (
+        <div className="mt-6 rounded-lg border border-border bg-card p-4">
+          <h2 className="mb-3 text-sm font-medium text-foreground">Quality Gate Config</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <span className="text-xs text-muted-foreground">Gold min</span>
+              <p className="text-sm font-medium">{config.gold_min_score}</p>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">Silver min</span>
+              <p className="text-sm font-medium">{config.silver_min_score}</p>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">Bronze min</span>
+              <p className="text-sm font-medium">{config.bronze_min_score}</p>
+            </div>
+            <div>
+              <span className="text-xs text-muted-foreground">LLM Judge</span>
+              <p className="text-sm font-medium">
+                {config.judge_enabled ? (
+                  <span className="text-green-500">
+                    Enabled ({config.judge_provider}/{config.judge_model})
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Disabled</span>
+                )}
+              </p>
+            </div>
+          </div>
+          {config.judge_enabled && (
+            <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div>
+                <span className="text-xs text-muted-foreground">Borderline lower</span>
+                <p className="text-sm font-medium">{config.borderline_lower}</p>
+              </div>
+              <div>
+                <span className="text-xs text-muted-foreground">Borderline upper</span>
+                <p className="text-sm font-medium">{config.borderline_upper}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {stats && (
         <div className="mt-6">

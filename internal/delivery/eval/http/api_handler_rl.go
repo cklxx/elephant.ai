@@ -14,6 +14,7 @@ type rlHandler struct {
 	extractor   *rl.Extractor
 	qualityGate *rl.QualityGate
 	config      rl.QualityConfig
+	judge       rl.Judge // may be nil
 }
 
 func (h *rlHandler) handleGetStats(w http.ResponseWriter, _ *http.Request) {
@@ -105,7 +106,7 @@ func (h *rlHandler) handleUpdateConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.config = cfg
-	h.qualityGate = rl.NewQualityGate(cfg, nil) // Judge re-wired in Batch 8
+	h.qualityGate = rl.NewQualityGate(cfg, h.judge)
 	writeJSON(w, http.StatusOK, h.config)
 }
 
