@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"alex/internal/infra/sandbox"
@@ -104,6 +105,35 @@ func (h *APIHandler) HandleDevLogTrace(w http.ResponseWriter, r *http.Request) {
 		MaxBytes:   1 << 20,
 	})
 	h.writeJSON(w, http.StatusOK, bundle)
+}
+
+// HandleDevLogIndex returns recent log_id summaries for quick analysis entrypoints.
+func (h *APIHandler) HandleDevLogIndex(w http.ResponseWriter, r *http.Request) {
+	if !h.devMode {
+		http.NotFound(w, r)
+		return
+	}
+
+	limit := 80
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 {
+			if err == nil {
+				err = fmt.Errorf("limit must be > 0")
+			}
+			h.writeJSONError(w, http.StatusBadRequest, "limit must be a positive integer", err)
+			return
+		}
+		limit = parsed
+	}
+
+	entries := logging.FetchRecentLogIndex(logging.LogIndexOptions{
+		Limit:        limit,
+		MaxLineBytes: 1 << 20,
+	})
+	h.writeJSON(w, http.StatusOK, map[string]any{
+		"entries": entries,
+	})
 }
 
 // HandleHealthCheck handles GET /health
