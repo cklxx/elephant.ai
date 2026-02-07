@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-07 16:00
+Updated: 2026-02-07 23:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -26,6 +26,8 @@ Updated: 2026-02-07 16:00
 - Server restart recovery requires task persistence + startup resume hook; checkpoint-only restore is insufficient for cross-process task continuation.
 - Tool SLA collection is effective only when DI wires a shared `SLACollector` into tool registry wrapping and event translation.
 - Emit explicit `workflow.replan.requested` when tool failure triggers orchestrator replan to avoid UI-side inference heuristics.
+- Full-chain performance tracing should include ReAct iteration + LLM generate + tool execute spans, keyed by `alex.session_id`/`alex.run_id` for cross-request correlation.
+- SSE attachment dedupe must avoid `json.Marshal`-based whole-object hashing on hot paths; prefer lightweight signatures and hash payload only when needed.
 
 ## Items
 
