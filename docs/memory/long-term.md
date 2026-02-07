@@ -1,12 +1,12 @@
 # Long-Term Memory
 
-Updated: 2026-02-06 17:00
+Updated: 2026-02-07 15:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
 
-## Active Memory (2026-02-06)
+## Active Memory (2026-02-07)
 - Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
 - Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
 - Use TDD when touching logic; run full lint + tests before delivery.
@@ -23,6 +23,9 @@ Updated: 2026-02-06 17:00
 - Skills resolution rule: `ALEX_SKILLS_DIR` overrides all; otherwise default `~/.alex/skills` with repo `skills/` missing-only sync and user-copy preservation.
 - Keep `make check-arch` green to enforce domain import boundaries and prevent infra leakage regressions.
 - Lark callbacks: `channels.lark` supports `${ENV}` expansion; callback token/encrypt key also have env fallback keys in bootstrap to avoid silent callback disablement.
+- Server restart recovery requires task persistence + startup resume hook; checkpoint-only restore is insufficient for cross-process task continuation.
+- Tool SLA collection is effective only when DI wires a shared `SLACollector` into tool registry wrapping and event translation.
+- Emit explicit `workflow.replan.requested` when tool failure triggers orchestrator replan to avoid UI-side inference heuristics.
 
 ## Items
 
