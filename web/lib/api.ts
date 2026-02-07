@@ -25,6 +25,7 @@ import {
   SandboxBrowserInfo,
   UserPersonaProfile,
   RuntimeModelCatalog,
+  LogIndexResponse,
   LogTraceBundle,
 } from "./types";
 
@@ -503,6 +504,13 @@ export async function getLogTrace(logId: string): Promise<LogTraceBundle> {
   );
 }
 
+export async function getLogIndex(limit = 80): Promise<LogIndexResponse> {
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 80;
+  return fetchAPI<LogIndexResponse>(
+    `/api/dev/logs/index?limit=${encodeURIComponent(String(safeLimit))}`,
+  );
+}
+
 // Dev memory query
 
 export type MemoryDailyEntry = {
@@ -581,6 +589,7 @@ export const apiClient = {
   getSessionTurnSnapshot,
   deleteSession,
   getLogTrace,
+  getLogIndex,
   getMemorySnapshot,
   createSessionShare,
   getSharedSession,

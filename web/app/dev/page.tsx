@@ -37,6 +37,12 @@ const DEV_PAGES = [
     tag: "SSE",
   },
   {
+    href: "/dev/log-analyzer",
+    title: "Log analyzer",
+    description: "Browse recent log IDs and inspect correlated service/LLM/request logs.",
+    tag: "Logs",
+  },
+  {
     href: "/dev/mock-console",
     title: "Mock console",
     description: "Replay a mocked agent console stream.",
