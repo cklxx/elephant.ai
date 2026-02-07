@@ -70,6 +70,7 @@ LOCK_DIR="${TMP_DIR}/lark-supervisor.lock"
 STATUS_FILE="${TMP_DIR}/lark-supervisor.status.json"
 LOOP_STATE_FILE="${TMP_DIR}/lark-loop.state.json"
 LAST_PROCESSED_FILE="${TMP_DIR}/lark-loop.last"
+LAST_VALIDATED_FILE="${TMP_DIR}/lark-loop.last-validated"
 AUTOFIX_STATE_FILE="${TMP_DIR}/lark-autofix.state.json"
 AUTOFIX_LOCK_DIR="${TMP_DIR}/lark-autofix.lock"
 AUTOFIX_HISTORY_FILE="${TMP_DIR}/lark-autofix.history"
@@ -121,6 +122,7 @@ OBS_LAST_PROCESSED_SHA=""
 OBS_CYCLE_PHASE="idle"
 OBS_CYCLE_RESULT="unknown"
 OBS_LOOP_ERROR=""
+OBS_LAST_VALIDATED_SHA=""
 OBS_RESTART_COUNT_WINDOW=0
 OBS_AUTOFIX_STATE="idle"
 OBS_AUTOFIX_INCIDENT_ID=""
@@ -134,6 +136,16 @@ AUTOFIX_COOLDOWN_UNTIL=0
 
 json_escape() {
   printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+VALIDATION_PHASES="validating fast_gate slow_gate promoting restoring"
+
+is_validation_active() {
+  local phase="${OBS_CYCLE_PHASE}" p
+  for p in ${VALIDATION_PHASES}; do
+    [[ "${phase}" == "${p}" ]] && return 0
+  done
+  return 1
 }
 
 ensure_dirs() {
@@ -485,6 +497,7 @@ observe_states() {
   OBS_CYCLE_PHASE="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_phase" || echo "idle")"
   OBS_CYCLE_RESULT="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_result" || echo "unknown")"
   OBS_LOOP_ERROR="$(extract_json_string "${LOOP_STATE_FILE}" "last_error" || true)"
+  OBS_LAST_VALIDATED_SHA="$(cat "${LAST_VALIDATED_FILE}" 2>/dev/null || true)"
   observe_autofix_state
 }
 
@@ -538,6 +551,7 @@ write_status_file() {
   "test_sha": "${OBS_TEST_SHA}",
   "test_deployed_sha": "${OBS_TEST_DEPLOYED_SHA}",
   "last_processed_sha": "${OBS_LAST_PROCESSED_SHA}",
+  "last_validated_sha": "${OBS_LAST_VALIDATED_SHA}",
   "cycle_phase": "${OBS_CYCLE_PHASE}",
   "cycle_result": "${OBS_CYCLE_RESULT}",
   "last_error": "$(json_escape "${last_error}")",
@@ -571,6 +585,11 @@ restart_with_backoff() {
   local now_epoch state fail_count delay count
   now_epoch="$(date +%s)"
   state="$2"
+
+  if [[ "${component}" == "test" ]] && is_validation_active; then
+    append_log "[supervisor] skip test restart during validation (phase=${OBS_CYCLE_PHASE})"
+    return 0
+  fi
 
   if (( now_epoch < COOLDOWN_UNTIL )); then
     MODE="cooldown"
@@ -643,7 +662,10 @@ maybe_upgrade_for_sha_drift() {
   fi
 
   # Upgrade test if deployed SHA differs and process is healthy.
-  if [[ "${OBS_TEST_HEALTH}" == "healthy" \
+  # Skip during active validation — the loop controls the test bot.
+  if is_validation_active; then
+    :  # do not touch test bot during validation
+  elif [[ "${OBS_TEST_HEALTH}" == "healthy" \
      && "${OBS_TEST_DEPLOYED_SHA}" != "unknown" \
      && "${OBS_MAIN_SHA}" != "unknown" \
      && "${OBS_TEST_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
@@ -856,6 +878,7 @@ status() {
   echo "test_sha: ${OBS_TEST_SHA}"
   echo "test_deployed_sha: ${OBS_TEST_DEPLOYED_SHA}"
   echo "last_processed_sha: ${OBS_LAST_PROCESSED_SHA}"
+  echo "last_validated_sha: ${OBS_LAST_VALIDATED_SHA}"
   echo "cycle_phase: ${OBS_CYCLE_PHASE}"
   echo "cycle_result: ${OBS_CYCLE_RESULT}"
   echo "restart_count_window: ${OBS_RESTART_COUNT_WINDOW}"
