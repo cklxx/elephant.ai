@@ -1,5 +1,7 @@
 # Roadmap: Pending or Unverified (2026-02-06)
 
+> Historical snapshot only. Superseded by `docs/roadmap/roadmap-pending-2026-02-08.md` for active execution priority.
+
 ## Scope
 - Source: `docs/roadmap/roadmap.md`.
 - Pending = any status not **Done**.

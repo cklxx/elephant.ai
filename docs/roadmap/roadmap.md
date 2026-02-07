@@ -31,11 +31,78 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 - **O4 (Shadow DevOps):** eval/baseline/reporting + human-gated release loop.
 - **OS (Shared Infra):** event bus + observability + config/auth/error handling.
 
-## Current State (2026-02-07)
+## Current State (2026-02-08)
 
 **M0 is complete. M1 (P2) is ~95% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, SLA-profile routing, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex). **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
 
 **Steward AI foundation is complete (Phases 1-7, merged 2026-02-06).** Cross-turn structured state (StewardState), NEW_STATE output protocol, SYSTEM_REMINDER context injection, L1-L4 tool safety levels, three-tier context budget, steward persona/policy configs, and 40+ unit tests are all merged to main. Remaining gaps: activation enforcement loop, evidence ref enforcement, state compression on overflow, safety level approval UX, steward-specific eval scenarios.
+
+## Roadmap Consolidation (2026-02-08)
+
+To avoid status drift across files, roadmap document roles are normalized as follows:
+
+| Document | Role | Status authority |
+|----------|------|------------------|
+| `docs/roadmap/roadmap.md` | Product roadmap + status source-of-truth | **Authoritative** |
+| `docs/roadmap/roadmap-pending-2026-02-08.md` | Executable pending backlog (reprioritized) | **Authoritative for next execution queue** |
+| `docs/roadmap/roadmap-pending-2026-02-06.md` | Historical pending snapshot | Reference only |
+| `docs/roadmap/draft/*.md` | Design/history context | Reference only (may be stale) |
+
+Resolved conflicts in this consolidation round:
+- `Tool SLA profile + dynamic routing` remains **Done** (not pending).
+- `Tool result caching` remains **Removed (de-scoped)**.
+- Track draft files are no longer used for status decisions.
+
+## Priority Re-evaluation (Unfinished Items)
+
+Scoring dimensions:
+- **NSM impact:** contribution to WTCR/TimeSaved/Accuracy and Calendar+Tasks closed loop reliability.
+- **Unblock value:** how much downstream execution it enables.
+- **Delay risk:** product/reliability risk if deferred one milestone.
+- **Effort:** relative implementation size (S/M/L) for batch sizing.
+
+| Item | NSM impact | Unblock value | Delay risk | Effort | New priority |
+|------|------------|---------------|------------|--------|--------------|
+| Replan + sub-goal decomposition | High | High | High | M | **Now (P1)** |
+| Memory restructuring (D5) | High | High | High | M | **Now (P1)** |
+| Steward mode activation enforcement | High | High | High | S | **Now (P1)** |
+| Evidence ref enforcement loop | High | Medium | High | S | **Now (P1)** |
+| State compression on overflow | Medium | Medium | High | S | **Now (P1)** |
+| Safety level approval UX | High | Medium | High | M | **Now (P1)** |
+| Evaluation automation | Medium | High | Medium | M | **Now (P1)** |
+| Evaluation set construction | Medium | High | Medium | M | **Now (P1)** |
+| Coding Agent Gateway (minimal foundation) | Medium | Medium | Medium | M | **Next (P2)** |
+| Shadow Agent framework bootstrap | Low | Medium | Medium | L | **Later (P3)** |
+| Deep Lark / Platform / Data Processing / Self-Evolution large themes | Low (for current NSM) | Low | Low-Medium | L | **Hold (P3+)** |
+
+## Task Resplit (Execution Batches, 2026-02-08)
+
+Detailed queue is tracked in `docs/roadmap/roadmap-pending-2026-02-08.md`. The milestone split is:
+
+### Batch A — Steward reliability closure (Now, week 1)
+- Steward mode activation enforcement.
+- Evidence ref enforcement loop.
+- State compression on overflow.
+- Safety level approval UX.
+- **Definition of Done:** steward sessions auto-activate correctly; missing evidence refs get corrective observe feedback; overflow compression preserves high-priority state; L3/L4 approvals expose rollback + alternatives in UX.
+
+### Batch B — Planning + memory core closure (Now, week 1-2)
+- Replan + sub-goal decomposition (minimal DAG usable in production paths).
+- Memory restructuring D5 (layered FileStore, daily summary/long-term extraction, migration path).
+- **Definition of Done:** failed tool path can trigger deterministic replan branch; memory read/write/compaction remains stable after D5 migration with no data loss.
+
+### Batch C — Evaluation closure (Now, week 2)
+- Evaluation automation pipeline completion (judge integration + report artifact).
+- Evaluation set expansion for baseline + challenge suites aligned with North Star scenarios.
+- **Definition of Done:** PR/tag workflow can run quick eval and generate comparable report with pass/fail gate inputs.
+
+### Batch D — Coding gateway bootstrap (Next)
+- Gateway abstraction + adapter registration.
+- Local CLI auto-detect + verification interface baseline (build/test/lint contract only).
+- **Definition of Done:** one coding task can be dispatched, streamed, verified, and reported with a stable adapter contract.
+
+### Batch E — Shadow + expansion tracks (Later/Hold)
+- Shadow Agent, deep Lark ecosystem expansion, platform/data/self-evolution bets remain queued after Batch A-D metric validation.
 
 ## Implementation Audit Notes (2026-02-01)
 
@@ -299,6 +366,7 @@ O0 (日程+任务闭环)
 | 2026-02-02 | M1 | All | **Phase 6 complete (C27-C40).** 14 tasks across 3 batches: Tool SLA, memory flush, scheduler tools, provider health, Lark approval, context engineering (priority/trimming/budget), Lark ecosystem (cards/summary/rich content), tool chain (caching/degradation), CI eval gating. All P0+P1 done, P2 ~85% complete. |
 | 2026-02-03 | M1 | All | Roadmap 更新：修正 P1 checkpoint+resume 标记；补齐 Deep Lark 的"库已实现/未接入"状态（meeting prep/suggestions、meeting notes skill）。 |
 | 2026-02-06 | M1 | T1 | **Steward AI foundation complete (Phases 1-7).** StewardState 领域类型、NEW_STATE 解析器、SYSTEM_REMINDER 注入、L1-L4 安全分级、三级上下文预算、steward persona/policy、40+ 单元测试。M1 进度 ~85% → ~95%。 |
+| 2026-02-08 | M1 | All | **Roadmap consolidation + reprioritization.** 统一 roadmap source-of-truth；按 North Star 影响重排未完成项优先级；发布重拆执行队列 `roadmap-pending-2026-02-08.md`（Batch A-E）。 |
 
 ---
 
@@ -344,3 +412,4 @@ O0 (日程+任务闭环)
 
 > Previous detailed roadmaps preserved in `docs/roadmap/draft/`.
 > Task split & execution plan: [`docs/plans/2026-02-01-task-split-claude-codex.md`](../plans/2026-02-01-task-split-claude-codex.md)
+> Active pending queue (reprioritized): [`docs/roadmap/roadmap-pending-2026-02-08.md`](roadmap-pending-2026-02-08.md)
