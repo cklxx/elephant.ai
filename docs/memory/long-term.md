@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-08 20:00
+Updated: 2026-02-08 21:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -34,6 +34,7 @@ Updated: 2026-02-08 20:00
 - To reduce auth session-loss regressions under multi-process dev load, cap auth DB pool connections with `auth.database_pool_max_conns` / `AUTH_DATABASE_POOL_MAX_CONNS` (default `4`).
 - Foundation eval hardening works best when availability errors are explicit (`availability_error`) and heuristic routing uses action+object dual-condition gating to prevent broad-token regressions.
 - Layered foundation suites (tool coverage / prompt effectiveness / proactivity / complex tasks) make routing regressions diagnosable faster than a single mixed case set.
+- A dedicated memory-capabilities collection catches regressions in memory_search/memory_get and memory-informed execution chains earlier than mixed suites.
 
 ## Items
 

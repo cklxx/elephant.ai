@@ -4,6 +4,7 @@ Updated: 2026-02-08
 
 ## Files
 
+- [2026-02-08-memory-capability-suite-expansion.md](2026-02-08-memory-capability-suite-expansion.md)
 - [2026-02-08-context-hard-benchmark-mapped-suite.md](2026-02-08-context-hard-benchmark-mapped-suite.md)
 - [2026-02-08-systematic-agent-capability-matrix-expansion.md](2026-02-08-systematic-agent-capability-matrix-expansion.md)
 - [2026-02-08-foundation-verified-readiness-plus-research.md](2026-02-08-foundation-verified-readiness-plus-research.md)
