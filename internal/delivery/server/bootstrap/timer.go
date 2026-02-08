@@ -2,13 +2,9 @@ package bootstrap
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"time"
 
 	"alex/internal/app/di"
-	"alex/internal/app/scheduler"
-	"alex/internal/infra/moltbook"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	"alex/internal/shared/timer"
@@ -25,7 +21,7 @@ func startTimerManager(ctx context.Context, cfg Config, container *di.Container,
 	if storePath == "" {
 		storePath = "~/.alex/timers"
 	}
-	storePath = resolveTimerStorePath(storePath)
+	storePath = expandHome(storePath)
 
 	maxTimers := timerCfg.MaxTimers
 	if maxTimers <= 0 {
@@ -37,34 +33,7 @@ func startTimerManager(ctx context.Context, cfg Config, container *di.Container,
 		taskTimeout = 15 * time.Minute
 	}
 
-	// Build notifier(s) — reuse same pattern as scheduler.
-	var notifiers []scheduler.Notifier
-
-	larkCfg := cfg.Channels.Lark
-	if larkCfg.Enabled && larkCfg.AppID != "" && larkCfg.AppSecret != "" {
-		notifiers = append(notifiers, scheduler.NewLarkNotifier(larkCfg.AppID, larkCfg.AppSecret, logger))
-		logger.Info("TimerManager: Lark notifier initialized")
-	}
-
-	if cfg.Runtime.MoltbookAPIKey != "" {
-		moltbookClient := moltbook.NewRateLimitedClient(moltbook.Config{
-			BaseURL: cfg.Runtime.MoltbookBaseURL,
-			APIKey:  cfg.Runtime.MoltbookAPIKey,
-		})
-		notifiers = append(notifiers, scheduler.NewMoltbookNotifier(moltbookClient, logger))
-		logger.Info("TimerManager: Moltbook notifier initialized")
-	}
-
-	var notifier timer.Notifier
-	switch len(notifiers) {
-	case 0:
-		notifier = scheduler.NopNotifier{}
-		logger.Info("TimerManager: notifications disabled (no channel config)")
-	case 1:
-		notifier = notifiers[0]
-	default:
-		notifier = scheduler.NewCompositeNotifier(notifiers...)
-	}
+	notifier := BuildNotifiers(cfg, "TimerManager", logger)
 
 	mgrCfg := timer.Config{
 		Enabled:     true,
@@ -90,19 +59,4 @@ func startTimerManager(ctx context.Context, cfg Config, container *di.Container,
 
 	logger.Info("TimerManager started (store=%s, max_timers=%d, timeout=%s)", storePath, maxTimers, taskTimeout)
 	return mgr
-}
-
-// resolveTimerStorePath expands ~ and ensures the directory exists.
-func resolveTimerStorePath(path string) string {
-	if len(path) > 0 && path[0] == '~' {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return path
-		}
-		if len(path) > 1 && path[1] == '/' {
-			return filepath.Join(home, path[2:])
-		}
-		return home
-	}
-	return path
 }
