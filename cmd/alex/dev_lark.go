@@ -157,33 +157,82 @@ func larkStatus() error {
 		return err
 	}
 
+	sec := devlog.NewSectionWriter(os.Stdout, true)
+
+	// Check if supervisor process is alive
+	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
+	var supervisorPID int
+	if data, err := os.ReadFile(pidFile); err == nil {
+		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+		if pid > 0 && syscall.Kill(pid, 0) == nil {
+			supervisorPID = pid
+		}
+	}
+
+	sec.Section("Lark Supervisor")
+	if supervisorPID > 0 {
+		sec.Success("%-14s PID: %d", "Supervisor", supervisorPID)
+	} else {
+		sec.Warn("%-14s stopped", "Supervisor")
+	}
+
 	statusPath := filepath.Join(cfg.TmpDir, "lark-supervisor.status.json")
 	sf := supervisor.NewStatusFile(statusPath)
 	status, err := sf.Read()
 	if err != nil {
-		fmt.Println("No supervisor status found")
+		sec.Warn("No supervisor status file found")
 		return nil
 	}
 
-	// Check if supervisor process is alive
-	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
-	supervisorState := "stopped"
-	if data, err := os.ReadFile(pidFile); err == nil {
-		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-		if pid > 0 && syscall.Kill(pid, 0) == nil {
-			supervisorState = "running"
+	sec.Info("%-14s %s", "Mode", status.Mode)
+
+	// Get current HEAD SHA for alignment check
+	headSHA := gitHeadShort(cfg.MainRoot)
+
+	sec.Section("Components")
+	for name, comp := range status.Components {
+		shaLabel := comp.DeployedSHA
+		if shaLabel == "" {
+			shaLabel = "unknown"
+		}
+		aligned := ""
+		if headSHA != "" && comp.DeployedSHA != "" {
+			if strings.HasPrefix(headSHA, comp.DeployedSHA) || strings.HasPrefix(comp.DeployedSHA, headSHA) {
+				aligned = " (aligned)"
+			} else {
+				aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
+			}
+		}
+
+		health := comp.Health
+		if health == "healthy" || health == "alive" {
+			sec.Success("%-14s %s  pid=%d  sha=%s%s", name, health, comp.PID, shaLabel, aligned)
+		} else {
+			sec.Warn("%-14s %s  pid=%d  sha=%s%s", name, health, comp.PID, shaLabel, aligned)
 		}
 	}
 
-	fmt.Printf("supervisor: %s\n", supervisorState)
-	fmt.Printf("mode: %s\n", status.Mode)
-	for name, comp := range status.Components {
-		fmt.Printf("%s: %s pid=%d sha=%s\n", name, comp.Health, comp.PID, comp.DeployedSHA)
+	if status.RestartCountWindow > 0 || status.Autofix.State != "" {
+		sec.Section("Health")
+		if status.RestartCountWindow > 0 {
+			sec.Warn("%-14s %d", "Restarts", status.RestartCountWindow)
+		}
+		if status.Autofix.State != "" {
+			sec.Info("%-14s %s (runs: %d)", "Autofix", status.Autofix.State, status.Autofix.RunsWindow)
+		}
 	}
-	fmt.Printf("restart_count_window: %d\n", status.RestartCountWindow)
-	fmt.Printf("autofix_state: %s\n", status.Autofix.State)
-	fmt.Printf("autofix_runs_window: %d\n", status.Autofix.RunsWindow)
+
 	return nil
+}
+
+// gitHeadShort returns the short SHA of HEAD in the given directory.
+func gitHeadShort(dir string) string {
+	cmd := exec.Command("git", "-C", dir, "rev-parse", "--short", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func larkLogs() error {
@@ -442,7 +491,7 @@ func printLarkSummary(sec *devlog.SectionWriter) {
 	}
 
 	sec.Section("Lark Supervisor")
-	sec.Success("%-12s PID: %d", "Supervisor", pid)
+	sec.Success("%-14s PID: %d", "Supervisor", pid)
 
 	statusPath := filepath.Join(cfg.TmpDir, "lark-supervisor.status.json")
 	sf := supervisor.NewStatusFile(statusPath)
@@ -450,11 +499,24 @@ func printLarkSummary(sec *devlog.SectionWriter) {
 	if err != nil {
 		return
 	}
+
+	headSHA := gitHeadShort(cfg.MainRoot)
+
 	for name, comp := range status.Components {
+		shaLabel := comp.DeployedSHA
+		aligned := ""
+		if headSHA != "" && shaLabel != "" {
+			if strings.HasPrefix(headSHA, shaLabel) || strings.HasPrefix(shaLabel, headSHA) {
+				aligned = " (aligned)"
+			} else {
+				aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
+			}
+		}
+		label := fmt.Sprintf("%s  sha=%s%s", comp.Health, shaLabel, aligned)
 		if comp.Health == "healthy" || comp.Health == "alive" {
-			sec.Info("%-12s %s", name, comp.Health)
+			sec.Success("%-14s %s", name, label)
 		} else {
-			sec.Warn("%-12s %s", name, comp.Health)
+			sec.Warn("%-14s %s", name, label)
 		}
 	}
 }
