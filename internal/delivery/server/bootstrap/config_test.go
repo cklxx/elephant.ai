@@ -114,6 +114,54 @@ auth:
 	}
 }
 
+func TestLoadConfig_AuthDatabasePoolMaxConnsFromEnvFallback(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("AUTH_DATABASE_POOL_MAX_CONNS", "6")
+
+	cr, err := LoadConfig()
+	cfg := cr.Config
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Auth.DatabasePoolMaxConns == nil || *cfg.Auth.DatabasePoolMaxConns != 6 {
+		t.Fatalf("expected auth database pool max conns from env fallback, got %#v", cfg.Auth.DatabasePoolMaxConns)
+	}
+}
+
+func TestLoadConfig_AuthDatabasePoolMaxConnsYAMLOverridesEnvFallback(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+auth:
+  database_pool_max_conns: 9
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+	t.Setenv("AUTH_DATABASE_POOL_MAX_CONNS", "6")
+
+	cr, err := LoadConfig()
+	cfg := cr.Config
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.Auth.DatabasePoolMaxConns == nil || *cfg.Auth.DatabasePoolMaxConns != 9 {
+		t.Fatalf("expected yaml auth database pool max conns to take precedence, got %#v", cfg.Auth.DatabasePoolMaxConns)
+	}
+}
+
 func TestLoadConfig_ServerEventHistoryAsyncOverride(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`

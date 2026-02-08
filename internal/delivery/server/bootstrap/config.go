@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -71,8 +72,8 @@ type LarkGatewayConfig struct {
 	AppSecret                     string
 	TenantCalendarID              string
 	BaseDomain                    string
-	WorkspaceDir       string
-	AutoUploadFiles    bool
+	WorkspaceDir                  string
+	AutoUploadFiles               bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
 	Browser                       LarkBrowserConfig
@@ -458,6 +459,7 @@ func applyAuthConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		GoogleTokenURL:        strings.TrimSpace(file.Auth.GoogleTokenURL),
 		GoogleUserInfoURL:     strings.TrimSpace(file.Auth.GoogleUserInfoURL),
 		DatabaseURL:           strings.TrimSpace(file.Auth.DatabaseURL),
+		DatabasePoolMaxConns:  file.Auth.DatabasePoolMaxConns,
 		BootstrapEmail:        strings.TrimSpace(file.Auth.BootstrapEmail),
 		BootstrapPassword:     file.Auth.BootstrapPassword,
 		BootstrapDisplayName:  strings.TrimSpace(file.Auth.BootstrapDisplayName),
@@ -504,6 +506,14 @@ func applyAuthEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
 	}
 	if strings.TrimSpace(cfg.Auth.DatabaseURL) == "" {
 		cfg.Auth.DatabaseURL = lookupFirstNonEmptyEnv(lookup, "AUTH_DATABASE_URL")
+	}
+	if cfg.Auth.DatabasePoolMaxConns == nil {
+		if value := lookupFirstNonEmptyEnv(lookup, "AUTH_DATABASE_POOL_MAX_CONNS"); value != "" {
+			parsed, err := strconv.Atoi(strings.TrimSpace(value))
+			if err == nil && parsed > 0 {
+				cfg.Auth.DatabasePoolMaxConns = &parsed
+			}
+		}
 	}
 	if strings.TrimSpace(cfg.Auth.BootstrapEmail) == "" {
 		cfg.Auth.BootstrapEmail = lookupFirstNonEmptyEnv(lookup, "AUTH_BOOTSTRAP_EMAIL")

@@ -260,7 +260,7 @@ type LarkChannelConfig struct {
 	AppSecret                     string             `json:"app_secret" yaml:"app_secret"`
 	TenantCalendarID              string             `json:"tenant_calendar_id" yaml:"tenant_calendar_id"`
 	BaseDomain                    string             `json:"base_domain" yaml:"base_domain"`
-	WorkspaceDir   string `json:"workspace_dir" yaml:"workspace_dir"`
+	WorkspaceDir                  string             `json:"workspace_dir" yaml:"workspace_dir"`
 	AutoUploadFiles               *bool              `json:"auto_upload_files" yaml:"auto_upload_files"`
 	AutoUploadMaxBytes            *int               `json:"auto_upload_max_bytes" yaml:"auto_upload_max_bytes"`
 	AutoUploadAllowExt            []string           `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`
@@ -329,6 +329,7 @@ type AuthConfig struct {
 	GoogleTokenURL        string `yaml:"google_token_url"`
 	GoogleUserInfoURL     string `yaml:"google_userinfo_url"`
 	DatabaseURL           string `yaml:"database_url"`
+	DatabasePoolMaxConns  *int   `yaml:"database_pool_max_conns"`
 	BootstrapEmail        string `yaml:"bootstrap_email"`
 	BootstrapPassword     string `yaml:"bootstrap_password"`
 	BootstrapDisplayName  string `yaml:"bootstrap_display_name"`

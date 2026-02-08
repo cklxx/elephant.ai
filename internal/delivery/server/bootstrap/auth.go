@@ -75,29 +75,43 @@ func BuildAuthService(cfg Config, logger logging.Logger) (*authapp.Service, func
 	if dbURL := strings.TrimSpace(authCfg.DatabaseURL); dbURL != "" {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		pool, err := pgxpool.New(ctx, dbURL)
+		poolCfg, err := pgxpool.ParseConfig(dbURL)
 		if err != nil {
 			if !allowDevelopmentFallback {
-				return nil, nil, fmt.Errorf("create auth db pool: %w", err)
+				return nil, nil, fmt.Errorf("parse auth db pool config: %w", err)
 			}
-			logger.Warn("Auth DB pool init failed; falling back to memory stores: %v", err)
+			logger.Warn("Auth DB pool config parse failed; falling back to memory stores: %v", err)
 		} else {
-			if err := pool.Ping(ctx); err != nil {
-				pool.Close()
+			maxConns := int32(4)
+			if authCfg.DatabasePoolMaxConns != nil && *authCfg.DatabasePoolMaxConns > 0 {
+				maxConns = int32(*authCfg.DatabasePoolMaxConns)
+			}
+			poolCfg.MaxConns = maxConns
+
+			pool, err := pgxpool.NewWithConfig(ctx, poolCfg)
+			if err != nil {
 				if !allowDevelopmentFallback {
-					return nil, nil, fmt.Errorf("ping auth db: %w", err)
+					return nil, nil, fmt.Errorf("create auth db pool: %w", err)
 				}
-				logger.Warn("Auth DB ping failed; falling back to memory stores: %v", err)
+				logger.Warn("Auth DB pool init failed; falling back to memory stores: %v", err)
 			} else {
-				usersRepo, identitiesRepo, sessionsRepo, statesRepo := authAdapters.NewPostgresStores(pool)
-				users = usersRepo
-				identities = identitiesRepo
-				sessions = sessionsRepo
-				states = statesRepo
-				cleanupFuncs = append(cleanupFuncs, func() {
+				if err := pool.Ping(ctx); err != nil {
 					pool.Close()
-				})
-				logger.Info("Authentication repositories backed by Postgres")
+					if !allowDevelopmentFallback {
+						return nil, nil, fmt.Errorf("ping auth db: %w", err)
+					}
+					logger.Warn("Auth DB ping failed; falling back to memory stores: %v", err)
+				} else {
+					usersRepo, identitiesRepo, sessionsRepo, statesRepo := authAdapters.NewPostgresStores(pool)
+					users = usersRepo
+					identities = identitiesRepo
+					sessions = sessionsRepo
+					states = statesRepo
+					cleanupFuncs = append(cleanupFuncs, func() {
+						pool.Close()
+					})
+					logger.Info("Authentication repositories backed by Postgres (max_conns=%d)", maxConns)
+				}
 			}
 		}
 	}
