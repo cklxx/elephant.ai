@@ -986,7 +986,7 @@ dev_logs_index_ready() {
   local status
   status="$(probe_http_status "http://localhost:${SERVER_PORT}/api/dev/logs/index?limit=1")"
   case "$status" in
-    200|401)
+    200)
       return 0
       ;;
     *)
@@ -1020,7 +1020,7 @@ cmd_logs_ui() {
     fi
 
     if ! dev_logs_index_ready; then
-      die "Dev log index is still unavailable at http://localhost:${SERVER_PORT}/api/dev/logs/index (expected 200/401). Ensure runtime environment is development."
+      die "Dev log index is still unavailable at http://localhost:${SERVER_PORT}/api/dev/logs/index (expected 200). Ensure runtime environment is development and backend uses latest code."
     fi
 
     if ! dev_logs_ui_ready; then
