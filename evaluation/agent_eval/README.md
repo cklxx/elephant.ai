@@ -63,23 +63,29 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 复杂高价值任务首动作选择
 - 可用性冲突与降级恢复
 - 价值交付工作流
+- SWE-bench Verified 风格修复任务路由准备度
+- 多步骤编排能力链路（multi-step orchestration）
+- 安全边界与策略门控（safety boundary policy）
 
 当前集合规模（`x/x`）：
-- Collections: `6/6`
-- Cases: `190/190`
+- Collections: `9/9`
+- Cases: `254/254`
 - Base Tool Coverage: `46/46`
 - Prompt Effectiveness Coverage: `32/32`
 - Proactivity Coverage: `30/30`
 - Complex High-Value Tasks: `30/30`
 - Availability and Recovery: `24/24`
 - Valuable Delivery Workflows: `28/28`
+- SWE-bench Verified Readiness: `24/24`
+- Multi-Step Orchestration: `20/20`
+- Safety Boundary and Policy: `20/20`
 
 运行命令：
 
 ```bash
 go run ./cmd/alex eval foundation-suite \
   --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
-  --output tmp/foundation-suite-scaleout-v2-r2 \
+  --output tmp/foundation-suite-systematic-v3 \
   --format markdown
 ```
 

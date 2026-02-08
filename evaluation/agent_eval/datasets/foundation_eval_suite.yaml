@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, and valuable workflows"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, and safety boundary policy"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -57,6 +57,36 @@ collections:
     dimension: "valuable_delivery_workflows"
     description: "First-action routing quality for high-value delivery workflows"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_valuable_workflows.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "swebench-verified-readiness"
+    name: "SWE-bench Verified Readiness"
+    dimension: "swebench_verified_readiness"
+    description: "Routing readiness for SWE-bench Verified style software-fix tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_swebench_verified_readiness.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "multi-step-orchestration"
+    name: "Multi-Step Orchestration"
+    dimension: "multi_step_orchestration"
+    description: "Systematic routing coverage for multi-step agent capability chains"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_multi_step_orchestration.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "safety-boundary-policy"
+    name: "Safety Boundary and Policy"
+    dimension: "safety_boundary_policy"
+    description: "Safety gating, policy compliance, and risk-aware routing coverage"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_safety_boundary_policy.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

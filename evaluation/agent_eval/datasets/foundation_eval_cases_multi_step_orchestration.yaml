@@ -1,0 +1,103 @@
+version: "1"
+name: "foundation-multi-step-orchestration"
+description: "Systematic multi-step orchestration routing coverage for agent capabilities"
+scenarios:
+  - id: "orchestrate-plan-search-read-edit-verify"
+    category: "multi_step_orchestration"
+    intent: "Plan the fix, search impacted symbols, read target file, replace_in_file, then shell verify."
+    expected_tools: ["plan", "search_file", "read_file", "replace_in_file", "shell_exec"]
+
+  - id: "orchestrate-repro-root-cause-fix"
+    category: "multi_step_orchestration"
+    intent: "Reproduce with shell_exec, grep key failure signal, patch with replace_in_file, rerun tests."
+    expected_tools: ["shell_exec", "grep", "replace_in_file"]
+
+  - id: "orchestrate-config-migration"
+    category: "multi_step_orchestration"
+    intent: "List directories, find config files, read old config, write new yaml migration output."
+    expected_tools: ["list_dir", "find", "read_file", "write_file"]
+
+  - id: "orchestrate-web-debug-flow"
+    category: "multi_step_orchestration"
+    intent: "Inspect browser_info, interact with browser_dom, use browser_action for canvas, then browser_screenshot."
+    expected_tools: ["browser_info", "browser_dom", "browser_action", "browser_screenshot"]
+
+  - id: "orchestrate-doc-driven-fix"
+    category: "multi_step_orchestration"
+    intent: "Web_search official docs, web_fetch exact spec page, then execute_code mini validation."
+    expected_tools: ["web_search", "web_fetch", "execute_code"]
+
+  - id: "orchestrate-memory-informed-patch"
+    category: "multi_step_orchestration"
+    intent: "Use memory_search and memory_get prior decision notes, then replace_in_file exact patch."
+    expected_tools: ["memory_search", "memory_get", "replace_in_file", "search_file"]
+
+  - id: "orchestrate-reporting-loop"
+    category: "multi_step_orchestration"
+    intent: "Write artifact report, list artifacts, upload file to lark, and send lark status message."
+    expected_tools: ["artifacts_write", "artifacts_list", "lark_upload_file", "lark_send_message"]
+
+  - id: "orchestrate-artifact-hygiene-cycle"
+    category: "multi_step_orchestration"
+    intent: "Check artifact_manifest, artifacts_list outputs, and artifacts_delete stale entries."
+    expected_tools: ["artifact_manifest", "artifacts_list", "artifacts_delete"]
+
+  - id: "orchestrate-calendar-task-sync"
+    category: "multi_step_orchestration"
+    intent: "Query calendar, create/update event, then lark_task_manage action items."
+    expected_tools: ["lark_calendar_query", "lark_calendar_create", "lark_calendar_update", "lark_task_manage"]
+
+  - id: "orchestrate-reminder-scheduler-sync"
+    category: "multi_step_orchestration"
+    intent: "Set timer reminder, list timers, create scheduler job, and verify scheduler list."
+    expected_tools: ["set_timer", "list_timers", "scheduler_create_job", "scheduler_list_jobs"]
+
+  - id: "orchestrate-okr-update-flow"
+    category: "multi_step_orchestration"
+    intent: "Read OKR baseline, write OKR progress, and notify Lark stakeholders."
+    expected_tools: ["okr_read", "okr_write", "lark_send_message"]
+
+  - id: "orchestrate-ui-delivery"
+    category: "multi_step_orchestration"
+    intent: "Generate structured a2ui_emit payload and attach supporting artifact output."
+    expected_tools: ["a2ui_emit", "artifacts_write"]
+
+  - id: "orchestrate-slide-generation"
+    category: "multi_step_orchestration"
+    intent: "Create artifacts and convert selected images with pptx_from_images."
+    expected_tools: ["artifacts_write", "pptx_from_images"]
+
+  - id: "orchestrate-subagent-delegation"
+    category: "multi_step_orchestration"
+    intent: "Delegate long validation chain to acp_executor and continue supervision updates."
+    expected_tools: ["acp_executor", "lark_send_message"]
+
+  - id: "orchestrate-ambiguous-requirement-first"
+    category: "multi_step_orchestration"
+    intent: "Clarify conflicting requirement first, then plan execution phases."
+    expected_tools: ["clarify", "plan"]
+
+  - id: "orchestrate-user-gated-auth"
+    category: "multi_step_orchestration"
+    intent: "Request_user for manual auth gate, then continue with read and shell verification."
+    expected_tools: ["request_user", "read_file", "shell_exec"]
+
+  - id: "orchestrate-capability-discovery"
+    category: "multi_step_orchestration"
+    intent: "Inspect apps and skills capability matrix before tool routing."
+    expected_tools: ["apps", "skills"]
+
+  - id: "orchestrate-diagram-brief-publish"
+    category: "multi_step_orchestration"
+    intent: "Render diagram_render architecture image and publish via write_attachment."
+    expected_tools: ["diagram_render", "write_attachment"]
+
+  - id: "orchestrate-html-remediation-chain"
+    category: "multi_step_orchestration"
+    intent: "Use html_edit for semantic cleanup and persist final report artifact."
+    expected_tools: ["html_edit", "artifacts_write"]
+
+  - id: "orchestrate-legacy-cleanup"
+    category: "multi_step_orchestration"
+    intent: "Find legacy files, replace_in_file deprecations, and delete stale artifacts."
+    expected_tools: ["find", "replace_in_file", "artifacts_delete"]
