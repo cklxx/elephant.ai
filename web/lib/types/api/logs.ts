@@ -27,3 +27,49 @@ export type LogIndexEntry = {
 export type LogIndexResponse = {
   entries: LogIndexEntry[];
 };
+
+// Structured log types
+
+export type ParsedTextLogEntry = {
+  raw: string;
+  timestamp: string;
+  level: string;
+  category: string;
+  component: string;
+  log_id?: string;
+  source_file?: string;
+  source_line?: number;
+  message: string;
+};
+
+export type ParsedRequestLogEntry = {
+  raw: string;
+  timestamp: string;
+  request_id: string;
+  log_id?: string;
+  entry_type: string;
+  body_bytes: number;
+  payload?: unknown;
+};
+
+export type StructuredLogSnippet = {
+  path?: string;
+  entries?: ParsedTextLogEntry[];
+  truncated?: boolean;
+  error?: string;
+};
+
+export type StructuredRequestSnippet = {
+  path?: string;
+  entries?: ParsedRequestLogEntry[];
+  truncated?: boolean;
+  error?: string;
+};
+
+export type StructuredLogBundle = {
+  log_id: string;
+  service: StructuredLogSnippet;
+  llm: StructuredLogSnippet;
+  latency: StructuredLogSnippet;
+  requests: StructuredRequestSnippet;
+};

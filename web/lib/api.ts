@@ -27,6 +27,7 @@ import {
   RuntimeModelCatalog,
   LogIndexResponse,
   LogTraceBundle,
+  StructuredLogBundle,
 } from "./types";
 
 export interface ApiRequestOptions extends RequestInit {
@@ -511,6 +512,15 @@ export async function getLogIndex(limit = 80): Promise<LogIndexResponse> {
   );
 }
 
+export async function getStructuredLogTrace(
+  logId: string,
+  search?: string,
+): Promise<StructuredLogBundle> {
+  let url = `/api/dev/logs/structured?log_id=${encodeURIComponent(logId)}`;
+  if (search) url += `&search=${encodeURIComponent(search)}`;
+  return fetchAPI<StructuredLogBundle>(url);
+}
+
 // Dev memory query
 
 export type MemoryDailyEntry = {
@@ -590,6 +600,7 @@ export const apiClient = {
   deleteSession,
   getLogTrace,
   getLogIndex,
+  getStructuredLogTrace,
   getMemorySnapshot,
   createSessionShare,
   getSharedSession,
