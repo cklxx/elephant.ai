@@ -41,6 +41,8 @@ func runDevCommand(args []string) error {
 		return devTest()
 	case "lint":
 		return devLint()
+	case "lark":
+		return runDevLarkCommand(args)
 	case "logs-ui", "log-ui", "analyze-logs":
 		return devLogsUI()
 	case "help", "-h", "--help":
