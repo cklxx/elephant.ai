@@ -6,6 +6,7 @@ export * from './api/apps';
 export * from './api/logs';
 export * from './api/context';
 export * from './api/persona';
+export * from './api/onboarding';
 export * from './events/base';
 export * from './events/payloads';
 export * from './events/workflow';

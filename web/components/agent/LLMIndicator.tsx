@@ -10,6 +10,7 @@ import {
 import type {
   LLMSelection,
   RuntimeConfigSnapshot,
+  RuntimeModelRecommendation,
   RuntimeModelProvider,
 } from "@/lib/types";
 import {
@@ -193,13 +194,14 @@ export function LLMIndicator() {
         ) : null}
         <div className="space-y-3">
           {sortedProviders.map((providerEntry) => {
-            const models = providerEntry.models ?? [];
+            const models = orderedModels(providerEntry);
             const sourceLabel =
               SOURCE_LABELS[providerEntry.source] ?? providerEntry.source;
+            const providerLabel = providerEntry.display_name ?? providerEntry.provider;
             return (
               <div key={providerEntry.provider} className="space-y-1">
                 <div className="px-2 text-[11px] uppercase text-muted-foreground">
-                  {providerEntry.provider} · {sourceLabel}
+                  {providerLabel} · {sourceLabel}
                 </div>
                 {providerEntry.error ? (
                   <div className="px-2 pb-2 text-xs text-rose-500">
@@ -221,11 +223,11 @@ export function LLMIndicator() {
                       onSelect={() => handleSelectModel(providerEntry, modelId)}
                       className="flex cursor-pointer items-center justify-between gap-2 data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
                     >
-                      <span className="text-sm">{modelId}</span>
-                      {isActive ? (
-                        <span className="text-xs text-emerald-600">Active</span>
-                      ) : null}
-                    </DropdownMenuItem>
+                        <span className="text-sm">{modelId}</span>
+                        {isActive ? (
+                          <span className="text-xs text-emerald-600">Active</span>
+                        ) : null}
+                      </DropdownMenuItem>
                   );
                 })}
               </div>
@@ -235,4 +237,21 @@ export function LLMIndicator() {
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+function orderedModels(provider: RuntimeModelProvider): string[] {
+  const merged: string[] = [];
+  const seen = new Set<string>();
+  const push = (model: string | undefined) => {
+    const normalized = (model ?? "").trim();
+    if (!normalized || seen.has(normalized)) {
+      return;
+    }
+    seen.add(normalized);
+    merged.push(normalized);
+  };
+  (provider.recommended_models ?? []).forEach((item: RuntimeModelRecommendation) => push(item.id));
+  (provider.models ?? []).forEach((model) => push(model));
+  push(provider.default_model);
+  return merged;
 }

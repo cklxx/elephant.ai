@@ -51,14 +51,27 @@ export interface RuntimeConfigSnapshot {
 
 export interface RuntimeModelProvider {
   provider: string;
+  display_name?: string;
   source: string;
+  auth_mode?: string;
   base_url?: string;
   models?: string[];
+  default_model?: string;
+  recommended_models?: RuntimeModelRecommendation[];
+  selectable?: boolean;
+  setup_hint?: string;
   error?: string;
 }
 
 export interface RuntimeModelCatalog {
   providers: RuntimeModelProvider[];
+}
+
+export interface RuntimeModelRecommendation {
+  id: string;
+  tier?: string;
+  default?: boolean;
+  note?: string;
 }
 
 export interface SandboxBrowserInfo {

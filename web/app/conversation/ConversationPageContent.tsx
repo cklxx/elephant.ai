@@ -21,6 +21,7 @@ import { useCancellation } from "./hooks/useCancellation";
 import { useTaskSubmission } from "./hooks/useTaskSubmission";
 import { useShareDialog } from "./hooks/useShareDialog";
 import { useDeleteDialog } from "./hooks/useDeleteDialog";
+import { useOnboardingState } from "./hooks/useOnboardingState";
 import { ConversationHeader } from "./components/ConversationHeader";
 import { ConversationMainArea } from "./components/ConversationMainArea";
 import { EmptyStateView } from "./components/EmptyStateView";
@@ -41,6 +42,11 @@ const LazyUserPersonaDialog = dynamic(
   { ssr: false },
 );
 
+const LazyOnboardingModal = dynamic(
+  () => import("./components/OnboardingModal").then((mod) => mod.OnboardingModal),
+  { ssr: false },
+);
+
 export function ConversationPageContent() {
   useRenderTracking("ConversationPageContent");
   const [, setTaskId] = useState<string | null>(null);
@@ -55,6 +61,12 @@ export function ConversationPageContent() {
   const firstTokenReportedRef = useRef<Set<string>>(new Set());
   const searchParams = useSearchParams();
   const { t } = useI18n();
+  const {
+    onboardingOpen,
+    setOnboardingOpen,
+    onboardingLoading,
+    markOnboardingCompleted,
+  } = useOnboardingState();
 
   const useMockStream = useMemo(
     () => searchParams.get("mockSSE") === "1",
@@ -441,6 +453,13 @@ export function ConversationPageContent() {
           deleteInProgress={deleteInProgress}
           onCancel={handleDeleteCancel}
           onConfirm={handleConfirmDelete}
+        />
+      ) : null}
+      {!onboardingLoading && onboardingOpen ? (
+        <LazyOnboardingModal
+          open={onboardingOpen}
+          onOpenChange={setOnboardingOpen}
+          onCompleted={markOnboardingCompleted}
         />
       ) : null}
       <div className="relative mx-auto flex h-full min-h-0 w-full flex-col gap-6 overflow-hidden px-4 pb-10 pt-6 lg:px-8 2xl:px-12">

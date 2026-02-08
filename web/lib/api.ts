@@ -25,6 +25,8 @@ import {
   SandboxBrowserInfo,
   UserPersonaProfile,
   RuntimeModelCatalog,
+  OnboardingStateResponse,
+  OnboardingStateUpdatePayload,
   LogIndexResponse,
   LogTraceBundle,
   StructuredLogBundle,
@@ -223,6 +225,19 @@ export async function getRuntimeModelCatalog(): Promise<RuntimeModelCatalog> {
 
 export async function getSubscriptionCatalog(): Promise<RuntimeModelCatalog> {
   return fetchAPI<RuntimeModelCatalog>("/api/internal/subscription/catalog");
+}
+
+export async function getOnboardingState(): Promise<OnboardingStateResponse> {
+  return fetchAPI<OnboardingStateResponse>("/api/internal/onboarding/state");
+}
+
+export async function updateOnboardingState(
+  request: OnboardingStateUpdatePayload,
+): Promise<OnboardingStateResponse> {
+  return fetchAPI<OnboardingStateResponse>("/api/internal/onboarding/state", {
+    method: "PUT",
+    body: JSON.stringify(request),
+  });
 }
 
 // Dev context config APIs
@@ -615,6 +630,8 @@ export const apiClient = {
   getContextConfig,
   updateContextConfig,
   getContextConfigPreview,
+  getOnboardingState,
+  updateOnboardingState,
   forkSession,
   listEvaluations,
   startEvaluation,
