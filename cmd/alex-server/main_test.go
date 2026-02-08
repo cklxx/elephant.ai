@@ -15,15 +15,15 @@ func TestLoadConfigWithMockProvider(t *testing.T) {
 	}
 	t.Setenv("ALEX_CONFIG_PATH", path)
 
-	cfg, _, _, _, err := serverBootstrap.LoadConfig()
+	cr, err := serverBootstrap.LoadConfig()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if cfg.Runtime.LLMProvider != "mock" {
-		t.Fatalf("expected mock provider, got %q", cfg.Runtime.LLMProvider)
+	if cr.Config.Runtime.LLMProvider != "mock" {
+		t.Fatalf("expected mock provider, got %q", cr.Config.Runtime.LLMProvider)
 	}
-	if cfg.Port != "8080" {
-		t.Fatalf("expected default port 8080, got %q", cfg.Port)
+	if cr.Config.Port != "8080" {
+		t.Fatalf("expected default port 8080, got %q", cr.Config.Port)
 	}
 }
