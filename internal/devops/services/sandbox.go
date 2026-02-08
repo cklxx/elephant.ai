@@ -91,15 +91,22 @@ func (s *SandboxService) Start(ctx context.Context) error {
 	running, _ := s.docker.ContainerRunning(ctx, s.config.ContainerName)
 	exists, _ := s.docker.ContainerExists(ctx, s.config.ContainerName)
 
-	// Determine ACP port
+	// Determine ACP port — reuse existing container's port when possible
 	acpPort := s.config.ACPPort
-	if s.acpShouldRunInSandbox() && (acpPort == 0) {
-		p, err := s.ports.Reserve("acp", 0)
-		if err != nil {
-			s.state.Store(devops.StateFailed)
-			return fmt.Errorf("allocate ACP port: %w", err)
+	if s.acpShouldRunInSandbox() && acpPort == 0 {
+		if exists {
+			if existing := s.detectExistingACPPort(ctx); existing > 0 {
+				acpPort = existing
+			}
 		}
-		acpPort = p
+		if acpPort == 0 {
+			p, err := s.ports.Reserve("acp", 0)
+			if err != nil {
+				s.state.Store(devops.StateFailed)
+				return fmt.Errorf("allocate ACP port: %w", err)
+			}
+			acpPort = p
+		}
 		s.config.ACPPort = acpPort
 	}
 
@@ -228,6 +235,21 @@ func (s *SandboxService) needsRecreate(ctx context.Context) bool {
 	}
 
 	return false
+}
+
+// detectExistingACPPort finds the ACP host port from an existing container's
+// port mappings, skipping the sandbox port itself.
+func (s *SandboxService) detectExistingACPPort(ctx context.Context) int {
+	info, err := s.docker.ContainerInspect(ctx, s.config.ContainerName)
+	if err != nil {
+		return 0
+	}
+	for _, p := range info.Ports {
+		if p.HostPort != s.config.Port && p.HostPort > 0 {
+			return p.HostPort
+		}
+	}
+	return 0
 }
 
 func (s *SandboxService) buildCreateOpts(acpPort int) docker.CreateOpts {
