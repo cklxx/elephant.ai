@@ -61,8 +61,10 @@ type Supervisor struct {
 	mu           sync.Mutex
 	failCounts   map[string]int
 	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
-	loopState    LoopState
-	tmpDir       string
+	loopState             LoopState
+	tmpDir                string
+	lastAppliedIncidentID string
+	appliedFile           string
 }
 
 // Config holds supervisor configuration.
@@ -103,8 +105,9 @@ func New(cfg Config) *Supervisor {
 		mainRoot:   cfg.MainRoot,
 		testRoot:   cfg.TestRoot,
 		logger:     logger,
-		failCounts: make(map[string]int),
-		tmpDir:     cfg.TmpDir,
+		failCounts:  make(map[string]int),
+		tmpDir:      cfg.TmpDir,
+		appliedFile: cfg.AutofixConfig.AppliedFile,
 	}
 }
 
@@ -133,6 +136,13 @@ func (s *Supervisor) Run(ctx context.Context) error {
 
 	// Write PID file
 	os.WriteFile(s.pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644)
+
+	// Load last applied autofix incident to prevent duplicate restarts
+	if s.appliedFile != "" {
+		if data, err := os.ReadFile(s.appliedFile); err == nil {
+			s.lastAppliedIncidentID = strings.TrimSpace(string(data))
+		}
+	}
 
 	s.logger.Info("supervisor started",
 		"tick", s.interval,
@@ -330,6 +340,49 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 			s.logger.Info("upgrade restart succeeded", "component", comp.Name)
 		}
 		mu.Unlock()
+	}
+}
+
+// handleAutofixSuccessRestart restarts all components when autofix has
+// succeeded and flagged restart_required. Corresponds to supervisor.sh
+// handle_autofix_success_restart (lines 360-382).
+func (s *Supervisor) handleAutofixSuccessRestart(ctx context.Context) {
+	afState, err := s.autofix.ReadStateFile()
+	if err != nil || afState.State != "succeeded" {
+		return
+	}
+	if afState.RestartRequired != "true" {
+		return
+	}
+	if afState.IncidentID == "" {
+		return
+	}
+	if afState.IncidentID == s.lastAppliedIncidentID {
+		return
+	}
+
+	s.logger.Info("applying post-autofix restart",
+		"incident", afState.IncidentID)
+
+	for _, comp := range s.components {
+		mu := s.componentMu(comp.Name)
+		if !mu.TryLock() {
+			continue
+		}
+		if err := comp.StartFn(ctx); err != nil {
+			s.logger.Error("autofix restart failed",
+				"component", comp.Name,
+				"error", err)
+		} else {
+			s.logger.Info("autofix restart succeeded", "component", comp.Name)
+		}
+		mu.Unlock()
+	}
+
+	s.lastAppliedIncidentID = afState.IncidentID
+	if s.appliedFile != "" {
+		os.MkdirAll(filepath.Dir(s.appliedFile), 0o755)
+		os.WriteFile(s.appliedFile, []byte(afState.IncidentID+"\n"), 0o644)
 	}
 }
 
