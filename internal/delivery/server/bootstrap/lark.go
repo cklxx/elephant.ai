@@ -11,9 +11,6 @@ import (
 	"time"
 
 	larkdelivery "alex/internal/delivery/channels/lark"
-	"alex/internal/domain/materials"
-	"alex/internal/infra/attachments"
-	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
@@ -27,17 +24,14 @@ func RunLark(observabilityConfigPath string) error {
 
 	// ── Phase 1: Required infrastructure ──
 
-	obs, cleanupObs := InitObservability(observabilityConfigPath, logger)
-	_ = obs
-	if cleanupObs != nil {
-		defer cleanupObs()
-	}
-
-	cr, err := LoadConfig()
+	f, err := BootstrapFoundation(observabilityConfigPath, logger)
 	if err != nil {
-		return fmt.Errorf("load config: %w", err)
+		return err
 	}
-	config := cr.Config
+	defer f.Cleanup()
+
+	config := f.Config
+	container := f.Container
 
 	// Validate Lark is enabled and has credentials — fail fast.
 	larkCfg := config.Channels.Lark
@@ -51,82 +45,13 @@ func RunLark(observabilityConfigPath string) error {
 	// No HTTP transport needed in standalone mode.
 	config.EnableMCP = false
 
-	LogServerConfiguration(logger, config)
-
-	if cr.RuntimeCache != nil {
-		for _, configPath := range runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil) {
-			configWatcher, err := runtimeconfig.NewRuntimeConfigWatcher(
-				configPath,
-				cr.RuntimeCache,
-				runtimeconfig.WithConfigWatchLogger(logger),
-				runtimeconfig.WithConfigWatchBeforeReload(func(ctx context.Context) error {
-					_, err := cr.ConfigManager.RefreshOverrides(ctx)
-					return err
-				}),
-			)
-			if err != nil {
-				logger.Warn("Config watcher disabled for %s: %v", configPath, err)
-				continue
-			}
-			if err := configWatcher.Start(context.Background()); err != nil {
-				logger.Warn("Config watcher failed to start for %s: %v", configPath, err)
-				continue
-			}
-			defer configWatcher.Stop()
-		}
-	}
-
-	hostEnv, hostSummary := CaptureHostEnvironment(20)
-	_ = hostEnv
-	config.EnvironmentSummary = hostSummary
-
-	container, err := BuildContainer(config)
-	if err != nil {
-		return fmt.Errorf("build container: %w", err)
-	}
-	if cr.Resolver != nil && container != nil && container.AgentCoordinator != nil {
-		container.AgentCoordinator.SetRuntimeConfigResolver(cr.Resolver)
-	}
-	defer func() {
-		drainCtx, drainCancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer drainCancel()
-		if err := container.Drain(drainCtx); err != nil {
-			logger.Warn("Failed to drain/shutdown container: %v", err)
-		}
-	}()
-
-	if err := container.Start(); err != nil {
-		logger.Warn("Container start failed: %v (continuing with limited functionality)", err)
-	}
-
-	if summary := config.EnvironmentSummary; summary != "" {
-		container.AgentCoordinator.SetEnvironmentSummary(summary)
-	}
-
 	// ── Phase 2: Optional services (attachments only) ──
 
-	degraded := NewDegradedComponents()
-
-	config.Attachment = attachments.NormalizeConfig(config.Attachment)
 	optionalStages := []BootstrapStage{
-		{
-			Name: "attachments", Required: false,
-			Init: func() error {
-				store, err := attachments.NewStore(config.Attachment)
-				if err != nil {
-					return err
-				}
-				migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
-				container.AgentCoordinator.SetAttachmentMigrator(migrator)
-				container.AgentCoordinator.SetAttachmentPersister(
-					attachments.NewStorePersister(store),
-				)
-				return nil
-			},
-		},
+		f.AttachmentStage(),
 	}
 
-	if err := RunStages(optionalStages, degraded, logger); err != nil {
+	if err := RunStages(optionalStages, f.Degraded, logger); err != nil {
 		return fmt.Errorf("optional stages: %w", err)
 	}
 
@@ -147,51 +72,16 @@ func RunLark(observabilityConfigPath string) error {
 				})
 			},
 		},
-		{
-			Name: "scheduler", Required: false,
-			Init: func() error {
-				if !config.Runtime.Proactive.Scheduler.Enabled {
-					return nil
-				}
-				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "scheduler",
-					startFn: func(ctx context.Context) (func(), error) {
-						sched := startScheduler(ctx, config, container, logger)
-						if sched == nil {
-							return nil, fmt.Errorf("scheduler init returned nil")
-						}
-						container.Drainables = append(container.Drainables, sched)
-						return sched.Stop, nil
-					},
-				})
-			},
-		},
-		{
-			Name: "timer-manager", Required: false,
-			Init: func() error {
-				if !config.Runtime.Proactive.Timer.Enabled {
-					return nil
-				}
-				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "timer-manager",
-					startFn: func(ctx context.Context) (func(), error) {
-						mgr := startTimerManager(ctx, config, container, logger)
-						if mgr == nil {
-							return nil, fmt.Errorf("timer-manager init returned nil")
-						}
-						return mgr.Stop, nil
-					},
-				})
-			},
-		},
+		f.SchedulerStage(subsystems),
+		f.TimerManagerStage(subsystems),
 	}
 
-	if err := RunStages(gatewayStages, degraded, logger); err != nil {
+	if err := RunStages(gatewayStages, f.Degraded, logger); err != nil {
 		return fmt.Errorf("gateway stages: %w", err)
 	}
 
-	if !degraded.IsEmpty() {
-		logger.Warn("[Bootstrap] Lark standalone starting in degraded mode: %v", degraded.Map())
+	if !f.Degraded.IsEmpty() {
+		logger.Warn("[Bootstrap] Lark standalone starting in degraded mode: %v", f.Degraded.Map())
 	}
 
 	// ── Phase 3b: Card callback HTTP (optional) ──

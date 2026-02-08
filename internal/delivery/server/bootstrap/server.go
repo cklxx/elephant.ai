@@ -20,7 +20,6 @@ import (
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
 	"alex/internal/shared/async"
-	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
@@ -28,82 +27,27 @@ import (
 func RunServer(observabilityConfigPath string) error {
 	logger := logging.NewComponentLogger("Main")
 	logger.Info("Starting elephant.ai SSE Server...")
-	degraded := NewDegradedComponents()
 
 	// ── Phase 1: Required infrastructure (failure aborts startup) ──
 
-	obs, cleanupObs := InitObservability(observabilityConfigPath, logger)
-	if cleanupObs != nil {
-		defer cleanupObs()
-	}
-
-	cr, err := LoadConfig()
+	f, err := BootstrapFoundation(observabilityConfigPath, logger)
 	if err != nil {
-		return fmt.Errorf("load config: %w", err)
+		return err
 	}
-	config := cr.Config
+	defer f.Cleanup()
 
-	LogServerConfiguration(logger, config)
-
-	if cr.RuntimeCache != nil {
-		for _, configPath := range runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil) {
-			configWatcher, err := runtimeconfig.NewRuntimeConfigWatcher(
-				configPath,
-				cr.RuntimeCache,
-				runtimeconfig.WithConfigWatchLogger(logger),
-				runtimeconfig.WithConfigWatchBeforeReload(func(ctx context.Context) error {
-					_, err := cr.ConfigManager.RefreshOverrides(ctx)
-					return err
-				}),
-			)
-			if err != nil {
-				logger.Warn("Config watcher disabled for %s: %v", configPath, err)
-				continue
-			}
-			if err := configWatcher.Start(context.Background()); err != nil {
-				logger.Warn("Config watcher failed to start for %s: %v", configPath, err)
-				continue
-			}
-			defer configWatcher.Stop()
-		}
-	}
-
-	hostEnv, hostSummary := CaptureHostEnvironment(20)
-	config.EnvironmentSummary = hostSummary
-	envCapturedAt := time.Now().UTC()
-
-	container, err := BuildContainer(config)
-	if err != nil {
-		return fmt.Errorf("build container: %w", err)
-	}
-	if cr.Resolver != nil && container != nil && container.AgentCoordinator != nil {
-		container.AgentCoordinator.SetRuntimeConfigResolver(cr.Resolver)
-	}
-	defer func() {
-		drainCtx, drainCancel := context.WithTimeout(context.Background(), 15*time.Second)
-		defer drainCancel()
-		if err := container.Drain(drainCtx); err != nil {
-			logger.Warn("Failed to drain/shutdown container: %v", err)
-		}
-	}()
-
-	if err := container.Start(); err != nil {
-		logger.Warn("Container start failed: %v (continuing with limited functionality)", err)
-	}
-
-	if summary := config.EnvironmentSummary; summary != "" {
-		container.AgentCoordinator.SetEnvironmentSummary(summary)
-	}
+	config := f.Config
+	container := f.Container
 
 	// ── Phase 2: Optional services (failure records degraded, continues) ──
 
-	config.Attachment = attachments.NormalizeConfig(config.Attachment)
 	var attachmentStore *attachments.Store
 	var historyStore serverApp.EventHistoryStore
 	var asyncHistoryStore *serverApp.AsyncEventHistoryStore
 	var analyticsClient analytics.Client
 	var analyticsCleanup func()
 
+	config.Attachment = attachments.NormalizeConfig(config.Attachment)
 	optionalStages := []BootstrapStage{
 		{
 			Name: "attachments", Required: false,
@@ -167,7 +111,7 @@ func RunServer(observabilityConfigPath string) error {
 		},
 	}
 
-	if err := RunStages(optionalStages, degraded, logger); err != nil {
+	if err := RunStages(optionalStages, f.Degraded, logger); err != nil {
 		return fmt.Errorf("optional stages: %w", err)
 	}
 
@@ -216,7 +160,7 @@ func RunServer(observabilityConfigPath string) error {
 		container.StateStore,
 		serverApp.WithAnalyticsClient(analyticsClient),
 		serverApp.WithJournalReader(journalReader),
-		serverApp.WithObservability(obs),
+		serverApp.WithObservability(f.Obs),
 		serverApp.WithHistoryStore(container.HistoryStore),
 		serverApp.WithProgressTracker(progressTracker),
 	)
@@ -243,46 +187,11 @@ func RunServer(observabilityConfigPath string) error {
 				})
 			},
 		},
-		{
-			Name: "scheduler", Required: false,
-			Init: func() error {
-				if !config.Runtime.Proactive.Scheduler.Enabled {
-					return nil
-				}
-				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "scheduler",
-					startFn: func(ctx context.Context) (func(), error) {
-						sched := startScheduler(ctx, config, container, logger)
-						if sched == nil {
-							return nil, fmt.Errorf("scheduler init returned nil")
-						}
-						container.Drainables = append(container.Drainables, sched)
-						return sched.Stop, nil
-					},
-				})
-			},
-		},
-		{
-			Name: "timer-manager", Required: false,
-			Init: func() error {
-				if !config.Runtime.Proactive.Timer.Enabled {
-					return nil
-				}
-				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "timer-manager",
-					startFn: func(ctx context.Context) (func(), error) {
-						mgr := startTimerManager(ctx, config, container, logger)
-						if mgr == nil {
-							return nil, fmt.Errorf("timer-manager init returned nil")
-						}
-						return mgr.Stop, nil
-					},
-				})
-			},
-		},
+		f.SchedulerStage(subsystems),
+		f.TimerManagerStage(subsystems),
 	}
 
-	if err := RunStages(gatewayStages, degraded, logger); err != nil {
+	if err := RunStages(gatewayStages, f.Degraded, logger); err != nil {
 		return fmt.Errorf("gateway stages: %w", err)
 	}
 
@@ -309,7 +218,7 @@ func RunServer(observabilityConfigPath string) error {
 	healthChecker := serverApp.NewHealthChecker()
 	healthChecker.RegisterProbe(serverApp.NewMCPProbe(container, config.EnableMCP))
 	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
-	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(degraded))
+	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(f.Degraded))
 
 	authService, authCleanup, err := BuildAuthService(config, logger)
 	if err != nil {
@@ -326,13 +235,8 @@ func RunServer(observabilityConfigPath string) error {
 		logger.Info("Authentication module initialized")
 	}
 
-	var runtimeUpdates <-chan struct{}
-	var runtimeReloader func(context.Context) error
-	if cr.RuntimeCache != nil {
-		runtimeUpdates = cr.RuntimeCache.Updates()
-		runtimeReloader = cr.RuntimeCache.Reload
-	}
-	configHandler := serverHTTP.NewConfigHandler(cr.ConfigManager, cr.Resolver, runtimeUpdates, runtimeReloader)
+	runtimeUpdates, runtimeReloader := f.RuntimeCacheUpdates()
+	configHandler := serverHTTP.NewConfigHandler(f.ConfigManager(), f.Resolver(), runtimeUpdates, runtimeReloader)
 	evaluationService, err := serverApp.NewEvaluationService("./evaluation_results")
 	if err != nil {
 		logger.Warn("Evaluation service disabled: %v", err)
@@ -355,7 +259,7 @@ func RunServer(observabilityConfigPath string) error {
 			AuthService:             authService,
 			ConfigHandler:           configHandler,
 			Evaluation:              evaluationService,
-			Obs:                     obs,
+			Obs:                     f.Obs,
 			AttachmentCfg:           config.Attachment,
 			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
 			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
@@ -380,13 +284,13 @@ func RunServer(observabilityConfigPath string) error {
 		},
 	)
 
-	if !degraded.IsEmpty() {
-		logger.Warn("[Bootstrap] Server starting in degraded mode: %v", degraded.Map())
+	if !f.Degraded.IsEmpty() {
+		logger.Warn("[Bootstrap] Server starting in degraded mode: %v", f.Degraded.Map())
 	}
 
 	diagnostics.PublishEnvironments(diagnostics.EnvironmentPayload{
-		Host:     hostEnv,
-		Captured: envCapturedAt,
+		Host:     f.HostEnv,
+		Captured: f.EnvCapturedAt,
 	})
 
 	server := &http.Server{
