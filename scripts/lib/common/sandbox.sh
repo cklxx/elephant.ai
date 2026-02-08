@@ -60,13 +60,13 @@ ensure_sandbox_cli_tools() {
     fi
   done
 
-  if ! docker exec "${env_flags[@]:-}" "${SANDBOX_CONTAINER_NAME}" sh -lc 'command -v npm >/dev/null 2>&1'; then
+  if ! docker exec ${env_flags[@]+"${env_flags[@]}"} "${SANDBOX_CONTAINER_NAME}" sh -lc 'command -v npm >/dev/null 2>&1'; then
     log_warn "Sandbox npm not found; skipping Codex/Claude Code install."
     return 0
   fi
 
   log_info "Ensuring Codex + Claude Code inside sandbox..."
-  if ! docker exec "${env_flags[@]:-}" "${SANDBOX_CONTAINER_NAME}" sh -lc '
+  if ! docker exec ${env_flags[@]+"${env_flags[@]}"} "${SANDBOX_CONTAINER_NAME}" sh -lc '
     fail=0
     if ! command -v codex >/dev/null 2>&1; then
       npm i -g @openai/codex || fail=1
