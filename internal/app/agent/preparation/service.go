@@ -409,6 +409,17 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			}
 		}
 	}
+	apiKeySource := "config"
+	if selectionPinned {
+		apiKeySource = "pinned_selection"
+	} else if s.credentialRefresher != nil {
+		apiKeySource = "credential_refresher"
+	}
+	s.logger.Debug("LLM config resolved: provider=%s model=%s pinned=%t api_key_source=%s key_prefix=%s",
+		effectiveProvider, effectiveModel, selectionPinned, apiKeySource, safeKeyPrefix(llmConfig.APIKey))
+	if mismatch, detail := detectKeyProviderMismatch(effectiveProvider, llmConfig.APIKey); mismatch {
+		s.logger.Warn("API key may not match provider %s: %s", effectiveProvider, detail)
+	}
 	llmClient, err := s.llmFactory.GetIsolatedClient(effectiveProvider, effectiveModel, llmConfig)
 	clilatency.PrintfWithContext(ctx,
 		"[latency] llm_client_init_ms=%.2f provider=%s model=%s\n",
@@ -583,6 +594,40 @@ func (s *ExecutionPreparationService) preAnalyzeTaskAsync(ctx context.Context, s
 			s.logger.Warn("Async title: failed to persist: %v", err)
 		}
 	})
+}
+
+// safeKeyPrefix returns a short, safe-to-log prefix of an API key.
+func safeKeyPrefix(key string) string {
+	if len(key) <= 8 {
+		return "***"
+	}
+	return key[:8] + "..."
+}
+
+// detectKeyProviderMismatch checks for obvious API key / provider mismatches.
+// It detects known vendor-specific key prefixes being sent to the wrong provider.
+func detectKeyProviderMismatch(provider, apiKey string) (mismatch bool, detail string) {
+	if apiKey == "" {
+		return false, ""
+	}
+	lower := strings.ToLower(provider)
+	prefix := safeKeyPrefix(apiKey)
+
+	// Known non-OpenAI key prefixes that should never be sent to OpenAI/Codex.
+	knownNonOpenAI := []string{"sk-kimi-", "sk-ant-", "sk-deepseek-"}
+	if lower == "codex" || lower == "openai-responses" || lower == "openai" {
+		for _, bad := range knownNonOpenAI {
+			if strings.HasPrefix(apiKey, bad) {
+				return true, fmt.Sprintf("key prefix=%s looks like a %s key, not valid for provider %s",
+					prefix, strings.TrimSuffix(strings.TrimPrefix(bad, "sk-"), "-"), provider)
+			}
+		}
+	}
+	// Anthropic keys start with sk-ant-.
+	if lower == "anthropic" && !strings.HasPrefix(apiKey, "sk-ant-") {
+		return true, fmt.Sprintf("key prefix=%s expected sk-ant-* for provider %s", prefix, provider)
+	}
+	return false, ""
 }
 
 func buildSkillsConfig(cfg runtimeconfig.SkillsConfig) agent.SkillsConfig {

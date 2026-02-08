@@ -22,14 +22,17 @@ func (g *Gateway) applyPinnedLarkLLMSelection(ctx context.Context, msg *incoming
 		return ctx
 	}
 
-	selection, _, ok, err := g.llmSelections.GetWithFallback(ctx, chatScope(msg), channelScope())
+	selection, matchedScope, ok, err := g.llmSelections.GetWithFallback(ctx, chatScope(msg), channelScope())
 	if err != nil {
 		g.logger.Warn("Lark LLM selection load failed: %v", err)
 		return ctx
 	}
 	if !ok {
+		g.logger.Debug("Lark LLM selection: no selection found for chat=%s", msg.chatID)
 		return ctx
 	}
+	g.logger.Debug("Lark LLM selection found: provider=%s model=%s scope=%s",
+		selection.Provider, selection.Model, matchedScope.Channel)
 
 	resolved, ok := g.llmResolver.Resolve(selection)
 	if !ok {
