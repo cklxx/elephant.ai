@@ -15,9 +15,9 @@
 
 ## Progress
 
-- [ ] Part A
-- [ ] Part B
-- [ ] Part C
-- [ ] Part D
-- [ ] Part E
+- [x] Part A — bcabafae
+- [x] Part B — 12f45884
+- [x] Part C — 0f639ecd
+- [x] Part D — d3bfd7d9
+- [x] Part E — (this commit)
 - [ ] Validation
