@@ -1,7 +1,7 @@
 # Plan: Tool Surface Convergence + Foundation Suite Expansion (2026-02-08)
 
 ## Status
-- in_progress
+- done
 
 ## Goal
 - Converge conflicting tool surfaces into one canonical set so model discoverability is cleaner and sandbox remains an execution backend detail.
@@ -28,7 +28,7 @@
 - [x] Add report `x/x` counters (collections, cases, per-collection cases) in suite outputs.
 - [x] Add/update tests for registry compatibility, report fields, and dataset loading.
 - [x] Run targeted tests, full lint/test, and foundation-suite rerun for validation.
-- [ ] Commit incrementally, merge back to `main`, cleanup worktree.
+- [x] Commit incrementally, merge back to `main`, cleanup worktree.
 
 ## Progress Log
 - 2026-02-08 14:45: Reviewed engineering practices + memory summaries and confirmed isolated worktree branch from `main`.
@@ -39,3 +39,4 @@
 - 2026-02-08 15:05: Suite rerun on expanded set reached `4/4` collections and `138/138` cases (Top-K), availability errors `0`.
 - 2026-02-08 15:07: Full `./dev.sh lint` and `./dev.sh test` executed; blocked by pre-existing unrelated failures in `internal/devops/*`, `cmd/alex/dev*.go`, and known race/env-guard failures in `internal/delivery/server/bootstrap` + `internal/shared/config`.
 - 2026-02-08 15:09: Added good-experience entry capturing canonical tool-surface convergence + scaled layered suite optimization pattern.
+- 2026-02-08 15:11: Landed 3 incremental commits, fast-forward merged into `main`, and removed temporary worktree.
