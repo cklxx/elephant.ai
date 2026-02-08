@@ -70,11 +70,56 @@ func devUp() error {
 		return err
 	}
 
-	cfg := orch.Config()
-	fmt.Println()
-	orch.Section().Success("Dev services are running: backend=http://localhost:%d web=http://localhost:%d sandbox=%s",
-		cfg.ServerPort, cfg.WebPort, cfg.SandboxBaseURL)
+	printDevSummary(orch)
 	return nil
+}
+
+func printDevSummary(orch *devops.Orchestrator) {
+	cfg := orch.Config()
+	sec := orch.Section()
+	ctx := context.Background()
+
+	// Services section
+	sec.Section("Services")
+	serviceURLs := map[string]string{
+		"backend": fmt.Sprintf("http://localhost:%d", cfg.ServerPort),
+		"web":     fmt.Sprintf("http://localhost:%d", cfg.WebPort),
+		"sandbox": cfg.SandboxBaseURL,
+	}
+	for _, s := range orch.Status(ctx) {
+		url := serviceURLs[s.Name]
+		if s.Healthy {
+			if url != "" {
+				sec.Success("%-10s %s", s.Name, url)
+			} else {
+				sec.Success("%-10s ready", s.Name)
+			}
+		} else {
+			sec.Warn("%-10s %s", s.Name, s.State)
+		}
+	}
+
+	// Dev tools section
+	webBase := fmt.Sprintf("http://localhost:%d", cfg.WebPort)
+	type devTool struct {
+		name string
+		path string
+	}
+	tools := []devTool{
+		{"Evaluation", "/evaluation"},
+		{"Sessions", "/sessions"},
+		{"Conversation Debug", "/dev/conversation-debug"},
+		{"Log Analyzer", "/dev/log-analyzer"},
+		{"Context Window", "/dev/context-window"},
+		{"Context Config", "/dev/context-config"},
+		{"Plan Preview", "/dev/plan-preview"},
+		{"Config Inspector", "/dev/config"},
+		{"Apps Config", "/dev/apps-config"},
+	}
+	sec.Section("Dev Tools")
+	for _, t := range tools {
+		sec.Info("%-20s %s%s", t.name, webBase, t.path)
+	}
 }
 
 func devDown() error {
