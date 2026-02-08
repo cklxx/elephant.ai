@@ -46,3 +46,13 @@ type Service interface {
 	State() ServiceState
 	Health(ctx context.Context) health.Result
 }
+
+// Buildable is an optional interface for services that compile a binary.
+// Orchestrator checks for this interface during Restart to build before
+// stopping the old process, so a compilation failure never causes downtime.
+type Buildable interface {
+	// Build compiles to a staging path without touching the running binary.
+	Build(ctx context.Context) (stagingPath string, err error)
+	// Promote atomically replaces the production binary with the staged one.
+	Promote(stagingPath string) error
+}
