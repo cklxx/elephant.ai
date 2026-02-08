@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-08 21:00
+Updated: 2026-02-08 22:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -36,6 +36,7 @@ Updated: 2026-02-08 21:00
 - Layered foundation suites (tool coverage / prompt effectiveness / proactivity / complex tasks) make routing regressions diagnosable faster than a single mixed case set.
 - A dedicated memory-capabilities collection catches regressions in memory_search/memory_get and memory-informed execution chains earlier than mixed suites.
 - User-habit and soul continuity routing requires separate evaluation layer; otherwise preference/persona regressions are hidden by generic memory pass rates.
+- A dedicated speed-focused collection is useful to catch regressions where the router drifts to slower multi-step paths instead of shortest viable completion.
 
 ## Items
 
