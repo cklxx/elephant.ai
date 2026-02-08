@@ -150,6 +150,7 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
 # 3. Build and run all services (sandbox, auth DB, backend, web)
 make build
+alex setup                     # one-time provider/model picker
 alex dev up
 
 # 4. Or use the CLI directly
@@ -183,6 +184,7 @@ alex dev sandbox status        # check sandbox health
 # Quality
 alex dev test                  # run Go tests (race + coverage)
 alex dev lint                  # run Go + web lint
+alex setup                     # first-run subscription model setup
 
 # Lark supervisor (production)
 alex dev lark supervise        # foreground supervisor with restart policy

@@ -150,6 +150,7 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 
 # 3. 构建并启动全部服务（sandbox、auth DB、后端、前端）
 make build
+alex setup                     # 首次运行模型/Provider 选择向导
 alex dev up
 
 # 4. 或者直接使用 CLI
@@ -183,6 +184,7 @@ alex dev sandbox status        # 检查 sandbox 健康状态
 # 质量保证
 alex dev test                  # 运行 Go 测试（race + coverage）
 alex dev lint                  # 运行 Go + web lint
+alex setup                     # 首次订阅模型配置
 
 # 飞书 Supervisor（生产）
 alex dev lark supervise        # 前台运行 supervisor（含重启策略）

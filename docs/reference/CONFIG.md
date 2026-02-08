@@ -294,6 +294,8 @@ channels:
 - `CODEX_BASE_URL`：Responses / Codex base URL override
 - `ANTIGRAVITY_BASE_URL`：Antigravity base URL override
 - `ALEX_CLI_AUTH_PATH`：CLI auth.json 路径覆盖
+- `ALEX_LLM_SELECTION_PATH`：订阅模型选择状态文件路径（默认 `~/.alex/llm_selection.json`）
+- `ALEX_ONBOARDING_STATE_PATH`：首启 onboarding 状态文件路径（默认 `~/.alex/onboarding_state.json`）
 - `ALEX_SKILLS_DIR`：Skills 根目录（设置后仅使用该路径，不触发自动复制）
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具

@@ -67,6 +67,7 @@ Build the `alex` binary, then use `alex dev up` to start everything:
 
 ```bash
 make build
+alex setup                    # first-run provider/model picker
 alex dev up
 ```
 
@@ -104,6 +105,7 @@ alex dev sandbox status
 # Quality
 alex dev test                  # Go tests with race + coverage
 alex dev lint                  # Go + web lint
+alex setup                     # first-run subscription setup
 
 # Lark supervisor
 alex dev lark supervise        # foreground supervisor with restart policy
