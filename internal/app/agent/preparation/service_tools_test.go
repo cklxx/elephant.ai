@@ -94,11 +94,11 @@ func TestSelectToolRegistryUsesConfiguredPresetForSubagents(t *testing.T) {
 	filtered := service.selectToolRegistry(ctx, presets.ToolModeCLI, service.config.ToolPreset)
 	names := sortedToolNames(filtered.List())
 
-	if containsString(names, "bash") {
-		t.Fatalf("subagent preset should block bash: %v", names)
+	if containsString(names, "subagent") {
+		t.Fatalf("subagents should not retain subagent tool: %v", names)
 	}
-	if !containsString(names, "file_read") {
-		t.Fatalf("subagent preset should retain file_read: %v", names)
+	if !containsString(names, "bash") || !containsString(names, "file_read") {
+		t.Fatalf("configured preset should retain execution tools after policy change: %v", names)
 	}
 }
 
@@ -150,10 +150,7 @@ func TestSelectToolRegistryUsesArchitectPresetInWebMode(t *testing.T) {
 	filtered := service.selectToolRegistry(context.Background(), presets.ToolModeWeb, string(presets.ToolPresetArchitect))
 	names := sortedToolNames(filtered.List())
 
-	if containsString(names, "bash") || containsString(names, "file_read") {
-		t.Fatalf("web architect preset should block local tools, got: %v", names)
-	}
-	for _, allowed := range []string{"plan", "clarify", "web_search", "web_fetch", "request_user", "acp_executor"} {
+	for _, allowed := range []string{"plan", "clarify", "web_search", "web_fetch", "request_user", "acp_executor", "file_read", "bash"} {
 		if !containsString(names, allowed) {
 			t.Fatalf("expected tool %s in web architect preset, got: %v", allowed, names)
 		}

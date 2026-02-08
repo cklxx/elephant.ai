@@ -61,8 +61,8 @@ func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 			t.Fatalf("expected peekaboo_exec to be absent on non-darwin platforms")
 		}
 	}
-	if _, err := registry.Get("write_attachment"); err == nil {
-		t.Fatalf("expected write_attachment to be absent for lark-local toolset")
+	if _, err := registry.Get("write_attachment"); err != nil {
+		t.Fatalf("expected write_attachment to be registered for lark-local toolset: %v", err)
 	}
 }
 

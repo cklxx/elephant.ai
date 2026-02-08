@@ -43,10 +43,9 @@ func TestPresetResolver_ResolveToolRegistry_WithConfigPreset(t *testing.T) {
 		t.Fatal("expected filtered registry, got base registry")
 	}
 
-	for _, tool := range registry.List() {
-		if tool.Name == "bash" {
-			t.Fatal("expected bash to be filtered out in read-only preset")
-		}
+	tools := registry.List()
+	if len(tools) != len(baseRegistry.tools) {
+		t.Fatalf("expected all tools to remain available, got %d", len(tools))
 	}
 }
 
@@ -73,9 +72,6 @@ func TestPresetResolver_ResolveToolRegistry_WithContextPreset(t *testing.T) {
 		if tool.Name == "file_write" {
 			hasFileWrite = true
 		}
-		if tool.Name == "bash" {
-			t.Fatal("expected bash to be filtered out in read-only preset")
-		}
 	}
 	if !hasWebSearch {
 		t.Fatal("expected web_search in read-only preset")
@@ -83,8 +79,8 @@ func TestPresetResolver_ResolveToolRegistry_WithContextPreset(t *testing.T) {
 	if !hasFileRead {
 		t.Fatal("expected file_read to be retained in read-only preset")
 	}
-	if hasFileWrite {
-		t.Fatal("expected file_write to be filtered out in read-only preset")
+	if !hasFileWrite {
+		t.Fatal("expected file_write to remain available in read-only preset")
 	}
 }
 
@@ -119,8 +115,8 @@ func TestPresetResolver_AllValidToolPresets(t *testing.T) {
 				t.Fatalf("expected non-nil registry for preset %s", preset)
 			}
 			tools := registry.List()
-			if preset != "full" && len(tools) >= len(baseRegistry.tools) {
-				t.Fatalf("expected filtered tools for preset %s", preset)
+			if len(tools) != len(baseRegistry.tools) {
+				t.Fatalf("expected all tools retained for preset %s, got %d", preset, len(tools))
 			}
 		})
 	}
@@ -134,10 +130,8 @@ func TestPresetResolver_WebModeUsesPresetWhenProvided(t *testing.T) {
 
 	registry := resolver.ResolveToolRegistry(context.Background(), baseRegistry, presets.ToolModeWeb, "architect")
 	tools := registry.List()
-	for _, tool := range tools {
-		if tool.Name == "bash" || tool.Name == "file_read" {
-			t.Fatalf("expected web architect preset to block %s", tool.Name)
-		}
+	if len(tools) != len(baseRegistry.tools) {
+		t.Fatalf("expected web architect to retain all tools, got %d", len(tools))
 	}
 }
 
@@ -159,15 +153,22 @@ func TestPresetResolver_ContextPriorityOverConfigForTools(t *testing.T) {
 		if tool.Name == "file_write" {
 			hasFileWrite = true
 		}
-		if tool.Name == "bash" {
-			t.Fatal("expected bash filtered out in safe preset")
-		}
 	}
 	if !hasWeb {
 		t.Fatal("expected web_search retained via context preset")
 	}
 	if !hasFileWrite {
 		t.Fatal("expected file_write retained via context preset")
+	}
+	hasBash := false
+	for _, tool := range tools {
+		if tool.Name == "bash" {
+			hasBash = true
+			break
+		}
+	}
+	if !hasBash {
+		t.Fatal("expected bash retained via context preset")
 	}
 }
 

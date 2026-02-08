@@ -35,127 +35,13 @@ type ToolConfig struct {
 	DeniedTools  map[string]bool // Tools explicitly denied
 }
 
-var (
-	cliRestrictedTools = func() map[string]bool {
-		return map[string]bool{
-			"artifacts_write":  true,
-			"artifacts_list":   true,
-			"artifacts_delete": true,
-			"acp_executor":     true,
-			// Memory tools (Web UI only)
-			"memory_search": true,
-			"memory_get":    true,
-			// Media generation tools (Web UI only)
-			"text_to_image":    true,
-			"image_to_image":   true,
-			"video_generate":   true,
-			"pptx_from_images": true,
-		}
-	}()
-	cliDeniedTools = func() map[string]bool {
-		tools := cloneToolSet(cliRestrictedTools)
-		addSandboxTools(tools)
-		return tools
-	}()
-	larkLocalDeniedTools = func() map[string]bool {
-		tools := map[string]bool{
-			"write_attachment": true,
-			"acp_executor":     true,
-			"artifacts_write":  true,
-			"artifacts_list":   true,
-			"artifacts_delete": true,
-		}
-		return tools
-	}()
-	webDeniedTools = map[string]bool{
-		"file_read":    true,
-		"file_write":   true,
-		"file_edit":    true,
-		"list_files":   true,
-		"grep":         true,
-		"ripgrep":      true,
-		"find":         true,
-		"bash":         true,
-		"code_execute": true,
-		"skills":       true,
-		"todo_read":    true,
-		"todo_update":  true,
+func unrestrictedToolConfig(name, description string) *ToolConfig {
+	return &ToolConfig{
+		Name:         name,
+		Description:  description,
+		AllowedTools: nil,
+		DeniedTools:  map[string]bool{},
 	}
-	readOnlyDeniedTools = func() map[string]bool {
-		tools := map[string]bool{
-			"file_write":   true,
-			"file_edit":    true,
-			"bash":         true,
-			"code_execute": true,
-			"todo_update":  true,
-		}
-		addSandboxTools(tools)
-		return tools
-	}()
-	safeDeniedTools = func() map[string]bool {
-		tools := map[string]bool{
-			"bash":         true,
-			"code_execute": true,
-		}
-		addSandboxTools(tools)
-		return tools
-	}()
-	sandboxDeniedTools = map[string]bool{
-		"file_read":    true,
-		"file_write":   true,
-		"file_edit":    true,
-		"list_files":   true,
-		"grep":         true,
-		"ripgrep":      true,
-		"find":         true,
-		"bash":         true,
-		"code_execute": true,
-		"skills":       true,
-		"todo_read":    true,
-		"todo_update":  true,
-	}
-	architectAllowedToolsCLI = map[string]bool{
-		"plan":         true,
-		"clarify":      true,
-		"web_search":   true,
-		"web_fetch":    true,
-		"request_user": true,
-	}
-	sandboxToolNames = []string{
-		"browser_action",
-		"browser_info",
-		"browser_screenshot",
-		"browser_dom",
-		"read_file",
-		"write_file",
-		"list_dir",
-		"search_file",
-		"replace_in_file",
-		"shell_exec",
-		"execute_code",
-		"write_attachment",
-	}
-)
-
-func addSandboxTools(dst map[string]bool) {
-	for _, name := range sandboxToolNames {
-		dst[name] = true
-	}
-}
-
-func cloneToolSet(src map[string]bool) map[string]bool {
-	dst := make(map[string]bool, len(src))
-	for key, value := range src {
-		dst[key] = value
-	}
-	return dst
-}
-
-func mergeToolSets(dst map[string]bool, src map[string]bool) map[string]bool {
-	for key, value := range src {
-		dst[key] = value
-	}
-	return dst
 }
 
 // GetToolConfig returns the tool configuration for a mode and preset.
@@ -166,35 +52,27 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 	switch mode {
 	case ToolModeWeb:
 		if preset == "" {
-			return &ToolConfig{
-				Name:         "Web Mode",
-				Description:  "All non-local tools (file/shell/code exec disabled)",
-				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(webDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Web Mode",
+				"Unrestricted tool access for web mode",
+			), nil
 		}
 		switch preset {
 		case ToolPresetArchitect:
-			return &ToolConfig{
-				Name:         "Architect Access",
-				Description:  "Web-safe tools (local file/shell/code exec disabled)",
-				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(webDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Architect Access",
+				"Unrestricted tool access for architect preset in web mode",
+			), nil
 		case ToolPresetFull, ToolPresetReadOnly, ToolPresetSafe, ToolPresetSandbox:
-			return &ToolConfig{
-				Name:         "Web Mode",
-				Description:  "All non-local tools (file/shell/code exec disabled)",
-				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(webDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Web Mode",
+				"Unrestricted tool access for web mode",
+			), nil
 		case ToolPresetLarkLocal:
-			return &ToolConfig{
-				Name:         "Lark Local",
-				Description:  "Lark-local tools (local browser/file aliases, no sandbox attachments)",
-				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(larkLocalDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Lark Local",
+				"Unrestricted tool access for lark-local preset in web mode",
+			), nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
 		}
@@ -204,47 +82,35 @@ func GetToolConfig(mode ToolMode, preset ToolPreset) (*ToolConfig, error) {
 		}
 		switch preset {
 		case ToolPresetFull:
-			return &ToolConfig{
-				Name:         "Full Access",
-				Description:  "All tools available - unrestricted access",
-				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(cliDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Full Access",
+				"All tools available - unrestricted access",
+			), nil
 		case ToolPresetReadOnly:
-			return &ToolConfig{
-				Name:         "Read-Only Access",
-				Description:  "No local writes or shell/code execution",
-				AllowedTools: nil,
-				DeniedTools:  mergeToolSets(cloneToolSet(readOnlyDeniedTools), cliDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Read-Only Access",
+				"All tools available - preset label retained for compatibility",
+			), nil
 		case ToolPresetSafe:
-			return &ToolConfig{
-				Name:         "Safe Mode",
-				Description:  "Excludes potentially dangerous tools (bash, code execution)",
-				AllowedTools: nil,
-				DeniedTools:  mergeToolSets(cloneToolSet(safeDeniedTools), cliDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Safe Mode",
+				"All tools available - preset label retained for compatibility",
+			), nil
 		case ToolPresetSandbox:
-			return &ToolConfig{
-				Name:         "Sandbox Access",
-				Description:  "No local file/shell tools; sandbox_* tools are web-only",
-				AllowedTools: nil,
-				DeniedTools:  mergeToolSets(cloneToolSet(sandboxDeniedTools), cliDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Sandbox Access",
+				"All tools available - preset label retained for compatibility",
+			), nil
 		case ToolPresetArchitect:
-			return &ToolConfig{
-				Name:         "Architect Access",
-				Description:  "Architect-only tools (search/plan/clarify + executor dispatch)",
-				AllowedTools: cloneToolSet(architectAllowedToolsCLI),
-				DeniedTools:  cloneToolSet(cliDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Architect Access",
+				"All tools available - preset label retained for compatibility",
+			), nil
 		case ToolPresetLarkLocal:
-			return &ToolConfig{
-				Name:         "Lark Local",
-				Description:  "Lark-local tools (local browser/file aliases, no sandbox attachments)",
-				AllowedTools: nil,
-				DeniedTools:  cloneToolSet(larkLocalDeniedTools),
-			}, nil
+			return unrestrictedToolConfig(
+				"Lark Local",
+				"All tools available - preset label retained for compatibility",
+			), nil
 		default:
 			return nil, fmt.Errorf("unknown tool preset: %s", preset)
 		}

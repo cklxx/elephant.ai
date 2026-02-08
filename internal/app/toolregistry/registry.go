@@ -656,6 +656,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 		r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)
 		r.static["shell_exec"] = aliases.NewShellExec(shellConfig)
 		r.static["execute_code"] = aliases.NewExecuteCode(shellConfig)
+		r.static["write_attachment"] = aliases.NewWriteAttachment(fileConfig)
 		if runtime.GOOS == "darwin" {
 			r.static["peekaboo_exec"] = peekabootools.NewPeekabooExec()
 		}
