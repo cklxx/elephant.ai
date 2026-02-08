@@ -87,6 +87,68 @@ func TestFetchRecentLogIndexLimit(t *testing.T) {
 	}
 }
 
+func TestFetchRecentLogIndexOffset(t *testing.T) {
+	logDir := t.TempDir()
+	requestDir := filepath.Join(t.TempDir(), "requests")
+	if err := os.MkdirAll(requestDir, 0o755); err != nil {
+		t.Fatalf("mkdir request dir: %v", err)
+	}
+	writeLogFile(t, filepath.Join(logDir, serviceLogFileName), strings.Join([]string{
+		"2026-02-07 10:00:00 [INFO] [SERVICE] [API] [log_id=log-1] one",
+		"2026-02-07 11:00:00 [INFO] [SERVICE] [API] [log_id=log-2] two",
+		"2026-02-07 12:00:00 [INFO] [SERVICE] [API] [log_id=log-3] three",
+		"2026-02-07 13:00:00 [INFO] [SERVICE] [API] [log_id=log-4] four",
+		"2026-02-07 14:00:00 [INFO] [SERVICE] [API] [log_id=log-5] five",
+	}, "\n")+"\n")
+
+	t.Setenv(logDirEnvVar, logDir)
+	t.Setenv(requestLogEnvVar, requestDir)
+
+	// Sorted desc: log-5, log-4, log-3, log-2, log-1
+
+	// Page 1: offset=0, limit=2 → log-5, log-4
+	page1 := FetchRecentLogIndex(LogIndexOptions{Limit: 2, Offset: 0})
+	if len(page1) != 2 {
+		t.Fatalf("page1: expected 2 entries, got %d", len(page1))
+	}
+	if page1[0].LogID != "log-5" || page1[1].LogID != "log-4" {
+		t.Fatalf("page1: unexpected IDs: %s, %s", page1[0].LogID, page1[1].LogID)
+	}
+
+	// Page 2: offset=2, limit=2 → log-3, log-2
+	page2 := FetchRecentLogIndex(LogIndexOptions{Limit: 2, Offset: 2})
+	if len(page2) != 2 {
+		t.Fatalf("page2: expected 2 entries, got %d", len(page2))
+	}
+	if page2[0].LogID != "log-3" || page2[1].LogID != "log-2" {
+		t.Fatalf("page2: unexpected IDs: %s, %s", page2[0].LogID, page2[1].LogID)
+	}
+
+	// Page 3: offset=4, limit=2 → log-1
+	page3 := FetchRecentLogIndex(LogIndexOptions{Limit: 2, Offset: 4})
+	if len(page3) != 1 {
+		t.Fatalf("page3: expected 1 entry, got %d", len(page3))
+	}
+	if page3[0].LogID != "log-1" {
+		t.Fatalf("page3: unexpected ID: %s", page3[0].LogID)
+	}
+
+	// Page 4: offset=5, limit=2 → empty
+	page4 := FetchRecentLogIndex(LogIndexOptions{Limit: 2, Offset: 5})
+	if len(page4) != 0 {
+		t.Fatalf("page4: expected 0 entries, got %d", len(page4))
+	}
+
+	// Negative offset treated as 0
+	negOffset := FetchRecentLogIndex(LogIndexOptions{Limit: 2, Offset: -1})
+	if len(negOffset) != 2 {
+		t.Fatalf("neg offset: expected 2 entries, got %d", len(negOffset))
+	}
+	if negOffset[0].LogID != "log-5" {
+		t.Fatalf("neg offset: expected log-5, got %s", negOffset[0].LogID)
+	}
+}
+
 func writeLogFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

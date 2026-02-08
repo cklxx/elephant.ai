@@ -127,12 +127,32 @@ func (h *APIHandler) HandleDevLogIndex(w http.ResponseWriter, r *http.Request) {
 		limit = parsed
 	}
 
+	offset := 0
+	if raw := strings.TrimSpace(r.URL.Query().Get("offset")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 0 {
+			if err == nil {
+				err = fmt.Errorf("offset must be >= 0")
+			}
+			h.writeJSONError(w, http.StatusBadRequest, "offset must be a non-negative integer", err)
+			return
+		}
+		offset = parsed
+	}
+
+	// Fetch one extra entry to determine if there are more results.
 	entries := logging.FetchRecentLogIndex(logging.LogIndexOptions{
-		Limit:        limit,
+		Limit:        limit + 1,
+		Offset:       offset,
 		MaxLineBytes: 1 << 20,
 	})
+	hasMore := len(entries) > limit
+	if hasMore {
+		entries = entries[:limit]
+	}
 	h.writeJSON(w, http.StatusOK, map[string]any{
-		"entries": entries,
+		"entries":  entries,
+		"has_more": hasMore,
 	})
 }
 

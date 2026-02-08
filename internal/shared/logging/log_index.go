@@ -21,6 +21,7 @@ var textLogIDPattern = regexp.MustCompile(`log_id=([^\]\s]+)`)
 // LogIndexOptions configures recent log index scanning behavior.
 type LogIndexOptions struct {
 	Limit        int
+	Offset       int
 	MaxLineBytes int
 }
 
@@ -73,6 +74,12 @@ func FetchRecentLogIndex(opts LogIndexOptions) []LogIndexEntry {
 		return left.LogID < right.LogID
 	})
 
+	if opts.Offset > 0 {
+		if opts.Offset >= len(entries) {
+			return nil
+		}
+		entries = entries[opts.Offset:]
+	}
 	if len(entries) > opts.Limit {
 		entries = entries[:opts.Limit]
 	}
@@ -85,6 +92,9 @@ func normalizeLogIndexOptions(opts LogIndexOptions) LogIndexOptions {
 	}
 	if opts.Limit > maxLogIndexLimit {
 		opts.Limit = maxLogIndexLimit
+	}
+	if opts.Offset < 0 {
+		opts.Offset = 0
 	}
 	if opts.MaxLineBytes <= 0 {
 		opts.MaxLineBytes = 8 << 20
