@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, and hard context-learning patterns"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, and memory capabilities"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -97,6 +97,16 @@ collections:
     dimension: "context_learning_hard"
     description: "Hard long-context routing cases inspired by latest benchmark failure modes"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_context_learning_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "memory-capabilities"
+    name: "Memory Capabilities"
+    dimension: "memory_capabilities"
+    description: "Memory retrieval, conflict handling, and memory-informed execution routing"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_memory_capabilities.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

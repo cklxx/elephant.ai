@@ -67,10 +67,11 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 多步骤编排能力链路（multi-step orchestration）
 - 安全边界与策略门控（safety boundary policy）
 - context learning hard 模式（latest benchmark inspired）
+- 记忆能力专项（memory capabilities）
 
 当前集合规模（`x/x`）：
-- Collections: `10/10`
-- Cases: `274/274`
+- Collections: `11/11`
+- Cases: `294/294`
 - Base Tool Coverage: `46/46`
 - Prompt Effectiveness Coverage: `32/32`
 - Proactivity Coverage: `30/30`
@@ -81,13 +82,14 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Multi-Step Orchestration: `20/20`
 - Safety Boundary and Policy: `20/20`
 - Context Learning Hard: `20/20`
+- Memory Capabilities: `20/20`
 
 运行命令：
 
 ```bash
 go run ./cmd/alex eval foundation-suite \
   --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
-  --output tmp/foundation-suite-context-hard-v1 \
+  --output tmp/foundation-suite-memory-v1 \
   --format markdown
 ```
 
