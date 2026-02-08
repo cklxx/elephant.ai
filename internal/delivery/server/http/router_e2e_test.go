@@ -82,9 +82,9 @@ func TestRouterE2EDevLogIndexWithAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("request dev logs index (unauthorized): %v", err)
 	}
-	unauthorizedResp.Body.Close()
-	if unauthorizedResp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("expected 401 without token, got %d", unauthorizedResp.StatusCode)
+	defer unauthorizedResp.Body.Close()
+	if unauthorizedResp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 without token for dev logs index, got %d", unauthorizedResp.StatusCode)
 	}
 
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/api/dev/logs/index?limit=5", nil)
@@ -115,6 +115,32 @@ func TestRouterE2EDevLogIndexWithAuth(t *testing.T) {
 	}
 	if strings.TrimSpace(payload.Entries[0].LogID) == "" {
 		t.Fatalf("expected non-empty log_id in response")
+	}
+}
+
+func TestRouterE2EDevMemoryRequiresAuth(t *testing.T) {
+	authHandler, authService, _ := newE2EAuth(t)
+	router := NewRouter(
+		RouterDeps{
+			Broadcaster:   serverapp.NewEventBroadcaster(),
+			HealthChecker: serverapp.NewHealthChecker(),
+			AttachmentCfg: attachments.StoreConfig{Dir: t.TempDir()},
+			AuthHandler:   authHandler,
+			AuthService:   authService,
+		},
+		RouterConfig{Environment: "development"},
+	)
+
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	unauthorizedResp, err := server.Client().Get(server.URL + "/api/dev/memory?session_id=session-1")
+	if err != nil {
+		t.Fatalf("request dev memory (unauthorized): %v", err)
+	}
+	defer unauthorizedResp.Body.Close()
+	if unauthorizedResp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for dev memory without token, got %d", unauthorizedResp.StatusCode)
 	}
 }
 

@@ -82,12 +82,13 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	mux.Handle("GET /api/internal/sessions/{session_id}/context", routeHandler("/api/internal/sessions/:session_id/context", http.HandlerFunc(apiHandler.HandleGetContextSnapshots)))
 
-		if devMode {
-			mux.Handle("GET /api/dev/sessions/{session_id}/context-window", routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleGetContextWindowPreview))))
-			mux.Handle("GET /api/dev/logs", routeHandler("/api/dev/logs", wrap(http.HandlerFunc(apiHandler.HandleDevLogTrace))))
-			mux.Handle("GET /api/dev/logs/structured", routeHandler("/api/dev/logs/structured", wrap(http.HandlerFunc(apiHandler.HandleDevLogStructured))))
-			mux.Handle("GET /api/dev/logs/index", routeHandler("/api/dev/logs/index", wrap(http.HandlerFunc(apiHandler.HandleDevLogIndex))))
-			mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleGetMemorySnapshot))))
+	if devMode {
+		mux.Handle("GET /api/dev/sessions/{session_id}/context-window", routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleGetContextWindowPreview))))
+		// Keep local logs-ui usable without account login in development mode.
+		mux.Handle("GET /api/dev/logs", routeHandler("/api/dev/logs", http.HandlerFunc(apiHandler.HandleDevLogTrace)))
+		mux.Handle("GET /api/dev/logs/structured", routeHandler("/api/dev/logs/structured", http.HandlerFunc(apiHandler.HandleDevLogStructured)))
+		mux.Handle("GET /api/dev/logs/index", routeHandler("/api/dev/logs/index", http.HandlerFunc(apiHandler.HandleDevLogIndex)))
+		mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleGetMemorySnapshot))))
 
 		contextConfigHandler := NewContextConfigHandler("")
 		if contextConfigHandler != nil {
