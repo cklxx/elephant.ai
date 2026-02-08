@@ -191,24 +191,24 @@ func larkStatus() error {
 
 	sec.Section("Components")
 	for name, comp := range status.Components {
-		shaLabel := comp.DeployedSHA
-		if shaLabel == "" {
-			shaLabel = "unknown"
-		}
-		aligned := ""
-		if headSHA != "" && comp.DeployedSHA != "" {
-			if strings.HasPrefix(headSHA, comp.DeployedSHA) || strings.HasPrefix(comp.DeployedSHA, headSHA) {
-				aligned = " (aligned)"
-			} else {
-				aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
+		parts := fmt.Sprintf("%s  pid=%d", comp.Health, comp.PID)
+		if comp.DeployedSHA != "" {
+			sha := shortSHA(comp.DeployedSHA)
+			aligned := ""
+			if headSHA != "" {
+				if shaMatch(headSHA, comp.DeployedSHA) {
+					aligned = " (aligned)"
+				} else {
+					aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
+				}
 			}
+			parts += fmt.Sprintf("  sha=%s%s", sha, aligned)
 		}
 
-		health := comp.Health
-		if health == "healthy" || health == "alive" {
-			sec.Success("%-14s %s  pid=%d  sha=%s%s", name, health, comp.PID, shaLabel, aligned)
+		if comp.Health == "healthy" || comp.Health == "alive" {
+			sec.Success("%-14s %s", name, parts)
 		} else {
-			sec.Warn("%-14s %s  pid=%d  sha=%s%s", name, health, comp.PID, shaLabel, aligned)
+			sec.Warn("%-14s %s", name, parts)
 		}
 	}
 
@@ -233,6 +233,24 @@ func gitHeadShort(dir string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// shortSHA truncates a SHA hash to 8 characters for display.
+func shortSHA(s string) string {
+	if len(s) > 8 {
+		return s[:8]
+	}
+	return s
+}
+
+// shaMatch compares two SHA hashes, handling mixed full/short lengths
+// by comparing only the shorter prefix.
+func shaMatch(a, b string) bool {
+	n := len(a)
+	if len(b) < n {
+		n = len(b)
+	}
+	return a[:n] == b[:n]
 }
 
 func larkLogs() error {
@@ -503,16 +521,19 @@ func printLarkSummary(sec *devlog.SectionWriter) {
 	headSHA := gitHeadShort(cfg.MainRoot)
 
 	for name, comp := range status.Components {
-		shaLabel := comp.DeployedSHA
-		aligned := ""
-		if headSHA != "" && shaLabel != "" {
-			if strings.HasPrefix(headSHA, shaLabel) || strings.HasPrefix(shaLabel, headSHA) {
-				aligned = " (aligned)"
-			} else {
-				aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
+		label := comp.Health
+		if comp.DeployedSHA != "" {
+			sha := shortSHA(comp.DeployedSHA)
+			aligned := ""
+			if headSHA != "" {
+				if shaMatch(headSHA, comp.DeployedSHA) {
+					aligned = " (aligned)"
+				} else {
+					aligned = fmt.Sprintf(" (HEAD: %s)", headSHA)
+				}
 			}
+			label += fmt.Sprintf("  sha=%s%s", sha, aligned)
 		}
-		label := fmt.Sprintf("%s  sha=%s%s", comp.Health, shaLabel, aligned)
 		if comp.Health == "healthy" || comp.Health == "alive" {
 			sec.Success("%-14s %s", name, label)
 		} else {

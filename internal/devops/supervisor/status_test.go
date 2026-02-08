@@ -133,6 +133,66 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
 	}
 }
 
+func TestStatusFileReadFlatFormatEmptyPID(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "status.json")
+
+	// Simulate production case: test_pid is empty string but health/sha data exists
+	flat := `{
+  "ts_utc": "2026-02-08T08:30:10Z",
+  "mode": "degraded",
+  "main_pid": "31727",
+  "test_pid": "",
+  "loop_pid": "28187",
+  "main_health": "healthy",
+  "test_health": "down",
+  "loop_alive": true,
+  "main_deployed_sha": "6f6082514e3dad6d12325ff1d268881c72fb40e2",
+  "test_deployed_sha": "1f1531abf36330b256caaf37ec145d88dfc1680d",
+  "restart_count_window": 0,
+  "autofix_state": "idle",
+  "autofix_runs_window": 0
+}`
+	os.WriteFile(path, []byte(flat), 0o644)
+
+	sf := NewStatusFile(path)
+	got, err := sf.Read()
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+
+	if len(got.Components) != 3 {
+		t.Fatalf("Components count = %d, want 3 (got: %v)", len(got.Components), got.Components)
+	}
+
+	// test component should be present even with empty PID
+	test, ok := got.Components["test"]
+	if !ok {
+		t.Fatal("missing test component despite having health and sha data")
+	}
+	if test.PID != 0 {
+		t.Errorf("test PID = %d, want 0", test.PID)
+	}
+	if test.Health != "down" {
+		t.Errorf("test health = %q, want down", test.Health)
+	}
+	if test.DeployedSHA != "1f1531abf36330b256caaf37ec145d88dfc1680d" {
+		t.Errorf("test deployed_sha = %q, want 1f1531abf36330b256caaf37ec145d88dfc1680d", test.DeployedSHA)
+	}
+
+	// main should still work
+	main := got.Components["main"]
+	if main.PID != 31727 {
+		t.Errorf("main PID = %d, want 31727", main.PID)
+	}
+
+	// loop should still work
+	loop := got.Components["loop"]
+	if loop.Health != "alive" {
+		t.Errorf("loop health = %q, want alive", loop.Health)
+	}
+}
+
 func TestStatusFileAtomicWrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "status.json")

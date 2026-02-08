@@ -119,10 +119,6 @@ func parseFlatStatus(data []byte, status *Status) {
 
 	for _, d := range defs {
 		pid := jsonInt(raw, d.pidKey)
-		if pid == 0 && d.aliveKey == "" {
-			continue // component not present
-		}
-
 		health := jsonString(raw, d.healthKey)
 		if health == "" && d.aliveKey != "" {
 			if jsonBool(raw, d.aliveKey) {
@@ -131,8 +127,12 @@ func parseFlatStatus(data []byte, status *Status) {
 				health = "down"
 			}
 		}
-
 		sha := jsonString(raw, d.shaKey)
+
+		// Skip only if component has no data at all
+		if pid == 0 && health == "" && sha == "" {
+			continue
+		}
 
 		status.Components[d.name] = ComponentStatus{
 			PID:         pid,
