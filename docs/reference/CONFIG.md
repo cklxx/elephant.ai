@@ -134,6 +134,7 @@ apps:
 - `state_ttl_minutes`
 - `redirect_base_url`
 - `database_url`
+- `database_pool_max_conns`：auth Postgres 连接池最大连接数（默认 `4`）
 - `bootstrap_email` / `bootstrap_password` / `bootstrap_display_name`
 - `google_client_id` / `google_client_secret` / `google_auth_url` / `google_token_url` / `google_userinfo_url`
 
@@ -299,7 +300,7 @@ channels:
 - `ALEX_SKILLS_DIR`：Skills 根目录（设置后仅使用该路径，不触发自动复制）
 - `TAVILY_API_KEY`：`web_search` 工具
 - `ARK_API_KEY`：Seedream/Ark 工具
-- `AUTH_JWT_SECRET` / `AUTH_DATABASE_URL`
+- `AUTH_JWT_SECRET` / `AUTH_DATABASE_URL` / `AUTH_DATABASE_POOL_MAX_CONNS`
 - `ALEX_SESSION_DATABASE_URL`
 - `GOOGLE_CLIENT_SECRET`
 - `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_ACCESS_KEY_ID` / `CLOUDFLARE_SECRET_ACCESS_KEY`

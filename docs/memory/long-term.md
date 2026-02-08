@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-08 19:00
+Updated: 2026-02-08 20:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -31,6 +31,7 @@ Updated: 2026-02-08 19:00
 - One-click local observability flows (`logs-ui`) should include endpoint/page readiness probes and targeted self-heal restart to avoid stale-process false alarms.
 - Dev tools consolidation should keep diagnostics workloads in one workbench and enforce virtualization + deferred payload expansion for large logs.
 - Server auth config should support env fallback for JWT/OAuth fields; in development-like environments auth DB failures should degrade to memory stores instead of disabling the whole auth module.
+- To reduce auth session-loss regressions under multi-process dev load, cap auth DB pool connections with `auth.database_pool_max_conns` / `AUTH_DATABASE_POOL_MAX_CONNS` (default `4`).
 - Foundation eval hardening works best when availability errors are explicit (`availability_error`) and heuristic routing uses action+object dual-condition gating to prevent broad-token regressions.
 - Layered foundation suites (tool coverage / prompt effectiveness / proactivity / complex tasks) make routing regressions diagnosable faster than a single mixed case set.
 
