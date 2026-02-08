@@ -120,12 +120,17 @@ func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
 
 	if len(failedCases) > 0 {
 		b.WriteString("### Failed Cases Breakdown\n\n")
-		b.WriteString("| Case | Category | Expected | Top Matches | Failure Reason |\n")
-		b.WriteString("|---|---|---|---|---|\n")
+		b.WriteString("| Case | Category | Failure Type | Expected | Top Matches | Failure Reason |\n")
+		b.WriteString("|---|---|---|---|---|---|\n")
 		for _, c := range failedCases {
-			b.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` | %s | %s |\n",
+			failureType := c.FailureType
+			if strings.TrimSpace(failureType) == "" {
+				failureType = "ranking"
+			}
+			b.WriteString(fmt.Sprintf("| `%s` | `%s` | `%s` | `%s` | %s | %s |\n",
 				c.ID,
 				c.Category,
+				failureType,
 				strings.Join(c.ExpectedTools, ", "),
 				escapeTable(formatTopMatches(c.TopMatches)),
 				escapeTable(c.Reason),

@@ -141,6 +141,126 @@ func TestEvaluateImplicitCasesComputesTopK(t *testing.T) {
 	}
 }
 
+func TestRankToolsForIntentCriticalFoundationCases(t *testing.T) {
+	t.Parallel()
+
+	makeProfile := func(name string, tokens map[string]float64) foundationToolProfile {
+		return foundationToolProfile{
+			Definition:   ports.ToolDefinition{Name: name},
+			TokenWeights: tokens,
+		}
+	}
+
+	cases := []struct {
+		name     string
+		intent   string
+		expected string
+		profiles []foundationToolProfile
+	}{
+		{
+			name:     "search-file-cross-project",
+			intent:   "Locate all occurrences of a specific symbol across project files.",
+			expected: "search_file",
+			profiles: []foundationToolProfile{
+				makeProfile("file_edit", map[string]float64{"file": 7, "edit": 6, "replace": 6, "create": 5, "content": 5, "search": 5}),
+				makeProfile("web_search", map[string]float64{"search": 7, "web": 6, "query": 5}),
+				makeProfile("replace_in_file", map[string]float64{"replace": 8, "file": 7, "update": 5, "search": 3}),
+				makeProfile("search_file", map[string]float64{"search": 6, "regex": 6, "pattern": 5, "symbol": 5, "token": 4, "file": 5}),
+			},
+		},
+		{
+			name:     "browser-session-inspection",
+			intent:   "Check browser tab state, current URL, and session metadata.",
+			expected: "browser_info",
+			profiles: []foundationToolProfile{
+				makeProfile("web_fetch", map[string]float64{"web": 8, "fetch": 7, "url": 6}),
+				makeProfile("artifact_manifest", map[string]float64{"artifact": 8, "manifest": 7, "metadata": 6}),
+				makeProfile("browser_action", map[string]float64{"browser": 7, "action": 6, "click": 5}),
+				makeProfile("browser_info", map[string]float64{"browser": 7, "metadata": 7, "info": 6, "status": 6, "url": 5}),
+			},
+		},
+		{
+			name:     "create-markdown-note",
+			intent:   "Create a new markdown note file with the provided content.",
+			expected: "write_file",
+			profiles: []foundationToolProfile{
+				makeProfile("file_edit", map[string]float64{"file": 8, "edit": 7, "create": 7, "new": 5, "content": 6}),
+				makeProfile("replace_in_file", map[string]float64{"replace": 8, "file": 7, "update": 6, "content": 5}),
+				makeProfile("read_file", map[string]float64{"read": 8, "file": 6, "content": 5}),
+				makeProfile("write_file", map[string]float64{"write": 8, "file": 7, "content": 6, "create": 5, "report": 4}),
+			},
+		},
+		{
+			name:     "list-workspace-directory",
+			intent:   "Show files and folders under a target directory in the workspace.",
+			expected: "list_dir",
+			profiles: []foundationToolProfile{
+				makeProfile("file_edit", map[string]float64{"file": 8, "edit": 7, "replace": 6, "directory": 5, "workspace": 4}),
+				makeProfile("replace_in_file", map[string]float64{"replace": 8, "file": 7, "path": 6, "directory": 5}),
+				makeProfile("read_file", map[string]float64{"read": 8, "file": 7, "path": 6}),
+				makeProfile("list_dir", map[string]float64{"list": 8, "directory": 7, "folder": 6, "workspace": 6, "file": 6, "browse": 4}),
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			ranked := rankToolsForIntent(tokenize(tc.intent), tc.profiles)
+			rank := 0
+			for idx, match := range ranked {
+				if match.Name == tc.expected {
+					rank = idx + 1
+					break
+				}
+			}
+			if rank == 0 || rank > 3 {
+				limit := 3
+				if len(ranked) < limit {
+					limit = len(ranked)
+				}
+				top := make([]string, 0, limit)
+				for i := 0; i < limit; i++ {
+					top = append(top, ranked[i].Name)
+				}
+				t.Fatalf("expected %s in top-3, got rank=%d (top=%v)", tc.expected, rank, top)
+			}
+		})
+	}
+}
+
+func TestEvaluateImplicitCasesMarksAvailabilityFailure(t *testing.T) {
+	t.Parallel()
+	scenarios := []FoundationScenario{
+		{
+			ID:            "availability-fail",
+			Category:      "artifact",
+			Intent:        "List generated artifacts for this run.",
+			ExpectedTools: []string{"artifacts_list"},
+		},
+	}
+	profiles := []foundationToolProfile{
+		{
+			Definition: ports.ToolDefinition{Name: "artifact_manifest"},
+			TokenWeights: map[string]float64{
+				"artifact": 4, "manifest": 5,
+			},
+		},
+	}
+
+	summary := evaluateImplicitCases(scenarios, profiles, 3)
+	if summary.TotalCases != 1 || summary.FailedCases != 1 {
+		t.Fatalf("expected one failed case, got %+v", summary)
+	}
+	result := summary.CaseResults[0]
+	if result.FailureType != "availability_error" {
+		t.Fatalf("expected availability_error, got %q", result.FailureType)
+	}
+	if result.Passed {
+		t.Fatalf("expected failed result when expected tool is unavailable")
+	}
+}
+
 func TestRunFoundationEvaluationEndToEnd(t *testing.T) {
 	t.Parallel()
 	tmp := t.TempDir()

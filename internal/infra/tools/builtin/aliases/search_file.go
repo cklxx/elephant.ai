@@ -26,12 +26,12 @@ func NewSearchFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search for a regex pattern in a file (absolute paths only).",
+				Description: "Search regex/symbol/token occurrences inside a file (absolute paths only). Use with list_dir to scan across project files.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"path":  {Type: "string", Description: "Absolute file path"},
-						"regex": {Type: "string", Description: "Regex pattern to search"},
+						"path":  {Type: "string", Description: "Absolute file path (iterate over multiple files for project-wide search)"},
+						"regex": {Type: "string", Description: "Regex/pattern/symbol to search"},
 						"sudo":  {Type: "boolean", Description: "Use sudo privileges"},
 					},
 					Required: []string{"path", "regex"},
@@ -41,7 +41,7 @@ func NewSearchFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "search_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "search"},
+				Tags:     []string{"file", "search", "regex", "symbol", "token", "pattern"},
 			},
 		),
 	}

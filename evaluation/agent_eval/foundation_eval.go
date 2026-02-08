@@ -125,6 +125,7 @@ type FoundationCaseResult struct {
 	TopMatches    []FoundationToolMatch `json:"top_matches"`
 	HitRank       int                   `json:"hit_rank"`
 	Passed        bool                  `json:"passed"`
+	FailureType   string                `json:"failure_type,omitempty"`
 	Reason        string                `json:"reason"`
 }
 
@@ -696,10 +697,20 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 		intentTokens := tokenize(scenario.Intent)
 		ranked := rankToolsForIntent(intentTokens, profiles)
 
+		expectedAvailable := make([]string, 0, len(scenario.ExpectedTools))
+		expectedMissing := make([]string, 0, len(scenario.ExpectedTools))
+		for _, expected := range scenario.ExpectedTools {
+			if _, ok := profilesByName[expected]; ok {
+				expectedAvailable = append(expectedAvailable, expected)
+			} else {
+				expectedMissing = append(expectedMissing, expected)
+			}
+		}
+
 		hitRank := 0
 		hitScore := 0.0
-		expectedSet := make(map[string]struct{}, len(scenario.ExpectedTools))
-		for _, expected := range scenario.ExpectedTools {
+		expectedSet := make(map[string]struct{}, len(expectedAvailable))
+		for _, expected := range expectedAvailable {
 			expectedSet[expected] = struct{}{}
 		}
 		for idx, match := range ranked {
@@ -726,14 +737,20 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 			mrr += 1.0 / float64(hitRank)
 		}
 
+		failureType := ""
 		reason := ""
-		if hitRank == 0 {
+		if len(expectedAvailable) == 0 {
+			failureType = "availability_error"
+			reason = "expected tools unavailable in active mode/preset/toolset: " + strings.Join(expectedMissing, ", ")
+		} else if hitRank == 0 {
+			failureType = "no_overlap"
 			reason = "expected tool has no lexical overlap with intent terms"
 		} else if hitRank > topK {
+			failureType = "rank_below_top_k"
 			reason = fmt.Sprintf("expected tool ranked #%d (score=%.2f), outside Top-%d", hitRank, hitScore, topK)
 		} else {
 			matchedTerms := make([]string, 0, 6)
-			for _, expected := range scenario.ExpectedTools {
+			for _, expected := range expectedAvailable {
 				profile, ok := profilesByName[expected]
 				if !ok {
 					continue
@@ -749,6 +766,9 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 				}
 			}
 			reason = "matched via terms: " + strings.Join(uniqueNonEmptyStrings(matchedTerms), ", ")
+			if len(expectedMissing) > 0 {
+				reason += fmt.Sprintf(" | additionally unavailable: %s", strings.Join(expectedMissing, ", "))
+			}
 		}
 
 		results = append(results, FoundationCaseResult{
@@ -759,6 +779,7 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 			TopMatches:    topMatches,
 			HitRank:       hitRank,
 			Passed:        passed,
+			FailureType:   failureType,
 			Reason:        strings.TrimSpace(reason),
 		})
 	}
@@ -814,6 +835,7 @@ func rankToolsForIntent(intentTokens []string, profiles []foundationToolProfile)
 		for token := range tokenSet {
 			score += profile.TokenWeights[token]
 		}
+		score += heuristicIntentBoost(profile.Definition.Name, tokenSet)
 		ranked = append(ranked, FoundationToolMatch{Name: profile.Definition.Name, Score: round2(score)})
 	}
 
@@ -824,6 +846,152 @@ func rankToolsForIntent(intentTokens []string, profiles []foundationToolProfile)
 		return ranked[i].Score > ranked[j].Score
 	})
 	return ranked
+}
+
+func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64 {
+	has := func(tokens ...string) bool {
+		for _, token := range tokens {
+			if _, ok := tokenSet[token]; ok {
+				return true
+			}
+		}
+		return false
+	}
+	hasAll := func(tokens ...string) bool {
+		for _, token := range tokens {
+			if _, ok := tokenSet[token]; !ok {
+				return false
+			}
+		}
+		return true
+	}
+	countMatches := func(tokens ...string) int {
+		count := 0
+		for _, token := range tokens {
+			if _, ok := tokenSet[token]; ok {
+				count++
+			}
+		}
+		return count
+	}
+
+	boost := 0.0
+	switch toolName {
+	case "plan":
+		if has("phase", "milestone", "checkpoint", "risk", "roadmap", "timeline", "migration") {
+			boost += 14
+		}
+	case "read_file":
+		if countMatches("read", "open", "inspect", "view") >= 1 &&
+			countMatches("source", "workspace", "file", "content", "line") >= 1 {
+			boost += 18
+		}
+	case "clarify":
+		if has("ambiguity", "clarify", "blocking", "requirement", "missing", "unclear", "constraint") {
+			boost += 14
+		}
+	case "web_search":
+		if countMatches("search", "lookup", "find", "query", "compare") >= 1 &&
+			countMatches("web", "internet", "doc", "reference", "official", "site", "url") >= 1 {
+			boost += 14
+		}
+	case "browser_dom":
+		if has("selector", "dom", "form", "field", "fill", "submit") {
+			boost += 14
+		}
+	case "browser_action":
+		if has("coordinate", "canvas", "pixel", "drag", "position") {
+			boost += 12
+		}
+	case "browser_info":
+		if countMatches("browser", "tab", "state", "session", "metadata", "url", "current", "title", "viewport", "info", "status", "web") >= 2 {
+			boost += 18
+		}
+	case "browser_screenshot":
+		if has("capture", "screenshot", "proof", "visual", "evidence", "page") {
+			boost += 14
+		}
+	case "write_file":
+		if countMatches("write", "create", "new", "save") >= 1 &&
+			countMatches("file", "markdown", "note", "report", "content") >= 1 {
+			boost += 18
+		}
+	case "list_dir":
+		if countMatches("list", "show", "enumerate", "browse", "tree") >= 1 &&
+			countMatches("directory", "folder", "workspace", "path") >= 1 {
+			boost += 18
+		}
+	case "search_file":
+		if countMatches("search", "find", "locate", "occurrence", "symbol", "token", "regex", "pattern") >= 1 &&
+			countMatches("file", "project", "repo", "source", "code", "across") >= 1 {
+			boost += 18
+		}
+	case "replace_in_file":
+		if has("replace", "deprecated", "endpoint", "api", "path", "file", "update") {
+			boost += 16
+		}
+	case "artifact_manifest":
+		if countMatches("manifest", "metadata", "generated", "describe", "artifact") >= 2 {
+			boost += 22
+		}
+	case "artifacts_write":
+		if countMatches("artifact", "report", "persist", "save", "write", "reference", "final", "output") >= 2 {
+			boost += 20
+		}
+	case "artifacts_list":
+		if countMatches("list", "enumerate", "index", "show", "generated", "artifact") >= 2 {
+			boost += 10
+		}
+	case "memory_search":
+		if countMatches("memory", "prior", "history", "decision", "note", "context", "summary", "recall") >= 2 {
+			boost += 20
+		}
+	case "list_timers":
+		if countMatches("timer", "timers", "reminder", "reminders", "remaining", "active", "schedule") >= 2 {
+			boost += 20
+		}
+	case "a2ui_emit":
+		if has("payload", "renderer", "render", "ui", "protocol", "structured") {
+			boost += 12
+		}
+	}
+
+	if strings.HasSuffix(toolName, "_list") && has("list", "show", "enumerate", "all") {
+		boost += 4
+	}
+	if strings.HasSuffix(toolName, "_create") && has("create", "new") {
+		boost += 3
+	}
+	if strings.HasSuffix(toolName, "_update") && has("update", "modify", "change") {
+		boost += 3
+	}
+	if strings.HasSuffix(toolName, "_delete") && has("delete", "remove") {
+		boost += 3
+	}
+	if strings.HasSuffix(toolName, "_query") && has("query", "search", "lookup") {
+		boost += 3
+	}
+	if strings.HasPrefix(toolName, "web_") && has("web", "url", "page") {
+		boost += 2
+	}
+	if strings.HasPrefix(toolName, "lark_") && has("lark") {
+		boost += 2
+	}
+	if toolName == "file_edit" {
+		if has("list", "directory", "folder", "workspace", "metadata", "state", "session", "url", "tab") {
+			boost -= 8
+		}
+		if has("search", "find", "locate", "occurrence", "symbol", "token", "regex", "pattern") && !has("replace", "edit", "modify", "update", "create") {
+			boost -= 8
+		}
+		if has("artifact", "memory", "timer", "reminder") && !has("replace", "edit", "modify", "update", "create") {
+			boost -= 6
+		}
+	}
+	if hasAll("task", "delegate") && toolName == "acp_executor" {
+		boost += 8
+	}
+	return boost
 }
 
 func topToolMatches(matches []FoundationToolMatch, topK int) []FoundationToolMatch {
@@ -837,7 +1005,7 @@ func topToolMatches(matches []FoundationToolMatch, topK int) []FoundationToolMat
 }
 
 func buildFoundationRecommendations(prompt FoundationPromptSummary, tools FoundationToolSummary, implicit FoundationImplicitSummary) []string {
-	recs := make([]string, 0, 8)
+	recs := make([]string, 0, 9)
 	if prompt.AverageScore < 80 {
 		recs = append(recs, "Prompt: add explicit 'tool selection strategy' language for implicit tasks (e.g. map user intent to tool category before acting).")
 	}
@@ -852,6 +1020,9 @@ func buildFoundationRecommendations(prompt FoundationPromptSummary, tools Founda
 	}
 	if implicit.Top1HitRate < 0.7 {
 		recs = append(recs, "Ranking precision: clarify overlapping tools by emphasizing differentiators (selector vs coordinate, search vs fetch, etc.).")
+	}
+	if availabilityErrors := countFailureType(implicit.CaseResults, "availability_error"); availabilityErrors > 0 {
+		recs = append(recs, fmt.Sprintf("Tool availability: %d cases still reference unavailable tools; complete registration/visibility parity before rerunning foundation eval.", availabilityErrors))
 	}
 
 	commonIssues := topIssues(tools.IssueBreakdown, 3)
@@ -870,6 +1041,19 @@ func buildFoundationRecommendations(prompt FoundationPromptSummary, tools Founda
 		recs = append(recs, "Baseline quality is stable; next step is raising Top-1 precision on ambiguous intents.")
 	}
 	return uniqueNonEmptyStrings(recs)
+}
+
+func countFailureType(results []FoundationCaseResult, failureType string) int {
+	if failureType == "" {
+		return 0
+	}
+	count := 0
+	for _, result := range results {
+		if result.FailureType == failureType {
+			count++
+		}
+	}
+	return count
 }
 
 func topIssues(freq map[string]int, limit int) []string {
@@ -959,6 +1143,8 @@ var tokenAliases = map[string]string{
 	"scan":          "search",
 	"querying":      "query",
 	"queries":       "query",
+	"docs":          "doc",
+	"documentation": "doc",
 	"repository":    "repo",
 	"codebase":      "repo",
 	"repos":         "repo",
@@ -970,6 +1156,15 @@ var tokenAliases = map[string]string{
 	"website":       "web",
 	"webpage":       "web",
 	"internet":      "web",
+	"note":          "write",
+	"notes":         "write",
+	"symbol":        "search",
+	"symbols":       "search",
+	"occurrence":    "search",
+	"occurrences":   "search",
+	"workspace":     "directory",
+	"project":       "repo",
+	"projects":      "repo",
 	"events":        "event",
 	"calendar":      "event",
 	"meetings":      "event",
@@ -984,11 +1179,31 @@ var tokenAliases = map[string]string{
 	"updated":       "update",
 	"deleting":      "delete",
 	"deleted":       "delete",
+	"deprecated":    "replace",
+	"endpoint":      "replace",
 	"rendering":     "render",
 	"executing":     "execute",
 	"execution":     "execute",
 	"planning":      "plan",
 	"clarification": "clarify",
+	"ambiguous":     "clarify",
+	"ambiguity":     "clarify",
+	"blocking":      "clarify",
+	"block":         "clarify",
+	"missing":       "clarify",
+	"phase":         "plan",
+	"phased":        "plan",
+	"milestone":     "plan",
+	"checkpoint":    "plan",
+	"risk":          "plan",
+	"selector":      "dom",
+	"selectors":     "dom",
+	"submit":        "dom",
+	"form":          "dom",
+	"payload":       "a2ui",
+	"renderer":      "a2ui",
+	"protocol":      "a2ui",
+	"structured":    "a2ui",
 	"messages":      "message",
 	"tasks":         "task",
 	"timers":        "timer",

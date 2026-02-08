@@ -28,7 +28,7 @@ func NewListDir(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "list_dir",
-				Description: "List files in a directory (absolute paths only).",
+				Description: "List files and folders under a workspace directory (absolute paths only).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -49,7 +49,7 @@ func NewListDir(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "list_dir",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "list", "directory"},
+				Tags:     []string{"file", "list", "directory", "folder", "workspace", "browse"},
 			},
 		),
 	}

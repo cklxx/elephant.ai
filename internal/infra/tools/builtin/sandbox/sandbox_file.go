@@ -72,12 +72,12 @@ func NewSandboxFileWrite(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "write_file",
-				Description: "Write content to a file (absolute paths only). Use encoding=base64 for binary data.",
+				Description: "Write/create a file with provided content (absolute paths only). Suitable for markdown notes/reports. Use encoding=base64 for binary data.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
 						"path":             {Type: "string", Description: "Absolute file path"},
-						"content":          {Type: "string", Description: "Text content or base64 payload"},
+						"content":          {Type: "string", Description: "Text content (note/report/markdown) or base64 payload"},
 						"encoding":         {Type: "string", Description: "Content encoding: utf-8 or base64"},
 						"append":           {Type: "boolean", Description: "Append to the file instead of overwriting"},
 						"leading_newline":  {Type: "boolean", Description: "Add a leading newline (text only)"},
@@ -91,7 +91,7 @@ func NewSandboxFileWrite(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "write_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "write"},
+				Tags:     []string{"file", "write", "create", "markdown", "note", "report"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -103,7 +103,7 @@ func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "list_dir",
-				Description: "List files in a directory (absolute paths only).",
+				Description: "List files and folders under a workspace directory (absolute paths only).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -124,7 +124,7 @@ func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "list_dir",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "list", "directory"},
+				Tags:     []string{"file", "list", "directory", "folder", "workspace", "browse"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -136,12 +136,12 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search for a regex pattern in a file (absolute paths only).",
+				Description: "Search regex/symbol/token occurrences inside a file (absolute paths only). Use with list_dir to scan across project files.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
-						"path":  {Type: "string", Description: "Absolute file path"},
-						"regex": {Type: "string", Description: "Regex pattern to search"},
+						"path":  {Type: "string", Description: "Absolute file path (iterate over multiple files for project-wide search)"},
+						"regex": {Type: "string", Description: "Regex/pattern/symbol to search"},
 						"sudo":  {Type: "boolean", Description: "Use sudo privileges"},
 					},
 					Required: []string{"path", "regex"},
@@ -151,7 +151,7 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "search_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "search"},
+				Tags:     []string{"file", "search", "regex", "symbol", "token", "pattern"},
 			},
 		),
 		client: newSandboxClient(cfg),

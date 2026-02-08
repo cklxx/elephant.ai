@@ -101,7 +101,7 @@ func NewSandboxBrowserInfo(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "browser_info",
-				Description: "Fetch browser metadata (user agent, viewport, connection info).",
+				Description: "Inspect browser tab/session state metadata (current URL, title, viewport, user agent).",
 				Parameters: ports.ParameterSchema{
 					Type:       "object",
 					Properties: map[string]ports.Property{},
@@ -114,7 +114,7 @@ func NewSandboxBrowserInfo(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "browser_info",
 				Version:  "0.1.0",
 				Category: "web",
-				Tags:     []string{"browser", "metadata", "info"},
+				Tags:     []string{"browser", "metadata", "info", "session", "tab", "url", "state"},
 				MaterialCapabilities: ports.ToolMaterialCapabilities{
 					Produces: []string{"application/json", "text/plain"},
 				},
