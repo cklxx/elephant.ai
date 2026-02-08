@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, and memory capabilities"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, and user habit soul memory continuity"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -107,6 +107,16 @@ collections:
     dimension: "memory_capabilities"
     description: "Memory retrieval, conflict handling, and memory-informed execution routing"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_memory_capabilities.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "user-habit-soul-memory"
+    name: "User Habit Soul Memory"
+    dimension: "user_habit_soul_memory"
+    description: "User habit preference, soul continuity, and memory-consistent routing coverage"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_user_habit_soul_memory.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
