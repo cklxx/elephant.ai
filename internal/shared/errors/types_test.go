@@ -213,11 +213,6 @@ func TestFormatForLLM(t *testing.T) {
 			contains: "Custom transient message",
 		},
 		{
-			name:     "ollama connection refused",
-			err:      fmt.Errorf("dial tcp 127.0.0.1:11434: connect: connection refused"),
-			contains: "Ollama server is not running",
-		},
-		{
 			name:     "llama.cpp connection refused",
 			err:      fmt.Errorf("dial tcp 127.0.0.1:8082: connect: connection refused"),
 			contains: "llama.cpp server is not running",

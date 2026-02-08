@@ -17,7 +17,7 @@ import (
 )
 
 // baseClient holds fields and helpers shared by HTTP-based LLM clients
-// (OpenAI, Anthropic, Antigravity, OpenAI Responses).
+// (OpenAI, Anthropic, OpenAI Responses).
 type baseClient struct {
 	model         string
 	apiKey        string

@@ -37,29 +37,6 @@ func TestConvertAnthropicToolsNormalizesSchema(t *testing.T) {
 	assertObjectSchema(t, schema)
 }
 
-func TestConvertAntigravityToolsNormalizesSchema(t *testing.T) {
-	tools := []ports.ToolDefinition{{
-		Name:       "vision_analyze",
-		Parameters: ports.ParameterSchema{Type: "object"},
-	}}
-	converted := convertAntigravityTools(tools)
-	if len(converted) != 1 {
-		t.Fatalf("expected one tool wrapper, got %d", len(converted))
-	}
-	declarations, ok := converted[0]["functionDeclarations"].([]map[string]any)
-	if !ok {
-		t.Fatalf("expected functionDeclarations to be []map[string]any, got %T", converted[0]["functionDeclarations"])
-	}
-	if len(declarations) != 1 {
-		t.Fatalf("expected one declaration, got %d", len(declarations))
-	}
-	schema, ok := declarations[0]["parametersJsonSchema"].(map[string]any)
-	if !ok {
-		t.Fatalf("expected parametersJsonSchema map, got %T", declarations[0]["parametersJsonSchema"])
-	}
-	assertObjectSchema(t, schema)
-}
-
 func extractOpenAIToolSchema(t *testing.T, converted []map[string]any) map[string]any {
 	t.Helper()
 	decoded := decodeToolPayload(t, converted)

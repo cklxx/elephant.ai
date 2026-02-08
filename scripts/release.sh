@@ -154,7 +154,7 @@ Alex is a terminal-native AI coding agent with a modern TUI, persistent sessions
 ## Highlights
 - Hexagonal architecture with clear domain boundaries
 - Streaming terminal UI with session history
-- Configurable LLM providers (OpenAI, DeepSeek, OpenRouter, Ollama)
+- Configurable LLM providers (OpenAI, DeepSeek, OpenRouter, LlamaServer)
 - Code indexing, search, and MCP integration
 - Go-based core with fast startup and low memory footprint
 

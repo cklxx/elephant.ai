@@ -26,7 +26,7 @@ func TestApplyPinnedCLILLMSelectionAttachesResolvedSelection(t *testing.T) {
 	store := subscription.NewSelectionStore(storePath)
 	if err := store.Set(context.Background(), subscription.SelectionScope{Channel: "cli"}, subscription.Selection{
 		Mode:     "cli",
-		Provider: "ollama",
+		Provider: "llama_server",
 		Model:    "llama3:latest",
 	}); err != nil {
 		t.Fatalf("seed selection store: %v", err)
@@ -37,7 +37,7 @@ func TestApplyPinnedCLILLMSelectionAttachesResolvedSelection(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected selection on context")
 	}
-	if selection.Provider != "ollama" || selection.Model != "llama3:latest" {
+	if selection.Provider != "llama_server" || selection.Model != "llama3:latest" {
 		t.Fatalf("unexpected selection: %#v", selection)
 	}
 	if !selection.Pinned {
@@ -63,7 +63,7 @@ func TestApplyPinnedCLILLMSelectionIgnoresInvalidSelection(t *testing.T) {
 	store := subscription.NewSelectionStore(storePath)
 	if err := store.Set(context.Background(), subscription.SelectionScope{Channel: "cli"}, subscription.Selection{
 		Mode:     "yaml",
-		Provider: "ollama",
+		Provider: "llama_server",
 		Model:    "llama3:latest",
 	}); err != nil {
 		t.Fatalf("seed selection store: %v", err)

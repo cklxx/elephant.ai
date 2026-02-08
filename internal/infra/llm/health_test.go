@@ -311,11 +311,11 @@ func TestHealthRegistry_RecordWithoutRegister(t *testing.T) {
 	hr := NewHealthRegistry()
 
 	// Recording without explicit registration should auto-create the entry.
-	hr.RecordLatency("ollama", "llama2", 5*time.Millisecond)
-	hr.RecordError("ollama", "llama2", fmt.Errorf("connection refused"))
+	hr.RecordLatency("deepseek", "deepseek-chat", 5*time.Millisecond)
+	hr.RecordError("deepseek", "deepseek-chat", fmt.Errorf("connection refused"))
 
-	h := hr.GetHealth("ollama", "llama2")
-	assert.Equal(t, "ollama", h.Provider)
+	h := hr.GetHealth("deepseek", "deepseek-chat")
+	assert.Equal(t, "deepseek", h.Provider)
 	assert.Equal(t, 1, h.FailureCount)
 	assert.Equal(t, "connection refused", h.LastError)
 }

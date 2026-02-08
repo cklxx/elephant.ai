@@ -50,7 +50,7 @@ func TestModelListShowsEmpty(t *testing.T) {
 	var buf bytes.Buffer
 	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, &http.Client{}, func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return subscription.LlamaServerTarget{}, false
-	}, nil); err != nil {
+	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
 	}
 
@@ -107,7 +107,7 @@ func TestModelListIncludesLlamaServerWhenAvailable(t *testing.T) {
 			BaseURL: srv.URL,
 			Source:  "llama_server",
 		}, true
-	}, nil); err != nil {
+	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
 	}
 

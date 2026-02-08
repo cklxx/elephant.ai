@@ -29,7 +29,7 @@ func AttachmentReferenceValue(att Attachment) string {
 }
 
 // AttachmentInlineBase64 extracts a raw base64 payload suitable for provider APIs
-// that require inline bytes (for example, Ollama's chat images field).
+// that require inline bytes (for example, provider-specific image fields).
 func AttachmentInlineBase64(att Attachment) string {
 	if data := strings.TrimSpace(att.Data); data != "" {
 		if b64, ok := extractDataURIBase64(data); ok {

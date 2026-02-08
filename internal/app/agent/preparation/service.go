@@ -381,7 +381,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		BaseURL: s.config.BaseURL,
 	}
 	// Re-resolve CLI credentials at task time for providers that support
-	// token refresh (e.g. Codex, Antigravity). This keeps long-running
+	// token refresh (e.g. Codex). This keeps long-running
 	// servers (Lark) working even after the initial startup token expires.
 	if !selectionPinned && s.credentialRefresher != nil {
 		if apiKey, baseURL, ok := s.credentialRefresher(effectiveProvider); ok {
