@@ -54,6 +54,45 @@ func TestScoreResultsAndFallback(t *testing.T) {
 	}
 }
 
+func TestBuildBatchConfigAppliesDefaultsAndOverrides(t *testing.T) {
+	outputDir := t.TempDir()
+	em := NewEvaluationManager(&EvaluationConfig{OutputDir: outputDir})
+
+	cfg, err := em.buildBatchConfig(&EvaluationConfig{
+		DatasetType:    "general_agent",
+		DatasetPath:    "evaluation/agent_eval/datasets/general_agent_eval.json",
+		InstanceLimit:  7,
+		MaxWorkers:     4,
+		TimeoutPerTask: 45 * time.Second,
+		OutputDir:      outputDir,
+	})
+	if err != nil {
+		t.Fatalf("build batch config: %v", err)
+	}
+
+	if cfg.Agent.Model.Name == "" {
+		t.Fatalf("expected non-empty model name in batch config")
+	}
+	if cfg.NumWorkers != 4 {
+		t.Fatalf("expected workers override=4, got %d", cfg.NumWorkers)
+	}
+	if cfg.Agent.Timeout != 45 {
+		t.Fatalf("expected timeout override=45, got %d", cfg.Agent.Timeout)
+	}
+	if cfg.OutputPath != filepath.Join(outputDir, "results.json") {
+		t.Fatalf("unexpected output path: %s", cfg.OutputPath)
+	}
+	if cfg.Instances.Type != "general_agent" {
+		t.Fatalf("expected dataset type general_agent, got %s", cfg.Instances.Type)
+	}
+	if cfg.Instances.FilePath != "evaluation/agent_eval/datasets/general_agent_eval.json" {
+		t.Fatalf("unexpected dataset path: %s", cfg.Instances.FilePath)
+	}
+	if cfg.Instances.InstanceLimit != 7 {
+		t.Fatalf("expected instance limit=7, got %d", cfg.Instances.InstanceLimit)
+	}
+}
+
 func TestAgentStoreExposure(t *testing.T) {
 	em := NewEvaluationManager(&EvaluationConfig{OutputDir: t.TempDir()})
 

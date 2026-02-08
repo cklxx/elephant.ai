@@ -335,15 +335,9 @@ func sanitizeDatasetPath(raw string) (string, error) {
 
 // runEvaluation 运行评估
 func (em *EvaluationManager) runEvaluation(ctx context.Context, instances []swe_bench.Instance, config *EvaluationConfig) ([]swe_bench.WorkerResult, error) {
-	// 创建批处理配置
-	batchConfig := &swe_bench.BatchConfig{
-		NumWorkers: config.MaxWorkers,
-		OutputPath: filepath.Join(config.OutputDir, "results.json"),
-	}
-
-	// 设置超时
-	if config.TimeoutPerTask > 0 {
-		batchConfig.Agent.Timeout = int(config.TimeoutPerTask.Seconds())
+	batchConfig, err := em.buildBatchConfig(config)
+	if err != nil {
+		return nil, err
 	}
 
 	// 使用现有批处理器
@@ -357,6 +351,35 @@ func (em *EvaluationManager) runEvaluation(ctx context.Context, instances []swe_
 	}
 
 	return batchResult.Results, nil
+}
+
+func (em *EvaluationManager) buildBatchConfig(config *EvaluationConfig) (*swe_bench.BatchConfig, error) {
+	cm := swe_bench.NewConfigManager()
+	batchConfig, err := cm.LoadConfig("")
+	if err != nil {
+		return nil, fmt.Errorf("load swe-bench batch config: %w", err)
+	}
+
+	if config.MaxWorkers > 0 {
+		batchConfig.NumWorkers = config.MaxWorkers
+	}
+	batchConfig.OutputPath = filepath.Join(config.OutputDir, "results.json")
+
+	if config.TimeoutPerTask > 0 {
+		batchConfig.Agent.Timeout = int(config.TimeoutPerTask.Seconds())
+	}
+
+	if datasetType := strings.TrimSpace(config.DatasetType); datasetType != "" {
+		batchConfig.Instances.Type = datasetType
+	}
+	if datasetPath := strings.TrimSpace(config.DatasetPath); datasetPath != "" {
+		batchConfig.Instances.FilePath = datasetPath
+	}
+	if config.InstanceLimit > 0 {
+		batchConfig.Instances.InstanceLimit = config.InstanceLimit
+	}
+
+	return batchConfig, nil
 }
 
 // collectMetrics 收集指标
