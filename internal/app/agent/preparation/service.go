@@ -258,7 +258,7 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		systemPrompt = strings.TrimSpace(systemPrompt + `
 
 ## File Outputs
-- When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via file_write.
+- When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via write_file.
 - Provide a short summary in the final answer and point the user to the generated file path instead of pasting the full content.`)
 	} else {
 		systemPrompt = strings.TrimSpace(systemPrompt + `

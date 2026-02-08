@@ -69,11 +69,11 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 		return tf.codeExecuteArgs(args), 80
 	case "bash", "shell_exec":
 		return tf.bashArgs(args), 160
-	case "file_read":
+	case "file_read", "read_file":
 		return tf.fileReadArgs(args), 120
-	case "file_edit":
+	case "file_edit", "replace_in_file":
 		return tf.fileEditArgs(args), 120
-	case "file_write":
+	case "file_write", "write_file":
 		return tf.fileWriteArgs(args), 120
 	case "grep", "ripgrep", "code_search":
 		return tf.searchArgs(args), 140
@@ -85,7 +85,7 @@ func (tf *ToolFormatter) visibleArgs(name string, args map[string]any) (map[stri
 		return tf.webFetchArgs(args), 160
 	case "todo_update":
 		return map[string]string{}, 0
-	case "todo_read", "list_files":
+	case "todo_read", "list_files", "list_dir":
 		return tf.simplePathArgs(args), 80
 	case "subagent":
 		return tf.subagentArgs(args), 120
@@ -160,12 +160,21 @@ func (tf *ToolFormatter) fileReadArgs(args map[string]any) map[string]string {
 	result := make(map[string]string)
 	if path := tf.getStringArg(args, "file_path", ""); path != "" {
 		result["path"] = path
+	} else if path := tf.getStringArg(args, "path", ""); path != "" {
+		result["path"] = path
 	}
 	if offset := tf.getIntArg(args, "offset", 0); offset > 0 {
+		result["offset"] = strconv.Itoa(offset)
+	} else if offset := tf.getIntArg(args, "start_line", 0); offset > 0 {
 		result["offset"] = strconv.Itoa(offset)
 	}
 	if limit := tf.getIntArg(args, "limit", 0); limit > 0 {
 		result["limit"] = strconv.Itoa(limit)
+	} else if end := tf.getIntArg(args, "end_line", 0); end > 0 {
+		start := tf.getIntArg(args, "start_line", 0)
+		if end > start {
+			result["limit"] = strconv.Itoa(end - start)
+		}
 	}
 	return result
 }
@@ -174,18 +183,26 @@ func (tf *ToolFormatter) fileEditArgs(args map[string]any) map[string]string {
 	result := make(map[string]string)
 	if path := tf.getStringArg(args, "file_path", ""); path != "" {
 		result["path"] = path
+	} else if path := tf.getStringArg(args, "path", ""); path != "" {
+		result["path"] = path
 	}
-	if oldStr := tf.getStringArg(args, "old_string", ""); oldStr != "" {
+	oldStr := tf.getStringArg(args, "old_string", "")
+	if oldStr == "" {
+		oldStr = tf.getStringArg(args, "old_str", "")
+	}
+	if oldStr != "" {
 		result["old_lines"] = strconv.Itoa(countLines(oldStr))
 	}
-	if newStr := tf.getStringArg(args, "new_string", ""); newStr != "" {
+	newStr := tf.getStringArg(args, "new_string", "")
+	if newStr == "" {
+		newStr = tf.getStringArg(args, "new_str", "")
+	}
+	if newStr != "" {
 		result["new_lines"] = strconv.Itoa(countLines(newStr))
 	}
-	if oldStr := tf.getStringArg(args, "old_string", ""); oldStr != "" {
-		if newStr := tf.getStringArg(args, "new_string", ""); newStr != "" {
-			delta := utf8.RuneCountInString(newStr) - utf8.RuneCountInString(oldStr)
-			result["delta_chars"] = strconv.Itoa(delta)
-		}
+	if oldStr != "" && newStr != "" {
+		delta := utf8.RuneCountInString(newStr) - utf8.RuneCountInString(oldStr)
+		result["delta_chars"] = strconv.Itoa(delta)
 	}
 	return result
 }
@@ -193,6 +210,8 @@ func (tf *ToolFormatter) fileEditArgs(args map[string]any) map[string]string {
 func (tf *ToolFormatter) fileWriteArgs(args map[string]any) map[string]string {
 	result := make(map[string]string)
 	if path := tf.getStringArg(args, "file_path", ""); path != "" {
+		result["path"] = path
+	} else if path := tf.getStringArg(args, "path", ""); path != "" {
 		result["path"] = path
 	}
 	if content := tf.getStringArg(args, "content", ""); content != "" {
@@ -379,21 +398,21 @@ func (tf *ToolFormatter) FormatToolResult(name string, content string, success b
 
 	// Smart formatting based on tool type
 	switch name {
-	case "code_execute":
+	case "code_execute", "execute_code":
 		return tf.formatCodeExecuteResult(content)
-	case "bash":
+	case "bash", "shell_exec":
 		return tf.formatBashResult(content)
-	case "file_read":
+	case "file_read", "read_file":
 		return tf.formatFileReadResult(content)
-	case "file_write":
+	case "file_write", "write_file":
 		return tf.formatFileWriteResult(content)
-	case "file_edit":
+	case "file_edit", "replace_in_file":
 		return tf.formatFileEditResult(content)
 	case "grep", "ripgrep":
 		return tf.formatGrepResult(content)
 	case "find":
 		return tf.formatFindResult(content)
-	case "list_files":
+	case "list_files", "list_dir":
 		return tf.formatListFilesResult(content)
 	case "web_search":
 		return tf.formatWebSearchResult(content)
@@ -532,7 +551,7 @@ func (tf *ToolFormatter) formatFileEditResult(content string) string {
 		return "  → 1 replacement made"
 	}
 	// Try to extract replacement count
-	if strings.Contains(content, "replacement") {
+	if strings.Contains(content, "replacement") || strings.Contains(content, "Replaced ") {
 		return "  → Replacements made"
 	}
 	return "  → File edited successfully"
@@ -736,6 +755,54 @@ func (tf *ToolFormatter) formatFileReadResult(content string) string {
 
 // formatListFilesResult shows file count and key files
 func (tf *ToolFormatter) formatListFilesResult(content string) string {
+	type listDirPayload struct {
+		DirectoryCount int `json:"directory_count"`
+		FileCount      int `json:"file_count"`
+		Files          []struct {
+			Name        string `json:"name"`
+			IsDirectory bool   `json:"is_directory"`
+		} `json:"files"`
+	}
+
+	var payload listDirPayload
+	if err := json.Unmarshal([]byte(content), &payload); err == nil && len(payload.Files) > 0 {
+		dirs := make([]string, 0, len(payload.Files))
+		files := make([]string, 0, len(payload.Files))
+		for _, entry := range payload.Files {
+			if strings.TrimSpace(entry.Name) == "" {
+				continue
+			}
+			if entry.IsDirectory {
+				dirs = append(dirs, entry.Name)
+			} else {
+				files = append(files, entry.Name)
+			}
+		}
+		var parts []string
+		if payload.DirectoryCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d dirs", payload.DirectoryCount))
+		}
+		if payload.FileCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d files", payload.FileCount))
+		}
+		if len(files) > 0 {
+			preview := files
+			if len(preview) > 3 {
+				preview = preview[:3]
+			}
+			parts = append(parts, fmt.Sprintf("sample: %s", strings.Join(preview, ", ")))
+		} else if len(dirs) > 0 {
+			preview := dirs
+			if len(preview) > 3 {
+				preview = preview[:3]
+			}
+			parts = append(parts, fmt.Sprintf("sample dirs: %s", strings.Join(preview, ", ")))
+		}
+		if len(parts) > 0 {
+			return "  → " + strings.Join(parts, " | ")
+		}
+	}
+
 	lines := strings.Split(content, "\n")
 	var dirs, files []string
 

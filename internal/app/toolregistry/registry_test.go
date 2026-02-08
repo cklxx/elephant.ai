@@ -32,8 +32,63 @@ func TestNewRegistryRegistersBuiltins(t *testing.T) {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	if _, err := registry.Get("file_read"); err != nil {
-		t.Fatalf("failed to get file_read: %v", err)
+	if _, err := registry.Get("read_file"); err != nil {
+		t.Fatalf("failed to get read_file: %v", err)
+	}
+}
+
+func TestRegistryListExcludesLegacyCompatibilityTools(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	defs := registry.List()
+	names := make([]string, 0, len(defs))
+	for _, def := range defs {
+		names = append(names, def.Name)
+	}
+
+	for _, legacy := range []string{"file_read", "file_write", "file_edit", "list_files", "bash", "code_execute"} {
+		if slices.Contains(names, legacy) {
+			t.Fatalf("legacy tool %s should not be listed", legacy)
+		}
+	}
+	for _, canonical := range []string{"read_file", "write_file", "replace_in_file", "list_dir", "shell_exec", "execute_code"} {
+		if !slices.Contains(names, canonical) {
+			t.Fatalf("canonical tool %s must be listed", canonical)
+		}
+	}
+}
+
+func TestRegistryLegacyAliasesRemainResolvable(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	for aliasName, canonicalName := range map[string]string{
+		"file_read":    "read_file",
+		"file_write":   "write_file",
+		"file_edit":    "replace_in_file",
+		"list_files":   "list_dir",
+		"bash":         "shell_exec",
+		"code_execute": "execute_code",
+	} {
+		tool, err := registry.Get(aliasName)
+		if err != nil {
+			t.Fatalf("expected alias %s to resolve: %v", aliasName, err)
+		}
+		if tool.Metadata().Name != aliasName {
+			t.Fatalf("expected alias metadata name %s, got %s", aliasName, tool.Metadata().Name)
+		}
+		def := tool.Definition()
+		if def.Name != aliasName {
+			t.Fatalf("expected alias definition name %s, got %s", aliasName, def.Name)
+		}
+		if !strings.Contains(def.Description, canonicalName) {
+			t.Fatalf("expected alias %s description to mention %s", aliasName, canonicalName)
+		}
 	}
 }
 
@@ -209,9 +264,9 @@ func TestGetReturnsPreWrappedTools(t *testing.T) {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	tool, err := registry.Get("file_read")
+	tool, err := registry.Get("read_file")
 	if err != nil {
-		t.Fatalf("failed to get file_read: %v", err)
+		t.Fatalf("failed to get read_file: %v", err)
 	}
 
 	// The tool should already be wrapped with idAwareExecutor
@@ -220,9 +275,9 @@ func TestGetReturnsPreWrappedTools(t *testing.T) {
 	}
 
 	// Calling Get twice should return the same pre-wrapped instance
-	tool2, err := registry.Get("file_read")
+	tool2, err := registry.Get("read_file")
 	if err != nil {
-		t.Fatalf("failed to get file_read second time: %v", err)
+		t.Fatalf("failed to get read_file second time: %v", err)
 	}
 	if tool != tool2 {
 		t.Fatalf("expected Get to return the same pre-wrapped instance")
@@ -288,12 +343,12 @@ func TestRegistry_DefaultDegradationWrapsMappedToolsOnly(t *testing.T) {
 		t.Fatalf("expected grep to be wrapped by degradationExecutor, got %T", grepTool)
 	}
 
-	fileRead, err := registry.Get("file_read")
+	fileRead, err := registry.Get("read_file")
 	if err != nil {
-		t.Fatalf("failed to get file_read: %v", err)
+		t.Fatalf("failed to get read_file: %v", err)
 	}
 	if _, ok := fileRead.(*degradationExecutor); ok {
-		t.Fatalf("expected file_read not to be wrapped by degradationExecutor")
+		t.Fatalf("expected read_file not to be wrapped by degradationExecutor")
 	}
 }
 

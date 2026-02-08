@@ -56,6 +56,16 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			wants: []string{"file_read(limit=5", "offset=10", "path=README.md"},
 		},
 		{
+			name:     "read_file canonical with range",
+			toolName: "read_file",
+			args: map[string]any{
+				"path":       "/workspace/README.md",
+				"start_line": 10,
+				"end_line":   15,
+			},
+			wants: []string{"read_file(limit=5", "offset=10", "path=/workspace/README.md"},
+		},
+		{
 			name:     "file_edit",
 			toolName: "file_edit",
 			args: map[string]any{
@@ -66,6 +76,16 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 			wants: []string{"file_edit(", "path=main.go", "old_lines=1", "new_lines=1"},
 		},
 		{
+			name:     "replace_in_file canonical",
+			toolName: "replace_in_file",
+			args: map[string]any{
+				"path":    "main.go",
+				"old_str": "fmt.Println('old')",
+				"new_str": "fmt.Println('new')",
+			},
+			wants: []string{"replace_in_file(", "path=main.go", "old_lines=1", "new_lines=1"},
+		},
+		{
 			name:     "file_write",
 			toolName: "file_write",
 			args: map[string]any{
@@ -73,6 +93,15 @@ func TestToolFormatterFormatToolCall(t *testing.T) {
 				"content":   "line1\nline2",
 			},
 			wants: []string{"file_write(", "path=main.go", "lines=2"},
+		},
+		{
+			name:     "write_file canonical",
+			toolName: "write_file",
+			args: map[string]any{
+				"path":    "/workspace/main.go",
+				"content": "line1\nline2",
+			},
+			wants: []string{"write_file(", "path=/workspace/main.go", "lines=2"},
 		},
 		{
 			name:     "grep",
@@ -205,8 +234,26 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			wants: []string{"Success in 10ms", "result line"},
 		},
 		{
+			name:     "execute_code canonical",
+			toolName: "execute_code",
+			success:  true,
+			content: strings.Join([]string{
+				"Execution time: 10ms",
+				"stdout:",
+				"result line",
+			}, "\n"),
+			wants: []string{"Success in 10ms", "result line"},
+		},
+		{
 			name:     "bash single line",
 			toolName: "bash",
+			success:  true,
+			content:  bashContent("echo", "ok", "", 0),
+			wants:    []string{"→ ok"},
+		},
+		{
+			name:     "shell_exec canonical single line",
+			toolName: "shell_exec",
 			success:  true,
 			content:  bashContent("echo", "ok", "", 0),
 			wants:    []string{"→ ok"},
@@ -233,6 +280,13 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			wants:    []string{"file preview"},
 		},
 		{
+			name:     "read_file canonical",
+			toolName: "read_file",
+			success:  true,
+			content:  "package main\n\nfunc main() {}\n",
+			wants:    []string{"file preview"},
+		},
+		{
 			name:     "file_write",
 			toolName: "file_write",
 			success:  true,
@@ -240,11 +294,25 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 			wants:    []string{"File created"},
 		},
 		{
+			name:     "write_file canonical",
+			toolName: "write_file",
+			success:  true,
+			content:  "Wrote 20 bytes to /workspace/demo.md",
+			wants:    []string{"File written"},
+		},
+		{
 			name:     "file_edit",
 			toolName: "file_edit",
 			success:  true,
 			content:  "1 replacement",
 			wants:    []string{"1 replacement"},
+		},
+		{
+			name:     "replace_in_file canonical",
+			toolName: "replace_in_file",
+			success:  true,
+			content:  "Replaced 1 occurrence(s) in /workspace/main.go",
+			wants:    []string{"Replacements made"},
 		},
 		{
 			name:     "grep matches",
@@ -271,6 +339,13 @@ func TestToolFormatterFormatToolResult(t *testing.T) {
 				"[FILE] go.mod 2KB",
 			}, "\n"),
 			wants: []string{"dirs", "files"},
+		},
+		{
+			name:     "list_dir canonical",
+			toolName: "list_dir",
+			success:  true,
+			content:  `{"directory_count":1,"file_count":2,"files":[{"name":"pkg","is_directory":true},{"name":"main.go","is_directory":false},{"name":"go.mod","is_directory":false}]}`,
+			wants:    []string{"1 dirs", "2 files", "sample"},
 		},
 		{
 			name:     "web_search",

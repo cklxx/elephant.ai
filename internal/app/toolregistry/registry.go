@@ -23,7 +23,6 @@ import (
 	"alex/internal/infra/tools/builtin/chromebridge"
 	"alex/internal/infra/tools/builtin/diagram"
 	"alex/internal/infra/tools/builtin/execution"
-	"alex/internal/infra/tools/builtin/fileops"
 	"alex/internal/infra/tools/builtin/larktools"
 	"alex/internal/infra/tools/builtin/media"
 	memorytools "alex/internal/infra/tools/builtin/memory"
@@ -165,16 +164,26 @@ func (r *Registry) Register(tool tools.ToolExecutor) error {
 func (r *Registry) Get(name string) (tools.ToolExecutor, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	if tool, ok := r.static[name]; ok {
+	if tool, ok := r.getRawLocked(name); ok {
 		return tool, nil
 	}
-	if tool, ok := r.dynamic[name]; ok {
-		return tool, nil
-	}
-	if tool, ok := r.mcp[name]; ok {
-		return tool, nil
+	if aliasTool := r.resolveLegacyAliasLocked(name); aliasTool != nil {
+		return aliasTool, nil
 	}
 	return nil, fmt.Errorf("tool not found: %s", name)
+}
+
+func (r *Registry) getRawLocked(name string) (tools.ToolExecutor, bool) {
+	if tool, ok := r.static[name]; ok {
+		return tool, true
+	}
+	if tool, ok := r.dynamic[name]; ok {
+		return tool, true
+	}
+	if tool, ok := r.mcp[name]; ok {
+		return tool, true
+	}
+	return nil, false
 }
 
 // wrapTool ensures tools are wrapped with approval, retry, ID propagation,
@@ -490,16 +499,7 @@ func (r *Registry) registerBuiltins(config Config) error {
 	httpLimits := config.HTTPLimits
 	toolset := NormalizeToolset(string(config.Toolset))
 
-	// File operations
-	r.static["file_read"] = fileops.NewFileRead(fileConfig)
-	r.static["file_write"] = fileops.NewFileWrite(fileConfig)
-	r.static["file_edit"] = fileops.NewFileEdit(fileConfig)
-	r.static["list_files"] = fileops.NewListFiles(fileConfig)
-
-	// Shell & search
-	if execution.LocalExecEnabled {
-		r.static["bash"] = execution.NewBash(shellConfig)
-	}
+	// Search primitives
 	r.static["grep"] = search.NewGrep(shellConfig)
 	r.static["ripgrep"] = search.NewRipgrep(shellConfig)
 	r.static["find"] = search.NewFind(shellConfig)
@@ -521,9 +521,6 @@ func (r *Registry) registerBuiltins(config Config) error {
 	r.static["artifact_manifest"] = artifacts.NewArtifactManifest()
 
 	// Execution & reasoning
-	if execution.LocalExecEnabled {
-		r.static["code_execute"] = execution.NewCodeExecute(execution.CodeExecuteConfig{})
-	}
 	r.static["acp_executor"] = execution.NewACPExecutor(execution.ACPExecutorConfig{
 		Addr:                    config.ACPExecutorAddr,
 		CWD:                     config.ACPExecutorCWD,
