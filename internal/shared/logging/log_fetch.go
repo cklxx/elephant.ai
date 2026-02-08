@@ -40,6 +40,7 @@ type LogFetchOptions struct {
 	MaxEntries   int
 	MaxBytes     int
 	MaxLineBytes int
+	Search       string // optional case-insensitive substring filter on message content
 }
 
 // FetchLogBundle returns log lines that match the provided log id across known log files.
@@ -184,4 +185,129 @@ func readLineString(reader *bufio.Reader, maxBytes int) (string, error) {
 
 func readRequestLogMatches(path, logID string, opts LogFetchOptions) LogFileSnippet {
 	return readLogMatches(path, logID, opts)
+}
+
+// FetchStructuredLogBundle returns parsed, structured log entries matching the provided log id.
+func FetchStructuredLogBundle(logID string, opts LogFetchOptions) StructuredLogBundle {
+	logID = strings.TrimSpace(logID)
+	bundle := StructuredLogBundle{LogID: logID}
+	if logID == "" {
+		errMsg := "log_id is required"
+		bundle.Service.Error = errMsg
+		bundle.LLM.Error = errMsg
+		bundle.Latency.Error = errMsg
+		bundle.Requests.Error = errMsg
+		return bundle
+	}
+
+	opts = normalizeLogFetchOptions(opts)
+	searchLower := strings.ToLower(strings.TrimSpace(opts.Search))
+	logDir := resolveLogDirectory()
+	requestDir := resolveRequestLogDirectory()
+
+	bundle.Service = readStructuredTextMatches(filepath.Join(logDir, serviceLogFileName), logID, searchLower, opts)
+	bundle.LLM = readStructuredTextMatches(filepath.Join(logDir, llmLogFileName), logID, searchLower, opts)
+	bundle.Latency = readStructuredTextMatches(filepath.Join(logDir, latencyLogFileName), logID, searchLower, opts)
+	bundle.Requests = readStructuredRequestMatches(filepath.Join(requestDir, requestLogFileName), logID, searchLower, opts)
+
+	return bundle
+}
+
+func readStructuredTextMatches(path, logID, searchLower string, opts LogFetchOptions) StructuredLogSnippet {
+	snippet := StructuredLogSnippet{Path: path}
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			snippet.Error = "not_found"
+		} else {
+			snippet.Error = err.Error()
+		}
+		return snippet
+	}
+	defer func() { _ = file.Close() }()
+
+	reader := bufio.NewReaderSize(file, 64*1024)
+	matchedBytes := 0
+	for {
+		line, err := readLineString(reader, opts.MaxLineBytes)
+		if err != nil {
+			break
+		}
+		if line == "" {
+			continue
+		}
+		if !strings.Contains(line, logID) {
+			continue
+		}
+
+		entry := parseTextLogLine(line)
+
+		if searchLower != "" && !strings.Contains(strings.ToLower(entry.Message), searchLower) {
+			continue
+		}
+
+		snippet.Entries = append(snippet.Entries, entry)
+		matchedBytes += len(line)
+		if len(snippet.Entries) >= opts.MaxEntries {
+			snippet.Truncated = true
+			break
+		}
+		if matchedBytes >= opts.MaxBytes {
+			snippet.Truncated = true
+			break
+		}
+	}
+
+	return snippet
+}
+
+func readStructuredRequestMatches(path, logID, searchLower string, opts LogFetchOptions) StructuredRequestSnippet {
+	snippet := StructuredRequestSnippet{Path: path}
+	file, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			snippet.Error = "not_found"
+		} else {
+			snippet.Error = err.Error()
+		}
+		return snippet
+	}
+	defer func() { _ = file.Close() }()
+
+	reader := bufio.NewReaderSize(file, 64*1024)
+	matchedBytes := 0
+	for {
+		line, err := readLineString(reader, opts.MaxLineBytes)
+		if err != nil {
+			break
+		}
+		if line == "" {
+			continue
+		}
+		if !strings.Contains(line, logID) {
+			continue
+		}
+
+		entry, ok := parseRequestLogJSON(line)
+		if !ok {
+			continue
+		}
+
+		if searchLower != "" && !strings.Contains(strings.ToLower(line), searchLower) {
+			continue
+		}
+
+		snippet.Entries = append(snippet.Entries, entry)
+		matchedBytes += len(line)
+		if len(snippet.Entries) >= opts.MaxEntries {
+			snippet.Truncated = true
+			break
+		}
+		if matchedBytes >= opts.MaxBytes {
+			snippet.Truncated = true
+			break
+		}
+	}
+
+	return snippet
 }

@@ -85,6 +85,7 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		if devMode {
 			mux.Handle("GET /api/dev/sessions/{session_id}/context-window", routeHandler("/api/dev/sessions/:session_id/context-window", wrap(http.HandlerFunc(apiHandler.HandleGetContextWindowPreview))))
 			mux.Handle("GET /api/dev/logs", routeHandler("/api/dev/logs", wrap(http.HandlerFunc(apiHandler.HandleDevLogTrace))))
+			mux.Handle("GET /api/dev/logs/structured", routeHandler("/api/dev/logs/structured", wrap(http.HandlerFunc(apiHandler.HandleDevLogStructured))))
 			mux.Handle("GET /api/dev/logs/index", routeHandler("/api/dev/logs/index", wrap(http.HandlerFunc(apiHandler.HandleDevLogIndex))))
 			mux.Handle("GET /api/dev/memory", routeHandler("/api/dev/memory", wrap(http.HandlerFunc(apiHandler.HandleGetMemorySnapshot))))
 

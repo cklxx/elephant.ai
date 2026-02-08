@@ -108,6 +108,81 @@ func TestReadLogMatchesSkipsOversizedLines(t *testing.T) {
 	}
 }
 
+func TestFetchStructuredLogBundleCollectsMatches(t *testing.T) {
+	logDir := t.TempDir()
+	t.Setenv("ALEX_LOG_DIR", logDir)
+	t.Setenv("ALEX_REQUEST_LOG_DIR", logDir)
+
+	logID := "log-struct-001"
+
+	writeTestLog(t, filepath.Join(logDir, "alex-service.log"),
+		"2026-02-08 01:00:00 [INFO] [SERVICE] [Main] [log_id=log-struct-001] main.go:10 - Service started\nother line\n")
+	writeTestLog(t, filepath.Join(logDir, "alex-llm.log"),
+		"2026-02-08 01:00:01 [WARN] [LLM] [Agent] [log_id=log-struct-001] agent.go:20 - Token limit near\n")
+	writeTestLog(t, filepath.Join(logDir, "alex-latency.log"),
+		"2026-02-08 01:00:02 [DEBUG] [LATENCY] [HTTP] [log_id=log-struct-001] server.go:30 - GET /api 5ms\n")
+	writeTestLog(t, filepath.Join(logDir, "llm.jsonl"),
+		`{"timestamp":"2026-02-08T01:00:00Z","request_id":"log-struct-001:llm-1","log_id":"log-struct-001","entry_type":"request","body_bytes":512,"payload":{"model":"gpt-4"}}`+"\n")
+
+	bundle := FetchStructuredLogBundle(logID, LogFetchOptions{MaxBytes: 1 << 20, MaxEntries: 50})
+
+	if bundle.LogID != logID {
+		t.Fatalf("log_id mismatch: %q", bundle.LogID)
+	}
+	if len(bundle.Service.Entries) != 1 {
+		t.Fatalf("expected 1 service entry, got %d", len(bundle.Service.Entries))
+	}
+	if bundle.Service.Entries[0].Level != "INFO" {
+		t.Fatalf("service level mismatch: %q", bundle.Service.Entries[0].Level)
+	}
+	if bundle.Service.Entries[0].Message != "Service started" {
+		t.Fatalf("service message mismatch: %q", bundle.Service.Entries[0].Message)
+	}
+	if len(bundle.LLM.Entries) != 1 || bundle.LLM.Entries[0].Level != "WARN" {
+		t.Fatalf("llm entry mismatch: %+v", bundle.LLM)
+	}
+	if len(bundle.Latency.Entries) != 1 || bundle.Latency.Entries[0].Level != "DEBUG" {
+		t.Fatalf("latency entry mismatch: %+v", bundle.Latency)
+	}
+	if len(bundle.Requests.Entries) != 1 {
+		t.Fatalf("expected 1 request entry, got %d", len(bundle.Requests.Entries))
+	}
+	if bundle.Requests.Entries[0].EntryType != "request" {
+		t.Fatalf("request entry_type mismatch: %q", bundle.Requests.Entries[0].EntryType)
+	}
+	if bundle.Requests.Entries[0].Payload == nil {
+		t.Fatal("expected non-nil payload")
+	}
+}
+
+func TestFetchStructuredLogBundleSearchFilter(t *testing.T) {
+	logDir := t.TempDir()
+	t.Setenv("ALEX_LOG_DIR", logDir)
+	t.Setenv("ALEX_REQUEST_LOG_DIR", logDir)
+
+	logID := "log-search-001"
+
+	writeTestLog(t, filepath.Join(logDir, "alex-service.log"),
+		"2026-02-08 01:00:00 [INFO] [SERVICE] [Main] [log_id=log-search-001] main.go:10 - Service started\n"+
+			"2026-02-08 01:00:01 [ERROR] [SERVICE] [Main] [log_id=log-search-001] main.go:20 - Connection refused\n")
+	writeTestLog(t, filepath.Join(logDir, "alex-llm.log"), "")
+	writeTestLog(t, filepath.Join(logDir, "alex-latency.log"), "")
+	writeTestLog(t, filepath.Join(logDir, "llm.jsonl"), "")
+
+	bundle := FetchStructuredLogBundle(logID, LogFetchOptions{
+		MaxBytes:   1 << 20,
+		MaxEntries: 50,
+		Search:     "connection",
+	})
+
+	if len(bundle.Service.Entries) != 1 {
+		t.Fatalf("expected 1 filtered entry, got %d", len(bundle.Service.Entries))
+	}
+	if bundle.Service.Entries[0].Message != "Connection refused" {
+		t.Fatalf("expected 'Connection refused', got %q", bundle.Service.Entries[0].Message)
+	}
+}
+
 func TestFetchLogBundleFlagsTruncation(t *testing.T) {
 	logDir := t.TempDir()
 	t.Setenv("ALEX_LOG_DIR", logDir)

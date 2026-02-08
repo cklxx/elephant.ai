@@ -136,6 +136,29 @@ func (h *APIHandler) HandleDevLogIndex(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// HandleDevLogStructured returns structured, parsed log entries correlated by log id.
+func (h *APIHandler) HandleDevLogStructured(w http.ResponseWriter, r *http.Request) {
+	if !h.devMode {
+		http.NotFound(w, r)
+		return
+	}
+
+	logID := strings.TrimSpace(r.URL.Query().Get("log_id"))
+	if logID == "" {
+		h.writeJSONError(w, http.StatusBadRequest, "log_id is required", nil)
+		return
+	}
+
+	search := strings.TrimSpace(r.URL.Query().Get("search"))
+
+	bundle := logging.FetchStructuredLogBundle(logID, logging.LogFetchOptions{
+		MaxEntries: 400,
+		MaxBytes:   2 << 20,
+		Search:     search,
+	})
+	h.writeJSON(w, http.StatusOK, bundle)
+}
+
 // HandleHealthCheck handles GET /health
 func (h *APIHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Request) {
 	// Check all component health
