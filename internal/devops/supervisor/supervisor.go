@@ -245,6 +245,94 @@ func (s *Supervisor) isValidationActive() bool {
 	return validationPhases[s.loopState.CyclePhase]
 }
 
+// maybeUpgradeForSHADrift auto-restarts healthy components whose deployed
+// SHA differs from the latest main SHA. Corresponds to supervisor.sh
+// maybe_upgrade_for_sha_drift (lines 633-686).
+func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
+	now := time.Now()
+
+	// Skip during global cooldown
+	if s.policy.InCooldown("", now) {
+		return
+	}
+
+	mainSHA := s.loopState.MainSHA
+	if mainSHA == "" || mainSHA == "unknown" {
+		return
+	}
+
+	for _, comp := range s.components {
+		// Only main and test have SHA tracking
+		if comp.Name != "main" && comp.Name != "test" {
+			continue
+		}
+
+		health := comp.HealthFn()
+		if health != "healthy" {
+			continue
+		}
+
+		// Skip test during validation — the loop controls it
+		if comp.Name == "test" && s.isValidationActive() {
+			continue
+		}
+
+		// Skip during per-component cooldown
+		if s.policy.InCooldown(comp.Name, now) {
+			continue
+		}
+
+		// Read deployed SHA
+		if comp.SHAFile == "" {
+			continue
+		}
+		shaData, err := os.ReadFile(comp.SHAFile)
+		if err != nil {
+			continue
+		}
+		deployedSHA := strings.TrimSpace(string(shaData))
+		if deployedSHA == "" || deployedSHA == "unknown" {
+			continue
+		}
+
+		if deployedSHA == mainSHA {
+			continue
+		}
+
+		// SHA differs — record restart and check limits
+		count := s.policy.RecordRestart(comp.Name)
+		if count > s.policy.MaxInWindow {
+			s.policy.EnterCooldown(comp.Name)
+			s.logger.Warn("upgrade storm detected, entering cooldown",
+				"component", comp.Name,
+				"count", count)
+			s.autofix.TryTrigger(comp.Name,
+				fmt.Sprintf("upgrade storm: %d restarts in %s", count, s.policy.WindowDuration),
+				mainSHA)
+			continue
+		}
+
+		mu := s.componentMu(comp.Name)
+		if !mu.TryLock() {
+			continue
+		}
+
+		s.logger.Info("upgrading component for SHA drift",
+			"component", comp.Name,
+			"deployed", truncSHA(deployedSHA),
+			"latest", truncSHA(mainSHA))
+
+		if err := comp.StartFn(ctx); err != nil {
+			s.logger.Error("upgrade restart failed",
+				"component", comp.Name,
+				"error", err)
+		} else {
+			s.logger.Info("upgrade restart succeeded", "component", comp.Name)
+		}
+		mu.Unlock()
+	}
+}
+
 func (s *Supervisor) needsRestart(name, healthState string) bool {
 	switch name {
 	case "main", "test":

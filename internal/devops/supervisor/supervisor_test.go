@@ -1,10 +1,13 @@
 package supervisor
 
 import (
+	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
 func TestComponentMuReturnsSameMutex(t *testing.T) {
@@ -185,5 +188,154 @@ func TestReadLoopStateMissingFiles(t *testing.T) {
 	}
 	if s.loopState.MainSHA != "unknown" {
 		t.Errorf("MainSHA = %q, want unknown", s.loopState.MainSHA)
+	}
+}
+
+// newTestSupervisor creates a minimal Supervisor for testing with mock components.
+func newTestSupervisor(t *testing.T) (*Supervisor, string) {
+	t.Helper()
+	dir := t.TempDir()
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	policy := NewRestartPolicy(5, 600*time.Second, 300*time.Second)
+	autofix := NewAutofixRunner(AutofixConfig{
+		StateFile:   filepath.Join(dir, "autofix.state.json"),
+		HistoryFile: filepath.Join(dir, "autofix.history"),
+	}, logger)
+
+	s := &Supervisor{
+		policy:     policy,
+		autofix:    autofix,
+		logger:     logger,
+		failCounts: make(map[string]int),
+		mainRoot:   dir,
+		tmpDir:     dir,
+	}
+	return s, dir
+}
+
+func TestMaybeUpgradeForSHADrift(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	var startCalled bool
+	shaFile := filepath.Join(dir, "main.sha")
+	os.WriteFile(shaFile, []byte("oldsha123"), 0o644)
+
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "healthy" },
+		StartFn: func(ctx context.Context) error {
+			startCalled = true
+			return nil
+		},
+	})
+
+	s.loopState.MainSHA = "newsha456"
+	s.maybeUpgradeForSHADrift(context.Background())
+
+	if !startCalled {
+		t.Error("StartFn should be called when deployed SHA differs from main SHA")
+	}
+}
+
+func TestMaybeUpgradeForSHADriftSameSHA(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	var startCalled bool
+	shaFile := filepath.Join(dir, "main.sha")
+	os.WriteFile(shaFile, []byte("sameSHA"), 0o644)
+
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "healthy" },
+		StartFn: func(ctx context.Context) error {
+			startCalled = true
+			return nil
+		},
+	})
+
+	s.loopState.MainSHA = "sameSHA"
+	s.maybeUpgradeForSHADrift(context.Background())
+
+	if startCalled {
+		t.Error("StartFn should NOT be called when deployed SHA matches main SHA")
+	}
+}
+
+func TestMaybeUpgradeForSHADriftUnhealthy(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	var startCalled bool
+	shaFile := filepath.Join(dir, "main.sha")
+	os.WriteFile(shaFile, []byte("oldsha"), 0o644)
+
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "down" },
+		StartFn: func(ctx context.Context) error {
+			startCalled = true
+			return nil
+		},
+	})
+
+	s.loopState.MainSHA = "newsha"
+	s.maybeUpgradeForSHADrift(context.Background())
+
+	if startCalled {
+		t.Error("StartFn should NOT be called for unhealthy component")
+	}
+}
+
+func TestMaybeUpgradeForSHADriftTestDuringValidation(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	var startCalled bool
+	shaFile := filepath.Join(dir, "test.sha")
+	os.WriteFile(shaFile, []byte("oldsha"), 0o644)
+
+	s.RegisterComponent(&Component{
+		Name:     "test",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "healthy" },
+		StartFn: func(ctx context.Context) error {
+			startCalled = true
+			return nil
+		},
+	})
+
+	s.loopState.MainSHA = "newsha"
+	s.loopState.CyclePhase = "fast_gate" // validation active
+	s.maybeUpgradeForSHADrift(context.Background())
+
+	if startCalled {
+		t.Error("StartFn should NOT be called for test during validation")
+	}
+}
+
+func TestMaybeUpgradeForSHADriftDuringCooldown(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+
+	var startCalled bool
+	shaFile := filepath.Join(dir, "main.sha")
+	os.WriteFile(shaFile, []byte("oldsha"), 0o644)
+
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "healthy" },
+		StartFn: func(ctx context.Context) error {
+			startCalled = true
+			return nil
+		},
+	})
+
+	s.loopState.MainSHA = "newsha"
+	s.policy.EnterCooldown("") // global cooldown
+	s.maybeUpgradeForSHADrift(context.Background())
+
+	if startCalled {
+		t.Error("StartFn should NOT be called during global cooldown")
 	}
 }
