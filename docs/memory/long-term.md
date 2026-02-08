@@ -1,12 +1,12 @@
 # Long-Term Memory
 
-Updated: 2026-02-08 22:00
+Updated: 2026-02-09 00:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
 - Prefer short, actionable statements with a clear remediation or rule.
 
-## Active Memory (2026-02-08)
+## Active Memory (2026-02-09)
 - Keep `agent/ports` free of memory/RAG deps; inject memory at engine/app layers to avoid import cycles.
 - Config examples are YAML-only (`.yaml` paths); plans and records must follow repo conventions.
 - Use TDD when touching logic; run full lint + tests before delivery.
@@ -16,6 +16,7 @@ Updated: 2026-02-08 22:00
 - Proactive hooks: hook registry + per-request MemoryPolicy; cache skills + precompile regex.
 - Event partitioning: groupKey uses `parent_run_id`; subagent detection is `parent_run_id != run_id`.
 - Tool event rules: only subagent `workflow.tool.started` hits main stream; others go pending/merged.
+- Lark `/model use --chat` should resolve at chat scope first (`channel+chat_id`) with legacy `chat+user` compatibility fallback, otherwise group chats can miss pinned credentials.
 - Subagent: snapshot pruning must drop tool outputs for pruned call IDs; cap default parallelism (`maxWorkers`) and stagger starts to reduce upstream rejections.
 - Memory system is Markdown-only: `~/.alex/memory/MEMORY.md` + `~/.alex/memory/memory/YYYY-MM-DD.md`.
 - Bash scripts under `set -u` must guard array expansions (avoid unbound variable errors).
