@@ -124,29 +124,57 @@ func (o *Orchestrator) Status(ctx context.Context) []ServiceStatus {
 	return statuses
 }
 
-// Restart restarts the named services (or all if none specified).
-func (o *Orchestrator) Restart(ctx context.Context, names ...string) error {
-	targets := o.services
-	if len(names) > 0 {
-		targets = nil
-		nameSet := make(map[string]bool)
-		for _, n := range names {
-			nameSet[n] = true
-		}
-		for _, svc := range o.services {
-			if nameSet[svc.Name()] {
-				targets = append(targets, svc)
-			}
+// resolveTargets returns the services matching the given names, or all if empty.
+func (o *Orchestrator) resolveTargets(names []string) []Service {
+	if len(names) == 0 {
+		return o.services
+	}
+	nameSet := make(map[string]bool, len(names))
+	for _, n := range names {
+		nameSet[n] = true
+	}
+	var targets []Service
+	for _, svc := range o.services {
+		if nameSet[svc.Name()] {
+			targets = append(targets, svc)
 		}
 	}
+	return targets
+}
+
+// Restart restarts the named services (or all if none specified).
+// For Buildable services, it compiles a new binary first. If the build fails,
+// the old process is preserved and an error is returned (no downtime).
+func (o *Orchestrator) Restart(ctx context.Context, names ...string) error {
+	targets := o.resolveTargets(names)
 
 	for _, svc := range targets {
 		o.section.Section("Restart " + svc.Name())
-		if err := svc.Stop(ctx); err != nil {
-			o.section.Warn("Stop %s: %v", svc.Name(), err)
-		}
-		if err := svc.Start(ctx); err != nil {
-			return fmt.Errorf("restart %s: %w", svc.Name(), err)
+
+		if buildable, ok := svc.(Buildable); ok {
+			// Safe path: build before stopping the old process
+			staging, err := buildable.Build(ctx)
+			if err != nil {
+				o.section.Error("Build failed for %s: %v (old process preserved)", svc.Name(), err)
+				return fmt.Errorf("restart %s: build failed: %w", svc.Name(), err)
+			}
+			if err := svc.Stop(ctx); err != nil {
+				o.section.Warn("Stop %s: %v", svc.Name(), err)
+			}
+			if err := buildable.Promote(staging); err != nil {
+				return fmt.Errorf("restart %s: promote: %w", svc.Name(), err)
+			}
+			if err := svc.Start(ctx); err != nil {
+				return fmt.Errorf("restart %s: %w", svc.Name(), err)
+			}
+		} else {
+			// Non-buildable services: simple stop + start
+			if err := svc.Stop(ctx); err != nil {
+				o.section.Warn("Stop %s: %v", svc.Name(), err)
+			}
+			if err := svc.Start(ctx); err != nil {
+				return fmt.Errorf("restart %s: %w", svc.Name(), err)
+			}
 		}
 	}
 	return nil
