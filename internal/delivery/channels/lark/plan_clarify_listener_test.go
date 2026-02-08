@@ -64,12 +64,11 @@ func TestPlanClarifyListenerClarifyQuestionMarksSent(t *testing.T) {
 	}
 }
 
-func TestPlanClarifyListenerClarifyOptionsSendsInteractiveCard(t *testing.T) {
+func TestPlanClarifyListenerClarifyOptionsSendsNumberedText(t *testing.T) {
 	recorder := NewRecordingMessenger()
 	tracker := &awaitQuestionTracker{}
 	gw := &Gateway{
 		messenger: recorder,
-		cfg:       Config{CardsEnabled: true},
 	}
 	listener := newPlanClarifyListener(context.Background(), nil, gw, "oc_chat", "om_reply", tracker)
 
@@ -88,11 +87,18 @@ func TestPlanClarifyListenerClarifyOptionsSendsInteractiveCard(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected reply message")
 	}
-	if calls[0].MsgType != "interactive" {
-		t.Fatalf("expected interactive message, got %q", calls[0].MsgType)
+	if calls[0].MsgType != "text" {
+		t.Fatalf("expected text message, got %q", calls[0].MsgType)
 	}
-	if !strings.Contains(calls[0].Content, `"action_tag":"await_choice_select"`) {
-		t.Fatalf("expected await choice action tag, got %s", calls[0].Content)
+	content := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(content, "Which env?") {
+		t.Fatalf("expected question in text, got %s", content)
+	}
+	if !strings.Contains(content, "[1] dev") {
+		t.Fatalf("expected numbered option [1] dev, got %s", content)
+	}
+	if !strings.Contains(content, "[2] staging") {
+		t.Fatalf("expected numbered option [2] staging, got %s", content)
 	}
 	if !tracker.Sent() {
 		t.Fatal("expected tracker marked sent")

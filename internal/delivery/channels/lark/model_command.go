@@ -10,7 +10,6 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
 	"alex/internal/delivery/channels"
-	larkcards "alex/internal/infra/lark/cards"
 	"alex/internal/infra/tools/builtin/shared"
 	runtimeconfig "alex/internal/shared/config"
 )
@@ -60,11 +59,11 @@ func (g *Gateway) handleModelCommand(msg *incomingMessage) {
 	chatOnly := hasFlag(fields, "--chat")
 
 	var reply string
-	replyMsgType := "text"
-	replyContent := ""
 	switch sub {
 	case "", "list", "ls":
-		replyMsgType, replyContent = g.buildModelListReply(execCtx, msg)
+		_, content := g.buildModelListReply(execCtx, msg)
+		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", content)
+		return
 	case "use", "select", "set":
 		if len(fields) < 3 {
 			reply = modelCommandUsage()
@@ -94,10 +93,7 @@ func (g *Gateway) handleModelCommand(msg *incomingMessage) {
 		reply = modelCommandUsage()
 	}
 
-	if replyContent == "" {
-		replyContent = textContent(reply)
-	}
-	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
+	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 }
 
 func modelCommandUsage() string {
@@ -192,15 +188,7 @@ func (g *Gateway) buildModelListReply(ctx context.Context, msg *incomingMessage)
 	status := g.buildModelStatus(ctx, msg)
 	catalog := g.loadModelCatalog(ctx)
 	textReply := formatModelListText(status, catalog)
-	if g == nil || !g.cfg.CardsEnabled {
-		return "text", textContent(textReply)
-	}
-	card, err := buildModelSelectionCard(status, catalog)
-	if err != nil {
-		g.logger.Warn("Lark model list card build failed: %v", err)
-		return "text", textContent(textReply)
-	}
-	return "interactive", card
+	return "text", textContent(textReply)
 }
 
 func formatModelListText(status string, catalog subscription.Catalog) string {
@@ -237,67 +225,6 @@ func formatModelListText(status string, catalog subscription.Catalog) string {
 
 	lines = append(lines, "", modelCommandUsage())
 	return strings.Join(lines, "\n")
-}
-
-func buildModelSelectionCard(status string, catalog subscription.Catalog) (string, error) {
-	card := larkcards.NewCard(larkcards.CardConfig{
-		Title:         "订阅模型选择",
-		TitleColor:    "blue",
-		EnableForward: false,
-	})
-	if strings.TrimSpace(status) != "" {
-		card.AddMarkdownSection(truncateCardText(status, maxCardReplyChars))
-	}
-
-	hasButton := false
-	for _, provider := range catalog.Providers {
-		name := strings.TrimSpace(provider.Provider)
-		if name == "" || len(provider.Models) == 0 {
-			continue
-		}
-		source := strings.TrimSpace(provider.Source)
-		if source != "" {
-			card.AddDivider()
-			card.AddMarkdownSection(fmt.Sprintf("**%s** (%s)", name, source))
-		} else {
-			card.AddDivider()
-			card.AddMarkdownSection(fmt.Sprintf("**%s**", name))
-		}
-
-		models := provider.Models
-		if len(models) > 10 {
-			models = models[:10]
-		}
-		row := make([]larkcards.Button, 0, 3)
-		for _, rawModel := range models {
-			model := strings.TrimSpace(rawModel)
-			if model == "" {
-				continue
-			}
-			label := model
-			if len(label) > 32 {
-				label = label[:29] + "..."
-			}
-			spec := name + "/" + model
-			row = append(row, larkcards.NewButton(label, "model_use").
-				WithValue("text", "/model use "+spec).
-				WithValue("model_spec", spec))
-			hasButton = true
-			if len(row) == 3 {
-				card.AddActionButtons(row...)
-				row = make([]larkcards.Button, 0, 3)
-			}
-		}
-		if len(row) > 0 {
-			card.AddActionButtons(row...)
-		}
-	}
-
-	if !hasButton {
-		return "", fmt.Errorf("no selectable models")
-	}
-	card.AddNote("点击模型按钮即可全局切换订阅模型（所有 Lark 会话生效）。")
-	return card.Build()
 }
 
 func (g *Gateway) loadModelCatalog(ctx context.Context) subscription.Catalog {

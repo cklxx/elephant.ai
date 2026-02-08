@@ -143,13 +143,4 @@ channels:
 	if cfg.Channels.Lark.AppSecret != "secret_test" {
 		t.Fatalf("expected app_secret expansion, got %q", cfg.Channels.Lark.AppSecret)
 	}
-	if cfg.Channels.Lark.CardCallbackVerificationToken != "verify_token_test" {
-		t.Fatalf(
-			"expected verification token expansion, got %q",
-			cfg.Channels.Lark.CardCallbackVerificationToken,
-		)
-	}
-	if cfg.Channels.Lark.CardCallbackEncryptKey != "encrypt_key_test" {
-		t.Fatalf("expected encrypt key expansion, got %q", cfg.Channels.Lark.CardCallbackEncryptKey)
-	}
 }

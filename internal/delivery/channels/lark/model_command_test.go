@@ -117,45 +117,10 @@ func TestResolveLlamaServerTarget(t *testing.T) {
 	}
 }
 
-func TestBuildModelListReplyReturnsInteractiveCardWhenCardsEnabled(t *testing.T) {
+func TestBuildModelListReplyReturnsText(t *testing.T) {
 	t.Parallel()
 
 	gw := &Gateway{
-		cfg:    Config{CardsEnabled: true},
-		logger: logging.OrNop(nil),
-		cliCredsLoader: func() runtimeconfig.CLICredentials {
-			return runtimeconfig.CLICredentials{
-				Codex: runtimeconfig.CLICredential{
-					Provider: "codex",
-					APIKey:   "tok",
-					BaseURL:  "https://chatgpt.com/backend-api/codex",
-					Model:    "gpt-5.2-codex",
-					Source:   runtimeconfig.SourceCodexCLI,
-				},
-			}
-		},
-		llamaResolver: func(context.Context) (subscription.LlamaServerTarget, bool) {
-			return subscription.LlamaServerTarget{}, false
-		},
-	}
-
-	msgType, content := gw.buildModelListReply(context.Background(), &incomingMessage{chatID: "oc_test", senderID: "ou_test"})
-	if msgType != "interactive" {
-		t.Fatalf("expected interactive model list card, got %q", msgType)
-	}
-	if !strings.Contains(content, `"action_tag":"model_use"`) {
-		t.Fatalf("expected model_use action in card, got:\n%s", content)
-	}
-	if !strings.Contains(content, `/model use codex/gpt-5.2-codex`) {
-		t.Fatalf("expected model command payload in card, got:\n%s", content)
-	}
-}
-
-func TestBuildModelListReplyFallsBackToTextWhenCardsDisabled(t *testing.T) {
-	t.Parallel()
-
-	gw := &Gateway{
-		cfg:    Config{CardsEnabled: false},
 		logger: logging.OrNop(nil),
 		cliCredsLoader: func() runtimeconfig.CLICredentials {
 			return runtimeconfig.CLICredentials{

@@ -9,7 +9,6 @@ import (
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/domain/agent/types"
-	larkcards "alex/internal/infra/lark/cards"
 	"alex/internal/shared/logging"
 )
 
@@ -71,21 +70,17 @@ func (p *planClarifyListener) OnEvent(event agent.AgentEvent) {
 		return
 	}
 
-	msgType := "text"
 	content := textContent(payload.message)
-	if payload.needsInput && len(payload.options) > 0 && p.gateway.cfg.CardsEnabled {
-		card, err := larkcards.AwaitChoiceCard(payload.message, payload.options)
-		if err != nil {
-			if p.logger != nil {
-				p.logger.Warn("Lark await choice card build failed: %v", err)
-			}
-		} else {
-			msgType = "interactive"
-			content = card
-		}
+	if payload.needsInput && len(payload.options) > 0 {
+		content = textContent(formatNumberedOptions(payload.message, payload.options))
+		// Store pending options so numeric replies can be resolved.
+		slot := p.gateway.getOrCreateSlot(p.chatID)
+		slot.mu.Lock()
+		slot.pendingOptions = payload.options
+		slot.mu.Unlock()
 	}
 
-	if _, err := p.gateway.dispatchMessage(p.ctx, p.chatID, p.replyTo, msgType, content); err != nil {
+	if _, err := p.gateway.dispatchMessage(p.ctx, p.chatID, p.replyTo, "text", content); err != nil {
 		if p.logger != nil {
 			p.logger.Warn("Lark plan/clarify dispatch failed: %v", err)
 		}

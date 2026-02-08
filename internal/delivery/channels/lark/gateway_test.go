@@ -1219,10 +1219,10 @@ func TestHandleMessageAwaitUserInputRepliesWithQuestion(t *testing.T) {
 	}
 }
 
-func TestHandleMessageAwaitUserInputRepliesWithOptionCard(t *testing.T) {
-	openID := "ou_sender_question_card"
-	chatID := "oc_chat_question_card"
-	msgID := "om_msg_question_card"
+func TestHandleMessageAwaitUserInputRepliesWithNumberedOptions(t *testing.T) {
+	openID := "ou_sender_question_opts"
+	chatID := "oc_chat_question_opts"
+	msgID := "om_msg_question_opts"
 	content := `{"text":"继续"}`
 	msgType := "text"
 	chatType := "p2p"
@@ -1247,10 +1247,9 @@ func TestHandleMessageAwaitUserInputRepliesWithOptionCard(t *testing.T) {
 	recorder := NewRecordingMessenger()
 	gw := &Gateway{
 		cfg: Config{
-			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
-			AppID:        "test",
-			AppSecret:    "secret",
-			CardsEnabled: true,
+			BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:      "test",
+			AppSecret:  "secret",
 		},
 		agent:     executor,
 		logger:    logging.OrNop(nil),
@@ -1288,11 +1287,18 @@ func TestHandleMessageAwaitUserInputRepliesWithOptionCard(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected a reply message")
 	}
-	if calls[0].MsgType != "interactive" {
-		t.Fatalf("expected interactive message, got %q", calls[0].MsgType)
+	if calls[0].MsgType != "text" {
+		t.Fatalf("expected text message, got %q", calls[0].MsgType)
 	}
-	if !strings.Contains(calls[0].Content, `"action_tag":"await_choice_select"`) {
-		t.Fatalf("expected await choice action tag, got %s", calls[0].Content)
+	replyText := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(replyText, "Which env?") {
+		t.Fatalf("expected question in reply, got %q", replyText)
+	}
+	if !strings.Contains(replyText, "[1]") || !strings.Contains(replyText, "[2]") {
+		t.Fatalf("expected numbered options [1] and [2], got %q", replyText)
+	}
+	if !strings.Contains(replyText, "dev") || !strings.Contains(replyText, "staging") {
+		t.Fatalf("expected option labels 'dev' and 'staging', got %q", replyText)
 	}
 }
 
@@ -1346,7 +1352,7 @@ func TestHandleMessageSeedsPendingUserInput(t *testing.T) {
 	}
 }
 
-func TestHandleMessageSendsPlanReviewCardWhenEnabled(t *testing.T) {
+func TestHandleMessageSendsPlanReviewTextWhenEnabled(t *testing.T) {
 	openID := "ou_sender_card"
 	chatID := "oc_chat_card"
 	msgID := "om_msg_card"
@@ -1370,8 +1376,6 @@ func TestHandleMessageSendsPlanReviewCardWhenEnabled(t *testing.T) {
 			AppID:             "test",
 			AppSecret:         "secret",
 			PlanReviewEnabled: true,
-			CardsEnabled:      true,
-			CardsPlanReview:   true,
 		},
 		agent:     executor,
 		logger:    logging.OrNop(nil),
@@ -1409,12 +1413,16 @@ func TestHandleMessageSendsPlanReviewCardWhenEnabled(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected a reply message")
 	}
-	if calls[0].MsgType != "interactive" {
-		t.Fatalf("expected interactive card reply, got %q", calls[0].MsgType)
+	if calls[0].MsgType != "text" {
+		t.Fatalf("expected text reply, got %q", calls[0].MsgType)
+	}
+	replyText := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(replyText, "goal-9") {
+		t.Fatalf("expected plan review goal in reply, got %q", replyText)
 	}
 }
 
-func TestHandleMessageSendsResultCardWhenEnabled(t *testing.T) {
+func TestHandleMessageSendsTextResultReply(t *testing.T) {
 	openID := "ou_sender_result"
 	chatID := "oc_chat_result"
 	msgID := "om_msg_result"
@@ -1430,11 +1438,9 @@ func TestHandleMessageSendsResultCardWhenEnabled(t *testing.T) {
 	recorder := NewRecordingMessenger()
 	gw := &Gateway{
 		cfg: Config{
-			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
-			AppID:        "test",
-			AppSecret:    "secret",
-			CardsEnabled: true,
-			CardsResults: true,
+			BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:      "test",
+			AppSecret:  "secret",
 		},
 		agent:     executor,
 		logger:    logging.OrNop(nil),
@@ -1472,12 +1478,16 @@ func TestHandleMessageSendsResultCardWhenEnabled(t *testing.T) {
 	if len(calls) == 0 {
 		t.Fatal("expected a reply message")
 	}
-	if calls[0].MsgType != "interactive" {
-		t.Fatalf("expected interactive card reply, got %q", calls[0].MsgType)
+	if calls[0].MsgType != "text" {
+		t.Fatalf("expected text reply, got %q", calls[0].MsgType)
+	}
+	replyText := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(replyText, "done") {
+		t.Fatalf("expected 'done' in reply, got %q", replyText)
 	}
 }
 
-func TestHandleMessageSendsAttachmentCardWhenAttachmentsPresent(t *testing.T) {
+func TestHandleMessageSendsTextReplyWithAttachments(t *testing.T) {
 	openID := "ou_sender_attach"
 	chatID := "oc_chat_attach"
 	msgID := "om_msg_attach"
@@ -1503,8 +1513,6 @@ func TestHandleMessageSendsAttachmentCardWhenAttachmentsPresent(t *testing.T) {
 			BaseConfig:      channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
 			AppID:           "test",
 			AppSecret:       "secret",
-			CardsEnabled:    true,
-			CardsResults:    true,
 			AutoUploadFiles: true,
 		},
 		agent:     executor,
@@ -1536,24 +1544,27 @@ func TestHandleMessageSendsAttachmentCardWhenAttachmentsPresent(t *testing.T) {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
 
-	msgCalls := 0
-	for _, call := range recorder.Calls() {
-		if call.Method != "ReplyMessage" && call.Method != "SendMessage" {
-			continue
-		}
-		msgCalls++
-		if call.MsgType != "interactive" {
-			t.Fatalf("expected interactive card reply, got %q", call.MsgType)
-		}
-	}
-	if msgCalls != 1 {
-		t.Fatalf("expected 1 reply message, got %d", msgCalls)
-	}
-	for _, call := range recorder.Calls() {
-		if call.MsgType == "image" || call.MsgType == "file" {
-			t.Fatalf("expected no image/file message dispatches, got %q", call.MsgType)
+	// Expect a text reply followed by separate image/file attachment dispatches.
+	replyCalls := recorder.CallsByMethod("ReplyMessage")
+	sendCalls := recorder.CallsByMethod("SendMessage")
+	allMsgCalls := append(replyCalls, sendCalls...)
+
+	// The first message call should be the text reply with "done".
+	foundTextReply := false
+	for _, call := range allMsgCalls {
+		if call.MsgType == "text" {
+			replyText := extractTextContent(call.Content, nil)
+			if strings.Contains(replyText, "done") {
+				foundTextReply = true
+				break
+			}
 		}
 	}
+	if !foundTextReply {
+		t.Fatalf("expected a text reply containing 'done', got calls: %#v", allMsgCalls)
+	}
+
+	// Attachments are uploaded and dispatched as separate image/file messages.
 	if len(recorder.CallsByMethod("UploadImage")) != 1 {
 		t.Fatalf("expected image upload, got %#v", recorder.CallsByMethod("UploadImage"))
 	}
@@ -1697,20 +1708,19 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	}
 }
 
-func TestHandleMessageModelListUsesInteractiveCardWhenCardsEnabled(t *testing.T) {
-	openID := "ou_sender_model_card"
-	chatID := "oc_chat_model_card"
-	msgID := "om_msg_model_card"
+func TestHandleMessageModelListUsesTextReply(t *testing.T) {
+	openID := "ou_sender_model_text"
+	chatID := "oc_chat_model_text"
+	msgID := "om_msg_model_text"
 	msgType := "text"
 	chatType := "p2p"
 
 	recorder := NewRecordingMessenger()
 	gw := &Gateway{
 		cfg: Config{
-			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
-			AppID:        "test",
-			AppSecret:    "secret",
-			CardsEnabled: true,
+			BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true},
+			AppID:      "test",
+			AppSecret:  "secret",
 		},
 		logger:    logging.OrNop(nil),
 		now:       func() time.Time { return time.Now() },
@@ -1760,14 +1770,12 @@ func TestHandleMessageModelListUsesInteractiveCardWhenCardsEnabled(t *testing.T)
 	if len(calls) != 1 {
 		t.Fatalf("expected one outbound model list reply, got %#v", calls)
 	}
-	if calls[0].MsgType != "interactive" {
-		t.Fatalf("expected interactive card reply, got %q", calls[0].MsgType)
+	if calls[0].MsgType != "text" {
+		t.Fatalf("expected text reply, got %q", calls[0].MsgType)
 	}
-	if !strings.Contains(calls[0].Content, `"action_tag":"model_use"`) {
-		t.Fatalf("expected model_use action in card, got: %s", calls[0].Content)
-	}
-	if !strings.Contains(calls[0].Content, `/model use codex/gpt-5.2-codex`) {
-		t.Fatalf("expected model command payload in card, got: %s", calls[0].Content)
+	replyText := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(replyText, "codex") {
+		t.Fatalf("expected codex provider in model list text, got %q", replyText)
 	}
 }
 
