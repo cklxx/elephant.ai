@@ -506,10 +506,15 @@ export async function getLogTrace(logId: string): Promise<LogTraceBundle> {
   );
 }
 
-export async function getLogIndex(limit = 80): Promise<LogIndexResponse> {
-  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 80;
+export async function getLogIndex(limit = 40, offset = 0): Promise<LogIndexResponse> {
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 40;
+  const safeOffset = Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : 0;
+  const params = new URLSearchParams({
+    limit: String(safeLimit),
+    offset: String(safeOffset),
+  });
   return fetchAPI<LogIndexResponse>(
-    `/api/dev/logs/index?limit=${encodeURIComponent(String(safeLimit))}`,
+    `/api/dev/logs/index?${params.toString()}`,
     { skipAuth: true },
   );
 }

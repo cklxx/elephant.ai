@@ -26,6 +26,7 @@ export type LogIndexEntry = {
 
 export type LogIndexResponse = {
   entries: LogIndexEntry[];
+  has_more?: boolean;
 };
 
 // Structured log types
