@@ -1,0 +1,410 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"os/signal"
+	"path/filepath"
+	"syscall"
+
+	"alex/internal/devops"
+	"alex/internal/devops/services"
+)
+
+func runDevCommand(args []string) error {
+	cmd := "up"
+	if len(args) > 0 {
+		cmd = args[0]
+		args = args[1:]
+	}
+
+	switch cmd {
+	case "up", "start":
+		return devUp()
+	case "down", "stop":
+		return devDown()
+	case "status":
+		return devStatus()
+	case "logs":
+		target := "all"
+		if len(args) > 0 {
+			target = args[0]
+		}
+		return devLogs(target)
+	case "restart":
+		return devRestart(args...)
+	case "sandbox":
+		return devSandbox(args)
+	case "test":
+		return devTest()
+	case "lint":
+		return devLint()
+	case "logs-ui", "log-ui", "analyze-logs":
+		return devLogsUI()
+	case "help", "-h", "--help":
+		printDevUsage()
+		return nil
+	default:
+		return fmt.Errorf("unknown dev command: %s (run 'alex dev help')", cmd)
+	}
+}
+
+func devUp() error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	if err := ensureLocalBootstrap(orch.Config().ProjectDir); err != nil {
+		orch.Section().Warn("Bootstrap: %v", err)
+	}
+
+	if err := orch.Up(ctx); err != nil {
+		return err
+	}
+
+	cfg := orch.Config()
+	fmt.Println()
+	orch.Section().Success("Dev services are running: backend=http://localhost:%d web=http://localhost:%d sandbox=%s",
+		cfg.ServerPort, cfg.WebPort, cfg.SandboxBaseURL)
+	return nil
+}
+
+func devDown() error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	return orch.Down(ctx)
+}
+
+func devStatus() error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	statuses := orch.Status(ctx)
+	for _, s := range statuses {
+		if s.Healthy {
+			orch.Section().Success("%s: %s (PID: %d) %s", s.Name, s.State, s.PID, s.Message)
+		} else {
+			orch.Section().Warn("%s: %s %s", s.Name, s.State, s.Message)
+		}
+	}
+	return nil
+}
+
+func devLogs(target string) error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	return orch.Logs(ctx, target, true)
+}
+
+func devRestart(names ...string) error {
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	return orch.Restart(ctx, names...)
+}
+
+func devSandbox(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("sandbox requires a subcommand: up, down, status")
+	}
+
+	orch, err := buildOrchestrator()
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	// Find sandbox service
+	var sandbox devops.Service
+	for _, svc := range []string{"sandbox"} {
+		statuses := orch.Status(ctx)
+		for i, s := range statuses {
+			if s.Name == svc {
+				_ = i
+				break
+			}
+		}
+	}
+	_ = sandbox
+
+	// Use orchestrator's sandbox directly
+	switch args[0] {
+	case "up":
+		cfg := orch.Config()
+		if err := ensureLocalBootstrap(cfg.ProjectDir); err != nil {
+			orch.Section().Warn("Bootstrap: %v", err)
+		}
+		sandboxSvc := buildSandboxService(orch)
+		if err := sandboxSvc.Start(ctx); err != nil {
+			return err
+		}
+		orch.Section().Success("Sandbox ready: %s", cfg.SandboxBaseURL)
+		return nil
+	case "down":
+		sandboxSvc := buildSandboxService(orch)
+		if err := sandboxSvc.Stop(ctx); err != nil {
+			return err
+		}
+		orch.Section().Success("Sandbox stopped")
+		return nil
+	case "status":
+		sandboxSvc := buildSandboxService(orch)
+		hr := sandboxSvc.Health(ctx)
+		if hr.Healthy {
+			orch.Section().Success("Sandbox: ready %s", orch.Config().SandboxBaseURL)
+		} else {
+			orch.Section().Warn("Sandbox: unavailable %s", orch.Config().SandboxBaseURL)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown sandbox command: %s", args[0])
+	}
+}
+
+func devTest() error {
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	goToolchain := filepath.Join(projectDir, "scripts", "go-with-toolchain.sh")
+	cmd := exec.Command(goToolchain, "test", "-race", "-covermode=atomic", "-coverprofile=coverage.out", "./...")
+	cmd.Dir = projectDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	// Set CGO mode
+	env := os.Environ()
+	if os.Getenv("CGO_ENABLED") == "" {
+		env = append(env, "CGO_ENABLED=0")
+	}
+	cmd.Env = env
+
+	return cmd.Run()
+}
+
+func devLint() error {
+	projectDir, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	// Go lint
+	fmt.Println("Running Go lint...")
+	lintScript := filepath.Join(projectDir, "scripts", "run-golangci-lint.sh")
+	cmd := exec.Command(lintScript, "run", "./...")
+	cmd.Dir = projectDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("go lint: %w", err)
+	}
+
+	// Web lint
+	fmt.Println("Running web lint...")
+	webDir := filepath.Join(projectDir, "web")
+	npmPath, err := exec.LookPath("npm")
+	if err != nil {
+		return fmt.Errorf("npm not found: %w", err)
+	}
+	cmd = exec.Command(npmPath, "--prefix", webDir, "run", "lint")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func devLogsUI() error {
+	// Start all services first, then open log analyzer
+	if err := devUp(); err != nil {
+		return err
+	}
+
+	cfg, err := loadDevConfig()
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/dev/log-analyzer", cfg.WebPort)
+	fmt.Printf("Log analyzer ready: %s\n", url)
+
+	// Try to open browser
+	openCmd, _ := exec.LookPath("open")
+	if openCmd == "" {
+		openCmd, _ = exec.LookPath("xdg-open")
+	}
+	if openCmd != "" {
+		exec.Command(openCmd, url).Start()
+	}
+	return nil
+}
+
+func buildOrchestrator() (*devops.Orchestrator, error) {
+	cfg, err := loadDevConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	orch := devops.NewOrchestrator(cfg)
+
+	// Build and register all services in dependency order
+	sandboxSvc := buildSandboxService(orch)
+	authdbSvc := buildAuthDBService(orch)
+	backendSvc := buildBackendService(orch)
+	webSvc := buildWebService(orch)
+
+	orch.RegisterServices(sandboxSvc, authdbSvc, backendSvc, webSvc)
+	return orch, nil
+}
+
+func buildSandboxService(orch *devops.Orchestrator) *services.SandboxService {
+	cfg := orch.Config()
+	workspaceDir := os.Getenv("SANDBOX_WORKSPACE_DIR")
+	if workspaceDir == "" {
+		workspaceDir = cfg.ProjectDir
+	}
+
+	return services.NewSandboxService(
+		orch.Docker(),
+		orch.Ports(),
+		orch.Health(),
+		orch.Section(),
+		services.SandboxConfig{
+			ContainerName:     cfg.SandboxContainer,
+			Image:             cfg.SandboxImage,
+			Port:              cfg.SandboxPort,
+			BaseURL:           cfg.SandboxBaseURL,
+			WorkspaceDir:      workspaceDir,
+			AutoInstallCLI:    cfg.SandboxAutoInstallCLI,
+			SandboxConfigPath: cfg.SandboxConfigPath,
+			ACPPort:           cfg.ACPPort,
+			ACPHost:           cfg.ACPHost,
+			ACPRunMode:        cfg.ACPRunMode,
+			StartACPWithSandbox: cfg.StartACPWithSandbox,
+			ProjectDir:        cfg.ProjectDir,
+			PIDDir:            cfg.PIDDir,
+			LogDir:            cfg.LogDir,
+		},
+	)
+}
+
+func buildAuthDBService(orch *devops.Orchestrator) *services.AuthDBService {
+	cfg := orch.Config()
+	return services.NewAuthDBService(
+		orch.Health(),
+		orch.Section(),
+		services.AuthDBConfig{
+			DatabaseURL: cfg.AuthDatabaseURL,
+			JWTSecret:   cfg.AuthJWTSecret,
+			Skip:        cfg.SkipLocalAuthDB,
+			ProjectDir:  cfg.ProjectDir,
+			LogDir:      cfg.LogDir,
+		},
+	)
+}
+
+func buildBackendService(orch *devops.Orchestrator) *services.BackendService {
+	cfg := orch.Config()
+	return services.NewBackendService(
+		orch.ProcessManager(),
+		orch.Ports(),
+		orch.Health(),
+		orch.Section(),
+		services.BackendConfig{
+			Port:       cfg.ServerPort,
+			OutputBin:  cfg.ServerBin,
+			ProjectDir: cfg.ProjectDir,
+			LogDir:     cfg.LogDir,
+			CGOMode:    cfg.CGOMode,
+			AutoStop:   cfg.AutoStopConflictingPorts,
+		},
+	)
+}
+
+func buildWebService(orch *devops.Orchestrator) *services.WebService {
+	cfg := orch.Config()
+	return services.NewWebService(
+		orch.ProcessManager(),
+		orch.Ports(),
+		orch.Health(),
+		orch.Section(),
+		services.WebConfig{
+			Port:       cfg.WebPort,
+			WebDir:     cfg.WebDir,
+			ServerPort: cfg.ServerPort,
+			AutoStop:   cfg.AutoStopConflictingPorts,
+		},
+	)
+}
+
+func loadDevConfig() (*devops.DevConfig, error) {
+	home, _ := os.UserHomeDir()
+	configPath := os.Getenv("ALEX_CONFIG_PATH")
+	if configPath == "" {
+		configPath = filepath.Join(home, ".alex", "config.yaml")
+	}
+	return devops.LoadDevConfig(configPath)
+}
+
+func ensureLocalBootstrap(projectDir string) error {
+	script := filepath.Join(projectDir, "scripts", "setup_local_runtime.sh")
+	if _, err := os.Stat(script); os.IsNotExist(err) {
+		return nil
+	}
+
+	cmd := exec.Command(script)
+	cmd.Dir = projectDir
+	cmd.Env = os.Environ()
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("bootstrap: %s: %w", string(out), err)
+	}
+	return nil
+}
+
+func printDevUsage() {
+	fmt.Print(`alex dev — Development environment manager
+
+Usage:
+  alex dev [command]
+
+Commands:
+  up|start           Start all dev services (sandbox, auth DB, backend, web)
+  down|stop          Stop all dev services
+  status             Show status of all services
+  logs [service]     Tail logs (server|web|all)
+  restart [service]  Restart specified service(s) or all
+  sandbox up         Start sandbox only
+  sandbox down       Stop sandbox only
+  sandbox status     Show sandbox status
+  test               Run Go tests (CI parity)
+  lint               Run Go + web lint
+  logs-ui            Start services and open log analyzer
+  help               Show this help
+`)
+}

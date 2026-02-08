@@ -117,6 +117,12 @@ func handleStandaloneArgs(args []string) (handled bool, exitCode int) {
 			return true, 1
 		}
 		return true, 0
+	case "dev":
+		if err := runDevCommand(args[1:]); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			return true, exitCodeFromError(err)
+		}
+		return true, 0
 	case "lark":
 		if err := runLarkCommand(args[1:]); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)

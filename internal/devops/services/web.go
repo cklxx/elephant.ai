@@ -53,7 +53,7 @@ func (s *WebService) State() devops.ServiceState {
 	return s.state.Load().(devops.ServiceState)
 }
 
-func (s *WebService) Health(ctx context.Context) devops.HealthResult {
+func (s *WebService) Health(ctx context.Context) health.Result {
 	return s.health.Check(ctx, "web")
 }
 

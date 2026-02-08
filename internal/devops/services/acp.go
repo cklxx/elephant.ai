@@ -56,12 +56,12 @@ func (s *ACPService) State() devops.ServiceState {
 	return s.state.Load().(devops.ServiceState)
 }
 
-func (s *ACPService) Health(_ context.Context) devops.HealthResult {
+func (s *ACPService) Health(_ context.Context) health.Result {
 	state := s.State()
 	if state == devops.StateHealthy {
-		return devops.HealthResult{Healthy: true, Message: "ACP running"}
+		return health.Result{Healthy: true, Message: "ACP running"}
 	}
-	return devops.HealthResult{Healthy: false, Message: fmt.Sprintf("state: %s", state)}
+	return health.Result{Healthy: false, Message: fmt.Sprintf("state: %s", state)}
 }
 
 func (s *ACPService) Start(ctx context.Context) error {

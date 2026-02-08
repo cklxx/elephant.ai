@@ -3,7 +3,8 @@ package devops
 import (
 	"context"
 	"fmt"
-	"time"
+
+	"alex/internal/devops/health"
 )
 
 // ServiceState represents the lifecycle state of a managed service.
@@ -37,18 +38,11 @@ func (s ServiceState) String() string {
 	}
 }
 
-// HealthResult captures the outcome of a health probe.
-type HealthResult struct {
-	Healthy bool
-	Message string
-	Latency time.Duration
-}
-
 // Service represents a managed development service.
 type Service interface {
 	Name() string
 	Start(ctx context.Context) error
 	Stop(ctx context.Context) error
 	State() ServiceState
-	Health(ctx context.Context) HealthResult
+	Health(ctx context.Context) health.Result
 }

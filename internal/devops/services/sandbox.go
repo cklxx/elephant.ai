@@ -70,7 +70,7 @@ func (s *SandboxService) State() devops.ServiceState {
 	return s.state.Load().(devops.ServiceState)
 }
 
-func (s *SandboxService) Health(ctx context.Context) devops.HealthResult {
+func (s *SandboxService) Health(ctx context.Context) health.Result {
 	return s.health.Check(ctx, "sandbox")
 }
 

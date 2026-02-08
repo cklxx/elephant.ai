@@ -57,7 +57,7 @@ func (s *BackendService) State() devops.ServiceState {
 	return s.state.Load().(devops.ServiceState)
 }
 
-func (s *BackendService) Health(ctx context.Context) devops.HealthResult {
+func (s *BackendService) Health(ctx context.Context) health.Result {
 	return s.health.Check(ctx, "backend")
 }
 

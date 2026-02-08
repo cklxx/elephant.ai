@@ -48,13 +48,13 @@ func (s *AuthDBService) State() devops.ServiceState {
 	return s.state.Load().(devops.ServiceState)
 }
 
-func (s *AuthDBService) Health(_ context.Context) devops.HealthResult {
+func (s *AuthDBService) Health(_ context.Context) health.Result {
 	// Auth DB health is determined by the setup script success
 	state := s.State()
 	if state == devops.StateHealthy {
-		return devops.HealthResult{Healthy: true, Message: "auth DB ready"}
+		return health.Result{Healthy: true, Message: "auth DB ready"}
 	}
-	return devops.HealthResult{Healthy: false, Message: fmt.Sprintf("state: %s", state)}
+	return health.Result{Healthy: false, Message: fmt.Sprintf("state: %s", state)}
 }
 
 func (s *AuthDBService) Start(ctx context.Context) error {

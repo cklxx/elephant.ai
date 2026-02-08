@@ -10,9 +10,14 @@ import (
 	"strings"
 	"syscall"
 	"time"
-
-	"alex/internal/devops"
 )
+
+// Result captures the outcome of a health probe.
+type Result struct {
+	Healthy bool
+	Message string
+	Latency time.Duration
+}
 
 // ProbeType defines the kind of health check.
 type ProbeType int
@@ -62,10 +67,10 @@ func (c *Checker) Register(name string, probe Probe) {
 }
 
 // Check performs a single health check for a named service.
-func (c *Checker) Check(ctx context.Context, name string) devops.HealthResult {
+func (c *Checker) Check(ctx context.Context, name string) Result {
 	probe, ok := c.probes[name]
 	if !ok {
-		return devops.HealthResult{
+		return Result{
 			Healthy: false,
 			Message: fmt.Sprintf("no probe registered for %s", name),
 		}
@@ -86,7 +91,7 @@ func (c *Checker) Check(ctx context.Context, name string) devops.HealthResult {
 		message = fmt.Sprintf("unknown probe type %d", probe.Type)
 	}
 
-	return devops.HealthResult{
+	return Result{
 		Healthy: healthy,
 		Message: message,
 		Latency: time.Since(start),
