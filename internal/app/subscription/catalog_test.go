@@ -114,6 +114,15 @@ func TestCatalogServiceUsesCodexFallbackWithoutNetwork(t *testing.T) {
 	if got.Error != "" {
 		t.Fatalf("expected no error, got %q", got.Error)
 	}
+	if got.DisplayName == "" || got.AuthMode == "" {
+		t.Fatalf("expected provider metadata, got %#v", got)
+	}
+	if got.DefaultModel == "" {
+		t.Fatalf("expected default model metadata, got %#v", got)
+	}
+	if len(got.RecommendedModels) == 0 {
+		t.Fatalf("expected recommended models metadata, got %#v", got)
+	}
 	if len(got.Models) == 0 || got.Models[0] == "" {
 		t.Fatalf("expected fallback models, got %#v", got.Models)
 	}
@@ -151,6 +160,9 @@ func TestCatalogServiceIncludesLlamaServerWhenAvailable(t *testing.T) {
 	}
 	if len(got.Models) != 1 || got.Models[0] != "llama-3.2-local" {
 		t.Fatalf("unexpected models: %#v", got.Models)
+	}
+	if got.DisplayName == "" {
+		t.Fatalf("expected display metadata for llama_server, got %#v", got)
 	}
 }
 

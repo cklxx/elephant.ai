@@ -122,3 +122,23 @@ func TestRouterDoesNotExposeDevLogIndexOutsideDevelopment(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusNotFound, w.Code)
 	}
 }
+
+func TestRouterRegistersOnboardingStateEndpoint(t *testing.T) {
+	router := NewRouter(
+		RouterDeps{
+			Broadcaster:            serverapp.NewEventBroadcaster(),
+			HealthChecker:          serverapp.NewHealthChecker(),
+			AttachmentCfg:          attachments.StoreConfig{Dir: t.TempDir()},
+			OnboardingStateHandler: NewOnboardingStateHandler(&memoryOnboardingStore{}),
+		},
+		RouterConfig{Environment: "development"},
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/internal/onboarding/state", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d body=%s", http.StatusOK, w.Code, w.Body.String())
+	}
+}

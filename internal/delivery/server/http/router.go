@@ -105,6 +105,10 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		mux.Handle("GET /api/internal/config/runtime/models", routeHandler("/api/internal/config/runtime/models", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetRuntimeModels))))
 		mux.Handle("GET /api/internal/subscription/catalog", routeHandler("/api/internal/subscription/catalog", wrap(http.HandlerFunc(deps.ConfigHandler.HandleGetSubscriptionCatalog))))
 	}
+	if (internalMode || devMode) && deps.OnboardingStateHandler != nil {
+		mux.Handle("GET /api/internal/onboarding/state", routeHandler("/api/internal/onboarding/state", wrap(http.HandlerFunc(deps.OnboardingStateHandler.HandleGetOnboardingState))))
+		mux.Handle("PUT /api/internal/onboarding/state", routeHandler("/api/internal/onboarding/state", wrap(http.HandlerFunc(deps.OnboardingStateHandler.HandleUpdateOnboardingState))))
+	}
 	if internalMode {
 		appsConfigHandler := NewAppsConfigHandler(config.LoadAppsConfig, config.SaveAppsConfig)
 		if appsConfigHandler != nil {

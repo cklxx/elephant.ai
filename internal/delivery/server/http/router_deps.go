@@ -20,6 +20,7 @@ type RouterDeps struct {
 	AuthHandler             *AuthHandler
 	AuthService             *authapp.Service
 	ConfigHandler           *ConfigHandler
+	OnboardingStateHandler  *OnboardingStateHandler
 	Evaluation              *app.EvaluationService
 	Obs                     *observability.Observability
 	AttachmentCfg           attachments.StoreConfig

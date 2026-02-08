@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"alex/internal/app/subscription"
 	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
@@ -20,6 +21,7 @@ import (
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
 	"alex/internal/shared/async"
+	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
 
@@ -237,6 +239,10 @@ func RunServer(observabilityConfigPath string) error {
 
 	runtimeUpdates, runtimeReloader := f.RuntimeCacheUpdates()
 	configHandler := serverHTTP.NewConfigHandler(f.ConfigManager(), f.Resolver(), runtimeUpdates, runtimeReloader)
+	onboardingStore := subscription.NewOnboardingStateStore(
+		subscription.ResolveOnboardingStatePath(runtimeconfig.DefaultEnvLookup, nil),
+	)
+	onboardingStateHandler := serverHTTP.NewOnboardingStateHandler(onboardingStore)
 	evaluationService, err := serverApp.NewEvaluationService("./evaluation_results")
 	if err != nil {
 		logger.Warn("Evaluation service disabled: %v", err)
@@ -258,6 +264,7 @@ func RunServer(observabilityConfigPath string) error {
 			AuthHandler:             authHandler,
 			AuthService:             authService,
 			ConfigHandler:           configHandler,
+			OnboardingStateHandler:  onboardingStateHandler,
 			Evaluation:              evaluationService,
 			Obs:                     f.Obs,
 			AttachmentCfg:           config.Attachment,

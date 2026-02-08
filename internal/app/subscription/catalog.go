@@ -62,11 +62,17 @@ func extractModelIDs(value any, out map[string]struct{}) {
 }
 
 type CatalogProvider struct {
-	Provider string   `json:"provider"`
-	Source   string   `json:"source"`
-	BaseURL  string   `json:"base_url,omitempty"`
-	Models   []string `json:"models,omitempty"`
-	Error    string   `json:"error,omitempty"`
+	Provider          string                `json:"provider"`
+	DisplayName       string                `json:"display_name,omitempty"`
+	Source            string                `json:"source"`
+	AuthMode          string                `json:"auth_mode,omitempty"`
+	BaseURL           string                `json:"base_url,omitempty"`
+	Models            []string              `json:"models,omitempty"`
+	DefaultModel      string                `json:"default_model,omitempty"`
+	RecommendedModels []ModelRecommendation `json:"recommended_models,omitempty"`
+	Selectable        bool                  `json:"selectable"`
+	SetupHint         string                `json:"setup_hint,omitempty"`
+	Error             string                `json:"error,omitempty"`
 }
 
 type Catalog struct {
@@ -156,28 +162,33 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 	var targets []CatalogProvider
 
 	if creds.Codex.APIKey != "" {
-		targets = append(targets, CatalogProvider{
+		target := CatalogProvider{
 			Provider: creds.Codex.Provider,
 			Source:   string(creds.Codex.Source),
 			BaseURL:  creds.Codex.BaseURL,
-		})
+		}
+		applyCatalogProviderPreset(&target)
+		targets = append(targets, target)
 	}
 	if creds.Claude.APIKey != "" {
 		baseURL := strings.TrimSpace(creds.Claude.BaseURL)
 		if baseURL == "" {
 			baseURL = "https://api.anthropic.com/v1"
 		}
-		targets = append(targets, CatalogProvider{
+		target := CatalogProvider{
 			Provider: creds.Claude.Provider,
 			Source:   string(creds.Claude.Source),
 			BaseURL:  baseURL,
-		})
+		}
+		applyCatalogProviderPreset(&target)
+		targets = append(targets, target)
 	}
 
 	for i := range targets {
 		target := &targets[i]
 		if target.Provider == "codex" && target.Source == string(runtimeconfig.SourceCodexCLI) {
 			target.Models = codexFallbackModels(creds.Codex.Model)
+			target.DefaultModel = pickCatalogDefaultModel(*target)
 			continue
 		}
 		models, err := fetchProviderModels(ctx, client, fetchTarget{
@@ -188,9 +199,14 @@ func listProviders(ctx context.Context, creds runtimeconfig.CLICredentials, clie
 		}, maxResponseBytes)
 		if err != nil {
 			target.Error = err.Error()
+			if len(target.Models) == 0 {
+				target.Models = recommendationIDs(target.RecommendedModels)
+			}
+			target.DefaultModel = pickCatalogDefaultModel(*target)
 			continue
 		}
 		target.Models = models
+		target.DefaultModel = pickCatalogDefaultModel(*target)
 	}
 
 	return targets
@@ -252,6 +268,7 @@ func buildLlamaServerProvider(ctx context.Context, client *http.Client, target L
 		Source:   source,
 		BaseURL:  baseURL,
 	}
+	applyCatalogProviderPreset(&provider)
 
 	llamaCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -261,6 +278,7 @@ func buildLlamaServerProvider(ctx context.Context, client *http.Client, target L
 		return CatalogProvider{}, false
 	}
 	provider.Models = models
+	provider.DefaultModel = pickCatalogDefaultModel(provider)
 	return provider, true
 }
 
