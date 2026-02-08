@@ -18,12 +18,6 @@ const DEV_PAGES = [
     description: "Manage runtime overrides, app connectors, and context configuration tools.",
     tag: "Configuration",
   },
-  {
-    href: "/dev/operations",
-    title: "Operations workbench",
-    description: "Operate evaluations, sessions, and plan preview from one surface.",
-    tag: "Operations",
-  },
 ] as const;
 
 export default function DevHomePage() {
@@ -37,7 +31,7 @@ export default function DevHomePage() {
               Development routes
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Consolidated workbenches for diagnostics, configuration, and operations.
+              Consolidated workbenches for diagnostics and configuration.
             </p>
           </header>
 

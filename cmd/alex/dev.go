@@ -132,7 +132,6 @@ func printDevSummary(orch *devops.Orchestrator, larkMode bool) {
 		{"Log Analyzer", "/dev/log-analyzer"},
 		{"Context Window", "/dev/context-window"},
 		{"Context Config", "/dev/context-config"},
-		{"Plan Preview", "/dev/plan-preview"},
 		{"Config Inspector", "/dev/config"},
 		{"Apps Config", "/dev/apps-config"},
 	}
