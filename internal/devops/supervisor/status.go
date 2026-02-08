@@ -11,11 +11,17 @@ import (
 
 // Status holds the full supervisor status snapshot.
 type Status struct {
-	Timestamp         string            `json:"ts_utc"`
-	Mode              string            `json:"mode"`
-	Components        map[string]ComponentStatus `json:"components"`
-	RestartCountWindow int              `json:"restart_count_window"`
-	Autofix           AutofixStatus     `json:"autofix"`
+	Timestamp          string                    `json:"ts_utc"`
+	Mode               string                    `json:"mode"`
+	Components         map[string]ComponentStatus `json:"components"`
+	RestartCountWindow int                        `json:"restart_count_window"`
+	Autofix            AutofixStatus              `json:"autofix"`
+	CyclePhase         string                     `json:"cycle_phase,omitempty"`
+	CycleResult        string                     `json:"cycle_result,omitempty"`
+	LastError          string                     `json:"last_error,omitempty"`
+	MainSHA            string                     `json:"main_sha,omitempty"`
+	LastProcessedSHA   string                     `json:"last_processed_sha,omitempty"`
+	LastValidatedSHA   string                     `json:"last_validated_sha,omitempty"`
 }
 
 // ComponentStatus holds per-component status.
@@ -165,6 +171,26 @@ func parseFlatStatus(data []byte, status *Status) {
 		if json.Unmarshal(v, &n) == nil {
 			status.Autofix.RunsWindow = n
 		}
+	}
+
+	// Flat cycle/loop fields
+	if v := jsonString(raw, "cycle_phase"); v != "" {
+		status.CyclePhase = v
+	}
+	if v := jsonString(raw, "cycle_result"); v != "" {
+		status.CycleResult = v
+	}
+	if v := jsonString(raw, "last_error"); v != "" {
+		status.LastError = v
+	}
+	if v := jsonString(raw, "main_sha"); v != "" {
+		status.MainSHA = v
+	}
+	if v := jsonString(raw, "last_processed_sha"); v != "" {
+		status.LastProcessedSHA = v
+	}
+	if v := jsonString(raw, "last_validated_sha"); v != "" {
+		status.LastValidatedSHA = v
 	}
 }
 

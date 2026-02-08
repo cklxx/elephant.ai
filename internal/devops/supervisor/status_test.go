@@ -193,6 +193,110 @@ func TestStatusFileReadFlatFormatEmptyPID(t *testing.T) {
 	}
 }
 
+func TestStatusFileWriteReadWithCycleFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "status.json")
+	sf := NewStatusFile(path)
+
+	status := Status{
+		Timestamp:        "2026-02-08T14:00:00Z",
+		Mode:             "healthy",
+		Components:       map[string]ComponentStatus{},
+		CyclePhase:       "fast_gate",
+		CycleResult:      "running",
+		LastError:        "test restart failed",
+		MainSHA:          "760001fe",
+		LastProcessedSHA: "6f608251",
+		LastValidatedSHA: "6f608251",
+	}
+
+	if err := sf.Write(status); err != nil {
+		t.Fatalf("Write error: %v", err)
+	}
+
+	got, err := sf.Read()
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+
+	if got.CyclePhase != "fast_gate" {
+		t.Errorf("CyclePhase = %q, want fast_gate", got.CyclePhase)
+	}
+	if got.CycleResult != "running" {
+		t.Errorf("CycleResult = %q, want running", got.CycleResult)
+	}
+	if got.LastError != "test restart failed" {
+		t.Errorf("LastError = %q, want 'test restart failed'", got.LastError)
+	}
+	if got.MainSHA != "760001fe" {
+		t.Errorf("MainSHA = %q, want 760001fe", got.MainSHA)
+	}
+	if got.LastProcessedSHA != "6f608251" {
+		t.Errorf("LastProcessedSHA = %q, want 6f608251", got.LastProcessedSHA)
+	}
+	if got.LastValidatedSHA != "6f608251" {
+		t.Errorf("LastValidatedSHA = %q, want 6f608251", got.LastValidatedSHA)
+	}
+}
+
+func TestStatusFileReadFlatFormatWithCycleFields(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "status.json")
+
+	flat := `{
+  "ts_utc": "2026-02-08T14:30:00Z",
+  "mode": "healthy",
+  "main_pid": "50536",
+  "main_health": "healthy",
+  "main_deployed_sha": "4f978d87",
+  "test_pid": "76157",
+  "test_health": "healthy",
+  "test_deployed_sha": "1f1531ab",
+  "loop_pid": "28187",
+  "loop_alive": true,
+  "cycle_phase": "slow_gate",
+  "cycle_result": "passed",
+  "last_error": "previous error msg",
+  "main_sha": "760001fe",
+  "last_processed_sha": "6f608251",
+  "last_validated_sha": "5a5b5c5d",
+  "restart_count_window": 0,
+  "autofix_state": "idle",
+  "autofix_runs_window": 0
+}`
+	os.WriteFile(path, []byte(flat), 0o644)
+
+	sf := NewStatusFile(path)
+	got, err := sf.Read()
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+
+	if got.CyclePhase != "slow_gate" {
+		t.Errorf("CyclePhase = %q, want slow_gate", got.CyclePhase)
+	}
+	if got.CycleResult != "passed" {
+		t.Errorf("CycleResult = %q, want passed", got.CycleResult)
+	}
+	if got.LastError != "previous error msg" {
+		t.Errorf("LastError = %q, want 'previous error msg'", got.LastError)
+	}
+	if got.MainSHA != "760001fe" {
+		t.Errorf("MainSHA = %q, want 760001fe", got.MainSHA)
+	}
+	if got.LastProcessedSHA != "6f608251" {
+		t.Errorf("LastProcessedSHA = %q, want 6f608251", got.LastProcessedSHA)
+	}
+	if got.LastValidatedSHA != "5a5b5c5d" {
+		t.Errorf("LastValidatedSHA = %q, want 5a5b5c5d", got.LastValidatedSHA)
+	}
+
+	// Ensure existing flat fields still parse correctly
+	if len(got.Components) != 3 {
+		t.Fatalf("Components count = %d, want 3", len(got.Components))
+	}
+}
+
 func TestStatusFileAtomicWrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "status.json")
