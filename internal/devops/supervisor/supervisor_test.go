@@ -1,6 +1,8 @@
 package supervisor
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -81,4 +83,80 @@ func TestConcurrentRestartSkipParallel(t *testing.T) {
 	}
 	// With TryLock contention, some will be skipped — exact count is non-deterministic
 	t.Logf("acquired %d/%d (rest were correctly skipped)", acquired, workers)
+}
+
+func TestReadLoopState(t *testing.T) {
+	dir := t.TempDir()
+
+	s := &Supervisor{
+		tmpDir:   dir,
+		mainRoot: dir, // getMainSHA will fail gracefully → "unknown"
+	}
+
+	// Write loop state JSON
+	stateJSON := `{
+  "cycle_phase": "fast_gate",
+  "cycle_result": "running",
+  "last_error": "test restart failed"
+}`
+	os.WriteFile(filepath.Join(dir, "lark-loop.state.json"), []byte(stateJSON), 0o644)
+
+	// Write last processed SHA
+	os.WriteFile(filepath.Join(dir, "lark-loop.last"), []byte("6f608251\n"), 0o644)
+
+	// Write last validated SHA
+	os.WriteFile(filepath.Join(dir, "lark-loop.last-validated"), []byte("5a5b5c5d\n"), 0o644)
+
+	s.readLoopState()
+
+	if s.loopState.CyclePhase != "fast_gate" {
+		t.Errorf("CyclePhase = %q, want fast_gate", s.loopState.CyclePhase)
+	}
+	if s.loopState.CycleResult != "running" {
+		t.Errorf("CycleResult = %q, want running", s.loopState.CycleResult)
+	}
+	if s.loopState.LastError != "test restart failed" {
+		t.Errorf("LastError = %q, want 'test restart failed'", s.loopState.LastError)
+	}
+	if s.loopState.LastProcessedSHA != "6f608251" {
+		t.Errorf("LastProcessedSHA = %q, want 6f608251", s.loopState.LastProcessedSHA)
+	}
+	if s.loopState.LastValidatedSHA != "5a5b5c5d" {
+		t.Errorf("LastValidatedSHA = %q, want 5a5b5c5d", s.loopState.LastValidatedSHA)
+	}
+	// MainSHA will be "unknown" since dir is not a git repo
+	if s.loopState.MainSHA != "unknown" {
+		t.Errorf("MainSHA = %q, want unknown", s.loopState.MainSHA)
+	}
+}
+
+func TestReadLoopStateMissingFiles(t *testing.T) {
+	dir := t.TempDir()
+
+	s := &Supervisor{
+		tmpDir:   dir,
+		mainRoot: dir,
+	}
+
+	// No files written — should gracefully degrade
+	s.readLoopState()
+
+	if s.loopState.CyclePhase != "" {
+		t.Errorf("CyclePhase = %q, want empty", s.loopState.CyclePhase)
+	}
+	if s.loopState.CycleResult != "" {
+		t.Errorf("CycleResult = %q, want empty", s.loopState.CycleResult)
+	}
+	if s.loopState.LastError != "" {
+		t.Errorf("LastError = %q, want empty", s.loopState.LastError)
+	}
+	if s.loopState.LastProcessedSHA != "" {
+		t.Errorf("LastProcessedSHA = %q, want empty", s.loopState.LastProcessedSHA)
+	}
+	if s.loopState.LastValidatedSHA != "" {
+		t.Errorf("LastValidatedSHA = %q, want empty", s.loopState.LastValidatedSHA)
+	}
+	if s.loopState.MainSHA != "unknown" {
+		t.Errorf("MainSHA = %q, want unknown", s.loopState.MainSHA)
+	}
 }

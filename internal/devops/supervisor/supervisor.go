@@ -2,6 +2,7 @@ package supervisor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -33,6 +34,16 @@ type Component struct {
 	SHAFile  string // file containing deployed SHA
 }
 
+// LoopState holds observed devops loop state from state files.
+type LoopState struct {
+	CyclePhase       string
+	CycleResult      string
+	LastError        string
+	MainSHA          string
+	LastProcessedSHA string
+	LastValidatedSHA string
+}
+
 // Supervisor manages multiple supervised components with restart policies.
 type Supervisor struct {
 	components   []*Component
@@ -50,6 +61,8 @@ type Supervisor struct {
 	mu           sync.Mutex
 	failCounts   map[string]int
 	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
+	loopState    LoopState
+	tmpDir       string
 }
 
 // Config holds supervisor configuration.
@@ -91,6 +104,7 @@ func New(cfg Config) *Supervisor {
 		testRoot:   cfg.TestRoot,
 		logger:     logger,
 		failCounts: make(map[string]int),
+		tmpDir:     cfg.TmpDir,
 	}
 }
 
@@ -249,6 +263,56 @@ func (s *Supervisor) cleanup() {
 	}
 }
 
+// readLoopState reads devops loop state from files in tmpDir.
+// Corresponds to supervisor.sh observe_states (lines 482-502).
+// All reads are graceful — missing files leave fields at zero value.
+func (s *Supervisor) readLoopState() {
+	var ls LoopState
+
+	// Read loop state JSON (cycle_phase, cycle_result, last_error)
+	stateFile := filepath.Join(s.tmpDir, "lark-loop.state.json")
+	if data, err := os.ReadFile(stateFile); err == nil {
+		var raw map[string]json.RawMessage
+		if json.Unmarshal(data, &raw) == nil {
+			if v, ok := raw["cycle_phase"]; ok {
+				var s string
+				if json.Unmarshal(v, &s) == nil {
+					ls.CyclePhase = s
+				}
+			}
+			if v, ok := raw["cycle_result"]; ok {
+				var s string
+				if json.Unmarshal(v, &s) == nil {
+					ls.CycleResult = s
+				}
+			}
+			if v, ok := raw["last_error"]; ok {
+				var s string
+				if json.Unmarshal(v, &s) == nil {
+					ls.LastError = s
+				}
+			}
+		}
+	}
+
+	// Read last processed SHA
+	lastFile := filepath.Join(s.tmpDir, "lark-loop.last")
+	if data, err := os.ReadFile(lastFile); err == nil {
+		ls.LastProcessedSHA = strings.TrimSpace(string(data))
+	}
+
+	// Read last validated SHA
+	validatedFile := filepath.Join(s.tmpDir, "lark-loop.last-validated")
+	if data, err := os.ReadFile(validatedFile); err == nil {
+		ls.LastValidatedSHA = strings.TrimSpace(string(data))
+	}
+
+	// Read main SHA from git
+	ls.MainSHA = s.getMainSHA()
+
+	s.loopState = ls
+}
+
 func (s *Supervisor) writeStatus() {
 	now := time.Now()
 	status := Status{
@@ -260,6 +324,22 @@ func (s *Supervisor) writeStatus() {
 			State:      s.autofix.State(),
 			RunsWindow: s.autofix.RunsInWindow(),
 		},
+		CyclePhase:       s.loopState.CyclePhase,
+		CycleResult:      s.loopState.CycleResult,
+		LastError:        s.loopState.LastError,
+		MainSHA:          s.loopState.MainSHA,
+		LastProcessedSHA: s.loopState.LastProcessedSHA,
+		LastValidatedSHA: s.loopState.LastValidatedSHA,
+	}
+
+	// Populate autofix from state file (source of truth) when available
+	if afState, err := s.autofix.ReadStateFile(); err == nil && afState.State != "" {
+		status.Autofix.State = afState.State
+		status.Autofix.IncidentID = afState.IncidentID
+		status.Autofix.LastReason = afState.LastReason
+		status.Autofix.LastStarted = afState.LastStartedAt
+		status.Autofix.LastFinished = afState.LastFinishedAt
+		status.Autofix.LastCommit = afState.LastCommit
 	}
 
 	for _, comp := range s.components {
