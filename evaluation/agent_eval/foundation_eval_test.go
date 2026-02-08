@@ -201,6 +201,61 @@ func TestRankToolsForIntentCriticalFoundationCases(t *testing.T) {
 				makeProfile("list_dir", map[string]float64{"list": 8, "directory": 7, "folder": 6, "workspace": 6, "file": 6, "browse": 4}),
 			},
 		},
+		{
+			name:     "write-attachment-downloadable",
+			intent:   "Write a generated file as downloadable attachment for the user.",
+			expected: "write_attachment",
+			profiles: []foundationToolProfile{
+				makeProfile("file_edit", map[string]float64{"file": 8, "edit": 7, "write": 7, "create": 6, "content": 6}),
+				makeProfile("write_file", map[string]float64{"write": 8, "file": 7, "content": 6, "create": 5}),
+				makeProfile("replace_in_file", map[string]float64{"replace": 8, "file": 7, "update": 6}),
+				makeProfile("write_attachment", map[string]float64{"write": 6, "attach": 7, "download": 6, "artifact": 6, "generated": 4}),
+			},
+		},
+		{
+			name:     "find-files-by-name",
+			intent:   "Find files whose names contain migration in the repository.",
+			expected: "find",
+			profiles: []foundationToolProfile{
+				makeProfile("file_edit", map[string]float64{"file": 8, "edit": 7, "replace": 6, "create": 5, "find": 3}),
+				makeProfile("search_file", map[string]float64{"search": 8, "file": 7, "pattern": 6, "find": 4}),
+				makeProfile("replace_in_file", map[string]float64{"replace": 8, "file": 7, "path": 6}),
+				makeProfile("find", map[string]float64{"find": 7, "name": 6, "directory": 5, "path": 5, "file": 4}),
+			},
+		},
+		{
+			name:     "grep-error-log-lines",
+			intent:   "Search error.log for HTTP 500 lines with a simple grep pattern.",
+			expected: "grep",
+			profiles: []foundationToolProfile{
+				makeProfile("search_file", map[string]float64{"search": 8, "file": 7, "pattern": 6, "log": 3}),
+				makeProfile("ripgrep", map[string]float64{"search": 7, "regex": 7, "pattern": 6, "file": 5}),
+				makeProfile("web_search", map[string]float64{"search": 7, "web": 6, "query": 5}),
+				makeProfile("grep", map[string]float64{"grep": 7, "log": 7, "error": 6, "line": 6, "pattern": 5}),
+			},
+		},
+		{
+			name:     "lark-calendar-query",
+			intent:   "Proactively check upcoming calendar events before scheduling work.",
+			expected: "lark_calendar_query",
+			profiles: []foundationToolProfile{
+				makeProfile("lark_calendar_update", map[string]float64{"calendar": 7, "event": 6, "update": 6, "change": 5}),
+				makeProfile("lark_calendar_delete", map[string]float64{"calendar": 7, "event": 6, "delete": 6, "remove": 5}),
+				makeProfile("lark_calendar_create", map[string]float64{"calendar": 7, "event": 6, "create": 6, "new": 5}),
+				makeProfile("lark_calendar_query", map[string]float64{"calendar": 7, "event": 6, "query": 6, "check": 5, "upcoming": 5}),
+			},
+		},
+		{
+			name:     "okr-write-progress",
+			intent:   "Update OKR objective progress after completing milestone work.",
+			expected: "okr_write",
+			profiles: []foundationToolProfile{
+				makeProfile("replace_in_file", map[string]float64{"replace": 8, "update": 7, "file": 6, "path": 5}),
+				makeProfile("todo_update", map[string]float64{"update": 7, "todo": 7, "task": 6}),
+				makeProfile("lark_task_manage", map[string]float64{"task": 7, "manage": 6, "update": 5}),
+				makeProfile("okr_write", map[string]float64{"okr": 7, "write": 6, "objective": 6, "progress": 6, "update": 5}),
+			},
+		},
 	}
 
 	for _, tc := range cases {

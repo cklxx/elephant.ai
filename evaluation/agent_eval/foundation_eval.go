@@ -930,6 +930,29 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if has("replace", "deprecated", "endpoint", "api", "path", "file", "update") {
 			boost += 16
 		}
+	case "write_attachment":
+		if countMatches("attach", "download", "artifact", "generated", "deliver", "share", "export", "write", "file") >= 2 {
+			boost += 30
+		}
+		if hasAll("write", "attach") {
+			boost += 8
+		}
+	case "find":
+		if countMatches("find", "locate", "lookup", "name", "filename", "directory", "path") >= 2 {
+			boost += 20
+		}
+	case "grep":
+		if countMatches("grep", "log", "error", "line", "pattern", "match") >= 2 {
+			boost += 18
+		}
+	case "lark_calendar_query":
+		if countMatches("calendar", "event", "query", "upcoming", "schedule", "check") >= 2 {
+			boost += 16
+		}
+	case "okr_write":
+		if countMatches("okr", "objective", "key", "result", "progress", "update", "write", "status") >= 2 {
+			boost += 16
+		}
 	case "artifact_manifest":
 		if countMatches("manifest", "metadata", "generated", "describe", "artifact") >= 2 {
 			boost += 22
@@ -977,15 +1000,29 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	if strings.HasPrefix(toolName, "lark_") && has("lark") {
 		boost += 2
 	}
+	if toolName == "lark_calendar_create" || toolName == "lark_calendar_update" || toolName == "lark_calendar_delete" {
+		if has("query", "check", "upcoming", "search", "list") &&
+			!has("create", "new", "update", "modify", "change", "delete", "remove") {
+			boost -= 6
+		}
+	}
+	if toolName == "replace_in_file" {
+		if has("okr", "objective", "key", "result", "progress") && !has("replace", "patch", "endpoint", "string") {
+			boost -= 6
+		}
+	}
 	if toolName == "file_edit" {
 		if has("list", "directory", "folder", "workspace", "metadata", "state", "session", "url", "tab") {
-			boost -= 8
+			boost -= 10
 		}
 		if has("search", "find", "locate", "occurrence", "symbol", "token", "regex", "pattern") && !has("replace", "edit", "modify", "update", "create") {
-			boost -= 8
+			boost -= 12
 		}
 		if has("artifact", "memory", "timer", "reminder") && !has("replace", "edit", "modify", "update", "create") {
-			boost -= 6
+			boost -= 10
+		}
+		if has("attach", "download", "generated", "deliver", "export") && !has("replace", "edit", "modify", "update", "create") {
+			boost -= 10
 		}
 	}
 	if hasAll("task", "delegate") && toolName == "acp_executor" {
@@ -1141,6 +1178,8 @@ var tokenAliases = map[string]string{
 	"locate":        "search",
 	"lookup":        "search",
 	"scan":          "search",
+	"check":         "query",
+	"upcoming":      "query",
 	"querying":      "query",
 	"queries":       "query",
 	"docs":          "doc",
@@ -1149,6 +1188,9 @@ var tokenAliases = map[string]string{
 	"codebase":      "repo",
 	"repos":         "repo",
 	"files":         "file",
+	"filename":      "name",
+	"filenames":     "name",
+	"names":         "name",
 	"folders":       "directory",
 	"folder":        "directory",
 	"dirs":          "directory",
@@ -1166,10 +1208,13 @@ var tokenAliases = map[string]string{
 	"project":       "repo",
 	"projects":      "repo",
 	"events":        "event",
+	"logs":          "log",
 	"calendar":      "event",
 	"meetings":      "event",
 	"uploading":     "upload",
 	"uploaded":      "upload",
+	"generate":      "artifact",
+	"generated":     "artifact",
 	"attachments":   "attach",
 	"attachment":    "attach",
 	"downloadable":  "attach",
@@ -1206,6 +1251,10 @@ var tokenAliases = map[string]string{
 	"structured":    "a2ui",
 	"messages":      "message",
 	"tasks":         "task",
+	"objective":     "okr",
+	"objectives":    "okr",
+	"kr":            "result",
+	"krs":           "result",
 	"timers":        "timer",
 	"jobs":          "job",
 	"reminder":      "timer",
