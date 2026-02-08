@@ -364,27 +364,7 @@ func (b *containerBuilder) buildMemoryEngine() (memory.Engine, error) {
 		engine.SetChunkConfig(indexCfg.ChunkTokens, indexCfg.ChunkOverlap)
 	}
 	if indexCfg.Enabled {
-		dbPath := resolveStorageDir(indexCfg.DBPath, filepath.Join(root, "index.sqlite"))
-		baseURL := ""
-		if value, ok := runtimeconfig.DefaultEnvLookup("OLLAMA_BASE_URL"); ok {
-			baseURL = value
-		}
-		embedder := memory.NewOllamaEmbedder(indexCfg.EmbedderModel, baseURL)
-		indexer, err := memory.NewIndexer(root, memory.IndexerConfig{
-			DBPath:             dbPath,
-			ChunkTokens:        indexCfg.ChunkTokens,
-			ChunkOverlap:       indexCfg.ChunkOverlap,
-			MinScore:           indexCfg.MinScore,
-			FusionWeightVector: indexCfg.FusionWeightVector,
-			FusionWeightBM25:   indexCfg.FusionWeightBM25,
-		}, embedder, logging.NewComponentLogger("MemoryIndex"))
-		if err != nil {
-			b.logger.Warn("Failed to initialize memory indexer: %v", err)
-		} else if err := indexer.Start(context.Background()); err != nil {
-			b.logger.Warn("Failed to start memory indexer: %v", err)
-		} else {
-			engine.SetIndexer(indexer)
-		}
+		b.logger.Warn("Memory indexer requires an embedding provider; skipping (no provider configured)")
 	}
 	if err := engine.EnsureSchema(context.Background()); err != nil {
 		b.logger.Warn("Failed to initialize memory root: %v", err)
@@ -597,7 +577,7 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 
 // buildCredentialRefresher creates a function that re-resolves CLI credentials
 // at task execution time. This ensures long-running servers (e.g. Lark) use
-// fresh tokens even after the startup token expires (Codex, Antigravity).
+// fresh tokens even after the startup token expires (Codex).
 func buildCredentialRefresher() preparation.CredentialRefresher {
 	return func(provider string) (string, string, bool) {
 		provider = strings.ToLower(strings.TrimSpace(provider))
@@ -606,10 +586,6 @@ func buildCredentialRefresher() preparation.CredentialRefresher {
 		case "codex", "openai-responses", "responses":
 			if creds.Codex.APIKey != "" {
 				return creds.Codex.APIKey, creds.Codex.BaseURL, true
-			}
-		case "antigravity":
-			if creds.Antigravity.APIKey != "" {
-				return creds.Antigravity.APIKey, creds.Antigravity.BaseURL, true
 			}
 		case "anthropic", "claude":
 			if creds.Claude.APIKey != "" {
