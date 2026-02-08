@@ -212,13 +212,46 @@ func larkStatus() error {
 		}
 	}
 
-	if status.RestartCountWindow > 0 || status.Autofix.State != "" {
+	// Cycle section — shown when devops loop is active
+	if status.CyclePhase != "" {
+		sec.Section("Cycle")
+		sec.Info("%-14s %s", "Phase", status.CyclePhase)
+		if status.CycleResult != "" {
+			sec.Info("%-14s %s", "Result", status.CycleResult)
+		}
+		if status.LastError != "" {
+			sec.Warn("%-14s %s", "Last Error", status.LastError)
+		}
+		if status.LastValidatedSHA != "" {
+			sec.Info("%-14s %s", "Validated", shortSHA(status.LastValidatedSHA))
+		}
+		if status.MainSHA != "" && status.MainSHA != "unknown" {
+			sec.Info("%-14s %s", "Main SHA", shortSHA(status.MainSHA))
+		}
+	}
+
+	// Health + Autofix section
+	showHealth := status.RestartCountWindow > 0 || status.Autofix.State != ""
+	if showHealth {
 		sec.Section("Health")
 		if status.RestartCountWindow > 0 {
 			sec.Warn("%-14s %d", "Restarts", status.RestartCountWindow)
 		}
-		if status.Autofix.State != "" {
-			sec.Info("%-14s %s (runs: %d)", "Autofix", status.Autofix.State, status.Autofix.RunsWindow)
+	}
+
+	if status.Autofix.State != "" {
+		if !showHealth {
+			sec.Section("Autofix")
+		}
+		sec.Info("%-14s %s (runs: %d)", "Autofix", status.Autofix.State, status.Autofix.RunsWindow)
+		if status.Autofix.IncidentID != "" {
+			sec.Info("%-14s %s", "Incident", status.Autofix.IncidentID)
+		}
+		if status.Autofix.LastReason != "" {
+			sec.Info("%-14s %s", "Reason", status.Autofix.LastReason)
+		}
+		if status.Autofix.LastCommit != "" {
+			sec.Info("%-14s %s", "Commit", shortSHA(status.Autofix.LastCommit))
 		}
 	}
 
@@ -539,6 +572,15 @@ func printLarkSummary(sec *devlog.SectionWriter) {
 		} else {
 			sec.Warn("%-14s %s", name, label)
 		}
+	}
+
+	// Show cycle phase in summary (brief)
+	if status.CyclePhase != "" {
+		phase := status.CyclePhase
+		if status.CycleResult != "" {
+			phase += " (" + status.CycleResult + ")"
+		}
+		sec.Info("%-14s %s", "Cycle", phase)
 	}
 }
 
