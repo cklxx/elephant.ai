@@ -200,7 +200,7 @@ func TestApplyPinnedFallsBackToChannelLevel(t *testing.T) {
 	ctx := context.Background()
 
 	// Set at channel level (global).
-	sel := subscription.Selection{Mode: "cli", Provider: "ollama", Model: "llama3:latest", Source: "ollama"}
+	sel := subscription.Selection{Mode: "cli", Provider: "llama_server", Model: "llama3:latest", Source: "llama_server"}
 	if err := gw.llmSelections.Set(ctx, channelScope(), sel); err != nil {
 		t.Fatalf("Set: %v", err)
 	}
@@ -219,13 +219,13 @@ func TestApplyPinnedPrefersChatSpecific(t *testing.T) {
 	ctx := context.Background()
 
 	// Set channel-level.
-	channelSel := subscription.Selection{Mode: "cli", Provider: "ollama", Model: "channel-model", Source: "ollama"}
+	channelSel := subscription.Selection{Mode: "cli", Provider: "llama_server", Model: "channel-model", Source: "llama_server"}
 	if err := gw.llmSelections.Set(ctx, channelScope(), channelSel); err != nil {
 		t.Fatalf("Set channel: %v", err)
 	}
 	// Set chat-specific.
 	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
-	chatSel := subscription.Selection{Mode: "cli", Provider: "ollama", Model: "chat-model", Source: "ollama"}
+	chatSel := subscription.Selection{Mode: "cli", Provider: "llama_server", Model: "chat-model", Source: "llama_server"}
 	if err := gw.llmSelections.Set(ctx, chatScope(msg), chatSel); err != nil {
 		t.Fatalf("Set chat: %v", err)
 	}
@@ -250,7 +250,7 @@ func TestSetModelDefaultsToChannelScope(t *testing.T) {
 	ctx := context.Background()
 	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
 
-	if err := gw.setModelSelection(ctx, msg, "ollama/llama3:latest", false); err != nil {
+	if err := gw.setModelSelection(ctx, msg, "llama_server/llama3:latest", false); err != nil {
 		t.Fatalf("setModelSelection: %v", err)
 	}
 
@@ -271,7 +271,7 @@ func TestSetModelWithChatFlag(t *testing.T) {
 	ctx := context.Background()
 	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
 
-	if err := gw.setModelSelection(ctx, msg, "ollama/chat-only-model", true); err != nil {
+	if err := gw.setModelSelection(ctx, msg, "llama_server/chat-only-model", true); err != nil {
 		t.Fatalf("setModelSelection: %v", err)
 	}
 
@@ -305,7 +305,7 @@ func TestBuildModelStatusShowsScopeLabel(t *testing.T) {
 	}
 
 	// Set global.
-	if err := gw.setModelSelection(ctx, msg, "ollama/global-model", false); err != nil {
+	if err := gw.setModelSelection(ctx, msg, "llama_server/global-model", false); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 	status = gw.buildModelStatus(ctx, msg)
@@ -314,7 +314,7 @@ func TestBuildModelStatusShowsScopeLabel(t *testing.T) {
 	}
 
 	// Override per-chat.
-	if err := gw.setModelSelection(ctx, msg, "ollama/override-model", true); err != nil {
+	if err := gw.setModelSelection(ctx, msg, "llama_server/override-model", true); err != nil {
 		t.Fatalf("set chat: %v", err)
 	}
 	status = gw.buildModelStatus(ctx, msg)
@@ -332,7 +332,7 @@ func TestClearChannelLevel(t *testing.T) {
 	ctx := context.Background()
 	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
 
-	if err := gw.setModelSelection(ctx, msg, "ollama/model-x", false); err != nil {
+	if err := gw.setModelSelection(ctx, msg, "llama_server/model-x", false); err != nil {
 		t.Fatalf("set: %v", err)
 	}
 	if err := gw.clearModelSelection(ctx, msg, false); err != nil {
@@ -351,10 +351,10 @@ func TestClearChatOnly(t *testing.T) {
 	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
 
 	// Set both levels.
-	if err := gw.setModelSelection(ctx, msg, "ollama/global-model", false); err != nil {
+	if err := gw.setModelSelection(ctx, msg, "llama_server/global-model", false); err != nil {
 		t.Fatalf("set global: %v", err)
 	}
-	if err := gw.setModelSelection(ctx, msg, "ollama/chat-model", true); err != nil {
+	if err := gw.setModelSelection(ctx, msg, "llama_server/chat-model", true); err != nil {
 		t.Fatalf("set chat: %v", err)
 	}
 
@@ -375,21 +375,21 @@ func TestClearChatOnly(t *testing.T) {
 
 func TestHasFlag(t *testing.T) {
 	t.Parallel()
-	if !hasFlag([]string{"/model", "use", "ollama/llama3", "--chat"}, "--chat") {
+	if !hasFlag([]string{"/model", "use", "llama_server/llama3", "--chat"}, "--chat") {
 		t.Fatal("expected --chat to be found")
 	}
-	if hasFlag([]string{"/model", "use", "ollama/llama3"}, "--chat") {
+	if hasFlag([]string{"/model", "use", "llama_server/llama3"}, "--chat") {
 		t.Fatal("expected --chat NOT to be found")
 	}
 }
 
 func TestFirstNonFlag(t *testing.T) {
 	t.Parallel()
-	if got := firstNonFlag([]string{"ollama/llama3", "--chat"}); got != "ollama/llama3" {
-		t.Fatalf("expected ollama/llama3, got %q", got)
+	if got := firstNonFlag([]string{"llama_server/llama3", "--chat"}); got != "llama_server/llama3" {
+		t.Fatalf("expected llama_server/llama3, got %q", got)
 	}
-	if got := firstNonFlag([]string{"--chat", "ollama/llama3"}); got != "ollama/llama3" {
-		t.Fatalf("expected ollama/llama3, got %q", got)
+	if got := firstNonFlag([]string{"--chat", "llama_server/llama3"}); got != "llama_server/llama3" {
+		t.Fatalf("expected llama_server/llama3, got %q", got)
 	}
 	if got := firstNonFlag([]string{"--chat"}); got != "" {
 		t.Fatalf("expected empty, got %q", got)

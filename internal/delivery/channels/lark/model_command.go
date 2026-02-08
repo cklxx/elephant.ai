@@ -113,7 +113,6 @@ Model command usage:
 Examples:
   /model use codex/gpt-5.2-codex
   /model use anthropic/claude-sonnet-4-20250514 --chat
-  /model use ollama/llama3:latest
   /model use llama_server/local-model
 `)
 }
@@ -342,10 +341,7 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 	provider := strings.ToLower(strings.TrimSpace(parts[0]))
 	model := strings.TrimSpace(parts[1])
 
-	creds := runtimeconfig.CLICredentials{}
-	if provider != "ollama" {
-		creds = runtimeconfig.LoadCLICredentials()
-	}
+	creds := runtimeconfig.LoadCLICredentials()
 	cred, ok := matchSubscriptionCredential(creds, provider)
 	if !ok {
 		return fmt.Errorf("no subscription credential found for %q", provider)
@@ -420,11 +416,6 @@ func matchSubscriptionCredential(creds runtimeconfig.CLICredentials, provider st
 		if creds.Claude.APIKey != "" {
 			return creds.Claude, true
 		}
-	case "ollama":
-		return runtimeconfig.CLICredential{
-			Provider: "ollama",
-			Source:   "ollama",
-		}, true
 	case "llama_server":
 		return runtimeconfig.CLICredential{
 			Provider: "llama_server",

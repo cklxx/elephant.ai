@@ -52,9 +52,6 @@ func listModelsFrom(out io.Writer, creds runtimeconfig.CLICredentials) error {
 		func(context.Context) (subscription.LlamaServerTarget, bool) {
 			return resolveLlamaServerTarget()
 		},
-		func(context.Context) (subscription.OllamaTarget, bool) {
-			return resolveOllamaTarget()
-		},
 	)
 }
 
@@ -63,7 +60,6 @@ func listModelsFromWith(
 	creds runtimeconfig.CLICredentials,
 	client *http.Client,
 	llamaResolver func(context.Context) (subscription.LlamaServerTarget, bool),
-	ollamaResolver func(context.Context) (subscription.OllamaTarget, bool),
 ) error {
 	ctx, cancel := context.WithTimeout(cliBaseContext(), 30*time.Second)
 	defer cancel()
@@ -74,9 +70,6 @@ func listModelsFromWith(
 	opts := []subscription.CatalogOption{}
 	if llamaResolver != nil {
 		opts = append(opts, subscription.WithLlamaServerTargetResolver(llamaResolver))
-	}
-	if ollamaResolver != nil {
-		opts = append(opts, subscription.WithOllamaTargetResolver(ollamaResolver))
 	}
 	svc := subscription.NewCatalogService(
 		func() runtimeconfig.CLICredentials { return creds },
@@ -95,7 +88,6 @@ func listModelsFromWith(
 			"支持的凭证路径:",
 			"  Codex:       ~/.codex/auth.json",
 			"  Claude:      ~/.claude/credentials.json 或 CLAUDE_CODE_OAUTH_TOKEN 环境变量",
-			"  Ollama:      OLLAMA_BASE_URL 或 OLLAMA_HOST（可选）",
 			"  LlamaServer: LLAMA_SERVER_BASE_URL（默认 http://127.0.0.1:8082/v1）",
 		}
 		for _, line := range lines {
@@ -224,20 +216,11 @@ func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runti
 		if creds.Claude.APIKey != "" {
 			return creds.Claude, true
 		}
-	case "ollama":
-		return runtimeconfig.CLICredential{
-			Provider: "ollama",
-			Source:   "ollama",
-		}, true
 	case "llama_server":
 		return runtimeconfig.CLICredential{
 			Provider: "llama_server",
 			Source:   "llama_server",
 		}, true
-	case creds.Antigravity.Provider, "antigravity":
-		if creds.Antigravity.APIKey != "" {
-			return creds.Antigravity, true
-		}
 	}
 	return runtimeconfig.CLICredential{}, false
 }
@@ -253,7 +236,6 @@ func printModelUsage(out io.Writer) {
 		"Examples:",
 		"  alex model use codex/gpt-5.2-codex",
 		"  alex model use anthropic/claude-sonnet-4-20250514",
-		"  alex model use ollama/llama3:latest",
 		"  alex model use llama_server/local-model",
 	}
 	for _, line := range lines {
@@ -293,32 +275,3 @@ func resolveLlamaServerTarget() (subscription.LlamaServerTarget, bool) {
 	return subscription.LlamaServerTarget{BaseURL: baseURL, Source: source}, true
 }
 
-func resolveOllamaTarget() (subscription.OllamaTarget, bool) {
-	lookup := runtimeconfig.DefaultEnvLookup
-
-	baseURL := ""
-	source := ""
-	if value, ok := lookup("OLLAMA_BASE_URL"); ok {
-		baseURL = strings.TrimSpace(value)
-		if baseURL != "" {
-			source = string(runtimeconfig.SourceEnv)
-		}
-	}
-	if baseURL == "" {
-		if host, ok := lookup("OLLAMA_HOST"); ok {
-			host = strings.TrimSpace(host)
-			if host != "" {
-				if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
-					baseURL = host
-				} else {
-					baseURL = "http://" + host
-				}
-				source = string(runtimeconfig.SourceEnv)
-			}
-		}
-	}
-	if source == "" {
-		source = "ollama"
-	}
-	return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
-}

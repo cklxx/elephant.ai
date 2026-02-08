@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strings"
 	"time"
 
 	"alex/internal/app/subscription"
@@ -211,52 +210,7 @@ func defaultCatalogService(resolver RuntimeConfigResolver) SubscriptionCatalogSe
 		return runtimeconfig.LoadCLICredentials()
 	}, client, 15*time.Second,
 		subscription.WithMaxResponseBytes(maxResponseBytes),
-		subscription.WithOllamaTargetResolver(func(ctx context.Context) (subscription.OllamaTarget, bool) {
-			if resolver == nil {
-				return subscription.OllamaTarget{}, false
-			}
-			cfg, meta, err := resolver(ctx)
-			if err == nil {
-				provider := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
-				if provider == "ollama" {
-					baseURL := strings.TrimSpace(cfg.BaseURL)
-					source := string(meta.Source("base_url"))
-					if baseURL == "" {
-						baseURL = "http://localhost:11434"
-						if source == "" {
-							source = string(runtimeconfig.SourceDefault)
-						}
-					}
-					return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
-				}
-			}
-
-			if baseURL, source := resolveOllamaEnvTarget(); baseURL != "" {
-				return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
-			}
-			return subscription.OllamaTarget{Source: string(runtimeconfig.SourceDefault)}, true
-		}))
-}
-
-func resolveOllamaEnvTarget() (string, string) {
-	lookup := runtimeconfig.DefaultEnvLookup
-	if base, ok := lookup("OLLAMA_BASE_URL"); ok {
-		base = strings.TrimSpace(base)
-		if base != "" {
-			return base, string(runtimeconfig.SourceEnv)
-		}
-	}
-	if host, ok := lookup("OLLAMA_HOST"); ok {
-		host = strings.TrimSpace(host)
-		if host == "" {
-			return "", ""
-		}
-		if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
-			return host, string(runtimeconfig.SourceEnv)
-		}
-		return "http://" + host, string(runtimeconfig.SourceEnv)
-	}
-	return "", ""
+	)
 }
 
 func writeSSEPayload(w http.ResponseWriter, payload any) error {

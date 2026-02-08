@@ -1638,7 +1638,7 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	cache, _ := lru.New[string, time.Time](16)
 	gw.dedupCache = cache
 
-	content1 := `{"text":"/model use ollama/llama3:latest"}`
+	content1 := `{"text":"/model use llama_server/llama3:latest"}`
 	event1 := &larkim.P2MessageReceiveV1{
 		Event: &larkim.P2MessageReceiveV1Data{
 			Message: &larkim.EventMessage{
@@ -1686,8 +1686,8 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected pinned LLM selection on context")
 	}
-	if selection.Provider != "ollama" {
-		t.Fatalf("expected provider 'ollama', got %q", selection.Provider)
+	if selection.Provider != "llama_server" {
+		t.Fatalf("expected provider 'llama_server', got %q", selection.Provider)
 	}
 	if selection.Model != "llama3:latest" {
 		t.Fatalf("expected model 'llama3:latest', got %q", selection.Model)

@@ -147,13 +147,6 @@ func listRuntimeModels(ctx context.Context, creds runtimeconfig.CLICredentials, 
 			BaseURL:  creds.Codex.BaseURL,
 		})
 	}
-	if creds.Antigravity.APIKey != "" {
-		targets = append(targets, runtimeModelProvider{
-			Provider: creds.Antigravity.Provider,
-			Source:   string(creds.Antigravity.Source),
-			BaseURL:  creds.Antigravity.BaseURL,
-		})
-	}
 	if creds.Claude.APIKey != "" {
 		baseURL := creds.Claude.BaseURL
 		if strings.TrimSpace(baseURL) == "" {
@@ -194,8 +187,6 @@ func pickAPIKey(creds runtimeconfig.CLICredentials, provider string) string {
 	switch provider {
 	case creds.Codex.Provider:
 		return creds.Codex.APIKey
-	case creds.Antigravity.Provider:
-		return creds.Antigravity.APIKey
 	case creds.Claude.Provider:
 		return creds.Claude.APIKey
 	default:

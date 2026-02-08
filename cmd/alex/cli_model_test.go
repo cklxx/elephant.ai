@@ -32,7 +32,7 @@ func TestModelListShowsProviders(t *testing.T) {
 		},
 	}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return subscription.LlamaServerTarget{}, false
-	}, nil); err != nil {
+	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
 	}
 
@@ -77,7 +77,7 @@ func TestModelListShowsErrors(t *testing.T) {
 		},
 	}, srv.Client(), func(context.Context) (subscription.LlamaServerTarget, bool) {
 		return subscription.LlamaServerTarget{}, false
-	}, nil); err != nil {
+	}); err != nil {
 		t.Fatalf("listModels error: %v", err)
 	}
 
@@ -248,10 +248,6 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 			Provider: "anthropic",
 			APIKey:   "sk-abc",
 		},
-		Antigravity: runtimeconfig.CLICredential{
-			Provider: "antigravity",
-			APIKey:   "ag-abc",
-		},
 	}
 
 	tests := []struct {
@@ -261,8 +257,6 @@ func TestMatchCredentialFindsProviders(t *testing.T) {
 	}{
 		{"codex", true, "codex"},
 		{"anthropic", true, "anthropic"},
-		{"antigravity", true, "antigravity"},
-		{"ollama", true, "ollama"},
 		{"llama.cpp", false, ""},
 		{"llama_server", true, "llama_server"},
 		{"unknown", false, ""},
@@ -302,68 +296,3 @@ func TestExecuteModelCommandUnknownSubcommand(t *testing.T) {
 	}
 }
 
-func TestModelListIncludesOllamaWhenAvailable(t *testing.T) {
-	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/tags" {
-			t.Fatalf("expected /api/tags path, got %q", r.URL.Path)
-		}
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"models":[{"name":"llama3:latest"},{"name":"phi3"}]}`))
-	}))
-	defer srv.Close()
-
-	var buf bytes.Buffer
-	if err := listModelsFromWith(&buf, runtimeconfig.CLICredentials{}, srv.Client(),
-		func(context.Context) (subscription.LlamaServerTarget, bool) {
-			return subscription.LlamaServerTarget{}, false
-		},
-		func(context.Context) (subscription.OllamaTarget, bool) {
-			return subscription.OllamaTarget{
-				BaseURL: srv.URL,
-				Source:  "ollama",
-			}, true
-		},
-	); err != nil {
-		t.Fatalf("listModels error: %v", err)
-	}
-
-	out := buf.String()
-	if !strings.Contains(out, "ollama (ollama)") {
-		t.Fatalf("expected ollama provider in output, got:\n%s", out)
-	}
-	if !strings.Contains(out, "llama3:latest") {
-		t.Fatalf("expected ollama model in output, got:\n%s", out)
-	}
-}
-
-func TestMatchCredentialAntigravity(t *testing.T) {
-	t.Parallel()
-
-	creds := runtimeconfig.CLICredentials{
-		Antigravity: runtimeconfig.CLICredential{
-			Provider: "antigravity",
-			APIKey:   "ag-abc",
-			BaseURL:  "https://cloudcode-pa.googleapis.com",
-			Source:   runtimeconfig.SourceAntigravityIDE,
-		},
-	}
-
-	cred, ok := matchCredential(creds, "antigravity")
-	if !ok {
-		t.Fatal("expected antigravity credential to match")
-	}
-	if cred.Provider != "antigravity" {
-		t.Fatalf("expected provider antigravity, got %q", cred.Provider)
-	}
-
-	// No API key → should not match.
-	_, ok = matchCredential(runtimeconfig.CLICredentials{
-		Antigravity: runtimeconfig.CLICredential{
-			Provider: "antigravity",
-		},
-	}, "antigravity")
-	if ok {
-		t.Fatal("expected antigravity without API key to not match")
-	}
-}
