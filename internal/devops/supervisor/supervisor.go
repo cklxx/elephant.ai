@@ -164,9 +164,18 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	}
 }
 
+// tick runs a single supervision cycle matching supervisor.sh run_tick():
+//  1. Observe loop state
+//  2. Health-check restarts (with validation guard for test)
+//  3. SHA drift auto-upgrade
+//  4. Autofix success restart
+//  5. Re-observe + write status
 func (s *Supervisor) tick(ctx context.Context) {
-	now := time.Now()
+	// 1. Observe
+	s.readLoopState()
 
+	// 2. Health-check restarts
+	now := time.Now()
 	for _, comp := range s.components {
 		healthState := comp.HealthFn()
 
@@ -175,13 +184,18 @@ func (s *Supervisor) tick(ctx context.Context) {
 			continue
 		}
 
+		// Skip test restart during validation — the loop controls it
+		if comp.Name == "test" && s.isValidationActive() {
+			s.logger.Info("skip test restart during validation",
+				"phase", s.loopState.CyclePhase)
+			continue
+		}
+
 		if !s.policy.ShouldRestart(comp.Name, now) {
 			if s.policy.InCooldown(comp.Name, now) {
-				// Trigger autofix during cooldown
-				mainSHA := s.getMainSHA()
 				s.autofix.TryTrigger(comp.Name,
 					fmt.Sprintf("restart storm: %s", comp.Name),
-					mainSHA)
+					s.loopState.MainSHA)
 			}
 			continue
 		}
@@ -200,14 +214,12 @@ func (s *Supervisor) tick(ctx context.Context) {
 				"component", comp.Name,
 				"count", count,
 				"window", s.policy.WindowDuration)
-			mainSHA := s.getMainSHA()
 			s.autofix.TryTrigger(comp.Name,
 				fmt.Sprintf("restart storm: %d restarts in %s", count, s.policy.WindowDuration),
-				mainSHA)
+				s.loopState.MainSHA)
 			continue
 		}
 
-		// Acquire per-component lock to prevent overlapping restarts
 		mu := s.componentMu(comp.Name)
 		if !mu.TryLock() {
 			s.logger.Info("restart in progress, skipping", "component", comp.Name)
@@ -234,7 +246,14 @@ func (s *Supervisor) tick(ctx context.Context) {
 		mu.Unlock()
 	}
 
-	// Write status
+	// 3. SHA drift auto-upgrade
+	s.maybeUpgradeForSHADrift(ctx)
+
+	// 4. Autofix success restart
+	s.handleAutofixSuccessRestart(ctx)
+
+	// 5. Re-observe + write status
+	s.readLoopState()
 	s.writeStatus()
 }
 
