@@ -20,6 +20,7 @@ import (
 	"alex/internal/infra/tools/builtin/aliases"
 	"alex/internal/infra/tools/builtin/artifacts"
 	"alex/internal/infra/tools/builtin/browser"
+	configtool "alex/internal/infra/tools/builtin/config"
 	"alex/internal/infra/tools/builtin/chromebridge"
 	"alex/internal/infra/tools/builtin/diagram"
 	"alex/internal/infra/tools/builtin/execution"
@@ -530,6 +531,9 @@ func (r *Registry) registerBuiltins(config Config) error {
 		MaxDurationSeconds:      config.ACPExecutorMaxDuration,
 		RequireArtifactManifest: config.ACPExecutorRequireManifest,
 	})
+
+	// Config management
+	r.static["config_manage"] = configtool.NewConfigManage()
 
 	// UI orchestration
 	r.static["plan"] = ui.NewPlan(config.MemoryEngine)
