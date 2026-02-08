@@ -463,8 +463,6 @@ func (c *openaiClient) detectProvider() string {
 		return "openai"
 	case strings.Contains(c.baseURL, "api.deepseek.com"):
 		return "deepseek"
-	case strings.Contains(strings.ToLower(c.baseURL), "antigravity"):
-		return "antigravity"
 	case strings.Contains(strings.ToLower(c.baseURL), "ark"):
 		return "ark"
 	default:
