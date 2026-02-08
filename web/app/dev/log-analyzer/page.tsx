@@ -264,7 +264,7 @@ function TextLogTable({
             const entry = entries[virtualRow.index];
             return (
               <TextLogRow
-                key={virtualRow.index}
+                key={`txt-${virtualRow.index}`}
                 entry={entry}
                 search={search}
                 expanded={expandedRows.has(virtualRow.index)}
@@ -395,7 +395,7 @@ function RequestLogList({
           const entry = entries[virtualRow.index];
           return (
             <div
-              key={virtualRow.index}
+              key={`req-${virtualRow.index}`}
               style={{
                 position: "absolute",
                 top: virtualRow.start,
@@ -563,6 +563,8 @@ export default function LogAnalyzerPage() {
   const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>("llm");
 
   const [selectedLogID, setSelectedLogID] = useState("");
+  const selectedLogIDRef = useRef(selectedLogID);
+  selectedLogIDRef.current = selectedLogID;
   const [bundle, setBundle] = useState<StructuredLogBundle | null>(null);
   const [traceLoading, setTraceLoading] = useState(false);
   const [traceError, setTraceError] = useState<string | null>(null);
@@ -584,7 +586,11 @@ export default function LogAnalyzerPage() {
       if (offset === 0) {
         setEntries(newEntries);
       } else {
-        setEntries((prev) => [...prev, ...newEntries]);
+        setEntries((prev) => {
+          const seen = new Set(prev.map((e) => e.log_id));
+          const unique = newEntries.filter((e) => !seen.has(e.log_id));
+          return [...prev, ...unique];
+        });
       }
     } catch (err) {
       setIndexError(formatLoadError(err, "Failed to load log index."));
@@ -617,6 +623,13 @@ export default function LogAnalyzerPage() {
   useEffect(() => {
     void loadIndex(0);
   }, [loadIndex]);
+
+  // Auto-select first entry when index loads and nothing is selected
+  useEffect(() => {
+    if (entries.length > 0 && !selectedLogIDRef.current) {
+      void loadTrace(entries[0].log_id);
+    }
+  }, [entries, loadTrace]);
 
   // Debounced search — re-fetch when search changes
   useEffect(() => {
