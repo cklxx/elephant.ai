@@ -93,12 +93,24 @@ func (o *Orchestrator) Up(ctx context.Context) error {
 	return nil
 }
 
-// Down stops all registered services in reverse order.
-func (o *Orchestrator) Down(ctx context.Context) error {
+// infraServices are long-lived services that are expensive to restart.
+var infraServices = map[string]bool{
+	"sandbox": true,
+	"authdb":  true,
+}
+
+// Down stops registered services in reverse order.
+// When keepInfra is true, infrastructure services (sandbox, authdb) are
+// left running to speed up subsequent "alex dev up" invocations.
+func (o *Orchestrator) Down(ctx context.Context, keepInfra ...bool) error {
+	keep := len(keepInfra) > 0 && keepInfra[0]
 	var lastErr error
-	// Stop in reverse order
 	for i := len(o.services) - 1; i >= 0; i-- {
 		svc := o.services[i]
+		if keep && infraServices[svc.Name()] {
+			o.section.Info("Keeping %s running", svc.Name())
+			continue
+		}
 		if err := svc.Stop(ctx); err != nil {
 			o.section.Error("Failed to stop %s: %v", svc.Name(), err)
 			lastErr = err

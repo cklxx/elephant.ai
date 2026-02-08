@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"alex/internal/devops"
 	"alex/internal/devops/services"
@@ -24,7 +25,7 @@ func runDevCommand(args []string) error {
 	case "up", "start":
 		return devUp()
 	case "down", "stop":
-		return devDown()
+		return devDown(args...)
 	case "status":
 		return devStatus()
 	case "logs":
@@ -122,14 +123,24 @@ func printDevSummary(orch *devops.Orchestrator) {
 	}
 }
 
-func devDown() error {
+func devDown(flags ...string) error {
+	stopAll := hasFlag(flags, "--all")
+
 	orch, err := buildOrchestrator()
 	if err != nil {
 		return err
 	}
 
 	ctx := context.Background()
-	return orch.Down(ctx)
+
+	if stopAll {
+		// --all: stop everything including infra + remove bootstrap marker
+		removeBootstrapMarker(orch.Config().PIDDir)
+		return orch.Down(ctx)
+	}
+
+	// Default: keep infra (sandbox, authdb) running for fast re-up
+	return orch.Down(ctx, true)
 }
 
 func devStatus() error {
@@ -418,7 +429,15 @@ func loadDevConfig() (*devops.DevConfig, error) {
 	return devops.LoadDevConfig(configPath)
 }
 
+const bootstrapMarker = "bootstrap.done"
+
 func ensureLocalBootstrap(projectDir string) error {
+	pidDir := filepath.Join(projectDir, ".pids")
+	marker := filepath.Join(pidDir, bootstrapMarker)
+	if _, err := os.Stat(marker); err == nil {
+		return nil // already bootstrapped
+	}
+
 	script := filepath.Join(projectDir, "scripts", "setup_local_runtime.sh")
 	if _, err := os.Stat(script); os.IsNotExist(err) {
 		return nil
@@ -431,7 +450,23 @@ func ensureLocalBootstrap(projectDir string) error {
 	if err != nil {
 		return fmt.Errorf("bootstrap: %s: %w", string(out), err)
 	}
+
+	os.MkdirAll(pidDir, 0o755)
+	os.WriteFile(marker, []byte(time.Now().Format(time.RFC3339)), 0o644)
 	return nil
+}
+
+func removeBootstrapMarker(pidDir string) {
+	os.Remove(filepath.Join(pidDir, bootstrapMarker))
+}
+
+func hasFlag(args []string, flag string) bool {
+	for _, a := range args {
+		if a == flag {
+			return true
+		}
+	}
+	return false
 }
 
 func printDevUsage() {
@@ -442,7 +477,7 @@ Usage:
 
 Commands:
   up|start           Start all dev services (sandbox, auth DB, backend, web)
-  down|stop          Stop all dev services
+  down|stop [--all]  Stop services (default: keep sandbox/authdb running)
   status             Show status of all services
   logs [service]     Tail logs (server|web|all)
   restart [service]  Restart specified service(s) or all
