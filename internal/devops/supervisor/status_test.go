@@ -58,6 +58,81 @@ func TestStatusFileWriteRead(t *testing.T) {
 	}
 }
 
+func TestStatusFileReadFlatFormat(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "status.json")
+
+	// Write flat format as supervisor.sh does
+	flat := `{
+  "ts_utc": "2026-02-08T06:17:38Z",
+  "mode": "healthy",
+  "main_pid": "50536",
+  "test_pid": "76157",
+  "loop_pid": "28187",
+  "main_health": "healthy",
+  "test_health": "healthy",
+  "loop_alive": true,
+  "main_sha": "abc123",
+  "main_deployed_sha": "4f978d87",
+  "test_sha": "def456",
+  "test_deployed_sha": "1f1531ab",
+  "restart_count_window": 0,
+  "autofix_state": "idle",
+  "autofix_runs_window": 1
+}`
+	os.WriteFile(path, []byte(flat), 0o644)
+
+	sf := NewStatusFile(path)
+	got, err := sf.Read()
+	if err != nil {
+		t.Fatalf("Read error: %v", err)
+	}
+
+	if got.Mode != "healthy" {
+		t.Errorf("Mode = %q, want healthy", got.Mode)
+	}
+
+	// Verify components were parsed from flat fields
+	if len(got.Components) != 3 {
+		t.Fatalf("Components count = %d, want 3", len(got.Components))
+	}
+
+	main := got.Components["main"]
+	if main.PID != 50536 {
+		t.Errorf("main PID = %d, want 50536", main.PID)
+	}
+	if main.Health != "healthy" {
+		t.Errorf("main health = %q, want healthy", main.Health)
+	}
+	if main.DeployedSHA != "4f978d87" {
+		t.Errorf("main deployed_sha = %q, want 4f978d87", main.DeployedSHA)
+	}
+
+	test := got.Components["test"]
+	if test.PID != 76157 {
+		t.Errorf("test PID = %d, want 76157", test.PID)
+	}
+	if test.DeployedSHA != "1f1531ab" {
+		t.Errorf("test deployed_sha = %q, want 1f1531ab", test.DeployedSHA)
+	}
+
+	loop := got.Components["loop"]
+	if loop.PID != 28187 {
+		t.Errorf("loop PID = %d, want 28187", loop.PID)
+	}
+	if loop.Health != "alive" {
+		t.Errorf("loop health = %q, want alive", loop.Health)
+	}
+
+	// Verify autofix parsed
+	if got.Autofix.State != "idle" {
+		t.Errorf("autofix state = %q, want idle", got.Autofix.State)
+	}
+	if got.Autofix.RunsWindow != 1 {
+		t.Errorf("autofix runs_window = %d, want 1", got.Autofix.RunsWindow)
+	}
+}
+
 func TestStatusFileAtomicWrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "status.json")
