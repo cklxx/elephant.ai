@@ -27,8 +27,8 @@ func executeModelCommand(args []string, out io.Writer) error {
 	case "", "list", "ls":
 		return listModels(out)
 	case "use", "select", "set":
-		if len(args) < 2 {
-			return fmt.Errorf("usage: alex model use <provider>/<model>")
+		if len(args) < 2 || strings.TrimSpace(args[1]) == "" || strings.HasPrefix(strings.TrimSpace(args[1]), "-") {
+			return useModelPicker(out, os.Stdin)
 		}
 		return useModel(out, strings.TrimSpace(args[1]))
 	case "clear", "reset":
@@ -137,6 +137,7 @@ func listModelsFromWith(
 	lines := []string{
 		"Usage:",
 		"  alex model use <provider>/<model>   Select a subscription model",
+		"  alex model use                      Select from an interactive picker",
 		"  alex model clear                    Remove subscription selection",
 	}
 	for _, line := range lines {
@@ -149,6 +150,10 @@ func listModelsFromWith(
 
 func useModel(out io.Writer, spec string) error {
 	return useModelWith(out, spec, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
+}
+
+func useModelPicker(out io.Writer, in io.Reader) error {
+	return useModelPickerWith(out, in, runtimeconfig.LoadCLICredentials(), runtimeEnvLookup())
 }
 
 func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials, envLookup runtimeconfig.EnvLookup) error {
@@ -174,6 +179,9 @@ func useModelWith(out io.Writer, spec string, creds runtimeconfig.CLICredentials
 	}
 	if err := store.Set(cliBaseContext(), subscription.SelectionScope{Channel: "cli"}, selection); err != nil {
 		return fmt.Errorf("save selection: %w", err)
+	}
+	if err := markOnboardingCompleteFromSelection(cliBaseContext(), envLookup, selection); err != nil {
+		return fmt.Errorf("save onboarding state: %w", err)
 	}
 	if _, err := fmt.Fprintf(out, "Switched to %s/%s (%s)\n", provider, model, cred.Source); err != nil {
 		return err
@@ -231,6 +239,7 @@ func printModelUsage(out io.Writer) {
 		"  alex model                         List available subscription models",
 		"  alex model list                    List available subscription models",
 		"  alex model use <provider>/<model>  Select a subscription model",
+		"  alex model use                     Select from an interactive picker",
 		"  alex model clear                   Remove subscription selection, revert to defaults",
 		"",
 		"Examples:",
@@ -274,4 +283,3 @@ func resolveLlamaServerTarget() (subscription.LlamaServerTarget, bool) {
 	}
 	return subscription.LlamaServerTarget{BaseURL: baseURL, Source: source}, true
 }
-

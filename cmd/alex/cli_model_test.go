@@ -125,6 +125,7 @@ func TestUseModelPersistsSelectionWithoutYAML(t *testing.T) {
 	tmp := t.TempDir()
 	overridesFile := filepath.Join(tmp, "overrides.yaml")
 	selectionFile := filepath.Join(tmp, "llm_selection.json")
+	onboardingFile := filepath.Join(tmp, "onboarding_state.json")
 
 	envLookup := func(key string) (string, bool) {
 		if key == "ALEX_CONFIG_PATH" {
@@ -167,6 +168,14 @@ func TestUseModelPersistsSelectionWithoutYAML(t *testing.T) {
 	}
 	if got := subscription.ResolveSelectionStorePath(envLookup, nil); got != selectionFile {
 		t.Fatalf("expected selection store path %q, got %q", selectionFile, got)
+	}
+	onboardingData, err := os.ReadFile(onboardingFile)
+	if err != nil {
+		t.Fatalf("read onboarding state: %v", err)
+	}
+	onboardingContent := string(onboardingData)
+	if !strings.Contains(onboardingContent, "selected_provider") || !strings.Contains(onboardingContent, "selected_model") {
+		t.Fatalf("expected onboarding fields, got:\n%s", onboardingContent)
 	}
 }
 
@@ -296,3 +305,70 @@ func TestExecuteModelCommandUnknownSubcommand(t *testing.T) {
 	}
 }
 
+func TestUseModelPickerWithSingleProviderSingleModel(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[{"id":"model-one"}]}`))
+	}))
+	defer srv.Close()
+
+	tmp := t.TempDir()
+	overridesFile := filepath.Join(tmp, "overrides.yaml")
+	selectionFile := filepath.Join(tmp, "llm_selection.json")
+	envLookup := func(key string) (string, bool) {
+		if key == "ALEX_CONFIG_PATH" {
+			return overridesFile, true
+		}
+		return "", false
+	}
+
+	var out bytes.Buffer
+	err := useModelPickerWith(&out, strings.NewReader(""), runtimeconfig.CLICredentials{
+		Codex: runtimeconfig.CLICredential{
+			Provider: "custom_provider",
+			APIKey:   "tok-abc",
+			BaseURL:  srv.URL,
+			Source:   runtimeconfig.SourceEnv,
+		},
+	}, envLookup)
+	if err != nil {
+		t.Fatalf("useModelPickerWith error: %v", err)
+	}
+	if _, err := os.Stat(selectionFile); err != nil {
+		t.Fatalf("expected selection file, err=%v", err)
+	}
+}
+
+func TestUseModelPickerWithMultipleProvidersNonInteractive(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"data":[{"id":"model-one"}]}`))
+	}))
+	defer srv.Close()
+
+	var out bytes.Buffer
+	err := useModelPickerWith(&out, strings.NewReader(""), runtimeconfig.CLICredentials{
+		Codex: runtimeconfig.CLICredential{
+			Provider: "codex",
+			APIKey:   "tok-abc",
+			BaseURL:  srv.URL,
+			Source:   runtimeconfig.SourceEnv,
+		},
+		Claude: runtimeconfig.CLICredential{
+			Provider: "anthropic",
+			APIKey:   "tok-claude",
+			BaseURL:  srv.URL,
+			Source:   runtimeconfig.SourceEnv,
+		},
+	}, func(string) (string, bool) { return "", false })
+	if err == nil {
+		t.Fatalf("expected error for non-interactive multiple providers")
+	}
+	if !strings.Contains(err.Error(), "multiple providers available") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

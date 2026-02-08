@@ -357,7 +357,13 @@ func (g *Gateway) setModelSelection(ctx context.Context, msg *incomingMessage, s
 	if chatOnly {
 		scope = chatScope(msg)
 	}
-	return g.llmSelections.Set(ctx, scope, selection)
+	if err := g.llmSelections.Set(ctx, scope, selection); err != nil {
+		return err
+	}
+	if err := markLarkOnboardingComplete(ctx, selection); err != nil {
+		g.logger.Warn("Lark onboarding state update failed: %v", err)
+	}
+	return nil
 }
 
 func (g *Gateway) clearModelSelection(ctx context.Context, msg *incomingMessage, chatOnly bool) error {
@@ -423,4 +429,15 @@ func matchSubscriptionCredential(creds runtimeconfig.CLICredentials, provider st
 		}, true
 	}
 	return runtimeconfig.CLICredential{}, false
+}
+
+func markLarkOnboardingComplete(ctx context.Context, selection subscription.Selection) error {
+	state := subscription.OnboardingState{
+		SelectedProvider: selection.Provider,
+		SelectedModel:    selection.Model,
+		UsedSource:       selection.Source,
+	}
+	path := subscription.ResolveOnboardingStatePath(runtimeconfig.DefaultEnvLookup, nil)
+	store := subscription.NewOnboardingStateStore(path)
+	return store.Set(ctx, state)
 }

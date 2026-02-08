@@ -57,6 +57,8 @@ func (c *CLI) Run(args []string) error {
 
 	case "model", "models":
 		return c.handleModel(cmdArgs)
+	case "setup":
+		return c.handleSetup(cmdArgs)
 
 	case "llama-cpp", "llamacpp":
 		return c.handleLlamaCpp(cmdArgs)
@@ -102,8 +104,10 @@ Usage:
   alex config set <field> <value> Persist a managed override
   alex config clear <field>       Remove a managed override
   alex config path                Show the override file path
+  alex setup                     Run first-run model setup wizard
   alex model                     List available subscription models
   alex model use <p/m>           Select a subscription model (e.g. codex/gpt-5.2-codex)
+  alex model use                 Select from an interactive picker
   alex model clear               Remove subscription selection
   alex llama-cpp pull <repo> <file>  Download GGUF weights from Hugging Face
   alex cost                      Show cost tracking commands
