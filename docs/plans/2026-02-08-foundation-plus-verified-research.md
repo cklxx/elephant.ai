@@ -1,7 +1,7 @@
 # Plan: Foundation Expansion + SWE-bench Verified Research (2026-02-08)
 
 ## Status
-- in_progress
+- done
 
 ## Goal
 - 继续增加 foundation 离线评测集合，扩大覆盖面和案例数量。
@@ -23,7 +23,7 @@
 - [x] 更新文档中的覆盖规模 `x/x`
 - [x] 继续新增系统性能力集合（orchestration + safety policy）
 - [x] 运行目标测试与评测命令
-- [ ] 提交增量 commits 并合并回 `main`
+- [x] 提交增量 commits 并合并回 `main`
 
 ## Progress Log
 - 2026-02-08 19:33: worktree `feat/eval-verified-research-20260208` 初始化完成，已复制 `.env`。
