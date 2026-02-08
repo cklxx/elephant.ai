@@ -2,6 +2,7 @@ package di
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -425,4 +426,56 @@ func (c *Container) SessionDir() string {
 		return ""
 	}
 	return c.config.SessionDir
+}
+
+// AlternateCoordinator holds a secondary AgentCoordinator and ToolRegistry
+// that share the parent Container's heavy resources (LLM Factory, Session
+// Store, Memory Engine, Cost Tracker, DB Pool). Only the ToolRegistry and
+// AgentCoordinator are independently owned and shut down separately.
+type AlternateCoordinator struct {
+	AgentCoordinator *agentcoordinator.AgentCoordinator
+	toolRegistry     *toolregistry.Registry
+}
+
+// Shutdown releases only the resources owned by this alternate coordinator
+// (tool registry and coordinator). It does NOT close shared resources.
+func (a *AlternateCoordinator) Shutdown() error {
+	if a == nil {
+		return nil
+	}
+	if a.AgentCoordinator != nil {
+		if err := a.AgentCoordinator.Close(); err != nil {
+			return err
+		}
+	}
+	if a.toolRegistry != nil {
+		a.toolRegistry.Close()
+	}
+	return nil
+}
+
+// BuildAlternateCoordinator creates a lightweight secondary AgentCoordinator
+// that shares the container's LLM Factory, Session Store, Memory Engine,
+// Cost Tracker, and other heavy resources, but uses a fresh ToolRegistry
+// configured with the given toolMode, toolset, and browser config.
+//
+// This avoids the cost of duplicating an entire DI Container when only
+// the tool configuration differs (e.g. Lark gateway needing CLI-mode tools).
+func (c *Container) BuildAlternateCoordinator(
+	toolMode string,
+	toolset toolregistry.Toolset,
+	browserCfg toolregistry.BrowserConfig,
+) (*AlternateCoordinator, error) {
+	if c == nil {
+		return nil, fmt.Errorf("cannot build alternate coordinator from nil container")
+	}
+
+	// Override only the tool-related fields in a copy of the config.
+	altConfig := c.config
+	altConfig.ToolMode = toolMode
+	altConfig.Toolset = toolset
+	altConfig.BrowserConfig = browserCfg
+
+	builder := newContainerBuilder(altConfig)
+	return builder.buildAlternateFrom(c)
 }

@@ -45,22 +45,17 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		UserDataDir: larkCfg.Browser.UserDataDir,
 		Timeout:     larkCfg.Browser.Timeout,
 	}
-	extraContainer, err := buildContainerWithToolModeAndToolset(
-		cfg,
-		presets.ToolMode(toolMode),
+	altCoord, err := container.BuildAlternateCoordinator(
+		toolMode,
 		toolregistry.ToolsetLarkLocal,
 		browserCfg,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("build lark gateway container: %w", err)
-	}
-	if err := extraContainer.Start(); err != nil {
-		logger.Warn("Lark container start failed: %v (continuing)", err)
+		return nil, fmt.Errorf("build lark alternate coordinator: %w", err)
 	}
 	if summary := cfg.EnvironmentSummary; summary != "" {
-		extraContainer.AgentCoordinator.SetEnvironmentSummary(summary)
+		altCoord.AgentCoordinator.SetEnvironmentSummary(summary)
 	}
-	agentContainer := extraContainer
 
 	gatewayCfg := lark.Config{
 		BaseConfig:                    larkCfg.BaseConfig,
@@ -121,11 +116,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		}
 	}
 
-	gateway, err := lark.NewGateway(gatewayCfg, agentContainer.AgentCoordinator, logger)
+	gateway, err := lark.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
 	if err != nil {
-		if extraContainer != nil {
-			_ = extraContainer.Shutdown()
-		}
+		_ = altCoord.Shutdown()
 		return nil, err
 	}
 	container.LarkGateway = gateway
@@ -154,10 +147,8 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		if container.LarkGateway == gateway {
 			container.LarkGateway = nil
 		}
-		if extraContainer != nil {
-			if err := extraContainer.Shutdown(); err != nil {
-				logger.Warn("Lark container shutdown failed: %v", err)
-			}
+		if err := altCoord.Shutdown(); err != nil {
+			logger.Warn("Lark alternate coordinator shutdown failed: %v", err)
 		}
 	}
 

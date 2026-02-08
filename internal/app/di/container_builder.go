@@ -505,6 +505,86 @@ func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvi
 	return preparation.NewOKRContextProvider(store)
 }
 
+// buildAlternateFrom creates an AlternateCoordinator that shares the parent
+// container's heavy resources (LLM Factory, Session Store, Memory Engine,
+// Cost Tracker, Context Manager, History Manager, Parser) but owns its own
+// ToolRegistry and AgentCoordinator configured with the builder's config
+// (which may differ in ToolMode, Toolset, BrowserConfig).
+func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoordinator, error) {
+	b.logger.Debug("Building alternate coordinator (tool_mode=%s, toolset=%s)", b.config.ToolMode, b.config.Toolset)
+
+	toolSLACollector := toolspolicy.NewSLACollector(nil)
+
+	toolRegistry, err := b.buildToolRegistry(parent.llmFactory, parent.MemoryEngine, toolSLACollector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create alternate tool registry: %w", err)
+	}
+
+	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory)
+	okrContextProvider := b.buildOKRContextProvider()
+	credentialRefresher := buildCredentialRefresher()
+
+	var externalExecutor agent.ExternalAgentExecutor
+	externalRegistry := external.NewRegistry(b.config.ExternalAgents, b.logger)
+	if len(externalRegistry.SupportedTypes()) > 0 {
+		externalExecutor = externalRegistry
+	}
+
+	coordinator := agentcoordinator.NewAgentCoordinator(
+		parent.llmFactory,
+		toolRegistry,
+		parent.SessionStore,
+		ctxmgr.NewManager(
+			ctxmgr.WithStateStore(parent.StateStore),
+			ctxmgr.WithJournalWriter(b.buildJournalWriter()),
+			ctxmgr.WithMemoryEngine(parent.MemoryEngine),
+			ctxmgr.WithMemoryGate(memoryGateFunc(b.config.Proactive.Memory.Enabled)),
+		),
+		parent.HistoryManager,
+		parser.New(),
+		parent.CostTracker,
+		appconfig.Config{
+			LLMProvider:         b.config.LLMProvider,
+			LLMModel:            b.config.LLMModel,
+			LLMSmallProvider:    b.config.LLMSmallProvider,
+			LLMSmallModel:       b.config.LLMSmallModel,
+			LLMVisionModel:      b.config.LLMVisionModel,
+			APIKey:              b.config.APIKey,
+			BaseURL:             b.config.BaseURL,
+			MaxTokens:           b.config.MaxTokens,
+			MaxIterations:       b.config.MaxIterations,
+			ToolMaxConcurrent:   b.config.ToolMaxConcurrent,
+			Temperature:         b.config.Temperature,
+			TemperatureProvided: b.config.TemperatureProvided,
+			TopP:                b.config.TopP,
+			StopSequences:       append([]string(nil), b.config.StopSequences...),
+			AgentPreset:         b.config.AgentPreset,
+			ToolPreset:          b.config.ToolPreset,
+			ToolMode:            b.config.ToolMode,
+			EnvironmentSummary:  b.config.EnvironmentSummary,
+			SessionStaleAfter:   b.config.SessionStaleAfter,
+			Proactive:           b.config.Proactive,
+			ToolPolicy:          b.config.ToolPolicy,
+		},
+		agentcoordinator.WithHookRegistry(hookRegistry),
+		agentcoordinator.WithExternalExecutor(externalExecutor),
+		agentcoordinator.WithOKRContextProvider(okrContextProvider),
+		agentcoordinator.WithCheckpointStore(parent.CheckpointStore),
+		agentcoordinator.WithCredentialRefresher(credentialRefresher),
+		agentcoordinator.WithToolSLACollector(toolSLACollector),
+	)
+
+	// Register subagent tool after coordinator is created.
+	toolRegistry.RegisterSubAgent(coordinator)
+
+	b.logger.Info("Alternate coordinator built (tool_mode=%s, toolset=%s)", b.config.ToolMode, b.config.Toolset)
+
+	return &AlternateCoordinator{
+		AgentCoordinator: coordinator,
+		toolRegistry:     toolRegistry,
+	}, nil
+}
+
 func memoryGateFunc(enabled bool) func(context.Context) bool {
 	return func(ctx context.Context) bool {
 		if !enabled {

@@ -6,25 +6,11 @@ import (
 	"time"
 
 	"alex/internal/app/di"
-	"alex/internal/app/toolregistry"
 	"alex/internal/shared/agent/presets"
 )
 
 // BuildContainer wires the shared DI container using the server runtime configuration.
 func BuildContainer(config Config) (*di.Container, error) {
-	return buildContainerWithToolMode(config, presets.ToolModeWeb)
-}
-
-func buildContainerWithToolMode(config Config, toolMode presets.ToolMode) (*di.Container, error) {
-	return buildContainerWithToolModeAndToolset(config, toolMode, "", toolregistry.BrowserConfig{})
-}
-
-func buildContainerWithToolModeAndToolset(
-	config Config,
-	toolMode presets.ToolMode,
-	toolset toolregistry.Toolset,
-	browserCfg toolregistry.BrowserConfig,
-) (*di.Container, error) {
 	diConfig := di.ConfigFromRuntimeConfig(config.Runtime)
 	diConfig.EnableMCP = config.EnableMCP
 	diConfig.EnvironmentSummary = config.EnvironmentSummary
@@ -66,15 +52,6 @@ func buildContainerWithToolModeAndToolset(
 		diConfig.SessionCacheSize = config.Session.CacheSize
 	}
 	diConfig.RequireSessionDatabase = requireSessionDB
-	if strings.TrimSpace(string(toolMode)) == "" {
-		toolMode = presets.ToolModeWeb
-	}
-	diConfig.ToolMode = string(toolMode)
-	if toolset != "" {
-		diConfig.Toolset = toolset
-		diConfig.BrowserConfig = browserCfg
-	} else if browserCfg != (toolregistry.BrowserConfig{}) {
-		diConfig.BrowserConfig = browserCfg
-	}
+	diConfig.ToolMode = string(presets.ToolModeWeb)
 	return di.BuildContainer(diConfig)
 }
