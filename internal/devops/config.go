@@ -44,6 +44,7 @@ type DevConfig struct {
 	// Auto-management
 	AutoStopConflictingPorts bool   `env:"AUTO_STOP_CONFLICTING_PORTS" yaml:"auto_stop_conflicting_ports" default:"true"`
 	CGOMode                  string `env:"ALEX_CGO_MODE" yaml:"cgo_mode" default:"auto"`
+	LarkMode                 bool   `env:"ALEX_DEV_LARK" yaml:"lark_mode"`
 
 	// Directories
 	ProjectDir string `yaml:"-"` // Set at runtime, not from config

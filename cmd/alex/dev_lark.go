@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	devlog "alex/internal/devops/log"
 	"alex/internal/devops/supervisor"
 )
 
@@ -420,6 +421,42 @@ func envBool(key string, def bool) bool {
 		return false
 	}
 	return def
+}
+
+// printLarkSummary shows lark supervisor status in the startup summary.
+// It is a no-op when the supervisor is not running.
+func printLarkSummary(sec *devlog.SectionWriter) {
+	cfg, err := buildSupervisorConfig()
+	if err != nil {
+		return
+	}
+
+	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
+	data, err := os.ReadFile(pidFile)
+	if err != nil {
+		return // not running
+	}
+	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
+	if pid <= 0 || syscall.Kill(pid, 0) != nil {
+		return // not running
+	}
+
+	sec.Section("Lark Supervisor")
+	sec.Success("%-12s PID: %d", "Supervisor", pid)
+
+	statusPath := filepath.Join(cfg.TmpDir, "lark-supervisor.status.json")
+	sf := supervisor.NewStatusFile(statusPath)
+	status, err := sf.Read()
+	if err != nil {
+		return
+	}
+	for name, comp := range status.Components {
+		if comp.Health == "healthy" || comp.Health == "alive" {
+			sec.Info("%-12s %s", name, comp.Health)
+		} else {
+			sec.Warn("%-12s %s", name, comp.Health)
+		}
+	}
 }
 
 func printLarkUsage() {

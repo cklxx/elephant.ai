@@ -23,7 +23,8 @@ func runDevCommand(args []string) error {
 
 	switch cmd {
 	case "up", "start":
-		return devUp()
+		larkMode := hasFlag(args, "--lark")
+		return devUp(larkMode)
 	case "down", "stop":
 		return devDown(args...)
 	case "status":
@@ -54,10 +55,15 @@ func runDevCommand(args []string) error {
 	}
 }
 
-func devUp() error {
+func devUp(larkMode bool) error {
 	orch, err := buildOrchestrator()
 	if err != nil {
 		return err
+	}
+
+	// Resolve lark mode from flag or config
+	if !larkMode {
+		larkMode = orch.Config().LarkMode
 	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -71,11 +77,19 @@ func devUp() error {
 		return err
 	}
 
-	printDevSummary(orch)
+	// Start lark supervisor if requested
+	if larkMode {
+		orch.Section().Section("Lark Supervisor")
+		if err := larkStart(); err != nil {
+			orch.Section().Warn("Lark supervisor: %v", err)
+		}
+	}
+
+	printDevSummary(orch, larkMode)
 	return nil
 }
 
-func printDevSummary(orch *devops.Orchestrator) {
+func printDevSummary(orch *devops.Orchestrator, larkMode bool) {
 	cfg := orch.Config()
 	sec := orch.Section()
 	ctx := context.Background()
@@ -98,6 +112,11 @@ func printDevSummary(orch *devops.Orchestrator) {
 		} else {
 			sec.Warn("%-10s %s", s.Name, s.State)
 		}
+	}
+
+	// Lark supervisor section (if enabled)
+	if larkMode {
+		printLarkSummary(sec)
 	}
 
 	// Dev tools section
@@ -131,6 +150,11 @@ func devDown(flags ...string) error {
 		return err
 	}
 
+	// Always try to stop lark supervisor if running
+	if err := larkStop(); err != nil {
+		orch.Section().Warn("Lark stop: %v", err)
+	}
+
 	ctx := context.Background()
 
 	if stopAll {
@@ -149,15 +173,19 @@ func devStatus() error {
 		return err
 	}
 
+	sec := orch.Section()
 	ctx := context.Background()
 	statuses := orch.Status(ctx)
 	for _, s := range statuses {
 		if s.Healthy {
-			orch.Section().Success("%s: %s (PID: %d) %s", s.Name, s.State, s.PID, s.Message)
+			sec.Success("%s: %s (PID: %d) %s", s.Name, s.State, s.PID, s.Message)
 		} else {
-			orch.Section().Warn("%s: %s %s", s.Name, s.State, s.Message)
+			sec.Warn("%s: %s %s", s.Name, s.State, s.Message)
 		}
 	}
+
+	// Show lark supervisor status if running
+	printLarkSummary(sec)
 	return nil
 }
 
@@ -299,7 +327,7 @@ func devLint() error {
 
 func devLogsUI() error {
 	// Start all services first, then open log analyzer
-	if err := devUp(); err != nil {
+	if err := devUp(false); err != nil {
 		return err
 	}
 
@@ -476,7 +504,7 @@ Usage:
   alex dev [command]
 
 Commands:
-  up|start           Start all dev services (sandbox, auth DB, backend, web)
+  up|start [--lark]  Start all dev services (sandbox, auth DB, backend, web)
   down|stop [--all]  Stop services (default: keep sandbox/authdb running)
   status             Show status of all services
   logs [service]     Tail logs (server|web|all)
