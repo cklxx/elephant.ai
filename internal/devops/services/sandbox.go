@@ -448,7 +448,6 @@ func (s *SandboxService) collectSandboxEnvFlags() map[string]string {
 		"OPENAI_API_KEY", "OPENAI_BASE_URL",
 		"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL",
 		"CODEX_API_KEY", "CODEX_BASE_URL",
-		"ANTIGRAVITY_API_KEY", "ANTIGRAVITY_BASE_URL",
 		"ARK_API_KEY",
 	}
 	for _, k := range keys {

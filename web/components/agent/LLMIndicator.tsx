@@ -28,9 +28,6 @@ const SOURCE_LABELS: Record<string, string> = {
   override: "override",
   codex_cli: "codex-cli",
   claude_cli: "claude-cli",
-  antigravity_cli: "antigravity-cli",
-  antigravity_ide: "antigravity-ide",
-  ollama: "ollama",
 };
 
 type ModelsState = "idle" | "loading" | "error";

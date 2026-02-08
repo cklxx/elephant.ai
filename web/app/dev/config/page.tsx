@@ -72,7 +72,7 @@ function deriveConfigTasks(snapshot: RuntimeConfigSnapshot | null): ConfigTask[]
   const tavilyKey = (effective.tavily_api_key ?? "").trim();
 
   const providerNeedsKey =
-    provider !== "" && provider !== "mock" && provider !== "ollama";
+    provider !== "" && provider !== "mock";
 
   if (!provider) {
     tasks.push({
@@ -96,7 +96,7 @@ function deriveConfigTasks(snapshot: RuntimeConfigSnapshot | null): ConfigTask[]
     tasks.push({
       id: "llm-api-key",
       label: "提供对应的 API Key",
-      hint: "未配置密钥时所有请求都会失败，可以暂时切换为 mock/ollama 以继续调试。",
+      hint: "未配置密钥时所有请求都会失败，可以暂时切换为 mock/llama.cpp 以继续调试。",
       severity: "critical",
     });
   }
