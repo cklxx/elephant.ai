@@ -30,12 +30,13 @@ type BackendConfig struct {
 
 // BackendService manages the Go backend server.
 type BackendService struct {
-	pm      *process.Manager
-	ports   *port.Allocator
-	health  *health.Checker
-	section *devlog.SectionWriter
-	config  BackendConfig
-	state   atomic.Value // devops.ServiceState
+	pm            *process.Manager
+	ports         *port.Allocator
+	health        *health.Checker
+	section       *devlog.SectionWriter
+	config        BackendConfig
+	state         atomic.Value // devops.ServiceState
+	skipNextBuild bool         // set by Promote, cleared by build
 }
 
 // NewBackendService creates a new backend service.
@@ -136,8 +137,16 @@ func (s *BackendService) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (s *BackendService) build(ctx context.Context) error {
-	s.section.Info("Building backend (./cmd/alex-server)...")
+// stagingPath returns the staging binary path derived from the production path.
+func (s *BackendService) stagingPath() string {
+	return s.config.OutputBin + ".staging"
+}
+
+// Build compiles the backend to a staging path without touching the running binary.
+// Implements devops.Buildable.
+func (s *BackendService) Build(ctx context.Context) (string, error) {
+	staging := s.stagingPath()
+	s.section.Info("Building backend (./cmd/alex-server) → %s ...", staging)
 
 	cgoEnabled := s.detectCGO()
 	if cgoEnabled {
@@ -147,7 +156,7 @@ func (s *BackendService) build(ctx context.Context) error {
 	}
 
 	goToolchain := filepath.Join(s.config.ProjectDir, "scripts", "go-with-toolchain.sh")
-	cmd := exec.CommandContext(ctx, goToolchain, "build", "-o", s.config.OutputBin, "./cmd/alex-server")
+	cmd := exec.CommandContext(ctx, goToolchain, "build", "-o", staging, "./cmd/alex-server")
 	cmd.Dir = s.config.ProjectDir
 
 	env := os.Environ()
@@ -160,15 +169,48 @@ func (s *BackendService) build(ctx context.Context) error {
 
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("build backend: %s: %w", string(out), err)
+		os.Remove(staging) // clean up partial artifact
+		return "", fmt.Errorf("build backend: %s: %w", string(out), err)
 	}
 
-	if _, err := os.Stat(s.config.OutputBin); err != nil {
-		return fmt.Errorf("backend build succeeded but %s not found", s.config.OutputBin)
+	info, err := os.Stat(staging)
+	if err != nil {
+		return "", fmt.Errorf("backend build succeeded but %s not found", staging)
+	}
+	if info.Mode()&0o111 == 0 {
+		os.Remove(staging)
+		return "", fmt.Errorf("backend staging binary %s is not executable", staging)
 	}
 
-	s.section.Success("Backend built: %s", s.config.OutputBin)
+	s.section.Success("Backend staged: %s", staging)
+	return staging, nil
+}
+
+// Promote atomically replaces the production binary with the staged one.
+// Implements devops.Buildable.
+func (s *BackendService) Promote(stagingPath string) error {
+	if err := os.Rename(stagingPath, s.config.OutputBin); err != nil {
+		return fmt.Errorf("promote backend: %w", err)
+	}
+	s.skipNextBuild = true
+	s.section.Success("Backend promoted: %s → %s", stagingPath, s.config.OutputBin)
 	return nil
+}
+
+// build compiles the backend to the production path.
+// If Promote was called beforehand (via Orchestrator safe restart),
+// the build step is skipped since the binary is already in place.
+func (s *BackendService) build(ctx context.Context) error {
+	if s.skipNextBuild {
+		s.skipNextBuild = false
+		s.section.Info("Backend build skipped (already promoted)")
+		return nil
+	}
+	staging, err := s.Build(ctx)
+	if err != nil {
+		return err
+	}
+	return s.Promote(staging)
 }
 
 func (s *BackendService) detectCGO() bool {
