@@ -107,26 +107,33 @@ type FoundationToolScore struct {
 
 // FoundationImplicitSummary contains scenario-based implicit tool readiness.
 type FoundationImplicitSummary struct {
-	TotalCases  int                    `json:"total_cases"`
-	PassedCases int                    `json:"passed_cases"`
-	FailedCases int                    `json:"failed_cases"`
-	Top1HitRate float64                `json:"top1_hit_rate"`
-	TopKHitRate float64                `json:"topk_hit_rate"`
-	MRR         float64                `json:"mrr"`
-	CaseResults []FoundationCaseResult `json:"case_results"`
+	TotalCases               int                    `json:"total_cases"`
+	PassedCases              int                    `json:"passed_cases"`
+	FailedCases              int                    `json:"failed_cases"`
+	Top1HitRate              float64                `json:"top1_hit_rate"`
+	TopKHitRate              float64                `json:"topk_hit_rate"`
+	MRR                      float64                `json:"mrr"`
+	TotalEvaluationLatencyMs int64                  `json:"total_evaluation_latency_ms"`
+	AverageCaseLatencyMs     float64                `json:"average_case_latency_ms"`
+	CaseLatencyP50Ms         float64                `json:"case_latency_p50_ms"`
+	CaseLatencyP95Ms         float64                `json:"case_latency_p95_ms"`
+	CaseLatencyP99Ms         float64                `json:"case_latency_p99_ms"`
+	ThroughputCasesPerSec    float64                `json:"throughput_cases_per_sec"`
+	CaseResults              []FoundationCaseResult `json:"case_results"`
 }
 
 // FoundationCaseResult captures one implicit-intent scenario result.
 type FoundationCaseResult struct {
-	ID            string                `json:"id"`
-	Category      string                `json:"category"`
-	Intent        string                `json:"intent"`
-	ExpectedTools []string              `json:"expected_tools"`
-	TopMatches    []FoundationToolMatch `json:"top_matches"`
-	HitRank       int                   `json:"hit_rank"`
-	Passed        bool                  `json:"passed"`
-	FailureType   string                `json:"failure_type,omitempty"`
-	Reason        string                `json:"reason"`
+	ID               string                `json:"id"`
+	Category         string                `json:"category"`
+	Intent           string                `json:"intent"`
+	ExpectedTools    []string              `json:"expected_tools"`
+	TopMatches       []FoundationToolMatch `json:"top_matches"`
+	HitRank          int                   `json:"hit_rank"`
+	Passed           bool                  `json:"passed"`
+	FailureType      string                `json:"failure_type,omitempty"`
+	Reason           string                `json:"reason"`
+	RoutingLatencyMs float64               `json:"routing_latency_ms"`
 }
 
 // FoundationToolMatch is a ranked tool candidate for one scenario.
@@ -683,7 +690,9 @@ func scoreToolProfile(profile foundationToolProfile) FoundationToolScore {
 }
 
 func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundationToolProfile, topK int) FoundationImplicitSummary {
+	evalStart := time.Now()
 	results := make([]FoundationCaseResult, 0, len(scenarios))
+	latencies := make([]float64, 0, len(scenarios))
 	profilesByName := make(map[string]foundationToolProfile, len(profiles))
 	for _, profile := range profiles {
 		profilesByName[profile.Definition.Name] = profile
@@ -694,6 +703,7 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 	mrr := 0.0
 
 	for _, scenario := range scenarios {
+		caseStart := time.Now()
 		intentTokens := tokenize(scenario.Intent)
 		ranked := rankToolsForIntent(intentTokens, profiles)
 
@@ -772,16 +782,18 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 		}
 
 		results = append(results, FoundationCaseResult{
-			ID:            scenario.ID,
-			Category:      scenario.Category,
-			Intent:        scenario.Intent,
-			ExpectedTools: append([]string(nil), scenario.ExpectedTools...),
-			TopMatches:    topMatches,
-			HitRank:       hitRank,
-			Passed:        passed,
-			FailureType:   failureType,
-			Reason:        strings.TrimSpace(reason),
+			ID:               scenario.ID,
+			Category:         scenario.Category,
+			Intent:           scenario.Intent,
+			ExpectedTools:    append([]string(nil), scenario.ExpectedTools...),
+			TopMatches:       topMatches,
+			HitRank:          hitRank,
+			Passed:           passed,
+			FailureType:      failureType,
+			Reason:           strings.TrimSpace(reason),
+			RoutingLatencyMs: round3(float64(time.Since(caseStart).Microseconds()) / 1000.0),
 		})
+		latencies = append(latencies, float64(time.Since(caseStart).Microseconds())/1000.0)
 	}
 
 	if len(results) > 1 {
@@ -807,15 +819,29 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 		return FoundationImplicitSummary{}
 	}
 	failed := total - topKHits
+	totalEvalMs := float64(time.Since(evalStart).Microseconds()) / 1000.0
+	avgLatency := 0.0
+	for _, latency := range latencies {
+		avgLatency += latency
+	}
+	if len(latencies) > 0 {
+		avgLatency /= float64(len(latencies))
+	}
 
 	return FoundationImplicitSummary{
-		TotalCases:  total,
-		PassedCases: topKHits,
-		FailedCases: failed,
-		Top1HitRate: round3(float64(top1Hits) / float64(total)),
-		TopKHitRate: round3(float64(topKHits) / float64(total)),
-		MRR:         round3(mrr / float64(total)),
-		CaseResults: results,
+		TotalCases:               total,
+		PassedCases:              topKHits,
+		FailedCases:              failed,
+		Top1HitRate:              round3(float64(top1Hits) / float64(total)),
+		TopKHitRate:              round3(float64(topKHits) / float64(total)),
+		MRR:                      round3(mrr / float64(total)),
+		TotalEvaluationLatencyMs: int64(math.Round(totalEvalMs)),
+		AverageCaseLatencyMs:     round3(avgLatency),
+		CaseLatencyP50Ms:         round3(percentileFloat(latencies, 50)),
+		CaseLatencyP95Ms:         round3(percentileFloat(latencies, 95)),
+		CaseLatencyP99Ms:         round3(percentileFloat(latencies, 99)),
+		ThroughputCasesPerSec:    round3(float64(total) / math.Max(totalEvalMs/1000.0, 1e-9)),
+		CaseResults:              results,
 	}
 }
 
@@ -1397,6 +1423,28 @@ func round2(v float64) float64 {
 
 func round3(v float64) float64 {
 	return math.Round(v*1000) / 1000
+}
+
+func percentileFloat(values []float64, percentile float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	if percentile <= 0 {
+		return values[0]
+	}
+	if percentile >= 100 {
+		return values[len(values)-1]
+	}
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	rank := (percentile / 100.0) * float64(len(sorted)-1)
+	low := int(math.Floor(rank))
+	high := int(math.Ceil(rank))
+	if low == high {
+		return sorted[low]
+	}
+	weight := rank - float64(low)
+	return sorted[low]*(1-weight) + sorted[high]*weight
 }
 
 func writeFoundationArtifacts(result *FoundationEvaluationResult, outputDir, format string) ([]EvaluationArtifact, error) {

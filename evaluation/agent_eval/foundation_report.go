@@ -24,6 +24,11 @@ func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
 	b.WriteString(fmt.Sprintf("| Tool Discoverability | %.1f |\n", result.Tools.AverageDiscoverability))
 	b.WriteString(fmt.Sprintf("| Implicit Tool-Use (Top-%d hit rate) | %.1f%% |\n", result.TopK, result.Implicit.TopKHitRate*100))
 	b.WriteString(fmt.Sprintf("| Overall | **%.1f** |\n\n", result.OverallScore))
+	b.WriteString("| Metric | Value |\n")
+	b.WriteString("|---|---:|\n")
+	b.WriteString(fmt.Sprintf("| Implicit Eval Total Latency (ms) | %d |\n", result.Implicit.TotalEvaluationLatencyMs))
+	b.WriteString(fmt.Sprintf("| Case Latency p50/p95/p99 (ms) | %.3f / %.3f / %.3f |\n", result.Implicit.CaseLatencyP50Ms, result.Implicit.CaseLatencyP95Ms, result.Implicit.CaseLatencyP99Ms))
+	b.WriteString(fmt.Sprintf("| Throughput (cases/s) | %.2f |\n\n", result.Implicit.ThroughputCasesPerSec))
 
 	b.WriteString("## Prompt Quality\n\n")
 	b.WriteString(fmt.Sprintf("- Total prompts: %d\n", result.Prompt.TotalPrompts))

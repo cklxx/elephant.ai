@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -57,6 +58,10 @@ type FoundationSuiteCollection struct {
 type FoundationSuiteResult struct {
 	RunID                string                            `json:"run_id"`
 	GeneratedAt          time.Time                         `json:"generated_at"`
+	StartedAt            time.Time                         `json:"started_at"`
+	CompletedAt          time.Time                         `json:"completed_at"`
+	TotalDurationMs      int64                             `json:"total_duration_ms"`
+	ThroughputCasesPerSec float64                          `json:"throughput_cases_per_sec"`
 	SuitePath            string                            `json:"suite_path"`
 	SuiteName            string                            `json:"suite_name"`
 	TotalCollections     int                               `json:"total_collections"`
@@ -70,6 +75,12 @@ type FoundationSuiteResult struct {
 	FailedCases          int                               `json:"failed_cases"`
 	CasePassRatio        string                            `json:"case_pass_ratio"`
 	AvailabilityErrors   int                               `json:"availability_errors"`
+	CaseLatencyP50Ms     float64                           `json:"case_latency_p50_ms"`
+	CaseLatencyP95Ms     float64                           `json:"case_latency_p95_ms"`
+	CaseLatencyP99Ms     float64                           `json:"case_latency_p99_ms"`
+	CollectionLatencyP50Ms float64                         `json:"collection_latency_p50_ms"`
+	CollectionLatencyP95Ms float64                         `json:"collection_latency_p95_ms"`
+	CollectionLatencyP99Ms float64                         `json:"collection_latency_p99_ms"`
 	CollectionResults    []FoundationSuiteCollectionResult `json:"collection_results"`
 	Recommendations      []string                          `json:"recommendations"`
 	ReportArtifacts      []EvaluationArtifact              `json:"report_artifacts,omitempty"`
@@ -94,6 +105,11 @@ type FoundationSuiteCollectionResult struct {
 	FailedCases          int                         `json:"failed_cases"`
 	CasePassRatio        string                      `json:"case_pass_ratio"`
 	AvailabilityErrors   int                         `json:"availability_errors"`
+	CollectionDurationMs int64                       `json:"collection_duration_ms"`
+	ThroughputCasesPerSec float64                    `json:"throughput_cases_per_sec"`
+	CaseLatencyP50Ms     float64                     `json:"case_latency_p50_ms"`
+	CaseLatencyP95Ms     float64                     `json:"case_latency_p95_ms"`
+	CaseLatencyP99Ms     float64                     `json:"case_latency_p99_ms"`
 	FailureTypeBreakdown map[string]int              `json:"failure_type_breakdown,omitempty"`
 	Summary              *FoundationEvaluationResult `json:"summary,omitempty"`
 }
@@ -170,6 +186,7 @@ func LoadFoundationSuiteSet(path string) (*FoundationSuiteSet, error) {
 
 // RunFoundationEvaluationSuite executes a full suite and writes aggregate artifacts.
 func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteOptions) (*FoundationSuiteResult, error) {
+	startedAt := time.Now().UTC()
 	if options == nil {
 		options = DefaultFoundationSuiteOptions()
 	}
@@ -200,13 +217,17 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 	result := &FoundationSuiteResult{
 		RunID:             fmt.Sprintf("foundation-suite-%s", time.Now().UTC().Format("20060102-150405")),
 		GeneratedAt:       time.Now().UTC(),
+		StartedAt:         startedAt,
 		SuitePath:         opts.SuitePath,
 		SuiteName:         suiteSet.Name,
 		TotalCollections:  len(suiteSet.Collections),
 		CollectionResults: make([]FoundationSuiteCollectionResult, 0, len(suiteSet.Collections)),
 	}
+	collectionLatencies := make([]float64, 0, len(suiteSet.Collections))
+	caseLatencies := make([]float64, 0, 512)
 
 	for index, collection := range suiteSet.Collections {
+		collectionStart := time.Now()
 		collectionDir := filepath.Join(cleanedOutputDir, fmt.Sprintf("%02d-%s", index+1, sanitizeCollectionID(collection.ID)))
 		evalResult, runErr := RunFoundationEvaluation(ctx, &FoundationEvaluationOptions{
 			OutputDir:    collectionDir,
@@ -236,6 +257,8 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 			failureBreakdown = nil
 		}
 
+		collectionDurationMs := float64(time.Since(collectionStart).Microseconds()) / 1000.0
+		collectionLatencies = append(collectionLatencies, collectionDurationMs)
 		collectionResult := FoundationSuiteCollectionResult{
 			ID:                   collection.ID,
 			Name:                 collection.Name,
@@ -253,10 +276,18 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 			FailedCases:          evalResult.Implicit.FailedCases,
 			CasePassRatio:        fmt.Sprintf("%d/%d", evalResult.Implicit.PassedCases, evalResult.Implicit.TotalCases),
 			AvailabilityErrors:   availabilityErrors,
+			CollectionDurationMs: int64(math.Round(collectionDurationMs)),
+			ThroughputCasesPerSec: round3(float64(evalResult.Implicit.TotalCases) / math.Max(collectionDurationMs/1000.0, 1e-9)),
+			CaseLatencyP50Ms:     evalResult.Implicit.CaseLatencyP50Ms,
+			CaseLatencyP95Ms:     evalResult.Implicit.CaseLatencyP95Ms,
+			CaseLatencyP99Ms:     evalResult.Implicit.CaseLatencyP99Ms,
 			FailureTypeBreakdown: failureBreakdown,
 			Summary:              evalResult,
 		}
 		result.CollectionResults = append(result.CollectionResults, collectionResult)
+		for _, caseResult := range evalResult.Implicit.CaseResults {
+			caseLatencies = append(caseLatencies, caseResult.RoutingLatencyMs)
+		}
 
 		result.AverageOverallScore += evalResult.OverallScore
 		result.AverageTop1HitRate += evalResult.Implicit.Top1HitRate
@@ -278,6 +309,15 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 	}
 	result.CollectionPassRatio = fmt.Sprintf("%d/%d", result.PassedCollections, result.TotalCollections)
 	result.CasePassRatio = fmt.Sprintf("%d/%d", result.PassedCases, result.TotalCases)
+	result.CaseLatencyP50Ms = round3(percentileFloat(caseLatencies, 50))
+	result.CaseLatencyP95Ms = round3(percentileFloat(caseLatencies, 95))
+	result.CaseLatencyP99Ms = round3(percentileFloat(caseLatencies, 99))
+	result.CollectionLatencyP50Ms = round3(percentileFloat(collectionLatencies, 50))
+	result.CollectionLatencyP95Ms = round3(percentileFloat(collectionLatencies, 95))
+	result.CollectionLatencyP99Ms = round3(percentileFloat(collectionLatencies, 99))
+	result.CompletedAt = time.Now().UTC()
+	result.TotalDurationMs = int64(math.Round(float64(result.CompletedAt.Sub(result.StartedAt).Microseconds()) / 1000.0))
+	result.ThroughputCasesPerSec = round3(float64(result.TotalCases) / math.Max(float64(result.TotalDurationMs)/1000.0, 1e-9))
 
 	result.Recommendations = buildFoundationSuiteRecommendations(result)
 
@@ -352,6 +392,8 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 	b.WriteString("# Foundation Suite Evaluation Report\n\n")
 	b.WriteString(fmt.Sprintf("- Run ID: `%s`\n", result.RunID))
 	b.WriteString(fmt.Sprintf("- Generated At (UTC): `%s`\n", result.GeneratedAt.Format("2006-01-02 15:04:05")))
+	b.WriteString(fmt.Sprintf("- Started At (UTC): `%s`\n", result.StartedAt.Format("2006-01-02 15:04:05")))
+	b.WriteString(fmt.Sprintf("- Completed At (UTC): `%s`\n", result.CompletedAt.Format("2006-01-02 15:04:05")))
 	b.WriteString(fmt.Sprintf("- Suite: `%s`\n", result.SuiteName))
 	b.WriteString(fmt.Sprintf("- Suite Path: `%s`\n\n", result.SuitePath))
 
@@ -367,6 +409,10 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 	b.WriteString(fmt.Sprintf("| Passed Cases | %s |\n", result.CasePassRatio))
 	b.WriteString(fmt.Sprintf("| Failed Cases | %d |\n", result.FailedCases))
 	b.WriteString(fmt.Sprintf("| Availability Errors | %d |\n\n", result.AvailabilityErrors))
+	b.WriteString(fmt.Sprintf("| Total Duration (ms) | %d |\n", result.TotalDurationMs))
+	b.WriteString(fmt.Sprintf("| Throughput (cases/s) | %.2f |\n", result.ThroughputCasesPerSec))
+	b.WriteString(fmt.Sprintf("| Case Latency p50/p95/p99 (ms) | %.3f / %.3f / %.3f |\n", result.CaseLatencyP50Ms, result.CaseLatencyP95Ms, result.CaseLatencyP99Ms))
+	b.WriteString(fmt.Sprintf("| Collection Latency p50/p95/p99 (ms) | %.3f / %.3f / %.3f |\n\n", result.CollectionLatencyP50Ms, result.CollectionLatencyP95Ms, result.CollectionLatencyP99Ms))
 
 	if len(result.CollectionResults) > 0 {
 		rows := append([]FoundationSuiteCollectionResult(nil), result.CollectionResults...)
@@ -377,15 +423,15 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 			return rows[i].TopKHitRate < rows[j].TopKHitRate
 		})
 		b.WriteString("## Collection Breakdown\n\n")
-		b.WriteString("| Collection | Dimension | Mode/Preset/Toolset | Top-K | Cases (pass/total) | Top-1 | Top-K | Failed | Availability |\n")
-		b.WriteString("|---|---|---|---:|---:|---:|---:|---:|---:|\n")
+		b.WriteString("| Collection | Dimension | Mode/Preset/Toolset | Top-K | Cases (pass/total) | Top-1 | Top-K | Failed | Availability | Duration(ms) | Cases/s | Case p95(ms) |\n")
+		b.WriteString("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 		for _, row := range rows {
 			dimension := row.Dimension
 			if strings.TrimSpace(dimension) == "" {
 				dimension = "-"
 			}
 			b.WriteString(fmt.Sprintf(
-				"| `%s` | `%s` | `%s / %s / %s` | %d | %s | %.1f%% | %.1f%% | %d | %d |\n",
+				"| `%s` | `%s` | `%s / %s / %s` | %d | %s | %.1f%% | %.1f%% | %d | %d | %d | %.2f | %.3f |\n",
 				row.ID,
 				dimension,
 				row.Mode,
@@ -397,6 +443,9 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 				row.TopKHitRate*100,
 				row.FailedCases,
 				row.AvailabilityErrors,
+				row.CollectionDurationMs,
+				row.ThroughputCasesPerSec,
+				row.CaseLatencyP95Ms,
 			))
 		}
 		b.WriteString("\n")

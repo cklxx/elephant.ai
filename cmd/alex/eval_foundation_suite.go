@@ -33,7 +33,7 @@ func (c *CLI) runFoundationSuiteEvaluation(args []string) error {
 	}
 
 	log.Printf(
-		"Foundation suite summary: collections %s passed, cases %s passed, avg overall %.1f, avg top-1 %.1f%%, avg top-k %.1f%%, failed cases %d, availability errors %d",
+		"Foundation suite summary: collections %s passed, cases %s passed, avg overall %.1f, avg top-1 %.1f%%, avg top-k %.1f%%, failed cases %d, availability errors %d, duration %dms, throughput %.2f cases/s, case p95/p99 %.3f/%.3f ms",
 		result.CollectionPassRatio,
 		result.CasePassRatio,
 		result.AverageOverallScore,
@@ -41,6 +41,10 @@ func (c *CLI) runFoundationSuiteEvaluation(args []string) error {
 		result.AverageTopKHitRate*100,
 		result.FailedCases,
 		result.AvailabilityErrors,
+		result.TotalDurationMs,
+		result.ThroughputCasesPerSec,
+		result.CaseLatencyP95Ms,
+		result.CaseLatencyP99Ms,
 	)
 	for _, artifact := range result.ReportArtifacts {
 		log.Printf("Foundation suite artifact: %s (%s) -> %s", artifact.Name, artifact.Format, artifact.Path)
