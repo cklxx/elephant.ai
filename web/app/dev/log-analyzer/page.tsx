@@ -1,11 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiClient } from "@/lib/api";
 import type {
@@ -17,7 +17,15 @@ import type {
   StructuredRequestSnippet,
 } from "@/lib/types";
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const INDEX_PAGE_SIZE = 40;
+
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type SidebarFilter = "all" | "llm" | "service" | "latency";
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatLastSeen(value: string): string {
   if (!value) return "—";
@@ -54,9 +62,28 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// ─── Search Highlight ───────────────────────────────────────────────────────
+function matchesSidebarFilter(entry: LogIndexEntry, filter: SidebarFilter): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "llm":
+      return entry.llm_count > 0 || entry.request_count > 0;
+    case "service":
+      return entry.service_count > 0;
+    case "latency":
+      return entry.latency_count > 0;
+  }
+}
 
-function HighlightText({ text, search }: { text: string; search: string }) {
+// ─── Search Highlight ────────────────────────────────────────────────────────
+
+const HighlightText = React.memo(function HighlightText({
+  text,
+  search,
+}: {
+  text: string;
+  search: string;
+}) {
   if (!search || !text) return <>{text}</>;
   const lowerText = text.toLowerCase();
   const lowerSearch = search.toLowerCase();
@@ -89,9 +116,9 @@ function HighlightText({ text, search }: { text: string; search: string }) {
       )}
     </>
   );
-}
+});
 
-// ─── Log Level Badge ────────────────────────────────────────────────────────
+// ─── Log Level Badge ─────────────────────────────────────────────────────────
 
 function LogLevelBadge({ level }: { level: string }) {
   const variant = {
@@ -108,7 +135,82 @@ function LogLevelBadge({ level }: { level: string }) {
   );
 }
 
-// ─── Text Log Table ─────────────────────────────────────────────────────────
+// ─── Memoized Sidebar Item ──────────────────────────────────────────────────
+
+const LogIDSidebarItem = React.memo(function LogIDSidebarItem({
+  entry,
+  active,
+  onSelect,
+}: {
+  entry: LogIndexEntry;
+  active: boolean;
+  onSelect: (logID: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(entry.log_id)}
+      className={`w-full rounded-md px-2 py-1.5 text-left transition text-xs ${
+        active
+          ? "bg-slate-900 text-white"
+          : "hover:bg-slate-100 text-slate-700"
+      }`}
+    >
+      <p className="font-mono text-[11px] truncate">{entry.log_id}</p>
+      <div className={`flex items-center gap-1.5 mt-0.5 text-[10px] ${active ? "text-slate-300" : "text-slate-400"}`}>
+        <span>{formatLastSeen(entry.last_seen)}</span>
+        <span>·</span>
+        <span>{entry.total_count} lines</span>
+      </div>
+    </button>
+  );
+});
+
+// ─── Memoized Text Log Row ──────────────────────────────────────────────────
+
+const TextLogRow = React.memo(function TextLogRow({
+  entry,
+  search,
+  expanded,
+  onToggle,
+}: {
+  entry: ParsedTextLogEntry;
+  search: string;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  const isLong = entry.message.length > 200;
+  return (
+    <tr className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+      <td className="px-2 py-1 font-mono text-slate-500 whitespace-nowrap align-top">
+        {formatTimestamp(entry.timestamp)}
+      </td>
+      <td className="px-2 py-1 align-top">
+        <LogLevelBadge level={entry.level} />
+      </td>
+      <td className="px-2 py-1 text-slate-600 align-top">{entry.component}</td>
+      <td className="px-2 py-1 font-mono text-slate-400 align-top whitespace-nowrap">
+        {entry.source_file ? `${entry.source_file}:${entry.source_line}` : ""}
+      </td>
+      <td className="px-2 py-1 align-top">
+        <div className={`${!expanded && isLong ? "line-clamp-2" : ""} break-all`}>
+          <HighlightText text={entry.message} search={search} />
+        </div>
+        {isLong && (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="mt-0.5 text-sky-600 hover:text-sky-800 text-[10px]"
+          >
+            {expanded ? "Collapse" : "Expand"}
+          </button>
+        )}
+      </td>
+    </tr>
+  );
+});
+
+// ─── Text Log Table (virtualized) ───────────────────────────────────────────
 
 function TextLogTable({
   entries,
@@ -118,24 +220,32 @@ function TextLogTable({
   search: string;
 }) {
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const parentRef = useRef<HTMLDivElement>(null);
 
-  const toggleRow = (idx: number) => {
+  const toggleRow = useCallback((idx: number) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
       if (next.has(idx)) next.delete(idx);
       else next.add(idx);
       return next;
     });
-  };
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 32,
+    overscan: 10,
+  });
 
   if (entries.length === 0) {
     return <p className="py-8 text-center text-sm text-slate-500">No log entries found.</p>;
   }
 
   return (
-    <div className="overflow-auto">
+    <div ref={parentRef} className="overflow-auto max-h-[70vh]">
       <table className="w-full text-xs">
-        <thead>
+        <thead className="sticky top-0 bg-white z-10">
           <tr className="border-b border-slate-200 text-left text-slate-500">
             <th className="px-2 py-1.5 font-medium w-[72px]">Time</th>
             <th className="px-2 py-1.5 font-medium w-[60px]">Level</th>
@@ -145,50 +255,41 @@ function TextLogTable({
           </tr>
         </thead>
         <tbody>
-          {entries.map((entry, idx) => {
-            const expanded = expandedRows.has(idx);
-            const isLong = entry.message.length > 200;
+          {virtualizer.getVirtualItems().length > 0 && (
+            <tr style={{ height: virtualizer.getVirtualItems()[0].start }}>
+              <td colSpan={5} />
+            </tr>
+          )}
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const entry = entries[virtualRow.index];
             return (
-              <tr
-                key={idx}
-                className="border-b border-slate-100 hover:bg-slate-50 transition-colors"
-              >
-                <td className="px-2 py-1 font-mono text-slate-500 whitespace-nowrap align-top">
-                  {formatTimestamp(entry.timestamp)}
-                </td>
-                <td className="px-2 py-1 align-top">
-                  <LogLevelBadge level={entry.level} />
-                </td>
-                <td className="px-2 py-1 text-slate-600 align-top">{entry.component}</td>
-                <td className="px-2 py-1 font-mono text-slate-400 align-top whitespace-nowrap">
-                  {entry.source_file ? `${entry.source_file}:${entry.source_line}` : ""}
-                </td>
-                <td className="px-2 py-1 align-top">
-                  <div
-                    className={`${!expanded && isLong ? "line-clamp-2" : ""} break-all`}
-                  >
-                    <HighlightText text={entry.message} search={search} />
-                  </div>
-                  {isLong && (
-                    <button
-                      type="button"
-                      onClick={() => toggleRow(idx)}
-                      className="mt-0.5 text-sky-600 hover:text-sky-800 text-[10px]"
-                    >
-                      {expanded ? "Collapse" : "Expand"}
-                    </button>
-                  )}
-                </td>
-              </tr>
+              <TextLogRow
+                key={virtualRow.index}
+                entry={entry}
+                search={search}
+                expanded={expandedRows.has(virtualRow.index)}
+                onToggle={() => toggleRow(virtualRow.index)}
+              />
             );
           })}
+          {virtualizer.getVirtualItems().length > 0 && (
+            <tr
+              style={{
+                height:
+                  virtualizer.getTotalSize() -
+                  (virtualizer.getVirtualItems().at(-1)?.end ?? 0),
+              }}
+            >
+              <td colSpan={5} />
+            </tr>
+          )}
         </tbody>
       </table>
     </div>
   );
 }
 
-// ─── JSON Payload Viewer ────────────────────────────────────────────────────
+// ─── JSON Payload Viewer ─────────────────────────────────────────────────────
 
 function JsonPayloadViewer({
   payload,
@@ -236,7 +337,34 @@ function JsonPayloadViewer({
   );
 }
 
-// ─── Request Log List ───────────────────────────────────────────────────────
+// ─── Memoized Request Log Item ──────────────────────────────────────────────
+
+const RequestLogItem = React.memo(function RequestLogItem({
+  entry,
+  search,
+}: {
+  entry: ParsedRequestLogEntry;
+  search: string;
+}) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white p-3 space-y-1">
+      <div className="flex items-center gap-2 text-xs">
+        <Badge
+          variant={entry.entry_type === "request" ? "info" : "success"}
+          className="font-mono text-[10px] px-1.5 py-0"
+        >
+          {entry.entry_type}
+        </Badge>
+        <span className="font-mono text-slate-500">{entry.request_id}</span>
+        <span className="text-slate-400">{formatTimestamp(entry.timestamp)}</span>
+        <span className="text-slate-400">{formatBytes(entry.body_bytes)}</span>
+      </div>
+      <JsonPayloadViewer payload={entry.payload} search={search} />
+    </div>
+  );
+});
+
+// ─── Request Log List (virtualized) ─────────────────────────────────────────
 
 function RequestLogList({
   entries,
@@ -245,30 +373,77 @@ function RequestLogList({
   entries: ParsedRequestLogEntry[];
   search: string;
 }) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: entries.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 120,
+    overscan: 5,
+  });
+
   if (entries.length === 0) {
     return <p className="py-8 text-center text-sm text-slate-500">No LLM request/response entries found.</p>;
   }
 
   return (
-    <div className="space-y-3">
-      {entries.map((entry, idx) => (
-        <div
-          key={idx}
-          className="rounded-lg border border-slate-200 bg-white p-3 space-y-1"
-        >
-          <div className="flex items-center gap-2 text-xs">
-            <Badge
-              variant={entry.entry_type === "request" ? "info" : "success"}
-              className="font-mono text-[10px] px-1.5 py-0"
+    <div ref={parentRef} className="overflow-auto max-h-[70vh]">
+      <div
+        style={{ height: virtualizer.getTotalSize(), position: "relative" }}
+      >
+        {virtualizer.getVirtualItems().map((virtualRow) => {
+          const entry = entries[virtualRow.index];
+          return (
+            <div
+              key={virtualRow.index}
+              style={{
+                position: "absolute",
+                top: virtualRow.start,
+                left: 0,
+                right: 0,
+              }}
+              ref={virtualizer.measureElement}
+              data-index={virtualRow.index}
             >
-              {entry.entry_type}
-            </Badge>
-            <span className="font-mono text-slate-500">{entry.request_id}</span>
-            <span className="text-slate-400">{formatTimestamp(entry.timestamp)}</span>
-            <span className="text-slate-400">{formatBytes(entry.body_bytes)}</span>
-          </div>
-          <JsonPayloadViewer payload={entry.payload} search={search} />
-        </div>
+              <div className="pb-3">
+                <RequestLogItem entry={entry} search={search} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Filter Button Group ────────────────────────────────────────────────────
+
+const FILTER_OPTIONS: { value: SidebarFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "llm", label: "LLM" },
+  { value: "service", label: "Service" },
+  { value: "latency", label: "Latency" },
+];
+
+function SidebarFilterButtons({
+  active,
+  onChange,
+}: {
+  active: SidebarFilter;
+  onChange: (filter: SidebarFilter) => void;
+}) {
+  return (
+    <div className="flex gap-1 px-3 pb-2">
+      {FILTER_OPTIONS.map((opt) => (
+        <Button
+          key={opt.value}
+          size="sm"
+          variant={active === opt.value ? "default" : "outline"}
+          className="h-6 px-2 text-[10px]"
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </Button>
       ))}
     </div>
   );
@@ -281,38 +456,76 @@ function LogIDSidebar({
   selectedLogID,
   onSelect,
   loading,
+  hasMore,
+  onLoadMore,
+  sidebarFilter,
+  onFilterChange,
 }: {
   entries: LogIndexEntry[];
   selectedLogID: string;
   onSelect: (logID: string) => void;
   loading: boolean;
+  hasMore: boolean;
+  onLoadMore: () => void;
+  sidebarFilter: SidebarFilter;
+  onFilterChange: (filter: SidebarFilter) => void;
 }) {
-  const [filter, setFilter] = useState("");
+  const [textFilter, setTextFilter] = useState("");
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    if (!q) return entries;
-    return entries.filter(
-      (e) =>
-        e.log_id.toLowerCase().includes(q) ||
-        (e.sources ?? []).some((s) => s.toLowerCase().includes(q)),
+    let result = entries;
+
+    // Apply category filter
+    if (sidebarFilter !== "all") {
+      result = result.filter((e) => matchesSidebarFilter(e, sidebarFilter));
+    }
+
+    // Apply text filter
+    const q = textFilter.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (e) =>
+          e.log_id.toLowerCase().includes(q) ||
+          (e.sources ?? []).some((s) => s.toLowerCase().includes(q)),
+      );
+    }
+    return result;
+  }, [entries, sidebarFilter, textFilter]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (intersectionEntries) => {
+        if (intersectionEntries[0]?.isIntersecting && hasMore && !loading) {
+          onLoadMore();
+        }
+      },
+      { root: scrollContainerRef.current, threshold: 0.1 },
     );
-  }, [entries, filter]);
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, onLoadMore]);
 
   return (
     <div className="flex h-full flex-col">
+      <SidebarFilterButtons active={sidebarFilter} onChange={onFilterChange} />
       <div className="px-3 pb-2">
         <Input
           className="h-8 text-xs"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          value={textFilter}
+          onChange={(e) => setTextFilter(e.target.value)}
           placeholder="Filter log IDs..."
         />
       </div>
       <div className="px-3 pb-1 text-[10px] text-slate-400">
         {filtered.length} / {entries.length} IDs
       </div>
-      <ScrollArea className="flex-1 px-2">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-2">
         <div className="space-y-1 pb-2">
           {loading && entries.length === 0 && (
             <p className="px-2 py-4 text-xs text-slate-400">Loading...</p>
@@ -320,40 +533,34 @@ function LogIDSidebar({
           {!loading && filtered.length === 0 && (
             <p className="px-2 py-4 text-xs text-slate-400">No entries.</p>
           )}
-          {filtered.map((entry) => {
-            const active = selectedLogID === entry.log_id;
-            return (
-              <button
-                key={entry.log_id}
-                type="button"
-                onClick={() => onSelect(entry.log_id)}
-                className={`w-full rounded-md px-2 py-1.5 text-left transition text-xs ${
-                  active
-                    ? "bg-slate-900 text-white"
-                    : "hover:bg-slate-100 text-slate-700"
-                }`}
-              >
-                <p className="font-mono text-[11px] truncate">{entry.log_id}</p>
-                <div className={`flex items-center gap-1.5 mt-0.5 text-[10px] ${active ? "text-slate-300" : "text-slate-400"}`}>
-                  <span>{formatLastSeen(entry.last_seen)}</span>
-                  <span>·</span>
-                  <span>{entry.total_count} lines</span>
-                </div>
-              </button>
-            );
-          })}
+          {filtered.map((entry) => (
+            <LogIDSidebarItem
+              key={entry.log_id}
+              entry={entry}
+              active={selectedLogID === entry.log_id}
+              onSelect={onSelect}
+            />
+          ))}
+          {/* Sentinel for infinite scroll */}
+          <div ref={sentinelRef} className="h-1" />
+          {loading && entries.length > 0 && (
+            <p className="px-2 py-2 text-center text-[10px] text-slate-400">Loading more...</p>
+          )}
         </div>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
 
-// ─── Main Page ──────────────────────────────────────────────────────────────
+// ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function LogAnalyzerPage() {
   const [entries, setEntries] = useState<LogIndexEntry[]>([]);
   const [indexLoading, setIndexLoading] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+
+  const [sidebarFilter, setSidebarFilter] = useState<SidebarFilter>("llm");
 
   const [selectedLogID, setSelectedLogID] = useState("");
   const [bundle, setBundle] = useState<StructuredLogBundle | null>(null);
@@ -362,19 +569,33 @@ export default function LogAnalyzerPage() {
 
   const [search, setSearch] = useState("");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const entriesRef = useRef(entries);
+  entriesRef.current = entries;
 
-  const loadIndex = useCallback(async () => {
+  const loadIndex = useCallback(async (offset = 0) => {
     setIndexLoading(true);
-    setIndexError(null);
+    if (offset === 0) {
+      setIndexError(null);
+    }
     try {
-      const payload = await apiClient.getLogIndex(120);
-      setEntries(payload.entries ?? []);
+      const payload = await apiClient.getLogIndex(INDEX_PAGE_SIZE, offset);
+      const newEntries = payload.entries ?? [];
+      setHasMore(payload.has_more ?? false);
+      if (offset === 0) {
+        setEntries(newEntries);
+      } else {
+        setEntries((prev) => [...prev, ...newEntries]);
+      }
     } catch (err) {
       setIndexError(formatLoadError(err, "Failed to load log index."));
     } finally {
       setIndexLoading(false);
     }
   }, []);
+
+  const loadMore = useCallback(() => {
+    void loadIndex(entriesRef.current.length);
+  }, [loadIndex]);
 
   const loadTrace = useCallback(async (logID: string, searchTerm?: string) => {
     const trimmed = logID.trim();
@@ -394,7 +615,7 @@ export default function LogAnalyzerPage() {
   }, []);
 
   useEffect(() => {
-    void loadIndex();
+    void loadIndex(0);
   }, [loadIndex]);
 
   // Debounced search — re-fetch when search changes
@@ -416,10 +637,14 @@ export default function LogAnalyzerPage() {
     [loadTrace, search],
   );
 
-  const serviceEntries = bundle?.service?.entries ?? [];
-  const llmEntries = bundle?.llm?.entries ?? [];
-  const latencyEntries = bundle?.latency?.entries ?? [];
-  const requestEntries = bundle?.requests?.entries ?? [];
+  const handleRefresh = useCallback(() => {
+    void loadIndex(0);
+  }, [loadIndex]);
+
+  const serviceEntries = useMemo(() => bundle?.service?.entries ?? [], [bundle]);
+  const llmEntries = useMemo(() => bundle?.llm?.entries ?? [], [bundle]);
+  const latencyEntries = useMemo(() => bundle?.latency?.entries ?? [], [bundle]);
+  const requestEntries = useMemo(() => bundle?.requests?.entries ?? [], [bundle]);
 
   return (
     <div className="flex h-screen flex-col bg-slate-50">
@@ -434,7 +659,7 @@ export default function LogAnalyzerPage() {
           <Button
             size="sm"
             variant="outline"
-            onClick={() => void loadIndex()}
+            onClick={handleRefresh}
             disabled={indexLoading}
           >
             {indexLoading ? "Refreshing..." : "Refresh"}
@@ -455,6 +680,10 @@ export default function LogAnalyzerPage() {
               selectedLogID={selectedLogID}
               onSelect={handleSelectLogID}
               loading={indexLoading}
+              hasMore={hasMore}
+              onLoadMore={loadMore}
+              sidebarFilter={sidebarFilter}
+              onFilterChange={setSidebarFilter}
             />
           </div>
 
@@ -590,7 +819,7 @@ export default function LogAnalyzerPage() {
   );
 }
 
-// ─── Small Shared Components ────────────────────────────────────────────────
+// ─── Small Shared Components ─────────────────────────────────────────────────
 
 function SnippetError({ error }: { error: string }) {
   return (
