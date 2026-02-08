@@ -75,7 +75,7 @@ ensure_sandbox_cli_tools() {
       npm i -g @anthropic-ai/claude-code || fail=1
     fi
     exit "$fail"
-  '; then
+  ' >/dev/null 2>&1; then
     log_warn "Sandbox CLI install failed; verify npm/Node connectivity."
   fi
 }
