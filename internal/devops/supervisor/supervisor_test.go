@@ -85,6 +85,33 @@ func TestConcurrentRestartSkipParallel(t *testing.T) {
 	t.Logf("acquired %d/%d (rest were correctly skipped)", acquired, workers)
 }
 
+func TestIsValidationActive(t *testing.T) {
+	s := &Supervisor{}
+
+	tests := []struct {
+		phase string
+		want  bool
+	}{
+		{"validating", true},
+		{"fast_gate", true},
+		{"slow_gate", true},
+		{"promoting", true},
+		{"restoring", true},
+		{"idle", false},
+		{"building", false},
+		{"", false},
+		{"completed", false},
+	}
+
+	for _, tt := range tests {
+		s.loopState.CyclePhase = tt.phase
+		got := s.isValidationActive()
+		if got != tt.want {
+			t.Errorf("isValidationActive(%q) = %v, want %v", tt.phase, got, tt.want)
+		}
+	}
+}
+
 func TestReadLoopState(t *testing.T) {
 	dir := t.TempDir()
 

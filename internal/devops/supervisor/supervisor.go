@@ -228,6 +228,23 @@ func (s *Supervisor) tick(ctx context.Context) {
 	s.writeStatus()
 }
 
+// validationPhases are the cycle phases during which the loop controls
+// the test bot. The supervisor must not restart test during these phases.
+// Corresponds to supervisor.sh VALIDATION_PHASES.
+var validationPhases = map[string]bool{
+	"validating": true,
+	"fast_gate":  true,
+	"slow_gate":  true,
+	"promoting":  true,
+	"restoring":  true,
+}
+
+// isValidationActive returns true when the devops loop is in a
+// validation phase where the test component should not be restarted.
+func (s *Supervisor) isValidationActive() bool {
+	return validationPhases[s.loopState.CyclePhase]
+}
+
 func (s *Supervisor) needsRestart(name, healthState string) bool {
 	switch name {
 	case "main", "test":
