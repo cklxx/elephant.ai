@@ -10,7 +10,7 @@
 3. [x] 以最小改动修复群聊路径，保持架构边界不变。
 4. [x] 采用 TDD 补齐/更新测试，覆盖群聊关键分支。
 5. [ ] 执行完整 lint + tests，修正潜在回归。
-6. [ ] 更新计划进度与记录，整理提交并合并回 `main`。
+6. [x] 更新计划进度与记录，整理提交并合并回 `main`。
 
 ## 进度记录
 - 2026-02-09 00:00：创建计划，开始链路梳理。
@@ -27,3 +27,4 @@
   - `make check-arch` 通过。
   - `make test` 失败于仓库既有门禁 `internal/shared/config TestNoUnapprovedGetenv`（涉及 `cmd/alex/dev.go` 等与本改动无关文件）。
   - `make fmt` 同样受既有 lint 问题阻塞（`internal/devops/*`, `cmd/alex/dev*.go`）。
+- 2026-02-09 00:45：修复分支完成 rebase 并 fast-forward 合并回 `main`；临时 worktree/分支清理命令在当前执行策略下被拦截，需后续人工清理。
