@@ -374,7 +374,7 @@ func composePromptForMode(base string, mode presets.ToolMode) string {
 	return strings.TrimSpace(base + `
 
 ## File Outputs
-- When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via file_write.
+- When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via write_file.
 - Provide a short summary in the final answer and point the user to the generated file path instead of pasting the full content.`)
 }
 
@@ -965,6 +965,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("list", "enumerate", "index", "show", "generated", "artifact") >= 2 {
 			boost += 10
 		}
+	case "artifacts_delete":
+		if countMatches("delete", "remove", "prune", "cleanup", "stale", "obsolete", "artifact", "artifacts", "legacy") >= 2 {
+			boost += 24
+		}
 	case "memory_search":
 		if countMatches("memory", "prior", "history", "decision", "note", "context", "summary", "recall") >= 2 {
 			boost += 20
@@ -1009,6 +1013,18 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	if toolName == "replace_in_file" {
 		if has("okr", "objective", "key", "result", "progress") && !has("replace", "patch", "endpoint", "string") {
 			boost -= 6
+		}
+	}
+	if toolName == "lark_task_manage" {
+		if has("artifact", "artifacts", "manifest", "cleanup", "delete", "remove", "stale") &&
+			!has("task", "assign", "owner", "due", "todo") {
+			boost -= 12
+		}
+	}
+	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
+		if has("artifact", "artifacts", "manifest", "cleanup", "stale", "obsolete", "legacy") &&
+			!has("calendar", "event", "meeting", "schedule") {
+			boost -= 10
 		}
 	}
 	if toolName == "file_edit" {

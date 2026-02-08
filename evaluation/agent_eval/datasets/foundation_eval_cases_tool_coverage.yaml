@@ -97,7 +97,137 @@ scenarios:
     intent: "Persist a long-form report as artifact and reference it in the final response."
     expected_tools: ["artifacts_write"]
 
+  - id: "tool-artifacts-list-run"
+    category: "artifact"
+    intent: "List artifacts generated in this run before selecting one to send."
+    expected_tools: ["artifacts_list"]
+
+  - id: "tool-artifacts-delete-stale"
+    category: "artifact"
+    intent: "Delete stale artifacts that are no longer needed."
+    expected_tools: ["artifacts_delete"]
+
+  - id: "tool-artifact-manifest-read"
+    category: "artifact"
+    intent: "Inspect the artifact manifest including metadata and attachment records."
+    expected_tools: ["artifact_manifest"]
+
   - id: "tool-write-attachment-download"
     category: "artifact"
     intent: "Write a generated file as downloadable attachment for the user."
     expected_tools: ["write_attachment"]
+
+  - id: "tool-a2ui-emit-payload"
+    category: "artifact"
+    intent: "Emit a structured payload to downstream UI renderer."
+    expected_tools: ["a2ui_emit"]
+
+  - id: "tool-pptx-from-images"
+    category: "artifact"
+    intent: "Generate a slide deck from selected image attachments."
+    expected_tools: ["pptx_from_images"]
+
+  - id: "tool-memory-search"
+    category: "memory"
+    intent: "Search memory notes for past architecture decisions on auth routing."
+    expected_tools: ["memory_search"]
+
+  - id: "tool-memory-get"
+    category: "memory"
+    intent: "Open a memory note and read exact lines for citation."
+    expected_tools: ["memory_get"]
+
+  - id: "tool-lark-send-message"
+    category: "lark"
+    intent: "Send an update message to the current Lark conversation."
+    expected_tools: ["lark_send_message"]
+
+  - id: "tool-lark-upload-file"
+    category: "lark"
+    intent: "Upload a report file to the active Lark chat."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "tool-lark-chat-history"
+    category: "lark"
+    intent: "Read recent Lark chat history to reconstruct context."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "tool-lark-calendar-query"
+    category: "lark"
+    intent: "Query upcoming calendar events this week."
+    expected_tools: ["lark_calendar_query"]
+
+  - id: "tool-lark-calendar-create"
+    category: "lark"
+    intent: "Create a calendar event for an incident postmortem."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "tool-lark-calendar-update"
+    category: "lark"
+    intent: "Update event description and start time for a planned sync."
+    expected_tools: ["lark_calendar_update"]
+
+  - id: "tool-lark-calendar-delete"
+    category: "lark"
+    intent: "Delete a duplicated calendar event."
+    expected_tools: ["lark_calendar_delete"]
+
+  - id: "tool-lark-task-manage"
+    category: "lark"
+    intent: "Create and assign a Lark task with due date."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "tool-okr-read"
+    category: "okr"
+    intent: "Read the latest OKR document for this quarter."
+    expected_tools: ["okr_read"]
+
+  - id: "tool-okr-write"
+    category: "okr"
+    intent: "Write an OKR progress update after milestone completion."
+    expected_tools: ["okr_write"]
+
+  - id: "tool-set-timer"
+    category: "timer"
+    intent: "Set a timer reminder for 30 minutes later."
+    expected_tools: ["set_timer"]
+
+  - id: "tool-list-timers"
+    category: "timer"
+    intent: "List active reminder timers and remaining durations."
+    expected_tools: ["list_timers"]
+
+  - id: "tool-cancel-timer"
+    category: "timer"
+    intent: "Cancel a reminder timer that is no longer needed."
+    expected_tools: ["cancel_timer"]
+
+  - id: "tool-scheduler-create-job"
+    category: "scheduler"
+    intent: "Create a daily scheduler job to publish status digests."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "tool-scheduler-list-jobs"
+    category: "scheduler"
+    intent: "List all scheduler jobs and next trigger times."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "tool-scheduler-delete-job"
+    category: "scheduler"
+    intent: "Delete a scheduler job by identifier."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "tool-apps-overview"
+    category: "session"
+    intent: "Inspect connected app capabilities available in this runtime."
+    expected_tools: ["apps"]
+
+  - id: "tool-skills-overview"
+    category: "session"
+    intent: "List currently available skills before choosing a workflow."
+    expected_tools: ["skills"]
+
+  - id: "tool-delegate-heavy-task"
+    category: "orchestration"
+    intent: "Delegate a long running multi-step execution package to executor."
+    expected_tools: ["acp_executor"]

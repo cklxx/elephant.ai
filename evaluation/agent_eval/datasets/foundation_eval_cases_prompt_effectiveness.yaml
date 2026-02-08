@@ -17,25 +17,80 @@ scenarios:
     intent: "Search error.log for HTTP 500 lines with a simple grep pattern."
     expected_tools: ["grep"]
 
+  - id: "prompt-search-symbol-projectwide"
+    category: "search"
+    intent: "Locate every usage of RequestContextGuard symbol in this source file."
+    expected_tools: ["search_file"]
+
   - id: "prompt-list-files-recursive"
     category: "workspace"
     intent: "Show all files recursively under this path with lightweight metadata."
-    expected_tools: ["list_files", "list_dir"]
+    expected_tools: ["list_dir"]
 
   - id: "prompt-read-config-file"
     category: "workspace"
     intent: "Read the selected config file and return its full content."
-    expected_tools: ["file_read", "read_file"]
+    expected_tools: ["read_file"]
 
   - id: "prompt-create-config-template"
     category: "workspace"
     intent: "Create a new YAML config template file with the provided content."
-    expected_tools: ["file_write", "write_file"]
+    expected_tools: ["write_file"]
 
   - id: "prompt-precise-edit-block"
     category: "workspace"
-    intent: "Patch one exact code block in an existing file and show a diff."
-    expected_tools: ["file_edit", "replace_in_file"]
+    intent: "Patch one exact code block in an existing file by replacing an exact old string."
+    expected_tools: ["replace_in_file"]
+
+  - id: "prompt-shell-check-port-usage"
+    category: "execution"
+    intent: "Run a shell command to inspect which process holds port 8080."
+    expected_tools: ["shell_exec"]
+
+  - id: "prompt-execute-python-check"
+    category: "execution"
+    intent: "Execute a tiny Python snippet to verify this checksum formula."
+    expected_tools: ["execute_code"]
+
+  - id: "prompt-browser-selector-form"
+    category: "browser"
+    intent: "Use DOM selectors to fill form fields and submit."
+    expected_tools: ["browser_dom"]
+
+  - id: "prompt-browser-coordinate-click"
+    category: "browser"
+    intent: "This is a canvas-only interaction; click at coordinates and drag to target."
+    expected_tools: ["browser_action"]
+
+  - id: "prompt-browser-tab-inspection"
+    category: "browser"
+    intent: "Check active tab URL, title, and viewport before continuing."
+    expected_tools: ["browser_info"]
+
+  - id: "prompt-browser-screenshot-capture"
+    category: "browser"
+    intent: "Take a page screenshot as evidence for this UI bug."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "prompt-web-search-rfc"
+    category: "web"
+    intent: "Search official RFC references for HTTP conditional requests."
+    expected_tools: ["web_search"]
+
+  - id: "prompt-web-fetch-one-url"
+    category: "web"
+    intent: "Fetch this exact URL and analyze the page text only."
+    expected_tools: ["web_fetch"]
+
+  - id: "prompt-html-rewrite"
+    category: "web"
+    intent: "Rewrite this HTML snippet to improve semantics and accessibility."
+    expected_tools: ["html_edit"]
+
+  - id: "prompt-diagram-render"
+    category: "visualization"
+    intent: "Render the Mermaid architecture diagram into an image."
+    expected_tools: ["diagram_render"]
 
   - id: "prompt-session-todo-read"
     category: "session"
@@ -67,17 +122,42 @@ scenarios:
     intent: "Open a specific memory note by line range for exact context."
     expected_tools: ["memory_get"]
 
+  - id: "prompt-artifacts-write-report"
+    category: "artifact"
+    intent: "Persist this long analysis as an artifact file."
+    expected_tools: ["artifacts_write"]
+
   - id: "prompt-artifacts-list-generated"
     category: "artifact"
     intent: "List generated artifacts from this run so we can choose one to send."
     expected_tools: ["artifacts_list"]
+
+  - id: "prompt-artifacts-delete-legacy"
+    category: "artifact"
+    intent: "Delete obsolete artifacts created by earlier failed runs."
+    expected_tools: ["artifacts_delete"]
 
   - id: "prompt-artifact-manifest-inspect"
     category: "artifact"
     intent: "Inspect the manifest for generated files and metadata fields."
     expected_tools: ["artifact_manifest"]
 
+  - id: "prompt-write-download-attachment"
+    category: "artifact"
+    intent: "Write output as a downloadable attachment for user handoff."
+    expected_tools: ["write_attachment"]
+
   - id: "prompt-a2ui-structured-payload"
     category: "artifact"
     intent: "Emit a structured payload for UI renderer consumption."
     expected_tools: ["a2ui_emit"]
+
+  - id: "prompt-lark-context-before-reply"
+    category: "lark"
+    intent: "Fetch recent Lark chat context before drafting the response."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "prompt-lark-upload-result"
+    category: "lark"
+    intent: "Upload the generated report to the current Lark thread."
+    expected_tools: ["lark_upload_file"]

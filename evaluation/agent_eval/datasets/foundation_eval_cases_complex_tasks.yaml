@@ -20,7 +20,7 @@ scenarios:
   - id: "complex-config-audit-start"
     category: "complex"
     intent: "Start a config audit by enumerating workspace directories and key config files."
-    expected_tools: ["list_dir", "list_files", "find"]
+    expected_tools: ["list_dir", "find"]
 
   - id: "complex-incident-log-triage"
     category: "complex"
@@ -81,3 +81,73 @@ scenarios:
     category: "complex"
     intent: "Complete reporting loop: write report artifact, upload to Lark, and send a proactive summary message."
     expected_tools: ["artifacts_write", "lark_upload_file", "lark_send_message"]
+
+  - id: "complex-calendar-driven-rollout"
+    category: "complex"
+    intent: "For rollout planning, first check existing calendar events before creating launch sync."
+    expected_tools: ["lark_calendar_query", "lark_calendar_create"]
+
+  - id: "complex-calendar-reschedule-conflict"
+    category: "complex"
+    intent: "Reschedule a conflicting launch event after validating current event metadata."
+    expected_tools: ["lark_calendar_query", "lark_calendar_update"]
+
+  - id: "complex-calendar-cleanup"
+    category: "complex"
+    intent: "Clean up duplicate launch events after migration completion."
+    expected_tools: ["lark_calendar_delete"]
+
+  - id: "complex-task-orchestration"
+    category: "complex"
+    intent: "Coordinate cross-team followups by creating and assigning concrete tasks."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "complex-okr-status-sync"
+    category: "complex"
+    intent: "Before sending status update, read current OKR status and then write milestone progress."
+    expected_tools: ["okr_read", "okr_write"]
+
+  - id: "complex-reminder-driven-handoff"
+    category: "complex"
+    intent: "Set a reminder for post-deploy verification and track active reminders."
+    expected_tools: ["set_timer", "list_timers"]
+
+  - id: "complex-reminder-prune"
+    category: "complex"
+    intent: "After incident close, remove obsolete reminders to avoid stale noise."
+    expected_tools: ["cancel_timer"]
+
+  - id: "complex-scheduler-rollup"
+    category: "complex"
+    intent: "Create daily digest scheduler, verify job list, and remove legacy cron entry."
+    expected_tools: ["scheduler_create_job", "scheduler_list_jobs", "scheduler_delete_job"]
+
+  - id: "complex-session-capability-audit"
+    category: "complex"
+    intent: "Inspect available app integrations and skills before picking execution strategy."
+    expected_tools: ["apps", "skills"]
+
+  - id: "complex-executor-delegation"
+    category: "complex"
+    intent: "Delegate a long-running validation workflow to executor while keeping core context minimal."
+    expected_tools: ["acp_executor"]
+
+  - id: "complex-source-trace-readthen-replace"
+    category: "complex"
+    intent: "Read suspicious config, then replace deprecated key with new key in the same file."
+    expected_tools: ["read_file", "replace_in_file"]
+
+  - id: "complex-shell-plus-code-validation"
+    category: "complex"
+    intent: "Collect runtime env with shell command and execute a quick script to verify assumptions."
+    expected_tools: ["shell_exec", "execute_code"]
+
+  - id: "complex-web-to-browser-repro"
+    category: "complex"
+    intent: "Search troubleshooting guide, fetch exact runbook URL, then inspect active browser session state."
+    expected_tools: ["web_search", "web_fetch", "browser_info"]
+
+  - id: "complex-user-gated-release"
+    category: "complex"
+    intent: "Release requires manual security approval from user and should pause until confirmed."
+    expected_tools: ["request_user"]

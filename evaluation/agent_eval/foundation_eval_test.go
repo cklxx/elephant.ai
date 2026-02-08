@@ -246,6 +246,17 @@ func TestRankToolsForIntentCriticalFoundationCases(t *testing.T) {
 			},
 		},
 		{
+			name:     "artifacts-delete-stale",
+			intent:   "Delete obsolete artifacts created by earlier failed runs.",
+			expected: "artifacts_delete",
+			profiles: []foundationToolProfile{
+				makeProfile("lark_task_manage", map[string]float64{"task": 7, "manage": 6, "delete": 4, "remove": 4}),
+				makeProfile("lark_calendar_delete", map[string]float64{"calendar": 7, "event": 6, "delete": 6, "remove": 5}),
+				makeProfile("artifacts_list", map[string]float64{"artifact": 7, "list": 7, "generated": 5}),
+				makeProfile("artifacts_delete", map[string]float64{"artifact": 7, "delete": 7, "remove": 6, "stale": 5, "obsolete": 5, "legacy": 4}),
+			},
+		},
+		{
 			name:     "okr-write-progress",
 			intent:   "Update OKR objective progress after completing milestone work.",
 			expected: "okr_write",
