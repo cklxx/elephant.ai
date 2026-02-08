@@ -35,20 +35,21 @@ type Component struct {
 
 // Supervisor manages multiple supervised components with restart policies.
 type Supervisor struct {
-	components  []*Component
-	policy      *RestartPolicy
-	autofix     *AutofixRunner
-	statusFile  *StatusFile
-	logFile     string
-	ticker      *time.Ticker
-	interval    time.Duration
-	lockDir     string
-	pidFile     string
-	mainRoot    string
-	testRoot    string
-	logger      *slog.Logger
-	mu          sync.Mutex
-	failCounts  map[string]int
+	components   []*Component
+	policy       *RestartPolicy
+	autofix      *AutofixRunner
+	statusFile   *StatusFile
+	logFile      string
+	ticker       *time.Ticker
+	interval     time.Duration
+	lockDir      string
+	pidFile      string
+	mainRoot     string
+	testRoot     string
+	logger       *slog.Logger
+	mu           sync.Mutex
+	failCounts   map[string]int
+	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
 }
 
 // Config holds supervisor configuration.
@@ -182,6 +183,13 @@ func (s *Supervisor) tick(ctx context.Context) {
 			continue
 		}
 
+		// Acquire per-component lock to prevent overlapping restarts
+		mu := s.componentMu(comp.Name)
+		if !mu.TryLock() {
+			s.logger.Info("restart in progress, skipping", "component", comp.Name)
+			continue
+		}
+
 		s.logger.Info("restarting component",
 			"component", comp.Name,
 			"health", healthState,
@@ -199,6 +207,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 			s.failCounts[comp.Name] = 0
 			s.logger.Info("restart succeeded", "component", comp.Name)
 		}
+		mu.Unlock()
 	}
 
 	// Write status
@@ -344,6 +353,12 @@ func (s *Supervisor) Start(ctx context.Context) error {
 	}
 
 	return s.Run(ctx)
+}
+
+// componentMu returns the per-component mutex, creating it on first access.
+func (s *Supervisor) componentMu(name string) *sync.Mutex {
+	v, _ := s.restartLocks.LoadOrStore(name, &sync.Mutex{})
+	return v.(*sync.Mutex)
 }
 
 // StatusReport returns the current status for display.
