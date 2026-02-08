@@ -243,7 +243,6 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 }
 
 func applyLarkEnvFallback(_ *Config, _ runtimeconfig.EnvLookup) {
-	// No card callback env fallback needed after card removal.
 }
 
 func lookupFirstNonEmptyEnv(lookup runtimeconfig.EnvLookup, keys ...string) string {

@@ -1353,9 +1353,9 @@ func TestHandleMessageSeedsPendingUserInput(t *testing.T) {
 }
 
 func TestHandleMessageSendsPlanReviewTextWhenEnabled(t *testing.T) {
-	openID := "ou_sender_card"
-	chatID := "oc_chat_card"
-	msgID := "om_msg_card"
+	openID := "ou_sender_plan"
+	chatID := "oc_chat_plan"
+	msgID := "om_msg_plan"
 	content := `{"text":"继续"}`
 	msgType := "text"
 	chatType := "p2p"

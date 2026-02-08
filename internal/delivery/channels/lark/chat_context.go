@@ -120,7 +120,7 @@ func extractChatMessageContent(msgType string, body *larkim.MessageBody) string 
 	case "sticker":
 		return "[sticker]"
 	case "interactive":
-		return "[interactive card]"
+		return "[interactive message]"
 	case "share_chat":
 		return "[shared chat]"
 	case "share_user":
