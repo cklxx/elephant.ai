@@ -148,24 +148,59 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 #            user_id: "ou_xxx"
 #            chat_id: "oc_xxx"
 
-# 3. 一起启动后端和前端
-./dev.sh
-
-# 4. 或者构建 CLI
+# 3. 构建并启动全部服务（sandbox、auth DB、后端、前端）
 make build
+alex dev up
+
+# 4. 或者直接使用 CLI
 ./alex
 ./alex "总结最近 3 条飞书对话并起草跟进邮件"
 ```
 
+配置参考：[`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
+
+---
+
+## 开发环境（`alex dev`）
+
+所有开发环境管理内置在 `alex` 二进制中——无需 shell 脚本。
+
 ```bash
-# 开发命令
-./dev.sh status    # 检查服务状态
-./dev.sh logs server
-./dev.sh logs web
-./dev.sh down      # 停止服务
+make build                     # 构建 alex 二进制
+
+# 服务生命周期
+alex dev up                    # 启动全部服务（sandbox、auth DB、后端、前端）
+alex dev down                  # 优雅停止全部服务
+alex dev status                # 显示各服务状态（PID、健康、端口）
+alex dev restart [service]     # 重启指定服务或全部
+alex dev logs [service]        # 跟踪日志（server|web|all）
+
+# Sandbox 管理
+alex dev sandbox up            # 仅启动 sandbox 容器
+alex dev sandbox down          # 停止 sandbox 容器
+alex dev sandbox status        # 检查 sandbox 健康状态
+
+# 质量保证
+alex dev test                  # 运行 Go 测试（race + coverage）
+alex dev lint                  # 运行 Go + web lint
+
+# 飞书 Supervisor（生产）
+alex dev lark supervise        # 前台运行 supervisor（含重启策略）
+alex dev lark start            # 后台启动 supervisor 守护进程
+alex dev lark stop             # 停止 supervisor
+alex dev lark status           # 显示 supervisor 健康状态和组件
+
+# 日志分析 UI
+alex dev logs-ui               # 启动服务并在浏览器中打开日志分析器
 ```
 
-配置参考：[`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
+相比旧版 `./dev.sh` 的关键改进：
+- **无竞态端口分配** — 通过 `net.Listen` 在服务启动前预留端口
+- **PID 双重验证** — 通过 `kill -0` 验证进程，不仅依赖 PID 文件
+- **PGID 进程组清理** — 关闭时终止整个进程组，无孤儿进程
+- **原子状态文件** — PID 和 supervisor 状态使用 tmp + rename 写入
+- **重启风暴检测** — 基于时间窗口的历史记录 + 指数退避
+- **类型化配置** — Go 结构体替代 awk 解析 YAML；defaults + env + YAML 分层加载
 
 ---
 
@@ -210,8 +245,8 @@ make build
 
 ```bash
 # 代码检查与测试
-./dev.sh lint
-./dev.sh test
+alex dev lint
+alex dev test
 npm --prefix web run e2e
 
 # 评估工具 (SWE-Bench, 回归测试)

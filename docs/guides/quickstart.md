@@ -1,5 +1,5 @@
 # elephant.ai Quickstart
-> Last updated: 2025-12-14
+> Last updated: 2026-02-08
 
 This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and web UI. Configure an OpenAI-compatible LLM provider via the shared runtime config system (`docs/reference/CONFIG.md`).
 
@@ -9,7 +9,7 @@ This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and 
 
 - Go **1.24+** (pinned in `go.mod`)
 - Node.js **20+** (only needed for the web UI)
-- Docker (optional, for Compose/K8s workflows)
+- Docker (optional, for sandbox and Compose/K8s workflows)
 
 ---
 
@@ -63,24 +63,56 @@ Reference: `docs/reference/CONFIG.md`
 
 ## Run (recommended)
 
-`dev.sh` builds and runs the backend + web UI together.
+Build the `alex` binary, then use `alex dev up` to start everything:
 
 ```bash
-./dev.sh
+make build
+alex dev up
 ```
+
+This starts all services in dependency order: sandbox → auth DB → backend → web.
 
 Check status or logs:
 
 ```bash
-./dev.sh status
-./dev.sh logs server
-./dev.sh logs web
+alex dev status
+alex dev logs server
+alex dev logs web
 ```
 
 Stop services:
 
 ```bash
-./dev.sh down
+alex dev down
+```
+
+### Full command reference
+
+```bash
+# Service lifecycle
+alex dev up                    # start all services
+alex dev down                  # stop all services gracefully
+alex dev status                # show status (PID, health, port)
+alex dev restart [service]     # restart one or all services
+alex dev logs [service]        # tail logs (server|web|all)
+
+# Sandbox only
+alex dev sandbox up
+alex dev sandbox down
+alex dev sandbox status
+
+# Quality
+alex dev test                  # Go tests with race + coverage
+alex dev lint                  # Go + web lint
+
+# Lark supervisor
+alex dev lark supervise        # foreground supervisor with restart policy
+alex dev lark start            # background supervisor daemon
+alex dev lark stop             # stop supervisor
+alex dev lark status           # supervisor health + components
+
+# Log analyzer
+alex dev logs-ui               # start services and open browser
 ```
 
 ## Demo (first run)
@@ -132,8 +164,8 @@ Use `tool_preset` to control which tools the CLI agent can call (web mode ignore
 ## Validate
 
 ```bash
-./dev.sh lint
-./dev.sh test
+alex dev lint
+alex dev test
 ```
 
 ---

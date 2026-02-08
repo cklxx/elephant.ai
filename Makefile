@@ -2,7 +2,8 @@
 	help build clean fmt vet dev demo run install test test-domain test-app \
 	check-deps check-arch check-arch-policy bench docs npm-copy-binaries npm-publish npm-test-install \
 	build-all release-npm server-build server-run server-test \
-	server-test-integration deploy deploy-docker deploy-test deploy-status \
+	server-test-integration dev-up dev-down dev-status dev-logs dev-restart dev-lint dev-test \
+	deploy deploy-docker deploy-test deploy-status \
 	deploy-down eval-server-build eval-server-run eval-server-test
 
 GO ?= scripts/go-with-toolchain.sh
@@ -127,6 +128,31 @@ server-test: ## Run server tests
 server-test-integration: server-build ## Run integration tests with test script
 	@echo "Running SSE server integration tests..."
 	@./scripts/test-sse-server.sh
+
+## ========================================
+## Dev Environment (alex dev)
+## ========================================
+
+dev-up: build ## Start all dev services (sandbox, auth DB, backend, web)
+	@./alex dev up
+
+dev-down: build ## Stop all dev services
+	@./alex dev down
+
+dev-status: build ## Show dev service status
+	@./alex dev status
+
+dev-logs: build ## Tail dev logs (usage: make dev-logs SVC=server)
+	@./alex dev logs $(SVC)
+
+dev-restart: build ## Restart dev services (usage: make dev-restart SVC=backend)
+	@./alex dev restart $(SVC)
+
+dev-lint: build ## Run Go + web lint
+	@./alex dev lint
+
+dev-test: build ## Run Go tests with race detection
+	@./alex dev test
 
 ## ========================================
 ## Deployment Targets

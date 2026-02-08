@@ -148,24 +148,59 @@ cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 #            user_id: "ou_xxx"
 #            chat_id: "oc_xxx"
 
-# 3. Run backend + web together
-./dev.sh
-
-# 4. Or build the CLI
+# 3. Build and run all services (sandbox, auth DB, backend, web)
 make build
+alex dev up
+
+# 4. Or use the CLI directly
 ./alex
 ./alex "summarize the last 3 Lark conversations and draft follow-up emails"
 ```
 
+Configuration reference: [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
+
+---
+
+## Development (`alex dev`)
+
+All dev environment management is built into the `alex` binary — no shell scripts needed.
+
 ```bash
-# Dev commands
-./dev.sh status    # check service status
-./dev.sh logs server
-./dev.sh logs web
-./dev.sh down      # stop services
+make build                     # build the alex binary
+
+# Service lifecycle
+alex dev up                    # start all services (sandbox, auth DB, backend, web)
+alex dev down                  # stop all services gracefully
+alex dev status                # show status of each service (PID, health, port)
+alex dev restart [service]     # restart one or all services
+alex dev logs [service]        # tail logs (server|web|all)
+
+# Sandbox management
+alex dev sandbox up            # start sandbox container only
+alex dev sandbox down          # stop sandbox container
+alex dev sandbox status        # check sandbox health
+
+# Quality
+alex dev test                  # run Go tests (race + coverage)
+alex dev lint                  # run Go + web lint
+
+# Lark supervisor (production)
+alex dev lark supervise        # foreground supervisor with restart policy
+alex dev lark start            # background supervisor daemon
+alex dev lark stop             # stop supervisor
+alex dev lark status           # show supervisor health + components
+
+# Log analyzer UI
+alex dev logs-ui               # start services and open log analyzer in browser
 ```
 
-Configuration reference: [`docs/reference/CONFIG.md`](docs/reference/CONFIG.md)
+Key improvements over the legacy `./dev.sh`:
+- **Race-free port allocation** — reserves ports via `net.Listen` before service startup
+- **PID double-check** — verifies processes via `kill -0`, not just PID files
+- **PGID-based cleanup** — kills entire process groups on shutdown, no orphans
+- **Atomic state files** — tmp + rename for PID and supervisor state
+- **Restart storm detection** — time-windowed history with exponential backoff
+- **Typed config** — Go structs replace awk-parsed YAML; defaults + env + YAML layered
 
 ---
 
@@ -210,8 +245,8 @@ Delivery (Lark, Web, CLI)
 
 ```bash
 # Lint & test
-./dev.sh lint
-./dev.sh test
+alex dev lint
+alex dev test
 npm --prefix web run e2e
 
 # Evaluation harnesses (SWE-Bench, regressions)
