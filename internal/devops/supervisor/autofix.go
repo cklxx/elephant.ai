@@ -1,6 +1,7 @@
 package supervisor
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,17 @@ import (
 	"sync"
 	"time"
 )
+
+// AutofixStateFileData corresponds to the state JSON written by autofix.sh.
+type AutofixStateFileData struct {
+	State           string `json:"autofix_state"`
+	IncidentID      string `json:"autofix_incident_id"`
+	LastReason      string `json:"autofix_last_reason"`
+	LastStartedAt   string `json:"autofix_last_started_at"`
+	LastFinishedAt  string `json:"autofix_last_finished_at"`
+	LastCommit      string `json:"autofix_last_commit"`
+	RestartRequired string `json:"autofix_restart_required"`
+}
 
 // AutofixConfig holds autofix runner configuration.
 type AutofixConfig struct {
@@ -132,6 +144,23 @@ func (r *AutofixRunner) State() string {
 		return "cooldown"
 	}
 	return "idle"
+}
+
+// ReadStateFile reads the autofix state file written by autofix.sh.
+// Returns zero-value data and nil error if the file does not exist.
+func (r *AutofixRunner) ReadStateFile() (AutofixStateFileData, error) {
+	data, err := os.ReadFile(r.config.StateFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return AutofixStateFileData{}, nil
+		}
+		return AutofixStateFileData{}, fmt.Errorf("read autofix state: %w", err)
+	}
+	var state AutofixStateFileData
+	if err := json.Unmarshal(data, &state); err != nil {
+		return AutofixStateFileData{}, fmt.Errorf("parse autofix state: %w", err)
+	}
+	return state, nil
 }
 
 func (r *AutofixRunner) runAutofix(incidentID, reason, signature, mainSHA string) {
