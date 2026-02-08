@@ -20,7 +20,6 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	toolports "alex/internal/domain/agent/ports/tools"
-	larkcards "alex/internal/infra/lark/cards"
 	larkoauth "alex/internal/infra/lark/oauth"
 	artifacts "alex/internal/infra/tools/builtin/artifacts"
 	"alex/internal/infra/tools/builtin/pathutil"
@@ -41,7 +40,6 @@ import (
 const (
 	messageDedupCacheSize = 2048
 	messageDedupTTL       = 10 * time.Minute
-	maxAttachmentCardImgs = 3
 )
 
 // AgentExecutor is an alias for the shared channel executor interface.
@@ -51,11 +49,12 @@ type AgentExecutor = channels.AgentExecutor
 // the user input channel used to inject follow-up messages into a running
 // ReAct loop, plus the pending session state for await-user-input handoffs.
 type sessionSlot struct {
-	mu            sync.Mutex
-	inputCh       chan agent.UserInput // non-nil while a task is active
-	sessionID     string
-	lastSessionID string
-	awaitingInput bool
+	mu             sync.Mutex
+	inputCh        chan agent.UserInput // non-nil while a task is active
+	sessionID      string
+	lastSessionID  string
+	awaitingInput  bool
+	pendingOptions []string // options awaiting numeric reply
 }
 
 // Gateway bridges Lark bot messages into the agent runtime.
@@ -120,11 +119,6 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 	cfg.ToolPreset = strings.TrimSpace(strings.ToLower(cfg.ToolPreset))
 	if cfg.ToolPreset == "" {
 		cfg.ToolPreset = "full"
-	}
-	if cfg.CardsEnabled && !cfg.CardsPlanReview && !cfg.CardsResults && !cfg.CardsErrors {
-		cfg.CardsPlanReview = true
-		cfg.CardsResults = true
-		cfg.CardsErrors = true
 	}
 	if cfg.BackgroundProgressEnabled == nil {
 		enabled := true
@@ -235,7 +229,6 @@ func (g *Gateway) Start(ctx context.Context) error {
 	// Build the event dispatcher and register event handlers.
 	eventDispatcher := dispatcher.NewEventDispatcher("", "")
 	eventDispatcher.OnP2MessageReceiveV1(g.handleMessage)
-	eventDispatcher.OnP2CardActionTrigger(g.handleCardAction)
 	eventDispatcher.OnP2MessageReactionCreatedV1(func(_ context.Context, _ *larkim.P2MessageReactionCreatedV1) error {
 		return nil
 	})
@@ -668,8 +661,16 @@ func (g *Gateway) prepareTaskContent(execCtx context.Context, session *storage.S
 	}
 
 	if awaitUserInput && !hasPending {
+		resolvedContent := msg.content
+		slot := g.getOrCreateSlot(msg.chatID)
+		slot.mu.Lock()
+		if options := slot.pendingOptions; len(options) > 0 {
+			resolvedContent = parseNumberedReply(msg.content, options)
+			slot.pendingOptions = nil
+		}
+		slot.mu.Unlock()
 		select {
-		case inputCh <- agent.UserInput{Content: msg.content, SenderID: msg.senderID, MessageID: msg.messageID}:
+		case inputCh <- agent.UserInput{Content: resolvedContent, SenderID: msg.senderID, MessageID: msg.messageID}:
 			g.logger.Info("Seeded pending user input for session %s", sessionID)
 		default:
 			g.logger.Warn("Pending user input channel full for session %s; message dropped", sessionID)
@@ -706,25 +707,24 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 
 	reply := ""
-	replyMsgType := "text"
 	replyContent := ""
-	attachmentCardSent := false
-
-	attachments := map[string]ports.Attachment(nil)
-	if result != nil && len(result.Attachments) > 0 {
-		attachments = filterNonA2UIAttachments(result.Attachments)
-	}
-	hasAttachments := len(attachments) > 0
 
 	if isAwait && g.cfg.PlanReviewEnabled {
-		reply, replyMsgType, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
+		reply, _, replyContent = g.buildPlanReviewReplyContent(execCtx, msg, result)
 	}
 
 	skipReply := isAwait && awaitTracker.Sent()
 
 	if replyContent == "" && !skipReply {
 		if reply == "" && isAwait {
-			if hasAwaitPrompt {
+			if hasAwaitPrompt && len(awaitPrompt.Options) > 0 {
+				reply = formatNumberedOptions(awaitPrompt.Question, awaitPrompt.Options)
+				// Store pending options so numeric replies can be resolved.
+				slot := g.getOrCreateSlot(msg.chatID)
+				slot.mu.Lock()
+				slot.pendingOptions = awaitPrompt.Options
+				slot.mu.Unlock()
+			} else if hasAwaitPrompt {
 				reply = awaitPrompt.Question
 			} else {
 				reply = "需要你补充信息后继续。"
@@ -736,52 +736,20 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 		if reply == "" {
 			reply = "（无可用回复）"
 		}
-		// Skip cards when the message is from another bot to avoid card loops in bot-to-bot chats.
-		if !msg.isFromBot {
-			if isAwait && g.cfg.CardsEnabled && hasAwaitPrompt && len(awaitPrompt.Options) > 0 {
-				if card, err := larkcards.AwaitChoiceCard(awaitPrompt.Question, awaitPrompt.Options); err == nil {
-					replyMsgType = "interactive"
-					replyContent = card
-				} else {
-					g.logger.Warn("Lark await choice card build failed: %v", err)
-				}
-			}
-			if replyContent == "" && g.cfg.CardsEnabled && execErr == nil && g.cfg.CardsResults && hasAttachments && !isAwait {
-				if card, err := g.buildAttachmentCard(execCtx, reply, result); err == nil {
-					replyMsgType = "interactive"
-					replyContent = card
-					attachmentCardSent = true
-				} else {
-					g.logger.Warn("Lark attachment card build failed: %v", err)
-				}
-			}
-			if replyContent == "" && !attachmentCardSent && g.cfg.CardsEnabled && ((execErr != nil && g.cfg.CardsErrors) || (execErr == nil && g.cfg.CardsResults)) {
-				if card, err := g.buildCardReply(reply, result, execErr); err == nil {
-					replyMsgType = "interactive"
-					replyContent = card
-				} else {
-					g.logger.Warn("Lark card reply build failed: %v", err)
-				}
-			}
+		if summary := buildAttachmentSummary(result); summary != "" {
+			reply += "\n\n" + summary
 		}
-		if replyContent == "" {
-			if summary := buildAttachmentSummary(result); summary != "" {
-				reply += "\n\n" + summary
-			}
-			replyContent = textContent(reply)
-		}
+		replyContent = textContent(reply)
 	}
 
 	if !skipReply {
-		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), replyMsgType, replyContent)
-		if !attachmentCardSent {
-			g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
-		}
+		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", replyContent)
+		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
 	}
 }
 
-// buildPlanReviewReplyContent handles plan review marker extraction, card
-// building, pending store save, and returns the reply text, message type,
+// buildPlanReviewReplyContent handles plan review marker extraction,
+// pending store save, and returns the reply text, message type,
 // and content payload.
 func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult) (reply, msgType, content string) {
 	marker, ok := extractPlanReviewMarker(result.Messages)
@@ -789,18 +757,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 		return "", "", ""
 	}
 
-	msgType = "text"
-	if g.cfg.CardsEnabled && g.cfg.CardsPlanReview {
-		if card, err := g.buildPlanReviewCard(marker); err == nil {
-			msgType = "interactive"
-			content = card
-		} else {
-			g.logger.Warn("Lark plan review card build failed: %v", err)
-		}
-	}
-	if content == "" {
-		reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
-	}
+	reply = buildPlanReviewReply(marker, g.cfg.PlanReviewRequireConfirmation)
 
 	if g.planReviewStore != nil {
 		if err := g.planReviewStore.SavePending(execCtx, PlanReviewPending{
@@ -814,7 +771,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 		}
 	}
 
-	return reply, msgType, content
+	return reply, "text", ""
 }
 
 // drainAndReprocess drains any remaining messages from the input channel after
@@ -1450,98 +1407,6 @@ func buildPlanFeedbackBlock(pending PlanReviewPending, userFeedback string) stri
 	sb.WriteString("\n\ninstruction: If the feedback changes the plan, call plan() again; otherwise continue with the next step.\n")
 	sb.WriteString("</plan_feedback>")
 	return strings.TrimSpace(sb.String())
-}
-
-func (g *Gateway) buildAttachmentCard(ctx context.Context, reply string, result *agent.TaskResult) (string, error) {
-	summary := strings.TrimSpace(reply)
-	if summary == "" {
-		return "", fmt.Errorf("empty reply")
-	}
-	if len(summary) > maxCardReplyChars {
-		return "", fmt.Errorf("reply too long for card")
-	}
-	summary = truncateCardText(summary, maxCardReplyChars)
-
-	assets, err := g.uploadCardAttachments(ctx, result)
-	if err != nil {
-		return "", err
-	}
-	if len(assets) == 0 {
-		return "", fmt.Errorf("no attachments to display")
-	}
-
-	return larkcards.AttachmentCard(larkcards.AttachmentCardParams{
-		Title:      "任务完成",
-		Summary:    summary,
-		Footer:     "点击按钮发送附件。",
-		TitleColor: "green",
-		Assets:     assets,
-	})
-}
-
-func (g *Gateway) uploadCardAttachments(ctx context.Context, result *agent.TaskResult) ([]larkcards.AttachmentAsset, error) {
-	if result == nil || g.messenger == nil {
-		return nil, fmt.Errorf("attachments unavailable")
-	}
-	attachments := filterNonA2UIAttachments(result.Attachments)
-	if len(attachments) == 0 {
-		return nil, fmt.Errorf("attachments unavailable")
-	}
-
-	ctx = shared.WithAllowLocalFetch(ctx)
-	ctx = toolports.WithAttachmentContext(ctx, attachments, nil)
-	client := artifacts.NewAttachmentHTTPClient(artifacts.AttachmentFetchTimeout, "LarkAttachmentCard")
-	maxBytes, allowExts := autoUploadLimits(ctx)
-
-	names := sortedAttachmentNames(attachments)
-	assets := make([]larkcards.AttachmentAsset, 0, len(names))
-	previewed := 0
-	for _, name := range names {
-		att := attachments[name]
-		payload, mediaType, err := artifacts.ResolveAttachmentBytes(ctx, "["+name+"]", client)
-		if err != nil {
-			return nil, err
-		}
-		if maxBytes > 0 && len(payload) > maxBytes {
-			return nil, fmt.Errorf("attachment %s exceeds max size %d bytes", name, maxBytes)
-		}
-
-		fileName := fileNameForAttachment(att, name)
-		if !allowExtension(filepath.Ext(fileName), allowExts) {
-			return nil, fmt.Errorf("attachment %s blocked by allowlist", fileName)
-		}
-
-		asset := larkcards.AttachmentAsset{
-			Name:      fileName,
-			FileName:  fileName,
-			ButtonTag: "attachment_send",
-		}
-
-		if isImageAttachment(att, mediaType, name) {
-			imageKey, err := g.uploadImage(ctx, payload)
-			if err != nil {
-				return nil, err
-			}
-			asset.Kind = "image"
-			asset.ImageKey = imageKey
-			if previewed < maxAttachmentCardImgs {
-				asset.ShowPreview = true
-				previewed++
-			}
-		} else {
-			fileType := larkFileType(fileTypeForAttachment(fileName, mediaType))
-			fileKey, err := g.uploadFile(ctx, payload, fileName, fileType)
-			if err != nil {
-				return nil, err
-			}
-			asset.Kind = "file"
-			asset.FileKey = fileKey
-		}
-
-		assets = append(assets, asset)
-	}
-
-	return assets, nil
 }
 
 func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string, result *agent.TaskResult) {

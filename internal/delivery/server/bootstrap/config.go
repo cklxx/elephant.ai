@@ -71,15 +71,8 @@ type LarkGatewayConfig struct {
 	AppSecret                     string
 	TenantCalendarID              string
 	BaseDomain                    string
-	WorkspaceDir                  string
-	CardsEnabled                  bool
-	CardsPlanReview               bool
-	CardsResults                  bool
-	CardsErrors                   bool
-	CardCallbackVerificationToken string
-	CardCallbackEncryptKey        string
-	CardCallbackPort              string
-	AutoUploadFiles               bool
+	WorkspaceDir       string
+	AutoUploadFiles    bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
 	Browser                       LarkBrowserConfig
@@ -208,10 +201,6 @@ func LoadConfig() (ConfigResult, error) {
 				},
 				ReactEmoji:          "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
 				AutoChatContextSize: 20,
-				CardsEnabled:        true,
-				CardsPlanReview:     false,
-				CardsResults:        false,
-				CardsErrors:         true,
 			},
 		},
 		Attachment: attachments.StoreConfig{
@@ -253,46 +242,8 @@ func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	applyAttachmentConfig(cfg, file)
 }
 
-func applyLarkEnvFallback(cfg *Config, lookup runtimeconfig.EnvLookup) {
-	if cfg == nil {
-		return
-	}
-	if lookup == nil {
-		lookup = runtimeconfig.DefaultEnvLookup
-	}
-
-	if strings.TrimSpace(cfg.Channels.Lark.CardCallbackVerificationToken) == "" {
-		if token := lookupFirstNonEmptyEnv(
-			lookup,
-			"LARK_CARD_CALLBACK_VERIFICATION_TOKEN",
-			"LARK_VERIFICATION_TOKEN",
-			"FEISHU_CARD_CALLBACK_VERIFICATION_TOKEN",
-			"FEISHU_VERIFICATION_TOKEN",
-			"CARD_CALLBACK_VERIFICATION_TOKEN",
-		); token != "" {
-			cfg.Channels.Lark.CardCallbackVerificationToken = token
-		}
-	}
-	if strings.TrimSpace(cfg.Channels.Lark.CardCallbackEncryptKey) == "" {
-		if key := lookupFirstNonEmptyEnv(
-			lookup,
-			"LARK_CARD_CALLBACK_ENCRYPT_KEY",
-			"LARK_ENCRYPT_KEY",
-			"FEISHU_CARD_CALLBACK_ENCRYPT_KEY",
-			"FEISHU_ENCRYPT_KEY",
-			"CARD_CALLBACK_ENCRYPT_KEY",
-		); key != "" {
-			cfg.Channels.Lark.CardCallbackEncryptKey = key
-		}
-	}
-	if strings.TrimSpace(cfg.Channels.Lark.CardCallbackPort) == "" {
-		if port := lookupFirstNonEmptyEnv(lookup,
-			"LARK_CARD_CALLBACK_PORT",
-			"FEISHU_CARD_CALLBACK_PORT",
-		); port != "" {
-			cfg.Channels.Lark.CardCallbackPort = port
-		}
-	}
+func applyLarkEnvFallback(_ *Config, _ runtimeconfig.EnvLookup) {
+	// No card callback env fallback needed after card removal.
 }
 
 func lookupFirstNonEmptyEnv(lookup runtimeconfig.EnvLookup, keys ...string) string {
@@ -332,27 +283,6 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if workspaceDir := strings.TrimSpace(larkCfg.WorkspaceDir); workspaceDir != "" {
 		cfg.Channels.Lark.WorkspaceDir = workspaceDir
-	}
-	if larkCfg.CardsEnabled != nil {
-		cfg.Channels.Lark.CardsEnabled = *larkCfg.CardsEnabled
-	}
-	if larkCfg.CardsPlanReview != nil {
-		cfg.Channels.Lark.CardsPlanReview = *larkCfg.CardsPlanReview
-	}
-	if larkCfg.CardsResults != nil {
-		cfg.Channels.Lark.CardsResults = *larkCfg.CardsResults
-	}
-	if larkCfg.CardsErrors != nil {
-		cfg.Channels.Lark.CardsErrors = *larkCfg.CardsErrors
-	}
-	if token := strings.TrimSpace(larkCfg.CardCallbackVerificationToken); token != "" {
-		cfg.Channels.Lark.CardCallbackVerificationToken = token
-	}
-	if encryptKey := strings.TrimSpace(larkCfg.CardCallbackEncryptKey); encryptKey != "" {
-		cfg.Channels.Lark.CardCallbackEncryptKey = encryptKey
-	}
-	if port := strings.TrimSpace(larkCfg.CardCallbackPort); port != "" {
-		cfg.Channels.Lark.CardCallbackPort = port
 	}
 	if larkCfg.AutoUploadFiles != nil {
 		cfg.Channels.Lark.AutoUploadFiles = *larkCfg.AutoUploadFiles

@@ -128,8 +128,6 @@ func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsCo
 	expanded.TenantCalendarID = expandEnvValue(lookup, expanded.TenantCalendarID)
 	expanded.BaseDomain = expandEnvValue(lookup, expanded.BaseDomain)
 	expanded.WorkspaceDir = expandEnvValue(lookup, expanded.WorkspaceDir)
-	expanded.CardCallbackVerificationToken = expandEnvValue(lookup, expanded.CardCallbackVerificationToken)
-	expanded.CardCallbackEncryptKey = expandEnvValue(lookup, expanded.CardCallbackEncryptKey)
 	expanded.SessionPrefix = expandEnvValue(lookup, expanded.SessionPrefix)
 	expanded.ReplyPrefix = expandEnvValue(lookup, expanded.ReplyPrefix)
 	expanded.AgentPreset = expandEnvValue(lookup, expanded.AgentPreset)

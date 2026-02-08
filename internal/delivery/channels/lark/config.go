@@ -14,15 +14,8 @@ type Config struct {
 	AppSecret                     string
 	TenantCalendarID              string
 	BaseDomain                    string
-	WorkspaceDir                  string
-	CardsEnabled                  bool
-	CardsPlanReview               bool
-	CardsResults                  bool
-	CardsErrors                   bool
-	CardCallbackVerificationToken string
-	CardCallbackEncryptKey        string
-	CardCallbackPort              string
-	AutoUploadFiles               bool
+	WorkspaceDir       string
+	AutoUploadFiles    bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
 	Browser                       BrowserConfig

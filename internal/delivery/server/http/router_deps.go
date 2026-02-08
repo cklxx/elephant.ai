@@ -1,7 +1,6 @@
 package http
 
 import (
-	"net/http"
 	"time"
 
 	authapp "alex/internal/app/auth"
@@ -26,9 +25,8 @@ type RouterDeps struct {
 	AttachmentCfg           attachments.StoreConfig
 	SandboxBaseURL          string
 	SandboxMaxResponseBytes int
-	DataCache               *DataCache
-	LarkCardHandler         http.Handler
-	LarkOAuthHandler        *LarkOAuthHandler
+	DataCache        *DataCache
+	LarkOAuthHandler *LarkOAuthHandler
 	MemoryEngine            memory.Engine
 }
 

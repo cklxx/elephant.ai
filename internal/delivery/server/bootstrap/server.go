@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
-	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
 	serverHTTP "alex/internal/delivery/server/http"
 	agentdomain "alex/internal/domain/agent"
@@ -247,10 +246,6 @@ func RunServer(observabilityConfigPath string) error {
 	if err != nil {
 		logger.Warn("Evaluation service disabled: %v", err)
 	}
-	var larkCardHandler http.Handler
-	if container.LarkGateway != nil {
-		larkCardHandler = lark.NewCardCallbackHandler(container.LarkGateway, logger)
-	}
 	var larkOAuthHandler *serverHTTP.LarkOAuthHandler
 	if container.LarkOAuth != nil {
 		larkOAuthHandler = serverHTTP.NewLarkOAuthHandler(container.LarkOAuth, logger)
@@ -270,7 +265,6 @@ func RunServer(observabilityConfigPath string) error {
 			AttachmentCfg:           config.Attachment,
 			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
 			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
-			LarkCardHandler:         larkCardHandler,
 			LarkOAuthHandler:        larkOAuthHandler,
 			MemoryEngine:            container.MemoryEngine,
 		},

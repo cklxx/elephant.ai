@@ -260,14 +260,7 @@ type LarkChannelConfig struct {
 	AppSecret                     string             `json:"app_secret" yaml:"app_secret"`
 	TenantCalendarID              string             `json:"tenant_calendar_id" yaml:"tenant_calendar_id"`
 	BaseDomain                    string             `json:"base_domain" yaml:"base_domain"`
-	WorkspaceDir                  string             `json:"workspace_dir" yaml:"workspace_dir"`
-	CardsEnabled                  *bool              `json:"cards_enabled" yaml:"cards_enabled"`
-	CardsPlanReview               *bool              `json:"cards_plan_review" yaml:"cards_plan_review"`
-	CardsResults                  *bool              `json:"cards_results" yaml:"cards_results"`
-	CardsErrors                   *bool              `json:"cards_errors" yaml:"cards_errors"`
-	CardCallbackVerificationToken string             `json:"card_callback_verification_token" yaml:"card_callback_verification_token"`
-	CardCallbackEncryptKey        string             `json:"card_callback_encrypt_key" yaml:"card_callback_encrypt_key"`
-	CardCallbackPort              string             `json:"card_callback_port" yaml:"card_callback_port"`
+	WorkspaceDir   string `json:"workspace_dir" yaml:"workspace_dir"`
 	AutoUploadFiles               *bool              `json:"auto_upload_files" yaml:"auto_upload_files"`
 	AutoUploadMaxBytes            *int               `json:"auto_upload_max_bytes" yaml:"auto_upload_max_bytes"`
 	AutoUploadAllowExt            []string           `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`

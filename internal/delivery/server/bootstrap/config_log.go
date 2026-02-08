@@ -83,19 +83,6 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 		} else {
 			logger.Debug("Lark Tenant Calendar ID: (not set)")
 		}
-		cardPort := strings.TrimSpace(larkCfg.CardCallbackPort)
-		if cardPort == "" {
-			cardPort = "9292"
-		}
-		logger.Info(
-			"Lark Cards: enabled=%t plan_review=%t results=%t errors=%t callback_port=%s callback_configured=%t",
-			larkCfg.CardsEnabled,
-			larkCfg.CardsPlanReview,
-			larkCfg.CardsResults,
-			larkCfg.CardsErrors,
-			cardPort,
-			strings.TrimSpace(larkCfg.CardCallbackVerificationToken) != "",
-		)
 	} else {
 		logger.Info("Lark Gateway: disabled")
 	}

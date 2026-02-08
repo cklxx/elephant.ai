@@ -3,14 +3,11 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
-	larkdelivery "alex/internal/delivery/channels/lark"
 	"alex/internal/shared/logging"
 )
 
@@ -84,50 +81,9 @@ func RunLark(observabilityConfigPath string) error {
 		logger.Warn("[Bootstrap] Lark standalone starting in degraded mode: %v", f.Degraded.Map())
 	}
 
-	// ── Phase 3b: Card callback HTTP (optional) ──
-	var cardCallbackServer *http.Server
-	if container.LarkGateway != nil && config.Channels.Lark.CardsEnabled {
-		cardHandler := larkdelivery.NewCardCallbackHandler(container.LarkGateway, logger)
-		if cardHandler != nil {
-			port := strings.TrimSpace(config.Channels.Lark.CardCallbackPort)
-			if port == "" {
-				port = "9292"
-			}
-			mux := http.NewServeMux()
-			mux.Handle("POST /api/lark/card/callback", cardHandler)
-			mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-				w.WriteHeader(http.StatusOK)
-			})
-			cardCallbackServer = &http.Server{
-				Addr:         ":" + port,
-				Handler:      mux,
-				ReadTimeout:  30 * time.Second,
-				WriteTimeout: 10 * time.Second,
-				IdleTimeout:  60 * time.Second,
-			}
-			go func() {
-				logger.Info("Card callback HTTP server listening on :%s", port)
-				if err := cardCallbackServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-					logger.Warn("Card callback HTTP server error: %v", err)
-				}
-			}()
-		}
-	}
-	defer func() {
-		if cardCallbackServer != nil {
-			shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = cardCallbackServer.Shutdown(shutCtx)
-		}
-	}()
-
 	// ── Phase 4: Block until signal ──
 
-	cardPortMsg := ""
-	if cardCallbackServer != nil {
-		cardPortMsg = fmt.Sprintf(", card callback on %s", cardCallbackServer.Addr)
-	}
-	logger.Info("Lark standalone mode running (WS + card callback%s). Waiting for signal...", cardPortMsg)
+	logger.Info("Lark standalone mode running (WS). Waiting for signal...")
 	return waitForSignal(logger)
 }
 
