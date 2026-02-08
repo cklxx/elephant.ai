@@ -48,9 +48,14 @@ func listModels(out io.Writer) error {
 
 func listModelsFrom(out io.Writer, creds runtimeconfig.CLICredentials) error {
 	client := &http.Client{Timeout: 20 * time.Second}
-	return listModelsFromWith(out, creds, client, func(context.Context) (subscription.LlamaServerTarget, bool) {
-		return resolveLlamaServerTarget()
-	})
+	return listModelsFromWith(out, creds, client,
+		func(context.Context) (subscription.LlamaServerTarget, bool) {
+			return resolveLlamaServerTarget()
+		},
+		func(context.Context) (subscription.OllamaTarget, bool) {
+			return resolveOllamaTarget()
+		},
+	)
 }
 
 func listModelsFromWith(
@@ -58,6 +63,7 @@ func listModelsFromWith(
 	creds runtimeconfig.CLICredentials,
 	client *http.Client,
 	llamaResolver func(context.Context) (subscription.LlamaServerTarget, bool),
+	ollamaResolver func(context.Context) (subscription.OllamaTarget, bool),
 ) error {
 	ctx, cancel := context.WithTimeout(cliBaseContext(), 30*time.Second)
 	defer cancel()
@@ -68,6 +74,9 @@ func listModelsFromWith(
 	opts := []subscription.CatalogOption{}
 	if llamaResolver != nil {
 		opts = append(opts, subscription.WithLlamaServerTargetResolver(llamaResolver))
+	}
+	if ollamaResolver != nil {
+		opts = append(opts, subscription.WithOllamaTargetResolver(ollamaResolver))
 	}
 	svc := subscription.NewCatalogService(
 		func() runtimeconfig.CLICredentials { return creds },
@@ -225,6 +234,10 @@ func matchCredential(creds runtimeconfig.CLICredentials, provider string) (runti
 			Provider: "llama_server",
 			Source:   "llama_server",
 		}, true
+	case creds.Antigravity.Provider, "antigravity":
+		if creds.Antigravity.APIKey != "" {
+			return creds.Antigravity, true
+		}
 	}
 	return runtimeconfig.CLICredential{}, false
 }
@@ -278,4 +291,34 @@ func resolveLlamaServerTarget() (subscription.LlamaServerTarget, bool) {
 		source = "llama_server"
 	}
 	return subscription.LlamaServerTarget{BaseURL: baseURL, Source: source}, true
+}
+
+func resolveOllamaTarget() (subscription.OllamaTarget, bool) {
+	lookup := runtimeconfig.DefaultEnvLookup
+
+	baseURL := ""
+	source := ""
+	if value, ok := lookup("OLLAMA_BASE_URL"); ok {
+		baseURL = strings.TrimSpace(value)
+		if baseURL != "" {
+			source = string(runtimeconfig.SourceEnv)
+		}
+	}
+	if baseURL == "" {
+		if host, ok := lookup("OLLAMA_HOST"); ok {
+			host = strings.TrimSpace(host)
+			if host != "" {
+				if strings.HasPrefix(host, "http://") || strings.HasPrefix(host, "https://") {
+					baseURL = host
+				} else {
+					baseURL = "http://" + host
+				}
+				source = string(runtimeconfig.SourceEnv)
+			}
+		}
+	}
+	if source == "" {
+		source = "ollama"
+	}
+	return subscription.OllamaTarget{BaseURL: baseURL, Source: source}, true
 }
