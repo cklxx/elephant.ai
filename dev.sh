@@ -89,7 +89,12 @@ load_dotenv
 
 export AUTH_JWT_SECRET="${AUTH_JWT_SECRET:-dev-secret-change-me}"
 
+readonly BOOTSTRAP_MARKER="${PID_DIR}/bootstrap.done"
+
 ensure_local_bootstrap() {
+  if [[ -f "${BOOTSTRAP_MARKER}" ]]; then
+    return 0
+  fi
   local bootstrap_sh="${SCRIPT_DIR}/scripts/setup_local_runtime.sh"
   if [[ ! -x "${bootstrap_sh}" ]]; then
     die "Missing bootstrap script: ${bootstrap_sh}"
@@ -97,6 +102,8 @@ ensure_local_bootstrap() {
   MAIN_CONFIG="${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}" \
     TEST_CONFIG="${ALEX_TEST_CONFIG_PATH:-$HOME/.alex/test.yaml}" \
     "${bootstrap_sh}" >/dev/null
+  ensure_dirs
+  date -Iseconds > "${BOOTSTRAP_MARKER}"
 }
 
 ensure_playwright_browsers() {
@@ -848,7 +855,25 @@ cmd_up() {
   log_section "Web"
   start_web
   echo ""
-  log_success "Dev services are running: backend=http://localhost:${SERVER_PORT} web=http://localhost:${WEB_PORT} sandbox=${SANDBOX_BASE_URL}"
+  log_section "Services"
+  log_success "Backend     http://localhost:${SERVER_PORT}"
+  log_success "Web         http://localhost:${WEB_PORT}"
+  if sandbox_ready; then
+    log_success "Sandbox     ${SANDBOX_BASE_URL}"
+  else
+    log_warn  "Sandbox     ${SANDBOX_BASE_URL} (unavailable)"
+  fi
+  echo ""
+  log_section "Dev Tools"
+  log_info "Evaluation           http://localhost:${WEB_PORT}/evaluation"
+  log_info "Sessions             http://localhost:${WEB_PORT}/sessions"
+  log_info "Conversation Debug   http://localhost:${WEB_PORT}/dev/conversation-debug"
+  log_info "Log Analyzer         http://localhost:${WEB_PORT}/dev/log-analyzer"
+  log_info "Context Window       http://localhost:${WEB_PORT}/dev/context-window"
+  log_info "Context Config       http://localhost:${WEB_PORT}/dev/context-config"
+  log_info "Plan Preview         http://localhost:${WEB_PORT}/dev/plan-preview"
+  log_info "Config Inspector     http://localhost:${WEB_PORT}/dev/config"
+  log_info "Apps Config          http://localhost:${WEB_PORT}/dev/apps-config"
 }
 
 cmd_sandbox_up() {
@@ -899,7 +924,13 @@ cmd_down() {
   fi
   stop_service "Backend" "${SERVER_PID_FILE}"
   stop_alex_server_listeners "$SERVER_PORT"
+  log_info "Keeping sandbox/authdb running (use ./dev.sh down-all to stop everything)"
+}
+
+cmd_down_all() {
+  cmd_down
   stop_sandbox
+  rm -f "${BOOTSTRAP_MARKER}"
 }
 
 cmd_status() {
@@ -1102,7 +1133,8 @@ Commands:
   sandbox-up     Start sandbox + ACP only
   sandbox-down   Stop sandbox + ACP only
   sandbox-status Show sandbox + ACP status
-  down|stop      Stop backend + web
+  down|stop      Stop backend + web (keeps sandbox/authdb running)
+  down-all       Stop everything including sandbox + authdb
   status         Show status + ports
   logs           Tail logs (optional: server|web)
   logs-ui        Start services and open the log analyzer page
@@ -1121,6 +1153,7 @@ case "$cmd" in
   sandbox-down) cmd_sandbox_down ;;
   sandbox-status) cmd_sandbox_status ;;
   down|stop) cmd_down ;;
+  down-all|stop-all) cmd_down_all ;;
   status) cmd_status ;;
   logs) cmd_logs "${@:-all}" ;;
   logs-ui|log-ui|analyze-logs) cmd_logs_ui ;;
