@@ -1,0 +1,83 @@
+version: "1"
+name: "foundation-complex-valuable-tasks"
+description: "High-value multi-constraint intents; evaluates first-action tool routing under complex goals"
+scenarios:
+  - id: "complex-release-risk-review"
+    category: "complex"
+    intent: "Do a release-risk review across modules with milestones, owners, and mitigation checkpoints."
+    expected_tools: ["plan"]
+
+  - id: "complex-unknown-requirement-gate"
+    category: "complex"
+    intent: "The request has conflicting constraints and missing acceptance criteria; resolve uncertainty before coding."
+    expected_tools: ["clarify", "request_user"]
+
+  - id: "complex-repo-symbol-impact-scan"
+    category: "complex"
+    intent: "For a critical API rename, first map all symbol occurrences across the repository."
+    expected_tools: ["search_file", "ripgrep"]
+
+  - id: "complex-config-audit-start"
+    category: "complex"
+    intent: "Start a config audit by enumerating workspace directories and key config files."
+    expected_tools: ["list_dir", "list_files", "find"]
+
+  - id: "complex-incident-log-triage"
+    category: "complex"
+    intent: "Triage a production incident by extracting key error signatures from logs using shell tooling."
+    expected_tools: ["shell_exec", "grep"]
+
+  - id: "complex-evidence-page-capture"
+    category: "complex"
+    intent: "Collect visual evidence of a flaky page before writing the incident report."
+    expected_tools: ["browser_screenshot", "browser_info"]
+
+  - id: "complex-web-form-repro"
+    category: "complex"
+    intent: "Reproduce a multi-step web form bug using selectors and interaction steps."
+    expected_tools: ["browser_dom", "browser_action"]
+
+  - id: "complex-doc-research-pipeline"
+    category: "complex"
+    intent: "Research authoritative docs and then fetch detailed source pages for comparison."
+    expected_tools: ["web_search", "web_fetch"]
+
+  - id: "complex-html-remediation"
+    category: "complex"
+    intent: "Apply targeted HTML fixes and validate output before publishing."
+    expected_tools: ["html_edit"]
+
+  - id: "complex-architecture-visual-brief"
+    category: "complex"
+    intent: "Generate a diagram-ready architecture brief from service relationships."
+    expected_tools: ["diagram_render", "plan"]
+
+  - id: "complex-long-report-delivery"
+    category: "complex"
+    intent: "Produce a long technical report and persist it as shareable artifact output."
+    expected_tools: ["artifacts_write", "write_attachment"]
+
+  - id: "complex-artifact-governance"
+    category: "complex"
+    intent: "Audit generated artifacts: inspect manifest first, then list and prune stale files."
+    expected_tools: ["artifact_manifest", "artifacts_list", "artifacts_delete"]
+
+  - id: "complex-ui-structured-output"
+    category: "complex"
+    intent: "Return a machine-readable UI payload for downstream renderer integration."
+    expected_tools: ["a2ui_emit"]
+
+  - id: "complex-image-to-slides"
+    category: "complex"
+    intent: "Transform a batch of images into a concise executive slide deck."
+    expected_tools: ["pptx_from_images"]
+
+  - id: "complex-memory-informed-decision"
+    category: "complex"
+    intent: "Before proposing strategy, retrieve historical memory decisions about API governance."
+    expected_tools: ["memory_search", "memory_get"]
+
+  - id: "complex-lark-reporting-loop"
+    category: "complex"
+    intent: "Complete reporting loop: write report artifact, upload to Lark, and send a proactive summary message."
+    expected_tools: ["artifacts_write", "lark_upload_file", "lark_send_message"]

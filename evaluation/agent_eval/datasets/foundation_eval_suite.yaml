@@ -1,0 +1,43 @@
+version: "1"
+name: "foundation-offline-layered-suite"
+description: "Layered offline foundation evaluation from base tool coverage to high-value complex tasks"
+collections:
+  - id: "tool-coverage"
+    name: "Base Tool Coverage"
+    dimension: "tool_coverage"
+    description: "Core tool discoverability and routing correctness"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_tool_coverage.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "prompt-effectiveness"
+    name: "Prompt Effectiveness Coverage"
+    dimension: "prompt_effectiveness"
+    description: "Prompt/paraphrase sensitivity for tool routing"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_prompt_effectiveness.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "proactivity"
+    name: "Proactivity Coverage"
+    dimension: "proactivity"
+    description: "Proactive updates, reminders, scheduling, and context-aware coordination"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_proactivity.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "complex-tasks"
+    name: "Complex High-Value Tasks"
+    dimension: "complex_valuable_tasks"
+    description: "First-action routing quality for complex valuable tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_complex_tasks.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3

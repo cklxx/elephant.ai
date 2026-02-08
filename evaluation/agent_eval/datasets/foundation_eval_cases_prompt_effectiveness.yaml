@@ -1,0 +1,83 @@
+version: "1"
+name: "foundation-prompt-effectiveness"
+description: "Prompt-paraphrase and instruction-effectiveness coverage for tool routing"
+scenarios:
+  - id: "prompt-find-migration-files"
+    category: "search"
+    intent: "Find files whose names contain migration in the repository."
+    expected_tools: ["find"]
+
+  - id: "prompt-ripgrep-token"
+    category: "search"
+    intent: "Use fast regex search to locate RetryPolicy references across the codebase."
+    expected_tools: ["ripgrep"]
+
+  - id: "prompt-grep-error-log"
+    category: "search"
+    intent: "Search error.log for HTTP 500 lines with a simple grep pattern."
+    expected_tools: ["grep"]
+
+  - id: "prompt-list-files-recursive"
+    category: "workspace"
+    intent: "Show all files recursively under this path with lightweight metadata."
+    expected_tools: ["list_files", "list_dir"]
+
+  - id: "prompt-read-config-file"
+    category: "workspace"
+    intent: "Read the selected config file and return its full content."
+    expected_tools: ["file_read", "read_file"]
+
+  - id: "prompt-create-config-template"
+    category: "workspace"
+    intent: "Create a new YAML config template file with the provided content."
+    expected_tools: ["file_write", "write_file"]
+
+  - id: "prompt-precise-edit-block"
+    category: "workspace"
+    intent: "Patch one exact code block in an existing file and show a diff."
+    expected_tools: ["file_edit", "replace_in_file"]
+
+  - id: "prompt-session-todo-read"
+    category: "session"
+    intent: "Read the current session todo list before planning next actions."
+    expected_tools: ["todo_read"]
+
+  - id: "prompt-session-todo-update"
+    category: "session"
+    intent: "Update todo statuses and append a new follow-up item."
+    expected_tools: ["todo_update"]
+
+  - id: "prompt-skill-catalog"
+    category: "session"
+    intent: "List available reusable skills to decide which playbook to apply."
+    expected_tools: ["skills"]
+
+  - id: "prompt-app-capability-check"
+    category: "session"
+    intent: "Check connected app capabilities and integration status for this session."
+    expected_tools: ["apps"]
+
+  - id: "prompt-memory-search-decision"
+    category: "memory"
+    intent: "Search memory notes for previous API versioning decisions."
+    expected_tools: ["memory_search"]
+
+  - id: "prompt-memory-open-lines"
+    category: "memory"
+    intent: "Open a specific memory note by line range for exact context."
+    expected_tools: ["memory_get"]
+
+  - id: "prompt-artifacts-list-generated"
+    category: "artifact"
+    intent: "List generated artifacts from this run so we can choose one to send."
+    expected_tools: ["artifacts_list"]
+
+  - id: "prompt-artifact-manifest-inspect"
+    category: "artifact"
+    intent: "Inspect the manifest for generated files and metadata fields."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "prompt-a2ui-structured-payload"
+    category: "artifact"
+    intent: "Emit a structured payload for UI renderer consumption."
+    expected_tools: ["a2ui_emit"]

@@ -1,0 +1,83 @@
+version: "1"
+name: "foundation-proactivity"
+description: "Proactive behavior routing coverage: updates, scheduling, reminders, and coordination"
+scenarios:
+  - id: "proactive-send-progress-update"
+    category: "lark"
+    intent: "Proactively send a concise progress update to the current Lark chat."
+    expected_tools: ["lark_send_message"]
+
+  - id: "proactive-read-chat-context-first"
+    category: "lark"
+    intent: "Before replying, fetch recent Lark chat history for context."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "proactive-upload-generated-report"
+    category: "lark"
+    intent: "Upload the generated report file to this Lark conversation."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "proactive-calendar-query"
+    category: "lark"
+    intent: "Proactively check upcoming calendar events before scheduling work."
+    expected_tools: ["lark_calendar_query"]
+
+  - id: "proactive-calendar-create"
+    category: "lark"
+    intent: "Create a new calendar event for tomorrow's sync meeting."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "proactive-calendar-update"
+    category: "lark"
+    intent: "Update an existing calendar event with a new start time and summary."
+    expected_tools: ["lark_calendar_update"]
+
+  - id: "proactive-calendar-delete"
+    category: "lark"
+    intent: "Delete an incorrect calendar event that should not exist."
+    expected_tools: ["lark_calendar_delete"]
+
+  - id: "proactive-task-manage"
+    category: "lark"
+    intent: "Create and assign a Lark task with due date and owner."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "proactive-set-followup-reminder"
+    category: "timer"
+    intent: "Set a reminder timer to follow up in 30 minutes."
+    expected_tools: ["set_timer"]
+
+  - id: "proactive-list-active-reminders"
+    category: "timer"
+    intent: "List all active timers and their remaining time."
+    expected_tools: ["list_timers"]
+
+  - id: "proactive-cancel-obsolete-reminder"
+    category: "timer"
+    intent: "Cancel the reminder that is no longer needed."
+    expected_tools: ["cancel_timer"]
+
+  - id: "proactive-create-recurring-job"
+    category: "scheduler"
+    intent: "Create a recurring weekday morning scheduler job."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "proactive-list-scheduled-jobs"
+    category: "scheduler"
+    intent: "List all configured scheduler jobs and next run times."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "proactive-delete-scheduled-job"
+    category: "scheduler"
+    intent: "Delete a scheduler job by identifier."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "proactive-okrs-read-before-sync"
+    category: "okr"
+    intent: "Read current quarter OKR status before sending an update."
+    expected_tools: ["okr_read"]
+
+  - id: "proactive-okrs-write-update"
+    category: "okr"
+    intent: "Update OKR objective progress after completing milestone work."
+    expected_tools: ["okr_write"]

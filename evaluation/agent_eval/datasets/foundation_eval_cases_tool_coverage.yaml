@@ -1,0 +1,103 @@
+version: "1"
+name: "foundation-tool-coverage"
+description: "Core tool capability coverage for offline intent routing"
+scenarios:
+  - id: "tool-plan-migration-phases"
+    category: "planning"
+    intent: "Split this migration into phases with explicit checkpoints and risks."
+    expected_tools: ["plan"]
+
+  - id: "tool-clarify-blocking-requirement"
+    category: "clarification"
+    intent: "A key requirement is missing and blocks implementation; ask a precise clarifying question first."
+    expected_tools: ["clarify"]
+
+  - id: "tool-request-user-verification"
+    category: "handoff"
+    intent: "Continue only after the user completes manual account verification."
+    expected_tools: ["request_user"]
+
+  - id: "tool-browser-dom-form-fill"
+    category: "browser"
+    intent: "Use selectors to fill the login form and click submit on the active page."
+    expected_tools: ["browser_dom"]
+
+  - id: "tool-browser-action-canvas-click"
+    category: "browser"
+    intent: "This canvas has no stable selectors; use coordinate-based click and drag actions."
+    expected_tools: ["browser_action"]
+
+  - id: "tool-browser-info-session"
+    category: "browser"
+    intent: "Inspect current browser tab URL, title, and viewport state before testing."
+    expected_tools: ["browser_info"]
+
+  - id: "tool-browser-screenshot-proof"
+    category: "browser"
+    intent: "Capture a screenshot of the current page as visual debugging evidence."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "tool-read-source-file"
+    category: "workspace"
+    intent: "Open a source file and inspect its content around a suspicious function."
+    expected_tools: ["read_file"]
+
+  - id: "tool-list-workspace-directory"
+    category: "workspace"
+    intent: "List files and folders under this workspace directory."
+    expected_tools: ["list_dir"]
+
+  - id: "tool-search-symbol-occurrences"
+    category: "workspace"
+    intent: "Search symbol occurrences across project files using a pattern."
+    expected_tools: ["search_file"]
+
+  - id: "tool-replace-deprecated-string"
+    category: "workspace"
+    intent: "Replace deprecated endpoint strings in one file with the new API path."
+    expected_tools: ["replace_in_file"]
+
+  - id: "tool-write-markdown-report"
+    category: "workspace"
+    intent: "Create a markdown report file with the generated analysis content."
+    expected_tools: ["write_file"]
+
+  - id: "tool-shell-git-inspect"
+    category: "execution"
+    intent: "Run shell commands to check current branch and git status."
+    expected_tools: ["shell_exec"]
+
+  - id: "tool-execute-code-snippet"
+    category: "execution"
+    intent: "Execute a short code snippet to validate the formula quickly."
+    expected_tools: ["execute_code"]
+
+  - id: "tool-web-search-official-docs"
+    category: "web"
+    intent: "Search official documentation pages for PostgreSQL logical replication."
+    expected_tools: ["web_search"]
+
+  - id: "tool-web-fetch-page-content"
+    category: "web"
+    intent: "Fetch full content from a URL and inspect the cleaned text."
+    expected_tools: ["web_fetch"]
+
+  - id: "tool-html-edit-transform"
+    category: "web"
+    intent: "Edit an HTML snippet according to transformation instructions and validate output."
+    expected_tools: ["html_edit"]
+
+  - id: "tool-render-mermaid"
+    category: "visualization"
+    intent: "Render this Mermaid graph into an image artifact."
+    expected_tools: ["diagram_render"]
+
+  - id: "tool-artifacts-write-long-report"
+    category: "artifact"
+    intent: "Persist a long-form report as artifact and reference it in the final response."
+    expected_tools: ["artifacts_write"]
+
+  - id: "tool-write-attachment-download"
+    category: "artifact"
+    intent: "Write a generated file as downloadable attachment for the user."
+    expected_tools: ["write_attachment"]
