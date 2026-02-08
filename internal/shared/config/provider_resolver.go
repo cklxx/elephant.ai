@@ -111,13 +111,6 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 			Source:      SourceEnv,
 		},
 		{
-			Provider:    "antigravity",
-			APIKeyEnv:   "ANTIGRAVITY_API_KEY",
-			BaseURLEnv:  "ANTIGRAVITY_BASE_URL",
-			DefaultBase: antigravityDefaultBase,
-			Source:      SourceEnv,
-		},
-		{
 			Provider:   "openai",
 			APIKeyEnv:  "OPENAI_API_KEY",
 			BaseURLEnv: "OPENAI_BASE_URL",
@@ -134,7 +127,7 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 		return false
 	}
 	applyCLI := func() bool {
-		return applyCLICandidates(cfg, meta, cli.Codex, cli.Antigravity, cli.Claude)
+		return applyCLICandidates(cfg, meta, cli.Codex, cli.Claude)
 	}
 
 	if provider == "cli" {
@@ -191,16 +184,6 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}
-		case "antigravity":
-			if cli.Antigravity.APIKey != "" {
-				cfg.APIKey = strings.TrimSpace(cli.Antigravity.APIKey)
-				meta.sources["api_key"] = cli.Antigravity.Source
-				break
-			}
-			if key, ok := lookup("ANTIGRAVITY_API_KEY"); ok && strings.TrimSpace(key) != "" {
-				cfg.APIKey = strings.TrimSpace(key)
-				meta.sources["api_key"] = SourceEnv
-			}
 		case "openai", "openrouter", "deepseek":
 			if key, ok := lookup("OPENAI_API_KEY"); ok && strings.TrimSpace(key) != "" {
 				cfg.APIKey = strings.TrimSpace(key)
@@ -215,11 +198,6 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 			if cli.Codex.Model != "" {
 				cfg.LLMModel = cli.Codex.Model
 				meta.sources["llm_model"] = cli.Codex.Source
-			}
-		case "antigravity":
-			if cli.Antigravity.Model != "" {
-				cfg.LLMModel = cli.Antigravity.Model
-				meta.sources["llm_model"] = cli.Antigravity.Source
 			}
 		}
 	}
@@ -249,19 +227,6 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 				cfg.BaseURL = codexCLIBaseURL
 				meta.sources["base_url"] = SourceEnv
 			}
-		case "antigravity":
-			if cli.Antigravity.BaseURL != "" {
-				cfg.BaseURL = cli.Antigravity.BaseURL
-				meta.sources["base_url"] = cli.Antigravity.Source
-				break
-			}
-			if base, ok := lookup("ANTIGRAVITY_BASE_URL"); ok && strings.TrimSpace(base) != "" {
-				cfg.BaseURL = strings.TrimSpace(base)
-				meta.sources["base_url"] = SourceEnv
-				break
-			}
-			cfg.BaseURL = antigravityDefaultBase
-			meta.sources["base_url"] = SourceDefault
 		case "openai", "openrouter", "deepseek":
 			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
 				cfg.BaseURL = strings.TrimSpace(base)

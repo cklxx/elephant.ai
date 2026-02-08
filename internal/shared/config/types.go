@@ -14,10 +14,8 @@ const (
 	SourceFile           ValueSource = "file"
 	SourceEnv            ValueSource = "environment"
 	SourceOverride       ValueSource = "override"
-	SourceCodexCLI       ValueSource = "codex_cli"
-	SourceClaudeCLI      ValueSource = "claude_cli"
-	SourceAntigravityCLI ValueSource = "antigravity_cli"
-	SourceAntigravityIDE ValueSource = "antigravity_ide"
+	SourceCodexCLI  ValueSource = "codex_cli"
+	SourceClaudeCLI ValueSource = "claude_cli"
 )
 
 // Seedream defaults target the public Volcano Engine Ark deployment in mainland China.

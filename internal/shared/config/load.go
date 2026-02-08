@@ -96,7 +96,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	resolveProviderCredentials(&cfg, &meta, options.envLookup, cliCreds)
 	// If API key remains unset, default to mock provider (unless keyless providers).
 	providerLower := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
-	if cfg.APIKey == "" && providerLower != "mock" && providerLower != "ollama" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
+	if cfg.APIKey == "" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
 		cfg.LLMProvider = "mock"
 		if cfg.LLMSmallProvider != "mock" {
 			cfg.LLMSmallProvider = "mock"
@@ -323,7 +323,7 @@ func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
 	}
 
 	switch provider {
-	case "codex", "openai-responses", "responses", "anthropic", "claude", "antigravity":
+	case "codex", "openai-responses", "responses", "anthropic", "claude":
 		return true
 	default:
 		return false

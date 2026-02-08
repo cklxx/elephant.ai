@@ -229,7 +229,7 @@ func LoadConfig() (ConfigResult, error) {
 	applyAuthEnvFallback(&cfg, envLookup)
 
 	providerLower := strings.ToLower(strings.TrimSpace(cfg.Runtime.LLMProvider))
-	if cfg.Runtime.APIKey == "" && providerLower != "ollama" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
+	if cfg.Runtime.APIKey == "" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
 		return ConfigResult{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
 
