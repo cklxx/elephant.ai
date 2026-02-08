@@ -37,6 +37,10 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 
 **Steward AI foundation is complete (Phases 1-7, merged 2026-02-06).** Cross-turn structured state (StewardState), NEW_STATE output protocol, SYSTEM_REMINDER context injection, L1-L4 tool safety levels, three-tier context budget, steward persona/policy configs, and 40+ unit tests are all merged to main. Remaining gaps: activation enforcement loop, evidence ref enforcement, state compression on overflow, safety level approval UX, steward-specific eval scenarios.
 
+**Runtime Snapshot (2026-02-08 13:14 +0800).**
+- `./dev.sh status`: backend running (`http://localhost:8080`), web stopped, sandbox ready (`http://localhost:18086`), ACP running.
+- `./lark.sh status`: supervisor running in `degraded` mode, `main` down, `test` down, `loop` alive (`cycle_phase=slow_gate`, `cycle_result=running`).
+
 ## Roadmap Consolidation (2026-02-08)
 
 To avoid status drift across files, roadmap document roles are normalized as follows:
@@ -121,13 +125,13 @@ Items that must ship before the calendar + tasks loop works end-to-end.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Lark API client layer | Auth, Calendar, Tasks wrappers | **Done** | Claude C1-C4 | `internal/lark/` |
-| Calendar read/write tools | Query, create, update, delete events | **Done** | Claude C5 | `internal/tools/builtin/larktools/calendar_*.go` |
-| Tasks read/write tools | CRUD + batch operations | **Done** | Claude C6 | `internal/tools/builtin/larktools/task_manage.go` |
-| Write-op approval gate | Dangerous flag + approval executor | **Done** | Claude C8 | `internal/toolregistry/registry.go` |
-| Scheduler reminders | Calendar trigger wired into scheduler | **Done** | Claude C10 | `internal/scheduler/` |
-| Tool registration for new Lark tools | All tools registered in registry | **Done** | Claude C7 | `internal/toolregistry/registry.go` |
-| E2E integration test | Full calendar flow E2E | **Done** | Codex X1 | `internal/scheduler/calendar_flow_e2e_test.go` |
+| Lark API client layer | Auth, Calendar, Tasks wrappers | **Done** | Claude C1-C4 | `internal/infra/lark/` |
+| Calendar read/write tools | Query, create, update, delete events | **Done** | Claude C5 | `internal/infra/tools/builtin/larktools/calendar_*.go` |
+| Tasks read/write tools | CRUD + batch operations | **Done** | Claude C6 | `internal/infra/tools/builtin/larktools/task_manage.go` |
+| Write-op approval gate | Dangerous flag + approval executor | **Done** | Claude C8 | `internal/app/toolregistry/registry.go` |
+| Scheduler reminders | Calendar trigger wired into scheduler | **Done** | Claude C10 | `internal/app/scheduler/` |
+| Tool registration for new Lark tools | All tools registered in registry | **Done** | Claude C7 | `internal/app/toolregistry/registry.go` |
+| E2E integration test | Full calendar flow E2E | **Done** | Codex X1 | `internal/app/scheduler/calendar_flow_e2e_test.go` |
 
 ## P1: M0 Quality
 
@@ -135,12 +139,12 @@ Items that don't block MVP but are required for production reliability.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Done** | Claude C11 + Codex X2 | `internal/agent/domain/react/` |
-| Graceful shutdown | SIGTERM handling + drain logic | **Done** | Claude C15-C16 | `cmd/alex/main.go`, `internal/lifecycle/` |
-| Global tool timeout/retry | Unified timeout/retry + policy rules | **Done** | Claude C13-C14 + Codex X3 | `internal/tools/`, `internal/toolregistry/` |
-| NSM metric collection | WTCR/TimeSaved/Accuracy counters | **Done** | Claude C17 | `internal/observability/` |
-| Token counting precision | tiktoken-go integration | **Done** | Claude C18 | `internal/llm/` |
-| Tool SLA baseline collection | Per-tool latency/cost/reliability/success-rate metrics | **Done** | Claude C27 | `internal/tools/sla.go` |
+| ReAct checkpoint + resume | Agent can't recover from crashes mid-task | **Done** | Claude C11 + Codex X2 | `internal/domain/agent/react/` |
+| Graceful shutdown | SIGTERM handling + drain logic | **Done** | Claude C15-C16 | `cmd/alex/main.go`, `internal/app/lifecycle/` |
+| Global tool timeout/retry | Unified timeout/retry + policy rules | **Done** | Claude C13-C14 + Codex X3 | `internal/infra/tools/`, `internal/app/toolregistry/` |
+| NSM metric collection | WTCR/TimeSaved/Accuracy counters | **Done** | Claude C17 | `internal/infra/observability/` |
+| Token counting precision | tiktoken-go integration | **Done** | Claude C18 | `internal/infra/llm/` |
+| Tool SLA baseline collection | Per-tool latency/cost/reliability/success-rate metrics | **Done** | Claude C27 | `internal/infra/tools/sla.go` |
 
 ## P2: Next Wave (M1)
 
@@ -150,12 +154,12 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Replan + sub-goal decomposition | Complex tasks need dynamic replanning (DAG) | **Not started** | Codex X6 | `internal/agent/domain/react/`, `internal/agent/planner/` |
-| Memory restructuring (D5) | Layered FileStore (entries/daily/MEMORY.md) + daily summaries + long-term extraction + migration | **Not started** | Codex X4 | `internal/memory/` |
-| Memory Flush-before-Compaction (D3) | Save context before compression — `AutoCompact` fires event, MemoryFlushHook extracts key info to disk | **Done** | Claude C28 | `internal/context/`, `internal/memory/` |
-| Context priority sorting | Rank context fragments by relevance/freshness/importance instead of fixed layer order | **Done** | Claude C32 | `internal/context/priority.go` |
-| Cost-aware context trimming | Token budget drives which context to keep; prefer high-value content | **Done** | Claude C33 | `internal/context/trimmer.go` |
-| Proactive context injection | Calendar summary builder for context assembly | **Done** | Claude C25 | `internal/context/` |
+| Replan + sub-goal decomposition | Complex tasks need dynamic replanning (DAG) | **Not started** | Codex X6 | `internal/domain/agent/react/`, `internal/domain/agent/planner/` |
+| Memory restructuring (D5) | Layered FileStore (entries/daily/MEMORY.md) + daily summaries + long-term extraction + migration | **Not started** | Codex X4 | `internal/infra/memory/` |
+| Memory Flush-before-Compaction (D3) | Save context before compression — `AutoCompact` fires event, MemoryFlushHook extracts key info to disk | **Done** | Claude C28 | `internal/app/context/`, `internal/infra/memory/` |
+| Context priority sorting | Rank context fragments by relevance/freshness/importance instead of fixed layer order | **Done** | Claude C32 | `internal/app/context/priority.go` |
+| Cost-aware context trimming | Token budget drives which context to keep; prefer high-value content | **Done** | Claude C33 | `internal/app/context/trimmer.go` |
+| Proactive context injection | Calendar summary builder for context assembly | **Done** | Claude C25 | `internal/app/context/` |
 | Steward cross-turn state (StewardState) | 跨轮结构化状态文档 | **Done** | Claude | `internal/domain/agent/ports/agent/steward_state.go` |
 | NEW_STATE output protocol + parser | 模型输出解析→持久化闭环 | **Done** | Claude | `internal/domain/agent/react/steward_state_parser.go` |
 | SYSTEM_REMINDER injection | StewardState 渲染为系统提示 | **Done** | Claude | `internal/app/context/manager_prompt.go` |
@@ -171,10 +175,10 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Tool policy framework (D1) | Allow/deny rules per tool per context | **Done** | Claude C19-C20 + Codex X5 | `internal/tools/` |
-| Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control, failure recovery | **Done** | Claude C21-C22 + Codex X7 | `internal/scheduler/` |
-| Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Done** | Claude C29 | `internal/tools/builtin/scheduler/` |
-| Scheduler startup recovery | Reload persisted jobs from JobStore on restart, auto-register cron | **Done** | Claude C21 | `internal/scheduler/job_runtime.go` |
+| Tool policy framework (D1) | Allow/deny rules per tool per context | **Done** | Claude C19-C20 + Codex X5 | `internal/infra/tools/` |
+| Scheduler enhancement (D4) | Job persistence, cooldown, concurrency control, failure recovery | **Done** | Claude C21-C22 + Codex X7 | `internal/app/scheduler/` |
+| Dynamic scheduler job tool | `scheduler_create/list/delete/pause` — Agent can create scheduled jobs from conversation | **Done** | Claude C29 | `internal/infra/tools/builtin/scheduler/` |
+| Scheduler startup recovery | Reload persisted jobs from JobStore on restart, auto-register cron | **Done** | Claude C21 | `internal/app/scheduler/job_runtime.go` |
 | Tool SLA profile + dynamic routing | Build per-tool performance profiles; auto-select tool chain based on SLA | **Done** | Claude → Codex | `internal/infra/tools/sla_router.go`, `internal/app/toolregistry/degradation.go` |
 | Auto degradation chain | Cache hit → weaker tool → prompt user, try in sequence | **Done** | Claude C39 | `internal/app/toolregistry/degradation.go` |
 | Tool result caching | Semantic dedup — same query doesn't re-execute | **Removed (de-scoped)** | Claude C38 → Codex | Removed per performance decision (2026-02-07) |
@@ -183,27 +187,27 @@ Enhancements after the core loop is stable.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Calendar/Tasks full CRUD | Batch ops, conflict detection, multi-calendar | **Done** | Claude C23-C24 | `internal/lark/` |
-| Proactive reminders + suggestions | Intent extraction → draft → confirm flow | **Done** | Claude C26 | `internal/reminder/` |
-| Lark smart card interaction | Interactive Cards with buttons for approval/selection/feedback | **Done** | Claude C35 | `internal/lark/cards/` |
-| Lark Approval API | Query pending approvals, submit approval requests, track status changes | **Done** | Claude C31 | `internal/lark/approval.go` |
-| Proactive group summary | Auto-summarize long group discussions (by message count / time window) | **Done** | Claude C36 | `internal/lark/summary/` |
-| Message type enrichment | Send tables, code blocks, rendered Markdown messages | **Done** | Claude C37 | `internal/channels/lark/richcontent/` |
+| Calendar/Tasks full CRUD | Batch ops, conflict detection, multi-calendar | **Done** | Claude C23-C24 | `internal/infra/lark/` |
+| Proactive reminders + suggestions | Intent extraction → draft → confirm flow | **Done** | Claude C26 | `internal/app/reminder/` |
+| Lark smart card interaction | Interactive Cards with buttons for approval/selection/feedback | **Done** | Claude C35 | `internal/infra/lark/cards/` |
+| Lark Approval API | Query pending approvals, submit approval requests, track status changes | **Done** | Claude C31 | `internal/infra/lark/approval.go` |
+| Proactive group summary | Auto-summarize long group discussions (by message count / time window) | **Done** | Claude C36 | `internal/infra/lark/summary/` |
+| Message type enrichment | Send tables, code blocks, rendered Markdown messages | **Done** | Claude C37 | `internal/delivery/channels/lark/richcontent/` |
 
 ### LLM Intelligence
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Dynamic model selection | Auto-select model based on task type/complexity/context length | **Done** | Claude C44 | `internal/llm/router/` |
-| Provider health detection | Real-time probe provider availability, auto-switch on failure | **Done** | Claude C30 | `internal/llm/health.go` |
-| Token budget management | Per-task/session token budget; auto-downgrade model on overspend | **Done** | Claude C34 | `internal/context/budget/` |
+| Dynamic model selection | Auto-select model based on task type/complexity/context length | **Done** | Claude C44 | `internal/infra/llm/router/` |
+| Provider health detection | Real-time probe provider availability, auto-switch on failure | **Done** | Claude C30 | `internal/infra/llm/health.go` |
+| Token budget management | Per-task/session token budget; auto-downgrade model on overspend | **Done** | Claude C34 | `internal/app/context/budget/` |
 
 ### DevOps Foundations
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Signal collection framework | Failure trajectories, user feedback (thumbs/text), implicit signals (retries/abandons), usage patterns | **Done** | Claude C43 | `internal/signals/` |
-| Evaluation automation | Dimensional scoring (reasoning/tools/UX/cost), baseline management, benchmark dashboard | **In progress** | Claude → Codex | `internal/devops/evaluation/` |
+| Signal collection framework | Failure trajectories, user feedback (thumbs/text), implicit signals (retries/abandons), usage patterns | **Done** | Claude C43 | `internal/shared/signals/` |
+| Evaluation automation | Dimensional scoring (reasoning/tools/UX/cost), baseline management, benchmark dashboard | **In progress** | Claude → Codex | `internal/delivery/eval/`, `evaluation/` |
 | Evaluation set construction (评测集构建) | 分层评测：基础任务准出评测 + 引导模块升级优化的挑战性评测 | **In progress** | Claude → Codex | `evaluation/` |
 | CI evaluation gating | Manual + tag-triggered quick eval with PR gate + result archiving | **Done** | Claude C40 | `evaluation/gate/`, `.github/workflows/eval.yml` |
 
@@ -249,31 +253,31 @@ Larger bets that depend on M0+M1 foundations.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Multi-agent collaboration | Inter-agent messaging, task dispatch by capability profile, conflict arbitration | **Not started** | Codex | `internal/agent/orchestration/` |
-| Multi-path sampling + voting | Critical decisions: sample multiple times + vote for reliability | **Not started** | Codex | `internal/agent/domain/react/voting.go` |
-| Confidence modeling | Conclusions bound to evidence + confidence score; low confidence triggers clarification | **Not started** | Codex | `internal/agent/domain/confidence.go` |
-| Decision memory | Record key decisions (what + why + context) for future reference | **Done** | Claude C41 | `internal/memory/decision.go` |
-| Entity memory | Extract people/projects/concepts from conversations, build entity relations | **Done** | Claude C42 | `internal/memory/entity.go` |
-| User preference learning | Extract preferences (language/format/tools/style) from interaction patterns | **Not started** | Claude → Codex | `internal/memory/preferences.go` |
+| Multi-agent collaboration | Inter-agent messaging, task dispatch by capability profile, conflict arbitration | **Not started** | Codex | `internal/domain/agent/orchestration/` |
+| Multi-path sampling + voting | Critical decisions: sample multiple times + vote for reliability | **Not started** | Codex | `internal/domain/agent/react/voting.go` |
+| Confidence modeling | Conclusions bound to evidence + confidence score; low confidence triggers clarification | **Not started** | Codex | `internal/domain/agent/confidence.go` |
+| Decision memory | Record key decisions (what + why + context) for future reference | **Not started** | Claude → Codex | `internal/infra/memory/decision.go` |
+| Entity memory | Extract people/projects/concepts from conversations, build entity relations | **Not started** | Claude → Codex | `internal/infra/memory/entity.go` |
+| User preference learning | Extract preferences (language/format/tools/style) from interaction patterns | **Not started** | Claude → Codex | `internal/infra/memory/preferences.go` |
 
 ### Deep Lark Ecosystem
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Lark Docs read/write | Read doc content (Docx → Markdown), create/edit/comment, permission management | **Not started** | Claude | `internal/lark/docs/` |
-| Lark Sheets/Bitable | Read/write cells/records, data analysis, chart generation | **Not started** | Claude | `internal/lark/sheets/`, `internal/lark/bitable/` |
-| Lark Wiki | Browse spaces, read/search/create/update pages, auto-knowledge sedimentation | **Not started** | Claude | `internal/lark/wiki/` |
-| Meeting preparation assistant | Auto-summarize related docs, previous minutes, and TODOs before meetings | **Library done, wiring pending** | Claude | `internal/lark/calendar/meetingprep/` |
+| Lark Docs read/write | Read doc content (Docx → Markdown), create/edit/comment, permission management | **Not started** | Claude | `internal/infra/lark/docs/` |
+| Lark Sheets/Bitable | Read/write cells/records, data analysis, chart generation | **Not started** | Claude | `internal/infra/lark/sheets/`, `internal/infra/lark/bitable/` |
+| Lark Wiki | Browse spaces, read/search/create/update pages, auto-knowledge sedimentation | **Not started** | Claude | `internal/infra/lark/wiki/` |
+| Meeting preparation assistant | Auto-summarize related docs, previous minutes, and TODOs before meetings | **Library done, wiring pending** | Claude | `internal/infra/lark/calendar/meetingprep/` |
 | Meeting notes auto-generation | Post-meeting: auto-generate and push minutes | **Skill done, automation pending** | Claude | `skills/meeting-notes/` |
-| Calendar suggestions | Suggest meeting times based on historical patterns | **Library done, wiring pending** | Claude | `internal/lark/calendar/suggestions/` |
+| Calendar suggestions | Suggest meeting times based on historical patterns | **Library done, wiring pending** | Claude | `internal/infra/lark/calendar/suggestions/` |
 
 ### Platform & Interaction
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
 | macOS Companion (D6) | Menu bar app, Node Host server, TCC permissions, screen capture + system run | **Not started** | Claude (Swift) | `macos/ElephantCompanion/` |
-| Node Host Gateway | Proxy executor for node host tools, dynamic register/unregister, config | **Not started** | Claude | `internal/tools/builtin/nodehost/` |
-| Cross-surface session sync | Seamless Lark/Web/CLI handoff for the same session | **Not started** | Codex | `internal/session/` |
+| Node Host Gateway | Proxy executor for node host tools, dynamic register/unregister, config | **Not started** | Claude | `internal/infra/tools/builtin/nodehost/` |
+| Cross-surface session sync | Seamless Lark/Web/CLI handoff for the same session | **Not started** | Codex | `internal/infra/session/` |
 | Unified notification center | Push to user's preferred channel | **Not started** | Claude | `internal/notification/` |
 | Web execution replay | Step-by-step replay of agent execution + Gantt-style timeline | **Not started** | Claude | `web/components/agent/` |
 | CLI pipe mode + daemon | stdin/stdout pipe integration with shell toolchain; background service mode | **Not started** | Claude | `cmd/alex/` |
@@ -282,12 +286,12 @@ Larger bets that depend on M0+M1 foundations.
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| PDF parsing | Text/table/image extraction from PDFs | **Not started** | Claude | `internal/tools/builtin/fileops/` |
-| Excel/CSV processing | Read/write/analyze tabular data | **Not started** | Claude | `internal/tools/builtin/fileops/` |
-| Audio transcription | Speech → text | **Not started** | Claude | `internal/tools/builtin/media/` |
-| Data analysis + visualization | Statistical analysis + chart generation | **Not started** | Claude | `internal/tools/builtin/data/` |
-| User-defined skills | Users define custom skills via Markdown | **Not started** | Claude | `internal/skills/custom.go` |
-| Skill composition | Chain multiple skills: research → report → PPT | **Not started** | Claude → Codex | `internal/skills/compose.go` |
+| PDF parsing | Text/table/image extraction from PDFs | **Not started** | Claude | `internal/infra/tools/builtin/fileops/` |
+| Excel/CSV processing | Read/write/analyze tabular data | **Not started** | Claude | `internal/infra/tools/builtin/fileops/` |
+| Audio transcription | Speech → text | **Not started** | Claude | `internal/infra/tools/builtin/media/` |
+| Data analysis + visualization | Statistical analysis + chart generation | **Not started** | Claude | `internal/infra/tools/builtin/data/` |
+| User-defined skills | Users define custom skills via Markdown | **Not started** | Claude | `internal/infra/skills/custom.go` |
+| Skill composition | Chain multiple skills: research → report → PPT | **Not started** | Claude → Codex | `internal/infra/skills/chain.go` |
 
 ### Self-Evolution (M3)
 
@@ -295,8 +299,8 @@ Larger bets that depend on M0+M1 foundations.
 |------|-----|--------|-------|-----------|
 | Self-fix loop | Shadow Agent: detect bug → write fix → test → PR → merge → release, fully automated | **Not started** | Codex | `internal/devops/evolution/self_fix.go` |
 | Prompt auto-optimization | Iterate prompts based on eval results + feedback signals | **Not started** | Codex | `internal/devops/evolution/prompt_tuner.go` |
-| A/B testing framework | Online vs Test agent comparison with auto-promotion/rollback | **Not started** | Claude → Codex | `internal/devops/evaluation/ab_test.go` |
-| Knowledge graph | Entity/relation/event triples for structured reasoning | **Not started** | Codex | `internal/memory/knowledge_graph.go` |
+| A/B testing framework | Online vs Test agent comparison with auto-promotion/rollback | **Not started** | Claude → Codex | `internal/delivery/eval/` |
+| Knowledge graph | Entity/relation/event triples for structured reasoning | **Not started** | Codex | `internal/infra/memory/knowledge_graph.go` |
 | Cloud execution environments | Per-agent Docker containers, K8s job orchestration, CRIU checkpoints | **Not started** | Claude | `internal/environment/` |
 
 ---
@@ -307,13 +311,13 @@ Larger bets that depend on M0+M1 foundations.
 
 | 模块 | 包路径 | 说明 | OpenClaw Delta |
 |------|--------|------|------|
-| **Event Bus** | `internal/events/` | 统一 pub/sub 事件总线，task/session/system 三级事件，现有 Hook 平滑迁移为 subscriber | **D2** |
-| **Observability** | `internal/observability/` | 全链路 Trace、Prometheus Metrics、结构化日志、成本核算 | |
-| **Config** | `internal/config/` | YAML 配置管理、环境变量覆盖 | |
-| **Auth** | `internal/auth/` | OAuth/Token、路由鉴权 | |
-| **Errors** | `internal/errors/` | 错误分类、重试策略 | |
-| **Storage** | `internal/storage/` | 通用持久化 | |
-| **DI** | `internal/di/` | 依赖注入、服务装配 | |
+| **Event Bus** | `internal/domain/agent/`, `internal/delivery/server/app/` | 统一事件模型与广播链路（domain typed events + server broadcaster）。 | **D2** |
+| **Observability** | `internal/infra/observability/` | 全链路 Trace、Prometheus Metrics、结构化日志、成本核算 | |
+| **Config** | `internal/shared/config/` | YAML 配置管理、环境变量覆盖 | |
+| **Auth** | `internal/{domain,app,infra}/auth/` | OAuth/Token、路由鉴权 | |
+| **Errors** | `internal/shared/errors/` | 错误分类、重试策略 | |
+| **Storage** | `internal/infra/storage/` | 通用持久化 | |
+| **DI** | `internal/app/di/` | 依赖注入、服务装配 | |
 
 ---
 
@@ -321,7 +325,7 @@ Larger bets that depend on M0+M1 foundations.
 
 | 边界点 | 约定 |
 |--------|------|
-| **Event Bus** _(D2)_ | `internal/events/` 是共享基础设施；为 KR-S1 提供事件能力。 |
+| **Event Bus** _(D2)_ | `internal/domain/agent/` + `internal/delivery/server/app/` 组成共享事件链路；为 KR-S1 提供事件能力。 |
 | **验证逻辑** | 统一在 Track 2 的 `coding/verify` 包中实现（Build/Test/Lint/DiffReview）；Track 4 仅编排与审批。 |
 | **Coding Agent Gateway** | Track 2 构建能力，Track 4 构建工作流；Gateway 同时服务 Online/Shadow。 |
 | **Lark 工具封装** | Track 2 提供工具注册端口，Track 3 提供 Lark 工具实现。 |
@@ -367,6 +371,7 @@ O0 (日程+任务闭环)
 | 2026-02-03 | M1 | All | Roadmap 更新：修正 P1 checkpoint+resume 标记；补齐 Deep Lark 的"库已实现/未接入"状态（meeting prep/suggestions、meeting notes skill）。 |
 | 2026-02-06 | M1 | T1 | **Steward AI foundation complete (Phases 1-7).** StewardState 领域类型、NEW_STATE 解析器、SYSTEM_REMINDER 注入、L1-L4 安全分级、三级上下文预算、steward persona/policy、40+ 单元测试。M1 进度 ~85% → ~95%。 |
 | 2026-02-08 | M1 | All | **Roadmap consolidation + reprioritization.** 统一 roadmap source-of-truth；按 North Star 影响重排未完成项优先级；发布重拆执行队列 `roadmap-pending-2026-02-08.md`（Batch A-E）。 |
+| 2026-02-08 | M1 | All | **Code/runtime sync update.** 对齐分层后包路径（`internal/{delivery,app,domain,infra,shared}`），记录运行快照（`dev.sh` 正常、`lark.sh` degraded），并将 Decision/Entity memory 从 Done 修正为 Not started。 |
 
 ---
 
@@ -374,29 +379,29 @@ O0 (日程+任务闭环)
 
 | Capability | Code path |
 |------------|-----------|
-| ReAct loop (Think -> Act -> Observe) | `internal/agent/domain/react/` |
-| 5 LLM providers (OpenAI, Claude, ARK, DeepSeek, Ollama) | `internal/llm/` |
-| 69+ tools, 5 permission presets | `internal/tools/`, `internal/toolregistry/` |
+| ReAct loop (Think -> Act -> Observe) | `internal/domain/agent/react/` |
+| 5 LLM providers (OpenAI, Claude, ARK, DeepSeek, Ollama) | `internal/infra/llm/` |
+| 69+ tools, 5 permission presets | `internal/infra/tools/`, `internal/app/toolregistry/` |
 | 12 skills (research, meeting notes, email, slides, video) | `skills/` |
-| Lark IM: WebSocket, chat history, reactions, approval gates | `internal/channels/lark/` |
-| Sandbox: code exec, shell, browser automation, file ops | `internal/tools/builtin/sandbox/` |
-| 4-layer context assembly + dynamic compression | `internal/context/` |
-| Memory: conversation persistence + vector retrieval (chromem-go) | `internal/memory/` |
+| Lark IM: WebSocket, chat history, reactions, approval gates | `internal/delivery/channels/lark/` |
+| Sandbox: code exec, shell, browser automation, file ops | `internal/infra/tools/builtin/sandbox/` |
+| 4-layer context assembly + dynamic compression | `internal/app/context/` |
+| Memory: Markdown persistence + index pipeline | `internal/infra/memory/` |
 | Web dashboard: SSE streaming, conversations, cost tracking | `web/` |
 | CLI: TUI, approval flow, session persistence | `cmd/alex/` |
-| Observability: traces, metrics, cost accounting | `internal/observability/` |
+| Observability: traces, metrics, cost accounting | `internal/infra/observability/` |
 | SIGTERM handling + cancelable base context | `cmd/alex/main.go` |
 | Evaluation suite (SWE-Bench, Agent Eval) | `evaluation/` |
-| Tool SLA metrics (latency/error-rate/call-count) | `internal/tools/sla.go` |
-| Memory flush before compaction (D3) | `internal/context/`, `internal/memory/` |
-| Dynamic scheduler job tools | `internal/tools/builtin/scheduler/` |
-| Provider health detection (circuit breaker) | `internal/llm/health.go` |
-| Lark Approval API | `internal/lark/approval.go` |
-| Context priority sorting + cost-aware trimming | `internal/context/priority.go`, `internal/context/trimmer.go` |
-| Token budget management | `internal/context/budget/` |
-| Lark smart cards (interactive) | `internal/lark/cards/` |
-| Proactive group summary | `internal/lark/summary/` |
-| Rich content (posts, tables, Markdown) | `internal/channels/lark/richcontent/` |
+| Tool SLA metrics (latency/error-rate/call-count) | `internal/infra/tools/sla.go` |
+| Memory flush before compaction (D3) | `internal/app/context/`, `internal/infra/memory/` |
+| Dynamic scheduler job tools | `internal/infra/tools/builtin/scheduler/` |
+| Provider health detection (circuit breaker) | `internal/infra/llm/health.go` |
+| Lark Approval API | `internal/infra/lark/approval.go` |
+| Context priority sorting + cost-aware trimming | `internal/app/context/priority.go`, `internal/app/context/trimmer.go` |
+| Token budget management | `internal/app/context/budget/` |
+| Lark smart cards (interactive) | `internal/infra/lark/cards/` |
+| Proactive group summary | `internal/infra/lark/summary/` |
+| Rich content (posts, tables, Markdown) | `internal/delivery/channels/lark/richcontent/` |
 | Tool SLA profile + dynamic routing | `internal/infra/tools/sla_router.go`, `internal/app/toolregistry/degradation.go` |
 | Tool result caching (semantic dedup) | Removed per performance decision (2026-02-07) |
 | Auto degradation chain (fallback executor) | `internal/app/toolregistry/degradation.go` |
