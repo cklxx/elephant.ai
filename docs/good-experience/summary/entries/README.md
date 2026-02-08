@@ -4,6 +4,7 @@ Updated: 2026-02-08
 
 ## Files
 
+- [2026-02-08-systematic-agent-capability-matrix-expansion.md](2026-02-08-systematic-agent-capability-matrix-expansion.md)
 - [2026-02-08-foundation-suite-scaleout-v2.md](2026-02-08-foundation-suite-scaleout-v2.md)
 - [2026-02-07-fullchain-trace-baseline-perf.md](2026-02-07-fullchain-trace-baseline-perf.md)
 - [2026-02-08-foundation-layered-suite-regression-closure.md](2026-02-08-foundation-layered-suite-regression-closure.md)
