@@ -502,6 +502,7 @@ export async function createSession(): Promise<{ session_id: string }> {
 export async function getLogTrace(logId: string): Promise<LogTraceBundle> {
   return fetchAPI<LogTraceBundle>(
     `/api/dev/logs?log_id=${encodeURIComponent(logId)}`,
+    { skipAuth: true },
   );
 }
 
@@ -509,6 +510,7 @@ export async function getLogIndex(limit = 80): Promise<LogIndexResponse> {
   const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.floor(limit) : 80;
   return fetchAPI<LogIndexResponse>(
     `/api/dev/logs/index?limit=${encodeURIComponent(String(safeLimit))}`,
+    { skipAuth: true },
   );
 }
 
@@ -518,7 +520,7 @@ export async function getStructuredLogTrace(
 ): Promise<StructuredLogBundle> {
   let url = `/api/dev/logs/structured?log_id=${encodeURIComponent(logId)}`;
   if (search) url += `&search=${encodeURIComponent(search)}`;
-  return fetchAPI<StructuredLogBundle>(url);
+  return fetchAPI<StructuredLogBundle>(url, { skipAuth: true });
 }
 
 // Dev memory query

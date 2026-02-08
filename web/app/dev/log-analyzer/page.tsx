@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RequireAuth } from "@/components/auth/RequireAuth";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -423,8 +422,7 @@ export default function LogAnalyzerPage() {
   const requestEntries = bundle?.requests?.entries ?? [];
 
   return (
-    <RequireAuth>
-      <div className="flex h-screen flex-col bg-slate-50">
+    <div className="flex h-screen flex-col bg-slate-50">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2">
           <div>
@@ -589,7 +587,6 @@ export default function LogAnalyzerPage() {
           </div>
         </div>
       </div>
-    </RequireAuth>
   );
 }
 
