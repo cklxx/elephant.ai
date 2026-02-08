@@ -31,6 +31,8 @@ func (c *CLI) handleEval(args []string) error {
 			return c.showEvaluation(args[1:])
 		case "delete":
 			return c.deleteEvaluation(args[1:])
+		case "foundation":
+			return c.runFoundationEvaluation(args[1:])
 		}
 	}
 

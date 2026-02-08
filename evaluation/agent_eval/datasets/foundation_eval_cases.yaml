@@ -1,0 +1,238 @@
+version: "1"
+name: "foundation-offline-tool-discoverability"
+description: "Implicit intent scenarios for offline baseline evaluation without model calls"
+scenarios:
+  - id: "intent-plan-migration"
+    category: "planning"
+    intent: "Break this migration into phased milestones with explicit checkpoints and risks."
+    expected_tools: ["plan"]
+
+  - id: "intent-clarify-ambiguous-input"
+    category: "clarification"
+    intent: "Requirements are ambiguous and one blocking detail is missing before implementation."
+    expected_tools: ["clarify"]
+
+  - id: "intent-request-user-auth"
+    category: "handoff"
+    intent: "The flow is blocked by login verification and needs user action before continuing."
+    expected_tools: ["request_user"]
+
+  - id: "intent-browse-dom-form"
+    category: "browser"
+    intent: "On the current webpage, locate form fields by selector, fill them, and submit."
+    expected_tools: ["browser_dom"]
+
+  - id: "intent-browse-coordinate-canvas"
+    category: "browser"
+    intent: "Selectors do not work on this canvas; a coordinate click is needed."
+    expected_tools: ["browser_action"]
+
+  - id: "intent-browse-session-inspect"
+    category: "browser"
+    intent: "Check browser tab state, current URL, and session metadata."
+    expected_tools: ["browser_info"]
+
+  - id: "intent-browse-screenshot-proof"
+    category: "browser"
+    intent: "Capture current page as visual evidence for debugging notes."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "intent-read-source-file"
+    category: "workspace"
+    intent: "Open a source file in the workspace and inspect its contents."
+    expected_tools: ["read_file"]
+
+  - id: "intent-list-workspace-dir"
+    category: "workspace"
+    intent: "Show files and folders under a target directory in the workspace."
+    expected_tools: ["list_dir"]
+
+  - id: "intent-search-token-cross-files"
+    category: "workspace"
+    intent: "Locate all occurrences of a specific symbol across project files."
+    expected_tools: ["search_file"]
+
+  - id: "intent-replace-deprecated-endpoint"
+    category: "workspace"
+    intent: "Update deprecated endpoint strings in a file to the new API path."
+    expected_tools: ["replace_in_file"]
+
+  - id: "intent-create-markdown-note"
+    category: "workspace"
+    intent: "Create a new markdown note file with the provided content."
+    expected_tools: ["write_file"]
+
+  - id: "intent-shell-check-git-state"
+    category: "execution"
+    intent: "Run shell commands to inspect git status and current branch."
+    expected_tools: ["shell_exec"]
+
+  - id: "intent-run-short-script"
+    category: "execution"
+    intent: "Execute a short script to verify a calculation quickly."
+    expected_tools: ["execute_code"]
+
+  - id: "intent-search-official-docs"
+    category: "web"
+    intent: "Find official docs for PostgreSQL logical replication and compare references."
+    expected_tools: ["web_search"]
+
+  - id: "intent-fetch-url-content"
+    category: "web"
+    intent: "Download and inspect full page content from a URL."
+    expected_tools: ["web_fetch"]
+
+  - id: "intent-edit-html-snippet"
+    category: "web"
+    intent: "Apply precise transformations to an HTML snippet based on instructions."
+    expected_tools: ["html_edit"]
+
+  - id: "intent-render-mermaid-diagram"
+    category: "visualization"
+    intent: "Render a Mermaid architecture diagram into an image."
+    expected_tools: ["diagram_render"]
+
+  - id: "intent-generate-downloadable-file"
+    category: "artifact"
+    intent: "Write a generated result as a downloadable attachment for end users."
+    expected_tools: ["write_attachment"]
+
+  - id: "intent-persist-report-artifact"
+    category: "artifact"
+    intent: "Persist a long report as an artifact and return a reference in final output."
+    expected_tools: ["artifacts_write"]
+
+  - id: "intent-list-report-artifacts"
+    category: "artifact"
+    intent: "Show all generated artifacts for this run so we can choose one to share."
+    expected_tools: ["artifacts_list"]
+
+  - id: "intent-delete-obsolete-artifact"
+    category: "artifact"
+    intent: "Remove a stale generated artifact that is no longer needed."
+    expected_tools: ["artifacts_delete"]
+
+  - id: "intent-read-artifact-manifest"
+    category: "artifact"
+    intent: "Inspect the manifest describing generated files and metadata."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "intent-emit-ui-payload"
+    category: "artifact"
+    intent: "Produce a structured UI payload for direct renderer consumption."
+    expected_tools: ["a2ui_emit"]
+
+  - id: "intent-build-ppt-from-images"
+    category: "artifact"
+    intent: "Create a slide deck from a set of image inputs."
+    expected_tools: ["pptx_from_images"]
+
+  - id: "intent-play-song"
+    category: "media"
+    intent: "Play a requested music track for the user."
+    expected_tools: ["music_play"]
+
+  - id: "intent-douyin-hot-trending"
+    category: "web"
+    intent: "Get the latest Douyin trending topics feed."
+    expected_tools: ["douyin_hot"]
+
+  - id: "intent-read-memory-summary"
+    category: "memory"
+    intent: "Search prior memory notes for decisions about API strategy."
+    expected_tools: ["memory_search"]
+
+  - id: "intent-open-memory-lines"
+    category: "memory"
+    intent: "Open a specific saved memory note segment by line range."
+    expected_tools: ["memory_get"]
+
+  - id: "intent-lark-send-update"
+    category: "lark"
+    intent: "Send an update message into the current Lark chat."
+    expected_tools: ["lark_send_message"]
+
+  - id: "intent-lark-upload-report"
+    category: "lark"
+    intent: "Upload a local report document into Lark conversation."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "intent-lark-chat-context"
+    category: "lark"
+    intent: "Read recent message history from this Lark conversation."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "intent-lark-calendar-query"
+    category: "lark"
+    intent: "Query upcoming calendar events for this user."
+    expected_tools: ["lark_calendar_query"]
+
+  - id: "intent-lark-calendar-create"
+    category: "lark"
+    intent: "Create a new calendar event with specified attendees and time."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "intent-lark-calendar-update"
+    category: "lark"
+    intent: "Modify an existing calendar event details and schedule."
+    expected_tools: ["lark_calendar_update"]
+
+  - id: "intent-lark-calendar-delete"
+    category: "lark"
+    intent: "Delete a calendar event that was created by mistake."
+    expected_tools: ["lark_calendar_delete"]
+
+  - id: "intent-lark-task-manage"
+    category: "lark"
+    intent: "Create and update a task in Lark task list with owner and due date."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "intent-okr-read"
+    category: "okr"
+    intent: "Read existing OKR goals and progress snapshot for this quarter."
+    expected_tools: ["okr_read"]
+
+  - id: "intent-okr-write"
+    category: "okr"
+    intent: "Write or update an OKR objective with key results and status."
+    expected_tools: ["okr_write"]
+
+  - id: "intent-set-reminder"
+    category: "timer"
+    intent: "Set a reminder timer for a follow-up task later today."
+    expected_tools: ["set_timer"]
+
+  - id: "intent-list-reminders"
+    category: "timer"
+    intent: "List currently active timers and their remaining time."
+    expected_tools: ["list_timers"]
+
+  - id: "intent-cancel-reminder"
+    category: "timer"
+    intent: "Cancel an active timer that is no longer needed."
+    expected_tools: ["cancel_timer"]
+
+  - id: "intent-scheduler-create-job"
+    category: "scheduler"
+    intent: "Create a recurring scheduled job to run every weekday morning."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "intent-scheduler-list-jobs"
+    category: "scheduler"
+    intent: "List all recurring jobs currently configured in scheduler."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "intent-scheduler-delete-job"
+    category: "scheduler"
+    intent: "Delete a scheduled job by identifier."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "intent-apps-overview"
+    category: "session"
+    intent: "Show connected app capabilities and integration status."
+    expected_tools: ["apps"]
+
+  - id: "intent-delegate-heavy-task"
+    category: "orchestration"
+    intent: "Delegate this implementation task to an external ACP executor with strict constraints."
+    expected_tools: ["acp_executor"]
