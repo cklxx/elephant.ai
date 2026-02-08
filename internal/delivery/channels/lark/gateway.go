@@ -1680,12 +1680,21 @@ func (g *Gateway) uploadFile(ctx context.Context, payload []byte, fileName, file
 	return g.messenger.UploadFile(ctx, payload, fileName, fileType)
 }
 
-// extractSenderID extracts the sender open_id from a Lark message event.
+// extractSenderID extracts sender identity from a Lark message event, preferring
+// open_id and falling back to user_id/union_id.
 func extractSenderID(event *larkim.P2MessageReceiveV1) string {
 	if event == nil || event.Event == nil || event.Event.Sender == nil || event.Event.Sender.SenderId == nil {
 		return ""
 	}
-	return deref(event.Event.Sender.SenderId.OpenId)
+	id := strings.TrimSpace(deref(event.Event.Sender.SenderId.OpenId))
+	if id != "" {
+		return id
+	}
+	id = strings.TrimSpace(deref(event.Event.Sender.SenderId.UserId))
+	if id != "" {
+		return id
+	}
+	return strings.TrimSpace(deref(event.Event.Sender.SenderId.UnionId))
 }
 
 // extractMentions extracts mentioned user IDs from a Lark message event.

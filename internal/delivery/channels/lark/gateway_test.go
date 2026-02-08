@@ -2070,6 +2070,40 @@ func TestExtractSenderID(t *testing.T) {
 			t.Fatalf("expected 'ou_user123', got %q", got)
 		}
 	})
+
+	t.Run("fallback to user id", func(t *testing.T) {
+		userID := "on_user123"
+		event := &larkim.P2MessageReceiveV1{
+			Event: &larkim.P2MessageReceiveV1Data{
+				Sender: &larkim.EventSender{
+					SenderId: &larkim.UserId{
+						UserId: &userID,
+					},
+				},
+			},
+		}
+		got := extractSenderID(event)
+		if got != "on_user123" {
+			t.Fatalf("expected 'on_user123', got %q", got)
+		}
+	})
+
+	t.Run("fallback to union id", func(t *testing.T) {
+		unionID := "un_user123"
+		event := &larkim.P2MessageReceiveV1{
+			Event: &larkim.P2MessageReceiveV1Data{
+				Sender: &larkim.EventSender{
+					SenderId: &larkim.UserId{
+						UnionId: &unionID,
+					},
+				},
+			},
+		}
+		got := extractSenderID(event)
+		if got != "un_user123" {
+			t.Fatalf("expected 'un_user123', got %q", got)
+		}
+	})
 }
 
 func TestAutoChatContextSizeConfig(t *testing.T) {

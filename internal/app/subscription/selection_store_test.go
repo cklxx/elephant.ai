@@ -62,6 +62,30 @@ func TestSelectionStoreSetGetLarkScope(t *testing.T) {
 	}
 }
 
+func TestSelectionStoreSetGetLarkChatScope(t *testing.T) {
+	t.Parallel()
+	tmp := t.TempDir()
+	path := filepath.Join(tmp, "llm_selection.json")
+
+	store := NewSelectionStore(path)
+	scope := SelectionScope{Channel: "lark", ChatID: "oc_chat"}
+	want := Selection{Mode: "cli", Provider: "codex", Model: "gpt-5.2-codex"}
+
+	if err := store.Set(context.Background(), scope, want); err != nil {
+		t.Fatalf("Set returned error: %v", err)
+	}
+	got, ok, err := store.Get(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("Get returned error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected selection to exist")
+	}
+	if got.Provider != want.Provider || got.Model != want.Model || got.Mode != want.Mode {
+		t.Fatalf("unexpected selection: %#v", got)
+	}
+}
+
 func TestSelectionStoreRejectsInvalidScope(t *testing.T) {
 	t.Parallel()
 	store := NewSelectionStore(filepath.Join(t.TempDir(), "llm_selection.json"))
@@ -69,11 +93,11 @@ func TestSelectionStoreRejectsInvalidScope(t *testing.T) {
 	if err := store.Set(context.Background(), SelectionScope{}, Selection{Mode: "cli"}); err == nil {
 		t.Fatalf("expected error for missing channel")
 	}
-	if err := store.Set(context.Background(), SelectionScope{Channel: "lark", ChatID: "c"}, Selection{Mode: "cli"}); err == nil {
-		t.Fatalf("expected error for missing user_id")
+	if err := store.Set(context.Background(), SelectionScope{Channel: "lark", ChatID: "c"}, Selection{Mode: "cli"}); err != nil {
+		t.Fatalf("expected chat-level scope to be valid, got error: %v", err)
 	}
 	if err := store.Set(context.Background(), SelectionScope{Channel: "lark", UserID: "u"}, Selection{Mode: "cli"}); err == nil {
-		t.Fatalf("expected error for missing chat_id")
+		t.Fatalf("expected error when user_id is set without chat_id")
 	}
 }
 

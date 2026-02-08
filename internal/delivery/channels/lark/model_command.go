@@ -22,7 +22,7 @@ func (g *Gateway) applyPinnedLarkLLMSelection(ctx context.Context, msg *incoming
 		return ctx
 	}
 
-	selection, matchedScope, ok, err := g.llmSelections.GetWithFallback(ctx, chatScope(msg), channelScope())
+	selection, matchedScope, ok, err := g.llmSelections.GetWithFallback(ctx, selectionScopes(msg)...)
 	if err != nil {
 		g.logger.Warn("Lark LLM selection load failed: %v", err)
 		return ctx
@@ -143,14 +143,46 @@ func channelScope() subscription.SelectionScope {
 
 // chatScope returns the per-chat override selection scope.
 func chatScope(msg *incomingMessage) subscription.SelectionScope {
-	return subscription.SelectionScope{Channel: "lark", ChatID: strings.TrimSpace(msg.chatID), UserID: strings.TrimSpace(msg.senderID)}
+	if msg == nil {
+		return subscription.SelectionScope{Channel: "lark"}
+	}
+	return subscription.SelectionScope{Channel: "lark", ChatID: strings.TrimSpace(msg.chatID)}
+}
+
+// legacyChatUserScope returns the historical chat+user scope shape.
+func legacyChatUserScope(msg *incomingMessage) (subscription.SelectionScope, bool) {
+	if msg == nil {
+		return subscription.SelectionScope{}, false
+	}
+	chatID := strings.TrimSpace(msg.chatID)
+	userID := strings.TrimSpace(msg.senderID)
+	if chatID == "" || userID == "" {
+		return subscription.SelectionScope{}, false
+	}
+	return subscription.SelectionScope{Channel: "lark", ChatID: chatID, UserID: userID}, true
+}
+
+// selectionScopes builds lookup scopes from most specific to least specific.
+// Order: chat-level -> legacy chat+user -> channel-level.
+func selectionScopes(msg *incomingMessage) []subscription.SelectionScope {
+	scopes := make([]subscription.SelectionScope, 0, 3)
+	if msg != nil {
+		if chatID := strings.TrimSpace(msg.chatID); chatID != "" {
+			scopes = append(scopes, subscription.SelectionScope{Channel: "lark", ChatID: chatID})
+		}
+		if legacy, ok := legacyChatUserScope(msg); ok {
+			scopes = append(scopes, legacy)
+		}
+	}
+	scopes = append(scopes, channelScope())
+	return scopes
 }
 
 func (g *Gateway) buildModelStatus(ctx context.Context, msg *incomingMessage) string {
 	if g == nil || msg == nil || g.llmSelections == nil {
 		return "（模型选择不可用）"
 	}
-	selection, matchedScope, ok, err := g.llmSelections.GetWithFallback(ctx, chatScope(msg), channelScope())
+	selection, matchedScope, ok, err := g.llmSelections.GetWithFallback(ctx, selectionScopes(msg)...)
 	if err != nil {
 		return fmt.Sprintf("读取失败：%v", err)
 	}
@@ -300,11 +332,20 @@ func (g *Gateway) clearModelSelection(ctx context.Context, msg *incomingMessage,
 	if g == nil || msg == nil || g.llmSelections == nil {
 		return fmt.Errorf("selection store not available")
 	}
-	scope := channelScope()
-	if chatOnly {
-		scope = chatScope(msg)
+
+	if !chatOnly {
+		return g.llmSelections.Clear(ctx, channelScope())
 	}
-	return g.llmSelections.Clear(ctx, scope)
+
+	if err := g.llmSelections.Clear(ctx, chatScope(msg)); err != nil {
+		return err
+	}
+	if legacyScope, ok := legacyChatUserScope(msg); ok {
+		if err := g.llmSelections.Clear(ctx, legacyScope); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func resolveLlamaServerTarget(lookup runtimeconfig.EnvLookup) (subscription.LlamaServerTarget, bool) {

@@ -20,7 +20,9 @@ const (
 )
 
 // SelectionScope identifies where an LLM selection applies.
-// Channel is required. CLI selections omit ChatID/UserID.
+// Channel is required.
+// Global selections omit ChatID/UserID.
+// Chat selections set ChatID; UserID is optional for legacy per-user scopes.
 type SelectionScope struct {
 	Channel string
 	ChatID  string
@@ -37,8 +39,11 @@ func (s SelectionScope) key() (string, error) {
 	if chatID == "" && userID == "" {
 		return channel, nil
 	}
-	if chatID == "" || userID == "" {
-		return "", fmt.Errorf("chat_id and user_id required")
+	if chatID != "" && userID == "" {
+		return fmt.Sprintf("%s:chat=%s", channel, chatID), nil
+	}
+	if chatID == "" && userID != "" {
+		return "", fmt.Errorf("chat_id required when user_id is set")
 	}
 	return fmt.Sprintf("%s:chat=%s:user=%s", channel, chatID, userID), nil
 }

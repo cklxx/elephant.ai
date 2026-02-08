@@ -249,11 +249,40 @@ func TestSetModelWithChatFlag(t *testing.T) {
 		t.Fatalf("expected [当前会话], got: %s", status)
 	}
 
+	// Should be visible for another sender in the same chat (group-chat semantics).
+	sameChatOtherSender := &incomingMessage{chatID: "oc_chat", senderID: "ou_other"}
+	sameChatStatus := gw.buildModelStatus(ctx, sameChatOtherSender)
+	if !strings.Contains(sameChatStatus, "chat-only-model") {
+		t.Fatalf("expected chat-only-model for same chat other sender, got: %s", sameChatStatus)
+	}
+
 	// Should NOT be visible from a different chat.
 	otherMsg := &incomingMessage{chatID: "oc_other", senderID: "ou_user"}
 	otherStatus := gw.buildModelStatus(ctx, otherMsg)
 	if strings.Contains(otherStatus, "chat-only-model") {
 		t.Fatalf("chat-specific model should not leak to other chats, got: %s", otherStatus)
+	}
+}
+
+func TestApplyPinnedSupportsLegacyChatUserScope(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_chat", senderID: "ou_user"}
+
+	legacyScope := subscription.SelectionScope{Channel: "lark", ChatID: "oc_chat", UserID: "ou_user"}
+	legacySel := subscription.Selection{Mode: "cli", Provider: "llama_server", Model: "legacy-model", Source: "llama_server"}
+	if err := gw.llmSelections.Set(ctx, legacyScope, legacySel); err != nil {
+		t.Fatalf("set legacy scope: %v", err)
+	}
+
+	newCtx := gw.applyPinnedLarkLLMSelection(ctx, msg)
+	if newCtx == ctx {
+		t.Fatal("expected context to include legacy pinned selection")
+	}
+	status := gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "legacy-model") {
+		t.Fatalf("expected legacy-model in status, got: %s", status)
 	}
 }
 
