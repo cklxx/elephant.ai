@@ -42,13 +42,15 @@ func (c *CLI) runFoundationEvaluation(args []string) error {
 	}
 
 	log.Printf(
-		"Foundation evaluation summary: overall %.1f, prompt %.1f, usability %.1f, discoverability %.1f, implicit top-%d %.1f%%",
+		"Foundation evaluation summary: overall %.1f, prompt %.1f, usability %.1f, discoverability %.1f, implicit top-%d %.1f%% (%d/%d)",
 		result.OverallScore,
 		result.Prompt.AverageScore,
 		result.Tools.AverageUsability,
 		result.Tools.AverageDiscoverability,
 		result.TopK,
 		result.Implicit.TopKHitRate*100,
+		result.Implicit.PassedCases,
+		result.Implicit.TotalCases,
 	)
 	for _, artifact := range result.ReportArtifacts {
 		log.Printf("Foundation artifact: %s (%s) -> %s", artifact.Name, artifact.Format, artifact.Path)

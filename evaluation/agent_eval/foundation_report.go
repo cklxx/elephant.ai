@@ -102,7 +102,7 @@ func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
 
 	b.WriteString("## Implicit Tool-Use Readiness\n\n")
 	b.WriteString(fmt.Sprintf("- Total scenarios: %d\n", result.Implicit.TotalCases))
-	b.WriteString(fmt.Sprintf("- Passed (Top-%d): %d\n", result.TopK, result.Implicit.PassedCases))
+	b.WriteString(fmt.Sprintf("- Passed (Top-%d): %d/%d\n", result.TopK, result.Implicit.PassedCases, result.Implicit.TotalCases))
 	b.WriteString(fmt.Sprintf("- Failed: %d\n", result.Implicit.FailedCases))
 	b.WriteString(fmt.Sprintf("- Top-1 hit rate: %.1f%%\n", result.Implicit.Top1HitRate*100))
 	b.WriteString(fmt.Sprintf("- Top-%d hit rate: %.1f%%\n", result.TopK, result.Implicit.TopKHitRate*100))

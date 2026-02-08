@@ -61,12 +61,14 @@ type FoundationSuiteResult struct {
 	SuiteName            string                            `json:"suite_name"`
 	TotalCollections     int                               `json:"total_collections"`
 	PassedCollections    int                               `json:"passed_collections"`
+	CollectionPassRatio  string                            `json:"collection_pass_ratio"`
 	AverageOverallScore  float64                           `json:"average_overall_score"`
 	AverageTop1HitRate   float64                           `json:"average_top1_hit_rate"`
 	AverageTopKHitRate   float64                           `json:"average_topk_hit_rate"`
 	TotalCases           int                               `json:"total_cases"`
 	PassedCases          int                               `json:"passed_cases"`
 	FailedCases          int                               `json:"failed_cases"`
+	CasePassRatio        string                            `json:"case_pass_ratio"`
 	AvailabilityErrors   int                               `json:"availability_errors"`
 	CollectionResults    []FoundationSuiteCollectionResult `json:"collection_results"`
 	Recommendations      []string                          `json:"recommendations"`
@@ -90,6 +92,7 @@ type FoundationSuiteCollectionResult struct {
 	TotalCases           int                         `json:"total_cases"`
 	PassedCases          int                         `json:"passed_cases"`
 	FailedCases          int                         `json:"failed_cases"`
+	CasePassRatio        string                      `json:"case_pass_ratio"`
 	AvailabilityErrors   int                         `json:"availability_errors"`
 	FailureTypeBreakdown map[string]int              `json:"failure_type_breakdown,omitempty"`
 	Summary              *FoundationEvaluationResult `json:"summary,omitempty"`
@@ -248,6 +251,7 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 			TotalCases:           evalResult.Implicit.TotalCases,
 			PassedCases:          evalResult.Implicit.PassedCases,
 			FailedCases:          evalResult.Implicit.FailedCases,
+			CasePassRatio:        fmt.Sprintf("%d/%d", evalResult.Implicit.PassedCases, evalResult.Implicit.TotalCases),
 			AvailabilityErrors:   availabilityErrors,
 			FailureTypeBreakdown: failureBreakdown,
 			Summary:              evalResult,
@@ -272,6 +276,8 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 		result.AverageTop1HitRate = round3(result.AverageTop1HitRate / total)
 		result.AverageTopKHitRate = round3(result.AverageTopKHitRate / total)
 	}
+	result.CollectionPassRatio = fmt.Sprintf("%d/%d", result.PassedCollections, result.TotalCollections)
+	result.CasePassRatio = fmt.Sprintf("%d/%d", result.PassedCases, result.TotalCases)
 
 	result.Recommendations = buildFoundationSuiteRecommendations(result)
 
@@ -353,12 +359,12 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 	b.WriteString("| Metric | Value |\n")
 	b.WriteString("|---|---:|\n")
 	b.WriteString(fmt.Sprintf("| Collections | %d |\n", result.TotalCollections))
-	b.WriteString(fmt.Sprintf("| Collections Passed (0 failed cases) | %d |\n", result.PassedCollections))
+	b.WriteString(fmt.Sprintf("| Collections Passed (0 failed cases) | %s |\n", result.CollectionPassRatio))
 	b.WriteString(fmt.Sprintf("| Average Overall Score | %.1f |\n", result.AverageOverallScore))
 	b.WriteString(fmt.Sprintf("| Average Top-1 Hit Rate | %.1f%% |\n", result.AverageTop1HitRate*100))
 	b.WriteString(fmt.Sprintf("| Average Top-K Hit Rate | %.1f%% |\n", result.AverageTopKHitRate*100))
 	b.WriteString(fmt.Sprintf("| Total Cases | %d |\n", result.TotalCases))
-	b.WriteString(fmt.Sprintf("| Passed Cases | %d |\n", result.PassedCases))
+	b.WriteString(fmt.Sprintf("| Passed Cases | %s |\n", result.CasePassRatio))
 	b.WriteString(fmt.Sprintf("| Failed Cases | %d |\n", result.FailedCases))
 	b.WriteString(fmt.Sprintf("| Availability Errors | %d |\n\n", result.AvailabilityErrors))
 
@@ -371,7 +377,7 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 			return rows[i].TopKHitRate < rows[j].TopKHitRate
 		})
 		b.WriteString("## Collection Breakdown\n\n")
-		b.WriteString("| Collection | Dimension | Mode/Preset/Toolset | Top-K | Cases | Top-1 | Top-K | Failed | Availability |\n")
+		b.WriteString("| Collection | Dimension | Mode/Preset/Toolset | Top-K | Cases (pass/total) | Top-1 | Top-K | Failed | Availability |\n")
 		b.WriteString("|---|---|---|---:|---:|---:|---:|---:|---:|\n")
 		for _, row := range rows {
 			dimension := row.Dimension
@@ -379,14 +385,14 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 				dimension = "-"
 			}
 			b.WriteString(fmt.Sprintf(
-				"| `%s` | `%s` | `%s / %s / %s` | %d | %d | %.1f%% | %.1f%% | %d | %d |\n",
+				"| `%s` | `%s` | `%s / %s / %s` | %d | %s | %.1f%% | %.1f%% | %d | %d |\n",
 				row.ID,
 				dimension,
 				row.Mode,
 				row.Preset,
 				row.Toolset,
 				row.TopK,
-				row.TotalCases,
+				row.CasePassRatio,
 				row.Top1HitRate*100,
 				row.TopKHitRate*100,
 				row.FailedCases,

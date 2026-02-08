@@ -132,8 +132,19 @@ collections:
 	if result.TotalCases != 2 {
 		t.Fatalf("expected total cases 2, got %d", result.TotalCases)
 	}
+	if result.CollectionPassRatio != "2/2" {
+		t.Fatalf("expected collection pass ratio 2/2, got %s", result.CollectionPassRatio)
+	}
+	if result.CasePassRatio != "2/2" {
+		t.Fatalf("expected case pass ratio 2/2, got %s", result.CasePassRatio)
+	}
 	if len(result.CollectionResults) != 2 {
 		t.Fatalf("expected 2 collection results, got %d", len(result.CollectionResults))
+	}
+	for _, row := range result.CollectionResults {
+		if row.CasePassRatio == "" {
+			t.Fatalf("expected non-empty case ratio for collection %s", row.ID)
+		}
 	}
 	if len(result.ReportArtifacts) == 0 {
 		t.Fatalf("expected suite artifacts")
@@ -150,6 +161,43 @@ collections:
 	}
 	if !sawJSON {
 		t.Fatalf("expected suite json artifact, got %+v", result.ReportArtifacts)
+	}
+}
+
+func TestBuildFoundationSuiteMarkdownReportIncludesPassRatios(t *testing.T) {
+	t.Parallel()
+
+	report := buildFoundationSuiteMarkdownReport(&FoundationSuiteResult{
+		RunID:               "suite-1",
+		SuiteName:           "suite",
+		SuitePath:           "evaluation/agent_eval/datasets/foundation_eval_suite.yaml",
+		TotalCollections:    4,
+		PassedCollections:   3,
+		CollectionPassRatio: "3/4",
+		TotalCases:          10,
+		PassedCases:         8,
+		CasePassRatio:       "8/10",
+		CollectionResults: []FoundationSuiteCollectionResult{
+			{
+				ID:            "tool-coverage",
+				Name:          "Tool Coverage",
+				TopK:          3,
+				CasePassRatio: "5/6",
+				Mode:          "web",
+				Preset:        "full",
+				Toolset:       "default",
+			},
+		},
+	})
+
+	if !strings.Contains(report, "3/4") {
+		t.Fatalf("expected collection x/x ratio in report, got: %s", report)
+	}
+	if !strings.Contains(report, "8/10") {
+		t.Fatalf("expected case x/x ratio in report, got: %s", report)
+	}
+	if !strings.Contains(report, "5/6") {
+		t.Fatalf("expected per-collection x/x ratio in report, got: %s", report)
 	}
 }
 
