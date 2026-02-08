@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, and safety boundary policy"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, and hard context-learning patterns"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -87,6 +87,16 @@ collections:
     dimension: "safety_boundary_policy"
     description: "Safety gating, policy compliance, and risk-aware routing coverage"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_safety_boundary_policy.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "context-learning-hard"
+    name: "Context Learning Hard"
+    dimension: "context_learning_hard"
+    description: "Hard long-context routing cases inspired by latest benchmark failure modes"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_context_learning_hard.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
