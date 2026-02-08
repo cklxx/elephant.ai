@@ -104,13 +104,21 @@ type LarkBrowserConfig struct {
 	Timeout     time.Duration
 }
 
+// ConfigResult bundles all outputs from LoadConfig into a single return value.
+type ConfigResult struct {
+	Config        Config
+	ConfigManager *configadmin.Manager
+	Resolver      func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error)
+	RuntimeCache  *runtimeconfig.RuntimeConfigCache
+}
+
 var defaultAllowedOrigins = []string{
 	"http://localhost:3000",
 	"http://localhost:3001",
 	"https://alex.yourdomain.com",
 }
 
-func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimeconfig.RuntimeConfig, runtimeconfig.Metadata, error), *runtimeconfig.RuntimeConfigCache, error) {
+func LoadConfig() (ConfigResult, error) {
 	envLookup := runtimeconfig.DefaultEnvLookup
 
 	storePath := configadmin.ResolveStorePath(envLookup)
@@ -124,7 +132,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	store := configadmin.NewFileStore(storePath)
 	managedOverrides, err := store.LoadOverrides(ctx)
 	if err != nil {
-		return Config{}, nil, nil, nil, err
+		return ConfigResult{}, err
 	}
 	manager := configadmin.NewManager(store, managedOverrides, configadmin.WithCacheTTL(cacheTTL))
 
@@ -143,11 +151,11 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	}
 	runtimeCache, err := runtimeconfig.NewRuntimeConfigCache(loader)
 	if err != nil {
-		return Config{}, nil, nil, nil, err
+		return ConfigResult{}, err
 	}
 	runtimeCfg, runtimeMeta, err := runtimeCache.Resolve(context.Background())
 	if err != nil {
-		return Config{}, nil, nil, nil, err
+		return ConfigResult{}, err
 	}
 
 	cfg := Config{
@@ -214,7 +222,7 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 
 	fileCfg, _, err := runtimeconfig.LoadFileConfig(runtimeconfig.WithEnv(envLookup))
 	if err != nil {
-		return Config{}, nil, nil, nil, err
+		return ConfigResult{}, err
 	}
 	applyServerFileConfig(&cfg, fileCfg)
 	applyLarkEnvFallback(&cfg, envLookup)
@@ -222,12 +230,15 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 
 	providerLower := strings.ToLower(strings.TrimSpace(cfg.Runtime.LLMProvider))
 	if cfg.Runtime.APIKey == "" && providerLower != "ollama" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
-		return Config{}, nil, nil, nil, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
+		return ConfigResult{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
 	}
 
-	resolver := runtimeCache.Resolve
-
-	return cfg, manager, resolver, runtimeCache, nil
+	return ConfigResult{
+		Config:        cfg,
+		ConfigManager: manager,
+		Resolver:      runtimeCache.Resolve,
+		RuntimeCache:  runtimeCache,
+	}, nil
 }
 
 func applyServerFileConfig(cfg *Config, file runtimeconfig.FileConfig) {

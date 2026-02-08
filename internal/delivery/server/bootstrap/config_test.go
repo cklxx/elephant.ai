@@ -46,7 +46,8 @@ func TestLoadConfig_DefaultLarkCardsErrorsOnly(t *testing.T) {
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
 	t.Setenv("LLM_PROVIDER", "mock")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -81,7 +82,8 @@ channels:
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("LARK_VERIFICATION_TOKEN", "verify_token_from_env")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -108,7 +110,8 @@ channels:
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("LARK_VERIFICATION_TOKEN", "verify_token_from_env")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -134,7 +137,8 @@ channels:
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
 	t.Setenv("LLM_PROVIDER", "mock")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -160,7 +164,8 @@ channels:
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("LARK_CARD_CALLBACK_PORT", "9494")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -187,7 +192,8 @@ channels:
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("LARK_CARD_CALLBACK_PORT", "9494")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -202,7 +208,8 @@ func TestLoadConfig_EventHistoryAsyncDefaults(t *testing.T) {
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
 	t.Setenv("LLM_PROVIDER", "mock")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -234,7 +241,8 @@ runtime:
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("AUTH_JWT_SECRET", "env-auth-secret")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -258,7 +266,8 @@ auth:
 	t.Setenv("LLM_PROVIDER", "mock")
 	t.Setenv("AUTH_JWT_SECRET", "env-auth-secret")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
@@ -284,7 +293,8 @@ server:
 	t.Setenv("ALEX_CONFIG_PATH", configPath)
 	t.Setenv("LLM_PROVIDER", "mock")
 
-	cfg, _, _, _, err := LoadConfig()
+	cr, err := LoadConfig()
+	cfg := cr.Config
 	if err != nil {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}

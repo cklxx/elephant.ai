@@ -37,21 +37,22 @@ func RunServer(observabilityConfigPath string) error {
 		defer cleanupObs()
 	}
 
-	config, configManager, resolver, runtimeCache, err := LoadConfig()
+	cr, err := LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	config := cr.Config
 
 	LogServerConfiguration(logger, config)
 
-	if runtimeCache != nil {
+	if cr.RuntimeCache != nil {
 		for _, configPath := range runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil) {
 			configWatcher, err := runtimeconfig.NewRuntimeConfigWatcher(
 				configPath,
-				runtimeCache,
+				cr.RuntimeCache,
 				runtimeconfig.WithConfigWatchLogger(logger),
 				runtimeconfig.WithConfigWatchBeforeReload(func(ctx context.Context) error {
-					_, err := configManager.RefreshOverrides(ctx)
+					_, err := cr.ConfigManager.RefreshOverrides(ctx)
 					return err
 				}),
 			)
@@ -75,8 +76,8 @@ func RunServer(observabilityConfigPath string) error {
 	if err != nil {
 		return fmt.Errorf("build container: %w", err)
 	}
-	if resolver != nil && container != nil && container.AgentCoordinator != nil {
-		container.AgentCoordinator.SetRuntimeConfigResolver(resolver)
+	if cr.Resolver != nil && container != nil && container.AgentCoordinator != nil {
+		container.AgentCoordinator.SetRuntimeConfigResolver(cr.Resolver)
 	}
 	defer func() {
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -327,11 +328,11 @@ func RunServer(observabilityConfigPath string) error {
 
 	var runtimeUpdates <-chan struct{}
 	var runtimeReloader func(context.Context) error
-	if runtimeCache != nil {
-		runtimeUpdates = runtimeCache.Updates()
-		runtimeReloader = runtimeCache.Reload
+	if cr.RuntimeCache != nil {
+		runtimeUpdates = cr.RuntimeCache.Updates()
+		runtimeReloader = cr.RuntimeCache.Reload
 	}
-	configHandler := serverHTTP.NewConfigHandler(configManager, resolver, runtimeUpdates, runtimeReloader)
+	configHandler := serverHTTP.NewConfigHandler(cr.ConfigManager, cr.Resolver, runtimeUpdates, runtimeReloader)
 	evaluationService, err := serverApp.NewEvaluationService("./evaluation_results")
 	if err != nil {
 		logger.Warn("Evaluation service disabled: %v", err)

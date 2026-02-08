@@ -33,10 +33,11 @@ func RunLark(observabilityConfigPath string) error {
 		defer cleanupObs()
 	}
 
-	config, configManager, resolver, runtimeCache, err := LoadConfig()
+	cr, err := LoadConfig()
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
+	config := cr.Config
 
 	// Validate Lark is enabled and has credentials — fail fast.
 	larkCfg := config.Channels.Lark
@@ -52,14 +53,14 @@ func RunLark(observabilityConfigPath string) error {
 
 	LogServerConfiguration(logger, config)
 
-	if runtimeCache != nil {
+	if cr.RuntimeCache != nil {
 		for _, configPath := range runtimeconfig.DefaultRuntimeConfigWatchPaths(runtimeconfig.DefaultEnvLookup, nil) {
 			configWatcher, err := runtimeconfig.NewRuntimeConfigWatcher(
 				configPath,
-				runtimeCache,
+				cr.RuntimeCache,
 				runtimeconfig.WithConfigWatchLogger(logger),
 				runtimeconfig.WithConfigWatchBeforeReload(func(ctx context.Context) error {
-					_, err := configManager.RefreshOverrides(ctx)
+					_, err := cr.ConfigManager.RefreshOverrides(ctx)
 					return err
 				}),
 			)
@@ -83,8 +84,8 @@ func RunLark(observabilityConfigPath string) error {
 	if err != nil {
 		return fmt.Errorf("build container: %w", err)
 	}
-	if resolver != nil && container != nil && container.AgentCoordinator != nil {
-		container.AgentCoordinator.SetRuntimeConfigResolver(resolver)
+	if cr.Resolver != nil && container != nil && container.AgentCoordinator != nil {
+		container.AgentCoordinator.SetRuntimeConfigResolver(cr.Resolver)
 	}
 	defer func() {
 		drainCtx, drainCancel := context.WithTimeout(context.Background(), 15*time.Second)
