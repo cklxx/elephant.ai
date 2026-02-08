@@ -1,0 +1,124 @@
+version: "1"
+name: "foundation-availability-recovery"
+description: "Availability and fallback routing coverage for overlapping tool intents"
+scenarios:
+  - id: "availability-search-fast-regex"
+    category: "availability"
+    intent: "Use fast project-wide regex search to locate RetryBudget references."
+    expected_tools: ["ripgrep"]
+
+  - id: "availability-search-simple-grep"
+    category: "availability"
+    intent: "Run a simple grep on local log files for HTTP 502 entries."
+    expected_tools: ["grep"]
+
+  - id: "availability-search-semantic-symbol"
+    category: "availability"
+    intent: "Search code symbol usage across files with a semantic file search tool."
+    expected_tools: ["search_file"]
+
+  - id: "availability-find-by-name"
+    category: "availability"
+    intent: "Find files by name pattern under the current workspace."
+    expected_tools: ["find"]
+
+  - id: "availability-list-tree"
+    category: "availability"
+    intent: "List directories and files recursively before choosing a target file."
+    expected_tools: ["list_dir"]
+
+  - id: "availability-read-specific-file"
+    category: "availability"
+    intent: "Read this exact file content before making any edits."
+    expected_tools: ["read_file"]
+
+  - id: "availability-replace-exact-block"
+    category: "availability"
+    intent: "Replace one exact legacy config block in place."
+    expected_tools: ["replace_in_file"]
+
+  - id: "availability-write-new-file"
+    category: "availability"
+    intent: "Create a new YAML output file with generated content."
+    expected_tools: ["write_file"]
+
+  - id: "availability-shell-inspect-runtime"
+    category: "availability"
+    intent: "Run shell commands to inspect runtime process state."
+    expected_tools: ["shell_exec"]
+
+  - id: "availability-execute-quick-snippet"
+    category: "availability"
+    intent: "Execute a short script snippet to validate a checksum."
+    expected_tools: ["execute_code"]
+
+  - id: "availability-browser-session-introspect"
+    category: "availability"
+    intent: "Inspect active browser URL and viewport before interaction."
+    expected_tools: ["browser_info"]
+
+  - id: "availability-browser-dom-driven-action"
+    category: "availability"
+    intent: "Fill input fields using DOM selectors and submit."
+    expected_tools: ["browser_dom"]
+
+  - id: "availability-browser-canvas-action"
+    category: "availability"
+    intent: "Canvas has no selectors; use coordinate click and drag."
+    expected_tools: ["browser_action"]
+
+  - id: "availability-browser-visual-proof"
+    category: "availability"
+    intent: "Capture a screenshot as visual proof for bug ticket."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "availability-search-official-docs"
+    category: "availability"
+    intent: "Search official documentation pages for retry idempotency guidance."
+    expected_tools: ["web_search"]
+
+  - id: "availability-fetch-url-content"
+    category: "availability"
+    intent: "Fetch one URL and inspect the cleaned full text."
+    expected_tools: ["web_fetch"]
+
+  - id: "availability-artifact-persist-report"
+    category: "availability"
+    intent: "Persist the long report to artifact storage."
+    expected_tools: ["artifacts_write"]
+
+  - id: "availability-artifact-list-before-send"
+    category: "availability"
+    intent: "List generated artifacts before deciding what to share."
+    expected_tools: ["artifacts_list"]
+
+  - id: "availability-artifact-cleanup"
+    category: "availability"
+    intent: "Delete stale artifact files from failed previous attempts."
+    expected_tools: ["artifacts_delete"]
+
+  - id: "availability-manifest-audit"
+    category: "availability"
+    intent: "Inspect artifact manifest metadata to verify persistence."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "availability-memory-lookup"
+    category: "availability"
+    intent: "Search memory notes for known rollout caveats."
+    expected_tools: ["memory_search"]
+
+  - id: "availability-memory-open-proof"
+    category: "availability"
+    intent: "Open a memory note and cite exact stored context."
+    expected_tools: ["memory_get"]
+
+  - id: "availability-ambiguity-needs-clarify"
+    category: "availability"
+    intent: "Requirement has conflicting constraints; ask one precise clarification."
+    expected_tools: ["clarify"]
+
+  - id: "availability-user-gated-step"
+    category: "availability"
+    intent: "Task is blocked by user manual approval; request user action first."
+    expected_tools: ["request_user"]
+

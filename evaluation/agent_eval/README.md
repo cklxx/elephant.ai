@@ -54,6 +54,35 @@
 
 每条任务默认 `surface=web`，可通过 `Metadata["surface"]` 过滤区分；SWE-Bench 仍适用于 CLI/修复类评测。
 
+## Foundation 分层离线评测（当前推荐）
+
+Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调用，专注验证：
+- 工具可发现性/可用性
+- 提示词有效性
+- 主动性路由
+- 复杂高价值任务首动作选择
+- 可用性冲突与降级恢复
+- 价值交付工作流
+
+当前集合规模（`x/x`）：
+- Collections: `6/6`
+- Cases: `190/190`
+- Base Tool Coverage: `46/46`
+- Prompt Effectiveness Coverage: `32/32`
+- Proactivity Coverage: `30/30`
+- Complex High-Value Tasks: `30/30`
+- Availability and Recovery: `24/24`
+- Valuable Delivery Workflows: `28/28`
+
+运行命令：
+
+```bash
+go run ./cmd/alex eval foundation-suite \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
+  --output tmp/foundation-suite-scaleout-v2-r2 \
+  --format markdown
+```
+
 ## 快速开始
 
 ### 1. 基本使用

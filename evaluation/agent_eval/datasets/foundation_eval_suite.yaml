@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation from base tool coverage to high-value complex tasks"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, and valuable workflows"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -37,6 +37,26 @@ collections:
     dimension: "complex_valuable_tasks"
     description: "First-action routing quality for complex valuable tasks"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_complex_tasks.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "availability-recovery"
+    name: "Availability and Recovery"
+    dimension: "availability_recovery"
+    description: "Tool availability, overlap disambiguation, and fallback routing quality"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_availability_recovery.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "valuable-workflows"
+    name: "Valuable Delivery Workflows"
+    dimension: "valuable_delivery_workflows"
+    description: "First-action routing quality for high-value delivery workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_valuable_workflows.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

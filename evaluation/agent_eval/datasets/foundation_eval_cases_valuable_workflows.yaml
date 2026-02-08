@@ -1,0 +1,143 @@
+version: "1"
+name: "foundation-valuable-workflows"
+description: "High-value delivery workflow routing coverage from first action to orchestration"
+scenarios:
+  - id: "workflow-release-checklist-plan"
+    category: "valuable_workflow"
+    intent: "Create a phased release checklist with milestones and rollback checkpoints."
+    expected_tools: ["plan"]
+
+  - id: "workflow-incident-triage-start"
+    category: "valuable_workflow"
+    intent: "Start incident triage by running shell commands and grep on service logs for repeated failures."
+    expected_tools: ["shell_exec", "grep"]
+
+  - id: "workflow-repo-impact-audit"
+    category: "valuable_workflow"
+    intent: "Before refactor, map all impacted symbols across the repository."
+    expected_tools: ["search_file", "ripgrep"]
+
+  - id: "workflow-config-audit-start"
+    category: "valuable_workflow"
+    intent: "Start config audit by listing directory tree and using find to locate candidate config files."
+    expected_tools: ["list_dir", "find"]
+
+  - id: "workflow-safe-read-before-edit"
+    category: "valuable_workflow"
+    intent: "Read the target config file before replacing deprecated keys."
+    expected_tools: ["read_file"]
+
+  - id: "workflow-apply-targeted-rewrite"
+    category: "valuable_workflow"
+    intent: "Apply a targeted rewrite to one exact block in the target file."
+    expected_tools: ["replace_in_file"]
+
+  - id: "workflow-create-migration-note"
+    category: "valuable_workflow"
+    intent: "Write a migration note file in YAML with rollout instructions."
+    expected_tools: ["write_file"]
+
+  - id: "workflow-browser-bug-repro"
+    category: "valuable_workflow"
+    intent: "Reproduce the web bug by filling fields using selectors."
+    expected_tools: ["browser_dom"]
+
+  - id: "workflow-browser-canvas-repro"
+    category: "valuable_workflow"
+    intent: "Perform canvas-only interaction with coordinate drag steps."
+    expected_tools: ["browser_action"]
+
+  - id: "workflow-browser-proof-capture"
+    category: "valuable_workflow"
+    intent: "Capture screenshot evidence for bug filing and triage."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "workflow-browser-context-check"
+    category: "valuable_workflow"
+    intent: "Inspect browser tab metadata before running replay steps."
+    expected_tools: ["browser_info"]
+
+  - id: "workflow-external-doc-research"
+    category: "valuable_workflow"
+    intent: "Search and collect authoritative docs about deployment freeze policy."
+    expected_tools: ["web_search", "web_fetch"]
+
+  - id: "workflow-runbook-html-fix"
+    category: "valuable_workflow"
+    intent: "Transform and fix runbook HTML markup for accessibility."
+    expected_tools: ["html_edit"]
+
+  - id: "workflow-architecture-visualization"
+    category: "valuable_workflow"
+    intent: "Render a Mermaid architecture diagram for change review."
+    expected_tools: ["diagram_render"]
+
+  - id: "workflow-report-persist"
+    category: "valuable_workflow"
+    intent: "Persist a long-form technical report as artifact output."
+    expected_tools: ["artifacts_write"]
+
+  - id: "workflow-report-attachment"
+    category: "valuable_workflow"
+    intent: "Produce a downloadable attachment from generated content."
+    expected_tools: ["write_attachment"]
+
+  - id: "workflow-artifact-hygiene"
+    category: "valuable_workflow"
+    intent: "Audit manifest, list generated files, and clean stale artifacts."
+    expected_tools: ["artifact_manifest", "artifacts_list", "artifacts_delete"]
+
+  - id: "workflow-lark-status-announce"
+    category: "valuable_workflow"
+    intent: "Send a concise status update to current Lark conversation."
+    expected_tools: ["lark_send_message"]
+
+  - id: "workflow-lark-context-sync"
+    category: "valuable_workflow"
+    intent: "Read Lark chat history before posting final update."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "workflow-lark-file-share"
+    category: "valuable_workflow"
+    intent: "Upload generated report file to current Lark chat."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "workflow-calendar-planning-loop"
+    category: "valuable_workflow"
+    intent: "Check schedule, create rollout event, and reschedule conflicts."
+    expected_tools: ["lark_calendar_query", "lark_calendar_create", "lark_calendar_update"]
+
+  - id: "workflow-task-dispatch"
+    category: "valuable_workflow"
+    intent: "Create and assign follow-up execution tasks to owners."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "workflow-reminder-control"
+    category: "valuable_workflow"
+    intent: "Set follow-up reminder, inspect timers, then cancel obsolete one."
+    expected_tools: ["set_timer", "list_timers", "cancel_timer"]
+
+  - id: "workflow-scheduler-control"
+    category: "valuable_workflow"
+    intent: "Create recurring status job, inspect active jobs, remove legacy job."
+    expected_tools: ["scheduler_create_job", "scheduler_list_jobs", "scheduler_delete_job"]
+
+  - id: "workflow-okr-closed-loop"
+    category: "valuable_workflow"
+    intent: "Read current OKR objectives and write milestone progress update."
+    expected_tools: ["okr_read", "okr_write"]
+
+  - id: "workflow-memory-informed-action"
+    category: "valuable_workflow"
+    intent: "Search and open memory notes before selecting mitigation strategy."
+    expected_tools: ["memory_search", "memory_get"]
+
+  - id: "workflow-ui-structured-response"
+    category: "valuable_workflow"
+    intent: "Emit a structured payload for downstream UI renderer."
+    expected_tools: ["a2ui_emit"]
+
+  - id: "workflow-subagent-delegation"
+    category: "valuable_workflow"
+    intent: "Delegate heavy multi-step verification workflow to acp executor subagent."
+    expected_tools: ["acp_executor"]
