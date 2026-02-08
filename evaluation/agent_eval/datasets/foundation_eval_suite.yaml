@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, and user habit soul memory continuity"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, and task completion speed"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -117,6 +117,16 @@ collections:
     dimension: "user_habit_soul_memory"
     description: "User habit preference, soul continuity, and memory-consistent routing coverage"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_user_habit_soul_memory.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "task-completion-speed"
+    name: "Task Completion Speed"
+    dimension: "task_completion_speed"
+    description: "Speed-sensitive routing quality for shortest viable completion paths"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_task_completion_speed.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

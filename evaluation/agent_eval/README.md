@@ -69,10 +69,11 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - context learning hard 模式（latest benchmark inspired）
 - 记忆能力专项（memory capabilities）
 - 用户习惯 + Soul + 记忆连续性专项
+- 任务完成速度专项（task completion speed）
 
 当前集合规模（`x/x`）：
-- Collections: `12/12`
-- Cases: `314/314`
+- Collections: `13/13`
+- Cases: `334/334`
 - Base Tool Coverage: `46/46`
 - Prompt Effectiveness Coverage: `32/32`
 - Proactivity Coverage: `30/30`
@@ -85,13 +86,14 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Context Learning Hard: `20/20`
 - Memory Capabilities: `20/20`
 - User Habit Soul Memory: `20/20`
+- Task Completion Speed: `20/20`
 
 运行命令：
 
 ```bash
 go run ./cmd/alex eval foundation-suite \
   --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
-  --output tmp/foundation-suite-habit-soul-memory-v3 \
+  --output tmp/foundation-suite-speed-v1 \
   --format markdown
 ```
 
