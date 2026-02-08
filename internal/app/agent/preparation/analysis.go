@@ -26,10 +26,19 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		clilatency.PrintfWithContext(ctx, "[latency] preanalysis=skipped reason=%s\n", analysis.Approach)
 		return analysis, preferSmall
 	}
-	client, err := s.llmFactory.GetIsolatedClient(provider, model, llm.LLMConfig{
+	llmConfig := llm.LLMConfig{
 		APIKey:  s.config.APIKey,
 		BaseURL: s.config.BaseURL,
-	})
+	}
+	if s.credentialRefresher != nil {
+		if apiKey, baseURL, ok := s.credentialRefresher(provider); ok {
+			llmConfig.APIKey = apiKey
+			if baseURL != "" {
+				llmConfig.BaseURL = baseURL
+			}
+		}
+	}
+	client, err := s.llmFactory.GetIsolatedClient(provider, model, llmConfig)
 	if err != nil {
 		s.logger.Warn("Task pre-analysis skipped: %v", err)
 		return nil, false
