@@ -37,7 +37,7 @@ func TestApplyPinnedCLILLMSelectionAttachesResolvedSelection(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected selection on context")
 	}
-	if selection.Provider != "llama_server" || selection.Model != "llama3:latest" {
+	if selection.Provider != "llama.cpp" || selection.Model != "llama3:latest" {
 		t.Fatalf("unexpected selection: %#v", selection)
 	}
 	if !selection.Pinned {

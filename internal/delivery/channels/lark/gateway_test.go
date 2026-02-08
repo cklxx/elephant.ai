@@ -1686,8 +1686,8 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected pinned LLM selection on context")
 	}
-	if selection.Provider != "llama_server" {
-		t.Fatalf("expected provider 'llama_server', got %q", selection.Provider)
+	if selection.Provider != "llama.cpp" {
+		t.Fatalf("expected provider 'llama.cpp', got %q", selection.Provider)
 	}
 	if selection.Model != "llama3:latest" {
 		t.Fatalf("expected model 'llama3:latest', got %q", selection.Model)
