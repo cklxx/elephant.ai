@@ -29,12 +29,13 @@ type ACPConfig struct {
 // ACPService manages the ACP daemon (host mode only).
 // Sandbox-mode ACP is managed by SandboxService.
 type ACPService struct {
-	pm      *process.Manager
-	ports   *port.Allocator
-	health  *health.Checker
-	section *devlog.SectionWriter
-	config  ACPConfig
-	state   atomic.Value // devops.ServiceState
+	pm            *process.Manager
+	ports         *port.Allocator
+	health        *health.Checker
+	section       *devlog.SectionWriter
+	config        ACPConfig
+	state         atomic.Value // devops.ServiceState
+	skipNextBuild bool         // set by Promote, cleared by resolveAlexBinary
 }
 
 // NewACPService creates a new ACP service for host-mode operation.
@@ -140,26 +141,84 @@ func (s *ACPService) Stop(ctx context.Context) error {
 	return nil
 }
 
+// alexBinPath returns the production alex binary path.
+func (s *ACPService) alexBinPath() string {
+	return filepath.Join(s.config.ProjectDir, "alex")
+}
+
+// stagingPath returns the staging alex binary path.
+func (s *ACPService) stagingPath() string {
+	return s.alexBinPath() + ".staging"
+}
+
+// Build compiles the alex CLI to a staging path without touching the running binary.
+// Implements devops.Buildable.
+func (s *ACPService) Build(ctx context.Context) (string, error) {
+	staging := s.stagingPath()
+	toolchain := filepath.Join(s.config.ProjectDir, "scripts", "go-with-toolchain.sh")
+	if _, err := os.Stat(toolchain); err != nil {
+		return "", fmt.Errorf("alex build toolchain not found: %w", err)
+	}
+
+	s.section.Info("Building CLI (./cmd/alex) → %s ...", staging)
+	cmd := exec.CommandContext(ctx, toolchain, "build", "-o", staging, "./cmd/alex")
+	cmd.Dir = s.config.ProjectDir
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		os.Remove(staging)
+		return "", fmt.Errorf("build alex CLI: %s: %w", string(out), err)
+	}
+
+	info, err := os.Stat(staging)
+	if err != nil {
+		return "", fmt.Errorf("alex CLI build succeeded but %s not found", staging)
+	}
+	if info.Mode()&0o111 == 0 {
+		os.Remove(staging)
+		return "", fmt.Errorf("alex staging binary %s is not executable", staging)
+	}
+
+	s.section.Success("ACP CLI staged: %s", staging)
+	return staging, nil
+}
+
+// Promote atomically replaces the production alex binary with the staged one.
+// Implements devops.Buildable.
+func (s *ACPService) Promote(stagingPath string) error {
+	if err := os.Rename(stagingPath, s.alexBinPath()); err != nil {
+		return fmt.Errorf("promote acp: %w", err)
+	}
+	s.skipNextBuild = true
+	s.section.Success("ACP promoted: %s → %s", stagingPath, s.alexBinPath())
+	return nil
+}
+
 func (s *ACPService) resolveAlexBinary(ctx context.Context) (string, error) {
+	alexBin := s.alexBinPath()
+
+	// If Promote already placed the binary, skip build
+	if s.skipNextBuild {
+		s.skipNextBuild = false
+		if _, err := os.Stat(alexBin); err == nil {
+			s.section.Info("ACP build skipped (already promoted)")
+			return alexBin, nil
+		}
+	}
+
 	// Check for pre-built alex binary
-	alexBin := filepath.Join(s.config.ProjectDir, "alex")
 	if _, err := os.Stat(alexBin); err == nil {
 		return alexBin, nil
 	}
 
-	// Build with toolchain
-	toolchain := filepath.Join(s.config.ProjectDir, "scripts", "go-with-toolchain.sh")
-	if _, err := os.Stat(toolchain); err == nil {
-		s.section.Info("Building CLI (./cmd/alex) with toolchain...")
-		cmd := exec.CommandContext(ctx, toolchain, "build", "-o", alexBin, "./cmd/alex")
-		cmd.Dir = s.config.ProjectDir
-		if out, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("build alex CLI: %s: %w", string(out), err)
-		}
-		return alexBin, nil
+	// Build via staged path then promote
+	staging, err := s.Build(ctx)
+	if err != nil {
+		return "", err
 	}
-
-	return "", fmt.Errorf("alex binary not found and no build toolchain available")
+	if err := s.Promote(staging); err != nil {
+		return "", err
+	}
+	return alexBin, nil
 }
 
 // ResolveACPAddr returns the ACP executor address if available.
