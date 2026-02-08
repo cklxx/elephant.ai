@@ -249,8 +249,8 @@ ensure_sandbox_acp_config() {
     return 0
   fi
   SANDBOX_CONFIG_FOUND=1
-  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'mkdir -p /root/.alex'
-  docker cp "${host_config}" "${SANDBOX_CONTAINER_NAME}:/tmp/alex-config.yaml"
+  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'mkdir -p /root/.alex' >/dev/null
+  docker cp "${host_config}" "${SANDBOX_CONTAINER_NAME}:/tmp/alex-config.yaml" >/dev/null
   local result
   result="$(
     docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc '
@@ -308,10 +308,10 @@ ensure_sandbox_acp_binary() {
   fi
   alex_bin="${out_bin}"
 
-  log_info "Copying alex CLI into sandbox container..."
-  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'mkdir -p /usr/local/bin'
-  docker cp "${alex_bin}" "${SANDBOX_CONTAINER_NAME}:/usr/local/bin/alex"
-  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'chmod +x /usr/local/bin/alex'
+  log_info "Copying alex CLI into sandbox..."
+  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'mkdir -p /usr/local/bin' >/dev/null
+  docker cp "${alex_bin}" "${SANDBOX_CONTAINER_NAME}:/usr/local/bin/alex" >/dev/null
+  docker exec "${SANDBOX_CONTAINER_NAME}" sh -lc 'chmod +x /usr/local/bin/alex' >/dev/null
   if [[ "${rebuild}" == "1" || "${had_alex}" == "0" ]]; then
     SANDBOX_ACP_BIN_UPDATED=1
   fi
@@ -601,8 +601,11 @@ start_sandbox() {
       container_running=0
       container_exists=0
     else
-      log_info "Sandbox already running (container ${SANDBOX_CONTAINER_NAME})"
-      wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
+      if sandbox_ready; then
+        log_success "Sandbox running (container ${SANDBOX_CONTAINER_NAME})"
+      else
+        wait_for_health "http://localhost:${SANDBOX_PORT}/v1/docs" "sandbox"
+      fi
       ensure_sandbox_cli_tools
       if [[ "$run_acp_in_sandbox" == "1" ]]; then
         start_acp_daemon_in_sandbox
@@ -726,8 +729,8 @@ maybe_setup_auth_db() {
   fi
 
   ensure_dirs
-  log_info "Setting up local auth DB via scripts/setup_local_auth_db.sh..."
-  if "${SCRIPT_DIR}/scripts/setup_local_auth_db.sh"; then
+  log_info "Setting up local auth DB..."
+  if "${SCRIPT_DIR}/scripts/setup_local_auth_db.sh" >"${LOG_DIR}/setup_auth_db.log" 2>&1; then
     log_success "Local auth DB ready"
   else
     log_warn "Local auth DB setup failed; auth may be disabled"
@@ -838,10 +841,15 @@ start_web() {
 
 cmd_up() {
   ensure_local_bootstrap
+  log_section "Sandbox"
   start_sandbox
+  log_section "Auth DB"
   maybe_setup_auth_db
+  log_section "Backend"
   start_server
+  log_section "Web"
   start_web
+  echo ""
   log_success "Dev services are running: backend=http://localhost:${SERVER_PORT} web=http://localhost:${WEB_PORT} sandbox=${SANDBOX_BASE_URL}"
 }
 
