@@ -14,7 +14,7 @@ func TestSelectionStoreSetGetClearCLI(t *testing.T) {
 
 	store := NewSelectionStore(path)
 	scope := SelectionScope{Channel: "cli"}
-	want := Selection{Mode: "cli", Provider: "ollama", Model: "llama3:latest", Source: "ollama"}
+	want := Selection{Mode: "cli", Provider: "anthropic", Model: "claude-sonnet-4", Source: "anthropic"}
 
 	if err := store.Set(context.Background(), scope, want); err != nil {
 		t.Fatalf("Set returned error: %v", err)
@@ -45,7 +45,7 @@ func TestSelectionStoreSetGetLarkScope(t *testing.T) {
 
 	store := NewSelectionStore(path)
 	scope := SelectionScope{Channel: "lark", ChatID: "oc_chat", UserID: "ou_user"}
-	want := Selection{Mode: "cli", Provider: "ollama", Model: "llama3:latest"}
+	want := Selection{Mode: "cli", Provider: "anthropic", Model: "claude-sonnet-4"}
 
 	if err := store.Set(context.Background(), scope, want); err != nil {
 		t.Fatalf("Set returned error: %v", err)
@@ -81,7 +81,7 @@ func TestSelectionStoreRejectsUnsupportedVersion(t *testing.T) {
 	t.Parallel()
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "llm_selection.json")
-	if err := os.WriteFile(path, []byte(`{"version":2,"selections":{"cli":{"mode":"cli","provider":"ollama","model":"llama3"}}}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"version":2,"selections":{"cli":{"mode":"cli","provider":"anthropic","model":"claude-sonnet-4"}}}`), 0o600); err != nil {
 		t.Fatalf("write store: %v", err)
 	}
 
@@ -95,7 +95,7 @@ func TestSelectionStoreDefaultsMissingVersion(t *testing.T) {
 	t.Parallel()
 	tmp := t.TempDir()
 	path := filepath.Join(tmp, "llm_selection.json")
-	if err := os.WriteFile(path, []byte(`{"selections":{"cli":{"mode":"cli","provider":"ollama","model":"llama3"}}}`), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte(`{"selections":{"cli":{"mode":"cli","provider":"anthropic","model":"claude-sonnet-4"}}}`), 0o600); err != nil {
 		t.Fatalf("write store: %v", err)
 	}
 
@@ -107,7 +107,7 @@ func TestSelectionStoreDefaultsMissingVersion(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected selection to exist")
 	}
-	if selection.Provider != "ollama" || selection.Model != "llama3" {
+	if selection.Provider != "anthropic" || selection.Model != "claude-sonnet-4" {
 		t.Fatalf("unexpected selection: %#v", selection)
 	}
 }

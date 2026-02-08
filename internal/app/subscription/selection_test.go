@@ -42,23 +42,6 @@ func TestResolveSelectionIgnoresYamlMode(t *testing.T) {
 	}
 }
 
-func TestResolveSelectionForOllama(t *testing.T) {
-	t.Setenv("OLLAMA_BASE_URL", "http://localhost:11434")
-	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials { return runtimeconfig.CLICredentials{} })
-
-	selection := Selection{Mode: "cli", Provider: "ollama", Model: "llama3:latest", Source: "ollama"}
-	resolved, ok := resolver.Resolve(selection)
-	if !ok {
-		t.Fatalf("expected selection to resolve")
-	}
-	if resolved.Provider != "ollama" || resolved.Model != "llama3:latest" {
-		t.Fatalf("unexpected resolution: %#v", resolved)
-	}
-	if resolved.BaseURL != "http://localhost:11434" {
-		t.Fatalf("expected base url from env, got %q", resolved.BaseURL)
-	}
-}
-
 func TestResolveSelectionCodexEmptyCreds(t *testing.T) {
 	// When CLI credentials are empty (e.g. expired token), Resolve should
 	// still return a partial selection with Pinned=true and fallback BaseURL
@@ -103,27 +86,6 @@ func TestResolveSelectionClaudeEmptyCreds(t *testing.T) {
 		t.Fatalf("expected empty api key, got %q", resolved.APIKey)
 	}
 	if resolved.BaseURL != "https://api.anthropic.com/v1" {
-		t.Fatalf("expected fallback base url, got %q", resolved.BaseURL)
-	}
-	if !resolved.Pinned {
-		t.Fatal("expected Pinned=true")
-	}
-}
-
-func TestResolveSelectionAntigravityEmptyCreds(t *testing.T) {
-	resolver := NewSelectionResolver(func() runtimeconfig.CLICredentials {
-		return runtimeconfig.CLICredentials{}
-	})
-
-	selection := Selection{Mode: "cli", Provider: "antigravity", Model: "gemini-3-pro"}
-	resolved, ok := resolver.Resolve(selection)
-	if !ok {
-		t.Fatalf("expected selection to resolve even with empty creds")
-	}
-	if resolved.APIKey != "" {
-		t.Fatalf("expected empty api key, got %q", resolved.APIKey)
-	}
-	if resolved.BaseURL != "https://cloudcode-pa.googleapis.com" {
 		t.Fatalf("expected fallback base url, got %q", resolved.BaseURL)
 	}
 	if !resolved.Pinned {

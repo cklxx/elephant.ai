@@ -73,25 +73,12 @@ type Catalog struct {
 	Providers []CatalogProvider `json:"providers"`
 }
 
-type OllamaTarget struct {
-	BaseURL string
-	Source  string
-}
-
 type LlamaServerTarget struct {
 	BaseURL string
 	Source  string
 }
 
 type CatalogOption func(*CatalogService)
-
-func WithOllamaTargetResolver(resolver func(context.Context) (OllamaTarget, bool)) CatalogOption {
-	return func(service *CatalogService) {
-		if resolver != nil {
-			service.ollamaResolver = resolver
-		}
-	}
-}
 
 func WithLlamaServerTargetResolver(resolver func(context.Context) (LlamaServerTarget, bool)) CatalogOption {
 	return func(service *CatalogService) {
@@ -117,7 +104,6 @@ type CatalogService struct {
 	mu                  sync.Mutex
 	cached              Catalog
 	cachedAt            time.Time
-	ollamaResolver      func(context.Context) (OllamaTarget, bool)
 	llamaServerResolver func(context.Context) (LlamaServerTarget, bool)
 	maxResponseBytes    int
 }
@@ -152,11 +138,6 @@ func (s *CatalogService) Catalog(ctx context.Context) Catalog {
 
 	creds := s.loadCreds()
 	providers := listProviders(ctx, creds, s.client, s.maxResponseBytes)
-	if s.ollamaResolver != nil {
-		if target, ok := s.ollamaResolver(ctx); ok {
-			providers = append(providers, buildOllamaProvider(ctx, s.client, target, s.maxResponseBytes))
-		}
-	}
 	if s.llamaServerResolver != nil {
 		if target, ok := s.llamaServerResolver(ctx); ok {
 			if provider, ok := buildLlamaServerProvider(ctx, s.client, target, s.maxResponseBytes); ok {
@@ -219,8 +200,6 @@ func pickAPIKey(creds runtimeconfig.CLICredentials, provider string) string {
 	switch provider {
 	case creds.Codex.Provider:
 		return creds.Codex.APIKey
-	case creds.Antigravity.Provider:
-		return creds.Antigravity.APIKey
 	case creds.Claude.Provider:
 		return creds.Claude.APIKey
 	default:
@@ -260,32 +239,7 @@ func containsModel(models []string, value string) bool {
 	return false
 }
 
-const defaultOllamaBaseURL = "http://localhost:11434"
 const defaultLlamaServerBaseURL = "http://127.0.0.1:8082/v1"
-
-func buildOllamaProvider(ctx context.Context, client *http.Client, target OllamaTarget, maxResponseBytes int) CatalogProvider {
-	baseURL := normalizeOllamaBaseURL(target.BaseURL)
-	source := strings.TrimSpace(target.Source)
-	if source == "" {
-		source = "ollama"
-	}
-	provider := CatalogProvider{
-		Provider: "ollama",
-		Source:   source,
-		BaseURL:  baseURL,
-	}
-
-	ollamaCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
-	defer cancel()
-
-	models, err := fetchOllamaModels(ollamaCtx, client, baseURL, maxResponseBytes)
-	if err != nil {
-		provider.Error = err.Error()
-		return provider
-	}
-	provider.Models = models
-	return provider
-}
 
 func buildLlamaServerProvider(ctx context.Context, client *http.Client, target LlamaServerTarget, maxResponseBytes int) (CatalogProvider, bool) {
 	baseURL := normalizeLlamaServerBaseURL(target.BaseURL)
@@ -310,14 +264,6 @@ func buildLlamaServerProvider(ctx context.Context, client *http.Client, target L
 	return provider, true
 }
 
-func normalizeOllamaBaseURL(baseURL string) string {
-	base := strings.TrimSpace(baseURL)
-	if base == "" {
-		base = defaultOllamaBaseURL
-	}
-	return strings.TrimRight(base, "/")
-}
-
 func normalizeLlamaServerBaseURL(baseURL string) string {
 	base := strings.TrimSpace(baseURL)
 	if base == "" {
@@ -328,34 +274,6 @@ func normalizeLlamaServerBaseURL(baseURL string) string {
 		return base
 	}
 	return base + "/v1"
-}
-
-func fetchOllamaModels(ctx context.Context, client *http.Client, baseURL string, maxResponseBytes int) ([]string, error) {
-	endpoint := ollamaTagsEndpoint(baseURL)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("ollama model list request failed: %s", resp.Status)
-	}
-
-	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
-	if err != nil {
-		if httpclient.IsResponseTooLarge(err) {
-			return nil, fmt.Errorf("ollama model list response exceeds %d bytes", maxResponseBytes)
-		}
-		return nil, err
-	}
-
-	return parseOllamaModelList(body)
 }
 
 func fetchLlamaServerModels(ctx context.Context, client *http.Client, baseURL string, maxResponseBytes int) ([]string, error) {
@@ -386,49 +304,8 @@ func fetchLlamaServerModels(ctx context.Context, client *http.Client, baseURL st
 	return parseModelList(body)
 }
 
-func ollamaTagsEndpoint(baseURL string) string {
-	base := normalizeOllamaBaseURL(baseURL)
-	if strings.HasSuffix(base, "/api") {
-		return base + "/tags"
-	}
-	return base + "/api/tags"
-}
-
 func llamaServerModelsEndpoint(baseURL string) string {
 	return normalizeLlamaServerBaseURL(baseURL) + "/models"
-}
-
-func parseOllamaModelList(raw []byte) ([]string, error) {
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, err
-	}
-	models := map[string]struct{}{}
-	if list, ok := payload["models"].([]any); ok {
-		for _, item := range list {
-			switch v := item.(type) {
-			case string:
-				if strings.TrimSpace(v) != "" {
-					models[v] = struct{}{}
-				}
-			case map[string]any:
-				if name, ok := v["name"].(string); ok && strings.TrimSpace(name) != "" {
-					models[name] = struct{}{}
-					continue
-				}
-				if name, ok := v["model"].(string); ok && strings.TrimSpace(name) != "" {
-					models[name] = struct{}{}
-				}
-			}
-		}
-	}
-
-	out := make([]string, 0, len(models))
-	for name := range models {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out, nil
 }
 
 type fetchTarget struct {
@@ -439,9 +316,6 @@ type fetchTarget struct {
 }
 
 func fetchProviderModels(ctx context.Context, client *http.Client, target fetchTarget, maxResponseBytes int) ([]string, error) {
-	if target.provider == "antigravity" {
-		return fetchAntigravityModels(ctx, client, target, maxResponseBytes)
-	}
 	endpoint := strings.TrimRight(target.baseURL, "/") + "/models"
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -482,73 +356,6 @@ func fetchProviderModels(ctx context.Context, client *http.Client, target fetchT
 	}
 
 	return parseModelList(body)
-}
-
-func fetchAntigravityModels(ctx context.Context, client *http.Client, target fetchTarget, maxResponseBytes int) ([]string, error) {
-	endpoint := strings.TrimRight(target.baseURL, "/") + "/v1internal:fetchAvailableModels"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(`{}`))
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	if target.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+target.apiKey)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("model list request failed: %s", resp.Status)
-	}
-
-	body, err := httpclient.ReadAllWithLimit(resp.Body, int64(maxResponseBytes))
-	if err != nil {
-		if httpclient.IsResponseTooLarge(err) {
-			return nil, fmt.Errorf("model list response exceeds %d bytes", maxResponseBytes)
-		}
-		return nil, err
-	}
-
-	return parseAntigravityModels(body)
-}
-
-func parseAntigravityModels(raw []byte) ([]string, error) {
-	var payload map[string]any
-	if err := json.Unmarshal(raw, &payload); err != nil {
-		return nil, err
-	}
-
-	models := map[string]struct{}{}
-	if obj, ok := payload["models"].(map[string]any); ok {
-		for name := range obj {
-			if strings.TrimSpace(name) != "" {
-				models[name] = struct{}{}
-			}
-		}
-	}
-	if len(models) == 0 {
-		if resp, ok := payload["response"].(map[string]any); ok {
-			if obj, ok := resp["models"].(map[string]any); ok {
-				for name := range obj {
-					if strings.TrimSpace(name) != "" {
-						models[name] = struct{}{}
-					}
-				}
-			}
-		}
-	}
-
-	out := make([]string, 0, len(models))
-	for name := range models {
-		out = append(out, name)
-	}
-	sort.Strings(out)
-	return out, nil
 }
 
 func isAnthropicOAuthToken(token string) bool {
