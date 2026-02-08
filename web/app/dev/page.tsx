@@ -7,58 +7,22 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 
 const DEV_PAGES = [
   {
-    href: "/dev/config",
-    title: "Runtime config",
-    description: "Review and override runtime configuration values.",
-    tag: "Config",
+    href: "/dev/diagnostics",
+    title: "Diagnostics workbench",
+    description: "Inspect SSE payloads, snapshots, memory, and structured log chains.",
+    tag: "Diagnostics",
   },
   {
-    href: "/dev/apps-config",
-    title: "Apps config",
-    description: "Manage custom app connector definitions.",
-    tag: "Config",
+    href: "/dev/configuration",
+    title: "Configuration workbench",
+    description: "Manage runtime overrides, app connectors, and context configuration tools.",
+    tag: "Configuration",
   },
   {
-    href: "/dev/context-config",
-    title: "Context config",
-    description: "Inspect and tweak persona + goal context config.",
-    tag: "Context",
-  },
-  {
-    href: "/dev/context-window",
-    title: "Context window",
-    description: "Preview the full assembled context window for a session.",
-    tag: "Context",
-  },
-  {
-    href: "/dev/conversation-debug",
-    title: "Conversation debugger",
-    description: "Inspect raw SSE payloads and session snapshots.",
-    tag: "SSE",
-  },
-  {
-    href: "/dev/log-analyzer",
-    title: "Log analyzer",
-    description: "Browse recent log IDs and inspect correlated service/LLM/request logs.",
-    tag: "Logs",
-  },
-  {
-    href: "/dev/mock-console",
-    title: "Mock console",
-    description: "Replay a mocked agent console stream.",
-    tag: "Mock",
-  },
-  {
-    href: "/dev/mock-terminal-output",
-    title: "Mock terminal output",
-    description: "Preview terminal output streaming UI.",
-    tag: "Mock",
-  },
-  {
-    href: "/dev/plan-preview",
-    title: "Plan preview",
-    description: "Preview the timeline plan UI component.",
-    tag: "Preview",
+    href: "/dev/operations",
+    title: "Operations workbench",
+    description: "Operate evaluations, sessions, and plan preview from one surface.",
+    tag: "Operations",
   },
 ] as const;
 
@@ -73,7 +37,7 @@ export default function DevHomePage() {
               Development routes
             </h1>
             <p className="mt-2 text-sm text-slate-600">
-              Jump to individual dev pages for debugging, previews, and diagnostics.
+              Consolidated workbenches for diagnostics, configuration, and operations.
             </p>
           </header>
 

@@ -29,6 +29,7 @@ Updated: 2026-02-08 16:00
 - Full-chain performance tracing should include ReAct iteration + LLM generate + tool execute spans, keyed by `alex.session_id`/`alex.run_id` for cross-request correlation.
 - SSE attachment dedupe must avoid `json.Marshal`-based whole-object hashing on hot paths; prefer lightweight signatures and hash payload only when needed.
 - One-click local observability flows (`logs-ui`) should include endpoint/page readiness probes and targeted self-heal restart to avoid stale-process false alarms.
+- Dev tools consolidation should keep diagnostics workloads in one workbench and enforce virtualization + deferred payload expansion for large logs.
 - Server auth config should support env fallback for JWT/OAuth fields; in development-like environments auth DB failures should degrade to memory stores instead of disabling the whole auth module.
 - Foundation eval hardening works best when availability errors are explicit (`availability_error`) and heuristic routing uses action+object dual-condition gating to prevent broad-token regressions.
 - Layered foundation suites (tool coverage / prompt effectiveness / proactivity / complex tasks) make routing regressions diagnosable faster than a single mixed case set.

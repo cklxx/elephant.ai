@@ -11,7 +11,7 @@
 #   ./dev.sh down|stop          # Stop backend + web
 #   ./dev.sh status             # Show status + ports
 #   ./dev.sh logs [server|web]  # Tail logs
-#   ./dev.sh logs-ui            # Start services and open log analyzer page
+#   ./dev.sh logs-ui            # Start services and open diagnostics workbench
 #   ./dev.sh test               # Go tests (CI parity)
 #   ./dev.sh lint               # Go + web lint
 #
@@ -867,13 +867,9 @@ cmd_up() {
   log_section "Dev Tools"
   log_info "Evaluation           http://localhost:${WEB_PORT}/evaluation"
   log_info "Sessions             http://localhost:${WEB_PORT}/sessions"
-  log_info "Conversation Debug   http://localhost:${WEB_PORT}/dev/conversation-debug"
-  log_info "Log Analyzer         http://localhost:${WEB_PORT}/dev/log-analyzer"
-  log_info "Context Window       http://localhost:${WEB_PORT}/dev/context-window"
-  log_info "Context Config       http://localhost:${WEB_PORT}/dev/context-config"
-  log_info "Plan Preview         http://localhost:${WEB_PORT}/dev/plan-preview"
-  log_info "Config Inspector     http://localhost:${WEB_PORT}/dev/config"
-  log_info "Apps Config          http://localhost:${WEB_PORT}/dev/apps-config"
+  log_info "Diagnostics         http://localhost:${WEB_PORT}/dev/diagnostics"
+  log_info "Configuration       http://localhost:${WEB_PORT}/dev/configuration"
+  log_info "Operations          http://localhost:${WEB_PORT}/dev/operations"
 }
 
 cmd_sandbox_up() {
@@ -1034,7 +1030,7 @@ dev_logs_index_ready() {
 
 dev_logs_ui_ready() {
   local status
-  status="$(probe_http_status "http://localhost:${WEB_PORT}/dev/log-analyzer")"
+  status="$(probe_http_status "http://localhost:${WEB_PORT}/dev/diagnostics")"
   case "$status" in
     200|301|302|307|308)
       return 0
@@ -1061,7 +1057,7 @@ cmd_logs_ui() {
     fi
 
     if ! dev_logs_ui_ready; then
-      log_warn "Log analyzer page unavailable; restarting web..."
+      log_warn "Diagnostics workbench page unavailable; restarting web..."
       stop_service "Web" "${WEB_PID_FILE}"
       cleanup_next_dev_lock
       if [[ "${AUTO_STOP_CONFLICTING_PORTS}" == "1" ]] && ! is_port_available "$WEB_PORT"; then
@@ -1073,8 +1069,8 @@ cmd_logs_ui() {
     log_warn "curl not found; skipping logs-ui readiness probes"
   fi
 
-  local url="http://localhost:${WEB_PORT}/dev/log-analyzer"
-  log_success "Log analyzer ready: ${url}"
+  local url="http://localhost:${WEB_PORT}/dev/diagnostics"
+  log_success "Diagnostics workbench ready: ${url}"
 
   if command_exists open; then
     open "${url}" >/dev/null 2>&1 || true
@@ -1137,7 +1133,7 @@ Commands:
   down-all       Stop everything including sandbox + authdb
   status         Show status + ports
   logs           Tail logs (optional: server|web)
-  logs-ui        Start services and open the log analyzer page
+  logs-ui        Start services and open the diagnostics workbench
   test           Run Go tests (CI parity)
   lint           Run Go + web lint
   setup-cgo      Install CGO sqlite dependencies
