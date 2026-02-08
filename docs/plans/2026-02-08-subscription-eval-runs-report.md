@@ -22,6 +22,9 @@
 - 2026-02-08 12:20: Completed eval run #1 (`fixed-run1`) with full artifacts.
 - 2026-02-08 12:22: Completed eval run #2 (`fixed-run2`) with full artifacts.
 - 2026-02-08 12:24: Completed eval run #3 (`fixed-run3`) with full artifacts.
+- 2026-02-08 12:27: Ran `./dev.sh lint`; blocked by pre-existing web warnings in `web/app/dev/log-analyzer/page.tsx` (`react-hooks/incompatible-library`).
+- 2026-02-08 12:28: Ran `./dev.sh test`; blocked by pre-existing race failures in `internal/delivery/server/bootstrap` (`TestRunLark_FailsWhenLarkDisabled`, `TestRunLark_FailsWhenCredentialsMissing`).
+- 2026-02-08 12:30: Synced raw eval artifacts into main repo path `tmp/eval-subscription-20260208` for easier access outside temporary worktree.
 
 ## Fixed Run Configuration
 - Command:
