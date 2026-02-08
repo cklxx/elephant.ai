@@ -207,17 +207,17 @@ func TestLoadConfig_EventHistoryAsyncDefaults(t *testing.T) {
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 
-	if cfg.EventHistoryAsyncBatchSize != 200 {
-		t.Fatalf("expected default async batch size 200, got %d", cfg.EventHistoryAsyncBatchSize)
+	if cfg.EventHistory.AsyncBatchSize != 200 {
+		t.Fatalf("expected default async batch size 200, got %d", cfg.EventHistory.AsyncBatchSize)
 	}
-	if cfg.EventHistoryAsyncFlushInterval != 250*time.Millisecond {
-		t.Fatalf("expected default async flush interval 250ms, got %s", cfg.EventHistoryAsyncFlushInterval)
+	if cfg.EventHistory.AsyncFlushInterval != 250*time.Millisecond {
+		t.Fatalf("expected default async flush interval 250ms, got %s", cfg.EventHistory.AsyncFlushInterval)
 	}
-	if cfg.EventHistoryAsyncAppendTimeout != 50*time.Millisecond {
-		t.Fatalf("expected default async append timeout 50ms, got %s", cfg.EventHistoryAsyncAppendTimeout)
+	if cfg.EventHistory.AsyncAppendTimeout != 50*time.Millisecond {
+		t.Fatalf("expected default async append timeout 50ms, got %s", cfg.EventHistory.AsyncAppendTimeout)
 	}
-	if cfg.EventHistoryAsyncQueueCapacity != 8192 {
-		t.Fatalf("expected default async queue size 8192, got %d", cfg.EventHistoryAsyncQueueCapacity)
+	if cfg.EventHistory.AsyncQueueCapacity != 8192 {
+		t.Fatalf("expected default async queue size 8192, got %d", cfg.EventHistory.AsyncQueueCapacity)
 	}
 }
 
@@ -289,16 +289,16 @@ server:
 		t.Fatalf("LoadConfig failed: %v", err)
 	}
 
-	if cfg.EventHistoryAsyncBatchSize != 320 {
-		t.Fatalf("expected async batch size 320, got %d", cfg.EventHistoryAsyncBatchSize)
+	if cfg.EventHistory.AsyncBatchSize != 320 {
+		t.Fatalf("expected async batch size 320, got %d", cfg.EventHistory.AsyncBatchSize)
 	}
-	if cfg.EventHistoryAsyncFlushInterval != 1200*time.Millisecond {
-		t.Fatalf("expected async flush interval 1200ms, got %s", cfg.EventHistoryAsyncFlushInterval)
+	if cfg.EventHistory.AsyncFlushInterval != 1200*time.Millisecond {
+		t.Fatalf("expected async flush interval 1200ms, got %s", cfg.EventHistory.AsyncFlushInterval)
 	}
-	if cfg.EventHistoryAsyncAppendTimeout != 90*time.Millisecond {
-		t.Fatalf("expected async append timeout 90ms, got %s", cfg.EventHistoryAsyncAppendTimeout)
+	if cfg.EventHistory.AsyncAppendTimeout != 90*time.Millisecond {
+		t.Fatalf("expected async append timeout 90ms, got %s", cfg.EventHistory.AsyncAppendTimeout)
 	}
-	if cfg.EventHistoryAsyncQueueCapacity != 4096 {
-		t.Fatalf("expected async queue size 4096, got %d", cfg.EventHistoryAsyncQueueCapacity)
+	if cfg.EventHistory.AsyncQueueCapacity != 4096 {
+		t.Fatalf("expected async queue size 4096, got %d", cfg.EventHistory.AsyncQueueCapacity)
 	}
 }

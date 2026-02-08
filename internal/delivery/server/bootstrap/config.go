@@ -15,32 +15,47 @@ import (
 
 // Config holds server configuration.
 type Config struct {
-	Runtime                        runtimeconfig.RuntimeConfig
-	RuntimeMeta                    runtimeconfig.Metadata
-	Port                           string
-	EnableMCP                      bool
-	EnvironmentSummary             string
-	Auth                           runtimeconfig.AuthConfig
-	Session                        runtimeconfig.SessionConfig
-	Analytics                      runtimeconfig.AnalyticsConfig
-	Channels                       ChannelsConfig
-	AllowedOrigins                 []string
-	MaxTaskBodyBytes               int64
-	StreamMaxDuration              time.Duration
-	StreamMaxBytes                 int64
-	StreamMaxConcurrent            int
-	RateLimitRequestsPerMinute     int
-	RateLimitBurst                 int
-	NonStreamTimeout               time.Duration
-	EventHistoryRetention          time.Duration
-	EventHistoryMaxSessions        int
-	EventHistorySessionTTL         time.Duration
-	EventHistoryMaxEvents          int
-	EventHistoryAsyncBatchSize     int
-	EventHistoryAsyncFlushInterval time.Duration
-	EventHistoryAsyncAppendTimeout time.Duration
-	EventHistoryAsyncQueueCapacity int
-	Attachment                     attachments.StoreConfig
+	Runtime            runtimeconfig.RuntimeConfig
+	RuntimeMeta        runtimeconfig.Metadata
+	Port               string
+	EnableMCP          bool
+	EnvironmentSummary string
+	Auth               runtimeconfig.AuthConfig
+	Session            runtimeconfig.SessionConfig
+	Analytics          runtimeconfig.AnalyticsConfig
+	Channels           ChannelsConfig
+	AllowedOrigins     []string
+	MaxTaskBodyBytes   int64
+	StreamGuard        StreamGuardConfig
+	RateLimit          RateLimitConfig
+	NonStreamTimeout   time.Duration
+	EventHistory       EventHistoryConfig
+	Attachment         attachments.StoreConfig
+}
+
+// EventHistoryConfig captures event history storage tuning.
+type EventHistoryConfig struct {
+	Retention          time.Duration
+	MaxSessions        int
+	SessionTTL         time.Duration
+	MaxEvents          int
+	AsyncBatchSize     int
+	AsyncFlushInterval time.Duration
+	AsyncAppendTimeout time.Duration
+	AsyncQueueCapacity int
+}
+
+// StreamGuardConfig captures SSE stream guard limits.
+type StreamGuardConfig struct {
+	MaxDuration   time.Duration
+	MaxBytes      int64
+	MaxConcurrent int
+}
+
+// RateLimitConfig captures HTTP rate limiting parameters.
+type RateLimitConfig struct {
+	RequestsPerMinute int
+	Burst             int
 }
 
 // ChannelsConfig captures server-side channel gateways.
@@ -136,25 +151,31 @@ func LoadConfig() (Config, *configadmin.Manager, func(context.Context) (runtimec
 	}
 
 	cfg := Config{
-		Runtime:                        runtimeCfg,
-		RuntimeMeta:                    runtimeMeta,
-		Port:                           "8080",
-		EnableMCP:                      true, // Default: enabled
-		AllowedOrigins:                 append([]string(nil), defaultAllowedOrigins...),
-		StreamMaxDuration:              2 * time.Hour,
-		StreamMaxBytes:                 64 * 1024 * 1024,
-		StreamMaxConcurrent:            128,
-		RateLimitRequestsPerMinute:     600,
-		RateLimitBurst:                 120,
-		NonStreamTimeout:               30 * time.Second,
-		EventHistoryRetention:          30 * 24 * time.Hour,
-		EventHistoryMaxSessions:        100,
-		EventHistorySessionTTL:         1 * time.Hour,
-		EventHistoryMaxEvents:          1000,
-		EventHistoryAsyncBatchSize:     200,
-		EventHistoryAsyncFlushInterval: 250 * time.Millisecond,
-		EventHistoryAsyncAppendTimeout: 50 * time.Millisecond,
-		EventHistoryAsyncQueueCapacity: 8192,
+		Runtime:        runtimeCfg,
+		RuntimeMeta:    runtimeMeta,
+		Port:           "8080",
+		EnableMCP:      true, // Default: enabled
+		AllowedOrigins: append([]string(nil), defaultAllowedOrigins...),
+		StreamGuard: StreamGuardConfig{
+			MaxDuration:   2 * time.Hour,
+			MaxBytes:      64 * 1024 * 1024,
+			MaxConcurrent: 128,
+		},
+		RateLimit: RateLimitConfig{
+			RequestsPerMinute: 600,
+			Burst:             120,
+		},
+		NonStreamTimeout: 30 * time.Second,
+		EventHistory: EventHistoryConfig{
+			Retention:          30 * 24 * time.Hour,
+			MaxSessions:        100,
+			SessionTTL:         1 * time.Hour,
+			MaxEvents:          1000,
+			AsyncBatchSize:     200,
+			AsyncFlushInterval: 250 * time.Millisecond,
+			AsyncAppendTimeout: 50 * time.Millisecond,
+			AsyncQueueCapacity: 8192,
+		},
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex/sessions",
 		},
@@ -418,19 +439,19 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 		cfg.MaxTaskBodyBytes = *file.Server.MaxTaskBodyBytes
 	}
 	if file.Server.StreamMaxDurationSeconds != nil && *file.Server.StreamMaxDurationSeconds > 0 {
-		cfg.StreamMaxDuration = time.Duration(*file.Server.StreamMaxDurationSeconds) * time.Second
+		cfg.StreamGuard.MaxDuration = time.Duration(*file.Server.StreamMaxDurationSeconds) * time.Second
 	}
 	if file.Server.StreamMaxBytes != nil && *file.Server.StreamMaxBytes > 0 {
-		cfg.StreamMaxBytes = *file.Server.StreamMaxBytes
+		cfg.StreamGuard.MaxBytes = *file.Server.StreamMaxBytes
 	}
 	if file.Server.StreamMaxConcurrent != nil && *file.Server.StreamMaxConcurrent > 0 {
-		cfg.StreamMaxConcurrent = *file.Server.StreamMaxConcurrent
+		cfg.StreamGuard.MaxConcurrent = *file.Server.StreamMaxConcurrent
 	}
 	if file.Server.RateLimitRequestsPerMinute != nil && *file.Server.RateLimitRequestsPerMinute > 0 {
-		cfg.RateLimitRequestsPerMinute = *file.Server.RateLimitRequestsPerMinute
+		cfg.RateLimit.RequestsPerMinute = *file.Server.RateLimitRequestsPerMinute
 	}
 	if file.Server.RateLimitBurst != nil && *file.Server.RateLimitBurst > 0 {
-		cfg.RateLimitBurst = *file.Server.RateLimitBurst
+		cfg.RateLimit.Burst = *file.Server.RateLimitBurst
 	}
 	if file.Server.NonStreamTimeoutSeconds != nil && *file.Server.NonStreamTimeoutSeconds > 0 {
 		cfg.NonStreamTimeout = time.Duration(*file.Server.NonStreamTimeoutSeconds) * time.Second
@@ -438,43 +459,43 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if file.Server.EventHistoryRetentionDays != nil {
 		days := *file.Server.EventHistoryRetentionDays
 		if days <= 0 {
-			cfg.EventHistoryRetention = 0
+			cfg.EventHistory.Retention = 0
 		} else {
-			cfg.EventHistoryRetention = time.Duration(days) * 24 * time.Hour
+			cfg.EventHistory.Retention = time.Duration(days) * 24 * time.Hour
 		}
 	}
 	if file.Server.EventHistoryMaxSessions != nil {
 		if *file.Server.EventHistoryMaxSessions <= 0 {
-			cfg.EventHistoryMaxSessions = 0
+			cfg.EventHistory.MaxSessions = 0
 		} else {
-			cfg.EventHistoryMaxSessions = *file.Server.EventHistoryMaxSessions
+			cfg.EventHistory.MaxSessions = *file.Server.EventHistoryMaxSessions
 		}
 	}
 	if file.Server.EventHistorySessionTTL != nil {
 		if *file.Server.EventHistorySessionTTL <= 0 {
-			cfg.EventHistorySessionTTL = 0
+			cfg.EventHistory.SessionTTL = 0
 		} else {
-			cfg.EventHistorySessionTTL = time.Duration(*file.Server.EventHistorySessionTTL) * time.Second
+			cfg.EventHistory.SessionTTL = time.Duration(*file.Server.EventHistorySessionTTL) * time.Second
 		}
 	}
 	if file.Server.EventHistoryMaxEvents != nil {
 		if *file.Server.EventHistoryMaxEvents <= 0 {
-			cfg.EventHistoryMaxEvents = 0
+			cfg.EventHistory.MaxEvents = 0
 		} else {
-			cfg.EventHistoryMaxEvents = *file.Server.EventHistoryMaxEvents
+			cfg.EventHistory.MaxEvents = *file.Server.EventHistoryMaxEvents
 		}
 	}
 	if file.Server.EventHistoryAsyncBatchSize != nil && *file.Server.EventHistoryAsyncBatchSize > 0 {
-		cfg.EventHistoryAsyncBatchSize = *file.Server.EventHistoryAsyncBatchSize
+		cfg.EventHistory.AsyncBatchSize = *file.Server.EventHistoryAsyncBatchSize
 	}
 	if file.Server.EventHistoryAsyncFlushMS != nil && *file.Server.EventHistoryAsyncFlushMS > 0 {
-		cfg.EventHistoryAsyncFlushInterval = time.Duration(*file.Server.EventHistoryAsyncFlushMS) * time.Millisecond
+		cfg.EventHistory.AsyncFlushInterval = time.Duration(*file.Server.EventHistoryAsyncFlushMS) * time.Millisecond
 	}
 	if file.Server.EventHistoryAsyncAppendMS != nil && *file.Server.EventHistoryAsyncAppendMS > 0 {
-		cfg.EventHistoryAsyncAppendTimeout = time.Duration(*file.Server.EventHistoryAsyncAppendMS) * time.Millisecond
+		cfg.EventHistory.AsyncAppendTimeout = time.Duration(*file.Server.EventHistoryAsyncAppendMS) * time.Millisecond
 	}
 	if file.Server.EventHistoryAsyncQueueSize != nil && *file.Server.EventHistoryAsyncQueueSize > 0 {
-		cfg.EventHistoryAsyncQueueCapacity = *file.Server.EventHistoryAsyncQueueSize
+		cfg.EventHistory.AsyncQueueCapacity = *file.Server.EventHistoryAsyncQueueSize
 	}
 	if file.Server.AllowedOrigins != nil {
 		cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)

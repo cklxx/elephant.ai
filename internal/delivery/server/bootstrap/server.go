@@ -132,8 +132,8 @@ func RunServer(observabilityConfigPath string) error {
 				if attachmentStore != nil {
 					historyOpts = append(historyOpts, serverApp.WithHistoryAttachmentStore(attachmentStore))
 				}
-				if config.EventHistoryRetention > 0 {
-					historyOpts = append(historyOpts, serverApp.WithHistoryRetention(config.EventHistoryRetention))
+				if config.EventHistory.Retention > 0 {
+					historyOpts = append(historyOpts, serverApp.WithHistoryRetention(config.EventHistory.Retention))
 				}
 				pgHistory := serverApp.NewPostgresEventHistoryStore(container.SessionDB, historyOpts...)
 				if err := pgHistory.EnsureSchema(ctx); err != nil {
@@ -141,17 +141,17 @@ func RunServer(observabilityConfigPath string) error {
 				}
 				historyStore = pgHistory
 				asyncHistoryOpts := []serverApp.AsyncEventHistoryStoreOption{}
-				if config.EventHistoryAsyncBatchSize > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryBatchSize(config.EventHistoryAsyncBatchSize))
+				if config.EventHistory.AsyncBatchSize > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryBatchSize(config.EventHistory.AsyncBatchSize))
 				}
-				if config.EventHistoryAsyncFlushInterval > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryFlushInterval(config.EventHistoryAsyncFlushInterval))
+				if config.EventHistory.AsyncFlushInterval > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryFlushInterval(config.EventHistory.AsyncFlushInterval))
 				}
-				if config.EventHistoryAsyncAppendTimeout > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryAppendTimeout(config.EventHistoryAsyncAppendTimeout))
+				if config.EventHistory.AsyncAppendTimeout > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryAppendTimeout(config.EventHistory.AsyncAppendTimeout))
 				}
-				if config.EventHistoryAsyncQueueCapacity > 0 {
-					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryQueueCapacity(config.EventHistoryAsyncQueueCapacity))
+				if config.EventHistory.AsyncQueueCapacity > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryQueueCapacity(config.EventHistory.AsyncQueueCapacity))
 				}
 				asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory, asyncHistoryOpts...)
 				return nil
@@ -184,14 +184,14 @@ func RunServer(observabilityConfigPath string) error {
 	broadcasterOpts := []serverApp.EventBroadcasterOption{
 		serverApp.WithEventHistoryStore(broadcasterHistoryStore),
 	}
-	if config.EventHistoryMaxEvents > 0 {
-		broadcasterOpts = append(broadcasterOpts, serverApp.WithMaxHistory(config.EventHistoryMaxEvents))
+	if config.EventHistory.MaxEvents > 0 {
+		broadcasterOpts = append(broadcasterOpts, serverApp.WithMaxHistory(config.EventHistory.MaxEvents))
 	}
-	if config.EventHistoryMaxSessions > 0 {
-		broadcasterOpts = append(broadcasterOpts, serverApp.WithMaxSessions(config.EventHistoryMaxSessions))
+	if config.EventHistory.MaxSessions > 0 {
+		broadcasterOpts = append(broadcasterOpts, serverApp.WithMaxSessions(config.EventHistory.MaxSessions))
 	}
-	if config.EventHistorySessionTTL > 0 {
-		broadcasterOpts = append(broadcasterOpts, serverApp.WithSessionTTL(config.EventHistorySessionTTL))
+	if config.EventHistory.SessionTTL > 0 {
+		broadcasterOpts = append(broadcasterOpts, serverApp.WithSessionTTL(config.EventHistory.SessionTTL))
 	}
 	broadcaster := serverApp.NewEventBroadcaster(broadcasterOpts...)
 	taskStoreOpts := []serverApp.TaskStoreOption{}
@@ -367,13 +367,13 @@ func RunServer(observabilityConfigPath string) error {
 			AllowedOrigins:   config.AllowedOrigins,
 			MaxTaskBodyBytes: config.MaxTaskBodyBytes,
 			StreamGuard: serverHTTP.StreamGuardConfig{
-				MaxDuration:   config.StreamMaxDuration,
-				MaxBytes:      config.StreamMaxBytes,
-				MaxConcurrent: config.StreamMaxConcurrent,
+				MaxDuration:   config.StreamGuard.MaxDuration,
+				MaxBytes:      config.StreamGuard.MaxBytes,
+				MaxConcurrent: config.StreamGuard.MaxConcurrent,
 			},
 			RateLimit: serverHTTP.RateLimitConfig{
-				RequestsPerMinute: config.RateLimitRequestsPerMinute,
-				Burst:             config.RateLimitBurst,
+				RequestsPerMinute: config.RateLimit.RequestsPerMinute,
+				Burst:             config.RateLimit.Burst,
 			},
 			NonStreamTimeout: config.NonStreamTimeout,
 		},
