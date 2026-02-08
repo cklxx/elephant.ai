@@ -42,7 +42,11 @@ func TestHandleDevLogIndexReturnsEntries(t *testing.T) {
 	}
 
 	servicePath := filepath.Join(logDir, "alex-service.log")
-	if err := os.WriteFile(servicePath, []byte("2026-02-07 12:00:00 [INFO] [SERVICE] [API] [log_id=log-ui] boot\n"), 0o644); err != nil {
+	if err := os.WriteFile(servicePath, []byte(strings.Join([]string{
+		"2026-02-07 12:00:00 [INFO] [SERVICE] [API] [log_id=log-ui] boot",
+		"2026-02-07 12:00:01 [INFO] [SERVICE] [API] [log_id=log-ui] ready",
+		"2026-02-07 12:00:02 [INFO] [SERVICE] [API] [log_id=log-ui] processing",
+	}, "\n")+"\n"), 0o644); err != nil {
 		t.Fatalf("write service log: %v", err)
 	}
 

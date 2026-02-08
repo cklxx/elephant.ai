@@ -69,10 +69,17 @@ func TestFetchRecentLogIndexLimit(t *testing.T) {
 	if err := os.MkdirAll(requestDir, 0o755); err != nil {
 		t.Fatalf("mkdir request dir: %v", err)
 	}
+	// Each log_id needs 3+ lines to pass the noise filter (TotalCount > 2).
 	writeLogFile(t, filepath.Join(logDir, serviceLogFileName), strings.Join([]string{
 		"2026-02-07 10:00:00 [INFO] [SERVICE] [API] [log_id=log-1] one",
+		"2026-02-07 10:00:01 [INFO] [SERVICE] [API] [log_id=log-1] one-b",
+		"2026-02-07 10:00:02 [INFO] [SERVICE] [API] [log_id=log-1] one-c",
 		"2026-02-07 11:00:00 [INFO] [SERVICE] [API] [log_id=log-2] two",
+		"2026-02-07 11:00:01 [INFO] [SERVICE] [API] [log_id=log-2] two-b",
+		"2026-02-07 11:00:02 [INFO] [SERVICE] [API] [log_id=log-2] two-c",
 		"2026-02-07 12:00:00 [INFO] [SERVICE] [API] [log_id=log-3] three",
+		"2026-02-07 12:00:01 [INFO] [SERVICE] [API] [log_id=log-3] three-b",
+		"2026-02-07 12:00:02 [INFO] [SERVICE] [API] [log_id=log-3] three-c",
 	}, "\n")+"\n")
 
 	t.Setenv(logDirEnvVar, logDir)
@@ -93,12 +100,23 @@ func TestFetchRecentLogIndexOffset(t *testing.T) {
 	if err := os.MkdirAll(requestDir, 0o755); err != nil {
 		t.Fatalf("mkdir request dir: %v", err)
 	}
+	// Each log_id needs 3+ lines to pass the noise filter (TotalCount > 2).
 	writeLogFile(t, filepath.Join(logDir, serviceLogFileName), strings.Join([]string{
 		"2026-02-07 10:00:00 [INFO] [SERVICE] [API] [log_id=log-1] one",
+		"2026-02-07 10:00:01 [INFO] [SERVICE] [API] [log_id=log-1] one-b",
+		"2026-02-07 10:00:02 [INFO] [SERVICE] [API] [log_id=log-1] one-c",
 		"2026-02-07 11:00:00 [INFO] [SERVICE] [API] [log_id=log-2] two",
+		"2026-02-07 11:00:01 [INFO] [SERVICE] [API] [log_id=log-2] two-b",
+		"2026-02-07 11:00:02 [INFO] [SERVICE] [API] [log_id=log-2] two-c",
 		"2026-02-07 12:00:00 [INFO] [SERVICE] [API] [log_id=log-3] three",
+		"2026-02-07 12:00:01 [INFO] [SERVICE] [API] [log_id=log-3] three-b",
+		"2026-02-07 12:00:02 [INFO] [SERVICE] [API] [log_id=log-3] three-c",
 		"2026-02-07 13:00:00 [INFO] [SERVICE] [API] [log_id=log-4] four",
+		"2026-02-07 13:00:01 [INFO] [SERVICE] [API] [log_id=log-4] four-b",
+		"2026-02-07 13:00:02 [INFO] [SERVICE] [API] [log_id=log-4] four-c",
 		"2026-02-07 14:00:00 [INFO] [SERVICE] [API] [log_id=log-5] five",
+		"2026-02-07 14:00:01 [INFO] [SERVICE] [API] [log_id=log-5] five-b",
+		"2026-02-07 14:00:02 [INFO] [SERVICE] [API] [log_id=log-5] five-c",
 	}, "\n")+"\n")
 
 	t.Setenv(logDirEnvVar, logDir)
@@ -146,6 +164,49 @@ func TestFetchRecentLogIndexOffset(t *testing.T) {
 	}
 	if negOffset[0].LogID != "log-5" {
 		t.Fatalf("neg offset: expected log-5, got %s", negOffset[0].LogID)
+	}
+}
+
+func TestFetchRecentLogIndexFiltersNoise(t *testing.T) {
+	logDir := t.TempDir()
+	requestDir := filepath.Join(t.TempDir(), "requests")
+	if err := os.MkdirAll(requestDir, 0o755); err != nil {
+		t.Fatalf("mkdir request dir: %v", err)
+	}
+	// log-noise has only 2 service lines and no LLM/request activity → noise, should be filtered.
+	// log-real has 3 service lines → passes noise filter.
+	// log-llm has 1 service line + 1 LLM line → RequestCount/LLMCount > 0, passes.
+	writeLogFile(t, filepath.Join(logDir, serviceLogFileName), strings.Join([]string{
+		"2026-02-07 10:00:00 [INFO] [SERVICE] [API] [log_id=log-noise] GET /api/dev/logs/index",
+		"2026-02-07 10:00:01 [INFO] [SERVICE] [API] [log_id=log-noise] done",
+		"2026-02-07 11:00:00 [INFO] [SERVICE] [API] [log_id=log-real] request",
+		"2026-02-07 11:00:01 [INFO] [SERVICE] [API] [log_id=log-real] processing",
+		"2026-02-07 11:00:02 [INFO] [SERVICE] [API] [log_id=log-real] done",
+		"2026-02-07 12:00:00 [INFO] [SERVICE] [API] [log_id=log-llm] request",
+	}, "\n")+"\n")
+	writeLogFile(t, filepath.Join(logDir, llmLogFileName),
+		"2026-02-07 12:00:01 [INFO] [LLM] [OpenAI] [log_id=log-llm] completion\n")
+
+	t.Setenv(logDirEnvVar, logDir)
+	t.Setenv(requestLogEnvVar, requestDir)
+
+	entries := FetchRecentLogIndex(LogIndexOptions{Limit: 10})
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 entries (noise filtered), got %d", len(entries))
+	}
+
+	ids := map[string]bool{}
+	for _, e := range entries {
+		ids[e.LogID] = true
+	}
+	if ids["log-noise"] {
+		t.Fatal("expected log-noise to be filtered out")
+	}
+	if !ids["log-real"] {
+		t.Fatal("expected log-real to be present")
+	}
+	if !ids["log-llm"] {
+		t.Fatal("expected log-llm to be present")
 	}
 }
 

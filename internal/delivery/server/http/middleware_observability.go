@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"alex/internal/infra/observability"
@@ -60,7 +61,7 @@ func ObservabilityMiddleware(obs *observability.Observability, latencyLogger log
 			if obs != nil {
 				obs.Metrics.RecordHTTPServerRequest(ctx, r.Method, resolvedRoute, rec.status, latency, rec.bytes)
 			}
-			if hasLatencyLogger {
+			if hasLatencyLogger && !strings.HasPrefix(r.URL.Path, "/api/dev/") {
 				logging.FromContext(ctx, latencyLogger).Info(
 					"route=%s method=%s status=%d latency_ms=%.2f bytes=%d",
 					resolvedRoute,

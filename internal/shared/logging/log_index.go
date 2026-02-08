@@ -58,6 +58,11 @@ func FetchRecentLogIndex(opts LogIndexOptions) []LogIndexEntry {
 	entries := make([]LogIndexEntry, 0, len(aggregates))
 	for _, aggregate := range aggregates {
 		entry := aggregate.LogIndexEntry
+		// Filter noise: entries with very few lines and no LLM/request activity
+		// are typically HTTP middleware artifacts (log_id + latency only).
+		if entry.TotalCount <= 2 && entry.LLMCount == 0 && entry.RequestCount == 0 {
+			continue
+		}
 		entry.Sources = mapKeysSorted(aggregate.sourceSet)
 		entries = append(entries, entry)
 	}

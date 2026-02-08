@@ -25,6 +25,12 @@ func LoggingMiddleware(logger logging.Logger) func(http.Handler) http.Handler {
 	logger = logging.OrNop(logger)
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Skip log_id generation and request logging for dev endpoints to avoid
+			// self-referential noise (log analyzer polling creates log entries).
+			if strings.HasPrefix(r.URL.Path, "/api/dev/") {
+				next.ServeHTTP(w, r)
+				return
+			}
 			ctx := r.Context()
 			logID := id.LogIDFromContext(ctx)
 			if logID == "" {

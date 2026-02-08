@@ -55,7 +55,11 @@ func TestRouterE2EDevLogIndexWithAuth(t *testing.T) {
 	}
 	if err := os.WriteFile(
 		filepath.Join(logDir, "alex-service.log"),
-		[]byte("2026-02-08 09:00:00 [INFO] [SERVICE] [API] [log_id=log-e2e] ready\n"),
+		[]byte(strings.Join([]string{
+			"2026-02-08 09:00:00 [INFO] [SERVICE] [API] [log_id=log-e2e] ready",
+			"2026-02-08 09:00:01 [INFO] [SERVICE] [API] [log_id=log-e2e] processing",
+			"2026-02-08 09:00:02 [INFO] [SERVICE] [API] [log_id=log-e2e] done",
+		}, "\n")+"\n"),
 		0o644,
 	); err != nil {
 		t.Fatalf("write service log: %v", err)
