@@ -186,3 +186,63 @@ scenarios:
     category: "challenge_hard_v2"
     intent: "Requirements conflict on compliance scope and cannot be inferred safely from context."
     expected_tools: ["clarify"]
+
+  - id: "challenge-human-gate-with-partial-spec"
+    category: "challenge_hard_v2"
+    intent: "Some acceptance criteria are still vague, but release cannot proceed until a human reviewer explicitly confirms the irreversible step."
+    expected_tools: ["request_user"]
+
+  - id: "challenge-memory-citation-vs-summary-conflict"
+    category: "challenge_hard_v2"
+    intent: "Do not summarize from memory themes only; open exact prior evidence slices for quote-level justification."
+    expected_tools: ["memory_get"]
+
+  - id: "challenge-memory-recall-before-offset-known"
+    category: "challenge_hard_v2"
+    intent: "Need to recover which historical decision note matters first, before any exact line offsets are known."
+    expected_tools: ["memory_search"]
+
+  - id: "challenge-search-by-content-not-path-under-noisy-repo"
+    category: "challenge_hard_v2"
+    intent: "Repository has similarly named files; locate relevant evidence by content semantics inside files rather than filename/path heuristics."
+    expected_tools: ["search_file"]
+
+  - id: "challenge-search-by-path-first-then-open"
+    category: "challenge_hard_v2"
+    intent: "Massive monorepo and unknown modules; first narrow candidates only by path-name pattern, then inspect chosen files."
+    expected_tools: ["find"]
+
+  - id: "challenge-url-already-fixed-no-discovery"
+    category: "challenge_hard_v2"
+    intent: "Source link is already approved in ticket; ingest that page directly and avoid discovery phase."
+    expected_tools: ["web_fetch"]
+
+  - id: "challenge-authoritative-sources-not-page-pull-yet"
+    category: "challenge_hard_v2"
+    intent: "No trusted source is selected yet; identify canonical references first and avoid pulling random pages."
+    expected_tools: ["web_search"]
+
+  - id: "challenge-browser-state-before-any-interaction"
+    category: "challenge_hard_v2"
+    intent: "Team reported wrong-tab side effects; verify current tab/session identity before any selector or coordinate interaction."
+    expected_tools: ["browser_info"]
+
+  - id: "challenge-browser-canvas-no-selector-route"
+    category: "challenge_hard_v2"
+    intent: "Target control is painted on canvas and DOM probes are unreliable; complete operation through pointer trajectory actions."
+    expected_tools: ["browser_action"]
+
+  - id: "challenge-delivery-attachment-over-artifact-only"
+    category: "challenge_hard_v2"
+    intent: "Receiver explicitly requires downloadable handoff in thread, not just internal persistence of the long report."
+    expected_tools: ["write_attachment"]
+
+  - id: "challenge-delivery-artifact-before-chat-output"
+    category: "challenge_hard_v2"
+    intent: "Conversation output must remain concise while full package is retained as durable execution artifact for later audit."
+    expected_tools: ["artifacts_write"]
+
+  - id: "challenge-scheduler-read-vs-mutate-conflict"
+    category: "challenge_hard_v2"
+    intent: "There are reports of duplicate jobs but no mutation allowed yet; inspect current scheduler state before proposing changes."
+    expected_tools: ["scheduler_list_jobs"]

@@ -2,14 +2,14 @@ version: "1"
 name: "foundation-complex-valuable-tasks"
 description: "High-value multi-constraint intents; evaluates first-action tool routing under complex goals"
 scenarios:
-  - id: "complex-release-risk-review"
+  - id: "complex-release-risk-review-with-rollback-gates"
     category: "complex"
-    intent: "Do a release-risk review across modules with milestones, owners, and mitigation checkpoints."
+    intent: "Build a phased release-risk execution frame with owners, rollback gates, and explicit no-go criteria before any implementation action."
     expected_tools: ["plan"]
 
-  - id: "complex-unknown-requirement-gate"
+  - id: "complex-unknown-requirement-gate-policy-conflict"
     category: "complex"
-    intent: "The request has conflicting constraints and missing acceptance criteria; resolve uncertainty before coding."
+    intent: "Compliance and delivery constraints conflict, acceptance criteria are incomplete, and user confirmation may be needed before irreversible work."
     expected_tools: ["clarify", "request_user"]
 
   - id: "complex-repo-symbol-impact-scan"
@@ -52,9 +52,9 @@ scenarios:
     intent: "Generate a diagram-ready architecture brief from service relationships."
     expected_tools: ["diagram_render", "plan"]
 
-  - id: "complex-long-report-delivery"
+  - id: "complex-long-report-delivery-with-concise-chat"
     category: "complex"
-    intent: "Produce a long technical report and persist it as shareable artifact output."
+    intent: "Keep chat response brief while delivering full technical package as durable artifact/attachment for later audit."
     expected_tools: ["artifacts_write", "write_attachment"]
 
   - id: "complex-artifact-governance"
@@ -72,9 +72,9 @@ scenarios:
     intent: "Transform a batch of images into a concise executive slide deck."
     expected_tools: ["pptx_from_images"]
 
-  - id: "complex-memory-informed-decision"
+  - id: "complex-memory-informed-decision-with-conflict-resolution"
     category: "complex"
-    intent: "Before proposing strategy, retrieve historical memory decisions about API governance."
+    intent: "Historical decisions may conflict; retrieve prior memory evidence and pinpoint exact lines before recommending governance strategy."
     expected_tools: ["memory_search", "memory_get"]
 
   - id: "complex-lark-reporting-loop"

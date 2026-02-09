@@ -42,9 +42,9 @@ scenarios:
     intent: "Open a source file and inspect its content around a suspicious function."
     expected_tools: ["read_file"]
 
-  - id: "tool-list-workspace-directory"
+  - id: "tool-list-workspace-directory-ambiguous-scope"
     category: "workspace"
-    intent: "List files and folders under this workspace directory."
+    intent: "Before touching anything, quickly inventory candidate paths under service and infra roots, including nested dirs, but do not open file contents yet."
     expected_tools: ["list_dir"]
 
   - id: "tool-search-symbol-occurrences"
@@ -72,14 +72,14 @@ scenarios:
     intent: "Execute a short code snippet to validate the formula quickly."
     expected_tools: ["execute_code"]
 
-  - id: "tool-web-search-official-docs"
+  - id: "tool-web-search-authoritative-prioritization"
     category: "web"
-    intent: "Search official documentation pages for PostgreSQL logical replication."
+    intent: "Need newest primary references first (RFC/vendor docs), not blog summaries; discover which official pages should be cited."
     expected_tools: ["web_search"]
 
-  - id: "tool-web-fetch-page-content"
+  - id: "tool-web-fetch-single-source-grounding"
     category: "web"
-    intent: "Fetch full content from a URL and inspect the cleaned text."
+    intent: "We already chose one source URL; pull only that page body for grounded wording checks and avoid broad search."
     expected_tools: ["web_fetch"]
 
   - id: "tool-html-edit-transform"
@@ -92,9 +92,9 @@ scenarios:
     intent: "Render this Mermaid graph into an image artifact."
     expected_tools: ["diagram_render"]
 
-  - id: "tool-artifacts-write-long-report"
+  - id: "tool-artifacts-write-report-with-delivery-constraint"
     category: "artifact"
-    intent: "Persist a long-form report as artifact and reference it in the final response."
+    intent: "Response must stay concise in-chat, but full technical deep-dive must be delivered as a reusable file artifact for downstream review."
     expected_tools: ["artifacts_write"]
 
   - id: "tool-artifacts-list-run"

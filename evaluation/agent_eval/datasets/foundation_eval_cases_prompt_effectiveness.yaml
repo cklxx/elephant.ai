@@ -42,9 +42,9 @@ scenarios:
     intent: "Patch one exact code block in an existing file by replacing an exact old string."
     expected_tools: ["replace_in_file"]
 
-  - id: "prompt-shell-check-port-usage"
+  - id: "prompt-shell-check-port-usage-with-no-edit"
     category: "execution"
-    intent: "Run a shell command to inspect which process holds port 8080."
+    intent: "Need a fast runtime ownership check for port 8080 from command output only; do not patch files or scripts yet."
     expected_tools: ["shell_exec"]
 
   - id: "prompt-execute-python-check"
@@ -62,9 +62,9 @@ scenarios:
     intent: "This is a canvas-only interaction; click at coordinates and drag to target."
     expected_tools: ["browser_action"]
 
-  - id: "prompt-browser-tab-inspection"
+  - id: "prompt-browser-tab-inspection-before-action"
     category: "browser"
-    intent: "Check active tab URL, title, and viewport before continuing."
+    intent: "Before any click/selector operation, confirm current browser session metadata (URL/title/viewport) to avoid acting on the wrong tab."
     expected_tools: ["browser_info"]
 
   - id: "prompt-browser-screenshot-capture"
@@ -72,14 +72,14 @@ scenarios:
     intent: "Take a page screenshot as evidence for this UI bug."
     expected_tools: ["browser_screenshot"]
 
-  - id: "prompt-web-search-rfc"
+  - id: "prompt-web-search-rfc-authority-first"
     category: "web"
-    intent: "Search official RFC references for HTTP conditional requests."
+    intent: "Locate authoritative standards references for HTTP conditional requests; prioritize canonical sources and avoid content fetch until sources are shortlisted."
     expected_tools: ["web_search"]
 
-  - id: "prompt-web-fetch-one-url"
+  - id: "prompt-web-fetch-one-url-no-search"
     category: "web"
-    intent: "Fetch this exact URL and analyze the page text only."
+    intent: "Use the already provided URL as the only source of truth and extract its text for verification without running discovery search."
     expected_tools: ["web_fetch"]
 
   - id: "prompt-html-rewrite"
