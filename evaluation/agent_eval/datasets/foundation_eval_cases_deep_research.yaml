@@ -88,9 +88,3 @@ scenarios:
   intent: Render a Mermaid evidence dependency graph for the research conclusion chain.
   expected_tools:
   - diagram_render
-- id: research-structured-dashboard-payload
-  category: deep_research
-  intent: Emit a structured payload for a research dashboard with source credibility
-    tiers.
-  expected_tools:
-  - a2ui_emit

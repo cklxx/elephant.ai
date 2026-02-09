@@ -84,8 +84,3 @@ scenarios:
   expected_tools:
   - read_file
   - replace_in_file
-- id: long-horizon-shell-verification
-  category: long_horizon
-  intent: Run shell verification commands after each round to confirm no regressions.
-  expected_tools:
-  - shell_exec

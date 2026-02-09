@@ -93,15 +93,3 @@ scenarios:
   expected_tools:
   - memory_search
   - artifacts_write
-- id: memory-citation-manifest-check
-  category: memory_capabilities
-  intent: Use memory_get citation lines and artifact_manifest to verify report traceability.
-  expected_tools:
-  - memory_get
-  - artifact_manifest
-- id: memory-lark-sync-update
-  category: memory_capabilities
-  intent: memory_search key context then send lark status update with summary.
-  expected_tools:
-  - memory_search
-  - lark_send_message

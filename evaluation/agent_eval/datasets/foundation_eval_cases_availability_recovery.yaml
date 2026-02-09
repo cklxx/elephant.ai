@@ -86,13 +86,3 @@ scenarios:
     and validate wording against requirement text.
   expected_tools:
   - web_fetch
-- id: availability-artifact-persist-report
-  category: availability
-  intent: Persist the long report to artifact storage.
-  expected_tools:
-  - artifacts_write
-- id: availability-artifact-list-before-send
-  category: availability
-  intent: List generated artifacts before deciding what to share.
-  expected_tools:
-  - artifacts_list

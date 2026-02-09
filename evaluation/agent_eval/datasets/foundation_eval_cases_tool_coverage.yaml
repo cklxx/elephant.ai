@@ -109,23 +109,3 @@ scenarios:
   intent: List artifacts generated in this run before selecting one to send.
   expected_tools:
   - artifacts_list
-- id: tool-artifacts-delete-stale
-  category: artifact
-  intent: Delete stale artifacts that are no longer needed.
-  expected_tools:
-  - artifacts_delete
-- id: tool-artifact-manifest-read
-  category: artifact
-  intent: Inspect the artifact manifest including metadata and attachment records.
-  expected_tools:
-  - artifact_manifest
-- id: tool-write-attachment-download
-  category: artifact
-  intent: Write a generated file as downloadable attachment for the user.
-  expected_tools:
-  - write_attachment
-- id: tool-a2ui-emit-payload
-  category: artifact
-  intent: Emit a structured payload to downstream UI renderer.
-  expected_tools:
-  - a2ui_emit

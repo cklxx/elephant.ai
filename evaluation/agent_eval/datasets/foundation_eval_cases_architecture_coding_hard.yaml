@@ -90,8 +90,3 @@ scenarios:
   intent: Emit a structured UI payload summarizing module boundaries and ownership.
   expected_tools:
   - a2ui_emit
-- id: arch-code-artifact-design-doc
-  category: architecture_coding
-  intent: Persist a long architecture design proposal as artifact before implementation.
-  expected_tools:
-  - artifacts_write

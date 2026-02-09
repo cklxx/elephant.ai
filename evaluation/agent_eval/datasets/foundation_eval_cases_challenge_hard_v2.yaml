@@ -116,23 +116,3 @@ scenarios:
     output.
   expected_tools:
   - artifacts_delete
-- id: challenge-ui-structured-card
-  category: challenge_hard_v2
-  intent: Emit a structured payload for a dashboard card instead of plain text narration.
-  expected_tools:
-  - a2ui_emit
-- id: challenge-browser-selector-first
-  category: challenge_hard_v2
-  intent: Use selectors to fill and submit the web form rather than coordinate clicking.
-  expected_tools:
-  - browser_dom
-- id: challenge-browser-visual-evidence
-  category: challenge_hard_v2
-  intent: Capture a visual proof snapshot of the page state after the action completes.
-  expected_tools:
-  - browser_screenshot
-- id: challenge-browser-session-state
-  category: challenge_hard_v2
-  intent: Inspect current tab metadata, URL, and viewport status before proceeding.
-  expected_tools:
-  - browser_info

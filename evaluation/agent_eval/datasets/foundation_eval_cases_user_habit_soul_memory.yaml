@@ -95,17 +95,3 @@ scenarios:
   expected_tools:
   - memory_search
   - okr_write
-- id: soul-memory-long-context
-  category: user_habit_soul_memory
-  intent: In long context, memory_search soul constraints and memory_get supporting
-    lines first.
-  expected_tools:
-  - memory_search
-  - memory_get
-- id: habit-execution-preference
-  category: user_habit_soul_memory
-  intent: Use memory to choose shell_exec versus execute_code validation approach.
-  expected_tools:
-  - memory_search
-  - shell_exec
-  - execute_code

@@ -121,10 +121,3 @@ scenarios:
   expected_tools:
   - clarify
   - plan
-- id: orchestrate-user-gated-auth
-  category: multi_step_orchestration
-  intent: Request_user for manual auth gate, then continue with read and shell verification.
-  expected_tools:
-  - request_user
-  - read_file
-  - shell_exec

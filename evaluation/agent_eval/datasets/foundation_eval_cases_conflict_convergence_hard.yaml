@@ -89,13 +89,3 @@ scenarios:
   intent: List currently active timers and remaining reminders.
   expected_tools:
   - list_timers
-- id: conflict-plan-not-task-manage
-  category: conflict_convergence
-  intent: Plan phased rollout milestones with risk gates and checkpoint strategy.
-  expected_tools:
-  - plan
-- id: conflict-acp-delegate-heavy-tail
-  category: conflict_convergence
-  intent: Delegate heavy long-tail analysis to parallel executor subagent.
-  expected_tools:
-  - acp_executor

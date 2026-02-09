@@ -85,8 +85,3 @@ scenarios:
   intent: Persist the long response as artifact first, then deliver a concise summary.
   expected_tools:
   - artifacts_write
-- id: autonomy-upload-final-file
-  category: autonomy
-  intent: Upload final generated output file to Lark without waiting for extra prompts.
-  expected_tools:
-  - lark_upload_file

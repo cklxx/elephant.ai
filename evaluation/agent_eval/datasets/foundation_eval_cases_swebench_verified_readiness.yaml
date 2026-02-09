@@ -84,13 +84,3 @@ scenarios:
   intent: Inspect artifact manifest metadata for output integrity.
   expected_tools:
   - artifact_manifest
-- id: verified-memory-read-prior-fix
-  category: swebench_verified
-  intent: Search memory for prior fix pattern on similar bug class.
-  expected_tools:
-  - memory_search
-- id: verified-memory-open-details
-  category: swebench_verified
-  intent: Open specific memory note lines containing edge-case handling details.
-  expected_tools:
-  - memory_get

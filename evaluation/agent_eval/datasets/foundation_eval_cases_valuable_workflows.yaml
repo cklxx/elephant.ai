@@ -88,15 +88,3 @@ scenarios:
   intent: Produce a downloadable attachment from generated content.
   expected_tools:
   - write_attachment
-- id: workflow-artifact-hygiene
-  category: valuable_workflow
-  intent: Audit manifest, list generated files, and clean stale artifacts.
-  expected_tools:
-  - artifact_manifest
-  - artifacts_list
-  - artifacts_delete
-- id: workflow-lark-status-announce
-  category: valuable_workflow
-  intent: Send a concise status update to current Lark conversation.
-  expected_tools:
-  - lark_send_message

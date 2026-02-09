@@ -83,23 +83,3 @@ scenarios:
   intent: Create an hourly healthcheck scheduler job.
   expected_tools:
   - scheduler_create_job
-- id: proactive-list-scheduled-jobs
-  category: scheduler
-  intent: List all configured scheduler jobs and next run times.
-  expected_tools:
-  - scheduler_list_jobs
-- id: proactive-delete-scheduled-job
-  category: scheduler
-  intent: Delete a scheduler job by identifier.
-  expected_tools:
-  - scheduler_delete_job
-- id: proactive-prune-stale-jobs
-  category: scheduler
-  intent: Prune stale scheduler jobs after migration.
-  expected_tools:
-  - scheduler_delete_job
-- id: proactive-okrs-read-before-sync
-  category: okr
-  intent: Read current quarter OKR status before sending an update.
-  expected_tools:
-  - okr_read

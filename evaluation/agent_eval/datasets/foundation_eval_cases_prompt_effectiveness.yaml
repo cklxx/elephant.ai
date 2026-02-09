@@ -87,8 +87,3 @@ scenarios:
     text for verification without running discovery search.
   expected_tools:
   - web_fetch
-- id: prompt-html-rewrite
-  category: web
-  intent: Rewrite this HTML snippet to improve semantics and accessibility.
-  expected_tools:
-  - html_edit

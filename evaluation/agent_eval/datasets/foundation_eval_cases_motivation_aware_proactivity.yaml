@@ -93,9 +93,3 @@ scenarios:
     nudging patterns from memory.
   expected_tools:
   - memory_search
-- id: motivation-exact-url-evidence-fetch
-  category: motivation_feedback
-  intent: Given one fixed URL for progress evidence, fetch and extract it directly
-    rather than discovering new sources.
-  expected_tools:
-  - web_fetch

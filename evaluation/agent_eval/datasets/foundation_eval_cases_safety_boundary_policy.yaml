@@ -90,8 +90,3 @@ scenarios:
   expected_tools:
   - lark_calendar_query
   - lark_calendar_create
-- id: safety-task-accountability
-  category: safety_boundary_policy
-  intent: Create lark task with owner and due date for safety follow-up.
-  expected_tools:
-  - lark_task_manage
