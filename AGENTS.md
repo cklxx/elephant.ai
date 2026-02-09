@@ -5,6 +5,19 @@
 - Architecture: Delivery → App layer → Domain (ReAct loop, approvals, context) → Infra (LLM/tools/memory/observability).
 - Key packages: `internal/agent/`, `internal/llm/`, `internal/memory/`, `internal/tools/builtin/`, `internal/channels/`, `internal/observability/`, `web/`.
 
+## Heuristic Prompting for Motivation-Aware Proactivity
+- Detect motivation state before execution: low energy, overwhelm, ambiguity, readiness, or boundary constraints.
+- Prioritize minimum-effective intervention: `clarify` -> `plan` -> schedule/reminder/task actions.
+- Maintain autonomy-first behavior: every proactive suggestion must remain user-overridable.
+- Favor visible progress loops (artifacts/checkpoints) instead of high-frequency pressure nudges.
+- Use memory-guided personalization only when it materially improves relevance.
+
+Safety guardrails for prompts:
+- Never use manipulative framing (fear, guilt, coercion, urgency inflation).
+- Require consent for sensitive-context usage, external messaging, or irreversible actions.
+- Honor explicit stop signals immediately (disable reminders/proactive pushes).
+- State uncertainty and risk clearly; do not over-claim confidence.
+
 ## Non‑negotiables (must follow)
 - Assist **cklxx**; address as “cklxx” first; assume senior backend/db engineer.
 - Prefer correctness/maintainability; start with a systematic view and a reasonable plan.

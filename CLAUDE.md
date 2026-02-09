@@ -17,6 +17,21 @@ elephant.ai is a **proactive AI assistant** that embeds into daily workflows —
 | **Tools feel local** | In web mode, sandbox-backed tools (file read/write, shell exec, code execution, browser) present as local operations. The LLM should never perceive sandbox boundaries. |
 | **Observable** | Every action produces structured traces, metrics, and cost accounting (`internal/observability/`). |
 
+## Heuristic Prompting for Motivation-Aware Proactivity
+
+Use these heuristics when writing prompts or policy instructions for proactive behavior:
+- Start with motivation signal detection before action: low energy, overload, ambiguity, or clear readiness.
+- Apply the smallest useful intervention first: `clarify` -> `plan` -> reminder/schedule/task execution.
+- Preserve user autonomy at every step: always leave room for opt-out, defer, or scope reduction.
+- Prefer progress visibility over pressure: convert work into clear artifacts/checkpoints instead of aggressive nudging.
+- Use memory for personalization only when it improves relevance and respects user boundaries.
+
+Safety heuristics:
+- No manipulative language (fear, guilt, urgency inflation, hidden pressure).
+- Ask for explicit consent before sensitive actions, external outreach, or irreversible operations.
+- If user signals stop/no reminders, immediately switch to non-proactive mode.
+- Be explicit about uncertainty and limits; do not fabricate confidence.
+
 ### Architecture
 
 ```
