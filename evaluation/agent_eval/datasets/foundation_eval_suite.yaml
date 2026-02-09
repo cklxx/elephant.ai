@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, intent-decomposition constraint matrix, challenge hard v2, and complex artifact delivery"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, intent-decomposition constraint matrix, challenge hard v2, complex artifact delivery, sparse-clue retrieval stress, stateful commitment boundary stress, and reproducibility trace evidence stress"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -217,6 +217,36 @@ collections:
     dimension: "complex_artifact_delivery"
     description: "Complex tasks that require concrete artifact/file outputs, traceability checks, and publish workflows"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_complex_artifact_delivery.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "sparse-clue-retrieval-stress"
+    name: "Sparse-Clue Retrieval Stress"
+    dimension: "sparse_clue_retrieval_stress"
+    description: "BrowseComp-like sparse clue retrieval and source/memory/repo disambiguation stress"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_sparse_clue_retrieval.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "stateful-commitment-boundary-stress"
+    name: "Stateful Commitment Boundary Stress"
+    dimension: "stateful_commitment_boundary_stress"
+    description: "TAU-bench-like stateful multi-turn commitment and mutation-boundary disambiguation stress"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_stateful_commitment_boundary.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "reproducibility-trace-evidence-stress"
+    name: "Reproducibility Trace Evidence Stress"
+    dimension: "reproducibility_trace_evidence_stress"
+    description: "WebArena-Verified/SWE-Verified style reproducibility, traceability, and publish-gate routing stress"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_reproducibility_trace_evidence.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
