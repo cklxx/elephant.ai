@@ -49,6 +49,7 @@ FORCE_REBUILD="${FORCE_REBUILD:-0}"
 LARK_REQUIRE_DOCKER="${LARK_REQUIRE_DOCKER:-1}"
 DEV_SH="${ROOT}/dev.sh"
 BOOTSTRAP_SH="${ROOT}/scripts/setup_local_runtime.sh"
+CLEANUP_ORPHANS_SH="${ROOT}/scripts/lark/cleanup_orphan_agents.sh"
 
 # Readiness: grep for this log line to confirm the gateway has started.
 READY_LOG_PATTERN="Lark gateway connecting"
@@ -84,6 +85,12 @@ ensure_lark_sandbox() {
   (cd "${ROOT}" && "${DEV_SH}" sandbox-up)
 }
 
+cleanup_orphan_lark_agents() {
+  if [[ -x "${CLEANUP_ORPHANS_SH}" ]]; then
+    "${CLEANUP_ORPHANS_SH}" cleanup --scope main --quiet || true
+  fi
+}
+
 maybe_setup_auth_db() {
   if [[ "${SKIP_LOCAL_AUTH_DB:-0}" == "1" ]]; then
     log_info "Skipping local auth DB auto-setup (SKIP_LOCAL_AUTH_DB=1)"
@@ -113,6 +120,7 @@ start() {
   ensure_local_bootstrap
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
   ensure_lark_sandbox
+  cleanup_orphan_lark_agents
 
   maybe_setup_auth_db
 
@@ -171,6 +179,7 @@ restart() {
   load_dotenv
   ensure_local_bootstrap
   [[ -f "${MAIN_CONFIG}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG}"
+  cleanup_orphan_lark_agents
 
   maybe_setup_auth_db
   build

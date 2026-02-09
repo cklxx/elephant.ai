@@ -58,6 +58,7 @@ FORCE_REBUILD="${FORCE_REBUILD:-1}"
 LARK_REQUIRE_DOCKER="${LARK_REQUIRE_DOCKER:-1}"
 DEV_SH="${ROOT}/dev.sh"
 BOOTSTRAP_SH="${ROOT}/scripts/setup_local_runtime.sh"
+CLEANUP_ORPHANS_SH="${ROOT}/scripts/lark/cleanup_orphan_agents.sh"
 
 # Readiness: grep for this log line to confirm the gateway has started.
 READY_LOG_PATTERN="Lark gateway connecting"
@@ -89,6 +90,12 @@ ensure_lark_sandbox() {
   [[ -x "${DEV_SH}" ]] || die "Missing ${DEV_SH}"
   log_info "Ensuring docker sandbox for lark mode..."
   (cd "${ROOT}" && "${DEV_SH}" sandbox-up)
+}
+
+cleanup_orphan_lark_agents() {
+  if [[ -x "${CLEANUP_ORPHANS_SH}" ]]; then
+    "${CLEANUP_ORPHANS_SH}" cleanup --scope test --quiet || true
+  fi
 }
 
 maybe_setup_auth_db() {
@@ -128,6 +135,7 @@ start() {
   ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
   ensure_lark_sandbox
+  cleanup_orphan_lark_agents
 
   maybe_setup_auth_db
   ensure_worktree
@@ -158,7 +166,11 @@ start() {
   fi
 
   log_info "Starting test Lark standalone agent..."
-  (cd "${TEST_ROOT}" && ALEX_CONFIG_PATH="${TEST_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" lark >> "${LOG_FILE}" 2>&1 & echo "$!" > "${PID_FILE}")
+  (
+    cd "${TEST_ROOT}"
+    ALEX_CONFIG_PATH="${TEST_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" lark >> "${LOG_FILE}" 2>&1 &
+    echo "$!" > "${PID_FILE}"
+  )
 
   pid="$(read_pid "${PID_FILE}" || true)"
   local i
@@ -187,6 +199,7 @@ restart() {
   load_dotenv
   ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
+  cleanup_orphan_lark_agents
 
   maybe_setup_auth_db
   ensure_worktree

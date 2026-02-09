@@ -9,6 +9,7 @@ MIGRATION_FILE="${ROOT_DIR}/migrations/auth/001_init.sql"
 AUTH_DB_CONTAINER="alex-auth-db"
 LOG_DIR="${ROOT_DIR}/logs"
 LOG_FILE="${LOG_DIR}/setup_auth_db.log"
+ORPHAN_CLEANUP_SH="${ROOT_DIR}/scripts/lark/cleanup_orphan_agents.sh"
 DEFAULT_DB_URL="postgres://alex:alex@localhost:5432/alex_auth?sslmode=disable"
 DEFAULT_PASSWORD_HASH='argon2id$1$65536$4$X/2c361Hs7Z7BTh06+aZaQ$FN9oVAe9UTRi7adCznuGy7sQrKYhanWBDhVG3en+HV4'
 
@@ -134,7 +135,7 @@ start_auth_db() {
 
     set +e
     # shellcheck disable=SC2086
-    ${cmd} -f "$COMPOSE_FILE" up -d auth-db >/dev/null 2>"${LOG_FILE}"
+    ${cmd} -f "$COMPOSE_FILE" up -d auth-db >/dev/null 2>>"${LOG_FILE}"
     local status=$?
     set -e
 
@@ -167,6 +168,63 @@ wait_for_auth_db() {
     exit 1
 }
 
+cleanup_orphan_lark_agents() {
+    if [[ ! -x "${ORPHAN_CLEANUP_SH}" ]]; then
+        log_warn "Missing orphan cleanup script: ${ORPHAN_CLEANUP_SH}"
+        return 0
+    fi
+
+    log_warn "Detected auth DB saturation; cleaning orphan Lark agents"
+    "${ORPHAN_CLEANUP_SH}" cleanup --scope all --quiet || true
+}
+
+is_too_many_clients_error() {
+    local err_text="$1"
+    grep -qi 'too many clients already' <<< "${err_text}"
+}
+
+run_psql_file_with_retry() {
+    local sql_file="$1"
+    local attempts="${AUTH_DB_PSQL_MAX_ATTEMPTS:-4}"
+    local delay="${AUTH_DB_PSQL_RETRY_DELAY_SECONDS:-1}"
+    local try=1
+    local err_file
+    err_file="$(mktemp "${TMPDIR:-/tmp}/authdb-psql.XXXXXX")"
+
+    while (( try <= attempts )); do
+        if run_psql < "${sql_file}" >/dev/null 2>"${err_file}"; then
+            rm -f "${err_file}"
+            return 0
+        fi
+
+        local err_output
+        err_output="$(cat "${err_file}")"
+        if is_too_many_clients_error "${err_output}"; then
+            if (( try >= attempts )); then
+                printf '%s\n' "${err_output}" >&2
+                rm -f "${err_file}"
+                return 1
+            fi
+
+            log_warn "Postgres has too many clients (attempt ${try}/${attempts}); retrying after cleanup"
+            cleanup_orphan_lark_agents
+            sleep "${delay}"
+            if (( delay < 8 )); then
+                delay=$((delay * 2))
+            fi
+            try=$((try + 1))
+            continue
+        fi
+
+        printf '%s\n' "${err_output}" >&2
+        rm -f "${err_file}"
+        return 1
+    done
+
+    rm -f "${err_file}"
+    return 1
+}
+
 run_migrations() {
     if [[ ! -f "$MIGRATION_FILE" ]]; then
         log_error "Migration file not found: $MIGRATION_FILE"
@@ -174,7 +232,7 @@ run_migrations() {
     fi
 
     log_info "Running auth DB migrations"
-    run_psql < "$MIGRATION_FILE" >/dev/null
+    run_psql_file_with_retry "$MIGRATION_FILE"
     log_success "Schema initialized"
 }
 
@@ -194,8 +252,10 @@ seed_admin_user() {
         expires_sql="'${expires}'"
     fi
 
-    log_info "Seeding auth user ${email}"
-    run_psql <<SQL
+    local seed_sql_file
+    seed_sql_file="$(mktemp "${TMPDIR:-/tmp}/authdb-seed.XXXXXX.sql")"
+
+    cat > "${seed_sql_file}" <<SQL
 INSERT INTO auth_users (
     id,
     email,
@@ -229,6 +289,13 @@ ON CONFLICT (email) DO UPDATE SET
     subscription_expires_at = EXCLUDED.subscription_expires_at,
     updated_at = NOW();
 SQL
+
+    log_info "Seeding auth user ${email}"
+    if ! run_psql_file_with_retry "${seed_sql_file}"; then
+        rm -f "${seed_sql_file}"
+        return 1
+    fi
+    rm -f "${seed_sql_file}"
     log_success "Admin user ensured (${email})"
 }
 
