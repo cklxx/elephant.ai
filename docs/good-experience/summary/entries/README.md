@@ -4,6 +4,7 @@ Updated: 2026-02-09
 
 ## Files
 
+- [2026-02-09-harder-cases-easy-pass1-retirement.md](2026-02-09-harder-cases-easy-pass1-retirement.md)
 - [2026-02-09-complex-artifact-delivery-eval-layer.md](2026-02-09-complex-artifact-delivery-eval-layer.md)
 - [2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation.md](2026-02-09-devops-lark-go-supervisor-hardening-and-full-validation.md)
 - [2026-02-09-lark-authdb-self-heal-automation.md](2026-02-09-lark-authdb-self-heal-automation.md)
