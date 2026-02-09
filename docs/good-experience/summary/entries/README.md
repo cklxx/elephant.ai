@@ -4,6 +4,7 @@ Updated: 2026-02-09
 
 ## Files
 
+- [2026-02-09-pass1-systematic-optimization-and-eval-skill.md](2026-02-09-pass1-systematic-optimization-and-eval-skill.md)
 - [2026-02-09-pass1-optimization-round3.md](2026-02-09-pass1-optimization-round3.md)
 - [2026-02-09-pass1-optimization-round2.md](2026-02-09-pass1-optimization-round2.md)
 - [2026-02-09-harder-cases-easy-pass1-retirement.md](2026-02-09-harder-cases-easy-pass1-retirement.md)

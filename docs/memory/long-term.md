@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-09 12:00
+Updated: 2026-02-09 13:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -40,6 +40,7 @@ Updated: 2026-02-09 12:00
 - A dedicated speed-focused collection is useful to catch regressions where the router drifts to slower multi-step paths instead of shortest viable completion.
 - Routing pass rates can hide delivery regressions; keep a dedicated artifact-delivery collection plus sampled good/bad deliverable checks in reports.
 - When foundation pass@1 gets saturated, retire repeatedly top1-perfect cases and inject conflict-heavy replacements before adding more generic volume.
+- Foundation eval optimization should prioritize top1 conflict clusters (`expected => top1`) with systematic router/token convergence; keep report sections fixed with x/x scoreboard, conflict inventory, and good/bad deliverable samples.
 - Lark 本地链路如果 PID 文件写到包装 shell 而非真实 `alex-server`，会造成孤儿进程累积并耗尽 auth DB 连接；后台启动必须保证记录真实子进程 PID。
 - auth DB 本地初始化遇到 `too many clients already` 应执行“孤儿 Lark 进程清理 + 退避重试”，比一次失败直接降级更稳定。
 - DevOps `ProcessManager` 对磁盘 PID 恢复/停止不能只做 `kill(0)`；必须持久化并校验进程身份（命令行签名），避免 PID 复用误判和误杀。
