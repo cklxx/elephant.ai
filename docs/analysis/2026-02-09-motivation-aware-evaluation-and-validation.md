@@ -110,3 +110,42 @@ go run ./cmd/alex eval foundation-suite \
 1. 每周导出失败 case，按冲突对（tool-pair conflict）做定向修正。
 2. 对高频失败类别新增样例，避免过拟合单一表达。
 3. 每两周更新一次门槛和 case 配比，保持难度与覆盖同步。
+
+## 7. R3 收敛与优化结果（2026-02-09）
+
+### 7.1 集合收敛（x/x）
+- Collections: `25/25`（保持不变）
+- Cases: `400/400`（由 `445 -> 400`）
+- Hard stress collections retained: `3/3`
+  - `sparse_clue_retrieval`
+  - `stateful_commitment_boundary`
+  - `reproducibility_trace_evidence`
+
+### 7.2 评测前后对比（x/x）
+- Baseline（400-case）:
+  - pass@1: `339/400`（84.9%）
+  - pass@5: `400/400`（100.0%）
+  - Deliverable Good: `18/22`
+  - Deliverable Bad: `4/22`
+  - 产物路径: `tmp/foundation-suite-prune-r3-400-baseline-20260209-183049`
+- Optimized（第二轮规则后）:
+  - pass@1: `349/400`（87.3%）
+  - pass@5: `400/400`（100.0%）
+  - Deliverable Good: `18/22`
+  - Deliverable Bad: `4/22`
+  - 产物路径: `tmp/foundation-suite-prune-r3-400-optimized2-20260209-183358`
+
+### 7.3 失败簇收敛（Top1）
+- `web_fetch => web_search`: `2 -> 0`
+- `memory_search => search_file`: `2 -> 0`
+- `request_user => clarify`: `2 -> 0`
+- `lark_send_message => replace_in_file`: `2 -> 1`
+- `plan => lark_task_manage`: `3 -> 2`（仍是 Top1 残余冲突）
+
+### 7.4 本轮主要优化动作
+- 强化“单一已给定 URL 且禁止 discovery search”下 `web_fetch` 优先级。
+- 强化审批/敏感门控语义下 `request_user`，下压 `clarify`。
+- 强化 memory 历史/回溯/习惯语义下 `memory_search`，下压 `search_file`。
+- 强化“brief status ping, no file transfer”下 `lark_send_message`，下压 `replace_in_file`。
+- 增加 `lark_calendar_delete` 与 `cancel_timer` 的事件域去歧义。
+- 补充对应回归测试，防止冲突回退。

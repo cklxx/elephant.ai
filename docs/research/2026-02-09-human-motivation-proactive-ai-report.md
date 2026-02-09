@@ -137,3 +137,20 @@ motivation_state:
 - Temporal Discounting & Procrastination: https://pubmed.ncbi.nlm.nih.gov/38918442/
 - NIST AI RMF 1.0: https://www.nist.gov/publications/artificial-intelligence-risk-management-framework-ai-rmf-10
 - EU AI Act (Regulation 2024/1689): https://eur-lex.europa.eu/eli/reg/2024/1689/oj
+
+## 7. 最新评测结论（R3，2026-02-09）
+
+### 7.1 套件规模（x/x）
+- Collections: `25/25`
+- Cases: `400/400`（已从 `445` 收敛）
+- Hard stress dimensions: `3/3` 保留
+
+### 7.2 关键结果（x/x）
+- 基线（400-case）pass@1: `339/400`，pass@5: `400/400`
+- 二轮优化后 pass@1: `349/400`，pass@5: `400/400`
+- Deliverable 检查: Good `18/22`，Bad `4/22`（本轮未变化）
+
+### 7.3 主要发现
+- 动机/记忆/审批门控相关冲突显著下降（`request_user`、`memory_search`、`web_fetch` 相关簇已清零）。
+- 剩余主失败簇集中在计划语义与任务管理语义重叠（`plan => lark_task_manage`）。
+- 复杂可交付任务中，仍存在“文件传输 vs 消息通知”的局部歧义，需要继续增强语义分离。

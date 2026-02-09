@@ -82,35 +82,35 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 
 当前集合规模（`x/x`）：
 - Collections: `25/25`
-- Cases: `445/445`
-- Applicable Cases: `445/445`（N/A 单独统计，不计失败）
-- pass@1: `375/445`
-- pass@5: `445/445`
-- Deliverable Cases: `28/445`
-- Deliverable Good: `23/28`
-- Deliverable Bad: `5/28`
-- Base Tool Coverage: `24/24`
-- Prompt Effectiveness Coverage: `17/17`
-- Proactivity Coverage: `20/20`
-- Motivation-Aware Proactivity: `17/17`
-- Complex High-Value Tasks: `20/20`
-- Availability and Recovery: `18/18`
-- Valuable Delivery Workflows: `18/18`
-- SWE-bench Verified Readiness: `18/18`
-- Multi-Step Orchestration: `16/16`
-- Safety Boundary and Policy: `16/16`
-- Context Learning Hard: `16/16`
-- Memory Capabilities: `18/18`
-- User Habit Soul Memory: `18/18`
+- Cases: `400/400`
+- Applicable Cases: `400/400`（N/A 单独统计，不计失败）
+- pass@1: `349/400`（R3 优化后）
+- pass@5: `400/400`
+- Deliverable Cases: `22/400`
+- Deliverable Good: `18/22`
+- Deliverable Bad: `4/22`
+- Base Tool Coverage: `20/20`
+- Prompt Effectiveness Coverage: `16/16`
+- Proactivity Coverage: `16/16`
+- Motivation-Aware Proactivity: `16/16`
+- Complex High-Value Tasks: `16/16`
+- Availability and Recovery: `16/16`
+- Valuable Delivery Workflows: `16/16`
+- SWE-bench Verified Readiness: `16/16`
+- Multi-Step Orchestration: `15/15`
+- Safety Boundary and Policy: `15/15`
+- Context Learning Hard: `15/15`
+- Memory Capabilities: `16/16`
+- User Habit Soul Memory: `16/16`
 - Task Completion Speed: `15/15`
-- Long-Horizon Multi-Round: `16/16`
-- Architecture Coding Hard: `16/16`
-- Deep Research: `16/16`
-- Autonomy Initiative: `16/16`
-- Conflict Convergence Hard: `18/18`
-- Intent Decomposition Constraint Matrix: `20/20`
-- Challenge Hard V2: `24/24`
-- Complex Artifact Delivery: `20/20`
+- Long-Horizon Multi-Round: `15/15`
+- Architecture Coding Hard: `15/15`
+- Deep Research: `15/15`
+- Autonomy Initiative: `15/15`
+- Conflict Convergence Hard: `16/16`
+- Intent Decomposition Constraint Matrix: `16/16`
+- Challenge Hard V2: `20/20`
+- Complex Artifact Delivery: `16/16`
 - Sparse-Clue Retrieval Stress: `16/16`
 - Stateful Commitment Boundary Stress: `16/16`
 - Reproducibility Trace Evidence Stress: `16/16`
