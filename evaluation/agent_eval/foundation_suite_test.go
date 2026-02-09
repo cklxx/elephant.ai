@@ -168,24 +168,63 @@ func TestBuildFoundationSuiteMarkdownReportIncludesPassRatios(t *testing.T) {
 	t.Parallel()
 
 	report := buildFoundationSuiteMarkdownReport(&FoundationSuiteResult{
-		RunID:               "suite-1",
-		SuiteName:           "suite",
-		SuitePath:           "evaluation/agent_eval/datasets/foundation_eval_suite.yaml",
-		TotalCollections:    4,
-		PassedCollections:   3,
-		CollectionPassRatio: "3/4",
-		TotalCases:          10,
-		PassedCases:         8,
-		CasePassRatio:       "8/10",
+		RunID:                "suite-1",
+		SuiteName:            "suite",
+		SuitePath:            "evaluation/agent_eval/datasets/foundation_eval_suite.yaml",
+		TotalCollections:     4,
+		PassedCollections:    3,
+		CollectionPassRatio:  "3/4",
+		TotalCases:           10,
+		PassedCases:          8,
+		CasePassRatio:        "8/10",
+		DeliverableCaseRatio: "4/10",
+		DeliverableGoodRatio: "3/4",
+		DeliverableBadRatio:  "1/4",
 		CollectionResults: []FoundationSuiteCollectionResult{
 			{
-				ID:            "tool-coverage",
-				Name:          "Tool Coverage",
-				TopK:          3,
-				CasePassRatio: "5/6",
-				Mode:          "web",
-				Preset:        "full",
-				Toolset:       "default",
+				ID:                   "tool-coverage",
+				Name:                 "Tool Coverage",
+				TopK:                 3,
+				CasePassRatio:        "5/6",
+				DeliverableCaseRatio: "2/6",
+				DeliverableGoodRatio: "1/2",
+				DeliverableBadRatio:  "1/2",
+				Mode:                 "web",
+				Preset:               "full",
+				Toolset:              "default",
+				TotalCases:           6,
+				Summary: &FoundationEvaluationResult{
+					Implicit: FoundationImplicitSummary{
+						CaseResults: []FoundationCaseResult{
+							{
+								ID:            "good-case",
+								ExpectedTools: []string{"artifacts_write"},
+								TopMatches:    []FoundationToolMatch{{Name: "artifacts_write", Score: 8.8}},
+								DeliverableCheck: &FoundationDeliverableCheck{
+									Applicable:       true,
+									SignalCount:      2,
+									MatchedSignals:   2,
+									ContractCoverage: 1,
+									Status:           "good",
+									Reason:           "covered",
+								},
+							},
+							{
+								ID:            "bad-case",
+								ExpectedTools: []string{"write_attachment"},
+								TopMatches:    []FoundationToolMatch{{Name: "read_file", Score: 4.1}},
+								DeliverableCheck: &FoundationDeliverableCheck{
+									Applicable:       true,
+									SignalCount:      2,
+									MatchedSignals:   0,
+									ContractCoverage: 0,
+									Status:           "bad",
+									Reason:           "missing attachment signal",
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	})
@@ -198,6 +237,12 @@ func TestBuildFoundationSuiteMarkdownReportIncludesPassRatios(t *testing.T) {
 	}
 	if !strings.Contains(report, "5/6") {
 		t.Fatalf("expected per-collection x/x ratio in report, got: %s", report)
+	}
+	if !strings.Contains(report, "Deliverable Sampling Check") {
+		t.Fatalf("expected deliverable sampling section in report, got: %s", report)
+	}
+	if !strings.Contains(report, "good-case") || !strings.Contains(report, "bad-case") {
+		t.Fatalf("expected both good and bad samples in report, got: %s", report)
 	}
 	if !strings.Contains(report, "pass@1") || !strings.Contains(report, "pass@5") {
 		t.Fatalf("expected pass@ metrics in suite report, got: %s", report)

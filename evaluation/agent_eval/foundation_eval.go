@@ -130,17 +130,19 @@ type FoundationImplicitSummary struct {
 
 // FoundationCaseResult captures one implicit-intent scenario result.
 type FoundationCaseResult struct {
-	ID               string                `json:"id"`
-	Category         string                `json:"category"`
-	Intent           string                `json:"intent"`
-	ExpectedTools    []string              `json:"expected_tools"`
-	TopMatches       []FoundationToolMatch `json:"top_matches"`
-	HitRank          int                   `json:"hit_rank"`
-	Passed           bool                  `json:"passed"`
-	NotApplicable    bool                  `json:"not_applicable,omitempty"`
-	FailureType      string                `json:"failure_type,omitempty"`
-	Reason           string                `json:"reason"`
-	RoutingLatencyMs float64               `json:"routing_latency_ms"`
+	ID               string                         `json:"id"`
+	Category         string                         `json:"category"`
+	Intent           string                         `json:"intent"`
+	ExpectedTools    []string                       `json:"expected_tools"`
+	Deliverable      *FoundationDeliverableContract `json:"deliverable,omitempty"`
+	DeliverableCheck *FoundationDeliverableCheck    `json:"deliverable_check,omitempty"`
+	TopMatches       []FoundationToolMatch          `json:"top_matches"`
+	HitRank          int                            `json:"hit_rank"`
+	Passed           bool                           `json:"passed"`
+	NotApplicable    bool                           `json:"not_applicable,omitempty"`
+	FailureType      string                         `json:"failure_type,omitempty"`
+	Reason           string                         `json:"reason"`
+	RoutingLatencyMs float64                        `json:"routing_latency_ms"`
 }
 
 // FoundationToolMatch is a ranked tool candidate for one scenario.
@@ -159,10 +161,33 @@ type FoundationCaseSet struct {
 
 // FoundationScenario is one intent + expected tool mapping.
 type FoundationScenario struct {
-	ID            string   `yaml:"id"`
-	Category      string   `yaml:"category"`
-	Intent        string   `yaml:"intent"`
-	ExpectedTools []string `yaml:"expected_tools"`
+	ID            string                         `yaml:"id"`
+	Category      string                         `yaml:"category"`
+	Intent        string                         `yaml:"intent"`
+	ExpectedTools []string                       `yaml:"expected_tools"`
+	Deliverable   *FoundationDeliverableContract `yaml:"deliverable,omitempty"`
+}
+
+// FoundationDeliverableContract describes expected file/artifact deliverables for one scenario.
+type FoundationDeliverableContract struct {
+	OutputDescription  string   `yaml:"output_description,omitempty" json:"output_description,omitempty"`
+	ArtifactRequired   bool     `yaml:"artifact_required,omitempty" json:"artifact_required,omitempty"`
+	AttachmentRequired bool     `yaml:"attachment_required,omitempty" json:"attachment_required,omitempty"`
+	ManifestRequired   bool     `yaml:"manifest_required,omitempty" json:"manifest_required,omitempty"`
+	RequiredEvidence   []string `yaml:"required_evidence,omitempty" json:"required_evidence,omitempty"`
+	RequiredFileTypes  []string `yaml:"required_file_types,omitempty" json:"required_file_types,omitempty"`
+}
+
+// FoundationDeliverableCheck records contract readiness checks from ranked tools.
+type FoundationDeliverableCheck struct {
+	Applicable         bool     `json:"applicable"`
+	SignalCount        int      `json:"signal_count"`
+	MatchedSignals     int      `json:"matched_signals"`
+	ContractCoverage   float64  `json:"contract_coverage"`
+	Status             string   `json:"status"`
+	MatchedSignalNames []string `json:"matched_signal_names,omitempty"`
+	MissingSignalNames []string `json:"missing_signal_names,omitempty"`
+	Reason             string   `json:"reason"`
 }
 
 type foundationToolProfile struct {
@@ -287,6 +312,20 @@ func LoadFoundationCaseSet(path string) (*FoundationCaseSet, error) {
 		}
 		if len(scenario.ExpectedTools) == 0 {
 			return nil, fmt.Errorf("scenario %s expected_tools is required", id)
+		}
+		if scenario.Deliverable != nil {
+			contract := scenario.Deliverable
+			contract.OutputDescription = strings.TrimSpace(contract.OutputDescription)
+			contract.RequiredEvidence = uniqueNonEmptyStrings(contract.RequiredEvidence)
+			contract.RequiredFileTypes = uniqueNonEmptyStrings(contract.RequiredFileTypes)
+			if contract.OutputDescription == "" &&
+				!contract.ArtifactRequired &&
+				!contract.AttachmentRequired &&
+				!contract.ManifestRequired &&
+				len(contract.RequiredEvidence) == 0 &&
+				len(contract.RequiredFileTypes) == 0 {
+				return nil, fmt.Errorf("scenario %s deliverable must define at least one requirement", id)
+			}
 		}
 	}
 	return &set, nil
@@ -781,6 +820,7 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 		}
 		topMatches := topToolMatches(ranked, topK)
 		passed := !notApplicable && hitRank > 0 && hitRank <= topK
+		deliverableCheck := evaluateDeliverableContract(scenario.Deliverable, topMatches, topK, passed)
 		if notApplicable {
 			notApplicableCases++
 		} else {
@@ -803,6 +843,8 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 			Category:         scenario.Category,
 			Intent:           scenario.Intent,
 			ExpectedTools:    append([]string(nil), scenario.ExpectedTools...),
+			Deliverable:      scenario.Deliverable,
+			DeliverableCheck: deliverableCheck,
 			TopMatches:       topMatches,
 			HitRank:          hitRank,
 			Passed:           passed,
@@ -869,6 +911,121 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 		ThroughputCasesPerSec:    round3(float64(total) / math.Max(totalEvalMs/1000.0, 1e-9)),
 		CaseResults:              results,
 	}
+}
+
+func evaluateDeliverableContract(contract *FoundationDeliverableContract, topMatches []FoundationToolMatch, topK int, casePassed bool) *FoundationDeliverableCheck {
+	if contract == nil {
+		return nil
+	}
+	requiredSignals := collectDeliverableSignals(contract)
+	if len(requiredSignals) == 0 {
+		return &FoundationDeliverableCheck{
+			Applicable:       false,
+			SignalCount:      0,
+			MatchedSignals:   0,
+			ContractCoverage: 1,
+			Status:           "n/a",
+			Reason:           "deliverable contract has no tool-level signal requirement",
+		}
+	}
+
+	selected := topMatches
+	if topK > 0 && len(selected) > topK {
+		selected = selected[:topK]
+	}
+	candidateTools := make(map[string]struct{}, len(selected))
+	for _, match := range selected {
+		if strings.TrimSpace(match.Name) == "" {
+			continue
+		}
+		candidateTools[match.Name] = struct{}{}
+	}
+
+	matchedSignals := make([]string, 0, len(requiredSignals))
+	missingSignals := make([]string, 0, len(requiredSignals))
+	for signal, toolNames := range requiredSignals {
+		matched := false
+		for _, toolName := range toolNames {
+			if _, ok := candidateTools[toolName]; ok {
+				matched = true
+				break
+			}
+		}
+		if matched {
+			matchedSignals = append(matchedSignals, signal)
+		} else {
+			missingSignals = append(missingSignals, signal)
+		}
+	}
+	sort.Strings(matchedSignals)
+	sort.Strings(missingSignals)
+
+	coverage := float64(len(matchedSignals)) / float64(len(requiredSignals))
+	status := "bad"
+	reason := "deliverable signals not sufficiently covered by top tool matches"
+	if coverage >= 0.80 && casePassed {
+		status = "good"
+		reason = "deliverable signals covered by top tool matches and routing passed"
+	}
+
+	return &FoundationDeliverableCheck{
+		Applicable:         true,
+		SignalCount:        len(requiredSignals),
+		MatchedSignals:     len(matchedSignals),
+		ContractCoverage:   round3(coverage),
+		Status:             status,
+		MatchedSignalNames: matchedSignals,
+		MissingSignalNames: missingSignals,
+		Reason:             reason,
+	}
+}
+
+func collectDeliverableSignals(contract *FoundationDeliverableContract) map[string][]string {
+	signals := make(map[string][]string, 12)
+
+	if contract.ArtifactRequired {
+		signals["artifact_output"] = []string{"artifacts_write", "write_file"}
+	}
+	if contract.AttachmentRequired {
+		signals["attachment_delivery"] = []string{"write_attachment", "lark_upload_file"}
+	}
+	if contract.ManifestRequired {
+		signals["artifact_traceability"] = []string{"artifact_manifest", "artifacts_list"}
+	}
+
+	for _, evidence := range contract.RequiredEvidence {
+		switch normalizeToken(evidence) {
+		case "diff", "patch":
+			signals["evidence_diff"] = []string{"search_file", "read_file", "replace_in_file"}
+		case "test", "tests", "report":
+			signals["evidence_test_report"] = []string{"shell_exec", "execute_code", "artifacts_write"}
+		case "screenshot", "visual":
+			signals["evidence_visual"] = []string{"browser_screenshot"}
+		case "diagram":
+			signals["evidence_diagram"] = []string{"diagram_render"}
+		case "slides", "pptx":
+			signals["evidence_slides"] = []string{"pptx_from_images"}
+		case "log", "logs":
+			signals["evidence_logs"] = []string{"grep", "ripgrep", "search_file"}
+		}
+	}
+
+	for _, kind := range contract.RequiredFileTypes {
+		switch normalizeToken(kind) {
+		case "md", "markdown":
+			signals["filetype_markdown"] = []string{"artifacts_write", "write_file"}
+		case "json":
+			signals["filetype_json"] = []string{"a2ui_emit", "artifacts_write", "write_file"}
+		case "html":
+			signals["filetype_html"] = []string{"html_edit", "artifacts_write", "write_file"}
+		case "png", "jpg", "jpeg":
+			signals["filetype_image"] = []string{"browser_screenshot", "diagram_render"}
+		case "pptx":
+			signals["filetype_pptx"] = []string{"pptx_from_images"}
+		}
+	}
+
+	return signals
 }
 
 func rankToolsForIntent(intentTokens []string, profiles []foundationToolProfile) []FoundationToolMatch {

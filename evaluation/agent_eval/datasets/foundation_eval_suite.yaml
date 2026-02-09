@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, and challenge hard v2"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, challenge hard v2, and complex artifact delivery"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -177,6 +177,16 @@ collections:
     dimension: "challenge_hard_v2"
     description: "High-ambiguity and conflict-heavy challenge set aligned with core goals"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_challenge_hard_v2.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "complex-artifact-delivery"
+    name: "Complex Artifact Delivery"
+    dimension: "complex_artifact_delivery"
+    description: "Complex tasks that require concrete artifact/file outputs, traceability checks, and publish workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_complex_artifact_delivery.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

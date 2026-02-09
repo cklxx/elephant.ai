@@ -21,6 +21,10 @@ scenarios:
     category: "browser"
     intent: "Find a selector and submit the form."
     expected_tools: ["browser_dom"]
+    deliverable:
+      output_description: "Capture proof screenshot and summary artifact"
+      artifact_required: true
+      required_evidence: ["screenshot"]
 `
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("write cases: %v", err)
@@ -35,6 +39,9 @@ scenarios:
 	}
 	if len(set.Scenarios) != 1 {
 		t.Fatalf("unexpected scenario count: %d", len(set.Scenarios))
+	}
+	if set.Scenarios[0].Deliverable == nil || !set.Scenarios[0].Deliverable.ArtifactRequired {
+		t.Fatalf("expected deliverable contract parsed, got %+v", set.Scenarios[0].Deliverable)
 	}
 }
 
@@ -60,6 +67,28 @@ scenarios:
 
 	if _, err := LoadFoundationCaseSet(path); err == nil {
 		t.Fatalf("expected duplicate id error")
+	}
+}
+
+func TestLoadFoundationCaseSetRejectsEmptyDeliverableContract(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "cases.yaml")
+	content := `
+version: "1"
+name: "invalid-deliverable"
+scenarios:
+  - id: "case-a"
+    category: "artifact"
+    intent: "Deliver a report."
+    expected_tools: ["artifacts_write"]
+    deliverable: {}
+`
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("write cases: %v", err)
+	}
+
+	if _, err := LoadFoundationCaseSet(path); err == nil {
+		t.Fatalf("expected empty deliverable contract error")
 	}
 }
 
@@ -177,6 +206,60 @@ func TestEvaluateImplicitCasesAvailabilityMarkedNA(t *testing.T) {
 	}
 	if len(summary.CaseResults) != 1 || !summary.CaseResults[0].NotApplicable {
 		t.Fatalf("expected case marked NotApplicable, got %+v", summary.CaseResults)
+	}
+}
+
+func TestEvaluateImplicitCasesComputesDeliverableChecks(t *testing.T) {
+	t.Parallel()
+
+	scenarios := []FoundationScenario{
+		{
+			ID:            "deliverable-case",
+			Category:      "artifact",
+			Intent:        "Persist output artifact, verify manifest, and attach to user message.",
+			ExpectedTools: []string{"artifacts_write"},
+			Deliverable: &FoundationDeliverableContract{
+				OutputDescription:  "artifact + manifest + attachment",
+				ArtifactRequired:   true,
+				AttachmentRequired: true,
+				ManifestRequired:   true,
+			},
+		},
+	}
+	profiles := []foundationToolProfile{
+		{
+			Definition: ports.ToolDefinition{Name: "artifacts_write"},
+			TokenWeights: map[string]float64{
+				"artifact": 6, "persist": 5, "output": 4,
+			},
+		},
+		{
+			Definition: ports.ToolDefinition{Name: "artifact_manifest"},
+			TokenWeights: map[string]float64{
+				"manifest": 6, "verify": 4, "artifact": 4,
+			},
+		},
+		{
+			Definition: ports.ToolDefinition{Name: "write_attachment"},
+			TokenWeights: map[string]float64{
+				"attach": 6, "message": 4, "user": 3,
+			},
+		},
+	}
+
+	summary := evaluateImplicitCases(scenarios, profiles, 3)
+	if len(summary.CaseResults) != 1 {
+		t.Fatalf("expected single case result, got %d", len(summary.CaseResults))
+	}
+	check := summary.CaseResults[0].DeliverableCheck
+	if check == nil || !check.Applicable {
+		t.Fatalf("expected deliverable check, got %+v", check)
+	}
+	if check.SignalCount == 0 || check.MatchedSignals == 0 {
+		t.Fatalf("expected non-empty signal matching, got %+v", check)
+	}
+	if check.Status != "good" {
+		t.Fatalf("expected good deliverable check, got %+v", check)
 	}
 }
 

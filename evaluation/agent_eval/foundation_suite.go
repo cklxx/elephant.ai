@@ -56,74 +56,86 @@ type FoundationSuiteCollection struct {
 
 // FoundationSuiteResult is the aggregate output for a suite run.
 type FoundationSuiteResult struct {
-	RunID                string                            `json:"run_id"`
-	GeneratedAt          time.Time                         `json:"generated_at"`
-	StartedAt            time.Time                         `json:"started_at"`
-	CompletedAt          time.Time                         `json:"completed_at"`
-	TotalDurationMs      int64                             `json:"total_duration_ms"`
-	ThroughputCasesPerSec float64                          `json:"throughput_cases_per_sec"`
-	SuitePath            string                            `json:"suite_path"`
-	SuiteName            string                            `json:"suite_name"`
-	TotalCollections     int                               `json:"total_collections"`
-	PassedCollections    int                               `json:"passed_collections"`
-	CollectionPassRatio  string                            `json:"collection_pass_ratio"`
-	AverageOverallScore  float64                           `json:"average_overall_score"`
-	AveragePassAt1Rate   float64                           `json:"average_pass_at_1_rate"`
-	AveragePassAt5Rate   float64                           `json:"average_pass_at_5_rate"`
-	AverageTop1HitRate   float64                           `json:"average_top1_hit_rate"`
-	AverageTopKHitRate   float64                           `json:"average_topk_hit_rate"`
-	TotalCases           int                               `json:"total_cases"`
-	ApplicableCases      int                               `json:"applicable_cases"`
-	NotApplicableCases   int                               `json:"not_applicable_cases"`
-	PassedCases          int                               `json:"passed_cases"`
-	FailedCases          int                               `json:"failed_cases"`
-	PassAt1Cases         int                               `json:"pass_at_1_cases"`
-	PassAt5Cases         int                               `json:"pass_at_5_cases"`
-	CasePassRatio        string                            `json:"case_pass_ratio"`
-	AvailabilityErrors   int                               `json:"availability_errors"`
-	CaseLatencyP50Ms     float64                           `json:"case_latency_p50_ms"`
-	CaseLatencyP95Ms     float64                           `json:"case_latency_p95_ms"`
-	CaseLatencyP99Ms     float64                           `json:"case_latency_p99_ms"`
-	CollectionLatencyP50Ms float64                         `json:"collection_latency_p50_ms"`
-	CollectionLatencyP95Ms float64                         `json:"collection_latency_p95_ms"`
-	CollectionLatencyP99Ms float64                         `json:"collection_latency_p99_ms"`
-	CollectionResults    []FoundationSuiteCollectionResult `json:"collection_results"`
-	Recommendations      []string                          `json:"recommendations"`
-	ReportArtifacts      []EvaluationArtifact              `json:"report_artifacts,omitempty"`
-	FailedCollectionRuns int                               `json:"failed_collection_runs,omitempty"`
+	RunID                  string                            `json:"run_id"`
+	GeneratedAt            time.Time                         `json:"generated_at"`
+	StartedAt              time.Time                         `json:"started_at"`
+	CompletedAt            time.Time                         `json:"completed_at"`
+	TotalDurationMs        int64                             `json:"total_duration_ms"`
+	ThroughputCasesPerSec  float64                           `json:"throughput_cases_per_sec"`
+	SuitePath              string                            `json:"suite_path"`
+	SuiteName              string                            `json:"suite_name"`
+	TotalCollections       int                               `json:"total_collections"`
+	PassedCollections      int                               `json:"passed_collections"`
+	CollectionPassRatio    string                            `json:"collection_pass_ratio"`
+	AverageOverallScore    float64                           `json:"average_overall_score"`
+	AveragePassAt1Rate     float64                           `json:"average_pass_at_1_rate"`
+	AveragePassAt5Rate     float64                           `json:"average_pass_at_5_rate"`
+	AverageTop1HitRate     float64                           `json:"average_top1_hit_rate"`
+	AverageTopKHitRate     float64                           `json:"average_topk_hit_rate"`
+	TotalCases             int                               `json:"total_cases"`
+	ApplicableCases        int                               `json:"applicable_cases"`
+	NotApplicableCases     int                               `json:"not_applicable_cases"`
+	PassedCases            int                               `json:"passed_cases"`
+	FailedCases            int                               `json:"failed_cases"`
+	PassAt1Cases           int                               `json:"pass_at_1_cases"`
+	PassAt5Cases           int                               `json:"pass_at_5_cases"`
+	CasePassRatio          string                            `json:"case_pass_ratio"`
+	DeliverableCaseRatio   string                            `json:"deliverable_case_ratio"`
+	DeliverableGoodRatio   string                            `json:"deliverable_good_ratio"`
+	DeliverableBadRatio    string                            `json:"deliverable_bad_ratio"`
+	AvailabilityErrors     int                               `json:"availability_errors"`
+	DeliverableCases       int                               `json:"deliverable_cases"`
+	DeliverableGoodCases   int                               `json:"deliverable_good_cases"`
+	DeliverableBadCases    int                               `json:"deliverable_bad_cases"`
+	CaseLatencyP50Ms       float64                           `json:"case_latency_p50_ms"`
+	CaseLatencyP95Ms       float64                           `json:"case_latency_p95_ms"`
+	CaseLatencyP99Ms       float64                           `json:"case_latency_p99_ms"`
+	CollectionLatencyP50Ms float64                           `json:"collection_latency_p50_ms"`
+	CollectionLatencyP95Ms float64                           `json:"collection_latency_p95_ms"`
+	CollectionLatencyP99Ms float64                           `json:"collection_latency_p99_ms"`
+	CollectionResults      []FoundationSuiteCollectionResult `json:"collection_results"`
+	Recommendations        []string                          `json:"recommendations"`
+	ReportArtifacts        []EvaluationArtifact              `json:"report_artifacts,omitempty"`
+	FailedCollectionRuns   int                               `json:"failed_collection_runs,omitempty"`
 }
 
 // FoundationSuiteCollectionResult captures one collection execution and summary.
 type FoundationSuiteCollectionResult struct {
-	ID                   string                      `json:"id"`
-	Name                 string                      `json:"name"`
-	Dimension            string                      `json:"dimension,omitempty"`
-	CasesPath            string                      `json:"cases_path"`
-	Mode                 string                      `json:"mode"`
-	Preset               string                      `json:"preset"`
-	Toolset              string                      `json:"toolset"`
-	TopK                 int                         `json:"top_k"`
-	OverallScore         float64                     `json:"overall_score"`
-	PassAt1Cases         int                         `json:"pass_at_1_cases"`
-	PassAt5Cases         int                         `json:"pass_at_5_cases"`
-	PassAt1Rate          float64                     `json:"pass_at_1_rate"`
-	PassAt5Rate          float64                     `json:"pass_at_5_rate"`
-	Top1HitRate          float64                     `json:"top1_hit_rate"`
-	TopKHitRate          float64                     `json:"topk_hit_rate"`
-	TotalCases           int                         `json:"total_cases"`
-	ApplicableCases      int                         `json:"applicable_cases"`
-	NotApplicableCases   int                         `json:"not_applicable_cases"`
-	PassedCases          int                         `json:"passed_cases"`
-	FailedCases          int                         `json:"failed_cases"`
-	CasePassRatio        string                      `json:"case_pass_ratio"`
-	AvailabilityErrors   int                         `json:"availability_errors"`
-	CollectionDurationMs int64                       `json:"collection_duration_ms"`
-	ThroughputCasesPerSec float64                    `json:"throughput_cases_per_sec"`
-	CaseLatencyP50Ms     float64                     `json:"case_latency_p50_ms"`
-	CaseLatencyP95Ms     float64                     `json:"case_latency_p95_ms"`
-	CaseLatencyP99Ms     float64                     `json:"case_latency_p99_ms"`
-	FailureTypeBreakdown map[string]int              `json:"failure_type_breakdown,omitempty"`
-	Summary              *FoundationEvaluationResult `json:"summary,omitempty"`
+	ID                    string                      `json:"id"`
+	Name                  string                      `json:"name"`
+	Dimension             string                      `json:"dimension,omitempty"`
+	CasesPath             string                      `json:"cases_path"`
+	Mode                  string                      `json:"mode"`
+	Preset                string                      `json:"preset"`
+	Toolset               string                      `json:"toolset"`
+	TopK                  int                         `json:"top_k"`
+	OverallScore          float64                     `json:"overall_score"`
+	PassAt1Cases          int                         `json:"pass_at_1_cases"`
+	PassAt5Cases          int                         `json:"pass_at_5_cases"`
+	PassAt1Rate           float64                     `json:"pass_at_1_rate"`
+	PassAt5Rate           float64                     `json:"pass_at_5_rate"`
+	Top1HitRate           float64                     `json:"top1_hit_rate"`
+	TopKHitRate           float64                     `json:"topk_hit_rate"`
+	TotalCases            int                         `json:"total_cases"`
+	ApplicableCases       int                         `json:"applicable_cases"`
+	NotApplicableCases    int                         `json:"not_applicable_cases"`
+	PassedCases           int                         `json:"passed_cases"`
+	FailedCases           int                         `json:"failed_cases"`
+	CasePassRatio         string                      `json:"case_pass_ratio"`
+	DeliverableCaseRatio  string                      `json:"deliverable_case_ratio"`
+	DeliverableGoodRatio  string                      `json:"deliverable_good_ratio"`
+	DeliverableBadRatio   string                      `json:"deliverable_bad_ratio"`
+	AvailabilityErrors    int                         `json:"availability_errors"`
+	DeliverableCases      int                         `json:"deliverable_cases"`
+	DeliverableGoodCases  int                         `json:"deliverable_good_cases"`
+	DeliverableBadCases   int                         `json:"deliverable_bad_cases"`
+	CollectionDurationMs  int64                       `json:"collection_duration_ms"`
+	ThroughputCasesPerSec float64                     `json:"throughput_cases_per_sec"`
+	CaseLatencyP50Ms      float64                     `json:"case_latency_p50_ms"`
+	CaseLatencyP95Ms      float64                     `json:"case_latency_p95_ms"`
+	CaseLatencyP99Ms      float64                     `json:"case_latency_p99_ms"`
+	FailureTypeBreakdown  map[string]int              `json:"failure_type_breakdown,omitempty"`
+	Summary               *FoundationEvaluationResult `json:"summary,omitempty"`
 }
 
 // LoadFoundationSuiteSet loads and validates a suite YAML.
@@ -256,13 +268,32 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 
 		failureBreakdown := map[string]int{}
 		availabilityErrors := 0
+		deliverableCases := 0
+		deliverableGoodCases := 0
+		deliverableBadCases := 0
 		for _, caseResult := range evalResult.Implicit.CaseResults {
 			if strings.TrimSpace(caseResult.FailureType) == "" {
+				if caseResult.DeliverableCheck != nil && caseResult.DeliverableCheck.Applicable {
+					deliverableCases++
+					if strings.EqualFold(caseResult.DeliverableCheck.Status, "good") {
+						deliverableGoodCases++
+					} else if strings.EqualFold(caseResult.DeliverableCheck.Status, "bad") {
+						deliverableBadCases++
+					}
+				}
 				continue
 			}
 			failureBreakdown[caseResult.FailureType]++
 			if caseResult.FailureType == "availability_error" {
 				availabilityErrors++
+			}
+			if caseResult.DeliverableCheck != nil && caseResult.DeliverableCheck.Applicable {
+				deliverableCases++
+				if strings.EqualFold(caseResult.DeliverableCheck.Status, "good") {
+					deliverableGoodCases++
+				} else if strings.EqualFold(caseResult.DeliverableCheck.Status, "bad") {
+					deliverableBadCases++
+				}
 			}
 		}
 		if len(failureBreakdown) == 0 {
@@ -272,35 +303,41 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 		collectionDurationMs := float64(time.Since(collectionStart).Microseconds()) / 1000.0
 		collectionLatencies = append(collectionLatencies, collectionDurationMs)
 		collectionResult := FoundationSuiteCollectionResult{
-			ID:                   collection.ID,
-			Name:                 collection.Name,
-			Dimension:            collection.Dimension,
-			CasesPath:            collection.CasesPath,
-			Mode:                 evalResult.Mode,
-			Preset:               evalResult.Preset,
-			Toolset:              evalResult.Toolset,
-			TopK:                 evalResult.TopK,
-			OverallScore:         evalResult.OverallScore,
-			PassAt1Cases:         evalResult.Implicit.PassAt1Cases,
-			PassAt5Cases:         evalResult.Implicit.PassAt5Cases,
-			PassAt1Rate:          evalResult.Implicit.PassAt1Rate,
-			PassAt5Rate:          evalResult.Implicit.PassAt5Rate,
-			Top1HitRate:          evalResult.Implicit.Top1HitRate,
-			TopKHitRate:          evalResult.Implicit.TopKHitRate,
-			TotalCases:           evalResult.Implicit.TotalCases,
-			ApplicableCases:      evalResult.Implicit.ApplicableCases,
-			NotApplicableCases:   evalResult.Implicit.NotApplicableCases,
-			PassedCases:          evalResult.Implicit.PassedCases,
-			FailedCases:          evalResult.Implicit.FailedCases,
-			CasePassRatio:        fmt.Sprintf("%d/%d", evalResult.Implicit.PassedCases, evalResult.Implicit.ApplicableCases),
-			AvailabilityErrors:   availabilityErrors,
-			CollectionDurationMs: int64(math.Round(collectionDurationMs)),
+			ID:                    collection.ID,
+			Name:                  collection.Name,
+			Dimension:             collection.Dimension,
+			CasesPath:             collection.CasesPath,
+			Mode:                  evalResult.Mode,
+			Preset:                evalResult.Preset,
+			Toolset:               evalResult.Toolset,
+			TopK:                  evalResult.TopK,
+			OverallScore:          evalResult.OverallScore,
+			PassAt1Cases:          evalResult.Implicit.PassAt1Cases,
+			PassAt5Cases:          evalResult.Implicit.PassAt5Cases,
+			PassAt1Rate:           evalResult.Implicit.PassAt1Rate,
+			PassAt5Rate:           evalResult.Implicit.PassAt5Rate,
+			Top1HitRate:           evalResult.Implicit.Top1HitRate,
+			TopKHitRate:           evalResult.Implicit.TopKHitRate,
+			TotalCases:            evalResult.Implicit.TotalCases,
+			ApplicableCases:       evalResult.Implicit.ApplicableCases,
+			NotApplicableCases:    evalResult.Implicit.NotApplicableCases,
+			PassedCases:           evalResult.Implicit.PassedCases,
+			FailedCases:           evalResult.Implicit.FailedCases,
+			CasePassRatio:         fmt.Sprintf("%d/%d", evalResult.Implicit.PassedCases, evalResult.Implicit.ApplicableCases),
+			DeliverableCaseRatio:  fmt.Sprintf("%d/%d", deliverableCases, evalResult.Implicit.TotalCases),
+			DeliverableGoodRatio:  fmt.Sprintf("%d/%d", deliverableGoodCases, deliverableCases),
+			DeliverableBadRatio:   fmt.Sprintf("%d/%d", deliverableBadCases, deliverableCases),
+			AvailabilityErrors:    availabilityErrors,
+			DeliverableCases:      deliverableCases,
+			DeliverableGoodCases:  deliverableGoodCases,
+			DeliverableBadCases:   deliverableBadCases,
+			CollectionDurationMs:  int64(math.Round(collectionDurationMs)),
 			ThroughputCasesPerSec: round3(float64(evalResult.Implicit.TotalCases) / math.Max(collectionDurationMs/1000.0, 1e-9)),
-			CaseLatencyP50Ms:     evalResult.Implicit.CaseLatencyP50Ms,
-			CaseLatencyP95Ms:     evalResult.Implicit.CaseLatencyP95Ms,
-			CaseLatencyP99Ms:     evalResult.Implicit.CaseLatencyP99Ms,
-			FailureTypeBreakdown: failureBreakdown,
-			Summary:              evalResult,
+			CaseLatencyP50Ms:      evalResult.Implicit.CaseLatencyP50Ms,
+			CaseLatencyP95Ms:      evalResult.Implicit.CaseLatencyP95Ms,
+			CaseLatencyP99Ms:      evalResult.Implicit.CaseLatencyP99Ms,
+			FailureTypeBreakdown:  failureBreakdown,
+			Summary:               evalResult,
 		}
 		result.CollectionResults = append(result.CollectionResults, collectionResult)
 		for _, caseResult := range evalResult.Implicit.CaseResults {
@@ -320,6 +357,9 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 		result.PassAt1Cases += evalResult.Implicit.PassAt1Cases
 		result.PassAt5Cases += evalResult.Implicit.PassAt5Cases
 		result.AvailabilityErrors += availabilityErrors
+		result.DeliverableCases += deliverableCases
+		result.DeliverableGoodCases += deliverableGoodCases
+		result.DeliverableBadCases += deliverableBadCases
 		if evalResult.Implicit.FailedCases == 0 {
 			result.PassedCollections++
 		}
@@ -335,6 +375,9 @@ func RunFoundationEvaluationSuite(ctx context.Context, options *FoundationSuiteO
 	}
 	result.CollectionPassRatio = fmt.Sprintf("%d/%d", result.PassedCollections, result.TotalCollections)
 	result.CasePassRatio = fmt.Sprintf("%d/%d", result.PassedCases, result.ApplicableCases)
+	result.DeliverableCaseRatio = fmt.Sprintf("%d/%d", result.DeliverableCases, result.TotalCases)
+	result.DeliverableGoodRatio = fmt.Sprintf("%d/%d", result.DeliverableGoodCases, result.DeliverableCases)
+	result.DeliverableBadRatio = fmt.Sprintf("%d/%d", result.DeliverableBadCases, result.DeliverableCases)
 	result.CaseLatencyP50Ms = round3(percentileFloat(caseLatencies, 50))
 	result.CaseLatencyP95Ms = round3(percentileFloat(caseLatencies, 95))
 	result.CaseLatencyP99Ms = round3(percentileFloat(caseLatencies, 99))
@@ -439,6 +482,9 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 	b.WriteString(fmt.Sprintf("| Passed Cases | %s |\n", result.CasePassRatio))
 	b.WriteString(fmt.Sprintf("| pass@1 Cases | %d/%d |\n", result.PassAt1Cases, result.ApplicableCases))
 	b.WriteString(fmt.Sprintf("| pass@5 Cases | %d/%d |\n", result.PassAt5Cases, result.ApplicableCases))
+	b.WriteString(fmt.Sprintf("| Deliverable Cases | %s |\n", result.DeliverableCaseRatio))
+	b.WriteString(fmt.Sprintf("| Deliverable Good | %s |\n", result.DeliverableGoodRatio))
+	b.WriteString(fmt.Sprintf("| Deliverable Bad | %s |\n", result.DeliverableBadRatio))
 	b.WriteString(fmt.Sprintf("| Failed Cases | %d |\n", result.FailedCases))
 	b.WriteString(fmt.Sprintf("| Availability Errors | %d |\n\n", result.AvailabilityErrors))
 	b.WriteString(fmt.Sprintf("| Total Duration (ms) | %d |\n", result.TotalDurationMs))
@@ -455,15 +501,15 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 			return rows[i].PassAt5Rate < rows[j].PassAt5Rate
 		})
 		b.WriteString("## Collection Breakdown\n\n")
-		b.WriteString("| Collection | Dimension | Mode/Preset/Toolset | Top-K | Cases (pass/applicable) | N/A | pass@1 (x/x) | pass@5 (x/x) | Failed | Availability | Duration(ms) | Cases/s | Case p95(ms) |\n")
-		b.WriteString("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
+		b.WriteString("| Collection | Dimension | Mode/Preset/Toolset | Top-K | Cases (pass/applicable) | Deliverable (x/x) | Deliverable Good | Deliverable Bad | N/A | pass@1 (x/x) | pass@5 (x/x) | Failed | Availability | Duration(ms) | Cases/s | Case p95(ms) |\n")
+		b.WriteString("|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
 		for _, row := range rows {
 			dimension := row.Dimension
 			if strings.TrimSpace(dimension) == "" {
 				dimension = "-"
 			}
-			b.WriteString(fmt.Sprintf(
-				"| `%s` | `%s` | `%s / %s / %s` | %d | %s | %d | %d/%d (%.1f%%) | %d/%d (%.1f%%) | %d | %d | %d | %.2f | %.3f |\n",
+				b.WriteString(fmt.Sprintf(
+					"| `%s` | `%s` | `%s / %s / %s` | %d | %s | %s | %s | %s | %d | %d/%d (%.1f%%) | %d/%d (%.1f%%) | %d | %d | %d | %.2f | %.3f |\n",
 				row.ID,
 				dimension,
 				row.Mode,
@@ -471,6 +517,9 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 				row.Toolset,
 				row.TopK,
 				row.CasePassRatio,
+				row.DeliverableCaseRatio,
+				row.DeliverableGoodRatio,
+				row.DeliverableBadRatio,
 				row.NotApplicableCases,
 				row.PassAt1Cases,
 				row.ApplicableCases,
@@ -486,6 +535,8 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 			))
 		}
 		b.WriteString("\n")
+
+		b.WriteString(buildDeliverableSamplingSection(rows))
 
 		b.WriteString("## Top1 Failure Leaderboard\n\n")
 		b.WriteString("| Collection | Case | Expected | Rank | Top1 Match | Reason |\n")
@@ -588,6 +639,144 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 	b.WriteString("\n")
 
 	return b.String()
+}
+
+func buildDeliverableSamplingSection(rows []FoundationSuiteCollectionResult) string {
+	type sample struct {
+		CollectionID string
+		CaseID       string
+		Expected     []string
+		TopMatches   []FoundationToolMatch
+		Coverage     float64
+		Reason       string
+		SignalCount  int
+		Matched      int
+	}
+
+	var b strings.Builder
+	deliverableTotal := 0
+	goodSamples := make([]sample, 0, 64)
+	badSamples := make([]sample, 0, 64)
+	for _, row := range rows {
+		if row.Summary == nil {
+			continue
+		}
+		for _, caseResult := range row.Summary.Implicit.CaseResults {
+			if caseResult.DeliverableCheck == nil || !caseResult.DeliverableCheck.Applicable {
+				continue
+			}
+			deliverableTotal++
+			item := sample{
+				CollectionID: row.ID,
+				CaseID:       caseResult.ID,
+				Expected:     caseResult.ExpectedTools,
+				TopMatches:   caseResult.TopMatches,
+				Coverage:     caseResult.DeliverableCheck.ContractCoverage,
+				Reason:       caseResult.DeliverableCheck.Reason,
+				SignalCount:  caseResult.DeliverableCheck.SignalCount,
+				Matched:      caseResult.DeliverableCheck.MatchedSignals,
+			}
+			if strings.EqualFold(caseResult.DeliverableCheck.Status, "good") {
+				goodSamples = append(goodSamples, item)
+			} else if strings.EqualFold(caseResult.DeliverableCheck.Status, "bad") {
+				badSamples = append(badSamples, item)
+			}
+		}
+	}
+
+	b.WriteString("## Deliverable Sampling Check\n\n")
+	b.WriteString(fmt.Sprintf("- Deliverable cases: `%d/%d`\n", deliverableTotal, totalCaseCountFromRows(rows)))
+	b.WriteString(fmt.Sprintf("- Good checks: `%d/%d`\n", len(goodSamples), deliverableTotal))
+	b.WriteString(fmt.Sprintf("- Bad checks: `%d/%d`\n\n", len(badSamples), deliverableTotal))
+
+	sort.Slice(goodSamples, func(i, j int) bool {
+		if goodSamples[i].Coverage == goodSamples[j].Coverage {
+			if goodSamples[i].SignalCount == goodSamples[j].SignalCount {
+				if goodSamples[i].CollectionID == goodSamples[j].CollectionID {
+					return goodSamples[i].CaseID < goodSamples[j].CaseID
+				}
+				return goodSamples[i].CollectionID < goodSamples[j].CollectionID
+			}
+			return goodSamples[i].SignalCount > goodSamples[j].SignalCount
+		}
+		return goodSamples[i].Coverage > goodSamples[j].Coverage
+	})
+	sort.Slice(badSamples, func(i, j int) bool {
+		if badSamples[i].Coverage == badSamples[j].Coverage {
+			if badSamples[i].SignalCount == badSamples[j].SignalCount {
+				if badSamples[i].CollectionID == badSamples[j].CollectionID {
+					return badSamples[i].CaseID < badSamples[j].CaseID
+				}
+				return badSamples[i].CollectionID < badSamples[j].CollectionID
+			}
+			return badSamples[i].SignalCount > badSamples[j].SignalCount
+		}
+		return badSamples[i].Coverage < badSamples[j].Coverage
+	})
+
+	b.WriteString("### Good Case Samples\n\n")
+	b.WriteString("| Collection | Case | Expected | Top Matches | Contract (matched/required) | Coverage | Why Good |\n")
+	b.WriteString("|---|---|---|---|---:|---:|---|\n")
+	goodLimit := 12
+	if len(goodSamples) < goodLimit {
+		goodLimit = len(goodSamples)
+	}
+	if goodLimit == 0 {
+		b.WriteString("| - | - | - | - | - | - | no good deliverable sample |\n\n")
+	} else {
+		for i := 0; i < goodLimit; i++ {
+			row := goodSamples[i]
+			b.WriteString(fmt.Sprintf(
+				"| `%s` | `%s` | `%s` | %s | %d/%d | %.1f%% | %s |\n",
+				row.CollectionID,
+				row.CaseID,
+				strings.Join(row.Expected, ", "),
+				escapeTable(formatTopMatches(row.TopMatches)),
+				row.Matched,
+				row.SignalCount,
+				row.Coverage*100,
+				escapeTable(row.Reason),
+			))
+		}
+		b.WriteString("\n")
+	}
+
+	b.WriteString("### Bad Case Samples\n\n")
+	b.WriteString("| Collection | Case | Expected | Top Matches | Contract (matched/required) | Coverage | Why Bad |\n")
+	b.WriteString("|---|---|---|---|---:|---:|---|\n")
+	badLimit := 12
+	if len(badSamples) < badLimit {
+		badLimit = len(badSamples)
+	}
+	if badLimit == 0 {
+		b.WriteString("| - | - | - | - | - | - | no bad deliverable sample |\n\n")
+	} else {
+		for i := 0; i < badLimit; i++ {
+			row := badSamples[i]
+			b.WriteString(fmt.Sprintf(
+				"| `%s` | `%s` | `%s` | %s | %d/%d | %.1f%% | %s |\n",
+				row.CollectionID,
+				row.CaseID,
+				strings.Join(row.Expected, ", "),
+				escapeTable(formatTopMatches(row.TopMatches)),
+				row.Matched,
+				row.SignalCount,
+				row.Coverage*100,
+				escapeTable(row.Reason),
+			))
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+func totalCaseCountFromRows(rows []FoundationSuiteCollectionResult) int {
+	total := 0
+	for _, row := range rows {
+		total += row.TotalCases
+	}
+	return total
 }
 
 func sanitizeCollectionID(value string) string {
