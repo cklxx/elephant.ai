@@ -1,0 +1,69 @@
+version: "1"
+name: "foundation-industry-benchmark-long-context-reasoning"
+description: "Industry benchmark transfer set for long-context and compositional reasoning (LongBench v2, RULER, InfiniteBench-style)"
+scenarios:
+  - id: "industry-longbenchv2-multihop-reference-chase"
+    category: "longbench_v2_transfer"
+    intent: "Trace multi-hop references across many files before deciding root cause."
+    expected_tools: ["search_file", "read_file"]
+
+  - id: "industry-longbenchv2-large-context-index-then-open"
+    category: "longbench_v2_transfer"
+    intent: "Large corpus task: narrow by structure/path first, then open selected files."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "industry-longbenchv2-fast-global-regex-pass"
+    category: "longbench_v2_transfer"
+    intent: "Need fast global regex pass over repository before deep inspection."
+    expected_tools: ["ripgrep"]
+
+  - id: "industry-longbenchv2-selected-fragment-grounding"
+    category: "longbench_v2_transfer"
+    intent: "A memory note was preselected; open exact fragment for grounded quotation."
+    expected_tools: ["memory_get"]
+
+  - id: "industry-longbenchv2-habit-recall-before-proposal"
+    category: "longbench_v2_transfer"
+    intent: "Recover stable user preference pattern from prior memory before proposing execution path."
+    expected_tools: ["memory_search"]
+
+  - id: "industry-ruler-disambiguate-conflicting-constraints"
+    category: "ruler_transfer"
+    intent: "Constraint set contains contradiction and cannot be executed safely without one clarification."
+    expected_tools: ["clarify"]
+
+  - id: "industry-ruler-human-consent-critical-step"
+    category: "ruler_transfer"
+    intent: "Critical irreversible step requires explicit human go-ahead."
+    expected_tools: ["request_user"]
+
+  - id: "industry-ruler-plan-with-stop-checkpoints"
+    category: "ruler_transfer"
+    intent: "Long execution requires staged milestones with explicit stop/rollback checkpoints."
+    expected_tools: ["plan"]
+
+  - id: "industry-ruler-context-first-no-upload"
+    category: "ruler_transfer"
+    intent: "Need prior chat context in this thread before replying; no file transfer in this step."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "industry-ruler-evidence-ledger-persist"
+    category: "ruler_transfer"
+    intent: "Persist long-form evidence ledger for downstream audit, keeping chat concise."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "long-form evidence ledger"
+      artifact_required: true
+      required_file_types: ["md"]
+      required_evidence: ["evidence", "trace"]
+
+  - id: "industry-infinitebench-compute-verification-slice"
+    category: "infinitebench_transfer"
+    intent: "Run deterministic computation on extracted slices to verify consistency."
+    expected_tools: ["execute_code"]
+
+  - id: "industry-infinitebench-cli-log-trace-before-summary"
+    category: "infinitebench_transfer"
+    intent: "Scan CLI logs and process state before writing summary."
+    expected_tools: ["shell_exec"]
+

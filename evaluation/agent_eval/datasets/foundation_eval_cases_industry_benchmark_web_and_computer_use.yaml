@@ -1,0 +1,83 @@
+version: "1"
+name: "foundation-industry-benchmark-web-and-computer-use"
+description: "Industry benchmark transfer set for web/computer-use agents (WebArena, BrowseComp, OSWorld, WebChoreArena)"
+scenarios:
+  - id: "industry-webarena-selector-driven-form-task"
+    category: "webarena_transfer"
+    intent: "Complete web task through stable DOM selectors (fill fields and submit)."
+    expected_tools: ["browser_dom"]
+
+  - id: "industry-webarena-readonly-state-check"
+    category: "webarena_transfer"
+    intent: "Only inspect active tab URL/title/session metadata before deciding interactions."
+    expected_tools: ["browser_info"]
+
+  - id: "industry-webarena-canvas-interaction-no-selector"
+    category: "webarena_transfer"
+    intent: "Target UI element has no reliable selector and requires coordinate interaction."
+    expected_tools: ["browser_action"]
+
+  - id: "industry-webarena-visual-proof-capture"
+    category: "webarena_transfer"
+    intent: "Capture page evidence image for reproducible verification."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "industry-browsecomp-discover-authoritative-sources"
+    category: "browsecomp_transfer"
+    intent: "No trusted source is selected; discover authoritative references first."
+    expected_tools: ["web_search"]
+
+  - id: "industry-browsecomp-ingest-single-approved-source"
+    category: "browsecomp_transfer"
+    intent: "A single approved URL is already chosen; fetch only that source content."
+    expected_tools: ["web_fetch"]
+
+  - id: "industry-browsecomp-thread-context-before-reply"
+    category: "browsecomp_transfer"
+    intent: "Recover prior chat decisions in current thread before drafting response."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "industry-browsecomp-artifact-inventory-before-publish"
+    category: "browsecomp_transfer"
+    intent: "Before publishing outputs, enumerate existing generated artifacts to avoid stale share."
+    expected_tools: ["artifacts_list"]
+
+  - id: "industry-osworld-file-transfer-required"
+    category: "osworld_transfer"
+    intent: "Consumer explicitly requires actual file package delivery in-thread."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "industry-osworld-local-new-file-materialization"
+    category: "osworld_transfer"
+    intent: "Create a brand-new local markdown runbook file from generated output."
+    expected_tools: ["write_file"]
+
+  - id: "industry-osworld-existing-file-inplace-hotfix"
+    category: "osworld_transfer"
+    intent: "Apply exact in-place edit on existing file block only."
+    expected_tools: ["replace_in_file"]
+
+  - id: "industry-webchorearena-multisystem-evidence-ledger"
+    category: "webchorearena_transfer"
+    intent: "Cross-system task requires durable execution ledger with evidence links while keeping chat concise."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "durable cross-system execution ledger"
+      artifact_required: true
+      required_file_types: ["md"]
+      required_evidence: ["evidence", "summary"]
+
+  - id: "industry-webchorearena-calendar-block-create"
+    category: "webchorearena_transfer"
+    intent: "Create a focus/recovery block in calendar to protect execution window."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "industry-webchorearena-calendar-update-existing"
+    category: "webchorearena_transfer"
+    intent: "Adjust time window of existing calendar event while preserving participants."
+    expected_tools: ["lark_calendar_update"]
+
+  - id: "industry-webchorearena-calendar-delete-obsolete"
+    category: "webchorearena_transfer"
+    intent: "Delete obsolete calendar event from retired workflow."
+    expected_tools: ["lark_calendar_delete"]

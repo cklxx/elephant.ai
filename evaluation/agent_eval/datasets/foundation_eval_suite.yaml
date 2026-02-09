@@ -1,77 +1,7 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, intent-decomposition constraint matrix, challenge hard v2, complex artifact delivery, sparse-clue retrieval stress, stateful commitment boundary stress, and reproducibility trace evidence stress"
+description: "Layered offline foundation evaluation focused on difficult LLM-required reasoning and industry benchmark transfer: SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, intent-decomposition constraint matrix, challenge hard v2, complex artifact delivery, sparse-clue retrieval stress, stateful commitment boundary stress, reproducibility trace evidence stress, plus industry benchmark transfer sets for coding/workflow, web/computer-use, and long-context reasoning."
 collections:
-  - id: "tool-coverage"
-    name: "Base Tool Coverage"
-    dimension: "tool_coverage"
-    description: "Core tool discoverability and routing correctness"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_tool_coverage.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "prompt-effectiveness"
-    name: "Prompt Effectiveness Coverage"
-    dimension: "prompt_effectiveness"
-    description: "Prompt/paraphrase sensitivity for tool routing"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_prompt_effectiveness.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "proactivity"
-    name: "Proactivity Coverage"
-    dimension: "proactivity"
-    description: "Proactive updates, reminders, scheduling, and context-aware coordination"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_proactivity.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "motivation-aware-proactivity"
-    name: "Motivation-Aware Proactivity"
-    dimension: "motivation_aware_proactivity"
-    description: "Motivation signals, autonomy boundaries, personalized cadence, and evidence-driven follow-through"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "complex-tasks"
-    name: "Complex High-Value Tasks"
-    dimension: "complex_valuable_tasks"
-    description: "First-action routing quality for complex valuable tasks"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_complex_tasks.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "availability-recovery"
-    name: "Availability and Recovery"
-    dimension: "availability_recovery"
-    description: "Tool availability, overlap disambiguation, and fallback routing quality"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_availability_recovery.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "valuable-workflows"
-    name: "Valuable Delivery Workflows"
-    dimension: "valuable_delivery_workflows"
-    description: "First-action routing quality for high-value delivery workflows"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_valuable_workflows.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
   - id: "swebench-verified-readiness"
     name: "SWE-bench Verified Readiness"
     dimension: "swebench_verified_readiness"
@@ -127,16 +57,6 @@ collections:
     dimension: "user_habit_soul_memory"
     description: "User habit preference, soul continuity, and memory-consistent routing coverage"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_user_habit_soul_memory.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "task-completion-speed"
-    name: "Task Completion Speed"
-    dimension: "task_completion_speed"
-    description: "Speed-sensitive routing quality for shortest viable completion paths"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_task_completion_speed.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
@@ -247,6 +167,36 @@ collections:
     dimension: "reproducibility_trace_evidence_stress"
     description: "WebArena-Verified/SWE-Verified style reproducibility, traceability, and publish-gate routing stress"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_reproducibility_trace_evidence.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-coding-workflow"
+    name: "Industry Benchmark Coding Workflow"
+    dimension: "industry_benchmark_coding_workflow"
+    description: "Transfer set mapped from SWE-bench Verified, τ-bench, and AgentBench coding/workflow failure modes"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_coding_workflow.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-web-and-computer-use"
+    name: "Industry Benchmark Web and Computer Use"
+    dimension: "industry_benchmark_web_and_computer_use"
+    description: "Transfer set mapped from WebArena, BrowseComp, OSWorld, and WebChoreArena"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_web_and_computer_use.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-long-context-reasoning"
+    name: "Industry Benchmark Long-Context Reasoning"
+    dimension: "industry_benchmark_long_context_reasoning"
+    description: "Transfer set mapped from LongBench v2, RULER, and InfiniteBench-style long-context reasoning stress"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_long_context_reasoning.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

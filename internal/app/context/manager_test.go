@@ -199,6 +199,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 
 	sections := []string{
 		"# Identity & Persona",
+		"# Tool Routing Guardrails",
 		"# Mission Objectives",
 		"# Guardrails & Policies",
 		"# Knowledge & Experience",
@@ -207,6 +208,16 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 	for _, section := range sections {
 		if !strings.Contains(window.SystemPrompt, section) {
 			t.Fatalf("expected system prompt to include section %q, got %q", section, window.SystemPrompt)
+		}
+	}
+	for _, snippet := range []string{
+		"Use clarify only when requirements are missing or contradictory",
+		"Use request_user for explicit human approval/consent/manual gates",
+		"Use artifacts_list for inventory/audit",
+		"Use browser_info for read-only tab/session metadata",
+	} {
+		if !strings.Contains(window.SystemPrompt, snippet) {
+			t.Fatalf("expected routing guardrail snippet %q, got %q", snippet, window.SystemPrompt)
 		}
 	}
 }

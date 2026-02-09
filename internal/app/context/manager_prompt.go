@@ -33,6 +33,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildUserPersonaSection(input.Static.UserPersona),
 		buildHabitStewardshipSection(),
 		buildIdentitySection(input.Static.Persona),
+		buildToolRoutingSection(),
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
 		buildKnowledgeSection(input.Static.Knowledge),
@@ -52,6 +53,18 @@ func composeSystemPrompt(input systemPromptInput) string {
 		}
 	}
 	return strings.Join(compact, "\n\n")
+}
+
+func buildToolRoutingSection() string {
+	return formatSection("# Tool Routing Guardrails", []string{
+		"Use clarify only when requirements are missing or contradictory; do not use clarify when the user already gave an explicit actionable operation.",
+		"Use request_user for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation).",
+		"Use artifacts_list for inventory/audit, artifacts_write for create/update outputs, and artifacts_delete for cleanup.",
+		"Use lark_chat_history for thread context recall, lark_send_message for text-only updates, and lark_upload_file only when a file must be delivered.",
+		"Use browser_info for read-only tab/session metadata; use browser_dom/browser_action for interactions.",
+		"Use find/list_dir for path discovery, search_file for known-file content matching, and ripgrep for repo-wide regex sweeps.",
+		"Use replace_in_file only for in-place edits in existing files with known target text.",
+	})
 }
 
 func buildMemorySection(snapshot string) string {
