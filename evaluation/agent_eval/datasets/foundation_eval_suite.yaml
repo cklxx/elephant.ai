@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, challenge hard v2, and complex artifact delivery"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, challenge hard v2, and complex artifact delivery"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -27,6 +27,16 @@ collections:
     dimension: "proactivity"
     description: "Proactive updates, reminders, scheduling, and context-aware coordination"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_proactivity.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "motivation-aware-proactivity"
+    name: "Motivation-Aware Proactivity"
+    dimension: "motivation_aware_proactivity"
+    description: "Motivation signals, autonomy boundaries, personalized cadence, and evidence-driven follow-through"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

@@ -60,6 +60,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 工具可发现性/可用性
 - 提示词有效性
 - 主动性路由
+- 动机感知主动性路由（motivation-aware proactivity）
 - 复杂高价值任务首动作选择
 - 可用性冲突与降级恢复
 - 价值交付工作流
@@ -76,17 +77,18 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
 当前集合规模（`x/x`）：
-- Collections: `19/20`
-- Cases: `529/529`
-- Applicable Cases: `529/529`（N/A 单独统计，不计失败）
-- pass@1: `446/529`
-- pass@5: `529/529`
-- Deliverable Cases: `32/529`
-- Deliverable Good: `23/32`
-- Deliverable Bad: `9/32`
+- Collections: `20/21`
+- Cases: `558/559`
+- Applicable Cases: `559/559`（N/A 单独统计，不计失败）
+- pass@1: `485/559`
+- pass@5: `559/559`
+- Deliverable Cases: `35/559`
+- Deliverable Good: `26/35`
+- Deliverable Bad: `9/35`
 - Base Tool Coverage: `46/46`
 - Prompt Effectiveness Coverage: `32/32`
 - Proactivity Coverage: `30/30`
+- Motivation-Aware Proactivity: `29/30`
 - Complex High-Value Tasks: `30/30`
 - Availability and Recovery: `24/24`
 - Valuable Delivery Workflows: `28/28`
