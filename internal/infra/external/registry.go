@@ -29,8 +29,7 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 	}
 
 	if cfg.ClaudeCode.Enabled {
-		exec := claudecode.New(claudecode.Config{
-			BinaryPath:             cfg.ClaudeCode.Binary,
+		exec := claudecode.NewSDKBridge(claudecode.SDKBridgeConfig{
 			APIKey:                 cfg.ClaudeCode.Env["ANTHROPIC_API_KEY"],
 			DefaultModel:           cfg.ClaudeCode.DefaultModel,
 			DefaultMode:            cfg.ClaudeCode.DefaultMode,

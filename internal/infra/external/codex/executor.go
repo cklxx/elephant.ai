@@ -215,6 +215,13 @@ func (e *Executor) handleCodexEvent(req agent.ExternalAgentRequest, state *progr
 	default:
 		// Best-effort: surface unknown events without payloads.
 		if strings.Contains(msgType, "tool") {
+			toolName, _ := rawMsg["name"].(string)
+			if toolName == "" {
+				toolName, _ = rawMsg["tool_name"].(string)
+			}
+			if isCodexToolSuppressed(toolName) {
+				break
+			}
 			state.currentTool = msgType
 			state.currentArgs = ""
 			state.lastActivity = now
@@ -376,4 +383,15 @@ func exitDetail(err error) string {
 		}
 	}
 	return detail
+}
+
+// isCodexToolSuppressed returns true for read-only tools whose progress events
+// are noisy and not useful for Lark notifications.
+func isCodexToolSuppressed(toolName string) bool {
+	switch strings.ToLower(toolName) {
+	case "read", "glob", "grep", "webfetch", "web_fetch":
+		return true
+	default:
+		return false
+	}
 }
