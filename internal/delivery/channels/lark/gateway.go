@@ -78,6 +78,7 @@ type Gateway struct {
 	cliCredsLoader     func() runtimeconfig.CLICredentials
 	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
 	taskStore          TaskStore
+	noticeState        *noticeStateStore
 	activeSlots        sync.Map           // chatID → *sessionSlot
 	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
 	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
@@ -147,6 +148,7 @@ func NewGateway(cfg Config, agent AgentExecutor, logger logging.Logger) (*Gatewa
 		dedupCache:    dedupCache,
 		now:           time.Now,
 		llmSelections: subscription.NewSelectionStore(selectionPath),
+		noticeState:   newNoticeStateStore(logger),
 		llmResolver: subscription.NewSelectionResolver(func() runtimeconfig.CLICredentials {
 			return runtimeconfig.LoadCLICredentials()
 		}),
@@ -347,6 +349,11 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	if g.isNaturalTaskStatusQuery(trimmedContent) {
 		slot.mu.Unlock()
 		g.handleNaturalTaskStatusQuery(msg)
+		return nil
+	}
+	if g.isNoticeCommand(trimmedContent) {
+		slot.mu.Unlock()
+		g.handleNoticeCommand(msg)
 		return nil
 	}
 
