@@ -82,35 +82,35 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 
 当前集合规模（`x/x`）：
 - Collections: `25/25`
-- Cases: `656/656`
-- Applicable Cases: `656/656`（N/A 单独统计，不计失败）
-- pass@1: `562/656`
-- pass@5: `656/656`
-- Deliverable Cases: `50/656`
-- Deliverable Good: `39/50`
-- Deliverable Bad: `11/50`
-- Base Tool Coverage: `46/46`
-- Prompt Effectiveness Coverage: `32/32`
-- Proactivity Coverage: `30/30`
-- Motivation-Aware Proactivity: `32/32`
-- Complex High-Value Tasks: `30/30`
-- Availability and Recovery: `24/24`
-- Valuable Delivery Workflows: `28/28`
-- SWE-bench Verified Readiness: `24/24`
-- Multi-Step Orchestration: `20/20`
-- Safety Boundary and Policy: `20/20`
-- Context Learning Hard: `20/20`
-- Memory Capabilities: `28/28`
-- User Habit Soul Memory: `28/28`
-- Task Completion Speed: `20/20`
-- Long-Horizon Multi-Round: `18/18`
-- Architecture Coding Hard: `20/20`
-- Deep Research: `18/18`
-- Autonomy Initiative: `18/18`
-- Conflict Convergence Hard: `24/24`
-- Intent Decomposition Constraint Matrix: `32/32`
-- Challenge Hard V2: `58/58`
-- Complex Artifact Delivery: `38/38`
+- Cases: `499/499`
+- Applicable Cases: `499/499`（N/A 单独统计，不计失败）
+- pass@1: `426/499`
+- pass@5: `499/499`
+- Deliverable Cases: `32/499`
+- Deliverable Good: `26/32`
+- Deliverable Bad: `6/32`
+- Base Tool Coverage: `30/30`
+- Prompt Effectiveness Coverage: `20/20`
+- Proactivity Coverage: `24/24`
+- Motivation-Aware Proactivity: `20/20`
+- Complex High-Value Tasks: `24/24`
+- Availability and Recovery: `20/20`
+- Valuable Delivery Workflows: `22/22`
+- SWE-bench Verified Readiness: `20/20`
+- Multi-Step Orchestration: `17/17`
+- Safety Boundary and Policy: `17/17`
+- Context Learning Hard: `17/17`
+- Memory Capabilities: `22/22`
+- User Habit Soul Memory: `22/22`
+- Task Completion Speed: `15/15`
+- Long-Horizon Multi-Round: `16/16`
+- Architecture Coding Hard: `17/17`
+- Deep Research: `16/16`
+- Autonomy Initiative: `16/16`
+- Conflict Convergence Hard: `20/20`
+- Intent Decomposition Constraint Matrix: `20/20`
+- Challenge Hard V2: `32/32`
+- Complex Artifact Delivery: `24/24`
 - Sparse-Clue Retrieval Stress: `16/16`
 - Stateful Commitment Boundary Stress: `16/16`
 - Reproducibility Trace Evidence Stress: `16/16`
