@@ -2,7 +2,6 @@ package http
 
 import (
 	"context"
-	"encoding/base64"
 	"net/http"
 	"strings"
 
@@ -64,12 +63,7 @@ func readAccessTokenCookie(r *http.Request) string {
 	if value == "" {
 		return ""
 	}
-	if decoded, err := base64.StdEncoding.DecodeString(value); err == nil {
-		if token := strings.TrimSpace(string(decoded)); token != "" {
-			return token
-		}
-	}
-	return value
+	return decodeTokenCookieValue(value)
 }
 
 // CurrentUser extracts the authenticated user from request context.

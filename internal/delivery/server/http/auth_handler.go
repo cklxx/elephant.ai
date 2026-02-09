@@ -1,7 +1,6 @@
 package http
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -531,7 +530,7 @@ func (h *AuthHandler) writeDomainError(w http.ResponseWriter, err error) {
 func (h *AuthHandler) setRefreshCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     refreshCookieName,
-		Value:    base64.StdEncoding.EncodeToString([]byte(token)),
+		Value:    encodeTokenCookieValue(token),
 		Path:     "/",
 		Expires:  expiresAt,
 		HttpOnly: true,
@@ -556,7 +555,7 @@ func (h *AuthHandler) clearRefreshCookie(w http.ResponseWriter) {
 func (h *AuthHandler) setAccessCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     accessCookieName,
-		Value:    base64.StdEncoding.EncodeToString([]byte(token)),
+		Value:    encodeTokenCookieValue(token),
 		Path:     "/",
 		Expires:  expiresAt,
 		HttpOnly: true,
@@ -590,11 +589,7 @@ func (h *AuthHandler) readRefreshToken(r *http.Request) string {
 	if err != nil {
 		return ""
 	}
-	decoded, err := base64.StdEncoding.DecodeString(cookie.Value)
-	if err != nil {
-		return ""
-	}
-	return string(decoded)
+	return decodeTokenCookieValue(cookie.Value)
 }
 
 func extractBearerToken(header string) string {

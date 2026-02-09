@@ -1,12 +1,43 @@
 // @vitest-environment happy-dom
 import { describe, expect, beforeEach, vi, it, afterEach } from "vitest";
 
-import { authClient } from "./client";
+import { authClient, type AuthSession } from "./client";
 
 const STORAGE_KEY = "alex.console.auth";
 
 function futureDate(minutes: number): string {
   return new Date(Date.now() + minutes * 60 * 1000).toISOString();
+}
+
+function seedSession(session: AuthSession): void {
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+  authClient.handleStorageEvent(
+    new StorageEvent("storage", {
+      key: STORAGE_KEY,
+      newValue: JSON.stringify(session),
+    }),
+  );
+}
+
+function buildSession(overrides: Partial<AuthSession> = {}): AuthSession {
+  return {
+    accessToken: overrides.accessToken ?? "access-token",
+    accessExpiry: overrides.accessExpiry ?? futureDate(5),
+    refreshExpiry: overrides.refreshExpiry ?? futureDate(60),
+    user: {
+      id: "user-1",
+      email: "user@example.com",
+      displayName: "User",
+      pointsBalance: 42,
+      subscription: {
+        tier: "supporter",
+        monthlyPriceCents: 1200,
+        expiresAt: futureDate(60 * 24),
+        isPaid: true,
+      },
+      ...(overrides.user ?? {}),
+    },
+  };
 }
 
 describe("authClient.handleStorageEvent", () => {
@@ -265,5 +296,46 @@ describe("authClient.waitForOAuthSession", () => {
     expect(result).toEqual(session);
     expect(resumeSpy).toHaveBeenCalledTimes(2);
     expect(popup.close).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("authClient.refresh", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    authClient.clearSession();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.localStorage.clear();
+    authClient.clearSession();
+  });
+
+  it("keeps existing session on transient refresh errors", async () => {
+    const session = buildSession({
+      accessExpiry: new Date(Date.now() - 60 * 1000).toISOString(),
+    });
+    seedSession(session);
+
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response("temporary upstream error", { status: 500 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(authClient.refresh()).rejects.toThrow("temporary upstream error");
+    expect(authClient.getSession()).toEqual(session);
+  });
+
+  it("clears session when refresh is unauthorized", async () => {
+    seedSession(buildSession());
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("session not found", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(authClient.refresh()).rejects.toThrow("session not found");
+    expect(authClient.getSession()).toBeNull();
+    expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 });

@@ -221,6 +221,66 @@ func TestRefreshCookieSameSiteModes(t *testing.T) {
 	})
 }
 
+func TestHandleRefreshAcceptsMultipleCookieEncodings(t *testing.T) {
+	handler, service, _, _ := newAuthHandler(t)
+
+	testCases := []struct {
+		name   string
+		encode func(string) string
+	}{
+		{
+			name: "legacy standard base64",
+			encode: func(token string) string {
+				return base64.StdEncoding.EncodeToString([]byte(token))
+			},
+		},
+		{
+			name: "url-safe base64",
+			encode: func(token string) string {
+				return base64.RawURLEncoding.EncodeToString([]byte(token))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokens, err := service.LoginWithPassword(
+				context.Background(),
+				"handler@example.com",
+				"password",
+				"test-agent",
+				"127.0.0.1",
+			)
+			if err != nil {
+				t.Fatalf("login for refresh test: %v", err)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/api/auth/refresh", nil)
+			req.AddCookie(&http.Cookie{
+				Name:  "alex_refresh_token",
+				Value: tc.encode(tokens.RefreshToken),
+			})
+			rr := httptest.NewRecorder()
+
+			handler.HandleRefresh(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d: %s", rr.Code, rr.Body.String())
+			}
+
+			var resp struct {
+				AccessToken string `json:"access_token"`
+			}
+			if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if strings.TrimSpace(resp.AccessToken) == "" {
+				t.Fatalf("expected non-empty access token")
+			}
+		})
+	}
+}
+
 func TestHandleOAuthCallbackPrefersHTML(t *testing.T) {
 	handler, service := newOAuthEnabledAuthHandler(t)
 	ctx := context.Background()

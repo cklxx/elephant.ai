@@ -311,6 +311,35 @@ async function getJSON<T>(
   return parseJSONResponse<T>(response);
 }
 
+class HTTPError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message || `HTTP ${status}`);
+    this.name = "HTTPError";
+    this.status = status;
+  }
+}
+
+function isAuthSessionError(error: unknown): boolean {
+  if (error instanceof HTTPError) {
+    return error.status === 400 || error.status === 401 || error.status === 403;
+  }
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("refresh token required") ||
+    message.includes("http 400") ||
+    message.includes("http 401") ||
+    message.includes("http 403") ||
+    message.includes("session not found") ||
+    message.includes("session expired") ||
+    message.includes("invalid credentials")
+  );
+}
+
 async function parseJSONResponse<T>(response: Response): Promise<T> {
   if (response.status === 204) {
     return undefined as T;
@@ -319,7 +348,7 @@ async function parseJSONResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
   if (!response.ok) {
     const message = text?.trim() || `HTTP ${response.status}`;
-    throw new Error(message);
+    throw new HTTPError(response.status, message);
   }
 
   if (!text) {
@@ -433,16 +462,8 @@ class AuthClient {
       this.setSession(session);
       return session;
     } catch (error) {
-      if (error instanceof Error) {
-        const message = error.message.toLowerCase();
-        if (
-          message.includes("refresh token required") ||
-          message.includes("http 400") ||
-          message.includes("http 401") ||
-          message.includes("http 403")
-        ) {
-          return null;
-        }
+      if (isAuthSessionError(error)) {
+        return null;
       }
       throw error instanceof Error
         ? error
@@ -469,7 +490,9 @@ class AuthClient {
           this.setSession(session);
           return session;
         } catch (error) {
-          this.clearSession();
+          if (isAuthSessionError(error)) {
+            this.clearSession();
+          }
           throw error instanceof Error
             ? error
             : new Error("Failed to refresh session");
