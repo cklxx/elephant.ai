@@ -78,18 +78,18 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
 当前集合规模（`x/x`）：
-- Collections: `21/22`
-- Cases: `580/581`
-- Applicable Cases: `581/581`（N/A 单独统计，不计失败）
-- pass@1: `505/581`
-- pass@5: `581/581`
-- Deliverable Cases: `37/581`
-- Deliverable Good: `27/37`
-- Deliverable Bad: `10/37`
+- Collections: `22/22`
+- Cases: `608/608`
+- Applicable Cases: `608/608`（N/A 单独统计，不计失败）
+- pass@1: `526/608`
+- pass@5: `608/608`
+- Deliverable Cases: `44/608`
+- Deliverable Good: `33/44`
+- Deliverable Bad: `11/44`
 - Base Tool Coverage: `46/46`
 - Prompt Effectiveness Coverage: `32/32`
 - Proactivity Coverage: `30/30`
-- Motivation-Aware Proactivity: `31/32`
+- Motivation-Aware Proactivity: `32/32`
 - Complex High-Value Tasks: `30/30`
 - Availability and Recovery: `24/24`
 - Valuable Delivery Workflows: `28/28`
@@ -105,9 +105,9 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Deep Research: `18/18`
 - Autonomy Initiative: `18/18`
 - Conflict Convergence Hard: `24/24`
-- Intent Decomposition Constraint Matrix: `20/20`
-- Challenge Hard V2: `49/49`
-- Complex Artifact Delivery: `32/32`
+- Intent Decomposition Constraint Matrix: `32/32`
+- Challenge Hard V2: `58/58`
+- Complex Artifact Delivery: `38/38`
 
 运行命令：
 

@@ -4,12 +4,12 @@ description: "Deliberately hard challenge set aligned to core goals with high am
 scenarios:
   - id: "challenge-human-gate-out-of-band-approve"
     category: "challenge_hard_v2"
-    intent: "Stop here because a human operator must press the external approval button before any irreversible step."
+    intent: "Irreversible cutover is blocked by an external compliance gate outside this runtime; continuation depends on explicit user acknowledgement."
     expected_tools: ["request_user"]
 
   - id: "challenge-human-gate-prod-cutover-window"
     category: "challenge_hard_v2"
-    intent: "Before cutover, wait for manual go-signal from operations and only continue after acknowledgement."
+    intent: "The production window is open but cannot be consumed until operator go-signal is confirmed in-thread."
     expected_tools: ["request_user"]
 
   - id: "challenge-open-evidence-fragment-by-offset"
@@ -84,7 +84,7 @@ scenarios:
 
   - id: "challenge-reminder-list-active"
     category: "challenge_hard_v2"
-    intent: "List all active reminders so we can prune noisy ones."
+    intent: "Before deciding whether to prune, inspect every currently active one-off reminder and its remaining delay."
     expected_tools: ["list_timers"]
 
   - id: "challenge-artifact-publish-long-result"
@@ -139,12 +139,12 @@ scenarios:
 
   - id: "challenge-runtime-check-cli"
     category: "challenge_hard_v2"
-    intent: "Execute a one-shot command to validate runtime health and process status."
+    intent: "Validate runtime health from process and port state in one short command path."
     expected_tools: ["shell_exec"]
 
   - id: "challenge-runtime-check-snippet"
     category: "challenge_hard_v2"
-    intent: "Run a short script to deterministically compute a validation metric."
+    intent: "Compute a deterministic verification metric from a small executable snippet."
     expected_tools: ["execute_code"]
 
   - id: "challenge-research-primary-search"
@@ -159,12 +159,12 @@ scenarios:
 
   - id: "challenge-progress-lark-sync"
     category: "challenge_hard_v2"
-    intent: "Send concise progress checkpoint updates to Lark during multi-hour execution."
+    intent: "During long execution, send a short textual checkpoint to the current thread with no file payload."
     expected_tools: ["lark_send_message"]
 
   - id: "challenge-deliverable-upload"
     category: "challenge_hard_v2"
-    intent: "Upload the generated result file to the conversation once validation is complete."
+    intent: "Validation is done and reviewer only accepts file-in-thread delivery; publish the generated package into conversation."
     expected_tools: ["lark_upload_file"]
 
   - id: "challenge-task-breakdown-assign"
@@ -246,3 +246,48 @@ scenarios:
     category: "challenge_hard_v2"
     intent: "There are reports of duplicate jobs but no mutation allowed yet; inspect current scheduler state before proposing changes."
     expected_tools: ["scheduler_list_jobs"]
+
+  - id: "challenge-memory-vs-repo-search-soul-signal"
+    category: "challenge_hard_v2"
+    intent: "Need prior interaction style signal for this person before drafting outreach; repository code search is irrelevant to this decision."
+    expected_tools: ["memory_search"]
+
+  - id: "challenge-memory-open-exact-fragment-after-selection"
+    category: "challenge_hard_v2"
+    intent: "A specific memory note has already been identified; open exact fragment lines for evidence-backed wording."
+    expected_tools: ["memory_get"]
+
+  - id: "challenge-path-filter-before-content-read"
+    category: "challenge_hard_v2"
+    intent: "Repository scope is too broad; first reduce candidates by folder/name signatures before any content inspection."
+    expected_tools: ["find"]
+
+  - id: "challenge-fixed-approved-url-direct-ingest"
+    category: "challenge_hard_v2"
+    intent: "Approved source URL is already pinned in ticket; ingest that page directly without discovery step."
+    expected_tools: ["web_fetch"]
+
+  - id: "challenge-create-vs-delete-scheduler-conflict"
+    category: "challenge_hard_v2"
+    intent: "Legacy recurring check-in keeps firing after policy retirement; remove the obsolete schedule entry rather than creating new cadence."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "challenge-inspect-scheduler-before-create"
+    category: "challenge_hard_v2"
+    intent: "Team suspects duplicates and asked for visibility first; list current recurring schedules before proposing additions."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "challenge-artifact-progress-proof-not-ui-action"
+    category: "challenge_hard_v2"
+    intent: "Produce durable progress proof so stakeholders can verify momentum without expanding chat verbosity."
+    expected_tools: ["artifacts_write"]
+
+  - id: "challenge-lark-message-vs-upload-disambiguation"
+    category: "challenge_hard_v2"
+    intent: "Only a quick textual checkpoint is requested in thread; no attachment or file transfer is required at this step."
+    expected_tools: ["lark_send_message"]
+
+  - id: "challenge-browser-state-read-not-click"
+    category: "challenge_hard_v2"
+    intent: "Wrong-tab side effects were reported; inspect active tab identity and viewport before any interaction."
+    expected_tools: ["browser_info"]

@@ -139,12 +139,12 @@ scenarios:
 
   - id: "tool-lark-send-message"
     category: "lark"
-    intent: "Send an update message to the current Lark conversation."
+    intent: "No file handoff is needed; push a short textual checkpoint to the current thread so stakeholders see latest status."
     expected_tools: ["lark_send_message"]
 
   - id: "tool-lark-upload-file"
     category: "lark"
-    intent: "Upload a report file to the active Lark chat."
+    intent: "The review cannot proceed without the generated report file in-thread; deliver the file itself instead of a plain status message."
     expected_tools: ["lark_upload_file"]
 
   - id: "tool-lark-chat-history"
@@ -189,32 +189,32 @@ scenarios:
 
   - id: "tool-set-timer"
     category: "timer"
-    intent: "Set a timer reminder for 30 minutes later."
+    intent: "If no owner reply arrives in half an hour, trigger a one-off reminder."
     expected_tools: ["set_timer"]
 
   - id: "tool-list-timers"
     category: "timer"
-    intent: "List active reminder timers and remaining durations."
+    intent: "Before creating anything new, inspect existing one-off reminders and remaining countdowns."
     expected_tools: ["list_timers"]
 
   - id: "tool-cancel-timer"
     category: "timer"
-    intent: "Cancel a reminder timer that is no longer needed."
+    intent: "The reminder tied to the old incident stream is now noise; remove that specific one-off reminder."
     expected_tools: ["cancel_timer"]
 
   - id: "tool-scheduler-create-job"
     category: "scheduler"
-    intent: "Create a daily scheduler job to publish status digests."
+    intent: "Install a recurring automation cadence so daily status digesting runs without manual intervention."
     expected_tools: ["scheduler_create_job"]
 
   - id: "tool-scheduler-list-jobs"
     category: "scheduler"
-    intent: "List all scheduler jobs and next trigger times."
+    intent: "Audit recurring automations and next fire times before changing cadence policy."
     expected_tools: ["scheduler_list_jobs"]
 
   - id: "tool-scheduler-delete-job"
     category: "scheduler"
-    intent: "Delete a scheduler job by identifier."
+    intent: "A legacy recurring check-in still fires after deprecation; remove that old automation entry."
     expected_tools: ["scheduler_delete_job"]
 
   - id: "tool-apps-overview"

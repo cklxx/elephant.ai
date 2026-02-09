@@ -110,3 +110,68 @@ scenarios:
       output_description: "downloadable summary attachment"
       attachment_required: true
       required_file_types: ["md"]
+
+  - id: "opt-hard-consent-private-memory-reuse-gate"
+    category: "consent_gate_disambiguation"
+    intent: "Private personal memory might be reused for outreach wording; do not proceed until the user explicitly confirms reuse scope."
+    expected_tools: ["request_user"]
+
+  - id: "opt-hard-plan-before-tracker-mutation"
+    category: "planning_vs_mutation_boundary"
+    intent: "A migration strategy with rollback checkpoints is required first; issue no tracker/task mutations yet."
+    expected_tools: ["plan"]
+
+  - id: "opt-hard-memory-get-selected-evidence-slice"
+    category: "memory_retrieval_disambiguation"
+    intent: "The relevant note was already selected earlier; open exact evidence lines for quote-level grounding."
+    expected_tools: ["memory_get"]
+
+  - id: "opt-hard-message-checkin-no-file-contract"
+    category: "message_vs_upload_channel_action"
+    intent: "Stakeholders only need a brief in-thread check-in right now; no file contract or upload is requested."
+    expected_tools: ["lark_send_message"]
+
+  - id: "opt-hard-chat-history-before-followup"
+    category: "message_vs_upload_channel_action"
+    intent: "Before drafting any follow-up, pull recent thread context to avoid repeating answered questions."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "opt-hard-web-fetch-ticket-approved-link"
+    category: "source_selection_disambiguation"
+    intent: "Ticket already pins the canonical source link; ingest that approved page directly and skip discovery."
+    expected_tools: ["web_fetch"]
+
+  - id: "opt-hard-find-path-first-no-content-read"
+    category: "repository_retrieval_disambiguation"
+    intent: "In this monorepo step, narrow candidates by folder and filename pattern only; do not inspect file contents yet."
+    expected_tools: ["find"]
+
+  - id: "opt-hard-search-content-inside-files"
+    category: "repository_retrieval_disambiguation"
+    intent: "File names are noisy and misleading; locate the target by searching textual evidence inside files."
+    expected_tools: ["search_file"]
+
+  - id: "opt-hard-scheduler-list-before-change"
+    category: "scheduling_semantics_disambiguation"
+    intent: "Duplicate recurring jobs were reported, but mutation is frozen; inspect current schedule state first."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "opt-hard-scheduler-delete-legacy-cadence"
+    category: "scheduling_semantics_disambiguation"
+    intent: "The old recurring cadence was retired last sprint; remove that obsolete scheduled job."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "opt-hard-artifact-longform-before-chat-brief"
+    category: "deliverable_routing_disambiguation"
+    intent: "Keep chat concise, but persist the full long-form outcome in durable storage for audit and reuse."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "durable long-form artifact"
+      artifact_required: true
+      required_evidence: ["audit", "report"]
+      required_file_types: ["md"]
+
+  - id: "opt-hard-lark-upload-required-by-review-gate"
+    category: "deliverable_routing_disambiguation"
+    intent: "The review gate only opens after the generated package file appears in the Lark thread."
+    expected_tools: ["lark_upload_file"]

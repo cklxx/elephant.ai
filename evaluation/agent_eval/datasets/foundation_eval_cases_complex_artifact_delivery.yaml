@@ -307,3 +307,61 @@ scenarios:
       manifest_required: true
       required_evidence: ["screenshot", "report", "log"]
       required_file_types: ["markdown", "json"]
+
+  - id: "artifact-delivery-concise-chat-durable-record"
+    category: "complex_artifact_delivery"
+    intent: "Keep chat reply minimal, but preserve a complete durable technical record for asynchronous reviewers."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "durable technical record"
+      artifact_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report"]
+
+  - id: "artifact-delivery-thread-file-gate"
+    category: "complex_artifact_delivery"
+    intent: "Reviewer workflow is blocked until the generated package appears in-thread as a file."
+    expected_tools: ["lark_upload_file"]
+    deliverable:
+      output_description: "in-thread package file"
+      attachment_required: true
+      required_file_types: ["markdown"]
+
+  - id: "artifact-delivery-downloadable-handoff-vs-storage"
+    category: "complex_artifact_delivery"
+    intent: "Recipient asks for direct downloadable handoff now, not background storage only."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "downloadable handoff"
+      attachment_required: true
+      required_file_types: ["markdown"]
+
+  - id: "artifact-delivery-scheduler-audit-before-removal"
+    category: "complex_artifact_delivery"
+    intent: "Before pruning legacy cadence, inspect current recurring schedule state and then produce cleanup evidence package."
+    expected_tools: ["scheduler_list_jobs", "artifacts_write"]
+    deliverable:
+      output_description: "schedule cleanup evidence"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report"]
+
+  - id: "artifact-delivery-path-first-content-later-package"
+    category: "complex_artifact_delivery"
+    intent: "First narrow candidate paths by naming pattern, then assemble an auditable inventory package for downstream patching."
+    expected_tools: ["find", "artifacts_write"]
+    deliverable:
+      output_description: "auditable path inventory package"
+      artifact_required: true
+      required_file_types: ["json", "markdown"]
+
+  - id: "artifact-delivery-memory-grounded-proof"
+    category: "complex_artifact_delivery"
+    intent: "Use previously chosen memory evidence slices to ground a persona-consistent delivery proof package."
+    expected_tools: ["memory_get", "artifacts_write"]
+    deliverable:
+      output_description: "memory-grounded proof package"
+      artifact_required: true
+      manifest_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report"]
