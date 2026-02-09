@@ -171,3 +171,23 @@ collections:
     preset: "full"
     toolset: "default"
     top_k: 5
+
+  - id: "industry-benchmark-implicit-intent-boundary-low-overlap"
+    name: "Industry Benchmark Implicit Intent Boundary Low Overlap"
+    dimension: "industry_benchmark_implicit_intent_boundary_low_overlap"
+    description: "Low-lexical-overlap implicit intent routing transfer set focused on boundary disambiguation"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_implicit_intent_boundary_low_overlap.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-autonomy-long-horizon-value-delivery"
+    name: "Industry Benchmark Autonomy Long Horizon Value Delivery"
+    dimension: "industry_benchmark_autonomy_long_horizon_value_delivery"
+    description: "Compound long-horizon autonomy tasks with implicit constraints, evidence contracts, and high-value deliverables"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_autonomy_long_horizon_value_delivery.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5

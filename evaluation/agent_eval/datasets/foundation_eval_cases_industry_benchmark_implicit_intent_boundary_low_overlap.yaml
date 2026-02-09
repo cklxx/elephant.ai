@@ -1,0 +1,108 @@
+version: "1"
+name: "foundation-industry-benchmark-implicit-intent-boundary-low-overlap"
+description: "Industry transfer set for low-lexical-overlap implicit intent routing and boundary disambiguation"
+scenarios:
+  - id: "implicit-boundary-stop-until-greenlight"
+    category: "implicit_boundary_transfer"
+    intent: "Freeze execution at this step and wait for my greenlight in chat; silence means no."
+    expected_tools: ["request_user"]
+
+  - id: "implicit-boundary-rebuild-prior-decisions-first"
+    category: "implicit_boundary_transfer"
+    intent: "Before drafting anything new, reconstruct what we already locked earlier in this thread."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "implicit-boundary-room-ping-no-payload"
+    category: "implicit_boundary_transfer"
+    intent: "Drop a short room ping about progress, and do not send any payload."
+    expected_tools: ["lark_send_message"]
+
+  - id: "implicit-boundary-file-hand-off-required"
+    category: "implicit_boundary_transfer"
+    intent: "Reviewer cannot continue unless the package is transferred as an actual downloadable object."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "implicit-boundary-surface-existing-outputs-first"
+    category: "implicit_boundary_transfer"
+    intent: "Surface what has already been produced before selecting one output for release."
+    expected_tools: ["artifacts_list"]
+
+  - id: "implicit-boundary-open-output-metadata-card"
+    category: "implicit_boundary_transfer"
+    intent: "Open the metadata card for the generated bundle to verify lineage fields."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "implicit-boundary-write-audit-ledger"
+    category: "implicit_boundary_transfer"
+    intent: "Keep chat minimal and persist a full audit ledger for downstream review."
+    expected_tools: ["artifacts_write"]
+
+  - id: "implicit-boundary-retire-standing-cadence"
+    category: "implicit_boundary_transfer"
+    intent: "Sunset the standing recurrence from circulation under the new operating policy."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "implicit-boundary-show-registered-recurrences"
+    category: "implicit_boundary_transfer"
+    intent: "Before any mutation, reveal the currently registered recurring automations."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "implicit-boundary-register-fresh-recurring-line"
+    category: "implicit_boundary_transfer"
+    intent: "Spin up a fresh recurring line with a stable handle for later operations."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "implicit-boundary-what-is-queued-later"
+    category: "implicit_boundary_transfer"
+    intent: "Tell me what is queued to nudge me later today."
+    expected_tools: ["list_timers"]
+
+  - id: "implicit-boundary-remove-stale-nudge"
+    category: "implicit_boundary_transfer"
+    intent: "The legacy nudge should be withdrawn from the queue."
+    expected_tools: ["cancel_timer"]
+
+  - id: "implicit-boundary-arm-short-nudge"
+    category: "implicit_boundary_transfer"
+    intent: "Arm a short follow-up nudge for the next focus window."
+    expected_tools: ["set_timer"]
+
+  - id: "implicit-boundary-topology-before-content"
+    category: "implicit_boundary_transfer"
+    intent: "Narrow candidate modules by folder topology before reading internals."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "implicit-boundary-prove-from-body-not-filename"
+    category: "implicit_boundary_transfer"
+    intent: "Prove the claim from text inside file bodies, not from path names."
+    expected_tools: ["search_file"]
+
+  - id: "implicit-boundary-open-target-logic-window"
+    category: "implicit_boundary_transfer"
+    intent: "Open the exact logic window around the suspected behavior before any patch."
+    expected_tools: ["read_file"]
+
+  - id: "implicit-boundary-fast-symbol-sweep"
+    category: "implicit_boundary_transfer"
+    intent: "Run the fastest repo-wide symbol sweep before deeper inspection."
+    expected_tools: ["ripgrep"]
+
+  - id: "implicit-boundary-single-pinned-page-ingest"
+    category: "implicit_boundary_transfer"
+    intent: "One link is already pinned by policy; ingest only that page."
+    expected_tools: ["web_fetch"]
+
+  - id: "implicit-boundary-discover-authority-first"
+    category: "implicit_boundary_transfer"
+    intent: "No source is trusted yet; discover authority before grounding."
+    expected_tools: ["web_search"]
+
+  - id: "implicit-boundary-cli-state-triage"
+    category: "implicit_boundary_transfer"
+    intent: "Triage runtime state from command-line process and log surfaces."
+    expected_tools: ["shell_exec"]
+
+  - id: "implicit-boundary-deterministic-consistency-check"
+    category: "implicit_boundary_transfer"
+    intent: "Run a deterministic consistency check over extracted numeric slices."
+    expected_tools: ["execute_code"]

@@ -1,0 +1,141 @@
+version: "1"
+name: "foundation-industry-benchmark-autonomy-long-horizon-value-delivery"
+description: "Industry transfer set for long-horizon autonomous delivery with implicit constraints, evidence contracts, and durable outputs"
+scenarios:
+  - id: "autonomy-horizon-freeze-before-cutover"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Production transition stays frozen until a human go-ahead appears in-thread; do not self-authorize."
+    expected_tools: ["request_user"]
+
+  - id: "autonomy-horizon-rebuild-thread-commitments"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Reconstruct prior commitments and unresolved promises from this thread before deciding the next action."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "autonomy-horizon-memory-successful-playbook"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Recover which historical remediation playbook actually worked for similar incidents."
+    expected_tools: ["memory_search"]
+
+  - id: "autonomy-horizon-open-selected-memory-evidence"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "A memory item was already selected; open exact evidence lines now."
+    expected_tools: ["memory_get"]
+
+  - id: "autonomy-horizon-narrow-by-tree-topology-first"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Reduce candidates by repository tree topology before touching source content."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "autonomy-horizon-prove-from-semantic-body"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Locate evidence by semantic body text rather than filenames."
+    expected_tools: ["search_file"]
+
+  - id: "autonomy-horizon-open-logic-window-prepatch"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Open the exact logic window around the suspected regression before any mutation."
+    expected_tools: ["read_file"]
+
+  - id: "autonomy-horizon-fast-regex-hotspot-pass"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Run the fastest cross-repo hotspot sweep before deep inspection."
+    expected_tools: ["ripgrep"]
+
+  - id: "autonomy-horizon-inplace-fix-not-broad-refactor"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Apply one in-place surgical patch for the defect; avoid broad refactor."
+    expected_tools: ["replace_in_file"]
+
+  - id: "autonomy-horizon-runtime-diagnostics-via-cli"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Triage runtime state using process/log/port diagnostics surfaces."
+    expected_tools: ["shell_exec"]
+
+  - id: "autonomy-horizon-deterministic-metric-check"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Run deterministic numeric consistency checks over computed fragments."
+    expected_tools: ["execute_code"]
+
+  - id: "autonomy-horizon-discover-authority-before-grounding"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "No canonical external source is selected yet; discover authority first."
+    expected_tools: ["web_search"]
+
+  - id: "autonomy-horizon-single-approved-link-ingest"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Policy already pinned one exact link; ingest only that page."
+    expected_tools: ["web_fetch"]
+
+  - id: "autonomy-horizon-stage-plan-with-rollback-gates"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Before changing state, issue phased execution with rollback gates and stop conditions."
+    expected_tools: ["plan"]
+
+  - id: "autonomy-horizon-durable-audit-ledger-artifact"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Keep chat concise while persisting a durable multi-step audit ledger for downstream review."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "durable multi-step audit ledger"
+      artifact_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report"]
+
+  - id: "autonomy-horizon-manifest-traceability-gate"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Before release, verify generated package lineage fields through manifest metadata."
+    expected_tools: ["artifact_manifest"]
+    deliverable:
+      output_description: "lineage verification record"
+      manifest_required: true
+      required_evidence: ["report"]
+
+  - id: "autonomy-horizon-inventory-current-output-before-release"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Surface currently produced outputs before choosing what to publish."
+    expected_tools: ["artifacts_list"]
+
+  - id: "autonomy-horizon-downloadable-handoff-required"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Receiver needs an immediate downloadable handoff package for offline review."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "downloadable offline handoff package"
+      attachment_required: true
+      required_file_types: ["markdown"]
+
+  - id: "autonomy-horizon-thread-file-post-gate"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Reviewer flow is blocked until the generated package file is posted to thread."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "autonomy-horizon-thread-text-checkpoint-only"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Send only a brief textual checkpoint in-thread and avoid any file transfer."
+    expected_tools: ["lark_send_message"]
+
+  - id: "autonomy-horizon-remove-policy-violating-recurring"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "A legacy recurring automation now violates policy and must be retired."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "autonomy-horizon-inspect-recurring-automations-first"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Audit active recurring automations and cadence before changing scheduling state."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "autonomy-horizon-register-compliant-recurring-cadence"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Register a compliant recurring cadence with a stable scheduler handle."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "autonomy-horizon-withdraw-stale-nudge"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Withdraw the stale reminder from queue under the new operating policy."
+    expected_tools: ["cancel_timer"]
+
+  - id: "autonomy-horizon-arm-next-focus-window-nudge"
+    category: "autonomy_long_horizon_value_delivery"
+    intent: "Arm a short reminder for the next focus window."
+    expected_tools: ["set_timer"]
