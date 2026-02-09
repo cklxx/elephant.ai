@@ -5,7 +5,7 @@
 > Trigger: 用户反馈 `./alex dev lark status` 显示 test 长期停留旧 SHA，cycle 持续 skipped/merge。
 
 ## Goal & Success Criteria
-- **Goal**: 修复 `scripts/lark/loop.sh` 的 lock 生命周期，使 watch 模式每轮 cycle 后正确释放锁。
+- **Goal**: 修复 `scripts/lark/loop.sh` 的 lock 生命周期，并回收异常退出遗留锁，使 watch 模式持续可推进。
 - **Done when**:
   - watch 模式不会重复输出 `Loop already running (lock ...)` 自锁日志。
   - 当 main 有新 SHA 时，loop 能继续执行下一轮 cycle（不被同进程遗留锁阻塞）。
@@ -24,7 +24,7 @@
 | # | Task | Files | Size | Depends On |
 |---|------|-------|------|------------|
 | 1 | 修复 run_cycle 锁释放语义（每轮必释放） | scripts/lark/loop.sh | M | — |
-| 2 | 增加回归验证步骤（watch/re-run 行为） | scripts/lark/loop.sh, runtime logs | S | T1 |
+| 2 | 增加回归验证步骤（watch/re-run + stale lock 行为） | scripts/lark/loop.sh, runtime logs | S | T1 |
 | 3 | 运行 lint/test 保障无回归 | repo-wide | M | T1 |
 
 ## Technical Design
@@ -33,6 +33,7 @@
     - 外层函数负责 `acquire_lock` / `trap` 安装与清理 / `release_lock`。
     - 内层函数保留现有流程和返回码语义。
   - 外层在内层返回后无条件清理 trap 与 lock，确保 watch 下一轮可继续。
+  - `acquire_lock` 在锁已存在时读取 owner PID，对“owner 不存在/已死亡/等于当前进程”的锁进行自动回收并重试抢锁。
   - 保留异常退出场景的 `EXIT` 兜底清理（避免真实崩溃后锁泄露）。
 - **Alternatives rejected**:
   - 仅在每个 return 前手动 `release_lock`：遗漏路径风险高，维护性差。
@@ -50,7 +51,7 @@
 
 ## Verification
 - 功能验证：
-  - `tests/scripts/lark-loop-lock-release.sh`（新增回归测试，PASS）
+  - `tests/scripts/lark-loop-lock-release.sh`（新增回归测试，覆盖 sequential + stale lock，PASS）
   - `tests/scripts/lark-supervisor-smoke.sh`（现有 smoke，PASS）
 - 质量验证：
   - `./dev.sh lint`（PASS）
@@ -62,3 +63,4 @@
 - 2026-02-09 20:33：定位根因为 `run_cycle` 使用 `trap ... EXIT` 仅在进程退出时释放锁，导致 watch 模式函数返回后锁残留。
 - 2026-02-09 20:36：将 `run_cycle` 拆分为外层锁管理 + 内层执行，外层确保每轮都执行 `trap - EXIT` 和 `release_lock`。
 - 2026-02-09 20:38：新增 `tests/scripts/lark-loop-lock-release.sh` 回归脚本，覆盖“同进程连续 run_cycle 调用”场景，验证不再自锁。
+- 2026-02-09 21:26：补充 stale lock 自动回收逻辑，并将回归脚本扩展到 stale owner PID 场景。
