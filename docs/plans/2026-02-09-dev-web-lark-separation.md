@@ -1,7 +1,7 @@
 # Plan: dev.sh 支持 web/lark 分离控制并提供一键全起
 
 > Created: 2026-02-09
-> Status: in-progress
+> Status: completed
 > Trigger: 用户要求“dev.sh 启动所有，但 web 和 lark 要分离开”
 
 ## Goal & Success Criteria
@@ -60,3 +60,9 @@
   - `./dev.sh lark-down`
 - 回滚：
   - 回退本次对 `dev.sh` 的改动即可恢复旧行为。
+
+## Progress Log
+- 2026-02-09 20:03：新增 `lark-up/down/status/logs` 与 `all-up/down/status` 命令，保持 `up/down/status` 语义不变。
+- 2026-02-09 20:05：按用户要求将默认入口切换为 `all-up`（无参数执行）。
+- 2026-02-09 20:09：完成命令级验证（`help`/`status`/`all-status`/`lark-status`）。
+- 2026-02-09 20:12：执行全量 `./dev.sh lint` 通过；`./dev.sh test` 失败于仓库既有问题（`internal/delivery/channels/lark` race、`internal/shared/config` getenv guard），与本次脚本改动无直接关联。
