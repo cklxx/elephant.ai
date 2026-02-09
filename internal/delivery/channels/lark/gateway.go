@@ -407,11 +407,8 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
-	// Resolve session ID and acquire the slot for a new task.
-	sessionID := slot.sessionID
-	if slot.phase != slotAwaitingInput || sessionID == "" {
-		sessionID = g.newSessionID()
-	}
+	// Resolve session ID: reuse the awaiting session or create a new one.
+	sessionID, isResume := g.resolveSessionForNewTask(slot)
 	inputCh := make(chan agent.UserInput, 16)
 	slot.phase = slotRunning
 	slot.inputCh = inputCh
@@ -426,7 +423,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	g.taskWG.Add(1)
 	go func() {
 		defer g.taskWG.Done()
-		awaitingInput := g.runNewTask(msg, sessionID, inputCh)
+		awaitingInput := g.runTask(msg, sessionID, inputCh, isResume)
 
 		slot.mu.Lock()
 		slot.inputCh = nil
@@ -587,10 +584,20 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("已清空对话历史，下次对话将从零开始。"))
 }
 
-// runNewTask executes a full task lifecycle: context setup, session ensure,
+// resolveSessionForNewTask decides whether to reuse the awaiting session or
+// create a fresh one. Must be called while slot.mu is held.
+func (g *Gateway) resolveSessionForNewTask(slot *sessionSlot) (sessionID string, isResume bool) {
+	if slot.phase == slotAwaitingInput && slot.sessionID != "" {
+		return slot.sessionID, true
+	}
+	return g.newSessionID(), false
+}
+
+// runTask executes a full task lifecycle: context setup, session ensure,
 // listener wiring, content preparation, execution, and reply dispatch.
+// isResume indicates this task resumes from a prior await_user_input stop.
 // Returns true if the result indicates await_user_input.
-func (g *Gateway) runNewTask(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) bool {
+func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool) bool {
 	execCtx := g.buildExecContext(msg, sessionID, inputCh)
 
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
@@ -608,7 +615,13 @@ func (g *Gateway) runNewTask(msg *incomingMessage, sessionID string, inputCh cha
 		execCtx = id.WithSessionID(execCtx, sessionID)
 	}
 
-	awaitUserInput := sessionHasAwaitFlag(session)
+	// Reconcile in-memory isResume with persisted session metadata.
+	// This handles the cold-start case where the gateway restarted while
+	// a session was awaiting input — the slot is slotIdle but the session
+	// metadata still records the await flag.
+	if !isResume && sessionHasAwaitFlag(session) {
+		isResume = true
+	}
 
 	execCtx = channels.ApplyPresets(execCtx, g.cfg.BaseConfig)
 	execCtx, cancelTimeout := channels.ApplyTimeout(execCtx, g.cfg.BaseConfig)
@@ -625,7 +638,7 @@ func (g *Gateway) runNewTask(msg *incomingMessage, sessionID string, inputCh cha
 
 	// 2. Await resume: seed user reply into inputCh; task content becomes empty
 	//    so the ReAct loop reads input from the channel instead.
-	if awaitUserInput && !hasPlanReview {
+	if isResume && !hasPlanReview {
 		g.seedAwaitResumeInput(inputCh, msg, sessionID)
 		taskContent = ""
 	}
@@ -699,7 +712,8 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 }
 
 // sessionHasAwaitFlag checks whether a session's metadata indicates a pending
-// await_user_input state.
+// await_user_input state. Used as a cold-start fallback when the in-memory
+// slot phase has not been restored after a gateway restart.
 func sessionHasAwaitFlag(session *storage.Session) bool {
 	if session == nil || session.Metadata == nil {
 		return false
