@@ -22,5 +22,9 @@ func TestLarkToolDescriptionsExpressRoutingBoundaries(t *testing.T) {
 	if !strings.Contains(uploadDesc, "file delivery/attachment transfer") || !strings.Contains(uploadDesc, "lark_send_message") {
 		t.Fatalf("expected lark_upload_file description to mention explicit file-delivery routing, got %q", uploadDesc)
 	}
-}
 
+	calendarQueryDesc := NewLarkCalendarQuery().Definition().Description
+	if !strings.Contains(calendarQueryDesc, "calendar schedule/event retrieval") || !strings.Contains(calendarQueryDesc, "not deterministic computation/recalculation") {
+		t.Fatalf("expected lark_calendar_query description to mention calendar-only routing, got %q", calendarQueryDesc)
+	}
+}

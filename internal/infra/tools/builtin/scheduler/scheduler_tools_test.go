@@ -478,3 +478,14 @@ func TestDeleteJob_DefinitionDescriptionScope(t *testing.T) {
 		t.Fatalf("expected scheduler_delete_job description to include non-goals, got %q", desc)
 	}
 }
+
+func TestListJob_DefinitionDescriptionScope(t *testing.T) {
+	tool := NewSchedulerList()
+	desc := tool.Definition().Description
+	if !strings.Contains(desc, "registered recurring scheduler jobs/automations") {
+		t.Fatalf("expected scheduler_list_jobs description to scope to scheduler inventory, got %q", desc)
+	}
+	if !strings.Contains(desc, "Do not use for artifacts or calendar event queries") {
+		t.Fatalf("expected scheduler_list_jobs description to include non-goals, got %q", desc)
+	}
+}
