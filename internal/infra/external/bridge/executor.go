@@ -1,0 +1,480 @@
+package bridge
+
+import (
+	"bufio"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync"
+	"syscall"
+	"time"
+
+	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/infra/external/subprocess"
+	"alex/internal/shared/logging"
+)
+
+// BridgeConfig configures a bridge executor for any supported agent type.
+type BridgeConfig struct {
+	AgentType    string // "claude_code" or "codex"
+	PythonBinary string
+	BridgeScript string
+	Interactive  bool // whether to start permission relay (only claude_code)
+
+	// Claude Code fields.
+	APIKey                 string
+	DefaultModel           string
+	DefaultMode            string
+	AutonomousAllowedTools []string
+	MaxBudgetUSD           float64
+	MaxTurns               int
+
+	// Codex fields.
+	ApprovalPolicy string
+	Sandbox        string
+
+	// Common fields.
+	Timeout time.Duration
+	Env     map[string]string
+}
+
+// bridgeRunner abstracts subprocess lifecycle for testability.
+type bridgeRunner interface {
+	Start(ctx context.Context) error
+	Write(data []byte) error
+	Stdout() interface{ Read([]byte) (int, error) }
+	StderrTail() string
+	Wait() error
+	Stop() error
+}
+
+// subprocessAdapter adapts subprocess.Subprocess to bridgeRunner.
+type subprocessAdapter struct {
+	proc *subprocess.Subprocess
+}
+
+func (a *subprocessAdapter) Start(ctx context.Context) error { return a.proc.Start(ctx) }
+func (a *subprocessAdapter) Write(data []byte) error         { return a.proc.Write(data) }
+func (a *subprocessAdapter) Stdout() interface{ Read([]byte) (int, error) } {
+	return a.proc.Stdout()
+}
+func (a *subprocessAdapter) StderrTail() string { return a.proc.StderrTail() }
+func (a *subprocessAdapter) Wait() error        { return a.proc.Wait() }
+func (a *subprocessAdapter) Stop() error         { return a.proc.Stop() }
+
+// Executor implements agent.InteractiveExternalExecutor by spawning a Python
+// bridge sidecar and reading pre-filtered JSONL events from its stdout.
+// It supports multiple agent types (claude_code, codex) through a single
+// parameterised implementation.
+type Executor struct {
+	cfg               BridgeConfig
+	inputCh           chan agent.InputRequest
+	pending           sync.Map
+	logger            logging.Logger
+	subprocessFactory func(subprocess.Config) bridgeRunner
+}
+
+// New creates a new bridge executor for the configured agent type.
+func New(cfg BridgeConfig) *Executor {
+	return &Executor{
+		cfg:     cfg,
+		inputCh: make(chan agent.InputRequest, 32),
+		logger:  logging.NewComponentLogger("BridgeExecutor/" + cfg.AgentType),
+		subprocessFactory: func(c subprocess.Config) bridgeRunner {
+			return &subprocessAdapter{proc: subprocess.New(c)}
+		},
+	}
+}
+
+func (e *Executor) SupportedTypes() []string {
+	return []string{e.cfg.AgentType}
+}
+
+func (e *Executor) InputRequests() <-chan agent.InputRequest {
+	return e.inputCh
+}
+
+func (e *Executor) Reply(ctx context.Context, resp agent.InputResponse) error {
+	key := requestKey(resp.TaskID, resp.RequestID)
+	if chVal, ok := e.pending.Load(key); ok {
+		ch := chVal.(chan agent.InputResponse)
+		select {
+		case ch <- resp:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return fmt.Errorf("unknown request_id: %s", resp.RequestID)
+}
+
+// bridgeConfig is the JSON payload sent to any bridge script via stdin.
+type bridgeConfig struct {
+	Prompt            string         `json:"prompt"`
+	Model             string         `json:"model,omitempty"`
+	Mode              string         `json:"mode,omitempty"`
+	MaxTurns          int            `json:"max_turns,omitempty"`
+	MaxBudgetUSD      float64        `json:"max_budget_usd,omitempty"`
+	WorkingDir        string         `json:"working_dir,omitempty"`
+	AllowedTools      []string       `json:"allowed_tools,omitempty"`
+	PermissionMCPConf map[string]any `json:"permission_mcp_config,omitempty"`
+	// Codex-specific fields.
+	ApprovalPolicy string `json:"approval_policy,omitempty"`
+	Sandbox        string `json:"sandbox,omitempty"`
+}
+
+func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) (*agent.ExternalAgentResult, error) {
+	if strings.TrimSpace(req.Prompt) == "" {
+		return nil, fmt.Errorf("prompt is required")
+	}
+
+	mode := pickString(req.Config, "mode", e.cfg.DefaultMode)
+	model := pickString(req.Config, "model", e.cfg.DefaultModel)
+	maxTurns := pickInt(req.Config, "max_turns", e.cfg.MaxTurns)
+	maxBudget := pickFloat(req.Config, "max_budget_usd", e.cfg.MaxBudgetUSD)
+
+	pythonBin := e.resolvePython()
+	bridgeScript := e.resolveBridgeScript()
+
+	bcfg := bridgeConfig{
+		Prompt:       req.Prompt,
+		Model:        model,
+		Mode:         mode,
+		MaxTurns:     maxTurns,
+		MaxBudgetUSD: maxBudget,
+		WorkingDir:   req.WorkingDir,
+	}
+
+	// Agent-type specific config.
+	switch e.cfg.AgentType {
+	case "claude_code":
+		if strings.EqualFold(mode, "autonomous") {
+			allowedTools := e.cfg.AutonomousAllowedTools
+			if override := pickString(req.Config, "allowed_tools", ""); override != "" {
+				allowedTools = splitList(override)
+			}
+			bcfg.AllowedTools = allowedTools
+		} else if e.cfg.Interactive {
+			socketPath, cleanup, err := e.startPermissionServer(ctx, req)
+			if err != nil {
+				return nil, err
+			}
+			defer cleanup()
+			bcfg.PermissionMCPConf = buildPermissionMCPPayload(socketPath, req.TaskID)
+		}
+	case "codex":
+		bcfg.ApprovalPolicy = pickString(req.Config, "approval_policy", e.cfg.ApprovalPolicy)
+		bcfg.Sandbox = pickString(req.Config, "sandbox", e.cfg.Sandbox)
+	}
+
+	env := cloneStringMap(e.cfg.Env)
+	if e.cfg.APIKey != "" {
+		switch e.cfg.AgentType {
+		case "claude_code":
+			env["ANTHROPIC_API_KEY"] = e.cfg.APIKey
+		case "codex":
+			env["OPENAI_API_KEY"] = e.cfg.APIKey
+		}
+	}
+
+	proc := e.subprocessFactory(subprocess.Config{
+		Command:    pythonBin,
+		Args:       []string{bridgeScript},
+		Env:        env,
+		WorkingDir: req.WorkingDir,
+		Timeout:    e.cfg.Timeout,
+	})
+	if err := proc.Start(ctx); err != nil {
+		return nil, fmt.Errorf("start bridge: %w", err)
+	}
+	defer func() { _ = proc.Stop() }()
+
+	configJSON, err := json.Marshal(bcfg)
+	if err != nil {
+		return nil, fmt.Errorf("marshal bridge config: %w", err)
+	}
+	configJSON = append(configJSON, '\n')
+	if err := proc.Write(configJSON); err != nil {
+		return nil, fmt.Errorf("write bridge config: %w", err)
+	}
+
+	result := &agent.ExternalAgentResult{}
+	scanner := bufio.NewScanner(proc.Stdout())
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 2*1024*1024)
+
+	for scanner.Scan() {
+		ev, err := ParseSDKEvent(scanner.Bytes())
+		if err != nil {
+			continue
+		}
+		switch ev.Type {
+		case SDKEventTool:
+			result.Iterations = ev.Iter
+			if req.OnProgress != nil {
+				req.OnProgress(agent.ExternalAgentProgress{
+					Iteration:    ev.Iter,
+					TokensUsed:   result.TokensUsed,
+					CostUSD:      extractCostFromMeta(result.Metadata),
+					CurrentTool:  ev.ToolName,
+					CurrentArgs:  ev.Summary,
+					FilesTouched: ev.Files,
+					LastActivity: time.Now(),
+				})
+			}
+		case SDKEventResult:
+			result.Answer = ev.Answer
+			result.TokensUsed = ev.Tokens
+			result.Iterations = ev.Iters
+			if ev.IsError {
+				result.Error = ev.Answer
+			}
+			result.Metadata = map[string]any{
+				"cost_usd": ev.Cost,
+			}
+		case SDKEventError:
+			return result, errors.New(ev.Message)
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return result, err
+	}
+	if err := proc.Wait(); err != nil {
+		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
+		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
+	}
+	return result, nil
+}
+
+func (e *Executor) startPermissionServer(ctx context.Context, req agent.ExternalAgentRequest) (string, func(), error) {
+	relay, err := newPermissionRelay(ctx, req.TaskID, req.AgentType, e.cfg.AutonomousAllowedTools, e.inputCh, &e.pending, e.logger)
+	if err != nil {
+		return "", nil, err
+	}
+	socketPath, cleanup, err := relay.Start()
+	if err != nil {
+		return "", nil, err
+	}
+	return socketPath, cleanup, nil
+}
+
+// buildPermissionMCPPayload generates the MCP server config dict that the
+// Python bridge will pass to ClaudeAgentOptions.mcp_servers.
+func buildPermissionMCPPayload(socketPath, taskID string) map[string]any {
+	return map[string]any{
+		"elephant": map[string]any{
+			"command": os.Args[0],
+			"args": []string{
+				"mcp-permission-server",
+				"--task-id", taskID,
+				"--sock", socketPath,
+			},
+			"type": "stdio",
+		},
+	}
+}
+
+func (e *Executor) resolvePython() string {
+	if e.cfg.PythonBinary != "" {
+		return e.cfg.PythonBinary
+	}
+	if script := e.resolveBridgeScript(); script != "" {
+		venvPython := filepath.Join(filepath.Dir(script), ".venv", "bin", "python3")
+		if _, err := os.Stat(venvPython); err == nil {
+			return venvPython
+		}
+	}
+	return "python3"
+}
+
+func (e *Executor) resolveBridgeScript() string {
+	if e.cfg.BridgeScript != "" {
+		return e.cfg.BridgeScript
+	}
+	// Resolve relative to the running binary's directory.
+	scriptDir := e.defaultScriptDir()
+	if exe, err := os.Executable(); err == nil {
+		candidate := filepath.Join(filepath.Dir(exe), "..", "scripts", scriptDir, scriptDir+".py")
+		if abs, err := filepath.Abs(candidate); err == nil {
+			if _, err := os.Stat(abs); err == nil {
+				return abs
+			}
+		}
+	}
+	return filepath.Join("scripts", scriptDir, scriptDir+".py")
+}
+
+// defaultScriptDir returns the bridge script directory name for the agent type.
+func (e *Executor) defaultScriptDir() string {
+	switch e.cfg.AgentType {
+	case "codex":
+		return "codex_bridge"
+	default:
+		return "cc_bridge"
+	}
+}
+
+// maybeAppendAuthHint appends an agent-specific authentication hint when
+// stderr output suggests authentication failure.
+func (e *Executor) maybeAppendAuthHint(msg string, stderrTail string) string {
+	switch e.cfg.AgentType {
+	case "claude_code":
+		if !containsAny(stderrTail, []string{"not logged", "unauthorized"}) {
+			return msg
+		}
+		return fmt.Sprintf("%s Hint: ensure the Claude CLI is logged in (e.g. run `claude login`).", msg)
+	case "codex":
+		if !containsAny(stderrTail, []string{"api key", "unauthorized", "authentication"}) {
+			return msg
+		}
+		return fmt.Sprintf("%s Hint: ensure Codex has a valid login or API key configured.", msg)
+	default:
+		return msg
+	}
+}
+
+// extractCostFromMeta extracts the cost_usd value from result metadata.
+func extractCostFromMeta(meta map[string]any) float64 {
+	if meta == nil {
+		return 0
+	}
+	if v, ok := meta["cost_usd"].(float64); ok {
+		return v
+	}
+	return 0
+}
+
+// --- Helpers ---
+
+func requestKey(taskID, reqID string) string {
+	return fmt.Sprintf("%s:%s", strings.TrimSpace(taskID), strings.TrimSpace(reqID))
+}
+
+func pickString(config map[string]string, key string, fallback string) string {
+	if config == nil {
+		return fallback
+	}
+	if val := strings.TrimSpace(config[key]); val != "" {
+		return val
+	}
+	return fallback
+}
+
+func pickInt(config map[string]string, key string, fallback int) int {
+	if config == nil {
+		return fallback
+	}
+	if val := strings.TrimSpace(config[key]); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil {
+			return parsed
+		}
+	}
+	return fallback
+}
+
+func pickFloat(config map[string]string, key string, fallback float64) float64 {
+	if config == nil {
+		return fallback
+	}
+	if val := strings.TrimSpace(config[key]); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
+			return parsed
+		}
+	}
+	return fallback
+}
+
+func splitList(raw string) []string {
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func formatProcessError(agentName string, err error, stderrTail string) string {
+	name := strings.TrimSpace(agentName)
+	if name == "" {
+		name = "external agent"
+	}
+	msg := fmt.Sprintf("%s exited: %v", name, err)
+	if detail := exitDetail(err); detail != "" {
+		msg = fmt.Sprintf("%s (%s)", msg, detail)
+	}
+	if tail := compactTail(stderrTail, 400); tail != "" {
+		msg = fmt.Sprintf("%s | stderr tail: %s", msg, tail)
+	}
+	return msg
+}
+
+func containsAny(input string, needles []string) bool {
+	lower := strings.ToLower(input)
+	for _, needle := range needles {
+		if needle == "" {
+			continue
+		}
+		if strings.Contains(lower, strings.ToLower(needle)) {
+			return true
+		}
+	}
+	return false
+}
+
+func compactTail(tail string, limit int) string {
+	trimmed := strings.TrimSpace(tail)
+	if trimmed == "" {
+		return ""
+	}
+	compact := strings.Join(strings.Fields(trimmed), " ")
+	if limit > 0 && len(compact) > limit {
+		return compact[:limit]
+	}
+	return compact
+}
+
+type exitCoder interface {
+	ExitCode() int
+}
+
+func exitDetail(err error) string {
+	if err == nil {
+		return ""
+	}
+	detail := ""
+	var exitErr exitCoder
+	if errors.As(err, &exitErr) {
+		if code := exitErr.ExitCode(); code >= 0 {
+			detail = fmt.Sprintf("exit=%d", code)
+		}
+	}
+	if execErr := new(exec.ExitError); errors.As(err, &execErr) {
+		if status, ok := execErr.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+			if detail == "" {
+				detail = fmt.Sprintf("signal=%s", status.Signal())
+			} else {
+				detail = fmt.Sprintf("%s signal=%s", detail, status.Signal())
+			}
+		}
+	}
+	return detail
+}
