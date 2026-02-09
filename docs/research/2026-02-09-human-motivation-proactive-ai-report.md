@@ -274,3 +274,18 @@ motivation_state:
   - `read_file => memory_get`
   - `search_file => browser_screenshot`
   - 调度边界簇（`scheduler_*` 与 `calendar/plan/artifacts` 竞争）
+
+## 12. R14 评测集去冗余（淘汰 200 个通过 Case，2026-02-10）
+
+### 12.1 调整目标
+- 解决“题目只增不减”导致的信息密度下降问题。
+- 一次性移除 `200` 个当前已通过 case，保持失败簇稳定，提升每轮评测有效信号密度。
+
+### 12.2 结果（x/x）
+- 调整前：`457/457` cases，pass@5 `443/457`，failed `14`
+- 调整后：`257/257` cases，pass@5 `243/257`，failed `14`
+- 移除清单：`evaluation/agent_eval/datasets/foundation_eval_prune_manifest_r14.yaml`
+
+### 12.3 结论
+- 本轮去冗余未削弱 hardest 信号，失败簇保持一致。
+- 评测集合从“规模偏大”收敛为“密度更高”，便于下一轮系统性优化直接对准失败簇。

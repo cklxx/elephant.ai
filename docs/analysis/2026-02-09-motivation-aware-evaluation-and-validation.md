@@ -357,3 +357,36 @@ R5 批量收敛的代表簇：
 - PaperBench: https://openai.com/index/paperbench/
 - MLRC-Bench: https://mlrc-bench.github.io/
 - ALE-Bench: https://openreview.net/forum?id=1A8V31yA5j
+
+## 14. R14 一次性淘汰 200 个 100% 通过 Case（2026-02-10）
+
+### 14.1 目标与策略
+- 目标：一次性减少 `200` 个“当前评测中已通过”的饱和 case，压缩无信息增量。
+- 策略：
+  - 仅从 `failed_cases=0` 的集合中淘汰；
+  - 每个集合至少保留 `4` 个 case；
+  - 保留所有当前失败 case，不改变难点簇；
+  - 生成可追溯清单：`evaluation/agent_eval/datasets/foundation_eval_prune_manifest_r14.yaml`
+
+### 14.2 前后对比（x/x）
+- Baseline:
+  - Collections: `31/31`
+  - Cases: `457/457`
+  - pass@1: `378/457`
+  - pass@5: `443/457`
+  - Failed: `14`
+  - 路径: `tmp/foundation-suite-r14-baseline`
+- After Retire-200:
+  - Collections: `31/31`
+  - Cases: `257/257`
+  - pass@1: `207/257`
+  - pass@5: `243/257`
+  - Failed: `14`
+  - 路径: `tmp/foundation-suite-r14-after-retire200`
+
+### 14.3 结果结论
+- 已精确淘汰 `200` 个通过 case，且保留了全部失败簇（难题信号未被削弱）。
+- Top conflict family 基本不变，说明这轮是“去冗余”而非“掩盖问题”：
+  - `read_file => memory_get`
+  - `search_file => browser_screenshot`
+  - `scheduler_delete_job => lark_calendar_update/plan`
