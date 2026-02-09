@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, and autonomy initiative"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, and challenge hard v2"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -171,3 +171,13 @@ collections:
     preset: "full"
     toolset: "default"
     top_k: 3
+
+  - id: "challenge-hard-v2"
+    name: "Challenge Hard V2"
+    dimension: "challenge_hard_v2"
+    description: "High-ambiguity and conflict-heavy challenge set aligned with core goals"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_challenge_hard_v2.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5

@@ -101,3 +101,43 @@ scenarios:
     category: "memory_capabilities"
     intent: "memory_search historical patterns and delegate long replay to acp_executor."
     expected_tools: ["memory_search", "acp_executor"]
+
+  - id: "memory-anchor-before-risky-edit"
+    category: "memory_capabilities"
+    intent: "Before touching risky code, recall earlier postmortem anchors and constraints from memory."
+    expected_tools: ["memory_search"]
+
+  - id: "memory-open-evidence-window"
+    category: "memory_capabilities"
+    intent: "Open exact evidence window in the chosen memory note for citation-grade proof."
+    expected_tools: ["memory_get"]
+
+  - id: "memory-preference-conflict-gate"
+    category: "memory_capabilities"
+    intent: "Two remembered policies conflict; pause and ask a focused clarification before execution."
+    expected_tools: ["clarify"]
+
+  - id: "memory-human-approval-sensitive-replay"
+    category: "memory_capabilities"
+    intent: "Sensitive historical replay requires explicit human approval before continuing."
+    expected_tools: ["request_user"]
+
+  - id: "memory-evidence-plus-artifact-audit"
+    category: "memory_capabilities"
+    intent: "Use remembered evidence lines and produce a traceable artifact manifest for audit."
+    expected_tools: ["memory_get", "artifact_manifest"]
+
+  - id: "memory-recall-then-rg-hotspots"
+    category: "memory_capabilities"
+    intent: "Recall prior bug signatures, then scan hotspots quickly with regex over the repository."
+    expected_tools: ["memory_search", "ripgrep"]
+
+  - id: "memory-recall-and-scheduler-followup"
+    category: "memory_capabilities"
+    intent: "Use memory of prior incident rhythm and schedule an automated recurring follow-up job."
+    expected_tools: ["memory_search", "scheduler_create_job"]
+
+  - id: "memory-open-and-upload-proof"
+    category: "memory_capabilities"
+    intent: "Open the evidence note and upload proof attachment to stakeholders in the active thread."
+    expected_tools: ["memory_get", "lark_upload_file"]

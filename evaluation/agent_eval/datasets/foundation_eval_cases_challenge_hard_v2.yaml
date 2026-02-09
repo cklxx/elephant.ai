@@ -1,0 +1,188 @@
+version: "1"
+name: "foundation-challenge-hard-v2"
+description: "Deliberately hard challenge set aligned to core goals with high ambiguity, tool conflicts, long-horizon coordination, and memory/persona pressure"
+scenarios:
+  - id: "challenge-human-gate-out-of-band-approve"
+    category: "challenge_hard_v2"
+    intent: "Stop here because a human operator must press the external approval button before any irreversible step."
+    expected_tools: ["request_user"]
+
+  - id: "challenge-human-gate-prod-cutover-window"
+    category: "challenge_hard_v2"
+    intent: "Before cutover, wait for manual go-signal from operations and only continue after acknowledgement."
+    expected_tools: ["request_user"]
+
+  - id: "challenge-open-evidence-fragment-by-offset"
+    category: "challenge_hard_v2"
+    intent: "Open the previously selected note fragment at exact offsets so the citation can be quoted verbatim."
+    expected_tools: ["memory_get"]
+
+  - id: "challenge-recall-preference-without-keyword"
+    category: "challenge_hard_v2"
+    intent: "Recover the person's long-term interaction habit before drafting any recommendation."
+    expected_tools: ["memory_search"]
+
+  - id: "challenge-fast-repo-needle-sweep"
+    category: "challenge_hard_v2"
+    intent: "Sweep every source tree quickly with regex needles instead of opening files one by one."
+    expected_tools: ["ripgrep"]
+
+  - id: "challenge-single-file-content-hunt"
+    category: "challenge_hard_v2"
+    intent: "Find matching snippets only within file contents, not by path names."
+    expected_tools: ["search_file"]
+
+  - id: "challenge-path-name-locate-only"
+    category: "challenge_hard_v2"
+    intent: "Locate candidate files by filename pattern under nested folders before opening them."
+    expected_tools: ["find"]
+
+  - id: "challenge-calendar-recurring-sync"
+    category: "challenge_hard_v2"
+    intent: "Create a recurring weekly checkpoint event for every Friday morning and keep an owner in attendees."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "challenge-calendar-adjust-existing-window"
+    category: "challenge_hard_v2"
+    intent: "Shift an existing planning event by 30 minutes and preserve all participants."
+    expected_tools: ["lark_calendar_update"]
+
+  - id: "challenge-calendar-remove-stale-event"
+    category: "challenge_hard_v2"
+    intent: "Cancel the obsolete calendar event that was created for the old release train."
+    expected_tools: ["lark_calendar_delete"]
+
+  - id: "challenge-calendar-read-before-commit"
+    category: "challenge_hard_v2"
+    intent: "Inspect upcoming events first to avoid overlapping with an existing critical meeting."
+    expected_tools: ["lark_calendar_query"]
+
+  - id: "challenge-job-schedule-nightly-audit"
+    category: "challenge_hard_v2"
+    intent: "Register a nightly automation job that runs status auditing at 02:00 with a stable identifier."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "challenge-job-cancel-legacy-runner"
+    category: "challenge_hard_v2"
+    intent: "Remove the legacy scheduled runner because its workflow was retired last week."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "challenge-job-inventory"
+    category: "challenge_hard_v2"
+    intent: "Show the currently registered scheduler jobs and their execution cadence."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "challenge-reminder-register-followup"
+    category: "challenge_hard_v2"
+    intent: "Set a delayed follow-up reminder for two hours after deployment verification."
+    expected_tools: ["set_timer"]
+
+  - id: "challenge-reminder-remove-stale"
+    category: "challenge_hard_v2"
+    intent: "Drop the outdated reminder created for the old incident stream."
+    expected_tools: ["cancel_timer"]
+
+  - id: "challenge-reminder-list-active"
+    category: "challenge_hard_v2"
+    intent: "List all active reminders so we can prune noisy ones."
+    expected_tools: ["list_timers"]
+
+  - id: "challenge-artifact-publish-long-result"
+    category: "challenge_hard_v2"
+    intent: "Persist the complete long-form delivery package as an artifact before summarizing."
+    expected_tools: ["artifacts_write"]
+
+  - id: "challenge-artifact-audit-trace"
+    category: "challenge_hard_v2"
+    intent: "Verify the output lineage by checking generated manifest fields for each evidence file."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "challenge-artifact-cleanup"
+    category: "challenge_hard_v2"
+    intent: "Delete stale generated bundles from failed runs and keep only the latest output."
+    expected_tools: ["artifacts_delete"]
+
+  - id: "challenge-ui-structured-card"
+    category: "challenge_hard_v2"
+    intent: "Emit a structured payload for a dashboard card instead of plain text narration."
+    expected_tools: ["a2ui_emit"]
+
+  - id: "challenge-browser-selector-first"
+    category: "challenge_hard_v2"
+    intent: "Use selectors to fill and submit the web form rather than coordinate clicking."
+    expected_tools: ["browser_dom"]
+
+  - id: "challenge-browser-visual-evidence"
+    category: "challenge_hard_v2"
+    intent: "Capture a visual proof snapshot of the page state after the action completes."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "challenge-browser-session-state"
+    category: "challenge_hard_v2"
+    intent: "Inspect current tab metadata, URL, and viewport status before proceeding."
+    expected_tools: ["browser_info"]
+
+  - id: "challenge-doc-read-locally"
+    category: "challenge_hard_v2"
+    intent: "Open the target source file and inspect exact lines around the failing branch."
+    expected_tools: ["read_file"]
+
+  - id: "challenge-doc-write-summary"
+    category: "challenge_hard_v2"
+    intent: "Write a concise markdown summary documenting decisions, risks, and rollback steps."
+    expected_tools: ["write_file"]
+
+  - id: "challenge-doc-patch-precise"
+    category: "challenge_hard_v2"
+    intent: "Apply a precise in-place replacement for the deprecated call path only."
+    expected_tools: ["replace_in_file"]
+
+  - id: "challenge-runtime-check-cli"
+    category: "challenge_hard_v2"
+    intent: "Execute a one-shot command to validate runtime health and process status."
+    expected_tools: ["shell_exec"]
+
+  - id: "challenge-runtime-check-snippet"
+    category: "challenge_hard_v2"
+    intent: "Run a short script to deterministically compute a validation metric."
+    expected_tools: ["execute_code"]
+
+  - id: "challenge-research-primary-search"
+    category: "challenge_hard_v2"
+    intent: "Find the latest official primary references before citing benchmark numbers."
+    expected_tools: ["web_search"]
+
+  - id: "challenge-research-fetch-page"
+    category: "challenge_hard_v2"
+    intent: "Retrieve full content from the chosen URL so definitions are quoted from source."
+    expected_tools: ["web_fetch"]
+
+  - id: "challenge-progress-lark-sync"
+    category: "challenge_hard_v2"
+    intent: "Send concise progress checkpoint updates to Lark during multi-hour execution."
+    expected_tools: ["lark_send_message"]
+
+  - id: "challenge-deliverable-upload"
+    category: "challenge_hard_v2"
+    intent: "Upload the generated result file to the conversation once validation is complete."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "challenge-task-breakdown-assign"
+    category: "challenge_hard_v2"
+    intent: "Create and assign actionable tasks for each migration slice with due dates."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "challenge-architecture-roadmap"
+    category: "challenge_hard_v2"
+    intent: "Draft a phased roadmap with milestones, risk checkpoints, and rollback gate criteria."
+    expected_tools: ["plan"]
+
+  - id: "challenge-delegate-heavy-tail"
+    category: "challenge_hard_v2"
+    intent: "Offload a long-running validation tail package to external execution while preserving constraints."
+    expected_tools: ["acp_executor"]
+
+  - id: "challenge-ambiguity-stop-and-ask"
+    category: "challenge_hard_v2"
+    intent: "Requirements conflict on compliance scope and cannot be inferred safely from context."
+    expected_tools: ["clarify"]
