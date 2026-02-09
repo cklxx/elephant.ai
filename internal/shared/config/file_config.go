@@ -283,6 +283,8 @@ type LarkChannelConfig struct {
 	PlanReviewEnabled             *bool              `json:"plan_review_enabled" yaml:"plan_review_enabled"`
 	PlanReviewRequireConfirmation *bool              `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`
 	PlanReviewPendingTTLMinutes   *int               `json:"plan_review_pending_ttl_minutes" yaml:"plan_review_pending_ttl_minutes"`
+	TaskStoreEnabled             *bool              `json:"task_store_enabled" yaml:"task_store_enabled"`
+	MaxConcurrentTasks           *int               `json:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
 }
 
 // LarkBrowserConfig captures local browser settings for the Lark channel.

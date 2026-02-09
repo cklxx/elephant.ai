@@ -83,6 +83,8 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		PlanReviewEnabled:             larkCfg.PlanReviewEnabled,
 		PlanReviewRequireConfirmation: larkCfg.PlanReviewRequireConfirmation,
 		PlanReviewPendingTTL:          larkCfg.PlanReviewPendingTTL,
+		TaskStoreEnabled:              larkCfg.TaskStoreEnabled,
+		MaxConcurrentTasks:            larkCfg.MaxConcurrentTasks,
 	}
 	if gatewayCfg.PlanReviewEnabled {
 		if gatewayCfg.PlanReviewPendingTTL <= 0 {
@@ -129,6 +131,22 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	if planReviewStore != nil {
 		gateway.SetPlanReviewStore(planReviewStore)
 	}
+
+	// Wire task store for /cc, /codex, /task commands.
+	if gatewayCfg.TaskStoreEnabled && container.SessionDB != nil {
+		taskStore := lark.NewTaskPostgresStore(container.SessionDB)
+		if err := taskStore.EnsureSchema(ctx); err != nil {
+			logger.Warn("Lark task store init failed: %v", err)
+		} else {
+			gateway.SetTaskStore(taskStore)
+			// Mark stale running tasks from previous gateway instance.
+			if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
+				logger.Warn("Lark task store stale cleanup failed: %v", err)
+			}
+			logger.Info("Lark task store enabled (Postgres)")
+		}
+	}
+
 	async.Go(logger, "lark.gateway", func() {
 		if err := gateway.Start(ctx); err != nil {
 			logger.Warn("Lark gateway stopped: %v", err)

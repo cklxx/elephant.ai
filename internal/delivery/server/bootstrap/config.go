@@ -87,6 +87,8 @@ type LarkGatewayConfig struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
+	TaskStoreEnabled              bool
+	MaxConcurrentTasks            int
 }
 
 // LarkBrowserConfig captures local browser settings for Lark.
@@ -363,6 +365,12 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if larkCfg.PlanReviewPendingTTLMinutes != nil && *larkCfg.PlanReviewPendingTTLMinutes > 0 {
 		cfg.Channels.Lark.PlanReviewPendingTTL = time.Duration(*larkCfg.PlanReviewPendingTTLMinutes) * time.Minute
+	}
+	if larkCfg.TaskStoreEnabled != nil {
+		cfg.Channels.Lark.TaskStoreEnabled = *larkCfg.TaskStoreEnabled
+	}
+	if larkCfg.MaxConcurrentTasks != nil && *larkCfg.MaxConcurrentTasks > 0 {
+		cfg.Channels.Lark.MaxConcurrentTasks = *larkCfg.MaxConcurrentTasks
 	}
 }
 

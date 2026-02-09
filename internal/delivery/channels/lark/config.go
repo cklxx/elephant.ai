@@ -31,6 +31,10 @@ type Config struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
+	// Task management configuration.
+	TaskStoreEnabled   bool // Enable persistent task store (requires Postgres). Default false.
+	MaxConcurrentTasks int  // Max concurrent tasks per chat. Default 3.
+	DefaultPlanMode    PlanMode // Global default plan mode strategy. Default "auto".
 	// AIChatBotIDs is a list of bot IDs that participate in coordinated multi-bot chats.
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.
