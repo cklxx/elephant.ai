@@ -3,14 +3,19 @@
 # elephant.ai - Local Development Helper
 #
 # Usage:
-#   ./dev.sh                    # Start backend + web (background)
-#   ./dev.sh up|start           # Same as default
+#   ./dev.sh                    # Start backend + web + lark (background)
+#   ./dev.sh up|start           # Start backend + web only
+#   ./dev.sh all-up             # Start backend + web + lark (separate stacks)
 #   ./dev.sh sandbox-up         # Start sandbox + ACP only
 #   ./dev.sh sandbox-down       # Stop sandbox + ACP only
 #   ./dev.sh sandbox-status     # Show sandbox + ACP status only
 #   ./dev.sh down|stop          # Stop backend + web
 #   ./dev.sh status             # Show status + ports
 #   ./dev.sh logs [server|web]  # Tail logs
+#   ./dev.sh lark-up            # Start lark supervisor stack only
+#   ./dev.sh lark-down          # Stop lark supervisor stack only
+#   ./dev.sh lark-status        # Show lark supervisor status only
+#   ./dev.sh lark-logs          # Tail lark supervisor logs
 #   ./dev.sh logs-ui            # Start services and open diagnostics workbench
 #   ./dev.sh test               # Go tests (CI parity)
 #   ./dev.sh lint               # Go + web lint
@@ -90,6 +95,7 @@ load_dotenv
 export AUTH_JWT_SECRET="${AUTH_JWT_SECRET:-dev-secret-change-me}"
 
 readonly BOOTSTRAP_MARKER="${PID_DIR}/bootstrap.done"
+readonly LARK_SUPERVISOR_SH="${SCRIPT_DIR}/scripts/lark/supervisor.sh"
 
 ensure_local_bootstrap() {
   if [[ -f "${BOOTSTRAP_MARKER}" ]]; then
@@ -929,6 +935,49 @@ cmd_down_all() {
   rm -f "${BOOTSTRAP_MARKER}"
 }
 
+require_lark_supervisor() {
+  [[ -x "${LARK_SUPERVISOR_SH}" ]] || die "Missing ${LARK_SUPERVISOR_SH}"
+}
+
+cmd_lark_up() {
+  ensure_local_bootstrap
+  require_lark_supervisor
+  log_section "Lark"
+  "${LARK_SUPERVISOR_SH}" start
+}
+
+cmd_lark_down() {
+  require_lark_supervisor
+  "${LARK_SUPERVISOR_SH}" stop
+}
+
+cmd_lark_status() {
+  require_lark_supervisor
+  "${LARK_SUPERVISOR_SH}" status
+}
+
+cmd_lark_logs() {
+  require_lark_supervisor
+  "${LARK_SUPERVISOR_SH}" logs
+}
+
+cmd_all_up() {
+  cmd_up
+  echo ""
+  cmd_lark_up
+}
+
+cmd_all_down() {
+  cmd_lark_down
+  cmd_down
+}
+
+cmd_all_status() {
+  cmd_status
+  echo ""
+  cmd_lark_status
+}
+
 cmd_status() {
   local server_pid web_pid
   server_pid="$(read_pid "$SERVER_PID_FILE" || true)"
@@ -1125,7 +1174,10 @@ Usage:
   ./dev.sh [command]
 
 Commands:
-  up|start       Start backend + web (background)
+  up|start       Start backend + web only (background)
+  all-up         Start backend + web + lark (isolated stacks)
+  all-down       Stop backend + web + lark (keeps sandbox/authdb running)
+  all-status     Show status for backend/web/sandbox + lark
   sandbox-up     Start sandbox + ACP only
   sandbox-down   Stop sandbox + ACP only
   sandbox-status Show sandbox + ACP status
@@ -1133,6 +1185,10 @@ Commands:
   down-all       Stop everything including sandbox + authdb
   status         Show status + ports
   logs           Tail logs (optional: server|web)
+  lark-up        Start lark supervisor stack only
+  lark-down      Stop lark supervisor stack only
+  lark-status    Show lark supervisor status
+  lark-logs      Tail lark supervisor logs
   logs-ui        Start services and open the diagnostics workbench
   test           Run Go tests (CI parity)
   lint           Run Go + web lint
@@ -1140,11 +1196,14 @@ Commands:
 EOF
 }
 
-cmd="${1:-up}"
+cmd="${1:-all-up}"
 shift || true
 
 case "$cmd" in
   up|start) cmd_up ;;
+  all-up) cmd_all_up ;;
+  all-down) cmd_all_down ;;
+  all-status) cmd_all_status ;;
   sandbox-up) cmd_sandbox_up ;;
   sandbox-down) cmd_sandbox_down ;;
   sandbox-status) cmd_sandbox_status ;;
@@ -1152,6 +1211,10 @@ case "$cmd" in
   down-all|stop-all) cmd_down_all ;;
   status) cmd_status ;;
   logs) cmd_logs "${@:-all}" ;;
+  lark-up) cmd_lark_up ;;
+  lark-down) cmd_lark_down ;;
+  lark-status) cmd_lark_status ;;
+  lark-logs) cmd_lark_logs ;;
   logs-ui|log-ui|analyze-logs) cmd_logs_ui ;;
   test) cmd_test ;;
   lint) cmd_lint ;;
