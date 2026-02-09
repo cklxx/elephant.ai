@@ -309,3 +309,51 @@ R5 批量收敛的代表簇：
 - `replace_in_file => artifacts_delete`（1）
 
 结论：新增 hardest 迁移集合成功拉开难度，且失败分布具备“可系统优化”的冲突簇结构，适合进入下一轮 targeted convergence。
+
+## 13. R13 SOTA Frontier 分层扩容（2026-02-10）
+
+### 13.1 分层框架（Layered Hardness）
+- `L1 Core-Hard`：SWE/conflict/orchestration/artifact/reproducibility 核心难题。
+- `L2 Frontier-Hard`：Terminal-Bench / MLE-Bench / SWE-PolyBench / GitTaskBench / OSWorld-G。
+- `L3 Research-Frontier-Hard`：FrontierMath/HLE + RE-Bench + EXP-Bench + ARC-AGI-2。
+
+### 13.2 本轮新增（Research-Frontier）
+- `foundation_eval_cases_industry_benchmark_re_bench_frontier_ml_rd_hard.yaml`
+- `foundation_eval_cases_industry_benchmark_exp_bench_autonomous_research_hard.yaml`
+- `foundation_eval_cases_industry_benchmark_arc_agi2_abductive_reasoning_hard.yaml`
+- `foundation_eval_cases_industry_benchmark_paperbench_full_reproduction_hard.yaml`
+- `foundation_eval_cases_industry_benchmark_mlrc_bench_open_research_hard.yaml`
+- `foundation_eval_cases_industry_benchmark_ale_bench_long_horizon_algo_engineering_hard.yaml`
+
+### 13.3 套件结果（x/x）
+- Collections: `31/31`
+- Cases: `457/457`
+- pass@1: `378/457`
+- pass@5: `443/457`
+- Failed: `14`
+- Deliverable Good: `44/51`
+- 产物路径: `tmp/foundation-suite-r13-sota-frontier-v2`
+
+### 13.4 新增 6 集合结果（x/x）
+- RE-Bench: pass@1 `6/12`, pass@5 `11/12`
+- EXP-Bench: pass@1 `10/12`, pass@5 `10/12`
+- ARC-AGI-2: pass@1 `8/12`, pass@5 `10/12`
+- PaperBench: pass@1 `7/10`, pass@5 `9/10`
+- MLRC-Bench: pass@1 `9/12`, pass@5 `11/12`
+- ALE-Bench: pass@1 `8/12`, pass@5 `12/12`
+
+### 13.5 主要失败簇（R13）
+- `read_file => memory_get`（5）
+- `search_file => browser_screenshot`（2）
+- `scheduler_delete_job => lark_calendar_update`（1）
+- `scheduler_list_jobs => artifacts_list`（1）
+- `scheduler_delete_job => plan`（1）
+- `replace_in_file => artifacts_delete`（1）
+
+### 13.6 SOTA benchmark sources
+- RE-Bench（METR）: https://metr.org/blog/2025-06-05-re-bench/
+- EXP-Bench: https://openreview.net/forum?id=V4KAvgDWBn
+- ARC-AGI-2: https://arcprize.org/arc-agi-2
+- PaperBench: https://openai.com/index/paperbench/
+- MLRC-Bench: https://mlrc-bench.github.io/
+- ALE-Bench: https://openreview.net/forum?id=1A8V31yA5j

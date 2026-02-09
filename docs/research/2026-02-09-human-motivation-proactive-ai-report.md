@@ -243,3 +243,34 @@ motivation_state:
 - 难度结构明显增强：新增 6 集合贡献了 `5` 个失败 case，且集中在“跨域调度冲突 + 低词面重叠” hardest 区域。
 - 新集合未出现工具不可用（N/A）堆积，说明扩容与当前工具生态兼容。
 - 失败簇呈系统性分布，适合下一轮按 conflict family 做精准收敛，而非盲目继续加题。
+
+## 11. R13 SOTA Frontier 分层结论（2026-02-10）
+
+### 11.1 分层目标
+- 将“业界 hardest”按层级固化，避免只在单一难题簇上过拟合：
+  - Core-Hard
+  - Frontier-Hard
+  - Research-Frontier-Hard
+
+### 11.2 本轮扩容与分数（x/x）
+- 新增 Research-Frontier collections: `6/6`
+  - RE-Bench（frontier ML R&D）
+  - EXP-Bench（autonomous research）
+  - ARC-AGI-2（abductive reasoning）
+  - PaperBench（end-to-end paper reproduction）
+  - MLRC-Bench（open ML research competition）
+  - ALE-Bench（long-horizon algorithm engineering）
+- 扩容后主 suite：
+  - Collections: `31/31`
+  - Cases: `457/457`
+  - pass@1: `378/457`
+  - pass@5: `443/457`
+  - failed: `14`
+  - 产物：`tmp/foundation-suite-r13-sota-frontier-v2`
+
+### 11.3 结论
+- 难度进一步拉高且失败簇更集中，满足“连 SOTA 都困难”的目标方向。
+- 当前最值得优先收敛的簇仍是：
+  - `read_file => memory_get`
+  - `search_file => browser_screenshot`
+  - 调度边界簇（`scheduler_*` 与 `calendar/plan/artifacts` 竞争）
