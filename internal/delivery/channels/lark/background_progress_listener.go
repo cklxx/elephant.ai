@@ -19,6 +19,7 @@ const (
 	defaultBackgroundProgressInterval = 10 * time.Minute
 	defaultBackgroundProgressWindow   = 10 * time.Minute
 	codeBackgroundProgressInterval    = 3 * time.Minute
+	maxBackgroundListenerLifetime     = 4 * time.Hour
 )
 
 type progressRecord struct {
@@ -81,9 +82,10 @@ type backgroundProgressListener struct {
 	interval  time.Duration
 	window    time.Duration
 
-	mu     sync.Mutex
-	tasks  map[string]*bgTaskTracker
-	closed bool
+	mu       sync.Mutex
+	tasks    map[string]*bgTaskTracker
+	closed   bool
+	released bool
 }
 
 func newBackgroundProgressListener(ctx context.Context, inner agent.EventListener, g *Gateway, chatID, replyToID string, logger logging.Logger, interval, window time.Duration) *backgroundProgressListener {
@@ -95,7 +97,7 @@ func newBackgroundProgressListener(ctx context.Context, inner agent.EventListene
 	}
 	return &backgroundProgressListener{
 		inner:     inner,
-		ctx:       ctx,
+		ctx:       context.WithoutCancel(ctx),
 		g:         g,
 		chatID:    chatID,
 		replyToID: replyToID,
@@ -123,6 +125,34 @@ func (l *backgroundProgressListener) Close() {
 	for _, t := range tasks {
 		t.stop()
 	}
+}
+
+// Release marks the foreground caller as done. If no background tasks are
+// tracked, it closes the listener immediately. Otherwise, it defers closing
+// until the last tracked task completes. A safety-net timer prevents leaks
+// if a completion event is lost.
+func (l *backgroundProgressListener) Release() {
+	l.mu.Lock()
+	if l.closed {
+		l.mu.Unlock()
+		return
+	}
+	l.released = true
+	shouldClose := len(l.tasks) == 0
+	l.mu.Unlock()
+
+	if shouldClose {
+		l.Close()
+		return
+	}
+	// Safety net: prevent leaks if completion event is lost.
+	go func() {
+		t := time.NewTimer(maxBackgroundListenerLifetime)
+		defer t.Stop()
+		<-t.C
+		l.logger.Warn("backgroundProgressListener force-closing after max lifetime")
+		l.Close()
+	}()
 }
 
 func (l *backgroundProgressListener) OnEvent(event agent.AgentEvent) {
@@ -170,7 +200,7 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 	}
 
 	l.mu.Lock()
-	if l.closed {
+	if l.closed || l.released {
 		l.mu.Unlock()
 		return
 	}
@@ -368,9 +398,14 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 
 	l.mu.Lock()
 	delete(l.tasks, taskID)
+	shouldClose := l.released && len(l.tasks) == 0
 	l.mu.Unlock()
 
 	t.stop()
+
+	if shouldClose {
+		l.Close()
+	}
 }
 
 func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {

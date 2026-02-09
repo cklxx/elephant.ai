@@ -191,7 +191,7 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 	if backgroundEnabled {
 		replyTo := replyTarget(msg.messageID, msg.isGroup)
 		bgLn := newBackgroundProgressListener(execCtx, listener, g, msg.chatID, replyTo, g.logger, g.cfg.BackgroundProgressInterval, g.cfg.BackgroundProgressWindow)
-		cleanups = append(cleanups, bgLn.Close)
+		cleanups = append(cleanups, bgLn.Release)
 		listener = bgLn
 	}
 	defer func() {
