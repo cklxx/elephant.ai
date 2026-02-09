@@ -106,7 +106,7 @@ func (a *recordingApprover) last() *tools.ApprovalRequest {
 type injectingCoordinator struct {
 	inner      *agentcoordinator.AgentCoordinator
 	larkClient *lark.Client
-	oauth      interface{}
+	oauth      shared.LarkOAuthService
 	approver   tools.Approver
 
 	mu         sync.Mutex
