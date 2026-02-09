@@ -8,6 +8,13 @@ Protocol (stdout JSONL) — identical to cc_bridge.py:
   {"type":"tool","tool_name":"Bash","summary":"command=npm test","files":[],"iter":1}
   {"type":"result","answer":"...","tokens":5000,"cost":0,"iters":3,"is_error":false}
   {"type":"error","message":"something went wrong"}
+
+Codex JSONL event types (codex exec --json):
+  thread.started   — session metadata
+  turn.started     — new LLM turn
+  item.started     — command_execution (with command, status=in_progress)
+  item.completed   — command_execution, reasoning, agent_message (with text/output)
+  turn.completed   — usage stats (input_tokens, output_tokens, cached_input_tokens)
 """
 
 from __future__ import annotations
@@ -35,16 +42,6 @@ def _is_suppressed(tool_name: str) -> bool:
     return tool_name.lower() in _SKIP_TOOLS
 
 
-def _extract_files_from_changes(changes: list[dict[str, Any]]) -> list[str]:
-    """Extract file paths from Codex fileChange items."""
-    files: list[str] = []
-    for change in changes:
-        path = change.get("path", "")
-        if path:
-            files.append(path)
-    return files
-
-
 def _handle_item_started(
     item: dict[str, Any],
     iteration: int,
@@ -55,37 +52,17 @@ def _handle_item_started(
     if item_type == "command_execution":
         iteration += 1
         cmd = item.get("command", "")
+        # Strip shell wrapper prefix if present (e.g. "/bin/zsh -lc \"...\"")
+        if cmd.startswith("/bin/") and " -lc " in cmd:
+            # Extract inner command from shell wrapper
+            idx = cmd.index(" -lc ") + 5
+            inner = cmd[idx:].strip().strip('"')
+            cmd = inner
         summary = f"command={cmd[:120]}" if len(cmd) > 120 else f"command={cmd}"
         _emit({
             "type": "tool",
             "tool_name": "Bash",
             "summary": summary,
-            "files": [],
-            "iter": iteration,
-        })
-
-    elif item_type == "fileChange":
-        iteration += 1
-        changes = item.get("changes", [])
-        files = _extract_files_from_changes(changes)
-        summary = ", ".join(files[:3])
-        if len(files) > 3:
-            summary += f" (+{len(files) - 3} more)"
-        _emit({
-            "type": "tool",
-            "tool_name": "Write",
-            "summary": f"files={summary}",
-            "files": files,
-            "iter": iteration,
-        })
-
-    elif item_type == "webSearch":
-        iteration += 1
-        query = item.get("query", "")
-        _emit({
-            "type": "tool",
-            "tool_name": "WebSearch",
-            "summary": f"query={query}",
             "files": [],
             "iter": iteration,
         })
@@ -130,16 +107,23 @@ def main() -> None:
     if model:
         cmd.extend(["--model", model])
 
-    approval = cfg.get("approval_policy")
-    if approval:
-        cmd.extend(["--approval-policy", approval])
-
+    # Sandbox mode: read-only | workspace-write | danger-full-access
     sandbox = cfg.get("sandbox")
     if sandbox:
         cmd.extend(["--sandbox", sandbox])
 
+    # Approval policy mapping:
+    #   "full-auto"        → --full-auto (sandbox=workspace-write + auto approve)
+    #   "dangerously-auto" → --dangerously-bypass-approvals-and-sandbox
+    #   other              → ignored (codex uses its default)
+    approval = cfg.get("approval_policy", "")
+    if approval == "full-auto":
+        cmd.append("--full-auto")
+    elif approval == "dangerously-auto":
+        cmd.append("--dangerously-bypass-approvals-and-sandbox")
+
     working_dir = cfg.get("working_dir") or os.getcwd()
-    cmd.extend(["-C", working_dir])
+    cmd.extend(["-C", working_dir, "--skip-git-repo-check"])
 
     cmd.extend(["--", prompt])
 
