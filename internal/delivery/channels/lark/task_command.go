@@ -201,6 +201,10 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 	}()
 	execCtx = shared.WithParentListener(execCtx, listener)
 
+	if _, err := g.agent.EnsureSession(execCtx, sessionID); err != nil {
+		return fmt.Sprintf("任务派发失败: %v", err)
+	}
+
 	result, execErr := g.agent.ExecuteTask(execCtx, prompt, sessionID, listener)
 
 	if execErr != nil {
