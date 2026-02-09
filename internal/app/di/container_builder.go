@@ -460,6 +460,7 @@ func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryEngine 
 		ToolPolicy:                 toolspolicy.NewToolPolicy(b.config.ToolPolicy),
 		SLACollector:               slaCollector,
 		Toolset:                    b.config.Toolset,
+		SkillMode:                  b.config.SkillMode,
 		BrowserConfig:              b.config.BrowserConfig,
 	})
 	if err != nil {

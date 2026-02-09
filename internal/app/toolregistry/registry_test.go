@@ -416,6 +416,102 @@ func (c *captureApprover) RequestApproval(_ context.Context, req *tools.Approval
 	return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
 }
 
+func TestNewRegistrySkillModeRegistersOnlyCoreTools(t *testing.T) {
+	registry, err := NewRegistry(Config{
+		MemoryEngine: newTestMemoryEngine(t),
+		SkillMode:    true,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	defs := registry.List()
+	names := make(map[string]bool, len(defs))
+	for _, def := range defs {
+		names[def.Name] = true
+	}
+
+	// Core tools MUST be present
+	for _, want := range []string{
+		"read_file", "write_file", "replace_in_file", "shell_exec",
+		"execute_code", "browser_action",
+		"plan", "clarify", "request_user",
+		"memory_search", "memory_get",
+		"web_search", "skills",
+		"lark_send_message", "lark_chat_history",
+	} {
+		if !names[want] {
+			t.Errorf("skill mode: expected tool %s to be registered", want)
+		}
+	}
+
+	// Removed tools MUST NOT be present
+	for _, dropped := range []string{
+		"grep", "ripgrep", "find",
+		"todo_read", "todo_update", "apps", "music_play",
+		"artifacts_write", "artifacts_list", "artifacts_delete",
+		"a2ui_emit", "artifact_manifest", "pptx_from_images",
+		"acp_executor", "config_manage",
+		"html_edit", "web_fetch", "douyin_hot",
+		"text_to_image", "image_to_image", "video_generate",
+		"diagram_render",
+		"okr_read", "okr_write",
+		"set_timer", "list_timers", "cancel_timer",
+		"scheduler_create_job", "scheduler_list_jobs", "scheduler_delete_job",
+		"browser_info", "browser_screenshot", "browser_dom",
+		"list_dir", "search_file", "write_attachment",
+	} {
+		if names[dropped] {
+			t.Errorf("skill mode: tool %s should NOT be registered", dropped)
+		}
+	}
+
+	// Verify significant reduction: skill mode should have far fewer tools
+	fullRegistry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
+	if err != nil {
+		t.Fatalf("unexpected error creating full registry: %v", err)
+	}
+	fullCount := len(fullRegistry.List())
+	skillCount := len(defs)
+	if skillCount >= fullCount {
+		t.Fatalf("skill mode should have fewer tools: got %d vs full %d", skillCount, fullCount)
+	}
+	reduction := float64(fullCount-skillCount) / float64(fullCount) * 100
+	t.Logf("Tool reduction: %d → %d (%.0f%% reduction)", fullCount, skillCount, reduction)
+}
+
+func TestNewRegistrySkillModeWithLarkLocalToolset(t *testing.T) {
+	registry, err := NewRegistry(Config{
+		MemoryEngine: newTestMemoryEngine(t),
+		SkillMode:    true,
+		Toolset:      ToolsetLarkLocal,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	// Platform tools should use local implementations
+	if _, err := registry.Get("read_file"); err != nil {
+		t.Fatalf("failed to get read_file: %v", err)
+	}
+	if _, err := registry.Get("browser_action"); err != nil {
+		t.Fatalf("failed to get browser_action: %v", err)
+	}
+
+	// Desktop-only tools should NOT be registered in skill mode
+	// (even with lark-local toolset)
+	defs := registry.List()
+	names := make(map[string]bool, len(defs))
+	for _, def := range defs {
+		names[def.Name] = true
+	}
+	for _, dropped := range []string{"diagram_render", "write_attachment"} {
+		if names[dropped] {
+			t.Errorf("skill mode + lark-local: tool %s should NOT be registered", dropped)
+		}
+	}
+}
+
 func TestApprovalExecutor_EnrichesSafetyContext(t *testing.T) {
 	executor := toolspolicy.NewApprovalExecutor(&stubExecutor{
 		name:        "file_delete",

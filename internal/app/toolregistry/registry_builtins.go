@@ -259,6 +259,45 @@ func (r *Registry) registerOKRTools(okrGoalsRoot string) {
 	r.static["okr_write"] = okrtools.NewOKRWrite(okrCfg)
 }
 
+// registerSkillModePlatformTools registers only the essential platform tools
+// for skill mode. Toolset branching (local vs sandbox) is preserved.
+func (r *Registry) registerSkillModePlatformTools(config Config) error {
+	fileConfig := shared.FileToolConfig{}
+	shellConfig := shared.ShellToolConfig{}
+	toolset := NormalizeToolset(string(config.Toolset))
+
+	switch toolset {
+	case ToolsetLarkLocal:
+		browserCfg := browser.Config{
+			CDPURL:      config.BrowserConfig.CDPURL,
+			ChromePath:  config.BrowserConfig.ChromePath,
+			Headless:    config.BrowserConfig.Headless,
+			UserDataDir: config.BrowserConfig.UserDataDir,
+			Timeout:     config.BrowserConfig.Timeout,
+		}
+		browserMgr := browser.NewManager(browserCfg)
+		r.browserMgr = browserMgr
+		r.static["browser_action"] = browser.NewBrowserAction(browserMgr)
+		r.static["read_file"] = aliases.NewReadFile(fileConfig)
+		r.static["write_file"] = aliases.NewWriteFile(fileConfig)
+		r.static["replace_in_file"] = aliases.NewReplaceInFile(fileConfig)
+		r.static["shell_exec"] = aliases.NewShellExec(shellConfig)
+		r.static["execute_code"] = aliases.NewExecuteCode(shellConfig)
+	default:
+		sandboxConfig := sandbox.SandboxConfig{
+			BaseURL:          config.SandboxBaseURL,
+			MaxResponseBytes: config.HTTPLimits.SandboxMaxResponseBytes,
+		}
+		r.static["browser_action"] = sandbox.NewSandboxBrowser(sandboxConfig)
+		r.static["read_file"] = sandbox.NewSandboxFileRead(sandboxConfig)
+		r.static["write_file"] = sandbox.NewSandboxFileWrite(sandboxConfig)
+		r.static["replace_in_file"] = sandbox.NewSandboxFileReplace(sandboxConfig)
+		r.static["shell_exec"] = sandbox.NewSandboxShellExec(sandboxConfig)
+		r.static["execute_code"] = sandbox.NewSandboxCodeExecute(sandboxConfig)
+	}
+	return nil
+}
+
 func (r *Registry) registerTimerSchedulerTools() {
 	r.static["set_timer"] = timertools.NewSetTimer()
 	r.static["list_timers"] = timertools.NewListTimers()
@@ -266,4 +305,51 @@ func (r *Registry) registerTimerSchedulerTools() {
 	r.static["scheduler_create_job"] = schedulertools.NewSchedulerCreate()
 	r.static["scheduler_list_jobs"] = schedulertools.NewSchedulerList()
 	r.static["scheduler_delete_job"] = schedulertools.NewSchedulerDelete()
+}
+
+// registerSkillModeCoreTools registers only the essential core tools when
+// SkillMode is enabled. All other functionality is provided by Python skills
+// invoked through shell_exec (e.g. python3 skills/<name>/run.py '{...}').
+//
+// Core tools kept:
+//   - Platform (6): read_file, write_file, replace_in_file, shell_exec, browser_action, execute_code
+//   - UI (3): plan, clarify, request_user
+//   - Memory (2): memory_search, memory_get
+//   - Web (1): web_search
+//   - Session (1): skills
+//   - Lark (8): kept individually (channel consolidation deferred)
+//
+// Tools removed (~50): grep, ripgrep, find, todo_*, apps, music_play,
+//   artifacts_*, a2ui_emit, pptx_from_images, acp_executor, config_manage,
+//   html_edit, web_fetch, douyin_hot, text_to_image, image_to_image,
+//   vision_analyze, video_generate, diagram_render, okr_*, set_timer,
+//   list_timers, cancel_timer, scheduler_*, browser_info/screenshot/dom,
+//   list_dir, search_file, write_attachment, peekaboo_exec, atlas, chrome
+func (r *Registry) registerSkillModeCoreTools(config Config) error {
+	// UI tools (plan, clarify, request_user) + memory tools
+	r.registerUITools(config)
+
+	// Web search (essential for agent reasoning)
+	r.static["web_search"] = web.NewWebSearch(config.TavilyAPIKey, web.WebSearchConfig{
+		MaxResponseBytes: config.HTTPLimits.WebSearchMaxResponseBytes,
+	})
+
+	// Skills matcher (discovers and activates Python skills)
+	r.static["skills"] = sessiontools.NewSkills()
+
+	// Platform tools (file read/write/edit, shell, browser) — toolset-dependent
+	if err := r.registerSkillModePlatformTools(config); err != nil {
+		return err
+	}
+
+	// Lark tools (kept individually; channel consolidation is Phase 2)
+	r.registerLarkTools()
+
+	// Pre-wrap all static tools with approval, retry, ID propagation, and SLA.
+	for name, tool := range r.static {
+		wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
+		r.static[name] = r.wrapDegradation(name, wrapped)
+	}
+
+	return nil
 }

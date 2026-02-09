@@ -52,6 +52,7 @@ func ConfigFromRuntimeConfig(runtime runtimeconfig.RuntimeConfig) Config {
 		ToolPreset:                 runtime.ToolPreset,
 		ToolMode:                   string(presets.ToolModeCLI),
 		Toolset:                    toolregistry.NormalizeToolset(runtime.Toolset),
+		SkillMode:                  runtime.SkillMode,
 		BrowserConfig: toolregistry.BrowserConfig{
 			Connector:        runtime.Browser.Connector,
 			CDPURL:           runtime.Browser.CDPURL,

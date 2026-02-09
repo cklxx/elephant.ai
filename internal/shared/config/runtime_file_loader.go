@@ -233,6 +233,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.Toolset = parsed.Toolset
 		meta.sources["toolset"] = SourceFile
 	}
+	if parsed.SkillMode != nil {
+		cfg.SkillMode = *parsed.SkillMode
+		meta.sources["skill_mode"] = SourceFile
+	}
 	if parsed.Browser != nil {
 		if connector := strings.TrimSpace(parsed.Browser.Connector); connector != "" {
 			cfg.Browser.Connector = connector

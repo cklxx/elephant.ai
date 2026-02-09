@@ -691,6 +691,7 @@ runtime:
 			"AGENT_PRESET":                      "designer",
 			"TOOL_PRESET":                       "full",
 			"ALEX_TOOLSET":                      "local",
+			"ALEX_SKILL_MODE":                   "true",
 			"ALEX_BROWSER_CONNECTOR":            "chrome_extension",
 			"ALEX_BROWSER_CDP_URL":              "http://127.0.0.1:9555",
 			"ALEX_BROWSER_CHROME_PATH":          "/tmp/chrome",
@@ -748,6 +749,9 @@ runtime:
 	}
 	if cfg.Toolset != "local" {
 		t.Fatalf("expected toolset from env, got %q", cfg.Toolset)
+	}
+	if !cfg.SkillMode {
+		t.Fatal("expected skill_mode=true from env override")
 	}
 	if cfg.Browser.Connector != "chrome_extension" {
 		t.Fatalf("expected browser.connector from env, got %q", cfg.Browser.Connector)

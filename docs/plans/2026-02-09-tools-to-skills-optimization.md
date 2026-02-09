@@ -92,11 +92,41 @@ skills/<name>/
 - **307 tests**, all passing
 - Every run.py has unit tests with mocked external deps
 
-## Phase 1: Merge Go Tools → 6 Core (PENDING)
+## Phase 1: SkillMode Config + Core Tool Registry (IN PROGRESS)
 
-- [ ] Consolidate Go tool registry to 6 tools
-- [ ] Update tool_executor.go to route skill invocations through bash
-- [ ] Remove deprecated Go tool packages
+### Step 1: SkillMode Config Flag + Core Tools (COMPLETED)
+
+**Commit:** (pending)
+
+Added `SkillMode bool` config flag through all layers:
+- `RuntimeConfig`, `Overrides`, `RuntimeFileConfig` (types.go, file_config.go)
+- Env var: `ALEX_SKILL_MODE` (runtime_env_loader.go)
+- Override + file loader handlers (overrides.go, runtime_file_loader.go)
+- `toolregistry.Config`, `di.Config`, `di.ConfigFromRuntimeConfig` wiring
+
+Created `registerSkillModeCoreTools()` + `registerSkillModePlatformTools()`:
+- **21 tools** registered (down from **55**, 62% reduction)
+- Core tools: read_file, write_file, replace_in_file, shell_exec, execute_code, browser_action
+- UI: plan, clarify, request_user
+- Memory: memory_search, memory_get
+- Web: web_search
+- Session: skills
+- Lark: all 8 tools (channel consolidation deferred to Step 2)
+- Removed: grep, ripgrep, find, todo_*, apps, music_play, artifacts_*, a2ui_emit,
+  pptx_from_images, acp_executor, config_manage, html_edit, web_fetch, douyin_hot,
+  text_to_image, image_to_image, video_generate, diagram_render, okr_*, timers,
+  schedulers, browser_info/screenshot/dom, list_dir, search_file, write_attachment
+
+Tests: 2 new tests (skill mode + skill mode with lark-local), all passing.
+
+### Step 2: Consolidate Lark tools → channel (PENDING)
+
+- [ ] Create `channel_tool.go` — single tool with action dispatch for all Lark SDK ops
+- [ ] Replace 8 individual lark tools with 1 `channel` tool
+
+### Step 3: Remove deprecated Go tool packages (PENDING)
+
+- [ ] Delete unused Go tool packages once skill coverage is verified
 
 ## Phase 2: Update Skill Engine (PENDING)
 

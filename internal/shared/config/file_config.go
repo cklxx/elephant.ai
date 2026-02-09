@@ -69,6 +69,7 @@ type RuntimeFileConfig struct {
 	AgentPreset                string                    `yaml:"agent_preset"`
 	ToolPreset                 string                    `yaml:"tool_preset"`
 	Toolset                    string                    `yaml:"toolset"`
+	SkillMode                  *bool                     `yaml:"skill_mode"`
 	Browser                    *RuntimeBrowserConfig     `yaml:"browser"`
 	ToolPolicy                 *ToolPolicyFileConfig     `yaml:"tool_policy"`
 	HTTPLimits                 *HTTPLimitsFileConfig     `yaml:"http_limits"`

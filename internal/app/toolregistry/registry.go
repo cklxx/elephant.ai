@@ -75,6 +75,7 @@ type Config struct {
 	// When nil, DefaultRegistryDegradationConfig is used.
 	DegradationConfig *DegradationConfig
 	Toolset           Toolset
+	SkillMode         bool
 	BrowserConfig     BrowserConfig
 }
 
@@ -366,6 +367,10 @@ func (r *Registry) Unregister(name string) error {
 }
 
 func (r *Registry) registerBuiltins(config Config) error {
+	if config.SkillMode {
+		return r.registerSkillModeCoreTools(config)
+	}
+
 	shellConfig := shared.ShellToolConfig{}
 
 	r.registerSearchTools(shellConfig)

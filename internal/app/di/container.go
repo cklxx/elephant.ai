@@ -108,6 +108,7 @@ type Config struct {
 	ToolPreset                 string
 	ToolMode                   string
 	Toolset                    toolregistry.Toolset
+	SkillMode                  bool
 	Environment                string
 	Verbose                    bool
 	DisableTUI                 bool
