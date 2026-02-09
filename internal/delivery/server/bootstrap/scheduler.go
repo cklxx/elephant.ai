@@ -55,6 +55,7 @@ func startScheduler(ctx context.Context, cfg Config, container *di.Container, lo
 	}
 
 	sched := scheduler.New(schedCfg, container.AgentCoordinator, notifier, logger)
+	container.AgentCoordinator.SetScheduler(sched)
 
 	async.Go(logger, "scheduler", func() {
 		if err := sched.Start(ctx); err != nil {

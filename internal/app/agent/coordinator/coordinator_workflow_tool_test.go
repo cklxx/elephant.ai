@@ -17,6 +17,7 @@ import (
 	tools "alex/internal/domain/agent/ports/tools"
 	materialports "alex/internal/domain/materials/ports"
 	"alex/internal/domain/workflow"
+	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/utils/id"
 )
 
@@ -194,6 +195,74 @@ func TestExecuteTaskRunsToolWorkflowEndToEnd(t *testing.T) {
 	}
 	if !hasToolStep {
 		t.Fatalf("expected tool call step completion envelope")
+	}
+}
+
+func TestExecuteTaskInjectsSchedulerIntoToolContext(t *testing.T) {
+	callCount := 0
+	llmClient := &mocks.MockLLMClient{CompleteFunc: func(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
+		callCount++
+		if callCount == 1 {
+			return &ports.CompletionResponse{
+				Content: "inspect scheduler",
+				ToolCalls: []ports.ToolCall{{
+					ID:   "call-scheduler",
+					Name: "inspect_scheduler",
+				}},
+				StopReason: "tool_calls",
+				Usage:      ports.TokenUsage{TotalTokens: 5},
+			}, nil
+		}
+		return &ports.CompletionResponse{
+			Content:    "done",
+			StopReason: "stop",
+			Usage:      ports.TokenUsage{TotalTokens: 3},
+		}, nil
+	}}
+
+	expectedScheduler := &struct{ Name string }{Name: "runtime-scheduler"}
+	schedulerObserved := false
+
+	registry := &mocks.MockToolRegistry{
+		GetFunc: func(name string) (tools.ToolExecutor, error) {
+			if name != "inspect_scheduler" {
+				return nil, fmt.Errorf("tool %s not found", name)
+			}
+			return &mocks.MockToolExecutor{
+				ExecuteFunc: func(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+					schedulerObserved = shared.SchedulerFromContext(ctx) == expectedScheduler
+					return &ports.ToolResult{CallID: call.ID, Content: "scheduler inspected"}, nil
+				},
+			}, nil
+		},
+		ListFunc: func() []ports.ToolDefinition {
+			return []ports.ToolDefinition{{Name: "inspect_scheduler"}}
+		},
+	}
+
+	coordinator := NewAgentCoordinator(
+		stubLLMFactory{client: llmClient},
+		registry,
+		&stubSessionStore{},
+		stubContextManager{},
+		nil,
+		&mocks.MockParser{},
+		nil,
+		appconfig.Config{
+			LLMProvider:   "mock",
+			LLMModel:      "scheduler-injection",
+			MaxIterations: 4,
+			Temperature:   0.1,
+		},
+	)
+	coordinator.SetScheduler(expectedScheduler)
+
+	_, err := coordinator.ExecuteTask(context.Background(), "check scheduler context", "session-scheduler", nil)
+	if err != nil {
+		t.Fatalf("ExecuteTask returned error: %v", err)
+	}
+	if !schedulerObserved {
+		t.Fatalf("expected scheduler service to be injected into tool execution context")
 	}
 }
 

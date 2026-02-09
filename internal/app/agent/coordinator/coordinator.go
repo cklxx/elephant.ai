@@ -63,6 +63,7 @@ type AgentCoordinator struct {
 	okrContextProvider  preparation.OKRContextProvider
 	credentialRefresher preparation.CredentialRefresher
 	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector    *toolspolicy.SLACollector
 }
 
@@ -320,6 +321,9 @@ func (c *AgentCoordinator) ExecuteTask(
 	ctx = id.WithSessionID(ctx, sessionID)
 	if c.timerManager != nil {
 		ctx = shared.WithTimerManager(ctx, c.timerManager)
+	}
+	if c.schedulerService != nil {
+		ctx = shared.WithScheduler(ctx, c.schedulerService)
 	}
 	ctx, ensuredRunID := id.EnsureRunID(ctx, id.NewRunID)
 	if ensuredRunID == "" {
@@ -966,6 +970,12 @@ func (c *AgentCoordinator) SetAttachmentPersister(p ports.AttachmentPersister) {
 // timers during execution.
 func (c *AgentCoordinator) SetTimerManager(mgr shared.TimerManagerService) {
 	c.timerManager = mgr
+}
+
+// SetScheduler wires the scheduler runtime service so scheduler tools can
+// operate against the active scheduler instance during execution.
+func (c *AgentCoordinator) SetScheduler(service any) {
+	c.schedulerService = service
 }
 
 // Close releases coordinator-owned resources such as background persisters.
