@@ -231,6 +231,8 @@ function TextLogTable({
     });
   }, []);
 
+  // TanStack virtualizer is intentional; React Compiler marks this hook incompatible.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => parentRef.current,
@@ -375,6 +377,8 @@ function RequestLogList({
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
+  // TanStack virtualizer is intentional; React Compiler marks this hook incompatible.
+  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: entries.length,
     getScrollElement: () => parentRef.current,
