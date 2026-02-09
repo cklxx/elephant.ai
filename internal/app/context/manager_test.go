@@ -82,7 +82,7 @@ func TestBuildWindowPopulatesSystemPrompt(t *testing.T) {
 	}
 }
 
-func TestBuildWindowIncludesUserPersonaCore(t *testing.T) {
+func TestBuildWindowDoesNotIncludeStructuredUserPersonaCore(t *testing.T) {
 	root := buildStaticContextTree(t)
 	mgr := NewManager(WithConfigRoot(root))
 	session := &storage.Session{
@@ -100,13 +100,11 @@ func TestBuildWindowIncludesUserPersonaCore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildWindow returned error: %v", err)
 	}
-	if !strings.Contains(window.SystemPrompt, "# User Persona Core (Highest Priority)") {
-		t.Fatalf("expected user persona section, got %q", window.SystemPrompt)
+	if strings.Contains(window.SystemPrompt, "# User Persona Core (Highest Priority)") {
+		t.Fatalf("did not expect structured user persona section, got %q", window.SystemPrompt)
 	}
-	personaIndex := strings.Index(window.SystemPrompt, "# User Persona Core (Highest Priority)")
-	identityIndex := strings.Index(window.SystemPrompt, "# Identity & Persona")
-	if personaIndex == -1 || identityIndex == -1 || personaIndex > identityIndex {
-		t.Fatalf("expected user persona section before identity, got %q", window.SystemPrompt)
+	if !strings.Contains(window.SystemPrompt, "# Identity & Persona") {
+		t.Fatalf("expected identity persona section, got %q", window.SystemPrompt)
 	}
 }
 
