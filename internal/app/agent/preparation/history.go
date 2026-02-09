@@ -73,7 +73,7 @@ func (s *ExecutionPreparationService) loadSessionHistory(ctx context.Context, se
 	return agent.CloneMessages(session.Messages)
 }
 
-func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, client llm.LLMClient, _ string, messages []ports.Message) *historyRecall {
+func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, client llm.LLMClient, currentTask string, messages []ports.Message) *historyRecall {
 	if len(messages) == 0 {
 		return nil
 	}
@@ -85,7 +85,7 @@ func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, cli
 
 	recall := &historyRecall{}
 	if s.shouldSummarizeHistory(rawMessages) {
-		summaryMessages := s.composeHistorySummary(ctx, client, rawMessages)
+		summaryMessages := s.composeHistorySummary(ctx, client, currentTask, rawMessages)
 		if len(summaryMessages) > 0 {
 			recall.messages = summaryMessages
 			return recall
@@ -97,11 +97,11 @@ func (s *ExecutionPreparationService) recallUserHistory(ctx context.Context, cli
 	return recall
 }
 
-func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context, client llm.LLMClient, messages []ports.Message) []ports.Message {
+func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context, client llm.LLMClient, currentTask string, messages []ports.Message) []ports.Message {
 	if client == nil || len(messages) == 0 {
 		return nil
 	}
-	prompt := buildHistorySummaryPrompt(messages)
+	prompt := buildHistorySummaryPrompt(currentTask, messages)
 	if prompt == "" {
 		return nil
 	}
@@ -164,12 +164,17 @@ func (s *ExecutionPreparationService) composeHistorySummary(ctx context.Context,
 	}}
 }
 
-func buildHistorySummaryPrompt(messages []ports.Message) string {
+func buildHistorySummaryPrompt(currentTask string, messages []ports.Message) string {
 	if len(messages) == 0 {
 		return ""
 	}
 	var builder strings.Builder
-	builder.WriteString("Summarize the intent, assistant responses, tool outputs, and remaining follow-ups from the prior exchanges below. Focus on actionable context relevant to the current task.\n\n")
+	if trimmedTask := strings.TrimSpace(currentTask); trimmedTask != "" {
+		builder.WriteString("Current task:\n")
+		builder.WriteString(condenseHistoryText(trimmedTask, historyComposeSnippetLimit))
+		builder.WriteString("\n\n")
+	}
+	builder.WriteString("Summarize the intent, assistant responses, tool outputs, and remaining follow-ups from the prior exchanges below. Focus only on context that helps with the current task, and skip unrelated details.\n\n")
 	for i, msg := range messages {
 		role := strings.TrimSpace(msg.Role)
 		if role == "" {
