@@ -167,7 +167,7 @@ func TestExtractChatTextContent(t *testing.T) {
 
 func TestFetchRecentChatMessages_NilMessenger(t *testing.T) {
 	gw := &Gateway{}
-	_, err := gw.fetchRecentChatMessages(context.Background(), "oc_123", 20, "")
+	_, err := gw.fetchRecentChatMessages(context.Background(), "oc_123", 20)
 	if err == nil {
 		t.Fatal("expected error for nil messenger")
 	}
@@ -175,76 +175,9 @@ func TestFetchRecentChatMessages_NilMessenger(t *testing.T) {
 
 func TestFetchRecentChatMessages_EmptyChatID(t *testing.T) {
 	gw := &Gateway{messenger: NewRecordingMessenger()}
-	_, err := gw.fetchRecentChatMessages(context.Background(), "", 20, "")
+	_, err := gw.fetchRecentChatMessages(context.Background(), "", 20)
 	if err == nil {
 		t.Fatal("expected error for empty chat_id")
-	}
-}
-
-func TestFetchRecentChatMessages_ExcludesCurrentMessage(t *testing.T) {
-	rec := NewRecordingMessenger()
-
-	// Simulate 3 messages: the trigger message should be excluded.
-	triggerID := "om_trigger"
-	otherID1 := "om_other1"
-	otherID2 := "om_other2"
-	ts1 := "1706500000000"
-	ts2 := "1706500060000"
-	ts3 := "1706500120000"
-	senderType := "user"
-	senderID := "ou_user1"
-	msgType := "text"
-	body1 := `{"text":"first"}`
-	body2 := `{"text":"second"}`
-	body3 := `{"text":"trigger msg"}`
-
-	rec.ListMessagesResult = []*larkim.Message{
-		// Descending order (newest first) as returned by API.
-		{
-			MessageId:  &triggerID,
-			CreateTime: &ts3,
-			Sender:     &larkim.Sender{SenderType: &senderType, Id: &senderID},
-			MsgType:    &msgType,
-			Body:       &larkim.MessageBody{Content: &body3},
-		},
-		{
-			MessageId:  &otherID2,
-			CreateTime: &ts2,
-			Sender:     &larkim.Sender{SenderType: &senderType, Id: &senderID},
-			MsgType:    &msgType,
-			Body:       &larkim.MessageBody{Content: &body2},
-		},
-		{
-			MessageId:  &otherID1,
-			CreateTime: &ts1,
-			Sender:     &larkim.Sender{SenderType: &senderType, Id: &senderID},
-			MsgType:    &msgType,
-			Body:       &larkim.MessageBody{Content: &body1},
-		},
-	}
-
-	gw := &Gateway{messenger: rec}
-	result, err := gw.fetchRecentChatMessages(context.Background(), "oc_123", 20, triggerID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if containsSubstring(result, "trigger msg") {
-		t.Fatalf("expected trigger message to be excluded, got: %q", result)
-	}
-	if !containsSubstring(result, "first") || !containsSubstring(result, "second") {
-		t.Fatalf("expected other messages to be present, got: %q", result)
-	}
-
-	// Verify chronological order: "first" before "second".
-	lines := splitLines(result)
-	if len(lines) != 2 {
-		t.Fatalf("expected 2 lines, got %d: %q", len(lines), result)
-	}
-	if !containsSubstring(lines[0], "first") {
-		t.Fatalf("expected first line to contain 'first', got %q", lines[0])
-	}
-	if !containsSubstring(lines[1], "second") {
-		t.Fatalf("expected second line to contain 'second', got %q", lines[1])
 	}
 }
 
