@@ -79,7 +79,7 @@ type Gateway struct {
 	llamaResolver   func(context.Context) (subscription.LlamaServerTarget, bool)
 	taskStore            TaskStore
 	activeSlots          sync.Map // chatID → *sessionSlot
-	pendingInputRelays   sync.Map // chatID → *pendingInputRelay
+	pendingInputRelays   sync.Map // chatID → *pendingRelayQueue
 	aiCoordinator        *AIChatCoordinator // coordinates multi-bot chat sessions
 }
 
@@ -469,15 +469,26 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 	}
 }
 
+// storePendingRelay adds a pending input relay to the per-chat queue.
+func (g *Gateway) storePendingRelay(chatID string, relay *pendingInputRelay) {
+	raw, _ := g.pendingInputRelays.LoadOrStore(chatID, &pendingRelayQueue{})
+	queue := raw.(*pendingRelayQueue)
+	queue.Push(relay)
+}
+
 // tryResolveInputReply checks whether a pending input relay exists for the chat
-// and, if so, resolves it with the user's reply. Returns true when the message
-// was consumed as an input reply.
+// and, if so, resolves the oldest one (FIFO) with the user's reply. Returns true
+// when the message was consumed as an input reply.
 func (g *Gateway) tryResolveInputReply(ctx context.Context, chatID, content string) bool {
-	raw, ok := g.pendingInputRelays.LoadAndDelete(chatID)
+	raw, ok := g.pendingInputRelays.Load(chatID)
 	if !ok {
 		return false
 	}
-	relay := raw.(*pendingInputRelay)
+	queue := raw.(*pendingRelayQueue)
+	relay := queue.PopOldest()
+	if relay == nil {
+		return false
+	}
 
 	resp := buildInputResponse(relay, content)
 

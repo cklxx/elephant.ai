@@ -136,3 +136,48 @@ func TestFormatInputRequest(t *testing.T) {
 		t.Error("should contain permission label")
 	}
 }
+
+func TestPendingRelayQueue_FIFO(t *testing.T) {
+	q := &pendingRelayQueue{}
+	q.Push(&pendingInputRelay{taskID: "t1", requestID: "r1", createdAt: 1})
+	q.Push(&pendingInputRelay{taskID: "t2", requestID: "r2", createdAt: 2})
+	q.Push(&pendingInputRelay{taskID: "t3", requestID: "r3", createdAt: 3})
+
+	r := q.PopOldest()
+	if r == nil || r.taskID != "t1" {
+		t.Fatalf("expected t1, got %v", r)
+	}
+	r = q.PopOldest()
+	if r == nil || r.taskID != "t2" {
+		t.Fatalf("expected t2, got %v", r)
+	}
+	r = q.PopOldest()
+	if r == nil || r.taskID != "t3" {
+		t.Fatalf("expected t3, got %v", r)
+	}
+	r = q.PopOldest()
+	if r != nil {
+		t.Fatalf("expected nil, got %v", r)
+	}
+}
+
+func TestPendingRelayQueue_ReplaceSameTask(t *testing.T) {
+	q := &pendingRelayQueue{}
+	q.Push(&pendingInputRelay{taskID: "t1", requestID: "r1", createdAt: 1})
+	q.Push(&pendingInputRelay{taskID: "t2", requestID: "r2", createdAt: 2})
+	// t1 sends a new request — should replace the existing one
+	q.Push(&pendingInputRelay{taskID: "t1", requestID: "r1-new", createdAt: 3})
+
+	if q.Len() != 2 {
+		t.Fatalf("expected 2 relays, got %d", q.Len())
+	}
+
+	r := q.PopOldest()
+	if r == nil || r.taskID != "t1" || r.requestID != "r1-new" {
+		t.Fatalf("expected t1/r1-new, got %v", r)
+	}
+	r = q.PopOldest()
+	if r == nil || r.taskID != "t2" {
+		t.Fatalf("expected t2, got %v", r)
+	}
+}

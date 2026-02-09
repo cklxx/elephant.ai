@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"alex/internal/domain/agent"
 	agentports "alex/internal/domain/agent/ports/agent"
@@ -34,6 +35,46 @@ type pendingInputRelay struct {
 	agentType string
 	options   []agentports.InputOption
 	reqType   agentports.InputRequestType
+	createdAt int64 // unix nano, for FIFO ordering
+}
+
+// pendingRelayQueue is a thread-safe FIFO queue of pending relays for a single chat.
+type pendingRelayQueue struct {
+	mu      sync.Mutex
+	relays  []*pendingInputRelay
+}
+
+// Push appends a relay, replacing any existing relay with the same taskID.
+func (q *pendingRelayQueue) Push(relay *pendingInputRelay) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	// Replace existing relay for the same task (new request supersedes old).
+	for i, r := range q.relays {
+		if r.taskID == relay.taskID {
+			q.relays[i] = relay
+			return
+		}
+	}
+	q.relays = append(q.relays, relay)
+}
+
+// PopOldest removes and returns the oldest relay (FIFO). Returns nil if empty.
+func (q *pendingRelayQueue) PopOldest() *pendingInputRelay {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.relays) == 0 {
+		return nil
+	}
+	relay := q.relays[0]
+	q.relays = q.relays[1:]
+	return relay
+}
+
+// Len returns the number of pending relays.
+func (q *pendingRelayQueue) Len() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return len(q.relays)
 }
 
 func newInputRequestListener(
@@ -124,8 +165,9 @@ func (l *inputRequestListener) onInputRequested(env *domain.WorkflowEventEnvelop
 		agentType: agentType,
 		options:   options,
 		reqType:   agentports.InputRequestType(reqType),
+		createdAt: time.Now().UnixNano(),
 	}
-	l.g.pendingInputRelays.Store(l.chatID, relay)
+	l.g.storePendingRelay(l.chatID, relay)
 	l.mu.Unlock()
 
 	// Format and send the request to Lark
