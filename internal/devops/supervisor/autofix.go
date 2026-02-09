@@ -26,19 +26,19 @@ type AutofixStateFileData struct {
 
 // AutofixConfig holds autofix runner configuration.
 type AutofixConfig struct {
-	Enabled        bool
-	Trigger        string        // "cooldown"
-	Timeout        time.Duration
-	MaxInWindow    int
-	Window         time.Duration
-	Cooldown       time.Duration
-	Scope          string        // "repo"
-	ScriptPath     string        // path to autofix.sh
-	HistoryFile    string
-	SignatureFile  string
-	AppliedFile    string
-	StateFile      string
-	LockDir        string
+	Enabled       bool
+	Trigger       string // "cooldown"
+	Timeout       time.Duration
+	MaxInWindow   int
+	Window        time.Duration
+	Cooldown      time.Duration
+	Scope         string // "repo"
+	ScriptPath    string // path to autofix.sh
+	HistoryFile   string
+	SignatureFile string
+	AppliedFile   string
+	StateFile     string
+	LockDir       string
 }
 
 // AutofixRunner manages autofix triggering and history.
@@ -215,8 +215,13 @@ func (r *AutofixRunner) saveHistory() {
 	for _, t := range r.history {
 		lines = append(lines, strconv.FormatInt(t.Unix(), 10))
 	}
-	os.MkdirAll(filepath.Dir(r.config.HistoryFile), 0o755)
-	os.WriteFile(r.config.HistoryFile, []byte(strings.Join(lines, "\n")+"\n"), 0o644)
+	if err := os.MkdirAll(filepath.Dir(r.config.HistoryFile), 0o755); err != nil {
+		r.logger.Warn("create autofix history dir failed", "path", r.config.HistoryFile, "error", err)
+		return
+	}
+	if err := os.WriteFile(r.config.HistoryFile, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+		r.logger.Warn("write autofix history failed", "path", r.config.HistoryFile, "error", err)
+	}
 }
 
 func (r *AutofixRunner) readSignature() string {
@@ -228,8 +233,13 @@ func (r *AutofixRunner) readSignature() string {
 }
 
 func (r *AutofixRunner) writeSignature(sig string) {
-	os.MkdirAll(filepath.Dir(r.config.SignatureFile), 0o755)
-	os.WriteFile(r.config.SignatureFile, []byte(sig+"\n"), 0o644)
+	if err := os.MkdirAll(filepath.Dir(r.config.SignatureFile), 0o755); err != nil {
+		r.logger.Warn("create autofix signature dir failed", "path", r.config.SignatureFile, "error", err)
+		return
+	}
+	if err := os.WriteFile(r.config.SignatureFile, []byte(sig+"\n"), 0o644); err != nil {
+		r.logger.Warn("write autofix signature failed", "path", r.config.SignatureFile, "error", err)
+	}
 }
 
 func (r *AutofixRunner) isLocked() bool {

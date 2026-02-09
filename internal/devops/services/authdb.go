@@ -86,7 +86,9 @@ func (s *AuthDBService) Start(ctx context.Context) error {
 		return nil
 	}
 
-	os.MkdirAll(s.config.LogDir, 0o755)
+	if err := os.MkdirAll(s.config.LogDir, 0o755); err != nil {
+		s.section.Warn("Failed to create auth DB log dir: %v", err)
+	}
 	logFile := filepath.Join(s.config.LogDir, "setup_auth_db.log")
 
 	s.section.Info("Setting up local auth DB...")

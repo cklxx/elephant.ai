@@ -27,8 +27,8 @@ const (
 // Component represents a supervised process.
 type Component struct {
 	Name     string
-	StartFn func(ctx context.Context) error
-	StopFn  func(ctx context.Context) error
+	StartFn  func(ctx context.Context) error
+	StopFn   func(ctx context.Context) error
 	HealthFn func() string // returns "healthy", "down", "alive", etc.
 	PIDFile  string
 	SHAFile  string // file containing deployed SHA
@@ -46,21 +46,20 @@ type LoopState struct {
 
 // Supervisor manages multiple supervised components with restart policies.
 type Supervisor struct {
-	components   []*Component
-	policy       *RestartPolicy
-	autofix      *AutofixRunner
-	statusFile   *StatusFile
-	logFile      string
-	ticker       *time.Ticker
-	interval     time.Duration
-	lockDir      string
-	pidFile      string
-	mainRoot     string
-	testRoot     string
-	logger       *slog.Logger
-	mu           sync.Mutex
-	failCounts   map[string]int
-	restartLocks sync.Map // map[string]*sync.Mutex — per-component restart guard
+	components            []*Component
+	policy                *RestartPolicy
+	autofix               *AutofixRunner
+	statusFile            *StatusFile
+	logFile               string
+	ticker                *time.Ticker
+	interval              time.Duration
+	lockDir               string
+	pidFile               string
+	mainRoot              string
+	testRoot              string
+	logger                *slog.Logger
+	failCounts            map[string]int
+	restartLocks          sync.Map // map[string]*sync.Mutex — per-component restart guard
 	loopState             LoopState
 	tmpDir                string
 	lastAppliedIncidentID string
@@ -95,16 +94,16 @@ func New(cfg Config) *Supervisor {
 	autofix := NewAutofixRunner(cfg.AutofixConfig, logger)
 
 	return &Supervisor{
-		policy:     policy,
-		autofix:    autofix,
-		statusFile: statusFile,
-		logFile:    filepath.Join(cfg.LogDir, "lark-supervisor.log"),
-		interval:   cfg.TickInterval,
-		lockDir:    filepath.Join(cfg.TmpDir, "lark-supervisor.lock"),
-		pidFile:    filepath.Join(cfg.PIDDir, "lark-supervisor.pid"),
-		mainRoot:   cfg.MainRoot,
-		testRoot:   cfg.TestRoot,
-		logger:     logger,
+		policy:      policy,
+		autofix:     autofix,
+		statusFile:  statusFile,
+		logFile:     filepath.Join(cfg.LogDir, "lark-supervisor.log"),
+		interval:    cfg.TickInterval,
+		lockDir:     filepath.Join(cfg.TmpDir, "lark-supervisor.lock"),
+		pidFile:     filepath.Join(cfg.PIDDir, "lark-supervisor.pid"),
+		mainRoot:    cfg.MainRoot,
+		testRoot:    cfg.TestRoot,
+		logger:      logger,
 		failCounts:  make(map[string]int),
 		tmpDir:      cfg.TmpDir,
 		appliedFile: cfg.AutofixConfig.AppliedFile,
@@ -119,9 +118,15 @@ func (s *Supervisor) RegisterComponent(comp *Component) {
 // Run starts the supervisor tick loop. Blocks until context is cancelled.
 func (s *Supervisor) Run(ctx context.Context) error {
 	// Ensure directories
-	os.MkdirAll(filepath.Dir(s.pidFile), 0o755)
-	os.MkdirAll(filepath.Dir(s.logFile), 0o755)
-	os.MkdirAll(filepath.Dir(s.lockDir), 0o755)
+	if err := os.MkdirAll(filepath.Dir(s.pidFile), 0o755); err != nil {
+		return fmt.Errorf("create supervisor pid dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(s.logFile), 0o755); err != nil {
+		return fmt.Errorf("create supervisor log dir: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(s.lockDir), 0o755); err != nil {
+		return fmt.Errorf("create supervisor lock dir: %w", err)
+	}
 
 	// Acquire lock
 	if err := os.Mkdir(s.lockDir, 0o755); err != nil {
@@ -129,13 +134,17 @@ func (s *Supervisor) Run(ctx context.Context) error {
 	}
 	// Write lock owner
 	ownerFile := filepath.Join(s.lockDir, "owner")
-	os.WriteFile(ownerFile, []byte(fmt.Sprintf("pid=%d started_at=%s\n",
-		os.Getpid(), time.Now().UTC().Format(time.RFC3339))), 0o644)
+	if err := os.WriteFile(ownerFile, []byte(fmt.Sprintf("pid=%d started_at=%s\n",
+		os.Getpid(), time.Now().UTC().Format(time.RFC3339))), 0o644); err != nil {
+		return fmt.Errorf("write supervisor lock owner: %w", err)
+	}
 
 	defer s.cleanup()
 
 	// Write PID file
-	os.WriteFile(s.pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644)
+	if err := os.WriteFile(s.pidFile, []byte(strconv.Itoa(os.Getpid())), 0o644); err != nil {
+		return fmt.Errorf("write supervisor pid file: %w", err)
+	}
 
 	// Load last applied autofix incident to prevent duplicate restarts
 	if s.appliedFile != "" {
@@ -400,8 +409,13 @@ func (s *Supervisor) handleAutofixSuccessRestart(ctx context.Context) {
 
 	s.lastAppliedIncidentID = afState.IncidentID
 	if s.appliedFile != "" {
-		os.MkdirAll(filepath.Dir(s.appliedFile), 0o755)
-		os.WriteFile(s.appliedFile, []byte(afState.IncidentID+"\n"), 0o644)
+		if err := os.MkdirAll(filepath.Dir(s.appliedFile), 0o755); err != nil {
+			s.logger.Warn("failed to create applied incident dir", "path", s.appliedFile, "error", err)
+			return
+		}
+		if err := os.WriteFile(s.appliedFile, []byte(afState.IncidentID+"\n"), 0o644); err != nil {
+			s.logger.Warn("failed to persist applied incident id", "path", s.appliedFile, "error", err)
+		}
 	}
 }
 

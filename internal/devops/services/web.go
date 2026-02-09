@@ -79,7 +79,9 @@ func (s *WebService) Start(ctx context.Context) error {
 	if err != nil {
 		if s.config.AutoStop {
 			s.section.Warn("Web port %d in use; stopping conflicting listeners", s.config.Port)
-			s.ports.StopListeners(s.config.Port)
+			if stopErr := s.ports.StopListeners(s.config.Port); stopErr != nil {
+				s.section.Warn("Failed stopping conflicting listeners on %d: %v", s.config.Port, stopErr)
+			}
 			time.Sleep(500 * time.Millisecond)
 			actualPort, err = s.ports.Reserve("web", s.config.Port)
 		}

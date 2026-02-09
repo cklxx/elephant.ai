@@ -79,8 +79,12 @@ func (o *Orchestrator) RegisterServices(services ...Service) {
 
 // Up starts all registered services in order.
 func (o *Orchestrator) Up(ctx context.Context) error {
-	os.MkdirAll(o.config.PIDDir, 0o755)
-	os.MkdirAll(o.config.LogDir, 0o755)
+	if err := os.MkdirAll(o.config.PIDDir, 0o755); err != nil {
+		return fmt.Errorf("create pid dir %s: %w", o.config.PIDDir, err)
+	}
+	if err := os.MkdirAll(o.config.LogDir, 0o755); err != nil {
+		return fmt.Errorf("create log dir %s: %w", o.config.LogDir, err)
+	}
 
 	for _, svc := range o.services {
 		o.section.Section(svc.Name())

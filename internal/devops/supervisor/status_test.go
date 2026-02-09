@@ -12,9 +12,9 @@ func TestStatusFileWriteRead(t *testing.T) {
 	sf := NewStatusFile(path)
 
 	status := Status{
-		Timestamp:          "2026-02-08T12:00:00Z",
-		Mode:               "healthy",
-		Components:         map[string]ComponentStatus{
+		Timestamp: "2026-02-08T12:00:00Z",
+		Mode:      "healthy",
+		Components: map[string]ComponentStatus{
 			"main": {PID: 1234, Health: "healthy", DeployedSHA: "abc123"},
 			"test": {PID: 5678, Health: "healthy", DeployedSHA: "def456"},
 		},
@@ -80,7 +80,9 @@ func TestStatusFileReadFlatFormat(t *testing.T) {
   "autofix_state": "idle",
   "autofix_runs_window": 1
 }`
-	os.WriteFile(path, []byte(flat), 0o644)
+	if err := os.WriteFile(path, []byte(flat), 0o644); err != nil {
+		t.Fatalf("write flat status file: %v", err)
+	}
 
 	sf := NewStatusFile(path)
 	got, err := sf.Read()
@@ -153,7 +155,9 @@ func TestStatusFileReadFlatFormatEmptyPID(t *testing.T) {
   "autofix_state": "idle",
   "autofix_runs_window": 0
 }`
-	os.WriteFile(path, []byte(flat), 0o644)
+	if err := os.WriteFile(path, []byte(flat), 0o644); err != nil {
+		t.Fatalf("write flat status file: %v", err)
+	}
 
 	sf := NewStatusFile(path)
 	got, err := sf.Read()
@@ -264,7 +268,9 @@ func TestStatusFileReadFlatFormatWithCycleFields(t *testing.T) {
   "autofix_state": "idle",
   "autofix_runs_window": 0
 }`
-	os.WriteFile(path, []byte(flat), 0o644)
+	if err := os.WriteFile(path, []byte(flat), 0o644); err != nil {
+		t.Fatalf("write flat status file: %v", err)
+	}
 
 	sf := NewStatusFile(path)
 	got, err := sf.Read()
@@ -303,10 +309,14 @@ func TestStatusFileAtomicWrite(t *testing.T) {
 	sf := NewStatusFile(path)
 
 	// Write initial
-	sf.Write(Status{Mode: "healthy"})
+	if err := sf.Write(Status{Mode: "healthy"}); err != nil {
+		t.Fatalf("initial write failed: %v", err)
+	}
 
 	// Write update
-	sf.Write(Status{Mode: "degraded"})
+	if err := sf.Write(Status{Mode: "degraded"}); err != nil {
+		t.Fatalf("update write failed: %v", err)
+	}
 
 	// No tmp file should remain
 	tmpPath := path + ".tmp"

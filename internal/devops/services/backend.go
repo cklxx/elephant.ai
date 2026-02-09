@@ -78,7 +78,9 @@ func (s *BackendService) Start(ctx context.Context) error {
 		// Try auto-stop conflicting listeners
 		if s.config.AutoStop {
 			s.section.Warn("Backend port %d in use; stopping conflicting listeners", s.config.Port)
-			s.ports.StopListeners(s.config.Port)
+			if stopErr := s.ports.StopListeners(s.config.Port); stopErr != nil {
+				s.section.Warn("Failed stopping conflicting listeners on %d: %v", s.config.Port, stopErr)
+			}
 			time.Sleep(500 * time.Millisecond)
 			actualPort, err = s.ports.Reserve("backend", s.config.Port)
 		}
@@ -214,7 +216,7 @@ func (s *BackendService) build(ctx context.Context) error {
 }
 
 func (s *BackendService) detectCGO() bool {
-	if v := os.Getenv("CGO_ENABLED"); v != "" {
+	if v, ok := os.LookupEnv("CGO_ENABLED"); ok && v != "" {
 		return v == "1"
 	}
 

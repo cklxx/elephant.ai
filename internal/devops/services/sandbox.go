@@ -21,12 +21,12 @@ import (
 
 // SandboxConfig holds sandbox-specific configuration.
 type SandboxConfig struct {
-	ContainerName    string
-	Image            string
-	Port             int
-	BaseURL          string
-	WorkspaceDir     string
-	AutoInstallCLI   bool
+	ContainerName     string
+	Image             string
+	Port              int
+	BaseURL           string
+	WorkspaceDir      string
+	AutoInstallCLI    bool
 	SandboxConfigPath string // path inside container
 
 	// ACP
@@ -116,9 +116,13 @@ func (s *SandboxService) Start(ctx context.Context) error {
 		if needsRecreate {
 			s.section.Warn("Sandbox container needs recreation")
 			if running {
-				s.docker.ContainerStop(ctx, s.config.ContainerName, 10*time.Second)
+				if stopErr := s.docker.ContainerStop(ctx, s.config.ContainerName, 10*time.Second); stopErr != nil {
+					s.section.Warn("Failed to stop sandbox before recreate: %v", stopErr)
+				}
 			}
-			s.docker.ContainerRemove(ctx, s.config.ContainerName)
+			if removeErr := s.docker.ContainerRemove(ctx, s.config.ContainerName); removeErr != nil {
+				s.section.Warn("Failed to remove sandbox before recreate: %v", removeErr)
+			}
 			exists = false
 			running = false
 		}
@@ -338,7 +342,7 @@ func (s *SandboxService) ensureACPBinary(ctx context.Context) error {
 			newer := false
 			for _, dir := range []string{"cmd", "internal"} {
 				srcDir := filepath.Join(s.config.ProjectDir, dir)
-				filepath.Walk(srcDir, func(path string, fi os.FileInfo, err error) error {
+				if err := filepath.Walk(srcDir, func(path string, fi os.FileInfo, err error) error {
 					if err != nil {
 						return nil
 					}
@@ -346,7 +350,9 @@ func (s *SandboxService) ensureACPBinary(ctx context.Context) error {
 						newer = true
 					}
 					return nil
-				})
+				}); err != nil {
+					s.section.Warn("Walking source tree failed for %s: %v", srcDir, err)
+				}
 			}
 			if newer {
 				rebuild = true
@@ -367,18 +373,25 @@ func (s *SandboxService) ensureACPBinary(ctx context.Context) error {
 
 	// Copy into sandbox
 	s.section.Info("Copying alex CLI into sandbox...")
-	s.docker.Exec(ctx, s.config.ContainerName, []string{"mkdir", "-p", "/usr/local/bin"}, docker.ExecOpts{})
+	if _, err := s.docker.Exec(ctx, s.config.ContainerName, []string{"mkdir", "-p", "/usr/local/bin"}, docker.ExecOpts{}); err != nil {
+		return fmt.Errorf("prepare sandbox bin dir: %w", err)
+	}
 	if err := s.docker.CopyTo(ctx, s.config.ContainerName, outBin, "/usr/local/bin/alex"); err != nil {
 		return fmt.Errorf("copy alex to sandbox: %w", err)
 	}
-	s.docker.Exec(ctx, s.config.ContainerName, []string{"chmod", "+x", "/usr/local/bin/alex"}, docker.ExecOpts{})
+	if _, err := s.docker.Exec(ctx, s.config.ContainerName, []string{"chmod", "+x", "/usr/local/bin/alex"}, docker.ExecOpts{}); err != nil {
+		return fmt.Errorf("chmod alex in sandbox: %w", err)
+	}
 
 	return nil
 }
 
 func (s *SandboxService) ensureSandboxConfig(ctx context.Context) (bool, error) {
-	hostConfig := os.Getenv("ALEX_CONFIG_PATH")
-	if hostConfig == "" {
+	hostConfig := ""
+	if v, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
+		hostConfig = v
+	}
+	if strings.TrimSpace(hostConfig) == "" {
 		home, _ := os.UserHomeDir()
 		hostConfig = filepath.Join(home, ".alex", "config.yaml")
 	}
@@ -388,7 +401,9 @@ func (s *SandboxService) ensureSandboxConfig(ctx context.Context) (bool, error) 
 	}
 
 	// Create dir, copy config, check if different
-	s.docker.Exec(ctx, s.config.ContainerName, []string{"sh", "-lc", "mkdir -p /root/.alex"}, docker.ExecOpts{})
+	if _, err := s.docker.Exec(ctx, s.config.ContainerName, []string{"sh", "-lc", "mkdir -p /root/.alex"}, docker.ExecOpts{}); err != nil {
+		return false, err
+	}
 	if err := s.docker.CopyTo(ctx, s.config.ContainerName, hostConfig, "/tmp/alex-config.yaml"); err != nil {
 		return false, err
 	}
@@ -453,12 +468,14 @@ func (s *SandboxService) stopACPInSandbox(ctx context.Context) {
 	if !running {
 		return
 	}
-	s.docker.Exec(ctx, s.config.ContainerName, []string{"sh", "-lc", `
+	if _, err := s.docker.Exec(ctx, s.config.ContainerName, []string{"sh", "-lc", `
 if [ -f /tmp/acp.pid ]; then
   pid=$(cat /tmp/acp.pid)
   kill "$pid" 2>/dev/null || true
   rm -f /tmp/acp.pid
-fi`}, docker.ExecOpts{})
+fi`}, docker.ExecOpts{}); err != nil {
+		s.section.Warn("Failed to stop ACP daemon inside sandbox: %v", err)
+	}
 }
 
 func (s *SandboxService) collectSandboxEnvFlags() map[string]string {
@@ -473,7 +490,7 @@ func (s *SandboxService) collectSandboxEnvFlags() map[string]string {
 		"ARK_API_KEY",
 	}
 	for _, k := range keys {
-		if v := os.Getenv(k); v != "" {
+		if v, ok := os.LookupEnv(k); ok && v != "" {
 			if strings.HasSuffix(k, "_BASE_URL") || k == "LLM_BASE_URL" {
 				v = rewriteBaseURLForSandbox(v)
 			}

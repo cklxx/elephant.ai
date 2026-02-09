@@ -35,7 +35,9 @@ func TestAutofixRunnerReadStateFile(t *testing.T) {
   "autofix_last_commit": "abc12345",
   "autofix_restart_required": "true"
 }`
-	os.WriteFile(stateFile, []byte(state), 0o644)
+	if err := os.WriteFile(stateFile, []byte(state), 0o644); err != nil {
+		t.Fatalf("write state file: %v", err)
+	}
 
 	data, err = runner.ReadStateFile()
 	if err != nil {
@@ -73,7 +75,9 @@ func TestAutofixRunnerReadStateFileInvalidJSON(t *testing.T) {
 		HistoryFile: filepath.Join(dir, "history"),
 	}, slog.Default())
 
-	os.WriteFile(stateFile, []byte("not json"), 0o644)
+	if err := os.WriteFile(stateFile, []byte("not json"), 0o644); err != nil {
+		t.Fatalf("write invalid state file: %v", err)
+	}
 
 	_, err := runner.ReadStateFile()
 	if err == nil {

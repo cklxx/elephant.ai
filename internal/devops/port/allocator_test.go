@@ -47,7 +47,9 @@ func TestAllocatorReserveRandom(t *testing.T) {
 func TestAllocatorRelease(t *testing.T) {
 	a := NewAllocator()
 
-	a.Reserve("test-svc", 18998)
+	if _, err := a.Reserve("test-svc", 18998); err != nil {
+		t.Fatalf("Reserve error: %v", err)
+	}
 	a.Release("test-svc")
 
 	if !a.IsAvailable(18998) {

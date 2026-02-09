@@ -95,7 +95,9 @@ func TestLoadDevConfigYAML(t *testing.T) {
   web_port: 5000
   cgo_mode: "off"
 `
-	os.WriteFile(configFile, []byte(content), 0o644)
+	if err := os.WriteFile(configFile, []byte(content), 0o644); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
 
 	cfg, err := LoadDevConfig(configFile)
 	if err != nil {

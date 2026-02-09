@@ -130,13 +130,19 @@ func TestReadLoopState(t *testing.T) {
   "cycle_result": "running",
   "last_error": "test restart failed"
 }`
-	os.WriteFile(filepath.Join(dir, "lark-loop.state.json"), []byte(stateJSON), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "lark-loop.state.json"), []byte(stateJSON), 0o644); err != nil {
+		t.Fatalf("write loop state: %v", err)
+	}
 
 	// Write last processed SHA
-	os.WriteFile(filepath.Join(dir, "lark-loop.last"), []byte("6f608251\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "lark-loop.last"), []byte("6f608251\n"), 0o644); err != nil {
+		t.Fatalf("write loop last: %v", err)
+	}
 
 	// Write last validated SHA
-	os.WriteFile(filepath.Join(dir, "lark-loop.last-validated"), []byte("5a5b5c5d\n"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "lark-loop.last-validated"), []byte("5a5b5c5d\n"), 0o644); err != nil {
+		t.Fatalf("write loop last validated: %v", err)
+	}
 
 	s.readLoopState()
 
@@ -219,7 +225,9 @@ func TestMaybeUpgradeForSHADrift(t *testing.T) {
 
 	var startCalled bool
 	shaFile := filepath.Join(dir, "main.sha")
-	os.WriteFile(shaFile, []byte("oldsha123"), 0o644)
+	if err := os.WriteFile(shaFile, []byte("oldsha123"), 0o644); err != nil {
+		t.Fatalf("write main sha file: %v", err)
+	}
 
 	s.RegisterComponent(&Component{
 		Name:     "main",
@@ -244,7 +252,9 @@ func TestMaybeUpgradeForSHADriftSameSHA(t *testing.T) {
 
 	var startCalled bool
 	shaFile := filepath.Join(dir, "main.sha")
-	os.WriteFile(shaFile, []byte("sameSHA"), 0o644)
+	if err := os.WriteFile(shaFile, []byte("sameSHA"), 0o644); err != nil {
+		t.Fatalf("write main sha file: %v", err)
+	}
 
 	s.RegisterComponent(&Component{
 		Name:     "main",
@@ -269,7 +279,9 @@ func TestMaybeUpgradeForSHADriftUnhealthy(t *testing.T) {
 
 	var startCalled bool
 	shaFile := filepath.Join(dir, "main.sha")
-	os.WriteFile(shaFile, []byte("oldsha"), 0o644)
+	if err := os.WriteFile(shaFile, []byte("oldsha"), 0o644); err != nil {
+		t.Fatalf("write main sha file: %v", err)
+	}
 
 	s.RegisterComponent(&Component{
 		Name:     "main",
@@ -294,7 +306,9 @@ func TestMaybeUpgradeForSHADriftTestDuringValidation(t *testing.T) {
 
 	var startCalled bool
 	shaFile := filepath.Join(dir, "test.sha")
-	os.WriteFile(shaFile, []byte("oldsha"), 0o644)
+	if err := os.WriteFile(shaFile, []byte("oldsha"), 0o644); err != nil {
+		t.Fatalf("write test sha file: %v", err)
+	}
 
 	s.RegisterComponent(&Component{
 		Name:     "test",
@@ -320,7 +334,9 @@ func TestMaybeUpgradeForSHADriftDuringCooldown(t *testing.T) {
 
 	var startCalled bool
 	shaFile := filepath.Join(dir, "main.sha")
-	os.WriteFile(shaFile, []byte("oldsha"), 0o644)
+	if err := os.WriteFile(shaFile, []byte("oldsha"), 0o644); err != nil {
+		t.Fatalf("write main sha file: %v", err)
+	}
 
 	s.RegisterComponent(&Component{
 		Name:     "main",
@@ -368,7 +384,9 @@ func TestHandleAutofixSuccessRestart(t *testing.T) {
   "autofix_incident_id": "afx-test-001",
   "autofix_restart_required": "true"
 }`
-	os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644); err != nil {
+		t.Fatalf("write autofix state: %v", err)
+	}
 
 	s.handleAutofixSuccessRestart(context.Background())
 
@@ -410,7 +428,9 @@ func TestHandleAutofixSuccessRestartNotSucceeded(t *testing.T) {
   "autofix_incident_id": "afx-test-002",
   "autofix_restart_required": "true"
 }`
-	os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644); err != nil {
+		t.Fatalf("write autofix state: %v", err)
+	}
 
 	s.handleAutofixSuccessRestart(context.Background())
 
@@ -435,7 +455,9 @@ func TestHandleAutofixSuccessRestartNotRequired(t *testing.T) {
   "autofix_incident_id": "afx-test-003",
   "autofix_restart_required": "false"
 }`
-	os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "autofix.state.json"), []byte(stateJSON), 0o644); err != nil {
+		t.Fatalf("write autofix state: %v", err)
+	}
 
 	s.handleAutofixSuccessRestart(context.Background())
 

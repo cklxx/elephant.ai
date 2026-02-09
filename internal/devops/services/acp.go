@@ -115,8 +115,14 @@ func (s *ACPService) Start(ctx context.Context) error {
 
 	// Save port for other services to discover
 	portFile := filepath.Join(s.config.PIDDir, "acp.port")
-	os.MkdirAll(filepath.Dir(portFile), 0o755)
-	os.WriteFile(portFile, []byte(fmt.Sprintf("%d", acpPort)), 0o644)
+	if err := os.MkdirAll(filepath.Dir(portFile), 0o755); err != nil {
+		s.state.Store(devops.StateFailed)
+		return fmt.Errorf("create ACP port file dir: %w", err)
+	}
+	if err := os.WriteFile(portFile, []byte(fmt.Sprintf("%d", acpPort)), 0o644); err != nil {
+		s.state.Store(devops.StateFailed)
+		return fmt.Errorf("write ACP port file: %w", err)
+	}
 
 	s.state.Store(devops.StateHealthy)
 	s.section.Success("ACP started on %s:%d", s.config.Host, acpPort)

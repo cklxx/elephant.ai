@@ -286,7 +286,7 @@ func devTest() error {
 
 	// Set CGO mode
 	env := os.Environ()
-	if os.Getenv("CGO_ENABLED") == "" {
+	if _, ok := os.LookupEnv("CGO_ENABLED"); !ok {
 		env = append(env, "CGO_ENABLED=0")
 	}
 	cmd.Env = env
@@ -344,7 +344,9 @@ func devLogsUI() error {
 		openCmd, _ = exec.LookPath("xdg-open")
 	}
 	if openCmd != "" {
-		exec.Command(openCmd, url).Start()
+		if err := exec.Command(openCmd, url).Start(); err != nil {
+			fmt.Printf("Failed to open browser: %v\n", err)
+		}
 	}
 	return nil
 }
@@ -369,7 +371,10 @@ func buildOrchestrator() (*devops.Orchestrator, error) {
 
 func buildSandboxService(orch *devops.Orchestrator) *services.SandboxService {
 	cfg := orch.Config()
-	workspaceDir := os.Getenv("SANDBOX_WORKSPACE_DIR")
+	workspaceDir := ""
+	if v, ok := os.LookupEnv("SANDBOX_WORKSPACE_DIR"); ok {
+		workspaceDir = v
+	}
 	if workspaceDir == "" {
 		workspaceDir = cfg.ProjectDir
 	}
@@ -380,20 +385,20 @@ func buildSandboxService(orch *devops.Orchestrator) *services.SandboxService {
 		orch.Health(),
 		orch.Section(),
 		services.SandboxConfig{
-			ContainerName:     cfg.SandboxContainer,
-			Image:             cfg.SandboxImage,
-			Port:              cfg.SandboxPort,
-			BaseURL:           cfg.SandboxBaseURL,
-			WorkspaceDir:      workspaceDir,
-			AutoInstallCLI:    cfg.SandboxAutoInstallCLI,
-			SandboxConfigPath: cfg.SandboxConfigPath,
-			ACPPort:           cfg.ACPPort,
-			ACPHost:           cfg.ACPHost,
-			ACPRunMode:        cfg.ACPRunMode,
+			ContainerName:       cfg.SandboxContainer,
+			Image:               cfg.SandboxImage,
+			Port:                cfg.SandboxPort,
+			BaseURL:             cfg.SandboxBaseURL,
+			WorkspaceDir:        workspaceDir,
+			AutoInstallCLI:      cfg.SandboxAutoInstallCLI,
+			SandboxConfigPath:   cfg.SandboxConfigPath,
+			ACPPort:             cfg.ACPPort,
+			ACPHost:             cfg.ACPHost,
+			ACPRunMode:          cfg.ACPRunMode,
 			StartACPWithSandbox: cfg.StartACPWithSandbox,
-			ProjectDir:        cfg.ProjectDir,
-			PIDDir:            cfg.PIDDir,
-			LogDir:            cfg.LogDir,
+			ProjectDir:          cfg.ProjectDir,
+			PIDDir:              cfg.PIDDir,
+			LogDir:              cfg.LogDir,
 		},
 	)
 }
@@ -449,7 +454,10 @@ func buildWebService(orch *devops.Orchestrator) *services.WebService {
 
 func loadDevConfig() (*devops.DevConfig, error) {
 	home, _ := os.UserHomeDir()
-	configPath := os.Getenv("ALEX_CONFIG_PATH")
+	configPath := ""
+	if v, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
+		configPath = v
+	}
 	if configPath == "" {
 		configPath = filepath.Join(home, ".alex", "config.yaml")
 	}
@@ -478,8 +486,12 @@ func ensureLocalBootstrap(projectDir string) error {
 		return fmt.Errorf("bootstrap: %s: %w", string(out), err)
 	}
 
-	os.MkdirAll(pidDir, 0o755)
-	os.WriteFile(marker, []byte(time.Now().Format(time.RFC3339)), 0o644)
+	if err := os.MkdirAll(pidDir, 0o755); err != nil {
+		return fmt.Errorf("create bootstrap pid dir: %w", err)
+	}
+	if err := os.WriteFile(marker, []byte(time.Now().Format(time.RFC3339)), 0o644); err != nil {
+		return fmt.Errorf("write bootstrap marker: %w", err)
+	}
 	return nil
 }
 

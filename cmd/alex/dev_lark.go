@@ -20,7 +20,6 @@ func runDevLarkCommand(args []string) error {
 	cmd := "status"
 	if len(args) > 0 {
 		cmd = args[0]
-		args = args[1:]
 	}
 
 	switch cmd {
@@ -80,7 +79,9 @@ func larkStart() error {
 	}
 
 	logFile := filepath.Join(cfg.LogDir, "lark-supervisor.log")
-	os.MkdirAll(filepath.Dir(logFile), 0o755)
+	if err := os.MkdirAll(filepath.Dir(logFile), 0o755); err != nil {
+		return fmt.Errorf("create supervisor log dir: %w", err)
+	}
 
 	f, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
@@ -97,9 +98,17 @@ func larkStart() error {
 		return fmt.Errorf("start supervisor: %w", err)
 	}
 
-	os.MkdirAll(filepath.Dir(pidFile), 0o755)
-	os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644)
-	f.Close()
+	if err := os.MkdirAll(filepath.Dir(pidFile), 0o755); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("create supervisor pid dir: %w", err)
+	}
+	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("write supervisor pid file: %w", err)
+	}
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("close supervisor log file: %w", err)
+	}
 
 	time.Sleep(1 * time.Second)
 	if syscall.Kill(cmd.Process.Pid, 0) == nil {
@@ -131,7 +140,9 @@ func larkStop() error {
 	}
 
 	fmt.Printf("Stopping supervisor (PID: %d)...\n", pid)
-	syscall.Kill(pid, syscall.SIGTERM)
+	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil && err != syscall.ESRCH {
+		return fmt.Errorf("send SIGTERM to supervisor %d: %w", pid, err)
+	}
 
 	// Wait for exit
 	deadline := time.Now().Add(10 * time.Second)
@@ -143,7 +154,9 @@ func larkStop() error {
 	}
 
 	if syscall.Kill(pid, 0) == nil {
-		syscall.Kill(pid, syscall.SIGKILL)
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil && err != syscall.ESRCH {
+			return fmt.Errorf("send SIGKILL to supervisor %d: %w", pid, err)
+		}
 	}
 
 	os.Remove(pidFile)
@@ -301,9 +314,13 @@ func larkLogs() error {
 
 	// Touch files to ensure they exist
 	for _, f := range logFiles {
-		os.MkdirAll(filepath.Dir(f), 0o755)
+		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+			return fmt.Errorf("create log dir for %s: %w", f, err)
+		}
 		if _, err := os.Stat(f); os.IsNotExist(err) {
-			os.WriteFile(f, nil, 0o644)
+			if err := os.WriteFile(f, nil, 0o644); err != nil {
+				return fmt.Errorf("touch log file %s: %w", f, err)
+			}
 		}
 	}
 
@@ -317,7 +334,7 @@ func larkLogs() error {
 	go func() {
 		<-ctx.Done()
 		if cmd.Process != nil {
-			cmd.Process.Kill()
+			_ = cmd.Process.Kill()
 		}
 	}()
 
@@ -339,9 +356,15 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 	tmpDir := filepath.Join(testRoot, "tmp")
 
 	// Ensure directories
-	os.MkdirAll(pidDir, 0o755)
-	os.MkdirAll(logDir, 0o755)
-	os.MkdirAll(tmpDir, 0o755)
+	if err := os.MkdirAll(pidDir, 0o755); err != nil {
+		return supervisor.Config{}, fmt.Errorf("create pid dir: %w", err)
+	}
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return supervisor.Config{}, fmt.Errorf("create log dir: %w", err)
+	}
+	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
+		return supervisor.Config{}, fmt.Errorf("create tmp dir: %w", err)
+	}
 
 	return supervisor.Config{
 		TickInterval:       envDuration("LARK_SUPERVISOR_TICK_SECONDS", 5*time.Second),
@@ -449,7 +472,7 @@ func checkPIDHealth(pidFile string) string {
 }
 
 func resolveMainRoot(projectDir string) string {
-	if v := os.Getenv("LARK_MAIN_ROOT"); v != "" {
+	if v, ok := os.LookupEnv("LARK_MAIN_ROOT"); ok && v != "" {
 		return v
 	}
 	// Try git worktree for refs/heads/main
@@ -478,8 +501,8 @@ func resolveMainRoot(projectDir string) string {
 }
 
 func envDuration(key string, def time.Duration) time.Duration {
-	v := os.Getenv(key)
-	if v == "" {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
 		return def
 	}
 	if secs, err := strconv.Atoi(v); err == nil {
@@ -492,8 +515,8 @@ func envDuration(key string, def time.Duration) time.Duration {
 }
 
 func envInt(key string, def int) int {
-	v := os.Getenv(key)
-	if v == "" {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
 		return def
 	}
 	if n, err := strconv.Atoi(v); err == nil {
@@ -503,15 +526,15 @@ func envInt(key string, def int) int {
 }
 
 func envString(key, def string) string {
-	if v := os.Getenv(key); v != "" {
+	if v, ok := os.LookupEnv(key); ok && v != "" {
 		return v
 	}
 	return def
 }
 
 func envBool(key string, def bool) bool {
-	v := os.Getenv(key)
-	if v == "" {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
 		return def
 	}
 	switch strings.ToLower(v) {
