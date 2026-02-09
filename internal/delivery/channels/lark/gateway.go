@@ -45,15 +45,24 @@ const (
 // AgentExecutor is an alias for the shared channel executor interface.
 type AgentExecutor = channels.AgentExecutor
 
+// slotPhase describes the lifecycle phase of a sessionSlot.
+type slotPhase int
+
+const (
+	slotIdle          slotPhase = iota // no active task
+	slotRunning                        // task goroutine is active
+	slotAwaitingInput                  // task ended with await_user_input, waiting for user reply
+)
+
 // sessionSlot tracks whether a task is active for a given chat and holds
 // the user input channel used to inject follow-up messages into a running
 // ReAct loop, plus the pending session state for await-user-input handoffs.
 type sessionSlot struct {
 	mu             sync.Mutex
-	inputCh        chan agent.UserInput // non-nil while a task is active
+	phase          slotPhase
+	inputCh        chan agent.UserInput // non-nil only when phase == slotRunning
 	sessionID      string
 	lastSessionID  string
-	awaitingInput  bool
 	pendingOptions []string // options awaiting numeric reply
 }
 
@@ -366,7 +375,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 
 	// If a task is already running for this chat, inject the new message
 	// into the running ReAct loop instead of starting a new task.
-	if slot.inputCh != nil {
+	if slot.phase == slotRunning {
 		ch := slot.inputCh
 		activeSessionID := slot.sessionID
 		slot.mu.Unlock()
@@ -400,14 +409,14 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 
 	// Resolve session ID and acquire the slot for a new task.
 	sessionID := slot.sessionID
-	if !slot.awaitingInput || sessionID == "" {
+	if slot.phase != slotAwaitingInput || sessionID == "" {
 		sessionID = g.newSessionID()
 	}
 	inputCh := make(chan agent.UserInput, 16)
+	slot.phase = slotRunning
 	slot.inputCh = inputCh
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
-	slot.awaitingInput = false
 	slot.mu.Unlock()
 
 	// Run the task asynchronously so the Lark SDK event handler returns
@@ -422,10 +431,10 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		slot.mu.Lock()
 		slot.inputCh = nil
 		if awaitingInput {
-			slot.awaitingInput = true
+			slot.phase = slotAwaitingInput
 			slot.lastSessionID = slot.sessionID
 		} else {
-			slot.awaitingInput = false
+			slot.phase = slotIdle
 			slot.sessionID = ""
 		}
 		slot.mu.Unlock()
@@ -562,7 +571,7 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 	}
 	slot.sessionID = ""
 	slot.lastSessionID = ""
-	slot.awaitingInput = false
+	slot.phase = slotIdle
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", resetSessionID, msg.senderID, msg.chatID, msg.isGroup)

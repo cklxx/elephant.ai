@@ -151,13 +151,14 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 
 	slot := g.getOrCreateSlot(msg.chatID)
 	slot.mu.Lock()
-	if slot.inputCh != nil {
+	if slot.phase == slotRunning {
 		slot.mu.Unlock()
 		return "当前会话有任务正在运行，请等待完成后重试。"
 	}
 
 	sessionID := g.newSessionID()
 	inputCh := make(chan agent.UserInput, 16)
+	slot.phase = slotRunning
 	slot.inputCh = inputCh
 	slot.sessionID = sessionID
 	slot.lastSessionID = sessionID
@@ -166,8 +167,8 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 	defer func() {
 		slot.mu.Lock()
 		slot.inputCh = nil
+		slot.phase = slotIdle
 		slot.sessionID = ""
-		slot.awaitingInput = false
 		slot.mu.Unlock()
 		g.discardPendingInputs(inputCh, msg.chatID)
 	}()
