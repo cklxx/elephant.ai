@@ -1175,6 +1175,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("content", "line", "lines", "snippet", "inside", "within") {
 			boost += 8
 		}
+		if countMatches("nested", "path", "root", "tree", "directory", "name") >= 3 {
+			boost += 8
+		}
 	case "grep":
 		if countMatches("grep", "log", "error", "line", "pattern", "match") >= 2 {
 			boost += 18
@@ -1194,6 +1197,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "okr_write":
 		if countMatches("okr", "objective", "key", "result", "progress", "update", "write", "status") >= 2 {
 			boost += 16
+		}
+	case "okr_read":
+		if countMatches("okr", "objective", "status", "read", "current", "before", "baseline") >= 2 {
+			boost += 18
 		}
 	case "artifact_manifest":
 		if countMatches("manifest", "metadata", "generated", "describe", "artifact") >= 2 {
@@ -1234,6 +1241,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("motivation", "successful", "pattern", "previous", "cadence", "nudge") >= 2 {
 			boost += 12
 		}
+		if countMatches("previous", "prior", "successful", "pattern", "decision", "policy", "history") >= 3 {
+			boost += 10
+		}
 	case "memory_get":
 		if countMatches("open", "exact", "line", "lines", "offset", "fragment", "citation", "verbatim", "proof", "evidence", "selected", "note") >= 2 {
 			boost += 24
@@ -1247,6 +1257,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("sensitive", "personal", "private", "consent", "confirmation") >= 2 {
 			boost += 12
+		}
+		if countMatches("external", "outreach", "third", "party", "before", "approval", "consent") >= 2 {
+			boost += 14
 		}
 	case "cancel_timer":
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
@@ -1281,7 +1294,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 	case "scheduler_delete_job":
 		if countMatches("obsolete", "stale", "scheduler", "job", "delete", "remove", "checkin") >= 2 {
-			boost += 20
+			boost += 14
 		}
 	case "list_timers":
 		if countMatches("timer", "timers", "reminder", "reminders", "remaining", "active", "schedule") >= 2 {
@@ -1297,6 +1310,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("status", "announce", "broadcast", "notify", "share") >= 1 {
 			boost += 8
+		}
+		if countMatches("checkin", "encourage", "nudge", "progress", "reminder", "followup") >= 2 {
+			boost += 10
+		}
+		if has("without", "no", "not") && countMatches("upload", "attach", "file") >= 1 {
+			boost += 14
 		}
 	case "a2ui_emit":
 		if has("payload", "renderer", "render", "ui", "protocol", "structured") {
@@ -1412,6 +1431,13 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("upload", "attach", "file") {
 			boost -= 20
 		}
+		if countMatches("checkin", "encourage", "nudge", "progress", "reminder", "followup") >= 2 &&
+			!has("upload", "attach", "file", "download") {
+			boost -= 16
+		}
+		if has("without", "no", "not") && countMatches("upload", "attach", "file") >= 1 {
+			boost -= 30
+		}
 	}
 	if toolName == "set_timer" {
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
@@ -1444,6 +1470,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 10
 		}
 		if countMatches("motivation", "pattern", "previous", "successful", "memory", "recall") >= 2 {
+			boost -= 12
+		}
+		if countMatches("decision", "policy", "preference", "history", "prior", "memory") >= 3 {
 			boost -= 12
 		}
 	}
@@ -1481,6 +1510,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("click", "drag", "coordinate", "canvas", "pixel", "tap") {
 			boost -= 18
 		}
+		if countMatches("artifact", "report", "progress", "proof", "deliverable", "summary") >= 2 &&
+			!has("click", "drag", "coordinate", "canvas", "pixel", "tap", "browser", "dom", "page", "ui") {
+			boost -= 16
+		}
 	}
 	if toolName == "browser_dom" {
 		if countMatches("canvas", "coordinate", "pixel", "drag", "offset") >= 2 {
@@ -1497,6 +1530,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("plan", "roadmap", "phase", "milestone", "strategy") >= 2 &&
 			!has("task", "owner", "due", "todo", "assign") {
 			boost -= 12
+		}
+		if countMatches("consent", "approval", "confirm", "external", "outreach", "sensitive") >= 2 &&
+			!has("task", "owner", "due", "todo", "assign", "batch", "update") {
+			boost -= 16
 		}
 	}
 	if hasAll("task", "delegate") && toolName == "acp_executor" {

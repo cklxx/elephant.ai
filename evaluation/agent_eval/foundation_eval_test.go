@@ -538,6 +538,9 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("scheduler_delete_job", makeSet("obsolete", "scheduler", "checkin", "job", "remove")); boost <= 0 {
 		t.Fatalf("expected scheduler_delete_job boost for obsolete check-in intents, got %.2f", boost)
 	}
+	if boost := heuristicIntentBoost("request_user", makeSet("external", "outreach", "approval", "consent")); boost <= 0 {
+		t.Fatalf("expected request_user boost for external outreach consent gate, got %.2f", boost)
+	}
 	if boost := heuristicIntentBoost("artifacts_write", makeSet("progress", "momentum", "completed", "artifact", "summary")); boost <= 0 {
 		t.Fatalf("expected artifacts_write motivation-progress boost > 0, got %.2f", boost)
 	}
@@ -553,11 +556,35 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("lark_calendar_create", makeSet("create", "calendar", "focus", "recovery", "block")); boost <= 0 {
 		t.Fatalf("expected lark_calendar_create boost for focus/recovery block intents, got %.2f", boost)
 	}
+	if boost := heuristicIntentBoost("okr_read", makeSet("okr", "read", "current", "status", "before")); boost <= 0 {
+		t.Fatalf("expected okr_read boost for baseline-read intents, got %.2f", boost)
+	}
 	if boost := heuristicIntentBoost("write_attachment", makeSet("downloadable", "summary", "attachment", "handoff")); boost <= 0 {
 		t.Fatalf("expected write_attachment boost for downloadable summary handoff intents, got %.2f", boost)
 	}
 	if boost := heuristicIntentBoost("set_timer", makeSet("conflict", "interrupt", "reminder", "boundary")); boost >= 0 {
 		t.Fatalf("expected set_timer penalty for interruption-boundary conflict intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("lark_send_message", makeSet("checkin", "encourage", "nudge", "progress")); boost <= 0 {
+		t.Fatalf("expected lark_send_message boost for check-in nudge intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("lark_send_message", makeSet("without", "upload", "attach", "file", "message")); boost <= 0 {
+		t.Fatalf("expected lark_send_message boost for explicit no-upload intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("lark_upload_file", makeSet("checkin", "encourage", "nudge", "progress")); boost >= 0 {
+		t.Fatalf("expected lark_upload_file penalty for message-only check-in intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("lark_upload_file", makeSet("without", "upload", "attach", "file", "message")); boost >= 0 {
+		t.Fatalf("expected lark_upload_file penalty for explicit no-upload intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("search_file", makeSet("decision", "policy", "preference", "history", "memory")); boost >= 0 {
+		t.Fatalf("expected search_file penalty for memory policy history intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("lark_task_manage", makeSet("consent", "approval", "external", "outreach")); boost >= 0 {
+		t.Fatalf("expected lark_task_manage penalty for consent-gate intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("browser_action", makeSet("artifact", "report", "progress", "proof", "summary")); boost >= 0 {
+		t.Fatalf("expected browser_action penalty for non-UI artifact/proof intents, got %.2f", boost)
 	}
 	searchBoost := heuristicIntentBoost("search_file", makeSet("regex", "needle", "sweep", "repo", "fast"))
 	rgBoost := heuristicIntentBoost("ripgrep", makeSet("regex", "needle", "sweep", "repo", "fast"))
