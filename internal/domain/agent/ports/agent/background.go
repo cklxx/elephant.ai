@@ -78,6 +78,11 @@ type BackgroundTaskDispatcher interface {
 	Collect(ids []string, wait bool, timeout time.Duration) []BackgroundTaskResult
 }
 
+// BackgroundTaskCanceller allows callers to cancel individual background tasks.
+type BackgroundTaskCanceller interface {
+	CancelBackgroundTask(ctx context.Context, taskID string) error
+}
+
 // ExternalInputResponder allows tools to reply to external agent input requests.
 type ExternalInputResponder interface {
 	ReplyExternalInput(ctx context.Context, resp InputResponse) error

@@ -269,6 +269,14 @@ func (g *Gateway) handleTaskCancel(ctx context.Context, taskID string) string {
 	if err := g.taskStore.UpdateStatus(ctx, taskID, "cancelled", WithErrorText("user cancelled")); err != nil {
 		return fmt.Sprintf("取消任务失败: %v", err)
 	}
+
+	// Best-effort: cancel the running process via BackgroundTaskCanceller.
+	if canceller, ok := g.agent.(agent.BackgroundTaskCanceller); ok {
+		if err := canceller.CancelBackgroundTask(ctx, taskID); err != nil {
+			g.logger.Warn("Background cancel %s: %v", taskID, err)
+		}
+	}
+
 	return fmt.Sprintf("已取消任务: %s (%s)", taskID, truncateForLark(task.Description, 60))
 }
 

@@ -1,6 +1,8 @@
 package coordinator
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -41,4 +43,30 @@ func (r *backgroundTaskRegistry) Get(sessionID string, create func() *react.Back
 		r.managers[sessionID] = mgr
 	}
 	return mgr
+}
+
+// CancelTask searches all managers for the given task ID and cancels it.
+func (r *backgroundTaskRegistry) CancelTask(ctx context.Context, taskID string) error {
+	if r == nil {
+		return fmt.Errorf("background task registry not available")
+	}
+
+	r.mu.Lock()
+	managers := make([]*react.BackgroundTaskManager, 0, len(r.managers))
+	for _, mgr := range r.managers {
+		managers = append(managers, mgr)
+	}
+	r.mu.Unlock()
+
+	for _, mgr := range managers {
+		err := mgr.CancelTask(ctx, taskID)
+		if err == nil {
+			return nil
+		}
+		// "not found" means try next manager; other errors are real failures
+		if !strings.Contains(err.Error(), "not found") {
+			return err
+		}
+	}
+	return fmt.Errorf("task %q not found in any session", taskID)
 }

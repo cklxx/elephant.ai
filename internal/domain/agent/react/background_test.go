@@ -542,3 +542,53 @@ func (p *progressingExternalExecutor) Execute(ctx context.Context, req agent.Ext
 func (p *progressingExternalExecutor) SupportedTypes() []string {
 	return []string{"codex"}
 }
+
+func TestCancelTask(t *testing.T) {
+	mgr := newTestManager(blockingExecutor(5*time.Second, "should-be-cancelled"))
+	defer mgr.Shutdown()
+
+	err := dispatchTask(mgr, "cancel-me", "cancel test", "cancel test prompt", "internal", "")
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	// Wait for the task to start running.
+	time.Sleep(50 * time.Millisecond)
+
+	if err := mgr.CancelTask(context.Background(), "cancel-me"); err != nil {
+		t.Fatalf("CancelTask: %v", err)
+	}
+
+	results := mgr.Collect([]string{"cancel-me"}, true, 2*time.Second)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Status != agent.BackgroundTaskStatusCancelled {
+		t.Errorf("expected cancelled, got %s", results[0].Status)
+	}
+}
+
+func TestCancelTask_NotFound(t *testing.T) {
+	mgr := newTestManager(blockingExecutor(10*time.Millisecond, "ok"))
+	defer mgr.Shutdown()
+
+	err := mgr.CancelTask(context.Background(), "nonexistent")
+	if err == nil || !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected not found error, got: %v", err)
+	}
+}
+
+func TestCancelTask_AlreadyCompleted(t *testing.T) {
+	mgr := newTestManager(blockingExecutor(10*time.Millisecond, "done"))
+	defer mgr.Shutdown()
+
+	err := dispatchTask(mgr, "done-task", "done test", "done prompt", "internal", "")
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	mgr.Collect([]string{"done-task"}, true, 2*time.Second)
+
+	err = mgr.CancelTask(context.Background(), "done-task")
+	if err == nil || !strings.Contains(err.Error(), "already") {
+		t.Errorf("expected already-completed error, got: %v", err)
+	}
+}

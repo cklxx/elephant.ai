@@ -24,6 +24,7 @@ type backgroundTask struct {
 	completedAt time.Time
 	result      *agent.TaskResult
 	err         error
+	taskCancel  context.CancelFunc // per-task cancel; nil until Dispatch runs the goroutine
 
 	emitEvent      func(agent.AgentEvent)
 	baseEvent      func(context.Context) domain.BaseEvent
@@ -332,6 +333,9 @@ func (m *BackgroundTaskManager) Dispatch(
 		taskCtx = m.idContext.WithLogID(taskCtx, fmt.Sprintf("%s:bg:%s", ids.LogID, m.idGenerator.NewLogID()))
 	}
 
+	taskCtx, taskCancel := context.WithCancel(taskCtx)
+	bt.taskCancel = taskCancel
+
 	m.goRunner.Go(m.logger, "bg-task:"+taskID, func() {
 		m.runTask(taskCtx, bt, agentType)
 	})
@@ -547,6 +551,28 @@ func (m *BackgroundTaskManager) DrainCompletions() []string {
 // AwaitAll blocks until every dispatched task has finished or the timeout elapses.
 func (m *BackgroundTaskManager) AwaitAll(timeout time.Duration) {
 	m.awaitTasks(nil, timeout)
+}
+
+// CancelTask cancels an individual background task by its ID.
+// Returns an error if the task does not exist or is already in a terminal state.
+func (m *BackgroundTaskManager) CancelTask(ctx context.Context, taskID string) error {
+	m.mu.RLock()
+	bt := m.tasks[taskID]
+	m.mu.RUnlock()
+	if bt == nil {
+		return fmt.Errorf("task %q not found", taskID)
+	}
+
+	bt.mu.Lock()
+	defer bt.mu.Unlock()
+	switch bt.status {
+	case agent.BackgroundTaskStatusCompleted, agent.BackgroundTaskStatusFailed, agent.BackgroundTaskStatusCancelled:
+		return fmt.Errorf("task %q already %s", taskID, bt.status)
+	}
+	if bt.taskCancel != nil {
+		bt.taskCancel()
+	}
+	return nil
 }
 
 // Shutdown cancels all remaining tasks.

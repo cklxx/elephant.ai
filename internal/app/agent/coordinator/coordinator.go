@@ -73,6 +73,14 @@ func (c *AgentCoordinator) SetRuntimeConfigResolver(resolver RuntimeConfigResolv
 	c.runtimeResolver = resolver
 }
 
+// CancelBackgroundTask cancels an individual background task by searching all sessions.
+func (c *AgentCoordinator) CancelBackgroundTask(ctx context.Context, taskID string) error {
+	if c.bgRegistry == nil {
+		return fmt.Errorf("background task registry not available")
+	}
+	return c.bgRegistry.CancelTask(ctx, taskID)
+}
+
 func (c *AgentCoordinator) effectiveConfig(ctx context.Context) appconfig.Config {
 	cfg := c.config
 	resolver := c.runtimeResolver
