@@ -127,8 +127,8 @@ Integrated full suite remains stable:
 
 ## 8) Artifacts
 - Standalone baseline JSON: `tmp/foundation-motivation-aware-baseline/foundation_suite_result_foundation-suite-20260209-060405.json`
-- Standalone optimized JSON: `tmp/foundation-motivation-aware-after2/foundation_suite_result_foundation-suite-20260209-060719.json`
-- Integrated suite JSON: `tmp/foundation-suite-with-motivation-integrated/foundation_suite_result_foundation-suite-20260209-060849.json`
+- Standalone optimized JSON: `tmp/foundation-motivation-aware-final-main/foundation_suite_result_foundation-suite-20260209-061333.json`
+- Integrated suite JSON: `tmp/foundation-suite-with-motivation-final-main/foundation_suite_result_foundation-suite-20260209-061333.json`
 
 ## 9) Next Optimization Target
 Focus on the last failing case (`motivation-progress-artifact-proof`) by adding explicit progress-deliverable lexical signals tied to `artifacts_write` and reducing unrelated browser-action overlap for non-UI intents.
