@@ -598,3 +598,88 @@ func TestDegradation_PreRouteWhenPrimaryUnhealthy(t *testing.T) {
 		t.Fatalf("expected degraded_to metadata, got %#v", res.Metadata)
 	}
 }
+
+func TestDegradation_ArgumentAdapterTransformsArgs(t *testing.T) {
+	primary := &mockExecutor{
+		err:  fmt.Errorf("primary failed"),
+		meta: ports.ToolMetadata{Name: "primary_tool"},
+	}
+	fb := &mockExecutor{
+		result: &ports.ToolResult{Content: "fb-ok"},
+		meta:   ports.ToolMetadata{Name: "fallback_tool"},
+	}
+
+	config := DefaultDegradationConfig()
+	config.FallbackMap["primary_tool"] = []string{"fallback_tool"}
+	config.ArgumentAdapter = func(from, to string, args map[string]any) map[string]any {
+		adapted := make(map[string]any, len(args))
+		for k, v := range args {
+			adapted[k] = v
+		}
+		// Rename "query" to "search_query" for the fallback tool.
+		if q, ok := adapted["query"]; ok {
+			adapted["search_query"] = q
+			delete(adapted, "query")
+		}
+		return adapted
+	}
+
+	exec := NewDegradationExecutor(primary, makeLookup(map[string]tools.ToolExecutor{
+		"fallback_tool": fb,
+	}), config)
+
+	call := baseCall()
+	call.Arguments = map[string]any{"query": "hello world", "limit": float64(10)}
+
+	res, err := exec.Execute(context.Background(), call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Content != "fb-ok" {
+		t.Fatalf("expected fallback result, got %q", res.Content)
+	}
+	// Verify the adapter was applied to the fallback call.
+	if fb.lastCall.Arguments["search_query"] != "hello world" {
+		t.Fatalf("expected adapted argument 'search_query', got args: %v", fb.lastCall.Arguments)
+	}
+	if _, exists := fb.lastCall.Arguments["query"]; exists {
+		t.Fatal("expected 'query' to be removed by adapter")
+	}
+	if fb.lastCall.Arguments["limit"] != float64(10) {
+		t.Fatalf("expected 'limit' passed through, got args: %v", fb.lastCall.Arguments)
+	}
+}
+
+func TestDegradation_NilArgumentAdapterPassesThrough(t *testing.T) {
+	primary := &mockExecutor{
+		err:  fmt.Errorf("primary failed"),
+		meta: ports.ToolMetadata{Name: "primary_tool"},
+	}
+	fb := &mockExecutor{
+		result: &ports.ToolResult{Content: "fb-ok"},
+		meta:   ports.ToolMetadata{Name: "fallback_tool"},
+	}
+
+	config := DefaultDegradationConfig()
+	config.FallbackMap["primary_tool"] = []string{"fallback_tool"}
+	// ArgumentAdapter is nil (default)
+
+	exec := NewDegradationExecutor(primary, makeLookup(map[string]tools.ToolExecutor{
+		"fallback_tool": fb,
+	}), config)
+
+	call := baseCall()
+	call.Arguments = map[string]any{"query": "test"}
+
+	res, err := exec.Execute(context.Background(), call)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Content != "fb-ok" {
+		t.Fatalf("expected fallback result, got %q", res.Content)
+	}
+	// With nil adapter, original arguments should pass through unchanged.
+	if fb.lastCall.Arguments["query"] != "test" {
+		t.Fatalf("expected original argument passed through, got args: %v", fb.lastCall.Arguments)
+	}
+}

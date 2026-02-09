@@ -45,6 +45,11 @@ type DegradationConfig struct {
 	// before attempting the primary tool when SLA indicates the primary is
 	// unhealthy.
 	PreRouteWhenPrimaryUnhealthy bool
+
+	// ArgumentAdapter transforms the original arguments before passing them to
+	// a fallback tool. This allows mapping parameters between tools with
+	// different schemas. When nil, arguments are passed through unmodified.
+	ArgumentAdapter func(fromTool, toTool string, args map[string]any) map[string]any
 }
 
 const defaultMaxFallbackAttempts = 2
@@ -229,6 +234,9 @@ func (d *degradationExecutor) tryFallbacks(ctx context.Context, call ports.ToolC
 		}
 		fbCall := call
 		fbCall.Name = fbName
+		if d.config.ArgumentAdapter != nil {
+			fbCall.Arguments = d.config.ArgumentAdapter(toolName, fbName, fbCall.Arguments)
+		}
 		fbResult, fbErr := fbExecutor.Execute(ctx, fbCall)
 		if fbErr == nil && (fbResult == nil || fbResult.Error == nil) {
 			// Fallback succeeded -- annotate the result.
