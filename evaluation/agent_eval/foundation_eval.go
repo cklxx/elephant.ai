@@ -1113,6 +1113,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("read", "local", "workspace", "notes", "file", "before") >= 3 {
 			boost += 18
 		}
+		if countMatches("failing", "failure", "function", "context", "logic", "contract", "neighboring") >= 3 {
+			boost += 20
+		}
 	case "clarify":
 		if has("ambiguity", "clarify", "blocking", "requirement", "missing", "unclear", "constraint", "conflict") {
 			boost += 14
@@ -1248,6 +1251,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("calendar", "event", "query", "upcoming", "schedule", "check") >= 2 {
 			boost += 16
 		}
+		if countMatches("compute", "calculate", "deterministic", "numeric", "consistency", "snippet", "slices", "fragments") >= 3 &&
+			!has("calendar", "event", "meeting", "schedule") {
+			boost -= 26
+		}
 	case "lark_calendar_create":
 		if countMatches("calendar", "event", "block", "deadline", "focus", "recovery", "work") >= 2 {
 			boost += 18
@@ -1278,6 +1285,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("local", "workspace", "notes", "file", "read", "before") >= 3 &&
 			!has("okr", "objective", "key", "result", "goal", "kr") {
 			boost -= 34
+		}
+		if countMatches("code", "source", "function", "failing", "logic", "contract", "module", "repository", "repo") >= 3 &&
+			!has("okr", "objective", "key", "result", "goal", "kr") {
+			boost -= 28
 		}
 	case "artifact_manifest":
 		if countMatches("manifest", "metadata", "generated", "describe", "artifact") >= 2 {
@@ -1359,6 +1370,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch") >= 3 {
 			boost += 22
 		}
+		if countMatches("sparse", "hidden", "long", "tail", "fact", "facts", "corpus", "notes", "retrieve") >= 3 {
+			boost += 24
+		}
 		if has("memory_get") && has("selected", "exact", "open", "detail", "detailed", "guidance", "context") {
 			boost -= 16
 		}
@@ -1404,6 +1418,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("script", "snippet", "compute", "calculate", "deterministic", "metric", "validate", "score") >= 2 {
 			boost += 16
 		}
+		if countMatches("consistency", "numeric", "fragments", "slices", "deterministic", "check") >= 3 {
+			boost += 16
+		}
 		if countMatches("shell", "command", "cli", "terminal", "process") >= 2 {
 			boost -= 14
 		}
@@ -1413,6 +1430,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if has("shell_exec") {
 			boost += 20
+		}
+		if countMatches("reproduce", "failure", "failing", "test", "command", "before", "fix") >= 3 {
+			boost += 22
 		}
 	case "scheduler_list_jobs":
 		if countMatches("job", "jobs", "list", "inventory", "registered", "cadence", "schedule", "show") >= 2 {
@@ -1430,6 +1450,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("schedule", "automatic", "followup", "reply", "status", "when", "no") >= 3 {
 			boost += 14
+		}
+		if countMatches("register", "new", "cadence", "stable", "identifier", "recurring", "job") >= 3 {
+			boost += 20
 		}
 	case "scheduler_delete_job":
 		if countMatches("obsolete", "stale", "scheduler", "job", "delete", "remove", "checkin") >= 2 {
@@ -1757,6 +1780,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("click", "drag", "coordinate", "canvas", "pixel", "tap", "browser", "dom", "page", "ui") {
 			boost -= 30
 		}
+		if countMatches("memory", "prior", "history", "habit", "persona", "sparse", "fact", "corpus", "note", "notes") >= 3 &&
+			!has("click", "drag", "coordinate", "canvas", "pixel", "tap", "browser", "dom", "page", "ui") {
+			boost -= 24
+		}
 	}
 	if toolName == "browser_dom" {
 		if countMatches("canvas", "coordinate", "pixel", "drag", "offset") >= 2 {
@@ -1971,6 +1998,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("run", "shell", "verification", "check", "checks", "after", "code", "change", "changes") >= 4 {
 			boost -= 18
 		}
+		if countMatches("reproduce", "failure", "failing", "test", "command", "before", "fix") >= 3 {
+			boost -= 18
+		}
 	}
 	if toolName == "plan" {
 		if countMatches("thread", "checkpoint", "message", "status", "textual", "short", "in", "stage", "reviewer") >= 3 &&
@@ -1985,6 +2015,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	if toolName == "lark_calendar_update" {
 		if countMatches("update", "existing", "calendar", "event", "meeting", "shift", "minutes", "day", "timeline") >= 3 {
 			boost += 20
+		}
+		if countMatches("register", "cadence", "identifier", "scheduler", "job", "recurring") >= 3 &&
+			!has("calendar", "event", "meeting") {
+			boost -= 20
 		}
 	}
 	if toolName == "scheduler_list_jobs" {

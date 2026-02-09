@@ -754,6 +754,36 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected lark_calendar_create boost (%.2f) to exceed lark_calendar_query boost (%.2f) for create-meeting intents", createMeetingBoost, queryMeetingBoost)
 	}
 
+	readFailingCodeBoost := heuristicIntentBoost("read_file", makeSet("read", "failing", "function", "logic", "contract", "context"))
+	okrOnFailingCodeBoost := heuristicIntentBoost("okr_read", makeSet("read", "failing", "function", "logic", "contract", "context"))
+	if readFailingCodeBoost <= okrOnFailingCodeBoost {
+		t.Fatalf("expected read_file boost (%.2f) to exceed okr_read boost (%.2f) for failing-code-context intents", readFailingCodeBoost, okrOnFailingCodeBoost)
+	}
+
+	sparseMemoryBoost := heuristicIntentBoost("memory_search", makeSet("sparse", "hidden", "fact", "corpus", "notes", "retrieve"))
+	sparseBrowserActionBoost := heuristicIntentBoost("browser_action", makeSet("sparse", "hidden", "fact", "corpus", "notes", "retrieve"))
+	if sparseMemoryBoost <= sparseBrowserActionBoost {
+		t.Fatalf("expected memory_search boost (%.2f) to exceed browser_action boost (%.2f) for sparse-fact-corpus intents", sparseMemoryBoost, sparseBrowserActionBoost)
+	}
+
+	schedulerRegisterBoost := heuristicIntentBoost("scheduler_create_job", makeSet("register", "new", "cadence", "stable", "identifier", "recurring", "job"))
+	calendarUpdateRegisterBoost := heuristicIntentBoost("lark_calendar_update", makeSet("register", "new", "cadence", "stable", "identifier", "recurring", "job"))
+	if schedulerRegisterBoost <= calendarUpdateRegisterBoost {
+		t.Fatalf("expected scheduler_create_job boost (%.2f) to exceed lark_calendar_update boost (%.2f) for register-cadence intents", schedulerRegisterBoost, calendarUpdateRegisterBoost)
+	}
+
+	shellReproBoost := heuristicIntentBoost("shell_exec", makeSet("reproduce", "failure", "test", "command", "before", "fix"))
+	codeReproBoost := heuristicIntentBoost("execute_code", makeSet("reproduce", "failure", "test", "command", "before", "fix"))
+	if shellReproBoost <= codeReproBoost {
+		t.Fatalf("expected shell_exec boost (%.2f) to exceed execute_code boost (%.2f) for reproduce-failure-test-command intents", shellReproBoost, codeReproBoost)
+	}
+
+	executeConsistencyBoost := heuristicIntentBoost("execute_code", makeSet("consistency", "numeric", "fragments", "slices", "deterministic", "check"))
+	calendarConsistencyBoost := heuristicIntentBoost("lark_calendar_query", makeSet("consistency", "numeric", "fragments", "slices", "deterministic", "check"))
+	if executeConsistencyBoost <= calendarConsistencyBoost {
+		t.Fatalf("expected execute_code boost (%.2f) to exceed lark_calendar_query boost (%.2f) for deterministic consistency-check intents", executeConsistencyBoost, calendarConsistencyBoost)
+	}
+
 	clarifyConflictBoost := heuristicIntentBoost("clarify", makeSet("conflict", "clarify", "latest", "preference", "memory"))
 	memoryConflictBoost := heuristicIntentBoost("memory_search", makeSet("conflict", "clarify", "latest", "preference", "memory"))
 	if clarifyConflictBoost <= memoryConflictBoost {
