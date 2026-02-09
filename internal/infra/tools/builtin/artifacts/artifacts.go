@@ -37,7 +37,7 @@ func NewArtifactsWrite() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifacts_write",
-				Description: "Create or update an artifact attachment (use for HTML by setting media_type to text/html and format to html)",
+				Description: "Create/update durable artifact files for downstream handoff (reports/specs/evidence). Use for persistent deliverables, not for listing existing artifacts. For HTML outputs, set media_type=text/html and format=html.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -52,7 +52,12 @@ func NewArtifactsWrite() tools.ToolExecutor {
 					Required: []string{"name", "content"},
 				},
 			},
-			ports.ToolMetadata{Name: "artifacts_write", Version: "1.0.0", Category: "attachments"},
+			ports.ToolMetadata{
+				Name:     "artifacts_write",
+				Version:  "1.0.0",
+				Category: "attachments",
+				Tags:     []string{"artifact", "write", "report", "deliverable", "persist"},
+			},
 		),
 	}
 }
@@ -63,7 +68,7 @@ func NewArtifactsList() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifacts_list",
-				Description: "List attachments currently available to the agent",
+				Description: "List/index artifacts currently available to the task. Use for inventory/selection before publish; use artifacts_write to create new artifacts.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -71,7 +76,12 @@ func NewArtifactsList() tools.ToolExecutor {
 					},
 				},
 			},
-			ports.ToolMetadata{Name: "artifacts_list", Version: "1.0.0", Category: "attachments"},
+			ports.ToolMetadata{
+				Name:     "artifacts_list",
+				Version:  "1.0.0",
+				Category: "attachments",
+				Tags:     []string{"artifact", "list", "inventory", "manifest", "index"},
+			},
 		),
 	}
 }
@@ -91,7 +101,12 @@ func NewArtifactsDelete() tools.ToolExecutor {
 					},
 				},
 			},
-			ports.ToolMetadata{Name: "artifacts_delete", Version: "1.0.0", Category: "attachments"},
+			ports.ToolMetadata{
+				Name:     "artifacts_delete",
+				Version:  "1.0.0",
+				Category: "attachments",
+				Tags:     []string{"artifact", "delete", "cleanup", "remove"},
+			},
 		),
 	}
 }

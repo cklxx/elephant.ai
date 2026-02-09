@@ -64,7 +64,7 @@ Rules:
 				Name:     "plan",
 				Version:  "1.0.0",
 				Category: "ui",
-				Tags:     []string{"ui", "orchestration"},
+				Tags:     []string{"ui", "orchestration", "planning", "milestones", "roadmap", "rollback"},
 			},
 		),
 		memory: memoryEngine,

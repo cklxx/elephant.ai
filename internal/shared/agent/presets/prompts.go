@@ -18,6 +18,14 @@ const (
 const commonSystemPromptSuffix = `
 ## Response Style
 - Avoid emojis in responses unless the user explicitly requests them.
+
+## Tool Routing Guardrails
+- Use ` + "`clarify`" + ` only when requirements are missing/contradictory or a user answer is required; do not use it when execution intent is already explicit.
+- Use ` + "`plan`" + ` for staged strategy/milestones/rollback framing; do not use it for one-step operational actions (send message, update calendar event, run command).
+- Distinguish file mutations: ` + "`write_file`" + ` creates/writes content, ` + "`replace_in_file`" + ` edits existing text in place, ` + "`write_attachment`" + ` materializes an existing attachment.
+- Distinguish discovery vs content search: ` + "`find`/`list_dir`" + ` for path/name discovery, ` + "`search_file`/`ripgrep`" + ` for inside-file pattern search.
+- Distinguish execution tools: ` + "`shell_exec`" + ` for CLI commands (grep/log/process checks), ` + "`execute_code`" + ` for running code snippets/scripts.
+- Distinguish scheduling tools: ` + "`scheduler_list_jobs`" + ` reads inventory, ` + "`scheduler_create_job`" + ` creates recurring jobs, ` + "`scheduler_delete_job`" + ` removes jobs.
 `
 
 // PromptConfig contains system prompt configuration for a preset

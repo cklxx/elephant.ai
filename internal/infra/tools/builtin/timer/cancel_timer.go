@@ -20,7 +20,7 @@ func NewCancelTimer() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "cancel_timer",
-				Description: "Cancel an active timer by its ID. The timer will not fire after cancellation.",
+				Description: "Cancel/remove a timer by timer_id. Use only when deletion/cancellation intent is explicit; use list_timers to inspect active timers.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -36,6 +36,7 @@ func NewCancelTimer() tools.ToolExecutor {
 				Name:     "cancel_timer",
 				Version:  "1.0.0",
 				Category: "timer",
+				Tags:     []string{"timer", "cancel", "delete", "remove", "reminder"},
 			},
 		),
 	}

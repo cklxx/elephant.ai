@@ -26,11 +26,11 @@ func NewSandboxCodeExecute(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "execute_code",
-				Description: `Execute code using the available local runtimes.
+				Description: `Execute deterministic code snippets/scripts using local runtimes.
 
 Supported languages: python, go, javascript/js, bash.
 Provide inline code or reference an existing file via code_path.
-Optionally fetch output files as attachments.`,
+Optionally fetch output files as attachments. For shell/process/log commands prefer shell_exec.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
