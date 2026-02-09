@@ -95,7 +95,7 @@ func NewWebFetchWithLLM(llmClient llm.LLMClient, cfg shared.WebFetchConfig) tool
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "web_fetch",
-				Description: `Fetch and analyze web page content with intelligent processing.
+				Description: `Fetch and analyze one known/approved exact URL (single-source ingest/retrieval step), including canonical or policy-fixed links.
 
 Features:
 - Fetches HTML content and converts to clean text
@@ -130,7 +130,7 @@ Usage:
 				Name:     "web_fetch",
 				Version:  "1.0.0",
 				Category: "web",
-				Tags:     []string{"web", "fetch", "http", "content"},
+				Tags:     []string{"web", "fetch", "url", "retrieve", "content"},
 				MaterialCapabilities: ports.ToolMaterialCapabilities{
 					Produces:          []string{"text/html"},
 					ProducesArtifacts: []string{"markdown"},

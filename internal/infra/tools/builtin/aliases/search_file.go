@@ -26,7 +26,7 @@ func NewSearchFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search semantic/content-first rule evidence inside one known absolute file path (line/content matches in file bodies). Use for inside-file matching only. Do not use for path/name discovery (use find/list_dir), and do not use for visual/browser capture.",
+				Description: "Search inside one known absolute file for body-level semantic clues/evidence (line and content matches in file text/file bodies). Use for inside-file matching only, especially when filename/path hints are insufficient. Do not use for path/name discovery (use find/list_dir) or visual/browser capture.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -41,7 +41,7 @@ func NewSearchFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "search_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "search", "regex", "symbol", "token", "pattern"},
+				Tags:     []string{"file", "search", "body", "content", "regex", "evidence"},
 			},
 		),
 	}

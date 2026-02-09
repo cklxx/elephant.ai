@@ -37,7 +37,7 @@ func NewArtifactsWrite() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifacts_write",
-				Description: "Create/update durable artifact files for downstream handoff (reports/specs/evidence). Use only for creating or updating artifact content. For inventory/audit use artifacts_list. For HTML outputs, set media_type=text/html and format=html.",
+				Description: "Create or update durable artifact content for downstream handoff (reports/specs/evidence packages). Use only when creating or updating artifact content. For inventory/selection/audit use artifacts_list. For HTML outputs, set media_type=text/html and format=html.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -56,7 +56,7 @@ func NewArtifactsWrite() tools.ToolExecutor {
 				Name:     "artifacts_write",
 				Version:  "1.0.0",
 				Category: "attachments",
-				Tags:     []string{"artifact", "write", "report", "deliverable", "persist"},
+				Tags:     []string{"artifact", "write", "create", "update", "deliverable"},
 			},
 		),
 	}
@@ -68,7 +68,7 @@ func NewArtifactsList() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifacts_list",
-				Description: "List/index artifacts currently available to the task. Use for inventory/selection/audit before publish or cleanup. This does not create/update artifacts (use artifacts_write) and does not delete artifacts (use artifacts_delete).",
+				Description: "Enumerate/index artifacts currently available to the task. Use for inventory/selection/audit before release, publish, or cleanup. This does not create/update artifacts (use artifacts_write) and does not delete artifacts (use artifacts_delete).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -80,7 +80,7 @@ func NewArtifactsList() tools.ToolExecutor {
 				Name:     "artifacts_list",
 				Version:  "1.0.0",
 				Category: "attachments",
-				Tags:     []string{"artifact", "list", "inventory", "manifest", "index"},
+				Tags:     []string{"artifact", "list", "inventory", "enumerate", "index"},
 			},
 		),
 	}

@@ -26,8 +26,8 @@ func NewSandboxWriteAttachment(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "write_attachment",
-				Description: "Write an existing attachment to the local filesystem. " +
-					"Accepts attachment name/placeholder, data URI, or HTTPS URL.",
+				Description: "Materialize an existing attachment into local filesystem path for downloadable handoff/review package delivery. " +
+					"Accepts attachment name/placeholder, data URI, or HTTPS URL. This does not create new artifact content (use artifacts_write).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -42,7 +42,7 @@ func NewSandboxWriteAttachment(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "write_attachment",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "attachment", "write"},
+				Tags:     []string{"file", "attachment", "materialize", "download", "handoff"},
 			},
 		),
 		client:     newSandboxClient(cfg),

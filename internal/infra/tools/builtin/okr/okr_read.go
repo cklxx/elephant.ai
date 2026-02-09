@@ -21,7 +21,7 @@ func NewOKRRead(cfg OKRConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "okr_read",
-				Description: "Read OKR records from OKR storage. Without goal_id: list goal statuses/KR progress. With goal_id: return full OKR content. Not a generic workspace file reader.",
+				Description: "Read structured OKR records (Objective/Key-Result objects) from OKR storage. Without goal_id: list OKR entries. With goal_id: return that OKR record. Not for repository topology/code search or general file reading.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -33,7 +33,7 @@ func NewOKRRead(cfg OKRConfig) tools.ToolExecutor {
 				Name:     "okr_read",
 				Version:  "1.0.0",
 				Category: "okr",
-				Tags:     []string{"okr", "goals", "read", "progress", "status"},
+				Tags:     []string{"okr", "objective", "key_result", "goal"},
 			},
 		),
 		store: NewGoalStore(cfg),

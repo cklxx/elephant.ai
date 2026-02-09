@@ -14,8 +14,7 @@ func TestBrowserDescriptionsExpressComputationAndVisualBoundaries(t *testing.T) 
 	}
 
 	screenshotDesc := NewBrowserScreenshot(nil).Definition().Description
-	if !strings.Contains(screenshotDesc, "visual proof") || !strings.Contains(screenshotDesc, "semantic file/corpus search") {
+	if !strings.Contains(screenshotDesc, "visual screenshot") || !strings.Contains(screenshotDesc, "semantic text retrieval") {
 		t.Fatalf("expected browser_screenshot description to express visual-only routing, got %q", screenshotDesc)
 	}
 }
-

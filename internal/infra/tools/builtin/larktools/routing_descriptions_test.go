@@ -9,7 +9,7 @@ func TestLarkToolDescriptionsExpressRoutingBoundaries(t *testing.T) {
 	t.Parallel()
 
 	chatDesc := NewLarkChatHistory().Definition().Description
-	if !strings.Contains(chatDesc, "context retrieval") {
+	if !strings.Contains(chatDesc, "Lark chat thread") || !strings.Contains(chatDesc, "not for repository files/topology") {
 		t.Fatalf("expected lark_chat_history description to mention context retrieval, got %q", chatDesc)
 	}
 

@@ -30,7 +30,7 @@ func NewLarkChatHistory() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_chat_history",
-				Description: "Retrieve recent messages from the current Lark chat for thread-context recall (history, prior decisions). Returns chronological lines as '[timestamp] sender: content'. This is context retrieval only (no file upload/send). Only available inside a Lark chat context.",
+				Description: "Retrieve recent messages from the current Lark chat thread for conversation recall (prior discussion/decisions). Returns chronological lines as '[timestamp] sender: content'. Lark-thread context only; not for repository files/topology or artifact inventory.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -53,7 +53,7 @@ func NewLarkChatHistory() tools.ToolExecutor {
 				Name:        "lark_chat_history",
 				Version:     "0.1.0",
 				Category:    "lark",
-				Tags:        []string{"lark", "chat", "history"},
+				Tags:        []string{"lark", "chat", "thread", "history"},
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),

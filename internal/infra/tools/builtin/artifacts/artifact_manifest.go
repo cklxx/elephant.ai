@@ -24,7 +24,7 @@ func NewArtifactManifest() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifact_manifest",
-				Description: "Emit a structured manifest of executor artifacts (diffs, reports, binaries, logs).",
+				Description: "Emit/read structured lineage manifest metadata for existing executor artifacts (diffs, reports, binaries, logs). Use for output-manifest gates and provenance checks, not for creating/updating artifact payload content.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -55,7 +55,7 @@ func NewArtifactManifest() tools.ToolExecutor {
 				Name:     "artifact_manifest",
 				Version:  "1.0.0",
 				Category: "attachments",
-				Tags:     []string{"artifact", "manifest"},
+				Tags:     []string{"artifact", "manifest", "lineage", "provenance", "metadata"},
 			},
 		),
 	}

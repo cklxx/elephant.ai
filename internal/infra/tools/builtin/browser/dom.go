@@ -66,9 +66,9 @@ func NewBrowserDOM(manager *Manager) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: browserDOMToolName,
-				Description: `Use the browser via CDP for DOM-level automation (Playwright-like).
+				Description: `Use the browser via CDP for selector-based DOM automation (Playwright-like).
 
-Provide ordered steps using CSS selectors. Useful for click/fill/wait/query/evaluate without relying on screenshots.`,
+Provide ordered steps using CSS selectors for click/fill/wait/query/evaluate flows. If reliable selectors are unavailable and coordinate interaction is required, use browser_action.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

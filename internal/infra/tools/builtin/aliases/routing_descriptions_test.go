@@ -18,12 +18,12 @@ func TestFileToolDescriptionsExpressRoutingBoundaries(t *testing.T) {
 	}
 
 	replaceDesc := NewReplaceInFile(cfg).Definition().Description
-	if !strings.Contains(replaceDesc, "in-place code/text edits") || !strings.Contains(replaceDesc, "artifact cleanup") {
+	if !strings.Contains(replaceDesc, "in-place patch/hotfix") || !strings.Contains(replaceDesc, "artifact deletion/cleanup") {
 		t.Fatalf("expected replace_in_file description to mention in-place-only scope, got %q", replaceDesc)
 	}
 
 	readDesc := NewReadFile(cfg).Definition().Description
-	if !strings.Contains(readDesc, "proof/context windows") || !strings.Contains(readDesc, "memory_search/memory_get") {
+	if !strings.Contains(readDesc, "context windows") || !strings.Contains(readDesc, "memory_search/memory_get") || !strings.Contains(readDesc, "lark_chat_history") {
 		t.Fatalf("expected read_file description to mention repo-vs-memory boundary, got %q", readDesc)
 	}
 }

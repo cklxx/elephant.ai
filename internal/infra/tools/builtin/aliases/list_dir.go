@@ -28,7 +28,7 @@ func NewListDir(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "list_dir",
-				Description: "List files/folders under a directory (path/name discovery only, absolute paths). Use this before selecting candidate files; do not use for inside-file content search.",
+				Description: "List files/folders under a directory for repository topology/module ownership discovery (absolute paths). Use this before selecting candidate files; do not use for inside-file content search or artifact handoff inventory.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -49,7 +49,7 @@ func NewListDir(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "list_dir",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "list", "directory", "folder", "workspace", "browse", "inventory", "discovery"},
+				Tags:     []string{"file", "list", "directory", "folder", "workspace", "topology", "discovery"},
 			},
 		),
 	}

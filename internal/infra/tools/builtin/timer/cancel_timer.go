@@ -20,7 +20,7 @@ func NewCancelTimer() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "cancel_timer",
-				Description: "Cancel/remove a timer by timer_id. Use only when deletion/cancellation intent is explicit; use list_timers to inspect active timers.",
+				Description: "Cancel/remove/retire an existing timer by timer_id (withdraw stale reminder/nudge cadence). Use only when deletion/cancellation intent is explicit; use list_timers to inspect active timers.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

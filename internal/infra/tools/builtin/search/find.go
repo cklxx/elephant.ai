@@ -22,7 +22,7 @@ func NewFind(cfg shared.ShellToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "find",
-				Description: "Find file/directory paths by name or pattern. Use for path discovery/filtering before opening content; not for inside-file text search.",
+				Description: "Find file/directory paths by name/pattern for repository topology narrowing before reading content. This is path discovery only, not inside-file semantic/body evidence search.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -51,7 +51,7 @@ func NewFind(cfg shared.ShellToolConfig) tools.ToolExecutor {
 				Name:        "find",
 				Version:     "1.0.0",
 				Category:    "search",
-				Tags:        []string{"filesystem", "search", "files", "path", "discovery", "directory"},
+				Tags:        []string{"filesystem", "find", "path", "topology", "discovery", "directory"},
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),

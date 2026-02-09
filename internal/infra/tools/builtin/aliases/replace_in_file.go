@@ -23,7 +23,7 @@ func NewReplaceInFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "replace_in_file",
-				Description: "Replace exact text in an existing file (absolute paths only). Use only for in-place code/text edits when target text is known (for example hotfix on one branch). Do not use for creating new files, artifact cleanup, listing/inventory, or clarification questions.",
+				Description: "Apply an exact in-place patch/hotfix to an existing file (absolute paths only). Use only for surgical code/text edits when target text is already known (requires old_str and new_str). Do not use for search/investigation, creating new files, artifact deletion/cleanup, listing/inventory, or clarification questions.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -39,7 +39,7 @@ func NewReplaceInFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "replace_in_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "replace", "edit"},
+				Tags:     []string{"file", "replace", "patch", "hotfix", "inplace"},
 			},
 		),
 	}

@@ -23,7 +23,7 @@ func NewMemoryGet(engine memory.Engine) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "memory_get",
-				Description: "Read exact lines from a memory note file by line number. Use only after memory_search returns a memory path. Not for repository/workspace source files (use read_file).",
+				Description: "Retrieve memory note excerpts by line range from a memory path returned by memory_search (habit/persona/history notes). Use only after memory_search returns a memory path and only for memory markdown notes. Not for repository/workspace source files or proof windows around code/contracts (use read_file).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -47,7 +47,7 @@ func NewMemoryGet(engine memory.Engine) tools.ToolExecutor {
 				Name:        "memory_get",
 				Version:     "0.1.0",
 				Category:    "memory",
-				Tags:        []string{"memory", "retrieval"},
+				Tags:        []string{"memory", "notes", "history", "persona"},
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),

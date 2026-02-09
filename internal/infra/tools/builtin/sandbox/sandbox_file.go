@@ -44,7 +44,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Read repository/workspace file content from a specific absolute path, including proof/context windows around suspect logic. Use after file/path selection; for directory inventory use list_dir/find. Do not use for memory notes (use memory_search/memory_get).",
+				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code/contract/proof transitions. Use after file/path selection; for directory topology discovery use list_dir/find. Do not use for memory notes/chat history (use memory_search/memory_get or lark_chat_history).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -60,7 +60,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "read_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "read", "content", "inspect"},
+				Tags:     []string{"file", "read", "source", "code", "context"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -103,7 +103,7 @@ func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "list_dir",
-				Description: "List files/folders under a directory (path/name discovery only, absolute paths). Use this before selecting candidate files; do not use for inside-file content search.",
+				Description: "List files/folders under a directory for repository topology/module ownership discovery (absolute paths). Use this before selecting candidate files; do not use for inside-file content search or artifact handoff inventory.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -124,7 +124,7 @@ func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "list_dir",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "list", "directory", "folder", "workspace", "browse", "inventory", "discovery"},
+				Tags:     []string{"file", "list", "directory", "folder", "workspace", "topology", "discovery"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -136,7 +136,7 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search semantic/content-first rule evidence inside one known absolute file path (line/content matches in file bodies). Use for inside-file matching only. Do not use for path/name discovery (use find/list_dir), and do not use for visual/browser capture.",
+				Description: "Search inside one known absolute file for body-level semantic clues/evidence (line and content matches in file text/file bodies). Use for inside-file matching only, especially when filename/path hints are insufficient. Do not use for path/name discovery (use find/list_dir) or visual/browser capture.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -151,7 +151,7 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "search_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "search", "regex", "symbol", "token", "pattern"},
+				Tags:     []string{"file", "search", "body", "content", "regex", "evidence"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -163,7 +163,7 @@ func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "replace_in_file",
-				Description: "Replace exact text in an existing file (absolute paths only). Use only for in-place code/text edits when target text is known (for example hotfix on one branch). Do not use for creating new files, artifact cleanup, listing/inventory, or clarification questions.",
+				Description: "Apply an exact in-place patch/hotfix to an existing file (absolute paths only). Use only for surgical code/text edits when target text is already known (requires old_str and new_str). Do not use for search/investigation, creating new files, artifact deletion/cleanup, listing/inventory, or clarification questions.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -179,7 +179,7 @@ func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "replace_in_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "replace", "edit"},
+				Tags:     []string{"file", "replace", "patch", "hotfix", "inplace"},
 			},
 		),
 		client: newSandboxClient(cfg),

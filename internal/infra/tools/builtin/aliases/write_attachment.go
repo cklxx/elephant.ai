@@ -27,8 +27,8 @@ func NewWriteAttachment(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "write_attachment",
-				Description: "Write an existing attachment to a local file path. " +
-					"Accepts attachment placeholder/name, data URI, or HTTPS URL.",
+				Description: "Materialize an existing attachment into a local file path for downloadable handoff/review package delivery. " +
+					"Accepts attachment placeholder/name, data URI, or HTTPS URL. This does not create new artifact content (use artifacts_write).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -43,7 +43,7 @@ func NewWriteAttachment(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "write_attachment",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "attachment", "write"},
+				Tags:     []string{"file", "attachment", "materialize", "download", "handoff"},
 			},
 		),
 		httpClient: artifacts.NewAttachmentHTTPClient(artifacts.AttachmentFetchTimeout, "LocalAttachmentWrite"),
