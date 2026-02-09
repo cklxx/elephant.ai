@@ -1090,6 +1090,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if has("phase", "milestone", "checkpoint", "risk", "roadmap", "timeline", "migration") {
 			boost += 14
 		}
+		if countMatches("minimal", "smallest", "viable", "weekly", "review", "checkpoint", "rollback") >= 2 {
+			boost += 16
+		}
 	case "read_file":
 		if countMatches("read", "open", "inspect", "view") >= 1 &&
 			countMatches("source", "workspace", "file", "content", "line") >= 1 {
@@ -1158,7 +1161,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost += 16
 		}
 	case "write_attachment":
-		if countMatches("attach", "download", "artifact", "generated", "deliver", "share", "export", "write", "file") >= 2 {
+		if countMatches("attach", "download", "artifact", "generated", "deliver", "share", "export", "write", "file", "summary", "handoff") >= 2 {
 			boost += 30
 		}
 		if hasAll("write", "attach") {
@@ -1180,6 +1183,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("calendar", "event", "query", "upcoming", "schedule", "check") >= 2 {
 			boost += 16
 		}
+	case "lark_calendar_create":
+		if countMatches("calendar", "event", "block", "deadline", "focus", "recovery", "work") >= 2 {
+			boost += 18
+		}
 	case "lark_chat_history":
 		if countMatches("chat", "thread", "conversation", "history", "context", "recent", "before") >= 2 {
 			boost += 24
@@ -1198,6 +1205,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("concise", "chat", "durable", "reusable", "downstream", "audit", "package", "full") >= 2 {
 			boost += 18
+		}
+		if countMatches("progress", "momentum", "completed", "proof", "evidence", "summary") >= 2 {
+			boost += 14
 		}
 	case "artifacts_list":
 		if countMatches("list", "enumerate", "index", "show", "generated", "artifact") >= 2 {
@@ -1221,6 +1231,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			countMatches("preference", "preferred", "habit", "style", "tone", "persona", "format", "choice", "interaction", "interactions", "behavior", "pattern") >= 1 {
 			boost += 14
 		}
+		if countMatches("motivation", "successful", "pattern", "previous", "cadence", "nudge") >= 2 {
+			boost += 12
+		}
 	case "memory_get":
 		if countMatches("open", "exact", "line", "lines", "offset", "fragment", "citation", "verbatim", "proof", "evidence", "selected", "note") >= 2 {
 			boost += 24
@@ -1231,6 +1244,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if hasAll("before", "continue") && has("manual", "approval", "confirm", "human") {
 			boost += 10
+		}
+		if countMatches("sensitive", "personal", "private", "consent", "confirmation") >= 2 {
+			boost += 12
 		}
 	case "cancel_timer":
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
@@ -1255,6 +1271,17 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "scheduler_list_jobs":
 		if countMatches("job", "jobs", "list", "inventory", "registered", "cadence", "schedule", "show") >= 2 {
 			boost += 18
+		}
+	case "scheduler_create_job":
+		if countMatches("recurring", "weekday", "daily", "nightly", "followup", "accountability", "checkin", "scheduler", "job") >= 2 {
+			boost += 20
+		}
+		if countMatches("schedule", "automatic", "followup", "reply", "status", "when", "no") >= 3 {
+			boost += 14
+		}
+	case "scheduler_delete_job":
+		if countMatches("obsolete", "stale", "scheduler", "job", "delete", "remove", "checkin") >= 2 {
+			boost += 20
 		}
 	case "list_timers":
 		if countMatches("timer", "timers", "reminder", "reminders", "remaining", "active", "schedule") >= 2 {
@@ -1325,6 +1352,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("memory", "habit", "preference", "style", "persona", "soul") >= 2 {
 			boost -= 12
 		}
+		if countMatches("create", "event", "calendar", "schedule", "timer", "artifact", "attach", "downloadable") >= 2 &&
+			!has("unclear", "ambiguity", "clarify", "conflict") {
+			boost -= 14
+		}
+		if has("artifact", "report", "attachment", "downloadable") &&
+			!has("unclear", "ambiguity", "clarify", "conflict") {
+			boost -= 10
+		}
 	}
 	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
 		if has("artifact", "artifacts", "manifest", "cleanup", "stale", "obsolete", "legacy") &&
@@ -1385,10 +1420,16 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("scheduler", "job", "cron", "cadence", "recurring", "daily", "weekly") >= 2 {
 			boost -= 14
 		}
+		if has("conflict", "interrupt", "interruption", "boundary") && has("timer", "reminder") {
+			boost -= 12
+		}
 	}
 	if toolName == "cancel_timer" {
 		if countMatches("list", "active", "remaining", "show", "enumerate", "status") >= 2 &&
 			!has("cancel", "remove", "delete") {
+			boost -= 16
+		}
+		if countMatches("scheduler", "job", "recurring", "cadence", "checkin") >= 2 {
 			boost -= 16
 		}
 	}
@@ -1401,6 +1442,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("regex", "needle", "sweep", "repo", "fast", "quick") >= 2 {
 			boost -= 10
+		}
+		if countMatches("motivation", "pattern", "previous", "successful", "memory", "recall") >= 2 {
+			boost -= 12
 		}
 	}
 	if toolName == "memory_get" {
@@ -1668,9 +1712,11 @@ var tokenAliases = map[string]string{
 	"clarification": "clarify",
 	"ambiguous":     "clarify",
 	"ambiguity":     "clarify",
+	"conflict":      "clarify",
 	"blocking":      "clarify",
 	"block":         "clarify",
 	"missing":       "clarify",
+	"interruptions": "interrupt",
 	"phase":         "plan",
 	"phased":        "plan",
 	"milestone":     "plan",
@@ -1694,6 +1740,9 @@ var tokenAliases = map[string]string{
 	"jobs":          "job",
 	"reminder":      "timer",
 	"reminders":     "timer",
+	"checkin":       "job",
+	"follow-up":     "followup",
+	"followup":      "job",
 	"markdown":      "report",
 	"reporting":     "report",
 	"reports":       "report",
@@ -1712,6 +1761,9 @@ var tokenAliases = map[string]string{
 	"provided":      "exact",
 	"pinned":        "exact",
 	"inventory":     "list",
+	"sensitive":     "consent",
+	"private":       "consent",
+	"personal":      "consent",
 	"nested":        "directory",
 	"roots":         "directory",
 	"candidate":     "directory",

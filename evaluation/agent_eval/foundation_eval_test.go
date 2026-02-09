@@ -526,6 +526,39 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("cancel_timer", makeSet("list", "active", "remaining", "timer")); boost >= 0 {
 		t.Fatalf("expected cancel_timer penalty for list-active intents, got %.2f", boost)
 	}
+	if boost := heuristicIntentBoost("request_user", makeSet("sensitive", "personal", "confirmation")); boost <= 0 {
+		t.Fatalf("expected request_user boost for sensitive confirmation intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("scheduler_create_job", makeSet("recurring", "weekday", "followup", "checkin", "job")); boost <= 0 {
+		t.Fatalf("expected scheduler_create_job boost for recurring check-in intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("scheduler_create_job", makeSet("schedule", "automatic", "followup", "status", "reply", "no")); boost <= 0 {
+		t.Fatalf("expected scheduler_create_job boost for automatic follow-up intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("scheduler_delete_job", makeSet("obsolete", "scheduler", "checkin", "job", "remove")); boost <= 0 {
+		t.Fatalf("expected scheduler_delete_job boost for obsolete check-in intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("artifacts_write", makeSet("progress", "momentum", "completed", "artifact", "summary")); boost <= 0 {
+		t.Fatalf("expected artifacts_write motivation-progress boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("memory_search", makeSet("motivation", "previous", "successful", "pattern", "recall")); boost <= 0 {
+		t.Fatalf("expected memory_search boost for motivation pattern recall intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("search_file", makeSet("motivation", "previous", "successful", "pattern", "memory", "recall")); boost >= 0 {
+		t.Fatalf("expected search_file penalty for motivation-memory recall intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("clarify", makeSet("create", "calendar", "event", "focus", "recovery", "block")); boost >= 0 {
+		t.Fatalf("expected clarify penalty for actionable create-calendar intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("lark_calendar_create", makeSet("create", "calendar", "focus", "recovery", "block")); boost <= 0 {
+		t.Fatalf("expected lark_calendar_create boost for focus/recovery block intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("write_attachment", makeSet("downloadable", "summary", "attachment", "handoff")); boost <= 0 {
+		t.Fatalf("expected write_attachment boost for downloadable summary handoff intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("set_timer", makeSet("conflict", "interrupt", "reminder", "boundary")); boost >= 0 {
+		t.Fatalf("expected set_timer penalty for interruption-boundary conflict intents, got %.2f", boost)
+	}
 	searchBoost := heuristicIntentBoost("search_file", makeSet("regex", "needle", "sweep", "repo", "fast"))
 	rgBoost := heuristicIntentBoost("ripgrep", makeSet("regex", "needle", "sweep", "repo", "fast"))
 	if rgBoost <= searchBoost {
