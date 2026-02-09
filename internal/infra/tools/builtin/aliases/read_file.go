@@ -23,7 +23,7 @@ func NewReadFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Read file contents from the local filesystem (absolute paths only).",
+				Description: "Read content from a specific file path (absolute paths only). Use after file/path selection; for directory inventory use list_dir/find.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -39,7 +39,7 @@ func NewReadFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "read_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "read"},
+				Tags:     []string{"file", "read", "content", "inspect"},
 			},
 		),
 	}

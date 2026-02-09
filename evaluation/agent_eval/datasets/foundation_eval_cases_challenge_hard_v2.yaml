@@ -116,3 +116,27 @@ scenarios:
     output.
   expected_tools:
   - artifacts_delete
+- id: challenge-artifact-inventory-before-selection
+  category: challenge_hard_v2
+  intent: Reviewer needs a strict inventory of existing generated artifacts before
+    deciding which ones to publish.
+  expected_tools:
+  - artifacts_list
+- id: challenge-browser-readonly-state-check
+  category: challenge_hard_v2
+  intent: Validate current browser tab/url/title state only; no interaction actions
+    should run in this stage.
+  expected_tools:
+  - browser_info
+- id: challenge-thread-status-no-upload
+  category: challenge_hard_v2
+  intent: Send a short progress message in thread with explicit no-file/no-upload
+    requirement.
+  expected_tools:
+  - lark_send_message
+- id: challenge-local-notes-read-not-okr
+  category: challenge_hard_v2
+  intent: Read local workspace troubleshooting notes file directly; this is not an
+    OKR goal operation.
+  expected_tools:
+  - read_file

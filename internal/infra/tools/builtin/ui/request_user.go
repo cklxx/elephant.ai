@@ -18,8 +18,9 @@ func NewRequestUser() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "request_user",
-				Description: "UI tool: request the user to perform an action (e.g., login) and pause execution." +
-					" Always use when an external login, 2FA, or CAPTCHA is required.",
+				Description: "UI tool: explicitly request a user decision/action and pause execution." +
+					" Use for approval/consent/manual gate events (login, 2FA, CAPTCHA, external confirmation)." +
+					" Do not use for internal planning headers; use clarify/plan for that.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -48,7 +49,7 @@ func NewRequestUser() tools.ToolExecutor {
 				Name:     "request_user",
 				Version:  "1.0.0",
 				Category: "ui",
-				Tags:     []string{"ui", "user", "request"},
+				Tags:     []string{"ui", "user", "request", "approval", "consent", "manual-gate"},
 			},
 		),
 	}

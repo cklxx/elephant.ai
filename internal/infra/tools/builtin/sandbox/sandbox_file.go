@@ -44,7 +44,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Read file contents from the local filesystem (absolute paths only).",
+				Description: "Read content from a specific file path (absolute paths only). Use after file/path selection; for directory inventory use list_dir/find.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -60,7 +60,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "read_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "read"},
+				Tags:     []string{"file", "read", "content", "inspect"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -103,7 +103,7 @@ func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "list_dir",
-				Description: "List files and folders under a workspace directory (absolute paths only).",
+				Description: "List files/folders under a directory (path/name discovery only, absolute paths). Use this before selecting candidate files; do not use for inside-file content search.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -124,7 +124,7 @@ func NewSandboxFileList(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "list_dir",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "list", "directory", "folder", "workspace", "browse"},
+				Tags:     []string{"file", "list", "directory", "folder", "workspace", "browse", "inventory", "discovery"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -136,7 +136,7 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search regex/symbol/token occurrences inside a file (absolute paths only). Use with list_dir to scan across project files.",
+				Description: "Search regex/symbol/token occurrences inside file content (absolute path). Use for content/line matches in a known file; use find/list_dir for path discovery and ripgrep for fast repo-wide regex sweeps.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

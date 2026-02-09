@@ -23,7 +23,7 @@ func NewListTimers() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "list_timers",
-				Description: "List timers created in this or previous sessions. Returns timer IDs, names, status, and schedule details.",
+				Description: "List timer inventory and status (active/fired/cancelled). Use before deciding cancellation or for timer state audits.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -39,6 +39,7 @@ func NewListTimers() tools.ToolExecutor {
 				Name:     "list_timers",
 				Version:  "1.0.0",
 				Category: "timer",
+				Tags:     []string{"timer", "list", "inventory", "status", "reminder"},
 			},
 		),
 	}

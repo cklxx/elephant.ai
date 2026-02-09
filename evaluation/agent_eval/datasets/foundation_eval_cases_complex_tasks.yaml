@@ -105,3 +105,28 @@ scenarios:
   - artifacts_write
   - lark_upload_file
   - lark_send_message
+- id: complex-module-entrypoint-discovery-first
+  category: complex
+  intent: In a large monorepo, narrow candidate module entrypoints by path/directory
+    structure before reading file contents.
+  expected_tools:
+  - find
+  - list_dir
+- id: complex-browser-state-audit-without-interaction
+  category: complex
+  intent: Audit only current browser tab metadata and viewport to confirm state;
+    do not click/type/scroll.
+  expected_tools:
+  - browser_info
+- id: complex-scheduler-state-audit-before-mutation
+  category: complex
+  intent: Before touching automation policy, inspect currently registered recurring
+    jobs and cadences.
+  expected_tools:
+  - scheduler_list_jobs
+- id: complex-thread-checkpoint-text-only-no-file-transfer
+  category: complex
+  intent: Post a concise status checkpoint to the thread with explicit no file upload
+    at this stage.
+  expected_tools:
+  - lark_send_message

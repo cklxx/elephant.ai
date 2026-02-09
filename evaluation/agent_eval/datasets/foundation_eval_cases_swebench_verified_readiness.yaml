@@ -84,3 +84,28 @@ scenarios:
   intent: Inspect artifact manifest metadata for output integrity.
   expected_tools:
   - artifact_manifest
+- id: verified-entrypoint-path-discovery-before-open
+  category: swebench_verified
+  intent: In a layered repo, locate candidate entrypoint paths and module folders
+    before reading source files.
+  expected_tools:
+  - find
+  - list_dir
+- id: verified-artifact-inventory-before-release
+  category: swebench_verified
+  intent: Enumerate current generated artifacts for release checklist, without creating
+    new outputs yet.
+  expected_tools:
+  - artifacts_list
+- id: verified-thread-status-text-no-file
+  category: swebench_verified
+  intent: Post a concise test-status update in chat with explicit no file transfer
+    for this step.
+  expected_tools:
+  - lark_send_message
+- id: verified-single-approved-url-fetch
+  category: swebench_verified
+  intent: A single approved external reference URL is already chosen; fetch it directly
+    without discovery search.
+  expected_tools:
+  - web_fetch

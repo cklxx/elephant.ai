@@ -48,6 +48,8 @@ Updated: 2026-02-09 19:00
 - After first prune under a hard threshold, a second review-driven squeeze can remove residual redundancy without losing pass@5 coverage if hard stress dimensions are kept intact.
 - Foundation eval reports should keep a fixed structure: x/x scoreboard (collections/cases/pass@1/pass@5/deliverable), top conflict clusters (`expected => top1`), and sampled good/bad deliverable checks with artifact paths.
 - Batch heuristic upgrades should apply exact-tool-name boosts asymmetrically: strong for specific tools, weak for generic tools (`plan`/`clarify`/`find`/`search_file`) to avoid cross-domain over-trigger regressions.
+- For Lark delivery intents, explicitly separate "text-only checkpoint/no file transfer" (`lark_send_message`) from "must deliver file package" (`lark_upload_file`); otherwise upload dominates due shared chat/file vocabulary.
+- For source-ingest intents, treat "single approved exact URL, no discovery" as strong `web_fetch` signal and suppress visual/browser capture tools unless proof/screenshot/UI language is explicit.
 - Lark 本地链路如果 PID 文件写到包装 shell 而非真实 `alex-server`，会造成孤儿进程累积并耗尽 auth DB 连接；后台启动必须保证记录真实子进程 PID。
 - auth DB 本地初始化遇到 `too many clients already` 应执行“孤儿 Lark 进程清理 + 退避重试”，比一次失败直接降级更稳定。
 - DevOps `ProcessManager` 对磁盘 PID 恢复/停止不能只做 `kill(0)`；必须持久化并校验进程身份（命令行签名），避免 PID 复用误判和误杀。

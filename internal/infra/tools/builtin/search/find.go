@@ -22,7 +22,7 @@ func NewFind(cfg shared.ShellToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "find",
-				Description: "Find files and directories by name or pattern using the find command. Supports wildcards and limits results to maximum 100 matches.",
+				Description: "Find file/directory paths by name or pattern. Use for path discovery/filtering before opening content; not for inside-file text search.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -51,7 +51,7 @@ func NewFind(cfg shared.ShellToolConfig) tools.ToolExecutor {
 				Name:        "find",
 				Version:     "1.0.0",
 				Category:    "search",
-				Tags:        []string{"filesystem", "search", "files"},
+				Tags:        []string{"filesystem", "search", "files", "path", "discovery", "directory"},
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),

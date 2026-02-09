@@ -19,7 +19,7 @@ func NewClarify() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "clarify",
-				Description: `Optional UI tool: emit a task sub-header. Use needs_user_input=true to pause and ask the user a question.
+				Description: `Optional UI tool: emit a task sub-header and ask targeted clarification questions when requirements are truly missing/contradictory.
 
 Rules:
 - Use to declare a sub-task header before starting a unit of work.
@@ -66,7 +66,7 @@ Rules:
 				Name:     "clarify",
 				Version:  "1.0.0",
 				Category: "ui",
-				Tags:     []string{"ui", "orchestration"},
+				Tags:     []string{"ui", "orchestration", "clarification", "requirements", "ambiguity"},
 			},
 		),
 	}
