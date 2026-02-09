@@ -47,7 +47,11 @@ var _ tools.ToolExecutor = (*stubToolExecutor)(nil)
 func newTestCollector(t *testing.T) *SLACollector {
 	t.Helper()
 	reg := prometheus.NewRegistry()
-	return NewSLACollector(reg)
+	c, err := NewSLACollector(reg)
+	if err != nil {
+		t.Fatalf("NewSLACollector: %v", err)
+	}
+	return c
 }
 
 // --- TestSLACollector_RecordExecution ----------------------------------------
@@ -471,14 +475,20 @@ func TestSLAExecutor_FallsBackToMetadataName(t *testing.T) {
 	}
 }
 
-func TestNewSLACollector_RepeatedRegisterSameRegistryDoesNotPanic(t *testing.T) {
+func TestNewSLACollector_RepeatedRegisterSameRegistryReusesExisting(t *testing.T) {
 	reg := prometheus.NewRegistry()
-	first := NewSLACollector(reg)
+	first, err := NewSLACollector(reg)
+	if err != nil {
+		t.Fatalf("first NewSLACollector: %v", err)
+	}
 	if first == nil {
 		t.Fatal("expected first collector to be created")
 	}
 
-	second := NewSLACollector(reg)
+	second, err := NewSLACollector(reg)
+	if err != nil {
+		t.Fatalf("second NewSLACollector: %v", err)
+	}
 	if second == nil {
 		t.Fatal("expected second collector to be created")
 	}

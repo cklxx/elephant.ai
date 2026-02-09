@@ -14,7 +14,10 @@ import (
 func newTestRouter(t *testing.T) (*SLARouter, *SLACollector) {
 	t.Helper()
 	reg := prometheus.NewRegistry()
-	collector := NewSLACollector(reg)
+	collector, err := NewSLACollector(reg)
+	if err != nil {
+		t.Fatalf("NewSLACollector: %v", err)
+	}
 	router := NewSLARouter(collector, DefaultSLARouterConfig())
 	return router, collector
 }

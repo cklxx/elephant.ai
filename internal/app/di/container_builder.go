@@ -132,7 +132,10 @@ func (b *containerBuilder) Build() (*Container, error) {
 		return nil, err
 	}
 
-	toolSLACollector := toolspolicy.NewSLACollector(nil)
+	toolSLACollector, err := toolspolicy.NewSLACollector(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SLA collector: %w", err)
+	}
 
 	toolRegistry, err := b.buildToolRegistry(llmFactory, memoryEngine, toolSLACollector)
 	if err != nil {
@@ -493,7 +496,10 @@ func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvi
 func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoordinator, error) {
 	b.logger.Debug("Building alternate coordinator (tool_mode=%s, toolset=%s)", b.config.ToolMode, b.config.Toolset)
 
-	toolSLACollector := toolspolicy.NewSLACollector(nil)
+	toolSLACollector, err := toolspolicy.NewSLACollector(nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create alternate SLA collector: %w", err)
+	}
 
 	toolRegistry, err := b.buildToolRegistry(parent.llmFactory, parent.MemoryEngine, toolSLACollector)
 	if err != nil {

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -117,7 +118,7 @@ func (w *slidingWindow) percentile(p float64) time.Duration {
 // NewSLACollector creates a new SLACollector and registers Prometheus
 // metrics with the provided registerer. If registerer is nil,
 // prometheus.DefaultRegisterer is used.
-func NewSLACollector(registerer prometheus.Registerer) *SLACollector {
+func NewSLACollector(registerer prometheus.Registerer) (*SLACollector, error) {
 	if registerer == nil {
 		registerer = prometheus.DefaultRegisterer
 	}
@@ -151,10 +152,23 @@ func NewSLACollector(registerer prometheus.Registerer) *SLACollector {
 		Help:      "Sliding window success rate per tool (last 100 calls).",
 	}, []string{"tool_name"})
 
-	toolLatency = registerHistogramVec(registerer, toolLatency)
-	toolErrors = registerCounterVec(registerer, toolErrors)
-	toolCalls = registerCounterVec(registerer, toolCalls)
-	toolSuccessRate = registerGaugeVec(registerer, toolSuccessRate)
+	var err error
+	toolLatency, err = registerHistogramVec(registerer, toolLatency)
+	if err != nil {
+		return nil, fmt.Errorf("register tool_sla latency: %w", err)
+	}
+	toolErrors, err = registerCounterVec(registerer, toolErrors)
+	if err != nil {
+		return nil, fmt.Errorf("register tool_sla errors: %w", err)
+	}
+	toolCalls, err = registerCounterVec(registerer, toolCalls)
+	if err != nil {
+		return nil, fmt.Errorf("register tool_sla calls: %w", err)
+	}
+	toolSuccessRate, err = registerGaugeVec(registerer, toolSuccessRate)
+	if err != nil {
+		return nil, fmt.Errorf("register tool_sla success_rate: %w", err)
+	}
 
 	return &SLACollector{
 		toolLatency:     toolLatency,
@@ -162,7 +176,7 @@ func NewSLACollector(registerer prometheus.Registerer) *SLACollector {
 		toolCalls:       toolCalls,
 		toolSuccessRate: toolSuccessRate,
 		windows:         make(map[string]*slidingWindow),
-	}
+	}, nil
 }
 
 // RecordExecution records a single tool execution's duration and outcome.
@@ -241,43 +255,43 @@ func averageCostUSD(calls int64, total float64) float64 {
 	return total / float64(calls)
 }
 
-func registerHistogramVec(registerer prometheus.Registerer, collector *prometheus.HistogramVec) *prometheus.HistogramVec {
+func registerHistogramVec(registerer prometheus.Registerer, collector *prometheus.HistogramVec) (*prometheus.HistogramVec, error) {
 	if err := registerer.Register(collector); err != nil {
 		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
 			if existing, castOK := already.ExistingCollector.(*prometheus.HistogramVec); castOK {
-				return existing
+				return existing, nil
 			}
-			panic(err)
+			return nil, fmt.Errorf("histogram type mismatch: %w", err)
 		}
-		panic(err)
+		return nil, err
 	}
-	return collector
+	return collector, nil
 }
 
-func registerCounterVec(registerer prometheus.Registerer, collector *prometheus.CounterVec) *prometheus.CounterVec {
+func registerCounterVec(registerer prometheus.Registerer, collector *prometheus.CounterVec) (*prometheus.CounterVec, error) {
 	if err := registerer.Register(collector); err != nil {
 		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
 			if existing, castOK := already.ExistingCollector.(*prometheus.CounterVec); castOK {
-				return existing
+				return existing, nil
 			}
-			panic(err)
+			return nil, fmt.Errorf("counter type mismatch: %w", err)
 		}
-		panic(err)
+		return nil, err
 	}
-	return collector
+	return collector, nil
 }
 
-func registerGaugeVec(registerer prometheus.Registerer, collector *prometheus.GaugeVec) *prometheus.GaugeVec {
+func registerGaugeVec(registerer prometheus.Registerer, collector *prometheus.GaugeVec) (*prometheus.GaugeVec, error) {
 	if err := registerer.Register(collector); err != nil {
 		if already, ok := err.(prometheus.AlreadyRegisteredError); ok {
 			if existing, castOK := already.ExistingCollector.(*prometheus.GaugeVec); castOK {
-				return existing
+				return existing, nil
 			}
-			panic(err)
+			return nil, fmt.Errorf("gauge type mismatch: %w", err)
 		}
-		panic(err)
+		return nil, err
 	}
-	return collector
+	return collector, nil
 }
 
 // classifyError returns a short error-type label for Prometheus.

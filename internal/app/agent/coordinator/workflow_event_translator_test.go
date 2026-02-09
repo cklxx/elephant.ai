@@ -299,7 +299,7 @@ func TestWorkflowEventTranslatorAddsCallIDToToolPayload(t *testing.T) {
 
 func TestWorkflowEventTranslatorAddsToolSLAOnToolCompletedWhenCollectorConfigured(t *testing.T) {
 	sink := &recordingAgentListener{}
-	collector := toolspolicy.NewSLACollector(prometheus.NewRegistry())
+	collector, _ := toolspolicy.NewSLACollector(prometheus.NewRegistry())
 	collector.RecordExecutionWithCost("bash", 120*time.Millisecond, nil, 0.42)
 	translator := wrapWithWorkflowEnvelope(sink, nil, collector)
 

@@ -513,7 +513,7 @@ func TestDegradation_SLAAwareOrdering_SelectsHealthiestFallbackFirst(t *testing.
 	}
 
 	reg := prometheus.NewRegistry()
-	collector := toolspolicy.NewSLACollector(reg)
+	collector, _ := toolspolicy.NewSLACollector(reg)
 	router := toolspolicy.NewSLARouter(collector, toolspolicy.DefaultSLARouterConfig())
 
 	for i := 0; i < 20; i++ {
@@ -564,7 +564,7 @@ func TestDegradation_PreRouteWhenPrimaryUnhealthy(t *testing.T) {
 	}
 
 	reg := prometheus.NewRegistry()
-	collector := toolspolicy.NewSLACollector(reg)
+	collector, _ := toolspolicy.NewSLACollector(reg)
 	router := toolspolicy.NewSLARouter(collector, toolspolicy.DefaultSLARouterConfig())
 	for i := 0; i < 20; i++ {
 		collector.RecordExecution("primary_tool", 8*time.Second, fmt.Errorf("primary err"))
