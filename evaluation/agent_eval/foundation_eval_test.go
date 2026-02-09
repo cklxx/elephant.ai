@@ -335,6 +335,17 @@ func TestRankToolsForIntentCriticalFoundationCases(t *testing.T) {
 			},
 		},
 		{
+			name:     "motivation-progress-artifact-proof",
+			intent:   "Generate a concise progress artifact so the user can see momentum and completed actions.",
+			expected: "artifacts_write",
+			profiles: []foundationToolProfile{
+				makeProfile("browser_action", map[string]float64{"browser": 7, "action": 8, "click": 6, "canvas": 5}),
+				makeProfile("request_user", map[string]float64{"user": 7, "confirm": 6, "approval": 6, "gate": 5}),
+				makeProfile("clarify", map[string]float64{"clarify": 8, "question": 7, "unclear": 6}),
+				makeProfile("artifacts_write", map[string]float64{"artifact": 8, "report": 7, "write": 6, "durable": 6, "summary": 5}),
+			},
+		},
+		{
 			name:     "find-files-by-name",
 			intent:   "Find files whose names contain migration in the repository.",
 			expected: "find",
