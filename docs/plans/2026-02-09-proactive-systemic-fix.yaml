@@ -1,0 +1,61 @@
+title: Proactive Systemic Fix (Scheduler + Context Persona + Config Merge)
+created_at: 2026-02-09
+status: in-progress
+trigger: "Implement the approved systemic plan end-to-end"
+owner: codex
+branch: feat/proactive-systemic-fix-20260209
+worktree: /Users/bytedance/code/elephant.ai-wt-proactive-systemic-fix-20260209
+objectives:
+  - Fix proactive scheduler config file->runtime merge gaps (chat_id, calendar_reminder)
+  - Ensure scheduler runtime service is injected into tool execution context
+  - Enforce persona source strategy: SOUL + USER with SOUL priority as persona base
+  - Preserve architecture guardrails and improve observability/tests
+success_criteria:
+  - YAML config fields for scheduler trigger chat_id and calendar_reminder fully effective at runtime
+  - scheduler_* tools work in production execution context (no scheduler unavailable)
+  - System prompt consistently contains SOUL and USER memory sections; no structured persona section
+  - Full lint and tests pass
+  - Mandatory code review run and findings resolved
+non_goals:
+  - No backward-compat dual-read for deprecated config fields
+  - No new persona persistence model
+  - No import-cycle risk into agent/ports
+phases:
+  - id: P1
+    name: Test-first additions
+    status: completed
+    tasks:
+      - Add/extend config merge tests for trigger chat_id + calendar_reminder mapping
+      - Add context prompt tests to assert SOUL/USER memory and no structured persona section
+      - Add coordinator/tool-context test to assert scheduler service injection path
+  - id: P2
+    name: Implementation changes
+    status: completed
+    tasks:
+      - Extend file config schema with chat_id and calendar_reminder file structs
+      - Update proactive merge implementation and env expansion handling
+      - Inject scheduler service in coordinator tool context
+      - Remove structured user persona section from system prompt composition
+  - id: P3
+    name: Validation
+    status: completed
+    tasks:
+      - Run focused tests for changed packages
+      - Run full lint and full test suite
+  - id: P4
+    name: Mandatory code review
+    status: completed
+    tasks:
+      - Run git diff --stat
+      - Execute skills/code-review/SKILL.md 7-step workflow
+      - Fix P0/P1 findings and re-run validation
+  - id: P5
+    name: Commits and merge back
+    status: in-progress
+    tasks:
+      - Create multiple incremental commits by change domain
+      - Fast-forward merge to main
+      - Remove temporary worktree and optional branch cleanup
+notes:
+  - Follow engineering-practices.md and AGENTS non-negotiables
+  - Keep unrelated existing changes in main workspace untouched
