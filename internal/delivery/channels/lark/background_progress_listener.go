@@ -82,10 +82,13 @@ type backgroundProgressListener struct {
 	interval  time.Duration
 	window    time.Duration
 
-	mu       sync.Mutex
-	tasks    map[string]*bgTaskTracker
-	closed   bool
-	released bool
+	mu             sync.Mutex
+	tasks          map[string]*bgTaskTracker
+	closed         bool
+	released       bool
+	pollerInterval time.Duration // configurable for testing; defaults to 30s
+	doneCh         chan struct{} // closed in Close() to stop the poller
+	doneOnce       sync.Once
 }
 
 func newBackgroundProgressListener(ctx context.Context, inner agent.EventListener, g *Gateway, chatID, replyToID string, logger logging.Logger, interval, window time.Duration) *backgroundProgressListener {
@@ -96,16 +99,18 @@ func newBackgroundProgressListener(ctx context.Context, inner agent.EventListene
 		window = defaultBackgroundProgressWindow
 	}
 	return &backgroundProgressListener{
-		inner:     inner,
-		ctx:       context.WithoutCancel(ctx),
-		g:         g,
-		chatID:    chatID,
-		replyToID: replyToID,
-		logger:    logging.OrNop(logger),
-		now:       time.Now,
-		interval:  interval,
-		window:    window,
-		tasks:     make(map[string]*bgTaskTracker),
+		inner:          inner,
+		ctx:            context.WithoutCancel(ctx),
+		g:              g,
+		chatID:         chatID,
+		replyToID:      replyToID,
+		logger:         logging.OrNop(logger),
+		now:            time.Now,
+		interval:       interval,
+		window:         window,
+		tasks:          make(map[string]*bgTaskTracker),
+		pollerInterval: 30 * time.Second,
+		doneCh:         make(chan struct{}),
 	}
 }
 
@@ -121,6 +126,9 @@ func (l *backgroundProgressListener) Close() {
 		tasks = append(tasks, t)
 	}
 	l.mu.Unlock()
+
+	// Signal the completion poller to stop.
+	l.doneOnce.Do(func() { close(l.doneCh) })
 
 	for _, t := range tasks {
 		t.stop()
@@ -145,13 +153,21 @@ func (l *backgroundProgressListener) Release() {
 		l.Close()
 		return
 	}
+
+	// Start the completion poller — polls TaskStore as a safety net in case
+	// both the normal and direct event paths fail (e.g. process crash/OOM).
+	go l.pollForCompletions()
+
 	// Safety net: prevent leaks if completion event is lost.
 	go func() {
 		t := time.NewTimer(maxBackgroundListenerLifetime)
 		defer t.Stop()
-		<-t.C
-		l.logger.Warn("backgroundProgressListener force-closing after max lifetime")
-		l.Close()
+		select {
+		case <-t.C:
+			l.logger.Warn("backgroundProgressListener force-closing after max lifetime")
+			l.Close()
+		case <-l.doneCh:
+		}
 	}()
 }
 
@@ -789,5 +805,52 @@ func (l *backgroundProgressListener) syncTaskStatus(taskID, status string, opts 
 	}
 	if err := l.g.taskStore.UpdateStatus(l.ctx, taskID, status, opts...); err != nil {
 		l.logger.Warn("Task store status update failed for %s: %v", taskID, err)
+	}
+}
+
+// pollForCompletions periodically checks TaskStore for tasks that completed
+// but whose completion event was never received (e.g. process crash, OOM).
+func (l *backgroundProgressListener) pollForCompletions() {
+	interval := l.pollerInterval
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			l.checkTaskStoreCompletions()
+		case <-l.doneCh:
+			return
+		}
+	}
+}
+
+func (l *backgroundProgressListener) checkTaskStoreCompletions() {
+	if l.g == nil || l.g.taskStore == nil {
+		return
+	}
+
+	l.mu.Lock()
+	taskIDs := make([]string, 0, len(l.tasks))
+	for id := range l.tasks {
+		taskIDs = append(taskIDs, id)
+	}
+	l.mu.Unlock()
+
+	if len(taskIDs) == 0 {
+		return
+	}
+
+	for _, taskID := range taskIDs {
+		rec, ok, err := l.g.taskStore.GetTask(l.ctx, taskID)
+		if err != nil || !ok {
+			continue
+		}
+		if rec.Status == "completed" || rec.Status == "failed" || rec.Status == "cancelled" {
+			l.logger.Info("Poller detected completed task %s (status=%s), delivering notification", taskID, rec.Status)
+			l.handleCompletion(taskID, rec.Status, rec.AnswerPreview, rec.Error, rec.TokensUsed)
+		}
 	}
 }
