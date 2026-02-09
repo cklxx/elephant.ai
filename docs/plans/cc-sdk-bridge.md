@@ -1,8 +1,8 @@
 # Plan: Claude Code Agent SDK Bridge + 智能消息过滤裁剪
 
-**Status**: In Progress
+**Status**: Complete
 **Created**: 2026-02-09
-**Branch**: `feat/cc-sdk-bridge`
+**Merged**: 2026-02-09
 
 ## Goal
 
@@ -11,11 +11,12 @@ Replace noisy stream-json stdout parsing with a Python Agent SDK sidecar that fi
 ## Batches
 
 - [x] Batch 0: Worktree setup
-- [ ] Batch 1: Python bridge script + JSONL protocol types
-- [ ] Batch 2: Go SDK Bridge Executor
-- [ ] Batch 3: Config + Registry integration
-- [ ] Batch 4: Codex Go-level tool filtering
-- [ ] Batch 5: Lint, test, code review, commit
+- [x] Batch 1: Python bridge script + JSONL protocol types
+- [x] Batch 2: Go SDK Bridge Executor
+- [x] Batch 3: Registry integration (no config items, auto-detect)
+- [x] Batch 4: Codex Go-level tool filtering
+- [x] Batch 5: Lint, test, code review, commit + merge
+- [x] Integration tests: end-to-end Go→Python→Claude API verified
 
 ## Architecture
 
@@ -43,3 +44,10 @@ Go SDKBridgeExecutor                    Python Sidecar (cc_bridge.py)
 | NotebookEdit | Yes | notebook_path only |
 | Read/Glob/Grep/WebFetch | No | — |
 | Task*/Skill | No | — |
+
+## Verification Results
+
+- Unit tests: 11 pass (7 SDK bridge + 4 existing)
+- Integration test: Go→Python→Claude API → answer "4", tokens=8, cost=$0.01
+- Tool filtering test: Write forwarded (file_path only), Read suppressed
+- Codex filtering: isCodexToolSuppressed for Read/Glob/Grep/WebFetch
