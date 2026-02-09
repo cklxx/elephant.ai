@@ -1104,6 +1104,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			countMatches("web", "internet", "doc", "reference", "official", "site", "url") >= 1 {
 			boost += 14
 		}
+		if countMatches("authoritative", "canonical", "trusted", "reference", "primary", "discover", "shortlist") >= 2 {
+			boost += 20
+		}
+		if has("no", "fixed", "web") || hasAll("source", "not", "selected") {
+			boost += 12
+		}
 	case "browser_dom":
 		if has("selector", "dom", "form", "field", "fill", "submit") {
 			boost += 14
@@ -1129,6 +1135,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("list", "show", "enumerate", "browse", "tree") >= 1 &&
 			countMatches("directory", "folder", "workspace", "path") >= 1 {
 			boost += 18
+		}
+		if countMatches("inventory", "candidate", "path", "directory", "nested", "root", "roots") >= 3 {
+			boost += 14
 		}
 	case "search_file":
 		if countMatches("search", "find", "locate", "occurrence", "symbol", "token", "regex", "pattern") >= 1 &&
@@ -1174,6 +1183,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("artifact", "report", "persist", "save", "write", "reference", "final", "output") >= 2 {
 			boost += 20
 		}
+		if countMatches("concise", "chat", "durable", "reusable", "downstream", "audit", "package", "full") >= 2 {
+			boost += 18
+		}
 	case "artifacts_list":
 		if countMatches("list", "enumerate", "index", "show", "generated", "artifact") >= 2 {
 			boost += 10
@@ -1184,6 +1196,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 	case "memory_search":
 		if countMatches("memory", "prior", "history", "decision", "note", "context", "summary", "recall") >= 2 {
+			boost += 20
+		}
+		if hasAll("before", "offset") && has("known", "exact", "line", "lines") {
 			boost += 20
 		}
 		if countMatches("preference", "habit", "style", "tone", "persona", "format", "choice") >= 2 {
@@ -1282,6 +1297,34 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if has("attach", "download", "generated", "deliver", "export") && !has("replace", "edit", "modify", "update", "create") {
 			boost -= 10
+		}
+	}
+	if toolName == "read_file" {
+		if has("inventory", "candidate", "path", "directory", "nested", "root", "roots") && !has("content", "line", "lines", "snippet", "open", "read") {
+			boost -= 12
+		}
+	}
+	if toolName == "write_attachment" {
+		if has("concise", "chat", "durable", "reusable", "downstream", "audit") &&
+			!has("download", "thread", "upload", "attach", "handoff", "receiver") {
+			boost -= 16
+		}
+	}
+	if toolName == "memory_get" {
+		if hasAll("before", "offset") && has("known", "exact", "line", "lines") {
+			boost -= 18
+		}
+	}
+	if toolName == "browser_screenshot" {
+		if countMatches("authoritative", "canonical", "reference", "rfc", "official", "primary") >= 2 &&
+			!has("visual", "screenshot", "proof", "ui", "page") {
+			boost -= 16
+		}
+	}
+	if toolName == "web_fetch" {
+		if countMatches("authoritative", "canonical", "reference", "discover", "shortlist") >= 2 &&
+			!has("fixed", "provided", "single", "exact", "url", "source") {
+			boost -= 12
 		}
 	}
 	if hasAll("task", "delegate") && toolName == "acp_executor" {
@@ -1521,6 +1564,25 @@ var tokenAliases = map[string]string{
 	"markdown":      "report",
 	"reporting":     "report",
 	"reports":       "report",
+	"authoritative": "official",
+	"primary":       "official",
+	"canonical":     "official",
+	"trusted":       "official",
+	"references":    "reference",
+	"discover":      "search",
+	"shortlist":     "search",
+	"fixed":         "exact",
+	"provided":      "exact",
+	"pinned":        "exact",
+	"inventory":     "list",
+	"nested":        "directory",
+	"roots":         "directory",
+	"candidate":     "directory",
+	"offsets":       "offset",
+	"known":         "exact",
+	"reusable":      "artifact",
+	"durable":       "artifact",
+	"downstream":    "artifact",
 }
 
 func tokenize(value string) []string {
