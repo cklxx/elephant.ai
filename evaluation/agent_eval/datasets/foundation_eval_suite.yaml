@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, and task completion speed"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, and autonomy initiative"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -127,6 +127,46 @@ collections:
     dimension: "task_completion_speed"
     description: "Speed-sensitive routing quality for shortest viable completion paths"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_task_completion_speed.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "long-horizon-multi-round"
+    name: "Long-Horizon Multi-Round"
+    dimension: "long_horizon_multi_round"
+    description: "Routing readiness for phased, multi-round, long-running execution tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_long_horizon_multi_round.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "architecture-coding-hard"
+    name: "Architecture Coding Hard"
+    dimension: "architecture_coding_hard"
+    description: "Routing quality for complex architecture refactors and logic-heavy coding tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_architecture_coding_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "deep-research"
+    name: "Deep Research"
+    dimension: "deep_research"
+    description: "Routing quality for deep multi-source search, verification, and evidence synthesis"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_deep_research.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "autonomy-initiative"
+    name: "Autonomy Initiative"
+    dimension: "autonomy_initiative"
+    description: "Autonomous initiative coverage for proactive execution and follow-through"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_autonomy_initiative.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

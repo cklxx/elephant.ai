@@ -1,0 +1,93 @@
+version: "1"
+name: "foundation-autonomy-initiative"
+description: "Autonomous initiative routing coverage for proactive execution, follow-through, and minimal user roundtrips"
+scenarios:
+  - id: "autonomy-plan-without-prompt"
+    category: "autonomy"
+    intent: "Without explicit instruction, split this migration into phases with explicit checkpoints and risks before implementation."
+    expected_tools: ["plan"]
+
+  - id: "autonomy-context-read-first"
+    category: "autonomy"
+    intent: "Before answering, proactively read recent chat history context from Lark."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "autonomy-memory-recall-first"
+    category: "autonomy"
+    intent: "Proactively search memory for known user preferences before proposing solution."
+    expected_tools: ["memory_search"]
+
+  - id: "autonomy-memory-evidence-open"
+    category: "autonomy"
+    intent: "Open exact memory note lines to ground the recommendation with prior decisions."
+    expected_tools: ["memory_get"]
+
+  - id: "autonomy-clarify-high-impact-ambiguity"
+    category: "autonomy"
+    intent: "There is high-impact ambiguity in requirements; ask one targeted clarification immediately."
+    expected_tools: ["clarify"]
+
+  - id: "autonomy-user-gate-sensitive-action"
+    category: "autonomy"
+    intent: "Sensitive production action requires request_user confirmation and manual user approval before continuing."
+    expected_tools: ["request_user"]
+
+  - id: "autonomy-search-then-read"
+    category: "autonomy"
+    intent: "Proactively search affected symbols then open the most relevant file before editing."
+    expected_tools: ["search_file", "read_file"]
+
+  - id: "autonomy-quick-repo-scan"
+    category: "autonomy"
+    intent: "Start with a quick repository scan using ripgrep to avoid blind edits."
+    expected_tools: ["ripgrep"]
+
+  - id: "autonomy-safe-edit"
+    category: "autonomy"
+    intent: "After locating issue, proactively apply a precise replacement in the target file."
+    expected_tools: ["replace_in_file"]
+
+  - id: "autonomy-shell-verify-after-change"
+    category: "autonomy"
+    intent: "Automatically run shell verification checks after code changes."
+    expected_tools: ["shell_exec"]
+
+  - id: "autonomy-script-validate-metric"
+    category: "autonomy"
+    intent: "Run execute_code to validate a metric quickly before sending final answer."
+    expected_tools: ["execute_code"]
+
+  - id: "autonomy-web-research-when-needed"
+    category: "autonomy"
+    intent: "When local context is insufficient, proactively web_search authoritative documentation."
+    expected_tools: ["web_search"]
+
+  - id: "autonomy-fetch-source-for-proof"
+    category: "autonomy"
+    intent: "Fetch the exact reference page content to avoid unsupported claims."
+    expected_tools: ["web_fetch"]
+
+  - id: "autonomy-progress-update-loop"
+    category: "autonomy"
+    intent: "During long-running work, proactively send concise progress updates to Lark."
+    expected_tools: ["lark_send_message"]
+
+  - id: "autonomy-artifact-first-delivery"
+    category: "autonomy"
+    intent: "Persist the long response as artifact first, then deliver a concise summary."
+    expected_tools: ["artifacts_write"]
+
+  - id: "autonomy-upload-final-file"
+    category: "autonomy"
+    intent: "Upload final generated output file to Lark without waiting for extra prompts."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "autonomy-set-followup-timer"
+    category: "autonomy"
+    intent: "Set a proactive timer reminder for follow-up verification."
+    expected_tools: ["set_timer"]
+
+  - id: "autonomy-delegate-heavy-tail"
+    category: "autonomy"
+    intent: "Delegate heavy tail validation tasks to external executor to reduce user wait time."
+    expected_tools: ["acp_executor"]
