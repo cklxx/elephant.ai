@@ -1,0 +1,72 @@
+version: "1"
+name: "foundation-industry-benchmark-arc-agi2-abductive-reasoning-hard"
+description: "Frontier-hard transfer set mapped from ARC-AGI-2 style abductive reasoning with strict evidence and verification gating"
+scenarios:
+  - id: "arcagi2-discover-authoritative-task-spec"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Task spec authority is unclear; discover canonical references before attempting reasoning."
+    expected_tools: ["web_search"]
+
+  - id: "arcagi2-ingest-single-approved-spec"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "A single approved spec URL is fixed; ingest only that page."
+    expected_tools: ["web_fetch"]
+
+  - id: "arcagi2-recover-prior-pattern-memory"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Recover prior pattern-solving strategy from memory before constructing new hypothesis."
+    expected_tools: ["memory_search"]
+
+  - id: "arcagi2-open-selected-pattern-evidence"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Open exact memory evidence lines from selected pattern-solving trace."
+    expected_tools: ["memory_get"]
+
+  - id: "arcagi2-prune-candidate-rules-by-topology"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Prune candidate rule modules by directory topology before reading content."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "arcagi2-content-first-rule-evidence"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Identify rule evidence by semantic body text instead of names."
+    expected_tools: ["search_file"]
+
+  - id: "arcagi2-open-disputed-transform-window"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Open exact transform logic window around disputed mapping before edits."
+    expected_tools: ["read_file"]
+
+  - id: "arcagi2-fast-token-pattern-sweep"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Run fastest token/pattern sweep across repository before deep inspection."
+    expected_tools: ["ripgrep"]
+
+  - id: "arcagi2-deterministic-grid-check"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Use deterministic computation to verify grid-level transformation invariants."
+    expected_tools: ["execute_code"]
+
+  - id: "arcagi2-request-human-gate-high-stakes"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "High-stakes answer release remains frozen until explicit human consent."
+    expected_tools: ["request_user"]
+
+  - id: "arcagi2-persist-proof-trace-artifact"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Persist full proof trace and decision rationale as durable artifact."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "proof trace artifact"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report"]
+
+  - id: "arcagi2-downloadable-judge-package"
+    category: "arc_agi2_abductive_reasoning_hard"
+    intent: "Judge requires downloadable package for offline evaluation and replay."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "judge package"
+      attachment_required: true
+      required_file_types: ["markdown", "json"]

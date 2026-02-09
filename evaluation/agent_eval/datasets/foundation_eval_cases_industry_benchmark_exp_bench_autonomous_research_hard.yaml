@@ -1,0 +1,73 @@
+version: "1"
+name: "foundation-industry-benchmark-exp-bench-autonomous-research-hard"
+description: "Frontier-hard transfer set mapped from EXP-Bench style autonomous AI research experimentation"
+scenarios:
+  - id: "expbench-research-source-discovery-first"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "No trusted source selected yet; discover authoritative research references first."
+    expected_tools: ["web_search"]
+
+  - id: "expbench-research-single-canonical-paper-ingest"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "A canonical paper URL is preapproved; ingest only that exact source."
+    expected_tools: ["web_fetch"]
+
+  - id: "expbench-research-recover-historical-insight"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Recover historically successful insight pattern before proposing next experiment."
+    expected_tools: ["memory_search"]
+
+  - id: "expbench-research-open-selected-memory-proof"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Open exact memory evidence lines from selected historical trial entry."
+    expected_tools: ["memory_get"]
+
+  - id: "expbench-research-tree-topology-prune"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Prune candidate experiment modules by tree topology before reading internals."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "expbench-research-semantic-corpus-evidence"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Gather semantic evidence from corpus text bodies, not filenames or paths."
+    expected_tools: ["search_file"]
+
+  - id: "expbench-research-open-proof-window"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Open exact proof/derivation window around disputed assumption transition."
+    expected_tools: ["read_file"]
+
+  - id: "expbench-research-fast-symbolic-scan"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Run fast symbolic regex scan across corpus before deep reasoning."
+    expected_tools: ["ripgrep"]
+
+  - id: "expbench-research-deterministic-hypothesis-check"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Use deterministic computation to validate intermediate hypothesis consistency."
+    expected_tools: ["execute_code"]
+
+  - id: "expbench-research-human-gate-before-claim-publish"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Claim publication is frozen until explicit human approval appears in-thread."
+    expected_tools: ["request_user"]
+
+  - id: "expbench-research-persist-full-notebook-artifact"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Persist full research notebook and evidence chain as durable artifact output."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "research notebook"
+      artifact_required: true
+      manifest_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report"]
+
+  - id: "expbench-research-downloadable-submission-pack"
+    category: "exp_bench_autonomous_research_hard"
+    intent: "Evaluator requests immediate downloadable submission package for independent check."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "submission package"
+      attachment_required: true
+      required_file_types: ["markdown"]

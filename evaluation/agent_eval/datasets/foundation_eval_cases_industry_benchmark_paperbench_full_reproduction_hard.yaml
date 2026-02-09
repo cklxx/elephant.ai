@@ -1,0 +1,59 @@
+version: "1"
+name: "foundation-industry-benchmark-paperbench-full-reproduction-hard"
+description: "Research-frontier transfer set mapped from PaperBench style end-to-end ML paper reproduction workflows"
+scenarios:
+  - id: "paperbench-authority-paper-discovery-first"
+    category: "paperbench_full_reproduction_hard"
+    intent: "No trusted paper baseline selected yet; discover authoritative source and repository first."
+    expected_tools: ["web_search"]
+
+  - id: "paperbench-single-approved-paper-ingest"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Paper URL is pre-approved; ingest only that exact source page."
+    expected_tools: ["web_fetch"]
+
+  - id: "paperbench-recover-prior-repro-playbook"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Recover prior successful reproduction playbook from memory before starting."
+    expected_tools: ["memory_search"]
+
+  - id: "paperbench-open-memory-repro-evidence"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Open selected memory evidence lines tied to earlier reproduction failure modes."
+    expected_tools: ["memory_get"]
+
+  - id: "paperbench-repo-topology-prune-before-read"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Prune target modules by directory topology before reading internals."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "paperbench-semantic-method-evidence-search"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Search method and ablation evidence from semantic file bodies, not names."
+    expected_tools: ["search_file"]
+
+  - id: "paperbench-open-critical-experiment-window"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Open exact experiment logic window around mismatch point before edits."
+    expected_tools: ["read_file"]
+
+  - id: "paperbench-cli-reproduce-training-pipeline"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Reproduce training pipeline from CLI and inspect runtime/log behavior."
+    expected_tools: ["shell_exec"]
+
+  - id: "paperbench-deterministic-metric-recalc"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Recalculate benchmark metrics deterministically for comparability check."
+    expected_tools: ["execute_code"]
+
+  - id: "paperbench-repro-report-artifact-contract"
+    category: "paperbench_full_reproduction_hard"
+    intent: "Persist full reproduction report with evidence chain as durable artifact package."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "reproduction report"
+      artifact_required: true
+      manifest_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "log"]

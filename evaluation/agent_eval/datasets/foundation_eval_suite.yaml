@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Hard-only offline foundation evaluation focused on challenging LLM-required reasoning and industry benchmark transfer: SWE-bench Verified readiness, conflict-heavy orchestration and intent decomposition, architecture coding hard tasks, artifact/reproducibility/stateful stress, and expanded benchmark-transfer sets (coding/workflow, web/computer-use, long-context reasoning, GAIA, LiveCodeBench/SWE-Lancer, AssistantBench/τ2, NoLiMa/LongMemEval/BABILong, Terminal-Bench, MLE-Bench, SWE-PolyBench, GitTaskBench, OSWorld-G, FrontierMath/HLE). Saturated easy/basic collections are retired from the main suite."
+description: "Hard-only offline foundation evaluation with layered difficulty: Core-Hard (SWE/coordination/conflict/delivery stress), Frontier-Hard (Terminal-Bench/MLE-Bench/SWE-PolyBench/GitTaskBench/OSWorld-G), and Research-Frontier-Hard (FrontierMath/HLE/RE-Bench/EXP-Bench/ARC-AGI-2/PaperBench/MLRC-Bench/ALE-Bench). Saturated easy/basic collections are retired from the main suite."
 collections:
   - id: "swebench-verified-readiness"
     name: "SWE-bench Verified Readiness"
@@ -247,6 +247,66 @@ collections:
     dimension: "industry_benchmark_frontiermath_hle_deep_reasoning_validation_hard"
     description: "Transfer set mapped from FrontierMath and HLE style deep reasoning with deterministic validation and evidence gates"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_frontiermath_hle_deep_reasoning_validation_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-re-bench-frontier-ml-rd-hard"
+    name: "Industry Benchmark RE-Bench Frontier ML R&D Hard"
+    dimension: "industry_benchmark_re_bench_frontier_ml_rd_hard"
+    description: "Transfer set mapped from METR RE-Bench frontier ML R&D engineering tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_re_bench_frontier_ml_rd_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-exp-bench-autonomous-research-hard"
+    name: "Industry Benchmark EXP-Bench Autonomous Research Hard"
+    dimension: "industry_benchmark_exp_bench_autonomous_research_hard"
+    description: "Transfer set mapped from EXP-Bench autonomous AI research experimentation tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_exp_bench_autonomous_research_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-arc-agi2-abductive-reasoning-hard"
+    name: "Industry Benchmark ARC-AGI-2 Abductive Reasoning Hard"
+    dimension: "industry_benchmark_arc_agi2_abductive_reasoning_hard"
+    description: "Transfer set mapped from ARC-AGI-2 style abductive reasoning and strict verification gating"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_arc_agi2_abductive_reasoning_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-paperbench-full-reproduction-hard"
+    name: "Industry Benchmark PaperBench Full Reproduction Hard"
+    dimension: "industry_benchmark_paperbench_full_reproduction_hard"
+    description: "Transfer set mapped from PaperBench style end-to-end ML paper reproduction"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_paperbench_full_reproduction_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-mlrc-bench-open-research-hard"
+    name: "Industry Benchmark MLRC-Bench Open Research Hard"
+    dimension: "industry_benchmark_mlrc_bench_open_research_hard"
+    description: "Transfer set mapped from MLRC-Bench style open-ended ML research competition tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_mlrc_bench_open_research_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-ale-bench-long-horizon-algo-engineering-hard"
+    name: "Industry Benchmark ALE-Bench Long Horizon Algo Engineering Hard"
+    dimension: "industry_benchmark_ale_bench_long_horizon_algo_engineering_hard"
+    description: "Transfer set mapped from ALE-Bench long-horizon algorithm engineering tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_ale_bench_long_horizon_algo_engineering_hard.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
