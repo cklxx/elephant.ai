@@ -26,3 +26,52 @@
 - Use summaries first; open full entries only if summaries are insufficient.
 - Expand beyond active memory only when a known pattern is relevant or tests fail with known signatures.
 - Update `docs/memory/long-term.md` `Updated:` to hour precision; refresh active set on first load each day.
+
+## Code Review — mandatory step after coding
+
+### When to trigger
+Code review is **mandatory** before every commit or merge. The following scenarios trigger a review:
+- Feature development complete, ready to commit
+- Bug fix complete, ready to merge
+- Refactoring complete, ready to submit PR
+- User explicitly requests a review
+
+### Review process
+
+1. **Determine scope**: Run `git diff --stat` to identify the scope of changes; record the number of files and lines changed.
+2. **Load skill**: Execute the 7-step workflow defined in `skills/code-review/SKILL.md`.
+3. **Review by dimension**: Check SOLID/architecture, security/reliability, code quality/edge cases, and cleanup plan in order.
+4. **Generate report**: Output a structured review report organized by severity level (P0–P3).
+5. **Confirm fixes**: Present the report and wait for the user to confirm the resolution approach; re-verify after fixes are applied.
+
+### Review reference checklists
+
+Load the following reference files during review for specific check items:
+- `skills/code-review/references/solid-checklist.md` — SOLID principles and code smells
+- `skills/code-review/references/security-checklist.md` — Security and reliability (including race condition checks)
+- `skills/code-review/references/code-quality-checklist.md` — Error handling, performance, edge cases, observability
+- `skills/code-review/references/removal-plan.md` — Dead code identification and cleanup plan template
+
+### Review principles
+
+- **Understand before judging**: Read the full context of changes before reviewing; understand the design intent.
+- **Prioritize by severity**: P0/P1 must be fixed, P2 creates a follow-up, P3 is optional.
+- **Provide fix suggestions**: For every issue, not only identify the problem but also provide a concrete fix recommendation.
+- **Respect architectural decisions**: Do not push personal preferences; focus on correctness and security.
+- **Go/Rust specifics**: Perform targeted checks for language-specific issues in the project's primary languages.
+
+### Integration with existing workflow
+
+Code review is part of the coding → testing → review → commit pipeline:
+
+```
+Coding complete
+  → lint + test pass
+  → Code review (this skill)
+  → Fix issues found during review
+  → Re-run lint + test
+  → Commit (incremental commits)
+  → Merge to main
+```
+
+Code review does not replace lint and tests; it supplements them by catching architecture, security, and logic issues that automated tools cannot detect.
