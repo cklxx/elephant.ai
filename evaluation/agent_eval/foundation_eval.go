@@ -1219,6 +1219,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if hasAll("before", "continue") && has("manual", "approval", "confirm", "human") {
 			boost += 10
 		}
+	case "cancel_timer":
+		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
+			boost += 22
+		}
+	case "set_timer":
+		if countMatches("set", "new", "create", "schedule", "later", "after", "timer", "reminder") >= 2 {
+			boost += 12
+		}
 	case "ripgrep":
 		if countMatches("regex", "pattern", "needle", "sweep", "scan", "repo", "repository", "across", "fast", "quick", "hotspot") >= 2 {
 			boost += 26
@@ -1234,6 +1242,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "list_timers":
 		if countMatches("timer", "timers", "reminder", "reminders", "remaining", "active", "schedule") >= 2 {
 			boost += 20
+		}
+	case "lark_upload_file":
+		if countMatches("upload", "file", "lark", "thread", "chat", "conversation") >= 2 {
+			boost += 24
+		}
+	case "lark_send_message":
+		if countMatches("send", "message", "update", "status", "lark", "thread", "chat") >= 2 {
+			boost += 14
 		}
 	case "a2ui_emit":
 		if has("payload", "renderer", "render", "ui", "protocol", "structured") {
@@ -1279,6 +1295,11 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 12
 		}
 	}
+	if toolName == "clarify" {
+		if countMatches("manual", "approval", "approve", "confirm", "consent", "operator", "gate", "user") >= 2 {
+			boost -= 20
+		}
+	}
 	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
 		if has("artifact", "artifacts", "manifest", "cleanup", "stale", "obsolete", "legacy") &&
 			!has("calendar", "event", "meeting", "schedule") {
@@ -1305,9 +1326,22 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 	}
 	if toolName == "write_attachment" {
+		if countMatches("lark", "thread", "chat", "conversation", "upload") >= 2 {
+			boost -= 18
+		}
 		if has("concise", "chat", "durable", "reusable", "downstream", "audit") &&
 			!has("download", "thread", "upload", "attach", "handoff", "receiver") {
 			boost -= 16
+		}
+	}
+	if toolName == "set_timer" {
+		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
+			boost -= 18
+		}
+	}
+	if toolName == "search_file" {
+		if countMatches("memory", "history", "prior", "note", "notes", "recall", "habit", "preference") >= 2 {
+			boost -= 10
 		}
 	}
 	if toolName == "memory_get" {

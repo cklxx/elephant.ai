@@ -481,11 +481,26 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("web_search", makeSet("official", "reference", "discover", "canonical")); boost <= 0 {
 		t.Fatalf("expected web_search authority boost > 0, got %.2f", boost)
 	}
+	if boost := heuristicIntentBoost("lark_upload_file", makeSet("upload", "file", "lark", "thread")); boost <= 0 {
+		t.Fatalf("expected lark_upload_file thread upload boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("cancel_timer", makeSet("cancel", "stale", "duplicate", "reminder")); boost <= 0 {
+		t.Fatalf("expected cancel_timer cleanup boost > 0, got %.2f", boost)
+	}
 	if boost := heuristicIntentBoost("artifacts_write", makeSet("concise", "chat", "durable", "artifact", "report")); boost <= 0 {
 		t.Fatalf("expected artifacts_write delivery boost > 0, got %.2f", boost)
 	}
+	if boost := heuristicIntentBoost("clarify", makeSet("manual", "approval", "user", "confirm")); boost >= 10 {
+		t.Fatalf("expected clarify to be penalized under manual-approval gate intents, got %.2f", boost)
+	}
 	if boost := heuristicIntentBoost("write_attachment", makeSet("concise", "chat", "durable", "artifact", "report")); boost >= 20 {
 		t.Fatalf("expected write_attachment to be penalized for durable artifact intent, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("write_attachment", makeSet("upload", "file", "lark", "thread")); boost >= 20 {
+		t.Fatalf("expected write_attachment to be penalized for lark upload intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("search_file", makeSet("memory", "prior", "note", "recall")); boost >= 0 {
+		t.Fatalf("expected search_file penalty under memory retrieval intent, got %.2f", boost)
 	}
 
 	searchBoost := heuristicIntentBoost("search_file", makeSet("regex", "needle", "sweep", "repo", "fast"))
