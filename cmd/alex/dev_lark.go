@@ -64,12 +64,9 @@ func larkStart() error {
 
 	// Check if already running
 	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
-	if data, err := os.ReadFile(pidFile); err == nil {
-		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-		if pid > 0 && syscall.Kill(pid, 0) == nil {
-			fmt.Printf("Supervisor already running (PID: %d)\n", pid)
-			return nil
-		}
+	if pid, _, alive := readLivePIDFile(pidFile, true); alive {
+		fmt.Printf("Supervisor already running (PID: %d)\n", pid)
+		return nil
 	}
 
 	// Launch supervisor in background
@@ -98,27 +95,26 @@ func larkStart() error {
 		return fmt.Errorf("start supervisor: %w", err)
 	}
 
+	if err := f.Close(); err != nil {
+		_ = cmd.Process.Kill()
+		return fmt.Errorf("close supervisor log file: %w", err)
+	}
+	time.Sleep(1 * time.Second)
+	if syscall.Kill(cmd.Process.Pid, 0) != nil {
+		return fmt.Errorf("supervisor failed to start (see %s)", logFile)
+	}
+
 	if err := os.MkdirAll(filepath.Dir(pidFile), 0o755); err != nil {
 		_ = cmd.Process.Kill()
-		_ = f.Close()
 		return fmt.Errorf("create supervisor pid dir: %w", err)
 	}
 	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644); err != nil {
 		_ = cmd.Process.Kill()
-		_ = f.Close()
 		return fmt.Errorf("write supervisor pid file: %w", err)
 	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("close supervisor log file: %w", err)
-	}
 
-	time.Sleep(1 * time.Second)
-	if syscall.Kill(cmd.Process.Pid, 0) == nil {
-		fmt.Printf("Supervisor started (PID: %d)\n", cmd.Process.Pid)
-		return nil
-	}
-
-	return fmt.Errorf("supervisor failed to start (see %s)", logFile)
+	fmt.Printf("Supervisor started (PID: %d)\n", cmd.Process.Pid)
+	return nil
 }
 
 func larkStop() error {
@@ -128,15 +124,12 @@ func larkStop() error {
 	}
 
 	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
-	data, err := os.ReadFile(pidFile)
-	if err != nil {
+	pid, exists, alive := readLivePIDFile(pidFile, true)
+	if !exists {
 		fmt.Println("Supervisor is not running")
 		return nil
 	}
-
-	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	if pid <= 0 || syscall.Kill(pid, 0) != nil {
-		os.Remove(pidFile)
+	if !alive {
 		fmt.Println("Supervisor is not running (stale PID file cleaned)")
 		return nil
 	}
@@ -177,11 +170,8 @@ func larkStatus() error {
 	// Check if supervisor process is alive
 	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
 	var supervisorPID int
-	if data, err := os.ReadFile(pidFile); err == nil {
-		pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-		if pid > 0 && syscall.Kill(pid, 0) == nil {
-			supervisorPID = pid
-		}
+	if pid, _, alive := readLivePIDFile(pidFile, true); alive {
+		supervisorPID = pid
 	}
 
 	sec.Section("Lark Supervisor")
@@ -557,12 +547,8 @@ func printLarkSummary(sec *devlog.SectionWriter) {
 	}
 
 	pidFile := filepath.Join(cfg.PIDDir, "lark-supervisor.pid")
-	data, err := os.ReadFile(pidFile)
-	if err != nil {
-		return // not running
-	}
-	pid, _ := strconv.Atoi(strings.TrimSpace(string(data)))
-	if pid <= 0 || syscall.Kill(pid, 0) != nil {
+	pid, _, alive := readLivePIDFile(pidFile, true)
+	if !alive {
 		return // not running
 	}
 
@@ -623,4 +609,26 @@ Commands:
   logs             Tail all Lark logs
   help             Show this help
 `)
+}
+
+func readLivePIDFile(path string, cleanupStale bool) (pid int, exists bool, alive bool) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, false, false
+	}
+	exists = true
+	pid, err = strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 0 {
+		if cleanupStale {
+			_ = os.Remove(path)
+		}
+		return 0, true, false
+	}
+	if syscall.Kill(pid, 0) == nil {
+		return pid, true, true
+	}
+	if cleanupStale {
+		_ = os.Remove(path)
+	}
+	return 0, true, false
 }

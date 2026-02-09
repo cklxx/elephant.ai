@@ -18,9 +18,9 @@
 ## 里程碑
 - [x] M0: 基线与规则检查（engineering practices + memory）
 - [x] M1: Runtime watcher race 修复 + 测试
-- [ ] M2: Process manager 并发/PID 语义修复 + 测试
-- [ ] M3: Restart policy/supervisor 修复 + 测试
-- [ ] M4: Lark CLI 启动 PID 一致性修复 + 测试
+- [x] M2: Process manager 并发/PID 语义修复 + 测试
+- [x] M3: Restart policy/supervisor 修复 + 测试
+- [x] M4: Lark CLI 启动 PID 一致性修复 + 测试
 - [ ] M5: 全量验证、文档沉淀、增量提交、合并回 main
 
 ## 风险与约束
