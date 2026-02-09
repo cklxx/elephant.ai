@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, challenge hard v2, and complex artifact delivery"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, agent optimization hard v3, challenge hard v2, and complex artifact delivery"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -187,6 +187,16 @@ collections:
     dimension: "conflict_convergence_hard"
     description: "Hard conflict-focused convergence set for overlapping tools and sandbox-intent normalization"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_conflict_convergence_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "agent-optimization-hard-v3"
+    name: "Agent Optimization Hard V3"
+    dimension: "agent_optimization_hard_v3"
+    description: "Hard conflict-rich suite targeting persistent top1 miss families and close-call ambiguity"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_agent_optimization_hard_v3.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

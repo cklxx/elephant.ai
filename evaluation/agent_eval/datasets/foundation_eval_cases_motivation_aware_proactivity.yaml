@@ -27,15 +27,15 @@ scenarios:
     intent: "Requirements conflict between wanting reminders and avoiding interruptions; clarify the boundary."
     expected_tools: ["clarify"]
 
-  - id: "motivation-focus-sprint-timer"
-    category: "motivation_proactivity"
-    intent: "Set a 25-minute focus sprint reminder to help user start immediately."
-    expected_tools: ["set_timer"]
+  - id: "motivation-consent-vs-task-ownership-gate"
+    category: "motivation_boundary"
+    intent: "Team asks to auto-assign accountability tasks externally, but user required explicit consent before any outreach."
+    expected_tools: ["request_user"]
 
-  - id: "motivation-list-current-reminders"
+  - id: "motivation-message-vs-upload-no-file"
     category: "motivation_proactivity"
-    intent: "List all active timers before setting new motivation reminders."
-    expected_tools: ["list_timers"]
+    intent: "Send an encouraging progress nudge in current Lark thread without uploading or attaching any file."
+    expected_tools: ["lark_send_message"]
 
   - id: "motivation-stop-noise-reminders"
     category: "motivation_boundary"
@@ -59,7 +59,7 @@ scenarios:
 
   - id: "motivation-memory-recall-cadence"
     category: "motivation_memory"
-    intent: "Use memory_search to recall the user's preferred reminder cadence before planning nudges."
+    intent: "Recall the user's preferred reminder cadence from prior notes before planning nudges."
     expected_tools: ["memory_search"]
 
   - id: "motivation-memory-open-evidence"
@@ -77,15 +77,15 @@ scenarios:
     intent: "Fetch recent Lark chat history before issuing a proactive motivation reminder."
     expected_tools: ["lark_chat_history"]
 
-  - id: "motivation-send-encouraging-checkin"
-    category: "motivation_proactivity"
-    intent: "Send a concise encouraging check-in message in the current Lark conversation."
-    expected_tools: ["lark_send_message"]
+  - id: "motivation-memory-policy-before-action"
+    category: "motivation_memory"
+    intent: "Before choosing a motivation intervention, recall prior accepted and rejected nudging patterns from memory."
+    expected_tools: ["memory_search"]
 
-  - id: "motivation-deadline-calendar-block"
-    category: "motivation_extrinsic"
-    intent: "Create a calendar event for a hard deadline work block to reinforce commitment."
-    expected_tools: ["lark_calendar_create"]
+  - id: "motivation-exact-url-evidence-fetch"
+    category: "motivation_feedback"
+    intent: "Given one fixed URL for progress evidence, fetch and extract it directly rather than discovering new sources."
+    expected_tools: ["web_fetch"]
 
   - id: "motivation-check-calendar-before-reschedule"
     category: "motivation_extrinsic"
@@ -138,7 +138,7 @@ scenarios:
 
   - id: "motivation-verify-deliverable-traceability"
     category: "motivation_feedback"
-    intent: "Inspect artifact manifest to verify generated motivation deliverables and metadata."
+    intent: "Inspect generated delivery metadata manifest to verify motivation deliverables are traceable."
     expected_tools: ["artifact_manifest"]
     deliverable:
       output_description: "Traceability proof for motivation artifacts"
@@ -163,3 +163,13 @@ scenarios:
     category: "motivation_boundary"
     intent: "User is in a meeting and asks reminders to be delayed by 30 minutes; set a later timer."
     expected_tools: ["set_timer"]
+
+  - id: "motivation-shell-health-vs-script"
+    category: "motivation_feedback"
+    intent: "Run a terminal health-check command for reminder worker process and open ports before sending motivation status."
+    expected_tools: ["shell_exec"]
+
+  - id: "motivation-path-locate-before-open"
+    category: "motivation_feedback"
+    intent: "Locate motivation runbook files by path/name pattern first, then decide which one to open."
+    expected_tools: ["find"]

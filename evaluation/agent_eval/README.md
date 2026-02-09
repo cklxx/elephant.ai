@@ -74,21 +74,22 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 冲突收敛高难专项（conflict convergence hard）
 - 高难挑战专项（challenge hard v2）
 - 复杂任务文件产物交付专项（complex artifact delivery）
+- Agent 优化高难专项（agent optimization hard v3）
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
 当前集合规模（`x/x`）：
-- Collections: `20/21`
-- Cases: `558/559`
-- Applicable Cases: `559/559`（N/A 单独统计，不计失败）
-- pass@1: `485/559`
-- pass@5: `559/559`
-- Deliverable Cases: `35/559`
-- Deliverable Good: `26/35`
-- Deliverable Bad: `9/35`
+- Collections: `21/22`
+- Cases: `580/581`
+- Applicable Cases: `581/581`（N/A 单独统计，不计失败）
+- pass@1: `505/581`
+- pass@5: `581/581`
+- Deliverable Cases: `37/581`
+- Deliverable Good: `27/37`
+- Deliverable Bad: `10/37`
 - Base Tool Coverage: `46/46`
 - Prompt Effectiveness Coverage: `32/32`
 - Proactivity Coverage: `30/30`
-- Motivation-Aware Proactivity: `29/30`
+- Motivation-Aware Proactivity: `31/32`
 - Complex High-Value Tasks: `30/30`
 - Availability and Recovery: `24/24`
 - Valuable Delivery Workflows: `28/28`
@@ -104,6 +105,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Deep Research: `18/18`
 - Autonomy Initiative: `18/18`
 - Conflict Convergence Hard: `24/24`
+- Agent Optimization Hard V3: `20/20`
 - Challenge Hard V2: `49/49`
 - Complex Artifact Delivery: `32/32`
 
