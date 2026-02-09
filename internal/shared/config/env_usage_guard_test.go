@@ -16,6 +16,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 	allowed := newStringSet(t,
 		"cmd/auth-user-seed/main.go",
 		"cmd/alex-server/main.go",
+		"internal/infra/external/bridge/executor_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_tool_test.go",
 		"internal/shared/utils/logger.go",

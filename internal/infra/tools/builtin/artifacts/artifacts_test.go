@@ -174,3 +174,20 @@ func TestArtifactsWriteDefinitionMentionsHTML(t *testing.T) {
 		t.Fatalf("expected artifacts_write description to mention html")
 	}
 }
+
+func TestArtifactToolDescriptionsExpressLifecycleBoundaries(t *testing.T) {
+	writeDesc := NewArtifactsWrite().Definition().Description
+	if !strings.Contains(writeDesc, "creating or updating artifact content") {
+		t.Fatalf("expected artifacts_write description to mention non-goal listing, got %q", writeDesc)
+	}
+
+	listDesc := NewArtifactsList().Definition().Description
+	if !strings.Contains(listDesc, "does not create/update artifacts") || !strings.Contains(listDesc, "does not delete artifacts") {
+		t.Fatalf("expected artifacts_list description to mention read-only inventory boundary, got %q", listDesc)
+	}
+
+	deleteDesc := NewArtifactsDelete().Definition().Description
+	if !strings.Contains(deleteDesc, "artifact cleanup") || !strings.Contains(deleteDesc, "scheduler jobs") {
+		t.Fatalf("expected artifacts_delete description to mention cleanup-only scope, got %q", deleteDesc)
+	}
+}

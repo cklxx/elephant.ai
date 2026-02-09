@@ -467,3 +467,14 @@ func TestDeleteJob_Dangerous(t *testing.T) {
 		t.Error("expected scheduler_delete_job to have Dangerous=true")
 	}
 }
+
+func TestDeleteJob_DefinitionDescriptionScope(t *testing.T) {
+	tool := NewSchedulerDelete()
+	desc := tool.Definition().Description
+	if !strings.Contains(desc, "scheduler jobs") {
+		t.Fatalf("expected scheduler_delete_job description to scope to scheduler jobs, got %q", desc)
+	}
+	if !strings.Contains(desc, "artifacts/files/calendar/timers") {
+		t.Fatalf("expected scheduler_delete_job description to include non-goals, got %q", desc)
+	}
+}

@@ -1,6 +1,7 @@
 package presets
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -200,6 +201,26 @@ func TestIsValidToolPreset(t *testing.T) {
 				t.Errorf("IsValidToolPreset() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
+	t.Parallel()
+
+	config, err := GetPromptConfig(PresetDefault)
+	if err != nil {
+		t.Fatalf("GetPromptConfig() error = %v", err)
+	}
+	prompt := config.SystemPrompt
+	for _, snippet := range []string{
+		"Use `request_user` for explicit human approval/consent/manual gates",
+		"Distinguish artifact tools",
+		"Distinguish Lark tools",
+		"Distinguish browser tools",
+	} {
+		if !strings.Contains(prompt, snippet) {
+			t.Fatalf("expected system prompt to contain %q", snippet)
+		}
 	}
 }
 
