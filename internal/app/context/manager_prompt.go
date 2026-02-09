@@ -60,11 +60,15 @@ func buildToolRoutingSection() string {
 		"Use request_user for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation).",
 		"Use read_file for repository/workspace files and proof/context windows; use memory_search/memory_get only for persistent memory notes.",
 		"Use artifacts_list for inventory/audit, artifacts_write for create/update outputs, and artifacts_delete for cleanup.",
+		"Use write_attachment when a downloadable file package must be materialized from an existing attachment reference.",
 		"Use lark_chat_history for thread context recall, lark_send_message for text-only updates, and lark_upload_file only when a file must be delivered.",
 		"Use browser_info for read-only tab/session metadata; use browser_dom/browser_action for interactions.",
+		"Use browser_dom for selector-based interactions and browser_action only for coordinate/manual interactions when selectors are unavailable.",
+		"Use browser_screenshot only for explicit visual proof capture, not for semantic text evidence retrieval.",
 		"Use execute_code for deterministic computation/recalculation/metric checks, not browser_action or lark_calendar_query.",
 		"Use scheduler_list_jobs for recurring scheduler inventory and scheduler_delete_job only for retiring scheduler jobs.",
 		"Use find/list_dir for path discovery, search_file for known-file content matching, and ripgrep for repo-wide regex sweeps.",
+		"Use web_search to discover authoritative sources when no fixed URL is chosen yet; use web_fetch to retrieve a single approved URL.",
 		"Use replace_in_file only for in-place edits in existing files with known target text.",
 	})
 }
