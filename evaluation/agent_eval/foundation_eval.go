@@ -1099,6 +1099,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("phased", "checklist", "rollback", "checkpoint", "reproduce", "patch", "verify", "gates") >= 3 {
 			boost += 20
 		}
+		if countMatches("before", "task", "updates", "rollout", "phased", "milestones", "risk", "checkpoints") >= 4 {
+			boost += 18
+		}
+		if countMatches("release", "checklist", "milestones", "rollback", "checkpoint", "checkpoints") >= 3 {
+			boost += 26
+		}
 	case "read_file":
 		if countMatches("read", "open", "inspect", "view") >= 1 &&
 			countMatches("source", "workspace", "file", "content", "line") >= 1 {
@@ -1153,6 +1159,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("ledger", "durable", "audit", "artifact", "progress", "proof") >= 3 {
 			boost -= 12
+		}
+		if countMatches("artifacts_write", "artifact", "artifacts", "report", "downstream", "reusable", "deliverable") >= 2 &&
+			!has("workspace", "local", "markdown", "create", "write", "file") {
+			boost -= 22
 		}
 		if countMatches("identify", "locate", "candidate", "pattern", "inside", "files") >= 3 &&
 			!has("write", "create", "save", "draft", "new") {
@@ -1307,9 +1317,18 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch") >= 3 {
 			boost += 22
 		}
+		if has("memory_get") && has("selected", "exact", "open", "detail", "detailed", "guidance", "context") {
+			boost -= 16
+		}
 	case "memory_get":
 		if countMatches("open", "exact", "line", "lines", "offset", "fragment", "citation", "verbatim", "proof", "evidence", "selected", "note") >= 2 {
 			boost += 24
+		}
+		if has("memory_get") {
+			boost += 18
+		}
+		if countMatches("selected", "memory", "note", "open", "detail", "detailed", "guidance", "context", "root", "cause") >= 3 {
+			boost += 20
 		}
 	case "request_user":
 		if countMatches("human", "manual", "approval", "approve", "confirm", "consent", "operator", "go-signal", "gate", "out-of-band", "acknowledgement", "wait") >= 2 {
@@ -1650,6 +1669,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("replace", "patch", "edit", "modify", "update") {
 			boost -= 30
 		}
+		if countMatches("list", "directory", "directories", "tree", "workspace", "paths", "inventory") >= 3 &&
+			!has("replace", "patch", "edit", "modify", "update") {
+			boost -= 22
+		}
+		if countMatches("list", "directories", "files", "recursively", "before", "choosing", "target", "file") >= 4 &&
+			!has("replace", "patch", "edit", "modify", "update") {
+			boost -= 32
+		}
 	}
 	if toolName == "browser_action" {
 		if countMatches("state", "status", "metadata", "url", "tab", "session", "current", "info") >= 3 &&
@@ -1739,6 +1766,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("task", "owner", "due", "todo", "assign", "batch", "update") {
 			boost -= 20
 		}
+		if countMatches("before", "task", "updates", "rollout", "phased", "milestones", "risk", "checkpoints") >= 4 &&
+			!has("task", "owner", "due", "todo", "assign", "batch", "update", "manage", "ticket") {
+			boost -= 22
+		}
+		if countMatches("release", "checklist", "milestones", "rollback", "checkpoint", "checkpoints") >= 3 &&
+			!has("task", "owner", "due", "todo", "assign", "batch", "update", "manage", "ticket") {
+			boost -= 30
+		}
 	}
 	if toolName == "lark_send_message" {
 		if countMatches("file", "report", "package", "upload", "in", "thread") >= 3 &&
@@ -1748,6 +1783,44 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	}
 	if toolName == "lark_upload_file" {
 		if countMatches("review", "cannot", "proceed", "without", "generated", "report", "file", "thread", "deliver", "package") >= 4 {
+			boost += 20
+		}
+		if countMatches("artifact", "artifacts", "report", "reusable", "downstream", "full", "deep", "dive") >= 3 &&
+			!has("upload", "attach", "thread", "chat", "lark", "conversation") {
+			boost -= 26
+		}
+	}
+	if toolName == "artifacts_write" {
+		if countMatches("artifacts_write", "artifact", "artifacts", "reusable", "downstream", "full", "report", "deep", "dive") >= 3 {
+			boost += 20
+		}
+	}
+	if toolName == "clarify" {
+		if countMatches("memory_get", "selected", "memory", "note", "open", "detail", "detailed", "guidance", "context") >= 3 &&
+			!has("unclear", "ambiguity", "clarify", "conflict", "missing") {
+			boost -= 24
+		}
+		if countMatches("memory_search", "memory_get", "before", "action", "retrieve", "recall", "history") >= 3 &&
+			!has("unclear", "ambiguity", "clarify", "conflict", "missing") {
+			boost -= 18
+		}
+	}
+	if toolName == "write_attachment" {
+		if countMatches("downloadable", "handoff", "receiver", "immediate", "deliver") >= 2 {
+			boost += 28
+		}
+		if has("not") && countMatches("background", "storage", "persist", "persistence", "only") >= 2 {
+			boost += 18
+		}
+		if countMatches("workspace", "local", "markdown", "file", "not", "attachment") >= 4 {
+			boost -= 44
+		}
+		if has("not", "no", "without") && has("attachment", "attach") {
+			boost -= 40
+		}
+	}
+	if toolName == "write_file" {
+		if countMatches("workspace", "local", "markdown", "file", "not", "attachment") >= 4 {
 			boost += 20
 		}
 	}

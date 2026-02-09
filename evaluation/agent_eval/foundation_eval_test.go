@@ -686,6 +686,55 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if memoryRegressionBoost <= memoryRegressionFileSearch {
 		t.Fatalf("expected memory_search boost (%.2f) to exceed search_file boost (%.2f) for historical-incident regression intents", memoryRegressionBoost, memoryRegressionFileSearch)
 	}
+
+	planTaskUpdateBoost := heuristicIntentBoost("plan", makeSet("define", "phased", "rollout", "milestones", "risk", "checkpoints", "before", "task", "updates"))
+	taskManagePlanBoost := heuristicIntentBoost("lark_task_manage", makeSet("define", "phased", "rollout", "milestones", "risk", "checkpoints", "before", "task", "updates"))
+	if planTaskUpdateBoost <= taskManagePlanBoost {
+		t.Fatalf("expected plan boost (%.2f) to exceed lark_task_manage boost (%.2f) for phased-plan-before-task-update intents", planTaskUpdateBoost, taskManagePlanBoost)
+	}
+
+	memoryGetBoost := heuristicIntentBoost("memory_get", makeSet("memory_get", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
+	memorySearchForGetBoost := heuristicIntentBoost("memory_search", makeSet("memory_get", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
+	clarifyForGetBoost := heuristicIntentBoost("clarify", makeSet("memory_get", "selected", "memory", "note", "open", "detailed", "root", "cause", "context"))
+	if memoryGetBoost <= memorySearchForGetBoost || memoryGetBoost <= clarifyForGetBoost {
+		t.Fatalf("expected memory_get boost (%.2f) to exceed memory_search (%.2f) and clarify (%.2f) for explicit memory_get-open-detail intents", memoryGetBoost, memorySearchForGetBoost, clarifyForGetBoost)
+	}
+
+	artifactWriteBoost := heuristicIntentBoost("artifacts_write", makeSet("concise", "in", "chat", "full", "technical", "deep", "dive", "reusable", "artifact", "downstream", "review"))
+	larkUploadArtifactBoost := heuristicIntentBoost("lark_upload_file", makeSet("concise", "in", "chat", "full", "technical", "deep", "dive", "reusable", "artifact", "downstream", "review"))
+	if artifactWriteBoost <= larkUploadArtifactBoost {
+		t.Fatalf("expected artifacts_write boost (%.2f) to exceed lark_upload_file boost (%.2f) for reusable downstream artifact intents", artifactWriteBoost, larkUploadArtifactBoost)
+	}
+
+	writeFileLocalBoost := heuristicIntentBoost("write_file", makeSet("create", "local", "workspace", "markdown", "file", "not", "attachment"))
+	writeAttachmentLocalBoost := heuristicIntentBoost("write_attachment", makeSet("create", "local", "workspace", "markdown", "file", "not", "attachment"))
+	if writeFileLocalBoost <= writeAttachmentLocalBoost {
+		t.Fatalf("expected write_file boost (%.2f) to exceed write_attachment boost (%.2f) for local-workspace-not-attachment intents", writeFileLocalBoost, writeAttachmentLocalBoost)
+	}
+
+	listDirBoost := heuristicIntentBoost("list_dir", makeSet("list", "workspace", "directory", "tree", "paths", "inventory"))
+	replaceOnListBoost := heuristicIntentBoost("replace_in_file", makeSet("list", "workspace", "directory", "tree", "paths", "inventory"))
+	if listDirBoost <= replaceOnListBoost {
+		t.Fatalf("expected list_dir boost (%.2f) to exceed replace_in_file boost (%.2f) for directory inventory intents", listDirBoost, replaceOnListBoost)
+	}
+
+	releasePlanBoost := heuristicIntentBoost("plan", makeSet("create", "phased", "release", "checklist", "milestones", "rollback", "checkpoints"))
+	releaseTaskManageBoost := heuristicIntentBoost("lark_task_manage", makeSet("create", "phased", "release", "checklist", "milestones", "rollback", "checkpoints"))
+	if releasePlanBoost <= releaseTaskManageBoost {
+		t.Fatalf("expected plan boost (%.2f) to exceed lark_task_manage boost (%.2f) for phased release checklist intents", releasePlanBoost, releaseTaskManageBoost)
+	}
+
+	localNoAttachmentWriteFile := heuristicIntentBoost("write_file", makeSet("create", "local", "workspace", "markdown", "file", "not", "attachment"))
+	localNoAttachmentWriteAttachment := heuristicIntentBoost("write_attachment", makeSet("create", "local", "workspace", "markdown", "file", "not", "attachment"))
+	if localNoAttachmentWriteFile <= localNoAttachmentWriteAttachment {
+		t.Fatalf("expected write_file boost (%.2f) to exceed write_attachment boost (%.2f) under explicit not-attachment intent", localNoAttachmentWriteFile, localNoAttachmentWriteAttachment)
+	}
+
+	recursiveListDirBoost := heuristicIntentBoost("list_dir", makeSet("list", "directories", "files", "recursively", "before", "choosing", "target", "file"))
+	recursiveReplaceBoost := heuristicIntentBoost("replace_in_file", makeSet("list", "directories", "files", "recursively", "before", "choosing", "target", "file"))
+	if recursiveListDirBoost <= recursiveReplaceBoost {
+		t.Fatalf("expected list_dir boost (%.2f) to exceed replace_in_file boost (%.2f) for recursive list-before-target intents", recursiveListDirBoost, recursiveReplaceBoost)
+	}
 }
 
 func TestRunFoundationEvaluationEndToEnd(t *testing.T) {
