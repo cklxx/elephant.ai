@@ -306,7 +306,7 @@ func (g *Gateway) formatActiveTaskList(tasks []TaskRecord) string {
 
 	for i, t := range tasks {
 		elapsed := time.Since(t.CreatedAt)
-		statusIcon := taskStatusIcon(t.Status)
+		statusIcon := taskStatusLabel(t.Status)
 		sb.WriteString(fmt.Sprintf("\n[%d] %s · %s · %s · %s",
 			i+1, shortID(t.TaskID), t.AgentType, statusIcon, formatDuration(elapsed)))
 		if t.Description != "" {
@@ -323,7 +323,7 @@ func formatTaskDetail(t TaskRecord) string {
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("任务详情: %s\n", t.TaskID))
 	sb.WriteString(fmt.Sprintf("类型: %s\n", t.AgentType))
-	sb.WriteString(fmt.Sprintf("状态: %s %s\n", taskStatusIcon(t.Status), t.Status))
+	sb.WriteString(fmt.Sprintf("状态: %s %s\n", taskStatusLabel(t.Status), t.Status))
 	if t.Description != "" {
 		sb.WriteString(fmt.Sprintf("描述: %s\n", t.Description))
 	}
@@ -352,7 +352,7 @@ func formatTaskHistory(tasks []TaskRecord) string {
 	sb.WriteString(fmt.Sprintf("任务历史 (最近 %d 条)\n", len(tasks)))
 
 	for i, t := range tasks {
-		statusIcon := taskStatusIcon(t.Status)
+		statusIcon := taskStatusLabel(t.Status)
 		duration := ""
 		if !t.CompletedAt.IsZero() {
 			duration = formatDuration(t.CompletedAt.Sub(t.CreatedAt))
@@ -390,7 +390,7 @@ Examples:
 `)
 }
 
-func taskStatusIcon(status string) string {
+func taskStatusLabel(status string) string {
 	switch status {
 	case "pending":
 		return "pending"

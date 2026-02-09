@@ -89,6 +89,7 @@ type LarkGatewayConfig struct {
 	PlanReviewPendingTTL          time.Duration
 	TaskStoreEnabled              bool
 	MaxConcurrentTasks            int
+	DefaultPlanMode               string
 }
 
 // LarkBrowserConfig captures local browser settings for Lark.
@@ -371,6 +372,9 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if larkCfg.MaxConcurrentTasks != nil && *larkCfg.MaxConcurrentTasks > 0 {
 		cfg.Channels.Lark.MaxConcurrentTasks = *larkCfg.MaxConcurrentTasks
+	}
+	if larkCfg.DefaultPlanMode != nil {
+		cfg.Channels.Lark.DefaultPlanMode = strings.TrimSpace(*larkCfg.DefaultPlanMode)
 	}
 }
 

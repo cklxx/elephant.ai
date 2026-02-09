@@ -118,11 +118,11 @@ func TestShortID(t *testing.T) {
 }
 
 func TestTaskStatusIcon(t *testing.T) {
-	if got := taskStatusIcon("running"); got != "running" {
-		t.Errorf("taskStatusIcon(running) = %q", got)
+	if got := taskStatusLabel("running"); got != "running" {
+		t.Errorf("taskStatusLabel(running) = %q", got)
 	}
-	if got := taskStatusIcon("completed"); got != "done" {
-		t.Errorf("taskStatusIcon(completed) = %q", got)
+	if got := taskStatusLabel("completed"); got != "done" {
+		t.Errorf("taskStatusLabel(completed) = %q", got)
 	}
 }
 

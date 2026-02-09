@@ -85,6 +85,7 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		PlanReviewPendingTTL:          larkCfg.PlanReviewPendingTTL,
 		TaskStoreEnabled:              larkCfg.TaskStoreEnabled,
 		MaxConcurrentTasks:            larkCfg.MaxConcurrentTasks,
+		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
 	}
 	if gatewayCfg.PlanReviewEnabled {
 		if gatewayCfg.PlanReviewPendingTTL <= 0 {
