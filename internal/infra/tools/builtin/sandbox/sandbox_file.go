@@ -44,7 +44,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Read content from a specific file path (absolute paths only). Use after file/path selection; for directory inventory use list_dir/find.",
+				Description: "Read repository/workspace file content from a specific absolute path, including proof/context windows around suspect logic. Use after file/path selection; for directory inventory use list_dir/find. Do not use for memory notes (use memory_search/memory_get).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -136,7 +136,7 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search pattern/symbol occurrences inside one known file (absolute path). Use for inside-file line matches only. Do not use for path/name discovery or directory inventory (use find/list_dir).",
+				Description: "Search semantic/content-first rule evidence inside one known absolute file path (line/content matches in file bodies). Use for inside-file matching only. Do not use for path/name discovery (use find/list_dir), and do not use for visual/browser capture.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -163,7 +163,7 @@ func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "replace_in_file",
-				Description: "Replace exact text in an existing file (absolute paths only). Use only for in-place edits when target text is known. Do not use for creating new files, listing/inventory, or asking clarification questions.",
+				Description: "Replace exact text in an existing file (absolute paths only). Use only for in-place code/text edits when target text is known (for example hotfix on one branch). Do not use for creating new files, artifact cleanup, listing/inventory, or clarification questions.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

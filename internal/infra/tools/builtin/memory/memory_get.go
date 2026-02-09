@@ -23,7 +23,7 @@ func NewMemoryGet(engine memory.Engine) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "memory_get",
-				Description: "Read a section of a memory file by line number.",
+				Description: "Read exact lines from a memory note file by line number. Use only after memory_search returns a memory path. Not for repository/workspace source files (use read_file).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

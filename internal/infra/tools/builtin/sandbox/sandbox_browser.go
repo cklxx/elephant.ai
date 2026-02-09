@@ -54,7 +54,8 @@ Provide a list of action objects:
 - additional fields vary per action type.
 
 Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use browser_dom.
-Do not use browser_action when the task is only to inspect URL/title/session metadata; use browser_info.`,
+Do not use browser_action when the task is only to inspect URL/title/session metadata; use browser_info.
+Do not use browser_action for deterministic computation/recalculation tasks; use execute_code.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -130,7 +131,7 @@ func NewSandboxBrowserScreenshot(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "browser_screenshot",
-				Description: "Capture a screenshot from the browser.",
+				Description: "Capture visual proof (PNG) from the current browser page. Use only when a visual artifact is required; do not use for semantic file/corpus search or content-first rule evidence retrieval.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

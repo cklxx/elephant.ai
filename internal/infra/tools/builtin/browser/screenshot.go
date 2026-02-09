@@ -22,7 +22,7 @@ func NewBrowserScreenshot(manager *Manager) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "browser_screenshot",
-				Description: "Capture a screenshot from the browser.",
+				Description: "Capture visual proof (PNG) from the current browser page. Use only when a visual artifact is required; do not use for semantic file/corpus search or content-first rule evidence retrieval.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

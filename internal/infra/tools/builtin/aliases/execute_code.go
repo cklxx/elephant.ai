@@ -32,7 +32,7 @@ func NewExecuteCode(cfg shared.ShellToolConfig) tools.ToolExecutor {
 
 Supported languages: python, go, javascript/js, bash.
 Provide inline code or reference an existing file via code_path.
-Optionally fetch output files as attachments. For shell/process/log commands prefer shell_exec.`,
+Optionally fetch output files as attachments. Use this for deterministic computation/recalculation/invariant checks. For shell/process/log commands prefer shell_exec. Do not use for browser interaction or calendar querying.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

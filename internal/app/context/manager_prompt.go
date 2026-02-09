@@ -58,9 +58,12 @@ func buildToolRoutingSection() string {
 	return formatSection("# Tool Routing Guardrails", []string{
 		"Use clarify only when requirements are missing or contradictory; do not use clarify when the user already gave an explicit actionable operation.",
 		"Use request_user for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation).",
+		"Use read_file for repository/workspace files and proof/context windows; use memory_search/memory_get only for persistent memory notes.",
 		"Use artifacts_list for inventory/audit, artifacts_write for create/update outputs, and artifacts_delete for cleanup.",
 		"Use lark_chat_history for thread context recall, lark_send_message for text-only updates, and lark_upload_file only when a file must be delivered.",
 		"Use browser_info for read-only tab/session metadata; use browser_dom/browser_action for interactions.",
+		"Use execute_code for deterministic computation/recalculation/metric checks, not browser_action or lark_calendar_query.",
+		"Use scheduler_list_jobs for recurring scheduler inventory and scheduler_delete_job only for retiring scheduler jobs.",
 		"Use find/list_dir for path discovery, search_file for known-file content matching, and ripgrep for repo-wide regex sweeps.",
 		"Use replace_in_file only for in-place edits in existing files with known target text.",
 	})

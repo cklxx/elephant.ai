@@ -22,7 +22,7 @@ func NewSchedulerList() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "scheduler_list_jobs",
-				Description: "List all scheduled jobs with their status, schedule, and next run time. Optionally filter by status.",
+				Description: "List registered recurring scheduler jobs/automations with status, cadence, and next run time. Use this for pre-mutation inventory/audit of scheduler jobs. Do not use for artifacts or calendar event queries.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

@@ -30,7 +30,7 @@ func NewLarkCalendarQuery() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_calendar_query",
-				Description: "Query calendar events in the caller's primary calendar by time range (Unix seconds).",
+				Description: "Query calendar events in the caller's primary calendar by time range (Unix seconds). Use only for calendar schedule/event retrieval, not deterministic computation/recalculation.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

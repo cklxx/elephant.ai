@@ -21,7 +21,7 @@ func NewSchedulerDelete() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "scheduler_delete_job",
-				Description: "Delete an existing scheduler job by job_id. This permanently removes that job and its cron schedule. Use only for scheduler jobs, not for artifacts/files/calendar/timers.",
+				Description: "Delete/retire an existing scheduler recurring job by job_id. This permanently removes the scheduler automation and its cadence. Use only for scheduler jobs, not for artifacts/files/calendar/timers.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
