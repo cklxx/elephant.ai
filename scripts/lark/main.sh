@@ -19,6 +19,7 @@ Runs alex-server in standalone Lark WebSocket mode (no HTTP server).
 Env:
   MAIN_CONFIG   Config path (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   ALEX_LOG_DIR  Internal log dir override (default: <repo>/logs)
+  LARK_NOTICE_STATE_FILE Notice binding state path (default: <repo>/.worktrees/test/tmp/lark-notice.state.json)
   FORCE_REBUILD=1  Force rebuild on start (default: 0)
   SKIP_LOCAL_AUTH_DB=1  Skip local auth DB auto-setup (default: 0)
   LARK_REQUIRE_DOCKER=1  Ensure docker sandbox is running before startup (default: 1)
@@ -45,6 +46,7 @@ BUILD_STAMP="${ROOT}/.pids/lark-main.build"
 LOG_FILE="${ROOT}/logs/lark-main.log"
 MAIN_CONFIG="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${ROOT}/logs}"
+NOTICE_STATE_FILE="${LARK_NOTICE_STATE_FILE:-${ROOT}/.worktrees/test/tmp/lark-notice.state.json}"
 FORCE_REBUILD="${FORCE_REBUILD:-0}"
 LARK_REQUIRE_DOCKER="${LARK_REQUIRE_DOCKER:-1}"
 DEV_SH="${ROOT}/dev.sh"
@@ -125,6 +127,7 @@ start() {
   maybe_setup_auth_db
 
   local current_fingerprint needs_build pid
+  mkdir -p "$(dirname "${NOTICE_STATE_FILE}")"
   current_fingerprint="$(build_fingerprint "${ROOT}")"
   needs_build=0
   if [[ "${FORCE_REBUILD}" == "1" ]] || [[ ! -x "${BIN}" ]] || is_build_stale "${BUILD_STAMP}" "${current_fingerprint}"; then
@@ -150,7 +153,7 @@ start() {
   fi
 
   log_info "Starting Lark standalone agent..."
-  ALEX_CONFIG_PATH="${MAIN_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" nohup "${BIN}" lark >> "${LOG_FILE}" 2>&1 &
+  ALEX_CONFIG_PATH="${MAIN_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" LARK_NOTICE_STATE_FILE="${NOTICE_STATE_FILE}" nohup "${BIN}" lark >> "${LOG_FILE}" 2>&1 &
   echo "$!" > "${PID_FILE}"
 
   local i

@@ -29,6 +29,8 @@ Env:
   LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS     Autofix counting window (default: 3600)
   LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS   Autofix cooldown seconds (default: 900)
   LARK_SUPERVISOR_AUTOFIX_SCOPE              Prompt scope hint (default: repo)
+  LARK_SUPERVISOR_NOTIFY_SH                  Notification sender script (default: scripts/lark/notify.sh)
+  LARK_NOTICE_STATE_FILE                     Notice binding state file path (default: .worktrees/test/tmp/lark-notice.state.json)
   MAIN_CONFIG                    Main config path override (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   TEST_CONFIG                    Test config path override (default: ~/.alex/test.yaml)
   LARK_MAIN_ROOT                 Main root override (tests only)
@@ -58,6 +60,7 @@ MAIN_SH="${MAIN_SH:-${MAIN_ROOT}/scripts/lark/main.sh}"
 TEST_SH="${TEST_SH:-${MAIN_ROOT}/scripts/lark/test.sh}"
 LOOP_AGENT_SH="${LOOP_AGENT_SH:-${MAIN_ROOT}/scripts/lark/loop-agent.sh}"
 AUTOFIX_SH="${AUTOFIX_SH:-${MAIN_ROOT}/scripts/lark/autofix.sh}"
+NOTIFY_SH="${LARK_SUPERVISOR_NOTIFY_SH:-${MAIN_ROOT}/scripts/lark/notify.sh}"
 
 TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
 PID_DIR="${TEST_ROOT}/.pids"
@@ -71,6 +74,7 @@ STATUS_FILE="${TMP_DIR}/lark-supervisor.status.json"
 LOOP_STATE_FILE="${TMP_DIR}/lark-loop.state.json"
 LAST_PROCESSED_FILE="${TMP_DIR}/lark-loop.last"
 LAST_VALIDATED_FILE="${TMP_DIR}/lark-loop.last-validated"
+NOTICE_STATE_FILE="${LARK_NOTICE_STATE_FILE:-${TMP_DIR}/lark-notice.state.json}"
 AUTOFIX_STATE_FILE="${TMP_DIR}/lark-autofix.state.json"
 AUTOFIX_LOCK_DIR="${TMP_DIR}/lark-autofix.lock"
 AUTOFIX_HISTORY_FILE="${TMP_DIR}/lark-autofix.history"
@@ -286,6 +290,79 @@ observe_autofix_state() {
   OBS_AUTOFIX_LAST_COMMIT="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_last_commit" || true)"
   OBS_AUTOFIX_RESTART_REQUIRED="$(extract_json_string "${AUTOFIX_STATE_FILE}" "autofix_restart_required" || echo "false")"
   OBS_AUTOFIX_RUNS_WINDOW="$(autofix_runs_window_count "$(date +%s)")"
+}
+
+load_notice_chat_id() {
+  extract_json_string "${NOTICE_STATE_FILE}" "chat_id" || true
+}
+
+send_lark_notice() {
+  local text="$1"
+  local chat_id
+  chat_id="$(load_notice_chat_id)"
+  if [[ -z "${chat_id}" ]]; then
+    append_log "[notice] no bound chat_id; skip"
+    return 0
+  fi
+  if [[ ! -x "${NOTIFY_SH}" ]]; then
+    append_log "[notice] notify sender unavailable: ${NOTIFY_SH}"
+    return 0
+  fi
+
+  if "${NOTIFY_SH}" send --chat-id "${chat_id}" --text "${text}" --config "${MAIN_CONFIG_PATH}" >> "${LOG_FILE}" 2>&1; then
+    append_log "[notice] sent to chat_id=${chat_id}"
+    return 0
+  fi
+
+  append_log "[notice] failed to send to chat_id=${chat_id}"
+  return 0
+}
+
+build_transition_notice_text() {
+  local previous_mode="$1"
+  local current_mode="$2"
+  local current_error
+  current_error="${LAST_ERROR}"
+  if [[ -z "${current_error}" ]]; then
+    current_error="${OBS_LOOP_ERROR}"
+  fi
+  if [[ -z "${current_error}" ]]; then
+    current_error="n/a"
+  fi
+
+  local status_line
+  status_line="main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} loop=${OBS_LOOP_HEALTH}"
+  local autofix_line
+  autofix_line="state=${OBS_AUTOFIX_STATE} incident=${OBS_AUTOFIX_INCIDENT_ID:-none}"
+
+  if [[ "${current_mode}" == "healthy" ]]; then
+    printf '[lark-supervisor] recovered\nmode: %s -> %s\n%s\nautofix: %s\nlast_error: %s' \
+      "${previous_mode}" "${current_mode}" "${status_line}" "${autofix_line}" "${current_error}"
+    return 0
+  fi
+
+  printf '[lark-supervisor] degraded\nmode: %s -> %s\n%s\nautofix: %s\nlast_error: %s' \
+    "${previous_mode}" "${current_mode}" "${status_line}" "${autofix_line}" "${current_error}"
+}
+
+maybe_notify_mode_transition() {
+  local previous_mode="$1"
+  local current_mode="$2"
+  local text
+
+  if [[ -z "${previous_mode}" || "${previous_mode}" == "${current_mode}" ]]; then
+    return 0
+  fi
+
+  if [[ "${previous_mode}" == "healthy" && ( "${current_mode}" == "degraded" || "${current_mode}" == "cooldown" ) ]]; then
+    text="$(build_transition_notice_text "${previous_mode}" "${current_mode}")"
+    send_lark_notice "${text}" || true
+    return 0
+  fi
+  if [[ ( "${previous_mode}" == "degraded" || "${previous_mode}" == "cooldown" ) && "${current_mode}" == "healthy" ]]; then
+    text="$(build_transition_notice_text "${previous_mode}" "${current_mode}")"
+    send_lark_notice "${text}" || true
+  fi
 }
 
 trigger_autofix() {
@@ -686,6 +763,9 @@ maybe_upgrade_for_sha_drift() {
 }
 
 run_tick() {
+  local previous_mode
+  previous_mode="$(extract_json_string "${STATUS_FILE}" "mode" || true)"
+
   observe_states
 
   restart_with_backoff "main" "${OBS_MAIN_HEALTH}" || true
@@ -699,6 +779,7 @@ run_tick() {
   observe_states
 
   write_status_file
+  maybe_notify_mode_transition "${previous_mode}" "${MODE}"
 }
 
 acquire_lock() {

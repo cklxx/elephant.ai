@@ -15,6 +15,8 @@ run_supervisor() {
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
     AUTOFIX_SH="${main_root}/scripts/lark/autofix.sh" \
+    LARK_SUPERVISOR_NOTIFY_SH="${main_root}/scripts/lark/notify.sh" \
+    LARK_NOTICE_STATE_FILE="${main_root}/.worktrees/test/tmp/lark-notice.state.json" \
     MAIN_CONFIG="${main_root}/config-main.yaml" \
     TEST_CONFIG="${main_root}/config-test.yaml" \
     LARK_SUPERVISOR_SKIP_HEALTHCHECK=1 \
@@ -42,6 +44,17 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "${main_root}/scripts/lark" "${main_root}/.pids" "${main_root}/logs" "${main_root}/.worktrees/test/.pids" "${main_root}/.worktrees/test/logs" "${main_root}/.worktrees/test/tmp"
+
+notice_state_file="${main_root}/.worktrees/test/tmp/lark-notice.state.json"
+notify_calls_file="${main_root}/.worktrees/test/tmp/notify.calls.log"
+cat > "${notice_state_file}" <<'EOF'
+{
+  "chat_id": "oc_supervisor_notice",
+  "set_by_user_id": "ou_tester",
+  "set_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z"
+}
+EOF
 
 cat > "${main_root}/scripts/lark/worktree.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -126,6 +139,41 @@ exit 0
 EOF
 chmod +x "${main_root}/scripts/lark/worktree.sh"
 chmod +x "${main_root}/scripts/lark/autofix.sh"
+cat > "${main_root}/scripts/lark/notify.sh" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+main_root="${LARK_MAIN_ROOT:?}"
+calls_file="${main_root}/.worktrees/test/tmp/notify.calls.log"
+
+cmd="${1:-}"
+shift || true
+[[ "${cmd}" == "send" ]] || exit 2
+
+chat_id=""
+text=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --chat-id)
+      chat_id="${2:-}"
+      shift 2
+      ;;
+    --text)
+      text="${2:-}"
+      shift 2
+      ;;
+    --config)
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+
+printf 'chat_id=%s\ntext=%s\n---\n' "${chat_id}" "${text}" >> "${calls_file}"
+EOF
+chmod +x "${main_root}/scripts/lark/notify.sh"
 
 cat > "${main_root}/config-main.yaml" <<'EOF'
 server:
@@ -258,6 +306,22 @@ if [[ -f "${supervisor_log}" ]]; then
     echo "expected 'skip test restart during validation' in supervisor log" >&2
     exit 1
   fi
+fi
+
+if [[ ! -f "${notify_calls_file}" ]]; then
+  echo "expected notify calls file after degraded transition" >&2
+  exit 1
+fi
+if ! grep -q "text=\\[lark-supervisor\\] degraded" "${notify_calls_file}"; then
+  echo "expected degraded transition notification" >&2
+  exit 1
+fi
+
+# Recovery path: idle phase allows restart; next tick should recover and notify.
+run_supervisor run-once >/dev/null
+if ! grep -q "text=\\[lark-supervisor\\] recovered" "${notify_calls_file}"; then
+  echo "expected recovered transition notification" >&2
+  exit 1
 fi
 
 echo "ok"
