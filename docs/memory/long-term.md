@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-09 20:00
+Updated: 2026-02-09 23:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -45,6 +45,7 @@ Updated: 2026-02-09 20:00
 - Heuristic token matching can silently miss due to stemming normalization (e.g., trailing `s` removal like `progress` -> `progres`); add intent-level regression tests for critical conflict cases instead of token-set-only assertions.
 - Hard-case expansion should map to explicit benchmark-style dimensions (sparse clue retrieval / stateful commitment boundary / reproducibility trace evidence) so failures are diagnosable and optimizable as conflict families.
 - Foundation suite growth must be budgeted with explicit caps and round-level `added / retired / net` reporting to prevent silent dataset bloat.
+- Hard benchmark expansion should be taxonomy-driven (benchmark family -> capability dimension -> dataset), so future retire/add decisions remain systematic instead of ad-hoc.
 - After first prune under a hard threshold, a second review-driven squeeze can remove residual redundancy without losing pass@5 coverage if hard stress dimensions are kept intact.
 - Foundation eval reports should keep a fixed structure: x/x scoreboard (collections/cases/pass@1/pass@5/deliverable), top conflict clusters (`expected => top1`), and sampled good/bad deliverable checks with artifact paths.
 - Batch heuristic upgrades should apply exact-tool-name boosts asymmetrically: strong for specific tools, weak for generic tools (`plan`/`clarify`/`find`/`search_file`) to avoid cross-domain over-trigger regressions.
