@@ -9,7 +9,7 @@ on:
     - cron: '0 2 * * 1'
 
 env:
-  GO_VERSION: '1.24.11'
+  GO_VERSION: '1.24.13'
 
 concurrency:
   group: security-${{ github.ref }}
