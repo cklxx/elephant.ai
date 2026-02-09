@@ -632,6 +632,60 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if fetchExactBoost <= searchExactBoost {
 		t.Fatalf("expected web_fetch boost (%.2f) to exceed web_search boost (%.2f) for exact provided URL", fetchExactBoost, searchExactBoost)
 	}
+
+	planBoost := heuristicIntentBoost("plan", makeSet("plan", "fix", "steps", "before", "mutation", "change"))
+	taskManageBoost := heuristicIntentBoost("lark_task_manage", makeSet("plan", "fix", "steps", "before", "mutation", "change"))
+	if planBoost <= taskManageBoost {
+		t.Fatalf("expected plan boost (%.2f) to exceed lark_task_manage boost (%.2f) for pre-mutation fix planning intents", planBoost, taskManageBoost)
+	}
+
+	noSearchFetchBoost := heuristicIntentBoost("web_fetch", makeSet("single", "exact", "url", "source", "no", "search"))
+	noSearchSearchBoost := heuristicIntentBoost("web_search", makeSet("single", "exact", "url", "source", "no", "search"))
+	if noSearchFetchBoost <= noSearchSearchBoost {
+		t.Fatalf("expected web_fetch boost (%.2f) to exceed web_search boost (%.2f) under explicit no-search single-url intents", noSearchFetchBoost, noSearchSearchBoost)
+	}
+
+	approvalRequestBoost := heuristicIntentBoost("request_user", makeSet("requires", "user", "approval", "before", "publish", "continue"))
+	approvalClarifyBoost := heuristicIntentBoost("clarify", makeSet("requires", "user", "approval", "before", "publish", "continue"))
+	if approvalRequestBoost <= approvalClarifyBoost {
+		t.Fatalf("expected request_user boost (%.2f) to exceed clarify boost (%.2f) under explicit approval gate intents", approvalRequestBoost, approvalClarifyBoost)
+	}
+
+	habitMemoryBoost := heuristicIntentBoost("memory_search", makeSet("recall", "communication", "tone", "style", "habit", "preference"))
+	habitSearchBoost := heuristicIntentBoost("search_file", makeSet("recall", "communication", "tone", "style", "habit", "preference"))
+	if habitMemoryBoost <= habitSearchBoost {
+		t.Fatalf("expected memory_search boost (%.2f) to exceed search_file boost (%.2f) for habit/tone recall intents", habitMemoryBoost, habitSearchBoost)
+	}
+
+	sendMessageBoost := heuristicIntentBoost("lark_send_message", makeSet("short", "checkpoint", "status", "message", "thread", "chat", "no", "file"))
+	replaceBoost := heuristicIntentBoost("replace_in_file", makeSet("short", "checkpoint", "status", "message", "thread", "chat", "no", "file"))
+	if sendMessageBoost <= replaceBoost {
+		t.Fatalf("expected lark_send_message boost (%.2f) to exceed replace_in_file boost (%.2f) for checkpoint no-file intents", sendMessageBoost, replaceBoost)
+	}
+
+	calendarDeleteBoost := heuristicIntentBoost("lark_calendar_delete", makeSet("calendar", "event", "remove", "stale"))
+	cancelTimerBoost := heuristicIntentBoost("cancel_timer", makeSet("calendar", "event", "remove", "stale"))
+	if calendarDeleteBoost <= cancelTimerBoost {
+		t.Fatalf("expected lark_calendar_delete boost (%.2f) to exceed cancel_timer boost (%.2f) for stale calendar-event cleanup intents", calendarDeleteBoost, cancelTimerBoost)
+	}
+
+	onlySourceFetchBoost := heuristicIntentBoost("web_fetch", makeSet("already", "chosen", "only", "source", "url", "avoid", "discovery", "search"))
+	onlySourceSearchBoost := heuristicIntentBoost("web_search", makeSet("already", "chosen", "only", "source", "url", "avoid", "discovery", "search"))
+	if onlySourceFetchBoost <= onlySourceSearchBoost {
+		t.Fatalf("expected web_fetch boost (%.2f) to exceed web_search boost (%.2f) for already-chosen-only-source intents", onlySourceFetchBoost, onlySourceSearchBoost)
+	}
+
+	secretRequestBoost := heuristicIntentBoost("request_user", makeSet("request", "user", "provided", "secret", "token", "before", "execution"))
+	secretClarifyBoost := heuristicIntentBoost("clarify", makeSet("request", "user", "provided", "secret", "token", "before", "execution"))
+	if secretRequestBoost <= secretClarifyBoost {
+		t.Fatalf("expected request_user boost (%.2f) to exceed clarify boost (%.2f) for secret-token gate intents", secretRequestBoost, secretClarifyBoost)
+	}
+
+	memoryRegressionBoost := heuristicIntentBoost("memory_search", makeSet("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch"))
+	memoryRegressionFileSearch := heuristicIntentBoost("search_file", makeSet("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch"))
+	if memoryRegressionBoost <= memoryRegressionFileSearch {
+		t.Fatalf("expected memory_search boost (%.2f) to exceed search_file boost (%.2f) for historical-incident regression intents", memoryRegressionBoost, memoryRegressionFileSearch)
+	}
 }
 
 func TestRunFoundationEvaluationEndToEnd(t *testing.T) {

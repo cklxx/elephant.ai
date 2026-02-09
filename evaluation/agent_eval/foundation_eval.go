@@ -1093,6 +1093,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("minimal", "smallest", "viable", "weekly", "review", "checkpoint", "rollback") >= 2 {
 			boost += 16
 		}
+		if countMatches("plan", "steps", "fix", "before", "mutation", "change", "apply", "execution") >= 3 {
+			boost += 18
+		}
+		if countMatches("phased", "checklist", "rollback", "checkpoint", "reproduce", "patch", "verify", "gates") >= 3 {
+			boost += 20
+		}
 	case "read_file":
 		if countMatches("read", "open", "inspect", "view") >= 1 &&
 			countMatches("source", "workspace", "file", "content", "line") >= 1 {
@@ -1117,6 +1123,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("fetch", "read", "extract", "open", "pull") >= 1 &&
 			countMatches("url", "exact", "single", "provided", "fixed", "page", "content") >= 2 {
 			boost += 18
+		}
+		if countMatches("single", "exact", "provided", "fixed", "url", "source", "no", "search") >= 4 {
+			boost += 18
+		}
+		if countMatches("only", "source", "url", "avoid", "broad", "search", "discovery", "already", "chosen") >= 4 {
+			boost += 20
 		}
 	case "browser_dom":
 		if has("selector", "dom", "form", "field", "fill", "submit") {
@@ -1199,6 +1211,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("path", "pattern", "before", "content", "inspection", "reduce", "large", "tree") >= 3 {
 			boost += 22
 		}
+		if countMatches("entrypoint", "entrypoints", "module", "layer", "package", "path", "folder", "directory") >= 3 {
+			boost += 14
+		}
 	case "grep":
 		if countMatches("grep", "log", "error", "line", "pattern", "match") >= 2 {
 			boost += 18
@@ -1210,6 +1225,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "lark_calendar_create":
 		if countMatches("calendar", "event", "block", "deadline", "focus", "recovery", "work") >= 2 {
 			boost += 18
+		}
+	case "lark_calendar_delete":
+		if countMatches("calendar", "event", "delete", "remove", "cancel", "stale", "obsolete", "cleanup") >= 2 {
+			boost += 20
 		}
 	case "lark_chat_history":
 		if countMatches("chat", "thread", "conversation", "history", "context", "recent", "before") >= 2 {
@@ -1282,6 +1301,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("previous", "prior", "successful", "pattern", "decision", "policy", "history") >= 3 {
 			boost += 10
 		}
+		if countMatches("communication", "tone", "style", "voice", "habit", "preference", "persona", "soul") >= 3 {
+			boost += 20
+		}
+		if countMatches("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch") >= 3 {
+			boost += 22
+		}
 	case "memory_get":
 		if countMatches("open", "exact", "line", "lines", "offset", "fragment", "citation", "verbatim", "proof", "evidence", "selected", "note") >= 2 {
 			boost += 24
@@ -1298,6 +1323,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("external", "outreach", "third", "party", "before", "approval", "consent") >= 2 {
 			boost += 14
+		}
+		if countMatches("secret", "token", "user", "provided", "before", "execution", "request") >= 3 {
+			boost += 18
 		}
 	case "cancel_timer":
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
@@ -1370,6 +1398,13 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if has("without", "no", "not") && countMatches("upload", "attach", "file") >= 1 {
 			boost += 14
 		}
+		if countMatches("checkpoint", "status", "message", "short", "brief", "thread", "chat") >= 3 &&
+			!has("edit", "replace", "patch", "file", "upload", "attach") {
+			boost += 14
+		}
+		if countMatches("thread", "status", "ping", "brief", "short", "no", "file", "transfer") >= 4 {
+			boost += 18
+		}
 	case "a2ui_emit":
 		if has("payload", "renderer", "render", "ui", "protocol", "structured") {
 			boost += 12
@@ -1416,13 +1451,13 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	}
 	if toolName == "clarify" {
 		if countMatches("manual", "approval", "approve", "confirm", "consent", "operator", "gate", "user") >= 2 {
-			boost -= 20
+			boost -= 24
 		}
 		if countMatches("delegate", "executor", "parallel", "subagent", "handoff", "heavy") >= 2 {
 			boost -= 12
 		}
 		if countMatches("memory", "habit", "preference", "style", "persona", "soul") >= 2 {
-			boost -= 12
+			boost -= 18
 		}
 		if countMatches("create", "event", "calendar", "schedule", "timer", "artifact", "attach", "downloadable") >= 2 &&
 			!has("unclear", "ambiguity", "clarify", "conflict") {
@@ -1431,6 +1466,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if has("artifact", "report", "attachment", "downloadable") &&
 			!has("unclear", "ambiguity", "clarify", "conflict") {
 			boost -= 10
+		}
+		if countMatches("request", "user", "approval", "confirm", "before", "proceed", "execution", "secret", "token") >= 4 {
+			boost -= 24
 		}
 	}
 	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
@@ -1518,7 +1556,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	}
 	if toolName == "search_file" {
 		if countMatches("memory", "history", "prior", "note", "notes", "recall", "habit", "preference") >= 2 {
-			boost -= 10
+			boost -= 18
 		}
 		if countMatches("official", "rfc", "spec", "web", "source", "url", "reference") >= 2 {
 			boost -= 12
@@ -1540,6 +1578,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("file", "repo", "repository", "source", "code", "content", "search") {
 			boost -= 18
 		}
+		if countMatches("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch") >= 3 &&
+			!has("file", "repo", "repository", "source", "code", "content", "search") {
+			boost -= 24
+		}
+		if countMatches("entrypoint", "entrypoints", "layer", "module", "package", "path", "folder", "directory") >= 3 &&
+			!has("inside", "content", "snippet", "line", "lines", "semantic") {
+			boost -= 12
+		}
 	}
 	if toolName == "memory_get" {
 		if hasAll("before", "offset") && has("known", "exact", "line", "lines") {
@@ -1555,6 +1601,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("visual", "screenshot", "proof", "ui", "page") {
 			boost -= 18
 		}
+		if countMatches("extract", "text", "content", "from", "url", "single", "exact", "source") >= 4 &&
+			!has("visual", "proof", "screenshot", "ui") {
+			boost -= 24
+		}
 	}
 	if toolName == "web_fetch" {
 		if countMatches("authoritative", "canonical", "reference", "discover", "shortlist") >= 2 &&
@@ -1562,6 +1612,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 12
 		}
 		if countMatches("fixed", "provided", "single", "exact", "url", "approved", "ticket", "source", "direct", "ingest") >= 3 {
+			boost += 16
+		}
+		if countMatches("extract", "text", "content", "from", "url", "single", "exact", "source") >= 4 {
 			boost += 16
 		}
 	}
@@ -1573,6 +1626,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("approved", "ticket", "single", "exact", "url", "direct", "ingest") >= 3 {
 			boost -= 12
 		}
+		if countMatches("no", "search", "single", "exact", "url", "source") >= 4 {
+			boost -= 22
+		}
+		if countMatches("only", "source", "url", "avoid", "broad", "search", "discovery", "already", "chosen") >= 4 {
+			boost -= 24
+		}
 	}
 	if toolName == "replace_in_file" {
 		if countMatches("grep", "log", "logs", "filter", "pattern", "match", "line") >= 2 &&
@@ -1582,6 +1641,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("enumerate", "outputs", "produced", "run", "choose", "files", "release", "reviewer") >= 3 &&
 			!has("replace", "patch", "edit", "modify", "update") {
 			boost -= 18
+		}
+		if countMatches("send", "message", "status", "checkpoint", "thread", "chat", "no", "file") >= 4 &&
+			!has("replace", "patch", "edit", "modify", "update") {
+			boost -= 22
+		}
+		if countMatches("thread", "status", "ping", "brief", "short", "no", "file", "transfer", "checkpoint") >= 4 &&
+			!has("replace", "patch", "edit", "modify", "update") {
+			boost -= 30
 		}
 	}
 	if toolName == "browser_action" {
@@ -1658,11 +1725,19 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	if toolName == "lark_task_manage" {
 		if countMatches("plan", "roadmap", "phase", "milestone", "strategy") >= 2 &&
 			!has("task", "owner", "due", "todo", "assign") {
-			boost -= 12
+			boost -= 18
 		}
 		if countMatches("consent", "approval", "confirm", "external", "outreach", "sensitive") >= 2 &&
 			!has("task", "owner", "due", "todo", "assign", "batch", "update") {
 			boost -= 16
+		}
+		if countMatches("plan", "steps", "before", "mutation", "change", "apply", "fix", "execution") >= 3 &&
+			!has("task", "owner", "due", "todo", "assign", "batch", "update") {
+			boost -= 16
+		}
+		if countMatches("phased", "checklist", "rollback", "checkpoint", "reproduce", "patch", "verify", "gates") >= 3 &&
+			!has("task", "owner", "due", "todo", "assign", "batch", "update") {
+			boost -= 20
 		}
 	}
 	if toolName == "lark_send_message" {
@@ -1689,6 +1764,22 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("remove", "delete", "obsolete", "legacy", "retired", "deprecation") >= 2 &&
 			!has("list", "show", "inspect", "audit", "current", "existing", "before") {
 			boost -= 10
+		}
+	}
+	if toolName == "cancel_timer" {
+		if countMatches("calendar", "event", "meeting") >= 2 &&
+			!has("timer", "reminder", "alarm") {
+			boost -= 20
+		}
+	}
+	if toolName == "request_user" {
+		if countMatches("requires", "require", "user", "approval", "confirm", "before", "publish", "continue") >= 4 {
+			boost += 16
+		}
+	}
+	if toolName == "clarify" {
+		if countMatches("requires", "require", "user", "approval", "confirm", "before", "publish", "continue") >= 4 {
+			boost -= 20
 		}
 	}
 	if hasAll("task", "delegate") && toolName == "acp_executor" {
