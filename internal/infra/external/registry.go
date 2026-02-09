@@ -7,8 +7,7 @@ import (
 	"sync"
 
 	agent "alex/internal/domain/agent/ports/agent"
-	"alex/internal/infra/external/claudecode"
-	"alex/internal/infra/external/codex"
+	"alex/internal/infra/external/bridge"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
@@ -29,7 +28,9 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 	}
 
 	if cfg.ClaudeCode.Enabled {
-		exec := claudecode.NewSDKBridge(claudecode.SDKBridgeConfig{
+		exec := bridge.New(bridge.BridgeConfig{
+			AgentType:              "claude_code",
+			Interactive:            true,
 			APIKey:                 cfg.ClaudeCode.Env["ANTHROPIC_API_KEY"],
 			DefaultModel:           cfg.ClaudeCode.DefaultModel,
 			DefaultMode:            cfg.ClaudeCode.DefaultMode,
@@ -42,8 +43,9 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 		registry.register(exec)
 	}
 	if cfg.Codex.Enabled {
-		exec := codex.New(codex.Config{
-			BinaryPath:     cfg.Codex.Binary,
+		exec := bridge.New(bridge.BridgeConfig{
+			AgentType:      "codex",
+			Interactive:    false,
 			APIKey:         cfg.Codex.Env["OPENAI_API_KEY"],
 			DefaultModel:   cfg.Codex.DefaultModel,
 			ApprovalPolicy: cfg.Codex.ApprovalPolicy,
