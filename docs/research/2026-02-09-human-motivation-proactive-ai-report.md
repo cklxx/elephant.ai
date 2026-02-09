@@ -218,3 +218,28 @@ motivation_state:
   - 低词面重叠下的调度语义（`scheduler_list_jobs/create/delete`）显著提升。
   - 记忆回溯场景（`memory_search`）命中增强。
 - 仍保留少量高难失败，避免集合再次“过饱和”。
+
+## 10. R12 业界 hardest 批量扩容结论（2026-02-09）
+
+### 10.1 扩容内容（x/x）
+- 新增 benchmark-transfer collections: `6/6`
+  - Terminal-Bench
+  - MLE-Bench
+  - SWE-PolyBench
+  - GitTaskBench
+  - OSWorld-G
+  - FrontierMath + Humanity's Last Exam
+- 新增 hard cases: `72/72`
+- 主 suite 扩容后：`25` collections，`387` cases
+
+### 10.2 本轮分数（x/x）
+- pass@1: `330/387`
+- pass@5: `380/387`
+- failed: `7`
+- deliverable good: `34/39`
+- 产物：`tmp/foundation-suite-r12-hardbench`
+
+### 10.3 结果解释
+- 难度结构明显增强：新增 6 集合贡献了 `5` 个失败 case，且集中在“跨域调度冲突 + 低词面重叠” hardest 区域。
+- 新集合未出现工具不可用（N/A）堆积，说明扩容与当前工具生态兼容。
+- 失败簇呈系统性分布，适合下一轮按 conflict family 做精准收敛，而非盲目继续加题。

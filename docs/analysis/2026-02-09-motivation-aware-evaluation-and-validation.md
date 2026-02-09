@@ -256,3 +256,56 @@ R5 批量收敛的代表簇：
 - `scheduler_list_jobs => artifacts_list`（1）
 
 说明：残余失败集中在“极低词面重叠 + 调度边界冲突” hardest 子簇，可作为下一轮 targeted hardening 的入口。
+
+## 12. R12 业界最难基准系统扩容（2026-02-09）
+
+### 12.1 目标
+- 一次性增加 hardest benchmark transfer 集合，避免仅在既有簇上过拟合。
+- 以“系统分类”组织评测集合，支持后续按维度做淘汰、补题、优化闭环。
+
+### 12.2 系统分类矩阵（benchmark → 能力维度 → 数据集）
+| Benchmark Family | Hard Capability Focus | Dataset |
+|---|---|---|
+| Terminal-Bench | terminal-first diagnosis, bounded mutation, release gating | `foundation_eval_cases_industry_benchmark_terminal_bench_ops_hard.yaml` |
+| MLE-Bench | experiment lifecycle reproducibility, memory-backed iteration, artifactized reports | `foundation_eval_cases_industry_benchmark_mle_bench_experiment_lifecycle_hard.yaml` |
+| SWE-PolyBench | cross-language / cross-repo engineering and contract compatibility | `foundation_eval_cases_industry_benchmark_swe_polybench_cross_language_repo_hard.yaml` |
+| GitTaskBench | real-repo maintenance, policy boundary, scheduling governance | `foundation_eval_cases_industry_benchmark_gittaskbench_real_repo_maintenance_hard.yaml` |
+| OSWorld-G | grounded multimodal computer-use with interaction modality boundaries | `foundation_eval_cases_industry_benchmark_osworld_g_grounded_computer_use_hard.yaml` |
+| FrontierMath + HLE | deep reasoning with deterministic validation and high-stakes release gate | `foundation_eval_cases_industry_benchmark_frontiermath_hle_deep_reasoning_validation_hard.yaml` |
+
+参考来源（benchmark 官方页/论文）：
+- Terminal-Bench: https://www.tbench.ai/
+- MLE-Bench: https://openreview.net/forum?id=as6w2KEfEi
+- SWE-PolyBench: https://www.vals.ai/benchmarks/swe-polybench-06-25-2025
+- GitTaskBench: https://openreview.net/forum?id=Q6tN6YI0Fx
+- OSWorld-G: https://arxiv.org/html/2505.16801v1
+- Humanity's Last Exam: https://agi.safe.ai/
+- FrontierMath: https://epoch.ai/frontiermath/the-benchmark
+
+### 12.3 套件规模与结果（x/x）
+- Suite: `foundation_eval_suite.yaml`
+- Collections: `25/25`
+- Cases: `387/387`
+- pass@1: `330/387`
+- pass@5: `380/387`
+- Failed: `7`
+- Deliverable Good: `34/39`
+- 产物路径: `tmp/foundation-suite-r12-hardbench`
+
+### 12.4 新增 6 集合结果（x/x）
+- `industry-benchmark-terminal-bench-ops-hard`: pass@1 `12/12`, pass@5 `12/12`
+- `industry-benchmark-mle-bench-experiment-lifecycle-hard`: pass@1 `9/12`, pass@5 `11/12`
+- `industry-benchmark-swe-polybench-cross-language-repo-hard`: pass@1 `9/12`, pass@5 `11/12`
+- `industry-benchmark-gittaskbench-real-repo-maintenance-hard`: pass@1 `7/12`, pass@5 `10/12`
+- `industry-benchmark-osworld-g-grounded-computer-use-hard`: pass@1 `10/12`, pass@5 `12/12`
+- `industry-benchmark-frontiermath-hle-deep-reasoning-validation-hard`: pass@1 `10/12`, pass@5 `11/12`
+
+### 12.5 Top1 失败簇（R12）
+- `read_file => memory_get`（2）
+- `scheduler_delete_job => lark_calendar_update`（1）
+- `scheduler_list_jobs => artifacts_list`（1）
+- `search_file => browser_screenshot`（1）
+- `scheduler_delete_job => plan`（1）
+- `replace_in_file => artifacts_delete`（1）
+
+结论：新增 hardest 迁移集合成功拉开难度，且失败分布具备“可系统优化”的冲突簇结构，适合进入下一轮 targeted convergence。
