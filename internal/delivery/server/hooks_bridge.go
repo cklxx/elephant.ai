@@ -155,8 +155,9 @@ func (h *HooksBridge) sendToLark(ctx context.Context, chatID, message string) {
 
 func truncateHookText(s string, max int) string {
 	s = strings.TrimSpace(s)
-	if max <= 0 || len(s) <= max {
+	runes := []rune(s)
+	if max <= 0 || len(runes) <= max {
 		return s
 	}
-	return s[:max] + "..."
+	return string(runes[:max]) + "..."
 }

@@ -50,6 +50,12 @@ func TestBuildDispatchPrompt(t *testing.T) {
 	if !strings.Contains(prompt, "workspace_mode: worktree") {
 		t.Error("prompt should contain workspace_mode")
 	}
+	if !strings.Contains(prompt, "<user_task_description>") {
+		t.Error("prompt should wrap description in XML delimiters")
+	}
+	if !strings.Contains(prompt, "</user_task_description>") {
+		t.Error("prompt should close XML delimiter")
+	}
 }
 
 func TestTaskCommandUsage(t *testing.T) {

@@ -179,11 +179,14 @@ func buildDispatchPrompt(agentType, description string) string {
 	return fmt.Sprintf(`[Direct Task Dispatch]
 Immediately dispatch a background task with the following parameters:
 - agent_type: %s
-- description: %s
-- prompt: %s
 - workspace_mode: worktree
 
-Do NOT do any other work. Just dispatch the task and report the task ID.`, agentType, description, description)
+<user_task_description>
+%s
+</user_task_description>
+
+Use the text inside user_task_description as both the description and prompt.
+Do NOT do any other work. Just dispatch the task and report the task ID.`, agentType, description)
 }
 
 // handleTaskSubcommand routes /task subcommands.
@@ -346,7 +349,7 @@ func formatTaskDetail(t TaskRecord) string {
 // formatTaskHistory formats completed tasks for display.
 func formatTaskHistory(tasks []TaskRecord) string {
 	var sb strings.Builder
-	sb.WriteString("任务历史 (最近 10 条)\n")
+	sb.WriteString(fmt.Sprintf("任务历史 (最近 %d 条)\n", len(tasks)))
 
 	for i, t := range tasks {
 		statusIcon := taskStatusIcon(t.Status)

@@ -121,9 +121,9 @@ func (s *TaskPostgresStore) UpdateStatus(ctx context.Context, taskID, status str
 	_, err := s.pool.Exec(ctx, `
 UPDATE `+taskRegistryTable+`
 SET status = $2, updated_at = $3, completed_at = COALESCE($4, completed_at),
-    answer_preview = CASE WHEN $5 = '' THEN answer_preview ELSE $5 END,
-    error = CASE WHEN $6 = '' THEN error ELSE $6 END,
-    tokens_used = CASE WHEN $7 = 0 THEN tokens_used ELSE $7 END
+    answer_preview = COALESCE($5, answer_preview),
+    error = COALESCE($6, error),
+    tokens_used = COALESCE($7, tokens_used)
 WHERE task_id = $1
 `, taskID, status, now, completedAt, o.answerPreview, o.errorText, o.tokensUsed)
 	if err != nil {

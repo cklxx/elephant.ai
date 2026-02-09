@@ -36,22 +36,22 @@ type TaskStore interface {
 type TaskUpdateOption func(*taskUpdateOptions)
 
 type taskUpdateOptions struct {
-	answerPreview string
-	errorText     string
-	tokensUsed    int
+	answerPreview *string
+	errorText     *string
+	tokensUsed    *int
 }
 
 // WithAnswerPreview sets the answer preview on status update.
 func WithAnswerPreview(preview string) TaskUpdateOption {
-	return func(o *taskUpdateOptions) { o.answerPreview = preview }
+	return func(o *taskUpdateOptions) { o.answerPreview = &preview }
 }
 
 // WithErrorText sets the error text on status update.
 func WithErrorText(text string) TaskUpdateOption {
-	return func(o *taskUpdateOptions) { o.errorText = text }
+	return func(o *taskUpdateOptions) { o.errorText = &text }
 }
 
 // WithTokensUsed sets the tokens used on status update.
 func WithTokensUsed(tokens int) TaskUpdateOption {
-	return func(o *taskUpdateOptions) { o.tokensUsed = tokens }
+	return func(o *taskUpdateOptions) { o.tokensUsed = &tokens }
 }

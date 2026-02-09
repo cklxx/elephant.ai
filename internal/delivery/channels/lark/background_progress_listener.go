@@ -663,10 +663,11 @@ func mergeTools(records []progressRecord) []string {
 
 func truncateForLark(s string, max int) string {
 	s = strings.TrimSpace(s)
-	if max <= 0 || len(s) <= max {
+	runes := []rune(s)
+	if max <= 0 || len(runes) <= max {
 		return s
 	}
-	return s[:max]
+	return string(runes[:max])
 }
 
 func minDuration(a, b time.Duration) time.Duration {
