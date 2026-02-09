@@ -88,6 +88,11 @@ func (w *RuntimeConfigWatcher) Start(ctx context.Context) error {
 	if w == nil {
 		return fmt.Errorf("runtime config watcher is nil")
 	}
+	select {
+	case <-w.stopCh:
+		return fmt.Errorf("runtime config watcher already stopped")
+	default:
+	}
 	w.mu.Lock()
 	if w.watcher != nil {
 		w.mu.Unlock()
@@ -110,7 +115,9 @@ func (w *RuntimeConfigWatcher) Start(ctx context.Context) error {
 		return err
 	}
 
-	async.Go(w.logger, "config.watch", w.watchLoop)
+	async.Go(w.logger, "config.watch", func() {
+		w.watchLoop(fsWatcher)
+	})
 	if ctx != nil {
 		async.Go(w.logger, "config.watch.ctx", func() {
 			<-ctx.Done()
@@ -156,17 +163,17 @@ func (w *RuntimeConfigWatcher) Resolve(ctx context.Context) (RuntimeConfig, Meta
 	return w.cache.Resolve(ctx)
 }
 
-func (w *RuntimeConfigWatcher) watchLoop() {
+func (w *RuntimeConfigWatcher) watchLoop(fsWatcher *fsnotify.Watcher) {
 	for {
 		select {
 		case <-w.stopCh:
 			return
-		case event, ok := <-w.watcher.Events:
+		case event, ok := <-fsWatcher.Events:
 			if !ok {
 				return
 			}
 			w.handleEvent(event)
-		case err, ok := <-w.watcher.Errors:
+		case err, ok := <-fsWatcher.Errors:
 			if !ok {
 				return
 			}
