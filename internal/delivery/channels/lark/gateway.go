@@ -918,6 +918,7 @@ func (g *Gateway) buildPlanReviewReplyContent(execCtx context.Context, msg *inco
 // drainAndReprocess drains any remaining messages from the input channel after
 // a task finishes and reprocesses each as a new task. This handles messages that
 // arrived between the last ReAct iteration drain and the task completion.
+// Messages are processed sequentially in a single goroutine to preserve ordering.
 func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, chatType string) {
 	var remaining []agent.UserInput
 	for {
@@ -929,9 +930,16 @@ func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, chatType st
 		}
 	}
 done:
-	for _, msg := range remaining {
-		go g.reprocessMessage(chatID, chatType, msg)
+	if len(remaining) == 0 {
+		return
 	}
+	g.taskWG.Add(1)
+	go func() {
+		defer g.taskWG.Done()
+		for _, msg := range remaining {
+			g.reprocessMessage(chatID, chatType, msg)
+		}
+	}()
 }
 
 // discardPendingInputs drains and drops remaining in-flight messages that were
