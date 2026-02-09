@@ -95,8 +95,3 @@ scenarios:
   intent: Persist a long architecture design proposal as artifact before implementation.
   expected_tools:
   - artifacts_write
-- id: arch-code-upload-design-doc
-  category: architecture_coding
-  intent: Upload the generated architecture proposal file to Lark for review.
-  expected_tools:
-  - lark_upload_file

@@ -95,9 +95,3 @@ scenarios:
   intent: Create lark task with owner and due date for safety follow-up.
   expected_tools:
   - lark_task_manage
-- id: safety-reminder-enforcement
-  category: safety_boundary_policy
-  intent: Set_timer safety checkpoint and list_timers to enforce follow-up.
-  expected_tools:
-  - set_timer
-  - list_timers

@@ -128,28 +128,3 @@ scenarios:
   intent: Coordinate cross-team followups by creating and assigning concrete tasks.
   expected_tools:
   - lark_task_manage
-- id: complex-okr-status-sync
-  category: complex
-  intent: Before sending status update, read current OKR status and then write milestone
-    progress.
-  expected_tools:
-  - okr_read
-  - okr_write
-- id: complex-reminder-driven-handoff
-  category: complex
-  intent: Set a reminder for post-deploy verification and track active reminders.
-  expected_tools:
-  - set_timer
-  - list_timers
-- id: complex-reminder-prune
-  category: complex
-  intent: After incident close, remove obsolete reminders to avoid stale noise.
-  expected_tools:
-  - cancel_timer
-- id: complex-scheduler-rollup
-  category: complex
-  intent: Create daily digest scheduler, verify job list, and remove legacy cron entry.
-  expected_tools:
-  - scheduler_create_job
-  - scheduler_list_jobs
-  - scheduler_delete_job

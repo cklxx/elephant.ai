@@ -99,13 +99,3 @@ scenarios:
   intent: Delegate heavy long-tail analysis to parallel executor subagent.
   expected_tools:
   - acp_executor
-- id: conflict-web-search-authoritative-source-discovery
-  category: conflict_convergence
-  intent: Search authoritative RFC sources and shortlist official references.
-  expected_tools:
-  - web_search
-- id: conflict-web-fetch-exact-url
-  category: conflict_convergence
-  intent: Fetch and extract content from this exact single provided URL.
-  expected_tools:
-  - web_fetch

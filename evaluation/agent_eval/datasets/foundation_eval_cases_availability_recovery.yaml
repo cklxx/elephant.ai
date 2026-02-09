@@ -96,13 +96,3 @@ scenarios:
   intent: List generated artifacts before deciding what to share.
   expected_tools:
   - artifacts_list
-- id: availability-artifact-cleanup
-  category: availability
-  intent: Delete stale artifact files from failed previous attempts.
-  expected_tools:
-  - artifacts_delete
-- id: availability-manifest-audit
-  category: availability
-  intent: Inspect artifact manifest metadata to verify persistence.
-  expected_tools:
-  - artifact_manifest

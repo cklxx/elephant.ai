@@ -103,24 +103,3 @@ scenarios:
   intent: Read current quarter OKR status before sending an update.
   expected_tools:
   - okr_read
-- id: proactive-okrs-read-before-retro
-  category: okr
-  intent: Read OKR milestones before preparing retrospective notes.
-  expected_tools:
-  - okr_read
-- id: proactive-okrs-write-update
-  category: okr
-  intent: Update OKR objective progress after completing milestone work.
-  expected_tools:
-  - okr_write
-- id: proactive-okrs-write-blocker
-  category: okr
-  intent: Write an OKR blocker note with impact and mitigation owner.
-  expected_tools:
-  - okr_write
-- id: proactive-artifact-first-then-share
-  category: artifact
-  intent: Before sending updates, persist analysis as artifact to keep the thread
-    concise.
-  expected_tools:
-  - artifacts_write

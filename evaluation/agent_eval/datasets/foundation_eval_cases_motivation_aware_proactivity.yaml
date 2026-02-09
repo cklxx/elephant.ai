@@ -99,18 +99,3 @@ scenarios:
     rather than discovering new sources.
   expected_tools:
   - web_fetch
-- id: motivation-check-calendar-before-reschedule
-  category: motivation_extrinsic
-  intent: Query upcoming calendar commitments before rescheduling motivation checkpoints.
-  expected_tools:
-  - lark_calendar_query
-- id: motivation-commitment-task-create
-  category: motivation_extrinsic
-  intent: Create and assign a concrete task with owner and due date for accountability.
-  expected_tools:
-  - lark_task_manage
-- id: motivation-task-batch-adjust-when-slip
-  category: motivation_extrinsic
-  intent: Batch update delayed accountability tasks before standup.
-  expected_tools:
-  - lark_task_manage

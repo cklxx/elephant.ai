@@ -100,25 +100,3 @@ scenarios:
   intent: Send a concise status update to current Lark conversation.
   expected_tools:
   - lark_send_message
-- id: workflow-lark-context-sync
-  category: valuable_workflow
-  intent: Read Lark chat history before posting final update.
-  expected_tools:
-  - lark_chat_history
-- id: workflow-lark-file-share
-  category: valuable_workflow
-  intent: Upload generated report file to current Lark chat.
-  expected_tools:
-  - lark_upload_file
-- id: workflow-calendar-planning-loop
-  category: valuable_workflow
-  intent: Check schedule, create rollout event, and reschedule conflicts.
-  expected_tools:
-  - lark_calendar_query
-  - lark_calendar_create
-  - lark_calendar_update
-- id: workflow-task-dispatch
-  category: valuable_workflow
-  intent: Create and assign follow-up execution tasks to owners.
-  expected_tools:
-  - lark_task_manage

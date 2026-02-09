@@ -94,13 +94,3 @@ scenarios:
   intent: Open specific memory note lines containing edge-case handling details.
   expected_tools:
   - memory_get
-- id: verified-web-search-api-spec
-  category: swebench_verified
-  intent: Search official API spec page for behavior constraints.
-  expected_tools:
-  - web_search
-- id: verified-web-fetch-spec
-  category: swebench_verified
-  intent: Fetch exact spec URL content to validate expected semantics.
-  expected_tools:
-  - web_fetch

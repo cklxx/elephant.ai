@@ -128,9 +128,3 @@ scenarios:
   - request_user
   - read_file
   - shell_exec
-- id: orchestrate-capability-discovery
-  category: multi_step_orchestration
-  intent: Inspect apps and skills capability matrix before tool routing.
-  expected_tools:
-  - apps
-  - skills

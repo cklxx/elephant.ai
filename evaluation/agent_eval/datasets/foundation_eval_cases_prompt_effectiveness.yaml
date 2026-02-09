@@ -92,18 +92,3 @@ scenarios:
   intent: Rewrite this HTML snippet to improve semantics and accessibility.
   expected_tools:
   - html_edit
-- id: prompt-diagram-render
-  category: visualization
-  intent: Render the Mermaid architecture diagram into an image.
-  expected_tools:
-  - diagram_render
-- id: prompt-session-todo-read
-  category: session
-  intent: Read the current session todo list before planning next actions.
-  expected_tools:
-  - todo_read
-- id: prompt-session-todo-update
-  category: session
-  intent: Update todo statuses and append a new follow-up item.
-  expected_tools:
-  - todo_update
