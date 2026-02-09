@@ -1,367 +1,320 @@
-version: "1"
-name: "foundation-complex-artifact-delivery"
-description: "Complex delivery tasks that require concrete file/artifact outputs, traceability, and publish/cleanup workflows"
+version: '1'
+name: foundation-complex-artifact-delivery
+description: Complex delivery tasks that require concrete file/artifact outputs, traceability,
+  and publish/cleanup workflows
 scenarios:
-  - id: "artifact-delivery-long-report-pack"
-    category: "complex_artifact_delivery"
-    intent: "Deliver a long architecture review as a persisted artifact package before writing a short summary."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "persisted architecture review report"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-manifest-audit-before-send"
-    category: "complex_artifact_delivery"
-    intent: "Before publishing results, inspect artifact manifest and list generated artifacts for traceability checks."
-    expected_tools: ["artifact_manifest", "artifacts_list"]
-    deliverable:
-      output_description: "traceable manifest check"
-      manifest_required: true
-      required_evidence: ["report"]
-
-  - id: "artifact-delivery-publish-attachment"
-    category: "complex_artifact_delivery"
-    intent: "Package the final output and deliver it as a downloadable attachment to the user."
-    expected_tools: ["write_attachment"]
-    deliverable:
-      output_description: "downloadable attachment"
-      attachment_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-lark-upload"
-    category: "complex_artifact_delivery"
-    intent: "Upload the generated artifact file to Lark after local verification is complete."
-    expected_tools: ["lark_upload_file"]
-    deliverable:
-      output_description: "uploaded output in Lark"
-      attachment_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-cleanup-stale-output"
-    category: "complex_artifact_delivery"
-    intent: "Delete stale artifact bundles from failed runs and keep only the latest approved deliverable."
-    expected_tools: ["artifacts_delete"]
-    deliverable:
-      output_description: "clean artifact store"
-      manifest_required: true
-      required_evidence: ["log"]
-
-  - id: "artifact-delivery-diagram-with-proof"
-    category: "complex_artifact_delivery"
-    intent: "Render an architecture diagram image and include it in the delivery package."
-    expected_tools: ["diagram_render", "artifacts_write"]
-    deliverable:
-      output_description: "diagram artifact plus summary"
-      artifact_required: true
-      required_file_types: ["png", "markdown"]
-      required_evidence: ["diagram"]
-
-  - id: "artifact-delivery-slides-from-images"
-    category: "complex_artifact_delivery"
-    intent: "Convert curated screenshots into a concise pptx deck and persist deck output."
-    expected_tools: ["pptx_from_images", "artifacts_write"]
-    deliverable:
-      output_description: "executive slide deck"
-      artifact_required: true
-      required_file_types: ["pptx"]
-      required_evidence: ["slides"]
-
-  - id: "artifact-delivery-browser-evidence"
-    category: "complex_artifact_delivery"
-    intent: "Capture post-fix browser screenshot evidence and persist it together with a markdown incident summary."
-    expected_tools: ["browser_screenshot", "artifacts_write"]
-    deliverable:
-      output_description: "visual evidence + incident note"
-      artifact_required: true
-      required_file_types: ["png", "markdown"]
-      required_evidence: ["screenshot"]
-
-  - id: "artifact-delivery-shell-test-report"
-    category: "complex_artifact_delivery"
-    intent: "Run shell validation and package the resulting test report as a reusable artifact."
-    expected_tools: ["shell_exec", "artifacts_write"]
-    deliverable:
-      output_description: "test report artifact"
-      artifact_required: true
-      required_evidence: ["test", "log"]
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-scripted-metric-report"
-    category: "complex_artifact_delivery"
-    intent: "Execute code to compute validation metrics and save structured JSON output plus markdown interpretation."
-    expected_tools: ["execute_code", "artifacts_write"]
-    deliverable:
-      output_description: "metric outputs"
-      artifact_required: true
-      required_file_types: ["json", "markdown"]
-      required_evidence: ["report"]
-
-  - id: "artifact-delivery-patch-and-summary"
-    category: "complex_artifact_delivery"
-    intent: "Patch deprecated calls, then deliver a change summary with evidence snippets as files."
-    expected_tools: ["replace_in_file", "artifacts_write"]
-    deliverable:
-      output_description: "change summary package"
-      artifact_required: true
-      required_evidence: ["diff"]
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-search-proof"
-    category: "complex_artifact_delivery"
-    intent: "Run a full repository symbol search and persist matched evidence list into a structured artifact."
-    expected_tools: ["search_file", "artifacts_write"]
-    deliverable:
-      output_description: "search evidence artifact"
-      artifact_required: true
-      required_evidence: ["log"]
-      required_file_types: ["json"]
-
-  - id: "artifact-delivery-ripgrep-trace"
-    category: "complex_artifact_delivery"
-    intent: "Use ripgrep to collect high-volume trace lines and save an audit report artifact."
-    expected_tools: ["ripgrep", "artifacts_write"]
-    deliverable:
-      output_description: "trace audit report"
-      artifact_required: true
-      required_evidence: ["log"]
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-memory-backed-report"
-    category: "complex_artifact_delivery"
-    intent: "Retrieve prior decisions from memory and generate a memory-cited delivery report artifact."
-    expected_tools: ["memory_search", "memory_get", "artifacts_write"]
-    deliverable:
-      output_description: "memory-cited report"
-      artifact_required: true
-      manifest_required: true
-      required_evidence: ["report"]
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-scheduler-runbook"
-    category: "complex_artifact_delivery"
-    intent: "Create a scheduler job and deliver a runbook artifact containing cadence and rollback steps."
-    expected_tools: ["scheduler_create_job", "artifacts_write"]
-    deliverable:
-      output_description: "scheduler runbook"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-reminder-plan"
-    category: "complex_artifact_delivery"
-    intent: "Set reminders for post-release checks and output a timeline artifact for the owner."
-    expected_tools: ["set_timer", "artifacts_write"]
-    deliverable:
-      output_description: "timeline output"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-calendar-rollout-brief"
-    category: "complex_artifact_delivery"
-    intent: "Query existing calendar events, create launch sync, and produce a rollout brief artifact."
-    expected_tools: ["lark_calendar_query", "lark_calendar_create", "artifacts_write"]
-    deliverable:
-      output_description: "rollout calendar brief"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-task-assignment-pack"
-    category: "complex_artifact_delivery"
-    intent: "Create cross-team task assignments and output an execution handoff artifact for tracking."
-    expected_tools: ["lark_task_manage", "artifacts_write"]
-    deliverable:
-      output_description: "handoff package"
-      artifact_required: true
-      required_file_types: ["markdown", "json"]
-
-  - id: "artifact-delivery-lark-summary-loop"
-    category: "complex_artifact_delivery"
-    intent: "Write artifact report, upload file to Lark, and send concise progress summary message."
-    expected_tools: ["artifacts_write", "lark_upload_file", "lark_send_message"]
-    deliverable:
-      output_description: "published Lark delivery"
-      artifact_required: true
-      attachment_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-a2ui-payload"
-    category: "complex_artifact_delivery"
-    intent: "Emit a structured dashboard payload and store accompanying artifact notes for renderer consumers."
-    expected_tools: ["a2ui_emit", "artifacts_write"]
-    deliverable:
-      output_description: "structured payload delivery"
-      artifact_required: true
-      required_file_types: ["json", "markdown"]
-
-  - id: "artifact-delivery-html-package"
-    category: "complex_artifact_delivery"
-    intent: "Edit HTML output and persist final html package with release notes artifact."
-    expected_tools: ["html_edit", "artifacts_write"]
-    deliverable:
-      output_description: "html package"
-      artifact_required: true
-      required_file_types: ["html", "markdown"]
-
-  - id: "artifact-delivery-web-research-dossier"
-    category: "complex_artifact_delivery"
-    intent: "Search authoritative sources, fetch primary pages, and produce a citation dossier artifact."
-    expected_tools: ["web_search", "web_fetch", "artifacts_write"]
-    deliverable:
-      output_description: "research dossier"
-      artifact_required: true
-      manifest_required: true
-      required_file_types: ["markdown"]
-      required_evidence: ["report"]
-
-  - id: "artifact-delivery-local-doc-assembly"
-    category: "complex_artifact_delivery"
-    intent: "Read source files and assemble a local design document artifact with exact references."
-    expected_tools: ["read_file", "artifacts_write"]
-    deliverable:
-      output_description: "design document"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-path-inventory"
-    category: "complex_artifact_delivery"
-    intent: "List target directories and find candidate files, then output inventory artifact for audit."
-    expected_tools: ["list_dir", "find", "artifacts_write"]
-    deliverable:
-      output_description: "path inventory"
-      artifact_required: true
-      required_file_types: ["json"]
-
-  - id: "artifact-delivery-okr-status-pack"
-    category: "complex_artifact_delivery"
-    intent: "Read OKR baseline, write updated progress, and persist monthly status package for leadership."
-    expected_tools: ["okr_read", "okr_write", "artifacts_write"]
-    deliverable:
-      output_description: "okr monthly package"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-manifest-first-cleanup"
-    category: "complex_artifact_delivery"
-    intent: "Audit artifact manifest, list outputs, delete stale bundles, then publish clean manifest snapshot."
-    expected_tools: ["artifact_manifest", "artifacts_list", "artifacts_delete", "artifacts_write"]
-    deliverable:
-      output_description: "clean manifest snapshot"
-      artifact_required: true
-      manifest_required: true
-      required_file_types: ["json", "markdown"]
-
-  - id: "artifact-delivery-subagent-handoff"
-    category: "complex_artifact_delivery"
-    intent: "Delegate heavy validation to acp executor and assemble returned artifacts into a final delivery bundle."
-    expected_tools: ["acp_executor", "artifact_manifest", "artifacts_write"]
-    deliverable:
-      output_description: "executor handoff package"
-      artifact_required: true
-      manifest_required: true
-      required_evidence: ["report"]
-
-  - id: "artifact-delivery-user-gated-approval-package"
-    category: "complex_artifact_delivery"
-    intent: "Before irreversible publish, ask user for explicit approval and prepare a pending release artifact package."
-    expected_tools: ["request_user", "artifacts_write"]
-    deliverable:
-      output_description: "approval package"
-      artifact_required: true
-      attachment_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-ambiguity-clarify-template"
-    category: "complex_artifact_delivery"
-    intent: "Requirements conflict; clarify acceptance criteria first and generate a draft delivery template artifact."
-    expected_tools: ["clarify", "artifacts_write"]
-    deliverable:
-      output_description: "draft template"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-plan-first-bundle"
-    category: "complex_artifact_delivery"
-    intent: "Create a phased execution plan and milestones roadmap first, then deliver the plan bundle as a traceable artifact file."
-    expected_tools: ["plan", "artifacts_write"]
-    deliverable:
-      output_description: "execution plan bundle"
-      artifact_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-chat-history-evidence"
-    category: "complex_artifact_delivery"
-    intent: "Read Lark chat history, extract decision evidence, and deliver a cited artifact summary."
-    expected_tools: ["lark_chat_history", "artifacts_write"]
-    deliverable:
-      output_description: "cited chat evidence"
-      artifact_required: true
-      required_evidence: ["report"]
-
-  - id: "artifact-delivery-multi-source-package"
-    category: "complex_artifact_delivery"
-    intent: "Combine browser evidence, web research, and repo snippets into one packaged delivery artifact set."
-    expected_tools: ["browser_screenshot", "web_fetch", "search_file", "artifacts_write"]
-    deliverable:
-      output_description: "multi-source package"
-      artifact_required: true
-      manifest_required: true
-      required_evidence: ["screenshot", "report", "log"]
-      required_file_types: ["markdown", "json"]
-
-  - id: "artifact-delivery-concise-chat-durable-record"
-    category: "complex_artifact_delivery"
-    intent: "Keep chat reply minimal, but preserve a complete durable technical record for asynchronous reviewers."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "durable technical record"
-      artifact_required: true
-      required_file_types: ["markdown"]
-      required_evidence: ["report"]
-
-  - id: "artifact-delivery-thread-file-gate"
-    category: "complex_artifact_delivery"
-    intent: "Reviewer workflow is blocked until the generated package appears in-thread as a file."
-    expected_tools: ["lark_upload_file"]
-    deliverable:
-      output_description: "in-thread package file"
-      attachment_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-downloadable-handoff-vs-storage"
-    category: "complex_artifact_delivery"
-    intent: "Recipient asks for direct downloadable handoff now, not background storage only."
-    expected_tools: ["write_attachment"]
-    deliverable:
-      output_description: "downloadable handoff"
-      attachment_required: true
-      required_file_types: ["markdown"]
-
-  - id: "artifact-delivery-scheduler-audit-before-removal"
-    category: "complex_artifact_delivery"
-    intent: "Before pruning legacy cadence, inspect current recurring schedule state and then produce cleanup evidence package."
-    expected_tools: ["scheduler_list_jobs", "artifacts_write"]
-    deliverable:
-      output_description: "schedule cleanup evidence"
-      artifact_required: true
-      required_file_types: ["markdown", "json"]
-      required_evidence: ["report"]
-
-  - id: "artifact-delivery-path-first-content-later-package"
-    category: "complex_artifact_delivery"
-    intent: "First narrow candidate paths by naming pattern, then assemble an auditable inventory package for downstream patching."
-    expected_tools: ["find", "artifacts_write"]
-    deliverable:
-      output_description: "auditable path inventory package"
-      artifact_required: true
-      required_file_types: ["json", "markdown"]
-
-  - id: "artifact-delivery-memory-grounded-proof"
-    category: "complex_artifact_delivery"
-    intent: "Use previously chosen memory evidence slices to ground a persona-consistent delivery proof package."
-    expected_tools: ["memory_get", "artifacts_write"]
-    deliverable:
-      output_description: "memory-grounded proof package"
-      artifact_required: true
-      manifest_required: true
-      required_file_types: ["markdown"]
-      required_evidence: ["report"]
+- id: artifact-delivery-long-report-pack
+  category: complex_artifact_delivery
+  intent: Deliver a long architecture review as a persisted artifact package before
+    writing a short summary.
+  expected_tools:
+  - artifacts_write
+  deliverable:
+    output_description: persisted architecture review report
+    artifact_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-manifest-audit-before-send
+  category: complex_artifact_delivery
+  intent: Before publishing results, inspect artifact manifest and list generated
+    artifacts for traceability checks.
+  expected_tools:
+  - artifact_manifest
+  - artifacts_list
+  deliverable:
+    output_description: traceable manifest check
+    manifest_required: true
+    required_evidence:
+    - report
+- id: artifact-delivery-publish-attachment
+  category: complex_artifact_delivery
+  intent: Package the final output and deliver it as a downloadable attachment to
+    the user.
+  expected_tools:
+  - write_attachment
+  deliverable:
+    output_description: downloadable attachment
+    attachment_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-lark-upload
+  category: complex_artifact_delivery
+  intent: Upload the generated artifact file to Lark after local verification is complete.
+  expected_tools:
+  - lark_upload_file
+  deliverable:
+    output_description: uploaded output in Lark
+    attachment_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-cleanup-stale-output
+  category: complex_artifact_delivery
+  intent: Delete stale artifact bundles from failed runs and keep only the latest
+    approved deliverable.
+  expected_tools:
+  - artifacts_delete
+  deliverable:
+    output_description: clean artifact store
+    manifest_required: true
+    required_evidence:
+    - log
+- id: artifact-delivery-diagram-with-proof
+  category: complex_artifact_delivery
+  intent: Render an architecture diagram image and include it in the delivery package.
+  expected_tools:
+  - diagram_render
+  - artifacts_write
+  deliverable:
+    output_description: diagram artifact plus summary
+    artifact_required: true
+    required_file_types:
+    - png
+    - markdown
+    required_evidence:
+    - diagram
+- id: artifact-delivery-slides-from-images
+  category: complex_artifact_delivery
+  intent: Convert curated screenshots into a concise pptx deck and persist deck output.
+  expected_tools:
+  - pptx_from_images
+  - artifacts_write
+  deliverable:
+    output_description: executive slide deck
+    artifact_required: true
+    required_file_types:
+    - pptx
+    required_evidence:
+    - slides
+- id: artifact-delivery-browser-evidence
+  category: complex_artifact_delivery
+  intent: Capture post-fix browser screenshot evidence and persist it together with
+    a markdown incident summary.
+  expected_tools:
+  - browser_screenshot
+  - artifacts_write
+  deliverable:
+    output_description: visual evidence + incident note
+    artifact_required: true
+    required_file_types:
+    - png
+    - markdown
+    required_evidence:
+    - screenshot
+- id: artifact-delivery-shell-test-report
+  category: complex_artifact_delivery
+  intent: Run shell validation and package the resulting test report as a reusable
+    artifact.
+  expected_tools:
+  - shell_exec
+  - artifacts_write
+  deliverable:
+    output_description: test report artifact
+    artifact_required: true
+    required_evidence:
+    - test
+    - log
+    required_file_types:
+    - markdown
+- id: artifact-delivery-scripted-metric-report
+  category: complex_artifact_delivery
+  intent: Execute code to compute validation metrics and save structured JSON output
+    plus markdown interpretation.
+  expected_tools:
+  - execute_code
+  - artifacts_write
+  deliverable:
+    output_description: metric outputs
+    artifact_required: true
+    required_file_types:
+    - json
+    - markdown
+    required_evidence:
+    - report
+- id: artifact-delivery-patch-and-summary
+  category: complex_artifact_delivery
+  intent: Patch deprecated calls, then deliver a change summary with evidence snippets
+    as files.
+  expected_tools:
+  - replace_in_file
+  - artifacts_write
+  deliverable:
+    output_description: change summary package
+    artifact_required: true
+    required_evidence:
+    - diff
+    required_file_types:
+    - markdown
+- id: artifact-delivery-search-proof
+  category: complex_artifact_delivery
+  intent: Run a full repository symbol search and persist matched evidence list into
+    a structured artifact.
+  expected_tools:
+  - search_file
+  - artifacts_write
+  deliverable:
+    output_description: search evidence artifact
+    artifact_required: true
+    required_evidence:
+    - log
+    required_file_types:
+    - json
+- id: artifact-delivery-ripgrep-trace
+  category: complex_artifact_delivery
+  intent: Use ripgrep to collect high-volume trace lines and save an audit report
+    artifact.
+  expected_tools:
+  - ripgrep
+  - artifacts_write
+  deliverable:
+    output_description: trace audit report
+    artifact_required: true
+    required_evidence:
+    - log
+    required_file_types:
+    - markdown
+- id: artifact-delivery-memory-backed-report
+  category: complex_artifact_delivery
+  intent: Retrieve prior decisions from memory and generate a memory-cited delivery
+    report artifact.
+  expected_tools:
+  - memory_search
+  - memory_get
+  - artifacts_write
+  deliverable:
+    output_description: memory-cited report
+    artifact_required: true
+    manifest_required: true
+    required_evidence:
+    - report
+    required_file_types:
+    - markdown
+- id: artifact-delivery-scheduler-runbook
+  category: complex_artifact_delivery
+  intent: Create a scheduler job and deliver a runbook artifact containing cadence
+    and rollback steps.
+  expected_tools:
+  - scheduler_create_job
+  - artifacts_write
+  deliverable:
+    output_description: scheduler runbook
+    artifact_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-reminder-plan
+  category: complex_artifact_delivery
+  intent: Set reminders for post-release checks and output a timeline artifact for
+    the owner.
+  expected_tools:
+  - set_timer
+  - artifacts_write
+  deliverable:
+    output_description: timeline output
+    artifact_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-calendar-rollout-brief
+  category: complex_artifact_delivery
+  intent: Query existing calendar events, create launch sync, and produce a rollout
+    brief artifact.
+  expected_tools:
+  - lark_calendar_query
+  - lark_calendar_create
+  - artifacts_write
+  deliverable:
+    output_description: rollout calendar brief
+    artifact_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-task-assignment-pack
+  category: complex_artifact_delivery
+  intent: Create cross-team task assignments and output an execution handoff artifact
+    for tracking.
+  expected_tools:
+  - lark_task_manage
+  - artifacts_write
+  deliverable:
+    output_description: handoff package
+    artifact_required: true
+    required_file_types:
+    - markdown
+    - json
+- id: artifact-delivery-lark-summary-loop
+  category: complex_artifact_delivery
+  intent: Write artifact report, upload file to Lark, and send concise progress summary
+    message.
+  expected_tools:
+  - artifacts_write
+  - lark_upload_file
+  - lark_send_message
+  deliverable:
+    output_description: published Lark delivery
+    artifact_required: true
+    attachment_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-a2ui-payload
+  category: complex_artifact_delivery
+  intent: Emit a structured dashboard payload and store accompanying artifact notes
+    for renderer consumers.
+  expected_tools:
+  - a2ui_emit
+  - artifacts_write
+  deliverable:
+    output_description: structured payload delivery
+    artifact_required: true
+    required_file_types:
+    - json
+    - markdown
+- id: artifact-delivery-html-package
+  category: complex_artifact_delivery
+  intent: Edit HTML output and persist final html package with release notes artifact.
+  expected_tools:
+  - html_edit
+  - artifacts_write
+  deliverable:
+    output_description: html package
+    artifact_required: true
+    required_file_types:
+    - html
+    - markdown
+- id: artifact-delivery-web-research-dossier
+  category: complex_artifact_delivery
+  intent: Search authoritative sources, fetch primary pages, and produce a citation
+    dossier artifact.
+  expected_tools:
+  - web_search
+  - web_fetch
+  - artifacts_write
+  deliverable:
+    output_description: research dossier
+    artifact_required: true
+    manifest_required: true
+    required_file_types:
+    - markdown
+    required_evidence:
+    - report
+- id: artifact-delivery-local-doc-assembly
+  category: complex_artifact_delivery
+  intent: Read source files and assemble a local design document artifact with exact
+    references.
+  expected_tools:
+  - read_file
+  - artifacts_write
+  deliverable:
+    output_description: design document
+    artifact_required: true
+    required_file_types:
+    - markdown
+- id: artifact-delivery-path-inventory
+  category: complex_artifact_delivery
+  intent: List target directories and find candidate files, then output inventory
+    artifact for audit.
+  expected_tools:
+  - list_dir
+  - find
+  - artifacts_write
+  deliverable:
+    output_description: path inventory
+    artifact_required: true
+    required_file_types:
+    - json

@@ -1,103 +1,80 @@
-version: "1"
-name: "foundation-task-completion-speed"
-description: "Speed-oriented routing coverage: shortest viable tool path for task completion"
+version: '1'
+name: foundation-task-completion-speed
+description: 'Speed-oriented routing coverage: shortest viable tool path for task
+  completion'
 scenarios:
-  - id: "speed-quick-file-open"
-    category: "task_completion_speed"
-    intent: "Open one known file immediately for quick answer."
-    expected_tools: ["read_file"]
-
-  - id: "speed-quick-dir-scan"
-    category: "task_completion_speed"
-    intent: "List directory tree quickly before choosing target file."
-    expected_tools: ["list_dir"]
-
-  - id: "speed-fast-symbol-locate"
-    category: "task_completion_speed"
-    intent: "Use ripgrep to quickly locate symbol usages across repository."
-    expected_tools: ["ripgrep"]
-
-  - id: "speed-fast-log-filter"
-    category: "task_completion_speed"
-    intent: "Use grep to quickly filter error lines from log file."
-    expected_tools: ["grep"]
-
-  - id: "speed-one-block-edit"
-    category: "task_completion_speed"
-    intent: "Apply one exact patch with replace_in_file and finish."
-    expected_tools: ["replace_in_file"]
-
-  - id: "speed-write-output-directly"
-    category: "task_completion_speed"
-    intent: "Write final output directly to file without extra steps."
-    expected_tools: ["write_file"]
-
-  - id: "speed-shell-health-check"
-    category: "task_completion_speed"
-    intent: "Run one shell command for quick health check."
-    expected_tools: ["shell_exec"]
-
-  - id: "speed-quick-calc-check"
-    category: "task_completion_speed"
-    intent: "Execute small script snippet for immediate result verification."
-    expected_tools: ["execute_code"]
-
-  - id: "speed-browser-state-read"
-    category: "task_completion_speed"
-    intent: "Read current browser state quickly before any action."
-    expected_tools: ["browser_info"]
-
-  - id: "speed-browser-direct-fill"
-    category: "task_completion_speed"
-    intent: "Use browser_dom to fill and submit form in one pass."
-    expected_tools: ["browser_dom"]
-
-  - id: "speed-browser-canvas-direct"
-    category: "task_completion_speed"
-    intent: "Use browser_action for direct canvas click-drag interaction."
-    expected_tools: ["browser_action"]
-
-  - id: "speed-browser-proof-capture"
-    category: "task_completion_speed"
-    intent: "Capture one screenshot quickly as proof."
-    expected_tools: ["browser_screenshot"]
-
-  - id: "speed-memory-recall"
-    category: "task_completion_speed"
-    intent: "Use memory_search for immediate recall of known decision."
-    expected_tools: ["memory_search"]
-
-  - id: "speed-memory-open-note"
-    category: "task_completion_speed"
-    intent: "Open exact memory note via memory_get for quick citation."
-    expected_tools: ["memory_get"]
-
-  - id: "speed-quick-artifact-save"
-    category: "task_completion_speed"
-    intent: "Save result fast using artifacts_write."
-    expected_tools: ["artifacts_write"]
-
-  - id: "speed-quick-lark-update"
-    category: "task_completion_speed"
-    intent: "Send immediate lark status update."
-    expected_tools: ["lark_send_message"]
-
-  - id: "speed-quick-reminder"
-    category: "task_completion_speed"
-    intent: "Set one timer quickly for follow-up."
-    expected_tools: ["set_timer"]
-
-  - id: "speed-quick-scheduler-check"
-    category: "task_completion_speed"
-    intent: "List scheduler jobs quickly to verify state."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "speed-quick-clarify-blocker"
-    category: "task_completion_speed"
-    intent: "Ask one clarify question immediately when blocker appears."
-    expected_tools: ["clarify"]
-
-  - id: "speed-quick-user-gate"
-    category: "task_completion_speed"
-    intent: "Request_user immediately for manual gate and pause."
-    expected_tools: ["request_user"]
+- id: speed-quick-file-open
+  category: task_completion_speed
+  intent: Open one known file immediately for quick answer.
+  expected_tools:
+  - read_file
+- id: speed-quick-dir-scan
+  category: task_completion_speed
+  intent: List directory tree quickly before choosing target file.
+  expected_tools:
+  - list_dir
+- id: speed-fast-symbol-locate
+  category: task_completion_speed
+  intent: Use ripgrep to quickly locate symbol usages across repository.
+  expected_tools:
+  - ripgrep
+- id: speed-fast-log-filter
+  category: task_completion_speed
+  intent: Use grep to quickly filter error lines from log file.
+  expected_tools:
+  - grep
+- id: speed-one-block-edit
+  category: task_completion_speed
+  intent: Apply one exact patch with replace_in_file and finish.
+  expected_tools:
+  - replace_in_file
+- id: speed-write-output-directly
+  category: task_completion_speed
+  intent: Write final output directly to file without extra steps.
+  expected_tools:
+  - write_file
+- id: speed-shell-health-check
+  category: task_completion_speed
+  intent: Run one shell command for quick health check.
+  expected_tools:
+  - shell_exec
+- id: speed-quick-calc-check
+  category: task_completion_speed
+  intent: Execute small script snippet for immediate result verification.
+  expected_tools:
+  - execute_code
+- id: speed-browser-state-read
+  category: task_completion_speed
+  intent: Read current browser state quickly before any action.
+  expected_tools:
+  - browser_info
+- id: speed-browser-direct-fill
+  category: task_completion_speed
+  intent: Use browser_dom to fill and submit form in one pass.
+  expected_tools:
+  - browser_dom
+- id: speed-browser-canvas-direct
+  category: task_completion_speed
+  intent: Use browser_action for direct canvas click-drag interaction.
+  expected_tools:
+  - browser_action
+- id: speed-browser-proof-capture
+  category: task_completion_speed
+  intent: Capture one screenshot quickly as proof.
+  expected_tools:
+  - browser_screenshot
+- id: speed-memory-recall
+  category: task_completion_speed
+  intent: Use memory_search for immediate recall of known decision.
+  expected_tools:
+  - memory_search
+- id: speed-memory-open-note
+  category: task_completion_speed
+  intent: Open exact memory note via memory_get for quick citation.
+  expected_tools:
+  - memory_get
+- id: speed-quick-artifact-save
+  category: task_completion_speed
+  intent: Save result fast using artifacts_write.
+  expected_tools:
+  - artifacts_write

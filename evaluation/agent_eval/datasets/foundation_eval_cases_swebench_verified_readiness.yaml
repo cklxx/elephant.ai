@@ -1,123 +1,106 @@
-version: "1"
-name: "foundation-swebench-verified-readiness"
-description: "Routing readiness for SWE-bench Verified style software-fix tasks (offline, non-model)"
+version: '1'
+name: foundation-swebench-verified-readiness
+description: Routing readiness for SWE-bench Verified style software-fix tasks (offline,
+  non-model)
 scenarios:
-  - id: "verified-read-problem-file"
-    category: "swebench_verified"
-    intent: "Read the target source file that likely contains the bug."
-    expected_tools: ["read_file"]
-
-  - id: "verified-list-repo-layout"
-    category: "swebench_verified"
-    intent: "List repository layout to identify module boundaries before patching."
-    expected_tools: ["list_dir"]
-
-  - id: "verified-find-test-files"
-    category: "swebench_verified"
-    intent: "Find related test files by filename patterns in the repo."
-    expected_tools: ["find"]
-
-  - id: "verified-search-symbol-usages"
-    category: "swebench_verified"
-    intent: "Search all usages of the buggy symbol across project files."
-    expected_tools: ["search_file", "ripgrep"]
-
-  - id: "verified-grep-stacktrace-keyword"
-    category: "swebench_verified"
-    intent: "Grep stacktrace keyword from local failure log quickly."
-    expected_tools: ["grep"]
-
-  - id: "verified-run-tests-shell"
-    category: "swebench_verified"
-    intent: "Run unit tests with shell command to reproduce failure."
-    expected_tools: ["shell_exec"]
-
-  - id: "verified-execute-mini-check"
-    category: "swebench_verified"
-    intent: "Execute a tiny code snippet to validate edge-case math behavior."
-    expected_tools: ["execute_code"]
-
-  - id: "verified-apply-small-patch"
-    category: "swebench_verified"
-    intent: "Use replace_in_file to replace one exact incorrect logic block in place."
-    expected_tools: ["replace_in_file"]
-
-  - id: "verified-write-regression-note"
-    category: "swebench_verified"
-    intent: "Write a short regression-analysis note file in YAML."
-    expected_tools: ["write_file"]
-
-  - id: "verified-plan-fix-steps"
-    category: "swebench_verified"
-    intent: "Create fix plan with reproduce, patch, and verify checkpoints."
-    expected_tools: ["plan"]
-
-  - id: "verified-clarify-ambiguous-spec"
-    category: "swebench_verified"
-    intent: "Spec is ambiguous about expected behavior; ask targeted clarification."
-    expected_tools: ["clarify"]
-
-  - id: "verified-user-gated-secret"
-    category: "swebench_verified"
-    intent: "Need user-provided private token before running integration verification."
-    expected_tools: ["request_user"]
-
-  - id: "verified-artifact-save-report"
-    category: "swebench_verified"
-    intent: "Persist final bugfix report as artifact for later review."
-    expected_tools: ["artifacts_write"]
-
-  - id: "verified-artifact-list-before-publish"
-    category: "swebench_verified"
-    intent: "List generated artifacts before sharing outputs."
-    expected_tools: ["artifacts_list"]
-
-  - id: "verified-artifact-delete-temp"
-    category: "swebench_verified"
-    intent: "Delete temporary artifacts from failed prior runs."
-    expected_tools: ["artifacts_delete"]
-
-  - id: "verified-manifest-check"
-    category: "swebench_verified"
-    intent: "Inspect artifact manifest metadata for output integrity."
-    expected_tools: ["artifact_manifest"]
-
-  - id: "verified-memory-read-prior-fix"
-    category: "swebench_verified"
-    intent: "Search memory for prior fix pattern on similar bug class."
-    expected_tools: ["memory_search"]
-
-  - id: "verified-memory-open-details"
-    category: "swebench_verified"
-    intent: "Open specific memory note lines containing edge-case handling details."
-    expected_tools: ["memory_get"]
-
-  - id: "verified-web-search-api-spec"
-    category: "swebench_verified"
-    intent: "Search official API spec page for behavior constraints."
-    expected_tools: ["web_search"]
-
-  - id: "verified-web-fetch-spec"
-    category: "swebench_verified"
-    intent: "Fetch exact spec URL content to validate expected semantics."
-    expected_tools: ["web_fetch"]
-
-  - id: "verified-lark-share-progress"
-    category: "swebench_verified"
-    intent: "Send concise progress note to Lark thread during long bugfix session."
-    expected_tools: ["lark_send_message"]
-
-  - id: "verified-lark-upload-proof"
-    category: "swebench_verified"
-    intent: "Upload failing and passing test evidence files to Lark."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "verified-session-audit-skills-apps"
-    category: "swebench_verified"
-    intent: "Check available apps and skills before choosing execution strategy."
-    expected_tools: ["apps", "skills"]
-
-  - id: "verified-delegate-heavy-repro"
-    category: "swebench_verified"
-    intent: "Delegate heavy reproduction workflow to executor agent."
-    expected_tools: ["acp_executor"]
+- id: verified-read-problem-file
+  category: swebench_verified
+  intent: Read the target source file that likely contains the bug.
+  expected_tools:
+  - read_file
+- id: verified-list-repo-layout
+  category: swebench_verified
+  intent: List repository layout to identify module boundaries before patching.
+  expected_tools:
+  - list_dir
+- id: verified-find-test-files
+  category: swebench_verified
+  intent: Find related test files by filename patterns in the repo.
+  expected_tools:
+  - find
+- id: verified-search-symbol-usages
+  category: swebench_verified
+  intent: Search all usages of the buggy symbol across project files.
+  expected_tools:
+  - search_file
+  - ripgrep
+- id: verified-grep-stacktrace-keyword
+  category: swebench_verified
+  intent: Grep stacktrace keyword from local failure log quickly.
+  expected_tools:
+  - grep
+- id: verified-run-tests-shell
+  category: swebench_verified
+  intent: Run unit tests with shell command to reproduce failure.
+  expected_tools:
+  - shell_exec
+- id: verified-execute-mini-check
+  category: swebench_verified
+  intent: Execute a tiny code snippet to validate edge-case math behavior.
+  expected_tools:
+  - execute_code
+- id: verified-apply-small-patch
+  category: swebench_verified
+  intent: Use replace_in_file to replace one exact incorrect logic block in place.
+  expected_tools:
+  - replace_in_file
+- id: verified-write-regression-note
+  category: swebench_verified
+  intent: Write a short regression-analysis note file in YAML.
+  expected_tools:
+  - write_file
+- id: verified-plan-fix-steps
+  category: swebench_verified
+  intent: Create fix plan with reproduce, patch, and verify checkpoints.
+  expected_tools:
+  - plan
+- id: verified-clarify-ambiguous-spec
+  category: swebench_verified
+  intent: Spec is ambiguous about expected behavior; ask targeted clarification.
+  expected_tools:
+  - clarify
+- id: verified-user-gated-secret
+  category: swebench_verified
+  intent: Need user-provided private token before running integration verification.
+  expected_tools:
+  - request_user
+- id: verified-artifact-save-report
+  category: swebench_verified
+  intent: Persist final bugfix report as artifact for later review.
+  expected_tools:
+  - artifacts_write
+- id: verified-artifact-list-before-publish
+  category: swebench_verified
+  intent: List generated artifacts before sharing outputs.
+  expected_tools:
+  - artifacts_list
+- id: verified-artifact-delete-temp
+  category: swebench_verified
+  intent: Delete temporary artifacts from failed prior runs.
+  expected_tools:
+  - artifacts_delete
+- id: verified-manifest-check
+  category: swebench_verified
+  intent: Inspect artifact manifest metadata for output integrity.
+  expected_tools:
+  - artifact_manifest
+- id: verified-memory-read-prior-fix
+  category: swebench_verified
+  intent: Search memory for prior fix pattern on similar bug class.
+  expected_tools:
+  - memory_search
+- id: verified-memory-open-details
+  category: swebench_verified
+  intent: Open specific memory note lines containing edge-case handling details.
+  expected_tools:
+  - memory_get
+- id: verified-web-search-api-spec
+  category: swebench_verified
+  intent: Search official API spec page for behavior constraints.
+  expected_tools:
+  - web_search
+- id: verified-web-fetch-spec
+  category: swebench_verified
+  intent: Fetch exact spec URL content to validate expected semantics.
+  expected_tools:
+  - web_fetch

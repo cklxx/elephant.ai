@@ -1,93 +1,91 @@
-version: "1"
-name: "foundation-long-horizon-multi-round"
-description: "Long-horizon multi-round task routing coverage for phased execution, checkpoints, and user-gated continuation"
+version: '1'
+name: foundation-long-horizon-multi-round
+description: Long-horizon multi-round task routing coverage for phased execution,
+  checkpoints, and user-gated continuation
 scenarios:
-  - id: "long-horizon-phase-plan-first"
-    category: "long_horizon"
-    intent: "This is a week-long migration with multiple rounds; start by drafting a phased plan with checkpoints and risks."
-    expected_tools: ["plan"]
-
-  - id: "long-horizon-blocking-criteria-clarify"
-    category: "long_horizon"
-    intent: "Before round-2 implementation, acceptance criteria are missing; ask one precise clarifying question first."
-    expected_tools: ["clarify"]
-
-  - id: "long-horizon-user-gated-prod-cutover"
-    category: "long_horizon"
-    intent: "Production cutover in round-3 requires manual user confirmation before continuing."
-    expected_tools: ["request_user"]
-
-  - id: "long-horizon-read-prior-decision-memory"
-    category: "long_horizon"
-    intent: "For multi-round consistency, search memory for previous rollback strategy decisions."
-    expected_tools: ["memory_search"]
-
-  - id: "long-horizon-open-memory-evidence"
-    category: "long_horizon"
-    intent: "Open the exact memory note lines that define phase-exit rules."
-    expected_tools: ["memory_get"]
-
-  - id: "long-horizon-broadcast-progress"
-    category: "long_horizon"
-    intent: "Proactively send a progress update to Lark at the end of each round."
-    expected_tools: ["lark_send_message"]
-
-  - id: "long-horizon-write-round-report"
-    category: "long_horizon"
-    intent: "After each round, persist a long-form status report artifact for traceability."
-    expected_tools: ["artifacts_write"]
-
-  - id: "long-horizon-upload-round-report"
-    category: "long_horizon"
-    intent: "Upload the generated round summary report to the current Lark chat."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "long-horizon-recurring-checkpoint-job"
-    category: "long_horizon"
-    intent: "Create a recurring scheduler job for daily migration checkpoint reminders."
-    expected_tools: ["scheduler_create_job"]
-
-  - id: "long-horizon-verify-scheduler-state"
-    category: "long_horizon"
-    intent: "List scheduler jobs before entering the next execution round."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "long-horizon-create-calendar-cadence"
-    category: "long_horizon"
-    intent: "Create calendar events for round kickoff and post-check review meetings."
-    expected_tools: ["lark_calendar_create"]
-
-  - id: "long-horizon-update-calendar-shift"
-    category: "long_horizon"
-    intent: "Update existing calendar checkpoint event when timeline shifts by one day."
-    expected_tools: ["lark_calendar_update"]
-
-  - id: "long-horizon-task-handoff"
-    category: "long_horizon"
-    intent: "Create and assign cross-team follow-up tasks for next round owners."
-    expected_tools: ["lark_task_manage"]
-
-  - id: "long-horizon-source-impact-map"
-    category: "long_horizon"
-    intent: "At round transition, map impacted symbols across repository before patching."
-    expected_tools: ["search_file", "ripgrep"]
-
-  - id: "long-horizon-read-then-patch"
-    category: "long_horizon"
-    intent: "Read target config file first, then replace deprecated migration flag for the next round."
-    expected_tools: ["read_file", "replace_in_file"]
-
-  - id: "long-horizon-shell-verification"
-    category: "long_horizon"
-    intent: "Run shell verification commands after each round to confirm no regressions."
-    expected_tools: ["shell_exec"]
-
-  - id: "long-horizon-code-checkpoint-metric"
-    category: "long_horizon"
-    intent: "Execute a quick script to compute checkpoint success metrics before continuing."
-    expected_tools: ["execute_code"]
-
-  - id: "long-horizon-final-delegation"
-    category: "long_horizon"
-    intent: "Delegate the long-running final validation package to executor with strict constraints."
-    expected_tools: ["acp_executor"]
+- id: long-horizon-phase-plan-first
+  category: long_horizon
+  intent: This is a week-long migration with multiple rounds; start by drafting a
+    phased plan with checkpoints and risks.
+  expected_tools:
+  - plan
+- id: long-horizon-blocking-criteria-clarify
+  category: long_horizon
+  intent: Before round-2 implementation, acceptance criteria are missing; ask one
+    precise clarifying question first.
+  expected_tools:
+  - clarify
+- id: long-horizon-user-gated-prod-cutover
+  category: long_horizon
+  intent: Production cutover in round-3 requires manual user confirmation before continuing.
+  expected_tools:
+  - request_user
+- id: long-horizon-read-prior-decision-memory
+  category: long_horizon
+  intent: For multi-round consistency, search memory for previous rollback strategy
+    decisions.
+  expected_tools:
+  - memory_search
+- id: long-horizon-open-memory-evidence
+  category: long_horizon
+  intent: Open the exact memory note lines that define phase-exit rules.
+  expected_tools:
+  - memory_get
+- id: long-horizon-broadcast-progress
+  category: long_horizon
+  intent: Proactively send a progress update to Lark at the end of each round.
+  expected_tools:
+  - lark_send_message
+- id: long-horizon-write-round-report
+  category: long_horizon
+  intent: After each round, persist a long-form status report artifact for traceability.
+  expected_tools:
+  - artifacts_write
+- id: long-horizon-upload-round-report
+  category: long_horizon
+  intent: Upload the generated round summary report to the current Lark chat.
+  expected_tools:
+  - lark_upload_file
+- id: long-horizon-recurring-checkpoint-job
+  category: long_horizon
+  intent: Create a recurring scheduler job for daily migration checkpoint reminders.
+  expected_tools:
+  - scheduler_create_job
+- id: long-horizon-verify-scheduler-state
+  category: long_horizon
+  intent: List scheduler jobs before entering the next execution round.
+  expected_tools:
+  - scheduler_list_jobs
+- id: long-horizon-create-calendar-cadence
+  category: long_horizon
+  intent: Create calendar events for round kickoff and post-check review meetings.
+  expected_tools:
+  - lark_calendar_create
+- id: long-horizon-update-calendar-shift
+  category: long_horizon
+  intent: Update existing calendar checkpoint event when timeline shifts by one day.
+  expected_tools:
+  - lark_calendar_update
+- id: long-horizon-task-handoff
+  category: long_horizon
+  intent: Create and assign cross-team follow-up tasks for next round owners.
+  expected_tools:
+  - lark_task_manage
+- id: long-horizon-source-impact-map
+  category: long_horizon
+  intent: At round transition, map impacted symbols across repository before patching.
+  expected_tools:
+  - search_file
+  - ripgrep
+- id: long-horizon-read-then-patch
+  category: long_horizon
+  intent: Read target config file first, then replace deprecated migration flag for
+    the next round.
+  expected_tools:
+  - read_file
+  - replace_in_file
+- id: long-horizon-shell-verification
+  category: long_horizon
+  intent: Run shell verification commands after each round to confirm no regressions.
+  expected_tools:
+  - shell_exec

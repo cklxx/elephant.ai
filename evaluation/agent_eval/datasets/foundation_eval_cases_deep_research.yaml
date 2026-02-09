@@ -1,93 +1,96 @@
-version: "1"
-name: "foundation-deep-research"
-description: "Deep search and research routing coverage for multi-source evidence gathering, synthesis, and delivery"
+version: '1'
+name: foundation-deep-research
+description: Deep search and research routing coverage for multi-source evidence gathering,
+  synthesis, and delivery
 scenarios:
-  - id: "research-plan-rounds"
-    category: "deep_research"
-    intent: "Plan a three-round research workflow with discovery, deep dive, and validation steps."
-    expected_tools: ["plan"]
-
-  - id: "research-clarify-scope"
-    category: "deep_research"
-    intent: "Research question scope and time window are ambiguous; ask one focused clarify question first."
-    expected_tools: ["clarify"]
-
-  - id: "research-search-primary-sources"
-    category: "deep_research"
-    intent: "Search official and primary sources for the latest benchmark methodology details."
-    expected_tools: ["web_search"]
-
-  - id: "research-fetch-full-paper"
-    category: "deep_research"
-    intent: "Fetch full content from a target URL to inspect benchmark definitions and caveats."
-    expected_tools: ["web_fetch"]
-
-  - id: "research-read-local-notes"
-    category: "deep_research"
-    intent: "Read local prior research notes before drafting a new comparative analysis."
-    expected_tools: ["read_file"]
-
-  - id: "research-find-related-docs"
-    category: "deep_research"
-    intent: "Use find and list_dir to locate related research markdown files under docs/research and docs/plans."
-    expected_tools: ["search_file", "find", "list_dir"]
-
-  - id: "research-search-keyword-across-repo"
-    category: "deep_research"
-    intent: "Search cross-file occurrences of benchmark names and evaluation terms in repository documents."
-    expected_tools: ["search_file", "ripgrep"]
-
-  - id: "research-write-brief"
-    category: "deep_research"
-    intent: "Write a concise research brief markdown with evidence table and risks."
-    expected_tools: ["write_file"]
-
-  - id: "research-artifact-long-report"
-    category: "deep_research"
-    intent: "Persist a long-form deep research report as artifact for downstream sharing."
-    expected_tools: ["artifacts_write"]
-
-  - id: "research-manifest-audit"
-    category: "deep_research"
-    intent: "Inspect artifact manifest to verify all evidence attachments are traceable."
-    expected_tools: ["artifact_manifest"]
-
-  - id: "research-upload-deliverable"
-    category: "deep_research"
-    intent: "Upload the final research report file to the active Lark thread."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "research-send-exec-summary"
-    category: "deep_research"
-    intent: "Send an executive summary message to Lark after completing deep research rounds."
-    expected_tools: ["lark_send_message"]
-
-  - id: "research-memory-search-prior-findings"
-    category: "deep_research"
-    intent: "Search memory for prior benchmark conclusions before final recommendation."
-    expected_tools: ["memory_search"]
-
-  - id: "research-memory-open-citation"
-    category: "deep_research"
-    intent: "Open exact memory lines to cite previous benchmark decisions accurately."
-    expected_tools: ["memory_get"]
-
-  - id: "research-render-evidence-graph"
-    category: "deep_research"
-    intent: "Render a Mermaid evidence dependency graph for the research conclusion chain."
-    expected_tools: ["diagram_render"]
-
-  - id: "research-structured-dashboard-payload"
-    category: "deep_research"
-    intent: "Emit a structured payload for a research dashboard with source credibility tiers."
-    expected_tools: ["a2ui_emit"]
-
-  - id: "research-shell-validate-links"
-    category: "deep_research"
-    intent: "Run shell commands to validate extracted links and detect broken references."
-    expected_tools: ["shell_exec"]
-
-  - id: "research-code-score-sources"
-    category: "deep_research"
-    intent: "Execute a small script to score sources by recency and authority."
-    expected_tools: ["execute_code"]
+- id: research-plan-rounds
+  category: deep_research
+  intent: Plan a three-round research workflow with discovery, deep dive, and validation
+    steps.
+  expected_tools:
+  - plan
+- id: research-clarify-scope
+  category: deep_research
+  intent: Research question scope and time window are ambiguous; ask one focused clarify
+    question first.
+  expected_tools:
+  - clarify
+- id: research-search-primary-sources
+  category: deep_research
+  intent: Search official and primary sources for the latest benchmark methodology
+    details.
+  expected_tools:
+  - web_search
+- id: research-fetch-full-paper
+  category: deep_research
+  intent: Fetch full content from a target URL to inspect benchmark definitions and
+    caveats.
+  expected_tools:
+  - web_fetch
+- id: research-read-local-notes
+  category: deep_research
+  intent: Read local prior research notes before drafting a new comparative analysis.
+  expected_tools:
+  - read_file
+- id: research-find-related-docs
+  category: deep_research
+  intent: Use find and list_dir to locate related research markdown files under docs/research
+    and docs/plans.
+  expected_tools:
+  - search_file
+  - find
+  - list_dir
+- id: research-search-keyword-across-repo
+  category: deep_research
+  intent: Search cross-file occurrences of benchmark names and evaluation terms in
+    repository documents.
+  expected_tools:
+  - search_file
+  - ripgrep
+- id: research-write-brief
+  category: deep_research
+  intent: Write a concise research brief markdown with evidence table and risks.
+  expected_tools:
+  - write_file
+- id: research-artifact-long-report
+  category: deep_research
+  intent: Persist a long-form deep research report as artifact for downstream sharing.
+  expected_tools:
+  - artifacts_write
+- id: research-manifest-audit
+  category: deep_research
+  intent: Inspect artifact manifest to verify all evidence attachments are traceable.
+  expected_tools:
+  - artifact_manifest
+- id: research-upload-deliverable
+  category: deep_research
+  intent: Upload the final research report file to the active Lark thread.
+  expected_tools:
+  - lark_upload_file
+- id: research-send-exec-summary
+  category: deep_research
+  intent: Send an executive summary message to Lark after completing deep research
+    rounds.
+  expected_tools:
+  - lark_send_message
+- id: research-memory-search-prior-findings
+  category: deep_research
+  intent: Search memory for prior benchmark conclusions before final recommendation.
+  expected_tools:
+  - memory_search
+- id: research-memory-open-citation
+  category: deep_research
+  intent: Open exact memory lines to cite previous benchmark decisions accurately.
+  expected_tools:
+  - memory_get
+- id: research-render-evidence-graph
+  category: deep_research
+  intent: Render a Mermaid evidence dependency graph for the research conclusion chain.
+  expected_tools:
+  - diagram_render
+- id: research-structured-dashboard-payload
+  category: deep_research
+  intent: Emit a structured payload for a research dashboard with source credibility
+    tiers.
+  expected_tools:
+  - a2ui_emit

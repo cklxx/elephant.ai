@@ -1,103 +1,127 @@
-version: "1"
-name: "foundation-context-learning-hard"
-description: "Hard routing cases inspired by latest long-context/context-learning benchmark failure patterns"
+version: '1'
+name: foundation-context-learning-hard
+description: Hard routing cases inspired by latest long-context/context-learning benchmark
+  failure patterns
 scenarios:
-  - id: "context-hard-literal-mismatch-retrieval"
-    category: "context_learning_hard"
-    intent: "NoLiMa-style lexical mismatch: use search_file and memory_search to find semantically linked clues without keyword overlap."
-    expected_tools: ["search_file", "memory_search"]
-
-  - id: "context-hard-latent-association-open-note"
-    category: "context_learning_hard"
-    intent: "Open evidence note with memory_get after memory_search to resolve latent association query."
-    expected_tools: ["memory_search", "memory_get"]
-
-  - id: "context-hard-sequential-needles"
-    category: "context_learning_hard"
-    intent: "Sequential-NIAH style: locate ordered events using find and read_file before producing ordered answer."
-    expected_tools: ["find", "read_file"]
-
-  - id: "context-hard-order-sensitive-log-flow"
-    category: "context_learning_hard"
-    intent: "Extract chronological failure chain with shell_exec and grep from long logs."
-    expected_tools: ["shell_exec", "grep"]
-
-  - id: "context-hard-multi-hop-tracing"
-    category: "context_learning_hard"
-    intent: "RULER multi-hop tracing: search_file references then read_file each hop to connect evidence."
-    expected_tools: ["search_file", "read_file"]
-
-  - id: "context-hard-aggregation-over-long-doc"
-    category: "context_learning_hard"
-    intent: "Aggregate distributed numeric facts in long context by execute_code after read_file extraction."
-    expected_tools: ["read_file", "execute_code"]
-
-  - id: "context-hard-babilong-fact-chain"
-    category: "context_learning_hard"
-    intent: "BABILong fact chaining: list_dir and read_file to gather scattered facts before deduction."
-    expected_tools: ["list_dir", "read_file"]
-
-  - id: "context-hard-counting-set-reasoning"
-    category: "context_learning_hard"
-    intent: "Count entities across many spans with search_file and execute_code for deterministic counting."
-    expected_tools: ["search_file", "execute_code"]
-
-  - id: "context-hard-longbenchv2-single-doc-qa"
-    category: "context_learning_hard"
-    intent: "LongBench v2 single-document QA: read_file deep sections and search_file anchors for answer grounding."
-    expected_tools: ["read_file", "search_file"]
-
-  - id: "context-hard-longbenchv2-multi-doc-qa"
-    category: "context_learning_hard"
-    intent: "LongBench v2 multi-document QA: list_dir, find relevant files, then read_file cross-document evidence."
-    expected_tools: ["list_dir", "find", "read_file"]
-
-  - id: "context-hard-longbenchv2-long-icl"
-    category: "context_learning_hard"
-    intent: "LongBench v2 long in-context learning: plan extraction steps and write_file normalized exemplars."
-    expected_tools: ["plan", "write_file"]
-
-  - id: "context-hard-longbenchv2-dialog-history"
-    category: "context_learning_hard"
-    intent: "Long dialogue history understanding: lark_chat_history plus memory_search to recover overlooked constraints."
-    expected_tools: ["lark_chat_history", "memory_search"]
-
-  - id: "context-hard-longbenchv2-code-repo"
-    category: "context_learning_hard"
-    intent: "Code repository understanding at long context: ripgrep symbol map, read_file hotspots, replace_in_file minimal patch."
-    expected_tools: ["ripgrep", "read_file", "replace_in_file"]
-
-  - id: "context-hard-longbenchv2-structured-data"
-    category: "context_learning_hard"
-    intent: "Long structured data understanding: read_file tables and execute_code aggregation for validation."
-    expected_tools: ["read_file", "execute_code"]
-
-  - id: "context-hard-infinitebench-100k-plus"
-    category: "context_learning_hard"
-    intent: "InfiniteBench 100k+ style: plan chunking strategy, search_file per chunk, and artifacts_write audit trail."
-    expected_tools: ["plan", "search_file", "artifacts_write"]
-
-  - id: "context-hard-infinitebench-real-plus-synth"
-    category: "context_learning_hard"
-    intent: "Mix synthetic and real context evidence: web_fetch spec, read_file local logs, then write_file merged summary."
-    expected_tools: ["web_fetch", "read_file", "write_file"]
-
-  - id: "context-hard-faithfulness-citation-check"
-    category: "context_learning_hard"
-    intent: "Citation faithfulness stress: artifact_manifest and artifacts_list verify every cited output source."
-    expected_tools: ["artifact_manifest", "artifacts_list"]
-
-  - id: "context-hard-noise-robustness-repro"
-    category: "context_learning_hard"
-    intent: "Noise robustness reproduction: browser_info context capture, browser_screenshot evidence, then artifacts_write note."
-    expected_tools: ["browser_info", "browser_screenshot", "artifacts_write"]
-
-  - id: "context-hard-safety-gated-context"
-    category: "context_learning_hard"
-    intent: "High-risk long-context remediation requires clarify, request_user, and then plan before any patching."
-    expected_tools: ["clarify", "request_user", "plan"]
-
-  - id: "context-hard-delegated-long-run"
-    category: "context_learning_hard"
-    intent: "Delegate extremely long context replay to acp_executor and keep lark_send_message progress checkpoints."
-    expected_tools: ["acp_executor", "lark_send_message"]
+- id: context-hard-literal-mismatch-retrieval
+  category: context_learning_hard
+  intent: 'NoLiMa-style lexical mismatch: use search_file and memory_search to find
+    semantically linked clues without keyword overlap.'
+  expected_tools:
+  - search_file
+  - memory_search
+- id: context-hard-latent-association-open-note
+  category: context_learning_hard
+  intent: Open evidence note with memory_get after memory_search to resolve latent
+    association query.
+  expected_tools:
+  - memory_search
+  - memory_get
+- id: context-hard-sequential-needles
+  category: context_learning_hard
+  intent: 'Sequential-NIAH style: locate ordered events using find and read_file before
+    producing ordered answer.'
+  expected_tools:
+  - find
+  - read_file
+- id: context-hard-order-sensitive-log-flow
+  category: context_learning_hard
+  intent: Extract chronological failure chain with shell_exec and grep from long logs.
+  expected_tools:
+  - shell_exec
+  - grep
+- id: context-hard-multi-hop-tracing
+  category: context_learning_hard
+  intent: 'RULER multi-hop tracing: search_file references then read_file each hop
+    to connect evidence.'
+  expected_tools:
+  - search_file
+  - read_file
+- id: context-hard-aggregation-over-long-doc
+  category: context_learning_hard
+  intent: Aggregate distributed numeric facts in long context by execute_code after
+    read_file extraction.
+  expected_tools:
+  - read_file
+  - execute_code
+- id: context-hard-babilong-fact-chain
+  category: context_learning_hard
+  intent: 'BABILong fact chaining: list_dir and read_file to gather scattered facts
+    before deduction.'
+  expected_tools:
+  - list_dir
+  - read_file
+- id: context-hard-counting-set-reasoning
+  category: context_learning_hard
+  intent: Count entities across many spans with search_file and execute_code for deterministic
+    counting.
+  expected_tools:
+  - search_file
+  - execute_code
+- id: context-hard-longbenchv2-single-doc-qa
+  category: context_learning_hard
+  intent: 'LongBench v2 single-document QA: read_file deep sections and search_file
+    anchors for answer grounding.'
+  expected_tools:
+  - read_file
+  - search_file
+- id: context-hard-longbenchv2-multi-doc-qa
+  category: context_learning_hard
+  intent: 'LongBench v2 multi-document QA: list_dir, find relevant files, then read_file
+    cross-document evidence.'
+  expected_tools:
+  - list_dir
+  - find
+  - read_file
+- id: context-hard-longbenchv2-long-icl
+  category: context_learning_hard
+  intent: 'LongBench v2 long in-context learning: plan extraction steps and write_file
+    normalized exemplars.'
+  expected_tools:
+  - plan
+  - write_file
+- id: context-hard-longbenchv2-dialog-history
+  category: context_learning_hard
+  intent: 'Long dialogue history understanding: lark_chat_history plus memory_search
+    to recover overlooked constraints.'
+  expected_tools:
+  - lark_chat_history
+  - memory_search
+- id: context-hard-longbenchv2-code-repo
+  category: context_learning_hard
+  intent: 'Code repository understanding at long context: ripgrep symbol map, read_file
+    hotspots, replace_in_file minimal patch.'
+  expected_tools:
+  - ripgrep
+  - read_file
+  - replace_in_file
+- id: context-hard-longbenchv2-structured-data
+  category: context_learning_hard
+  intent: 'Long structured data understanding: read_file tables and execute_code aggregation
+    for validation.'
+  expected_tools:
+  - read_file
+  - execute_code
+- id: context-hard-infinitebench-100k-plus
+  category: context_learning_hard
+  intent: 'InfiniteBench 100k+ style: plan chunking strategy, search_file per chunk,
+    and artifacts_write audit trail.'
+  expected_tools:
+  - plan
+  - search_file
+  - artifacts_write
+- id: context-hard-infinitebench-real-plus-synth
+  category: context_learning_hard
+  intent: 'Mix synthetic and real context evidence: web_fetch spec, read_file local
+    logs, then write_file merged summary.'
+  expected_tools:
+  - web_fetch
+  - read_file
+  - write_file
+- id: context-hard-faithfulness-citation-check
+  category: context_learning_hard
+  intent: 'Citation faithfulness stress: artifact_manifest and artifacts_list verify
+    every cited output source.'
+  expected_tools:
+  - artifact_manifest
+  - artifacts_list

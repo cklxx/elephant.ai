@@ -1,143 +1,135 @@
-version: "1"
-name: "foundation-user-habit-soul-memory"
-description: "Routing coverage for user habit preferences, soul/persona continuity, and memory consistency"
+version: '1'
+name: foundation-user-habit-soul-memory
+description: Routing coverage for user habit preferences, soul/persona continuity,
+  and memory consistency
 scenarios:
-  - id: "habit-recall-language-style"
-    category: "user_habit_soul_memory"
-    intent: "memory_search user preference for language style before drafting response."
-    expected_tools: ["memory_search"]
-
-  - id: "habit-recall-communication-tone"
-    category: "user_habit_soul_memory"
-    intent: "Use memory_search to find user's preferred communication tone in memory notes."
-    expected_tools: ["memory_search"]
-
-  - id: "habit-read-preference-note"
-    category: "user_habit_soul_memory"
-    intent: "Open exact preference note lines with memory_get for citation."
-    expected_tools: ["memory_get"]
-
-  - id: "habit-conflict-detection"
-    category: "user_habit_soul_memory"
-    intent: "Two memory notes conflict on user habit; clarify the latest preference."
-    expected_tools: ["clarify"]
-
-  - id: "habit-sensitive-preference-gate"
-    category: "user_habit_soul_memory"
-    intent: "Need request_user confirmation before using sensitive personal habit data."
-    expected_tools: ["request_user"]
-
-  - id: "habit-memory-chain-response"
-    category: "user_habit_soul_memory"
-    intent: "Use memory_search then memory_get to assemble habit-aware response context."
-    expected_tools: ["memory_search", "memory_get"]
-
-  - id: "soul-recall-identity-anchor"
-    category: "user_habit_soul_memory"
-    intent: "Retrieve soul identity anchor notes with memory_search to keep persona continuity."
-    expected_tools: ["memory_search"]
-
-  - id: "soul-read-continuity-rules"
-    category: "user_habit_soul_memory"
-    intent: "Read soul continuity rules from memory_get before planning."
-    expected_tools: ["memory_get"]
-
-  - id: "soul-persona-plan"
-    category: "user_habit_soul_memory"
-    intent: "Plan response strategy using soul memory constraints and user habit boundaries."
-    expected_tools: ["memory_search", "plan"]
-
-  - id: "soul-memory-to-report"
-    category: "user_habit_soul_memory"
-    intent: "Use memory evidence and artifacts_write to generate persona-consistent report."
-    expected_tools: ["memory_get", "artifacts_write"]
-
-  - id: "soul-memory-manifest-proof"
-    category: "user_habit_soul_memory"
-    intent: "Verify persona-related report traceability via artifact_manifest."
-    expected_tools: ["artifact_manifest"]
-
-  - id: "habit-sync-lark-update"
-    category: "user_habit_soul_memory"
-    intent: "Recall user communication habit then send lark message in expected style."
-    expected_tools: ["memory_search", "lark_send_message"]
-
-  - id: "habit-calendar-pattern"
-    category: "user_habit_soul_memory"
-    intent: "Use memory preference then query/create calendar in user's habitual time window."
-    expected_tools: ["memory_search", "lark_calendar_query", "lark_calendar_create"]
-
-  - id: "habit-task-assignment-style"
-    category: "user_habit_soul_memory"
-    intent: "Read user task delegation style and execute lark_task_manage accordingly."
-    expected_tools: ["memory_get", "lark_task_manage"]
-
-  - id: "habit-reminder-rhythm"
-    category: "user_habit_soul_memory"
-    intent: "Use remembered reminder rhythm to set_timer and list_timers cadence."
-    expected_tools: ["memory_search", "set_timer", "list_timers"]
-
-  - id: "habit-okr-tone"
-    category: "user_habit_soul_memory"
-    intent: "Retrieve OKR communication tone preference and update via okr_write."
-    expected_tools: ["memory_search", "okr_write"]
-
-  - id: "soul-memory-long-context"
-    category: "user_habit_soul_memory"
-    intent: "In long context, memory_search soul constraints and memory_get supporting lines first."
-    expected_tools: ["memory_search", "memory_get"]
-
-  - id: "habit-execution-preference"
-    category: "user_habit_soul_memory"
-    intent: "Use memory to choose shell_exec versus execute_code validation approach."
-    expected_tools: ["memory_search", "shell_exec", "execute_code"]
-
-  - id: "soul-heavy-delegation"
-    category: "user_habit_soul_memory"
-    intent: "Delegate heavy analysis to acp_executor while preserving soul/persona constraints from memory."
-    expected_tools: ["memory_search", "acp_executor"]
-
-  - id: "habit-safe-redaction"
-    category: "user_habit_soul_memory"
-    intent: "Recall privacy habit constraints and write_attachment redacted output only."
-    expected_tools: ["memory_search", "write_attachment"]
-
-  - id: "habit-recall-prior-format-choice"
-    category: "user_habit_soul_memory"
-    intent: "Recall the preferred delivery format from earlier interactions before drafting output."
-    expected_tools: ["memory_search"]
-
-  - id: "habit-open-verbatim-style-note"
-    category: "user_habit_soul_memory"
-    intent: "Open verbatim style guideline lines from memory to avoid tone drift."
-    expected_tools: ["memory_get"]
-
-  - id: "habit-ambiguous-style-switch"
-    category: "user_habit_soul_memory"
-    intent: "Historical style notes conflict on concise versus exhaustive output; ask user to resolve."
-    expected_tools: ["clarify"]
-
-  - id: "habit-human-consent-private-context"
-    category: "user_habit_soul_memory"
-    intent: "Private personal preference context needs explicit user consent before reuse."
-    expected_tools: ["request_user"]
-
-  - id: "habit-recall-and-plan-trajectory"
-    category: "user_habit_soul_memory"
-    intent: "Use soul continuity anchors to plan multi-round response trajectory."
-    expected_tools: ["memory_search", "plan"]
-
-  - id: "habit-recall-and-dashboard-emit"
-    category: "user_habit_soul_memory"
-    intent: "Recall preference hierarchy and emit a structured dashboard payload for quick review."
-    expected_tools: ["memory_search", "a2ui_emit"]
-
-  - id: "habit-recall-and-schedule-rhythm"
-    category: "user_habit_soul_memory"
-    intent: "Use remembered cadence preferences to create recurring calendar slots automatically."
-    expected_tools: ["memory_search", "lark_calendar_create"]
-
-  - id: "habit-open-proof-and-upload"
-    category: "user_habit_soul_memory"
-    intent: "Open soul continuity proof lines and upload final document attachment."
-    expected_tools: ["memory_get", "lark_upload_file"]
+- id: habit-recall-language-style
+  category: user_habit_soul_memory
+  intent: memory_search user preference for language style before drafting response.
+  expected_tools:
+  - memory_search
+- id: habit-recall-communication-tone
+  category: user_habit_soul_memory
+  intent: Use memory_search to find user's preferred communication tone in memory
+    notes.
+  expected_tools:
+  - memory_search
+- id: habit-read-preference-note
+  category: user_habit_soul_memory
+  intent: Open exact preference note lines with memory_get for citation.
+  expected_tools:
+  - memory_get
+- id: habit-conflict-detection
+  category: user_habit_soul_memory
+  intent: Two memory notes conflict on user habit; clarify the latest preference.
+  expected_tools:
+  - clarify
+- id: habit-sensitive-preference-gate
+  category: user_habit_soul_memory
+  intent: Need request_user confirmation before using sensitive personal habit data.
+  expected_tools:
+  - request_user
+- id: habit-memory-chain-response
+  category: user_habit_soul_memory
+  intent: Use memory_search then memory_get to assemble habit-aware response context.
+  expected_tools:
+  - memory_search
+  - memory_get
+- id: soul-recall-identity-anchor
+  category: user_habit_soul_memory
+  intent: Retrieve soul identity anchor notes with memory_search to keep persona continuity.
+  expected_tools:
+  - memory_search
+- id: soul-read-continuity-rules
+  category: user_habit_soul_memory
+  intent: Read soul continuity rules from memory_get before planning.
+  expected_tools:
+  - memory_get
+- id: soul-persona-plan
+  category: user_habit_soul_memory
+  intent: Plan response strategy using soul memory constraints and user habit boundaries.
+  expected_tools:
+  - memory_search
+  - plan
+- id: soul-memory-to-report
+  category: user_habit_soul_memory
+  intent: Use memory evidence and artifacts_write to generate persona-consistent report.
+  expected_tools:
+  - memory_get
+  - artifacts_write
+- id: soul-memory-manifest-proof
+  category: user_habit_soul_memory
+  intent: Verify persona-related report traceability via artifact_manifest.
+  expected_tools:
+  - artifact_manifest
+- id: habit-sync-lark-update
+  category: user_habit_soul_memory
+  intent: Recall user communication habit then send lark message in expected style.
+  expected_tools:
+  - memory_search
+  - lark_send_message
+- id: habit-calendar-pattern
+  category: user_habit_soul_memory
+  intent: Use memory preference then query/create calendar in user's habitual time
+    window.
+  expected_tools:
+  - memory_search
+  - lark_calendar_query
+  - lark_calendar_create
+- id: habit-task-assignment-style
+  category: user_habit_soul_memory
+  intent: Read user task delegation style and execute lark_task_manage accordingly.
+  expected_tools:
+  - memory_get
+  - lark_task_manage
+- id: habit-reminder-rhythm
+  category: user_habit_soul_memory
+  intent: Use remembered reminder rhythm to set_timer and list_timers cadence.
+  expected_tools:
+  - memory_search
+  - set_timer
+  - list_timers
+- id: habit-okr-tone
+  category: user_habit_soul_memory
+  intent: Retrieve OKR communication tone preference and update via okr_write.
+  expected_tools:
+  - memory_search
+  - okr_write
+- id: soul-memory-long-context
+  category: user_habit_soul_memory
+  intent: In long context, memory_search soul constraints and memory_get supporting
+    lines first.
+  expected_tools:
+  - memory_search
+  - memory_get
+- id: habit-execution-preference
+  category: user_habit_soul_memory
+  intent: Use memory to choose shell_exec versus execute_code validation approach.
+  expected_tools:
+  - memory_search
+  - shell_exec
+  - execute_code
+- id: soul-heavy-delegation
+  category: user_habit_soul_memory
+  intent: Delegate heavy analysis to acp_executor while preserving soul/persona constraints
+    from memory.
+  expected_tools:
+  - memory_search
+  - acp_executor
+- id: habit-safe-redaction
+  category: user_habit_soul_memory
+  intent: Recall privacy habit constraints and write_attachment redacted output only.
+  expected_tools:
+  - memory_search
+  - write_attachment
+- id: habit-recall-prior-format-choice
+  category: user_habit_soul_memory
+  intent: Recall the preferred delivery format from earlier interactions before drafting
+    output.
+  expected_tools:
+  - memory_search
+- id: habit-open-verbatim-style-note
+  category: user_habit_soul_memory
+  intent: Open verbatim style guideline lines from memory to avoid tone drift.
+  expected_tools:
+  - memory_get

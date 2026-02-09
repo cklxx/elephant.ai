@@ -1,163 +1,109 @@
-version: "1"
-name: "foundation-prompt-effectiveness"
-description: "Prompt-paraphrase and instruction-effectiveness coverage for tool routing"
+version: '1'
+name: foundation-prompt-effectiveness
+description: Prompt-paraphrase and instruction-effectiveness coverage for tool routing
 scenarios:
-  - id: "prompt-find-migration-files"
-    category: "search"
-    intent: "Find files whose names contain migration in the repository."
-    expected_tools: ["find"]
-
-  - id: "prompt-ripgrep-token"
-    category: "search"
-    intent: "Use fast regex search to locate RetryPolicy references across the codebase."
-    expected_tools: ["ripgrep"]
-
-  - id: "prompt-grep-error-log"
-    category: "search"
-    intent: "Search error.log for HTTP 500 lines with a simple grep pattern."
-    expected_tools: ["grep"]
-
-  - id: "prompt-search-symbol-projectwide"
-    category: "search"
-    intent: "Locate every usage of RequestContextGuard symbol in this source file."
-    expected_tools: ["search_file"]
-
-  - id: "prompt-list-files-recursive"
-    category: "workspace"
-    intent: "Show all files recursively under this path with lightweight metadata."
-    expected_tools: ["list_dir"]
-
-  - id: "prompt-read-config-file"
-    category: "workspace"
-    intent: "Read the selected config file and return its full content."
-    expected_tools: ["read_file"]
-
-  - id: "prompt-create-config-template"
-    category: "workspace"
-    intent: "Create a new YAML config template file with the provided content."
-    expected_tools: ["write_file"]
-
-  - id: "prompt-precise-edit-block"
-    category: "workspace"
-    intent: "Patch one exact code block in an existing file by replacing an exact old string."
-    expected_tools: ["replace_in_file"]
-
-  - id: "prompt-shell-check-port-usage-with-no-edit"
-    category: "execution"
-    intent: "Need a fast runtime ownership check for port 8080 from command output only; do not patch files or scripts yet."
-    expected_tools: ["shell_exec"]
-
-  - id: "prompt-execute-python-check"
-    category: "execution"
-    intent: "Execute a tiny Python snippet to verify this checksum formula."
-    expected_tools: ["execute_code"]
-
-  - id: "prompt-browser-selector-form"
-    category: "browser"
-    intent: "Use DOM selectors to fill form fields and submit."
-    expected_tools: ["browser_dom"]
-
-  - id: "prompt-browser-coordinate-click"
-    category: "browser"
-    intent: "This is a canvas-only interaction; click at coordinates and drag to target."
-    expected_tools: ["browser_action"]
-
-  - id: "prompt-browser-tab-inspection-before-action"
-    category: "browser"
-    intent: "Before any click/selector operation, confirm current browser session metadata (URL/title/viewport) to avoid acting on the wrong tab."
-    expected_tools: ["browser_info"]
-
-  - id: "prompt-browser-screenshot-capture"
-    category: "browser"
-    intent: "Take a page screenshot as evidence for this UI bug."
-    expected_tools: ["browser_screenshot"]
-
-  - id: "prompt-web-search-rfc-authority-first"
-    category: "web"
-    intent: "Locate authoritative standards references for HTTP conditional requests; prioritize canonical sources and avoid content fetch until sources are shortlisted."
-    expected_tools: ["web_search"]
-
-  - id: "prompt-web-fetch-one-url-no-search"
-    category: "web"
-    intent: "Use the already provided URL as the only source of truth and extract its text for verification without running discovery search."
-    expected_tools: ["web_fetch"]
-
-  - id: "prompt-html-rewrite"
-    category: "web"
-    intent: "Rewrite this HTML snippet to improve semantics and accessibility."
-    expected_tools: ["html_edit"]
-
-  - id: "prompt-diagram-render"
-    category: "visualization"
-    intent: "Render the Mermaid architecture diagram into an image."
-    expected_tools: ["diagram_render"]
-
-  - id: "prompt-session-todo-read"
-    category: "session"
-    intent: "Read the current session todo list before planning next actions."
-    expected_tools: ["todo_read"]
-
-  - id: "prompt-session-todo-update"
-    category: "session"
-    intent: "Update todo statuses and append a new follow-up item."
-    expected_tools: ["todo_update"]
-
-  - id: "prompt-skill-catalog"
-    category: "session"
-    intent: "List available reusable skills to decide which playbook to apply."
-    expected_tools: ["skills"]
-
-  - id: "prompt-app-capability-check"
-    category: "session"
-    intent: "Check connected app capabilities and integration status for this session."
-    expected_tools: ["apps"]
-
-  - id: "prompt-memory-search-decision"
-    category: "memory"
-    intent: "Search memory notes for previous API versioning decisions."
-    expected_tools: ["memory_search"]
-
-  - id: "prompt-memory-open-lines"
-    category: "memory"
-    intent: "Open a specific memory note by line range for exact context."
-    expected_tools: ["memory_get"]
-
-  - id: "prompt-artifacts-write-report"
-    category: "artifact"
-    intent: "Persist this long analysis as an artifact file."
-    expected_tools: ["artifacts_write"]
-
-  - id: "prompt-artifacts-list-generated"
-    category: "artifact"
-    intent: "List generated artifacts from this run so we can choose one to send."
-    expected_tools: ["artifacts_list"]
-
-  - id: "prompt-artifacts-delete-legacy"
-    category: "artifact"
-    intent: "Delete obsolete artifacts created by earlier failed runs."
-    expected_tools: ["artifacts_delete"]
-
-  - id: "prompt-artifact-manifest-inspect"
-    category: "artifact"
-    intent: "Inspect the manifest for generated files and metadata fields."
-    expected_tools: ["artifact_manifest"]
-
-  - id: "prompt-write-download-attachment"
-    category: "artifact"
-    intent: "Write output as a downloadable attachment for user handoff."
-    expected_tools: ["write_attachment"]
-
-  - id: "prompt-a2ui-structured-payload"
-    category: "artifact"
-    intent: "Emit a structured payload for UI renderer consumption."
-    expected_tools: ["a2ui_emit"]
-
-  - id: "prompt-lark-context-before-reply"
-    category: "lark"
-    intent: "Fetch recent Lark chat context before drafting the response."
-    expected_tools: ["lark_chat_history"]
-
-  - id: "prompt-lark-upload-result"
-    category: "lark"
-    intent: "Upload the generated report to the current Lark thread."
-    expected_tools: ["lark_upload_file"]
+- id: prompt-find-migration-files
+  category: search
+  intent: Find files whose names contain migration in the repository.
+  expected_tools:
+  - find
+- id: prompt-ripgrep-token
+  category: search
+  intent: Use fast regex search to locate RetryPolicy references across the codebase.
+  expected_tools:
+  - ripgrep
+- id: prompt-grep-error-log
+  category: search
+  intent: Search error.log for HTTP 500 lines with a simple grep pattern.
+  expected_tools:
+  - grep
+- id: prompt-search-symbol-projectwide
+  category: search
+  intent: Locate every usage of RequestContextGuard symbol in this source file.
+  expected_tools:
+  - search_file
+- id: prompt-list-files-recursive
+  category: workspace
+  intent: Show all files recursively under this path with lightweight metadata.
+  expected_tools:
+  - list_dir
+- id: prompt-read-config-file
+  category: workspace
+  intent: Read the selected config file and return its full content.
+  expected_tools:
+  - read_file
+- id: prompt-create-config-template
+  category: workspace
+  intent: Create a new YAML config template file with the provided content.
+  expected_tools:
+  - write_file
+- id: prompt-precise-edit-block
+  category: workspace
+  intent: Patch one exact code block in an existing file by replacing an exact old
+    string.
+  expected_tools:
+  - replace_in_file
+- id: prompt-shell-check-port-usage-with-no-edit
+  category: execution
+  intent: Need a fast runtime ownership check for port 8080 from command output only;
+    do not patch files or scripts yet.
+  expected_tools:
+  - shell_exec
+- id: prompt-execute-python-check
+  category: execution
+  intent: Execute a tiny Python snippet to verify this checksum formula.
+  expected_tools:
+  - execute_code
+- id: prompt-browser-selector-form
+  category: browser
+  intent: Use DOM selectors to fill form fields and submit.
+  expected_tools:
+  - browser_dom
+- id: prompt-browser-coordinate-click
+  category: browser
+  intent: This is a canvas-only interaction; click at coordinates and drag to target.
+  expected_tools:
+  - browser_action
+- id: prompt-browser-tab-inspection-before-action
+  category: browser
+  intent: Before any click/selector operation, confirm current browser session metadata
+    (URL/title/viewport) to avoid acting on the wrong tab.
+  expected_tools:
+  - browser_info
+- id: prompt-browser-screenshot-capture
+  category: browser
+  intent: Take a page screenshot as evidence for this UI bug.
+  expected_tools:
+  - browser_screenshot
+- id: prompt-web-search-rfc-authority-first
+  category: web
+  intent: Locate authoritative standards references for HTTP conditional requests;
+    prioritize canonical sources and avoid content fetch until sources are shortlisted.
+  expected_tools:
+  - web_search
+- id: prompt-web-fetch-one-url-no-search
+  category: web
+  intent: Use the already provided URL as the only source of truth and extract its
+    text for verification without running discovery search.
+  expected_tools:
+  - web_fetch
+- id: prompt-html-rewrite
+  category: web
+  intent: Rewrite this HTML snippet to improve semantics and accessibility.
+  expected_tools:
+  - html_edit
+- id: prompt-diagram-render
+  category: visualization
+  intent: Render the Mermaid architecture diagram into an image.
+  expected_tools:
+  - diagram_render
+- id: prompt-session-todo-read
+  category: session
+  intent: Read the current session todo list before planning next actions.
+  expected_tools:
+  - todo_read
+- id: prompt-session-todo-update
+  category: session
+  intent: Update todo statuses and append a new follow-up item.
+  expected_tools:
+  - todo_update

@@ -1,233 +1,163 @@
-version: "1"
-name: "foundation-tool-coverage"
-description: "Core tool capability coverage for offline intent routing"
+version: '1'
+name: foundation-tool-coverage
+description: Core tool capability coverage for offline intent routing
 scenarios:
-  - id: "tool-plan-migration-phases"
-    category: "planning"
-    intent: "Split this migration into phases with explicit checkpoints and risks."
-    expected_tools: ["plan"]
-
-  - id: "tool-clarify-blocking-requirement"
-    category: "clarification"
-    intent: "A key requirement is missing and blocks implementation; ask a precise clarifying question first."
-    expected_tools: ["clarify"]
-
-  - id: "tool-request-user-verification"
-    category: "handoff"
-    intent: "Continue only after the user completes manual account verification."
-    expected_tools: ["request_user"]
-
-  - id: "tool-browser-dom-form-fill"
-    category: "browser"
-    intent: "Use selectors to fill the login form and click submit on the active page."
-    expected_tools: ["browser_dom"]
-
-  - id: "tool-browser-action-canvas-click"
-    category: "browser"
-    intent: "This canvas has no stable selectors; use coordinate-based click and drag actions."
-    expected_tools: ["browser_action"]
-
-  - id: "tool-browser-info-session"
-    category: "browser"
-    intent: "Inspect current browser tab URL, title, and viewport state before testing."
-    expected_tools: ["browser_info"]
-
-  - id: "tool-browser-screenshot-proof"
-    category: "browser"
-    intent: "Capture a screenshot of the current page as visual debugging evidence."
-    expected_tools: ["browser_screenshot"]
-
-  - id: "tool-read-source-file"
-    category: "workspace"
-    intent: "Open a source file and inspect its content around a suspicious function."
-    expected_tools: ["read_file"]
-
-  - id: "tool-list-workspace-directory-ambiguous-scope"
-    category: "workspace"
-    intent: "Before touching anything, quickly inventory candidate paths under service and infra roots, including nested dirs, but do not open file contents yet."
-    expected_tools: ["list_dir"]
-
-  - id: "tool-search-symbol-occurrences"
-    category: "workspace"
-    intent: "Search symbol occurrences across project files using a pattern."
-    expected_tools: ["search_file"]
-
-  - id: "tool-replace-deprecated-string"
-    category: "workspace"
-    intent: "Replace deprecated endpoint strings in one file with the new API path."
-    expected_tools: ["replace_in_file"]
-
-  - id: "tool-write-markdown-report"
-    category: "workspace"
-    intent: "Create a markdown report file with the generated analysis content."
-    expected_tools: ["write_file"]
-
-  - id: "tool-shell-git-inspect"
-    category: "execution"
-    intent: "Run shell commands to check current branch and git status."
-    expected_tools: ["shell_exec"]
-
-  - id: "tool-execute-code-snippet"
-    category: "execution"
-    intent: "Execute a short code snippet to validate the formula quickly."
-    expected_tools: ["execute_code"]
-
-  - id: "tool-web-search-authoritative-prioritization"
-    category: "web"
-    intent: "Need newest primary references first (RFC/vendor docs), not blog summaries; discover which official pages should be cited."
-    expected_tools: ["web_search"]
-
-  - id: "tool-web-fetch-single-source-grounding"
-    category: "web"
-    intent: "We already chose one source URL; pull only that page body for grounded wording checks and avoid broad search."
-    expected_tools: ["web_fetch"]
-
-  - id: "tool-html-edit-transform"
-    category: "web"
-    intent: "Edit an HTML snippet according to transformation instructions and validate output."
-    expected_tools: ["html_edit"]
-
-  - id: "tool-render-mermaid"
-    category: "visualization"
-    intent: "Render this Mermaid graph into an image artifact."
-    expected_tools: ["diagram_render"]
-
-  - id: "tool-artifacts-write-report-with-delivery-constraint"
-    category: "artifact"
-    intent: "Response must stay concise in-chat, but full technical deep-dive must be delivered as a reusable file artifact for downstream review."
-    expected_tools: ["artifacts_write"]
-
-  - id: "tool-artifacts-list-run"
-    category: "artifact"
-    intent: "List artifacts generated in this run before selecting one to send."
-    expected_tools: ["artifacts_list"]
-
-  - id: "tool-artifacts-delete-stale"
-    category: "artifact"
-    intent: "Delete stale artifacts that are no longer needed."
-    expected_tools: ["artifacts_delete"]
-
-  - id: "tool-artifact-manifest-read"
-    category: "artifact"
-    intent: "Inspect the artifact manifest including metadata and attachment records."
-    expected_tools: ["artifact_manifest"]
-
-  - id: "tool-write-attachment-download"
-    category: "artifact"
-    intent: "Write a generated file as downloadable attachment for the user."
-    expected_tools: ["write_attachment"]
-
-  - id: "tool-a2ui-emit-payload"
-    category: "artifact"
-    intent: "Emit a structured payload to downstream UI renderer."
-    expected_tools: ["a2ui_emit"]
-
-  - id: "tool-pptx-from-images"
-    category: "artifact"
-    intent: "Generate a slide deck from selected image attachments."
-    expected_tools: ["pptx_from_images"]
-
-  - id: "tool-memory-search"
-    category: "memory"
-    intent: "Search memory notes for past architecture decisions on auth routing."
-    expected_tools: ["memory_search"]
-
-  - id: "tool-memory-get"
-    category: "memory"
-    intent: "Open a memory note and read exact lines for citation."
-    expected_tools: ["memory_get"]
-
-  - id: "tool-lark-send-message"
-    category: "lark"
-    intent: "No file handoff is needed; push a short textual checkpoint to the current thread so stakeholders see latest status."
-    expected_tools: ["lark_send_message"]
-
-  - id: "tool-lark-upload-file"
-    category: "lark"
-    intent: "The review cannot proceed without the generated report file in-thread; deliver the file itself instead of a plain status message."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "tool-lark-chat-history"
-    category: "lark"
-    intent: "Read recent Lark chat history to reconstruct context."
-    expected_tools: ["lark_chat_history"]
-
-  - id: "tool-lark-calendar-query"
-    category: "lark"
-    intent: "Query upcoming calendar events this week."
-    expected_tools: ["lark_calendar_query"]
-
-  - id: "tool-lark-calendar-create"
-    category: "lark"
-    intent: "Create a calendar event for an incident postmortem."
-    expected_tools: ["lark_calendar_create"]
-
-  - id: "tool-lark-calendar-update"
-    category: "lark"
-    intent: "Update event description and start time for a planned sync."
-    expected_tools: ["lark_calendar_update"]
-
-  - id: "tool-lark-calendar-delete"
-    category: "lark"
-    intent: "Delete a duplicated calendar event."
-    expected_tools: ["lark_calendar_delete"]
-
-  - id: "tool-lark-task-manage"
-    category: "lark"
-    intent: "Create and assign a Lark task with due date."
-    expected_tools: ["lark_task_manage"]
-
-  - id: "tool-okr-read"
-    category: "okr"
-    intent: "Read the latest OKR document for this quarter."
-    expected_tools: ["okr_read"]
-
-  - id: "tool-okr-write"
-    category: "okr"
-    intent: "Write an OKR progress update after milestone completion."
-    expected_tools: ["okr_write"]
-
-  - id: "tool-set-timer"
-    category: "timer"
-    intent: "If no owner reply arrives in half an hour, trigger a one-off reminder."
-    expected_tools: ["set_timer"]
-
-  - id: "tool-list-timers"
-    category: "timer"
-    intent: "Before creating anything new, inspect existing one-off reminders and remaining countdowns."
-    expected_tools: ["list_timers"]
-
-  - id: "tool-cancel-timer"
-    category: "timer"
-    intent: "The reminder tied to the old incident stream is now noise; remove that specific one-off reminder."
-    expected_tools: ["cancel_timer"]
-
-  - id: "tool-scheduler-create-job"
-    category: "scheduler"
-    intent: "Install a recurring automation cadence so daily status digesting runs without manual intervention."
-    expected_tools: ["scheduler_create_job"]
-
-  - id: "tool-scheduler-list-jobs"
-    category: "scheduler"
-    intent: "Audit recurring automations and next fire times before changing cadence policy."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "tool-scheduler-delete-job"
-    category: "scheduler"
-    intent: "A legacy recurring check-in still fires after deprecation; remove that old automation entry."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "tool-apps-overview"
-    category: "session"
-    intent: "Inspect connected app capabilities available in this runtime."
-    expected_tools: ["apps"]
-
-  - id: "tool-skills-overview"
-    category: "session"
-    intent: "List currently available skills before choosing a workflow."
-    expected_tools: ["skills"]
-
-  - id: "tool-delegate-heavy-task"
-    category: "orchestration"
-    intent: "Delegate a long running multi-step execution package to executor."
-    expected_tools: ["acp_executor"]
+- id: tool-plan-migration-phases
+  category: planning
+  intent: Split this migration into phases with explicit checkpoints and risks.
+  expected_tools:
+  - plan
+- id: tool-clarify-blocking-requirement
+  category: clarification
+  intent: A key requirement is missing and blocks implementation; ask a precise clarifying
+    question first.
+  expected_tools:
+  - clarify
+- id: tool-request-user-verification
+  category: handoff
+  intent: Continue only after the user completes manual account verification.
+  expected_tools:
+  - request_user
+- id: tool-browser-dom-form-fill
+  category: browser
+  intent: Use selectors to fill the login form and click submit on the active page.
+  expected_tools:
+  - browser_dom
+- id: tool-browser-action-canvas-click
+  category: browser
+  intent: This canvas has no stable selectors; use coordinate-based click and drag
+    actions.
+  expected_tools:
+  - browser_action
+- id: tool-browser-info-session
+  category: browser
+  intent: Inspect current browser tab URL, title, and viewport state before testing.
+  expected_tools:
+  - browser_info
+- id: tool-browser-screenshot-proof
+  category: browser
+  intent: Capture a screenshot of the current page as visual debugging evidence.
+  expected_tools:
+  - browser_screenshot
+- id: tool-read-source-file
+  category: workspace
+  intent: Open a source file and inspect its content around a suspicious function.
+  expected_tools:
+  - read_file
+- id: tool-list-workspace-directory-ambiguous-scope
+  category: workspace
+  intent: Before touching anything, quickly inventory candidate paths under service
+    and infra roots, including nested dirs, but do not open file contents yet.
+  expected_tools:
+  - list_dir
+- id: tool-search-symbol-occurrences
+  category: workspace
+  intent: Search symbol occurrences across project files using a pattern.
+  expected_tools:
+  - search_file
+- id: tool-replace-deprecated-string
+  category: workspace
+  intent: Replace deprecated endpoint strings in one file with the new API path.
+  expected_tools:
+  - replace_in_file
+- id: tool-write-markdown-report
+  category: workspace
+  intent: Create a markdown report file with the generated analysis content.
+  expected_tools:
+  - write_file
+- id: tool-shell-git-inspect
+  category: execution
+  intent: Run shell commands to check current branch and git status.
+  expected_tools:
+  - shell_exec
+- id: tool-execute-code-snippet
+  category: execution
+  intent: Execute a short code snippet to validate the formula quickly.
+  expected_tools:
+  - execute_code
+- id: tool-web-search-authoritative-prioritization
+  category: web
+  intent: Need newest primary references first (RFC/vendor docs), not blog summaries;
+    discover which official pages should be cited.
+  expected_tools:
+  - web_search
+- id: tool-web-fetch-single-source-grounding
+  category: web
+  intent: We already chose one source URL; pull only that page body for grounded wording
+    checks and avoid broad search.
+  expected_tools:
+  - web_fetch
+- id: tool-html-edit-transform
+  category: web
+  intent: Edit an HTML snippet according to transformation instructions and validate
+    output.
+  expected_tools:
+  - html_edit
+- id: tool-render-mermaid
+  category: visualization
+  intent: Render this Mermaid graph into an image artifact.
+  expected_tools:
+  - diagram_render
+- id: tool-artifacts-write-report-with-delivery-constraint
+  category: artifact
+  intent: Response must stay concise in-chat, but full technical deep-dive must be
+    delivered as a reusable file artifact for downstream review.
+  expected_tools:
+  - artifacts_write
+- id: tool-artifacts-list-run
+  category: artifact
+  intent: List artifacts generated in this run before selecting one to send.
+  expected_tools:
+  - artifacts_list
+- id: tool-artifacts-delete-stale
+  category: artifact
+  intent: Delete stale artifacts that are no longer needed.
+  expected_tools:
+  - artifacts_delete
+- id: tool-artifact-manifest-read
+  category: artifact
+  intent: Inspect the artifact manifest including metadata and attachment records.
+  expected_tools:
+  - artifact_manifest
+- id: tool-write-attachment-download
+  category: artifact
+  intent: Write a generated file as downloadable attachment for the user.
+  expected_tools:
+  - write_attachment
+- id: tool-a2ui-emit-payload
+  category: artifact
+  intent: Emit a structured payload to downstream UI renderer.
+  expected_tools:
+  - a2ui_emit
+- id: tool-pptx-from-images
+  category: artifact
+  intent: Generate a slide deck from selected image attachments.
+  expected_tools:
+  - pptx_from_images
+- id: tool-memory-search
+  category: memory
+  intent: Search memory notes for past architecture decisions on auth routing.
+  expected_tools:
+  - memory_search
+- id: tool-memory-get
+  category: memory
+  intent: Open a memory note and read exact lines for citation.
+  expected_tools:
+  - memory_get
+- id: tool-lark-send-message
+  category: lark
+  intent: No file handoff is needed; push a short textual checkpoint to the current
+    thread so stakeholders see latest status.
+  expected_tools:
+  - lark_send_message
+- id: tool-lark-upload-file
+  category: lark
+  intent: The review cannot proceed without the generated report file in-thread; deliver
+    the file itself instead of a plain status message.
+  expected_tools:
+  - lark_upload_file
+- id: tool-lark-chat-history
+  category: lark
+  intent: Read recent Lark chat history to reconstruct context.
+  expected_tools:
+  - lark_chat_history

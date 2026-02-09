@@ -1,293 +1,182 @@
-version: "1"
-name: "foundation-challenge-hard-v2"
-description: "Deliberately hard challenge set aligned to core goals with high ambiguity, tool conflicts, long-horizon coordination, and memory/persona pressure"
+version: '1'
+name: foundation-challenge-hard-v2
+description: Deliberately hard challenge set aligned to core goals with high ambiguity,
+  tool conflicts, long-horizon coordination, and memory/persona pressure
 scenarios:
-  - id: "challenge-human-gate-out-of-band-approve"
-    category: "challenge_hard_v2"
-    intent: "Irreversible cutover is blocked by an external compliance gate outside this runtime; continuation depends on explicit user acknowledgement."
-    expected_tools: ["request_user"]
-
-  - id: "challenge-human-gate-prod-cutover-window"
-    category: "challenge_hard_v2"
-    intent: "The production window is open but cannot be consumed until operator go-signal is confirmed in-thread."
-    expected_tools: ["request_user"]
-
-  - id: "challenge-open-evidence-fragment-by-offset"
-    category: "challenge_hard_v2"
-    intent: "Open the previously selected note fragment at exact offsets so the citation can be quoted verbatim."
-    expected_tools: ["memory_get"]
-
-  - id: "challenge-recall-preference-without-keyword"
-    category: "challenge_hard_v2"
-    intent: "Recover the person's long-term interaction habit before drafting any recommendation."
-    expected_tools: ["memory_search"]
-
-  - id: "challenge-fast-repo-needle-sweep"
-    category: "challenge_hard_v2"
-    intent: "Sweep every source tree quickly with regex needles instead of opening files one by one."
-    expected_tools: ["ripgrep"]
-
-  - id: "challenge-single-file-content-hunt"
-    category: "challenge_hard_v2"
-    intent: "Find matching snippets only within file contents, not by path names."
-    expected_tools: ["search_file"]
-
-  - id: "challenge-path-name-locate-only"
-    category: "challenge_hard_v2"
-    intent: "Locate candidate files by filename pattern under nested folders before opening them."
-    expected_tools: ["find"]
-
-  - id: "challenge-calendar-recurring-sync"
-    category: "challenge_hard_v2"
-    intent: "Create a recurring weekly checkpoint event for every Friday morning and keep an owner in attendees."
-    expected_tools: ["lark_calendar_create"]
-
-  - id: "challenge-calendar-adjust-existing-window"
-    category: "challenge_hard_v2"
-    intent: "Shift an existing planning event by 30 minutes and preserve all participants."
-    expected_tools: ["lark_calendar_update"]
-
-  - id: "challenge-calendar-remove-stale-event"
-    category: "challenge_hard_v2"
-    intent: "Cancel the obsolete calendar event that was created for the old release train."
-    expected_tools: ["lark_calendar_delete"]
-
-  - id: "challenge-calendar-read-before-commit"
-    category: "challenge_hard_v2"
-    intent: "Inspect upcoming events first to avoid overlapping with an existing critical meeting."
-    expected_tools: ["lark_calendar_query"]
-
-  - id: "challenge-job-schedule-nightly-audit"
-    category: "challenge_hard_v2"
-    intent: "Register a nightly automation job that runs status auditing at 02:00 with a stable identifier."
-    expected_tools: ["scheduler_create_job"]
-
-  - id: "challenge-job-cancel-legacy-runner"
-    category: "challenge_hard_v2"
-    intent: "Remove the legacy scheduled runner because its workflow was retired last week."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "challenge-job-inventory"
-    category: "challenge_hard_v2"
-    intent: "Show the currently registered scheduler jobs and their execution cadence."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "challenge-reminder-register-followup"
-    category: "challenge_hard_v2"
-    intent: "Set a delayed follow-up reminder for two hours after deployment verification."
-    expected_tools: ["set_timer"]
-
-  - id: "challenge-reminder-remove-stale"
-    category: "challenge_hard_v2"
-    intent: "Drop the outdated reminder created for the old incident stream."
-    expected_tools: ["cancel_timer"]
-
-  - id: "challenge-reminder-list-active"
-    category: "challenge_hard_v2"
-    intent: "Before deciding whether to prune, inspect every currently active one-off reminder and its remaining delay."
-    expected_tools: ["list_timers"]
-
-  - id: "challenge-artifact-publish-long-result"
-    category: "challenge_hard_v2"
-    intent: "Persist the complete long-form delivery package as an artifact before summarizing."
-    expected_tools: ["artifacts_write"]
-
-  - id: "challenge-artifact-audit-trace"
-    category: "challenge_hard_v2"
-    intent: "Verify the output lineage by checking generated manifest fields for each evidence file."
-    expected_tools: ["artifact_manifest"]
-
-  - id: "challenge-artifact-cleanup"
-    category: "challenge_hard_v2"
-    intent: "Delete stale generated bundles from failed runs and keep only the latest output."
-    expected_tools: ["artifacts_delete"]
-
-  - id: "challenge-ui-structured-card"
-    category: "challenge_hard_v2"
-    intent: "Emit a structured payload for a dashboard card instead of plain text narration."
-    expected_tools: ["a2ui_emit"]
-
-  - id: "challenge-browser-selector-first"
-    category: "challenge_hard_v2"
-    intent: "Use selectors to fill and submit the web form rather than coordinate clicking."
-    expected_tools: ["browser_dom"]
-
-  - id: "challenge-browser-visual-evidence"
-    category: "challenge_hard_v2"
-    intent: "Capture a visual proof snapshot of the page state after the action completes."
-    expected_tools: ["browser_screenshot"]
-
-  - id: "challenge-browser-session-state"
-    category: "challenge_hard_v2"
-    intent: "Inspect current tab metadata, URL, and viewport status before proceeding."
-    expected_tools: ["browser_info"]
-
-  - id: "challenge-doc-read-locally"
-    category: "challenge_hard_v2"
-    intent: "Open the target source file and inspect exact lines around the failing branch."
-    expected_tools: ["read_file"]
-
-  - id: "challenge-doc-write-summary"
-    category: "challenge_hard_v2"
-    intent: "Write a concise markdown summary documenting decisions, risks, and rollback steps."
-    expected_tools: ["write_file"]
-
-  - id: "challenge-doc-patch-precise"
-    category: "challenge_hard_v2"
-    intent: "Apply a precise in-place replacement for the deprecated call path only."
-    expected_tools: ["replace_in_file"]
-
-  - id: "challenge-runtime-check-cli"
-    category: "challenge_hard_v2"
-    intent: "Validate runtime health from process and port state in one short command path."
-    expected_tools: ["shell_exec"]
-
-  - id: "challenge-runtime-check-snippet"
-    category: "challenge_hard_v2"
-    intent: "Compute a deterministic verification metric from a small executable snippet."
-    expected_tools: ["execute_code"]
-
-  - id: "challenge-research-primary-search"
-    category: "challenge_hard_v2"
-    intent: "Find the latest official primary references before citing benchmark numbers."
-    expected_tools: ["web_search"]
-
-  - id: "challenge-research-fetch-page"
-    category: "challenge_hard_v2"
-    intent: "Retrieve full content from the chosen URL so definitions are quoted from source."
-    expected_tools: ["web_fetch"]
-
-  - id: "challenge-progress-lark-sync"
-    category: "challenge_hard_v2"
-    intent: "During long execution, send a short textual checkpoint to the current thread with no file payload."
-    expected_tools: ["lark_send_message"]
-
-  - id: "challenge-deliverable-upload"
-    category: "challenge_hard_v2"
-    intent: "Validation is done and reviewer only accepts file-in-thread delivery; publish the generated package into conversation."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "challenge-task-breakdown-assign"
-    category: "challenge_hard_v2"
-    intent: "Create and assign actionable tasks for each migration slice with due dates."
-    expected_tools: ["lark_task_manage"]
-
-  - id: "challenge-architecture-roadmap"
-    category: "challenge_hard_v2"
-    intent: "Draft a phased roadmap with milestones, risk checkpoints, and rollback gate criteria."
-    expected_tools: ["plan"]
-
-  - id: "challenge-delegate-heavy-tail"
-    category: "challenge_hard_v2"
-    intent: "Offload a long-running validation tail package to external execution while preserving constraints."
-    expected_tools: ["acp_executor"]
-
-  - id: "challenge-ambiguity-stop-and-ask"
-    category: "challenge_hard_v2"
-    intent: "Requirements conflict on compliance scope and cannot be inferred safely from context."
-    expected_tools: ["clarify"]
-
-  - id: "challenge-human-gate-with-partial-spec"
-    category: "challenge_hard_v2"
-    intent: "Some acceptance criteria are still vague, but release cannot proceed until a human reviewer explicitly confirms the irreversible step."
-    expected_tools: ["request_user"]
-
-  - id: "challenge-memory-citation-vs-summary-conflict"
-    category: "challenge_hard_v2"
-    intent: "Do not summarize from memory themes only; open exact prior evidence slices for quote-level justification."
-    expected_tools: ["memory_get"]
-
-  - id: "challenge-memory-recall-before-offset-known"
-    category: "challenge_hard_v2"
-    intent: "Need to recover which historical decision note matters first, before any exact line offsets are known."
-    expected_tools: ["memory_search"]
-
-  - id: "challenge-search-by-content-not-path-under-noisy-repo"
-    category: "challenge_hard_v2"
-    intent: "Repository has similarly named files; locate relevant evidence by content semantics inside files rather than filename/path heuristics."
-    expected_tools: ["search_file"]
-
-  - id: "challenge-search-by-path-first-then-open"
-    category: "challenge_hard_v2"
-    intent: "Massive monorepo and unknown modules; first narrow candidates only by path-name pattern, then inspect chosen files."
-    expected_tools: ["find"]
-
-  - id: "challenge-url-already-fixed-no-discovery"
-    category: "challenge_hard_v2"
-    intent: "Source link is already approved in ticket; ingest that page directly and avoid discovery phase."
-    expected_tools: ["web_fetch"]
-
-  - id: "challenge-authoritative-sources-not-page-pull-yet"
-    category: "challenge_hard_v2"
-    intent: "No trusted source is selected yet; identify canonical references first and avoid pulling random pages."
-    expected_tools: ["web_search"]
-
-  - id: "challenge-browser-state-before-any-interaction"
-    category: "challenge_hard_v2"
-    intent: "Team reported wrong-tab side effects; verify current tab/session identity before any selector or coordinate interaction."
-    expected_tools: ["browser_info"]
-
-  - id: "challenge-browser-canvas-no-selector-route"
-    category: "challenge_hard_v2"
-    intent: "Target control is painted on canvas and DOM probes are unreliable; complete operation through pointer trajectory actions."
-    expected_tools: ["browser_action"]
-
-  - id: "challenge-delivery-attachment-over-artifact-only"
-    category: "challenge_hard_v2"
-    intent: "Receiver explicitly requires downloadable handoff in thread, not just internal persistence of the long report."
-    expected_tools: ["write_attachment"]
-
-  - id: "challenge-delivery-artifact-before-chat-output"
-    category: "challenge_hard_v2"
-    intent: "Conversation output must remain concise while full package is retained as durable execution artifact for later audit."
-    expected_tools: ["artifacts_write"]
-
-  - id: "challenge-scheduler-read-vs-mutate-conflict"
-    category: "challenge_hard_v2"
-    intent: "There are reports of duplicate jobs but no mutation allowed yet; inspect current scheduler state before proposing changes."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "challenge-memory-vs-repo-search-soul-signal"
-    category: "challenge_hard_v2"
-    intent: "Need prior interaction style signal for this person before drafting outreach; repository code search is irrelevant to this decision."
-    expected_tools: ["memory_search"]
-
-  - id: "challenge-memory-open-exact-fragment-after-selection"
-    category: "challenge_hard_v2"
-    intent: "A specific memory note has already been identified; open exact fragment lines for evidence-backed wording."
-    expected_tools: ["memory_get"]
-
-  - id: "challenge-path-filter-before-content-read"
-    category: "challenge_hard_v2"
-    intent: "Repository scope is too broad; first reduce candidates by folder/name signatures before any content inspection."
-    expected_tools: ["find"]
-
-  - id: "challenge-fixed-approved-url-direct-ingest"
-    category: "challenge_hard_v2"
-    intent: "Approved source URL is already pinned in ticket; ingest that page directly without discovery step."
-    expected_tools: ["web_fetch"]
-
-  - id: "challenge-create-vs-delete-scheduler-conflict"
-    category: "challenge_hard_v2"
-    intent: "Legacy recurring check-in keeps firing after policy retirement; remove the obsolete schedule entry rather than creating new cadence."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "challenge-inspect-scheduler-before-create"
-    category: "challenge_hard_v2"
-    intent: "Team suspects duplicates and asked for visibility first; list current recurring schedules before proposing additions."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "challenge-artifact-progress-proof-not-ui-action"
-    category: "challenge_hard_v2"
-    intent: "Produce durable progress proof so stakeholders can verify momentum without expanding chat verbosity."
-    expected_tools: ["artifacts_write"]
-
-  - id: "challenge-lark-message-vs-upload-disambiguation"
-    category: "challenge_hard_v2"
-    intent: "Only a quick textual checkpoint is requested in thread; no attachment or file transfer is required at this step."
-    expected_tools: ["lark_send_message"]
-
-  - id: "challenge-browser-state-read-not-click"
-    category: "challenge_hard_v2"
-    intent: "Wrong-tab side effects were reported; inspect active tab identity and viewport before any interaction."
-    expected_tools: ["browser_info"]
+- id: challenge-human-gate-out-of-band-approve
+  category: challenge_hard_v2
+  intent: Irreversible cutover is blocked by an external compliance gate outside this
+    runtime; continuation depends on explicit user acknowledgement.
+  expected_tools:
+  - request_user
+- id: challenge-human-gate-prod-cutover-window
+  category: challenge_hard_v2
+  intent: The production window is open but cannot be consumed until operator go-signal
+    is confirmed in-thread.
+  expected_tools:
+  - request_user
+- id: challenge-open-evidence-fragment-by-offset
+  category: challenge_hard_v2
+  intent: Open the previously selected note fragment at exact offsets so the citation
+    can be quoted verbatim.
+  expected_tools:
+  - memory_get
+- id: challenge-recall-preference-without-keyword
+  category: challenge_hard_v2
+  intent: Recover the person's long-term interaction habit before drafting any recommendation.
+  expected_tools:
+  - memory_search
+- id: challenge-fast-repo-needle-sweep
+  category: challenge_hard_v2
+  intent: Sweep every source tree quickly with regex needles instead of opening files
+    one by one.
+  expected_tools:
+  - ripgrep
+- id: challenge-single-file-content-hunt
+  category: challenge_hard_v2
+  intent: Find matching snippets only within file contents, not by path names.
+  expected_tools:
+  - search_file
+- id: challenge-path-name-locate-only
+  category: challenge_hard_v2
+  intent: Locate candidate files by filename pattern under nested folders before opening
+    them.
+  expected_tools:
+  - find
+- id: challenge-calendar-recurring-sync
+  category: challenge_hard_v2
+  intent: Create a recurring weekly checkpoint event for every Friday morning and
+    keep an owner in attendees.
+  expected_tools:
+  - lark_calendar_create
+- id: challenge-calendar-adjust-existing-window
+  category: challenge_hard_v2
+  intent: Shift an existing planning event by 30 minutes and preserve all participants.
+  expected_tools:
+  - lark_calendar_update
+- id: challenge-calendar-remove-stale-event
+  category: challenge_hard_v2
+  intent: Cancel the obsolete calendar event that was created for the old release
+    train.
+  expected_tools:
+  - lark_calendar_delete
+- id: challenge-calendar-read-before-commit
+  category: challenge_hard_v2
+  intent: Inspect upcoming events first to avoid overlapping with an existing critical
+    meeting.
+  expected_tools:
+  - lark_calendar_query
+- id: challenge-job-schedule-nightly-audit
+  category: challenge_hard_v2
+  intent: Register a nightly automation job that runs status auditing at 02:00 with
+    a stable identifier.
+  expected_tools:
+  - scheduler_create_job
+- id: challenge-job-cancel-legacy-runner
+  category: challenge_hard_v2
+  intent: Remove the legacy scheduled runner because its workflow was retired last
+    week.
+  expected_tools:
+  - scheduler_delete_job
+- id: challenge-job-inventory
+  category: challenge_hard_v2
+  intent: Show the currently registered scheduler jobs and their execution cadence.
+  expected_tools:
+  - scheduler_list_jobs
+- id: challenge-reminder-register-followup
+  category: challenge_hard_v2
+  intent: Set a delayed follow-up reminder for two hours after deployment verification.
+  expected_tools:
+  - set_timer
+- id: challenge-reminder-remove-stale
+  category: challenge_hard_v2
+  intent: Drop the outdated reminder created for the old incident stream.
+  expected_tools:
+  - cancel_timer
+- id: challenge-reminder-list-active
+  category: challenge_hard_v2
+  intent: Before deciding whether to prune, inspect every currently active one-off
+    reminder and its remaining delay.
+  expected_tools:
+  - list_timers
+- id: challenge-artifact-publish-long-result
+  category: challenge_hard_v2
+  intent: Persist the complete long-form delivery package as an artifact before summarizing.
+  expected_tools:
+  - artifacts_write
+- id: challenge-artifact-audit-trace
+  category: challenge_hard_v2
+  intent: Verify the output lineage by checking generated manifest fields for each
+    evidence file.
+  expected_tools:
+  - artifact_manifest
+- id: challenge-artifact-cleanup
+  category: challenge_hard_v2
+  intent: Delete stale generated bundles from failed runs and keep only the latest
+    output.
+  expected_tools:
+  - artifacts_delete
+- id: challenge-ui-structured-card
+  category: challenge_hard_v2
+  intent: Emit a structured payload for a dashboard card instead of plain text narration.
+  expected_tools:
+  - a2ui_emit
+- id: challenge-browser-selector-first
+  category: challenge_hard_v2
+  intent: Use selectors to fill and submit the web form rather than coordinate clicking.
+  expected_tools:
+  - browser_dom
+- id: challenge-browser-visual-evidence
+  category: challenge_hard_v2
+  intent: Capture a visual proof snapshot of the page state after the action completes.
+  expected_tools:
+  - browser_screenshot
+- id: challenge-browser-session-state
+  category: challenge_hard_v2
+  intent: Inspect current tab metadata, URL, and viewport status before proceeding.
+  expected_tools:
+  - browser_info
+- id: challenge-doc-read-locally
+  category: challenge_hard_v2
+  intent: Open the target source file and inspect exact lines around the failing branch.
+  expected_tools:
+  - read_file
+- id: challenge-doc-write-summary
+  category: challenge_hard_v2
+  intent: Write a concise markdown summary documenting decisions, risks, and rollback
+    steps.
+  expected_tools:
+  - write_file
+- id: challenge-doc-patch-precise
+  category: challenge_hard_v2
+  intent: Apply a precise in-place replacement for the deprecated call path only.
+  expected_tools:
+  - replace_in_file
+- id: challenge-runtime-check-cli
+  category: challenge_hard_v2
+  intent: Validate runtime health from process and port state in one short command
+    path.
+  expected_tools:
+  - shell_exec
+- id: challenge-runtime-check-snippet
+  category: challenge_hard_v2
+  intent: Compute a deterministic verification metric from a small executable snippet.
+  expected_tools:
+  - execute_code
+- id: challenge-research-primary-search
+  category: challenge_hard_v2
+  intent: Find the latest official primary references before citing benchmark numbers.
+  expected_tools:
+  - web_search
+- id: challenge-research-fetch-page
+  category: challenge_hard_v2
+  intent: Retrieve full content from the chosen URL so definitions are quoted from
+    source.
+  expected_tools:
+  - web_fetch
+- id: challenge-progress-lark-sync
+  category: challenge_hard_v2
+  intent: During long execution, send a short textual checkpoint to the current thread
+    with no file payload.
+  expected_tools:
+  - lark_send_message

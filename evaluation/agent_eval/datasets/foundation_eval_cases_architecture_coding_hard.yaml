@@ -1,103 +1,102 @@
-version: "1"
-name: "foundation-architecture-coding-hard"
-description: "Complex logic and architecture coding routing coverage for large refactors, dependency boundaries, and high-risk code changes"
+version: '1'
+name: foundation-architecture-coding-hard
+description: Complex logic and architecture coding routing coverage for large refactors,
+  dependency boundaries, and high-risk code changes
 scenarios:
-  - id: "arch-code-plan-refactor-boundary"
-    category: "architecture_coding"
-    intent: "Plan a layered refactor to enforce architecture boundaries and avoid import cycles."
-    expected_tools: ["plan"]
-
-  - id: "arch-code-clarify-contract-first"
-    category: "architecture_coding"
-    intent: "API contract details are ambiguous; clarify interface expectations before editing code."
-    expected_tools: ["clarify"]
-
-  - id: "arch-code-repo-wide-symbol-scan"
-    category: "architecture_coding"
-    intent: "Use ripgrep to find all occurrences of the old domain service symbol across the repository."
-    expected_tools: ["ripgrep", "search_file"]
-
-  - id: "arch-code-find-layer-entrypoints"
-    category: "architecture_coding"
-    intent: "Find all layer entrypoint files under internal/ to map dependency flow."
-    expected_tools: ["find", "list_dir"]
-
-  - id: "arch-code-open-critical-interface"
-    category: "architecture_coding"
-    intent: "Open the interface definition file and inspect method signatures around the hot path."
-    expected_tools: ["read_file"]
-
-  - id: "arch-code-replace-deprecated-call"
-    category: "architecture_coding"
-    intent: "Replace deprecated adapter call with the new port-based abstraction in one file."
-    expected_tools: ["replace_in_file"]
-
-  - id: "arch-code-write-migration-notes"
-    category: "architecture_coding"
-    intent: "Write a markdown migration note describing boundary changes and rollback strategy."
-    expected_tools: ["write_file"]
-
-  - id: "arch-code-run-build-check"
-    category: "architecture_coding"
-    intent: "Run shell build and targeted test commands to verify architecture refactor validity."
-    expected_tools: ["shell_exec"]
-
-  - id: "arch-code-execute-snippet-verify"
-    category: "architecture_coding"
-    intent: "Execute a short code snippet to validate the new dependency injection wiring logic."
-    expected_tools: ["execute_code"]
-
-  - id: "arch-code-doc-research-pattern"
-    category: "architecture_coding"
-    intent: "Search official docs for Go interface segregation and clean architecture dependency rules."
-    expected_tools: ["web_search"]
-
-  - id: "arch-code-fetch-reference-page"
-    category: "architecture_coding"
-    intent: "Fetch a specific reference URL and inspect details for package boundary best practices."
-    expected_tools: ["web_fetch"]
-
-  - id: "arch-code-memory-prior-decision"
-    category: "architecture_coding"
-    intent: "Search memory for prior decisions on agent ports and memory dependency constraints."
-    expected_tools: ["memory_search"]
-
-  - id: "arch-code-memory-open-decision"
-    category: "architecture_coding"
-    intent: "Open the exact memory decision note lines about keeping agent ports infra-free."
-    expected_tools: ["memory_get"]
-
-  - id: "arch-code-architecture-diagram"
-    category: "architecture_coding"
-    intent: "Render an architecture dependency diagram from module relationships."
-    expected_tools: ["diagram_render"]
-
-  - id: "arch-code-structured-design-output"
-    category: "architecture_coding"
-    intent: "Emit a structured UI payload summarizing module boundaries and ownership."
-    expected_tools: ["a2ui_emit"]
-
-  - id: "arch-code-artifact-design-doc"
-    category: "architecture_coding"
-    intent: "Persist a long architecture design proposal as artifact before implementation."
-    expected_tools: ["artifacts_write"]
-
-  - id: "arch-code-upload-design-doc"
-    category: "architecture_coding"
-    intent: "Upload the generated architecture proposal file to Lark for review."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "arch-code-progress-sync"
-    category: "architecture_coding"
-    intent: "Send a proactive Lark status sync after each architecture change milestone."
-    expected_tools: ["lark_send_message"]
-
-  - id: "arch-code-task-assignment"
-    category: "architecture_coding"
-    intent: "Create and assign implementation tasks for each architecture migration slice."
-    expected_tools: ["lark_task_manage"]
-
-  - id: "arch-code-delegate-heavy-validation"
-    category: "architecture_coding"
-    intent: "Delegate heavy integration validation for the refactor to external executor."
-    expected_tools: ["acp_executor"]
+- id: arch-code-plan-refactor-boundary
+  category: architecture_coding
+  intent: Plan a layered refactor to enforce architecture boundaries and avoid import
+    cycles.
+  expected_tools:
+  - plan
+- id: arch-code-clarify-contract-first
+  category: architecture_coding
+  intent: API contract details are ambiguous; clarify interface expectations before
+    editing code.
+  expected_tools:
+  - clarify
+- id: arch-code-repo-wide-symbol-scan
+  category: architecture_coding
+  intent: Use ripgrep to find all occurrences of the old domain service symbol across
+    the repository.
+  expected_tools:
+  - ripgrep
+  - search_file
+- id: arch-code-find-layer-entrypoints
+  category: architecture_coding
+  intent: Find all layer entrypoint files under internal/ to map dependency flow.
+  expected_tools:
+  - find
+  - list_dir
+- id: arch-code-open-critical-interface
+  category: architecture_coding
+  intent: Open the interface definition file and inspect method signatures around
+    the hot path.
+  expected_tools:
+  - read_file
+- id: arch-code-replace-deprecated-call
+  category: architecture_coding
+  intent: Replace deprecated adapter call with the new port-based abstraction in one
+    file.
+  expected_tools:
+  - replace_in_file
+- id: arch-code-write-migration-notes
+  category: architecture_coding
+  intent: Write a markdown migration note describing boundary changes and rollback
+    strategy.
+  expected_tools:
+  - write_file
+- id: arch-code-run-build-check
+  category: architecture_coding
+  intent: Run shell build and targeted test commands to verify architecture refactor
+    validity.
+  expected_tools:
+  - shell_exec
+- id: arch-code-execute-snippet-verify
+  category: architecture_coding
+  intent: Execute a short code snippet to validate the new dependency injection wiring
+    logic.
+  expected_tools:
+  - execute_code
+- id: arch-code-doc-research-pattern
+  category: architecture_coding
+  intent: Search official docs for Go interface segregation and clean architecture
+    dependency rules.
+  expected_tools:
+  - web_search
+- id: arch-code-fetch-reference-page
+  category: architecture_coding
+  intent: Fetch a specific reference URL and inspect details for package boundary
+    best practices.
+  expected_tools:
+  - web_fetch
+- id: arch-code-memory-prior-decision
+  category: architecture_coding
+  intent: Search memory for prior decisions on agent ports and memory dependency constraints.
+  expected_tools:
+  - memory_search
+- id: arch-code-memory-open-decision
+  category: architecture_coding
+  intent: Open the exact memory decision note lines about keeping agent ports infra-free.
+  expected_tools:
+  - memory_get
+- id: arch-code-architecture-diagram
+  category: architecture_coding
+  intent: Render an architecture dependency diagram from module relationships.
+  expected_tools:
+  - diagram_render
+- id: arch-code-structured-design-output
+  category: architecture_coding
+  intent: Emit a structured UI payload summarizing module boundaries and ownership.
+  expected_tools:
+  - a2ui_emit
+- id: arch-code-artifact-design-doc
+  category: architecture_coding
+  intent: Persist a long architecture design proposal as artifact before implementation.
+  expected_tools:
+  - artifacts_write
+- id: arch-code-upload-design-doc
+  category: architecture_coding
+  intent: Upload the generated architecture proposal file to Lark for review.
+  expected_tools:
+  - lark_upload_file

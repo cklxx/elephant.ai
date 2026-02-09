@@ -1,153 +1,126 @@
-version: "1"
-name: "foundation-proactivity"
-description: "Proactive behavior routing coverage: updates, scheduling, reminders, and coordination"
+version: '1'
+name: foundation-proactivity
+description: 'Proactive behavior routing coverage: updates, scheduling, reminders,
+  and coordination'
 scenarios:
-  - id: "proactive-send-progress-update"
-    category: "lark"
-    intent: "Proactively send a concise progress update to the current Lark chat."
-    expected_tools: ["lark_send_message"]
-
-  - id: "proactive-read-chat-context-first"
-    category: "lark"
-    intent: "Before replying, fetch recent Lark chat history for context."
-    expected_tools: ["lark_chat_history"]
-
-  - id: "proactive-upload-generated-report"
-    category: "lark"
-    intent: "Upload the generated report file to this Lark conversation."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "proactive-calendar-query"
-    category: "lark"
-    intent: "Proactively check upcoming calendar events before scheduling work."
-    expected_tools: ["lark_calendar_query"]
-
-  - id: "proactive-calendar-create"
-    category: "lark"
-    intent: "Create a new calendar event for tomorrow's sync meeting."
-    expected_tools: ["lark_calendar_create"]
-
-  - id: "proactive-calendar-update"
-    category: "lark"
-    intent: "Update an existing calendar event with a new start time and summary."
-    expected_tools: ["lark_calendar_update"]
-
-  - id: "proactive-calendar-delete"
-    category: "lark"
-    intent: "Delete an incorrect calendar event that should not exist."
-    expected_tools: ["lark_calendar_delete"]
-
-  - id: "proactive-task-manage"
-    category: "lark"
-    intent: "Create and assign a Lark task with due date and owner."
-    expected_tools: ["lark_task_manage"]
-
-  - id: "proactive-task-batch-update"
-    category: "lark"
-    intent: "Bulk update task statuses and assignees before daily standup."
-    expected_tools: ["lark_task_manage"]
-
-  - id: "proactive-set-followup-reminder"
-    category: "timer"
-    intent: "Set a reminder timer to follow up in 30 minutes."
-    expected_tools: ["set_timer"]
-
-  - id: "proactive-set-review-reminder"
-    category: "timer"
-    intent: "Set a timer for one-hour code review checkpoint."
-    expected_tools: ["set_timer"]
-
-  - id: "proactive-list-active-reminders"
-    category: "timer"
-    intent: "List all active timers and their remaining time."
-    expected_tools: ["list_timers"]
-
-  - id: "proactive-cancel-obsolete-reminder"
-    category: "timer"
-    intent: "Cancel the reminder that is no longer needed."
-    expected_tools: ["cancel_timer"]
-
-  - id: "proactive-cancel-duplicate-reminders"
-    category: "timer"
-    intent: "Remove duplicated reminder timers to avoid noise."
-    expected_tools: ["cancel_timer"]
-
-  - id: "proactive-create-recurring-job"
-    category: "scheduler"
-    intent: "Create a recurring weekday morning scheduler job."
-    expected_tools: ["scheduler_create_job"]
-
-  - id: "proactive-create-hourly-healthcheck"
-    category: "scheduler"
-    intent: "Create an hourly healthcheck scheduler job."
-    expected_tools: ["scheduler_create_job"]
-
-  - id: "proactive-list-scheduled-jobs"
-    category: "scheduler"
-    intent: "List all configured scheduler jobs and next run times."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "proactive-delete-scheduled-job"
-    category: "scheduler"
-    intent: "Delete a scheduler job by identifier."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "proactive-prune-stale-jobs"
-    category: "scheduler"
-    intent: "Prune stale scheduler jobs after migration."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "proactive-okrs-read-before-sync"
-    category: "okr"
-    intent: "Read current quarter OKR status before sending an update."
-    expected_tools: ["okr_read"]
-
-  - id: "proactive-okrs-read-before-retro"
-    category: "okr"
-    intent: "Read OKR milestones before preparing retrospective notes."
-    expected_tools: ["okr_read"]
-
-  - id: "proactive-okrs-write-update"
-    category: "okr"
-    intent: "Update OKR objective progress after completing milestone work."
-    expected_tools: ["okr_write"]
-
-  - id: "proactive-okrs-write-blocker"
-    category: "okr"
-    intent: "Write an OKR blocker note with impact and mitigation owner."
-    expected_tools: ["okr_write"]
-
-  - id: "proactive-artifact-first-then-share"
-    category: "artifact"
-    intent: "Before sending updates, persist analysis as artifact to keep the thread concise."
-    expected_tools: ["artifacts_write"]
-
-  - id: "proactive-share-attachment-to-user"
-    category: "artifact"
-    intent: "Proactively produce a downloadable attachment for user handoff."
-    expected_tools: ["write_attachment"]
-
-  - id: "proactive-fetch-memory-before-answer"
-    category: "memory"
-    intent: "Recall previous memory notes before deciding the remediation path."
-    expected_tools: ["memory_search"]
-
-  - id: "proactive-open-memory-evidence"
-    category: "memory"
-    intent: "Open the exact memory lines that support the recommendation."
-    expected_tools: ["memory_get"]
-
-  - id: "proactive-ask-user-for-login-gate"
-    category: "handoff"
-    intent: "Hit login or 2FA gate; proactively request user action and wait."
-    expected_tools: ["request_user"]
-
-  - id: "proactive-clarify-uncertain-constraints"
-    category: "clarification"
-    intent: "Requirements conflict; proactively ask one targeted clarification before acting."
-    expected_tools: ["clarify"]
-
-  - id: "proactive-plan-first"
-    category: "planning"
-    intent: "Before execution, proactively draft phased plan with risks and checkpoints."
-    expected_tools: ["plan"]
+- id: proactive-send-progress-update
+  category: lark
+  intent: Proactively send a concise progress update to the current Lark chat.
+  expected_tools:
+  - lark_send_message
+- id: proactive-read-chat-context-first
+  category: lark
+  intent: Before replying, fetch recent Lark chat history for context.
+  expected_tools:
+  - lark_chat_history
+- id: proactive-upload-generated-report
+  category: lark
+  intent: Upload the generated report file to this Lark conversation.
+  expected_tools:
+  - lark_upload_file
+- id: proactive-calendar-query
+  category: lark
+  intent: Proactively check upcoming calendar events before scheduling work.
+  expected_tools:
+  - lark_calendar_query
+- id: proactive-calendar-create
+  category: lark
+  intent: Create a new calendar event for tomorrow's sync meeting.
+  expected_tools:
+  - lark_calendar_create
+- id: proactive-calendar-update
+  category: lark
+  intent: Update an existing calendar event with a new start time and summary.
+  expected_tools:
+  - lark_calendar_update
+- id: proactive-calendar-delete
+  category: lark
+  intent: Delete an incorrect calendar event that should not exist.
+  expected_tools:
+  - lark_calendar_delete
+- id: proactive-task-manage
+  category: lark
+  intent: Create and assign a Lark task with due date and owner.
+  expected_tools:
+  - lark_task_manage
+- id: proactive-task-batch-update
+  category: lark
+  intent: Bulk update task statuses and assignees before daily standup.
+  expected_tools:
+  - lark_task_manage
+- id: proactive-set-followup-reminder
+  category: timer
+  intent: Set a reminder timer to follow up in 30 minutes.
+  expected_tools:
+  - set_timer
+- id: proactive-set-review-reminder
+  category: timer
+  intent: Set a timer for one-hour code review checkpoint.
+  expected_tools:
+  - set_timer
+- id: proactive-list-active-reminders
+  category: timer
+  intent: List all active timers and their remaining time.
+  expected_tools:
+  - list_timers
+- id: proactive-cancel-obsolete-reminder
+  category: timer
+  intent: Cancel the reminder that is no longer needed.
+  expected_tools:
+  - cancel_timer
+- id: proactive-cancel-duplicate-reminders
+  category: timer
+  intent: Remove duplicated reminder timers to avoid noise.
+  expected_tools:
+  - cancel_timer
+- id: proactive-create-recurring-job
+  category: scheduler
+  intent: Create a recurring weekday morning scheduler job.
+  expected_tools:
+  - scheduler_create_job
+- id: proactive-create-hourly-healthcheck
+  category: scheduler
+  intent: Create an hourly healthcheck scheduler job.
+  expected_tools:
+  - scheduler_create_job
+- id: proactive-list-scheduled-jobs
+  category: scheduler
+  intent: List all configured scheduler jobs and next run times.
+  expected_tools:
+  - scheduler_list_jobs
+- id: proactive-delete-scheduled-job
+  category: scheduler
+  intent: Delete a scheduler job by identifier.
+  expected_tools:
+  - scheduler_delete_job
+- id: proactive-prune-stale-jobs
+  category: scheduler
+  intent: Prune stale scheduler jobs after migration.
+  expected_tools:
+  - scheduler_delete_job
+- id: proactive-okrs-read-before-sync
+  category: okr
+  intent: Read current quarter OKR status before sending an update.
+  expected_tools:
+  - okr_read
+- id: proactive-okrs-read-before-retro
+  category: okr
+  intent: Read OKR milestones before preparing retrospective notes.
+  expected_tools:
+  - okr_read
+- id: proactive-okrs-write-update
+  category: okr
+  intent: Update OKR objective progress after completing milestone work.
+  expected_tools:
+  - okr_write
+- id: proactive-okrs-write-blocker
+  category: okr
+  intent: Write an OKR blocker note with impact and mitigation owner.
+  expected_tools:
+  - okr_write
+- id: proactive-artifact-first-then-share
+  category: artifact
+  intent: Before sending updates, persist analysis as artifact to keep the thread
+    concise.
+  expected_tools:
+  - artifacts_write

@@ -1,143 +1,132 @@
-version: "1"
-name: "foundation-memory-capabilities"
-description: "Systematic memory capability routing coverage: retrieve, inspect, reconcile, and memory-informed execution"
+version: '1'
+name: foundation-memory-capabilities
+description: 'Systematic memory capability routing coverage: retrieve, inspect, reconcile,
+  and memory-informed execution'
 scenarios:
-  - id: "memory-search-architecture-decision"
-    category: "memory_capabilities"
-    intent: "Use memory_search to find prior architecture decision for agent ports boundary."
-    expected_tools: ["memory_search"]
-
-  - id: "memory-search-incident-signature"
-    category: "memory_capabilities"
-    intent: "memory_search historical incident signature before proposing remediation."
-    expected_tools: ["memory_search"]
-
-  - id: "memory-search-release-risk-pattern"
-    category: "memory_capabilities"
-    intent: "Run memory_search for previous release risk patterns and mitigations."
-    expected_tools: ["memory_search"]
-
-  - id: "memory-get-exact-lines"
-    category: "memory_capabilities"
-    intent: "Use memory_get to open exact note lines for citation evidence."
-    expected_tools: ["memory_get"]
-
-  - id: "memory-get-root-cause-context"
-    category: "memory_capabilities"
-    intent: "memory_get detailed root-cause context from the selected memory note."
-    expected_tools: ["memory_get"]
-
-  - id: "memory-get-conflict-resolution-note"
-    category: "memory_capabilities"
-    intent: "Open conflict-resolution guidance with memory_get before action."
-    expected_tools: ["memory_get"]
-
-  - id: "memory-search-then-get-chain"
-    category: "memory_capabilities"
-    intent: "First memory_search related notes, then memory_get the best matching entry."
-    expected_tools: ["memory_search", "memory_get"]
-
-  - id: "memory-cross-session-recall"
-    category: "memory_capabilities"
-    intent: "Recover cross-session decision history via memory_search and memory_get."
-    expected_tools: ["memory_search", "memory_get"]
-
-  - id: "memory-regression-guard-check"
-    category: "memory_capabilities"
-    intent: "memory_search regression guardrails before patching risky code."
-    expected_tools: ["memory_search"]
-
-  - id: "memory-ambiguity-needs-clarify"
-    category: "memory_capabilities"
-    intent: "Memory notes conflict on policy; clarify which policy version applies."
-    expected_tools: ["clarify"]
-
-  - id: "memory-user-gated-sensitive-note"
-    category: "memory_capabilities"
-    intent: "Need user permission before opening sensitive memory note with memory_get."
-    expected_tools: ["request_user", "memory_get"]
-
-  - id: "memory-informed-plan"
-    category: "memory_capabilities"
-    intent: "Build plan using memory_search outputs and checkpoints from prior incidents."
-    expected_tools: ["memory_search", "plan"]
-
-  - id: "memory-informed-code-fix"
-    category: "memory_capabilities"
-    intent: "memory_search prior fix pattern, memory_get details, then replace_in_file patch."
-    expected_tools: ["memory_search", "memory_get", "replace_in_file"]
-
-  - id: "memory-informed-shell-verify"
-    category: "memory_capabilities"
-    intent: "Lookup memory note first, then shell_exec validation command sequence."
-    expected_tools: ["memory_search", "shell_exec"]
-
-  - id: "memory-informed-test-snippet"
-    category: "memory_capabilities"
-    intent: "memory_get expected edge cases and execute_code deterministic check."
-    expected_tools: ["memory_get", "execute_code"]
-
-  - id: "memory-report-artifact"
-    category: "memory_capabilities"
-    intent: "After memory_search, persist conclusion as artifacts_write report."
-    expected_tools: ["memory_search", "artifacts_write"]
-
-  - id: "memory-citation-manifest-check"
-    category: "memory_capabilities"
-    intent: "Use memory_get citation lines and artifact_manifest to verify report traceability."
-    expected_tools: ["memory_get", "artifact_manifest"]
-
-  - id: "memory-lark-sync-update"
-    category: "memory_capabilities"
-    intent: "memory_search key context then send lark status update with summary."
-    expected_tools: ["memory_search", "lark_send_message"]
-
-  - id: "memory-long-context-hard"
-    category: "memory_capabilities"
-    intent: "In long-context task, memory_search latent clue and memory_get supporting lines before answer."
-    expected_tools: ["memory_search", "memory_get"]
-
-  - id: "memory-delegate-heavy-analysis"
-    category: "memory_capabilities"
-    intent: "memory_search historical patterns and delegate long replay to acp_executor."
-    expected_tools: ["memory_search", "acp_executor"]
-
-  - id: "memory-anchor-before-risky-edit"
-    category: "memory_capabilities"
-    intent: "Before touching risky code, recall earlier postmortem anchors and constraints from memory."
-    expected_tools: ["memory_search"]
-
-  - id: "memory-open-evidence-window"
-    category: "memory_capabilities"
-    intent: "Open exact evidence window in the chosen memory note for citation-grade proof."
-    expected_tools: ["memory_get"]
-
-  - id: "memory-preference-conflict-gate"
-    category: "memory_capabilities"
-    intent: "Two remembered policies conflict; pause and ask a focused clarification before execution."
-    expected_tools: ["clarify"]
-
-  - id: "memory-human-approval-sensitive-replay"
-    category: "memory_capabilities"
-    intent: "Sensitive historical replay requires explicit human approval before continuing."
-    expected_tools: ["request_user"]
-
-  - id: "memory-evidence-plus-artifact-audit"
-    category: "memory_capabilities"
-    intent: "Use remembered evidence lines and produce a traceable artifact manifest for audit."
-    expected_tools: ["memory_get", "artifact_manifest"]
-
-  - id: "memory-recall-then-rg-hotspots"
-    category: "memory_capabilities"
-    intent: "Recall prior bug signatures, then scan hotspots quickly with regex over the repository."
-    expected_tools: ["memory_search", "ripgrep"]
-
-  - id: "memory-recall-and-scheduler-followup"
-    category: "memory_capabilities"
-    intent: "Use memory of prior incident rhythm and schedule an automated recurring follow-up job."
-    expected_tools: ["memory_search", "scheduler_create_job"]
-
-  - id: "memory-open-and-upload-proof"
-    category: "memory_capabilities"
-    intent: "Open the evidence note and upload proof attachment to stakeholders in the active thread."
-    expected_tools: ["memory_get", "lark_upload_file"]
+- id: memory-search-architecture-decision
+  category: memory_capabilities
+  intent: Use memory_search to find prior architecture decision for agent ports boundary.
+  expected_tools:
+  - memory_search
+- id: memory-search-incident-signature
+  category: memory_capabilities
+  intent: memory_search historical incident signature before proposing remediation.
+  expected_tools:
+  - memory_search
+- id: memory-search-release-risk-pattern
+  category: memory_capabilities
+  intent: Run memory_search for previous release risk patterns and mitigations.
+  expected_tools:
+  - memory_search
+- id: memory-get-exact-lines
+  category: memory_capabilities
+  intent: Use memory_get to open exact note lines for citation evidence.
+  expected_tools:
+  - memory_get
+- id: memory-get-root-cause-context
+  category: memory_capabilities
+  intent: memory_get detailed root-cause context from the selected memory note.
+  expected_tools:
+  - memory_get
+- id: memory-get-conflict-resolution-note
+  category: memory_capabilities
+  intent: Open conflict-resolution guidance with memory_get before action.
+  expected_tools:
+  - memory_get
+- id: memory-search-then-get-chain
+  category: memory_capabilities
+  intent: First memory_search related notes, then memory_get the best matching entry.
+  expected_tools:
+  - memory_search
+  - memory_get
+- id: memory-cross-session-recall
+  category: memory_capabilities
+  intent: Recover cross-session decision history via memory_search and memory_get.
+  expected_tools:
+  - memory_search
+  - memory_get
+- id: memory-regression-guard-check
+  category: memory_capabilities
+  intent: memory_search regression guardrails before patching risky code.
+  expected_tools:
+  - memory_search
+- id: memory-ambiguity-needs-clarify
+  category: memory_capabilities
+  intent: Memory notes conflict on policy; clarify which policy version applies.
+  expected_tools:
+  - clarify
+- id: memory-user-gated-sensitive-note
+  category: memory_capabilities
+  intent: Need user permission before opening sensitive memory note with memory_get.
+  expected_tools:
+  - request_user
+  - memory_get
+- id: memory-informed-plan
+  category: memory_capabilities
+  intent: Build plan using memory_search outputs and checkpoints from prior incidents.
+  expected_tools:
+  - memory_search
+  - plan
+- id: memory-informed-code-fix
+  category: memory_capabilities
+  intent: memory_search prior fix pattern, memory_get details, then replace_in_file
+    patch.
+  expected_tools:
+  - memory_search
+  - memory_get
+  - replace_in_file
+- id: memory-informed-shell-verify
+  category: memory_capabilities
+  intent: Lookup memory note first, then shell_exec validation command sequence.
+  expected_tools:
+  - memory_search
+  - shell_exec
+- id: memory-informed-test-snippet
+  category: memory_capabilities
+  intent: memory_get expected edge cases and execute_code deterministic check.
+  expected_tools:
+  - memory_get
+  - execute_code
+- id: memory-report-artifact
+  category: memory_capabilities
+  intent: After memory_search, persist conclusion as artifacts_write report.
+  expected_tools:
+  - memory_search
+  - artifacts_write
+- id: memory-citation-manifest-check
+  category: memory_capabilities
+  intent: Use memory_get citation lines and artifact_manifest to verify report traceability.
+  expected_tools:
+  - memory_get
+  - artifact_manifest
+- id: memory-lark-sync-update
+  category: memory_capabilities
+  intent: memory_search key context then send lark status update with summary.
+  expected_tools:
+  - memory_search
+  - lark_send_message
+- id: memory-long-context-hard
+  category: memory_capabilities
+  intent: In long-context task, memory_search latent clue and memory_get supporting
+    lines before answer.
+  expected_tools:
+  - memory_search
+  - memory_get
+- id: memory-delegate-heavy-analysis
+  category: memory_capabilities
+  intent: memory_search historical patterns and delegate long replay to acp_executor.
+  expected_tools:
+  - memory_search
+  - acp_executor
+- id: memory-anchor-before-risky-edit
+  category: memory_capabilities
+  intent: Before touching risky code, recall earlier postmortem anchors and constraints
+    from memory.
+  expected_tools:
+  - memory_search
+- id: memory-open-evidence-window
+  category: memory_capabilities
+  intent: Open exact evidence window in the chosen memory note for citation-grade
+    proof.
+  expected_tools:
+  - memory_get
