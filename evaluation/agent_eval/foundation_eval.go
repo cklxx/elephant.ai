@@ -1184,6 +1184,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("write", "create", "save", "draft", "new") {
 			boost -= 18
 		}
+		if countMatches("local", "new", "file", "materialization", "materialize", "workspace", "markdown") >= 3 {
+			boost += 20
+		}
 	case "list_dir":
 		if countMatches("list", "show", "enumerate", "browse", "tree") >= 1 &&
 			countMatches("directory", "folder", "workspace", "path") >= 1 {
@@ -1199,6 +1202,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("semantic", "content", "inside", "files", "instead", "path", "names") >= 3 {
 			boost += 16
+		}
+		if countMatches("multihop", "reference", "references", "chain", "authoritative", "statement", "resolve", "across", "files") >= 3 {
+			boost += 18
 		}
 		if has("regex", "needle", "sweep", "fast", "quickly") && !has("content", "snippet", "lines", "inside", "within") {
 			// Prefer ripgrep for fast regex repository sweeps over semantic content search.
@@ -1262,12 +1268,21 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("create", "calendar", "events", "meeting", "meetings", "kickoff", "review") >= 3 {
 			boost += 22
 		}
+		if countMatches("reserve", "execution", "window", "calendar", "block", "create", "creating") >= 3 {
+			boost += 24
+		}
 	case "lark_calendar_delete":
 		if countMatches("calendar", "event", "delete", "remove", "cancel", "stale", "obsolete", "cleanup") >= 2 {
 			boost += 20
 		}
 	case "lark_chat_history":
 		if countMatches("chat", "thread", "conversation", "history", "context", "recent", "before") >= 2 {
+			boost += 24
+		}
+		if countMatches("reconstruct", "chronology", "prior", "thread", "turns", "before", "replying", "answer") >= 3 {
+			boost += 18
+		}
+		if countMatches("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer") >= 5 {
 			boost += 24
 		}
 	case "okr_write":
@@ -1337,6 +1352,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("list", "inventory", "enumerate", "existing", "current", "artifacts", "artifact") >= 3 {
 			boost += 16
 		}
+		if countMatches("before", "release", "share", "latest", "valid", "existing", "generated", "outputs", "artifacts") >= 4 {
+			boost += 24
+		}
+		if countMatches("before", "share", "sharing", "execution", "output", "outputs", "list", "existing", "latest", "valid", "artifacts") >= 5 {
+			boost += 26
+		}
 	case "artifacts_delete":
 		if countMatches("delete", "remove", "prune", "cleanup", "stale", "obsolete", "artifact", "artifacts", "legacy") >= 2 {
 			boost += 24
@@ -1366,6 +1387,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("communication", "tone", "style", "voice", "habit", "preference", "persona", "soul") >= 3 {
 			boost += 20
+		}
+		if countMatches("memory", "preference", "retrieval", "retrieve", "habit", "persona", "policy", "history") >= 3 {
+			boost += 18
 		}
 		if countMatches("memory", "historical", "incident", "signature", "regression", "guardrail", "before", "patch") >= 3 {
 			boost += 22
@@ -1401,6 +1425,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("secret", "token", "user", "provided", "before", "execution", "request") >= 3 {
 			boost += 18
+		}
+		if countMatches("critical", "irreversible", "human", "go", "ahead", "before", "step") >= 3 {
+			boost += 28
 		}
 	case "cancel_timer":
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
@@ -1464,7 +1491,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("violates", "policy", "remove", "removed", "not", "recreated", "recreate", "cadence", "recurring") >= 4 {
 			boost += 24
 		}
-		if countMatches("violat", "policy", "remove", "not", "recreat", "cadence", "recurring") >= 4 {
+		if countMatches("violate", "policy", "remove", "not", "recreate", "cadence", "recurring") >= 4 {
+			boost += 24
+		}
+		if countMatches("old", "retired", "recurring", "cadence", "violate", "policy", "removed") >= 3 {
 			boost += 24
 		}
 	case "list_timers":
@@ -1573,6 +1603,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("replace", "patch", "rewrite", "update", "shift", "run", "show", "apply", "exact", "existing", "inplace", "event") >= 3 &&
 			!has("unclear", "ambiguity", "clarify", "conflict", "missing", "question") {
 			boost -= 30
+		}
+		if countMatches("tracked", "task", "item", "operationalize", "commitment", "calendar", "block", "reserve", "window") >= 3 &&
+			!has("unclear", "ambiguity", "clarify", "conflict", "missing", "question") {
+			boost -= 30
+		}
+		if countMatches("critical", "irreversible", "human", "go", "ahead", "approval", "before") >= 3 &&
+			!has("unclear", "ambiguity", "clarify", "conflict", "missing", "question") {
+			boost -= 28
 		}
 	}
 	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
@@ -1819,6 +1857,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("inside", "content", "snippet", "line", "lines", "semantic") {
 			boost -= 24
 		}
+		if countMatches("path", "topology", "directory", "folder", "narrow", "first", "before", "reading") >= 3 &&
+			!has("content", "inside", "snippet", "semantic", "line", "lines") {
+			boost -= 16
+		}
 	}
 	if toolName == "scheduler_create_job" {
 		if countMatches("violates", "policy", "remove", "removed", "not", "recreated", "recreate", "cadence", "recurring") >= 4 {
@@ -1871,6 +1913,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("task", "owner", "due", "todo", "assign", "batch", "update", "manage", "ticket") {
 			boost -= 30
 		}
+		if countMatches("operationalize", "tracked", "task", "item", "commitment", "work", "ticket") >= 3 {
+			boost += 22
+		}
 	}
 	if toolName == "lark_send_message" {
 		if countMatches("file", "report", "package", "upload", "in", "thread") >= 3 &&
@@ -1885,6 +1930,13 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("brief", "textual", "checkpoint", "status", "forbid", "forbids", "without", "upload", "file") >= 4 {
 			boost += 34
+		}
+		if countMatches("avoid", "file", "transfer", "compact", "progress", "update", "thread") >= 4 {
+			boost += 26
+		}
+		if countMatches("prior", "chat", "context", "thread", "history", "before", "replying") >= 3 &&
+			!has("send", "message", "update", "status", "notify", "broadcast") {
+			boost -= 30
 		}
 	}
 	if toolName == "lark_upload_file" {
@@ -1901,10 +1953,17 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("brief", "textual", "checkpoint", "status", "forbid", "forbids", "without", "upload", "file") >= 4 {
 			boost -= 56
 		}
+		if countMatches("avoid", "file", "transfer", "compact", "progress", "update", "thread") >= 4 {
+			boost -= 30
+		}
 	}
 	if toolName == "artifacts_write" {
 		if countMatches("artifacts_write", "artifact", "artifacts", "reusable", "downstream", "full", "report", "deep", "dive") >= 3 {
 			boost += 20
+		}
+		if countMatches("list", "enumerate", "inventory", "existing", "latest", "valid", "release", "share", "outputs", "artifacts") >= 4 &&
+			!has("write", "create", "save", "new", "persist") {
+			boost -= 32
 		}
 	}
 	if toolName == "clarify" {
@@ -1935,6 +1994,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if hasAll("find", "read_file") {
 			boost += 14
 		}
+		if countMatches("path", "topology", "directory", "folder", "narrow", "first", "before", "reading", "open") >= 3 {
+			boost += 20
+		}
 	}
 	if toolName == "read_file" {
 		if hasAll("find", "read_file") {
@@ -1943,6 +2005,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if has("find") && has("ordered", "events", "sequential") {
 			boost += 10
 		}
+		if countMatches("path", "topology", "directory", "folder", "narrow", "first", "before", "reading", "open") >= 3 {
+			boost -= 12
+		}
 	}
 	if toolName == "replace_in_file" {
 		if countMatches("new", "file", "not", "place", "inplace", "materialize", "generated") >= 4 {
@@ -1950,6 +2015,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if has("write_file") && !has("replace_in_file", "patch", "replace") {
 			boost -= 16
+		}
+		if countMatches("multihop", "reference", "references", "chain", "authoritative", "statement", "resolve", "across", "files") >= 3 &&
+			!has("replace", "patch", "edit", "modify", "update", "fix") {
+			boost -= 28
 		}
 	}
 	if toolName == "write_file" {
@@ -2011,6 +2080,16 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("milestone", "roadmap", "rollback", "phase", "phased", "strategy", "timeline") {
 			boost -= 28
 		}
+		if countMatches("multistep", "planning", "rollback", "checkpoints", "before", "execution") >= 3 &&
+			!has("ui", "browser", "click", "drag", "canvas") {
+			boost += 14
+		}
+	}
+	if toolName == "browser_action" {
+		if countMatches("multistep", "planning", "rollback", "checkpoints", "before", "execution") >= 3 &&
+			!has("ui", "browser", "click", "drag", "canvas", "coordinate", "pixel") {
+			boost -= 24
+		}
 	}
 	if toolName == "lark_calendar_update" {
 		if countMatches("update", "existing", "calendar", "event", "meeting", "shift", "minutes", "day", "timeline") >= 3 {
@@ -2057,7 +2136,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 	}
 	if toolName == "scheduler_create_job" {
-		if countMatches("remove", "delete", "obsolete", "legacy", "retired", "deprecation") >= 2 {
+		if countMatches("remove", "delete", "obsolete", "legacy", "retired", "deprecation", "old") >= 2 {
 			boost -= 18
 		}
 		if countMatches("audit", "inspect", "existing", "current", "before", "change", "policy", "cadence") >= 3 &&

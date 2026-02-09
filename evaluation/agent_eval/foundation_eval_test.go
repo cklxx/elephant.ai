@@ -831,6 +831,42 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if shellVerifyBoost <= execCodeVerifyBoost {
 		t.Fatalf("expected shell_exec boost (%.2f) to exceed execute_code boost (%.2f) for shell verification intents", shellVerifyBoost, execCodeVerifyBoost)
 	}
+
+	artifactInventoryBoost := heuristicIntentBoost("artifacts_list", makeSet("before", "sharing", "execution", "output", "list", "existing", "artifacts", "latest", "valid"))
+	artifactWriteOnInventoryBoost := heuristicIntentBoost("artifacts_write", makeSet("before", "sharing", "execution", "output", "list", "existing", "artifacts", "latest", "valid"))
+	if artifactInventoryBoost <= artifactWriteOnInventoryBoost {
+		t.Fatalf("expected artifacts_list boost (%.2f) to exceed artifacts_write boost (%.2f) for inventory-before-share intents", artifactInventoryBoost, artifactWriteOnInventoryBoost)
+	}
+
+	compactNoFileMessageBoost := heuristicIntentBoost("lark_send_message", makeSet("send", "compact", "progress", "update", "thread", "avoid", "file", "transfer"))
+	compactNoFileUploadBoost := heuristicIntentBoost("lark_upload_file", makeSet("send", "compact", "progress", "update", "thread", "avoid", "file", "transfer"))
+	if compactNoFileMessageBoost <= compactNoFileUploadBoost {
+		t.Fatalf("expected lark_send_message boost (%.2f) to exceed lark_upload_file boost (%.2f) for compact no-file transfer updates", compactNoFileMessageBoost, compactNoFileUploadBoost)
+	}
+
+	contextFirstHistoryBoost := heuristicIntentBoost("lark_chat_history", makeSet("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer"))
+	contextFirstSendBoost := heuristicIntentBoost("lark_send_message", makeSet("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer"))
+	if contextFirstHistoryBoost <= contextFirstSendBoost {
+		t.Fatalf("expected lark_chat_history boost (%.2f) to exceed lark_send_message boost (%.2f) for context-first no-upload intents", contextFirstHistoryBoost, contextFirstSendBoost)
+	}
+
+	irreversibleConsentBoost := heuristicIntentBoost("request_user", makeSet("critical", "irreversible", "step", "requires", "explicit", "human", "go", "ahead"))
+	irreversibleClarifyBoost := heuristicIntentBoost("clarify", makeSet("critical", "irreversible", "step", "requires", "explicit", "human", "go", "ahead"))
+	if irreversibleConsentBoost <= irreversibleClarifyBoost {
+		t.Fatalf("expected request_user boost (%.2f) to exceed clarify boost (%.2f) for irreversible human go-ahead intents", irreversibleConsentBoost, irreversibleClarifyBoost)
+	}
+
+	oldCadenceDeleteBoost := heuristicIntentBoost("scheduler_delete_job", makeSet("old", "recurring", "cadence", "violate", "new", "policy", "must", "be", "removed"))
+	oldCadenceCreateBoost := heuristicIntentBoost("scheduler_create_job", makeSet("old", "recurring", "cadence", "violate", "new", "policy", "must", "be", "removed"))
+	if oldCadenceDeleteBoost <= oldCadenceCreateBoost {
+		t.Fatalf("expected scheduler_delete_job boost (%.2f) to exceed scheduler_create_job boost (%.2f) for old cadence removal intents", oldCadenceDeleteBoost, oldCadenceCreateBoost)
+	}
+
+	multihopReadSearchBoost := heuristicIntentBoost("search_file", makeSet("resolve", "multi", "hop", "references", "across", "files", "find", "authoritative", "statement"))
+	multihopReplaceBoost := heuristicIntentBoost("replace_in_file", makeSet("resolve", "multi", "hop", "references", "across", "files", "find", "authoritative", "statement"))
+	if multihopReadSearchBoost <= multihopReplaceBoost {
+		t.Fatalf("expected search_file boost (%.2f) to exceed replace_in_file boost (%.2f) for multihop reference-chain intents", multihopReadSearchBoost, multihopReplaceBoost)
+	}
 }
 
 func TestRunFoundationEvaluationEndToEnd(t *testing.T) {
