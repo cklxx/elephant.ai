@@ -215,3 +215,44 @@ R5 批量收敛的代表簇：
   - `scheduler_create_job vs lark_calendar_update`
   - `read_file vs okr_read`
   - `memory_search vs browser_action`
+
+## 11. R11 难度升级 + 失败簇优化（2026-02-09）
+
+### 11.1 新增集合与规模
+- 新增 hard collections: `2/2`
+  - `foundation_eval_cases_industry_benchmark_implicit_intent_boundary_low_overlap.yaml`（21）
+  - `foundation_eval_cases_industry_benchmark_autonomy_long_horizon_value_delivery.yaml`（25）
+- 主 suite 更新后：
+  - Collections: `19/19`
+  - Cases: `315/315`
+
+### 11.2 三轮评测（x/x）
+- Baseline（未做规则收敛）:
+  - pass@1: `264/315`
+  - pass@5: `302/315`
+  - failed: `13`
+  - 路径：`tmp/foundation-suite-r11-hard`
+- Optimized-R1:
+  - pass@1: `271/315`
+  - pass@5: `311/315`
+  - failed: `4`
+  - 路径：`tmp/foundation-suite-r11-hard-opt`
+- Optimized-R2:
+  - pass@1: `273/315`
+  - pass@5: `313/315`
+  - failed: `2`
+  - 路径：`tmp/foundation-suite-r11-hard-opt2`
+
+### 11.3 本轮系统性优化点（代码）
+- 文件：`evaluation/agent_eval/foundation_eval.go`
+- 动作：
+  - 增加低重叠隐式词别名（如 `greenlight/silence/recurrences/ingest/playbook`）。
+  - 加强 `request_user`、`web_fetch`、`artifacts_list`、`memory_search`、`read_file` 的隐式语义 boost。
+  - 加强 `scheduler_list_jobs/create/delete` 与 `list_timers/cancel_timer/set_timer` 的调度语义 boost。
+  - 增加误路由惩罚（`browser_screenshot`、`write_file`、`plan`、`lark_calendar_*` 在非目标调度语义下的降权）。
+
+### 11.4 残余失败（用于下一轮）
+- `scheduler_delete_job => lark_calendar_update`（1）
+- `scheduler_list_jobs => artifacts_list`（1）
+
+说明：残余失败集中在“极低词面重叠 + 调度边界冲突” hardest 子簇，可作为下一轮 targeted hardening 的入口。

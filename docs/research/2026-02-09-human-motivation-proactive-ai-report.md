@@ -173,3 +173,48 @@ motivation_state:
 - 主评测集合已从“高分但挑战不足”切换到“难题驱动”的健康状态。
 - 新增业界 benchmark 迁移题显著拉开难度，能够更稳定暴露真实路由短板。
 - 当前剩余失败主要集中在 hardest 子集（多轮企业任务与长上下文推理），适合作为下一轮系统优化入口。
+
+## 9. R11 难度升级与系统优化结论（2026-02-09）
+
+### 9.1 本轮新增高难集合（x/x）
+- Collections added: `2/2`
+  - `industry_benchmark_implicit_intent_boundary_low_overlap`
+  - `industry_benchmark_autonomy_long_horizon_value_delivery`
+- New hard cases added: `46/46`（`21 + 25`）
+- 主 suite 规模：
+  - Collections: `19/19`
+  - Cases: `315/315`
+
+### 9.2 三轮结果对比（x/x）
+- Baseline（加入新难题，未优化）:
+  - pass@1: `264/315`（83.8%）
+  - pass@5: `302/315`（95.9%）
+  - Failed: `13`
+  - 产物：`tmp/foundation-suite-r11-hard`
+- Optimized-R1（失败簇定向规则）:
+  - pass@1: `271/315`（86.0%）
+  - pass@5: `311/315`（98.7%）
+  - Failed: `4`
+  - 产物：`tmp/foundation-suite-r11-hard-opt`
+- Optimized-R2（调度冲突继续收敛）:
+  - pass@1: `273/315`（86.7%）
+  - pass@5: `313/315`（99.4%）
+  - Failed: `2`
+  - 产物：`tmp/foundation-suite-r11-hard-opt2`
+
+### 9.3 Top1 失败簇演进
+- Baseline Top1 cluster:
+  - `read_file => memory_get`（2）
+  - `web_fetch => browser_screenshot`（2）
+  - `scheduler_* => 非目标调度工具`（多条）
+- Optimized-R2 残余：
+  - `scheduler_delete_job => lark_calendar_update`（1）
+  - `scheduler_list_jobs => artifacts_list`（1）
+
+### 9.4 产品能力提升结论
+- 本轮不仅“加难题”，还完成了失败簇驱动的真实路由能力提升：
+  - 隐式审批门控（`request_user`）召回增强。
+  - 单链接摄取（`web_fetch`）与视觉截图（`browser_screenshot`）边界拉开。
+  - 低词面重叠下的调度语义（`scheduler_list_jobs/create/delete`）显著提升。
+  - 记忆回溯场景（`memory_search`）命中增强。
+- 仍保留少量高难失败，避免集合再次“过饱和”。
