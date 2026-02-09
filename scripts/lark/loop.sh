@@ -82,6 +82,22 @@ acquire_lock() {
     printf '%s\n' "pid=$$ started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${LOCK_DIR}/owner"
     return 0
   fi
+
+  local owner_pid=""
+  if [[ -f "${LOCK_DIR}/owner" ]]; then
+    owner_pid="$(awk -F'[ =]+' '/pid=/{print $2}' "${LOCK_DIR}/owner" 2>/dev/null || true)"
+  fi
+
+  # Recover from stale locks left by crashed/terminated loop processes.
+  if [[ -z "${owner_pid}" || "${owner_pid}" == "$$" ]] || ! kill -0 "${owner_pid}" 2>/dev/null; then
+    rm -f "${LOCK_DIR}/owner" 2>/dev/null || true
+    rmdir "${LOCK_DIR}" 2>/dev/null || true
+    if mkdir "${LOCK_DIR}" 2>/dev/null; then
+      printf '%s\n' "pid=$$ started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${LOCK_DIR}/owner"
+      return 0
+    fi
+  fi
+
   return 1
 }
 
