@@ -97,11 +97,12 @@ func (p *policyAwareRegistry) isAllowed(tool tools.ToolExecutor) bool {
 		name = tool.Definition().Name
 	}
 	ctx := toolspolicy.ToolCallContext{
-		ToolName:  name,
-		Category:  meta.Category,
-		Tags:      meta.Tags,
-		Dangerous: meta.Dangerous,
-		Channel:   strings.TrimSpace(p.channel),
+		ToolName:    name,
+		Category:    meta.Category,
+		Tags:        meta.Tags,
+		Dangerous:   meta.Dangerous,
+		Channel:     strings.TrimSpace(p.channel),
+		SafetyLevel: meta.EffectiveSafetyLevel(),
 	}
 	return p.policy.Resolve(ctx).Enabled
 }

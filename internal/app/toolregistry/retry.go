@@ -193,11 +193,12 @@ func (r *retryExecutor) resolvePolicy(ctx context.Context, call ports.ToolCall) 
 	}
 	channel := strings.TrimSpace(appcontext.ChannelFromContext(ctx))
 	return r.policy.Resolve(toolspolicy.ToolCallContext{
-		ToolName:  name,
-		Category:  meta.Category,
-		Tags:      meta.Tags,
-		Dangerous: meta.Dangerous,
-		Channel:   channel,
+		ToolName:    name,
+		Category:    meta.Category,
+		Tags:        meta.Tags,
+		Dangerous:   meta.Dangerous,
+		Channel:     channel,
+		SafetyLevel: meta.EffectiveSafetyLevel(),
 	})
 }
 

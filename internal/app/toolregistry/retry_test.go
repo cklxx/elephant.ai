@@ -147,4 +147,64 @@ func TestRetryExecutorAppliesTimeout(t *testing.T) {
 	}
 }
 
+// safetyLevelTool is a stub with explicit SafetyLevel for policy tests.
+type safetyLevelTool struct {
+	meta ports.ToolMetadata
+}
+
+func (t *safetyLevelTool) Execute(_ context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
+	return &ports.ToolResult{CallID: call.ID, Content: "ok"}, nil
+}
+func (t *safetyLevelTool) Definition() ports.ToolDefinition {
+	return ports.ToolDefinition{Name: t.meta.Name}
+}
+func (t *safetyLevelTool) Metadata() ports.ToolMetadata { return t.meta }
+
+func TestRetryExecutorPropagatesSafetyLevelToPolicy(t *testing.T) {
+	// Create an L4 (irreversible) tool and use default policy rules which set
+	// MaxRetries=0 for L4 tools. Before the fix, SafetyLevel was never
+	// populated, so the l4-irreversible rule would never match.
+	tool := &safetyLevelTool{meta: ports.ToolMetadata{
+		Name:        "dangerous_delete",
+		SafetyLevel: ports.SafetyLevelIrreversible,
+	}}
+	policyCfg := toolspolicy.DefaultToolPolicyConfigWithRules()
+	// Override global retry to verify the rule overrides it
+	policyCfg.Retry.MaxRetries = 5
+
+	executor := newRetryExecutor(tool, toolspolicy.NewToolPolicy(policyCfg), nil)
+	re := executor.(*retryExecutor)
+	resolved := re.resolvePolicy(context.Background(), ports.ToolCall{ID: "c1", Name: "dangerous_delete"})
+
+	if resolved.Retry.MaxRetries != 0 {
+		t.Fatalf("expected L4 tool to get MaxRetries=0 from l4-irreversible rule, got %d", resolved.Retry.MaxRetries)
+	}
+	if resolved.SafetyLevel != ports.SafetyLevelIrreversible {
+		t.Fatalf("expected SafetyLevel=%d, got %d", ports.SafetyLevelIrreversible, resolved.SafetyLevel)
+	}
+}
+
+func TestRetryExecutorSafetyLevelFallsBackFromDangerous(t *testing.T) {
+	// When SafetyLevel is unset but Dangerous=true, EffectiveSafetyLevel
+	// should return L3, and the l3-high-impact rule should match.
+	tool := &safetyLevelTool{meta: ports.ToolMetadata{
+		Name:      "risky_write",
+		Dangerous: true,
+	}}
+	policyCfg := toolspolicy.DefaultToolPolicyConfigWithRules()
+	policyCfg.Retry.MaxRetries = 5
+
+	executor := newRetryExecutor(tool, toolspolicy.NewToolPolicy(policyCfg), nil)
+	re := executor.(*retryExecutor)
+	resolved := re.resolvePolicy(context.Background(), ports.ToolCall{ID: "c2", Name: "risky_write"})
+
+	if resolved.Retry.MaxRetries != 0 {
+		t.Fatalf("expected L3 tool to get MaxRetries=0 from l3-high-impact rule, got %d", resolved.Retry.MaxRetries)
+	}
+	if resolved.SafetyLevel != ports.SafetyLevelHighImpact {
+		t.Fatalf("expected SafetyLevel=%d, got %d", ports.SafetyLevelHighImpact, resolved.SafetyLevel)
+	}
+}
+
 var _ tools.ToolExecutor = (*retryStubTool)(nil)
+var _ tools.ToolExecutor = (*safetyLevelTool)(nil)
