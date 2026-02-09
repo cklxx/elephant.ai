@@ -290,17 +290,8 @@ restart_main_agent() {
   "${MAIN_SH}" restart >> "${LOOP_LOG}" 2>&1
 }
 
-run_cycle() {
+run_cycle_locked() {
   local base_sha="$1"
-
-  require_tools
-  init_test_paths
-
-  if ! acquire_lock; then
-    log_warn "Loop already running (lock: ${LOCK_DIR})"
-    return 0
-  fi
-  trap release_lock EXIT
 
   append_log "=== CYCLE START base_sha=${base_sha} ==="
   write_loop_state "${base_sha}" "start" "running" ""
@@ -388,6 +379,26 @@ run_cycle() {
   printf '%s\n' "${new_main_sha}" > "${LAST_VALIDATED_FILE}"
   append_log "=== CYCLE DONE main_sha=${new_main_sha} ==="
   write_loop_state "${base_sha}" "done" "passed" ""
+}
+
+run_cycle() {
+  local base_sha="$1"
+  local rc=0
+
+  require_tools
+  init_test_paths
+
+  if ! acquire_lock; then
+    log_warn "Loop already running (lock: ${LOCK_DIR})"
+    return 0
+  fi
+
+  # Keep EXIT trap for abnormal termination, but always release lock on normal return.
+  trap release_lock EXIT
+  run_cycle_locked "${base_sha}" || rc=$?
+  trap - EXIT
+  release_lock
+  return "${rc}"
 }
 
 watch() {
