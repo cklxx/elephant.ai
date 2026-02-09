@@ -212,6 +212,7 @@ func newTestSupervisor(t *testing.T) (*Supervisor, string) {
 	s := &Supervisor{
 		policy:     policy,
 		autofix:    autofix,
+		statusFile: NewStatusFile(filepath.Join(dir, "lark-supervisor.status.json")),
 		logger:     logger,
 		failCounts: make(map[string]int),
 		mainRoot:   dir,
@@ -463,5 +464,95 @@ func TestHandleAutofixSuccessRestartNotRequired(t *testing.T) {
 
 	if startCalled {
 		t.Error("should not restart when restart_required is false")
+	}
+}
+
+func TestTickRestartBackoffIsAsync(t *testing.T) {
+	s, _ := newTestSupervisor(t)
+	s.policy = NewRestartPolicy(10, 10*time.Second, 3*time.Second)
+
+	started := make(chan struct{}, 1)
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		HealthFn: func() string { return "down" },
+		StartFn: func(ctx context.Context) error {
+			select {
+			case started <- struct{}{}:
+			default:
+			}
+			return nil
+		},
+	})
+
+	begin := time.Now()
+	s.tick(context.Background())
+	if elapsed := time.Since(begin); elapsed > 300*time.Millisecond {
+		t.Fatalf("tick blocked on restart delay: elapsed=%s", elapsed)
+	}
+
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("expected async restart to run after backoff delay")
+	}
+}
+
+func TestTickEntersCooldownWhenRestartCountReachesMax(t *testing.T) {
+	s, _ := newTestSupervisor(t)
+	s.policy = NewRestartPolicy(1, 30*time.Second, 2*time.Second)
+
+	started := make(chan struct{}, 1)
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		HealthFn: func() string { return "down" },
+		StartFn: func(ctx context.Context) error {
+			select {
+			case started <- struct{}{}:
+			default:
+			}
+			return nil
+		},
+	})
+
+	s.tick(context.Background())
+	if !s.policy.InCooldown("", time.Now()) {
+		t.Fatal("expected global cooldown when restart count reaches max")
+	}
+
+	select {
+	case <-started:
+		t.Fatal("restart should be skipped once max threshold is reached")
+	case <-time.After(1200 * time.Millisecond):
+	}
+}
+
+func TestMaybeUpgradeForSHADriftEntersCooldownAtThreshold(t *testing.T) {
+	s, dir := newTestSupervisor(t)
+	s.policy = NewRestartPolicy(1, 30*time.Second, 2*time.Second)
+
+	startCalled := false
+	shaFile := filepath.Join(dir, "main.sha")
+	if err := os.WriteFile(shaFile, []byte("oldsha"), 0o644); err != nil {
+		t.Fatalf("write main sha file: %v", err)
+	}
+
+	s.RegisterComponent(&Component{
+		Name:     "main",
+		SHAFile:  shaFile,
+		HealthFn: func() string { return "healthy" },
+		StartFn: func(ctx context.Context) error {
+			startCalled = true
+			return nil
+		},
+	})
+
+	s.loopState.MainSHA = "newsha"
+	s.maybeUpgradeForSHADrift(context.Background())
+
+	if startCalled {
+		t.Fatal("upgrade restart should be skipped when threshold is reached")
+	}
+	if !s.policy.InCooldown("main", time.Now()) {
+		t.Fatal("expected per-component cooldown for upgrade threshold")
 	}
 }

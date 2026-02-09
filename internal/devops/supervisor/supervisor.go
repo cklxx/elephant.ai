@@ -200,12 +200,10 @@ func (s *Supervisor) tick(ctx context.Context) {
 			continue
 		}
 
-		if !s.policy.ShouldRestart(comp.Name, now) {
-			if s.policy.InCooldown(comp.Name, now) {
-				s.autofix.TryTrigger(comp.Name,
-					fmt.Sprintf("restart storm: %s", comp.Name),
-					s.loopState.MainSHA)
-			}
+		if s.policy.InCooldown(comp.Name, now) {
+			s.autofix.TryTrigger(comp.Name,
+				fmt.Sprintf("restart storm: %s", comp.Name),
+				s.loopState.MainSHA)
 			continue
 		}
 
@@ -217,7 +215,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 		}
 
 		count := s.policy.RecordRestart(comp.Name)
-		if count > s.policy.MaxInWindow {
+		if count >= s.policy.MaxInWindow {
 			s.policy.EnterCooldown("")
 			s.logger.Warn("restart storm detected, entering cooldown",
 				"component", comp.Name,
@@ -242,17 +240,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 			"attempt", s.failCounts[comp.Name],
 			"window_count", count)
 
-		time.Sleep(time.Duration(delay) * time.Second)
-
-		if err := comp.StartFn(ctx); err != nil {
-			s.logger.Error("restart failed",
-				"component", comp.Name,
-				"error", err)
-		} else {
-			s.failCounts[comp.Name] = 0
-			s.logger.Info("restart succeeded", "component", comp.Name)
-		}
-		mu.Unlock()
+		s.restartComponentAfterDelay(ctx, comp, mu, time.Duration(delay)*time.Second)
 	}
 
 	// 3. SHA drift auto-upgrade
@@ -339,7 +327,7 @@ func (s *Supervisor) maybeUpgradeForSHADrift(ctx context.Context) {
 
 		// SHA differs — record restart and check limits
 		count := s.policy.RecordRestart(comp.Name)
-		if count > s.policy.MaxInWindow {
+		if count >= s.policy.MaxInWindow {
 			s.policy.EnterCooldown(comp.Name)
 			s.logger.Warn("upgrade storm detected, entering cooldown",
 				"component", comp.Name,
@@ -428,6 +416,32 @@ func (s *Supervisor) needsRestart(name, healthState string) bool {
 	default:
 		return healthState == "down"
 	}
+}
+
+func (s *Supervisor) restartComponentAfterDelay(ctx context.Context, comp *Component, mu *sync.Mutex, delay time.Duration) {
+	go func() {
+		defer mu.Unlock()
+
+		if delay > 0 {
+			timer := time.NewTimer(delay)
+			defer timer.Stop()
+
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+			}
+		}
+
+		if err := comp.StartFn(ctx); err != nil {
+			s.logger.Error("restart failed",
+				"component", comp.Name,
+				"error", err)
+			return
+		}
+
+		s.logger.Info("restart succeeded", "component", comp.Name)
+	}()
 }
 
 func (s *Supervisor) stopAll(ctx context.Context) {
