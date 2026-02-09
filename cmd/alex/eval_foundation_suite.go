@@ -33,12 +33,16 @@ func (c *CLI) runFoundationSuiteEvaluation(args []string) error {
 	}
 
 	log.Printf(
-		"Foundation suite summary: collections %s passed, cases %s passed, avg overall %.1f, avg top-1 %.1f%%, avg top-k %.1f%%, failed cases %d, availability errors %d, duration %dms, throughput %.2f cases/s, case p95/p99 %.3f/%.3f ms",
+		"Foundation suite summary: collections %s passed, cases %s passed, pass@1 %d/%d (avg %.1f%%), pass@5 %d/%d (avg %.1f%%), avg overall %.1f, failed cases %d, availability errors %d, duration %dms, throughput %.2f cases/s, case p95/p99 %.3f/%.3f ms",
 		result.CollectionPassRatio,
 		result.CasePassRatio,
+		result.PassAt1Cases,
+		result.ApplicableCases,
+		result.AveragePassAt1Rate*100,
+		result.PassAt5Cases,
+		result.ApplicableCases,
+		result.AveragePassAt5Rate*100,
 		result.AverageOverallScore,
-		result.AverageTop1HitRate*100,
-		result.AverageTopKHitRate*100,
 		result.FailedCases,
 		result.AvailabilityErrors,
 		result.TotalDurationMs,

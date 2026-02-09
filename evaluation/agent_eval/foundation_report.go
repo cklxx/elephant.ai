@@ -14,7 +14,7 @@ func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
 	b.WriteString(fmt.Sprintf("- Generated At (UTC): `%s`\n", result.GeneratedAt.Format("2006-01-02 15:04:05")))
 	b.WriteString(fmt.Sprintf("- Mode/Preset/Toolset: `%s / %s / %s`\n", result.Mode, result.Preset, result.Toolset))
 	b.WriteString(fmt.Sprintf("- Scenario Set: `%s`\n", result.CasesPath))
-	b.WriteString(fmt.Sprintf("- Top-K: `%d`\n\n", result.TopK))
+	b.WriteString(fmt.Sprintf("- Top-K (legacy pass cutoff): `%d`\n\n", result.TopK))
 
 	b.WriteString("## Executive Summary\n\n")
 	b.WriteString("| Dimension | Score |\n")
@@ -22,7 +22,8 @@ func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
 	b.WriteString(fmt.Sprintf("| Prompt Quality | %.1f |\n", result.Prompt.AverageScore))
 	b.WriteString(fmt.Sprintf("| Tool Usability | %.1f |\n", result.Tools.AverageUsability))
 	b.WriteString(fmt.Sprintf("| Tool Discoverability | %.1f |\n", result.Tools.AverageDiscoverability))
-	b.WriteString(fmt.Sprintf("| Implicit Tool-Use (Top-%d hit rate) | %.1f%% |\n", result.TopK, result.Implicit.TopKHitRate*100))
+	b.WriteString(fmt.Sprintf("| Implicit Tool-Use (pass@1) | %.1f%% |\n", result.Implicit.PassAt1Rate*100))
+	b.WriteString(fmt.Sprintf("| Implicit Tool-Use (pass@5) | %.1f%% |\n", result.Implicit.PassAt5Rate*100))
 	b.WriteString(fmt.Sprintf("| Overall | **%.1f** |\n\n", result.OverallScore))
 	b.WriteString("| Metric | Value |\n")
 	b.WriteString("|---|---:|\n")
@@ -107,15 +108,21 @@ func buildFoundationMarkdownReport(result *FoundationEvaluationResult) string {
 
 	b.WriteString("## Implicit Tool-Use Readiness\n\n")
 	b.WriteString(fmt.Sprintf("- Total scenarios: %d\n", result.Implicit.TotalCases))
-	b.WriteString(fmt.Sprintf("- Passed (Top-%d): %d/%d\n", result.TopK, result.Implicit.PassedCases, result.Implicit.TotalCases))
+	b.WriteString(fmt.Sprintf("- Applicable scenarios: %d\n", result.Implicit.ApplicableCases))
+	b.WriteString(fmt.Sprintf("- N/A scenarios (unavailable tools): %d\n", result.Implicit.NotApplicableCases))
+	b.WriteString(fmt.Sprintf("- Passed (Top-%d legacy): %d/%d\n", result.TopK, result.Implicit.PassedCases, result.Implicit.ApplicableCases))
 	b.WriteString(fmt.Sprintf("- Failed: %d\n", result.Implicit.FailedCases))
-	b.WriteString(fmt.Sprintf("- Top-1 hit rate: %.1f%%\n", result.Implicit.Top1HitRate*100))
-	b.WriteString(fmt.Sprintf("- Top-%d hit rate: %.1f%%\n", result.TopK, result.Implicit.TopKHitRate*100))
+	b.WriteString(fmt.Sprintf("- pass@1: %d/%d (%.1f%%)\n", result.Implicit.PassAt1Cases, result.Implicit.ApplicableCases, result.Implicit.PassAt1Rate*100))
+	b.WriteString(fmt.Sprintf("- pass@5: %d/%d (%.1f%%)\n", result.Implicit.PassAt5Cases, result.Implicit.ApplicableCases, result.Implicit.PassAt5Rate*100))
+	b.WriteString(fmt.Sprintf("- Top-%d hit rate (legacy): %.1f%%\n", result.TopK, result.Implicit.TopKHitRate*100))
 	b.WriteString(fmt.Sprintf("- MRR: %.3f\n\n", result.Implicit.MRR))
 
 	failedCases := make([]FoundationCaseResult, 0, result.Implicit.FailedCases)
 	successCases := make([]FoundationCaseResult, 0, result.Implicit.PassedCases)
 	for _, c := range result.Implicit.CaseResults {
+		if c.NotApplicable {
+			continue
+		}
 		if c.Passed {
 			successCases = append(successCases, c)
 		} else {

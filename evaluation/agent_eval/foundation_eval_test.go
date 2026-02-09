@@ -111,7 +111,7 @@ func TestEvaluateImplicitCasesComputesTopK(t *testing.T) {
 			ID:            "fail-case",
 			Category:      "visual",
 			Intent:        "Render architecture as a picture",
-			ExpectedTools: []string{"diagram_render"},
+			ExpectedTools: []string{"web_search"},
 		},
 	}
 	profiles := []foundationToolProfile{
@@ -138,6 +138,45 @@ func TestEvaluateImplicitCasesComputesTopK(t *testing.T) {
 	}
 	if summary.FailedCases != 1 {
 		t.Fatalf("expected 1 failed case, got %d", summary.FailedCases)
+	}
+	if summary.PassAt1Rate <= 0 || summary.PassAt5Rate <= 0 {
+		t.Fatalf("expected non-zero pass@ rates, got pass@1=%.3f pass@5=%.3f", summary.PassAt1Rate, summary.PassAt5Rate)
+	}
+}
+
+func TestEvaluateImplicitCasesAvailabilityMarkedNA(t *testing.T) {
+	t.Parallel()
+
+	scenarios := []FoundationScenario{
+		{
+			ID:            "na-case",
+			Category:      "availability",
+			Intent:        "Need a tool that is unavailable in this runtime.",
+			ExpectedTools: []string{"nonexistent_tool"},
+		},
+	}
+	profiles := []foundationToolProfile{
+		{
+			Definition:   ports.ToolDefinition{Name: "plan"},
+			TokenWeights: map[string]float64{"plan": 2},
+		},
+	}
+
+	summary := evaluateImplicitCases(scenarios, profiles, 3)
+	if summary.TotalCases != 1 {
+		t.Fatalf("expected total cases 1, got %d", summary.TotalCases)
+	}
+	if summary.ApplicableCases != 0 {
+		t.Fatalf("expected applicable cases 0, got %d", summary.ApplicableCases)
+	}
+	if summary.NotApplicableCases != 1 {
+		t.Fatalf("expected N/A cases 1, got %d", summary.NotApplicableCases)
+	}
+	if summary.FailedCases != 0 {
+		t.Fatalf("expected failed cases 0 for N/A scenario, got %d", summary.FailedCases)
+	}
+	if len(summary.CaseResults) != 1 || !summary.CaseResults[0].NotApplicable {
+		t.Fatalf("expected case marked NotApplicable, got %+v", summary.CaseResults)
 	}
 }
 
@@ -295,7 +334,7 @@ func TestRankToolsForIntentCriticalFoundationCases(t *testing.T) {
 	}
 }
 
-func TestEvaluateImplicitCasesMarksAvailabilityFailure(t *testing.T) {
+func TestEvaluateImplicitCasesMarksAvailabilityAsNotApplicable(t *testing.T) {
 	t.Parallel()
 	scenarios := []FoundationScenario{
 		{
@@ -315,15 +354,15 @@ func TestEvaluateImplicitCasesMarksAvailabilityFailure(t *testing.T) {
 	}
 
 	summary := evaluateImplicitCases(scenarios, profiles, 3)
-	if summary.TotalCases != 1 || summary.FailedCases != 1 {
-		t.Fatalf("expected one failed case, got %+v", summary)
+	if summary.TotalCases != 1 || summary.NotApplicableCases != 1 || summary.FailedCases != 0 {
+		t.Fatalf("expected one N/A case and zero failed cases, got %+v", summary)
 	}
 	result := summary.CaseResults[0]
 	if result.FailureType != "availability_error" {
 		t.Fatalf("expected availability_error, got %q", result.FailureType)
 	}
-	if result.Passed {
-		t.Fatalf("expected failed result when expected tool is unavailable")
+	if !result.NotApplicable {
+		t.Fatalf("expected NotApplicable result when expected tool is unavailable")
 	}
 }
 

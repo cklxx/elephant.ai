@@ -108,8 +108,14 @@ type FoundationToolScore struct {
 // FoundationImplicitSummary contains scenario-based implicit tool readiness.
 type FoundationImplicitSummary struct {
 	TotalCases               int                    `json:"total_cases"`
+	ApplicableCases          int                    `json:"applicable_cases"`
+	NotApplicableCases       int                    `json:"not_applicable_cases"`
 	PassedCases              int                    `json:"passed_cases"`
 	FailedCases              int                    `json:"failed_cases"`
+	PassAt1Cases             int                    `json:"pass_at_1_cases"`
+	PassAt5Cases             int                    `json:"pass_at_5_cases"`
+	PassAt1Rate              float64                `json:"pass_at_1_rate"`
+	PassAt5Rate              float64                `json:"pass_at_5_rate"`
 	Top1HitRate              float64                `json:"top1_hit_rate"`
 	TopKHitRate              float64                `json:"topk_hit_rate"`
 	MRR                      float64                `json:"mrr"`
@@ -131,6 +137,7 @@ type FoundationCaseResult struct {
 	TopMatches       []FoundationToolMatch `json:"top_matches"`
 	HitRank          int                   `json:"hit_rank"`
 	Passed           bool                  `json:"passed"`
+	NotApplicable    bool                  `json:"not_applicable,omitempty"`
 	FailureType      string                `json:"failure_type,omitempty"`
 	Reason           string                `json:"reason"`
 	RoutingLatencyMs float64               `json:"routing_latency_ms"`
@@ -216,7 +223,7 @@ func RunFoundationEvaluation(ctx context.Context, options *FoundationEvaluationO
 		0.25*(promptSummary.AverageScore/100.0)+
 			0.30*(toolSummary.AverageUsability/100.0)+
 			0.20*(toolSummary.AverageDiscoverability/100.0)+
-			0.25*implicitSummary.TopKHitRate,
+			0.25*implicitSummary.PassAt5Rate,
 	) * 100
 
 	result := &FoundationEvaluationResult{
@@ -698,8 +705,10 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 		profilesByName[profile.Definition.Name] = profile
 	}
 
-	top1Hits := 0
+	passAt1Hits := 0
+	passAt5Hits := 0
 	topKHits := 0
+	notApplicableCases := 0
 	mrr := 0.0
 
 	for _, scenario := range scenarios {
@@ -735,22 +744,12 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 			break
 		}
 
-		topMatches := topToolMatches(ranked, topK)
-		passed := hitRank > 0 && hitRank <= topK
-		if hitRank == 1 {
-			top1Hits++
-		}
-		if passed {
-			topKHits++
-		}
-		if hitRank > 0 {
-			mrr += 1.0 / float64(hitRank)
-		}
-
 		failureType := ""
 		reason := ""
+		notApplicable := false
 		if len(expectedAvailable) == 0 {
 			failureType = "availability_error"
+			notApplicable = true
 			reason = "expected tools unavailable in active mode/preset/toolset: " + strings.Join(expectedMissing, ", ")
 		} else if hitRank == 0 {
 			failureType = "no_overlap"
@@ -780,6 +779,24 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 				reason += fmt.Sprintf(" | additionally unavailable: %s", strings.Join(expectedMissing, ", "))
 			}
 		}
+		topMatches := topToolMatches(ranked, topK)
+		passed := !notApplicable && hitRank > 0 && hitRank <= topK
+		if notApplicable {
+			notApplicableCases++
+		} else {
+			if hitRank == 1 {
+				passAt1Hits++
+			}
+			if hitRank > 0 && hitRank <= 5 {
+				passAt5Hits++
+			}
+			if passed {
+				topKHits++
+			}
+			if hitRank > 0 {
+				mrr += 1.0 / float64(hitRank)
+			}
+		}
 
 		results = append(results, FoundationCaseResult{
 			ID:               scenario.ID,
@@ -789,6 +806,7 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 			TopMatches:       topMatches,
 			HitRank:          hitRank,
 			Passed:           passed,
+			NotApplicable:    notApplicable,
 			FailureType:      failureType,
 			Reason:           strings.TrimSpace(reason),
 			RoutingLatencyMs: round3(float64(time.Since(caseStart).Microseconds()) / 1000.0),
@@ -818,7 +836,9 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 	if total == 0 {
 		return FoundationImplicitSummary{}
 	}
-	failed := total - topKHits
+	applicable := total - notApplicableCases
+	failed := applicable - topKHits
+	denominator := float64(maxInt(applicable, 1))
 	totalEvalMs := float64(time.Since(evalStart).Microseconds()) / 1000.0
 	avgLatency := 0.0
 	for _, latency := range latencies {
@@ -830,11 +850,17 @@ func evaluateImplicitCases(scenarios []FoundationScenario, profiles []foundation
 
 	return FoundationImplicitSummary{
 		TotalCases:               total,
+		ApplicableCases:          applicable,
+		NotApplicableCases:       notApplicableCases,
 		PassedCases:              topKHits,
 		FailedCases:              failed,
-		Top1HitRate:              round3(float64(top1Hits) / float64(total)),
-		TopKHitRate:              round3(float64(topKHits) / float64(total)),
-		MRR:                      round3(mrr / float64(total)),
+		PassAt1Cases:             passAt1Hits,
+		PassAt5Cases:             passAt5Hits,
+		PassAt1Rate:              round3(float64(passAt1Hits) / denominator),
+		PassAt5Rate:              round3(float64(passAt5Hits) / denominator),
+		Top1HitRate:              round3(float64(passAt1Hits) / denominator),
+		TopKHitRate:              round3(float64(topKHits) / denominator),
+		MRR:                      round3(mrr / denominator),
 		TotalEvaluationLatencyMs: int64(math.Round(totalEvalMs)),
 		AverageCaseLatencyMs:     round3(avgLatency),
 		CaseLatencyP50Ms:         round3(percentileFloat(latencies, 50)),
@@ -1094,10 +1120,10 @@ func buildFoundationRecommendations(prompt FoundationPromptSummary, tools Founda
 	if tools.AverageDiscoverability < 80 {
 		recs = append(recs, "Tool discoverability: improve descriptions with action verbs + domain nouns (who/what/when output) to reduce ambiguity.")
 	}
-	if implicit.TopKHitRate < 0.85 {
+	if implicit.PassAt5Rate < 0.85 {
 		recs = append(recs, "Implicit tool use: add intent aliases/synonyms to tool descriptions for weakly matched categories.")
 	}
-	if implicit.Top1HitRate < 0.7 {
+	if implicit.PassAt1Rate < 0.7 {
 		recs = append(recs, "Ranking precision: clarify overlapping tools by emphasizing differentiators (selector vs coordinate, search vs fetch, etc.).")
 	}
 	if availabilityErrors := countFailureType(implicit.CaseResults, "availability_error"); availabilityErrors > 0 {
@@ -1117,7 +1143,7 @@ func buildFoundationRecommendations(prompt FoundationPromptSummary, tools Founda
 	}
 
 	if len(recs) == 0 {
-		recs = append(recs, "Baseline quality is stable; next step is raising Top-1 precision on ambiguous intents.")
+		recs = append(recs, "Baseline quality is stable; next step is raising pass@1 precision on ambiguous intents.")
 	}
 	return uniqueNonEmptyStrings(recs)
 }
@@ -1423,6 +1449,13 @@ func round2(v float64) float64 {
 
 func round3(v float64) float64 {
 	return math.Round(v*1000) / 1000
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 func percentileFloat(values []float64, percentile float64) float64 {

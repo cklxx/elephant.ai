@@ -199,6 +199,9 @@ func TestBuildFoundationSuiteMarkdownReportIncludesPassRatios(t *testing.T) {
 	if !strings.Contains(report, "5/6") {
 		t.Fatalf("expected per-collection x/x ratio in report, got: %s", report)
 	}
+	if !strings.Contains(report, "pass@1") || !strings.Contains(report, "pass@5") {
+		t.Fatalf("expected pass@ metrics in suite report, got: %s", report)
+	}
 }
 
 func writeCaseSet(t *testing.T, path, caseID, intent, expectedTool string) {
