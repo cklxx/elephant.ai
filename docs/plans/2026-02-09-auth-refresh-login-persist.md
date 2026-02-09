@@ -10,7 +10,7 @@
 3. [x] 以最小改动修复会话持久化/刷新链路。
 4. [x] 补充或更新测试（TDD），覆盖刷新保持登录场景。
 5. [x] 执行 lint + tests，记录结果与残留风险。
-6. [ ] 更新计划和经验记录，提交并合并回 `main`。
+6. [x] 更新计划和经验记录，提交并合并回 `main`。
 
 ## 进度记录
 - 2026-02-09 00:55：创建计划，开始定位 auth 刷新链路。
@@ -28,3 +28,4 @@
   - ⚠️ `go test ./...` 既有失败：`internal/shared/config TestNoUnapprovedGetenv`
   - ⚠️ `cd web && pnpm lint` 既有 warning-as-error（`app/dev/log-analyzer/page.tsx`）
   - ⚠️ `cd web && pnpm test` 既有构建失败（缺少 markdown 相关依赖：`rehype-*`, `remark-gfm`）
+- 2026-02-09 10:40：已完成 3 个增量提交并 rebase 后 fast-forward 合并回 `main`；临时 worktree 已移除。
