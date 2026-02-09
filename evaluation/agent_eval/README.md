@@ -78,7 +78,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Collections: `19/19`
 - Cases: `505/505`
 - Applicable Cases: `505/505`（N/A 单独统计，不计失败）
-- pass@1: `390/505`
+- pass@1: `398/505`
 - pass@5: `505/505`
 - Deliverable Cases: `32/505`
 - Deliverable Good: `23/32`
