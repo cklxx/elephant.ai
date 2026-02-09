@@ -11,6 +11,7 @@ type backgroundEventSink struct {
 	emitEvent      func(agent.AgentEvent)
 	baseEvent      func(context.Context) domain.BaseEvent
 	parentListener agent.EventListener
+	notifyParent   func(event agent.AgentEvent) // direct bypass for completion events
 }
 
 type backgroundEventSinkKey struct{}

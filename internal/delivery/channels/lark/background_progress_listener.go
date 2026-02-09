@@ -163,6 +163,11 @@ func (l *backgroundProgressListener) OnEvent(event agent.AgentEvent) {
 	switch e := event.(type) {
 	case *domain.WorkflowEventEnvelope:
 		l.onEnvelope(e)
+	case *domain.BackgroundTaskCompletedEvent:
+		// Direct bypass path: BackgroundTaskManager sends completion events
+		// directly here when the SerializingEventListener queue may be dead.
+		// Dedup is safe: getTask returns nil after the first handler deletes the task.
+		l.onRawCompleted(e)
 	}
 }
 
@@ -353,6 +358,26 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 	if taskID == "" {
 		taskID = strings.TrimSpace(env.NodeID)
 	}
+	status := strings.TrimSpace(asString(env.Payload["status"]))
+	answer := asString(env.Payload["answer"])
+	errText := asString(env.Payload["error"])
+	tokensUsed := asInt(env.Payload["tokens_used"])
+	l.handleCompletion(taskID, status, answer, errText, tokensUsed)
+}
+
+// onRawCompleted handles BackgroundTaskCompletedEvent delivered directly by
+// BackgroundTaskManager (bypassing SerializingEventListener). Dedup is safe
+// because getTask returns nil after the first handler deletes the task.
+func (l *backgroundProgressListener) onRawCompleted(e *domain.BackgroundTaskCompletedEvent) {
+	if e == nil {
+		return
+	}
+	l.handleCompletion(e.TaskID, e.Status, e.Answer, e.Error, e.TokensUsed)
+}
+
+// handleCompletion is the shared completion handler for both envelope and raw event paths.
+func (l *backgroundProgressListener) handleCompletion(taskID, status, answer, errText string, tokensUsed int) {
+	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
 		return
 	}
@@ -362,9 +387,7 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 		return
 	}
 
-	status := strings.TrimSpace(asString(env.Payload["status"]))
-	answer := asString(env.Payload["answer"])
-	errText := asString(env.Payload["error"])
+	status = strings.TrimSpace(status)
 
 	t.mu.Lock()
 	if status != "" {
@@ -393,6 +416,9 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 	}
 	if answer != "" {
 		updateOpts = append(updateOpts, WithAnswerPreview(truncateForLark(answer, 1500)))
+	}
+	if tokensUsed > 0 {
+		updateOpts = append(updateOpts, WithTokensUsed(tokensUsed))
 	}
 	l.syncTaskStatus(taskID, finalStatus, updateOpts...)
 

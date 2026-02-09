@@ -29,6 +29,7 @@ type backgroundTask struct {
 	emitEvent      func(agent.AgentEvent)
 	baseEvent      func(context.Context) domain.BaseEvent
 	parentListener agent.EventListener
+	notifyParent   func(event agent.AgentEvent) // direct bypass for completion events
 
 	progress         *agent.ExternalAgentProgress
 	pendingInput     *agent.InputRequestSummary
@@ -279,6 +280,7 @@ func (m *BackgroundTaskManager) Dispatch(
 		emitEvent:      sink.emitEvent,
 		baseEvent:      sink.baseEvent,
 		parentListener: sink.parentListener,
+		notifyParent:   sink.notifyParent,
 		dependsOn:      append([]string(nil), req.DependsOn...),
 		inheritContext: req.InheritContext,
 		fileScope:      append([]string(nil), req.FileScope...),
@@ -760,7 +762,7 @@ func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *bac
 		}
 	}
 
-	bt.emitEvent(&domain.BackgroundTaskCompletedEvent{
+	completedEvent := &domain.BackgroundTaskCompletedEvent{
 		BaseEvent:   bt.baseEvent(ctx),
 		TaskID:      bt.id,
 		Description: description,
@@ -770,7 +772,16 @@ func (m *BackgroundTaskManager) emitCompletionEvent(ctx context.Context, bt *bac
 		Duration:    duration,
 		Iterations:  iterations,
 		TokensUsed:  tokensUsed,
-	})
+	}
+
+	// 1. Normal chain (may fail if SerializingEventListener queue timed out).
+	bt.emitEvent(completedEvent)
+
+	// 2. Direct parent notification — bypasses SerializingEventListener so
+	//    completion is delivered even when the queue has been idle-closed.
+	if bt.notifyParent != nil {
+		bt.notifyParent(completedEvent)
+	}
 }
 
 func (m *BackgroundTaskManager) buildContextEnrichedPrompt(bt *backgroundTask) string {
@@ -931,6 +942,9 @@ func resolveBackgroundEventSink(ctx context.Context, fallback backgroundEventSin
 	}
 	if sink.parentListener == nil {
 		sink.parentListener = fallback.parentListener
+	}
+	if sink.notifyParent == nil {
+		sink.notifyParent = fallback.notifyParent
 	}
 	return sink
 }
