@@ -431,6 +431,7 @@ func TestHandleMessageSetsUserIDOnContext(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedCtx == nil {
 		t.Fatal("expected ExecuteTask to be called")
@@ -483,6 +484,7 @@ func TestHandleMessageSessionHistoryEnabled(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedCtx == nil {
 		t.Fatal("expected ExecuteTask to be called")
@@ -531,6 +533,7 @@ func TestHandleMessagePostContent(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedTask == "" {
 		t.Fatal("expected post content to be extracted")
@@ -628,6 +631,7 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	policy, ok := appcontext.MemoryPolicyFromContext(executor.capturedCtx)
 	if !ok {
@@ -678,6 +682,7 @@ func TestHandleMessageCreatesNewSessionPerMessage(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	firstSessionID := executor.capturedSessionID
 	if firstSessionID == "" || !strings.HasPrefix(firstSessionID, "lark-") {
@@ -704,6 +709,7 @@ func TestHandleMessageCreatesNewSessionPerMessage(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event2); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	secondSessionID := executor.capturedSessionID
 	if secondSessionID == "" || !strings.HasPrefix(secondSessionID, "lark-") {
@@ -759,6 +765,7 @@ func TestHandleMessageReusesAwaitingSession(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 	firstSessionID := executor.capturedSessionID
 	if firstSessionID == "" {
 		t.Fatal("expected first session id")
@@ -784,6 +791,7 @@ func TestHandleMessageReusesAwaitingSession(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event2); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 	secondSessionID := executor.capturedSessionID
 	if secondSessionID != firstSessionID {
 		t.Fatalf("expected awaiting session reuse (%q), got %q", firstSessionID, secondSessionID)
@@ -869,6 +877,7 @@ func TestHandleMessageDropsInFlightFollowUpWhenRunCompletes(t *testing.T) {
 
 	close(executor.finish)
 	wg.Wait()
+	gw.WaitForTasks()
 
 	time.Sleep(100 * time.Millisecond)
 	executor.mu.Lock()
@@ -958,6 +967,7 @@ func TestHandleMessageDropsInFlightFollowUpForGroupChat(t *testing.T) {
 
 	close(executor.finish)
 	wg.Wait()
+	gw.WaitForTasks()
 
 	time.Sleep(100 * time.Millisecond)
 	executor.mu.Lock()
@@ -1048,6 +1058,7 @@ func TestHandleMessageReprocessesInFlightFollowUpWhenAwaitingInput(t *testing.T)
 
 	close(executor.finish)
 	wg.Wait()
+	gw.WaitForTasks()
 
 	deadline := time.After(2 * time.Second)
 	ticker := time.NewTicker(10 * time.Millisecond)
@@ -1105,6 +1116,7 @@ func TestHandleMessageDefaultsToolPresetFull(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	presetRaw := executor.capturedCtx.Value(appcontext.PresetContextKey{})
 	preset, ok := presetRaw.(appcontext.PresetConfig)
@@ -1165,6 +1177,7 @@ func TestHandleMessageInjectsPlanFeedback(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 	if executor.capturedTask == "" {
 		t.Fatal("expected ExecuteTask to be called")
 	}
@@ -1224,6 +1237,7 @@ func TestHandleMessageSavesPlanReviewPendingOnAwaitUserInput(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 	if len(store.saved) != 1 {
 		t.Fatalf("expected pending save, got %d", len(store.saved))
 	}
@@ -1287,6 +1301,7 @@ func TestHandleMessageAwaitUserInputRepliesWithQuestion(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	calls := recorder.CallsByMethod("ReplyMessage")
 	if len(calls) == 0 {
@@ -1360,6 +1375,7 @@ func TestHandleMessageAwaitUserInputRepliesWithNumberedOptions(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	calls := recorder.CallsByMethod("ReplyMessage")
 	if len(calls) == 0 {
@@ -1421,6 +1437,7 @@ func TestHandleMessageSeedsPendingUserInput(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedTask != "" {
 		t.Fatalf("expected empty task when pending user input, got %q", executor.capturedTask)
@@ -1486,6 +1503,7 @@ func TestHandleMessageSendsPlanReviewTextWhenEnabled(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	calls := recorder.CallsByMethod("ReplyMessage")
 	if len(calls) == 0 {
@@ -1551,6 +1569,7 @@ func TestHandleMessageSendsTextResultReply(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	calls := recorder.CallsByMethod("ReplyMessage")
 	if len(calls) == 0 {
@@ -1624,6 +1643,7 @@ func TestHandleMessageSendsTextReplyWithAttachments(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	// Expect a text reply followed by separate image/file attachment dispatches.
 	replyCalls := recorder.CallsByMethod("ReplyMessage")
@@ -1692,6 +1712,7 @@ func TestHandleMessageResetCommand(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if !executor.resetCalled {
 		t.Fatal("expected ResetSession to be called")
@@ -1748,6 +1769,7 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event1); err != nil {
 		t.Fatalf("handleMessage(/model use) failed: %v", err)
 	}
+	gw.WaitForTasks()
 	if executor.capturedCtx != nil {
 		t.Fatalf("expected /model command to skip ExecuteTask")
 	}
@@ -1770,6 +1792,7 @@ func TestHandleMessageModelCommandPinsSelection(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event2); err != nil {
 		t.Fatalf("handleMessage(task) failed: %v", err)
 	}
+	gw.WaitForTasks()
 	if executor.capturedCtx == nil {
 		t.Fatalf("expected task to call ExecuteTask")
 	}
@@ -1843,6 +1866,7 @@ func TestHandleMessageModelListUsesTextReply(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage(/model list) failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	calls := recorder.CallsByMethod("ReplyMessage")
 	if len(calls) == 0 {
@@ -1914,6 +1938,7 @@ func TestHandleMessageAIChatAdvancesSingleTurn(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	info, exists := gw.aiCoordinator.GetSessionInfo(chatID)
 	if !exists {
@@ -1976,6 +2001,7 @@ func TestHandleMessageNaturalTaskStatusQueryUsesTaskList(t *testing.T) {
 	if err := gw.handleMessage(context.Background(), event); err != nil {
 		t.Fatalf("handleMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 	if executor.capturedCtx != nil {
 		t.Fatalf("expected status query to skip ExecuteTask")
 	}
@@ -2099,6 +2125,7 @@ func TestHandleMessageNaturalTaskStatusQueryBypassesInFlightInjection(t *testing
 
 	close(executor.finish)
 	wg.Wait()
+	gw.WaitForTasks()
 }
 
 // --- test helpers ---

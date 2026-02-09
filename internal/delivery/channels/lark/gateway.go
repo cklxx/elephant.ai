@@ -82,6 +82,7 @@ type Gateway struct {
 	activeSlots        sync.Map           // chatID → *sessionSlot
 	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
 	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
+	taskWG             sync.WaitGroup     // tracks running task goroutines (for tests)
 }
 
 type awaitQuestionTracker struct {
@@ -280,6 +281,12 @@ func (g *Gateway) Stop() {
 	// The Lark WS client is stopped by cancelling its context.
 }
 
+// WaitForTasks blocks until all in-flight task goroutines complete.
+// Intended for test synchronization only.
+func (g *Gateway) WaitForTasks() {
+	g.taskWG.Wait()
+}
+
 // incomingMessage holds the parsed fields from a Lark message event.
 type incomingMessage struct {
 	chatID              string
@@ -403,8 +410,15 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	slot.awaitingInput = false
 	slot.mu.Unlock()
 
-	awaitingInput := false
-	defer func() {
+	// Run the task asynchronously so the Lark SDK event handler returns
+	// immediately and can ACK the WS frame. Without this, long-running
+	// tasks delay the ACK, causing the Lark server to re-deliver the
+	// event and produce duplicate responses.
+	g.taskWG.Add(1)
+	go func() {
+		defer g.taskWG.Done()
+		awaitingInput := g.runNewTask(msg, sessionID, inputCh)
+
 		slot.mu.Lock()
 		slot.inputCh = nil
 		if awaitingInput {
@@ -421,8 +435,6 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 			g.discardPendingInputs(inputCh, msg.chatID)
 		}
 	}()
-
-	awaitingInput = g.runNewTask(msg, sessionID, inputCh)
 
 	return nil
 }
@@ -463,7 +475,7 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 
 	messageID := deref(raw.MessageId)
 	if messageID != "" && !opts.skipDedup && g.isDuplicateMessage(messageID) {
-		g.logger.Debug("Lark duplicate message skipped: %s", messageID)
+		g.logger.Warn("Lark duplicate message skipped (WS re-delivery): msg_id=%s", messageID)
 		return nil
 	}
 

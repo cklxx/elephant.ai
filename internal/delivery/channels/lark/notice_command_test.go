@@ -254,6 +254,7 @@ func TestHandleMessageNoticeCommandBypassesInFlightInjection(t *testing.T) {
 
 	close(executor.finish)
 	wg.Wait()
+	gw.WaitForTasks()
 }
 
 var _ agent.EventListener = agent.NoopEventListener{}

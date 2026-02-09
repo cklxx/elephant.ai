@@ -27,6 +27,7 @@ func TestInjectMessageBasicP2P(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedTask != "hello" {
 		t.Fatalf("expected task 'hello', got %q", executor.capturedTask)
@@ -55,6 +56,7 @@ func TestInjectMessageGroupChat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedTask != "question" {
 		t.Fatalf("expected task 'question', got %q", executor.capturedTask)
@@ -81,6 +83,7 @@ func TestInjectMessageTopicGroupChatTreatedAsGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedTask != "question" {
 		t.Fatalf("expected task 'question', got %q", executor.capturedTask)
@@ -107,6 +110,7 @@ func TestInjectMessageDefaultsChatType(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if executor.capturedTask != "test" {
 		t.Fatalf("expected task 'test', got %q", executor.capturedTask)
@@ -131,6 +135,7 @@ func TestInjectMessageDedup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 	if callCount != 1 {
 		t.Fatalf("expected 1 execute call, got %d", callCount)
 	}
@@ -140,6 +145,7 @@ func TestInjectMessageDedup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 	if callCount != 1 {
 		t.Fatalf("expected dedup to prevent second execute, got %d calls", callCount)
 	}
@@ -161,6 +167,7 @@ func TestInjectMessageWithReaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	// Wait briefly for async reactions.
 	time.Sleep(50 * time.Millisecond)
@@ -183,6 +190,7 @@ func TestInjectMessageResetCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("InjectMessage failed: %v", err)
 	}
+	gw.WaitForTasks()
 
 	if !executor.resetCalled {
 		t.Fatal("expected ResetSession to be called")
