@@ -1,0 +1,165 @@
+version: "1"
+name: "foundation-motivation-aware-proactivity"
+description: "Motivation-aware proactive routing across stage identification, autonomy safety, memory personalization, and action follow-through"
+scenarios:
+  - id: "motivation-low-energy-clarify"
+    category: "motivation_signal"
+    intent: "User sounds depleted and unsure where to start; ask one targeted clarification before acting."
+    expected_tools: ["clarify"]
+
+  - id: "motivation-overwhelmed-minimal-plan"
+    category: "motivation_signal"
+    intent: "User feels overwhelmed and asks for the smallest viable execution plan."
+    expected_tools: ["plan"]
+
+  - id: "motivation-burnout-recovery-block"
+    category: "motivation_signal"
+    intent: "User reports burnout and asks to create a protected recovery focus block on calendar."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "motivation-autonomy-consent-before-outreach"
+    category: "motivation_boundary"
+    intent: "User states no external outreach without approval; request explicit consent first."
+    expected_tools: ["request_user"]
+
+  - id: "motivation-conflict-reminders-vs-no-interruptions"
+    category: "motivation_conflict"
+    intent: "Requirements conflict between wanting reminders and avoiding interruptions; clarify the boundary."
+    expected_tools: ["clarify"]
+
+  - id: "motivation-focus-sprint-timer"
+    category: "motivation_proactivity"
+    intent: "Set a 25-minute focus sprint reminder to help user start immediately."
+    expected_tools: ["set_timer"]
+
+  - id: "motivation-list-current-reminders"
+    category: "motivation_proactivity"
+    intent: "List all active timers before setting new motivation reminders."
+    expected_tools: ["list_timers"]
+
+  - id: "motivation-stop-noise-reminders"
+    category: "motivation_boundary"
+    intent: "User asks to stop motivation nudges now; cancel the active reminder timer."
+    expected_tools: ["cancel_timer"]
+
+  - id: "motivation-daily-accountability-job"
+    category: "motivation_proactivity"
+    intent: "Create a recurring weekday accountability check-in scheduler job."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "motivation-followup-if-no-reply"
+    category: "motivation_proactivity"
+    intent: "Schedule an automatic follow-up only when no status reply arrives."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "motivation-prune-obsolete-checkin-job"
+    category: "motivation_proactivity"
+    intent: "Delete an obsolete motivation check-in scheduler job after workflow change."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "motivation-memory-recall-cadence"
+    category: "motivation_memory"
+    intent: "Use memory_search to recall the user's preferred reminder cadence before planning nudges."
+    expected_tools: ["memory_search"]
+
+  - id: "motivation-memory-open-evidence"
+    category: "motivation_memory"
+    intent: "Open exact memory lines that justify the selected motivation strategy."
+    expected_tools: ["memory_get"]
+
+  - id: "motivation-memory-style-then-message"
+    category: "motivation_memory"
+    intent: "Recall motivational tone preferences from memory before sending a Lark progress nudge."
+    expected_tools: ["memory_search", "lark_send_message"]
+
+  - id: "motivation-context-before-proactive-nudge"
+    category: "motivation_context"
+    intent: "Fetch recent Lark chat history before issuing a proactive motivation reminder."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "motivation-send-encouraging-checkin"
+    category: "motivation_proactivity"
+    intent: "Send a concise encouraging check-in message in the current Lark conversation."
+    expected_tools: ["lark_send_message"]
+
+  - id: "motivation-deadline-calendar-block"
+    category: "motivation_extrinsic"
+    intent: "Create a calendar event for a hard deadline work block to reinforce commitment."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "motivation-check-calendar-before-reschedule"
+    category: "motivation_extrinsic"
+    intent: "Query upcoming calendar commitments before rescheduling motivation checkpoints."
+    expected_tools: ["lark_calendar_query"]
+
+  - id: "motivation-commitment-task-create"
+    category: "motivation_extrinsic"
+    intent: "Create and assign a concrete task with owner and due date for accountability."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "motivation-task-batch-adjust-when-slip"
+    category: "motivation_extrinsic"
+    intent: "Batch update delayed accountability tasks before standup."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "motivation-okr-progress-log"
+    category: "motivation_extrinsic"
+    intent: "Write today's OKR progress update to maintain momentum visibility."
+    expected_tools: ["okr_write"]
+
+  - id: "motivation-reflect-previous-success-patterns"
+    category: "motivation_memory"
+    intent: "Search memory for previously successful motivation patterns before proposing next actions."
+    expected_tools: ["memory_search"]
+
+  - id: "motivation-sensitive-topic-confirmation"
+    category: "motivation_boundary"
+    intent: "Motivation advice involves sensitive personal context; request explicit user confirmation first."
+    expected_tools: ["request_user"]
+
+  - id: "motivation-progress-artifact-proof"
+    category: "motivation_feedback"
+    intent: "Generate a concise progress artifact so the user can see momentum and completed actions."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "Weekly motivation progress summary artifact"
+      artifact_required: true
+      required_evidence: ["report"]
+      required_file_types: ["md"]
+
+  - id: "motivation-send-downloadable-summary"
+    category: "motivation_feedback"
+    intent: "Provide a downloadable motivation progress summary attachment for user handoff."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "Downloadable weekly summary"
+      attachment_required: true
+      required_file_types: ["md"]
+
+  - id: "motivation-verify-deliverable-traceability"
+    category: "motivation_feedback"
+    intent: "Inspect artifact manifest to verify generated motivation deliverables and metadata."
+    expected_tools: ["artifact_manifest"]
+    deliverable:
+      output_description: "Traceability proof for motivation artifacts"
+      manifest_required: true
+
+  - id: "motivation-dashboard-payload-for-quick-reward"
+    category: "motivation_feedback"
+    intent: "Emit a structured progress dashboard payload to reinforce short-term reward signals."
+    expected_tools: ["a2ui_emit"]
+
+  - id: "motivation-ambiguous-reward-structure-clarify"
+    category: "motivation_signal"
+    intent: "User says nothing feels rewarding; ask one targeted clarification about preferred reward structure."
+    expected_tools: ["clarify"]
+
+  - id: "motivation-weekly-review-plan"
+    category: "motivation_signal"
+    intent: "Create a phased weekly review plan with checkpoints and rollback options."
+    expected_tools: ["plan"]
+
+  - id: "motivation-delay-reminder-during-meeting"
+    category: "motivation_boundary"
+    intent: "User is in a meeting and asks reminders to be delayed by 30 minutes; set a later timer."
+    expected_tools: ["set_timer"]
