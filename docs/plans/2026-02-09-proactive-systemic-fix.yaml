@@ -1,6 +1,6 @@
 title: Proactive Systemic Fix (Scheduler + Context Persona + Config Merge)
 created_at: 2026-02-09
-status: in-progress
+status: completed
 trigger: "Implement the approved systemic plan end-to-end"
 owner: codex
 branch: feat/proactive-systemic-fix-20260209
@@ -51,7 +51,7 @@ phases:
       - Fix P0/P1 findings and re-run validation
   - id: P5
     name: Commits and merge back
-    status: in-progress
+    status: completed
     tasks:
       - Create multiple incremental commits by change domain
       - Fast-forward merge to main
