@@ -29,7 +29,7 @@
 - [x] Re-run full suite and compare before/after.
 - [x] Update README/report/docs memory + good-experience records.
 - [x] Run full lint + tests.
-- [ ] Commit in incremental chunks and merge back to main.
+- [x] Commit in incremental chunks and merge back to main.
 
 ## Progress Log
 - 2026-02-09 15:20: Plan initialized, environment and memory loaded.
@@ -39,3 +39,4 @@
 - 2026-02-09 15:34: Applied targeted routing convergence on scheduler/path-content/artifact-trace conflicts with regression assertions.
 - 2026-02-09 15:34: Final run reached `25/25`, `pass@1=562/656`, `pass@5=656/656` (0 failed cases).
 - 2026-02-09 15:36: Full checks passed: `golangci-lint` + `make test`.
+- 2026-02-09 15:38: Committed in 3 incremental commits; ready for fast-forward merge to main.
