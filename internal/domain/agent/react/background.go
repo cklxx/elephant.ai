@@ -25,6 +25,9 @@ type backgroundTask struct {
 	result      *agent.TaskResult
 	err         error
 	taskCancel  context.CancelFunc // per-task cancel; nil until Dispatch runs the goroutine
+	// completionSignaled flips once signalCompletion is invoked. AwaitAll uses
+	// this to avoid returning before completion events are emitted.
+	completionSignaled bool
 
 	emitEvent      func(agent.AgentEvent)
 	baseEvent      func(context.Context) domain.BaseEvent
@@ -999,6 +1002,15 @@ func (m *BackgroundTaskManager) validateDependencies(taskID string, deps []strin
 }
 
 func (m *BackgroundTaskManager) signalCompletion(taskID string) {
+	m.mu.RLock()
+	bt := m.tasks[taskID]
+	m.mu.RUnlock()
+	if bt != nil {
+		bt.mu.Lock()
+		bt.completionSignaled = true
+		bt.mu.Unlock()
+	}
+
 	select {
 	case m.completions <- taskID:
 	default:
@@ -1072,9 +1084,15 @@ func (m *BackgroundTaskManager) awaitTasks(ids []string, timeout time.Duration) 
 		targets := m.resolveTargets(ids)
 		for _, bt := range targets {
 			bt.mu.Lock()
-			if bt.status == agent.BackgroundTaskStatusPending ||
-				bt.status == agent.BackgroundTaskStatusRunning ||
-				bt.status == agent.BackgroundTaskStatusBlocked {
+			status := bt.status
+			signaled := bt.completionSignaled
+			if status == agent.BackgroundTaskStatusPending ||
+				status == agent.BackgroundTaskStatusRunning ||
+				status == agent.BackgroundTaskStatusBlocked ||
+				(!signaled &&
+					(status == agent.BackgroundTaskStatusCompleted ||
+						status == agent.BackgroundTaskStatusFailed ||
+						status == agent.BackgroundTaskStatusCancelled)) {
 				allDone = false
 			}
 			bt.mu.Unlock()
