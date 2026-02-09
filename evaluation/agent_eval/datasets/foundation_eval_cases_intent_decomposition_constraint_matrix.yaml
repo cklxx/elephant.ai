@@ -1,99 +1,99 @@
 version: "1"
-name: "foundation-agent-optimization-hard-v3"
-description: "Hard conflict-rich cases for pass@1 optimization across consent gates, memory routing, messaging vs upload, and execution disambiguation"
+name: "foundation-intent-decomposition-constraint-matrix"
+description: "Systematic examination matrix for intent decomposition across consent gating, planning boundaries, memory retrieval, channel-action selection, source selection, execution mode, scheduling semantics, and deliverable routing"
 scenarios:
   - id: "opt-hard-consent-before-external-task-sync"
-    category: "agent_opt_hard"
+    category: "consent_gate_disambiguation"
     intent: "Policy says no external coordination until user confirms; ask for approval before creating or assigning any task."
     expected_tools: ["request_user"]
 
   - id: "opt-hard-sensitive-context-confirm-gate"
-    category: "agent_opt_hard"
+    category: "consent_gate_disambiguation"
     intent: "Action depends on sensitive personal context and cannot proceed safely without explicit user confirmation."
     expected_tools: ["request_user"]
 
   - id: "opt-hard-plan-phase-vs-task-update"
-    category: "agent_opt_hard"
+    category: "planning_vs_mutation_boundary"
     intent: "Define phased rollout plan with milestones, rollback gates, and risk checkpoints before any task updates."
     expected_tools: ["plan"]
 
   - id: "opt-hard-plan-minimal-sequence"
-    category: "agent_opt_hard"
+    category: "planning_vs_mutation_boundary"
     intent: "Provide the smallest viable staged execution sequence with explicit checkpoints."
     expected_tools: ["plan"]
 
   - id: "opt-hard-memory-pattern-recall"
-    category: "agent_opt_hard"
+    category: "memory_retrieval_disambiguation"
     intent: "Recall prior successful remediation patterns from memory before selecting next operation."
     expected_tools: ["memory_search"]
 
   - id: "opt-hard-memory-preference-retrieval"
-    category: "agent_opt_hard"
+    category: "memory_retrieval_disambiguation"
     intent: "Retrieve remembered user preference and habit context before drafting follow-up."
     expected_tools: ["memory_search"]
 
   - id: "opt-hard-lark-message-no-attachment"
-    category: "agent_opt_hard"
+    category: "message_vs_upload_channel_action"
     intent: "Send a concise status update in Lark thread with no file upload or attachment."
     expected_tools: ["lark_send_message"]
 
   - id: "opt-hard-lark-context-read-before-reply"
-    category: "agent_opt_hard"
+    category: "message_vs_upload_channel_action"
     intent: "Read recent Lark chat history before sending any proactive response."
     expected_tools: ["lark_chat_history"]
 
   - id: "opt-hard-lark-upload-explicit-file-handoff"
-    category: "agent_opt_hard"
+    category: "message_vs_upload_channel_action"
     intent: "Upload the generated markdown package file into Lark thread for download handoff."
     expected_tools: ["lark_upload_file"]
 
   - id: "opt-hard-exact-url-fetch-not-discover"
-    category: "agent_opt_hard"
+    category: "source_selection_disambiguation"
     intent: "Source URL is fixed and known; fetch exact page content directly rather than searching."
     expected_tools: ["web_fetch"]
 
   - id: "opt-hard-authoritative-discovery-first"
-    category: "agent_opt_hard"
+    category: "source_selection_disambiguation"
     intent: "No source is selected yet; search authoritative official references and shortlist candidates."
     expected_tools: ["web_search"]
 
   - id: "opt-hard-shell-command-health-check"
-    category: "agent_opt_hard"
+    category: "execution_mode_disambiguation"
     intent: "Run shell commands to inspect running process state and occupied ports."
     expected_tools: ["shell_exec"]
 
   - id: "opt-hard-deterministic-computation-snippet"
-    category: "agent_opt_hard"
+    category: "execution_mode_disambiguation"
     intent: "Execute deterministic code snippet to compute validation metric and return score."
     expected_tools: ["execute_code"]
 
   - id: "opt-hard-find-path-name-before-open"
-    category: "agent_opt_hard"
+    category: "repository_retrieval_disambiguation"
     intent: "Find files by name and path pattern under nested directories before opening content."
     expected_tools: ["find"]
 
   - id: "opt-hard-ripgrep-fast-regex-repo-scan"
-    category: "agent_opt_hard"
+    category: "repository_retrieval_disambiguation"
     intent: "Use fast regex scan across repository to locate hot patterns quickly."
     expected_tools: ["ripgrep"]
 
   - id: "opt-hard-okr-read-before-write"
-    category: "agent_opt_hard"
+    category: "state_read_before_write"
     intent: "Read current OKR status first before deciding any progress update."
     expected_tools: ["okr_read"]
 
   - id: "opt-hard-scheduler-create-recurring-checkin"
-    category: "agent_opt_hard"
+    category: "scheduling_semantics_disambiguation"
     intent: "Create recurring weekday scheduler job for accountability check-ins."
     expected_tools: ["scheduler_create_job"]
 
   - id: "opt-hard-scheduler-delete-obsolete-job"
-    category: "agent_opt_hard"
+    category: "scheduling_semantics_disambiguation"
     intent: "Remove obsolete scheduler check-in job after cadence policy change."
     expected_tools: ["scheduler_delete_job"]
 
   - id: "opt-hard-artifact-progress-proof"
-    category: "agent_opt_hard"
+    category: "deliverable_routing_disambiguation"
     intent: "Persist durable progress report artifact for downstream review and reuse."
     expected_tools: ["artifacts_write"]
     deliverable:
@@ -103,7 +103,7 @@ scenarios:
       required_file_types: ["md"]
 
   - id: "opt-hard-downloadable-summary-attachment"
-    category: "agent_opt_hard"
+    category: "deliverable_routing_disambiguation"
     intent: "Provide downloadable summary attachment for direct user handoff."
     expected_tools: ["write_attachment"]
     deliverable:

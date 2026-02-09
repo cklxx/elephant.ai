@@ -5,7 +5,7 @@ Need to continue retiring easy evaluation prompts, add harder conflict-driven ca
 
 ## What Worked
 - Replaced easy motivation cases with harder implicit-intent conflicts.
-- Added a new hard collection `agent_optimization_hard_v3` (20 cases) focused on persistent top1 miss families.
+- Added a new hard collection `intent_decomposition_constraint_matrix` (20 cases) with explicit examination items for persistent top1 miss families.
 - Added decomposition-aware routing heuristics, especially for:
   - consent-gate vs task mutation
   - message vs upload under explicit no-upload constraints

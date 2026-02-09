@@ -2,12 +2,12 @@
 
 ## Scope
 - Retire low-signal easy cases in motivation collection and replace with harder implicit-intent cases.
-- Add new hard collection: `agent_optimization_hard_v3`.
+- Add new hard collection: `intent_decomposition_constraint_matrix`.
 - Optimize routing heuristics for persistent top1 conflict families.
 
 ## Updated Datasets
 - Updated: `evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml`
-- Added: `evaluation/agent_eval/datasets/foundation_eval_cases_agent_optimization_hard_v3.yaml`
+- Added: `evaluation/agent_eval/datasets/foundation_eval_cases_intent_decomposition_constraint_matrix.yaml`
 - Updated suite: `evaluation/agent_eval/datasets/foundation_eval_suite.yaml`
 
 ## Baseline vs After (full suite)
@@ -49,7 +49,7 @@ After run:
   - path-name locate before open
 
 ### New hard collection
-- `agent_optimization_hard_v3` added with 20 conflict-heavy cases:
+- `intent_decomposition_constraint_matrix` added with 20 conflict-heavy cases:
   - consent gate vs task-manage
   - plan vs direct mutation
   - memory recall vs code/file search

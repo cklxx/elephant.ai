@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, agent optimization hard v3, challenge hard v2, and complex artifact delivery"
+description: "Layered offline foundation evaluation across tool coverage, prompt effectiveness, proactivity, motivation-aware proactivity, complex tasks, availability recovery, valuable workflows, SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, task completion speed, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, intent-decomposition constraint matrix, challenge hard v2, and complex artifact delivery"
 collections:
   - id: "tool-coverage"
     name: "Base Tool Coverage"
@@ -192,11 +192,11 @@ collections:
     toolset: "default"
     top_k: 3
 
-  - id: "agent-optimization-hard-v3"
-    name: "Agent Optimization Hard V3"
-    dimension: "agent_optimization_hard_v3"
-    description: "Hard conflict-rich suite targeting persistent top1 miss families and close-call ambiguity"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_agent_optimization_hard_v3.yaml"
+  - id: "intent-decomposition-constraint-matrix"
+    name: "Intent Decomposition Constraint Matrix"
+    dimension: "intent_decomposition_constraint_matrix"
+    description: "Systematic matrix for intent decomposition under consent, memory, channel-action, retrieval, execution, scheduling, and deliverable constraints"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_intent_decomposition_constraint_matrix.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

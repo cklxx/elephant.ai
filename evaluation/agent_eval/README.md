@@ -74,7 +74,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 冲突收敛高难专项（conflict convergence hard）
 - 高难挑战专项（challenge hard v2）
 - 复杂任务文件产物交付专项（complex artifact delivery）
-- Agent 优化高难专项（agent optimization hard v3）
+- 意图裂解约束矩阵专项（intent decomposition constraint matrix）
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
 当前集合规模（`x/x`）：
@@ -105,7 +105,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Deep Research: `18/18`
 - Autonomy Initiative: `18/18`
 - Conflict Convergence Hard: `24/24`
-- Agent Optimization Hard V3: `20/20`
+- Intent Decomposition Constraint Matrix: `20/20`
 - Challenge Hard V2: `49/49`
 - Complex Artifact Delivery: `32/32`
 
