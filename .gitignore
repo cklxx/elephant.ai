@@ -136,6 +136,10 @@ ast_viewr
 *.old
 pet_podcast_basic.png
 
+# Python venvs
+.venv/
+scripts/cc_bridge/.venv/
+
 # Local tooling
 .bin/
 logs/*.png
