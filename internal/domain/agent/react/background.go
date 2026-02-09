@@ -433,6 +433,26 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 	bt.mu.Unlock()
 
 	m.emitCompletionEvent(ctx, bt)
+
+	// Direct TaskStore write via CompletionNotifier — ensures persistence
+	// even if the event listener chain is broken.
+	if notifier := agent.GetCompletionNotifier(ctx); notifier != nil {
+		bt.mu.Lock()
+		nStatus := string(bt.status)
+		nAnswer := ""
+		nTokens := 0
+		if bt.result != nil {
+			nAnswer = bt.result.Answer
+			nTokens = bt.result.TokensUsed
+		}
+		nErr := ""
+		if bt.err != nil {
+			nErr = bt.err.Error()
+		}
+		bt.mu.Unlock()
+		notifier.NotifyCompletion(ctx, bt.id, nStatus, nAnswer, nErr, nTokens)
+	}
+
 	m.signalCompletion(bt.id)
 }
 

@@ -93,6 +93,30 @@ type ExternalWorkspaceMerger interface {
 	MergeExternalWorkspace(ctx context.Context, taskID string, strategy MergeStrategy) (*MergeResult, error)
 }
 
+// BackgroundCompletionNotifier receives direct completion notifications from
+// BackgroundTaskManager, bypassing the event listener chain. This ensures
+// TaskStore is updated even when the SerializingEventListener queue times out.
+type BackgroundCompletionNotifier interface {
+	NotifyCompletion(ctx context.Context, taskID, status, answer, errText string, tokensUsed int)
+}
+
+// completionNotifierKey is the context key for BackgroundCompletionNotifier.
+type completionNotifierKey struct{}
+
+// WithCompletionNotifier stores a BackgroundCompletionNotifier in context.
+func WithCompletionNotifier(ctx context.Context, n BackgroundCompletionNotifier) context.Context {
+	return context.WithValue(ctx, completionNotifierKey{}, n)
+}
+
+// GetCompletionNotifier retrieves the BackgroundCompletionNotifier from ctx.
+func GetCompletionNotifier(ctx context.Context) BackgroundCompletionNotifier {
+	if ctx == nil {
+		return nil
+	}
+	n, _ := ctx.Value(completionNotifierKey{}).(BackgroundCompletionNotifier)
+	return n
+}
+
 // backgroundDispatcherKey is the context key for BackgroundTaskDispatcher.
 type backgroundDispatcherKey struct{}
 

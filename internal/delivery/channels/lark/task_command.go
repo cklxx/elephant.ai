@@ -178,6 +178,9 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 	execCtx, cancelTimeout := channels.ApplyTimeout(execCtx, g.cfg.BaseConfig)
 	defer cancelTimeout()
 
+	// Inject CompletionNotifier so BackgroundTaskManager writes TaskStore directly.
+	execCtx = agent.WithCompletionNotifier(execCtx, g)
+
 	listener := g.eventListener
 	if listener == nil {
 		listener = agent.NoopEventListener{}

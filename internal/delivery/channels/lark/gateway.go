@@ -231,6 +231,28 @@ func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) {
 	g.aiCoordinator = coordinator
 }
 
+// NotifyCompletion implements agent.BackgroundCompletionNotifier. It writes
+// the final task status directly to TaskStore, ensuring persistence even when
+// the event listener chain is broken (e.g. SerializingEventListener idle timeout).
+func (g *Gateway) NotifyCompletion(ctx context.Context, taskID, status, answer, errText string, tokensUsed int) {
+	if g == nil || g.taskStore == nil {
+		return
+	}
+	var opts []TaskUpdateOption
+	if answer != "" {
+		opts = append(opts, WithAnswerPreview(truncateForLark(answer, 1500)))
+	}
+	if errText != "" {
+		opts = append(opts, WithErrorText(truncateForLark(errText, 1500)))
+	}
+	if tokensUsed > 0 {
+		opts = append(opts, WithTokensUsed(tokensUsed))
+	}
+	if err := g.taskStore.UpdateStatus(ctx, taskID, status, opts...); err != nil {
+		g.logger.Warn("CompletionNotifier: TaskStore update failed for %s: %v", taskID, err)
+	}
+}
+
 // getOrCreateSlot returns the session slot for the given chat, creating one if needed.
 func (g *Gateway) getOrCreateSlot(chatID string) *sessionSlot {
 	slot, _ := g.activeSlots.LoadOrStore(chatID, &sessionSlot{})
@@ -599,6 +621,9 @@ func (g *Gateway) resolveSessionForNewTask(slot *sessionSlot) (sessionID string,
 // Returns true if the result indicates await_user_input.
 func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput, isResume bool) bool {
 	execCtx := g.buildExecContext(msg, sessionID, inputCh)
+
+	// Inject CompletionNotifier so BackgroundTaskManager writes TaskStore directly.
+	execCtx = agent.WithCompletionNotifier(execCtx, g)
 
 	session, err := g.agent.EnsureSession(execCtx, sessionID)
 	if err != nil {
