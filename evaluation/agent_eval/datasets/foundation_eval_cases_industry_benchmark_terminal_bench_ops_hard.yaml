@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-terminal-bench-ops-hard"
+description: "Hard transfer set mapped from Terminal-Bench style terminal-first operations, diagnosis, and bounded mutation workflows"
+scenarios:
+  - id: "terminal-bench-capture-runtime-snapshot-before-touch"
+    category: "terminal_bench_ops_hard"
+    intent: "Before any edit, capture live runtime process and port snapshot from CLI surfaces."
+    expected_tools: ["shell_exec"]
+
+  - id: "terminal-bench-fast-fault-signature-sweep"
+    category: "terminal_bench_ops_hard"
+    intent: "Run the quickest regex sweep across repository and logs for repeated fault signature evidence."
+    expected_tools: ["ripgrep"]
+
+  - id: "terminal-bench-open-hotspot-file-window"
+    category: "terminal_bench_ops_hard"
+    intent: "Open the exact suspect file window around failure locus before applying any patch."
+    expected_tools: ["read_file"]
+
+  - id: "terminal-bench-inplace-surgical-rewrite"
+    category: "terminal_bench_ops_hard"
+    intent: "Apply one surgical in-place rewrite in existing file; avoid creating new module structure."
+    expected_tools: ["replace_in_file"]
+
+  - id: "terminal-bench-det-check-over-metrics"
+    category: "terminal_bench_ops_hard"
+    intent: "Run deterministic numeric validation over extracted slices to confirm boundary behavior."
+    expected_tools: ["execute_code"]
+
+  - id: "terminal-bench-handoff-as-reusable-artefact"
+    category: "terminal_bench_ops_hard"
+    intent: "Keep chat terse and persist full remediation evidence as a reusable durable package."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "durable remediation package"
+      artifact_required: true
+      required_file_types: ["markdown"]
+      required_evidence: ["report", "log"]
+
+  - id: "terminal-bench-inventory-old-packages-first"
+    category: "terminal_bench_ops_hard"
+    intent: "Enumerate existing generated packages before selecting which one to ship to reviewer."
+    expected_tools: ["artifacts_list"]
+
+  - id: "terminal-bench-lineage-check-gate"
+    category: "terminal_bench_ops_hard"
+    intent: "Verify output lineage and creation metadata card before approving release."
+    expected_tools: ["artifact_manifest"]
+
+  - id: "terminal-bench-review-blocked-until-file-posted"
+    category: "terminal_bench_ops_hard"
+    intent: "Review cannot proceed unless generated package file is posted into thread."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "terminal-bench-text-only-ops-checkpoint"
+    category: "terminal_bench_ops_hard"
+    intent: "Send only a brief ops checkpoint in thread, explicitly forbidding file transfer this step."
+    expected_tools: ["lark_send_message"]
+
+  - id: "terminal-bench-human-gate-before-cutover"
+    category: "terminal_bench_ops_hard"
+    intent: "Production cutover stays frozen until explicit human confirmation appears in chat."
+    expected_tools: ["request_user"]
+
+  - id: "terminal-bench-preflight-plan-with-rollback"
+    category: "terminal_bench_ops_hard"
+    intent: "Issue preflight phased execution plan with rollback gates prior to mutation."
+    expected_tools: ["plan"]

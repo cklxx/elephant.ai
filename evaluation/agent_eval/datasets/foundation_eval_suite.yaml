@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Hard-only offline foundation evaluation focused on challenging LLM-required reasoning and industry benchmark transfer: SWE-bench Verified readiness, conflict-heavy orchestration and intent decomposition, architecture coding hard tasks, artifact/reproducibility/stateful stress, and expanded benchmark-transfer sets (coding/workflow, web/computer-use, long-context reasoning, GAIA, LiveCodeBench/SWE-Lancer, AssistantBench/τ2, NoLiMa/LongMemEval/BABILong). Saturated easy/basic collections are retired from the main suite."
+description: "Hard-only offline foundation evaluation focused on challenging LLM-required reasoning and industry benchmark transfer: SWE-bench Verified readiness, conflict-heavy orchestration and intent decomposition, architecture coding hard tasks, artifact/reproducibility/stateful stress, and expanded benchmark-transfer sets (coding/workflow, web/computer-use, long-context reasoning, GAIA, LiveCodeBench/SWE-Lancer, AssistantBench/τ2, NoLiMa/LongMemEval/BABILong, Terminal-Bench, MLE-Bench, SWE-PolyBench, GitTaskBench, OSWorld-G, FrontierMath/HLE). Saturated easy/basic collections are retired from the main suite."
 collections:
   - id: "swebench-verified-readiness"
     name: "SWE-bench Verified Readiness"
@@ -187,6 +187,66 @@ collections:
     dimension: "industry_benchmark_autonomy_long_horizon_value_delivery"
     description: "Compound long-horizon autonomy tasks with implicit constraints, evidence contracts, and high-value deliverables"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_autonomy_long_horizon_value_delivery.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-terminal-bench-ops-hard"
+    name: "Industry Benchmark Terminal-Bench Ops Hard"
+    dimension: "industry_benchmark_terminal_bench_ops_hard"
+    description: "Transfer set mapped from Terminal-Bench style terminal-first diagnosis, bounded mutation, and release gating"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_terminal_bench_ops_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-mle-bench-experiment-lifecycle-hard"
+    name: "Industry Benchmark MLE-Bench Experiment Lifecycle Hard"
+    dimension: "industry_benchmark_mle_bench_experiment_lifecycle_hard"
+    description: "Transfer set mapped from MLE-Bench style experiment lifecycle, reproducibility, and artifactized reporting"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_mle_bench_experiment_lifecycle_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-swe-polybench-cross-language-repo-hard"
+    name: "Industry Benchmark SWE-PolyBench Cross-Language Repo Hard"
+    dimension: "industry_benchmark_swe_polybench_cross_language_repo_hard"
+    description: "Transfer set mapped from SWE-PolyBench style cross-language and cross-repo engineering workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_swe_polybench_cross_language_repo_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-gittaskbench-real-repo-maintenance-hard"
+    name: "Industry Benchmark GitTaskBench Real Repo Maintenance Hard"
+    dimension: "industry_benchmark_gittaskbench_real_repo_maintenance_hard"
+    description: "Transfer set mapped from GitTaskBench style real-repo maintenance and policy-bound execution"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_gittaskbench_real_repo_maintenance_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-osworld-g-grounded-computer-use-hard"
+    name: "Industry Benchmark OSWorld-G Grounded Computer Use Hard"
+    dimension: "industry_benchmark_osworld_g_grounded_computer_use_hard"
+    description: "Transfer set mapped from OSWorld-G style grounded multimodal computer-use and modality-boundary routing"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_osworld_g_grounded_computer_use_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-frontiermath-hle-deep-reasoning-validation-hard"
+    name: "Industry Benchmark FrontierMath HLE Deep Reasoning Validation Hard"
+    dimension: "industry_benchmark_frontiermath_hle_deep_reasoning_validation_hard"
+    description: "Transfer set mapped from FrontierMath and HLE style deep reasoning with deterministic validation and evidence gates"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_frontiermath_hle_deep_reasoning_validation_hard.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

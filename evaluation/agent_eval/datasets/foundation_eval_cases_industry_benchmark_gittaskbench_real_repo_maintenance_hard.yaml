@@ -1,0 +1,63 @@
+version: "1"
+name: "foundation-industry-benchmark-gittaskbench-real-repo-maintenance-hard"
+description: "Hard transfer set mapped from GitTaskBench style real-repo maintenance tasks with policy boundaries and artifactized delivery"
+scenarios:
+  - id: "gittaskbench-reconstruct-thread-commitments"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Before choosing an action, reconstruct earlier thread commitments and unresolved TODO promises."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "gittaskbench-locate-owned-modules-first"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Constrain candidate owned modules by folder ownership topology before reading internals."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "gittaskbench-search-by-body-clues"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Find the maintenance hotspot using body-level clues inside files, not filenames."
+    expected_tools: ["search_file"]
+
+  - id: "gittaskbench-open-maintenance-window"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Open the exact maintenance logic window around suspect branch before edits."
+    expected_tools: ["read_file"]
+
+  - id: "gittaskbench-hotfix-one-branch-only"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Apply a one-branch hotfix in-place without broad cleanup refactor."
+    expected_tools: ["replace_in_file"]
+
+  - id: "gittaskbench-prepublish-cli-check"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Run pre-publish command checks and inspect runtime/log output for sanity."
+    expected_tools: ["shell_exec"]
+
+  - id: "gittaskbench-quant-consistency-gate"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Use deterministic computation to validate maintenance KPI consistency thresholds."
+    expected_tools: ["execute_code"]
+
+  - id: "gittaskbench-approval-before-owner-broadcast"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Owner broadcast is gated; wait for explicit approval before external notification."
+    expected_tools: ["request_user"]
+
+  - id: "gittaskbench-short-status-no-upload"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Post a short thread checkpoint and explicitly avoid file transfer this step."
+    expected_tools: ["lark_send_message"]
+
+  - id: "gittaskbench-package-must-be-posted"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Reviewer queue remains blocked until package file is posted to thread."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "gittaskbench-scheduler-state-audit-first"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Recurring maintenance automations may conflict; inspect current schedule state first."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "gittaskbench-retire-legacy-maintenance-cadence"
+    category: "gittaskbench_real_repo_maintenance_hard"
+    intent: "Legacy maintenance recurrence violates current policy and must be retired."
+    expected_tools: ["scheduler_delete_job"]

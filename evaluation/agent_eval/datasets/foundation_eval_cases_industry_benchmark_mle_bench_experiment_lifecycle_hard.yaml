@@ -1,0 +1,73 @@
+version: "1"
+name: "foundation-industry-benchmark-mle-bench-experiment-lifecycle-hard"
+description: "Hard transfer set mapped from MLE-Bench style ML experiment lifecycle, reproducibility, and artifactized reporting"
+scenarios:
+  - id: "mle-bench-recover-prior-exp-decisions"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Recover prior successful experiment decision pattern before scheduling next training action."
+    expected_tools: ["memory_search"]
+
+  - id: "mle-bench-open-selected-memory-evidence"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "A specific memory reference has been selected; open exact evidence lines now."
+    expected_tools: ["memory_get"]
+
+  - id: "mle-bench-locate-config-topology-first"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Narrow candidate experiment configs by folder topology before reading file internals."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "mle-bench-semantic-search-hyperparams"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Identify hyperparameter drift evidence from semantic body text, not filename hints."
+    expected_tools: ["search_file"]
+
+  - id: "mle-bench-open-training-loop-context"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Open training-loop context window around unstable behavior before any update."
+    expected_tools: ["read_file"]
+
+  - id: "mle-bench-rewrite-one-bad-branch-only"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Rewrite only the faulty branch in-place, avoiding broad architecture refactor."
+    expected_tools: ["replace_in_file"]
+
+  - id: "mle-bench-cli-repro-run"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Reproduce regression from command-line execution and inspect process/log output surfaces."
+    expected_tools: ["shell_exec"]
+
+  - id: "mle-bench-det-eval-metric-verify"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Compute deterministic validation metrics over extracted arrays for consistency verification."
+    expected_tools: ["execute_code"]
+
+  - id: "mle-bench-source-authority-discovery"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "No trusted external benchmark source selected yet; discover authoritative references first."
+    expected_tools: ["web_search"]
+
+  - id: "mle-bench-single-approved-paper-ingest"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Policy already fixed one canonical link; ingest only that exact source page."
+    expected_tools: ["web_fetch"]
+
+  - id: "mle-bench-repro-card-as-durable-artifact"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Persist full reproducibility card with experiment trace fields as durable artifact output."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "reproducibility card"
+      artifact_required: true
+      manifest_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "log"]
+
+  - id: "mle-bench-deliver-downloadable-repro-pack"
+    category: "mle_bench_experiment_lifecycle_hard"
+    intent: "Downstream evaluator needs immediate downloadable reproducibility package for offline replay."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "downloadable reproducibility package"
+      attachment_required: true
+      required_file_types: ["markdown", "json"]

@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-osworld-g-grounded-computer-use-hard"
+description: "Hard transfer set mapped from OSWorld-G style grounded multimodal computer-use tasks with explicit interaction modality boundaries"
+scenarios:
+  - id: "osworld-g-read-only-browser-state"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Only inspect current browser tab/session/url metadata; interaction is not requested in this stage."
+    expected_tools: ["browser_info"]
+
+  - id: "osworld-g-selector-form-interaction"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Use selector-level DOM controls to fill and submit exact form fields."
+    expected_tools: ["browser_dom"]
+
+  - id: "osworld-g-coordinate-canvas-interaction"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Perform coordinate-level canvas interaction with drag gestures and pixel-precise offsets."
+    expected_tools: ["browser_action"]
+
+  - id: "osworld-g-visual-proof-capture"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Capture visual proof screenshot of the post-action UI state for audit."
+    expected_tools: ["browser_screenshot"]
+
+  - id: "osworld-g-discover-authoritative-page-first"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "No trusted page chosen yet; discover authoritative source before browsing a single URL."
+    expected_tools: ["web_search"]
+
+  - id: "osworld-g-open-fixed-approved-page-only"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "A single approved page is already fixed; open and ingest only that URL."
+    expected_tools: ["web_fetch"]
+
+  - id: "osworld-g-persist-visual-runbook"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Persist a full visual runbook with rationale and evidence while keeping chat concise."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "visual runbook"
+      artifact_required: true
+      required_file_types: ["markdown", "png"]
+      required_evidence: ["screenshot", "report"]
+
+  - id: "osworld-g-send-textual-progress-only"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Send textual progress update only, explicitly no file upload in this checkpoint."
+    expected_tools: ["lark_send_message"]
+
+  - id: "osworld-g-thread-upload-gate"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Execution review remains blocked until visual evidence file is uploaded in thread."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "osworld-g-manual-consent-before-sensitive-ui"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Sensitive UI operation requires explicit manual consent before proceeding."
+    expected_tools: ["request_user"]
+
+  - id: "osworld-g-diagnose-ui-agent-runtime-via-cli"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Diagnose UI automation runtime using command-line process/log signals before retry."
+    expected_tools: ["shell_exec"]
+
+  - id: "osworld-g-stage-plan-before-multi-ui-run"
+    category: "osworld_g_grounded_computer_use_hard"
+    intent: "Produce staged plan with rollback conditions before multi-step UI run."
+    expected_tools: ["plan"]
