@@ -1,0 +1,78 @@
+version: "1"
+name: "foundation-industry-benchmark-multiturn-enterprise-assistantbench-tau2"
+description: "Industry transfer set for stateful enterprise multi-turn agents mapped from AssistantBench and τ2-style commitment workflows"
+scenarios:
+  - id: "industry-assistantbench-state-recall-before-action"
+    category: "assistantbench_transfer"
+    intent: "Before taking new action, recover prior commitments and open loops from memory."
+    expected_tools: ["memory_search"]
+
+  - id: "industry-assistantbench-open-exact-prior-commitment"
+    category: "assistantbench_transfer"
+    intent: "Given a recalled commitment reference, open exact memory item for verbatim scope check."
+    expected_tools: ["memory_get"]
+
+  - id: "industry-assistantbench-conflicting-constraints-clarify"
+    category: "assistantbench_transfer"
+    intent: "Current request conflicts with prior committed boundary; ask one sharp clarification."
+    expected_tools: ["clarify"]
+
+  - id: "industry-assistantbench-sensitive-commitment-change-consent"
+    category: "assistantbench_transfer"
+    intent: "Changing scope would affect external stakeholders; require explicit user approval."
+    expected_tools: ["request_user"]
+
+  - id: "industry-assistantbench-create-task-record"
+    category: "assistantbench_transfer"
+    intent: "User asks to operationalize a commitment as a tracked task item."
+    expected_tools: ["lark_task_manage"]
+
+  - id: "industry-assistantbench-calendar-block-create"
+    category: "assistantbench_transfer"
+    intent: "Need to reserve execution window by creating a calendar block."
+    expected_tools: ["lark_calendar_create"]
+
+  - id: "industry-assistantbench-calendar-block-adjust"
+    category: "assistantbench_transfer"
+    intent: "Existing execution window changed; update the event while keeping participants."
+    expected_tools: ["lark_calendar_update"]
+
+  - id: "industry-assistantbench-calendar-block-retire"
+    category: "assistantbench_transfer"
+    intent: "Retired workflow requires deleting obsolete event to avoid false reminders."
+    expected_tools: ["lark_calendar_delete"]
+
+  - id: "industry-tau2-scheduler-inventory-first"
+    category: "tau2_transfer"
+    intent: "Before changing reminder cadence, inspect existing recurring jobs."
+    expected_tools: ["scheduler_list_jobs"]
+
+  - id: "industry-tau2-scheduler-create-new-cadence"
+    category: "tau2_transfer"
+    intent: "Register a new recurring cadence with stable identifier."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "industry-tau2-scheduler-delete-retired-cadence"
+    category: "tau2_transfer"
+    intent: "Old recurring cadence violates new policy and must be removed."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "industry-tau2-compact-progress-update-no-file"
+    category: "tau2_transfer"
+    intent: "Send compact progress update in thread and explicitly avoid file transfer."
+    expected_tools: ["lark_send_message"]
+
+  - id: "industry-tau2-artifact-inventory-before-share"
+    category: "tau2_transfer"
+    intent: "Before sharing execution output, list existing artifacts to pick the latest valid one."
+    expected_tools: ["artifacts_list"]
+
+  - id: "industry-tau2-durable-multiturn-ledger"
+    category: "tau2_transfer"
+    intent: "Persist full multi-turn decision/evidence ledger for audit while keeping chat concise."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "multi-turn commitment and evidence ledger"
+      artifact_required: true
+      required_file_types: ["md"]
+      required_evidence: ["timeline", "decision", "evidence"]

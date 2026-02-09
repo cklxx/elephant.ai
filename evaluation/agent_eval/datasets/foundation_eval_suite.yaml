@@ -1,6 +1,6 @@
 version: "1"
 name: "foundation-offline-layered-suite"
-description: "Layered offline foundation evaluation focused on difficult LLM-required reasoning and industry benchmark transfer: SWE-bench Verified readiness, multi-step orchestration, safety boundary policy, hard context-learning patterns, memory capabilities, user habit soul memory continuity, long-horizon multi-round tasks, architecture coding hard tasks, deep research, autonomy initiative, conflict convergence hardening, intent-decomposition constraint matrix, challenge hard v2, complex artifact delivery, sparse-clue retrieval stress, stateful commitment boundary stress, reproducibility trace evidence stress, plus industry benchmark transfer sets for coding/workflow, web/computer-use, and long-context reasoning."
+description: "Hard-only offline foundation evaluation focused on challenging LLM-required reasoning and industry benchmark transfer: SWE-bench Verified readiness, conflict-heavy orchestration and intent decomposition, architecture coding hard tasks, artifact/reproducibility/stateful stress, and expanded benchmark-transfer sets (coding/workflow, web/computer-use, long-context reasoning, GAIA, LiveCodeBench/SWE-Lancer, AssistantBench/τ2, NoLiMa/LongMemEval/BABILong). Saturated easy/basic collections are retired from the main suite."
 collections:
   - id: "swebench-verified-readiness"
     name: "SWE-bench Verified Readiness"
@@ -22,81 +22,11 @@ collections:
     toolset: "default"
     top_k: 3
 
-  - id: "safety-boundary-policy"
-    name: "Safety Boundary and Policy"
-    dimension: "safety_boundary_policy"
-    description: "Safety gating, policy compliance, and risk-aware routing coverage"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_safety_boundary_policy.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "context-learning-hard"
-    name: "Context Learning Hard"
-    dimension: "context_learning_hard"
-    description: "Hard long-context routing cases inspired by latest benchmark failure modes"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_context_learning_hard.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "memory-capabilities"
-    name: "Memory Capabilities"
-    dimension: "memory_capabilities"
-    description: "Memory retrieval, conflict handling, and memory-informed execution routing"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_memory_capabilities.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "user-habit-soul-memory"
-    name: "User Habit Soul Memory"
-    dimension: "user_habit_soul_memory"
-    description: "User habit preference, soul continuity, and memory-consistent routing coverage"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_user_habit_soul_memory.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "long-horizon-multi-round"
-    name: "Long-Horizon Multi-Round"
-    dimension: "long_horizon_multi_round"
-    description: "Routing readiness for phased, multi-round, long-running execution tasks"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_long_horizon_multi_round.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
   - id: "architecture-coding-hard"
     name: "Architecture Coding Hard"
     dimension: "architecture_coding_hard"
     description: "Routing quality for complex architecture refactors and logic-heavy coding tasks"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_architecture_coding_hard.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "deep-research"
-    name: "Deep Research"
-    dimension: "deep_research"
-    description: "Routing quality for deep multi-source search, verification, and evidence synthesis"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_deep_research.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "autonomy-initiative"
-    name: "Autonomy Initiative"
-    dimension: "autonomy_initiative"
-    description: "Autonomous initiative coverage for proactive execution and follow-through"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_autonomy_initiative.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
@@ -197,6 +127,46 @@ collections:
     dimension: "industry_benchmark_long_context_reasoning"
     description: "Transfer set mapped from LongBench v2, RULER, and InfiniteBench-style long-context reasoning stress"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_long_context_reasoning.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-general-assistant-gaia"
+    name: "Industry Benchmark General Assistant GAIA"
+    dimension: "industry_benchmark_general_assistant_gaia"
+    description: "Transfer set mapped from GAIA-style general assistant tasks with gated actions and tool-use disambiguation"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_general_assistant_gaia.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-real-world-coding-livecodebench-swelancer"
+    name: "Industry Benchmark Real-World Coding LiveCodeBench SWE-Lancer"
+    dimension: "industry_benchmark_real_world_coding_livecodebench_swelancer"
+    description: "Transfer set mapped from LiveCodeBench and SWE-Lancer real-world coding failure modes"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_real_world_coding_livecodebench_swelancer.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-multiturn-enterprise-assistantbench-tau2"
+    name: "Industry Benchmark Multiturn Enterprise AssistantBench tau2"
+    dimension: "industry_benchmark_multiturn_enterprise_assistantbench_tau2"
+    description: "Transfer set mapped from AssistantBench and tau2-style stateful enterprise workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_multiturn_enterprise_assistantbench_tau2.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-context-learning-nolima-longmemeval-babilong"
+    name: "Industry Benchmark Context Learning NoLiMa LongMemEval BABILong"
+    dimension: "industry_benchmark_context_learning_nolima_longmemeval_babilong"
+    description: "Transfer set mapped from NoLiMa, LongMemEval, and BABILong context-learning failure modes"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_context_learning_nolima_longmemeval_babilong.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

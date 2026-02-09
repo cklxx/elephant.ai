@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-real-world-coding-livecodebench-swelancer"
+description: "Industry transfer set for high-difficulty real-world coding tasks mapped from LiveCodeBench and SWE-Lancer"
+scenarios:
+  - id: "industry-livecodebench-repro-first-then-fix"
+    category: "livecodebench_transfer"
+    intent: "Before touching code, reproduce the failure with the project test command and capture deterministic signal."
+    expected_tools: ["shell_exec"]
+
+  - id: "industry-livecodebench-fast-hotspot-scan"
+    category: "livecodebench_transfer"
+    intent: "Locate likely bug hotspots quickly with a repo-wide regex/pattern sweep before opening files."
+    expected_tools: ["ripgrep"]
+
+  - id: "industry-livecodebench-structure-narrowing"
+    category: "livecodebench_transfer"
+    intent: "In a large mono-repo, narrow candidate module paths by directory structure before line-level inspection."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "industry-livecodebench-read-failing-code-context"
+    category: "livecodebench_transfer"
+    intent: "Read exact failing function and neighboring logic to understand behavioral contract before edit."
+    expected_tools: ["read_file"]
+
+  - id: "industry-livecodebench-minimal-inplace-patch"
+    category: "livecodebench_transfer"
+    intent: "Apply an exact in-place patch to one logic block, avoiding broad refactor."
+    expected_tools: ["replace_in_file"]
+
+  - id: "industry-livecodebench-new-test-or-helper-file"
+    category: "livecodebench_transfer"
+    intent: "Create a new focused test/helper file for the regression case when file does not yet exist."
+    expected_tools: ["write_file"]
+
+  - id: "industry-livecodebench-logic-check-via-execute-code"
+    category: "livecodebench_transfer"
+    intent: "Verify edge-condition math/logic with a deterministic code snippet before full test rerun."
+    expected_tools: ["execute_code"]
+
+  - id: "industry-livecodebench-plan-phased-debug"
+    category: "livecodebench_transfer"
+    intent: "Task is underspecified and risky; propose phased debug/fix/verify plan with stop points first."
+    expected_tools: ["plan"]
+
+  - id: "industry-swelancer-ambiguous-spec-needs-clarification"
+    category: "swe_lancer_transfer"
+    intent: "Acceptance criteria conflict between issue text and latest comment; ask one targeted clarification."
+    expected_tools: ["clarify"]
+
+  - id: "industry-swelancer-consent-gated-prod-operation"
+    category: "swe_lancer_transfer"
+    intent: "Requested action touches production-side irreversible behavior and requires explicit approval gate."
+    expected_tools: ["request_user"]
+
+  - id: "industry-swelancer-persist-debug-trace-artifact"
+    category: "swe_lancer_transfer"
+    intent: "Keep chat concise but persist full debug trace, alternatives considered, and risk notes for reviewer handoff."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "debug trace and decision record"
+      artifact_required: true
+      required_file_types: ["md"]
+      required_evidence: ["trace", "risk", "decision"]
+
+  - id: "industry-swelancer-file-package-delivery-required"
+    category: "swe_lancer_transfer"
+    intent: "Client requires actual patch package delivery in thread, not only textual summary."
+    expected_tools: ["lark_upload_file"]
