@@ -309,8 +309,8 @@ func TestWrapToolDoesNotMutateInput(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected delegate to be *retryExecutor, got %T", newWrapper.delegate)
 	}
-	if _, ok := retry.delegate.(*approvalExecutor); !ok {
-		t.Fatalf("expected retry delegate to be *approvalExecutor, got %T", retry.delegate)
+	if _, ok := retry.delegate.(*toolspolicy.ApprovalExecutor); !ok {
+		t.Fatalf("expected retry delegate to be *ApprovalExecutor, got %T", retry.delegate)
 	}
 }
 
@@ -417,13 +417,11 @@ func (c *captureApprover) RequestApproval(_ context.Context, req *tools.Approval
 }
 
 func TestApprovalExecutor_EnrichesSafetyContext(t *testing.T) {
-	executor := &approvalExecutor{
-		delegate: &stubExecutor{
-			name:        "file_delete",
-			dangerous:   true,
-			safetyLevel: ports.SafetyLevelIrreversible,
-		},
-	}
+	executor := toolspolicy.NewApprovalExecutor(&stubExecutor{
+		name:        "file_delete",
+		dangerous:   true,
+		safetyLevel: ports.SafetyLevelIrreversible,
+	})
 	approver := &captureApprover{}
 	ctx := shared.WithApprover(context.Background(), approver)
 
