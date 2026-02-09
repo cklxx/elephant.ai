@@ -77,9 +77,10 @@ type Gateway struct {
 	llmResolver     *subscription.SelectionResolver
 	cliCredsLoader  func() runtimeconfig.CLICredentials
 	llamaResolver   func(context.Context) (subscription.LlamaServerTarget, bool)
-	taskStore       TaskStore
-	activeSlots     sync.Map           // chatID → *sessionSlot
-	aiCoordinator   *AIChatCoordinator // coordinates multi-bot chat sessions
+	taskStore            TaskStore
+	activeSlots          sync.Map // chatID → *sessionSlot
+	pendingInputRelays   sync.Map // chatID → *pendingInputRelay
+	aiCoordinator        *AIChatCoordinator // coordinates multi-bot chat sessions
 }
 
 type awaitQuestionTracker struct {
@@ -346,6 +347,9 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		ch := slot.inputCh
 		activeSessionID := slot.sessionID
 		slot.mu.Unlock()
+		if g.tryResolveInputReply(ctx, msg.chatID, strings.TrimSpace(msg.content)) {
+			return nil
+		}
 		g.injectUserInput(ch, activeSessionID, msg)
 		return nil
 	}
@@ -361,9 +365,10 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 	trimmedContent := strings.TrimSpace(msg.content)
-	if g.isTaskCommand(trimmedContent) || g.isPlanCommand(trimmedContent) {
+	isPlan := g.isPlanCommand(trimmedContent)
+	if g.isTaskCommand(trimmedContent) || isPlan {
 		slot.mu.Unlock()
-		if g.isPlanCommand(trimmedContent) {
+		if isPlan {
 			g.handlePlanModeCommand(msg)
 		} else {
 			g.handleTaskCommand(msg)
@@ -462,6 +467,30 @@ func (g *Gateway) parseIncomingMessage(event *larkim.P2MessageReceiveV1, opts me
 		isGroup:   isGroup,
 		isFromBot: isBotSender(event),
 	}
+}
+
+// tryResolveInputReply checks whether a pending input relay exists for the chat
+// and, if so, resolves it with the user's reply. Returns true when the message
+// was consumed as an input reply.
+func (g *Gateway) tryResolveInputReply(ctx context.Context, chatID, content string) bool {
+	raw, ok := g.pendingInputRelays.LoadAndDelete(chatID)
+	if !ok {
+		return false
+	}
+	relay := raw.(*pendingInputRelay)
+
+	resp := buildInputResponse(relay, content)
+
+	if responder, ok := g.agent.(agent.ExternalInputResponder); ok {
+		if err := responder.ReplyExternalInput(ctx, resp); err != nil {
+			g.logger.Warn("External input reply failed: %v", err)
+			return false
+		}
+		return true
+	}
+
+	g.logger.Warn("Agent does not support ExternalInputResponder interface")
+	return false
 }
 
 // injectUserInput forwards a message into a running task's input channel.

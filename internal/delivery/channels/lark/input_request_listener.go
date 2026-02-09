@@ -23,9 +23,8 @@ type inputRequestListener struct {
 	replyTo string
 	logger  logging.Logger
 
-	mu             sync.Mutex
-	pendingRelay   map[string]*pendingInputRelay // chatID → relay
-	closed         bool
+	mu     sync.Mutex
+	closed bool
 }
 
 // pendingInputRelay tracks a pending input request awaiting user response.
@@ -46,13 +45,12 @@ func newInputRequestListener(
 	logger logging.Logger,
 ) *inputRequestListener {
 	return &inputRequestListener{
-		inner:        inner,
-		ctx:          ctx,
-		g:            g,
-		chatID:       chatID,
-		replyTo:      replyTo,
-		logger:       logging.OrNop(logger),
-		pendingRelay: make(map[string]*pendingInputRelay),
+		inner:   inner,
+		ctx:     ctx,
+		g:       g,
+		chatID:  chatID,
+		replyTo: replyTo,
+		logger:  logging.OrNop(logger),
 	}
 }
 
@@ -119,7 +117,7 @@ func (l *inputRequestListener) onInputRequested(env *domain.WorkflowEventEnvelop
 		}
 	}
 
-	// Store pending relay for response routing
+	// Store pending relay on Gateway for response routing (survives listener lifecycle).
 	relay := &pendingInputRelay{
 		taskID:    taskID,
 		requestID: requestID,
@@ -127,7 +125,7 @@ func (l *inputRequestListener) onInputRequested(env *domain.WorkflowEventEnvelop
 		options:   options,
 		reqType:   agentports.InputRequestType(reqType),
 	}
-	l.pendingRelay[l.chatID] = relay
+	l.g.pendingInputRelays.Store(l.chatID, relay)
 	l.mu.Unlock()
 
 	// Format and send the request to Lark
@@ -178,33 +176,13 @@ func (l *inputRequestListener) formatInputRequest(taskID, agentType, summary, re
 
 // TryResolveInputReply checks if a user message is a reply to a pending input request.
 // Returns true if the reply was handled.
+// Deprecated: relay storage has moved to Gateway.pendingInputRelays; prefer Gateway.tryResolveInputReply.
 func (l *inputRequestListener) TryResolveInputReply(ctx context.Context, chatID, content string) bool {
-	l.mu.Lock()
-	relay, ok := l.pendingRelay[chatID]
-	if !ok {
-		l.mu.Unlock()
-		return false
-	}
-	delete(l.pendingRelay, chatID)
-	l.mu.Unlock()
-
-	resp := l.buildResponse(relay, content)
-
-	// Try to reply through the gateway's agent if it supports external input
-	if responder, ok := l.g.agent.(agentports.ExternalInputResponder); ok {
-		if err := responder.ReplyExternalInput(ctx, resp); err != nil {
-			l.logger.Warn("External input reply failed: %v", err)
-			return false
-		}
-		return true
-	}
-
-	l.logger.Warn("Agent does not support ExternalInputResponder interface")
-	return false
+	return l.g.tryResolveInputReply(ctx, chatID, content)
 }
 
-// buildResponse converts user text input into an InputResponse.
-func (l *inputRequestListener) buildResponse(relay *pendingInputRelay, content string) agentports.InputResponse {
+// buildInputResponse converts user text input into an InputResponse.
+func buildInputResponse(relay *pendingInputRelay, content string) agentports.InputResponse {
 	trimmed := strings.TrimSpace(content)
 	resp := agentports.InputResponse{
 		TaskID:    relay.taskID,

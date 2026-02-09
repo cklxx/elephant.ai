@@ -1,6 +1,7 @@
 package lark
 
 import (
+	"strings"
 	"testing"
 
 	agentports "alex/internal/domain/agent/ports/agent"
@@ -58,9 +59,8 @@ func TestBuildResponse_NumberedReply(t *testing.T) {
 			{ID: "deny", Label: "拒绝"},
 		},
 	}
-	l := &inputRequestListener{}
 
-	resp := l.buildResponse(relay, "1")
+	resp := buildInputResponse(relay, "1")
 	if resp.OptionID != "approve" {
 		t.Errorf("expected OptionID=approve, got %q", resp.OptionID)
 	}
@@ -68,7 +68,7 @@ func TestBuildResponse_NumberedReply(t *testing.T) {
 		t.Error("expected Approved=true")
 	}
 
-	resp = l.buildResponse(relay, "2")
+	resp = buildInputResponse(relay, "2")
 	if resp.OptionID != "deny" {
 		t.Errorf("expected OptionID=deny, got %q", resp.OptionID)
 	}
@@ -79,19 +79,18 @@ func TestBuildResponse_DefaultPermission(t *testing.T) {
 		taskID:    "t1",
 		requestID: "r1",
 	}
-	l := &inputRequestListener{}
 
-	resp := l.buildResponse(relay, "1")
+	resp := buildInputResponse(relay, "1")
 	if !resp.Approved {
 		t.Error("1 should approve")
 	}
 
-	resp = l.buildResponse(relay, "2")
+	resp = buildInputResponse(relay, "2")
 	if resp.Approved {
 		t.Error("2 should deny")
 	}
 
-	resp = l.buildResponse(relay, "3")
+	resp = buildInputResponse(relay, "3")
 	if !resp.Approved || resp.Text != "remember" {
 		t.Error("3 should approve with remember")
 	}
@@ -102,9 +101,8 @@ func TestBuildResponse_Skip(t *testing.T) {
 		taskID:    "t1",
 		requestID: "r1",
 	}
-	l := &inputRequestListener{}
 
-	resp := l.buildResponse(relay, "skip")
+	resp := buildInputResponse(relay, "skip")
 	if resp.Approved {
 		t.Error("skip should not approve")
 	}
@@ -118,9 +116,8 @@ func TestBuildResponse_FreeText(t *testing.T) {
 		taskID:    "t1",
 		requestID: "r1",
 	}
-	l := &inputRequestListener{}
 
-	resp := l.buildResponse(relay, "use the staging database instead")
+	resp := buildInputResponse(relay, "use the staging database instead")
 	if !resp.Approved {
 		t.Error("free text should default to approved")
 	}
@@ -135,14 +132,7 @@ func TestFormatInputRequest(t *testing.T) {
 	if text == "" {
 		t.Error("formatted text should not be empty")
 	}
-	if !func() bool {
-		for i := 0; i <= len(text)-len("权限请求"); i++ {
-			if text[i:i+len("权限请求")] == "权限请求" {
-				return true
-			}
-		}
-		return false
-	}() {
+	if !strings.Contains(text, "权限请求") {
 		t.Error("should contain permission label")
 	}
 }

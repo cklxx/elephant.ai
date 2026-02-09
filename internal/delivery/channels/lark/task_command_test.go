@@ -27,7 +27,9 @@ func TestIsTaskCommand(t *testing.T) {
 		{"/model use codex/gpt-5", false},
 		{"/reset", false},
 		{"hello world", false},
-		{"/plan on", false}, // plan is separate
+		{"/plan on", false},   // plan is separate
+		{"/taskbar", false},   // must not match broader prefix
+		{"/tasksfoo", false},  // must not match broader prefix
 	}
 	for _, tt := range tests {
 		got := g.isTaskCommand(tt.input)

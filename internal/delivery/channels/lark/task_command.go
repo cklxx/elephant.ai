@@ -26,7 +26,8 @@ func (g *Gateway) isTaskCommand(trimmed string) bool {
 	if strings.HasPrefix(lower, "/codex ") || lower == "/codex" {
 		return true
 	}
-	if strings.HasPrefix(lower, "/task") || strings.HasPrefix(lower, "/tasks") {
+	if lower == "/task" || strings.HasPrefix(lower, "/task ") ||
+		lower == "/tasks" || strings.HasPrefix(lower, "/tasks ") {
 		return true
 	}
 	return false
@@ -42,6 +43,9 @@ func (g *Gateway) handleTaskCommand(msg *incomingMessage) {
 
 	trimmed := strings.TrimSpace(msg.content)
 	fields := strings.Fields(trimmed)
+	if len(fields) == 0 {
+		return
+	}
 	cmd := strings.ToLower(fields[0])
 
 	var reply string
