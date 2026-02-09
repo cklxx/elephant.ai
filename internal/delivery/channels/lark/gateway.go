@@ -590,6 +590,7 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 		execCtx = shared.WithLarkOAuth(execCtx, g.oauth)
 	}
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
+	execCtx = g.applyPlanModeToContext(execCtx, msg)
 	execCtx = agent.WithUserInputCh(execCtx, inputCh)
 
 	workspaceDir := strings.TrimSpace(g.cfg.WorkspaceDir)

@@ -372,7 +372,10 @@ func buildOrchestrator() (*devops.Orchestrator, error) {
 
 func buildSandboxService(orch *devops.Orchestrator) *services.SandboxService {
 	cfg := orch.Config()
-	workspaceDir := strings.TrimSpace(os.Getenv("SANDBOX_WORKSPACE_DIR"))
+	workspaceDir := ""
+	if raw, ok := os.LookupEnv("SANDBOX_WORKSPACE_DIR"); ok {
+		workspaceDir = strings.TrimSpace(raw)
+	}
 	if workspaceDir == "" {
 		workspaceDir = cfg.ProjectDir
 	}
@@ -452,7 +455,10 @@ func buildWebService(orch *devops.Orchestrator) *services.WebService {
 
 func loadDevConfig() (*devops.DevConfig, error) {
 	home, _ := os.UserHomeDir()
-	configPath := strings.TrimSpace(os.Getenv("ALEX_CONFIG_PATH"))
+	configPath := ""
+	if raw, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
+		configPath = strings.TrimSpace(raw)
+	}
 	if configPath == "" {
 		configPath = filepath.Join(home, ".alex", "config.yaml")
 	}

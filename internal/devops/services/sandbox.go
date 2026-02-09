@@ -387,7 +387,10 @@ func (s *SandboxService) ensureACPBinary(ctx context.Context) error {
 }
 
 func (s *SandboxService) ensureSandboxConfig(ctx context.Context) (bool, error) {
-	hostConfig := strings.TrimSpace(os.Getenv("ALEX_CONFIG_PATH"))
+	hostConfig := ""
+	if raw, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
+		hostConfig = strings.TrimSpace(raw)
+	}
 	if hostConfig == "" {
 		home, _ := os.UserHomeDir()
 		hostConfig = filepath.Join(home, ".alex", "config.yaml")

@@ -464,9 +464,12 @@ func checkPIDHealth(pidFile string) string {
 }
 
 func resolveMainRoot(projectDir string) string {
-	if v := strings.TrimSpace(os.Getenv("LARK_MAIN_ROOT")); v != "" {
-		return v
+	if raw, ok := os.LookupEnv("LARK_MAIN_ROOT"); ok {
+		if v := strings.TrimSpace(raw); v != "" {
+			return v
+		}
 	}
+
 	// Try git worktree for refs/heads/main
 	cmd := exec.Command("git", "-C", projectDir, "worktree", "list", "--porcelain")
 	out, err := cmd.Output()
@@ -616,7 +619,6 @@ func readLivePIDFile(path string, cleanupStale bool) (pid int, exists bool, aliv
 	if err != nil {
 		return 0, false, false
 	}
-	exists = true
 	pid, err = strconv.Atoi(strings.TrimSpace(string(data)))
 	if err != nil || pid <= 0 {
 		if cleanupStale {
