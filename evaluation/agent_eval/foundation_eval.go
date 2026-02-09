@@ -1110,6 +1110,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			countMatches("source", "workspace", "file", "content", "line") >= 1 {
 			boost += 18
 		}
+		if countMatches("read", "local", "workspace", "notes", "file", "before") >= 3 {
+			boost += 18
+		}
 	case "clarify":
 		if has("ambiguity", "clarify", "blocking", "requirement", "missing", "unclear", "constraint", "conflict") {
 			boost += 14
@@ -1136,6 +1139,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("only", "source", "url", "avoid", "broad", "search", "discovery", "already", "chosen") >= 4 {
 			boost += 20
 		}
+		if countMatches("approved", "canonical", "single", "exact", "url", "ingest", "without", "discovery") >= 4 {
+			boost += 26
+		}
 	case "browser_dom":
 		if has("selector", "dom", "form", "field", "fill", "submit") {
 			boost += 14
@@ -1148,9 +1154,16 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("browser", "tab", "state", "session", "metadata", "url", "current", "title", "viewport", "info", "status", "web") >= 2 {
 			boost += 18
 		}
+		if countMatches("read", "inspect", "state", "status", "metadata", "without", "interaction") >= 3 {
+			boost += 14
+		}
 	case "browser_screenshot":
 		if has("capture", "screenshot", "proof", "visual", "evidence", "page") {
 			boost += 14
+		}
+		if countMatches("single", "exact", "approved", "canonical", "url", "ingest", "without", "discovery") >= 4 &&
+			!has("visual", "proof", "screenshot", "ui", "capture") {
+			boost -= 36
 		}
 	case "write_file":
 		if countMatches("write", "create", "new", "save") >= 1 &&
@@ -1258,6 +1271,14 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("okr", "objective", "status", "read", "current", "before", "baseline") >= 2 {
 			boost += 18
 		}
+		if countMatches("workspace", "local", "repo", "repository", "path", "file", "notes") >= 2 &&
+			!has("okr", "objective", "key", "result", "goal") {
+			boost -= 26
+		}
+		if countMatches("local", "workspace", "notes", "file", "read", "before") >= 3 &&
+			!has("okr", "objective", "key", "result", "goal", "kr") {
+			boost -= 34
+		}
 	case "artifact_manifest":
 		if countMatches("manifest", "metadata", "generated", "describe", "artifact") >= 2 {
 			boost += 22
@@ -1283,12 +1304,27 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("multi", "round", "ledger", "durable", "progress", "artifact", "record") >= 3 {
 			boost += 22
 		}
+		if countMatches("list", "inventory", "enumerate", "existing", "current", "artifacts", "artifact") >= 3 &&
+			!has("write", "create", "save", "new", "persist") {
+			boost -= 26
+		}
+		if countMatches("diagram", "architecture", "visual", "brief", "render") >= 3 &&
+			!has("artifact", "report", "persist", "write", "deliverable") {
+			boost -= 20
+		}
+	case "diagram_render":
+		if countMatches("diagram", "architecture", "visual", "brief", "service", "relationship") >= 3 {
+			boost += 24
+		}
 	case "artifacts_list":
 		if countMatches("list", "enumerate", "index", "show", "generated", "artifact") >= 2 {
 			boost += 10
 		}
 		if countMatches("enumerate", "outputs", "produced", "run", "choose", "files", "release", "reviewer") >= 3 {
 			boost += 22
+		}
+		if countMatches("list", "inventory", "enumerate", "existing", "current", "artifacts", "artifact") >= 3 {
+			boost += 16
 		}
 	case "artifacts_delete":
 		if countMatches("delete", "remove", "prune", "cleanup", "stale", "obsolete", "artifact", "artifacts", "legacy") >= 2 {
@@ -1709,6 +1745,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("click", "drag", "coordinate", "canvas", "pixel", "tap") {
 			boost -= 18
 		}
+		if countMatches("read", "inspect", "state", "status", "metadata", "without", "interaction") >= 3 &&
+			!has("click", "drag", "coordinate", "canvas", "pixel", "tap", "type", "typing", "press") {
+			boost -= 28
+		}
 		if countMatches("artifact", "report", "progress", "progres", "proof", "deliverable", "summary") >= 2 &&
 			!has("click", "drag", "coordinate", "canvas", "pixel", "tap", "browser", "dom", "page", "ui") {
 			boost -= 16
@@ -1747,6 +1787,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("directory", "name", "constraint", "constraints", "before", "open") >= 3 &&
 			!has("content", "snippet", "inside", "within", "line", "lines") {
 			boost -= 14
+		}
+		if countMatches("entrypoint", "entrypoints", "layer", "module", "package", "path", "folder", "directory") >= 3 &&
+			!has("inside", "content", "snippet", "line", "lines", "semantic") {
+			boost -= 24
 		}
 	}
 	if toolName == "scheduler_create_job" {
@@ -1806,6 +1850,15 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			has("without", "plain", "status") {
 			boost -= 18
 		}
+		if countMatches("text", "status", "message", "checkpoint", "without", "file", "upload", "attachment") >= 4 {
+			boost += 20
+		}
+		if countMatches("no", "file", "no", "upload", "status", "thread", "message") >= 4 {
+			boost += 24
+		}
+		if countMatches("brief", "textual", "checkpoint", "status", "forbid", "forbids", "without", "upload", "file") >= 4 {
+			boost += 34
+		}
 	}
 	if toolName == "lark_upload_file" {
 		if countMatches("review", "cannot", "proceed", "without", "generated", "report", "file", "thread", "deliver", "package") >= 4 {
@@ -1814,6 +1867,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("artifact", "artifacts", "report", "reusable", "downstream", "full", "deep", "dive") >= 3 &&
 			!has("upload", "attach", "thread", "chat", "lark", "conversation") {
 			boost -= 26
+		}
+		if countMatches("no", "file", "no", "upload", "status", "thread", "message") >= 4 {
+			boost -= 38
+		}
+		if countMatches("brief", "textual", "checkpoint", "status", "forbid", "forbids", "without", "upload", "file") >= 4 {
+			boost -= 56
 		}
 	}
 	if toolName == "artifacts_write" {

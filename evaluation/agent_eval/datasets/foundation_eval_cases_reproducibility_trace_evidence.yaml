@@ -90,3 +90,23 @@ scenarios:
     category: "trace_evidence"
     intent: "Publishing evidence package is irreversible for audit trail, so explicit user approval is required first."
     expected_tools: ["request_user"]
+
+  - id: "trace-evidence-inventory-before-prune"
+    category: "trace_evidence"
+    intent: "Before deleting anything, inspect current artifact inventory and choose exact stale candidates."
+    expected_tools: ["artifacts_list"]
+
+  - id: "trace-evidence-thread-status-explicit-no-file"
+    category: "trace_evidence"
+    intent: "Reviewer asks for a brief textual checkpoint and explicitly forbids any file upload in this step."
+    expected_tools: ["lark_send_message"]
+
+  - id: "trace-evidence-approved-url-direct-ingest-only"
+    category: "trace_evidence"
+    intent: "The approved ticket already provides the only canonical URL, so ingest directly without discovery search."
+    expected_tools: ["web_fetch"]
+
+  - id: "trace-evidence-cli-log-scan-before-snippet"
+    category: "trace_evidence"
+    intent: "Need immediate CLI log/process scan to validate reproducibility environment before any code snippet execution."
+    expected_tools: ["shell_exec"]

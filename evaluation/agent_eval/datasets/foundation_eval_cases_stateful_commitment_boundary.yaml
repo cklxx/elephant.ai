@@ -90,3 +90,23 @@ scenarios:
     category: "stateful_repo"
     intent: "Need quick regex evidence pass across repository before deciding which file to inspect deeply."
     expected_tools: ["ripgrep"]
+
+  - id: "stateful-boundary-artifact-inventory-before-share"
+    category: "stateful_delivery"
+    intent: "Before sharing any package in-thread, enumerate current generated artifacts to avoid posting stale outputs."
+    expected_tools: ["artifacts_list"]
+
+  - id: "stateful-boundary-read-only-browser-state-check"
+    category: "stateful_source"
+    intent: "At this stage only browser tab/url/session metadata check is needed; no interaction should run."
+    expected_tools: ["browser_info"]
+
+  - id: "stateful-boundary-module-entrypoint-path-narrowing"
+    category: "stateful_repo"
+    intent: "Find candidate module entrypoints by directory/path structure first, then decide which file to open in next turn."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "stateful-boundary-text-checkpoint-explicit-no-upload"
+    category: "stateful_delivery"
+    intent: "Send only a short status checkpoint in thread with explicit no-file/no-upload instruction."
+    expected_tools: ["lark_send_message"]
