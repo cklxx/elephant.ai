@@ -205,6 +205,9 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 	tracker.progressMsgID = msgID
 	tracker.mu.Unlock()
 
+	// Persist task record to TaskStore.
+	l.syncTaskSave(taskID, description, agentType, startedAt)
+
 	go l.runTicker(tracker)
 }
 
@@ -279,7 +282,11 @@ func (l *backgroundProgressListener) onExternalProgress(env *domain.WorkflowEven
 	if idx > 0 {
 		t.recent = append([]progressRecord(nil), t.recent[idx:]...)
 	}
+	tokensUsed := rec.tokensUsed
 	t.mu.Unlock()
+
+	// Sync running status to TaskStore.
+	l.syncTaskStatus(taskID, "running", WithTokensUsed(tokensUsed))
 }
 
 func (l *backgroundProgressListener) onExternalInputRequested(env *domain.WorkflowEventEnvelope) {
@@ -344,6 +351,20 @@ func (l *backgroundProgressListener) onBackgroundCompleted(env *domain.WorkflowE
 	t.mu.Unlock()
 
 	l.flush(t, true)
+
+	// Sync final status to TaskStore.
+	finalStatus := status
+	if finalStatus == "" {
+		finalStatus = "completed"
+	}
+	var updateOpts []TaskUpdateOption
+	if errText != "" {
+		updateOpts = append(updateOpts, WithErrorText(truncateForLark(errText, 1500)))
+	}
+	if answer != "" {
+		updateOpts = append(updateOpts, WithAnswerPreview(truncateForLark(answer, 1500)))
+	}
+	l.syncTaskStatus(taskID, finalStatus, updateOpts...)
 
 	l.mu.Lock()
 	delete(l.tasks, taskID)
@@ -678,5 +699,33 @@ func isCodeAgentType(agentType string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// syncTaskSave persists a new task record to the TaskStore (if available).
+func (l *backgroundProgressListener) syncTaskSave(taskID, description, agentType string, startedAt time.Time) {
+	if l.g == nil || l.g.taskStore == nil {
+		return
+	}
+	rec := TaskRecord{
+		ChatID:      l.chatID,
+		TaskID:      taskID,
+		AgentType:   agentType,
+		Description: description,
+		Status:      "running",
+		CreatedAt:   startedAt,
+	}
+	if err := l.g.taskStore.SaveTask(l.ctx, rec); err != nil {
+		l.logger.Warn("Task store save failed for %s: %v", taskID, err)
+	}
+}
+
+// syncTaskStatus updates a task's status in the TaskStore (if available).
+func (l *backgroundProgressListener) syncTaskStatus(taskID, status string, opts ...TaskUpdateOption) {
+	if l.g == nil || l.g.taskStore == nil {
+		return
+	}
+	if err := l.g.taskStore.UpdateStatus(l.ctx, taskID, status, opts...); err != nil {
+		l.logger.Warn("Task store status update failed for %s: %v", taskID, err)
 	}
 }

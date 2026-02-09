@@ -77,6 +77,7 @@ type Gateway struct {
 	llmResolver     *subscription.SelectionResolver
 	cliCredsLoader  func() runtimeconfig.CLICredentials
 	llamaResolver   func(context.Context) (subscription.LlamaServerTarget, bool)
+	taskStore       TaskStore
 	activeSlots     sync.Map           // chatID → *sessionSlot
 	aiCoordinator   *AIChatCoordinator // coordinates multi-bot chat sessions
 }
@@ -189,6 +190,24 @@ func (g *Gateway) SetMessenger(m LarkMessenger) {
 		return
 	}
 	g.messenger = m
+}
+
+// SetTaskStore configures the task persistence store.
+func (g *Gateway) SetTaskStore(store TaskStore) {
+	if g == nil {
+		return
+	}
+	g.taskStore = store
+}
+
+// SendNotification sends a text notification to a Lark chat (no session/slot management).
+// This is used by external bridges (e.g. hooks bridge) to push messages to Lark.
+func (g *Gateway) SendNotification(ctx context.Context, chatID, text string) error {
+	if g == nil || g.messenger == nil {
+		return fmt.Errorf("lark messenger not initialized")
+	}
+	_, err := g.messenger.SendMessage(ctx, chatID, "text", textContent(text))
+	return err
 }
 
 // SetAIChatCoordinator configures the AI chat coordinator for multi-bot conversations.
@@ -339,6 +358,16 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	if strings.HasPrefix(strings.TrimSpace(msg.content), "/model") || strings.HasPrefix(strings.TrimSpace(msg.content), "/models") {
 		slot.mu.Unlock()
 		g.handleModelCommand(msg)
+		return nil
+	}
+	trimmedContent := strings.TrimSpace(msg.content)
+	if g.isTaskCommand(trimmedContent) || g.isPlanCommand(trimmedContent) {
+		slot.mu.Unlock()
+		if g.isPlanCommand(trimmedContent) {
+			g.handlePlanModeCommand(msg)
+		} else {
+			g.handleTaskCommand(msg)
+		}
 		return nil
 	}
 
@@ -620,6 +649,12 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 		bgLn := newBackgroundProgressListener(execCtx, listener, g, msg.chatID, replyTo, g.logger, g.cfg.BackgroundProgressInterval, g.cfg.BackgroundProgressWindow)
 		cleanups = append(cleanups, bgLn.Close)
 		listener = bgLn
+	}
+	// Input request listener bridges external agent permission/input requests to Lark.
+	{
+		irLn := newInputRequestListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), g.logger)
+		cleanups = append(cleanups, irLn.Close)
+		listener = irLn
 	}
 	if g.cfg.ShowPlanClarifyMessages {
 		listener = newPlanClarifyListener(execCtx, listener, g, msg.chatID, replyTarget(msg.messageID, true), awaitTracker)
