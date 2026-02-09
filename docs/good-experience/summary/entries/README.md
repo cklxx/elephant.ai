@@ -4,6 +4,7 @@ Updated: 2026-02-09
 
 ## Files
 
+- [2026-02-09-baseline-lint-test-repair-and-eval-rerun.md](2026-02-09-baseline-lint-test-repair-and-eval-rerun.md)
 - [2026-02-09-foundation-suite-systematic-expansion-v3.md](2026-02-09-foundation-suite-systematic-expansion-v3.md)
 - [2026-02-08-task-completion-speed-suite-expansion.md](2026-02-08-task-completion-speed-suite-expansion.md)
 - [2026-02-08-user-habit-soul-memory-suite-expansion.md](2026-02-08-user-habit-soul-memory-suite-expansion.md)
