@@ -619,7 +619,19 @@ func (g *Gateway) runNewTask(msg *incomingMessage, sessionID string, inputCh cha
 	defer cleanupListeners()
 	execCtx = shared.WithParentListener(execCtx, listener)
 
-	taskContent := g.prepareTaskContent(execCtx, session, msg, inputCh, sessionID, awaitUserInput)
+	// Resolve task content from three distinct concerns:
+	// 1. Plan review feedback (if any pending plan review exists)
+	taskContent, hasPlanReview := g.resolvePlanReviewFeedback(execCtx, session, msg)
+
+	// 2. Await resume: seed user reply into inputCh; task content becomes empty
+	//    so the ReAct loop reads input from the channel instead.
+	if awaitUserInput && !hasPlanReview {
+		g.seedAwaitResumeInput(inputCh, msg, sessionID)
+		taskContent = ""
+	}
+
+	// 3. Chat context enrichment for group chats (only when there is content)
+	taskContent = g.enrichWithChatContext(execCtx, taskContent, msg, hasPlanReview)
 
 	startEmoji, endEmoji := g.pickReactionEmojis()
 	if msg.messageID != "" && startEmoji != "" {
@@ -747,60 +759,69 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 	return listener, cleanup
 }
 
-// prepareTaskContent resolves plan review state, seeds pending user input, and
-// fetches auto chat context to build the final task content string.
-func (g *Gateway) prepareTaskContent(execCtx context.Context, session *storage.Session, msg *incomingMessage, inputCh chan agent.UserInput, sessionID string, awaitUserInput bool) string {
-	taskContent := msg.content
-	hasPending := false
-
-	if g.cfg.PlanReviewEnabled {
-		pending, ok := g.loadPlanReviewPending(execCtx, session, msg.senderID, msg.chatID)
-		hasPending = ok
-		if hasPending {
-			taskContent = buildPlanFeedbackBlock(pending, msg.content)
-			if g.planReviewStore != nil {
-				if err := g.planReviewStore.ClearPending(execCtx, msg.senderID, msg.chatID); err != nil {
-					g.logger.Warn("Lark plan review pending clear failed: %v", err)
-				}
-			}
+// resolvePlanReviewFeedback checks for a pending plan review and, if found,
+// wraps the user's reply into a plan feedback block. Returns the task content
+// and whether a pending plan review was found.
+func (g *Gateway) resolvePlanReviewFeedback(execCtx context.Context, session *storage.Session, msg *incomingMessage) (string, bool) {
+	if !g.cfg.PlanReviewEnabled {
+		return msg.content, false
+	}
+	pending, ok := g.loadPlanReviewPending(execCtx, session, msg.senderID, msg.chatID)
+	if !ok {
+		return msg.content, false
+	}
+	taskContent := buildPlanFeedbackBlock(pending, msg.content)
+	if g.planReviewStore != nil {
+		if err := g.planReviewStore.ClearPending(execCtx, msg.senderID, msg.chatID); err != nil {
+			g.logger.Warn("Lark plan review pending clear failed: %v", err)
 		}
 	}
+	return taskContent, true
+}
 
-	if awaitUserInput && !hasPending {
-		resolvedContent := msg.content
-		slot := g.getOrCreateSlot(msg.chatID)
-		slot.mu.Lock()
-		if options := slot.pendingOptions; len(options) > 0 {
-			resolvedContent = parseNumberedReply(msg.content, options)
-			slot.pendingOptions = nil
-		}
-		slot.mu.Unlock()
-		select {
-		case inputCh <- agent.UserInput{Content: resolvedContent, SenderID: msg.senderID, MessageID: msg.messageID}:
-			g.logger.Info("Seeded pending user input for session %s", sessionID)
-		default:
-			g.logger.Warn("Pending user input channel full for session %s; message dropped", sessionID)
-		}
-		taskContent = ""
+// seedAwaitResumeInput seeds the user's reply into the input channel for an
+// await-resume handoff, resolving numbered replies if pending options exist.
+// Returns true if the input was seeded (i.e. this is a resume from await).
+func (g *Gateway) seedAwaitResumeInput(inputCh chan agent.UserInput, msg *incomingMessage, sessionID string) bool {
+	resolvedContent := msg.content
+	slot := g.getOrCreateSlot(msg.chatID)
+	slot.mu.Lock()
+	if options := slot.pendingOptions; len(options) > 0 {
+		resolvedContent = parseNumberedReply(msg.content, options)
+		slot.pendingOptions = nil
 	}
-
-	if taskContent != "" && g.messenger != nil && msg.isGroup {
-		pageSize := g.cfg.AutoChatContextSize
-		if pageSize <= 0 {
-			pageSize = 20
-		}
-		if chatHistory, err := g.fetchRecentChatMessages(execCtx, msg.chatID, pageSize); err != nil {
-			g.logger.Warn("Lark auto chat context fetch failed: %v", err)
-		} else if chatHistory != "" {
-			if hasPending {
-				taskContent = taskContent + "\n\n[近期对话]\n" + chatHistory
-			} else {
-				taskContent = "[近期对话]\n" + chatHistory + "\n\n" + taskContent
-			}
-		}
+	slot.mu.Unlock()
+	select {
+	case inputCh <- agent.UserInput{Content: resolvedContent, SenderID: msg.senderID, MessageID: msg.messageID}:
+		g.logger.Info("Seeded pending user input for session %s", sessionID)
+	default:
+		g.logger.Warn("Pending user input channel full for session %s; message dropped", sessionID)
 	}
+	return true
+}
 
-	return taskContent
+// enrichWithChatContext prepends (or appends) recent group chat messages as
+// context to the task content. Only applies to group chats.
+func (g *Gateway) enrichWithChatContext(execCtx context.Context, taskContent string, msg *incomingMessage, hasPlanReview bool) string {
+	if taskContent == "" || g.messenger == nil || !msg.isGroup {
+		return taskContent
+	}
+	pageSize := g.cfg.AutoChatContextSize
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	chatHistory, err := g.fetchRecentChatMessages(execCtx, msg.chatID, pageSize)
+	if err != nil {
+		g.logger.Warn("Lark auto chat context fetch failed: %v", err)
+		return taskContent
+	}
+	if chatHistory == "" {
+		return taskContent
+	}
+	if hasPlanReview {
+		return taskContent + "\n\n[近期对话]\n" + chatHistory
+	}
+	return "[近期对话]\n" + chatHistory + "\n\n" + taskContent
 }
 
 // dispatchResult builds the reply from the execution result and sends it to
