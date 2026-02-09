@@ -207,6 +207,7 @@ type SkillsFeedbackFileConfig struct {
 type SchedulerFileConfig struct {
 	Enabled                *bool                        `yaml:"enabled"`
 	Triggers               []SchedulerTriggerFileConfig `yaml:"triggers"`
+	CalendarReminder       *CalendarReminderFileConfig  `yaml:"calendar_reminder"`
 	TriggerTimeoutSeconds  *int                         `yaml:"trigger_timeout_seconds"`
 	ConcurrencyPolicy      string                       `yaml:"concurrency_policy"`
 	JobStorePath           string                       `yaml:"job_store_path"`
@@ -222,8 +223,18 @@ type SchedulerTriggerFileConfig struct {
 	Task             string `yaml:"task"`
 	Channel          string `yaml:"channel"`
 	UserID           string `yaml:"user_id"`
+	ChatID           string `yaml:"chat_id"`
 	ApprovalRequired *bool  `yaml:"approval_required"`
 	Risk             string `yaml:"risk"`
+}
+
+type CalendarReminderFileConfig struct {
+	Enabled          *bool  `yaml:"enabled"`
+	Schedule         string `yaml:"schedule"`
+	LookAheadMinutes *int   `yaml:"look_ahead_minutes"`
+	Channel          string `yaml:"channel"`
+	UserID           string `yaml:"user_id"`
+	ChatID           string `yaml:"chat_id"`
 }
 
 type AttentionFileConfig struct {
@@ -283,9 +294,9 @@ type LarkChannelConfig struct {
 	PlanReviewEnabled             *bool              `json:"plan_review_enabled" yaml:"plan_review_enabled"`
 	PlanReviewRequireConfirmation *bool              `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`
 	PlanReviewPendingTTLMinutes   *int               `json:"plan_review_pending_ttl_minutes" yaml:"plan_review_pending_ttl_minutes"`
-	TaskStoreEnabled             *bool              `json:"task_store_enabled" yaml:"task_store_enabled"`
-	MaxConcurrentTasks           *int               `json:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
-	DefaultPlanMode              *string            `json:"default_plan_mode" yaml:"default_plan_mode"`
+	TaskStoreEnabled              *bool              `json:"task_store_enabled" yaml:"task_store_enabled"`
+	MaxConcurrentTasks            *int               `json:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
+	DefaultPlanMode               *string            `json:"default_plan_mode" yaml:"default_plan_mode"`
 }
 
 // LarkBrowserConfig captures local browser settings for the Lark channel.

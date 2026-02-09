@@ -167,6 +167,9 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.RecoveryBackoffSeconds != nil {
 		target.RecoveryBackoffSeconds = *file.RecoveryBackoffSeconds
 	}
+	if file.CalendarReminder != nil {
+		mergeCalendarReminderConfig(&target.CalendarReminder, file.CalendarReminder)
+	}
 	if len(file.Triggers) > 0 {
 		triggers := make([]SchedulerTriggerConfig, 0, len(file.Triggers))
 		for _, trigger := range file.Triggers {
@@ -176,6 +179,7 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 				Task:     strings.TrimSpace(trigger.Task),
 				Channel:  strings.TrimSpace(trigger.Channel),
 				UserID:   strings.TrimSpace(trigger.UserID),
+				ChatID:   strings.TrimSpace(trigger.ChatID),
 				Risk:     strings.TrimSpace(trigger.Risk),
 			}
 			if trigger.ApprovalRequired != nil {
@@ -184,6 +188,30 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 			triggers = append(triggers, cfg)
 		}
 		target.Triggers = triggers
+	}
+}
+
+func mergeCalendarReminderConfig(target *CalendarReminderConfig, file *CalendarReminderFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if strings.TrimSpace(file.Schedule) != "" {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if file.LookAheadMinutes != nil {
+		target.LookAheadMinutes = *file.LookAheadMinutes
+	}
+	if strings.TrimSpace(file.Channel) != "" {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if strings.TrimSpace(file.UserID) != "" {
+		target.UserID = strings.TrimSpace(file.UserID)
+	}
+	if strings.TrimSpace(file.ChatID) != "" {
+		target.ChatID = strings.TrimSpace(file.ChatID)
 	}
 }
 
@@ -239,6 +267,14 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	if file.Scheduler != nil {
 		for i := range file.Scheduler.Triggers {
 			file.Scheduler.Triggers[i].Task = expandEnvValue(lookup, file.Scheduler.Triggers[i].Task)
+			file.Scheduler.Triggers[i].UserID = expandEnvValue(lookup, file.Scheduler.Triggers[i].UserID)
+			file.Scheduler.Triggers[i].ChatID = expandEnvValue(lookup, file.Scheduler.Triggers[i].ChatID)
+		}
+		if file.Scheduler.CalendarReminder != nil {
+			file.Scheduler.CalendarReminder.Schedule = expandEnvValue(lookup, file.Scheduler.CalendarReminder.Schedule)
+			file.Scheduler.CalendarReminder.Channel = expandEnvValue(lookup, file.Scheduler.CalendarReminder.Channel)
+			file.Scheduler.CalendarReminder.UserID = expandEnvValue(lookup, file.Scheduler.CalendarReminder.UserID)
+			file.Scheduler.CalendarReminder.ChatID = expandEnvValue(lookup, file.Scheduler.CalendarReminder.ChatID)
 		}
 	}
 }

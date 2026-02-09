@@ -177,3 +177,137 @@ func TestMergeProactiveConfig_IncludesFinalAnswerReview(t *testing.T) {
 		t.Errorf("expected FinalAnswerReview.MaxExtraIterations=3, got %d", target.FinalAnswerReview.MaxExtraIterations)
 	}
 }
+
+func TestMergeSchedulerConfig_IncludesChatIDAndCalendarReminder(t *testing.T) {
+	target := DefaultProactiveConfig().Scheduler
+	target.CalendarReminder = CalendarReminderConfig{
+		Enabled:          false,
+		Schedule:         "*/30 * * * *",
+		LookAheadMinutes: 15,
+		Channel:          "lark",
+		UserID:           "ou_default",
+		ChatID:           "oc_default",
+	}
+
+	file := &SchedulerFileConfig{
+		Triggers: []SchedulerTriggerFileConfig{
+			{
+				Name:             "standup",
+				Schedule:         "0 9 * * *",
+				Task:             "send standup",
+				Channel:          "lark",
+				UserID:           "ou_trigger",
+				ChatID:           "oc_trigger",
+				ApprovalRequired: boolPtr(true),
+				Risk:             "medium",
+			},
+		},
+		CalendarReminder: &CalendarReminderFileConfig{
+			Enabled:          boolPtr(true),
+			Schedule:         "*/5 * * * *",
+			LookAheadMinutes: intPtr(45),
+			Channel:          "lark",
+			UserID:           "ou_calendar",
+			ChatID:           "oc_calendar",
+		},
+	}
+
+	mergeSchedulerConfig(&target, file)
+
+	if len(target.Triggers) != 1 {
+		t.Fatalf("expected 1 trigger, got %d", len(target.Triggers))
+	}
+	trigger := target.Triggers[0]
+	if trigger.ChatID != "oc_trigger" {
+		t.Fatalf("expected trigger chat_id to merge, got %q", trigger.ChatID)
+	}
+	if !trigger.ApprovalRequired {
+		t.Fatalf("expected trigger approval_required=true")
+	}
+
+	if !target.CalendarReminder.Enabled {
+		t.Fatalf("expected calendar reminder enabled")
+	}
+	if target.CalendarReminder.Schedule != "*/5 * * * *" {
+		t.Fatalf("expected calendar schedule merge, got %q", target.CalendarReminder.Schedule)
+	}
+	if target.CalendarReminder.LookAheadMinutes != 45 {
+		t.Fatalf("expected look_ahead_minutes=45, got %d", target.CalendarReminder.LookAheadMinutes)
+	}
+	if target.CalendarReminder.Channel != "lark" {
+		t.Fatalf("expected calendar channel merge, got %q", target.CalendarReminder.Channel)
+	}
+	if target.CalendarReminder.UserID != "ou_calendar" {
+		t.Fatalf("expected calendar user_id merge, got %q", target.CalendarReminder.UserID)
+	}
+	if target.CalendarReminder.ChatID != "oc_calendar" {
+		t.Fatalf("expected calendar chat_id merge, got %q", target.CalendarReminder.ChatID)
+	}
+}
+
+func TestExpandProactiveFileConfigEnv_SchedulerTriggerAndCalendar(t *testing.T) {
+	lookup := func(key string) (string, bool) {
+		switch key {
+		case "TRIGGER_TASK":
+			return "expanded task", true
+		case "TRIGGER_USER":
+			return "ou_trigger", true
+		case "TRIGGER_CHAT":
+			return "oc_trigger", true
+		case "CALENDAR_SCHEDULE":
+			return "*/10 * * * *", true
+		case "CALENDAR_CHANNEL":
+			return "lark", true
+		case "CALENDAR_USER":
+			return "ou_calendar", true
+		case "CALENDAR_CHAT":
+			return "oc_calendar", true
+		default:
+			return "", false
+		}
+	}
+
+	file := &ProactiveFileConfig{
+		Scheduler: &SchedulerFileConfig{
+			Triggers: []SchedulerTriggerFileConfig{
+				{
+					Name:     "expanded",
+					Schedule: "0 9 * * *",
+					Task:     "${TRIGGER_TASK}",
+					UserID:   "${TRIGGER_USER}",
+					ChatID:   "${TRIGGER_CHAT}",
+				},
+			},
+			CalendarReminder: &CalendarReminderFileConfig{
+				Schedule: "${CALENDAR_SCHEDULE}",
+				Channel:  "${CALENDAR_CHANNEL}",
+				UserID:   "${CALENDAR_USER}",
+				ChatID:   "${CALENDAR_CHAT}",
+			},
+		},
+	}
+
+	expandProactiveFileConfigEnv(lookup, file)
+
+	if got := file.Scheduler.Triggers[0].Task; got != "expanded task" {
+		t.Fatalf("expected expanded trigger task, got %q", got)
+	}
+	if got := file.Scheduler.Triggers[0].UserID; got != "ou_trigger" {
+		t.Fatalf("expected expanded trigger user_id, got %q", got)
+	}
+	if got := file.Scheduler.Triggers[0].ChatID; got != "oc_trigger" {
+		t.Fatalf("expected expanded trigger chat_id, got %q", got)
+	}
+	if got := file.Scheduler.CalendarReminder.Schedule; got != "*/10 * * * *" {
+		t.Fatalf("expected expanded calendar schedule, got %q", got)
+	}
+	if got := file.Scheduler.CalendarReminder.Channel; got != "lark" {
+		t.Fatalf("expected expanded calendar channel, got %q", got)
+	}
+	if got := file.Scheduler.CalendarReminder.UserID; got != "ou_calendar" {
+		t.Fatalf("expected expanded calendar user_id, got %q", got)
+	}
+	if got := file.Scheduler.CalendarReminder.ChatID; got != "oc_calendar" {
+		t.Fatalf("expected expanded calendar chat_id, got %q", got)
+	}
+}
