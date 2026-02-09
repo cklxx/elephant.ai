@@ -12,7 +12,7 @@ elephant.ai is a **proactive AI assistant** that embeds into daily workflows —
 | **Channel-native** | The assistant is a first-class participant in Lark groups and WeChat chats, not a separate app the user must switch to. |
 | **Persistent memory** | `internal/memory/` stores conversations, decisions, and context across sessions. The LLM retrieves relevant history automatically. |
 | **Autonomous execution** | The ReAct loop (`internal/agent/domain/react/`) runs Think → Act → Observe to completion — web search, code execution, file ops, browser automation — without hand-holding. |
-| **Built-in skills** | `skills/` contains markdown-driven workflows (deep research, meeting notes, email drafting, slide decks, video production) that the assistant executes on demand. |
+| **Built-in skills** | `skills/` contains markdown-driven workflows (deep research, meeting notes, email drafting, slide decks, video production, code review) that the assistant executes on demand. |
 | **Approval gates** | Proactivity requires safety. Risky tool calls require explicit human approval via CLI, web, or chat. |
 | **Tools feel local** | In web mode, sandbox-backed tools (file read/write, shell exec, code execution, browser) present as local operations. The LLM should never perceive sandbox boundaries. |
 | **Observable** | Every action produces structured traces, metrics, and cost accounting (`internal/observability/`). |
@@ -83,6 +83,7 @@ When making decisions, prefer:
   * Every plan must be written to a file under `docs/plans/`, with detailed updates as work progresses.
   * Before executing each task, review best engineering practices under `docs/`; if missing, search and add them.
   * Run full lint and test validation after changes.
+  * After lint/test pass, execute code review (`skills/code-review/SKILL.md`) on the diff before committing. Fix P0/P1 findings before commit; create follow-up for P2.
   * Start each task from a clean slate: create a new worktree on a new branch based on `main`, copy `.env` into the worktree, implement changes there, then merge back into `main` (prefer fast-forward).
   * After finishing and merging back, delete the temporary worktree (and optionally delete the branch) to keep the repo clean.
   * After completing code changes, restart only the changed service: `alex dev restart backend` or `alex dev restart web`. Avoid `./dev.sh down && ./dev.sh` which unnecessarily restarts infra.
@@ -107,6 +108,7 @@ Keep this concise and action-oriented. Prefer correctness and maintainability ov
 * Before each task, review engineering practices under `docs/`; if missing, search and add them.
 * Record notable incidents in error-experience entries; keep index files index-only.
 * Use TDD when touching logic; run full lint + tests before delivery.
+* After lint/test pass, execute code review (`skills/code-review/SKILL.md`) on the diff before committing. Fix P0/P1 findings before commit; create follow-up for P2.
 * After completing changes, always commit. Split one solution into incremental batches and commit each batch separately — one solution, multiple commits.
 * Avoid unnecessary defensive code; trust invariants when guaranteed.
 * From scratch, cut a new worktree branch off main and copy .env, then write code. After finishing, merge back to main.
