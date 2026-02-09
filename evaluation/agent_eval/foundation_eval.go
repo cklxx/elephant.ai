@@ -1139,6 +1139,13 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			countMatches("file", "markdown", "note", "report", "content") >= 1 {
 			boost += 18
 		}
+		if countMatches("ledger", "durable", "audit", "artifact", "progress", "proof") >= 3 {
+			boost -= 12
+		}
+		if countMatches("identify", "locate", "candidate", "pattern", "inside", "files") >= 3 &&
+			!has("write", "create", "save", "draft", "new") {
+			boost -= 18
+		}
 	case "list_dir":
 		if countMatches("list", "show", "enumerate", "browse", "tree") >= 1 &&
 			countMatches("directory", "folder", "workspace", "path") >= 1 {
@@ -1151,6 +1158,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("search", "find", "locate", "occurrence", "symbol", "token", "regex", "pattern") >= 1 &&
 			countMatches("file", "project", "repo", "source", "code", "across") >= 1 {
 			boost += 18
+		}
+		if countMatches("semantic", "content", "inside", "files", "instead", "path", "names") >= 3 {
+			boost += 16
 		}
 		if has("regex", "needle", "sweep", "fast", "quickly") && !has("content", "snippet", "lines", "inside", "within") {
 			// Prefer ripgrep for fast regex repository sweeps over semantic content search.
@@ -1181,6 +1191,13 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("monorepo", "scope", "candidate", "folder", "filename", "before", "open") >= 3 &&
 			!has("content", "snippet", "inside", "within") {
 			boost += 12
+		}
+		if countMatches("directory", "name", "constraint", "constraints", "before", "open") >= 3 &&
+			!has("content", "snippet", "inside", "within") {
+			boost += 14
+		}
+		if countMatches("path", "pattern", "before", "content", "inspection", "reduce", "large", "tree") >= 3 {
+			boost += 22
 		}
 	case "grep":
 		if countMatches("grep", "log", "error", "line", "pattern", "match") >= 2 {
@@ -1228,13 +1245,22 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			countMatches("progress", "progres", "momentum", "completed", "action", "actions", "proof", "evidence") >= 3 {
 			boost += 28
 		}
+		if countMatches("multi", "round", "ledger", "durable", "progress", "artifact", "record") >= 3 {
+			boost += 22
+		}
 	case "artifacts_list":
 		if countMatches("list", "enumerate", "index", "show", "generated", "artifact") >= 2 {
 			boost += 10
 		}
+		if countMatches("enumerate", "outputs", "produced", "run", "choose", "files", "release", "reviewer") >= 3 {
+			boost += 22
+		}
 	case "artifacts_delete":
 		if countMatches("delete", "remove", "prune", "cleanup", "stale", "obsolete", "artifact", "artifacts", "legacy") >= 2 {
 			boost += 24
+		}
+		if countMatches("stale", "failed", "run", "bundles", "polluted", "evidence", "cleanup") >= 3 {
+			boost += 20
 		}
 	case "memory_search":
 		if countMatches("memory", "prior", "history", "decision", "note", "context", "summary", "recall") >= 2 {
@@ -1300,6 +1326,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("audit", "inspect", "current", "existing", "recurring", "automation", "automations", "next", "fire", "time", "times", "before", "change", "policy", "cadence") >= 3 {
 			boost += 18
 		}
+		if countMatches("freeze", "frozen", "mutation", "resume", "state", "scheduled", "before", "write", "writes") >= 3 {
+			boost += 22
+		}
 	case "scheduler_create_job":
 		if countMatches("recurring", "weekday", "daily", "nightly", "followup", "accountability", "checkin", "scheduler", "job") >= 2 {
 			boost += 20
@@ -1313,6 +1342,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("legacy", "deprecation", "deprecated", "retired", "obsolete", "recurring", "cadence", "checkin", "checkins", "automation", "automations", "remove", "delete") >= 3 {
 			boost += 16
+		}
+		if countMatches("violates", "policy", "remove", "removed", "not", "recreated", "recreate", "cadence", "recurring") >= 4 {
+			boost += 24
+		}
+		if countMatches("violat", "policy", "remove", "not", "recreat", "cadence", "recurring") >= 4 {
+			boost += 24
 		}
 	case "list_timers":
 		if countMatches("timer", "timers", "reminder", "reminders", "remaining", "active", "schedule") >= 2 {
@@ -1544,6 +1579,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("replace", "patch", "edit", "modify", "update") {
 			boost -= 14
 		}
+		if countMatches("enumerate", "outputs", "produced", "run", "choose", "files", "release", "reviewer") >= 3 &&
+			!has("replace", "patch", "edit", "modify", "update") {
+			boost -= 18
+		}
 	}
 	if toolName == "browser_action" {
 		if countMatches("state", "status", "metadata", "url", "tab", "session", "current", "info") >= 3 &&
@@ -1572,6 +1611,48 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("legacy", "recurring", "automation", "automations", "job", "jobs", "cadence", "deprecation", "retired") >= 3 &&
 			!has("artifact", "artifacts", "manifest", "bundle", "output", "report") {
 			boost -= 20
+		}
+	}
+	if toolName == "write_file" {
+		if countMatches("enumerate", "list", "inspect", "audit", "show", "state", "current", "existing") >= 3 &&
+			!has("write", "create", "new", "save", "draft", "record") {
+			boost -= 20
+		}
+		if countMatches("scheduler", "recurring", "cadence", "jobs", "automation", "automations") >= 2 &&
+			!has("write", "create", "new", "save", "draft", "record", "runbook") {
+			boost -= 24
+		}
+	}
+	if toolName == "search_file" {
+		if countMatches("directory", "name", "constraint", "constraints", "before", "open") >= 3 &&
+			!has("content", "snippet", "inside", "within", "line", "lines") {
+			boost -= 14
+		}
+	}
+	if toolName == "scheduler_create_job" {
+		if countMatches("violates", "policy", "remove", "removed", "not", "recreated", "recreate", "cadence", "recurring") >= 4 {
+			boost -= 24
+		}
+		if countMatches("violat", "policy", "remove", "not", "recreat", "cadence", "recurring") >= 4 {
+			boost -= 24
+		}
+	}
+	if toolName == "lark_calendar_query" || toolName == "lark_calendar_update" || toolName == "lark_calendar_create" {
+		if countMatches("scheduler", "recurring", "automation", "automations", "job", "jobs", "cadence") >= 2 &&
+			!has("calendar", "event", "meeting") {
+			boost -= 20
+		}
+		if countMatches("violat", "policy", "remove", "not", "recreat", "cadence", "recurring") >= 4 &&
+			!has("calendar", "event", "meeting") {
+			boost -= 24
+		}
+	}
+	if toolName == "video_generate" {
+		if countMatches("scheduler", "recurring", "automation", "automations", "job", "jobs", "cadence", "state", "inspect", "audit") >= 3 {
+			boost -= 32
+		}
+		if countMatches("enumerate", "outputs", "produced", "run", "choose", "files", "release", "reviewer") >= 3 {
+			boost -= 26
 		}
 	}
 	if toolName == "lark_task_manage" {

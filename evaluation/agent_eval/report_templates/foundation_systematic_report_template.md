@@ -22,6 +22,7 @@
 - Base Tool Coverage: `x/x`
 - Prompt Effectiveness Coverage: `x/x`
 - Proactivity Coverage: `x/x`
+- Motivation-Aware Proactivity: `x/x`
 - Complex High-Value Tasks: `x/x`
 - Availability and Recovery: `x/x`
 - Valuable Delivery Workflows: `x/x`
@@ -37,8 +38,12 @@
 - Deep Research: `x/x`
 - Autonomy Initiative: `x/x`
 - Conflict Convergence Hard: `x/x`
+- Intent Decomposition Constraint Matrix: `x/x`
 - Challenge Hard V2: `x/x`
 - Complex Artifact Delivery: `x/x`
+- Sparse-Clue Retrieval Stress: `x/x`
+- Stateful Commitment Boundary Stress: `x/x`
+- Reproducibility Trace Evidence Stress: `x/x`
 
 ## 4. Top1 Failure Cluster Inventory
 | Conflict Pair (expected => top1) | Misses (x/x) | Miss Share | Collections | Sample Case |

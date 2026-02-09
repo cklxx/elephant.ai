@@ -549,6 +549,12 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("scheduler_delete_job", makeSet("obsolete", "scheduler", "checkin", "job", "remove")); boost <= 0 {
 		t.Fatalf("expected scheduler_delete_job boost for obsolete check-in intents, got %.2f", boost)
 	}
+	if boost := heuristicIntentBoost("scheduler_delete_job", makeSet("violates", "policy", "remove", "not", "recreate", "cadence", "recurring")); boost <= 0 {
+		t.Fatalf("expected scheduler_delete_job boost for remove-not-recreate cadence intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("scheduler_create_job", makeSet("violates", "policy", "remove", "not", "recreate", "cadence", "recurring")); boost >= 0 {
+		t.Fatalf("expected scheduler_create_job penalty for remove-not-recreate cadence intents, got %.2f", boost)
+	}
 	if boost := heuristicIntentBoost("request_user", makeSet("external", "outreach", "approval", "consent")); boost <= 0 {
 		t.Fatalf("expected request_user boost for external outreach consent gate, got %.2f", boost)
 	}
@@ -596,6 +602,18 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	}
 	if boost := heuristicIntentBoost("browser_action", makeSet("artifact", "report", "progress", "proof", "summary")); boost >= 0 {
 		t.Fatalf("expected browser_action penalty for non-UI artifact/proof intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("artifacts_list", makeSet("enumerate", "outputs", "produced", "run", "reviewer", "choose", "files", "release")); boost <= 0 {
+		t.Fatalf("expected artifacts_list boost for output-enumeration intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("replace_in_file", makeSet("enumerate", "outputs", "produced", "run", "reviewer", "choose", "files", "release")); boost >= 0 {
+		t.Fatalf("expected replace_in_file penalty for output-enumeration intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("find", makeSet("path", "pattern", "before", "content", "inspection", "reduce", "large", "tree")); boost <= 0 {
+		t.Fatalf("expected find boost for path-before-content inspection intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("search_file", makeSet("semantic", "content", "inside", "files", "instead", "path", "names")); boost <= 0 {
+		t.Fatalf("expected search_file boost for semantic-content-inside-files intents, got %.2f", boost)
 	}
 	searchBoost := heuristicIntentBoost("search_file", makeSet("regex", "needle", "sweep", "repo", "fast"))
 	rgBoost := heuristicIntentBoost("ripgrep", makeSet("regex", "needle", "sweep", "repo", "fast"))
