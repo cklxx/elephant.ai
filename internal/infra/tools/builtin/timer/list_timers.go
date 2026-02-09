@@ -45,7 +45,7 @@ func NewListTimers() tools.ToolExecutor {
 }
 
 func (t *listTimers) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	mgr := getTimerManager(ctx)
+	mgr := shared.TimerManagerFromContext(ctx)
 	if mgr == nil {
 		return shared.ToolError(call.ID, "timer manager not available")
 	}

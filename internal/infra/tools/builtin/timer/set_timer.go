@@ -76,7 +76,7 @@ Use this to schedule follow-ups, reminders, periodic checks, or deferred work. T
 }
 
 func (t *setTimer) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	mgr := getTimerManager(ctx)
+	mgr := shared.TimerManagerFromContext(ctx)
 	if mgr == nil {
 		return shared.ToolError(call.ID, "timer manager not available")
 	}
@@ -194,14 +194,3 @@ func (t *setTimer) Execute(ctx context.Context, call ports.ToolCall) (*ports.Too
 	}, nil
 }
 
-func getTimerManager(ctx context.Context) *tmr.TimerManager {
-	v := shared.TimerManagerFromContext(ctx)
-	if v == nil {
-		return nil
-	}
-	mgr, ok := v.(*tmr.TimerManager)
-	if !ok {
-		return nil
-	}
-	return mgr
-}

@@ -16,11 +16,6 @@ import (
 	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 )
 
-type larkOAuthService interface {
-	UserAccessToken(ctx context.Context, openID string) (string, error)
-	StartURL() string
-}
-
 type larkTokenKind uint8
 
 const (
@@ -44,17 +39,8 @@ func resolveLarkCalendarAuth(ctx context.Context, callID string) (larkAccessToke
 		}, nil
 	}
 
-	raw := shared.LarkOAuthFromContext(ctx)
-	if raw == nil {
-		if auth, errResult := buildTenantAuth(); errResult == nil {
-			return auth, nil
-		}
-		err := fmt.Errorf("lark oauth not configured (missing oauth service in context)")
-		return larkAccessToken{}, &ports.ToolResult{CallID: callID, Content: err.Error(), Error: err}
-	}
-
-	svc, ok := raw.(larkOAuthService)
-	if !ok || svc == nil {
+	svc := shared.LarkOAuthFromContext(ctx)
+	if svc == nil {
 		if auth, errResult := buildTenantAuth(); errResult == nil {
 			return auth, nil
 		}

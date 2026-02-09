@@ -62,7 +62,7 @@ type AgentCoordinator struct {
 	hookRegistry        *hooks.Registry
 	okrContextProvider  preparation.OKRContextProvider
 	credentialRefresher preparation.CredentialRefresher
-	timerManager        interface{} // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
+	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 	toolSLACollector    *toolspolicy.SLACollector
 }
 
@@ -964,7 +964,7 @@ func (c *AgentCoordinator) SetAttachmentPersister(p ports.AttachmentPersister) {
 
 // SetTimerManager wires the agent timer manager so tools can create/list/cancel
 // timers during execution.
-func (c *AgentCoordinator) SetTimerManager(mgr interface{}) {
+func (c *AgentCoordinator) SetTimerManager(mgr shared.TimerManagerService) {
 	c.timerManager = mgr
 }
 

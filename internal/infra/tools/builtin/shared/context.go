@@ -6,6 +6,7 @@ import (
 	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/backup"
+	tmr "alex/internal/shared/timer"
 )
 
 // Context keys for tool dependencies
@@ -166,18 +167,24 @@ func LarkMessageIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-// WithLarkOAuth stores the Lark OAuth service in context. Typed as interface{}
-// to avoid importing the OAuth package at this shared boundary.
-func WithLarkOAuth(ctx context.Context, svc interface{}) context.Context {
+// LarkOAuthService is the interface for Lark OAuth operations needed by tools.
+type LarkOAuthService interface {
+	UserAccessToken(ctx context.Context, openID string) (string, error)
+	StartURL() string
+}
+
+// WithLarkOAuth stores the Lark OAuth service in context.
+func WithLarkOAuth(ctx context.Context, svc LarkOAuthService) context.Context {
 	return context.WithValue(ctx, larkOAuthKey, svc)
 }
 
 // LarkOAuthFromContext retrieves the Lark OAuth service from context.
-func LarkOAuthFromContext(ctx context.Context) interface{} {
+func LarkOAuthFromContext(ctx context.Context) LarkOAuthService {
 	if ctx == nil {
 		return nil
 	}
-	return ctx.Value(larkOAuthKey)
+	svc, _ := ctx.Value(larkOAuthKey).(LarkOAuthService)
+	return svc
 }
 
 // WithLarkTenantCalendarID stores the Lark tenant calendar ID in context.
@@ -196,18 +203,26 @@ func LarkTenantCalendarIDFromContext(ctx context.Context) string {
 	return ""
 }
 
-// WithTimerManager sets the timer manager in context. Typed as interface{} to
-// avoid importing the timer package in the shared package.
-func WithTimerManager(ctx context.Context, mgr interface{}) context.Context {
+// TimerManagerService is the interface for timer management needed by tools.
+type TimerManagerService interface {
+	Add(t *tmr.Timer) error
+	Cancel(timerID string) error
+	List(userID string) []tmr.Timer
+	Get(timerID string) (tmr.Timer, bool)
+}
+
+// WithTimerManager sets the timer manager in context.
+func WithTimerManager(ctx context.Context, mgr TimerManagerService) context.Context {
 	return context.WithValue(ctx, timerManagerKey, mgr)
 }
 
 // TimerManagerFromContext retrieves the timer manager from context.
-func TimerManagerFromContext(ctx context.Context) interface{} {
+func TimerManagerFromContext(ctx context.Context) TimerManagerService {
 	if ctx == nil {
 		return nil
 	}
-	return ctx.Value(timerManagerKey)
+	svc, _ := ctx.Value(timerManagerKey).(TimerManagerService)
+	return svc
 }
 
 // WithScheduler sets the scheduler in context. Typed as interface{} to avoid
