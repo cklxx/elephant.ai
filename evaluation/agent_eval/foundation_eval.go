@@ -978,6 +978,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			countMatches("file", "project", "repo", "source", "code", "across") >= 1 {
 			boost += 18
 		}
+		if has("regex", "needle", "sweep", "fast", "quickly") && !has("content", "snippet", "lines", "inside", "within") {
+			// Prefer ripgrep for fast regex repository sweeps over semantic content search.
+			boost -= 8
+		}
 	case "replace_in_file":
 		if has("replace", "deprecated", "endpoint", "api", "path", "file", "update") {
 			boost += 16
@@ -1024,6 +1028,36 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "memory_search":
 		if countMatches("memory", "prior", "history", "decision", "note", "context", "summary", "recall") >= 2 {
 			boost += 20
+		}
+		if countMatches("preference", "habit", "style", "tone", "persona", "format", "choice") >= 2 {
+			boost += 16
+		}
+		if has("recall", "recover", "retrieve") &&
+			countMatches("preference", "preferred", "habit", "style", "tone", "persona", "format", "choice", "interaction", "interactions", "behavior", "pattern") >= 1 {
+			boost += 14
+		}
+	case "memory_get":
+		if countMatches("open", "exact", "line", "lines", "offset", "fragment", "citation", "verbatim", "proof", "evidence", "selected", "note") >= 2 {
+			boost += 24
+		}
+	case "request_user":
+		if countMatches("human", "manual", "approval", "approve", "confirm", "consent", "operator", "go-signal", "gate", "out-of-band", "acknowledgement", "wait") >= 2 {
+			boost += 26
+		}
+		if hasAll("before", "continue") && has("manual", "approval", "confirm", "human") {
+			boost += 10
+		}
+	case "ripgrep":
+		if countMatches("regex", "pattern", "needle", "sweep", "scan", "repo", "repository", "across", "fast", "quick", "hotspot") >= 2 {
+			boost += 26
+		}
+	case "execute_code":
+		if countMatches("script", "snippet", "compute", "calculate", "deterministic", "metric", "validate", "score") >= 2 {
+			boost += 16
+		}
+	case "scheduler_list_jobs":
+		if countMatches("job", "jobs", "list", "inventory", "registered", "cadence", "schedule", "show") >= 2 {
+			boost += 18
 		}
 	case "list_timers":
 		if countMatches("timer", "timers", "reminder", "reminders", "remaining", "active", "schedule") >= 2 {

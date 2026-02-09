@@ -366,6 +366,40 @@ func TestEvaluateImplicitCasesMarksAvailabilityAsNotApplicable(t *testing.T) {
 	}
 }
 
+func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
+	t.Parallel()
+
+	makeSet := func(tokens ...string) map[string]struct{} {
+		out := make(map[string]struct{}, len(tokens))
+		for _, token := range tokens {
+			out[token] = struct{}{}
+		}
+		return out
+	}
+
+	if boost := heuristicIntentBoost("request_user", makeSet("manual", "approval", "continue")); boost <= 0 {
+		t.Fatalf("expected request_user boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("memory_get", makeSet("open", "exact", "fragment", "offset", "citation")); boost <= 0 {
+		t.Fatalf("expected memory_get boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("memory_search", makeSet("preference", "habit", "format", "choice")); boost <= 0 {
+		t.Fatalf("expected memory_search boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("memory_search", makeSet("recover", "interaction", "habit")); boost <= 0 {
+		t.Fatalf("expected memory_search recovery boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("ripgrep", makeSet("regex", "needle", "sweep", "repo", "fast")); boost <= 0 {
+		t.Fatalf("expected ripgrep boost > 0, got %.2f", boost)
+	}
+
+	searchBoost := heuristicIntentBoost("search_file", makeSet("regex", "needle", "sweep", "repo", "fast"))
+	rgBoost := heuristicIntentBoost("ripgrep", makeSet("regex", "needle", "sweep", "repo", "fast"))
+	if rgBoost <= searchBoost {
+		t.Fatalf("expected ripgrep boost (%.2f) to exceed search_file boost (%.2f)", rgBoost, searchBoost)
+	}
+}
+
 func TestRunFoundationEvaluationEndToEnd(t *testing.T) {
 	t.Parallel()
 	tmp := t.TempDir()
