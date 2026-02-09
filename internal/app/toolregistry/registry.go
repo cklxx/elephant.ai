@@ -174,7 +174,8 @@ func wrapTool(tool tools.ToolExecutor, policy toolspolicy.ToolPolicy, breakers *
 		return nil
 	}
 	base := unwrapTool(tool)
-	approval := &approvalExecutor{delegate: base}
+	validated := &validatingExecutor{delegate: base}
+	approval := &approvalExecutor{delegate: validated}
 	retry := newRetryExecutor(approval, policy, breakers)
 	id := &idAwareExecutor{delegate: retry}
 	if sla == nil {
@@ -195,6 +196,8 @@ func unwrapTool(tool tools.ToolExecutor) tools.ToolExecutor {
 		case *retryExecutor:
 			tool = typed.delegate
 		case *approvalExecutor:
+			tool = typed.delegate
+		case *validatingExecutor:
 			tool = typed.delegate
 		default:
 			return tool
