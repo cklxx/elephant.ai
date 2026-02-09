@@ -1,9 +1,10 @@
 # Index: error-experience/summary/entries
 
-Updated: 2026-02-03
+Updated: 2026-02-09
 
 ## Files
 
+- [2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md](2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md)
 - [2026-01-08-git-index-lock-stale.md](2026-01-08-git-index-lock-stale.md)
 - [2026-01-08-sum-golang-502.md](2026-01-08-sum-golang-502.md)
 - [2026-01-09-auth-db-migration-file-not-in-container.md](2026-01-09-auth-db-migration-file-not-in-container.md)

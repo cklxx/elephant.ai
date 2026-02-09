@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-09 10:00
+Updated: 2026-02-09 11:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -38,6 +38,8 @@ Updated: 2026-02-09 10:00
 - A dedicated memory-capabilities collection catches regressions in memory_search/memory_get and memory-informed execution chains earlier than mixed suites.
 - User-habit and soul continuity routing requires separate evaluation layer; otherwise preference/persona regressions are hidden by generic memory pass rates.
 - A dedicated speed-focused collection is useful to catch regressions where the router drifts to slower multi-step paths instead of shortest viable completion.
+- Lark 本地链路如果 PID 文件写到包装 shell 而非真实 `alex-server`，会造成孤儿进程累积并耗尽 auth DB 连接；后台启动必须保证记录真实子进程 PID。
+- auth DB 本地初始化遇到 `too many clients already` 应执行“孤儿 Lark 进程清理 + 退避重试”，比一次失败直接降级更稳定。
 
 ## Items
 

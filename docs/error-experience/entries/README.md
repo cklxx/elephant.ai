@@ -1,9 +1,10 @@
 # Index: error-experience/entries
 
-Updated: 2026-02-03
+Updated: 2026-02-09
 
 ## Files
 
+- [2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md](2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md)
 - [2026-01-26-dev-lint-test-tui-typecheck.md](2026-01-26-dev-lint-test-tui-typecheck.md)
 - [2026-01-26-dev-test-mcp-race.md](2026-01-26-dev-test-mcp-race.md)
 - [2026-01-26-make-fmt-test-builtin-typecheck.md](2026-01-26-make-fmt-test-builtin-typecheck.md)
