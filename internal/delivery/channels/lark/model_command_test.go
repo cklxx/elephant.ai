@@ -286,6 +286,42 @@ func TestApplyPinnedSupportsLegacyChatUserScope(t *testing.T) {
 	}
 }
 
+func TestApplyPinnedGroupChatIgnoresLegacyChatUserScope(t *testing.T) {
+	t.Parallel()
+	gw := newTestGatewayWithStore(t)
+	ctx := context.Background()
+	msg := &incomingMessage{chatID: "oc_group", senderID: "ou_user", isGroup: true}
+
+	channelSel := subscription.Selection{
+		Mode:     "cli",
+		Provider: "llama_server",
+		Model:    "channel-model",
+		Source:   "llama_server",
+	}
+	if err := gw.llmSelections.Set(ctx, channelScope(), channelSel); err != nil {
+		t.Fatalf("set channel scope: %v", err)
+	}
+
+	legacyScope := subscription.SelectionScope{Channel: "lark", ChatID: "oc_group", UserID: "ou_user"}
+	legacySel := subscription.Selection{
+		Mode:     "cli",
+		Provider: "llama_server",
+		Model:    "legacy-model",
+		Source:   "llama_server",
+	}
+	if err := gw.llmSelections.Set(ctx, legacyScope, legacySel); err != nil {
+		t.Fatalf("set legacy scope: %v", err)
+	}
+
+	status := gw.buildModelStatus(ctx, msg)
+	if !strings.Contains(status, "channel-model") {
+		t.Fatalf("expected channel-model in status, got: %s", status)
+	}
+	if strings.Contains(status, "legacy-model") {
+		t.Fatalf("expected legacy scope to be ignored in group chat, got: %s", status)
+	}
+}
+
 func TestBuildModelStatusShowsScopeLabel(t *testing.T) {
 	t.Parallel()
 	gw := newTestGatewayWithStore(t)

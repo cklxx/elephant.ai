@@ -163,15 +163,18 @@ func legacyChatUserScope(msg *incomingMessage) (subscription.SelectionScope, boo
 }
 
 // selectionScopes builds lookup scopes from most specific to least specific.
-// Order: chat-level -> legacy chat+user -> channel-level.
+// Order: chat-level -> legacy chat+user (DM-only compatibility) -> channel-level.
 func selectionScopes(msg *incomingMessage) []subscription.SelectionScope {
 	scopes := make([]subscription.SelectionScope, 0, 3)
 	if msg != nil {
 		if chatID := strings.TrimSpace(msg.chatID); chatID != "" {
 			scopes = append(scopes, subscription.SelectionScope{Channel: "lark", ChatID: chatID})
 		}
-		if legacy, ok := legacyChatUserScope(msg); ok {
-			scopes = append(scopes, legacy)
+		// Group chats should be strictly chat-scoped to avoid sender-specific drift.
+		if !msg.isGroup {
+			if legacy, ok := legacyChatUserScope(msg); ok {
+				scopes = append(scopes, legacy)
+			}
 		}
 	}
 	scopes = append(scopes, channelScope())
