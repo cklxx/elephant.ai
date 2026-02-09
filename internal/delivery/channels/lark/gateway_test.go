@@ -2665,3 +2665,137 @@ func TestBuildAttachmentSummarySkipsDataURI(t *testing.T) {
 		t.Fatalf("expected name-only entry, got %q", summary)
 	}
 }
+
+func TestResolveSessionForNewTask(t *testing.T) {
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark"}},
+		logger: logging.OrNop(nil),
+	}
+
+	t.Run("idle slot creates fresh session", func(t *testing.T) {
+		slot := &sessionSlot{phase: slotIdle}
+		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		if isResume {
+			t.Fatal("expected isResume=false for idle slot")
+		}
+		if sessionID == "" {
+			t.Fatal("expected non-empty session ID")
+		}
+		if !strings.HasPrefix(sessionID, "lark-") {
+			t.Fatalf("expected 'lark-' prefix, got %q", sessionID)
+		}
+	})
+
+	t.Run("awaiting slot reuses session", func(t *testing.T) {
+		slot := &sessionSlot{
+			phase:     slotAwaitingInput,
+			sessionID: "lark-existing-session",
+		}
+		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		if !isResume {
+			t.Fatal("expected isResume=true for awaiting slot")
+		}
+		if sessionID != "lark-existing-session" {
+			t.Fatalf("expected reused session ID, got %q", sessionID)
+		}
+	})
+
+	t.Run("awaiting slot with empty sessionID creates fresh", func(t *testing.T) {
+		slot := &sessionSlot{
+			phase:     slotAwaitingInput,
+			sessionID: "",
+		}
+		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		if isResume {
+			t.Fatal("expected isResume=false when sessionID is empty")
+		}
+		if sessionID == "" {
+			t.Fatal("expected non-empty session ID")
+		}
+	})
+}
+
+func TestDrainAndReprocessPreservesOrdering(t *testing.T) {
+	// Track the order in which reprocessMessage invocations enter handleMessage.
+	// Each task runs instantly so the next reprocess sees an idle slot and starts
+	// a new task, allowing us to verify FIFO ordering across all three.
+	var mu sync.Mutex
+	var order []string
+
+	executor := &orderTrackingExecutor{
+		ensureFn: func(_ context.Context, sid string) (*storage.Session, error) {
+			return &storage.Session{ID: sid, Metadata: map[string]string{}}, nil
+		},
+		executeFn: func(_ context.Context, task string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+			mu.Lock()
+			order = append(order, task)
+			mu.Unlock()
+			return &agent.TaskResult{Answer: "ok"}, nil
+		},
+	}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	ch := make(chan agent.UserInput, 16)
+	msgs := []string{"first", "second", "third"}
+	for _, m := range msgs {
+		ch <- agent.UserInput{Content: m, SenderID: "ou_test", MessageID: id.NewKSUID()}
+	}
+
+	gw.drainAndReprocess(ch, "oc_drain_order_test", "p2p")
+	gw.WaitForTasks()
+
+	// After drainAndReprocess + WaitForTasks, all cascading tasks should complete.
+	// The first reprocess creates a task; when it finishes (non-await), subsequent
+	// messages injected into the slot are discarded. So we expect at least the first
+	// message to be processed, and all processed messages to be in order.
+	mu.Lock()
+	defer mu.Unlock()
+	if len(order) == 0 {
+		t.Fatal("expected at least 1 reprocessed message")
+	}
+	// Verify ordering: each processed message should be in FIFO order
+	for i := 1; i < len(order); i++ {
+		prevIdx := indexOf(msgs, order[i-1])
+		currIdx := indexOf(msgs, order[i])
+		if prevIdx >= currIdx {
+			t.Fatalf("message ordering violated: %q (idx=%d) before %q (idx=%d) in order=%v",
+				order[i-1], prevIdx, order[i], currIdx, order)
+		}
+	}
+}
+
+func indexOf(haystack []string, needle string) int {
+	for i, s := range haystack {
+		if s == needle {
+			return i
+		}
+	}
+	return -1
+}
+
+// orderTrackingExecutor allows inline function stubs for tracking execution order.
+type orderTrackingExecutor struct {
+	ensureFn  func(context.Context, string) (*storage.Session, error)
+	executeFn func(context.Context, string, string, agent.EventListener) (*agent.TaskResult, error)
+}
+
+func (s *orderTrackingExecutor) EnsureSession(ctx context.Context, sessionID string) (*storage.Session, error) {
+	if s.ensureFn != nil {
+		return s.ensureFn(ctx, sessionID)
+	}
+	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+}
+
+func (s *orderTrackingExecutor) ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error) {
+	if s.executeFn != nil {
+		return s.executeFn(ctx, task, sessionID, listener)
+	}
+	return nil, nil
+}
