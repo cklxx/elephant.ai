@@ -11,6 +11,7 @@ import (
 	runtimeconfig "alex/internal/shared/config"
 
 	"alex/internal/infra/tools/builtin/aliases"
+	applescripttools "alex/internal/infra/tools/builtin/applescript"
 	"alex/internal/infra/tools/builtin/artifacts"
 	"alex/internal/infra/tools/builtin/browser"
 	"alex/internal/infra/tools/builtin/chromebridge"
@@ -208,6 +209,8 @@ func (r *Registry) registerPlatformTools(config Config, visionTool tools.ToolExe
 		r.static["write_attachment"] = aliases.NewWriteAttachment(fileConfig)
 		if runtime.GOOS == "darwin" {
 			r.static["peekaboo_exec"] = peekabootools.NewPeekabooExec()
+			r.static["atlas"] = applescripttools.NewAtlas()
+			r.static["chrome"] = applescripttools.NewChrome()
 		}
 	default:
 		sandboxConfig := sandbox.SandboxConfig{
