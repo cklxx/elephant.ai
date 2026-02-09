@@ -75,17 +75,20 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 高难挑战专项（challenge hard v2）
 - 复杂任务文件产物交付专项（complex artifact delivery）
 - 意图裂解约束矩阵专项（intent decomposition constraint matrix）
+- 稀疏线索检索高压专项（sparse-clue retrieval stress）
+- 多轮状态承诺边界专项（stateful commitment boundary stress）
+- 可复现证据链专项（reproducibility trace evidence stress）
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
 当前集合规模（`x/x`）：
-- Collections: `22/22`
-- Cases: `608/608`
-- Applicable Cases: `608/608`（N/A 单独统计，不计失败）
-- pass@1: `526/608`
-- pass@5: `608/608`
-- Deliverable Cases: `44/608`
-- Deliverable Good: `33/44`
-- Deliverable Bad: `11/44`
+- Collections: `25/25`
+- Cases: `656/656`
+- Applicable Cases: `656/656`（N/A 单独统计，不计失败）
+- pass@1: `562/656`
+- pass@5: `656/656`
+- Deliverable Cases: `50/656`
+- Deliverable Good: `39/50`
+- Deliverable Bad: `11/50`
 - Base Tool Coverage: `46/46`
 - Prompt Effectiveness Coverage: `32/32`
 - Proactivity Coverage: `30/30`
@@ -108,6 +111,9 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Intent Decomposition Constraint Matrix: `32/32`
 - Challenge Hard V2: `58/58`
 - Complex Artifact Delivery: `38/38`
+- Sparse-Clue Retrieval Stress: `16/16`
+- Stateful Commitment Boundary Stress: `16/16`
+- Reproducibility Trace Evidence Stress: `16/16`
 
 运行命令：
 
