@@ -21,8 +21,14 @@
 - [x] M2: Process manager 并发/PID 语义修复 + 测试
 - [x] M3: Restart policy/supervisor 修复 + 测试
 - [x] M4: Lark CLI 启动 PID 一致性修复 + 测试
-- [ ] M5: 全量验证、文档沉淀、增量提交、合并回 main
+- [x] M5: 全量验证、文档沉淀、增量提交、合并回 main
 
 ## 风险与约束
 - 保持内部行为修复，不引入外部接口破坏。
 - PID 身份校验使用强校验，遇到不匹配优先清理陈旧 PID 并拒绝误杀。
+
+## 验证记录
+- `./dev.sh lint` ✅
+- `./dev.sh test` ✅
+- `./tests/scripts/lark-supervisor-smoke.sh` ✅
+- `./tests/scripts/lark-autofix-smoke.sh` ✅
