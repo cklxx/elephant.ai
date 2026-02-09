@@ -392,6 +392,15 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 				workingDir = bt.workspace.WorkingDir
 			}
 
+			// Heartbeat goroutine: emit lightweight progress events every 5 minutes
+			// to keep the SerializingEventListener queue alive during long idle periods.
+			heartbeatCtx, heartbeatCancel := context.WithCancel(ctx)
+			if bt.emitEvent != nil && bt.baseEvent != nil {
+				m.goRunner.Go(m.logger, "bg-heartbeat:"+bt.id, func() {
+					m.runHeartbeat(heartbeatCtx, bt)
+				})
+			}
+
 			extResult, execErr := m.externalExecutor.Execute(ctx, agent.ExternalAgentRequest{
 				TaskID:      bt.id,
 				Prompt:      prompt,
@@ -404,6 +413,8 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 					m.captureProgress(ctx, bt, p)
 				},
 			})
+			heartbeatCancel()
+
 			if extResult != nil {
 				result = &agent.TaskResult{
 					Answer:     extResult.Answer,
@@ -747,6 +758,38 @@ func (m *BackgroundTaskManager) captureProgress(ctx context.Context, bt *backgro
 			LastActivity: p.LastActivity,
 			Elapsed:      elapsed,
 		})
+	}
+}
+
+const heartbeatInterval = 5 * time.Minute
+
+// runHeartbeat emits lightweight progress events at heartbeatInterval to keep
+// the SerializingEventListener queue alive during long idle periods (e.g. a
+// bash command running for >10 minutes with no JSONL output).
+func (m *BackgroundTaskManager) runHeartbeat(ctx context.Context, bt *backgroundTask) {
+	ticker := time.NewTicker(heartbeatInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			now := m.clock.Now()
+			elapsed := time.Duration(0)
+			if !bt.startedAt.IsZero() {
+				elapsed = now.Sub(bt.startedAt)
+				if elapsed < 0 {
+					elapsed = 0
+				}
+			}
+			bt.emitEvent(&domain.ExternalAgentProgressEvent{
+				BaseEvent:   bt.baseEvent(ctx),
+				TaskID:      bt.id,
+				AgentType:   bt.agentType,
+				CurrentTool: "__heartbeat__",
+				Elapsed:     elapsed,
+			})
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 

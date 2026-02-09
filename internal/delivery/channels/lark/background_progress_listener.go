@@ -296,9 +296,17 @@ func (l *backgroundProgressListener) onExternalProgress(env *domain.WorkflowEven
 		return
 	}
 
+	currentTool := asString(env.Payload["current_tool"])
+
+	// Heartbeat events keep the SerializingEventListener queue alive but
+	// should not be recorded as progress or displayed to the user.
+	if currentTool == "__heartbeat__" {
+		return
+	}
+
 	rec := progressRecord{
 		ts:          env.Timestamp(),
-		currentTool: asString(env.Payload["current_tool"]),
+		currentTool: currentTool,
 		currentArgs: truncateForLark(asString(env.Payload["current_args"]), 200),
 		tokensUsed:  asInt(env.Payload["tokens_used"]),
 		files:       asStringSlice(env.Payload["files_touched"]),
