@@ -1110,6 +1110,11 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if has("no", "fixed", "web") || hasAll("source", "not", "selected") {
 			boost += 12
 		}
+	case "web_fetch":
+		if countMatches("fetch", "read", "extract", "open", "pull") >= 1 &&
+			countMatches("url", "exact", "single", "provided", "fixed", "page", "content") >= 2 {
+			boost += 18
+		}
 	case "browser_dom":
 		if has("selector", "dom", "form", "field", "fill", "submit") {
 			boost += 14
@@ -1163,6 +1168,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("find", "locate", "lookup", "name", "filename", "directory", "path") >= 2 {
 			boost += 20
 		}
+		if countMatches("name", "path", "directory", "filename") >= 2 &&
+			!has("content", "line", "lines", "snippet", "inside", "within") {
+			boost += 8
+		}
 	case "grep":
 		if countMatches("grep", "log", "error", "line", "pattern", "match") >= 2 {
 			boost += 18
@@ -1170,6 +1179,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "lark_calendar_query":
 		if countMatches("calendar", "event", "query", "upcoming", "schedule", "check") >= 2 {
 			boost += 16
+		}
+	case "lark_chat_history":
+		if countMatches("chat", "thread", "conversation", "history", "context", "recent", "before") >= 2 {
+			boost += 24
 		}
 	case "okr_write":
 		if countMatches("okr", "objective", "key", "result", "progress", "update", "write", "status") >= 2 {
@@ -1235,6 +1248,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("script", "snippet", "compute", "calculate", "deterministic", "metric", "validate", "score") >= 2 {
 			boost += 16
 		}
+	case "shell_exec":
+		if countMatches("shell", "command", "cli", "terminal", "process", "port", "inspect", "check", "grep", "log") >= 2 {
+			boost += 18
+		}
 	case "scheduler_list_jobs":
 		if countMatches("job", "jobs", "list", "inventory", "registered", "cadence", "schedule", "show") >= 2 {
 			boost += 18
@@ -1250,6 +1267,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "lark_send_message":
 		if countMatches("send", "message", "update", "status", "lark", "thread", "chat") >= 2 {
 			boost += 14
+		}
+		if countMatches("status", "announce", "broadcast", "notify", "share") >= 1 {
+			boost += 8
 		}
 	case "a2ui_emit":
 		if has("payload", "renderer", "render", "ui", "protocol", "structured") {
@@ -1299,6 +1319,12 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("manual", "approval", "approve", "confirm", "consent", "operator", "gate", "user") >= 2 {
 			boost -= 20
 		}
+		if countMatches("delegate", "executor", "parallel", "subagent", "handoff", "heavy") >= 2 {
+			boost -= 12
+		}
+		if countMatches("memory", "habit", "preference", "style", "persona", "soul") >= 2 {
+			boost -= 12
+		}
 	}
 	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
 		if has("artifact", "artifacts", "manifest", "cleanup", "stale", "obsolete", "legacy") &&
@@ -1333,14 +1359,47 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			!has("download", "thread", "upload", "attach", "handoff", "receiver") {
 			boost -= 16
 		}
+		if countMatches("artifact", "persist", "store", "report", "bundle", "manifest") >= 2 &&
+			!has("attach", "upload", "download", "thread", "chat") {
+			boost -= 20
+		}
+		if countMatches("write", "file", "save", "create") >= 2 &&
+			!has("attach", "upload", "download", "thread", "chat") {
+			boost -= 12
+		}
+	}
+	if toolName == "lark_upload_file" {
+		if countMatches("history", "context", "recent", "before", "conversation", "thread", "chat") >= 3 &&
+			!has("upload", "attach", "file", "share", "send") {
+			boost -= 26
+		}
+		if countMatches("send", "message", "status", "announce", "notify") >= 2 &&
+			!has("upload", "attach", "file") {
+			boost -= 20
+		}
 	}
 	if toolName == "set_timer" {
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
 			boost -= 18
 		}
+		if countMatches("scheduler", "job", "cron", "cadence", "recurring", "daily", "weekly") >= 2 {
+			boost -= 14
+		}
+	}
+	if toolName == "cancel_timer" {
+		if countMatches("list", "active", "remaining", "show", "enumerate", "status") >= 2 &&
+			!has("cancel", "remove", "delete") {
+			boost -= 16
+		}
 	}
 	if toolName == "search_file" {
 		if countMatches("memory", "history", "prior", "note", "notes", "recall", "habit", "preference") >= 2 {
+			boost -= 10
+		}
+		if countMatches("official", "rfc", "spec", "web", "source", "url", "reference") >= 2 {
+			boost -= 12
+		}
+		if countMatches("regex", "needle", "sweep", "repo", "fast", "quick") >= 2 {
 			boost -= 10
 		}
 	}
@@ -1361,8 +1420,48 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost -= 12
 		}
 	}
+	if toolName == "web_search" {
+		if countMatches("exact", "single", "provided", "fixed", "one", "specific") >= 2 &&
+			has("url", "page") {
+			boost -= 10
+		}
+	}
+	if toolName == "replace_in_file" {
+		if countMatches("grep", "log", "logs", "filter", "pattern", "match", "line") >= 2 &&
+			!has("replace", "patch", "edit", "modify", "update") {
+			boost -= 14
+		}
+	}
+	if toolName == "browser_action" {
+		if countMatches("state", "status", "metadata", "url", "tab", "session", "current", "info") >= 3 &&
+			!has("click", "drag", "coordinate", "canvas", "pixel", "tap") {
+			boost -= 18
+		}
+	}
+	if toolName == "browser_dom" {
+		if countMatches("canvas", "coordinate", "pixel", "drag", "offset") >= 2 {
+			boost -= 12
+		}
+	}
+	if toolName == "artifacts_delete" {
+		if countMatches("scheduler", "job", "cron", "cadence", "run") >= 2 &&
+			!has("artifact", "artifacts", "manifest", "bundle") {
+			boost -= 14
+		}
+	}
+	if toolName == "lark_task_manage" {
+		if countMatches("plan", "roadmap", "phase", "milestone", "strategy") >= 2 &&
+			!has("task", "owner", "due", "todo", "assign") {
+			boost -= 12
+		}
+	}
 	if hasAll("task", "delegate") && toolName == "acp_executor" {
 		boost += 8
+	}
+	if toolName == "acp_executor" {
+		if countMatches("delegate", "executor", "subagent", "parallel", "heavy", "long", "deep") >= 2 {
+			boost += 16
+		}
 	}
 	return boost
 }
@@ -1605,6 +1704,10 @@ var tokenAliases = map[string]string{
 	"references":    "reference",
 	"discover":      "search",
 	"shortlist":     "search",
+	"sandbox":       "shell",
+	"sandboxed":     "shell",
+	"terminal":      "shell",
+	"bash":          "shell",
 	"fixed":         "exact",
 	"provided":      "exact",
 	"pinned":        "exact",

@@ -212,6 +212,7 @@ func TestBuildFoundationSuiteMarkdownReportIncludesPassRatios(t *testing.T) {
 							{
 								ID:            "bad-case",
 								ExpectedTools: []string{"write_attachment"},
+								HitRank:       2,
 								TopMatches:    []FoundationToolMatch{{Name: "read_file", Score: 4.1}},
 								DeliverableCheck: &FoundationDeliverableCheck{
 									Applicable:       true,
@@ -246,6 +247,12 @@ func TestBuildFoundationSuiteMarkdownReportIncludesPassRatios(t *testing.T) {
 	}
 	if !strings.Contains(report, "pass@1") || !strings.Contains(report, "pass@5") {
 		t.Fatalf("expected pass@ metrics in suite report, got: %s", report)
+	}
+	if !strings.Contains(report, "Top1 Conflict Clusters (Systematic)") {
+		t.Fatalf("expected systematic conflict cluster section in report, got: %s", report)
+	}
+	if !strings.Contains(report, "write_attachment => read_file") {
+		t.Fatalf("expected conflict pair entry in report, got: %s", report)
 	}
 }
 

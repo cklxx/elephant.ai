@@ -603,6 +603,8 @@ func buildFoundationSuiteMarkdownReport(result *FoundationSuiteResult) string {
 		}
 		b.WriteString("\n")
 
+		b.WriteString(buildTop1ConflictClusterSection(rows))
+
 		b.WriteString("## Worst Failed Cases by Collection\n\n")
 		for _, row := range rows {
 			if row.Summary == nil || row.FailedCases == 0 {
@@ -777,6 +779,107 @@ func totalCaseCountFromRows(rows []FoundationSuiteCollectionResult) int {
 		total += row.TotalCases
 	}
 	return total
+}
+
+type top1ConflictCluster struct {
+	Expected   string
+	Top1       string
+	Count      int
+	SampleCase string
+	Collections map[string]struct{}
+}
+
+func buildTop1ConflictClusterSection(rows []FoundationSuiteCollectionResult) string {
+	var b strings.Builder
+	clusters := make(map[string]*top1ConflictCluster, 64)
+	totalMisses := 0
+	for _, row := range rows {
+		if row.Summary == nil {
+			continue
+		}
+		for _, caseResult := range row.Summary.Implicit.CaseResults {
+			if caseResult.NotApplicable || caseResult.HitRank <= 1 {
+				continue
+			}
+			if len(caseResult.ExpectedTools) == 0 {
+				continue
+			}
+			top1 := "-"
+			if len(caseResult.TopMatches) > 0 {
+				top1 = caseResult.TopMatches[0].Name
+			}
+			expected := strings.Join(caseResult.ExpectedTools, "+")
+			key := expected + " => " + top1
+			cluster, ok := clusters[key]
+			if !ok {
+				cluster = &top1ConflictCluster{
+					Expected:    expected,
+					Top1:        top1,
+					SampleCase:  caseResult.ID,
+					Collections: map[string]struct{}{row.ID: {}},
+				}
+				clusters[key] = cluster
+			}
+			cluster.Count++
+			cluster.Collections[row.ID] = struct{}{}
+			totalMisses++
+		}
+	}
+
+	b.WriteString("## Top1 Conflict Clusters (Systematic)\n\n")
+	if totalMisses == 0 {
+		b.WriteString("- Top1 misses: `0/0`\n")
+		b.WriteString("- No conflict clusters detected.\n\n")
+		return b.String()
+	}
+
+	list := make([]top1ConflictCluster, 0, len(clusters))
+	for _, cluster := range clusters {
+		list = append(list, *cluster)
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].Count == list[j].Count {
+			if list[i].Expected == list[j].Expected {
+				return list[i].Top1 < list[j].Top1
+			}
+			return list[i].Expected < list[j].Expected
+		}
+		return list[i].Count > list[j].Count
+	})
+
+	b.WriteString(fmt.Sprintf("- Top1 misses: `%d/%d`\n\n", totalMisses, totalCaseCountFromRows(rows)))
+	b.WriteString("| Conflict Pair (expected => top1) | Misses (x/x) | Miss Share | Collections | Sample Case |\n")
+	b.WriteString("|---|---:|---:|---:|---|\n")
+	limit := 20
+	if len(list) < limit {
+		limit = len(list)
+	}
+	for i := 0; i < limit; i++ {
+		cluster := list[i]
+		b.WriteString(fmt.Sprintf(
+			"| `%s => %s` | %d/%d | %.1f%% | %d | `%s` |\n",
+			cluster.Expected,
+			cluster.Top1,
+			cluster.Count,
+			totalMisses,
+			(float64(cluster.Count)*100.0)/float64(totalMisses),
+			len(cluster.Collections),
+			cluster.SampleCase,
+		))
+	}
+	b.WriteString("\n")
+
+	b.WriteString("### Cluster-Oriented Optimization Actions\n\n")
+	b.WriteString("| Cluster Family | Action |\n")
+	b.WriteString("|---|---|\n")
+	b.WriteString("| `memory_search => search_file/clarify` | Raise memory-intent boosts and add stronger penalties for file-search/clarify under memory/habit/persona tokens. |\n")
+	b.WriteString("| `request_user => clarify` | Force approval-gate preference to `request_user` when consent/confirmation is explicit. |\n")
+	b.WriteString("| `lark_* => lark_upload_file` | Gate upload routing on explicit upload/attachment/file signals; route context/status intents to history/message tools. |\n")
+	b.WriteString("| `write_file|artifacts_write => write_attachment` | Penalize attachment path when deliverable is durable artifact/file storage without upload requirement. |\n")
+	b.WriteString("| `ripgrep => search_file` | Prioritize regex/fast-scan repository intents for `ripgrep`; dampen generic `search_file` in that context. |\n")
+	b.WriteString("| `shell_exec => execute_code` | Distinguish command/CLI/process checks (`shell_exec`) from deterministic computation snippets (`execute_code`). |\n\n")
+
+	return b.String()
 }
 
 func sanitizeCollectionID(value string) string {

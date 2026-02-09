@@ -502,7 +502,30 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if boost := heuristicIntentBoost("search_file", makeSet("memory", "prior", "note", "recall")); boost >= 0 {
 		t.Fatalf("expected search_file penalty under memory retrieval intent, got %.2f", boost)
 	}
-
+	if boost := heuristicIntentBoost("lark_upload_file", makeSet("chat", "history", "context", "recent", "before")); boost >= 0 {
+		t.Fatalf("expected lark_upload_file penalty for context-only intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("lark_chat_history", makeSet("chat", "history", "context", "recent", "before")); boost <= 0 {
+		t.Fatalf("expected lark_chat_history boost for context intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("acp_executor", makeSet("delegate", "heavy", "parallel", "executor")); boost <= 0 {
+		t.Fatalf("expected acp_executor delegation boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("clarify", makeSet("delegate", "executor", "parallel", "heavy")); boost >= 0 {
+		t.Fatalf("expected clarify penalty for delegation intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("search_file", makeSet("official", "rfc", "web", "source")); boost >= 0 {
+		t.Fatalf("expected search_file penalty for official web research intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("shell_exec", makeSet("shell", "command", "port", "process", "check")); boost <= 0 {
+		t.Fatalf("expected shell_exec command/port boost > 0, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("set_timer", makeSet("scheduler", "job", "daily", "cadence")); boost >= 0 {
+		t.Fatalf("expected set_timer penalty under scheduler-job intents, got %.2f", boost)
+	}
+	if boost := heuristicIntentBoost("cancel_timer", makeSet("list", "active", "remaining", "timer")); boost >= 0 {
+		t.Fatalf("expected cancel_timer penalty for list-active intents, got %.2f", boost)
+	}
 	searchBoost := heuristicIntentBoost("search_file", makeSet("regex", "needle", "sweep", "repo", "fast"))
 	rgBoost := heuristicIntentBoost("ripgrep", makeSet("regex", "needle", "sweep", "repo", "fast"))
 	if rgBoost <= searchBoost {
@@ -513,6 +536,12 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	fetchBoost := heuristicIntentBoost("web_fetch", makeSet("no", "source", "selected", "official", "reference"))
 	if searchFirstBoost <= fetchBoost {
 		t.Fatalf("expected web_search boost (%.2f) to exceed web_fetch boost (%.2f) when source is not selected", searchFirstBoost, fetchBoost)
+	}
+
+	fetchExactBoost := heuristicIntentBoost("web_fetch", makeSet("fetch", "exact", "single", "provided", "url", "page"))
+	searchExactBoost := heuristicIntentBoost("web_search", makeSet("fetch", "exact", "single", "provided", "url", "page"))
+	if fetchExactBoost <= searchExactBoost {
+		t.Fatalf("expected web_fetch boost (%.2f) to exceed web_search boost (%.2f) for exact provided URL", fetchExactBoost, searchExactBoost)
 	}
 }
 
