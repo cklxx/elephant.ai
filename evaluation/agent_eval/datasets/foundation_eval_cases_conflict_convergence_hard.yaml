@@ -1,0 +1,123 @@
+version: "1"
+name: "foundation-conflict-convergence-hard"
+description: "Conflict-heavy hard cases for systematic convergence of overlapping tools, including sandbox-intent normalization onto executable tools"
+scenarios:
+  - id: "conflict-lark-history-not-upload"
+    category: "conflict_convergence"
+    intent: "Before replying, read recent Lark thread history and context only; do not upload any file."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "conflict-lark-status-message-not-upload"
+    category: "conflict_convergence"
+    intent: "Send a short status message to Lark thread without any attachment."
+    expected_tools: ["lark_send_message"]
+
+  - id: "conflict-lark-upload-explicit"
+    category: "conflict_convergence"
+    intent: "Upload the generated markdown report file to the Lark thread for download."
+    expected_tools: ["lark_upload_file"]
+
+  - id: "conflict-request-user-approval-gate"
+    category: "conflict_convergence"
+    intent: "This action is blocked until user approval; request explicit consent before continuing."
+    expected_tools: ["request_user"]
+
+  - id: "conflict-memory-recall-preference"
+    category: "conflict_convergence"
+    intent: "Recall prior user habit and tone preference from memory notes before drafting response."
+    expected_tools: ["memory_search"]
+
+  - id: "conflict-memory-open-exact-fragment"
+    category: "conflict_convergence"
+    intent: "Open exact memory lines by known offset to verify the cited preference text."
+    expected_tools: ["memory_get"]
+
+  - id: "conflict-artifact-durable-write"
+    category: "conflict_convergence"
+    intent: "Persist a durable artifact report for downstream audit; no upload is required now."
+    expected_tools: ["artifacts_write"]
+
+  - id: "conflict-write-file-local-output"
+    category: "conflict_convergence"
+    intent: "Create a local markdown file in workspace for final summary output, not an attachment."
+    expected_tools: ["write_file"]
+
+  - id: "conflict-ripgrep-fast-regex-sweep"
+    category: "conflict_convergence"
+    intent: "Run a fast regex sweep across repository to find token hotspots."
+    expected_tools: ["ripgrep"]
+
+  - id: "conflict-grep-log-filter"
+    category: "conflict_convergence"
+    intent: "Use grep to filter error.log for timeout lines quickly."
+    expected_tools: ["grep"]
+
+  - id: "conflict-find-by-path-name"
+    category: "conflict_convergence"
+    intent: "Locate files by path/name pattern under nested directories, no content search."
+    expected_tools: ["find"]
+
+  - id: "conflict-browser-state-introspection"
+    category: "conflict_convergence"
+    intent: "Inspect current browser tab URL, session status, and metadata before any action."
+    expected_tools: ["browser_info"]
+
+  - id: "conflict-browser-canvas-action"
+    category: "conflict_convergence"
+    intent: "Perform canvas drag by coordinates and pixel offsets."
+    expected_tools: ["browser_action"]
+
+  - id: "conflict-scheduler-delete-job-not-artifact"
+    category: "conflict_convergence"
+    intent: "Delete stale scheduler job from cadence registry; this is not artifact cleanup."
+    expected_tools: ["scheduler_delete_job"]
+
+  - id: "conflict-scheduler-create-job-not-timer"
+    category: "conflict_convergence"
+    intent: "Create recurring nightly scheduler job with cron cadence."
+    expected_tools: ["scheduler_create_job"]
+
+  - id: "conflict-list-active-timers"
+    category: "conflict_convergence"
+    intent: "List currently active timers and remaining reminders."
+    expected_tools: ["list_timers"]
+
+  - id: "conflict-plan-not-task-manage"
+    category: "conflict_convergence"
+    intent: "Plan phased rollout milestones with risk gates and checkpoint strategy."
+    expected_tools: ["plan"]
+
+  - id: "conflict-acp-delegate-heavy-tail"
+    category: "conflict_convergence"
+    intent: "Delegate heavy long-tail analysis to parallel executor subagent."
+    expected_tools: ["acp_executor"]
+
+  - id: "conflict-web-search-authoritative-source-discovery"
+    category: "conflict_convergence"
+    intent: "Search authoritative RFC sources and shortlist official references."
+    expected_tools: ["web_search"]
+
+  - id: "conflict-web-fetch-exact-url"
+    category: "conflict_convergence"
+    intent: "Fetch and extract content from this exact single provided URL."
+    expected_tools: ["web_fetch"]
+
+  - id: "conflict-shell-exec-command-process"
+    category: "conflict_convergence"
+    intent: "Run shell command to inspect process and port usage."
+    expected_tools: ["shell_exec"]
+
+  - id: "conflict-execute-code-deterministic"
+    category: "conflict_convergence"
+    intent: "Execute deterministic code snippet to compute metric and verify score."
+    expected_tools: ["execute_code"]
+
+  - id: "conflict-sandbox-intent-command"
+    category: "conflict_convergence"
+    intent: "In sandbox mode, run terminal command to verify service health."
+    expected_tools: ["shell_exec"]
+
+  - id: "conflict-sandbox-intent-computation"
+    category: "conflict_convergence"
+    intent: "Use sandbox execution to run a deterministic script and return numeric result."
+    expected_tools: ["execute_code"]

@@ -70,17 +70,18 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 记忆能力专项（memory capabilities）
 - 用户习惯 + Soul + 记忆连续性专项
 - 任务完成速度专项（task completion speed）
+- 冲突收敛高难专项（conflict convergence hard）
 - 高难挑战专项（challenge hard v2）
 - 复杂任务文件产物交付专项（complex artifact delivery）
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
 当前集合规模（`x/x`）：
-- Collections: `19/19`
-- Cases: `505/505`
-- Applicable Cases: `505/505`（N/A 单独统计，不计失败）
-- pass@1: `398/505`
-- pass@5: `505/505`
-- Deliverable Cases: `32/505`
+- Collections: `19/20`
+- Cases: `529/529`
+- Applicable Cases: `529/529`（N/A 单独统计，不计失败）
+- pass@1: `446/529`
+- pass@5: `529/529`
+- Deliverable Cases: `32/529`
 - Deliverable Good: `23/32`
 - Deliverable Bad: `9/32`
 - Base Tool Coverage: `46/46`
@@ -100,6 +101,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Architecture Coding Hard: `20/20`
 - Deep Research: `18/18`
 - Autonomy Initiative: `18/18`
+- Conflict Convergence Hard: `24/24`
 - Challenge Hard V2: `49/49`
 - Complex Artifact Delivery: `32/32`
 
