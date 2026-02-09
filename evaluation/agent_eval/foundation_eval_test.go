@@ -735,6 +735,72 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if recursiveListDirBoost <= recursiveReplaceBoost {
 		t.Fatalf("expected list_dir boost (%.2f) to exceed replace_in_file boost (%.2f) for recursive list-before-target intents", recursiveListDirBoost, recursiveReplaceBoost)
 	}
+
+	newFileWriteBoost := heuristicIntentBoost("write_file", makeSet("new", "file", "materialize", "generated", "not", "inplace", "replace"))
+	newFileReplaceBoost := heuristicIntentBoost("replace_in_file", makeSet("new", "file", "materialize", "generated", "not", "inplace", "replace"))
+	if newFileWriteBoost <= newFileReplaceBoost {
+		t.Fatalf("expected write_file boost (%.2f) to exceed replace_in_file boost (%.2f) for new-file-not-inplace intents", newFileWriteBoost, newFileReplaceBoost)
+	}
+
+	grepBoost := heuristicIntentBoost("grep", makeSet("simple", "grep", "local", "log", "http", "502"))
+	shellForGrepBoost := heuristicIntentBoost("shell_exec", makeSet("simple", "grep", "local", "log", "http", "502"))
+	if grepBoost <= shellForGrepBoost {
+		t.Fatalf("expected grep boost (%.2f) to exceed shell_exec boost (%.2f) for simple local grep intents", grepBoost, shellForGrepBoost)
+	}
+
+	createMeetingBoost := heuristicIntentBoost("lark_calendar_create", makeSet("create", "calendar", "events", "kickoff", "review", "meetings"))
+	queryMeetingBoost := heuristicIntentBoost("lark_calendar_query", makeSet("create", "calendar", "events", "kickoff", "review", "meetings"))
+	if createMeetingBoost <= queryMeetingBoost {
+		t.Fatalf("expected lark_calendar_create boost (%.2f) to exceed lark_calendar_query boost (%.2f) for create-meeting intents", createMeetingBoost, queryMeetingBoost)
+	}
+
+	clarifyConflictBoost := heuristicIntentBoost("clarify", makeSet("conflict", "clarify", "latest", "preference", "memory"))
+	memoryConflictBoost := heuristicIntentBoost("memory_search", makeSet("conflict", "clarify", "latest", "preference", "memory"))
+	if clarifyConflictBoost <= memoryConflictBoost {
+		t.Fatalf("expected clarify boost (%.2f) to exceed memory_search boost (%.2f) for explicit conflict-clarify intents", clarifyConflictBoost, memoryConflictBoost)
+	}
+
+	requestUserTokenBoost := heuristicIntentBoost("request_user", makeSet("request_user", "approval", "before", "continue"))
+	taskManageApprovalBoost := heuristicIntentBoost("lark_task_manage", makeSet("request_user", "approval", "before", "continue"))
+	if requestUserTokenBoost <= taskManageApprovalBoost {
+		t.Fatalf("expected request_user boost (%.2f) to exceed lark_task_manage boost (%.2f) when request_user is explicitly requested", requestUserTokenBoost, taskManageApprovalBoost)
+	}
+
+	searchWithExplicitOps := heuristicIntentBoost("search_file", makeSet("ripgrep", "read_file", "replace_in_file", "map"))
+	ripgrepWithExplicitOps := heuristicIntentBoost("ripgrep", makeSet("ripgrep", "read_file", "replace_in_file", "map"))
+	if ripgrepWithExplicitOps <= searchWithExplicitOps {
+		t.Fatalf("expected ripgrep boost (%.2f) to exceed search_file boost (%.2f) under explicit operation-chain intents", ripgrepWithExplicitOps, searchWithExplicitOps)
+	}
+
+	patchClarifyBoost := heuristicIntentBoost("clarify", makeSet("patch", "exact", "existing", "file", "replace", "inplace"))
+	patchReplaceBoost := heuristicIntentBoost("replace_in_file", makeSet("patch", "exact", "existing", "file", "replace", "inplace"))
+	if patchClarifyBoost >= patchReplaceBoost {
+		t.Fatalf("expected clarify boost (%.2f) to stay below replace_in_file boost (%.2f) for exact patch intents", patchClarifyBoost, patchReplaceBoost)
+	}
+
+	checkpointPlanBoost := heuristicIntentBoost("plan", makeSet("short", "textual", "thread", "checkpoint", "status", "reviewer", "stage"))
+	checkpointMessageBoost := heuristicIntentBoost("lark_send_message", makeSet("short", "textual", "thread", "checkpoint", "status", "reviewer", "stage"))
+	if checkpointPlanBoost >= checkpointMessageBoost {
+		t.Fatalf("expected plan boost (%.2f) to be below lark_send_message boost (%.2f) for short checkpoint intents", checkpointPlanBoost, checkpointMessageBoost)
+	}
+
+	calendarShiftPlanBoost := heuristicIntentBoost("plan", makeSet("update", "existing", "calendar", "event", "shift", "timeline", "day"))
+	calendarShiftUpdateBoost := heuristicIntentBoost("lark_calendar_update", makeSet("update", "existing", "calendar", "event", "shift", "timeline", "day"))
+	if calendarShiftPlanBoost >= calendarShiftUpdateBoost {
+		t.Fatalf("expected plan boost (%.2f) to be below lark_calendar_update boost (%.2f) for calendar shift intents", calendarShiftPlanBoost, calendarShiftUpdateBoost)
+	}
+
+	schedulerListBoost := heuristicIntentBoost("scheduler_list_jobs", makeSet("show", "currently", "registered", "jobs", "execution", "cadence"))
+	schedulerCreateOnListBoost := heuristicIntentBoost("scheduler_create_job", makeSet("show", "currently", "registered", "jobs", "execution", "cadence"))
+	if schedulerListBoost <= schedulerCreateOnListBoost {
+		t.Fatalf("expected scheduler_list_jobs boost (%.2f) to exceed scheduler_create_job boost (%.2f) for list-current-jobs intents", schedulerListBoost, schedulerCreateOnListBoost)
+	}
+
+	shellVerifyBoost := heuristicIntentBoost("shell_exec", makeSet("run", "shell", "verification", "checks", "after", "code", "changes"))
+	execCodeVerifyBoost := heuristicIntentBoost("execute_code", makeSet("run", "shell", "verification", "checks", "after", "code", "changes"))
+	if shellVerifyBoost <= execCodeVerifyBoost {
+		t.Fatalf("expected shell_exec boost (%.2f) to exceed execute_code boost (%.2f) for shell verification intents", shellVerifyBoost, execCodeVerifyBoost)
+	}
 }
 
 func TestRunFoundationEvaluationEndToEnd(t *testing.T) {

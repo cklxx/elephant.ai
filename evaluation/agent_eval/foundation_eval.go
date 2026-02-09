@@ -1111,7 +1111,7 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			boost += 18
 		}
 	case "clarify":
-		if has("ambiguity", "clarify", "blocking", "requirement", "missing", "unclear", "constraint") {
+		if has("ambiguity", "clarify", "blocking", "requirement", "missing", "unclear", "constraint", "conflict") {
 			boost += 14
 		}
 	case "web_search":
@@ -1228,6 +1228,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("grep", "log", "error", "line", "pattern", "match") >= 2 {
 			boost += 18
 		}
+		if countMatches("simple", "grep", "local", "log", "logs", "502", "http") >= 3 {
+			boost += 18
+		}
 	case "lark_calendar_query":
 		if countMatches("calendar", "event", "query", "upcoming", "schedule", "check") >= 2 {
 			boost += 16
@@ -1235,6 +1238,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "lark_calendar_create":
 		if countMatches("calendar", "event", "block", "deadline", "focus", "recovery", "work") >= 2 {
 			boost += 18
+		}
+		if countMatches("create", "calendar", "events", "meeting", "meetings", "kickoff", "review") >= 3 {
+			boost += 22
 		}
 	case "lark_calendar_delete":
 		if countMatches("calendar", "event", "delete", "remove", "cancel", "stale", "obsolete", "cleanup") >= 2 {
@@ -1362,9 +1368,15 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("script", "snippet", "compute", "calculate", "deterministic", "metric", "validate", "score") >= 2 {
 			boost += 16
 		}
+		if countMatches("shell", "command", "cli", "terminal", "process") >= 2 {
+			boost -= 14
+		}
 	case "shell_exec":
 		if countMatches("shell", "command", "cli", "terminal", "process", "port", "inspect", "check", "grep", "log") >= 2 {
 			boost += 18
+		}
+		if has("shell_exec") {
+			boost += 20
 		}
 	case "scheduler_list_jobs":
 		if countMatches("job", "jobs", "list", "inventory", "registered", "cadence", "schedule", "show") >= 2 {
@@ -1430,6 +1442,16 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 	}
 
+	// Exact tool-name mentions in intent should bias ranking for that tool.
+	if has(toolName) {
+		switch toolName {
+		case "plan", "clarify", "find", "search_file", "read_file", "write_file":
+			boost += 6
+		default:
+			boost += 24
+		}
+	}
+
 	if strings.HasSuffix(toolName, "_list") && has("list", "show", "enumerate", "all") {
 		boost += 4
 	}
@@ -1488,6 +1510,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("request", "user", "approval", "confirm", "before", "proceed", "execution", "secret", "token") >= 4 {
 			boost -= 24
+		}
+		if countMatches("replace", "patch", "rewrite", "update", "shift", "run", "show", "apply", "exact", "existing", "inplace", "event") >= 3 &&
+			!has("unclear", "ambiguity", "clarify", "conflict", "missing", "question") {
+			boost -= 30
 		}
 	}
 	if toolName == "lark_calendar_delete" || toolName == "lark_calendar_create" || toolName == "lark_calendar_update" {
@@ -1803,6 +1829,119 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("memory_search", "memory_get", "before", "action", "retrieve", "recall", "history") >= 3 &&
 			!has("unclear", "ambiguity", "clarify", "conflict", "missing") {
 			boost -= 18
+		}
+	}
+	if toolName == "memory_search" {
+		if has("clarify") && has("conflict", "unclear", "ambiguity", "latest", "preference") {
+			boost -= 18
+		}
+	}
+	if toolName == "search_file" {
+		if countMatches("find", "read_file", "ripgrep", "replace_in_file", "memory_search", "memory_get", "list_dir", "a2ui_emit", "artifacts_write") >= 2 &&
+			!has("content", "inside", "semantic", "snippet", "line", "lines") {
+			boost -= 16
+		}
+	}
+	if toolName == "find" {
+		if has("search_file") {
+			boost -= 14
+		}
+		if hasAll("find", "read_file") {
+			boost += 14
+		}
+	}
+	if toolName == "read_file" {
+		if hasAll("find", "read_file") {
+			boost += 14
+		}
+		if has("find") && has("ordered", "events", "sequential") {
+			boost += 10
+		}
+	}
+	if toolName == "replace_in_file" {
+		if countMatches("new", "file", "not", "place", "inplace", "materialize", "generated") >= 4 {
+			boost -= 30
+		}
+		if has("write_file") && !has("replace_in_file", "patch", "replace") {
+			boost -= 16
+		}
+	}
+	if toolName == "write_file" {
+		if has("write_file") {
+			boost += 16
+		}
+		if countMatches("new", "file", "not", "place", "inplace", "materialize", "generated") >= 4 {
+			boost += 18
+		}
+	}
+	if toolName == "write_attachment" {
+		if countMatches("a2ui_emit", "artifacts_write") >= 2 && !has("downloadable", "handoff", "receiver", "attachment") {
+			boost -= 18
+		}
+		if countMatches("replace_in_file", "artifacts_write") >= 2 && !has("downloadable", "handoff", "receiver", "attachment") {
+			boost -= 16
+		}
+	}
+	if toolName == "lark_calendar_query" {
+		if countMatches("create", "new", "add", "schedule", "meeting", "meetings", "events") >= 3 {
+			boost -= 20
+		}
+	}
+	if toolName == "lark_task_manage" {
+		if has("request_user") || countMatches("approval", "confirm", "consent", "manual", "before") >= 3 {
+			boost -= 18
+		}
+	}
+	if toolName == "request_user" {
+		if has("request_user") {
+			boost += 24
+		}
+	}
+	if toolName == "shell_exec" {
+		if has("grep") && !has("script", "compute", "calculate", "python", "snippet") {
+			boost += 12
+		}
+		if countMatches("run", "shell", "verification", "check", "checks", "after", "code", "change", "changes") >= 4 {
+			boost += 18
+		}
+	}
+	if toolName == "execute_code" {
+		if has("grep") && !has("python", "script", "snippet", "compute", "calculate") {
+			boost -= 14
+		}
+		if countMatches("run", "shell", "verification", "check", "checks", "after", "code", "change", "changes") >= 4 {
+			boost -= 18
+		}
+	}
+	if toolName == "plan" {
+		if countMatches("thread", "checkpoint", "message", "status", "textual", "short", "in", "stage", "reviewer") >= 3 &&
+			!has("milestone", "roadmap", "rollback", "phase", "phased", "strategy", "timeline") {
+			boost -= 24
+		}
+		if countMatches("calendar", "event", "meeting", "update", "shift") >= 3 &&
+			!has("milestone", "roadmap", "rollback", "phase", "phased", "strategy", "timeline") {
+			boost -= 28
+		}
+	}
+	if toolName == "lark_calendar_update" {
+		if countMatches("update", "existing", "calendar", "event", "meeting", "shift", "minutes", "day", "timeline") >= 3 {
+			boost += 20
+		}
+	}
+	if toolName == "scheduler_list_jobs" {
+		if countMatches("show", "current", "currently", "registered", "jobs", "execution", "cadence", "list") >= 3 {
+			boost += 18
+		}
+	}
+	if toolName == "scheduler_create_job" {
+		if countMatches("show", "current", "currently", "registered", "jobs", "execution", "cadence", "list") >= 3 &&
+			!has("create", "new", "add") {
+			boost -= 22
+		}
+	}
+	if toolName == "request_user" {
+		if countMatches("manual", "user", "confirmation", "before", "continuing", "continue", "cutover", "production") >= 4 {
+			boost += 18
 		}
 	}
 	if toolName == "write_attachment" {
