@@ -2716,9 +2716,11 @@ func TestResolveSessionForNewTask(t *testing.T) {
 }
 
 func TestDrainAndReprocessPreservesOrdering(t *testing.T) {
-	// Track the order in which reprocessMessage invocations enter handleMessage.
-	// Each task runs instantly so the next reprocess sees an idle slot and starts
-	// a new task, allowing us to verify FIFO ordering across all three.
+	// Verify that drainAndReprocess processes messages sequentially in a single
+	// goroutine (not in parallel). The first reprocessed message starts a task
+	// which occupies the slot; subsequent messages are injected into the running
+	// task's inputCh and discarded on non-await completion. The key property is
+	// that processed messages appear in FIFO order.
 	var mu sync.Mutex
 	var order []string
 
@@ -2751,10 +2753,10 @@ func TestDrainAndReprocessPreservesOrdering(t *testing.T) {
 	gw.drainAndReprocess(ch, "oc_drain_order_test", "p2p")
 	gw.WaitForTasks()
 
-	// After drainAndReprocess + WaitForTasks, all cascading tasks should complete.
 	// The first reprocess creates a task; when it finishes (non-await), subsequent
-	// messages injected into the slot are discarded. So we expect at least the first
-	// message to be processed, and all processed messages to be in order.
+	// messages injected into the slot's inputCh are discarded. We verify that at
+	// least the first message is processed, and all messages that do execute are
+	// in strict FIFO order — proving sequential (not parallel) processing.
 	mu.Lock()
 	defer mu.Unlock()
 	if len(order) == 0 {

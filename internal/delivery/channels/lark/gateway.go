@@ -795,8 +795,8 @@ func (g *Gateway) resolvePlanReviewFeedback(execCtx context.Context, session *st
 
 // seedAwaitResumeInput seeds the user's reply into the input channel for an
 // await-resume handoff, resolving numbered replies if pending options exist.
-// Returns true if the input was seeded (i.e. this is a resume from await).
-func (g *Gateway) seedAwaitResumeInput(inputCh chan agent.UserInput, msg *incomingMessage, sessionID string) bool {
+// Must be called while the task goroutine holds the slot in slotRunning phase.
+func (g *Gateway) seedAwaitResumeInput(inputCh chan agent.UserInput, msg *incomingMessage, sessionID string) {
 	resolvedContent := msg.content
 	slot := g.getOrCreateSlot(msg.chatID)
 	slot.mu.Lock()
@@ -811,7 +811,6 @@ func (g *Gateway) seedAwaitResumeInput(inputCh chan agent.UserInput, msg *incomi
 	default:
 		g.logger.Warn("Pending user input channel full for session %s; message dropped", sessionID)
 	}
-	return true
 }
 
 // enrichWithChatContext prepends (or appends) recent group chat messages as
