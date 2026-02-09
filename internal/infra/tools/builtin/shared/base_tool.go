@@ -23,7 +23,13 @@ type BaseTool struct {
 }
 
 // NewBaseTool constructs a BaseTool with the given definition and metadata.
+// If Name is set in only one of def/meta, the other is auto-synced.
 func NewBaseTool(def ports.ToolDefinition, meta ports.ToolMetadata) BaseTool {
+	if meta.Name == "" && def.Name != "" {
+		meta.Name = def.Name
+	} else if def.Name == "" && meta.Name != "" {
+		def.Name = meta.Name
+	}
 	return BaseTool{def: def, meta: meta}
 }
 
