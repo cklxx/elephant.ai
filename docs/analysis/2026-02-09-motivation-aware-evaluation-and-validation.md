@@ -164,3 +164,27 @@ go run ./cmd/alex eval foundation-suite \
 - `write_file => write_attachment`: `1 -> 0`
 - `list_dir => replace_in_file`: `1 -> 0`
 - `plan => lark_task_manage`: `2 -> 1`（仍需继续收敛）
+
+## 9. R5 一次性批量优化结果（2026-02-09）
+
+- Baseline:
+  - pass@1: `358/400`
+  - pass@5: `400/400`
+  - Deliverable Good: `19/22`
+  - 产物：`tmp/foundation-suite-r5-baseline-20260209-191404`
+- Optimized:
+  - pass@1: `372/400`
+  - pass@5: `400/400`
+  - Deliverable Good: `19/22`
+  - 产物：`tmp/foundation-suite-r5-optimized2-20260209-191737`
+
+R5 批量收敛的代表簇：
+- `write_file => replace_in_file`: `1 -> 0`
+- `grep => shell_exec`: `1 -> 0`
+- `a2ui_emit+artifacts_write => write_attachment`: `1 -> 0`
+- `memory_search => clarify`: `1 -> 0`
+- `clarify => memory_search`: `1 -> 0`
+- `lark_calendar_create => lark_calendar_query`: `1 -> 0`
+- `request_user => lark_task_manage`: `1 -> 0`
+- `shell_exec => execute_code`: `1 -> 0`
+- `scheduler_list_jobs => scheduler_create_job`: `1 -> 0`

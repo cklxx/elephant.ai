@@ -84,7 +84,7 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Collections: `25/25`
 - Cases: `400/400`
 - Applicable Cases: `400/400`（N/A 单独统计，不计失败）
-- pass@1: `358/400`（R4 系统性失败簇优化后）
+- pass@1: `372/400`（R5 一次性批量优化后）
 - pass@5: `400/400`
 - Deliverable Cases: `22/400`
 - Deliverable Good: `19/22`
