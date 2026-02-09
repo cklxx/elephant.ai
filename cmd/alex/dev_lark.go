@@ -99,10 +99,12 @@ func larkStart() error {
 	}
 
 	if err := os.MkdirAll(filepath.Dir(pidFile), 0o755); err != nil {
+		_ = cmd.Process.Kill()
 		_ = f.Close()
 		return fmt.Errorf("create supervisor pid dir: %w", err)
 	}
 	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644); err != nil {
+		_ = cmd.Process.Kill()
 		_ = f.Close()
 		return fmt.Errorf("write supervisor pid file: %w", err)
 	}
@@ -472,7 +474,7 @@ func checkPIDHealth(pidFile string) string {
 }
 
 func resolveMainRoot(projectDir string) string {
-	if v, ok := os.LookupEnv("LARK_MAIN_ROOT"); ok && v != "" {
+	if v := strings.TrimSpace(os.Getenv("LARK_MAIN_ROOT")); v != "" {
 		return v
 	}
 	// Try git worktree for refs/heads/main

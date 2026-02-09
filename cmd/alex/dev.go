@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -371,10 +372,7 @@ func buildOrchestrator() (*devops.Orchestrator, error) {
 
 func buildSandboxService(orch *devops.Orchestrator) *services.SandboxService {
 	cfg := orch.Config()
-	workspaceDir := ""
-	if v, ok := os.LookupEnv("SANDBOX_WORKSPACE_DIR"); ok {
-		workspaceDir = v
-	}
+	workspaceDir := strings.TrimSpace(os.Getenv("SANDBOX_WORKSPACE_DIR"))
 	if workspaceDir == "" {
 		workspaceDir = cfg.ProjectDir
 	}
@@ -454,10 +452,7 @@ func buildWebService(orch *devops.Orchestrator) *services.WebService {
 
 func loadDevConfig() (*devops.DevConfig, error) {
 	home, _ := os.UserHomeDir()
-	configPath := ""
-	if v, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
-		configPath = v
-	}
+	configPath := strings.TrimSpace(os.Getenv("ALEX_CONFIG_PATH"))
 	if configPath == "" {
 		configPath = filepath.Join(home, ".alex", "config.yaml")
 	}
