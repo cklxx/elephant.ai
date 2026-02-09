@@ -774,6 +774,13 @@ const heartbeatInterval = 5 * time.Minute
 // the SerializingEventListener queue alive during long idle periods (e.g. a
 // bash command running for >10 minutes with no JSONL output).
 func (m *BackgroundTaskManager) runHeartbeat(ctx context.Context, bt *backgroundTask) {
+	// Snapshot immutable fields once to avoid reading bt fields without lock.
+	bt.mu.Lock()
+	taskID := bt.id
+	agentType := bt.agentType
+	startedAt := bt.startedAt
+	bt.mu.Unlock()
+
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 	for {
@@ -781,16 +788,16 @@ func (m *BackgroundTaskManager) runHeartbeat(ctx context.Context, bt *background
 		case <-ticker.C:
 			now := m.clock.Now()
 			elapsed := time.Duration(0)
-			if !bt.startedAt.IsZero() {
-				elapsed = now.Sub(bt.startedAt)
+			if !startedAt.IsZero() {
+				elapsed = now.Sub(startedAt)
 				if elapsed < 0 {
 					elapsed = 0
 				}
 			}
 			bt.emitEvent(&domain.ExternalAgentProgressEvent{
 				BaseEvent:   bt.baseEvent(ctx),
-				TaskID:      bt.id,
-				AgentType:   bt.agentType,
+				TaskID:      taskID,
+				AgentType:   agentType,
 				CurrentTool: "__heartbeat__",
 				Elapsed:     elapsed,
 			})

@@ -238,6 +238,9 @@ func (g *Gateway) NotifyCompletion(ctx context.Context, taskID, status, answer, 
 	if g == nil || g.taskStore == nil {
 		return
 	}
+	// Use a detached context: the caller's task context may already be cancelled
+	// (e.g. for cancelled tasks), but this persistence write must still succeed.
+	storeCtx := context.WithoutCancel(ctx)
 	var opts []TaskUpdateOption
 	if answer != "" {
 		opts = append(opts, WithAnswerPreview(truncateForLark(answer, 1500)))
@@ -248,7 +251,7 @@ func (g *Gateway) NotifyCompletion(ctx context.Context, taskID, status, answer, 
 	if tokensUsed > 0 {
 		opts = append(opts, WithTokensUsed(tokensUsed))
 	}
-	if err := g.taskStore.UpdateStatus(ctx, taskID, status, opts...); err != nil {
+	if err := g.taskStore.UpdateStatus(storeCtx, taskID, status, opts...); err != nil {
 		g.logger.Warn("CompletionNotifier: TaskStore update failed for %s: %v", taskID, err)
 	}
 }
