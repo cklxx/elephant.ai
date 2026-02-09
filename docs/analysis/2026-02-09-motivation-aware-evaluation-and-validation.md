@@ -205,7 +205,7 @@ R5 批量收敛的代表簇：
 - pass@5: `267/269`（99.1%）
 - Deliverable Good: `26/29`
 - Deliverable Bad: `3/29`
-- 产物路径: `tmp/foundation-suite-r9-hardonly-optimized-20260209-202433`
+- 产物路径: `tmp/foundation-suite-r9-hardonly-main-20260209-212003`
 
 ### 10.3 关键结论
 - 已实现“只留难题”目标：主套件不再包含基础/长期 100% 饱和集合。

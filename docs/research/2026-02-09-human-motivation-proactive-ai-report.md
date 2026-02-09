@@ -167,7 +167,7 @@ motivation_state:
 - pass@5: `267/269`（99.1%）
 - Deliverable Good: `26/29`
 - Deliverable Bad: `3/29`
-- 评测产物: `tmp/foundation-suite-r9-hardonly-optimized-20260209-202433`
+- 评测产物: `tmp/foundation-suite-r9-hardonly-main-20260209-212003`
 
 ### 8.3 结论
 - 主评测集合已从“高分但挑战不足”切换到“难题驱动”的健康状态。
