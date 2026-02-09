@@ -3,6 +3,7 @@ package lark
 import (
 	"context"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -512,3 +513,307 @@ func TestBackgroundProgressListener_InputRequestUpdatesImmediately(t *testing.T)
 		t.Fatalf("expected input request content, got %q", updates[0].Content)
 	}
 }
+
+// --- Batch 1: Dedup ---
+
+// TestDuplicateCompletionIsIdempotent sends completion via both the envelope
+// path and the raw event path. Only the first should trigger a Lark update;
+// the second should be silently dropped because getTask returns nil.
+func TestDuplicateCompletionIsIdempotent(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	g := &Gateway{messenger: recorder}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		1*time.Hour,
+		10*time.Minute,
+	)
+	defer ln.Close()
+
+	// Dispatch a task.
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskDispatched,
+		NodeKind:  "background",
+		NodeID:    "bg-dup",
+		Payload: map[string]any{
+			"task_id":     "bg-dup",
+			"description": "dedup test",
+			"agent_type":  "codex",
+		},
+	})
+
+	// Path 1: Completion via envelope (normal chain).
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskCompleted,
+		NodeKind:  "background",
+		NodeID:    "bg-dup",
+		Payload: map[string]any{
+			"task_id": "bg-dup",
+			"status":  "completed",
+			"answer":  "first-path",
+		},
+	})
+
+	// Path 2: Completion via raw event (direct bypass).
+	ln.OnEvent(&domain.BackgroundTaskCompletedEvent{
+		BaseEvent:  domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		TaskID:     "bg-dup",
+		Status:     "completed",
+		Answer:     "second-path",
+		TokensUsed: 100,
+	})
+
+	// Only one update should have fired (from the first path).
+	updates := recorder.CallsByMethod("UpdateMessage")
+	if len(updates) != 1 {
+		t.Fatalf("expected exactly 1 completion update (dedup), got %d", len(updates))
+	}
+	if !strings.Contains(updates[0].Content, "first-path") {
+		t.Fatalf("expected first-path content, got %q", updates[0].Content)
+	}
+
+	// Task should be removed from the listener.
+	ln.mu.Lock()
+	taskCount := len(ln.tasks)
+	ln.mu.Unlock()
+	if taskCount != 0 {
+		t.Fatalf("expected 0 tasks after completion, got %d", taskCount)
+	}
+}
+
+// --- Batch 3: Completion poller ---
+
+// TestCompletionPollerCatchesMissedEvents simulates a scenario where the
+// event chain is broken (no completion event arrives) but TaskStore has been
+// updated by CompletionNotifier. The poller should detect this and deliver
+// the completion message to Lark.
+func TestCompletionPollerCatchesMissedEvents(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	store := newInMemoryTaskStore()
+	g := &Gateway{messenger: recorder, taskStore: store}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		1*time.Hour,
+		10*time.Minute,
+	)
+	// Use a very short poller interval for testing.
+	ln.pollerInterval = 50 * time.Millisecond
+
+	// Dispatch a task.
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskDispatched,
+		NodeKind:  "background",
+		NodeID:    "bg-poll",
+		Payload: map[string]any{
+			"task_id":     "bg-poll",
+			"description": "poller test",
+			"agent_type":  "codex",
+		},
+	})
+
+	// Release the foreground — this starts the poller.
+	ln.Release()
+
+	// Simulate CompletionNotifier writing directly to TaskStore (Batch 2),
+	// without any event reaching the listener.
+	_ = store.UpdateStatus(context.Background(), "bg-poll", "completed",
+		WithAnswerPreview("polled-answer"))
+
+	// Wait for poller to detect the completed task.
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		updates := recorder.CallsByMethod("UpdateMessage")
+		for _, u := range updates {
+			if strings.Contains(u.Content, "已完成") {
+				// Success: poller delivered the completion.
+				goto done
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for poller to deliver completion message")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+done:
+
+	// Listener should auto-close after poller delivers completion.
+	deadline = time.Now().Add(1 * time.Second)
+	for {
+		ln.mu.Lock()
+		closed := ln.closed
+		ln.mu.Unlock()
+		if closed {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for listener to auto-close after poller completion")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
+// --- Batch 4: Heartbeat filtering ---
+
+// TestHeartbeatEventsFilteredFromProgress verifies that __heartbeat__ progress
+// events are silently dropped by onExternalProgress and don't appear in
+// the Lark progress display.
+func TestHeartbeatEventsFilteredFromProgress(t *testing.T) {
+	recorder := NewRecordingMessenger()
+	g := &Gateway{messenger: recorder}
+
+	ln := newBackgroundProgressListener(
+		context.Background(),
+		agent.NoopEventListener{},
+		g,
+		"chat-1",
+		"om_parent",
+		logging.NewComponentLogger("test"),
+		50*time.Millisecond, // short interval to trigger flush
+		10*time.Minute,
+	)
+	defer ln.Close()
+
+	// Dispatch a task.
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventBackgroundTaskDispatched,
+		NodeKind:  "background",
+		NodeID:    "bg-hb",
+		Payload: map[string]any{
+			"task_id":     "bg-hb",
+			"description": "heartbeat filter test",
+			"agent_type":  "codex",
+		},
+	})
+
+	// Send a heartbeat event.
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventExternalAgentProgress,
+		NodeKind:  "external_agent",
+		NodeID:    "bg-hb",
+		Payload: map[string]any{
+			"task_id":      "bg-hb",
+			"current_tool": "__heartbeat__",
+			"tokens_used":  0,
+		},
+	})
+
+	// Send a real progress event.
+	ln.OnEvent(&domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Version:   1,
+		Event:     types.EventExternalAgentProgress,
+		NodeKind:  "external_agent",
+		NodeID:    "bg-hb",
+		Payload: map[string]any{
+			"task_id":      "bg-hb",
+			"current_tool": "Bash",
+			"current_args": "ls -la",
+			"tokens_used":  50,
+		},
+	})
+
+	// Wait for a tick to fire a progress update.
+	deadline := time.Now().Add(750 * time.Millisecond)
+	for {
+		updates := recorder.CallsByMethod("UpdateMessage")
+		if len(updates) > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for progress update")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Verify the update contains the real tool but NOT the heartbeat.
+	updates := recorder.CallsByMethod("UpdateMessage")
+	lastUpdate := updates[len(updates)-1].Content
+	if strings.Contains(lastUpdate, "__heartbeat__") {
+		t.Fatalf("heartbeat should be filtered out from progress display, got %q", lastUpdate)
+	}
+	if !strings.Contains(lastUpdate, "Bash") {
+		t.Fatalf("expected real tool 'Bash' in progress display, got %q", lastUpdate)
+	}
+}
+
+// inMemoryTaskStore is a simple in-memory TaskStore for testing.
+type inMemoryTaskStore struct {
+	mu    sync.Mutex
+	tasks map[string]TaskRecord
+}
+
+func newInMemoryTaskStore() *inMemoryTaskStore {
+	return &inMemoryTaskStore{tasks: make(map[string]TaskRecord)}
+}
+
+func (s *inMemoryTaskStore) EnsureSchema(_ context.Context) error { return nil }
+
+func (s *inMemoryTaskStore) SaveTask(_ context.Context, task TaskRecord) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tasks[task.TaskID] = task
+	return nil
+}
+
+func (s *inMemoryTaskStore) UpdateStatus(_ context.Context, taskID, status string, opts ...TaskUpdateOption) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.tasks[taskID]
+	if !ok {
+		rec = TaskRecord{TaskID: taskID}
+	}
+	rec.Status = status
+	rec.UpdatedAt = time.Now()
+
+	var o taskUpdateOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	if o.answerPreview != nil {
+		rec.AnswerPreview = *o.answerPreview
+	}
+	if o.errorText != nil {
+		rec.Error = *o.errorText
+	}
+	if o.tokensUsed != nil {
+		rec.TokensUsed = *o.tokensUsed
+	}
+	s.tasks[taskID] = rec
+	return nil
+}
+
+func (s *inMemoryTaskStore) GetTask(_ context.Context, taskID string) (TaskRecord, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rec, ok := s.tasks[taskID]
+	return rec, ok, nil
+}
+
+func (s *inMemoryTaskStore) ListByChat(_ context.Context, _ string, _ bool, _ int) ([]TaskRecord, error) {
+	return nil, nil
+}
+
+func (s *inMemoryTaskStore) DeleteExpired(_ context.Context, _ time.Time) error { return nil }
+
+func (s *inMemoryTaskStore) MarkStaleRunning(_ context.Context, _ string) error { return nil }

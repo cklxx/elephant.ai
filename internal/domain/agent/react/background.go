@@ -335,6 +335,13 @@ func (m *BackgroundTaskManager) Dispatch(
 		taskCtx = m.idContext.WithLogID(taskCtx, fmt.Sprintf("%s:bg:%s", ids.LogID, m.idGenerator.NewLogID()))
 	}
 
+	// Propagate CompletionNotifier from dispatch context (or run context as fallback).
+	if notifier := agent.GetCompletionNotifier(ctx); notifier != nil {
+		taskCtx = agent.WithCompletionNotifier(taskCtx, notifier)
+	} else if notifier := agent.GetCompletionNotifier(m.runCtx); notifier != nil {
+		taskCtx = agent.WithCompletionNotifier(taskCtx, notifier)
+	}
+
 	taskCtx, taskCancel := context.WithCancel(taskCtx)
 	bt.taskCancel = taskCancel
 
