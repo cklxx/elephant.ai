@@ -23,6 +23,7 @@ func NewClarify() tools.ToolExecutor {
 
 Rules:
 - Use to declare a sub-task header before starting a unit of work.
+- Do not use when the user already gave an explicit actionable operation with clear parameters.
 - When needs_user_input=true, provide question_to_user and the orchestrator will pause for user input.
 - When waiting for user input, provide options to let channels render a selection UI.`,
 				Parameters: ports.ParameterSchema{

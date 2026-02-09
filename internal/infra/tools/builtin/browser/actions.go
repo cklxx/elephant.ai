@@ -32,7 +32,8 @@ Provide a list of action objects:
 - additional fields vary per action type.
 
 Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed.
-Use browser_info for read-only state/metadata and browser_dom for selector-driven operations.`,
+Use browser_info for read-only state/metadata checks and browser_dom for selector-driven operations.
+Do not use browser_action when the task is only to inspect URL/title/session metadata.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

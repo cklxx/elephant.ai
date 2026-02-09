@@ -25,7 +25,7 @@ func NewLarkSendMessage() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_send_message",
-				Description: "Send a text/status message to the current Lark chat thread. Use for progress updates, decisions, and short checkpoints without file transfer. If a file must be sent, use lark_upload_file.",
+				Description: "Send a text/status message to the current Lark chat thread. Use for progress updates, decisions, and short checkpoints without file transfer. Do not use for attachments/uploads (use lark_upload_file) or for reading prior context (use lark_chat_history).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

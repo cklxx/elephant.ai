@@ -24,7 +24,7 @@ func NewBrowserInfo(manager *Manager) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "browser_info",
-				Description: "Read browser tab/session metadata (current URL, title, viewport, user agent) without performing page interactions.",
+				Description: "Read browser tab/session metadata (current URL, title, viewport, user agent) without performing page interactions. Use for read-only inspection/state checks; use browser_action or browser_dom for interactions.",
 				Parameters: ports.ParameterSchema{
 					Type:       "object",
 					Properties: map[string]ports.Property{},

@@ -53,7 +53,8 @@ Provide a list of action objects:
 - action_type: MOVE_TO, CLICK, MOUSE_DOWN, MOUSE_UP, RIGHT_CLICK, DOUBLE_CLICK, DRAG_TO, SCROLL, TYPING, PRESS, KEY_DOWN, KEY_UP, HOTKEY
 - additional fields vary per action type.
 
-Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use browser_dom.`,
+Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use browser_dom.
+Do not use browser_action when the task is only to inspect URL/title/session metadata; use browser_info.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -101,7 +102,7 @@ func NewSandboxBrowserInfo(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "browser_info",
-				Description: "Inspect browser tab/session state metadata (current URL, title, viewport, user agent).",
+				Description: "Inspect browser tab/session state metadata (current URL, title, viewport, user agent). Use for read-only inspection/state checks; use browser_action or browser_dom for interactions.",
 				Parameters: ports.ParameterSchema{
 					Type:       "object",
 					Properties: map[string]ports.Property{},

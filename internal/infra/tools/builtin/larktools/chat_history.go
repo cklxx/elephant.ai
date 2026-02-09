@@ -30,7 +30,7 @@ func NewLarkChatHistory() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_chat_history",
-				Description: "Retrieve recent messages from the current Lark chat. Returns messages in chronological order formatted as '[timestamp] sender: content'. Only available when running inside a Lark chat context.",
+				Description: "Retrieve recent messages from the current Lark chat for thread-context recall (history, prior decisions). Returns chronological lines as '[timestamp] sender: content'. This is context retrieval only (no file upload/send). Only available inside a Lark chat context.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

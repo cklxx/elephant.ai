@@ -37,7 +37,7 @@ func NewArtifactsWrite() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifacts_write",
-				Description: "Create/update durable artifact files for downstream handoff (reports/specs/evidence). Use for persistent deliverables, not for listing existing artifacts. For HTML outputs, set media_type=text/html and format=html.",
+				Description: "Create/update durable artifact files for downstream handoff (reports/specs/evidence). Use only for creating or updating artifact content. For inventory/audit use artifacts_list. For HTML outputs, set media_type=text/html and format=html.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -68,7 +68,7 @@ func NewArtifactsList() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifacts_list",
-				Description: "List/index artifacts currently available to the task. Use for inventory/selection before publish; use artifacts_write to create new artifacts.",
+				Description: "List/index artifacts currently available to the task. Use for inventory/selection/audit before publish or cleanup. This does not create/update artifacts (use artifacts_write) and does not delete artifacts (use artifacts_delete).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -92,7 +92,7 @@ func NewArtifactsDelete() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "artifacts_delete",
-				Description: "Remove one or more attachments from the current task",
+				Description: "Remove one or more attachments/artifacts from the current task. Use only for artifact cleanup; do not use for scheduler jobs/calendar/timers.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

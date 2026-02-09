@@ -136,7 +136,7 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search regex/symbol/token occurrences inside file content (absolute path). Use for content/line matches in a known file; use find/list_dir for path discovery and ripgrep for fast repo-wide regex sweeps.",
+				Description: "Search pattern/symbol occurrences inside one known file (absolute path). Use for inside-file line matches only. Do not use for path/name discovery or directory inventory (use find/list_dir).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -163,7 +163,7 @@ func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "replace_in_file",
-				Description: "Replace exact text in a file (absolute paths only).",
+				Description: "Replace exact text in an existing file (absolute paths only). Use only for in-place edits when target text is known. Do not use for creating new files, listing/inventory, or asking clarification questions.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

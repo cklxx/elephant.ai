@@ -21,11 +21,17 @@ const commonSystemPromptSuffix = `
 
 ## Tool Routing Guardrails
 - Use ` + "`clarify`" + ` only when requirements are missing/contradictory or a user answer is required; do not use it when execution intent is already explicit.
+- If the user intent is an explicit operation (e.g., "replace exact block", "read current browser state", "send progress update"), execute with the concrete tool instead of ` + "`clarify`" + `.
+- Use ` + "`request_user`" + ` for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation), not ` + "`clarify`" + `.
 - Use ` + "`plan`" + ` for staged strategy/milestones/rollback framing; do not use it for one-step operational actions (send message, update calendar event, run command).
 - Distinguish file mutations: ` + "`write_file`" + ` creates/writes content, ` + "`replace_in_file`" + ` edits existing text in place, ` + "`write_attachment`" + ` materializes an existing attachment.
 - Distinguish discovery vs content search: ` + "`find`/`list_dir`" + ` for path/name discovery, ` + "`search_file`/`ripgrep`" + ` for inside-file pattern search.
 - Distinguish execution tools: ` + "`shell_exec`" + ` for CLI commands (grep/log/process checks), ` + "`execute_code`" + ` for running code snippets/scripts.
+- Distinguish artifact tools: ` + "`artifacts_list`" + ` inventories existing outputs, ` + "`artifacts_write`" + ` creates/updates durable outputs, ` + "`artifacts_delete`" + ` removes outputs, ` + "`artifact_manifest`" + ` reads manifest metadata.
+- Distinguish Lark tools: ` + "`lark_chat_history`" + ` for prior thread context, ` + "`lark_send_message`" + ` for text-only updates, ` + "`lark_upload_file`" + ` only when an actual file must be delivered.
+- Distinguish browser tools: ` + "`browser_info`" + ` reads tab/session metadata, ` + "`browser_dom`" + ` does selector-based interactions, ` + "`browser_action`" + ` does coordinate/manual interactions, ` + "`browser_screenshot`" + ` captures visual proof.
 - Distinguish scheduling tools: ` + "`scheduler_list_jobs`" + ` reads inventory, ` + "`scheduler_create_job`" + ` creates recurring jobs, ` + "`scheduler_delete_job`" + ` removes jobs.
+- ` + "`scheduler_delete_job`" + ` is only for scheduler jobs; do not use it for artifacts/files/calendar/timers.
 `
 
 // PromptConfig contains system prompt configuration for a preset

@@ -23,7 +23,7 @@ func NewReplaceInFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "replace_in_file",
-				Description: "Replace exact text in a file (absolute paths only).",
+				Description: "Replace exact text in an existing file (absolute paths only). Use only for in-place edits when target text is known. Do not use for creating new files, listing/inventory, or asking clarification questions.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

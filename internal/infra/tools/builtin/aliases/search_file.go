@@ -26,7 +26,7 @@ func NewSearchFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search regex/symbol/token occurrences inside file content (absolute path). Use for content/line matches in a known file; use find/list_dir for path discovery and ripgrep for fast repo-wide regex sweeps.",
+				Description: "Search pattern/symbol occurrences inside one known file (absolute path). Use for inside-file line matches only. Do not use for path/name discovery or directory inventory (use find/list_dir).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

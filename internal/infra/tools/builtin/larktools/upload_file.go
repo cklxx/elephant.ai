@@ -48,7 +48,7 @@ func NewLarkUploadFile() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "lark_upload_file",
-				Description: "Upload and send an actual file to the current Lark chat (from local path or attachment). Use only when file delivery is required; for text-only updates use lark_send_message.",
+				Description: "Upload an actual file attachment to the current Lark chat (from local path or attachment). Use only when explicit file delivery/attachment transfer is required. Do not use for text-only updates or context retrieval; use lark_send_message or lark_chat_history instead.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
