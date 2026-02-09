@@ -82,35 +82,35 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 
 当前集合规模（`x/x`）：
 - Collections: `25/25`
-- Cases: `499/499`
-- Applicable Cases: `499/499`（N/A 单独统计，不计失败）
-- pass@1: `426/499`
-- pass@5: `499/499`
-- Deliverable Cases: `32/499`
-- Deliverable Good: `26/32`
-- Deliverable Bad: `6/32`
-- Base Tool Coverage: `30/30`
-- Prompt Effectiveness Coverage: `20/20`
-- Proactivity Coverage: `24/24`
-- Motivation-Aware Proactivity: `20/20`
-- Complex High-Value Tasks: `24/24`
-- Availability and Recovery: `20/20`
-- Valuable Delivery Workflows: `22/22`
-- SWE-bench Verified Readiness: `20/20`
-- Multi-Step Orchestration: `17/17`
-- Safety Boundary and Policy: `17/17`
-- Context Learning Hard: `17/17`
-- Memory Capabilities: `22/22`
-- User Habit Soul Memory: `22/22`
+- Cases: `445/445`
+- Applicable Cases: `445/445`（N/A 单独统计，不计失败）
+- pass@1: `375/445`
+- pass@5: `445/445`
+- Deliverable Cases: `28/445`
+- Deliverable Good: `23/28`
+- Deliverable Bad: `5/28`
+- Base Tool Coverage: `24/24`
+- Prompt Effectiveness Coverage: `17/17`
+- Proactivity Coverage: `20/20`
+- Motivation-Aware Proactivity: `17/17`
+- Complex High-Value Tasks: `20/20`
+- Availability and Recovery: `18/18`
+- Valuable Delivery Workflows: `18/18`
+- SWE-bench Verified Readiness: `18/18`
+- Multi-Step Orchestration: `16/16`
+- Safety Boundary and Policy: `16/16`
+- Context Learning Hard: `16/16`
+- Memory Capabilities: `18/18`
+- User Habit Soul Memory: `18/18`
 - Task Completion Speed: `15/15`
 - Long-Horizon Multi-Round: `16/16`
-- Architecture Coding Hard: `17/17`
+- Architecture Coding Hard: `16/16`
 - Deep Research: `16/16`
 - Autonomy Initiative: `16/16`
-- Conflict Convergence Hard: `20/20`
+- Conflict Convergence Hard: `18/18`
 - Intent Decomposition Constraint Matrix: `20/20`
-- Challenge Hard V2: `32/32`
-- Complex Artifact Delivery: `24/24`
+- Challenge Hard V2: `24/24`
+- Complex Artifact Delivery: `20/20`
 - Sparse-Clue Retrieval Stress: `16/16`
 - Stateful Commitment Boundary Stress: `16/16`
 - Reproducibility Trace Evidence Stress: `16/16`

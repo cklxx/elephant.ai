@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-09 17:00
+Updated: 2026-02-09 18:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -45,6 +45,7 @@ Updated: 2026-02-09 17:00
 - Heuristic token matching can silently miss due to stemming normalization (e.g., trailing `s` removal like `progress` -> `progres`); add intent-level regression tests for critical conflict cases instead of token-set-only assertions.
 - Hard-case expansion should map to explicit benchmark-style dimensions (sparse clue retrieval / stateful commitment boundary / reproducibility trace evidence) so failures are diagnosable and optimizable as conflict families.
 - Foundation suite growth must be budgeted with explicit caps and round-level `added / retired / net` reporting to prevent silent dataset bloat.
+- After first prune under a hard threshold, a second review-driven squeeze can remove residual redundancy without losing pass@5 coverage if hard stress dimensions are kept intact.
 - Lark 本地链路如果 PID 文件写到包装 shell 而非真实 `alex-server`，会造成孤儿进程累积并耗尽 auth DB 连接；后台启动必须保证记录真实子进程 PID。
 - auth DB 本地初始化遇到 `too many clients already` 应执行“孤儿 Lark 进程清理 + 退避重试”，比一次失败直接降级更稳定。
 - DevOps `ProcessManager` 对磁盘 PID 恢复/停止不能只做 `kill(0)`；必须持久化并校验进程身份（命令行签名），避免 PID 复用误判和误杀。
