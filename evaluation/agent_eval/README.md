@@ -84,11 +84,11 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - Collections: `25/25`
 - Cases: `400/400`
 - Applicable Cases: `400/400`（N/A 单独统计，不计失败）
-- pass@1: `349/400`（R3 优化后）
+- pass@1: `358/400`（R4 系统性失败簇优化后）
 - pass@5: `400/400`
 - Deliverable Cases: `22/400`
-- Deliverable Good: `18/22`
-- Deliverable Bad: `4/22`
+- Deliverable Good: `19/22`
+- Deliverable Bad: `3/22`
 - Base Tool Coverage: `20/20`
 - Prompt Effectiveness Coverage: `16/16`
 - Proactivity Coverage: `16/16`

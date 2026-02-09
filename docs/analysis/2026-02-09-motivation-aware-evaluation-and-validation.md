@@ -149,3 +149,18 @@ go run ./cmd/alex eval foundation-suite \
 - 强化“brief status ping, no file transfer”下 `lark_send_message`，下压 `replace_in_file`。
 - 增加 `lark_calendar_delete` 与 `cancel_timer` 的事件域去歧义。
 - 补充对应回归测试，防止冲突回退。
+
+## 8. R4 失败簇系统优化结果（2026-02-09）
+
+- Baseline: `pass@1 349/400`，`pass@5 400/400`，Deliverable Good `18/22`
+  - 产物：`tmp/foundation-suite-r4-baseline-20260209-184159`
+- Optimized: `pass@1 358/400`，`pass@5 400/400`，Deliverable Good `19/22`
+  - 产物：`tmp/foundation-suite-r4-optimized3-20260209-184526`
+
+关键冲突簇变化：
+- `artifacts_write => lark_upload_file`: `1 -> 0`
+- `memory_get => clarify`: `1 -> 0`
+- `memory_get => memory_search`: `1 -> 0`
+- `write_file => write_attachment`: `1 -> 0`
+- `list_dir => replace_in_file`: `1 -> 0`
+- `plan => lark_task_manage`: `2 -> 1`（仍需继续收敛）
