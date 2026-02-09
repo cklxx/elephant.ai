@@ -4,6 +4,7 @@ Updated: 2026-02-09
 
 ## Files
 
+- [2026-02-09-complex-artifact-delivery-eval-layer.md](2026-02-09-complex-artifact-delivery-eval-layer.md)
 - [2026-02-09-lark-authdb-self-heal-automation.md](2026-02-09-lark-authdb-self-heal-automation.md)
 - [2026-02-09-baseline-lint-test-repair-and-eval-rerun.md](2026-02-09-baseline-lint-test-repair-and-eval-rerun.md)
 - [2026-02-09-foundation-suite-systematic-expansion-v3.md](2026-02-09-foundation-suite-systematic-expansion-v3.md)
