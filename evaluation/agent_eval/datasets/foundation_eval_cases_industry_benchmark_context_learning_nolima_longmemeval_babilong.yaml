@@ -1,68 +1,66 @@
-version: "1"
-name: "foundation-industry-benchmark-context-learning-nolima-longmemeval-babilong"
-description: "Industry transfer set for hard context-learning and long-memory failure modes mapped from NoLiMa, LongMemEval, and BABILong-style tasks"
+version: '1'
+name: foundation-industry-benchmark-context-learning-nolima-longmemeval-babilong
+description: Industry transfer set for hard context-learning and long-memory failure
+  modes mapped from NoLiMa, LongMemEval, and BABILong-style tasks
 scenarios:
-  - id: "industry-nolima-sparse-fact-across-corpus"
-    category: "nolima_transfer"
-    intent: "A key fact is hidden in sparse long-tail notes; retrieve it from memory index before proposing action."
-    expected_tools: ["memory_search"]
-
-  - id: "industry-nolima-exact-fragment-grounding"
-    category: "nolima_transfer"
-    intent: "Given a memory hint ID, open only the exact stored fragment to avoid hallucinated interpolation."
-    expected_tools: ["memory_get"]
-
-  - id: "industry-nolima-long-context-disambiguation"
-    category: "nolima_transfer"
-    intent: "Two long-context constraints conflict subtly; ask one precision clarification before execution."
-    expected_tools: ["clarify"]
-
-  - id: "industry-longmemeval-thread-history-reconstruction"
-    category: "longmemeval_transfer"
-    intent: "Need to reconstruct decision chronology from prior thread turns before generating the final answer."
-    expected_tools: ["lark_chat_history"]
-
-  - id: "industry-longmemeval-multihop-file-reference-chain"
-    category: "longmemeval_transfer"
-    intent: "Resolve multi-hop references across several files to find the single authoritative statement."
-    expected_tools: ["search_file", "read_file"]
-
-  - id: "industry-longmemeval-large-repo-index-first"
-    category: "longmemeval_transfer"
-    intent: "In very large repo context, first narrow by folder topology before deep reading."
-    expected_tools: ["find", "list_dir"]
-
-  - id: "industry-longmemeval-fast-global-symbol-pass"
-    category: "longmemeval_transfer"
-    intent: "Do a fast global regex symbol pass before opening files one-by-one."
-    expected_tools: ["ripgrep"]
-
-  - id: "industry-babilong-single-approved-source-ingest"
-    category: "babilong_transfer"
-    intent: "Source is already pinned to one approved URL; fetch it directly and avoid discovery search."
-    expected_tools: ["web_fetch"]
-
-  - id: "industry-babilong-source-discovery-then-ground"
-    category: "babilong_transfer"
-    intent: "No source provided and answer requires external grounding; discover authoritative source first."
-    expected_tools: ["web_search"]
-
-  - id: "industry-babilong-consistency-check-by-compute"
-    category: "babilong_transfer"
-    intent: "Need deterministic consistency check across extracted numeric fragments before conclusion."
-    expected_tools: ["execute_code"]
-
-  - id: "industry-babilong-phased-long-task-plan"
-    category: "babilong_transfer"
-    intent: "Task spans retrieval, synthesis, and publication; produce phased plan with explicit checkpoints first."
-    expected_tools: ["plan"]
-
-  - id: "industry-babilong-audit-ledger-required"
-    category: "babilong_transfer"
-    intent: "Result must remain auditable; persist evidence ledger and rationale as a durable artifact."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "auditable long-context evidence ledger"
-      artifact_required: true
-      required_file_types: ["md"]
-      required_evidence: ["evidence", "trace", "summary"]
+- id: industry-nolima-sparse-fact-across-corpus
+  category: nolima_transfer
+  intent: A key fact is hidden in sparse long-tail notes; retrieve it from memory
+    index before proposing action.
+  expected_tools:
+  - memory_search
+- id: industry-nolima-exact-fragment-grounding
+  category: nolima_transfer
+  intent: Given a memory hint ID, open only the exact stored fragment to avoid hallucinated
+    interpolation.
+  expected_tools:
+  - memory_get
+- id: industry-nolima-long-context-disambiguation
+  category: nolima_transfer
+  intent: Two long-context constraints conflict subtly; ask one precision clarification
+    before execution.
+  expected_tools:
+  - clarify
+- id: industry-longmemeval-thread-history-reconstruction
+  category: longmemeval_transfer
+  intent: Need to reconstruct decision chronology from prior thread turns before generating
+    the final answer.
+  expected_tools:
+  - lark_chat_history
+- id: industry-longmemeval-multihop-file-reference-chain
+  category: longmemeval_transfer
+  intent: Resolve multi-hop references across several files to find the single authoritative
+    statement.
+  expected_tools:
+  - search_file
+  - read_file
+- id: industry-longmemeval-large-repo-index-first
+  category: longmemeval_transfer
+  intent: In very large repo context, first narrow by folder topology before deep
+    reading.
+  expected_tools:
+  - find
+  - list_dir
+- id: industry-longmemeval-fast-global-symbol-pass
+  category: longmemeval_transfer
+  intent: Do a fast global regex symbol pass before opening files one-by-one.
+  expected_tools:
+  - ripgrep
+- id: industry-babilong-single-approved-source-ingest
+  category: babilong_transfer
+  intent: Source is already pinned to one approved URL; fetch it directly and avoid
+    discovery search.
+  expected_tools:
+  - web_fetch
+- id: industry-babilong-source-discovery-then-ground
+  category: babilong_transfer
+  intent: No source provided and answer requires external grounding; discover authoritative
+    source first.
+  expected_tools:
+  - web_search
+- id: industry-babilong-consistency-check-by-compute
+  category: babilong_transfer
+  intent: Need deterministic consistency check across extracted numeric fragments
+    before conclusion.
+  expected_tools:
+  - execute_code

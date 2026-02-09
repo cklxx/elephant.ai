@@ -1,68 +1,26 @@
-version: "1"
-name: "foundation-industry-benchmark-ale-bench-long-horizon-algo-engineering-hard"
-description: "Research-frontier transfer set mapped from ALE-Bench style long-horizon algorithm engineering tasks"
+version: '1'
+name: foundation-industry-benchmark-ale-bench-long-horizon-algo-engineering-hard
+description: Research-frontier transfer set mapped from ALE-Bench style long-horizon
+  algorithm engineering tasks
 scenarios:
-  - id: "alebench-problem-authority-discovery"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Problem authority is unclear; discover canonical references before implementation work."
-    expected_tools: ["web_search"]
-
-  - id: "alebench-single-approved-spec-ingest"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Approved spec URL already fixed; ingest only that exact page."
-    expected_tools: ["web_fetch"]
-
-  - id: "alebench-prior-algo-memory-retrieval"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Retrieve prior successful algorithm strategy from memory before proceeding."
-    expected_tools: ["memory_search"]
-
-  - id: "alebench-open-selected-memory-context"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Open exact evidence lines from selected historical algorithm trace."
-    expected_tools: ["memory_get"]
-
-  - id: "alebench-large-repo-topology-prune"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Narrow candidate modules by large-repo topology before reading internals."
-    expected_tools: ["find", "list_dir"]
-
-  - id: "alebench-content-first-search"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Search for transformation clues from content bodies rather than path naming."
-    expected_tools: ["search_file"]
-
-  - id: "alebench-open-critical-transform-window"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Open exact transform window around critical edge-case behavior before edits."
-    expected_tools: ["read_file"]
-
-  - id: "alebench-fast-symbol-regex-scan"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Run fast symbol regex scan across corpus before deeper analysis."
-    expected_tools: ["ripgrep"]
-
-  - id: "alebench-deterministic-invariant-check"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Run deterministic invariant checks over intermediate outputs for validity."
-    expected_tools: ["execute_code"]
-
-  - id: "alebench-surgical-inplace-fix"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Apply one surgical in-place fix to failing transformation branch."
-    expected_tools: ["replace_in_file"]
-
-  - id: "alebench-persist-long-horizon-logbook"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Persist long-horizon engineering logbook with traceable milestones as artifact."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "engineering logbook"
-      artifact_required: true
-      required_file_types: ["markdown"]
-      required_evidence: ["report", "diff"]
-
-  - id: "alebench-human-gate-before-final-submit"
-    category: "ale_bench_long_horizon_algo_engineering_hard"
-    intent: "Final submission is blocked until explicit human go-ahead is confirmed."
-    expected_tools: ["request_user"]
+- id: alebench-problem-authority-discovery
+  category: ale_bench_long_horizon_algo_engineering_hard
+  intent: Problem authority is unclear; discover canonical references before implementation
+    work.
+  expected_tools:
+  - web_search
+- id: alebench-single-approved-spec-ingest
+  category: ale_bench_long_horizon_algo_engineering_hard
+  intent: Approved spec URL already fixed; ingest only that exact page.
+  expected_tools:
+  - web_fetch
+- id: alebench-prior-algo-memory-retrieval
+  category: ale_bench_long_horizon_algo_engineering_hard
+  intent: Retrieve prior successful algorithm strategy from memory before proceeding.
+  expected_tools:
+  - memory_search
+- id: alebench-open-selected-memory-context
+  category: ale_bench_long_horizon_algo_engineering_hard
+  intent: Open exact evidence lines from selected historical algorithm trace.
+  expected_tools:
+  - memory_get

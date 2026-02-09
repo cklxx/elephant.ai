@@ -1,92 +1,29 @@
-version: "1"
-name: "foundation-sparse-clue-retrieval"
-description: "Sparse-clue retrieval and source-selection stress set inspired by BrowseComp-like information-seeking difficulty patterns"
+version: '1'
+name: foundation-sparse-clue-retrieval
+description: Sparse-clue retrieval and source-selection stress set inspired by BrowseComp-like
+  information-seeking difficulty patterns
 scenarios:
-  - id: "sparse-clue-approved-url-direct-ingest"
-    category: "sparse_clue_source_selection"
-    intent: "The ticket already stores a single approved link; pull that page body directly without reopening discovery."
-    expected_tools: ["web_fetch"]
-
-  - id: "sparse-clue-authoritative-source-first"
-    category: "sparse_clue_source_selection"
-    intent: "We only have vague topic hints and no trusted source yet; shortlist canonical primary references before reading details."
-    expected_tools: ["web_search"]
-
-  - id: "sparse-clue-memory-vs-repo-search"
-    category: "sparse_clue_memory_repo_conflict"
-    intent: "Need the person's prior decision preference pattern before proposing action; codebase lookup is irrelevant at this step."
-    expected_tools: ["memory_search"]
-
-  - id: "sparse-clue-memory-note-selected-open-lines"
-    category: "sparse_clue_memory_repo_conflict"
-    intent: "The relevant memory note has already been identified; open exact fragments for citation-grade wording."
-    expected_tools: ["memory_get"]
-
-  - id: "sparse-clue-path-first-narrowing"
-    category: "sparse_clue_repo_retrieval"
-    intent: "Monorepo scope is huge; narrow candidate modules by directory/name signatures first, before any content read."
-    expected_tools: ["find"]
-
-  - id: "sparse-clue-content-first-under-noisy-names"
-    category: "sparse_clue_repo_retrieval"
-    intent: "File names are misleadingly similar; locate target via textual evidence inside files rather than path filters."
-    expected_tools: ["search_file"]
-
-  - id: "sparse-clue-fast-regex-hotspot-sweep"
-    category: "sparse_clue_repo_retrieval"
-    intent: "Need a very fast regex sweep across repository hotspots before deeper inspection."
-    expected_tools: ["ripgrep"]
-
-  - id: "sparse-clue-message-not-file-handoff"
-    category: "sparse_clue_channel_action"
-    intent: "Stakeholders requested only a short in-thread checkpoint right now; no file handoff is required."
-    expected_tools: ["lark_send_message"]
-
-  - id: "sparse-clue-review-gate-file-required"
-    category: "sparse_clue_channel_action"
-    intent: "The review gate remains blocked until the generated package appears in thread as a downloadable file."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "sparse-clue-scheduler-audit-before-change"
-    category: "sparse_clue_scheduling"
-    intent: "There are reports of duplicate recurring automations, but mutation is frozen; inspect current schedule state first."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "sparse-clue-retired-cadence-remove"
-    category: "sparse_clue_scheduling"
-    intent: "Legacy recurring check-in still fires after retirement policy; remove that obsolete schedule entry."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "sparse-clue-progress-proof-durable-record"
-    category: "sparse_clue_deliverable_routing"
-    intent: "Keep chat concise while preserving completed-action proof as a durable technical record for async review."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "durable progress proof"
-      artifact_required: true
-      required_evidence: ["report"]
-      required_file_types: ["md"]
-
-  - id: "sparse-clue-direct-download-handoff"
-    category: "sparse_clue_deliverable_routing"
-    intent: "Receiver needs immediate downloadable handoff, not background storage-only persistence."
-    expected_tools: ["write_attachment"]
-    deliverable:
-      output_description: "downloadable handoff"
-      attachment_required: true
-      required_file_types: ["md"]
-
-  - id: "sparse-clue-human-gate-sensitive-reuse"
-    category: "sparse_clue_consent_boundary"
-    intent: "Action relies on sensitive private context reuse; continue only after explicit user confirmation."
-    expected_tools: ["request_user"]
-
-  - id: "sparse-clue-ambiguity-in-safety-scope"
-    category: "sparse_clue_consent_boundary"
-    intent: "Compliance scope conflicts across messages and cannot be inferred safely from context."
-    expected_tools: ["clarify"]
-
-  - id: "sparse-clue-plan-before-mutation"
-    category: "sparse_clue_planning_boundary"
-    intent: "First provide staged execution with rollback gates and checkpoints; avoid mutating trackers before plan alignment."
-    expected_tools: ["plan"]
+- id: sparse-clue-approved-url-direct-ingest
+  category: sparse_clue_source_selection
+  intent: The ticket already stores a single approved link; pull that page body directly
+    without reopening discovery.
+  expected_tools:
+  - web_fetch
+- id: sparse-clue-authoritative-source-first
+  category: sparse_clue_source_selection
+  intent: We only have vague topic hints and no trusted source yet; shortlist canonical
+    primary references before reading details.
+  expected_tools:
+  - web_search
+- id: sparse-clue-memory-vs-repo-search
+  category: sparse_clue_memory_repo_conflict
+  intent: Need the person's prior decision preference pattern before proposing action;
+    codebase lookup is irrelevant at this step.
+  expected_tools:
+  - memory_search
+- id: sparse-clue-memory-note-selected-open-lines
+  category: sparse_clue_memory_repo_conflict
+  intent: The relevant memory note has already been identified; open exact fragments
+    for citation-grade wording.
+  expected_tools:
+  - memory_get

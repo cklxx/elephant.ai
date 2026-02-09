@@ -1,79 +1,28 @@
-version: "1"
-name: "foundation-industry-benchmark-coding-workflow"
-description: "Industry benchmark transfer set for coding/workflow agents (SWE-bench Verified, τ-bench, AgentBench)"
+version: '1'
+name: foundation-industry-benchmark-coding-workflow
+description: "Industry benchmark transfer set for coding/workflow agents (SWE-bench\
+  \ Verified, \u03C4-bench, AgentBench)"
 scenarios:
-  - id: "industry-swebench-verified-exact-inplace-fix"
-    category: "swebench_verified_transfer"
-    intent: "Patch one exact logic block in an existing file to satisfy the issue, without broad refactor."
-    expected_tools: ["replace_in_file"]
-
-  - id: "industry-swebench-verified-repo-structure-scan-before-edit"
-    category: "swebench_verified_transfer"
-    intent: "Before fixing, inspect repository layout and candidate modules to localize impact."
-    expected_tools: ["list_dir", "find"]
-
-  - id: "industry-swebench-verified-regex-hotspot-sweep"
-    category: "swebench_verified_transfer"
-    intent: "Find all potential hotspots quickly with regex sweep across source tree."
-    expected_tools: ["ripgrep"]
-
-  - id: "industry-swebench-verified-read-known-file-context"
-    category: "swebench_verified_transfer"
-    intent: "Open the identified file and inspect surrounding context before mutation."
-    expected_tools: ["read_file"]
-
-  - id: "industry-swebench-verified-produce-durable-fix-note"
-    category: "swebench_verified_transfer"
-    intent: "Keep reply concise while persisting full fix rationale and risk notes as durable handoff artifact."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "durable fix rationale"
-      artifact_required: true
-      required_file_types: ["md"]
-      required_evidence: ["report"]
-
-  - id: "industry-taubench-human-approval-gate"
-    category: "tau_bench_transfer"
-    intent: "A policy-constrained operation is blocked until explicit user authorization is confirmed."
-    expected_tools: ["request_user"]
-
-  - id: "industry-taubench-policy-conflict-disambiguation"
-    category: "tau_bench_transfer"
-    intent: "Domain policy interpretation conflicts across prior steps; ask one targeted clarification before action."
-    expected_tools: ["clarify"]
-
-  - id: "industry-taubench-stateful-job-removal-not-recreate"
-    category: "tau_bench_transfer"
-    intent: "Recurring operational job violates updated policy and must be removed, not recreated."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "industry-taubench-stateful-job-inventory-first"
-    category: "tau_bench_transfer"
-    intent: "Inspect current recurring jobs and cadence before any scheduling mutation."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "industry-taubench-register-policy-compliant-cadence"
-    category: "tau_bench_transfer"
-    intent: "Register a compliant recurring check-in cadence with stable scheduler identifier."
-    expected_tools: ["scheduler_create_job"]
-
-  - id: "industry-agentbench-multistep-planning-first"
-    category: "agentbench_transfer"
-    intent: "Task spans multiple constrained actions; produce staged plan with rollback checkpoints before execution."
-    expected_tools: ["plan"]
-
-  - id: "industry-agentbench-execution-shell-diagnostics"
-    category: "agentbench_transfer"
-    intent: "Diagnose runtime via command output (ports/process/logs), not by editing files."
-    expected_tools: ["shell_exec"]
-
-  - id: "industry-agentbench-deterministic-code-check"
-    category: "agentbench_transfer"
-    intent: "Run deterministic computation snippet to verify threshold behavior."
-    expected_tools: ["execute_code"]
-
-  - id: "industry-agentbench-thread-checkpoint-no-file"
-    category: "agentbench_transfer"
-    intent: "Send short in-thread status checkpoint and explicitly avoid file upload."
-    expected_tools: ["lark_send_message"]
-
+- id: industry-swebench-verified-exact-inplace-fix
+  category: swebench_verified_transfer
+  intent: Patch one exact logic block in an existing file to satisfy the issue, without
+    broad refactor.
+  expected_tools:
+  - replace_in_file
+- id: industry-swebench-verified-repo-structure-scan-before-edit
+  category: swebench_verified_transfer
+  intent: Before fixing, inspect repository layout and candidate modules to localize
+    impact.
+  expected_tools:
+  - list_dir
+  - find
+- id: industry-swebench-verified-regex-hotspot-sweep
+  category: swebench_verified_transfer
+  intent: Find all potential hotspots quickly with regex sweep across source tree.
+  expected_tools:
+  - ripgrep
+- id: industry-swebench-verified-read-known-file-context
+  category: swebench_verified_transfer
+  intent: Open the identified file and inspect surrounding context before mutation.
+  expected_tools:
+  - read_file

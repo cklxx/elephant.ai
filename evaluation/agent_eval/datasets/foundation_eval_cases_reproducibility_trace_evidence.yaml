@@ -1,112 +1,40 @@
-version: "1"
-name: "foundation-reproducibility-trace-evidence"
-description: "Reproducibility and evidence-trace stress set inspired by WebArena-Verified and SWE-bench Verified evaluation expectations"
+version: '1'
+name: foundation-reproducibility-trace-evidence
+description: Reproducibility and evidence-trace stress set inspired by WebArena-Verified
+  and SWE-bench Verified evaluation expectations
 scenarios:
-  - id: "trace-evidence-manifest-audit-before-publish"
-    category: "trace_evidence"
-    intent: "Before publishing any result, validate lineage and metadata completeness from the generated artifact manifest."
-    expected_tools: ["artifact_manifest"]
-    deliverable:
-      output_description: "manifest lineage audit"
-      manifest_required: true
-      required_evidence: ["report"]
-
-  - id: "trace-evidence-list-artifacts-before-send"
-    category: "trace_evidence"
-    intent: "Enumerate outputs produced in this run so reviewer can choose exact files for release."
-    expected_tools: ["artifacts_list"]
-
-  - id: "trace-evidence-clean-stale-bundles"
-    category: "trace_evidence"
-    intent: "Discard stale failed-run bundles to avoid polluted verification evidence."
-    expected_tools: ["artifacts_delete"]
-
-  - id: "trace-evidence-durable-report-before-chat"
-    category: "trace_evidence"
-    intent: "Keep answer concise but persist full reproducibility notes as durable audit artifact."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "reproducibility audit report"
-      artifact_required: true
-      required_file_types: ["md"]
-      required_evidence: ["report"]
-
-  - id: "trace-evidence-file-required-in-thread"
-    category: "trace_evidence"
-    intent: "Verification workflow only advances after the result package file appears in thread."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "trace-evidence-short-checkpoint-no-file"
-    category: "trace_evidence"
-    intent: "At this stage reviewer asks only for a short textual progress checkpoint, no file movement."
-    expected_tools: ["lark_send_message"]
-
-  - id: "trace-evidence-downloadable-owner-handoff"
-    category: "trace_evidence"
-    intent: "Owner requests direct downloadable report handoff for off-platform signoff."
-    expected_tools: ["write_attachment"]
-
-  - id: "trace-evidence-browser-state-before-proof"
-    category: "trace_evidence"
-    intent: "Reported mismatch suggests wrong-tab risk; verify current tab identity and viewport before collecting evidence."
-    expected_tools: ["browser_info"]
-
-  - id: "trace-evidence-ui-proof-shot"
-    category: "trace_evidence"
-    intent: "Capture visual proof of post-action page state for reproducibility appendix."
-    expected_tools: ["browser_screenshot"]
-
-  - id: "trace-evidence-fixed-url-ingest"
-    category: "trace_evidence"
-    intent: "Incident ticket already pins the canonical source URL; ingest it directly for trace note extraction."
-    expected_tools: ["web_fetch"]
-
-  - id: "trace-evidence-source-discovery-first"
-    category: "trace_evidence"
-    intent: "No canonical source was pinned; discover authoritative references before ingesting any page content."
-    expected_tools: ["web_search"]
-
-  - id: "trace-evidence-memory-policy-before-commit"
-    category: "trace_evidence"
-    intent: "Recover previous reproducibility policy preferences from memory before finalizing evidence format."
-    expected_tools: ["memory_search"]
-
-  - id: "trace-evidence-open-memory-line-for-citation"
-    category: "trace_evidence"
-    intent: "The relevant memory record is known; open exact line fragment for citation in the audit note."
-    expected_tools: ["memory_get"]
-
-  - id: "trace-evidence-path-first-large-repo"
-    category: "trace_evidence"
-    intent: "Repository is broad; first isolate candidate files by directory/name constraints before opening contents."
-    expected_tools: ["find"]
-
-  - id: "trace-evidence-content-locate-under-noise"
-    category: "trace_evidence"
-    intent: "Names are noisy and ambiguous; locate required trace clues by searching file contents."
-    expected_tools: ["search_file"]
-
-  - id: "trace-evidence-human-approval-before-publish"
-    category: "trace_evidence"
-    intent: "Publishing evidence package is irreversible for audit trail, so explicit user approval is required first."
-    expected_tools: ["request_user"]
-
-  - id: "trace-evidence-inventory-before-prune"
-    category: "trace_evidence"
-    intent: "Before deleting anything, inspect current artifact inventory and choose exact stale candidates."
-    expected_tools: ["artifacts_list"]
-
-  - id: "trace-evidence-thread-status-explicit-no-file"
-    category: "trace_evidence"
-    intent: "Reviewer asks for a brief textual checkpoint and explicitly forbids any file upload in this step."
-    expected_tools: ["lark_send_message"]
-
-  - id: "trace-evidence-approved-url-direct-ingest-only"
-    category: "trace_evidence"
-    intent: "The approved ticket already provides the only canonical URL, so ingest directly without discovery search."
-    expected_tools: ["web_fetch"]
-
-  - id: "trace-evidence-cli-log-scan-before-snippet"
-    category: "trace_evidence"
-    intent: "Need immediate CLI log/process scan to validate reproducibility environment before any code snippet execution."
-    expected_tools: ["shell_exec"]
+- id: trace-evidence-manifest-audit-before-publish
+  category: trace_evidence
+  intent: Before publishing any result, validate lineage and metadata completeness
+    from the generated artifact manifest.
+  expected_tools:
+  - artifact_manifest
+  deliverable:
+    output_description: manifest lineage audit
+    manifest_required: true
+    required_evidence:
+    - report
+- id: trace-evidence-list-artifacts-before-send
+  category: trace_evidence
+  intent: Enumerate outputs produced in this run so reviewer can choose exact files
+    for release.
+  expected_tools:
+  - artifacts_list
+- id: trace-evidence-clean-stale-bundles
+  category: trace_evidence
+  intent: Discard stale failed-run bundles to avoid polluted verification evidence.
+  expected_tools:
+  - artifacts_delete
+- id: trace-evidence-durable-report-before-chat
+  category: trace_evidence
+  intent: Keep answer concise but persist full reproducibility notes as durable audit
+    artifact.
+  expected_tools:
+  - artifacts_write
+  deliverable:
+    output_description: reproducibility audit report
+    artifact_required: true
+    required_file_types:
+    - md
+    required_evidence:
+    - report

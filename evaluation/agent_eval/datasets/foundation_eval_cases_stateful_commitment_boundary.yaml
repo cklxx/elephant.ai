@@ -1,112 +1,29 @@
-version: "1"
-name: "foundation-stateful-commitment-boundary"
-description: "Stateful multi-turn commitment and mutation-boundary stress set inspired by TAU-bench style transactional agent failure modes"
+version: '1'
+name: foundation-stateful-commitment-boundary
+description: Stateful multi-turn commitment and mutation-boundary stress set inspired
+  by TAU-bench style transactional agent failure modes
 scenarios:
-  - id: "stateful-boundary-resume-with-frozen-mutation"
-    category: "stateful_boundary"
-    intent: "Execution resumes from round three, but mutation freeze remains active; inspect current scheduled state before any new writes."
-    expected_tools: ["scheduler_list_jobs"]
-
-  - id: "stateful-boundary-commit-delete-not-create"
-    category: "stateful_boundary"
-    intent: "Existing recurring check-in violates new policy and must be removed, not recreated with another cadence."
-    expected_tools: ["scheduler_delete_job"]
-
-  - id: "stateful-boundary-user-consent-before-outreach"
-    category: "stateful_boundary"
-    intent: "External follow-up messaging should not start until the user explicitly approves outreach scope."
-    expected_tools: ["request_user"]
-
-  - id: "stateful-boundary-unclear-ownership-split"
-    category: "stateful_boundary"
-    intent: "Ownership expectations conflict across prior turns, and proceeding without disambiguation risks wrong assignment."
-    expected_tools: ["clarify"]
-
-  - id: "stateful-boundary-memory-pattern-before-next-step"
-    category: "stateful_memory"
-    intent: "Need to recover which remediation pattern succeeded previously before choosing the next operation in this thread."
-    expected_tools: ["memory_search"]
-
-  - id: "stateful-boundary-open-selected-memory-fragment"
-    category: "stateful_memory"
-    intent: "A specific memory entry was chosen in prior turn; open exact evidence lines now for grounded continuation."
-    expected_tools: ["memory_get"]
-
-  - id: "stateful-boundary-path-filter-then-open"
-    category: "stateful_repo"
-    intent: "Round context says module location is unknown in a large tree; reduce by path patterns before file content inspection."
-    expected_tools: ["find"]
-
-  - id: "stateful-boundary-content-evidence-over-path"
-    category: "stateful_repo"
-    intent: "Historical notes mention misleading filenames; identify candidate by semantic content inside files instead."
-    expected_tools: ["search_file"]
-
-  - id: "stateful-boundary-fixed-url-stage"
-    category: "stateful_source"
-    intent: "Prior round approved one canonical link; ingest that exact page in this stage without another discovery cycle."
-    expected_tools: ["web_fetch"]
-
-  - id: "stateful-boundary-no-source-picked-yet"
-    category: "stateful_source"
-    intent: "No trusted source has been selected for this round; discover authoritative references first."
-    expected_tools: ["web_search"]
-
-  - id: "stateful-boundary-message-checkpoint-only"
-    category: "stateful_delivery"
-    intent: "This checkpoint asks only for a brief thread status ping and explicitly no file transfer."
-    expected_tools: ["lark_send_message"]
-
-  - id: "stateful-boundary-file-gated-review"
-    category: "stateful_delivery"
-    intent: "Reviewer cannot proceed until the generated package file is posted in-thread."
-    expected_tools: ["lark_upload_file"]
-
-  - id: "stateful-boundary-durable-progress-ledger"
-    category: "stateful_delivery"
-    intent: "Across multi-round execution, maintain a durable progress ledger artifact while keeping chat response short."
-    expected_tools: ["artifacts_write"]
-    deliverable:
-      output_description: "durable progress ledger"
-      artifact_required: true
-      required_file_types: ["md"]
-      required_evidence: ["report"]
-
-  - id: "stateful-boundary-direct-download-request"
-    category: "stateful_delivery"
-    intent: "A downstream owner asks for direct downloadable handoff now for offline review."
-    expected_tools: ["write_attachment"]
-    deliverable:
-      output_description: "downloadable handoff package"
-      attachment_required: true
-      required_file_types: ["md"]
-
-  - id: "stateful-boundary-plan-first-with-rollback"
-    category: "stateful_planning"
-    intent: "Before any mutation resumes, issue a staged plan with rollback criteria and explicit stop conditions."
-    expected_tools: ["plan"]
-
-  - id: "stateful-boundary-fast-regex-repo-pass"
-    category: "stateful_repo"
-    intent: "Need quick regex evidence pass across repository before deciding which file to inspect deeply."
-    expected_tools: ["ripgrep"]
-
-  - id: "stateful-boundary-artifact-inventory-before-share"
-    category: "stateful_delivery"
-    intent: "Before sharing any package in-thread, enumerate current generated artifacts to avoid posting stale outputs."
-    expected_tools: ["artifacts_list"]
-
-  - id: "stateful-boundary-read-only-browser-state-check"
-    category: "stateful_source"
-    intent: "At this stage only browser tab/url/session metadata check is needed; no interaction should run."
-    expected_tools: ["browser_info"]
-
-  - id: "stateful-boundary-module-entrypoint-path-narrowing"
-    category: "stateful_repo"
-    intent: "Find candidate module entrypoints by directory/path structure first, then decide which file to open in next turn."
-    expected_tools: ["find", "list_dir"]
-
-  - id: "stateful-boundary-text-checkpoint-explicit-no-upload"
-    category: "stateful_delivery"
-    intent: "Send only a short status checkpoint in thread with explicit no-file/no-upload instruction."
-    expected_tools: ["lark_send_message"]
+- id: stateful-boundary-resume-with-frozen-mutation
+  category: stateful_boundary
+  intent: Execution resumes from round three, but mutation freeze remains active;
+    inspect current scheduled state before any new writes.
+  expected_tools:
+  - scheduler_list_jobs
+- id: stateful-boundary-commit-delete-not-create
+  category: stateful_boundary
+  intent: Existing recurring check-in violates new policy and must be removed, not
+    recreated with another cadence.
+  expected_tools:
+  - scheduler_delete_job
+- id: stateful-boundary-user-consent-before-outreach
+  category: stateful_boundary
+  intent: External follow-up messaging should not start until the user explicitly
+    approves outreach scope.
+  expected_tools:
+  - request_user
+- id: stateful-boundary-unclear-ownership-split
+  category: stateful_boundary
+  intent: Ownership expectations conflict across prior turns, and proceeding without
+    disambiguation risks wrong assignment.
+  expected_tools:
+  - clarify
