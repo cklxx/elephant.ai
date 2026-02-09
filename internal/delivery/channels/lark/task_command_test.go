@@ -27,14 +27,36 @@ func TestIsTaskCommand(t *testing.T) {
 		{"/model use codex/gpt-5", false},
 		{"/reset", false},
 		{"hello world", false},
-		{"/plan on", false},   // plan is separate
-		{"/taskbar", false},   // must not match broader prefix
-		{"/tasksfoo", false},  // must not match broader prefix
+		{"/plan on", false},  // plan is separate
+		{"/taskbar", false},  // must not match broader prefix
+		{"/tasksfoo", false}, // must not match broader prefix
 	}
 	for _, tt := range tests {
 		got := g.isTaskCommand(tt.input)
 		if got != tt.want {
 			t.Errorf("isTaskCommand(%q) = %v, want %v", tt.input, got, tt.want)
+		}
+	}
+}
+
+func TestIsNaturalTaskStatusQuery(t *testing.T) {
+	g := &Gateway{}
+	tests := []struct {
+		input string
+		want  bool
+	}{
+		{"看看代码助手在做什么", true},
+		{"代码助手现在进度如何", true},
+		{"what is codex doing now", true},
+		{"background tasks status", true},
+		{"/tasks", false},
+		{"帮我修复 auth 刷新 token", false},
+		{"现在什么状态", false},
+	}
+	for _, tt := range tests {
+		got := g.isNaturalTaskStatusQuery(tt.input)
+		if got != tt.want {
+			t.Errorf("isNaturalTaskStatusQuery(%q) = %v, want %v", tt.input, got, tt.want)
 		}
 	}
 }

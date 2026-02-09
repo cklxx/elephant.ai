@@ -33,6 +33,38 @@ func (g *Gateway) isTaskCommand(trimmed string) bool {
 	return false
 }
 
+// isNaturalTaskStatusQuery detects short natural-language requests asking what
+// coding/background agents are doing right now.
+func (g *Gateway) isNaturalTaskStatusQuery(trimmed string) bool {
+	text := strings.TrimSpace(trimmed)
+	if text == "" || strings.HasPrefix(text, "/") {
+		return false
+	}
+	if len([]rune(text)) > 80 {
+		return false
+	}
+	lower := strings.ToLower(text)
+
+	agentHints := []string{
+		"代码助手", "coding agent", "codex", "claude code", "claude_code",
+		"后台任务", "background task", "background tasks",
+	}
+	statusHints := []string{
+		"在做什么", "做什么", "进度", "任务情况", "任务状态",
+		"what are", "what is", "doing now", "task status", "background tasks status", "progress",
+	}
+	return containsAnyKeyword(lower, agentHints) && containsAnyKeyword(lower, statusHints)
+}
+
+func containsAnyKeyword(text string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
 // handleTaskCommand processes task management commands.
 func (g *Gateway) handleTaskCommand(msg *incomingMessage) {
 	if g == nil || msg == nil {
@@ -62,6 +94,15 @@ func (g *Gateway) handleTaskCommand(msg *incomingMessage) {
 		reply = taskCommandUsage()
 	}
 
+	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
+}
+
+func (g *Gateway) handleNaturalTaskStatusQuery(msg *incomingMessage) {
+	if g == nil || msg == nil {
+		return
+	}
+	execCtx := g.buildTaskCommandContext(msg)
+	reply := g.handleTaskList(execCtx, msg)
 	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent(reply))
 }
 
@@ -128,7 +169,7 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 		slot.sessionID = ""
 		slot.awaitingInput = false
 		slot.mu.Unlock()
-		g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
+		g.discardPendingInputs(inputCh, msg.chatID)
 	}()
 
 	execCtx := g.buildExecContext(msg, sessionID, inputCh)

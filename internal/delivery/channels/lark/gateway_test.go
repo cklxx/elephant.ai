@@ -790,7 +790,7 @@ func TestHandleMessageReusesAwaitingSession(t *testing.T) {
 	}
 }
 
-func TestHandleMessageReusesInFlightSession(t *testing.T) {
+func TestHandleMessageDropsInFlightFollowUpWhenRunCompletes(t *testing.T) {
 	openID := "ou_sender_inflight"
 	chatID := "oc_chat_inflight"
 	msgID := "om_msg_inflight"
@@ -870,25 +870,16 @@ func TestHandleMessageReusesInFlightSession(t *testing.T) {
 	close(executor.finish)
 	wg.Wait()
 
-	deadline := time.After(2 * time.Second)
-	ticker := time.NewTicker(10 * time.Millisecond)
-	defer ticker.Stop()
-	for {
-		executor.mu.Lock()
-		callCount := executor.callCount
-		executor.mu.Unlock()
-		if callCount >= 2 {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("expected ExecuteTask to be called again for reprocessed message, got %d", callCount)
-		case <-ticker.C:
-		}
+	time.Sleep(100 * time.Millisecond)
+	executor.mu.Lock()
+	finalCalls := executor.callCount
+	executor.mu.Unlock()
+	if finalCalls != 1 {
+		t.Fatalf("expected no automatic reprocess after completed run, got %d calls", finalCalls)
 	}
 }
 
-func TestHandleMessageReprocessPreservesGroupChatType(t *testing.T) {
+func TestHandleMessageDropsInFlightFollowUpForGroupChat(t *testing.T) {
 	openID := "ou_sender_inflight_group"
 	chatID := "oc_chat_inflight_group"
 	msgID := "om_msg_inflight_group"
@@ -968,6 +959,96 @@ func TestHandleMessageReprocessPreservesGroupChatType(t *testing.T) {
 	close(executor.finish)
 	wg.Wait()
 
+	time.Sleep(100 * time.Millisecond)
+	executor.mu.Lock()
+	finalCalls := executor.callCount
+	executor.mu.Unlock()
+	if finalCalls != 1 {
+		t.Fatalf("expected no automatic reprocess for completed group run, got %d calls", finalCalls)
+	}
+}
+
+func TestHandleMessageReprocessesInFlightFollowUpWhenAwaitingInput(t *testing.T) {
+	openID := "ou_sender_inflight_await"
+	chatID := "oc_chat_inflight_await"
+	msgID := "om_msg_inflight_await"
+	msgID2 := "om_msg_inflight_await_2"
+	content := `{"text":"first"}`
+	content2 := `{"text":"second"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &blockingAwaitExecutor{
+		started: make(chan struct{}),
+		finish:  make(chan struct{}),
+	}
+	gw := &Gateway{
+		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:  executor,
+		logger: logging.OrNop(nil),
+		now:    func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := gw.handleMessage(context.Background(), event); err != nil {
+			t.Errorf("handleMessage failed: %v", err)
+		}
+	}()
+
+	<-executor.started
+
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	executor.mu.Lock()
+	callCount := executor.callCount
+	executor.mu.Unlock()
+	if callCount != 1 {
+		t.Fatalf("expected ExecuteTask once before first run completes, got %d", callCount)
+	}
+
+	close(executor.finish)
+	wg.Wait()
+
 	deadline := time.After(2 * time.Second)
 	ticker := time.NewTicker(10 * time.Millisecond)
 	defer ticker.Stop()
@@ -980,7 +1061,7 @@ func TestHandleMessageReprocessPreservesGroupChatType(t *testing.T) {
 		}
 		select {
 		case <-deadline:
-			t.Fatalf("expected ExecuteTask to be called again for reprocessed group message, got %d", callCount)
+			t.Fatalf("expected follow-up to reprocess when awaiting input, got %d calls", callCount)
 		case <-ticker.C:
 		}
 	}
@@ -1779,6 +1860,247 @@ func TestHandleMessageModelListUsesTextReply(t *testing.T) {
 	}
 }
 
+func TestHandleMessageAIChatAdvancesSingleTurn(t *testing.T) {
+	openID := "ou_sender_ai_chat"
+	chatID := "oc_chat_ai_chat"
+	msgID := "om_msg_ai_chat"
+	content := `{"text":"@bot1 @bot2 一起看看方案"}`
+	msgType := "text"
+	chatType := "group"
+	mentionKey1 := "@bot1"
+	mentionKey2 := "@bot2"
+	bot1 := "bot1"
+	bot2 := "bot2"
+
+	executor := &capturingExecutor{result: &agent.TaskResult{Answer: "ok"}}
+	recorder := NewRecordingMessenger()
+	gw := &Gateway{
+		cfg: Config{
+			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowGroups: true, AllowDirect: false},
+			AppID:        bot1,
+			AppSecret:    "secret",
+			AIChatBotIDs: []string{bot1, bot2},
+		},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+	if gw.aiCoordinator == nil {
+		gw.aiCoordinator = NewAIChatCoordinator(logging.OrNop(nil), []string{bot1, bot2})
+	}
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+				Mentions: []*larkim.MentionEvent{
+					{Key: &mentionKey1, Id: &larkim.UserId{OpenId: &bot1}},
+					{Key: &mentionKey2, Id: &larkim.UserId{OpenId: &bot2}},
+				},
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	info, exists := gw.aiCoordinator.GetSessionInfo(chatID)
+	if !exists {
+		t.Fatalf("expected AI chat session to exist")
+	}
+	if !strings.Contains(info, "turn=2/2") {
+		t.Fatalf("expected single turn advance to second participant, got %q", info)
+	}
+}
+
+func TestHandleMessageNaturalTaskStatusQueryUsesTaskList(t *testing.T) {
+	openID := "ou_sender_status_query"
+	chatID := "oc_chat_status_query"
+	msgID := "om_msg_status_query"
+	content := `{"text":"看看代码助手在做什么"}`
+	msgType := "text"
+	chatType := "p2p"
+	now := time.Now()
+
+	executor := &capturingExecutor{result: &agent.TaskResult{Answer: "should-not-run"}}
+	recorder := NewRecordingMessenger()
+	store := &stubTaskStore{
+		tasks: []TaskRecord{
+			{
+				TaskID:      "bg-abc123",
+				ChatID:      chatID,
+				AgentType:   "codex",
+				Status:      "running",
+				Description: "Investigate flaky tests",
+				CreatedAt:   now.Add(-2 * time.Minute),
+			},
+		},
+	}
+	gw := &Gateway{
+		cfg:       Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		taskStore: store,
+		now:       func() time.Time { return now },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+	if executor.capturedCtx != nil {
+		t.Fatalf("expected status query to skip ExecuteTask")
+	}
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		calls = recorder.CallsByMethod("SendMessage")
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected one status reply, got %#v", calls)
+	}
+	replyText := extractTextContent(calls[0].Content, nil)
+	if !strings.Contains(replyText, "活跃任务") {
+		t.Fatalf("expected active task summary in reply, got %q", replyText)
+	}
+	if !strings.Contains(replyText, "bg-abc123") {
+		t.Fatalf("expected task id in reply, got %q", replyText)
+	}
+}
+
+func TestHandleMessageNaturalTaskStatusQueryBypassesInFlightInjection(t *testing.T) {
+	openID := "ou_sender_status_running"
+	chatID := "oc_chat_status_running"
+	msgType := "text"
+	chatType := "p2p"
+	msgID1 := "om_msg_status_running_1"
+	msgID2 := "om_msg_status_running_2"
+	content1 := `{"text":"run something"}`
+	content2 := `{"text":"看看代码助手在做什么"}`
+	now := time.Now()
+
+	executor := &blockingExecutor{
+		started: make(chan struct{}),
+		finish:  make(chan struct{}),
+	}
+	recorder := NewRecordingMessenger()
+	store := &stubTaskStore{
+		tasks: []TaskRecord{
+			{
+				TaskID:      "bg-inflight",
+				ChatID:      chatID,
+				AgentType:   "codex",
+				Status:      "running",
+				Description: "Long running task",
+				CreatedAt:   now.Add(-time.Minute),
+			},
+		},
+	}
+	gw := &Gateway{
+		cfg:       Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		taskStore: store,
+		now:       func() time.Time { return now },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event1 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID1,
+				Content:     &content1,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := gw.handleMessage(context.Background(), event1); err != nil {
+			t.Errorf("handleMessage failed: %v", err)
+		}
+	}()
+	<-executor.started
+
+	event2 := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID2,
+				Content:     &content2,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{OpenId: &openID},
+			},
+		},
+	}
+	if err := gw.handleMessage(context.Background(), event2); err != nil {
+		t.Fatalf("handleMessage failed: %v", err)
+	}
+
+	executor.mu.Lock()
+	callCount := executor.callCount
+	executor.mu.Unlock()
+	if callCount != 1 {
+		t.Fatalf("expected status query not to trigger/inject new task call, got %d", callCount)
+	}
+
+	calls := recorder.CallsByMethod("ReplyMessage")
+	if len(calls) == 0 {
+		calls = recorder.CallsByMethod("SendMessage")
+	}
+	if len(calls) == 0 {
+		t.Fatal("expected a status reply")
+	}
+	replyText := extractTextContent(calls[len(calls)-1].Content, nil)
+	if !strings.Contains(replyText, "活跃任务") {
+		t.Fatalf("expected active task summary in reply, got %q", replyText)
+	}
+
+	close(executor.finish)
+	wg.Wait()
+}
+
 // --- test helpers ---
 
 var errTest = fmt.Errorf("test error")
@@ -1898,6 +2220,103 @@ func (b *blockingExecutor) ExecuteTask(ctx context.Context, _ string, sessionID 
 	<-b.finish
 	return &agent.TaskResult{Answer: "done"}, nil
 }
+
+type blockingAwaitExecutor struct {
+	mu          sync.Mutex
+	started     chan struct{}
+	finish      chan struct{}
+	startedOnce sync.Once
+	callCount   int
+}
+
+func (b *blockingAwaitExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
+	if sessionID == "" {
+		sessionID = "lark-session"
+	}
+	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+}
+
+func (b *blockingAwaitExecutor) ExecuteTask(_ context.Context, _ string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
+	b.mu.Lock()
+	b.callCount++
+	call := b.callCount
+	b.mu.Unlock()
+
+	b.startedOnce.Do(func() {
+		close(b.started)
+	})
+
+	if call == 1 {
+		<-b.finish
+		return &agent.TaskResult{StopReason: "await_user_input"}, nil
+	}
+	return &agent.TaskResult{Answer: "done"}, nil
+}
+
+type stubTaskStore struct {
+	tasks []TaskRecord
+}
+
+func (s *stubTaskStore) EnsureSchema(context.Context) error { return nil }
+
+func (s *stubTaskStore) SaveTask(_ context.Context, task TaskRecord) error {
+	s.tasks = append(s.tasks, task)
+	return nil
+}
+
+func (s *stubTaskStore) UpdateStatus(_ context.Context, taskID, status string, opts ...TaskUpdateOption) error {
+	for i := range s.tasks {
+		if s.tasks[i].TaskID != taskID {
+			continue
+		}
+		s.tasks[i].Status = status
+		var update taskUpdateOptions
+		for _, opt := range opts {
+			opt(&update)
+		}
+		if update.answerPreview != nil {
+			s.tasks[i].AnswerPreview = *update.answerPreview
+		}
+		if update.errorText != nil {
+			s.tasks[i].Error = *update.errorText
+		}
+		if update.tokensUsed != nil {
+			s.tasks[i].TokensUsed = *update.tokensUsed
+		}
+		return nil
+	}
+	return nil
+}
+
+func (s *stubTaskStore) GetTask(_ context.Context, taskID string) (TaskRecord, bool, error) {
+	for _, task := range s.tasks {
+		if task.TaskID == taskID {
+			return task, true, nil
+		}
+	}
+	return TaskRecord{}, false, nil
+}
+
+func (s *stubTaskStore) ListByChat(_ context.Context, chatID string, activeOnly bool, limit int) ([]TaskRecord, error) {
+	filtered := make([]TaskRecord, 0, len(s.tasks))
+	for _, task := range s.tasks {
+		if task.ChatID != chatID {
+			continue
+		}
+		if activeOnly && task.Status != "pending" && task.Status != "running" && task.Status != "waiting_input" {
+			continue
+		}
+		filtered = append(filtered, task)
+		if limit > 0 && len(filtered) >= limit {
+			break
+		}
+	}
+	return filtered, nil
+}
+
+func (s *stubTaskStore) DeleteExpired(context.Context, time.Time) error { return nil }
+
+func (s *stubTaskStore) MarkStaleRunning(context.Context, string) error { return nil }
 
 type stubPlanReviewStore struct {
 	pending PlanReviewPending

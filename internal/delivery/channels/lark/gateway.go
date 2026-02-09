@@ -60,27 +60,27 @@ type sessionSlot struct {
 // Gateway bridges Lark bot messages into the agent runtime.
 type Gateway struct {
 	channels.BaseGateway
-	cfg             Config
-	agent           AgentExecutor
-	logger          logging.Logger
-	client          *lark.Client
-	wsClient        *larkws.Client
-	messenger       LarkMessenger
-	eventListener   agent.EventListener
-	emojiPicker     *emojiPicker
-	dedupMu         sync.Mutex
-	dedupCache      *lru.Cache[string, time.Time]
-	now             func() time.Time
-	planReviewStore PlanReviewStore
-	oauth           *larkoauth.Service
-	llmSelections   *subscription.SelectionStore
-	llmResolver     *subscription.SelectionResolver
-	cliCredsLoader  func() runtimeconfig.CLICredentials
-	llamaResolver   func(context.Context) (subscription.LlamaServerTarget, bool)
-	taskStore            TaskStore
-	activeSlots          sync.Map // chatID → *sessionSlot
-	pendingInputRelays   sync.Map // chatID → *pendingRelayQueue
-	aiCoordinator        *AIChatCoordinator // coordinates multi-bot chat sessions
+	cfg                Config
+	agent              AgentExecutor
+	logger             logging.Logger
+	client             *lark.Client
+	wsClient           *larkws.Client
+	messenger          LarkMessenger
+	eventListener      agent.EventListener
+	emojiPicker        *emojiPicker
+	dedupMu            sync.Mutex
+	dedupCache         *lru.Cache[string, time.Time]
+	now                func() time.Time
+	planReviewStore    PlanReviewStore
+	oauth              *larkoauth.Service
+	llmSelections      *subscription.SelectionStore
+	llmResolver        *subscription.SelectionResolver
+	cliCredsLoader     func() runtimeconfig.CLICredentials
+	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
+	taskStore          TaskStore
+	activeSlots        sync.Map           // chatID → *sessionSlot
+	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
+	aiCoordinator      *AIChatCoordinator // coordinates multi-bot chat sessions
 }
 
 type awaitQuestionTracker struct {
@@ -340,6 +340,15 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 
 	slot := g.getOrCreateSlot(msg.chatID)
 	slot.mu.Lock()
+	trimmedContent := strings.TrimSpace(msg.content)
+
+	// Natural-language status query should be handled immediately, even when a
+	// foreground task is currently running.
+	if g.isNaturalTaskStatusQuery(trimmedContent) {
+		slot.mu.Unlock()
+		g.handleNaturalTaskStatusQuery(msg)
+		return nil
+	}
 
 	// If a task is already running for this chat, inject the new message
 	// into the running ReAct loop instead of starting a new task.
@@ -364,7 +373,6 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		g.handleModelCommand(msg)
 		return nil
 	}
-	trimmedContent := strings.TrimSpace(msg.content)
 	isPlan := g.isPlanCommand(trimmedContent)
 	if g.isTaskCommand(trimmedContent) || isPlan {
 		slot.mu.Unlock()
@@ -400,20 +408,14 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 			slot.sessionID = ""
 		}
 		slot.mu.Unlock()
-		g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
+		if awaitingInput {
+			g.drainAndReprocess(inputCh, msg.chatID, msg.chatType)
+		} else {
+			g.discardPendingInputs(inputCh, msg.chatID)
+		}
 	}()
 
 	awaitingInput = g.runNewTask(msg, sessionID, inputCh)
-
-	// After responding, advance the turn in AI chat session if applicable
-	if g.aiCoordinator != nil && !awaitingInput && msg.aiChatSessionActive {
-		nextBot, shouldContinue := g.aiCoordinator.AdvanceTurn(msg.chatID, g.cfg.AppID)
-		if shouldContinue && nextBot != "" {
-			g.logger.Info("AI chat: advanced turn, next bot=%s", nextBot)
-			// Trigger the next bot to respond by sending a mention
-			go g.triggerNextBotResponse(context.Background(), msg.chatID, nextBot)
-		}
-	}
 
 	return nil
 }
@@ -866,6 +868,24 @@ func (g *Gateway) drainAndReprocess(ch chan agent.UserInput, chatID, chatType st
 done:
 	for _, msg := range remaining {
 		go g.reprocessMessage(chatID, chatType, msg)
+	}
+}
+
+// discardPendingInputs drains and drops remaining in-flight messages that were
+// not consumed by the running task. This avoids automatically starting a new
+// task round when the previous run has already produced a terminal answer.
+func (g *Gateway) discardPendingInputs(ch chan agent.UserInput, chatID string) {
+	dropped := 0
+	for {
+		select {
+		case <-ch:
+			dropped++
+		default:
+			if dropped > 0 {
+				g.logger.Info("Discarded %d pending in-flight message(s) for chat %s", dropped, chatID)
+			}
+			return
+		}
 	}
 }
 
@@ -1815,32 +1835,6 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
-}
-
-// triggerNextBotResponse triggers the next bot in an AI chat session to respond.
-func (g *Gateway) triggerNextBotResponse(ctx context.Context, chatID, chatType string) {
-	if g.aiCoordinator == nil {
-		return
-	}
-
-	nextBotID, shouldContinue := g.aiCoordinator.AdvanceTurn(chatID, g.cfg.AppID)
-	if !shouldContinue {
-		return
-	}
-
-	g.logger.Info("AI chat: triggering next bot %s in chat %s", nextBotID, chatID)
-
-	// Send a message mentioning the next bot to trigger its response
-	triggerMsg := fmt.Sprintf("@%s(%s) 轮到你了，继续我们的讨论吧", nextBotID, nextBotID)
-	content := textContent(triggerMsg)
-
-	replyTo := ""
-	if chatType != "p2p" {
-		// In group chats, don't reply to a specific message to keep the flow natural
-		replyTo = ""
-	}
-
-	g.dispatch(ctx, chatID, replyTo, "text", content)
 }
 
 func normalizeExtensions(exts []string) []string {
