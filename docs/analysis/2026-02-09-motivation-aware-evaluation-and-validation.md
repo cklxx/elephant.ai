@@ -188,3 +188,30 @@ R5 批量收敛的代表簇：
 - `request_user => lark_task_manage`: `1 -> 0`
 - `shell_exec => execute_code`: `1 -> 0`
 - `scheduler_list_jobs => scheduler_create_job`: `1 -> 0`
+
+## 10. R9 Hard-Only 套件收敛与业界基准扩展（2026-02-09）
+
+### 10.1 套件收敛（x/x）
+- Collections: `17/17`（主 suite 已移除长期饱和的基础集合）
+- Cases: `269/269`
+- Hard benchmark collections（新增并接入）:
+  - `industry_benchmark_general_assistant_gaia`
+  - `industry_benchmark_real_world_coding_livecodebench_swelancer`
+  - `industry_benchmark_multiturn_enterprise_assistantbench_tau2`
+  - `industry_benchmark_context_learning_nolima_longmemeval_babilong`
+
+### 10.2 评测结果（x/x）
+- pass@1: `224/269`（83.0%）
+- pass@5: `267/269`（99.1%）
+- Deliverable Good: `26/29`
+- Deliverable Bad: `3/29`
+- 产物路径: `tmp/foundation-suite-r9-hardonly-optimized-20260209-202433`
+
+### 10.3 关键结论
+- 已实现“只留难题”目标：主套件不再包含基础/长期 100% 饱和集合。
+- 新增业界迁移集合后，难度显著提升且可诊断性更强（仍保留少量 pass@5 失败用于持续优化）。
+- 本轮路由优化已修复新增集合中的多项冲突，尤其在：
+  - `shell_exec vs execute_code`
+  - `scheduler_create_job vs lark_calendar_update`
+  - `read_file vs okr_read`
+  - `memory_search vs browser_action`

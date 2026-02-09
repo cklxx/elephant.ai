@@ -154,3 +154,22 @@ motivation_state:
 - 动机/记忆/审批门控相关冲突显著下降（`request_user`、`memory_search`、`web_fetch` 相关簇已清零）。
 - 剩余主失败簇集中在计划语义与任务管理语义重叠（`plan => lark_task_manage`）。
 - 复杂可交付任务中，仍存在“文件传输 vs 消息通知”的局部歧义，需要继续增强语义分离。
+
+## 8. R9 Hard-Only 评测结论（2026-02-09）
+
+### 8.1 套件规模（x/x）
+- Collections: `17/17`（主 suite 已收敛为 hard-only）
+- Cases: `269/269`
+- Deliverable cases: `29/269`
+
+### 8.2 关键结果（x/x）
+- pass@1: `224/269`（83.0%）
+- pass@5: `267/269`（99.1%）
+- Deliverable Good: `26/29`
+- Deliverable Bad: `3/29`
+- 评测产物: `tmp/foundation-suite-r9-hardonly-optimized-20260209-202433`
+
+### 8.3 结论
+- 主评测集合已从“高分但挑战不足”切换到“难题驱动”的健康状态。
+- 新增业界 benchmark 迁移题显著拉开难度，能够更稳定暴露真实路由短板。
+- 当前剩余失败主要集中在 hardest 子集（多轮企业任务与长上下文推理），适合作为下一轮系统优化入口。
