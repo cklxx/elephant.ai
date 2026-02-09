@@ -768,7 +768,7 @@ func (g *Gateway) prepareTaskContent(execCtx context.Context, session *storage.S
 		if pageSize <= 0 {
 			pageSize = 20
 		}
-		if chatHistory, err := g.fetchRecentChatMessages(execCtx, msg.chatID, pageSize); err != nil {
+		if chatHistory, err := g.fetchRecentChatMessages(execCtx, msg.chatID, pageSize, msg.messageID); err != nil {
 			g.logger.Warn("Lark auto chat context fetch failed: %v", err)
 		} else if chatHistory != "" {
 			if hasPending {

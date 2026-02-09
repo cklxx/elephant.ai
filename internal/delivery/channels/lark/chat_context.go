@@ -13,7 +13,9 @@ import (
 // fetchRecentChatMessages retrieves recent messages from a Lark chat via the
 // gateway's messenger and returns them formatted as chronological
 // "[timestamp] sender: content" lines.
-func (g *Gateway) fetchRecentChatMessages(ctx context.Context, chatID string, pageSize int) (string, error) {
+// excludeMessageID, when non-empty, filters out the message with that ID
+// to avoid duplicating the current trigger message in the context.
+func (g *Gateway) fetchRecentChatMessages(ctx context.Context, chatID string, pageSize int, excludeMessageID string) (string, error) {
 	if g.messenger == nil {
 		return "", fmt.Errorf("lark messenger is nil")
 	}
@@ -30,6 +32,19 @@ func (g *Gateway) fetchRecentChatMessages(ctx context.Context, chatID string, pa
 	items, err := g.messenger.ListMessages(ctx, chatID, pageSize)
 	if err != nil {
 		return "", err
+	}
+	if len(items) == 0 {
+		return "", nil
+	}
+
+	if excludeMessageID != "" {
+		filtered := make([]*larkim.Message, 0, len(items))
+		for _, m := range items {
+			if m != nil && deref(m.MessageId) != excludeMessageID {
+				filtered = append(filtered, m)
+			}
+		}
+		items = filtered
 	}
 	if len(items) == 0 {
 		return "", nil
