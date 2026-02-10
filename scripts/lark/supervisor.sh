@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=../lib/common/lark_test_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/lark_test_worktree.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -61,7 +63,6 @@ else
 fi
 [[ -n "${MAIN_ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
-WORKTREE_SH="${WORKTREE_SH:-${MAIN_ROOT}/scripts/lark/worktree.sh}"
 MAIN_SH="${MAIN_SH:-${MAIN_ROOT}/scripts/lark/main.sh}"
 TEST_SH="${TEST_SH:-${MAIN_ROOT}/scripts/lark/test.sh}"
 LOOP_AGENT_SH="${LOOP_AGENT_SH:-${MAIN_ROOT}/scripts/lark/loop-agent.sh}"
@@ -184,8 +185,7 @@ append_log() {
 }
 
 ensure_worktree() {
-  [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
-  "${WORKTREE_SH}" ensure >/dev/null
+  lark_ensure_test_worktree "${MAIN_ROOT}" >/dev/null
   ensure_dirs
 }
 
@@ -581,8 +581,13 @@ handle_autofix_success_restart() {
   fi
 
   append_log "[autofix] applying post-success restart for incident=${OBS_AUTOFIX_INCIDENT_ID}"
-  restart_component "main" || true
   restart_component "test" || true
+  observe_states
+  if [[ "${OBS_TEST_HEALTH}" == "healthy" ]]; then
+    restart_component "main" || true
+  else
+    append_log "[autofix] skip main restart: test is not healthy after autofix restart"
+  fi
   restart_component "loop" || true
   printf '%s\n' "${OBS_AUTOFIX_INCIDENT_ID}" > "${AUTOFIX_APPLIED_INCIDENT_FILE}"
 }
@@ -894,27 +899,7 @@ maybe_upgrade_for_sha_drift() {
     return 0
   fi
 
-  # Upgrade main if deployed SHA differs and process is healthy.
-  if [[ "${OBS_MAIN_HEALTH}" == "healthy" \
-     && "${OBS_MAIN_DEPLOYED_SHA}" != "unknown" \
-     && "${OBS_MAIN_SHA}" != "unknown" \
-     && "${OBS_MAIN_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
-    local count
-    count="$(record_restart_attempt "main" "${now_epoch}")"
-    if (( count > RESTART_MAX_IN_WINDOW )); then
-      set_cooldown "main" "${count}"
-      return 0
-    fi
-    append_log "[upgrade] main deployed=${OBS_MAIN_DEPLOYED_SHA:0:8} latest=${OBS_MAIN_SHA:0:8}; restarting"
-    if restart_component "main"; then
-      append_log "[upgrade] main restart success"
-    else
-      append_log "[upgrade] main restart failed"
-    fi
-    observe_states
-  fi
-
-  # Upgrade test if deployed SHA differs and process is healthy.
+  # Upgrade test before main to guarantee validated runtime is online first.
   # Skip during active validation — the loop controls the test bot.
   if is_validation_active; then
     :  # do not touch test bot during validation
@@ -936,6 +921,34 @@ maybe_upgrade_for_sha_drift() {
     fi
     observe_states
   fi
+
+  # Upgrade main only after test is healthy and aligned to latest.
+  if [[ "${OBS_TEST_HEALTH}" != "healthy" ]]; then
+    append_log "[upgrade] skip main upgrade: test is not healthy"
+    return 0
+  fi
+  if [[ "${OBS_TEST_DEPLOYED_SHA}" != "unknown" && "${OBS_MAIN_SHA}" != "unknown" && "${OBS_TEST_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
+    append_log "[upgrade] skip main upgrade: test not aligned to latest main yet"
+    return 0
+  fi
+  if [[ "${OBS_MAIN_HEALTH}" == "healthy" \
+     && "${OBS_MAIN_DEPLOYED_SHA}" != "unknown" \
+     && "${OBS_MAIN_SHA}" != "unknown" \
+     && "${OBS_MAIN_DEPLOYED_SHA}" != "${OBS_MAIN_SHA}" ]]; then
+    local count
+    count="$(record_restart_attempt "main" "${now_epoch}")"
+    if (( count > RESTART_MAX_IN_WINDOW )); then
+      set_cooldown "main" "${count}"
+      return 0
+    fi
+    append_log "[upgrade] main deployed=${OBS_MAIN_DEPLOYED_SHA:0:8} latest=${OBS_MAIN_SHA:0:8}; restarting"
+    if restart_component "main"; then
+      append_log "[upgrade] main restart success"
+    else
+      append_log "[upgrade] main restart failed"
+    fi
+    observe_states
+  fi
 }
 
 run_tick() {
@@ -948,10 +961,14 @@ run_tick() {
   reconcile_stale_loop_state
   observe_states
 
-  restart_with_backoff "main" "${OBS_MAIN_HEALTH}" || true
-  observe_states
   restart_with_backoff "test" "${OBS_TEST_HEALTH}" || true
   observe_states
+  if [[ "${OBS_TEST_HEALTH}" != "healthy" ]]; then
+    append_log "[supervisor] skip main restart: test is not healthy"
+  else
+    restart_with_backoff "main" "${OBS_MAIN_HEALTH}" || true
+    observe_states
+  fi
   restart_with_backoff "loop" "${OBS_LOOP_HEALTH}" || true
   observe_states
   maybe_upgrade_for_sha_drift
@@ -1088,16 +1105,18 @@ reconcile_children_once() {
   observe_states
   append_log "[start] reconcile-on-demand begin main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} loop=${OBS_LOOP_HEALTH}"
 
-  if component_needs_restart "main" "${OBS_MAIN_HEALTH}"; then
-    append_log "[start] main=${OBS_MAIN_HEALTH}; restarting"
-    restart_component "main" || append_log "[start] main restart failed"
-  fi
-  observe_states
-
   if component_needs_restart "test" "${OBS_TEST_HEALTH}"; then
     restart_with_backoff "test" "${OBS_TEST_HEALTH}" || true
   fi
   observe_states
+
+  if [[ "${OBS_TEST_HEALTH}" != "healthy" ]]; then
+    append_log "[start] skip main restart: test is not healthy"
+  elif component_needs_restart "main" "${OBS_MAIN_HEALTH}"; then
+    append_log "[start] main=${OBS_MAIN_HEALTH}; restarting"
+    restart_component "main" || append_log "[start] main restart failed"
+    observe_states
+  fi
 
   if component_needs_restart "loop" "${OBS_LOOP_HEALTH}"; then
     append_log "[start] loop=${OBS_LOOP_HEALTH}; restarting"
@@ -1267,7 +1286,7 @@ doctor() {
     fi
   done
 
-  for script in "${WORKTREE_SH}" "${MAIN_SH}" "${TEST_SH}" "${LOOP_AGENT_SH}" "${AUTOFIX_SH}"; do
+  for script in "${MAIN_SH}" "${TEST_SH}" "${LOOP_AGENT_SH}" "${AUTOFIX_SH}"; do
     if [[ -x "${script}" ]]; then
       echo "[ok] script: ${script}"
     else
@@ -1285,7 +1304,7 @@ doctor() {
     fi
   fi
 
-  if git -C "${MAIN_ROOT}" worktree list --porcelain | awk -v p="${TEST_ROOT}" '$1=="worktree" && $2==p {found=1} END{exit found?0:1}'; then
+  if lark_test_worktree_registered "${MAIN_ROOT}" "${TEST_ROOT}"; then
     echo "[ok] test worktree registered"
   else
     echo "[warn] test worktree is not registered in git worktree list"
