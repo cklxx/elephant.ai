@@ -21,12 +21,21 @@
 - Out of scope: broad performance optimization unrelated to continuous growth.
 
 ## Steps
-- [ ] Reproduce and capture baseline memory growth curve.
-- [ ] Narrow growth source (heap owners / long-lived structures / goroutines).
-- [ ] Implement targeted fix + unit/integration tests.
-- [ ] Run `alex dev lint` + `alex dev test`.
-- [ ] Mandatory code review workflow + incremental commits.
+- [x] Reproduce and capture baseline memory growth curve.
+- [x] Narrow growth source (heap owners / long-lived structures / goroutines).
+- [x] Implement targeted fix + unit/integration tests.
+- [x] Run `alex dev lint` + `alex dev test`.
+- [x] Mandatory code review workflow + incremental commits.
 - [ ] Merge back to `main` and clean up worktree.
 
 ## Progress Log
 - 2026-02-10 23:32 CST: Initialized worktree `fix/startup-memory-oom-20260210`, copied `.env`, loaded engineering practices and recent memory summaries.
+- 2026-02-10 23:45 CST: Identified root cause - unbounded sync.Map in broadcaster metrics (`dropsPerSession`, `noClientBySession`) growing indefinitely with abandoned sessions.
+- 2026-02-10 23:52 CST: Implemented `boundedSessionCounterStore` with 2048-entry cap, 30min TTL, LRU eviction. Added unit + integration tests.
+- 2026-02-10 23:55 CST: Rebased to main, passed lint + all tests. Code review completed: 0 P0/P1 issues, 1 P2 perf suggestion (heap-based LRU). **Approved for merge**.
+
+## Code Review Summary
+- **Verdict**: ✅ Approved
+- **P0/P1 issues**: 0 (no blockers)
+- **P2 (follow-up)**: Consider heap-based LRU for `pruneLocked` if profiling shows bottleneck
+- **Test coverage**: Comprehensive (unit + 2000+ session integration test)
