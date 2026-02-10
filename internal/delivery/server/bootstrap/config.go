@@ -37,14 +37,17 @@ type Config struct {
 
 // EventHistoryConfig captures event history storage tuning.
 type EventHistoryConfig struct {
-	Retention          time.Duration
-	MaxSessions        int
-	SessionTTL         time.Duration
-	MaxEvents          int
-	AsyncBatchSize     int
-	AsyncFlushInterval time.Duration
-	AsyncAppendTimeout time.Duration
-	AsyncQueueCapacity int
+	Retention                        time.Duration
+	MaxSessions                      int
+	SessionTTL                       time.Duration
+	MaxEvents                        int
+	AsyncBatchSize                   int
+	AsyncFlushInterval               time.Duration
+	AsyncAppendTimeout               time.Duration
+	AsyncQueueCapacity               int
+	AsyncFlushRequestCoalesceWindow  time.Duration
+	AsyncBackpressureHighWatermark   int
+	DegradeDebugEventsOnBackpressure bool
 }
 
 // StreamGuardConfig captures SSE stream guard limits.
@@ -180,14 +183,17 @@ func LoadConfig() (ConfigResult, error) {
 		},
 		NonStreamTimeout: 30 * time.Second,
 		EventHistory: EventHistoryConfig{
-			Retention:          30 * 24 * time.Hour,
-			MaxSessions:        100,
-			SessionTTL:         1 * time.Hour,
-			MaxEvents:          1000,
-			AsyncBatchSize:     200,
-			AsyncFlushInterval: 250 * time.Millisecond,
-			AsyncAppendTimeout: 50 * time.Millisecond,
-			AsyncQueueCapacity: 8192,
+			Retention:                        30 * 24 * time.Hour,
+			MaxSessions:                      100,
+			SessionTTL:                       1 * time.Hour,
+			MaxEvents:                        1000,
+			AsyncBatchSize:                   200,
+			AsyncFlushInterval:               250 * time.Millisecond,
+			AsyncAppendTimeout:               50 * time.Millisecond,
+			AsyncQueueCapacity:               8192,
+			AsyncFlushRequestCoalesceWindow:  8 * time.Millisecond,
+			AsyncBackpressureHighWatermark:   (8192 * 80) / 100,
+			DegradeDebugEventsOnBackpressure: true,
 		},
 		Session: runtimeconfig.SessionConfig{
 			Dir: "~/.alex/sessions",
@@ -461,6 +467,22 @@ func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	}
 	if file.Server.EventHistoryAsyncQueueSize != nil && *file.Server.EventHistoryAsyncQueueSize > 0 {
 		cfg.EventHistory.AsyncQueueCapacity = *file.Server.EventHistoryAsyncQueueSize
+		if file.Server.EventHistoryAsyncBackpressureHighWatermark == nil {
+			cfg.EventHistory.AsyncBackpressureHighWatermark = (*file.Server.EventHistoryAsyncQueueSize * 80) / 100
+		}
+	}
+	if file.Server.EventHistoryAsyncFlushRequestCoalesceMS != nil {
+		if *file.Server.EventHistoryAsyncFlushRequestCoalesceMS <= 0 {
+			cfg.EventHistory.AsyncFlushRequestCoalesceWindow = 0
+		} else {
+			cfg.EventHistory.AsyncFlushRequestCoalesceWindow = time.Duration(*file.Server.EventHistoryAsyncFlushRequestCoalesceMS) * time.Millisecond
+		}
+	}
+	if file.Server.EventHistoryAsyncBackpressureHighWatermark != nil {
+		cfg.EventHistory.AsyncBackpressureHighWatermark = *file.Server.EventHistoryAsyncBackpressureHighWatermark
+	}
+	if file.Server.EventHistoryDegradeDebugEventsOnBackpressure != nil {
+		cfg.EventHistory.DegradeDebugEventsOnBackpressure = *file.Server.EventHistoryDegradeDebugEventsOnBackpressure
 	}
 	if file.Server.AllowedOrigins != nil {
 		cfg.AllowedOrigins = normalizeAllowedOrigins(file.Server.AllowedOrigins)

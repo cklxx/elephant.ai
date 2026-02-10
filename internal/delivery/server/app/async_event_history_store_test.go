@@ -152,6 +152,13 @@ func makeTestEvent(sessionID string) agent.AgentEvent {
 	}
 }
 
+func makeDiagnosticEvent(sessionID string) agent.AgentEvent {
+	return &domain.WorkflowDiagnosticContextSnapshotEvent{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, "run-1", "", time.Now()),
+		Iteration: 1,
+	}
+}
+
 func newTestStore(inner EventHistoryStore, opts ...AsyncEventHistoryStoreOption) *AsyncEventHistoryStore {
 	defaults := []AsyncEventHistoryStoreOption{
 		WithAsyncHistoryFlushInterval(10 * time.Millisecond),
@@ -264,6 +271,70 @@ func TestAsyncAppendContextCancellation(t *testing.T) {
 	}
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestAsyncAppendDropsDebugEventOnBackpressure(t *testing.T) {
+	store := &AsyncEventHistoryStore{
+		inner:                            &inMemoryHistoryStore{},
+		ch:                               make(chan agent.AgentEvent, 4),
+		flushRequests:                    make(chan chan error, 16),
+		done:                             make(chan struct{}),
+		batchSize:                        200,
+		flushInterval:                    time.Hour,
+		appendTimeout:                    1 * time.Millisecond,
+		queueCapacity:                    4,
+		degradeDebugEventsOnBackpressure: true,
+		backpressureHighWatermark:        3,
+	}
+	defer close(store.done)
+
+	_ = store.Append(context.Background(), makeTestEvent("s1"))
+	_ = store.Append(context.Background(), makeTestEvent("s1"))
+	_ = store.Append(context.Background(), makeTestEvent("s1"))
+
+	if got := len(store.ch); got != 3 {
+		t.Fatalf("expected queue depth 3 before debug append, got %d", got)
+	}
+
+	if err := store.Append(context.Background(), makeDiagnosticEvent("s1")); err != nil {
+		t.Fatalf("expected debug event to be dropped without error, got %v", err)
+	}
+	if got := len(store.ch); got != 3 {
+		t.Fatalf("expected queue depth to remain 3 after debug drop, got %d", got)
+	}
+	if stats := store.Stats(); stats.DebugEventsDropped != 1 {
+		t.Fatalf("expected debug_events_dropped=1, got %d", stats.DebugEventsDropped)
+	}
+}
+
+func TestAsyncAppendKeepsCriticalEventUnderBackpressure(t *testing.T) {
+	store := &AsyncEventHistoryStore{
+		inner:                            &inMemoryHistoryStore{},
+		ch:                               make(chan agent.AgentEvent, 4),
+		flushRequests:                    make(chan chan error, 16),
+		done:                             make(chan struct{}),
+		batchSize:                        200,
+		flushInterval:                    time.Hour,
+		appendTimeout:                    1 * time.Millisecond,
+		queueCapacity:                    4,
+		degradeDebugEventsOnBackpressure: true,
+		backpressureHighWatermark:        3,
+	}
+	defer close(store.done)
+
+	_ = store.Append(context.Background(), makeTestEvent("s1"))
+	_ = store.Append(context.Background(), makeTestEvent("s1"))
+	_ = store.Append(context.Background(), makeTestEvent("s1"))
+
+	if err := store.Append(context.Background(), makeTestEvent("s1")); err != nil {
+		t.Fatalf("expected critical event to be enqueued, got %v", err)
+	}
+	if got := len(store.ch); got != 4 {
+		t.Fatalf("expected queue depth 4 after critical append, got %d", got)
+	}
+	if stats := store.Stats(); stats.DebugEventsDropped != 0 {
+		t.Fatalf("expected debug_events_dropped=0, got %d", stats.DebugEventsDropped)
 	}
 }
 
@@ -548,6 +619,10 @@ func TestAsyncOptionsApplied(t *testing.T) {
 		WithAsyncHistoryFlushInterval(500*time.Millisecond),
 		WithAsyncHistoryAppendTimeout(100*time.Millisecond),
 		WithAsyncHistoryQueueCapacity(1024),
+		WithAsyncHistoryMaxDrainPerFlush(77),
+		WithAsyncHistoryFlushRequestCoalesceWindow(20*time.Millisecond),
+		WithAsyncHistoryBackpressureHighWatermark(700),
+		WithAsyncHistoryDegradeDebugEventsOnBackpressure(false),
 	)
 	defer store.Close()
 
@@ -566,6 +641,18 @@ func TestAsyncOptionsApplied(t *testing.T) {
 	if cap(store.ch) != 1024 {
 		t.Fatalf("expected channel capacity 1024, got %d", cap(store.ch))
 	}
+	if store.maxDrainPerFlush != 77 {
+		t.Fatalf("expected maxDrainPerFlush 77, got %d", store.maxDrainPerFlush)
+	}
+	if store.flushRequestCoalesceWindow != 20*time.Millisecond {
+		t.Fatalf("expected flushRequestCoalesceWindow 20ms, got %v", store.flushRequestCoalesceWindow)
+	}
+	if store.backpressureHighWatermark != 700 {
+		t.Fatalf("expected backpressureHighWatermark 700, got %d", store.backpressureHighWatermark)
+	}
+	if store.degradeDebugEventsOnBackpressure {
+		t.Fatalf("expected degradeDebugEventsOnBackpressure false, got true")
+	}
 }
 
 func TestAsyncOptionsIgnoreInvalid(t *testing.T) {
@@ -579,6 +666,11 @@ func TestAsyncOptionsIgnoreInvalid(t *testing.T) {
 		WithAsyncHistoryAppendTimeout(-1),
 		WithAsyncHistoryQueueCapacity(0),
 		WithAsyncHistoryQueueCapacity(-1),
+		WithAsyncHistoryMaxDrainPerFlush(0),
+		WithAsyncHistoryMaxDrainPerFlush(-1),
+		WithAsyncHistoryFlushRequestCoalesceWindow(-1),
+		WithAsyncHistoryBackpressureHighWatermark(0),
+		WithAsyncHistoryBackpressureHighWatermark(-1),
 		nil, // nil option should not panic
 	)
 	defer store.Close()
@@ -598,6 +690,18 @@ func TestAsyncOptionsIgnoreInvalid(t *testing.T) {
 	}
 	if cap(store.ch) != DefaultAsyncHistoryQueueCapacity {
 		t.Fatalf("expected channel capacity %d, got %d", DefaultAsyncHistoryQueueCapacity, cap(store.ch))
+	}
+	if store.maxDrainPerFlush != defaultMaxDrainPerFlush(DefaultAsyncHistoryBatchSize) {
+		t.Fatalf("expected default maxDrainPerFlush %d, got %d", defaultMaxDrainPerFlush(DefaultAsyncHistoryBatchSize), store.maxDrainPerFlush)
+	}
+	if store.flushRequestCoalesceWindow != DefaultAsyncHistoryFlushRequestCoalesceWindow {
+		t.Fatalf("expected default flushRequestCoalesceWindow %s, got %v", DefaultAsyncHistoryFlushRequestCoalesceWindow, store.flushRequestCoalesceWindow)
+	}
+	if store.backpressureHighWatermark != defaultBackpressureHighWatermark(DefaultAsyncHistoryQueueCapacity) {
+		t.Fatalf("expected default backpressureHighWatermark %d, got %d", defaultBackpressureHighWatermark(DefaultAsyncHistoryQueueCapacity), store.backpressureHighWatermark)
+	}
+	if !store.degradeDebugEventsOnBackpressure {
+		t.Fatalf("expected default degradeDebugEventsOnBackpressure=true")
 	}
 }
 
@@ -823,5 +927,57 @@ func TestAsyncStatsTracksSuccessfulFlush(t *testing.T) {
 	}
 	if stats.FlushFailures != 0 {
 		t.Fatalf("expected flush_failures=0, got %d", stats.FlushFailures)
+	}
+}
+
+func TestAsyncFlushCoalescesRequests(t *testing.T) {
+	inner := &inMemoryHistoryStore{}
+	store := NewAsyncEventHistoryStore(inner,
+		WithAsyncHistoryBatchSize(64),
+		WithAsyncHistoryFlushInterval(time.Hour),
+		WithAsyncHistoryFlushRequestCoalesceWindow(20*time.Millisecond),
+	)
+	defer store.Close()
+
+	if err := store.Append(context.Background(), makeTestEvent("s1")); err != nil {
+		t.Fatalf("append error: %v", err)
+	}
+
+	const callers = 8
+	var wg sync.WaitGroup
+	wg.Add(callers)
+	errCh := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		go func() {
+			defer wg.Done()
+			errCh <- store.flush(context.Background())
+		}()
+	}
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("flush error: %v", err)
+		}
+	}
+
+	stats := store.Stats()
+	if stats.FlushRequests < callers {
+		t.Fatalf("expected flush_requests >= %d, got %d", callers, stats.FlushRequests)
+	}
+	if stats.FlushRequestsCoalesced == 0 {
+		t.Fatalf("expected flush requests to be coalesced, got 0")
+	}
+}
+
+func TestAsyncMaxDrainPerFlushOptionApplied(t *testing.T) {
+	inner := &inMemoryHistoryStore{}
+	store := NewAsyncEventHistoryStore(inner,
+		WithAsyncHistoryMaxDrainPerFlush(8),
+	)
+	defer store.Close()
+
+	if store.maxDrainPerFlush != 8 {
+		t.Fatalf("expected maxDrainPerFlush 8, got %d", store.maxDrainPerFlush)
 	}
 }

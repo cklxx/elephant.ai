@@ -74,6 +74,15 @@ func TestLoadConfig_EventHistoryAsyncDefaults(t *testing.T) {
 	if cfg.EventHistory.AsyncQueueCapacity != 8192 {
 		t.Fatalf("expected default async queue size 8192, got %d", cfg.EventHistory.AsyncQueueCapacity)
 	}
+	if cfg.EventHistory.AsyncFlushRequestCoalesceWindow != 8*time.Millisecond {
+		t.Fatalf("expected default async flush request coalesce window 8ms, got %s", cfg.EventHistory.AsyncFlushRequestCoalesceWindow)
+	}
+	if cfg.EventHistory.AsyncBackpressureHighWatermark != (8192*80)/100 {
+		t.Fatalf("expected default async backpressure high watermark %d, got %d", (8192*80)/100, cfg.EventHistory.AsyncBackpressureHighWatermark)
+	}
+	if !cfg.EventHistory.DegradeDebugEventsOnBackpressure {
+		t.Fatalf("expected default degrade_debug_events_on_backpressure=true")
+	}
 }
 
 func TestLoadConfig_AuthJWTSecretFromEnvFallback(t *testing.T) {
@@ -182,6 +191,9 @@ server:
   event_history_async_flush_interval_ms: 1200
   event_history_async_append_timeout_ms: 90
   event_history_async_queue_capacity: 4096
+  event_history_async_flush_request_coalesce_window_ms: 25
+  event_history_async_backpressure_high_watermark: 3072
+  event_history_degrade_debug_events_on_backpressure: false
 `)
 	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
@@ -206,6 +218,42 @@ server:
 	}
 	if cfg.EventHistory.AsyncQueueCapacity != 4096 {
 		t.Fatalf("expected async queue size 4096, got %d", cfg.EventHistory.AsyncQueueCapacity)
+	}
+	if cfg.EventHistory.AsyncFlushRequestCoalesceWindow != 25*time.Millisecond {
+		t.Fatalf("expected async flush request coalesce window 25ms, got %s", cfg.EventHistory.AsyncFlushRequestCoalesceWindow)
+	}
+	if cfg.EventHistory.AsyncBackpressureHighWatermark != 3072 {
+		t.Fatalf("expected async backpressure high watermark 3072, got %d", cfg.EventHistory.AsyncBackpressureHighWatermark)
+	}
+	if cfg.EventHistory.DegradeDebugEventsOnBackpressure {
+		t.Fatalf("expected degrade_debug_events_on_backpressure=false, got true")
+	}
+}
+
+func TestLoadConfig_ServerEventHistoryQueueCapacityRescalesDefaultBackpressureWatermark(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+server:
+  event_history_async_queue_capacity: 4096
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	cfg := cr.Config
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+	if cfg.EventHistory.AsyncQueueCapacity != 4096 {
+		t.Fatalf("expected async queue capacity 4096, got %d", cfg.EventHistory.AsyncQueueCapacity)
+	}
+	if cfg.EventHistory.AsyncBackpressureHighWatermark != (4096*80)/100 {
+		t.Fatalf("expected async backpressure high watermark %d, got %d", (4096*80)/100, cfg.EventHistory.AsyncBackpressureHighWatermark)
 	}
 }
 

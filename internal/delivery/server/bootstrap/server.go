@@ -14,8 +14,8 @@ import (
 	"alex/internal/app/subscription"
 	"alex/internal/app/workdir"
 	serverApp "alex/internal/delivery/server/app"
-	"alex/internal/delivery/server/ports"
 	serverHTTP "alex/internal/delivery/server/http"
+	"alex/internal/delivery/server/ports"
 	agentdomain "alex/internal/domain/agent"
 	"alex/internal/domain/materials"
 	"alex/internal/infra/analytics"
@@ -106,6 +106,13 @@ func RunServer(observabilityConfigPath string) error {
 				if config.EventHistory.AsyncQueueCapacity > 0 {
 					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryQueueCapacity(config.EventHistory.AsyncQueueCapacity))
 				}
+				if config.EventHistory.AsyncFlushRequestCoalesceWindow >= 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryFlushRequestCoalesceWindow(config.EventHistory.AsyncFlushRequestCoalesceWindow))
+				}
+				if config.EventHistory.AsyncBackpressureHighWatermark > 0 {
+					asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryBackpressureHighWatermark(config.EventHistory.AsyncBackpressureHighWatermark))
+				}
+				asyncHistoryOpts = append(asyncHistoryOpts, serverApp.WithAsyncHistoryDegradeDebugEventsOnBackpressure(config.EventHistory.DegradeDebugEventsOnBackpressure))
 				asyncHistoryStore = serverApp.NewAsyncEventHistoryStore(pgHistory, asyncHistoryOpts...)
 				return nil
 			},

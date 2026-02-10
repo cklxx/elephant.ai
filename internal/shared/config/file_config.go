@@ -92,9 +92,9 @@ type RuntimeBrowserConfig struct {
 // ToolPolicyFileConfig mirrors ToolPolicyConfig for YAML decoding with partial overrides.
 type ToolPolicyFileConfig struct {
 	EnforcementMode string                   `yaml:"enforcement_mode"`
-	Timeout *ToolTimeoutFileConfig   `yaml:"timeout"`
-	Retry   *ToolRetryFileConfig     `yaml:"retry"`
-	Rules   []toolspolicy.PolicyRule `yaml:"rules,omitempty"`
+	Timeout         *ToolTimeoutFileConfig   `yaml:"timeout"`
+	Retry           *ToolRetryFileConfig     `yaml:"retry"`
+	Rules           []toolspolicy.PolicyRule `yaml:"rules,omitempty"`
 }
 
 // ToolTimeoutFileConfig mirrors ToolTimeoutConfig for YAML decoding.
@@ -262,12 +262,12 @@ type HeartbeatFileConfig struct {
 }
 
 type TimerFileConfig struct {
-	Enabled            *bool `yaml:"enabled"`
+	Enabled            *bool  `yaml:"enabled"`
 	StorePath          string `yaml:"store_path"`
-	MaxTimers          *int  `yaml:"max_timers"`
-	TaskTimeoutSeconds *int  `yaml:"task_timeout_seconds"`
-	HeartbeatEnabled   *bool `yaml:"heartbeat_enabled"`
-	HeartbeatMinutes   *int  `yaml:"heartbeat_minutes"`
+	MaxTimers          *int   `yaml:"max_timers"`
+	TaskTimeoutSeconds *int   `yaml:"task_timeout_seconds"`
+	HeartbeatEnabled   *bool  `yaml:"heartbeat_enabled"`
+	HeartbeatMinutes   *int   `yaml:"heartbeat_minutes"`
 }
 
 type AttentionFileConfig struct {
@@ -343,24 +343,27 @@ type LarkBrowserConfig struct {
 
 // ServerConfig captures server-specific YAML configuration.
 type ServerConfig struct {
-	Port                       string   `yaml:"port"`
-	EnableMCP                  *bool    `yaml:"enable_mcp"`
-	MaxTaskBodyBytes           *int64   `yaml:"max_task_body_bytes"`
-	AllowedOrigins             []string `yaml:"allowed_origins"`
-	StreamMaxDurationSeconds   *int     `yaml:"stream_max_duration_seconds"`
-	StreamMaxBytes             *int64   `yaml:"stream_max_bytes"`
-	StreamMaxConcurrent        *int     `yaml:"stream_max_concurrent"`
-	RateLimitRequestsPerMinute *int     `yaml:"rate_limit_requests_per_minute"`
-	RateLimitBurst             *int     `yaml:"rate_limit_burst"`
-	NonStreamTimeoutSeconds    *int     `yaml:"non_stream_timeout_seconds"`
-	EventHistoryRetentionDays  *int     `yaml:"event_history_retention_days"`
-	EventHistoryMaxSessions    *int     `yaml:"event_history_max_sessions"`
-	EventHistorySessionTTL     *int     `yaml:"event_history_session_ttl_seconds"`
-	EventHistoryMaxEvents      *int     `yaml:"event_history_max_events"`
-	EventHistoryAsyncBatchSize *int     `yaml:"event_history_async_batch_size"`
-	EventHistoryAsyncFlushMS   *int     `yaml:"event_history_async_flush_interval_ms"`
-	EventHistoryAsyncAppendMS  *int     `yaml:"event_history_async_append_timeout_ms"`
-	EventHistoryAsyncQueueSize *int     `yaml:"event_history_async_queue_capacity"`
+	Port                                         string   `yaml:"port"`
+	EnableMCP                                    *bool    `yaml:"enable_mcp"`
+	MaxTaskBodyBytes                             *int64   `yaml:"max_task_body_bytes"`
+	AllowedOrigins                               []string `yaml:"allowed_origins"`
+	StreamMaxDurationSeconds                     *int     `yaml:"stream_max_duration_seconds"`
+	StreamMaxBytes                               *int64   `yaml:"stream_max_bytes"`
+	StreamMaxConcurrent                          *int     `yaml:"stream_max_concurrent"`
+	RateLimitRequestsPerMinute                   *int     `yaml:"rate_limit_requests_per_minute"`
+	RateLimitBurst                               *int     `yaml:"rate_limit_burst"`
+	NonStreamTimeoutSeconds                      *int     `yaml:"non_stream_timeout_seconds"`
+	EventHistoryRetentionDays                    *int     `yaml:"event_history_retention_days"`
+	EventHistoryMaxSessions                      *int     `yaml:"event_history_max_sessions"`
+	EventHistorySessionTTL                       *int     `yaml:"event_history_session_ttl_seconds"`
+	EventHistoryMaxEvents                        *int     `yaml:"event_history_max_events"`
+	EventHistoryAsyncBatchSize                   *int     `yaml:"event_history_async_batch_size"`
+	EventHistoryAsyncFlushMS                     *int     `yaml:"event_history_async_flush_interval_ms"`
+	EventHistoryAsyncAppendMS                    *int     `yaml:"event_history_async_append_timeout_ms"`
+	EventHistoryAsyncQueueSize                   *int     `yaml:"event_history_async_queue_capacity"`
+	EventHistoryAsyncFlushRequestCoalesceMS      *int     `yaml:"event_history_async_flush_request_coalesce_window_ms"`
+	EventHistoryAsyncBackpressureHighWatermark   *int     `yaml:"event_history_async_backpressure_high_watermark"`
+	EventHistoryDegradeDebugEventsOnBackpressure *bool    `yaml:"event_history_degrade_debug_events_on_backpressure"`
 }
 
 // AuthConfig captures authentication configuration stored in YAML.

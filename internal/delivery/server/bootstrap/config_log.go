@@ -68,6 +68,9 @@ func LogServerConfiguration(logger logging.Logger, config Config) {
 	logger.Debug("Event History Async Flush Interval: %s", config.EventHistory.AsyncFlushInterval)
 	logger.Debug("Event History Async Append Timeout: %s", config.EventHistory.AsyncAppendTimeout)
 	logger.Debug("Event History Async Queue Capacity: %d", config.EventHistory.AsyncQueueCapacity)
+	logger.Debug("Event History Async Flush Request Coalesce Window: %s", config.EventHistory.AsyncFlushRequestCoalesceWindow)
+	logger.Debug("Event History Async Backpressure High Watermark: %d", config.EventHistory.AsyncBackpressureHighWatermark)
+	logger.Debug("Event History Degrade Debug Events On Backpressure: %t", config.EventHistory.DegradeDebugEventsOnBackpressure)
 	larkCfg := config.Channels.Lark
 	if larkCfg.Enabled {
 		logger.Info(

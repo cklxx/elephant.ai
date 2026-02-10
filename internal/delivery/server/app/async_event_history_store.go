@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	agent "alex/internal/domain/agent/ports/agent"
+	"alex/internal/domain/agent/types"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 )
@@ -30,17 +32,24 @@ type AsyncEventHistoryStore struct {
 	closeOnce     sync.Once
 	done          chan struct{}
 
-	batchSize     int
-	flushInterval time.Duration
-	appendTimeout time.Duration
-	queueCapacity int
-	logger        logging.Logger
+	batchSize                        int
+	flushInterval                    time.Duration
+	appendTimeout                    time.Duration
+	queueCapacity                    int
+	maxDrainPerFlush                 int
+	flushRequestCoalesceWindow       time.Duration
+	backpressureHighWatermark        int
+	degradeDebugEventsOnBackpressure bool
+	logger                           logging.Logger
 
-	enqueuedEvents  atomic.Int64
-	queueFullEvents atomic.Int64
-	flushBatches    atomic.Int64
-	flushFailures   atomic.Int64
-	flushedEvents   atomic.Int64
+	enqueuedEvents         atomic.Int64
+	queueFullEvents        atomic.Int64
+	flushBatches           atomic.Int64
+	flushFailures          atomic.Int64
+	flushedEvents          atomic.Int64
+	debugEventsDropped     atomic.Int64
+	flushRequestsTotal     atomic.Int64
+	flushRequestsCoalesced atomic.Int64
 }
 
 type AsyncEventHistoryStoreOption func(*AsyncEventHistoryStore)
@@ -77,29 +86,76 @@ func WithAsyncHistoryQueueCapacity(capacity int) AsyncEventHistoryStoreOption {
 	}
 }
 
+func WithAsyncHistoryMaxDrainPerFlush(max int) AsyncEventHistoryStoreOption {
+	return func(s *AsyncEventHistoryStore) {
+		if max > 0 {
+			s.maxDrainPerFlush = max
+		}
+	}
+}
+
+func WithAsyncHistoryFlushRequestCoalesceWindow(window time.Duration) AsyncEventHistoryStoreOption {
+	return func(s *AsyncEventHistoryStore) {
+		if window >= 0 {
+			s.flushRequestCoalesceWindow = window
+		}
+	}
+}
+
+func WithAsyncHistoryBackpressureHighWatermark(watermark int) AsyncEventHistoryStoreOption {
+	return func(s *AsyncEventHistoryStore) {
+		if watermark > 0 {
+			s.backpressureHighWatermark = watermark
+		}
+	}
+}
+
+func WithAsyncHistoryDegradeDebugEventsOnBackpressure(enabled bool) AsyncEventHistoryStoreOption {
+	return func(s *AsyncEventHistoryStore) {
+		s.degradeDebugEventsOnBackpressure = enabled
+	}
+}
+
 var ErrAsyncHistoryQueueFull = errors.New("async event history queue full")
 
 const (
-	DefaultAsyncHistoryBatchSize     = 200
-	DefaultAsyncHistoryFlushInterval = 250 * time.Millisecond
-	DefaultAsyncHistoryAppendTimeout = 50 * time.Millisecond
-	DefaultAsyncHistoryQueueCapacity = 8192
+	DefaultAsyncHistoryBatchSize                  = 200
+	DefaultAsyncHistoryFlushInterval              = 250 * time.Millisecond
+	DefaultAsyncHistoryAppendTimeout              = 50 * time.Millisecond
+	DefaultAsyncHistoryQueueCapacity              = 8192
+	DefaultAsyncHistoryFlushRequestCoalesceWindow = 8 * time.Millisecond
+	defaultAsyncHistoryBackpressurePercent        = 80
+	defaultAsyncHistoryMaxDrainMultiplier         = 4
 )
 
 func NewAsyncEventHistoryStore(inner EventHistoryStore, opts ...AsyncEventHistoryStoreOption) *AsyncEventHistoryStore {
 	store := &AsyncEventHistoryStore{
-		inner:         inner,
-		batchSize:     DefaultAsyncHistoryBatchSize,
-		flushInterval: DefaultAsyncHistoryFlushInterval,
-		appendTimeout: DefaultAsyncHistoryAppendTimeout,
-		queueCapacity: DefaultAsyncHistoryQueueCapacity,
-		logger:        logging.NewComponentLogger("AsyncEventHistoryStore"),
+		inner:                            inner,
+		batchSize:                        DefaultAsyncHistoryBatchSize,
+		flushInterval:                    DefaultAsyncHistoryFlushInterval,
+		appendTimeout:                    DefaultAsyncHistoryAppendTimeout,
+		queueCapacity:                    DefaultAsyncHistoryQueueCapacity,
+		flushRequestCoalesceWindow:       DefaultAsyncHistoryFlushRequestCoalesceWindow,
+		degradeDebugEventsOnBackpressure: true,
+		logger:                           logging.NewComponentLogger("AsyncEventHistoryStore"),
 	}
 	for _, opt := range opts {
 		if opt == nil {
 			continue
 		}
 		opt(store)
+	}
+	if store.backpressureHighWatermark <= 0 {
+		store.backpressureHighWatermark = defaultBackpressureHighWatermark(store.queueCapacity)
+	}
+	if store.backpressureHighWatermark > store.queueCapacity {
+		store.backpressureHighWatermark = store.queueCapacity
+	}
+	if store.backpressureHighWatermark <= 0 {
+		store.backpressureHighWatermark = 1
+	}
+	if store.maxDrainPerFlush <= 0 {
+		store.maxDrainPerFlush = defaultMaxDrainPerFlush(store.batchSize)
 	}
 	store.ch = make(chan agent.AgentEvent, store.queueCapacity)
 	store.flushRequests = make(chan chan error, 16)
@@ -116,12 +172,20 @@ func (s *AsyncEventHistoryStore) Append(ctx context.Context, event agent.AgentEv
 	if s == nil || s.inner == nil || event == nil {
 		return nil
 	}
+	if s.shouldDropDebugEventAtDepth(event, len(s.ch)) {
+		s.debugEventsDropped.Add(1)
+		return nil
+	}
 
 	select {
 	case s.ch <- event:
 		s.enqueuedEvents.Add(1)
 		return nil
 	default:
+		if s.shouldDropDebugEventAtDepth(event, cap(s.ch)) {
+			s.debugEventsDropped.Add(1)
+			return nil
+		}
 		// Avoid blocking latency-sensitive streaming paths. If the queue is full,
 		// fall back to a short context-aware wait and surface backpressure.
 		timeout := s.appendTimeout
@@ -292,9 +356,72 @@ func (s *AsyncEventHistoryStore) run() {
 		return nil
 	}
 
+	drainQueuedEvents := func(limit int) {
+		drained := 0
+		for limit <= 0 || drained < limit {
+			select {
+			case event := <-s.ch:
+				if event == nil {
+					drained++
+					continue
+				}
+				buffer = append(buffer, event)
+				drained++
+				if len(buffer) >= s.batchSize {
+					_ = tryFlush(false)
+				}
+			default:
+				return
+			}
+		}
+	}
+
+	collectFlushResponses := func(first chan error) []chan error {
+		responses := make([]chan error, 0, 8)
+		responses = append(responses, first)
+		s.flushRequestsTotal.Add(1)
+
+		collectImmediate := func() {
+			for {
+				select {
+				case next := <-s.flushRequests:
+					responses = append(responses, next)
+					s.flushRequestsTotal.Add(1)
+				default:
+					return
+				}
+			}
+		}
+
+		collectImmediate()
+		if s.flushRequestCoalesceWindow <= 0 || len(responses) == 1 {
+			if extra := len(responses) - 1; extra > 0 {
+				s.flushRequestsCoalesced.Add(int64(extra))
+			}
+			return responses
+		}
+
+		timer := time.NewTimer(s.flushRequestCoalesceWindow)
+		defer timer.Stop()
+		for {
+			select {
+			case next := <-s.flushRequests:
+				responses = append(responses, next)
+				s.flushRequestsTotal.Add(1)
+				collectImmediate()
+			case <-timer.C:
+				if extra := len(responses) - 1; extra > 0 {
+					s.flushRequestsCoalesced.Add(int64(extra))
+				}
+				return responses
+			}
+		}
+	}
+
 	for {
 		select {
 		case <-s.done:
+			drainQueuedEvents(0)
 			if err := flushBuffer(); err != nil {
 				count := s.flushFailures.Add(1)
 				if shouldSampleCounter(count) {
@@ -311,22 +438,12 @@ func (s *AsyncEventHistoryStore) run() {
 				_ = tryFlush(false)
 			}
 		case resp := <-s.flushRequests:
-			// Drain any queued events before fulfilling the flush request.
-			for {
-				select {
-				case event := <-s.ch:
-					if event != nil {
-						buffer = append(buffer, event)
-					}
-					if len(buffer) >= s.batchSize {
-						_ = tryFlush(false)
-					}
-				default:
-					goto drained
-				}
+			responders := collectFlushResponses(resp)
+			drainQueuedEvents(s.maxDrainPerFlush)
+			flushErr := tryFlush(true)
+			for _, waiter := range responders {
+				waiter <- flushErr
 			}
-		drained:
-			resp <- tryFlush(true)
 		case <-ticker.C:
 			_ = tryFlush(false)
 		}
@@ -334,13 +451,16 @@ func (s *AsyncEventHistoryStore) run() {
 }
 
 type AsyncEventHistoryStats struct {
-	QueueDepth      int   `json:"queue_depth"`
-	QueueCapacity   int   `json:"queue_capacity"`
-	EnqueuedEvents  int64 `json:"enqueued_events"`
-	QueueFullEvents int64 `json:"queue_full_events"`
-	FlushBatches    int64 `json:"flush_batches"`
-	FlushFailures   int64 `json:"flush_failures"`
-	FlushedEvents   int64 `json:"flushed_events"`
+	QueueDepth             int   `json:"queue_depth"`
+	QueueCapacity          int   `json:"queue_capacity"`
+	EnqueuedEvents         int64 `json:"enqueued_events"`
+	QueueFullEvents        int64 `json:"queue_full_events"`
+	FlushBatches           int64 `json:"flush_batches"`
+	FlushFailures          int64 `json:"flush_failures"`
+	FlushedEvents          int64 `json:"flushed_events"`
+	DebugEventsDropped     int64 `json:"debug_events_dropped"`
+	FlushRequests          int64 `json:"flush_requests"`
+	FlushRequestsCoalesced int64 `json:"flush_requests_coalesced"`
 }
 
 func (s *AsyncEventHistoryStore) Stats() AsyncEventHistoryStats {
@@ -354,12 +474,68 @@ func (s *AsyncEventHistoryStore) Stats() AsyncEventHistoryStats {
 		capacity = cap(s.ch)
 	}
 	return AsyncEventHistoryStats{
-		QueueDepth:      depth,
-		QueueCapacity:   capacity,
-		EnqueuedEvents:  s.enqueuedEvents.Load(),
-		QueueFullEvents: s.queueFullEvents.Load(),
-		FlushBatches:    s.flushBatches.Load(),
-		FlushFailures:   s.flushFailures.Load(),
-		FlushedEvents:   s.flushedEvents.Load(),
+		QueueDepth:             depth,
+		QueueCapacity:          capacity,
+		EnqueuedEvents:         s.enqueuedEvents.Load(),
+		QueueFullEvents:        s.queueFullEvents.Load(),
+		FlushBatches:           s.flushBatches.Load(),
+		FlushFailures:          s.flushFailures.Load(),
+		FlushedEvents:          s.flushedEvents.Load(),
+		DebugEventsDropped:     s.debugEventsDropped.Load(),
+		FlushRequests:          s.flushRequestsTotal.Load(),
+		FlushRequestsCoalesced: s.flushRequestsCoalesced.Load(),
 	}
+}
+
+func defaultBackpressureHighWatermark(queueCapacity int) int {
+	if queueCapacity <= 0 {
+		return 1
+	}
+	mark := queueCapacity * defaultAsyncHistoryBackpressurePercent / 100
+	if mark <= 0 {
+		return 1
+	}
+	if mark > queueCapacity {
+		return queueCapacity
+	}
+	return mark
+}
+
+func defaultMaxDrainPerFlush(batchSize int) int {
+	if batchSize <= 0 {
+		return 64
+	}
+	drain := batchSize * defaultAsyncHistoryMaxDrainMultiplier
+	if drain < 64 {
+		return 64
+	}
+	return drain
+}
+
+func (s *AsyncEventHistoryStore) shouldDropDebugEventAtDepth(event agent.AgentEvent, depth int) bool {
+	if s == nil || !s.degradeDebugEventsOnBackpressure || !isDebugHistoryEvent(event) {
+		return false
+	}
+	if depth < 0 {
+		depth = 0
+	}
+	watermark := s.backpressureHighWatermark
+	if watermark <= 0 {
+		watermark = defaultBackpressureHighWatermark(s.queueCapacity)
+	}
+	return depth >= watermark
+}
+
+func isDebugHistoryEvent(event agent.AgentEvent) bool {
+	base := BaseAgentEvent(event)
+	if base == nil {
+		return false
+	}
+	eventType := strings.TrimSpace(base.EventType())
+	if eventType == "" {
+		return false
+	}
+	return strings.HasPrefix(eventType, "workflow.diagnostic.") ||
+		eventType == types.EventExecutorUpdate ||
+		eventType == types.EventExecutorUserMessage
 }
