@@ -359,3 +359,50 @@ func (h *APIHandler) HandleCancelTask(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("Failed to encode cancel response: %v", err)
 	}
 }
+
+// HandleListActiveTasks handles GET /api/tasks/active — returns all currently running/pending tasks.
+func (h *APIHandler) HandleListActiveTasks(w http.ResponseWriter, r *http.Request) {
+	tasks, err := h.coordinator.ListActiveTasks(r.Context())
+	if err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to list active tasks", err)
+		return
+	}
+
+	taskResponses := make([]TaskStatusResponse, len(tasks))
+	for i, task := range tasks {
+		taskResponses[i] = TaskStatusResponse{
+			RunID:       task.ID,
+			SessionID:   task.SessionID,
+			ParentRunID: task.ParentTaskID,
+			Status:      string(task.Status),
+			CreatedAt:   task.CreatedAt.Format(time.RFC3339),
+			Error:       task.Error,
+		}
+		if task.CompletedAt != nil {
+			completedStr := task.CompletedAt.Format(time.RFC3339)
+			taskResponses[i].CompletedAt = &completedStr
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"tasks": taskResponses,
+		"total": len(taskResponses),
+	}); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
+// HandleGetTaskStats handles GET /api/tasks/stats — returns aggregated task metrics.
+func (h *APIHandler) HandleGetTaskStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.coordinator.GetTaskStats(r.Context())
+	if err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to get task stats", err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(stats); err != nil {
+		h.writeJSONError(w, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}

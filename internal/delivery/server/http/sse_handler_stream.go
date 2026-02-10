@@ -390,3 +390,139 @@ func normalizedToolName(payload map[string]any) string {
 	}
 	return ""
 }
+
+// HandleTaskSSEStream handles SSE connection scoped to a single task (run_id).
+// It subscribes to the session's event stream and filters for events matching
+// the requested task_id.
+func (h *SSEHandler) HandleTaskSSEStream(w http.ResponseWriter, r *http.Request) {
+	logger := logging.FromContext(r.Context(), h.logger)
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+
+	rc := http.NewResponseController(w)
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil {
+		logger.Warn("Failed to clear write deadline for task SSE: %v", err)
+	}
+
+	taskID := r.PathValue("task_id")
+	if taskID == "" {
+		http.Error(w, "task_id is required", http.StatusBadRequest)
+		return
+	}
+	sessionID := strings.TrimSpace(r.URL.Query().Get("session_id"))
+	if err := validateSessionID(sessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	logger.Info("Task SSE connection established: task=%s session=%s", taskID, sessionID)
+
+	clientChan := make(chan agent.AgentEvent, 100)
+	h.broadcaster.RegisterClient(sessionID, clientChan)
+	defer h.broadcaster.UnregisterClient(sessionID, clientChan)
+
+	flusher, ok := resolveHTTPFlusher(w)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	initialPayload := fmt.Sprintf(
+		"event: connected\ndata: {\"task_id\":\"%s\",\"session_id\":\"%s\"}\n\n",
+		taskID, sessionID,
+	)
+	if _, err := io.WriteString(w, initialPayload); err != nil {
+		logger.Error("Failed to send task SSE connection message: %v", err)
+		return
+	}
+	flusher.Flush()
+
+	seenEventIDs := newStringLRU(10000)
+	lastSeqByRun := newRunSeqLRU(2048)
+	sentAttachments := newStringLRU(sseSentAttachmentCacheSize)
+	finalAnswerCache := newStringLRU(sseFinalAnswerCacheSize)
+
+	matchesTask := func(event agent.AgentEvent) bool {
+		if event == nil {
+			return false
+		}
+		return strings.TrimSpace(event.GetRunID()) == taskID
+	}
+
+	sendEvent := func(event agent.AgentEvent) bool {
+		if !matchesTask(event) {
+			return true
+		}
+		if !h.shouldStreamEvent(event, false) {
+			return true
+		}
+		if !shouldSendEvent(event, seenEventIDs, lastSeqByRun) {
+			return true
+		}
+
+		data, err := h.serializeEvent(event, sentAttachments, finalAnswerCache)
+		if err != nil {
+			logger.Error("Failed to serialize task event: %v", err)
+			return false
+		}
+
+		payload := fmt.Sprintf("event: %s\ndata: %s\n\n", event.EventType(), data)
+		if _, err := io.WriteString(w, payload); err != nil {
+			return false
+		}
+		flusher.Flush()
+		return true
+	}
+
+	// Replay session history filtered to this task.
+	_ = h.broadcaster.StreamHistory(r.Context(), app.EventHistoryFilter{SessionID: sessionID}, func(event agent.AgentEvent) error {
+		sendEvent(event)
+		return nil
+	})
+
+	// Drain queued events.
+	for {
+		select {
+		case event := <-clientChan:
+			sendEvent(event)
+		default:
+			goto taskDrainComplete
+		}
+	}
+
+taskDrainComplete:
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case event := <-clientChan:
+			if !sendEvent(event) {
+				continue
+			}
+
+			// Auto-close when the task completes.
+			if matchesTask(event) {
+				switch event.EventType() {
+				case types.EventResultFinal, types.EventResultCancelled:
+					logger.Info("Task SSE: task %s completed, closing stream", taskID)
+					return
+				}
+			}
+
+		case <-ticker.C:
+			if _, err := fmt.Fprintf(w, ": heartbeat\n\n"); err != nil {
+				return
+			}
+			flusher.Flush()
+
+		case <-r.Context().Done():
+			logger.Info("Task SSE connection closed: task=%s", taskID)
+			return
+		}
+	}
+}

@@ -186,6 +186,16 @@ func (s *ServerCoordinator) SummarizeSessionTasks(ctx context.Context, sessionID
 	return s.Tasks.SummarizeSessionTasks(ctx, sessionIDs)
 }
 
+// ListActiveTasks delegates to TaskExecutionService.
+func (s *ServerCoordinator) ListActiveTasks(ctx context.Context) ([]*serverPorts.Task, error) {
+	return s.Tasks.ListActiveTasks(ctx)
+}
+
+// GetTaskStats delegates to TaskExecutionService.
+func (s *ServerCoordinator) GetTaskStats(ctx context.Context) (*TaskStats, error) {
+	return s.Tasks.GetTaskStats(ctx)
+}
+
 // CancelTask delegates to TaskExecutionService.
 func (s *ServerCoordinator) CancelTask(ctx context.Context, taskID string) error {
 	return s.Tasks.CancelTask(ctx, taskID)

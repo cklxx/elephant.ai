@@ -169,7 +169,10 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 
 	mux.Handle("POST /api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(apiHandler.HandleCreateTask))))
 	mux.Handle("GET /api/tasks", routeHandler("/api/tasks", wrap(http.HandlerFunc(apiHandler.HandleListTasks))))
+	mux.Handle("GET /api/tasks/active", routeHandler("/api/tasks/active", wrap(http.HandlerFunc(apiHandler.HandleListActiveTasks))))
+	mux.Handle("GET /api/tasks/stats", routeHandler("/api/tasks/stats", wrap(http.HandlerFunc(apiHandler.HandleGetTaskStats))))
 	mux.Handle("GET /api/tasks/{task_id}", routeHandler("/api/tasks/:task_id", wrap(http.HandlerFunc(apiHandler.HandleGetTask))))
+	mux.Handle("GET /api/tasks/{task_id}/events", routeHandler("/api/tasks/:task_id/events", wrap(http.HandlerFunc(sseHandler.HandleTaskSSEStream))))
 	mux.Handle("POST /api/tasks/{task_id}/cancel", routeHandler("/api/tasks/:task_id/cancel", wrap(http.HandlerFunc(apiHandler.HandleCancelTask))))
 
 	// ── Evaluation endpoints ──

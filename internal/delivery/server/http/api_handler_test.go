@@ -16,6 +16,7 @@ import (
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
 	"alex/internal/delivery/server/app"
+	serverPorts "alex/internal/delivery/server/ports"
 	"alex/internal/domain/agent"
 	core "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
@@ -785,6 +786,136 @@ func TestHandleCreateTaskInjectsSelection(t *testing.T) {
 
 	if coord.selection.Provider != "codex" || coord.selection.Model != "gpt-5.2-codex" {
 		t.Fatalf("selection not injected: %#v", coord.selection)
+	}
+}
+
+func TestHandleListActiveTasks(t *testing.T) {
+	taskStore := app.NewInMemoryTaskStore()
+	coordinator := app.NewServerCoordinator(
+		&stubAgentCoordinator{},
+		app.NewEventBroadcaster(),
+		nil,
+		taskStore,
+		nil,
+	)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+
+	ctx := context.Background()
+
+	// Create tasks in various states.
+	t1, err := taskStore.Create(ctx, "sess-1", "running task", "", "")
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	_ = taskStore.SetStatus(ctx, t1.ID, serverPorts.TaskStatusRunning)
+
+	t2, err := taskStore.Create(ctx, "sess-1", "pending task", "", "")
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	// t2 stays pending
+
+	t3, err := taskStore.Create(ctx, "sess-2", "completed task", "", "")
+	if err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	_ = taskStore.SetStatus(ctx, t3.ID, serverPorts.TaskStatusRunning)
+	_ = taskStore.SetResult(ctx, t3.ID, &agent.TaskResult{SessionID: "sess-2"})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/active", nil)
+	rr := httptest.NewRecorder()
+	handler.HandleListActiveTasks(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var resp struct {
+		Tasks []TaskStatusResponse `json:"tasks"`
+		Total int                  `json:"total"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	// Only the running and pending tasks should be returned (not the completed one).
+	if resp.Total != 2 {
+		t.Fatalf("expected 2 active tasks, got %d", resp.Total)
+	}
+	activeIDs := map[string]bool{}
+	for _, task := range resp.Tasks {
+		activeIDs[task.RunID] = true
+	}
+	if !activeIDs[t1.ID] || !activeIDs[t2.ID] {
+		t.Fatalf("expected active task IDs %s and %s, got %v", t1.ID, t2.ID, activeIDs)
+	}
+	if activeIDs[t3.ID] {
+		t.Fatal("completed task should not appear in active list")
+	}
+}
+
+func TestHandleGetTaskStats(t *testing.T) {
+	taskStore := app.NewInMemoryTaskStore()
+	coordinator := app.NewServerCoordinator(
+		&stubAgentCoordinator{},
+		app.NewEventBroadcaster(),
+		nil,
+		taskStore,
+		nil,
+	)
+	handler := NewAPIHandler(coordinator, app.NewHealthChecker(), false)
+
+	ctx := context.Background()
+
+	// Create tasks in various states.
+	t1, _ := taskStore.Create(ctx, "sess-1", "running", "", "")
+	_ = taskStore.SetStatus(ctx, t1.ID, serverPorts.TaskStatusRunning)
+
+	_, _ = taskStore.Create(ctx, "sess-1", "pending", "", "")
+
+	t3, _ := taskStore.Create(ctx, "sess-2", "completed", "", "")
+	_ = taskStore.SetStatus(ctx, t3.ID, serverPorts.TaskStatusRunning)
+	_ = taskStore.SetResult(ctx, t3.ID, &agent.TaskResult{SessionID: "sess-2", Iterations: 5})
+
+	t4, _ := taskStore.Create(ctx, "sess-2", "failed", "", "")
+	_ = taskStore.SetError(ctx, t4.ID, errors.New("boom"))
+
+	t5, _ := taskStore.Create(ctx, "sess-3", "cancelled", "", "")
+	_ = taskStore.SetStatus(ctx, t5.ID, serverPorts.TaskStatusCancelled)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tasks/stats", nil)
+	rr := httptest.NewRecorder()
+	handler.HandleGetTaskStats(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rr.Code, rr.Body.String())
+	}
+
+	var stats app.TaskStats
+	if err := json.Unmarshal(rr.Body.Bytes(), &stats); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if stats.TotalCount != 5 {
+		t.Fatalf("expected 5 total, got %d", stats.TotalCount)
+	}
+	if stats.RunningCount != 1 {
+		t.Fatalf("expected 1 running, got %d", stats.RunningCount)
+	}
+	if stats.PendingCount != 1 {
+		t.Fatalf("expected 1 pending, got %d", stats.PendingCount)
+	}
+	if stats.CompletedCount != 1 {
+		t.Fatalf("expected 1 completed, got %d", stats.CompletedCount)
+	}
+	if stats.FailedCount != 1 {
+		t.Fatalf("expected 1 failed, got %d", stats.FailedCount)
+	}
+	if stats.CancelledCount != 1 {
+		t.Fatalf("expected 1 cancelled, got %d", stats.CancelledCount)
+	}
+	if stats.ActiveCount != 2 {
+		t.Fatalf("expected 2 active, got %d", stats.ActiveCount)
 	}
 }
 

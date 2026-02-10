@@ -1,8 +1,8 @@
 # Coding Agent Resilience Architecture
 
-**Status**: In Progress
+**Status**: Complete
 **Created**: 2026-02-10
-**Updated**: 2026-02-10 14:00
+**Updated**: 2026-02-10 16:00
 
 ## Goal
 
@@ -96,9 +96,31 @@ Make coding agent execution survive process death, persist all state durably, an
 | `internal/infra/external/bridge/executor.go` | Added `BridgePID()`, `BridgeOutputFile()` on `BridgeStartedInfo` |
 | `internal/delivery/channels/lark/gateway.go` | Added `PersistBridgeMeta` method |
 
-## Phase 4: Unified Monitoring
+## Phase 4: Unified Monitoring — DONE
 
-- [ ] Enhanced Task API
-- [ ] Task-scoped SSE
-- [ ] Lark monitoring commands
-- [ ] Proactive completion notifications
+### Implementation Progress
+
+- [x] Enhanced Task API (`GET /api/tasks/active`, `GET /api/tasks/stats`)
+- [x] Task-scoped SSE (`GET /api/tasks/{task_id}/events`)
+- [x] Lark monitoring commands (already existed: `/tasks`, `/task status|cancel|history`)
+- [x] Proactive completion notifications (already existed: `backgroundProgressListener`, `NotifyCompletion`)
+- [x] Tests for new endpoints
+- [x] All tests passing
+
+### Key Decisions
+
+1. **Task-scoped SSE**: Subscribes to session events and filters by `run_id` — avoids changing broadcaster core architecture
+2. **Auto-close**: Task SSE stream auto-closes when `EventResultFinal` or `EventResultCancelled` is received
+3. **Route ordering**: `/api/tasks/active` and `/api/tasks/stats` registered before `{task_id}` wildcard to avoid capture
+4. **Stats aggregation**: `GetTaskStats` iterates all tasks to compute counts — acceptable for current scale
+
+### Files Changed/Created
+
+| File | Change |
+|------|--------|
+| `internal/delivery/server/app/task_execution_service.go` | Added `ListActiveTasks`, `GetTaskStats`, `TaskStats` struct |
+| `internal/delivery/server/app/server_coordinator.go` | Added `ListActiveTasks`, `GetTaskStats` delegate methods |
+| `internal/delivery/server/http/api_handler_tasks.go` | Added `HandleListActiveTasks`, `HandleGetTaskStats` handlers |
+| `internal/delivery/server/http/sse_handler_stream.go` | Added `HandleTaskSSEStream` for task-scoped SSE |
+| `internal/delivery/server/http/router.go` | Registered `/api/tasks/active`, `/api/tasks/stats`, `/api/tasks/{task_id}/events` routes |
+| `internal/delivery/server/http/api_handler_test.go` | Added `TestHandleListActiveTasks`, `TestHandleGetTaskStats` |

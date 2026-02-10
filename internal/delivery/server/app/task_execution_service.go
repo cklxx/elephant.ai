@@ -602,6 +602,53 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 	return resumed, nil
 }
 
+// ListActiveTasks returns all currently running tasks.
+func (svc *TaskExecutionService) ListActiveTasks(ctx context.Context) ([]*serverPorts.Task, error) {
+	return svc.taskStore.ListByStatus(ctx, serverPorts.TaskStatusPending, serverPorts.TaskStatusRunning)
+}
+
+// TaskStats returns aggregated task metrics.
+type TaskStats struct {
+	ActiveCount    int     `json:"active_count"`
+	PendingCount   int     `json:"pending_count"`
+	RunningCount   int     `json:"running_count"`
+	CompletedCount int     `json:"completed_count"`
+	FailedCount    int     `json:"failed_count"`
+	CancelledCount int     `json:"cancelled_count"`
+	TotalCount     int     `json:"total_count"`
+	TotalTokens    int     `json:"total_tokens"`
+	TotalCostUSD   float64 `json:"total_cost_usd"`
+}
+
+// GetTaskStats computes aggregated task metrics.
+func (svc *TaskExecutionService) GetTaskStats(ctx context.Context) (*TaskStats, error) {
+	tasks, total, err := svc.taskStore.List(ctx, 10000, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := &TaskStats{TotalCount: total}
+	for _, t := range tasks {
+		switch t.Status {
+		case serverPorts.TaskStatusPending:
+			stats.PendingCount++
+			stats.ActiveCount++
+		case serverPorts.TaskStatusRunning:
+			stats.RunningCount++
+			stats.ActiveCount++
+		case serverPorts.TaskStatusCompleted:
+			stats.CompletedCount++
+		case serverPorts.TaskStatusFailed:
+			stats.FailedCount++
+		case serverPorts.TaskStatusCancelled:
+			stats.CancelledCount++
+		}
+		stats.TotalTokens += t.TokensUsed
+	}
+
+	return stats, nil
+}
+
 // CancelTask cancels a running task.
 func (svc *TaskExecutionService) CancelTask(ctx context.Context, taskID string) error {
 	task, err := svc.taskStore.Get(ctx, taskID)
