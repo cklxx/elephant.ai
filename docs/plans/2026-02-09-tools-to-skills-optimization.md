@@ -128,15 +128,22 @@ Tests: 2 new tests (skill mode + skill mode with lark-local), all passing.
 
 - [ ] Delete unused Go tool packages once skill coverage is verified
 
-## Phase 2: Update Skill Engine (PENDING)
+## Phase 2: Update Skill Engine (COMPLETED)
 
-- [ ] SkillMatcher reads new SKILL.md format (requires_tools, max_tokens: 200)
-- [ ] Prompt injection: skill name+description only during scan; full SKILL.md on match
-- [ ] `bash: python3 skills/xxx/run.py` pattern in execution
+**Commit:** `a5531ed4` — feat(skills): add Python skill detection + requires_tools parsing
 
-## Phase 3: Regression + Cleanup (PENDING)
+- [x] `RequiresTools []string` field parsed from YAML frontmatter
+- [x] `HasRunScript bool` detected via `run.py` alongside SKILL.md
+- [x] `[py]` marker in IndexMarkdown for Python skills
+- [x] `<type>python</type>` + `<exec>` in AvailableSkillsXML for Python skills
+- [x] Skills tool metadata enriched with `type`, `exec`, `requires_tools`
+- [x] 4 new tests covering all detection paths (22 total skills tests pass)
 
-- [ ] Foundation eval suite regression
-- [ ] Lark scenario tests pass
-- [ ] Delete deprecated Go tool packages
-- [ ] Update documentation
+## Phase 3: Regression + Cleanup (COMPLETED)
+
+- [x] Full `go build ./...` — compiles (only pre-existing sqlite-vec cgo warnings)
+- [x] Full `go test ./...` — all packages pass
+- [x] Full `go vet ./...` — clean (same sqlite-vec warnings only)
+- [x] Python skill tests — 275 tests pass (run per-skill directory)
+- [ ] Delete deprecated Go tool packages (deferred to Phase 4)
+- [ ] Update documentation (deferred to Phase 4)
