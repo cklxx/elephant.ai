@@ -26,12 +26,26 @@ export function FolderMap({ events, currentEvent }: FolderMapProps) {
   const [baseFolders, setBaseFolders] = useState<FolderInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [workspace, setWorkspace] = useState<string>('');
+  const [gridColumns, setGridColumns] = useState(6);
+
+  // Calculate grid columns based on folder count
+  useEffect(() => {
+    if (baseFolders.length === 0) return;
+
+    // Auto-fit columns: more folders = more columns
+    const count = baseFolders.length;
+    if (count > 40) setGridColumns(8);
+    else if (count > 30) setGridColumns(7);
+    else if (count > 20) setGridColumns(6);
+    else if (count > 10) setGridColumns(5);
+    else setGridColumns(4);
+  }, [baseFolders.length]);
 
   // Load initial folder structure on mount
   useEffect(() => {
     async function loadFolders() {
       try {
-        const response = await fetch('/api/visualizer/folders?depth=3');
+        const response = await fetch('/api/visualizer/folders?depth=4');
         const data = await response.json();
 
         if (data.folders) {
@@ -210,8 +224,15 @@ export function FolderMap({ events, currentEvent }: FolderMapProps) {
         <span>{folderStats.length} 个文件夹</span>
       </div>
 
-      {/* Folder grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+      {/* Folder grid - fit all in one screen */}
+      <div
+        className={`grid gap-3 auto-rows-min`}
+        style={{
+          gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`,
+          maxHeight: 'calc(100vh - 300px)',
+          overflowY: 'auto',
+        }}
+      >
         {folderStats.map((folder) => {
           const style = getFolderStyle(folder);
 
@@ -220,41 +241,47 @@ export function FolderMap({ events, currentEvent }: FolderMapProps) {
           const maxLines = Math.max(...folderStats.map((f) => f.totalLines), 1);
           const sizeScore = (folder.fileCount / maxFiles) * 0.5 + (folder.totalLines / maxLines) * 0.5;
 
-          // Visual size: 0.85x (small) to 1.15x (large)
-          const visualScale = 0.85 + sizeScore * 0.3;
+          // Visual size variation: 0.7x (tiny) to 1.3x (huge)
+          const baseScale = 0.7 + sizeScore * 0.6;
+          const visualScale = folder.isActive ? style.scale : baseScale;
+
+          // Font size based on folder size
+          const fontSize = sizeScore > 0.7 ? 'text-base' : sizeScore > 0.4 ? 'text-sm' : 'text-xs';
+          const iconSize = sizeScore > 0.7 ? 'text-5xl' : sizeScore > 0.4 ? 'text-4xl' : 'text-3xl';
 
           return (
             <div
               key={folder.path}
               data-folder-path={folder.path}
               className={`
-                relative rounded-lg border-2 p-4 transition-all duration-500
+                relative rounded-lg border-2 transition-all duration-500
                 ${style.bgColor} ${style.borderColor}
                 ${folder.isActive ? 'ring-4 ring-yellow-300 animate-pulse' : ''}
-                ${style.hasActivity ? 'hover:scale-105 hover:shadow-xl cursor-pointer' : 'opacity-60'}
+                ${style.hasActivity ? 'hover:scale-110 hover:shadow-xl cursor-pointer' : 'opacity-60'}
               `}
               style={{
-                transform: `scale(${folder.isActive ? style.scale : visualScale})`,
+                transform: `scale(${visualScale})`,
+                padding: `${8 + sizeScore * 8}px`,
               }}
               title={folder.path}
             >
               {/* Folder icon with complexity */}
-              <div className="text-4xl mb-2">
+              <div className={`${iconSize} mb-1`}>
                 {!style.hasActivity ? '📁' : style.complexity === 3 ? '📚' : style.complexity === 2 ? '📁' : '📂'}
               </div>
 
               {/* Folder name */}
-              <div className={`text-sm font-semibold ${style.textColor} truncate mb-1`}>
+              <div className={`${fontSize} font-semibold ${style.textColor} truncate mb-1`}>
                 {folder.name}
               </div>
 
               {/* Stats */}
-              <div className={`text-xs ${style.textColor} opacity-80 space-y-0.5`}>
-                <div>{folder.fileCount} 文件</div>
-                <div>{folder.totalLines} 行</div>
+              <div className={`text-[10px] ${style.textColor} opacity-80 space-y-0.5`}>
+                <div>{folder.fileCount}个</div>
+                <div>{folder.totalLines}行</div>
                 {folder.activityCount > 0 && (
                   <div className="font-semibold">
-                    {folder.activityCount} 次访问
+                    {folder.activityCount}次
                   </div>
                 )}
               </div>
