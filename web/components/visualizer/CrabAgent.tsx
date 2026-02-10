@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { VisualizerEvent } from '@/hooks/useVisualizerStream';
 
 interface CrabAgentProps {
@@ -10,37 +10,40 @@ interface CrabAgentProps {
 export function CrabAgent({ currentEvent }: CrabAgentProps) {
   const crabRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ x: 100, y: 100 });
-  const [isThinking, setIsThinking] = useState(false);
+  const isThinking = Boolean(currentEvent && currentEvent.tool === 'Thinking');
 
   useEffect(() => {
-    if (!currentEvent) return;
-
-    // Thinking state: crab floats to top center
-    if (currentEvent.tool === 'Thinking') {
-      setIsThinking(true);
-      setPosition({ x: window.innerWidth / 2 - 24, y: 50 });
+    if (!currentEvent || typeof window === 'undefined') {
       return;
     }
 
-    setIsThinking(false);
+    const frame = window.requestAnimationFrame(() => {
+      if (currentEvent.tool === 'Thinking') {
+        setPosition({ x: window.innerWidth / 2 - 24, y: 50 });
+        return;
+      }
 
-    // Find target folder and move to it
-    if (currentEvent.path) {
+      if (!currentEvent.path || typeof document === 'undefined') {
+        return;
+      }
+
       const parts = currentEvent.path.split('/');
       const folderPath = parts.slice(0, -1).join('/') || '/';
       const targetElement = document.querySelector(`[data-folder-path="${folderPath}"]`);
-
-      if (targetElement) {
-        const rect = targetElement.getBoundingClientRect();
-        const scrollY = window.scrollY || document.documentElement.scrollTop;
-        const scrollX = window.scrollX || document.documentElement.scrollLeft;
-
-        setPosition({
-          x: rect.left + scrollX + rect.width / 2 - 24, // Center on folder
-          y: rect.top + scrollY + rect.height / 2 - 24,
-        });
+      if (!targetElement) {
+        return;
       }
-    }
+
+      const rect = targetElement.getBoundingClientRect();
+      const scrollY = window.scrollY || document.documentElement.scrollTop;
+      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      setPosition({
+        x: rect.left + scrollX + rect.width / 2 - 24,
+        y: rect.top + scrollY + rect.height / 2 - 24,
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, [currentEvent]);
 
   if (!currentEvent) {
