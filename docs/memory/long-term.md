@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-10 12:00
+Updated: 2026-02-10 15:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -58,6 +58,7 @@ Updated: 2026-02-10 12:00
 - DevOps `ProcessManager` 对磁盘 PID 恢复/停止不能只做 `kill(0)`；必须持久化并校验进程身份（命令行签名），避免 PID 复用误判和误杀。
 - 同名进程快速替换时，旧进程 `Wait` 回调清理必须确认 map 里仍是同一实例，防止误删新进程追踪状态。
 - Supervisor 重启阈值语义应统一为“达到上限触发 cooldown（>=）”，且 backoff 要异步执行，避免阻塞同一 tick 的其他组件健康处理。
+- Lark loop gate 的 codex auto-fix 应默认关闭并显式开关启用（`LARK_LOOP_AUTOFIX_ENABLED=1`），否则会出现“非预期自动改代码”体验。
 
 ## Items
 
