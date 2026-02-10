@@ -73,8 +73,10 @@ func TestBackgroundProgressListener_DispatchAndTickUpdate(t *testing.T) {
 	for {
 		updates := recorder.CallsByMethod("UpdateMessage")
 		if len(updates) > 0 {
-			if !strings.Contains(updates[len(updates)-1].Content, "tokens") {
-				t.Fatalf("expected update content to mention tokens, got %q", updates[len(updates)-1].Content)
+			lastContent := updates[len(updates)-1].Content
+			// New format uses friendly phrases and human-readable status.
+			if !strings.Contains(lastContent, "正在后台处理中") {
+				t.Fatalf("expected human-friendly progress header, got %q", lastContent)
 			}
 			break
 		}
@@ -118,8 +120,9 @@ func TestBackgroundProgressListener_CodeAgentUsesThreeMinuteInterval(t *testing.
 	if len(calls) != 1 {
 		t.Fatalf("expected 1 reply message, got %d", len(calls))
 	}
-	if !strings.Contains(calls[0].Content, "每3分钟") {
-		t.Fatalf("expected 3-minute interval for code agent, got %q", calls[0].Content)
+	// Verify the initial message uses the humanized header.
+	if !strings.Contains(calls[0].Content, "正在后台处理中") {
+		t.Fatalf("expected humanized header for code agent, got %q", calls[0].Content)
 	}
 }
 
@@ -746,14 +749,16 @@ func TestHeartbeatEventsFilteredFromProgress(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	// Verify the update contains the real tool but NOT the heartbeat.
+	// Verify the update contains a human-friendly phrase (not raw tool name)
+	// and does NOT contain the heartbeat marker.
 	updates := recorder.CallsByMethod("UpdateMessage")
 	lastUpdate := updates[len(updates)-1].Content
 	if strings.Contains(lastUpdate, "__heartbeat__") {
 		t.Fatalf("heartbeat should be filtered out from progress display, got %q", lastUpdate)
 	}
-	if !strings.Contains(lastUpdate, "Bash") {
-		t.Fatalf("expected real tool 'Bash' in progress display, got %q", lastUpdate)
+	// Bash maps to execution-related phrases (在运算/在执行/在实验).
+	if !strings.Contains(lastUpdate, "运算") && !strings.Contains(lastUpdate, "执行") && !strings.Contains(lastUpdate, "实验") {
+		t.Fatalf("expected execution-related phrase for Bash tool, got %q", lastUpdate)
 	}
 }
 

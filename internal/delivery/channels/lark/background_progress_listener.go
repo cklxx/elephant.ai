@@ -244,9 +244,7 @@ func (l *backgroundProgressListener) onBackgroundDispatched(env *domain.Workflow
 	l.mu.Unlock()
 
 	// Send initial message (reply to original message when replyToID is provided).
-	intervalLabel := formatMinutes(tracker.interval)
-	windowLabel := formatMinutes(tracker.window)
-	text := l.buildHeader(tracker, "[后台任务进行中]") + "\n\n" + fmt.Sprintf("已启动，未结束前每%s自动更新一次（最近%s窗口）。", intervalLabel, windowLabel)
+	text := l.buildHumanHeader(tracker, "正在后台处理中…")
 	msgID, err := l.g.dispatchMessage(l.ctx, l.chatID, l.replyToID, "text", textContent(text))
 	if err != nil {
 		l.logger.Warn("Lark background progress initial send failed: %v", err)
@@ -468,11 +466,8 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	status := t.status
 	startedAt := t.startedAt
 	description := t.description
-	agentType := t.agentType
 	pending := t.pendingSummary
 	last := t.lastProgress
-	recent := append([]progressRecord(nil), t.recent...)
-	window := t.window
 	t.mu.Unlock()
 
 	if messageID == "" {
@@ -485,95 +480,46 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 		elapsed = 0
 	}
 
-	title := "[后台任务进行中]"
-	if status == "waiting_input" {
-		title = "[后台任务等待输入]"
-	} else if status == "completed" {
-		title = "[后台任务已完成]"
-	} else if status == "failed" {
-		title = "[后台任务失败]"
-	} else if status == "cancelled" {
-		title = "[后台任务已取消]"
-	}
-
 	var b strings.Builder
-	b.WriteString(title)
-	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("task_id=%s agent=%s\n", t.taskID, nonEmpty(agentType, "unknown")))
-	if strings.TrimSpace(description) != "" {
-		b.WriteString(fmt.Sprintf("desc=%s\n", truncateForLark(description, 120)))
-	}
-	b.WriteString(fmt.Sprintf("elapsed=%.0fm\n", elapsed.Minutes()))
 
-	if status == "waiting_input" {
-		b.WriteString("\n需要输入：\n")
-		b.WriteString(pending)
+	switch status {
+	case "waiting_input":
+		b.WriteString("后台任务等待中\n")
+		l.writeDescription(&b, description)
+		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
 		b.WriteString("\n")
-	} else if status == "completed" || status == "failed" || status == "cancelled" {
-		b.WriteString("\n结果：\n")
 		b.WriteString(pending)
-		b.WriteString("\n")
-	} else {
-		if window <= 0 {
-			window = l.window
-		}
-		windowStart := now.Add(-window)
-		windowRecords := make([]progressRecord, 0, len(recent))
-		for _, r := range recent {
-			if !r.ts.Before(windowStart) {
-				windowRecords = append(windowRecords, r)
-			}
-		}
-
-		b.WriteString("\n最近")
-		b.WriteString(formatMinutes(window))
-		b.WriteString("：\n")
-		if len(windowRecords) == 0 {
-			b.WriteString("- 无新增进展\n")
-		} else {
-			first := windowRecords[0]
-			lastRec := windowRecords[len(windowRecords)-1]
-
-			delta := 0
-			if first.tokensUsed > 0 && lastRec.tokensUsed >= first.tokensUsed {
-				delta = lastRec.tokensUsed - first.tokensUsed
-			}
-			if lastRec.tokensUsed > 0 {
-				b.WriteString(fmt.Sprintf("- tokens: +%d / total %d\n", delta, lastRec.tokensUsed))
-			}
-
-			files := mergeFiles(windowRecords)
-			if len(files) > 0 {
-				b.WriteString("- files: ")
-				b.WriteString(strings.Join(files, ", "))
-				b.WriteString("\n")
-			}
-
-			tools := mergeTools(windowRecords)
-			if len(tools) > 0 {
-				b.WriteString("- tools: ")
-				b.WriteString(strings.Join(tools, ", "))
-				b.WriteString("\n")
-			}
-
-			if strings.TrimSpace(lastRec.currentArgs) != "" {
-				b.WriteString("- last: ")
-				b.WriteString(lastRec.currentArgs)
-				b.WriteString("\n")
-			}
-		}
-
-		b.WriteString("\n当前状态：\n")
-		if last.currentTool != "" {
-			b.WriteString(fmt.Sprintf("- %s", last.currentTool))
-			if strings.TrimSpace(last.currentArgs) != "" {
-				b.WriteString(": ")
-				b.WriteString(last.currentArgs)
-			}
+	case "completed":
+		b.WriteString("任务已完成\n")
+		l.writeDescription(&b, description)
+		b.WriteString(fmt.Sprintf("⏱ 共耗时 %s\n", formatElapsed(elapsed)))
+		if strings.TrimSpace(pending) != "" {
 			b.WriteString("\n")
+			b.WriteString(pending)
 		}
-		if !last.activity.IsZero() {
-			b.WriteString(fmt.Sprintf("- last_activity=%s\n", last.activity.Format(time.RFC3339)))
+	case "failed":
+		b.WriteString("任务出错了\n")
+		l.writeDescription(&b, description)
+		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
+		if strings.TrimSpace(pending) != "" {
+			b.WriteString("\n")
+			b.WriteString(pending)
+		}
+	case "cancelled":
+		b.WriteString("任务已取消\n")
+		l.writeDescription(&b, description)
+		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
+	default:
+		// Running state.
+		b.WriteString("正在后台处理中…\n")
+		l.writeDescription(&b, description)
+		b.WriteString(fmt.Sprintf("⏱ 已进行 %s\n", formatElapsed(elapsed)))
+
+		// Show current activity as a friendly phrase.
+		if last.currentTool != "" {
+			phrase := toolPhraseForBackground(last.currentTool, int(elapsed.Seconds()))
+			b.WriteString("\n最近动态：\n")
+			b.WriteString(phrase)
 		}
 	}
 
@@ -592,6 +538,36 @@ func (l *backgroundProgressListener) flush(t *bgTaskTracker, force bool) {
 	}
 
 	_ = force // reserved for future: immediate flush paths already call flush()
+}
+
+// writeDescription writes the task description line (if non-empty).
+func (l *backgroundProgressListener) writeDescription(b *strings.Builder, description string) {
+	if desc := strings.TrimSpace(description); desc != "" {
+		b.WriteString("📋 ")
+		b.WriteString(truncateForLark(desc, 120))
+		b.WriteString("\n")
+	}
+}
+
+// formatElapsed formats a duration into a human-friendly Chinese string.
+func formatElapsed(d time.Duration) string {
+	if d < time.Minute {
+		secs := int(d.Seconds())
+		if secs <= 0 {
+			secs = 1
+		}
+		return fmt.Sprintf("%d 秒", secs)
+	}
+	mins := int(d.Minutes())
+	if mins < 60 {
+		return fmt.Sprintf("%d 分钟", mins)
+	}
+	hours := mins / 60
+	remainMins := mins % 60
+	if remainMins == 0 {
+		return fmt.Sprintf("%d 小时", hours)
+	}
+	return fmt.Sprintf("%d 小时 %d 分钟", hours, remainMins)
 }
 
 func (l *backgroundProgressListener) getTask(taskID string) *bgTaskTracker {
@@ -617,6 +593,18 @@ func (l *backgroundProgressListener) buildHeader(t *bgTaskTracker, title string)
 	}
 	b.WriteString(fmt.Sprintf("elapsed=%.0fm", elapsed.Minutes()))
 	return b.String()
+}
+
+// buildHumanHeader returns a human-friendly initial message for a background task.
+func (l *backgroundProgressListener) buildHumanHeader(t *bgTaskTracker, title string) string {
+	var b strings.Builder
+	b.WriteString(title)
+	b.WriteString("\n")
+	if desc := strings.TrimSpace(t.description); desc != "" {
+		b.WriteString("📋 ")
+		b.WriteString(truncateForLark(desc, 120))
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func (l *backgroundProgressListener) clock() time.Time {
