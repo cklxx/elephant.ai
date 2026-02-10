@@ -43,6 +43,13 @@
       "sourcePath": "../../.alex/skills/calendar-management/SKILL.md"
     },
     {
+      "name": "cc-hooks-setup",
+      "title": "cc-hooks-setup",
+      "description": "自动配置 Claude Code hooks，将操作动向同步到 Lark 通知群。",
+      "markdown": "# cc-hooks-setup\n\n配置 Claude Code hooks，将操作动向自动同步到 Lark 通知群。\n\n## 调用\n\n```bash\npython3 skills/cc-hooks-setup/run.py '{\"action\":\"setup\",\"server_url\":\"...\",\"token\":\"...\"}'\n```\n\n参数说明：\n- `action`（必填）：`setup`（配置 hooks）或 `remove`（移除 hooks）\n- `server_url`（setup 必填）：elephant.ai 服务地址，如 `http://localhost:8080`\n- `token`（可选）：hooks bridge 认证 token\n- `project_dir`（可选）：项目根目录，默认为当前工作目录\n\n成功后返回配置文件路径和确认消息。",
+      "sourcePath": "../../.alex/skills/cc-hooks-setup/SKILL.md"
+    },
+    {
       "name": "code-review",
       "title": "代码审查（编码完成后多维度 Review）",
       "description": "编码完成后的多维度代码审查，覆盖 SOLID 架构、安全性、代码质量、边界条件与清理计划，输出结构化审查报告。",

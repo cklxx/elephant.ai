@@ -1,0 +1,88 @@
+diff --git a/cmd/alex/config_test.go b/cmd/alex/config_test.go
+index d1cf210a..f04022f8 100644
+--- a/cmd/alex/config_test.go
++++ b/cmd/alex/config_test.go
+@@ -238,6 +238,10 @@ func TestExecuteConfigCommandValidateQuickstartAllowsMissingLLMKey(t *testing.T)
+ 	t.Setenv("ALEX_PROFILE", "quickstart")
+ 	t.Setenv("LLM_PROVIDER", "openai")
+ 	t.Setenv("LLM_MODEL", "gpt-4o-mini")
++	t.Setenv("OPENAI_API_KEY", "")
++	t.Setenv("ANTHROPIC_API_KEY", "")
++	t.Setenv("CODEX_API_KEY", "")
++	t.Setenv("LLM_API_KEY", "")
+ 
+ 	var out bytes.Buffer
+ 	if err := executeConfigCommand([]string{"validate"}, &out); err != nil {
+@@ -253,6 +257,10 @@ func TestExecuteConfigCommandValidateProductionFailsWithoutLLMKey(t *testing.T)
+ 	t.Setenv("ALEX_PROFILE", "production")
+ 	t.Setenv("LLM_PROVIDER", "openai")
+ 	t.Setenv("LLM_MODEL", "gpt-4o-mini")
++	t.Setenv("OPENAI_API_KEY", "")
++	t.Setenv("ANTHROPIC_API_KEY", "")
++	t.Setenv("CODEX_API_KEY", "")
++	t.Setenv("LLM_API_KEY", "")
+ 
+ 	var out bytes.Buffer
+ 	err := executeConfigCommand([]string{"validate"}, &out)
+diff --git a/internal/delivery/server/bootstrap/config_test.go b/internal/delivery/server/bootstrap/config_test.go
+index 6c6e5ac6..95087742 100644
+--- a/internal/delivery/server/bootstrap/config_test.go
++++ b/internal/delivery/server/bootstrap/config_test.go
+@@ -212,6 +212,10 @@ runtime:
+ 		t.Fatalf("write config: %v", err)
+ 	}
+ 	t.Setenv("ALEX_CONFIG_PATH", configPath)
++	t.Setenv("OPENAI_API_KEY", "")
++	t.Setenv("ANTHROPIC_API_KEY", "")
++	t.Setenv("CODEX_API_KEY", "")
++	t.Setenv("LLM_API_KEY", "")
+ 
+ 	_, err := LoadConfig()
+ 	if err == nil {
+diff --git a/internal/infra/external/subprocess/subprocess.go b/internal/infra/external/subprocess/subprocess.go
+index e5ca6abb..dda25c15 100644
+--- a/internal/infra/external/subprocess/subprocess.go
++++ b/internal/infra/external/subprocess/subprocess.go
+@@ -28,6 +28,7 @@ type Subprocess struct {
+ 	stdout     io.ReadCloser
+ 	stderr     io.ReadCloser
+ 	stderrTail *tailBuffer
++	stderrDone chan struct{}
+ 	done       chan struct{}
+ 	err        error
+ 	pgid       int
+@@ -84,23 +85,27 @@ func (s *Subprocess) Start(ctx context.Context) error {
+ 	s.stdout = stdout
+ 	s.stderr = stderr
+ 	s.stderrTail = newTailBuffer(defaultStderrTail)
++	s.stderrDone = make(chan struct{})
+ 	s.done = make(chan struct{})
++	stderrDone := s.stderrDone
++
++	go func() {
++		defer close(stderrDone)
++		if stderr == nil {
++			return
++		}
++		_, _ = io.Copy(s.stderrTail, stderr)
++	}()
+ 
+ 	go func() {
+ 		err := cmd.Wait()
++		<-stderrDone
+ 		s.mu.Lock()
+ 		s.err = err
+ 		close(s.done)
+ 		s.mu.Unlock()
+ 	}()
+ 
+-	go func() {
+-		if stderr == nil {
+-			return
+-		}
+-		_, _ = io.Copy(s.stderrTail, stderr)
+-	}()
+-
+ 	if s.cfg.Timeout > 0 {
+ 		go func() {
+ 			timer := time.NewTimer(s.cfg.Timeout)
