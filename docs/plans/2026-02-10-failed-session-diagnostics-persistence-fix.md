@@ -26,4 +26,4 @@
 - [x] Implemented loadSession auto-create-on-missing behavior.
 - [x] Added unit tests for missing/existing/save-failure branches.
 - [x] Ran `make fmt`, `make test`, `make check-arch`.
-- [ ] Code review and commits.
+- [x] Completed code review and incremental commits.
