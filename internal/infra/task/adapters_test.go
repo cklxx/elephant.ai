@@ -520,3 +520,84 @@ func TestLarkAdapter_GetNotFound(t *testing.T) {
 		t.Fatal("GetTask() found = true, want false")
 	}
 }
+
+func TestLarkAdapter_SetBridgeMeta(t *testing.T) {
+	store := newMockStore()
+	adapter := NewLarkAdapter(store)
+	ctx := context.Background()
+
+	// Create a task first.
+	err := adapter.SaveTask(ctx, lark.TaskRecord{
+		ChatID:  "chat1",
+		TaskID:  "bridge-meta-test",
+		Status:  "running",
+	})
+	if err != nil {
+		t.Fatalf("SaveTask() error = %v", err)
+	}
+
+	// Set bridge meta via BridgeInfoProvider interface.
+	err = adapter.SetBridgeMeta(ctx, "bridge-meta-test", testBridgeInfo{pid: 12345, outputFile: "/tmp/output.jsonl"})
+	if err != nil {
+		t.Fatalf("SetBridgeMeta() error = %v", err)
+	}
+
+	// Verify via underlying store.
+	task := store.tasks["bridge-meta-test"]
+	if task.BridgeMeta == nil {
+		t.Fatal("expected BridgeMeta to be set")
+	}
+	if task.BridgeMeta.PID != 12345 {
+		t.Errorf("PID = %d, want 12345", task.BridgeMeta.PID)
+	}
+	if task.BridgeMeta.OutputFile != "/tmp/output.jsonl" {
+		t.Errorf("OutputFile = %q, want /tmp/output.jsonl", task.BridgeMeta.OutputFile)
+	}
+}
+
+func TestExtractBridgeMeta_BridgeInfoProvider(t *testing.T) {
+	info := testBridgeInfo{pid: 999, outputFile: "/path/out.jsonl"}
+	meta := extractBridgeMeta(info)
+	if meta.PID != 999 {
+		t.Errorf("PID = %d, want 999", meta.PID)
+	}
+	if meta.OutputFile != "/path/out.jsonl" {
+		t.Errorf("OutputFile = %q, want /path/out.jsonl", meta.OutputFile)
+	}
+}
+
+func TestExtractBridgeMeta_Map(t *testing.T) {
+	info := map[string]any{"pid": 42, "output_file": "/out.jsonl"}
+	meta := extractBridgeMeta(info)
+	if meta.PID != 42 {
+		t.Errorf("PID = %d, want 42", meta.PID)
+	}
+	if meta.OutputFile != "/out.jsonl" {
+		t.Errorf("OutputFile = %q, want /out.jsonl", meta.OutputFile)
+	}
+}
+
+func TestExtractBridgeMeta_JSONStruct(t *testing.T) {
+	// Simulate a struct that doesn't implement BridgeInfoProvider.
+	info := struct {
+		PID        int    `json:"PID"`
+		OutputFile string `json:"OutputFile"`
+	}{PID: 777, OutputFile: "/json/out.jsonl"}
+
+	meta := extractBridgeMeta(info)
+	if meta.PID != 777 {
+		t.Errorf("PID = %d, want 777", meta.PID)
+	}
+	if meta.OutputFile != "/json/out.jsonl" {
+		t.Errorf("OutputFile = %q, want /json/out.jsonl", meta.OutputFile)
+	}
+}
+
+// testBridgeInfo implements BridgeInfoProvider for testing.
+type testBridgeInfo struct {
+	pid        int
+	outputFile string
+}
+
+func (t testBridgeInfo) BridgePID() int              { return t.pid }
+func (t testBridgeInfo) BridgeOutputFile() string     { return t.outputFile }

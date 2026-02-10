@@ -100,6 +100,12 @@ type BackgroundCompletionNotifier interface {
 	NotifyCompletion(ctx context.Context, taskID, status, answer, errText string, tokensUsed int)
 }
 
+// BridgeMetaPersister is an optional extension of BackgroundCompletionNotifier
+// that can persist bridge subprocess metadata for resilience.
+type BridgeMetaPersister interface {
+	PersistBridgeMeta(ctx context.Context, taskID string, info any)
+}
+
 // completionNotifierKey is the context key for BackgroundCompletionNotifier.
 type completionNotifierKey struct{}
 

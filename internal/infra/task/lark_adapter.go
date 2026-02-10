@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"alex/internal/delivery/channels/lark"
@@ -106,6 +107,68 @@ func (a *LarkAdapter) DeleteExpired(ctx context.Context, before time.Time) error
 // MarkStaleRunning marks all running/pending tasks as failed.
 func (a *LarkAdapter) MarkStaleRunning(ctx context.Context, reason string) error {
 	return a.store.MarkStaleRunning(ctx, reason)
+}
+
+// SetBridgeMeta persists bridge subprocess metadata for resilience.
+// The info parameter is expected to implement BridgeInfoProvider, or be a
+// map[string]any with "pid" and "output_file" keys.
+func (a *LarkAdapter) SetBridgeMeta(ctx context.Context, taskID string, info any) error {
+	meta := extractBridgeMeta(info)
+	return a.store.SetBridgeMeta(ctx, taskID, meta)
+}
+
+// BridgeInfoProvider is the interface that bridge info structs should satisfy
+// for type-safe extraction. This avoids circular imports between infra/task and
+// infra/external/bridge packages.
+type BridgeInfoProvider interface {
+	BridgePID() int
+	BridgeOutputFile() string
+}
+
+// extractBridgeMeta converts an opaque bridge info value to a domain BridgeMeta.
+func extractBridgeMeta(info any) taskdomain.BridgeMeta {
+	var meta taskdomain.BridgeMeta
+
+	if provider, ok := info.(BridgeInfoProvider); ok {
+		meta.PID = provider.BridgePID()
+		meta.OutputFile = provider.BridgeOutputFile()
+		return meta
+	}
+
+	// Fallback: JSON round-trip for struct types without the interface.
+	if m, ok := info.(map[string]any); ok {
+		if pid, ok := m["pid"].(int); ok {
+			meta.PID = pid
+		}
+		if f, ok := m["output_file"].(string); ok {
+			meta.OutputFile = f
+		}
+		return meta
+	}
+
+	// Generic struct: JSON round-trip (handles float64 from JSON numbers).
+	data, err := json.Marshal(info)
+	if err != nil {
+		return meta
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return meta
+	}
+	// BridgeStartedInfo fields: PID (int), OutputFile (string), TaskID (string)
+	if pid, ok := m["PID"]; ok {
+		switch v := pid.(type) {
+		case float64:
+			meta.PID = int(v)
+		case int:
+			meta.PID = v
+		}
+	}
+	if f, ok := m["OutputFile"].(string); ok {
+		meta.OutputFile = f
+	}
+
+	return meta
 }
 
 // ── Conversion helpers ──────────────────────────────────────────────────────

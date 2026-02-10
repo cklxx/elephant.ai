@@ -62,13 +62,39 @@ Make coding agent execution survive process death, persist all state durably, an
 | `scripts/cc_bridge/cc_bridge.py` | Added `--output-file`, `.done` sentinel, `SIGTERM` handler |
 | `scripts/codex_bridge/codex_bridge.py` | Same as above |
 
-## Phase 3: Task Resumption
+## Phase 3: Task Resumption — DONE
 
-- [ ] Bridge checkpoint via unified store
-- [ ] Resume strategy matrix
-- [ ] Intelligent retry with context
-- [ ] Enhanced ResumePendingTasks
-- [ ] BackgroundTaskManager persistence
+### Implementation Progress
+
+- [x] Bridge `Resumer` — orphan classification, adoption, harvesting, retry logic
+- [x] Resume strategy matrix: adopt (running), harvest (done), retry with context, retry fresh, mark failed
+- [x] `buildResumePrompt` — enriches original prompt with [Resume Context] for partially-completed tasks
+- [x] `BridgeMetaPersister` interface on agent ports — type-safe bridge meta persistence
+- [x] `BridgeInfoProvider` interface on task infra — extracts PID/OutputFile from opaque info
+- [x] `LarkAdapter.SetBridgeMeta` — persists bridge meta through the Lark task store adapter
+- [x] `Gateway.PersistBridgeMeta` — wires through to task store in Lark gateway
+- [x] `BackgroundTaskManager.Dispatch` — `OnBridgeStarted` callback wired for external executors
+- [x] Tests for all new components
+
+### Key Decisions
+
+1. **Resume classification**: 5 actions based on (process alive, .done exists, files touched, prompt exists)
+2. **BridgeInfoProvider interface**: Avoids circular imports between infra/task and infra/external/bridge; JSON fallback for untyped info
+3. **BridgeMetaPersister opt-in**: Only persists bridge meta if the CompletionNotifier also implements BridgeMetaPersister — backward compatible
+4. **Resume prompt**: Wraps original prompt with iteration count, files touched, and "[Resume Context]" prefix
+5. **Orphan cleanup**: Bridge directories cleaned up after harvest/retry/mark-failed — running orphans kept alive for adoption
+
+### Files Changed/Created
+
+| File | Change |
+|------|--------|
+| `internal/infra/external/bridge/resumer.go` | NEW: Orphan classification, adoption, harvesting, retry, checkpoint update |
+| `internal/infra/external/bridge/resumer_test.go` | NEW: Tests for classify, buildResumePrompt, harvest, markFailed, skipTerminal |
+| `internal/domain/agent/ports/agent/background.go` | Added `BridgeMetaPersister` interface |
+| `internal/domain/agent/react/background.go` | Wired `OnBridgeStarted` callback in external executor dispatch |
+| `internal/infra/task/lark_adapter.go` | Added `SetBridgeMeta`, `BridgeInfoProvider`, `extractBridgeMeta` |
+| `internal/infra/external/bridge/executor.go` | Added `BridgePID()`, `BridgeOutputFile()` on `BridgeStartedInfo` |
+| `internal/delivery/channels/lark/gateway.go` | Added `PersistBridgeMeta` method |
 
 ## Phase 4: Unified Monitoring
 

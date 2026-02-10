@@ -369,6 +369,12 @@ type BridgeStartedInfo struct {
 	TaskID     string
 }
 
+// BridgePID implements task.BridgeInfoProvider.
+func (b BridgeStartedInfo) BridgePID() int { return b.PID }
+
+// BridgeOutputFile implements task.BridgeInfoProvider.
+func (b BridgeStartedInfo) BridgeOutputFile() string { return b.OutputFile }
+
 func (e *Executor) startPermissionServer(ctx context.Context, req agent.ExternalAgentRequest) (string, func(), error) {
 	relay, err := newPermissionRelay(ctx, req.TaskID, req.AgentType, e.cfg.AutonomousAllowedTools, e.inputCh, &e.pending, e.logger)
 	if err != nil {

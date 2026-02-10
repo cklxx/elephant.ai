@@ -271,6 +271,23 @@ func (g *Gateway) NotifyCompletion(ctx context.Context, taskID, status, answer, 
 	}
 }
 
+// PersistBridgeMeta implements agent.BridgeMetaPersister. It saves bridge
+// subprocess metadata to the task store for resilience (orphan adoption on restart).
+func (g *Gateway) PersistBridgeMeta(ctx context.Context, taskID string, info any) {
+	if g == nil || g.taskStore == nil {
+		return
+	}
+	type bridgeMetaSetter interface {
+		SetBridgeMeta(ctx context.Context, taskID string, info any) error
+	}
+	if setter, ok := g.taskStore.(bridgeMetaSetter); ok {
+		storeCtx := context.WithoutCancel(ctx)
+		if err := setter.SetBridgeMeta(storeCtx, taskID, info); err != nil {
+			g.logger.Warn("BridgeMetaPersister: SetBridgeMeta failed for %s: %v", taskID, err)
+		}
+	}
+}
+
 // getOrCreateSlot returns the session slot for the given chat, creating one if needed.
 func (g *Gateway) getOrCreateSlot(chatID string) *sessionSlot {
 	slot, _ := g.activeSlots.LoadOrStore(chatID, &sessionSlot{})

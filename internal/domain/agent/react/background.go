@@ -422,6 +422,14 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 				OnProgress: func(p agent.ExternalAgentProgress) {
 					m.captureProgress(ctx, bt, p)
 				},
+				OnBridgeStarted: func(info any) {
+					// Propagate bridge started info to completion notifier for persistence.
+					if notifier := agent.GetCompletionNotifier(ctx); notifier != nil {
+						if persister, ok := notifier.(agent.BridgeMetaPersister); ok {
+							persister.PersistBridgeMeta(ctx, bt.id, info)
+						}
+					}
+				},
 			})
 			heartbeatCancel()
 
