@@ -311,3 +311,44 @@ func TestExpandProactiveFileConfigEnv_SchedulerTriggerAndCalendar(t *testing.T) 
 		t.Fatalf("expected expanded calendar chat_id, got %q", got)
 	}
 }
+
+func TestMergeProactiveConfig_IncludesPromptAndTimerHeartbeat(t *testing.T) {
+	target := DefaultProactiveConfig()
+	file := &ProactiveFileConfig{
+		Prompt: &PromptFileConfig{
+			Mode:              "minimal",
+			Timezone:          "America/Los_Angeles",
+			BootstrapMaxChars: intPtr(12000),
+			BootstrapFiles:    []string{"AGENTS.md", "USER.md"},
+			ReplyTagsEnabled:  boolPtr(true),
+		},
+		Timer: &TimerFileConfig{
+			HeartbeatEnabled: boolPtr(true),
+			HeartbeatMinutes: intPtr(15),
+		},
+	}
+
+	mergeProactiveConfig(&target, file)
+
+	if target.Prompt.Mode != "minimal" {
+		t.Fatalf("expected prompt.mode=minimal, got %q", target.Prompt.Mode)
+	}
+	if target.Prompt.Timezone != "America/Los_Angeles" {
+		t.Fatalf("expected prompt.timezone override, got %q", target.Prompt.Timezone)
+	}
+	if target.Prompt.BootstrapMaxChars != 12000 {
+		t.Fatalf("expected prompt.bootstrap_max_chars=12000, got %d", target.Prompt.BootstrapMaxChars)
+	}
+	if len(target.Prompt.BootstrapFiles) != 2 {
+		t.Fatalf("expected prompt.bootstrap_files override, got %+v", target.Prompt.BootstrapFiles)
+	}
+	if !target.Prompt.ReplyTagsEnabled {
+		t.Fatalf("expected prompt.reply_tags_enabled=true")
+	}
+	if !target.Timer.HeartbeatEnabled {
+		t.Fatalf("expected timer.heartbeat_enabled=true")
+	}
+	if target.Timer.HeartbeatMinutes != 15 {
+		t.Fatalf("expected timer.heartbeat_minutes=15, got %d", target.Timer.HeartbeatMinutes)
+	}
+}

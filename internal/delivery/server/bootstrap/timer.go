@@ -2,6 +2,8 @@ package bootstrap
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"alex/internal/app/di"
@@ -54,9 +56,44 @@ func startTimerManager(ctx context.Context, cfg Config, container *di.Container,
 	async.Go(logger, "timer-manager", func() {
 		if err := mgr.Start(ctx); err != nil {
 			logger.Warn("TimerManager start failed: %v", err)
+			return
+		}
+		if timerCfg.HeartbeatEnabled {
+			interval := timerCfg.HeartbeatMinutes
+			if interval <= 0 {
+				interval = 30
+			}
+			if err := ensureHeartbeatTimer(mgr, interval, logger); err != nil {
+				logger.Warn("TimerManager heartbeat setup failed: %v", err)
+			}
 		}
 	})
 
 	logger.Info("TimerManager started (store=%s, max_timers=%d, timeout=%s)", storePath, maxTimers, taskTimeout)
 	return mgr
+}
+
+func ensureHeartbeatTimer(mgr *timer.TimerManager, minutes int, logger logging.Logger) error {
+	if mgr == nil {
+		return nil
+	}
+	if existing, ok := mgr.Get("tmr-heartbeat-system"); ok && existing.IsActive() {
+		logger.Info("TimerManager: heartbeat timer already active")
+		return nil
+	}
+	if minutes <= 0 {
+		minutes = 30
+	}
+	schedule := fmt.Sprintf("*/%d * * * *", minutes)
+	entry := &timer.Timer{
+		ID:        "tmr-heartbeat-system",
+		Name:      "system-heartbeat",
+		Type:      timer.TimerTypeRecurring,
+		Schedule:  strings.TrimSpace(schedule),
+		Task:      "Read HEARTBEAT.md if it exists. Follow it strictly. If nothing needs attention, reply HEARTBEAT_OK.",
+		SessionID: "timer-heartbeat",
+		CreatedAt: time.Now(),
+		Status:    timer.StatusActive,
+	}
+	return mgr.Add(entry)
 }

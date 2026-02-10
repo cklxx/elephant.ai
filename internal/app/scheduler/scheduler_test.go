@@ -182,6 +182,38 @@ func TestScheduler_InvalidCronExpression(t *testing.T) {
 	}
 }
 
+func TestScheduler_HeartbeatTriggerRegistration(t *testing.T) {
+	coord := &mockCoordinator{answer: "done"}
+	sched := New(Config{
+		Enabled: true,
+		Heartbeat: config.HeartbeatConfig{
+			Enabled:  true,
+			Schedule: "*/30 * * * *",
+			Task:     "heartbeat check",
+		},
+	}, coord, nil, nil)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	if err := sched.Start(ctx); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	defer sched.Stop()
+
+	names := sched.TriggerNames()
+	found := false
+	for _, name := range names {
+		if name == heartbeatTriggerName {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected heartbeat trigger %q to be registered, got %v", heartbeatTriggerName, names)
+	}
+}
+
 func TestScheduler_OKRTriggerSync(t *testing.T) {
 	dir := t.TempDir()
 	store := okr.NewGoalStore(okr.OKRConfig{GoalsRoot: dir})

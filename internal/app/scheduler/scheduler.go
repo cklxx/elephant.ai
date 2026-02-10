@@ -21,6 +21,7 @@ type Config struct {
 	StaticTriggers     []config.SchedulerTriggerConfig
 	OKRGoalsRoot       string // path to scan for OKR-derived triggers
 	CalendarReminder   config.CalendarReminderConfig
+	Heartbeat          config.HeartbeatConfig
 	TriggerTimeout     time.Duration
 	ConcurrencyPolicy  string
 	JobStore           JobStore
@@ -132,6 +133,9 @@ func (s *Scheduler) Start(ctx context.Context) error {
 
 	// 3. Register calendar reminder trigger
 	s.registerCalendarTrigger(ctx)
+
+	// 3.1 Register heartbeat trigger
+	s.registerHeartbeatTrigger(ctx)
 
 	// 4. Start periodic OKR trigger sync (every 5 min)
 	if s.goalStore != nil {

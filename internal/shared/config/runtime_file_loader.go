@@ -490,6 +490,10 @@ func applyToolPolicyFileConfig(cfg *RuntimeConfig, meta *Metadata, policy *ToolP
 	if policy == nil {
 		return
 	}
+	if strings.TrimSpace(policy.EnforcementMode) != "" {
+		cfg.ToolPolicy.EnforcementMode = strings.TrimSpace(policy.EnforcementMode)
+		meta.sources["tool_policy.enforcement_mode"] = SourceFile
+	}
 	if policy.Timeout != nil {
 		if policy.Timeout.Default != nil {
 			cfg.ToolPolicy.Timeout.Default = *policy.Timeout.Default

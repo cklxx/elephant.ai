@@ -91,8 +91,13 @@ func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*port
 	}
 
 	resolved := r.resolvePolicy(ctx, call)
+	policyWarnAllow := false
 	if !resolved.Enabled {
-		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool denied by policy: %s", call.Name)}, nil
+		if strings.EqualFold(resolved.EnforcementMode, "warn_allow") {
+			policyWarnAllow = true
+		} else {
+			return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("tool denied by policy: %s", call.Name)}, nil
+		}
 	}
 
 	retryCfg := normalizeRetryConfig(resolved.Retry)
@@ -107,6 +112,9 @@ func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*port
 
 		result, err := r.executeOnce(ctx, call, resolved.Timeout)
 		if err == nil {
+			if policyWarnAllow {
+				result = annotatePolicyWarnAllow(result, call)
+			}
 			return result, nil
 		}
 		lastResult = result
@@ -137,10 +145,17 @@ func (r *retryExecutor) Execute(ctx context.Context, call ports.ToolCall) (*port
 		lastErr = fmt.Errorf("tool execution failed")
 	}
 	if lastResult == nil {
-		return &ports.ToolResult{CallID: call.ID, Error: lastErr}, nil
+		result := &ports.ToolResult{CallID: call.ID, Error: lastErr}
+		if policyWarnAllow {
+			result = annotatePolicyWarnAllow(result, call)
+		}
+		return result, nil
 	}
 	if lastResult.Error == nil {
 		lastResult.Error = lastErr
+	}
+	if policyWarnAllow {
+		lastResult = annotatePolicyWarnAllow(lastResult, call)
 	}
 	return lastResult, nil
 }
@@ -255,6 +270,20 @@ func calculateRetryBackoff(attempt int, cfg toolspolicy.ToolRetryConfig) time.Du
 		}
 	}
 	return time.Duration(delay)
+}
+
+func annotatePolicyWarnAllow(result *ports.ToolResult, call ports.ToolCall) *ports.ToolResult {
+	if result == nil {
+		result = &ports.ToolResult{}
+	}
+	if result.Metadata == nil {
+		result.Metadata = make(map[string]any)
+	}
+	result.Metadata["policy_enforcement"] = "warn_allow"
+	if _, exists := result.Metadata["policy_warning"]; !exists {
+		result.Metadata["policy_warning"] = fmt.Sprintf("tool policy denied %s but mode=warn_allow permitted execution", strings.TrimSpace(call.Name))
+	}
+	return result
 }
 
 var _ tools.ToolExecutor = (*retryExecutor)(nil)

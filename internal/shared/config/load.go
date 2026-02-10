@@ -250,6 +250,35 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg == nil {
 		return
 	}
+	cfg.Prompt.Mode = strings.TrimSpace(strings.ToLower(cfg.Prompt.Mode))
+	switch cfg.Prompt.Mode {
+	case "full", "minimal", "none":
+	default:
+		cfg.Prompt.Mode = "full"
+	}
+	cfg.Prompt.Timezone = strings.TrimSpace(cfg.Prompt.Timezone)
+	if cfg.Prompt.BootstrapMaxChars <= 0 {
+		cfg.Prompt.BootstrapMaxChars = 20000
+	}
+	if len(cfg.Prompt.BootstrapFiles) == 0 {
+		cfg.Prompt.BootstrapFiles = []string{
+			"AGENTS.md",
+			"SOUL.md",
+			"TOOLS.md",
+			"IDENTITY.md",
+			"USER.md",
+			"HEARTBEAT.md",
+			"BOOTSTRAP.md",
+		}
+	} else {
+		filtered := cfg.Prompt.BootstrapFiles[:0]
+		for _, path := range cfg.Prompt.BootstrapFiles {
+			if trimmed := strings.TrimSpace(path); trimmed != "" {
+				filtered = append(filtered, trimmed)
+			}
+		}
+		cfg.Prompt.BootstrapFiles = filtered
+	}
 	if cfg.FinalAnswerReview.MaxExtraIterations <= 0 {
 		cfg.FinalAnswerReview.MaxExtraIterations = 1
 	}
@@ -310,7 +339,28 @@ func normalizeProactiveConfig(cfg *ProactiveConfig) {
 	if cfg.Scheduler.RecoveryBackoffSeconds <= 0 {
 		cfg.Scheduler.RecoveryBackoffSeconds = 60
 	}
+	cfg.Scheduler.Heartbeat.Schedule = strings.TrimSpace(cfg.Scheduler.Heartbeat.Schedule)
+	if cfg.Scheduler.Heartbeat.Schedule == "" {
+		cfg.Scheduler.Heartbeat.Schedule = "*/30 * * * *"
+	}
+	cfg.Scheduler.Heartbeat.Task = strings.TrimSpace(cfg.Scheduler.Heartbeat.Task)
+	if cfg.Scheduler.Heartbeat.Task == "" {
+		cfg.Scheduler.Heartbeat.Task = "Read HEARTBEAT.md if it exists. Follow it strictly. If nothing needs attention, reply HEARTBEAT_OK."
+	}
+	cfg.Scheduler.Heartbeat.Channel = strings.TrimSpace(cfg.Scheduler.Heartbeat.Channel)
+	cfg.Scheduler.Heartbeat.UserID = strings.TrimSpace(cfg.Scheduler.Heartbeat.UserID)
+	cfg.Scheduler.Heartbeat.ChatID = strings.TrimSpace(cfg.Scheduler.Heartbeat.ChatID)
+	if cfg.Scheduler.Heartbeat.WindowLookbackHr <= 0 {
+		cfg.Scheduler.Heartbeat.WindowLookbackHr = 8
+	}
+	if cfg.Scheduler.Heartbeat.QuietHours[0] == 0 && cfg.Scheduler.Heartbeat.QuietHours[1] == 0 {
+		cfg.Scheduler.Heartbeat.QuietHours = [2]int{23, 8}
+	}
 	cfg.Scheduler.JobStorePath = strings.TrimSpace(cfg.Scheduler.JobStorePath)
+	cfg.Timer.StorePath = strings.TrimSpace(cfg.Timer.StorePath)
+	if cfg.Timer.HeartbeatMinutes <= 0 {
+		cfg.Timer.HeartbeatMinutes = 30
+	}
 }
 
 func shouldLoadCLICredentials(cfg RuntimeConfig) bool {
@@ -336,6 +386,12 @@ func normalizeToolPolicy(cfg *toolspolicy.ToolPolicyConfig) {
 	if cfg == nil {
 		return
 	}
+	cfg.EnforcementMode = strings.TrimSpace(strings.ToLower(cfg.EnforcementMode))
+	switch cfg.EnforcementMode {
+	case "", "enforce", "warn_allow":
+	default:
+		cfg.EnforcementMode = ""
+	}
 	defaults := toolspolicy.DefaultToolPolicyConfig()
 	if cfg.Timeout.Default <= 0 {
 		cfg.Timeout.Default = defaults.Timeout.Default
@@ -355,5 +411,8 @@ func normalizeToolPolicy(cfg *toolspolicy.ToolPolicyConfig) {
 	// MaxRetries == 0 is a valid value (no retries), so we only fix negative.
 	if cfg.Retry.MaxRetries < 0 {
 		cfg.Retry.MaxRetries = 0
+	}
+	if cfg.EnforcementMode == "" {
+		cfg.EnforcementMode = defaults.EnforcementMode
 	}
 }

@@ -195,6 +195,7 @@ func DefaultHTTPLimitsConfig() HTTPLimitsConfig {
 // ProactiveConfig captures proactive behavior defaults.
 type ProactiveConfig struct {
 	Enabled           bool                    `json:"enabled" yaml:"enabled"`
+	Prompt            PromptConfig            `json:"prompt" yaml:"prompt"`
 	Memory            MemoryConfig            `json:"memory" yaml:"memory"`
 	Skills            SkillsConfig            `json:"skills" yaml:"skills"`
 	OKR               OKRProactiveConfig      `json:"okr" yaml:"okr"`
@@ -202,6 +203,15 @@ type ProactiveConfig struct {
 	Timer             TimerConfig             `json:"timer" yaml:"timer"`
 	FinalAnswerReview FinalAnswerReviewConfig `json:"final_answer_review" yaml:"final_answer_review"`
 	Attention         AttentionConfig         `json:"attention" yaml:"attention"`
+}
+
+// PromptConfig controls system-prompt assembly behavior.
+type PromptConfig struct {
+	Mode              string   `json:"mode" yaml:"mode"` // full | minimal | none
+	Timezone          string   `json:"timezone" yaml:"timezone"`
+	BootstrapMaxChars int      `json:"bootstrap_max_chars" yaml:"bootstrap_max_chars"`
+	BootstrapFiles    []string `json:"bootstrap_files" yaml:"bootstrap_files"`
+	ReplyTagsEnabled  bool     `json:"reply_tags_enabled" yaml:"reply_tags_enabled"`
 }
 
 // OKRProactiveConfig configures OKR goal management behavior.
@@ -260,6 +270,7 @@ type SchedulerConfig struct {
 	RecoveryMaxRetries     int                      `json:"recovery_max_retries" yaml:"recovery_max_retries"`
 	RecoveryBackoffSeconds int                      `json:"recovery_backoff_seconds" yaml:"recovery_backoff_seconds"`
 	CalendarReminder       CalendarReminderConfig   `json:"calendar_reminder" yaml:"calendar_reminder"`
+	Heartbeat              HeartbeatConfig          `json:"heartbeat" yaml:"heartbeat"`
 }
 
 // CalendarReminderConfig configures the periodic calendar reminder trigger.
@@ -283,12 +294,26 @@ type SchedulerTriggerConfig struct {
 	Risk             string `json:"risk" yaml:"risk"`
 }
 
+// HeartbeatConfig configures periodic heartbeat checks driven by scheduler or timers.
+type HeartbeatConfig struct {
+	Enabled          bool   `json:"enabled" yaml:"enabled"`
+	Schedule         string `json:"schedule" yaml:"schedule"` // cron expression, default "*/30 * * * *"
+	Task             string `json:"task" yaml:"task"`
+	Channel          string `json:"channel" yaml:"channel"`
+	UserID           string `json:"user_id" yaml:"user_id"` // for channel=lark, this must be Lark open_id (ou_*)
+	ChatID           string `json:"chat_id" yaml:"chat_id"`
+	QuietHours       [2]int `json:"quiet_hours" yaml:"quiet_hours"`
+	WindowLookbackHr int    `json:"window_lookback_hours" yaml:"window_lookback_hours"`
+}
+
 // TimerConfig configures agent-initiated dynamic timers.
 type TimerConfig struct {
 	Enabled            bool   `json:"enabled" yaml:"enabled"`
 	StorePath          string `json:"store_path" yaml:"store_path"`                     // default: ~/.alex/timers
 	MaxTimers          int    `json:"max_timers" yaml:"max_timers"`                     // default: 100
 	TaskTimeoutSeconds int    `json:"task_timeout_seconds" yaml:"task_timeout_seconds"` // default: 900
+	HeartbeatEnabled   bool   `json:"heartbeat_enabled" yaml:"heartbeat_enabled"`
+	HeartbeatMinutes   int    `json:"heartbeat_minutes" yaml:"heartbeat_minutes"`
 }
 
 // FinalAnswerReviewConfig controls whether to insert an additional ReAct iteration
@@ -310,6 +335,19 @@ type AttentionConfig struct {
 func DefaultProactiveConfig() ProactiveConfig {
 	return ProactiveConfig{
 		Enabled: true,
+		Prompt: PromptConfig{
+			Mode:              "full",
+			BootstrapMaxChars: 20000,
+			BootstrapFiles: []string{
+				"AGENTS.md",
+				"SOUL.md",
+				"TOOLS.md",
+				"IDENTITY.md",
+				"USER.md",
+				"HEARTBEAT.md",
+				"BOOTSTRAP.md",
+			},
+		},
 		Memory: MemoryConfig{
 			Enabled: true,
 			Index: MemoryIndexConfig{
@@ -352,12 +390,21 @@ func DefaultProactiveConfig() ProactiveConfig {
 				Schedule:         "*/15 * * * *",
 				LookAheadMinutes: 120,
 			},
+			Heartbeat: HeartbeatConfig{
+				Enabled:          false,
+				Schedule:         "*/30 * * * *",
+				Task:             "Read HEARTBEAT.md if it exists. Follow it strictly. If nothing needs attention, reply HEARTBEAT_OK.",
+				QuietHours:       [2]int{23, 8},
+				WindowLookbackHr: 8,
+			},
 		},
 		Timer: TimerConfig{
 			Enabled:            true,
 			StorePath:          "~/.alex/timers",
 			MaxTimers:          100,
 			TaskTimeoutSeconds: 900,
+			HeartbeatEnabled:   false,
+			HeartbeatMinutes:   30,
 		},
 		FinalAnswerReview: FinalAnswerReviewConfig{
 			Enabled:            true,

@@ -215,6 +215,11 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				ToolPreset:         toolPreset,
 				EnvironmentSummary: s.config.EnvironmentSummary,
 				TaskInput:          task,
+				PromptMode:         s.config.Proactive.Prompt.Mode,
+				PromptTimezone:     s.config.Proactive.Prompt.Timezone,
+				BootstrapFiles:     append([]string(nil), s.config.Proactive.Prompt.BootstrapFiles...),
+				BootstrapMaxChars:  s.config.Proactive.Prompt.BootstrapMaxChars,
+				ReplyTagsEnabled:   s.config.Proactive.Prompt.ReplyTagsEnabled,
 				Skills:             buildSkillsConfig(s.config.Proactive.Skills),
 				OKRContext:         okrContext,
 			})
@@ -248,8 +253,10 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 	if systemPrompt == "" {
 		systemPrompt = DefaultSystemPrompt
 	}
-	if toolMode == presets.ToolModeCLI {
-		systemPrompt = strings.TrimSpace(systemPrompt + `
+	promptMode := strings.ToLower(strings.TrimSpace(s.config.Proactive.Prompt.Mode))
+	if promptMode != "none" {
+		if toolMode == presets.ToolModeCLI {
+			systemPrompt = strings.TrimSpace(systemPrompt + `
 
 ## File Outputs
 - When producing long-form deliverables (reports, articles, specs), write them to a Markdown file via write_file.
@@ -259,14 +266,15 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 - Ask only after all viable attempts fail and missing critical input still blocks progress.
 - In Lark chats, when a generated file is part of the requested deliverable, proactively upload it; keep text-only checkpoints on lark_send_message.
 - Provide a short summary in the final answer and point the user to the generated file path instead of pasting the full content.`)
-	} else {
-		systemPrompt = strings.TrimSpace(systemPrompt + `
+		} else {
+			systemPrompt = strings.TrimSpace(systemPrompt + `
 
 ## Artifacts & Attachments
 - When producing long-form deliverables (reports, articles, specs), write them to a Markdown artifact via artifacts_write.
 - Provide a short summary in the final answer and point the user to the generated file instead of pasting the full content.
 - Keep attachment placeholders out of the main body; list them at the end of the final answer.
 - If you want clients to render an attachment card, reference the file with a placeholder like [report.md].`)
+		}
 	}
 	preloadedAttachments := collectSessionAttachments(session)
 	preloadedImportant := collectSessionImportant(session)

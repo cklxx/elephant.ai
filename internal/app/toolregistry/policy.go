@@ -104,7 +104,11 @@ func (p *policyAwareRegistry) isAllowed(tool tools.ToolExecutor) bool {
 		Channel:     strings.TrimSpace(p.channel),
 		SafetyLevel: meta.EffectiveSafetyLevel(),
 	}
-	return p.policy.Resolve(ctx).Enabled
+	resolved := p.policy.Resolve(ctx)
+	if resolved.Enabled {
+		return true
+	}
+	return strings.EqualFold(resolved.EnforcementMode, "warn_allow")
 }
 
 var _ tools.ToolRegistry = (*policyAwareRegistry)(nil)

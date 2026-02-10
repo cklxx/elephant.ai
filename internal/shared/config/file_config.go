@@ -91,6 +91,7 @@ type RuntimeBrowserConfig struct {
 
 // ToolPolicyFileConfig mirrors ToolPolicyConfig for YAML decoding with partial overrides.
 type ToolPolicyFileConfig struct {
+	EnforcementMode string                   `yaml:"enforcement_mode"`
 	Timeout *ToolTimeoutFileConfig   `yaml:"timeout"`
 	Retry   *ToolRetryFileConfig     `yaml:"retry"`
 	Rules   []toolspolicy.PolicyRule `yaml:"rules,omitempty"`
@@ -151,12 +152,22 @@ type CodexFileConfig struct {
 // ProactiveFileConfig mirrors ProactiveConfig for YAML decoding.
 type ProactiveFileConfig struct {
 	Enabled           *bool                        `yaml:"enabled"`
+	Prompt            *PromptFileConfig            `yaml:"prompt"`
 	Memory            *MemoryFileConfig            `yaml:"memory"`
 	Skills            *SkillsFileConfig            `yaml:"skills"`
 	OKR               *OKRFileConfig               `yaml:"okr"`
 	Scheduler         *SchedulerFileConfig         `yaml:"scheduler"`
+	Timer             *TimerFileConfig             `yaml:"timer"`
 	FinalAnswerReview *FinalAnswerReviewFileConfig `yaml:"final_answer_review"`
 	Attention         *AttentionFileConfig         `yaml:"attention"`
+}
+
+type PromptFileConfig struct {
+	Mode              string   `yaml:"mode"`
+	Timezone          string   `yaml:"timezone"`
+	BootstrapMaxChars *int     `yaml:"bootstrap_max_chars"`
+	BootstrapFiles    []string `yaml:"bootstrap_files"`
+	ReplyTagsEnabled  *bool    `yaml:"reply_tags_enabled"`
 }
 
 type FinalAnswerReviewFileConfig struct {
@@ -209,6 +220,7 @@ type SchedulerFileConfig struct {
 	Enabled                *bool                        `yaml:"enabled"`
 	Triggers               []SchedulerTriggerFileConfig `yaml:"triggers"`
 	CalendarReminder       *CalendarReminderFileConfig  `yaml:"calendar_reminder"`
+	Heartbeat              *HeartbeatFileConfig         `yaml:"heartbeat"`
 	TriggerTimeoutSeconds  *int                         `yaml:"trigger_timeout_seconds"`
 	ConcurrencyPolicy      string                       `yaml:"concurrency_policy"`
 	JobStorePath           string                       `yaml:"job_store_path"`
@@ -236,6 +248,26 @@ type CalendarReminderFileConfig struct {
 	Channel          string `yaml:"channel"`
 	UserID           string `yaml:"user_id"`
 	ChatID           string `yaml:"chat_id"`
+}
+
+type HeartbeatFileConfig struct {
+	Enabled          *bool  `yaml:"enabled"`
+	Schedule         string `yaml:"schedule"`
+	Task             string `yaml:"task"`
+	Channel          string `yaml:"channel"`
+	UserID           string `yaml:"user_id"`
+	ChatID           string `yaml:"chat_id"`
+	QuietHours       []int  `yaml:"quiet_hours"`
+	WindowLookbackHr *int   `yaml:"window_lookback_hours"`
+}
+
+type TimerFileConfig struct {
+	Enabled            *bool `yaml:"enabled"`
+	StorePath          string `yaml:"store_path"`
+	MaxTimers          *int  `yaml:"max_timers"`
+	TaskTimeoutSeconds *int  `yaml:"task_timeout_seconds"`
+	HeartbeatEnabled   *bool `yaml:"heartbeat_enabled"`
+	HeartbeatMinutes   *int  `yaml:"heartbeat_minutes"`
 }
 
 type AttentionFileConfig struct {

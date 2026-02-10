@@ -53,6 +53,30 @@ func TestResolve_NoRules(t *testing.T) {
 	if result.Timeout != 120*time.Second {
 		t.Errorf("Timeout = %v, want 120s", result.Timeout)
 	}
+	if result.EnforcementMode != "enforce" {
+		t.Errorf("EnforcementMode = %q, want enforce", result.EnforcementMode)
+	}
+}
+
+func TestResolve_EnforcementModeWarnAllow(t *testing.T) {
+	enabled := false
+	cfg := DefaultToolPolicyConfig()
+	cfg.EnforcementMode = "warn_allow"
+	cfg.Rules = []PolicyRule{
+		{
+			Name:    "deny-tool",
+			Match:   PolicySelector{Tools: []string{"read_file"}},
+			Enabled: &enabled,
+		},
+	}
+	p := NewToolPolicy(cfg)
+	result := p.Resolve(ToolCallContext{ToolName: "read_file"})
+	if result.Enabled {
+		t.Fatal("expected Enabled=false")
+	}
+	if result.EnforcementMode != "warn_allow" {
+		t.Fatalf("EnforcementMode = %q, want warn_allow", result.EnforcementMode)
+	}
 }
 
 func TestResolve_MatchByToolGlob(t *testing.T) {

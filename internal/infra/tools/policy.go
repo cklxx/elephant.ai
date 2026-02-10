@@ -87,6 +87,7 @@ type ToolCallContext struct {
 
 // ToolPolicyConfig combines timeout, retry, and rule-based configuration.
 type ToolPolicyConfig struct {
+	EnforcementMode string            `yaml:"enforcement_mode,omitempty" json:"enforcement_mode,omitempty"` // enforce | warn_allow
 	Timeout ToolTimeoutConfig `yaml:"timeout" json:"timeout"`
 	Retry   ToolRetryConfig   `yaml:"retry" json:"retry"`
 	Rules   []PolicyRule      `yaml:"rules,omitempty" json:"rules,omitempty"`
@@ -98,6 +99,7 @@ type ToolPolicyConfig struct {
 //   - Initial backoff: 1s, max backoff: 30s, factor: 2.0
 func DefaultToolPolicyConfig() ToolPolicyConfig {
 	return ToolPolicyConfig{
+		EnforcementMode: "enforce",
 		Timeout: ToolTimeoutConfig{
 			Default: 120 * time.Second,
 			PerTool: map[string]time.Duration{},
@@ -217,10 +219,11 @@ type ToolPolicy interface {
 // ResolvedPolicy is the final, flattened result of evaluating all policy
 // rules for a specific tool call.
 type ResolvedPolicy struct {
-	Timeout     time.Duration
-	Retry       ToolRetryConfig
-	Enabled     bool // false = tool call blocked by policy
-	SafetyLevel int  // effective safety level from context (1-4; 0=unset)
+	Timeout         time.Duration
+	Retry           ToolRetryConfig
+	Enabled         bool // false = tool call blocked by policy
+	EnforcementMode string
+	SafetyLevel     int // effective safety level from context (1-4; 0=unset)
 }
 
 // configToolPolicy implements ToolPolicy backed by ToolPolicyConfig.
@@ -262,10 +265,11 @@ func (p *configToolPolicy) RetryConfigFor(toolName string, dangerous bool) ToolR
 // The first matching rule's non-nil fields override the defaults.
 func (p *configToolPolicy) Resolve(ctx ToolCallContext) ResolvedPolicy {
 	result := ResolvedPolicy{
-		Timeout:     p.TimeoutFor(ctx.ToolName),
-		Retry:       p.RetryConfigFor(ctx.ToolName, ctx.Dangerous),
-		Enabled:     true,
-		SafetyLevel: ctx.SafetyLevel,
+		Timeout:         p.TimeoutFor(ctx.ToolName),
+		Retry:           p.RetryConfigFor(ctx.ToolName, ctx.Dangerous),
+		Enabled:         true,
+		EnforcementMode: normalizePolicyEnforcementMode(p.cfg.EnforcementMode),
+		SafetyLevel:     ctx.SafetyLevel,
 	}
 	timeoutSet := false
 	retrySet := false
@@ -293,6 +297,15 @@ func (p *configToolPolicy) Resolve(ctx ToolCallContext) ResolvedPolicy {
 	}
 
 	return result
+}
+
+func normalizePolicyEnforcementMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "warn_allow":
+		return "warn_allow"
+	default:
+		return "enforce"
+	}
 }
 
 // ---------------------------------------------------------------------------

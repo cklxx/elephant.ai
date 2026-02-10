@@ -1161,6 +1161,11 @@ func (c *AgentCoordinator) PreviewContextWindow(ctx context.Context, sessionID s
 		ToolMode:           string(toolMode),
 		ToolPreset:         toolPreset,
 		EnvironmentSummary: cfg.EnvironmentSummary,
+		PromptMode:         cfg.Proactive.Prompt.Mode,
+		PromptTimezone:     cfg.Proactive.Prompt.Timezone,
+		BootstrapFiles:     append([]string(nil), cfg.Proactive.Prompt.BootstrapFiles...),
+		BootstrapMaxChars:  cfg.Proactive.Prompt.BootstrapMaxChars,
+		ReplyTagsEnabled:   cfg.Proactive.Prompt.ReplyTagsEnabled,
 	})
 	if err != nil {
 		return preview, fmt.Errorf("build context window: %w", err)
@@ -1203,6 +1208,11 @@ func (c *AgentCoordinator) GetSystemPrompt() string {
 		ToolMode:           toolMode,
 		ToolPreset:         toolPreset,
 		EnvironmentSummary: c.config.EnvironmentSummary,
+		PromptMode:         c.config.Proactive.Prompt.Mode,
+		PromptTimezone:     c.config.Proactive.Prompt.Timezone,
+		BootstrapFiles:     append([]string(nil), c.config.Proactive.Prompt.BootstrapFiles...),
+		BootstrapMaxChars:  c.config.Proactive.Prompt.BootstrapMaxChars,
+		ReplyTagsEnabled:   c.config.Proactive.Prompt.ReplyTagsEnabled,
 	})
 	if err != nil {
 		if c.logger != nil {

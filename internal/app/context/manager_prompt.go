@@ -22,33 +22,229 @@ type systemPromptInput struct {
 	TaskInput       string
 	Messages        []ports.Message
 	SessionID       string
+	PromptMode      string
+	PromptTimezone  string
+	ReplyTagsEnabled bool
+	BootstrapRecords []bootstrapRecord
+	ToolMode         string
 	SkillsConfig    agent.SkillsConfig
 	OKRContext      string
 }
 
+const (
+	promptModeFull    = "full"
+	promptModeMinimal = "minimal"
+	promptModeNone    = "none"
+)
+
 func composeSystemPrompt(input systemPromptInput) string {
-	sections := []string{
-		buildHabitStewardshipSection(),
+	mode := normalizePromptMode(input.PromptMode)
+	if mode == promptModeNone {
+		return buildIdentityLine(input.Static.Persona)
+	}
+
+	fullSections := []string{
 		buildIdentitySection(input.Static.Persona),
+		buildToolingSection(input.Static.Tools),
 		buildToolRoutingSection(),
+		buildSafetySection(),
+		buildHabitStewardshipSection(),
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
 		buildKnowledgeSection(input.Static.Knowledge),
 		buildMemorySection(input.Memory),
 		buildOKRSection(input.OKRContext),
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
+		buildSelfUpdateSection(),
+		buildWorkspaceSection(),
+		buildDocumentationSection(),
+		buildWorkspaceFilesSection(input.BootstrapRecords),
+		buildSandboxSection(input.ToolMode, input.OmitEnvironment),
+		buildTimezoneSection(input.PromptTimezone),
+		buildReplyTagsSection(input.ReplyTagsEnabled),
+		buildHeartbeatSection(),
+		buildRuntimeSection(input.Static.Tools, input.ToolMode),
+		buildReasoningSection(),
 	}
 	if !input.OmitEnvironment {
-		sections = append(sections, buildEnvironmentSection(input.Static))
+		fullSections = append(fullSections, buildEnvironmentSection(input.Static))
 	}
-	sections = append(sections, buildDynamicSection(input.Dynamic), buildMetaSection(input.Meta))
+	fullSections = append(fullSections, buildDynamicSection(input.Dynamic), buildMetaSection(input.Meta))
+
+	minimalSections := []string{
+		buildIdentitySection(input.Static.Persona),
+		buildToolingSection(input.Static.Tools),
+		buildToolRoutingSection(),
+		buildSafetySection(),
+		buildGoalsSection(input.Static.Goal),
+		buildPoliciesSection(input.Static.Policies),
+		buildWorkspaceSection(),
+		buildDocumentationSection(),
+		buildTimezoneSection(input.PromptTimezone),
+		buildRuntimeSection(input.Static.Tools, input.ToolMode),
+		buildReasoningSection(),
+	}
+	if !input.OmitEnvironment {
+		minimalSections = append(minimalSections, buildEnvironmentSection(input.Static))
+	}
+
+	var selected []string
+	if mode == promptModeMinimal {
+		selected = minimalSections
+	} else {
+		selected = fullSections
+	}
+
 	var compact []string
-	for _, section := range sections {
+	for _, section := range selected {
 		if trimmed := strings.TrimSpace(section); trimmed != "" {
 			compact = append(compact, trimmed)
 		}
 	}
 	return strings.Join(compact, "\n\n")
+}
+
+func normalizePromptMode(mode string) string {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case promptModeMinimal:
+		return promptModeMinimal
+	case promptModeNone:
+		return promptModeNone
+	default:
+		return promptModeFull
+	}
+}
+
+func buildIdentityLine(persona agent.PersonaProfile) string {
+	voice := strings.TrimSpace(persona.Voice)
+	if voice == "" {
+		voice = "You are ALEX, an enterprise-grade assistant focused on secure, testable software delivery."
+	}
+	return voice
+}
+
+func buildToolingSection(hints []string) string {
+	lines := []string{
+		"Tools are policy-governed and may vary by channel/session.",
+		"Inspect available definitions and argument schemas before executing side-effectful actions.",
+	}
+	if len(hints) > 0 {
+		lines = append(lines, "Runtime tool hints: "+strings.Join(hints, ", "))
+	}
+	return formatSection("# Tooling", lines)
+}
+
+func buildSafetySection() string {
+	return formatSection("# Safety", []string{
+		"System-prompt guardrails are advisory; hard limits are enforced by tool policy, approvals, sandboxing, and channel allowlists.",
+		"Never bypass approvals or policy boundaries. Escalate with explicit evidence when blocked.",
+	})
+}
+
+func buildSelfUpdateSection() string {
+	return formatSection("# OpenClaw Self-Update", []string{
+		"Use config.apply for deterministic runtime configuration updates.",
+		"Use update.run only when an explicit update workflow is requested and approved.",
+	})
+}
+
+func buildWorkspaceSection() string {
+	return formatSection("# Workspace", []string{
+		"Use the active repository root as the working directory for file operations.",
+		"Keep generated temporary files under /tmp unless a different path is explicitly requested.",
+	})
+}
+
+func buildDocumentationSection() string {
+	return formatSection("# Documentation", []string{
+		"Primary docs live under ./docs.",
+		"Read docs before changing architecture-sensitive behavior or configuration contracts.",
+	})
+}
+
+func buildWorkspaceFilesSection(records []bootstrapRecord) string {
+	if len(records) == 0 {
+		return ""
+	}
+	lines := []string{
+		"Bootstrap files injected on the first turn (Global-first, workspace fallback):",
+	}
+	for _, record := range records {
+		name := strings.TrimSpace(record.Name)
+		if name == "" {
+			continue
+		}
+		if record.Missing {
+			lines = append(lines, fmt.Sprintf("- %s: [missing file marker] %s", name, strings.TrimSpace(record.Path)))
+			continue
+		}
+		label := fmt.Sprintf("- %s (%s): %s", name, record.Source, strings.TrimSpace(record.Path))
+		if record.Truncated {
+			label += " [TRUNCATED]"
+		}
+		lines = append(lines, label)
+		if content := strings.TrimSpace(record.Content); content != "" {
+			lines = append(lines, "  "+content)
+		}
+	}
+	return formatSection("# Workspace Files", lines)
+}
+
+func buildSandboxSection(toolMode string, omitEnvironment bool) string {
+	mode := strings.ToLower(strings.TrimSpace(toolMode))
+	status := "enabled"
+	if omitEnvironment || mode == "web" {
+		status = "channel-managed/non-local"
+	}
+	return formatSection("# Sandbox", []string{
+		fmt.Sprintf("Tool mode: %s", fallbackString(mode, "cli")),
+		fmt.Sprintf("Sandbox context: %s", status),
+	})
+}
+
+func buildTimezoneSection(tz string) string {
+	zone := strings.TrimSpace(tz)
+	if zone == "" {
+		zone = time.Now().Location().String()
+	}
+	return formatSection("# Current Date & Time", []string{
+		fmt.Sprintf("User timezone: %s", zone),
+		"No dynamic clock is injected to keep prompt caching stable.",
+	})
+}
+
+func buildReplyTagsSection(enabled bool) string {
+	if !enabled {
+		return ""
+	}
+	return formatSection("# Reply Tags", []string{
+		"Use provider-compatible reply tags when a channel explicitly requires tagged output syntax.",
+	})
+}
+
+func buildHeartbeatSection() string {
+	return formatSection("# Heartbeats", []string{
+		"Heartbeat turns should follow HEARTBEAT.md strictly when present.",
+		"If nothing needs attention, return HEARTBEAT_OK.",
+	})
+}
+
+func buildRuntimeSection(toolHints []string, mode string) string {
+	lines := []string{
+		fmt.Sprintf("Tool mode: %s", fallbackString(strings.TrimSpace(mode), "cli")),
+	}
+	if len(toolHints) > 0 {
+		lines = append(lines, "Tool hints: "+strings.Join(toolHints, ", "))
+	}
+	lines = append(lines, "Runtime profile should be inferred from channel + config, not guessed.")
+	return formatSection("# Runtime", lines)
+}
+
+func buildReasoningSection() string {
+	return formatSection("# Reasoning", []string{
+		"Keep reasoning visibility aligned with channel expectations.",
+		"Switch reasoning verbosity only when explicitly requested.",
+	})
 }
 
 func buildToolRoutingSection() string {
@@ -497,6 +693,14 @@ func formatKeyValue(key, value string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s: %s", key, value)
+}
+
+func fallbackString(value string, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fallback
+	}
+	return trimmed
 }
 
 func formatPlanTree(nodes []agent.PlanNode, depth int) []string {

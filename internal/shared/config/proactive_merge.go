@@ -20,6 +20,9 @@ func mergeProactiveConfig(target *ProactiveConfig, file *ProactiveFileConfig) {
 	if file.Enabled != nil {
 		target.Enabled = *file.Enabled
 	}
+	if file.Prompt != nil {
+		mergePromptConfig(&target.Prompt, file.Prompt)
+	}
 	if file.Memory != nil {
 		mergeMemoryConfig(&target.Memory, file.Memory)
 	}
@@ -32,11 +35,41 @@ func mergeProactiveConfig(target *ProactiveConfig, file *ProactiveFileConfig) {
 	if file.Scheduler != nil {
 		mergeSchedulerConfig(&target.Scheduler, file.Scheduler)
 	}
+	if file.Timer != nil {
+		mergeTimerConfig(&target.Timer, file.Timer)
+	}
 	if file.FinalAnswerReview != nil {
 		mergeFinalAnswerReviewConfig(&target.FinalAnswerReview, file.FinalAnswerReview)
 	}
 	if file.Attention != nil {
 		mergeAttentionConfig(&target.Attention, file.Attention)
+	}
+}
+
+func mergePromptConfig(target *PromptConfig, file *PromptFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if strings.TrimSpace(file.Mode) != "" {
+		target.Mode = strings.TrimSpace(file.Mode)
+	}
+	if strings.TrimSpace(file.Timezone) != "" {
+		target.Timezone = strings.TrimSpace(file.Timezone)
+	}
+	if file.BootstrapMaxChars != nil {
+		target.BootstrapMaxChars = *file.BootstrapMaxChars
+	}
+	if len(file.BootstrapFiles) > 0 {
+		files := make([]string, 0, len(file.BootstrapFiles))
+		for _, path := range file.BootstrapFiles {
+			if trimmed := strings.TrimSpace(path); trimmed != "" {
+				files = append(files, trimmed)
+			}
+		}
+		target.BootstrapFiles = files
+	}
+	if file.ReplyTagsEnabled != nil {
+		target.ReplyTagsEnabled = *file.ReplyTagsEnabled
 	}
 }
 
@@ -170,6 +203,9 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 	if file.CalendarReminder != nil {
 		mergeCalendarReminderConfig(&target.CalendarReminder, file.CalendarReminder)
 	}
+	if file.Heartbeat != nil {
+		mergeHeartbeatConfig(&target.Heartbeat, file.Heartbeat)
+	}
 	if len(file.Triggers) > 0 {
 		triggers := make([]SchedulerTriggerConfig, 0, len(file.Triggers))
 		for _, trigger := range file.Triggers {
@@ -188,6 +224,60 @@ func mergeSchedulerConfig(target *SchedulerConfig, file *SchedulerFileConfig) {
 			triggers = append(triggers, cfg)
 		}
 		target.Triggers = triggers
+	}
+}
+
+func mergeHeartbeatConfig(target *HeartbeatConfig, file *HeartbeatFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if strings.TrimSpace(file.Schedule) != "" {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if strings.TrimSpace(file.Task) != "" {
+		target.Task = strings.TrimSpace(file.Task)
+	}
+	if strings.TrimSpace(file.Channel) != "" {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if strings.TrimSpace(file.UserID) != "" {
+		target.UserID = strings.TrimSpace(file.UserID)
+	}
+	if strings.TrimSpace(file.ChatID) != "" {
+		target.ChatID = strings.TrimSpace(file.ChatID)
+	}
+	if len(file.QuietHours) == 2 {
+		target.QuietHours = [2]int{file.QuietHours[0], file.QuietHours[1]}
+	}
+	if file.WindowLookbackHr != nil {
+		target.WindowLookbackHr = *file.WindowLookbackHr
+	}
+}
+
+func mergeTimerConfig(target *TimerConfig, file *TimerFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if strings.TrimSpace(file.StorePath) != "" {
+		target.StorePath = strings.TrimSpace(file.StorePath)
+	}
+	if file.MaxTimers != nil {
+		target.MaxTimers = *file.MaxTimers
+	}
+	if file.TaskTimeoutSeconds != nil {
+		target.TaskTimeoutSeconds = *file.TaskTimeoutSeconds
+	}
+	if file.HeartbeatEnabled != nil {
+		target.HeartbeatEnabled = *file.HeartbeatEnabled
+	}
+	if file.HeartbeatMinutes != nil {
+		target.HeartbeatMinutes = *file.HeartbeatMinutes
 	}
 }
 
@@ -264,11 +354,29 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	if file.OKR != nil {
 		file.OKR.GoalsRoot = expandEnvValue(lookup, file.OKR.GoalsRoot)
 	}
+	if file.Prompt != nil {
+		file.Prompt.Mode = expandEnvValue(lookup, file.Prompt.Mode)
+		file.Prompt.Timezone = expandEnvValue(lookup, file.Prompt.Timezone)
+		if len(file.Prompt.BootstrapFiles) > 0 {
+			expanded := make([]string, 0, len(file.Prompt.BootstrapFiles))
+			for _, path := range file.Prompt.BootstrapFiles {
+				expanded = append(expanded, expandEnvValue(lookup, path))
+			}
+			file.Prompt.BootstrapFiles = expanded
+		}
+	}
 	if file.Scheduler != nil {
 		for i := range file.Scheduler.Triggers {
 			file.Scheduler.Triggers[i].Task = expandEnvValue(lookup, file.Scheduler.Triggers[i].Task)
 			file.Scheduler.Triggers[i].UserID = expandEnvValue(lookup, file.Scheduler.Triggers[i].UserID)
 			file.Scheduler.Triggers[i].ChatID = expandEnvValue(lookup, file.Scheduler.Triggers[i].ChatID)
+		}
+		if file.Scheduler.Heartbeat != nil {
+			file.Scheduler.Heartbeat.Schedule = expandEnvValue(lookup, file.Scheduler.Heartbeat.Schedule)
+			file.Scheduler.Heartbeat.Task = expandEnvValue(lookup, file.Scheduler.Heartbeat.Task)
+			file.Scheduler.Heartbeat.Channel = expandEnvValue(lookup, file.Scheduler.Heartbeat.Channel)
+			file.Scheduler.Heartbeat.UserID = expandEnvValue(lookup, file.Scheduler.Heartbeat.UserID)
+			file.Scheduler.Heartbeat.ChatID = expandEnvValue(lookup, file.Scheduler.Heartbeat.ChatID)
 		}
 		if file.Scheduler.CalendarReminder != nil {
 			file.Scheduler.CalendarReminder.Schedule = expandEnvValue(lookup, file.Scheduler.CalendarReminder.Schedule)
@@ -276,5 +384,8 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 			file.Scheduler.CalendarReminder.UserID = expandEnvValue(lookup, file.Scheduler.CalendarReminder.UserID)
 			file.Scheduler.CalendarReminder.ChatID = expandEnvValue(lookup, file.Scheduler.CalendarReminder.ChatID)
 		}
+	}
+	if file.Timer != nil {
+		file.Timer.StorePath = expandEnvValue(lookup, file.Timer.StorePath)
 	}
 }

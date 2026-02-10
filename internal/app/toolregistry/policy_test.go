@@ -66,6 +66,34 @@ func TestPolicyAwareRegistry_ChannelMatch(t *testing.T) {
 	}
 }
 
+func TestPolicyAwareRegistry_WarnAllowDoesNotBlock(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	disabled := false
+	cfg := toolspolicy.DefaultToolPolicyConfig()
+	cfg.EnforcementMode = "warn_allow"
+	cfg.Rules = []toolspolicy.PolicyRule{
+		{
+			Name:    "warn-only-deny-read-file",
+			Match:   toolspolicy.PolicySelector{Tools: []string{"read_file"}},
+			Enabled: &disabled,
+		},
+	}
+	policy := toolspolicy.NewToolPolicy(cfg)
+	wrapped := registry.WithPolicy(policy, "cli")
+
+	if _, err := wrapped.Get("read_file"); err != nil {
+		t.Fatalf("expected read_file to be allowed in warn_allow mode: %v", err)
+	}
+	defs := wrapped.List()
+	if !slices.ContainsFunc(defs, func(def ports.ToolDefinition) bool { return def.Name == "read_file" }) {
+		t.Fatal("expected read_file to remain listed in warn_allow mode")
+	}
+}
+
 // policyStubTool is a minimal tool stub for policy tests with configurable metadata.
 type policyStubTool struct {
 	def  ports.ToolDefinition

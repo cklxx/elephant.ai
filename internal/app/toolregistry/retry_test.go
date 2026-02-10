@@ -234,6 +234,35 @@ func TestRetryExecutorAppliesTimeout(t *testing.T) {
 	}
 }
 
+func TestRetryExecutorWarnAllowAnnotatesResult(t *testing.T) {
+	tool := &retryStubTool{}
+	disabled := false
+	policyCfg := toolspolicy.DefaultToolPolicyConfig()
+	policyCfg.EnforcementMode = "warn_allow"
+	policyCfg.Rules = []toolspolicy.PolicyRule{
+		{
+			Name:    "warn-only-deny",
+			Match:   toolspolicy.PolicySelector{Tools: []string{"retry_tool"}},
+			Enabled: &disabled,
+		},
+	}
+	executor := newRetryExecutor(tool, toolspolicy.NewToolPolicy(policyCfg), nil)
+
+	result, err := executor.Execute(context.Background(), ports.ToolCall{ID: "call-warn", Name: "retry_tool"})
+	if err != nil {
+		t.Fatalf("Execute returned error: %v", err)
+	}
+	if result == nil || result.Error != nil {
+		t.Fatalf("expected successful result, got %+v", result)
+	}
+	if result.Metadata == nil {
+		t.Fatalf("expected policy metadata to be set")
+	}
+	if got := result.Metadata["policy_enforcement"]; got != "warn_allow" {
+		t.Fatalf("expected policy_enforcement=warn_allow, got %v", got)
+	}
+}
+
 // safetyLevelTool is a stub with explicit SafetyLevel for policy tests.
 type safetyLevelTool struct {
 	meta ports.ToolMetadata

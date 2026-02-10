@@ -64,6 +64,12 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 
 	meta := deriveHistoryAwareMeta(messages, persona.ID)
 	memorySnapshot := m.loadMemorySnapshot(ctx, session)
+	promptMode := strings.TrimSpace(cfg.PromptMode)
+	includeBootstrap := shouldInjectBootstrap(session, promptMode)
+	bootstrapRecords := []bootstrapRecord(nil)
+	if includeBootstrap {
+		bootstrapRecords = loadBootstrapRecords(deriveRepoRoot(m.configRoot), cfg.BootstrapFiles, cfg.BootstrapMaxChars)
+	}
 
 	window := agent.ContextWindow{
 		SessionID: session.ID,
@@ -97,9 +103,15 @@ func (m *manager) BuildWindow(ctx context.Context, session *storage.Session, cfg
 		TaskInput:       cfg.TaskInput,
 		Messages:        window.Messages,
 		SessionID:       session.ID,
+		PromptMode:      cfg.PromptMode,
+		PromptTimezone:  cfg.PromptTimezone,
+		ReplyTagsEnabled: cfg.ReplyTagsEnabled,
+		BootstrapRecords: bootstrapRecords,
+		ToolMode:         cfg.ToolMode,
 		SkillsConfig:    cfg.Skills,
 		OKRContext:      cfg.OKRContext,
 	})
+	markBootstrapInjected(session, includeBootstrap)
 	return window, nil
 }
 
@@ -160,6 +172,31 @@ func buildToolHints(mode string, preset string) []string {
 		preset = "full"
 	}
 	return []string{fmt.Sprintf("mode=%s", mode), fmt.Sprintf("preset=%s", preset)}
+}
+
+func shouldInjectBootstrap(session *storage.Session, mode string) bool {
+	if normalizePromptMode(mode) != promptModeFull {
+		return false
+	}
+	if session == nil {
+		return false
+	}
+	if session.Metadata != nil {
+		if strings.EqualFold(strings.TrimSpace(session.Metadata["prompt_bootstrap_injected"]), "true") {
+			return false
+		}
+	}
+	return len(session.Messages) == 0
+}
+
+func markBootstrapInjected(session *storage.Session, injected bool) {
+	if session == nil || !injected {
+		return
+	}
+	if session.Metadata == nil {
+		session.Metadata = make(map[string]string)
+	}
+	session.Metadata["prompt_bootstrap_injected"] = "true"
 }
 
 func convertSnapshotToDynamic(snapshot sessionstate.Snapshot) agent.DynamicContext {

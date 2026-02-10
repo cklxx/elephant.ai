@@ -48,6 +48,11 @@ type ContextWindowConfig struct {
 	ToolPreset         string
 	EnvironmentSummary string
 	TaskInput          string
+	PromptMode         string
+	PromptTimezone     string
+	BootstrapFiles     []string
+	BootstrapMaxChars  int
+	ReplyTagsEnabled   bool
 	Skills             SkillsConfig
 	OKRContext         string // Pre-rendered OKR goals section for system prompt injection
 }
