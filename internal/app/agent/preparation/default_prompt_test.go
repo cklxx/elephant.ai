@@ -10,9 +10,15 @@ func TestDefaultSystemPromptIncludesRoutingBoundaries(t *testing.T) {
 
 	for _, snippet := range []string{
 		"do not use clarify for explicit operational asks",
+		"exhaust safe deterministic attempts before asking questions",
+		"inspect memory and thread context first",
+		"ask one minimal blocking question only then",
+		"search/install suitable skills or tools from trusted sources",
 		"explicit approval/consent/manual gates",
 		"browser_info for read-only browser state",
 		"lark_chat_history for prior thread context",
+		"generated file is part of the requested deliverable in Lark, proactively upload it",
+		"/tmp as the default location for temporary/generated files",
 		"artifacts_list for inventory and artifacts_write for creating/updating durable outputs",
 	} {
 		if !strings.Contains(DefaultSystemPrompt, snippet) {
@@ -20,4 +26,3 @@ func TestDefaultSystemPromptIncludesRoutingBoundaries(t *testing.T) {
 		}
 	}
 }
-

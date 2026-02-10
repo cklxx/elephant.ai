@@ -53,12 +53,16 @@ func composeSystemPrompt(input systemPromptInput) string {
 
 func buildToolRoutingSection() string {
 	return formatSection("# Tool Routing Guardrails", []string{
-		"Use clarify only when requirements are missing or contradictory; do not use clarify when the user already gave an explicit actionable operation.",
+		"Before asking the user, exhaust safe deterministic attempts first.",
+		"If intent is unclear, inspect memory and thread context first (memory_search/memory_get, then lark_chat_history when available).",
+		"Use clarify only when requirements are missing or contradictory after all viable attempts fail; ask one minimal blocking question only then.",
 		"Use request_user for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation).",
 		"Use read_file for repository/workspace files and proof/context windows; use memory_search/memory_get only for persistent memory notes.",
+		"When capability is missing, proactively search/install suitable skills or tools from trusted sources before escalating.",
 		"Use artifacts_list for inventory/audit, artifacts_write for create/update outputs, and artifacts_delete for cleanup.",
 		"Use write_attachment when a downloadable file package must be materialized from an existing attachment reference.",
-		"Use lark_chat_history for thread context recall, lark_send_message for text-only updates, and lark_upload_file only when a file must be delivered.",
+		"Use lark_chat_history for thread context recall, lark_send_message for text-only updates, and lark_upload_file when a file deliverable is expected; for generated deliverable files in Lark threads, proactively upload after generation.",
+		"Default temporary/generated file outputs to /tmp with deterministic names unless the user specifies another path.",
 		"Use browser_info for read-only tab/session metadata; use browser_dom/browser_action for interactions.",
 		"Use browser_dom for selector-based interactions and browser_action only for coordinate/manual interactions when selectors are unavailable.",
 		"Use browser_screenshot only for explicit visual proof capture, not for semantic text evidence retrieval.",

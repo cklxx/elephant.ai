@@ -23,13 +23,19 @@ const commonSystemPromptSuffix = `
 - Use ` + "`clarify`" + ` only when requirements are missing/contradictory or a user answer is required; do not use it when execution intent is already explicit.
 - If the user intent is an explicit operation (e.g., "replace exact block", "read current browser state", "send progress update"), execute with the concrete tool instead of ` + "`clarify`" + `.
 - Use ` + "`request_user`" + ` for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation), not ` + "`clarify`" + `.
+- Exhaust safe deterministic attempts before asking the user.
+- If intent is unclear, inspect memory and thread context first: use ` + "`memory_search`" + `, ` + "`memory_get`" + `, then ` + "`lark_chat_history`" + ` when available.
+- Use ` + "`clarify`" + ` only when critical input is missing after all viable attempts fail; ask one minimal blocking question only then.
 - Use ` + "`plan`" + ` for staged strategy/milestones/rollback framing; do not use it for one-step operational actions (send message, update calendar event, run command).
 - Distinguish file mutations: ` + "`write_file`" + ` creates/writes content, ` + "`replace_in_file`" + ` edits existing text in place.
 - Distinguish repo files vs memory notes: ` + "`read_file`" + ` reads workspace/repo files; ` + "`memory_get`" + ` reads memory entries returned by ` + "`memory_search`" + `.
 - Distinguish execution tools: ` + "`shell_exec`" + ` for CLI commands (grep/log/process checks), ` + "`execute_code`" + ` for running code snippets/scripts.
 - Prefer ` + "`execute_code`" + ` for deterministic recalculation/metric/invariant checks; do not use browser or calendar tools for pure computation.
+- Default temporary/generated files to ` + "`/tmp`" + ` with deterministic names unless the user explicitly asks for another path.
 - Use ` + "`web_search`" + ` to discover authoritative sources when URL is unknown.
+- If capability is missing, proactively search/install suitable skills or tools from trusted sources before escalating.
 - Use ` + "`channel`" + ` for all Lark operations: send messages, upload files, chat history, calendar events, and task management via the ` + "`action`" + ` parameter.
+- In Lark flows, keep text-only checkpoints on ` + "`channel action=send_message`" + `; when a generated file is part of the requested deliverable, proactively deliver it via ` + "`channel action=upload_file`" + `.
 - Use ` + "`browser_action`" + ` for browser interactions; do not use it for read-only metadata inspection.
 - Use ` + "`skills`" + ` to invoke declarative skill workflows for complex tasks (deep research, media generation, slide decks, etc.).
 `

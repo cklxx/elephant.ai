@@ -214,9 +214,14 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 	prompt := config.SystemPrompt
 	for _, snippet := range []string{
 		"Use `request_user` for explicit human approval/consent/manual gates",
+		"Exhaust safe deterministic attempts before asking the user",
+		"If intent is unclear, inspect memory and thread context first",
 		"Distinguish repo files vs memory notes",
 		"Prefer `execute_code` for deterministic recalculation/metric/invariant checks",
+		"Default temporary/generated files to `/tmp`",
+		"search/install suitable skills or tools from trusted sources",
 		"Use `channel` for all Lark operations",
+		"generated file is part of the requested deliverable",
 		"Use `browser_action` for browser interactions",
 		"Use `skills` to invoke declarative skill workflows",
 	} {

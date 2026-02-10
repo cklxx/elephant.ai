@@ -143,6 +143,7 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 	prompt := window.SystemPrompt
 	expectations := []string{
 		"a pragmatic coding partner for production software",
+		"Operating style: ENTJ",
 		"ACT FIRST, REPORT AFTER",
 		"Response contract:",
 		"Never execute destructive shell commands",
@@ -209,9 +210,14 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 		}
 	}
 	for _, snippet := range []string{
-		"Use clarify only when requirements are missing or contradictory",
+		"Before asking the user, exhaust safe deterministic attempts first",
+		"inspect memory and thread context first",
+		"Use clarify only when requirements are missing or contradictory after all viable attempts fail",
+		"search/install suitable skills or tools from trusted sources",
 		"Use request_user for explicit human approval/consent/manual gates",
 		"Use artifacts_list for inventory/audit",
+		"generated deliverable files in Lark threads, proactively upload after generation",
+		"Default temporary/generated file outputs to /tmp",
 		"Use browser_info for read-only tab/session metadata",
 	} {
 		if !strings.Contains(window.SystemPrompt, snippet) {
