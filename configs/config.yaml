@@ -122,3 +122,7 @@ attachments:
   cloudflare_bucket: "${CLOUDFLARE_BUCKET}"
   cloudflare_public_base_url: "${CLOUDFLARE_PUBLIC_BASE_URL}"
   cloudflare_key_prefix: "${CLOUDFLARE_ATTACHMENT_KEY_PREFIX}"
+server:
+  event_history_async_flush_request_coalesce_window_ms: 8
+  event_history_async_backpressure_high_watermark: 6553
+  event_history_degrade_debug_events_on_backpressure: true

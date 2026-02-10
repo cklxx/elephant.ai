@@ -125,6 +125,9 @@ apps:
 - `event_history_async_flush_interval_ms`：异步事件历史定时 flush 间隔（毫秒，默认 250）。
 - `event_history_async_append_timeout_ms`：异步事件历史队列满时 append 等待超时（毫秒，默认 50）。
 - `event_history_async_queue_capacity`：异步事件历史队列容量（默认 8192）。
+- `event_history_async_flush_request_coalesce_window_ms`：flush 请求合并窗口（毫秒，默认 8）；窗口内多个 flush 请求会合并为一次 drain/flush。
+- `event_history_async_backpressure_high_watermark`：异步事件历史背压阈值（按队列深度，默认 `6553`，约队列容量 80%）。
+- `event_history_degrade_debug_events_on_backpressure`：背压下是否允许降级（跳过持久化）调试/诊断类事件（默认 true；业务关键事件不受影响）。
 
 ### auth
 
