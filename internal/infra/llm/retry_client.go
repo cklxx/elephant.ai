@@ -18,6 +18,7 @@ type retryClient struct {
 	retryConfig    alexerrors.RetryConfig
 	circuitBreaker *alexerrors.CircuitBreaker
 	logger         logging.Logger
+	llmLogger      logging.Logger // writes to alex-llm.log
 	healthRegistry *HealthRegistry
 	provider       string
 	model          string
@@ -32,6 +33,7 @@ func NewRetryClient(client portsllm.LLMClient, retryConfig alexerrors.RetryConfi
 		retryConfig:    retryConfig,
 		circuitBreaker: circuitBreaker,
 		logger:         logging.NewComponentLogger("llm-retry"),
+		llmLogger:      logging.NewLLMLogger("llm-retry"),
 	}
 }
 
@@ -42,6 +44,7 @@ func newRetryClientWithHealth(client portsllm.LLMClient, retryConfig alexerrors.
 		retryConfig:    retryConfig,
 		circuitBreaker: circuitBreaker,
 		logger:         logging.NewComponentLogger("llm-retry"),
+		llmLogger:      logging.NewLLMLogger("llm-retry"),
 		healthRegistry: hr,
 		provider:       provider,
 		model:          model,
@@ -70,6 +73,7 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	if err != nil {
 		c.recordHealthError(err)
 		c.logger.Warn("LLM request failed after retries (took %v): %v", duration, err)
+		c.logLLMCallSummary("complete", duration, nil, err)
 
 		// Check if it's a degraded error (circuit breaker open)
 		if alexerrors.IsDegraded(err) {
@@ -83,6 +87,7 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	}
 
 	c.recordHealthLatency(duration)
+	c.logLLMCallSummary("complete", duration, resp, nil)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM request succeeded after %v", duration)
@@ -171,6 +176,7 @@ func (c *retryClient) StreamComplete(
 
 	if err != nil {
 		c.recordHealthError(err)
+		c.logLLMCallSummary("stream", duration, nil, err)
 		if alexerrors.IsDegraded(err) {
 			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
 		}
@@ -179,6 +185,7 @@ func (c *retryClient) StreamComplete(
 	}
 
 	c.recordHealthLatency(duration)
+	c.logLLMCallSummary("stream", duration, resp, nil)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM streaming request succeeded after %v", duration)
@@ -331,6 +338,25 @@ func (c *retryClient) formatRetryError(err error, duration time.Duration) string
 func (c *retryClient) formatStreamingError(err error, duration time.Duration) string {
 	llmMessage := alexerrors.FormatForLLM(err)
 	return fmt.Sprintf("%s Streaming request failed after %v.", llmMessage, duration.Round(time.Second))
+}
+
+// logLLMCallSummary writes a structured summary to the LLM log (alex-llm.log) for both
+// successful and failed calls. This ensures failures are always visible in the LLM log
+// alongside the debug-level request/response details logged by the base client.
+func (c *retryClient) logLLMCallSummary(mode string, latency time.Duration, resp *ports.CompletionResponse, err error) {
+	model := c.underlying.Model()
+	if err != nil {
+		c.llmLogger.Warn("=== LLM %s FAILED === model=%s latency=%v error=%v",
+			strings.ToUpper(mode), model, latency.Round(time.Millisecond), err)
+		return
+	}
+	if resp == nil {
+		return
+	}
+	c.llmLogger.Info("=== LLM %s OK === model=%s latency=%v tokens=%d+%d=%d stop=%s",
+		strings.ToUpper(mode), model, latency.Round(time.Millisecond),
+		resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens,
+		resp.StopReason)
 }
 
 // recordHealthLatency records a successful call latency if a HealthRegistry is attached.

@@ -61,6 +61,11 @@ func NewLatencyLogger(component string) Logger {
 	return utils.NewLatencyLogger(component)
 }
 
+// NewLLMLogger returns a logger that writes to the dedicated LLM log file (alex-llm.log).
+func NewLLMLogger(component string) Logger {
+	return utils.NewCategorizedLogger(utils.LogCategoryLLM, component)
+}
+
 // FromUtils adapts the legacy utils logger to the Logger interface.
 func FromUtils(logger *utils.Logger) Logger {
 	if logger == nil {
