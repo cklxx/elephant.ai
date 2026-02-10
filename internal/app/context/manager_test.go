@@ -545,6 +545,13 @@ func TestAutoCompactNoopBelowThreshold(t *testing.T) {
 	}
 }
 
+func TestDefaultCompressionThreshold(t *testing.T) {
+	mgr := &manager{}
+	if got := mgr.compressionThreshold(); got != 0.7 {
+		t.Fatalf("expected default compression threshold 0.7, got %.2f", got)
+	}
+}
+
 func TestCompressPreservesAllSystemPrompts(t *testing.T) {
 	mgr := &manager{}
 	messages := []ports.Message{
