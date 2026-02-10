@@ -12,6 +12,24 @@ import (
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 )
 
+// actionSafetyLevel returns the appropriate safety level for each action.
+// Read-only actions return L1 (no approval), write actions return their
+// original safety levels from the pre-consolidated individual tools.
+func actionSafetyLevel(action string) (dangerous bool, level int) {
+	switch action {
+	case "history", "query_events", "list_tasks":
+		return false, ports.SafetyLevelReadOnly
+	case "send_message", "upload_file":
+		return true, ports.SafetyLevelReversible
+	case "create_event", "update_event", "create_task", "update_task":
+		return true, ports.SafetyLevelHighImpact
+	case "delete_event", "delete_task":
+		return true, ports.SafetyLevelIrreversible
+	default:
+		return true, ports.SafetyLevelHighImpact
+	}
+}
+
 type larkChannel struct {
 	shared.BaseTool
 	chat     *larkSendMessage
@@ -53,7 +71,7 @@ func NewLarkChannel() tools.ToolExecutor {
 						// send_message params
 						"content": {
 							Type:        "string",
-							Description: "Message text for send_message; task summary for create_task/update_task.",
+							Description: "Message text for send_message.",
 						},
 						// upload_file params
 						"path": {
@@ -169,8 +187,8 @@ func NewLarkChannel() tools.ToolExecutor {
 				Version:     "1.0.0",
 				Category:    "lark",
 				Tags:        []string{"lark", "channel", "chat", "calendar", "tasks"},
-				Dangerous:   true,
-				SafetyLevel: ports.SafetyLevelHighImpact,
+				Dangerous:   false, // Per-action approval handled inside Execute
+				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),
 		chat:      &larkSendMessage{},
@@ -207,24 +225,34 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	}
 	action = strings.ToLower(strings.TrimSpace(action))
 
-	// Delegate to the appropriate handler. Each handler performs its own
-	// parameter validation and context checks, so we pass the call through
-	// with the original arguments (minus "action" which is consumed here).
+	// Per-action approval: check safety level and request approval for
+	// dangerous actions. Read-only actions (history, query_events, list_tasks)
+	// skip approval entirely.
+	dangerous, safetyLevel := actionSafetyLevel(action)
+	if dangerous {
+		if result, err := c.requireActionApproval(ctx, call, action, safetyLevel); result != nil || err != nil {
+			return result, err
+		}
+	}
+
+	// Strip "action" key and delegate to the appropriate handler.
+	stripped := c.stripAction(call)
+
 	switch action {
 	case "send_message":
 		return c.chat.Execute(ctx, c.rewriteCall(call, "content"))
 	case "upload_file":
-		return c.upload.Execute(ctx, call)
+		return c.upload.Execute(ctx, stripped)
 	case "history":
-		return c.history.Execute(ctx, call)
+		return c.history.Execute(ctx, stripped)
 	case "create_event":
-		return c.calCreate.Execute(ctx, call)
+		return c.calCreate.Execute(ctx, stripped)
 	case "query_events":
-		return c.calQuery.Execute(ctx, call)
+		return c.calQuery.Execute(ctx, stripped)
 	case "update_event":
-		return c.calUpdate.Execute(ctx, call)
+		return c.calUpdate.Execute(ctx, stripped)
 	case "delete_event":
-		return c.calDelete.Execute(ctx, call)
+		return c.calDelete.Execute(ctx, stripped)
 	case "list_tasks":
 		return c.task.Execute(ctx, c.taskCall(call, "list"))
 	case "create_task":
@@ -239,9 +267,61 @@ func (c *larkChannel) Execute(ctx context.Context, call ports.ToolCall) (*ports.
 	}
 }
 
+// requireActionApproval checks with the approver for dangerous actions.
+// Returns (nil, nil) if approved or no approver is set.
+func (c *larkChannel) requireActionApproval(ctx context.Context, call ports.ToolCall, action string, safetyLevel int) (*ports.ToolResult, error) {
+	approver := shared.GetApproverFromContext(ctx)
+	if approver == nil || shared.GetAutoApproveFromContext(ctx) {
+		return nil, nil
+	}
+
+	req := &tools.ApprovalRequest{
+		Operation:   fmt.Sprintf("channel.%s", action),
+		Summary:     fmt.Sprintf("Approval required for channel.%s (L%d)", action, safetyLevel),
+		AutoApprove: false,
+		ToolCallID:  call.ID,
+		ToolName:    call.Name,
+		Arguments:   call.Arguments,
+		SafetyLevel: safetyLevel,
+	}
+	if safetyLevel >= ports.SafetyLevelHighImpact {
+		req.RollbackSteps = fmt.Sprintf("Revert the channel.%s operation via Lark admin or API.", action)
+	}
+	if safetyLevel >= ports.SafetyLevelIrreversible {
+		req.AlternativePlan = "Prefer archive/disable first; verify impact in read-only mode before irreversible deletion."
+	}
+
+	resp, err := approver.RequestApproval(ctx, req)
+	if err != nil {
+		return &ports.ToolResult{CallID: call.ID, Error: err}, nil
+	}
+	if resp == nil || !resp.Approved {
+		return &ports.ToolResult{CallID: call.ID, Error: fmt.Errorf("operation rejected")}, nil
+	}
+	return nil, nil
+}
+
+// stripAction creates a copy of the call with the "action" key removed from arguments.
+func (c *larkChannel) stripAction(call ports.ToolCall) ports.ToolCall {
+	args := make(map[string]any, len(call.Arguments))
+	for k, v := range call.Arguments {
+		if k == "action" {
+			continue
+		}
+		args[k] = v
+	}
+	return ports.ToolCall{
+		ID:        call.ID,
+		Name:      call.Name,
+		Arguments: args,
+		SessionID: call.SessionID,
+		TaskID:    call.TaskID,
+	}
+}
+
 // rewriteCall creates a new ToolCall that only passes through the named
-// parameters, filtering out "action" and unknown keys that the delegate
-// tool would reject. For send_message, the delegate validates "content" only.
+// parameters, filtering out "action" and all other keys that the delegate
+// tool would reject. Used for send_message where the delegate validates strictly.
 func (c *larkChannel) rewriteCall(call ports.ToolCall, allowedKeys ...string) ports.ToolCall {
 	allowed := make(map[string]bool, len(allowedKeys))
 	for _, k := range allowedKeys {

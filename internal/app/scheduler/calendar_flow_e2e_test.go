@@ -410,7 +410,7 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 		t.Fatalf("expected 1 approval request, got %d", approver.count())
 	}
 	lastReq := approver.last()
-	if lastReq == nil || lastReq.Operation != "channel" || lastReq.ToolName != "channel" {
+	if lastReq == nil || lastReq.Operation != "channel.create_event" || lastReq.ToolName != "channel" {
 		t.Fatalf("unexpected approval request: %+v", lastReq)
 	}
 
