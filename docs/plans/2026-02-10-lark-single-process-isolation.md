@@ -1,7 +1,7 @@
 # Plan: Lark 单进程响应隔离与配置双文件强约束
 
 > Created: 2026-02-10
-> Status: in-progress
+> Status: completed
 > Trigger: cklxx 反馈 Lark 仍存在重复回复，怀疑双进程/配置混用，要求系统性修复并保证 main/test YAML 隔离；随后补充要求统一全局进程管理、PID 放公共目录、并打印每个 Lark 进程实际配置文件。
 
 ## Goal & Success Criteria
@@ -62,3 +62,4 @@
 - 2026-02-10: 已完成 identity lock 引入与 main/test/supervisor 接入，并新增脚本回归测试。
 - 2026-02-10: PID 路径从 repo 内 `.pids` 统一迁移到 `<config_dir>/pids`；Lark main/test/supervisor 状态输出补充 config 与 pid_dir 打印。
 - 2026-02-10: `tests/scripts/lark-identity-lock.sh`、`tests/scripts/lark-supervisor-smoke.sh`、`go test ./cmd/alex -count=1`、`go test ./internal/devops/...`、`go test ./internal/shared/config -count=1`、`./dev.sh lint` 通过；`./dev.sh test` 存在仓库内既有失败（与本次改动无直接关联）。
+- 2026-02-10: 已 fast-forward 合并回 `main` 并清理临时 worktree。
