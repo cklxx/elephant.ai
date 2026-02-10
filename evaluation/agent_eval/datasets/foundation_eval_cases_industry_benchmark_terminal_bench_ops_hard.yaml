@@ -47,22 +47,26 @@ scenarios:
     intent: "Verify output lineage and creation metadata card before approving release."
     expected_tools: ["artifact_manifest"]
 
-  - id: "terminal-bench-review-blocked-until-file-posted"
+  - id: "terminal-bench-retire-stale-maintenance-cadence"
     category: "terminal_bench_ops_hard"
-    intent: "Review cannot proceed unless generated package file is posted into thread."
-    expected_tools: ["lark_upload_file"]
+    intent: "A legacy recurring maintenance job now violates policy and must be retired from scheduler automation."
+    expected_tools: ["scheduler_delete_job"]
 
-  - id: "terminal-bench-text-only-ops-checkpoint"
+  - id: "terminal-bench-materialize-approved-existing-pack"
     category: "terminal_bench_ops_hard"
-    intent: "Send only a brief ops checkpoint in thread, explicitly forbidding file transfer this step."
-    expected_tools: ["lark_send_message"]
+    intent: "Approved package already exists as attachment; materialize it to local path for offline reviewer handoff."
+    expected_tools: ["write_attachment"]
+    deliverable:
+      output_description: "materialized reviewer handoff package"
+      attachment_required: true
+      required_file_types: ["markdown", "json"]
 
-  - id: "terminal-bench-human-gate-before-cutover"
+  - id: "terminal-bench-fixed-url-runbook-ingest"
     category: "terminal_bench_ops_hard"
-    intent: "Production cutover stays frozen until explicit human confirmation appears in chat."
-    expected_tools: ["request_user"]
+    intent: "Runbook URL is fixed by incident policy; ingest exactly that source without discovery."
+    expected_tools: ["web_fetch"]
 
-  - id: "terminal-bench-preflight-plan-with-rollback"
+  - id: "terminal-bench-discover-source-before-ingest"
     category: "terminal_bench_ops_hard"
-    intent: "Issue preflight phased execution plan with rollback gates prior to mutation."
-    expected_tools: ["plan"]
+    intent: "No trusted source URL is chosen yet; discover authoritative incident source before fetching a page."
+    expected_tools: ["web_search"]

@@ -2,26 +2,6 @@ version: "1"
 name: "foundation-offline-layered-suite"
 description: "Hard-only offline foundation evaluation with layered difficulty: Core-Hard (SWE/coordination/conflict/delivery stress), Frontier-Hard (Terminal-Bench/MLE-Bench/SWE-PolyBench/GitTaskBench/OSWorld-G), and Research-Frontier-Hard (FrontierMath/HLE/RE-Bench/EXP-Bench/ARC-AGI-2/PaperBench/MLRC-Bench/ALE-Bench). Saturated easy/basic collections are retired from the main suite."
 collections:
-  - id: "swebench-verified-readiness"
-    name: "SWE-bench Verified Readiness"
-    dimension: "swebench_verified_readiness"
-    description: "Routing readiness for SWE-bench Verified style software-fix tasks"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_swebench_verified_readiness.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
-  - id: "multi-step-orchestration"
-    name: "Multi-Step Orchestration"
-    dimension: "multi_step_orchestration"
-    description: "Systematic routing coverage for multi-step agent capability chains"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_multi_step_orchestration.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 3
-
   - id: "architecture-coding-hard"
     name: "Architecture Coding Hard"
     dimension: "architecture_coding_hard"
@@ -42,21 +22,31 @@ collections:
     toolset: "default"
     top_k: 3
 
-  - id: "intent-decomposition-constraint-matrix"
-    name: "Intent Decomposition Constraint Matrix"
-    dimension: "intent_decomposition_constraint_matrix"
-    description: "Systematic matrix for intent decomposition under consent, memory, channel-action, retrieval, execution, scheduling, and deliverable constraints"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_intent_decomposition_constraint_matrix.yaml"
+  - id: "industry-benchmark-swebench-verified-hard-plus"
+    name: "Industry Benchmark SWE-bench Verified Hard Plus"
+    dimension: "industry_benchmark_swebench_verified_hard_plus"
+    description: "Hard-plus transfer set mapped from difficult SWE-bench Verified multi-file and regression-guarded patch workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_swebench_verified_hard_plus.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
-    top_k: 3
+    top_k: 5
 
-  - id: "challenge-hard-v2"
-    name: "Challenge Hard V2"
-    dimension: "challenge_hard_v2"
-    description: "High-ambiguity and conflict-heavy challenge set aligned with core goals"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_challenge_hard_v2.yaml"
+  - id: "industry-benchmark-cybench-security-ops-hard"
+    name: "Industry Benchmark CyBench Security Ops Hard"
+    dimension: "industry_benchmark_cybench_security_ops_hard"
+    description: "Hard transfer set mapped from CyBench-style security operations, triage, remediation, and evidence packaging flows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_cybench_security_ops_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-tau2-long-horizon-enterprise-hard"
+    name: "Industry Benchmark tau2 Long-Horizon Enterprise Hard"
+    dimension: "industry_benchmark_tau2_long_horizon_enterprise_hard"
+    description: "Hard transfer set mapped from tau2/AssistantBench long-horizon enterprise state, approval, and handoff constraints"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_tau2_long_horizon_enterprise_hard.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"
@@ -102,16 +92,6 @@ collections:
     toolset: "default"
     top_k: 5
 
-  - id: "industry-benchmark-coding-workflow"
-    name: "Industry Benchmark Coding Workflow"
-    dimension: "industry_benchmark_coding_workflow"
-    description: "Transfer set mapped from SWE-bench Verified, τ-bench, and AgentBench coding/workflow failure modes"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_coding_workflow.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 5
-
   - id: "industry-benchmark-web-and-computer-use"
     name: "Industry Benchmark Web and Computer Use"
     dimension: "industry_benchmark_web_and_computer_use"
@@ -147,16 +127,6 @@ collections:
     dimension: "industry_benchmark_real_world_coding_livecodebench_swelancer"
     description: "Transfer set mapped from LiveCodeBench and SWE-Lancer real-world coding failure modes"
     cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_real_world_coding_livecodebench_swelancer.yaml"
-    mode: "web"
-    preset: "full"
-    toolset: "default"
-    top_k: 5
-
-  - id: "industry-benchmark-multiturn-enterprise-assistantbench-tau2"
-    name: "Industry Benchmark Multiturn Enterprise AssistantBench tau2"
-    dimension: "industry_benchmark_multiturn_enterprise_assistantbench_tau2"
-    description: "Transfer set mapped from AssistantBench and tau2-style stateful enterprise workflows"
-    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_multiturn_enterprise_assistantbench_tau2.yaml"
     mode: "web"
     preset: "full"
     toolset: "default"

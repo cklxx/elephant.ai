@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-swebench-verified-hard-plus"
+description: "Hard-plus transfer set mapped from difficult SWE-bench Verified style workflows: multi-file localization, bounded patching, and regression-guarded delivery"
+scenarios:
+  - id: "swebench-hardplus-repo-topology-prune-first"
+    category: "swebench_verified_hard_plus"
+    intent: "Before deep inspection, prune candidate modules by repository topology to avoid blind file-by-file scanning."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "swebench-hardplus-body-evidence-not-filename"
+    category: "swebench_verified_hard_plus"
+    intent: "Locate the defect using semantic body clues inside files, not filename/path hints."
+    expected_tools: ["search_file"]
+
+  - id: "swebench-hardplus-open-interface-contract-window"
+    category: "swebench_verified_hard_plus"
+    intent: "Open the exact interface compatibility contract window around the suspected regression boundary."
+    expected_tools: ["read_file"]
+
+  - id: "swebench-hardplus-fast-cross-repo-signature-sweep"
+    category: "swebench_verified_hard_plus"
+    intent: "Run the fastest repository-wide signature sweep for impacted symbol paths and nearby breakage traces."
+    expected_tools: ["ripgrep"]
+
+  - id: "swebench-hardplus-surgical-inplace-hotfix"
+    category: "swebench_verified_hard_plus"
+    intent: "Apply one surgical in-place hotfix in an existing file; do not introduce new module structure."
+    expected_tools: ["replace_in_file"]
+
+  - id: "swebench-hardplus-new-regression-test-file"
+    category: "swebench_verified_hard_plus"
+    intent: "Create a focused new regression test/helper file for the uncovered failure shape."
+    expected_tools: ["write_file"]
+
+  - id: "swebench-hardplus-deterministic-recheck"
+    category: "swebench_verified_hard_plus"
+    intent: "Run deterministic computation/check logic to verify the patched behavior envelope before release."
+    expected_tools: ["execute_code"]
+
+  - id: "swebench-hardplus-cli-repro-before-after"
+    category: "swebench_verified_hard_plus"
+    intent: "Run CLI commands to collect before/after reproduction output and test logs around the patch."
+    expected_tools: ["shell_exec"]
+
+  - id: "swebench-hardplus-plan-rollback-gates"
+    category: "swebench_verified_hard_plus"
+    intent: "Provide phased remediation plan with rollback gates and stop conditions before broad mutation."
+    expected_tools: ["plan"]
+
+  - id: "swebench-hardplus-ask-consent-on-risky-cutover"
+    category: "swebench_verified_hard_plus"
+    intent: "Production-impacting cutover cannot proceed without explicit human approval."
+    expected_tools: ["request_user"]
+
+  - id: "swebench-hardplus-artifactize-evidence-pack"
+    category: "swebench_verified_hard_plus"
+    intent: "Persist patch rationale, validation logs, and reproduction traces as durable evidence package."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "swe fix evidence package"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "log"]
+
+  - id: "swebench-hardplus-inventory-existing-output-before-post"
+    category: "swebench_verified_hard_plus"
+    intent: "Enumerate existing generated outputs and select the correct package before posting."
+    expected_tools: ["artifacts_list"]

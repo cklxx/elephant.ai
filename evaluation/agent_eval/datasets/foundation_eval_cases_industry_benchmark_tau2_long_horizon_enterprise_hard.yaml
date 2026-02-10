@@ -1,0 +1,73 @@
+version: "1"
+name: "foundation-industry-benchmark-tau2-long-horizon-enterprise-hard"
+description: "Hard transfer set mapped from tau2 and AssistantBench long-horizon enterprise workflows with state, approval, and delivery constraints"
+scenarios:
+  - id: "tau2-hard-recover-open-commitments"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Before any new action, recover open commitments and unresolved promises from long-term memory."
+    expected_tools: ["memory_search"]
+
+  - id: "tau2-hard-open-verbatim-commitment-slice"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "A recalled commitment must be quoted verbatim; open exact memory lines for boundary validation."
+    expected_tools: ["memory_get"]
+
+  - id: "tau2-hard-thread-history-for-latest-constraint"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Current chat may contain newer scope constraints; retrieve recent thread history before deciding."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "tau2-hard-phased-cross-team-plan-with-holds"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Draft phased cross-team execution plan with hold points, rollback gates, and owner handoffs."
+    expected_tools: ["plan"]
+
+  - id: "tau2-hard-conflict-needs-one-sharp-question"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Two constraints conflict and one missing field blocks decision; ask one precise clarification."
+    expected_tools: ["clarify"]
+
+  - id: "tau2-hard-sensitive-scope-shift-approval-gate"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Changing promised scope impacts external stakeholders; require explicit user approval first."
+    expected_tools: ["request_user"]
+
+  - id: "tau2-hard-repo-owner-space-prune-first"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Constrain candidate owned modules by directory topology before reading implementation details."
+    expected_tools: ["find", "list_dir"]
+
+  - id: "tau2-hard-open-implementation-contract-window"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Open exact implementation contract window around disputed responsibility boundary."
+    expected_tools: ["read_file"]
+
+  - id: "tau2-hard-surgical-commitment-preserving-patch"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Apply a minimal in-place patch that preserves prior commitments and avoids broad refactor."
+    expected_tools: ["replace_in_file"]
+
+  - id: "tau2-hard-send-text-only-status-checkpoint"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Send concise status checkpoint in-thread with no file transfer at this step."
+    expected_tools: ["lark_send_message"]
+
+  - id: "tau2-hard-persist-exec-decision-record"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Persist decision log and trade-off rationale as durable artifact for future accountability."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "execution decision record"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report"]
+
+  - id: "tau2-hard-upload-final-review-pack"
+    category: "tau2_long_horizon_enterprise_hard"
+    intent: "Final review is blocked until the approved evidence package file is uploaded."
+    expected_tools: ["lark_upload_file"]
+    deliverable:
+      output_description: "review package file upload"
+      attachment_required: true
+      required_file_types: ["markdown", "json"]
+
