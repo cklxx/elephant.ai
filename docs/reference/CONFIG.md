@@ -277,9 +277,10 @@ channels:
 
 ## 环境变量（用于路径与插值）
 
-说明：runtime loader **不再把环境变量作为覆盖层**。环境变量只用于：
+说明：runtime loader 支持环境变量（用于覆盖常用 runtime 字段）和 YAML 插值：
 
 - **定位配置文件**：`ALEX_CONFIG_PATH=/path/to/config.yaml`
+- **覆盖常用 runtime 字段**：例如 `LLM_PROVIDER`、`LLM_MODEL`、`ALEX_PROFILE`
 - **在 YAML 中插值**：使用 `${ENV}`（例如 `runtime.api_key: ${LLM_API_KEY}`）
 
 推荐使用 env 承载 secrets，然后在 `config.yaml` 里引用（示例）：
