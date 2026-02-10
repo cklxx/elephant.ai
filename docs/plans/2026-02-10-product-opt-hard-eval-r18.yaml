@@ -1,0 +1,27 @@
+title: "2026-02-10 Product Optimization + Hard Eval Expansion R18"
+status: completed
+goals:
+  - "Improve real product routing quality on hard benchmark-like cases"
+  - "Add harder industry-mapped cases"
+  - "Retire/reduce over-saturated easy pass cases"
+constraints:
+  - "Product improvements over eval-only boosting"
+  - "YAML datasets only"
+  - "Run full lint/tests/eval before delivery"
+steps:
+  - id: baseline
+    status: completed
+    detail: "Baseline run finished: 225/257 pass@1, 257/257 pass@5"
+  - id: dataset_hardening
+    status: completed
+    detail: "Retired saturated collections and added 3 hard industry collections"
+  - id: product_optimization
+    status: completed
+    detail: "Adjusted tool routing semantics for memory/file/search/artifact/shell/browser boundaries"
+  - id: validation
+    status: completed
+    detail: "Rerun full suite with hardened set: 224/269 pass@1, 269/269 pass@5"
+artifacts:
+  - baseline_run: "tmp/foundation-suite-r18-baseline-20260210-090429"
+  - final_run: "tmp/foundation-suite-r18-opt3-20260210-091128"
+  - report: "docs/research/2026-02-10-product-opt-hard-eval-r18-report.md"
