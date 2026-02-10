@@ -1,0 +1,428 @@
+version: 1
+description: Per-skill end-to-end agent cases validating `skills` tool effectiveness.
+cases:
+- id: skills-tool-e2e-a2ui-templates
+  skill_name: a2ui_templates
+  skill_dir: a2ui-templates
+  description: On-demand A2UI templates for flowchart, form, dashboard, info cards,
+    and gallery.
+  has_run_script: true
+  expected_exec_command: python3 skills/a2ui-templates/run.py '{...}'
+  prompt: "You are validating repository skill \"a2ui_templates\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"a2ui_templates\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/a2ui-templates/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-artifact-management
+  skill_name: artifact-management
+  skill_dir: artifact-management
+  description: 工件管理 — 创建/查询/删除持久化文件工件（报告、文档、证据）。
+  has_run_script: true
+  expected_exec_command: python3 skills/artifact-management/run.py '{...}'
+  prompt: "You are validating repository skill \"artifact-management\".\nMandatory\
+    \ steps:\n1) Call the `skills` tool with action=show and name=\"artifact-management\"\
+    .\n2) Do not call any tool except `skills`.\n3) Return JSON only with keys:\n\
+    \   skill, used_skills_tool, has_playbook, has_python_entrypoint, exec_command,\
+    \ summary\n4) Set `skill` exactly to the requested name and `used_skills_tool`\
+    \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
+    \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/artifact-management/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-auto-skill-creation
+  skill_name: auto-skill-creation
+  skill_dir: auto-skill-creation
+  description: 自动创建技能并将重复流程沉淀为技能，支持使用 Codex/Claude 等外部代理执行任务并生成技能文件。
+  has_run_script: true
+  expected_exec_command: python3 skills/auto-skill-creation/run.py '{...}'
+  prompt: "You are validating repository skill \"auto-skill-creation\".\nMandatory\
+    \ steps:\n1) Call the `skills` tool with action=show and name=\"auto-skill-creation\"\
+    .\n2) Do not call any tool except `skills`.\n3) Return JSON only with keys:\n\
+    \   skill, used_skills_tool, has_playbook, has_python_entrypoint, exec_command,\
+    \ summary\n4) Set `skill` exactly to the requested name and `used_skills_tool`\
+    \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
+    \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/auto-skill-creation/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-background-tasks
+  skill_name: background-tasks
+  skill_dir: background-tasks
+  description: 后台任务管理 — 创建/查询/收集后台长时间运行的任务。
+  has_run_script: true
+  expected_exec_command: python3 skills/background-tasks/run.py '{...}'
+  prompt: "You are validating repository skill \"background-tasks\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"background-tasks\".\n2)\
+    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/background-tasks/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-best-practice-search
+  skill_name: best-practice-search
+  skill_dir: best-practice-search
+  description: 搜索并提炼业界/开源最佳实践的 SOP，强调可信来源、适用边界与可执行建议。
+  has_run_script: true
+  expected_exec_command: python3 skills/best-practice-search/run.py '{...}'
+  prompt: "You are validating repository skill \"best-practice-search\".\nMandatory\
+    \ steps:\n1) Call the `skills` tool with action=show and name=\"best-practice-search\"\
+    .\n2) Do not call any tool except `skills`.\n3) Return JSON only with keys:\n\
+    \   skill, used_skills_tool, has_playbook, has_python_entrypoint, exec_command,\
+    \ summary\n4) Set `skill` exactly to the requested name and `used_skills_tool`\
+    \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
+    \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/best-practice-search/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-calendar-management
+  skill_name: calendar-management
+  skill_dir: calendar-management
+  description: 日历事件的创建、查询、修改、删除管理。
+  has_run_script: true
+  expected_exec_command: python3 skills/calendar-management/run.py '{...}'
+  prompt: "You are validating repository skill \"calendar-management\".\nMandatory\
+    \ steps:\n1) Call the `skills` tool with action=show and name=\"calendar-management\"\
+    .\n2) Do not call any tool except `skills`.\n3) Return JSON only with keys:\n\
+    \   skill, used_skills_tool, has_playbook, has_python_entrypoint, exec_command,\
+    \ summary\n4) Set `skill` exactly to the requested name and `used_skills_tool`\
+    \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
+    \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/calendar-management/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-code-review
+  skill_name: code-review
+  skill_dir: code-review
+  description: 编码完成后的多维度代码审查，覆盖 SOLID 架构、安全性、代码质量、边界条件与清理计划，输出结构化审查报告。
+  has_run_script: true
+  expected_exec_command: python3 skills/code-review/run.py '{...}'
+  prompt: "You are validating repository skill \"code-review\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"code-review\".\n2) Do not\
+    \ call any tool except `skills`.\n3) Return JSON only with keys:\n   skill, used_skills_tool,\
+    \ has_playbook, has_python_entrypoint, exec_command, summary\n4) Set `skill` exactly\
+    \ to the requested name and `used_skills_tool` to true.\n5) Set `has_playbook`\
+    \ to true if the skill content was loaded.\n6) Set `has_python_entrypoint` to\
+    \ true and set `exec_command` to \"python3 skills/code-review/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-config-management
+  skill_name: config-management
+  skill_dir: config-management
+  description: 配置管理 — 查询/修改 agent 配置参数（YAML 配置文件）。
+  has_run_script: true
+  expected_exec_command: python3 skills/config-management/run.py '{...}'
+  prompt: "You are validating repository skill \"config-management\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"config-management\".\n2)\
+    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/config-management/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-deep-research
+  skill_name: deep-research
+  skill_dir: deep-research
+  description: 深度调研技能，多源检索 + 证据汇编 + 结构化报告。
+  has_run_script: true
+  expected_exec_command: python3 skills/deep-research/run.py '{...}'
+  prompt: "You are validating repository skill \"deep-research\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"deep-research\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/deep-research/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-desktop-automation
+  skill_name: desktop-automation
+  skill_dir: desktop-automation
+  description: 桌面自动化 — 通过 AppleScript 控制 macOS 应用（Atlas、Chrome、Finder 等）。
+  has_run_script: true
+  expected_exec_command: python3 skills/desktop-automation/run.py '{...}'
+  prompt: "You are validating repository skill \"desktop-automation\".\nMandatory\
+    \ steps:\n1) Call the `skills` tool with action=show and name=\"desktop-automation\"\
+    .\n2) Do not call any tool except `skills`.\n3) Return JSON only with keys:\n\
+    \   skill, used_skills_tool, has_playbook, has_python_entrypoint, exec_command,\
+    \ summary\n4) Set `skill` exactly to the requested name and `used_skills_tool`\
+    \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
+    \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/desktop-automation/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-diagram-to-image
+  skill_name: diagram-to-image
+  skill_dir: diagram-to-image
+  description: 将 Mermaid 流程图/架构图或"图标块"渲染为可直接发到 Lark 的美观 PNG（可选同时输出 SVG）。
+  has_run_script: true
+  expected_exec_command: python3 skills/diagram-to-image/run.py '{...}'
+  prompt: "You are validating repository skill \"diagram-to-image\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"diagram-to-image\".\n2)\
+    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/diagram-to-image/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-email-drafting
+  skill_name: email-drafting
+  skill_dir: email-drafting
+  description: 快速拉齐受众、目的、语气和 CTA 的邮件写作 SOP，覆盖新建邮件与回复线程两种常见场景。
+  has_run_script: true
+  expected_exec_command: python3 skills/email-drafting/run.py '{...}'
+  prompt: "You are validating repository skill \"email-drafting\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"email-drafting\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/email-drafting/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-eval-systematic-optimization
+  skill_name: eval-systematic-optimization
+  skill_dir: eval-systematic-optimization
+  description: 系统化梳理 foundation-suite 失败 case，按冲突簇优化 pass@1，并输出标准化 x/x 报告与 good/bad
+    抽样检查。
+  has_run_script: true
+  expected_exec_command: python3 skills/eval-systematic-optimization/run.py '{...}'
+  prompt: "You are validating repository skill \"eval-systematic-optimization\".\n\
+    Mandatory steps:\n1) Call the `skills` tool with action=show and name=\"eval-systematic-optimization\"\
+    .\n2) Do not call any tool except `skills`.\n3) Return JSON only with keys:\n\
+    \   skill, used_skills_tool, has_playbook, has_python_entrypoint, exec_command,\
+    \ summary\n4) Set `skill` exactly to the requested name and `used_skills_tool`\
+    \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
+    \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/eval-systematic-optimization/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-image-creation
+  skill_name: image-creation
+  skill_dir: image-creation
+  description: AI 图片生成与迭代优化（文生图、图生图、风格迁移）。
+  has_run_script: true
+  expected_exec_command: python3 skills/image-creation/run.py '{...}'
+  prompt: "You are validating repository skill \"image-creation\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"image-creation\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/image-creation/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-json-render-templates
+  skill_name: json-render-templates
+  skill_dir: json-render-templates
+  description: Json-render protocol templates for flowchart, form, dashboard, info
+    cards, gallery, table, kanban, and diagram.
+  has_run_script: true
+  expected_exec_command: python3 skills/json-render-templates/run.py '{...}'
+  prompt: "You are validating repository skill \"json-render-templates\".\nMandatory\
+    \ steps:\n1) Call the `skills` tool with action=show and name=\"json-render-templates\"\
+    .\n2) Do not call any tool except `skills`.\n3) Return JSON only with keys:\n\
+    \   skill, used_skills_tool, has_playbook, has_python_entrypoint, exec_command,\
+    \ summary\n4) Set `skill` exactly to the requested name and `used_skills_tool`\
+    \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
+    \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/json-render-templates/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-lark-messaging
+  skill_name: lark-messaging
+  skill_dir: lark-messaging
+  description: Lark 消息发送 — 通过 Lark Open API 发送消息到群组或个人。
+  has_run_script: true
+  expected_exec_command: python3 skills/lark-messaging/run.py '{...}'
+  prompt: "You are validating repository skill \"lark-messaging\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"lark-messaging\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/lark-messaging/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-meeting-notes
+  skill_name: meeting-notes
+  skill_dir: meeting-notes
+  description: 将会议/访谈记录快速转成可分发纪要，突出决策、行动项、风险与待澄清问题。
+  has_run_script: true
+  expected_exec_command: python3 skills/meeting-notes/run.py '{...}'
+  prompt: "You are validating repository skill \"meeting-notes\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"meeting-notes\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/meeting-notes/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-memory-search
+  skill_name: memory-search
+  skill_dir: memory-search
+  description: 记忆检索 — 搜索和读取对话记忆（存储为 Markdown 文件）。
+  has_run_script: true
+  expected_exec_command: python3 skills/memory-search/run.py '{...}'
+  prompt: "You are validating repository skill \"memory-search\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"memory-search\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/memory-search/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-moltbook
+  skill_name: moltbook
+  skill_dir: moltbook-posting
+  description: Interact with Moltbook (the AI agent social network) — post, browse,
+    comment, vote, search — via shell curl.
+  has_run_script: true
+  expected_exec_command: python3 skills/moltbook-posting/run.py '{...}'
+  prompt: "You are validating repository skill \"moltbook\".\nMandatory steps:\n1)\
+    \ Call the `skills` tool with action=show and name=\"moltbook\".\n2) Do not call\
+    \ any tool except `skills`.\n3) Return JSON only with keys:\n   skill, used_skills_tool,\
+    \ has_playbook, has_python_entrypoint, exec_command, summary\n4) Set `skill` exactly\
+    \ to the requested name and `used_skills_tool` to true.\n5) Set `has_playbook`\
+    \ to true if the skill content was loaded.\n6) Set `has_python_entrypoint` to\
+    \ true and set `exec_command` to \"python3 skills/moltbook-posting/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-music-discovery
+  skill_name: music-discovery
+  skill_dir: music-discovery
+  description: 音乐发现 — 搜索 iTunes API 查找歌曲/专辑/艺人信息。
+  has_run_script: true
+  expected_exec_command: python3 skills/music-discovery/run.py '{...}'
+  prompt: "You are validating repository skill \"music-discovery\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"music-discovery\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/music-discovery/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-okr-management
+  skill_name: okr-management
+  skill_dir: okr-management
+  description: 创建和管理 OKR（目标与关键结果），支持创建、回顾和进度更新工作流。
+  has_run_script: true
+  expected_exec_command: python3 skills/okr-management/run.py '{...}'
+  prompt: "You are validating repository skill \"okr-management\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"okr-management\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/okr-management/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-ppt-deck
+  skill_name: ppt-deck
+  skill_dir: ppt-deck
+  description: PPT 产出 playbook（目标/受众 -> 故事线 -> 版式设计 -> 可访问性 -> 交付），含 10/20/30 与 Accessibility
+    最佳实践。
+  has_run_script: true
+  expected_exec_command: python3 skills/ppt-deck/run.py '{...}'
+  prompt: "You are validating repository skill \"ppt-deck\".\nMandatory steps:\n1)\
+    \ Call the `skills` tool with action=show and name=\"ppt-deck\".\n2) Do not call\
+    \ any tool except `skills`.\n3) Return JSON only with keys:\n   skill, used_skills_tool,\
+    \ has_playbook, has_python_entrypoint, exec_command, summary\n4) Set `skill` exactly\
+    \ to the requested name and `used_skills_tool` to true.\n5) Set `has_playbook`\
+    \ to true if the skill content was loaded.\n6) Set `has_python_entrypoint` to\
+    \ true and set `exec_command` to \"python3 skills/ppt-deck/run.py '{...}'\" exactly.\n\
+    7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-research-briefing
+  skill_name: research-briefing
+  skill_dir: research-briefing
+  description: 快速梳理调研问题、提炼事实与不确定性、给出后续实验/访谈/数据拉取建议的通用调研简报模板。
+  has_run_script: true
+  expected_exec_command: python3 skills/research-briefing/run.py '{...}'
+  prompt: "You are validating repository skill \"research-briefing\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"research-briefing\".\n2)\
+    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/research-briefing/run.py\
+    \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-scheduled-tasks
+  skill_name: scheduled-tasks
+  skill_dir: scheduled-tasks
+  description: 定时任务管理 — 创建/查询/删除 cron 调度任务。
+  has_run_script: true
+  expected_exec_command: python3 skills/scheduled-tasks/run.py '{...}'
+  prompt: "You are validating repository skill \"scheduled-tasks\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"scheduled-tasks\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/scheduled-tasks/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-self-test
+  skill_name: self-test
+  skill_dir: self-test
+  description: 自主运行 Lark 场景测试套件，分析失败，按修复分级自动迭代修复。
+  has_run_script: true
+  expected_exec_command: python3 skills/self-test/run.py '{...}'
+  prompt: "You are validating repository skill \"self-test\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"self-test\".\n2) Do not\
+    \ call any tool except `skills`.\n3) Return JSON only with keys:\n   skill, used_skills_tool,\
+    \ has_playbook, has_python_entrypoint, exec_command, summary\n4) Set `skill` exactly\
+    \ to the requested name and `used_skills_tool` to true.\n5) Set `has_playbook`\
+    \ to true if the skill content was loaded.\n6) Set `has_python_entrypoint` to\
+    \ true and set `exec_command` to \"python3 skills/self-test/run.py '{...}'\" exactly.\n\
+    7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-social-trends
+  skill_name: social-trends
+  skill_dir: social-trends
+  description: 社交媒体热点趋势分析（抖音、微博、小红书等）。
+  has_run_script: true
+  expected_exec_command: python3 skills/social-trends/run.py '{...}'
+  prompt: "You are validating repository skill \"social-trends\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"social-trends\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/social-trends/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-task-delegation
+  skill_name: task-delegation
+  skill_dir: task-delegation
+  description: 跨 Agent 任务委派 — 将子任务分发给 Codex/Claude/Gemini CLI 执行。
+  has_run_script: true
+  expected_exec_command: python3 skills/task-delegation/run.py '{...}'
+  prompt: "You are validating repository skill \"task-delegation\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"task-delegation\".\n2) Do\
+    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/task-delegation/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-timer-management
+  skill_name: timer-management
+  skill_dir: timer-management
+  description: 定时提醒、倒计时、周期性任务的设置与管理。
+  has_run_script: true
+  expected_exec_command: python3 skills/timer-management/run.py '{...}'
+  prompt: "You are validating repository skill \"timer-management\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"timer-management\".\n2)\
+    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/timer-management/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-video-production
+  skill_name: video-production
+  skill_dir: video-production
+  description: 端到端视频制作 playbook（策划→素材规范→剪辑→字幕→导出→发布→验收），强调可复现的交付流程。
+  has_run_script: true
+  expected_exec_command: python3 skills/video-production/run.py '{...}'
+  prompt: "You are validating repository skill \"video-production\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"video-production\".\n2)\
+    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/video-production/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
+- id: skills-tool-e2e-web-page-editing
+  skill_name: web-page-editing
+  skill_dir: web-page-editing
+  description: HTML 内容编辑 — 解析/修改/生成 HTML 页面内容。
+  has_run_script: true
+  expected_exec_command: python3 skills/web-page-editing/run.py '{...}'
+  prompt: "You are validating repository skill \"web-page-editing\".\nMandatory steps:\n\
+    1) Call the `skills` tool with action=show and name=\"web-page-editing\".\n2)\
+    \ Do not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
+    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
+    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
+    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
+    \ to true and set `exec_command` to \"python3 skills/web-page-editing/run.py '{...}'\"\
+    \ exactly.\n7) Keep `summary` under 30 words."
