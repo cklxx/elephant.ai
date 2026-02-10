@@ -80,6 +80,15 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 可复现证据链专项（reproducibility trace evidence stress）
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
+新增（2026-02-10）：系统化端到端 suite（按能力维度分层）
+- `evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml`
+- 覆盖 `28` 个集合、`363` 个 case（Foundation Core + Stateful/Memory + Delivery + Frontier Benchmark Transfer）。
+- 新增 benchmark 映射集合：
+  - `industry_benchmark_webarena_verified_webops_hard`
+  - `industry_benchmark_agentbench_multidomain_tooluse_hard`
+  - `industry_benchmark_browsecomp_sparse_research_hard`
+  - `industry_benchmark_agentlongbench_long_context_memory_hard`
+
 当前集合规模（`x/x`）：
 - Collections: `25/25`
 - Cases: `400/400`
@@ -121,6 +130,11 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 go run ./cmd/alex eval foundation-suite \
   --suite evaluation/agent_eval/datasets/foundation_eval_suite.yaml \
   --output tmp/foundation-suite-speed-v1 \
+  --format markdown
+
+go run ./cmd/alex eval foundation-suite \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml \
+  --output tmp/foundation-suite-e2e-systematic \
   --format markdown
 ```
 

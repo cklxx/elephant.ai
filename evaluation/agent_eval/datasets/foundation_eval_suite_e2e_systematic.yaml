@@ -1,0 +1,283 @@
+version: "1"
+name: "foundation-offline-e2e-systematic-suite"
+description: "Systematic end-to-end agent evaluation suite across layered capability dimensions: foundations, implicit-intent effectiveness, memory continuity, delivery quality, and hard industry benchmark transfer."
+collections:
+  - id: "tool-coverage"
+    name: "Tool Coverage"
+    dimension: "tool_coverage"
+    description: "Coverage of core tools and basic routing boundaries"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_tool_coverage.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "prompt-effectiveness"
+    name: "Prompt Effectiveness"
+    dimension: "prompt_effectiveness"
+    description: "Implicit prompt phrasing effectiveness and intent disambiguation"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_prompt_effectiveness.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "proactivity"
+    name: "Proactivity"
+    dimension: "proactivity"
+    description: "Initiative quality under implicit user goals and incomplete inputs"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_proactivity.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "motivation-aware-proactivity"
+    name: "Motivation-Aware Proactivity"
+    dimension: "motivation_aware_proactivity"
+    description: "Motivation-sensitive proactive behavior and follow-up strategy"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_motivation_aware_proactivity.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "memory-capabilities"
+    name: "Memory Capabilities"
+    dimension: "memory_capabilities"
+    description: "Memory retrieval, continuity, and memory-informed execution quality"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_memory_capabilities.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "user-habit-soul-memory"
+    name: "User Habit Soul Memory"
+    dimension: "user_habit_soul_memory"
+    description: "User preference continuity, habit adaptation, and persona stability"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_user_habit_soul_memory.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "long-horizon-multi-round"
+    name: "Long-Horizon Multi-Round"
+    dimension: "long_horizon_multi_round"
+    description: "Multi-turn state tracking and long-horizon constraint retention"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_long_horizon_multi_round.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "availability-recovery"
+    name: "Availability and Recovery"
+    dimension: "availability_recovery"
+    description: "Recovery behavior under unavailable tools and degraded conditions"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_availability_recovery.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "safety-boundary-policy"
+    name: "Safety Boundary and Policy"
+    dimension: "safety_boundary_policy"
+    description: "Policy and approval boundary routing under risk-sensitive intents"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_safety_boundary_policy.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "task-completion-speed"
+    name: "Task Completion Speed"
+    dimension: "task_completion_speed"
+    description: "Shortest viable path selection and unnecessary-step avoidance"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_task_completion_speed.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "valuable-workflows"
+    name: "Valuable Workflows"
+    dimension: "valuable_workflows"
+    description: "Business-value workflow routing with deliverable expectations"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_valuable_workflows.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 3
+
+  - id: "complex-artifact-delivery"
+    name: "Complex Artifact Delivery"
+    dimension: "complex_artifact_delivery"
+    description: "Artifactized delivery quality under complex output contracts"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_complex_artifact_delivery.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "architecture-coding-hard"
+    name: "Architecture Coding Hard"
+    dimension: "architecture_coding_hard"
+    description: "Complex code architecture and large-logic implementation routing"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_architecture_coding_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "deep-research"
+    name: "Deep Research"
+    dimension: "deep_research"
+    description: "Deep search and evidence-synthesis routing for high-noise tasks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_deep_research.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "autonomy-initiative"
+    name: "Autonomy Initiative"
+    dimension: "autonomy_initiative"
+    description: "Autonomous decomposition and value-delivery under weak prompting"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_autonomy_initiative.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "conflict-convergence-hard"
+    name: "Conflict Convergence Hard"
+    dimension: "conflict_convergence_hard"
+    description: "Hard conflict set for semantically close tool boundary convergence"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_conflict_convergence_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-swebench-verified-hard-plus"
+    name: "Industry Benchmark SWE-bench Verified Hard Plus"
+    dimension: "industry_benchmark_swebench_verified_hard_plus"
+    description: "SWE-bench Verified style hard patch, regression, and evidence workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_swebench_verified_hard_plus.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-terminal-bench-ops-hard"
+    name: "Industry Benchmark Terminal-Bench Ops Hard"
+    dimension: "industry_benchmark_terminal_bench_ops_hard"
+    description: "Terminal-Bench style terminal-first diagnosis and controlled mutation"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_terminal_bench_ops_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-tau2-long-horizon-enterprise-hard"
+    name: "Industry Benchmark tau2 Long-Horizon Enterprise Hard"
+    dimension: "industry_benchmark_tau2_long_horizon_enterprise_hard"
+    description: "TAU2/AssistantBench style long-horizon stateful enterprise workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_tau2_long_horizon_enterprise_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-cybench-security-ops-hard"
+    name: "Industry Benchmark CyBench Security Ops Hard"
+    dimension: "industry_benchmark_cybench_security_ops_hard"
+    description: "CyBench-style security operation triage, remediation, and evidence packaging"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_cybench_security_ops_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-general-assistant-gaia"
+    name: "Industry Benchmark General Assistant GAIA"
+    dimension: "industry_benchmark_general_assistant_gaia"
+    description: "GAIA-style heterogeneous assistant tasks with tool-use and constraint handling"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_general_assistant_gaia.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-osworld-g-grounded-computer-use-hard"
+    name: "Industry Benchmark OSWorld-G Grounded Computer Use Hard"
+    dimension: "industry_benchmark_osworld_g_grounded_computer_use_hard"
+    description: "OSWorld-G style grounded multimodal computer use and modality boundaries"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_osworld_g_grounded_computer_use_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-re-bench-frontier-ml-rd-hard"
+    name: "Industry Benchmark RE-Bench Frontier ML R&D Hard"
+    dimension: "industry_benchmark_re_bench_frontier_ml_rd_hard"
+    description: "RE-Bench style frontier ML R&D task structure and execution rigor"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_re_bench_frontier_ml_rd_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-mle-bench-experiment-lifecycle-hard"
+    name: "Industry Benchmark MLE-Bench Experiment Lifecycle Hard"
+    dimension: "industry_benchmark_mle_bench_experiment_lifecycle_hard"
+    description: "MLE-Bench style experiment lifecycle, reproducibility, and reporting workflows"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_mle_bench_experiment_lifecycle_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-webarena-verified-webops-hard"
+    name: "Industry Benchmark WebArena Verified WebOps Hard"
+    dimension: "industry_benchmark_webarena_verified_webops_hard"
+    description: "WebArena-style realistic web operation tasks with strict state and evidence checks"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_webarena_verified_webops_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-agentbench-multidomain-tooluse-hard"
+    name: "Industry Benchmark AgentBench Multidomain Tool-Use Hard"
+    dimension: "industry_benchmark_agentbench_multidomain_tooluse_hard"
+    description: "AgentBench-style multi-domain tool-use and environment-grounded execution"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_agentbench_multidomain_tooluse_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-browsecomp-sparse-research-hard"
+    name: "Industry Benchmark BrowseComp Sparse Research Hard"
+    dimension: "industry_benchmark_browsecomp_sparse_research_hard"
+    description: "BrowseComp-style sparse-clue deep web research and citation-backed synthesis"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_browsecomp_sparse_research_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5
+
+  - id: "industry-benchmark-agentlongbench-long-context-memory-hard"
+    name: "Industry Benchmark AgentLongBench Long-Context Memory Hard"
+    dimension: "industry_benchmark_agentlongbench_long_context_memory_hard"
+    description: "AgentLongBench-style long-context memory continuity and horizon control"
+    cases_path: "evaluation/agent_eval/datasets/foundation_eval_cases_industry_benchmark_agentlongbench_long_context_memory_hard.yaml"
+    mode: "web"
+    preset: "full"
+    toolset: "default"
+    top_k: 5

@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-agentlongbench-long-context-memory-hard"
+description: "Hard transfer set mapped from AgentLongBench-style long-context agent tasks: memory continuity, thread-state recovery, and long-horizon execution discipline"
+scenarios:
+  - id: "agentlongbench-hard-memory-needle-discovery"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Find the relevant needle in long-term memory before taking any new action."
+    expected_tools: ["memory_search"]
+
+  - id: "agentlongbench-hard-memory-record-open"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Open the exact memory record containing the prior commitment details."
+    expected_tools: ["memory_get"]
+
+  - id: "agentlongbench-hard-thread-history-reconstruction"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Reconstruct multi-turn thread context from chat history before replying."
+    expected_tools: ["lark_chat_history"]
+
+  - id: "agentlongbench-hard-repo-state-topology-refresh"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Refresh local workspace topology to ensure long-running task assumptions remain valid."
+    expected_tools: ["find"]
+
+  - id: "agentlongbench-hard-open-contract-window"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Open current contract window to detect drift from earlier assumptions."
+    expected_tools: ["read_file"]
+
+  - id: "agentlongbench-hard-semantic-drift-search"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Detect semantic drift by searching for changed policy language in file bodies."
+    expected_tools: ["search_file"]
+
+  - id: "agentlongbench-hard-long-horizon-plan-refresh"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Refresh long-horizon plan and checkpoints after context expansion."
+    expected_tools: ["plan"]
+
+  - id: "agentlongbench-hard-clarify-conflicting-requirement"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Clarify when new user input conflicts with previously committed constraints."
+    expected_tools: ["clarify"]
+
+  - id: "agentlongbench-hard-approval-before-overwrite-commitment"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Overwriting prior agreed commitments requires explicit user approval."
+    expected_tools: ["request_user"]
+
+  - id: "agentlongbench-hard-status-update-to-chat"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Send intermediate status update back to team chat while preserving continuity."
+    expected_tools: ["lark_send_message"]
+
+  - id: "agentlongbench-hard-archive-context-decision-record"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Archive long-context decisions, assumptions, and checkpoints as durable artifacts."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "agentlongbench context continuity record"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "decision"]
+
+  - id: "agentlongbench-hard-upload-final-handoff-package"
+    category: "agentlongbench_long_context_memory_hard"
+    intent: "Upload final handoff package to chat after continuity and approval checks."
+    expected_tools: ["lark_upload_file"]

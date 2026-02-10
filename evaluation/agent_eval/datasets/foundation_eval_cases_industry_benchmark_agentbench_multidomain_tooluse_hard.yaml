@@ -1,0 +1,68 @@
+version: "1"
+name: "foundation-industry-benchmark-agentbench-multidomain-tooluse-hard"
+description: "Hard transfer set mapped from AgentBench-style multi-domain tool-use tasks: environment grounding, tool discovery, and cross-domain delivery constraints"
+scenarios:
+  - id: "agentbench-hard-repo-topology-first-pass"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Do an initial repository topology pass to localize candidate modules before deep reads."
+    expected_tools: ["find"]
+
+  - id: "agentbench-hard-contract-window-open"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Open the exact interface contract window where behavior constraints are defined."
+    expected_tools: ["read_file"]
+
+  - id: "agentbench-hard-semantic-body-search"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Search by semantic clue in file bodies rather than relying on path names."
+    expected_tools: ["search_file"]
+
+  - id: "agentbench-hard-fast-signature-sweep"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Run the fastest symbol-level sweep for impact propagation and call-site references."
+    expected_tools: ["ripgrep"]
+
+  - id: "agentbench-hard-bounded-inplace-fix"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Apply one bounded in-place fix in existing files only."
+    expected_tools: ["replace_in_file"]
+
+  - id: "agentbench-hard-create-focused-helper"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Create a focused helper/test file for scenario-specific validation."
+    expected_tools: ["write_file"]
+
+  - id: "agentbench-hard-cli-evidence-run"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Collect deterministic CLI evidence from the current workspace runtime."
+    expected_tools: ["shell_exec"]
+
+  - id: "agentbench-hard-compute-based-revalidation"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Execute deterministic compute validation to verify expected behavior."
+    expected_tools: ["execute_code"]
+
+  - id: "agentbench-hard-explicit-clarification-on-ambiguous-goal"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "The user's objective is ambiguous across two competing outcomes; ask targeted clarification."
+    expected_tools: ["clarify"]
+
+  - id: "agentbench-hard-human-approval-gate"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "A production-impacting change requires explicit user approval before proceeding."
+    expected_tools: ["request_user"]
+
+  - id: "agentbench-hard-delivery-artifact-pack"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "Package implementation summary, verification logs, and assumptions into durable artifacts."
+    expected_tools: ["artifacts_write"]
+    deliverable:
+      output_description: "agentbench multidomain delivery package"
+      artifact_required: true
+      required_file_types: ["markdown", "json"]
+      required_evidence: ["report", "log"]
+
+  - id: "agentbench-hard-output-selection-before-send"
+    category: "agentbench_multidomain_tooluse_hard"
+    intent: "List generated outputs and pick the correct deliverable before sharing."
+    expected_tools: ["artifacts_list"]
