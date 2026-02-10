@@ -66,21 +66,18 @@ func TestLoadDefaults(t *testing.T) {
 }
 
 func TestLoadDefaultsUsesACPPortFile(t *testing.T) {
-	wd, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
 	tmp := t.TempDir()
-	if err := os.Mkdir(filepath.Join(tmp, ".pids"), 0o755); err != nil {
+	configPath := filepath.Join(tmp, "config.yaml")
+	if err := os.WriteFile(configPath, []byte("runtime: {}\n"), 0o600); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+	if err := os.Mkdir(filepath.Join(tmp, "pids"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(tmp, ".pids", "acp.port"), []byte("19077\n"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(tmp, "pids", "acp.port"), []byte("19077\n"), 0o600); err != nil {
 		t.Fatalf("write port file: %v", err)
 	}
-	if err := os.Chdir(tmp); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-	t.Cleanup(func() { _ = os.Chdir(wd) })
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
 
 	cfg, _, err := Load(
 		WithEnv(envMap{}.Lookup),

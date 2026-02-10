@@ -468,7 +468,10 @@ func loadDevConfig() (*devops.DevConfig, error) {
 const bootstrapMarker = "bootstrap.done"
 
 func ensureLocalBootstrap(projectDir string) error {
-	pidDir := filepath.Join(projectDir, ".pids")
+	pidDir, err := resolveSharedDevPIDDir(projectDir)
+	if err != nil {
+		return err
+	}
 	marker := filepath.Join(pidDir, bootstrapMarker)
 	if _, err := os.Stat(marker); err == nil {
 		return nil // already bootstrapped
@@ -498,6 +501,47 @@ func ensureLocalBootstrap(projectDir string) error {
 
 func removeBootstrapMarker(pidDir string) {
 	os.Remove(filepath.Join(pidDir, bootstrapMarker))
+}
+
+func resolveSharedDevPIDDir(projectDir string) (string, error) {
+	if raw, ok := os.LookupEnv("LARK_PID_DIR"); ok {
+		if value := strings.TrimSpace(raw); value != "" {
+			if filepath.IsAbs(value) {
+				return filepath.Clean(value), nil
+			}
+			abs, err := filepath.Abs(value)
+			if err != nil {
+				return "", fmt.Errorf("resolve LARK_PID_DIR: %w", err)
+			}
+			return filepath.Clean(abs), nil
+		}
+	}
+
+	home, _ := os.UserHomeDir()
+	configPath := ""
+	if raw, ok := os.LookupEnv("ALEX_CONFIG_PATH"); ok {
+		configPath = strings.TrimSpace(raw)
+	}
+	if configPath == "" {
+		if home != "" {
+			configPath = filepath.Join(home, ".alex", "config.yaml")
+		} else {
+			configPath = filepath.Join(projectDir, "config.yaml")
+		}
+	}
+
+	if !filepath.IsAbs(configPath) {
+		abs, err := filepath.Abs(configPath)
+		if err != nil {
+			return "", fmt.Errorf("resolve config path %s: %w", configPath, err)
+		}
+		configPath = abs
+	}
+	if resolved, err := filepath.EvalSymlinks(configPath); err == nil && strings.TrimSpace(resolved) != "" {
+		configPath = resolved
+	}
+
+	return filepath.Join(filepath.Dir(filepath.Clean(configPath)), "pids"), nil
 }
 
 func hasFlag(args []string, flag string) bool {

@@ -190,6 +190,10 @@ func larkStatus() error {
 	}
 
 	sec.Info("%-14s %s", "Mode", status.Mode)
+	mainConfig, testConfig := resolveLarkConfigPaths()
+	sec.Info("%-14s %s", "PID Dir", cfg.PIDDir)
+	sec.Info("%-14s %s", "Main Config", mainConfig)
+	sec.Info("%-14s %s", "Test Config", testConfig)
 
 	// Get current HEAD SHA for alignment check
 	headSHA := gitHeadShort(cfg.MainRoot)
@@ -342,8 +346,12 @@ func buildSupervisorConfig() (supervisor.Config, error) {
 	// Resolve main root via git worktree
 	mainRoot := resolveMainRoot(projectDir)
 	testRoot := filepath.Join(mainRoot, ".worktrees", "test")
+	mainConfig, _ := resolveLarkConfigPaths()
 
-	pidDir := filepath.Join(testRoot, ".pids")
+	pidDir, err := resolveSharedLarkPIDDir(mainConfig)
+	if err != nil {
+		return supervisor.Config{}, err
+	}
 	logDir := filepath.Join(testRoot, "logs")
 	tmpDir := filepath.Join(testRoot, "tmp")
 
@@ -402,10 +410,10 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 			return cmd.Run()
 		},
 		HealthFn: func() string {
-			return checkPIDHealth(filepath.Join(cfg.MainRoot, ".pids", "lark-main.pid"))
+			return checkPIDHealth(filepath.Join(cfg.PIDDir, "lark-main.pid"))
 		},
-		PIDFile: filepath.Join(cfg.MainRoot, ".pids", "lark-main.pid"),
-		SHAFile: filepath.Join(cfg.MainRoot, ".pids", "lark-main.sha"),
+		PIDFile: filepath.Join(cfg.PIDDir, "lark-main.pid"),
+		SHAFile: filepath.Join(cfg.PIDDir, "lark-main.sha"),
 	})
 
 	sup.RegisterComponent(&supervisor.Component{
@@ -419,10 +427,10 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 			return cmd.Run()
 		},
 		HealthFn: func() string {
-			return checkPIDHealth(filepath.Join(cfg.TestRoot, ".pids", "lark-test.pid"))
+			return checkPIDHealth(filepath.Join(cfg.PIDDir, "lark-test.pid"))
 		},
-		PIDFile: filepath.Join(cfg.TestRoot, ".pids", "lark-test.pid"),
-		SHAFile: filepath.Join(cfg.TestRoot, ".pids", "lark-test.sha"),
+		PIDFile: filepath.Join(cfg.PIDDir, "lark-test.pid"),
+		SHAFile: filepath.Join(cfg.PIDDir, "lark-test.sha"),
 	})
 
 	sup.RegisterComponent(&supervisor.Component{
@@ -436,7 +444,7 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 			return cmd.Run()
 		},
 		HealthFn: func() string {
-			pidFile := filepath.Join(cfg.TestRoot, ".pids", "lark-loop.pid")
+			pidFile := filepath.Join(cfg.PIDDir, "lark-loop.pid")
 			data, err := os.ReadFile(pidFile)
 			if err != nil {
 				return "down"
@@ -447,7 +455,7 @@ func registerLarkComponents(sup *supervisor.Supervisor, cfg supervisor.Config) {
 			}
 			return "down"
 		},
-		PIDFile: filepath.Join(cfg.TestRoot, ".pids", "lark-loop.pid"),
+		PIDFile: filepath.Join(cfg.PIDDir, "lark-loop.pid"),
 	})
 }
 
@@ -539,6 +547,64 @@ func envBool(key string, def bool) bool {
 		return false
 	}
 	return def
+}
+
+func resolveLarkConfigPaths() (string, string) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = ""
+	}
+	defaultMain := "config.yaml"
+	defaultTest := "test.yaml"
+	if home != "" {
+		defaultMain = filepath.Join(home, ".alex", "config.yaml")
+		defaultTest = filepath.Join(home, ".alex", "test.yaml")
+	}
+
+	mainConfig := envString("MAIN_CONFIG", envString("ALEX_CONFIG_PATH", defaultMain))
+	testConfig := envString("TEST_CONFIG", defaultTest)
+	return canonicalPath(mainConfig), canonicalPath(testConfig)
+}
+
+func canonicalPath(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ""
+	}
+
+	p := trimmed
+	if !filepath.IsAbs(p) {
+		if abs, err := filepath.Abs(p); err == nil {
+			p = abs
+		}
+	}
+
+	if resolved, err := filepath.EvalSymlinks(p); err == nil && strings.TrimSpace(resolved) != "" {
+		return resolved
+	}
+
+	return filepath.Clean(p)
+}
+
+func resolveSharedLarkPIDDir(mainConfigPath string) (string, error) {
+	if raw, ok := os.LookupEnv("LARK_PID_DIR"); ok {
+		if value := strings.TrimSpace(raw); value != "" {
+			if filepath.IsAbs(value) {
+				return filepath.Clean(value), nil
+			}
+			abs, err := filepath.Abs(value)
+			if err != nil {
+				return "", fmt.Errorf("resolve LARK_PID_DIR: %w", err)
+			}
+			return filepath.Clean(abs), nil
+		}
+	}
+
+	canonicalConfig := canonicalPath(mainConfigPath)
+	if canonicalConfig == "" {
+		return "", fmt.Errorf("resolve shared pid dir: empty main config path")
+	}
+	return filepath.Join(filepath.Dir(canonicalConfig), "pids"), nil
 }
 
 // printLarkSummary shows lark supervisor status in the startup summary.

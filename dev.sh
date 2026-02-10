@@ -40,12 +40,7 @@
 set -euo pipefail
 
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PID_DIR="${SCRIPT_DIR}/.pids"
 readonly LOG_DIR="${SCRIPT_DIR}/logs"
-readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
-readonly WEB_PID_FILE="${PID_DIR}/web.pid"
-readonly ACP_PID_FILE="${PID_DIR}/acp.pid"
-readonly ACP_PORT_FILE="${PID_DIR}/acp.port"
 readonly SERVER_LOG="${LOG_DIR}/server.log"
 readonly WEB_LOG="${LOG_DIR}/web.log"
 readonly ACP_LOG="${LOG_DIR}/acp.log"
@@ -94,6 +89,52 @@ load_dotenv
 
 export AUTH_JWT_SECRET="${AUTH_JWT_SECRET:-dev-secret-change-me}"
 
+canonicalize_path() {
+  local path="$1"
+  if [[ "${path}" != /* ]]; then
+    path="$(pwd)/${path}"
+  fi
+
+  if [[ -e "${path}" ]] && command_exists realpath; then
+    realpath "${path}"
+    return 0
+  fi
+
+  local dir base
+  dir="$(dirname "${path}")"
+  base="$(basename "${path}")"
+  if [[ -d "${dir}" ]]; then
+    (
+      cd "${dir}" || return 1
+      printf '%s/%s\n' "$(pwd -P)" "${base}"
+    )
+    return 0
+  fi
+
+  printf '%s\n' "${path}"
+}
+
+resolve_main_config_path() {
+  local config_path="${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}"
+  canonicalize_path "${config_path}"
+}
+
+resolve_shared_pid_dir() {
+  local main_config_path="$1"
+  if [[ -n "${LARK_PID_DIR:-}" ]]; then
+    printf '%s\n' "${LARK_PID_DIR}"
+    return 0
+  fi
+  printf '%s/pids\n' "$(dirname "${main_config_path}")"
+}
+
+readonly MAIN_CONFIG_PATH="$(resolve_main_config_path)"
+readonly PID_DIR="$(resolve_shared_pid_dir "${MAIN_CONFIG_PATH}")"
+readonly SERVER_PID_FILE="${PID_DIR}/server.pid"
+readonly WEB_PID_FILE="${PID_DIR}/web.pid"
+readonly ACP_PID_FILE="${PID_DIR}/acp.pid"
+readonly ACP_PORT_FILE="${PID_DIR}/acp.port"
+
 readonly BOOTSTRAP_MARKER="${PID_DIR}/bootstrap.done"
 readonly LARK_SUPERVISOR_SH="${SCRIPT_DIR}/scripts/lark/supervisor.sh"
 
@@ -105,7 +146,7 @@ ensure_local_bootstrap() {
   if [[ ! -x "${bootstrap_sh}" ]]; then
     die "Missing bootstrap script: ${bootstrap_sh}"
   fi
-  MAIN_CONFIG="${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}" \
+  MAIN_CONFIG="${MAIN_CONFIG_PATH}" \
     TEST_CONFIG="${ALEX_TEST_CONFIG_PATH:-$HOME/.alex/test.yaml}" \
     "${bootstrap_sh}" >/dev/null
   ensure_dirs
@@ -127,11 +168,7 @@ ensure_dirs() {
 }
 
 sandbox_host_config_path() {
-  if [[ -n "${ALEX_CONFIG_PATH:-}" ]]; then
-    echo "${ALEX_CONFIG_PATH}"
-    return 0
-  fi
-  echo "${HOME}/.alex/config.yaml"
+  echo "${MAIN_CONFIG_PATH}"
 }
 
 rewrite_base_url_for_sandbox() {
@@ -757,6 +794,47 @@ cleanup_next_dev_lock() {
   fi
 }
 
+collect_web_process_candidates() {
+  ps -axo pid= -o pgid= -o command= | awk -v root="${SCRIPT_DIR}/web" '
+    {
+      pid=$1
+      pgid=$2
+      $1=""
+      $2=""
+      sub(/^  */, "", $0)
+      cmd=$0
+      if (index(cmd, "npm --prefix " root " run dev") > 0) {
+        print pid "\t" pgid "\t" cmd
+        next
+      }
+      if (index(cmd, root) > 0 && index(cmd, "next dev") > 0) {
+        print pid "\t" pgid "\t" cmd
+      }
+    }
+  '
+}
+
+cleanup_orphan_web_processes() {
+  local tracked_pid tracked_pgid pid pgid cmd
+  tracked_pid="$(read_pid "$WEB_PID_FILE" || true)"
+  tracked_pgid=""
+  if is_process_running "$tracked_pid"; then
+    tracked_pgid="$(ps -p "$tracked_pid" -o pgid= 2>/dev/null | tr -d '[:space:]' || true)"
+  fi
+
+  while IFS=$'\t' read -r pid pgid cmd; do
+    [[ -n "${pid}" ]] || continue
+    if [[ -n "${tracked_pid}" && "${pid}" == "${tracked_pid}" ]]; then
+      continue
+    fi
+    if [[ -n "${tracked_pgid}" && "${pgid}" == "${tracked_pgid}" ]]; then
+      continue
+    fi
+    log_warn "Stopping orphan web process PID ${pid}"
+    stop_pid "${pid}" "orphan web process" 12 0.25 >/dev/null 2>&1 || true
+  done < <(collect_web_process_candidates)
+}
+
 build_server() {
   log_info "Building backend (./cmd/alex-server)..."
   cgo_apply_mode
@@ -820,6 +898,7 @@ start_server() {
 
 start_web() {
   ensure_dirs
+  cleanup_orphan_web_processes
 
   local pid
   pid="$(read_pid "$WEB_PID_FILE" || true)"

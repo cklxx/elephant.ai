@@ -56,11 +56,21 @@ func acpPortFromEnv(lookup EnvLookup) (int, bool) {
 }
 
 func readACPPortFile() (int, bool) {
-	wd, err := os.Getwd()
-	if err != nil || strings.TrimSpace(wd) == "" {
+	configPath, _ := ResolveConfigPath(nil, nil)
+	configPath = strings.TrimSpace(configPath)
+	if configPath == "" {
 		return 0, false
 	}
-	path := filepath.Join(wd, DefaultACPPortFile)
+	if !filepath.IsAbs(configPath) {
+		abs, err := filepath.Abs(configPath)
+		if err == nil {
+			configPath = abs
+		}
+	}
+	if resolved, err := filepath.EvalSymlinks(configPath); err == nil && strings.TrimSpace(resolved) != "" {
+		configPath = resolved
+	}
+	path := filepath.Join(filepath.Dir(configPath), DefaultACPPortFile)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return 0, false

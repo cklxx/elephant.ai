@@ -18,9 +18,9 @@ def resolve_default_addr():
     host = os.getenv("ACP_HOST") or os.getenv("ACP_SERVER_HOST") or "127.0.0.1"
     port_file = os.getenv("ACP_PORT_FILE")
     if not port_file:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        repo_root = os.path.dirname(script_dir)
-        port_file = os.path.join(repo_root, ".pids", "acp.port")
+        config_path = os.getenv("ALEX_CONFIG_PATH") or os.path.join(os.path.expanduser("~"), ".alex", "config.yaml")
+        config_path = os.path.abspath(os.path.expanduser(config_path))
+        port_file = os.path.join(os.path.dirname(config_path), "pids", "acp.port")
 
     port = ""
     try:
@@ -107,7 +107,7 @@ def main():
     parser.add_argument(
         "--addr",
         default="",
-        help="ACP server base URL (defaults to ACP_ADDR/ACP_SERVER_ADDR or .pids/acp.port)",
+        help="ACP server base URL (defaults to ACP_ADDR/ACP_SERVER_ADDR or <config_dir>/pids/acp.port)",
     )
     parser.add_argument("--cwd", default=None, help="Session working directory")
     parser.add_argument("--prompt", default="Hello ACP", help="Prompt text")

@@ -48,7 +48,7 @@ type DevConfig struct {
 
 	// Directories
 	ProjectDir string `yaml:"-"` // Set at runtime, not from config
-	PIDDir     string `yaml:"pid_dir" default:".pids"`
+	PIDDir     string `env:"LARK_PID_DIR" yaml:"pid_dir" default:".pids"`
 	LogDir     string `yaml:"log_dir" default:"logs"`
 
 	// Supervisor (Lark)
@@ -94,6 +94,10 @@ func LoadDevConfig(configPath string) (*DevConfig, error) {
 		cfg.ProjectDir = dir
 	}
 
+	if strings.TrimSpace(cfg.PIDDir) == ".pids" {
+		cfg.PIDDir = defaultSharedPIDDir(configPath, cfg.ProjectDir)
+	}
+
 	if cfg.SandboxBaseURL == "" {
 		cfg.SandboxBaseURL = fmt.Sprintf("http://localhost:%d", cfg.SandboxPort)
 	}
@@ -104,6 +108,36 @@ func LoadDevConfig(configPath string) (*DevConfig, error) {
 	cfg.WebDir = cfg.resolvePath(cfg.WebDir)
 
 	return cfg, nil
+}
+
+func defaultSharedPIDDir(configPath, projectDir string) string {
+	path := strings.TrimSpace(configPath)
+	if path == "" {
+		if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+			path = filepath.Join(home, ".alex", "config.yaml")
+		} else {
+			path = filepath.Join(projectDir, "config.yaml")
+		}
+	}
+
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
+			path = filepath.Join(home, strings.TrimPrefix(path, "~/"))
+		}
+	}
+
+	if !filepath.IsAbs(path) {
+		if abs, err := filepath.Abs(path); err == nil {
+			path = abs
+		}
+	}
+
+	path = filepath.Clean(path)
+	if resolved, err := filepath.EvalSymlinks(path); err == nil && strings.TrimSpace(resolved) != "" {
+		path = resolved
+	}
+
+	return filepath.Join(filepath.Dir(path), "pids")
 }
 
 func (c *DevConfig) resolvePath(p string) string {

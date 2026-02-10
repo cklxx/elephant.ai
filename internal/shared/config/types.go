@@ -40,7 +40,7 @@ const (
 	DefaultLLMCacheTTL       = 30 * time.Minute
 	DefaultACPHost           = "127.0.0.1"
 	DefaultACPPort           = 9000
-	DefaultACPPortFile       = ".pids/acp.port"
+	DefaultACPPortFile       = "pids/acp.port"
 	DefaultHTTPMaxResponse   = 1 << 20
 )
 
