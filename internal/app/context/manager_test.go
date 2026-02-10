@@ -444,7 +444,7 @@ func TestComposeSystemPromptIncludesMetaLayer(t *testing.T) {
 			Key:       "user-pref",
 			Content:   "Prefers Go",
 			CreatedAt: memoTime,
-			Source:    "steward",
+			Source:    "memory",
 		}},
 		Recommendations: []string{"Prioritize secure defaults"},
 	}

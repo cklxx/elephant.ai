@@ -41,7 +41,7 @@ func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Mess
 	if m.flushHook != nil {
 		var compressible []ports.Message
 		for _, msg := range messages {
-			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceStewardReminder {
+			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
 				continue
 			}
 			compressible = append(compressible, msg)
@@ -85,7 +85,7 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	)
 
 	for _, msg := range messages {
-		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceStewardReminder {
+		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
 			compressed = append(compressed, msg)
 			continue
 		}
@@ -186,38 +186,38 @@ func buildCompressionSnippet(content string, limit int) string {
 }
 
 // ---------------------------------------------------------------------------
-// Steward-mode budget helpers
+// Budget helpers
 // ---------------------------------------------------------------------------
 
-// StewardBudgetSignal indicates which steward-mode budget threshold was crossed.
-type StewardBudgetSignal int
+// BudgetSignal indicates which token-budget threshold was crossed.
+type BudgetSignal int
 
 const (
-	StewardBudgetOK           StewardBudgetSignal = iota // under all thresholds
-	StewardBudgetCompress                                // 70% — suggest STATE compression
-	StewardBudgetAggressiveTrim                          // 85% — aggressive trim needed
+	BudgetOK             BudgetSignal = iota // under all thresholds
+	BudgetCompress                           // crossed compression threshold
+	BudgetAggressiveTrim                     // crossed aggressive-trim threshold
 )
 
-// StewardBudgetCheck evaluates the steward-mode three-tier budget thresholds
-// and returns the appropriate signal. The caller should inject feedback signals
-// or perform aggressive trimming based on the result.
-func StewardBudgetCheck(tokenCount, limit int, compressionThreshold, aggressiveTrimThreshold float64) StewardBudgetSignal {
+// BudgetCheck evaluates the budget thresholds and returns the appropriate
+// signal. The caller may choose to apply different compaction strategies based
+// on the result.
+func BudgetCheck(tokenCount, limit int, compressionThreshold, aggressiveTrimThreshold float64) BudgetSignal {
 	if limit <= 0 {
-		return StewardBudgetOK
+		return BudgetOK
 	}
 	ratio := float64(tokenCount) / float64(limit)
 	if ratio >= aggressiveTrimThreshold {
-		return StewardBudgetAggressiveTrim
+		return BudgetAggressiveTrim
 	}
 	if ratio >= compressionThreshold {
-		return StewardBudgetCompress
+		return BudgetCompress
 	}
-	return StewardBudgetOK
+	return BudgetOK
 }
 
-// StewardAggressiveTrim retains only the most recent maxTurns user+assistant
-// exchanges plus all system, important, and steward_reminder messages.
-func StewardAggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
+// AggressiveTrim retains only the most recent maxTurns user+assistant
+// exchanges plus all system/important messages.
+func AggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
 	if maxTurns <= 0 {
 		maxTurns = 6
 	}
@@ -226,7 +226,7 @@ func StewardAggressiveTrim(messages []ports.Message, maxTurns int) []ports.Messa
 	var preserved, conversation []ports.Message
 	for _, msg := range messages {
 		switch msg.Source {
-		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceStewardReminder:
+		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant:
 			preserved = append(preserved, msg)
 		default:
 			conversation = append(conversation, msg)

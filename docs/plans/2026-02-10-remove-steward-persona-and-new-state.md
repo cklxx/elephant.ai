@@ -1,7 +1,7 @@
 # Plan: Remove Steward Persona + NEW_STATE Protocol
 
 > Created: 2026-02-10
-> Status: in-progress
+> Status: completed
 > Trigger: User requested deletion of `/configs/context/personas/steward.yaml` related design/logic and removal of `<NEW_STATE>` tags.
 
 ## Goal & Success Criteria
@@ -9,8 +9,8 @@
 - **Done when**:
   - `configs/context/personas/steward.yaml` is removed.
   - No production code path depends on `<NEW_STATE>` tags.
+  - `env.State.StewardMode` configuration path is removed.
   - Related tests are updated/removed and pass.
-  - Lint and full test suite pass.
 - **Non-goals**:
   - Full removal of all historical docs mentioning steward/NEW_STATE.
   - Re-architecting unrelated memory/context features.
@@ -33,25 +33,31 @@
 
 ## Technical Design
 - **Approach**:
-  - Keep the stable core state/context interfaces, but remove the NEW_STATE extraction and stream filtering behavior from runtime iteration.
-  - Remove persona-specific auto-enable path (`persona == steward`) while preserving explicit global/channel/session steward toggles if still used elsewhere.
-  - Delete steward persona YAML and tests that require persona-based activation.
+  - Remove NEW_STATE extraction and stream filtering behavior from runtime iteration.
+  - Remove steward mode configuration path entirely (`StewardConfig`, `ResolveStewardMode`, `TaskState.StewardMode`, `ContextWindowConfig.StewardMode`).
+  - Delete steward persona/policy YAML and all steward-specific parser/filter/state/test files.
+  - Rename residual steward-specific budget helpers/message-source paths in context code to generic terms.
 - **Alternatives rejected**:
   - Hard deleting all steward-related structs (`StewardState`) in one shot: too risky and broad for this request.
   - Keeping NEW_STATE parser but disabling usage: leaves dead design direction in runtime.
 - **Key decisions**:
   - Remove runtime references to NEW_STATE protocol completely.
-  - Preserve backward-safe session/context data fields unless proven unused by compile/test.
+  - Remove steward-mode fields from task/context/session-state structures, not only disable them.
+  - Keep historical roadmap/docs unchanged in this task scope.
 
 ## Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | Hidden dependency on NEW_STATE parser/filter in tests | M | M | Run targeted then full tests; remove stale test cases together with code |
-| Steward mode behavior regresses for non-persona toggles | M | M | Keep explicit config/session toggles; only remove persona-driven enable path |
+| Behavior drift for old persisted `steward_reminder` message source strings | L | L | Remove steward message-source constant and rely on existing system/important preservation rules |
 | Large test impact from runtime changes | M | H | Iterate with focused package tests before full suite |
 
 ## Verification
 - Run targeted tests for changed packages first.
 - Run `./dev.sh lint` and full `go test ./...`.
+- Results:
+  - `CGO_ENABLED=0 go test ./...` passed.
+  - `./dev.sh lint` fails on unrelated pre-existing files already in current `main` (e.g. `internal/delivery/channels/lark/cc_hooks_dispatch.go` unused method and multiple errcheck issues under `internal/infra/external/*`, `internal/infra/task/*`).
+  - Targeted lint for touched modules passed: `golangci-lint run ./internal/app/context/... ./internal/domain/agent/ports/...`.
 - Rollback plan: revert commits in reverse order before merge.

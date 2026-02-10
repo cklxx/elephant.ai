@@ -77,9 +77,8 @@ const (
 	MessageSourceToolResult     MessageSource = "tool_result"
 	MessageSourceDebug          MessageSource = "debug"
 	MessageSourceEvaluation     MessageSource = "evaluation"
-	MessageSourceImportant        MessageSource = "important_notice"
-	MessageSourceProactive        MessageSource = "proactive_context"
-	MessageSourceStewardReminder  MessageSource = "steward_reminder"
+	MessageSourceImportant      MessageSource = "important_notice"
+	MessageSourceProactive      MessageSource = "proactive_context"
 )
 
 type Message struct {

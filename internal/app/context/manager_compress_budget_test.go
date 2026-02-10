@@ -7,62 +7,61 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// StewardBudgetCheck tests
+// BudgetCheck tests
 // ---------------------------------------------------------------------------
 
-func TestStewardBudgetCheck_OK(t *testing.T) {
-	signal := StewardBudgetCheck(500, 1000, 0.70, 0.85)
-	if signal != StewardBudgetOK {
+func TestBudgetCheckOK(t *testing.T) {
+	signal := BudgetCheck(500, 1000, 0.70, 0.85)
+	if signal != BudgetOK {
 		t.Errorf("expected OK, got %d", signal)
 	}
 }
 
-func TestStewardBudgetCheck_Compress(t *testing.T) {
+func TestBudgetCheckCompress(t *testing.T) {
 	// 750/1000 = 0.75 → above 0.70 but below 0.85
-	signal := StewardBudgetCheck(750, 1000, 0.70, 0.85)
-	if signal != StewardBudgetCompress {
+	signal := BudgetCheck(750, 1000, 0.70, 0.85)
+	if signal != BudgetCompress {
 		t.Errorf("expected Compress, got %d", signal)
 	}
 }
 
-func TestStewardBudgetCheck_AggressiveTrim(t *testing.T) {
+func TestBudgetCheckAggressiveTrim(t *testing.T) {
 	// 900/1000 = 0.90 → above 0.85
-	signal := StewardBudgetCheck(900, 1000, 0.70, 0.85)
-	if signal != StewardBudgetAggressiveTrim {
+	signal := BudgetCheck(900, 1000, 0.70, 0.85)
+	if signal != BudgetAggressiveTrim {
 		t.Errorf("expected AggressiveTrim, got %d", signal)
 	}
 }
 
-func TestStewardBudgetCheck_ExactBoundary(t *testing.T) {
+func TestBudgetCheckExactBoundary(t *testing.T) {
 	// Exactly at compression threshold
-	signal := StewardBudgetCheck(700, 1000, 0.70, 0.85)
-	if signal != StewardBudgetCompress {
+	signal := BudgetCheck(700, 1000, 0.70, 0.85)
+	if signal != BudgetCompress {
 		t.Errorf("expected Compress at exact boundary, got %d", signal)
 	}
 
 	// Exactly at aggressive threshold
-	signal = StewardBudgetCheck(850, 1000, 0.70, 0.85)
-	if signal != StewardBudgetAggressiveTrim {
+	signal = BudgetCheck(850, 1000, 0.70, 0.85)
+	if signal != BudgetAggressiveTrim {
 		t.Errorf("expected AggressiveTrim at exact boundary, got %d", signal)
 	}
 }
 
-func TestStewardBudgetCheck_ZeroLimit(t *testing.T) {
-	signal := StewardBudgetCheck(500, 0, 0.70, 0.85)
-	if signal != StewardBudgetOK {
+func TestBudgetCheckZeroLimit(t *testing.T) {
+	signal := BudgetCheck(500, 0, 0.70, 0.85)
+	if signal != BudgetOK {
 		t.Errorf("expected OK for zero limit, got %d", signal)
 	}
 }
 
 // ---------------------------------------------------------------------------
-// StewardAggressiveTrim tests
+// AggressiveTrim tests
 // ---------------------------------------------------------------------------
 
-func TestStewardAggressiveTrim_PreservesSystemMessages(t *testing.T) {
+func TestAggressiveTrimPreservesSystemMessages(t *testing.T) {
 	messages := []ports.Message{
 		msg(ports.MessageSourceSystemPrompt, "system", "You are helpful"),
 		msg(ports.MessageSourceImportant, "system", "Important note"),
-		msg(ports.MessageSourceStewardReminder, "system", "STATE v3 ..."),
 		msg(ports.MessageSourceUserInput, "user", "Old question 1"),
 		msg(ports.MessageSourceAssistantReply, "assistant", "Old answer 1"),
 		msg(ports.MessageSourceUserInput, "user", "Old question 2"),
@@ -71,22 +70,22 @@ func TestStewardAggressiveTrim_PreservesSystemMessages(t *testing.T) {
 		msg(ports.MessageSourceAssistantReply, "assistant", "Recent answer"),
 	}
 
-	result := StewardAggressiveTrim(messages, 1)
+	result := AggressiveTrim(messages, 1)
 
-	// System, important, and steward reminder should always be preserved.
+	// System and important messages should always be preserved.
 	preservedCount := 0
 	for _, m := range result {
 		switch m.Source {
-		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceStewardReminder:
+		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant:
 			preservedCount++
 		}
 	}
-	if preservedCount < 3 {
-		t.Errorf("expected at least 3 preserved messages, got %d", preservedCount)
+	if preservedCount < 2 {
+		t.Errorf("expected at least 2 preserved messages, got %d", preservedCount)
 	}
 }
 
-func TestStewardAggressiveTrim_KeepsRecentTurns(t *testing.T) {
+func TestAggressiveTrimKeepsRecentTurns(t *testing.T) {
 	messages := []ports.Message{
 		msg(ports.MessageSourceSystemPrompt, "system", "System prompt"),
 		msg(ports.MessageSourceUserInput, "user", "Turn 1"),
@@ -97,7 +96,7 @@ func TestStewardAggressiveTrim_KeepsRecentTurns(t *testing.T) {
 		msg(ports.MessageSourceAssistantReply, "assistant", "Reply 3"),
 	}
 
-	result := StewardAggressiveTrim(messages, 2)
+	result := AggressiveTrim(messages, 2)
 
 	// Should keep system prompt + last 2 turns + compression summary.
 	var userMsgs []string
@@ -114,7 +113,7 @@ func TestStewardAggressiveTrim_KeepsRecentTurns(t *testing.T) {
 	}
 }
 
-func TestStewardAggressiveTrim_DefaultMaxTurns(t *testing.T) {
+func TestAggressiveTrimDefaultMaxTurns(t *testing.T) {
 	// When maxTurns=0, should default to 6.
 	messages := []ports.Message{
 		msg(ports.MessageSourceSystemPrompt, "system", "System"),
@@ -126,7 +125,7 @@ func TestStewardAggressiveTrim_DefaultMaxTurns(t *testing.T) {
 		)
 	}
 
-	result := StewardAggressiveTrim(messages, 0)
+	result := AggressiveTrim(messages, 0)
 	userCount := 0
 	for _, m := range result {
 		if m.Role == "user" && m.Source == ports.MessageSourceUserInput {
