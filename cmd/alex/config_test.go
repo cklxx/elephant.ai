@@ -13,6 +13,13 @@ import (
 	configadmin "alex/internal/shared/config/admin"
 )
 
+func clearConfigValidationKeyEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("LLM_API_KEY", "")
+	t.Setenv("TAVILY_API_KEY", "")
+}
+
 func TestLoadConfigDefaultTemperatureUsesPresetButNotMarkedSet(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 
@@ -235,6 +242,7 @@ func TestParseSetArgsSupportsEqualsSyntax(t *testing.T) {
 
 func TestExecuteConfigCommandValidateQuickstartAllowsMissingLLMKey(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	clearConfigValidationKeyEnv(t)
 	t.Setenv("ALEX_PROFILE", "quickstart")
 	t.Setenv("LLM_PROVIDER", "openai")
 	t.Setenv("LLM_MODEL", "gpt-4o-mini")
@@ -250,6 +258,7 @@ func TestExecuteConfigCommandValidateQuickstartAllowsMissingLLMKey(t *testing.T)
 
 func TestExecuteConfigCommandValidateProductionFailsWithoutLLMKey(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
+	clearConfigValidationKeyEnv(t)
 	t.Setenv("ALEX_PROFILE", "production")
 	t.Setenv("LLM_PROVIDER", "openai")
 	t.Setenv("LLM_MODEL", "gpt-4o-mini")

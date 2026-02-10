@@ -9,6 +9,15 @@ import (
 	"time"
 )
 
+func clearLoadConfigValidationEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("ALEX_PROFILE", "")
+	t.Setenv("LLM_PROVIDER", "")
+	t.Setenv("LLM_MODEL", "")
+	t.Setenv("OPENAI_API_KEY", "")
+	t.Setenv("LLM_API_KEY", "")
+}
+
 func TestNormalizeAllowedOrigins(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -201,6 +210,7 @@ server:
 }
 
 func TestLoadConfig_ProductionProfileRequiresAPIKey(t *testing.T) {
+	clearLoadConfigValidationEnv(t)
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`
 runtime:
