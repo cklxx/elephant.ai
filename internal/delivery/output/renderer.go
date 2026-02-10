@@ -75,25 +75,13 @@ func (m *OutputManager) RenderFor(target OutputTarget, renderFunc func(Renderer)
 // CategorizeToolName returns the category for a given tool name
 func CategorizeToolName(toolName string) types.ToolCategory {
 	categories := map[string]types.ToolCategory{
-		"file_read":    types.CategoryFile,
-		"file_write":   types.CategoryFile,
-		"file_edit":    types.CategoryFile,
-		"list_files":   types.CategoryFile,
-		"grep":         types.CategorySearch,
-		"ripgrep":      types.CategorySearch,
-		"find":         types.CategorySearch,
-		"code_search":  types.CategorySearch,
-		"bash":         types.CategoryShell,
-		"shell_exec":   types.CategoryShell,
-		"code_execute": types.CategoryExecution,
-		"execute_code": types.CategoryExecution,
-		"web_search":   types.CategoryWeb,
-		"web_fetch":    types.CategoryWeb,
-		"music_play":   types.CategoryWeb,
-		"final":        types.CategoryReasoning,
-		"todo_read":    types.CategoryTask,
-		"todo_update":  types.CategoryTask,
-		"request_user": types.CategoryTask,
+		"read_file":       types.CategoryFile,
+		"write_file":      types.CategoryFile,
+		"replace_in_file": types.CategoryFile,
+		"shell_exec":      types.CategoryShell,
+		"execute_code":    types.CategoryExecution,
+		"web_search":      types.CategoryWeb,
+		"request_user":    types.CategoryTask,
 	}
 	if cat, ok := categories[toolName]; ok {
 		return cat

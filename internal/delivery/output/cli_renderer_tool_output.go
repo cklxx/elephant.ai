@@ -16,24 +16,18 @@ func (r *CLIRenderer) formatToolOutput(_ *types.OutputContext, toolName, result 
 	// Use brighter gray (#808080) that works on both light and dark backgrounds
 	grayStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
 	normalizedTool := strings.TrimSpace(toolName)
-	if normalizedTool == "read_file" || normalizedTool == "write_file" || normalizedTool == "list_dir" || normalizedTool == "search_file" || normalizedTool == "replace_in_file" {
+	if normalizedTool == "read_file" || normalizedTool == "write_file" || normalizedTool == "replace_in_file" {
 		return r.formatSandboxFileOutput(normalizedTool, result, indent, grayStyle)
 	}
 	category := CategorizeToolName(normalizedTool)
 
 	switch category {
-	case types.CategoryFile:
-		return r.formatFileOutput(normalizedTool, result, indent, grayStyle)
-	case types.CategorySearch:
-		return r.formatSearchOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategoryShell, types.CategoryExecution:
 		return r.formatExecutionOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategoryWeb:
 		return r.formatWebOutput(normalizedTool, result, indent, grayStyle)
 	case types.CategoryTask:
 		return r.formatTaskOutput(normalizedTool, result, indent, grayStyle)
-	case types.CategoryReasoning:
-		return r.formatReasoningOutput(result, indent, grayStyle)
 	default:
 		cleaned := filterSystemReminders(result)
 		preview := truncateWithEllipsis(cleaned, 80)
@@ -42,68 +36,6 @@ func (r *CLIRenderer) formatToolOutput(_ *types.OutputContext, toolName, result 
 }
 
 // Category-specific formatters
-
-func (r *CLIRenderer) formatFileOutput(toolName, result, indent string, style lipgloss.Style) string {
-	// Clean system reminders
-	cleaned := filterSystemReminders(result)
-
-	switch toolName {
-	case "file_read":
-		lines := countLines(cleaned)
-		return fmt.Sprintf("%s  %s\n", indent, style.Render(fmt.Sprintf("→ %d lines read", lines)))
-	case "file_write", "file_edit":
-		if summary, ok := summarizeFileOperation(cleaned); ok {
-			return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+summary))
-		}
-		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
-	case "list_files":
-		return r.formatListFiles(cleaned, indent, style)
-	default:
-		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
-	}
-}
-
-func (r *CLIRenderer) formatSearchOutput(_, result, indent string, style lipgloss.Style) string {
-	cleaned := filterSystemReminders(result)
-	summary := parseSearchSummary(cleaned)
-	matchCount := summary.Total
-	lines := summary.Matches
-	if summary.NoMatches {
-		matchCount = 0
-	}
-
-	var output strings.Builder
-	if summary.NoMatches {
-		output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ no matches")))
-		return output.String()
-	}
-	summaryLine := fmt.Sprintf("→ %d matches", matchCount)
-	if summary.Truncated {
-		summaryLine += " (truncated)"
-	}
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(summaryLine)))
-
-	// In verbose mode, show first few matches
-	if r.verbose && matchCount > 0 {
-		preview := lines
-		if len(preview) > 5 {
-			preview = preview[:5]
-		}
-		for _, line := range preview {
-			if line != "" {
-				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(line)))
-			}
-		}
-		if len(lines) > len(preview) {
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", len(lines)-len(preview)))))
-		}
-		if summary.Warning != "" {
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(summary.Warning)))
-		}
-	}
-
-	return output.String()
-}
 
 func (r *CLIRenderer) formatExecutionOutput(toolName, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
@@ -211,30 +143,18 @@ func (r *CLIRenderer) writeVerboseStream(builder *strings.Builder, indent string
 
 func (r *CLIRenderer) formatWebOutput(toolName, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
-	switch toolName {
-	case "web_search":
+	if toolName == "web_search" {
 		return r.formatWebSearchOutput(cleaned, indent, style)
-	case "web_fetch":
-		return r.formatWebFetchOutput(cleaned, indent, style)
-	default:
-		preview := truncateWithEllipsis(cleaned, 100)
-		if preview == "" {
-			preview = "ok"
-		}
-		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 	}
+	preview := truncateWithEllipsis(cleaned, 100)
+	if preview == "" {
+		preview = "ok"
+	}
+	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 }
 
-func (r *CLIRenderer) formatTaskOutput(toolName, result, indent string, style lipgloss.Style) string {
-	// Clean system reminders from output
+func (r *CLIRenderer) formatTaskOutput(_, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
-
-	// For todo tools, format the task list nicely
-	if toolName == "todo_update" || toolName == "todo_read" {
-		return r.formatTodoList(cleaned, indent, style)
-	}
-
-	// Other task tools: show cleaned result
 	lines := strings.Split(strings.TrimSpace(cleaned), "\n")
 	var output strings.Builder
 	for _, line := range lines {
@@ -242,75 +162,6 @@ func (r *CLIRenderer) formatTaskOutput(toolName, result, indent string, style li
 			output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(line)))
 		}
 	}
-	return output.String()
-}
-
-func (r *CLIRenderer) formatReasoningOutput(result, indent string, style lipgloss.Style) string {
-	cleaned := filterSystemReminders(result)
-	preview := truncateWithEllipsis(cleaned, 100)
-	return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
-}
-
-// formatTodoList formats todo list output with proper indentation
-func (r *CLIRenderer) formatTodoList(content, indent string, style lipgloss.Style) string {
-	lines := strings.Split(strings.TrimSpace(content), "\n")
-	var output strings.Builder
-
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-
-		// Add double indent for all lines (tool output should be indented)
-		trimmed := strings.TrimSpace(line)
-		output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(trimmed)))
-	}
-
-	return output.String()
-}
-
-// formatListFiles formats file list with count summary and optional preview
-func (r *CLIRenderer) formatListFiles(content, indent string, style lipgloss.Style) string {
-	lines := strings.Split(strings.TrimSpace(content), "\n")
-	summary := parseListFilesSummary(lines)
-	totalCount := summary.Total
-	if strings.TrimSpace(content) == "" {
-		totalCount = 0
-		summary = listFilesSummary{}
-	}
-
-	var output strings.Builder
-
-	// Show count summary
-	summaryParts := []string{}
-	summaryParts = append(summaryParts, fmt.Sprintf("%d entries", totalCount))
-	if summary.Dirs > 0 {
-		summaryParts = append(summaryParts, fmt.Sprintf("%d %s", summary.Dirs, pluralize("dir", summary.Dirs)))
-	}
-	if summary.Files > 0 {
-		summaryParts = append(summaryParts, fmt.Sprintf("%d %s", summary.Files, pluralize("file", summary.Files)))
-	}
-	if summary.TotalBytes > 0 {
-		summaryParts = append(summaryParts, formatBytes(summary.TotalBytes))
-	}
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+strings.Join(summaryParts, ", "))))
-
-	// In verbose mode, show first few files
-	if r.verbose && totalCount > 0 && totalCount <= 10 {
-		for _, line := range lines {
-			if line != "" {
-				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(line)))
-			}
-		}
-	} else if r.verbose && totalCount > 10 {
-		for i := 0; i < 5; i++ {
-			if lines[i] != "" {
-				output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(lines[i])))
-			}
-		}
-		output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", totalCount-5))))
-	}
-
 	return output.String()
 }
 
@@ -358,57 +209,6 @@ func (r *CLIRenderer) formatWebSearchOutput(content, indent string, style lipglo
 	return output.String()
 }
 
-func (r *CLIRenderer) formatWebFetchOutput(content, indent string, style lipgloss.Style) string {
-	summary := parseWebFetchContent(content)
-	host := hostFromURL(summary.URL)
-	if host == "" {
-		host = strings.TrimSpace(summary.URL)
-	}
-	body := summary.Content
-	action := "fetched"
-	if strings.TrimSpace(summary.Analysis) != "" || strings.TrimSpace(summary.Question) != "" {
-		action = "analyzed"
-		if summary.Analysis != "" {
-			body = summary.Analysis
-		}
-	}
-	lineCount := countLines(strings.TrimSpace(body))
-	var parts []string
-	if host != "" {
-		parts = append(parts, fmt.Sprintf("%s %s", action, host))
-	} else {
-		parts = append(parts, action)
-	}
-	if summary.Cached {
-		parts = append(parts, "cached")
-	}
-	if lineCount > 0 {
-		parts = append(parts, fmt.Sprintf("%d lines", lineCount))
-	}
-	line := strings.Join(parts, ", ")
-
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+line)))
-	if r.verbose {
-		if question := strings.TrimSpace(summary.Question); question != "" {
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render("question: "+truncateWithEllipsis(question, 160))))
-		}
-		label := "content"
-		if strings.TrimSpace(summary.Analysis) != "" {
-			label = "analysis"
-			body = summary.Analysis
-		}
-		preview := takePreviewLines(body, 3)
-		if len(preview) > 0 {
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(label+":")))
-			for _, line := range preview {
-				output.WriteString(fmt.Sprintf("%s      %s\n", indent, style.Render(truncateWithEllipsis(line, 200))))
-			}
-		}
-	}
-	return output.String()
-}
-
 func (r *CLIRenderer) formatSandboxFileOutput(toolName, result, indent string, style lipgloss.Style) string {
 	cleaned := filterSystemReminders(result)
 	switch toolName {
@@ -420,83 +220,8 @@ func (r *CLIRenderer) formatSandboxFileOutput(toolName, result, indent string, s
 			return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+summary))
 		}
 		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
-	case "list_dir":
-		if summary, ok := parseSandboxFileListSummary(cleaned); ok {
-			return r.renderSandboxFileList(summary, indent, style)
-		}
-		preview := truncateWithEllipsis(cleaned, 100)
-		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
-	case "search_file":
-		if summary, ok := parseSandboxFileSearchSummary(cleaned); ok {
-			return r.renderSandboxFileSearch(summary, indent, style)
-		}
-		preview := truncateWithEllipsis(cleaned, 100)
-		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+preview))
 	default:
 		return fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+cleaned))
 	}
 }
 
-func (r *CLIRenderer) renderSandboxFileList(summary sandboxFileListSummary, indent string, style lipgloss.Style) string {
-	var output strings.Builder
-	parts := []string{fmt.Sprintf("%d entries", summary.Total)}
-	if summary.Dirs > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", summary.Dirs, pluralize("dir", summary.Dirs)))
-	}
-	if summary.Files > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", summary.Files, pluralize("file", summary.Files)))
-	}
-	if summary.TotalBytes > 0 {
-		parts = append(parts, formatBytes(summary.TotalBytes))
-	}
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render("→ "+strings.Join(parts, ", "))))
-	if r.verbose && len(summary.Entries) > 0 {
-		preview := summary.Entries
-		if len(preview) > 5 {
-			preview = preview[:5]
-		}
-		for _, entry := range preview {
-			line := entry.Path
-			if entry.IsDir {
-				line = "[DIR] " + line
-			} else {
-				line = "[FILE] " + line
-				if entry.Size != nil {
-					line = fmt.Sprintf("%s (%s)", line, formatBytes(*entry.Size))
-				}
-			}
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(line)))
-		}
-		if len(summary.Entries) > len(preview) {
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", len(summary.Entries)-len(preview)))))
-		}
-	}
-	return output.String()
-}
-
-func (r *CLIRenderer) renderSandboxFileSearch(summary sandboxFileSearchSummary, indent string, style lipgloss.Style) string {
-	var output strings.Builder
-	matchCount := len(summary.Matches)
-	header := fmt.Sprintf("→ %d matches", matchCount)
-	if summary.File != "" {
-		header += fmt.Sprintf(" in %s", summary.File)
-	}
-	output.WriteString(fmt.Sprintf("%s  %s\n", indent, style.Render(header)))
-	if r.verbose && matchCount > 0 {
-		preview := summary.Matches
-		if len(preview) > 5 {
-			preview = preview[:5]
-		}
-		for i, match := range preview {
-			line := match
-			if i < len(summary.Lines) && summary.Lines[i] > 0 {
-				line = fmt.Sprintf("%d: %s", summary.Lines[i], match)
-			}
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(truncateWithEllipsis(line, 200))))
-		}
-		if len(summary.Matches) > len(preview) {
-			output.WriteString(fmt.Sprintf("%s    %s\n", indent, style.Render(fmt.Sprintf("... and %d more", len(summary.Matches)-len(preview)))))
-		}
-	}
-	return output.String()
-}

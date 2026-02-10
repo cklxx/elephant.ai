@@ -216,9 +216,9 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 		"Use `request_user` for explicit human approval/consent/manual gates",
 		"Distinguish repo files vs memory notes",
 		"Prefer `execute_code` for deterministic recalculation/metric/invariant checks",
-		"Distinguish artifact tools",
-		"Distinguish Lark tools",
-		"Distinguish browser tools",
+		"Use `channel` for all Lark operations",
+		"Use `browser_action` for browser interactions",
+		"Use `skills` to invoke declarative skill workflows",
 	} {
 		if !strings.Contains(prompt, snippet) {
 			t.Fatalf("expected system prompt to contain %q", snippet)
@@ -277,17 +277,17 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "full allows artifacts_write in cli mode",
+			name:      "full allows channel in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
-			toolName:  "artifacts_write",
+			toolName:  "channel",
 			wantAllow: true,
 		},
 		{
-			name:      "full allows acp_executor in cli mode",
+			name:      "full allows web_search in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetFull,
-			toolName:  "acp_executor",
+			toolName:  "web_search",
 			wantAllow: true,
 		},
 		{
@@ -305,17 +305,17 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "read-only allows vision_analyze",
+			name:      "read-only allows read_file",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetReadOnly,
-			toolName:  "vision_analyze",
+			toolName:  "read_file",
 			wantAllow: true,
 		},
 		{
-			name:      "safe allows vision_analyze",
+			name:      "safe allows read_file",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetSafe,
-			toolName:  "vision_analyze",
+			toolName:  "read_file",
 			wantAllow: true,
 		},
 		{
@@ -389,10 +389,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "lark-local allows write_attachment",
+			name:      "lark-local allows channel",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetLarkLocal,
-			toolName:  "write_attachment",
+			toolName:  "channel",
 			wantAllow: true,
 		},
 		{
@@ -424,10 +424,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "architect allows acp_executor in cli mode",
+			name:      "architect allows plan in cli mode",
 			mode:      ToolModeCLI,
 			preset:    ToolPresetArchitect,
-			toolName:  "acp_executor",
+			toolName:  "plan",
 			wantAllow: true,
 		},
 		{
@@ -438,10 +438,10 @@ func TestToolPresetBlocking(t *testing.T) {
 			wantAllow: true,
 		},
 		{
-			name:      "web mode architect allows acp_executor",
+			name:      "web mode architect allows plan",
 			mode:      ToolModeWeb,
 			preset:    ToolPresetArchitect,
-			toolName:  "acp_executor",
+			toolName:  "plan",
 			wantAllow: true,
 		},
 		{

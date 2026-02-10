@@ -596,22 +596,19 @@ func extractToolLocations(args map[string]any, metadata map[string]any) []map[st
 }
 
 func toolKindForName(name string) string {
-	name = strings.ToLower(strings.TrimSpace(name))
-	switch {
-	case name == "file_read" || name == "list_files":
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "read_file":
 		return "read"
-	case name == "file_write" || name == "file_edit" || name == "html_edit":
+	case "write_file", "replace_in_file":
 		return "edit"
-	case name == "file_delete":
-		return "delete"
-	case name == "find" || name == "grep" || name == "ripgrep" || strings.Contains(name, "search"):
-		return "search"
-	case name == "bash" || name == "code_execute" || strings.HasPrefix(name, "sandbox_shell"):
+	case "shell_exec", "execute_code":
 		return "execute"
-	case name == "plan" || name == "clarify" || name == "attention":
+	case "plan", "clarify":
 		return "think"
-	case name == "web_fetch" || name == "douyin_hot":
-		return "fetch"
+	case "web_search":
+		return "search"
+	case "channel":
+		return "channel"
 	default:
 		return "other"
 	}
