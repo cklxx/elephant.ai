@@ -5,17 +5,18 @@
 # Usage:
 #   ./dev.sh                    # Start backend + web + lark (background)
 #   ./dev.sh up|start           # Start backend + web only
-#   ./dev.sh all-up             # Start backend + web + lark (separate stacks)
+#   ./dev.sh up --lark          # Start backend + web + lark (recommended)
+#   ./dev.sh all-up             # Start backend + web + lark (legacy alias)
 #   ./dev.sh sandbox-up         # Start sandbox + ACP only
 #   ./dev.sh sandbox-down       # Stop sandbox + ACP only
 #   ./dev.sh sandbox-status     # Show sandbox + ACP status only
 #   ./dev.sh down|stop          # Stop backend + web
 #   ./dev.sh status             # Show status + ports
 #   ./dev.sh logs [server|web]  # Tail logs
-#   ./dev.sh lark-up            # Start lark supervisor stack only
-#   ./dev.sh lark-down          # Stop lark supervisor stack only
-#   ./dev.sh lark-status        # Show lark supervisor status only
-#   ./dev.sh lark-logs          # Tail lark supervisor logs
+#   ./dev.sh lark up            # Start lark supervisor stack only
+#   ./dev.sh lark down          # Stop lark supervisor stack only
+#   ./dev.sh lark status        # Show lark supervisor status only
+#   ./dev.sh lark logs          # Tail lark supervisor logs
 #   ./dev.sh logs-ui            # Start services and open diagnostics workbench
 #   ./dev.sh test               # Go tests (CI parity)
 #   ./dev.sh lint               # Go + web lint
@@ -136,7 +137,7 @@ readonly ACP_PID_FILE="${PID_DIR}/acp.pid"
 readonly ACP_PORT_FILE="${PID_DIR}/acp.port"
 
 readonly BOOTSTRAP_MARKER="${PID_DIR}/bootstrap.done"
-readonly LARK_SUPERVISOR_SH="${SCRIPT_DIR}/scripts/lark/supervisor.sh"
+readonly LARK_ENTRY_SH="${SCRIPT_DIR}/lark.sh"
 
 ensure_local_bootstrap() {
   if [[ -f "${BOOTSTRAP_MARKER}" ]]; then
@@ -930,6 +931,18 @@ start_web() {
 }
 
 cmd_up() {
+  local with_lark=0 arg
+  for arg in "$@"; do
+    case "${arg}" in
+      --lark)
+        with_lark=1
+        ;;
+      *)
+        die "Unknown up flag: ${arg} (expected: --lark)"
+        ;;
+    esac
+  done
+
   ensure_local_bootstrap
   log_section "Sandbox"
   start_sandbox
@@ -955,6 +968,11 @@ cmd_up() {
   log_info "Diagnostics         http://localhost:${WEB_PORT}/dev/diagnostics"
   log_info "Configuration       http://localhost:${WEB_PORT}/dev/configuration"
   log_info "Operations          http://localhost:${WEB_PORT}/dev/operations"
+
+  if (( with_lark )); then
+    echo ""
+    cmd_lark up
+  fi
 }
 
 cmd_sandbox_up() {
@@ -1014,47 +1032,62 @@ cmd_down_all() {
   rm -f "${BOOTSTRAP_MARKER}"
 }
 
-require_lark_supervisor() {
-  [[ -x "${LARK_SUPERVISOR_SH}" ]] || die "Missing ${LARK_SUPERVISOR_SH}"
+require_lark_entrypoint() {
+  [[ -x "${LARK_ENTRY_SH}" ]] || die "Missing ${LARK_ENTRY_SH}"
+}
+
+warn_lark_alias_deprecated() {
+  local alias="$1"
+  local canonical="$2"
+  log_warn "Deprecated command './dev.sh ${alias}'. Use './dev.sh lark ${canonical}' instead."
+}
+
+cmd_lark() {
+  local subcmd="${1:-up}"
+  shift || true
+  require_lark_entrypoint
+  case "${subcmd}" in
+    up|start|restart|cycle)
+      ensure_local_bootstrap
+      ;;
+  esac
+  log_section "Lark"
+  "${LARK_ENTRY_SH}" "${subcmd}" "$@"
 }
 
 cmd_lark_up() {
-  ensure_local_bootstrap
-  require_lark_supervisor
-  log_section "Lark"
-  "${LARK_SUPERVISOR_SH}" start
+  warn_lark_alias_deprecated "lark-up" "up"
+  cmd_lark up
 }
 
 cmd_lark_down() {
-  require_lark_supervisor
-  "${LARK_SUPERVISOR_SH}" stop
+  warn_lark_alias_deprecated "lark-down" "down"
+  cmd_lark down
 }
 
 cmd_lark_status() {
-  require_lark_supervisor
-  "${LARK_SUPERVISOR_SH}" status
+  warn_lark_alias_deprecated "lark-status" "status"
+  cmd_lark status
 }
 
 cmd_lark_logs() {
-  require_lark_supervisor
-  "${LARK_SUPERVISOR_SH}" logs
+  warn_lark_alias_deprecated "lark-logs" "logs"
+  cmd_lark logs
 }
 
 cmd_all_up() {
-  cmd_up
-  echo ""
-  cmd_lark_up
+  cmd_up --lark
 }
 
 cmd_all_down() {
-  cmd_lark_down
+  cmd_lark down
   cmd_down
 }
 
 cmd_all_status() {
   cmd_status
   echo ""
-  cmd_lark_status
+  cmd_lark status
 }
 
 cmd_status() {
@@ -1254,9 +1287,10 @@ Usage:
 
 Commands:
   up|start       Start backend + web only (background)
-  all-up         Start backend + web + lark (isolated stacks)
-  all-down       Stop backend + web + lark (keeps sandbox/authdb running)
-  all-status     Show status for backend/web/sandbox + lark
+  up --lark      Start backend + web + lark (recommended)
+  all-up         Start backend + web + lark (legacy alias)
+  all-down       Stop backend + web + lark (legacy alias, keeps sandbox/authdb running)
+  all-status     Show status for backend/web/sandbox + lark (legacy alias)
   sandbox-up     Start sandbox + ACP only
   sandbox-down   Stop sandbox + ACP only
   sandbox-status Show sandbox + ACP status
@@ -1264,10 +1298,11 @@ Commands:
   down-all       Stop everything including sandbox + authdb
   status         Show status + ports
   logs           Tail logs (optional: server|web)
-  lark-up        Start lark supervisor stack only
-  lark-down      Stop lark supervisor stack only
-  lark-status    Show lark supervisor status
-  lark-logs      Tail lark supervisor logs
+  lark <cmd>     Manage lark stack via ./lark.sh (up|down|restart|status|logs|doctor|cycle)
+  lark-up        Legacy alias of lark up
+  lark-down      Legacy alias of lark down
+  lark-status    Legacy alias of lark status
+  lark-logs      Legacy alias of lark logs
   logs-ui        Start services and open the diagnostics workbench
   test           Run Go tests (CI parity)
   lint           Run Go + web lint
@@ -1279,7 +1314,7 @@ cmd="${1:-all-up}"
 shift || true
 
 case "$cmd" in
-  up|start) cmd_up ;;
+  up|start) cmd_up "$@" ;;
   all-up) cmd_all_up ;;
   all-down) cmd_all_down ;;
   all-status) cmd_all_status ;;
@@ -1290,6 +1325,7 @@ case "$cmd" in
   down-all|stop-all) cmd_down_all ;;
   status) cmd_status ;;
   logs) cmd_logs "${@:-all}" ;;
+  lark) cmd_lark "$@" ;;
   lark-up) cmd_lark_up ;;
   lark-down) cmd_lark_down ;;
   lark-status) cmd_lark_status ;;
