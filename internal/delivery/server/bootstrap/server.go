@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"alex/internal/app/subscription"
+	"alex/internal/app/workdir"
 	serverApp "alex/internal/delivery/server/app"
 	"alex/internal/delivery/server/ports"
 	serverHTTP "alex/internal/delivery/server/http"
@@ -20,6 +21,7 @@ import (
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
+	"alex/internal/infra/external/bridge"
 	"alex/internal/infra/httpclient"
 	"alex/internal/infra/sandbox"
 	taskinfra "alex/internal/infra/task"
@@ -173,17 +175,33 @@ func RunServer(observabilityConfigPath string) error {
 
 	journalReader := BuildJournalReader(container.SessionDir(), logger)
 
+	coordinatorOpts := []serverApp.ServerCoordinatorOption{
+		serverApp.WithAnalyticsClient(analyticsClient),
+		serverApp.WithJournalReader(journalReader),
+		serverApp.WithObservability(f.Obs),
+		serverApp.WithHistoryStore(container.HistoryStore),
+		serverApp.WithProgressTracker(progressTracker),
+	}
+
+	// Wire bridge orphan resumer when unified task store is available.
+	if container.TaskStore != nil {
+		bridgeWorkDir := workdir.DefaultWorkingDir()
+		resumer := bridge.NewResumer(container.TaskStore, bridge.New(bridge.BridgeConfig{}), nil)
+		coordinatorOpts = append(coordinatorOpts,
+			serverApp.WithCoordinatorBridgeResumer(
+				&bridgeResumerAdapter{resumer: resumer},
+				bridgeWorkDir,
+			),
+		)
+	}
+
 	serverCoordinator := serverApp.NewServerCoordinator(
 		container.AgentCoordinator,
 		broadcaster,
 		container.SessionStore,
 		taskStore,
 		container.StateStore,
-		serverApp.WithAnalyticsClient(analyticsClient),
-		serverApp.WithJournalReader(journalReader),
-		serverApp.WithObservability(f.Obs),
-		serverApp.WithHistoryStore(container.HistoryStore),
-		serverApp.WithProgressTracker(progressTracker),
+		coordinatorOpts...,
 	)
 	if resumed, err := serverCoordinator.ResumePendingTasks(context.Background()); err != nil {
 		logger.Warn("[Bootstrap] Failed to resume pending/running tasks: %v", err)
@@ -334,6 +352,24 @@ func RunServer(observabilityConfigPath string) error {
 	}
 
 	return serveUntilSignal(server, logger)
+}
+
+// bridgeResumerAdapter wraps bridge.Resumer to implement serverApp.BridgeOrphanResumer.
+type bridgeResumerAdapter struct {
+	resumer *bridge.Resumer
+}
+
+func (a *bridgeResumerAdapter) ResumeOrphans(ctx context.Context, workDir string) []serverApp.OrphanResumeResult {
+	results := a.resumer.ResumeOrphans(ctx, workDir)
+	out := make([]serverApp.OrphanResumeResult, len(results))
+	for i, r := range results {
+		out[i] = serverApp.OrphanResumeResult{
+			TaskID: r.TaskID,
+			Action: string(r.Action),
+			Error:  r.Error,
+		}
+	}
+	return out
 }
 
 // gatewaySubsystem adapts the start/cleanup gateway pattern to the Subsystem interface.

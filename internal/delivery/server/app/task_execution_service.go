@@ -24,6 +24,22 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+// BridgeOrphanResumer detects and processes orphaned bridge subprocesses
+// left behind after a process restart. Implementations classify each orphan
+// (adopt, harvest, retry, or fail) and update the task store accordingly.
+type BridgeOrphanResumer interface {
+	// ResumeOrphans scans workDir for orphaned bridge outputs and processes them.
+	// Returns a summary of actions taken per task.
+	ResumeOrphans(ctx context.Context, workDir string) []OrphanResumeResult
+}
+
+// OrphanResumeResult captures what happened to a single orphaned bridge.
+type OrphanResumeResult struct {
+	TaskID string
+	Action string
+	Error  error
+}
+
 // TaskExecutionService handles asynchronous task execution, cancellation,
 // and task store queries. Extracted from ServerCoordinator.
 type TaskExecutionService struct {
@@ -34,9 +50,11 @@ type TaskExecutionService struct {
 	stateStore       interface {
 		Init(ctx context.Context, sessionID string) error
 	}
-	analytics analytics.Client
-	obs       *observability.Observability
-	logger    logging.Logger
+	bridgeResumer BridgeOrphanResumer
+	bridgeWorkDir string
+	analytics     analytics.Client
+	obs           *observability.Observability
+	logger        logging.Logger
 
 	cancelFuncs map[string]context.CancelCauseFunc
 	cancelMu    sync.RWMutex
@@ -111,6 +129,15 @@ func WithTaskStateStore(store interface {
 }) TaskExecutionServiceOption {
 	return func(svc *TaskExecutionService) {
 		svc.stateStore = store
+	}
+}
+
+// WithBridgeResumer wires orphan bridge detection and resumption.
+// workDir is the base directory where .elephant/bridge/ dirs are created.
+func WithBridgeResumer(resumer BridgeOrphanResumer, workDir string) TaskExecutionServiceOption {
+	return func(svc *TaskExecutionService) {
+		svc.bridgeResumer = resumer
+		svc.bridgeWorkDir = workDir
 	}
 }
 
@@ -514,6 +541,8 @@ func (svc *TaskExecutionService) SummarizeSessionTasks(ctx context.Context, sess
 }
 
 // ResumePendingTasks re-dispatches persisted pending/running tasks after restart.
+// It first detects and processes orphaned bridge subprocesses (adopt/harvest/fail),
+// then re-dispatches any remaining pending/running tasks.
 func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, error) {
 	ctx, _ = id.EnsureLogID(ctx, id.NewLogID)
 	logger := logging.FromContext(ctx, svc.logger)
@@ -523,6 +552,9 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 	if svc.broadcaster == nil {
 		return 0, UnavailableError("broadcaster not initialized")
 	}
+
+	// Phase 1: Detect and process orphaned bridge subprocesses.
+	svc.resumeOrphanedBridges(ctx, logger)
 
 	tasks, err := svc.taskStore.ListByStatus(ctx, serverPorts.TaskStatusPending, serverPorts.TaskStatusRunning)
 	if err != nil {
@@ -692,4 +724,36 @@ func (svc *TaskExecutionService) CancelTask(ctx context.Context, taskID string) 
 	svc.captureAnalytics(ctx, task.SessionID, analytics.EventTaskCancelRequested, props)
 
 	return nil
+}
+
+// resumeOrphanedBridges detects and processes orphaned bridge subprocesses.
+// This runs as the first step of ResumePendingTasks to adopt running bridges,
+// harvest completed results, and mark dead bridges as failed before re-dispatching
+// persisted tasks.
+func (svc *TaskExecutionService) resumeOrphanedBridges(ctx context.Context, logger logging.Logger) {
+	if svc.bridgeResumer == nil || svc.bridgeWorkDir == "" {
+		return
+	}
+
+	results := svc.bridgeResumer.ResumeOrphans(ctx, svc.bridgeWorkDir)
+	if len(results) == 0 {
+		return
+	}
+
+	adopted, harvested, failed := 0, 0, 0
+	for _, r := range results {
+		switch r.Action {
+		case "adopt":
+			adopted++
+		case "harvest":
+			harvested++
+		default:
+			failed++
+		}
+		if r.Error != nil {
+			logger.Warn("[Resume] orphan %s (%s): %v", r.TaskID, r.Action, r.Error)
+		}
+	}
+
+	logger.Info("[Resume] orphan bridge scan: adopted=%d harvested=%d failed=%d", adopted, harvested, failed)
 }

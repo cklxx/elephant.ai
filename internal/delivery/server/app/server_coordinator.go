@@ -74,14 +74,20 @@ func NewServerCoordinator(
 		}
 	}
 
-	tasks := NewTaskExecutionService(
-		agentCoordinator,
-		broadcaster,
-		taskStore,
+	taskOpts := []TaskExecutionServiceOption{
 		WithTaskAnalytics(cfg.analytics),
 		WithTaskObservability(cfg.obs),
 		WithTaskProgressTracker(cfg.progressTracker),
 		WithTaskStateStore(stateStore),
+	}
+	if cfg.bridgeResumer != nil && cfg.bridgeWorkDir != "" {
+		taskOpts = append(taskOpts, WithBridgeResumer(cfg.bridgeResumer, cfg.bridgeWorkDir))
+	}
+	tasks := NewTaskExecutionService(
+		agentCoordinator,
+		broadcaster,
+		taskStore,
+		taskOpts...,
 	)
 
 	sessions := NewSessionService(
@@ -115,6 +121,8 @@ type coordinatorConfig struct {
 	obs             *observability.Observability
 	historyStore    sessionstate.Store
 	progressTracker *TaskProgressTracker
+	bridgeResumer   BridgeOrphanResumer
+	bridgeWorkDir   string
 }
 
 // ServerCoordinatorOption configures optional behavior for the server coordinator.
@@ -156,6 +164,14 @@ func WithObservability(obs *observability.Observability) ServerCoordinatorOption
 func WithProgressTracker(tracker *TaskProgressTracker) ServerCoordinatorOption {
 	return func(cfg *coordinatorConfig) {
 		cfg.progressTracker = tracker
+	}
+}
+
+// WithCoordinatorBridgeResumer wires orphan bridge detection into the coordinator.
+func WithCoordinatorBridgeResumer(resumer BridgeOrphanResumer, workDir string) ServerCoordinatorOption {
+	return func(cfg *coordinatorConfig) {
+		cfg.bridgeResumer = resumer
+		cfg.bridgeWorkDir = workDir
 	}
 }
 
