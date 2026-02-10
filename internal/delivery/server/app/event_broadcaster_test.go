@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -259,6 +260,47 @@ func TestEventBroadcasterTracksNoClientSessionMetrics(t *testing.T) {
 	metrics = broadcaster.GetMetrics()
 	if _, ok := metrics.NoClientBySession["orphan-session"]; ok {
 		t.Fatalf("expected orphan-session counter to be cleared")
+	}
+}
+
+func TestBoundedSessionCounterStoreCapsEntries(t *testing.T) {
+	store := newBoundedSessionCounterStore(3, 0)
+	store.Increment("s-001")
+	store.Increment("s-002")
+	store.Increment("s-003")
+	store.Increment("s-004")
+
+	snapshot := store.Snapshot()
+	if len(snapshot) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(snapshot))
+	}
+	if _, exists := snapshot["s-001"]; exists {
+		t.Fatalf("expected oldest session s-001 to be evicted")
+	}
+	if snapshot["s-004"] != 1 {
+		t.Fatalf("expected newest session to be retained, got count=%d", snapshot["s-004"])
+	}
+}
+
+func TestEventBroadcasterCapsNoClientSessionMetrics(t *testing.T) {
+	broadcaster := NewEventBroadcaster()
+	totalSessions := sessionMetricMaxEntries + 64
+	for i := 0; i < totalSessions; i++ {
+		sessionID := fmt.Sprintf("orphan-%05d", i)
+		event := &domain.WorkflowEventEnvelope{
+			BaseEvent: domain.NewBaseEvent(agent.LevelCore, sessionID, "task-1", "", time.Now()),
+			Version:   1,
+			Event:     types.EventNodeStarted,
+		}
+		broadcaster.OnEvent(event)
+	}
+
+	metrics := broadcaster.GetMetrics()
+	if got := len(metrics.NoClientBySession); got > sessionMetricMaxEntries {
+		t.Fatalf("expected at most %d session counters, got %d", sessionMetricMaxEntries, got)
+	}
+	if metrics.NoClientEvents != int64(totalSessions) {
+		t.Fatalf("expected total no-client events=%d, got %d", totalSessions, metrics.NoClientEvents)
 	}
 }
 

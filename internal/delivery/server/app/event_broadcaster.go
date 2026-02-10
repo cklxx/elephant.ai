@@ -51,6 +51,9 @@ const (
 	globalHighVolumeSessionID = "__global__"
 	missingSessionIDKey       = "__missing__"
 	pruneEveryN               = 100
+	sessionMetricMaxEntries   = 2048
+	sessionMetricTTL          = 30 * time.Minute
+	sessionMetricPruneEveryN  = 256
 )
 
 // broadcasterMetrics tracks broadcaster performance metrics using lock-free
@@ -61,13 +64,157 @@ type broadcasterMetrics struct {
 	noClientEvents    atomic.Int64 // Events dropped because no SSE client was subscribed
 	totalConnections  atomic.Int64 // Total connections ever made
 	activeConnections atomic.Int64 // Currently active connections
-	dropsPerSession   sync.Map     // sessionID -> *atomic.Int64
-	noClientBySession sync.Map     // sessionID -> *atomic.Int64
+	dropsPerSession   *boundedSessionCounterStore
+	noClientBySession *boundedSessionCounterStore
 }
 
 type sessionHistory struct {
 	events   []agent.AgentEvent
 	lastSeen time.Time
+}
+
+type sessionCounterEntry struct {
+	count    int64
+	lastSeen time.Time
+}
+
+type boundedSessionCounterStore struct {
+	mu         sync.RWMutex
+	entries    map[string]*sessionCounterEntry
+	maxEntries int
+	ttl        time.Duration
+	ops        uint64
+}
+
+func newBroadcasterMetrics() broadcasterMetrics {
+	return broadcasterMetrics{
+		dropsPerSession:   newBoundedSessionCounterStore(sessionMetricMaxEntries, sessionMetricTTL),
+		noClientBySession: newBoundedSessionCounterStore(sessionMetricMaxEntries, sessionMetricTTL),
+	}
+}
+
+func newBoundedSessionCounterStore(maxEntries int, ttl time.Duration) *boundedSessionCounterStore {
+	return &boundedSessionCounterStore{
+		entries:    make(map[string]*sessionCounterEntry),
+		maxEntries: maxEntries,
+		ttl:        ttl,
+	}
+}
+
+func (s *boundedSessionCounterStore) Increment(sessionID string) int64 {
+	if s == nil {
+		return 0
+	}
+	now := time.Now()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if sessionID == "" {
+		sessionID = missingSessionIDKey
+	}
+
+	entry := s.entries[sessionID]
+	if entry == nil {
+		entry = &sessionCounterEntry{}
+		s.entries[sessionID] = entry
+	}
+	entry.count++
+	entry.lastSeen = now
+
+	s.ops++
+	shouldPruneTTL := s.ttl > 0 && s.ops%sessionMetricPruneEveryN == 0
+	shouldPruneCap := s.maxEntries > 0 && len(s.entries) > s.maxEntries
+	if shouldPruneTTL || shouldPruneCap {
+		s.pruneLocked(now)
+	}
+
+	return entry.count
+}
+
+func (s *boundedSessionCounterStore) Delete(sessionID string) {
+	if s == nil || sessionID == "" {
+		return
+	}
+	s.mu.Lock()
+	delete(s.entries, sessionID)
+	s.mu.Unlock()
+}
+
+func (s *boundedSessionCounterStore) Snapshot() map[string]int64 {
+	if s == nil {
+		return nil
+	}
+
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if len(s.entries) == 0 {
+		return nil
+	}
+
+	out := make(map[string]int64, len(s.entries))
+	for sessionID, entry := range s.entries {
+		if entry == nil {
+			continue
+		}
+		out[sessionID] = entry.count
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func (s *boundedSessionCounterStore) pruneLocked(now time.Time) {
+	if len(s.entries) == 0 {
+		return
+	}
+
+	if s.ttl > 0 {
+		for sessionID, entry := range s.entries {
+			if entry == nil {
+				delete(s.entries, sessionID)
+				continue
+			}
+			if now.Sub(entry.lastSeen) > s.ttl {
+				delete(s.entries, sessionID)
+			}
+		}
+	}
+
+	if s.maxEntries <= 0 || len(s.entries) <= s.maxEntries {
+		return
+	}
+
+	type counterInfo struct {
+		sessionID string
+		lastSeen  time.Time
+	}
+
+	counters := make([]counterInfo, 0, len(s.entries))
+	for sessionID, entry := range s.entries {
+		lastSeen := time.Time{}
+		if entry != nil {
+			lastSeen = entry.lastSeen
+		}
+		counters = append(counters, counterInfo{
+			sessionID: sessionID,
+			lastSeen:  lastSeen,
+		})
+	}
+
+	sort.Slice(counters, func(i, j int) bool {
+		if counters[i].lastSeen.Equal(counters[j].lastSeen) {
+			return counters[i].sessionID < counters[j].sessionID
+		}
+		return counters[i].lastSeen.Before(counters[j].lastSeen)
+	})
+
+	toEvict := len(counters) - s.maxEntries
+	for i := 0; i < toEvict; i++ {
+		delete(s.entries, counters[i].sessionID)
+	}
 }
 
 // EventBroadcasterOption configures a broadcaster instance.
@@ -114,6 +261,7 @@ func NewEventBroadcaster(opts ...EventBroadcasterOption) *EventBroadcaster {
 		highVolumeCounters: make(map[string]int),
 		maxHistory:         1000, // Keep up to 1000 events per session
 		logger:             logging.NewComponentLogger("EventBroadcaster"),
+		metrics:            newBroadcasterMetrics(),
 	}
 	b.clients.Store(clientMap{})
 	for _, opt := range opts {
@@ -708,16 +856,14 @@ func (b *EventBroadcaster) enforceMaxSessionsLocked() {
 func (m *broadcasterMetrics) incrementEventsSent() { m.totalEventsSent.Add(1) }
 func (m *broadcasterMetrics) incrementDroppedEvents(sessionID string) int64 {
 	m.droppedEvents.Add(1)
-	counter, _ := m.dropsPerSession.LoadOrStore(sessionID, &atomic.Int64{})
-	return counter.(*atomic.Int64).Add(1)
+	return m.dropsPerSession.Increment(sessionID)
 }
 func (m *broadcasterMetrics) incrementNoClientEvents(sessionID string) int64 {
 	if sessionID == "" {
 		sessionID = missingSessionIDKey
 	}
 	m.noClientEvents.Add(1)
-	counter, _ := m.noClientBySession.LoadOrStore(sessionID, &atomic.Int64{})
-	return counter.(*atomic.Int64).Add(1)
+	return m.noClientBySession.Increment(sessionID)
 }
 func (m *broadcasterMetrics) incrementConnections() {
 	m.totalConnections.Add(1)
@@ -774,23 +920,8 @@ func (b *EventBroadcaster) GetMetrics() BroadcasterMetrics {
 		}
 	}
 
-	// Collect per-session drop counts.
-	var dropsPerSession map[string]int64
-	b.metrics.dropsPerSession.Range(func(key, value any) bool {
-		if dropsPerSession == nil {
-			dropsPerSession = make(map[string]int64)
-		}
-		dropsPerSession[key.(string)] = value.(*atomic.Int64).Load()
-		return true
-	})
-	var noClientBySession map[string]int64
-	b.metrics.noClientBySession.Range(func(key, value any) bool {
-		if noClientBySession == nil {
-			noClientBySession = make(map[string]int64)
-		}
-		noClientBySession[key.(string)] = value.(*atomic.Int64).Load()
-		return true
-	})
+	dropsPerSession := b.metrics.dropsPerSession.Snapshot()
+	noClientBySession := b.metrics.noClientBySession.Snapshot()
 
 	return BroadcasterMetrics{
 		TotalEventsSent:   totalEvents,
