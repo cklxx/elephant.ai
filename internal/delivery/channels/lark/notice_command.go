@@ -58,18 +58,18 @@ func (g *Gateway) bindNoticeChat(msg *incomingMessage) string {
 		return fmt.Sprintf("设置通知群失败：%v", err)
 	}
 
+	reply := fmt.Sprintf("已将当前群设置为通知群。\nchat_id: %s\nset_at: %s", binding.ChatID, binding.UpdatedAt)
+
 	if g.cfg.CCHooksAutoConfig != nil {
-		g.taskWG.Add(1)
-		go func() {
-			defer g.taskWG.Done()
-			g.runCCHooksSetup(msg)
-		}()
+		settingsPath := ccHooksSettingsPath(g.cfg.WorkspaceDir)
+		if err := writeCCHooks(settingsPath, g.cfg.CCHooksAutoConfig.ServerURL, g.cfg.CCHooksAutoConfig.Token); err != nil {
+			g.logger.Warn("cc-hooks-setup: write failed: %v", err)
+			reply += fmt.Sprintf("\nClaude Code hooks 自动配置失败：%v", err)
+		} else {
+			reply += fmt.Sprintf("\nClaude Code hooks 配置完成。\npath: %s", settingsPath)
+		}
 	}
 
-	reply := fmt.Sprintf("已将当前群设置为通知群。\nchat_id: %s\nset_at: %s", binding.ChatID, binding.UpdatedAt)
-	if g.cfg.CCHooksAutoConfig != nil {
-		reply += "\n正在配置 Claude Code hooks..."
-	}
 	return reply
 }
 
@@ -110,18 +110,18 @@ func (g *Gateway) clearNoticeChat(msg *incomingMessage) string {
 		return fmt.Sprintf("清除通知群失败：%v", err)
 	}
 
+	reply := "已清除通知群绑定。"
+
 	if g.cfg.CCHooksAutoConfig != nil {
-		g.taskWG.Add(1)
-		go func() {
-			defer g.taskWG.Done()
-			g.runCCHooksRemove(msg)
-		}()
+		settingsPath := ccHooksSettingsPath(g.cfg.WorkspaceDir)
+		if err := removeCCHooks(settingsPath); err != nil {
+			g.logger.Warn("cc-hooks-remove: failed: %v", err)
+			reply += fmt.Sprintf("\nClaude Code hooks 移除失败：%v", err)
+		} else {
+			reply += "\nClaude Code hooks 已移除。"
+		}
 	}
 
-	reply := "已清除通知群绑定。"
-	if g.cfg.CCHooksAutoConfig != nil {
-		reply += "\n正在移除 Claude Code hooks..."
-	}
 	return reply
 }
 

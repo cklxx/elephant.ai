@@ -40,7 +40,7 @@ type Config struct {
 	// take turns responding instead of all responding simultaneously.
 	AIChatBotIDs []string
 	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
-	// via the cc-hooks-setup skill after /notice bind.
+	// (direct file write to .claude/settings.local.json) after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig
 }
 

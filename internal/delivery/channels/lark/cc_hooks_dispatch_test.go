@@ -1,48 +1,177 @@
 package lark
 
 import (
-	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 
 	"alex/internal/delivery/channels"
-	agent "alex/internal/domain/agent/ports/agent"
-	storage "alex/internal/domain/agent/ports/storage"
 	"alex/internal/shared/logging"
 )
 
-// promptRecordingExecutor captures prompts passed to ExecuteTask.
-type promptRecordingExecutor struct {
-	mu      sync.Mutex
-	prompts []string
+func TestWriteCCHooks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "settings.local.json")
+
+	err := writeCCHooks(path, "http://localhost:8080", "tok123")
+	if err != nil {
+		t.Fatalf("writeCCHooks: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "ELEPHANT_HOOKS_URL=http://localhost:8080") {
+		t.Errorf("expected server_url in command, got: %s", content)
+	}
+	if !strings.Contains(content, "ELEPHANT_HOOKS_TOKEN=tok123") {
+		t.Errorf("expected token in command, got: %s", content)
+	}
+	if !strings.Contains(content, "PostToolUse") {
+		t.Errorf("expected PostToolUse hook, got: %s", content)
+	}
+	if !strings.Contains(content, "Stop") {
+		t.Errorf("expected Stop hook, got: %s", content)
+	}
 }
 
-func (e *promptRecordingExecutor) EnsureSession(_ context.Context, sessionID string) (*storage.Session, error) {
-	return &storage.Session{ID: sessionID, Metadata: map[string]string{}}, nil
+func TestWriteCCHooksNoToken(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "settings.local.json")
+
+	err := writeCCHooks(path, "http://localhost:9090", "")
+	if err != nil {
+		t.Fatalf("writeCCHooks: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	content := string(data)
+	if !strings.Contains(content, "ELEPHANT_HOOKS_URL=http://localhost:9090") {
+		t.Errorf("expected server_url, got: %s", content)
+	}
+	if strings.Contains(content, "ELEPHANT_HOOKS_TOKEN") {
+		t.Errorf("expected no token in command, got: %s", content)
+	}
 }
 
-func (e *promptRecordingExecutor) ExecuteTask(_ context.Context, task string, _ string, _ agent.EventListener) (*agent.TaskResult, error) {
-	e.mu.Lock()
-	e.prompts = append(e.prompts, task)
-	e.mu.Unlock()
-	return &agent.TaskResult{Answer: "Claude Code hooks 配置完成。"}, nil
+func TestWriteCCHooksMergesExisting(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "settings.local.json")
+
+	// Pre-populate with existing settings.
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"permissions":{"allow":["Read"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := writeCCHooks(path, "http://localhost:8080", "")
+	if err != nil {
+		t.Fatalf("writeCCHooks: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	if _, ok := result["permissions"]; !ok {
+		t.Error("expected existing permissions to be preserved")
+	}
+	if _, ok := result["hooks"]; !ok {
+		t.Error("expected hooks to be added")
+	}
+}
+
+func TestRemoveCCHooks(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "settings.local.json")
+
+	// Write hooks first.
+	if err := writeCCHooks(path, "http://localhost:8080", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Remove.
+	if err := removeCCHooks(path); err != nil {
+		t.Fatalf("removeCCHooks: %v", err)
+	}
+
+	// File should be deleted since hooks was the only key.
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("expected settings file to be removed when empty")
+	}
+}
+
+func TestRemoveCCHooksPreservesOtherKeys(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".claude", "settings.local.json")
+
+	// Write with existing settings.
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"hooks":{"PostToolUse":[]},"permissions":{"allow":["Read"]}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := removeCCHooks(path); err != nil {
+		t.Fatalf("removeCCHooks: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := result["hooks"]; ok {
+		t.Error("expected hooks to be removed")
+	}
+	if _, ok := result["permissions"]; !ok {
+		t.Error("expected permissions to be preserved")
+	}
+}
+
+func TestRemoveCCHooksFileNotExist(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".claude", "settings.local.json")
+	if err := removeCCHooks(path); err != nil {
+		t.Fatalf("expected no error for non-existent file, got: %v", err)
+	}
 }
 
 func TestRunCCHooksSetup(t *testing.T) {
-	executor := &promptRecordingExecutor{}
+	dir := t.TempDir()
 	recorder := NewRecordingMessenger()
 	gw := &Gateway{
 		cfg: Config{
-			BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowGroups: true},
-			AppID:      "test",
-			AppSecret:  "secret",
+			BaseConfig:   channels.BaseConfig{SessionPrefix: "lark", AllowGroups: true},
+			AppID:        "test",
+			AppSecret:    "secret",
+			WorkspaceDir: dir,
 			CCHooksAutoConfig: &CCHooksAutoConfig{
 				ServerURL: "http://localhost:8080",
 				Token:     "tok123",
 			},
 		},
-		agent:     executor,
 		logger:    logging.OrNop(nil),
 		messenger: recorder,
 	}
@@ -57,25 +186,17 @@ func TestRunCCHooksSetup(t *testing.T) {
 
 	gw.runCCHooksSetup(msg)
 
-	executor.mu.Lock()
-	prompts := append([]string{}, executor.prompts...)
-	executor.mu.Unlock()
-
-	if len(prompts) != 1 {
-		t.Fatalf("expected 1 prompt, got %d", len(prompts))
+	// Verify file was written.
+	settingsPath := filepath.Join(dir, ".claude", "settings.local.json")
+	data, err := os.ReadFile(settingsPath)
+	if err != nil {
+		t.Fatalf("settings file not created: %v", err)
 	}
-	prompt := prompts[0]
-	if !strings.Contains(prompt, "cc-hooks-setup") {
-		t.Errorf("expected prompt to mention cc-hooks-setup, got: %s", prompt)
-	}
-	if !strings.Contains(prompt, "http://localhost:8080") {
-		t.Errorf("expected prompt to contain server_url, got: %s", prompt)
-	}
-	if !strings.Contains(prompt, "tok123") {
-		t.Errorf("expected prompt to contain token, got: %s", prompt)
+	if !strings.Contains(string(data), "tok123") {
+		t.Errorf("expected token in settings, got: %s", data)
 	}
 
-	// Verify reply was sent to chat.
+	// Verify reply was sent.
 	calls := recorder.CallsByMethod("SendMessage")
 	if len(calls) == 0 {
 		t.Fatal("expected a reply message to be sent")
@@ -83,84 +204,6 @@ func TestRunCCHooksSetup(t *testing.T) {
 	replyText := extractTextContent(calls[0].Content, nil)
 	if !strings.Contains(replyText, "配置完成") {
 		t.Errorf("unexpected reply: %q", replyText)
-	}
-}
-
-func TestRunCCHooksSetupNoToken(t *testing.T) {
-	executor := &promptRecordingExecutor{}
-	recorder := NewRecordingMessenger()
-	gw := &Gateway{
-		cfg: Config{
-			BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowGroups: true},
-			AppID:      "test",
-			AppSecret:  "secret",
-			CCHooksAutoConfig: &CCHooksAutoConfig{
-				ServerURL: "http://localhost:9090",
-			},
-		},
-		agent:     executor,
-		logger:    logging.OrNop(nil),
-		messenger: recorder,
-	}
-
-	msg := &incomingMessage{
-		chatID:    "oc_hooks_chat2",
-		messageID: "om_hooks_msg2",
-		senderID:  "ou_hooks_sender2",
-		content:   "/notice",
-		isGroup:   true,
-	}
-
-	gw.runCCHooksSetup(msg)
-
-	executor.mu.Lock()
-	prompts := append([]string{}, executor.prompts...)
-	executor.mu.Unlock()
-
-	if len(prompts) != 1 {
-		t.Fatalf("expected 1 prompt, got %d", len(prompts))
-	}
-	if strings.Contains(prompts[0], "token") {
-		t.Errorf("expected no token in prompt args, got: %s", prompts[0])
-	}
-}
-
-func TestRunCCHooksRemove(t *testing.T) {
-	executor := &promptRecordingExecutor{}
-	recorder := NewRecordingMessenger()
-	gw := &Gateway{
-		cfg: Config{
-			BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowGroups: true},
-			AppID:      "test",
-			AppSecret:  "secret",
-			CCHooksAutoConfig: &CCHooksAutoConfig{
-				ServerURL: "http://localhost:8080",
-			},
-		},
-		agent:     executor,
-		logger:    logging.OrNop(nil),
-		messenger: recorder,
-	}
-
-	msg := &incomingMessage{
-		chatID:    "oc_hooks_chat3",
-		messageID: "om_hooks_msg3",
-		senderID:  "ou_hooks_sender3",
-		content:   "/notice off",
-		isGroup:   true,
-	}
-
-	gw.runCCHooksRemove(msg)
-
-	executor.mu.Lock()
-	prompts := append([]string{}, executor.prompts...)
-	executor.mu.Unlock()
-
-	if len(prompts) != 1 {
-		t.Fatalf("expected 1 prompt, got %d", len(prompts))
-	}
-	if !strings.Contains(prompts[0], "remove") {
-		t.Errorf("expected prompt to contain remove action, got: %s", prompts[0])
 	}
 }
 
@@ -183,7 +226,6 @@ func TestRunCCHooksSetupNilConfig(t *testing.T) {
 		isGroup:   true,
 	}
 
-	// Should be a no-op.
 	gw.runCCHooksSetup(msg)
 
 	calls := recorder.CallsByMethod("SendMessage")
@@ -192,7 +234,7 @@ func TestRunCCHooksSetupNilConfig(t *testing.T) {
 	}
 }
 
-func TestCCHooksSetupArgs(t *testing.T) {
+func TestBuildHookCommand(t *testing.T) {
 	tests := []struct {
 		serverURL, token string
 		wantContains     []string
@@ -201,26 +243,26 @@ func TestCCHooksSetupArgs(t *testing.T) {
 		{
 			serverURL:    "http://localhost:8080",
 			token:        "tok",
-			wantContains: []string{`"action":"setup"`, `"server_url":"http://localhost:8080"`, `"token":"tok"`},
+			wantContains: []string{"ELEPHANT_HOOKS_URL=http://localhost:8080", "ELEPHANT_HOOKS_TOKEN=tok", "notify_lark.sh"},
 		},
 		{
 			serverURL:       "http://example.com",
 			token:           "",
-			wantContains:    []string{`"action":"setup"`, `"server_url":"http://example.com"`},
-			wantNotContains: []string{`"token"`},
+			wantContains:    []string{"ELEPHANT_HOOKS_URL=http://example.com", "notify_lark.sh"},
+			wantNotContains: []string{"ELEPHANT_HOOKS_TOKEN"},
 		},
 	}
 
 	for _, tt := range tests {
-		result := ccHooksSetupArgs(tt.serverURL, tt.token)
+		result := buildHookCommand(tt.serverURL, tt.token)
 		for _, want := range tt.wantContains {
 			if !strings.Contains(result, want) {
-				t.Errorf("ccHooksSetupArgs(%q, %q) = %q, expected to contain %q", tt.serverURL, tt.token, result, want)
+				t.Errorf("buildHookCommand(%q, %q) = %q, expected to contain %q", tt.serverURL, tt.token, result, want)
 			}
 		}
 		for _, notWant := range tt.wantNotContains {
 			if strings.Contains(result, notWant) {
-				t.Errorf("ccHooksSetupArgs(%q, %q) = %q, expected NOT to contain %q", tt.serverURL, tt.token, result, notWant)
+				t.Errorf("buildHookCommand(%q, %q) = %q, expected NOT to contain %q", tt.serverURL, tt.token, result, notWant)
 			}
 		}
 	}
