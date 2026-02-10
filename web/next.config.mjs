@@ -16,8 +16,10 @@ const nextConfig = {
    * Generate a fully static output so GitHub Pages has an `index.html` in `web/out`.
    * This keeps `npm run build` aligned with the CI expectation that checks the
    * static export directory.
+   *
+   * NOTE: Commented out for visualizer development (requires API routes)
    */
-  output: 'export',
+  // output: 'export',
   images: {
     unoptimized: true,
   },

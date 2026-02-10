@@ -254,3 +254,51 @@
         padding-left: 1.25rem;
     }
 }
+
+/* Claude Code Visualizer Animations */
+@layer utilities {
+    @keyframes fadeInOut {
+        0%,
+        100% {
+            opacity: 0;
+            transform: translateY(5px);
+        }
+        10%,
+        90% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @keyframes wave {
+        0%,
+        100% {
+            transform: rotate(0deg);
+        }
+        50% {
+            transform: rotate(-25deg);
+        }
+    }
+
+    @keyframes wave-delayed {
+        0%,
+        100% {
+            transform: rotate(0deg);
+        }
+        50% {
+            transform: rotate(-25deg);
+        }
+    }
+
+    .animate-fadeInOut {
+        animation: fadeInOut 3s ease-in-out infinite;
+    }
+
+    .animate-wave {
+        animation: wave 0.6s ease-in-out infinite;
+    }
+
+    .animate-wave-delayed {
+        animation: wave-delayed 0.6s ease-in-out infinite 0.3s;
+    }
+}
