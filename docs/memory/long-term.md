@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-10 01:00
+Updated: 2026-02-10 11:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -49,6 +49,7 @@ Updated: 2026-02-10 01:00
 - Keep suite layered by hardness (Core-Hard / Frontier-Hard / Research-Frontier-Hard); add/remove cases by layer budget to maintain challenge and diagnosability.
 - After first prune under a hard threshold, a second review-driven squeeze can remove residual redundancy without losing pass@5 coverage if hard stress dimensions are kept intact.
 - Foundation eval reports should keep a fixed structure: x/x scoreboard (collections/cases/pass@1/pass@5/deliverable), top conflict clusters (`expected => top1`), and sampled good/bad deliverable checks with artifact paths.
+- Rebuilding evaluation should be capability-layered (Foundation Core / Stateful-Memory / Delivery / Frontier Transfer) so new hard benchmark additions expose real failed cases instead of inflating easy-pass volume.
 - Batch heuristic upgrades should apply exact-tool-name boosts asymmetrically: strong for specific tools, weak for generic tools (`plan`/`clarify`/`find`/`search_file`) to avoid cross-domain over-trigger regressions.
 - For Lark delivery intents, explicitly separate "text-only checkpoint/no file transfer" (`lark_send_message`) from "must deliver file package" (`lark_upload_file`); otherwise upload dominates due shared chat/file vocabulary.
 - For source-ingest intents, treat "single approved exact URL, no discovery" as strong `web_fetch` signal and suppress visual/browser capture tools unless proof/screenshot/UI language is explicit.
