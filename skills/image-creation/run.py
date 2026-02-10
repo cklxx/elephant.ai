@@ -16,6 +16,7 @@ import urllib.request
 
 
 _ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3"
+_DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID = "doubao-seedream-4-5-251128"
 
 
 def _ark_request(endpoint_id: str, payload: dict) -> dict:
@@ -46,20 +47,33 @@ def _ark_request(endpoint_id: str, payload: dict) -> dict:
         return {"error": str(exc)}
 
 
+def _resolve_seedream_text_endpoint() -> str:
+    endpoint = os.environ.get("SEEDREAM_TEXT_ENDPOINT_ID", "").strip()
+    if endpoint:
+        return endpoint
+    model = os.environ.get("SEEDREAM_TEXT_MODEL", "").strip()
+    if model:
+        return model
+    return _DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID
+
+
 def generate(args: dict) -> dict:
     prompt = args.get("prompt", "")
     if not prompt:
         return {"success": False, "error": "prompt is required"}
 
-    endpoint = os.environ.get("SEEDREAM_TEXT_ENDPOINT_ID", "")
-    if not endpoint:
-        return {"success": False, "error": "SEEDREAM_TEXT_ENDPOINT_ID not set"}
+    endpoint = _resolve_seedream_text_endpoint()
 
+    style = str(args.get("style", "realistic")).strip()
     size = args.get("size", "1024x1024")
     w, h = size.split("x")
 
+    prompt_with_style = prompt
+    if style:
+        prompt_with_style = f"{prompt}, {style} style"
+
     result = _ark_request(endpoint, {
-        "prompt": prompt,
+        "prompt": prompt_with_style,
         "size": f"{w}x{h}",
         "n": 1,
     })
@@ -82,6 +96,7 @@ def generate(args: dict) -> dict:
         "success": True,
         "image_path": output,
         "prompt": prompt,
+        "style": style,
         "size": size,
         "message": f"图片已保存到 {output}",
     }

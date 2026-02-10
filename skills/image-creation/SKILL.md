@@ -22,6 +22,11 @@ output:
 
 AI 图片生成：文生图 + 图生图 + 风格迁移。
 
+环境变量说明：
+- `ARK_API_KEY`：必填。
+- `SEEDREAM_TEXT_ENDPOINT_ID`：可选，未设置时会回退到 `SEEDREAM_TEXT_MODEL`，再回退到内置默认模型 `doubao-seedream-4-5-251128`。
+- `SEEDREAM_I2I_ENDPOINT_ID`：图生图（`refine`）必填。
+
 ## 调用
 
 ```bash
