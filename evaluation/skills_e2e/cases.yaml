@@ -214,20 +214,6 @@ cases:
     \ to true.\n5) Set `has_playbook` to true if the skill content was loaded.\n6)\
     \ Set `has_python_entrypoint` to true and set `exec_command` to \"python3 skills/json-render-templates/run.py\
     \ '{...}'\" exactly.\n7) Keep `summary` under 30 words."
-- id: skills-tool-e2e-lark-messaging
-  skill_name: lark-messaging
-  skill_dir: lark-messaging
-  description: Lark 消息发送 — 通过 Lark Open API 发送消息到群组或个人。
-  has_run_script: true
-  expected_exec_command: python3 skills/lark-messaging/run.py '{...}'
-  prompt: "You are validating repository skill \"lark-messaging\".\nMandatory steps:\n\
-    1) Call the `skills` tool with action=show and name=\"lark-messaging\".\n2) Do\
-    \ not call any tool except `skills`.\n3) Return JSON only with keys:\n   skill,\
-    \ used_skills_tool, has_playbook, has_python_entrypoint, exec_command, summary\n\
-    4) Set `skill` exactly to the requested name and `used_skills_tool` to true.\n\
-    5) Set `has_playbook` to true if the skill content was loaded.\n6) Set `has_python_entrypoint`\
-    \ to true and set `exec_command` to \"python3 skills/lark-messaging/run.py '{...}'\"\
-    \ exactly.\n7) Keep `summary` under 30 words."
 - id: skills-tool-e2e-meeting-notes
   skill_name: meeting-notes
   skill_dir: meeting-notes

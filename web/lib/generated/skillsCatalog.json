@@ -113,13 +113,6 @@
       "sourcePath": "../../.alex/skills/json-render-templates/SKILL.md"
     },
     {
-      "name": "lark-messaging",
-      "title": "lark-messaging",
-      "description": "Lark 消息发送 — 通过 Lark Open API 发送消息到群组或个人。",
-      "markdown": "# lark-messaging\n\nLark 消息发送：通过 Open API 发送文本/富文本消息。\n\n## 调用\n\n```bash\npython3 skills/lark-messaging/run.py '{\"action\":\"send\",\"chat_id\":\"oc_xxx\",\"content\":\"Hello!\"}'\n```",
-      "sourcePath": "../../.alex/skills/lark-messaging/SKILL.md"
-    },
-    {
       "name": "meeting-notes",
       "title": "会议纪要（可分发与可执行）",
       "description": "将会议/访谈记录快速转成可分发纪要，突出决策、行动项、风险与待澄清问题。",
