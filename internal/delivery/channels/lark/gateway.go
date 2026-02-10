@@ -223,6 +223,22 @@ func (g *Gateway) SendNotification(ctx context.Context, chatID, text string) err
 	return err
 }
 
+// NoticeLoader returns a loader that reads the notice binding's chat ID.
+// This is used by the hooks bridge to resolve where to send hook events.
+// Returns nil if the notice state store is not available.
+func (g *Gateway) NoticeLoader() func() (string, bool, error) {
+	if g == nil || g.noticeState == nil {
+		return nil
+	}
+	return func() (string, bool, error) {
+		binding, ok, err := g.noticeState.Load()
+		if err != nil || !ok {
+			return "", ok, err
+		}
+		return binding.ChatID, true, nil
+	}
+}
+
 // SetAIChatCoordinator configures the AI chat coordinator for multi-bot conversations.
 func (g *Gateway) SetAIChatCoordinator(coordinator *AIChatCoordinator) {
 	if g == nil {

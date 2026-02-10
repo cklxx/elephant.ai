@@ -250,6 +250,13 @@ func RunServer(observabilityConfigPath string) error {
 	if container.LarkOAuth != nil {
 		larkOAuthHandler = serverHTTP.NewLarkOAuthHandler(container.LarkOAuth, logger)
 	}
+
+	// Hooks bridge: forward Claude Code hook events to Lark.
+	var hooksBridge http.Handler
+	if config.HooksBridge.Enabled && container.LarkGateway != nil {
+		hooksBridge = buildHooksBridge(config, container, logger)
+	}
+
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
 			Coordinator:             serverCoordinator,
@@ -267,6 +274,7 @@ func RunServer(observabilityConfigPath string) error {
 			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
 			LarkOAuthHandler:        larkOAuthHandler,
 			MemoryEngine:            container.MemoryEngine,
+			HooksBridge:             hooksBridge,
 		},
 		serverHTTP.RouterConfig{
 			Environment:      config.Runtime.Environment,

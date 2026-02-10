@@ -25,6 +25,7 @@ type Config struct {
 	Session            runtimeconfig.SessionConfig
 	Analytics          runtimeconfig.AnalyticsConfig
 	Channels           ChannelsConfig
+	HooksBridge        HooksBridgeConfig
 	AllowedOrigins     []string
 	MaxTaskBodyBytes   int64
 	StreamGuard        StreamGuardConfig
@@ -99,6 +100,13 @@ type LarkBrowserConfig struct {
 	Headless    bool
 	UserDataDir string
 	Timeout     time.Duration
+}
+
+// HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.
+type HooksBridgeConfig struct {
+	Enabled       bool   `yaml:"enabled"`
+	Token         string `yaml:"token"`
+	DefaultChatID string `yaml:"default_chat_id"`
 }
 
 // ConfigResult bundles all outputs from LoadConfig into a single return value.

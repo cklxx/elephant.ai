@@ -1,6 +1,7 @@
 package http
 
 import (
+	"net/http"
 	"time"
 
 	authapp "alex/internal/app/auth"
@@ -28,6 +29,7 @@ type RouterDeps struct {
 	DataCache        *DataCache
 	LarkOAuthHandler *LarkOAuthHandler
 	MemoryEngine            memory.Engine
+	HooksBridge      http.Handler // optional: Claude Code hooks → Lark bridge
 }
 
 // RouterConfig holds configuration values for the HTTP router.

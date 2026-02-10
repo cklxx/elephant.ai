@@ -206,6 +206,12 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	mux.Handle("POST /api/sessions/{session_id}/share", routeHandler("/api/sessions/:session_id/share", wrap(http.HandlerFunc(apiHandler.HandleCreateSessionShare))))
 	mux.Handle("POST /api/sessions/{session_id}/fork", routeHandler("/api/sessions/:session_id/fork", wrap(http.HandlerFunc(apiHandler.HandleForkSession))))
 
+	// ── Claude Code hooks bridge ──
+
+	if deps.HooksBridge != nil {
+		mux.Handle("POST /api/hooks/claude-code", routeHandler("/api/hooks/claude-code", deps.HooksBridge))
+	}
+
 	// ── Health check ──
 
 	mux.Handle("GET /health", routeHandler("/health", http.HandlerFunc(apiHandler.HandleHealthCheck)))
