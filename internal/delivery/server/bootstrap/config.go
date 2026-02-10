@@ -103,8 +103,8 @@ type LarkBrowserConfig struct {
 }
 
 // HooksBridgeConfig controls the Claude Code hooks → Lark bridge endpoint.
+// Note: always enabled when Lark is enabled; token is optional.
 type HooksBridgeConfig struct {
-	Enabled       bool   `yaml:"enabled"`
 	Token         string `yaml:"token"`
 	DefaultChatID string `yaml:"default_chat_id"`
 }

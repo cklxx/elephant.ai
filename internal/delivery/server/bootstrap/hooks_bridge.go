@@ -9,7 +9,7 @@ import (
 )
 
 // buildHooksBridge creates a HooksBridge handler that forwards Claude Code
-// hook events to the Lark gateway. Returns nil if prerequisites are not met.
+// hook events to the Lark gateway. Always wired when Lark is enabled.
 func buildHooksBridge(cfg Config, container *di.Container, logger logging.Logger) http.Handler {
 	if container == nil || container.LarkGateway == nil {
 		return nil

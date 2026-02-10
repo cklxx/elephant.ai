@@ -39,8 +39,8 @@ type Config struct {
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.
 	AIChatBotIDs []string
-	// CCHooksAutoConfig, when non-nil, enables automatic Claude Code hooks
-	// configuration via the cc-hooks-setup skill after /notice bind.
+	// CCHooksAutoConfig enables automatic Claude Code hooks configuration
+	// via the cc-hooks-setup skill after /notice bind.
 	CCHooksAutoConfig *CCHooksAutoConfig
 }
 

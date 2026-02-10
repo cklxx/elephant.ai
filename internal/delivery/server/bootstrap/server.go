@@ -260,7 +260,7 @@ func RunServer(observabilityConfigPath string) error {
 
 	// Hooks bridge: forward Claude Code hook events to Lark.
 	var hooksBridge http.Handler
-	if config.HooksBridge.Enabled && container.LarkGateway != nil {
+	if container.LarkGateway != nil {
 		hooksBridge = buildHooksBridge(config, container, logger)
 	}
 

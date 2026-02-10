@@ -88,15 +88,13 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
 	}
 
-	if cfg.HooksBridge.Enabled {
-		port := strings.TrimPrefix(cfg.Port, ":")
-		if port == "" {
-			port = "8080"
-		}
-		gatewayCfg.CCHooksAutoConfig = &lark.CCHooksAutoConfig{
-			ServerURL: "http://localhost:" + port,
-			Token:     cfg.HooksBridge.Token,
-		}
+	port := strings.TrimPrefix(cfg.Port, ":")
+	if port == "" {
+		port = "8080"
+	}
+	gatewayCfg.CCHooksAutoConfig = &lark.CCHooksAutoConfig{
+		ServerURL: "http://localhost:" + port,
+		Token:     cfg.HooksBridge.Token,
 	}
 
 	if gatewayCfg.PlanReviewEnabled {
