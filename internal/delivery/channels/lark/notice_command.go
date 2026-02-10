@@ -31,7 +31,7 @@ func (g *Gateway) handleNoticeCommand(msg *incomingMessage) {
 	case "status", "show":
 		reply = g.noticeStatus()
 	case "off", "clear", "disable":
-		reply = g.clearNoticeChat()
+		reply = g.clearNoticeChat(msg)
 	case "help", "-h", "--help":
 		reply = noticeCommandUsage()
 	default:
@@ -58,7 +58,19 @@ func (g *Gateway) bindNoticeChat(msg *incomingMessage) string {
 		return fmt.Sprintf("设置通知群失败：%v", err)
 	}
 
-	return fmt.Sprintf("已将当前群设置为通知群。\nchat_id: %s\nset_at: %s", binding.ChatID, binding.UpdatedAt)
+	if g.cfg.CCHooksAutoConfig != nil {
+		g.taskWG.Add(1)
+		go func() {
+			defer g.taskWG.Done()
+			g.runCCHooksSetup(msg)
+		}()
+	}
+
+	reply := fmt.Sprintf("已将当前群设置为通知群。\nchat_id: %s\nset_at: %s", binding.ChatID, binding.UpdatedAt)
+	if g.cfg.CCHooksAutoConfig != nil {
+		reply += "\n正在配置 Claude Code hooks..."
+	}
+	return reply
 }
 
 func (g *Gateway) noticeStatus() string {
@@ -89,7 +101,7 @@ func (g *Gateway) noticeStatus() string {
 	return fmt.Sprintf("当前通知群:\nchat_id: %s\nset_by: %s\nset_at: %s", binding.ChatID, setBy, setAt)
 }
 
-func (g *Gateway) clearNoticeChat() string {
+func (g *Gateway) clearNoticeChat(msg *incomingMessage) string {
 	if g == nil || g.noticeState == nil {
 		return "通知状态存储不可用。"
 	}
@@ -97,7 +109,20 @@ func (g *Gateway) clearNoticeChat() string {
 		g.logger.Warn("Notice clear failed: %v", err)
 		return fmt.Sprintf("清除通知群失败：%v", err)
 	}
-	return "已清除通知群绑定。"
+
+	if g.cfg.CCHooksAutoConfig != nil {
+		g.taskWG.Add(1)
+		go func() {
+			defer g.taskWG.Done()
+			g.runCCHooksRemove(msg)
+		}()
+	}
+
+	reply := "已清除通知群绑定。"
+	if g.cfg.CCHooksAutoConfig != nil {
+		reply += "\n正在移除 Claude Code hooks..."
+	}
+	return reply
 }
 
 func noticeCommandUsage() string {

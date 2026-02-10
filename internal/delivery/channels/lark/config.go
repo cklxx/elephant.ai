@@ -39,6 +39,15 @@ type Config struct {
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.
 	AIChatBotIDs []string
+	// CCHooksAutoConfig, when non-nil, enables automatic Claude Code hooks
+	// configuration via the cc-hooks-setup skill after /notice bind.
+	CCHooksAutoConfig *CCHooksAutoConfig
+}
+
+// CCHooksAutoConfig holds parameters for automatic Claude Code hooks setup.
+type CCHooksAutoConfig struct {
+	ServerURL string
+	Token     string
 }
 
 // BrowserConfig captures local browser settings for Lark tool execution.

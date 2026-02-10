@@ -87,6 +87,18 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		MaxConcurrentTasks:            larkCfg.MaxConcurrentTasks,
 		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
 	}
+
+	if cfg.HooksBridge.Enabled {
+		port := strings.TrimPrefix(cfg.Port, ":")
+		if port == "" {
+			port = "8080"
+		}
+		gatewayCfg.CCHooksAutoConfig = &lark.CCHooksAutoConfig{
+			ServerURL: "http://localhost:" + port,
+			Token:     cfg.HooksBridge.Token,
+		}
+	}
+
 	if gatewayCfg.PlanReviewEnabled {
 		if gatewayCfg.PlanReviewPendingTTL <= 0 {
 			gatewayCfg.PlanReviewPendingTTL = 60 * time.Minute
