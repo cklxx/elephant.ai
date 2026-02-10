@@ -1,7 +1,7 @@
 # Plan: Audit Non-LLM External Credentials
 
 > Created: 2026-02-10
-> Status: in-progress
+> Status: completed
 > Trigger: Audit non-LLM external dependencies requiring credentials and produce a module/creds matrix with disable/fallback behavior.
 
 ## Goal & Success Criteria
