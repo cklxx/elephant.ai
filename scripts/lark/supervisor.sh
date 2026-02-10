@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=./identity_lock.sh
+source "${SCRIPT_DIR}/identity_lock.sh"
 
 usage() {
   cat <<'EOF'
@@ -31,6 +33,7 @@ Env:
   LARK_SUPERVISOR_AUTOFIX_SCOPE              Prompt scope hint (default: repo)
   LARK_SUPERVISOR_NOTIFY_SH                  Notification sender script (default: scripts/lark/notify.sh)
   LARK_NOTICE_STATE_FILE                     Notice binding state file path (default: .worktrees/test/tmp/lark-notice.state.json)
+  LARK_PID_DIR                    Shared pid dir override (default: <dirname(MAIN_CONFIG)>/pids)
   MAIN_CONFIG                    Main config path override (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   TEST_CONFIG                    Test config path override (default: ~/.alex/test.yaml)
   LARK_MAIN_ROOT                 Main root override (tests only)
@@ -63,7 +66,9 @@ AUTOFIX_SH="${AUTOFIX_SH:-${MAIN_ROOT}/scripts/lark/autofix.sh}"
 NOTIFY_SH="${LARK_SUPERVISOR_NOTIFY_SH:-${MAIN_ROOT}/scripts/lark/notify.sh}"
 
 TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
-PID_DIR="${TEST_ROOT}/.pids"
+MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
+TEST_CONFIG_PATH="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
+PID_DIR="${LARK_PID_DIR:-$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")}"
 LOG_DIR="${TEST_ROOT}/logs"
 TMP_DIR="${TEST_ROOT}/tmp"
 
@@ -80,13 +85,13 @@ AUTOFIX_LOCK_DIR="${TMP_DIR}/lark-autofix.lock"
 AUTOFIX_HISTORY_FILE="${TMP_DIR}/lark-autofix.history"
 AUTOFIX_LAST_SIGNATURE_FILE="${TMP_DIR}/lark-autofix.last-signature"
 AUTOFIX_APPLIED_INCIDENT_FILE="${TMP_DIR}/lark-autofix.applied"
+CLEANUP_ORPHANS_SH="${MAIN_ROOT}/scripts/lark/cleanup_orphan_agents.sh"
 
-MAIN_PID_FILE="${MAIN_ROOT}/.pids/lark-main.pid"
-TEST_PID_FILE="${TEST_ROOT}/.pids/lark-test.pid"
-LOOP_PID_FILE="${TEST_ROOT}/.pids/lark-loop.pid"
-
-MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
-TEST_CONFIG_PATH="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
+MAIN_PID_FILE="${PID_DIR}/lark-main.pid"
+TEST_PID_FILE="${PID_DIR}/lark-test.pid"
+LOOP_PID_FILE="${PID_DIR}/lark-loop.pid"
+MAIN_SHA_FILE="${PID_DIR}/lark-main.sha"
+TEST_SHA_FILE="${PID_DIR}/lark-test.sha"
 
 TICK_SECONDS="${LARK_SUPERVISOR_TICK_SECONDS:-5}"
 RESTART_MAX_IN_WINDOW="${LARK_RESTART_MAX_IN_WINDOW:-5}"
@@ -167,6 +172,18 @@ ensure_worktree() {
   ensure_dirs
 }
 
+cleanup_orphan_lark_agents() {
+  if [[ -x "${CLEANUP_ORPHANS_SH}" ]]; then
+    "${CLEANUP_ORPHANS_SH}" cleanup --scope all --quiet || true
+  fi
+}
+
+assert_main_test_isolation() {
+  [[ -f "${MAIN_CONFIG_PATH}" ]] || die "Missing MAIN_CONFIG: ${MAIN_CONFIG_PATH}"
+  [[ -f "${TEST_CONFIG_PATH}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG_PATH}"
+  lark_assert_main_test_isolation "${MAIN_CONFIG_PATH}" "${TEST_CONFIG_PATH}" || die "Lark main/test isolation check failed"
+}
+
 read_pid_if_running() {
   local pid_file="$1"
   local pid
@@ -213,7 +230,7 @@ extract_json_string() {
   [[ -f "${file}" ]] || return 1
   out="$(
     tr -d '\n' < "${file}" \
-      | sed -nE 's/.*"'${key}'"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p'
+      | sed -nE "s/.*\"${key}\"[[:space:]]*:[[:space:]]*\"([^\"]*)\".*/\\1/p"
   )"
   [[ -n "${out}" ]] || return 1
   printf '%s' "${out}"
@@ -567,8 +584,8 @@ observe_states() {
 
   OBS_MAIN_SHA="$(git -C "${MAIN_ROOT}" rev-parse main 2>/dev/null || echo "unknown")"
   OBS_TEST_SHA="$(git -C "${TEST_ROOT}" rev-parse HEAD 2>/dev/null || echo "unknown")"
-  OBS_MAIN_DEPLOYED_SHA="$(cat "${MAIN_ROOT}/.pids/lark-main.sha" 2>/dev/null || echo "unknown")"
-  OBS_TEST_DEPLOYED_SHA="$(cat "${TEST_ROOT}/.pids/lark-test.sha" 2>/dev/null || echo "unknown")"
+  OBS_MAIN_DEPLOYED_SHA="$(cat "${MAIN_SHA_FILE}" 2>/dev/null || echo "unknown")"
+  OBS_TEST_DEPLOYED_SHA="$(cat "${TEST_SHA_FILE}" 2>/dev/null || echo "unknown")"
   OBS_LAST_PROCESSED_SHA="$(cat "${LAST_PROCESSED_FILE}" 2>/dev/null || true)"
 
   OBS_CYCLE_PHASE="$(extract_json_string "${LOOP_STATE_FILE}" "cycle_phase" || echo "idle")"
@@ -766,6 +783,7 @@ run_tick() {
   local previous_mode
   previous_mode="$(extract_json_string "${STATUS_FILE}" "mode" || true)"
 
+  cleanup_orphan_lark_agents
   observe_states
 
   restart_with_backoff "main" "${OBS_MAIN_HEALTH}" || true
@@ -806,6 +824,8 @@ cleanup() {
 run_supervisor() {
   ensure_worktree
   ensure_dirs
+  assert_main_test_isolation
+  cleanup_orphan_lark_agents
 
   if ! acquire_lock; then
     die "Supervisor already running (lock: ${LOCK_DIR})"
@@ -813,6 +833,8 @@ run_supervisor() {
   trap cleanup EXIT INT TERM
   echo "$$" > "${PID_FILE}"
   append_log "[supervisor] start tick=${TICK_SECONDS}s window=${RESTART_WINDOW_SECONDS}s max=${RESTART_MAX_IN_WINDOW} cooldown=${COOLDOWN_SECONDS}s"
+  append_log "[supervisor] pid_dir=${PID_DIR}"
+  append_log "[supervisor] main_config=$(lark_canonical_path "${MAIN_CONFIG_PATH}") test_config=$(lark_canonical_path "${TEST_CONFIG_PATH}")"
   append_log "[supervisor] autofix enabled=${AUTOFIX_ENABLED} trigger=${AUTOFIX_TRIGGER} timeout=${AUTOFIX_TIMEOUT_SECONDS}s max=${AUTOFIX_MAX_IN_WINDOW}/${AUTOFIX_WINDOW_SECONDS}s cooldown=${AUTOFIX_COOLDOWN_SECONDS}s scope=${AUTOFIX_SCOPE}"
 
   while true; do
@@ -875,6 +897,8 @@ report_children_health() {
 start() {
   ensure_worktree
   ensure_dirs
+  assert_main_test_isolation
+  cleanup_orphan_lark_agents
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
@@ -951,6 +975,9 @@ status() {
 
   echo "supervisor: ${state} pid=${pid:-}"
   echo "mode: ${mode}"
+  echo "pid_dir: ${PID_DIR}"
+  echo "main_config: $(lark_canonical_path "${MAIN_CONFIG_PATH}")"
+  echo "test_config: $(lark_canonical_path "${TEST_CONFIG_PATH}")"
   echo "main: ${OBS_MAIN_HEALTH} pid=${OBS_MAIN_PID}"
   echo "test: ${OBS_TEST_HEALTH} pid=${OBS_TEST_PID}"
   echo "loop: ${OBS_LOOP_HEALTH} pid=${OBS_LOOP_PID}"
@@ -996,6 +1023,7 @@ doctor() {
   echo "== lark doctor =="
   echo "main_root: ${MAIN_ROOT}"
   echo "test_root: ${TEST_ROOT}"
+  echo "pid_dir: ${PID_DIR}"
 
   for cmd in git go; do
     if command_exists "${cmd}"; then
@@ -1045,6 +1073,15 @@ doctor() {
     warnings=$((warnings + 1))
   fi
 
+  if [[ -f "${MAIN_CONFIG_PATH}" && -f "${TEST_CONFIG_PATH}" ]]; then
+    if lark_assert_main_test_isolation "${MAIN_CONFIG_PATH}" "${TEST_CONFIG_PATH}"; then
+      echo "[ok] main/test config isolation"
+    else
+      echo "[fail] main/test config isolation"
+      failures=$((failures + 1))
+    fi
+  fi
+
   for pid_file in "${PID_FILE}" "${MAIN_PID_FILE}" "${TEST_PID_FILE}" "${LOOP_PID_FILE}"; do
     pid="$(read_pid "${pid_file}" || true)"
     if [[ -z "${pid}" ]]; then
@@ -1069,6 +1106,7 @@ doctor() {
 run_once() {
   ensure_worktree
   ensure_dirs
+  assert_main_test_isolation
   run_tick
   status
 }

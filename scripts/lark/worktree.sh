@@ -106,9 +106,6 @@ ensure() {
       die "Test worktree missing go.mod after create: ${test_root}"
     fi
     if [[ -n "${backup_root}" ]]; then
-      if [[ -d "${backup_root}/.pids" && ! -e "${test_root}/.pids" ]]; then
-        mv "${backup_root}/.pids" "${test_root}/.pids"
-      fi
       if [[ -d "${backup_root}/logs" && ! -e "${test_root}/logs" ]]; then
         mv "${backup_root}/logs" "${test_root}/logs"
       fi

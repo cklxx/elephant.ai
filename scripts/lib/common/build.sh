@@ -11,7 +11,7 @@ build_untracked_hash() {
   (
     cd "${root}"
     git ls-files --others --exclude-standard -z \
-      | grep -zv -e '^logs/' -e '^\.pids/' -e '^eval-server/' -e '^\.worktrees/' \
+      | grep -zv -e '^logs/' -e '^\.pids/' -e '^pids/' -e '^eval-server/' -e '^\.worktrees/' \
       | xargs -0 cksum 2>/dev/null
   ) | hash_stdin
 }

@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=./identity_lock.sh
+source "${SCRIPT_DIR}/identity_lock.sh"
 
 usage() {
   cat <<'EOF'
@@ -33,8 +35,10 @@ fi
 
 WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
 TEST_ROOT="${ROOT}/.worktrees/test"
+MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
+PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
 
-PID_FILE="${TEST_ROOT}/.pids/lark-loop.pid"
+PID_FILE="${PID_DIR}/lark-loop.pid"
 LOG_FILE="${TEST_ROOT}/logs/lark-loop-agent.log"
 LOOP_SH="${ROOT}/scripts/lark/loop.sh"
 
@@ -45,7 +49,7 @@ ensure_worktree() {
 
 start() {
   ensure_worktree
-  mkdir -p "${TEST_ROOT}/.pids" "${TEST_ROOT}/logs"
+  mkdir -p "${PID_DIR}" "${TEST_ROOT}/logs"
 
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"

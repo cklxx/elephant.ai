@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common/logging.sh
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
+# shellcheck source=./identity_lock.sh
+source "${SCRIPT_DIR}/identity_lock.sh"
 
 usage() {
   cat <<'EOF'
@@ -38,6 +40,8 @@ TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
 WORKTREE_SH="${MAIN_ROOT}/scripts/lark/worktree.sh"
 MAIN_SH="${MAIN_ROOT}/scripts/lark/main.sh"
 TEST_SH="${MAIN_ROOT}/scripts/lark/test.sh"
+MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
+PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
 
 SLEEP_SECONDS="${SLEEP_SECONDS:-10}"
 MAX_CYCLES="${MAX_CYCLES:-5}"
@@ -297,8 +301,8 @@ merge_into_main_ff_only() {
 
 restart_main_agent() {
   # Only restart the main agent when it's managed via scripts/lark/main.sh.
-  if [[ ! -f "${MAIN_ROOT}/.pids/lark-main.pid" ]]; then
-    append_log "[main] skip restart (missing ${MAIN_ROOT}/.pids/lark-main.pid)"
+  if [[ ! -f "${PID_DIR}/lark-main.pid" ]]; then
+    append_log "[main] skip restart (missing ${PID_DIR}/lark-main.pid)"
     return 0
   fi
 

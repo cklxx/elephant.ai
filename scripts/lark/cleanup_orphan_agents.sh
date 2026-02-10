@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=./identity_lock.sh
+source "${SCRIPT_DIR}/identity_lock.sh"
 
 usage() {
   cat <<'EOF'
@@ -15,7 +17,7 @@ Usage:
 
 Behavior:
   - Finds running local Lark agent processes (`.../alex-server lark`)
-  - Keeps managed PIDs from `.pids/lark-main.pid` and `.worktrees/test/.pids/lark-test.pid`
+  - Keeps managed PIDs from `<shared_pid_dir>/lark-main.pid` and `<shared_pid_dir>/lark-test.pid`
   - Stops orphan processes that are no longer tracked by PID files
 EOF
 }
@@ -35,8 +37,10 @@ fi
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
 TEST_ROOT="${ROOT}/.worktrees/test"
-MAIN_PID_FILE="${ROOT}/.pids/lark-main.pid"
-TEST_PID_FILE="${TEST_ROOT}/.pids/lark-test.pid"
+MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
+PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
+MAIN_PID_FILE="${PID_DIR}/lark-main.pid"
+TEST_PID_FILE="${PID_DIR}/lark-test.pid"
 
 SCOPE="all"
 QUIET=0

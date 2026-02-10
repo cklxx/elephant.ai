@@ -8,6 +8,8 @@ source "${SCRIPT_DIR}/../lib/common/logging.sh"
 source "${SCRIPT_DIR}/../lib/common/process.sh"
 # shellcheck source=../lib/common/build.sh
 source "${SCRIPT_DIR}/../lib/common/build.sh"
+# shellcheck source=./identity_lock.sh
+source "${SCRIPT_DIR}/identity_lock.sh"
 
 usage() {
   cat <<'EOF'
@@ -23,6 +25,7 @@ Behavior:
 
 Env:
   TEST_CONFIG          Config path (default: ~/.alex/test.yaml)
+  LARK_PID_DIR         Shared pid dir override (default: <dirname(MAIN_CONFIG)>/pids)
   ALEX_LOG_DIR         Internal log dir override (default: <repo>/.worktrees/test/logs)
   LARK_NOTICE_STATE_FILE Notice binding state path (default: <repo>/.worktrees/test/tmp/lark-notice.state.json)
   FORCE_REBUILD=1      Force rebuild on start (default: 1)
@@ -49,9 +52,12 @@ WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
 SETUP_DB_SH="${ROOT}/scripts/setup_local_auth_db.sh"
 
 TEST_ROOT="${ROOT}/.worktrees/test"
+MAIN_CONFIG_PATH_FOR_PID="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
+PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH_FOR_PID}")"
 BIN="${TEST_ROOT}/alex-server"
-PID_FILE="${TEST_ROOT}/.pids/lark-test.pid"
-BUILD_STAMP="${TEST_ROOT}/.pids/lark-test.build"
+PID_FILE="${PID_DIR}/lark-test.pid"
+BUILD_STAMP="${PID_DIR}/lark-test.build"
+SHA_FILE="${PID_DIR}/lark-test.sha"
 LOG_FILE="${TEST_ROOT}/logs/lark-test.log"
 TEST_CONFIG="${TEST_CONFIG:-$HOME/.alex/test.yaml}"
 ALEX_LOG_DIR="${ALEX_LOG_DIR:-${TEST_ROOT}/logs}"
@@ -96,8 +102,14 @@ ensure_lark_sandbox() {
 
 cleanup_orphan_lark_agents() {
   if [[ -x "${CLEANUP_ORPHANS_SH}" ]]; then
-    "${CLEANUP_ORPHANS_SH}" cleanup --scope test --quiet || true
+    "${CLEANUP_ORPHANS_SH}" cleanup --scope all --quiet || true
   fi
+}
+
+print_runtime_binding() {
+  log_info "Lark test config: $(lark_canonical_path "${TEST_CONFIG}")"
+  log_info "Lark test identity: $(lark_resolve_identity "${TEST_CONFIG}")"
+  log_info "Lark test pid dir: ${PID_DIR}"
 }
 
 maybe_setup_auth_db() {
@@ -119,7 +131,7 @@ maybe_setup_auth_db() {
 ensure_worktree() {
   [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
   "${WORKTREE_SH}" ensure
-  mkdir -p "${TEST_ROOT}/.pids" "${TEST_ROOT}/logs"
+  mkdir -p "${PID_DIR}" "${TEST_ROOT}/logs"
 }
 
 build() {
@@ -128,7 +140,7 @@ build() {
   log_info "Building alex-server (test worktree)..."
   (cd "${TEST_ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
   write_build_stamp "${BUILD_STAMP}" "$(build_fingerprint "${TEST_ROOT}")"
-  git -C "${TEST_ROOT}" rev-parse HEAD > "${TEST_ROOT}/.pids/lark-test.sha" 2>/dev/null || true
+  git -C "${TEST_ROOT}" rev-parse HEAD > "${SHA_FILE}" 2>/dev/null || true
   log_success "Built ${BIN}"
 }
 
@@ -136,6 +148,7 @@ start() {
   load_dotenv
   ensure_local_bootstrap
   [[ -f "${TEST_CONFIG}" ]] || die "Missing TEST_CONFIG: ${TEST_CONFIG}"
+  print_runtime_binding
   ensure_lark_sandbox
   cleanup_orphan_lark_agents
 
@@ -153,7 +166,8 @@ start() {
   pid="$(read_pid "${PID_FILE}" || true)"
   if is_process_running "${pid}"; then
     if [[ "${needs_build}" == "0" ]]; then
-      log_success "Test Lark agent already running (PID: ${pid})"
+      lark_write_identity_lock "${ROOT}" "test" "${TEST_CONFIG}" "${pid}"
+      log_success "Test Lark agent already running (PID: ${pid}, config: $(lark_canonical_path "${TEST_CONFIG}"))"
       return 0
     fi
     log_info "Source changes detected; rebuilding and restarting test agent..."
@@ -161,6 +175,14 @@ start() {
     needs_build=0
     stop
   fi
+
+  local lock_owner_pid
+  lock_owner_pid="${pid}"
+  if ! is_process_running "${lock_owner_pid}"; then
+    lock_owner_pid="$$"
+  fi
+  lark_assert_identity_available "${ROOT}" "test" "${TEST_CONFIG}" "${lock_owner_pid}" || die "Lark identity is already owned by another process"
+  lark_write_identity_lock "${ROOT}" "test-starting" "${TEST_CONFIG}" "$$"
 
   if [[ "${needs_build}" == "1" ]]; then
     build
@@ -176,14 +198,15 @@ start() {
   )
 
   pid="$(read_pid "${PID_FILE}" || true)"
-  local i
-  for i in $(seq 1 30); do
+  lark_write_identity_lock "${ROOT}" "test" "${TEST_CONFIG}" "${pid}"
+  for _ in $(seq 1 30); do
     if ! is_process_running "${pid}"; then
+      lark_release_identity_lock "${ROOT}" "${TEST_CONFIG}" "${pid}"
       log_error "Test Lark agent exited early (see ${LOG_FILE})"
       return 1
     fi
     if grep -q "${READY_LOG_PATTERN}" "${LOG_FILE}" 2>/dev/null; then
-      log_success "Test Lark agent ready (PID: ${pid})"
+      log_success "Test Lark agent ready (PID: ${pid}, config: $(lark_canonical_path "${TEST_CONFIG}"))"
       return 0
     fi
     sleep 1
@@ -195,7 +218,10 @@ start() {
 
 stop() {
   ensure_worktree
+  local pid
+  pid="$(read_pid "${PID_FILE}" || true)"
   stop_service "Test Lark agent" "${PID_FILE}"
+  lark_release_identity_lock "${ROOT}" "${TEST_CONFIG}" "${pid}" || true
 }
 
 restart() {
@@ -213,14 +239,17 @@ restart() {
 
 status() {
   ensure_worktree
+  print_runtime_binding
   local pid
   pid="$(read_pid "${PID_FILE}" || true)"
 
   if is_process_running "${pid}"; then
-    log_success "Test Lark agent running (PID: ${pid})"
+    lark_write_identity_lock "${ROOT}" "test" "${TEST_CONFIG}" "${pid}"
+    log_success "Test Lark agent running (PID: ${pid}, config: $(lark_canonical_path "${TEST_CONFIG}"))"
     return 0
   fi
 
+  lark_release_identity_lock "${ROOT}" "${TEST_CONFIG}" "${pid}" || true
   log_warn "Test Lark agent not running"
 }
 
