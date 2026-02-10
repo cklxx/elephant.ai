@@ -1,57 +1,60 @@
 # Documentation Rules
 
-Updated: 2026-01-31
+Updated: 2026-02-10
 
 ## Purpose
-Define how docs are structured, indexed, and maintained so nothing is orphaned.
+Keep documentation discoverable, accurate, and synchronized with code.
 
-## Directory ownership
-- `docs/reference/` canonical references (config/schema/protocols/flows).
-- `docs/guides/` how-to guides and contributor workflows.
-- `docs/plans/` execution plans and progress logs.
-- `docs/operations/` deployment and runtime operations.
-- `docs/research/` research notes and investigation writeups.
-- `docs/memory/` long-term memory only.
-- `docs/error-experience/` and `docs/good-experience/` logs and summaries.
+## 1) Document classes
 
-## Indexing (no floating docs)
-- Every directory with markdown files must have an index file named `README.md`.
-- The index lists all markdown files in that directory (excluding itself).
-- The root `docs/README.md` links to each directory index and top-level docs.
+- **Non-record (living) docs**
+  - `docs/reference/` (architecture/config/protocol/tooling truth)
+  - `docs/guides/` (how-to workflows)
+  - `docs/operations/` (deployment/runtime operations)
+  - Top-level navigation docs (`README.md`, `docs/README.md`, indexes)
+- **Record docs**
+  - `docs/plans/` (execution plans/progress logs)
+  - `docs/research/`, `docs/analysis/`, `docs/reviews/`
+  - `docs/error-experience/` and `docs/good-experience/` entries/summaries
 
-## Naming
-- Plans/logs: `YYYY-MM-DD-short-slug.md`.
-- Reference/guides: `kebab-case.md`.
+Rule: behavior/config/path/tool-surface changes must update related **non-record docs** in the same delivery cycle.
 
-## Content rules
-- Config examples: YAML only.
-- Diagrams: Mermaid only.
-- Tables: prefer 4 columns (Step/Behavior/Notes/Location) or (Field/Meaning/Default/Location).
-- Keep a single source of truth; other docs link to the canonical doc.
+## 2) Directory ownership
 
-## Updates
-- If code changes affect behavior or config, update the related reference/guide.
-- Add new docs to the directory index and the root index.
-- Plans must record progress in their `Progress` section.
+- `docs/reference/`: canonical references (config/schema/protocols/flows).
+- `docs/guides/`: contributor and usage workflows.
+- `docs/operations/`: deployment and runtime operations.
+- `docs/memory/`: long-term memory rules and migration notes.
+- `docs/plans/`: plan artifacts with status/progress.
+- `docs/error-experience/` + `docs/good-experience/`: incident/win records.
 
-## Error/Good experience formats
-- Error entry (`docs/error-experience/entries/`):
-  - Filename: `YYYY-MM-DD-short-slug.md`
-  - Content:
-    - `Error: ...`
-    - `Remediation: ...`
-- Error summary (`docs/error-experience/summary/entries/`):
-  - Filename: `YYYY-MM-DD-short-slug.md`
-  - Content:
-    - `Summary: ...`
-    - `Remediation: ...`
-- Good entry (`docs/good-experience/entries/`):
-  - Filename: `YYYY-MM-DD-short-slug.md`
-  - Content:
-    - `Practice: ...`
-    - `Impact: ...`
-- Good summary (`docs/good-experience/summary/entries/`):
-  - Filename: `YYYY-MM-DD-short-slug.md`
-  - Content:
-    - `Summary: ...`
-    - `Impact: ...`
+## 3) Indexing rules
+
+- Every docs directory with markdown files must have `README.md`.
+- Indexes must list all markdown files in the directory (excluding itself).
+- `docs/README.md` links to all major directory indexes.
+
+## 4) Naming
+
+- Plan/log style: `YYYY-MM-DD-short-slug.md`.
+- Living references/guides/ops: `kebab-case.md`.
+
+## 5) Content rules
+
+- Config examples use YAML only.
+- Keep one canonical doc per topic; others should link rather than fork content.
+- Mark legacy snapshots clearly if they intentionally keep historical context.
+
+## 6) Update protocol
+
+When code changes affect runtime behavior:
+1. Update the canonical non-record doc.
+2. Update directory index entries if file set changed.
+3. Update timestamp (`Updated:` or `Last updated:`) in touched docs.
+4. Keep record docs untouched unless a new record entry is intentionally added.
+
+## 7) Plans and records
+
+- Non-trivial tasks require a plan under `docs/plans/`.
+- Plan files must include status and progress updates.
+- Error/good indexes remain index-only; entries/summaries live in their `entries/` subdirectories.
