@@ -8,13 +8,12 @@ import (
 	"testing"
 
 	"alex/internal/domain/agent/ports"
-	"alex/internal/infra/tools/builtin/execution"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
 )
 
 func TestExecuteCodeInlineUsesSystemTempDir(t *testing.T) {
-	if !execution.LocalExecEnabled {
+	if !localExecEnabled {
 		t.Skip("local code execution disabled")
 	}
 

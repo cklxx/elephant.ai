@@ -13,7 +13,6 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
-	"alex/internal/infra/tools/builtin/execution"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
 )
@@ -82,7 +81,7 @@ Optionally fetch output files as attachments. Use this for deterministic computa
 }
 
 func (t *executeCode) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	if !execution.LocalExecEnabled {
+	if !localExecEnabled {
 		err := errors.New("local code execution is disabled in this build")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}

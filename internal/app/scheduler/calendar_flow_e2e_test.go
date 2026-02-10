@@ -329,8 +329,9 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 				Content: "Creating calendar event",
 				ToolCalls: []ports.ToolCall{{
 					ID:   "call-1",
-					Name: "lark_calendar_create",
+					Name: "channel",
 					Arguments: map[string]any{
+						"action":     "create_event",
 						"summary":    "Team sync",
 						"start_time": "1700000000",
 						"end_time":   "1700003600",
@@ -409,7 +410,7 @@ func TestSchedulerCalendarFlowE2E(t *testing.T) {
 		t.Fatalf("expected 1 approval request, got %d", approver.count())
 	}
 	lastReq := approver.last()
-	if lastReq == nil || lastReq.Operation != "lark_calendar_create" || lastReq.ToolName != "lark_calendar_create" {
+	if lastReq == nil || lastReq.Operation != "channel" || lastReq.ToolName != "channel" {
 		t.Fatalf("unexpected approval request: %+v", lastReq)
 	}
 

@@ -12,7 +12,6 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	tools "alex/internal/domain/agent/ports/tools"
-	"alex/internal/infra/tools/builtin/execution"
 	"alex/internal/infra/tools/builtin/pathutil"
 	"alex/internal/infra/tools/builtin/shared"
 )
@@ -61,7 +60,7 @@ func NewShellExec(cfg shared.ShellToolConfig) tools.ToolExecutor {
 }
 
 func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.ToolResult, error) {
-	if !execution.LocalExecEnabled {
+	if !localExecEnabled {
 		err := errors.New("local shell execution is disabled in this build")
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}
