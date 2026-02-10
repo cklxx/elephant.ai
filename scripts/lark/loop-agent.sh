@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=../lib/common/lark_test_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/lark_test_worktree.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -33,7 +35,6 @@ if [[ -z "${ROOT}" ]]; then
 fi
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
-WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
 TEST_ROOT="${ROOT}/.worktrees/test"
 MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
 PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
@@ -43,8 +44,7 @@ LOG_FILE="${TEST_ROOT}/logs/lark-loop-agent.log"
 LOOP_SH="${ROOT}/scripts/lark/loop.sh"
 
 ensure_worktree() {
-  [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
-  "${WORKTREE_SH}" ensure >/dev/null
+  lark_ensure_test_worktree "${ROOT}" >/dev/null
 }
 
 start() {

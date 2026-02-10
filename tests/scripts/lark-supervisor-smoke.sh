@@ -10,7 +10,6 @@ main_root="${tmpdir}/repo"
 run_supervisor() {
   env \
     LARK_MAIN_ROOT="${main_root}" \
-    WORKTREE_SH="${main_root}/scripts/lark/worktree.sh" \
     MAIN_SH="${main_root}/scripts/lark/main.sh" \
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
@@ -32,7 +31,6 @@ run_supervisor() {
 run_supervisor_same_config() {
   env \
     LARK_MAIN_ROOT="${main_root}" \
-    WORKTREE_SH="${main_root}/scripts/lark/worktree.sh" \
     MAIN_SH="${main_root}/scripts/lark/main.sh" \
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
@@ -54,7 +52,6 @@ run_supervisor_same_config() {
 run_supervisor_same_identity() {
   env \
     LARK_MAIN_ROOT="${main_root}" \
-    WORKTREE_SH="${main_root}/scripts/lark/worktree.sh" \
     MAIN_SH="${main_root}/scripts/lark/main.sh" \
     TEST_SH="${main_root}/scripts/lark/test.sh" \
     LOOP_AGENT_SH="${main_root}/scripts/lark/loop-agent.sh" \
@@ -105,25 +102,6 @@ cat > "${notice_state_file}" <<'EOF'
   "set_at": "2026-01-01T00:00:00Z",
   "updated_at": "2026-01-01T00:00:00Z"
 }
-EOF
-
-cat > "${main_root}/scripts/lark/worktree.sh" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-main_root="${LARK_MAIN_ROOT:?}"
-test_root="${main_root}/.worktrees/test"
-cmd="${1:-ensure}"
-
-case "${cmd}" in
-  ensure|sync-env)
-    mkdir -p "${main_root}/pids" "${main_root}/logs" "${test_root}/pids" "${test_root}/logs" "${test_root}/tmp"
-    ;;
-  *)
-    echo "unknown command: ${cmd}" >&2
-    exit 2
-    ;;
-esac
 EOF
 
 make_stub() {
@@ -188,7 +166,6 @@ cat > "${main_root}/scripts/lark/autofix.sh" <<'EOF'
 set -euo pipefail
 exit 0
 EOF
-chmod +x "${main_root}/scripts/lark/worktree.sh"
 chmod +x "${main_root}/scripts/lark/autofix.sh"
 cat > "${main_root}/scripts/lark/notify.sh" <<'EOF'
 #!/usr/bin/env bash
@@ -254,7 +231,10 @@ if [[ "${current_branch}" != "main" ]]; then
   git -C "${main_root}" checkout -q -b main
 fi
 echo "supervisor smoke" > "${main_root}/README.md"
-git -C "${main_root}" add README.md
+cat > "${main_root}/.env" <<'EOF'
+LLM_API_KEY=test
+EOF
+git -C "${main_root}" add README.md .env
 git -C "${main_root}" -c user.name="test" -c user.email="test@example.com" commit -q -m "init"
 
 run_supervisor run-once >/dev/null

@@ -8,6 +8,8 @@ source "${SCRIPT_DIR}/../lib/common/logging.sh"
 source "${SCRIPT_DIR}/../lib/common/process.sh"
 # shellcheck source=../lib/common/build.sh
 source "${SCRIPT_DIR}/../lib/common/build.sh"
+# shellcheck source=../lib/common/lark_test_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/lark_test_worktree.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -48,7 +50,6 @@ if [[ -z "${ROOT}" ]]; then
 fi
 [[ -n "${ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
-WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
 SETUP_DB_SH="${ROOT}/scripts/setup_local_auth_db.sh"
 
 TEST_ROOT="${ROOT}/.worktrees/test"
@@ -129,14 +130,30 @@ maybe_setup_auth_db() {
 }
 
 ensure_worktree() {
-  [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
-  "${WORKTREE_SH}" ensure
+  lark_ensure_test_worktree "${ROOT}"
   mkdir -p "${PID_DIR}" "${TEST_ROOT}/logs"
+}
+
+sync_test_runtime_to_main() {
+  local main_sha test_sha
+  main_sha="$(git -C "${ROOT}" rev-parse main 2>/dev/null || true)"
+  [[ -n "${main_sha}" ]] || die "Failed to resolve main SHA"
+
+  log_info "Aligning test worktree runtime to main (${main_sha:0:8})"
+  git -C "${TEST_ROOT}" reset --hard "${main_sha}" >/dev/null 2>&1
+  if ! git -C "${TEST_ROOT}" switch --detach "${main_sha}" >/dev/null 2>&1; then
+    git -C "${TEST_ROOT}" checkout --detach "${main_sha}" >/dev/null 2>&1 || true
+  fi
+
+  test_sha="$(git -C "${TEST_ROOT}" rev-parse HEAD 2>/dev/null || true)"
+  if [[ "${test_sha}" != "${main_sha}" ]]; then
+    die "Failed to align test worktree to main (main=${main_sha} test=${test_sha})"
+  fi
 }
 
 build() {
   ensure_worktree
-  git -C "${TEST_ROOT}" switch test >/dev/null 2>&1 || true
+  sync_test_runtime_to_main
   log_info "Building alex-server (test worktree)..."
   (cd "${TEST_ROOT}" && CGO_ENABLED=0 go build -o "${BIN}" ./cmd/alex-server)
   write_build_stamp "${BUILD_STAMP}" "$(build_fingerprint "${TEST_ROOT}")"
@@ -154,6 +171,7 @@ start() {
 
   maybe_setup_auth_db
   ensure_worktree
+  sync_test_runtime_to_main
   mkdir -p "$(dirname "${NOTICE_STATE_FILE}")"
 
   local current_fingerprint needs_build pid

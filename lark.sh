@@ -4,8 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 SUPERVISOR_SH="${ROOT}/scripts/lark/supervisor.sh"
-WORKTREE_SH="${ROOT}/scripts/lark/worktree.sh"
 LOOP_SH="${ROOT}/scripts/lark/loop.sh"
+# shellcheck source=scripts/lib/common/logging.sh
+source "${ROOT}/scripts/lib/common/logging.sh"
+# shellcheck source=scripts/lib/common/lark_test_worktree.sh
+source "${ROOT}/scripts/lib/common/lark_test_worktree.sh"
 
 usage() {
   cat <<'EOF'
@@ -31,7 +34,7 @@ EOF
 }
 
 ensure_worktree() {
-  "${WORKTREE_SH}" ensure >/dev/null
+  lark_ensure_test_worktree "${ROOT}" >/dev/null
 }
 
 run_cycle() {
