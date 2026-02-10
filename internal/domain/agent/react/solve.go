@@ -124,6 +124,14 @@ func (e *ReactEngine) think(
 	const streamChunkMinChars = 64
 	var streamBuffer strings.Builder
 	streamedContent := false
+
+	// In steward mode, filter out <NEW_STATE>...</NEW_STATE> blocks from
+	// streaming deltas so raw state JSON never reaches end users.
+	var deltaFilter *stewardDeltaFilter
+	if state.StewardMode {
+		deltaFilter = &stewardDeltaFilter{}
+	}
+
 	callbacks := ports.CompletionStreamCallbacks{
 		OnContentDelta: func(delta ports.ContentDelta) {
 			if delta.Delta != "" {
@@ -132,28 +140,38 @@ func (e *ReactEngine) think(
 				if streamBuffer.Len() >= streamChunkMinChars {
 					chunk := streamBuffer.String()
 					streamBuffer.Reset()
-					e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-						Iteration:   state.Iterations,
-						Delta:       chunk,
-						Final:       false,
-						CreatedAt:   e.clock.Now(),
-						SourceModel: modelName,
-					})
+					if deltaFilter != nil {
+						chunk = deltaFilter.Write(chunk)
+					}
+					if chunk != "" {
+						e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
+							BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+							Iteration:   state.Iterations,
+							Delta:       chunk,
+							Final:       false,
+							CreatedAt:   e.clock.Now(),
+							SourceModel: modelName,
+						})
+					}
 				}
 			}
 			if delta.Final {
 				if streamBuffer.Len() > 0 {
 					chunk := streamBuffer.String()
 					streamBuffer.Reset()
-					e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
-						BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
-						Iteration:   state.Iterations,
-						Delta:       chunk,
-						Final:       false,
-						CreatedAt:   e.clock.Now(),
-						SourceModel: modelName,
-					})
+					if deltaFilter != nil {
+						chunk = deltaFilter.Write(chunk)
+					}
+					if chunk != "" {
+						e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
+							BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
+							Iteration:   state.Iterations,
+							Delta:       chunk,
+							Final:       false,
+							CreatedAt:   e.clock.Now(),
+							SourceModel: modelName,
+						})
+					}
 				}
 			}
 		},
@@ -190,6 +208,9 @@ func (e *ReactEngine) think(
 	if streamBuffer.Len() > 0 {
 		chunk := streamBuffer.String()
 		streamBuffer.Reset()
+		if deltaFilter != nil {
+			chunk = deltaFilter.Write(chunk)
+		}
 		if chunk != "" {
 			streamedContent = true
 			e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
@@ -206,6 +227,9 @@ func (e *ReactEngine) think(
 	finalDelta := ""
 	if !streamedContent {
 		finalDelta = resp.Content
+	}
+	if deltaFilter != nil {
+		finalDelta = deltaFilter.Write(finalDelta) + deltaFilter.Flush()
 	}
 	e.emitEvent(&domain.WorkflowNodeOutputDeltaEvent{
 		BaseEvent:   e.newBaseEvent(ctx, state.SessionID, state.RunID, state.ParentRunID),
