@@ -1,0 +1,110 @@
+version: "1"
+name: "foundation-capability-active-industry-transfer-hard"
+description: "Industry-benchmark-inspired hard cases remapped to current active tool surface."
+scenarios:
+  - id: "transfer-swebench-triage-runtime-first"
+    category: "industry_transfer"
+    intent: "In a real repo regression triage, start with terminal evidence to localize failing behavior quickly."
+    expected_tools: ["shell_exec"]
+  - id: "transfer-swebench-read-contract-before-fix"
+    category: "industry_transfer"
+    intent: "Inspect the current interface and call path windows before proposing any fix."
+    expected_tools: ["read_file"]
+  - id: "transfer-swebench-hotfix-known-pattern"
+    category: "industry_transfer"
+    intent: "Apply a small in-place text patch where the stale guard clause is already identified."
+    expected_tools: ["replace_in_file"]
+  - id: "transfer-swebench-proof-math-check"
+    category: "industry_transfer"
+    intent: "Run deterministic computation to validate edge-case math used in the patch proof."
+    expected_tools: ["execute_code"]
+  - id: "transfer-webarena-manual-web-flow"
+    category: "industry_transfer"
+    intent: "Navigate a fragile web flow where selectors are unreliable and manual interactions are required."
+    expected_tools: ["browser_action"]
+  - id: "transfer-webarena-policy-change-search"
+    category: "industry_transfer"
+    intent: "Search latest official product policy and release docs before concluding behavior is a bug."
+    expected_tools: ["web_search"]
+  - id: "transfer-agentbench-approval-gate"
+    category: "industry_transfer"
+    intent: "This step requires explicit human approval before high-risk execution; pause and request it."
+    expected_tools: ["request_user"]
+  - id: "transfer-agentbench-underspecified-task"
+    category: "industry_transfer"
+    intent: "Inputs are underspecified across environment and success criteria; ask one disambiguating question."
+    expected_tools: ["clarify"]
+  - id: "transfer-agentlongbench-memory-needle"
+    category: "industry_transfer"
+    intent: "Find prior memory where the hidden acceptance constraint was mentioned months ago."
+    expected_tools: ["memory_search"]
+  - id: "transfer-agentlongbench-memory-open-evidence"
+    category: "industry_transfer"
+    intent: "Open the exact historical memory note path that stores the accepted exception rule."
+    expected_tools: ["memory_get"]
+  - id: "transfer-gaia-plan-decompose-open-task"
+    category: "industry_transfer"
+    intent: "For this open-ended high-value task, produce a decomposition plan with staged deliverables."
+    expected_tools: ["plan"]
+  - id: "transfer-gaia-write-final-brief"
+    category: "industry_transfer"
+    intent: "Persist a final written brief with assumptions, evidence summary, and next actions."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Final brief persisted as handoff artifact."
+      artifact_required: true
+      required_evidence: ["assumptions", "evidence", "next actions"]
+      required_file_types: ["md"]
+  - id: "transfer-rebench-runtime-observation"
+    category: "industry_transfer"
+    intent: "Collect run-time observations from terminal commands before deciding next experiment move."
+    expected_tools: ["shell_exec"]
+  - id: "transfer-mlebench-experiment-metric-recalc"
+    category: "industry_transfer"
+    intent: "Recompute an experiment metric table deterministically from fixed inputs."
+    expected_tools: ["execute_code"]
+  - id: "transfer-browsecomp-sparse-official-search"
+    category: "industry_transfer"
+    intent: "Use sparse clues to locate authoritative references rather than secondary commentary."
+    expected_tools: ["web_search"]
+  - id: "transfer-osworld-manual-browser-verify"
+    category: "industry_transfer"
+    intent: "Validate state transitions in a flaky web UI using manual browser interactions."
+    expected_tools: ["browser_action"]
+  - id: "transfer-enterprise-thread-update"
+    category: "industry_transfer"
+    intent: "Post a precise progress update in-thread after completing a milestone."
+    expected_tools: ["channel"]
+  - id: "transfer-playbook-discovery-first"
+    category: "industry_transfer"
+    intent: "List available workflow playbooks before choosing an execution approach."
+    expected_tools: ["skills"]
+  - id: "transfer-write-decision-record"
+    category: "industry_transfer"
+    intent: "Create a durable decision record file with rationale and fallback options."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Decision record persisted."
+      artifact_required: true
+      required_evidence: ["rationale", "fallback"]
+      required_file_types: ["md", "txt"]
+  - id: "transfer-clarify-conflicting-enterprise-policy"
+    category: "industry_transfer"
+    intent: "Policy text conflicts across teams; ask a targeted clarification before acting."
+    expected_tools: ["clarify"]
+  - id: "transfer-request-user-legal-approval"
+    category: "industry_transfer"
+    intent: "Require explicit user confirmation for legal/compliance acceptance before release."
+    expected_tools: ["request_user"]
+  - id: "transfer-read-config-window-for-proof"
+    category: "industry_transfer"
+    intent: "Read exact config sections and adjacent context to support a formal reasoning note."
+    expected_tools: ["read_file"]
+  - id: "transfer-replace-legacy-constant"
+    category: "industry_transfer"
+    intent: "Swap the known legacy constant with the approved new constant in-place."
+    expected_tools: ["replace_in_file"]
+  - id: "transfer-plan-hard-rollout-governance"
+    category: "industry_transfer"
+    intent: "Design a governance-heavy rollout plan with checkpoints and escalation branches."
+    expected_tools: ["plan"]

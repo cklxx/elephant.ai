@@ -1,0 +1,104 @@
+version: "1"
+name: "foundation-capability-active-intent-boundary-hard"
+description: "Hard implicit-intent boundary cases for currently active tools only."
+scenarios:
+  - id: "boundary-plan-phase-rollout"
+    category: "intent_boundary"
+    intent: "Before touching any file, break this migration into phased checkpoints with rollback gates."
+    expected_tools: ["plan"]
+  - id: "boundary-plan-risk-checkpoint"
+    category: "intent_boundary"
+    intent: "Give me a concise execution roadmap with measurable checkpoints and explicit risk points."
+    expected_tools: ["plan"]
+  - id: "boundary-clarify-missing-constraint"
+    category: "intent_boundary"
+    intent: "The target env and acceptance threshold are both missing; ask one precise question first."
+    expected_tools: ["clarify"]
+  - id: "boundary-clarify-conflicting-req"
+    category: "intent_boundary"
+    intent: "I asked for zero downtime and full table rewrite in one step; resolve the contradiction by asking."
+    expected_tools: ["clarify"]
+  - id: "boundary-request-user-go-no-go"
+    category: "intent_boundary"
+    intent: "Pause and ask me for explicit go/no-go approval before release."
+    expected_tools: ["request_user"]
+  - id: "boundary-request-user-manual-login"
+    category: "intent_boundary"
+    intent: "We cannot continue until I finish manual SSO login in another system."
+    expected_tools: ["request_user"]
+  - id: "boundary-read-inspect-window"
+    category: "intent_boundary"
+    intent: "Open the file and inspect only the suspect function window around the timeout logic."
+    expected_tools: ["read_file"]
+  - id: "boundary-read-contract-extract"
+    category: "intent_boundary"
+    intent: "Read the interface contract section and extract the exact preconditions, no edits yet."
+    expected_tools: ["read_file"]
+  - id: "boundary-replace-hotfix-line"
+    category: "intent_boundary"
+    intent: "Patch this exact stale endpoint string to the new one in-place."
+    expected_tools: ["replace_in_file"]
+  - id: "boundary-replace-token-swap"
+    category: "intent_boundary"
+    intent: "Modify existing config text by replacing the old token name with the new token name."
+    expected_tools: ["replace_in_file"]
+  - id: "boundary-shell-runtime-logs"
+    category: "intent_boundary"
+    intent: "Run terminal commands to inspect process state and collect runtime logs."
+    expected_tools: ["shell_exec"]
+  - id: "boundary-shell-git-diff-status"
+    category: "intent_boundary"
+    intent: "Use CLI to show branch, staged diff summary, and failing test output quickly."
+    expected_tools: ["shell_exec"]
+  - id: "boundary-execode-recompute-metric"
+    category: "intent_boundary"
+    intent: "Recalculate this deterministic metric from provided formula and constants."
+    expected_tools: ["execute_code"]
+  - id: "boundary-execode-invariant-check"
+    category: "intent_boundary"
+    intent: "Run a short snippet to verify the invariant on these sample inputs."
+    expected_tools: ["execute_code"]
+  - id: "boundary-memory-search-locate-note"
+    category: "intent_boundary"
+    intent: "Find the old note where I mentioned my deployment habit and rollback preference."
+    expected_tools: ["memory_search"]
+  - id: "boundary-memory-search-needle"
+    category: "intent_boundary"
+    intent: "Locate where I previously said the incident comms cadence and escalation timing."
+    expected_tools: ["memory_search"]
+  - id: "boundary-memory-get-open-known-path"
+    category: "intent_boundary"
+    intent: "Open this exact memory path and show the relevant line range."
+    expected_tools: ["memory_get"]
+  - id: "boundary-memory-get-excerpt"
+    category: "intent_boundary"
+    intent: "Read the specified memory note file excerpt at the given path."
+    expected_tools: ["memory_get"]
+  - id: "boundary-web-search-latest-primary"
+    category: "intent_boundary"
+    intent: "Find the latest official release notes and canonical docs, prioritize primary sources."
+    expected_tools: ["web_search"]
+  - id: "boundary-web-search-compare-official"
+    category: "intent_boundary"
+    intent: "Search for up-to-date authoritative references and compare version-specific changes."
+    expected_tools: ["web_search"]
+  - id: "boundary-browser-action-manual-flow"
+    category: "intent_boundary"
+    intent: "Use browser actions to click through the page manually where selectors are unreliable."
+    expected_tools: ["browser_action"]
+  - id: "boundary-channel-notify-status"
+    category: "intent_boundary"
+    intent: "Send a concise status update to the current chat thread."
+    expected_tools: ["channel"]
+  - id: "boundary-skills-playbook-open"
+    category: "intent_boundary"
+    intent: "List available playbooks so we can pick one workflow template before execution."
+    expected_tools: ["skills"]
+  - id: "boundary-write-file-create-brief"
+    category: "intent_boundary"
+    intent: "Create a markdown brief file with the execution summary."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Markdown execution brief persisted as a file."
+      artifact_required: true
+      required_file_types: ["md"]

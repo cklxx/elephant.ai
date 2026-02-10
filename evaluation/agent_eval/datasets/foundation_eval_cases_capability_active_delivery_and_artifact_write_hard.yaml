@@ -1,0 +1,110 @@
+version: "1"
+name: "foundation-capability-active-delivery-and-artifact-write-hard"
+description: "Hard delivery and artifactized-output cases under active tool constraints."
+scenarios:
+  - id: "delivery-write-incident-report-pack"
+    category: "delivery"
+    intent: "Produce a durable incident report document with timeline, root cause, and remediation."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Incident report persisted as a reusable file."
+      artifact_required: true
+      manifest_required: false
+      required_evidence: ["timeline", "root cause", "remediation"]
+      required_file_types: ["md"]
+  - id: "delivery-write-migration-runbook"
+    category: "delivery"
+    intent: "Create a cutover runbook file including rollback steps and go/no-go checklist."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Migration runbook persisted."
+      artifact_required: true
+      required_evidence: ["rollback", "checklist"]
+      required_file_types: ["md"]
+  - id: "delivery-write-research-brief"
+    category: "delivery"
+    intent: "Write a research brief file with findings, confidence, and open questions."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Research brief persisted."
+      artifact_required: true
+      required_evidence: ["findings", "confidence", "open questions"]
+      required_file_types: ["md"]
+  - id: "delivery-write-testing-plan"
+    category: "delivery"
+    intent: "Generate a test strategy document with scope, risks, and validation steps."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Test strategy document persisted."
+      artifact_required: true
+      required_evidence: ["scope", "risks", "validation"]
+      required_file_types: ["md"]
+  - id: "delivery-shell-gather-log-evidence"
+    category: "delivery"
+    intent: "Collect command-line evidence from logs and process snapshots before writing the report."
+    expected_tools: ["shell_exec"]
+  - id: "delivery-shell-regression-check"
+    category: "delivery"
+    intent: "Run terminal checks for failing tests and summarize key regressions."
+    expected_tools: ["shell_exec"]
+  - id: "delivery-execode-metric-table"
+    category: "delivery"
+    intent: "Execute a deterministic snippet to compute KPI table used in the report."
+    expected_tools: ["execute_code"]
+  - id: "delivery-execode-threshold-validation"
+    category: "delivery"
+    intent: "Run a short script to validate acceptance thresholds for the final handoff."
+    expected_tools: ["execute_code"]
+  - id: "delivery-read-source-before-summary"
+    category: "delivery"
+    intent: "Read source/config files first to extract exact implementation facts for the write-up."
+    expected_tools: ["read_file"]
+  - id: "delivery-replace-doc-fact-fix"
+    category: "delivery"
+    intent: "Patch one incorrect fact line in an existing draft document in-place."
+    expected_tools: ["replace_in_file"]
+  - id: "delivery-plan-report-structure"
+    category: "delivery"
+    intent: "Plan a multi-section final report structure with milestones and acceptance criteria."
+    expected_tools: ["plan"]
+  - id: "delivery-clarify-audience-gap"
+    category: "delivery"
+    intent: "Audience and level of technical depth are unclear; ask before drafting."
+    expected_tools: ["clarify"]
+  - id: "delivery-request-user-final-signoff"
+    category: "delivery"
+    intent: "Ask for explicit final signoff before publishing the output."
+    expected_tools: ["request_user"]
+  - id: "delivery-websearch-official-citation"
+    category: "delivery"
+    intent: "Find latest primary-source references to cite in the final report."
+    expected_tools: ["web_search"]
+  - id: "delivery-browser-action-verify-ui-state"
+    category: "delivery"
+    intent: "Use browser actions to verify the live UI state before finalizing notes."
+    expected_tools: ["browser_action"]
+  - id: "delivery-memory-search-prior-commitment"
+    category: "delivery"
+    intent: "Find my prior commitment on response SLA and include it in the summary."
+    expected_tools: ["memory_search"]
+  - id: "delivery-memory-get-specific-note"
+    category: "delivery"
+    intent: "Open the exact memory note path containing acceptance checklist wording."
+    expected_tools: ["memory_get"]
+  - id: "delivery-channel-send-summary"
+    category: "delivery"
+    intent: "Send a concise completion summary to this conversation."
+    expected_tools: ["channel"]
+  - id: "delivery-skills-template-selection"
+    category: "delivery"
+    intent: "List the available playbooks to choose a delivery template."
+    expected_tools: ["skills"]
+  - id: "delivery-write-postmortem-log"
+    category: "delivery"
+    intent: "Write a postmortem file with timeline, decisions, and follow-up owners."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Postmortem log persisted for reuse."
+      artifact_required: true
+      required_evidence: ["timeline", "decisions", "owners"]
+      required_file_types: ["md", "txt"]

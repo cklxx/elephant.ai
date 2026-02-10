@@ -1,0 +1,92 @@
+version: "1"
+name: "foundation-capability-active-memory-habit-long-horizon-hard"
+description: "Hard continuity, user habit, and long-horizon state cases using active tools."
+scenarios:
+  - id: "memory-habit-recall-ship-window"
+    category: "memory_habit"
+    intent: "Find what release window I usually prefer for risky migrations."
+    expected_tools: ["memory_search"]
+  - id: "memory-habit-recall-communication-style"
+    category: "memory_habit"
+    intent: "Locate my historical preference on incident communication tone and granularity."
+    expected_tools: ["memory_search"]
+  - id: "memory-habit-open-known-policy-note"
+    category: "memory_habit"
+    intent: "Open this exact memory policy note path and read the rollback section."
+    expected_tools: ["memory_get"]
+  - id: "memory-habit-open-known-retro-note"
+    category: "memory_habit"
+    intent: "Read the specified memory note excerpt about retrospective format."
+    expected_tools: ["memory_get"]
+  - id: "longhorizon-plan-weekly-milestones"
+    category: "long_horizon"
+    intent: "Draft a multi-week execution plan with milestone gates and progress checkpoints."
+    expected_tools: ["plan"]
+  - id: "longhorizon-plan-freeze-window"
+    category: "long_horizon"
+    intent: "Plan the rollout around an upcoming freeze window with explicit sequencing."
+    expected_tools: ["plan"]
+  - id: "longhorizon-clarify-missing-slo"
+    category: "long_horizon"
+    intent: "The target SLO is missing for this quarter-long initiative, ask for it first."
+    expected_tools: ["clarify"]
+  - id: "longhorizon-clarify-budget-ambiguity"
+    category: "long_horizon"
+    intent: "Scope says optimize cost but budget cap is ambiguous; ask a focused clarifying question."
+    expected_tools: ["clarify"]
+  - id: "longhorizon-request-approval-cutover"
+    category: "long_horizon"
+    intent: "Before cutover, stop and request explicit approval from me."
+    expected_tools: ["request_user"]
+  - id: "longhorizon-request-manual-external-check"
+    category: "long_horizon"
+    intent: "Pause and ask me to complete manual vendor-side verification before continuing."
+    expected_tools: ["request_user"]
+  - id: "continuity-read-prev-session-file"
+    category: "continuity"
+    intent: "Open the session handoff file and inspect the unresolved blockers section."
+    expected_tools: ["read_file"]
+  - id: "continuity-replace-stale-owner-tag"
+    category: "continuity"
+    intent: "Update the existing handoff doc by replacing the stale owner tag in-place."
+    expected_tools: ["replace_in_file"]
+  - id: "continuity-shell-verify-state"
+    category: "continuity"
+    intent: "Run terminal checks to verify current runtime state still matches yesterday's baseline."
+    expected_tools: ["shell_exec"]
+  - id: "continuity-execode-verify-threshold"
+    category: "continuity"
+    intent: "Execute a small deterministic check to validate threshold math from prior run."
+    expected_tools: ["execute_code"]
+  - id: "continuity-websearch-new-guideline"
+    category: "continuity"
+    intent: "Search latest official guidance updates that might invalidate our prior decision."
+    expected_tools: ["web_search"]
+  - id: "continuity-browser-action-portal-check"
+    category: "continuity"
+    intent: "Use browser actions to verify the portal state after login redirect quirks."
+    expected_tools: ["browser_action"]
+  - id: "continuity-channel-post-prog-update"
+    category: "continuity"
+    intent: "Post a short progress delta update to this thread."
+    expected_tools: ["channel"]
+  - id: "continuity-skills-load-retro-template"
+    category: "continuity"
+    intent: "Show reusable workflow templates for writing a postmortem follow-up."
+    expected_tools: ["skills"]
+  - id: "continuity-write-file-weekly-report"
+    category: "continuity"
+    intent: "Create a weekly status markdown report capturing outcomes and next actions."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Weekly markdown status report persisted."
+      artifact_required: true
+      required_file_types: ["md"]
+  - id: "continuity-write-file-decision-log"
+    category: "continuity"
+    intent: "Write a decision log file that records assumptions, tradeoffs, and follow-ups."
+    expected_tools: ["write_file"]
+    deliverable:
+      output_description: "Decision log persisted for continuity."
+      artifact_required: true
+      required_file_types: ["md", "txt"]
