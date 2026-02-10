@@ -1,7 +1,7 @@
 # Plan: Onboarding/Run Usability Audit
 
 > Created: 2026-02-10
-> Status: in-progress
+> Status: completed
 > Trigger: Audit project usability from onboarding/run perspective (README/docs/Makefile/scripts/docker/.env).
 
 ## Goal & Success Criteria
