@@ -28,6 +28,8 @@ import (
 	"alex/internal/infra/memory"
 	"alex/internal/infra/session/filestore"
 	"alex/internal/infra/session/postgresstore"
+	taskdomain "alex/internal/domain/task"
+	taskinfra "alex/internal/infra/task"
 	sessionstate "alex/internal/infra/session/state_store"
 	"alex/internal/infra/storage"
 	toolspolicy "alex/internal/infra/tools"
@@ -53,6 +55,7 @@ type sessionResources struct {
 	stateStore   sessionstate.Store
 	historyStore sessionstate.Store
 	sessionDB    *pgxpool.Pool
+	taskStore    taskdomain.Store // unified task store (nil if Postgres unavailable)
 }
 
 type sessionPoolOptions struct {
@@ -212,6 +215,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 		MCPRegistry:      mcpRegistry,
 		mcpInitTracker:   tracker,
 		SessionDB:        resources.sessionDB,
+		TaskStore:        resources.taskStore,
 		config:           b.config,
 		toolRegistry:     toolRegistry,
 		llmFactory:       llmFactory,
@@ -301,11 +305,22 @@ func (b *containerBuilder) buildPostgresResources(ctx context.Context, dbURL str
 		return sessionResources{}, postgresInitError{step: "initialize history schema", err: err}
 	}
 
+	// Initialize unified task store (non-fatal: degrade gracefully).
+	var unifiedTaskStore taskdomain.Store
+	dbTaskStore := taskinfra.NewPostgresStore(pool)
+	if err := dbTaskStore.EnsureSchema(ctx); err != nil {
+		b.logger.Warn("Unified task store schema init failed: %v (task durability degraded)", err)
+	} else {
+		unifiedTaskStore = dbTaskStore
+		b.logger.Info("Unified task store initialized (Postgres)")
+	}
+
 	return sessionResources{
 		sessionStore: dbSessionStore,
 		stateStore:   dbStateStore,
 		historyStore: dbHistoryStore,
 		sessionDB:    pool,
+		taskStore:    unifiedTaskStore,
 	}, nil
 }
 

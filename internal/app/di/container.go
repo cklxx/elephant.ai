@@ -14,6 +14,7 @@ import (
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
+	taskdomain "alex/internal/domain/task"
 	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/mcp"
@@ -46,6 +47,7 @@ type Container struct {
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
 	SessionDB        *pgxpool.Pool
+	TaskStore        taskdomain.Store // Unified durable task store (nil if SessionDB is nil)
 	LarkGateway      LarkGateway
 	LarkOAuth        *larkoauth.Service
 

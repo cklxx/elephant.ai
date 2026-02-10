@@ -55,3 +55,24 @@ func WithErrorText(text string) TaskUpdateOption {
 func WithTokensUsed(tokens int) TaskUpdateOption {
 	return func(o *taskUpdateOptions) { o.tokensUsed = &tokens }
 }
+
+// TaskUpdateValues holds the resolved values from TaskUpdateOption functions.
+// Exported to allow external adapter implementations to read option values.
+type TaskUpdateValues struct {
+	AnswerPreview *string
+	ErrorText     *string
+	TokensUsed    *int
+}
+
+// ResolveTaskUpdateOptions applies all options and returns the resolved values.
+func ResolveTaskUpdateOptions(opts []TaskUpdateOption) TaskUpdateValues {
+	var o taskUpdateOptions
+	for _, fn := range opts {
+		fn(&o)
+	}
+	return TaskUpdateValues{
+		AnswerPreview: o.answerPreview,
+		ErrorText:     o.errorText,
+		TokensUsed:    o.tokensUsed,
+	}
+}

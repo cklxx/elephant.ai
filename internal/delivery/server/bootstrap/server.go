@@ -13,6 +13,7 @@ import (
 
 	"alex/internal/app/subscription"
 	serverApp "alex/internal/delivery/server/app"
+	"alex/internal/delivery/server/ports"
 	serverHTTP "alex/internal/delivery/server/http"
 	agentdomain "alex/internal/domain/agent"
 	"alex/internal/domain/materials"
@@ -21,6 +22,7 @@ import (
 	"alex/internal/infra/diagnostics"
 	"alex/internal/infra/httpclient"
 	"alex/internal/infra/sandbox"
+	taskinfra "alex/internal/infra/task"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -143,12 +145,27 @@ func RunServer(observabilityConfigPath string) error {
 		broadcasterOpts = append(broadcasterOpts, serverApp.WithSessionTTL(config.EventHistory.SessionTTL))
 	}
 	broadcaster := serverApp.NewEventBroadcaster(broadcasterOpts...)
-	taskStoreOpts := []serverApp.TaskStoreOption{}
-	if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
-		taskStoreOpts = append(taskStoreOpts, serverApp.WithTaskPersistenceFile(filepath.Join(sessionDir, "_server", "tasks.json")))
+
+	// Task store: prefer unified Postgres store when SessionDB is available,
+	// falling back to the in-memory store with file persistence.
+	var taskStore ports.TaskStore
+	var taskStoreCleanup func()
+	if container.TaskStore != nil {
+		adapter := taskinfra.NewServerAdapter(container.TaskStore)
+		taskStore = adapter
+		taskStoreCleanup = func() {}
+		logger.Info("[Bootstrap] Task store backed by unified Postgres store")
+	} else {
+		taskStoreOpts := []serverApp.TaskStoreOption{}
+		if sessionDir := strings.TrimSpace(container.SessionDir()); sessionDir != "" {
+			taskStoreOpts = append(taskStoreOpts, serverApp.WithTaskPersistenceFile(filepath.Join(sessionDir, "_server", "tasks.json")))
+		}
+		memStore := serverApp.NewInMemoryTaskStore(taskStoreOpts...)
+		taskStore = memStore
+		taskStoreCleanup = func() { memStore.Close() }
+		logger.Info("[Bootstrap] Task store backed by in-memory store (Postgres unavailable)")
 	}
-	taskStore := serverApp.NewInMemoryTaskStore(taskStoreOpts...)
-	defer taskStore.Close()
+	defer taskStoreCleanup()
 	progressTracker := serverApp.NewTaskProgressTracker(taskStore)
 
 	cleanupDiagnostics := subscribeDiagnostics(broadcaster)

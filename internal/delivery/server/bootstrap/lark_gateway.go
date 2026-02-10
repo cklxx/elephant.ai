@@ -12,6 +12,7 @@ import (
 	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
 	larkoauth "alex/internal/infra/lark/oauth"
+	taskinfra "alex/internal/infra/task"
 	"alex/internal/shared/agent/presets"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
@@ -144,17 +145,26 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	// Wire task store for /cc, /codex, /task commands.
-	if gatewayCfg.TaskStoreEnabled && container.SessionDB != nil {
-		taskStore := lark.NewTaskPostgresStore(container.SessionDB)
-		if err := taskStore.EnsureSchema(ctx); err != nil {
-			logger.Warn("Lark task store init failed: %v", err)
-		} else {
-			gateway.SetTaskStore(taskStore)
-			// Mark stale running tasks from previous gateway instance.
-			if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
+	// Prefer the unified task store (shared with server) when available.
+	if gatewayCfg.TaskStoreEnabled {
+		if container.TaskStore != nil {
+			larkAdapter := taskinfra.NewLarkAdapter(container.TaskStore)
+			gateway.SetTaskStore(larkAdapter)
+			if err := larkAdapter.MarkStaleRunning(ctx, "gateway restart"); err != nil {
 				logger.Warn("Lark task store stale cleanup failed: %v", err)
 			}
-			logger.Info("Lark task store enabled (Postgres)")
+			logger.Info("Lark task store enabled (unified Postgres)")
+		} else if container.SessionDB != nil {
+			taskStore := lark.NewTaskPostgresStore(container.SessionDB)
+			if err := taskStore.EnsureSchema(ctx); err != nil {
+				logger.Warn("Lark task store init failed: %v", err)
+			} else {
+				gateway.SetTaskStore(taskStore)
+				if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
+					logger.Warn("Lark task store stale cleanup failed: %v", err)
+				}
+				logger.Info("Lark task store enabled (legacy Postgres)")
+			}
 		}
 	}
 
