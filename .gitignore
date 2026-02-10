@@ -156,3 +156,4 @@ alex-exec-*/*
 EOF
 .next/
 .tmp/
+__pycache__/

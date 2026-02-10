@@ -103,15 +103,24 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 			return &ports.ToolResult{CallID: call.ID, Content: content, Error: err}, nil
 		}
 
+		content := skill.Body
+		meta := map[string]any{
+			"name":        skill.Name,
+			"title":       skill.Title,
+			"description": skill.Description,
+			"source_path": skill.SourcePath,
+		}
+		if skill.HasRunScript {
+			meta["type"] = "python"
+			meta["exec"] = fmt.Sprintf("python3 skills/%s/run.py '{...}'", skill.Name)
+		}
+		if len(skill.RequiresTools) > 0 {
+			meta["requires_tools"] = skill.RequiresTools
+		}
 		return &ports.ToolResult{
-			CallID:  call.ID,
-			Content: skill.Body,
-			Metadata: map[string]any{
-				"name":        skill.Name,
-				"title":       skill.Title,
-				"description": skill.Description,
-				"source_path": skill.SourcePath,
-			},
+			CallID:   call.ID,
+			Content:  content,
+			Metadata: meta,
 		}, nil
 
 	case "search":
@@ -137,7 +146,11 @@ func (t *skillsTool) Execute(ctx context.Context, call ports.ToolCall) (*ports.T
 		var builder strings.Builder
 		builder.WriteString(fmt.Sprintf("Matches for %q:\n\n", query))
 		for _, match := range matches {
-			builder.WriteString(fmt.Sprintf("- `%s` — %s\n", match.Name, match.Description))
+			if match.HasRunScript {
+				builder.WriteString(fmt.Sprintf("- `%s` [py] — %s\n", match.Name, match.Description))
+			} else {
+				builder.WriteString(fmt.Sprintf("- `%s` — %s\n", match.Name, match.Description))
+			}
 		}
 		builder.WriteString("\nUse `skills` with action=show and the name to view a full playbook.")
 

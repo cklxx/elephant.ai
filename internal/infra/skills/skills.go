@@ -24,10 +24,15 @@ type Skill struct {
 	Priority       int            `yaml:"priority,omitempty"`
 	ExclusiveGroup string         `yaml:"exclusive_group,omitempty"`
 	Prerequisites  []string       `yaml:"prerequisites,omitempty"`
+	RequiresTools  []string       `yaml:"requires_tools,omitempty"`
 	MaxTokens      int            `yaml:"max_tokens,omitempty"`
 	Cooldown       int            `yaml:"cooldown,omitempty"`
 	Output         *SkillOutput   `yaml:"output,omitempty"`
 	Chain          []ChainStep    `yaml:"chain,omitempty"`
+
+	// HasRunScript is true when a run.py exists alongside the SKILL.md.
+	// Python skills are invoked via: shell_exec python3 skills/<name>/run.py '{...}'
+	HasRunScript bool `yaml:"-"`
 }
 
 type SkillTriggers struct {
@@ -167,6 +172,7 @@ type skillFrontMatter struct {
 	Priority       int            `yaml:"priority,omitempty"`
 	ExclusiveGroup string         `yaml:"exclusive_group,omitempty"`
 	Prerequisites  []string       `yaml:"prerequisites,omitempty"`
+	RequiresTools  []string       `yaml:"requires_tools,omitempty"`
 	MaxTokens      int            `yaml:"max_tokens,omitempty"`
 	Cooldown       int            `yaml:"cooldown,omitempty"`
 	Output         *SkillOutput   `yaml:"output,omitempty"`
@@ -194,6 +200,10 @@ func parseSkillFile(path string) (Skill, error) {
 		title = meta.Name
 	}
 
+	// Detect run.py alongside SKILL.md
+	runScript := filepath.Join(filepath.Dir(path), "run.py")
+	_, hasRunScript := os.Stat(runScript)
+
 	skill := Skill{
 		Name:           strings.TrimSpace(meta.Name),
 		Description:    strings.TrimSpace(meta.Description),
@@ -204,10 +214,12 @@ func parseSkillFile(path string) (Skill, error) {
 		Priority:       meta.Priority,
 		ExclusiveGroup: meta.ExclusiveGroup,
 		Prerequisites:  meta.Prerequisites,
+		RequiresTools:  meta.RequiresTools,
 		MaxTokens:      meta.MaxTokens,
 		Cooldown:       meta.Cooldown,
 		Output:         meta.Output,
 		Chain:          meta.Chain,
+		HasRunScript:   hasRunScript == nil,
 	}
 	if skill.Priority == 0 {
 		skill.Priority = 5

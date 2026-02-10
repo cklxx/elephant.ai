@@ -27,7 +27,11 @@ func IndexMarkdown(library Library) string {
 		if desc == "" {
 			desc = "(no description)"
 		}
-		builder.WriteString(fmt.Sprintf("- `%s` — %s\n", skill.Name, desc))
+		if skill.HasRunScript {
+			builder.WriteString(fmt.Sprintf("- `%s` [py] — %s\n", skill.Name, desc))
+		} else {
+			builder.WriteString(fmt.Sprintf("- `%s` — %s\n", skill.Name, desc))
+		}
 	}
 	return strings.TrimSpace(builder.String())
 }
@@ -49,6 +53,10 @@ func AvailableSkillsXML(library Library) string {
 		builder.WriteString("  <skill>\n")
 		builder.WriteString(fmt.Sprintf("    <name>%s</name>\n", escapeXML(skill.Name)))
 		builder.WriteString(fmt.Sprintf("    <description>%s</description>\n", escapeXML(desc)))
+		if skill.HasRunScript {
+			builder.WriteString("    <type>python</type>\n")
+			builder.WriteString(fmt.Sprintf("    <exec>python3 skills/%s/run.py '{...}'</exec>\n", escapeXML(skill.Name)))
+		}
 		builder.WriteString(fmt.Sprintf("    <location>%s</location>\n", escapeXML(skill.SourcePath)))
 		builder.WriteString("  </skill>\n")
 	}
