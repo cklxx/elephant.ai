@@ -185,23 +185,29 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
 
-    // Use project root directory (/Users/bytedance/code/elephant.ai)
-    // Find project root by looking for package.json or go.mod
+    // Find project root directory
     let workspace = process.cwd();
 
-    // Try to find project root (where package.json or go.mod exists)
+    // If running from web/ subdirectory, go up one level
+    if (workspace.endsWith('/web') || workspace.endsWith('\\web')) {
+      workspace = resolve(workspace, '..');
+    }
+
+    // Try to find project root by looking for markers
     const possibleRoots = [
-      process.cwd(),
-      resolve(process.cwd(), '..'),
-      resolve(process.cwd(), '../..'),
+      workspace,
+      resolve(workspace, '..'),
+      resolve(workspace, '../..'),
     ];
 
     for (const root of possibleRoots) {
-      if (
-        existsSync(join(root, 'package.json')) ||
-        existsSync(join(root, 'go.mod')) ||
-        existsSync(join(root, '.git'))
-      ) {
+      // Look for go.mod first (elephant.ai is a Go project)
+      if (existsSync(join(root, 'go.mod'))) {
+        workspace = root;
+        break;
+      }
+      // Fallback to .git
+      if (existsSync(join(root, '.git'))) {
         workspace = root;
         break;
       }
