@@ -219,6 +219,9 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 		"generated deliverable files in Lark threads, proactively upload after generation",
 		"Default temporary/generated file outputs to /tmp",
 		"Use browser_info for read-only tab/session metadata",
+		"use bash to leverage any suitable host CLI available on PATH",
+		"Inject runtime environment facts (cwd, OS, shell, available toolchain, safe env hints)",
+		"host shell execution with any available PATH tool",
 	} {
 		if !strings.Contains(window.SystemPrompt, snippet) {
 			t.Fatalf("expected routing guardrail snippet %q, got %q", snippet, window.SystemPrompt)

@@ -71,6 +71,11 @@ func buildToolRoutingSection() string {
 		"Use find/list_dir for path discovery, search_file for known-file content matching, and ripgrep for repo-wide regex sweeps.",
 		"Use web_search to discover authoritative sources when no fixed URL is chosen yet; use web_fetch to retrieve a single approved URL.",
 		"Use replace_in_file only for in-place edits in existing files with known target text.",
+		"When dedicated tools are insufficient, use bash to leverage any suitable host CLI available on PATH.",
+		"Actively probe local capabilities with deterministic checks first (command -v, --version, --help) before declaring a blocker.",
+		"Prefer autonomous exploration loops: inspect -> run -> verify -> adjust; escalate only after concrete evidence shows no safe path.",
+		"Inject runtime environment facts (cwd, OS, shell, available toolchain, safe env hints) into execution context before irreversible decisions.",
+		"Never expose secrets in prompts or outputs; redact secret-like environment keys and sensitive tokens by default.",
 	})
 }
 

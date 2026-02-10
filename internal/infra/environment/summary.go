@@ -14,6 +14,7 @@ type Summary struct {
 	OperatingSystem  string
 	Kernel           string
 	Capabilities     []string
+	EnvironmentHints []string
 }
 
 // IsEmpty reports whether the summary has any populated fields.
@@ -22,7 +23,8 @@ func (s Summary) IsEmpty() bool {
 		len(s.FileEntries) == 0 &&
 		strings.TrimSpace(s.OperatingSystem) == "" &&
 		strings.TrimSpace(s.Kernel) == "" &&
-		len(s.Capabilities) == 0
+		len(s.Capabilities) == 0 &&
+		len(s.EnvironmentHints) == 0
 }
 
 // FormatSummary renders the summary into a human-readable multi-line description.
@@ -61,6 +63,11 @@ func FormatSummary(summary Summary) string {
 		sort.Strings(capabilities)
 		builder.WriteString(fmt.Sprintf("- Capabilities: %s\n", strings.Join(capabilities, ", ")))
 	}
+	if len(summary.EnvironmentHints) > 0 {
+		envHints := append([]string(nil), summary.EnvironmentHints...)
+		sort.Strings(envHints)
+		builder.WriteString(fmt.Sprintf("- Runtime environment: %s\n", strings.Join(envHints, ", ")))
+	}
 
 	return strings.TrimSpace(builder.String())
 }
@@ -96,6 +103,11 @@ func SummaryMap(summary Summary) map[string]string {
 		capabilities := append([]string(nil), summary.Capabilities...)
 		sort.Strings(capabilities)
 		result["capabilities"] = strings.Join(capabilities, ", ")
+	}
+	if len(summary.EnvironmentHints) > 0 {
+		envHints := append([]string(nil), summary.EnvironmentHints...)
+		sort.Strings(envHints)
+		result["runtime_environment"] = strings.Join(envHints, ", ")
 	}
 
 	return result

@@ -40,6 +40,7 @@ func CollectLocalSummary(maxFileEntries int) Summary {
 	kernel := runLocalCommand("uname", "-sr")
 
 	capabilities := collectLocalCapabilities()
+	environmentHints := collectEnvironmentHints(8)
 
 	return Summary{
 		WorkingDirectory: workingDir,
@@ -48,6 +49,7 @@ func CollectLocalSummary(maxFileEntries int) Summary {
 		OperatingSystem:  osDescription,
 		Kernel:           kernel,
 		Capabilities:     capabilities,
+		EnvironmentHints: environmentHints,
 	}
 }
 
@@ -188,4 +190,164 @@ func normalizeCapabilityOutput(program string, args []string, output string) str
 		return fmt.Sprintf("%s %s", program, trimmed)
 	}
 	return trimmed
+}
+
+var prioritizedEnvironmentKeys = []string{
+	"SHELL",
+	"LANG",
+	"LC_ALL",
+	"TZ",
+	"TERM",
+	"CI",
+	"GOROOT",
+	"GOPATH",
+	"GOOS",
+	"GOARCH",
+	"GOMOD",
+	"GOFLAGS",
+	"NODE_ENV",
+	"NPM_CONFIG_PREFIX",
+	"PNPM_HOME",
+	"PYTHONPATH",
+	"VIRTUAL_ENV",
+	"CONDA_PREFIX",
+	"ALEX_CONTEXT_CONFIG_DIR",
+	"ALEX_SKILLS_DIR",
+	"ALEX_TOOL_MODE",
+	"ALEX_TOOL_PRESET",
+}
+
+var sensitiveEnvironmentKeyFragments = []string{
+	"SECRET",
+	"TOKEN",
+	"PASSWORD",
+	"PASSWD",
+	"PASS",
+	"API_KEY",
+	"ACCESS_KEY",
+	"PRIVATE_KEY",
+	"SESSION",
+	"COOKIE",
+	"AUTH",
+	"CREDENTIAL",
+	"BEARER",
+	"SIGNATURE",
+	"JWT",
+	"OAUTH",
+}
+
+func collectEnvironmentHints(limit int) []string {
+	if limit == 0 {
+		return nil
+	}
+	envMap := make(map[string]string)
+	for _, entry := range os.Environ() {
+		idx := strings.Index(entry, "=")
+		if idx <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(entry[:idx])
+		value := strings.TrimSpace(entry[idx+1:])
+		if key == "" || value == "" {
+			continue
+		}
+		envMap[key] = value
+	}
+	return collectEnvironmentHintsFromMap(envMap, limit)
+}
+
+func collectEnvironmentHintsFromMap(env map[string]string, limit int) []string {
+	if len(env) == 0 || limit == 0 {
+		return nil
+	}
+	seen := make(map[string]bool, limit)
+	hints := make([]string, 0, limit)
+
+	appendHint := func(key, value string) {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" || isSensitiveEnvironmentKey(key) || seen[key] {
+			return
+		}
+		if len(hints) >= limit {
+			return
+		}
+		hints = append(hints, fmt.Sprintf("%s=%s", key, truncateEnvironmentValue(value, 96)))
+		seen[key] = true
+	}
+
+	for _, key := range prioritizedEnvironmentKeys {
+		value, ok := env[key]
+		if !ok {
+			continue
+		}
+		appendHint(key, value)
+	}
+
+	if len(hints) < limit {
+		if pathSummary := summarizePATH(env["PATH"]); pathSummary != "" {
+			hints = append(hints, pathSummary)
+		}
+	}
+
+	return hints
+}
+
+func isSensitiveEnvironmentKey(key string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(key))
+	if upper == "" {
+		return false
+	}
+	for _, fragment := range sensitiveEnvironmentKeyFragments {
+		if strings.Contains(upper, fragment) {
+			return true
+		}
+	}
+	return false
+}
+
+func summarizePATH(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	segments := strings.Split(value, string(os.PathListSeparator))
+	filtered := make([]string, 0, len(segments))
+	seen := make(map[string]bool, len(segments))
+	for _, segment := range segments {
+		trimmed := strings.TrimSpace(segment)
+		if trimmed == "" || seen[trimmed] {
+			continue
+		}
+		seen[trimmed] = true
+		filtered = append(filtered, trimmed)
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	const previewLimit = 3
+	previewEnd := previewLimit
+	if len(filtered) < previewLimit {
+		previewEnd = len(filtered)
+	}
+	preview := strings.Join(filtered[:previewEnd], ", ")
+	if len(filtered) > previewLimit {
+		return fmt.Sprintf("PATH entries=%d [%s, ...]", len(filtered), preview)
+	}
+	return fmt.Sprintf("PATH entries=%d [%s]", len(filtered), preview)
+}
+
+func truncateEnvironmentValue(value string, maxRunes int) string {
+	if maxRunes <= 0 {
+		return ""
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= maxRunes {
+		return value
+	}
+	return string(runes[:maxRunes]) + "..."
 }
