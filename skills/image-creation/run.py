@@ -19,6 +19,7 @@ load_repo_dotenv(__file__)
 
 import base64
 import json
+import math
 import os
 import sys
 import time
@@ -28,6 +29,7 @@ import urllib.request
 
 _ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3"
 _DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID = "doubao-seedream-4-5-251128"
+_MIN_IMAGE_PIXELS = 1920 * 1920
 
 
 def _ark_request(endpoint_id: str, payload: dict) -> dict:
@@ -54,6 +56,14 @@ def _ark_request(endpoint_id: str, payload: dict) -> dict:
     try:
         with urllib.request.urlopen(req, timeout=120) as resp:
             return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode().strip()
+        except Exception:
+            body = ""
+        detail = body or str(exc)
+        return {"error": f"HTTP Error {exc.code}: {detail}"}
     except urllib.error.URLError as exc:
         return {"error": str(exc)}
 
@@ -68,6 +78,24 @@ def _resolve_seedream_text_endpoint() -> str:
     return _DEFAULT_SEEDREAM_TEXT_ENDPOINT_ID
 
 
+def _normalize_size(size: str) -> str:
+    parts = size.lower().split("x")
+    if len(parts) != 2:
+        raise ValueError("size must be WIDTHxHEIGHT")
+    width = int(parts[0].strip())
+    height = int(parts[1].strip())
+    if width <= 0 or height <= 0:
+        raise ValueError("size must be WIDTHxHEIGHT with positive integers")
+    pixels = width * height
+    if pixels >= _MIN_IMAGE_PIXELS:
+        return f"{width}x{height}"
+
+    scale = math.sqrt(_MIN_IMAGE_PIXELS / pixels)
+    scaled_width = math.ceil(width * scale)
+    scaled_height = math.ceil(height * scale)
+    return f"{scaled_width}x{scaled_height}"
+
+
 def generate(args: dict) -> dict:
     prompt = args.get("prompt", "")
     if not prompt:
@@ -76,8 +104,11 @@ def generate(args: dict) -> dict:
     endpoint = _resolve_seedream_text_endpoint()
 
     style = str(args.get("style", "realistic")).strip()
-    size = args.get("size", "1024x1024")
-    w, h = size.split("x")
+    requested_size = str(args.get("size", "1920x1920")).strip()
+    try:
+        effective_size = _normalize_size(requested_size)
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
 
     prompt_with_style = prompt
     if style:
@@ -85,7 +116,7 @@ def generate(args: dict) -> dict:
 
     result = _ark_request(endpoint, {
         "prompt": prompt_with_style,
-        "size": f"{w}x{h}",
+        "size": effective_size,
         "n": 1,
     })
 
@@ -108,7 +139,8 @@ def generate(args: dict) -> dict:
         "image_path": output,
         "prompt": prompt,
         "style": style,
-        "size": size,
+        "size": effective_size,
+        "requested_size": requested_size,
         "message": f"图片已保存到 {output}",
     }
 

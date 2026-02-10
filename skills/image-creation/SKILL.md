@@ -44,7 +44,7 @@ python3 skills/image-creation/run.py '{"action":"refine", "image_path":"/tmp/cat
 |------|------|------|------|
 | prompt | string | 是 | 图片描述 |
 | style | string | 否 | 风格（realistic/anime/oil-painting），默认 realistic |
-| size | string | 否 | 尺寸（1024x1024/512x512），默认 1024x1024 |
+| size | string | 否 | 尺寸 `WIDTHxHEIGHT`；默认 `1920x1920`。若像素总量低于后端下限会自动等比放大 |
 | output | string | 否 | 输出文件路径 |
 
 ### refine
