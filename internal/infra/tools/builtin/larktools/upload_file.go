@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -32,17 +34,22 @@ var larkSupportedFileTypes = map[string]bool{
 	"stream": true,
 }
 
+var larkAudioExtensions = map[string]bool{
+	"m4a": true, "mp3": true, "opus": true, "wav": true, "aac": true,
+}
+
 type uploadCandidate struct {
 	reader   io.Reader
 	cleanup  func()
 	fileName string
 	fileType string
 	size     int64
+	mimeType string
 	meta     map[string]any
 }
 
 // NewLarkUploadFile constructs a tool that uploads a file and sends it to the
-// current Lark chat as a "file" message.
+// current Lark chat (audio files are sent as "audio" messages).
 func NewLarkUploadFile() tools.ToolExecutor {
 	return &larkUploadFile{
 		BaseTool: shared.NewBaseTool(
@@ -154,9 +161,13 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 	}
 
 	replyToID := strings.TrimSpace(shared.LarkMessageIDFromContext(ctx))
+	msgType := "file"
+	if isAudioFile(candidate.fileName, candidate.mimeType) {
+		msgType = "audio"
+	}
 	msgContent := fileContent(fileKey)
 
-	messageID, errResult := sendFileMessage(ctx, client, call.ID, chatID, replyToID, msgContent)
+	messageID, errResult := sendUploadedMessage(ctx, client, call.ID, chatID, replyToID, msgType, msgContent)
 	if errResult != nil {
 		return errResult, nil
 	}
@@ -167,6 +178,8 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 		"file_key":   fileKey,
 		"file_name":  candidate.fileName,
 		"file_type":  candidate.fileType,
+		"mime_type":  candidate.mimeType,
+		"msg_type":   msgType,
 		"bytes":      candidate.size,
 		"max_bytes":  maxBytes,
 	}
@@ -184,12 +197,12 @@ func (t *larkUploadFile) Execute(ctx context.Context, call ports.ToolCall) (*por
 	}, nil
 }
 
-func sendFileMessage(ctx context.Context, client *lark.Client, callID, chatID, replyToID, content string) (string, *ports.ToolResult) {
+func sendUploadedMessage(ctx context.Context, client *lark.Client, callID, chatID, replyToID, msgType, content string) (string, *ports.ToolResult) {
 	if replyToID != "" {
 		req := larkim.NewReplyMessageReqBuilder().
 			MessageId(replyToID).
 			Body(larkim.NewReplyMessageReqBodyBuilder().
-				MsgType("file").
+				MsgType(msgType).
 				Content(content).
 				Build()).
 			Build()
@@ -212,7 +225,7 @@ func sendFileMessage(ctx context.Context, client *lark.Client, callID, chatID, r
 		ReceiveIdType("chat_id").
 		Body(larkim.NewCreateMessageReqBodyBuilder().
 			ReceiveId(chatID).
-			MsgType("file").
+			MsgType(msgType).
 			Content(content).
 			Build()).
 		Build()
@@ -307,6 +320,7 @@ func preparePathCandidate(ctx context.Context, callID, rawPath, fileNameOverride
 		fileName: fileName,
 		fileType: larkFileType(fileTypeForName(fileName)),
 		size:     info.Size(),
+		mimeType: detectMimeTypeFromFile(file),
 		meta:     meta,
 	}, nil
 }
@@ -342,11 +356,21 @@ func prepareAttachmentCandidate(ctx context.Context, callID, attachmentName, fil
 	meta := map[string]any{
 		"attachment_name": attachmentName,
 	}
+	mimeType := normalizeMimeType(attachmentMediaType(ctx, attachmentName))
+	if !isAudioMimeType(mimeType) {
+		if sniffed := normalizeMimeType(http.DetectContentType(payload)); isAudioMimeType(sniffed) {
+			mimeType = sniffed
+		}
+	}
+	if mimeType == "" {
+		mimeType = normalizeMimeType(http.DetectContentType(payload))
+	}
 	return uploadCandidate{
 		reader:   bytes.NewReader(payload),
 		fileName: fileName,
 		fileType: larkFileType(fileTypeForName(fileName)),
 		size:     int64(len(payload)),
+		mimeType: mimeType,
 		meta:     meta,
 	}, nil
 }
@@ -362,6 +386,17 @@ func attachmentFileName(ctx context.Context, name string) string {
 		}
 	}
 	return name
+}
+
+func attachmentMediaType(ctx context.Context, name string) string {
+	attachments, _ := tools.GetAttachmentContext(ctx)
+	if len(attachments) == 0 {
+		return ""
+	}
+	if att, ok := findAttachmentCaseInsensitive(attachments, name); ok {
+		return strings.TrimSpace(att.MediaType)
+	}
+	return ""
 }
 
 func findAttachmentCaseInsensitive(attachments map[string]ports.Attachment, name string) (ports.Attachment, bool) {
@@ -399,6 +434,48 @@ func larkFileType(ext string) string {
 		return lower
 	}
 	return "stream"
+}
+
+func normalizeMimeType(mimeType string) string {
+	mimeType = strings.TrimSpace(strings.ToLower(mimeType))
+	if mimeType == "" {
+		return ""
+	}
+	if parsed, _, err := mime.ParseMediaType(mimeType); err == nil {
+		return strings.TrimSpace(strings.ToLower(parsed))
+	}
+	if idx := strings.Index(mimeType, ";"); idx >= 0 {
+		mimeType = mimeType[:idx]
+	}
+	return strings.TrimSpace(strings.ToLower(mimeType))
+}
+
+func isAudioMimeType(mimeType string) bool {
+	mimeType = normalizeMimeType(mimeType)
+	if strings.HasPrefix(mimeType, "audio/") {
+		return true
+	}
+	return mimeType == "application/ogg"
+}
+
+func isAudioFile(fileName, mimeType string) bool {
+	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(fileName), "."))
+	if larkAudioExtensions[ext] {
+		return true
+	}
+	return isAudioMimeType(mimeType)
+}
+
+func detectMimeTypeFromFile(file *os.File) string {
+	buf := make([]byte, 512)
+	n, err := file.ReadAt(buf, 0)
+	if err != nil && err != io.EOF {
+		return ""
+	}
+	if n <= 0 {
+		return ""
+	}
+	return normalizeMimeType(http.DetectContentType(buf[:n]))
 }
 
 func fileContent(fileKey string) string {

@@ -272,6 +272,9 @@ func TestPrepareUploadCandidate_AttachmentMode(t *testing.T) {
 	if cand.fileType != "stream" {
 		t.Fatalf("unexpected fileType: %s", cand.fileType)
 	}
+	if cand.mimeType != "text/plain" {
+		t.Fatalf("unexpected mimeType: %s", cand.mimeType)
+	}
 
 	cand, errResult = prepareUploadCandidate(ctx, "call-2", map[string]any{
 		"attachment_name": "A.TXT",
@@ -303,6 +306,22 @@ func TestPrepareUploadCandidate_AttachmentMode(t *testing.T) {
 	}
 }
 
+func TestPrepareUploadCandidate_AttachmentMode_AudioMimeType(t *testing.T) {
+	payload := []byte("ID3\x04\x00\x00\x00\x00\x00\x21")
+	encoded := base64.StdEncoding.EncodeToString(payload)
+	att := ports.Attachment{Name: "voice.bin", MediaType: "audio/mpeg", Data: encoded}
+
+	ctx := toolports.WithAttachmentContext(context.Background(), map[string]ports.Attachment{"voice.bin": att}, nil)
+
+	cand, errResult := prepareUploadCandidate(ctx, "call-1", map[string]any{"attachment_name": "voice.bin"}, defaultMaxBytes)
+	if errResult != nil {
+		t.Fatalf("unexpected error: %v", errResult.Error)
+	}
+	if !isAudioFile(cand.fileName, cand.mimeType) {
+		t.Fatalf("expected audio detection by mime type, got name=%s mime=%s", cand.fileName, cand.mimeType)
+	}
+}
+
 func TestFileHelpers(t *testing.T) {
 	if got := fileContent("file_123"); got != `{"file_key":"file_123"}` {
 		t.Fatalf("unexpected fileContent: %s", got)
@@ -326,5 +345,23 @@ func TestFileHelpers(t *testing.T) {
 	}
 	if got := larkFileType(""); got != "stream" {
 		t.Fatalf("unexpected larkFileType(empty): %s", got)
+	}
+}
+
+func TestIsAudioFile(t *testing.T) {
+	if !isAudioFile("track.mp3", "") {
+		t.Fatal("expected mp3 extension to be audio")
+	}
+	if !isAudioFile("track.M4A", "") {
+		t.Fatal("expected m4a extension to be audio")
+	}
+	if !isAudioFile("track.bin", "audio/mpeg") {
+		t.Fatal("expected audio/mpeg mime to be audio")
+	}
+	if !isAudioFile("track.bin", "audio/x-wav; charset=binary") {
+		t.Fatal("expected audio/x-wav mime with params to be audio")
+	}
+	if isAudioFile("report.pdf", "application/pdf") {
+		t.Fatal("did not expect pdf to be audio")
 	}
 }

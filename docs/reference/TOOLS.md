@@ -42,6 +42,9 @@ Supported actions:
 - high-impact: `create_event`, `update_event`, `create_task`, `update_task`
 - irreversible: `delete_event`, `delete_task`
 
+Notes:
+- `upload_file` sends audio files (`m4a/mp3/opus/wav/aac`) as `msg_type="audio"`; other files use `msg_type="file"`.
+
 ## 5) Toolset switching
 
 - `toolset: default`: sandbox-backed implementations for platform execution tools.
