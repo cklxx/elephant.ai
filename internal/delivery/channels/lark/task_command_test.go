@@ -25,6 +25,7 @@ func TestIsTaskCommand(t *testing.T) {
 		{"/task help", true},
 		{"/task refactor auth", true},
 		{"/model use codex/gpt-5", false},
+		{"/new", false},
 		{"/reset", false},
 		{"hello world", false},
 		{"/plan on", false},  // plan is separate

@@ -37,8 +37,10 @@ import (
 )
 
 const (
-	messageDedupCacheSize = 2048
-	messageDedupTTL       = 10 * time.Minute
+	messageDedupCacheSize      = 2048
+	messageDedupTTL            = 10 * time.Minute
+	chatSessionBindingChannel  = "lark"
+	defaultRecentChatMaxRounds = 5
 )
 
 // AgentExecutor is an alias for the shared channel executor interface.
@@ -86,6 +88,7 @@ type Gateway struct {
 	cliCredsLoader     func() runtimeconfig.CLICredentials
 	llamaResolver      func(context.Context) (subscription.LlamaServerTarget, bool)
 	taskStore          TaskStore
+	chatSessionStore   ChatSessionBindingStore
 	noticeState        *noticeStateStore
 	activeSlots        sync.Map           // chatID → *sessionSlot
 	pendingInputRelays sync.Map           // chatID → *pendingRelayQueue
@@ -210,6 +213,14 @@ func (g *Gateway) SetTaskStore(store TaskStore) {
 		return
 	}
 	g.taskStore = store
+}
+
+// SetChatSessionBindingStore configures persistent chat->session bindings.
+func (g *Gateway) SetChatSessionBindingStore(store ChatSessionBindingStore) {
+	if g == nil {
+		return
+	}
+	g.chatSessionStore = store
 }
 
 // SendNotification sends a text notification to a Lark chat (no session/slot management).
@@ -443,12 +454,18 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 		return nil
 	}
 
+	// Handle /new outside of a running task.
+	if trimmedContent == "/new" {
+		g.handleNewSessionCommand(slot, msg) // releases slot.mu
+		return nil
+	}
+
 	// Handle /reset outside of a running task.
-	if strings.TrimSpace(msg.content) == "/reset" {
+	if trimmedContent == "/reset" {
 		g.handleResetCommand(slot, msg) // releases slot.mu
 		return nil
 	}
-	if strings.HasPrefix(strings.TrimSpace(msg.content), "/model") || strings.HasPrefix(strings.TrimSpace(msg.content), "/models") {
+	if strings.HasPrefix(trimmedContent, "/model") || strings.HasPrefix(trimmedContent, "/models") {
 		slot.mu.Unlock()
 		g.handleModelCommand(msg)
 		return nil
@@ -465,7 +482,7 @@ func (g *Gateway) handleMessageWithOptions(ctx context.Context, event *larkim.P2
 	}
 
 	// Resolve session ID: reuse the awaiting session or create a new one.
-	sessionID, isResume := g.resolveSessionForNewTask(slot)
+	sessionID, isResume := g.resolveSessionForNewTask(ctx, msg.chatID, slot)
 	inputCh := make(chan agent.UserInput, 16)
 	slot.phase = slotRunning
 	slot.inputCh = inputCh
@@ -613,37 +630,48 @@ func (g *Gateway) injectUserInput(ch chan agent.UserInput, activeSessionID strin
 	}
 }
 
-// handleResetCommand processes a /reset message, clearing session state and
-// notifying the user. The caller must hold slot.mu; this method releases it.
-func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
-	resetSessionID := slot.sessionID
-	if resetSessionID == "" {
-		resetSessionID = slot.lastSessionID
-	}
-	if resetSessionID == "" {
-		resetSessionID = g.memoryIDForChat(msg.chatID)
-	}
-	slot.sessionID = ""
-	slot.lastSessionID = ""
+// handleNewSessionCommand processes a /new message, creating a fresh session
+// and rebinding this chat to it. The caller must hold slot.mu; this method
+// releases it.
+func (g *Gateway) handleNewSessionCommand(slot *sessionSlot, msg *incomingMessage) {
+	newSessionID := g.newSessionID()
+	slot.sessionID = newSessionID
+	slot.lastSessionID = newSessionID
 	slot.phase = slotIdle
+	slot.pendingOptions = nil
 	slot.mu.Unlock()
 
-	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", resetSessionID, msg.senderID, msg.chatID, msg.isGroup)
+	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", newSessionID, msg.senderID, msg.chatID, msg.isGroup)
 	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
 	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
-	if resetter, ok := g.agent.(interface {
-		ResetSession(ctx context.Context, sessionID string) error
-	}); ok {
-		if err := resetter.ResetSession(execCtx, resetSessionID); err != nil {
-			g.logger.Warn("Lark session reset failed: %v", err)
-		}
+	execCtx = toolcontext.WithLarkMessageID(execCtx, msg.messageID)
+	g.persistChatSessionBinding(execCtx, msg.chatID, newSessionID)
+	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("已开启新会话，后续消息将使用新的上下文。"))
+}
+
+// handleResetCommand processes a /reset message. The command is deprecated; it
+// no longer clears history to avoid accidental loss of context.
+// The caller must hold slot.mu; this method releases it.
+func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
+	sessionID := slot.sessionID
+	if sessionID == "" {
+		sessionID = slot.lastSessionID
 	}
-	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("已清空对话历史，下次对话将从零开始。"))
+	if sessionID == "" {
+		sessionID = g.memoryIDForChat(msg.chatID)
+	}
+	slot.mu.Unlock()
+
+	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
+	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
+	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = toolcontext.WithLarkMessageID(execCtx, msg.messageID)
+	g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", textContent("`/reset` 已弃用，请使用 `/new` 开启新的会话。"))
 }
 
 // resolveSessionForNewTask decides whether to reuse the awaiting session or
 // create a fresh one. Must be called while slot.mu is held.
-func (g *Gateway) resolveSessionForNewTask(slot *sessionSlot) (sessionID string, isResume bool) {
+func (g *Gateway) resolveSessionForNewTask(ctx context.Context, chatID string, slot *sessionSlot) (sessionID string, isResume bool) {
 	if slot.phase == slotAwaitingInput && slot.sessionID != "" {
 		return slot.sessionID, true
 	}
@@ -651,7 +679,50 @@ func (g *Gateway) resolveSessionForNewTask(slot *sessionSlot) (sessionID string,
 	if slot.lastSessionID != "" {
 		return slot.lastSessionID, false
 	}
+	if persisted := g.loadPersistedChatSessionBinding(ctx, chatID); persisted != "" {
+		return persisted, false
+	}
 	return g.newSessionID(), false
+}
+
+func (g *Gateway) loadPersistedChatSessionBinding(ctx context.Context, chatID string) string {
+	if g == nil || g.chatSessionStore == nil {
+		return ""
+	}
+	chatID = strings.TrimSpace(chatID)
+	if chatID == "" {
+		return ""
+	}
+	binding, ok, err := g.chatSessionStore.GetBinding(ctx, chatSessionBindingChannel, chatID)
+	if err != nil {
+		g.logger.Warn("Load chat session binding failed: chat=%s err=%v", chatID, err)
+		return ""
+	}
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(binding.SessionID)
+}
+
+func (g *Gateway) persistChatSessionBinding(ctx context.Context, chatID, sessionID string) {
+	if g == nil || g.chatSessionStore == nil {
+		return
+	}
+	chatID = strings.TrimSpace(chatID)
+	sessionID = strings.TrimSpace(sessionID)
+	if chatID == "" || sessionID == "" {
+		return
+	}
+	storeCtx := context.WithoutCancel(ctx)
+	err := g.chatSessionStore.SaveBinding(storeCtx, ChatSessionBinding{
+		Channel:   chatSessionBindingChannel,
+		ChatID:    chatID,
+		SessionID: sessionID,
+		UpdatedAt: time.Now(),
+	})
+	if err != nil {
+		g.logger.Warn("Persist chat session binding failed: chat=%s session=%s err=%v", chatID, sessionID, err)
+	}
 }
 
 // runTask executes a full task lifecycle: context setup, session ensure,
@@ -678,6 +749,7 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 		sessionID = session.ID
 		execCtx = id.WithSessionID(execCtx, sessionID)
 	}
+	g.persistChatSessionBinding(execCtx, msg.chatID, sessionID)
 
 	// Reconcile in-memory isResume with persisted session metadata.
 	// This handles the cold-start case where the gateway restarted while
@@ -707,7 +779,7 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 		taskContent = ""
 	}
 
-	// 3. Chat context enrichment for group chats (only when there is content)
+	// 3. Chat context enrichment from IM recent rounds (only when there is content)
 	taskContent = g.enrichWithChatContext(execCtx, taskContent, msg, hasPlanReview)
 
 	startEmoji, endEmoji := g.pickReactionEmojis()
@@ -890,17 +962,17 @@ func (g *Gateway) seedAwaitResumeInput(inputCh chan agent.UserInput, msg *incomi
 	}
 }
 
-// enrichWithChatContext prepends (or appends) recent group chat messages as
-// context to the task content. Only applies to group chats.
+// enrichWithChatContext prepends (or appends) recent IM chat rounds as context
+// to the task content.
 func (g *Gateway) enrichWithChatContext(execCtx context.Context, taskContent string, msg *incomingMessage, hasPlanReview bool) string {
-	if taskContent == "" || g.messenger == nil || !msg.isGroup {
+	if taskContent == "" || g.messenger == nil {
 		return taskContent
 	}
 	pageSize := g.cfg.AutoChatContextSize
 	if pageSize <= 0 {
-		pageSize = 20
+		pageSize = 50
 	}
-	chatHistory, err := g.fetchRecentChatMessages(execCtx, msg.chatID, pageSize)
+	chatHistory, err := g.fetchRecentChatRounds(execCtx, msg.chatID, msg.messageID, pageSize, defaultRecentChatMaxRounds)
 	if err != nil {
 		g.logger.Warn("Lark auto chat context fetch failed: %v", err)
 		return taskContent

@@ -81,9 +81,9 @@ func TestFormatChatMessages_NilItem(t *testing.T) {
 
 func TestFormatChatTimestamp(t *testing.T) {
 	tests := []struct {
-		name     string
-		input    string
-		wantSub  string
+		name    string
+		input   string
+		wantSub string
 	}{
 		{"valid timestamp", "1706500000000", "2024-01-29"},
 		{"empty", "", "unknown"},
@@ -229,6 +229,55 @@ func TestFetchRecentChatMessages_EmptyChatID(t *testing.T) {
 	}
 }
 
+func TestKeepRecentChatRounds(t *testing.T) {
+	lines := []chatMessageLine{
+		{SenderType: "user", Content: "q1"},
+		{SenderType: "app", Content: "a1"},
+		{SenderType: "user", Content: "q2"},
+		{SenderType: "app", Content: "a2"},
+		{SenderType: "user", Content: "q3"},
+		{SenderType: "app", Content: "a3"},
+	}
+	trimmed := keepRecentChatRounds(lines, 2)
+	if len(trimmed) != 4 {
+		t.Fatalf("expected 4 lines for last 2 rounds, got %d", len(trimmed))
+	}
+	if trimmed[0].Content != "q2" || trimmed[len(trimmed)-1].Content != "a3" {
+		t.Fatalf("unexpected rounds trimmed result: %+v", trimmed)
+	}
+}
+
+func TestFetchRecentChatRounds_ExcludeCurrentMessage(t *testing.T) {
+	rec := NewRecordingMessenger()
+	rec.ListMessagesResult = []*larkim.Message{
+		makeTextMessage("m6", "1706500300000", "app", "bot_1", "a3"),
+		makeTextMessage("m5", "1706500240000", "user", "ou_1", "q3"),
+		makeTextMessage("m4", "1706500180000", "app", "bot_1", "a2"),
+		makeTextMessage("m3", "1706500120000", "user", "ou_1", "q2"),
+		makeTextMessage("m2", "1706500060000", "app", "bot_1", "a1"),
+		makeTextMessage("m1", "1706500000000", "user", "ou_1", "q1"),
+	}
+	gw := &Gateway{messenger: rec}
+
+	history, err := gw.fetchRecentChatRounds(context.Background(), "oc_1", "m6", 20, 2)
+	if err != nil {
+		t.Fatalf("fetchRecentChatRounds returned error: %v", err)
+	}
+	lines := splitLines(history)
+	if len(lines) != 3 {
+		t.Fatalf("expected 3 lines after trim+exclude, got %d: %q", len(lines), history)
+	}
+	if !containsSubstring(lines[0], "q2") {
+		t.Fatalf("expected first line to start from q2 round, got %q", lines[0])
+	}
+	if !containsSubstring(lines[2], "q3") {
+		t.Fatalf("expected latest user message q3 in output, got %q", lines[2])
+	}
+	if containsSubstring(history, "a3") {
+		t.Fatalf("expected excluded current message to be removed, got %q", history)
+	}
+}
+
 // --- test helpers ---
 
 func makeSender(senderType, id string) *larkim.Sender {
@@ -237,6 +286,18 @@ func makeSender(senderType, id string) *larkim.Sender {
 
 func makeBody(content string) *larkim.MessageBody {
 	return &larkim.MessageBody{Content: &content}
+}
+
+func makeTextMessage(messageID, createTime, senderType, senderID, text string) *larkim.Message {
+	msgType := "text"
+	content := `{"text":"` + text + `"}`
+	return &larkim.Message{
+		MessageId:  &messageID,
+		CreateTime: &createTime,
+		Sender:     &larkim.Sender{SenderType: &senderType, Id: &senderID},
+		MsgType:    &msgType,
+		Body:       &larkim.MessageBody{Content: &content},
+	}
 }
 
 func splitLines(s string) []string {

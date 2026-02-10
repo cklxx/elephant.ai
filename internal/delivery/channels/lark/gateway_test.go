@@ -1683,11 +1683,13 @@ func TestHandleMessageResetCommand(t *testing.T) {
 	chatType := "p2p"
 
 	executor := &resetExecutor{}
+	recorder := NewRecordingMessenger()
 	gw := &Gateway{
-		cfg:    Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
-		agent:  executor,
-		logger: logging.OrNop(nil),
-		now:    func() time.Time { return time.Now() },
+		cfg:       Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:     executor,
+		logger:    logging.OrNop(nil),
+		messenger: recorder,
+		now:       func() time.Time { return time.Now() },
 	}
 	cache, _ := lru.New[string, time.Time](16)
 	gw.dedupCache = cache
@@ -1714,15 +1716,88 @@ func TestHandleMessageResetCommand(t *testing.T) {
 	}
 	gw.WaitForTasks()
 
-	if !executor.resetCalled {
-		t.Fatal("expected ResetSession to be called")
-	}
 	if executor.executeCalled {
 		t.Fatal("expected ExecuteTask to be skipped on /reset")
 	}
-	expectedSessionID := gw.memoryIDForChat(chatID)
-	if executor.resetSessionID != expectedSessionID {
-		t.Fatalf("expected reset sessionID %q, got %q", expectedSessionID, executor.resetSessionID)
+	if executor.resetCalled {
+		t.Fatal("expected /reset to be deprecated and skip ResetSession")
+	}
+	replies := recorder.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected deprecation reply")
+	}
+	if !strings.Contains(replies[0].Content, "/new") {
+		t.Fatalf("expected /new hint in deprecation reply, got %q", replies[0].Content)
+	}
+}
+
+func TestHandleMessageNewCommandSwitchesSessionBinding(t *testing.T) {
+	openID := "ou_sender_new"
+	chatID := "oc_chat_new"
+	msgID := "om_msg_new"
+	content := `{"text":"/new"}`
+	msgType := "text"
+	chatType := "p2p"
+
+	executor := &capturingExecutor{result: &agent.TaskResult{Answer: "ok"}}
+	recorder := NewRecordingMessenger()
+	store := &stubChatSessionBindingStore{}
+	gw := &Gateway{
+		cfg:              Config{BaseConfig: channels.BaseConfig{SessionPrefix: "lark", AllowDirect: true}, AppID: "test", AppSecret: "secret"},
+		agent:            executor,
+		logger:           logging.OrNop(nil),
+		messenger:        recorder,
+		chatSessionStore: store,
+		now:              func() time.Time { return time.Now() },
+	}
+	cache, _ := lru.New[string, time.Time](16)
+	gw.dedupCache = cache
+
+	event := &larkim.P2MessageReceiveV1{
+		Event: &larkim.P2MessageReceiveV1Data{
+			Message: &larkim.EventMessage{
+				MessageType: &msgType,
+				ChatType:    &chatType,
+				ChatId:      &chatID,
+				MessageId:   &msgID,
+				Content:     &content,
+			},
+			Sender: &larkim.EventSender{
+				SenderId: &larkim.UserId{
+					OpenId: &openID,
+				},
+			},
+		},
+	}
+
+	if err := gw.handleMessage(context.Background(), event); err != nil {
+		t.Fatalf("handleMessage(/new) failed: %v", err)
+	}
+	gw.WaitForTasks()
+
+	if executor.capturedTask != "" {
+		t.Fatal("expected /new to skip ExecuteTask")
+	}
+	savedSession := store.GetSavedSession(chatSessionBindingChannel, chatID)
+	if savedSession == "" {
+		t.Fatal("expected /new to persist new session binding")
+	}
+	slot := gw.getOrCreateSlot(chatID)
+	slot.mu.Lock()
+	lastSession := slot.lastSessionID
+	slot.mu.Unlock()
+	if lastSession == "" {
+		t.Fatal("expected slot lastSessionID to be updated")
+	}
+	if lastSession != savedSession {
+		t.Fatalf("expected slot session %q to match saved binding %q", lastSession, savedSession)
+	}
+	replies := recorder.CallsByMethod("ReplyMessage")
+	if len(replies) == 0 {
+		t.Fatal("expected /new confirmation reply")
+	}
+	if !strings.Contains(replies[0].Content, "新会话") {
+		t.Fatalf("expected new session confirmation, got %q", replies[0].Content)
 	}
 }
 
@@ -2218,6 +2293,51 @@ func (r *resetExecutor) ResetSession(_ context.Context, sessionID string) error 
 	return nil
 }
 
+type stubChatSessionBindingStore struct {
+	mu       sync.Mutex
+	bindings map[string]ChatSessionBinding
+}
+
+func (s *stubChatSessionBindingStore) EnsureSchema(context.Context) error { return nil }
+
+func (s *stubChatSessionBindingStore) SaveBinding(_ context.Context, binding ChatSessionBinding) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bindings == nil {
+		s.bindings = make(map[string]ChatSessionBinding)
+	}
+	s.bindings[binding.Channel+"|"+binding.ChatID] = binding
+	return nil
+}
+
+func (s *stubChatSessionBindingStore) GetBinding(_ context.Context, channel, chatID string) (ChatSessionBinding, bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bindings == nil {
+		return ChatSessionBinding{}, false, nil
+	}
+	binding, ok := s.bindings[channel+"|"+chatID]
+	return binding, ok, nil
+}
+
+func (s *stubChatSessionBindingStore) DeleteBinding(_ context.Context, channel, chatID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bindings != nil {
+		delete(s.bindings, channel+"|"+chatID)
+	}
+	return nil
+}
+
+func (s *stubChatSessionBindingStore) GetSavedSession(channel, chatID string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.bindings == nil {
+		return ""
+	}
+	return s.bindings[channel+"|"+chatID].SessionID
+}
+
 type blockingExecutor struct {
 	mu          sync.Mutex
 	started     chan struct{}
@@ -2674,7 +2794,7 @@ func TestResolveSessionForNewTask(t *testing.T) {
 
 	t.Run("idle slot creates fresh session", func(t *testing.T) {
 		slot := &sessionSlot{phase: slotIdle}
-		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		sessionID, isResume := gw.resolveSessionForNewTask(context.Background(), "oc_chat_a", slot)
 		if isResume {
 			t.Fatal("expected isResume=false for idle slot")
 		}
@@ -2691,7 +2811,7 @@ func TestResolveSessionForNewTask(t *testing.T) {
 			phase:     slotAwaitingInput,
 			sessionID: "lark-existing-session",
 		}
-		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		sessionID, isResume := gw.resolveSessionForNewTask(context.Background(), "oc_chat_a", slot)
 		if !isResume {
 			t.Fatal("expected isResume=true for awaiting slot")
 		}
@@ -2705,7 +2825,7 @@ func TestResolveSessionForNewTask(t *testing.T) {
 			phase:     slotAwaitingInput,
 			sessionID: "",
 		}
-		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		sessionID, isResume := gw.resolveSessionForNewTask(context.Background(), "oc_chat_a", slot)
 		if isResume {
 			t.Fatal("expected isResume=false when sessionID is empty")
 		}
@@ -2719,7 +2839,7 @@ func TestResolveSessionForNewTask(t *testing.T) {
 			phase:         slotIdle,
 			lastSessionID: "lark-previous-session",
 		}
-		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		sessionID, isResume := gw.resolveSessionForNewTask(context.Background(), "oc_chat_a", slot)
 		if isResume {
 			t.Fatal("expected isResume=false for idle slot with lastSessionID")
 		}
@@ -2734,12 +2854,30 @@ func TestResolveSessionForNewTask(t *testing.T) {
 			sessionID:     "",
 			lastSessionID: "lark-fallback-session",
 		}
-		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		sessionID, isResume := gw.resolveSessionForNewTask(context.Background(), "oc_chat_a", slot)
 		if isResume {
 			t.Fatal("expected isResume=false when falling back to lastSessionID")
 		}
 		if sessionID != "lark-fallback-session" {
 			t.Fatalf("expected lastSessionID fallback, got %q", sessionID)
+		}
+	})
+
+	t.Run("idle slot reuses persisted chat binding", func(t *testing.T) {
+		store := &stubChatSessionBindingStore{}
+		_ = store.SaveBinding(context.Background(), ChatSessionBinding{
+			Channel:   chatSessionBindingChannel,
+			ChatID:    "oc_chat_persisted",
+			SessionID: "lark-persisted-session",
+		})
+		gw.chatSessionStore = store
+		slot := &sessionSlot{phase: slotIdle}
+		sessionID, isResume := gw.resolveSessionForNewTask(context.Background(), "oc_chat_persisted", slot)
+		if isResume {
+			t.Fatal("expected isResume=false for persisted binding reuse")
+		}
+		if sessionID != "lark-persisted-session" {
+			t.Fatalf("expected persisted session, got %q", sessionID)
 		}
 	})
 }

@@ -10,6 +10,13 @@ import (
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 )
 
+type chatMessageLine struct {
+	Timestamp  string
+	Sender     string
+	Content    string
+	SenderType string
+}
+
 // fetchRecentChatMessages retrieves recent messages from a Lark chat via the
 // gateway's messenger and returns them formatted as chronological
 // "[timestamp] sender: content" lines.
@@ -38,26 +45,103 @@ func (g *Gateway) fetchRecentChatMessages(ctx context.Context, chatID string, pa
 	return formatChatMessages(items), nil
 }
 
+// fetchRecentChatRounds retrieves recent messages from a Lark chat and returns
+// the latest N user-initiated chat rounds as chronological lines.
+func (g *Gateway) fetchRecentChatRounds(ctx context.Context, chatID, excludeMessageID string, pageSize, maxRounds int) (string, error) {
+	if g.messenger == nil {
+		return "", fmt.Errorf("lark messenger is nil")
+	}
+	if chatID == "" {
+		return "", fmt.Errorf("chat_id is empty")
+	}
+	if maxRounds <= 0 {
+		maxRounds = defaultRecentChatMaxRounds
+	}
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	minRequired := maxRounds * 4
+	if pageSize < minRequired {
+		pageSize = minRequired
+	}
+	if pageSize > 50 {
+		pageSize = 50
+	}
+
+	items, err := g.messenger.ListMessages(ctx, chatID, pageSize)
+	if err != nil {
+		return "", err
+	}
+	if len(items) == 0 {
+		return "", nil
+	}
+
+	lines := mapChatMessagesChronological(items, excludeMessageID)
+	lines = keepRecentChatRounds(lines, maxRounds)
+	return formatChatMessageLines(lines), nil
+}
+
 // formatChatMessages converts Lark message items (descending order from API)
 // into chronological "[timestamp] sender: content" lines.
 func formatChatMessages(items []*larkim.Message) string {
-	reversed := make([]*larkim.Message, len(items))
-	for i, msg := range items {
-		reversed[len(items)-1-i] = msg
-	}
+	return formatChatMessageLines(mapChatMessagesChronological(items, ""))
+}
 
-	var sb strings.Builder
-	for i, msg := range reversed {
+func mapChatMessagesChronological(items []*larkim.Message, excludeMessageID string) []chatMessageLine {
+	var lines []chatMessageLine
+	for i := len(items) - 1; i >= 0; i-- {
+		msg := items[i]
 		if msg == nil {
 			continue
 		}
+		if excludeMessageID != "" && strings.TrimSpace(deref(msg.MessageId)) == strings.TrimSpace(excludeMessageID) {
+			continue
+		}
+		msgType := strings.ToLower(strings.TrimSpace(deref(msg.MsgType)))
+		senderType := ""
+		if msg.Sender != nil {
+			senderType = strings.ToLower(strings.TrimSpace(deref(msg.Sender.SenderType)))
+		}
+		lines = append(lines, chatMessageLine{
+			Timestamp:  formatChatTimestamp(deref(msg.CreateTime)),
+			Sender:     formatChatSender(msg.Sender),
+			Content:    extractChatMessageContent(msgType, msg.Body),
+			SenderType: senderType,
+		})
+	}
+	return lines
+}
+
+func keepRecentChatRounds(lines []chatMessageLine, maxRounds int) []chatMessageLine {
+	if len(lines) == 0 || maxRounds <= 0 {
+		return nil
+	}
+	var userRoundStarts []int
+	for i, line := range lines {
+		if line.SenderType == "user" {
+			userRoundStarts = append(userRoundStarts, i)
+		}
+	}
+	if len(userRoundStarts) == 0 {
+		return lines
+	}
+	start := userRoundStarts[0]
+	if len(userRoundStarts) > maxRounds {
+		start = userRoundStarts[len(userRoundStarts)-maxRounds]
+	}
+	return lines[start:]
+}
+
+func formatChatMessageLines(lines []chatMessageLine) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	var sb strings.Builder
+	for i, line := range lines {
 		if i > 0 {
 			sb.WriteByte('\n')
 		}
-		ts := formatChatTimestamp(deref(msg.CreateTime))
-		sender := formatChatSender(msg.Sender)
-		content := extractChatMessageContent(deref(msg.MsgType), msg.Body)
-		fmt.Fprintf(&sb, "[%s] %s: %s", ts, sender, content)
+		fmt.Fprintf(&sb, "[%s] %s: %s", line.Timestamp, line.Sender, line.Content)
 	}
 	return sb.String()
 }

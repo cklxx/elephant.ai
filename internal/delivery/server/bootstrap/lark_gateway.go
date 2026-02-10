@@ -59,16 +59,16 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	gatewayCfg := lark.Config{
-		BaseConfig:                    larkCfg.BaseConfig,
-		Enabled:                       larkCfg.Enabled,
-		AppID:                         larkCfg.AppID,
-		AppSecret:                     larkCfg.AppSecret,
-		TenantCalendarID:              larkCfg.TenantCalendarID,
-		BaseDomain:                    larkCfg.BaseDomain,
-		WorkspaceDir:                  larkCfg.WorkspaceDir,
-		AutoUploadFiles:               larkCfg.AutoUploadFiles,
-		AutoUploadMaxBytes:            larkCfg.AutoUploadMaxBytes,
-		AutoUploadAllowExt:            append([]string(nil), larkCfg.AutoUploadAllowExt...),
+		BaseConfig:         larkCfg.BaseConfig,
+		Enabled:            larkCfg.Enabled,
+		AppID:              larkCfg.AppID,
+		AppSecret:          larkCfg.AppSecret,
+		TenantCalendarID:   larkCfg.TenantCalendarID,
+		BaseDomain:         larkCfg.BaseDomain,
+		WorkspaceDir:       larkCfg.WorkspaceDir,
+		AutoUploadFiles:    larkCfg.AutoUploadFiles,
+		AutoUploadMaxBytes: larkCfg.AutoUploadMaxBytes,
+		AutoUploadAllowExt: append([]string(nil), larkCfg.AutoUploadAllowExt...),
 		Browser: lark.BrowserConfig{
 			CDPURL:      larkCfg.Browser.CDPURL,
 			ChromePath:  larkCfg.Browser.ChromePath,
@@ -123,6 +123,18 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		}
 	}
 
+	var chatSessionStore lark.ChatSessionBindingStore
+	if container.SessionDB == nil {
+		logger.Warn("Lark chat session persistence disabled: session DB not configured")
+	} else {
+		store := lark.NewChatSessionBindingPostgresStore(container.SessionDB)
+		if err := store.EnsureSchema(ctx); err != nil {
+			logger.Warn("Lark chat session binding store init failed: %v", err)
+		} else {
+			chatSessionStore = store
+		}
+	}
+
 	gateway, err := lark.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
 	if err != nil {
 		_ = altCoord.Shutdown()
@@ -142,6 +154,9 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 	if planReviewStore != nil {
 		gateway.SetPlanReviewStore(planReviewStore)
+	}
+	if chatSessionStore != nil {
+		gateway.SetChatSessionBindingStore(chatSessionStore)
 	}
 
 	// Wire task store for /cc, /codex, /task commands.

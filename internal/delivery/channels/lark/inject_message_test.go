@@ -192,19 +192,19 @@ func TestInjectMessageResetCommand(t *testing.T) {
 	}
 	gw.WaitForTasks()
 
-	if !executor.resetCalled {
-		t.Fatal("expected ResetSession to be called")
-	}
 	if executor.executeCalled {
 		t.Fatal("expected ExecuteTask to be skipped on /reset")
+	}
+	if executor.resetCalled {
+		t.Fatal("expected /reset to be deprecated and skip ResetSession")
 	}
 
 	replies := rec.CallsByMethod("ReplyMessage")
 	if len(replies) == 0 {
-		t.Fatal("expected reset confirmation reply")
+		t.Fatal("expected reset deprecation reply")
 	}
-	if !strings.Contains(replies[0].Content, "清空对话历史") {
-		t.Fatalf("expected reset confirmation, got %q", replies[0].Content)
+	if !strings.Contains(replies[0].Content, "/new") {
+		t.Fatalf("expected deprecation hint for /new, got %q", replies[0].Content)
 	}
 }
 
