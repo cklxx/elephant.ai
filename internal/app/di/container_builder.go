@@ -447,13 +447,6 @@ func (b *containerBuilder) buildToolRegistry(_ *llm.Factory, memoryEngine memory
 	return toolRegistry, nil
 }
 
-func (b *containerBuilder) resolveOKRGoalsRoot() string {
-	if root := b.config.Proactive.OKR.GoalsRoot; root != "" {
-		return resolveStorageDir(root, "")
-	}
-	return "" // Let OKR tools use their own default
-}
-
 func (b *containerBuilder) buildOKRContextProvider() preparation.OKRContextProvider {
 	if !b.config.Proactive.Enabled || !b.config.Proactive.OKR.Enabled {
 		return nil
