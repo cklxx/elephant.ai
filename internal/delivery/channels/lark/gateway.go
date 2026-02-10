@@ -656,7 +656,7 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 	defer cancelTimeout()
 
 	awaitTracker := &awaitQuestionTracker{}
-	listener, cleanupListeners := g.setupListeners(execCtx, msg, awaitTracker)
+	listener, cleanupListeners, progressLn := g.setupListeners(execCtx, msg, awaitTracker)
 	defer cleanupListeners()
 	execCtx = shared.WithParentListener(execCtx, listener)
 
@@ -685,7 +685,14 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 		go g.addReaction(execCtx, msg.messageID, endEmoji)
 	}
 
-	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker)
+	// Retrieve the progress message ID so dispatchResult can edit it
+	// into the final reply instead of sending a separate message.
+	var progressMsgID string
+	if progressLn != nil {
+		progressMsgID = progressLn.MessageID()
+	}
+
+	g.dispatchResult(execCtx, msg, result, execErr, awaitTracker, progressMsgID)
 
 	// Notify AI chat coordinator that this bot's turn is complete
 	if g.aiCoordinator != nil && msg.aiChatSessionActive {
@@ -750,18 +757,22 @@ func sessionHasAwaitFlag(session *storage.Session) bool {
 }
 
 // setupListeners configures the event listener chain (progress, plan clarify)
-// and returns the composed listener plus a cleanup function.
-func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, awaitTracker *awaitQuestionTracker) (agent.EventListener, func()) {
+// and returns the composed listener, a cleanup function, and the progress
+// listener (nil when progress is disabled). The caller uses the progress
+// listener to retrieve the message ID for editing the progress message
+// into the final reply.
+func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, awaitTracker *awaitQuestionTracker) (agent.EventListener, func(), *progressListener) {
 	listener := g.eventListener
 	if listener == nil {
 		listener = agent.NoopEventListener{}
 	}
 
 	var cleanups []func()
+	var progressLn *progressListener
 
 	if g.cfg.ShowToolProgress {
 		sender := &larkProgressSender{gateway: g, chatID: msg.chatID, messageID: msg.messageID, isGroup: msg.isGroup}
-		progressLn := newProgressListener(execCtx, listener, sender, g.logger)
+		progressLn = newProgressListener(execCtx, listener, sender, g.logger)
 		cleanups = append(cleanups, progressLn.Close)
 		listener = progressLn
 	}
@@ -798,7 +809,7 @@ func (g *Gateway) setupListeners(execCtx context.Context, msg *incomingMessage, 
 			cleanups[i]()
 		}
 	}
-	return listener, cleanup
+	return listener, cleanup, progressLn
 }
 
 // resolvePlanReviewFeedback checks for a pending plan review and, if found,
@@ -866,8 +877,10 @@ func (g *Gateway) enrichWithChatContext(execCtx context.Context, taskContent str
 }
 
 // dispatchResult builds the reply from the execution result and sends it to
-// the Lark chat, including any attachments.
-func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker) {
+// the Lark chat, including any attachments. When progressMsgID is non-empty,
+// the progress message is edited in-place to become the final reply, avoiding
+// message fragmentation.
+func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, result *agent.TaskResult, execErr error, awaitTracker *awaitQuestionTracker, progressMsgID string) {
 	isAwait := execErr == nil && isResultAwaitingInput(result)
 	awaitPrompt, hasAwaitPrompt := agent.AwaitUserInputPrompt{}, false
 	if isAwait && result != nil {
@@ -911,7 +924,20 @@ func (g *Gateway) dispatchResult(execCtx context.Context, msg *incomingMessage, 
 	}
 
 	if !skipReply {
-		g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", replyContent)
+		// When a progress message exists, edit it into the final reply
+		// so the user sees a single message that transitions from
+		// "在思考…" → final answer, rather than two separate messages.
+		edited := false
+		if progressMsgID != "" {
+			if err := g.updateMessage(execCtx, progressMsgID, reply); err != nil {
+				g.logger.Warn("Lark progress→reply edit failed, falling back to new message: %v", err)
+			} else {
+				edited = true
+			}
+		}
+		if !edited {
+			g.dispatch(execCtx, msg.chatID, replyTarget(msg.messageID, true), "text", replyContent)
+		}
 		g.sendAttachments(execCtx, msg.chatID, msg.messageID, result)
 	}
 }
