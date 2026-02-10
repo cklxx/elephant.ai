@@ -156,27 +156,37 @@ func (r *retryExecutor) executeOnce(ctx context.Context, call ports.ToolCall, ti
 	}
 
 	var result *ports.ToolResult
+
+	// Only infrastructure errors (Go error return from delegate.Execute)
+	// should affect the circuit breaker. Application-level errors stored in
+	// ToolResult.Error (e.g. "exit status 1" from shell_exec) are normal
+	// tool output that the LLM should see and adapt to — they must NOT
+	// count toward the breaker failure threshold.
 	exec := func(inner context.Context) error {
 		res, err := r.delegate.Execute(inner, call)
 		result = res
-		if err != nil {
-			return err
-		}
-		if res == nil {
-			return fmt.Errorf("tool %s returned no result", call.Name)
-		}
-		if res.Error != nil {
-			return res.Error
-		}
-		return nil
+		return err // only infra errors reach the breaker
 	}
 
+	var execErr error
 	if r.breaker != nil {
-		err := r.breaker.Execute(execCtx, exec)
-		return result, err
+		execErr = r.breaker.Execute(execCtx, exec)
+	} else {
+		execErr = exec(execCtx)
 	}
-	err := exec(execCtx)
-	return result, err
+	if execErr != nil {
+		return result, execErr
+	}
+
+	// Promote ToolResult.Error to Go error for the retry layer (the
+	// circuit breaker has already recorded this call as a success).
+	if result == nil {
+		return nil, fmt.Errorf("tool %s returned no result", call.Name)
+	}
+	if result.Error != nil {
+		return result, result.Error
+	}
+	return result, nil
 }
 
 func (r *retryExecutor) resolvePolicy(ctx context.Context, call ports.ToolCall) toolspolicy.ResolvedPolicy {
