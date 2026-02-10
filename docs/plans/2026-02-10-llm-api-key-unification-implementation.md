@@ -1,7 +1,7 @@
 # Plan: LLM_API_KEY Configuration Unification and Quickstart Gating
 
 > Created: 2026-02-10
-> Status: in-progress
+> Status: completed
 > Trigger: Implement approved plan to unify single-key bootstrap with `LLM_API_KEY`, add profile-aware validation, and capability gating.
 
 ## Goal & Success Criteria
