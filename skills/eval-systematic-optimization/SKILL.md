@@ -1,6 +1,6 @@
 ---
 name: eval-systematic-optimization
-description: 系统化梳理 foundation-suite 失败 case，按冲突簇优化 pass@1，并输出标准化 x/x 报告与 good/bad 抽样检查。
+description: Run foundation-suite baseline, cluster failures, and optimize pass@1 systematically.
 triggers:
   intent_patterns:
     - "评测.*优化|pass@1|pass@5|失败case|failure case|系统性评测|benchmark.*optimi"
@@ -15,10 +15,24 @@ cooldown: 90
 
 # eval-systematic-optimization
 
-Run foundation-suite evaluation baselines, cluster failures by conflict family, apply systematic rule-layer optimizations (not single-case fixes), and produce standardized x/x reports with good/bad sampling. All phases from baseline to regression verification are handled by run.py.
+Run baseline evaluation and failure clustering for foundation-suite.
 
-## 调用
+## Requirements
+- Go toolchain available (`go` in PATH).
+- Repo root as working directory (or pass `cwd`).
+
+## Constraints
+- Baseline command timeout: 600s.
+- Default baseline output path: `/tmp/foundation-suite-<tag>-baseline`.
+- `analyze` requires a valid JSON result file path.
+- Focus is conflict-family optimization, not single-case overfitting.
+
+## Usage
 
 ```bash
-python3 skills/eval-systematic-optimization/run.py '{"action":"optimize","tag":"r12"}'
+# Run baseline
+python3 skills/eval-systematic-optimization/run.py '{"action":"baseline","tag":"r12"}'
+
+# Analyze failures
+python3 skills/eval-systematic-optimization/run.py '{"action":"analyze","result_file":"/tmp/foundation-suite-r12-baseline/foundation_suite_cases.json"}'
 ```

@@ -1,6 +1,6 @@
 ---
 name: image-creation
-description: AI 图片生成与迭代优化（文生图、图生图、风格迁移）。
+description: Generate or refine images with Seedream (text-to-image + image-to-image).
 triggers:
   intent_patterns:
     - "生成图片|画|draw|image|图片|插图|illustration|设计图|海报"
@@ -20,35 +20,42 @@ output:
 
 # image-creation
 
-AI 图片生成：文生图 + 图生图 + 风格迁移。
+Generate images via Seedream.
 
-环境变量说明：
-- `ARK_API_KEY`：必填。
-- `SEEDREAM_TEXT_ENDPOINT_ID`：可选，未设置时会回退到 `SEEDREAM_TEXT_MODEL`，再回退到内置默认模型 `doubao-seedream-4-5-251128`。
-- `SEEDREAM_I2I_ENDPOINT_ID`：图生图（`refine`）必填。
+## Required Env
+- `ARK_API_KEY` (required)
+- `SEEDREAM_TEXT_ENDPOINT_ID` (optional; fallback: `SEEDREAM_TEXT_MODEL` -> built-in default model)
+- `SEEDREAM_I2I_ENDPOINT_ID` (required for `refine`)
 
-## 调用
+## Constraints
+- Backend minimum pixels: `1920*1920`. Smaller inputs (for example `1024x1024`) are auto-upscaled.
+- `success=true` only when the output file is actually written and non-empty.
+- Backend response must contain `b64_json` or `url`; otherwise the call fails.
+- Default output path is `/tmp` unless `output` is provided.
+
+## Usage
 
 ```bash
-# 文生图
-python3 skills/image-creation/run.py '{"action":"generate", "prompt":"一只在月光下的白猫", "style":"realistic"}'
+# Text to image
+python3 skills/image-creation/run.py '{"action":"generate","prompt":"white cat in moonlight","style":"realistic"}'
 
-# 图生图（风格迁移）
-python3 skills/image-creation/run.py '{"action":"refine", "image_path":"/tmp/cat.png", "prompt":"添加星空背景"}'
+# Image to image
+python3 skills/image-creation/run.py '{"action":"refine","image_path":"/tmp/cat.png","prompt":"add starry sky background"}'
 ```
 
-## 参数
+## Parameters
 
 ### generate
-| 参数 | 类型 | 必填 | 说明 |
+| name | type | required | notes |
 |------|------|------|------|
-| prompt | string | 是 | 图片描述 |
-| style | string | 否 | 风格（realistic/anime/oil-painting），默认 realistic |
-| size | string | 否 | 尺寸 `WIDTHxHEIGHT`；默认 `1920x1920`。若像素总量低于后端下限会自动等比放大 |
-| output | string | 否 | 输出文件路径 |
+| prompt | string | yes | image description |
+| style | string | no | style tag (default: `realistic`) |
+| size | string | no | `WIDTHxHEIGHT`, default `1920x1920` |
+| output | string | no | output file path (default `/tmp/seedream_<ts>.png`) |
 
 ### refine
-| 参数 | 类型 | 必填 | 说明 |
+| name | type | required | notes |
 |------|------|------|------|
-| image_path | string | 是 | 原图路径 |
-| prompt | string | 是 | 修改指令 |
+| image_path | string | yes | input image path |
+| prompt | string | yes | refinement instruction |
+| output | string | no | output path (default `/tmp/seedream_refined_<ts>.png`) |

@@ -1,6 +1,6 @@
 ---
 name: diagram-to-image
-description: 将 Mermaid 流程图/架构图或"图标块"渲染为可直接发到 Lark 的美观 PNG（可选同时输出 SVG）。
+description: Render Mermaid diagrams to PNG/SVG for sharing.
 triggers:
   intent_patterns:
     - "mermaid|流程图|架构图|时序图|sequence diagram|flowchart"
@@ -17,10 +17,27 @@ cooldown: 60
 
 # diagram-to-image
 
-Render Mermaid diagrams or icon-block layouts into PNG/SVG images suitable for Lark sharing. Supports flowcharts, sequence diagrams, architecture diagrams, and styled icon cards. All rendering and error handling logic are in run.py.
+Render Mermaid code into image files.
 
-## 调用
+## Requirements
+- `mmdc` (Mermaid CLI) installed and in PATH.
+- Install command: `npm install -g @mermaid-js/mermaid-cli`
+
+## Constraints
+- `action=render` only.
+- Input field is `code` (Mermaid source).
+- Supported output formats: `png` (default), `svg`.
+- Render timeout: 30s.
+- Default output path: `/tmp/diagram_<ts>.<format>`.
+
+## Usage
 
 ```bash
-python3 skills/diagram-to-image/run.py '{"action":"render","format":"mermaid","source":"graph LR\n  A[Client] --> B[API]\n  B --> C[(DB)]","output":"png"}'
+python3 skills/diagram-to-image/run.py '{
+  "action":"render",
+  "code":"graph LR\nA[Client] --> B[API]\nB --> C[(DB)]",
+  "format":"png",
+  "theme":"default",
+  "output":"/tmp/diagram_arch.png"
+}'
 ```
