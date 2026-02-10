@@ -6,7 +6,10 @@ capabilities:
   - go test / npm test runners
   - TODO + journal tooling
   - context metrics emitters (token + cost)
+  - host shell execution with any available PATH tool
+  - runtime environment detection (cwd/os/kernel/shell/toolchain/env hints)
 limits:
   - "External network calls restricted unless tools explicitly allow."
+  - "Never expose raw secrets from environment variables."
 cost_model:
   - "Prefer deterministic local analysis before expensive remote calls."

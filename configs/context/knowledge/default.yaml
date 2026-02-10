@@ -4,6 +4,7 @@ description: |
 sop_refs:
   - docs/reference/TASK_EXECUTION_FRAMEWORK.md#research--investigation-strategy
   - docs/reference/TASK_EXECUTION_FRAMEWORK.md#context-budget--compression
+  - docs/reference/TASK_EXECUTION_FRAMEWORK.md#autonomous-exploration-and-environment-injection
 memory_keys:
   - prompt.identity
   - prompt.workflow

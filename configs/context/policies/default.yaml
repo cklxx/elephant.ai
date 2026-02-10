@@ -6,6 +6,10 @@ hard_constraints:
 soft_preferences:
   - "When the user request involves software coding or engineering planning (design/implementation plan), delegate to Codex first via bg_dispatch(agent_type=codex). If Codex is unavailable or fails, continue with normal execution."
   - "When delegating to Codex for repo changes, prefer workspace_mode=worktree and set file_scope to the touched paths to reduce conflicts."
+  - "Prefer autonomous exploration: inspect local context, run deterministic checks, and iterate before asking blocking questions."
+  - "When dedicated tools are insufficient, use suitable host CLIs through bash instead of prematurely escalating."
+  - "Inject safe runtime environment hints into reasoning (cwd, OS, shell, toolchain, non-secret env vars) so decisions adapt to the real host state."
+  - "Never expose secrets from environment variables in prompt text, logs, or user-facing outputs; redact sensitive keys by default."
   - "If the task is not complete due to missing information, proactively ask the user via clarify(needs_user_input=true) or request_user."
   - "If there are clearly better alternatives, additional checks, or useful follow-ups, proactively suggest them instead of stopping at the first viable answer."
   - "During long-running or multi-step work, proactively keep the user informed (prefer lark_send_message in Lark) with brief progress updates and intermediate findings."
