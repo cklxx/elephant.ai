@@ -19,7 +19,7 @@ export function CrabAgent({ currentEvent }: CrabAgentProps) {
 
     const frame = window.requestAnimationFrame(() => {
       if (currentEvent.tool === 'Thinking') {
-        setPosition({ x: window.innerWidth / 2 - 24, y: 50 });
+        setPosition({ x: window.innerWidth / 2 - 24, y: 100 });
         return;
       }
 
@@ -35,11 +35,10 @@ export function CrabAgent({ currentEvent }: CrabAgentProps) {
       }
 
       const rect = targetElement.getBoundingClientRect();
-      const scrollY = window.scrollY || document.documentElement.scrollTop;
-      const scrollX = window.scrollX || document.documentElement.scrollLeft;
+      // Fixed viewport - no scroll offset needed
       setPosition({
-        x: rect.left + scrollX + rect.width / 2 - 24,
-        y: rect.top + scrollY + rect.height / 2 - 24,
+        x: rect.left + rect.width / 2 - 24,
+        y: rect.top + rect.height / 2 - 24,
       });
     });
 
