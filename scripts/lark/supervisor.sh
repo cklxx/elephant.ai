@@ -34,6 +34,8 @@ Env:
   LARK_LOOP_AUTOFIX_ENABLED                  Enable loop gate auto-fix edits (default: 0)
   LARK_SUPERVISOR_NOTIFY_SH                  Notification sender script (default: scripts/lark/notify.sh)
   LARK_NOTICE_STATE_FILE                     Notice binding state file path (default: .worktrees/test/tmp/lark-notice.state.json)
+  LARK_VALIDATION_TEST_SUPPRESS_MAX_SECONDS  Max seconds to suppress test restart in validation phase before forced restart (default: 180)
+  LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS      Max seconds to keep validation phase while loop is down before stale-state recovery (default: 30)
   LARK_PID_DIR                    Shared pid dir override (default: <dirname(MAIN_CONFIG)>/pids)
   MAIN_CONFIG                    Main config path override (default: $ALEX_CONFIG_PATH or ~/.alex/config.yaml)
   TEST_CONFIG                    Test config path override (default: ~/.alex/test.yaml)
@@ -91,6 +93,8 @@ CLEANUP_ORPHANS_SH="${MAIN_ROOT}/scripts/lark/cleanup_orphan_agents.sh"
 MAIN_PID_FILE="${PID_DIR}/lark-main.pid"
 TEST_PID_FILE="${PID_DIR}/lark-test.pid"
 LOOP_PID_FILE="${PID_DIR}/lark-loop.pid"
+CODEX_LOOP_PID_FILE="${PID_DIR}/lark-codex-loop.pid"
+CODEX_AUTOFIX_PID_FILE="${PID_DIR}/lark-codex-autofix.pid"
 MAIN_SHA_FILE="${PID_DIR}/lark-main.sha"
 TEST_SHA_FILE="${PID_DIR}/lark-test.sha"
 
@@ -106,6 +110,8 @@ AUTOFIX_WINDOW_SECONDS="${LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS:-3600}"
 AUTOFIX_COOLDOWN_SECONDS="${LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS:-900}"
 AUTOFIX_SCOPE="${LARK_SUPERVISOR_AUTOFIX_SCOPE:-repo}"
 LOOP_AUTOFIX_ENABLED="${LARK_LOOP_AUTOFIX_ENABLED:-0}"
+VALIDATION_TEST_SUPPRESS_MAX_SECONDS="${LARK_VALIDATION_TEST_SUPPRESS_MAX_SECONDS:-180}"
+STALE_LOOP_STATE_TIMEOUT_SECONDS="${LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS:-30}"
 
 MODE="degraded"
 COOLDOWN_UNTIL=0
@@ -122,6 +128,8 @@ LOOP_RESTART_HISTORY=""
 OBS_MAIN_PID=""
 OBS_TEST_PID=""
 OBS_LOOP_PID=""
+OBS_CODEX_LOOP_PID=""
+OBS_CODEX_AUTOFIX_PID=""
 OBS_MAIN_HEALTH="down"
 OBS_TEST_HEALTH="down"
 OBS_LOOP_HEALTH="down"
@@ -143,7 +151,14 @@ OBS_AUTOFIX_LAST_FINISHED_AT=""
 OBS_AUTOFIX_LAST_COMMIT=""
 OBS_AUTOFIX_RESTART_REQUIRED="false"
 OBS_AUTOFIX_RUNS_WINDOW=0
+OBS_VALIDATION_SUPPRESSED_SINCE=""
+OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH=0
+OBS_VALIDATION_SUPPRESS_TIMEOUT_SECONDS="${VALIDATION_TEST_SUPPRESS_MAX_SECONDS}"
+OBS_STALE_STATE_RECOVERED="false"
+OBS_STALE_STATE_RECOVERED_AT=""
 AUTOFIX_COOLDOWN_UNTIL=0
+
+STALE_LOOP_STATE_SINCE_EPOCH=0
 
 json_escape() {
   printf '%s' "${1:-}" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
@@ -195,6 +210,35 @@ read_pid_if_running() {
   fi
 }
 
+read_pid_value() {
+  local pid_file="$1"
+  read_pid "${pid_file}" 2>/dev/null || true
+}
+
+clear_pid_file_if_stale() {
+  local pid_file="$1"
+  local pid
+  pid="$(read_pid_value "${pid_file}")"
+  if [[ -n "${pid}" ]] && ! is_process_running "${pid}"; then
+    rm -f "${pid_file}"
+  fi
+}
+
+stop_tracked_process() {
+  local label="$1"
+  local pid_file="$2"
+  local pid
+
+  pid="$(read_pid_value "${pid_file}")"
+  if [[ -z "${pid}" ]]; then
+    rm -f "${pid_file}" 2>/dev/null || true
+    return 0
+  fi
+
+  stop_pid "${pid}" "${label}" 12 0.25 >/dev/null 2>&1 || true
+  rm -f "${pid_file}" 2>/dev/null || true
+}
+
 main_health_state() {
   local pid
   pid="$(read_pid_if_running "${MAIN_PID_FILE}")"
@@ -236,6 +280,72 @@ extract_json_string() {
   )"
   [[ -n "${out}" ]] || return 1
   printf '%s' "${out}"
+}
+
+extract_json_number() {
+  local file="$1"
+  local key="$2"
+  local out
+  [[ -f "${file}" ]] || return 1
+  out="$(
+    tr -d '\n' < "${file}" \
+      | sed -nE "s/.*\"${key}\"[[:space:]]*:[[:space:]]*([0-9]+).*/\\1/p"
+  )"
+  [[ -n "${out}" ]] || return 1
+  printf '%s' "${out}"
+}
+
+write_loop_state_recovery() {
+  local reason="$1"
+  local now_utc current_main_sha
+  now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  current_main_sha="$(git -C "${MAIN_ROOT}" rev-parse main 2>/dev/null || true)"
+
+  local tmp_file
+  tmp_file="${LOOP_STATE_FILE}.tmp.$$.$RANDOM"
+  cat > "${tmp_file}" <<EOF
+{
+  "ts_utc": "${now_utc}",
+  "base_sha": "",
+  "cycle_phase": "idle",
+  "cycle_result": "stale_recovered",
+  "main_sha": "${current_main_sha}",
+  "last_processed_sha": "${OBS_LAST_PROCESSED_SHA}",
+  "last_validated_sha": "${OBS_LAST_VALIDATED_SHA}",
+  "validating_sha": "",
+  "last_error": "$(json_escape "${reason}")"
+}
+EOF
+  mv "${tmp_file}" "${LOOP_STATE_FILE}"
+}
+
+reconcile_stale_loop_state() {
+  local now_epoch now_utc reason elapsed
+  now_epoch="$(date +%s)"
+
+  if is_validation_active && [[ "${OBS_LOOP_HEALTH}" != "alive" ]]; then
+    if (( STALE_LOOP_STATE_SINCE_EPOCH == 0 )); then
+      STALE_LOOP_STATE_SINCE_EPOCH="${now_epoch}"
+    fi
+    elapsed=$((now_epoch - STALE_LOOP_STATE_SINCE_EPOCH))
+    if (( elapsed >= STALE_LOOP_STATE_TIMEOUT_SECONDS )); then
+      reason="loop process down while cycle_phase=${OBS_CYCLE_PHASE}; stale phase recovered"
+      append_log "[supervisor] stale loop state detected; resetting cycle phase to idle (elapsed=${elapsed}s)"
+      write_loop_state_recovery "${reason}"
+      now_utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      OBS_STALE_STATE_RECOVERED="true"
+      OBS_STALE_STATE_RECOVERED_AT="${now_utc}"
+      STALE_LOOP_STATE_SINCE_EPOCH=0
+      reset_validation_suppression_tracking
+      OBS_CYCLE_PHASE="idle"
+      OBS_CYCLE_RESULT="stale_recovered"
+      OBS_LOOP_ERROR="${reason}"
+    fi
+    return 0
+  fi
+
+  STALE_LOOP_STATE_SINCE_EPOCH=0
+  OBS_STALE_STATE_RECOVERED="false"
 }
 
 history_prune() {
@@ -576,9 +686,14 @@ component_needs_restart() {
 }
 
 observe_states() {
+  clear_pid_file_if_stale "${CODEX_LOOP_PID_FILE}"
+  clear_pid_file_if_stale "${CODEX_AUTOFIX_PID_FILE}"
+
   OBS_MAIN_PID="$(read_pid_if_running "${MAIN_PID_FILE}" || true)"
   OBS_TEST_PID="$(read_pid_if_running "${TEST_PID_FILE}" || true)"
   OBS_LOOP_PID="$(read_pid_if_running "${LOOP_PID_FILE}" || true)"
+  OBS_CODEX_LOOP_PID="$(read_pid_if_running "${CODEX_LOOP_PID_FILE}" || true)"
+  OBS_CODEX_AUTOFIX_PID="$(read_pid_if_running "${CODEX_AUTOFIX_PID_FILE}" || true)"
 
   OBS_MAIN_HEALTH="$(main_health_state)"
   OBS_TEST_HEALTH="$(test_health_state)"
@@ -595,6 +710,14 @@ observe_states() {
   OBS_LOOP_ERROR="$(extract_json_string "${LOOP_STATE_FILE}" "last_error" || true)"
   OBS_LAST_VALIDATED_SHA="$(cat "${LAST_VALIDATED_FILE}" 2>/dev/null || true)"
   observe_autofix_state
+}
+
+load_runtime_hints_from_status() {
+  if (( OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH > 0 )) || [[ -n "${OBS_VALIDATION_SUPPRESSED_SINCE}" ]]; then
+    return 0
+  fi
+  OBS_VALIDATION_SUPPRESSED_SINCE="$(extract_json_string "${STATUS_FILE}" "validation_suppressed_since" || true)"
+  OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH="$(extract_json_number "${STATUS_FILE}" "validation_suppressed_since_epoch" || echo "0")"
 }
 
 current_mode() {
@@ -643,6 +766,8 @@ write_status_file() {
   "main_pid": "${OBS_MAIN_PID}",
   "test_pid": "${OBS_TEST_PID}",
   "loop_pid": "${OBS_LOOP_PID}",
+  "codex_loop_pid": "${OBS_CODEX_LOOP_PID}",
+  "codex_autofix_pid": "${OBS_CODEX_AUTOFIX_PID}",
   "main_health": "${OBS_MAIN_HEALTH}",
   "test_health": "${OBS_TEST_HEALTH}",
   "loop_alive": ${loop_alive},
@@ -663,7 +788,12 @@ write_status_file() {
   "autofix_last_started_at": "${OBS_AUTOFIX_LAST_STARTED_AT}",
   "autofix_last_finished_at": "${OBS_AUTOFIX_LAST_FINISHED_AT}",
   "autofix_last_commit": "${OBS_AUTOFIX_LAST_COMMIT}",
-  "autofix_runs_window": ${OBS_AUTOFIX_RUNS_WINDOW}
+  "autofix_runs_window": ${OBS_AUTOFIX_RUNS_WINDOW},
+  "validation_suppressed_since": "${OBS_VALIDATION_SUPPRESSED_SINCE}",
+  "validation_suppressed_since_epoch": ${OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH},
+  "validation_suppress_timeout_seconds": ${OBS_VALIDATION_SUPPRESS_TIMEOUT_SECONDS},
+  "stale_state_recovered": ${OBS_STALE_STATE_RECOVERED},
+  "stale_state_recovered_at": "${OBS_STALE_STATE_RECOVERED_AT}"
 }
 EOF
   mv "${tmp_file}" "${STATUS_FILE}"
@@ -681,15 +811,37 @@ set_cooldown() {
   trigger_autofix "${component}" "${LAST_ERROR}" || true
 }
 
+reset_validation_suppression_tracking() {
+  OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH=0
+  OBS_VALIDATION_SUPPRESSED_SINCE=""
+}
+
 restart_with_backoff() {
   local component="$1"
-  local now_epoch state fail_count delay count
+  local now_epoch state fail_count delay count elapsed
   now_epoch="$(date +%s)"
   state="$2"
 
-  if [[ "${component}" == "test" ]] && is_validation_active; then
-    append_log "[supervisor] skip test restart during validation (phase=${OBS_CYCLE_PHASE})"
-    return 0
+  if [[ "${component}" == "test" ]]; then
+    if [[ "${state}" == "healthy" ]]; then
+      reset_validation_suppression_tracking
+    elif is_validation_active; then
+      if (( OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH == 0 )); then
+        OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH="${now_epoch}"
+        OBS_VALIDATION_SUPPRESSED_SINCE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      fi
+
+      elapsed=$((now_epoch - OBS_VALIDATION_SUPPRESSED_SINCE_EPOCH))
+      if (( elapsed < VALIDATION_TEST_SUPPRESS_MAX_SECONDS )); then
+        append_log "[supervisor] skip test restart during validation (phase=${OBS_CYCLE_PHASE} elapsed=${elapsed}s timeout=${VALIDATION_TEST_SUPPRESS_MAX_SECONDS}s)"
+        return 0
+      fi
+
+      append_log "[supervisor] validation suppression timeout reached; forcing test restart (phase=${OBS_CYCLE_PHASE} elapsed=${elapsed}s timeout=${VALIDATION_TEST_SUPPRESS_MAX_SECONDS}s)"
+      reset_validation_suppression_tracking
+    else
+      reset_validation_suppression_tracking
+    fi
   fi
 
   if (( now_epoch < COOLDOWN_UNTIL )); then
@@ -789,8 +941,11 @@ maybe_upgrade_for_sha_drift() {
 run_tick() {
   local previous_mode
   previous_mode="$(extract_json_string "${STATUS_FILE}" "mode" || true)"
+  load_runtime_hints_from_status
 
   cleanup_orphan_lark_agents
+  observe_states
+  reconcile_stale_loop_state
   observe_states
 
   restart_with_backoff "main" "${OBS_MAIN_HEALTH}" || true
@@ -913,6 +1068,8 @@ report_children_health() {
   fi
 
   echo "  pid_dir: ${PID_DIR}"
+  echo "  codex loop pid: ${OBS_CODEX_LOOP_PID:-none}"
+  echo "  codex autofix pid: ${OBS_CODEX_AUTOFIX_PID:-none}"
   echo "  main config: $(lark_canonical_path "${MAIN_CONFIG_PATH}")"
   echo "  test config: $(lark_canonical_path "${TEST_CONFIG_PATH}")"
   echo "  loop autofix: ${LOOP_AUTOFIX_ENABLED}"
@@ -938,12 +1095,7 @@ reconcile_children_once() {
   observe_states
 
   if component_needs_restart "test" "${OBS_TEST_HEALTH}"; then
-    if is_validation_active; then
-      append_log "[start] skip test restart during validation (phase=${OBS_CYCLE_PHASE})"
-    else
-      append_log "[start] test=${OBS_TEST_HEALTH}; restarting"
-      restart_component "test" || append_log "[start] test restart failed"
-    fi
+    restart_with_backoff "test" "${OBS_TEST_HEALTH}" || true
   fi
   observe_states
 
@@ -1009,11 +1161,18 @@ stop_components() {
   "${MAIN_SH}" stop >> "${LOG_FILE}" 2>&1 || true
 }
 
+stop_codex_processes() {
+  stop_tracked_process "Loop auto-fix codex process" "${CODEX_LOOP_PID_FILE}"
+  stop_tracked_process "Supervisor autofix codex process" "${CODEX_AUTOFIX_PID_FILE}"
+}
+
 stop() {
   ensure_worktree
   ensure_dirs
   stop_service "Lark supervisor" "${PID_FILE}" >> "${LOG_FILE}" 2>&1 || true
   stop_components
+  # Final sweep after component shutdown to prevent loop/autofix races from leaving codex subprocesses behind.
+  stop_codex_processes
   MODE="degraded"
   observe_states
   write_status_file
@@ -1048,6 +1207,8 @@ status() {
   echo "main: ${OBS_MAIN_HEALTH} pid=${OBS_MAIN_PID}"
   echo "test: ${OBS_TEST_HEALTH} pid=${OBS_TEST_PID}"
   echo "loop: ${OBS_LOOP_HEALTH} pid=${OBS_LOOP_PID}"
+  echo "codex_loop_pid: ${OBS_CODEX_LOOP_PID}"
+  echo "codex_autofix_pid: ${OBS_CODEX_AUTOFIX_PID}"
   echo "main_sha: ${OBS_MAIN_SHA}"
   echo "main_deployed_sha: ${OBS_MAIN_DEPLOYED_SHA}"
   echo "test_sha: ${OBS_TEST_SHA}"
@@ -1063,6 +1224,10 @@ status() {
   echo "autofix_last_reason: ${OBS_AUTOFIX_LAST_REASON}"
   echo "autofix_last_commit: ${OBS_AUTOFIX_LAST_COMMIT}"
   echo "autofix_runs_window: ${OBS_AUTOFIX_RUNS_WINDOW}"
+  echo "validation_suppressed_since: ${OBS_VALIDATION_SUPPRESSED_SINCE}"
+  echo "validation_suppress_timeout_seconds: ${OBS_VALIDATION_SUPPRESS_TIMEOUT_SECONDS}"
+  echo "stale_state_recovered: ${OBS_STALE_STATE_RECOVERED}"
+  echo "stale_state_recovered_at: ${OBS_STALE_STATE_RECOVERED_AT}"
   echo "status_file: ${STATUS_FILE}"
 }
 
@@ -1150,7 +1315,7 @@ doctor() {
     fi
   fi
 
-  for pid_file in "${PID_FILE}" "${MAIN_PID_FILE}" "${TEST_PID_FILE}" "${LOOP_PID_FILE}"; do
+  for pid_file in "${PID_FILE}" "${MAIN_PID_FILE}" "${TEST_PID_FILE}" "${LOOP_PID_FILE}" "${CODEX_LOOP_PID_FILE}" "${CODEX_AUTOFIX_PID_FILE}"; do
     pid="$(read_pid "${pid_file}" || true)"
     if [[ -z "${pid}" ]]; then
       echo "[warn] missing pid file value: ${pid_file}"
