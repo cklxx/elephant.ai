@@ -136,14 +136,6 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.Toolset = value
 		meta.sources["toolset"] = SourceEnv
 	}
-	if value, ok := lookup("ALEX_SKILL_MODE"); ok && value != "" {
-		parsed, err := parseBoolEnv(value)
-		if err != nil {
-			return fmt.Errorf("parse ALEX_SKILL_MODE: %w", err)
-		}
-		cfg.SkillMode = parsed
-		meta.sources["skill_mode"] = SourceEnv
-	}
 	if value, ok := lookup("ALEX_BROWSER_CONNECTOR"); ok && value != "" {
 		cfg.Browser.Connector = value
 		meta.sources["browser.connector"] = SourceEnv

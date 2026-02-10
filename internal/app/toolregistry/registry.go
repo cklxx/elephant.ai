@@ -8,7 +8,6 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
-	portsllm "alex/internal/domain/agent/ports/llm"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
@@ -16,7 +15,6 @@ import (
 
 	"alex/internal/infra/tools/builtin/browser"
 	"alex/internal/infra/tools/builtin/orchestration"
-	"alex/internal/infra/tools/builtin/shared"
 )
 
 // Registry implements ToolRegistry with three-tier caching
@@ -41,41 +39,17 @@ type filteredRegistry struct {
 }
 
 type Config struct {
-	TavilyAPIKey string
-
-	ArkAPIKey                  string
-	SeedreamTextEndpointID     string
-	SeedreamImageEndpointID    string
-	SeedreamTextModel          string
-	SeedreamImageModel         string
-	SeedreamVisionModel        string
-	SeedreamVideoModel         string
-	LLMVisionModel             string
-	SandboxBaseURL             string
-	ACPExecutorAddr            string
-	ACPExecutorCWD             string
-	ACPExecutorMode            string
-	ACPExecutorAutoApprove     bool
-	ACPExecutorMaxCLICalls     int
-	ACPExecutorMaxDuration     int
-	ACPExecutorRequireManifest bool
-
-	LLMFactory    portsllm.LLMClientFactory
-	LLMProvider   string
-	LLMModel      string
-	APIKey        string
-	BaseURL       string
-	MemoryEngine  memory.Engine
-	OKRGoalsRoot  string
-	HTTPLimits    runtimeconfig.HTTPLimitsConfig
-	ToolPolicy    toolspolicy.ToolPolicy
-	BreakerConfig CircuitBreakerConfig
-	SLACollector  *toolspolicy.SLACollector
+	TavilyAPIKey   string
+	SandboxBaseURL string
+	MemoryEngine   memory.Engine
+	HTTPLimits     runtimeconfig.HTTPLimitsConfig
+	ToolPolicy     toolspolicy.ToolPolicy
+	BreakerConfig  CircuitBreakerConfig
+	SLACollector   *toolspolicy.SLACollector
 	// DegradationConfig, when provided, overrides the registry defaults.
 	// When nil, DefaultRegistryDegradationConfig is used.
 	DegradationConfig *DegradationConfig
 	Toolset           Toolset
-	SkillMode         bool
 	BrowserConfig     BrowserConfig
 }
 
@@ -259,14 +233,13 @@ func (r *Registry) WithoutSubagent() tools.ToolRegistry {
 		parent: r,
 		// Exclude delegation tools to prevent recursive delegation chains inside subagents.
 		exclude: map[string]bool{
-			"subagent":     true,
-			"explore":      true,
-			"acp_executor": true,
-			"bg_dispatch":  true,
-			"bg_status":    true,
-			"bg_collect":   true,
-			"ext_reply":    true,
-			"ext_merge":    true,
+			"subagent":    true,
+			"explore":     true,
+			"bg_dispatch": true,
+			"bg_status":   true,
+			"bg_collect":  true,
+			"ext_reply":   true,
+			"ext_merge":   true,
 		},
 	}
 }
@@ -364,34 +337,18 @@ func (r *Registry) Unregister(name string) error {
 }
 
 func (r *Registry) registerBuiltins(config Config) error {
-	if config.SkillMode {
-		return r.registerSkillModeCoreTools(config)
-	}
-
-	shellConfig := shared.ShellToolConfig{}
-
-	r.registerSearchTools(shellConfig)
-	r.registerSessionTools(config.HTTPLimits)
-	r.registerArtifactTools()
-	r.registerExecutionTools(config)
 	r.registerUITools(config)
-	if err := r.registerWebTools(config); err != nil {
-		return err
-	}
-	visionTool := r.registerMediaTools(config)
-	if err := r.registerPlatformTools(config, visionTool); err != nil {
+	r.registerWebTools(config)
+	r.registerSessionTools()
+	if err := r.registerPlatformTools(config); err != nil {
 		return err
 	}
 	r.registerLarkTools()
-	r.registerOKRTools(config.OKRGoalsRoot)
-	r.registerTimerSchedulerTools()
 
-	// Pre-wrap all static tools with approval, retry, ID propagation, and SLA.
 	for name, tool := range r.static {
 		wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
 		r.static[name] = r.wrapDegradation(name, wrapped)
 	}
-
 	return nil
 }
 

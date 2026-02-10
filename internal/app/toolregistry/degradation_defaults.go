@@ -5,8 +5,6 @@ package toolregistry
 func DefaultRegistryDegradationConfig() DegradationConfig {
 	cfg := DefaultDegradationConfig()
 	cfg.MaxFallbackAttempts = 1
-	cfg.FallbackMap = map[string][]string{
-		"grep": {"ripgrep"},
-	}
+	cfg.FallbackMap = map[string][]string{}
 	return cfg
 }

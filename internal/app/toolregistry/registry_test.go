@@ -2,8 +2,6 @@ package toolregistry
 
 import (
 	"context"
-	"runtime"
-	"slices"
 	"strings"
 	"testing"
 
@@ -46,75 +44,28 @@ func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	if _, err := registry.Get("read_file"); err != nil {
-		t.Fatalf("failed to get read_file: %v", err)
-	}
-	if _, err := registry.Get("browser_action"); err != nil {
-		t.Fatalf("failed to get browser_action: %v", err)
-	}
-	if runtime.GOOS == "darwin" {
-		if _, err := registry.Get("peekaboo_exec"); err != nil {
-			t.Fatalf("expected peekaboo_exec to be registered on darwin: %v", err)
+	for _, want := range []string{"read_file", "write_file", "replace_in_file", "shell_exec", "execute_code", "browser_action", "channel"} {
+		if _, err := registry.Get(want); err != nil {
+			t.Fatalf("expected %s to be registered for lark-local toolset: %v", want, err)
 		}
-	} else {
-		if _, err := registry.Get("peekaboo_exec"); err == nil {
-			t.Fatalf("expected peekaboo_exec to be absent on non-darwin platforms")
-		}
-	}
-	if _, err := registry.Get("write_attachment"); err != nil {
-		t.Fatalf("expected write_attachment to be registered for lark-local toolset: %v", err)
 	}
 }
 
-func TestNewRegistryRegistersSeedreamVideoByDefault(t *testing.T) {
-	registry, err := NewRegistry(Config{
-		MemoryEngine:       newTestMemoryEngine(t),
-		ArkAPIKey:          "test",
-		SeedreamVideoModel: "",
-	})
+func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
-	if _, err := registry.Get("video_generate"); err != nil {
-		t.Fatalf("expected video_generate to be registered by default: %v", err)
+	defs := registry.List()
+	names := make([]string, 0, len(defs))
+	for _, def := range defs {
+		names = append(names, def.Name)
 	}
-}
-
-func TestSeedreamVideoToolMetadataAndDefinition(t *testing.T) {
-	registry, err := NewRegistry(Config{
-		MemoryEngine:       newTestMemoryEngine(t),
-		ArkAPIKey:          "test",
-		SeedreamVideoModel: " custom-video-model ",
-	})
-	if err != nil {
-		t.Fatalf("unexpected error creating registry: %v", err)
-	}
-
-	tool, err := registry.Get("video_generate")
-	if err != nil {
-		t.Fatalf("expected video_generate to be registered: %v", err)
-	}
-
-	metadata := tool.Metadata()
-	if metadata.Name != "video_generate" {
-		t.Fatalf("unexpected metadata name: %s", metadata.Name)
-	}
-	if metadata.Category != "design" {
-		t.Fatalf("expected design category, got %s", metadata.Category)
-	}
-	if !slices.Contains(metadata.Tags, "video") {
-		t.Fatalf("expected metadata tags to include video: %v", metadata.Tags)
-	}
-
-	def := tool.Definition()
-	if def.Name != "video_generate" {
-		t.Fatalf("unexpected definition name: %s", def.Name)
-	}
-	if !strings.Contains(def.Description, "Seedance") {
-		t.Fatalf("expected definition description to reference Seedance, got %q", def.Description)
-	}
-	if !slices.Contains(def.Parameters.Required, "duration_seconds") {
-		t.Fatalf("expected duration_seconds to be required: %v", def.Parameters.Required)
+	// 14 core tools: read_file, write_file, replace_in_file, shell_exec,
+	// execute_code, browser_action, channel, web_search, skills,
+	// plan, clarify, request_user, memory_search, memory_get
+	if len(defs) != 14 {
+		t.Fatalf("expected 14 tools, got %d: %v", len(defs), names)
 	}
 }
 
@@ -137,11 +88,8 @@ func TestToolDefinitionsArrayItems(t *testing.T) {
 	}
 }
 
-func TestToolDefinitionsArrayItemsIncludesOptionalTools(t *testing.T) {
-	registry, err := NewRegistry(Config{
-		MemoryEngine:        newTestMemoryEngine(t),
-		SeedreamVisionModel: "seedream-vision",
-	})
+func TestToolDefinitionsArrayItemsIncludesSubagentTools(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
@@ -274,20 +222,13 @@ func TestWrapToolUnwrapsExistingDegradationLayer(t *testing.T) {
 	}
 }
 
-func TestRegistry_DefaultDegradationWrapsMappedToolsOnly(t *testing.T) {
+func TestRegistry_DefaultDegradationHasEmptyFallbackMap(t *testing.T) {
 	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
 
-	grepTool, err := registry.Get("grep")
-	if err != nil {
-		t.Fatalf("failed to get grep: %v", err)
-	}
-	if _, ok := grepTool.(*degradationExecutor); !ok {
-		t.Fatalf("expected grep to be wrapped by degradationExecutor, got %T", grepTool)
-	}
-
+	// With no fallback mappings, no tool should be wrapped with degradation.
 	fileRead, err := registry.Get("read_file")
 	if err != nil {
 		t.Fatalf("failed to get read_file: %v", err)
@@ -361,11 +302,8 @@ func (c *captureApprover) RequestApproval(_ context.Context, req *tools.Approval
 	return &tools.ApprovalResponse{Approved: true, Action: "approve"}, nil
 }
 
-func TestNewRegistrySkillModeRegistersOnlyCoreTools(t *testing.T) {
-	registry, err := NewRegistry(Config{
-		MemoryEngine: newTestMemoryEngine(t),
-		SkillMode:    true,
-	})
+func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
+	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
 	if err != nil {
 		t.Fatalf("unexpected error creating registry: %v", err)
 	}
@@ -382,15 +320,14 @@ func TestNewRegistrySkillModeRegistersOnlyCoreTools(t *testing.T) {
 		"execute_code", "browser_action",
 		"plan", "clarify", "request_user",
 		"memory_search", "memory_get",
-		"web_search", "skills",
-		"lark_send_message", "lark_chat_history",
+		"web_search", "skills", "channel",
 	} {
 		if !names[want] {
-			t.Errorf("skill mode: expected tool %s to be registered", want)
+			t.Errorf("expected tool %s to be registered", want)
 		}
 	}
 
-	// Removed tools MUST NOT be present
+	// Deprecated tools MUST NOT be present
 	for _, dropped := range []string{
 		"grep", "ripgrep", "find",
 		"todo_read", "todo_update", "apps", "music_play",
@@ -405,54 +342,13 @@ func TestNewRegistrySkillModeRegistersOnlyCoreTools(t *testing.T) {
 		"scheduler_create_job", "scheduler_list_jobs", "scheduler_delete_job",
 		"browser_info", "browser_screenshot", "browser_dom",
 		"list_dir", "search_file", "write_attachment",
+		"lark_send_message", "lark_chat_history", "lark_upload_file",
+		"lark_calendar_create", "lark_calendar_query",
+		"lark_calendar_update", "lark_calendar_delete",
+		"lark_task_manage",
 	} {
 		if names[dropped] {
-			t.Errorf("skill mode: tool %s should NOT be registered", dropped)
-		}
-	}
-
-	// Verify significant reduction: skill mode should have far fewer tools
-	fullRegistry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
-	if err != nil {
-		t.Fatalf("unexpected error creating full registry: %v", err)
-	}
-	fullCount := len(fullRegistry.List())
-	skillCount := len(defs)
-	if skillCount >= fullCount {
-		t.Fatalf("skill mode should have fewer tools: got %d vs full %d", skillCount, fullCount)
-	}
-	reduction := float64(fullCount-skillCount) / float64(fullCount) * 100
-	t.Logf("Tool reduction: %d → %d (%.0f%% reduction)", fullCount, skillCount, reduction)
-}
-
-func TestNewRegistrySkillModeWithLarkLocalToolset(t *testing.T) {
-	registry, err := NewRegistry(Config{
-		MemoryEngine: newTestMemoryEngine(t),
-		SkillMode:    true,
-		Toolset:      ToolsetLarkLocal,
-	})
-	if err != nil {
-		t.Fatalf("unexpected error creating registry: %v", err)
-	}
-
-	// Platform tools should use local implementations
-	if _, err := registry.Get("read_file"); err != nil {
-		t.Fatalf("failed to get read_file: %v", err)
-	}
-	if _, err := registry.Get("browser_action"); err != nil {
-		t.Fatalf("failed to get browser_action: %v", err)
-	}
-
-	// Desktop-only tools should NOT be registered in skill mode
-	// (even with lark-local toolset)
-	defs := registry.List()
-	names := make(map[string]bool, len(defs))
-	for _, def := range defs {
-		names[def.Name] = true
-	}
-	for _, dropped := range []string{"diagram_render", "write_attachment"} {
-		if names[dropped] {
-			t.Errorf("skill mode + lark-local: tool %s should NOT be registered", dropped)
+			t.Errorf("deprecated tool %s should NOT be registered", dropped)
 		}
 	}
 }

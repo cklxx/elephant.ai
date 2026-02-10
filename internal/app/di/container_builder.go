@@ -430,38 +430,16 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 	return registry
 }
 
-func (b *containerBuilder) buildToolRegistry(factory *llm.Factory, memoryEngine memory.Engine, slaCollector *toolspolicy.SLACollector) (*toolregistry.Registry, error) {
+func (b *containerBuilder) buildToolRegistry(_ *llm.Factory, memoryEngine memory.Engine, slaCollector *toolspolicy.SLACollector) (*toolregistry.Registry, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
-		TavilyAPIKey:               b.config.TavilyAPIKey,
-		ArkAPIKey:                  b.config.ArkAPIKey,
-		LLMFactory:                 factory,
-		LLMProvider:                b.config.LLMProvider,
-		LLMModel:                   b.config.LLMModel,
-		LLMVisionModel:             b.config.LLMVisionModel,
-		APIKey:                     b.config.APIKey,
-		BaseURL:                    b.config.BaseURL,
-		SandboxBaseURL:             b.config.SandboxBaseURL,
-		ACPExecutorAddr:            b.config.ACPExecutorAddr,
-		ACPExecutorCWD:             b.config.ACPExecutorCWD,
-		ACPExecutorMode:            b.config.ACPExecutorMode,
-		ACPExecutorAutoApprove:     b.config.ACPExecutorAutoApprove,
-		ACPExecutorMaxCLICalls:     b.config.ACPExecutorMaxCLICalls,
-		ACPExecutorMaxDuration:     b.config.ACPExecutorMaxDuration,
-		ACPExecutorRequireManifest: b.config.ACPExecutorRequireManifest,
-		SeedreamTextEndpointID:     b.config.SeedreamTextEndpointID,
-		SeedreamImageEndpointID:    b.config.SeedreamImageEndpointID,
-		SeedreamTextModel:          b.config.SeedreamTextModel,
-		SeedreamImageModel:         b.config.SeedreamImageModel,
-		SeedreamVisionModel:        b.config.SeedreamVisionModel,
-		SeedreamVideoModel:         b.config.SeedreamVideoModel,
-		MemoryEngine:               memoryEngine,
-		OKRGoalsRoot:               b.resolveOKRGoalsRoot(),
-		HTTPLimits:                 b.config.HTTPLimits,
-		ToolPolicy:                 toolspolicy.NewToolPolicy(b.config.ToolPolicy),
-		SLACollector:               slaCollector,
-		Toolset:                    b.config.Toolset,
-		SkillMode:                  b.config.SkillMode,
-		BrowserConfig:              b.config.BrowserConfig,
+		TavilyAPIKey:  b.config.TavilyAPIKey,
+		SandboxBaseURL: b.config.SandboxBaseURL,
+		MemoryEngine:  memoryEngine,
+		HTTPLimits:    b.config.HTTPLimits,
+		ToolPolicy:    toolspolicy.NewToolPolicy(b.config.ToolPolicy),
+		SLACollector:  slaCollector,
+		Toolset:       b.config.Toolset,
+		BrowserConfig: b.config.BrowserConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)

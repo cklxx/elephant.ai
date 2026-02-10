@@ -186,10 +186,6 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.Toolset = *overrides.Toolset
 		meta.sources["toolset"] = SourceOverride
 	}
-	if overrides.SkillMode != nil {
-		cfg.SkillMode = *overrides.SkillMode
-		meta.sources["skill_mode"] = SourceOverride
-	}
 	if overrides.Browser != nil {
 		if overrides.Browser.Connector != nil {
 			cfg.Browser.Connector = *overrides.Browser.Connector

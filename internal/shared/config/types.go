@@ -89,7 +89,6 @@ type RuntimeConfig struct {
 	AgentPreset                string                       `json:"agent_preset" yaml:"agent_preset"`
 	ToolPreset                 string                       `json:"tool_preset" yaml:"tool_preset"`
 	Toolset                    string                       `json:"toolset" yaml:"toolset"`
-	SkillMode                  bool                         `json:"skill_mode" yaml:"skill_mode"`
 	Browser                    BrowserConfig                `json:"browser" yaml:"browser"`
 	HTTPLimits                 HTTPLimitsConfig             `json:"http_limits" yaml:"http_limits"`
 	ToolPolicy                 toolspolicy.ToolPolicyConfig `json:"tool_policy" yaml:"tool_policy"`
@@ -450,7 +449,6 @@ type Overrides struct {
 	AgentPreset                *string              `json:"agent_preset,omitempty" yaml:"agent_preset,omitempty"`
 	ToolPreset                 *string              `json:"tool_preset,omitempty" yaml:"tool_preset,omitempty"`
 	Toolset                    *string              `json:"toolset,omitempty" yaml:"toolset,omitempty"`
-	SkillMode                  *bool                `json:"skill_mode,omitempty" yaml:"skill_mode,omitempty"`
 	Browser                    *BrowserOverrides    `json:"browser,omitempty" yaml:"browser,omitempty"`
 	HTTPLimits                 *HTTPLimitsOverrides `json:"http_limits,omitempty" yaml:"http_limits,omitempty"`
 	Proactive                  *ProactiveConfig     `json:"proactive,omitempty" yaml:"proactive,omitempty"`
