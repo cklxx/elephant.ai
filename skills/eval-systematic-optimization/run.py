@@ -28,7 +28,7 @@ def run_baseline(args: dict) -> dict:
     """运行 foundation suite 基线评测。"""
     suite = args.get("suite", "evaluation/agent_eval/datasets/foundation_eval_suite.yaml")
     tag = args.get("tag", time.strftime("%Y%m%d-%H%M"))
-    output_dir = args.get("output", f"tmp/foundation-suite-{tag}-baseline")
+    output_dir = args.get("output", f"/tmp/foundation-suite-{tag}-baseline")
     cwd = args.get("cwd", ".")
 
     cmd = f"go run ./cmd/alex eval foundation-suite --suite {suite} --output {output_dir} --format markdown"

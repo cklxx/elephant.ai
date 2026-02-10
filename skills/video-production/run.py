@@ -56,6 +56,14 @@ def generate(args: dict) -> dict:
     try:
         with urllib.request.urlopen(req, timeout=300) as resp:
             data = json.loads(resp.read().decode())
+    except urllib.error.HTTPError as exc:
+        body = ""
+        try:
+            body = exc.read().decode().strip()
+        except Exception:
+            body = ""
+        detail = body or str(exc)
+        return {"success": False, "error": f"HTTP Error {exc.code}: {detail}"}
     except urllib.error.URLError as exc:
         return {"success": False, "error": str(exc)}
 
@@ -65,11 +73,21 @@ def generate(args: dict) -> dict:
 
     output = args.get("output", f"/tmp/seedance_{int(time.time())}.mp4")
     video_url = videos[0].get("url", "")
-    if video_url:
-        try:
-            urllib.request.urlretrieve(video_url, output)
-        except urllib.error.URLError as exc:
-            return {"success": False, "error": f"download failed: {exc}"}
+    if not video_url:
+        return {"success": False, "error": "response missing video url"}
+
+    out_path = Path(output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with urllib.request.urlopen(video_url, timeout=300) as resp:
+            out_path.write_bytes(resp.read())
+    except urllib.error.URLError as exc:
+        return {"success": False, "error": f"download failed: {exc}"}
+
+    if not out_path.exists():
+        return {"success": False, "error": f"video file not found after write: {output}"}
+    if out_path.stat().st_size <= 0:
+        return {"success": False, "error": f"video file is empty after write: {output}"}
 
     return {"success": True, "path": output, "prompt": prompt, "message": f"视频已保存到 {output}"}
 

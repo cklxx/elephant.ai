@@ -21,10 +21,10 @@ import base64
 import json
 import math
 import os
-import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urlparse
 
 
 _ARK_BASE = "https://ark.cn-beijing.volces.com/api/v3"
@@ -66,6 +66,41 @@ def _ark_request(endpoint_id: str, payload: dict) -> dict:
         return {"error": f"HTTP Error {exc.code}: {detail}"}
     except urllib.error.URLError as exc:
         return {"error": str(exc)}
+
+
+def _extract_image_bytes(image_item: dict) -> tuple[bytes | None, str | None]:
+    """Extract image bytes from ARK response item (b64 or URL)."""
+    b64_data = str(image_item.get("b64_json", "")).strip()
+    if b64_data:
+        try:
+            return base64.b64decode(b64_data), None
+        except Exception as exc:
+            return None, f"invalid b64_json payload: {exc}"
+
+    image_url = str(image_item.get("url", "")).strip()
+    if image_url:
+        parsed = urlparse(image_url)
+        if parsed.scheme not in ("http", "https"):
+            return None, f"unsupported image url scheme: {parsed.scheme or '<empty>'}"
+        try:
+            with urllib.request.urlopen(image_url, timeout=120) as resp:
+                return resp.read(), None
+        except Exception as exc:
+            return None, f"download image url failed: {exc}"
+
+    return None, "response missing both b64_json and url fields"
+
+
+def _persist_image(output: str, payload: bytes) -> str | None:
+    """Persist image payload and validate file existence/non-empty content."""
+    path = Path(output)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(payload)
+    if not path.exists():
+        return f"image file not found after write: {output}"
+    if path.stat().st_size <= 0:
+        return f"image file is empty after write: {output}"
+    return None
 
 
 def _resolve_seedream_text_endpoint() -> str:
@@ -129,10 +164,14 @@ def generate(args: dict) -> dict:
 
     # Save image if output path specified
     output = args.get("output", f"/tmp/seedream_{int(time.time())}.png")
-    img_data = images[0].get("b64_json", "")
-    if img_data:
-        with open(output, "wb") as f:
-            f.write(base64.b64decode(img_data))
+    payload, payload_err = _extract_image_bytes(images[0])
+    if payload_err:
+        return {"success": False, "error": payload_err}
+    if payload is None:
+        return {"success": False, "error": "empty image payload"}
+    write_err = _persist_image(output, payload)
+    if write_err:
+        return {"success": False, "error": write_err}
 
     return {
         "success": True,
@@ -172,10 +211,14 @@ def refine(args: dict) -> dict:
         return {"success": False, "error": "no image returned"}
 
     output = args.get("output", f"/tmp/seedream_refined_{int(time.time())}.png")
-    img_data = images[0].get("b64_json", "")
-    if img_data:
-        with open(output, "wb") as f:
-            f.write(base64.b64decode(img_data))
+    payload, payload_err = _extract_image_bytes(images[0])
+    if payload_err:
+        return {"success": False, "error": payload_err}
+    if payload is None:
+        return {"success": False, "error": "empty image payload"}
+    write_err = _persist_image(output, payload)
+    if write_err:
+        return {"success": False, "error": write_err}
 
     return {
         "success": True,
