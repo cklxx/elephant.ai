@@ -14,7 +14,7 @@
 - [x] Confirm why `test` may be down/behind during validation.
 
 ## Batch 2: Behavior fixes (no surprise mutation)
-- [x] Add explicit loop auto-fix switch (default off) so codex repair is opt-in.
+- [x] Add explicit auto-fix switches (loop + supervisor both default off) so codex repair is opt-in.
 - [x] Keep status/report explicit when validation phase intentionally suppresses test restart.
 - [x] Avoid misleading "will auto-upgrade" text for test during active validation.
 
