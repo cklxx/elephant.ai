@@ -12,6 +12,19 @@ runtime:
   verbose: false
   proactive:
     enabled: true
+    prompt:
+      mode: "full"
+      timezone: "America/Los_Angeles"
+      bootstrap_max_chars: 20000
+      bootstrap_files:
+        - "AGENTS.md"
+        - "SOUL.md"
+        - "TOOLS.md"
+        - "IDENTITY.md"
+        - "USER.md"
+        - "HEARTBEAT.md"
+        - "BOOTSTRAP.md"
+      reply_tags_enabled: false
     okr:
       enabled: true
       goals_root: "~/.alex/goals"
@@ -37,17 +50,32 @@ runtime:
       max_concurrent: 1
       recovery_max_retries: 0
       recovery_backoff_seconds: 60
+      heartbeat:
+        enabled: false
+        schedule: "*/30 * * * *"
+        task: "Read HEARTBEAT.md if it exists. Follow it strictly. If nothing needs attention, reply HEARTBEAT_OK."
+        quiet_hours: [23, 8]
+        window_lookback_hours: 8
       triggers:
         - name: "daily_briefing"
           schedule: "0 9,12,15,18 * * *"
           task: "生成今日工作简报：总结待办事项、OKR 进展和需要关注的事项，输出简洁的状态看板。"
           channel: "web"
           user_id: "cklxx"
+    timer:
+      enabled: true
+      store_path: "~/.alex/timers"
+      max_timers: 100
+      task_timeout_seconds: 900
+      heartbeat_enabled: false
+      heartbeat_minutes: 30
     attention:
       max_daily_notifications: 5
       min_interval_seconds: 1800
       quiet_hours: [22, 8]
       priority_threshold: 0.6
+  tool_policy:
+    enforcement_mode: "warn_allow"
   external_agents:
     claude_code:
       enabled: false

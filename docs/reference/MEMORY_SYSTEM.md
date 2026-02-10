@@ -106,3 +106,12 @@ Example:
   - today’s daily log
   - yesterday’s daily log
 - This keeps context small while retaining durable knowledge.
+
+## Bootstrap File Injection (First Turn)
+- On the first turn of a session in `prompt.mode=full`, bootstrap files are injected into the prompt under `# Workspace Files`.
+- Source priority is **Global-first**:
+  1) `~/.alex/memory/<file>`
+  2) `<workspace>/<file>`
+- Per-file size is capped by `proactive.prompt.bootstrap_max_chars` (default `20000`).
+- Truncated files are marked with `...[TRUNCATED]`.
+- Missing files are represented by a short missing-file marker line.

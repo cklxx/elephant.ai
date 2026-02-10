@@ -373,6 +373,62 @@ runtime:
         embedder_model: "nomic-embed-text"
 ```
 
+### Prompt 组装模式（proactive.prompt）
+
+- `proactive.prompt.mode`：系统提示词模式，支持 `full | minimal | none`（默认 `full`）。
+- `proactive.prompt.timezone`：注入到提示词中的用户时区（仅时区文本，不注入动态时钟）。
+- `proactive.prompt.bootstrap_max_chars`：bootstrap 文件单文件最大注入字符数（默认 `20000`）。
+- `proactive.prompt.bootstrap_files`：首轮会话注入文件列表（默认：`AGENTS.md`, `SOUL.md`, `TOOLS.md`, `IDENTITY.md`, `USER.md`, `HEARTBEAT.md`, `BOOTSTRAP.md`）。
+- `proactive.prompt.reply_tags_enabled`：是否开启 Reply Tags 段落（默认 `false`）。
+
+示例（YAML）：
+
+```yaml
+runtime:
+  proactive:
+    prompt:
+      mode: "full"
+      timezone: "America/Los_Angeles"
+      bootstrap_max_chars: 20000
+      bootstrap_files:
+        - "AGENTS.md"
+        - "SOUL.md"
+        - "USER.md"
+      reply_tags_enabled: false
+```
+
+### Heartbeat（proactive.scheduler.heartbeat / proactive.timer）
+
+- `proactive.scheduler.heartbeat.enabled`：是否注册全局 heartbeat cron trigger。
+- `proactive.scheduler.heartbeat.schedule`：heartbeat cron（默认 `*/30 * * * *`）。
+- `proactive.scheduler.heartbeat.task`：heartbeat 任务提示（默认包含 `HEARTBEAT_OK` fallback）。
+- `proactive.scheduler.heartbeat.channel/user_id/chat_id`：可选通知路由。
+- `proactive.scheduler.heartbeat.quiet_hours`：quiet hour 窗口（默认 `[23, 8]`）。
+- `proactive.scheduler.heartbeat.window_lookback_hours`：安静超时后触达窗口（默认 `8`）。
+- `proactive.timer.heartbeat_enabled`：是否开启 timer 轨 heartbeat（会创建系统 recurring timer）。
+- `proactive.timer.heartbeat_minutes`：timer 轨 heartbeat 周期（默认 `30` 分钟）。
+
+示例（YAML）：
+
+```yaml
+runtime:
+  proactive:
+    scheduler:
+      heartbeat:
+        enabled: true
+        schedule: "*/30 * * * *"
+        quiet_hours: [23, 8]
+    timer:
+      heartbeat_enabled: true
+      heartbeat_minutes: 30
+```
+
+### Tool Policy 执行模式（tool_policy.enforcement_mode）
+
+- `tool_policy.enforcement_mode`：策略命中 `enabled=false` 时的处理模式。
+  - `enforce`：直接拒绝工具调用（默认）。
+  - `warn_allow`：记录告警并放行执行（用于灰度/兼容阶段）。
+
 ### Final Answer 复查（proactive.final_answer_review）
 
 当任务已经执行过工具（非 trivial），但模型在某一轮给出“最终回答（无 tool_calls）”时，系统会自动插入一次复查提示并允许最多再跑一轮，以便：
