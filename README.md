@@ -119,9 +119,10 @@ Prerequisites: Go 1.24+, Node.js 20+ (web UI), Docker (optional).
 
 ```bash
 # 1. Configure your LLM provider
-export OPENAI_API_KEY="sk-..."
-# or: ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, CODEX_API_KEY, ANTIGRAVITY_API_KEY
+export LLM_API_KEY="sk-..."
+# optional provider-specific overrides: OPENAI_API_KEY, ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, CODEX_API_KEY, ANTIGRAVITY_API_KEY
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
+alex config validate --profile quickstart
 
 # 2. Configure Lark bot credentials in ~/.alex/config.yaml
 #    channels:

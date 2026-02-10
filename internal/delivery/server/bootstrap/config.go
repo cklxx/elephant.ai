@@ -229,9 +229,13 @@ func LoadConfig() (ConfigResult, error) {
 	applyLarkEnvFallback(&cfg, envLookup)
 	applyAuthEnvFallback(&cfg, envLookup)
 
-	providerLower := strings.ToLower(strings.TrimSpace(cfg.Runtime.LLMProvider))
-	if cfg.Runtime.APIKey == "" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
-		return ConfigResult{}, fmt.Errorf("API key required for provider '%s'", cfg.Runtime.LLMProvider)
+	report := runtimeconfig.ValidateRuntimeConfig(cfg.Runtime)
+	if report.HasErrors() {
+		var ids []string
+		for _, item := range report.Errors {
+			ids = append(ids, item.ID)
+		}
+		return ConfigResult{}, fmt.Errorf("runtime config validation failed: %s", strings.Join(ids, ","))
 	}
 
 	return ConfigResult{

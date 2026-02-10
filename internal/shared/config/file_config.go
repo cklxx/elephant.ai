@@ -48,6 +48,7 @@ type RuntimeFileConfig struct {
 	SeedreamImageModel         string                    `yaml:"seedream_image_model"`
 	SeedreamVisionModel        string                    `yaml:"seedream_vision_model"`
 	SeedreamVideoModel         string                    `yaml:"seedream_video_model"`
+	Profile                    string                    `yaml:"profile"`
 	Environment                string                    `yaml:"environment"`
 	Verbose                    *bool                     `yaml:"verbose"`
 	DisableTUI                 *bool                     `yaml:"disable_tui"`

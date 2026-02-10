@@ -41,13 +41,13 @@ ensure_env_file() {
     log_info "Using existing .env: ${ENV_FILE}"
   fi
 
-  if ! grep -Eq '^[[:space:]]*OPENAI_API_KEY=' "${ENV_FILE}"; then
+  if ! grep -Eq '^[[:space:]]*LLM_API_KEY=' "${ENV_FILE}"; then
     {
       echo ""
       echo "# Minimal required key for real LLM responses"
-      echo "OPENAI_API_KEY="
+      echo "LLM_API_KEY="
     } >> "${ENV_FILE}"
-    log_info "Added OPENAI_API_KEY placeholder to ${ENV_FILE}"
+    log_info "Added LLM_API_KEY placeholder to ${ENV_FILE}"
   fi
 }
 

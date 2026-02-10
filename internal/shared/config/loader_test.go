@@ -466,6 +466,29 @@ runtime:
 	}
 }
 
+func TestAutoProviderUsesLLMAPIKeyFallback(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "auto"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"LLM_API_KEY": "unified-key",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.LLMProvider != "openai" {
+		t.Fatalf("expected auto provider to resolve to openai via LLM_API_KEY fallback, got %q", cfg.LLMProvider)
+	}
+	if cfg.APIKey != "unified-key" {
+		t.Fatalf("expected API key to resolve from LLM_API_KEY, got %q", cfg.APIKey)
+	}
+}
+
 func TestCLIProviderResolvesFromCodexCLI(t *testing.T) {
 	fileData := []byte(`
 runtime:
@@ -652,6 +675,72 @@ runtime:
 	}
 	if cfg.BaseURL != "https://api.anthropic.com/v1" {
 		t.Fatalf("expected anthropic base url default, got %q", cfg.BaseURL)
+	}
+}
+
+func TestOpenAIProviderUsesLLMAPIKeyFallback(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o-mini"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"LLM_API_KEY": "llm-unified-key",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.APIKey != "llm-unified-key" {
+		t.Fatalf("expected API key to resolve from LLM_API_KEY, got %q", cfg.APIKey)
+	}
+}
+
+func TestProviderSpecificKeyWinsOverLLMAPIKey(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "openai"
+  llm_model: "gpt-4o-mini"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{
+			"OPENAI_API_KEY": "openai-provider-key",
+			"LLM_API_KEY":    "unified-key",
+		}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.APIKey != "openai-provider-key" {
+		t.Fatalf("expected provider-specific key to win over LLM_API_KEY, got %q", cfg.APIKey)
+	}
+}
+
+func TestProductionProfileDoesNotFallbackToMockWithoutAPIKey(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  profile: "production"
+  llm_provider: "openai"
+  llm_model: "gpt-4o-mini"
+`)
+
+	cfg, _, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{}.Lookup),
+	)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Profile != RuntimeProfileProduction {
+		t.Fatalf("expected production profile, got %q", cfg.Profile)
+	}
+	if cfg.LLMProvider != "openai" {
+		t.Fatalf("expected provider to remain openai in production profile, got %q", cfg.LLMProvider)
 	}
 }
 

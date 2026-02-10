@@ -144,6 +144,10 @@ func applyFile(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.SeedreamVideoModel = parsed.SeedreamVideoModel
 		meta.sources["seedream_video_model"] = SourceFile
 	}
+	if parsed.Profile != "" {
+		cfg.Profile = parsed.Profile
+		meta.sources["profile"] = SourceFile
+	}
 	if parsed.Environment != "" {
 		cfg.Environment = parsed.Environment
 		meta.sources["environment"] = SourceFile
@@ -340,6 +344,7 @@ func expandRuntimeFileConfigEnv(lookup EnvLookup, parsed RuntimeFileConfig) Runt
 	parsed.SeedreamImageModel = expandEnvValue(lookup, parsed.SeedreamImageModel)
 	parsed.SeedreamVisionModel = expandEnvValue(lookup, parsed.SeedreamVisionModel)
 	parsed.SeedreamVideoModel = expandEnvValue(lookup, parsed.SeedreamVideoModel)
+	parsed.Profile = expandEnvValue(lookup, parsed.Profile)
 	parsed.Environment = expandEnvValue(lookup, parsed.Environment)
 	parsed.SessionDir = expandEnvValue(lookup, parsed.SessionDir)
 	parsed.CostDir = expandEnvValue(lookup, parsed.CostDir)

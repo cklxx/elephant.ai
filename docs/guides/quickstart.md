@@ -16,12 +16,15 @@ This guide gets you from `git clone` to running the `alex` CLI/TUI, server, and 
 ## Configure
 
 ```bash
-export OPENAI_API_KEY="sk-..."
+export LLM_API_KEY="sk-..."
+# Optional provider-specific keys (higher priority than LLM_API_KEY):
+# export OPENAI_API_KEY="sk-..."          # OpenAI-compatible
 # export ANTHROPIC_API_KEY="sk-ant-..."   # Claude
 # export CLAUDE_CODE_OAUTH_TOKEN="..."    # Claude Code OAuth
 # export CODEX_API_KEY="sk-..."           # OpenAI Responses / Codex
 # export ANTIGRAVITY_API_KEY="..."        # Antigravity (OpenAI-compatible)
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
+alex config validate --profile quickstart
 ```
 
 Provider switches (edit `~/.alex/config.yaml`):
@@ -40,6 +43,7 @@ runtime:
 
 ```yaml
 runtime:
+  profile: "quickstart"          # quickstart|standard|production
   llm_provider: "auto"             # Claude/Codex/Antigravity/OpenAI via env keys
 ```
 

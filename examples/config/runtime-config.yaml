@@ -1,9 +1,10 @@
 # Unified configuration for Alex.
 runtime:
+  profile: "standard"
   llm_provider: "openai"
   llm_model: "gpt-4o-mini"
   llm_vision_model: "gpt-4o-mini"
-  api_key: "${OPENAI_API_KEY}"
+  api_key: "${LLM_API_KEY}"
   base_url: "https://api.openai.com/v1"
   sandbox_base_url: "http://localhost:18086"
   tool_preset: "safe"

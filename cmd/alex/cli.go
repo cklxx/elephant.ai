@@ -103,6 +103,7 @@ Usage:
   alex config                    Show current configuration
   alex config set <field> <value> Persist a managed override
   alex config clear <field>       Remove a managed override
+  alex config validate [--profile <name>] Validate runtime configuration
   alex config path                Show the override file path
   alex setup                     Run first-run model setup wizard
   alex model                     List available subscription models
@@ -572,6 +573,8 @@ func executeConfigCommand(args []string, out io.Writer) error {
 			return fmt.Errorf("write overrides path: %w", err)
 		}
 		return nil
+	case "validate", "check":
+		return validateRuntimeConfiguration(args[1:], out)
 	case "help", "-h", "--help":
 		printConfigUsage(out)
 		return nil
@@ -641,6 +644,9 @@ func printConfigSummary(out io.Writer, overridesPath string) error {
 	if _, err := fmt.Fprintf(out, "  Top P:          %.2f\n", cfg.TopP); err != nil {
 		return fmt.Errorf("write top p: %w", err)
 	}
+	if _, err := fmt.Fprintf(out, "  Profile:        %s\n", runtimeconfig.NormalizeRuntimeProfile(cfg.Profile)); err != nil {
+		return fmt.Errorf("write profile: %w", err)
+	}
 	if _, err := fmt.Fprintf(out, "  Environment:    %s\n", cfg.Environment); err != nil {
 		return fmt.Errorf("write environment: %w", err)
 	}
@@ -687,9 +693,10 @@ func printConfigUsage(out io.Writer) {
 		"  alex config set <field> <value>   Persist a managed override (e.g. llm_model gpt-4o-mini)",
 		"  alex config set field=value       Alternate set syntax",
 		"  alex config clear <field>         Remove an override",
+		"  alex config validate [--profile]  Validate runtime configuration",
 		"  alex config path                  Print the runtime config file location",
 		"",
-		"Supported fields: llm_provider, llm_model, llm_small_provider, llm_small_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
+		"Supported fields: llm_provider, llm_model, llm_small_provider, llm_small_model, llm_vision_model, base_url, api_key, ark_api_key, tavily_api_key, profile, environment, max_tokens, max_iterations, temperature, top_p, verbose, stop_sequences, agent_preset, tool_preset, and Seedream model/endpoints.",
 	}
 
 	for _, line := range lines {
@@ -767,6 +774,9 @@ func setOverrideField(overrides *runtimeconfig.Overrides, key, value string) err
 		overrides.SeedreamVisionModel = stringPtr(value)
 	case "seedream_video_model":
 		overrides.SeedreamVideoModel = stringPtr(value)
+	case "profile":
+		normalized := runtimeconfig.NormalizeRuntimeProfile(value)
+		overrides.Profile = stringPtr(normalized)
 	case "environment":
 		overrides.Environment = stringPtr(value)
 	case "session_dir":
@@ -878,6 +888,8 @@ func clearOverrideField(overrides *runtimeconfig.Overrides, key, _ string) error
 		overrides.SeedreamVisionModel = nil
 	case "seedream_video_model":
 		overrides.SeedreamVideoModel = nil
+	case "profile":
+		overrides.Profile = nil
 	case "environment":
 		overrides.Environment = nil
 	case "session_dir":
@@ -964,4 +976,72 @@ func readinessSummary(tasks []configadmin.ReadinessTask) string {
 		}
 	}
 	return strings.TrimRight(builder.String(), "\n")
+}
+
+func validateRuntimeConfiguration(args []string, out io.Writer) error {
+	cfg, _, err := loadRuntimeConfigSnapshot()
+	if err != nil {
+		return fmt.Errorf("load runtime configuration: %w", err)
+	}
+
+	profile := strings.TrimSpace(cfg.Profile)
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--profile", "-p":
+			if i+1 >= len(args) {
+				return fmt.Errorf("usage: alex config validate [--profile quickstart|standard|production]")
+			}
+			profile = strings.TrimSpace(args[i+1])
+			i++
+		default:
+			return fmt.Errorf("usage: alex config validate [--profile quickstart|standard|production]")
+		}
+	}
+
+	cfg.Profile = runtimeconfig.NormalizeRuntimeProfile(profile)
+	report := runtimeconfig.ValidateRuntimeConfig(cfg)
+
+	if _, err := fmt.Fprintf(out, "Validation Profile: %s\n", report.Profile); err != nil {
+		return fmt.Errorf("write validation profile: %w", err)
+	}
+	if len(report.Errors) == 0 && len(report.Warnings) == 0 {
+		if _, err := fmt.Fprintln(out, "STATUS: OK"); err != nil {
+			return fmt.Errorf("write validation status: %w", err)
+		}
+	}
+	for _, item := range report.Errors {
+		if _, err := fmt.Fprintf(out, "ERROR %s: %s\n", item.ID, item.Message); err != nil {
+			return fmt.Errorf("write validation error: %w", err)
+		}
+		if hint := strings.TrimSpace(item.Hint); hint != "" {
+			if _, err := fmt.Fprintf(out, "  hint: %s\n", hint); err != nil {
+				return fmt.Errorf("write validation error hint: %w", err)
+			}
+		}
+	}
+	for _, item := range report.Warnings {
+		if _, err := fmt.Fprintf(out, "WARNING %s: %s\n", item.ID, item.Message); err != nil {
+			return fmt.Errorf("write validation warning: %w", err)
+		}
+		if hint := strings.TrimSpace(item.Hint); hint != "" {
+			if _, err := fmt.Fprintf(out, "  hint: %s\n", hint); err != nil {
+				return fmt.Errorf("write validation warning hint: %w", err)
+			}
+		}
+	}
+	if len(report.DisabledTools) > 0 {
+		if _, err := fmt.Fprintln(out, "Disabled tools:"); err != nil {
+			return fmt.Errorf("write disabled tools heading: %w", err)
+		}
+		for _, item := range report.DisabledTools {
+			if _, err := fmt.Fprintf(out, "  - %s: %s\n", item.Name, item.Reason); err != nil {
+				return fmt.Errorf("write disabled tool: %w", err)
+			}
+		}
+	}
+
+	if report.HasErrors() {
+		return fmt.Errorf("config validation failed with %d error(s)", len(report.Errors))
+	}
+	return nil
 }

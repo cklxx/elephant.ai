@@ -47,7 +47,7 @@ ensure_env_file() {
         log_info "Created .env from .env.example"
     else
         cat > "$ENV_FILE" <<EOF_ENV
-OPENAI_API_KEY=
+LLM_API_KEY=
 AUTH_JWT_SECRET=
 AUTH_DATABASE_URL=${DEFAULT_DB_URL}
 EOF_ENV

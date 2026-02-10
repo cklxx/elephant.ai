@@ -111,7 +111,7 @@ go test ./internal/server/http/ -v
 
 Runtime configuration:
 - Config file: `~/.alex/config.yaml` (or `ALEX_CONFIG_PATH`)
-- `runtime.api_key` - Required for remote providers (skip for `mock`/`ollama`); supports `${OPENAI_API_KEY}` interpolation
+- `runtime.api_key` - Required for remote providers (skip for `mock`/`ollama`); supports `${LLM_API_KEY}` interpolation
 - `runtime.llm_provider` - Default: openai
 - `runtime.llm_model` - Default: gpt-4o-mini
 - `runtime.llm_vision_model` - Optional (used when images are attached)

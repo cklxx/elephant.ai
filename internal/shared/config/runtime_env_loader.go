@@ -176,6 +176,10 @@ func applyEnv(cfg *RuntimeConfig, meta *Metadata, opts loadOptions) error {
 		cfg.Browser.BridgeToken = value
 		meta.sources["browser.bridge_token"] = SourceEnv
 	}
+	if value, ok := lookup("ALEX_PROFILE"); ok && value != "" {
+		cfg.Profile = value
+		meta.sources["profile"] = SourceEnv
+	}
 	if value, ok := lookup("ALEX_ENV"); ok && value != "" {
 		cfg.Environment = value
 		meta.sources["environment"] = SourceEnv

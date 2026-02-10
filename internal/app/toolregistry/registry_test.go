@@ -13,6 +13,7 @@ import (
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
 	"alex/internal/infra/tools/builtin/shared"
+	runtimeconfig "alex/internal/shared/config"
 )
 
 func newTestMemoryEngine(t *testing.T) memory.Engine {
@@ -350,6 +351,37 @@ func TestNewRegistryRegistersOnlyCoreTools(t *testing.T) {
 		if names[dropped] {
 			t.Errorf("deprecated tool %s should NOT be registered", dropped)
 		}
+	}
+}
+
+func TestNewRegistryQuickstartDisablesCredentialDependentTools(t *testing.T) {
+	registry, err := NewRegistry(Config{
+		MemoryEngine: newTestMemoryEngine(t),
+		Profile:      runtimeconfig.RuntimeProfileQuickstart,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	if _, err := registry.Get("read_file"); err != nil {
+		t.Fatalf("expected core tool read_file to remain registered: %v", err)
+	}
+	if _, err := registry.Get("web_search"); err == nil {
+		t.Fatalf("expected web_search to be disabled in quickstart without Tavily key")
+	}
+}
+
+func TestNewRegistryStandardKeepsOptionalToolsRegistered(t *testing.T) {
+	registry, err := NewRegistry(Config{
+		MemoryEngine: newTestMemoryEngine(t),
+		Profile:      runtimeconfig.RuntimeProfileStandard,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error creating registry: %v", err)
+	}
+
+	if _, err := registry.Get("web_search"); err != nil {
+		t.Fatalf("expected web_search to remain registered in standard profile: %v", err)
 	}
 }
 

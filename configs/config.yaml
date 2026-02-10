@@ -1,10 +1,11 @@
 # Generated from .env. Edit if you need literal secrets.
 runtime:
   environment: "development"
+  profile: "standard"
   llm_provider: "openai"
   llm_model: "ep-20250926173528-8zl5v"
   base_url: "https://ark-cn-beijing.bytedance.net/api/v3"
-  api_key: "${OPENAI_API_KEY}"
+  api_key: "${LLM_API_KEY}"
   tavily_api_key: "${TAVILY_API_KEY}"
   ark_api_key: "${ARK_API_KEY}"
   max_tokens: 12800

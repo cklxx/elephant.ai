@@ -34,9 +34,9 @@ func DeriveReadinessTasks(cfg runtimeconfig.RuntimeConfig) []ReadinessTask {
 	model := strings.TrimSpace(cfg.LLMModel)
 	apiKey := strings.TrimSpace(cfg.APIKey)
 	tavilyKey := strings.TrimSpace(cfg.TavilyAPIKey)
+	profile := runtimeconfig.NormalizeRuntimeProfile(cfg.Profile)
 
-	providerLower := strings.ToLower(strings.TrimSpace(provider))
-	providerNeedsKey := providerLower != "" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp"
+	providerNeedsKey := runtimeconfig.ProviderRequiresAPIKey(provider)
 
 	if provider == "" {
 		tasks = append(tasks, ReadinessTask{
@@ -57,11 +57,17 @@ func DeriveReadinessTasks(cfg runtimeconfig.RuntimeConfig) []ReadinessTask {
 	}
 
 	if providerNeedsKey && apiKey == "" {
+		severity := TaskSeverityCritical
+		hint := "未配置密钥时所有请求都会失败，可以暂时切换为 mock/llama.cpp 以继续调试。"
+		if profile == runtimeconfig.RuntimeProfileQuickstart {
+			severity = TaskSeverityWarning
+			hint = "Quickstart 可继续运行（会回退到 mock），但配置 API Key 后才能获得真实模型输出。"
+		}
 		tasks = append(tasks, ReadinessTask{
 			ID:       "llm-api-key",
 			Label:    "提供对应的 API Key",
-			Hint:     "未配置密钥时所有请求都会失败，可以暂时切换为 mock/llama.cpp 以继续调试。",
-			Severity: TaskSeverityCritical,
+			Hint:     hint,
+			Severity: severity,
 		})
 	}
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -229,5 +230,36 @@ func TestParseSetArgsSupportsEqualsSyntax(t *testing.T) {
 	}
 	if _, _, err := parseSetArgs([]string{"llm_model="}); err == nil {
 		t.Fatalf("expected usage error when value missing")
+	}
+}
+
+func TestExecuteConfigCommandValidateQuickstartAllowsMissingLLMKey(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ALEX_PROFILE", "quickstart")
+	t.Setenv("LLM_PROVIDER", "openai")
+	t.Setenv("LLM_MODEL", "gpt-4o-mini")
+
+	var out bytes.Buffer
+	if err := executeConfigCommand([]string{"validate"}, &out); err != nil {
+		t.Fatalf("validate should not fail in quickstart profile: %v", err)
+	}
+	if !strings.Contains(out.String(), "WARNING") {
+		t.Fatalf("expected warning output from quickstart validation, got %q", out.String())
+	}
+}
+
+func TestExecuteConfigCommandValidateProductionFailsWithoutLLMKey(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("ALEX_PROFILE", "production")
+	t.Setenv("LLM_PROVIDER", "openai")
+	t.Setenv("LLM_MODEL", "gpt-4o-mini")
+
+	var out bytes.Buffer
+	err := executeConfigCommand([]string{"validate"}, &out)
+	if err == nil {
+		t.Fatalf("expected validate to fail in production profile without API key")
+	}
+	if !strings.Contains(out.String(), "llm-api-key") {
+		t.Fatalf("expected llm-api-key in validation output, got %q", out.String())
 	}
 }

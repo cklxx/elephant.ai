@@ -432,14 +432,19 @@ func (b *containerBuilder) buildHookRegistry(memoryEngine memory.Engine, llmFact
 
 func (b *containerBuilder) buildToolRegistry(_ *llm.Factory, memoryEngine memory.Engine, slaCollector *toolspolicy.SLACollector) (*toolregistry.Registry, error) {
 	toolRegistry, err := toolregistry.NewRegistry(toolregistry.Config{
-		TavilyAPIKey:  b.config.TavilyAPIKey,
+		Profile:        b.config.Profile,
+		LLMProvider:    b.config.LLMProvider,
+		LLMModel:       b.config.LLMModel,
+		APIKey:         b.config.APIKey,
+		TavilyAPIKey:   b.config.TavilyAPIKey,
+		ArkAPIKey:      b.config.ArkAPIKey,
 		SandboxBaseURL: b.config.SandboxBaseURL,
-		MemoryEngine:  memoryEngine,
-		HTTPLimits:    b.config.HTTPLimits,
-		ToolPolicy:    toolspolicy.NewToolPolicy(b.config.ToolPolicy),
-		SLACollector:  slaCollector,
-		Toolset:       b.config.Toolset,
-		BrowserConfig: b.config.BrowserConfig,
+		MemoryEngine:   memoryEngine,
+		HTTPLimits:     b.config.HTTPLimits,
+		ToolPolicy:     toolspolicy.NewToolPolicy(b.config.ToolPolicy),
+		SLACollector:   slaCollector,
+		Toolset:        b.config.Toolset,
+		BrowserConfig:  b.config.BrowserConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tool registry: %w", err)

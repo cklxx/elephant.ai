@@ -40,7 +40,7 @@ sync_env() {
     local src_example="${main_root}/.env.example"
     [[ -f "${src_example}" ]] || die "Missing ${src} and ${src_example}"
     cp -f "${src_example}" "${src}"
-    log_warn "Created ${src} from ${src_example}; set OPENAI_API_KEY before running real LLM tasks"
+    log_warn "Created ${src} from ${src_example}; set LLM_API_KEY before running real LLM tasks"
   fi
   [[ -d "${test_root}" ]] || die "Missing test worktree at ${test_root} (run: $0 ensure)"
 

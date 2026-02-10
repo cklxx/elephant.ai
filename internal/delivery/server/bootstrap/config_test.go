@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 )
@@ -196,5 +197,49 @@ server:
 	}
 	if cfg.EventHistory.AsyncQueueCapacity != 4096 {
 		t.Fatalf("expected async queue size 4096, got %d", cfg.EventHistory.AsyncQueueCapacity)
+	}
+}
+
+func TestLoadConfig_ProductionProfileRequiresAPIKey(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  profile: production
+  llm_provider: openai
+  llm_model: gpt-4o-mini
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatalf("expected LoadConfig to fail in production profile without api key")
+	}
+	if got := err.Error(); !strings.Contains(got, "llm-api-key") {
+		t.Fatalf("expected llm-api-key validation error, got %q", got)
+	}
+}
+
+func TestLoadConfig_QuickstartProfileAllowsMissingAPIKey(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  profile: quickstart
+  llm_provider: openai
+  llm_model: gpt-4o-mini
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+
+	cr, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("expected quickstart profile to allow missing api key, got %v", err)
+	}
+	if cr.Config.Runtime.Profile != "quickstart" {
+		t.Fatalf("expected runtime profile quickstart, got %q", cr.Config.Runtime.Profile)
 	}
 }

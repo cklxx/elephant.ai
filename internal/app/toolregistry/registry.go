@@ -39,7 +39,14 @@ type filteredRegistry struct {
 }
 
 type Config struct {
-	TavilyAPIKey   string
+	Profile string
+
+	TavilyAPIKey string
+
+	ArkAPIKey      string
+	LLMProvider    string
+	LLMModel       string
+	APIKey         string
 	SandboxBaseURL string
 	MemoryEngine   memory.Engine
 	HTTPLimits     runtimeconfig.HTTPLimitsConfig
@@ -51,6 +58,9 @@ type Config struct {
 	DegradationConfig *DegradationConfig
 	Toolset           Toolset
 	BrowserConfig     BrowserConfig
+	// DisabledTools allows callers to explicitly suppress specific tools by name.
+	// When nil, registry derives quickstart gating from runtime config.
+	DisabledTools map[string]string
 }
 
 func NewRegistry(config Config) (*Registry, error) {
@@ -225,7 +235,6 @@ func (w *idAwareExecutor) Metadata() ports.ToolMetadata {
 	return w.delegate.Metadata()
 }
 
-
 // WithoutSubagent returns a filtered registry that excludes the subagent tool
 // This prevents nested subagent calls at registration level
 func (r *Registry) WithoutSubagent() tools.ToolRegistry {
@@ -337,6 +346,8 @@ func (r *Registry) Unregister(name string) error {
 }
 
 func (r *Registry) registerBuiltins(config Config) error {
+	disabled := resolveDisabledTools(config)
+
 	r.registerUITools(config)
 	r.registerWebTools(config)
 	r.registerSessionTools()
@@ -344,12 +355,50 @@ func (r *Registry) registerBuiltins(config Config) error {
 		return err
 	}
 	r.registerLarkTools()
+	r.pruneDisabledTools(disabled)
 
 	for name, tool := range r.static {
 		wrapped := wrapTool(tool, r.policy, r.breakers, r.SLACollector)
 		r.static[name] = r.wrapDegradation(name, wrapped)
 	}
 	return nil
+}
+
+func resolveDisabledTools(config Config) map[string]string {
+	if len(config.DisabledTools) > 0 {
+		cloned := make(map[string]string, len(config.DisabledTools))
+		for name, reason := range config.DisabledTools {
+			cloned[name] = reason
+		}
+		return cloned
+	}
+
+	report := runtimeconfig.ValidateRuntimeConfig(runtimeconfig.RuntimeConfig{
+		Profile:      config.Profile,
+		LLMProvider:  config.LLMProvider,
+		LLMModel:     config.LLMModel,
+		APIKey:       config.APIKey,
+		TavilyAPIKey: config.TavilyAPIKey,
+		ArkAPIKey:    config.ArkAPIKey,
+	})
+
+	disabled := make(map[string]string, len(report.DisabledTools))
+	for _, entry := range report.DisabledTools {
+		if entry.Name == "" {
+			continue
+		}
+		disabled[entry.Name] = entry.Reason
+	}
+	return disabled
+}
+
+func (r *Registry) pruneDisabledTools(disabled map[string]string) {
+	if len(disabled) == 0 {
+		return
+	}
+	for name := range disabled {
+		delete(r.static, name)
+	}
 }
 
 // RegisterSubAgent registers the subagent tool that requires a coordinator

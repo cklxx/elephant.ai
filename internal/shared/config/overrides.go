@@ -101,6 +101,10 @@ func applyOverrides(cfg *RuntimeConfig, meta *Metadata, overrides Overrides) {
 		cfg.SeedreamVideoModel = *overrides.SeedreamVideoModel
 		meta.sources["seedream_video_model"] = SourceOverride
 	}
+	if overrides.Profile != nil {
+		cfg.Profile = *overrides.Profile
+		meta.sources["profile"] = SourceOverride
+	}
 	if overrides.Environment != nil {
 		cfg.Environment = *overrides.Environment
 		meta.sources["environment"] = SourceOverride

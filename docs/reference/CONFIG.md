@@ -280,11 +280,12 @@ channels:
 说明：runtime loader **不再把环境变量作为覆盖层**。环境变量只用于：
 
 - **定位配置文件**：`ALEX_CONFIG_PATH=/path/to/config.yaml`
-- **在 YAML 中插值**：使用 `${ENV}`（例如 `runtime.api_key: ${OPENAI_API_KEY}`）
+- **在 YAML 中插值**：使用 `${ENV}`（例如 `runtime.api_key: ${LLM_API_KEY}`）
 
 推荐使用 env 承载 secrets，然后在 `config.yaml` 里引用（示例）：
 
-- `OPENAI_API_KEY`：OpenAI-compatible API key
+- `LLM_API_KEY`：统一 LLM API key（作为 provider-specific key 的兜底）
+- `OPENAI_API_KEY`：OpenAI-compatible API key（优先级高于 `LLM_API_KEY`）
 - `ANTHROPIC_API_KEY`：Claude (Anthropic) API key
 - `CLAUDE_CODE_OAUTH_TOKEN`：Claude Code OAuth token
 - `ANTHROPIC_AUTH_TOKEN`：Claude OAuth token (备用)
@@ -295,6 +296,7 @@ channels:
 - `CODEX_BASE_URL`：Responses / Codex base URL override
 - `ANTIGRAVITY_BASE_URL`：Antigravity base URL override
 - `ALEX_CLI_AUTH_PATH`：CLI auth.json 路径覆盖
+- `ALEX_PROFILE`：运行配置 profile（`quickstart` / `standard` / `production`）
 - `ALEX_LLM_SELECTION_PATH`：订阅模型选择状态文件路径（默认 `~/.alex/llm_selection.json`）
 - `ALEX_ONBOARDING_STATE_PATH`：首启 onboarding 状态文件路径（默认 `~/.alex/onboarding_state.json`）
 - `ALEX_SKILLS_DIR`：Skills 根目录（设置后仅使用该路径，不触发自动复制）
@@ -335,6 +337,7 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `llm_provider`：provider 选择；默认 `openai`（当 `api_key` 为空时会自动降级为 `mock`，但 `ollama` / `llama.cpp` 不需要密钥）。支持 `openai` / `openai-responses` / `codex` / `openrouter` / `deepseek` / `anthropic` / `antigravity` / `ollama` / `llama.cpp` / `mock` / `auto` / `cli`。
 - `llm_model`：默认模型。
 - `llm_vision_model`：vision 模型；当检测到图片附件时优先使用（见下节）。
+- `profile`：运行 profile。`quickstart` 允许可选能力降级，`standard` 为默认行为，`production` 启用严格校验。
 - `api_key`：API key（生产建议用 env 注入，不要提交到 git）。
 - `base_url`：OpenAI-compatible base URL。
 - `sandbox_base_url`：AIO Sandbox API 根地址（**不含 `/v1`**）。
@@ -346,6 +349,8 @@ ALEX 的出站 HTTP 请求默认遵循 Go 标准代理环境变量：`HTTP_PROXY
 - `user_rate_limit_burst`：按用户的 LLM 调用突发配额（默认 3）。
 
 `llm_provider: auto` 会优先读取 env key（含 Claude OAuth），若缺失再回退到 CLI 登录。`llm_provider: cli` 则优先读取 CLI 登录，再回退到 env key。CLI 订阅优先级：Codex → Antigravity → Claude → OpenAI。`*_BASE_URL` 可覆盖基座地址。
+
+`api_key` 解析优先级：`runtime.api_key` / managed override > provider-specific env（如 `OPENAI_API_KEY`）> `LLM_API_KEY`。
 
 参见：`docs/reference/external-agents-codex-claude-code.md`（Codex/Claude Code 外部代理与 CLI 调用说明）。
 
@@ -523,7 +528,7 @@ runtime:
 
 ## 最佳实践与常见坑位（业界经验）
 
-- **分离 secrets 与非 secrets**：生产环境建议用 env（K8s Secret / Docker secret）注入 `OPENAI_API_KEY`、`TAVILY_API_KEY`、`ARK_API_KEY`、`AUTH_JWT_SECRET`、`AUTH_DATABASE_URL`、`CLOUDFLARE_*` 等敏感字段，并在 `config.yaml` 中用 `${ENV}` 引用；主配置文件存放非敏感参数（model/base_url/preset/ports）。
+- **分离 secrets 与非 secrets**：生产环境建议用 env（K8s Secret / Docker secret）注入 `LLM_API_KEY`（或 provider-specific key）、`TAVILY_API_KEY`、`ARK_API_KEY`、`AUTH_JWT_SECRET`、`AUTH_DATABASE_URL`、`CLOUDFLARE_*` 等敏感字段，并在 `config.yaml` 中用 `${ENV}` 引用；主配置文件存放非敏感参数（model/base_url/preset/ports）。
 - **明确优先级**：遇到“配置没生效”，按顺序排查：
   1) `alex config` 看当前快照；2) `alex config path` 打开 `config.yaml`；3) 检查 `overrides` 是否覆盖了 `runtime`。
 - **谨慎使用 managed overrides**：`overrides` 会覆盖同名 `runtime` 字段；在容器/多环境切换时，常见的坑是忘记清掉 overrides。

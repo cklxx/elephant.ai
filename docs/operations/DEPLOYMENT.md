@@ -29,7 +29,7 @@
 
 ```bash
 # 1. 启动后端服务
-export OPENAI_API_KEY="sk-..."
+export LLM_API_KEY="sk-..."
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 make server-run
 
@@ -45,7 +45,7 @@ npm run dev
 
 ```bash
 # 启动所有服务
-export OPENAI_API_KEY="sk-..."
+export LLM_API_KEY="sk-..."
 cp examples/config/runtime-config.yaml ~/.alex/config.yaml
 docker compose -f deploy/docker/docker-compose.dev.yml up
 
@@ -63,7 +63,7 @@ docker compose -f deploy/docker/docker-compose.dev.yml up
 
 ```bash
 # .env
-OPENAI_API_KEY=sk-xxxxx
+LLM_API_KEY=sk-xxxxx
 AUTH_JWT_SECRET=change-me-in-prod
 AUTH_DATABASE_URL=postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable
 ALEX_SESSION_DATABASE_URL=postgres://alex:alex@auth-db:5432/alex_auth?sslmode=disable
@@ -79,7 +79,7 @@ CLOUDFLARE_PUBLIC_BASE_URL=https://obj.yourdomain.com
 ```yaml
 runtime:
   llm_provider: "openai"
-  api_key: "${OPENAI_API_KEY}"
+  api_key: "${LLM_API_KEY}"
 auth:
   jwt_secret: "${AUTH_JWT_SECRET}"
   database_url: "${AUTH_DATABASE_URL}"
@@ -168,11 +168,11 @@ echo -n "sk-your-api-key" | base64
 
 # 或使用 kubectl create secret
 kubectl create secret generic alex-secrets \
-  --from-literal=OPENAI_API_KEY=sk-your-api-key \
+  --from-literal=LLM_API_KEY=sk-your-api-key \
   -n alex-system
 ```
 
-同时准备 `config.yaml`（`runtime.api_key` 可引用 `${OPENAI_API_KEY}`），通过 ConfigMap 挂载到容器内 `/root/.alex/config.yaml` 或设置 `ALEX_CONFIG_PATH` 指向挂载路径。
+同时准备 `config.yaml`（`runtime.api_key` 可引用 `${LLM_API_KEY}`），通过 ConfigMap 挂载到容器内 `/root/.alex/config.yaml` 或设置 `ALEX_CONFIG_PATH` 指向挂载路径。
 
 ### 3. 部署到集群
 
@@ -255,7 +255,7 @@ kubectl rollout undo deployment/alex-server -n alex-system
 | 变量 | 必需 | 默认值 | 说明 |
 |------|------|--------|------|
 | `ALEX_CONFIG_PATH` | ❌ | `~/.alex/config.yaml` | 主配置文件路径 |
-| `OPENAI_API_KEY` | ❌ | - | `runtime.api_key` 插值 |
+| `LLM_API_KEY` | ❌ | - | `runtime.api_key` 插值 |
 | `TAVILY_API_KEY` | ❌ | - | `runtime.tavily_api_key` 插值 |
 | `ARK_API_KEY` | ❌ | - | `runtime.ark_api_key` 插值 |
 | `AUTH_JWT_SECRET` | ❌ | - | `auth.jwt_secret` 插值 |
@@ -375,15 +375,15 @@ curl -N -H "Accept: text/event-stream" \
 **症状**: 任务执行无响应
 
 **解决方案**:
-1. 检查 `config.yaml` 的 `runtime.api_key` 是否有效（或引用的 `OPENAI_API_KEY` 是否已注入）
+1. 检查 `config.yaml` 的 `runtime.api_key` 是否有效（或引用的 `LLM_API_KEY` 是否已注入）
 2. 验证网络连接到 OpenAI
 3. 检查速率限制
 
 ```bash
 # 测试 API Key
-export OPENAI_API_KEY="sk-..."
+export LLM_API_KEY="sk-..."
 curl https://api.openai.com/v1/models \
-  -H "Authorization: Bearer $OPENAI_API_KEY"
+  -H "Authorization: Bearer $LLM_API_KEY"
 ```
 
 ### 问题 3: 内存/CPU 过高

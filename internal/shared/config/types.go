@@ -10,10 +10,10 @@ import (
 type ValueSource string
 
 const (
-	SourceDefault        ValueSource = "default"
-	SourceFile           ValueSource = "file"
-	SourceEnv            ValueSource = "environment"
-	SourceOverride       ValueSource = "override"
+	SourceDefault   ValueSource = "default"
+	SourceFile      ValueSource = "file"
+	SourceEnv       ValueSource = "environment"
+	SourceOverride  ValueSource = "override"
 	SourceCodexCLI  ValueSource = "codex_cli"
 	SourceClaudeCLI ValueSource = "claude_cli"
 )
@@ -30,6 +30,10 @@ const (
 	DefaultLLMProvider       = "openai"
 	DefaultLLMModel          = "gpt-4o-mini"
 	DefaultLLMBaseURL        = "https://api.openai.com/v1"
+	RuntimeProfileQuickstart = "quickstart"
+	RuntimeProfileStandard   = "standard"
+	RuntimeProfileProduction = "production"
+	DefaultRuntimeProfile    = RuntimeProfileStandard
 	DefaultMaxTokens         = 8192
 	DefaultToolMaxConcurrent = 8
 	DefaultLLMCacheSize      = 64
@@ -67,6 +71,7 @@ type RuntimeConfig struct {
 	SeedreamImageModel         string                       `json:"seedream_image_model" yaml:"seedream_image_model"`
 	SeedreamVisionModel        string                       `json:"seedream_vision_model" yaml:"seedream_vision_model"`
 	SeedreamVideoModel         string                       `json:"seedream_video_model" yaml:"seedream_video_model"`
+	Profile                    string                       `json:"profile" yaml:"profile"`
 	Environment                string                       `json:"environment" yaml:"environment"`
 	Verbose                    bool                         `json:"verbose" yaml:"verbose"`
 	DisableTUI                 bool                         `json:"disable_tui" yaml:"disable_tui"`
@@ -428,6 +433,7 @@ type Overrides struct {
 	SeedreamImageModel         *string              `json:"seedream_image_model,omitempty" yaml:"seedream_image_model,omitempty"`
 	SeedreamVisionModel        *string              `json:"seedream_vision_model,omitempty" yaml:"seedream_vision_model,omitempty"`
 	SeedreamVideoModel         *string              `json:"seedream_video_model,omitempty" yaml:"seedream_video_model,omitempty"`
+	Profile                    *string              `json:"profile,omitempty" yaml:"profile,omitempty"`
 	Environment                *string              `json:"environment,omitempty" yaml:"environment,omitempty"`
 	Verbose                    *bool                `json:"verbose,omitempty" yaml:"verbose,omitempty"`
 	DisableTUI                 *bool                `json:"disable_tui,omitempty" yaml:"disable_tui,omitempty"`

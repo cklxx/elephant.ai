@@ -129,16 +129,42 @@ func resolveAutoProvider(cfg *RuntimeConfig, meta *Metadata, lookup EnvLookup, c
 	applyCLI := func() bool {
 		return applyCLICandidates(cfg, meta, cli.Codex, cli.Claude)
 	}
+	applyUnified := func() bool {
+		if key, ok := lookup("LLM_API_KEY"); ok && strings.TrimSpace(key) != "" {
+			cfg.LLMProvider = "openai"
+			meta.sources["llm_provider"] = SourceEnv
+			if cfg.APIKey == "" {
+				cfg.APIKey = strings.TrimSpace(key)
+				meta.sources["api_key"] = SourceEnv
+			}
+			if cfg.LLMSmallProvider == "" || strings.EqualFold(cfg.LLMSmallProvider, "auto") || strings.EqualFold(cfg.LLMSmallProvider, "cli") {
+				cfg.LLMSmallProvider = "openai"
+				meta.sources["llm_small_provider"] = SourceEnv
+			}
+			if base, ok := lookup("OPENAI_BASE_URL"); ok && strings.TrimSpace(base) != "" {
+				cfg.BaseURL = strings.TrimSpace(base)
+				meta.sources["base_url"] = SourceEnv
+			}
+			return true
+		}
+		return false
+	}
 
 	if provider == "cli" {
 		if applyCLI() {
 			return
 		}
-		_ = applyEnv()
+		if applyEnv() {
+			return
+		}
+		_ = applyUnified()
 		return
 	}
 
 	if applyEnv() {
+		return
+	}
+	if applyUnified() {
 		return
 	}
 	_ = applyCLI()
@@ -186,6 +212,12 @@ func resolveProviderCredentials(cfg *RuntimeConfig, meta *Metadata, lookup EnvLo
 			}
 		case "openai", "openrouter", "deepseek":
 			if key, ok := lookup("OPENAI_API_KEY"); ok && strings.TrimSpace(key) != "" {
+				cfg.APIKey = strings.TrimSpace(key)
+				meta.sources["api_key"] = SourceEnv
+			}
+		}
+		if cfg.APIKey == "" {
+			if key, ok := lookup("LLM_API_KEY"); ok && strings.TrimSpace(key) != "" {
 				cfg.APIKey = strings.TrimSpace(key)
 				meta.sources["api_key"] = SourceEnv
 			}

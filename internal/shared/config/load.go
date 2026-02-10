@@ -38,6 +38,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		SeedreamImageModel:         DefaultSeedreamImageModel,
 		SeedreamVisionModel:        DefaultSeedreamVisionModel,
 		SeedreamVideoModel:         DefaultSeedreamVideoModel,
+		Profile:                    DefaultRuntimeProfile,
 		Environment:                "development",
 		FollowTranscript:           true,
 		FollowStream:               true,
@@ -96,7 +97,7 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	resolveProviderCredentials(&cfg, &meta, options.envLookup, cliCreds)
 	// If API key remains unset, default to mock provider (unless keyless providers).
 	providerLower := strings.ToLower(strings.TrimSpace(cfg.LLMProvider))
-	if cfg.APIKey == "" && providerLower != "mock" && providerLower != "llama.cpp" && providerLower != "llamacpp" && providerLower != "llama-cpp" {
+	if cfg.APIKey == "" && ProviderRequiresAPIKey(providerLower) && cfg.Profile != RuntimeProfileProduction {
 		cfg.LLMProvider = "mock"
 		if cfg.LLMSmallProvider != "mock" {
 			cfg.LLMSmallProvider = "mock"
@@ -134,6 +135,7 @@ func normalizeRuntimeConfig(cfg *RuntimeConfig) {
 	cfg.SeedreamImageModel = strings.TrimSpace(cfg.SeedreamImageModel)
 	cfg.SeedreamVisionModel = strings.TrimSpace(cfg.SeedreamVisionModel)
 	cfg.SeedreamVideoModel = strings.TrimSpace(cfg.SeedreamVideoModel)
+	cfg.Profile = NormalizeRuntimeProfile(cfg.Profile)
 	cfg.Environment = strings.TrimSpace(cfg.Environment)
 	cfg.SessionDir = strings.TrimSpace(cfg.SessionDir)
 	cfg.CostDir = strings.TrimSpace(cfg.CostDir)
