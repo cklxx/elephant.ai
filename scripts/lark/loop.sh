@@ -4,6 +4,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common/logging.sh
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
+# shellcheck source=../lib/common/process.sh
+source "${SCRIPT_DIR}/../lib/common/process.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -43,6 +45,7 @@ MAIN_SH="${MAIN_ROOT}/scripts/lark/main.sh"
 TEST_SH="${MAIN_ROOT}/scripts/lark/test.sh"
 MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
 PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
+CODEX_LOOP_PID_FILE="${PID_DIR}/lark-codex-loop.pid"
 
 SLEEP_SECONDS="${SLEEP_SECONDS:-10}"
 MAX_CYCLES="${MAX_CYCLES:-5}"
@@ -109,6 +112,29 @@ acquire_lock() {
 
 release_lock() {
   rm -rf "${LOCK_DIR}" 2>/dev/null || true
+}
+
+record_codex_pid() {
+  local pid="$1"
+  mkdir -p "${PID_DIR}"
+  printf '%s\n' "${pid}" > "${CODEX_LOOP_PID_FILE}"
+}
+
+clear_codex_pid() {
+  local expected_pid="${1:-}"
+  local current_pid
+  current_pid="$(read_pid "${CODEX_LOOP_PID_FILE}" || true)"
+  if [[ -z "${current_pid}" ]]; then
+    rm -f "${CODEX_LOOP_PID_FILE}" 2>/dev/null || true
+    return 0
+  fi
+  if [[ -n "${expected_pid}" && "${current_pid}" == "${expected_pid}" ]]; then
+    rm -f "${CODEX_LOOP_PID_FILE}" 2>/dev/null || true
+    return 0
+  fi
+  if ! is_process_running "${current_pid}"; then
+    rm -f "${CODEX_LOOP_PID_FILE}" 2>/dev/null || true
+  fi
 }
 
 append_log() {
@@ -273,15 +299,35 @@ EOF
 )"
 
   append_log "[auto-fix] phase=${phase} starting"
+  local prompt_file runner_pid rc
+  prompt_file="$(mktemp "${TMP_DIR}/lark-loop-autofix.XXXXXX.prompt")"
+  printf '%s' "${prompt}" > "${prompt_file}"
 
   if command -v codex >/dev/null 2>&1; then
     # Use codex exec so the loop is non-interactive and can auto-edit the worktree.
-    (cd "${TEST_ROOT}" && printf '%s' "${prompt}" | codex exec --dangerously-bypass-approvals-and-sandbox -) >> "${LOOP_LOG}" 2>&1 || true
+    (
+      cd "${TEST_ROOT}" || exit 1
+      exec codex exec --dangerously-bypass-approvals-and-sandbox - < "${prompt_file}"
+    ) >> "${LOOP_LOG}" 2>&1 &
   elif command -v claude >/dev/null 2>&1; then
     # Claude Code fallback (autonomous mode).
-    (cd "${TEST_ROOT}" && claude -p --dangerously-skip-permissions --allowedTools "Read,Edit,Bash(git *)" -- "${prompt}") >> "${LOOP_LOG}" 2>&1 || true
+    (
+      cd "${TEST_ROOT}" || exit 1
+      exec claude -p --dangerously-skip-permissions --allowedTools "Read,Edit,Bash(git *)" -- "$(cat "${prompt_file}")"
+    ) >> "${LOOP_LOG}" 2>&1 &
   else
+    rm -f "${prompt_file}"
     die "Neither codex nor claude found in PATH; cannot auto-fix"
+  fi
+
+  runner_pid="$!"
+  record_codex_pid "${runner_pid}"
+  rc=0
+  wait "${runner_pid}" || rc=$?
+  clear_codex_pid "${runner_pid}"
+  rm -f "${prompt_file}"
+  if (( rc != 0 )); then
+    append_log "[auto-fix] codex runner exited with status=${rc}"
   fi
 
   # Commit if codex/claude changed anything.
@@ -435,6 +481,7 @@ run_cycle() {
 
   require_tools
   init_test_paths
+  clear_codex_pid
 
   if ! acquire_lock; then
     log_warn "Loop already running (lock: ${LOCK_DIR})"
@@ -446,6 +493,7 @@ run_cycle() {
   run_cycle_locked "${base_sha}" || rc=$?
   trap - EXIT
   release_lock
+  clear_codex_pid
   return "${rc}"
 }
 

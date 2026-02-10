@@ -4,6 +4,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../lib/common/logging.sh
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
+# shellcheck source=../lib/common/process.sh
+source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=./identity_lock.sh
+source "${SCRIPT_DIR}/identity_lock.sh"
 
 usage() {
   cat <<'EOF'
@@ -48,12 +52,21 @@ fi
 
 TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
 AUTOFIX_ROOT="${MAIN_ROOT}/.worktrees/autofix"
+MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-}}"
+if [[ -n "${LARK_PID_DIR:-}" ]]; then
+  PID_DIR="${LARK_PID_DIR}"
+elif [[ -n "${MAIN_CONFIG_PATH}" ]]; then
+  PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
+else
+  PID_DIR="${MAIN_ROOT}/pids"
+fi
 TMP_DIR="${TEST_ROOT}/tmp"
 LOG_DIR="${TEST_ROOT}/logs"
 
 LOCK_DIR="${TMP_DIR}/lark-autofix.lock"
 STATE_FILE="${TMP_DIR}/lark-autofix.state.json"
 LOG_FILE="${LOG_DIR}/lark-autofix.log"
+CODEX_AUTOFIX_PID_FILE="${PID_DIR}/lark-codex-autofix.pid"
 
 CODEX_BIN="${LARK_AUTOFIX_CODEX_BIN:-codex}"
 MAIN_BRANCH="${LARK_AUTOFIX_MAIN_BRANCH:-main}"
@@ -80,7 +93,7 @@ json_escape() {
 }
 
 ensure_dirs() {
-  mkdir -p "${TMP_DIR}" "${LOG_DIR}"
+  mkdir -p "${TMP_DIR}" "${LOG_DIR}" "${PID_DIR}"
 }
 
 append_log() {
@@ -135,6 +148,11 @@ release_lock() {
 }
 
 cleanup() {
+  local pid
+  pid="$(read_pid "${CODEX_AUTOFIX_PID_FILE}" || true)"
+  if [[ -n "${pid}" ]] && ! is_process_running "${pid}"; then
+    rm -f "${CODEX_AUTOFIX_PID_FILE}" 2>/dev/null || true
+  fi
   release_lock
 }
 
@@ -184,14 +202,35 @@ ensure_autofix_worktree() {
   git -C "${AUTOFIX_ROOT}" reset --hard "${MAIN_BRANCH}" >> "${LOG_FILE}" 2>&1
 }
 
+clear_codex_pid_file() {
+  local expected_pid="${1:-}"
+  local current_pid
+  current_pid="$(read_pid "${CODEX_AUTOFIX_PID_FILE}" || true)"
+  if [[ -z "${current_pid}" ]]; then
+    rm -f "${CODEX_AUTOFIX_PID_FILE}" 2>/dev/null || true
+    return 0
+  fi
+  if [[ -n "${expected_pid}" && "${current_pid}" == "${expected_pid}" ]]; then
+    rm -f "${CODEX_AUTOFIX_PID_FILE}" 2>/dev/null || true
+    return 0
+  fi
+  if ! is_process_running "${current_pid}"; then
+    rm -f "${CODEX_AUTOFIX_PID_FILE}" 2>/dev/null || true
+  fi
+}
+
 run_with_timeout() {
   local timeout_seconds="$1"
-  shift
+  local pid_file="${2:-}"
+  shift 2
 
   "$@" &
   local pid=$!
   local started_at
   started_at="$(date +%s)"
+  if [[ -n "${pid_file}" ]]; then
+    printf '%s\n' "${pid}" > "${pid_file}"
+  fi
 
   while kill -0 "${pid}" 2>/dev/null; do
     local now
@@ -201,12 +240,21 @@ run_with_timeout() {
       sleep 1
       kill -9 "${pid}" 2>/dev/null || true
       wait "${pid}" 2>/dev/null || true
+      if [[ -n "${pid_file}" ]]; then
+        clear_codex_pid_file "${pid}"
+      fi
       return 124
     fi
     sleep 1
   done
 
-  wait "${pid}"
+  local rc
+  rc=0
+  wait "${pid}" || rc=$?
+  if [[ -n "${pid_file}" ]]; then
+    clear_codex_pid_file "${pid}"
+  fi
+  return "${rc}"
 }
 
 collect_context() {
@@ -256,7 +304,7 @@ run_codex_prompt_file() {
     return 127
   fi
 
-  run_with_timeout "${AUTOFIX_TIMEOUT_SECONDS}" bash -lc "cd \"${AUTOFIX_ROOT}\" && \"${CODEX_BIN}\" exec --dangerously-bypass-approvals-and-sandbox - < \"${prompt_file}\"" >> "${LOG_FILE}" 2>&1
+  run_with_timeout "${AUTOFIX_TIMEOUT_SECONDS}" "${CODEX_AUTOFIX_PID_FILE}" bash -lc "cd \"${AUTOFIX_ROOT}\" && \"${CODEX_BIN}\" exec --dangerously-bypass-approvals-and-sandbox - < \"${prompt_file}\"" >> "${LOG_FILE}" 2>&1
 }
 
 resolve_rebase_conflicts() {
