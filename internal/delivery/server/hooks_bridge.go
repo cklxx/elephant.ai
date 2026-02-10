@@ -14,12 +14,6 @@ import (
 	"alex/internal/shared/uxphrases"
 )
 
-// HooksBridgeConfig configures the Claude Code hooks bridge endpoint.
-type HooksBridgeConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Token   string `yaml:"token"`
-}
-
 // NoticeLoader loads the notice binding to determine which chat receives
 // hook notifications. It mirrors the read-only subset of noticeStateStore.
 type NoticeLoader interface {
@@ -222,8 +216,13 @@ func toolDetail(toolName string, input json.RawMessage) string {
 }
 
 func hasFilePrefix(name string) bool {
-	for _, p := range []string{"read_file", "write_file", "replace_in_file", "create_file",
-		"read", "write", "edit", "glob", "grep", "view_file", "patch_file"} {
+	// Exact matches for single-word tools, prefix matches for compound names.
+	switch name {
+	case "read", "write", "edit", "glob", "grep":
+		return true
+	}
+	for _, p := range []string{"read_", "write_", "edit_", "replace_in_file", "create_file",
+		"view_file", "patch_file", "list_dir", "list_files"} {
 		if strings.HasPrefix(name, p) {
 			return true
 		}
@@ -232,7 +231,11 @@ func hasFilePrefix(name string) bool {
 }
 
 func hasShellPrefix(name string) bool {
-	for _, p := range []string{"shell_exec", "execute_code", "run_command", "bash", "terminal", "exec"} {
+	switch name {
+	case "bash":
+		return true
+	}
+	for _, p := range []string{"shell_exec", "execute_code", "run_command", "terminal", "exec_"} {
 		if strings.HasPrefix(name, p) {
 			return true
 		}

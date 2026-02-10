@@ -31,23 +31,34 @@ var phraseGroups = []phraseGroup{
 	{
 		phrases: []string{"在翻阅…", "在研读…", "在查阅…"},
 		matchFn: func(n string) bool {
-			return hasAnyPrefix(n, "read_file", "list_dir", "search_file", "list_files",
-				"read", "glob", "grep", "find_file", "search_code", "list_directory",
-				"view_file", "view_source")
+			return matchAny(n,
+				// Exact single-word tool names (Claude Code)
+				exactMatch("read", "glob", "grep"),
+				// Prefixed multi-word tool names
+				prefixMatch("read_file", "read_", "list_dir", "list_files",
+					"search_file", "find_file", "search_code", "list_directory",
+					"view_file", "view_source"),
+			)
 		},
 	},
 	{
 		phrases: []string{"在撰写…", "在书写…", "在落笔…"},
 		matchFn: func(n string) bool {
-			return hasAnyPrefix(n, "write_file", "replace_in_file", "create_file",
-				"write", "edit", "insert_text", "apply_diff", "patch_file")
+			return matchAny(n,
+				exactMatch("write", "edit"),
+				prefixMatch("write_file", "write_", "replace_in_file", "create_file",
+					"edit_", "insert_text", "apply_diff", "patch_file"),
+			)
 		},
 	},
 	{
 		phrases: []string{"在运算…", "在执行…", "在实验…"},
 		matchFn: func(n string) bool {
-			return hasAnyPrefix(n, "shell_exec", "execute_code", "run_command",
-				"bash", "terminal", "exec")
+			return matchAny(n,
+				exactMatch("bash"),
+				prefixMatch("shell_exec", "execute_code", "run_command",
+					"terminal", "exec_"),
+			)
 		},
 	},
 	{
@@ -80,14 +91,19 @@ var phraseGroups = []phraseGroup{
 	{
 		phrases: []string{"在规划…", "在梳理…", "在分析…"},
 		matchFn: func(n string) bool {
-			return hasAnyPrefix(n, "plan", "clarify")
+			return matchAny(n,
+				exactMatch("plan", "clarify"),
+				prefixMatch("plan_", "clarify_"),
+			)
 		},
 	},
 	{
 		phrases: []string{"在深入…", "在调研…", "在拆解…"},
 		matchFn: func(n string) bool {
-			return hasAnyPrefix(n, "subagent", "explore", "sub_agent",
-				"task", "delegate")
+			return matchAny(n,
+				exactMatch("task", "explore"),
+				prefixMatch("subagent", "sub_agent", "task_", "delegate"),
+			)
 		},
 	},
 }
@@ -116,10 +132,38 @@ func PickPhrase(pool []string, selector int) string {
 	return pool[idx]
 }
 
+// matchAny returns true if any of the matcher functions return true for name.
+func matchAny(name string, matchers ...func(string) bool) bool {
+	for _, m := range matchers {
+		if m(name) {
+			return true
+		}
+	}
+	return false
+}
+
+// exactMatch returns a matcher that checks for exact string equality.
+func exactMatch(names ...string) func(string) bool {
+	return func(name string) bool {
+		for _, n := range names {
+			if name == strings.ToLower(n) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+// prefixMatch returns a matcher that checks for prefix matching.
+func prefixMatch(prefixes ...string) func(string) bool {
+	return func(name string) bool {
+		return hasAnyPrefix(name, prefixes...)
+	}
+}
+
 func hasAnyPrefix(name string, prefixes ...string) bool {
-	lower := strings.ToLower(name)
 	for _, p := range prefixes {
-		if strings.HasPrefix(lower, strings.ToLower(p)) {
+		if strings.HasPrefix(name, strings.ToLower(p)) {
 			return true
 		}
 	}

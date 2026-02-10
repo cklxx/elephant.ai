@@ -701,10 +701,12 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 		go g.addReaction(execCtx, msg.messageID, endEmoji)
 	}
 
-	// Retrieve the progress message ID so dispatchResult can edit it
-	// into the final reply instead of sending a separate message.
+	// Close the progress listener before reading MessageID to ensure
+	// no timer-fired flushes can race with the edit-in-place operation.
+	// Close is idempotent; the deferred cleanupListeners will no-op.
 	var progressMsgID string
 	if progressLn != nil {
+		progressLn.Close()
 		progressMsgID = progressLn.MessageID()
 	}
 
