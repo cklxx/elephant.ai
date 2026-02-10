@@ -1,6 +1,6 @@
 # Plan: Lark Break Optimization (State Machine + Codex PID Control) — 2026-02-10
 
-## Status: In Progress
+## Status: Completed
 
 ## Goal
 - Eliminate long-lived `test` suppression caused by stale validation phases.
@@ -31,8 +31,8 @@
 
 ## Batch 4: Validation + Review + Delivery
 - [x] Run targeted script tests.
-- [ ] Run `./dev.sh lint`.
-- [ ] Run `./dev.sh test`.
-- [ ] Execute mandatory code review workflow and produce P0-P3 findings.
-- [ ] Commit in multiple incremental commits.
-- [ ] Merge branch back into `main` (prefer ff), remove temporary worktree/branch.
+- [x] Run `./dev.sh lint`.
+- [x] Run `./dev.sh test`.
+- [x] Execute mandatory code review workflow and produce P0-P3 findings.
+- [x] Commit in multiple incremental commits.
+- [x] Merge branch back into `main` (fast-forward) and remove temporary worktree (branch retained due local policy restriction on deletion command).
