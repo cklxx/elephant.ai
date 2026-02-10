@@ -33,23 +33,6 @@ func (g *Gateway) runCCHooksSetup(msg *incomingMessage) {
 	g.dispatch(execCtx, msg.chatID, replyTarget("", msg.isGroup), "text", textContent(reply))
 }
 
-// runCCHooksRemove removes Claude Code hooks from .claude/settings.local.json.
-func (g *Gateway) runCCHooksRemove(msg *incomingMessage) {
-	settingsPath := ccHooksSettingsPath(g.cfg.WorkspaceDir)
-	err := removeCCHooks(settingsPath)
-
-	var reply string
-	if err != nil {
-		g.logger.Warn("cc-hooks-remove: failed: %v", err)
-		reply = fmt.Sprintf("Claude Code hooks 移除失败：%v", err)
-	} else {
-		reply = "Claude Code hooks 已移除。"
-	}
-
-	execCtx := g.buildTaskCommandContext(msg)
-	g.dispatch(execCtx, msg.chatID, replyTarget("", msg.isGroup), "text", textContent(reply))
-}
-
 // ccHooksSettingsPath returns the path to .claude/settings.local.json
 // relative to the project working directory.
 func ccHooksSettingsPath(workspaceDir string) string {
