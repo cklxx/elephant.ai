@@ -87,6 +87,7 @@ make_codex_success() {
 #!/usr/bin/env bash
 set -euo pipefail
 cat >/dev/null
+sleep 2
 git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
 if [[ -n "${git_dir}" && ( -d "${git_dir}/rebase-merge" || -d "${git_dir}/rebase-apply" ) ]]; then
   echo "resolved-success" > target.txt
@@ -140,8 +141,19 @@ assert_state() {
   }
 }
 
+assert_no_codex_pid_file() {
+  local repo_root="$1"
+  local pid_file="${repo_root}/pids/lark-codex-autofix.pid"
+  if [[ -f "${pid_file}" ]]; then
+    local pid
+    pid="$(cat "${pid_file}" 2>/dev/null || true)"
+    echo "expected no codex autofix pid file after trigger run: ${pid_file} pid=${pid}" >&2
+    exit 1
+  fi
+}
+
 run_success_case() {
-  local case_dir repo_root codex_bin state_file commit_count
+  local case_dir repo_root codex_bin state_file commit_count runner_pid codex_pid pid_file seen
   case_dir="${tmpdir}/success"
   repo_root="${case_dir}/repo"
   codex_bin="${case_dir}/codex-success"
@@ -157,10 +169,36 @@ run_success_case() {
       --incident-id "success-1" \
       --reason "restart storm" \
       --signature "sig-success" \
-      --main-sha "$(git -C "${repo_root}" rev-parse main)"
+      --main-sha "$(git -C "${repo_root}" rev-parse main)" &
+  runner_pid="$!"
+
+  pid_file="${repo_root}/pids/lark-codex-autofix.pid"
+  seen=0
+  for _ in $(seq 1 50); do
+    if [[ -f "${pid_file}" ]]; then
+      seen=1
+      break
+    fi
+    sleep 0.1
+  done
+  if [[ "${seen}" -ne 1 ]]; then
+    echo "expected codex autofix pid file while trigger is running" >&2
+    wait "${runner_pid}" || true
+    exit 1
+  fi
+
+  codex_pid="$(cat "${pid_file}" 2>/dev/null || true)"
+  if [[ -z "${codex_pid}" ]] || ! kill -0 "${codex_pid}" 2>/dev/null; then
+    echo "expected codex autofix pid alive while trigger is running: ${codex_pid}" >&2
+    wait "${runner_pid}" || true
+    exit 1
+  fi
+
+  wait "${runner_pid}"
 
   state_file="${repo_root}/.worktrees/test/tmp/lark-autofix.state.json"
   assert_state "${state_file}" "succeeded"
+  assert_no_codex_pid_file "${repo_root}"
   grep -q '"autofix_restart_required": "true"' "${state_file}" || { echo "expected restart_required=true" >&2; exit 1; }
   commit_count="$(git -C "${repo_root}" rev-list --count main)"
   if (( commit_count < 2 )); then
@@ -197,6 +235,7 @@ run_failure_case() {
 
   state_file="${repo_root}/.worktrees/test/tmp/lark-autofix.state.json"
   assert_state "${state_file}" "failed"
+  assert_no_codex_pid_file "${repo_root}"
   commit_count="$(git -C "${repo_root}" rev-list --count main)"
   if (( commit_count != 1 )); then
     echo "expected main unchanged after failed autofix (count=${commit_count})" >&2
@@ -226,6 +265,7 @@ run_conflict_case() {
 
   state_file="${repo_root}/.worktrees/test/tmp/lark-autofix.state.json"
   assert_state "${state_file}" "succeeded"
+  assert_no_codex_pid_file "${repo_root}"
   if [[ "$(cat "${repo_root}/target.txt")" != "resolved-conflict" ]]; then
     echo "expected conflict resolution content in main target.txt" >&2
     exit 1

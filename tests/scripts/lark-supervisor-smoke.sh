@@ -21,6 +21,8 @@ run_supervisor() {
     TEST_CONFIG="${main_root}/config-test.yaml" \
     LARK_SUPERVISOR_SKIP_HEALTHCHECK=1 \
     LARK_SUPERVISOR_TICK_SECONDS=1 \
+    LARK_VALIDATION_TEST_SUPPRESS_MAX_SECONDS=2 \
+    LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS=0 \
     LARK_RESTART_MAX_IN_WINDOW=5 \
     LARK_RESTART_WINDOW_SECONDS=30 \
     LARK_COOLDOWN_SECONDS=3 \
@@ -41,6 +43,8 @@ run_supervisor_same_config() {
     TEST_CONFIG="${main_root}/config-main.yaml" \
     LARK_SUPERVISOR_SKIP_HEALTHCHECK=1 \
     LARK_SUPERVISOR_TICK_SECONDS=1 \
+    LARK_VALIDATION_TEST_SUPPRESS_MAX_SECONDS=2 \
+    LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS=0 \
     LARK_RESTART_MAX_IN_WINDOW=5 \
     LARK_RESTART_WINDOW_SECONDS=30 \
     LARK_COOLDOWN_SECONDS=3 \
@@ -61,6 +65,8 @@ run_supervisor_same_identity() {
     TEST_CONFIG="${main_root}/config-test-lark.yaml" \
     LARK_SUPERVISOR_SKIP_HEALTHCHECK=1 \
     LARK_SUPERVISOR_TICK_SECONDS=1 \
+    LARK_VALIDATION_TEST_SUPPRESS_MAX_SECONDS=2 \
+    LARK_STALE_LOOP_STATE_TIMEOUT_SECONDS=0 \
     LARK_RESTART_MAX_IN_WINDOW=5 \
     LARK_RESTART_WINDOW_SECONDS=30 \
     LARK_COOLDOWN_SECONDS=3 \
@@ -77,6 +83,11 @@ cleanup() {
         kill "${pid}" 2>/dev/null || true
       fi
     done < <(find "${main_root}" -name '*.pid' -type f 2>/dev/null || true)
+  fi
+
+  if [[ "${KEEP_TMPDIR:-0}" == "1" ]]; then
+    echo "keeping tmpdir for debug: ${tmpdir}" >&2
+    return 0
   fi
 
   rm -rf "${tmpdir}"
@@ -253,6 +264,9 @@ status_file="${main_root}/.worktrees/test/tmp/lark-supervisor.status.json"
 for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha last_validated_sha cycle_phase cycle_result loop_autofix_enabled last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window; do
   grep -q "\"${key}\"" "${status_file}" || { echo "missing key in status: ${key}" >&2; exit 1; }
 done
+for key in validation_suppressed_since validation_suppress_timeout_seconds stale_state_recovered stale_state_recovered_at codex_loop_pid codex_autofix_pid; do
+  grep -q "\"${key}\"" "${status_file}" || { echo "missing key in status: ${key}" >&2; exit 1; }
+done
 grep -q '"mode": "healthy"' "${status_file}" || { echo "expected healthy mode after run-once" >&2; exit 1; }
 
 main_pid="$(cat "${main_root}/pids/lark-main.pid")"
@@ -283,6 +297,15 @@ if run_supervisor_same_identity doctor >/dev/null 2>&1; then
   echo "expected doctor to fail when MAIN_CONFIG and TEST_CONFIG share same lark identity" >&2
   exit 1
 fi
+
+# Ensure stop path kills tracked codex subprocesses too.
+sleep 300 &
+codex_loop_pid="$!"
+echo "${codex_loop_pid}" > "${main_root}/pids/lark-codex-loop.pid"
+sleep 300 &
+codex_autofix_pid="$!"
+echo "${codex_autofix_pid}" > "${main_root}/pids/lark-codex-autofix.pid"
+
 run_supervisor stop >/dev/null
 
 if [[ -f "${main_root}/pids/lark-supervisor.pid" ]]; then
@@ -296,6 +319,26 @@ for pid_file in \
   "${main_root}/pids/lark-loop.pid"; do
   if [[ -f "${pid_file}" ]]; then
     echo "expected component pid file removed after stop: ${pid_file}" >&2
+    exit 1
+  fi
+done
+
+if kill -0 "${codex_loop_pid}" 2>/dev/null; then
+  echo "expected loop codex pid killed on stop: ${codex_loop_pid}" >&2
+  exit 1
+fi
+wait "${codex_loop_pid}" 2>/dev/null || true
+if kill -0 "${codex_autofix_pid}" 2>/dev/null; then
+  echo "expected autofix codex pid killed on stop: ${codex_autofix_pid}" >&2
+  exit 1
+fi
+wait "${codex_autofix_pid}" 2>/dev/null || true
+
+for pid_file in \
+  "${main_root}/pids/lark-codex-loop.pid" \
+  "${main_root}/pids/lark-codex-autofix.pid"; do
+  if [[ -f "${pid_file}" ]]; then
+    echo "expected codex pid file removed after stop: ${pid_file}" >&2
     exit 1
   fi
 done
@@ -350,22 +393,7 @@ if ! grep -q '"mode": "validating"' "${status_file}"; then
   exit 1
 fi
 
-# Clean up: reset loop state to idle so final stop works.
-cat > "${loop_state_file}" <<JSEOF
-{
-  "ts_utc": "2026-01-01T00:00:00Z",
-  "base_sha": "",
-  "cycle_phase": "idle",
-  "cycle_result": "unknown",
-  "main_sha": "",
-  "last_processed_sha": "",
-  "last_validated_sha": "",
-  "validating_sha": "",
-  "last_error": ""
-}
-JSEOF
-
-# Verify the log contains the skip message.
+# Verify the log contains the suppression skip message.
 supervisor_log="${main_root}/.worktrees/test/logs/lark-supervisor.log"
 if [[ -f "${supervisor_log}" ]]; then
   if ! grep -q "skip test restart during validation" "${supervisor_log}"; then
@@ -374,12 +402,68 @@ if [[ -f "${supervisor_log}" ]]; then
   fi
 fi
 
-# Recovery path: idle phase allows restart; next tick should recover test process.
+# Recovery path: when suppression exceeds timeout, supervisor should force test restart.
+sleep 3
 run_supervisor run-once >/dev/null
 
 recovered_test_pid="$(cat "${main_root}/pids/lark-test.pid" 2>/dev/null || true)"
 if [[ -z "${recovered_test_pid}" ]] || ! kill -0 "${recovered_test_pid}" 2>/dev/null; then
-  echo "expected test restarted after validation finished" >&2
+  echo "expected test restarted after validation suppression timeout" >&2
+  exit 1
+fi
+
+if [[ -f "${supervisor_log}" ]]; then
+  if ! grep -q "validation suppression timeout reached" "${supervisor_log}"; then
+    echo "expected validation suppression timeout log entry" >&2
+    exit 1
+  fi
+fi
+
+# Stale phase recovery: if loop is down but loop-state remains validating, supervisor
+# should reset the phase to idle and recover restart behavior.
+loop_pid="$(cat "${main_root}/pids/lark-loop.pid" 2>/dev/null || true)"
+if [[ -n "${loop_pid}" ]]; then
+  kill "${loop_pid}" 2>/dev/null || true
+  wait "${loop_pid}" 2>/dev/null || true
+fi
+rm -f "${main_root}/pids/lark-loop.pid"
+
+test_pid="$(cat "${main_root}/pids/lark-test.pid" 2>/dev/null || true)"
+if [[ -n "${test_pid}" ]]; then
+  kill "${test_pid}" 2>/dev/null || true
+  wait "${test_pid}" 2>/dev/null || true
+fi
+rm -f "${main_root}/pids/lark-test.pid"
+
+cat > "${loop_state_file}" <<JSEOF
+{
+  "ts_utc": "2026-01-01T00:00:00Z",
+  "base_sha": "abc1234",
+  "cycle_phase": "fast_gate",
+  "cycle_result": "running",
+  "main_sha": "",
+  "last_processed_sha": "",
+  "last_validated_sha": "",
+  "validating_sha": "abc1234",
+  "last_error": ""
+}
+JSEOF
+
+run_supervisor run-once >/dev/null
+
+if ! grep -q '"cycle_phase": "idle"' "${loop_state_file}"; then
+  echo "expected stale loop state recovery to reset cycle_phase=idle" >&2
+  exit 1
+fi
+
+if ! grep -q '"stale_state_recovered": true' "${status_file}"; then
+  echo "expected status stale_state_recovered=true after stale loop state recovery" >&2
+  exit 1
+fi
+
+post_recover_test_pid="$(cat "${main_root}/pids/lark-test.pid" 2>/dev/null || true)"
+if [[ -z "${post_recover_test_pid}" ]] || ! kill -0 "${post_recover_test_pid}" 2>/dev/null; then
+  echo "expected test restarted after stale state recovery" >&2
   exit 1
 fi
 
