@@ -1,32 +1,8 @@
 version: '1'
 name: foundation-prompt-effectiveness
-description: Prompt-paraphrase and instruction-effectiveness coverage for tool routing
+description: Prompt-paraphrase and instruction-effectiveness coverage for currently
+  available tools
 scenarios:
-- id: prompt-find-migration-files
-  category: search
-  intent: Find files whose names contain migration in the repository.
-  expected_tools:
-  - find
-- id: prompt-ripgrep-token
-  category: search
-  intent: Use fast regex search to locate RetryPolicy references across the codebase.
-  expected_tools:
-  - ripgrep
-- id: prompt-grep-error-log
-  category: search
-  intent: Search error.log for HTTP 500 lines with a simple grep pattern.
-  expected_tools:
-  - grep
-- id: prompt-search-symbol-projectwide
-  category: search
-  intent: Locate every usage of RequestContextGuard symbol in this source file.
-  expected_tools:
-  - search_file
-- id: prompt-list-files-recursive
-  category: workspace
-  intent: Show all files recursively under this path with lightweight metadata.
-  expected_tools:
-  - list_dir
 - id: prompt-read-config-file
   category: workspace
   intent: Read the selected config file and return its full content.
@@ -54,36 +30,14 @@ scenarios:
   intent: Execute a tiny Python snippet to verify this checksum formula.
   expected_tools:
   - execute_code
-- id: prompt-browser-selector-form
-  category: browser
-  intent: Use DOM selectors to fill form fields and submit.
-  expected_tools:
-  - browser_dom
 - id: prompt-browser-coordinate-click
   category: browser
   intent: This is a canvas-only interaction; click at coordinates and drag to target.
   expected_tools:
   - browser_action
-- id: prompt-browser-tab-inspection-before-action
-  category: browser
-  intent: Before any click/selector operation, confirm current browser session metadata
-    (URL/title/viewport) to avoid acting on the wrong tab.
-  expected_tools:
-  - browser_info
-- id: prompt-browser-screenshot-capture
-  category: browser
-  intent: Take a page screenshot as evidence for this UI bug.
-  expected_tools:
-  - browser_screenshot
 - id: prompt-web-search-rfc-authority-first
   category: web
   intent: Locate authoritative standards references for HTTP conditional requests;
     prioritize canonical sources and avoid content fetch until sources are shortlisted.
   expected_tools:
   - web_search
-- id: prompt-web-fetch-one-url-no-search
-  category: web
-  intent: Use the already provided URL as the only source of truth and extract its
-    text for verification without running discovery search.
-  expected_tools:
-  - web_fetch

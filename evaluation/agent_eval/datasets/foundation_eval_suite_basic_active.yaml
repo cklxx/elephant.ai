@@ -1,0 +1,31 @@
+version: '1'
+name: foundation-basic-active-suite
+description: Basic evaluation suite rebuilt for currently available tools and skills
+collections:
+- id: tool-coverage
+  name: Tool Coverage
+  dimension: tool_coverage
+  description: Core tool capability coverage for active tools
+  cases_path: evaluation/agent_eval/datasets/foundation_eval_cases_tool_coverage.yaml
+  mode: web
+  preset: full
+  toolset: default
+  top_k: 3
+- id: prompt-effectiveness
+  name: Prompt Effectiveness
+  dimension: prompt_effectiveness
+  description: Prompt effectiveness coverage for active tools
+  cases_path: evaluation/agent_eval/datasets/foundation_eval_cases_prompt_effectiveness.yaml
+  mode: web
+  preset: full
+  toolset: default
+  top_k: 3
+- id: proactivity
+  name: Proactivity
+  dimension: proactivity
+  description: Proactivity coverage focused on active tools and skills
+  cases_path: evaluation/agent_eval/datasets/foundation_eval_cases_proactivity.yaml
+  mode: web
+  preset: full
+  toolset: default
+  top_k: 3

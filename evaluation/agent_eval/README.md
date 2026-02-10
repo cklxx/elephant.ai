@@ -80,6 +80,16 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 - 可复现证据链专项（reproducibility trace evidence stress）
 - 多轮 pass@1 易题淘汰与难题替换（easy-case retirement + harder replacements）
 
+新增（2026-02-10）：基础可用工具评测套件（active tools + skills）
+- `evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml`
+- 仅覆盖当前可用工具与 skills，作为基础回归入口。
+- 当前结果（`tmp/foundation-suite-r21-basic-active-20260210-115920`）：
+  - Collections: `3/3`
+  - Cases: `31/31`
+  - N/A: `0`
+  - pass@1: `27/31`
+  - pass@5: `31/31`
+
 新增（2026-02-10）：系统化端到端 suite（按能力维度分层）
 - `evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml`
 - 覆盖 `28` 个集合、`363` 个 case（Foundation Core + Stateful/Memory + Delivery + Frontier Benchmark Transfer）。
@@ -135,6 +145,11 @@ go run ./cmd/alex eval foundation-suite \
 go run ./cmd/alex eval foundation-suite \
   --suite evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml \
   --output tmp/foundation-suite-e2e-systematic \
+  --format markdown
+
+go run ./cmd/alex eval foundation-suite \
+  --suite evaluation/agent_eval/datasets/foundation_eval_suite_basic_active.yaml \
+  --output tmp/foundation-suite-basic-active \
   --format markdown
 ```
 

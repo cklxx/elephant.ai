@@ -1,85 +1,80 @@
 version: '1'
 name: foundation-proactivity
-description: 'Proactive behavior routing coverage: updates, scheduling, reminders,
-  and coordination'
+description: Proactive behavior routing coverage for currently available tools and
+  skills
 scenarios:
-- id: proactive-send-progress-update
-  category: lark
-  intent: Proactively send a concise progress update to the current Lark chat.
+- id: proactive-plan-checkpoint-first
+  category: planning
+  intent: Before touching code, proactively draft a phased execution plan with checkpoints.
   expected_tools:
-  - lark_send_message
-- id: proactive-read-chat-context-first
-  category: lark
-  intent: Before replying, fetch recent Lark chat history for context.
+  - plan
+- id: proactive-clarify-ambiguous-owner
+  category: clarification
+  intent: Requirement owner is ambiguous across two teams; proactively ask a focused
+    clarification.
   expected_tools:
-  - lark_chat_history
-- id: proactive-upload-generated-report
-  category: lark
-  intent: Upload the generated report file to this Lark conversation.
+  - clarify
+- id: proactive-request-risky-confirmation
+  category: approval
+  intent: This operation may impact production behavior; proactively request explicit
+    user confirmation first.
   expected_tools:
-  - lark_upload_file
-- id: proactive-calendar-query
-  category: lark
-  intent: Proactively check upcoming calendar events before scheduling work.
+  - request_user
+- id: proactive-memory-recall-before-solution
+  category: memory
+  intent: Proactively recall prior preferences from memory before drafting the solution.
   expected_tools:
-  - lark_calendar_query
-- id: proactive-calendar-create
-  category: lark
-  intent: Create a new calendar event for tomorrow's sync meeting.
+  - memory_search
+- id: proactive-open-precise-memory-note
+  category: memory
+  intent: A specific previous note is referenced; proactively open that exact memory
+    entry.
   expected_tools:
-  - lark_calendar_create
-- id: proactive-calendar-update
-  category: lark
-  intent: Update an existing calendar event with a new start time and summary.
+  - memory_get
+- id: proactive-runtime-state-check
+  category: execution
+  intent: Proactively verify runtime state with command output before proposing a
+    fix.
   expected_tools:
-  - lark_calendar_update
-- id: proactive-calendar-delete
-  category: lark
-  intent: Delete an incorrect calendar event that should not exist.
+  - shell_exec
+- id: proactive-quick-compute-validation
+  category: execution
+  intent: Proactively run a short deterministic compute check to validate assumptions.
   expected_tools:
-  - lark_calendar_delete
-- id: proactive-task-manage
-  category: lark
-  intent: Create and assign a Lark task with due date and owner.
+  - execute_code
+- id: proactive-read-contract-window
+  category: workspace
+  intent: Proactively read the exact API contract window before changing implementation.
   expected_tools:
-  - lark_task_manage
-- id: proactive-task-batch-update
-  category: lark
-  intent: Bulk update task statuses and assignees before daily standup.
+  - read_file
+- id: proactive-apply-small-safe-patch
+  category: workspace
+  intent: Proactively apply a minimal in-place patch for the identified defect.
   expected_tools:
-  - lark_task_manage
-- id: proactive-set-followup-reminder
-  category: timer
-  intent: Set a reminder timer to follow up in 30 minutes.
+  - replace_in_file
+- id: proactive-write-decision-record
+  category: workspace
+  intent: Proactively write a decision record file with rationale and risks.
   expected_tools:
-  - set_timer
-- id: proactive-set-review-reminder
-  category: timer
-  intent: Set a timer for one-hour code review checkpoint.
+  - write_file
+- id: proactive-web-authority-check
+  category: web
+  intent: Proactively verify latest authoritative references on the web before finalizing.
   expected_tools:
-  - set_timer
-- id: proactive-list-active-reminders
-  category: timer
-  intent: List all active timers and their remaining time.
+  - web_search
+- id: proactive-browser-canvas-action
+  category: browser
+  intent: Proactively perform the required canvas interaction by coordinate action.
   expected_tools:
-  - list_timers
-- id: proactive-cancel-obsolete-reminder
-  category: timer
-  intent: Cancel the reminder that is no longer needed.
+  - browser_action
+- id: proactive-skill-discovery-before-coding
+  category: skills
+  intent: Proactively check whether a reusable skill/workflow exists before doing
+    custom implementation.
   expected_tools:
-  - cancel_timer
-- id: proactive-cancel-duplicate-reminders
-  category: timer
-  intent: Remove duplicated reminder timers to avoid noise.
+  - skills
+- id: proactive-channel-targeted-handoff
+  category: communication
+  intent: Proactively route a concise status handoff to the correct channel context.
   expected_tools:
-  - cancel_timer
-- id: proactive-create-recurring-job
-  category: scheduler
-  intent: Create a recurring weekday morning scheduler job.
-  expected_tools:
-  - scheduler_create_job
-- id: proactive-create-hourly-healthcheck
-  category: scheduler
-  intent: Create an hourly healthcheck scheduler job.
-  expected_tools:
-  - scheduler_create_job
+  - channel
