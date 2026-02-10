@@ -19,6 +19,8 @@ import (
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/attachments"
 	"alex/internal/infra/diagnostics"
+	"alex/internal/infra/httpclient"
+	"alex/internal/infra/sandbox"
 	"alex/internal/shared/async"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
@@ -58,7 +60,8 @@ func RunServer(observabilityConfigPath string) error {
 					return err
 				}
 				attachmentStore = store
-				migrator := materials.NewAttachmentStoreMigrator(store, nil, config.Attachment.CloudflarePublicBaseURL, logger)
+				client := httpclient.NewWithCircuitBreaker(45*time.Second, logger, "attachment_migrator")
+				migrator := materials.NewAttachmentStoreMigrator(store, client, config.Attachment.CloudflarePublicBaseURL, logger)
 				container.AgentCoordinator.SetAttachmentMigrator(migrator)
 				container.AgentCoordinator.SetAttachmentPersister(
 					attachments.NewStorePersister(store),
@@ -250,6 +253,10 @@ func RunServer(observabilityConfigPath string) error {
 	if container.LarkOAuth != nil {
 		larkOAuthHandler = serverHTTP.NewLarkOAuthHandler(container.LarkOAuth, logger)
 	}
+	sandboxClient := sandbox.NewClient(sandbox.Config{
+		BaseURL:          config.Runtime.SandboxBaseURL,
+		MaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
+	})
 
 	// Hooks bridge: forward Claude Code hook events to Lark.
 	var hooksBridge http.Handler
@@ -259,22 +266,21 @@ func RunServer(observabilityConfigPath string) error {
 
 	router := serverHTTP.NewRouter(
 		serverHTTP.RouterDeps{
-			Coordinator:             serverCoordinator,
-			Broadcaster:             broadcaster,
-			RunTracker:              progressTracker,
-			HealthChecker:           healthChecker,
-			AuthHandler:             authHandler,
-			AuthService:             authService,
-			ConfigHandler:           configHandler,
-			OnboardingStateHandler:  onboardingStateHandler,
-			Evaluation:              evaluationService,
-			Obs:                     f.Obs,
-			AttachmentCfg:           config.Attachment,
-			SandboxBaseURL:          config.Runtime.SandboxBaseURL,
-			SandboxMaxResponseBytes: config.Runtime.HTTPLimits.SandboxMaxResponseBytes,
-			LarkOAuthHandler:        larkOAuthHandler,
-			MemoryEngine:            container.MemoryEngine,
-			HooksBridge:             hooksBridge,
+			Coordinator:            serverCoordinator,
+			Broadcaster:            broadcaster,
+			RunTracker:             progressTracker,
+			HealthChecker:          healthChecker,
+			AuthHandler:            authHandler,
+			AuthService:            authService,
+			ConfigHandler:          configHandler,
+			OnboardingStateHandler: onboardingStateHandler,
+			Evaluation:             evaluationService,
+			Obs:                    f.Obs,
+			AttachmentCfg:          config.Attachment,
+			SandboxClient:          sandboxClient,
+			LarkOAuthHandler:       larkOAuthHandler,
+			MemoryEngine:           container.MemoryEngine,
+			HooksBridge:            hooksBridge,
 		},
 		serverHTTP.RouterConfig{
 			Environment:      config.Runtime.Environment,

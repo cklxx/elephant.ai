@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"alex/internal/domain/auth"
-	"alex/internal/infra/attachments"
-	"alex/internal/infra/sandbox"
 	"alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
@@ -17,9 +15,8 @@ import (
 func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	logger := logging.NewComponentLogger("Router")
 	latencyLogger := logging.NewLatencyLogger("HTTP")
-	attachmentCfg := attachments.NormalizeConfig(deps.AttachmentCfg)
 	var attachmentStore *AttachmentStore
-	if store, err := NewAttachmentStore(attachmentCfg); err != nil {
+	if store, err := NewAttachmentStore(deps.AttachmentCfg); err != nil {
 		logger.Warn("Attachment store disabled: %v", err)
 	} else {
 		attachmentStore = store
@@ -46,10 +43,6 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 	shareHandler := NewShareHandler(deps.Coordinator, sseHandler)
 	internalMode := strings.EqualFold(normalizedEnv, "internal") || strings.EqualFold(normalizedEnv, "evaluation")
 	devMode := strings.EqualFold(normalizedEnv, "development") || strings.EqualFold(normalizedEnv, "dev")
-	sandboxClient := sandbox.NewClient(sandbox.Config{
-		BaseURL:          deps.SandboxBaseURL,
-		MaxResponseBytes: deps.SandboxMaxResponseBytes,
-	})
 	apiHandler := NewAPIHandler(
 		deps.Coordinator,
 		deps.HealthChecker,
@@ -57,7 +50,7 @@ func NewRouter(deps RouterDeps, cfg RouterConfig) http.Handler {
 		WithAPIObservability(deps.Obs),
 		WithEvaluationService(deps.Evaluation),
 		WithAttachmentStore(attachmentStore),
-		WithSandboxClient(sandboxClient),
+		WithSandboxClient(deps.SandboxClient),
 		WithDevMode(devMode),
 		WithMaxCreateTaskBodySize(taskBodyLimit),
 		WithMemoryEngine(deps.MemoryEngine),

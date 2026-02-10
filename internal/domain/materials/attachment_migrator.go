@@ -2,9 +2,11 @@ package materials
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
+	"net"
 	"net/http"
 	neturl "net/url"
 	"strings"
@@ -13,8 +15,6 @@ import (
 
 	"alex/internal/domain/agent/ports"
 	materialports "alex/internal/domain/materials/ports"
-	"alex/internal/infra/attachments"
-	"alex/internal/infra/httpclient"
 	"alex/internal/shared/logging"
 )
 
@@ -35,7 +35,7 @@ const defaultMaxFetchBytes = int64(25 << 20) // 25 MiB
 
 func NewAttachmentStoreMigrator(store AttachmentStorer, client *http.Client, cdnBase string, logger logging.Logger) *AttachmentStoreMigrator {
 	if client == nil {
-		client = httpclient.NewWithCircuitBreaker(45*time.Second, logger, "attachment_migrator")
+		client = &http.Client{Timeout: 45 * time.Second}
 	}
 	return &AttachmentStoreMigrator{
 		store:         store,
@@ -156,11 +156,11 @@ func (m *AttachmentStoreMigrator) fetchRemote(ctx context.Context, uri, mediaTyp
 	if requestCtx == nil {
 		requestCtx = context.Background()
 	}
-	opts := httpclient.DefaultURLValidationOptions()
+	opts := defaultURLValidationOptions()
 	if m.allowLocal {
-		opts.AllowLocalhost = true
+		opts.allowLocalhost = true
 	}
-	parsed, err := httpclient.ValidateOutboundURL(uri, opts)
+	parsed, err := validateOutboundURL(uri, opts)
 	if err != nil {
 		return nil, "", err
 	}
@@ -209,7 +209,7 @@ func decodeBase64Payload(encoded string) ([]byte, error) {
 		}
 		return r
 	}, encoded)
-	decoded, err := attachments.DecodeBase64(clean)
+	decoded, err := decodeBase64(clean)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func decodeDataURI(value string) ([]byte, string, error) {
 	mediaType := strings.TrimPrefix(header, "data:")
 	mediaType = strings.TrimSuffix(mediaType, ";base64")
 
-	decoded, err := attachments.DecodeBase64(payload)
+	decoded, err := decodeBase64(payload)
 	if err != nil {
 		return nil, "", fmt.Errorf("decode base64: %w", err)
 	}
@@ -250,3 +250,67 @@ func decodeDataURI(value string) ([]byte, string, error) {
 }
 
 var _ materialports.Migrator = (*AttachmentStoreMigrator)(nil)
+
+type urlValidationOptions struct {
+	allowLocalhost       bool
+	allowPrivateNetworks bool
+}
+
+func defaultURLValidationOptions() urlValidationOptions {
+	return urlValidationOptions{}
+}
+
+func validateOutboundURL(raw string, opts urlValidationOptions) (*neturl.URL, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, fmt.Errorf("url is required")
+	}
+	parsed, err := neturl.Parse(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("invalid url: %w", err)
+	}
+	scheme := strings.ToLower(strings.TrimSpace(parsed.Scheme))
+	if scheme != "http" && scheme != "https" {
+		return nil, fmt.Errorf("unsupported url scheme: %s", scheme)
+	}
+	host := strings.ToLower(strings.TrimSpace(parsed.Hostname()))
+	if host == "" {
+		return nil, fmt.Errorf("url host is required")
+	}
+	if !opts.allowLocalhost && isLocalHostname(host) {
+		return nil, fmt.Errorf("local urls are not allowed")
+	}
+	if ip := net.ParseIP(host); ip != nil {
+		if !opts.allowLocalhost && (ip.IsLoopback() || ip.IsUnspecified()) {
+			return nil, fmt.Errorf("local urls are not allowed")
+		}
+		if !opts.allowPrivateNetworks && isPrivateIP(ip) {
+			return nil, fmt.Errorf("private network urls are not allowed")
+		}
+	}
+	return parsed, nil
+}
+
+func isLocalHostname(host string) bool {
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	return strings.HasSuffix(host, ".localhost")
+}
+
+func isPrivateIP(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	if ip.IsPrivate() {
+		return true
+	}
+	return ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast()
+}
+
+func decodeBase64(value string) ([]byte, error) {
+	if decoded, err := base64.StdEncoding.DecodeString(value); err == nil {
+		return decoded, nil
+	}
+	return base64.RawStdEncoding.DecodeString(value)
+}

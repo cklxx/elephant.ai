@@ -9,13 +9,13 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
+	toolcontext "alex/internal/app/toolcontext"
 	serverPorts "alex/internal/delivery/server/ports"
 	"alex/internal/domain/agent"
 	"alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	"alex/internal/infra/analytics"
 	"alex/internal/infra/observability"
-	"alex/internal/infra/tools/builtin/shared"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
@@ -251,7 +251,7 @@ func (svc *TaskExecutionService) executeTaskInBackground(ctx context.Context, ta
 		listener = NewMultiEventListener(svc.broadcaster, svc.progressTracker)
 	}
 
-	ctx = shared.WithParentListener(ctx, listener)
+	ctx = toolcontext.WithParentListener(ctx, listener)
 	result, err := svc.agentCoordinator.ExecuteTask(ctx, task, sessionID, listener)
 
 	if ctx.Err() != nil {

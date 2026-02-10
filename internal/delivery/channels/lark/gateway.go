@@ -14,16 +14,15 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
+	artifactruntime "alex/internal/app/artifactruntime"
 	"alex/internal/app/subscription"
+	toolcontext "alex/internal/app/toolcontext"
+	"alex/internal/app/workdir"
 	"alex/internal/delivery/channels"
 	ports "alex/internal/domain/agent/ports"
 	agent "alex/internal/domain/agent/ports/agent"
 	storage "alex/internal/domain/agent/ports/storage"
 	toolports "alex/internal/domain/agent/ports/tools"
-	larkoauth "alex/internal/infra/lark/oauth"
-	artifacts "alex/internal/infra/tools/builtin/artifacts"
-	"alex/internal/infra/tools/builtin/pathutil"
-	"alex/internal/infra/tools/builtin/shared"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/json"
 	"alex/internal/shared/logging"
@@ -81,7 +80,7 @@ type Gateway struct {
 	dedupCache         *lru.Cache[string, time.Time]
 	now                func() time.Time
 	planReviewStore    PlanReviewStore
-	oauth              *larkoauth.Service
+	oauth              toolcontext.LarkOAuthService
 	llmSelections      *subscription.SelectionStore
 	llmResolver        *subscription.SelectionResolver
 	cliCredsLoader     func() runtimeconfig.CLICredentials
@@ -189,7 +188,7 @@ func (g *Gateway) SetPlanReviewStore(store PlanReviewStore) {
 }
 
 // SetOAuthService configures the Lark user OAuth service used for user-scoped API calls.
-func (g *Gateway) SetOAuthService(svc *larkoauth.Service) {
+func (g *Gateway) SetOAuthService(svc toolcontext.LarkOAuthService) {
 	if g == nil {
 		return
 	}
@@ -613,8 +612,8 @@ func (g *Gateway) handleResetCommand(slot *sessionSlot, msg *incomingMessage) {
 	slot.mu.Unlock()
 
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", resetSessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = shared.WithLarkClient(execCtx, g.client)
-	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
+	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
 	if resetter, ok := g.agent.(interface {
 		ResetSession(ctx context.Context, sessionID string) error
 	}); ok {
@@ -678,7 +677,7 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 	awaitTracker := &awaitQuestionTracker{}
 	listener, cleanupListeners, progressLn := g.setupListeners(execCtx, msg, awaitTracker)
 	defer cleanupListeners()
-	execCtx = shared.WithParentListener(execCtx, listener)
+	execCtx = toolcontext.WithParentListener(execCtx, listener)
 
 	// Resolve task content from three distinct concerns:
 	// 1. Plan review feedback (if any pending plan review exists)
@@ -732,14 +731,14 @@ func (g *Gateway) runTask(msg *incomingMessage, sessionID string, inputCh chan a
 // buildExecContext constructs the fully-configured execution context for a task.
 func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, inputCh chan agent.UserInput) context.Context {
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = shared.WithLarkClient(execCtx, g.client)
-	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = shared.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
+	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = toolcontext.WithLarkMessageID(execCtx, msg.messageID)
 	if calendarID := strings.TrimSpace(g.cfg.TenantCalendarID); calendarID != "" {
-		execCtx = shared.WithLarkTenantCalendarID(execCtx, calendarID)
+		execCtx = toolcontext.WithLarkTenantCalendarID(execCtx, calendarID)
 	}
 	if g.oauth != nil {
-		execCtx = shared.WithLarkOAuth(execCtx, g.oauth)
+		execCtx = toolcontext.WithLarkOAuth(execCtx, g.oauth)
 	}
 	execCtx = appcontext.WithPlanReviewEnabled(execCtx, g.cfg.PlanReviewEnabled)
 	execCtx = g.applyPlanModeToContext(execCtx, msg)
@@ -747,17 +746,17 @@ func (g *Gateway) buildExecContext(msg *incomingMessage, sessionID string, input
 
 	workspaceDir := strings.TrimSpace(g.cfg.WorkspaceDir)
 	if workspaceDir == "" {
-		workspaceDir = pathutil.DefaultWorkingDir()
+		workspaceDir = workdir.DefaultWorkingDir()
 	}
 	if workspaceDir != "" {
-		execCtx = pathutil.WithWorkingDir(execCtx, workspaceDir)
+		execCtx = workdir.WithWorkingDir(execCtx, workspaceDir)
 	}
 
 	autoUploadMaxBytes := g.cfg.AutoUploadMaxBytes
 	if autoUploadMaxBytes <= 0 {
 		autoUploadMaxBytes = 2 * 1024 * 1024
 	}
-	execCtx = shared.WithAutoUploadConfig(execCtx, shared.AutoUploadConfig{
+	execCtx = toolcontext.WithAutoUploadConfig(execCtx, toolcontext.AutoUploadConfig{
 		Enabled:   g.cfg.AutoUploadFiles,
 		MaxBytes:  autoUploadMaxBytes,
 		AllowExts: normalizeExtensions(g.cfg.AutoUploadAllowExt),
@@ -1661,15 +1660,15 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 		return
 	}
 
-	ctx = shared.WithAllowLocalFetch(ctx)
+	ctx = toolcontext.WithAllowLocalFetch(ctx)
 	ctx = toolports.WithAttachmentContext(ctx, attachments, nil)
-	client := artifacts.NewAttachmentHTTPClient(artifacts.AttachmentFetchTimeout, "LarkAttachment")
+	client := artifactruntime.NewAttachmentHTTPClient(artifactruntime.AttachmentFetchTimeout, "LarkAttachment")
 	maxBytes, allowExts := autoUploadLimits(ctx)
 
 	names := sortedAttachmentNames(attachments)
 	for _, name := range names {
 		att := attachments[name]
-		payload, mediaType, err := artifacts.ResolveAttachmentBytes(ctx, "["+name+"]", client)
+		payload, mediaType, err := artifactruntime.ResolveAttachmentBytes(ctx, "["+name+"]", client)
 		if err != nil {
 			g.logger.Warn("Lark attachment %s resolve failed: %v", name, err)
 			continue
@@ -1708,7 +1707,7 @@ func (g *Gateway) sendAttachments(ctx context.Context, chatID, messageID string,
 }
 
 func autoUploadLimits(ctx context.Context) (int, []string) {
-	cfg := shared.GetAutoUploadConfig(ctx)
+	cfg := toolcontext.GetAutoUploadConfig(ctx)
 	maxBytes := cfg.MaxBytes
 	if maxBytes <= 0 {
 		maxBytes = 2 * 1024 * 1024

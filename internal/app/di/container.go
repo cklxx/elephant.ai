@@ -11,7 +11,6 @@ import (
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	"alex/internal/app/lifecycle"
 	"alex/internal/app/toolregistry"
-	"alex/internal/delivery/channels/lark"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
@@ -27,6 +26,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// LarkGateway is the minimal gateway surface needed outside delivery/channel.
+type LarkGateway interface {
+	NoticeLoader() func() (string, bool, error)
+	SendNotification(ctx context.Context, chatID, text string) error
+}
+
 // Container holds all application dependencies
 type Container struct {
 	AgentCoordinator *agentcoordinator.AgentCoordinator
@@ -41,7 +46,7 @@ type Container struct {
 	mcpInitTracker   *MCPInitializationTracker
 	mcpInitCancel    context.CancelFunc
 	SessionDB        *pgxpool.Pool
-	LarkGateway      *lark.Gateway
+	LarkGateway      LarkGateway
 	LarkOAuth        *larkoauth.Service
 
 	// Drainables holds subsystems that support graceful drain.

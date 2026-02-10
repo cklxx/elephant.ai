@@ -7,8 +7,8 @@ import (
 
 	appcontext "alex/internal/app/agent/context"
 	"alex/internal/app/subscription"
+	toolcontext "alex/internal/app/toolcontext"
 	"alex/internal/delivery/channels"
-	"alex/internal/infra/tools/builtin/shared"
 )
 
 // PlanMode controls whether tasks require plan review before execution.
@@ -36,9 +36,9 @@ func (g *Gateway) handlePlanModeCommand(msg *incomingMessage) {
 
 	sessionID := g.memoryIDForChat(msg.chatID)
 	execCtx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	execCtx = shared.WithLarkClient(execCtx, g.client)
-	execCtx = shared.WithLarkChatID(execCtx, msg.chatID)
-	execCtx = shared.WithLarkMessageID(execCtx, msg.messageID)
+	execCtx = toolcontext.WithLarkClient(execCtx, g.client)
+	execCtx = toolcontext.WithLarkChatID(execCtx, msg.chatID)
+	execCtx = toolcontext.WithLarkMessageID(execCtx, msg.messageID)
 
 	trimmed := strings.TrimSpace(msg.content)
 	fields := strings.Fields(trimmed)

@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
+	toolcontext "alex/internal/app/toolcontext"
 	agent "alex/internal/domain/agent/ports/agent"
 
 	"alex/internal/delivery/channels"
-	"alex/internal/infra/tools/builtin/shared"
 )
 
 const (
@@ -111,9 +111,9 @@ func (g *Gateway) handleNaturalTaskStatusQuery(msg *incomingMessage) {
 func (g *Gateway) buildTaskCommandContext(msg *incomingMessage) context.Context {
 	sessionID := g.memoryIDForChat(msg.chatID)
 	ctx := channels.BuildBaseContext(g.cfg.BaseConfig, "lark", sessionID, msg.senderID, msg.chatID, msg.isGroup)
-	ctx = shared.WithLarkClient(ctx, g.client)
-	ctx = shared.WithLarkChatID(ctx, msg.chatID)
-	ctx = shared.WithLarkMessageID(ctx, msg.messageID)
+	ctx = toolcontext.WithLarkClient(ctx, g.client)
+	ctx = toolcontext.WithLarkChatID(ctx, msg.chatID)
+	ctx = toolcontext.WithLarkMessageID(ctx, msg.messageID)
 	return ctx
 }
 
@@ -203,7 +203,7 @@ func (g *Gateway) dispatchViaForegroundTask(msg *incomingMessage, agentType, des
 			cleanups[i]()
 		}
 	}()
-	execCtx = shared.WithParentListener(execCtx, listener)
+	execCtx = toolcontext.WithParentListener(execCtx, listener)
 
 	if _, err := g.agent.EnsureSession(execCtx, sessionID); err != nil {
 		return fmt.Sprintf("任务派发失败: %v", err)

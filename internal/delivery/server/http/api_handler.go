@@ -1,11 +1,11 @@
 package http
 
 import (
+	"context"
+
 	"alex/internal/app/subscription"
 	"alex/internal/delivery/server/app"
-	"alex/internal/infra/memory"
 	"alex/internal/infra/observability"
-	"alex/internal/infra/sandbox"
 	runtimeconfig "alex/internal/shared/config"
 	"alex/internal/shared/logging"
 )
@@ -13,6 +13,18 @@ import (
 const (
 	defaultMaxCreateTaskBodySize int64 = 20 << 20 // 20 MiB
 )
+
+// SandboxClient is the subset used by API handlers for sandbox HTTP endpoints.
+type SandboxClient interface {
+	DoJSON(ctx context.Context, method, path string, body any, sessionID string, out any) error
+	GetBytes(ctx context.Context, path, sessionID string) ([]byte, error)
+}
+
+// MemoryEngine is the subset used by API handlers for dev memory inspection.
+type MemoryEngine interface {
+	RootDir() string
+	LoadLongTerm(ctx context.Context, userID string) (string, error)
+}
 
 // APIHandler handles REST API endpoints
 type APIHandler struct {
@@ -24,10 +36,10 @@ type APIHandler struct {
 	obs                   *observability.Observability
 	evaluationSvc         *app.EvaluationService
 	attachmentStore       *AttachmentStore
-	sandboxClient         *sandbox.Client
+	sandboxClient         SandboxClient
 	maxCreateTaskBodySize int64
 	selectionResolver     *subscription.SelectionResolver
-	memoryEngine          memory.Engine
+	memoryEngine          MemoryEngine
 }
 
 // APIHandlerOption configures API handler behavior.
@@ -56,7 +68,7 @@ func WithAttachmentStore(store *AttachmentStore) APIHandlerOption {
 }
 
 // WithSandboxClient wires a sandbox client for sandbox-related endpoints.
-func WithSandboxClient(client *sandbox.Client) APIHandlerOption {
+func WithSandboxClient(client SandboxClient) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.sandboxClient = client
 	}
@@ -70,7 +82,7 @@ func WithSelectionResolver(resolver *subscription.SelectionResolver) APIHandlerO
 }
 
 // WithMemoryEngine wires a memory engine for dev memory snapshots.
-func WithMemoryEngine(engine memory.Engine) APIHandlerOption {
+func WithMemoryEngine(engine MemoryEngine) APIHandlerOption {
 	return func(handler *APIHandler) {
 		handler.memoryEngine = engine
 	}

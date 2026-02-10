@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"alex/internal/infra/memory"
 )
 
 type MemoryDailyEntry struct {
@@ -46,7 +44,7 @@ func (h *APIHandler) HandleGetMemorySnapshot(w http.ResponseWriter, r *http.Requ
 	}
 
 	userID := strings.TrimSpace(session.Metadata["user_id"])
-	root := memory.ResolveUserRoot(h.memoryEngine.RootDir(), userID)
+	root := resolveMemoryRoot(h.memoryEngine.RootDir(), userID)
 	if root == "" {
 		h.writeJSONError(w, http.StatusNotFound, "Memory root not configured", nil)
 		return
@@ -110,4 +108,12 @@ func loadDailySnapshot(root string) ([]MemoryDailyEntry, error) {
 	}
 
 	return daily, nil
+}
+
+func resolveMemoryRoot(rootDir, _ string) string {
+	root := strings.TrimSpace(rootDir)
+	if root == "" {
+		return ""
+	}
+	return root
 }
