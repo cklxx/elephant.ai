@@ -228,11 +228,6 @@ func (w *Workflow) emit(event Event) {
 	}
 }
 
-func evaluatePhase(nodes []NodeSnapshot) (WorkflowPhase, time.Time, time.Time) {
-	analysis := analyzeSnapshots(nodes)
-	return analysis.phase, analysis.startedAt, analysis.completedAt
-}
-
 type snapshotAnalysis struct {
 	phase       WorkflowPhase
 	startedAt   time.Time
