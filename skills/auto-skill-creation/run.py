@@ -6,11 +6,19 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 import json
 import os
 import sys
 import time
-from pathlib import Path
+
+_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from skill_runner.env import load_repo_dotenv
+
+load_repo_dotenv(__file__)
 
 _SKILLS_DIR = Path(os.environ.get("ALEX_SKILLS_DIR", Path(__file__).resolve().parent.parent))
 
@@ -59,14 +67,22 @@ python3 skills/{name}/run.py '{{"action":"default", ...}}'
 """, encoding="utf-8")
 
     # run.py
-    class_name = name.replace("-", "_").title().replace("_", "")
     (skill_dir / "run.py").write_text(f'''#!/usr/bin/env python3
 """{name} skill — {description}"""
 
 from __future__ import annotations
 
+from pathlib import Path
 import json
 import sys
+
+_SCRIPTS_DIR = Path(__file__).resolve().parents[2] / "scripts"
+if str(_SCRIPTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_DIR))
+
+from skill_runner.env import load_repo_dotenv
+
+load_repo_dotenv(__file__)
 
 
 def run(args: dict) -> dict:
