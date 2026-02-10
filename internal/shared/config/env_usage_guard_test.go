@@ -40,6 +40,9 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 			return err
 		}
 		if d.IsDir() {
+			if strings.HasPrefix(d.Name(), ".worktrees-") {
+				return filepath.SkipDir
+			}
 			if _, ok := skipDirs[d.Name()]; ok {
 				return filepath.SkipDir
 			}
