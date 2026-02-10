@@ -6,17 +6,13 @@
 #   ./dev.sh                    # Start backend + web + lark (background)
 #   ./dev.sh up|start           # Start backend + web only
 #   ./dev.sh up --lark          # Start backend + web + lark (recommended)
-#   ./dev.sh all-up             # Start backend + web + lark (legacy alias)
 #   ./dev.sh sandbox-up         # Start sandbox + ACP only
 #   ./dev.sh sandbox-down       # Stop sandbox + ACP only
 #   ./dev.sh sandbox-status     # Show sandbox + ACP status only
 #   ./dev.sh down|stop          # Stop backend + web
 #   ./dev.sh status             # Show status + ports
 #   ./dev.sh logs [server|web]  # Tail logs
-#   ./dev.sh lark up            # Start lark supervisor stack only
-#   ./dev.sh lark down          # Stop lark supervisor stack only
-#   ./dev.sh lark status        # Show lark supervisor status only
-#   ./dev.sh lark logs          # Tail lark supervisor logs
+#   ./dev.sh lark [cmd]         # Lark stack (default cmd=up)
 #   ./dev.sh logs-ui            # Start services and open diagnostics workbench
 #   ./dev.sh test               # Go tests (CI parity)
 #   ./dev.sh lint               # Go + web lint
@@ -1288,9 +1284,6 @@ Usage:
 Commands:
   up|start       Start backend + web only (background)
   up --lark      Start backend + web + lark (recommended)
-  all-up         Start backend + web + lark (legacy alias)
-  all-down       Stop backend + web + lark (legacy alias, keeps sandbox/authdb running)
-  all-status     Show status for backend/web/sandbox + lark (legacy alias)
   sandbox-up     Start sandbox + ACP only
   sandbox-down   Stop sandbox + ACP only
   sandbox-status Show sandbox + ACP status
@@ -1298,15 +1291,15 @@ Commands:
   down-all       Stop everything including sandbox + authdb
   status         Show status + ports
   logs           Tail logs (optional: server|web)
-  lark <cmd>     Manage lark stack via ./lark.sh (up|down|restart|status|logs|doctor|cycle)
-  lark-up        Legacy alias of lark up
-  lark-down      Legacy alias of lark down
-  lark-status    Legacy alias of lark status
-  lark-logs      Legacy alias of lark logs
+  lark [cmd]     Manage lark stack via ./lark.sh (default: up)
+                 cmd: up|down|restart|status|logs|doctor|cycle
   logs-ui        Start services and open the diagnostics workbench
   test           Run Go tests (CI parity)
   lint           Run Go + web lint
   setup-cgo      Install CGO sqlite dependencies
+
+Legacy aliases still accepted:
+  all-up | all-down | all-status | lark-up | lark-down | lark-status | lark-logs
 EOF
 }
 

@@ -31,6 +31,7 @@ Env:
   LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS     Autofix counting window (default: 3600)
   LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS   Autofix cooldown seconds (default: 900)
   LARK_SUPERVISOR_AUTOFIX_SCOPE              Prompt scope hint (default: repo)
+  LARK_LOOP_AUTOFIX_ENABLED                  Enable loop gate auto-fix edits (default: 0)
   LARK_SUPERVISOR_NOTIFY_SH                  Notification sender script (default: scripts/lark/notify.sh)
   LARK_NOTICE_STATE_FILE                     Notice binding state file path (default: .worktrees/test/tmp/lark-notice.state.json)
   LARK_PID_DIR                    Shared pid dir override (default: <dirname(MAIN_CONFIG)>/pids)
@@ -104,6 +105,7 @@ AUTOFIX_MAX_IN_WINDOW="${LARK_SUPERVISOR_AUTOFIX_MAX_IN_WINDOW:-3}"
 AUTOFIX_WINDOW_SECONDS="${LARK_SUPERVISOR_AUTOFIX_WINDOW_SECONDS:-3600}"
 AUTOFIX_COOLDOWN_SECONDS="${LARK_SUPERVISOR_AUTOFIX_COOLDOWN_SECONDS:-900}"
 AUTOFIX_SCOPE="${LARK_SUPERVISOR_AUTOFIX_SCOPE:-repo}"
+LOOP_AUTOFIX_ENABLED="${LARK_LOOP_AUTOFIX_ENABLED:-0}"
 
 MODE="degraded"
 COOLDOWN_UNTIL=0
@@ -601,6 +603,10 @@ current_mode() {
     echo "cooldown"
     return
   fi
+  if is_validation_active && [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
+    echo "validating"
+    return
+  fi
   if [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_TEST_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
     echo "healthy"
   else
@@ -648,6 +654,7 @@ write_status_file() {
   "last_validated_sha": "${OBS_LAST_VALIDATED_SHA}",
   "cycle_phase": "${OBS_CYCLE_PHASE}",
   "cycle_result": "${OBS_CYCLE_RESULT}",
+  "loop_autofix_enabled": "${LOOP_AUTOFIX_ENABLED}",
   "last_error": "$(json_escape "${last_error}")",
   "restart_count_window": ${restart_count},
   "autofix_state": "${OBS_AUTOFIX_STATE}",
@@ -836,6 +843,7 @@ run_supervisor() {
   append_log "[supervisor] pid_dir=${PID_DIR}"
   append_log "[supervisor] main_config=$(lark_canonical_path "${MAIN_CONFIG_PATH}") test_config=$(lark_canonical_path "${TEST_CONFIG_PATH}")"
   append_log "[supervisor] autofix enabled=${AUTOFIX_ENABLED} trigger=${AUTOFIX_TRIGGER} timeout=${AUTOFIX_TIMEOUT_SECONDS}s max=${AUTOFIX_MAX_IN_WINDOW}/${AUTOFIX_WINDOW_SECONDS}s cooldown=${AUTOFIX_COOLDOWN_SECONDS}s scope=${AUTOFIX_SCOPE}"
+  append_log "[supervisor] loop_autofix_enabled=${LOOP_AUTOFIX_ENABLED}"
 
   while true; do
     run_tick
@@ -861,13 +869,21 @@ clean_stale_supervisor() {
 report_children_health() {
   observe_states
   local degraded=0
+  local validation_active=0
+  if is_validation_active; then
+    validation_active=1
+  fi
+
   if [[ "${OBS_MAIN_HEALTH}" != "healthy" ]]; then
     log_warn "  main: ${OBS_MAIN_HEALTH} (pid=${OBS_MAIN_PID:-none})"
     degraded=1
   else
     log_success "  main: healthy (pid=${OBS_MAIN_PID})"
   fi
-  if [[ "${OBS_TEST_HEALTH}" != "healthy" ]]; then
+
+  if [[ "${OBS_TEST_HEALTH}" != "healthy" ]] && (( validation_active )) && [[ "${OBS_MAIN_HEALTH}" == "healthy" && "${OBS_LOOP_HEALTH}" == "alive" ]]; then
+    log_info "  test: ${OBS_TEST_HEALTH} (pid=${OBS_TEST_PID:-none}, expected during validation phase=${OBS_CYCLE_PHASE})"
+  elif [[ "${OBS_TEST_HEALTH}" != "healthy" ]]; then
     log_warn "  test: ${OBS_TEST_HEALTH} (pid=${OBS_TEST_PID:-none})"
     degraded=1
   else
@@ -879,17 +895,31 @@ report_children_health() {
   else
     log_success "  loop: alive (pid=${OBS_LOOP_PID})"
   fi
+
   echo "  main  deployed: ${OBS_MAIN_DEPLOYED_SHA:0:8}  latest: ${OBS_MAIN_SHA:0:8}"
   echo "  test  deployed: ${OBS_TEST_DEPLOYED_SHA:0:8}  latest: ${OBS_MAIN_SHA:0:8}"
-  if [[ "${OBS_MAIN_DEPLOYED_SHA:0:8}" != "${OBS_MAIN_SHA:0:8}" ]]; then
+  if [[ "${OBS_MAIN_DEPLOYED_SHA:0:8}" != "${OBS_MAIN_SHA:0:8}" ]] && [[ "${OBS_MAIN_HEALTH}" == "healthy" ]]; then
     log_warn "  main is behind latest — will auto-upgrade on next tick"
   fi
+
   if [[ "${OBS_TEST_DEPLOYED_SHA:0:8}" != "${OBS_MAIN_SHA:0:8}" ]]; then
-    log_warn "  test is behind latest — will auto-upgrade on next tick"
+    if (( validation_active )); then
+      log_info "  test is behind latest during validation — expected; it will be restored after cycle"
+    elif [[ "${OBS_TEST_HEALTH}" == "healthy" ]]; then
+      log_warn "  test is behind latest — will auto-upgrade on next tick"
+    else
+      log_warn "  test is behind latest and currently down"
+    fi
   fi
+
   echo "  pid_dir: ${PID_DIR}"
   echo "  main config: $(lark_canonical_path "${MAIN_CONFIG_PATH}")"
   echo "  test config: $(lark_canonical_path "${TEST_CONFIG_PATH}")"
+  echo "  loop autofix: ${LOOP_AUTOFIX_ENABLED}"
+  if (( validation_active )); then
+    echo "  validation phase: ${OBS_CYCLE_PHASE} (test restart suppressed intentionally)"
+  fi
+
   if (( degraded )); then
     log_warn "Supervisor is running but some components are down (use './lark.sh logs' to investigate)"
     return 1
@@ -1026,6 +1056,7 @@ status() {
   echo "last_validated_sha: ${OBS_LAST_VALIDATED_SHA}"
   echo "cycle_phase: ${OBS_CYCLE_PHASE}"
   echo "cycle_result: ${OBS_CYCLE_RESULT}"
+  echo "loop_autofix_enabled: ${LOOP_AUTOFIX_ENABLED}"
   echo "restart_count_window: ${OBS_RESTART_COUNT_WINDOW}"
   echo "autofix_state: ${OBS_AUTOFIX_STATE}"
   echo "autofix_incident_id: ${OBS_AUTOFIX_INCIDENT_ID}"

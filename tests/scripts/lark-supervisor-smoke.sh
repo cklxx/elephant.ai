@@ -250,7 +250,7 @@ run_supervisor run-once >/dev/null
 
 status_file="${main_root}/.worktrees/test/tmp/lark-supervisor.status.json"
 [[ -f "${status_file}" ]] || { echo "missing status file: ${status_file}" >&2; exit 1; }
-for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha last_validated_sha cycle_phase cycle_result last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window; do
+for key in ts_utc mode main_pid test_pid loop_pid main_health test_health loop_alive main_sha last_processed_sha last_validated_sha cycle_phase cycle_result loop_autofix_enabled last_error restart_count_window autofix_state autofix_incident_id autofix_last_reason autofix_last_started_at autofix_last_finished_at autofix_last_commit autofix_runs_window; do
   grep -q "\"${key}\"" "${status_file}" || { echo "missing key in status: ${key}" >&2; exit 1; }
 done
 grep -q '"mode": "healthy"' "${status_file}" || { echo "expected healthy mode after run-once" >&2; exit 1; }
@@ -344,6 +344,12 @@ if [[ -f "${main_root}/pids/lark-test.pid" ]]; then
   fi
 fi
 
+# Check: mode should be "validating" (not degraded) while test is intentionally suppressed.
+if ! grep -q '"mode": "validating"' "${status_file}"; then
+  echo "expected supervisor mode=validating during validation suppression" >&2
+  exit 1
+fi
+
 # Clean up: reset loop state to idle so final stop works.
 cat > "${loop_state_file}" <<JSEOF
 {
@@ -368,19 +374,12 @@ if [[ -f "${supervisor_log}" ]]; then
   fi
 fi
 
-if [[ ! -f "${notify_calls_file}" ]]; then
-  echo "expected notify calls file after degraded transition" >&2
-  exit 1
-fi
-if ! grep -q "text=\\[lark-supervisor\\] degraded" "${notify_calls_file}"; then
-  echo "expected degraded transition notification" >&2
-  exit 1
-fi
-
-# Recovery path: idle phase allows restart; next tick should recover and notify.
+# Recovery path: idle phase allows restart; next tick should recover test process.
 run_supervisor run-once >/dev/null
-if ! grep -q "text=\\[lark-supervisor\\] recovered" "${notify_calls_file}"; then
-  echo "expected recovered transition notification" >&2
+
+recovered_test_pid="$(cat "${main_root}/pids/lark-test.pid" 2>/dev/null || true)"
+if [[ -z "${recovered_test_pid}" ]] || ! kill -0 "${recovered_test_pid}" 2>/dev/null; then
+  echo "expected test restarted after validation finished" >&2
   exit 1
 fi
 

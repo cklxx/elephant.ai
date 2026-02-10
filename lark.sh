@@ -25,6 +25,7 @@ Aliases:
 Notes:
   - This is the only supported entrypoint for local lark autonomous iteration.
   - up does exactly two things: ensure test worktree/.env, then start supervisor.
+  - loop gate auto-fix is controlled by LARK_LOOP_AUTOFIX_ENABLED (default: 0).
   - Deprecated (compat for one cycle): ./lark.sh ma ..., ./lark.sh ta ...
 EOF
 }

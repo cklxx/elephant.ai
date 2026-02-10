@@ -17,6 +17,7 @@ Env:
   SLEEP_SECONDS       Watch poll interval (default: 10)
   MAX_CYCLES          Max auto-fix cycles for fast gate (default: 5)
   MAX_CYCLES_SLOW     Max auto-fix cycles for slow gate (default: 2)
+  LARK_LOOP_AUTOFIX_ENABLED  Enable codex/claude auto-fix in gates (default: 0)
   FAST_GO_TEST_P      go test -p value for fast gate (default: 2)
   SLOW_GO_TEST_P      go test -p value for slow gate (default: 2)
 EOF
@@ -46,6 +47,7 @@ PID_DIR="$(lark_shared_pid_dir "${MAIN_CONFIG_PATH}")"
 SLEEP_SECONDS="${SLEEP_SECONDS:-10}"
 MAX_CYCLES="${MAX_CYCLES:-5}"
 MAX_CYCLES_SLOW="${MAX_CYCLES_SLOW:-2}"
+LOOP_AUTOFIX_ENABLED="${LARK_LOOP_AUTOFIX_ENABLED:-0}"
 FAST_GO_TEST_P="${FAST_GO_TEST_P:-2}"
 SLOW_GO_TEST_P="${SLOW_GO_TEST_P:-2}"
 
@@ -249,6 +251,10 @@ write_fail_summary() {
 auto_fix() {
   local phase="$1"
   local base_sha="$2"
+  if [[ "${LOOP_AUTOFIX_ENABLED}" != "1" ]]; then
+    append_log "[auto-fix] phase=${phase} skipped (LARK_LOOP_AUTOFIX_ENABLED=${LOOP_AUTOFIX_ENABLED})"
+    return 0
+  fi
   write_fail_summary
 
   local prompt
@@ -313,7 +319,7 @@ restart_main_agent() {
 run_cycle_locked() {
   local base_sha="$1"
 
-  append_log "=== CYCLE START base_sha=${base_sha} ==="
+  append_log "=== CYCLE START base_sha=${base_sha} autofix=${LOOP_AUTOFIX_ENABLED} ==="
   write_loop_state "${base_sha}" "start" "running" ""
 
   "${WORKTREE_SH}" ensure >> "${LOOP_LOG}" 2>&1 || true
@@ -329,17 +335,28 @@ run_cycle_locked() {
   # --- FAST GATE ---
   write_loop_state "${base_sha}" "fast_gate" "running" ""
   local i
+  local fast_passed=0
   for i in $(seq 1 "${MAX_CYCLES}"); do
     append_log "[fast] attempt ${i}/${MAX_CYCLES}"
     if run_fast_gate "${base_sha}"; then
       append_log "[fast] pass"
+      fast_passed=1
+      break
+    fi
+    if [[ "${LOOP_AUTOFIX_ENABLED}" != "1" ]]; then
+      append_log "[fast] fail; auto-fix disabled (set LARK_LOOP_AUTOFIX_ENABLED=1 to enable)"
       break
     fi
     append_log "[fast] fail; auto-fixing"
     auto_fix "fast" "${base_sha}"
+    if run_fast_gate "${base_sha}"; then
+      append_log "[fast] pass after auto-fix"
+      fast_passed=1
+      break
+    fi
   done
 
-  if ! run_fast_gate "${base_sha}"; then
+  if [[ "${fast_passed}" != "1" ]]; then
     append_log "[fast] exhausted; giving up"
     write_loop_state "${base_sha}" "fast_gate" "failed" "fast gate exhausted"
     restore_test_to_validated
@@ -350,17 +367,28 @@ run_cycle_locked() {
   # --- SLOW GATE ---
   write_loop_state "${base_sha}" "slow_gate" "running" ""
   local j
+  local slow_passed=0
   for j in $(seq 1 "${MAX_CYCLES_SLOW}"); do
     append_log "[slow] attempt ${j}/${MAX_CYCLES_SLOW}"
     if run_slow_gate "${base_sha}"; then
       append_log "[slow] pass"
+      slow_passed=1
+      break
+    fi
+    if [[ "${LOOP_AUTOFIX_ENABLED}" != "1" ]]; then
+      append_log "[slow] fail; auto-fix disabled (set LARK_LOOP_AUTOFIX_ENABLED=1 to enable)"
       break
     fi
     append_log "[slow] fail; auto-fixing"
     auto_fix "slow" "${base_sha}"
+    if run_slow_gate "${base_sha}"; then
+      append_log "[slow] pass after auto-fix"
+      slow_passed=1
+      break
+    fi
   done
 
-  if ! run_slow_gate "${base_sha}"; then
+  if [[ "${slow_passed}" != "1" ]]; then
     append_log "[slow] exhausted; giving up"
     write_loop_state "${base_sha}" "slow_gate" "failed" "slow gate exhausted"
     restore_test_to_validated
@@ -426,7 +454,7 @@ watch() {
   init_test_paths
   write_loop_state "" "watch" "idle" ""
 
-  log_info "Watching main commits (poll=${SLEEP_SECONDS}s)..."
+  log_info "Watching main commits (poll=${SLEEP_SECONDS}s, autofix=${LOOP_AUTOFIX_ENABLED})..."
 
   while true; do
     local main_sha last_sha
