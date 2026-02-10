@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-10 21:00
+Updated: 2026-02-10 23:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -13,6 +13,7 @@ Updated: 2026-02-10 21:00
 - Context autonomy upgrades should prefer host CLI exploration (`command -v` / deterministic probes) and inject only safe, redacted environment hints (never raw secret env vars).
 - Use `CGO_ENABLED=0` for `go test -race` on darwin CLT to avoid LC_DYSYMTAB warnings.
 - Apply response-size caps + retention/backpressure to prevent unbounded growth.
+- Long-lived per-session metrics maps (e.g., broadcaster/session counters) must enforce cap + TTL pruning; never keep unbounded session keys.
 - Streaming UI performance: dedup events, cap with LRU, RAF buffer, defer markdown parsing.
 - Proactive hooks: hook registry + per-request MemoryPolicy; cache skills + precompile regex.
 - Event partitioning: groupKey uses `parent_run_id`; subagent detection is `parent_run_id != run_id`.

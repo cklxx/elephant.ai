@@ -26,13 +26,14 @@
 - [x] Implement targeted fix + unit/integration tests.
 - [x] Run `alex dev lint` + `alex dev test`.
 - [x] Mandatory code review workflow + incremental commits.
-- [ ] Merge back to `main` and clean up worktree.
+- [x] Merge back to `main` and clean up worktree.
 
 ## Progress Log
 - 2026-02-10 23:32 CST: Initialized worktree `fix/startup-memory-oom-20260210`, copied `.env`, loaded engineering practices and recent memory summaries.
 - 2026-02-10 23:45 CST: Identified root cause - unbounded sync.Map in broadcaster metrics (`dropsPerSession`, `noClientBySession`) growing indefinitely with abandoned sessions.
 - 2026-02-10 23:52 CST: Implemented `boundedSessionCounterStore` with 2048-entry cap, 30min TTL, LRU eviction. Added unit + integration tests.
 - 2026-02-10 23:55 CST: Rebased to main, passed lint + all tests. Code review completed: 0 P0/P1 issues, 1 P2 perf suggestion (heap-based LRU). **Approved for merge**.
+- 2026-02-10 23:56 CST: Merged to `main` via incremental commits (`36cea002`, `bc6c494e`, `c859660f`); final `alex dev lint` passed.
 
 ## Code Review Summary
 - **Verdict**: ✅ Approved
