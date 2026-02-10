@@ -89,6 +89,7 @@ When making decisions, prefer:
   * After completing code changes, restart only the changed service: `alex dev restart backend` or `alex dev restart web`. Avoid `./dev.sh down && ./dev.sh` which unnecessarily restarts infra.
   * Any change must be fully tested before delivery; use TDD and cover edge cases as much as possible.
   * Avoid unnecessary defensive code; if context guarantees invariants, use direct access instead of `getattr` or guard clauses.
+  * If intelligent automation can reliably take over a solution, do not introduce a complex workflow orchestration scheme.
 
 ---
 
