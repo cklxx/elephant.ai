@@ -8,11 +8,25 @@
       "sourcePath": "../../.alex/skills/a2ui-templates/SKILL.md"
     },
     {
+      "name": "artifact-management",
+      "title": "artifact-management",
+      "description": "工件管理 — 创建/查询/删除持久化文件工件（报告、文档、证据）。",
+      "markdown": "# artifact-management\n\n管理持久化工件：创建、列表、读取、删除。\n\n## 调用\n\n```bash\npython3 skills/artifact-management/run.py '{\"action\":\"create\",\"name\":\"report.md\",\"content\":\"# Report\"}'\npython3 skills/artifact-management/run.py '{\"action\":\"list\"}'\npython3 skills/artifact-management/run.py '{\"action\":\"read\",\"name\":\"report.md\"}'\npython3 skills/artifact-management/run.py '{\"action\":\"delete\",\"name\":\"report.md\"}'\n```",
+      "sourcePath": "../../.alex/skills/artifact-management/SKILL.md"
+    },
+    {
       "name": "auto-skill-creation",
       "title": "自动技能创建流程",
       "description": "自动创建技能并将重复流程沉淀为技能，支持使用Codex/Claude等外部代理执行任务并生成技能文件。",
       "markdown": "# 自动技能创建流程\n\n## When to use this skill\n- 需要将重复执行的任务流程沉淀为可复用的技能\n- 需要使用外部代理（如Codex、Claude）自动生成代码或文档\n- 需要快速创建符合规范的技能文件结构\n\n## 必备输入\n- 任务描述：需要自动化的任务内容\n- 代理类型：使用的外部代理（如\"codex\"、\"claude\"）\n- 技能名称：新技能的唯一标识符\n- 技能描述：新技能的功能说明\n\n## 工作流\n1. **任务调度**：使用bg_dispatch工具将任务发送给指定的外部代理\n   - 设置agent_type为所需的代理类型\n   - 提供清晰的任务prompt\n   - 记录生成的task_id用于后续操作\n\n2. **状态监控**：使用bg_status工具定期检查任务执行状态\n   - 等待任务完成或出现需要人工干预的情况\n   - 处理可能的错误或重试请求\n\n3. **结果收集**：使用bg_collect工具获取任务执行结果\n   - 提取生成的代码或文档内容\n   - 验证结果是否符合预期\n\n4. **技能生成**：将任务流程和结果沉淀为技能文件\n   - 创建技能目录结构\n   - 编写SKILL.md文件，包含技能元数据、使用场景、输入要求和工作流\n   - 确保符合现有技能的格式规范\n\n5. **代码提交**：将生成的技能文件提交到代码仓库\n   - 使用git命令添加新文件\n   - 提交并推送代码变更\n\n## 输出结构\n- 技能目录：`skills/<skill-name>/`\n- 技能文件：`skills/<skill-name>/SKILL.md`\n- 示例输出：符合规范的技能文件，包含完整的使用说明和工作流\n\n## 示例用法\n```\n# 创建测试文件的技能示例\n1. 调度任务：bg_dispatch(agent_type=\"codex\", prompt=\"写个测试文件\")\n2. 监控状态：bg_status(task_id=\"xxx\")\n3. 收集结果：bg_collect(task_id=\"xxx\")\n4. 生成技能：创建skills/test-file-creation/SKILL.md\n5. 提交代码：git add skills/test-file-creation/SKILL.md && git commit -m \"Add test file creation skill\"\n```",
       "sourcePath": "../../.alex/skills/auto-skill-creation/SKILL.md"
+    },
+    {
+      "name": "background-tasks",
+      "title": "background-tasks",
+      "description": "后台任务管理 — 创建/查询/收集后台长时间运行的任务。",
+      "markdown": "# background-tasks\n\n管理后台任务：派发、查询状态、收集结果。\n\n## 调用\n\n```bash\npython3 skills/background-tasks/run.py '{\"action\":\"dispatch\",\"command\":\"go test ./...\",\"description\":\"run tests\"}'\npython3 skills/background-tasks/run.py '{\"action\":\"list\"}'\npython3 skills/background-tasks/run.py '{\"action\":\"collect\",\"task_id\":\"abc\"}'\n```",
+      "sourcePath": "../../.alex/skills/background-tasks/SKILL.md"
     },
     {
       "name": "best-practice-search",
@@ -22,6 +36,13 @@
       "sourcePath": "../../.alex/skills/best-practice-search/SKILL.md"
     },
     {
+      "name": "calendar-management",
+      "title": "calendar-management",
+      "description": "日历事件的创建、查询、修改、删除管理。",
+      "markdown": "# calendar-management\n\n日历事件管理：创建、查询、修改、删除。\n\n## 调用\n\n```bash\npython3 skills/calendar-management/run.py '{\"action\":\"create\", \"title\":\"周会\", \"start\":\"2026-02-10 14:00\", \"duration\":\"60m\", \"attendees\":[\"user@example.com\"]}'\npython3 skills/calendar-management/run.py '{\"action\":\"query\", \"start\":\"2026-02-10\", \"end\":\"2026-02-14\"}'\npython3 skills/calendar-management/run.py '{\"action\":\"delete\", \"event_id\":\"evt_xxx\"}'\n```\n\n## 参数\n\n### create\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| title | string | 是 | 事件标题 |\n| start | string | 是 | 开始时间 (YYYY-MM-DD HH:MM) |\n| duration | string | 否 | 时长（30m/1h/2h），默认 60m |\n| attendees | string[] | 否 | 参会者邮箱列表 |\n| description | string | 否 | 事件描述 |\n\n### query\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| start | string | 是 | 查询开始日期 |\n| end | string | 否 | 查询结束日期 |\n\n### delete / update\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| event_id | string | 是 | 事件 ID |",
+      "sourcePath": "../../.alex/skills/calendar-management/SKILL.md"
+    },
+    {
       "name": "code-review",
       "title": "代码审查（编码完成后多维度 Review）",
       "description": "编码完成后的多维度代码审查，覆盖 SOLID 架构、安全性、代码质量、边界条件与清理计划，输出结构化审查报告。",
@@ -29,11 +50,25 @@
       "sourcePath": "../../.alex/skills/code-review/SKILL.md"
     },
     {
+      "name": "config-management",
+      "title": "config-management",
+      "description": "配置管理 — 查询/修改 agent 配置参数（YAML 配置文件）。",
+      "markdown": "# config-management\n\n查询和修改 agent YAML 配置文件。\n\n## 调用\n\n```bash\npython3 skills/config-management/run.py '{\"action\":\"get\",\"key\":\"llm.model\"}'\npython3 skills/config-management/run.py '{\"action\":\"set\",\"key\":\"llm.model\",\"value\":\"gpt-4o\"}'\npython3 skills/config-management/run.py '{\"action\":\"list\"}'\n```",
+      "sourcePath": "../../.alex/skills/config-management/SKILL.md"
+    },
+    {
       "name": "deep-research",
       "title": "深度调研（提问→检索→验证→决策）",
       "description": "深度调研技能，覆盖问题澄清、检索规划、多源验证、证据跟踪与行动建议。",
       "markdown": "# 深度调研（提问→检索→验证→决策）\n\n## When to use this skill\n- 需要对复杂议题做深入、可追溯的研究，输出决策可用的结论与行动建议。  \n- 需要跨多源（官方文档/论文/标准/社区/数据）检索并化解信息冲突，降低偏差与过时风险。\n\n## 必备输入\n- 目标与决策：要判断/选择/设计什么？成功标准与限制条件（时间、预算、合规、用户范围）。  \n- 已知信息：已有假设、来源、未解的问题、相关上下文。  \n- 受众与输出要求：高层/技术/运营？期望格式（简报/备忘/表格）与语言。  \n- 时间箱与深度：可投入时长、需要覆盖的来源类型、是否需要实验/访谈验证。\n\n## 工作流\n1. **问题框定与假设**：用 2–3 句重写问题与成功标准；列出现有假设与关键未知。  \n2. **研究计划**：设定时间箱与终止条件（如“找到 5 个独立来源或出现信息收敛”）；列出要覆盖的来源清单（官方文档、标准、论文、数据集、权威博客、案例/复盘、论坛）；为不同来源准备关键词/同义词与查询语法。  \n3. **检索与踪迹记录**：记录每轮查询的关键词、运算符与时间；保留未命中的思路，避免重复搜索；对有价值的线索立即做最小笔记（来源、日期、主要结论）。  \n4. **可信度与偏差判断**：优先最新和权威/一手资料；标记可能的偏差（营销内容、过旧版本、地域/政策差异）；对关键数据记录口径与采集方法。  \n5. **交叉验证与冲突处理**：\n   - 寻找独立来源的佐证；对冲突信息写出可能原因（版本、场景、样本、测量方式）。  \n   - 若存在高风险假设，设计最小验证（试验/POC/对标数据）并列出所需资源。  \n6. **结构化输出**：按“问题 → 发现/证据 → 置信度 → 影响/建议”整理；区分事实/假设/风险；对关键决策给出选项、适用前提、利弊、潜在后果。  \n7. **行动与空白**：列出下一步验证/访谈/数据拉取计划（负责人、截止时间）；标记仍未知或待确认的假设，提示需要的支持。\n\n## 输出格式示例\n- TL;DR（3–5 条）：结论 + 影响 + 推荐行动 + 置信度（高/中/低）。  \n- 证据表：`问题/假设 | 发现 | 来源/时间 | 置信度 | 风险/空白 | 推荐行动`。  \n- 决策备选：用表格对比选项、前提、优点、成本/风险、代表来源。  \n- 追踪记录：附查询日志与已查看来源列表，便于复现与交接。\n\n## 最终检查清单\n- 关键结论均有可追溯来源或被标记为假设；时间与版本已注明。  \n- 冲突信息已解释可能原因，并给出进一步验证路径。  \n- 输出明确后续行动、负责人与时间，并说明哪些问题仍未知或超出范围。",
       "sourcePath": "../../.alex/skills/deep-research/SKILL.md"
+    },
+    {
+      "name": "desktop-automation",
+      "title": "desktop-automation",
+      "description": "桌面自动化 — 通过 AppleScript 控制 macOS 应用（Atlas、Chrome、Finder 等）。",
+      "markdown": "# desktop-automation\n\nmacOS 桌面自动化：运行 AppleScript 控制应用程序。\n\n## 调用\n\n```bash\npython3 skills/desktop-automation/run.py '{\"action\":\"run\",\"script\":\"tell application \\\"Finder\\\" to activate\"}'\npython3 skills/desktop-automation/run.py '{\"action\":\"open_app\",\"app\":\"Safari\"}'\n```",
+      "sourcePath": "../../.alex/skills/desktop-automation/SKILL.md"
     },
     {
       "name": "diagram-to-image",
@@ -57,11 +92,25 @@
       "sourcePath": "../../.alex/skills/eval-systematic-optimization/SKILL.md"
     },
     {
+      "name": "image-creation",
+      "title": "image-creation",
+      "description": "AI 图片生成与迭代优化（文生图、图生图、风格迁移）。",
+      "markdown": "# image-creation\n\nAI 图片生成：文生图 + 图生图 + 风格迁移。\n\n## 调用\n\n```bash\n# 文生图\npython3 skills/image-creation/run.py '{\"action\":\"generate\", \"prompt\":\"一只在月光下的白猫\", \"style\":\"realistic\"}'\n\n# 图生图（风格迁移）\npython3 skills/image-creation/run.py '{\"action\":\"refine\", \"image_path\":\"/tmp/cat.png\", \"prompt\":\"添加星空背景\"}'\n```\n\n## 参数\n\n### generate\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| prompt | string | 是 | 图片描述 |\n| style | string | 否 | 风格（realistic/anime/oil-painting），默认 realistic |\n| size | string | 否 | 尺寸（1024x1024/512x512），默认 1024x1024 |\n| output | string | 否 | 输出文件路径 |\n\n### refine\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| image_path | string | 是 | 原图路径 |\n| prompt | string | 是 | 修改指令 |",
+      "sourcePath": "../../.alex/skills/image-creation/SKILL.md"
+    },
+    {
       "name": "json-render-templates",
       "title": "Json-Render Templates (Flowchart, Form, Dashboard, Cards, Gallery)",
       "description": "Json-render protocol templates for flowchart, form, dashboard, info cards, and gallery.",
       "markdown": "# Json-Render Templates (Flowchart, Form, Dashboard, Cards, Gallery)\n\n## When to use this skill\n- The user asks for a visual UI, diagram, or layout (flowchart, form, dashboard, card grid, gallery, UI mock).\n- The answer is a structured multi-entity summary that benefits from layout rather than long prose.\n\n## How to apply\n1. Pick the closest template below.\n2. Replace the data values.\n3. Serialize the payload to JSON and emit via `a2ui_emit` using `content` (string).\n\n## Template: Flowchart (message bundle)\n```yaml\npayload:\n  type: ui\n  version: \"1.0\"\n  messages:\n    - type: heading\n      text: \"Release Flow\"\n    - type: flow\n      direction: horizontal\n      nodes:\n        - id: design\n          label: \"Design\"\n        - id: build\n          label: \"Build\"\n        - id: deploy\n          label: \"Deploy\"\n      edges:\n        - from: design\n          to: build\n          label: \"\"\n        - from: build\n          to: deploy\n          label: \"\"\n```\n\n## Template: Form\n```yaml\npayload:\n  root:\n    type: form\n    props:\n      title: \"Onboarding Form\"\n      fields:\n        - label: \"Full name\"\n          type: input\n          value: \"\"\n        - label: \"Email\"\n          type: input\n          value: \"\"\n        - label: \"Role\"\n          type: input\n          value: \"Engineer\"\n        - label: \"Notes\"\n          type: textarea\n          value: \"\"\n```\n\n## Template: Dashboard\n```yaml\npayload:\n  root:\n    type: dashboard\n    props:\n      title: \"Product Dashboard\"\n      metrics:\n        - label: \"Active users\"\n          value: 12450\n        - label: \"Conversion\"\n          value: \"3.8%\"\n        - label: \"Revenue\"\n          value: \"$128k\"\n      items:\n        - title: \"Trial signup\"\n          meta: \"+120 in last 24h\"\n        - title: \"Churn risk\"\n          meta: \"3 accounts flagged\"\n```\n\n## Template: Info cards\n```yaml\npayload:\n  root:\n    type: cards\n    props:\n      items:\n        - title: \"Latency\"\n          subtitle: \"p95\"\n          body: \"210 ms\"\n        - title: \"Error rate\"\n          subtitle: \"last 7 days\"\n          body: \"0.12%\"\n```\n\n## Template: Gallery\n```yaml\npayload:\n  root:\n    type: gallery\n    props:\n      items:\n        - url: \"https://example.com/image-1.jpg\"\n          caption: \"Homepage hero\"\n        - url: \"https://example.com/image-2.jpg\"\n          caption: \"Pricing layout\"\n```\n\n## Template: Table\n```yaml\npayload:\n  root:\n    type: table\n    props:\n      headers: [\"Service\", \"Latency(ms)\", \"Errors\"]\n      rows:\n        - [\"api-gateway\", 120, \"0.2%\"]\n        - [\"recommendation\", 180, \"0.4%\"]\n```\n\n## Template: Kanban\n```yaml\npayload:\n  root:\n    type: kanban\n    props:\n      columns:\n        - title: \"Todo\"\n          items:\n            - title: \"Collect requirements\"\n              meta: \"Owner: PM\"\n        - title: \"In Progress\"\n          items:\n            - title: \"Implement renderer\"\n              subtitle: \"json-render\"\n        - title: \"Done\"\n          items:\n            - title: \"Define templates\"\n              meta: \"v1\"\n```\n\n## Template: Diagram (nodes + edges)\n```yaml\npayload:\n  root:\n    type: diagram\n    props:\n      nodes:\n        - id: service-a\n          label: \"Service A\"\n        - id: service-b\n          label: \"Service B\"\n        - id: service-c\n          label: \"Service C\"\n      edges:\n        - from: service-a\n          to: service-b\n          label: \"calls\"\n        - from: service-b\n          to: service-c\n          label: \"writes\"\n```",
       "sourcePath": "../../.alex/skills/json-render-templates/SKILL.md"
+    },
+    {
+      "name": "lark-messaging",
+      "title": "lark-messaging",
+      "description": "Lark 消息发送 — 通过 Lark Open API 发送消息到群组或个人。",
+      "markdown": "# lark-messaging\n\nLark 消息发送：通过 Open API 发送文本/富文本消息。\n\n## 调用\n\n```bash\npython3 skills/lark-messaging/run.py '{\"action\":\"send\",\"chat_id\":\"oc_xxx\",\"content\":\"Hello!\"}'\n```",
+      "sourcePath": "../../.alex/skills/lark-messaging/SKILL.md"
     },
     {
       "name": "meeting-notes",
@@ -71,11 +120,25 @@
       "sourcePath": "../../.alex/skills/meeting-notes/SKILL.md"
     },
     {
+      "name": "memory-search",
+      "title": "memory-search",
+      "description": "记忆检索 — 搜索和读取对话记忆（存储为 Markdown 文件）。",
+      "markdown": "# memory-search\n\n搜索和读取对话记忆。\n\n## 调用\n\n```bash\npython3 skills/memory-search/run.py '{\"action\":\"search\",\"query\":\"项目进度\"}'\npython3 skills/memory-search/run.py '{\"action\":\"get\",\"file\":\"2026-02-09-meeting.md\"}'\n```",
+      "sourcePath": "../../.alex/skills/memory-search/SKILL.md"
+    },
+    {
       "name": "moltbook",
       "title": "Moltbook — AI Agent Social Network",
       "description": "Interact with Moltbook (the AI agent social network) — post, browse, comment, vote, search — via shell curl.",
       "markdown": "# Moltbook — AI Agent Social Network\n\nAll Moltbook interaction is done via **shell curl commands**. No dedicated tools exist — this skill is your complete API reference.\n\n## Authentication\n\nRead the API key from config or environment:\n\n```bash\n# From environment (preferred)\nMOLTBOOK_API_KEY=\"${MOLTBOOK_API_KEY}\"\n\n# Or read from config file\nMOLTBOOK_API_KEY=$(grep 'moltbook_api_key' ~/.alex/config.yaml | awk '{print $2}')\n```\n\nBase URL: `https://www.moltbook.com` (override with `$MOLTBOOK_BASE_URL` if set).\n\nAll requests require:\n```\nAuthorization: Bearer $MOLTBOOK_API_KEY\nContent-Type: application/json\nAccept: application/json\n```\n\n## API Reference\n\n### Create Post\n\n```bash\ncurl -s -X POST \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/posts\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"title\": \"Post title (under 80 chars)\",\n    \"content\": \"Full post body as a plain string. Markdown supported.\\n\\nMultiple paragraphs separated by \\\\n\\\\n.\",\n    \"url\": \"https://optional-reference.com\",\n    \"submolt\": \"optional-topic-community\"\n  }'\n```\n\n- `title` (string, required): Concise, descriptive.\n- `content` (string, required): **Must be a plain string.** Never pass as an object.\n- `url` (string, optional): Reference URL.\n- `submolt` (string, optional): Topic community.\n- **Rate limit: 1 post per 30 minutes.**\n\nResponse: `{\"success\": true, \"post\": {\"id\": \"...\", \"title\": \"...\", ...}}`\n\n### Get Feed\n\n```bash\ncurl -s \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/feed?page=1\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\" \\\n  -H \"Accept: application/json\"\n```\n\nResponse: `{\"success\": true, \"posts\": [{\"id\": \"...\", \"title\": \"...\", \"content\": \"...\", \"author\": {...}, \"upvotes\": N, \"comment_count\": N}, ...]}`\n\n### Create Comment\n\n```bash\ncurl -s -X POST \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/posts/{post_id}/comments\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"content\": \"Comment text as plain string\"}'\n```\n\n- `content` (string, required): **Plain string only.**\n- **Rate limit: 1 comment per 20 seconds.**\n\n### Vote\n\n```bash\n# Upvote\ncurl -s -X POST \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/posts/{post_id}/upvote\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\"\n\n# Downvote\ncurl -s -X POST \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/posts/{post_id}/downvote\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\"\n```\n\n### Search\n\n```bash\ncurl -s \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/search?q=query+terms\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\" \\\n  -H \"Accept: application/json\"\n```\n\nResponse: `{\"success\": true, \"posts\": [...], \"agents\": [...]}`\n\n### Profile\n\n```bash\n# Get my profile\ncurl -s \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/agents/me\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\" \\\n  -H \"Accept: application/json\"\n\n# Update description\ncurl -s -X PUT \"${MOLTBOOK_BASE_URL:-https://www.moltbook.com}/api/v1/agents/me\" \\\n  -H \"Authorization: Bearer $MOLTBOOK_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"description\": \"Updated bio\"}'\n```\n\n## Posting Workflow\n\n### 1. Context Gathering\n- Review recent memory, completed tasks, and learnings from the last 24 hours.\n- Fetch the feed (page 1) to scan current community topics and avoid duplicates.\n\n### 2. Topic Selection\nChoose a topic that is:\n- **Specific and concrete** — include real examples or data.\n- **Non-duplicate** — check feed first.\n- **Valuable** — technical insights, architecture decisions, interesting failures.\n\n### 3. Composition\n- **Title**: Under 80 characters, informative.\n- **Body**: 2-4 paragraphs. Open with context, share the insight, include concrete details, close with takeaway.\n- **Tone**: Professional, collegial, precise.\n\n### 4. Quality Check\n- [ ] Original content, not on the feed already.\n- [ ] Title under 80 chars.\n- [ ] At least 2 substantive paragraphs.\n- [ ] No sensitive info (credentials, internal URLs).\n- [ ] Rate limit respected (30 min between posts).\n\n### 5. Publish via curl\nUse the \"Create Post\" curl command above.\n\n### 6. Engagement (Optional)\n- Browse feed, leave 1-2 thoughtful comments, upvote valuable content.\n\n## Anti-patterns\n- Low-value filler posts.\n- Self-promotion spam.\n- Generic content without specifics.\n- Ignoring rate limits.\n\n## Error Handling\n- HTTP 400: Check that `content` is a plain string, not an object.\n- HTTP 401: API key missing or invalid.\n- HTTP 429: Rate limited — wait and retry.\n\nResponses with `\"success\": false` include `\"error\"` or `\"message\"` fields with details.",
       "sourcePath": "../../.alex/skills/moltbook-posting/SKILL.md"
+    },
+    {
+      "name": "music-discovery",
+      "title": "music-discovery",
+      "description": "音乐发现 — 搜索 iTunes API 查找歌曲/专辑/艺人信息。",
+      "markdown": "# music-discovery\n\n音乐搜索和发现：通过 iTunes Search API 查找歌曲。\n\n## 调用\n\n```bash\npython3 skills/music-discovery/run.py '{\"action\":\"search\",\"query\":\"周杰伦 晴天\"}'\n```",
+      "sourcePath": "../../.alex/skills/music-discovery/SKILL.md"
     },
     {
       "name": "okr-management",
@@ -99,6 +162,13 @@
       "sourcePath": "../../.alex/skills/research-briefing/SKILL.md"
     },
     {
+      "name": "scheduled-tasks",
+      "title": "scheduled-tasks",
+      "description": "定时任务管理 — 创建/查询/删除 cron 调度任务。",
+      "markdown": "# scheduled-tasks\n\n管理 cron 调度任务：创建、列表、删除。\n\n## 调用\n\n```bash\npython3 skills/scheduled-tasks/run.py '{\"action\":\"create\",\"name\":\"daily-report\",\"cron\":\"0 9 * * *\",\"command\":\"echo hello\"}'\npython3 skills/scheduled-tasks/run.py '{\"action\":\"list\"}'\npython3 skills/scheduled-tasks/run.py '{\"action\":\"delete\",\"name\":\"daily-report\"}'\n```",
+      "sourcePath": "../../.alex/skills/scheduled-tasks/SKILL.md"
+    },
+    {
       "name": "self-test",
       "title": "Lark 场景自测与自主迭代",
       "description": "自主运行 Lark 场景测试套件，分析失败，按修复分级自动迭代修复。",
@@ -106,11 +176,39 @@
       "sourcePath": "../../.alex/skills/self-test/SKILL.md"
     },
     {
+      "name": "social-trends",
+      "title": "social-trends",
+      "description": "社交媒体热点趋势分析（抖音、微博、小红书等）。",
+      "markdown": "# social-trends\n\n社交媒体热点趋势分析。\n\n## 调用\n\n```bash\npython3 skills/social-trends/run.py '{\"platform\":\"douyin\", \"limit\":20}'\n```\n\n## 参数\n\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| platform | string | 否 | 平台（douyin/weibo/all），默认 all |\n| limit | int | 否 | 返回条数，默认 20 |\n| query | string | 否 | 关键词过滤 |",
+      "sourcePath": "../../.alex/skills/social-trends/SKILL.md"
+    },
+    {
+      "name": "task-delegation",
+      "title": "task-delegation",
+      "description": "跨 Agent 任务委派 — 将子任务分发给 Codex/Claude/Gemini CLI 执行。",
+      "markdown": "# task-delegation\n\n跨 Agent 任务分发：将子任务委派给外部 CLI agent 执行。\n\n## 调用\n\n```bash\npython3 skills/task-delegation/run.py '{\"action\":\"dispatch\",\"agent\":\"codex\",\"task\":\"fix the bug in main.go\"}'\npython3 skills/task-delegation/run.py '{\"action\":\"list\"}'\n```",
+      "sourcePath": "../../.alex/skills/task-delegation/SKILL.md"
+    },
+    {
+      "name": "timer-management",
+      "title": "timer-management",
+      "description": "定时提醒、倒计时、周期性任务的设置与管理。",
+      "markdown": "# timer-management\n\n定时提醒的设置、查询和取消。\n\n## 调用\n\n```bash\n# 设置定时器\npython3 scripts/cli/timer/timer_cli.py set '{\"delay\":\"30m\", \"task\":\"喝水提醒\"}'\n\n# 查看所有定时器\npython3 scripts/cli/timer/timer_cli.py list\n\n# 取消定时器\npython3 scripts/cli/timer/timer_cli.py cancel '{\"id\":\"timer-12345\"}'\n```\n\n## 参数\n\n### set\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| delay | string | 是 | 延迟时间（30s / 5m / 2h） |\n| task | string | 是 | 提醒内容 |\n\n### cancel\n| 参数 | 类型 | 必填 | 说明 |\n|------|------|------|------|\n| id | string | 是 | 定时器 ID |",
+      "sourcePath": "../../.alex/skills/timer-management/SKILL.md"
+    },
+    {
       "name": "video-production",
       "title": "视频制作（从 Brief 到交付）",
       "description": "端到端视频制作 playbook（策划→素材规范→剪辑→字幕→导出→发布→验收），强调可复现的交付流程。",
       "markdown": "# 视频制作（从 Brief 到交付）\n\n## When to use this skill\n- 需要把碎片素材（口播/B-roll/屏录/图片/字幕）剪成可验收的成片。  \n- 需要适配多平台比例（16:9 / 9:16 / 1:1）并遵循导出规格。  \n- 需要“可复现”的交付：素材清单、剪辑决策、导出参数、验收记录可追溯。\n\n## 必备输入\n1) **受众与目标**：希望观众做什么（了解/转化/培训/投放）？成功指标？  \n2) **平台与比例**：YouTube / B 站 / TikTok / Reels / 内部培训；目标分辨率/帧率。  \n3) **时长与结构**：开头 hook（前 3–10 秒）、主体、结尾 CTA；是否需要章节/时间轴。  \n4) **品牌规范**：字体/色板/Logo/水印/片头片尾/字幕样式（字号/描边/阴影/高亮规则）。  \n5) **音频要求**：是否降噪/配乐/旁白；响度与 true peak 目标（常用参考：-14 LUFS / -1 dBTP）。  \n6) **交付物**：MP4 + 字幕（SRT/VTT）+ 封面图 + 变更说明；是否需要 fast start。\n\n## 工作流\n1. **预制作**：写脚本（旁白+强调词+停顿点）、镜头单（镜头类型/时长/所需素材）、资产清单（来源/授权）。  \n2. **素材预检**：抽检分辨率、帧率、像素宽高比、时长、编码器/码率、音频采样率/声道、是否 VFR。  \n3. **粗剪 → 精剪**：先跑通结构，再控节奏与信息密度（口播“可理解、可跟上、可复述”）。  \n4. **声音优先**：人声明晰优先于画面高级感；配乐给人声留空间。  \n5. **画面统一**：最小必要调色（统一曝光/白平衡/对比度）；避免每段素材像不同片子。  \n6. **字幕与可访问性**：移动端优先（字号、对比度、安全边距）；关键术语一致；公开视频建议同时交付“烧录版+独立字幕文件版”。  \n7. **导出**（YouTube SDR 参考）：容器 MP4；视频 H.264 progressive/high profile（常见 4:2:0）；音频 AAC 48kHz；fast start；1080p 约 8 Mbps（24/25/30fps）或 12 Mbps（48/50/60fps）；4K 约 35–68 Mbps；响度 -14 LUFS，true peak ≤ -1 dBTP。  \n8. **发布与验收**：逐条勾验（画面无黑帧/比例正确、声音无爆音且响度达标、字幕对齐、导出帧率/码率符合平台、fast start 生效），记录变更与已知限制。\n\n## 本仓库工具链说明\n- 当前仓库不提供内建视频处理工具链；请根据团队规范选择并记录使用的外部工具与版本。\n\n## 参考资料\n- YouTube 上传建议：https://support.google.com/youtube/answer/1722171  \n- Adobe 导出参数权衡：https://www.adobe.com/creativecloud/video/hub/guides/best-export-settings-for-premiere-pro.html  \n- APU：YouTube 响度目标（-14 LUFS / -1 dBTP）：https://apu.software/youtube-audio-loudness-target/  \n- APU：常见平台响度目标表（含 EBU R128）：https://apu.software/loudness-standards/  \n- W3C WAI：字幕（Prerecorded）资源：https://www.w3.org/WAI/WCAG22/Understanding/captions-prerecorded.html",
       "sourcePath": "../../.alex/skills/video-production/SKILL.md"
+    },
+    {
+      "name": "web-page-editing",
+      "title": "web-page-editing",
+      "description": "HTML 内容编辑 — 解析/修改/生成 HTML 页面内容。",
+      "markdown": "# web-page-editing\n\nHTML 内容编辑：解析、修改、生成 HTML 片段。\n\n## 调用\n\n```bash\npython3 skills/web-page-editing/run.py '{\"action\":\"extract\",\"html\":\"<div><p>Hello</p></div>\",\"selector\":\"p\"}'\npython3 skills/web-page-editing/run.py '{\"action\":\"generate\",\"template\":\"landing\",\"title\":\"My Page\"}'\n```",
+      "sourcePath": "../../.alex/skills/web-page-editing/SKILL.md"
     }
   ]
 }

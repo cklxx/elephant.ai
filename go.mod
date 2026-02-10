@@ -5,7 +5,6 @@ go 1.24.0
 toolchain go1.24.13
 
 require (
-	github.com/PuerkitoBio/goquery v1.10.3
 	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/asg017/sqlite-vec-go-bindings v0.1.6
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
@@ -16,10 +15,8 @@ require (
 	github.com/goccy/go-json v0.10.3
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/jackc/pgx/v5 v5.7.6
-	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/larksuite/oapi-sdk-go/v3 v3.5.3
 	github.com/mattn/go-sqlite3 v1.14.33
 	github.com/minio/minio-go/v7 v7.0.73
@@ -31,7 +28,6 @@ require (
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/segmentio/ksuid v1.0.4
 	github.com/stretchr/testify v1.11.1
-	github.com/volcengine/volcengine-go-sdk v1.1.47
 	go.opentelemetry.io/otel v1.38.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.38.0
 	go.opentelemetry.io/otel/exporters/prometheus v0.60.0
@@ -44,14 +40,13 @@ require (
 	golang.org/x/net v0.48.0
 	golang.org/x/term v0.38.0
 	golang.org/x/time v0.14.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	github.com/andybalholm/cascadia v1.3.3 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
@@ -68,12 +63,12 @@ require (
 	github.com/gobwas/pool v0.2.1 // indirect
 	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/grafana/regexp v0.0.0-20240518133315-a468a5bfb3bc // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.8 // indirect
@@ -91,7 +86,6 @@ require (
 	github.com/prometheus/procfs v0.17.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rs/xid v1.5.0 // indirect
-	github.com/volcengine/volc-sdk-golang v1.0.226 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.38.0 // indirect
@@ -104,8 +98,6 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250825161204-c5933d9347a5 // indirect
 	google.golang.org/grpc v1.75.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 replace golang.org/x/crypto => golang.org/x/crypto v0.39.0
