@@ -1,6 +1,6 @@
 # Plan: Lark Test Runtime Main-Base Alignment — 2026-02-10
 
-## Status: In Progress
+## Status: Completed
 
 ## Goal
 - Ensure the `test` process always runs on code aligned to `main`.
@@ -18,4 +18,4 @@
   - [x] `test` unhealthy blocks `main` startup (`tests/scripts/lark-supervisor-test-gates-main.sh`)
 - [x] Run targeted script tests + full `./dev.sh lint` + `./dev.sh test`.
 - [x] Perform mandatory code review and commit in incremental commits.
-- [ ] Merge changes back to `main` and cleanup temporary worktree.
+- [x] Merge changes back to `main` and cleanup temporary worktree (temporary branch retained because local policy blocks branch-delete command).
