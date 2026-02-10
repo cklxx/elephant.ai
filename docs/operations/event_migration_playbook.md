@@ -10,7 +10,7 @@ This playbook assigns concrete actions for the workflow-first event stream migra
 
 ## Backend (mapper + emission)
 
-1. Implement an event translation layer near `internal/agent/app/coordinator/agent_workflow.go`:
+1. Implement an event translation layer near `internal/app/agent/coordinator/workflow_event_translator.go`:
    - Build a shared envelope `{version,event_type,timestamp,agent_level,workflow_id,run_id|task_id,parent_task_id,session_id,node_id,node_kind,payload}`.
    - Map existing domain events to new namespaced `event_type` values (see IDL).
 2. Emit missing events:
@@ -38,7 +38,7 @@ This playbook assigns concrete actions for the workflow-first event stream migra
    - Use `docs/operations/event_fixture_sample.json` as a golden SSE fixture covering lifecycle, node start/complete, tool start/progress/complete, subflow progress/complete, diagnostics, final.
    - Extend/clone the fixture for cancel/error cases; use it for store/UI regression and SSE serialization tests.
 2. Tracking parity:
-   - Sync `internal/analytics/tracking_plan_test.go` with frontend event list; update analytics event registry to new names.
+   - Sync `internal/infra/analytics/tracking_plan_test.go` with frontend event list; update analytics event registry to new names.
 3. Regression:
    - End-to-end flow: SSE → store → UI selectors/components with the fixture.
    - Remove legacy-only paths after the dual-read window closes.
