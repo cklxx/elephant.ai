@@ -642,7 +642,7 @@ func TestHandleMessageSetsMemoryPolicy(t *testing.T) {
 	}
 }
 
-func TestHandleMessageCreatesNewSessionPerMessage(t *testing.T) {
+func TestHandleMessageReusesSessionAcrossTurns(t *testing.T) {
 	openID := "ou_sender_stable"
 	chatID := "oc_chat_stable"
 	msgID := "om_msg_stable"
@@ -715,8 +715,8 @@ func TestHandleMessageCreatesNewSessionPerMessage(t *testing.T) {
 	if secondSessionID == "" || !strings.HasPrefix(secondSessionID, "lark-") {
 		t.Fatalf("expected lark session id, got %q", secondSessionID)
 	}
-	if secondSessionID == firstSessionID {
-		t.Fatalf("expected new session id, got same id %q", secondSessionID)
+	if secondSessionID != firstSessionID {
+		t.Fatalf("expected session reuse across turns, got first=%q second=%q", firstSessionID, secondSessionID)
 	}
 	if got := id.SessionIDFromContext(executor.capturedCtx); got != secondSessionID {
 		t.Fatalf("expected context sessionID %q, got %q", secondSessionID, got)
@@ -2711,6 +2711,35 @@ func TestResolveSessionForNewTask(t *testing.T) {
 		}
 		if sessionID == "" {
 			t.Fatal("expected non-empty session ID")
+		}
+	})
+
+	t.Run("idle slot with lastSessionID reuses it", func(t *testing.T) {
+		slot := &sessionSlot{
+			phase:         slotIdle,
+			lastSessionID: "lark-previous-session",
+		}
+		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		if isResume {
+			t.Fatal("expected isResume=false for idle slot with lastSessionID")
+		}
+		if sessionID != "lark-previous-session" {
+			t.Fatalf("expected lastSessionID to be reused, got %q", sessionID)
+		}
+	})
+
+	t.Run("awaiting slot with empty sessionID but lastSessionID reuses it", func(t *testing.T) {
+		slot := &sessionSlot{
+			phase:         slotAwaitingInput,
+			sessionID:     "",
+			lastSessionID: "lark-fallback-session",
+		}
+		sessionID, isResume := gw.resolveSessionForNewTask(slot)
+		if isResume {
+			t.Fatal("expected isResume=false when falling back to lastSessionID")
+		}
+		if sessionID != "lark-fallback-session" {
+			t.Fatalf("expected lastSessionID fallback, got %q", sessionID)
 		}
 	})
 }

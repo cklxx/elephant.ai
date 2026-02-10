@@ -631,6 +631,10 @@ func (g *Gateway) resolveSessionForNewTask(slot *sessionSlot) (sessionID string,
 	if slot.phase == slotAwaitingInput && slot.sessionID != "" {
 		return slot.sessionID, true
 	}
+	// Reuse the last session to preserve conversation history across turns.
+	if slot.lastSessionID != "" {
+		return slot.lastSessionID, false
+	}
 	return g.newSessionID(), false
 }
 

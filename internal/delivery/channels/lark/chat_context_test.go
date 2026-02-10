@@ -131,7 +131,8 @@ func TestExtractChatMessageContent(t *testing.T) {
 		{"text message", "text", makeBody(`{"text":"hello"}`), "hello"},
 		{"image message", "image", makeBody(`{"image_key":"key"}`), "[image]"},
 		{"file message", "file", makeBody(`{}`), "[file]"},
-		{"post message", "post", makeBody(`{}`), "[rich text message]"},
+		{"post message", "post", makeBody(`{"title":"hello","content":[[{"tag":"text","text":"world"}]]}`), "hello\nworld"},
+		{"post empty content", "post", makeBody(`{}`), "[rich text message]"},
 		{"unknown type", "custom", makeBody(`{}`), "[custom]"},
 	}
 	for _, tt := range tests {
@@ -160,6 +161,53 @@ func TestExtractChatTextContent(t *testing.T) {
 			got := extractChatTextContent(tt.raw)
 			if got != tt.want {
 				t.Fatalf("extractChatTextContent(%q) = %q, want %q", tt.raw, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExtractChatPostContent(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{
+			"title and text",
+			`{"title":"Title","content":[[{"tag":"text","text":"line one"}]]}`,
+			"Title\nline one",
+		},
+		{
+			"multi-line content",
+			`{"title":"","content":[[{"tag":"text","text":"first"}],[{"tag":"text","text":"second"}]]}`,
+			"first\nsecond",
+		},
+		{
+			"text with at mention",
+			`{"title":"","content":[[{"tag":"text","text":"hello "},{"tag":"at","user_name":"Alice"}]]}`,
+			"hello @Alice",
+		},
+		{
+			"empty content",
+			`{"title":"","content":[]}`,
+			"[rich text message]",
+		},
+		{
+			"invalid json",
+			`not json`,
+			"[rich text message]",
+		},
+		{
+			"title only",
+			`{"title":"Just a title","content":[]}`,
+			"Just a title",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := extractChatPostContent(tt.raw)
+			if got != tt.want {
+				t.Fatalf("extractChatPostContent() = %q, want %q", got, tt.want)
 			}
 		})
 	}
