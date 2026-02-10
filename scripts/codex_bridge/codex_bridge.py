@@ -19,11 +19,14 @@ Codex JSONL event types (codex exec --json):
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import signal
 import subprocess
 import sys
-from typing import Any
+from pathlib import Path
+from typing import Any, TextIO
 
 
 # Read-only / noisy tools suppressed from progress events.
@@ -32,10 +35,34 @@ _SKIP_TOOLS = frozenset({
 })
 
 
+_output_sink: TextIO = sys.stdout
+_done_file: str | None = None
+_shutting_down = False
+
+
 def _emit(event: dict[str, Any]) -> None:
-    """Write a single JSONL event to stdout."""
-    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
+    """Write a single JSONL event to the output sink (stdout or file)."""
+    _output_sink.write(json.dumps(event, ensure_ascii=False) + "\n")
+    _output_sink.flush()
+
+
+def _write_done_sentinel() -> None:
+    """Write the .done sentinel file to signal completion."""
+    if _done_file:
+        Path(_done_file).touch()
+
+
+def _sigterm_handler(signum: int, frame: Any) -> None:
+    """Handle SIGTERM: emit final error event and write .done sentinel."""
+    global _shutting_down
+    if _shutting_down:
+        return
+    _shutting_down = True
+    try:
+        _emit({"type": "error", "message": "bridge terminated by signal"})
+        _write_done_sentinel()
+    finally:
+        sys.exit(128 + signum)
 
 
 def _is_suppressed(tool_name: str) -> bool:
@@ -84,20 +111,40 @@ def _handle_item_started(
 
 
 def main() -> None:
+    global _output_sink, _done_file
+
+    parser = argparse.ArgumentParser(description="Codex bridge sidecar")
+    parser.add_argument(
+        "--output-file",
+        help="Write JSONL events to this file instead of stdout",
+    )
+    args = parser.parse_args()
+
+    # Set up output sink and done sentinel.
+    if args.output_file:
+        _output_sink = open(args.output_file, "w", buffering=1)
+        _done_file = str(Path(args.output_file).parent / ".done")
+
+    # Install SIGTERM handler for graceful shutdown.
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+
     raw = sys.stdin.readline()
     if not raw.strip():
         _emit({"type": "error", "message": "empty config on stdin"})
+        _write_done_sentinel()
         sys.exit(1)
 
     try:
         cfg = json.loads(raw)
     except json.JSONDecodeError as exc:
         _emit({"type": "error", "message": f"invalid config JSON: {exc}"})
+        _write_done_sentinel()
         sys.exit(1)
 
     prompt = cfg.get("prompt", "")
     if not prompt:
         _emit({"type": "error", "message": "prompt is required"})
+        _write_done_sentinel()
         sys.exit(1)
 
     # Build codex exec command.
@@ -183,9 +230,11 @@ def main() -> None:
 
     except FileNotFoundError:
         _emit({"type": "error", "message": "codex binary not found in PATH"})
+        _write_done_sentinel()
         sys.exit(1)
     except Exception as exc:
         _emit({"type": "error", "message": str(exc)})
+        _write_done_sentinel()
         sys.exit(1)
 
     # Emit final result.
@@ -197,6 +246,8 @@ def main() -> None:
         "iters": iteration,
         "is_error": False,
     })
+
+    _write_done_sentinel()
 
 
 if __name__ == "__main__":

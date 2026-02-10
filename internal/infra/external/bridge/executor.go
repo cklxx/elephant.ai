@@ -42,6 +42,10 @@ type BridgeConfig struct {
 	// Common fields.
 	Timeout time.Duration
 	Env     map[string]string
+
+	// Detached mode: subprocess survives parent death.
+	// When true, bridge output goes to a file instead of stdout pipe.
+	Detached bool
 }
 
 // bridgeRunner abstracts subprocess lifecycle for testability.
@@ -52,6 +56,8 @@ type bridgeRunner interface {
 	StderrTail() string
 	Wait() error
 	Stop() error
+	PID() int
+	Done() <-chan struct{}
 }
 
 // subprocessAdapter adapts subprocess.Subprocess to bridgeRunner.
@@ -64,9 +70,11 @@ func (a *subprocessAdapter) Write(data []byte) error         { return a.proc.Wri
 func (a *subprocessAdapter) Stdout() interface{ Read([]byte) (int, error) } {
 	return a.proc.Stdout()
 }
-func (a *subprocessAdapter) StderrTail() string { return a.proc.StderrTail() }
-func (a *subprocessAdapter) Wait() error        { return a.proc.Wait() }
-func (a *subprocessAdapter) Stop() error         { return a.proc.Stop() }
+func (a *subprocessAdapter) StderrTail() string    { return a.proc.StderrTail() }
+func (a *subprocessAdapter) Wait() error           { return a.proc.Wait() }
+func (a *subprocessAdapter) Stop() error           { return a.proc.Stop() }
+func (a *subprocessAdapter) PID() int              { return a.proc.PID() }
+func (a *subprocessAdapter) Done() <-chan struct{}  { return a.proc.Done() }
 
 // Executor implements agent.InteractiveExternalExecutor by spawning a Python
 // bridge sidecar and reading pre-filtered JSONL events from its stdout.
@@ -183,6 +191,15 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		}
 	}
 
+	// Detached mode: output goes to a file, subprocess survives parent death.
+	if e.cfg.Detached {
+		return e.executeDetached(ctx, req, bcfg, pythonBin, bridgeScript, env)
+	}
+	return e.executeAttached(ctx, req, bcfg, pythonBin, bridgeScript, env)
+}
+
+// executeAttached runs the bridge with stdout piped back to this process.
+func (e *Executor) executeAttached(ctx context.Context, req agent.ExternalAgentRequest, bcfg bridgeConfig, pythonBin, bridgeScript string, env map[string]string) (*agent.ExternalAgentResult, error) {
 	proc := e.subprocessFactory(subprocess.Config{
 		Command:    pythonBin,
 		Args:       []string{bridgeScript},
@@ -214,31 +231,8 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		if err != nil {
 			continue
 		}
-		switch ev.Type {
-		case SDKEventTool:
-			result.Iterations = ev.Iter
-			if req.OnProgress != nil {
-				req.OnProgress(agent.ExternalAgentProgress{
-					Iteration:    ev.Iter,
-					TokensUsed:   result.TokensUsed,
-					CostUSD:      extractCostFromMeta(result.Metadata),
-					CurrentTool:  ev.ToolName,
-					CurrentArgs:  ev.Summary,
-					FilesTouched: ev.Files,
-					LastActivity: time.Now(),
-				})
-			}
-		case SDKEventResult:
-			result.Answer = ev.Answer
-			result.TokensUsed = ev.Tokens
-			result.Iterations = ev.Iters
-			if ev.IsError {
-				result.Error = ev.Answer
-			}
-			result.Metadata = map[string]any{
-				"cost_usd": ev.Cost,
-			}
-		case SDKEventError:
+		e.applyEvent(ev, result, req.OnProgress)
+		if ev.Type == SDKEventError {
 			return result, errors.New(ev.Message)
 		}
 	}
@@ -250,6 +244,129 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
 	}
 	return result, nil
+}
+
+// executeDetached runs the bridge in detached mode: output goes to a file,
+// subprocess becomes a session leader that survives parent death.
+func (e *Executor) executeDetached(ctx context.Context, req agent.ExternalAgentRequest, bcfg bridgeConfig, pythonBin, bridgeScript string, env map[string]string) (*agent.ExternalAgentResult, error) {
+	workDir := req.WorkingDir
+	if workDir == "" {
+		workDir = "."
+	}
+	taskID := req.TaskID
+
+	outDir := bridgeOutputDir(workDir, taskID)
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return nil, fmt.Errorf("create bridge output dir: %w", err)
+	}
+
+	outputFile := bridgeOutputFile(workDir, taskID)
+	statusFile := bridgeStatusFile(workDir, taskID)
+	doneFile := bridgeDoneFile(workDir, taskID)
+
+	proc := e.subprocessFactory(subprocess.Config{
+		Command:    pythonBin,
+		Args:       []string{bridgeScript, "--output-file", outputFile},
+		Env:        env,
+		WorkingDir: workDir,
+		Timeout:    e.cfg.Timeout,
+		Detached:   true,
+		OutputFile: outputFile,
+		StatusFile: statusFile,
+	})
+	if err := proc.Start(ctx); err != nil {
+		return nil, fmt.Errorf("start detached bridge: %w", err)
+	}
+
+	// Write config to stdin.
+	configJSON, err := json.Marshal(bcfg)
+	if err != nil {
+		_ = proc.Stop()
+		return nil, fmt.Errorf("marshal bridge config: %w", err)
+	}
+	configJSON = append(configJSON, '\n')
+	if err := proc.Write(configJSON); err != nil {
+		_ = proc.Stop()
+		return nil, fmt.Errorf("write bridge config: %w", err)
+	}
+
+	// Notify caller of bridge meta if available.
+	if req.OnBridgeStarted != nil {
+		req.OnBridgeStarted(BridgeStartedInfo{
+			PID:        proc.PID(),
+			OutputFile: outputFile,
+			TaskID:     taskID,
+		})
+	}
+
+	// Tail the output file for events.
+	reader := NewOutputReader(outputFile, doneFile)
+	events := reader.Read(ctx)
+
+	result := &agent.ExternalAgentResult{}
+	var lastErr error
+
+	for ev := range events {
+		e.applyEvent(ev, result, req.OnProgress)
+		if ev.Type == SDKEventError {
+			lastErr = errors.New(ev.Message)
+		}
+	}
+
+	// Wait for process to finish (may already be done).
+	if procDone := proc.Done(); procDone != nil {
+		select {
+		case <-procDone:
+		case <-time.After(5 * time.Second):
+			// Process hung after done sentinel — force kill.
+			_ = proc.Stop()
+		}
+	}
+
+	if lastErr != nil {
+		return result, lastErr
+	}
+	if err := proc.Wait(); err != nil {
+		errMsg := formatProcessError(req.AgentType, err, proc.StderrTail())
+		return result, errors.New(e.maybeAppendAuthHint(errMsg, proc.StderrTail()))
+	}
+	return result, nil
+}
+
+// applyEvent updates the result and fires progress callbacks for a single event.
+func (e *Executor) applyEvent(ev SDKEvent, result *agent.ExternalAgentResult, onProgress func(agent.ExternalAgentProgress)) {
+	switch ev.Type {
+	case SDKEventTool:
+		result.Iterations = ev.Iter
+		if onProgress != nil {
+			onProgress(agent.ExternalAgentProgress{
+				Iteration:    ev.Iter,
+				TokensUsed:   result.TokensUsed,
+				CostUSD:      extractCostFromMeta(result.Metadata),
+				CurrentTool:  ev.ToolName,
+				CurrentArgs:  ev.Summary,
+				FilesTouched: ev.Files,
+				LastActivity: time.Now(),
+			})
+		}
+	case SDKEventResult:
+		result.Answer = ev.Answer
+		result.TokensUsed = ev.Tokens
+		result.Iterations = ev.Iters
+		if ev.IsError {
+			result.Error = ev.Answer
+		}
+		result.Metadata = map[string]any{
+			"cost_usd": ev.Cost,
+		}
+	}
+}
+
+// BridgeStartedInfo is passed to OnBridgeStarted when a detached bridge launches.
+type BridgeStartedInfo struct {
+	PID        int
+	OutputFile string
+	TaskID     string
 }
 
 func (e *Executor) startPermissionServer(ctx context.Context, req agent.ExternalAgentRequest) (string, func(), error) {

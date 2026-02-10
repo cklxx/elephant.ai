@@ -34,6 +34,11 @@ type ExternalAgentRequest struct {
 
 	// OnProgress is called whenever the external agent reports progress.
 	OnProgress func(ExternalAgentProgress)
+
+	// OnBridgeStarted is called when a detached bridge process launches.
+	// The caller can use this to persist bridge metadata for resilience.
+	// The callback receives opaque bridge-specific info (e.g. PID, output file).
+	OnBridgeStarted func(info any)
 }
 
 // ExternalAgentResult contains the output from an external agent execution.

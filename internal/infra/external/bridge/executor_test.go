@@ -38,9 +38,11 @@ func (f *fakeBridgeRunner) Stdout() interface{ Read([]byte) (int, error) } {
 	return f.stdout
 }
 
-func (f *fakeBridgeRunner) StderrTail() string { return f.stderrTail }
-func (f *fakeBridgeRunner) Wait() error        { return f.waitErr }
-func (f *fakeBridgeRunner) Stop() error         { return nil }
+func (f *fakeBridgeRunner) StderrTail() string    { return f.stderrTail }
+func (f *fakeBridgeRunner) Wait() error           { return f.waitErr }
+func (f *fakeBridgeRunner) Stop() error            { return nil }
+func (f *fakeBridgeRunner) PID() int               { return 0 }
+func (f *fakeBridgeRunner) Done() <-chan struct{}   { ch := make(chan struct{}); close(ch); return ch }
 
 type fakeExitError struct {
 	code int

@@ -12,11 +12,14 @@ Protocol (stdout JSONL):
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import os
+import signal
 import sys
-from typing import Any
+from pathlib import Path
+from typing import Any, TextIO
 
 from claude_agent_sdk import (
     ClaudeAgentOptions,
@@ -37,12 +40,34 @@ _SKIP_TOOLS = frozenset({
 })
 
 _iteration = 0
+_output_sink: TextIO = sys.stdout
+_done_file: str | None = None
+_shutting_down = False
 
 
 def _emit(event: dict[str, Any]) -> None:
-    """Write a single JSONL event to stdout."""
-    sys.stdout.write(json.dumps(event, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
+    """Write a single JSONL event to the output sink (stdout or file)."""
+    _output_sink.write(json.dumps(event, ensure_ascii=False) + "\n")
+    _output_sink.flush()
+
+
+def _write_done_sentinel() -> None:
+    """Write the .done sentinel file to signal completion."""
+    if _done_file:
+        Path(_done_file).touch()
+
+
+def _sigterm_handler(signum: int, frame: Any) -> None:
+    """Handle SIGTERM: emit final error event and write .done sentinel."""
+    global _shutting_down
+    if _shutting_down:
+        return
+    _shutting_down = True
+    try:
+        _emit({"type": "error", "message": "bridge terminated by signal"})
+        _write_done_sentinel()
+    finally:
+        sys.exit(128 + signum)
 
 
 def _base_name(tool_name: str) -> str:
@@ -111,15 +136,34 @@ async def _post_tool_hook(
 
 
 async def main() -> None:
+    global _output_sink, _done_file
+
+    parser = argparse.ArgumentParser(description="Claude Agent SDK bridge")
+    parser.add_argument(
+        "--output-file",
+        help="Write JSONL events to this file instead of stdout",
+    )
+    args = parser.parse_args()
+
+    # Set up output sink and done sentinel.
+    if args.output_file:
+        _output_sink = open(args.output_file, "w", buffering=1)
+        _done_file = str(Path(args.output_file).parent / ".done")
+
+    # Install SIGTERM handler for graceful shutdown.
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+
     raw = sys.stdin.readline()
     if not raw.strip():
         _emit({"type": "error", "message": "empty config on stdin"})
+        _write_done_sentinel()
         sys.exit(1)
 
     try:
         cfg = json.loads(raw)
     except json.JSONDecodeError as exc:
         _emit({"type": "error", "message": f"invalid config JSON: {exc}"})
+        _write_done_sentinel()
         sys.exit(1)
 
     opts = ClaudeAgentOptions(
@@ -148,6 +192,7 @@ async def main() -> None:
     prompt = cfg.get("prompt", "")
     if not prompt:
         _emit({"type": "error", "message": "prompt is required"})
+        _write_done_sentinel()
         sys.exit(1)
 
     try:
@@ -170,7 +215,10 @@ async def main() -> None:
                     })
     except Exception as exc:
         _emit({"type": "error", "message": str(exc)})
+        _write_done_sentinel()
         sys.exit(1)
+
+    _write_done_sentinel()
 
 
 if __name__ == "__main__":
