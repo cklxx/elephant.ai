@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-10 23:00
+Updated: 2026-02-11 00:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -15,6 +15,7 @@ Updated: 2026-02-10 23:00
 - Apply response-size caps + retention/backpressure to prevent unbounded growth.
 - Long-lived per-session metrics maps (e.g., broadcaster/session counters) must enforce cap + TTL pruning; never keep unbounded session keys.
 - Streaming UI performance: dedup events, cap with LRU, RAF buffer, defer markdown parsing.
+- Flush-request coalescing on async history queues must not add fixed wait to single-request paths; only coalesce when contention is present.
 - Proactive hooks: hook registry + per-request MemoryPolicy; cache skills + precompile regex.
 - Event partitioning: groupKey uses `parent_run_id`; subagent detection is `parent_run_id != run_id`.
 - Tool event rules: only subagent `workflow.tool.started` hits main stream; others go pending/merged.
