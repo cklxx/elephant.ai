@@ -1,8 +1,8 @@
 # Tools-to-Skills Optimization Plan
 
 > **Created:** 2026-02-09
-> **Status:** Phase 0 In Progress
-> **Branch:** `feat/tools-to-skills`
+> **Status:** Phase 4 Complete
+> **Branch:** `tools-to-skills-final`
 
 ## Goal
 
@@ -145,5 +145,49 @@ Tests: 2 new tests (skill mode + skill mode with lark-local), all passing.
 - [x] Full `go test ./...` — all packages pass
 - [x] Full `go vet ./...` — clean (same sqlite-vec warnings only)
 - [x] Python skill tests — 275 tests pass (run per-skill directory)
-- [ ] Delete deprecated Go tool packages (deferred to Phase 4)
-- [ ] Update documentation (deferred to Phase 4)
+- [x] Delete deprecated Go tool packages (completed in Phase 4)
+- [x] Update documentation (completed in Phase 4)
+
+## Phase 4: Final Migration (COMPLETED)
+
+**Branch:** `tools-to-skills-final`
+
+### Batch 1 — Consolidate 8 Lark tools → `channel` (commit `96fc9793`)
+- Created unified `channel` tool with `action` parameter dispatch
+- Actions: `send_message`, `upload_file`, `history`, `create_event`, `query_events`, `update_event`, `delete_event`, `list_tasks`, `create_task`, `update_task`, `delete_task`
+- Deleted 8 individual lark tool files + tests
+
+### Batch 2 — Remove SkillMode flag (commit `acffb9a2`)
+- Deleted `SkillMode` config flag from all layers (RuntimeConfig, Overrides, env loader, file loader, DI)
+- Renamed `registerSkillModeCoreTools()` → `registerBuiltins()`
+- Deleted old `registerBuiltins()` full-toolset path + all deprecated register functions
+- Cleaned up `degradation_defaults.go` (empty FallbackMap)
+- Deleted ~30 unused config fields from DI container
+
+### Batch 3 — Delete ~40 deprecated tool packages (commit `e6d0b8e5`)
+- Deleted 11 entire packages: search, config, diagram, execution, media, timer, scheduler, applescript, chromebridge, peekaboo, fileops
+- Partial cleanup: web (html_edit, web_fetch, douyin_hot), session (todo_*, apps), aliases (list_dir, search_file, write_attachment), sandbox (attachment, browser_dom, file_list, file_search), browser (info, screenshot, dom), artifacts (tool files only — kept attachment_resolver, attachment_uploader)
+- Kept OKR store/types/config (domain types used by scheduler/hooks), deleted only tool files
+- Moved `LocalExecEnabled` build-tag flag from execution → aliases package
+- ~113 files deleted, ~24,000 lines removed
+
+### Batch 4 — Clean up delivery/output + prompts (commit `ee1bcabe`)
+- Slimmed `toolDisplayNames` map to 8 canonical entries
+- Rewrote `CategorizeToolName()` and `toolKindForName()` for canonical tools only
+- Deleted dead formatters: formatFileOutput, formatSearchOutput, formatWebFetchOutput, formatListFiles, formatTodoList, renderSandboxFileList, renderSandboxFileSearch
+- Deleted dead parsers: listFilesSummary, searchSummary, webFetchSummary, sandboxFileListSummary, sandboxFileSearchSummary
+- Updated system prompts: Tool Routing Guardrails, Researcher, Security Analyst, Designer, Architect presets
+- Updated all tests for canonical tool names
+- 8 files changed, -692 lines
+
+### Final Metrics
+
+| Metric | Before | After | Change |
+|--------|--------|-------|--------|
+| **Go builtin tools** | 58 | 14 | **-76%** |
+| **Tool definition tokens** | ~13k | ~2.8k | **-78%** |
+| **Python skills** | 30 | 30 | — |
+| **Python skill tests** | 307 | 307 | — |
+| **Go test suite** | all pass | all pass | — |
+| **Files deleted** | — | ~130+ | — |
+| **Lines removed** | — | ~25,000+ | — |
