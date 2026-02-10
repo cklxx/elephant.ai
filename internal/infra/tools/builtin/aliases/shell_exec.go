@@ -99,7 +99,7 @@ func (t *shellExec) Execute(ctx context.Context, call ports.ToolCall) (*ports.To
 		workingDir = resolver.ResolvePath(".")
 	}
 
-	script, err := os.CreateTemp(workingDir, "alex-bash-*.sh")
+	script, err := os.CreateTemp("", "alex-bash-*.sh")
 	if err != nil {
 		return &ports.ToolResult{CallID: call.ID, Content: err.Error(), Error: err}, nil
 	}

@@ -153,6 +153,7 @@ internal/infra/llm/logs/requests/llm.jsonl
 logs/requests/llm.jsonl
 logs/requests/t.json
 alex-exec-*/*
+alex-bash-*.sh
 EOF
 .next/
 .tmp/
