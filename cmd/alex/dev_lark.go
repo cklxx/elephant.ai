@@ -17,7 +17,7 @@ import (
 )
 
 func runDevLarkCommand(args []string) error {
-	cmd := "status"
+	cmd := "start"
 	if len(args) > 0 {
 		cmd = args[0]
 	}
@@ -25,10 +25,15 @@ func runDevLarkCommand(args []string) error {
 	switch cmd {
 	case "supervise", "run":
 		return larkSupervise()
-	case "start":
+	case "start", "up":
 		return larkStart()
-	case "stop":
+	case "stop", "down":
 		return larkStop()
+	case "restart":
+		if err := larkStop(); err != nil {
+			return err
+		}
+		return larkStart()
 	case "status":
 		return larkStatus()
 	case "logs":
@@ -99,22 +104,27 @@ func larkStart() error {
 		_ = cmd.Process.Kill()
 		return fmt.Errorf("close supervisor log file: %w", err)
 	}
-	time.Sleep(1 * time.Second)
-	if syscall.Kill(cmd.Process.Pid, 0) != nil {
-		return fmt.Errorf("supervisor failed to start (see %s)", logFile)
+
+	// The supervise subprocess owns PID-file publication.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if syscall.Kill(cmd.Process.Pid, 0) != nil {
+			return fmt.Errorf("supervisor failed to start (see %s)", logFile)
+		}
+		if pid, _, alive := readLivePIDFile(pidFile, false); alive {
+			fmt.Printf("Supervisor started (PID: %d)\n", pid)
+			return nil
+		}
+		time.Sleep(200 * time.Millisecond)
 	}
 
-	if err := os.MkdirAll(filepath.Dir(pidFile), 0o755); err != nil {
-		_ = cmd.Process.Kill()
-		return fmt.Errorf("create supervisor pid dir: %w", err)
-	}
-	if err := os.WriteFile(pidFile, []byte(strconv.Itoa(cmd.Process.Pid)), 0o644); err != nil {
-		_ = cmd.Process.Kill()
-		return fmt.Errorf("write supervisor pid file: %w", err)
+	if pid, _, alive := readLivePIDFile(pidFile, false); alive {
+		fmt.Printf("Supervisor started (PID: %d)\n", pid)
+		return nil
 	}
 
-	fmt.Printf("Supervisor started (PID: %d)\n", cmd.Process.Pid)
-	return nil
+	_ = cmd.Process.Kill()
+	return fmt.Errorf("supervisor start timed out: pid file was not published (%s)", pidFile)
 }
 
 func larkStop() error {
@@ -668,12 +678,13 @@ func printLarkUsage() {
 	fmt.Print(`alex dev lark — Lark supervisor management
 
 Usage:
-  alex dev lark [command]
+  alex dev lark [command]   (default command: start)
 
 Commands:
   supervise|run    Run supervisor in foreground
-  start            Start supervisor in background
-  stop             Stop supervisor
+  start|up         Start supervisor in background
+  stop|down        Stop supervisor
+  restart          Restart supervisor
   status           Show supervisor status
   logs             Tail all Lark logs
   help             Show this help

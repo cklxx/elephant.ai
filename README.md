@@ -188,9 +188,11 @@ alex dev lint                  # run Go + web lint
 alex setup                     # first-run subscription model setup
 
 # Lark supervisor (production)
+alex dev lark                  # default: start supervisor daemon
 alex dev lark supervise        # foreground supervisor with restart policy
-alex dev lark start            # background supervisor daemon
-alex dev lark stop             # stop supervisor
+alex dev lark up|start         # background supervisor daemon
+alex dev lark down|stop        # stop supervisor
+alex dev lark restart          # restart supervisor
 alex dev lark status           # show supervisor health + components
 
 # Log analyzer UI

@@ -187,9 +187,11 @@ alex dev lint                  # 运行 Go + web lint
 alex setup                     # 首次订阅模型配置
 
 # 飞书 Supervisor（生产）
+alex dev lark                  # 默认：启动 supervisor 守护进程
 alex dev lark supervise        # 前台运行 supervisor（含重启策略）
-alex dev lark start            # 后台启动 supervisor 守护进程
-alex dev lark stop             # 停止 supervisor
+alex dev lark up|start         # 后台启动 supervisor 守护进程
+alex dev lark down|stop        # 停止 supervisor
+alex dev lark restart          # 重启 supervisor
 alex dev lark status           # 显示 supervisor 健康状态和组件
 
 # 日志分析 UI
