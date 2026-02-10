@@ -193,7 +193,7 @@ func (s *PostgresStore) SetStatus(ctx context.Context, taskID string, status tas
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	// Read current status under lock.
 	var fromStatus string
@@ -240,7 +240,6 @@ func (s *PostgresStore) SetStatus(ctx context.Context, taskID string, status tas
 	if p.TokensUsed != nil {
 		setClauses += fmt.Sprintf(`, tokens_used = $%d`, idx)
 		args = append(args, *p.TokensUsed)
-		idx++
 	}
 
 	_, err = tx.Exec(ctx, `UPDATE `+tasksTable+` SET `+setClauses+` WHERE task_id = $1`, args...)
@@ -624,11 +623,11 @@ func marshalJSONOrNil(v any) []byte {
 	}
 	switch m := v.(type) {
 	case map[string]string:
-		if m == nil || len(m) == 0 {
+		if len(m) == 0 {
 			return nil
 		}
 	case map[string]any:
-		if m == nil || len(m) == 0 {
+		if len(m) == 0 {
 			return nil
 		}
 	case *taskdomain.BridgeMeta:
@@ -644,7 +643,7 @@ func marshalJSONOrNil(v any) []byte {
 }
 
 func nullableRawJSON(raw json.RawMessage) []byte {
-	if raw == nil || len(raw) == 0 {
+	if len(raw) == 0 {
 		return nil
 	}
 	return []byte(raw)

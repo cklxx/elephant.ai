@@ -75,16 +75,16 @@ func TestOutputReader_TailsGrowingFile(t *testing.T) {
 	// Write events after a delay.
 	go func() {
 		time.Sleep(300 * time.Millisecond)
-		f.WriteString(`{"type":"tool","tool_name":"Write","summary":"file_path=/a.go","files":["/a.go"],"iter":1}` + "\n")
-		f.Sync()
+		_, _ = f.WriteString(`{"type":"tool","tool_name":"Write","summary":"file_path=/a.go","files":["/a.go"],"iter":1}` + "\n")
+		_ = f.Sync()
 
 		time.Sleep(300 * time.Millisecond)
-		f.WriteString(`{"type":"result","answer":"ok","tokens":50,"cost":0,"iters":1,"is_error":false}` + "\n")
-		f.Sync()
+		_, _ = f.WriteString(`{"type":"result","answer":"ok","tokens":50,"cost":0,"iters":1,"is_error":false}` + "\n")
+		_ = f.Sync()
 		f.Close()
 
 		time.Sleep(100 * time.Millisecond)
-		os.WriteFile(doneFile, nil, 0o644)
+		_ = os.WriteFile(doneFile, nil, 0o644)
 	}()
 
 	var received []SDKEvent
@@ -182,9 +182,9 @@ func TestOutputReader_WaitsForFileCreation(t *testing.T) {
 	go func() {
 		time.Sleep(300 * time.Millisecond)
 		content := `{"type":"result","answer":"created late","tokens":10,"cost":0,"iters":1,"is_error":false}` + "\n"
-		os.WriteFile(outFile, []byte(content), 0o644)
+		_ = os.WriteFile(outFile, []byte(content), 0o644)
 		time.Sleep(100 * time.Millisecond)
-		os.WriteFile(doneFile, nil, 0o644)
+		_ = os.WriteFile(doneFile, nil, 0o644)
 	}()
 
 	var received []SDKEvent

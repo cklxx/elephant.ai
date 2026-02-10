@@ -80,7 +80,7 @@ func TestSubprocess_Detached_StdoutIsNil(t *testing.T) {
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	defer s.Stop()
+	defer func() { _ = s.Stop() }()
 
 	if s.Stdout() != nil {
 		t.Error("expected Stdout() to be nil in detached mode")
@@ -101,7 +101,7 @@ func TestSubprocess_Detached_PID(t *testing.T) {
 	if err := s.Start(context.Background()); err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	defer s.Stop()
+	defer func() { _ = s.Stop() }()
 
 	pid := s.PID()
 	if pid == 0 {

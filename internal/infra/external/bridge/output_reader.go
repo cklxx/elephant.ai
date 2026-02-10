@@ -149,7 +149,7 @@ func (r *OutputReader) tailLoop(ctx context.Context, ch chan<- SDKEvent) {
 		case <-time.After(wait):
 			// Re-seek to current offset to pick up new data written by
 			// the bridge process (the OS may cache the EOF state).
-			f.Seek(offset, io.SeekStart)
+			_, _ = f.Seek(offset, io.SeekStart)
 			reader.Reset(f)
 		case <-ctx.Done():
 			return

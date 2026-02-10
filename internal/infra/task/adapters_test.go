@@ -322,9 +322,9 @@ func TestServerAdapter_ListBySession(t *testing.T) {
 	adapter := NewServerAdapter(store)
 	ctx := context.Background()
 
-	adapter.Create(ctx, "s1", "task1", "", "")
-	adapter.Create(ctx, "s1", "task2", "", "")
-	adapter.Create(ctx, "s2", "task3", "", "")
+	_, _ = adapter.Create(ctx, "s1", "task1", "", "")
+	_, _ = adapter.Create(ctx, "s1", "task2", "", "")
+	_, _ = adapter.Create(ctx, "s2", "task3", "", "")
 
 	tasks, err := adapter.ListBySession(ctx, "s1")
 	if err != nil {
@@ -411,7 +411,7 @@ func TestLarkAdapter_UpdateStatus(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	adapter.SaveTask(ctx, rec)
+	_ = adapter.SaveTask(ctx, rec)
 
 	err := adapter.UpdateStatus(ctx, "lark-task-2", "running")
 	if err != nil {
@@ -436,7 +436,7 @@ func TestLarkAdapter_UpdateStatusWithOptions(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	adapter.SaveTask(ctx, rec)
+	_ = adapter.SaveTask(ctx, rec)
 
 	err := adapter.UpdateStatus(ctx, "lark-task-3", "completed",
 		lark.WithAnswerPreview("done!"),
@@ -471,7 +471,7 @@ func TestLarkAdapter_ListByChat(t *testing.T) {
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
-		adapter.SaveTask(ctx, rec)
+		_ = adapter.SaveTask(ctx, rec)
 	}
 
 	tasks, err := adapter.ListByChat(ctx, "chat-1", false, 10)
@@ -495,7 +495,7 @@ func TestLarkAdapter_MarkStaleRunning(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	adapter.SaveTask(ctx, rec)
+	_ = adapter.SaveTask(ctx, rec)
 
 	if err := adapter.MarkStaleRunning(ctx, "gateway restart"); err != nil {
 		t.Fatalf("MarkStaleRunning() error = %v", err)

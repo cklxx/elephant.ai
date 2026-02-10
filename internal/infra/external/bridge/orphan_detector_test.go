@@ -113,11 +113,11 @@ func TestDetectOrphanedBridges_MultipleTasks(t *testing.T) {
 
 	for _, id := range []string{"a", "b", "c"} {
 		taskDir := filepath.Join(dir, ".elephant", "bridge", id)
-		os.MkdirAll(taskDir, 0o755)
-		os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
+		_ = os.MkdirAll(taskDir, 0o755)
+		_ = os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
 	}
 	// Mark "b" as done.
-	os.WriteFile(filepath.Join(dir, ".elephant", "bridge", "b", ".done"), nil, 0o644)
+	_ = os.WriteFile(filepath.Join(dir, ".elephant", "bridge", "b", ".done"), nil, 0o644)
 
 	orphans := DetectOrphanedBridges(dir)
 	if len(orphans) != 3 {
@@ -140,9 +140,9 @@ func TestCleanupBridgeDir(t *testing.T) {
 	dir := t.TempDir()
 
 	taskDir := filepath.Join(dir, ".elephant", "bridge", "cleanup-test")
-	os.MkdirAll(taskDir, 0o755)
-	os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
-	os.WriteFile(filepath.Join(taskDir, ".done"), nil, 0o644)
+	_ = os.MkdirAll(taskDir, 0o755)
+	_ = os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
+	_ = os.WriteFile(filepath.Join(taskDir, ".done"), nil, 0o644)
 
 	if err := CleanupBridgeDir(dir, "cleanup-test"); err != nil {
 		t.Fatal(err)

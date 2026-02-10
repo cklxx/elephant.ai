@@ -112,13 +112,13 @@ func TestResumer_HarvestOrphan(t *testing.T) {
 
 	// Create bridge output dir with completed task.
 	taskDir := filepath.Join(dir, ".elephant", "bridge", taskID)
-	os.MkdirAll(taskDir, 0o755)
+	_ = os.MkdirAll(taskDir, 0o755)
 
 	events := `{"type":"tool","tool_name":"Bash","summary":"command=ls","files":[],"iter":1}
 {"type":"result","answer":"harvested answer","tokens":500,"cost":0.01,"iters":1,"is_error":false}
 `
-	os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte(events), 0o644)
-	os.WriteFile(filepath.Join(taskDir, ".done"), nil, 0o644)
+	_ = os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte(events), 0o644)
+	_ = os.WriteFile(filepath.Join(taskDir, ".done"), nil, 0o644)
 
 	store := &mockTaskStore{
 		tasks: map[string]*taskdomain.Task{
@@ -164,8 +164,8 @@ func TestResumer_MarkFailedOrphan(t *testing.T) {
 
 	// Create bridge output dir without .done (process died).
 	taskDir := filepath.Join(dir, ".elephant", "bridge", taskID)
-	os.MkdirAll(taskDir, 0o755)
-	os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
+	_ = os.MkdirAll(taskDir, 0o755)
+	_ = os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
 
 	store := &mockTaskStore{
 		tasks: map[string]*taskdomain.Task{
@@ -197,9 +197,9 @@ func TestResumer_SkipsTerminalTasks(t *testing.T) {
 	taskID := "terminal-test"
 
 	taskDir := filepath.Join(dir, ".elephant", "bridge", taskID)
-	os.MkdirAll(taskDir, 0o755)
-	os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
-	os.WriteFile(filepath.Join(taskDir, ".done"), nil, 0o644)
+	_ = os.MkdirAll(taskDir, 0o755)
+	_ = os.WriteFile(filepath.Join(taskDir, "output.jsonl"), []byte("{}"), 0o644)
+	_ = os.WriteFile(filepath.Join(taskDir, ".done"), nil, 0o644)
 
 	store := &mockTaskStore{
 		tasks: map[string]*taskdomain.Task{

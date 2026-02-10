@@ -55,9 +55,9 @@ func TestExecutor_DetachedMode_ParsesToolAndResult(t *testing.T) {
 				`{"type":"result","answer":"detached done","tokens":2000,"cost":0.05,"iters":1,"is_error":false}`,
 				"",
 			}, "\n")
-			os.WriteFile(fake.outputFile, []byte(events), 0o644)
+			_ = os.WriteFile(fake.outputFile, []byte(events), 0o644)
 			time.Sleep(100 * time.Millisecond)
-			os.WriteFile(fake.doneFile, nil, 0o644)
+			_ = os.WriteFile(fake.doneFile, nil, 0o644)
 		}()
 
 		return fake
@@ -131,9 +131,9 @@ func TestExecutor_DetachedMode_HandlesErrorEvent(t *testing.T) {
 
 		go func() {
 			time.Sleep(200 * time.Millisecond)
-			os.WriteFile(fake.outputFile, []byte(`{"type":"error","message":"detached error"}`+"\n"), 0o644)
+			_ = os.WriteFile(fake.outputFile, []byte(`{"type":"error","message":"detached error"}`+"\n"), 0o644)
 			time.Sleep(100 * time.Millisecond)
-			os.WriteFile(fake.doneFile, nil, 0o644)
+			_ = os.WriteFile(fake.doneFile, nil, 0o644)
 		}()
 
 		return fake
