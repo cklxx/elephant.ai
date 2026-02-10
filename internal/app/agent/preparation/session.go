@@ -2,8 +2,11 @@ package preparation
 
 import (
 	"context"
+	"errors"
 	"strings"
+	"time"
 
+	"alex/internal/domain/agent/ports"
 	appcontext "alex/internal/app/agent/context"
 	storage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
@@ -21,10 +24,31 @@ func (s *ExecutionPreparationService) loadSession(ctx context.Context, id string
 	}
 
 	session, err := s.sessionStore.Get(ctx, id)
-	if err != nil {
-		s.logger.Error("Failed to load session: %v", err)
+	if err == nil {
+		return session, nil
 	}
-	return session, err
+	if !errors.Is(err, storage.ErrSessionNotFound) {
+		s.logger.Error("Failed to load session: %v", err)
+		return nil, err
+	}
+
+	now := time.Now()
+	if s.clock != nil {
+		now = s.clock.Now()
+	}
+	session = &storage.Session{
+		ID:        id,
+		Messages:  []ports.Message{},
+		Todos:     []storage.Todo{},
+		Metadata:  map[string]string{},
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if saveErr := s.sessionStore.Save(ctx, session); saveErr != nil {
+		s.logger.Error("Failed to create missing session %s: %v", id, saveErr)
+		return nil, saveErr
+	}
+	return session, nil
 }
 
 func (s *ExecutionPreparationService) selectToolRegistry(ctx context.Context, toolMode presets.ToolMode, resolvedToolPreset string) tools.ToolRegistry {
