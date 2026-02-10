@@ -3,6 +3,10 @@
 
 This review focuses on folder naming, top-level architecture layout, and extensibility risks. It does not propose code changes; it documents the improvement plan and priorities.
 
+> Note: this document preserves a point-in-time review context. Some path examples
+> reflect pre-refactor layout; prefer `docs/reference/ARCHITECTURE_AGENT_FLOW.md`
+> for current package boundaries.
+
 ## What Is Working Well
 - `cmd/` + `internal/` follow Go conventions and make the execution core discoverable.
 - `web/` is clearly separated from the Go runtime and shares event semantics via the backend.

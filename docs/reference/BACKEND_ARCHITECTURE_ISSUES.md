@@ -4,6 +4,10 @@
 This document continues the backend architecture analysis for elephant.ai and records evidence-backed issues with prioritized recommendations.
 It complements `docs/reference/ARCHITECTURE_AGENT_FLOW.md` and the refactor ledger.
 
+> Note: this is a historical snapshot. Some examples use pre-refactor package paths
+> (for example `internal/agent/*`, `internal/server/*`, `internal/tools/*`).
+> For current runtime paths, use `docs/reference/ARCHITECTURE_AGENT_FLOW.md`.
+
 ## Method
 - Scanned Go LOC for non-test files to surface complexity hotspots.
 - Collected internal package dependency fan-out/in via `go list -json ./internal/...`.

@@ -1,61 +1,58 @@
 # Built-in Tool Catalog
-> Last updated: 2026-02-04
 
-Source of truth: runtime registry in `internal/toolregistry/registry.go`.
-This catalog lists **currently registered** builtin tools; availability is conditional for sandbox/LLM/media features.
+Updated: 2026-02-10
 
----
+Source of truth: `internal/app/toolregistry/registry.go` and `internal/app/toolregistry/registry_builtins.go`.
 
-## 分层（架构视角）
+## 1) Core registered tools
 
-| 层级 | 目的 | 工具 |
+The registry currently keeps a **small core surface**. Deprecated standalone tools were consolidated into unified tools.
+
+| Group | Tools | Notes |
 | --- | --- | --- |
-| L0 编排/协议 | 任务拆分、并行/后台执行、用户交互门控 | `plan`, `clarify`, `request_user`, `subagent`, `explore`, `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge` |
-| L1 会话/知识 | 待办、技能、应用清单、记忆检索/读取 | `todo_read`, `todo_update`, `skills`, `apps`, `memory_search`, `memory_get` |
-| L2 业务域 | OKR 读写 | `okr_read`, `okr_write` |
-| L3 本地资源 | 本地文件/搜索 | `file_read`, `file_write`, `file_edit`, `list_files`, `grep`, `ripgrep`, `find` |
-| L4 Web 获取 | Web 检索/抓取/编辑、渠道历史 | `web_search`, `web_fetch`, `html_edit`, `douyin_hot`, `lark_chat_history`, `lark_send_message`, `lark_calendar_query`, `lark_calendar_create`, `lark_calendar_update`, `lark_calendar_delete`, `lark_task_manage` |
-| L5 Sandbox | 浏览器 + 隔离文件/执行 | `browser_action`, `browser_dom`, `browser_info`, `browser_screenshot`, `read_file`, `write_file`, `list_dir`, `search_file`, `replace_in_file`, `shell_exec`, `execute_code`, `write_attachment` |
-| L6 执行/外部 | 本地执行与外部执行器 | `bash`, `code_execute`, `acp_executor` |
-| L7 产物/媒体 | 产物与媒体生成 | `artifacts_write`, `artifacts_list`, `artifacts_delete`, `artifact_manifest`, `a2ui_emit`, `pptx_from_images`, `text_to_image`, `image_to_image`, `vision_analyze`, `video_generate`, `music_play` |
+| Orchestration/UI | `plan`, `clarify`, `request_user` | planning + clarification + explicit user input gates |
+| Memory/knowledge | `memory_search`, `memory_get`, `skills` | markdown memory recall + skill catalog |
+| Web retrieval | `web_search` | may be disabled in quickstart when key is unavailable |
+| Platform execution | `browser_action`, `read_file`, `write_file`, `replace_in_file`, `shell_exec`, `execute_code` | implementation depends on `toolset` |
+| Lark channel | `channel` | unified Lark messaging/calendar/task operations |
 
----
+## 2) Delegation tools (registered after coordinator wiring)
 
-## 分类（功能视角）
+Once coordinator is available, registry additionally exposes:
+- `subagent`
+- `explore`
+- `bg_dispatch`
+- `bg_status`
+- `bg_collect`
+- `ext_reply`
+- `ext_merge`
 
-- **编排/交互**：`plan`, `clarify`, `request_user`, `subagent`, `explore`, `bg_dispatch`, `bg_status`, `bg_collect`, `ext_reply`, `ext_merge`
-- **会话/记忆**：`todo_read`, `todo_update`, `skills`, `apps`, `memory_search`, `memory_get`
-- **业务域**：`okr_read`, `okr_write`
-- **本地文件/搜索**：`file_read`, `file_write`, `file_edit`, `list_files`, `grep`, `ripgrep`, `find`
-- **Web 获取**：`web_search`, `web_fetch`, `html_edit`, `douyin_hot`, `lark_chat_history`, `lark_send_message`, `lark_calendar_query`, `lark_calendar_create`, `lark_calendar_update`, `lark_calendar_delete`, `lark_task_manage`
-- **Sandbox 浏览器/IO**：`browser_action`, `browser_dom`, `browser_info`, `browser_screenshot`, `read_file`, `write_file`, `list_dir`, `search_file`, `replace_in_file`, `shell_exec`, `execute_code`, `write_attachment`
-- **执行/外部执行器**：`bash`, `code_execute`, `acp_executor`
-- **产物与媒体**：`artifacts_write`, `artifacts_list`, `artifacts_delete`, `artifact_manifest`, `a2ui_emit`, `pptx_from_images`, `text_to_image`, `image_to_image`, `vision_analyze`, `video_generate`, `music_play`
+## 3) Dynamic MCP tools
 
----
+MCP tools are registered at runtime and namespaced with prefix:
+- `mcp__*`
 
-## 条件可用性（运行时开关）
+## 4) `channel` actions (consolidated Lark operations)
 
-- **本地执行**：`bash`/`code_execute` 仅在本地执行开启时注册。
-- **Sandbox**：`browser_*`、`read_file`/`write_file`/`list_dir`/`search_file`/`replace_in_file`、`shell_exec`、`execute_code`、`write_attachment` 依赖 sandbox 配置。
-- **媒体模型**：`text_to_image`/`image_to_image`/`vision_analyze`/`video_generate` 依赖 Seedream 配置。
-- **通道**：`lark_*` 工具依赖 Lark 通道配置。
+`channel` replaces older per-feature tool names (`lark_send_message`, `lark_calendar_*`, `lark_task_manage`, etc.) with a single `action` argument.
 
----
+Supported actions:
+- read-only: `history`, `query_events`, `list_tasks`
+- write/reversible: `send_message`, `upload_file`
+- high-impact: `create_event`, `update_event`, `create_task`, `update_task`
+- irreversible: `delete_event`, `delete_task`
 
-## 功能重叠表（主要重叠点）
+## 5) Toolset switching
 
-| 重叠面 | 工具 | 核心差异 | 默认选择 |
-| --- | --- | --- | --- |
-| 文件读取 | `file_read` vs `read_file` | 本地仓库直读 vs sandbox 文件系统 | 本地环境优先 `file_read`；隔离环境用 `read_file` |
-| 文件写入 | `file_write`/`file_edit` vs `write_file`/`replace_in_file` | 本地文件改动 vs sandbox 文件改动 | 本地改仓库用 `file_*`；sandbox 用 `write_file/replace_in_file` |
-| 目录列举 | `list_files` vs `list_dir` | 本地目录 vs sandbox 目录 | 本地用 `list_files`；sandbox 用 `list_dir` |
-| 文本/路径搜索 | `grep`/`ripgrep`/`find` vs `search_file` | 本地搜索 vs sandbox 搜索 | 本地用 `ripgrep/grep/find`；sandbox 用 `search_file` |
-| Shell 执行 | `bash` vs `shell_exec` | 本地执行 vs sandbox 执行 | 本地用 `bash`；隔离环境用 `shell_exec` |
-| 代码执行 | `code_execute` vs `execute_code` | 本地运行时 vs sandbox 运行时 | 本地用 `code_execute`；隔离环境用 `execute_code` |
-| Web 获取 | `web_fetch` vs `browser_dom`/`browser_action` | 静态抓取 vs 需要 JS/交互 | 静态页面用 `web_fetch`；交互页面用 `browser_dom`/`browser_action` |
-| 浏览器交互 | `browser_dom` vs `browser_action` | DOM 语义操作 vs 坐标操作 | 优先 `browser_dom`；坐标兜底用 `browser_action` |
-| 图像理解 | `browser_screenshot` vs `vision_analyze` | 截图采集 vs 通用图像分析 | 先截屏，再 `vision_analyze` 深入理解 |
-| 产物输出 | `artifacts_write` vs `write_attachment` | 本地生成文件 vs sandbox 生成附件 | 本地产物用 `artifacts_write`；sandbox 产物用 `write_attachment` |
-| 历史/记忆 | `memory_search` vs `lark_chat_history` | Markdown 记忆检索 vs 通道聊天历史 | 优先 `memory_search`；需要原始记录时用 `lark_chat_history` |
-| 发现/搜索 | `web_search` vs `douyin_hot` | 通用检索 vs 特定平台热点 | 通用检索用 `web_search`；内容热点用 `douyin_hot` |
+- `toolset: default`: sandbox-backed implementations for platform execution tools.
+- `toolset: local` (`lark-local` alias): local browser/file/shell implementations.
+
+## 6) Deprecated names
+
+The following classes are intentionally not part of the default registry anymore:
+- legacy file/search split tools (`grep`, `ripgrep`, `find`, `list_dir`, `search_file`, ...)
+- legacy Lark split tools (`lark_send_message`, `lark_calendar_*`, `lark_task_manage`, ...)
+- legacy browser split tools (`browser_info`, `browser_screenshot`, `browser_dom`)
+- legacy artifact/media singleton tools (`artifacts_*`, `a2ui_emit`, `pptx_from_images`, ...)
+
+See `internal/app/toolregistry/registry_test.go` (`TestNewRegistryRegistersOnlyCoreTools`) for enforced expectations.
