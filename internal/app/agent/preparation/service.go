@@ -195,11 +195,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 			s.logger.Info("Using persona preset %s (source=%s)", preset, source)
 		}
 	}
-	channel := ""
-	if session != nil && session.Metadata != nil {
-		channel = strings.TrimSpace(session.Metadata["channel"])
-	}
-	stewardMode := appconfig.ResolveStewardMode(s.config.Steward.Enabled, personaKey, session.ID, channel)
 	if s.contextMgr != nil {
 		if skip, reason := shouldSkipContextWindow(task, session); skip {
 			clilatency.PrintfWithContext(ctx, "[latency] context_window=skipped reason=%s\n", reason)
@@ -222,7 +217,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 				TaskInput:          task,
 				Skills:             buildSkillsConfig(s.config.Proactive.Skills),
 				OKRContext:         okrContext,
-				StewardMode:        stewardMode,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("build context window: %w", err)
@@ -461,11 +455,6 @@ func (s *ExecutionPreparationService) Prepare(ctx context.Context, task string, 
 		WorldState:           initialWorldState,
 		WorldDiff:            initialWorldDiff,
 		PlanReviewEnabled:    appcontext.PlanReviewEnabled(ctx),
-		StewardMode:          stewardMode,
-		StewardState:         window.Dynamic.StewardState,
-	}
-	if state.StewardMode && state.StewardState == nil {
-		state.StewardState = &agent.StewardState{}
 	}
 	for key := range preloadedAttachments {
 		if key == "" {

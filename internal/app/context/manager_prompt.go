@@ -24,8 +24,6 @@ type systemPromptInput struct {
 	SessionID       string
 	SkillsConfig    agent.SkillsConfig
 	OKRContext      string
-	StewardState    *agent.StewardState
-	StewardMode     bool
 }
 
 func composeSystemPrompt(input systemPromptInput) string {
@@ -43,7 +41,6 @@ func composeSystemPrompt(input systemPromptInput) string {
 	if !input.OmitEnvironment {
 		sections = append(sections, buildEnvironmentSection(input.Static))
 	}
-	sections = append(sections, buildStewardReminderSection(input.StewardState, input.StewardMode))
 	sections = append(sections, buildDynamicSection(input.Dynamic), buildMetaSection(input.Meta))
 	var compact []string
 	for _, section := range sections {
@@ -336,20 +333,6 @@ func buildKnowledgeSection(knowledge []agent.KnowledgeReference) string {
 		}
 	}
 	return formatSection("# Knowledge & Experience", lines)
-}
-
-func buildStewardReminderSection(state *agent.StewardState, stewardMode bool) string {
-	if state != nil {
-		rendered := agent.RenderAsReminder(state)
-		if rendered != "" {
-			return fmt.Sprintf("# SYSTEM_REMINDER (STATE v%d)\n%s", state.Version, rendered)
-		}
-	}
-	// First-turn initialization: steward mode is active but no state exists yet.
-	if stewardMode && state == nil {
-		return "# STEWARD MODE ACTIVE\nThis is a new steward session. You MUST produce an initial STATE v1 in your first response by outputting a `<NEW_STATE>` JSON block. See your persona instructions for the required STATE schema."
-	}
-	return ""
 }
 
 func buildEnvironmentSection(static agent.StaticContext) string {

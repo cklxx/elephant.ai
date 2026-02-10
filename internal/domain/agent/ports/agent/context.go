@@ -50,7 +50,6 @@ type ContextWindowConfig struct {
 	TaskInput          string
 	Skills             SkillsConfig
 	OKRContext         string // Pre-rendered OKR goals section for system prompt injection
-	StewardMode        bool   // When true, steward state is loaded and injected as SYSTEM_REMINDER
 }
 
 // ContextWindow exposes the layered context returned by the manager.
@@ -96,7 +95,6 @@ type DynamicContext struct {
 	WorldState        map[string]any   `json:"world_state"`
 	Feedback          []FeedbackSignal `json:"feedback"`
 	SnapshotTimestamp time.Time        `json:"snapshot_timestamp"`
-	StewardState      *StewardState    `json:"steward_state,omitempty"`
 }
 
 // MetaContext tracks long-horizon memories and persona bookkeeping.
@@ -198,5 +196,4 @@ type ContextTurnRecord struct {
 	Messages      []core.Message       `json:"messages"`
 	Feedback      []FeedbackSignal     `json:"feedback"`
 	KnowledgeRefs []KnowledgeReference `json:"knowledge_refs"`
-	StewardState  *StewardState        `json:"steward_state,omitempty"`
 }

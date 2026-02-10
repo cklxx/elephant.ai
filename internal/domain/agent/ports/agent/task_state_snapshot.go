@@ -96,7 +96,6 @@ func CloneTaskState(state *TaskState) *TaskState {
 	if len(state.FeedbackSignals) > 0 {
 		cloned.FeedbackSignals = CloneFeedbackSignals(state.FeedbackSignals)
 	}
-	cloned.StewardState = state.StewardState // immutable replace; no deep clone needed
 	return cloned
 }
 
