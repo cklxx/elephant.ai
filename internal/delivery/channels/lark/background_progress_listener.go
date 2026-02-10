@@ -3,8 +3,6 @@ package lark
 import (
 	"context"
 	"fmt"
-	"math"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -579,22 +577,6 @@ func (l *backgroundProgressListener) getTask(taskID string) *bgTaskTracker {
 	return l.tasks[taskID]
 }
 
-func (l *backgroundProgressListener) buildHeader(t *bgTaskTracker, title string) string {
-	elapsed := l.clock().Sub(t.startedAt)
-	if elapsed < 0 {
-		elapsed = 0
-	}
-	var b strings.Builder
-	b.WriteString(title)
-	b.WriteString("\n")
-	b.WriteString(fmt.Sprintf("task_id=%s agent=%s\n", t.taskID, nonEmpty(t.agentType, "unknown")))
-	if strings.TrimSpace(t.description) != "" {
-		b.WriteString(fmt.Sprintf("desc=%s\n", truncateForLark(t.description, 120)))
-	}
-	b.WriteString(fmt.Sprintf("elapsed=%.0fm", elapsed.Minutes()))
-	return b.String()
-}
-
 // buildHumanHeader returns a human-friendly initial message for a background task.
 func (l *backgroundProgressListener) buildHumanHeader(t *bgTaskTracker, title string) string {
 	var b strings.Builder
@@ -630,13 +612,6 @@ func (l *backgroundProgressListener) taskWindow(_ string) time.Duration {
 		return defaultBackgroundProgressWindow
 	}
 	return l.window
-}
-
-func nonEmpty(v, fallback string) string {
-	if strings.TrimSpace(v) == "" {
-		return fallback
-	}
-	return v
 }
 
 func asString(v any) string {
@@ -690,50 +665,6 @@ func asStringSlice(v any) []string {
 	}
 }
 
-func mergeFiles(records []progressRecord) []string {
-	seen := map[string]struct{}{}
-	var out []string
-	for _, r := range records {
-		for _, f := range r.files {
-			f = strings.TrimSpace(f)
-			if f == "" {
-				continue
-			}
-			if _, ok := seen[f]; ok {
-				continue
-			}
-			seen[f] = struct{}{}
-			out = append(out, f)
-		}
-	}
-	sort.Strings(out)
-	if len(out) > 8 {
-		out = out[:8]
-	}
-	return out
-}
-
-func mergeTools(records []progressRecord) []string {
-	seen := map[string]struct{}{}
-	var out []string
-	for _, r := range records {
-		tool := strings.TrimSpace(r.currentTool)
-		if tool == "" {
-			continue
-		}
-		if _, ok := seen[tool]; ok {
-			continue
-		}
-		seen[tool] = struct{}{}
-		out = append(out, tool)
-	}
-	sort.Strings(out)
-	if len(out) > 6 {
-		out = out[:6]
-	}
-	return out
-}
-
 func truncateForLark(s string, max int) string {
 	s = strings.TrimSpace(s)
 	runes := []rune(s)
@@ -754,17 +685,6 @@ func minDuration(a, b time.Duration) time.Duration {
 		return a
 	}
 	return b
-}
-
-func formatMinutes(d time.Duration) string {
-	if d <= 0 {
-		return "1分钟"
-	}
-	mins := int(math.Ceil(d.Minutes()))
-	if mins <= 0 {
-		mins = 1
-	}
-	return fmt.Sprintf("%d分钟", mins)
 }
 
 func isCodeAgentType(agentType string) bool {

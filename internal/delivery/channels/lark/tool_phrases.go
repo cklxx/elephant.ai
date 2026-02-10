@@ -6,7 +6,6 @@ import "alex/internal/shared/uxphrases"
 var (
 	thinkingPhrases    = uxphrases.ThinkingPhrases
 	summarizingPhrases = uxphrases.SummarizingPhrases
-	defaultPhrases     = uxphrases.DefaultPhrases
 )
 
 // toolPhrase returns a friendly Chinese status phrase for the given tool name.
