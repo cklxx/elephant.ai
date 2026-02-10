@@ -167,6 +167,23 @@ func makeEnvelopeToolCompleted(callID, toolName string, dur time.Duration, err e
 	}
 }
 
+func makeNodeStarted(iteration int) *domain.WorkflowNodeStartedEvent {
+	return &domain.WorkflowNodeStartedEvent{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Iteration: iteration,
+	}
+}
+
+func makeEnvelopeNodeStarted(iteration int) *domain.WorkflowEventEnvelope {
+	return &domain.WorkflowEventEnvelope{
+		BaseEvent: domain.NewBaseEvent(agent.LevelCore, "sess", "run", "", time.Now()),
+		Event:     types.EventNodeStarted,
+		Payload: map[string]any{
+			"iteration": iteration,
+		},
+	}
+}
+
 // --- tests ---
 
 func TestProgressListenerForwardsEvents(t *testing.T) {
@@ -222,14 +239,9 @@ func TestProgressListenerToolLifecycle(t *testing.T) {
 		t.Fatalf("expected 1 send after first tool start, got %d", sender.sendCount())
 	}
 	text := sender.lastSendText()
-	if !strings.Contains(text, "[处理中...]") {
-		t.Fatalf("expected progress header, got %q", text)
-	}
-	if !strings.Contains(text, "web_search") {
-		t.Fatalf("expected tool name in progress, got %q", text)
-	}
-	if !strings.Contains(text, "[running") {
-		t.Fatalf("expected running status, got %q", text)
+	// New format: friendly phrase for web_search.
+	if !strings.Contains(text, "搜索") && !strings.Contains(text, "探索") && !strings.Contains(text, "挖掘") {
+		t.Fatalf("expected search-related phrase, got %q", text)
 	}
 
 	// Advance time past the rate limit.
@@ -245,8 +257,9 @@ func TestProgressListenerToolLifecycle(t *testing.T) {
 		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
 	}
 	updateText := sender.lastUpdateText()
-	if !strings.Contains(updateText, "[done 1.2s]") {
-		t.Fatalf("expected done status with duration, got %q", updateText)
+	// After all tools done, should show summarizing phrase.
+	if !strings.Contains(updateText, "整理") && !strings.Contains(updateText, "总结") && !strings.Contains(updateText, "梳理") {
+		t.Fatalf("expected summarizing phrase after tool done, got %q", updateText)
 	}
 
 	pl.Close()
@@ -272,8 +285,10 @@ func TestProgressListenerEnvelopeLifecycle(t *testing.T) {
 	if sender.updateCount() != 1 {
 		t.Fatalf("expected 1 update after tool completion, got %d", sender.updateCount())
 	}
-	if text := sender.lastUpdateText(); !strings.Contains(text, "[done 1.2s]") {
-		t.Fatalf("expected done status, got %q", text)
+	// After completion, shows summarizing phrase.
+	text := sender.lastUpdateText()
+	if !strings.Contains(text, "整理") && !strings.Contains(text, "总结") && !strings.Contains(text, "梳理") {
+		t.Fatalf("expected summarizing phrase, got %q", text)
 	}
 }
 
@@ -290,9 +305,14 @@ func TestProgressListenerErroredTool(t *testing.T) {
 	pl.OnEvent(makeToolCompleted("call-err", "bad_tool", 500*time.Millisecond, fmt.Errorf("failed")))
 	time.Sleep(100 * time.Millisecond)
 
+	// After errored tool completes, shows summarizing phrase (same as normal completion).
 	text := sender.lastUpdateText()
-	if !strings.Contains(text, "[error 0.5s]") {
-		t.Fatalf("expected error status, got %q", text)
+	if text == "" {
+		t.Fatal("expected an update after errored tool completion")
+	}
+	// Should be a valid phrase, not raw technical text.
+	if strings.Contains(text, "[error") || strings.Contains(text, "bad_tool") {
+		t.Fatalf("expected friendly phrase, got raw technical text: %q", text)
 	}
 	pl.Close()
 }
@@ -349,17 +369,6 @@ func TestProgressListenerCloseFlush(t *testing.T) {
 	if totalOps < 2 {
 		t.Fatalf("expected at least 2 total operations (send+updates), got %d", totalOps)
 	}
-
-	// Verify the final text includes both tools.
-	var finalText string
-	if sender.updateCount() > 0 {
-		finalText = sender.lastUpdateText()
-	} else {
-		finalText = sender.lastSendText()
-	}
-	if !strings.Contains(finalText, "tool_a") || !strings.Contains(finalText, "tool_b") {
-		t.Fatalf("expected both tools in final text, got %q", finalText)
-	}
 }
 
 func TestProgressListenerDuplicateToolStart(t *testing.T) {
@@ -386,14 +395,15 @@ func TestProgressListenerBuildTextFormat(t *testing.T) {
 		toolIndex: make(map[string]*toolStatus),
 	}
 
-	// Empty tools.
+	// Empty tools → thinking phrase.
 	text := pl.buildText()
-	if text != "[处理中...]" {
-		t.Fatalf("expected header only for empty tools, got %q", text)
+	if !strings.Contains(text, "思考") && !strings.Contains(text, "酝酿") &&
+		!strings.Contains(text, "构思") && !strings.Contains(text, "琢磨") {
+		t.Fatalf("expected thinking phrase for empty tools, got %q", text)
 	}
 
 	now := clk.Now()
-	// Add tools.
+	// Add tools: one done, one running, one errored.
 	pl.tools = []*toolStatus{
 		{callID: "c1", toolName: "web_search", started: now.Add(-2 * time.Second), done: true, duration: 1200 * time.Millisecond},
 		{callID: "c2", toolName: "seedream", started: now.Add(-3 * time.Second)},
@@ -401,21 +411,21 @@ func TestProgressListenerBuildTextFormat(t *testing.T) {
 	}
 
 	text = pl.buildText()
-	lines := strings.Split(text, "\n")
-	if len(lines) != 4 {
-		t.Fatalf("expected 4 lines, got %d: %q", len(lines), text)
+	// seedream is the latest non-done tool → should show image creation phrase.
+	if !strings.Contains(text, "创作") && !strings.Contains(text, "绘制") && !strings.Contains(text, "构图") {
+		t.Fatalf("expected image creation phrase for seedream, got %q", text)
 	}
-	if lines[0] != "[处理中...]" {
-		t.Fatalf("expected header line, got %q", lines[0])
+	// Should be a single line, no newlines.
+	if strings.Contains(text, "\n") {
+		t.Fatalf("expected single-line phrase, got multi-line: %q", text)
 	}
-	if !strings.Contains(lines[1], "web_search") || !strings.Contains(lines[1], "[done 1.2s]") {
-		t.Fatalf("expected web_search done line, got %q", lines[1])
-	}
-	if !strings.Contains(lines[2], "seedream") || !strings.Contains(lines[2], "[running 3s]") {
-		t.Fatalf("expected seedream running line, got %q", lines[2])
-	}
-	if !strings.Contains(lines[3], "bad_tool") || !strings.Contains(lines[3], "[error 0.5s]") {
-		t.Fatalf("expected bad_tool error line, got %q", lines[3])
+
+	// All tools done → summarizing phrase.
+	pl.tools[1].done = true
+	pl.tools[1].duration = 3 * time.Second
+	text = pl.buildText()
+	if !strings.Contains(text, "整理") && !strings.Contains(text, "总结") && !strings.Contains(text, "梳理") {
+		t.Fatalf("expected summarizing phrase when all tools done, got %q", text)
 	}
 }
 
@@ -444,5 +454,104 @@ func TestProgressListenerMultipleCloseIdempotent(t *testing.T) {
 
 	if sender.sendCount() != 1 {
 		t.Fatalf("expected exactly 1 send, got %d", sender.sendCount())
+	}
+}
+
+func TestProgressListenerNodeStartedEvent(t *testing.T) {
+	clk := newTestClock(time.Date(2026, 2, 10, 12, 0, 0, 0, time.UTC))
+	sender := &spySender{nextID: "om_node"}
+	pl := newProgressListener(context.Background(), nil, sender, nil)
+	pl.now = clk.Now
+
+	// NodeStarted with no tools → thinking phrase.
+	pl.OnEvent(makeNodeStarted(1))
+	time.Sleep(100 * time.Millisecond)
+
+	if sender.sendCount() != 1 {
+		t.Fatalf("expected 1 send after NodeStarted, got %d", sender.sendCount())
+	}
+	text := sender.lastSendText()
+	if !strings.Contains(text, "思考") && !strings.Contains(text, "酝酿") &&
+		!strings.Contains(text, "构思") && !strings.Contains(text, "琢磨") {
+		t.Fatalf("expected thinking phrase on NodeStarted, got %q", text)
+	}
+
+	pl.Close()
+}
+
+func TestProgressListenerEnvelopeNodeStartedEvent(t *testing.T) {
+	clk := newTestClock(time.Date(2026, 2, 10, 12, 0, 0, 0, time.UTC))
+	sender := &spySender{nextID: "om_env_node"}
+	pl := newProgressListener(context.Background(), nil, sender, nil)
+	pl.now = clk.Now
+
+	// Envelope NodeStarted → thinking phrase.
+	pl.OnEvent(makeEnvelopeNodeStarted(1))
+	time.Sleep(100 * time.Millisecond)
+
+	if sender.sendCount() != 1 {
+		t.Fatalf("expected 1 send after envelope NodeStarted, got %d", sender.sendCount())
+	}
+	text := sender.lastSendText()
+	if !strings.Contains(text, "思考") && !strings.Contains(text, "酝酿") &&
+		!strings.Contains(text, "构思") && !strings.Contains(text, "琢磨") {
+		t.Fatalf("expected thinking phrase, got %q", text)
+	}
+
+	pl.Close()
+}
+
+func TestProgressListenerMessageID(t *testing.T) {
+	sender := &spySender{nextID: "om_msgid"}
+	pl := newProgressListener(context.Background(), nil, sender, nil)
+
+	// Before any send, MessageID should be empty.
+	if id := pl.MessageID(); id != "" {
+		t.Fatalf("expected empty MessageID before send, got %q", id)
+	}
+
+	pl.OnEvent(makeToolStarted("call-1", "web_search"))
+	time.Sleep(100 * time.Millisecond)
+
+	// After send, MessageID should be set.
+	if id := pl.MessageID(); id != "om_msgid" {
+		t.Fatalf("expected MessageID=om_msgid, got %q", id)
+	}
+
+	pl.Close()
+}
+
+func TestProgressListenerToolPhraseMapping(t *testing.T) {
+	tests := []struct {
+		toolName string
+		keywords []string // at least one must appear in the phrase
+	}{
+		{"web_search", []string{"搜索", "探索", "挖掘"}},
+		{"read_file", []string{"翻阅", "研读", "查阅"}},
+		{"write_file", []string{"撰写", "书写", "落笔"}},
+		{"shell_exec", []string{"运算", "执行", "实验"}},
+		{"browser_navigate", []string{"浏览", "查看", "观察"}},
+		{"memory_search", []string{"回忆", "追溯", "检索"}},
+		{"seedream", []string{"创作", "绘制", "构图"}},
+		{"lark_send_message", []string{"联络", "查询", "协调"}},
+		{"plan", []string{"规划", "梳理", "分析"}},
+		{"subagent", []string{"深入", "调研", "拆解"}},
+		{"unknown_tool_xyz", []string{"处理", "分析", "洞察"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.toolName, func(t *testing.T) {
+			phrase := toolPhrase(tc.toolName, 0)
+			found := false
+			for _, kw := range tc.keywords {
+				if strings.Contains(phrase, kw) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("toolPhrase(%q) = %q, expected one of keywords %v", tc.toolName, phrase, tc.keywords)
+			}
+		})
 	}
 }

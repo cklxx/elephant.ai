@@ -2,7 +2,6 @@ package lark
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +36,7 @@ type toolStatus struct {
 
 // progressListener wraps an EventListener to intercept tool start/complete
 // events and display progress in Lark via a single updating text message.
+// It shows warm, human-readable Chinese phrases instead of raw tool names.
 type progressListener struct {
 	inner  agent.EventListener
 	sender progressSender
@@ -52,6 +52,8 @@ type progressListener struct {
 	timer     *time.Timer            // rate-limit timer
 	lastFlush time.Time
 	closed    bool
+	iteration int  // current ReAct iteration count
+	nodeActive bool // true when in thinking phase (no active tools)
 }
 
 // newProgressListener creates a progress listener that delegates all events
@@ -67,6 +69,14 @@ func newProgressListener(ctx context.Context, inner agent.EventListener, sender 
 	}
 }
 
+// MessageID returns the Lark message ID of the progress message (if sent).
+// Returns empty string if no message has been sent yet.
+func (p *progressListener) MessageID() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.messageID
+}
+
 // OnEvent forwards the event to the inner listener and tracks tool lifecycle.
 func (p *progressListener) OnEvent(event agent.AgentEvent) {
 	// Always forward to inner listener first.
@@ -75,6 +85,8 @@ func (p *progressListener) OnEvent(event agent.AgentEvent) {
 	}
 
 	switch e := event.(type) {
+	case *domain.WorkflowNodeStartedEvent:
+		p.onNodeStarted(e)
 	case *domain.WorkflowToolStartedEvent:
 		p.onToolStarted(e)
 	case *domain.WorkflowToolCompletedEvent:
@@ -82,6 +94,20 @@ func (p *progressListener) OnEvent(event agent.AgentEvent) {
 	case *domain.WorkflowEventEnvelope:
 		p.onEnvelope(e)
 	}
+}
+
+func (p *progressListener) onNodeStarted(e *domain.WorkflowNodeStartedEvent) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed {
+		return
+	}
+
+	p.iteration = e.Iteration
+	p.nodeActive = true
+	p.dirty = true
+	p.scheduleFlush()
 }
 
 func (p *progressListener) onToolStarted(e *domain.WorkflowToolStartedEvent) {
@@ -103,6 +129,7 @@ func (p *progressListener) onToolStarted(e *domain.WorkflowToolStartedEvent) {
 	}
 	p.tools = append(p.tools, ts)
 	p.toolIndex[e.CallID] = ts
+	p.nodeActive = false
 	p.dirty = true
 	p.scheduleFlush()
 }
@@ -136,7 +163,24 @@ func (p *progressListener) onEnvelope(e *domain.WorkflowEventEnvelope) {
 		p.onEnvelopeToolStarted(e)
 	case types.EventToolCompleted:
 		p.onEnvelopeToolCompleted(e)
+	case types.EventNodeStarted:
+		p.onEnvelopeNodeStarted(e)
 	}
+}
+
+func (p *progressListener) onEnvelopeNodeStarted(e *domain.WorkflowEventEnvelope) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.closed {
+		return
+	}
+
+	iteration := asInt(e.Payload["iteration"])
+	p.iteration = iteration
+	p.nodeActive = true
+	p.dirty = true
+	p.scheduleFlush()
 }
 
 func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope) {
@@ -165,6 +209,7 @@ func (p *progressListener) onEnvelopeToolStarted(e *domain.WorkflowEventEnvelope
 	}
 	p.tools = append(p.tools, ts)
 	p.toolIndex[callID] = ts
+	p.nodeActive = false
 	p.dirty = true
 	p.scheduleFlush()
 }
@@ -357,31 +402,30 @@ func (p *progressListener) Close() {
 	}
 }
 
-// buildText constructs the progress display string.
-// Must be called with p.mu held.
+// buildText constructs the progress display string as a single friendly
+// Chinese phrase. Must be called with p.mu held.
 func (p *progressListener) buildText() string {
-	if len(p.tools) == 0 {
-		return "[处理中...]"
+	// Find the latest active (not done) tool.
+	var activeTool *toolStatus
+	for i := len(p.tools) - 1; i >= 0; i-- {
+		if !p.tools[i].done {
+			activeTool = p.tools[i]
+			break
+		}
 	}
 
-	var b strings.Builder
-	b.WriteString("[处理中...]\n")
-	for _, ts := range p.tools {
-		b.WriteString("> ")
-		b.WriteString(ts.toolName)
-		if ts.done {
-			if ts.errored {
-				b.WriteString(fmt.Sprintf(" [error %.1fs]", ts.duration.Seconds()))
-			} else {
-				b.WriteString(fmt.Sprintf(" [done %.1fs]", ts.duration.Seconds()))
-			}
-		} else {
-			elapsed := p.clock().Sub(ts.started)
-			b.WriteString(fmt.Sprintf(" [running %.0fs]", elapsed.Seconds()))
-		}
-		b.WriteString("\n")
+	// If there's an active tool, show its phrase.
+	if activeTool != nil {
+		return toolPhrase(activeTool.toolName, len(p.tools))
 	}
-	return strings.TrimRight(b.String(), "\n")
+
+	// All tools done — if we have tools, show summarizing phrase.
+	if len(p.tools) > 0 {
+		return pickPhrase(summarizingPhrases, len(p.tools))
+	}
+
+	// No tools at all — pure thinking phase.
+	return pickPhrase(thinkingPhrases, p.iteration)
 }
 
 func (p *progressListener) clock() time.Time {
