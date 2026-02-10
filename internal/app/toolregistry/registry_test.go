@@ -37,61 +37,6 @@ func TestNewRegistryRegistersBuiltins(t *testing.T) {
 	}
 }
 
-func TestRegistryListExcludesLegacyCompatibilityTools(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
-	if err != nil {
-		t.Fatalf("unexpected error creating registry: %v", err)
-	}
-
-	defs := registry.List()
-	names := make([]string, 0, len(defs))
-	for _, def := range defs {
-		names = append(names, def.Name)
-	}
-
-	for _, legacy := range []string{"file_read", "file_write", "file_edit", "list_files", "bash", "code_execute"} {
-		if slices.Contains(names, legacy) {
-			t.Fatalf("legacy tool %s should not be listed", legacy)
-		}
-	}
-	for _, canonical := range []string{"read_file", "write_file", "replace_in_file", "list_dir", "shell_exec", "execute_code"} {
-		if !slices.Contains(names, canonical) {
-			t.Fatalf("canonical tool %s must be listed", canonical)
-		}
-	}
-}
-
-func TestRegistryLegacyAliasesRemainResolvable(t *testing.T) {
-	registry, err := NewRegistry(Config{MemoryEngine: newTestMemoryEngine(t)})
-	if err != nil {
-		t.Fatalf("unexpected error creating registry: %v", err)
-	}
-
-	for aliasName, canonicalName := range map[string]string{
-		"file_read":    "read_file",
-		"file_write":   "write_file",
-		"file_edit":    "replace_in_file",
-		"list_files":   "list_dir",
-		"bash":         "shell_exec",
-		"code_execute": "execute_code",
-	} {
-		tool, err := registry.Get(aliasName)
-		if err != nil {
-			t.Fatalf("expected alias %s to resolve: %v", aliasName, err)
-		}
-		if tool.Metadata().Name != aliasName {
-			t.Fatalf("expected alias metadata name %s, got %s", aliasName, tool.Metadata().Name)
-		}
-		def := tool.Definition()
-		if def.Name != aliasName {
-			t.Fatalf("expected alias definition name %s, got %s", aliasName, def.Name)
-		}
-		if !strings.Contains(def.Description, canonicalName) {
-			t.Fatalf("expected alias %s description to mention %s", aliasName, canonicalName)
-		}
-	}
-}
-
 func TestNewRegistryRegistersLarkLocalTools(t *testing.T) {
 	registry, err := NewRegistry(Config{
 		MemoryEngine: newTestMemoryEngine(t),

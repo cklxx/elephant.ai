@@ -147,9 +147,6 @@ func (r *Registry) Get(name string) (tools.ToolExecutor, error) {
 	if tool, ok := r.getRawLocked(name); ok {
 		return tool, nil
 	}
-	if aliasTool := r.resolveLegacyAliasLocked(name); aliasTool != nil {
-		return aliasTool, nil
-	}
 	return nil, fmt.Errorf("tool not found: %s", name)
 }
 

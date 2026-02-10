@@ -21,20 +21,20 @@ func TestPolicyAwareRegistry_DeniesByName(t *testing.T) {
 	cfg.Rules = []toolspolicy.PolicyRule{
 		{
 			Name:    "deny-file-read",
-			Match:   toolspolicy.PolicySelector{Tools: []string{"file_read"}},
+			Match:   toolspolicy.PolicySelector{Tools: []string{"read_file"}},
 			Enabled: &disabled,
 		},
 	}
 	policy := toolspolicy.NewToolPolicy(cfg)
 	wrapped := registry.WithPolicy(policy, "cli")
 
-	if _, err := wrapped.Get("file_read"); err == nil {
-		t.Fatal("expected file_read to be denied by policy")
+	if _, err := wrapped.Get("read_file"); err == nil {
+		t.Fatal("expected read_file to be denied by policy")
 	}
 
 	defs := wrapped.List()
-	if slices.ContainsFunc(defs, func(def ports.ToolDefinition) bool { return def.Name == "file_read" }) {
-		t.Fatal("expected file_read to be filtered from List")
+	if slices.ContainsFunc(defs, func(def ports.ToolDefinition) bool { return def.Name == "read_file" }) {
+		t.Fatal("expected read_file to be filtered from List")
 	}
 }
 
@@ -49,20 +49,20 @@ func TestPolicyAwareRegistry_ChannelMatch(t *testing.T) {
 	cfg.Rules = []toolspolicy.PolicyRule{
 		{
 			Name:    "deny-web-file-read",
-			Match:   toolspolicy.PolicySelector{Tools: []string{"file_read"}, Channels: []string{"web"}},
+			Match:   toolspolicy.PolicySelector{Tools: []string{"read_file"}, Channels: []string{"web"}},
 			Enabled: &disabled,
 		},
 	}
 	policy := toolspolicy.NewToolPolicy(cfg)
 
 	webRegistry := registry.WithPolicy(policy, "web")
-	if _, err := webRegistry.Get("file_read"); err == nil {
-		t.Fatal("expected file_read to be denied on web channel")
+	if _, err := webRegistry.Get("read_file"); err == nil {
+		t.Fatal("expected read_file to be denied on web channel")
 	}
 
 	cliRegistry := registry.WithPolicy(policy, "cli")
-	if _, err := cliRegistry.Get("file_read"); err != nil {
-		t.Fatalf("expected file_read to be allowed on cli channel: %v", err)
+	if _, err := cliRegistry.Get("read_file"); err != nil {
+		t.Fatalf("expected read_file to be allowed on cli channel: %v", err)
 	}
 }
 
@@ -121,8 +121,8 @@ func TestPolicyAwareRegistry_SafetyLevelPropagation(t *testing.T) {
 		t.Fatal("expected L4 tool to be filtered from List by safety level policy")
 	}
 
-	// Other tools (e.g. file_read at L1) should still be allowed
-	if _, err := wrapped.Get("file_read"); err != nil {
-		t.Fatalf("expected file_read (L1) to be allowed: %v", err)
+	// Other tools (e.g. read_file at L1) should still be allowed
+	if _, err := wrapped.Get("read_file"); err != nil {
+		t.Fatalf("expected read_file (L1) to be allowed: %v", err)
 	}
 }
