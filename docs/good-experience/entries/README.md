@@ -1,10 +1,11 @@
 # Index: good-experience/entries
 
-Updated: 2026-02-09
+Updated: 2026-02-10
 
 ## Files
 
 - [2026-02-10-basic-active-suite-zero-na-regression-baseline.md](2026-02-10-basic-active-suite-zero-na-regression-baseline.md)
+- [2026-02-10-context-autonomy-rules-and-safe-env-injection.md](2026-02-10-context-autonomy-rules-and-safe-env-injection.md)
 - [2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md](2026-02-10-e2e-systematic-suite-rebuild-and-delivery-review.md)
 - [2026-02-09-eval-retire-expand-agent-opt-v4.md](2026-02-09-eval-retire-expand-agent-opt-v4.md)
 - [2026-02-09-motivation-aware-suite-optimization.md](2026-02-09-motivation-aware-suite-optimization.md)

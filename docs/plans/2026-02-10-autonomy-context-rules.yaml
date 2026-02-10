@@ -1,0 +1,38 @@
+id: "plan-2026-02-10-autonomy-context-rules"
+title: "Expand Autonomy and Environment Injection Rules in Context"
+status: "in_progress"
+owner: "codex"
+created_at: "2026-02-10T21:15:00Z"
+updated_at: "2026-02-10T21:28:00Z"
+context:
+  goals:
+    - "Increase autonomous/exploratory execution guidance in system prompt context."
+    - "Allow broad use of host tools by policy text while preserving safety boundaries."
+    - "Inject current host environment summary (safe, non-secret) into context."
+    - "Provide a larger rule body in context via SOP-backed knowledge references."
+  constraints:
+    - "Preserve non-destructive/safety guardrails and no fabricated evidence."
+    - "Do not leak secret env vars in prompt-injected environment summary."
+    - "Follow TDD, full lint+tests, mandatory code review, incremental commits."
+steps:
+  - id: "plan-and-tests"
+    title: "Add plan and failing tests for routing/environment rule expectations"
+    status: "completed"
+  - id: "implement-rules-and-env"
+    title: "Implement routing guardrails expansion and safe environment injection"
+    status: "completed"
+  - id: "sop-context-expansion"
+    title: "Add high-density autonomy SOP section and include in default knowledge"
+    status: "completed"
+  - id: "validate-review-commit"
+    title: "Run tests/lint, execute mandatory code review, then commit and merge"
+    status: "in_progress"
+artifacts:
+  prompt_logic:
+    - "internal/app/context/manager_prompt.go"
+  environment_logic:
+    - "internal/infra/environment/summary.go"
+    - "internal/infra/environment/utils.go"
+  context_docs:
+    - "docs/reference/TASK_EXECUTION_FRAMEWORK.md"
+    - "configs/context/knowledge/default.yaml"
