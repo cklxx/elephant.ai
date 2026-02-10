@@ -285,16 +285,46 @@ func (e *Executor) resolvePython() string {
 		return e.cfg.PythonBinary
 	}
 	if script := e.resolveBridgeScript(); script != "" {
-		venvPython := filepath.Join(filepath.Dir(script), ".venv", "bin", "python3")
+		scriptDir := filepath.Dir(script)
+		venvPython := filepath.Join(scriptDir, ".venv", "bin", "python3")
 		if _, err := os.Stat(venvPython); err == nil {
 			return venvPython
+		}
+		// Venv missing or broken — try auto-provisioning via setup.sh.
+		if provisioned := e.ensureVenv(scriptDir); provisioned != "" {
+			return provisioned
 		}
 	}
 	return "python3"
 }
 
+// ensureVenv runs the setup.sh script in scriptDir to create the venv.
+// Returns the venv python3 path on success, or empty string on failure.
+func (e *Executor) ensureVenv(scriptDir string) string {
+	setupScript := filepath.Join(scriptDir, "setup.sh")
+	if _, err := os.Stat(setupScript); err != nil {
+		return ""
+	}
+	e.logger.Info("Bridge venv missing, auto-provisioning via setup.sh", "dir", scriptDir)
+	cmd := exec.Command("bash", setupScript)
+	cmd.Dir = scriptDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		e.logger.Error("Bridge venv auto-setup failed", "err", err, "output", string(out))
+		return ""
+	}
+	venvPython := filepath.Join(scriptDir, ".venv", "bin", "python3")
+	if _, err := os.Stat(venvPython); err == nil {
+		e.logger.Info("Bridge venv auto-provisioned successfully", "python", venvPython)
+		return venvPython
+	}
+	return ""
+}
+
 func (e *Executor) resolveBridgeScript() string {
 	if e.cfg.BridgeScript != "" {
+		if abs, err := filepath.Abs(e.cfg.BridgeScript); err == nil {
+			return abs
+		}
 		return e.cfg.BridgeScript
 	}
 	// Resolve relative to the running binary's directory.
@@ -307,7 +337,13 @@ func (e *Executor) resolveBridgeScript() string {
 			}
 		}
 	}
-	return filepath.Join("scripts", scriptDir, scriptDir+".py")
+	// Fallback: resolve relative path to absolute from CWD so it works
+	// regardless of the subprocess WorkingDir.
+	rel := filepath.Join("scripts", scriptDir, scriptDir+".py")
+	if abs, err := filepath.Abs(rel); err == nil {
+		return abs
+	}
+	return rel
 }
 
 // defaultScriptDir returns the bridge script directory name for the agent type.

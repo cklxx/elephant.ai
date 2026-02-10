@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -349,6 +351,106 @@ func TestExecutor_SupportedTypes(t *testing.T) {
 		if len(types) != 1 || types[0] != tt.agentType {
 			t.Fatalf("expected [%s], got %v", tt.agentType, types)
 		}
+	}
+}
+
+func TestResolveBridgeScript_ReturnsAbsolutePath(t *testing.T) {
+	t.Parallel()
+
+	// When BridgeScript is set to a relative path, resolveBridgeScript
+	// must convert it to an absolute path.
+	exec := New(BridgeConfig{
+		AgentType:    "claude_code",
+		BridgeScript: "scripts/cc_bridge/cc_bridge.py",
+	})
+	resolved := exec.resolveBridgeScript()
+	if !filepath.IsAbs(resolved) {
+		t.Fatalf("expected absolute path, got %q", resolved)
+	}
+	if !strings.HasSuffix(resolved, "scripts/cc_bridge/cc_bridge.py") {
+		t.Fatalf("expected path to end with scripts/cc_bridge/cc_bridge.py, got %q", resolved)
+	}
+}
+
+func TestResolvePython_UsesVenvWhenPresent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	scriptFile := filepath.Join(dir, "cc_bridge.py")
+	if err := os.WriteFile(scriptFile, []byte("# stub"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Create venv structure.
+	venvBin := filepath.Join(dir, ".venv", "bin")
+	if err := os.MkdirAll(venvBin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	pythonPath := filepath.Join(venvBin, "python3")
+	if err := os.WriteFile(pythonPath, []byte("#!/bin/sh\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	exec := New(BridgeConfig{
+		AgentType:    "claude_code",
+		BridgeScript: scriptFile,
+	})
+	resolved := exec.resolvePython()
+	if resolved != pythonPath {
+		t.Fatalf("expected %q, got %q", pythonPath, resolved)
+	}
+}
+
+func TestResolvePython_FallsBackToSystemPython(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	scriptFile := filepath.Join(dir, "cc_bridge.py")
+	if err := os.WriteFile(scriptFile, []byte("# stub"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// No .venv, no setup.sh → should fall back to "python3".
+	exec := New(BridgeConfig{
+		AgentType:    "claude_code",
+		BridgeScript: scriptFile,
+	})
+	resolved := exec.resolvePython()
+	if resolved != "python3" {
+		t.Fatalf("expected fallback to python3, got %q", resolved)
+	}
+}
+
+func TestEnsureVenv_AutoProvisions(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	// Create a setup.sh that creates a fake venv.
+	setupContent := fmt.Sprintf(`#!/bin/bash
+set -e
+mkdir -p "%s/.venv/bin"
+echo "#!/bin/sh" > "%s/.venv/bin/python3"
+chmod +x "%s/.venv/bin/python3"
+`, dir, dir, dir)
+	setupPath := filepath.Join(dir, "setup.sh")
+	if err := os.WriteFile(setupPath, []byte(setupContent), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	exec := New(BridgeConfig{AgentType: "claude_code"})
+	result := exec.ensureVenv(dir)
+	expected := filepath.Join(dir, ".venv", "bin", "python3")
+	if result != expected {
+		t.Fatalf("expected %q, got %q", expected, result)
+	}
+}
+
+func TestEnsureVenv_NoSetupScript(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	exec := New(BridgeConfig{AgentType: "claude_code"})
+	result := exec.ensureVenv(dir)
+	if result != "" {
+		t.Fatalf("expected empty string, got %q", result)
 	}
 }
 
