@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
+// Force dynamic rendering for API route
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
 // Event validation schema
 const VisualizerEventSchema = z.object({
   timestamp: z.string(),

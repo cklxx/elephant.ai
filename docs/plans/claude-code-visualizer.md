@@ -1,7 +1,8 @@
 # Claude Code 可视化动画系统
 
 **创建时间**: 2026-02-10 22:40
-**状态**: 进行中
+**更新时间**: 2026-02-11 00:30
+**状态**: ✅ 已完成（核心功能）
 
 ## 目标
 
@@ -52,26 +53,67 @@
 
 ## 实现步骤
 
-### Phase 1: Hook 和服务搭建
-- [ ] 创建 Claude Code hook 脚本
-- [ ] 创建 WebSocket 服务端点
-- [ ] 实现事件数据格式
+### Phase 1: Hook 和服务搭建 ✅
+- [x] 创建 Claude Code hook 脚本 (`~/.claude/hooks/visualizer-hook.sh`)
+- [x] 创建 SSE 服务端点 (使用 SSE 替代 WebSocket，更简单)
+- [x] 实现事件数据格式 (Zod 验证 + 去重)
 
-### Phase 2: 基础可视化
-- [ ] 文件树组件
-- [ ] 螃蟹角色 SVG
-- [ ] 基础移动动画
+### Phase 2: 基础可视化 ✅
+- [x] 文件树组件 (使用 FolderTreemap 替代简单树，更美观)
+- [x] 螃蟹角色 SVG (完整的螃蟹设计，带钳子和腿)
+- [x] 基础移动动画 (CSS transition + 固定 viewport)
 
-### Phase 3: 完整动画系统
-- [ ] 所有工具的动画映射
-- [ ] 气泡提示系统
-- [ ] 思考状态动画
-- [ ] 平滑过渡效果
+### Phase 3: 完整动画系统 ✅
+- [x] 所有工具的动画映射 (Read/Write/Edit/Grep/Glob/Bash 等)
+- [x] 气泡提示系统 (实时显示操作和文件名)
+- [x] 思考状态动画 (螃蟹飘到顶部)
+- [x] 平滑过渡效果 (duration-700 + ease-out)
 
-### Phase 4: 增强和优化
-- [ ] 历史回放功能
-- [ ] 性能优化
-- [ ] 美化和细节
+### Phase 4: 增强和优化 🔄
+- [ ] 历史回放功能 (未来迭代)
+- [x] 性能优化 (事件去重、限制 200 条历史)
+- [x] 美化和细节 (颜色、边框、阴影、动画关键帧)
+
+## 测试结果
+
+### ✅ 功能验证
+- Hook 脚本正确解析 Claude Code 事件 (使用 jq 从 stdin 解析 JSON)
+- API 端点接收并存储事件 (Zod 验证 + 去重)
+- SSE 流实时推送事件到前端 (30 秒心跳)
+- FolderTreemap 动态更新活跃文件夹
+- 螃蟹移动到目标文件夹位置
+- 气泡显示正确的工具和文件名
+- 思考状态时螃蟹飘到顶部
+- 事件日志正确显示历史记录
+
+### 🧪 端到端测试
+```bash
+# 1. 启动开发服务器
+cd web && PORT=3002 npm run dev
+
+# 2. 发送测试事件
+cat test-event.json | VISUALIZER_URL=http://localhost:3002/api/visualizer/events \
+  ~/.claude/hooks/visualizer-hook.sh
+
+# 3. 访问可视化界面
+open http://localhost:3002/visualizer
+```
+
+测试通过：事件从 hook → API → SSE → 前端流畅传递，螃蟹动画正常显示。
+
+## 已知问题
+
+1. **FolderTreemap 初始加载较慢** (扫描整个项目需 1-2 秒)
+   - 缓解：已限制扫描深度 (默认 3 层)
+   - 未来：添加 loading 状态和增量加载
+
+2. **大量事件时可能卡顿** (未测试超过 1000 个事件)
+   - 缓解：限制历史 200 条 + 事件去重
+   - 未来：虚拟化列表渲染
+
+3. **螃蟹定位依赖 DOM 查询** (可能有小的偏移)
+   - 当前：使用固定 viewport 减少滚动影响
+   - 未来：使用 Canvas 坐标系统
 
 ## 技术细节
 
