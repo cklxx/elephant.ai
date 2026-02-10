@@ -48,6 +48,7 @@ install_stubs() {
   }
 
   write_loop_state() { :; }
+  lark_ensure_test_worktree() { :; }
   stop_test_agent() { :; }
   restore_test_to_validated() { :; }
   restart_test_agent() { :; }

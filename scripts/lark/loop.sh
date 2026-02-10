@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../lib/common/logging.sh"
 # shellcheck source=../lib/common/process.sh
 source "${SCRIPT_DIR}/../lib/common/process.sh"
+# shellcheck source=../lib/common/lark_test_worktree.sh
+source "${SCRIPT_DIR}/../lib/common/lark_test_worktree.sh"
 # shellcheck source=./identity_lock.sh
 source "${SCRIPT_DIR}/identity_lock.sh"
 
@@ -40,7 +42,6 @@ fi
 [[ -n "${MAIN_ROOT}" ]] || die "Not a git repository (cannot resolve main worktree)"
 
 TEST_ROOT="${MAIN_ROOT}/.worktrees/test"
-WORKTREE_SH="${MAIN_ROOT}/scripts/lark/worktree.sh"
 MAIN_SH="${MAIN_ROOT}/scripts/lark/main.sh"
 TEST_SH="${MAIN_ROOT}/scripts/lark/test.sh"
 MAIN_CONFIG_PATH="${MAIN_CONFIG:-${ALEX_CONFIG_PATH:-$HOME/.alex/config.yaml}}"
@@ -68,8 +69,7 @@ SCENARIO_MD=""
 LOOP_STATE=""
 
 init_test_paths() {
-  [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
-  "${WORKTREE_SH}" ensure
+  lark_ensure_test_worktree "${MAIN_ROOT}"
 
   LOG_DIR="${TEST_ROOT}/logs"
   TMP_DIR="${TEST_ROOT}/tmp"
@@ -182,7 +182,6 @@ EOF
 require_tools() {
   command -v git >/dev/null 2>&1 || die "git not found"
   command -v go >/dev/null 2>&1 || die "go not found"
-  [[ -x "${WORKTREE_SH}" ]] || die "Missing ${WORKTREE_SH}"
   [[ -x "${MAIN_SH}" ]] || die "Missing ${MAIN_SH}"
   [[ -x "${TEST_SH}" ]] || die "Missing ${TEST_SH}"
 }
@@ -205,7 +204,6 @@ restore_test_to_validated() {
     return 0
   fi
   append_log "[restore] restoring test to last_validated_sha=${validated_sha:0:8}"
-  git -C "${TEST_ROOT}" switch test >> "${LOOP_LOG}" 2>&1 || true
   git -C "${TEST_ROOT}" reset --hard "${validated_sha}" >> "${LOOP_LOG}" 2>&1
   restart_test_agent
 }
@@ -287,7 +285,7 @@ auto_fix() {
   prompt="$(cat <<EOF
 You are fixing the elephant.ai repo.
 Worktree: ${TEST_ROOT}
-Branch: test (based on main@${base_sha})
+Base: main@${base_sha} (test worktree HEAD)
 
 Goal:
 - Fix the failure shown below so FAST/SLOW gate passes.
@@ -339,7 +337,7 @@ EOF
 
 merge_into_main_ff_only() {
   local base_sha="$1"
-  local current_main_sha
+  local current_main_sha candidate_sha
   current_main_sha="$(git -C "${MAIN_ROOT}" rev-parse main)"
 
   if [[ "${current_main_sha}" != "${base_sha}" ]]; then
@@ -347,8 +345,9 @@ merge_into_main_ff_only() {
     return 2
   fi
 
-  append_log "[merge] ff-only test -> main"
-  git -C "${MAIN_ROOT}" merge --ff-only test >> "${LOOP_LOG}" 2>&1
+  candidate_sha="$(git -C "${TEST_ROOT}" rev-parse HEAD)"
+  append_log "[merge] ff-only ${candidate_sha:0:8} -> main"
+  git -C "${MAIN_ROOT}" merge --ff-only "${candidate_sha}" >> "${LOOP_LOG}" 2>&1
 }
 
 restart_main_agent() {
@@ -368,14 +367,13 @@ run_cycle_locked() {
   append_log "=== CYCLE START base_sha=${base_sha} autofix=${LOOP_AUTOFIX_ENABLED} ==="
   write_loop_state "${base_sha}" "start" "running" ""
 
-  "${WORKTREE_SH}" ensure >> "${LOOP_LOG}" 2>&1 || true
+  lark_ensure_test_worktree "${MAIN_ROOT}" >> "${LOOP_LOG}" 2>&1 || true
 
   # Stop the test bot so users never see unvalidated code.
   stop_test_agent
   write_loop_state "${base_sha}" "validating" "running" ""
 
-  # Reset test branch to the chosen base SHA (main snapshot).
-  git -C "${TEST_ROOT}" switch test >> "${LOOP_LOG}" 2>&1
+  # Reset test worktree to the chosen base SHA (main snapshot).
   git -C "${TEST_ROOT}" reset --hard "${base_sha}" >> "${LOOP_LOG}" 2>&1
 
   # --- FAST GATE ---
