@@ -215,6 +215,14 @@ export function FolderMap({ events, currentEvent }: FolderMapProps) {
         {folderStats.map((folder) => {
           const style = getFolderStyle(folder);
 
+          // Calculate size scale based on folder metrics
+          const maxFiles = Math.max(...folderStats.map((f) => f.fileCount), 1);
+          const maxLines = Math.max(...folderStats.map((f) => f.totalLines), 1);
+          const sizeScore = (folder.fileCount / maxFiles) * 0.5 + (folder.totalLines / maxLines) * 0.5;
+
+          // Visual size: 0.85x (small) to 1.15x (large)
+          const visualScale = 0.85 + sizeScore * 0.3;
+
           return (
             <div
               key={folder.path}
@@ -226,7 +234,7 @@ export function FolderMap({ events, currentEvent }: FolderMapProps) {
                 ${style.hasActivity ? 'hover:scale-105 hover:shadow-xl cursor-pointer' : 'opacity-60'}
               `}
               style={{
-                transform: `scale(${style.scale})`,
+                transform: `scale(${folder.isActive ? style.scale : visualScale})`,
               }}
               title={folder.path}
             >
