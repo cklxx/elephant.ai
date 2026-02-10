@@ -131,7 +131,7 @@ func NewSandboxBrowserScreenshot(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "browser_screenshot",
-				Description: "Capture visual screenshot (PNG) from the current browser page. Use only when image capture is explicitly required; do not use for semantic text retrieval or downloadable file-package delivery.",
+				Description: "Capture visual browser page image (PNG) from the current tab. Use only when visual UI capture is explicitly required; do not use for semantic text retrieval or terminal/CLI evidence collection.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{

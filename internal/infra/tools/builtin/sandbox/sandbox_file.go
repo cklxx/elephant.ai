@@ -44,7 +44,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code/contract/proof transitions. Use after file/path selection; for directory topology discovery use list_dir/find. Do not use for memory notes/chat history (use memory_search/memory_get or lark_chat_history).",
+				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code, interface contracts, or proof transitions. Use after file/path selection; for directory topology discovery use list_dir/find. Do not use for memory notes/chat history (use memory_search/memory_get or lark_chat_history).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -60,7 +60,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "read_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "read", "source", "code", "context"},
+				Tags:     []string{"file", "read", "source", "code", "context", "window", "contract", "proof"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -136,7 +136,7 @@ func NewSandboxFileSearch(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "search_file",
-				Description: "Search inside one known absolute file for body-level semantic clues/evidence (line and content matches in file text/file bodies). Use for inside-file matching only, especially when filename/path hints are insufficient. Do not use for path/name discovery (use find/list_dir) or visual/browser capture.",
+				Description: "Search inside one known absolute file for semantic body evidence (line/content matches in file text/file bodies, including intents that say not filename/path). Use for inside-file matching only when file target is already known. Do not use for path/name discovery (use find/list_dir) or visual/browser capture.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
