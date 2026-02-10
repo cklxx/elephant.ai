@@ -629,7 +629,7 @@ write_status_file() {
   fi
 
   local tmp_file
-  tmp_file="${STATUS_FILE}.tmp"
+  tmp_file="${STATUS_FILE}.tmp.$$.$RANDOM"
   cat > "${tmp_file}" <<EOF
 {
   "ts_utc": "${now_utc}",
@@ -887,11 +887,46 @@ report_children_health() {
   if [[ "${OBS_TEST_DEPLOYED_SHA:0:8}" != "${OBS_MAIN_SHA:0:8}" ]]; then
     log_warn "  test is behind latest — will auto-upgrade on next tick"
   fi
+  echo "  pid_dir: ${PID_DIR}"
+  echo "  main config: $(lark_canonical_path "${MAIN_CONFIG_PATH}")"
+  echo "  test config: $(lark_canonical_path "${TEST_CONFIG_PATH}")"
   if (( degraded )); then
     log_warn "Supervisor is running but some components are down (use './lark.sh logs' to investigate)"
     return 1
   fi
   return 0
+}
+
+reconcile_children_once() {
+  observe_states
+  append_log "[start] reconcile-on-demand begin main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} loop=${OBS_LOOP_HEALTH}"
+
+  if component_needs_restart "main" "${OBS_MAIN_HEALTH}"; then
+    append_log "[start] main=${OBS_MAIN_HEALTH}; restarting"
+    restart_component "main" || append_log "[start] main restart failed"
+  fi
+  observe_states
+
+  if component_needs_restart "test" "${OBS_TEST_HEALTH}"; then
+    if is_validation_active; then
+      append_log "[start] skip test restart during validation (phase=${OBS_CYCLE_PHASE})"
+    else
+      append_log "[start] test=${OBS_TEST_HEALTH}; restarting"
+      restart_component "test" || append_log "[start] test restart failed"
+    fi
+  fi
+  observe_states
+
+  if component_needs_restart "loop" "${OBS_LOOP_HEALTH}"; then
+    append_log "[start] loop=${OBS_LOOP_HEALTH}; restarting"
+    restart_component "loop" || append_log "[start] loop restart failed"
+  fi
+  observe_states
+
+  maybe_upgrade_for_sha_drift
+  observe_states
+  write_status_file
+  append_log "[start] reconcile-on-demand end main=${OBS_MAIN_HEALTH} test=${OBS_TEST_HEALTH} loop=${OBS_LOOP_HEALTH}"
 }
 
 start() {
@@ -908,6 +943,8 @@ start() {
       clean_stale_supervisor "${pid}"
     else
       log_success "Supervisor already running (PID: ${pid})"
+      log_info "Reconciling child components once..."
+      reconcile_children_once || true
       report_children_health || true
       return 0
     fi
