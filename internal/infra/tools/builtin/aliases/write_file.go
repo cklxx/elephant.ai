@@ -25,7 +25,7 @@ func NewWriteFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "write_file",
-				Description: "Write/create a file with provided content (absolute paths only). Suitable for markdown notes/reports. Use encoding=base64 for binary data.",
+				Description: "Write/create a new file with provided content (absolute paths only). Suitable for markdown reports, briefs, runbooks, decision records, and durable handoff artifacts. Use encoding=base64 for binary data. For in-place edits to existing text use replace_in_file.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -44,7 +44,7 @@ func NewWriteFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "write_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "write", "create", "markdown", "note", "report"},
+				Tags:     []string{"file", "write", "create", "new_file", "markdown", "report", "brief", "runbook", "decision_record", "artifact", "handoff", "persist"},
 			},
 		),
 	}

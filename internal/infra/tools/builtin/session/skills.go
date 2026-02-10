@@ -23,7 +23,7 @@ func NewSkills() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "skills",
-				Description: `Query reusable skill playbooks (Markdown guides).
+				Description: `Query reusable skill playbooks (Markdown guides and workflow templates).
 
 Use this to list available skills, search by keyword, or show a specific skill by name.`,
 				Parameters: ports.ParameterSchema{
@@ -50,7 +50,7 @@ Use this to list available skills, search by keyword, or show a specific skill b
 				Name:     "skills",
 				Version:  "1.0.0",
 				Category: "meta",
-				Tags:     []string{"skills", "playbook", "workflow", "guidance"},
+				Tags:     []string{"skills", "playbook", "workflow", "template", "list", "discover", "guidance"},
 			},
 		),
 	}

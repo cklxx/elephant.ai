@@ -28,7 +28,7 @@ func NewMemorySearch(engine memory.Engine) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "memory_search",
-				Description: "Search user memories stored as Markdown files.",
+				Description: "Search user memory notes to discover or recall prior preferences, habits, commitments, and historical context when exact memory path is unknown. Use this to locate relevant note paths before opening a specific note with memory_get.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -52,7 +52,7 @@ func NewMemorySearch(engine memory.Engine) tools.ToolExecutor {
 				Name:        "memory_search",
 				Version:     "0.1.0",
 				Category:    "memory",
-				Tags:        []string{"memory", "retrieval"},
+				Tags:        []string{"memory", "retrieval", "search", "discover", "recall", "habit", "preference", "history", "continuity"},
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},
 		),

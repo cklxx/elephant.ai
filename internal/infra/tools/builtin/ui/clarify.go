@@ -24,6 +24,7 @@ func NewClarify() tools.ToolExecutor {
 Rules:
 - Use to declare a sub-task header before starting a unit of work.
 - Do not use when the user already gave an explicit actionable operation with clear parameters.
+- Do not use for approval/consent/manual confirmation gates; use request_user for those.
 - When needs_user_input=true, provide question_to_user and the orchestrator will pause for user input.
 - When waiting for user input, provide options to let channels render a selection UI.`,
 				Parameters: ports.ParameterSchema{
@@ -67,7 +68,7 @@ Rules:
 				Name:     "clarify",
 				Version:  "1.0.0",
 				Category: "ui",
-				Tags:     []string{"ui", "orchestration", "clarification", "requirements", "ambiguity"},
+				Tags:     []string{"ui", "orchestration", "clarification", "requirements", "ambiguity", "missing_info", "disambiguation"},
 			},
 		),
 	}

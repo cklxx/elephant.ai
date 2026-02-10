@@ -19,7 +19,7 @@ func NewRequestUser() tools.ToolExecutor {
 			ports.ToolDefinition{
 				Name: "request_user",
 				Description: "UI tool: explicitly request a user decision/action and pause execution." +
-					" Use for approval/consent/manual gate events (login, 2FA, CAPTCHA, external confirmation)." +
+					" Use for approval/consent/manual gate events (login, 2FA, CAPTCHA, external confirmation, release approval, go/no-go)." +
 					" Do not use for internal planning headers; use clarify/plan for that.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
@@ -49,7 +49,7 @@ func NewRequestUser() tools.ToolExecutor {
 				Name:     "request_user",
 				Version:  "1.0.0",
 				Category: "ui",
-				Tags:     []string{"ui", "user", "request", "approval", "consent", "manual-gate"},
+				Tags:     []string{"ui", "user", "request", "approval", "consent", "signoff", "manual-gate", "human_confirmation", "pause_for_user"},
 			},
 		),
 	}

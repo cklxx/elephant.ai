@@ -73,7 +73,7 @@ Optionally fetch output files as attachments. Use this for deterministic computa
 				Name:     "execute_code",
 				Version:  "0.1.0",
 				Category: "execution",
-				Tags:     []string{"code", "execute", "run"},
+				Tags:     []string{"code", "execute", "run", "deterministic", "calculation", "recalculate", "metric", "formula", "invariant", "snippet"},
 			},
 		),
 		client:   newSandboxClient(cfg),

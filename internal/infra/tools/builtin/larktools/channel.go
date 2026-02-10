@@ -51,7 +51,7 @@ func NewLarkChannel() tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name: "channel",
-				Description: "Unified Lark channel tool. Dispatches to messaging, calendar, and task operations via the 'action' parameter. " +
+				Description: "Unified Lark channel tool. Dispatches to thread messaging, calendar, and task operations via the 'action' parameter. " +
 					"Actions: send_message (text to chat), upload_file (file attachment), history (chat history), " +
 					"create_event/query_events/update_event/delete_event (calendar), " +
 					"list_tasks/create_task/update_task/delete_task (tasks). " +
@@ -186,7 +186,7 @@ func NewLarkChannel() tools.ToolExecutor {
 				Name:        "channel",
 				Version:     "1.0.0",
 				Category:    "lark",
-				Tags:        []string{"lark", "channel", "chat", "calendar", "tasks"},
+				Tags:        []string{"lark", "channel", "chat", "thread", "message", "status_update", "notify", "calendar", "tasks"},
 				Dangerous:   false, // Per-action approval handled inside Execute
 				SafetyLevel: ports.SafetyLevelReadOnly,
 			},

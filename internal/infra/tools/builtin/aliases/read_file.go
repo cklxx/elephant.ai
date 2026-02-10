@@ -23,7 +23,7 @@ func NewReadFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code, interface contracts, or proof transitions. Use after file/path selection; for directory topology discovery use list_dir/find. Do not use for memory notes/chat history (use memory_search/memory_get or lark_chat_history).",
+				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code, interface contracts, or proof transitions. Use when the task is read-only inspection/extraction over known files. Do not use for in-place edits (use replace_in_file) and do not use for memory notes/chat history (use memory_search/memory_get).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -39,7 +39,7 @@ func NewReadFile(cfg shared.FileToolConfig) tools.ToolExecutor {
 				Name:     "read_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "read", "source", "code", "context", "window", "contract", "proof"},
+				Tags:     []string{"file", "read", "inspect", "source", "code", "context", "window", "contract", "proof", "read_only", "inspect_first", "call_path"},
 			},
 		),
 	}

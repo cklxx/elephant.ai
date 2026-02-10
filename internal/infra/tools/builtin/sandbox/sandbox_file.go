@@ -44,7 +44,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "read_file",
-				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code, interface contracts, or proof transitions. Use after file/path selection; for directory topology discovery use list_dir/find. Do not use for memory notes/chat history (use memory_search/memory_get or lark_chat_history).",
+				Description: "Open repository/workspace source/config files from an absolute path, including exact context windows around suspect code, interface contracts, or proof transitions. Use when the task is read-only inspection/extraction over known files. Do not use for in-place edits (use replace_in_file) and do not use for memory notes/chat history (use memory_search/memory_get).",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -60,7 +60,7 @@ func NewSandboxFileRead(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "read_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "read", "source", "code", "context", "window", "contract", "proof"},
+				Tags:     []string{"file", "read", "inspect", "source", "code", "context", "window", "contract", "proof", "read_only", "inspect_first", "call_path"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -72,7 +72,7 @@ func NewSandboxFileWrite(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "write_file",
-				Description: "Write/create a file with provided content (absolute paths only). Suitable for markdown notes/reports. Use encoding=base64 for binary data.",
+				Description: "Write/create a new file with provided content (absolute paths only). Suitable for markdown reports, briefs, runbooks, decision records, and durable handoff artifacts. Use encoding=base64 for binary data. For in-place edits to existing text use replace_in_file.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -91,7 +91,7 @@ func NewSandboxFileWrite(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "write_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "write", "create", "markdown", "note", "report"},
+				Tags:     []string{"file", "write", "create", "new_file", "markdown", "report", "brief", "runbook", "decision_record", "artifact", "handoff", "persist"},
 			},
 		),
 		client: newSandboxClient(cfg),
@@ -163,7 +163,7 @@ func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
 				Name:        "replace_in_file",
-				Description: "Apply an exact in-place patch/hotfix to an existing file (absolute paths only). Use only for surgical code/text edits when target text is already known (requires old_str and new_str). Do not use for search/investigation, creating new files, artifact deletion/cleanup, listing/inventory, or clarification questions.",
+				Description: "Apply an exact in-place patch/hotfix to an existing file (absolute paths only). Use only for surgical code/text edits when target text is already known (requires old_str and new_str). Do not use for read-only inspection/extraction (use read_file), search/investigation, creating new files, artifact deletion/cleanup, listing/inventory, or clarification questions.",
 				Parameters: ports.ParameterSchema{
 					Type: "object",
 					Properties: map[string]ports.Property{
@@ -179,7 +179,7 @@ func NewSandboxFileReplace(cfg SandboxConfig) tools.ToolExecutor {
 				Name:     "replace_in_file",
 				Version:  "0.1.0",
 				Category: "files",
-				Tags:     []string{"file", "replace", "patch", "hotfix", "inplace"},
+				Tags:     []string{"file", "replace", "patch", "hotfix", "inplace", "edit_existing", "modify"},
 			},
 		),
 		client: newSandboxClient(cfg),

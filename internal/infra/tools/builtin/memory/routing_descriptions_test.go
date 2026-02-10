@@ -14,3 +14,11 @@ func TestMemoryGetDescriptionExpressesRepoBoundary(t *testing.T) {
 	}
 }
 
+func TestMemorySearchDescriptionExpressesDiscoveryBoundary(t *testing.T) {
+	t.Parallel()
+
+	desc := NewMemorySearch(nil).Definition().Description
+	if !strings.Contains(desc, "discover or recall prior preferences") || !strings.Contains(desc, "before opening a specific note with memory_get") {
+		t.Fatalf("expected memory_search description to express discover-vs-open boundary, got %q", desc)
+	}
+}

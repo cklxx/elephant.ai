@@ -54,7 +54,9 @@ Provide a list of action objects:
 - additional fields vary per action type.
 
 Optional screenshot capture returns a PNG attachment. Prefer action logs and the live view; use capture_screenshot only when explicitly needed. For selector-based actions, use browser_dom.
+Use browser_action for manual web flows (click/type/drag/navigate) when interaction is required.
 Do not use browser_action when the task is only to inspect URL/title/session metadata; use browser_info.
+Do not use browser_action for web source discovery/citation lookup; use web_search.
 Do not use browser_action for deterministic computation/recalculation tasks; use execute_code.`,
 				Parameters: ports.ParameterSchema{
 					Type: "object",
@@ -84,7 +86,7 @@ Do not use browser_action for deterministic computation/recalculation tasks; use
 				Name:     "browser_action",
 				Version:  "0.1.0",
 				Category: "web",
-				Tags:     []string{"browser", "automation", "interaction"},
+				Tags:     []string{"browser", "automation", "interaction", "manual_flow", "click", "type", "navigate", "portal"},
 				MaterialCapabilities: ports.ToolMaterialCapabilities{
 					Produces:          []string{"text/plain"},
 					ProducesArtifacts: []string{"image/png"},
