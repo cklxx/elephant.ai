@@ -11,13 +11,9 @@ import (
 const skillsDirEnvVar = "ALEX_SKILLS_DIR"
 
 const (
-	homeSkillsBackfillMarkerName       = ".repo_backfill_version"
-	homeSkillsBackfillVersion          = "repo-authoritative-v1"
-	homeSkillsSupportScriptsMarkerName = ".repo_support_scripts_version"
-	homeSkillsSupportScriptsVersion    = "repo-authoritative-v1"
+	homeSkillsBackfillMarkerName = ".repo_backfill_version"
+	homeSkillsBackfillVersion    = "repo-authoritative-v1"
 )
-
-var homeSupportScriptDirs = []string{"skill_runner", "cli"}
 
 // LocateDefaultDir resolves the runtime skills root.
 func LocateDefaultDir() string {
@@ -74,16 +70,10 @@ func EnsureHomeSkills(homeRoot string) error {
 		if err := copyRepoSkills(repoRoot, homeRoot, true); err != nil {
 			return err
 		}
-		if err := writeHomeBackfillVersion(homeRoot); err != nil {
-			return err
-		}
-	} else {
-		if err := copyMissingSkills(repoRoot, homeRoot); err != nil {
-			return err
-		}
+		return writeHomeBackfillVersion(homeRoot)
 	}
 
-	return ensureHomeSupportScripts(homeRoot, repoRoot)
+	return copyMissingSkills(repoRoot, homeRoot)
 }
 
 func skillsRootFromEnv() (string, bool) {
@@ -225,82 +215,6 @@ func isHomeBackfillVersionApplied(homeRoot string) (bool, error) {
 func writeHomeBackfillVersion(homeRoot string) error {
 	markerPath := filepath.Join(homeRoot, homeSkillsBackfillMarkerName)
 	return os.WriteFile(markerPath, []byte(homeSkillsBackfillVersion+"\n"), 0o644)
-}
-
-func ensureHomeSupportScripts(homeSkillsRoot, repoSkillsRoot string) error {
-	alexRoot := filepath.Clean(filepath.Dir(homeSkillsRoot))
-	repoScriptsRoot := filepath.Join(filepath.Dir(repoSkillsRoot), "scripts")
-	homeScriptsRoot := filepath.Join(alexRoot, "scripts")
-
-	info, err := os.Stat(repoScriptsRoot)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		return err
-	}
-	if !info.IsDir() {
-		return nil
-	}
-	if err := os.MkdirAll(homeScriptsRoot, 0o755); err != nil {
-		return err
-	}
-
-	backfillDone, err := isHomeSupportScriptsVersionApplied(alexRoot)
-	if err != nil {
-		return err
-	}
-	if !backfillDone {
-		if err := copyRepoSupportScripts(repoScriptsRoot, homeScriptsRoot, true); err != nil {
-			return err
-		}
-		return writeHomeSupportScriptsVersion(alexRoot)
-	}
-	return copyRepoSupportScripts(repoScriptsRoot, homeScriptsRoot, false)
-}
-
-func copyRepoSupportScripts(sourceRoot, targetRoot string, overwriteExisting bool) error {
-	for _, dirName := range homeSupportScriptDirs {
-		sourceDir := filepath.Join(sourceRoot, dirName)
-		info, err := os.Stat(sourceDir)
-		if err != nil {
-			if errors.Is(err, fs.ErrNotExist) {
-				continue
-			}
-			return err
-		}
-		if !info.IsDir() {
-			continue
-		}
-
-		targetDir := filepath.Join(targetRoot, dirName)
-		if overwriteExisting {
-			if err := os.RemoveAll(targetDir); err != nil {
-				return err
-			}
-		}
-		if err := copyDirectory(sourceDir, targetDir); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func isHomeSupportScriptsVersionApplied(alexRoot string) (bool, error) {
-	markerPath := filepath.Join(alexRoot, homeSkillsSupportScriptsMarkerName)
-	data, err := os.ReadFile(markerPath)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return false, nil
-		}
-		return false, err
-	}
-	return strings.TrimSpace(string(data)) == homeSkillsSupportScriptsVersion, nil
-}
-
-func writeHomeSupportScriptsVersion(alexRoot string) error {
-	markerPath := filepath.Join(alexRoot, homeSkillsSupportScriptsMarkerName)
-	return os.WriteFile(markerPath, []byte(homeSkillsSupportScriptsVersion+"\n"), 0o644)
 }
 
 func hasSkillDefinition(dir string) bool {

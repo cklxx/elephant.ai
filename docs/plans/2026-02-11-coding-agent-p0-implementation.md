@@ -18,10 +18,11 @@
 - [completed] Add auto-merge-on-success path for coding tasks with workspace isolation.
 - [completed] Add/adjust tests in orchestration + coding + background runtime.
 - [completed] Run lint + test; run mandatory code review workflow before commit.
-- [in_progress] Commit in incremental chunks; merge branch back to `main`; clean temporary worktree.
+- [completed] Commit in incremental chunks; merge branch back to `main`; clean temporary worktree.
 
 ## Progress Log
 - 2026-02-11 15:02: Plan created; implementation started with dispatch surface changes first.
 - 2026-02-11 16:12: Added managed coding executor (full-access defaults + verify/retry), wired through DI, and implemented coding auto-merge gate.
 - 2026-02-11 16:25: Fixed web lint regressions (`Building.tsx`, `Buildings.tsx`) and stabilized supervisor async backoff assertion for CI.
 - 2026-02-11 16:48: Full lint/test passed (`./dev.sh lint`, `./dev.sh test`); code review issue fixed (`verify=false` now respected by managed executor) with regression test.
+- 2026-02-11 17:05: Merged branch to `main` via fast-forward (after rebase) and removed temporary worktree.

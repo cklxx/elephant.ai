@@ -198,104 +198,6 @@ func TestEnsureHomeSkillsAfterBackfillCopiesMissingWithoutOverwriting(t *testing
 	}
 }
 
-func TestEnsureHomeSkillsBackfillsSupportScripts(t *testing.T) {
-	workspace := t.TempDir()
-	repoRoot := filepath.Join(workspace, "repo")
-	homeRoot := filepath.Join(workspace, "home")
-	repoSkillsRoot := filepath.Join(repoRoot, "skills")
-	repoScriptsRoot := filepath.Join(repoRoot, "scripts")
-	homeSkillsRoot := filepath.Join(homeRoot, ".alex", "skills")
-	if err := os.MkdirAll(repoSkillsRoot, 0o755); err != nil {
-		t.Fatalf("mkdir repo skills: %v", err)
-	}
-	if err := os.MkdirAll(homeSkillsRoot, 0o755); err != nil {
-		t.Fatalf("mkdir home skills: %v", err)
-	}
-
-	writeSkillFileForDiscovery(t, repoSkillsRoot, "alpha", "repo alpha")
-	writeSupportScriptFileForDiscovery(t, repoScriptsRoot, "skill_runner/env.py", "print('env')")
-	writeSupportScriptFileForDiscovery(t, repoScriptsRoot, "cli/tavily/tavily_search.py", "print('tavily')")
-
-	previousWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(repoRoot); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(previousWD)
-	})
-
-	if err := EnsureHomeSkills(homeSkillsRoot); err != nil {
-		t.Fatalf("ensure home skills: %v", err)
-	}
-
-	homeScriptsRoot := filepath.Join(homeRoot, ".alex", "scripts")
-	if _, err := os.Stat(filepath.Join(homeScriptsRoot, "skill_runner", "env.py")); err != nil {
-		t.Fatalf("expected skill_runner helper synced: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(homeScriptsRoot, "cli", "tavily", "tavily_search.py")); err != nil {
-		t.Fatalf("expected cli helper synced: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(homeRoot, ".alex", homeSkillsSupportScriptsMarkerName)); err != nil {
-		t.Fatalf("expected support scripts marker to exist: %v", err)
-	}
-}
-
-func TestEnsureHomeSkillsSupportScriptsAfterBackfillCopiesMissingWithoutOverwriting(t *testing.T) {
-	workspace := t.TempDir()
-	repoRoot := filepath.Join(workspace, "repo")
-	homeRoot := filepath.Join(workspace, "home")
-	repoSkillsRoot := filepath.Join(repoRoot, "skills")
-	repoScriptsRoot := filepath.Join(repoRoot, "scripts")
-	homeSkillsRoot := filepath.Join(homeRoot, ".alex", "skills")
-	if err := os.MkdirAll(repoSkillsRoot, 0o755); err != nil {
-		t.Fatalf("mkdir repo skills: %v", err)
-	}
-	if err := os.MkdirAll(homeSkillsRoot, 0o755); err != nil {
-		t.Fatalf("mkdir home skills: %v", err)
-	}
-
-	writeSkillFileForDiscovery(t, repoSkillsRoot, "alpha", "repo alpha")
-	writeSupportScriptFileForDiscovery(t, repoScriptsRoot, "skill_runner/env.py", "repo v1")
-	writeSupportScriptFileForDiscovery(t, repoScriptsRoot, "cli/tavily/tavily_search.py", "repo tavily")
-
-	previousWD, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	if err := os.Chdir(repoRoot); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(previousWD)
-	})
-
-	if err := EnsureHomeSkills(homeSkillsRoot); err != nil {
-		t.Fatalf("ensure home skills first run: %v", err)
-	}
-
-	homeScriptsRoot := filepath.Join(homeRoot, ".alex", "scripts")
-	writeSupportScriptFileForDiscovery(t, homeScriptsRoot, "skill_runner/env.py", "user override")
-	writeSupportScriptFileForDiscovery(t, repoScriptsRoot, "cli/new/new_helper.py", "repo new")
-
-	if err := EnsureHomeSkills(homeSkillsRoot); err != nil {
-		t.Fatalf("ensure home skills second run: %v", err)
-	}
-
-	envContent, err := os.ReadFile(filepath.Join(homeScriptsRoot, "skill_runner", "env.py"))
-	if err != nil {
-		t.Fatalf("read env helper: %v", err)
-	}
-	if string(envContent) != "user override" {
-		t.Fatalf("expected existing support script to remain after marker, got %q", string(envContent))
-	}
-	if _, err := os.Stat(filepath.Join(homeScriptsRoot, "cli", "new", "new_helper.py")); err != nil {
-		t.Fatalf("expected newly added support script to be copied: %v", err)
-	}
-}
-
 func writeSkillFileForDiscovery(t *testing.T, root, name, body string) {
 	t.Helper()
 	skillDir := filepath.Join(root, name)
@@ -304,17 +206,6 @@ func writeSkillFileForDiscovery(t *testing.T, root, name, body string) {
 	}
 	if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(skillMarkdown(name, body)), 0o644); err != nil {
 		t.Fatalf("write skill file: %v", err)
-	}
-}
-
-func writeSupportScriptFileForDiscovery(t *testing.T, scriptsRoot, relativePath, body string) {
-	t.Helper()
-	fullPath := filepath.Join(scriptsRoot, filepath.FromSlash(relativePath))
-	if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
-		t.Fatalf("mkdir support script dir: %v", err)
-	}
-	if err := os.WriteFile(fullPath, []byte(body), 0o644); err != nil {
-		t.Fatalf("write support script file: %v", err)
 	}
 }
 

@@ -15,53 +15,14 @@ _INSTALL_ATTEMPTED = False
 _LOAD_DOTENV_FN: LoadDotenvFn | None = None
 
 
-def _home_alex_root(path: Path) -> Path | None:
-    for current in (path, *path.parents):
-        if current.name == "skills" and current.parent.name == ".alex":
-            return current.parent
-    return None
-
-
-def _iter_path_to_root(path: Path, *, stop: Path | None = None):
-    current = path
-    while True:
-        yield current
-        if stop is not None and current == stop:
-            return
-        parent = current.parent
-        if parent == current:
-            return
-        current = parent
-
-
-def _iter_search_roots(start_path: str | os.PathLike[str] | None = None):
+def find_dotenv(start_path: str | os.PathLike[str] | None = None) -> Path | None:
     base = Path(start_path or Path.cwd()).resolve()
     if base.is_file():
         base = base.parent
-
-    roots = [base]
-
-    repo_root = os.environ.get("ALEX_REPO_ROOT", "").strip()
-    if repo_root:
-        roots.append(Path(repo_root).expanduser().resolve())
-
-    roots.append(Path.cwd().resolve())
-
-    seen: set[Path] = set()
-    for root in roots:
-        if root in seen:
-            continue
-        seen.add(root)
-        yield root
-
-
-def find_dotenv(start_path: str | os.PathLike[str] | None = None) -> Path | None:
-    for root in _iter_search_roots(start_path):
-        stop_at = _home_alex_root(root)
-        for current in _iter_path_to_root(root, stop=stop_at):
-            candidate = current / ".env"
-            if candidate.is_file():
-                return candidate
+    for current in (base, *base.parents):
+        candidate = current / ".env"
+        if candidate.is_file():
+            return candidate
     return None
 
 

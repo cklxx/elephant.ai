@@ -20,9 +20,10 @@
 - [completed] Update `ROADMAP.md` active architecture priorities.
 - [completed] Run lint/tests required by repo policy and record outcome.
 - [completed] Perform mandatory code review before commit.
-- [in_progress] Commit, merge back to `main` (prefer fast-forward), and clean up temporary worktree.
+- [completed] Commit, merge back to `main` (prefer fast-forward), and clean up temporary worktree.
 
 ## Progress Log
 - 2026-02-11 14:30: Plan created after user requested Coding Gateway foundation items be elevated to P0.
 - 2026-02-11 15:40: Roadmap priority docs updated to move Coding Gateway foundation (abstraction/multi-adapter/CLI auto-detect) into Immediate P0.
 - 2026-02-11 16:48: Full lint/test and mandatory review run completed as merge-readiness gate for reprioritization + implementation set.
+- 2026-02-11 17:05: Branch rebased onto latest `main`, merged with `--ff-only`, and temporary worktree removed.
