@@ -95,7 +95,7 @@ func TestPostgresStore_CacheDoesNotLeakMutations(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	store := New(pool, WithCacheSize(2))
+	store := New(pool)
 
 	if err := store.EnsureSchema(ctx); err != nil {
 		t.Fatalf("ensure schema: %v", err)
@@ -143,7 +143,7 @@ func TestPostgresStore_CacheUpdatesOnSave(t *testing.T) {
 	defer cleanup()
 
 	ctx := context.Background()
-	store := New(pool, WithCacheSize(2))
+	store := New(pool)
 
 	if err := store.EnsureSchema(ctx); err != nil {
 		t.Fatalf("ensure schema: %v", err)

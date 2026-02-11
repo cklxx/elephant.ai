@@ -62,11 +62,11 @@ func TestNewRegistryRegistersExpectedToolCount(t *testing.T) {
 	for _, def := range defs {
 		names = append(names, def.Name)
 	}
-	// 14 core tools: read_file, write_file, replace_in_file, shell_exec,
+	// 15 core tools: read_file, write_file, replace_in_file, shell_exec,
 	// execute_code, browser_action, channel, web_search, skills,
-	// plan, clarify, request_user, memory_search, memory_get
-	if len(defs) != 14 {
-		t.Fatalf("expected 14 tools, got %d: %v", len(defs), names)
+	// plan, clarify, request_user, memory_search, memory_get, context_checkpoint
+	if len(defs) != 15 {
+		t.Fatalf("expected 15 tools, got %d: %v", len(defs), names)
 	}
 }
 
