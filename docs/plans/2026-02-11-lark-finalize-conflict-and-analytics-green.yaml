@@ -1,9 +1,9 @@
 id: "plan-2026-02-11-lark-finalize-conflict-and-analytics-green"
 title: "收敛 request_user 路由冲突并补齐 analytics tracking plan 使全量测试通过"
-status: "in_progress"
+status: "completed"
 owner: "codex"
 created_at: "2026-02-11T06:00:00Z"
-updated_at: "2026-02-11T06:12:35Z"
+updated_at: "2026-02-11T06:13:35Z"
 context:
   goals:
     - "消除 motivation suite 中剩余 `request_user => channel` 冲突。"
@@ -24,7 +24,7 @@ steps:
     status: "completed"
   - id: "commit-all"
     title: "分步提交并汇总结果"
-    status: "in_progress"
+    status: "completed"
 artifacts:
   target_suite: "evaluation/agent_eval/datasets/foundation_eval_suite_motivation_aware.yaml"
   blocking_test: "internal/infra/analytics/TestTrackingPlanMatchesImplementedEvents"
