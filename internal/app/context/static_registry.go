@@ -25,10 +25,11 @@ import (
 // Static registry ----------------------------------------------------------
 
 type staticRegistry struct {
-	root    string
-	ttl     time.Duration
-	logger  logging.Logger
-	metrics *observability.ContextMetrics
+	root     string
+	repoRoot string
+	ttl      time.Duration
+	logger   logging.Logger
+	metrics  *observability.ContextMetrics
 
 	mu       sync.RWMutex
 	snapshot staticSnapshot
@@ -45,7 +46,7 @@ type staticSnapshot struct {
 	Worlds    map[string]agent.WorldProfile
 }
 
-func newStaticRegistry(root string, ttl time.Duration, logger logging.Logger, metrics *observability.ContextMetrics) *staticRegistry {
+func newStaticRegistry(root string, repoRoot string, ttl time.Duration, logger logging.Logger, metrics *observability.ContextMetrics) *staticRegistry {
 	if ttl <= 0 {
 		ttl = defaultStaticTTL
 	}
@@ -55,11 +56,15 @@ func newStaticRegistry(root string, ttl time.Duration, logger logging.Logger, me
 	if metrics == nil {
 		metrics = observability.NewContextMetrics()
 	}
+	if repoRoot == "" {
+		repoRoot = deriveRepoRootFromConfigRoot(root)
+	}
 	return &staticRegistry{
-		root:    root,
-		ttl:     ttl,
-		logger:  logger,
-		metrics: metrics,
+		root:     root,
+		repoRoot: repoRoot,
+		ttl:      ttl,
+		logger:   logger,
+		metrics:  metrics,
 	}
 }
 
@@ -96,7 +101,7 @@ func (r *staticRegistry) currentSnapshot(ctx context.Context) (staticSnapshot, e
 }
 
 func (r *staticRegistry) load(_ context.Context) (staticSnapshot, error) {
-	personas, err := loadPersonas(filepath.Join(r.root, "personas"))
+	personas, err := loadPersonas(filepath.Join(r.root, "personas"), r.repoRoot)
 	if err != nil {
 		return staticSnapshot{}, err
 	}
@@ -135,7 +140,7 @@ func (r *staticRegistry) load(_ context.Context) (staticSnapshot, error) {
 
 // YAML loaders -------------------------------------------------------------
 
-func loadPersonas(dir string) (map[string]agent.PersonaProfile, error) {
+func loadPersonas(dir string, repoRoot string) (map[string]agent.PersonaProfile, error) {
 	entries, err := readYAMLDir(dir)
 	if err != nil {
 		return nil, err
@@ -149,6 +154,20 @@ func loadPersonas(dir string) (map[string]agent.PersonaProfile, error) {
 		if profile.ID == "" {
 			profile.ID = filepath.Base(dir)
 		}
+
+		// Load voice content from file if VoicePath is set
+		if profile.VoicePath != "" && profile.Voice == "" {
+			voicePath := filepath.Join(repoRoot, profile.VoicePath)
+			voiceData, readErr := os.ReadFile(voicePath)
+			if readErr != nil {
+				if os.IsNotExist(readErr) {
+					return nil, fmt.Errorf("voice file not found: %s (specified in persona %s)", voicePath, profile.ID)
+				}
+				return nil, fmt.Errorf("read voice file %s: %w", voicePath, readErr)
+			}
+			profile.Voice = string(voiceData)
+		}
+
 		personas[profile.ID] = profile
 	}
 	if len(personas) == 0 {
@@ -312,4 +331,16 @@ func encodeMapForHash[T any](h hash.Hash, label string, entries map[string]T) {
 		}
 		h.Write(data)
 	}
+}
+
+// deriveRepoRootFromConfigRoot derives the repository root from the config root path.
+// Assumes config root is under "configs/context" in the repo.
+func deriveRepoRootFromConfigRoot(configRoot string) string {
+	cleaned := filepath.Clean(configRoot)
+	suffix := filepath.Join("configs", "context")
+	if strings.HasSuffix(cleaned, suffix) {
+		return strings.TrimSuffix(cleaned, suffix)
+	}
+	// Fallback: walk up two levels if the path ends with the expected dirs.
+	return filepath.Dir(filepath.Dir(cleaned))
 }

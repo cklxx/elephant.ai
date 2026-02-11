@@ -116,6 +116,7 @@ type PersonaProfile struct {
 	RiskProfile   string `json:"risk_profile" yaml:"risk_profile"`
 	DecisionStyle string `json:"decision_style" yaml:"decision_style"`
 	Voice         string `json:"voice" yaml:"voice"`
+	VoicePath     string `json:"voice_path,omitempty" yaml:"voice_path,omitempty"` // Path to voice content file (loaded at runtime if set)
 }
 
 // GoalProfile enumerates long and mid-term goals.

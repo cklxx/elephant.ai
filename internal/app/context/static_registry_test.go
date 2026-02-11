@@ -10,7 +10,7 @@ import (
 
 func TestStaticRegistryVersionStableAcrossReloads(t *testing.T) {
 	root := buildStaticContextTree(t)
-	registry := newStaticRegistry(root, time.Millisecond, nil, nil)
+	registry := newStaticRegistry(root, "", time.Millisecond, nil, nil)
 
 	ctx := context.Background()
 	snap1, err := registry.currentSnapshot(ctx)
@@ -35,7 +35,7 @@ func TestStaticRegistryVersionStableAcrossReloads(t *testing.T) {
 
 func TestStaticRegistryVersionChangesWhenFilesChange(t *testing.T) {
 	root := buildStaticContextTree(t)
-	registry := newStaticRegistry(root, time.Millisecond, nil, nil)
+	registry := newStaticRegistry(root, "", time.Millisecond, nil, nil)
 
 	ctx := context.Background()
 	snap1, err := registry.currentSnapshot(ctx)

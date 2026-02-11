@@ -109,6 +109,17 @@ func (m *manager) renderSoulTemplate() string {
 }
 
 func (m *manager) readDefaultPersonaProfile() agent.PersonaProfile {
+	// Prefer using static registry if available (handles voice_path loading)
+	if m != nil && m.static != nil {
+		snapshot, err := m.static.currentSnapshot(context.Background())
+		if err == nil {
+			if profile, ok := snapshot.Personas["default"]; ok {
+				return profile
+			}
+		}
+	}
+
+	// Fallback: read YAML directly and handle voice_path
 	candidates := []string{
 		strings.TrimSpace(m.defaultPersonaSourcePath()),
 		defaultPersonaConfig,
@@ -129,6 +140,22 @@ func (m *manager) readDefaultPersonaProfile() agent.PersonaProfile {
 		if strings.TrimSpace(profile.ID) == "" {
 			profile.ID = "default"
 		}
+
+		// Load voice from file if voice_path is set and voice is empty
+		if profile.VoicePath != "" && profile.Voice == "" {
+			configRoot := m.configRoot
+			if configRoot == "" {
+				configRoot = resolveContextConfigRoot()
+			}
+			repoRoot := deriveRepoRootFromConfigRoot(configRoot)
+			voicePath := filepath.Join(repoRoot, profile.VoicePath)
+			voiceData, readErr := os.ReadFile(voicePath)
+			if readErr == nil {
+				profile.Voice = string(voiceData)
+			}
+			// If voice loading failed, profile.Voice remains empty and caller will use fallback
+		}
+
 		return profile
 	}
 	return agent.PersonaProfile{

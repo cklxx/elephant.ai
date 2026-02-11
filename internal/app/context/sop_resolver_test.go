@@ -293,7 +293,7 @@ func TestBuildKnowledgeSectionRendersResolvedContent(t *testing.T) {
 		MemoryKeys: []string{"key1"},
 	}}
 
-	section := buildKnowledgeSection(refs)
+	section := buildKnowledgeSection(refs, false) // false = full inline mode for this test
 	if !strings.Contains(section, "SOP [") {
 		t.Fatalf("expected SOP label, got %q", section)
 	}
@@ -316,7 +316,7 @@ func TestBuildKnowledgeSectionFallsBackToRawRefs(t *testing.T) {
 		SOPRefs: []string{"file.md#section"},
 	}}
 
-	section := buildKnowledgeSection(refs)
+	section := buildKnowledgeSection(refs, false) // false = full inline mode for this test
 	if !strings.Contains(section, "SOP refs: file.md#section") {
 		t.Fatalf("expected raw SOP refs fallback, got %q", section)
 	}

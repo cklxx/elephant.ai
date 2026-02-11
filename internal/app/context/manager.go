@@ -150,7 +150,8 @@ func NewManager(opts ...Option) agent.ContextManager {
 		if cfgRoot == "" {
 			cfgRoot = root
 		}
-		m.static = newStaticRegistry(cfgRoot, defaultStaticTTL, m.logger, m.metrics)
+		repoRoot := deriveRepoRoot(cfgRoot)
+		m.static = newStaticRegistry(cfgRoot, repoRoot, defaultStaticTTL, m.logger, m.metrics)
 	}
 	if m.sopResolver == nil {
 		repoRoot := deriveRepoRoot(m.configRoot)

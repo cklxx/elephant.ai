@@ -29,6 +29,7 @@ type systemPromptInput struct {
 	ToolMode         string
 	SkillsConfig     agent.SkillsConfig
 	OKRContext       string
+	SOPSummaryOnly   bool // If true, only show SOP references without full content
 }
 
 const (
@@ -51,7 +52,7 @@ func composeSystemPrompt(input systemPromptInput) string {
 		buildHabitStewardshipSection(),
 		buildGoalsSection(input.Static.Goal),
 		buildPoliciesSection(input.Static.Policies),
-		buildKnowledgeSection(input.Static.Knowledge),
+		buildKnowledgeSection(input.Static.Knowledge, input.SOPSummaryOnly),
 		buildMemorySection(input.Memory),
 		buildOKRSection(input.OKRContext),
 		buildSkillsSection(input.Logger, input.TaskInput, input.Messages, input.SessionID, input.SkillsConfig),
@@ -249,30 +250,11 @@ func buildReasoningSection() string {
 
 func buildToolRoutingSection() string {
 	return formatSection("# Tool Routing Guardrails", []string{
-		"Before asking the user, exhaust safe deterministic attempts first.",
-		"If intent is unclear, inspect memory and thread context first (memory_search/memory_get, then lark_chat_history when available).",
-		"Use clarify only when requirements are missing or contradictory after all viable attempts fail; ask one minimal blocking question only then.",
-		"Use request_user for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation).",
-		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions; choose a sensible default, execute, and report instead of asking again.",
-		"Use read_file for repository/workspace files and proof/context windows; use memory_search/memory_get only for persistent memory notes.",
-		"When capability is missing, proactively search/install suitable skills or tools from trusted sources before escalating.",
-		"Use artifacts_list for inventory/audit, artifacts_write for create/update outputs, and artifacts_delete for cleanup.",
-		"Use write_attachment when a downloadable file package must be materialized from an existing attachment reference.",
-		"Use lark_chat_history for thread context recall, lark_send_message for text-only updates, and lark_upload_file when a file deliverable is expected; for generated deliverable files in Lark threads, proactively upload after generation.",
-		"Default temporary/generated file outputs to /tmp with deterministic names unless the user specifies another path.",
-		"Use browser_info for read-only tab/session metadata; use browser_dom/browser_action for interactions.",
-		"Use browser_dom for selector-based interactions and browser_action only for coordinate/manual interactions when selectors are unavailable.",
-		"Use browser_screenshot only for explicit visual proof capture, not for semantic text evidence retrieval.",
-		"Use execute_code for deterministic computation/recalculation/metric checks, not browser_action or lark_calendar_query.",
-		"Use scheduler_list_jobs for recurring scheduler inventory and scheduler_delete_job only for retiring scheduler jobs.",
-		"Use find/list_dir for path discovery, search_file for known-file content matching, and ripgrep for repo-wide regex sweeps.",
-		"Use web_search to discover authoritative sources when no fixed URL is chosen yet; use web_fetch to retrieve a single approved URL.",
-		"Use replace_in_file only for in-place edits in existing files with known target text.",
-		"When dedicated tools are insufficient, use bash to leverage any suitable host CLI available on PATH.",
-		"Actively probe local capabilities with deterministic checks first (command -v, --version, --help) before declaring a blocker.",
-		"Prefer autonomous exploration loops: inspect -> run -> verify -> adjust; escalate only after concrete evidence shows no safe path.",
-		"Inject runtime environment facts (cwd, OS, shell, available toolchain, safe env hints) into execution context before irreversible decisions.",
-		"Never expose secrets in prompts or outputs; redact secret-like environment keys and sensitive tokens by default.",
+		"1. Exploration first: Exhaust deterministic tools (read_file, memory_search, execute_code, bash probes) before asking clarify; use request_user only for explicit approval gates (login, 2FA, external confirmation).",
+		"2. Memory hierarchy: memory_search/memory_get for persistent notes → lark_chat_history for thread context → clarify when requirements remain unclear; treat user delegation (\"you decide\", \"anything works\") as authorization for low-risk reversible actions.",
+		"3. Tool selection patterns: read_file for workspace files, artifacts_write for outputs, lark_upload_file for deliverables; browser_dom for selectors, browser_action for coordinates; find/search_file/ripgrep by discovery scope; web_search for discovery, web_fetch for retrieval; bash as fallback for missing dedicated tools.",
+		"4. Autonomous loops: inspect → run → verify → adjust; escalate only with concrete evidence of blockers; probe capabilities (command -v, --version) before declaring unavailable; inject runtime facts (cwd, OS, toolchain) before irreversible decisions.",
+		"5. Safety: Never expose secrets in prompts/outputs; redact sensitive tokens by default; use explicit user consent for high-impact/irreversible/external actions.",
 	})
 }
 
@@ -450,7 +432,7 @@ func buildIdentitySection(persona agent.PersonaProfile) string {
 	}
 	builder.WriteString("\n")
 	builder.WriteString(formatBulletList([]string{
-		"SOUL.md: ~/.alex/memory/SOUL.md (canonical source: configs/context/personas/default.yaml)",
+		"SOUL.md: ~/.alex/memory/SOUL.md (canonical source: docs/reference/SOUL.md)",
 		"USER.md: ~/.alex/memory/USER.md",
 	}))
 	return strings.TrimSpace(builder.String())
@@ -497,7 +479,7 @@ func buildPoliciesSection(policies []agent.PolicyRule) string {
 	return formatSection("# Guardrails & Policies", lines)
 }
 
-func buildKnowledgeSection(knowledge []agent.KnowledgeReference) string {
+func buildKnowledgeSection(knowledge []agent.KnowledgeReference, sopSummaryOnly bool) string {
 	if len(knowledge) == 0 {
 		return ""
 	}
@@ -516,22 +498,35 @@ func buildKnowledgeSection(knowledge []agent.KnowledgeReference) string {
 			lines = append(lines, fmt.Sprintf("  - Summary: %s", ref.Description))
 		}
 
-		// Render resolved SOP content inline when available.
-		if len(ref.ResolvedSOPContent) > 0 {
-			for _, sopRef := range ref.SOPRefs {
-				content, ok := ref.ResolvedSOPContent[sopRef]
-				if !ok || content == "" {
-					continue
+		// SOP content handling based on sopSummaryOnly flag
+		if len(ref.SOPRefs) > 0 {
+			if sopSummaryOnly {
+				// Summary-only mode: show references with hint to use read_file
+				var refLabels []string
+				for _, sopRef := range ref.SOPRefs {
+					refLabels = append(refLabels, SOPRefLabel(sopRef))
 				}
-				sopLabel := SOPRefLabel(sopRef)
-				lines = append(lines, fmt.Sprintf("  - SOP [%s]:", sopLabel))
-				for _, cl := range strings.Split(content, "\n") {
-					lines = append(lines, fmt.Sprintf("    %s", cl))
+				lines = append(lines, fmt.Sprintf("  - SOP refs: %s", strings.Join(refLabels, ", ")))
+				lines = append(lines, "    (Use read_file tool to access full content when needed)")
+			} else {
+				// Full inline mode: render resolved SOP content inline when available
+				if len(ref.ResolvedSOPContent) > 0 {
+					for _, sopRef := range ref.SOPRefs {
+						content, ok := ref.ResolvedSOPContent[sopRef]
+						if !ok || content == "" {
+							continue
+						}
+						sopLabel := SOPRefLabel(sopRef)
+						lines = append(lines, fmt.Sprintf("  - SOP [%s]:", sopLabel))
+						for _, cl := range strings.Split(content, "\n") {
+							lines = append(lines, fmt.Sprintf("    %s", cl))
+						}
+					}
+				} else {
+					// Fallback to raw ref strings if resolution didn't happen
+					lines = append(lines, fmt.Sprintf("  - SOP refs: %s", strings.Join(ref.SOPRefs, ", ")))
 				}
 			}
-		} else if len(ref.SOPRefs) > 0 {
-			// Fallback to raw ref strings if resolution didn't happen.
-			lines = append(lines, fmt.Sprintf("  - SOP refs: %s", strings.Join(ref.SOPRefs, ", ")))
 		}
 
 		if len(ref.MemoryKeys) > 0 {

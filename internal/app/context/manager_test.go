@@ -160,7 +160,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 
 	configRoot := resolveDefaultConfigRoot(t)
 
-	registry := newStaticRegistry(configRoot, time.Minute, nil, nil)
+	registry := newStaticRegistry(configRoot, "", time.Minute, nil, nil)
 	snapshot, err := registry.currentSnapshot(context.Background())
 	if err != nil {
 		t.Fatalf("failed to load default static context: %v", err)
@@ -208,19 +208,15 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 			t.Fatalf("expected system prompt to include section %q, got %q", section, window.SystemPrompt)
 		}
 	}
+	// Check for compressed tool routing meta-rules
 	for _, snippet := range []string{
-		"Before asking the user, exhaust safe deterministic attempts first",
-		"inspect memory and thread context first",
-		"Use clarify only when requirements are missing or contradictory after all viable attempts fail",
-		"search/install suitable skills or tools from trusted sources",
-		"Use request_user for explicit human approval/consent/manual gates",
-		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions",
-		"Use artifacts_list for inventory/audit",
-		"generated deliverable files in Lark threads, proactively upload after generation",
-		"Default temporary/generated file outputs to /tmp",
-		"Use browser_info for read-only tab/session metadata",
-		"use bash to leverage any suitable host CLI available on PATH",
-		"Inject runtime environment facts (cwd, OS, shell, available toolchain, safe env hints)",
+		"Exploration first",
+		"Memory hierarchy",
+		"Tool selection patterns",
+		"user delegation",
+		"request_user only for explicit approval gates",
+		"bash as fallback",
+		"inject runtime facts",
 		"host shell execution with any available PATH tool",
 	} {
 		if !strings.Contains(window.SystemPrompt, snippet) {

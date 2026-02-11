@@ -22,7 +22,7 @@ func TestBuildIdentitySectionIncludesIdentityFileLocations(t *testing.T) {
 	if !strings.Contains(section, "USER.md: ~/.alex/memory/USER.md") {
 		t.Fatalf("expected USER.md path hint in identity section, got: %s", section)
 	}
-	if !strings.Contains(section, "configs/context/personas/default.yaml") {
+	if !strings.Contains(section, "docs/reference/SOUL.md") {
 		t.Fatalf("expected persona source path hint in identity section, got: %s", section)
 	}
 }
