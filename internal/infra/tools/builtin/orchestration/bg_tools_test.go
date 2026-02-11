@@ -127,6 +127,102 @@ func TestBGDispatch_CustomAgentType(t *testing.T) {
 	}
 }
 
+func TestBGDispatch_CodingDefaults(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-coding",
+		Arguments: map[string]any{
+			"description": "implement feature",
+			"prompt":      "implement it",
+			"task_kind":   "coding",
+			"agent_type":  "codex",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error != nil {
+		t.Fatalf("unexpected result error: %v", result.Error)
+	}
+	if len(d.dispatched) != 1 {
+		t.Fatalf("expected dispatch call, got %d", len(d.dispatched))
+	}
+	req := d.dispatched[0].Req
+	if req.WorkspaceMode != agent.WorkspaceModeWorktree {
+		t.Fatalf("expected workspace_mode=worktree, got %s", req.WorkspaceMode)
+	}
+	if req.Config["task_kind"] != "coding" {
+		t.Fatalf("expected task_kind=coding, got %q", req.Config["task_kind"])
+	}
+	if req.Config["coding_profile"] != "full_access" {
+		t.Fatalf("expected coding_profile=full_access, got %q", req.Config["coding_profile"])
+	}
+	if req.Config["verify"] != "true" {
+		t.Fatalf("expected verify=true, got %q", req.Config["verify"])
+	}
+	if req.Config["retry_max_attempts"] != "3" {
+		t.Fatalf("expected retry_max_attempts=3, got %q", req.Config["retry_max_attempts"])
+	}
+	if req.Config["merge_on_success"] != "true" {
+		t.Fatalf("expected merge_on_success=true, got %q", req.Config["merge_on_success"])
+	}
+}
+
+func TestBGDispatch_CodingRequiresExternalAgent(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-coding-internal",
+		Arguments: map[string]any{
+			"description": "implement feature",
+			"prompt":      "implement it",
+			"task_kind":   "coding",
+			"agent_type":  "internal",
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected error for coding task with internal agent")
+	}
+	if len(d.dispatched) != 0 {
+		t.Fatalf("expected no dispatch on validation failure, got %d", len(d.dispatched))
+	}
+}
+
+func TestBGDispatch_CodingMergeRequiresVerify(t *testing.T) {
+	d := &mockDispatcher{}
+	ctx := ctxWithDispatcher(d)
+	tool := NewBGDispatch()
+
+	result, err := tool.Execute(ctx, ports.ToolCall{
+		ID: "call-coding-merge-verify",
+		Arguments: map[string]any{
+			"description":      "implement feature",
+			"prompt":           "implement it",
+			"task_kind":        "coding",
+			"agent_type":       "codex",
+			"merge_on_success": true,
+			"verify":           false,
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Error == nil {
+		t.Fatal("expected validation error when merge_on_success=true and verify=false")
+	}
+	if len(d.dispatched) != 0 {
+		t.Fatalf("expected no dispatch on validation failure, got %d", len(d.dispatched))
+	}
+}
+
 func TestBGDispatch_MetadataIncludesRunIDs(t *testing.T) {
 	d := &mockDispatcher{}
 	ctx := ctxWithDispatcher(d)

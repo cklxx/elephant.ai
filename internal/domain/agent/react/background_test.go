@@ -510,6 +510,61 @@ func TestManagerEmitsCompletionEventImmediately(t *testing.T) {
 	}
 }
 
+func TestTryAutoMerge_CodingSuccess(t *testing.T) {
+	ws := &mockWorkspaceManager{
+		mergeResult: &agent.MergeResult{
+			Success: true,
+			Branch:  "elephant/bg-123",
+		},
+	}
+	mgr := &BackgroundTaskManager{workspaceMgr: ws}
+	bt := &backgroundTask{
+		config: map[string]string{
+			"task_kind":        "coding",
+			"merge_on_success": "true",
+			"verify":           "true",
+		},
+		workspace: &agent.WorkspaceAllocation{
+			Mode:   agent.WorkspaceModeWorktree,
+			Branch: "elephant/bg-123",
+		},
+	}
+	result := &agent.TaskResult{Answer: "done"}
+
+	if err := mgr.tryAutoMerge(context.Background(), bt, result); err != nil {
+		t.Fatalf("unexpected merge error: %v", err)
+	}
+	if ws.mergeCalls != 1 {
+		t.Fatalf("expected 1 merge call, got %d", ws.mergeCalls)
+	}
+	if !strings.Contains(result.Answer, "[Auto Merge]") {
+		t.Fatalf("expected auto merge marker in answer, got %q", result.Answer)
+	}
+}
+
+func TestTryAutoMerge_RequiresVerifyForCoding(t *testing.T) {
+	ws := &mockWorkspaceManager{}
+	mgr := &BackgroundTaskManager{workspaceMgr: ws}
+	bt := &backgroundTask{
+		config: map[string]string{
+			"task_kind":        "coding",
+			"merge_on_success": "true",
+			"verify":           "false",
+		},
+		workspace: &agent.WorkspaceAllocation{
+			Mode: agent.WorkspaceModeWorktree,
+		},
+	}
+
+	err := mgr.tryAutoMerge(context.Background(), bt, &agent.TaskResult{Answer: "done"})
+	if err == nil {
+		t.Fatal("expected error when verify is disabled for auto merge")
+	}
+	if ws.mergeCalls != 0 {
+		t.Fatalf("expected no merge calls, got %d", ws.mergeCalls)
+	}
+}
+
 // mockExternalExecutor implements agent.ExternalAgentExecutor for testing.
 type mockExternalExecutor struct {
 	result *agent.ExternalAgentResult
@@ -870,6 +925,34 @@ func (d *delayedExternalExecutor) Execute(ctx context.Context, req agent.Externa
 
 func (d *delayedExternalExecutor) SupportedTypes() []string {
 	return []string{"codex", "claude_code"}
+}
+
+type mockWorkspaceManager struct {
+	mergeCalls  int
+	mergeAlloc  *agent.WorkspaceAllocation
+	mergeMode   agent.MergeStrategy
+	mergeResult *agent.MergeResult
+	mergeErr    error
+}
+
+func (m *mockWorkspaceManager) Allocate(ctx context.Context, taskID string, mode agent.WorkspaceMode, fileScope []string) (*agent.WorkspaceAllocation, error) {
+	return &agent.WorkspaceAllocation{
+		Mode:   mode,
+		Branch: taskID,
+	}, nil
+}
+
+func (m *mockWorkspaceManager) Merge(ctx context.Context, alloc *agent.WorkspaceAllocation, strategy agent.MergeStrategy) (*agent.MergeResult, error) {
+	m.mergeCalls++
+	m.mergeAlloc = alloc
+	m.mergeMode = strategy
+	if m.mergeErr != nil {
+		return nil, m.mergeErr
+	}
+	if m.mergeResult != nil {
+		return m.mergeResult, nil
+	}
+	return &agent.MergeResult{Success: true, Branch: alloc.Branch, Strategy: strategy}, nil
 }
 
 func TestCancelTask(t *testing.T) {

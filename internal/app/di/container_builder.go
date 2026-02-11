@@ -21,17 +21,18 @@ import (
 	portsllm "alex/internal/domain/agent/ports/llm"
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	react "alex/internal/domain/agent/react"
+	taskdomain "alex/internal/domain/task"
 	"alex/internal/infra/analytics/journal"
+	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/mcp"
 	"alex/internal/infra/memory"
 	"alex/internal/infra/session/filestore"
 	"alex/internal/infra/session/postgresstore"
-	taskdomain "alex/internal/domain/task"
-	taskinfra "alex/internal/infra/task"
 	sessionstate "alex/internal/infra/session/state_store"
 	"alex/internal/infra/storage"
+	taskinfra "alex/internal/infra/task"
 	toolspolicy "alex/internal/infra/tools"
 	okrtools "alex/internal/infra/tools/builtin/okr"
 	"alex/internal/shared/agent/presets"
@@ -148,7 +149,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	var externalExecutor agent.ExternalAgentExecutor
 	externalRegistry := external.NewRegistry(b.config.ExternalAgents, b.logger)
 	if len(externalRegistry.SupportedTypes()) > 0 {
-		externalExecutor = externalRegistry
+		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
 	}
 
 	mcpRegistry := mcp.NewRegistry()
@@ -505,7 +506,7 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 	var externalExecutor agent.ExternalAgentExecutor
 	externalRegistry := external.NewRegistry(b.config.ExternalAgents, b.logger)
 	if len(externalRegistry.SupportedTypes()) > 0 {
-		externalExecutor = externalRegistry
+		externalExecutor = codinginfra.NewManagedExternalExecutor(externalRegistry, b.logger)
 	}
 
 	coordinator := agentcoordinator.NewAgentCoordinator(

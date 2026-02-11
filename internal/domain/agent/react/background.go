@@ -448,6 +448,12 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 		}
 	}
 
+	if err == nil {
+		if mergeErr := m.tryAutoMerge(ctx, bt, result); mergeErr != nil {
+			err = mergeErr
+		}
+	}
+
 	bt.mu.Lock()
 	bt.completedAt = m.clock.Now()
 	bt.result = result
@@ -483,6 +489,42 @@ func (m *BackgroundTaskManager) runTask(ctx context.Context, bt *backgroundTask,
 	}
 
 	m.signalCompletion(bt.id)
+}
+
+func (m *BackgroundTaskManager) tryAutoMerge(ctx context.Context, bt *backgroundTask, result *agent.TaskResult) error {
+	bt.mu.Lock()
+	cfg := cloneStringMap(bt.config)
+	alloc := bt.workspace
+	bt.mu.Unlock()
+
+	if !strings.EqualFold(strings.TrimSpace(cfg["task_kind"]), "coding") {
+		return nil
+	}
+	if !parseConfigBoolDefault(cfg["merge_on_success"], true) {
+		return nil
+	}
+	if !parseConfigBoolDefault(cfg["verify"], true) {
+		return fmt.Errorf("auto merge requires verify=true for coding tasks")
+	}
+	if alloc == nil || alloc.Mode == agent.WorkspaceModeShared {
+		return nil
+	}
+	if m.workspaceMgr == nil {
+		return fmt.Errorf("auto merge requested but workspace manager is not available")
+	}
+
+	strategy := parseMergeStrategy(cfg["merge_strategy"])
+	mergeResult, err := m.workspaceMgr.Merge(ctx, alloc, strategy)
+	if err != nil {
+		return fmt.Errorf("auto merge failed: %w", err)
+	}
+	if mergeResult != nil && !mergeResult.Success {
+		return fmt.Errorf("auto merge failed for branch %q", mergeResult.Branch)
+	}
+	if result != nil && mergeResult != nil && strings.TrimSpace(mergeResult.Branch) != "" {
+		result.Answer = strings.TrimSpace(result.Answer + "\n\n[Auto Merge] branch=" + mergeResult.Branch + " strategy=" + string(strategy))
+	}
+	return nil
 }
 
 // Status returns lightweight summaries for the requested task IDs.
@@ -1055,6 +1097,34 @@ func cloneStringMap(in map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func parseConfigBoolDefault(raw string, fallback bool) bool {
+	trimmed := strings.ToLower(strings.TrimSpace(raw))
+	if trimmed == "" {
+		return fallback
+	}
+	switch trimmed {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	default:
+		return fallback
+	}
+}
+
+func parseMergeStrategy(raw string) agent.MergeStrategy {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case string(agent.MergeStrategySquash):
+		return agent.MergeStrategySquash
+	case string(agent.MergeStrategyRebase):
+		return agent.MergeStrategyRebase
+	case string(agent.MergeStrategyReview):
+		return agent.MergeStrategyReview
+	default:
+		return agent.MergeStrategyAuto
+	}
 }
 
 // resolveTargets returns the tasks matching ids, or all tasks when ids is empty.

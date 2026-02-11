@@ -2,6 +2,8 @@ package orchestration
 
 import (
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 )
 
@@ -84,4 +86,40 @@ func parseOptionalBool(args map[string]any, key string) (bool, bool, error) {
 		return false, true, fmt.Errorf("%s must be a boolean", key)
 	}
 	return val, true, nil
+}
+
+func parseOptionalInt(args map[string]any, key string) (int, bool, error) {
+	raw, exists := args[key]
+	if !exists {
+		return 0, false, nil
+	}
+	if raw == nil {
+		return 0, true, nil
+	}
+
+	switch v := raw.(type) {
+	case int:
+		return v, true, nil
+	case int32:
+		return int(v), true, nil
+	case int64:
+		return int(v), true, nil
+	case float64:
+		if math.Trunc(v) != v {
+			return 0, true, fmt.Errorf("%s must be an integer", key)
+		}
+		return int(v), true, nil
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" {
+			return 0, true, nil
+		}
+		num, err := strconv.Atoi(trimmed)
+		if err != nil {
+			return 0, true, fmt.Errorf("%s must be an integer", key)
+		}
+		return num, true, nil
+	default:
+		return 0, true, fmt.Errorf("%s must be an integer", key)
+	}
 }
