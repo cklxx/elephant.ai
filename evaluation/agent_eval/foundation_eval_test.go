@@ -843,6 +843,12 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 	if compactNoFileMessageBoost <= compactNoFileUploadBoost {
 		t.Fatalf("expected lark_send_message boost (%.2f) to exceed lark_upload_file boost (%.2f) for compact no-file transfer updates", compactNoFileMessageBoost, compactNoFileUploadBoost)
 	}
+	delegatedLowRiskChannelBoost := heuristicIntentBoost("channel", makeSet("user", "already", "delegate", "you", "decide", "anything", "works", "low", "reversible", "status", "message", "thread", "without", "ask", "again"))
+	delegatedLowRiskRequestBoost := heuristicIntentBoost("request_user", makeSet("user", "already", "delegate", "you", "decide", "anything", "works", "low", "reversible", "status", "message", "thread", "without", "ask", "again"))
+	delegatedLowRiskClarifyBoost := heuristicIntentBoost("clarify", makeSet("user", "already", "delegate", "you", "decide", "anything", "works", "low", "reversible", "status", "message", "thread", "without", "ask", "again"))
+	if delegatedLowRiskChannelBoost <= delegatedLowRiskRequestBoost || delegatedLowRiskChannelBoost <= delegatedLowRiskClarifyBoost {
+		t.Fatalf("expected channel boost (%.2f) to exceed request_user (%.2f) and clarify (%.2f) for delegated low-risk no-reconfirm intents", delegatedLowRiskChannelBoost, delegatedLowRiskRequestBoost, delegatedLowRiskClarifyBoost)
+	}
 
 	contextFirstHistoryBoost := heuristicIntentBoost("lark_chat_history", makeSet("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer"))
 	contextFirstSendBoost := heuristicIntentBoost("lark_send_message", makeSet("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer"))

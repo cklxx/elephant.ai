@@ -44,6 +44,13 @@ scenarios:
     or attaching any file.
   expected_tools:
   - lark_send_message
+- id: motivation-delegated-low-risk-action-no-reconfirm
+  category: motivation_boundary
+  intent: User already delegated choice ("you decide", "anything works") for a low-risk
+    reversible in-thread status update; execute directly via channel send_message
+    and report the choice without asking again.
+  expected_tools:
+  - channel
 - id: motivation-stop-noise-reminders
   category: motivation_boundary
   intent: User asks to stop motivation nudges now; cancel the active reminder timer.
