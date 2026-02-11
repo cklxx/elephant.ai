@@ -251,9 +251,10 @@ func buildToolRoutingSection() string {
 	return formatSection("# Tool Routing Guardrails", []string{
 		"1. Exploration first: Exhaust deterministic tools (read_file, memory_search, execute_code, bash probes) before asking clarify; use request_user only for explicit approval gates (login, 2FA, external confirmation).",
 		"2. Memory hierarchy: memory_search/memory_get for persistent notes → lark_chat_history for thread context → clarify when requirements remain unclear; treat user delegation (\"you decide\", \"anything works\") as authorization for low-risk reversible actions.",
-		"3. Tool selection patterns: read_file for workspace files, artifacts_write for outputs, lark_upload_file for deliverables; browser_dom for selectors, browser_action for coordinates; find/search_file/ripgrep by discovery scope; web_search for discovery, web_fetch for retrieval; bash as fallback for missing dedicated tools.",
-		"4. Autonomous loops: inspect → run → verify → adjust; escalate only with concrete evidence of blockers; probe capabilities (command -v, --version) before declaring unavailable; inject runtime facts (cwd, OS, toolchain) before irreversible decisions.",
-		"5. Safety: Never expose secrets in prompts/outputs; redact sensitive tokens by default; use explicit user consent for high-impact/irreversible/external actions.",
+		"3. Explicit read-only inspection: For explicit low-risk requests to view/check/list/inspect project state, execute directly with read_file/list_dir/shell_exec and report findings; do not ask for reconfirmation.",
+		"4. Tool selection patterns: read_file for workspace files, artifacts_write for outputs, lark_upload_file for deliverables; browser_dom for selectors, browser_action for coordinates; find/search_file/ripgrep by discovery scope; web_search for discovery, web_fetch for retrieval; bash as fallback for missing dedicated tools.",
+		"5. Autonomous loops: inspect → run → verify → adjust; escalate only with concrete evidence of blockers; probe capabilities (command -v, --version) before declaring unavailable; inject runtime facts (cwd, OS, toolchain) before irreversible decisions.",
+		"6. Safety: Never expose secrets in prompts/outputs; redact sensitive tokens by default; use explicit user consent for high-impact/irreversible/external actions.",
 	})
 }
 

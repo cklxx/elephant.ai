@@ -1455,6 +1455,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 			countMatches("approval", "consent", "confirm", "manual", "external", "irreversible", "critical") == 0 {
 			boost -= 28
 		}
+		if countMatches("view", "check", "list", "inspect", "status", "repo", "branch", "directory", "structure", "workspace", "read", "only") >= 4 &&
+			countMatches("approval", "consent", "manual", "external", "irreversible", "critical", "captcha", "2fa", "login", "publish", "go-signal", "greenlight") == 0 {
+			boost -= 32
+		}
 	case "cancel_timer":
 		if countMatches("cancel", "remove", "delete", "drop", "prune", "obsolete", "stale", "duplicate", "timer", "reminder") >= 2 {
 			boost += 22
@@ -1492,6 +1496,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		}
 		if countMatches("reproduce", "failure", "failing", "test", "command", "before", "fix") >= 3 {
 			boost += 22
+		}
+		if countMatches("view", "check", "list", "inspect", "repo", "branch", "status", "directory", "structure", "workspace", "read", "only") >= 4 &&
+			countMatches("approval", "consent", "manual", "external", "irreversible", "critical", "captcha", "2fa", "login", "publish", "go-signal", "greenlight") == 0 {
+			boost += 18
 		}
 	case "scheduler_list_jobs":
 		if countMatches("job", "jobs", "list", "inventory", "registered", "cadence", "schedule", "show") >= 2 {
@@ -2406,6 +2414,9 @@ var tokenAliases = map[string]string{
 	"lookup":        "search",
 	"scan":          "search",
 	"check":         "query",
+	"inspect":       "query",
+	"inspection":    "query",
+	"view":          "query",
 	"upcoming":      "query",
 	"querying":      "query",
 	"queries":       "query",

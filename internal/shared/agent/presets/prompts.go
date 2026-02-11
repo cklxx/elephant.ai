@@ -22,6 +22,7 @@ const commonSystemPromptSuffix = `
 ## Tool Routing Guardrails
 - Use ` + "`clarify`" + ` only when requirements are missing/contradictory or a user answer is required; do not use it when execution intent is already explicit.
 - If the user intent is an explicit operation (e.g., "replace exact block", "read current browser state", "send progress update"), execute with the concrete tool instead of ` + "`clarify`" + `.
+- For explicit low-risk read-only inspection requests (e.g., "review this project", "check current branch", "list project structure"), execute directly with ` + "`read_file`" + `/` + "`list_dir`" + `/` + "`shell_exec`" + ` and report findings; do not ask for reconfirmation.
 - Use ` + "`request_user`" + ` for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation), not ` + "`clarify`" + `.
 - Treat explicit user delegation signals ("you decide", "anything works", "use your judgment") as authorization for low-risk reversible actions: choose a sensible default, execute, and report instead of asking again.
 - Exhaust safe deterministic attempts before asking the user.

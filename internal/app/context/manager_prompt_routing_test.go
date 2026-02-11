@@ -13,6 +13,7 @@ func TestBuildToolRoutingSectionIncludesDeterministicAndMemoryBoundaries(t *test
 	for _, snippet := range []string{
 		"Exploration first",
 		"Memory hierarchy",
+		"Explicit read-only inspection",
 		"Tool selection patterns",
 		"Autonomous loops",
 		"Safety",

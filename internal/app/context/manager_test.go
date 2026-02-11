@@ -212,6 +212,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 	for _, snippet := range []string{
 		"Exploration first",
 		"Memory hierarchy",
+		"Explicit read-only inspection",
 		"Tool selection patterns",
 		"user delegation",
 		"request_user only for explicit approval gates",

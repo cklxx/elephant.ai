@@ -44,6 +44,12 @@ scenarios:
   intent: Run shell commands to check current branch and git status.
   expected_tools:
   - shell_exec
+- id: tool-shell-read-only-project-inspection
+  category: execution
+  intent: View this project with a quick read-only inspection (branch, workspace status,
+    and top-level structure) and report findings directly without asking for confirmation.
+  expected_tools:
+  - shell_exec
 - id: tool-execute-code-snippet
   category: execution
   intent: Execute a short code snippet to validate the formula quickly.

@@ -850,6 +850,13 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected channel boost (%.2f) to exceed request_user (%.2f) and clarify (%.2f) for delegated low-risk no-reconfirm intents", delegatedLowRiskChannelBoost, delegatedLowRiskRequestBoost, delegatedLowRiskClarifyBoost)
 	}
 
+	readOnlyInspectShellBoost := heuristicIntentBoost("shell_exec", makeSet("view", "check", "list", "inspect", "project", "repo", "branch", "status", "workspace", "read", "only"))
+	readOnlyInspectRequestBoost := heuristicIntentBoost("request_user", makeSet("view", "check", "list", "inspect", "project", "repo", "branch", "status", "workspace", "read", "only"))
+	readOnlyInspectClarifyBoost := heuristicIntentBoost("clarify", makeSet("view", "check", "list", "inspect", "project", "repo", "branch", "status", "workspace", "read", "only"))
+	if readOnlyInspectShellBoost <= readOnlyInspectRequestBoost || readOnlyInspectShellBoost <= readOnlyInspectClarifyBoost {
+		t.Fatalf("expected shell_exec boost (%.2f) to exceed request_user (%.2f) and clarify (%.2f) for read-only inspect/list/check intents", readOnlyInspectShellBoost, readOnlyInspectRequestBoost, readOnlyInspectClarifyBoost)
+	}
+
 	contextFirstHistoryBoost := heuristicIntentBoost("lark_chat_history", makeSet("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer"))
 	contextFirstSendBoost := heuristicIntentBoost("lark_send_message", makeSet("prior", "chat", "context", "thread", "history", "before", "replying", "no", "file", "transfer"))
 	if contextFirstHistoryBoost <= contextFirstSendBoost {
