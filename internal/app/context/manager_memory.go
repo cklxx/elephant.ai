@@ -105,34 +105,7 @@ func (m *manager) renderSoulTemplate() string {
 	if voice == "" {
 		voice = "You are eli, a pragmatic coding partner for production software."
 	}
-
-	var lines []string
-	lines = append(lines,
-		"# SOUL",
-		"",
-		"This file defines who the assistant is.",
-		"",
-		fmt.Sprintf("- Canonical source: `%s`", defaultPersonaConfig),
-	)
-	if sourcePath := strings.TrimSpace(m.defaultPersonaSourcePath()); sourcePath != "" && sourcePath != defaultPersonaConfig {
-		lines = append(lines, fmt.Sprintf("- Resolved source path: `%s`", sourcePath))
-	}
-	lines = append(lines,
-		"- Bootstrap behavior: if missing, this file is auto-created from the persona source.",
-		"",
-		"## Voice",
-		voice,
-	)
-	if tone := strings.TrimSpace(profile.Tone); tone != "" {
-		lines = append(lines, "", fmt.Sprintf("- Tone: %s", tone))
-	}
-	if style := strings.TrimSpace(profile.DecisionStyle); style != "" {
-		lines = append(lines, fmt.Sprintf("- Decision style: %s", style))
-	}
-	if risk := strings.TrimSpace(profile.RiskProfile); risk != "" {
-		lines = append(lines, fmt.Sprintf("- Risk profile: %s", risk))
-	}
-	return strings.Join(lines, "\n") + "\n"
+	return strings.TrimSpace(voice) + "\n"
 }
 
 func (m *manager) readDefaultPersonaProfile() agent.PersonaProfile {
@@ -166,10 +139,13 @@ func (m *manager) readDefaultPersonaProfile() agent.PersonaProfile {
 }
 
 func (m *manager) defaultPersonaSourcePath() string {
-	if m == nil {
-		return ""
+	var root string
+	if m != nil {
+		root = strings.TrimSpace(m.configRoot)
 	}
-	root := strings.TrimSpace(m.configRoot)
+	if root == "" {
+		root = strings.TrimSpace(resolveContextConfigRoot())
+	}
 	if root == "" {
 		return ""
 	}

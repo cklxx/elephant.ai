@@ -100,8 +100,8 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read SOUL.md: %v", err)
 	}
-	if !strings.Contains(string(soulBytes), "configs/context/personas/default.yaml") {
-		t.Fatalf("expected SOUL.md to reference persona source path, got: %s", string(soulBytes))
+	if !strings.Contains(string(soulBytes), "# Perfect Subordinate — System Prompt") {
+		t.Fatalf("expected SOUL.md bootstrap content from default persona voice, got: %s", string(soulBytes))
 	}
 
 	if !strings.Contains(snapshot, "Identity (SOUL.md") {
@@ -120,6 +120,28 @@ func TestLoadMemorySnapshotBootstrapsSoulAndUserFiles(t *testing.T) {
 	}
 	if !(soulIdx < userIdx && userIdx < todayIdx && todayIdx < memoryIdx) {
 		t.Fatalf("expected SOUL -> USER -> daily -> long-term order, got: %s", snapshot)
+	}
+}
+
+func TestRenderSoulTemplateUsesPersonaVoiceVerbatim(t *testing.T) {
+	root := t.TempDir()
+	personaDir := filepath.Join(root, "personas")
+	if err := os.MkdirAll(personaDir, 0o755); err != nil {
+		t.Fatalf("mkdir personas: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(personaDir, "default.yaml"), []byte(`id: default
+voice: |
+  # Custom SOUL
+
+  Keep calm and execute.`), 0o644); err != nil {
+		t.Fatalf("write default persona: %v", err)
+	}
+
+	mgr := &manager{configRoot: root}
+	got := mgr.renderSoulTemplate()
+	want := "# Custom SOUL\n\nKeep calm and execute.\n"
+	if got != want {
+		t.Fatalf("unexpected SOUL template: got %q want %q", got, want)
 	}
 }
 

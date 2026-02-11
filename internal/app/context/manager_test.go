@@ -142,10 +142,9 @@ func TestDefaultStaticContextCarriesCoreGuidance(t *testing.T) {
 
 	prompt := window.SystemPrompt
 	expectations := []string{
-		"a pragmatic coding partner for production software",
-		"Operating style: ENTJ",
-		"ACT FIRST, REPORT AFTER",
-		"Response contract:",
+		"Perfect Subordinate — System Prompt",
+		"Primary Principle: Intent Over Instruction",
+		"Conclusion First, Details On Demand",
 		"Never execute destructive shell commands",
 		"bg_dispatch(agent_type=codex)",
 	}
