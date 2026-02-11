@@ -13,22 +13,22 @@ import (
 )
 
 type systemPromptInput struct {
-	Logger          logging.Logger
-	Static          agent.StaticContext
-	Dynamic         agent.DynamicContext
-	Meta            agent.MetaContext
-	Memory          string
-	OmitEnvironment bool
-	TaskInput       string
-	Messages        []ports.Message
-	SessionID       string
-	PromptMode      string
-	PromptTimezone  string
+	Logger           logging.Logger
+	Static           agent.StaticContext
+	Dynamic          agent.DynamicContext
+	Meta             agent.MetaContext
+	Memory           string
+	OmitEnvironment  bool
+	TaskInput        string
+	Messages         []ports.Message
+	SessionID        string
+	PromptMode       string
+	PromptTimezone   string
 	ReplyTagsEnabled bool
 	BootstrapRecords []bootstrapRecord
 	ToolMode         string
-	SkillsConfig    agent.SkillsConfig
-	OKRContext      string
+	SkillsConfig     agent.SkillsConfig
+	OKRContext       string
 }
 
 const (
@@ -253,6 +253,7 @@ func buildToolRoutingSection() string {
 		"If intent is unclear, inspect memory and thread context first (memory_search/memory_get, then lark_chat_history when available).",
 		"Use clarify only when requirements are missing or contradictory after all viable attempts fail; ask one minimal blocking question only then.",
 		"Use request_user for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation).",
+		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions; choose a sensible default, execute, and report instead of asking again.",
 		"Use read_file for repository/workspace files and proof/context windows; use memory_search/memory_get only for persistent memory notes.",
 		"When capability is missing, proactively search/install suitable skills or tools from trusted sources before escalating.",
 		"Use artifacts_list for inventory/audit, artifacts_write for create/update outputs, and artifacts_delete for cleanup.",

@@ -23,6 +23,7 @@ const commonSystemPromptSuffix = `
 - Use ` + "`clarify`" + ` only when requirements are missing/contradictory or a user answer is required; do not use it when execution intent is already explicit.
 - If the user intent is an explicit operation (e.g., "replace exact block", "read current browser state", "send progress update"), execute with the concrete tool instead of ` + "`clarify`" + `.
 - Use ` + "`request_user`" + ` for explicit human approval/consent/manual gates (login, 2FA, CAPTCHA, external confirmation), not ` + "`clarify`" + `.
+- Treat explicit user delegation signals ("you decide", "anything works", "use your judgment") as authorization for low-risk reversible actions: choose a sensible default, execute, and report instead of asking again.
 - Exhaust safe deterministic attempts before asking the user.
 - If intent is unclear, inspect memory and thread context first: use ` + "`memory_search`" + `, ` + "`memory_get`" + `, then ` + "`lark_chat_history`" + ` when available.
 - Use ` + "`clarify`" + ` only when critical input is missing after all viable attempts fail; ask one minimal blocking question only then.

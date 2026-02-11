@@ -214,6 +214,7 @@ func TestDefaultPromptIncludesRoutingGuardrails(t *testing.T) {
 	prompt := config.SystemPrompt
 	for _, snippet := range []string{
 		"Use `request_user` for explicit human approval/consent/manual gates",
+		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions",
 		"Exhaust safe deterministic attempts before asking the user",
 		"If intent is unclear, inspect memory and thread context first",
 		"Distinguish repo files vs memory notes",

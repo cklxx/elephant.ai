@@ -15,6 +15,7 @@ func TestDefaultSystemPromptIncludesRoutingBoundaries(t *testing.T) {
 		"ask one minimal blocking question only then",
 		"search/install suitable skills or tools from trusted sources",
 		"explicit approval/consent/manual gates",
+		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions",
 		"browser_info for read-only browser state",
 		"lark_chat_history for prior thread context",
 		"generated file is part of the requested deliverable in Lark, proactively upload it",

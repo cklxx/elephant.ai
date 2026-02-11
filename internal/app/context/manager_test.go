@@ -214,6 +214,7 @@ func TestDefaultContextConfigLoadsAndBuildsPrompt(t *testing.T) {
 		"Use clarify only when requirements are missing or contradictory after all viable attempts fail",
 		"search/install suitable skills or tools from trusted sources",
 		"Use request_user for explicit human approval/consent/manual gates",
+		"Treat explicit user delegation signals (\"you decide\", \"anything works\", \"use your judgment\") as authorization for low-risk reversible actions",
 		"Use artifacts_list for inventory/audit",
 		"generated deliverable files in Lark threads, proactively upload after generation",
 		"Default temporary/generated file outputs to /tmp",
