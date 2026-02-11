@@ -1,3 +1,4 @@
+---
 name: audio-tts
 description: 本地 TTS 语音生成（macOS say + afconvert），输出 m4a 文件。
 triggers:

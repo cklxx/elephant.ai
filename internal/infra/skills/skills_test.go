@@ -86,7 +86,7 @@ Steps...
 	}
 }
 
-func TestLoadRejectsMissingFrontMatter(t *testing.T) {
+func TestLoadSkipsMissingFrontMatter(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -102,8 +102,60 @@ No front matter here.
 		t.Fatalf("write skill: %v", err)
 	}
 
-	if _, err := Load(dir); err == nil {
-		t.Fatalf("expected error for missing front matter")
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	if len(lib.List()) != 0 {
+		t.Fatalf("expected malformed skill to be skipped, got %d skills", len(lib.List()))
+	}
+}
+
+func TestLoadSkipsMalformedSkillAndKeepsValidSkills(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+
+	badDir := filepath.Join(dir, "bad-skill")
+	if err := os.Mkdir(badDir, 0o755); err != nil {
+		t.Fatalf("mkdir bad skill dir: %v", err)
+	}
+	badContent := `---
+name: bad-skill
+description: [broken
+---
+# Bad Skill
+`
+	if err := os.WriteFile(filepath.Join(badDir, "SKILL.md"), []byte(badContent), 0o644); err != nil {
+		t.Fatalf("write bad skill: %v", err)
+	}
+
+	goodDir := filepath.Join(dir, "good-skill")
+	if err := os.Mkdir(goodDir, 0o755); err != nil {
+		t.Fatalf("mkdir good skill dir: %v", err)
+	}
+	goodContent := `---
+name: good-skill
+description: Valid skill.
+---
+# Good Skill
+
+Body.
+`
+	if err := os.WriteFile(filepath.Join(goodDir, "SKILL.md"), []byte(goodContent), 0o644); err != nil {
+		t.Fatalf("write good skill: %v", err)
+	}
+
+	lib, err := Load(dir)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+
+	if len(lib.List()) != 1 {
+		t.Fatalf("expected exactly one valid skill, got %d", len(lib.List()))
+	}
+	if _, ok := lib.Get("good-skill"); !ok {
+		t.Fatalf("expected good-skill to remain loaded")
 	}
 }
 

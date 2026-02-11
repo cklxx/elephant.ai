@@ -91,6 +91,7 @@ func (l Library) Get(name string) (Skill, bool) {
 }
 
 // Load loads skill Markdown files from dir.
+// Malformed/duplicate skills are skipped so one bad skill does not block the full catalog.
 func Load(dir string) (Library, error) {
 	trimmed := strings.TrimSpace(dir)
 	if trimmed == "" {
@@ -118,17 +119,17 @@ func Load(dir string) (Library, error) {
 	for _, path := range skillFiles {
 		skill, err := parseSkillFile(path)
 		if err != nil {
-			return Library{}, err
+			continue
 		}
 		if skill.Name == "" {
-			return Library{}, fmt.Errorf("skill %s missing name front matter", path)
+			continue
 		}
 		if skill.Description == "" {
-			return Library{}, fmt.Errorf("skill %s missing description front matter", path)
+			continue
 		}
 		key := NormalizeName(skill.Name)
 		if _, exists := byName[key]; exists {
-			return Library{}, fmt.Errorf("duplicate skill name %q in %s", key, path)
+			continue
 		}
 		byName[key] = skill
 		skills = append(skills, skill)
