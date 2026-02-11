@@ -21,4 +21,4 @@
 
 5. Review & delivery
 - [completed] 按 code-review skill 做结构化审查，修复问题后再次验证。
-- [pending] 以增量 commit 提交并回合并到 `main`，清理临时 worktree。
+- [completed] 以增量 commit 提交并回合并到 `main`，清理临时 worktree。
