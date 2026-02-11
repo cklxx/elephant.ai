@@ -12,13 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-
-	sqlitevec "github.com/asg017/sqlite-vec-go-bindings/cgo"
-	_ "github.com/mattn/go-sqlite3"
 )
-
-var sqliteVecOnce sync.Once
 
 // StoredChunk represents a chunk stored in the index.
 type StoredChunk struct {
@@ -68,10 +62,8 @@ func OpenIndexStore(path string) (*IndexStore, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
-	sqliteVecOnce.Do(func() {
-		sqlitevec.Auto()
-	})
-	db, err := sql.Open("sqlite3", path)
+	ensureSQLiteVecDriverRegistered()
+	db, err := sql.Open(sqliteVecDriverName, path)
 	if err != nil {
 		return nil, err
 	}
