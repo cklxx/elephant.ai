@@ -85,6 +85,61 @@ func (c *openAIResponsesClient) buildResponsesInputAndInstructions(msgs []ports.
 	return items, strings.Join(instructionsParts, "\n\n")
 }
 
+// pruneOrphanFunctionCallOutputs removes Responses API function_call_output
+// items that don't have a preceding function_call with the same call_id.
+// This prevents upstream 400 rejections when history compaction/snapshot
+// pruning leaves stale tool outputs in context.
+func pruneOrphanFunctionCallOutputs(items []map[string]any) ([]map[string]any, []string) {
+	if len(items) == 0 {
+		return items, nil
+	}
+
+	seenCalls := make(map[string]struct{}, 8)
+	droppedSet := make(map[string]struct{}, 4)
+	dropped := make([]string, 0, 4)
+	filtered := make([]map[string]any, 0, len(items))
+
+	for _, item := range items {
+		kind := strings.TrimSpace(itemString(item["type"]))
+		switch kind {
+		case "function_call":
+			callID := strings.TrimSpace(itemString(item["call_id"]))
+			if callID != "" {
+				seenCalls[callID] = struct{}{}
+			}
+			filtered = append(filtered, item)
+		case "function_call_output":
+			callID := strings.TrimSpace(itemString(item["call_id"]))
+			if callID == "" {
+				if _, exists := droppedSet["<empty_call_id>"]; !exists {
+					droppedSet["<empty_call_id>"] = struct{}{}
+					dropped = append(dropped, "<empty_call_id>")
+				}
+				continue
+			}
+			if _, ok := seenCalls[callID]; !ok {
+				if _, exists := droppedSet[callID]; !exists {
+					droppedSet[callID] = struct{}{}
+					dropped = append(dropped, callID)
+				}
+				continue
+			}
+			filtered = append(filtered, item)
+		default:
+			filtered = append(filtered, item)
+		}
+	}
+
+	return filtered, dropped
+}
+
+func itemString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
 func buildResponsesAssistantContent(msg ports.Message) []map[string]any {
 	parts := make([]map[string]any, 0, 2)
 	if strings.TrimSpace(msg.Content) != "" {

@@ -794,6 +794,97 @@ func TestOpenAIResponsesClientConvertsToolMessagesToFunctionCallOutput(t *testin
 	}
 }
 
+func TestOpenAIResponsesClientDropsFunctionCallOutputWithoutFunctionCall(t *testing.T) {
+	t.Parallel()
+
+	var input []any
+
+	server := newIPv4TestServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		raw, ok := payload["input"].([]any)
+		if !ok {
+			t.Fatalf("expected input list, got %#v", payload["input"])
+		}
+		input = raw
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			t.Fatalf("expected http.Flusher")
+		}
+
+		events := []string{
+			`{"type":"response.output_text.delta","item_id":"item-1","delta":"ok"}`,
+			`{"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}}`,
+			`[DONE]`,
+		}
+		for _, evt := range events {
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", evt); err != nil {
+				t.Fatalf("write event: %v", err)
+			}
+			flusher.Flush()
+		}
+	}))
+
+	client, err := NewOpenAIResponsesClient("test-model", Config{
+		APIKey:  "test-key",
+		BaseURL: server.URL + "/backend-api/codex",
+	})
+	if err != nil {
+		t.Fatalf("NewOpenAIResponsesClient: %v", err)
+	}
+
+	_, err = client.Complete(context.Background(), ports.CompletionRequest{
+		Messages: []ports.Message{
+			{Role: "user", Content: "hi"},
+			// Invalid history shape: tool result appears before its function_call.
+			{Role: "tool", Content: "stale-output", ToolCallID: "call-1"},
+			{
+				Role: "assistant",
+				ToolCalls: []ports.ToolCall{
+					{
+						ID:   "call-1",
+						Name: "plan",
+						Arguments: map[string]any{
+							"goal": "x",
+						},
+					},
+				},
+			},
+			{Role: "tool", Content: "fresh-output", ToolCallID: "call-1"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Complete: %v", err)
+	}
+
+	var outputCount int
+	var sawFreshOutput bool
+	for _, item := range input {
+		entry, ok := item.(map[string]any)
+		if !ok || entry["type"] != "function_call_output" {
+			continue
+		}
+		if entry["call_id"] != "call-1" {
+			continue
+		}
+		outputCount++
+		if output, _ := entry["output"].(string); output == "fresh-output" {
+			sawFreshOutput = true
+		}
+	}
+
+	if outputCount != 1 {
+		t.Fatalf("expected exactly 1 function_call_output for call-1 after pruning, got %d", outputCount)
+	}
+	if !sawFreshOutput {
+		t.Fatalf("expected preserved function_call_output content to be fresh-output")
+	}
+}
+
 func TestOpenAIResponsesClientCompleteStreamsForCodex(t *testing.T) {
 	t.Parallel()
 

@@ -18,6 +18,11 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
 
 	input, instructions := c.buildResponsesInputAndInstructions(req.Messages)
+	var droppedCallIDs []string
+	input, droppedCallIDs = pruneOrphanFunctionCallOutputs(input)
+	if len(droppedCallIDs) > 0 {
+		c.logger.Warn("%sDropped %d orphan function_call_output item(s): %s", prefix, len(droppedCallIDs), strings.Join(droppedCallIDs, ", "))
+	}
 	payload := map[string]any{
 		"model":       c.model,
 		"input":       input,
