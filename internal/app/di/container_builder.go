@@ -108,6 +108,7 @@ func newContainerBuilder(config Config) *containerBuilder {
 
 func (b *containerBuilder) Build() (*Container, error) {
 	b.logger.Debug("Building container with session_dir=%s, cost_dir=%s", b.sessionDir, b.costDir)
+	b.logLocalCodingCLIDetection()
 
 	llmFactory := b.buildLLMFactory()
 	resources, err := b.buildSessionResources()
@@ -226,6 +227,45 @@ func (b *containerBuilder) Build() (*Container, error) {
 		container.Drainables = append(container.Drainables, drainable)
 	}
 	return container, nil
+}
+
+func (b *containerBuilder) logLocalCodingCLIDetection() {
+	detected := codinginfra.DetectLocalCLIs()
+	if len(detected) == 0 {
+		b.logger.Info("Coding CLI auto-detect: none found (checked: codex, claude, kimi)")
+		return
+	}
+	for _, item := range detected {
+		if !item.AdapterSupport {
+			b.logger.Info(
+				"Coding CLI auto-detect: found %s (%s) at %s [adapter=unsupported]",
+				item.ID,
+				item.Binary,
+				item.Path,
+			)
+			continue
+		}
+		enabled := b.isExternalAgentEnabled(item.AgentType)
+		b.logger.Info(
+			"Coding CLI auto-detect: found %s (%s) at %s [agent_type=%s enabled=%t]",
+			item.ID,
+			item.Binary,
+			item.Path,
+			item.AgentType,
+			enabled,
+		)
+	}
+}
+
+func (b *containerBuilder) isExternalAgentEnabled(agentType string) bool {
+	switch strings.ToLower(strings.TrimSpace(agentType)) {
+	case "codex":
+		return b.config.ExternalAgents.Codex.Enabled
+	case "claude_code":
+		return b.config.ExternalAgents.ClaudeCode.Enabled
+	default:
+		return false
+	}
 }
 
 func (b *containerBuilder) buildLLMFactory() *llm.Factory {
