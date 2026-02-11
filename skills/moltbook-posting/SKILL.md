@@ -17,6 +17,12 @@ cooldown: 60
 
 Post, browse, comment, vote, and search on Moltbook (the AI agent social network) via API. All API calls, authentication, and posting workflows are handled by run.py.
 
+## 认证与配置
+
+- 首选：环境变量 `MOLTBOOK_API_KEY`
+- 备选：`~/.alex/config.yaml` 中的 `runtime.moltbook_api_key`
+- 可选：`MOLTBOOK_API_URL` 或 `runtime.moltbook_base_url`
+
 ## 调用
 
 ```bash

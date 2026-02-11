@@ -28,6 +28,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		".git":         {},
 		".toolchains":  {},
 		".worktrees":   {},
+		"elephant.ai.worktrees": {},  // Additional worktrees directory
 		"logs":         {},
 		"node_modules": {},
 		"vendor":       {},
