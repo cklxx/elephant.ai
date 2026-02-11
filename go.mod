@@ -101,3 +101,5 @@ require (
 )
 
 replace golang.org/x/crypto => golang.org/x/crypto v0.39.0
+
+replace github.com/asg017/sqlite-vec-go-bindings => ./third_party/sqlite-vec-go-bindings
