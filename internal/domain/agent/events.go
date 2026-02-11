@@ -485,6 +485,21 @@ func NewWorkflowDiagnosticEnvironmentSnapshotEvent(host map[string]string, captu
 	}
 }
 
+// WorkflowDiagnosticContextCheckpointEvent is emitted when a context checkpoint
+// prunes intermediate messages from the conversation history.
+type WorkflowDiagnosticContextCheckpointEvent struct {
+	BaseEvent
+	PhaseLabel      string
+	PrunedMessages  int
+	PrunedTokens    int
+	SummaryTokens   int
+	RemainingTokens int
+}
+
+func (e *WorkflowDiagnosticContextCheckpointEvent) EventType() string {
+	return types.EventDiagnosticContextCheckpoint
+}
+
 // ProactiveContextRefreshEvent signals a mid-loop proactive memory refresh.
 type ProactiveContextRefreshEvent struct {
 	BaseEvent

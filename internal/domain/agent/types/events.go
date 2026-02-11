@@ -35,7 +35,8 @@ const (
 	EventDiagnosticContextCompression  = "workflow.diagnostic.context_compression"
 	EventDiagnosticContextSnapshot     = "workflow.diagnostic.context_snapshot"
 	EventDiagnosticEnvironmentSnapshot = "workflow.diagnostic.environment_snapshot"
-	EventDiagnosticToolFiltering       = "workflow.diagnostic.tool_filtering"
+	EventDiagnosticToolFiltering        = "workflow.diagnostic.tool_filtering"
+	EventDiagnosticContextCheckpoint   = "workflow.diagnostic.context_checkpoint"
 
 	// Artifact
 	EventArtifactManifest = "workflow.artifact.manifest"

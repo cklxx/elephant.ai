@@ -87,6 +87,20 @@ type CheckpointStore interface {
 	// Delete removes the checkpoint for the given session. It is a no-op if
 	// no checkpoint exists.
 	Delete(ctx context.Context, sessionID string) error
+	// SaveArchive persists pruned messages from a context checkpoint for
+	// audit purposes. Archives are never loaded back into state.Messages.
+	SaveArchive(ctx context.Context, archive *CheckpointArchive) error
+}
+
+// CheckpointArchive stores pruned messages from a context checkpoint.
+// It is audit-only — archives are never reloaded into conversation state.
+type CheckpointArchive struct {
+	SessionID  string         `json:"session_id"`
+	Seq        int            `json:"seq"`
+	PhaseLabel string         `json:"phase_label"`
+	Messages   []MessageState `json:"messages"`
+	TokenCount int            `json:"token_count"`
+	CreatedAt  time.Time      `json:"created_at"`
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +178,32 @@ func (s *FileCheckpointStore) Delete(_ context.Context, sessionID string) error 
 	err := os.Remove(s.path(sessionID))
 	if err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("checkpoint: delete failed: %w", err)
+	}
+	return nil
+}
+
+// SaveArchive writes pruned messages to {Dir}/{sessionID}/archive/{seq}.json.
+func (s *FileCheckpointStore) SaveArchive(_ context.Context, archive *CheckpointArchive) error {
+	if archive == nil {
+		return fmt.Errorf("checkpoint: cannot save nil archive")
+	}
+	if archive.SessionID == "" {
+		return fmt.Errorf("checkpoint: archive session_id is required")
+	}
+
+	data, err := json.MarshalIndent(archive, "", "  ")
+	if err != nil {
+		return fmt.Errorf("checkpoint: archive marshal failed: %w", err)
+	}
+
+	dir := filepath.Join(s.Dir, archive.SessionID, "archive")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("checkpoint: archive create dir failed: %w", err)
+	}
+
+	path := filepath.Join(dir, fmt.Sprintf("%d.json", archive.Seq))
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("checkpoint: archive write failed: %w", err)
 	}
 	return nil
 }

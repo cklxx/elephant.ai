@@ -343,6 +343,7 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	hasPlan := false
 	hasClarify := false
 	hasRequestUser := false
+	hasContextCheckpoint := false
 	for _, call := range calls {
 		name := strings.ToLower(strings.TrimSpace(call.Name))
 		switch name {
@@ -352,6 +353,8 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 			hasClarify = true
 		case "request_user":
 			hasRequestUser = true
+		case "context_checkpoint":
+			hasContextCheckpoint = true
 		}
 	}
 
@@ -363,6 +366,9 @@ func (r *reactRuntime) enforceOrchestratorGates(calls []ToolCall) (bool, string)
 	}
 	if hasRequestUser && len(calls) > 1 {
 		return true, "request_user() 必须单独调用。请移除同轮其它工具调用并重试。"
+	}
+	if hasContextCheckpoint && len(calls) > 1 {
+		return true, "context_checkpoint() 必须单独调用。请移除同轮其它工具调用并重试。"
 	}
 
 	return false, ""
@@ -924,6 +930,14 @@ func (it *reactIteration) observeTools() {
 	}
 	offloadMessageAttachmentData(state)
 	it.runtime.engine.logger.Debug("OBSERVE phase: Added %d tool message(s) to state", len(toolMessages))
+
+	// Apply context checkpoint if requested in this iteration.
+	if it.runtime.engine.applyContextCheckpoint(
+		it.runtime.ctx, state, it.runtime.services,
+		it.toolResult, it.plan.calls,
+	) {
+		it.runtime.engine.logger.Info("Context checkpoint applied — pruned intermediate messages")
+	}
 
 	it.runtime.updateOrchestratorState(it.plan.calls, it.toolResult)
 	it.runtime.tracker.completeTools(it.plan.iteration, it.plan.nodeID, it.toolResult, nil)
