@@ -4,6 +4,9 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 
+const HOME_SKILLS_BACKFILL_MARKER = '.repo_backfill_version';
+const HOME_SKILLS_BACKFILL_VERSION = 'repo-authoritative-v1';
+
 function stripQuotes(value) {
   const trimmed = String(value ?? '').trim();
   if (!trimmed) return '';
@@ -121,7 +124,7 @@ async function copyDirectory(sourceDir, targetDir) {
   }
 }
 
-async function copyMissingSkills(repoSkillsDir, homeSkillsDir) {
+async function copyRepoSkills(repoSkillsDir, homeSkillsDir, overwriteExisting) {
   const entries = await fs.readdir(repoSkillsDir, { withFileTypes: true });
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -129,11 +132,30 @@ async function copyMissingSkills(repoSkillsDir, homeSkillsDir) {
     if (!(await hasSkillDefinition(sourceSkillDir))) continue;
 
     const targetSkillDir = path.join(homeSkillsDir, entry.name);
-    const targetStat = await statPath(targetSkillDir);
-    if (targetStat) continue;
+    if (overwriteExisting) {
+      await fs.rm(targetSkillDir, { recursive: true, force: true });
+    } else {
+      const targetStat = await statPath(targetSkillDir);
+      if (targetStat) continue;
+    }
 
     await copyDirectory(sourceSkillDir, targetSkillDir);
   }
+}
+
+async function copyMissingSkills(repoSkillsDir, homeSkillsDir) {
+  return copyRepoSkills(repoSkillsDir, homeSkillsDir, false);
+}
+
+async function isBackfillVersionApplied(homeSkillsDir) {
+  const markerPath = path.join(homeSkillsDir, HOME_SKILLS_BACKFILL_MARKER);
+  const content = await fs.readFile(markerPath, 'utf8').catch(() => '');
+  return content.trim() === HOME_SKILLS_BACKFILL_VERSION;
+}
+
+async function writeBackfillVersion(homeSkillsDir) {
+  const markerPath = path.join(homeSkillsDir, HOME_SKILLS_BACKFILL_MARKER);
+  await fs.writeFile(markerPath, `${HOME_SKILLS_BACKFILL_VERSION}\n`, 'utf8');
 }
 
 async function ensureHomeSkills(repoRoot, homeSkillsDir) {
@@ -142,6 +164,12 @@ async function ensureHomeSkills(repoRoot, homeSkillsDir) {
   const repoSkillsDir = path.join(repoRoot, 'skills');
   const repoStat = await statPath(repoSkillsDir);
   if (!repoStat?.isDirectory()) {
+    return;
+  }
+  const backfillDone = await isBackfillVersionApplied(homeSkillsDir);
+  if (!backfillDone) {
+    await copyRepoSkills(repoSkillsDir, homeSkillsDir, true);
+    await writeBackfillVersion(homeSkillsDir);
     return;
   }
   await copyMissingSkills(repoSkillsDir, homeSkillsDir);

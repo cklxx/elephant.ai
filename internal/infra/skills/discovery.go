@@ -10,6 +10,11 @@ import (
 
 const skillsDirEnvVar = "ALEX_SKILLS_DIR"
 
+const (
+	homeSkillsBackfillMarkerName = ".repo_backfill_version"
+	homeSkillsBackfillVersion    = "repo-authoritative-v1"
+)
+
 // LocateDefaultDir resolves the runtime skills root.
 func LocateDefaultDir() string {
 	root, err := ResolveSkillsRoot()
@@ -21,7 +26,7 @@ func LocateDefaultDir() string {
 
 // ResolveSkillsRoot resolves the skills root with this precedence:
 //  1. ALEX_SKILLS_DIR (if set) without auto-copy
-//  2. ~/.alex/skills with one-way sync from repo skills/
+//  2. ~/.alex/skills with repo sync (one-time repo-authoritative backfill, then missing-only sync)
 func ResolveSkillsRoot() (string, error) {
 	if root, ok := skillsRootFromEnv(); ok {
 		return root, nil
@@ -39,8 +44,10 @@ func ResolveSkillsRoot() (string, error) {
 	return homeRoot, nil
 }
 
-// EnsureHomeSkills copies missing skills from repository skills/ into homeRoot.
-// Existing home skills are preserved and never overwritten.
+// EnsureHomeSkills syncs repository skills into homeRoot.
+// Behavior:
+//   - First run for backfill version: repo-authoritative full overwrite for repo-known skills.
+//   - Subsequent runs: copy missing skills only (preserve user edits).
 func EnsureHomeSkills(homeRoot string) error {
 	homeRoot = filepath.Clean(strings.TrimSpace(homeRoot))
 	if homeRoot == "" || homeRoot == "." {
@@ -54,6 +61,18 @@ func EnsureHomeSkills(homeRoot string) error {
 	if repoRoot == "" {
 		return nil
 	}
+
+	backfillDone, err := isHomeBackfillVersionApplied(homeRoot)
+	if err != nil {
+		return err
+	}
+	if !backfillDone {
+		if err := copyRepoSkills(repoRoot, homeRoot, true); err != nil {
+			return err
+		}
+		return writeHomeBackfillVersion(homeRoot)
+	}
+
 	return copyMissingSkills(repoRoot, homeRoot)
 }
 
@@ -140,6 +159,10 @@ func hasSkillFiles(dir string) bool {
 }
 
 func copyMissingSkills(sourceRoot, targetRoot string) error {
+	return copyRepoSkills(sourceRoot, targetRoot, false)
+}
+
+func copyRepoSkills(sourceRoot, targetRoot string, overwriteExisting bool) error {
 	entries, err := os.ReadDir(sourceRoot)
 	if err != nil {
 		return err
@@ -156,12 +179,18 @@ func copyMissingSkills(sourceRoot, targetRoot string) error {
 		}
 
 		targetSkillDir := filepath.Join(targetRoot, entry.Name())
-		_, statErr := os.Stat(targetSkillDir)
-		if statErr == nil {
-			continue
-		}
-		if !errors.Is(statErr, fs.ErrNotExist) {
-			return statErr
+		if overwriteExisting {
+			if err := os.RemoveAll(targetSkillDir); err != nil {
+				return err
+			}
+		} else {
+			_, statErr := os.Stat(targetSkillDir)
+			if statErr == nil {
+				continue
+			}
+			if !errors.Is(statErr, fs.ErrNotExist) {
+				return statErr
+			}
 		}
 		if err := copyDirectory(sourceSkillDir, targetSkillDir); err != nil {
 			return err
@@ -169,6 +198,23 @@ func copyMissingSkills(sourceRoot, targetRoot string) error {
 	}
 
 	return nil
+}
+
+func isHomeBackfillVersionApplied(homeRoot string) (bool, error) {
+	markerPath := filepath.Join(homeRoot, homeSkillsBackfillMarkerName)
+	data, err := os.ReadFile(markerPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return strings.TrimSpace(string(data)) == homeSkillsBackfillVersion, nil
+}
+
+func writeHomeBackfillVersion(homeRoot string) error {
+	markerPath := filepath.Join(homeRoot, homeSkillsBackfillMarkerName)
+	return os.WriteFile(markerPath, []byte(homeSkillsBackfillVersion+"\n"), 0o644)
 }
 
 func hasSkillDefinition(dir string) bool {

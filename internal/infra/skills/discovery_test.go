@@ -80,7 +80,7 @@ func TestResolveSkillsRootDefaultsToHomeAndCopiesMissing(t *testing.T) {
 	}
 }
 
-func TestEnsureHomeSkillsPreservesExistingUserSkill(t *testing.T) {
+func TestEnsureHomeSkillsBackfillsRepoAuthoritativeOnce(t *testing.T) {
 	workspace := t.TempDir()
 	repoRoot := filepath.Join(workspace, "repo")
 	homeRoot := filepath.Join(workspace, "home")
@@ -96,6 +96,7 @@ func TestEnsureHomeSkillsPreservesExistingUserSkill(t *testing.T) {
 	writeSkillFileForDiscovery(t, repoSkillsRoot, "alpha", "repo alpha")
 	writeSkillFileForDiscovery(t, repoSkillsRoot, "beta", "repo beta")
 	writeSkillFileForDiscovery(t, homeSkillsRoot, "alpha", "user alpha")
+	writeSkillFileForDiscovery(t, homeSkillsRoot, "custom-only", "user custom only")
 
 	previousWD, err := os.Getwd()
 	if err != nil {
@@ -116,8 +117,8 @@ func TestEnsureHomeSkillsPreservesExistingUserSkill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read alpha skill: %v", err)
 	}
-	if string(alphaContent) != skillMarkdown("alpha", "user alpha") {
-		t.Fatalf("expected existing user alpha skill to be preserved")
+	if string(alphaContent) != skillMarkdown("alpha", "repo alpha") {
+		t.Fatalf("expected existing alpha skill to be backfilled from repo")
 	}
 
 	betaContent, err := os.ReadFile(filepath.Join(homeSkillsRoot, "beta", "SKILL.md"))
@@ -126,6 +127,74 @@ func TestEnsureHomeSkillsPreservesExistingUserSkill(t *testing.T) {
 	}
 	if string(betaContent) != skillMarkdown("beta", "repo beta") {
 		t.Fatalf("expected missing beta skill copied from repo")
+	}
+
+	customContent, err := os.ReadFile(filepath.Join(homeSkillsRoot, "custom-only", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read custom-only skill: %v", err)
+	}
+	if string(customContent) != skillMarkdown("custom-only", "user custom only") {
+		t.Fatalf("expected non-repo custom skill to be preserved")
+	}
+
+	markerPath := filepath.Join(homeSkillsRoot, homeSkillsBackfillMarkerName)
+	if _, err := os.Stat(markerPath); err != nil {
+		t.Fatalf("expected backfill marker to exist: %v", err)
+	}
+}
+
+func TestEnsureHomeSkillsAfterBackfillCopiesMissingWithoutOverwriting(t *testing.T) {
+	workspace := t.TempDir()
+	repoRoot := filepath.Join(workspace, "repo")
+	homeRoot := filepath.Join(workspace, "home")
+	repoSkillsRoot := filepath.Join(repoRoot, "skills")
+	homeSkillsRoot := filepath.Join(homeRoot, ".alex", "skills")
+	if err := os.MkdirAll(repoSkillsRoot, 0o755); err != nil {
+		t.Fatalf("mkdir repo skills: %v", err)
+	}
+	if err := os.MkdirAll(homeSkillsRoot, 0o755); err != nil {
+		t.Fatalf("mkdir home skills: %v", err)
+	}
+
+	writeSkillFileForDiscovery(t, repoSkillsRoot, "alpha", "repo alpha")
+	writeSkillFileForDiscovery(t, homeSkillsRoot, "alpha", "user alpha")
+
+	previousWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(repoRoot); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(previousWD)
+	})
+
+	if err := EnsureHomeSkills(homeSkillsRoot); err != nil {
+		t.Fatalf("ensure home skills first run: %v", err)
+	}
+
+	writeSkillFileForDiscovery(t, homeSkillsRoot, "alpha", "user override after backfill")
+	writeSkillFileForDiscovery(t, repoSkillsRoot, "beta", "repo beta")
+
+	if err := EnsureHomeSkills(homeSkillsRoot); err != nil {
+		t.Fatalf("ensure home skills second run: %v", err)
+	}
+
+	alphaContent, err := os.ReadFile(filepath.Join(homeSkillsRoot, "alpha", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read alpha skill: %v", err)
+	}
+	if string(alphaContent) != skillMarkdown("alpha", "user override after backfill") {
+		t.Fatalf("expected second run to skip overriding after marker is written")
+	}
+
+	betaContent, err := os.ReadFile(filepath.Join(homeSkillsRoot, "beta", "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read beta skill: %v", err)
+	}
+	if string(betaContent) != skillMarkdown("beta", "repo beta") {
+		t.Fatalf("expected second run to still copy missing repo skills")
 	}
 }
 

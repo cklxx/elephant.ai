@@ -263,8 +263,9 @@ apps:
 ### Skills 默认目录与自动复制
 
 - 当未设置 `ALEX_SKILLS_DIR` 时，默认使用 `~/.alex/skills`。
-- CLI / server / web skills catalog 会执行同一策略：从仓库 `skills/` 复制缺失 skill 到 `~/.alex/skills`。
-- 冲突策略是“用户优先”：`~/.alex/skills` 已存在同名目录时跳过，不覆盖、不删除。
+- CLI / server / web skills catalog 会执行同一策略：从仓库 `skills/` 同步到 `~/.alex/skills`。
+- 首次进入 backfill 版本时，执行一次“仓库优先”补齐：仓库同名 skill 会覆盖到 `~/.alex/skills`，并写入 marker（`.repo_backfill_version`）。
+- marker 写入后回到“用户优先”：后续仅复制缺失 skill；`~/.alex/skills` 已存在同名目录时跳过，不覆盖、不删除。
 
 ### 网络与代理（非 RuntimeConfig 字段）
 
