@@ -1,7 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { FileNode } from './CodeVisualizer';
+
+export interface FileNode {
+  name: string;
+  path: string;
+  type: 'folder' | 'file';
+  active?: boolean;
+  children?: FileNode[];
+}
 
 interface FileTreeProps {
   node: FileNode;

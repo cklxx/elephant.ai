@@ -111,6 +111,7 @@ npm/*/bin/alex.exe
 # Local configuration and runtime artifacts
 .deep-coding-config.json
 .worktrees/
+.worktrees-*/
 .elephant/
 .env.local
 .env*.local
@@ -143,6 +144,7 @@ scripts/cc_bridge/.venv/
 # Local tooling
 .bin/
 logs/*.png
+logs/*.gz
 .pids/acp.port
 web/playwright-report/*
 web/test-results/*
