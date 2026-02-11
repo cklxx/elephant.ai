@@ -79,6 +79,7 @@ const (
 	MessageSourceEvaluation     MessageSource = "evaluation"
 	MessageSourceImportant      MessageSource = "important_notice"
 	MessageSourceProactive      MessageSource = "proactive_context"
+	MessageSourceCheckpoint     MessageSource = "checkpoint"
 )
 
 type Message struct {

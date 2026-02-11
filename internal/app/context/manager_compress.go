@@ -41,7 +41,7 @@ func (m *manager) AutoCompact(messages []ports.Message, limit int) ([]ports.Mess
 	if m.flushHook != nil {
 		var compressible []ports.Message
 		for _, msg := range messages {
-			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
+			if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceCheckpoint {
 				continue
 			}
 			compressible = append(compressible, msg)
@@ -85,7 +85,7 @@ func (m *manager) Compress(messages []ports.Message, targetTokens int) ([]ports.
 	)
 
 	for _, msg := range messages {
-		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant {
+		if msg.Source == ports.MessageSourceSystemPrompt || msg.Source == ports.MessageSourceImportant || msg.Source == ports.MessageSourceCheckpoint {
 			compressed = append(compressed, msg)
 			continue
 		}
@@ -226,7 +226,7 @@ func AggressiveTrim(messages []ports.Message, maxTurns int) []ports.Message {
 	var preserved, conversation []ports.Message
 	for _, msg := range messages {
 		switch msg.Source {
-		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant:
+		case ports.MessageSourceSystemPrompt, ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
 			preserved = append(preserved, msg)
 		default:
 			conversation = append(conversation, msg)

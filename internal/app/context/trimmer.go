@@ -54,7 +54,7 @@ func sourcePriority(src ports.MessageSource) int {
 	switch src {
 	case ports.MessageSourceSystemPrompt:
 		return 8
-	case ports.MessageSourceImportant:
+	case ports.MessageSourceImportant, ports.MessageSourceCheckpoint:
 		return 7
 	case ports.MessageSourceUserInput:
 		return 6
