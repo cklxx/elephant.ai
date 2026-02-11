@@ -276,14 +276,7 @@ func deriveHistoryAwareMeta(messages []ports.Message, personaVersion string) age
 			Source:    "session_history",
 		})
 	}
-	if firstSystemSnippet != "" {
-		meta.Memories = append(meta.Memories, agent.MemoryFragment{
-			Key:       "session_system_prompt",
-			Content:   firstSystemSnippet,
-			CreatedAt: time.Now(),
-			Source:    "session_history",
-		})
-	}
+	// Note: session_system_prompt removed - causes duplication of SOUL.md content in prompt
 	if lastUserSnippet != "" {
 		meta.Recommendations = append(meta.Recommendations, fmt.Sprintf("Latest user request: %s", lastUserSnippet))
 	}

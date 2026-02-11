@@ -322,18 +322,10 @@ func TestBuildWindowEmbedsDynamicStateIntoSystemPrompt(t *testing.T) {
 	if !strings.Contains(window.SystemPrompt, "Ship feature [in_progress]") {
 		t.Fatalf("expected plan entry in prompt, got %q", window.SystemPrompt)
 	}
-	if !strings.Contains(window.SystemPrompt, "deploy: blocked") {
-		t.Fatalf("expected world state summary, got %q", window.SystemPrompt)
-	}
-	if !strings.Contains(window.SystemPrompt, snapshotTime.Format(time.RFC3339)) {
-		t.Fatalf("expected snapshot timestamp, got %q", window.SystemPrompt)
-	}
 	if !strings.Contains(window.SystemPrompt, "Tests fail on CI") {
 		t.Fatalf("expected beliefs section, got %q", window.SystemPrompt)
 	}
-	if !strings.Contains(window.SystemPrompt, "reward — Stabilize pipeline") {
-		t.Fatalf("expected feedback signal in prompt, got %q", window.SystemPrompt)
-	}
+	// Note: WorldState, Feedback, and Snapshot timestamp removed as debug info
 }
 
 func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
@@ -360,15 +352,17 @@ func TestBuildWindowMetaContextReflectsHistory(t *testing.T) {
 	if len(window.Meta.Memories) == 0 {
 		t.Fatalf("expected meta context to capture historical memories")
 	}
-	hasSystemMemory := false
+	// Note: session_system_prompt removed to avoid SOUL.md duplication
+	// Only checking for timeline presence now
+	hasTimeline := false
 	for _, memory := range window.Meta.Memories {
-		if memory.Key == "session_system_prompt" {
-			hasSystemMemory = true
+		if memory.Key == "recent_session_timeline" {
+			hasTimeline = true
 			break
 		}
 	}
-	if !hasSystemMemory {
-		t.Fatalf("expected meta context to include system prompt memory, got %#v", window.Meta.Memories)
+	if !hasTimeline {
+		t.Fatalf("expected meta context to include session timeline, got %#v", window.Meta.Memories)
 	}
 	if len(window.Meta.Recommendations) < 2 {
 		t.Fatalf("expected meta context to include history-driven recommendations, got %v", window.Meta.Recommendations)

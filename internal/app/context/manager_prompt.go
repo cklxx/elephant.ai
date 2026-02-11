@@ -564,10 +564,8 @@ func buildEnvironmentSection(static agent.StaticContext) string {
 
 func buildDynamicSection(dynamic agent.DynamicContext) string {
 	var lines []string
-	// Note: TurnID and LLMTurnSeq removed - already implicit in chat history
-	if !dynamic.SnapshotTimestamp.IsZero() {
-		lines = append(lines, fmt.Sprintf("Snapshot captured: %s", dynamic.SnapshotTimestamp.Format(time.RFC3339)))
-	}
+	// Note: TurnID, LLMTurnSeq, SnapshotTimestamp, WorldState, and Feedback removed
+	// - Already implicit in chat history or contain debug info not useful for LLM
 	if len(dynamic.Plans) > 0 {
 		lines = append(lines, "Plans:")
 		lines = append(lines, formatPlanTree(dynamic.Plans, 1)...)
@@ -579,18 +577,6 @@ func buildDynamicSection(dynamic agent.DynamicContext) string {
 		}
 		lines = append(lines, "Beliefs:")
 		lines = append(lines, prependBullet(beliefs, 1)...)
-	}
-	if len(dynamic.WorldState) > 0 {
-		lines = append(lines, "World state summary:")
-		lines = append(lines, summarizeMap(dynamic.WorldState, 1)...)
-	}
-	if len(dynamic.Feedback) > 0 {
-		lines = append(lines, "Feedback signals:")
-		var feedback []string
-		for _, signal := range dynamic.Feedback {
-			feedback = append(feedback, fmt.Sprintf("%s — %s (%.2f)", signal.Kind, signal.Message, signal.Value))
-		}
-		lines = append(lines, prependBullet(feedback, 1)...)
 	}
 	if len(lines) == 0 {
 		return ""
