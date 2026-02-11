@@ -746,17 +746,12 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 
 	engine := kernelagent.NewEngine(
 		kernelagent.KernelConfig{
-			Enabled:        cfg.Enabled,
-			KernelID:       cfg.KernelID,
-			Schedule:       cfg.Schedule,
-			SeedState:      cfg.SeedState,
-			TimeoutSeconds: cfg.TimeoutSeconds,
-			LeaseSeconds:   cfg.LeaseSeconds,
-			MaxConcurrent:  cfg.MaxConcurrent,
-			Channel:        cfg.Channel,
-			UserID:         cfg.UserID,
-			ChatID:         cfg.ChatID,
-			Agents:         agents,
+			KernelID:      cfg.KernelID,
+			Schedule:      cfg.Schedule,
+			SeedState:     cfg.SeedState,
+			MaxConcurrent: cfg.MaxConcurrent,
+			Channel:       cfg.Channel,
+			UserID:        cfg.UserID,
 		},
 		stateFile, kernelStore, planner, executor, logging.NewKernelLogger("KernelEngine"),
 	)

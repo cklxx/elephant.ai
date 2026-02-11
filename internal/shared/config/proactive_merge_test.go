@@ -352,3 +352,141 @@ func TestMergeProactiveConfig_IncludesPromptAndTimerHeartbeat(t *testing.T) {
 		t.Fatalf("expected timer.heartbeat_minutes=15, got %d", target.Timer.HeartbeatMinutes)
 	}
 }
+
+func TestMergeKernelConfig(t *testing.T) {
+	target := KernelProactiveConfig{
+		Enabled:        false,
+		KernelID:       "default",
+		Schedule:       "*/10 * * * *",
+		TimeoutSeconds: 900,
+		LeaseSeconds:   1800,
+		MaxConcurrent:  3,
+	}
+
+	file := &KernelFileConfig{
+		Enabled:        boolPtr(true),
+		KernelID:       "my-kernel",
+		Schedule:       "*/5 * * * *",
+		Channel:        "lark",
+		UserID:         "cklxx",
+		TimeoutSeconds: intPtr(300),
+		MaxConcurrent:  intPtr(1),
+		Agents: []KernelAgentFileConfig{
+			{AgentID: "agent-a", Prompt: "Do A.", Priority: intPtr(10)},
+			{AgentID: "agent-b", Prompt: "Do B."},
+		},
+	}
+
+	mergeKernelConfig(&target, file)
+
+	if !target.Enabled {
+		t.Error("expected Enabled=true")
+	}
+	if target.KernelID != "my-kernel" {
+		t.Errorf("expected KernelID 'my-kernel', got %q", target.KernelID)
+	}
+	if target.Schedule != "*/5 * * * *" {
+		t.Errorf("expected Schedule '*/5 * * * *', got %q", target.Schedule)
+	}
+	if target.Channel != "lark" {
+		t.Errorf("expected Channel 'lark', got %q", target.Channel)
+	}
+	if target.UserID != "cklxx" {
+		t.Errorf("expected UserID 'cklxx', got %q", target.UserID)
+	}
+	if target.TimeoutSeconds != 300 {
+		t.Errorf("expected TimeoutSeconds=300, got %d", target.TimeoutSeconds)
+	}
+	if target.MaxConcurrent != 1 {
+		t.Errorf("expected MaxConcurrent=1, got %d", target.MaxConcurrent)
+	}
+	// LeaseSeconds should be unchanged (not overridden)
+	if target.LeaseSeconds != 1800 {
+		t.Errorf("expected LeaseSeconds unchanged (1800), got %d", target.LeaseSeconds)
+	}
+	if len(target.Agents) != 2 {
+		t.Fatalf("expected 2 agents, got %d", len(target.Agents))
+	}
+	if target.Agents[0].Priority != 10 {
+		t.Errorf("expected agent-a priority=10, got %d", target.Agents[0].Priority)
+	}
+	if !target.Agents[1].Enabled {
+		t.Error("expected agent-b enabled by default")
+	}
+	if target.Agents[1].Priority != 5 {
+		t.Errorf("expected agent-b default priority=5, got %d", target.Agents[1].Priority)
+	}
+}
+
+func TestMergeKernelConfig_NilInputs(t *testing.T) {
+	mergeKernelConfig(nil, nil)
+	mergeKernelConfig(nil, &KernelFileConfig{})
+
+	target := KernelProactiveConfig{KernelID: "test"}
+	mergeKernelConfig(&target, nil)
+	if target.KernelID != "test" {
+		t.Error("nil file should not change target")
+	}
+}
+
+func TestMergeProactiveConfig_IncludesKernel(t *testing.T) {
+	target := DefaultProactiveConfig()
+	file := &ProactiveFileConfig{
+		Kernel: &KernelFileConfig{
+			Enabled:  boolPtr(true),
+			KernelID: "custom",
+			Channel:  "lark",
+		},
+	}
+
+	mergeProactiveConfig(&target, file)
+
+	if !target.Kernel.Enabled {
+		t.Error("expected Kernel.Enabled=true")
+	}
+	if target.Kernel.KernelID != "custom" {
+		t.Errorf("expected Kernel.KernelID 'custom', got %q", target.Kernel.KernelID)
+	}
+	if target.Kernel.Channel != "lark" {
+		t.Errorf("expected Kernel.Channel 'lark', got %q", target.Kernel.Channel)
+	}
+	// Schedule should be unchanged (default)
+	if target.Kernel.Schedule != "*/10 * * * *" {
+		t.Errorf("expected default schedule unchanged, got %q", target.Kernel.Schedule)
+	}
+}
+
+func TestExpandProactiveFileConfigEnv_Kernel(t *testing.T) {
+	lookup := func(key string) (string, bool) {
+		switch key {
+		case "KERNEL_USER":
+			return "ou_kernel", true
+		case "KERNEL_CHANNEL":
+			return "lark", true
+		default:
+			return "", false
+		}
+	}
+
+	file := &ProactiveFileConfig{
+		Kernel: &KernelFileConfig{
+			Channel: "${KERNEL_CHANNEL}",
+			UserID:  "${KERNEL_USER}",
+			Agents: []KernelAgentFileConfig{
+				{AgentID: "a", Prompt: "task for ${KERNEL_USER}"},
+			},
+		},
+	}
+
+	expandProactiveFileConfigEnv(lookup, file)
+
+	if file.Kernel.Channel != "lark" {
+		t.Errorf("expected expanded Channel 'lark', got %q", file.Kernel.Channel)
+	}
+	if file.Kernel.UserID != "ou_kernel" {
+		t.Errorf("expected expanded UserID 'ou_kernel', got %q", file.Kernel.UserID)
+	}
+	if file.Kernel.Agents[0].Prompt != "task for ou_kernel" {
+		t.Errorf("expected expanded agent prompt, got %q", file.Kernel.Agents[0].Prompt)
+	}
+}

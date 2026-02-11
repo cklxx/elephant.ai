@@ -44,6 +44,9 @@ func mergeProactiveConfig(target *ProactiveConfig, file *ProactiveFileConfig) {
 	if file.Attention != nil {
 		mergeAttentionConfig(&target.Attention, file.Attention)
 	}
+	if file.Kernel != nil {
+		mergeKernelConfig(&target.Kernel, file.Kernel)
+	}
 }
 
 func mergePromptConfig(target *PromptConfig, file *PromptFileConfig) {
@@ -338,6 +341,66 @@ func mergeOKRConfig(target *OKRProactiveConfig, file *OKRFileConfig) {
 	}
 }
 
+func mergeKernelConfig(target *KernelProactiveConfig, file *KernelFileConfig) {
+	if target == nil || file == nil {
+		return
+	}
+	if file.Enabled != nil {
+		target.Enabled = *file.Enabled
+	}
+	if strings.TrimSpace(file.KernelID) != "" {
+		target.KernelID = strings.TrimSpace(file.KernelID)
+	}
+	if strings.TrimSpace(file.Schedule) != "" {
+		target.Schedule = strings.TrimSpace(file.Schedule)
+	}
+	if strings.TrimSpace(file.StateDir) != "" {
+		target.StateDir = strings.TrimSpace(file.StateDir)
+	}
+	if strings.TrimSpace(file.SeedState) != "" {
+		target.SeedState = file.SeedState // preserve whitespace in seed state content
+	}
+	if file.TimeoutSeconds != nil {
+		target.TimeoutSeconds = *file.TimeoutSeconds
+	}
+	if file.LeaseSeconds != nil {
+		target.LeaseSeconds = *file.LeaseSeconds
+	}
+	if file.MaxConcurrent != nil {
+		target.MaxConcurrent = *file.MaxConcurrent
+	}
+	if strings.TrimSpace(file.Channel) != "" {
+		target.Channel = strings.TrimSpace(file.Channel)
+	}
+	if strings.TrimSpace(file.UserID) != "" {
+		target.UserID = strings.TrimSpace(file.UserID)
+	}
+	if strings.TrimSpace(file.ChatID) != "" {
+		target.ChatID = strings.TrimSpace(file.ChatID)
+	}
+	if len(file.Agents) > 0 {
+		agents := make([]KernelAgentProactiveConfig, 0, len(file.Agents))
+		for _, a := range file.Agents {
+			enabled := true
+			if a.Enabled != nil {
+				enabled = *a.Enabled
+			}
+			priority := 5
+			if a.Priority != nil {
+				priority = *a.Priority
+			}
+			agents = append(agents, KernelAgentProactiveConfig{
+				AgentID:  strings.TrimSpace(a.AgentID),
+				Prompt:   a.Prompt,
+				Priority: priority,
+				Enabled:  enabled,
+				Metadata: a.Metadata,
+			})
+		}
+		target.Agents = agents
+	}
+}
+
 func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	if file == nil {
 		return
@@ -387,5 +450,14 @@ func expandProactiveFileConfigEnv(lookup EnvLookup, file *ProactiveFileConfig) {
 	}
 	if file.Timer != nil {
 		file.Timer.StorePath = expandEnvValue(lookup, file.Timer.StorePath)
+	}
+	if file.Kernel != nil {
+		file.Kernel.StateDir = expandEnvValue(lookup, file.Kernel.StateDir)
+		file.Kernel.Channel = expandEnvValue(lookup, file.Kernel.Channel)
+		file.Kernel.UserID = expandEnvValue(lookup, file.Kernel.UserID)
+		file.Kernel.ChatID = expandEnvValue(lookup, file.Kernel.ChatID)
+		for i := range file.Kernel.Agents {
+			file.Kernel.Agents[i].Prompt = expandEnvValue(lookup, file.Kernel.Agents[i].Prompt)
+		}
 	}
 }

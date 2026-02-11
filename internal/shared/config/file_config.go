@@ -160,6 +160,32 @@ type ProactiveFileConfig struct {
 	Timer             *TimerFileConfig             `yaml:"timer"`
 	FinalAnswerReview *FinalAnswerReviewFileConfig `yaml:"final_answer_review"`
 	Attention         *AttentionFileConfig         `yaml:"attention"`
+	Kernel            *KernelFileConfig            `yaml:"kernel"`
+}
+
+// KernelFileConfig mirrors KernelProactiveConfig for YAML decoding.
+type KernelFileConfig struct {
+	Enabled        *bool                    `yaml:"enabled"`
+	KernelID       string                   `yaml:"kernel_id"`
+	Schedule       string                   `yaml:"schedule"`
+	StateDir       string                   `yaml:"state_dir"`
+	SeedState      string                   `yaml:"seed_state"`
+	TimeoutSeconds *int                     `yaml:"timeout_seconds"`
+	LeaseSeconds   *int                     `yaml:"lease_seconds"`
+	MaxConcurrent  *int                     `yaml:"max_concurrent"`
+	Channel        string                   `yaml:"channel"`
+	UserID         string                   `yaml:"user_id"`
+	ChatID         string                   `yaml:"chat_id"`
+	Agents         []KernelAgentFileConfig  `yaml:"agents"`
+}
+
+// KernelAgentFileConfig mirrors KernelAgentProactiveConfig for YAML decoding.
+type KernelAgentFileConfig struct {
+	AgentID  string            `yaml:"agent_id"`
+	Prompt   string            `yaml:"prompt"`
+	Priority *int              `yaml:"priority"`
+	Enabled  *bool             `yaml:"enabled"`
+	Metadata map[string]string `yaml:"metadata,omitempty"`
 }
 
 type PromptFileConfig struct {

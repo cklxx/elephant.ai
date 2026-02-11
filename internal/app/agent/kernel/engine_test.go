@@ -124,11 +124,10 @@ func newTestEngine(t *testing.T, exec Executor) (*Engine, *memStore) {
 		{AgentID: "agent-b", Prompt: "STATE: {STATE}\nDo B.", Priority: 5, Enabled: true},
 	})
 	cfg := KernelConfig{
-		KernelID:       "test-kernel",
-		Schedule:       "*/10 * * * *",
-		SeedState:      "# STATE\n## identity\ntest\n",
-		MaxConcurrent:  2,
-		TimeoutSeconds: 60,
+		KernelID:      "test-kernel",
+		Schedule:      "*/10 * * * *",
+		SeedState:     "# STATE\n## identity\ntest\n",
+		MaxConcurrent: 2,
 	}
 	engine := NewEngine(cfg, sf, store, planner, exec, logging.NewComponentLogger("test"))
 	return engine, store
