@@ -43,6 +43,7 @@ func NewAnthropicClient(model string, config Config) (portsllm.LLMClient, error)
 
 func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
+	provider := "anthropic"
 
 	messages, system := c.convertMessages(req.Messages)
 	payload := map[string]any{
@@ -132,7 +133,9 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	resp, err := c.httpClient.Do(httpReq)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
-		return nil, wrapRequestError(err)
+		wrapped := wrapRequestError(err)
+		c.logTransportFailure(prefix, requestID, "complete", provider, endpoint, req, wrapped)
+		return nil, wrapped
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -141,18 +144,24 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
 		c.logger.Debug("%sFailed to read response body: %v", prefix, err)
-		return nil, fmt.Errorf("read response: %w", err)
+		readErr := fmt.Errorf("read response: %w", err)
+		c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "read_response", req, readErr)
+		return nil, readErr
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
-		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
+		return nil, mappedErr
 	}
 
 	var apiResp anthropicResponse
 	if err := jsonx.Unmarshal(respBody, &apiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
-		return nil, fmt.Errorf("decode response: %w", err)
+		decodeErr := fmt.Errorf("decode response: %w", err)
+		c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "decode_response", req, decodeErr)
+		return nil, decodeErr
 	}
 
 	if apiResp.Error != nil && apiResp.Error.Message != "" {
@@ -160,7 +169,9 @@ func (c *anthropicClient) Complete(ctx context.Context, req ports.CompletionRequ
 		if apiResp.Error.Type != "" {
 			errMsg = fmt.Sprintf("%s: %s", apiResp.Error.Type, apiResp.Error.Message)
 		}
-		return nil, mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, []byte(errMsg), mappedErr)
+		return nil, mappedErr
 	}
 
 	content, toolCalls, thinking := parseAnthropicContent(apiResp.Content)

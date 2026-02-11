@@ -12,6 +12,10 @@ import (
 
 func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.CompletionRequest, callbacks ports.CompletionStreamCallbacks) (*ports.CompletionResponse, error) {
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
+	provider := "openai-responses"
+	if c.isCodexEndpoint() {
+		provider = "codex"
+	}
 
 	input, instructions := c.buildResponsesInputAndInstructions(req.Messages)
 	var droppedCallIDs []string
@@ -62,7 +66,9 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
-		return nil, wrapRequestError(err)
+		wrapped := wrapRequestError(err)
+		c.logTransportFailure(prefix, requestID, "stream", provider, endpoint, req, wrapped)
+		return nil, wrapped
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -73,10 +79,14 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 		respBody, readErr := readResponseBody(resp.Body)
 		if readErr != nil {
 			c.logger.Debug("%sFailed to read error response: %v", prefix, readErr)
-			return nil, fmt.Errorf("read response: %w", readErr)
+			errRead := fmt.Errorf("read response: %w", readErr)
+			c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_error_response", req, errRead)
+			return nil, errRead
 		}
 		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
-		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		c.logHTTPFailure(prefix, requestID, "stream", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
+		return nil, mappedErr
 	}
 
 	type responsesStreamEvent struct {
@@ -180,14 +190,20 @@ func (c *openAIResponsesClient) StreamComplete(ctx context.Context, req ports.Co
 			}
 		case "error":
 			if evt.Message != "" {
-				return nil, fmt.Errorf("llm error: %s", evt.Message)
+				streamErr := fmt.Errorf("llm error: %s", evt.Message)
+				c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "stream_error_event", req, streamErr)
+				return nil, streamErr
 			}
-			return nil, fmt.Errorf("llm error: %s", string(data))
+			streamErr := fmt.Errorf("llm error: %s", string(data))
+			c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "stream_error_event", req, streamErr)
+			return nil, streamErr
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read stream: %w", err)
+		streamErr := fmt.Errorf("read stream: %w", err)
+		c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_stream", req, streamErr)
+		return nil, streamErr
 	}
 
 	if callbacks.OnContentDelta != nil {

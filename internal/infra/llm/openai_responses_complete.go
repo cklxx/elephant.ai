@@ -16,6 +16,7 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	}
 
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
+	provider := "openai-responses"
 
 	input, instructions := c.buildResponsesInputAndInstructions(req.Messages)
 	var droppedCallIDs []string
@@ -66,7 +67,9 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
-		return nil, wrapRequestError(err)
+		wrapped := wrapRequestError(err)
+		c.logTransportFailure(prefix, requestID, "complete", provider, endpoint, req, wrapped)
+		return nil, wrapped
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -75,18 +78,24 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
 		c.logger.Debug("%sFailed to read response body: %v", prefix, err)
-		return nil, fmt.Errorf("read response: %w", err)
+		readErr := fmt.Errorf("read response: %w", err)
+		c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "read_response", req, readErr)
+		return nil, readErr
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
-		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
+		return nil, mappedErr
 	}
 
 	var apiResp responsesResponse
 	if err := jsonx.Unmarshal(respBody, &apiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
-		return nil, fmt.Errorf("decode response: %w", err)
+		decodeErr := fmt.Errorf("decode response: %w", err)
+		c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "decode_response", req, decodeErr)
+		return nil, decodeErr
 	}
 
 	if apiResp.Error != nil && apiResp.Error.Message != "" {
@@ -94,7 +103,9 @@ func (c *openAIResponsesClient) Complete(ctx context.Context, req ports.Completi
 		if apiResp.Error.Type != "" {
 			errMsg = fmt.Sprintf("%s: %s", apiResp.Error.Type, apiResp.Error.Message)
 		}
-		return nil, mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, []byte(errMsg), mappedErr)
+		return nil, mappedErr
 	}
 
 	content, toolCalls, thinking := parseResponsesOutput(apiResp)

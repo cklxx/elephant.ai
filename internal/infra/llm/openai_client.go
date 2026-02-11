@@ -33,6 +33,7 @@ func NewOpenAIClient(model string, config Config) (portsllm.LLMClient, error) {
 
 func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest) (*ports.CompletionResponse, error) {
 	requestID, prefix := c.buildLogPrefix(ctx, req.Metadata)
+	provider := c.detectProvider()
 
 	// Convert to OpenAI format
 	oaiReq := map[string]any{
@@ -78,7 +79,9 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
-		return nil, wrapRequestError(err)
+		wrapped := wrapRequestError(err)
+		c.logTransportFailure(prefix, requestID, "complete", provider, endpoint, req, wrapped)
+		return nil, wrapped
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -87,12 +90,16 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 	respBody, err := readResponseBody(resp.Body)
 	if err != nil {
 		c.logger.Debug("%sFailed to read response body: %v", prefix, err)
-		return nil, fmt.Errorf("read response: %w", err)
+		readErr := fmt.Errorf("read response: %w", err)
+		c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "read_response", req, readErr)
+		return nil, readErr
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
-		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
+		return nil, mappedErr
 	}
 
 	var oaiResp struct {
@@ -129,7 +136,9 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 
 	if err := jsonx.Unmarshal(respBody, &oaiResp); err != nil {
 		c.logger.Debug("%sFailed to decode response: %v", prefix, err)
-		return nil, fmt.Errorf("decode response: %w", err)
+		decodeErr := fmt.Errorf("decode response: %w", err)
+		c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "decode_response", req, decodeErr)
+		return nil, decodeErr
 	}
 
 	if oaiResp.Error != nil && oaiResp.Error.Message != "" {
@@ -137,12 +146,16 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		if oaiResp.Error.Type != "" {
 			errMsg = fmt.Sprintf("%s: %s", oaiResp.Error.Type, oaiResp.Error.Message)
 		}
-		return nil, mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, []byte(errMsg), resp.Header)
+		c.logHTTPFailure(prefix, requestID, "complete", provider, endpoint, req, resp.StatusCode, resp.Header, []byte(errMsg), mappedErr)
+		return nil, mappedErr
 	}
 
 	if len(oaiResp.Choices) == 0 {
 		c.logger.Debug("%sNo choices in response", prefix)
-		return nil, alexerrors.NewTransientError(errors.New("no choices in response"), "LLM returned an empty response. Please retry.")
+		emptyErr := alexerrors.NewTransientError(errors.New("no choices in response"), "LLM returned an empty response. Please retry.")
+		c.logProcessingFailure(prefix, requestID, "complete", provider, endpoint, "empty_choices", req, emptyErr)
+		return nil, emptyErr
 	}
 
 	result := &ports.CompletionResponse{
@@ -164,7 +177,7 @@ func (c *openaiClient) Complete(ctx context.Context, req ports.CompletionRequest
 		result.Thinking = thinking
 	}
 
-	c.fireUsageCallback(result.Usage, c.detectProvider())
+	c.fireUsageCallback(result.Usage, provider)
 
 	// Convert tool calls
 	for _, tc := range oaiResp.Choices[0].Message.ToolCalls {
@@ -238,7 +251,9 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 	resp, err := c.doPost(ctx, endpoint, body)
 	if err != nil {
 		c.logger.Debug("%sHTTP request failed: %v", prefix, err)
-		return nil, wrapRequestError(err)
+		wrapped := wrapRequestError(err)
+		c.logTransportFailure(prefix, requestID, "stream", provider, endpoint, req, wrapped)
+		return nil, wrapped
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -249,10 +264,14 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 		respBody, readErr := readResponseBody(resp.Body)
 		if readErr != nil {
 			c.logger.Debug("%sFailed to read error response: %v", prefix, readErr)
-			return nil, fmt.Errorf("read response: %w", readErr)
+			errRead := fmt.Errorf("read response: %w", readErr)
+			c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_error_response", req, errRead)
+			return nil, errRead
 		}
 		c.logger.Debug("%sError Response Body: %s", prefix, string(respBody))
-		return nil, mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		mappedErr := mapHTTPError(resp.StatusCode, respBody, resp.Header)
+		c.logHTTPFailure(prefix, requestID, "stream", provider, endpoint, req, resp.StatusCode, resp.Header, respBody, mappedErr)
+		return nil, mappedErr
 	}
 
 	scanner := newStreamScanner(resp.Body)
@@ -390,7 +409,9 @@ func (c *openaiClient) StreamComplete(ctx context.Context, req ports.CompletionR
 
 	if err := scanner.Err(); err != nil {
 		c.logger.Debug("%sStream read error: %v", prefix, err)
-		return nil, fmt.Errorf("read response stream: %w", err)
+		streamErr := fmt.Errorf("read response stream: %w", err)
+		c.logProcessingFailure(prefix, requestID, "stream", provider, endpoint, "read_stream", req, streamErr)
+		return nil, streamErr
 	}
 
 	if callbacks.OnContentDelta != nil {
