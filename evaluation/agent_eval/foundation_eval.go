@@ -1448,6 +1448,9 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 		if countMatches("freeze", "wait", "greenlight", "silence", "no", "continue") >= 3 {
 			boost += 34
 		}
+		if countMatches("user", "requir", "explicit", "consent", "before", "outreach") >= 4 {
+			boost += 34
+		}
 		if countMatches("you", "decide", "anything", "work", "delegate", "default", "low", "reversible", "status", "message", "thread", "again") >= 6 &&
 			countMatches("approval", "consent", "confirm", "manual", "external", "irreversible", "critical") == 0 {
 			boost -= 28
@@ -1558,6 +1561,10 @@ func heuristicIntentBoost(toolName string, tokenSet map[string]struct{}) float64
 	case "channel":
 		if countMatches("send", "message", "status", "thread", "chat", "lark") >= 2 {
 			boost += 14
+		}
+		if countMatches("user", "requir", "explicit", "consent", "before", "outreach", "approval", "external") >= 4 &&
+			countMatches("send", "message", "status", "thread", "chat", "lark") < 2 {
+			boost -= 36
 		}
 		if countMatches("you", "decide", "anything", "work", "delegate", "default", "low", "reversible", "status", "message", "thread", "again") >= 6 &&
 			countMatches("approval", "consent", "confirm", "manual", "external", "irreversible", "critical") == 0 {

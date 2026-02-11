@@ -862,6 +862,13 @@ func TestHeuristicIntentBoostTargetsRecentFailurePatterns(t *testing.T) {
 		t.Fatalf("expected request_user boost (%.2f) to exceed clarify boost (%.2f) for irreversible human go-ahead intents", irreversibleConsentBoost, irreversibleClarifyBoost)
 	}
 
+	consentGateRequestBoost := heuristicIntentBoost("request_user", makeSet("team", "ask", "auto", "assign", "accountability", "task", "externally", "user", "requir", "explicit", "consent", "before", "outreach"))
+	consentGateChannelBoost := heuristicIntentBoost("channel", makeSet("team", "ask", "auto", "assign", "accountability", "task", "externally", "user", "requir", "explicit", "consent", "before", "outreach"))
+	consentGateClarifyBoost := heuristicIntentBoost("clarify", makeSet("team", "ask", "auto", "assign", "accountability", "task", "externally", "user", "requir", "explicit", "consent", "before", "outreach"))
+	if consentGateRequestBoost <= consentGateChannelBoost || consentGateRequestBoost <= consentGateClarifyBoost {
+		t.Fatalf("expected request_user boost (%.2f) to exceed channel (%.2f) and clarify (%.2f) for external-outreach consent-gate intents", consentGateRequestBoost, consentGateChannelBoost, consentGateClarifyBoost)
+	}
+
 	oldCadenceDeleteBoost := heuristicIntentBoost("scheduler_delete_job", makeSet("old", "recurring", "cadence", "violate", "new", "policy", "must", "be", "removed"))
 	oldCadenceCreateBoost := heuristicIntentBoost("scheduler_create_job", makeSet("old", "recurring", "cadence", "violate", "new", "policy", "must", "be", "removed"))
 	if oldCadenceDeleteBoost <= oldCadenceCreateBoost {
