@@ -732,6 +732,9 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 		}
 	}
 
+	c.sessionSaveMu.Lock()
+	defer c.sessionSaveMu.Unlock()
+
 	// Update session with results
 	if historyEnabled {
 		sanitizedMessages, attachmentStore := sanitizeMessagesForPersistence(result.Messages)
@@ -794,21 +797,47 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 // Used for per-iteration saves to make sessions visible in diagnostics during execution.
 // Errors are logged but do not fail the iteration.
 func (c *AgentCoordinator) asyncSaveSession(ctx context.Context, session *storage.Session) {
-	if session == nil {
+	snapshot := cloneSessionForSave(session)
+	if snapshot == nil {
 		return
 	}
 
-	go func() {
+	go func(saved *storage.Session) {
 		c.sessionSaveMu.Lock()
 		defer c.sessionSaveMu.Unlock()
 
 		logger := c.loggerFor(ctx)
-		if err := c.sessionStore.Save(ctx, session); err != nil {
+		if err := c.sessionStore.Save(ctx, saved); err != nil {
 			logger.Warn("Async session save failed (non-fatal): %v", err)
 		} else {
-			logger.Debug("Async session save completed (session_id=%s, messages=%d)", session.ID, len(session.Messages))
+			logger.Debug("Async session save completed (session_id=%s, messages=%d)", saved.ID, len(saved.Messages))
 		}
-	}()
+	}(snapshot)
+}
+
+func cloneSessionForSave(session *storage.Session) *storage.Session {
+	if session == nil {
+		return nil
+	}
+	cloned := *session
+	cloned.Messages = agent.CloneMessages(session.Messages)
+	if len(session.Todos) > 0 {
+		cloned.Todos = append([]storage.Todo(nil), session.Todos...)
+	} else {
+		cloned.Todos = nil
+	}
+	if len(session.Metadata) > 0 {
+		cloned.Metadata = make(map[string]string, len(session.Metadata))
+		for key, value := range session.Metadata {
+			cloned.Metadata[key] = value
+		}
+	} else {
+		cloned.Metadata = nil
+	}
+	cloned.Attachments = ports.CloneAttachmentMap(session.Attachments)
+	cloned.Important = ports.CloneImportantNotes(session.Important)
+	cloned.UserPersona = ports.CloneUserPersonaProfile(session.UserPersona)
+	return &cloned
 }
 
 func (c *AgentCoordinator) persistSessionSnapshot(
