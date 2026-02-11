@@ -758,7 +758,7 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 			ChatID:         cfg.ChatID,
 			Agents:         agents,
 		},
-		stateFile, kernelStore, planner, executor, b.logger,
+		stateFile, kernelStore, planner, executor, logging.NewKernelLogger("KernelEngine"),
 	)
 
 	b.logger.Info("Kernel engine built (kernel_id=%s, schedule=%s, agents=%d)", cfg.KernelID, cfg.Schedule, len(agents))

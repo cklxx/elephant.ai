@@ -66,6 +66,11 @@ func NewLLMLogger(component string) Logger {
 	return utils.NewCategorizedLogger(utils.LogCategoryLLM, component)
 }
 
+// NewKernelLogger returns a logger that writes to the dedicated kernel log file (alex-kernel.log).
+func NewKernelLogger(component string) Logger {
+	return utils.NewCategorizedLogger(utils.LogCategoryKernel, component)
+}
+
 // FromUtils adapts the legacy utils logger to the Logger interface.
 func FromUtils(logger *utils.Logger) Logger {
 	if logger == nil {

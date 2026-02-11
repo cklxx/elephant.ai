@@ -37,7 +37,7 @@ func NewPostgresStore(pool *pgxpool.Pool, leaseDuration time.Duration) *Postgres
 	return &PostgresStore{
 		pool:          pool,
 		leaseDuration: leaseDuration,
-		logger:        logging.NewComponentLogger("KernelDispatchStore"),
+		logger:        logging.NewKernelLogger("KernelDispatchStore"),
 	}
 }
 
