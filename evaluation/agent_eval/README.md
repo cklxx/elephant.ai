@@ -92,47 +92,27 @@ Foundation suite 使用离线 lexical+metadata 路由评估，不依赖模型调
 
 新增（2026-02-10）：系统化端到端 suite（按能力维度分层）
 - `evaluation/agent_eval/datasets/foundation_eval_suite_e2e_systematic.yaml`
-- 覆盖 `28` 个集合、`363` 个 case（Foundation Core + Stateful/Memory + Delivery + Frontier Benchmark Transfer）。
+- 覆盖 `28` 个集合、`344` 个 case（Foundation Core + Stateful/Memory + Delivery + Frontier Benchmark Transfer）。
 - 新增 benchmark 映射集合：
   - `industry_benchmark_webarena_verified_webops_hard`
   - `industry_benchmark_agentbench_multidomain_tooluse_hard`
   - `industry_benchmark_browsecomp_sparse_research_hard`
   - `industry_benchmark_agentlongbench_long_context_memory_hard`
 
-当前集合规模（`x/x`）：
-- Collections: `25/25`
-- Cases: `400/400`
-- Applicable Cases: `400/400`（N/A 单独统计，不计失败）
-- pass@1: `372/400`（R5 一次性批量优化后）
-- pass@5: `400/400`
-- Deliverable Cases: `22/400`
-- Deliverable Good: `19/22`
-- Deliverable Bad: `3/22`
-- Base Tool Coverage: `20/20`
-- Prompt Effectiveness Coverage: `16/16`
-- Proactivity Coverage: `16/16`
-- Motivation-Aware Proactivity: `16/16`
-- Complex High-Value Tasks: `16/16`
-- Availability and Recovery: `16/16`
-- Valuable Delivery Workflows: `16/16`
-- SWE-bench Verified Readiness: `16/16`
-- Multi-Step Orchestration: `15/15`
-- Safety Boundary and Policy: `15/15`
-- Context Learning Hard: `15/15`
-- Memory Capabilities: `16/16`
-- User Habit Soul Memory: `16/16`
-- Task Completion Speed: `15/15`
-- Long-Horizon Multi-Round: `15/15`
-- Architecture Coding Hard: `15/15`
-- Deep Research: `15/15`
-- Autonomy Initiative: `15/15`
-- Conflict Convergence Hard: `16/16`
-- Intent Decomposition Constraint Matrix: `16/16`
-- Challenge Hard V2: `20/20`
-- Complex Artifact Delivery: `16/16`
-- Sparse-Clue Retrieval Stress: `16/16`
-- Stateful Commitment Boundary Stress: `16/16`
-- Reproducibility Trace Evidence Stress: `16/16`
+最新一次本地端到端评测（`tmp/foundation-suite-e2e-systematic-20260211-230148`）：
+- Collections: `28`
+- Collections passed (0 failed cases): `27/28`
+- Cases: `344`
+- Applicable Cases: `202`
+- N/A Cases: `142`
+- pass@1: `179/202`（`85.5%`）
+- pass@5: `200/202`（`96.0%`）
+- Failed Cases: `3`
+- Deliverable Cases: `20/344`
+- Deliverable Good: `0/20`
+- Deliverable Bad: `20/20`
+
+说明：评测分数会随工具可用性、数据集演进和路由策略变化而变化，不应将历史 100% 结果作为稳定基线。
 
 运行命令：
 

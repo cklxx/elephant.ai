@@ -24,4 +24,4 @@ steps:
 artifacts:
   - baseline_run: "tmp/foundation-suite-r18-baseline-20260210-090429"
   - final_run: "tmp/foundation-suite-r18-opt3-20260210-091128"
-  - report: "docs/research/2026-02-10-product-opt-hard-eval-r18-report.md"
+  - report: "removed on 2026-02-11 (stale 100%-pass report cleanup)"
