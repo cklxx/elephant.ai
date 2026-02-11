@@ -1,6 +1,6 @@
 # Long-Term Memory
 
-Updated: 2026-02-11 11:00
+Updated: 2026-02-11 14:00
 
 ## Criteria
 - Only keep durable knowledge that should persist across tasks.
@@ -31,6 +31,7 @@ Updated: 2026-02-11 11:00
 - Tool SLA collection is effective only when DI wires a shared `SLACollector` into tool registry wrapping and event translation.
 - Emit explicit `workflow.replan.requested` when tool failure triggers orchestrator replan to avoid UI-side inference heuristics.
 - Full-chain performance tracing should include ReAct iteration + LLM generate + tool execute spans, keyed by `alex.session_id`/`alex.run_id` for cross-request correlation.
+- Persona-level “always confirm” phrasing can suppress autonomy in low-risk delegated asks; add explicit delegated-autonomy guardrails (“you decide/anything works”) across persona and routing prompts.
 - SSE attachment dedupe must avoid `json.Marshal`-based whole-object hashing on hot paths; prefer lightweight signatures and hash payload only when needed.
 - One-click local observability flows (`logs-ui`) should include endpoint/page readiness probes and targeted self-heal restart to avoid stale-process false alarms.
 - Dev tools consolidation should keep diagnostics workloads in one workbench and enforce virtualization + deferred payload expansion for large logs.
