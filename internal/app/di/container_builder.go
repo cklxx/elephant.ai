@@ -315,10 +315,28 @@ func shouldAdoptDetectedBinary(current, detectedBinary string) bool {
 	if strings.EqualFold(trimmedCurrent, trimmedDetected) {
 		return true
 	}
+	if isEquivalentCLIBinary(trimmedCurrent, trimmedDetected) {
+		return true
+	}
 	if strings.EqualFold(filepath.Base(trimmedCurrent), trimmedDetected) {
 		return true
 	}
 	return false
+}
+
+func isEquivalentCLIBinary(current, detected string) bool {
+	currentLower := strings.ToLower(strings.TrimSpace(current))
+	detectedLower := strings.ToLower(strings.TrimSpace(detected))
+	if currentLower == detectedLower {
+		return true
+	}
+	switch {
+	case (currentLower == "claude" || currentLower == "claude-code") &&
+		(detectedLower == "claude" || detectedLower == "claude-code"):
+		return true
+	default:
+		return false
+	}
 }
 
 func (b *containerBuilder) isExternalAgentEnabled(agentType string) bool {
