@@ -33,6 +33,7 @@ type ReactEngine struct {
 	workflow            WorkflowTracker
 	seq                 domain.SeqCounter // Monotonic event sequence per run
 	iterationHook       agent.IterationHook
+	sessionPersister    agent.SessionPersister // Optional: async save session after each iteration
 
 	// Background task support: executor closure for internal subagent delegation.
 	backgroundExecutor func(ctx context.Context, prompt, sessionID string,
@@ -116,6 +117,7 @@ type ReactEngineConfig struct {
 	CheckpointStore     CheckpointStore           // Optional: persists execution checkpoints.
 	Workflow            WorkflowTracker
 	IterationHook       agent.IterationHook
+	SessionPersister    agent.SessionPersister // Optional: async save session after each iteration.
 
 	// BackgroundExecutor is a closure that delegates to coordinator.ExecuteTask
 	// for background subagent tasks. When nil, bg_dispatch is unavailable.

@@ -31,6 +31,10 @@ type IterationHookResult struct {
 	MemoriesInjected int
 }
 
+// SessionPersister is an optional callback for persisting session state after each iteration.
+// Implementations should be non-blocking (async) and handle errors internally without failing the iteration.
+type SessionPersister func(ctx context.Context, session *storage.Session, state *TaskState)
+
 // ExecutionEnvironment contains the prepared state for running a task.
 type ExecutionEnvironment struct {
 	State        *TaskState

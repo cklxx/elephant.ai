@@ -199,6 +199,10 @@ func (r *reactRuntime) run() (*TaskResult, error) {
 		r.engine.logger.Info("=== Iteration %d/%d ===", r.state.Iterations, r.engine.maxIterations)
 
 		result, done, err := r.runIteration()
+
+		// Async persist session state after successful iteration (best-effort).
+		r.persistSessionAfterIteration()
+
 		if err != nil {
 			r.cleanupBackgroundTasks()
 			return nil, err
@@ -1095,4 +1099,13 @@ func (r *reactRuntime) applyIterationHook(iteration int) {
 		Iteration:        iteration,
 		MemoriesInjected: result.MemoriesInjected,
 	})
+}
+
+// persistSessionAfterIteration calls the optional sessionPersister callback
+// to asynchronously persist session state after each successful iteration.
+// The callback is responsible for async behavior and error handling.
+func (r *reactRuntime) persistSessionAfterIteration() {
+	if r.engine.sessionPersister != nil {
+		r.engine.sessionPersister(r.ctx, nil, r.state)
+	}
 }

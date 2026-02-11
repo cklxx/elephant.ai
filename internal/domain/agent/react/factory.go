@@ -83,6 +83,7 @@ func NewReactEngine(cfg ReactEngineConfig) *ReactEngine {
 		checkpointStore:     cfg.CheckpointStore,
 		workflow:            cfg.Workflow,
 		iterationHook:       cfg.IterationHook,
+		sessionPersister:    cfg.SessionPersister,
 		backgroundExecutor:  cfg.BackgroundExecutor,
 		backgroundManager:   cfg.BackgroundManager,
 		externalExecutor:    cfg.ExternalExecutor,

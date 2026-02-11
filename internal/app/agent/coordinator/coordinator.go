@@ -65,6 +65,8 @@ type AgentCoordinator struct {
 	timerManager        shared.TimerManagerService // injected at bootstrap; tools retrieve via shared.TimerManagerFromContext
 	schedulerService    any                        // injected at bootstrap; tools retrieve via shared.SchedulerFromContext
 	toolSLACollector    *toolspolicy.SLACollector
+
+	sessionSaveMu sync.Mutex // Protects concurrent session saves
 }
 
 func (c *AgentCoordinator) SetRuntimeConfigResolver(resolver RuntimeConfigResolver) {
@@ -514,9 +516,14 @@ func (c *AgentCoordinator) ExecuteTask(
 		CheckpointStore:     c.checkpointStore,
 		Workflow:            wf,
 		IterationHook:       c.iterationHook,
-		BackgroundExecutor:  backgroundExecutor,
-		BackgroundManager:   bgManager,
-		ExternalExecutor:    c.externalExecutor,
+		SessionPersister: func(ctx context.Context, _ *storage.Session, state *agent.TaskState) {
+			// Async persist after each iteration for diagnostics visibility.
+			// Ignore the nil session param; we capture env.Session from closure.
+			c.asyncSaveSession(ctx, env.Session)
+		},
+		BackgroundExecutor: backgroundExecutor,
+		BackgroundManager:  bgManager,
+		ExternalExecutor:   c.externalExecutor,
 	})
 
 	if eventListener != nil {
@@ -781,6 +788,27 @@ func (c *AgentCoordinator) SaveSessionAfterExecution(ctx context.Context, sessio
 	logger.Debug("Session saved successfully")
 
 	return nil
+}
+
+// asyncSaveSession saves session asynchronously (non-blocking) with mutex protection.
+// Used for per-iteration saves to make sessions visible in diagnostics during execution.
+// Errors are logged but do not fail the iteration.
+func (c *AgentCoordinator) asyncSaveSession(ctx context.Context, session *storage.Session) {
+	if session == nil {
+		return
+	}
+
+	go func() {
+		c.sessionSaveMu.Lock()
+		defer c.sessionSaveMu.Unlock()
+
+		logger := c.loggerFor(ctx)
+		if err := c.sessionStore.Save(ctx, session); err != nil {
+			logger.Warn("Async session save failed (non-fatal): %v", err)
+		} else {
+			logger.Debug("Async session save completed (session_id=%s, messages=%d)", session.ID, len(session.Messages))
+		}
+	}()
 }
 
 func (c *AgentCoordinator) persistSessionSnapshot(
