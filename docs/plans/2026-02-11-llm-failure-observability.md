@@ -23,7 +23,7 @@
 - [x] 增加/更新测试覆盖失败日志行为（最小必要）。
 - [x] 运行 `./dev.sh lint`（失败：web 既有 lint 问题，与本次改动无关）。
 - [x] 运行 `./dev.sh test`（失败：`internal/infra/analytics` 依赖缺失 `docs/analytics/tracking-plan.yaml`，与本次改动无关）。
-- [ ] 执行代码审查清单并修复问题。
+- [x] 执行代码审查清单并修复问题（P0-P3 无新增阻断项）。
 - [ ] 分批提交并合并回 `main`（ff 优先）。
 
 ## Progress
@@ -32,3 +32,4 @@
 - 2026-02-11 补齐重试层摘要：`retry_client` 成功/失败日志补充 `provider/request_id/intent`，便于链路关联。
 - 2026-02-11 追加 pre-analysis 意图标记：`task_preanalysis`，用于区分辅助请求来源。
 - 2026-02-11 根因确认：`gpt-4o-mini + stream=true + temperature=0.2` 主要来自预分析小模型调用；`stream=false + temperature=0.2` 来自 memory capture。
+- 2026-02-11 代码审查（SOLID/安全/质量/清理）结论：本次改动为日志增强，无架构回归与安全阻断问题。
