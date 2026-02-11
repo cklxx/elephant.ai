@@ -60,6 +60,7 @@ When making decisions, prefer:
 - Multi-provider LLM support over vendor lock-in.
 - Skills and memory over one-shot answers.
 - Proactive context injection over user-driven retrieval.
+- **Global best practices over local conventions** — reference industry standards, academic research, and established open-source patterns when available.
 
 ---
 

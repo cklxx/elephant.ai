@@ -25,7 +25,7 @@ Safety guardrails for prompts:
 - From scratch, cut a new worktree branch off main and copy .env, then write code. After finishing, merge back to main.
 - Config examples: YAML only, use `.yaml` paths.
 - Plans: non‑trivial work requires a plan file under `docs/plans/` and updates as work progresses.
-- Practices: review `docs/guides/engineering-practices.md` before tasks; add missing practices if needed.
+- Practices: review `docs/guides/engineering-practices.md` before tasks; add missing practices if needed. **Widely reference global best practices** (industry standards, academic research, open-source conventions) when designing solutions.
 - Records: error/win entries live in `docs/error-experience/entries/` and `docs/good-experience/entries/`; summaries in `.../summary/entries/`; index files are index-only.
 - Testing: use TDD when touching logic; run full lint + tests before delivery.
 - Commits: always commit; split one solution into multiple incremental commits.
