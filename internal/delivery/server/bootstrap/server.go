@@ -216,23 +216,16 @@ func RunServer(observabilityConfigPath string) error {
 		logger.Info("[Bootstrap] Resumed %d pending/running tasks", resumed)
 	}
 
-	// ── Phase 3: Subsystems (gateways, scheduler — managed lifecycle) ──
+	// ── Phase 3: Subsystems (scheduler/timer only — NO Lark gateway) ──
+	// IMPORTANT: Lark gateway is NOT started in web server mode to prevent
+	// duplicate message processing when both `alex-server` and `alex-server lark`
+	// are running. Lark gateway should ONLY run in standalone mode via `alex-server lark`.
 
 	subsystems := NewSubsystemManager(logger)
 	defer subsystems.StopAll()
 
 	gatewayStages := []BootstrapStage{
-		{
-			Name: "lark-gateway", Required: false,
-			Init: func() error {
-				return subsystems.Start(context.Background(), &gatewaySubsystem{
-					name: "lark",
-					startFn: func(ctx context.Context) (func(), error) {
-						return startLarkGateway(ctx, config, container, logger, broadcaster)
-					},
-				})
-			},
-		},
+		// Lark gateway removed - use `alex-server lark` for Lark integration
 		f.SchedulerStage(subsystems),
 		f.TimerManagerStage(subsystems),
 	}
