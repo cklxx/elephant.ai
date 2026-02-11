@@ -1,0 +1,226 @@
+package kernel
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	kerneldomain "alex/internal/domain/kernel"
+	"alex/internal/shared/logging"
+	id "alex/internal/shared/utils/id"
+
+	"github.com/robfig/cron/v3"
+)
+
+// Engine runs the kernel agent loop: a cron-driven cycle that reads STATE.md,
+// plans dispatches, and executes them via the AgentCoordinator.
+type Engine struct {
+	config    KernelConfig
+	stateFile *StateFile
+	store     kerneldomain.Store
+	planner   Planner
+	executor  Executor
+	logger    logging.Logger
+
+	stopped  chan struct{}
+	stopOnce sync.Once
+}
+
+// NewEngine creates a new kernel engine.
+func NewEngine(
+	config KernelConfig,
+	stateFile *StateFile,
+	store kerneldomain.Store,
+	planner Planner,
+	executor Executor,
+	logger logging.Logger,
+) *Engine {
+	return &Engine{
+		config:    config,
+		stateFile: stateFile,
+		store:     store,
+		planner:   planner,
+		executor:  executor,
+		logger:    logging.OrNop(logger),
+		stopped:   make(chan struct{}),
+	}
+}
+
+// RunCycle executes one PERCEIVE-ORIENT-DECIDE-ACT-UPDATE cycle.
+func (e *Engine) RunCycle(ctx context.Context) (*kerneldomain.CycleResult, error) {
+	start := time.Now()
+	cycleID := id.NewRunID()
+
+	// 1. Read STATE.md (opaque text).
+	stateContent, err := e.stateFile.Read()
+	if err != nil {
+		return nil, fmt.Errorf("read state: %w", err)
+	}
+	if stateContent == "" {
+		if seedErr := e.stateFile.Seed(e.config.SeedState); seedErr != nil {
+			return nil, fmt.Errorf("seed state: %w", seedErr)
+		}
+		stateContent = e.config.SeedState
+	}
+
+	// 2. Query each agent's most recent dispatch status.
+	recentByAgent, err := e.store.ListRecentByAgent(ctx, e.config.KernelID)
+	if err != nil {
+		e.logger.Warn("Kernel: list recent dispatches failed: %v", err)
+		recentByAgent = map[string]kerneldomain.Dispatch{}
+	}
+
+	// 3. Plan — generate dispatch specs (STATE content injected into prompts).
+	specs, err := e.planner.Plan(ctx, stateContent, recentByAgent)
+	if err != nil {
+		return nil, fmt.Errorf("plan: %w", err)
+	}
+	if len(specs) == 0 {
+		return &kerneldomain.CycleResult{
+			CycleID:  cycleID,
+			KernelID: e.config.KernelID,
+			Status:   kerneldomain.CycleSuccess,
+			Duration: time.Since(start),
+		}, nil
+	}
+
+	// 4. Enqueue dispatches to Postgres.
+	dispatches, err := e.store.EnqueueDispatches(ctx, e.config.KernelID, cycleID, specs)
+	if err != nil {
+		return nil, fmt.Errorf("enqueue: %w", err)
+	}
+
+	// 5. Execute dispatches in parallel (bounded by MaxConcurrent).
+	result := e.executeDispatches(ctx, cycleID, dispatches)
+	result.Duration = time.Since(start)
+
+	return result, nil
+}
+
+// executeDispatches runs dispatches concurrently with a bounded semaphore.
+func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatches []kerneldomain.Dispatch) *kerneldomain.CycleResult {
+	result := &kerneldomain.CycleResult{
+		CycleID:    cycleID,
+		KernelID:   e.config.KernelID,
+		Dispatched: len(dispatches),
+	}
+
+	maxConcurrent := e.config.MaxConcurrent
+	if maxConcurrent <= 0 {
+		maxConcurrent = 3
+	}
+	sem := make(chan struct{}, maxConcurrent)
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for _, d := range dispatches {
+		wg.Add(1)
+		go func(d kerneldomain.Dispatch) {
+			defer wg.Done()
+
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			if err := e.store.MarkDispatchRunning(ctx, d.DispatchID); err != nil {
+				e.logger.Warn("Kernel: mark running %s: %v", d.DispatchID, err)
+			}
+
+			meta := d.Metadata
+			if meta == nil {
+				meta = map[string]string{}
+			}
+			if e.config.UserID != "" {
+				meta["user_id"] = e.config.UserID
+			}
+			if e.config.Channel != "" {
+				meta["channel"] = e.config.Channel
+			}
+
+			taskID, execErr := e.executor.Execute(ctx, d.AgentID, d.Prompt, meta)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if execErr != nil {
+				result.Failed++
+				result.FailedAgents = append(result.FailedAgents, d.AgentID)
+				if markErr := e.store.MarkDispatchFailed(ctx, d.DispatchID, execErr.Error()); markErr != nil {
+					e.logger.Warn("Kernel: mark failed %s: %v", d.DispatchID, markErr)
+				}
+				e.logger.Warn("Kernel: dispatch %s (agent=%s) failed: %v", d.DispatchID, d.AgentID, execErr)
+			} else {
+				result.Succeeded++
+				if markErr := e.store.MarkDispatchDone(ctx, d.DispatchID, taskID); markErr != nil {
+					e.logger.Warn("Kernel: mark done %s: %v", d.DispatchID, markErr)
+				}
+			}
+		}(d)
+	}
+
+	wg.Wait()
+
+	switch {
+	case result.Failed == 0:
+		result.Status = kerneldomain.CycleSuccess
+	case result.Succeeded > 0:
+		result.Status = kerneldomain.CyclePartialSuccess
+	default:
+		result.Status = kerneldomain.CycleFailed
+	}
+
+	return result
+}
+
+// Run starts the main loop, scheduling RunCycle according to the cron expression.
+// It blocks until the context is cancelled or Stop is called.
+func (e *Engine) Run(ctx context.Context) {
+	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+	sched, err := parser.Parse(e.config.Schedule)
+	if err != nil {
+		e.logger.Warn("Kernel: invalid schedule %q: %v", e.config.Schedule, err)
+		return
+	}
+
+	e.logger.Info("Kernel[%s] starting (schedule=%s)", e.config.KernelID, e.config.Schedule)
+
+	for {
+		nextRun := sched.Next(time.Now())
+		timer := time.NewTimer(time.Until(nextRun))
+
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			e.logger.Info("Kernel[%s] stopped (context cancelled)", e.config.KernelID)
+			return
+		case <-e.stopped:
+			timer.Stop()
+			e.logger.Info("Kernel[%s] stopped", e.config.KernelID)
+			return
+		case <-timer.C:
+			result, cycleErr := e.RunCycle(ctx)
+			if cycleErr != nil {
+				e.logger.Warn("Kernel[%s] RunCycle error: %v", e.config.KernelID, cycleErr)
+			} else {
+				e.logger.Info("Kernel[%s] cycle %s: %s (dispatched=%d ok=%d fail=%d %s)",
+					e.config.KernelID, result.CycleID, result.Status,
+					result.Dispatched, result.Succeeded, result.Failed, result.Duration)
+			}
+		}
+	}
+}
+
+// Stop signals the engine to exit the Run loop.
+func (e *Engine) Stop() {
+	e.stopOnce.Do(func() { close(e.stopped) })
+}
+
+// Name returns the subsystem name for lifecycle management.
+func (e *Engine) Name() string { return "kernel" }
+
+// Drain gracefully stops the engine.
+func (e *Engine) Drain(_ context.Context) error {
+	e.Stop()
+	return nil
+}
