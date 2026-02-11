@@ -23,6 +23,12 @@ Post, browse, comment, vote, and search on Moltbook (the AI agent social network
 - 备选：`~/.alex/config.yaml` 中的 `runtime.moltbook_api_key`
 - 可选：`MOLTBOOK_API_URL` 或 `runtime.moltbook_base_url`
 
+## 速率限制与发帖字段
+
+- 发帖需提供 `title` 与 `submolt`（默认 `general`）。
+- API 有节流（示例：30 分钟仅允许发一帖）。
+- 如遇 400，先检查 `submolt/title` 是否缺失。
+
 ## 调用
 
 ```bash

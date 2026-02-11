@@ -17,6 +17,7 @@ from skill_runner.env import load_repo_dotenv
 
 load_repo_dotenv(__file__)
 
+import http.client
 import json
 import os
 import sys
@@ -27,9 +28,9 @@ import urllib.request
 
 def _normalize_base(base: str) -> str:
     base = base.strip().rstrip("/")
-    if not base.endswith("/api"):
-        base = f"{base}/api"
-    return base
+    if "/api" in base:
+        return base
+    return f"{base}/api"
 
 
 def _load_from_alex_config() -> tuple[str, str]:
@@ -62,25 +63,121 @@ if not _API_KEY:
         _BASE = _normalize_base(cfg_base)
 
 
+
+def _canonicalize_base(base: str) -> str:
+    base = base.strip().rstrip("/")
+    if base.endswith("/api"):
+        return f"{base}/v1"
+    if base.endswith("/api/v1"):
+        return base
+    if "/api/" in base:
+        return base
+    return f"{base}/api/v1"
+
+
+def _resolve_base() -> str:
+    # Prefer config/env if they explicitly include /api
+    base = _BASE
+    if "/api" in base:
+        return _canonicalize_base(base)
+    # Otherwise pick the most stable endpoint for auth'd requests
+    return "https://www.moltbook.com/api/v1"
+
+
+_BASE = _resolve_base()
+
+
 def _api(method: str, path: str, body: dict | None = None) -> dict:
     if not _API_KEY:
         return {"error": "MOLTBOOK_API_KEY not set"}
     url = f"{_BASE}{path}"
-    headers = {"Authorization": f"Bearer {_API_KEY}", "Content-Type": "application/json"}
+    headers = {
+        "Authorization": f"Bearer {_API_KEY}",
+        "Content-Type": "application/json",
+        "User-Agent": "moltbook-skill/1.0",
+        "Accept": "application/json",
+        "Connection": "close",
+    }
     data = json.dumps(body).encode() if body else None
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            return json.loads(resp.read().decode())
+        return _read_response(req, timeout=15)
+    except urllib.error.HTTPError as exc:
+        payload_text = ""
+        try:
+            payload_text = exc.read().decode()
+            payload = json.loads(payload_text)
+        except Exception:
+            payload = {"message": payload_text or str(exc)}
+        if "error" not in payload:
+            payload["error"] = payload.get("message") or f"HTTP {exc.code}"
+        payload["http_status"] = exc.code
+        return payload
     except urllib.error.URLError as exc:
         return {"error": str(exc)}
 
 
+def _read_response(req: urllib.request.Request, timeout: int) -> dict:
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return json.loads(resp.read().decode())
+    except http.client.RemoteDisconnected:
+        return _retry_with_https(req, timeout=timeout)
+
+
+def _retry_with_https(req: urllib.request.Request, timeout: int) -> dict:
+    import ssl
+
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
+            return json.loads(resp.read().decode())
+    except http.client.RemoteDisconnected:
+        return _retry_as_legacy(req, timeout=timeout)
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
+def _retry_as_legacy(req: urllib.request.Request, timeout: int) -> dict:
+    parsed = urllib.parse.urlparse(req.full_url)
+    path = parsed.path
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    conn = http.client.HTTPSConnection(parsed.netloc, timeout=timeout)
+    body = req.data
+    headers = dict(req.header_items())
+    try:
+        conn.request(req.get_method(), path, body=body, headers=headers)
+        resp = conn.getresponse()
+        payload = resp.read().decode()
+        try:
+            return json.loads(payload)
+        except Exception:
+            return {"error": payload or f"HTTP {resp.status}"}
+    except Exception as exc:
+        return {"error": str(exc)}
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+
 def post(args: dict) -> dict:
+    title = str(args.get("title", "")).strip()
     content = args.get("content", "")
+    if not title:
+        return {"success": False, "error": "title is required"}
     if not content:
         return {"success": False, "error": "content is required"}
-    result = _api("POST", "/posts", {"content": content, "tags": args.get("tags", [])})
+    submolt = str(args.get("submolt", "general")).strip() or "general"
+    payload = {
+        "title": title,
+        "content": content,
+        "submolt": submolt,
+        "tags": args.get("tags", []),
+    }
+    result = _api("POST", "/posts", payload)
     if "error" in result:
         return {"success": False, **result}
     return {"success": True, "post": result.get("data", {}), "message": "posted"}
@@ -88,10 +185,12 @@ def post(args: dict) -> dict:
 
 def feed(args: dict) -> dict:
     limit = args.get("limit", 20)
-    result = _api("GET", f"/feed?limit={limit}")
+    sort = args.get("sort", "hot")
+    result = _api("GET", f"/posts?limit={limit}&sort={urllib.parse.quote(str(sort))}")
     if "error" in result:
         return {"success": False, **result}
-    return {"success": True, "posts": result.get("data", []), "count": len(result.get("data", []))}
+    posts = result.get("data", result.get("posts", []))
+    return {"success": True, "posts": posts, "count": len(posts)}
 
 
 def search(args: dict) -> dict:
