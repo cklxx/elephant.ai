@@ -564,9 +564,7 @@ func buildEnvironmentSection(static agent.StaticContext) string {
 
 func buildDynamicSection(dynamic agent.DynamicContext) string {
 	var lines []string
-	if dynamic.TurnID > 0 || dynamic.LLMTurnSeq > 0 {
-		lines = append(lines, fmt.Sprintf("Turn: %d (llm_seq=%d)", dynamic.TurnID, dynamic.LLMTurnSeq))
-	}
+	// Note: TurnID and LLMTurnSeq removed - already implicit in chat history
 	if !dynamic.SnapshotTimestamp.IsZero() {
 		lines = append(lines, fmt.Sprintf("Snapshot captured: %s", dynamic.SnapshotTimestamp.Format(time.RFC3339)))
 	}
