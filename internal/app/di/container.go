@@ -136,7 +136,7 @@ type Config struct {
 	SessionPoolMaxConnIdleTime   time.Duration
 	SessionPoolHealthCheckPeriod time.Duration
 	SessionPoolConnectTimeout    time.Duration
-	SessionCacheSize             *int
+	MaxSessionMessages           *int // Maximum messages to retain per session (default: 1000)
 	ToolPolicy                   toolspolicy.ToolPolicyConfig
 	BrowserConfig                toolregistry.BrowserConfig
 

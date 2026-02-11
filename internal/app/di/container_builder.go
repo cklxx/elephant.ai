@@ -284,11 +284,11 @@ func (b *containerBuilder) buildPostgresResources(ctx context.Context, dbURL str
 	}
 
 	var dbSessionStore *postgresstore.Store
-	if b.config.SessionCacheSize != nil {
-		dbSessionStore = postgresstore.New(pool, postgresstore.WithCacheSize(*b.config.SessionCacheSize))
-	} else {
-		dbSessionStore = postgresstore.New(pool)
+	var storeOpts []postgresstore.StoreOption
+	if b.config.MaxSessionMessages != nil {
+		storeOpts = append(storeOpts, postgresstore.WithMaxMessages(*b.config.MaxSessionMessages))
 	}
+	dbSessionStore = postgresstore.New(pool, storeOpts...)
 	if err := dbSessionStore.EnsureSchema(ctx); err != nil {
 		pool.Close()
 		return sessionResources{}, postgresInitError{step: "initialize session schema", err: err}

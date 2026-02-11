@@ -16,7 +16,6 @@ import (
 	"alex/internal/shared/logging"
 	id "alex/internal/shared/utils/id"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,58 +24,48 @@ import (
 const (
 	sessionTable = "agent_sessions"
 
-	defaultSessionCacheSize = 256
+	defaultMaxSessionMessages = 1000 // Limit session messages to prevent JSONB size overflow (256MB limit)
 )
 
 var sessionIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
 
 // Store implements a Postgres-backed session store.
+// LRU cache removed - sessions are always read from Postgres.
+// For long-running processes (Lark), sessions stay in Coordinator memory.
+// For short-lived requests (Web), direct DB reads are acceptable.
 type Store struct {
-	pool      *pgxpool.Pool
-	logger    logging.Logger
-	cache     *lru.Cache[string, sessionCacheEntry]
-	cacheSize int
-}
-
-type sessionCacheEntry struct {
-	session   *storage.Session
-	updatedAt time.Time
+	pool        *pgxpool.Pool
+	logger      logging.Logger
+	maxMessages int // Maximum number of messages to retain in session (0 = unlimited)
 }
 
 // StoreOption configures the session store.
 type StoreOption func(*Store)
 
-// WithCacheSize sets the LRU cache size. Set to 0 to disable caching.
-func WithCacheSize(size int) StoreOption {
+// WithMaxMessages sets the maximum number of messages to retain in a session.
+// Set to 0 to disable the limit (not recommended - may hit Postgres JSONB 256MB limit).
+// Default is 1000 messages.
+func WithMaxMessages(max int) StoreOption {
 	return func(s *Store) {
-		if size < 0 {
+		if max < 0 {
 			return
 		}
-		s.cacheSize = size
+		s.maxMessages = max
 	}
 }
 
-// New constructs a Postgres-backed session store.
+// New constructs a Postgres-backed session store without LRU cache.
 func New(pool *pgxpool.Pool, opts ...StoreOption) *Store {
 	store := &Store{
-		pool:      pool,
-		logger:    logging.NewComponentLogger("SessionPostgresStore"),
-		cacheSize: defaultSessionCacheSize,
+		pool:        pool,
+		logger:      logging.NewComponentLogger("SessionPostgresStore"),
+		maxMessages: defaultMaxSessionMessages,
 	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(store)
 		}
 	}
-	if store.cacheSize <= 0 {
-		return store
-	}
-	cache, err := lru.New[string, sessionCacheEntry](store.cacheSize)
-	if err != nil {
-		store.logger.Warn("Failed to initialize session cache: %v", err)
-		return store
-	}
-	store.cache = cache
 	return store
 }
 
@@ -145,14 +134,13 @@ func (s *Store) Create(ctx context.Context) (*storage.Session, error) {
 			return nil, err
 		}
 
-		s.storeCachedSession(session)
 		return session, nil
 	}
 
 	return nil, fmt.Errorf("failed to allocate unique session ID")
 }
 
-// Get retrieves a session by ID.
+// Get retrieves a session by ID directly from Postgres.
 func (s *Store) Get(ctx context.Context, sessionID string) (*storage.Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -164,17 +152,10 @@ func (s *Store) Get(ctx context.Context, sessionID string) (*storage.Session, er
 		return nil, fmt.Errorf("session store not initialized")
 	}
 
-	if cached, ok, err := s.loadCachedSession(ctx, sessionID); err != nil {
-		return nil, err
-	} else if ok {
-		return cached, nil
-	}
-
 	session, err := s.fetchSession(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
-	s.storeCachedSession(session)
 	return cloneSession(session), nil
 }
 
@@ -193,15 +174,41 @@ func (s *Store) Save(ctx context.Context, session *storage.Session) error {
 		return fmt.Errorf("session store not initialized")
 	}
 
+	// Truncate messages in-place to prevent memory accumulation.
+	// This modifies the session object directly to ensure all references
+	// (including cached copies) see the truncated version.
+	if s.maxMessages > 0 && len(session.Messages) > s.maxMessages {
+		originalCount := len(session.Messages)
+		session.Messages = session.Messages[len(session.Messages)-s.maxMessages:]
+		logging.OrNop(s.logger).Info(
+			"Truncated session %s messages in-memory from %d to %d (limit: %d)",
+			session.ID, originalCount, len(session.Messages), s.maxMessages,
+		)
+	}
+
 	if session.CreatedAt.IsZero() {
 		session.CreatedAt = time.Now()
 	}
 	session.UpdatedAt = time.Now()
 
 	if err := s.insert(ctx, session, true); err != nil {
+		// If insertion failed due to JSONB size limit (54000: program_limit_exceeded),
+		// aggressively truncate messages and retry once.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "54000" && len(session.Messages) > 100 {
+			logging.OrNop(s.logger).Warn(
+				"Session %s save failed due to size limit (SQLSTATE 54000), aggressively truncating to 100 messages and retrying",
+				session.ID,
+			)
+			// Keep only the most recent 100 messages as emergency fallback
+			session.Messages = session.Messages[len(session.Messages)-100:]
+			if retryErr := s.insert(ctx, session, true); retryErr != nil {
+				return fmt.Errorf("save failed after aggressive truncation: %w", retryErr)
+			}
+			return nil
+		}
 		return err
 	}
-	s.storeCachedSession(session)
 	return nil
 }
 
@@ -262,9 +269,6 @@ func (s *Store) Delete(ctx context.Context, sessionID string) error {
 
 	query := fmt.Sprintf(`DELETE FROM %s WHERE id = $1`, sessionTable)
 	_, err := s.pool.Exec(ctx, query, sessionID)
-	if err == nil {
-		s.deleteCachedSession(sessionID)
-	}
 	return err
 }
 
@@ -273,6 +277,20 @@ func (s *Store) insert(ctx context.Context, session *storage.Session, upsert boo
 	if messagesValue == nil {
 		messagesValue = []ports.Message{}
 	}
+
+	// Truncate messages if they exceed the limit to prevent JSONB size overflow.
+	// Postgres JSONB has a hard limit of 268435455 bytes (~256MB).
+	// Keeping only recent messages prevents hitting this limit while retaining context.
+	if s.maxMessages > 0 && len(messagesValue) > s.maxMessages {
+		originalCount := len(messagesValue)
+		// Keep the most recent messages
+		messagesValue = messagesValue[len(messagesValue)-s.maxMessages:]
+		logging.OrNop(s.logger).Info(
+			"Truncated session %s messages from %d to %d (limit: %d)",
+			session.ID, originalCount, len(messagesValue), s.maxMessages,
+		)
+	}
+
 	todosValue := session.Todos
 	if todosValue == nil {
 		todosValue = []storage.Todo{}
@@ -344,57 +362,6 @@ VALUES ($1, $2::jsonb, $3::jsonb, $4::jsonb, $5::jsonb, $6::jsonb, $7::jsonb, $8
 		return err
 	}
 	return nil
-}
-
-func (s *Store) loadCachedSession(ctx context.Context, sessionID string) (*storage.Session, bool, error) {
-	if s.cache == nil {
-		return nil, false, nil
-	}
-	entry, ok := s.cache.Get(sessionID)
-	if !ok || entry.session == nil {
-		return nil, false, nil
-	}
-
-	updatedAt, err := s.fetchUpdatedAt(ctx, sessionID)
-	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			s.cache.Remove(sessionID)
-			return nil, false, storage.ErrSessionNotFound
-		}
-		return nil, false, err
-	}
-	if updatedAt.Equal(entry.updatedAt) {
-		return cloneSession(entry.session), true, nil
-	}
-	return nil, false, nil
-}
-
-func (s *Store) storeCachedSession(session *storage.Session) {
-	if s.cache == nil || session == nil {
-		return
-	}
-	cloned := cloneSession(session)
-	if cloned == nil {
-		return
-	}
-	s.cache.Add(session.ID, sessionCacheEntry{
-		session:   cloned,
-		updatedAt: session.UpdatedAt,
-	})
-}
-
-func (s *Store) deleteCachedSession(sessionID string) {
-	if s.cache == nil {
-		return
-	}
-	s.cache.Remove(sessionID)
-}
-
-func (s *Store) fetchUpdatedAt(ctx context.Context, sessionID string) (time.Time, error) {
-	query := fmt.Sprintf(`SELECT updated_at FROM %s WHERE id = $1`, sessionTable)
-	var updatedAt time.Time
-	err := s.pool.QueryRow(ctx, query, sessionID).Scan(&updatedAt)
-	return updatedAt, err
 }
 
 func (s *Store) fetchSession(ctx context.Context, sessionID string) (*storage.Session, error) {
