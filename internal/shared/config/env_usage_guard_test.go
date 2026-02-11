@@ -19,6 +19,7 @@ func TestNoUnapprovedGetenv(t *testing.T) {
 		"internal/infra/external/bridge/executor_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_test.go",
 		"internal/infra/external/claudecode/executor_sdk_integration_tool_test.go",
+		"internal/infra/kernel/postgres_store_test.go",
 		"internal/shared/utils/logger.go",
 	)
 
