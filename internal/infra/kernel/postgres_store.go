@@ -18,17 +18,26 @@ const dispatchTable = "kernel_dispatch_tasks"
 
 // PostgresStore implements kerneldomain.Store backed by Postgres.
 type PostgresStore struct {
-	pool   *pgxpool.Pool
-	logger logging.Logger
+	pool          *pgxpool.Pool
+	leaseDuration time.Duration
+	logger        logging.Logger
 }
 
 var _ kerneldomain.Store = (*PostgresStore)(nil)
 
+const defaultLeaseDuration = 30 * time.Minute
+
 // NewPostgresStore creates a new Postgres-backed dispatch store.
-func NewPostgresStore(pool *pgxpool.Pool) *PostgresStore {
+// leaseDuration controls how long a claimed dispatch is held before it can be
+// reclaimed. If zero, defaults to 30 minutes.
+func NewPostgresStore(pool *pgxpool.Pool, leaseDuration time.Duration) *PostgresStore {
+	if leaseDuration <= 0 {
+		leaseDuration = defaultLeaseDuration
+	}
 	return &PostgresStore{
-		pool:   pool,
-		logger: logging.NewComponentLogger("KernelDispatchStore"),
+		pool:          pool,
+		leaseDuration: leaseDuration,
+		logger:        logging.NewComponentLogger("KernelDispatchStore"),
 	}
 }
 
@@ -69,27 +78,38 @@ func (s *PostgresStore) EnsureSchema(ctx context.Context) error {
 	return nil
 }
 
-// EnqueueDispatches inserts a batch of dispatch specs as pending rows.
+// EnqueueDispatches inserts a batch of dispatch specs as pending rows within a
+// single transaction. On partial INSERT failure the entire batch is rolled back
+// to avoid orphaned rows.
 func (s *PostgresStore) EnqueueDispatches(ctx context.Context, kernelID, cycleID string, specs []kerneldomain.DispatchSpec) ([]kerneldomain.Dispatch, error) {
 	if len(specs) == 0 {
 		return nil, nil
 	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin enqueue tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // best-effort on defer
 
 	now := time.Now().UTC()
 	dispatches := make([]kerneldomain.Dispatch, 0, len(specs))
 
 	for _, spec := range specs {
 		dispatchID := id.NewRunID()
-		metaJSON, _ := json.Marshal(spec.Metadata)
+		metaJSON, err := json.Marshal(spec.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("marshal metadata for %s: %w", spec.AgentID, err)
+		}
 
-		_, err := s.pool.Exec(ctx,
+		_, err = tx.Exec(ctx,
 			`INSERT INTO `+dispatchTable+` (dispatch_id, kernel_id, cycle_id, agent_id, prompt, priority, status, metadata, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
 			dispatchID, kernelID, cycleID, spec.AgentID, spec.Prompt, spec.Priority,
 			string(kerneldomain.DispatchPending), metaJSON, now, now,
 		)
 		if err != nil {
-			return dispatches, fmt.Errorf("enqueue dispatch %s: %w", spec.AgentID, err)
+			return nil, fmt.Errorf("enqueue dispatch %s: %w", spec.AgentID, err)
 		}
 
 		dispatches = append(dispatches, kerneldomain.Dispatch{
@@ -106,12 +126,15 @@ func (s *PostgresStore) EnqueueDispatches(ctx context.Context, kernelID, cycleID
 		})
 	}
 
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit enqueue tx: %w", err)
+	}
 	return dispatches, nil
 }
 
 // ClaimDispatches atomically claims up to limit pending dispatches using FOR UPDATE SKIP LOCKED.
 func (s *PostgresStore) ClaimDispatches(ctx context.Context, kernelID, workerID string, limit int) ([]kerneldomain.Dispatch, error) {
-	leaseUntil := time.Now().UTC().Add(30 * time.Minute)
+	leaseUntil := time.Now().UTC().Add(s.leaseDuration)
 
 	rows, err := s.pool.Query(ctx,
 		`UPDATE `+dispatchTable+` SET

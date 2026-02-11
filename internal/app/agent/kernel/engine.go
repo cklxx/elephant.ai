@@ -13,6 +13,19 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+// cronParser is the standard 5-field cron parser used throughout the kernel.
+var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
+// ValidateSchedule checks whether the given cron expression is valid.
+// Called at build time to fail fast on misconfiguration.
+func ValidateSchedule(expr string) error {
+	_, err := cronParser.Parse(expr)
+	if err != nil {
+		return fmt.Errorf("invalid cron expression %q: %w", expr, err)
+	}
+	return nil
+}
+
 // Engine runs the kernel agent loop: a cron-driven cycle that reads STATE.md,
 // plans dispatches, and executes them via the AgentCoordinator.
 type Engine struct {
@@ -25,6 +38,7 @@ type Engine struct {
 
 	stopped  chan struct{}
 	stopOnce sync.Once
+	wg       sync.WaitGroup // tracks in-flight RunCycle goroutines
 }
 
 // NewEngine creates a new kernel engine.
@@ -127,9 +141,10 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 				e.logger.Warn("Kernel: mark running %s: %v", d.DispatchID, err)
 			}
 
-			meta := d.Metadata
-			if meta == nil {
-				meta = map[string]string{}
+			// Copy metadata to avoid concurrent mutation of the shared map.
+			meta := make(map[string]string, len(d.Metadata)+2)
+			for k, v := range d.Metadata {
+				meta[k] = v
 			}
 			if e.config.UserID != "" {
 				meta["user_id"] = e.config.UserID
@@ -176,9 +191,9 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 // Run starts the main loop, scheduling RunCycle according to the cron expression.
 // It blocks until the context is cancelled or Stop is called.
 func (e *Engine) Run(ctx context.Context) {
-	parser := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-	sched, err := parser.Parse(e.config.Schedule)
+	sched, err := cronParser.Parse(e.config.Schedule)
 	if err != nil {
+		// Schedule was already validated at build time; this is defensive.
 		e.logger.Warn("Kernel: invalid schedule %q: %v", e.config.Schedule, err)
 		return
 	}
@@ -199,14 +214,18 @@ func (e *Engine) Run(ctx context.Context) {
 			e.logger.Info("Kernel[%s] stopped", e.config.KernelID)
 			return
 		case <-timer.C:
-			result, cycleErr := e.RunCycle(ctx)
-			if cycleErr != nil {
-				e.logger.Warn("Kernel[%s] RunCycle error: %v", e.config.KernelID, cycleErr)
-			} else {
-				e.logger.Info("Kernel[%s] cycle %s: %s (dispatched=%d ok=%d fail=%d %s)",
-					e.config.KernelID, result.CycleID, result.Status,
-					result.Dispatched, result.Succeeded, result.Failed, result.Duration)
-			}
+			e.wg.Add(1)
+			func() {
+				defer e.wg.Done()
+				result, cycleErr := e.RunCycle(ctx)
+				if cycleErr != nil {
+					e.logger.Warn("Kernel[%s] RunCycle error: %v", e.config.KernelID, cycleErr)
+				} else {
+					e.logger.Info("Kernel[%s] cycle %s: %s (dispatched=%d ok=%d fail=%d %s)",
+						e.config.KernelID, result.CycleID, result.Status,
+						result.Dispatched, result.Succeeded, result.Failed, result.Duration)
+				}
+			}()
 		}
 	}
 }
@@ -219,8 +238,9 @@ func (e *Engine) Stop() {
 // Name returns the subsystem name for lifecycle management.
 func (e *Engine) Name() string { return "kernel" }
 
-// Drain gracefully stops the engine.
+// Drain gracefully stops the engine and waits for any in-flight cycle to finish.
 func (e *Engine) Drain(_ context.Context) error {
 	e.Stop()
+	e.wg.Wait()
 	return nil
 }

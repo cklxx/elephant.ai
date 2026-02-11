@@ -23,7 +23,7 @@ func setupTestStore(t *testing.T) *PostgresStore {
 	}
 	t.Cleanup(pool.Close)
 
-	store := NewPostgresStore(pool)
+	store := NewPostgresStore(pool, 0) // use default lease duration
 	if err := store.EnsureSchema(ctx); err != nil {
 		t.Fatalf("ensure schema: %v", err)
 	}

@@ -178,8 +178,8 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 	if result.Failed != 0 {
 		t.Errorf("expected 0 failed, got %d", result.Failed)
 	}
-	if len(exec.calls) != 2 {
-		t.Errorf("expected 2 executor calls, got %d", len(exec.calls))
+	if exec.callCount() != 2 {
+		t.Errorf("expected 2 executor calls, got %d", exec.callCount())
 	}
 	// All dispatches should be done.
 	store.mu.Lock()
@@ -192,16 +192,11 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 }
 
 func TestEngine_RunCycle_PartialFailure(t *testing.T) {
-	callCount := 0
-	exec := &mockExecutor{}
-	// Make the second call fail.
-	origExec := exec
 	failExec := &failingExecutor{
-		inner:     origExec,
+		inner:     &mockExecutor{},
 		failAgent: "agent-b",
 	}
 	engine, _ := newTestEngine(t, failExec)
-	_ = callCount
 
 	result, err := engine.RunCycle(context.Background())
 	if err != nil {
@@ -279,11 +274,12 @@ func TestEngine_RunCycle_RunningAgentNotReDispatched(t *testing.T) {
 	if result.Dispatched != 1 {
 		t.Errorf("expected 1 dispatched, got %d", result.Dispatched)
 	}
-	if len(exec.calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(exec.calls))
+	calls := exec.getCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
 	}
-	if exec.calls[0].AgentID != "agent-b" {
-		t.Errorf("expected agent-b, got %s", exec.calls[0].AgentID)
+	if calls[0].AgentID != "agent-b" {
+		t.Errorf("expected agent-b, got %s", calls[0].AgentID)
 	}
 }
 

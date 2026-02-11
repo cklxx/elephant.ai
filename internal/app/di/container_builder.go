@@ -716,7 +716,13 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *agentcoordinator.AgentCoordinator) (*kernelagent.Engine, error) {
 	cfg := b.config.Proactive.Kernel
 
-	kernelStore := kernelinfra.NewPostgresStore(pool)
+	// Validate cron schedule at build time (fail fast).
+	if err := kernelagent.ValidateSchedule(cfg.Schedule); err != nil {
+		return nil, fmt.Errorf("kernel schedule: %w", err)
+	}
+
+	leaseDuration := time.Duration(cfg.LeaseSeconds) * time.Second
+	kernelStore := kernelinfra.NewPostgresStore(pool, leaseDuration)
 	if err := kernelStore.EnsureSchema(context.Background()); err != nil {
 		return nil, fmt.Errorf("kernel dispatch schema: %w", err)
 	}

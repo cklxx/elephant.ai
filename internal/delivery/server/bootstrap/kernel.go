@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 
+	"alex/internal/app/lifecycle"
 	"alex/internal/shared/async"
 )
 
@@ -22,6 +23,10 @@ func (f *Foundation) KernelStage(sm *SubsystemManager) BootstrapStage {
 					async.Go(f.Logger, "kernel-engine", func() {
 						engine.Run(ctx)
 					})
+					// Register as drainable so graceful shutdown waits for in-flight cycles.
+					if drainable, ok := engine.(lifecycle.Drainable); ok {
+						f.Container.Drainables = append(f.Container.Drainables, drainable)
+					}
 					return engine.Stop, nil
 				},
 			})

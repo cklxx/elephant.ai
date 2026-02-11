@@ -141,3 +141,12 @@ proactive:
 ## Progress Log
 
 - 2026-02-11: V1 implemented and all tests passing.
+- 2026-02-11: Code review P0/P1 fixes applied:
+  - P0: Added mutex to mockExecutor (data race under -race)
+  - P0: Wrapped EnqueueDispatches in Postgres transaction (atomicity)
+  - P1: Registered KernelEngine as lifecycle.Drainable in bootstrap
+  - P1: Made PostgresStore accept leaseDuration parameter (was hardcoded 30m)
+  - P1: Added ValidateSchedule() for build-time cron validation
+  - P1: Engine.Drain() now waits for in-flight cycle via WaitGroup
+  - P1: Metadata map copied before concurrent mutation in executeDispatches
+  - Cleanup: Removed dead code in TestEngine_RunCycle_PartialFailure

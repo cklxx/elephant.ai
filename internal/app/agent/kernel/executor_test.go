@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 )
 
-// mockExecutor records calls for testing.
+// mockExecutor records calls for testing. Thread-safe via mutex.
 type mockExecutor struct {
+	mu      sync.Mutex
 	calls   []executorCall
 	err     error
 	taskIDs []string // returned in order
@@ -22,6 +24,8 @@ type executorCall struct {
 }
 
 func (m *mockExecutor) Execute(_ context.Context, agentID, prompt string, meta map[string]string) (string, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.calls = append(m.calls, executorCall{AgentID: agentID, Prompt: prompt, Meta: meta})
 	if m.err != nil {
 		return "", m.err
@@ -34,6 +38,22 @@ func (m *mockExecutor) Execute(_ context.Context, agentID, prompt string, meta m
 	return taskID, nil
 }
 
+// callCount returns the number of recorded calls (thread-safe).
+func (m *mockExecutor) callCount() int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.calls)
+}
+
+// getCalls returns a copy of recorded calls (thread-safe).
+func (m *mockExecutor) getCalls() []executorCall {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]executorCall, len(m.calls))
+	copy(out, m.calls)
+	return out
+}
+
 func TestMockExecutor_RecordsCalls(t *testing.T) {
 	exec := &mockExecutor{}
 	tid, err := exec.Execute(context.Background(), "agent-1", "do stuff", map[string]string{"k": "v"})
@@ -43,10 +63,11 @@ func TestMockExecutor_RecordsCalls(t *testing.T) {
 	if !strings.HasPrefix(tid, "task-") {
 		t.Errorf("unexpected task ID: %s", tid)
 	}
-	if len(exec.calls) != 1 {
-		t.Fatalf("expected 1 call, got %d", len(exec.calls))
+	calls := exec.getCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 call, got %d", len(calls))
 	}
-	if exec.calls[0].AgentID != "agent-1" {
-		t.Errorf("wrong agent: %s", exec.calls[0].AgentID)
+	if calls[0].AgentID != "agent-1" {
+		t.Errorf("wrong agent: %s", calls[0].AgentID)
 	}
 }
