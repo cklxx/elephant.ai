@@ -135,6 +135,27 @@ func (e *ReactEngine) ResumeFromCheckpoint(ctx context.Context, sessionID string
 			return false, err
 		}
 		if len(results) > 0 {
+			missingCalls := missingAssistantToolCalls(state.Messages, calls)
+			if len(missingCalls) > 0 {
+				callIDs := make([]string, 0, len(missingCalls))
+				for _, call := range missingCalls {
+					if id := strings.TrimSpace(call.ID); id != "" {
+						callIDs = append(callIDs, id)
+					}
+				}
+				if len(callIDs) > 0 {
+					e.logger.Warn("Checkpoint recovery restored %d tool output(s) without matching assistant tool_call context; injecting synthetic assistant message (session=%s, call_ids=%s)", len(missingCalls), sessionID, strings.Join(callIDs, ","))
+				}
+				state.Messages = append(state.Messages, Message{
+					Role:      "assistant",
+					ToolCalls: missingCalls,
+					Metadata: map[string]any{
+						"checkpoint_recovered": true,
+					},
+					Source: ports.MessageSourceAssistantReply,
+				})
+			}
+
 			state.ToolResults = append(state.ToolResults, results...)
 			e.observeToolResults(ctx, state, cp.Iteration, results)
 			e.updateGoalPlanPrompts(state, calls, results)
@@ -161,6 +182,39 @@ func (e *ReactEngine) ResumeFromCheckpoint(ctx context.Context, sessionID string
 	}
 
 	return true, nil
+}
+
+func missingAssistantToolCalls(messages []Message, recovered []ToolCall) []ToolCall {
+	if len(recovered) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(recovered))
+	for _, msg := range messages {
+		for _, call := range msg.ToolCalls {
+			callID := strings.TrimSpace(call.ID)
+			if callID == "" {
+				continue
+			}
+			seen[callID] = struct{}{}
+		}
+	}
+
+	missing := make([]ToolCall, 0, len(recovered))
+	for _, call := range recovered {
+		callID := strings.TrimSpace(call.ID)
+		if callID == "" {
+			continue
+		}
+		if _, ok := seen[callID]; ok {
+			continue
+		}
+		missing = append(missing, call)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return missing
 }
 
 func (e *ReactEngine) recoverPendingTools(ctx context.Context, state *TaskState, services Services, cp *Checkpoint) ([]ToolCall, []ToolResult, error) {

@@ -218,7 +218,13 @@ func TestToolInFlightRecovery_Completed(t *testing.T) {
 	if len(state.ToolResults) != 1 || state.ToolResults[0].Content != "cached" {
 		t.Fatalf("expected cached tool result to be applied, got: %+v", state.ToolResults)
 	}
-	if len(state.Messages) != 2 || state.Messages[1].Role != "tool" {
+	if len(state.Messages) != 3 {
+		t.Fatalf("expected 3 messages (user + synthetic assistant tool_call + tool), got: %+v", state.Messages)
+	}
+	if state.Messages[1].Role != "assistant" || len(state.Messages[1].ToolCalls) != 1 || state.Messages[1].ToolCalls[0].ID != "call-1" {
+		t.Fatalf("expected synthetic assistant tool_call message for call-1, got: %+v", state.Messages[1])
+	}
+	if state.Messages[2].Role != "tool" {
 		t.Fatalf("expected tool message to be appended, got: %+v", state.Messages)
 	}
 }
@@ -286,6 +292,15 @@ func TestToolInFlightRecovery_Pending(t *testing.T) {
 	}
 	if len(state.ToolResults) != 1 || state.ToolResults[0].Content != "fresh" {
 		t.Fatalf("expected executed tool result to be applied, got: %+v", state.ToolResults)
+	}
+	if len(state.Messages) != 3 {
+		t.Fatalf("expected 3 messages (user + synthetic assistant tool_call + tool), got: %+v", state.Messages)
+	}
+	if state.Messages[1].Role != "assistant" || len(state.Messages[1].ToolCalls) != 1 || state.Messages[1].ToolCalls[0].ID != "call-1" {
+		t.Fatalf("expected synthetic assistant tool_call message for call-1, got: %+v", state.Messages[1])
+	}
+	if state.Messages[2].Role != "tool" || state.Messages[2].ToolCallID != "call-1" {
+		t.Fatalf("expected recovered tool output message for call-1, got: %+v", state.Messages[2])
 	}
 }
 
