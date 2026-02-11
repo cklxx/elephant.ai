@@ -160,7 +160,7 @@ func (s *OnboardingStateStore) loadDocLocked(ctx context.Context) (onboardingSta
 	}
 
 	var doc onboardingStateDoc
-	if err := jsonx.Unmarshal(data, &doc); err != nil {
+	if err := decodeOnboardingStateDoc(data, &doc); err != nil {
 		return onboardingStateDoc{}, false, fmt.Errorf("parse onboarding state: %w", err)
 	}
 	if doc.Version == 0 {
@@ -171,6 +171,13 @@ func (s *OnboardingStateStore) loadDocLocked(ctx context.Context) (onboardingSta
 	}
 	normalizeOnboardingState(&doc.State)
 	return doc, true, nil
+}
+
+// decodeOnboardingStateDoc parses only the first JSON document.
+// This keeps onboarding reads resilient when historical corruption leaves trailing bytes.
+func decodeOnboardingStateDoc(data []byte, doc *onboardingStateDoc) error {
+	decoder := jsonx.NewDecoder(bytes.NewReader(data))
+	return decoder.Decode(doc)
 }
 
 func (s *OnboardingStateStore) saveDocLocked(ctx context.Context, doc onboardingStateDoc) error {
