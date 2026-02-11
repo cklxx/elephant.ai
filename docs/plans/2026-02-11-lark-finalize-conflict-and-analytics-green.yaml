@@ -1,0 +1,30 @@
+id: "plan-2026-02-11-lark-finalize-conflict-and-analytics-green"
+title: "收敛 request_user 路由冲突并补齐 analytics tracking plan 使全量测试通过"
+status: "in_progress"
+owner: "codex"
+created_at: "2026-02-11T06:00:00Z"
+updated_at: "2026-02-11T06:12:35Z"
+context:
+  goals:
+    - "消除 motivation suite 中剩余 `request_user => channel` 冲突。"
+    - "补齐 `docs/analytics/tracking-plan.yaml`，使 `make test` 全量通过。"
+    - "完成全量校验并提交所有改动。"
+  constraints:
+    - "保留高风险/敏感/外部触达确认边界。"
+    - "不修改无关业务行为。"
+steps:
+  - id: "fix-routing-conflict"
+    title: "强化 consent/approval 与 channel 的边界，修复剩余冲突"
+    status: "completed"
+  - id: "add-tracking-plan"
+    title: "创建 analytics tracking plan 并对齐前后端事件"
+    status: "completed"
+  - id: "full-validation"
+    title: "执行 fmt/vet/test/check-arch 全量验证"
+    status: "completed"
+  - id: "commit-all"
+    title: "分步提交并汇总结果"
+    status: "in_progress"
+artifacts:
+  target_suite: "evaluation/agent_eval/datasets/foundation_eval_suite_motivation_aware.yaml"
+  blocking_test: "internal/infra/analytics/TestTrackingPlanMatchesImplementedEvents"
