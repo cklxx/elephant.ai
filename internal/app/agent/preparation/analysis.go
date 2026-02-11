@@ -77,6 +77,7 @@ func (s *ExecutionPreparationService) preAnalyzeTask(ctx context.Context, sessio
 		MaxTokens:   320,
 		Metadata: map[string]any{
 			"request_id": requestID,
+			"intent":     "task_preanalysis",
 		},
 	}
 

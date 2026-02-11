@@ -73,7 +73,7 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	if err != nil {
 		c.recordHealthError(err)
 		c.logger.Warn("LLM request failed after retries (took %v): %v", duration, err)
-		c.logLLMCallSummary("complete", duration, nil, err)
+		c.logLLMCallSummary("complete", req, duration, nil, err)
 
 		// Check if it's a degraded error (circuit breaker open)
 		if alexerrors.IsDegraded(err) {
@@ -87,7 +87,7 @@ func (c *retryClient) Complete(ctx context.Context, req ports.CompletionRequest)
 	}
 
 	c.recordHealthLatency(duration)
-	c.logLLMCallSummary("complete", duration, resp, nil)
+	c.logLLMCallSummary("complete", req, duration, resp, nil)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM request succeeded after %v", duration)
@@ -176,7 +176,7 @@ func (c *retryClient) StreamComplete(
 
 	if err != nil {
 		c.recordHealthError(err)
-		c.logLLMCallSummary("stream", duration, nil, err)
+		c.logLLMCallSummary("stream", req, duration, nil, err)
 		if alexerrors.IsDegraded(err) {
 			return nil, fmt.Errorf("%s", alexerrors.FormatForLLM(err))
 		}
@@ -185,7 +185,7 @@ func (c *retryClient) StreamComplete(
 	}
 
 	c.recordHealthLatency(duration)
-	c.logLLMCallSummary("stream", duration, resp, nil)
+	c.logLLMCallSummary("stream", req, duration, resp, nil)
 
 	if duration > 5*time.Second {
 		c.logger.Debug("LLM streaming request succeeded after %v", duration)
@@ -343,18 +343,38 @@ func (c *retryClient) formatStreamingError(err error, duration time.Duration) st
 // logLLMCallSummary writes a structured summary to the LLM log (alex-llm.log) for both
 // successful and failed calls. This ensures failures are always visible in the LLM log
 // alongside the debug-level request/response details logged by the base client.
-func (c *retryClient) logLLMCallSummary(mode string, latency time.Duration, resp *ports.CompletionResponse, err error) {
-	model := c.underlying.Model()
+func (c *retryClient) logLLMCallSummary(mode string, req ports.CompletionRequest, latency time.Duration, resp *ports.CompletionResponse, err error) {
+	model := normalizeLogField(c.underlying.Model())
+	provider := normalizeLogField(c.provider)
+	requestID := extractRequestID(req.Metadata)
+	if requestID == "" && resp != nil {
+		requestID = extractMetadataString(resp.Metadata, "request_id")
+	}
+	intent := extractRequestIntent(req.Metadata)
+
 	if err != nil {
-		c.llmLogger.Warn("=== LLM %s FAILED === model=%s latency=%v error=%v",
-			strings.ToUpper(mode), model, latency.Round(time.Millisecond), err)
+		c.llmLogger.Warn("=== LLM %s FAILED === provider=%s model=%s request_id=%s intent=%s latency=%v error_class=%s error=%v",
+			strings.ToUpper(mode),
+			provider,
+			model,
+			normalizeLogField(requestID),
+			normalizeLogField(intent),
+			latency.Round(time.Millisecond),
+			classifyFailureError(err),
+			err,
+		)
 		return
 	}
 	if resp == nil {
 		return
 	}
-	c.llmLogger.Info("=== LLM %s OK === model=%s latency=%v tokens=%d+%d=%d stop=%s",
-		strings.ToUpper(mode), model, latency.Round(time.Millisecond),
+	c.llmLogger.Info("=== LLM %s OK === provider=%s model=%s request_id=%s intent=%s latency=%v tokens=%d+%d=%d stop=%s",
+		strings.ToUpper(mode),
+		provider,
+		model,
+		normalizeLogField(requestID),
+		normalizeLogField(intent),
+		latency.Round(time.Millisecond),
 		resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.TotalTokens,
 		resp.StopReason)
 }
@@ -375,13 +395,33 @@ func (c *retryClient) recordHealthError(err error) {
 
 // WrapWithRetry wraps an existing LLM client with retry logic using provided configuration
 func WrapWithRetry(client portsllm.LLMClient, retryConfig alexerrors.RetryConfig, circuitBreakerConfig alexerrors.CircuitBreakerConfig) portsllm.LLMClient {
+	return WrapWithRetryWithMeta(client, retryConfig, circuitBreakerConfig, "", "")
+}
+
+// WrapWithRetryWithMeta wraps an existing LLM client with retry logic and
+// optional provider/model metadata for log enrichment.
+func WrapWithRetryWithMeta(
+	client portsllm.LLMClient,
+	retryConfig alexerrors.RetryConfig,
+	circuitBreakerConfig alexerrors.CircuitBreakerConfig,
+	provider string,
+	model string,
+) portsllm.LLMClient {
 	// Create circuit breaker for this client
 	circuitBreaker := alexerrors.NewCircuitBreaker(
 		fmt.Sprintf("llm-%s", client.Model()),
 		circuitBreakerConfig,
 	)
-
-	return NewRetryClient(client, retryConfig, circuitBreaker)
+	retry := NewRetryClient(client, retryConfig, circuitBreaker)
+	rc, ok := retry.(*retryClient)
+	if !ok {
+		return retry
+	}
+	rc.provider = strings.TrimSpace(provider)
+	if rc.model == "" {
+		rc.model = strings.TrimSpace(model)
+	}
+	return rc
 }
 
 // WrapWithRetryAndHealth wraps an LLM client with retry, circuit breaker, and health tracking.

@@ -190,7 +190,7 @@ func (f *Factory) getClient(provider, model string, config Config, useCache bool
 		if healthRegistry != nil {
 			client = WrapWithRetryAndHealth(client, retryConfig, circuitBreakerConfig, healthRegistry, provider, model)
 		} else {
-			client = WrapWithRetry(client, retryConfig, circuitBreakerConfig)
+			client = WrapWithRetryWithMeta(client, retryConfig, circuitBreakerConfig, provider, model)
 		}
 	}
 
