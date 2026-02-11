@@ -228,6 +228,7 @@ func RunServer(observabilityConfigPath string) error {
 		// Lark gateway removed - use `alex-server lark` for Lark integration
 		f.SchedulerStage(subsystems),
 		f.TimerManagerStage(subsystems),
+		f.KernelStage(subsystems),
 	}
 
 	if err := RunStages(gatewayStages, f.Degraded, logger); err != nil {

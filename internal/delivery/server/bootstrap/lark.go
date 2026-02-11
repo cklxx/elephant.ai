@@ -71,6 +71,7 @@ func RunLark(observabilityConfigPath string) error {
 		},
 		f.SchedulerStage(subsystems),
 		f.TimerManagerStage(subsystems),
+		f.KernelStage(subsystems),
 	}
 
 	if err := RunStages(gatewayStages, f.Degraded, logger); err != nil {
