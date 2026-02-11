@@ -77,7 +77,7 @@ runtime:
     kernel:
       enabled: true
       kernel_id: "default"
-      schedule: "*/10 * * * *"
+      schedule: "*/30 * * * *"
       channel: "lark"
       user_id: "cklxx"
       seed_state: |
