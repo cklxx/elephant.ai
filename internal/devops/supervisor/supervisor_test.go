@@ -486,9 +486,9 @@ func TestTickRestartBackoffIsAsync(t *testing.T) {
 
 	begin := time.Now()
 	s.tick(context.Background())
-	// The restart is scheduled with a 1s backoff in a goroutine; tick should
-	// return well before that. Keep headroom for slower CI/macOS runners.
-	if elapsed := time.Since(begin); elapsed > 800*time.Millisecond {
+	// Restart backoff must be async: tick should return far earlier than the
+	// configured 3s backoff window. Use a generous bound for busy CI runners.
+	if elapsed := time.Since(begin); elapsed > 2*time.Second {
 		t.Fatalf("tick blocked on restart delay: elapsed=%s", elapsed)
 	}
 

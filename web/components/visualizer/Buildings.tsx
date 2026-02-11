@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Building } from './Building';
 import { generateSpiralLayout, type BuildingLayout } from '@/lib/visualizer/layout';
@@ -36,7 +36,7 @@ export function Buildings() {
   }, [foldersData]);
 
   // Update heatmap based on events
-  useMemo(() => {
+  useEffect(() => {
     events.forEach((event) => {
       if (event.path) {
         // Extract folder path from file path
@@ -48,17 +48,15 @@ export function Buildings() {
   }, [events]);
 
   // Apply heatmap colors to buildings
-  const buildingsWithHeat = useMemo(() => {
-    return buildings.map((building) => {
-      const heatScore = heatmapManager.getHeatScore(building.folderPath);
-      const color = heatmapManager.getHeatColor(heatScore);
-      return {
-        ...building,
-        color,
-        isBuilt: heatScore > 0, // Build animation triggered by first activity
-      };
-    });
-  }, [buildings, events]); // Re-calculate when events change
+  const buildingsWithHeat = buildings.map((building) => {
+    const heatScore = heatmapManager.getHeatScore(building.folderPath);
+    const color = heatmapManager.getHeatColor(heatScore);
+    return {
+      ...building,
+      color,
+      isBuilt: heatScore > 0, // Build animation triggered by first activity
+    };
+  }); // Re-calculate on render after event-driven updates
 
   if (!foldersData) {
     return (

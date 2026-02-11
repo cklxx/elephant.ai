@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef } from 'react';
 import { Mesh } from 'three';
 import { useSpring, animated, config } from '@react-spring/three';
 
@@ -23,19 +23,11 @@ export function Building({
   isBuilt = false,
   folderPath,
 }: BuildingProps) {
-  const [built, setBuilt] = useState(isBuilt);
   const meshRef = useRef<Mesh>(null);
-
-  // Trigger build animation
-  useEffect(() => {
-    if (isBuilt && !built) {
-      setBuilt(true);
-    }
-  }, [isBuilt, built]);
 
   // Build animation
   const { scale } = useSpring({
-    scale: built ? 1 : 0,
+    scale: isBuilt ? 1 : 0,
     config: config.wobbly,
   });
 

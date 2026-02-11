@@ -2,7 +2,6 @@ package context
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -701,23 +700,6 @@ func formatPlanTree(nodes []agent.PlanNode, depth int) []string {
 		if len(node.Children) > 0 {
 			lines = append(lines, formatPlanTree(node.Children, depth+1)...)
 		}
-	}
-	return lines
-}
-
-func summarizeMap(data map[string]any, depth int) []string {
-	if len(data) == 0 {
-		return nil
-	}
-	keys := make([]string, 0, len(data))
-	for key := range data {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	var lines []string
-	for _, key := range keys {
-		value := data[key]
-		lines = append(lines, strings.Repeat("  ", depth)+fmt.Sprintf("- %s: %v", key, value))
 	}
 	return lines
 }
