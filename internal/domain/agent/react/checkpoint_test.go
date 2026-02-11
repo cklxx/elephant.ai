@@ -38,6 +38,10 @@ func (s *recordingCheckpointStore) Delete(_ context.Context, _ string) error {
 	return nil
 }
 
+func (s *recordingCheckpointStore) SaveArchive(_ context.Context, _ *CheckpointArchive) error {
+	return nil
+}
+
 func (s *recordingCheckpointStore) counts() (int, int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
