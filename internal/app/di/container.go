@@ -33,6 +33,14 @@ type LarkGateway interface {
 	SendNotification(ctx context.Context, chatID, text string) error
 }
 
+// KernelEngine is the minimal interface exposed by the kernel agent loop engine.
+type KernelEngine interface {
+	Run(ctx context.Context)
+	Stop()
+	Name() string
+	Drain(ctx context.Context) error
+}
+
 // Container holds all application dependencies
 type Container struct {
 	AgentCoordinator *agentcoordinator.AgentCoordinator
@@ -48,6 +56,7 @@ type Container struct {
 	mcpInitCancel    context.CancelFunc
 	SessionDB        *pgxpool.Pool
 	TaskStore        taskdomain.Store // Unified durable task store (nil if SessionDB is nil)
+	KernelEngine     KernelEngine     // nil if kernel disabled or no DB
 	LarkGateway      LarkGateway
 	LarkOAuth        *larkoauth.Service
 

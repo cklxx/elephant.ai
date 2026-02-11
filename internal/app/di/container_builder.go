@@ -13,6 +13,7 @@ import (
 	agentcoordinator "alex/internal/app/agent/coordinator"
 	agentcost "alex/internal/app/agent/cost"
 	"alex/internal/app/agent/hooks"
+	kernelagent "alex/internal/app/agent/kernel"
 	"alex/internal/app/agent/preparation"
 	ctxmgr "alex/internal/app/context"
 	"alex/internal/app/lifecycle"
@@ -25,6 +26,7 @@ import (
 	"alex/internal/infra/analytics/journal"
 	codinginfra "alex/internal/infra/coding"
 	"alex/internal/infra/external"
+	kernelinfra "alex/internal/infra/kernel"
 	"alex/internal/infra/llm"
 	"alex/internal/infra/mcp"
 	"alex/internal/infra/memory"
@@ -228,6 +230,17 @@ func (b *containerBuilder) Build() (*Container, error) {
 	if drainable, ok := memoryEngine.(lifecycle.Drainable); ok {
 		container.Drainables = append(container.Drainables, drainable)
 	}
+
+	// Build kernel engine if enabled and Postgres is available.
+	if resources.sessionDB != nil && b.config.Proactive.Kernel.Enabled {
+		kernelEngine, err := b.buildKernelEngine(resources.sessionDB, coordinator)
+		if err != nil {
+			b.logger.Warn("Kernel engine init failed: %v (kernel disabled)", err)
+		} else {
+			container.KernelEngine = kernelEngine
+		}
+	}
+
 	return container, nil
 }
 
@@ -697,6 +710,53 @@ func memoryGateFunc(enabled bool) func(context.Context) bool {
 		policy := appcontext.ResolveMemoryPolicy(ctx)
 		return policy.Enabled
 	}
+}
+
+// buildKernelEngine creates the kernel agent loop engine from config.
+func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *agentcoordinator.AgentCoordinator) (*kernelagent.Engine, error) {
+	cfg := b.config.Proactive.Kernel
+
+	kernelStore := kernelinfra.NewPostgresStore(pool)
+	if err := kernelStore.EnsureSchema(context.Background()); err != nil {
+		return nil, fmt.Errorf("kernel dispatch schema: %w", err)
+	}
+
+	stateDir := resolveStorageDir(cfg.StateDir, "~/.alex/kernel")
+	stateFile := kernelagent.NewStateFile(filepath.Join(stateDir, cfg.KernelID))
+
+	agents := make([]kernelagent.AgentConfig, 0, len(cfg.Agents))
+	for _, a := range cfg.Agents {
+		agents = append(agents, kernelagent.AgentConfig{
+			AgentID:  a.AgentID,
+			Prompt:   a.Prompt,
+			Priority: a.Priority,
+			Enabled:  a.Enabled,
+			Metadata: a.Metadata,
+		})
+	}
+	planner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)
+	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
+	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout)
+
+	engine := kernelagent.NewEngine(
+		kernelagent.KernelConfig{
+			Enabled:        cfg.Enabled,
+			KernelID:       cfg.KernelID,
+			Schedule:       cfg.Schedule,
+			SeedState:      cfg.SeedState,
+			TimeoutSeconds: cfg.TimeoutSeconds,
+			LeaseSeconds:   cfg.LeaseSeconds,
+			MaxConcurrent:  cfg.MaxConcurrent,
+			Channel:        cfg.Channel,
+			UserID:         cfg.UserID,
+			ChatID:         cfg.ChatID,
+			Agents:         agents,
+		},
+		stateFile, kernelStore, planner, executor, b.logger,
+	)
+
+	b.logger.Info("Kernel engine built (kernel_id=%s, schedule=%s, agents=%d)", cfg.KernelID, cfg.Schedule, len(agents))
+	return engine, nil
 }
 
 // buildCredentialRefresher creates a function that re-resolves CLI credentials

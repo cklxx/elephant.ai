@@ -200,6 +200,32 @@ type ProactiveConfig struct {
 	Timer             TimerConfig             `json:"timer" yaml:"timer"`
 	FinalAnswerReview FinalAnswerReviewConfig `json:"final_answer_review" yaml:"final_answer_review"`
 	Attention         AttentionConfig         `json:"attention" yaml:"attention"`
+	Kernel            KernelProactiveConfig   `json:"kernel" yaml:"kernel"`
+}
+
+// KernelProactiveConfig configures the kernel agent loop.
+type KernelProactiveConfig struct {
+	Enabled        bool                         `json:"enabled" yaml:"enabled"`
+	KernelID       string                       `json:"kernel_id" yaml:"kernel_id"`
+	Schedule       string                       `json:"schedule" yaml:"schedule"`
+	StateDir       string                       `json:"state_dir" yaml:"state_dir"`
+	SeedState      string                       `json:"seed_state" yaml:"seed_state"`
+	TimeoutSeconds int                          `json:"timeout_seconds" yaml:"timeout_seconds"`
+	LeaseSeconds   int                          `json:"lease_seconds" yaml:"lease_seconds"`
+	MaxConcurrent  int                          `json:"max_concurrent" yaml:"max_concurrent"`
+	Channel        string                       `json:"channel" yaml:"channel"`
+	UserID         string                       `json:"user_id" yaml:"user_id"`
+	ChatID         string                       `json:"chat_id" yaml:"chat_id"`
+	Agents         []KernelAgentProactiveConfig `json:"agents" yaml:"agents"`
+}
+
+// KernelAgentProactiveConfig defines a single agent within the kernel loop.
+type KernelAgentProactiveConfig struct {
+	AgentID  string            `json:"agent_id" yaml:"agent_id"`
+	Prompt   string            `json:"prompt" yaml:"prompt"`
+	Priority int               `json:"priority" yaml:"priority"`
+	Enabled  bool              `json:"enabled" yaml:"enabled"`
+	Metadata map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 // PromptConfig controls system-prompt assembly behavior.
@@ -412,6 +438,15 @@ func DefaultProactiveConfig() ProactiveConfig {
 			MinIntervalSeconds:    1800,
 			QuietHours:            [2]int{22, 8},
 			PriorityThreshold:     0.6,
+		},
+		Kernel: KernelProactiveConfig{
+			Enabled:        false,
+			KernelID:       "default",
+			Schedule:       "*/10 * * * *",
+			StateDir:       "~/.alex/kernel",
+			TimeoutSeconds: 900,
+			LeaseSeconds:   1800,
+			MaxConcurrent:  3,
 		},
 	}
 }
