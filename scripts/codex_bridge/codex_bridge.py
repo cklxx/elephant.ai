@@ -148,7 +148,8 @@ def main() -> None:
         sys.exit(1)
 
     # Build codex exec command.
-    cmd = ["codex", "exec", "--json"]
+    codex_binary = str(cfg.get("binary") or "codex").strip() or "codex"
+    cmd = [codex_binary, "exec", "--json"]
 
     model = cfg.get("model")
     if model:
@@ -229,7 +230,7 @@ def main() -> None:
             sys.exit(1)
 
     except FileNotFoundError:
-        _emit({"type": "error", "message": "codex binary not found in PATH"})
+        _emit({"type": "error", "message": f"codex binary not found: {codex_binary}"})
         _write_done_sentinel()
         sys.exit(1)
     except Exception as exc:

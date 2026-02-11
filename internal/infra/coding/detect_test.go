@@ -2,11 +2,26 @@ package coding
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 )
 
+func disableFallbackCLIPaths(t *testing.T) {
+	t.Helper()
+	oldHomeDir := detectUserHomeDir
+	detectUserHomeDir = func() (string, error) {
+		return "", fmt.Errorf("home dir disabled for deterministic test")
+	}
+	t.Cleanup(func() {
+		detectUserHomeDir = oldHomeDir
+	})
+}
+
 func TestDetectLocalCLIs_IncludesSupportedAndUnsupported(t *testing.T) {
+	disableFallbackCLIPaths(t)
+
 	old := detectLookPath
 	defer func() { detectLookPath = old }()
 
@@ -39,6 +54,8 @@ func TestDetectLocalCLIs_IncludesSupportedAndUnsupported(t *testing.T) {
 }
 
 func TestDetectLocalAdapters_ReturnsOnlyIntegratedAdapters(t *testing.T) {
+	disableFallbackCLIPaths(t)
+
 	old := detectLookPath
 	defer func() { detectLookPath = old }()
 
@@ -61,6 +78,8 @@ func TestDetectLocalAdapters_ReturnsOnlyIntegratedAdapters(t *testing.T) {
 }
 
 func TestDetectLocalCLIs_UsesFallbackBinaryNames(t *testing.T) {
+	disableFallbackCLIPaths(t)
+
 	old := detectLookPath
 	defer func() { detectLookPath = old }()
 
@@ -79,5 +98,37 @@ func TestDetectLocalCLIs_UsesFallbackBinaryNames(t *testing.T) {
 	}
 	if got[0].ID != "claude" || got[0].Binary != "claude-code" {
 		t.Fatalf("unexpected detection result: %+v", got[0])
+	}
+}
+
+func TestDetectLocalCLIs_UsesFallbackHomePathsWhenPATHMissing(t *testing.T) {
+	oldLookPath := detectLookPath
+	oldHomeDir := detectUserHomeDir
+	defer func() {
+		detectLookPath = oldLookPath
+		detectUserHomeDir = oldHomeDir
+	}()
+
+	detectLookPath = func(name string) (string, error) {
+		return "", fmt.Errorf("%s not found in PATH", name)
+	}
+
+	tmpHome := t.TempDir()
+	detectUserHomeDir = func() (string, error) { return tmpHome, nil }
+
+	codexPath := filepath.Join(tmpHome, ".bun", "bin", "codex")
+	if err := os.MkdirAll(filepath.Dir(codexPath), 0o755); err != nil {
+		t.Fatalf("mkdir codex fallback dir: %v", err)
+	}
+	if err := os.WriteFile(codexPath, []byte("#!/bin/sh\necho codex"), 0o755); err != nil {
+		t.Fatalf("write codex fallback binary: %v", err)
+	}
+
+	got := DetectLocalCLIs()
+	if len(got) != 1 {
+		t.Fatalf("expected one detected cli from fallback path, got %d: %+v", len(got), got)
+	}
+	if got[0].ID != "codex" || got[0].Path != codexPath {
+		t.Fatalf("unexpected fallback detection: %+v", got[0])
 	}
 }

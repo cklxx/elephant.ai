@@ -30,6 +30,7 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 	if cfg.ClaudeCode.Enabled {
 		exec := bridge.New(bridge.BridgeConfig{
 			AgentType:              "claude_code",
+			Binary:                 cfg.ClaudeCode.Binary,
 			Interactive:            true,
 			APIKey:                 cfg.ClaudeCode.Env["ANTHROPIC_API_KEY"],
 			DefaultModel:           cfg.ClaudeCode.DefaultModel,
@@ -45,6 +46,7 @@ func NewRegistry(cfg config.ExternalAgentsConfig, logger logging.Logger) *Regist
 	if cfg.Codex.Enabled {
 		exec := bridge.New(bridge.BridgeConfig{
 			AgentType:      "codex",
+			Binary:         cfg.Codex.Binary,
 			Interactive:    false,
 			APIKey:         cfg.Codex.Env["OPENAI_API_KEY"],
 			DefaultModel:   cfg.Codex.DefaultModel,

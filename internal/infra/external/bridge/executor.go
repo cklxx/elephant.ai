@@ -23,6 +23,7 @@ import (
 // BridgeConfig configures a bridge executor for any supported agent type.
 type BridgeConfig struct {
 	AgentType    string // "claude_code" or "codex"
+	Binary       string // Agent CLI binary name/path (primarily for codex bridge).
 	PythonBinary string
 	BridgeScript string
 	Interactive  bool // whether to start permission relay (only claude_code)
@@ -74,7 +75,7 @@ func (a *subprocessAdapter) StderrTail() string    { return a.proc.StderrTail() 
 func (a *subprocessAdapter) Wait() error           { return a.proc.Wait() }
 func (a *subprocessAdapter) Stop() error           { return a.proc.Stop() }
 func (a *subprocessAdapter) PID() int              { return a.proc.PID() }
-func (a *subprocessAdapter) Done() <-chan struct{}  { return a.proc.Done() }
+func (a *subprocessAdapter) Done() <-chan struct{} { return a.proc.Done() }
 
 // Executor implements agent.InteractiveExternalExecutor by spawning a Python
 // bridge sidecar and reading pre-filtered JSONL events from its stdout.
@@ -130,6 +131,7 @@ type bridgeConfig struct {
 	MaxTurns          int            `json:"max_turns,omitempty"`
 	MaxBudgetUSD      float64        `json:"max_budget_usd,omitempty"`
 	WorkingDir        string         `json:"working_dir,omitempty"`
+	Binary            string         `json:"binary,omitempty"`
 	AllowedTools      []string       `json:"allowed_tools,omitempty"`
 	PermissionMCPConf map[string]any `json:"permission_mcp_config,omitempty"`
 	// Codex-specific fields.
@@ -157,6 +159,7 @@ func (e *Executor) Execute(ctx context.Context, req agent.ExternalAgentRequest) 
 		MaxTurns:     maxTurns,
 		MaxBudgetUSD: maxBudget,
 		WorkingDir:   req.WorkingDir,
+		Binary:       pickString(req.Config, "binary", e.cfg.Binary),
 	}
 
 	// Agent-type specific config.

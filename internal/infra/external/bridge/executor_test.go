@@ -40,9 +40,9 @@ func (f *fakeBridgeRunner) Stdout() interface{ Read([]byte) (int, error) } {
 
 func (f *fakeBridgeRunner) StderrTail() string    { return f.stderrTail }
 func (f *fakeBridgeRunner) Wait() error           { return f.waitErr }
-func (f *fakeBridgeRunner) Stop() error            { return nil }
-func (f *fakeBridgeRunner) PID() int               { return 0 }
-func (f *fakeBridgeRunner) Done() <-chan struct{}   { ch := make(chan struct{}); close(ch); return ch }
+func (f *fakeBridgeRunner) Stop() error           { return nil }
+func (f *fakeBridgeRunner) PID() int              { return 0 }
+func (f *fakeBridgeRunner) Done() <-chan struct{} { ch := make(chan struct{}); close(ch); return ch }
 
 type fakeExitError struct {
 	code int
@@ -119,6 +119,7 @@ func TestExecutor_ClaudeCode_ParsesToolAndResult(t *testing.T) {
 func TestExecutor_Codex_ParsesToolAndResult(t *testing.T) {
 	exec := New(BridgeConfig{
 		AgentType:      "codex",
+		Binary:         "/opt/tools/codex",
 		ApprovalPolicy: "auto-edit",
 		Sandbox:        "docker",
 		Timeout:        2 * time.Second,
@@ -169,6 +170,9 @@ func TestExecutor_Codex_ParsesToolAndResult(t *testing.T) {
 	}
 	if cfg.Sandbox != "docker" {
 		t.Fatalf("expected sandbox=docker, got %q", cfg.Sandbox)
+	}
+	if cfg.Binary != "/opt/tools/codex" {
+		t.Fatalf("expected binary path to be forwarded, got %q", cfg.Binary)
 	}
 }
 

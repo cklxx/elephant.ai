@@ -108,7 +108,9 @@ func newContainerBuilder(config Config) *containerBuilder {
 
 func (b *containerBuilder) Build() (*Container, error) {
 	b.logger.Debug("Building container with session_dir=%s, cost_dir=%s", b.sessionDir, b.costDir)
-	b.logLocalCodingCLIDetection()
+	detectedCLIs := codinginfra.DetectLocalCLIs()
+	b.applyDetectedExternalAgents(detectedCLIs, true)
+	b.logLocalCodingCLIDetection(detectedCLIs)
 
 	llmFactory := b.buildLLMFactory()
 	resources, err := b.buildSessionResources()
@@ -229,8 +231,7 @@ func (b *containerBuilder) Build() (*Container, error) {
 	return container, nil
 }
 
-func (b *containerBuilder) logLocalCodingCLIDetection() {
-	detected := codinginfra.DetectLocalCLIs()
+func (b *containerBuilder) logLocalCodingCLIDetection(detected []codinginfra.LocalCLIDetection) {
 	if len(detected) == 0 {
 		b.logger.Info("Coding CLI auto-detect: none found (checked: codex, claude, kimi)")
 		return
@@ -255,6 +256,69 @@ func (b *containerBuilder) logLocalCodingCLIDetection() {
 			enabled,
 		)
 	}
+}
+
+func (b *containerBuilder) applyDetectedExternalAgents(detected []codinginfra.LocalCLIDetection, log bool) {
+	for _, item := range detected {
+		if !item.AdapterSupport {
+			continue
+		}
+		agentType := strings.ToLower(strings.TrimSpace(item.AgentType))
+		switch agentType {
+		case "codex":
+			wasEnabled := b.config.ExternalAgents.Codex.Enabled
+			changedBinary := false
+			if !wasEnabled {
+				b.config.ExternalAgents.Codex.Enabled = true
+			}
+			if shouldAdoptDetectedBinary(b.config.ExternalAgents.Codex.Binary, item.Binary) {
+				changedBinary = b.config.ExternalAgents.Codex.Binary != item.Path
+				b.config.ExternalAgents.Codex.Binary = item.Path
+			}
+			if log && (!wasEnabled || changedBinary) {
+				b.logger.Info(
+					"Coding CLI auto-enable: agent_type=%s enabled with binary=%s",
+					agentType,
+					b.config.ExternalAgents.Codex.Binary,
+				)
+			}
+		case "claude_code":
+			wasEnabled := b.config.ExternalAgents.ClaudeCode.Enabled
+			changedBinary := false
+			if !wasEnabled {
+				b.config.ExternalAgents.ClaudeCode.Enabled = true
+			}
+			if shouldAdoptDetectedBinary(b.config.ExternalAgents.ClaudeCode.Binary, item.Binary) {
+				changedBinary = b.config.ExternalAgents.ClaudeCode.Binary != item.Path
+				b.config.ExternalAgents.ClaudeCode.Binary = item.Path
+			}
+			if log && (!wasEnabled || changedBinary) {
+				b.logger.Info(
+					"Coding CLI auto-enable: agent_type=%s enabled with binary=%s",
+					agentType,
+					b.config.ExternalAgents.ClaudeCode.Binary,
+				)
+			}
+		}
+	}
+}
+
+func shouldAdoptDetectedBinary(current, detectedBinary string) bool {
+	trimmedCurrent := strings.TrimSpace(current)
+	trimmedDetected := strings.TrimSpace(detectedBinary)
+	if trimmedDetected == "" {
+		return false
+	}
+	if trimmedCurrent == "" {
+		return true
+	}
+	if strings.EqualFold(trimmedCurrent, trimmedDetected) {
+		return true
+	}
+	if strings.EqualFold(filepath.Base(trimmedCurrent), trimmedDetected) {
+		return true
+	}
+	return false
 }
 
 func (b *containerBuilder) isExternalAgentEnabled(agentType string) bool {
@@ -542,6 +606,9 @@ func (b *containerBuilder) buildAlternateFrom(parent *Container) (*AlternateCoor
 	hookRegistry := b.buildHookRegistry(parent.MemoryEngine, parent.llmFactory)
 	okrContextProvider := b.buildOKRContextProvider()
 	credentialRefresher := buildCredentialRefresher()
+
+	detectedCLIs := codinginfra.DetectLocalCLIs()
+	b.applyDetectedExternalAgents(detectedCLIs, false)
 
 	var externalExecutor agent.ExternalAgentExecutor
 	externalRegistry := external.NewRegistry(b.config.ExternalAgents, b.logger)

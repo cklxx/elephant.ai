@@ -2,11 +2,26 @@ package config
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
 
+func disableFallbackBinaryDirs(t *testing.T) {
+	t.Helper()
+	oldUserHomeDir := userHomeDir
+	userHomeDir = func() (string, error) {
+		return "", fmt.Errorf("home dir disabled for deterministic test")
+	}
+	t.Cleanup(func() {
+		userHomeDir = oldUserHomeDir
+	})
+}
+
 func TestAutoEnableExternalAgents_Development_DefaultSources(t *testing.T) {
+	disableFallbackBinaryDirs(t)
+
 	oldLookPath := lookPath
 	defer func() { lookPath = oldLookPath }()
 	lookPath = func(name string) (string, error) {
@@ -24,6 +39,9 @@ func TestAutoEnableExternalAgents_Development_DefaultSources(t *testing.T) {
 	if !cfg.ExternalAgents.Codex.Enabled {
 		t.Fatalf("expected codex enabled")
 	}
+	if cfg.ExternalAgents.Codex.Binary != "/fake/codex" {
+		t.Fatalf("expected codex binary to resolve to executable path, got %q", cfg.ExternalAgents.Codex.Binary)
+	}
 	if meta.Source("external_agents.codex.enabled") != SourceCodexCLI {
 		t.Fatalf("unexpected codex source: %s", meta.Source("external_agents.codex.enabled"))
 	}
@@ -31,12 +49,17 @@ func TestAutoEnableExternalAgents_Development_DefaultSources(t *testing.T) {
 	if !cfg.ExternalAgents.ClaudeCode.Enabled {
 		t.Fatalf("expected claude_code enabled")
 	}
+	if cfg.ExternalAgents.ClaudeCode.Binary != "/fake/claude" {
+		t.Fatalf("expected claude_code binary to resolve to executable path, got %q", cfg.ExternalAgents.ClaudeCode.Binary)
+	}
 	if meta.Source("external_agents.claude_code.enabled") != SourceClaudeCLI {
 		t.Fatalf("unexpected claude_code source: %s", meta.Source("external_agents.claude_code.enabled"))
 	}
 }
 
 func TestAutoEnableExternalAgents_Production_DefaultSources(t *testing.T) {
+	disableFallbackBinaryDirs(t)
+
 	oldLookPath := lookPath
 	defer func() { lookPath = oldLookPath }()
 	lookPath = func(name string) (string, error) {
@@ -60,6 +83,8 @@ func TestAutoEnableExternalAgents_Production_DefaultSources(t *testing.T) {
 }
 
 func TestAutoEnableExternalAgents_RespectsExplicitConfig(t *testing.T) {
+	disableFallbackBinaryDirs(t)
+
 	oldLookPath := lookPath
 	defer func() { lookPath = oldLookPath }()
 	lookPath = func(name string) (string, error) {
@@ -88,6 +113,8 @@ func TestAutoEnableExternalAgents_RespectsExplicitConfig(t *testing.T) {
 }
 
 func TestAutoEnableExternalAgents_SkipsWhenBinaryMissing(t *testing.T) {
+	disableFallbackBinaryDirs(t)
+
 	oldLookPath := lookPath
 	defer func() { lookPath = oldLookPath }()
 	lookPath = func(name string) (string, error) {
@@ -111,6 +138,8 @@ func TestAutoEnableExternalAgents_SkipsWhenBinaryMissing(t *testing.T) {
 }
 
 func TestAutoEnableExternalAgents_UsesFallbackBinaryCandidates(t *testing.T) {
+	disableFallbackBinaryDirs(t)
+
 	oldLookPath := lookPath
 	defer func() { lookPath = oldLookPath }()
 	lookPath = func(name string) (string, error) {
@@ -135,7 +164,7 @@ func TestAutoEnableExternalAgents_UsesFallbackBinaryCandidates(t *testing.T) {
 	if !cfg.ExternalAgents.ClaudeCode.Enabled {
 		t.Fatalf("expected claude_code enabled via fallback candidate")
 	}
-	if cfg.ExternalAgents.ClaudeCode.Binary != "claude-code" {
+	if cfg.ExternalAgents.ClaudeCode.Binary != "/fake/claude-code" {
 		t.Fatalf("expected claude_code binary updated to detected fallback, got %q", cfg.ExternalAgents.ClaudeCode.Binary)
 	}
 	if meta.Source("external_agents.claude_code.enabled") != SourceClaudeCLI {
@@ -147,6 +176,8 @@ func TestAutoEnableExternalAgents_UsesFallbackBinaryCandidates(t *testing.T) {
 }
 
 func TestAutoEnableExternalAgents_DoesNotFallbackWhenBinaryExplicitlyConfigured(t *testing.T) {
+	disableFallbackBinaryDirs(t)
+
 	oldLookPath := lookPath
 	defer func() { lookPath = oldLookPath }()
 	lookPath = func(name string) (string, error) {
@@ -175,6 +206,8 @@ func TestAutoEnableExternalAgents_DoesNotFallbackWhenBinaryExplicitlyConfigured(
 }
 
 func TestAutoEnableExternalAgents_ExplicitBinaryStillAutoEnablesWhenPresent(t *testing.T) {
+	disableFallbackBinaryDirs(t)
+
 	oldLookPath := lookPath
 	defer func() { lookPath = oldLookPath }()
 	lookPath = func(name string) (string, error) {
@@ -202,5 +235,40 @@ func TestAutoEnableExternalAgents_ExplicitBinaryStillAutoEnablesWhenPresent(t *t
 	}
 	if meta.Source("external_agents.claude_code.binary") != SourceFile {
 		t.Fatalf("expected claude_code binary source to remain file, got %s", meta.Source("external_agents.claude_code.binary"))
+	}
+}
+
+func TestDetectFirstAvailableBinary_UsesFallbackDirs(t *testing.T) {
+	oldLookPath := lookPath
+	oldUserHomeDir := userHomeDir
+	defer func() {
+		lookPath = oldLookPath
+		userHomeDir = oldUserHomeDir
+	}()
+
+	lookPath = func(name string) (string, error) {
+		return "", fmt.Errorf("binary %s not found in PATH", name)
+	}
+
+	tmpHome := t.TempDir()
+	userHomeDir = func() (string, error) { return tmpHome, nil }
+
+	fallbackPath := filepath.Join(tmpHome, ".local", "bin", "codex")
+	if err := os.MkdirAll(filepath.Dir(fallbackPath), 0o755); err != nil {
+		t.Fatalf("mkdir fallback dir: %v", err)
+	}
+	if err := os.WriteFile(fallbackPath, []byte("#!/bin/sh\necho codex"), 0o755); err != nil {
+		t.Fatalf("write fallback binary: %v", err)
+	}
+
+	binary, resolved, ok := detectFirstAvailableBinary([]string{"codex"})
+	if !ok {
+		t.Fatalf("expected fallback binary to be detected")
+	}
+	if binary != "codex" {
+		t.Fatalf("unexpected binary name: %q", binary)
+	}
+	if resolved != fallbackPath {
+		t.Fatalf("unexpected resolved path: got=%q want=%q", resolved, fallbackPath)
 	}
 }

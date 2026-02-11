@@ -1,11 +1,14 @@
 package coding
 
 import (
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
 var detectLookPath = exec.LookPath
+var detectUserHomeDir = os.UserHomeDir
 
 // LocalCLIDetection captures startup-time local coding CLI availability.
 type LocalCLIDetection struct {
@@ -68,10 +71,53 @@ func detectFirstBinary(binaries []string) (path string, binary string, ok bool) 
 		if trimmed == "" {
 			continue
 		}
-		resolved, err := detectLookPath(trimmed)
+		resolved, err := resolveLocalBinaryPath(trimmed)
 		if err == nil {
 			return resolved, trimmed, true
 		}
 	}
 	return "", "", false
+}
+
+func resolveLocalBinaryPath(binary string) (string, error) {
+	if filepath.IsAbs(binary) {
+		if isExecutableFile(binary) {
+			return binary, nil
+		}
+		return "", os.ErrNotExist
+	}
+	if path, err := detectLookPath(binary); err == nil {
+		return path, nil
+	}
+	for _, dir := range fallbackCLIPaths() {
+		candidate := filepath.Join(dir, binary)
+		if isExecutableFile(candidate) {
+			return candidate, nil
+		}
+	}
+	return "", os.ErrNotExist
+}
+
+func fallbackCLIPaths() []string {
+	dirs := []string{
+		"/usr/local/bin",
+		"/opt/homebrew/bin",
+	}
+	home, err := detectUserHomeDir()
+	if err == nil && strings.TrimSpace(home) != "" {
+		dirs = append([]string{
+			filepath.Join(home, ".local", "bin"),
+			filepath.Join(home, ".bun", "bin"),
+			filepath.Join(home, ".npm", "bin"),
+		}, dirs...)
+	}
+	return dirs
+}
+
+func isExecutableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || info.IsDir() {
+		return false
+	}
+	return info.Mode()&0o111 != 0
 }
