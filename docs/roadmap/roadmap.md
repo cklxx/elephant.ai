@@ -33,7 +33,7 @@ The primary vertical slice: the assistant reads your calendar and tasks, reminds
 
 ## Current State (2026-02-08)
 
-**M0 is complete. M1 (P2) is ~95% complete.** All P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, SLA-profile routing, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex). **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. P3 (Coding Agent Gateway, Shadow Agent, Deep Lark) remains future.
+**M0 is complete. M1 (P2) is ~95% complete.** All historical M0 P0 and P1 items are done. P2 progress: context engineering (priority sorting, cost-aware trimming, token budget, memory flush), tool chain enhancements (SLA metrics, SLA-profile routing, degradation chain, dynamic scheduler tools), Lark ecosystem (approval API, smart cards, group summary, rich content), LLM intelligence (dynamic model selection, provider health, token budget), and DevOps foundations (signal collection, CI eval gating) are implemented. **Remaining P2 gaps**: replan/sub-goal decomposition (Codex), memory restructuring D5 (Codex). **Evaluation automation + evaluation set construction are in progress** (baseline/challenge eval set scaffolding, rubric + auto/agent judgement pipeline), with remaining work in dataset expansion, judge integration, and reporting. **Coding Gateway foundation (abstraction/multi-adapter/CLI auto-detect) is reprioritized to Immediate P0 (2026-02-11).** P3 remains Shadow Agent + Deep Lark + expansion themes.
 
 **Steward AI foundation is complete (Phases 1-7, merged 2026-02-06).** Cross-turn structured state (StewardState), NEW_STATE output protocol, SYSTEM_REMINDER context injection, L1-L4 tool safety levels, three-tier context budget, steward persona/policy configs, and 40+ unit tests are all merged to main. Remaining gaps: activation enforcement loop, evidence ref enforcement, state compression on overflow, safety level approval UX, steward-specific eval scenarios.
 
@@ -75,13 +75,19 @@ Scoring dimensions:
 | Safety level approval UX | High | Medium | High | M | **Now (P1)** |
 | Evaluation automation | Medium | High | Medium | M | **Now (P1)** |
 | Evaluation set construction | Medium | High | Medium | M | **Now (P1)** |
-| Coding Agent Gateway (minimal foundation) | Medium | Medium | Medium | M | **Next (P2)** |
+| Coding Agent Gateway (foundation: abstraction + multi-adapter + CLI auto-detect) | High | High | High | M | **Immediate (P0)** |
 | Shadow Agent framework bootstrap | Low | Medium | Medium | L | **Later (P3)** |
 | Deep Lark / Platform / Data Processing / Self-Evolution large themes | Low (for current NSM) | Low | Low-Medium | L | **Hold (P3+)** |
 
 ## Task Resplit (Execution Batches, 2026-02-08)
 
 Detailed queue is tracked in `docs/roadmap/roadmap-pending-2026-02-08.md`. The milestone split is:
+
+### Batch 0 — Coding gateway foundation (Immediate P0)
+- Gateway abstraction (`Submit/Stream/Cancel/Status`) + adapter registration baseline.
+- Multi-adapter framework (pluggable adapters via shared contract).
+- Local CLI auto-detect (`which codex`/`which claude`) and availability exposure.
+- **Definition of Done:** coding gateway contract is stable with tests; at least one adapter can register; runtime can detect local coding CLI availability without manual wiring.
 
 ### Batch A — Steward reliability closure (Now, week 1)
 - Steward mode activation enforcement.
@@ -100,13 +106,12 @@ Detailed queue is tracked in `docs/roadmap/roadmap-pending-2026-02-08.md`. The m
 - Evaluation set expansion for baseline + challenge suites aligned with North Star scenarios.
 - **Definition of Done:** PR/tag workflow can run quick eval and generate comparable report with pass/fail gate inputs.
 
-### Batch D — Coding gateway bootstrap (Next)
-- Gateway abstraction + adapter registration.
-- Local CLI auto-detect + verification interface baseline (build/test/lint contract only).
-- **Definition of Done:** one coding task can be dispatched, streamed, verified, and reported with a stable adapter contract.
+### Batch D — Coding verification contract (Next)
+- Build/test/lint verification interface baseline (after Batch 0 contract is stable).
+- **Definition of Done:** verification API returns stable pass/fail + diagnostics payload for gateway-executed coding tasks.
 
 ### Batch E — Shadow + expansion tracks (Later/Hold)
-- Shadow Agent, deep Lark ecosystem expansion, platform/data/self-evolution bets remain queued after Batch A-D metric validation.
+- Shadow Agent, deep Lark ecosystem expansion, platform/data/self-evolution bets remain queued after Batch 0 + Batch A-D metric validation.
 
 ## Implementation Audit Notes (2026-02-01)
 
@@ -132,6 +137,14 @@ Items that must ship before the calendar + tasks loop works end-to-end.
 | Scheduler reminders | Calendar trigger wired into scheduler | **Done** | Claude C10 | `internal/app/scheduler/` |
 | Tool registration for new Lark tools | All tools registered in registry | **Done** | Claude C7 | `internal/app/toolregistry/registry.go` |
 | E2E integration test | Full calendar flow E2E | **Done** | Codex X1 | `internal/app/scheduler/calendar_flow_e2e_test.go` |
+
+### Reprioritized P0 (2026-02-11): Coding Gateway Foundation
+
+| Item | Why | Status | Owner | Code path |
+|------|-----|--------|-------|-----------|
+| Gateway abstraction | Unified interface: Submit / Stream / Cancel / Status | **Not started** | Codex X8 | `internal/coding/gateway.go` |
+| Multi-adapter framework | Codex CLI, Claude Code CLI, Kimi K2 — pluggable registration | **Not started** | Claude | `internal/coding/adapters/` |
+| Local CLI auto-detect | Detect installed coding agent CLIs (`which codex`/`which claude`), auto-register | **Not started** | Claude | `internal/coding/adapters/detect.go` |
 
 ## P1: M0 Quality
 
@@ -220,19 +233,21 @@ Enhancements after the core loop is stable.
 | Architecture CI gate (`make check-arch`) | 防止边界回归，保障后续分层迁移 | **Done** | Codex | `scripts/check-arch.sh`, `Makefile`, `.github/workflows/ci.yml` |
 | Layering migration (`delivery/app/domain/infra/shared`) + RAG deletion | 简化结构、清除无效 RAG 代码、降低飞线逻辑累积 | **Done** | Codex | `internal/{delivery,app,domain,infra,shared}/`, `scripts/arch/check-graph.sh`, `configs/arch/*.yaml` |
 
+### Coding Gateway Follow-up (post P0 foundation)
+
+| Item | Why | Status | Owner | Code path |
+|------|-----|--------|-------|-----------|
+| Build/test/lint verification | Auto-verify agent output compiles, passes tests, passes lint | **Not started** | Claude | `internal/coding/verify*.go` |
+
 ## P3: Future (M2+)
 
 Larger bets that depend on M0+M1 foundations.
 
-### Coding Agent Gateway
+### Coding Gateway Advanced Workflow
 
 | Item | Why | Status | Owner | Code path |
 |------|-----|--------|-------|-----------|
-| Gateway abstraction | Unified interface: Submit / Stream / Cancel / Status | **Not started** | Codex X8 | `internal/coding/gateway.go` |
-| Multi-adapter framework | Codex CLI, Claude Code CLI, Kimi K2 — pluggable registration | **Not started** | Claude | `internal/coding/adapters/` |
-| Local CLI auto-detect | Detect installed coding agent CLIs (`which codex`/`which claude`), auto-register | **Not started** | Claude | `internal/coding/adapters/detect.go` |
 | Task translation | User natural language → coding agent structured instructions | **Not started** | Claude | `internal/coding/task.go` |
-| Build/test/lint verification | Auto-verify agent output compiles, passes tests, passes lint | **Not started** | Claude | `internal/coding/verify*.go` |
 | Fix loop | Verify fail → inject error → agent retry → re-verify, multi-round | **Not started** | Codex | `internal/coding/fix_loop.go` |
 | Auto commit + PR | On acceptance: auto commit + create PR + generate description | **Not started** | Claude | `internal/coding/deliver.go` |
 

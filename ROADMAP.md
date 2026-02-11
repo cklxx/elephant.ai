@@ -1,6 +1,6 @@
 # elephant.ai Roadmap
 
-Updated: 2026-02-10
+Updated: 2026-02-11
 
 This roadmap is a **guided navigation + execution priority** for the current codebase.
 
@@ -31,6 +31,10 @@ Key entrypoints:
 ### P0: Reliability and resume semantics
 - Harden cross-process task continuity and checkpoint recovery.
 - Scope: `internal/domain/agent/react`, `internal/app/agent/coordinator`, `internal/infra/session`.
+
+### P0: Coding gateway foundation (reprioritized)
+- Prioritize gateway contract and local coding-adapter bring-up for exploration speed.
+- Scope: `internal/coding/gateway.go`, `internal/coding/adapters/`, `internal/coding/adapters/detect.go`.
 
 ### P1: Tooling surface stability
 - Keep core tool inventory stable and explicitly versioned in docs/eval.

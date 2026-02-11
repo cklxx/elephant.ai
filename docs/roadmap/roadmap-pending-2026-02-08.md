@@ -8,10 +8,23 @@
 - Previous snapshot `docs/roadmap/roadmap-pending-2026-02-06.md` is retained for history only.
 
 ## Priority Tiers
+- **Immediate (P0):** highest-priority execution leverage required for current exploration speed.
 - **Now (P1):** direct reliability/completion impact on the current North Star loop.
 - **Next (P2):** enables higher execution leverage after P1 is closed.
 - **Later (P3):** strategic expansion, not required for current loop closure.
 - **Hold (P3+):** low immediate NSM impact; revisit after metric uplift.
+
+---
+
+## Immediate (P0)
+
+### Batch 0 — Coding gateway foundation
+
+| Task | Current status | Core-goal value | Dependencies | Definition of Done |
+|------|----------------|-----------------|--------------|--------------------|
+| Gateway abstraction | Not started | Establishes one stable coding execution contract | None | Unified Submit/Stream/Cancel/Status contract lands with tests |
+| Multi-adapter framework | Not started | Enables fast adapter expansion without contract churn | Gateway abstraction | At least one adapter can register via common interface |
+| Local CLI auto-detect | Not started | Improves local operability and reduces manual setup friction | Adapter layer | Runtime detects installed coding CLIs and exposes availability |
 
 ---
 
@@ -44,13 +57,10 @@
 
 ## Next (P2)
 
-### Batch D — Coding gateway bootstrap
+### Batch D — Coding verification contract
 
 | Task | Current status | Why next (not now) | Dependencies | Definition of Done |
 |------|----------------|--------------------|--------------|--------------------|
-| Gateway abstraction | Not started | Execution leverage, but not a blocker for current NSM slice | None | Unified Submit/Stream/Cancel/Status contract lands with tests |
-| Multi-adapter framework | Not started | Future extensibility after gateway contract stabilizes | Gateway abstraction | At least one adapter can register via common interface |
-| Local CLI auto-detect | Not started | Improves operability, not core-loop blocker | Adapter layer | Runtime detects installed coding CLIs and exposes availability |
 | Build/test/lint verification contract | Not started | Needed for safe automation in later milestones | Gateway + adapter execution | Verification API returns stable pass/fail + diagnostics payload |
 
 ---
@@ -74,4 +84,3 @@
 |------|----------|
 | Tool result caching | Removed (de-scoped) |
 | Tool SLA profile + dynamic routing | Done |
-
