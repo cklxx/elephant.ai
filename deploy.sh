@@ -617,17 +617,17 @@ run_docker_compose() {
 build_backend() {
     log_info "Building backend..."
 
-    if ! make server-build 2>&1 | tee "$LOG_DIR/build.log"; then
+    if ! make web-build 2>&1 | tee "$LOG_DIR/build.log"; then
         log_error "Backend build failed, check logs/build.log"
         tail -20 "$LOG_DIR/build.log"
         return 1
     fi
 
-    if [[ ! -f ./alex-server ]]; then
-        die "alex-server binary not found after build"
+    if [[ ! -f ./alex-web ]]; then
+        die "alex-web binary not found after build"
     fi
 
-    log_success "Backend built: ./alex-server"
+    log_success "Backend built: ./alex-web"
 }
 
 install_frontend_deps() {
@@ -716,7 +716,7 @@ start_backend() {
     fi
 
     # Start server in background with deploy mode flag
-    ALEX_SERVER_MODE=deploy ACP_EXECUTOR_ADDR="${acp_executor_addr}" ./alex-server > "$SERVER_LOG" 2>&1 &
+    ALEX_SERVER_MODE=deploy ACP_EXECUTOR_ADDR="${acp_executor_addr}" ./alex-web > "$SERVER_LOG" 2>&1 &
     local pid=$!
     echo "$pid" > "$SERVER_PID_FILE"
 

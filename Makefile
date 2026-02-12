@@ -2,6 +2,7 @@
 	help build clean fmt vet dev demo run install test test-domain test-app \
 	check-deps check-arch check-arch-policy bench docs npm-copy-binaries npm-publish npm-test-install \
 	build-all release-npm server-build server-run server-test \
+	web-build web-run \
 	server-test-integration dev-up dev-down dev-status dev-logs dev-restart dev-lint dev-test \
 	deploy deploy-docker deploy-test deploy-status \
 	deploy-down eval-server-build eval-server-run eval-server-test
@@ -111,14 +112,14 @@ release-npm: build-all npm-copy-binaries ## Build binaries and publish to npm
 	@echo "Publishing to npm..."
 	@./scripts/publish-npm.sh
 
-# SSE Server targets
-server-build: ## Build alex-server binary
-	@echo "Building alex-server..."
+# Lark server targets (alex-server = Lark-primary binary with debug HTTP)
+server-build: ## Build alex-server binary (Lark mode)
+	@echo "Building alex-server (Lark)..."
 	@$(GO) build -o alex-server ./cmd/alex-server/
 	@echo "✓ Server build complete: ./alex-server"
 
-server-run: server-build ## Run alex-server
-	@echo "Starting alex-server on port 8080..."
+server-run: server-build ## Run alex-server (Lark mode + debug HTTP on :9090)
+	@echo "Starting alex-server (Lark mode)..."
 	@./alex-server
 
 server-test: ## Run server tests
@@ -128,6 +129,16 @@ server-test: ## Run server tests
 server-test-integration: server-build ## Run integration tests with test script
 	@echo "Running SSE server integration tests..."
 	@./scripts/test-sse-server.sh
+
+# Web server targets (alex-web = full web API + frontend)
+web-build: ## Build alex-web binary (web API + frontend)
+	@echo "Building alex-web..."
+	@$(GO) build -o alex-web ./cmd/alex-web/
+	@echo "✓ Web build complete: ./alex-web"
+
+web-run: web-build ## Run alex-web (full web API on :8080)
+	@echo "Starting alex-web on port 8080..."
+	@./alex-web
 
 ## ========================================
 ## Dev Environment (alex dev)

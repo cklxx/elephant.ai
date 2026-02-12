@@ -465,7 +465,7 @@ pid_executable_path() {
 
 is_our_backend_pid() {
   local pid="$1"
-  local backend_bin="${SCRIPT_DIR}/alex-server"
+  local backend_bin="${SCRIPT_DIR}/alex-web"
   local exe
 
   exe="$(pid_executable_path "$pid" || true)"
@@ -477,7 +477,7 @@ is_alex_server_pid() {
   local exe
 
   exe="$(pid_executable_path "$pid" || true)"
-  [[ -n "$exe" && "$(basename "$exe")" == "alex-server" ]]
+  [[ -n "$exe" && ( "$(basename "$exe")" == "alex-server" || "$(basename "$exe")" == "alex-web" ) ]]
 }
 
 alex_server_listener_pids() {
@@ -833,16 +833,18 @@ cleanup_orphan_web_processes() {
 }
 
 build_server() {
-  log_info "Building backend (./cmd/alex-server)..."
+  log_info "Building backend (./cmd/alex-web + ./cmd/alex-server)..."
   cgo_apply_mode
   if [[ "${CGO_ENABLED:-}" == "1" ]]; then
     log_info "CGO enabled for build (ALEX_CGO_MODE=$(cgo_mode))"
   else
     log_info "CGO disabled for build (ALEX_CGO_MODE=$(cgo_mode))"
   fi
+  "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" build -o "${SCRIPT_DIR}/alex-web" ./cmd/alex-web
+  [[ -x "${SCRIPT_DIR}/alex-web" ]] || die "Backend build succeeded but ./alex-web is not executable"
   "${SCRIPT_DIR}/scripts/go-with-toolchain.sh" build -o "${SCRIPT_DIR}/alex-server" ./cmd/alex-server
   [[ -x "${SCRIPT_DIR}/alex-server" ]] || die "Backend build succeeded but ./alex-server is not executable"
-  log_success "Backend built: ./alex-server"
+  log_success "Backend built: ./alex-web + ./alex-server"
 }
 
 start_server() {
@@ -885,7 +887,7 @@ start_server() {
     ALEX_SERVER_MODE="deploy" \
     ALEX_LOG_DIR="${LOG_DIR}" \
     ACP_EXECUTOR_ADDR="${acp_executor_addr}" \
-    "${SCRIPT_DIR}/alex-server" \
+    "${SCRIPT_DIR}/alex-web" \
     >"${SERVER_LOG}" 2>&1 &
 
   echo $! >"${SERVER_PID_FILE}"

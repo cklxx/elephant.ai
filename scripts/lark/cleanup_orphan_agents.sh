@@ -56,17 +56,23 @@ read_pid_if_running() {
 
 collect_candidates() {
   local scope="$1"
-  ps -axo pid= -o command= | awk -v main_cmd="${ROOT}/alex-server lark" -v test_cmd="${TEST_ROOT}/alex-server lark" -v scope="${scope}" '
+  # Match both new-style (`alex-server` without args) and legacy (`alex-server lark`).
+  ps -axo pid= -o command= | awk \
+    -v main_cmd="${ROOT}/alex-server" \
+    -v main_cmd_legacy="${ROOT}/alex-server lark" \
+    -v test_cmd="${TEST_ROOT}/alex-server" \
+    -v test_cmd_legacy="${TEST_ROOT}/alex-server lark" \
+    -v scope="${scope}" '
     {
       pid = $1
       $1 = ""
       sub(/^ /, "", $0)
       cmd = $0
 
-      if ((scope == "all" || scope == "main") && index(cmd, main_cmd) == 1) {
+      if ((scope == "all" || scope == "main") && (index(cmd, main_cmd_legacy) == 1 || index(cmd, main_cmd) == 1)) {
         print pid "\tmain\t" cmd
       }
-      if ((scope == "all" || scope == "test") && index(cmd, test_cmd) == 1) {
+      if ((scope == "all" || scope == "test") && (index(cmd, test_cmd_legacy) == 1 || index(cmd, test_cmd) == 1)) {
         print pid "\ttest\t" cmd
       }
     }

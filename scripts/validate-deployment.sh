@@ -91,7 +91,8 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 run_detailed_test "编译 CLI (alex)" "go build -o alex ./cmd/alex"
-run_detailed_test "编译 Server (alex-server)" "go build -o alex-server ./cmd/alex-server"
+run_detailed_test "编译 Lark Server (alex-server)" "go build -o alex-server ./cmd/alex-server"
+run_detailed_test "编译 Web Server (alex-web)" "go build -o alex-web ./cmd/alex-web"
 
 echo ""
 echo -e "${YELLOW}Phase 3: 后端测试${NC}"
@@ -173,8 +174,8 @@ echo ""
 
 run_test "alex 可执行" "test -x alex"
 run_test "alex-server 可执行" "test -x alex-server"
+run_test "alex-web 可执行" "test -x alex-web"
 run_test "alex --version" "./alex --version || true"
-run_test "alex-server 版本" "./alex-server --version || true"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

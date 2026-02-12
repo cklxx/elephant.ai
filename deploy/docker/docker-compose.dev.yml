@@ -31,7 +31,7 @@ services:
       - alex-sessions-dev:/data/sessions
       - ~/.alex/config.yaml:/root/.alex/config.yaml:ro
     working_dir: /app
-    command: go run ./cmd/alex-server
+    command: go run ./cmd/alex-web
     restart: unless-stopped
     depends_on:
       auth-db:

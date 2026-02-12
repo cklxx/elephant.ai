@@ -174,7 +174,7 @@ start() {
   fi
 
   log_info "Starting Lark standalone agent..."
-  ALEX_CONFIG_PATH="${MAIN_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" LARK_NOTICE_STATE_FILE="${NOTICE_STATE_FILE}" nohup "${BIN}" lark >> "${LOG_FILE}" 2>&1 &
+  ALEX_CONFIG_PATH="${MAIN_CONFIG}" ALEX_LOG_DIR="${ALEX_LOG_DIR}" LARK_NOTICE_STATE_FILE="${NOTICE_STATE_FILE}" nohup "${BIN}" >> "${LOG_FILE}" 2>&1 &
   echo "$!" > "${PID_FILE}"
 
   pid="$(read_pid "${PID_FILE}" || true)"
