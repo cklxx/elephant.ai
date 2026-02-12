@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -258,8 +259,37 @@ func TestEngine_RunCycle_SeedState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
-	if content != engine.config.SeedState {
-		t.Errorf("state not seeded: got %q", content)
+	if !strings.Contains(content, engine.config.SeedState) {
+		t.Errorf("state missing seed content: got %q", content)
+	}
+	if !strings.Contains(content, kernelRuntimeSectionStart) || !strings.Contains(content, kernelRuntimeSectionEnd) {
+		t.Fatalf("state missing kernel runtime markers: %q", content)
+	}
+	if !strings.Contains(content, "## kernel_runtime") {
+		t.Fatalf("state missing kernel runtime section: %q", content)
+	}
+}
+
+func TestEngine_RunCycle_RuntimeSectionUpsertedOnce(t *testing.T) {
+	exec := &mockExecutor{}
+	engine, _ := newTestEngine(t, exec)
+
+	if _, err := engine.RunCycle(context.Background()); err != nil {
+		t.Fatalf("first RunCycle: %v", err)
+	}
+	if _, err := engine.RunCycle(context.Background()); err != nil {
+		t.Fatalf("second RunCycle: %v", err)
+	}
+
+	content, err := engine.stateFile.Read()
+	if err != nil {
+		t.Fatalf("Read: %v", err)
+	}
+	if got := strings.Count(content, kernelRuntimeSectionStart); got != 1 {
+		t.Fatalf("expected exactly one runtime section start marker, got %d: %q", got, content)
+	}
+	if got := strings.Count(content, kernelRuntimeSectionEnd); got != 1 {
+		t.Fatalf("expected exactly one runtime section end marker, got %d: %q", got, content)
 	}
 }
 

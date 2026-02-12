@@ -1,7 +1,14 @@
 package kernel
 
+const (
+	// DefaultStateRootDir is the fixed storage root for kernel markdown artifacts.
+	DefaultStateRootDir = "~/.alex/kernel"
+	// DefaultSeedStateContent initializes STATE.md on first boot.
+	DefaultSeedStateContent = "# Kernel State\n## identity\nelephant.ai autonomous kernel\n## recent_actions\n(none yet)\n"
+)
+
 // KernelConfig holds only the fields the Engine reads at runtime.
-// DI-only concerns (Enabled, StateDir, TimeoutSeconds, LeaseSeconds, ChatID,
+// DI-only concerns (Enabled, TimeoutSeconds, LeaseSeconds, ChatID,
 // Agents) stay in KernelProactiveConfig and are consumed by the DI builder.
 type KernelConfig struct {
 	KernelID      string `yaml:"kernel_id"`
@@ -15,7 +22,7 @@ type KernelConfig struct {
 // AgentConfig defines a single agent that the kernel dispatches.
 type AgentConfig struct {
 	AgentID  string            `yaml:"agent_id"`
-	Prompt   string            `yaml:"prompt"`    // may contain {STATE} placeholder
+	Prompt   string            `yaml:"prompt"` // may contain {STATE} placeholder
 	Priority int               `yaml:"priority"`
 	Enabled  bool              `yaml:"enabled"`
 	Metadata map[string]string `yaml:"metadata,omitempty"`

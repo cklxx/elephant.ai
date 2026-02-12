@@ -51,6 +51,44 @@ func TestStateFile_SeedIdempotent(t *testing.T) {
 	}
 }
 
+func TestStateFile_InitAndSystemPromptFiles(t *testing.T) {
+	sf := NewStateFile(t.TempDir())
+
+	initContent := "# init\nkernel config"
+	if err := sf.SeedInit(initContent); err != nil {
+		t.Fatalf("SeedInit: %v", err)
+	}
+	if err := sf.SeedInit("# overwritten"); err != nil {
+		t.Fatalf("second SeedInit: %v", err)
+	}
+	gotInit, err := sf.ReadInit()
+	if err != nil {
+		t.Fatalf("ReadInit: %v", err)
+	}
+	if gotInit != initContent {
+		t.Fatalf("init content mismatch: got %q want %q", gotInit, initContent)
+	}
+
+	systemPrompt := "You are kernel system prompt."
+	if err := sf.WriteSystemPrompt(systemPrompt); err != nil {
+		t.Fatalf("WriteSystemPrompt: %v", err)
+	}
+	gotPrompt, err := sf.ReadSystemPrompt()
+	if err != nil {
+		t.Fatalf("ReadSystemPrompt: %v", err)
+	}
+	if gotPrompt != systemPrompt {
+		t.Fatalf("system prompt mismatch: got %q want %q", gotPrompt, systemPrompt)
+	}
+
+	if filepath.Base(sf.InitPath()) != "INIT.md" {
+		t.Fatalf("unexpected init path: %s", sf.InitPath())
+	}
+	if filepath.Base(sf.SystemPromptPath()) != "SYSTEM_PROMPT.md" {
+		t.Fatalf("unexpected system prompt path: %s", sf.SystemPromptPath())
+	}
+}
+
 func TestStateFile_AtomicWrite(t *testing.T) {
 	dir := t.TempDir()
 	sf := NewStateFile(dir)

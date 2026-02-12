@@ -736,8 +736,9 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 		return nil, fmt.Errorf("kernel dispatch schema: %w", err)
 	}
 
-	stateDir := resolveStorageDir(cfg.StateDir, "~/.alex/kernel")
-	stateFile := kernelagent.NewStateFile(filepath.Join(stateDir, cfg.KernelID))
+	stateRoot := resolveStorageDir("", kernelagent.DefaultStateRootDir)
+	stateFile := kernelagent.NewStateFile(filepath.Join(stateRoot, cfg.KernelID))
+	seedState := kernelagent.DefaultSeedStateContent
 
 	agents := make([]kernelagent.AgentConfig, 0, len(cfg.Agents))
 	for _, a := range cfg.Agents {
@@ -749,6 +750,37 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 			Metadata: a.Metadata,
 		})
 	}
+
+	seededAt := time.Now()
+	initDoc := kernelagent.RenderInitMarkdown(kernelagent.InitDocSnapshot{
+		GeneratedAt:      seededAt,
+		KernelID:         cfg.KernelID,
+		Schedule:         cfg.Schedule,
+		StateDir:         stateRoot,
+		StatePath:        stateFile.Path(),
+		InitPath:         stateFile.InitPath(),
+		SystemPromptPath: stateFile.SystemPromptPath(),
+		TimeoutSeconds:   cfg.TimeoutSeconds,
+		LeaseSeconds:     cfg.LeaseSeconds,
+		MaxConcurrent:    cfg.MaxConcurrent,
+		Channel:          cfg.Channel,
+		UserID:           cfg.UserID,
+		ChatID:           cfg.ChatID,
+		SeedState:        seedState,
+		Agents:           agents,
+	})
+	if err := stateFile.SeedInit(initDoc); err != nil {
+		b.logger.Warn("Kernel init doc seed failed: %v", err)
+	}
+
+	systemPrompt := strings.TrimSpace(coordinator.GetSystemPrompt())
+	if systemPrompt == "" {
+		systemPrompt = preparation.DefaultSystemPrompt
+	}
+	if err := stateFile.SeedSystemPrompt(kernelagent.RenderSystemPromptMarkdown(systemPrompt, seededAt)); err != nil {
+		b.logger.Warn("Kernel system prompt doc seed failed: %v", err)
+	}
+
 	planner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)
 	timeout := time.Duration(cfg.TimeoutSeconds) * time.Second
 	executor := kernelagent.NewCoordinatorExecutor(coordinator, timeout)
@@ -757,7 +789,7 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 		kernelagent.KernelConfig{
 			KernelID:      cfg.KernelID,
 			Schedule:      cfg.Schedule,
-			SeedState:     cfg.SeedState,
+			SeedState:     seedState,
 			MaxConcurrent: cfg.MaxConcurrent,
 			Channel:       cfg.Channel,
 			UserID:        cfg.UserID,

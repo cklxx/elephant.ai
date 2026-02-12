@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +16,11 @@ import (
 
 // cronParser is the standard 5-field cron parser used throughout the kernel.
 var cronParser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
+
+const (
+	kernelRuntimeSectionStart = "<!-- KERNEL_RUNTIME:START -->"
+	kernelRuntimeSectionEnd   = "<!-- KERNEL_RUNTIME:END -->"
+)
 
 // ValidateSchedule checks whether the given cron expression is valid.
 // Called at build time to fail fast on misconfiguration.
@@ -72,9 +78,12 @@ func NewEngine(
 }
 
 // RunCycle executes one PERCEIVE-ORIENT-DECIDE-ACT-UPDATE cycle.
-func (e *Engine) RunCycle(ctx context.Context) (*kerneldomain.CycleResult, error) {
+func (e *Engine) RunCycle(ctx context.Context) (result *kerneldomain.CycleResult, err error) {
 	start := time.Now()
 	cycleID := id.NewRunID()
+	defer func() {
+		e.persistCycleRuntimeState(result, err)
+	}()
 
 	// 1. Read STATE.md (opaque text).
 	stateContent, err := e.stateFile.Read()
@@ -126,10 +135,96 @@ func (e *Engine) RunCycle(ctx context.Context) (*kerneldomain.CycleResult, error
 	}
 
 	// 6. Execute dispatches in parallel (bounded by MaxConcurrent).
-	result := e.executeDispatches(ctx, cycleID, dispatches)
+	result = e.executeDispatches(ctx, cycleID, dispatches)
 	result.Duration = time.Since(start)
 
 	return result, nil
+}
+
+func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycleErr error) {
+	stateContent, err := e.stateFile.Read()
+	if err != nil {
+		e.logger.Warn("Kernel: read state for runtime persistence failed: %v", err)
+		return
+	}
+	if strings.TrimSpace(stateContent) == "" {
+		stateContent = e.config.SeedState
+	}
+
+	runtimeBlock := renderKernelRuntimeBlock(result, cycleErr, time.Now())
+	updated := upsertKernelRuntimeBlock(stateContent, runtimeBlock)
+	if err := e.stateFile.Write(updated); err != nil {
+		e.logger.Warn("Kernel: persist runtime state failed: %v", err)
+	}
+}
+
+func renderKernelRuntimeBlock(result *kerneldomain.CycleResult, cycleErr error, now time.Time) string {
+	lines := []string{
+		"## kernel_runtime",
+		fmt.Sprintf("- updated_at: %s", now.UTC().Format(time.RFC3339)),
+	}
+	if result == nil {
+		lines = append(lines,
+			"- cycle_id: (none)",
+			"- status: error",
+			"- dispatched: 0",
+			"- succeeded: 0",
+			"- failed: 0",
+			"- failed_agents: (none)",
+			"- duration_ms: 0",
+		)
+	} else {
+		failedAgents := "(none)"
+		if len(result.FailedAgents) > 0 {
+			failedAgents = strings.Join(result.FailedAgents, ", ")
+		}
+		lines = append(lines,
+			fmt.Sprintf("- cycle_id: %s", result.CycleID),
+			fmt.Sprintf("- status: %s", result.Status),
+			fmt.Sprintf("- dispatched: %d", result.Dispatched),
+			fmt.Sprintf("- succeeded: %d", result.Succeeded),
+			fmt.Sprintf("- failed: %d", result.Failed),
+			fmt.Sprintf("- failed_agents: %s", failedAgents),
+			fmt.Sprintf("- duration_ms: %d", result.Duration.Milliseconds()),
+		)
+	}
+	if cycleErr != nil {
+		lines = append(lines, fmt.Sprintf("- error: %s", cycleErr.Error()))
+	} else {
+		lines = append(lines, "- error: (none)")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func upsertKernelRuntimeBlock(content, runtimeBlock string) string {
+	block := kernelRuntimeSectionStart + "\n" + runtimeBlock + "\n" + kernelRuntimeSectionEnd
+
+	start := strings.Index(content, kernelRuntimeSectionStart)
+	end := strings.Index(content, kernelRuntimeSectionEnd)
+	if start >= 0 && end > start {
+		end += len(kernelRuntimeSectionEnd)
+		prefix := strings.TrimRight(content[:start], "\n")
+		suffix := strings.TrimLeft(content[end:], "\n")
+
+		var out strings.Builder
+		if prefix != "" {
+			out.WriteString(prefix)
+			out.WriteString("\n\n")
+		}
+		out.WriteString(block)
+		if suffix != "" {
+			out.WriteString("\n\n")
+			out.WriteString(suffix)
+		}
+		out.WriteString("\n")
+		return out.String()
+	}
+
+	trimmed := strings.TrimRight(content, "\n")
+	if trimmed == "" {
+		return block + "\n"
+	}
+	return trimmed + "\n\n" + block + "\n"
 }
 
 // executeDispatches runs dispatches concurrently with a bounded semaphore.
