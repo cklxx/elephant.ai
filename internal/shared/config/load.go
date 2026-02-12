@@ -80,6 +80,9 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 		return RuntimeConfig{}, Metadata{}, err
 	}
 
+	cfgBeforeOverrides := cfg
+	metaSourcesBeforeOverrides := cloneMetadataSources(meta.sources)
+
 	// Apply caller overrides last.
 	applyOverrides(&cfg, &meta, options.overrides)
 
@@ -113,10 +116,67 @@ func Load(opts ...Option) (RuntimeConfig, Metadata, error) {
 	// Enforce an atomic provider/model/auth/base_url profile so downstream
 	// components can consume it without provider-specific mismatch handling.
 	if _, err := ResolveLLMProfile(cfg); err != nil {
+		if attemptRepairManagedBaseURLOverrideMismatch(
+			&cfg,
+			&meta,
+			cfgBeforeOverrides,
+			metaSourcesBeforeOverrides,
+		) {
+			if _, retryErr := ResolveLLMProfile(cfg); retryErr == nil {
+				return cfg, meta, nil
+			}
+		}
 		return RuntimeConfig{}, Metadata{}, err
 	}
 
 	return cfg, meta, nil
+}
+
+func cloneMetadataSources(src map[string]ValueSource) map[string]ValueSource {
+	if len(src) == 0 {
+		return map[string]ValueSource{}
+	}
+	dst := make(map[string]ValueSource, len(src))
+	for key, value := range src {
+		dst[key] = value
+	}
+	return dst
+}
+
+func attemptRepairManagedBaseURLOverrideMismatch(
+	cfg *RuntimeConfig,
+	meta *Metadata,
+	cfgBeforeOverrides RuntimeConfig,
+	metaSourcesBeforeOverrides map[string]ValueSource,
+) bool {
+	if cfg == nil || meta == nil {
+		return false
+	}
+	if cfg.Profile == RuntimeProfileProduction {
+		return false
+	}
+	if meta.Source("base_url") != SourceOverride {
+		return false
+	}
+
+	fallbackBaseURL := strings.TrimSpace(cfgBeforeOverrides.BaseURL)
+	if fallbackBaseURL == "" || fallbackBaseURL == strings.TrimSpace(cfg.BaseURL) {
+		return false
+	}
+
+	candidate := *cfg
+	candidate.BaseURL = fallbackBaseURL
+	if _, err := ResolveLLMProfile(candidate); err != nil {
+		return false
+	}
+
+	*cfg = candidate
+	if source, ok := metaSourcesBeforeOverrides["base_url"]; ok {
+		meta.sources["base_url"] = source
+	} else {
+		delete(meta.sources, "base_url")
+	}
+	return true
 }
 
 func normalizeRuntimeConfig(cfg *RuntimeConfig) {

@@ -762,6 +762,41 @@ runtime:
 	}
 }
 
+func TestLoadRepairsOverrideBaseURLMismatchUsingPreOverrideValue(t *testing.T) {
+	fileData := []byte(`
+runtime:
+  llm_provider: "anthropic"
+  llm_model: "kimi-for-coding"
+  api_key: "sk-kimi-abc"
+  base_url: "https://api.kimi.com/coding/v1"
+`)
+
+	cfg, meta, err := Load(
+		WithFileReader(func(string) ([]byte, error) { return fileData, nil }),
+		WithEnv(envMap{}.Lookup),
+		WithOverrides(Overrides{
+			LLMProvider: ptrString("codex"),
+			LLMModel:    ptrString("gpt-5.2-codex"),
+			BaseURL:     ptrString("https://chatgpt.com/backend-api/codex"),
+		}),
+	)
+	if err != nil {
+		t.Fatalf("expected override base_url mismatch repair, got error: %v", err)
+	}
+	if cfg.LLMProvider != "codex" {
+		t.Fatalf("expected provider to remain codex override, got %q", cfg.LLMProvider)
+	}
+	if cfg.LLMModel != "gpt-5.2-codex" {
+		t.Fatalf("expected model to remain override value, got %q", cfg.LLMModel)
+	}
+	if cfg.BaseURL != "https://api.kimi.com/coding/v1" {
+		t.Fatalf("expected base_url to fall back to pre-override runtime value, got %q", cfg.BaseURL)
+	}
+	if got := meta.Source("base_url"); got != SourceFile {
+		t.Fatalf("expected base_url source to revert to file after repair, got %s", got)
+	}
+}
+
 func TestEnvOverridesFile(t *testing.T) {
 	fileData := []byte(`
 runtime:
