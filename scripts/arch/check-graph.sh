@@ -155,7 +155,7 @@ while IFS= read -r pkg; do
   src_layer="$(layer_of "$pkg")"
   [[ -z "$src_layer" ]] && continue
 
-  imports="$(go list -f '{{range .Imports}}{{println .}}{{end}}' "$pkg" | rg '^alex/internal/' || true)"
+  imports="$(go list -f '{{range .Imports}}{{println .}}{{end}}' "$pkg" | grep '^alex/internal/' || true)"
   if [[ -n "$imports" ]]; then
     printf '%s\n' "$imports" | sort -u > "$TMP_DIR/pkg-imports.txt"
   else
