@@ -1,0 +1,1 @@
+Summary: Added `alex-server kernel-once` for deterministic real kernel E2E runs (no cron wait), validated two successful real cycles, and confirmed updated `GOAL.md` is injected into `SYSTEM_PROMPT.md` kernel alignment context.

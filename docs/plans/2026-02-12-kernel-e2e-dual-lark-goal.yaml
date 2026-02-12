@@ -1,0 +1,40 @@
+id: 2026-02-12-kernel-e2e-dual-lark-goal
+title: Real kernel E2E validation + dual Lark kernel-count check + goal enrichment
+status: completed
+owner: codex
+goals:
+  - Run a real (non-mock) kernel runtime validation and capture evidence.
+  - Verify current behavior when main/test Lark agents run together: how many kernel engines actually start.
+  - Add/seed kernel objective content and lock with tests.
+scope:
+  in:
+    - scripts/lark/*.sh runtime validation flow
+    - kernel objective persistence/alignment path
+    - kernel-related unit/integration coverage updates
+    - docs updates for this task
+  out:
+    - redesigning kernel scheduler architecture
+    - changing channel gateway semantics
+references:
+  - docs/guides/engineering-practices.md
+  - docs/kernel-prompt-state-flow.md
+  - docs/error-experience/summary/entries/2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md
+  - internal/app/agent/preparation/kernel_alignment_provider.go
+  - internal/infra/tools/builtin/session/kernel_goal.go
+steps:
+  - id: step-1-context-and-runtime-check
+    description: Inspect startup/config paths and run real main/test Lark startup check for kernel activation signals
+    status: completed
+  - id: step-2-goal-enrichment
+    description: Implement kernel goal enrichment path (seed/update/load) with tests
+    status: completed
+  - id: step-3-verify-and-deliver
+    description: Run lint + full tests, run mandatory code review workflow, and summarize findings with evidence
+    status: completed
+progress_log:
+  - "2026-02-12 23:45: Initialized plan and started runtime startup-path verification."
+  - "2026-02-12 23:44: Verified real running kernel evidence from alex-kernel.log + ~/.alex/kernel/default/STATE.md."
+  - "2026-02-12 23:44: Attempted to start test Lark agent; startup failed due invalid test profile/provider key alignment."
+  - "2026-02-12 23:48: Added alex-server kernel-once command and ran two real cycles successfully (run-8cy7ObfYf5Pb, run-9QVzWyxNBJzy)."
+  - "2026-02-12 23:48: Updated ~/.alex/kernel/default/GOAL.md with requested objective and verified it appears in SYSTEM_PROMPT.md."
+  - "2026-02-13 00:04: Completed lint + full go test -race -cover (clean env overrides) and finished mandatory code review."

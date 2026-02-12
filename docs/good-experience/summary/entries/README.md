@@ -4,6 +4,7 @@ Updated: 2026-02-12
 
 ## Files
 
+- [2026-02-12-kernel-once-real-e2e-and-goal-alignment.md](2026-02-12-kernel-once-real-e2e-and-goal-alignment.md)
 - [2026-02-12-kernel-e2e-state-summary-alignment.md](2026-02-12-kernel-e2e-state-summary-alignment.md)
 - [2026-02-12-llm-profile-client-provider-decoupling.md](2026-02-12-llm-profile-client-provider-decoupling.md)
 - [2026-02-10-basic-active-suite-zero-na-regression-baseline.md](2026-02-10-basic-active-suite-zero-na-regression-baseline.md)
