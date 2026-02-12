@@ -141,6 +141,18 @@ func TestLLMFactoryProbe(t *testing.T) {
 			t.Errorf("Unexpected message: %s", health.Message)
 		}
 	})
+
+	t.Run("not ready when container nil", func(t *testing.T) {
+		probe := NewLLMFactoryProbe(nil)
+		health := probe.Check(context.Background())
+
+		if health.Status != ports.HealthStatusNotReady {
+			t.Errorf("Expected status 'not_ready', got '%s'", health.Status)
+		}
+		if health.Message != "LLM factory container not initialized" {
+			t.Errorf("Unexpected message: %s", health.Message)
+		}
+	})
 }
 
 func TestDegradedProbe(t *testing.T) {

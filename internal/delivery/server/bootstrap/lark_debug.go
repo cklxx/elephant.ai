@@ -21,7 +21,9 @@ func BuildDebugHTTPServer(f *Foundation, broadcaster *serverApp.EventBroadcaster
 
 	// Health checker — mirrors the probes from RunServer minus MCP.
 	healthChecker := serverApp.NewHealthChecker()
-	healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
+	if container != nil {
+		healthChecker.RegisterProbe(serverApp.NewLLMFactoryProbe(container))
+	}
 	healthChecker.RegisterProbe(serverApp.NewDegradedProbe(f.Degraded))
 
 	// Config handler for runtime config inspection/mutation.

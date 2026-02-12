@@ -157,6 +157,13 @@ func NewLLMFactoryProbe(container *di.Container) *LLMFactoryProbe {
 
 // Check returns the health status of LLM factory
 func (p *LLMFactoryProbe) Check(ctx context.Context) ports.ComponentHealth {
+	if p == nil || p.container == nil {
+		return ports.ComponentHealth{
+			Name:    "llm_factory",
+			Status:  ports.HealthStatusNotReady,
+			Message: "LLM factory container not initialized",
+		}
+	}
 	if !p.container.HasLLMFactory() {
 		return ports.ComponentHealth{
 			Name:    "llm_factory",

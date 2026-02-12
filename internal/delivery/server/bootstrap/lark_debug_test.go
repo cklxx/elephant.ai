@@ -1,6 +1,9 @@
 package bootstrap
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -71,5 +74,34 @@ func TestBuildDebugHTTPServer_NilFoundation(t *testing.T) {
 	}
 	if server.ReadTimeout != 5*time.Minute {
 		t.Errorf("expected ReadTimeout 5m, got %v", server.ReadTimeout)
+	}
+}
+
+func TestBuildDebugHTTPServer_HealthWithNilContainer(t *testing.T) {
+	f := &Foundation{
+		Degraded: NewDegradedComponents(),
+		Config: Config{
+			DebugPort: "0",
+		},
+		ConfigResult: ConfigResult{},
+	}
+
+	broadcaster := serverApp.NewEventBroadcaster()
+	server, err := BuildDebugHTTPServer(f, broadcaster, nil, Config{DebugPort: "0"})
+	if err != nil {
+		t.Fatalf("BuildDebugHTTPServer failed: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	rec := httptest.NewRecorder()
+	server.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("expected health JSON response, got err=%v body=%s", err, rec.Body.String())
 	}
 }

@@ -1,0 +1,57 @@
+title: "2026-02-12 Phase1 并发硬化（Web/Lark）"
+status: in_progress
+branch: feat/phase1-concurrency-hardening-20260212
+created_at: "2026-02-12"
+summary:
+  - 修复 Lark debug HTTP nil-container 健康探针风险
+  - 引入任务 claim/lease（新建与恢复路径）
+  - 引入全局任务准入控制（阻塞等待，受 HTTP timeout 约束）
+  - 同步修正文档中 web/lark 入口事实
+scope:
+  in:
+    - internal/delivery/server/bootstrap/lark_debug.go
+    - internal/delivery/server/app/health.go
+    - internal/domain/task/store.go
+    - internal/infra/task/postgres_store.go
+    - internal/delivery/server/app/task_store.go
+    - internal/infra/task/server_adapter.go
+    - internal/delivery/server/ports/task.go
+    - internal/delivery/server/app/task_execution_service.go
+    - internal/delivery/server/app/server_coordinator.go
+    - internal/delivery/server/bootstrap/config.go
+    - internal/shared/config/file_config.go
+    - docs/reviews/2026-02-11-web-lark-architecture-concurrency-review.md
+  out:
+    - SSE 跨实例事件总线
+    - scheduler leader election
+    - Lark map 清理机制的全量改造
+choices:
+  admission:
+    mode: block_until_slot
+    request_timeout_source: server.non_stream_timeout_seconds
+  lease:
+    ttl_seconds: 45
+    renew_interval_seconds: 15
+  claim_scope:
+    - resume_path
+    - create_path
+progress:
+  - "2026-02-12 11:45: 创建 worktree 分支并复制 .env"
+  - "2026-02-12 11:47: 初始化计划文件，开始实现"
+  - "2026-02-12 11:56: 完成 nil-container 风险修复（LLMFactoryProbe nil-safe + debug bootstrap guard）并补健康端点回归测试"
+checklist:
+  - id: p1
+    item: 修复 nil container 健康探针风险并补测试
+    status: completed
+  - id: p2
+    item: 设计并实现任务 lease/claim 存储接口与 postgres/inmemory 实现
+    status: in_progress
+  - id: p3
+    item: TaskExecutionService 接入 claim/renew/release（create + resume）
+    status: pending
+  - id: p4
+    item: 增加全局 task admission semaphore 与配置项
+    status: pending
+  - id: p5
+    item: 修正文档入口事实、跑全量校验、代码审查、增量提交
+    status: pending
