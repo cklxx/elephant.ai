@@ -164,7 +164,7 @@ func TestTaskCancellation(t *testing.T) {
 	costTracker := agentcost.NewCostTracker(costStore)
 	taskStore := serverApp.NewInMemoryTaskStore()
 	broadcaster := serverApp.NewEventBroadcaster()
-	stateStore := sessionstate.NewInMemoryStore()
+	_ = sessionstate.NewInMemoryStore() // stateStore no longer needed after ServerCoordinator removal
 
 	agentCoordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
@@ -182,17 +182,15 @@ func TestTaskCancellation(t *testing.T) {
 		},
 	)
 
-	serverCoordinator := serverApp.NewServerCoordinator(
+	tasksSvc := serverApp.NewTaskExecutionService(
 		agentCoordinator,
 		broadcaster,
-		sessionStore,
 		taskStore,
-		stateStore,
 	)
 
 	// Create and start a long-running task
 	ctx := context.Background()
-	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "Long running task", "", "", "")
+	task, err := tasksSvc.ExecuteTaskAsync(ctx, "Long running task", "", "", "")
 	if err != nil {
 		t.Fatalf("failed to start task: %v", err)
 	}
@@ -203,14 +201,14 @@ func TestTaskCancellation(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 
 	// Verify task is running
-	runningTask, err := serverCoordinator.GetTask(ctx, task.ID)
+	runningTask, err := tasksSvc.GetTask(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("failed to get task: %v", err)
 	}
 	t.Logf("Task status before cancellation: %s", runningTask.Status)
 
 	// Cancel the task
-	if err := serverCoordinator.CancelTask(ctx, task.ID); err != nil {
+	if err := tasksSvc.CancelTask(ctx, task.ID); err != nil {
 		t.Fatalf("failed to cancel task: %v", err)
 	}
 
@@ -220,7 +218,7 @@ func TestTaskCancellation(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// Verify: Task status is cancelled
-	finalTask, err := serverCoordinator.GetTask(ctx, task.ID)
+	finalTask, err := tasksSvc.GetTask(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("failed to get task: %v", err)
 	}
@@ -260,7 +258,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	costTracker := agentcost.NewCostTracker(costStore)
 	taskStore := serverApp.NewInMemoryTaskStore()
 	broadcaster := serverApp.NewEventBroadcaster()
-	stateStore := sessionstate.NewInMemoryStore()
+	_ = sessionstate.NewInMemoryStore() // stateStore no longer needed after ServerCoordinator removal
 
 	agentCoordinator := agentcoordinator.NewAgentCoordinator(
 		llmFactory,
@@ -278,12 +276,10 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 		},
 	)
 
-	serverCoordinator := serverApp.NewServerCoordinator(
+	tasksSvc := serverApp.NewTaskExecutionService(
 		agentCoordinator,
 		broadcaster,
-		sessionStore,
 		taskStore,
-		stateStore,
 	)
 
 	// Get or create session
@@ -314,7 +310,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	t.Logf("Initial cost: $%.6f", initialSummary.TotalCost)
 
 	// Start task
-	task, err := serverCoordinator.ExecuteTaskAsync(ctx, "Task with cost tracking", session.ID, "", "")
+	task, err := tasksSvc.ExecuteTaskAsync(ctx, "Task with cost tracking", session.ID, "", "")
 	if err != nil {
 		t.Fatalf("failed to start task: %v", err)
 	}
@@ -336,7 +332,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	}
 
 	// Cancel task
-	if err := serverCoordinator.CancelTask(ctx, task.ID); err != nil {
+	if err := tasksSvc.CancelTask(ctx, task.ID); err != nil {
 		t.Fatalf("failed to cancel task: %v", err)
 	}
 
@@ -355,7 +351,7 @@ func TestCostTrackingWithCancellation(t *testing.T) {
 	}
 
 	// Verify: Task status is cancelled
-	finalTask, err := serverCoordinator.GetTask(ctx, task.ID)
+	finalTask, err := tasksSvc.GetTask(ctx, task.ID)
 	if err != nil {
 		t.Fatalf("failed to get task: %v", err)
 	}
