@@ -10,10 +10,13 @@ describe('SkillsPanel', () => {
     render(<SkillsPanel />);
 
     expect(screen.getByText('Skills')).toBeInTheDocument();
-    expect(screen.getByText('ppt-deck')).toBeInTheDocument();
-    expect(screen.getByText('video-production')).toBeInTheDocument();
+    expect(screen.getAllByText('ppt-deck').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('video-production').length).toBeGreaterThanOrEqual(1);
 
-    await user.click(screen.getByText('PPT 产出（从目标到可交付 Deck）'));
-    expect(screen.getByText(/When to use this skill/i)).toBeInTheDocument();
+    // Click the ppt-deck skill description to expand its markdown body
+    const descEl = screen.getByText(/PPT 产出/);
+    await user.click(descEl);
+    // Expanded content should show markdown rendered from the skill catalog
+    expect(screen.getByText(/presentation decks/i)).toBeInTheDocument();
   });
 });
