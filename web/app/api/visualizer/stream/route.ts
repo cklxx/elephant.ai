@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { registerListener, getRecentEvents, VisualizerEvent } from '../events/route';
+import { registerListener, getRecentEvents, type VisualizerEvent } from '../events/_store';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
