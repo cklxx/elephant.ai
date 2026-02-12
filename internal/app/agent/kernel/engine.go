@@ -42,6 +42,10 @@ type Engine struct {
 	wg       sync.WaitGroup // tracks in-flight RunCycle goroutines
 }
 
+type staleDispatchRecoverer interface {
+	RecoverStaleRunning(ctx context.Context, kernelID string) (int, error)
+}
+
 // SetNotifier registers an optional callback invoked after each non-empty cycle.
 func (e *Engine) SetNotifier(fn func(ctx context.Context, result *kerneldomain.CycleResult, err error)) {
 	e.notifier = fn
@@ -84,14 +88,24 @@ func (e *Engine) RunCycle(ctx context.Context) (*kerneldomain.CycleResult, error
 		stateContent = e.config.SeedState
 	}
 
-	// 2. Query each agent's most recent dispatch status.
+	// 2. Recover stale running dispatches from previous interrupted cycles.
+	if recoverer, ok := e.store.(staleDispatchRecoverer); ok {
+		recovered, recoverErr := recoverer.RecoverStaleRunning(ctx, e.config.KernelID)
+		if recoverErr != nil {
+			e.logger.Warn("Kernel: recover stale dispatches failed: %v", recoverErr)
+		} else if recovered > 0 {
+			e.logger.Warn("Kernel: recovered %d stale running dispatch(es)", recovered)
+		}
+	}
+
+	// 3. Query each agent's most recent dispatch status.
 	recentByAgent, err := e.store.ListRecentByAgent(ctx, e.config.KernelID)
 	if err != nil {
 		e.logger.Warn("Kernel: list recent dispatches failed: %v", err)
 		recentByAgent = map[string]kerneldomain.Dispatch{}
 	}
 
-	// 3. Plan — generate dispatch specs (STATE content injected into prompts).
+	// 4. Plan — generate dispatch specs (STATE content injected into prompts).
 	specs, err := e.planner.Plan(ctx, stateContent, recentByAgent)
 	if err != nil {
 		return nil, fmt.Errorf("plan: %w", err)
@@ -105,13 +119,13 @@ func (e *Engine) RunCycle(ctx context.Context) (*kerneldomain.CycleResult, error
 		}, nil
 	}
 
-	// 4. Enqueue dispatches to Postgres.
+	// 5. Enqueue dispatches to Postgres.
 	dispatches, err := e.store.EnqueueDispatches(ctx, e.config.KernelID, cycleID, specs)
 	if err != nil {
 		return nil, fmt.Errorf("enqueue: %w", err)
 	}
 
-	// 5. Execute dispatches in parallel (bounded by MaxConcurrent).
+	// 6. Execute dispatches in parallel (bounded by MaxConcurrent).
 	result := e.executeDispatches(ctx, cycleID, dispatches)
 	result.Duration = time.Since(start)
 

@@ -15,6 +15,8 @@ type memStore struct {
 	mu          sync.Mutex
 	dispatches  []kerneldomain.Dispatch
 	schemaReady bool
+	recoverHits int
+	recoverErr  error
 }
 
 func newMemStore() *memStore {
@@ -112,6 +114,16 @@ func (s *memStore) ListRecentByAgent(_ context.Context, kernelID string) (map[st
 		}
 	}
 	return result, nil
+}
+
+func (s *memStore) RecoverStaleRunning(_ context.Context, _ string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.recoverHits++
+	if s.recoverErr != nil {
+		return 0, s.recoverErr
+	}
+	return 0, nil
 }
 
 func newTestEngine(t *testing.T, exec Executor) (*Engine, *memStore) {
@@ -381,6 +393,21 @@ func TestEngine_StopIdempotent(t *testing.T) {
 	// Should not panic when called multiple times.
 	engine.Stop()
 	engine.Stop()
+}
+
+func TestEngine_RunCycle_RecoversStaleDispatchesWhenSupported(t *testing.T) {
+	exec := &mockExecutor{}
+	engine, store := newTestEngine(t, exec)
+
+	if _, err := engine.RunCycle(context.Background()); err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if store.recoverHits == 0 {
+		t.Fatal("expected stale recovery hook to be called")
+	}
 }
 
 // failingExecutor wraps another executor and fails for a specific agent.

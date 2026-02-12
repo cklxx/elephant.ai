@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	kerneldomain "alex/internal/domain/kernel"
@@ -161,9 +162,10 @@ func (s *PostgresStore) ClaimDispatches(ctx context.Context, kernelID, workerID 
 
 // MarkDispatchRunning sets the dispatch status to running.
 func (s *PostgresStore) MarkDispatchRunning(ctx context.Context, dispatchID string) error {
+	leaseUntil := time.Now().UTC().Add(s.leaseDuration)
 	_, err := s.pool.Exec(ctx,
-		`UPDATE `+dispatchTable+` SET status = $1, updated_at = now() WHERE dispatch_id = $2`,
-		string(kerneldomain.DispatchRunning), dispatchID,
+		`UPDATE `+dispatchTable+` SET status = $1, lease_until = $2, updated_at = now() WHERE dispatch_id = $3`,
+		string(kerneldomain.DispatchRunning), leaseUntil, dispatchID,
 	)
 	return err
 }
@@ -171,7 +173,7 @@ func (s *PostgresStore) MarkDispatchRunning(ctx context.Context, dispatchID stri
 // MarkDispatchDone sets the dispatch status to done with the resulting task ID.
 func (s *PostgresStore) MarkDispatchDone(ctx context.Context, dispatchID, taskID string) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE `+dispatchTable+` SET status = $1, task_id = $2, updated_at = now() WHERE dispatch_id = $3`,
+		`UPDATE `+dispatchTable+` SET status = $1, task_id = $2, lease_owner = NULL, lease_until = NULL, updated_at = now() WHERE dispatch_id = $3`,
 		string(kerneldomain.DispatchDone), taskID, dispatchID,
 	)
 	return err
@@ -180,10 +182,41 @@ func (s *PostgresStore) MarkDispatchDone(ctx context.Context, dispatchID, taskID
 // MarkDispatchFailed sets the dispatch status to failed with an error message.
 func (s *PostgresStore) MarkDispatchFailed(ctx context.Context, dispatchID, errMsg string) error {
 	_, err := s.pool.Exec(ctx,
-		`UPDATE `+dispatchTable+` SET status = $1, error = $2, updated_at = now() WHERE dispatch_id = $3`,
+		`UPDATE `+dispatchTable+` SET status = $1, error = $2, lease_owner = NULL, lease_until = NULL, updated_at = now() WHERE dispatch_id = $3`,
 		string(kerneldomain.DispatchFailed), errMsg, dispatchID,
 	)
 	return err
+}
+
+// RecoverStaleRunning marks stale running dispatches as failed so planners can resume dispatching.
+func (s *PostgresStore) RecoverStaleRunning(ctx context.Context, kernelID string) (int, error) {
+	if strings.TrimSpace(kernelID) == "" {
+		return 0, nil
+	}
+	cutoff := time.Now().UTC().Add(-s.leaseDuration)
+	res, err := s.pool.Exec(ctx,
+		`UPDATE `+dispatchTable+` SET
+		    status = $1,
+		    error = $2,
+		    lease_owner = NULL,
+		    lease_until = NULL,
+		    updated_at = now()
+		  WHERE kernel_id = $3
+		    AND status = $4
+		    AND (
+		      (lease_until IS NOT NULL AND lease_until < now())
+		      OR (lease_until IS NULL AND updated_at < $5)
+		    )`,
+		string(kerneldomain.DispatchFailed),
+		"stale running dispatch recovered after lease timeout",
+		kernelID,
+		string(kerneldomain.DispatchRunning),
+		cutoff,
+	)
+	if err != nil {
+		return 0, fmt.Errorf("recover stale running dispatches: %w", err)
+	}
+	return int(res.RowsAffected()), nil
 }
 
 // ListActiveDispatches returns all non-terminal dispatches for a kernel.

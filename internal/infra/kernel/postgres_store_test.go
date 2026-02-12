@@ -152,3 +152,55 @@ func TestPostgresStore_ClaimDispatches(t *testing.T) {
 		t.Fatalf("expected 1 remaining, got %d", len(claimed2))
 	}
 }
+
+func TestPostgresStore_RecoverStaleRunning(t *testing.T) {
+	store := setupTestStore(t)
+	ctx := context.Background()
+	kernelID := "test-stale-recover"
+
+	dispatches, err := store.EnqueueDispatches(ctx, kernelID, "cycle-stale", []kerneldomain.DispatchSpec{
+		{AgentID: "agent-stale", Prompt: "stale prompt"},
+	})
+	if err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	if len(dispatches) != 1 {
+		t.Fatalf("expected 1 dispatch, got %d", len(dispatches))
+	}
+
+	dispatchID := dispatches[0].DispatchID
+	if err := store.MarkDispatchRunning(ctx, dispatchID); err != nil {
+		t.Fatalf("mark running: %v", err)
+	}
+
+	// Force the running dispatch to be stale.
+	if _, err := store.pool.Exec(ctx,
+		`UPDATE `+dispatchTable+` SET lease_until = now() - interval '2 hours', updated_at = now() - interval '2 hours' WHERE dispatch_id = $1`,
+		dispatchID,
+	); err != nil {
+		t.Fatalf("force stale dispatch: %v", err)
+	}
+
+	recovered, err := store.RecoverStaleRunning(ctx, kernelID)
+	if err != nil {
+		t.Fatalf("recover stale running: %v", err)
+	}
+	if recovered != 1 {
+		t.Fatalf("expected 1 recovered dispatch, got %d", recovered)
+	}
+
+	recent, err := store.ListRecentByAgent(ctx, kernelID)
+	if err != nil {
+		t.Fatalf("list recent: %v", err)
+	}
+	dispatch, ok := recent["agent-stale"]
+	if !ok {
+		t.Fatal("expected recent dispatch for agent-stale")
+	}
+	if dispatch.Status != kerneldomain.DispatchFailed {
+		t.Fatalf("expected failed status after recovery, got %s", dispatch.Status)
+	}
+	if dispatch.Error == "" {
+		t.Fatal("expected recovery error message to be recorded")
+	}
+}
