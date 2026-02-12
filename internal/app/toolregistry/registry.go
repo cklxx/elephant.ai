@@ -8,7 +8,6 @@ import (
 	"sync"
 
 	"alex/internal/domain/agent/ports"
-	agent "alex/internal/domain/agent/ports/agent"
 	tools "alex/internal/domain/agent/ports/tools"
 	"alex/internal/infra/memory"
 	toolspolicy "alex/internal/infra/tools"
@@ -402,8 +401,8 @@ func (r *Registry) pruneDisabledTools(disabled map[string]string) {
 	}
 }
 
-// RegisterSubAgent registers the subagent tool that requires a coordinator
-func (r *Registry) RegisterSubAgent(coordinator agent.AgentCoordinator) {
+// RegisterSubAgent registers the subagent tool that requires a task executor.
+func (r *Registry) RegisterSubAgent(coordinator orchestration.TaskExecutor) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if coordinator == nil {

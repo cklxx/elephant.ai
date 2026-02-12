@@ -650,6 +650,3 @@ func TestSaveSessionAfterExecutionSkipsHistoryWhenDisabled(t *testing.T) {
 		t.Fatalf("expected session messages to be cleared")
 	}
 }
-
-// Ensure the coordinator continues to satisfy the AgentCoordinator port contract.
-var _ agent.AgentCoordinator = (*AgentCoordinator)(nil)

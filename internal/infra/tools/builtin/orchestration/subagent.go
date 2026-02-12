@@ -18,22 +18,29 @@ import (
 	id "alex/internal/shared/utils/id"
 )
 
+// TaskExecutor is the consumer-side interface for delegating task execution.
+// Defined here rather than in a central ports package following Go's
+// "accept interfaces, return structs" idiom — the consumer owns the contract.
+type TaskExecutor interface {
+	ExecuteTask(ctx context.Context, task string, sessionID string, listener agent.EventListener) (*agent.TaskResult, error)
+}
+
 // subagent implements parallel task delegation via the coordinator interface
-// It delegates to AgentCoordinator instead of directly creating ReactEngine
-// ARCHITECTURE: This tool now properly follows hexagonal architecture by:
+// ARCHITECTURE: This tool properly follows hexagonal architecture by:
 // - NOT importing domain layer (no internal/agent/domain)
 // - NOT importing output layer (no internal/output)
-// - Delegating all execution to agent.AgentCoordinator interface
+// - Delegating all execution to the TaskExecutor interface (consumer-defined)
 // - Using appcontext.MarkSubagentContext to trigger registry filtering (RECURSION PREVENTION)
 type subagent struct {
 	shared.BaseTool
-	coordinator  agent.AgentCoordinator
+	coordinator  TaskExecutor
 	maxWorkers   int
 	startStagger time.Duration
 }
 
-// NewSubAgent creates a subagent tool with coordinator injection
-func NewSubAgent(coordinator agent.AgentCoordinator, maxWorkers int) tools.ToolExecutor {
+// NewSubAgent creates a subagent tool with coordinator injection.
+// The coordinator must implement ExecuteTask for task delegation.
+func NewSubAgent(coordinator TaskExecutor, maxWorkers int) tools.ToolExecutor {
 	return &subagent{
 		BaseTool: shared.NewBaseTool(
 			ports.ToolDefinition{
