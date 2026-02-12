@@ -1,9 +1,10 @@
 # Index: error-experience/entries
 
-Updated: 2026-02-09
+Updated: 2026-02-12
 
 ## Files
 
+- [2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md](2026-02-12-kernel-rate-limit-repeated-minute-cycles-shared-subscription.md)
 - [2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md](2026-02-10-tool-optimization-caused-eval-tool-availability-collapse.md)
 - [2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift.md](2026-02-09-devops-process-manager-pid-reuse-supervisor-threshold-drift.md)
 - [2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md](2026-02-09-lark-test-pid-wrapper-orphan-process-db-exhaustion.md)

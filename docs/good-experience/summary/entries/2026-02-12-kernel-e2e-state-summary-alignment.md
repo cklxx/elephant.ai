@@ -1,0 +1,1 @@
+Summary: Kernel now writes per-agent execution summaries to STATE runtime block, refreshes SYSTEM_PROMPT each cycle, and keeps INIT as seed-only while using injected client/profile/alignment providers for decoupled execution.

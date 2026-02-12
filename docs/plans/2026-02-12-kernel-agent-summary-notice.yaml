@@ -1,0 +1,46 @@
+id: 2026-02-12-kernel-agent-summary-notice
+title: Kernel notifications include agent-generated completion summaries
+status: completed
+owner: codex
+created: 2026-02-12
+updated: 2026-02-12T17:40:00+08:00
+summary: >
+  Ensure each kernel-dispatched agent produces a default execution summary, and
+  include those summaries in cycle notifications sent to /notice group chats.
+scope:
+  in:
+    - Make kernel executor return structured execution result (task id + summary)
+    - Enforce default summary instruction for kernel agent execution prompts
+    - Carry per-agent summaries into CycleResult and notification text
+    - Persist per-agent summaries in STATE.md runtime block for observability
+    - Add/adjust unit tests for executor, engine, and notifier formatting
+    - Run real non-mock kernel end-to-end validation against runtime config/files
+  out:
+    - Rework of scheduler or non-kernel proactive subsystems
+    - Changes to Lark transport protocol itself
+steps:
+  - id: inspect-current-kernel-execution-contract
+    description: Confirm available task result fields and notification wiring
+    status: completed
+  - id: implement-agent-summary-pipeline
+    description: Add default summary prompt + execution summary propagation to cycle result
+    status: completed
+  - id: verify-and-e2e
+    description: Run tests and real cycle to confirm state + group message content
+    status: completed
+acceptance_criteria:
+  - Kernel executor requests a default execution summary from each dispatched agent
+  - CycleResult contains per-agent summaries and notifier output includes them
+  - STATE.md runtime block includes per-agent summary lines for each cycle
+  - Kernel package tests and full repo lint/tests pass
+  - Real RunCycle using runtime config produces summary-bearing notification text
+notes:
+  - 2026-02-12 17:37 +08:00: Real e2e run with current branch binary completed two
+    kernel cycles (`run-9Zu4YZwvNvxj`, `run-BCqJR1eFnI8H`) using real LLM/tool
+    chain (no mocks), and `~/.alex/kernel/default/STATE.md` now persists
+    `agent_summary` in `kernel_runtime`.
+  - 2026-02-12: `INIT.md` remained immutable (`generated_at` unchanged from first
+    seed) while `SYSTEM_PROMPT.md` refreshed to latest snapshot each cycle.
+  - 2026-02-12: Rate-limit incidents were correlated with minute-level repeated
+    dispatches on shared subscription quotas; latest controlled run completed
+    without rate-limit failures under current cadence.

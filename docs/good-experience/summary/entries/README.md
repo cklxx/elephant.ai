@@ -4,6 +4,7 @@ Updated: 2026-02-12
 
 ## Files
 
+- [2026-02-12-kernel-e2e-state-summary-alignment.md](2026-02-12-kernel-e2e-state-summary-alignment.md)
 - [2026-02-12-llm-profile-client-provider-decoupling.md](2026-02-12-llm-profile-client-provider-decoupling.md)
 - [2026-02-10-basic-active-suite-zero-na-regression-baseline.md](2026-02-10-basic-active-suite-zero-na-regression-baseline.md)
 - [2026-02-10-context-autonomy-rules-and-safe-env-injection.md](2026-02-10-context-autonomy-rules-and-safe-env-injection.md)
