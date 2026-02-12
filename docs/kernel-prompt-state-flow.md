@@ -31,6 +31,22 @@ Kernel Engine 是一个 cron 驱动的 OODA 循环（Observe-Orient-Decide-Act�
 
 ---
 
+## Real E2E（单次执行）
+
+如果要做一次真实（非 mock）端到端验证，不必等待 cron，可直接执行：
+
+```bash
+go run ./cmd/alex-server kernel-once
+```
+
+行为：
+
+- 复用当前 runtime 配置与真实依赖（DB/LLM/工具链）。
+- 仅执行一次 `RunCycle()`，并输出 cycle 结果（cycle_id/status/dispatched/succeeded/failed）。
+- 同步更新 `~/.alex/kernel/{kernel_id}/STATE.md` 的 `kernel_runtime` 区块及 `SYSTEM_PROMPT.md` 快照。
+
+---
+
 ## 1. State File（STATE.md）
 
 ### 1.1 文件位置

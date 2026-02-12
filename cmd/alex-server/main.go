@@ -14,21 +14,43 @@ import (
 	runtimeconfig "alex/internal/shared/config"
 )
 
+type runners struct {
+	runLark       func(string) error
+	runKernelOnce func(string) error
+}
+
+func run(args []string, obsConfig string, logger *log.Logger, rs runners) error {
+	if logger == nil {
+		logger = log.Default()
+	}
+	if rs.runLark == nil {
+		rs.runLark = serverBootstrap.RunLark
+	}
+	if rs.runKernelOnce == nil {
+		rs.runKernelOnce = serverBootstrap.RunKernelOnce
+	}
+
+	if len(args) > 1 {
+		switch args[1] {
+		case "lark":
+			// Backward compatibility for legacy scripts (`alex-server lark`).
+			logger.Printf("DEPRECATED: 'alex-server lark' is no longer needed — alex-server always runs in Lark mode. " +
+				"Please update your scripts to just run 'alex-server'.")
+			return rs.runLark(obsConfig)
+		case "kernel-once":
+			return rs.runKernelOnce(obsConfig)
+		}
+	}
+	return rs.runLark(obsConfig)
+}
+
 func main() {
 	if err := runtimeconfig.LoadDotEnv(); err != nil {
 		log.Printf("Warning: failed to load .env: %v", err)
 	}
 
 	obsConfig := os.Getenv("ALEX_OBSERVABILITY_CONFIG")
-
-	// Backward compatibility: ignore legacy "lark" subcommand so existing
-	// scripts like `alex-server lark` continue to work during transition.
-	if len(os.Args) > 1 && os.Args[1] == "lark" {
-		log.Printf("DEPRECATED: 'alex-server lark' is no longer needed — alex-server always runs in Lark mode. " +
-			"Please update your scripts to just run 'alex-server'.")
-	}
-
-	if err := serverBootstrap.RunLark(obsConfig); err != nil {
-		log.Fatalf("lark mode exited: %v", err)
+	if err := run(os.Args, obsConfig, log.Default(), runners{}); err != nil {
+		log.Fatalf("server exited: %v", err)
 	}
 }
