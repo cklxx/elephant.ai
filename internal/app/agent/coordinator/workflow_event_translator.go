@@ -698,16 +698,6 @@ func setNodeKind(env *domain.WorkflowEventEnvelope, kind string) {
 	}
 }
 
-func nodeID(evt agent.AgentEvent, node *workflow.NodeSnapshot) string {
-	if node != nil {
-		return node.ID
-	}
-	if e, ok := evt.(*domain.Event); ok && e.Kind == types.EventLifecycleUpdated && e.Data.Node != nil {
-		return e.Data.Node.ID
-	}
-	return ""
-}
-
 func (t *workflowEventTranslator) recordSubflowStats(event agent.SubtaskWrapper, details agent.SubtaskMetadata) subflowSnapshot {
 	if t == nil || t.subflowTracker == nil {
 		return subflowSnapshot{total: details.Total}
