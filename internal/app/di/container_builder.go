@@ -769,16 +769,16 @@ func (b *containerBuilder) buildKernelEngine(pool *pgxpool.Pool, coordinator *ag
 		SeedState:        seedState,
 		Agents:           agents,
 	})
-	if err := stateFile.SeedInit(initDoc); err != nil {
-		b.logger.Warn("Kernel init doc seed failed: %v", err)
+	if err := stateFile.WriteInit(initDoc); err != nil {
+		b.logger.Warn("Kernel init doc write failed: %v", err)
 	}
 
 	systemPrompt := strings.TrimSpace(coordinator.GetSystemPrompt())
 	if systemPrompt == "" {
 		systemPrompt = preparation.DefaultSystemPrompt
 	}
-	if err := stateFile.SeedSystemPrompt(kernelagent.RenderSystemPromptMarkdown(systemPrompt, seededAt)); err != nil {
-		b.logger.Warn("Kernel system prompt doc seed failed: %v", err)
+	if err := stateFile.WriteSystemPrompt(kernelagent.RenderSystemPromptMarkdown(systemPrompt, seededAt)); err != nil {
+		b.logger.Warn("Kernel system prompt doc write failed: %v", err)
 	}
 
 	planner := kernelagent.NewStaticPlanner(cfg.KernelID, agents)

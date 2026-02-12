@@ -41,7 +41,7 @@ Kernel Engine 是一个 cron 驱动的 OODA 循环（Observe-Orient-Decide-Act�
 
 路径由内建默认值 `DefaultStateRootDir="~/.alex/kernel"` 解析，实际为 `~/.alex/kernel/default/STATE.md`（不再通过 runtime YAML 暴露 `state_dir` 配置）。
 
-同目录下还会在 kernel 构建阶段一次性写入：
+同目录下还会在 kernel 构建阶段刷新写入：
 
 - `INIT.md`：kernel 运行配置快照（schedule、路由、agent prompt 模板、seed state）
 - `SYSTEM_PROMPT.md`：当前 `AgentCoordinator.GetSystemPrompt()` 的快照
@@ -66,7 +66,7 @@ Kernel Engine 是一个 cron 驱动的 OODA 循环（Observe-Orient-Decide-Act�
 | 阶段 | 操作 | 代码位置 |
 |------|------|---------|
 | **首次启动** | `StateFile.Seed(DefaultSeedStateContent)` — 仅当文件不存在时写入 | `engine.go` + `container_builder.go` |
-| **kernel 构建时** | `StateFile.SeedInit(...)` / `StateFile.SeedSystemPrompt(...)` | `container_builder.go` |
+| **kernel 构建时** | `StateFile.WriteInit(...)` / `StateFile.WriteSystemPrompt(...)` | `container_builder.go` |
 | **每个 cycle 开头** | `StateFile.Read()` — 读取当前内容 | `engine.go:70` |
 | **cycle 执行中/结束后** | Engine upsert `kernel_runtime` 区块（cycle id/status/error 等） | `engine.go` |
 
