@@ -12,9 +12,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/toast";
-import { getSubscriptionCatalog, updateOnboardingState } from "@/lib/api";
+import {
+  getSubscriptionCatalog,
+  updateOnboardingState,
+  updateRuntimeConfig,
+} from "@/lib/api";
 import { loadLLMSelection, saveLLMSelection } from "@/lib/llmSelection";
-import type { RuntimeModelProvider, RuntimeModelRecommendation } from "@/lib/types";
+import type {
+  RuntimeConfigOverrides,
+  RuntimeModelProvider,
+  RuntimeModelRecommendation,
+} from "@/lib/types";
 
 type OnboardingModalProps = {
   open: boolean;
@@ -32,6 +40,7 @@ export function OnboardingModal({
   const [providers, setProviders] = useState<RuntimeModelProvider[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [apiKey, setAPIKey] = useState<string>("");
 
   const loadCatalog = useCallback(async () => {
     setLoading(true);
@@ -43,17 +52,24 @@ export function OnboardingModal({
         }
         return orderedModels(provider).length > 0;
       });
-      const sorted = [...filtered].sort((a, b) =>
-        providerRank(a.provider) - providerRank(b.provider) ||
-        a.provider.localeCompare(b.provider),
+      const sorted = [...filtered].sort(
+        (a, b) =>
+          providerRank(a.provider) - providerRank(b.provider) ||
+          a.provider.localeCompare(b.provider),
       );
       setProviders(sorted);
 
       const persisted = loadLLMSelection();
-      const initialProvider = pickInitialProvider(sorted, persisted?.provider ?? "");
+      const initialProvider = pickInitialProvider(
+        sorted,
+        persisted?.provider ?? "",
+      );
       setSelectedProvider(initialProvider?.provider ?? "");
       if (initialProvider) {
-        const initialModel = pickInitialModel(initialProvider, persisted?.model ?? "");
+        const initialModel = pickInitialModel(
+          initialProvider,
+          persisted?.model ?? "",
+        );
         setSelectedModel(initialModel);
       } else {
         setSelectedModel("");
@@ -75,7 +91,10 @@ export function OnboardingModal({
   }, [open, loadCatalog]);
 
   const activeProvider = useMemo(() => {
-    return providers.find((provider) => provider.provider === selectedProvider) ?? null;
+    return (
+      providers.find((provider) => provider.provider === selectedProvider) ??
+      null
+    );
   }, [providers, selectedProvider]);
 
   const models = useMemo(() => {
@@ -96,23 +115,54 @@ export function OnboardingModal({
     setSelectedModel(pickInitialModel(activeProvider, ""));
   }, [activeProvider, models, selectedModel]);
 
+  useEffect(() => {
+    setAPIKey("");
+  }, [selectedProvider]);
+
+  const providerNeedsAPIKey = useMemo(() => {
+    if (!activeProvider) {
+      return false;
+    }
+    if (activeProvider.provider === "llama_server") {
+      return false;
+    }
+    return activeProvider.source === "manual";
+  }, [activeProvider]);
+
   const completeWithSelection = useCallback(async () => {
     if (!activeProvider || !selectedModel) {
       return;
     }
+    const normalizedKey = apiKey.trim();
+    if (providerNeedsAPIKey && normalizedKey === "") {
+      toast.error("Setup failed", "API key is required for this provider.");
+      return;
+    }
     setSubmitting(true);
     try {
+      const overrides: RuntimeConfigOverrides = {
+        llm_provider: activeProvider.provider,
+        llm_model: selectedModel,
+      };
+      if (activeProvider.base_url) {
+        overrides.base_url = activeProvider.base_url;
+      }
+      if (normalizedKey) {
+        overrides.api_key = normalizedKey;
+      }
+      await updateRuntimeConfig({ overrides });
+
       saveLLMSelection({
         mode: "cli",
         provider: activeProvider.provider,
         model: selectedModel,
-        source: activeProvider.source,
+        source: activeProvider.source || "manual",
       });
       await updateOnboardingState({
         state: {
           selected_provider: activeProvider.provider,
           selected_model: selectedModel,
-          used_source: activeProvider.source,
+          used_source: activeProvider.source || "manual",
         },
       });
       toast.success("Setup completed", "Model selection saved.");
@@ -123,7 +173,14 @@ export function OnboardingModal({
     } finally {
       setSubmitting(false);
     }
-  }, [activeProvider, onCompleted, onOpenChange, selectedModel]);
+  }, [
+    activeProvider,
+    apiKey,
+    onCompleted,
+    onOpenChange,
+    providerNeedsAPIKey,
+    selectedModel,
+  ]);
 
   const completeWithYAML = useCallback(async () => {
     setSubmitting(true);
@@ -151,7 +208,8 @@ export function OnboardingModal({
         <DialogHeader>
           <DialogTitle>Welcome to elephant.ai</DialogTitle>
           <DialogDescription>
-            Complete first-run setup by choosing a provider and model. Base URL is configured automatically.
+            Complete first-run setup with one provider key. Latest default model
+            is preselected and you can change it.
           </DialogDescription>
         </DialogHeader>
 
@@ -161,15 +219,21 @@ export function OnboardingModal({
           </div>
         ) : providers.length === 0 ? (
           <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-            <p>No subscription providers were detected from local CLI credentials.</p>
             <p>
-              Sign in with `codex login` / Claude CLI and reopen setup, or continue with YAML defaults.
+              No subscription providers were detected from local CLI
+              credentials.
+            </p>
+            <p>
+              Sign in with `codex login` / Claude CLI and reopen setup, or
+              continue with YAML defaults.
             </p>
           </div>
         ) : (
           <div className="space-y-4">
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-foreground">Provider</span>
+              <span className="text-sm font-medium text-foreground">
+                Provider
+              </span>
               <select
                 className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm"
                 value={selectedProvider}
@@ -178,7 +242,8 @@ export function OnboardingModal({
               >
                 {providers.map((provider) => (
                   <option key={provider.provider} value={provider.provider}>
-                    {(provider.display_name ?? provider.provider)} ({provider.source})
+                    {provider.display_name ?? provider.provider} (
+                    {provider.source})
                   </option>
                 ))}
               </select>
@@ -192,7 +257,10 @@ export function OnboardingModal({
                 disabled={submitting}
               >
                 {models.map((model) => {
-                  const suffix = activeProvider?.default_model === model ? " (default)" : "";
+                  const suffix =
+                    activeProvider?.default_model === model
+                      ? " (latest default)"
+                      : "";
                   return (
                     <option key={model} value={model}>
                       {model + suffix}
@@ -201,14 +269,107 @@ export function OnboardingModal({
                 })}
               </select>
             </label>
+            {activeProvider?.provider !== "llama_server" ? (
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-foreground">
+                  API Key{providerNeedsAPIKey ? " (required)" : " (optional)"}
+                </span>
+                <input
+                  className="w-full rounded-lg border border-border/70 bg-background px-3 py-2 text-sm"
+                  type="password"
+                  placeholder="Paste your API key"
+                  value={apiKey}
+                  onChange={(event) => setAPIKey(event.target.value)}
+                  disabled={submitting}
+                />
+              </label>
+            ) : null}
+            {activeProvider?.key_create_url ? (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={submitting}
+                  onClick={() =>
+                    window.open(
+                      activeProvider.key_create_url,
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Create API Key
+                </Button>
+              </div>
+            ) : null}
             {activeProvider?.base_url ? (
               <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
                 Base URL: {activeProvider.base_url}
               </div>
             ) : null}
             {activeProvider?.setup_hint ? (
-              <p className="text-xs text-muted-foreground">{activeProvider.setup_hint}</p>
+              <p className="text-xs text-muted-foreground">
+                {activeProvider.setup_hint}
+              </p>
             ) : null}
+
+            <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs text-muted-foreground">
+              <div className="font-medium text-foreground">
+                Feishu Bot Helper
+              </div>
+              <p>
+                Open Feishu setup pages and copy a bot config template for
+                `channels.lark`.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={submitting}
+                  onClick={() =>
+                    window.open(
+                      "https://open.feishu.cn/app",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Open Feishu Console
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={submitting}
+                  onClick={() =>
+                    window.open(
+                      "https://open.feishu.cn/document/develop-robots/add-bot-to-external-group",
+                      "_blank",
+                      "noopener,noreferrer",
+                    )
+                  }
+                >
+                  Open Bot Guide
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={submitting}
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(LARK_BOT_TEMPLATE);
+                      toast.success("Copied", "Lark bot template copied.");
+                    } catch {
+                      toast.error(
+                        "Copy failed",
+                        "Please copy manually from docs.",
+                      );
+                    }
+                  }}
+                >
+                  Copy Lark Template
+                </Button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -224,7 +385,12 @@ export function OnboardingModal({
           <Button
             type="button"
             onClick={() => void completeWithSelection()}
-            disabled={submitting || !activeProvider || !selectedModel}
+            disabled={
+              submitting ||
+              !activeProvider ||
+              !selectedModel ||
+              (providerNeedsAPIKey && apiKey.trim() === "")
+            }
           >
             Complete Setup
           </Button>
@@ -236,13 +402,23 @@ export function OnboardingModal({
 
 function providerRank(provider: string): number {
   switch (provider) {
-    case "codex":
+    case "openai":
       return 0;
+    case "openrouter":
+      return 1;
     case "anthropic":
     case "claude":
-      return 1;
-    case "llama_server":
       return 2;
+    case "kimi":
+      return 3;
+    case "glm":
+      return 4;
+    case "minimax":
+      return 5;
+    case "codex":
+      return 6;
+    case "llama_server":
+      return 7;
     default:
       return 50;
   }
@@ -256,7 +432,9 @@ function pickInitialProvider(
     return null;
   }
   if (preferredProvider) {
-    const matched = providers.find((provider) => provider.provider === preferredProvider);
+    const matched = providers.find(
+      (provider) => provider.provider === preferredProvider,
+    );
     if (matched) {
       return matched;
     }
@@ -264,7 +442,10 @@ function pickInitialProvider(
   return providers[0];
 }
 
-function pickInitialModel(provider: RuntimeModelProvider, preferredModel: string): string {
+function pickInitialModel(
+  provider: RuntimeModelProvider,
+  preferredModel: string,
+): string {
   const models = orderedModels(provider);
   if (models.length === 0) {
     return "";
@@ -289,9 +470,19 @@ function orderedModels(provider: RuntimeModelProvider): string[] {
     seen.add(normalized);
     merged.push(normalized);
   };
-  (provider.recommended_models ?? []).forEach((item: RuntimeModelRecommendation) => push(item.id));
+  (provider.recommended_models ?? []).forEach(
+    (item: RuntimeModelRecommendation) => push(item.id),
+  );
   (provider.models ?? []).forEach((model) => push(model));
   push(provider.default_model);
   return merged;
 }
 
+const LARK_BOT_TEMPLATE = `channels:
+  lark:
+    enabled: true
+    app_id: "cli_xxx"
+    app_secret: "xxx"
+    persistence:
+      mode: file
+      dir: ~/.alex/lark`;

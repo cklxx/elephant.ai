@@ -1,4 +1,4 @@
-export type ConfigReadinessSeverity = 'critical' | 'warning' | 'info';
+export type ConfigReadinessSeverity = "critical" | "warning" | "info";
 
 export interface ConfigReadinessTask {
   id: string;
@@ -58,6 +58,7 @@ export interface RuntimeModelProvider {
   models?: string[];
   default_model?: string;
   recommended_models?: RuntimeModelRecommendation[];
+  key_create_url?: string;
   selectable?: boolean;
   setup_hint?: string;
   error?: string;
