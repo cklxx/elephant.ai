@@ -1,0 +1,37 @@
+id: 2026-02-12-kernel-notice-summary-e2e
+title: Kernel cycle notice completion summary and real end-to-end validation
+status: completed
+owner: codex
+created: 2026-02-12
+updated: 2026-02-12T15:28:00-08:00
+summary: >
+  Improve kernel cycle notifications so /notice group output includes a complete
+  task completion summary per cycle, then verify with a real non-mock kernel run
+  that STATE.md/INIT.md/SYSTEM_PROMPT.md and cycle outputs are updated as expected.
+scope:
+  in:
+    - Extend kernel cycle notification text with complete completion summary fields
+    - Add/adjust notifier unit tests for success/partial/failure/error cases
+    - Execute a real kernel single-cycle run using actual runtime config and dependencies
+    - Verify state markdown artifacts and runtime block updates end-to-end
+  out:
+    - Rebuilding Lark gateway notification transport
+    - Redesigning kernel planner/executor architecture
+steps:
+  - id: inspect-notifier-and-cycle-contract
+    description: Confirm available cycle result fields and notification wiring
+    status: completed
+  - id: implement-notice-summary
+    description: Update notification formatter to include complete cycle summary
+    status: completed
+  - id: test-and-verify
+    description: Run unit tests and execute one real kernel cycle for end-to-end validation
+    status: completed
+acceptance_criteria:
+  - Notice text contains cycle_id, status, total/success/failed counts, completion rate, failed agents, and duration
+  - Kernel notifier unit tests pass with exact expected output
+  - Real kernel cycle updates ~/.alex/kernel/default/STATE.md runtime block
+  - INIT.md and SYSTEM_PROMPT.md exist and reflect current startup snapshot
+notes:
+  - Real validation should avoid mock components and use existing runtime defaults.
+  - 2026-02-12: Executed real RunCycle with runtime config, produced cycle_id run-wNWp3RJkJhWv, and verified STATE.md/INIT.md/SYSTEM_PROMPT.md updates in ~/.alex/kernel/default.
