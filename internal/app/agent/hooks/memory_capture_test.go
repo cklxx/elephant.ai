@@ -10,6 +10,7 @@ import (
 	"time"
 
 	appcontext "alex/internal/app/agent/context"
+	"alex/internal/app/subscription"
 	"alex/internal/domain/agent/ports"
 	portsllm "alex/internal/domain/agent/ports/llm"
 	"alex/internal/infra/memory"
@@ -37,15 +38,17 @@ type stubLLMFactory struct {
 	err          error
 	lastProvider string
 	lastModel    string
+	lastCfg      portsllm.LLMConfig
 }
 
 func (s *stubLLMFactory) GetClient(provider, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
 	return s.GetIsolatedClient(provider, model, portsllm.LLMConfig{})
 }
 
-func (s *stubLLMFactory) GetIsolatedClient(provider, model string, _ portsllm.LLMConfig) (portsllm.LLMClient, error) {
+func (s *stubLLMFactory) GetIsolatedClient(provider, model string, cfg portsllm.LLMConfig) (portsllm.LLMClient, error) {
 	s.lastProvider = provider
 	s.lastModel = model
+	s.lastCfg = cfg
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -261,5 +264,59 @@ func TestMemoryCaptureHook_PromptPrioritizesUserHabits(t *testing.T) {
 	}
 	if !strings.Contains(strings.ToLower(llm.lastReq.Messages[0].Content), "habit") {
 		t.Fatalf("expected memory capture prompt to mention habits, got %q", llm.lastReq.Messages[0].Content)
+	}
+}
+
+func TestMemoryCaptureHook_PrefersPinnedSelectionFromContext(t *testing.T) {
+	root := t.TempDir()
+	engine := memory.NewMarkdownEngine(root)
+	if err := engine.EnsureSchema(context.Background()); err != nil {
+		t.Fatalf("EnsureSchema: %v", err)
+	}
+	llm := &stubLLMClient{response: "- done"}
+	factory := &stubLLMFactory{client: llm}
+	hook := NewMemoryCaptureHook(engine, factory, nil, MemoryCaptureConfig{
+		Enabled:       true,
+		Provider:      "main-provider",
+		Model:         "main-model",
+		SmallProvider: "small-provider",
+		SmallModel:    "small-model",
+		APIKey:        "main-key",
+	})
+	ctx := appcontext.WithMemoryPolicy(context.Background(), appcontext.MemoryPolicy{
+		Enabled:     true,
+		AutoCapture: true,
+	})
+	ctx = appcontext.WithLLMSelection(ctx, subscription.ResolvedSelection{
+		Provider: "codex",
+		Model:    "gpt-5.3-codex",
+		APIKey:   "selection-key",
+		BaseURL:  "https://chatgpt.com/backend-api/codex",
+		Headers: map[string]string{
+			"ChatGPT-Account-Id": "acct-1",
+		},
+		Pinned: true,
+	})
+	ctx = id.WithUserID(ctx, "user-selection")
+	if err := hook.OnTaskCompleted(ctx, TaskResultInfo{
+		TaskInput: "test pinned selection",
+		UserID:    "user-selection",
+	}); err != nil {
+		t.Fatalf("OnTaskCompleted: %v", err)
+	}
+	if factory.lastProvider != "codex" {
+		t.Fatalf("expected provider codex, got %q", factory.lastProvider)
+	}
+	if factory.lastModel != "gpt-5.3-codex" {
+		t.Fatalf("expected model gpt-5.3-codex, got %q", factory.lastModel)
+	}
+	if factory.lastCfg.APIKey != "selection-key" {
+		t.Fatalf("expected selection API key, got %q", factory.lastCfg.APIKey)
+	}
+	if factory.lastCfg.BaseURL != "https://chatgpt.com/backend-api/codex" {
+		t.Fatalf("expected selection base URL, got %q", factory.lastCfg.BaseURL)
+	}
+	if factory.lastCfg.Headers["ChatGPT-Account-Id"] != "acct-1" {
+		t.Fatalf("expected selection header, got %#v", factory.lastCfg.Headers)
 	}
 }

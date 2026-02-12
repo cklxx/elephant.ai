@@ -120,15 +120,9 @@ func (h *MemoryCaptureHook) OnTaskCompleted(ctx context.Context, result TaskResu
 }
 
 func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResultInfo) []string {
-	provider, model := h.selectModel()
-	if provider == "" || model == "" {
+	profile, ok := h.resolveProfile(ctx)
+	if !ok {
 		return nil
-	}
-	profile := runtimeconfig.LLMProfile{
-		Provider: provider,
-		Model:    model,
-		APIKey:   h.config.APIKey,
-		BaseURL:  h.config.BaseURL,
 	}
 	client, _, err := llmclient.GetIsolatedClientFromProfile(h.factory, profile, nil, false)
 	if err != nil {
@@ -170,6 +164,33 @@ func (h *MemoryCaptureHook) captureWithLLM(ctx context.Context, result TaskResul
 	return normalizeMemoryLines(resp.Content)
 }
 
+func (h *MemoryCaptureHook) resolveProfile(ctx context.Context) (runtimeconfig.LLMProfile, bool) {
+	if selection, ok := appcontext.GetLLMSelection(ctx); ok {
+		provider := strings.TrimSpace(selection.Provider)
+		model := strings.TrimSpace(selection.Model)
+		if provider != "" && model != "" {
+			return runtimeconfig.LLMProfile{
+				Provider: provider,
+				Model:    model,
+				APIKey:   strings.TrimSpace(selection.APIKey),
+				BaseURL:  strings.TrimSpace(selection.BaseURL),
+				Headers:  cloneHeaders(selection.Headers),
+			}, true
+		}
+	}
+
+	provider, model := h.selectModel()
+	if provider == "" || model == "" {
+		return runtimeconfig.LLMProfile{}, false
+	}
+	return runtimeconfig.LLMProfile{
+		Provider: provider,
+		Model:    model,
+		APIKey:   h.config.APIKey,
+		BaseURL:  h.config.BaseURL,
+	}, true
+}
+
 func (h *MemoryCaptureHook) selectModel() (string, string) {
 	model := strings.TrimSpace(h.config.SmallModel)
 	provider := strings.TrimSpace(h.config.SmallProvider)
@@ -181,6 +202,24 @@ func (h *MemoryCaptureHook) selectModel() (string, string) {
 		provider = strings.TrimSpace(h.config.Provider)
 	}
 	return provider, model
+}
+
+func cloneHeaders(headers map[string]string) map[string]string {
+	if len(headers) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(headers))
+	for k, v := range headers {
+		key := strings.TrimSpace(k)
+		if key == "" {
+			continue
+		}
+		out[key] = v
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func buildMemoryCapturePrompt(result TaskResultInfo) string {
