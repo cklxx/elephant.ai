@@ -24,6 +24,13 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+const (
+	defaultTaskLeaseTTL           = 45 * time.Second
+	defaultTaskLeaseRenewInterval = 15 * time.Second
+	defaultTaskMaxInFlight        = 64
+	defaultResumeClaimBatchSize   = 128
+)
+
 // BridgeOrphanResumer detects and processes orphaned bridge subprocesses
 // left behind after a process restart. Implementations classify each orphan
 // (adopt, harvest, retry, or fail) and update the task store accordingly.
@@ -58,6 +65,12 @@ type TaskExecutionService struct {
 
 	cancelFuncs map[string]context.CancelCauseFunc
 	cancelMu    sync.RWMutex
+
+	ownerID              string
+	leaseTTL             time.Duration
+	leaseRenewInterval   time.Duration
+	resumeClaimBatchSize int
+	admissionSem         chan struct{}
 }
 
 // SessionTaskSummary captures task_count/last_task style metadata for a session.
@@ -80,12 +93,17 @@ func NewTaskExecutionService(
 	opts ...TaskExecutionServiceOption,
 ) *TaskExecutionService {
 	svc := &TaskExecutionService{
-		agentCoordinator: agentCoordinator,
-		broadcaster:      broadcaster,
-		taskStore:        taskStore,
-		analytics:        analytics.NewNoopClient(),
-		logger:           logging.NewComponentLogger("TaskExecutionService"),
-		cancelFuncs:      make(map[string]context.CancelCauseFunc),
+		agentCoordinator:     agentCoordinator,
+		broadcaster:          broadcaster,
+		taskStore:            taskStore,
+		analytics:            analytics.NewNoopClient(),
+		logger:               logging.NewComponentLogger("TaskExecutionService"),
+		cancelFuncs:          make(map[string]context.CancelCauseFunc),
+		ownerID:              defaultTaskOwnerID(),
+		leaseTTL:             defaultTaskLeaseTTL,
+		leaseRenewInterval:   defaultTaskLeaseRenewInterval,
+		resumeClaimBatchSize: defaultResumeClaimBatchSize,
+		admissionSem:         make(chan struct{}, defaultTaskMaxInFlight),
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -141,6 +159,51 @@ func WithBridgeResumer(resumer BridgeOrphanResumer, workDir string) TaskExecutio
 	}
 }
 
+// WithTaskOwnerID sets the task-lease owner identifier for this process.
+func WithTaskOwnerID(ownerID string) TaskExecutionServiceOption {
+	return func(svc *TaskExecutionService) {
+		ownerID = strings.TrimSpace(ownerID)
+		if ownerID == "" {
+			return
+		}
+		svc.ownerID = ownerID
+	}
+}
+
+// WithTaskLeaseConfig configures claim lease TTL and renew interval.
+func WithTaskLeaseConfig(ttl, renewInterval time.Duration) TaskExecutionServiceOption {
+	return func(svc *TaskExecutionService) {
+		if ttl > 0 {
+			svc.leaseTTL = ttl
+		}
+		if renewInterval > 0 {
+			svc.leaseRenewInterval = renewInterval
+		}
+	}
+}
+
+// WithTaskAdmissionLimit configures global in-flight task admission.
+// maxInFlight <= 0 disables the admission limiter.
+func WithTaskAdmissionLimit(maxInFlight int) TaskExecutionServiceOption {
+	return func(svc *TaskExecutionService) {
+		if maxInFlight <= 0 {
+			svc.admissionSem = nil
+			return
+		}
+		svc.admissionSem = make(chan struct{}, maxInFlight)
+	}
+}
+
+// WithResumeClaimBatchSize configures max claimed tasks per resume pass.
+func WithResumeClaimBatchSize(batchSize int) TaskExecutionServiceOption {
+	return func(svc *TaskExecutionService) {
+		if batchSize <= 0 {
+			return
+		}
+		svc.resumeClaimBatchSize = batchSize
+	}
+}
+
 // ExecuteTaskAsync executes a task asynchronously and streams events via SSE.
 // Returns immediately with the task record, spawns background goroutine for execution.
 func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task string, sessionID string, agentPreset string, toolPreset string) (*serverPorts.Task, error) {
@@ -178,12 +241,36 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 	}
 
 	taskSessionID := taskRecord.SessionID
-	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, RunID: taskRecord.ID, ParentRunID: parentRunID})
+	taskID = taskRecord.ID
+	ctx = id.WithIDs(ctx, id.IDs{SessionID: confirmedSessionID, RunID: taskID, ParentRunID: parentRunID})
 
 	if svc.broadcaster == nil {
 		logger.Error("[TaskExecutionService] Broadcaster is nil!")
-		_ = svc.taskStore.SetError(ctx, taskRecord.ID, UnavailableError("broadcaster not initialized"))
+		_ = svc.taskStore.SetError(context.Background(), taskID, UnavailableError("broadcaster not initialized"))
 		return taskRecord, UnavailableError("broadcaster not initialized")
+	}
+
+	releaseAdmission, err := svc.acquireAdmission(ctx)
+	if err != nil {
+		admissionErr := UnavailableError("task admission timed out")
+		logger.Warn("[TaskExecutionService] Admission wait failed for task %s: %v", taskID, err)
+		_ = svc.taskStore.SetError(context.Background(), taskID, admissionErr)
+		return taskRecord, admissionErr
+	}
+
+	leaseUntil := svc.nextLeaseDeadline(time.Now())
+	claimed, err := svc.taskStore.TryClaimTask(ctx, taskID, svc.ownerID, leaseUntil)
+	if err != nil {
+		releaseAdmission()
+		logger.Error("[TaskExecutionService] Failed to claim task %s: %v", taskID, err)
+		_ = svc.taskStore.SetError(context.Background(), taskID, fmt.Errorf("failed to claim task: %w", err))
+		return taskRecord, fmt.Errorf("claim task ownership: %w", err)
+	}
+	if !claimed {
+		claimErr := ConflictError("task already claimed by another worker")
+		logger.Warn("[TaskExecutionService] Claim rejected for task %s", taskID)
+		releaseAdmission()
+		return taskRecord, claimErr
 	}
 
 	taskCtx, cancelFunc := context.WithCancelCause(context.WithoutCancel(ctx))
@@ -194,7 +281,7 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 
 	taskCopy := *taskRecord
 	async.Go(svc.logger, "server.executeTask", func() {
-		svc.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset)
+		svc.executeTaskInBackground(taskCtx, taskID, task, confirmedSessionID, agentPreset, toolPreset, releaseAdmission)
 	})
 
 	logger.Info("[TaskExecutionService] Task created: taskID=%s, sessionID=%s, returning immediately", taskID, taskSessionID)
@@ -202,9 +289,27 @@ func (svc *TaskExecutionService) ExecuteTaskAsync(ctx context.Context, task stri
 }
 
 // executeTaskInBackground runs the actual task execution in a background goroutine.
-func (svc *TaskExecutionService) executeTaskInBackground(ctx context.Context, taskID string, task string, sessionID string, agentPreset string, toolPreset string) {
+func (svc *TaskExecutionService) executeTaskInBackground(
+	ctx context.Context,
+	taskID string,
+	task string,
+	sessionID string,
+	agentPreset string,
+	toolPreset string,
+	releaseAdmission func(),
+) {
 	logger := logging.FromContext(ctx, svc.logger)
+	stopLeaseRenew := svc.startTaskLeaseRenewer(ctx, taskID)
+
 	defer func() {
+		stopLeaseRenew()
+		if releaseAdmission != nil {
+			releaseAdmission()
+		}
+		if err := svc.taskStore.ReleaseTaskLease(context.Background(), taskID, svc.ownerID); err != nil {
+			logger.Warn("[Background] Failed to release lease for task %s: %v", taskID, err)
+		}
+
 		svc.cancelMu.Lock()
 		delete(svc.cancelFuncs, taskID)
 		svc.cancelMu.Unlock()
@@ -216,6 +321,20 @@ func (svc *TaskExecutionService) executeTaskInBackground(ctx context.Context, ta
 			_ = svc.taskStore.SetError(ctx, taskID, fmt.Errorf("panic: %v", r))
 		}
 	}()
+
+	if releaseAdmission == nil {
+		acquiredRelease, err := svc.acquireAdmission(ctx)
+		if err != nil {
+			if ctx.Err() != nil {
+				_ = svc.taskStore.SetStatus(context.Background(), taskID, serverPorts.TaskStatusCancelled)
+				_ = svc.taskStore.SetTerminationReason(context.Background(), taskID, serverPorts.TerminationReasonCancelled)
+			} else {
+				_ = svc.taskStore.SetError(context.Background(), taskID, UnavailableError("task admission failed"))
+			}
+			return
+		}
+		releaseAdmission = acquiredRelease
+	}
 
 	logger.Info("[Background] Starting task execution: taskID=%s, sessionID=%s", taskID, sessionID)
 
@@ -556,9 +675,17 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 	// Phase 1: Detect and process orphaned bridge subprocesses.
 	svc.resumeOrphanedBridges(ctx, logger)
 
-	tasks, err := svc.taskStore.ListByStatus(ctx, serverPorts.TaskStatusPending, serverPorts.TaskStatusRunning)
+	leaseUntil := svc.nextLeaseDeadline(time.Now())
+	tasks, err := svc.taskStore.ClaimResumableTasks(
+		ctx,
+		svc.ownerID,
+		leaseUntil,
+		svc.resumeClaimBatchSize,
+		serverPorts.TaskStatusPending,
+		serverPorts.TaskStatusRunning,
+	)
 	if err != nil {
-		return 0, fmt.Errorf("list resumable tasks: %w", err)
+		return 0, fmt.Errorf("claim resumable tasks: %w", err)
 	}
 	if len(tasks) == 0 {
 		logger.Info("[Resume] no pending/running tasks to resume")
@@ -574,11 +701,13 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 		}
 		if task.Description == "" {
 			logger.Warn("[Resume] skipping task %s: empty description", task.ID)
+			svc.releaseTaskLease(task.ID, logger)
 			skipped++
 			continue
 		}
 		if task.SessionID == "" {
 			logger.Warn("[Resume] skipping task %s: empty session_id", task.ID)
+			svc.releaseTaskLease(task.ID, logger)
 			skipped++
 			continue
 		}
@@ -586,6 +715,7 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 		session, err := svc.agentCoordinator.GetSession(ctx, task.SessionID)
 		if err != nil {
 			logger.Warn("[Resume] skipping task %s: failed to load session %s: %v", task.ID, task.SessionID, err)
+			svc.releaseTaskLease(task.ID, logger)
 			skipped++
 			continue
 		}
@@ -623,15 +753,113 @@ func (svc *TaskExecutionService) ResumePendingTasks(ctx context.Context) (int, e
 		toolPreset := task.ToolPreset
 		resumeSessionID := session.ID
 		async.Go(svc.logger, "server.resumeTask", func() {
-			svc.executeTaskInBackground(cancelCtx, taskID, description, resumeSessionID, agentPreset, toolPreset)
+			svc.executeTaskInBackground(cancelCtx, taskID, description, resumeSessionID, agentPreset, toolPreset, nil)
 		})
 
 		logger.Info("[Resume] resumed task taskID=%s sessionID=%s", taskID, resumeSessionID)
 		resumed++
 	}
 
-	logger.Info("[Resume] complete: total=%d resumed=%d skipped=%d", len(tasks), resumed, skipped)
+	logger.Info("[Resume] complete: claimed=%d resumed=%d skipped=%d", len(tasks), resumed, skipped)
 	return resumed, nil
+}
+
+func defaultTaskOwnerID() string {
+	host, err := os.Hostname()
+	if err != nil || strings.TrimSpace(host) == "" {
+		host = "unknown-host"
+	}
+	return fmt.Sprintf("%s:%d", host, os.Getpid())
+}
+
+func (svc *TaskExecutionService) nextLeaseDeadline(now time.Time) time.Time {
+	if svc.leaseTTL <= 0 {
+		return now.Add(defaultTaskLeaseTTL)
+	}
+	return now.Add(svc.leaseTTL)
+}
+
+func (svc *TaskExecutionService) acquireAdmission(ctx context.Context) (func(), error) {
+	if svc.admissionSem == nil {
+		return func() {}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	select {
+	case svc.admissionSem <- struct{}{}:
+		var once sync.Once
+		return func() {
+			once.Do(func() {
+				<-svc.admissionSem
+			})
+		}, nil
+	case <-ctx.Done():
+		return nil, context.Cause(ctx)
+	}
+}
+
+func (svc *TaskExecutionService) startTaskLeaseRenewer(ctx context.Context, taskID string) func() {
+	if svc.leaseTTL <= 0 || svc.leaseRenewInterval <= 0 || taskID == "" {
+		return func() {}
+	}
+	logger := logging.FromContext(ctx, svc.logger)
+	stop := make(chan struct{})
+	var stopOnce sync.Once
+
+	async.Go(svc.logger, "server.taskLeaseRenewer", func() {
+		ticker := time.NewTicker(svc.leaseRenewInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-stop:
+				return
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				renewUntil := svc.nextLeaseDeadline(time.Now())
+				ok, err := svc.taskStore.RenewTaskLease(context.Background(), taskID, svc.ownerID, renewUntil)
+				if err != nil {
+					logger.Warn("[Lease] renew failed for task %s: %v", taskID, err)
+					continue
+				}
+				if !ok {
+					logger.Warn("[Lease] ownership lost for task %s, cancelling local execution", taskID)
+					svc.cancelTaskExecution(taskID, fmt.Errorf("task lease lost"))
+					return
+				}
+			}
+		}
+	})
+
+	return func() {
+		stopOnce.Do(func() {
+			close(stop)
+		})
+	}
+}
+
+func (svc *TaskExecutionService) cancelTaskExecution(taskID string, cause error) {
+	if taskID == "" || cause == nil {
+		return
+	}
+	svc.cancelMu.RLock()
+	cancelFunc := svc.cancelFuncs[taskID]
+	svc.cancelMu.RUnlock()
+	if cancelFunc != nil {
+		cancelFunc(cause)
+	}
+}
+
+func (svc *TaskExecutionService) releaseTaskLease(taskID string, logger logging.Logger) {
+	if taskID == "" {
+		return
+	}
+	if err := svc.taskStore.ReleaseTaskLease(context.Background(), taskID, svc.ownerID); err != nil {
+		logger.Warn("[Lease] release failed for task %s: %v", taskID, err)
+	}
 }
 
 // ListActiveTasks returns all currently running tasks.

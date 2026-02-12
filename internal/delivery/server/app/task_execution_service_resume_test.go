@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -192,4 +193,67 @@ func TestTaskExecutionService_ResumePendingTasks_SkipsInvalidOrUnresolvableTasks
 	if gotFailing.Status != serverPorts.TaskStatusRunning {
 		t.Fatalf("expected failing task to remain running, got %s", gotFailing.Status)
 	}
+
+	otherOwnerLease := time.Now().Add(45 * time.Second)
+	claimedBlank, err := taskStore.TryClaimTask(ctx, blankDescTask.ID, "other-owner", otherOwnerLease)
+	if err != nil {
+		t.Fatalf("claim blank desc task after skip: %v", err)
+	}
+	if !claimedBlank {
+		t.Fatal("expected blank desc task lease to be released after skip")
+	}
+
+	claimedFailing, err := taskStore.TryClaimTask(ctx, failingTask.ID, "other-owner", otherOwnerLease)
+	if err != nil {
+		t.Fatalf("claim failing task after skip: %v", err)
+	}
+	if !claimedFailing {
+		t.Fatal("expected failing task lease to be released after skip")
+	}
+}
+
+func TestTaskExecutionService_ResumePendingTasks_RespectsClaimBatchSize(t *testing.T) {
+	ctx := context.Background()
+	sessionStore := NewMockSessionStore()
+	taskStore := NewInMemoryTaskStore()
+	defer taskStore.Close()
+
+	for i := 0; i < 3; i++ {
+		runID := fmt.Sprintf("run-resume-batch-%d", i)
+		createCtx := id.WithRunID(ctx, runID)
+		task, err := taskStore.Create(createCtx, fmt.Sprintf("session-resume-batch-%d", i), "resume me", "", "")
+		if err != nil {
+			t.Fatalf("create task %d: %v", i, err)
+		}
+		if err := taskStore.SetStatus(ctx, task.ID, serverPorts.TaskStatusPending); err != nil {
+			t.Fatalf("set pending status for task %d: %v", i, err)
+		}
+	}
+
+	agentExecutor := &resumeAgentExecutor{sessionStore: sessionStore}
+	svc := NewTaskExecutionService(
+		agentExecutor,
+		NewEventBroadcaster(),
+		taskStore,
+		WithTaskStateStore(sessionstate.NewInMemoryStore()),
+		WithResumeClaimBatchSize(2),
+	)
+
+	resumed, err := svc.ResumePendingTasks(ctx)
+	if err != nil {
+		t.Fatalf("resume pending tasks: %v", err)
+	}
+	if resumed != 2 {
+		t.Fatalf("expected resumed count to be capped to 2, got %d", resumed)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if agentExecutor.executionCount() == 2 {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatalf("expected 2 resumed executions, got %d", agentExecutor.executionCount())
 }

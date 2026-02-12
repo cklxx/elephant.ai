@@ -322,6 +322,28 @@ func (m *mockTaskStore) SetBridgeMeta(ctx context.Context, taskID string, meta t
 	return nil
 }
 
+func (m *mockTaskStore) TryClaimTask(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	if _, ok := m.tasks[taskID]; !ok {
+		return false, fmt.Errorf("task not found: %s", taskID)
+	}
+	return true, nil
+}
+
+func (m *mockTaskStore) ClaimResumableTasks(ctx context.Context, ownerID string, leaseUntil time.Time, limit int, statuses ...taskdomain.Status) ([]*taskdomain.Task, error) {
+	return m.ListByStatus(ctx, statuses...)
+}
+
+func (m *mockTaskStore) RenewTaskLease(ctx context.Context, taskID, ownerID string, leaseUntil time.Time) (bool, error) {
+	if _, ok := m.tasks[taskID]; !ok {
+		return false, fmt.Errorf("task not found: %s", taskID)
+	}
+	return true, nil
+}
+
+func (m *mockTaskStore) ReleaseTaskLease(ctx context.Context, taskID, ownerID string) error {
+	return nil
+}
+
 func (m *mockTaskStore) ListBySession(ctx context.Context, sessionID string, limit int) ([]*taskdomain.Task, error) {
 	return nil, nil
 }
