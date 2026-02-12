@@ -14,8 +14,8 @@ type Config struct {
 	AppSecret                     string
 	TenantCalendarID              string
 	BaseDomain                    string
-	WorkspaceDir       string
-	AutoUploadFiles    bool
+	WorkspaceDir                  string
+	AutoUploadFiles               bool
 	AutoUploadMaxBytes            int
 	AutoUploadAllowExt            []string
 	Browser                       BrowserConfig
@@ -32,9 +32,12 @@ type Config struct {
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
 	// Task management configuration.
-	TaskStoreEnabled   bool // Enable persistent task store (requires Postgres). Default false.
-	MaxConcurrentTasks int  // Max concurrent tasks per chat. Default 3.
-	DefaultPlanMode    PlanMode // Global default plan mode strategy. Default "auto".
+	PersistenceMode            string        // "file" or "memory". Default "file".
+	PersistenceDir             string        // Base dir used by file persistence.
+	PersistenceRetention       time.Duration // Expiration horizon for terminal task cleanup.
+	PersistenceMaxTasksPerChat int           // Max retained tasks per chat in persistence store.
+	MaxConcurrentTasks         int           // Max concurrent tasks per chat. Default 3.
+	DefaultPlanMode            PlanMode      // Global default plan mode strategy. Default "auto".
 	// AIChatBotIDs is a list of bot IDs that participate in coordinated multi-bot chats.
 	// When multiple bots from this list are mentioned in a group message, they will
 	// take turns responding instead of all responding simultaneously.

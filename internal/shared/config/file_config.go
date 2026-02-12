@@ -326,37 +326,45 @@ type ChannelsConfig struct {
 
 // LarkChannelConfig captures Lark gateway settings in YAML.
 type LarkChannelConfig struct {
-	Enabled                       *bool              `json:"enabled" yaml:"enabled"`
-	AppID                         string             `json:"app_id" yaml:"app_id"`
-	AppSecret                     string             `json:"app_secret" yaml:"app_secret"`
-	TenantCalendarID              string             `json:"tenant_calendar_id" yaml:"tenant_calendar_id"`
-	BaseDomain                    string             `json:"base_domain" yaml:"base_domain"`
-	WorkspaceDir                  string             `json:"workspace_dir" yaml:"workspace_dir"`
-	AutoUploadFiles               *bool              `json:"auto_upload_files" yaml:"auto_upload_files"`
-	AutoUploadMaxBytes            *int               `json:"auto_upload_max_bytes" yaml:"auto_upload_max_bytes"`
-	AutoUploadAllowExt            []string           `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`
-	Browser                       *LarkBrowserConfig `json:"browser" yaml:"browser"`
-	SessionPrefix                 string             `json:"session_prefix" yaml:"session_prefix"`
-	ReplyPrefix                   string             `json:"reply_prefix" yaml:"reply_prefix"`
-	AllowGroups                   *bool              `json:"allow_groups" yaml:"allow_groups"`
-	AllowDirect                   *bool              `json:"allow_direct" yaml:"allow_direct"`
-	AgentPreset                   string             `json:"agent_preset" yaml:"agent_preset"`
-	ToolPreset                    string             `json:"tool_preset" yaml:"tool_preset"`
-	ToolMode                      string             `json:"tool_mode" yaml:"tool_mode"`
-	ReplyTimeoutSeconds           *int               `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
-	ReactEmoji                    string             `json:"react_emoji" yaml:"react_emoji"`
-	InjectionAckReactEmoji        string             `json:"injection_ack_react_emoji" yaml:"injection_ack_react_emoji"`
-	FinalAnswerReviewReactEmoji   string             `json:"final_answer_review_react_emoji" yaml:"final_answer_review_react_emoji"`
-	MemoryEnabled                 *bool              `json:"memory_enabled" yaml:"memory_enabled"`
-	ShowToolProgress              *bool              `json:"show_tool_progress" yaml:"show_tool_progress"`
-	ShowPlanClarifyMessages       *bool              `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
-	AutoChatContextSize           *int               `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
-	PlanReviewEnabled             *bool              `json:"plan_review_enabled" yaml:"plan_review_enabled"`
-	PlanReviewRequireConfirmation *bool              `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`
-	PlanReviewPendingTTLMinutes   *int               `json:"plan_review_pending_ttl_minutes" yaml:"plan_review_pending_ttl_minutes"`
-	TaskStoreEnabled              *bool              `json:"task_store_enabled" yaml:"task_store_enabled"`
-	MaxConcurrentTasks            *int               `json:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
-	DefaultPlanMode               *string            `json:"default_plan_mode" yaml:"default_plan_mode"`
+	Enabled                       *bool                  `json:"enabled" yaml:"enabled"`
+	AppID                         string                 `json:"app_id" yaml:"app_id"`
+	AppSecret                     string                 `json:"app_secret" yaml:"app_secret"`
+	TenantCalendarID              string                 `json:"tenant_calendar_id" yaml:"tenant_calendar_id"`
+	BaseDomain                    string                 `json:"base_domain" yaml:"base_domain"`
+	WorkspaceDir                  string                 `json:"workspace_dir" yaml:"workspace_dir"`
+	AutoUploadFiles               *bool                  `json:"auto_upload_files" yaml:"auto_upload_files"`
+	AutoUploadMaxBytes            *int                   `json:"auto_upload_max_bytes" yaml:"auto_upload_max_bytes"`
+	AutoUploadAllowExt            []string               `json:"auto_upload_allow_ext" yaml:"auto_upload_allow_ext"`
+	Browser                       *LarkBrowserConfig     `json:"browser" yaml:"browser"`
+	SessionPrefix                 string                 `json:"session_prefix" yaml:"session_prefix"`
+	ReplyPrefix                   string                 `json:"reply_prefix" yaml:"reply_prefix"`
+	AllowGroups                   *bool                  `json:"allow_groups" yaml:"allow_groups"`
+	AllowDirect                   *bool                  `json:"allow_direct" yaml:"allow_direct"`
+	AgentPreset                   string                 `json:"agent_preset" yaml:"agent_preset"`
+	ToolPreset                    string                 `json:"tool_preset" yaml:"tool_preset"`
+	ToolMode                      string                 `json:"tool_mode" yaml:"tool_mode"`
+	ReplyTimeoutSeconds           *int                   `json:"reply_timeout_seconds" yaml:"reply_timeout_seconds"`
+	ReactEmoji                    string                 `json:"react_emoji" yaml:"react_emoji"`
+	InjectionAckReactEmoji        string                 `json:"injection_ack_react_emoji" yaml:"injection_ack_react_emoji"`
+	FinalAnswerReviewReactEmoji   string                 `json:"final_answer_review_react_emoji" yaml:"final_answer_review_react_emoji"`
+	MemoryEnabled                 *bool                  `json:"memory_enabled" yaml:"memory_enabled"`
+	ShowToolProgress              *bool                  `json:"show_tool_progress" yaml:"show_tool_progress"`
+	ShowPlanClarifyMessages       *bool                  `json:"show_plan_clarify_messages" yaml:"show_plan_clarify_messages"`
+	AutoChatContextSize           *int                   `json:"auto_chat_context_size" yaml:"auto_chat_context_size"`
+	PlanReviewEnabled             *bool                  `json:"plan_review_enabled" yaml:"plan_review_enabled"`
+	PlanReviewRequireConfirmation *bool                  `json:"plan_review_require_confirmation" yaml:"plan_review_require_confirmation"`
+	PlanReviewPendingTTLMinutes   *int                   `json:"plan_review_pending_ttl_minutes" yaml:"plan_review_pending_ttl_minutes"`
+	Persistence                   *LarkPersistenceConfig `json:"persistence" yaml:"persistence"`
+	MaxConcurrentTasks            *int                   `json:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
+	DefaultPlanMode               *string                `json:"default_plan_mode" yaml:"default_plan_mode"`
+}
+
+// LarkPersistenceConfig captures Lark local persistence settings in YAML.
+type LarkPersistenceConfig struct {
+	Mode            string `json:"mode" yaml:"mode"`
+	Dir             string `json:"dir" yaml:"dir"`
+	RetentionHours  *int   `json:"retention_hours" yaml:"retention_hours"`
+	MaxTasksPerChat *int   `json:"max_tasks_per_chat" yaml:"max_tasks_per_chat"`
 }
 
 // LarkBrowserConfig captures local browser settings for the Lark channel.

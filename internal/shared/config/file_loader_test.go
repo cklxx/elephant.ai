@@ -115,15 +115,16 @@ channels:
   lark:
     app_id: "${LARK_APP_ID}"
     app_secret: "${LARK_APP_SECRET}"
-    card_callback_verification_token: "${LARK_VERIFICATION_TOKEN}"
-    card_callback_encrypt_key: "${LARK_ENCRYPT_KEY}"
+    persistence:
+      mode: "${LARK_PERSISTENCE_MODE}"
+      dir: "${LARK_PERSISTENCE_DIR}"
 `)
 
 	env := envMap{
-		"LARK_APP_ID":             "cli_test_app_id",
-		"LARK_APP_SECRET":         "secret_test",
-		"LARK_VERIFICATION_TOKEN": "verify_token_test",
-		"LARK_ENCRYPT_KEY":        "encrypt_key_test",
+		"LARK_APP_ID":           "cli_test_app_id",
+		"LARK_APP_SECRET":       "secret_test",
+		"LARK_PERSISTENCE_MODE": "file",
+		"LARK_PERSISTENCE_DIR":  "~/.alex/lark",
 	}
 
 	cfg, _, err := LoadFileConfig(
@@ -142,5 +143,14 @@ channels:
 	}
 	if cfg.Channels.Lark.AppSecret != "secret_test" {
 		t.Fatalf("expected app_secret expansion, got %q", cfg.Channels.Lark.AppSecret)
+	}
+	if cfg.Channels.Lark.Persistence == nil {
+		t.Fatalf("expected lark persistence config")
+	}
+	if cfg.Channels.Lark.Persistence.Mode != "file" {
+		t.Fatalf("expected persistence mode expansion, got %q", cfg.Channels.Lark.Persistence.Mode)
+	}
+	if cfg.Channels.Lark.Persistence.Dir != "~/.alex/lark" {
+		t.Fatalf("expected persistence dir expansion, got %q", cfg.Channels.Lark.Persistence.Dir)
 	}
 }

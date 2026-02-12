@@ -12,7 +12,6 @@ import (
 	"alex/internal/delivery/channels/lark"
 	serverApp "alex/internal/delivery/server/app"
 	larkoauth "alex/internal/infra/lark/oauth"
-	taskinfra "alex/internal/infra/task"
 	"alex/internal/shared/agent/presets"
 	"alex/internal/shared/async"
 	"alex/internal/shared/logging"
@@ -84,7 +83,10 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		PlanReviewEnabled:             larkCfg.PlanReviewEnabled,
 		PlanReviewRequireConfirmation: larkCfg.PlanReviewRequireConfirmation,
 		PlanReviewPendingTTL:          larkCfg.PlanReviewPendingTTL,
-		TaskStoreEnabled:              larkCfg.TaskStoreEnabled,
+		PersistenceMode:               larkCfg.PersistenceMode,
+		PersistenceDir:                larkCfg.PersistenceDir,
+		PersistenceRetention:          larkCfg.PersistenceRetention,
+		PersistenceMaxTasksPerChat:    larkCfg.PersistenceMaxTasksPerChat,
 		MaxConcurrentTasks:            larkCfg.MaxConcurrentTasks,
 		DefaultPlanMode:               lark.PlanMode(larkCfg.DefaultPlanMode),
 	}
@@ -109,32 +111,30 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		}
 	}
 
+	if strings.TrimSpace(gatewayCfg.PersistenceMode) == "" {
+		gatewayCfg.PersistenceMode = larkPersistenceModeFile
+	}
+	if strings.TrimSpace(gatewayCfg.PersistenceDir) == "" {
+		gatewayCfg.PersistenceDir = filepath.Join(container.SessionDir(), "lark")
+	}
+
 	var planReviewStore lark.PlanReviewStore
 	if gatewayCfg.PlanReviewEnabled {
-		if container.SessionDB == nil {
-			logger.Warn("Lark plan review disabled: session DB not configured")
+		store, err := buildLarkPlanReviewStore(ctx, gatewayCfg)
+		if err != nil {
+			logger.Warn("Lark plan review store init failed: %v", err)
 			gatewayCfg.PlanReviewEnabled = false
 		} else {
-			store := lark.NewPlanReviewPostgresStore(container.SessionDB, gatewayCfg.PlanReviewPendingTTL)
-			if err := store.EnsureSchema(ctx); err != nil {
-				logger.Warn("Lark plan review store init failed: %v", err)
-				gatewayCfg.PlanReviewEnabled = false
-			} else {
-				planReviewStore = store
-			}
+			planReviewStore = store
 		}
 	}
 
 	var chatSessionStore lark.ChatSessionBindingStore
-	if container.SessionDB == nil {
-		logger.Warn("Lark chat session persistence disabled: session DB not configured")
+	store, err := buildLarkChatSessionStore(ctx, gatewayCfg)
+	if err != nil {
+		logger.Warn("Lark chat session binding store init failed: %v", err)
 	} else {
-		store := lark.NewChatSessionBindingPostgresStore(container.SessionDB)
-		if err := store.EnsureSchema(ctx); err != nil {
-			logger.Warn("Lark chat session binding store init failed: %v", err)
-		} else {
-			chatSessionStore = store
-		}
+		chatSessionStore = store
 	}
 
 	gateway, err := lark.NewGateway(gatewayCfg, altCoord.AgentCoordinator, logger)
@@ -161,28 +161,15 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 		gateway.SetChatSessionBindingStore(chatSessionStore)
 	}
 
-	// Wire task store for /cc, /codex, /task commands.
-	// Prefer the unified task store (shared with server) when available.
-	if gatewayCfg.TaskStoreEnabled {
-		if container.TaskStore != nil {
-			larkAdapter := taskinfra.NewLarkAdapter(container.TaskStore)
-			gateway.SetTaskStore(larkAdapter)
-			if err := larkAdapter.MarkStaleRunning(ctx, "gateway restart"); err != nil {
-				logger.Warn("Lark task store stale cleanup failed: %v", err)
-			}
-			logger.Info("Lark task store enabled (unified Postgres)")
-		} else if container.SessionDB != nil {
-			taskStore := lark.NewTaskPostgresStore(container.SessionDB)
-			if err := taskStore.EnsureSchema(ctx); err != nil {
-				logger.Warn("Lark task store init failed: %v", err)
-			} else {
-				gateway.SetTaskStore(taskStore)
-				if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
-					logger.Warn("Lark task store stale cleanup failed: %v", err)
-				}
-				logger.Info("Lark task store enabled (legacy Postgres)")
-			}
+	taskStore, err := buildLarkTaskStore(ctx, gatewayCfg)
+	if err != nil {
+		logger.Warn("Lark task store init failed: %v", err)
+	} else {
+		gateway.SetTaskStore(taskStore)
+		if err := taskStore.MarkStaleRunning(ctx, "gateway restart"); err != nil {
+			logger.Warn("Lark task store stale cleanup failed: %v", err)
 		}
+		logger.Info("Lark task store enabled (mode=%s)", strings.ToLower(strings.TrimSpace(gatewayCfg.PersistenceMode)))
 	}
 
 	async.Go(logger, "lark.gateway", func() {
@@ -202,6 +189,75 @@ func startLarkGateway(ctx context.Context, cfg Config, container *di.Container, 
 	}
 
 	return cleanup, nil
+}
+
+func buildLarkPlanReviewStore(ctx context.Context, cfg lark.Config) (lark.PlanReviewStore, error) {
+	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	switch mode {
+	case larkPersistenceModeMemory:
+		store := lark.NewPlanReviewMemoryStore(cfg.PlanReviewPendingTTL)
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	case larkPersistenceModeFile:
+		store, err := lark.NewPlanReviewFileStore(cfg.PersistenceDir, cfg.PlanReviewPendingTTL)
+		if err != nil {
+			return nil, err
+		}
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	default:
+		return nil, fmt.Errorf("unsupported lark persistence mode %q", cfg.PersistenceMode)
+	}
+}
+
+func buildLarkChatSessionStore(ctx context.Context, cfg lark.Config) (lark.ChatSessionBindingStore, error) {
+	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	switch mode {
+	case larkPersistenceModeMemory:
+		store := lark.NewChatSessionBindingMemoryStore()
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	case larkPersistenceModeFile:
+		store, err := lark.NewChatSessionBindingFileStore(cfg.PersistenceDir)
+		if err != nil {
+			return nil, err
+		}
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	default:
+		return nil, fmt.Errorf("unsupported lark persistence mode %q", cfg.PersistenceMode)
+	}
+}
+
+func buildLarkTaskStore(ctx context.Context, cfg lark.Config) (lark.TaskStore, error) {
+	mode := strings.ToLower(strings.TrimSpace(cfg.PersistenceMode))
+	switch mode {
+	case larkPersistenceModeMemory:
+		store := lark.NewTaskMemoryStore(cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	case larkPersistenceModeFile:
+		store, err := lark.NewTaskFileStore(cfg.PersistenceDir, cfg.PersistenceRetention, cfg.PersistenceMaxTasksPerChat)
+		if err != nil {
+			return nil, err
+		}
+		if err := store.EnsureSchema(ctx); err != nil {
+			return nil, err
+		}
+		return store, nil
+	default:
+		return nil, fmt.Errorf("unsupported lark persistence mode %q", cfg.PersistenceMode)
+	}
 }
 
 func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Container, logger logging.Logger) *larkoauth.Service {
@@ -230,26 +286,13 @@ func buildLarkOAuthService(ctx context.Context, cfg Config, container *di.Contai
 	}
 	redirectBase = strings.TrimRight(redirectBase, "/")
 
-	var tokenStore larkoauth.TokenStore
-	if container.SessionDB != nil {
-		store := larkoauth.NewPostgresTokenStore(container.SessionDB)
-		if err := store.EnsureSchema(ctx); err != nil {
-			logger.Warn("Lark OAuth token store init failed (Postgres): %v", err)
-		} else {
-			tokenStore = store
-			logger.Info("Lark OAuth token store backed by Postgres")
-		}
+	dir := filepath.Join(container.SessionDir(), "_lark_oauth")
+	tokenStore, err := larkoauth.NewFileTokenStore(dir)
+	if err != nil {
+		logger.Warn("Lark OAuth token store init failed (file): %v", err)
+		return nil
 	}
-	if tokenStore == nil {
-		dir := filepath.Join(container.SessionDir(), "_lark_oauth")
-		store, err := larkoauth.NewFileTokenStore(dir)
-		if err != nil {
-			logger.Warn("Lark OAuth token store init failed (file): %v", err)
-			return nil
-		}
-		tokenStore = store
-		logger.Info("Lark OAuth token store backed by file: %s", dir)
-	}
+	logger.Info("Lark OAuth token store backed by file: %s", dir)
 
 	svc, err := larkoauth.NewService(larkoauth.ServiceConfig{
 		AppID:        larkCfg.AppID,

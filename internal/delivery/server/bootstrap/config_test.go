@@ -85,6 +85,92 @@ func TestLoadConfig_EventHistoryAsyncDefaults(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_LarkPersistenceDefaults(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	if cr.Config.Channels.Lark.PersistenceMode != "file" {
+		t.Fatalf("expected default persistence mode file, got %q", cr.Config.Channels.Lark.PersistenceMode)
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("resolve home dir: %v", err)
+	}
+	wantDir := filepath.Join(home, ".alex", "lark")
+	if cr.Config.Channels.Lark.PersistenceDir != wantDir {
+		t.Fatalf("expected default persistence dir %q, got %q", wantDir, cr.Config.Channels.Lark.PersistenceDir)
+	}
+	if cr.Config.Channels.Lark.PersistenceRetention != 7*24*time.Hour {
+		t.Fatalf("expected default persistence retention 168h, got %s", cr.Config.Channels.Lark.PersistenceRetention)
+	}
+	if cr.Config.Channels.Lark.PersistenceMaxTasksPerChat != 200 {
+		t.Fatalf("expected default max tasks per chat 200, got %d", cr.Config.Channels.Lark.PersistenceMaxTasksPerChat)
+	}
+}
+
+func TestLoadConfig_InvalidLarkPersistenceMode(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    persistence:
+      mode: invalid
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	_, err := LoadConfig()
+	if err == nil {
+		t.Fatalf("expected invalid persistence mode error")
+	}
+	if !strings.Contains(err.Error(), "channels.lark.persistence.mode") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadConfig_ExpandsLarkPersistenceDir(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	configContent := []byte(`
+runtime:
+  llm_provider: mock
+channels:
+  lark:
+    persistence:
+      mode: file
+      dir: "~/.alex/lark-custom"
+`)
+	if err := os.WriteFile(configPath, configContent, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("ALEX_CONFIG_PATH", configPath)
+	t.Setenv("LLM_PROVIDER", "mock")
+
+	cr, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatalf("resolve home dir: %v", err)
+	}
+	wantDir := filepath.Join(home, ".alex", "lark-custom")
+	if cr.Config.Channels.Lark.PersistenceDir != wantDir {
+		t.Fatalf("expected expanded persistence dir %q, got %q", wantDir, cr.Config.Channels.Lark.PersistenceDir)
+	}
+}
+
 func TestLoadConfig_AuthJWTSecretFromEnvFallback(t *testing.T) {
 	configPath := filepath.Join(t.TempDir(), "config.yaml")
 	configContent := []byte(`

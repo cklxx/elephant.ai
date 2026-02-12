@@ -150,6 +150,12 @@ func expandChannelsConfigEnv(lookup EnvLookup, parsed ChannelsConfig) ChannelsCo
 		browser.UserDataDir = expandEnvValue(lookup, browser.UserDataDir)
 		expanded.Browser = &browser
 	}
+	if expanded.Persistence != nil {
+		persistence := *expanded.Persistence
+		persistence.Mode = expandEnvValue(lookup, persistence.Mode)
+		persistence.Dir = expandEnvValue(lookup, persistence.Dir)
+		expanded.Persistence = &persistence
+	}
 	parsed.Lark = &expanded
 	return parsed
 }

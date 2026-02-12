@@ -102,7 +102,10 @@ type LarkGatewayConfig struct {
 	PlanReviewEnabled             bool
 	PlanReviewRequireConfirmation bool
 	PlanReviewPendingTTL          time.Duration
-	TaskStoreEnabled              bool
+	PersistenceMode               string
+	PersistenceDir                string
+	PersistenceRetention          time.Duration
+	PersistenceMaxTasksPerChat    int
 	MaxConcurrentTasks            int
 	DefaultPlanMode               string
 }
@@ -136,6 +139,11 @@ var defaultAllowedOrigins = []string{
 	"http://localhost:3001",
 	"https://alex.yourdomain.com",
 }
+
+const (
+	larkPersistenceModeFile   = "file"
+	larkPersistenceModeMemory = "memory"
+)
 
 func LoadConfig() (ConfigResult, error) {
 	envLookup := runtimeconfig.DefaultEnvLookup
@@ -235,8 +243,12 @@ func LoadConfig() (ConfigResult, error) {
 					Headless: true,
 					Timeout:  60 * time.Second,
 				},
-				ReactEmoji:          "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
-				AutoChatContextSize: 20,
+				ReactEmoji:                 "WAVE, Get, THINKING, MUSCLE, THUMBSUP, OK, THANKS, APPLAUSE, LGTM",
+				AutoChatContextSize:        20,
+				PersistenceMode:            larkPersistenceModeFile,
+				PersistenceDir:             "~/.alex/lark",
+				PersistenceRetention:       7 * 24 * time.Hour,
+				PersistenceMaxTasksPerChat: 200,
 			},
 		},
 		Attachment: attachments.StoreConfig{
@@ -252,6 +264,9 @@ func LoadConfig() (ConfigResult, error) {
 	applyServerFileConfig(&cfg, fileCfg)
 	applyLarkEnvFallback(&cfg, envLookup)
 	applyAuthEnvFallback(&cfg, envLookup)
+	if err := validateLarkPersistenceConfig(&cfg); err != nil {
+		return ConfigResult{}, err
+	}
 
 	report := runtimeconfig.ValidateRuntimeConfig(cfg.Runtime)
 	if report.HasErrors() {
@@ -406,8 +421,19 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if larkCfg.PlanReviewPendingTTLMinutes != nil && *larkCfg.PlanReviewPendingTTLMinutes > 0 {
 		cfg.Channels.Lark.PlanReviewPendingTTL = time.Duration(*larkCfg.PlanReviewPendingTTLMinutes) * time.Minute
 	}
-	if larkCfg.TaskStoreEnabled != nil {
-		cfg.Channels.Lark.TaskStoreEnabled = *larkCfg.TaskStoreEnabled
+	if larkCfg.Persistence != nil {
+		if mode := strings.TrimSpace(strings.ToLower(larkCfg.Persistence.Mode)); mode != "" {
+			cfg.Channels.Lark.PersistenceMode = mode
+		}
+		if dir := strings.TrimSpace(larkCfg.Persistence.Dir); dir != "" {
+			cfg.Channels.Lark.PersistenceDir = dir
+		}
+		if larkCfg.Persistence.RetentionHours != nil && *larkCfg.Persistence.RetentionHours > 0 {
+			cfg.Channels.Lark.PersistenceRetention = time.Duration(*larkCfg.Persistence.RetentionHours) * time.Hour
+		}
+		if larkCfg.Persistence.MaxTasksPerChat != nil && *larkCfg.Persistence.MaxTasksPerChat > 0 {
+			cfg.Channels.Lark.PersistenceMaxTasksPerChat = *larkCfg.Persistence.MaxTasksPerChat
+		}
 	}
 	if larkCfg.MaxConcurrentTasks != nil && *larkCfg.MaxConcurrentTasks > 0 {
 		cfg.Channels.Lark.MaxConcurrentTasks = *larkCfg.MaxConcurrentTasks
@@ -415,6 +441,37 @@ func applyLarkConfig(cfg *Config, file runtimeconfig.FileConfig) {
 	if larkCfg.DefaultPlanMode != nil {
 		cfg.Channels.Lark.DefaultPlanMode = strings.TrimSpace(*larkCfg.DefaultPlanMode)
 	}
+}
+
+func validateLarkPersistenceConfig(cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+	mode := strings.TrimSpace(strings.ToLower(cfg.Channels.Lark.PersistenceMode))
+	if mode == "" {
+		mode = larkPersistenceModeFile
+	}
+	switch mode {
+	case larkPersistenceModeFile, larkPersistenceModeMemory:
+	default:
+		return fmt.Errorf("channels.lark.persistence.mode must be one of [file,memory], got %q", mode)
+	}
+	cfg.Channels.Lark.PersistenceMode = mode
+
+	if mode == larkPersistenceModeFile {
+		dir := strings.TrimSpace(cfg.Channels.Lark.PersistenceDir)
+		if dir == "" {
+			return fmt.Errorf("channels.lark.persistence.dir is required when persistence.mode=file")
+		}
+		cfg.Channels.Lark.PersistenceDir = expandHome(dir)
+	}
+	if cfg.Channels.Lark.PersistenceRetention <= 0 {
+		cfg.Channels.Lark.PersistenceRetention = 7 * 24 * time.Hour
+	}
+	if cfg.Channels.Lark.PersistenceMaxTasksPerChat <= 0 {
+		cfg.Channels.Lark.PersistenceMaxTasksPerChat = 200
+	}
+	return nil
 }
 
 func applyServerHTTPConfig(cfg *Config, file runtimeconfig.FileConfig) {
