@@ -8,14 +8,15 @@ const (
 )
 
 // KernelConfig holds only the fields the Engine reads at runtime.
-// DI-only concerns (Enabled, TimeoutSeconds, LeaseSeconds, ChatID,
-// Agents) stay in KernelProactiveConfig and are consumed by the DI builder.
+// DI-only concerns (Enabled, TimeoutSeconds, LeaseSeconds, Agents) stay in
+// KernelProactiveConfig and are consumed by the DI builder.
 type KernelConfig struct {
 	KernelID      string `yaml:"kernel_id"`
 	Schedule      string `yaml:"schedule"`
 	SeedState     string `yaml:"seed_state"`
 	MaxConcurrent int    `yaml:"max_concurrent"`
 	Channel       string `yaml:"channel"`
+	ChatID        string `yaml:"chat_id"`
 	UserID        string `yaml:"user_id"`
 }
 

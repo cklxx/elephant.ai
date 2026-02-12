@@ -171,7 +171,7 @@ func TestEngine_RunCycle_EmptyPlan(t *testing.T) {
 }
 
 func TestEngine_RunCycle_AllSucceed(t *testing.T) {
-	exec := &mockExecutor{}
+	exec := &mockExecutor{summaries: []string{"done a", "done b"}}
 	engine, store := newTestEngine(t, exec)
 
 	result, err := engine.RunCycle(context.Background())
@@ -190,6 +190,12 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 	if result.Failed != 0 {
 		t.Errorf("expected 0 failed, got %d", result.Failed)
 	}
+	if len(result.AgentSummary) != 2 {
+		t.Fatalf("expected 2 agent summaries, got %d", len(result.AgentSummary))
+	}
+	if result.AgentSummary[0].Summary == "" || result.AgentSummary[1].Summary == "" {
+		t.Fatalf("expected non-empty summaries: %#v", result.AgentSummary)
+	}
 	if exec.callCount() != 2 {
 		t.Errorf("expected 2 executor calls, got %d", exec.callCount())
 	}
@@ -203,9 +209,37 @@ func TestEngine_RunCycle_AllSucceed(t *testing.T) {
 	store.mu.Unlock()
 }
 
+func TestEngine_RunCycle_PassesRoutingMeta(t *testing.T) {
+	exec := &mockExecutor{summaries: []string{"done a", "done b"}}
+	engine, _ := newTestEngine(t, exec)
+	engine.config.Channel = "lark"
+	engine.config.ChatID = "oc_chat"
+	engine.config.UserID = "ou_user"
+
+	if _, err := engine.RunCycle(context.Background()); err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+
+	calls := exec.getCalls()
+	if len(calls) == 0 {
+		t.Fatal("expected at least one executor call")
+	}
+	for _, call := range calls {
+		if got := call.Meta["channel"]; got != "lark" {
+			t.Fatalf("expected channel=lark, got %q", got)
+		}
+		if got := call.Meta["chat_id"]; got != "oc_chat" {
+			t.Fatalf("expected chat_id=oc_chat, got %q", got)
+		}
+		if got := call.Meta["user_id"]; got != "ou_user" {
+			t.Fatalf("expected user_id=ou_user, got %q", got)
+		}
+	}
+}
+
 func TestEngine_RunCycle_PartialFailure(t *testing.T) {
 	failExec := &failingExecutor{
-		inner:     &mockExecutor{},
+		inner:     &mockExecutor{summaries: []string{"ok"}},
 		failAgent: "agent-b",
 	}
 	engine, _ := newTestEngine(t, failExec)
@@ -226,6 +260,9 @@ func TestEngine_RunCycle_PartialFailure(t *testing.T) {
 	if len(result.FailedAgents) != 1 || result.FailedAgents[0] != "agent-b" {
 		t.Errorf("expected failed agent-b, got %v", result.FailedAgents)
 	}
+	if len(result.AgentSummary) != 2 {
+		t.Fatalf("expected 2 agent summaries, got %d", len(result.AgentSummary))
+	}
 }
 
 func TestEngine_RunCycle_AllFail(t *testing.T) {
@@ -245,7 +282,7 @@ func TestEngine_RunCycle_AllFail(t *testing.T) {
 }
 
 func TestEngine_RunCycle_SeedState(t *testing.T) {
-	exec := &mockExecutor{}
+	exec := &mockExecutor{summaries: []string{"done a", "done b"}}
 	engine, _ := newTestEngine(t, exec)
 
 	// First cycle should seed the state file.
@@ -267,6 +304,9 @@ func TestEngine_RunCycle_SeedState(t *testing.T) {
 	}
 	if !strings.Contains(content, "## kernel_runtime") {
 		t.Fatalf("state missing kernel runtime section: %q", content)
+	}
+	if !strings.Contains(content, "- agent_summary: ") {
+		t.Fatalf("state missing agent summary line: %q", content)
 	}
 }
 
@@ -290,6 +330,26 @@ func TestEngine_RunCycle_RuntimeSectionUpsertedOnce(t *testing.T) {
 	}
 	if got := strings.Count(content, kernelRuntimeSectionEnd); got != 1 {
 		t.Fatalf("expected exactly one runtime section end marker, got %d: %q", got, content)
+	}
+}
+
+func TestEngine_RunCycle_RefreshesSystemPromptSnapshot(t *testing.T) {
+	exec := &mockExecutor{}
+	engine, _ := newTestEngine(t, exec)
+	engine.SetSystemPromptProvider(func() string {
+		return "kernel prompt v2"
+	})
+
+	if _, err := engine.RunCycle(context.Background()); err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+
+	content, err := engine.stateFile.ReadSystemPrompt()
+	if err != nil {
+		t.Fatalf("ReadSystemPrompt: %v", err)
+	}
+	if !strings.Contains(content, "kernel prompt v2") {
+		t.Fatalf("expected system prompt snapshot refresh, got: %q", content)
 	}
 }
 
@@ -446,9 +506,9 @@ type failingExecutor struct {
 	failAgent string
 }
 
-func (f *failingExecutor) Execute(ctx context.Context, agentID, prompt string, meta map[string]string) (string, error) {
+func (f *failingExecutor) Execute(ctx context.Context, agentID, prompt string, meta map[string]string) (ExecutionResult, error) {
 	if agentID == f.failAgent {
-		return "", fmt.Errorf("simulated failure for %s", agentID)
+		return ExecutionResult{}, fmt.Errorf("simulated failure for %s", agentID)
 	}
 	return f.inner.Execute(ctx, agentID, prompt, meta)
 }

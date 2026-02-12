@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -35,13 +36,14 @@ func ValidateSchedule(expr string) error {
 // Engine runs the kernel agent loop: a cron-driven cycle that reads STATE.md,
 // plans dispatches, and executes them via the AgentCoordinator.
 type Engine struct {
-	config    KernelConfig
-	stateFile *StateFile
-	store     kerneldomain.Store
-	planner   Planner
-	executor  Executor
-	logger    logging.Logger
-	notifier  CycleNotifier // optional; called after non-empty cycles
+	config               KernelConfig
+	stateFile            *StateFile
+	store                kerneldomain.Store
+	planner              Planner
+	executor             Executor
+	logger               logging.Logger
+	notifier             CycleNotifier // optional; called after non-empty cycles
+	systemPromptProvider func() string
 
 	stopped  chan struct{}
 	stopOnce sync.Once
@@ -55,6 +57,12 @@ type staleDispatchRecoverer interface {
 // SetNotifier registers an optional callback invoked after each non-empty cycle.
 func (e *Engine) SetNotifier(fn func(ctx context.Context, result *kerneldomain.CycleResult, err error)) {
 	e.notifier = fn
+}
+
+// SetSystemPromptProvider registers an optional provider to refresh
+// SYSTEM_PROMPT.md snapshots each cycle.
+func (e *Engine) SetSystemPromptProvider(fn func() string) {
+	e.systemPromptProvider = fn
 }
 
 // NewEngine creates a new kernel engine.
@@ -83,6 +91,7 @@ func (e *Engine) RunCycle(ctx context.Context) (result *kerneldomain.CycleResult
 	cycleID := id.NewRunID()
 	defer func() {
 		e.persistCycleRuntimeState(result, err)
+		e.persistSystemPromptSnapshot()
 	}()
 
 	// 1. Read STATE.md (opaque text).
@@ -158,6 +167,19 @@ func (e *Engine) persistCycleRuntimeState(result *kerneldomain.CycleResult, cycl
 	}
 }
 
+func (e *Engine) persistSystemPromptSnapshot() {
+	if e.systemPromptProvider == nil {
+		return
+	}
+	prompt := strings.TrimSpace(e.systemPromptProvider())
+	if prompt == "" {
+		return
+	}
+	if err := e.stateFile.WriteSystemPrompt(RenderSystemPromptMarkdown(prompt, time.Now())); err != nil {
+		e.logger.Warn("Kernel: persist system prompt snapshot failed: %v", err)
+	}
+}
+
 func renderKernelRuntimeBlock(result *kerneldomain.CycleResult, cycleErr error, now time.Time) string {
 	lines := []string{
 		"## kernel_runtime",
@@ -171,6 +193,7 @@ func renderKernelRuntimeBlock(result *kerneldomain.CycleResult, cycleErr error, 
 			"- succeeded: 0",
 			"- failed: 0",
 			"- failed_agents: (none)",
+			"- agent_summary: (none)",
 			"- duration_ms: 0",
 		)
 	} else {
@@ -185,6 +208,7 @@ func renderKernelRuntimeBlock(result *kerneldomain.CycleResult, cycleErr error, 
 			fmt.Sprintf("- succeeded: %d", result.Succeeded),
 			fmt.Sprintf("- failed: %d", result.Failed),
 			fmt.Sprintf("- failed_agents: %s", failedAgents),
+			fmt.Sprintf("- agent_summary: %s", renderStateAgentSummary(result.AgentSummary)),
 			fmt.Sprintf("- duration_ms: %d", result.Duration.Milliseconds()),
 		)
 	}
@@ -194,6 +218,29 @@ func renderKernelRuntimeBlock(result *kerneldomain.CycleResult, cycleErr error, 
 		lines = append(lines, "- error: (none)")
 	}
 	return strings.Join(lines, "\n")
+}
+
+func renderStateAgentSummary(entries []kerneldomain.AgentCycleSummary) string {
+	if len(entries) == 0 {
+		return "(none)"
+	}
+	parts := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		status := string(entry.Status)
+		if status == "" {
+			status = string(kerneldomain.DispatchDone)
+		}
+		summary := strings.TrimSpace(entry.Summary)
+		if summary == "" {
+			summary = strings.TrimSpace(entry.Error)
+		}
+		if summary == "" {
+			summary = "(none)"
+		}
+		summary = compactSummary(summary, 180)
+		parts = append(parts, fmt.Sprintf("%s[%s]: %s", entry.AgentID, status, summary))
+	}
+	return strings.Join(parts, " | ")
 }
 
 func upsertKernelRuntimeBlock(content, runtimeBlock string) string {
@@ -267,8 +314,11 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 			if e.config.Channel != "" {
 				meta["channel"] = e.config.Channel
 			}
+			if e.config.ChatID != "" {
+				meta["chat_id"] = e.config.ChatID
+			}
 
-			taskID, execErr := e.executor.Execute(ctx, d.AgentID, d.Prompt, meta)
+			execResult, execErr := e.executor.Execute(ctx, d.AgentID, d.Prompt, meta)
 
 			mu.Lock()
 			defer mu.Unlock()
@@ -276,13 +326,24 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 			if execErr != nil {
 				result.Failed++
 				result.FailedAgents = append(result.FailedAgents, d.AgentID)
+				result.AgentSummary = append(result.AgentSummary, kerneldomain.AgentCycleSummary{
+					AgentID: d.AgentID,
+					Status:  kerneldomain.DispatchFailed,
+					Error:   execErr.Error(),
+				})
 				if markErr := e.store.MarkDispatchFailed(ctx, d.DispatchID, execErr.Error()); markErr != nil {
 					e.logger.Warn("Kernel: mark failed %s: %v", d.DispatchID, markErr)
 				}
 				e.logger.Warn("Kernel: dispatch %s (agent=%s) failed: %v", d.DispatchID, d.AgentID, execErr)
 			} else {
 				result.Succeeded++
-				if markErr := e.store.MarkDispatchDone(ctx, d.DispatchID, taskID); markErr != nil {
+				result.AgentSummary = append(result.AgentSummary, kerneldomain.AgentCycleSummary{
+					AgentID: d.AgentID,
+					TaskID:  execResult.TaskID,
+					Status:  kerneldomain.DispatchDone,
+					Summary: execResult.Summary,
+				})
+				if markErr := e.store.MarkDispatchDone(ctx, d.DispatchID, execResult.TaskID); markErr != nil {
 					e.logger.Warn("Kernel: mark done %s: %v", d.DispatchID, markErr)
 				}
 			}
@@ -290,6 +351,12 @@ func (e *Engine) executeDispatches(ctx context.Context, cycleID string, dispatch
 	}
 
 	wg.Wait()
+	sort.Slice(result.AgentSummary, func(i, j int) bool {
+		if result.AgentSummary[i].AgentID == result.AgentSummary[j].AgentID {
+			return result.AgentSummary[i].Status < result.AgentSummary[j].Status
+		}
+		return result.AgentSummary[i].AgentID < result.AgentSummary[j].AgentID
+	})
 
 	switch {
 	case result.Failed == 0:

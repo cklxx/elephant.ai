@@ -51,14 +51,24 @@ type Dispatch struct {
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
+// AgentCycleSummary captures one agent dispatch outcome in a cycle.
+type AgentCycleSummary struct {
+	AgentID string         `json:"agent_id"`
+	TaskID  string         `json:"task_id,omitempty"`
+	Status  DispatchStatus `json:"status"`
+	Summary string         `json:"summary,omitempty"`
+	Error   string         `json:"error,omitempty"`
+}
+
 // CycleResult is the summary returned by Engine.RunCycle.
 type CycleResult struct {
-	CycleID      string            `json:"cycle_id"`
-	KernelID     string            `json:"kernel_id"`
-	Status       CycleResultStatus `json:"status"`
-	Dispatched   int               `json:"dispatched"`
-	Succeeded    int               `json:"succeeded"`
-	Failed       int               `json:"failed"`
-	FailedAgents []string          `json:"failed_agents,omitempty"`
-	Duration     time.Duration     `json:"duration"`
+	CycleID      string              `json:"cycle_id"`
+	KernelID     string              `json:"kernel_id"`
+	Status       CycleResultStatus   `json:"status"`
+	Dispatched   int                 `json:"dispatched"`
+	Succeeded    int                 `json:"succeeded"`
+	Failed       int                 `json:"failed"`
+	FailedAgents []string            `json:"failed_agents,omitempty"`
+	AgentSummary []AgentCycleSummary `json:"agent_summary,omitempty"`
+	Duration     time.Duration       `json:"duration"`
 }

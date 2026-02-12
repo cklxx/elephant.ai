@@ -15,10 +15,14 @@ func TestFormatCycleNotification_Success(t *testing.T) {
 		Status:     kerneldomain.CycleSuccess,
 		Dispatched: 2,
 		Succeeded:  2,
-		Duration:   3200 * time.Millisecond,
+		AgentSummary: []kerneldomain.AgentCycleSummary{
+			{AgentID: "agent-a", Status: kerneldomain.DispatchDone, Summary: "已完成 A"},
+			{AgentID: "agent-b", Status: kerneldomain.DispatchDone, Summary: "已完成 B"},
+		},
+		Duration: 3200 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-1\n- 状态: success\n- 任务总数: 2\n- 已完成: 2\n- 失败: 0\n- 完成率: 100.0%\n- 失败任务: (none)\n- 耗时: 3.2s"
+	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-1\n- 状态: success\n- 任务总数: 2\n- 已完成: 2\n- 失败: 0\n- 完成率: 100.0%\n- 失败任务: (none)\n- 执行总结:\n  - [agent-a|done] 已完成 A\n  - [agent-b|done] 已完成 B\n- 耗时: 3.2s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -33,10 +37,14 @@ func TestFormatCycleNotification_PartialFailure(t *testing.T) {
 		Succeeded:    2,
 		Failed:       1,
 		FailedAgents: []string{"agent-b"},
-		Duration:     5100 * time.Millisecond,
+		AgentSummary: []kerneldomain.AgentCycleSummary{
+			{AgentID: "agent-a", Status: kerneldomain.DispatchDone, Summary: "修复配置"},
+			{AgentID: "agent-b", Status: kerneldomain.DispatchFailed, Error: "rate limit"},
+		},
+		Duration: 5100 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-2\n- 状态: partial_success\n- 任务总数: 3\n- 已完成: 2\n- 失败: 1\n- 完成率: 66.7%\n- 失败任务: agent-b\n- 耗时: 5.1s"
+	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-2\n- 状态: partial_success\n- 任务总数: 3\n- 已完成: 2\n- 失败: 1\n- 完成率: 66.7%\n- 失败任务: agent-b\n- 执行总结:\n  - [agent-a|done] 修复配置\n  - [agent-b|failed] rate limit\n- 耗时: 5.1s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
@@ -50,10 +58,14 @@ func TestFormatCycleNotification_AllFailed(t *testing.T) {
 		Dispatched:   2,
 		Failed:       2,
 		FailedAgents: []string{"agent-a", "agent-b"},
-		Duration:     1500 * time.Millisecond,
+		AgentSummary: []kerneldomain.AgentCycleSummary{
+			{AgentID: "agent-a", Status: kerneldomain.DispatchFailed, Error: "a failed"},
+			{AgentID: "agent-b", Status: kerneldomain.DispatchFailed, Error: "b failed"},
+		},
+		Duration: 1500 * time.Millisecond,
 	}
 	got := FormatCycleNotification("default", result, nil)
-	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-3\n- 状态: failed\n- 任务总数: 2\n- 已完成: 0\n- 失败: 2\n- 完成率: 0.0%\n- 失败任务: agent-a,agent-b\n- 耗时: 1.5s"
+	want := "Kernel[default] 周期完成总结\n- cycle_id: cycle-3\n- 状态: failed\n- 任务总数: 2\n- 已完成: 0\n- 失败: 2\n- 完成率: 0.0%\n- 失败任务: agent-a,agent-b\n- 执行总结:\n  - [agent-a|failed] a failed\n  - [agent-b|failed] b failed\n- 耗时: 1.5s"
 	if got != want {
 		t.Errorf("got %q, want %q", got, want)
 	}
