@@ -24,6 +24,14 @@ def _mock_api_response(data: dict):
     return mock_resp
 
 
+def _mock_binary_response(data: bytes):
+    mock_resp = MagicMock()
+    mock_resp.read.return_value = data
+    mock_resp.__enter__ = lambda s: s
+    mock_resp.__exit__ = MagicMock(return_value=False)
+    return mock_resp
+
+
 class TestGenerate:
     def test_missing_prompt(self):
         result = generate({})
@@ -58,14 +66,14 @@ class TestGenerate:
         monkeypatch.setenv("ARK_API_KEY", "key-123")
         monkeypatch.setenv("SEEDANCE_ENDPOINT_ID", "ep-123")
         output = str(tmp_path / "test.mp4")
-        resp = _mock_api_response({"data": [{"url": "https://example.com/v.mp4"}]})
+        resp_api = _mock_api_response({"data": [{"url": "https://example.com/v.mp4"}]})
+        resp_file = _mock_binary_response(b"fake-mp4-data")
 
-        with patch("urllib.request.urlopen", return_value=resp):
-            with patch("urllib.request.urlretrieve") as mock_dl:
-                result = generate({"prompt": "a cat dancing", "output": output})
-                assert result["success"] is True
-                assert result["path"] == output
-                mock_dl.assert_called_once()
+        with patch("urllib.request.urlopen", side_effect=[resp_api, resp_file]) as mock_open:
+            result = generate({"prompt": "a cat dancing", "output": output})
+            assert result["success"] is True
+            assert result["path"] == output
+            assert mock_open.call_count == 2
 
     def test_api_error(self, monkeypatch):
         import urllib.error

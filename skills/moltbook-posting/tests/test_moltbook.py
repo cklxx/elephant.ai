@@ -30,11 +30,11 @@ class TestPost:
     def test_missing_content(self):
         result = post({})
         assert result["success"] is False
-        assert "content" in result["error"]
+        assert "title" in result["error"]
 
     def test_no_api_key(self, monkeypatch):
         monkeypatch.setattr(_mod, "_API_KEY", "")
-        result = post({"content": "hello"})
+        result = post({"title": "hello", "content": "world"})
         assert result["success"] is False
         assert "API_KEY" in result["error"]
 
@@ -42,7 +42,7 @@ class TestPost:
         monkeypatch.setattr(_mod, "_API_KEY", "test-key")
         resp = _mock_api_response({"data": {"id": "123", "content": "hello"}})
         with patch("urllib.request.urlopen", return_value=resp):
-            result = post({"content": "hello", "tags": ["test"]})
+            result = post({"title": "hello", "content": "hello", "tags": ["test"]})
             assert result["success"] is True
             assert result["post"]["id"] == "123"
 
