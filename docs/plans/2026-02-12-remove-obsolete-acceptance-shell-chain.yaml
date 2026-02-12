@@ -1,0 +1,23 @@
+title: Remove obsolete acceptance shell script chain
+date: 2026-02-12
+status: completed
+owner: codex
+
+summary:
+  problem: >
+    Legacy acceptance shell scripts are incompatible with current server contracts
+    (auth-required APIs, updated health payload, run_id schema) and produce invalid failures.
+  goal: >
+    Remove obsolete script entrypoints and replace acceptance docs with the current
+    validation path so engineers cannot accidentally run stale flow.
+
+steps:
+  - id: R1
+    name: Delete obsolete acceptance script chain files
+    status: completed
+  - id: R2
+    name: Replace acceptance README with deprecation + current alternatives
+    status: completed
+  - id: R3
+    name: Verify no remaining references to removed scripts
+    status: completed
