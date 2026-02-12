@@ -35,10 +35,16 @@ type Engine struct {
 	planner   Planner
 	executor  Executor
 	logger    logging.Logger
+	notifier  CycleNotifier // optional; called after non-empty cycles
 
 	stopped  chan struct{}
 	stopOnce sync.Once
 	wg       sync.WaitGroup // tracks in-flight RunCycle goroutines
+}
+
+// SetNotifier registers an optional callback invoked after each non-empty cycle.
+func (e *Engine) SetNotifier(fn func(ctx context.Context, result *kerneldomain.CycleResult, err error)) {
+	e.notifier = fn
 }
 
 // NewEngine creates a new kernel engine.
@@ -224,6 +230,12 @@ func (e *Engine) Run(ctx context.Context) {
 					e.logger.Info("Kernel[%s] cycle %s: %s (dispatched=%d ok=%d fail=%d %s)",
 						e.config.KernelID, result.CycleID, result.Status,
 						result.Dispatched, result.Succeeded, result.Failed, result.Duration)
+				}
+				// Notify on non-empty cycles or errors.
+				if e.notifier != nil {
+					if cycleErr != nil || (result != nil && result.Dispatched > 0) {
+						e.notifier(ctx, result, cycleErr)
+					}
 				}
 			}()
 		}

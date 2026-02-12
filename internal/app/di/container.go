@@ -14,6 +14,7 @@ import (
 	agentstorage "alex/internal/domain/agent/ports/storage"
 	tools "alex/internal/domain/agent/ports/tools"
 	react "alex/internal/domain/agent/react"
+	kerneldomain "alex/internal/domain/kernel"
 	taskdomain "alex/internal/domain/task"
 	larkoauth "alex/internal/infra/lark/oauth"
 	"alex/internal/infra/llm"
@@ -39,6 +40,7 @@ type KernelEngine interface {
 	Stop()
 	Name() string
 	Drain(ctx context.Context) error
+	SetNotifier(func(ctx context.Context, result *kerneldomain.CycleResult, err error))
 }
 
 // Container holds all application dependencies

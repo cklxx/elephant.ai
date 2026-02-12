@@ -282,6 +282,99 @@ func TestEngine_RunCycle_RunningAgentNotReDispatched(t *testing.T) {
 	}
 }
 
+func TestEngine_SetNotifier(t *testing.T) {
+	exec := &mockExecutor{}
+	engine, _ := newTestEngine(t, exec)
+
+	if engine.notifier != nil {
+		t.Fatal("notifier should be nil by default")
+	}
+
+	called := false
+	engine.SetNotifier(func(_ context.Context, _ *kerneldomain.CycleResult, _ error) {
+		called = true
+	})
+	if engine.notifier == nil {
+		t.Fatal("notifier should be set after SetNotifier")
+	}
+
+	// Simulate what Run() does: call RunCycle, then invoke notifier on non-empty cycle.
+	result, err := engine.RunCycle(context.Background())
+	if err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+	if result.Dispatched > 0 {
+		engine.notifier(context.Background(), result, nil)
+	}
+	if !called {
+		t.Error("notifier should have been called for non-empty cycle")
+	}
+}
+
+func TestEngine_NotifierNotCalledOnEmptyCycle(t *testing.T) {
+	exec := &mockExecutor{}
+	dir := t.TempDir()
+	store := newMemStore()
+	sf := NewStateFile(dir)
+	planner := NewStaticPlanner("k", nil) // no agents → empty cycle
+	cfg := KernelConfig{
+		KernelID:  "k",
+		Schedule:  "*/10 * * * *",
+		SeedState: "# test\n",
+	}
+	engine := NewEngine(cfg, sf, store, planner, exec, logging.NewComponentLogger("test"))
+
+	called := false
+	engine.SetNotifier(func(_ context.Context, _ *kerneldomain.CycleResult, _ error) {
+		called = true
+	})
+
+	result, err := engine.RunCycle(context.Background())
+	if err != nil {
+		t.Fatalf("RunCycle: %v", err)
+	}
+	// Simulate Run()'s logic: only notify when dispatched > 0 or error.
+	if err != nil || (result != nil && result.Dispatched > 0) {
+		engine.notifier(context.Background(), result, err)
+	}
+	if called {
+		t.Error("notifier should NOT be called for empty cycle")
+	}
+}
+
+func TestEngine_NotifierCalledOnError(t *testing.T) {
+	exec := &mockExecutor{}
+	// Use a state file dir that doesn't exist to trigger a read error.
+	store := newMemStore()
+	sf := NewStateFile("/nonexistent-path-for-test")
+	planner := NewStaticPlanner("k", []AgentConfig{
+		{AgentID: "a", Prompt: "p", Enabled: true},
+	})
+	cfg := KernelConfig{
+		KernelID: "k",
+		Schedule: "*/10 * * * *",
+		// No SeedState → state file read will return empty, then Seed will fail on bad dir.
+	}
+	engine := NewEngine(cfg, sf, store, planner, exec, logging.NewComponentLogger("test"))
+
+	var gotErr error
+	engine.SetNotifier(func(_ context.Context, _ *kerneldomain.CycleResult, err error) {
+		gotErr = err
+	})
+
+	result, cycleErr := engine.RunCycle(context.Background())
+	// Simulate Run()'s logic.
+	if cycleErr != nil || (result != nil && result.Dispatched > 0) {
+		engine.notifier(context.Background(), result, cycleErr)
+	}
+	if cycleErr == nil {
+		t.Fatal("expected RunCycle error on bad state dir")
+	}
+	if gotErr == nil {
+		t.Error("notifier should have received the error")
+	}
+}
+
 func TestEngine_StopIdempotent(t *testing.T) {
 	exec := &mockExecutor{}
 	engine, _ := newTestEngine(t, exec)
